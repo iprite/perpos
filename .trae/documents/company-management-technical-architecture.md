@@ -19,8 +19,9 @@ graph TD
 ```
 
 ## 2.Technology Description
-- Frontend: React@18 + vite + tailwindcss@3
-- Backend: Supabase (Auth + Database + Storage)
+- Frontend: Next.js (App Router) + Tailwind CSS + rizzui (UI) บนฐาน template `apps/isomorphic-starter`
+- Monorepo: pnpm workspaces + Turborepo
+- Backend: Supabase (Auth + Database + Row Level Security)
 
 ## 2.2 Google Drive Document Linking
 - เอกสารทั้งหมดอ้างอิงผ่าน Google Drive โดยเก็บ `drive_file_id` และ/หรือ `drive_web_view_link` ในฐานข้อมูล
@@ -49,8 +50,9 @@ graph TD
 ## 3.Route definitions
 | Route | Purpose |
 |-------|---------|
-| /login | เข้าสู่ระบบด้วยบัญชีบริษัท |
-| / | แดชบอร์ดสรุปงานและแจ้งเตือน |
+| /sign-in | เข้าสู่ระบบด้วยบัญชี Supabase (email/password) |
+| /sign-up | สร้างบัญชี Supabase (email/password) |
+| / | แดชบอร์ดสรุปงานและแจ้งเตือน (ต้องล็อกอิน) |
 | /services | การจัดการบริการ (Service) |
 | /customers | การจัดการข้อมูลนายจ้าง/ลูกค้า (Employer/Customer) |
 | /representatives | จัดการรายชื่อตัวแทน/ผู้รับมอบอำนาจของนายจ้าง/ลูกค้า |
@@ -62,6 +64,12 @@ graph TD
 | /poa-requests | คำขอหนังสือมอบอำนาจ (Representative submit / Operation review) |
 | /my-customers | (Representative) จัดการนายจ้าง/ลูกค้าของตน |
 | /my-workers | (Representative) จัดการแรงงานของตน |
+
+## 4.Development
+- รัน dev server: `pnpm starter:dev` (เปิดที่ `http://localhost:3002`)
+- Lint: `pnpm starter:lint`
+- Typecheck: `pnpm --filter=starter type:check`
+- Build: `pnpm starter:build`
 
 ## 6.Data model(if applicable)
 

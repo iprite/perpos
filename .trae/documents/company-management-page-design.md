@@ -244,33 +244,59 @@
 * Description: จัดการรายชื่อผู้แทนของนายจ้าง/ลูกค้า และกำหนดขอบเขตสิทธิ์
 
 ### Layout
-* Top toolbar + Table + Side panel/Modal (เหมือนหน้าลูกค้า)
+* Top toolbar + Table + Modal (Popup)
+* Desktop-first: ตารางเต็มกว้าง + ป๊อปอัปแก้ไขแบบ centered (max-width ~960px)
 
 ### Page Structure
 * Toolbar:
   * Search (ชื่อ/เบอร์/อีเมล)
   * Filter: นายจ้าง/ลูกค้า (เลือกองค์กร)
-  * Filter: สถานะบัญชี (active/inactive/invited)
+  * Filter: สถานะ (3 ค่า: ปกติ / พักใช้ / ยกเลิกถาวร)
   * ปุ่ม “เพิ่มตัวแทน” (Primary)
+  * หมายเหตุ: **ไม่มีปุ่ม Import** ในหน้านี้
 * Representatives Table
-* Create/Edit Modal
+* Edit Representative Popup (Create/Edit)
 * View Scope Panel (แสดงขอบเขตงาน/คำสั่งซื้อที่อนุญาต)
 
 ### Sections & Components
-* Representatives Table columns: ชื่อ, นายจ้าง/ลูกค้า, เบอร์โทร, อีเมล, สถานะ, การกระทำ
+* Representatives Table columns: รูป, ชื่อ, นายจ้าง/ลูกค้า, เบอร์โทร, อีเมล, สถานะ, การกระทำ
 * Actions ต่อแถว:
-  * ดูรายละเอียด/แก้ไข
-  * เปิด/ปิดการใช้งาน
+  * แก้ไข (เปิดป๊อปอัป)
+  * เปิด/ปิดการใช้งาน (สอดคล้องกับ status)
   * ส่งคำเชิญ/รีเซ็ตรหัสผ่าน (ถ้ามีบัญชี)
   * กำหนดขอบเขตงาน (เช่น จำกัดตามคำสั่งซื้อ)
-* Create/Edit Modal fields:
+
+#### Edit Representative Popup (Popup: แก้ไขตัวแทนบริษัท)
+* Layout (ใหม่): CSS Grid 12 คอลัมน์ (desktop)
+  * Left (4 cols): รูปโปรไฟล์/อัปโหลดรูป
+  * Right (8 cols): ฟิลด์ข้อมูล + รายการเอกสาร
+* Header:
+  * Title: “แก้ไขตัวแทนบริษัท” (หรือ “เพิ่มตัวแทน” ตามโหมด)
+  * Close (X)
+* Left section — อัปโหลดรูป (เหมือนหน้าแก้ไขแรงงาน):
+  * ใช้คอมโพเนนต์ส่วนกลางแนวเดียวกับ “File/Image Upload Field”
+  * โหมดรูปเดียว (single image): แสดง avatar preview ขนาด ~120–160px
+  * Actions: “เลือกไฟล์รูป” / “ลบรูป”
+  * Validation ขั้นต่ำ: รับเฉพาะ .jpg/.png
+* Right section — ฟิลด์ข้อมูล (Create/Edit):
   * นายจ้าง/ลูกค้า (required)
   * ชื่อ-สกุล (required)
-  * เบอร์โทร, อีเมล
+  * เบอร์โทร
+  * **อีเมล** (validate รูปแบบอีเมล; required เมื่อเปิดสวิตช์ “อนุญาตเข้าใช้งานระบบ”)
+  * สถานะ (dropdown 3 ค่า): ปกติ / พักใช้ / ยกเลิกถาวร
   * หมายเหตุ
-  * สวิตช์ “อนุญาตเข้าใช้งานระบบ” (สร้างบัญชี role=representative)
+  * สวิตช์ “อนุญาตเข้าใช้งานระบบ” (สร้าง/ผูกบัญชี role=representative)
+* Right section — รายการเอกสาร (Documents):
+  * ตาราง/ลิสต์เอกสารแนบของตัวแทน (เก็บเป็นลิงก์ Google Drive)
+  * Columns ขั้นต่ำ: ชื่อเอกสาร, ประเภทเอกสาร, ลิงก์, อัปเดตล่าสุด, การกระทำ
+  * Actions: “เพิ่มเอกสาร”, “แก้ไข”, “ลบ”, “เปิดเอกสาร” (new tab)
+  * ฟอร์มเพิ่ม/แก้ไขเอกสาร (inline row หรือ modal ซ้อนแบบเล็ก): ชื่อเอกสาร, ประเภท, Google Drive link
+* Footer actions:
+  * Secondary: ยกเลิก
+  * Primary: บันทึก
 * Permission note:
   * ตัวแทนที่ “เข้าใช้งานระบบได้” ต้องเห็นเฉพาะคำสั่งซื้อ/งานที่ถูกกำหนดให้เท่านั้น
+  * หมายเหตุ: **ไม่มีปุ่ม Import** ภายในป๊อปอัปนี้
 
 ***
 
