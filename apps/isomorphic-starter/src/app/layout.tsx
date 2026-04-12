@@ -8,6 +8,7 @@ import GlobalModal from "@/app/shared/modal-views/container";
 import { AuthProvider } from "@/app/shared/auth-provider";
 import { ConfirmDialogProvider } from "@/app/shared/confirm-dialog/provider";
 import AppToaster from "@/app/shared/toaster";
+import { Analytics } from "@vercel/analytics/next";
 
 import "./globals.css";
 
@@ -37,6 +38,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 <GlobalDrawer />
                 <GlobalModal />
                 <AppToaster />
+                <Analytics />
               </ConfirmDialogProvider>
             </AuthProvider>
           </JotaiProvider>
