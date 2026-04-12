@@ -65,7 +65,7 @@ const timeOnlyClasses = {
 };
 
 const popperClasses = {
-  base: "z-[1000] [&>svg]:!fill-white dark:[&>svg]:!fill-gray-100 [&>svg]:!stroke-gray-300 dark:[&>svg]:!stroke-muted dark:[&>svg]:!text-muted",
+  base: "!z-[2147483647] [&>svg]:!fill-white dark:[&>svg]:!fill-gray-100 [&>svg]:!stroke-gray-300 dark:[&>svg]:!stroke-muted dark:[&>svg]:!text-muted",
 };
 
 export type DatePickerProps = ReactDatePickerProps & {
@@ -82,6 +82,7 @@ export const DatePicker = ({
   renderCustomHeader,
   dateFormat = "d MMMM yyyy",
   showPopperArrow = false,
+  portalId = "react-datepicker-portal",
   ...props
 }: DatePickerProps) => {
   const [isCalenderOpen, setIsCalenderOpen] = useState(false);
@@ -205,6 +206,7 @@ export const DatePicker = ({
           calendarClassName
         )}
         popperClassName={cn(popperClasses.base, popperClassName)}
+        portalId={portalId}
         dateFormat={dateFormat}
         showPopperArrow={showPopperArrow}
         {...props}

@@ -46,6 +46,7 @@ export default async function RootLayout({
               <Toaster />
               <GlobalDrawer />
               <GlobalModal />
+              <div id="react-datepicker-portal" />
             </JotaiProvider>
           </ThemeProvider>
         </AuthProvider>

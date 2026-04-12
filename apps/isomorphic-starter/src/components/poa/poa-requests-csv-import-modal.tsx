@@ -187,6 +187,7 @@ export function PoaRequestsCsvImportModal({ onImported }: PoaRequestsCsvImportMo
 
                 for (let i = 0; i < parsed.length; i += batchSize) {
                   const batch = parsed.slice(i, i + batchSize);
+                  const todayStr = new Date().toISOString().slice(0, 10);
                   const importIds = Array.from(new Set(batch.map((b) => b.import_temp_id).filter((x) => x.length > 0)));
 
                   const existingMap = new Map<string, { id: string }>();
@@ -292,6 +293,38 @@ export function PoaRequestsCsvImportModal({ onImported }: PoaRequestsCsvImportMo
                       .from("poa_request_items")
                       .upsert(itemUpserts, { onConflict: "poa_request_id,poa_request_type_id" });
                     if (itemErr) throw new Error(itemErr.message);
+                  }
+
+                  const txUpserts: any[] = [];
+                  for (const row of batch) {
+                    const req = reqByImportId.get(row.import_temp_id);
+                    if (!req) continue;
+
+                    const statusText = String(row.payment_status_text ?? req.payment_status_text ?? "");
+                    const isConfirmed = statusText.includes("ยืนยัน");
+                    const amt = Number(row.payment_amount ?? 0);
+                    if (!isConfirmed || !Number.isFinite(amt) || amt <= 0) continue;
+
+                    txUpserts.push({
+                      order_id: null,
+                      poa_request_id: req.id,
+                      txn_type: "INCOME",
+                      source_type: "AGENT_POA",
+                      amount: amt,
+                      currency: "THB",
+                      txn_date: row.payment_date ?? todayStr,
+                      reference_no: null,
+                      note: "POA payment (legacy import)",
+                      source_table: "poa_requests",
+                      source_id: req.id,
+                    });
+                  }
+
+                  if (txUpserts.length) {
+                    const { error: txErr } = await supabase
+                      .from("payment_transactions")
+                      .upsert(txUpserts, { onConflict: "source_table,source_id" });
+                    if (txErr) throw new Error(txErr.message);
                   }
 
                   setProgress(Math.min(100, ((i + batch.length) / parsed.length) * 100));

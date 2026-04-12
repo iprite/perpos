@@ -16,8 +16,7 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 type PoaPaymentRow = {
   amount: number | string | null;
-  paid_date: string | null;
-  status: string;
+  txn_date: string;
 };
 
 type MonthlyPoint = {
@@ -124,11 +123,12 @@ export function MonthlyPoaPaymentsSection() {
       const startRangeStr = points[0]?.start?.toISOString().slice(0, 10) ?? "1970-01-01";
 
       const { data, error: qErr } = await supabase
-        .from("poa_item_payments")
-        .select("amount,paid_date,status")
-        .eq("status", "confirmed")
-        .gte("paid_date", startRangeStr)
-        .order("paid_date", { ascending: true });
+        .from("payment_transactions")
+        .select("amount,txn_date")
+        .eq("txn_type", "INCOME")
+        .eq("source_type", "AGENT_POA")
+        .gte("txn_date", startRangeStr)
+        .order("txn_date", { ascending: true });
 
       if (qErr) {
         setError(qErr.message);
@@ -138,8 +138,7 @@ export function MonthlyPoaPaymentsSection() {
       }
 
       for (const row of (data ?? []) as PoaPaymentRow[]) {
-        if (!row.paid_date) continue;
-        const dt = new Date(row.paid_date);
+        const dt = new Date(row.txn_date);
         if (!Number.isFinite(dt.getTime())) continue;
 
         const n = Number(row.amount ?? 0);

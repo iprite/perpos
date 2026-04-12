@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Title, Text } from "rizzui/typography";
 
 import { MonthlyOrdersSection } from "@/app/shared/dashboard/monthly-orders-section";
@@ -82,12 +82,13 @@ export default function DashboardPage() {
             .in("status", ["completed", "cancelled"])
             .range(0, 0),
           supabase
-            .from("poa_item_payments")
-            .select("amount,paid_date", { count: "estimated" })
-            .eq("status", "confirmed")
-            .gte("paid_date", startThisMonthStr)
-            .lt("paid_date", startNextMonthStr)
-            .order("paid_date", { ascending: true }),
+            .from("payment_transactions")
+            .select("amount,txn_date", { count: "estimated" })
+            .eq("txn_type", "INCOME")
+            .eq("source_type", "AGENT_POA")
+            .gte("txn_date", startThisMonthStr)
+            .lt("txn_date", startNextMonthStr)
+            .order("txn_date", { ascending: true }),
         ]);
 
         const firstError = expiringRes.error ?? expiredRes.error ?? ordersPendingRes.error ?? poaRes.error;
@@ -127,6 +128,10 @@ export default function DashboardPage() {
       }
     });
   }, [supabase]);
+
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
 
   return (
     <div>

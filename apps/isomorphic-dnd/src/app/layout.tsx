@@ -27,6 +27,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }){
         <Providers defaultTheme={String(siteConfig.mode)}>
           <CarbonLayout>{children}</CarbonLayout>
         </Providers>
+        <div id="react-datepicker-portal" />
       </body>
     </html>
   );

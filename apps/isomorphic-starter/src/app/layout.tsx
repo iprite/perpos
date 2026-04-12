@@ -39,6 +39,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 <GlobalModal />
                 <AppToaster />
                 <Analytics />
+                <div id="react-datepicker-portal" />
               </ConfirmDialogProvider>
             </AuthProvider>
           </JotaiProvider>
