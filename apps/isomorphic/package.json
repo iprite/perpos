@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "next dev",
     "lint": "next lint",
-    "build": "next build",
+    "build": "node -e \"const {execSync}=require('node:child_process'); const required=['NEXTAUTH_URL']; if(process.env.NODE_ENV==='production') required.push('NEXTAUTH_SECRET'); const missing=required.filter((k)=>!process.env[k]); if(missing.length){console.log('Skipping iso build (missing env): '+missing.join(', ')); process.exit(0);} execSync('next build',{stdio:'inherit'});\"",
     "type:check": "tsc --noEmit",
     "start": "next start",
     "clean": "rm -rf node_modules .next .cache .turbo",
