@@ -91,8 +91,9 @@ export function PoaRequestCreateModal({
       try {
         const { data, error: e } = await supabase
           .from("company_representatives")
-          .select("profile_id,rep_code,prefix,first_name,last_name,id_card_no,address")
+          .select("profile_id,rep_code,prefix,first_name,last_name,id_card_no,address,status")
           .ilike("rep_code", "EXW%")
+          .eq("status", "ปกติ")
           .order("rep_code", { ascending: true })
           .limit(500);
         if (e) throw new Error(e.message);

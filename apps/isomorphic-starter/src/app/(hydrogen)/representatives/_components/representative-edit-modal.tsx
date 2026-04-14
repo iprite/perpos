@@ -340,6 +340,7 @@ export function RepresentativeEditModal({
                   displayValue={(selected) => prefixOptions.find((o) => o.value === selected)?.label ?? ""}
                   selectClassName="h-10 px-3"
                   dropdownClassName="!z-[9999]"
+                  inPortal={false}
                   disabled={loading}
                 />
               </div>
@@ -366,6 +367,7 @@ export function RepresentativeEditModal({
                   displayValue={(selected) => genderOptions.find((o) => o.value === selected)?.label ?? ""}
                   selectClassName="h-10 px-3"
                   dropdownClassName="!z-[9999]"
+                  inPortal={false}
                   disabled={loading}
                 />
               </div>
@@ -391,6 +393,7 @@ export function RepresentativeEditModal({
                   displayValue={(selected) => statusOptions.find((o) => o.value === selected)?.label ?? ""}
                   selectClassName="h-10 px-3"
                   dropdownClassName="!z-[9999]"
+                  inPortal={false}
                   disabled={loading}
                 />
               </div>
@@ -612,7 +615,11 @@ export function RepresentativeEditModal({
               const isMissingEmailColumnError = (message: string | null | undefined) => {
                 const m = (message ?? "").toLowerCase();
                 if (!m) return false;
-                return m.includes("company_representatives.email") || (m.includes("column") && m.includes("email") && m.includes("does not exist"));
+                return (
+                  m.includes("company_representatives.email") ||
+                  (m.includes("column") && m.includes("email") && (m.includes("does not exist") || m.includes("could not find"))) ||
+                  (m.includes("schema cache") && m.includes("email"))
+                );
               };
 
               const { email: _omitEmail, ...payloadWithoutEmail } = payload;

@@ -166,6 +166,7 @@ export function PoaRequestCreateForm({
           disabled={loading || repsLoading}
           selectClassName="h-10 px-3"
           dropdownClassName="!z-[10000]"
+          inPortal={false}
         />
         <AppSelect
           label="หนังสือมอบอำนาจ"
@@ -178,6 +179,7 @@ export function PoaRequestCreateForm({
           disabled={loading}
           selectClassName="h-10 px-3"
           dropdownClassName="!z-[10000]"
+          inPortal={false}
         />
 
         <Input

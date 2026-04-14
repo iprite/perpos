@@ -321,7 +321,7 @@ export default function PoaRequestsPage() {
 
   const typeById = useMemo(() => new Map(types.map((t) => [t.id, t])), [types]);
 
-  const isOperationContext = role === "operation" || searchParams.get("source") === "operation";
+  const isOperationContext = canOperate;
 
   return (
     <div ref={topRef}>
@@ -330,7 +330,7 @@ export default function PoaRequestsPage() {
           <Title as="h1" className="text-lg font-semibold text-gray-900">
             คำขอ POA
           </Title>
-          <Text className="mt-1 text-sm text-gray-600">ส่งคำขอ POA และติดตามสถานะชำระเงิน พร้อมสร้าง PDF</Text>
+          <Text className="mt-1 text-sm text-gray-600">สร้างคำขอ POA และสร้าง PDF</Text>
         </div>
         <div className="flex flex-wrap gap-2">
           <TableSearch value={search} onChange={setSearch} disabled={loading} />
@@ -357,7 +357,7 @@ export default function PoaRequestsPage() {
         userId={userId}
         isOperationContext={isOperationContext}
         onCreated={() => {
-          toast.success(isOperationContext ? "สร้างคำขอและ PDF แล้ว" : "ส่งคำขอแล้ว");
+          toast.success("สร้างคำขอและ PDF แล้ว");
           refresh();
         }}
       />
