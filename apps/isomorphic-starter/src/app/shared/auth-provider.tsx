@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
+import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { Profile, Role } from "@/lib/supabase/types";
@@ -17,6 +17,26 @@ type AuthState = {
 
 const AuthContext = createContext<AuthState | null>(null);
 
+const AUTO_LOGOUT_MS = 10 * 60 * 60 * 1000;
+const AUTH_STARTED_AT_KEY = "exapp.auth.startedAt";
+
+function readStartedAt() {
+  if (typeof window === "undefined") return null;
+  const raw = window.localStorage.getItem(AUTH_STARTED_AT_KEY);
+  const n = raw ? Number(raw) : NaN;
+  return Number.isFinite(n) ? n : null;
+}
+
+function writeStartedAt(ts: number) {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(AUTH_STARTED_AT_KEY, String(ts));
+}
+
+function clearStartedAt() {
+  if (typeof window === "undefined") return;
+  window.localStorage.removeItem(AUTH_STARTED_AT_KEY);
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [envError, setEnvError] = useState<string | null>(null);
@@ -25,6 +45,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [email, setEmail] = useState<string | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const role = profile?.role ?? null;
+  const logoutTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     try {
@@ -41,17 +62,54 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!supabase) return;
     let cancelled = false;
 
+    const clearLogoutTimer = () => {
+      if (logoutTimerRef.current != null && typeof window !== "undefined") {
+        window.clearTimeout(logoutTimerRef.current);
+      }
+      logoutTimerRef.current = null;
+    };
+
+    const setSignedOutState = () => {
+      setUserId(null);
+      setEmail(null);
+      setProfile(null);
+      setLoading(false);
+    };
+
+    const doClientSignOut = async () => {
+      clearLogoutTimer();
+      try {
+        await supabase.auth.signOut();
+      } finally {
+        clearStartedAt();
+        if (!cancelled) setSignedOutState();
+      }
+    };
+
     const refresh = async () => {
       const { data } = await supabase.auth.getSession();
       const session = data.session;
       if (!session?.user) {
+        clearLogoutTimer();
+        clearStartedAt();
         if (!cancelled) {
-          setUserId(null);
-          setEmail(null);
-          setProfile(null);
-          setLoading(false);
+          setSignedOutState();
         }
         return;
+      }
+
+      const startedAt = readStartedAt() ?? Date.now();
+      if (!readStartedAt()) writeStartedAt(startedAt);
+      const elapsed = Date.now() - startedAt;
+      if (elapsed >= AUTO_LOGOUT_MS) {
+        await doClientSignOut();
+        return;
+      }
+      clearLogoutTimer();
+      if (typeof window !== "undefined") {
+        logoutTimerRef.current = window.setTimeout(() => {
+          void doClientSignOut();
+        }, AUTO_LOGOUT_MS - elapsed);
       }
 
       const uid = session.user.id;
@@ -83,12 +141,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
 
     refresh();
-    const { data: sub } = supabase.auth.onAuthStateChange(() => {
-      refresh();
+    const { data: sub } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "SIGNED_OUT") {
+        clearLogoutTimer();
+        clearStartedAt();
+      }
+      if (event === "SIGNED_IN") {
+        writeStartedAt(Date.now());
+      }
+      void refresh();
     });
 
     return () => {
       cancelled = true;
+      clearLogoutTimer();
       sub.subscription.unsubscribe();
     };
   }, [supabase]);
@@ -103,6 +169,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       profile,
       signOut: async () => {
         if (!supabase) {
+          clearStartedAt();
+          if (logoutTimerRef.current != null && typeof window !== "undefined") {
+            window.clearTimeout(logoutTimerRef.current);
+          }
+          logoutTimerRef.current = null;
           setUserId(null);
           setEmail(null);
           setProfile(null);
@@ -112,6 +183,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         try {
           await supabase.auth.signOut();
         } finally {
+          clearStartedAt();
+          if (logoutTimerRef.current != null && typeof window !== "undefined") {
+            window.clearTimeout(logoutTimerRef.current);
+          }
+          logoutTimerRef.current = null;
           setUserId(null);
           setEmail(null);
           setProfile(null);

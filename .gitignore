@@ -25,10 +25,13 @@ yarn-error.log*
 
 # local env files
 /apps/**/.env
+/apps/**/.env.*
 .env.local
 .env.development.local
 .env.test.local
 .env.production.local
+.env
+.env.*
 
 # turbo
 .turbo
@@ -38,6 +41,9 @@ dist/
 
 .vercel
 .vscode
+
+# trae
+.trae/
 
 # build artifacts / local outputs
 *.tsbuildinfo

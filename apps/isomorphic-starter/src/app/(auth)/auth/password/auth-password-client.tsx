@@ -2,7 +2,7 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import React, { useEffect, useMemo, useState } from "react";
-import { Button } from "rizzui";
+import { Button, Password } from "rizzui";
 import { Text, Title } from "rizzui/typography";
 
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -167,29 +167,23 @@ export default function AuthPasswordClient() {
       {ready ? (
         <div className="mt-6 rounded-lg border border-gray-200 bg-white p-4">
           <div className="grid gap-4">
-            <div>
-              <div className="mb-1 text-sm font-medium text-gray-700">รหัสผ่านใหม่</div>
-              <input
-                className="h-11 w-full rounded-md border border-gray-200 bg-white px-3 text-sm outline-none focus:border-gray-400"
+            <div className="grid gap-2">
+              <Password
+                label="รหัสผ่านใหม่"
                 placeholder="อย่างน้อย 8 ตัวอักษร"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                type="password"
                 autoComplete="new-password"
               />
               <div className="mt-2 text-xs text-gray-500">อย่างน้อย 8 ตัวอักษร</div>
             </div>
-            <div>
-              <div className="mb-1 text-sm font-medium text-gray-700">ยืนยันรหัสผ่าน</div>
-              <input
-                className="h-11 w-full rounded-md border border-gray-200 bg-white px-3 text-sm outline-none focus:border-gray-400"
-                placeholder="พิมพ์ซ้ำอีกครั้ง"
-                value={confirm}
-                onChange={(e) => setConfirm(e.target.value)}
-                type="password"
-                autoComplete="new-password"
-              />
-            </div>
+            <Password
+              label="ยืนยันรหัสผ่าน"
+              placeholder="พิมพ์ซ้ำอีกครั้ง"
+              value={confirm}
+              onChange={(e) => setConfirm(e.target.value)}
+              autoComplete="new-password"
+            />
             <div className="flex flex-wrap gap-2">
               <Button
                 disabled={!canSubmit || submitting}

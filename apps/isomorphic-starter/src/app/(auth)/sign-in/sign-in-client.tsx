@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import React, { useEffect, useMemo, useState } from "react";
 import { Button, Input, Title, Text } from "rizzui";
+import { PiEye, PiEyeSlash } from "react-icons/pi";
 
 import { useAuth } from "@/app/shared/auth-provider";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -13,6 +14,7 @@ export default function SignInClient() {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -27,7 +29,7 @@ export default function SignInClient() {
       <Title as="h2" className="text-xl font-semibold text-gray-900">
         เข้าสู่ระบบ
       </Title>
-      <Text className="mt-2 text-sm text-gray-600">ใช้บัญชี Supabase (อีเมล/รหัสผ่าน) เพื่อเข้าสู่ระบบ</Text>
+      <Text className="mt-2 text-sm text-gray-600">ใช้บัญชี (อีเมล/รหัสผ่าน) เพื่อเข้าสู่ระบบ</Text>
 
       {envError ? <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{envError}</div> : null}
 
@@ -39,18 +41,35 @@ export default function SignInClient() {
           onChange={(e) => setEmail(e.target.value)}
           inputMode="email"
           autoComplete="email"
+          variant="outline"
+          size="lg"
+          rounded="pill"
+          className="[&>label>span]:font-medium"
+          inputClassName="text-sm"
         />
-        <div>
-          <div className="mb-1 text-sm font-medium text-gray-700">รหัสผ่าน</div>
-          <input
-            className="h-11 w-full rounded-md border border-gray-200 bg-white px-3 text-sm outline-none focus:border-gray-400"
-            placeholder="••••••••"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            type="password"
-            autoComplete="current-password"
-          />
-        </div>
+        <Input
+          label="รหัสผ่าน"
+          placeholder="••••••••"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          type={showPassword ? "text" : ("password" as any)}
+          autoComplete="current-password"
+          variant="outline"
+          size="lg"
+          rounded="pill"
+          className="[&>label>span]:font-medium"
+          inputClassName="text-sm"
+          suffix={
+            <button
+              type="button"
+              className="grid h-8 w-8 place-items-center rounded-md text-gray-500 hover:bg-gray-50 hover:text-gray-700"
+              onClick={() => setShowPassword((v) => !v)}
+              aria-label={showPassword ? "ซ่อนรหัสผ่าน" : "แสดงรหัสผ่าน"}
+            >
+              {showPassword ? <PiEyeSlash className="h-4 w-4" /> : <PiEye className="h-4 w-4" />}
+            </button>
+          }
+        />
       </div>
 
       {error ? <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div> : null}
@@ -88,9 +107,6 @@ export default function SignInClient() {
           }}
         >
           {submitting ? "กำลังเข้าสู่ระบบ..." : "เข้าสู่ระบบ"}
-        </Button>
-        <Button variant="outline" className="w-full" onClick={() => router.push("/sign-up")}>
-          สร้างบัญชี
         </Button>
       </div>
     </div>

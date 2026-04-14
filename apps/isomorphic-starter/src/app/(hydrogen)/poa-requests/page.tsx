@@ -1,11 +1,10 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import React, { useCallback, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { Button, Input } from "rizzui";
 import { Title, Text } from "rizzui/typography";
-import AppSelect from "@core/ui/app-select";
 import dayjs from "dayjs";
 import { DatePicker } from "@core/ui/datepicker";
 import { Modal } from "@core/modal-views/modal";
@@ -15,6 +14,7 @@ import TableSearch from "@/components/table/table-search";
 
 import { useAuth } from "@/app/shared/auth-provider";
 import FileUploader from "@/components/form/file-uploader";
+import { PoaRequestCreateModal } from "@/components/poa/poa-request-create-modal";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 type TypeOption = { id: string; name: string; base_price: number; is_active: boolean };
@@ -61,38 +61,6 @@ type CompanyRepRow = {
   first_name: string | null;
   last_name: string | null;
 };
-
-function LabeledSelect({
-  id,
-  label,
-  value,
-  placeholder,
-  options,
-  disabled,
-  onChange,
-}: {
-  id?: string;
-  label: string;
-  value: string;
-  placeholder: string;
-  options: { value: string; label: string }[];
-  disabled?: boolean;
-  onChange: (value: string) => void;
-}) {
-  return (
-    <AppSelect
-      label={label}
-      placeholder={placeholder}
-      options={options}
-      value={value}
-      onChange={(v: string) => onChange(v)}
-      getOptionValue={(o) => o.value}
-      displayValue={(selected) => options.find((o) => o.value === selected)?.label ?? ""}
-      disabled={disabled}
-      selectClassName="h-10 px-3"
-    />
-  );
-}
 
 function repDisplayName(r: CompanyRepRow | null) {
   if (!r) return null;
@@ -181,6 +149,7 @@ function TableCheckbox({
 export default function PoaRequestsPage() {
   const { role, userId } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
   const topRef = useRef<HTMLDivElement | null>(null);
 
@@ -200,37 +169,7 @@ export default function PoaRequestsPage() {
   const [bulkPayRef, setBulkPayRef] = useState("");
   const [bulkPayFile, setBulkPayFile] = useState<File | null>(null);
 
-  const [showForm, setShowForm] = useState(false);
-
-  const [employerName, setEmployerName] = useState("");
-  const [employerTaxId, setEmployerTaxId] = useState("");
-  const [employerTel, setEmployerTel] = useState("");
-  const [employerType, setEmployerType] = useState("");
-  const [employerAddress, setEmployerAddress] = useState("");
-
-  const [workerCount, setWorkerCount] = useState("1");
-  const [workerMale, setWorkerMale] = useState("");
-  const [workerFemale, setWorkerFemale] = useState("");
-  const [workerNation, setWorkerNation] = useState("");
-  const [workerType, setWorkerType] = useState("");
-  const [selectedTypeId, setSelectedTypeId] = useState<string>("");
-
-  const canCreateNew = role === "admin" || role === "operation";
-  const canOpenForm = role === "admin" || role === "operation";
-
-  const resetForm = useCallback(() => {
-    setEmployerName("");
-    setEmployerTaxId("");
-    setEmployerTel("");
-    setEmployerType("");
-    setEmployerAddress("");
-    setWorkerCount("1");
-    setWorkerMale("");
-    setWorkerFemale("");
-    setWorkerNation("");
-    setWorkerType("");
-    setSelectedTypeId("");
-  }, []);
+  const [showCreate, setShowCreate] = useState(false);
 
   const displayRows = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -356,7 +295,7 @@ export default function PoaRequestsPage() {
   React.useEffect(() => {
     if (pagination.pageIndex === 0) return;
     setPagination((p) => ({ ...p, pageIndex: 0 }));
-  }, [pagination.pageSize]);
+  }, [pagination.pageIndex, pagination.pageSize]);
 
   React.useEffect(() => {
     setPagination((p) => ({ ...p, pageIndex: 0 }));
@@ -380,28 +319,9 @@ export default function PoaRequestsPage() {
     refreshTypes();
   }, [refreshTypes]);
 
-  const canSave = employerName.trim().length > 0 && selectedTypeId.length > 0;
-
-  const selectedType = useMemo(() => types.find((t) => t.id === selectedTypeId) ?? null, [types, selectedTypeId]);
-  const isMouSelected = useMemo(() => String(selectedType?.name ?? "").trim().toUpperCase() === "MOU", [selectedType]);
-
   const typeById = useMemo(() => new Map(types.map((t) => [t.id, t])), [types]);
 
-  React.useEffect(() => {
-    if (isMouSelected) return;
-    setWorkerMale("");
-    setWorkerFemale("");
-    setWorkerNation("");
-    setWorkerType("");
-  }, [isMouSelected]);
-
-  React.useEffect(() => {
-    if (!isMouSelected) return;
-    const male = workerMale.trim().length ? Math.max(0, Math.trunc(Number(workerMale))) : 0;
-    const female = workerFemale.trim().length ? Math.max(0, Math.trunc(Number(workerFemale))) : 0;
-    const sum = male + female;
-    setWorkerCount(String(Math.max(1, sum)));
-  }, [isMouSelected, workerFemale, workerMale]);
+  const isOperationContext = role === "operation" || searchParams.get("source") === "operation";
 
   return (
     <div ref={topRef}>
@@ -414,16 +334,11 @@ export default function PoaRequestsPage() {
         </div>
         <div className="flex flex-wrap gap-2">
           <TableSearch value={search} onChange={setSearch} disabled={loading} />
-          {canOpenForm ? (
+          {canOperate ? (
             <Button
               variant="outline"
               onClick={() => {
-                resetForm();
-                setShowForm(true);
-                topRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-                window.setTimeout(() => {
-                  (document.getElementById("poa-employer-name") as HTMLInputElement | null)?.focus?.();
-                }, 50);
+                setShowCreate(true);
               }}
               disabled={loading}
             >
@@ -433,180 +348,19 @@ export default function PoaRequestsPage() {
         </div>
       </div>
 
-      {canOpenForm && showForm ? (
-        <div className="mt-5 grid gap-3 rounded-xl border border-gray-200 bg-white p-4">
-          <div className="text-sm font-semibold text-gray-900">เพิ่มคำขอ</div>
-          <div className="grid gap-3 md:grid-cols-2">
-            <LabeledSelect
-              label="หนังสือมอบอำนาจ"
-              value={selectedTypeId}
-              placeholder="เลือกหนังสือมอบอำนาจ"
-              options={types
-                .filter((t) => t.is_active)
-                .map((t) => ({ value: t.id, label: `${t.name} • ราคา/คน: ${Number(t.base_price ?? 0).toLocaleString()}` }))}
-              disabled={loading}
-              onChange={(v) => setSelectedTypeId(v)}
-            />
-            <Input
-              label="จำนวนแรงงาน (รวม)"
-              value={workerCount}
-              onChange={(e) => setWorkerCount(e.target.value)}
-              inputMode="numeric"
-              disabled={loading || isMouSelected}
-            />
-            {isMouSelected ? (
-              <>
-                <Input
-                  label="จำนวนแรงงานชาย"
-                  value={workerMale}
-                  onChange={(e) => setWorkerMale(e.target.value)}
-                  inputMode="numeric"
-                  disabled={loading}
-                />
-                <Input
-                  label="จำนวนแรงงานหญิง"
-                  value={workerFemale}
-                  onChange={(e) => setWorkerFemale(e.target.value)}
-                  inputMode="numeric"
-                  disabled={loading}
-                />
-                <LabeledSelect
-                  label="สัญชาติ"
-                  value={workerNation}
-                  placeholder="เลือกสัญชาติ"
-                  options={[
-                    { value: "เมียนมา", label: "เมียนมา" },
-                    { value: "ลาว", label: "ลาว" },
-                    { value: "กัมพูชา", label: "กัมพูชา" },
-                  ]}
-                  disabled={loading}
-                  onChange={(v) => setWorkerNation(v)}
-                />
-                <LabeledSelect
-                  label="ประเภทแรงงาน"
-                  value={workerType}
-                  placeholder="เลือกประเภทแรงงาน"
-                  options={[
-                    { value: "กรรมกร", label: "กรรมกร" },
-                    { value: "รับใช้ในบ้าน", label: "รับใช้ในบ้าน" },
-                  ]}
-                  disabled={loading}
-                  onChange={(v) => setWorkerType(v)}
-                />
-              </>
-            ) : null}
-            <Input
-              id="poa-employer-name"
-              label="ชื่อนายจ้าง"
-              value={employerName}
-              onChange={(e) => setEmployerName(e.target.value)}
-              disabled={loading}
-            />
-            <Input
-              label="เลขนายจ้าง/เลขประจำตัวผู้เสียภาษี"
-              value={employerTaxId}
-              onChange={(e) => setEmployerTaxId(e.target.value)}
-              disabled={loading}
-            />
-            <Input label="โทร" value={employerTel} onChange={(e) => setEmployerTel(e.target.value)} disabled={loading} />
-            <Input label="ประเภทกิจการ" value={employerType} onChange={(e) => setEmployerType(e.target.value)} disabled={loading} />
-            <div className="md:col-span-2">
-              <div className="text-sm font-medium text-gray-700">ที่อยู่</div>
-              <textarea
-                className="mt-2 min-h-[88px] w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm"
-                value={employerAddress}
-                onChange={(e) => setEmployerAddress(e.target.value)}
-                disabled={loading}
-              />
-            </div>
-          </div>
-
-          <div className="flex flex-wrap gap-2">
-            <Button
-              onClick={async () => {
-                if (!userId) {
-                  setError("กรุณาเข้าสู่ระบบใหม่");
-                  return;
-                }
-                if (!canCreateNew) {
-                  setError("บทบาทนี้สร้างคำขอใหม่ไม่ได้");
-                  return;
-                }
-                setLoading(true);
-                setError(null);
-
-                const maleNum = isMouSelected && workerMale.trim().length ? Math.max(0, Math.trunc(Number(workerMale))) : 0;
-                const femaleNum = isMouSelected && workerFemale.trim().length ? Math.max(0, Math.trunc(Number(workerFemale))) : 0;
-                const wc = isMouSelected ? Math.max(1, maleNum + femaleNum) : Math.max(1, Math.trunc(Number(workerCount || 1)));
-                const male = isMouSelected && workerMale.trim().length ? Math.max(0, Math.trunc(Number(workerMale))) : null;
-                const female = isMouSelected && workerFemale.trim().length ? Math.max(0, Math.trunc(Number(workerFemale))) : null;
-
-                const payload: any = {
-                  employer_name: employerName.trim(),
-                  employer_tax_id: employerTaxId.trim() || null,
-                  employer_tel: employerTel.trim() || null,
-                  employer_type: employerType.trim() || null,
-                  employer_address: employerAddress.trim() || null,
-                  worker_count: wc,
-                  worker_male: male,
-                  worker_female: female,
-                  worker_nation: isMouSelected ? workerNation.trim() || null : null,
-                  worker_type: isMouSelected ? workerType.trim() || null : null,
-                  poa_request_type_id: selectedTypeId,
-                  status: "submitted",
-                  representative_profile_id: userId,
-                };
-
-                try {
-                  const { data: created, error: insErr } = await supabase.from("poa_requests").insert(payload).select("id").single();
-                  if (insErr) throw new Error(insErr.message);
-                  const requestId = String((created as any)?.id);
-
-                  const typeMap = new Map(types.map((t) => [t.id, t]));
-                  const t = typeMap.get(selectedTypeId);
-                  if (!t) throw new Error("ไม่พบรายการหนังสือมอบอำนาจที่เลือก");
-                  const unit = Number(t.base_price ?? 0);
-                  const upsertRow = {
-                    poa_request_id: requestId,
-                    poa_request_type_id: selectedTypeId,
-                    unit_price_per_worker: unit,
-                    worker_count: wc,
-                    total_price: unit * wc,
-                    payment_status: "unpaid",
-                  };
-
-                  const { error: itemErr } = await supabase
-                    .from("poa_request_items")
-                    .upsert([upsertRow], { onConflict: "poa_request_id,poa_request_type_id" });
-                  if (itemErr) throw new Error(itemErr.message);
-
-                  toast.success("ส่งคำขอแล้ว");
-                  resetForm();
-                  setShowForm(false);
-                  setLoading(false);
-                  refresh();
-                } catch (err: any) {
-                  setError(err?.message ?? "บันทึกไม่สำเร็จ");
-                  setLoading(false);
-                }
-              }}
-              disabled={loading || !canSave}
-            >
-              ส่งคำขอ
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => {
-                resetForm();
-                setShowForm(false);
-              }}
-              disabled={loading}
-            >
-              ยกเลิก
-            </Button>
-          </div>
-        </div>
-      ) : null}
+      <PoaRequestCreateModal
+        isOpen={showCreate && canOperate}
+        onClose={() => setShowCreate(false)}
+        supabase={supabase}
+        types={types}
+        role={role}
+        userId={userId}
+        isOperationContext={isOperationContext}
+        onCreated={() => {
+          toast.success(isOperationContext ? "สร้างคำขอและ PDF แล้ว" : "ส่งคำขอแล้ว");
+          refresh();
+        }}
+      />
 
       {error ? <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div> : null}
 

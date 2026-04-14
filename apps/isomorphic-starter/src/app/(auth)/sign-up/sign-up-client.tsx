@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import React, { useEffect, useMemo, useState } from "react";
-import { Button, Input, Title, Text } from "rizzui";
+import { Button, Input, Password, Title, Text } from "rizzui";
 
 import { useAuth } from "@/app/shared/auth-provider";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -41,14 +41,12 @@ export default function SignUpClient() {
           inputMode="email"
           autoComplete="email"
         />
-        <div>
-          <div className="mb-1 text-sm font-medium text-gray-700">รหัสผ่าน</div>
-          <input
-            className="h-11 w-full rounded-md border border-gray-200 bg-white px-3 text-sm outline-none focus:border-gray-400"
+        <div className="grid gap-2">
+          <Password
+            label="รหัสผ่าน"
             placeholder="อย่างน้อย 8 ตัวอักษร"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            type="password"
             autoComplete="new-password"
           />
           <div className="mt-2 text-xs text-gray-500">แนะนำอย่างน้อย 8 ตัวอักษร</div>

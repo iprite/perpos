@@ -1,7 +1,5 @@
-import React from "react";
-
-import SignUpClient from "./sign-up-client";
+import { redirect } from "next/navigation";
 
 export default function SignUpPage() {
-  return <SignUpClient />;
+  redirect("/sign-in");
 }
