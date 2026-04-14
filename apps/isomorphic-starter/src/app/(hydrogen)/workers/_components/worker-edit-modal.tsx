@@ -74,8 +74,6 @@ export function WorkerEditModal({
                 onChangeOsSex={form.setOsSex}
                 wpType={form.wpType}
                 onChangeWpType={form.setWpType}
-                birthDate={form.birthDate}
-                onChangeBirthDate={form.setBirthDate}
                 nationality={form.nationality}
                 onChangeNationality={form.setNationality}
               />
@@ -86,16 +84,20 @@ export function WorkerEditModal({
                 loading={form.loading}
                 nameInputRef={form.nameInputRef}
                 customers={customers}
+                workerId={form.workerId}
+                onChangeWorkerId={form.setWorkerId}
                 fullName={form.fullName}
                 onChangeFullName={form.setFullName}
+                birthDate={form.birthDate}
+                onChangeBirthDate={form.setBirthDate}
                 customerId={form.customerId}
                 onChangeCustomerId={form.setCustomerId}
+                passportType={form.passportType}
+                onChangePassportType={form.setPassportType}
                 passportNo={form.passportNo}
                 onChangePassportNo={form.setPassportNo}
                 passportExpireDate={form.passportExpireDate}
                 onChangePassportExpireDate={form.setPassportExpireDate}
-                visaNumber={form.visaNumber}
-                onChangeVisaNumber={form.setVisaNumber}
                 visaExpDate={form.visaExpDate}
                 onChangeVisaExpDate={form.setVisaExpDate}
                 wpNumber={form.wpNumber}

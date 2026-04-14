@@ -2,15 +2,16 @@ export type CustomerOption = { id: string; name: string };
 
 export type WorkerRow = {
   id: string;
+  worker_id: string | null;
   full_name: string;
   customer_id: string | null;
   passport_no: string | null;
+  passport_type: string | null;
   passport_expire_date: string | null;
   nationality: string | null;
   birth_date: string | null;
   os_sex: string | null;
   profile_pic_url: string | null;
-  visa_number: string | null;
   visa_exp_date: string | null;
   wp_number: string | null;
   wp_expire_date: string | null;
@@ -45,4 +46,3 @@ export function normalizeSexForTabs(value: string) {
   if (v === "หญิง" || v === "female" || v === "f") return "หญิง";
   return "";
 }
-

@@ -2,9 +2,7 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import Image from "next/image";
-import dayjs from "dayjs";
 import AppSelect from "@core/ui/app-select";
-import { DatePicker } from "@core/ui/datepicker";
 import { UserRound, UserSquare2 } from "lucide-react";
 
 import { nationalityOptions, normalizeSexForTabs } from "./worker-edit-types";
@@ -19,8 +17,6 @@ export function WorkerProfilePanel({
   onChangeOsSex,
   wpType,
   onChangeWpType,
-  birthDate,
-  onChangeBirthDate,
   nationality,
   onChangeNationality,
 }: {
@@ -33,8 +29,6 @@ export function WorkerProfilePanel({
   onChangeOsSex: (v: string) => void;
   wpType: string;
   onChangeWpType: (v: string) => void;
-  birthDate: string;
-  onChangeBirthDate: (v: string) => void;
   nationality: string;
   onChangeNationality: (v: string) => void;
 }) {
@@ -187,14 +181,6 @@ export function WorkerProfilePanel({
             disabled={loading}
           />
         </div>
-
-        <DatePicker
-          selected={birthDate ? dayjs(birthDate).toDate() : null}
-          onChange={(date: Date | null) => onChangeBirthDate(date ? dayjs(date).format("YYYY-MM-DD") : "")}
-          placeholderText="เลือกวันที่"
-          disabled={loading}
-          inputProps={{ label: "วันเกิด" }}
-        />
       </div>
     </div>
   );

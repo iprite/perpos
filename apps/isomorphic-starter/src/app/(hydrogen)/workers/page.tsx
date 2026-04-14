@@ -15,15 +15,16 @@ import { WorkerEditModal } from "@/app/(hydrogen)/workers/_components/worker-edi
 type CustomerOption = { id: string; name: string };
 type WorkerRow = {
   id: string;
+  worker_id: string | null;
   full_name: string;
   customer_id: string | null;
   passport_no: string | null;
+  passport_type: string | null;
   passport_expire_date: string | null;
   nationality: string | null;
   birth_date: string | null;
   os_sex: string | null;
   profile_pic_url: string | null;
-  visa_number: string | null;
   visa_exp_date: string | null;
   wp_number: string | null;
   wp_expire_date: string | null;
@@ -37,6 +38,12 @@ export default function WorkersPage() {
   const { role, userId } = useAuth();
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
   const topRef = useRef<HTMLDivElement | null>(null);
+
+  const isMissingWorkerColumnsError = useCallback((message: string | null | undefined) => {
+    const m = (message ?? "").toLowerCase();
+    if (!m) return false;
+    return m.includes("workers.worker_id") || m.includes("workers.passport_type") || (m.includes("column") && (m.includes("worker_id") || m.includes("passport_type")) && m.includes("does not exist"));
+  }, []);
 
   const [loading, setLoading] = useState(false);
   const [rows, setRows] = useState<WorkerRow[]>([]);
@@ -66,7 +73,7 @@ export default function WorkersPage() {
       let workerQuery = supabase
         .from("workers")
         .select(
-          "id,full_name,customer_id,passport_no,passport_expire_date,nationality,birth_date,os_sex,profile_pic_url,visa_number,visa_exp_date,wp_number,wp_expire_date,wp_type,created_at",
+          "id,worker_id,full_name,customer_id,passport_no,passport_type,passport_expire_date,nationality,birth_date,os_sex,profile_pic_url,visa_exp_date,wp_number,wp_expire_date,wp_type,created_at",
           { count: "estimated" },
         )
         .order("created_at", { ascending: false });
@@ -76,7 +83,7 @@ export default function WorkersPage() {
         if (searchFieldApplied === "name") {
           workerQuery = workerQuery.ilike("full_name", like);
         } else if (searchFieldApplied === "passport_wp") {
-          workerQuery = workerQuery.or([`passport_no.ilike.${like}`, `wp_number.ilike.${like}`].join(","));
+          workerQuery = workerQuery.or([`worker_id.ilike.${like}`, `passport_no.ilike.${like}`, `wp_number.ilike.${like}`].join(","));
         } else if (searchFieldApplied === "employer") {
           const custRes = await supabase.from("customers").select("id").ilike("name", like).limit(500);
           if (custRes.error) {
@@ -99,6 +106,55 @@ export default function WorkersPage() {
 
       const workerRes = await workerQuery.range(from, to);
       if (workerRes.error) {
+        if (isMissingWorkerColumnsError(workerRes.error.message)) {
+          let fallback = supabase
+            .from("workers")
+            .select(
+              "id,full_name,customer_id,passport_no,passport_expire_date,nationality,birth_date,os_sex,profile_pic_url,visa_exp_date,wp_number,wp_expire_date,wp_type,created_at",
+              { count: "estimated" },
+            )
+            .order("created_at", { ascending: false });
+
+          if (q) {
+            const like = `%${q.replaceAll("%", "\\%").replaceAll("_", "\\_")}%`;
+            if (searchFieldApplied === "name") {
+              fallback = fallback.ilike("full_name", like);
+            } else if (searchFieldApplied === "passport_wp") {
+              fallback = fallback.or([`passport_no.ilike.${like}`, `wp_number.ilike.${like}`].join(","));
+            } else if (searchFieldApplied === "employer") {
+              const custRes = await supabase.from("customers").select("id").ilike("name", like).limit(500);
+              if (custRes.error) {
+                setError(custRes.error.message);
+                setRows([]);
+                setTotalCount(0);
+                setLoading(false);
+                return;
+              }
+              const ids = (custRes.data ?? []).map((x: any) => String(x.id)).filter(Boolean);
+              if (ids.length === 0) {
+                setRows([]);
+                setTotalCount(0);
+                setLoading(false);
+                return;
+              }
+              fallback = fallback.in("customer_id", ids);
+            }
+          }
+
+          const fallbackRes = await fallback.range(from, to);
+          if (fallbackRes.error) {
+            setError(fallbackRes.error.message);
+            setRows([]);
+            setLoading(false);
+            return;
+          }
+
+          const mapped = (fallbackRes.data ?? []).map((r: any) => ({ ...r, worker_id: null, passport_type: null })) as WorkerRow[];
+          setRows(mapped);
+          setTotalCount(fallbackRes.count ?? 0);
+          setLoading(false);
+          return;
+        }
         setError(workerRes.error.message);
         setRows([]);
         setLoading(false);
@@ -109,7 +165,7 @@ export default function WorkersPage() {
       setTotalCount(workerRes.count ?? 0);
       setLoading(false);
     });
-  }, [pagination.pageIndex, pagination.pageSize, searchApplied, searchFieldApplied, supabase]);
+  }, [isMissingWorkerColumnsError, pagination.pageIndex, pagination.pageSize, searchApplied, searchFieldApplied, supabase]);
 
   const refreshCustomers = useCallback(() => {
     Promise.resolve().then(async () => {
@@ -297,9 +353,14 @@ export default function WorkersPage() {
                           <div className="text-sm font-medium text-gray-900">{r.full_name}</div>
                           <div className="mt-0.5 truncate whitespace-nowrap text-xs text-gray-500">
                             {(() => {
+                              const wid = String(r.worker_id ?? "").trim();
                               const nat = String(r.nationality ?? "").trim();
                               const birth = r.birth_date ? `เกิด ${r.birth_date}` : "";
+                              if (wid && nat && birth) return `${wid} • ${nat} • ${birth}`;
+                              if (wid && nat) return `${wid} • ${nat}`;
+                              if (wid && birth) return `${wid} • ${birth}`;
                               if (nat && birth) return `${nat} • ${birth}`;
+                              if (wid) return wid;
                               if (nat) return nat;
                               if (birth) return birth;
                               return "-";
@@ -318,7 +379,11 @@ export default function WorkersPage() {
                       <div className="mt-0.5 grid gap-0.5 text-xs text-gray-500">
                         {r.passport_no || r.passport_expire_date ? (
                           <div className="whitespace-nowrap">
-                            {r.passport_no ? `P ${r.passport_no}` : "P"}
+                            {(() => {
+                              const t = String(r.passport_type ?? "").trim().toUpperCase();
+                              const label = t === "CI" || t === "PP" ? t : "P";
+                              return r.passport_no ? `${label} ${r.passport_no}` : label;
+                            })()}
                             {r.passport_expire_date ? ` • หมดอายุ ${r.passport_expire_date}` : ""}
                           </div>
                         ) : null}
@@ -345,4 +410,3 @@ export default function WorkersPage() {
     </div>
   );
 }
-

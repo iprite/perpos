@@ -10,16 +10,20 @@ export function WorkerFieldsForm({
   loading,
   nameInputRef,
   customers,
+  workerId,
+  onChangeWorkerId,
   fullName,
   onChangeFullName,
+  birthDate,
+  onChangeBirthDate,
   customerId,
   onChangeCustomerId,
+  passportType,
+  onChangePassportType,
   passportNo,
   onChangePassportNo,
   passportExpireDate,
   onChangePassportExpireDate,
-  visaNumber,
-  onChangeVisaNumber,
   visaExpDate,
   onChangeVisaExpDate,
   wpNumber,
@@ -30,16 +34,20 @@ export function WorkerFieldsForm({
   loading: boolean;
   nameInputRef: React.RefObject<HTMLInputElement | null>;
   customers: Array<{ id: string; name: string }>;
+  workerId: string;
+  onChangeWorkerId: (v: string) => void;
   fullName: string;
   onChangeFullName: (v: string) => void;
+  birthDate: string;
+  onChangeBirthDate: (v: string) => void;
   customerId: string;
   onChangeCustomerId: (v: string) => void;
+  passportType: string;
+  onChangePassportType: (v: string) => void;
   passportNo: string;
   onChangePassportNo: (v: string) => void;
   passportExpireDate: string;
   onChangePassportExpireDate: (v: string) => void;
-  visaNumber: string;
-  onChangeVisaNumber: (v: string) => void;
   visaExpDate: string;
   onChangeVisaExpDate: (v: string) => void;
   wpNumber: string;
@@ -48,10 +56,10 @@ export function WorkerFieldsForm({
   onChangeWpExpireDate: (v: string) => void;
 }) {
   const customerOptions = useMemo(() => customers.map((c) => ({ label: c.name, value: c.id })), [customers]);
+  const passportTypeOptions = useMemo(() => [{ label: "เลือก", value: "" }, { label: "CI", value: "CI" }, { label: "PP", value: "PP" }], []);
   return (
     <div className="rounded-2xl border border-gray-200 bg-white/70 p-4 backdrop-blur">
       <div className="grid gap-4 md:grid-cols-2">
-        <Input ref={nameInputRef} label="ชื่อ-นามสกุล" value={fullName} onChange={(e) => onChangeFullName(e.target.value)} disabled={loading} />
         <div>
           <AppSelect
             label="นายจ้าง"
@@ -69,6 +77,34 @@ export function WorkerFieldsForm({
           />
         </div>
 
+        <Input label="เลขประจำตัวแรงงาน" value={workerId} onChange={(e) => onChangeWorkerId(e.target.value)} disabled={loading} />
+
+        <div className="grid gap-4 md:col-span-2 md:grid-cols-2">
+          <Input ref={nameInputRef} label="ชื่อ-นามสกุล" value={fullName} onChange={(e) => onChangeFullName(e.target.value)} disabled={loading} />
+          <DatePicker
+            selected={birthDate ? dayjs(birthDate).toDate() : null}
+            onChange={(date: Date | null) => onChangeBirthDate(date ? dayjs(date).format("YYYY-MM-DD") : "")}
+            placeholderText="เลือกวันที่"
+            disabled={loading}
+            inputProps={{ label: "วันเกิด" }}
+          />
+        </div>
+
+        <div>
+          <AppSelect
+            label="ประเภทพาสปอร์ต"
+            placeholder="เลือก"
+            options={passportTypeOptions}
+            value={passportType}
+            onChange={(v: string) => onChangePassportType(v)}
+            getOptionValue={(o) => o.value}
+            displayValue={(selected) => passportTypeOptions.find((o) => o.value === selected)?.label ?? ""}
+            selectClassName="h-10 px-3"
+            dropdownClassName="!z-[9999]"
+            disabled={loading}
+          />
+        </div>
+
         <Input label="เลขพาสปอร์ต" value={passportNo} onChange={(e) => onChangePassportNo(e.target.value)} disabled={loading} />
 
         <DatePicker
@@ -79,7 +115,6 @@ export function WorkerFieldsForm({
           inputProps={{ label: "พาสปอร์ตหมดอายุ" }}
         />
 
-        <Input label="เลขที่วีซ่า" value={visaNumber} onChange={(e) => onChangeVisaNumber(e.target.value)} disabled={loading} />
         <DatePicker
           selected={visaExpDate ? dayjs(visaExpDate).toDate() : null}
           onChange={(date: Date | null) => onChangeVisaExpDate(date ? dayjs(date).format("YYYY-MM-DD") : "")}

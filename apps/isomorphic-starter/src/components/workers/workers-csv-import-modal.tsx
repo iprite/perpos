@@ -9,7 +9,8 @@ import { useModal } from "@/app/shared/modal-views/use-modal";
 import FileUploader from "@/components/form/file-uploader";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { parseCsv } from "@/utils/csv";
-import { ImportError, ImportRow, mapCsvRecordToWorker, validateImportRows } from "@/components/workers/workers-import-mapping";
+import { ImportError, ImportMappingRow, ImportRow, explainWorkerImportMapping, mapCsvRecordToWorker, validateImportRows } from "@/components/workers/workers-import-mapping";
+import { normalizeImportTempId } from "@/utils/import-normalize";
 
 export type CustomerOption = { id: string; name: string };
 
@@ -31,6 +32,8 @@ export function WorkersCsvImportModal({ customers, onImported }: WorkerCsvImport
   const [fileName, setFileName] = useState<string | null>(null);
   const [parsed, setParsed] = useState<ImportRow[]>([]);
   const [errors, setErrors] = useState<ImportError[]>([]);
+  const [headers, setHeaders] = useState<string[]>([]);
+  const [mapping, setMapping] = useState<ImportMappingRow[]>([]);
   const [defaultCustomerId, setDefaultCustomerId] = useState<string>("");
 
   const [loading, setLoading] = useState(false);
@@ -79,12 +82,16 @@ export function WorkersCsvImportModal({ customers, onImported }: WorkerCsvImport
                 setProgress(0);
                 setErrors([]);
                 setParsed([]);
+                setHeaders([]);
+                setMapping([]);
 
                 const reader = new FileReader();
                 reader.onload = () => {
                   try {
                     const text = String(reader.result ?? "");
                     const { records } = parseCsv(text);
+                    setHeaders(records[0] ? Object.keys(records[0]) : []);
+                    setMapping(records[0] ? explainWorkerImportMapping(records[0] as any) : []);
                     const mapped = records.map(mapCsvRecordToWorker);
                     const errs = validateImportRows(mapped, 2);
                     setParsed(mapped);
@@ -164,6 +171,26 @@ export function WorkersCsvImportModal({ customers, onImported }: WorkerCsvImport
           {errors.length ? (
             <div className="text-xs text-gray-600">Errors: {errors.length.toLocaleString()} (แสดงเฉพาะที่จำเป็น)</div>
           ) : null}
+          {headers.length ? (
+            <div className="text-xs text-gray-500">
+              Headers: {headers.slice(0, 14).join(", ")}
+              {headers.length > 14 ? " ..." : ""}
+            </div>
+          ) : null}
+          {mapping.length ? (
+            <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
+              <div className="grid grid-cols-[1fr_1.2fr] gap-3 bg-gray-50 px-3 py-2 text-xs font-semibold text-gray-600">
+                <div>ฟิลด์ระบบ</div>
+                <div>คอลัมน์ในไฟล์</div>
+              </div>
+              {mapping.map((m) => (
+                <div key={String(m.field)} className="grid grid-cols-[1fr_1.2fr] gap-3 border-t border-gray-100 px-3 py-2 text-sm">
+                  <div className="font-medium text-gray-900">{m.label}</div>
+                  <div className="text-gray-700">{m.source ?? "-"}</div>
+                </div>
+              ))}
+            </div>
+          ) : null}
         </div>
 
         {loading ? (
@@ -192,12 +219,13 @@ export function WorkersCsvImportModal({ customers, onImported }: WorkerCsvImport
                 let updated = 0;
                 let skipped = 0;
                 let failed = 0;
+                let workerIdDuplicated = 0;
 
                 for (let i = 0; i < parsed.length; i += batchSize) {
                   const batch = parsed.slice(i, i + batchSize);
 
                   const employerIds = Array.from(
-                    new Set(batch.map((b) => (b.employer_import_temp_id ?? "").trim()).filter((x) => x.length > 0)),
+                    new Set(batch.map((b) => normalizeImportTempId(String(b.employer_import_temp_id ?? ""))).filter((x) => x.length > 0)),
                   );
                   const employerToCustomerId = new Map<string, string>();
                   if (employerIds.length) {
@@ -207,7 +235,7 @@ export function WorkersCsvImportModal({ customers, onImported }: WorkerCsvImport
                       .in("import_temp_id", employerIds);
                     if (custErr) throw new Error(custErr.message);
                     for (const r of (custMap ?? []) as any[]) {
-                      const key = String(r.import_temp_id ?? "").trim();
+                      const key = normalizeImportTempId(String(r.import_temp_id ?? ""));
                       const cid = String(r.id);
                       if (!key) continue;
                       employerToCustomerId.set(key, cid);
@@ -216,6 +244,9 @@ export function WorkersCsvImportModal({ customers, onImported }: WorkerCsvImport
 
                   const passports = Array.from(
                     new Set(batch.map((b) => (b.passport_no ?? "").trim()).filter((x) => x.length > 0)),
+                  );
+                  const workerIds = Array.from(
+                    new Set(batch.map((b) => String(b.worker_id ?? "").trim().replace(/×/g, "X")).filter((x) => x.length > 0)),
                   );
 
                   const existingMap = new Map<string, { id: string; created_by_profile_id: string | null }>();
@@ -232,14 +263,32 @@ export function WorkersCsvImportModal({ customers, onImported }: WorkerCsvImport
                     }
                   }
 
+                  const existingWorkerIdMap = new Map<string, { id: string; created_by_profile_id: string | null }>();
+                  if (workerIds.length) {
+                    const { data: ex2, error: ex2Err } = await supabase
+                      .from("workers")
+                      .select("id,worker_id,created_by_profile_id")
+                      .in("worker_id", workerIds);
+                    if (ex2Err) throw new Error(ex2Err.message);
+                    for (const r of (ex2 ?? []) as any[]) {
+                      const wid = String(r.worker_id ?? "").trim().replace(/×/g, "X");
+                      if (!wid) continue;
+                      existingWorkerIdMap.set(wid, { id: String(r.id), created_by_profile_id: r.created_by_profile_id ?? null });
+                    }
+                  }
+
                   const insertMap = new Map<string, any>();
                   const updateMap = new Map<string, any>();
+                  const seenWorkerIds = new Set<string>();
 
                   for (const row of batch) {
                     const pn = (row.passport_no ?? "").trim();
-                    const ex = pn ? existingMap.get(pn) : undefined;
+                    const desiredWorkerId = String((row as any).worker_id ?? "").trim().replace(/×/g, "X");
+                    const exByWorkerId = desiredWorkerId ? existingWorkerIdMap.get(desiredWorkerId) : undefined;
+                    const exByPassport = pn ? existingMap.get(pn) : undefined;
+                    const ex = exByWorkerId ?? exByPassport;
 
-                    const empKey = (row.employer_import_temp_id ?? "").trim();
+                    const empKey = normalizeImportTempId(String(row.employer_import_temp_id ?? ""));
                     const mappedCustomerId = empKey ? (employerToCustomerId.get(empKey) ?? null) : null;
                     const effectiveCustomerId = mappedCustomerId ?? (defaultCustomerId || null);
                     if (empKey && !mappedCustomerId && !defaultCustomerId) {
@@ -248,6 +297,15 @@ export function WorkersCsvImportModal({ customers, onImported }: WorkerCsvImport
                     }
 
                     const { employer_import_temp_id: _, ...workerFields } = row as any;
+                    workerFields.worker_id = desiredWorkerId || null;
+                    if (desiredWorkerId) {
+                      if (seenWorkerIds.has(desiredWorkerId)) {
+                        workerIdDuplicated += 1;
+                        skipped += 1;
+                        continue;
+                      }
+                      seenWorkerIds.add(desiredWorkerId);
+                    }
 
                     if (ex) {
                       if (effectiveMode === "skip") {
@@ -256,6 +314,11 @@ export function WorkersCsvImportModal({ customers, onImported }: WorkerCsvImport
                       }
                       if (role === "representative" && ex.created_by_profile_id && ex.created_by_profile_id !== userId) {
                         skipped += 1;
+                        continue;
+                      }
+
+                      if (exByWorkerId && exByPassport && exByWorkerId.id !== exByPassport.id) {
+                        failed += 1;
                         continue;
                       }
 
@@ -271,7 +334,7 @@ export function WorkersCsvImportModal({ customers, onImported }: WorkerCsvImport
                       continue;
                     }
 
-                    const insertKey = pn || `${workerFields.full_name ?? ""}|${workerFields.birth_date ?? ""}|${workerFields.alien_identification_number ?? ""}`;
+                    const insertKey = desiredWorkerId || pn || `${workerFields.full_name ?? ""}|${workerFields.birth_date ?? ""}|${workerFields.alien_identification_number ?? ""}`;
                     const nextRow = {
                       customer_id: effectiveCustomerId,
                       ...workerFields,
@@ -302,7 +365,7 @@ export function WorkersCsvImportModal({ customers, onImported }: WorkerCsvImport
                 }
 
                 setMessage(
-                  `นำเข้าเสร็จแล้ว: เพิ่มใหม่ ${inserted.toLocaleString()} • อัปเดต ${updated.toLocaleString()} • ข้าม ${skipped.toLocaleString()} • ล้มเหลว ${failed.toLocaleString()}`,
+                  `นำเข้าเสร็จแล้ว: เพิ่มใหม่ ${inserted.toLocaleString()} • อัปเดต ${updated.toLocaleString()} • ข้าม ${skipped.toLocaleString()} • ล้มเหลว ${failed.toLocaleString()}${workerIdDuplicated ? ` • ซ้ำเลขแรงงาน ${workerIdDuplicated.toLocaleString()}` : ""}`,
                 );
                 onImported();
               } catch (e: any) {

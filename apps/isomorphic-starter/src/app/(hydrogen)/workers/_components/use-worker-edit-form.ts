@@ -25,16 +25,17 @@ export function useWorkerEditForm({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [workerId, setWorkerId] = useState("");
   const [fullName, setFullName] = useState("");
   const [customerId, setCustomerId] = useState<string>("");
   const [passportNo, setPassportNo] = useState("");
+  const [passportType, setPassportType] = useState("");
   const [passportExpireDate, setPassportExpireDate] = useState("");
   const [nationality, setNationality] = useState<string>("เมียนมา");
   const [birthDate, setBirthDate] = useState("");
   const [osSex, setOsSex] = useState("");
   const [profilePicUrl, setProfilePicUrl] = useState("");
   const [profilePicFile, setProfilePicFile] = useState<File | null>(null);
-  const [visaNumber, setVisaNumber] = useState("");
   const [visaExpDate, setVisaExpDate] = useState("");
   const [wpNumber, setWpNumber] = useState("");
   const [wpExpireDate, setWpExpireDate] = useState("");
@@ -54,16 +55,17 @@ export function useWorkerEditForm({
   const reset = useCallback(() => {
     setLoading(false);
     setError(null);
+    setWorkerId("");
     setFullName("");
     setCustomerId("");
     setPassportNo("");
+    setPassportType("");
     setPassportExpireDate("");
     setNationality("เมียนมา");
     setBirthDate("");
     setOsSex("");
     setProfilePicUrl("");
     setProfilePicFile(null);
-    setVisaNumber("");
     setVisaExpDate("");
     setWpNumber("");
     setWpExpireDate("");
@@ -106,16 +108,17 @@ export function useWorkerEditForm({
     setLoading(false);
 
     if (initial) {
+      setWorkerId(initial.worker_id ?? "");
       setFullName(initial.full_name ?? "");
       setCustomerId(initial.customer_id ?? "");
       setPassportNo(initial.passport_no ?? "");
+      setPassportType(initial.passport_type ?? "");
       setPassportExpireDate(initial.passport_expire_date ?? "");
       setNationality(initial.nationality ?? "");
       setBirthDate(initial.birth_date ?? "");
       setOsSex(initial.os_sex ?? "");
       setProfilePicUrl(initial.profile_pic_url ?? "");
       setProfilePicFile(null);
-      setVisaNumber(initial.visa_number ?? "");
       setVisaExpDate(initial.visa_exp_date ?? "");
       setWpNumber(initial.wp_number ?? "");
       setWpExpireDate(initial.wp_expire_date ?? "");
@@ -150,14 +153,15 @@ export function useWorkerEditForm({
       }
 
       const payload = {
+        worker_id: workerId.trim() || null,
         full_name: fullName.trim(),
         customer_id: customerId || null,
         passport_no: passportNo.trim() || null,
+        passport_type: passportType.trim() || null,
         passport_expire_date: passportExpireDate || null,
         nationality: nationality.trim() || null,
         birth_date: birthDate || null,
         os_sex: osSex.trim() || null,
-        visa_number: visaNumber.trim() || null,
         visa_exp_date: visaExpDate || null,
         wp_number: wpNumber.trim() || null,
         wp_expire_date: wpExpireDate || null,
@@ -215,6 +219,7 @@ export function useWorkerEditForm({
       customerId,
       editingId,
       fullName,
+      passportType,
       nationality,
       onSaved,
       osSex,
@@ -225,7 +230,7 @@ export function useWorkerEditForm({
       supabase,
       userId,
       visaExpDate,
-      visaNumber,
+      workerId,
       wpExpireDate,
       wpNumber,
       wpType,
@@ -242,12 +247,16 @@ export function useWorkerEditForm({
     submitWorker,
     canSave,
     nameInputRef,
+    workerId,
+    setWorkerId,
     fullName,
     setFullName,
     customerId,
     setCustomerId,
     passportNo,
     setPassportNo,
+    passportType,
+    setPassportType,
     passportExpireDate,
     setPassportExpireDate,
     nationality,
@@ -260,8 +269,6 @@ export function useWorkerEditForm({
     setProfilePicUrl,
     profilePicFile,
     setProfilePicFile,
-    visaNumber,
-    setVisaNumber,
     visaExpDate,
     setVisaExpDate,
     wpNumber,
@@ -288,4 +295,3 @@ export function useWorkerEditForm({
     setDocViewerTitle,
   };
 }
-
