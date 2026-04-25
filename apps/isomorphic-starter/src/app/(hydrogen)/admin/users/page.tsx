@@ -184,15 +184,26 @@ export default function AdminUsersPage() {
               body: JSON.stringify({ ...payload, redirectTo }),
             });
             const json = await res.json().catch(() => null);
+            const link = (json?.actionLink as string | undefined) ?? null;
+            if (link) {
+              setActionLink(link);
+              await navigator.clipboard.writeText(link).catch(() => undefined);
+            }
             if (!res.ok) {
-              setError(json?.error ?? "ส่ง invite ไม่สำเร็จ");
+              const err = String(json?.error ?? "ส่ง invite ไม่สำเร็จ");
+              const reason = String(json?.reason ?? "");
+              if (err === "email_send_failed") {
+                if (reason === "missing_smtp_env") {
+                  setError("ส่งอีเมลไม่สำเร็จ: ยังไม่ได้ตั้งค่า SMTP (แต่สร้างลิงก์ให้แล้ว)");
+                } else {
+                  setError("ส่งอีเมลไม่สำเร็จ (แต่สร้างลิงก์ให้แล้ว)");
+                }
+                setMessage("สร้างลิงก์ตั้งรหัสแล้ว (คัดลอกไว้ในคลิปบอร์ด)");
+              } else {
+                setError(err);
+              }
               setLoading(false);
               return;
-            }
-            const link = (json?.actionLink as string | undefined) ?? null;
-            setActionLink(link);
-            if (link) {
-              await navigator.clipboard.writeText(link).catch(() => undefined);
             }
             const emailSent = Boolean(json?.emailSent);
             setMessage(emailSent ? "ส่งอีเมลเชิญตั้งรหัสแล้ว" : "สร้างลิงก์ตั้งรหัสแล้ว (คัดลอกไว้ในคลิปบอร์ด)");

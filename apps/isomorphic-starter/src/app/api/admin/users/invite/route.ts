@@ -152,7 +152,11 @@ export async function POST(req: Request) {
 
   const subject = "ตั้งรหัสผ่านเพื่อเข้าใช้งานระบบ";
   const { html, text } = buildAuthLinkEmail({ title: "ตั้งรหัสผ่านเพื่อเข้าใช้งานระบบ", actionLabel: "ตั้งรหัสผ่าน", actionLink: actionLink });
-  const sent = await sendEmail({ to: email, subject, html, text }).catch(() => ({ ok: false as const, reason: "send_failed" as const }));
+  const sent = await sendEmail({ to: email, subject, html, text });
 
-  return NextResponse.json({ ok: true, userId, actionLink, emailSent: sent.ok });
+  if (!sent.ok) {
+    return NextResponse.json({ error: "email_send_failed", reason: sent.reason, actionLink }, { status: 502 });
+  }
+
+  return NextResponse.json({ ok: true, userId, actionLink, emailSent: true });
 }

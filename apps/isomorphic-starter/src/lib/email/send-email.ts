@@ -29,14 +29,17 @@ export async function sendEmail(opts: { to: string; subject: string; html: strin
     auth: { user: cfg.user, pass: cfg.pass },
   });
 
-  await transporter.sendMail({
-    from: cfg.from,
-    to: opts.to,
-    subject: opts.subject,
-    html: opts.html,
-    text: opts.text,
-  });
+  try {
+    await transporter.sendMail({
+      from: cfg.from,
+      to: opts.to,
+      subject: opts.subject,
+      html: opts.html,
+      text: opts.text,
+    });
+  } catch {
+    return { ok: false as const, reason: "send_failed" as const };
+  }
 
   return { ok: true as const };
 }
-

@@ -39,7 +39,7 @@ export async function POST(req: Request) {
   const actionLink = linkData.properties.action_link;
   const subject = "รีเซ็ตรหัสผ่าน";
   const { html, text } = buildAuthLinkEmail({ title: "รีเซ็ตรหัสผ่าน", actionLabel: "ตั้งรหัสผ่านใหม่", actionLink: actionLink });
-  const sent = await sendEmail({ to: email, subject, html, text }).catch(() => ({ ok: false as const, reason: "send_failed" as const }));
+  const sent = await sendEmail({ to: email, subject, html, text });
 
-  return NextResponse.json({ ok: true, actionLink, emailSent: sent.ok });
+  return NextResponse.json({ ok: true, actionLink, emailSent: sent.ok, emailErrorReason: sent.ok ? null : sent.reason });
 }
