@@ -7,6 +7,35 @@ export const runtime = "nodejs";
 export const maxDuration = 60;
 export const dynamic = "force-dynamic";
 
+async function tryRenderViaService(html: string, filenameBase: string) {
+  const baseUrl = String(process.env.PDF_RENDER_URL ?? "").trim();
+  if (!baseUrl) return null;
+
+  const secret = String(process.env.PDF_SERVICE_SECRET ?? "").trim();
+  const url = `${baseUrl.replace(/\/+$/, "")}/render`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(secret ? { "X-PDF-SECRET": secret } : {}),
+    },
+    body: JSON.stringify({ html, filename: filenameBase }),
+  });
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`PDF service error (${res.status}): ${text || res.statusText}`);
+  }
+
+  const buf = await res.arrayBuffer();
+  return new NextResponse(buf as unknown as BodyInit, {
+    headers: {
+      "Content-Type": "application/pdf",
+      "Content-Disposition": `inline; filename=\"${filenameBase}.pdf\"`,
+    },
+  });
+}
+
 function safeErrorMessage(err: unknown) {
   const msg = err instanceof Error ? err.message : String(err ?? "");
   return msg.length > 600 ? `${msg.slice(0, 600)}…` : msg;
@@ -839,6 +868,10 @@ export async function POST(request: Request) {
 
     const chromiumPath = (await chromium.executablePath()) || (await resolveChromiumExecutablePath());
     const args = [...chromium.args, "--no-zygote", "--single-process"];
+    const fileBase = String(docId ?? "poa").replace(/[^a-zA-Z0-9._-]+/g, "_").slice(0, 120) || "poa";
+    const proxied = await tryRenderViaService(html, fileBase);
+    if (proxied) return proxied;
+
     const browser = await pwChromium.launch({
       executablePath: chromiumPath,
       args,
