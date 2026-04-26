@@ -40,7 +40,15 @@ async function getBrowser() {
   return browserPromise;
 }
 
+app.get("/", (_req, res) => {
+  res.status(200).json({ ok: true, service: "pdf-renderer" });
+});
+
 app.get("/healthz", (_req, res) => {
+  res.status(200).json({ ok: true });
+});
+
+app.get("/health", (_req, res) => {
   res.status(200).json({ ok: true });
 });
 
@@ -85,4 +93,3 @@ const port = Number(process.env.PORT || 8080);
 app.listen(port, () => {
   console.log(`pdf-renderer listening on :${port}`);
 });
-
