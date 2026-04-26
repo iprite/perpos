@@ -1,11 +1,39 @@
 import { NextResponse } from "next/server";
 import { chromium } from "playwright";
+import fs from "node:fs/promises";
 
 export const runtime = "nodejs";
 
 function safeErrorMessage(err: unknown) {
   const msg = err instanceof Error ? err.message : String(err ?? "");
   return msg.length > 600 ? `${msg.slice(0, 600)}…` : msg;
+}
+
+async function resolveChromiumExecutablePath() {
+  const fromEnv =
+    process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH ||
+    process.env.CHROMIUM_PATH ||
+    process.env.CHROME_BIN ||
+    process.env.GOOGLE_CHROME_BIN;
+  if (fromEnv) return fromEnv;
+
+  const candidates = [
+    "/usr/bin/chromium",
+    "/usr/bin/chromium-browser",
+    "/usr/bin/google-chrome",
+    "/usr/bin/google-chrome-stable",
+    "/usr/bin/google-chrome-beta",
+    "/usr/bin/google-chrome-unstable",
+  ];
+  for (const p of candidates) {
+    try {
+      await fs.access(p);
+      return p;
+    } catch {
+      continue;
+    }
+  }
+  return undefined;
 }
 
 async function loadStampDataUrl(request: Request) {
@@ -88,6 +116,8 @@ function addDays(d: Date, days: number) {
 
 export async function POST(request: Request) {
   try {
+    process.env.PLAYWRIGHT_BROWSERS_PATH = process.env.PLAYWRIGHT_BROWSERS_PATH || "0";
+
     const body = (await request.json()) as PoaPdfRequest;
     const req = body.req;
 
@@ -806,7 +836,9 @@ export async function POST(request: Request) {
   </body>
 </html>`;
 
+    const executablePath = await resolveChromiumExecutablePath();
     const browser = await chromium.launch({
+      executablePath,
       args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
     });
     try {
@@ -829,7 +861,11 @@ export async function POST(request: Request) {
       await browser.close();
     }
   } catch (e) {
-    return new NextResponse(`สร้าง PDF ไม่สำเร็จ: ${safeErrorMessage(e)}`, {
+    const extra =
+      String(e instanceof Error ? e.message : e ?? "").includes("Executable doesn't exist")
+        ? "\n\nหมายเหตุ: Production ต้องมี Chromium ให้ Playwright ใช้งาน (เช่น เปิด scripts ให้ postinstall ทำงาน หรือกำหนด CHROMIUM_PATH/CHROME_BIN ไปยัง chromium ที่ติดตั้งในระบบ)"
+        : "";
+    return new NextResponse(`สร้าง PDF ไม่สำเร็จ: ${safeErrorMessage(e)}${extra}`, {
       status: 500,
       headers: { "Content-Type": "text/plain; charset=utf-8" },
     });
