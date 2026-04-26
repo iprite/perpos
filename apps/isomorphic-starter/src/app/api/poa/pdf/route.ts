@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
-import { chromium } from "playwright";
 import fs from "node:fs/promises";
+import chromium from "@sparticuz/chromium";
+import { chromium as pwChromium } from "playwright-core";
 
 export const runtime = "nodejs";
 
@@ -116,8 +117,6 @@ function addDays(d: Date, days: number) {
 
 export async function POST(request: Request) {
   try {
-    process.env.PLAYWRIGHT_BROWSERS_PATH = process.env.PLAYWRIGHT_BROWSERS_PATH || "0";
-
     const body = (await request.json()) as PoaPdfRequest;
     const req = body.req;
 
@@ -836,10 +835,11 @@ export async function POST(request: Request) {
   </body>
 </html>`;
 
-    const executablePath = await resolveChromiumExecutablePath();
-    const browser = await chromium.launch({
-      executablePath,
-      args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
+    const chromiumPath = (await chromium.executablePath()) || (await resolveChromiumExecutablePath());
+    const browser = await pwChromium.launch({
+      executablePath: chromiumPath,
+      args: chromium.args,
+      headless: true,
     });
     try {
       const page = await browser.newPage({ viewport: { width: 794, height: 1123 } });
@@ -863,7 +863,7 @@ export async function POST(request: Request) {
   } catch (e) {
     const extra =
       String(e instanceof Error ? e.message : e ?? "").includes("Executable doesn't exist")
-        ? "\n\nหมายเหตุ: Production ต้องมี Chromium ให้ Playwright ใช้งาน (เช่น เปิด scripts ให้ postinstall ทำงาน หรือกำหนด CHROMIUM_PATH/CHROME_BIN ไปยัง chromium ที่ติดตั้งในระบบ)"
+        ? "\n\nหมายเหตุ: บน Vercel ต้องใช้ chromium ที่ bundle มากับ serverless (เช่น @sparticuz/chromium) หรือย้ายงาน PDF ไป service แยกต่างหาก"
         : "";
     return new NextResponse(`สร้าง PDF ไม่สำเร็จ: ${safeErrorMessage(e)}${extra}`, {
       status: 500,

@@ -6,13 +6,13 @@
     "dev": "next dev --port 3002",
     "lint": "next lint",
     "build": "next build",
-    "postinstall": "PLAYWRIGHT_BROWSERS_PATH=0 playwright install chromium",
     "type:check": "tsc --noEmit",
     "start": "next start -p 3002",
     "clean": "rm -rf node_modules .next .cache .turbo",
     "cache:clean": "rm -rf .next .cache .turbo"
   },
   "dependencies": {
+    "@sparticuz/chromium": "^131.0.0",
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
@@ -64,6 +64,7 @@
     "playwright": "^1.58.2",
     "pretty-bytes": "^6.1.1",
     "prop-types": "^15.8.1",
+    "playwright-core": "^1.58.2",
     "qrcode.react": "^4.2.0",
     "rc-pagination": "^5.1.0",
     "rc-rate": "^2.13.1",
