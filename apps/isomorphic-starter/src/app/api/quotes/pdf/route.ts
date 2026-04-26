@@ -27,10 +27,17 @@ async function tryRenderViaService(html: string, filenameBase: string) {
     throw new Error(`PDF service error (${res.status}): ${text || res.statusText}`);
   }
 
-  const buf = await res.arrayBuffer();
-  return new NextResponse(buf as unknown as BodyInit, {
+  const ab = await res.arrayBuffer();
+  const bytes = Buffer.from(ab);
+  const sig = bytes.subarray(0, 4).toString("ascii");
+  if (sig !== "%PDF") {
+    const snippet = bytes.subarray(0, 250).toString("utf8");
+    throw new Error(`PDF service returned non-PDF payload: ${snippet}`);
+  }
+
+  return new NextResponse(bytes, {
     headers: {
-      "Content-Type": "application/pdf",
+      "Content-Type": res.headers.get("content-type") ?? "application/pdf",
       "Content-Disposition": `inline; filename=\"${filenameBase}.pdf\"`,
     },
   });
