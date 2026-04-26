@@ -25,13 +25,20 @@ function requireSecret(req, res) {
 let browserPromise = null;
 
 async function getBrowser() {
-  if (browserPromise) return browserPromise;
+  if (browserPromise) {
+    const b = await browserPromise;
+    if (b && typeof b.isConnected === "function" && b.isConnected()) return b;
+    try {
+      await b?.close?.();
+    } catch {}
+    browserPromise = null;
+  }
   const args = [
     "--no-sandbox",
     "--disable-setuid-sandbox",
     "--disable-dev-shm-usage",
     "--no-zygote",
-    "--single-process",
+    "--disable-gpu",
   ];
   browserPromise = chromium.launch({ headless: true, args }).catch((e) => {
     browserPromise = null;
@@ -69,14 +76,25 @@ app.post("/render", async (req, res) => {
   }
 
   let browser;
+  let context;
+  let page;
   try {
     browser = await getBrowser();
-    const page = await browser.newPage({ viewport: { width: 794, height: 1123 } });
+    context = await browser.newContext({
+      viewport: { width: 794, height: 1123 },
+      ignoreHTTPSErrors: true,
+    });
+    page = await context.newPage();
     page.setDefaultTimeout(30_000);
 
     await page.setContent(html, { waitUntil: "domcontentloaded", timeout: 30_000 });
+    try {
+      await page.evaluate(() => (document.fonts ? document.fonts.ready : null));
+    } catch {}
+    await page.waitForLoadState("networkidle", { timeout: 5_000 }).catch(() => {});
     const pdf = await page.pdf({ format: "A4", printBackground: true, preferCSSPageSize: true });
-    await page.close();
+    await page.close().catch(() => {});
+    await context.close().catch(() => {});
 
     res
       .status(200)
@@ -85,7 +103,22 @@ app.post("/render", async (req, res) => {
       .send(Buffer.from(pdf));
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e ?? "");
+    if (
+      typeof msg === "string" &&
+      (msg.includes("browser has been closed") ||
+        msg.includes("Target page, context or browser has been closed") ||
+        msg.includes("browserType.launch"))
+    ) {
+      try {
+        const b = await browserPromise;
+        await b?.close?.();
+      } catch {}
+      browserPromise = null;
+    }
     res.status(500).type("text/plain; charset=utf-8").send(`PDF render failed: ${msg}`);
+  } finally {
+    await page?.close?.().catch(() => {});
+    await context?.close?.().catch(() => {});
   }
 });
 
