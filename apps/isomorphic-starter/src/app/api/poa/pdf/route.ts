@@ -4,6 +4,8 @@ import chromium from "@sparticuz/chromium";
 import { chromium as pwChromium } from "playwright-core";
 
 export const runtime = "nodejs";
+export const maxDuration = 60;
+export const dynamic = "force-dynamic";
 
 function safeErrorMessage(err: unknown) {
   const msg = err instanceof Error ? err.message : String(err ?? "");
@@ -836,15 +838,16 @@ export async function POST(request: Request) {
 </html>`;
 
     const chromiumPath = (await chromium.executablePath()) || (await resolveChromiumExecutablePath());
+    const args = [...chromium.args, "--no-zygote", "--single-process"];
     const browser = await pwChromium.launch({
       executablePath: chromiumPath,
-      args: chromium.args,
+      args,
       headless: true,
     });
     try {
       const page = await browser.newPage({ viewport: { width: 794, height: 1123 } });
-      page.setDefaultTimeout(15_000);
-      await page.setContent(html, { waitUntil: "load", timeout: 15_000 });
+      page.setDefaultTimeout(25_000);
+      await page.setContent(html, { waitUntil: "domcontentloaded", timeout: 25_000 });
       const pdf = await page.pdf({
         format: "A4",
         printBackground: true,
