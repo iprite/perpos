@@ -6,6 +6,7 @@
     "dev": "next dev --port 3002",
     "lint": "next lint",
     "build": "next build",
+    "postinstall": "playwright install --with-deps chromium",
     "type:check": "tsc --noEmit",
     "start": "next start -p 3002",
     "clean": "rm -rf node_modules .next .cache .turbo",
