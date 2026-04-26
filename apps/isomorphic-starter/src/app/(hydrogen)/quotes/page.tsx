@@ -13,6 +13,7 @@ import { Modal } from "@core/modal-views/modal";
 import TableSearch from "@/components/table/table-search";
 
 import { useAuth } from "@/app/shared/auth-provider";
+import { useConfirmDialog } from "@/app/shared/confirm-dialog/provider";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { buildQuotePdfBytes } from "@/utils/quote-pdf";
 
@@ -37,7 +38,28 @@ type DraftItem = {
   key: string;
   serviceId: string;
   quantity: string;
+  unitPrice: string;
+  tasks: string;
 };
+
+function tasksFromService(taskList: unknown) {
+  const arr = Array.isArray(taskList) ? taskList : [];
+  return arr
+    .filter((x) => typeof x === "string")
+    .map((x) => x.trim())
+    .filter((x) => x.length > 0);
+}
+
+function tasksTextFromService(taskList: unknown) {
+  return tasksFromService(taskList).join("\n");
+}
+
+function parseTasksText(text: string) {
+  return String(text ?? "")
+    .split(/\r?\n/)
+    .map((x) => x.trim())
+    .filter((x) => x.length > 0);
+}
 
 function round2(n: number) {
   return Math.round((Number.isFinite(n) ? n : 0) * 100) / 100;
@@ -76,15 +98,6 @@ function statusClass(s: QuoteStatus) {
   return "bg-blue-50 text-blue-700 border-blue-200";
 }
 
-function mkQuoteNo() {
-  const d = new Date();
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  const rand = Math.floor(Math.random() * 9000) + 1000;
-  return `Q-${y}${m}${dd}-${rand}`;
-}
-
 function CheckCircle({ checked }: { checked: boolean }) {
   return (
     <span
@@ -113,11 +126,13 @@ function ToggleRateInput(props: {
   value: string;
   onValueChange: (next: string) => void;
   disabled?: boolean;
+  containerClassName?: string;
+  inputClassName?: string;
 }) {
-  const { label, checked, onCheckedChange, value, onValueChange, disabled } = props;
+  const { label, checked, onCheckedChange, value, onValueChange, disabled, containerClassName, inputClassName } = props;
   const locked = Boolean(disabled);
   return (
-    <div>
+    <div className={containerClassName}>
       <div className="mb-1 text-sm font-medium text-gray-700">{label}</div>
       <div className="relative">
         <button
@@ -133,7 +148,7 @@ function ToggleRateInput(props: {
           <CheckCircle checked={checked} />
         </button>
         <input
-          className={`h-10 w-full rounded-md border px-3 pl-12 text-sm outline-none transition-colors ${
+          className={`h-10 ${inputClassName ?? "w-full"} rounded-md border px-3 pl-12 text-sm outline-none transition-colors ${
             locked || !checked
               ? "border-gray-200 bg-gray-50 text-gray-400"
               : "border-gray-200 bg-white text-gray-900 focus:border-gray-300"
@@ -148,10 +163,83 @@ function ToggleRateInput(props: {
   );
 }
 
+function DiscountInput(props: {
+  mode: "amount" | "percent";
+  onModeChange: (next: "amount" | "percent") => void;
+  value: string;
+  onValueChange: (next: string) => void;
+  disabled?: boolean;
+  className?: string;
+}) {
+  const { mode, onModeChange, value, onValueChange, disabled, className } = props;
+  const locked = Boolean(disabled);
+  const percentOn = mode === "percent";
+
+  return (
+    <div className={className}>
+      <div className="mb-1 text-sm font-medium text-gray-700">ส่วนลด</div>
+      <div
+        className={`relative flex h-10 w-full items-center overflow-hidden rounded-md border text-sm !shadow-none ring-0 ring-offset-0 transition-colors focus-within:!shadow-none focus-within:ring-0 focus-within:ring-offset-0 ${
+          locked
+            ? "!border-gray-200 bg-gray-50 text-gray-400"
+            : "!border-gray-200 bg-white text-gray-900 focus-within:!border-gray-200"
+        }`}
+      >
+        <input
+          className="h-full w-full border-0 bg-transparent px-3 pr-24 outline-none shadow-none focus:outline-none focus:shadow-none focus-visible:outline-none focus-visible:shadow-none focus:ring-0 focus-visible:ring-0"
+          inputMode="decimal"
+          value={value}
+          onChange={(e) => onValueChange(e.target.value)}
+          disabled={locked}
+          aria-label={mode === "percent" ? "ส่วนลดเปอร์เซ็นต์" : "ส่วนลดจำนวนเงิน"}
+        />
+
+        <div className="absolute right-2 top-1/2 -translate-y-1/2">
+          <div
+            className={`inline-flex items-center rounded-full p-0.5 text-xs font-semibold ${locked ? "bg-white/60" : "bg-gray-50"}`}
+            role="group"
+            aria-label="ประเภทส่วนลด"
+          >
+            <button
+              type="button"
+              className={`h-7 rounded-full px-2.5 outline-none transition focus:outline-none focus-visible:outline-none focus-visible:ring-0 ${
+                !percentOn ? "bg-gray-900 text-white" : "text-gray-700 hover:bg-gray-100"
+              }`}
+              onClick={() => {
+                if (locked) return;
+                onModeChange("amount");
+              }}
+              disabled={locked}
+              aria-pressed={!percentOn}
+            >
+              ฿
+            </button>
+            <button
+              type="button"
+              className={`h-7 rounded-full px-2.5 outline-none transition focus:outline-none focus-visible:outline-none focus-visible:ring-0 ${
+                percentOn ? "bg-gray-900 text-white" : "text-gray-700 hover:bg-gray-100"
+              }`}
+              onClick={() => {
+                if (locked) return;
+                onModeChange("percent");
+              }}
+              disabled={locked}
+              aria-pressed={percentOn}
+            >
+              %
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function QuotesPage() {
   const { role, userId } = useAuth();
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
   const topRef = useRef<HTMLDivElement | null>(null);
+  const confirm = useConfirmDialog();
 
   const canEdit = role === "admin" || role === "sale";
   const canApprove = role === "admin";
@@ -171,19 +259,20 @@ export default function QuotesPage() {
   const [selectedItems, setSelectedItems] = useState<SalesQuoteItemRow[]>([]);
   const [selectedFollowups, setSelectedFollowups] = useState<SalesFollowupRow[]>([]);
   const [selectedTab, setSelectedTab] = useState<"summary" | "items" | "followups">("summary");
-  const [existingOrderId, setExistingOrderId] = useState<string | null | undefined>(undefined);
+  const [existingOrder, setExistingOrder] = useState<{ id: string; display_id: string | null } | null | undefined>(undefined);
 
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [customerId, setCustomerId] = useState("");
   const [validUntil, setValidUntil] = useState("");
-  const [discount, setDiscount] = useState("0");
+  const [discountMode, setDiscountMode] = useState<"amount" | "percent">("amount");
+  const [discountValue, setDiscountValue] = useState("0");
   const [notes, setNotes] = useState("");
   const [includeVat, setIncludeVat] = useState(true);
   const [vatRate, setVatRate] = useState("7");
   const [includeWht, setIncludeWht] = useState(true);
   const [whtRate, setWhtRate] = useState("3");
-  const [items, setItems] = useState<DraftItem[]>([{ key: "1", serviceId: "", quantity: "1" }]);
+  const [items, setItems] = useState<DraftItem[]>([{ key: "1", serviceId: "", quantity: "1", unitPrice: "", tasks: "" }]);
 
   const [remindersOpen, setRemindersOpen] = useState(false);
   const [globalTasks, setGlobalTasks] = useState<SalesFollowupRow[]>([]);
@@ -204,20 +293,29 @@ export default function QuotesPage() {
       .map((it) => {
         const svc = serviceById.get(it.serviceId) ?? null;
         const qty = Math.max(0, Math.floor(Number(it.quantity || 0)));
-        const unit = svc ? Number(svc.sell_price || 0) : 0;
+        const unitInput = String(it.unitPrice ?? "").replaceAll(",", "").trim();
+        const unitFromInput = unitInput.length ? Number(unitInput) : Number.NaN;
+        const fallbackUnit = svc ? Number(svc.sell_price || 0) : 0;
+        const unit = Math.max(0, Number.isFinite(unitFromInput) ? unitFromInput : fallbackUnit);
         const lineTotal = round2(unit * qty);
+        const task_list = parseTasksText(it.tasks);
         return {
           ...it,
           qty,
           unit,
           lineTotal,
           name: svc?.name ?? "-",
+          task_list,
         };
       })
       .filter((it) => it.qty > 0);
 
     const subtotal = round2(normalized.reduce((sum, x) => sum + x.lineTotal, 0));
-    const discountTotal = round2(Math.max(0, Number(discount || 0)));
+    const discountRaw = Number(String(discountValue ?? "0").replaceAll(",", "").trim() || 0);
+    const discountTotal =
+      discountMode === "percent"
+        ? round2((subtotal * Math.max(0, Math.min(100, discountRaw))) / 100)
+        : round2(Math.max(0, discountRaw));
     const afterDiscount = round2(Math.max(0, subtotal - discountTotal));
     const vatRateNum = Math.max(0, Number(vatRate || 0));
     const whtRateNum = Math.max(0, Number(whtRate || 0));
@@ -225,19 +323,20 @@ export default function QuotesPage() {
     const whtAmount = includeWht ? round2((afterDiscount * whtRateNum) / 100) : 0;
     const total = round2(Math.max(0, afterDiscount + vatAmount - whtAmount));
     return { normalized, subtotal, discountTotal, afterDiscount, vatRateNum, vatAmount, whtRateNum, whtAmount, total };
-  }, [discount, includeVat, includeWht, items, serviceById, vatRate, whtRate]);
+  }, [discountMode, discountValue, includeVat, includeWht, items, serviceById, vatRate, whtRate]);
 
   const resetForm = useCallback(() => {
     setEditingId(null);
     setCustomerId("");
     setValidUntil(dayjs().add(30, "day").format("YYYY-MM-DD"));
-    setDiscount("0");
+    setDiscountMode("amount");
+    setDiscountValue("0");
     setNotes("");
     setIncludeVat(true);
     setVatRate("7");
     setIncludeWht(true);
     setWhtRate("3");
-    setItems([{ key: "1", serviceId: "", quantity: "1" }]);
+    setItems([{ key: "1", serviceId: "", quantity: "1", unitPrice: "", tasks: "" }]);
   }, []);
 
   const refreshCustomersAndServices = useCallback(() => {
@@ -316,7 +415,7 @@ export default function QuotesPage() {
           const [{ data: it, error: itErr }, { data: fu, error: fuErr }] = await Promise.all([
             supabase
               .from("sales_quote_items")
-              .select("id,quote_id,service_id,name,description,quantity,unit_price,line_total,sort_order,created_at")
+              .select("id,quote_id,service_id,name,description,task_list,quantity,unit_price,line_total,sort_order,created_at")
               .eq("quote_id", quoteId)
               .order("sort_order", { ascending: true })
               .order("created_at", { ascending: true }),
@@ -352,6 +451,23 @@ export default function QuotesPage() {
   }, [refreshCustomersAndServices]);
 
   React.useEffect(() => {
+    if (!showForm) return;
+    setItems((prev) => {
+      let changed = false;
+      const next = prev.map((x) => {
+        if (!x.serviceId || x.tasks.trim().length) return x;
+        const svc = serviceById.get(x.serviceId) ?? null;
+        if (!svc) return x;
+        const def = tasksTextFromService((svc as any).task_list);
+        if (!def.trim().length) return x;
+        changed = true;
+        return { ...x, tasks: def };
+      });
+      return changed ? next : prev;
+    });
+  }, [serviceById, showForm]);
+
+  React.useEffect(() => {
     setPagination((p) => ({ ...p, pageIndex: 0 }));
   }, [search]);
 
@@ -369,21 +485,85 @@ export default function QuotesPage() {
   }, [refreshSelected, selected]);
 
   React.useEffect(() => {
-    if (!selected || selected.status !== "approved") {
-      setExistingOrderId(null);
+    if (!selected) {
+      setExistingOrder(null);
       return;
     }
-    setExistingOrderId(undefined);
+    setExistingOrder(undefined);
     const quoteId = selected.id;
     Promise.resolve().then(async () => {
       try {
-        const { data } = await supabase.from("orders").select("id").eq("source_quote_id", quoteId).maybeSingle();
-        setExistingOrderId(data?.id ?? null);
+        const { data, error: e } = await supabase
+          .from("orders")
+          .select("id,display_id")
+          .eq("source_quote_id", quoteId)
+          .maybeSingle();
+        if (e) {
+          setExistingOrder(undefined);
+          return;
+        }
+        setExistingOrder(data?.id ? { id: data.id, display_id: (data as any).display_id ?? null } : null);
       } catch {
-        setExistingOrderId(null);
+        setExistingOrder(undefined);
       }
     });
+
   }, [selected, supabase]);
+
+  const deleteSelectedQuote = useCallback(async () => {
+
+    if (!selected) return;
+    if (!canEdit) return;
+    if (selected.status !== "draft") {
+      setError("ลบได้เฉพาะใบเสนอราคาสถานะร่างเท่านั้น");
+      return;
+    }
+    if (existingOrder === undefined) {
+      setError("กำลังตรวจสอบความเชื่อมโยงกับออเดอร์ กรุณาลองใหม่อีกครั้ง");
+      return;
+    }
+    if (existingOrder) {
+      setError("ลบไม่ได้: ใบเสนอราคานี้ถูก link กับออเดอร์แล้ว");
+      return;
+    }
+    const ok = await confirm({
+      title: "ยืนยันการลบใบเสนอราคา",
+      message: (
+        <div>
+          ต้องการลบใบเสนอราคา <span className="font-semibold text-gray-900">{selected.quote_no}</span> ใช่หรือไม่
+        </div>
+      ),
+      confirmText: "ลบ",
+      cancelText: "ยกเลิก",
+      tone: "danger",
+    });
+    if (!ok) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const { error: delErr } = await supabase.from("sales_quotes").delete().eq("id", selected.id);
+      if (delErr) {
+        const msg = String(delErr.message ?? "ลบไม่สำเร็จ");
+        if (msg.toLowerCase().includes("violates foreign key constraint") || msg.toLowerCase().includes("foreign key")) {
+          setError("ลบไม่ได้: ใบเสนอราคานี้ถูก link กับออเดอร์แล้ว");
+        } else {
+          setError(msg);
+        }
+        setLoading(false);
+        return;
+      }
+      setDetailOpen(false);
+      setSelected(null);
+      setSelectedItems([]);
+      setSelectedFollowups([]);
+      setExistingOrder(null);
+      setLoading(false);
+      refresh();
+    } catch (e: any) {
+      setError(e?.message ?? "ลบไม่สำเร็จ");
+      setLoading(false);
+    }
+  }, [canEdit, confirm, existingOrder, refresh, selected, supabase]);
 
   const table = useReactTable({
     data: rows,
@@ -400,25 +580,37 @@ export default function QuotesPage() {
       setEditingId(q.id);
       setCustomerId(q.customer_id ?? "");
       setValidUntil(q.valid_until ?? "");
-      setDiscount(String(q.discount_total ?? 0));
+      setDiscountMode("amount");
+      setDiscountValue(String(q.discount_total ?? 0));
       setNotes(q.notes ?? "");
       setIncludeVat(Boolean(q.include_vat));
       setVatRate(String(q.vat_rate ?? 7));
       const whtOn = Number(q.wht_rate ?? 0) > 0;
       setIncludeWht(whtOn);
       setWhtRate(whtOn ? String(q.wht_rate ?? 3) : "3");
-      setItems([{ key: "seed", serviceId: "", quantity: "1" }]);
+      setItems([{ key: "seed", serviceId: "", quantity: "1", unitPrice: "", tasks: "" }]);
       Promise.resolve().then(async () => {
         const { data } = await supabase
           .from("sales_quote_items")
-          .select("id,service_id,quantity")
+          .select("id,service_id,quantity,unit_price,description,task_list")
           .eq("quote_id", q.id)
           .order("sort_order", { ascending: true })
           .order("created_at", { ascending: true });
         const mapped = ((data ?? []) as any[])
-          .map((x) => ({ key: String(x.id), serviceId: String(x.service_id ?? ""), quantity: String(x.quantity ?? 1) }))
+          .map((x) => {
+            const taskList = (x as any).task_list;
+            const desc = String((x as any).description ?? "");
+            const tasksText = Array.isArray(taskList) ? tasksFromService(taskList).join("\n") : desc;
+            return {
+              key: String((x as any).id),
+              serviceId: String((x as any).service_id ?? ""),
+              quantity: String((x as any).quantity ?? 1),
+              unitPrice: String((x as any).unit_price ?? ""),
+              tasks: tasksText,
+            };
+          })
           .filter((x) => x.serviceId.length > 0);
-        setItems(mapped.length ? mapped : [{ key: "1", serviceId: "", quantity: "1" }]);
+        setItems(mapped.length ? mapped : [{ key: "1", serviceId: "", quantity: "1", unitPrice: "", tasks: "" }]);
       });
       setShowForm(true);
       window.setTimeout(() => {
@@ -446,7 +638,6 @@ export default function QuotesPage() {
     }
 
     const quotePayload = {
-      quote_no: editingId ? undefined : mkQuoteNo(),
       customer_id: cust.id,
       customer_name: cust.name,
       customer_company: cust.branch_name || null,
@@ -474,6 +665,7 @@ export default function QuotesPage() {
       service_id: x.serviceId,
       name: x.name,
       description: null,
+      task_list: x.task_list,
       quantity: x.qty,
       unit_price: x.unit,
       line_total: x.lineTotal,
@@ -523,11 +715,10 @@ export default function QuotesPage() {
           return;
         }
       } else {
-        const quoteNo = (quotePayload.quote_no as string) || mkQuoteNo();
         const { data: created, error: insErr } = await supabase
           .from("sales_quotes")
-          .insert({ ...quotePayload, quote_no: quoteNo })
-          .select("id")
+          .insert({ ...quotePayload, quote_no: null })
+          .select("id,quote_no")
           .single();
         if (insErr || !created?.id) {
           setError(insErr?.message ?? "สร้างใบเสนอราคาไม่สำเร็จ");
@@ -627,10 +818,16 @@ export default function QuotesPage() {
           Array.isArray(s.task_list) ? s.task_list.filter((x) => typeof x === "string" && x.trim().length) : [],
         ]),
       );
-      const itemsWithTasks = selectedItems.map((it) => ({
-        ...it,
-        task_list: it.service_id ? (serviceTasksById.get(it.service_id) ?? []) : [],
-      }));
+      const itemsWithTasks = selectedItems.map((it) => {
+        const perQuoteTasks = Array.isArray((it as any).task_list)
+          ? ((it as any).task_list as unknown[]).filter((x) => typeof x === "string" && x.trim().length).map((x) => String(x).trim())
+          : [];
+        const fallbackTasks = it.service_id ? (serviceTasksById.get(it.service_id) ?? []) : [];
+        return {
+          ...it,
+          task_list: perQuoteTasks.length ? perQuoteTasks : fallbackTasks,
+        };
+      });
       const bytes = await buildQuotePdfBytes({ quote: selected, items: itemsWithTasks });
       const blob = new Blob([bytes], { type: "application/pdf" });
       const url = URL.createObjectURL(blob);
@@ -663,9 +860,9 @@ export default function QuotesPage() {
     setLoading(true);
     setError(null);
     try {
-      const { data: exist } = await supabase.from("orders").select("id").eq("source_quote_id", selected.id).maybeSingle();
+      const { data: exist } = await supabase.from("orders").select("id,display_id").eq("source_quote_id", selected.id).maybeSingle();
       if (exist?.id) {
-        setExistingOrderId(exist.id);
+        setExistingOrder({ id: exist.id, display_id: (exist as any).display_id ?? null });
         setError("มีออเดอร์จากใบเสนอราคานี้แล้ว");
         setLoading(false);
         return;
@@ -686,7 +883,7 @@ export default function QuotesPage() {
         source_quote_id: selected.id,
       };
 
-      const { data: created, error: insErr } = await supabase.from("orders").insert(orderPayload).select("id").single();
+      const { data: created, error: insErr } = await supabase.from("orders").insert(orderPayload).select("id,display_id").single();
       if (insErr || !created?.id) {
         setError(insErr?.message ?? "สร้างออเดอร์ไม่สำเร็จ");
         setLoading(false);
@@ -715,7 +912,7 @@ export default function QuotesPage() {
         return;
       }
 
-      setExistingOrderId(orderId);
+      setExistingOrder({ id: orderId, display_id: (created as any).display_id ?? null });
       setLoading(false);
     } catch (e: any) {
       setError(e?.message ?? "สร้างออเดอร์ไม่สำเร็จ");
@@ -782,22 +979,30 @@ export default function QuotesPage() {
           <Text className="mt-1 text-sm text-gray-600">สร้าง อนุมัติ ดาวน์โหลด PDF และสร้างออเดอร์จากใบเสนอราคาที่อนุมัติ</Text>
         </div>
         <div className="flex flex-wrap gap-2">
-          <TableSearch value={search} onChange={setSearch} />
-          <Button
-            variant="outline"
-            onClick={() => {
-              refreshGlobalTasks();
-              setRemindersOpen(true);
-            }}
-            disabled={loading}
-          >
-            งานเตือน {globalTasks.filter(quoteIsDueRelevant).length > 0 ? `(${globalTasks.filter(quoteIsDueRelevant).length})` : ""}
-          </Button>
-          {canEdit ? (
-            <Button variant="outline" onClick={openCreate} disabled={loading}>
-              สร้างใบเสนอราคา
+          {detailOpen ? (
+            <Button variant="outline" onClick={() => setDetailOpen(false)} disabled={loading}>
+              ปิดรายละเอียด
             </Button>
-          ) : null}
+          ) : (
+            <>
+              <TableSearch value={search} onChange={setSearch} />
+              <Button
+                variant="outline"
+                onClick={() => {
+                  refreshGlobalTasks();
+                  setRemindersOpen(true);
+                }}
+                disabled={loading}
+              >
+                งานเตือน {globalTasks.filter(quoteIsDueRelevant).length > 0 ? `(${globalTasks.filter(quoteIsDueRelevant).length})` : ""}
+              </Button>
+              {canEdit ? (
+                <Button variant="outline" onClick={openCreate} disabled={loading}>
+                  สร้างใบเสนอราคา
+                </Button>
+              ) : null}
+            </>
+          )}
         </div>
       </div>
 
@@ -806,8 +1011,8 @@ export default function QuotesPage() {
           <div className="text-sm font-semibold text-gray-900">{editingId ? "แก้ไขใบเสนอราคา" : "สร้างใบเสนอราคา"}</div>
         </div>
         <div className="grid gap-3 px-5 py-4">
-          <div className="grid gap-3 md:grid-cols-2">
-            <div className="md:col-span-2">
+          <div className="grid gap-3 md:grid-cols-10">
+            <div className="md:col-span-7">
               <AppSelect
                 label="ลูกค้า"
                 placeholder="เลือก"
@@ -819,18 +1024,19 @@ export default function QuotesPage() {
                 inPortal={false}
               />
             </div>
-            <DatePicker
-              selected={validUntil ? dayjs(validUntil).toDate() : null}
-              onChange={(date: Date | null) => setValidUntil(date ? dayjs(date).format("YYYY-MM-DD") : "")}
-              dateFormat="dd/MM/yyyy"
-              placeholderText="เลือกวันที่"
-              disabled={loading}
-              inputProps={{ label: "ใช้ได้ถึง" }}
-            />
-            <Input label="ส่วนลด" value={discount} onChange={(e) => setDiscount(e.target.value)} inputMode="decimal" />
+            <div className="md:col-span-3">
+              <DatePicker
+                selected={validUntil ? dayjs(validUntil).toDate() : null}
+                onChange={(date: Date | null) => setValidUntil(date ? dayjs(date).format("YYYY-MM-DD") : "")}
+                dateFormat="dd/MM/yyyy"
+                placeholderText="เลือกวันที่"
+                disabled={loading}
+                inputProps={{ label: "ใช้ได้ถึง" }}
+              />
+            </div>
           </div>
 
-          <div className="grid gap-3 md:grid-cols-2">
+          <div className="flex flex-col gap-3 md:flex-row md:items-end">
             <ToggleRateInput
               label="VAT (%)"
               checked={includeVat}
@@ -841,6 +1047,8 @@ export default function QuotesPage() {
               value={vatRate}
               onValueChange={setVatRate}
               disabled={loading}
+              containerClassName="md:w-[100px]"
+              inputClassName="w-full"
             />
             <ToggleRateInput
               label="หัก ณ ที่จ่าย (%)"
@@ -852,25 +1060,26 @@ export default function QuotesPage() {
               value={whtRate}
               onValueChange={setWhtRate}
               disabled={loading}
+              containerClassName="md:w-[100px]"
+              inputClassName="w-full"
+            />
+            <DiscountInput
+              mode={discountMode}
+              onModeChange={setDiscountMode}
+              value={discountValue}
+              onValueChange={setDiscountValue}
+              disabled={loading}
+              className="md:flex-1"
             />
           </div>
 
-          <Textarea
-            label="หมายเหตุ"
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            rows={3}
-            placeholder="พิมพ์หมายเหตุที่จะแสดงในใบเสนอราคา"
-            disabled={loading}
-          />
-
-          <div className="rounded-lg border border-gray-200">
+            <div className="rounded-lg border border-gray-200 overflow-hidden">
             <div className="flex items-center justify-between border-b border-gray-200 bg-gray-50 px-3 py-2">
-              <div className="text-sm font-semibold text-gray-900">รายการในใบเสนอราคา</div>
+              <div className="text-sm font-semibold text-gray-900">รายการบริการ</div>
               <Button
                 variant="outline"
                 onClick={() => {
-                  setItems((prev) => [...prev, { key: String(Date.now()), serviceId: "", quantity: "1" }]);
+                  setItems((prev) => [...prev, { key: String(Date.now()), serviceId: "", quantity: "1", unitPrice: "", tasks: "" }]);
                 }}
                 disabled={loading}
               >
@@ -889,58 +1098,110 @@ export default function QuotesPage() {
             {items.map((it) => {
               const svc = it.serviceId ? serviceById.get(it.serviceId) ?? null : null;
               const qty = Math.max(0, Math.floor(Number(it.quantity || 0)));
-              const unit = svc ? Number(svc.sell_price || 0) : 0;
+              const unitInput = String(it.unitPrice ?? "").replaceAll(",", "").trim();
+              const unitFromInput = unitInput.length ? Number(unitInput) : Number.NaN;
+              const fallbackUnit = svc ? Number(svc.sell_price || 0) : 0;
+              const unit = Math.max(0, Number.isFinite(unitFromInput) ? unitFromInput : fallbackUnit);
               const lineTotal = round2(unit * qty);
+              const svcTasksText = svc ? tasksTextFromService((svc as any).task_list) : "";
 
               return (
-                <div
-                  key={it.key}
-                  className="grid grid-cols-[1.2fr_0.35fr_0.45fr_0.45fr_40px] items-center gap-2 border-t border-gray-100 px-3 py-2"
-                >
-                  <div>
-                    <AppSelect
-                      placeholder="เลือก"
-                      options={serviceOptions}
-                      value={it.serviceId}
-                      onChange={(v: string) => {
-                        setItems((prev) => prev.map((x) => (x.key === it.key ? { ...x, serviceId: v } : x)));
-                      }}
-                      getOptionValue={(o) => o.value}
-                      displayValue={(selected) => serviceOptions.find((o) => o.value === selected)?.label ?? ""}
-                      selectClassName="h-10 px-3"
-                      inPortal={false}
-                    />
+                <div key={it.key} className="border-t border-gray-100 px-3 py-2">
+                  <div className="grid grid-cols-[1.2fr_0.35fr_0.45fr_0.45fr_40px] items-center gap-2">
+                    <div>
+                      <AppSelect
+                        placeholder="เลือก"
+                        options={serviceOptions}
+                        value={it.serviceId}
+                        onChange={(v: string) => {
+                          setItems((prev) =>
+                            prev.map((x) => {
+                              if (x.key !== it.key) return x;
+                              const prevSvc = x.serviceId ? (serviceById.get(x.serviceId) ?? null) : null;
+                              const prevDefault = prevSvc ? tasksTextFromService((prevSvc as any).task_list) : "";
+                              const nextSvc = v ? (serviceById.get(v) ?? null) : null;
+                              const nextDefault = nextSvc ? tasksTextFromService((nextSvc as any).task_list) : "";
+                              const shouldReplaceTasks = x.tasks.trim().length === 0 || x.tasks.trim() === prevDefault.trim();
+                              const prevUnitDefault = prevSvc ? String(prevSvc.sell_price ?? 0) : "";
+                              const nextUnitDefault = nextSvc ? String(nextSvc.sell_price ?? 0) : "";
+                              const shouldReplaceUnit = x.unitPrice.trim().length === 0 || x.unitPrice.trim() === prevUnitDefault.trim();
+                              return {
+                                ...x,
+                                serviceId: v,
+                                unitPrice: shouldReplaceUnit ? nextUnitDefault : x.unitPrice,
+                                tasks: shouldReplaceTasks ? nextDefault : x.tasks,
+                              };
+                            }),
+                          );
+                        }}
+                        getOptionValue={(o) => o.value}
+                        displayValue={(selected) => serviceOptions.find((o) => o.value === selected)?.label ?? ""}
+                        selectClassName="h-10 px-3"
+                        inPortal={false}
+                      />
+                    </div>
+                    <div className="text-center">
+                      <input
+                        className="h-10 w-full rounded-md border border-gray-200 bg-white px-3 text-center text-sm"
+                        inputMode="numeric"
+                        value={it.quantity}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          setItems((prev) => prev.map((x) => (x.key === it.key ? { ...x, quantity: v } : x)));
+                        }}
+                        disabled={loading}
+                      />
+                    </div>
+                    <div className="text-right">
+                      <input
+                        className={`h-10 w-full rounded-md border px-3 text-right text-sm outline-none transition-colors ${
+                          loading || !svc
+                            ? "border-gray-200 bg-gray-50 text-gray-400"
+                            : "border-gray-200 bg-white text-gray-900 focus:border-gray-300"
+                        }`}
+                        inputMode="decimal"
+                        value={it.unitPrice}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          setItems((prev) => prev.map((x) => (x.key === it.key ? { ...x, unitPrice: v } : x)));
+                        }}
+                        disabled={loading || !svc}
+                        aria-label="ราคาต่อหน่วย"
+                      />
+                    </div>
+                    <div className="text-right text-sm font-medium text-gray-900">{svc && qty > 0 ? asMoney(lineTotal) : "-"}</div>
+                    <div className="text-right">
+                      <button
+                        type="button"
+                        className="h-8 w-8 rounded-md border border-gray-200 text-gray-600 hover:bg-gray-100"
+                        onClick={() => {
+                          setItems((prev) => {
+                            const next = prev.filter((x) => x.key !== it.key);
+                            return next.length ? next : [{ key: "1", serviceId: "", quantity: "1", unitPrice: "", tasks: "" }];
+                          });
+                        }}
+                        disabled={loading}
+                        aria-label="ลบบรรทัดบริการ"
+                      >
+                        ×
+                      </button>
+                    </div>
                   </div>
-                  <div className="text-center">
-                    <input
-                      className="h-10 w-full rounded-md border border-gray-200 bg-white px-3 text-center text-sm"
-                      inputMode="numeric"
-                      value={it.quantity}
-                      onChange={(e) => {
-                        const v = e.target.value;
-                        setItems((prev) => prev.map((x) => (x.key === it.key ? { ...x, quantity: v } : x)));
-                      }}
-                      disabled={loading}
-                    />
-                  </div>
-                  <div className="text-right text-sm text-gray-700">{svc ? asMoney(unit) : "-"}</div>
-                  <div className="text-right text-sm font-medium text-gray-900">{svc && qty > 0 ? asMoney(lineTotal) : "-"}</div>
-                  <div className="text-right">
-                    <button
-                      type="button"
-                      className="h-8 w-8 rounded-md border border-gray-200 text-gray-600 hover:bg-gray-100"
-                      onClick={() => {
-                        setItems((prev) => {
-                          const next = prev.filter((x) => x.key !== it.key);
-                          return next.length ? next : [{ key: "1", serviceId: "", quantity: "1" }];
-                        });
-                      }}
-                      disabled={loading}
-                      aria-label="ลบบรรทัดบริการ"
-                    >
-                      ×
-                    </button>
-                  </div>
+                  {it.serviceId ? (
+                    <div className="mt-2">
+                      <Textarea
+                        label="งานย่อย (แก้ไขเฉพาะใบเสนอราคานี้ได้)"
+                        value={it.tasks}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          setItems((prev) => prev.map((x) => (x.key === it.key ? { ...x, tasks: v } : x)));
+                        }}
+                        rows={Math.max(3, Math.min(8, (it.tasks || svcTasksText || "").split(/\r?\n/).length + 1))}
+                        placeholder={svcTasksText ? "ดึงจาก Service มาให้อัตโนมัติ" : "พิมพ์งานย่อยเป็นบรรทัด ๆ"}
+                        disabled={loading}
+                      />
+                    </div>
+                  ) : null}
                 </div>
               );
             })}
@@ -978,6 +1239,15 @@ export default function QuotesPage() {
               </div>
             </div>
           </div>
+
+          <Textarea
+            label="หมายเหตุ"
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            rows={3}
+            placeholder="พิมพ์หมายเหตุที่จะแสดงในใบเสนอราคา"
+            disabled={loading}
+          />
         </div>
         <div className="flex flex-wrap gap-2 border-t border-gray-200 px-5 py-4">
           <Button onClick={saveQuote} disabled={loading || !canSave}>
@@ -1016,13 +1286,6 @@ export default function QuotesPage() {
 
       {detailOpen && selected && (
         <div className="mt-4">
-          <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-gray-200 bg-white p-3">
-            <div className="text-sm font-semibold text-gray-900">รายละเอียดใบเสนอราคา</div>
-            <Button size="sm" variant="outline" onClick={() => setDetailOpen(false)} disabled={loading}>
-              ปิด
-            </Button>
-          </div>
-
           <div className="mt-3 space-y-3">
             <div className="rounded-xl border border-gray-200 bg-white p-3">
                 <div className="flex items-start justify-between gap-3">
@@ -1034,6 +1297,11 @@ export default function QuotesPage() {
                     {canEdit && canEditSelected ? (
                       <Button size="sm" variant="outline" disabled={loading} onClick={() => openEdit(selected)}>
                         แก้ไข
+                      </Button>
+                    ) : null}
+                    {canEdit && selected.status === "draft" && existingOrder === null ? (
+                      <Button size="sm" variant="outline" disabled={loading} onClick={deleteSelectedQuote}>
+                        ลบ
                       </Button>
                     ) : null}
                     {canEdit && selected.status === "draft" ? (
@@ -1054,7 +1322,17 @@ export default function QuotesPage() {
                     <Button size="sm" variant="outline" disabled={loading} onClick={downloadPdf}>
                       ดาวน์โหลด PDF
                     </Button>
-                    {selected.status === "approved" && existingOrderId == null ? (
+                    {existingOrder ? (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={loading}
+                        onClick={() => (window.location.href = `/manage-orders/${existingOrder.id}`)}
+                      >
+                        เปิดออเดอร์ {existingOrder.display_id ?? ""}
+                      </Button>
+                    ) : null}
+                    {selected.status === "approved" && existingOrder === null ? (
                       <Button size="sm" variant="outline" disabled={loading} onClick={createOrderFromQuote}>
                         สร้างออเดอร์
                       </Button>
@@ -1170,6 +1448,16 @@ export default function QuotesPage() {
                         <div className="min-w-0">
                           <div className="truncate text-sm font-medium text-gray-900">{it.name}</div>
                           <div className="mt-0.5 text-xs text-gray-600">จำนวน {it.quantity} × {asMoney(Number(it.unit_price ?? 0))}</div>
+                          {Array.isArray((it as any).task_list) && (it as any).task_list.length ? (
+                            <ul className="mt-2 list-disc space-y-0.5 pl-4 text-xs text-gray-600">
+                              {((it as any).task_list as unknown[])
+                                .filter((x) => typeof x === "string" && x.trim().length)
+                                .slice(0, 12)
+                                .map((t, idx) => (
+                                  <li key={idx}>{String(t).trim()}</li>
+                                ))}
+                            </ul>
+                          ) : null}
                         </div>
                         <div className="text-sm font-semibold text-gray-900">{asMoney(Number(it.line_total ?? 0))}</div>
                       </div>

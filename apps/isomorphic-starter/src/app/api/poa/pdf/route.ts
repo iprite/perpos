@@ -1,10 +1,27 @@
-import fs from "node:fs/promises";
-import path from "node:path";
-
 import { NextResponse } from "next/server";
 import { chromium } from "playwright";
 
 export const runtime = "nodejs";
+
+function safeErrorMessage(err: unknown) {
+  const msg = err instanceof Error ? err.message : String(err ?? "");
+  return msg.length > 600 ? `${msg.slice(0, 600)}…` : msg;
+}
+
+async function loadStampDataUrl(request: Request) {
+  const transparent1x1 =
+    "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQImWNgYGD4DwABBAEAHqGZ2QAAAABJRU5ErkJggg==";
+  try {
+    const url = new URL("/stamp.png", request.url);
+    const res = await fetch(url);
+    if (!res.ok) return transparent1x1;
+    const bytes = new Uint8Array(await res.arrayBuffer());
+    const base64 = Buffer.from(bytes).toString("base64");
+    return `data:image/png;base64,${base64}`;
+  } catch {
+    return transparent1x1;
+  }
+}
 
 type PoaPdfRequest = {
   req: {
@@ -70,8 +87,9 @@ function addDays(d: Date, days: number) {
 }
 
 export async function POST(request: Request) {
-  const body = (await request.json()) as PoaPdfRequest;
-  const req = body.req;
+  try {
+    const body = (await request.json()) as PoaPdfRequest;
+    const req = body.req;
 
   const docId = req.display_id ?? req.import_temp_id ?? req.id;
   const issueBaseDate = req.payment_date ? parseDateOrNow(req.payment_date) : parseDateOrNow(req.created_at);
@@ -108,9 +126,7 @@ export async function POST(request: Request) {
   const companyLicenseNo = "นจ. 0122/2561";
   const companyLicenseExpire = "18 มกราคม 2573";
 
-  const stampPath = path.join(process.cwd(), "public", "stamp.png");
-  const stampBase64 = (await fs.readFile(stampPath)).toString("base64");
-  const stampDataUrl = `data:image/png;base64,${stampBase64}`;
+    const stampDataUrl = await loadStampDataUrl(request);
 
   const generalSubtitle = "(ยื่นดำเนินการเอกสารที่เกี่ยวข้องกับแรงงานต่างด้าว)";
   const mouSets: Array<{ subtitle: string; item5: string }> = [
@@ -790,23 +806,32 @@ export async function POST(request: Request) {
   </body>
 </html>`;
 
-  const browser = await chromium.launch();
-  try {
-    const page = await browser.newPage({ viewport: { width: 794, height: 1123 } });
-    await page.setContent(html, { waitUntil: "networkidle" });
-    const pdf = await page.pdf({
-      format: "A4",
-      printBackground: true,
-      preferCSSPageSize: true,
+    const browser = await chromium.launch({
+      args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
     });
+    try {
+      const page = await browser.newPage({ viewport: { width: 794, height: 1123 } });
+      page.setDefaultTimeout(15_000);
+      await page.setContent(html, { waitUntil: "load", timeout: 15_000 });
+      const pdf = await page.pdf({
+        format: "A4",
+        printBackground: true,
+        preferCSSPageSize: true,
+      });
 
-    return new NextResponse(pdf as unknown as BodyInit, {
-      headers: {
-        "Content-Type": "application/pdf",
-        "Content-Disposition": `inline; filename=\"${docId}.pdf\"`,
-      },
+      return new NextResponse(pdf as unknown as BodyInit, {
+        headers: {
+          "Content-Type": "application/pdf",
+          "Content-Disposition": `inline; filename=\"${docId}.pdf\"`,
+        },
+      });
+    } finally {
+      await browser.close();
+    }
+  } catch (e) {
+    return new NextResponse(`สร้าง PDF ไม่สำเร็จ: ${safeErrorMessage(e)}`, {
+      status: 500,
+      headers: { "Content-Type": "text/plain; charset=utf-8" },
     });
-  } finally {
-    await browser.close();
   }
 }

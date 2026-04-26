@@ -293,7 +293,7 @@ export default function MyPoaRequestsPage() {
           หน้านี้สำหรับตัวแทนเท่านั้น
           <div className="mt-2">
             <Link className="text-blue-600 hover:underline" href="/poa-requests">
-              ไปหน้าจัดการ POA
+              ไปหน้าจัดการคำขอ
             </Link>
           </div>
         </div>

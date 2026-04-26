@@ -128,7 +128,7 @@ export default function ServicesPage() {
       <div className="flex flex-col justify-between gap-3 md:flex-row md:items-end">
         <div>
           <Title as="h1" className="text-lg font-semibold text-gray-900">
-            บริการ (Service)
+            บริการของเรา
           </Title>
           <Text className="mt-1 text-sm text-gray-600">รายการบริการเพื่อใช้ทำใบเสนอราคาและอ้างอิงงาน</Text>
         </div>

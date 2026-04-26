@@ -36,6 +36,7 @@ export type SalesQuoteItemRow = {
   service_id: string | null;
   name: string;
   description: string | null;
+  task_list?: string[] | null;
   quantity: number;
   unit_price: number;
   line_total: number;

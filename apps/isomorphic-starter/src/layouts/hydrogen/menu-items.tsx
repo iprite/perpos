@@ -55,6 +55,22 @@ export function getMenuItems(role: Role | null): MenuItem[] {
     },
   ];
 
+  items.push({ name: "รายชื่อ", roles: ["admin", "sale", "operation", "employer"] });
+  items.push(
+    {
+      name: "นายจ้าง/ลูกค้า",
+      href: "/customers",
+      icon: <Building2 className="h-5 w-5" />,
+      roles: ["admin", "sale", "operation", "employer"],
+    },
+    {
+      name: "แรงงาน",
+      href: "/workers",
+      icon: <Users className="h-5 w-5" />,
+      roles: ["admin", "sale", "operation", "employer"],
+    },
+  );
+
   items.push({ name: "การขายและบริการ", roles: ["admin", "sale", "employer"] });
   items.push(
     {
@@ -68,18 +84,6 @@ export function getMenuItems(role: Role | null): MenuItem[] {
       href: "/orders",
       icon: <BriefcaseBusiness className="h-5 w-5" />,
       roles: ["admin", "sale", "employer"],
-    },
-    {
-      name: "นายจ้าง/ลูกค้า",
-      href: "/customers",
-      icon: <Building2 className="h-5 w-5" />,
-      roles: ["admin", "sale", "employer"],
-    },
-    {
-      name: "แรงงาน",
-      href: "/workers",
-      icon: <Users className="h-5 w-5" />,
-      roles: ["admin", "employer"],
     },
   );
 
@@ -96,7 +100,7 @@ export function getMenuItems(role: Role | null): MenuItem[] {
       roles: ["admin", "sale", "operation"],
     },
     {
-      name: "จัดการ POA",
+      name: "จัดการคำขอ",
       href: "/poa-requests",
       icon: <FileSignature className="h-5 w-5" />,
       roles: ["admin", "operation"],
@@ -105,18 +109,6 @@ export function getMenuItems(role: Role | null): MenuItem[] {
       name: "จัดการออเดอร์",
       href: "/manage-orders",
       icon: <BriefcaseBusiness className="h-5 w-5" />,
-      roles: ["admin", "operation"],
-    },
-    {
-      name: "นายจ้าง/ลูกค้า",
-      href: "/customers",
-      icon: <Building2 className="h-5 w-5" />,
-      roles: ["admin", "operation"],
-    },
-    {
-      name: "แรงงาน",
-      href: "/workers",
-      icon: <Users className="h-5 w-5" />,
       roles: ["admin", "operation"],
     },
   );
@@ -134,7 +126,7 @@ export function getMenuItems(role: Role | null): MenuItem[] {
   items.push({ name: "ผู้ดูแลระบบ", roles: ["admin"] });
   items.push(
     {
-      name: "บริการ (Service)",
+      name: "บริการของเรา",
       href: "/services",
       icon: <BadgePercent className="h-5 w-5" />,
       roles: ["admin"],

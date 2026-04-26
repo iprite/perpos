@@ -37,7 +37,7 @@ export default function WorkspacePage() {
     }
 
     const internal: Card[] = [
-      { title: "จัดการ POA", description: "ดูและดำเนินการคำขอ POA", href: "/poa-requests" },
+      { title: "จัดการคำขอ", description: "ดูและดำเนินการคำขอ POA", href: "/poa-requests" },
       { title: "ออเดอร์", description: "ดูออเดอร์ทั้งหมดตามสิทธิ์", href: "/orders" },
       { title: "แรงงาน", description: "ดูและจัดการข้อมูลแรงงานตามสิทธิ์", href: "/workers" },
       { title: "แจ้งเตือนเอกสาร", description: "ดูเอกสารใกล้หมดอายุและประวัติการแจ้งเตือน", href: "/notifications" },

@@ -3,6 +3,11 @@ import { chromium } from "playwright";
 
 export const runtime = "nodejs";
 
+function safeErrorMessage(err: unknown) {
+  const msg = err instanceof Error ? err.message : String(err ?? "");
+  return msg.length > 600 ? `${msg.slice(0, 600)}…` : msg;
+}
+
 type QuotePdfRequest = {
   quote: {
     id: string;
@@ -130,9 +135,10 @@ function chunk<T>(arr: T[], size: number) {
 }
 
 export async function POST(request: Request) {
-  const body = (await request.json()) as QuotePdfRequest;
-  const quote = body.quote;
-  const items = body.items ?? [];
+  try {
+    const body = (await request.json()) as QuotePdfRequest;
+    const quote = body.quote;
+    const items = body.items ?? [];
 
   const createdAt = parseDate(quote.created_at) ?? new Date();
   const validUntil = parseDate(quote.valid_until);
@@ -511,23 +517,32 @@ export async function POST(request: Request) {
   </body>
 </html>`;
 
-  const browser = await chromium.launch();
-  try {
-    const page = await browser.newPage({ viewport: { width: 794, height: 1123 } });
-    await page.setContent(html, { waitUntil: "networkidle" });
-    const pdf = await page.pdf({
-      format: "A4",
-      printBackground: true,
-      preferCSSPageSize: true,
+    const browser = await chromium.launch({
+      args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
     });
+    try {
+      const page = await browser.newPage({ viewport: { width: 794, height: 1123 } });
+      page.setDefaultTimeout(15_000);
+      await page.setContent(html, { waitUntil: "load", timeout: 15_000 });
+      const pdf = await page.pdf({
+        format: "A4",
+        printBackground: true,
+        preferCSSPageSize: true,
+      });
 
-    return new NextResponse(pdf as unknown as BodyInit, {
-      headers: {
-        "Content-Type": "application/pdf",
-        "Content-Disposition": `inline; filename=\"${quoteNo}.pdf\"`,
-      },
+      return new NextResponse(pdf as unknown as BodyInit, {
+        headers: {
+          "Content-Type": "application/pdf",
+          "Content-Disposition": `inline; filename=\"${quoteNo}.pdf\"`,
+        },
+      });
+    } finally {
+      await browser.close();
+    }
+  } catch (e) {
+    return new NextResponse(`สร้าง PDF ไม่สำเร็จ: ${safeErrorMessage(e)}`, {
+      status: 500,
+      headers: { "Content-Type": "text/plain; charset=utf-8" },
     });
-  } finally {
-    await browser.close();
   }
 }
