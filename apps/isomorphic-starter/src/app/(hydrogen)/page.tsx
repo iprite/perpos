@@ -70,11 +70,13 @@ export default function DashboardPage() {
           supabase
             .from("orders")
             .select("id", { count: "exact" })
-            .eq("status", "pending_approval"),
+            .eq("status", "pending_approval")
+            .range(0, 0),
           supabase
             .from("poa_requests")
             .select("id", { count: "exact" })
-            .eq("status", "submitted"),
+            .eq("status", "submitted")
+            .range(0, 0),
           supabase.from("orders").select("id", { count: "exact" }).range(0, 0),
           supabase
             .from("orders")
@@ -87,8 +89,7 @@ export default function DashboardPage() {
             .eq("txn_type", "INCOME")
             .eq("source_type", "AGENT_POA")
             .gte("txn_date", startThisMonthStr)
-            .lt("txn_date", startNextMonthStr)
-            .order("txn_date", { ascending: true }),
+            .lt("txn_date", startNextMonthStr),
         ]);
 
         const firstError = expiringRes.error ?? expiredRes.error ?? ordersPendingRes.error ?? poaRes.error;

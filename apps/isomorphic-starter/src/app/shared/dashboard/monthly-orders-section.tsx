@@ -21,11 +21,7 @@ type OrderAggRow = {
   status: string;
 };
 
-type MonthlyPoint = {
-  monthKey: string;
-  monthLabel: string;
-  total: number;
-};
+type SeriesRow = { bucket_key: string; total: number | string | null };
 
 const OPEN_STATUSES = new Set(["pending_approval", "approved", "in_progress"]);
 const CLOSED_STATUSES = new Set(["completed", "cancelled"]);
@@ -189,16 +185,22 @@ export function MonthlyOrdersSection({
       const base = new Map<string, { label: string; total: number }>();
       for (const p of points) base.set(p.key, { label: p.label, total: 0 });
 
-      const startRangeIso = points[0]?.start?.toISOString() ?? new Date(0).toISOString();
+      const seriesStartDate = points[0]?.start?.toISOString().slice(0, 10) ?? "1970-01-01";
+      const startThisMonthIso = startThisMonth.toISOString();
+      const startNextMonthIso = addMonths(startThisMonth, 1).toISOString();
 
-      const { data, error: qErr } = await supabase
-        .from("orders")
-        .select("total,created_at,status")
-        .gte("created_at", startRangeIso)
-        .order("created_at", { ascending: true });
+      const [seriesRes, monthRes] = await Promise.all([
+        supabase.rpc("dashboard_orders_series", { mode: chartMode, start_date: seriesStartDate }),
+        supabase
+          .from("orders")
+          .select("total,created_at,status")
+          .gte("created_at", startThisMonthIso)
+          .lt("created_at", startNextMonthIso)
+          .in("status", ["pending_approval", "approved", "in_progress", "completed", "cancelled"]),
+      ]);
 
-      if (qErr) {
-        setError(qErr.message);
+      if (seriesRes.error ?? monthRes.error) {
+        setError((seriesRes.error ?? monthRes.error)?.message ?? "โหลดข้อมูลไม่สำเร็จ");
         setOrdersMonthTotalOpen(0);
         setOrdersMonthCountTotal(0);
         setOrdersMonthCountClosed(0);
@@ -213,28 +215,27 @@ export function MonthlyOrdersSection({
       let mcClosed = 0;
       let mcOpen = 0;
 
-      for (const row of (data ?? []) as OrderAggRow[]) {
+      for (const row of (seriesRes.data ?? []) as SeriesRow[]) {
+        const k = row.bucket_key;
+        const amt = round2(Number(row.total ?? 0));
+        const p = base.get(k);
+        if (p) p.total = round2(p.total + amt);
+      }
+
+      for (const row of (monthRes.data ?? []) as OrderAggRow[]) {
         const dt = new Date(row.created_at);
         if (!Number.isFinite(dt.getTime())) continue;
         const amt = round2(Number(row.total ?? 0));
 
-        if (CHART_STATUSES.has(row.status)) {
-          const k = chartMode === "weekly" ? weekStartMonday(dt).toISOString().slice(0, 10) : monthKey(dt);
-          const p = base.get(k);
-          if (p) p.total = round2(p.total + amt);
+        if (OPEN_STATUSES.has(row.status)) {
+          mtOpen = round2(mtOpen + amt);
+          mcOpen += 1;
         }
-
-        if (dt >= startThisMonth) {
-          if (OPEN_STATUSES.has(row.status)) {
-            mtOpen = round2(mtOpen + amt);
-            mcOpen += 1;
-          }
-          if (CLOSED_STATUSES.has(row.status)) {
-            mcClosed += 1;
-          }
-          if (OPEN_STATUSES.has(row.status) || CLOSED_STATUSES.has(row.status)) {
-            mcTotal += 1;
-          }
+        if (CLOSED_STATUSES.has(row.status)) {
+          mcClosed += 1;
+        }
+        if (OPEN_STATUSES.has(row.status) || CLOSED_STATUSES.has(row.status)) {
+          mcTotal += 1;
         }
       }
 

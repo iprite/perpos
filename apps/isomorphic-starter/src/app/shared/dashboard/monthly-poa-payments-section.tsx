@@ -127,8 +127,7 @@ export function MonthlyPoaPaymentsSection() {
         .select("amount,txn_date")
         .eq("txn_type", "INCOME")
         .eq("source_type", "AGENT_POA")
-        .gte("txn_date", startRangeStr)
-        .order("txn_date", { ascending: true });
+        .gte("txn_date", startRangeStr);
 
       if (qErr) {
         setError(qErr.message);
