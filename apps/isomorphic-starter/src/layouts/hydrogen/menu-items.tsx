@@ -145,13 +145,13 @@ export function getMenuItems(role: Role | null): MenuItem[] {
     },
   );
 
-  items.push({ name: "ผู้ดูแลระบบ", roles: ["admin"] });
+  items.push({ name: "ตั้งค่า", roles: ["admin", "sale", "operation"] });
   items.push(
     {
       name: "บริการของเรา",
       href: "/services",
       icon: <BadgePercent className="h-5 w-5" />,
-      roles: ["admin"],
+      roles: ["admin", "sale"],
     },
     {
       name: "หนังสือมอบอำนาจ",
@@ -163,7 +163,7 @@ export function getMenuItems(role: Role | null): MenuItem[] {
       name: "ตัวแทนบริษัท",
       href: "/representatives",
       icon: <UserSquare2 className="h-5 w-5" />,
-      roles: ["admin"],
+      roles: ["admin", "operation"],
     },
     {
       name: "ผู้ใช้และสิทธิ์",
