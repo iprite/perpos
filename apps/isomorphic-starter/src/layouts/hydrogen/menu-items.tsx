@@ -3,6 +3,8 @@ import {
   BadgePercent,
   BriefcaseBusiness,
   Building2,
+  ClipboardList,
+  Receipt,
   FileSignature,
   FileText,
   LayoutDashboard,
@@ -71,7 +73,7 @@ export function getMenuItems(role: Role | null): MenuItem[] {
     },
   );
 
-  items.push({ name: "การขายและบริการ", roles: ["admin", "sale", "employer"] });
+  items.push({ name: "การขายและบริการ", roles: ["admin", "sale", "operation", "employer"] });
   items.push(
     {
       name: "ใบเสนอราคา",
@@ -85,20 +87,16 @@ export function getMenuItems(role: Role | null): MenuItem[] {
       icon: <BriefcaseBusiness className="h-5 w-5" />,
       roles: ["admin", "sale", "employer"],
     },
+    {
+      name: "รายการงานบริการ",
+      href: "/service-jobs",
+      icon: <ClipboardList className="h-5 w-5" />,
+      roles: ["admin", "sale", "operation"],
+    },
   );
 
   items.push({ name: "งานปฏิบัติการ", roles: ["admin", "operation", "sale"] });
   items.push(
-    {
-      name: "ธุรกรรมการเงิน",
-      href: "/finance",
-      icon: <Wallet className="h-5 w-5" />,
-      dropdownItems: [
-        { name: "รายรับ/รายจ่าย", href: "/finance", roles: ["admin", "sale", "operation"] },
-        { name: "เงินสดย่อย", href: "/finance/petty-cash", roles: ["admin", "sale", "operation"] },
-      ],
-      roles: ["admin", "sale", "operation"],
-    },
     {
       name: "จัดการคำขอ",
       href: "/poa-requests",
@@ -110,6 +108,30 @@ export function getMenuItems(role: Role | null): MenuItem[] {
       href: "/manage-orders",
       icon: <BriefcaseBusiness className="h-5 w-5" />,
       roles: ["admin", "operation"],
+    },
+  );
+
+  items.push({ name: "บัญชี", roles: ["admin", "sale", "operation"] });
+  items.push(
+    {
+      name: "เอกสาร IV/RT",
+      href: "/invoices",
+      icon: <Receipt className="h-5 w-5" />,
+      dropdownItems: [
+        { name: "ใบแจ้งหนี้ (IV)", href: "/invoices", roles: ["admin", "sale", "operation"] },
+        { name: "ใบเสร็จ/ใบกำกับภาษี (RT)", href: "/receipts", roles: ["admin", "sale", "operation"] },
+      ],
+      roles: ["admin", "sale", "operation"],
+    },
+    {
+      name: "ธุรกรรมการเงิน",
+      href: "/finance",
+      icon: <Wallet className="h-5 w-5" />,
+      dropdownItems: [
+        { name: "รายรับ/รายจ่าย", href: "/finance", roles: ["admin", "sale", "operation"] },
+        { name: "เงินสดย่อย", href: "/finance/petty-cash", roles: ["admin", "sale", "operation"] },
+      ],
+      roles: ["admin", "sale", "operation"],
     },
   );
 

@@ -2,7 +2,6 @@
 
 import React from "react";
 import { Button } from "rizzui";
-import { CalendarClock, ClipboardList, Timer } from "lucide-react";
 
 import {
   asMoney,
@@ -14,6 +13,12 @@ import {
   type OrderItemRow,
   type OrderRow,
 } from "./_types";
+
+function customerFromRel(rel: any) {
+  if (!rel) return null;
+  if (Array.isArray(rel)) return rel[0] ?? null;
+  return rel;
+}
 
 function itemStatusLabel(s: OrderItemRow["ops_status"]) {
   if (s === "not_started") return "ยังไม่เริ่ม";
@@ -32,9 +37,9 @@ export function ManageOrderSummaryCard({
   items,
   events,
   loading,
-  onShowQuotation,
   isLocked,
   onOpenAddInstallment,
+  unpaidBilledTotal,
   incomeTotal,
   expenseTotal,
   netProfit,
@@ -44,9 +49,9 @@ export function ManageOrderSummaryCard({
   items: OrderItemRow[];
   events: EventRow[];
   loading: boolean;
-  onShowQuotation: () => void;
   isLocked: boolean;
   onOpenAddInstallment: () => void;
+  unpaidBilledTotal: number;
   incomeTotal: number;
   expenseTotal: number;
   netProfit: number;
@@ -94,46 +99,70 @@ export function ManageOrderSummaryCard({
   const remaining = Number(order?.remaining_amount ?? 0);
   const hasOutstanding = Number.isFinite(remaining) ? remaining > 0 : false;
   const canAddInstallment = hasOutstanding && !isLocked && order?.status === "in_progress";
+  const unpaidBilled = Number(unpaidBilledTotal ?? 0);
+  const hasUnpaidBilled = Number.isFinite(unpaidBilled) ? unpaidBilled > 0 : false;
+
+  const customer = customerFromRel((order as any)?.customers ?? null) as
+    | { name?: string | null; tax_id?: string | null; address?: string | null; contact_name?: string | null; phone?: string | null }
+    | null;
+  const customerName = customerNameFromRel((order as any)?.customers ?? null);
+  const customerTaxId = String(customer?.tax_id ?? "").trim();
+  const customerAddress = String(customer?.address ?? "").trim();
+  const customerContact = String(customer?.contact_name ?? "").trim();
+  const customerPhone = String(customer?.phone ?? "").trim();
 
   const status = String(order?.status ?? "");
-  const statusBadge = (() => {
-    if (status === "in_progress") return "border-blue-200 bg-blue-50 text-blue-700";
-    if (status === "completed") return "border-green-200 bg-green-50 text-green-700";
-    if (status === "cancelled") return "border-red-200 bg-red-50 text-red-700";
-    return "border-gray-200 bg-gray-50 text-gray-700";
-  })();
 
   return (
     <div className="grid gap-4 md:grid-cols-2">
-      <div className="relative overflow-hidden rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-        <div className="absolute -right-16 -top-16 h-44 w-44 rounded-full bg-gradient-to-br from-indigo-50 to-cyan-50" />
-        <div className="relative flex items-start justify-between gap-3">
-          <div className="flex items-start gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-600 to-cyan-600 text-white shadow-sm">
-              <ClipboardList className="h-5 w-5" />
-            </div>
-            <div>
-              <div className="text-sm font-semibold text-gray-900">ข้อมูลออเดอร์</div>
-              <div className="mt-0.5 text-xs text-gray-500">{order?.display_id ?? order?.id ?? "-"}</div>
-            </div>
+      <div className="rounded-xl border border-gray-200 bg-white p-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <div className="text-sm font-semibold text-gray-900">ข้อมูลออเดอร์</div>
+            <div className="mt-0.5 text-xs text-gray-500">{order?.display_id ?? order?.id ?? "-"}</div>
           </div>
-          <span className={`inline-flex items-center rounded-full border px-2 py-1 text-xs font-semibold ${statusBadge}`}>{statusLabel(status || "-")}</span>
+          <span className="inline-flex items-center rounded-full border border-gray-200 bg-gray-50 px-2 py-1 text-xs font-semibold text-gray-700">
+            {statusLabel(status || "-")}
+          </span>
         </div>
 
-        <div className="relative mt-4">
-          <div className="text-xs font-semibold text-gray-500">ลูกค้า</div>
-          <div className="mt-1 text-lg font-semibold text-gray-900">{customerNameFromRel(order?.customers ?? null)}</div>
-
-          <div className="mt-3 flex flex-wrap gap-2">
-            <span className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700">
-              <CalendarClock className="h-4 w-4 text-gray-500" />
-              เริ่ม: {startedAt ? startedAt.toLocaleDateString("th-TH", { year: "numeric", month: "2-digit", day: "2-digit" }) : "-"}
-            </span>
-            <span className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700">
-              <Timer className="h-4 w-4 text-gray-500" />
-              {startedDays ? `เริ่มมาแล้ว ${startedDays} วัน` : "เริ่มมาแล้ว -"}
-            </span>
+        <div className="mt-4 grid gap-4">
+          <div>
+            <div className="text-xs font-semibold text-gray-500">ลูกค้า</div>
+            <div className="mt-1 text-sm font-semibold text-gray-900">{customerName}</div>
+            <div className="mt-3 grid gap-1 text-sm text-gray-700">
+              <div className="flex items-start justify-between gap-3">
+                <div className="shrink-0 text-gray-600">เลขผู้เสียภาษี</div>
+                <div className="min-w-0 text-right font-medium text-gray-900">{customerTaxId || "-"}</div>
+              </div>
+              <div className="flex items-start justify-between gap-3">
+                <div className="shrink-0 text-gray-600">ที่อยู่</div>
+                <div className="min-w-0 text-right font-medium text-gray-900">{customerAddress || "-"}</div>
+              </div>
+              <div className="flex items-start justify-between gap-3">
+                <div className="shrink-0 text-gray-600">ผู้ติดต่อ</div>
+                <div className="min-w-0 text-right font-medium text-gray-900">{customerContact || "-"}</div>
+              </div>
+              <div className="flex items-start justify-between gap-3">
+                <div className="shrink-0 text-gray-600">เบอร์ผู้ติดต่อ</div>
+                <div className="min-w-0 text-right font-medium text-gray-900">{customerPhone || "-"}</div>
+              </div>
+            </div>
           </div>
+
+          <div className="grid gap-1 text-sm text-gray-700">
+            <div className="flex items-center justify-between gap-3">
+              <div className="text-gray-600">เริ่มดำเนินการ</div>
+              <div className="font-medium text-gray-900">
+                {startedAt ? startedAt.toLocaleDateString("th-TH", { year: "numeric", month: "2-digit", day: "2-digit" }) : "-"}
+              </div>
+            </div>
+            <div className="flex items-center justify-between gap-3">
+              <div className="text-gray-600">ระยะเวลาดำเนินการ</div>
+              <div className="font-medium text-gray-900">{startedDays ? `${startedDays} วัน` : "-"}</div>
+            </div>
+          </div>
+
         </div>
       </div>
 
@@ -148,6 +177,12 @@ export function ManageOrderSummaryCard({
             <div className="text-sm text-gray-600">ยอดชำระแล้ว</div>
             <div className="text-base tabular-nums text-gray-900">{asMoney(Number(order?.paid_amount ?? 0))}</div>
           </div>
+          {hasUnpaidBilled ? (
+            <div className="flex items-baseline justify-between gap-3">
+              <div className="text-sm text-gray-600">ยอดวางบิลค้างชำระ</div>
+              <div className="text-base tabular-nums text-amber-700">{asMoney(unpaidBilled)}</div>
+            </div>
+          ) : null}
           <div className="flex items-baseline justify-between gap-3">
             <div className="text-sm text-gray-600">ยอดคงเหลือ</div>
             <div className="text-base tabular-nums text-gray-900">{asMoney(Number(order?.remaining_amount ?? 0))}</div>
@@ -167,15 +202,12 @@ export function ManageOrderSummaryCard({
           </div>
         </div>
         <div className="mt-4 flex flex-wrap justify-end gap-2">
-          <Button size="sm" variant="outline" onClick={onShowQuotation} disabled={loading || !order?.source_quote_id}>
-            แสดงใบเสนอราคา
-          </Button>
           <Button size="sm" variant="outline" onClick={onCreateExpense} disabled={loading}>
             บันทึกรายจ่าย
           </Button>
           {hasOutstanding ? (
             <Button size="sm" variant="outline" onClick={onOpenAddInstallment} disabled={loading || !canAddInstallment}>
-              เพิ่มงวดชำระ
+              วางบิลงวดถัดไป
             </Button>
           ) : null}
         </div>
@@ -191,7 +223,7 @@ export function ManageOrderServicesCard({
   loading,
   onStart,
   onDone,
-  onAddDocument,
+  onEditNote,
 }: {
   items: OrderItemRow[];
   orderStatus: string;
@@ -199,7 +231,7 @@ export function ManageOrderServicesCard({
   loading: boolean;
   onStart: (item: OrderItemRow) => void;
   onDone: (item: OrderItemRow) => void;
-  onAddDocument?: (item: OrderItemRow) => void;
+  onEditNote?: (item: OrderItemRow) => void;
 }) {
   return (
     <div className="rounded-xl border border-gray-200 bg-white">
@@ -212,13 +244,17 @@ export function ManageOrderServicesCard({
       ) : (
         <div className="divide-y divide-gray-100">
           {items.map((it) => {
-            const canStart = !isLocked && orderStatus === "in_progress" && it.ops_status === "not_started";
-            const canDone = !isLocked && orderStatus === "in_progress" && it.ops_status === "in_progress";
+            const canOperate = orderStatus === "in_progress";
+            const canStart = !isLocked && canOperate && it.ops_status === "not_started";
+            const canDone = !isLocked && canOperate && it.ops_status === "in_progress";
+            const canEditNote = !isLocked && canOperate && it.ops_status !== "not_started";
+            const noteText = String((it as any)?.ops_note ?? "").trim();
             return (
               <div key={it.id} className="grid gap-2 px-4 py-3 md:grid-cols-[1.2fr_0.8fr_180px] md:items-center">
                 <div>
                   <div className="text-sm font-semibold text-gray-900">{serviceNameFromRel(it.services ?? null)}</div>
                   <div className="mt-1 text-xs text-gray-500">เริ่ม: {formatDateTime(it.ops_started_at)} • เสร็จ: {formatDateTime(it.ops_completed_at)}</div>
+                  {noteText ? <div className="mt-1 text-xs text-gray-700">หมายเหตุ: {noteText}</div> : null}
                 </div>
                 <div>
                   <span className={`inline-flex items-center rounded-full border px-2 py-1 text-xs font-semibold ${badgeClassForItemStatus(it.ops_status)}`}>
@@ -236,12 +272,12 @@ export function ManageOrderServicesCard({
                       เสร็จสิ้น
                     </Button>
                   ) : null}
-                  {onAddDocument ? (
-                    <Button size="sm" variant="outline" className="whitespace-nowrap" onClick={() => onAddDocument(it)} disabled={loading}>
-                      เพิ่มเอกสาร
+                  {onEditNote && canEditNote ? (
+                    <Button size="sm" variant="outline" className="whitespace-nowrap" onClick={() => onEditNote(it)} disabled={loading}>
+                      อัปเดทหมายเหตุ
                     </Button>
                   ) : null}
-                  {!canStart && !canDone && !onAddDocument ? <span className="text-xs text-gray-400">-</span> : null}
+                  {!canStart && !canDone && !(onEditNote && canEditNote) ? <span className="text-xs text-gray-400">-</span> : null}
                 </div>
               </div>
             );

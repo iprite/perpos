@@ -25,7 +25,8 @@ import { QuoteFollowupModal } from "./_components/quote-followup-modal";
 type CustomerOption = {
   id: string;
   name: string;
-  branch_name: string;
+  tax_id: string | null;
+  branch_name: string | null;
   contact_name: string | null;
   phone: string | null;
   email: string | null;
@@ -285,6 +286,7 @@ export default function QuotesPage() {
   const serviceOptions = useMemo(() => services.map((s) => ({ label: s.name, value: s.id })), [services]);
   const serviceById = useMemo(() => new Map(services.map((s) => [s.id, s])), [services]);
   const customerById = useMemo(() => new Map(customers.map((c) => [c.id, c])), [customers]);
+  const selectedCustomer = useMemo(() => (customerId ? customerById.get(customerId) ?? null : null), [customerById, customerId]);
 
   const computed = useMemo(() => {
     const normalized = items
@@ -345,7 +347,7 @@ export default function QuotesPage() {
         const [{ data: cData }, { data: sData }] = await Promise.all([
           supabase
             .from("customers")
-            .select("id,name,branch_name,contact_name,phone,email,address")
+            .select("id,name,tax_id,branch_name,contact_name,phone,email,address")
             .order("created_at", { ascending: false })
             .limit(500),
           supabase.from("services").select("id,name,sell_price,task_list").eq("status", "active").order("name", { ascending: true }),
@@ -828,7 +830,19 @@ export default function QuotesPage() {
           task_list: perQuoteTasks.length ? perQuoteTasks : fallbackTasks,
         };
       });
-      const bytes = await buildQuotePdfBytes({ quote: selected, items: itemsWithTasks });
+      const cust = selected.customer_id ? (customerById.get(selected.customer_id) ?? null) : null;
+      const bytes = await buildQuotePdfBytes({
+        quote: selected,
+        items: itemsWithTasks,
+        customer: cust
+          ? {
+              tax_id: cust.tax_id,
+              branch_name: cust.branch_name,
+              address: cust.address,
+              contact_name: cust.contact_name,
+            }
+          : null,
+      });
       const blob = new Blob([bytes], { type: "application/pdf" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -843,7 +857,7 @@ export default function QuotesPage() {
       setError(e?.message ?? "ดาวน์โหลด PDF ไม่สำเร็จ");
       setLoading(false);
     }
-  }, [selected, selectedItems, services]);
+  }, [customerById, selected, selectedItems, services]);
 
   const createOrderFromQuote = useCallback(async () => {
     if (!selected) return;
@@ -1035,6 +1049,30 @@ export default function QuotesPage() {
               />
             </div>
           </div>
+
+          {selectedCustomer ? (
+            <div className="rounded-lg border border-gray-200 bg-white p-3">
+              <div className="text-sm font-semibold text-gray-900">ข้อมูลลูกค้า</div>
+              <div className="mt-2 grid gap-2 md:grid-cols-2">
+                <div>
+                  <div className="text-xs font-medium text-gray-600">เลขที่ภาษี</div>
+                  <div className="mt-0.5 text-sm text-gray-900">{selectedCustomer.tax_id || "-"}</div>
+                </div>
+                <div>
+                  <div className="text-xs font-medium text-gray-600">สาขา</div>
+                  <div className="mt-0.5 text-sm text-gray-900">{selectedCustomer.branch_name || "-"}</div>
+                </div>
+                <div className="md:col-span-2">
+                  <div className="text-xs font-medium text-gray-600">ที่อยู่</div>
+                  <div className="mt-0.5 whitespace-pre-line text-sm text-gray-900">{selectedCustomer.address || "-"}</div>
+                </div>
+                <div className="md:col-span-2">
+                  <div className="text-xs font-medium text-gray-600">ชื่อผู้ติดต่อ</div>
+                  <div className="mt-0.5 text-sm text-gray-900">{selectedCustomer.contact_name || "-"}</div>
+                </div>
+              </div>
+            </div>
+          ) : null}
 
           <div className="flex flex-col gap-3 md:flex-row md:items-end">
             <ToggleRateInput

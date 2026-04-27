@@ -3,6 +3,8 @@ import fs from "node:fs/promises";
 import chromium from "@sparticuz/chromium";
 import { chromium as pwChromium } from "playwright-core";
 
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+
 export const runtime = "nodejs";
 export const maxDuration = 60;
 export const dynamic = "force-dynamic";
@@ -56,7 +58,18 @@ async function resolveChromiumExecutablePath() {
     process.env.GOOGLE_CHROME_BIN;
   if (fromEnv) return fromEnv;
 
+  const platform = process.platform;
+  const macCandidates =
+    platform === "darwin"
+      ? [
+          "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+          "/Applications/Chromium.app/Contents/MacOS/Chromium",
+          "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
+        ]
+      : [];
+
   const candidates = [
+    ...macCandidates,
     "/usr/bin/chromium",
     "/usr/bin/chromium-browser",
     "/usr/bin/google-chrome",
@@ -79,6 +92,7 @@ type QuotePdfRequest = {
   quote: {
     id: string;
     quote_no: string;
+    customer_id?: string | null;
     customer_name: string;
     customer_company: string | null;
     customer_email: string | null;
@@ -109,7 +123,35 @@ type QuotePdfRequest = {
     unit_price: number;
     line_total: number;
   }>;
+  customer?: {
+    tax_id: string | null;
+    branch_name: string | null;
+    address: string | null;
+    contact_name: string | null;
+  } | null;
 };
+
+async function tryFetchCustomerSnapshot(customerId: string) {
+  const id = String(customerId ?? "").trim();
+  if (!id) return null;
+  try {
+    const admin = createSupabaseAdminClient();
+    const { data } = await admin
+      .from("customers")
+      .select("tax_id,branch_name,address,contact_name")
+      .eq("id", id)
+      .maybeSingle();
+    if (!data) return null;
+    return {
+      tax_id: (data as any).tax_id ?? null,
+      branch_name: (data as any).branch_name ?? null,
+      address: (data as any).address ?? null,
+      contact_name: (data as any).contact_name ?? null,
+    };
+  } catch {
+    return null;
+  }
+}
 
 function escapeHtml(text: string) {
   return text
@@ -125,6 +167,20 @@ function parseDate(v: string | null | undefined) {
   const d = new Date(v);
   if (Number.isNaN(d.getTime())) return null;
   return d;
+}
+
+function formatTaxIdWithBranch(taxIdRaw: string, branchRaw: string) {
+  const taxId = String(taxIdRaw ?? "").trim();
+  if (!taxId || taxId === "-") return "-";
+
+  const branch = String(branchRaw ?? "").trim();
+  if (!branch || branch === "-") return taxId;
+
+  const normalized = branch.replaceAll(/\s+/g, "");
+  if (normalized.includes("สำนักงานใหญ่")) return `${taxId} (สำนักงานใหญ่)`;
+
+  if (/^\d+$/.test(normalized)) return `${taxId} (สาขาที่ ${normalized})`;
+  return taxId;
 }
 
 function formatThaiLongDate(d: Date) {
@@ -207,18 +263,31 @@ export async function POST(request: Request) {
     const quote = body.quote;
     const items = body.items ?? [];
 
+    const customerFromBody = body.customer ?? null;
+    const fetchedCustomer = quote?.customer_id ? await tryFetchCustomerSnapshot(quote.customer_id) : null;
+    const customerSnapshot = {
+      tax_id: customerFromBody?.tax_id ?? fetchedCustomer?.tax_id ?? null,
+      branch_name: customerFromBody?.branch_name ?? fetchedCustomer?.branch_name ?? null,
+      address: customerFromBody?.address ?? fetchedCustomer?.address ?? null,
+      contact_name: customerFromBody?.contact_name ?? fetchedCustomer?.contact_name ?? null,
+    };
+
   const createdAt = parseDate(quote.created_at) ?? new Date();
   const validUntil = parseDate(quote.valid_until);
-  const approvedAt = parseDate(quote.approved_at);
+  const generatedAt = new Date();
   const createdStr = formatThaiLongDate(createdAt);
   const validStr = validUntil ? formatThaiLongDate(validUntil) : null;
-  const approvedStr = approvedAt ? formatThaiLongDate(approvedAt) : null;
-  const issuedStr = approvedStr ?? "-";
+  const issuedStr = formatThaiLongDate(generatedAt);
 
   const quoteNo = escapeHtml(String(quote.quote_no ?? "-") || "-");
   const customerName = escapeHtml(String(quote.customer_name ?? "-") || "-");
-  const billingAddress = escapeHtml(String(quote.billing_address ?? "") || "").replaceAll("\n", "<br/>");
-  const notesHtml = escapeHtml(String(quote.notes ?? "") || "").replaceAll("\n", "<br/>");
+  const customerBranchRaw = String(customerSnapshot.branch_name ?? quote.customer_company ?? "").trim();
+  const customerAddress = escapeHtml(String(customerSnapshot.address ?? quote.billing_address ?? "") || "").replaceAll("\n", "<br/>") || "-";
+  const customerTaxIdRaw = String(customerSnapshot.tax_id ?? "").trim();
+  const customerTaxId = escapeHtml(formatTaxIdWithBranch(customerTaxIdRaw, customerBranchRaw));
+  const customerContact = escapeHtml(String(customerSnapshot.contact_name ?? "").trim() || "-");
+  const notesText = String(quote.notes ?? "").trim();
+  const notesHtml = escapeHtml(notesText || "-").replaceAll("\n", "<br/>");
 
   const perPage = 18;
   const pages = chunk(items, perPage);
@@ -310,7 +379,7 @@ export async function POST(request: Request) {
 
         <div class="notes">
           <div class="section-title"><span>หมายเหตุ</span></div>
-          <div class="notes-body">${notesHtml || "&nbsp;"}</div>
+          <div class="notes-body">${notesHtml}</div>
         </div>
 
         <div class="cert">
@@ -363,12 +432,13 @@ export async function POST(request: Request) {
           <div class="top-grid">
             <div class="seller">
               <div class="seller-row"><div class="k">ผู้ขาย :</div><div class="v">บริษัท นำคนต่างด้าวมาทำงานในประเทศ เอ็กซ์เวิร์คเกอร์ จำกัด</div></div>
-              <div class="seller-row"><div class="k">ที่อยู่ :</div><div class="v">เลขที่ 6/15 หมู่ที่ 7 ถนน ศรีนครินทร์ ตำบล บางเมือง อำเภอเมืองสมุทรปราการ จังหวัด สมุทรปราการ 10270</div></div>
               <div class="seller-row"><div class="k">เลขที่ภาษี :</div><div class="v">0115559001880 (สำนักงานใหญ่)</div></div>
+              <div class="seller-row"><div class="k">ที่อยู่ :</div><div class="v">เลขที่ 6/15 หมู่ที่ 7 ถนน ศรีนครินทร์ ตำบล บางเมือง อำเภอเมืองสมุทรปราการ จังหวัด สมุทรปราการ 10270</div></div>
             </div>
             <div class="docbox">
               <div class="docbox-row"><div class="k">เลขที่เอกสาร :</div><div class="v">${quoteNo}</div></div>
               <div class="docbox-row"><div class="k">วันที่ออก :</div><div class="v">${issuedStr}</div></div>
+              <div class="docbox-row"><div class="k">ใช้ได้ถึง :</div><div class="v">${validStr ?? "-"}</div></div>
             </div>
           </div>
 
@@ -378,9 +448,9 @@ export async function POST(request: Request) {
             <div class="cust-grid">
               <div class="cust-main">
                 <div class="cust-row"><div class="k">ลูกค้า :</div><div class="v">${customerName}</div></div>
-                <div class="cust-row"><div class="k">ที่อยู่ :</div><div class="v">${billingAddress || "-"}</div></div>
-                <div class="cust-row"><div class="k">เลขที่ภาษี :</div><div class="v">-</div></div>
-                <div class="cust-row"><div class="k">เรียน :</div><div class="v">-</div></div>
+                <div class="cust-row"><div class="k">เลขที่ภาษี :</div><div class="v">${customerTaxId}</div></div>
+                <div class="cust-row"><div class="k">ที่อยู่ :</div><div class="v">${customerAddress}</div></div>
+                <div class="cust-row"><div class="k">เรียน :</div><div class="v">${customerContact}</div></div>
               </div>
             </div>
           </div>
@@ -476,6 +546,8 @@ export async function POST(request: Request) {
       .seller-row { display: grid; grid-template-columns: 70px 1fr; gap: 8px; margin-top: 6px; }
       .seller-row .k { font-weight: 700; color: #374151; }
       .seller-row .v { color: #111827; }
+      .tax-inline { display: block; margin-top: 4px; margin-left: 0; white-space: nowrap; }
+      .tax-k { font-weight: 700; color: #374151; }
       .seller-contacts { display: grid; grid-template-columns: 1fr; gap: 6px; margin-top: 10px; }
       .contact { display: flex; gap: 8px; align-items: center; color: #111827; }
       .ci { display: inline-flex; width: 16px; justify-content: center; color: #6b7280; font-size: 11px; line-height: 1; }
@@ -548,7 +620,7 @@ export async function POST(request: Request) {
       .pay-sub { margin-top: 3px; color: #111827; }
 
       .notes { margin-top: 14px; }
-      .notes-body { margin-top: 10px; min-height: 18px; border-top: 1px solid #e5e7eb; padding-top: 8px; font-size: 12px; color: #111827; }
+      .notes-body { margin-top: 10px; min-height: 18px; font-size: 12px; color: #111827; }
 
       .cert { margin-top: 10px; margin-bottom: 26px; }
       .cert-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 10px; align-items: center; }
@@ -588,8 +660,14 @@ export async function POST(request: Request) {
     const proxied = await tryRenderViaService(html, fileBase);
     if (proxied) return proxied;
 
-    const chromiumPath = (await chromium.executablePath()) || (await resolveChromiumExecutablePath());
-    const args = [...chromium.args, "--no-zygote", "--single-process"];
+    const isLinux = process.platform === "linux";
+    const chromiumPath = isLinux ? (await chromium.executablePath()) || (await resolveChromiumExecutablePath()) : await resolveChromiumExecutablePath();
+    if (!chromiumPath) {
+      throw new Error(
+        "Local PDF บน macOS/Windows ไม่รองรับ @sparticuz/chromium. ตั้งค่า PDF_RENDER_URL เพื่อให้ยิงไป Cloud Run หรือกำหนด CHROME_BIN/CHROMIUM_PATH ให้ชี้ไป Chrome ในเครื่อง",
+      );
+    }
+    const args = isLinux ? [...chromium.args, "--no-zygote", "--single-process"] : [];
     const browser = await pwChromium.launch({
       executablePath: chromiumPath,
       args,

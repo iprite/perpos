@@ -85,6 +85,8 @@ export async function POST(req: Request) {
     const entityId = String(form.get("entityId") ?? "").trim();
     const orderId = String(form.get("orderId") ?? "").trim();
     const docType = String(form.get("docType") ?? "").trim();
+    const workerId = String(form.get("workerId") ?? "").trim();
+    const orderItemId = String(form.get("orderItemId") ?? "").trim();
     const expiryDate = String(form.get("expiryDate") ?? "").trim();
     const file = form.get("file");
 
@@ -137,8 +139,33 @@ export async function POST(req: Request) {
     }
 
     if (entityType === "order") {
+      if (workerId) {
+        const { data: w, error: wErr } = await supabase.from("workers").select("id").eq("id", workerId).maybeSingle();
+        if (wErr || !w?.id) throw new Error("ไม่พบแรงงาน");
+
+        const { data: links, error: lErr } = await supabase.from("order_item_workers").select("order_item_id").eq("worker_id", workerId).limit(5000);
+        if (lErr) throw new Error("ตรวจสอบแรงงานในออเดอร์ไม่สำเร็จ");
+        const orderItemIds = (links ?? []).map((x: any) => String(x.order_item_id)).filter(Boolean);
+        if (orderItemIds.length === 0) throw new Error("แรงงานนี้ไม่ได้อยู่ในออเดอร์นี้");
+
+        const { data: oi, error: oiErr } = await supabase
+          .from("order_items")
+          .select("id")
+          .in("id", orderItemIds)
+          .eq("order_id", entityId)
+          .limit(1)
+          .maybeSingle();
+        if (oiErr || !oi?.id) throw new Error("แรงงานนี้ไม่ได้อยู่ในออเดอร์นี้");
+      }
+      if (orderItemId) {
+        const { data: oi, error: oiErr } = await supabase.from("order_items").select("id,order_id").eq("id", orderItemId).maybeSingle();
+        if (oiErr || !oi?.id) throw new Error("ไม่พบบริการในออเดอร์");
+        if (String((oi as any).order_id ?? "") !== entityId) throw new Error("บริการนี้ไม่ได้อยู่ในออเดอร์นี้");
+      }
       const { error } = await supabase.from("order_documents").insert({
         order_id: entityId,
+        worker_id: workerId || null,
+        order_item_id: orderItemId || null,
         doc_type: docType || null,
         storage_provider: "supabase",
         storage_bucket: bucket,

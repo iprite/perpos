@@ -94,6 +94,7 @@ export default function PublicPoaRequestPage() {
   );
 
   const typeOptions = useMemo(() => types.map((t) => ({ value: t.id, label: t.name })), [types]);
+  const workerTypeOptions = useMemo(() => [{ value: "กรรมกร", label: "กรรมกร" }, { value: "รับใช้ในบ้าน", label: "รับใช้ในบ้าน" }], []);
   const selectedType = useMemo(() => types.find((t) => t.id === selectedTypeId) ?? null, [types, selectedTypeId]);
   const isMouSelected = useMemo(() => String(selectedType?.name ?? "").trim().toUpperCase() === "MOU", [selectedType]);
 
@@ -236,6 +237,8 @@ export default function PublicPoaRequestPage() {
                         getOptionValue={(o) => o.value}
                         displayValue={(selected) => representativeOptions.find((o) => o.value === selected)?.label ?? ""}
                         disabled={bootstrapLoading || !!bootstrapError || loading}
+                        searchable
+                        searchPlaceHolder="พิมพ์เพื่อค้นหา..."
                         selectClassName="h-10 px-3"
                         inPortal={false}
                       />
@@ -381,7 +384,18 @@ export default function PublicPoaRequestPage() {
                       {fieldError.worker_mou ? <div className="-mt-1 text-xs font-medium text-red-600">{fieldError.worker_mou}</div> : null}
                       <div className="grid gap-3 md:grid-cols-2">
                         <Input label="สัญชาติ" value={workerNation} onChange={(e) => setWorkerNation(e.target.value)} disabled={loading} />
-                        <Input label="ประเภทแรงงาน" value={workerType} onChange={(e) => setWorkerType(e.target.value)} disabled={loading} />
+                        <AppSelect
+                          label="ประเภทแรงงาน"
+                          placeholder="เลือก"
+                          options={workerTypeOptions}
+                          value={workerType}
+                          onChange={(v: string) => setWorkerType(v)}
+                          getOptionValue={(o) => o.value}
+                          displayValue={(selected) => workerTypeOptions.find((o) => o.value === selected)?.label ?? ""}
+                          disabled={loading}
+                          selectClassName="h-10 px-3"
+                          inPortal={false}
+                        />
                       </div>
                       <div className="text-xs text-gray-600">จำนวนรวมจะถูกคำนวณจากชาย + หญิง</div>
                     </>

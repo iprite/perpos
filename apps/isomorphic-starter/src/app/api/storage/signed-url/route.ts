@@ -25,6 +25,7 @@ type TableName =
   | "customer_documents"
   | "order_payments"
   | "order_refunds"
+  | "invoice_payments"
   | "poa_item_payments"
   | "petty_cash_transactions";
 
@@ -44,7 +45,7 @@ export async function POST(req: Request) {
     const rls = createSupabaseRlsClient(token);
     const admin = createSupabaseAdminClient();
 
-    if (table === "order_payments" || table === "order_refunds") {
+    if (table === "order_payments" || table === "order_refunds" || table === "invoice_payments") {
       const { data, error } = await rls
         .from(table)
         .select("slip_storage_provider,slip_storage_bucket,slip_storage_path,slip_file_name")

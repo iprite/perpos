@@ -18,6 +18,9 @@ const rules: Rule[] = [
   { prefix: "/poa-request-types", roles: ["admin"] },
   { prefix: "/representatives", roles: ["admin"] },
 
+  { prefix: "/invoices", roles: ["admin", "sale", "operation"] },
+  { prefix: "/receipts", roles: ["admin", "sale", "operation"] },
+
   { prefix: "/manage-orders", roles: ["admin", "operation"] },
   { prefix: "/poa-requests", roles: ["admin", "operation"] },
 

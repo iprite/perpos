@@ -6,6 +6,8 @@ import { buildAuthLinkEmail } from "@/lib/email/auth-link-email";
 import { sendEmail } from "@/lib/email/send-email";
 import { assertCallerIsAdmin } from "../_utils";
 
+export const runtime = "nodejs";
+
 const BodySchema = z.object({
   email: z.string().email(),
   role: z.enum(["admin", "sale", "operation", "employer", "representative"]),
@@ -25,7 +27,7 @@ export async function POST(req: Request) {
   const json = await req.json().catch(() => null);
   const parsed = BodySchema.safeParse(json);
   if (!parsed.success) {
-    return NextResponse.json({ error: "invalid_body" }, { status: 400 });
+    return NextResponse.json({ error: "invalid_body", issues: parsed.error.issues }, { status: 400 });
   }
 
   const {
@@ -51,7 +53,12 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "missing_representative_lead" }, { status: 400 });
   }
 
-  const admin = createSupabaseAdminClient();
+  let admin: ReturnType<typeof createSupabaseAdminClient>;
+  try {
+    admin = createSupabaseAdminClient();
+  } catch (e: any) {
+    return NextResponse.json({ error: "missing_supabase_admin_env", message: String(e?.message ?? "") }, { status: 500 });
+  }
 
   const inviteRes = await admin.auth.admin.generateLink({
     type: "invite",
@@ -155,7 +162,10 @@ export async function POST(req: Request) {
   const sent = await sendEmail({ to: email, subject, html, text });
 
   if (!sent.ok) {
-    return NextResponse.json({ error: "email_send_failed", reason: sent.reason, actionLink }, { status: 502 });
+    return NextResponse.json(
+      { error: "email_send_failed", reason: sent.reason, code: (sent as any).code ?? null, responseCode: (sent as any).responseCode ?? null, message: (sent as any).message ?? null, actionLink },
+      { status: 502 },
+    );
   }
 
   return NextResponse.json({ ok: true, userId, actionLink, emailSent: true });

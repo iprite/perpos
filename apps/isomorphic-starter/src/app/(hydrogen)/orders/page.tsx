@@ -3,6 +3,7 @@
 import React, { useCallback, useMemo, useRef, useState } from "react";
 import { Button, Input } from "rizzui";
 import { Title, Text } from "rizzui/typography";
+import toast from "react-hot-toast";
 import AppSelect from "@core/ui/app-select";
 import TablePagination from "@core/components/table/pagination";
 import { getCoreRowModel, useReactTable } from "@tanstack/react-table";
@@ -86,6 +87,19 @@ type OrderDocumentRow = {
   drive_web_view_link: string | null;
   drive_file_id: string | null;
   created_at: string;
+};
+
+type InvoiceLiteRow = {
+  id: string;
+  doc_no: string | null;
+  status: string;
+  grand_total: number;
+  issued_at: string | null;
+};
+
+type ReceiptLiteRow = {
+  id: string;
+  doc_no: string | null;
 };
 
 type EventRow = {
@@ -326,7 +340,18 @@ export default function OrdersPage() {
   const [payCustomerName, setPayCustomerName] = useState<string | null>(null);
   const [payTotal, setPayTotal] = useState<number>(0);
   const [payAmount, setPayAmount] = useState("");
-  const [payFile, setPayFile] = useState<File | null>(null);
+
+  const [firstIvOpen, setFirstIvOpen] = useState(false);
+  const [firstIvOrderId, setFirstIvOrderId] = useState<string | null>(null);
+  const [firstIvOrderDisplayId, setFirstIvOrderDisplayId] = useState<string | null>(null);
+  const [firstIvCustomerName, setFirstIvCustomerName] = useState<string | null>(null);
+  const [firstIvTotal, setFirstIvTotal] = useState<number>(0);
+  const [firstIvLoading, setFirstIvLoading] = useState(false);
+  const [firstIvInvoice, setFirstIvInvoice] = useState<InvoiceLiteRow | null>(null);
+  const [firstIvPayAmount, setFirstIvPayAmount] = useState("");
+  const [firstIvPayNote, setFirstIvPayNote] = useState("");
+  const [firstIvPayFile, setFirstIvPayFile] = useState<File | null>(null);
+
 
   const [cancelOpen, setCancelOpen] = useState(false);
   const [cancelOrderId, setCancelOrderId] = useState<string | null>(null);
@@ -385,9 +410,117 @@ export default function OrdersPage() {
     setEvents([]);
   }, []);
 
+  const loadFirstInstallmentInvoice = useCallback(
+    async (orderId: string) => {
+      if (!orderId) return null;
+      const res = await supabase
+        .from("invoices")
+        .select("id,doc_no,status,grand_total,issued_at")
+        .eq("order_id", orderId)
+        .eq("installment_no", 1)
+        .neq("status", "cancelled")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (res.error) throw res.error;
+      const row = res.data as any;
+      if (!row?.id) return null;
+      return {
+        id: String(row.id),
+        doc_no: row.doc_no ? String(row.doc_no) : null,
+        status: String(row.status ?? ""),
+        grand_total: Number(row.grand_total ?? 0),
+        issued_at: row.issued_at ? String(row.issued_at) : null,
+      } satisfies InvoiceLiteRow;
+    },
+    [supabase]
+  );
+
+  const downloadInvoicePdf = useCallback(
+    async (invoice: InvoiceLiteRow) => {
+      const res = await fetch("/api/invoices/pdf", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ invoiceId: invoice.id }),
+      });
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(data.error || "ดาวน์โหลดใบแจ้งหนี้ไม่สำเร็จ");
+      }
+      const blob = await res.blob();
+      const objUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = objUrl;
+      a.download = invoice.doc_no ? `${invoice.doc_no}.pdf` : `invoice-${invoice.id}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(objUrl);
+    },
+    []
+  );
+
+  const loadReceiptForInvoice = useCallback(
+    async (invoiceId: string) => {
+      if (!invoiceId) return null;
+      const res = await supabase
+        .from("receipts")
+        .select("id,doc_no")
+        .eq("invoice_id", invoiceId)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (res.error) throw res.error;
+      const row = res.data as any;
+      if (!row?.id) return null;
+      return {
+        id: String(row.id),
+        doc_no: row.doc_no ? String(row.doc_no) : null,
+      } satisfies ReceiptLiteRow;
+    },
+    [supabase]
+  );
+
+  const createReceiptFromInvoice = useCallback(async (invoiceId: string) => {
+    const res = await fetch("/api/receipts/from-invoice", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ invoiceId }),
+    });
+    if (!res.ok) {
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      throw new Error(data.error || "ออกใบเสร็จไม่สำเร็จ");
+    }
+    const data = (await res.json().catch(() => ({}))) as { receiptId?: string; receiptNo?: string | null };
+    return { receiptId: String(data.receiptId ?? "").trim(), receiptNo: data.receiptNo ?? null };
+  }, []);
+
+  const downloadReceiptPdf = useCallback(async (receipt: ReceiptLiteRow) => {
+    const res = await fetch("/api/receipts/pdf", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ receiptId: receipt.id }),
+    });
+    if (!res.ok) {
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      throw new Error(data.error || "ดาวน์โหลดใบเสร็จไม่สำเร็จ");
+    }
+    const blob = await res.blob();
+    const objUrl = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = objUrl;
+    a.download = receipt.doc_no ? `${receipt.doc_no}.pdf` : `receipt-${receipt.id}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(objUrl);
+  }, []);
+
   const statusLabel = useCallback((status: string) => {
     if (status === "draft") return "เปิดออเดอร์";
     if (status === "in_progress") return "กำลังดำเนินการ";
+    if (status === "billed_first_installment") return "วางบิลงวดแรกแล้ว";
+    if (status === "paid_first_installment") return "ชำระงวดแรกแล้ว";
     if (status === "completed") return "ปิดออเดอร์";
     if (status === "pending_approval") return "รออนุมัติ";
     if (status === "approved") return "อนุมัติแล้ว";
@@ -519,6 +652,10 @@ export default function OrdersPage() {
   const canEditCustomer = canEditOrder && !isLockedFromQuote;
   const canEditItems = canEditOrder && !isLockedFromQuote;
   const canSave = canEditOrder && !isLockedFromQuote && customerId.length > 0 && items.some((x) => x.serviceId.length > 0);
+  const canAssignWorkers =
+    canEdit &&
+    !!editingId &&
+    (editingStatus === "draft" || editingStatus === "billed_first_installment" || editingStatus === "in_progress");
 
   const firstInstallment = useMemo(() => {
     return orderPayments.find((p) => Number(p.installment_no ?? 0) === 1 && !!p.confirmed_at && Number(p.amount ?? 0) > 0) ?? null;
@@ -1176,7 +1313,7 @@ export default function OrdersPage() {
                             <button
                               type="button"
                               className="h-9 rounded-md border border-gray-200 bg-white px-3 text-xs font-semibold text-gray-700 hover:bg-gray-100"
-                              disabled={!canEditOrder || qty <= 0 || !editingId}
+                              disabled={!canAssignWorkers || qty <= 0 || !editingId}
                               onClick={async () => {
                                 const realId = looksUuid(it.key) ? it.key : await ensureOrderItemId(it);
                                 if (!realId) return;
@@ -1270,11 +1407,69 @@ export default function OrdersPage() {
                             setPayCustomerName(selectedCustomerName);
                             setPayTotal(editingTotalAmount);
                             setPayAmount("");
-                            setPayFile(null);
                             setPayOpen(true);
                           }}
                         >
-                          ชำระงวดแรก
+                          วางบิลงวดแรก
+                        </Button>
+                      ) : firstInstallment ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={loading || !editingId}
+                          onClick={async () => {
+                            if (!editingId) return;
+                            setLoading(true);
+                            setError(null);
+                            try {
+                              const inv = await loadFirstInstallmentInvoice(editingId);
+                              if (!inv?.id) throw new Error("ไม่พบใบแจ้งหนี้งวดแรก");
+                              let rec = await loadReceiptForInvoice(inv.id);
+                              if (!rec?.id) {
+                                const created = await createReceiptFromInvoice(inv.id);
+                                if (created.receiptNo) toast.success(`ออกใบเสร็จ ${created.receiptNo} แล้ว`);
+                                rec = created.receiptId ? await loadReceiptForInvoice(inv.id) : null;
+                              }
+                              if (!rec?.id) throw new Error("ไม่พบใบเสร็จรับเงินงวดแรก");
+                              await downloadReceiptPdf(rec);
+                            } catch (e: any) {
+                              setError(e?.message ?? "ดาวน์โหลดใบเสร็จไม่สำเร็จ");
+                            }
+                            setLoading(false);
+                          }}
+                        >
+                          ใบเสร็จรับเงินงวดแรก
+                        </Button>
+                      ) : editingStatus === "billed_first_installment" ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={loading || !editingId}
+                          onClick={async () => {
+                            if (!editingId) return;
+                            setError(null);
+                            setFirstIvOrderId(editingId);
+                            setFirstIvOrderDisplayId(editingDisplayId ?? null);
+                            setFirstIvCustomerName(selectedCustomerName);
+                            setFirstIvTotal(editingTotalAmount);
+                            setFirstIvInvoice(null);
+                            setFirstIvPayFile(null);
+                            setFirstIvPayNote("");
+                            setFirstIvPayAmount("");
+                            setFirstIvOpen(true);
+                            setFirstIvLoading(true);
+                            try {
+                              const inv = await loadFirstInstallmentInvoice(editingId);
+                              setFirstIvInvoice(inv);
+                              setFirstIvPayAmount(inv ? String(inv.grand_total ?? 0) : "");
+                            } catch (e: any) {
+                              setFirstIvInvoice(null);
+                              setError(e?.message ?? "โหลดใบแจ้งหนี้งวดแรกไม่สำเร็จ");
+                            }
+                            setFirstIvLoading(false);
+                          }}
+                        >
+                          ใบแจ้งหนี้งวดแรก
                         </Button>
                       ) : null}
                     </div>
@@ -1974,7 +2169,7 @@ export default function OrdersPage() {
 
       <Modal isOpen={payOpen} onClose={() => setPayOpen(false)}>
         <div className="rounded-xl bg-white p-5">
-          <div className="text-base font-semibold text-gray-900">ชำระงวดแรก</div>
+          <div className="text-base font-semibold text-gray-900">วางบิลงวดแรก</div>
           <div className="mt-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="font-medium text-gray-900">{payOrderDisplayId ?? payOrderId ?? "-"}</div>
@@ -1992,6 +2187,181 @@ export default function OrdersPage() {
                 inputMode="decimal"
               />
             </div>
+
+          </div>
+
+          <div className="mt-5 flex flex-wrap justify-end gap-2">
+            <Button
+              onClick={async () => {
+                if (!payOrderId) return;
+                const amtNum = Number(payAmount || 0);
+                const amt = Number.isFinite(amtNum) ? amtNum : 0;
+                if (amt <= 0) {
+                  setError("กรุณาใส่ยอดเงิน");
+                  return;
+                }
+                setLoading(true);
+                setError(null);
+                const billedOrderId = payOrderId;
+                const ivResult = await fetch("/api/invoices/create-from-order-first-payment", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ orderId: billedOrderId, amount: amt }),
+                });
+                if (!ivResult.ok) {
+                  const data = (await ivResult.json().catch(() => ({}))) as { error?: string };
+                  setError(data.error || "ออกใบแจ้งหนี้ไม่สำเร็จ");
+                  setLoading(false);
+                  return;
+                }
+                const ivData = (await ivResult.json().catch(() => ({}))) as { invoiceId?: string; invoiceNo?: string | null };
+                const invoiceId = String(ivData.invoiceId ?? "").trim();
+                setPayOpen(false);
+                setPayOrderId(null);
+                setPayOrderDisplayId(null);
+                setPayCustomerName(null);
+                setPayTotal(0);
+                setPayAmount("");
+
+    setFirstIvOpen(false);
+    setFirstIvOrderId(null);
+    setFirstIvOrderDisplayId(null);
+    setFirstIvCustomerName(null);
+    setFirstIvTotal(0);
+    setFirstIvLoading(false);
+    setFirstIvInvoice(null);
+    setFirstIvPayAmount("");
+    setFirstIvPayNote("");
+    setFirstIvPayFile(null);
+                setLoading(false);
+                if (billedOrderId) {
+                  await addOrderEvent({
+                    orderId: billedOrderId,
+                    eventType: "first_installment_billed",
+                    message: `วางบิลงวดแรก ${asMoney(amt)} บาท`,
+                    entityTable: "orders",
+                    entityId: billedOrderId,
+                  });
+                }
+
+                if (invoiceId) {
+                  toast.success(`ออกใบแจ้งหนี้${ivData.invoiceNo ? ` ${ivData.invoiceNo}` : ""} แล้ว`);
+                  window.open(`/invoices/${invoiceId}`, "_blank", "noopener,noreferrer");
+                }
+                try {
+                  const { data: ord } = await supabase
+                    .from("orders")
+                    .select("status,paid_amount,remaining_amount,total,source_quote_id")
+                    .eq("id", billedOrderId)
+                    .single();
+                  if (ord && editingId === billedOrderId) {
+                    setEditingStatus((ord as any).status ?? null);
+                    setEditingSourceQuoteId((ord as any).source_quote_id ?? null);
+                    setEditingTotalAmount(Number((ord as any).total ?? 0));
+                    setEditingPaidAmount(Number((ord as any).paid_amount ?? 0));
+                    setEditingRemainingAmount(Number((ord as any).remaining_amount ?? 0));
+                  }
+                } catch {}
+                await refreshOrderDocs(billedOrderId);
+                refresh();
+              }}
+              disabled={
+                loading ||
+                !payOrderId ||
+                (() => {
+                  const n = Number(payAmount || 0);
+                  return !Number.isFinite(n) || n <= 0;
+                })()
+              }
+            >
+              วางบิลงวดแรก (ออก IV)
+            </Button>
+            <Button variant="outline" onClick={() => setPayOpen(false)} disabled={loading}>
+              ปิด
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={firstIvOpen}
+        onClose={() => {
+          setFirstIvOpen(false);
+          setFirstIvLoading(false);
+          setFirstIvInvoice(null);
+          setFirstIvPayAmount("");
+          setFirstIvPayNote("");
+          setFirstIvPayFile(null);
+          setFirstIvOrderId(null);
+          setFirstIvOrderDisplayId(null);
+          setFirstIvCustomerName(null);
+          setFirstIvTotal(0);
+        }}
+      >
+        <div className="rounded-xl bg-white p-5">
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div>
+              <div className="text-base font-semibold text-gray-900">ใบแจ้งหนี้งวดแรก</div>
+              <div className="mt-1 text-sm text-gray-600">แนบหลักฐานการโอนและยืนยันการชำระเงิน</div>
+            </div>
+            {firstIvInvoice?.id ? (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={async () => {
+                  if (!firstIvInvoice) return;
+                  try {
+                    setFirstIvLoading(true);
+                    setError(null);
+                    await downloadInvoicePdf(firstIvInvoice);
+                  } catch (e: any) {
+                    setError(e?.message ?? "ดาวน์โหลดใบแจ้งหนี้ไม่สำเร็จ");
+                  }
+                  setFirstIvLoading(false);
+                }}
+                disabled={firstIvLoading}
+              >
+                ดาวน์โหลดใบแจ้งหนี้
+              </Button>
+            ) : null}
+          </div>
+
+          <div className="mt-3 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="font-medium text-gray-900">{firstIvOrderDisplayId ?? firstIvOrderId ?? "-"}</div>
+              <div className="font-medium text-gray-900">ยอดสุทธิ: {asMoney(Number(firstIvTotal ?? 0))}</div>
+            </div>
+            <div className="mt-0.5 truncate text-xs text-gray-600">{firstIvCustomerName ?? "-"}</div>
+          </div>
+
+          {firstIvLoading ? <div className="mt-4 text-sm text-gray-600">กำลังโหลด...</div> : null}
+          {!firstIvLoading && !firstIvInvoice ? (
+            <div className="mt-4 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700">ไม่พบใบแจ้งหนี้งวดแรก</div>
+          ) : null}
+
+          {!firstIvLoading && firstIvInvoice ? (
+            <div className="mt-4 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  เลขที่: <span className="font-semibold text-gray-900">{firstIvInvoice.doc_no ?? "-"}</span>
+                </div>
+                <div className="font-semibold text-gray-900">ยอด: {asMoney(Number(firstIvInvoice.grand_total ?? 0))}</div>
+              </div>
+              <div className="mt-1 text-xs text-gray-600">ออกเอกสารเมื่อ: {firstIvInvoice.issued_at ?? "-"}</div>
+            </div>
+          ) : null}
+
+          <div className="mt-4 grid gap-3">
+            <div>
+              <div className="text-sm font-medium text-gray-700">ยอดที่ชำระ</div>
+              <input
+                className="mt-2 h-10 w-full rounded-md border border-gray-200 bg-white px-3 text-right text-sm"
+                value={firstIvPayAmount}
+                onChange={(e) => setFirstIvPayAmount(e.target.value)}
+                inputMode="decimal"
+                disabled={firstIvLoading || !firstIvInvoice}
+              />
+            </div>
             <div>
               <div className="text-sm font-medium text-gray-700">แนบ slip</div>
               <div className="mt-2">
@@ -2002,85 +2372,109 @@ export default function OrdersPage() {
                   multiple={false}
                   maxFiles={1}
                   maxSizeBytes={10 * 1024 * 1024}
-                  files={payFile ? [payFile] : []}
-                  onFilesChange={(next) => setPayFile(next[0] ?? null)}
-                  disabled={loading}
+                  files={firstIvPayFile ? [firstIvPayFile] : []}
+                  onFilesChange={(next) => setFirstIvPayFile(next[0] ?? null)}
+                  disabled={firstIvLoading || !firstIvInvoice}
                 />
               </div>
+            </div>
+            <div>
+              <div className="text-sm font-medium text-gray-700">หมายเหตุ (ถ้ามี)</div>
+              <Input value={firstIvPayNote} onChange={(e) => setFirstIvPayNote(e.target.value)} disabled={firstIvLoading || !firstIvInvoice} />
             </div>
           </div>
 
           <div className="mt-5 flex flex-wrap justify-end gap-2">
             <Button
               onClick={async () => {
-                if (!payOrderId || !payFile) return;
-                const amtNum = Number(payAmount || 0);
+                if (!firstIvInvoice || !firstIvPayFile) return;
+                const amtNum = Number(firstIvPayAmount || 0);
                 const amt = Number.isFinite(amtNum) ? amtNum : 0;
                 if (amt <= 0) {
-                  setError("กรุณาใส่ยอดเงิน");
+                  setError("กรุณาใส่ยอดที่ชำระ");
                   return;
-                }
-                setLoading(true);
-                setError(null);
-                const form = new FormData();
-                form.set("orderId", payOrderId);
-                form.set("amount", String(amt));
-                form.set("file", payFile);
-                const res = await fetch("/api/orders/first-payment", { method: "POST", body: form });
-                if (!res.ok) {
-                  const data = (await res.json().catch(() => ({}))) as { error?: string };
-                  setError(data.error || "บันทึกการชำระเงินไม่สำเร็จ");
-                  setLoading(false);
-                  return;
-                }
-                const paidOrderId = payOrderId;
-                setPayOpen(false);
-                setPayOrderId(null);
-                setPayOrderDisplayId(null);
-                setPayCustomerName(null);
-                setPayTotal(0);
-                setPayAmount("");
-                setPayFile(null);
-                setLoading(false);
-                if (paidOrderId) {
-                  await addOrderEvent({
-                    orderId: paidOrderId,
-                    eventType: "payment_recorded",
-                    message: `บันทึกการชำระงวดแรก ${asMoney(amt)} บาท`,
-                    entityTable: "orders",
-                    entityId: paidOrderId,
-                  });
                 }
                 try {
-                  const { data: ord } = await supabase
-                    .from("orders")
-                    .select("status,paid_amount,remaining_amount,total,source_quote_id")
-                    .eq("id", paidOrderId)
-                    .single();
-                  if (ord && editingId === paidOrderId) {
-                    setEditingStatus((ord as any).status ?? null);
-                    setEditingSourceQuoteId((ord as any).source_quote_id ?? null);
-                    setEditingTotalAmount(Number((ord as any).total ?? 0));
-                    setEditingPaidAmount(Number((ord as any).paid_amount ?? 0));
-                    setEditingRemainingAmount(Number((ord as any).remaining_amount ?? 0));
+                  setFirstIvLoading(true);
+                  setError(null);
+                  const form = new FormData();
+                  form.set("invoiceId", firstIvInvoice.id);
+                  form.set("amount", String(amt));
+                  if (firstIvPayNote.trim()) form.set("note", firstIvPayNote.trim());
+                  form.set("file", firstIvPayFile);
+                  const res = await fetch("/api/invoices/confirm-payment", { method: "POST", body: form });
+                  if (!res.ok) {
+                    const data = (await res.json().catch(() => ({}))) as { error?: string };
+                    throw new Error(data.error || "ยืนยันการชำระไม่สำเร็จ");
                   }
-                } catch {}
-                await refreshOrderDocs(paidOrderId);
-                refresh();
+                  try {
+                    const created = await createReceiptFromInvoice(firstIvInvoice.id);
+                    if (created.receiptNo) toast.success(`ยืนยันการชำระแล้ว • ออกใบเสร็จ ${created.receiptNo} แล้ว`);
+                    else toast.success("ยืนยันการชำระแล้ว");
+                  } catch {
+                    toast.success("ยืนยันการชำระแล้ว");
+                  }
+                  const orderId = firstIvOrderId;
+                  setFirstIvOpen(false);
+                  setFirstIvInvoice(null);
+                  setFirstIvPayAmount("");
+                  setFirstIvPayNote("");
+                  setFirstIvPayFile(null);
+                  setFirstIvOrderId(null);
+                  setFirstIvOrderDisplayId(null);
+                  setFirstIvCustomerName(null);
+                  setFirstIvTotal(0);
+                  if (orderId) {
+                    try {
+                      const { data: ord } = await supabase
+                        .from("orders")
+                        .select("status,paid_amount,remaining_amount,total,source_quote_id")
+                        .eq("id", orderId)
+                        .single();
+                      if (ord && editingId === orderId) {
+                        setEditingStatus((ord as any).status ?? null);
+                        setEditingSourceQuoteId((ord as any).source_quote_id ?? null);
+                        setEditingTotalAmount(Number((ord as any).total ?? 0));
+                        setEditingPaidAmount(Number((ord as any).paid_amount ?? 0));
+                        setEditingRemainingAmount(Number((ord as any).remaining_amount ?? 0));
+                      }
+                    } catch {}
+                    await refreshOrderDocs(orderId);
+                    refresh();
+                  }
+                } catch (e: any) {
+                  setError(e?.message ?? "ยืนยันการชำระไม่สำเร็จ");
+                }
+                setFirstIvLoading(false);
               }}
               disabled={
-                loading ||
-                !payOrderId ||
-                !payFile ||
+                firstIvLoading ||
+                !firstIvInvoice ||
+                !firstIvPayFile ||
                 (() => {
-                  const n = Number(payAmount || 0);
+                  const n = Number(firstIvPayAmount || 0);
                   return !Number.isFinite(n) || n <= 0;
                 })()
               }
             >
-              ยืนยันการชำระงวดแรก
+              ยืนยันชำระ
             </Button>
-            <Button variant="outline" onClick={() => setPayOpen(false)} disabled={loading}>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setFirstIvOpen(false);
+                setFirstIvLoading(false);
+                setFirstIvInvoice(null);
+                setFirstIvPayAmount("");
+                setFirstIvPayNote("");
+                setFirstIvPayFile(null);
+                setFirstIvOrderId(null);
+                setFirstIvOrderDisplayId(null);
+                setFirstIvCustomerName(null);
+                setFirstIvTotal(0);
+              }}
+              disabled={firstIvLoading}
+            >
               ปิด
             </Button>
           </div>

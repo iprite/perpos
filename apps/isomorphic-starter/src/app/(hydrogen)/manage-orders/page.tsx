@@ -39,6 +39,8 @@ function customerNameFromRel(rel: CustomerRel) {
 function statusLabel(status: string) {
   if (status === "draft") return "ร่าง";
   if (status === "in_progress") return "กำลังดำเนินการ";
+  if (status === "billed_first_installment") return "วางบิลงวดแรกแล้ว";
+  if (status === "paid_first_installment") return "ชำระงวดแรกแล้ว";
   if (status === "completed") return "เสร็จสิ้น";
   if (status === "cancelled") return "ยกเลิก";
   return status || "-";
@@ -99,7 +101,6 @@ export default function ManageOrdersPage() {
           "id,display_id,customer_id,status,total,paid_amount,remaining_amount,created_at,customers(name)",
         )
         .in("id", orderIds)
-        .eq("status", showClosedOnly ? "completed" : "in_progress")
         .order("created_at", { ascending: false });
       if (ordErr) {
         setError(ordErr.message);
@@ -108,13 +109,14 @@ export default function ManageOrdersPage() {
         return;
       }
 
-      const list = ((ordRows ?? []) as unknown as OrderRow[]) ?? [];
-      setRows(list);
+      const all = ((ordRows ?? []) as unknown as OrderRow[]) ?? [];
+      const filtered = showClosedOnly ? all.filter((x) => x.status === "completed") : all.filter((x) => x.status === "in_progress");
+      setRows(filtered);
 
       const { data: itemRows, error: itemErr } = await supabase
         .from("order_items")
         .select("order_id,ops_status")
-        .in("order_id", list.map((x) => x.id));
+        .in("order_id", filtered.map((x) => x.id));
       if (itemErr) {
         setProgressByOrderId({});
         setLoading(false);

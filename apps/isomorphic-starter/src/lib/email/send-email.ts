@@ -37,8 +37,11 @@ export async function sendEmail(opts: { to: string; subject: string; html: strin
       html: opts.html,
       text: opts.text,
     });
-  } catch {
-    return { ok: false as const, reason: "send_failed" as const };
+  } catch (e: any) {
+    const code = e?.code ? String(e.code) : null;
+    const responseCode = typeof e?.responseCode === "number" ? e.responseCode : null;
+    const message = e?.message ? String(e.message) : null;
+    return { ok: false as const, reason: "send_failed" as const, code, responseCode, message };
   }
 
   return { ok: true as const };

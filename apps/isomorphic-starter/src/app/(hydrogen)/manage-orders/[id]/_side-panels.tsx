@@ -109,9 +109,13 @@ export function ManageOrderPaymentsPanel({
             variant="outline"
             className="whitespace-nowrap"
             onClick={onOpenAdd}
-            disabled={loading || isLocked || order?.status !== "in_progress"}
+            disabled={
+              loading ||
+              isLocked ||
+              order?.status !== "in_progress"
+            }
           >
-            เพิ่มงวดชำระ
+            วางบิลงวดถัดไป
           </Button>
         ) : null}
       </div>
@@ -184,6 +188,8 @@ export function ManageOrderDocumentsPanel({
             <div className="mt-2 space-y-2">
               {orderDocuments.map((d: any) => {
                 const title = d?.doc_type || d?.file_name || "เอกสาร";
+                const workerName = d?.worker?.full_name ? String(d.worker.full_name) : null;
+                const serviceName = d?.order_items?.services?.name ? String(d.order_items.services.name) : null;
 
                 return (
                   <button
@@ -232,6 +238,8 @@ export function ManageOrderDocumentsPanel({
                   >
                     <div className="min-w-0">
                       <div className="truncate text-sm font-semibold text-gray-900">{title}</div>
+                      {workerName ? <div className="mt-0.5 truncate text-xs text-gray-600">แรงงาน: {workerName}</div> : null}
+                      {serviceName ? <div className="mt-0.5 truncate text-xs text-gray-600">บริการ: {serviceName}</div> : null}
                     </div>
                     <span className="inline-flex items-center rounded-full border border-gray-200 bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-700">
                       {formatDateOnly(d.created_at)}
@@ -541,10 +549,10 @@ export function RecordInstallmentModal({
   order,
   orderId,
   installmentNo,
+  unbilledRemaining,
+  unpaidBilledTotal,
   amount,
   onAmountChange,
-  file,
-  onFileChange,
   onSubmit,
 }: {
   isOpen: boolean;
@@ -553,22 +561,40 @@ export function RecordInstallmentModal({
   order: OrderRow | null;
   orderId: string;
   installmentNo: number;
+  unbilledRemaining: number;
+  unpaidBilledTotal: number;
   amount: string;
   onAmountChange: (v: string) => void;
-  file: File | null;
-  onFileChange: (f: File | null) => void;
   onSubmit: () => void;
 }) {
+  const remaining = Number(order?.remaining_amount ?? 0);
+  const unpaidBilled = Number(unpaidBilledTotal ?? 0);
+  const unbilled = Number(unbilledRemaining ?? 0);
+  const maxAmount = Math.max(0, unbilled);
   return (
     <Modal isOpen={isOpen} onClose={onClose}>
       <div className="rounded-xl bg-white p-5">
-        <div className="text-base font-semibold text-gray-900">เพิ่มการชำระงวดคงค้าง</div>
+        <div className="text-base font-semibold text-gray-900">วางบิลงวดถัดไป</div>
         <div className="mt-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="font-medium text-gray-900">{order?.display_id ?? orderId}</div>
             <div className="font-medium text-gray-900">งวด {installmentNo}</div>
           </div>
           <div className="mt-0.5 truncate text-xs text-gray-600">{customerNameFromRel(order?.customers ?? null)}</div>
+          <div className="mt-2 grid gap-1 text-xs text-gray-700">
+            <div className="flex items-center justify-between gap-2">
+              <div className="text-gray-600">ยอดคงเหลือ</div>
+              <div className="font-semibold text-gray-900">{asMoney(remaining)}</div>
+            </div>
+            <div className="flex items-center justify-between gap-2">
+              <div className="text-gray-600">ยอดวางบิลค้างชำระ</div>
+              <div className="font-semibold text-amber-700">{asMoney(unpaidBilled)}</div>
+            </div>
+            <div className="flex items-center justify-between gap-2">
+              <div className="text-gray-600">ยอดคงเหลือที่ยังไม่ได้วางบิล</div>
+              <div className="font-semibold text-gray-900">{asMoney(maxAmount)}</div>
+            </div>
+          </div>
         </div>
 
         <div className="mt-4 grid gap-3">
@@ -581,21 +607,16 @@ export function RecordInstallmentModal({
               inputMode="decimal"
               disabled={disabled}
             />
-          </div>
-          <div>
-            <div className="text-sm font-medium text-gray-700">แนบ slip</div>
-            <div className="mt-2">
-              <FileUploader
-                label=""
-                helperText="คลิกเพื่อแนบ slip หรือ ลากไฟล์มาวาง"
-                accept={{ "image/*": [], "application/pdf": [] }}
-                multiple={false}
-                maxFiles={1}
-                maxSizeBytes={10 * 1024 * 1024}
-                files={file ? [file] : []}
-                onFilesChange={(next: File[]) => onFileChange(next[0] ?? null)}
-                disabled={disabled}
-              />
+            <div className="mt-1 text-xs text-gray-500">ใส่ได้ไม่เกิน {asMoney(maxAmount)} บาท</div>
+            <div className="mt-2 flex flex-wrap justify-end gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => onAmountChange(String(maxAmount))}
+                disabled={disabled || maxAmount <= 0}
+              >
+                ยอดคงเหลือทั้งหมด
+              </Button>
             </div>
           </div>
         </div>
@@ -605,14 +626,13 @@ export function RecordInstallmentModal({
             onClick={onSubmit}
             disabled={
               disabled ||
-              !file ||
               (() => {
                 const n = Number(amount || 0);
-                return !Number.isFinite(n) || n <= 0;
+                return !Number.isFinite(n) || n <= 0 || n > maxAmount;
               })()
             }
           >
-            บันทึกงวดชำระ
+            ออกใบแจ้งหนี้ (IV)
           </Button>
           <Button variant="outline" onClick={onClose} disabled={disabled}>
             ปิด

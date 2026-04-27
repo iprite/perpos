@@ -56,7 +56,18 @@ async function resolveChromiumExecutablePath() {
     process.env.GOOGLE_CHROME_BIN;
   if (fromEnv) return fromEnv;
 
+  const platform = process.platform;
+  const macCandidates =
+    platform === "darwin"
+      ? [
+          "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+          "/Applications/Chromium.app/Contents/MacOS/Chromium",
+          "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
+        ]
+      : [];
+
   const candidates = [
+    ...macCandidates,
     "/usr/bin/chromium",
     "/usr/bin/chromium-browser",
     "/usr/bin/google-chrome",
@@ -873,11 +884,18 @@ export async function POST(request: Request) {
   </body>
 </html>`;
 
-    const chromiumPath = (await chromium.executablePath()) || (await resolveChromiumExecutablePath());
-    const args = [...chromium.args, "--no-zygote", "--single-process"];
     const fileBase = String(docId ?? "poa").replace(/[^a-zA-Z0-9._-]+/g, "_").slice(0, 120) || "poa";
     const proxied = await tryRenderViaService(html, fileBase);
     if (proxied) return proxied;
+
+    const isLinux = process.platform === "linux";
+    const chromiumPath = isLinux ? (await chromium.executablePath()) || (await resolveChromiumExecutablePath()) : await resolveChromiumExecutablePath();
+    if (!chromiumPath) {
+      throw new Error(
+        "Local PDF บน macOS/Windows ไม่รองรับ @sparticuz/chromium. ตั้งค่า PDF_RENDER_URL เพื่อให้ยิงไป Cloud Run หรือกำหนด CHROME_BIN/CHROMIUM_PATH ให้ชี้ไป Chrome ในเครื่อง",
+      );
+    }
+    const args = isLinux ? [...chromium.args, "--no-zygote", "--single-process"] : [];
 
     const browser = await pwChromium.launch({
       executablePath: chromiumPath,

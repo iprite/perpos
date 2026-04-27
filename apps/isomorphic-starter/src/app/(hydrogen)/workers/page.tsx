@@ -18,6 +18,7 @@ type WorkerRow = {
   worker_id: string | null;
   full_name: string;
   customer_id: string | null;
+  order_id: string | null;
   passport_no: string | null;
   passport_type: string | null;
   passport_expire_date: string | null;
@@ -73,7 +74,7 @@ export default function WorkersPage() {
       let workerQuery = supabase
         .from("workers")
         .select(
-          "id,worker_id,full_name,customer_id,passport_no,passport_type,passport_expire_date,nationality,birth_date,os_sex,profile_pic_url,visa_exp_date,wp_number,wp_expire_date,wp_type,created_at",
+          "id,worker_id,full_name,customer_id,order_id,passport_no,passport_type,passport_expire_date,nationality,birth_date,os_sex,profile_pic_url,visa_exp_date,wp_number,wp_expire_date,wp_type,created_at",
           { count: "estimated" },
         )
         .order("created_at", { ascending: false });
@@ -110,7 +111,7 @@ export default function WorkersPage() {
           let fallback = supabase
             .from("workers")
             .select(
-              "id,full_name,customer_id,passport_no,passport_expire_date,nationality,birth_date,os_sex,profile_pic_url,visa_exp_date,wp_number,wp_expire_date,wp_type,created_at",
+              "id,full_name,customer_id,order_id,passport_no,passport_expire_date,nationality,birth_date,os_sex,profile_pic_url,visa_exp_date,wp_number,wp_expire_date,wp_type,created_at",
               { count: "estimated" },
             )
             .order("created_at", { ascending: false });

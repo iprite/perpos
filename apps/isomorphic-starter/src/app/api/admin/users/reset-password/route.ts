@@ -6,6 +6,8 @@ import { buildAuthLinkEmail } from "@/lib/email/auth-link-email";
 import { sendEmail } from "@/lib/email/send-email";
 import { assertCallerIsAdmin } from "../_utils";
 
+export const runtime = "nodejs";
+
 const BodySchema = z.object({
   email: z.string().email(),
   redirectTo: z.string().url(),
@@ -25,7 +27,12 @@ export async function POST(req: Request) {
 
   const { email, redirectTo } = parsed.data;
 
-  const admin = createSupabaseAdminClient();
+  let admin: ReturnType<typeof createSupabaseAdminClient>;
+  try {
+    admin = createSupabaseAdminClient();
+  } catch (e: any) {
+    return NextResponse.json({ error: "missing_supabase_admin_env", message: String(e?.message ?? "") }, { status: 500 });
+  }
 
   const { data: linkData, error: linkError } = await admin.auth.admin.generateLink({
     type: "recovery",
@@ -41,5 +48,17 @@ export async function POST(req: Request) {
   const { html, text } = buildAuthLinkEmail({ title: "รีเซ็ตรหัสผ่าน", actionLabel: "ตั้งรหัสผ่านใหม่", actionLink: actionLink });
   const sent = await sendEmail({ to: email, subject, html, text });
 
-  return NextResponse.json({ ok: true, actionLink, emailSent: sent.ok, emailErrorReason: sent.ok ? null : sent.reason });
+  return NextResponse.json({
+    ok: true,
+    actionLink,
+    emailSent: sent.ok,
+    emailErrorReason: sent.ok ? null : sent.reason,
+    emailError: sent.ok
+      ? null
+      : {
+          code: (sent as any).code ?? null,
+          responseCode: (sent as any).responseCode ?? null,
+          message: (sent as any).message ?? null,
+        },
+  });
 }

@@ -1,4 +1,19 @@
-export type CustomerRel = { name: string } | { name: string }[] | null;
+export type CustomerRel =
+  | {
+      name: string;
+      tax_id?: string | null;
+      address?: string | null;
+      contact_name?: string | null;
+      phone?: string | null;
+    }
+  | {
+      name: string;
+      tax_id?: string | null;
+      address?: string | null;
+      contact_name?: string | null;
+      phone?: string | null;
+    }[]
+  | null;
 export type ServiceRel = { name: string } | { name: string }[] | null;
 
 export type OrderRow = {
@@ -22,6 +37,7 @@ export type OrderItemRow = {
   ops_status: "not_started" | "in_progress" | "done";
   ops_started_at: string | null;
   ops_completed_at: string | null;
+  ops_note?: string | null;
   services?: ServiceRel;
 };
 
@@ -67,6 +83,8 @@ export function serviceNameFromRel(rel: ServiceRel) {
 export function statusLabel(status: string) {
   if (status === "draft") return "เสนอราคา";
   if (status === "in_progress") return "กำลังดำเนินการ";
+  if (status === "billed_first_installment") return "วางบิลงวดแรกแล้ว";
+  if (status === "paid_first_installment") return "ชำระงวดแรกแล้ว";
   if (status === "completed") return "เสร็จสิ้น";
   if (status === "cancelled") return "ยกเลิก";
   return status || "-";

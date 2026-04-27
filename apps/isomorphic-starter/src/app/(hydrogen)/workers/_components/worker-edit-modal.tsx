@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { Button } from "rizzui";
 import { Modal } from "@core/modal-views/modal";
@@ -8,13 +8,15 @@ import { X } from "lucide-react";
 
 import { useConfirmDialog } from "@/app/shared/confirm-dialog/provider";
 
-import type { CustomerOption, WorkerRow } from "./worker-edit-types";
+import type { CustomerOption, WorkerOrderDocumentRow, WorkerRow } from "./worker-edit-types";
 import { WorkerProfilePanel } from "./worker-profile-panel";
 import { WorkerFieldsForm } from "./worker-fields-form";
 import { WorkerDocumentsPanel } from "./worker-documents-panel";
 import { WorkerDocAddModal } from "./worker-doc-add-modal";
 import { WorkerDocViewerModal } from "./worker-doc-viewer-modal";
 import { useWorkerEditForm } from "./use-worker-edit-form";
+import { WorkerOrderDocumentsPanel } from "./worker-order-documents-panel";
+import { WorkerOrderDocViewerModal } from "./worker-order-doc-viewer-modal";
 
 export function WorkerEditModal({
   open,
@@ -38,6 +40,61 @@ export function WorkerEditModal({
   const confirmDialog = useConfirmDialog();
   const canDelete = role === "admin" || role === "operation";
   const form = useWorkerEditForm({ open, initial, supabase, userId, onSaved, onClose });
+
+  const [linkedOrders, setLinkedOrders] = useState<{ id: string; display_id: string | null }[]>([]);
+  const [orderDocs, setOrderDocs] = useState<WorkerOrderDocumentRow[]>([]);
+  const [orderDocViewerOpen, setOrderDocViewerOpen] = useState(false);
+  const [orderDocViewerId, setOrderDocViewerId] = useState<string | null>(null);
+  const [orderDocViewerTitle, setOrderDocViewerTitle] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    if (!form.editingId) {
+      setLinkedOrders([]);
+      setOrderDocs([]);
+      return;
+    }
+    const workerId = form.editingId;
+    Promise.resolve().then(async () => {
+      try {
+        const links = await supabase
+          .from("order_item_workers")
+          .select("order_item_id")
+          .eq("worker_id", workerId)
+          .limit(5000);
+
+        const orderItemIds = (links.data ?? []).map((x: any) => String(x.order_item_id)).filter(Boolean);
+        const orderItemsRes = orderItemIds.length
+          ? await supabase
+              .from("order_items")
+              .select("id,order_id")
+              .in("id", orderItemIds)
+              .limit(5000)
+          : { data: [] as any[], error: null as any };
+
+        const orderIds = Array.from(new Set((orderItemsRes.data ?? []).map((x: any) => String(x.order_id)).filter(Boolean)));
+        const ordersRes = orderIds.length
+          ? await supabase.from("orders").select("id,display_id").in("id", orderIds).limit(200)
+          : { data: [] as any[], error: null as any };
+
+        setLinkedOrders(
+          (ordersRes.data ?? []).map((o: any) => ({ id: String(o.id), display_id: String(o.display_id ?? "") || null })),
+        );
+
+        const dRes = await supabase
+          .from("order_documents")
+          .select("id,order_id,order_item_id,doc_type,storage_provider,storage_bucket,storage_path,file_name,drive_web_view_link,drive_file_id,created_at,orders(display_id),order_items(services(name))")
+          .eq("worker_id", workerId)
+          .order("created_at", { ascending: false })
+          .limit(300);
+
+        setOrderDocs(((dRes.data ?? []) as any[]) as WorkerOrderDocumentRow[]);
+      } catch {
+        setLinkedOrders([]);
+        setOrderDocs([]);
+      }
+    });
+  }, [form.editingId, open, supabase]);
 
   const formTitle = form.editingId ? "แก้ไขแรงงาน" : "เพิ่มแรงงาน";
 
@@ -115,6 +172,18 @@ export function WorkerEditModal({
                   form.setDocViewerId(d.id);
                   form.setDocViewerTitle(d.doc_type || "เอกสาร");
                   form.setDocViewerOpen(true);
+                }}
+              />
+
+              <WorkerOrderDocumentsPanel
+                loading={form.loading}
+                orders={linkedOrders}
+                docs={orderDocs}
+                onOpenOrder={(id) => (window.location.href = `/manage-orders/${id}`)}
+                onOpenDoc={(d) => {
+                  setOrderDocViewerId(d.id);
+                  setOrderDocViewerTitle(d.doc_type || d.file_name || "เอกสาร");
+                  setOrderDocViewerOpen(true);
                 }}
               />
             </div>
@@ -197,6 +266,19 @@ export function WorkerEditModal({
         supabase={supabase}
         docId={form.docViewerId}
         title={form.docViewerTitle}
+      />
+
+      <WorkerOrderDocViewerModal
+        open={orderDocViewerOpen}
+        onClose={() => {
+          setOrderDocViewerOpen(false);
+          setOrderDocViewerId(null);
+          setOrderDocViewerTitle(null);
+        }}
+        loading={form.loading}
+        supabase={supabase}
+        docId={orderDocViewerId}
+        title={orderDocViewerTitle}
       />
     </>
   );

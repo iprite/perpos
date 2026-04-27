@@ -10,6 +10,7 @@ import toast from "react-hot-toast";
 import { useAuth } from "@/app/shared/auth-provider";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { Modal } from "@core/modal-views/modal";
+import AppSelect from "@core/ui/app-select";
 import FileUploader from "@/components/form/file-uploader";
 
 import { asMoney, customerNameFromRel, serviceNameFromRel, type EventRow, type OrderItemRow, type OrderRow, type PaymentRow } from "./_types";
@@ -63,6 +64,32 @@ type FinanceTxnRow = {
   note: string | null;
 };
 
+type InvoiceRow = {
+  id: string;
+  doc_no: string | null;
+  status: string;
+  installment_no: number;
+  grand_total: number;
+  issued_at: string | null;
+  paid_confirmed_at: string | null;
+};
+
+type ReceiptLiteRow = {
+  id: string;
+  doc_no: string | null;
+};
+
+async function downloadBlobAsFile(blob: Blob, filename: string) {
+  const objUrl = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = objUrl;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(objUrl);
+}
+
 function formatShortDate(v: string | null | undefined) {
   if (!v) return "-";
   const d = new Date(v);
@@ -83,20 +110,40 @@ export default function ManageOrderDetailPage() {
   const router = useRouter();
   const topRef = useRef<HTMLDivElement | null>(null);
 
+  React.useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (!orderId) return;
+    window.history.replaceState(null, "", "/manage-orders");
+  }, [orderId]);
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const [order, setOrder] = useState<OrderRow | null>(null);
   const [items, setItems] = useState<OrderItemRow[]>([]);
   const [payments, setPayments] = useState<PaymentRow[]>([]);
+  const [invoices, setInvoices] = useState<InvoiceRow[]>([]);
   const [financeTxns, setFinanceTxns] = useState<FinanceTxnRow[]>([]);
   const [events, setEvents] = useState<EventRow[]>([]);
   const [orderDocuments, setOrderDocuments] = useState<any[]>([]);
   const [orderItemDocuments, setOrderItemDocuments] = useState<any[]>([]);
+  const [orderWorkers, setOrderWorkers] = useState<any[]>([]);
+  const [orderWorkerItemIds, setOrderWorkerItemIds] = useState<Record<string, string[]>>({});
+
+  const [invoiceModalOpen, setInvoiceModalOpen] = useState(false);
+  const [invoiceModalInvoice, setInvoiceModalInvoice] = useState<InvoiceRow | null>(null);
+  const [invoiceModalReceipt, setInvoiceModalReceipt] = useState<ReceiptLiteRow | null>(null);
+  const [invoiceModalLoading, setInvoiceModalLoading] = useState(false);
+  const [invoiceModalPayAmount, setInvoiceModalPayAmount] = useState("");
+  const [invoiceModalPayNote, setInvoiceModalPayNote] = useState("");
+  const [invoiceModalPayFile, setInvoiceModalPayFile] = useState<File | null>(null);
+
+  const [serviceNoteOpen, setServiceNoteOpen] = useState(false);
+  const [serviceNoteItem, setServiceNoteItem] = useState<OrderItemRow | null>(null);
+  const [serviceNoteText, setServiceNoteText] = useState("");
 
   const [payOpen, setPayOpen] = useState(false);
   const [payAmount, setPayAmount] = useState("");
-  const [payFile, setPayFile] = useState<File | null>(null);
 
   const [cancelOpen, setCancelOpen] = useState(false);
   const [cancelAmount, setCancelAmount] = useState("");
@@ -109,6 +156,8 @@ export default function ManageOrderDetailPage() {
   const [addDocFile, setAddDocFile] = useState<File | null>(null);
   const [addDocOrderItemId, setAddDocOrderItemId] = useState<string | null>(null);
   const [addDocServiceName, setAddDocServiceName] = useState<string | null>(null);
+  const [addDocWorkerId, setAddDocWorkerId] = useState("");
+  const [addDocLinkOrderItemId, setAddDocLinkOrderItemId] = useState("");
 
   const [quotePreviewOpen, setQuotePreviewOpen] = useState(false);
   const [quotePreviewLoading, setQuotePreviewLoading] = useState(false);
@@ -141,15 +190,17 @@ export default function ManageOrderDetailPage() {
         return { data: (data.events ?? []) as any[], error: null };
       })();
 
-      const [ordRes, itemRes, payRes, finRes, evtRes] = await Promise.all([
+      const [ordRes, itemRes, payRes, invRes, finRes, evtRes] = await Promise.all([
         supabase
           .from("orders")
-          .select("id,display_id,status,total,paid_amount,remaining_amount,created_at,closed_at,source_quote_id,customers(name)")
+          .select(
+            "id,display_id,status,total,paid_amount,remaining_amount,created_at,closed_at,source_quote_id,customers(name,tax_id,address,contact_name,phone)",
+          )
           .eq("id", orderId)
           .single(),
         supabase
           .from("order_items")
-          .select("id,quantity,unit_price,line_total,ops_status,ops_started_at,ops_completed_at,services(name)")
+          .select("id,quantity,unit_price,line_total,ops_status,ops_started_at,ops_completed_at,ops_note,services(name)")
           .eq("order_id", orderId)
           .order("created_at", { ascending: true }),
         supabase
@@ -157,6 +208,13 @@ export default function ManageOrderDetailPage() {
           .select("id,installment_no,amount,slip_url,slip_storage_provider,slip_storage_bucket,slip_storage_path,slip_file_name,created_at,confirmed_at")
           .eq("order_id", orderId)
           .order("installment_no", { ascending: true }),
+        supabase
+          .from("invoices")
+          .select("id,doc_no,status,installment_no,grand_total,issued_at,paid_confirmed_at")
+          .eq("order_id", orderId)
+          .neq("status", "cancelled")
+          .order("installment_no", { ascending: true })
+          .limit(2000),
         supabase
           .from("payment_transactions")
           .select("id,txn_type,source_type,amount,txn_date,expense_name,note")
@@ -169,7 +227,9 @@ export default function ManageOrderDetailPage() {
       const [docRes, itemDocRes] = await Promise.all([
         supabase
           .from("order_documents")
-          .select("id,doc_type,storage_provider,storage_bucket,storage_path,file_name,mime_type,size_bytes,drive_web_view_link,drive_file_id,created_at")
+          .select(
+            "id,doc_type,worker_id,order_item_id,worker:workers(full_name),order_items(services(name)),storage_provider,storage_bucket,storage_path,file_name,mime_type,size_bytes,drive_web_view_link,drive_file_id,created_at",
+          )
           .eq("order_id", orderId)
           .order("created_at", { ascending: false })
           .limit(100),
@@ -183,7 +243,31 @@ export default function ManageOrderDetailPage() {
           .limit(200),
       ]);
 
-      const errors = [ordRes.error, itemRes.error, payRes.error, finRes.error, evtRes.error, docRes.error, itemDocRes.error]
+      const orderItemIds = (itemRes.data ?? []).map((x: any) => String(x.id)).filter(Boolean);
+      const linksRes = orderItemIds.length
+        ? await supabase
+            .from("order_item_workers")
+            .select("order_item_id,worker_id")
+            .in("order_item_id", orderItemIds)
+            .limit(5000)
+        : { data: [] as any[], error: null as any };
+
+      const workerIds = Array.from(new Set((linksRes.data ?? []).map((x: any) => String(x.worker_id)).filter(Boolean)));
+      const workerRes = workerIds.length
+        ? await supabase.from("workers").select("id,full_name,passport_no,wp_number,worker_id").in("id", workerIds).limit(2000)
+        : { data: [] as any[], error: null as any };
+
+      const errors = [
+        ordRes.error,
+        itemRes.error,
+        payRes.error,
+        finRes.error,
+        evtRes.error,
+        docRes.error,
+        itemDocRes.error,
+        linksRes.error,
+        workerRes.error,
+      ]
         .filter((e): e is NonNullable<typeof e> => Boolean(e))
         .map((e) => e.message);
       setError(errors[0] ?? null);
@@ -191,13 +275,65 @@ export default function ManageOrderDetailPage() {
       setOrder(ordRes.error ? null : ((ordRes.data as unknown as OrderRow) ?? null));
       setItems(itemRes.error ? [] : (((itemRes.data ?? []) as unknown as OrderItemRow[]) ?? []));
       setPayments(payRes.error ? [] : (((payRes.data ?? []) as unknown as PaymentRow[]) ?? []));
+      setInvoices(
+        invRes.error
+          ? []
+          : (((invRes.data ?? []) as any[])
+              .map((x: any) => ({
+                id: String(x.id),
+                doc_no: x.doc_no ? String(x.doc_no) : null,
+                status: String(x.status ?? ""),
+                installment_no: Number(x.installment_no ?? 0),
+                grand_total: Number(x.grand_total ?? 0),
+                issued_at: x.issued_at ? String(x.issued_at) : null,
+                paid_confirmed_at: x.paid_confirmed_at ? String(x.paid_confirmed_at) : null,
+              }))
+              .filter((x: any) => x.id && Number.isFinite(x.installment_no) && x.installment_no > 0) as InvoiceRow[]),
+      );
       setFinanceTxns(finRes.error ? [] : (((finRes.data ?? []) as unknown as FinanceTxnRow[]) ?? []));
       setEvents(evtRes.error ? [] : (((evtRes.data ?? []) as unknown as EventRow[]) ?? []));
       setOrderDocuments(docRes.error ? [] : (((docRes.data ?? []) as unknown as any[]) ?? []));
       setOrderItemDocuments(itemDocRes.error ? [] : (((itemDocRes.data ?? []) as unknown as any[]) ?? []));
+
+      const wById = new Map((workerRes.data ?? []).map((w: any) => [String(w.id), w]));
+      const workerMap = new Map<string, any>();
+      const workerItemMap: Record<string, string[]> = {};
+      for (const r of (linksRes.data ?? []) as any[]) {
+        const wid = String(r.worker_id ?? "");
+        const itid = String(r.order_item_id ?? "");
+        const w = wById.get(wid) ?? null;
+        if (wid && w?.id) workerMap.set(wid, w);
+        if (wid && itid) workerItemMap[wid] = workerItemMap[wid] ? [...workerItemMap[wid], itid] : [itid];
+      }
+      setOrderWorkers(Array.from(workerMap.values()).sort((a, b) => String(a.full_name ?? "").localeCompare(String(b.full_name ?? ""))));
+      setOrderWorkerItemIds(workerItemMap);
       setLoading(false);
     });
   }, [orderId, supabase]);
+
+  const orderWorkerOptions = useMemo(
+    () =>
+      orderWorkers.map((w: any) => {
+        const name = String(w.full_name ?? "").trim() || "-";
+        const extra = [w.worker_id, w.passport_no, w.wp_number]
+          .map((x) => String(x ?? "").trim())
+          .filter(Boolean)
+          .join(" • ");
+        return { label: extra ? `${name} (${extra})` : name, value: String(w.id) };
+      }),
+    [orderWorkers],
+  );
+
+  const linkOrderItemOptions = useMemo(() => {
+    const allowed = addDocWorkerId ? new Set(orderWorkerItemIds[addDocWorkerId] ?? []) : null;
+    return (items ?? [])
+      .map((it: any) => {
+        const id = String(it.id ?? "");
+        const name = String(it?.services?.name ?? "").trim() || "บริการ";
+        return { label: name, value: id };
+      })
+      .filter((o: any) => o.value && (!allowed || allowed.has(o.value)));
+  }, [addDocWorkerId, items, orderWorkerItemIds]);
 
   const showQuotation = useCallback(async () => {
     const quoteId = String(order?.source_quote_id ?? "").trim();
@@ -254,25 +390,128 @@ export default function ManageOrderDetailPage() {
   }, [refresh]);
 
   const isLocked = order?.status === "completed" || order?.status === "cancelled";
+  const isOperableStatus = order?.status === "in_progress";
+  const unpaidBilledTotal = useMemo(() => {
+    return (invoices ?? [])
+      .filter((inv) => String(inv.status) !== "paid_confirmed" && String(inv.status) !== "cancelled")
+      .reduce((acc, inv) => acc + Number(inv.grand_total ?? 0), 0);
+  }, [invoices]);
+
+  const unbilledRemaining = useMemo(() => {
+    const remaining = Number(order?.remaining_amount ?? 0);
+    const base = Number.isFinite(remaining) ? remaining : 0;
+    const unpaid = Number.isFinite(unpaidBilledTotal) ? unpaidBilledTotal : 0;
+    return Math.max(0, base - unpaid);
+  }, [order?.remaining_amount, unpaidBilledTotal]);
+
   const maxInstallmentNo = useMemo(() => {
     const nums = payments.map((p) => Number(p.installment_no ?? 0)).filter((n) => Number.isFinite(n) && n > 0);
-    return nums.length ? Math.max(...nums) : 1;
-  }, [payments]);
+    const invNums = (invoices ?? []).map((n) => Number(n.installment_no ?? 0)).filter((n) => Number.isFinite(n) && n > 0);
+    const maxPay = nums.length ? Math.max(...nums) : 1;
+    const maxInv = invNums.length ? Math.max(...invNums) : 1;
+    return Math.max(maxPay, maxInv, 1);
+  }, [invoices, payments]);
   const nextInstallmentNo = Math.max(2, maxInstallmentNo + 1);
+
+  const downloadInvoicePdf = useCallback(async (inv: InvoiceRow) => {
+    const res = await fetch("/api/invoices/pdf", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ invoiceId: inv.id }),
+    });
+    if (!res.ok) {
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      throw new Error(data.error || "ดาวน์โหลดใบแจ้งหนี้ไม่สำเร็จ");
+    }
+    const blob = await res.blob();
+    const filename = inv.doc_no ? `${inv.doc_no}.pdf` : `invoice-${inv.id}.pdf`;
+    await downloadBlobAsFile(blob, filename);
+  }, []);
+
+  const downloadReceiptPdf = useCallback(async (receipt: ReceiptLiteRow) => {
+    const res = await fetch("/api/receipts/pdf", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ receiptId: receipt.id }),
+    });
+    if (!res.ok) {
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      throw new Error(data.error || "ดาวน์โหลดใบเสร็จไม่สำเร็จ");
+    }
+    const blob = await res.blob();
+    const filename = receipt.doc_no ? `${receipt.doc_no}.pdf` : `receipt-${receipt.id}.pdf`;
+    await downloadBlobAsFile(blob, filename);
+  }, []);
+
+  const loadReceiptForInvoice = useCallback(
+    async (invoiceId: string) => {
+      const res = await supabase
+        .from("receipts")
+        .select("id,doc_no")
+        .eq("invoice_id", invoiceId)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (res.error) throw res.error;
+      if (!res.data?.id) return null;
+      return { id: String((res.data as any).id), doc_no: (res.data as any).doc_no ? String((res.data as any).doc_no) : null } as ReceiptLiteRow;
+    },
+    [supabase]
+  );
+
+  const createReceiptFromInvoice = useCallback(async (invoiceId: string) => {
+    const res = await fetch("/api/receipts/from-invoice", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ invoiceId }),
+    });
+    if (!res.ok) {
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      throw new Error(data.error || "ออกใบเสร็จไม่สำเร็จ");
+    }
+    const data = (await res.json().catch(() => ({}))) as { receiptId?: string; receiptNo?: string | null };
+    return { receiptId: String(data.receiptId ?? "").trim(), receiptNo: data.receiptNo ?? null };
+  }, []);
+
+  const openInvoiceModal = useCallback(
+    async (inv: InvoiceRow) => {
+      setError(null);
+      setInvoiceModalInvoice(inv);
+      setInvoiceModalReceipt(null);
+      setInvoiceModalPayAmount(String(inv.grand_total ?? 0));
+      setInvoiceModalPayNote("");
+      setInvoiceModalPayFile(null);
+      setInvoiceModalOpen(true);
+      if (String(inv.status) !== "paid_confirmed") return;
+      setInvoiceModalLoading(true);
+      try {
+        let rec = await loadReceiptForInvoice(inv.id);
+        if (!rec) {
+          await createReceiptFromInvoice(inv.id);
+          rec = await loadReceiptForInvoice(inv.id);
+        }
+        setInvoiceModalReceipt(rec);
+      } catch {
+        setInvoiceModalReceipt(null);
+      }
+      setInvoiceModalLoading(false);
+    },
+    [createReceiptFromInvoice, loadReceiptForInvoice]
+  );
 
   const allServicesDone = items.length > 0 && items.every((it) => it.ops_status === "done");
   const remaining = Number(order?.remaining_amount ?? 0);
   const noOutstanding = Number.isFinite(remaining) ? remaining <= 0 : false;
-  const canCloseOrder = !isLocked && order?.status === "in_progress" && allServicesDone && noOutstanding;
+  const canCloseOrder = !isLocked && isOperableStatus && allServicesDone && noOutstanding;
 
   const pendingReason = useMemo(() => {
-    if (order?.status !== "in_progress") return "ออเดอร์ต้องอยู่สถานะกำลังดำเนินการ";
+    if (!isOperableStatus) return "ออเดอร์ต้องอยู่สถานะกำลังดำเนินการ";
     if (!allServicesDone) return "ยังมีบริการที่ไม่เสร็จสิ้น";
     if (!noOutstanding) return `ยังมียอดคงค้าง ${asMoney(Number(order?.remaining_amount ?? 0))} บาท`;
     return "ยังไม่พร้อมปิดออเดอร์";
-  }, [allServicesDone, noOutstanding, order?.remaining_amount, order?.status]);
+  }, [allServicesDone, isOperableStatus, noOutstanding, order?.remaining_amount]);
 
-  const { startService, doneService, closeOrder, openAddInstallment, recordInstallment } = useManageOrderActions({
+  const { startService, doneService, closeOrder, openAddInstallment, billInstallment } = useManageOrderActions({
     orderId,
     userId,
     supabase,
@@ -282,12 +521,48 @@ export default function ManageOrderDetailPage() {
     topRef,
     nextInstallmentNo,
     payAmount,
-    payFile,
     setPayOpen,
     setPayAmount,
-    setPayFile,
     canCloseOrder,
   });
+
+  const openServiceNote = useCallback((it: OrderItemRow) => {
+    setError(null);
+    setServiceNoteItem(it);
+    setServiceNoteText(String((it as any)?.ops_note ?? ""));
+    setServiceNoteOpen(true);
+  }, []);
+
+  const saveServiceNote = useCallback(async () => {
+    if (!serviceNoteItem?.id) return;
+    setLoading(true);
+    setError(null);
+    const now = new Date().toISOString();
+    const note = serviceNoteText.trim() || null;
+    const { error: updErr } = await supabase
+      .from("order_items")
+      .update({ ops_note: note, ops_updated_at: now, ops_updated_by_profile_id: userId })
+      .eq("id", serviceNoteItem.id);
+    if (updErr) {
+      setError(updErr.message);
+      setLoading(false);
+      return;
+    }
+    await supabase.from("order_events").insert({
+      order_id: orderId,
+      event_type: "service_note_updated",
+      message: `อัปเดทหมายเหตุบริการ: ${serviceNameFromRel((serviceNoteItem as any)?.services ?? null)}`,
+      entity_table: "order_items",
+      entity_id: serviceNoteItem.id,
+      created_by_profile_id: userId,
+    });
+    setItems((prev) => prev.map((x) => (x.id === serviceNoteItem.id ? ({ ...x, ops_note: note } as any) : x)));
+    setServiceNoteOpen(false);
+    setServiceNoteItem(null);
+    setServiceNoteText("");
+    setLoading(false);
+    toast.success("บันทึกหมายเหตุแล้ว");
+  }, [orderId, serviceNoteItem, serviceNoteText, supabase, userId]);
 
   const financeTotals = useMemo(() => {
     const income = financeTxns.filter((t) => String(t.txn_type) === "INCOME").reduce((acc, t) => acc + Number(t.amount ?? 0), 0);
@@ -323,9 +598,8 @@ export default function ManageOrderDetailPage() {
             <span>{order?.display_id ?? orderId}</span>
           </div>
           <Title as="h1" className="mt-1 text-lg font-semibold text-gray-900">
-            ออเดอร์ {order?.display_id ?? "-"}
+            {customerNameFromRel((order as any)?.customers ?? null)}
           </Title>
-          <Text className="mt-1 text-sm text-gray-600">อัปเดตสถานะงานรายบริการ บันทึกการชำระ และปิดออเดอร์</Text>
         </div>
         <div className="flex justify-end">
           <Button
@@ -355,8 +629,8 @@ export default function ManageOrderDetailPage() {
             events={events}
             loading={loading || quotePreviewLoading}
             isLocked={isLocked}
-            onShowQuotation={showQuotation}
             onOpenAddInstallment={openAddInstallment}
+            unpaidBilledTotal={unpaidBilledTotal}
             incomeTotal={financeTotals.income}
             expenseTotal={financeTotals.expense}
             netProfit={financeTotals.net}
@@ -371,13 +645,7 @@ export default function ManageOrderDetailPage() {
             loading={loading}
             onStart={startService}
             onDone={doneService}
-            onAddDocument={(it) => {
-              setAddDocType("");
-              setAddDocFile(null);
-              setAddDocOrderItemId(it.id);
-              setAddDocServiceName(serviceNameFromRel(it.services ?? null));
-              setAddDocOpen(true);
-            }}
+            onEditNote={openServiceNote}
           />
           <ManageOrderEventsCard events={events} loading={loading} />
         </div>
@@ -397,6 +665,50 @@ export default function ManageOrderDetailPage() {
               setAddDocOpen(true);
             }}
           />
+
+          <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+            <div className="flex items-center justify-between gap-2 bg-white px-4 py-3">
+              <div className="text-sm font-semibold text-gray-900">รายการใบแจ้งหนี้</div>
+              <div className="text-xs font-semibold text-gray-500">{invoices.length} รายการ</div>
+            </div>
+            <div className="p-3">
+              {invoices.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 p-3 text-sm text-gray-600">ยังไม่มีใบแจ้งหนี้</div>
+              ) : (
+                <div className="space-y-2">
+                  {invoices
+                    .slice()
+                    .sort((a, b) => Number(a.installment_no) - Number(b.installment_no))
+                    .map((inv) => {
+                      const paid = String(inv.status) === "paid_confirmed";
+                      const badge = paid
+                        ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                        : "border-amber-200 bg-amber-50 text-amber-700";
+                      const statusText = paid ? "ชำระแล้ว" : "รอชำระ";
+                      return (
+                        <button
+                          key={inv.id}
+                          type="button"
+                          className="flex w-full flex-wrap items-center justify-between gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-left transition-colors hover:bg-gray-50"
+                          onClick={() => openInvoiceModal(inv)}
+                          disabled={loading}
+                        >
+                          <div className="min-w-0">
+                            <div className="truncate text-sm font-semibold text-gray-900">
+                              งวด {inv.installment_no} • {inv.doc_no ?? "-"}
+                            </div>
+                            <div className="mt-0.5 truncate text-xs text-gray-600">
+                              ยอด {asMoney(Number(inv.grand_total ?? 0))} บาท
+                            </div>
+                          </div>
+                          <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-semibold ${badge}`}>{statusText}</span>
+                        </button>
+                      );
+                    })}
+                </div>
+              )}
+            </div>
+          </div>
 
           <ManageOrderTransactionsPanel order={order} transactions={financeTxns as any} loading={loading} />
 
@@ -442,16 +754,249 @@ export default function ManageOrderDetailPage() {
       <RecordInstallmentModal
         isOpen={payOpen}
         onClose={() => setPayOpen(false)}
-        disabled={loading || isLocked || order?.status !== "in_progress"}
+        disabled={loading || isLocked || !isOperableStatus}
         order={order}
         orderId={orderId}
         installmentNo={nextInstallmentNo}
+        unbilledRemaining={unbilledRemaining}
+        unpaidBilledTotal={unpaidBilledTotal}
         amount={payAmount}
         onAmountChange={setPayAmount}
-        file={payFile}
-        onFileChange={setPayFile}
-        onSubmit={recordInstallment}
+        onSubmit={billInstallment}
       />
+
+      <Modal
+        isOpen={invoiceModalOpen}
+        onClose={() => {
+          setInvoiceModalOpen(false);
+          setInvoiceModalInvoice(null);
+          setInvoiceModalReceipt(null);
+          setInvoiceModalLoading(false);
+          setInvoiceModalPayAmount("");
+          setInvoiceModalPayNote("");
+          setInvoiceModalPayFile(null);
+        }}
+      >
+        <div className="rounded-xl bg-white p-5">
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div>
+              <div className="text-base font-semibold text-gray-900">ใบแจ้งหนี้</div>
+              <div className="mt-1 text-sm text-gray-600">ยืนยันชำระและดาวน์โหลดเอกสาร</div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={invoiceModalLoading || !invoiceModalInvoice?.id}
+                onClick={async () => {
+                  if (!invoiceModalInvoice) return;
+                  try {
+                    setInvoiceModalLoading(true);
+                    setError(null);
+                    await downloadInvoicePdf(invoiceModalInvoice);
+                  } catch (e: any) {
+                    setError(e?.message ?? "ดาวน์โหลดใบแจ้งหนี้ไม่สำเร็จ");
+                  }
+                  setInvoiceModalLoading(false);
+                }}
+              >
+                ดาวน์โหลด IV
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={invoiceModalLoading || !invoiceModalInvoice || String(invoiceModalInvoice.status) !== "paid_confirmed"}
+                onClick={async () => {
+                  if (!invoiceModalInvoice) return;
+                  try {
+                    setInvoiceModalLoading(true);
+                    setError(null);
+                    let rec = invoiceModalReceipt;
+                    if (!rec) {
+                      rec = await loadReceiptForInvoice(invoiceModalInvoice.id);
+                      if (!rec) {
+                        await createReceiptFromInvoice(invoiceModalInvoice.id);
+                        rec = await loadReceiptForInvoice(invoiceModalInvoice.id);
+                      }
+                      setInvoiceModalReceipt(rec);
+                    }
+                    if (!rec) throw new Error("ไม่พบใบเสร็จรับเงิน");
+                    await downloadReceiptPdf(rec);
+                  } catch (e: any) {
+                    setError(e?.message ?? "ดาวน์โหลดใบเสร็จไม่สำเร็จ");
+                  }
+                  setInvoiceModalLoading(false);
+                }}
+              >
+                ดาวน์โหลด RT
+              </Button>
+            </div>
+          </div>
+
+          {invoiceModalInvoice ? (
+            <div className="mt-3 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="font-medium text-gray-900">{invoiceModalInvoice.doc_no ?? "-"}</div>
+                <div className="font-medium text-gray-900">งวด {invoiceModalInvoice.installment_no}</div>
+              </div>
+              <div className="mt-1 flex flex-wrap items-center justify-between gap-2 text-xs text-gray-600">
+                <div>ยอด: {asMoney(Number(invoiceModalInvoice.grand_total ?? 0))} บาท</div>
+                <div>
+                  สถานะ: {String(invoiceModalInvoice.status) === "paid_confirmed" ? "ชำระแล้ว" : "รอชำระ"}
+                </div>
+              </div>
+            </div>
+          ) : null}
+
+          {invoiceModalInvoice && String(invoiceModalInvoice.status) !== "paid_confirmed" ? (
+            <div className="mt-4 grid gap-3">
+              <div>
+                <div className="text-sm font-medium text-gray-700">ยอดที่ชำระ</div>
+                <input
+                  className="mt-2 h-10 w-full rounded-md border border-gray-200 bg-white px-3 text-right text-sm"
+                  value={invoiceModalPayAmount}
+                  onChange={(e) => setInvoiceModalPayAmount(e.target.value)}
+                  inputMode="decimal"
+                  disabled={invoiceModalLoading}
+                />
+              </div>
+              <div>
+                <div className="text-sm font-medium text-gray-700">แนบ slip</div>
+                <div className="mt-2">
+                  <FileUploader
+                    label=""
+                    helperText="คลิกเพื่อแนบ slip หรือ ลากไฟล์มาวาง"
+                    accept={{ "image/*": [], "application/pdf": [] }}
+                    multiple={false}
+                    maxFiles={1}
+                    maxSizeBytes={10 * 1024 * 1024}
+                    files={invoiceModalPayFile ? [invoiceModalPayFile] : []}
+                    onFilesChange={(next) => setInvoiceModalPayFile(next[0] ?? null)}
+                    disabled={invoiceModalLoading}
+                  />
+                </div>
+              </div>
+              <div>
+                <div className="text-sm font-medium text-gray-700">หมายเหตุ (ถ้ามี)</div>
+                <input
+                  className="mt-2 h-10 w-full rounded-md border border-gray-200 bg-white px-3 text-sm"
+                  value={invoiceModalPayNote}
+                  onChange={(e) => setInvoiceModalPayNote(e.target.value)}
+                  disabled={invoiceModalLoading}
+                />
+              </div>
+            </div>
+          ) : null}
+
+          <div className="mt-5 flex flex-wrap justify-end gap-2">
+            {invoiceModalInvoice && String(invoiceModalInvoice.status) !== "paid_confirmed" ? (
+              <Button
+                onClick={async () => {
+                  if (!invoiceModalInvoice || !invoiceModalPayFile) return;
+                  const amtNum = Number(invoiceModalPayAmount || 0);
+                  const amt = Number.isFinite(amtNum) ? amtNum : 0;
+                  if (amt <= 0) {
+                    setError("กรุณาใส่ยอดที่ชำระ");
+                    return;
+                  }
+                  try {
+                    setInvoiceModalLoading(true);
+                    setError(null);
+                    const form = new FormData();
+                    form.set("invoiceId", invoiceModalInvoice.id);
+                    form.set("installmentNo", String(invoiceModalInvoice.installment_no));
+                    form.set("amount", String(amt));
+                    if (invoiceModalPayNote.trim()) form.set("note", invoiceModalPayNote.trim());
+                    form.set("file", invoiceModalPayFile);
+                    const res = await fetch("/api/invoices/confirm-payment", { method: "POST", body: form });
+                    if (!res.ok) {
+                      const data = (await res.json().catch(() => ({}))) as { error?: string };
+                      throw new Error(data.error || "ยืนยันการชำระไม่สำเร็จ");
+                    }
+                    try {
+                      await createReceiptFromInvoice(invoiceModalInvoice.id);
+                    } catch {}
+                    toast.success("ยืนยันการชำระแล้ว");
+                    setInvoiceModalOpen(false);
+                    setInvoiceModalInvoice(null);
+                    setInvoiceModalReceipt(null);
+                    setInvoiceModalPayAmount("");
+                    setInvoiceModalPayNote("");
+                    setInvoiceModalPayFile(null);
+                    await refresh();
+                  } catch (e: any) {
+                    setError(e?.message ?? "ยืนยันการชำระไม่สำเร็จ");
+                  }
+                  setInvoiceModalLoading(false);
+                }}
+                disabled={
+                  invoiceModalLoading ||
+                  !invoiceModalInvoice ||
+                  !invoiceModalPayFile ||
+                  (() => {
+                    const n = Number(invoiceModalPayAmount || 0);
+                    return !Number.isFinite(n) || n <= 0;
+                  })()
+                }
+              >
+                ยืนยันชำระ
+              </Button>
+            ) : null}
+            <Button
+              variant="outline"
+              onClick={() => {
+                setInvoiceModalOpen(false);
+                setInvoiceModalInvoice(null);
+                setInvoiceModalReceipt(null);
+                setInvoiceModalLoading(false);
+                setInvoiceModalPayAmount("");
+                setInvoiceModalPayNote("");
+                setInvoiceModalPayFile(null);
+              }}
+              disabled={invoiceModalLoading}
+            >
+              ปิด
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={serviceNoteOpen}
+        onClose={() => {
+          setServiceNoteOpen(false);
+          setServiceNoteItem(null);
+          setServiceNoteText("");
+        }}
+      >
+        <div className="rounded-xl bg-white p-5">
+          <div className="flex items-start justify-between gap-2">
+            <div>
+              <div className="text-base font-semibold text-gray-900">อัปเดทหมายเหตุ</div>
+              <div className="mt-1 text-sm text-gray-600">{serviceNameFromRel((serviceNoteItem as any)?.services ?? null)}</div>
+            </div>
+            <Button variant="outline" size="sm" onClick={() => setServiceNoteOpen(false)} disabled={loading}>
+              ปิด
+            </Button>
+          </div>
+
+          <div className="mt-4">
+            <div className="text-sm font-medium text-gray-700">หมายเหตุ</div>
+            <textarea
+              className="mt-2 min-h-[120px] w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm"
+              value={serviceNoteText}
+              onChange={(e) => setServiceNoteText(e.target.value)}
+              disabled={loading}
+            />
+          </div>
+
+          <div className="mt-5 flex justify-end gap-2">
+            <Button onClick={saveServiceNote} disabled={loading || !serviceNoteItem?.id}>
+              บันทึก
+            </Button>
+          </div>
+        </div>
+      </Modal>
 
       <Modal isOpen={quotePreviewOpen} onClose={() => setQuotePreviewOpen(false)} size="lg" rounded="md">
         <div className="rounded-xl bg-white p-5">
@@ -558,6 +1103,42 @@ export default function ManageOrderDetailPage() {
           {addDocServiceName ? <div className="mt-1 text-sm text-gray-600">บริการ: {addDocServiceName}</div> : null}
 
           <div className="mt-4 grid gap-3">
+            {!addDocOrderItemId ? (
+              <div>
+                <div className="text-sm font-medium text-gray-700">ระบุแรงงาน (optional)</div>
+                <div className="mt-2">
+                  <AppSelect
+                    placeholder="ไม่ระบุแรงงาน"
+                    options={orderWorkerOptions}
+                    value={addDocWorkerId}
+                    onChange={(v: string) => {
+                      setAddDocWorkerId(v);
+                      setAddDocLinkOrderItemId("");
+                    }}
+                    getOptionValue={(o) => o.value}
+                    displayValue={(selected) => orderWorkerOptions.find((o) => o.value === selected)?.label ?? ""}
+                    inPortal={false}
+                  />
+                </div>
+              </div>
+            ) : null}
+
+            {!addDocOrderItemId ? (
+              <div>
+                <div className="text-sm font-medium text-gray-700">งานบริการ (optional)</div>
+                <div className="mt-2">
+                  <AppSelect
+                    placeholder="ไม่ระบุงานบริการ"
+                    options={linkOrderItemOptions}
+                    value={addDocLinkOrderItemId}
+                    onChange={(v: string) => setAddDocLinkOrderItemId(v)}
+                    getOptionValue={(o) => o.value}
+                    displayValue={(selected) => linkOrderItemOptions.find((o) => o.value === selected)?.label ?? ""}
+                    inPortal={false}
+                  />
+                </div>
+              </div>
+            ) : null}
             <div>
               <div className="text-sm font-medium text-gray-700">ประเภทเอกสาร</div>
               <input
@@ -598,6 +1179,8 @@ export default function ManageOrderDetailPage() {
                 form.set("entityId", addDocOrderItemId ? addDocOrderItemId : orderId);
                 if (addDocOrderItemId) form.set("orderId", orderId);
                 form.set("docType", addDocType.trim());
+                if (!addDocOrderItemId && addDocWorkerId) form.set("workerId", addDocWorkerId);
+                if (!addDocOrderItemId && addDocLinkOrderItemId) form.set("orderItemId", addDocLinkOrderItemId);
                 form.set("file", addDocFile);
 
                 const res = await fetch("/api/storage/upload", { method: "POST", body: form });
@@ -612,6 +1195,8 @@ export default function ManageOrderDetailPage() {
                 setAddDocFile(null);
                 setAddDocOrderItemId(null);
                 setAddDocServiceName(null);
+                setAddDocWorkerId("");
+                setAddDocLinkOrderItemId("");
                 setLoading(false);
                 toast.success("เพิ่มเอกสารแล้ว");
                 refresh();

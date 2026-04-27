@@ -192,13 +192,36 @@ export default function AdminUsersPage() {
             if (!res.ok) {
               const err = String(json?.error ?? "ส่ง invite ไม่สำเร็จ");
               const reason = String(json?.reason ?? "");
+              const smtpCode = String(json?.code ?? "");
+              const smtpResponseCode = String(json?.responseCode ?? "");
+              const smtpMsgRaw = String(json?.message ?? "");
+              const smtpMsg = smtpMsgRaw ? smtpMsgRaw.slice(0, 160) : "";
+              const issue0 = Array.isArray(json?.issues) ? (json.issues[0] as any) : null;
+              const issueMsg = issue0
+                ? [Array.isArray(issue0.path) ? issue0.path.join(".") : "", String(issue0.message ?? "")].filter(Boolean).join(": ")
+                : "";
               if (err === "email_send_failed") {
                 if (reason === "missing_smtp_env") {
                   setError("ส่งอีเมลไม่สำเร็จ: ยังไม่ได้ตั้งค่า SMTP (แต่สร้างลิงก์ให้แล้ว)");
+                } else if (smtpResponseCode === "550" && smtpMsg.toLowerCase().includes("can not send emails from")) {
+                  setError("ส่งอีเมลไม่สำเร็จ: SMTP ไม่อนุญาตให้ส่งจากอีเมลนี้ (ให้เปลี่ยน SMTP_FROM_EMAIL ให้ตรงกับ SMTP_USER หรือให้ผู้ดูแล mail server อนุญาต sender)");
                 } else {
                   setError("ส่งอีเมลไม่สำเร็จ (แต่สร้างลิงก์ให้แล้ว)");
                 }
-                setMessage("สร้างลิงก์ตั้งรหัสแล้ว (คัดลอกไว้ในคลิปบอร์ด)");
+                if (smtpCode || smtpResponseCode) {
+                  setMessage(
+                    [
+                      "สร้างลิงก์ตั้งรหัสแล้ว (คัดลอกไว้ในคลิปบอร์ด)",
+                      [smtpCode ? `code=${smtpCode}` : "", smtpResponseCode ? `smtp=${smtpResponseCode}` : ""].filter(Boolean).join(" "),
+                    ]
+                      .filter(Boolean)
+                      .join(" · "),
+                  );
+                } else {
+                  setMessage("สร้างลิงก์ตั้งรหัสแล้ว (คัดลอกไว้ในคลิปบอร์ด)");
+                }
+              } else if (err === "invalid_body") {
+                setError(issueMsg ? `ข้อมูลไม่ถูกต้อง: ${issueMsg}` : "ข้อมูลไม่ถูกต้อง (ตรวจอีเมล/ตัวเลือก)");
               } else {
                 setError(err);
               }

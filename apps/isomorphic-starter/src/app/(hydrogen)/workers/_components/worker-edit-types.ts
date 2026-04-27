@@ -5,6 +5,7 @@ export type WorkerRow = {
   worker_id: string | null;
   full_name: string;
   customer_id: string | null;
+  order_id?: string | null;
   passport_no: string | null;
   passport_type: string | null;
   passport_expire_date: string | null;
@@ -17,6 +18,18 @@ export type WorkerRow = {
   wp_expire_date: string | null;
   wp_type: string | null;
   created_at?: string;
+};
+
+export type WorkerOrderDocumentRow = {
+  id: string;
+  doc_type: string | null;
+  storage_provider: string | null;
+  storage_bucket: string | null;
+  storage_path: string | null;
+  file_name: string | null;
+  drive_web_view_link?: string | null;
+  drive_file_id?: string | null;
+  created_at: string;
 };
 
 export type WorkerDocumentRow = {

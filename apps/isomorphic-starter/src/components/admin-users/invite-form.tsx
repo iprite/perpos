@@ -48,7 +48,10 @@ export default function InviteForm({
   const [repLeadId, setRepLeadId] = useState<string>("");
 
   const canInvite = useMemo(() => {
-    if (email.trim().length === 0) return false;
+    const emailTrimmed = email.trim();
+    if (emailTrimmed.length === 0) return false;
+    const looksLikeEmail = /^\S+@\S+\.\S+$/.test(emailTrimmed);
+    if (!looksLikeEmail) return false;
     if (role === "employer") return customerId.length > 0;
     if (role === "representative") {
       if (!companyRepresentativeId) return false;

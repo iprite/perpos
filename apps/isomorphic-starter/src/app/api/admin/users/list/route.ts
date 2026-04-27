@@ -4,6 +4,8 @@ import { z } from "zod";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { assertCallerIsAdmin } from "../_utils";
 
+export const runtime = "nodejs";
+
 const QuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   perPage: z.coerce.number().int().min(1).max(200).default(50),
@@ -24,7 +26,12 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "invalid_query" }, { status: 400 });
   }
 
-  const admin = createSupabaseAdminClient();
+  let admin: ReturnType<typeof createSupabaseAdminClient>;
+  try {
+    admin = createSupabaseAdminClient();
+  } catch (e: any) {
+    return NextResponse.json({ error: "missing_supabase_admin_env", message: String(e?.message ?? "") }, { status: 500 });
+  }
   const { page, perPage } = parsed.data;
 
   const { data: listData, error: listError } = await admin.auth.admin.listUsers({ page, perPage });
@@ -109,4 +116,3 @@ export async function GET(req: Request) {
     items,
   });
 }
-

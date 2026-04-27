@@ -17,10 +17,8 @@ export function useManageOrderActions({
   topRef,
   nextInstallmentNo,
   payAmount,
-  payFile,
   setPayOpen,
   setPayAmount,
-  setPayFile,
   canCloseOrder,
 }: {
   orderId: string;
@@ -32,10 +30,8 @@ export function useManageOrderActions({
   topRef: React.RefObject<HTMLDivElement | null>;
   nextInstallmentNo: number;
   payAmount: string;
-  payFile: File | null;
   setPayOpen: (v: boolean) => void;
   setPayAmount: (v: string) => void;
-  setPayFile: (v: File | null) => void;
   canCloseOrder: boolean;
 }) {
   const confirm = useConfirmDialog();
@@ -134,36 +130,41 @@ export function useManageOrderActions({
 
   const openAddInstallment = useCallback(() => {
     setPayAmount("");
-    setPayFile(null);
     setPayOpen(true);
-  }, [setPayAmount, setPayFile, setPayOpen]);
+  }, [setPayAmount, setPayOpen]);
 
-  const recordInstallment = useCallback(async () => {
+  const billInstallment = useCallback(async () => {
     const amtNum = Number(payAmount || 0);
     const amt = Number.isFinite(amtNum) ? amtNum : 0;
-    if (!orderId || !payFile || amt <= 0) return;
+    if (!orderId || amt <= 0) return;
     setLoading(true);
     setError(null);
-    const form = new FormData();
-    form.set("orderId", orderId);
-    form.set("installmentNo", String(nextInstallmentNo));
-    form.set("amount", String(amt));
-    form.set("file", payFile);
-    const res = await fetch("/api/orders/installment-payment", { method: "POST", body: form });
+    const res = await fetch("/api/invoices/create-from-order-installment", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ orderId, installmentNo: nextInstallmentNo, amount: amt }),
+    });
     if (!res.ok) {
       const data = (await res.json().catch(() => ({}))) as { error?: string };
-      setError(data.error || "บันทึกการชำระเงินไม่สำเร็จ");
+      setError(data.error || "ออกใบแจ้งหนี้ไม่สำเร็จ");
       setLoading(false);
       return;
     }
-    await addEvent("payment_recorded", `บันทึกการชำระงวด ${nextInstallmentNo}: ${asMoney(amt)} บาท`, "orders", orderId);
+    const data = (await res.json().catch(() => ({}))) as { invoiceId?: string; invoiceNo?: string | null };
+    const invoiceId = String(data.invoiceId ?? "").trim();
+    await addEvent(
+      "installment_billed",
+      `วางบิลงวด ${nextInstallmentNo}: ${asMoney(amt)} บาท${data.invoiceNo ? ` (${data.invoiceNo})` : ""}`,
+      invoiceId ? "invoices" : "orders",
+      invoiceId || orderId,
+    );
     setPayOpen(false);
     setPayAmount("");
-    setPayFile(null);
     setLoading(false);
     refresh();
     topRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-  }, [addEvent, nextInstallmentNo, orderId, payAmount, payFile, refresh, setError, setLoading, setPayAmount, setPayFile, setPayOpen, topRef]);
+    if (invoiceId) window.open(`/invoices/${invoiceId}`, "_blank", "noopener,noreferrer");
+  }, [addEvent, nextInstallmentNo, orderId, payAmount, refresh, setError, setLoading, setPayAmount, setPayOpen, topRef]);
 
-  return { startService, doneService, closeOrder, openAddInstallment, recordInstallment };
+  return { startService, doneService, closeOrder, openAddInstallment, billInstallment };
 }
