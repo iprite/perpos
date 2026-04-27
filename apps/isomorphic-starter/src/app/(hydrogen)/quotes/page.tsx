@@ -243,7 +243,7 @@ export default function QuotesPage() {
   const confirm = useConfirmDialog();
 
   const canEdit = role === "admin" || role === "sale";
-  const canApprove = role === "admin";
+  const canApprove = role === "admin" || role === "sale";
 
   const [loading, setLoading] = useState(false);
   const [rows, setRows] = useState<SalesQuoteRow[]>([]);
@@ -1348,12 +1348,12 @@ export default function QuotesPage() {
                       </Button>
                     ) : null}
                     {canApprove && selected.status === "pending_approval" ? (
-                      <Button size="sm" disabled={loading} onClick={() => approveOrReject("approved") }>
+                      <Button size="sm" disabled={loading} onClick={() => approveOrReject("approved")}>
                         อนุมัติ
                       </Button>
                     ) : null}
                     {canApprove && selected.status === "pending_approval" ? (
-                      <Button size="sm" variant="outline" disabled={loading} onClick={() => approveOrReject("rejected") }>
+                      <Button size="sm" variant="outline" disabled={loading} onClick={() => approveOrReject("rejected")}>
                         ไม่อนุมัติ
                       </Button>
                     ) : null}
