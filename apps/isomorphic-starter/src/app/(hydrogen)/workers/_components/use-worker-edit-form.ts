@@ -203,7 +203,12 @@ export function useWorkerEditForm({
           }
         }
       } catch (err: any) {
-        setError(err?.message ?? "บันทึกไม่สำเร็จ");
+        const msg = String(err?.message ?? "");
+        if (msg.includes("idx_workers_worker_id_unique") || msg.toLowerCase().includes("duplicate key value violates unique constraint")) {
+          setError("เลขประจำตัวแรงงานซ้ำในระบบ กรุณาตรวจสอบและลองใหม่");
+        } else {
+          setError(msg || "บันทึกไม่สำเร็จ");
+        }
         setLoading(false);
         return;
       }
