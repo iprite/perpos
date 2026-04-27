@@ -86,13 +86,12 @@ export const DatePicker = ({
   ...props
 }: DatePickerProps) => {
   const [isCalenderOpen, setIsCalenderOpen] = useState(false);
+  const [isEditingYear, setIsEditingYear] = useState(false);
+  const [yearDraft, setYearDraft] = useState("");
   const handleCalenderOpen = () => setIsCalenderOpen(true);
   const handleCalenderClose = () => setIsCalenderOpen(false);
 
-  const monthYearFormatter = useMemo(
-    () => new Intl.DateTimeFormat("th-TH", { month: "long", year: "numeric" }),
-    []
-  );
+  const monthFormatter = useMemo(() => new Intl.DateTimeFormat("th-TH", { month: "long" }), []);
 
   const mergedInputProps: InputProps = {
     size: "md",
@@ -172,8 +171,56 @@ export const DatePicker = ({
                 </svg>
               </button>
 
-              <div className="text-center text-xl font-semibold text-gray-900">
-                {monthYearFormatter.format(p.date)}
+              <div className="flex items-center justify-center gap-2 text-center text-xl font-semibold text-gray-900">
+                <div>{monthFormatter.format(p.date)}</div>
+                {isEditingYear ? (
+                  <input
+                    inputMode="numeric"
+                    className="h-8 w-[92px] rounded-md border border-gray-200 bg-white px-2 text-center text-sm font-semibold text-gray-900 outline-none"
+                    value={yearDraft}
+                    onChange={(e) => setYearDraft(e.target.value)}
+                    autoFocus
+                    onBlur={() => {
+                      const n = Number(String(yearDraft ?? "").trim());
+                      if (Number.isFinite(n)) {
+                        const adYear = n >= 2400 ? n - 543 : n;
+                        if (Number.isFinite(adYear) && adYear >= 1900 && adYear <= 3000) {
+                          p.changeYear(Math.trunc(adYear));
+                        }
+                      }
+                      setIsEditingYear(false);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Escape") {
+                        e.preventDefault();
+                        setIsEditingYear(false);
+                        return;
+                      }
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        const n = Number(String(yearDraft ?? "").trim());
+                        if (Number.isFinite(n)) {
+                          const adYear = n >= 2400 ? n - 543 : n;
+                          if (Number.isFinite(adYear) && adYear >= 1900 && adYear <= 3000) {
+                            p.changeYear(Math.trunc(adYear));
+                          }
+                        }
+                        setIsEditingYear(false);
+                      }
+                    }}
+                  />
+                ) : (
+                  <button
+                    type="button"
+                    className="rounded-md px-1 text-sm font-semibold text-gray-900 hover:bg-gray-50"
+                    onClick={() => {
+                      setYearDraft(String(p.date.getFullYear() + 543));
+                      setIsEditingYear(true);
+                    }}
+                  >
+                    พ.ศ. {p.date.getFullYear() + 543}
+                  </button>
+                )}
               </div>
 
               <button

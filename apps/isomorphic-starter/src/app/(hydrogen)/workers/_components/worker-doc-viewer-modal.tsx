@@ -4,6 +4,8 @@ import React, { useEffect, useState } from "react";
 import { Button } from "rizzui";
 import { Modal } from "@core/modal-views/modal";
 
+import { useConfirmDialog } from "@/app/shared/confirm-dialog/provider";
+
 function isPdfUrl(url: string) {
   const u = url.toLowerCase();
   return u.includes(".pdf") || u.includes("application/pdf");
@@ -26,6 +28,21 @@ async function getSignedStorageUrl(input: { supabase: any; table: "worker_docume
   return data.url;
 }
 
+async function deleteStorageDoc(input: { supabase: any; table: "worker_documents"; id: string }) {
+  const sessionRes = await input.supabase.auth.getSession();
+  const token = sessionRes.data.session?.access_token;
+  if (!token) throw new Error("ยังไม่ได้เข้าสู่ระบบ");
+  const res = await fetch("/api/storage/delete", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ table: input.table, id: input.id }),
+  });
+  if (!res.ok) {
+    const data = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(data.error || "ลบเอกสารไม่สำเร็จ");
+  }
+}
+
 export function WorkerDocViewerModal({
   open,
   onClose,
@@ -33,6 +50,7 @@ export function WorkerDocViewerModal({
   supabase,
   docId,
   title,
+  onDeleted,
 }: {
   open: boolean;
   onClose: () => void;
@@ -40,7 +58,9 @@ export function WorkerDocViewerModal({
   supabase: any;
   docId: string | null;
   title: string | null;
+  onDeleted?: () => void;
 }) {
+  const confirm = useConfirmDialog();
   const [fetching, setFetching] = useState(false);
   const [url, setUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -70,6 +90,32 @@ export function WorkerDocViewerModal({
         <div className="flex items-center justify-between gap-2">
           <div className="min-w-0 truncate text-base font-semibold text-gray-900">{title ?? "เอกสาร"}</div>
           <div className="flex shrink-0 gap-2">
+            <Button
+              variant="outline"
+              onClick={async () => {
+                if (!docId) return;
+                const ok = await confirm({
+                  title: "ยืนยันการลบ",
+                  message: "ต้องการลบเอกสารนี้หรือไม่?",
+                  confirmText: "ลบ",
+                  tone: "danger",
+                });
+                if (!ok) return;
+                setError(null);
+                setFetching(true);
+                try {
+                  await deleteStorageDoc({ supabase, table: "worker_documents", id: docId });
+                  onDeleted?.();
+                  onClose();
+                } catch (e: any) {
+                  setError(e?.message ?? "ลบเอกสารไม่สำเร็จ");
+                }
+                setFetching(false);
+              }}
+              disabled={loading || fetching || !docId}
+            >
+              ลบ
+            </Button>
             <Button
               variant="outline"
               onClick={async () => {
@@ -111,4 +157,3 @@ export function WorkerDocViewerModal({
     </Modal>
   );
 }
-

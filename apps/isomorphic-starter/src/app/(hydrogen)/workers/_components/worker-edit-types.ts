@@ -5,6 +5,7 @@ export type WorkerRow = {
   worker_id: string | null;
   full_name: string;
   customer_id: string | null;
+  workplace_id?: string | null;
   order_id?: string | null;
   passport_no: string | null;
   passport_type: string | null;

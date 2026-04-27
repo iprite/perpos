@@ -134,6 +134,7 @@ export default function ManageOrderDetailPage() {
   const [invoiceModalInvoice, setInvoiceModalInvoice] = useState<InvoiceRow | null>(null);
   const [invoiceModalReceipt, setInvoiceModalReceipt] = useState<ReceiptLiteRow | null>(null);
   const [invoiceModalLoading, setInvoiceModalLoading] = useState(false);
+  const [invoiceModalCreatingReceipt, setInvoiceModalCreatingReceipt] = useState(false);
   const [invoiceModalPayAmount, setInvoiceModalPayAmount] = useState("");
   const [invoiceModalPayNote, setInvoiceModalPayNote] = useState("");
   const [invoiceModalPayFile, setInvoiceModalPayFile] = useState<File | null>(null);
@@ -487,7 +488,14 @@ export default function ManageOrderDetailPage() {
       try {
         let rec = await loadReceiptForInvoice(inv.id);
         if (!rec) {
+          if (invoiceModalCreatingReceipt) {
+            setInvoiceModalReceipt(null);
+            setInvoiceModalLoading(false);
+            return;
+          }
+          setInvoiceModalCreatingReceipt(true);
           await createReceiptFromInvoice(inv.id);
+          setInvoiceModalCreatingReceipt(false);
           rec = await loadReceiptForInvoice(inv.id);
         }
         setInvoiceModalReceipt(rec);
@@ -496,7 +504,7 @@ export default function ManageOrderDetailPage() {
       }
       setInvoiceModalLoading(false);
     },
-    [createReceiptFromInvoice, loadReceiptForInvoice]
+    [createReceiptFromInvoice, invoiceModalCreatingReceipt, loadReceiptForInvoice]
   );
 
   const allServicesDone = items.length > 0 && items.every((it) => it.ops_status === "done");

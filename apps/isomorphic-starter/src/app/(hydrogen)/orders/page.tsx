@@ -607,12 +607,26 @@ export default function OrdersPage() {
         }
 
         const [custRes, svcRes, orderRes] = await Promise.all([
-          supabase.from("customers").select("id,name").order("created_at", { ascending: false }).range(0, 499),
+          supabase
+            .from("customers")
+            .select("id,name")
+            .order("updated_at", { ascending: false })
+            .order("created_at", { ascending: false })
+            .range(0, 499),
           supabase.from("services").select("id,name,sell_price").order("created_at", { ascending: false }).range(0, 499),
           ordersQuery.range(from, to),
         ]);
 
-        const firstError = custRes.error ?? svcRes.error ?? orderRes.error;
+        const firstError = svcRes.error ?? orderRes.error;
+        if (custRes.error) {
+          const msg = String(custRes.error.message ?? "");
+          if (msg.includes("customers.updated_at") || (msg.includes("updated_at") && msg.toLowerCase().includes("does not exist"))) {
+            const fallback = await supabase.from("customers").select("id,name").order("created_at", { ascending: false }).range(0, 499);
+            if (!fallback.error) {
+              setCustomers(((fallback.data ?? []) as CustomerOption[]) ?? []);
+            }
+          }
+        }
         if (firstError) {
           setError(firstError.message);
           setCustomers([]);
@@ -623,7 +637,9 @@ export default function OrdersPage() {
           return;
         }
 
-        setCustomers(((custRes.data ?? []) as CustomerOption[]) ?? []);
+        if (!custRes.error) {
+          setCustomers(((custRes.data ?? []) as CustomerOption[]) ?? []);
+        }
         setServices(((svcRes.data ?? []) as ServiceOption[]) ?? []);
         setRows(((orderRes.data ?? []) as OrderRow[]) ?? []);
         setTotalRows(orderRes.count ?? 0);

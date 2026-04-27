@@ -137,6 +137,7 @@ export default function InvoiceDetailPage() {
   const [payNote, setPayNote] = React.useState("");
   const [payFile, setPayFile] = React.useState<File | null>(null);
   const [paySubmitting, setPaySubmitting] = React.useState(false);
+  const [receiptSubmitting, setReceiptSubmitting] = React.useState(false);
 
   const computed = React.useMemo(() => {
     const subtotal = items.reduce((acc, it) => acc + toLineTotal(it.quantity, it.unitPrice), 0);
@@ -175,10 +176,24 @@ export default function InvoiceDetailPage() {
           .eq("invoice_id", id)
           .order("installment_no", { ascending: true }),
         supabase.from("receipts").select("id,doc_no").eq("invoice_id", id).order("created_at", { ascending: false }).limit(1).maybeSingle(),
-        supabase.from("customers").select("id,name,address,tax_id,branch_name").order("created_at", { ascending: false }).limit(300),
+        supabase
+          .from("customers")
+          .select("id,name,address,tax_id,branch_name")
+          .order("updated_at", { ascending: false })
+          .order("created_at", { ascending: false })
+          .limit(300),
       ]);
 
-      const firstErr = invRes.error ?? itemRes.error ?? payRes.error ?? recRes.error ?? custRes.error;
+      let custData = custRes.data;
+      if (custRes.error) {
+        const msg = String(custRes.error.message ?? "");
+        if (msg.includes("customers.updated_at") || (msg.includes("updated_at") && msg.toLowerCase().includes("does not exist"))) {
+          const fallback = await supabase.from("customers").select("id,name,address,tax_id,branch_name").order("created_at", { ascending: false }).limit(300);
+          if (!fallback.error) custData = fallback.data;
+        }
+      }
+
+      const firstErr = invRes.error ?? itemRes.error ?? payRes.error ?? recRes.error;
       if (firstErr) {
         setError(firstErr.message);
         setInvoice(null);
@@ -224,7 +239,7 @@ export default function InvoiceDetailPage() {
       const payRows = ((payRes.data ?? []) as any[]) as PaymentRow[];
       setPayment(payRows.find((p) => Number(p.installment_no) === activeInstallmentNo) ?? null);
       setReceipt((recRes.data as any) ? ((recRes.data as any) as ReceiptMini) : null);
-      setCustomers(((custRes.data ?? []) as any[]) as CustomerOption[]);
+      setCustomers(((custData ?? []) as any[]) as CustomerOption[]);
 
       setPayAmount(String(inv.grand_total ?? 0));
 
@@ -373,6 +388,8 @@ export default function InvoiceDetailPage() {
 
   const createReceipt = React.useCallback(async () => {
     if (!invoice) return;
+    if (receiptSubmitting) return;
+    setReceiptSubmitting(true);
     try {
       const res = await fetch("/api/receipts/from-invoice", {
         method: "POST",
@@ -389,8 +406,10 @@ export default function InvoiceDetailPage() {
       if (receiptId) router.push(`/receipts/${receiptId}`);
     } catch (e: any) {
       toast.error(e?.message ?? "ออกใบเสร็จไม่สำเร็จ");
+    } finally {
+      setReceiptSubmitting(false);
     }
-  }, [invoice, router]);
+  }, [invoice, receiptSubmitting, router]);
 
   const downloadPdf = React.useCallback(async () => {
     if (!invoice) return;
@@ -638,7 +657,7 @@ export default function InvoiceDetailPage() {
                       ไปที่ใบเสร็จ {receipt.doc_no ?? ""}
                     </Button>
                   ) : (
-                    <Button onClick={createReceipt} disabled={!canIssueReceipt}>
+                    <Button onClick={createReceipt} disabled={!canIssueReceipt || receiptSubmitting}>
                       ออกใบเสร็จ/ใบกำกับภาษี
                     </Button>
                   )}

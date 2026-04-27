@@ -90,9 +90,24 @@ export default function NotificationsDashboardPage() {
       setLoading(true);
       setError(null);
       try {
-        const custRes = await supabase.from("customers").select("id,name").order("created_at", { ascending: false }).limit(500);
-        if (custRes.error) throw new Error(custRes.error.message);
-        setCustomers(((custRes.data ?? []) as CustomerOption[]) ?? []);
+        const custRes = await supabase
+          .from("customers")
+          .select("id,name")
+          .order("updated_at", { ascending: false })
+          .order("created_at", { ascending: false })
+          .limit(500);
+        if (custRes.error) {
+          const msg = String(custRes.error.message ?? "");
+          if (msg.includes("customers.updated_at") || (msg.includes("updated_at") && msg.toLowerCase().includes("does not exist"))) {
+            const fallback = await supabase.from("customers").select("id,name").order("created_at", { ascending: false }).limit(500);
+            if (fallback.error) throw new Error(fallback.error.message);
+            setCustomers(((fallback.data ?? []) as CustomerOption[]) ?? []);
+          } else {
+            throw new Error(msg || "โหลดข้อมูลไม่สำเร็จ");
+          }
+        } else {
+          setCustomers(((custRes.data ?? []) as CustomerOption[]) ?? []);
+        }
 
         let q = supabase
           .from("worker_document_expiry_view")
@@ -410,4 +425,3 @@ export default function NotificationsDashboardPage() {
     </div>
   );
 }
-

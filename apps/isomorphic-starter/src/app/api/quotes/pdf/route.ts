@@ -89,6 +89,7 @@ async function resolveChromiumExecutablePath() {
 }
 
 type QuotePdfRequest = {
+  prepared_by_profile_id?: string | null;
   quote: {
     id: string;
     quote_no: string;
@@ -112,6 +113,7 @@ type QuotePdfRequest = {
     valid_until: string | null;
     status: string;
     approved_at: string | null;
+    created_by_profile_id?: string | null;
     created_at: string;
   };
   items: Array<{
@@ -130,6 +132,44 @@ type QuotePdfRequest = {
     contact_name: string | null;
   } | null;
 };
+
+function mimeFromFilename(fileName: string | null | undefined) {
+  const f = String(fileName ?? "").toLowerCase();
+  if (f.endsWith(".jpg") || f.endsWith(".jpeg")) return "image/jpeg";
+  if (f.endsWith(".webp")) return "image/webp";
+  return "image/png";
+}
+
+async function loadUserAssetDataUrls(input: {
+  profileId: string;
+  supabase: ReturnType<typeof createSupabaseAdminClient>;
+}) {
+  const res = await input.supabase
+    .from("user_assets")
+    .select("asset_type,storage_bucket,storage_path,file_name,mime_type")
+    .eq("profile_id", input.profileId)
+    .in("asset_type", ["signature", "stamp"]);
+
+  if (res.error) return { signatureDataUrl: null as string | null, stampDataUrl: null as string | null };
+
+  let signatureDataUrl: string | null = null;
+  let stampDataUrl: string | null = null;
+
+  for (const row of (res.data ?? []) as any[]) {
+    const bucket = String(row.storage_bucket ?? "");
+    const path = String(row.storage_path ?? "");
+    if (!bucket || !path) continue;
+    const dl = await input.supabase.storage.from(bucket).download(path);
+    if (dl.error || !dl.data) continue;
+    const bytes = Buffer.from(await dl.data.arrayBuffer());
+    const mime = String(row.mime_type ?? "").trim() || mimeFromFilename(row.file_name);
+    const url = `data:${mime};base64,${bytes.toString("base64")}`;
+    if (row.asset_type === "signature") signatureDataUrl = url;
+    if (row.asset_type === "stamp") stampDataUrl = url;
+  }
+
+  return { signatureDataUrl, stampDataUrl };
+}
 
 async function tryFetchCustomerSnapshot(customerId: string) {
   const id = String(customerId ?? "").trim();
@@ -263,6 +303,23 @@ export async function POST(request: Request) {
     const quote = body.quote;
     const items = body.items ?? [];
 
+    const admin = createSupabaseAdminClient();
+    const preparedOverride = String((body as any).prepared_by_profile_id ?? "").trim();
+    let preparedByProfileId = preparedOverride || String((quote as any).created_by_profile_id ?? "").trim();
+
+    if (!preparedByProfileId && quote?.id) {
+      const { data } = await admin
+        .from("sales_quotes")
+        .select("created_by_profile_id")
+        .eq("id", quote.id)
+        .maybeSingle();
+      preparedByProfileId = String((data as any)?.created_by_profile_id ?? "").trim();
+    }
+
+    const { signatureDataUrl, stampDataUrl } = preparedByProfileId
+      ? await loadUserAssetDataUrls({ profileId: preparedByProfileId, supabase: admin })
+      : { signatureDataUrl: null, stampDataUrl: null };
+
     const customerFromBody = body.customer ?? null;
     const fetchedCustomer = quote?.customer_id ? await tryFetchCustomerSnapshot(quote.customer_id) : null;
     const customerSnapshot = {
@@ -338,7 +395,6 @@ export async function POST(request: Request) {
 
     const totalsHtml = isLast
       ? `
-        <div class="bottom">
         <div class="summary">
           <div class="summary-left">
             <div class="summary-title">
@@ -366,53 +422,47 @@ export async function POST(request: Request) {
           </div>
         </div>
 
-        <div class="pay">
-          <div class="section-title"><span>ชำระเงิน</span></div>
-          <div class="pay-grid">
-            <div class="pay-item">
-              <div class="pay-bank">ธ.กสิกสิรไทย</div>
-              <div class="pay-sub">039-1-36574-1</div>
-              <div class="pay-sub">บจก. นำคนต่างด้าวมาทำงานในประเทศ เอ็กซ์เวิร์คเกอร์</div>
-            </div>
+        <div class="qt-footer" id="qt-footer-block">
+          <div class="notes">
+            <div class="section-title"><span>หมายเหตุ</span></div>
+            <div class="notes-body">${notesHtml}</div>
           </div>
-        </div>
 
-        <div class="notes">
-          <div class="section-title"><span>หมายเหตุ</span></div>
-          <div class="notes-body">${notesHtml}</div>
-        </div>
-
-        <div class="cert">
-          <div class="section-title"><span>รับรอง</span></div>
-          <div class="cert-grid">
-            <div class="sigcard">
-              <div class="sigcard-top">
-                <div class="sigrole">ผู้อนุมัติซื้อ</div>
-              </div>
-              <div class="sigcard-body">
-                <div class="sigmeta">
-                  <div class="sigfield"><span class="k">ลงชื่อ</span><span class="v">&nbsp;</span></div>
-                  <div class="sigfield"><span class="k">วันที่</span><span class="v">&nbsp;</span></div>
+          <div class="cert">
+            <div class="section-title"><span>รับรอง</span></div>
+            <div class="cert-grid">
+              <div class="sigcard">
+                <div class="sigcard-top">
+                  <div class="sigrole">ผู้อนุมัติซื้อ</div>
+                </div>
+                <div class="sigcard-body">
+                  <div class="sigmeta">
+                    <div class="sigfield"><span class="k">ลงชื่อ</span><span class="v">&nbsp;</span></div>
+                    <div class="sigfield"><span class="k">วันที่</span><span class="v">&nbsp;</span></div>
+                  </div>
                 </div>
               </div>
-            </div>
-            <div class="sigcard">
-              <div class="sigcard-top">
-                <div class="sigrole">ผู้จัดทำเอกสาร</div>
-              </div>
-              <div class="sigcard-body">
-                <div class="sigmeta">
-                  <div class="sigfield"><span class="k">ลงชื่อ</span><span class="v">&nbsp;</span></div>
-                  <div class="sigfield"><span class="k">วันที่</span><span class="v">${escapeHtml(new Intl.DateTimeFormat("th-TH", { day: "2-digit", month: "2-digit", year: "numeric" }).format(createdAt))}</span></div>
+              <div class="sigcard">
+                <div class="sigcard-top">
+                  <div class="sigrole">ผู้จัดทำเอกสาร</div>
+                </div>
+                <div class="sigcard-body">
+                  <div class="sigimgs">
+                    ${signatureDataUrl ? `<img class="signature" alt="signature" src="${signatureDataUrl}" />` : ``}
+                    ${stampDataUrl ? `<img class="stamp" alt="stamp" src="${stampDataUrl}" />` : ``}
+                  </div>
+                  <div class="sigmeta">
+                    <div class="sigfield"><span class="k">ลงชื่อ</span><span class="v">&nbsp;</span></div>
+                    <div class="sigfield"><span class="k">วันที่</span><span class="v">${escapeHtml(new Intl.DateTimeFormat("th-TH", { day: "2-digit", month: "2-digit", year: "numeric" }).format(generatedAt))}</span></div>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
-        </div>
         </div>
       `
       : `
-        <div class="continued">(ต่อหน้า ${pageIndex + 2}/${totalPages})</div>
+        
       `;
 
     return `
@@ -471,13 +521,22 @@ export async function POST(request: Request) {
 
           ${totalsHtml}
 
-          <div class="page-no">หน้า ${pageIndex + 1}/${totalPages}</div>
+          <div class="page-no" data-page-index="${pageIndex + 1}"></div>
         </div>
       </div>
     `;
   };
 
   const sheetsHtml = pages.map((p, idx) => sheetHtml(p, idx)).join("");
+  const footerHostSheet = `
+      <div class="sheet qt-footer-sheet" id="qt-footer-sheet" style="display:none">
+        <div class="header"></div>
+        <div class="content qt-footer-content">
+          <div class="qt-footer-host" id="qt-footer-host"></div>
+          <div class="page-no" data-page-index="${totalPages + 1}"></div>
+        </div>
+      </div>
+  `;
 
   const html = `<!doctype html>
 <html lang="th">
@@ -540,6 +599,11 @@ export async function POST(request: Request) {
       .sheet { display: flex; flex-direction: column; }
       .header { flex: 0 0 114px; }
       .content { flex: 1 1 auto; display: flex; flex-direction: column; padding: 10px 34px 14px 34px; }
+
+      .qt-footer { margin-top: auto; break-inside: avoid; page-break-inside: avoid; }
+      .qt-footer-sheet .header { display: none; }
+      .qt-footer-content { display: flex; flex-direction: column; height: 100%; }
+      .qt-footer-host { margin-top: auto; }
 
       .top-grid { display: grid; grid-template-columns: 1fr 240px; gap: 18px; align-items: start; }
       .seller { font-size: 12px; color: #111827; }
@@ -641,8 +705,11 @@ export async function POST(request: Request) {
         justify-content: space-between;
       }
       .sigrole { font-weight: 700; font-size: 12px; color: #0b2441; }
-      .sigcard-body { padding: 10px 14px 10px 14px; display: flex; flex: 1 1 auto; flex-direction: column; }
-      .sigmeta { margin-top: auto; display: flex; flex-direction: column; gap: 6px; font-size: 12px; }
+      .sigcard-body { padding: 10px 14px 10px 14px; display: flex; flex: 1 1 auto; flex-direction: column; position: relative; }
+      .sigimgs { position: absolute; left: 14px; right: 14px; top: 8px; bottom: 8px; z-index: 2; }
+      .sigimgs .signature { position: absolute; left: 28px; bottom: 15px; max-height: 62px; max-width: 190px; object-fit: contain; opacity: 0.98; }
+      .sigimgs .stamp { position: absolute; right: 0; bottom: 0; width: 192px; height: auto; object-fit: contain; opacity: 0.92; }
+      .sigmeta { margin-top: auto; display: flex; flex-direction: column; gap: 6px; font-size: 12px; position: relative; z-index: 1; }
       .sigfield { display: flex; justify-content: space-between; gap: 10px; align-items: center; }
       .sigfield .k { font-weight: 700; color: #374151; white-space: nowrap; }
       .sigfield .v { color: #111827; white-space: nowrap; min-width: 140px; text-align: right; }
@@ -653,6 +720,25 @@ export async function POST(request: Request) {
   </head>
   <body>
     ${sheetsHtml}
+    ${footerHostSheet}
+    <script>
+      (function () {
+        var footer = document.getElementById("qt-footer-block");
+        var footerSheet = document.getElementById("qt-footer-sheet");
+        var host = document.getElementById("qt-footer-host");
+        if (footer && footerSheet && host) {
+          var sheet = footer.closest(".sheet");
+          if (sheet) {
+            var footerRect = footer.getBoundingClientRect();
+            var sheetRect = sheet.getBoundingClientRect();
+            var overflow = footerRect.bottom > sheetRect.bottom - 24;
+            if (overflow) {
+              footerSheet.style.display = \"\";
+              host.appendChild(footer);
+            }
+          }
+        }
+\n        var sheets = Array.prototype.slice.call(document.querySelectorAll('.sheet')).filter(function (el) {\n          return window.getComputedStyle(el).display !== 'none';\n        });\n        var total = sheets.length || 1;\n        for (var i = 0; i < sheets.length; i++) {\n          var p = sheets[i].querySelector('.page-no');\n          if (p) p.textContent = 'หน้า ' + (i + 1) + '/' + total;\n        }\n      })();\n    </script>
   </body>
 </html>`;
 

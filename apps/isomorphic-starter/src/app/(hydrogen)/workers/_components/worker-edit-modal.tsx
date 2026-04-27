@@ -17,6 +17,7 @@ import { WorkerDocViewerModal } from "./worker-doc-viewer-modal";
 import { useWorkerEditForm } from "./use-worker-edit-form";
 import { WorkerOrderDocumentsPanel } from "./worker-order-documents-panel";
 import { WorkerOrderDocViewerModal } from "./worker-order-doc-viewer-modal";
+import { WorkerWorkplacePanel } from "./worker-workplace-panel";
 
 export function WorkerEditModal({
   open,
@@ -163,6 +164,16 @@ export function WorkerEditModal({
                 onChangeWpExpireDate={form.setWpExpireDate}
               />
 
+              <div className="mt-4">
+                <WorkerWorkplacePanel
+                  loading={form.loading}
+                  disabled={!form.customerId}
+                  workplaceId={form.workplaceId}
+                  onChangeWorkplaceId={form.setWorkplaceId}
+                  workplaces={form.workplaceOptions}
+                />
+              </div>
+
               <WorkerDocumentsPanel
                 loading={form.loading}
                 editingId={form.editingId}
@@ -266,6 +277,9 @@ export function WorkerEditModal({
         supabase={supabase}
         docId={form.docViewerId}
         title={form.docViewerTitle}
+        onDeleted={() => {
+          if (form.editingId) void form.refreshDocs(form.editingId);
+        }}
       />
 
       <WorkerOrderDocViewerModal

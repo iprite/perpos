@@ -35,6 +35,7 @@ type CustomerRow = {
   email: string | null;
   organization_id: string | null;
   created_at: string;
+  updated_at?: string;
 };
 
 type CustomerDocumentRow = {
@@ -45,6 +46,14 @@ type CustomerDocumentRow = {
   storage_bucket: string | null;
   storage_path: string | null;
   file_name: string | null;
+  created_at: string;
+};
+
+type CustomerWorkplaceRow = {
+  id: string;
+  customer_id: string;
+  name: string | null;
+  address: string;
   created_at: string;
 };
 
@@ -63,6 +72,21 @@ async function getSignedStorageUrl(input: { supabase: any; table: "customer_docu
   }
   const data = (await res.json()) as { ok: true; url: string };
   return data.url;
+}
+
+async function deleteStorageDoc(input: { supabase: any; table: "customer_documents"; id: string }) {
+  const sessionRes = await input.supabase.auth.getSession();
+  const token = sessionRes.data.session?.access_token;
+  if (!token) throw new Error("ยังไม่ได้เข้าสู่ระบบ");
+  const res = await fetch("/api/storage/delete", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ table: input.table, id: input.id }),
+  });
+  if (!res.ok) {
+    const data = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(data.error || "ลบเอกสารไม่สำเร็จ");
+  }
 }
 
 function isPdfUrl(url: string) {
@@ -192,6 +216,12 @@ export default function CustomersPage() {
   const [docViewerTitle, setDocViewerTitle] = useState<string | null>(null);
   const [docViewerError, setDocViewerError] = useState<string | null>(null);
 
+  const [workplaceRows, setWorkplaceRows] = useState<CustomerWorkplaceRow[]>([]);
+  const [workplaceAddOpen, setWorkplaceAddOpen] = useState(false);
+  const [workplaceEditingId, setWorkplaceEditingId] = useState<string | null>(null);
+  const [workplaceName, setWorkplaceName] = useState("");
+  const [workplaceAddress, setWorkplaceAddress] = useState("");
+
   const resetForm = useCallback(() => {
     setEditingId(null);
     setEditingDisplayId(null);
@@ -214,6 +244,12 @@ export default function CustomersPage() {
     setDocViewerId(null);
     setDocViewerTitle(null);
     setDocViewerError(null);
+
+    setWorkplaceRows([]);
+    setWorkplaceAddOpen(false);
+    setWorkplaceEditingId(null);
+    setWorkplaceName("");
+    setWorkplaceAddress("");
   }, []);
 
   const openEditCustomer = useCallback(
@@ -236,12 +272,18 @@ export default function CustomersPage() {
       setDocViewerId(null);
       setDocViewerTitle(null);
       setDocViewerError(null);
+
+      setWorkplaceRows([]);
+      setWorkplaceAddOpen(false);
+      setWorkplaceEditingId(null);
+      setWorkplaceName("");
+      setWorkplaceAddress("");
       setShowForm(true);
       window.setTimeout(() => {
         (document.getElementById("customer-name") as HTMLInputElement | null)?.focus?.();
       }, 50);
     },
-    [role, supabase]
+    [role]
   );
 
   const refreshDocs = useCallback(
@@ -252,9 +294,30 @@ export default function CustomersPage() {
             .from("customer_documents")
             .select("id,doc_type,expiry_date,storage_provider,storage_bucket,storage_path,file_name,created_at")
             .eq("customer_id", customerId)
-            .order("created_at", { ascending: false });
+            .order("created_at", { ascending: false })
+            .order("id", { ascending: false });
           if (e) return;
           setDocRows((data ?? []) as CustomerDocumentRow[]);
+        } catch {
+          return;
+        }
+      });
+    },
+    [supabase],
+  );
+
+  const refreshWorkplaces = useCallback(
+    (customerId: string) => {
+      Promise.resolve().then(async () => {
+        try {
+          const { data, error: e } = await supabase
+            .from("customer_workplaces")
+            .select("id,customer_id,name,address,created_at")
+            .eq("customer_id", customerId)
+            .order("created_at", { ascending: false })
+            .order("id", { ascending: false });
+          if (e) return;
+          setWorkplaceRows((data ?? []) as CustomerWorkplaceRow[]);
         } catch {
           return;
         }
@@ -269,6 +332,12 @@ export default function CustomersPage() {
     refreshDocs(editingId);
   }, [editingId, refreshDocs, showForm]);
 
+  useEffect(() => {
+    if (!showForm) return;
+    if (!editingId) return;
+    refreshWorkplaces(editingId);
+  }, [editingId, refreshWorkplaces, showForm]);
+
 
   const refresh = useCallback(() => {
     Promise.resolve().then(async () => {
@@ -279,13 +348,25 @@ export default function CustomersPage() {
         const to = from + pagination.pageSize - 1;
         const q = search.trim();
 
-        let query = supabase
-          .from("customers")
-          .select(
-            "id,display_id,import_temp_id,province_th,name,tax_id,address,branch_name,contact_name,phone,email,organization_id,created_at",
-            { count: "estimated" },
-          )
-          .order("created_at", { ascending: false });
+        const buildQuery = (preferUpdatedAt: boolean) => {
+          let query = supabase
+            .from("customers")
+            .select(
+              "id,display_id,import_temp_id,province_th,name,tax_id,address,branch_name,contact_name,phone,email,organization_id,created_at,updated_at",
+              { count: "estimated" },
+            );
+          if (preferUpdatedAt) {
+            query = query
+              .order("updated_at", { ascending: false })
+              .order("created_at", { ascending: false })
+              .order("id", { ascending: false });
+          } else {
+            query = query.order("created_at", { ascending: false }).order("id", { ascending: false });
+          }
+          return query;
+        };
+
+        let query = buildQuery(true);
 
         if (q) {
           const like = `%${q.replaceAll("%", "\\%").replaceAll("_", "\\_")}%`;
@@ -302,16 +383,31 @@ export default function CustomersPage() {
           );
         }
 
-        const { data, error: e, count } = await query.range(from, to);
-        if (e) {
-          setError(e.message);
+        const res = await query.range(from, to);
+        if (res.error) {
+          const msg = String(res.error.message ?? "");
+          if (msg.includes("customers.updated_at") || (msg.includes("updated_at") && msg.toLowerCase().includes("does not exist"))) {
+            const fallbackRes = await buildQuery(false).range(from, to);
+            if (fallbackRes.error) {
+              setError(fallbackRes.error.message);
+              setRows([]);
+              setTotalRows(0);
+              setLoading(false);
+              return;
+            }
+            setRows((fallbackRes.data ?? []) as CustomerRow[]);
+            setTotalRows(fallbackRes.count ?? 0);
+            setLoading(false);
+            return;
+          }
+          setError(msg || "โหลดข้อมูลไม่สำเร็จ");
           setRows([]);
           setTotalRows(0);
           setLoading(false);
           return;
         }
-        setRows((data ?? []) as CustomerRow[]);
-        setTotalRows(count ?? 0);
+        setRows((res.data ?? []) as CustomerRow[]);
+        setTotalRows(res.count ?? 0);
         setLoading(false);
       } catch (e: any) {
         setError(e?.message ?? "โหลดข้อมูลไม่สำเร็จ");
@@ -573,38 +669,212 @@ export default function CustomersPage() {
           </div>
 
           <div className="mt-4 grid gap-5 lg:grid-cols-2 lg:items-start">
-            <div className="rounded-2xl border border-gray-200 bg-white/70 p-4 backdrop-blur">
-              <div className="text-sm font-semibold text-gray-900">ข้อมูลลูกค้า</div>
-              <div className="mt-4 grid gap-4 md:grid-cols-2">
-                <Input id="customer-name" label="ชื่อลูกค้า" value={name} onChange={(e) => setName(e.target.value)} className="md:col-span-2" />
-                <Input label="Tax ID" value={taxId} onChange={(e) => setTaxId(e.target.value)} />
-                <Input label="สาขา" value={branchName} onChange={(e) => setBranchName(e.target.value)} placeholder="สำนักงานใหญ่" />
-                {provinceOptions.length ? (
-                  <div className="md:col-span-2">
-                    <AppSelect
+            <div className="grid gap-5">
+              <div className="rounded-2xl border border-gray-200 bg-white/70 p-4 backdrop-blur">
+                <div className="text-sm font-semibold text-gray-900">ข้อมูลลูกค้า</div>
+                <div className="mt-4 grid gap-4 md:grid-cols-2">
+                  <Input id="customer-name" label="ชื่อลูกค้า" value={name} onChange={(e) => setName(e.target.value)} className="md:col-span-2" />
+                  <Input label="Tax ID" value={taxId} onChange={(e) => setTaxId(e.target.value)} />
+                  <Input label="สาขา" value={branchName} onChange={(e) => setBranchName(e.target.value)} placeholder="สำนักงานใหญ่" />
+                  {provinceOptions.length ? (
+                    <div className="md:col-span-2">
+                      <AppSelect
+                        label="จังหวัด"
+                        placeholder="เลือกจังหวัด"
+                        options={provinceOptions}
+                        value={province}
+                        onChange={(v: string) => setProvince(v)}
+                        getOptionValue={(o) => o.value}
+                        displayValue={(selected) => provinceOptions.find((o) => o.value === selected)?.label ?? ""}
+                        inPortal={false}
+                        selectClassName="h-10 px-3"
+                      />
+                    </div>
+                  ) : (
+                    <Input
                       label="จังหวัด"
-                      placeholder="เลือกจังหวัด"
-                      options={provinceOptions}
                       value={province}
-                      onChange={(v: string) => setProvince(v)}
-                      getOptionValue={(o) => o.value}
-                      displayValue={(selected) => provinceOptions.find((o) => o.value === selected)?.label ?? ""}
-                      inPortal={false}
-                      selectClassName="h-10 px-3"
+                      onChange={(e) => setProvince(e.target.value)}
+                      placeholder="พิมพ์จังหวัด"
+                      className="md:col-span-2"
                     />
+                  )}
+                  <div className="md:col-span-2">
+                    <Textarea label="ที่อยู่" value={address} onChange={(e) => setAddress(e.target.value)} rows={3} disabled={loading} />
                   </div>
-                ) : (
-                  <Input
-                    label="จังหวัด"
-                    value={province}
-                    onChange={(e) => setProvince(e.target.value)}
-                    placeholder="พิมพ์จังหวัด"
-                    className="md:col-span-2"
-                  />
-                )}
-                <div className="md:col-span-2">
-                  <Textarea label="ที่อยู่" value={address} onChange={(e) => setAddress(e.target.value)} rows={3} disabled={loading} />
                 </div>
+              </div>
+
+              <div className="rounded-2xl border border-gray-200 bg-white/70 p-4 backdrop-blur">
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div>
+                    <div className="text-sm font-semibold text-gray-900">ที่อยู่ที่ทำงาน</div>
+                    <div className="mt-0.5 text-xs text-gray-500">สามารถเพิ่มได้หลายที่ต่อ 1 ลูกค้า</div>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setWorkplaceEditingId(null);
+                      setWorkplaceName("");
+                      setWorkplaceAddress("");
+                      setWorkplaceAddOpen(true);
+                    }}
+                    disabled={loading || !editingId}
+                  >
+                    เพิ่มที่อยู่
+                  </Button>
+                </div>
+
+                {!editingId ? (
+                  <div className="mt-3 rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-700">
+                    บันทึกลูกค้าก่อน แล้วจึงเพิ่มที่อยู่ที่ทำงานได้
+                  </div>
+                ) : null}
+
+                <div className="mt-4 grid gap-2">
+                  {editingId && workplaceRows.length === 0 ? <div className="text-sm text-gray-600">ยังไม่มีที่อยู่ที่ทำงาน</div> : null}
+                  {editingId
+                    ? workplaceRows.map((w, idx) => (
+                        <div key={w.id} className="rounded-xl border border-gray-200 bg-white p-3">
+                          <div className="flex flex-wrap items-start justify-between gap-2">
+                            <div className="min-w-[220px]">
+                              <div className="text-sm font-medium text-gray-900">{(w.name ?? "").trim() || `ที่อยู่ที่ทำงาน #${idx + 1}`}</div>
+                              <div className="mt-1 whitespace-pre-line text-xs text-gray-600">{w.address}</div>
+                            </div>
+                            <div className="flex shrink-0 gap-2">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                disabled={loading}
+                                onClick={() => {
+                                  setWorkplaceEditingId(w.id);
+                                  setWorkplaceName(w.name ?? "");
+                                  setWorkplaceAddress(w.address ?? "");
+                                  setWorkplaceAddOpen(true);
+                                }}
+                              >
+                                แก้ไข
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                disabled={loading}
+                                onClick={async () => {
+                                  if (!editingId) return;
+                                  const ok = await confirm({
+                                    title: "ยืนยันการลบ",
+                                    message: "ต้องการลบที่อยู่ที่ทำงานนี้หรือไม่?",
+                                    confirmText: "ลบ",
+                                    tone: "danger",
+                                  });
+                                  if (!ok) return;
+                                  setLoading(true);
+                                  setError(null);
+                                  const { error: delErr } = await supabase.from("customer_workplaces").delete().eq("id", w.id);
+                                  if (delErr) {
+                                    setError(delErr.message);
+                                    setLoading(false);
+                                    return;
+                                  }
+                                  toast.success("ลบแล้ว");
+                                  setLoading(false);
+                                  refreshWorkplaces(editingId);
+                                }}
+                              >
+                                ลบ
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    : null}
+                </div>
+
+                <Modal
+                  isOpen={workplaceAddOpen}
+                  onClose={() => {
+                    setWorkplaceAddOpen(false);
+                    setWorkplaceEditingId(null);
+                    setWorkplaceName("");
+                    setWorkplaceAddress("");
+                  }}
+                  size="lg"
+                  rounded="md"
+                >
+                  <div className="rounded-xl bg-white p-5">
+                    <div className="text-base font-semibold text-gray-900">{workplaceEditingId ? "แก้ไขที่อยู่ที่ทำงาน" : "เพิ่มที่อยู่ที่ทำงาน"}</div>
+                    <div className="mt-3 grid gap-3">
+                      <Input label="ชื่อสถานที่ (ถ้ามี)" value={workplaceName} onChange={(e) => setWorkplaceName(e.target.value)} disabled={loading} />
+                      <Textarea
+                        label="ที่อยู่ที่ทำงาน"
+                        value={workplaceAddress}
+                        onChange={(e) => setWorkplaceAddress(e.target.value)}
+                        rows={4}
+                        disabled={loading}
+                      />
+                    </div>
+
+                    <div className="mt-4 flex justify-end gap-2">
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          setWorkplaceAddOpen(false);
+                          setWorkplaceEditingId(null);
+                          setWorkplaceName("");
+                          setWorkplaceAddress("");
+                        }}
+                        disabled={loading}
+                      >
+                        ยกเลิก
+                      </Button>
+                      <Button
+                        onClick={async () => {
+                          if (!editingId) return;
+                          if (!workplaceAddress.trim()) return;
+                          setLoading(true);
+                          setError(null);
+                          const now = new Date().toISOString();
+                          if (workplaceEditingId) {
+                            const { error: upErr } = await supabase
+                              .from("customer_workplaces")
+                              .update({ name: workplaceName.trim() || null, address: workplaceAddress.trim(), updated_at: now })
+                              .eq("id", workplaceEditingId);
+                            if (upErr) {
+                              setError(upErr.message);
+                              setLoading(false);
+                              return;
+                            }
+                            toast.success("อัปเดตแล้ว");
+                          } else {
+                            const { error: insErr } = await supabase.from("customer_workplaces").insert({
+                              customer_id: editingId,
+                              name: workplaceName.trim() || null,
+                              address: workplaceAddress.trim(),
+                              created_by_profile_id: userId,
+                              updated_at: now,
+                            });
+                            if (insErr) {
+                              setError(insErr.message);
+                              setLoading(false);
+                              return;
+                            }
+                            toast.success("บันทึกแล้ว");
+                          }
+                          setWorkplaceAddOpen(false);
+                          setWorkplaceEditingId(null);
+                          setWorkplaceName("");
+                          setWorkplaceAddress("");
+                          setLoading(false);
+                          refreshWorkplaces(editingId);
+                        }}
+                        disabled={loading || !editingId || !workplaceAddress.trim()}
+                      >
+                        {workplaceEditingId ? "อัปเดต" : "บันทึก"}
+                      </Button>
+                    </div>
+                  </div>
+                </Modal>
               </div>
             </div>
 
@@ -780,6 +1050,37 @@ export default function CustomersPage() {
                     <div className="flex items-center justify-between gap-2">
                       <div className="min-w-0 truncate text-base font-semibold text-gray-900">{docViewerTitle ?? "เอกสาร"}</div>
                       <div className="flex shrink-0 gap-2">
+                        <Button
+                          variant="outline"
+                          onClick={async () => {
+                            if (!docViewerId) return;
+                            const ok = await confirm({
+                              title: "ยืนยันการลบ",
+                              message: "ต้องการลบเอกสารนี้หรือไม่?",
+                              confirmText: "ลบ",
+                              tone: "danger",
+                            });
+                            if (!ok) return;
+                            setDocViewerError(null);
+                            setDocViewerLoading(true);
+                            try {
+                              await deleteStorageDoc({ supabase, table: "customer_documents", id: docViewerId });
+                              toast.success("ลบแล้ว");
+                              setDocViewerOpen(false);
+                              setDocViewerUrl(null);
+                              setDocViewerId(null);
+                              setDocViewerTitle(null);
+                              setDocViewerError(null);
+                              if (editingId) refreshDocs(editingId);
+                            } catch (e: any) {
+                              setDocViewerError(e?.message ?? "ลบเอกสารไม่สำเร็จ");
+                            }
+                            setDocViewerLoading(false);
+                          }}
+                          disabled={loading || docViewerLoading || !docViewerId}
+                        >
+                          ลบ
+                        </Button>
                         <Button
                           variant="outline"
                           onClick={async () => {

@@ -23,6 +23,7 @@ type TableName =
   | "order_item_documents"
   | "worker_documents"
   | "customer_documents"
+  | "user_assets"
   | "order_payments"
   | "order_refunds"
   | "invoice_payments"

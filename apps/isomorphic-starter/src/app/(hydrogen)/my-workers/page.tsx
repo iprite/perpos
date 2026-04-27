@@ -45,14 +45,21 @@ export default function MyWorkersPage() {
       setError(null);
 
       const [custRes, workerRes] = await Promise.all([
-        supabase.from("customers").select("id,name").order("created_at", { ascending: false }),
+        supabase.from("customers").select("id,name").order("updated_at", { ascending: false }).order("created_at", { ascending: false }),
         supabase
           .from("workers")
           .select("id,full_name,customer_id,passport_no,nationality,created_at")
           .order("created_at", { ascending: false }),
       ]);
 
-      const firstError = custRes.error ?? workerRes.error;
+      const firstError = workerRes.error;
+      if (custRes.error) {
+        const msg = String(custRes.error.message ?? "");
+        if (msg.includes("customers.updated_at") || (msg.includes("updated_at") && msg.toLowerCase().includes("does not exist"))) {
+          const fallback = await supabase.from("customers").select("id,name").order("created_at", { ascending: false });
+          if (!fallback.error) setCustomers(((fallback.data ?? []) as CustomerOption[]) ?? []);
+        }
+      }
       if (firstError) {
         setError(firstError.message);
         setRows([]);
@@ -61,7 +68,7 @@ export default function MyWorkersPage() {
         return;
       }
 
-      setCustomers(((custRes.data ?? []) as CustomerOption[]) ?? []);
+      if (!custRes.error) setCustomers(((custRes.data ?? []) as CustomerOption[]) ?? []);
       setRows(((workerRes.data ?? []) as WorkerRow[]) ?? []);
       setLoading(false);
     });

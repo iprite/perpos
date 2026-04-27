@@ -18,6 +18,7 @@ type WorkerRow = {
   worker_id: string | null;
   full_name: string;
   customer_id: string | null;
+  workplace_id: string | null;
   order_id: string | null;
   passport_no: string | null;
   passport_type: string | null;
@@ -43,7 +44,12 @@ export default function WorkersPage() {
   const isMissingWorkerColumnsError = useCallback((message: string | null | undefined) => {
     const m = (message ?? "").toLowerCase();
     if (!m) return false;
-    return m.includes("workers.worker_id") || m.includes("workers.passport_type") || (m.includes("column") && (m.includes("worker_id") || m.includes("passport_type")) && m.includes("does not exist"));
+    return (
+      m.includes("workers.worker_id") ||
+      m.includes("workers.passport_type") ||
+      m.includes("workers.workplace_id") ||
+      (m.includes("column") && (m.includes("worker_id") || m.includes("passport_type") || m.includes("workplace_id")) && m.includes("does not exist"))
+    );
   }, []);
 
   const [loading, setLoading] = useState(false);
@@ -74,7 +80,7 @@ export default function WorkersPage() {
       let workerQuery = supabase
         .from("workers")
         .select(
-          "id,worker_id,full_name,customer_id,order_id,passport_no,passport_type,passport_expire_date,nationality,birth_date,os_sex,profile_pic_url,visa_exp_date,wp_number,wp_expire_date,wp_type,created_at",
+          "id,worker_id,full_name,customer_id,workplace_id,order_id,passport_no,passport_type,passport_expire_date,nationality,birth_date,os_sex,profile_pic_url,visa_exp_date,wp_number,wp_expire_date,wp_type,created_at",
           { count: "estimated" },
         )
         .order("created_at", { ascending: false });
@@ -150,7 +156,7 @@ export default function WorkersPage() {
             return;
           }
 
-          const mapped = (fallbackRes.data ?? []).map((r: any) => ({ ...r, worker_id: null, passport_type: null })) as WorkerRow[];
+          const mapped = (fallbackRes.data ?? []).map((r: any) => ({ ...r, worker_id: null, passport_type: null, workplace_id: null })) as WorkerRow[];
           setRows(mapped);
           setTotalCount(fallbackRes.count ?? 0);
           setLoading(false);
@@ -170,9 +176,17 @@ export default function WorkersPage() {
 
   const refreshCustomers = useCallback(() => {
     Promise.resolve().then(async () => {
-      const { data, error: e } = await supabase.from("customers").select("id,name").order("created_at", { ascending: false });
-      if (e) return;
-      setCustomers(((data ?? []) as CustomerOption[]) ?? []);
+      const res = await supabase.from("customers").select("id,name").order("updated_at", { ascending: false }).order("created_at", { ascending: false });
+      if (res.error) {
+        const msg = String(res.error.message ?? "");
+        if (msg.includes("customers.updated_at") || (msg.includes("updated_at") && msg.toLowerCase().includes("does not exist"))) {
+          const fallback = await supabase.from("customers").select("id,name").order("created_at", { ascending: false });
+          if (!fallback.error) setCustomers(((fallback.data ?? []) as CustomerOption[]) ?? []);
+          return;
+        }
+        return;
+      }
+      setCustomers(((res.data ?? []) as CustomerOption[]) ?? []);
     });
   }, [supabase]);
 

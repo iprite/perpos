@@ -59,18 +59,25 @@ export default function NotificationSettingsPage() {
           .from("document_expiry_notification_templates")
           .select("id,customer_id,doc_type,audience,channel,subject_template,body_template,enabled")
           .order("doc_type", { ascending: true }),
-        supabase.from("customers").select("id,name").order("created_at", { ascending: false }).limit(500),
+        supabase.from("customers").select("id,name").order("updated_at", { ascending: false }).order("created_at", { ascending: false }).limit(500),
         supabase
           .from("document_expiry_notification_recipients")
           .select("id,customer_id,audience,channel,destination_email,enabled,note")
           .order("created_at", { ascending: false })
           .limit(500),
       ]);
-      const firstErr = ruleRes.error ?? tplRes.error ?? custRes.error ?? recRes.error;
+      if (custRes.error) {
+        const msg = String(custRes.error.message ?? "");
+        if (msg.includes("customers.updated_at") || (msg.includes("updated_at") && msg.toLowerCase().includes("does not exist"))) {
+          const fallback = await supabase.from("customers").select("id,name").order("created_at", { ascending: false }).limit(500);
+          if (!fallback.error) setCustomers(((fallback.data ?? []) as CustomerOption[]) ?? []);
+        }
+      }
+      const firstErr = ruleRes.error ?? tplRes.error ?? recRes.error;
       if (firstErr) throw new Error(firstErr.message);
       setRules(((ruleRes.data ?? []) as RuleRow[]) ?? []);
       setTemplates(((tplRes.data ?? []) as TemplateRow[]) ?? []);
-      setCustomers(((custRes.data ?? []) as CustomerOption[]) ?? []);
+      if (!custRes.error) setCustomers(((custRes.data ?? []) as CustomerOption[]) ?? []);
       setRecipients(((recRes.data ?? []) as RecipientRow[]) ?? []);
     } catch (e: any) {
       setError(e?.message ?? "โหลดข้อมูลไม่สำเร็จ");

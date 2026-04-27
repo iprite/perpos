@@ -4,6 +4,7 @@ import {
   BriefcaseBusiness,
   Building2,
   ClipboardList,
+  PenTool,
   Receipt,
   FileSignature,
   FileText,
@@ -164,6 +165,12 @@ export function getMenuItems(role: Role | null): MenuItem[] {
       href: "/representatives",
       icon: <UserSquare2 className="h-5 w-5" />,
       roles: ["admin", "operation"],
+    },
+    {
+      name: "ลายเซ็นและตราประทับ",
+      href: "/settings/signature-stamp",
+      icon: <PenTool className="h-5 w-5" />,
+      roles: ["admin", "sale", "operation"],
     },
     {
       name: "ผู้ใช้และสิทธิ์",

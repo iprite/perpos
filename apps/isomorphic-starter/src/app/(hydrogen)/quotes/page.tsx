@@ -842,6 +842,7 @@ export default function QuotesPage() {
               contact_name: cust.contact_name,
             }
           : null,
+        preparedByProfileId: userId,
       });
       const blob = new Blob([bytes], { type: "application/pdf" });
       const url = URL.createObjectURL(blob);
@@ -857,7 +858,7 @@ export default function QuotesPage() {
       setError(e?.message ?? "ดาวน์โหลด PDF ไม่สำเร็จ");
       setLoading(false);
     }
-  }, [customerById, selected, selectedItems, services]);
+  }, [customerById, selected, selectedItems, services, userId]);
 
   const createOrderFromQuote = useCallback(async () => {
     if (!selected) return;

@@ -17,6 +17,7 @@ type CustomerRow = {
   phone: string | null;
   email: string | null;
   created_at: string;
+  updated_at?: string;
 };
 
 export default function MyCustomersPage() {
@@ -38,17 +39,28 @@ export default function MyCustomersPage() {
     Promise.resolve().then(async () => {
       setLoading(true);
       setError(null);
-      const { data, error: e } = await supabase
-        .from("customers")
-        .select("id,name,contact_name,phone,email,created_at")
-        .order("created_at", { ascending: false });
-      if (e) {
-        setError(e.message);
+      const base = supabase.from("customers").select("id,name,contact_name,phone,email,created_at,updated_at");
+      const res = await base.order("updated_at", { ascending: false }).order("created_at", { ascending: false });
+      if (res.error) {
+        const msg = String(res.error.message ?? "");
+        if (msg.includes("customers.updated_at") || (msg.includes("updated_at") && msg.toLowerCase().includes("does not exist"))) {
+          const fallback = await supabase.from("customers").select("id,name,contact_name,phone,email,created_at").order("created_at", { ascending: false });
+          if (fallback.error) {
+            setError(fallback.error.message);
+            setRows([]);
+            setLoading(false);
+            return;
+          }
+          setRows((fallback.data ?? []) as CustomerRow[]);
+          setLoading(false);
+          return;
+        }
+        setError(msg || "โหลดข้อมูลไม่สำเร็จ");
         setRows([]);
         setLoading(false);
         return;
       }
-      setRows((data ?? []) as CustomerRow[]);
+      setRows((res.data ?? []) as CustomerRow[]);
       setLoading(false);
     });
   }, [supabase]);

@@ -34,6 +34,8 @@ export function useWorkerEditForm({
   const [nationality, setNationality] = useState<string>("เมียนมา");
   const [birthDate, setBirthDate] = useState("");
   const [osSex, setOsSex] = useState("");
+  const [workplaceId, setWorkplaceId] = useState<string>("");
+  const [workplaceOptions, setWorkplaceOptions] = useState<Array<{ id: string; name: string | null; address: string }>>([]);
   const [profilePicUrl, setProfilePicUrl] = useState("");
   const [profilePicFile, setProfilePicFile] = useState<File | null>(null);
   const [visaExpDate, setVisaExpDate] = useState("");
@@ -64,6 +66,8 @@ export function useWorkerEditForm({
     setNationality("เมียนมา");
     setBirthDate("");
     setOsSex("");
+    setWorkplaceId("");
+    setWorkplaceOptions([]);
     setProfilePicUrl("");
     setProfilePicFile(null);
     setVisaExpDate("");
@@ -117,6 +121,8 @@ export function useWorkerEditForm({
       setNationality(initial.nationality ?? "");
       setBirthDate(initial.birth_date ?? "");
       setOsSex(initial.os_sex ?? "");
+      setWorkplaceId((initial as any).workplace_id ?? "");
+      setWorkplaceOptions([]);
       setProfilePicUrl(initial.profile_pic_url ?? "");
       setProfilePicFile(null);
       setVisaExpDate(initial.visa_exp_date ?? "");
@@ -140,6 +146,38 @@ export function useWorkerEditForm({
     }, 50);
   }, [initial, open, refreshDocs, reset]);
 
+  useEffect(() => {
+    if (!open) return;
+    const cid = String(customerId ?? "").trim();
+    if (!cid) {
+      setWorkplaceOptions([]);
+      setWorkplaceId("");
+      return;
+    }
+    Promise.resolve()
+      .then(async () => {
+        const { data, error: e } = await supabase
+          .from("customer_workplaces")
+          .select("id,name,address,created_at")
+          .eq("customer_id", cid)
+          .order("created_at", { ascending: false });
+        if (e) {
+          setWorkplaceOptions([]);
+          setWorkplaceId("");
+          return;
+        }
+        const list = (data ?? []) as Array<{ id: string; name: string | null; address: string }>
+        setWorkplaceOptions(list);
+        if (workplaceId && !list.some((x) => x.id === workplaceId)) {
+          setWorkplaceId("");
+        }
+      })
+      .catch(() => {
+        setWorkplaceOptions([]);
+        setWorkplaceId("");
+      });
+  }, [customerId, open, supabase, workplaceId]);
+
   const canSave = fullName.trim().length > 0;
 
   const submitWorker = useCallback(
@@ -156,6 +194,7 @@ export function useWorkerEditForm({
         worker_id: workerId.trim() || null,
         full_name: fullName.trim(),
         customer_id: customerId || null,
+        workplace_id: workplaceId || null,
         passport_no: passportNo.trim() || null,
         passport_type: passportType.trim() || null,
         passport_expire_date: passportExpireDate || null,
@@ -235,6 +274,7 @@ export function useWorkerEditForm({
       supabase,
       userId,
       visaExpDate,
+      workplaceId,
       workerId,
       wpExpireDate,
       wpNumber,
@@ -270,6 +310,9 @@ export function useWorkerEditForm({
     setBirthDate,
     osSex,
     setOsSex,
+    workplaceId,
+    setWorkplaceId,
+    workplaceOptions,
     profilePicUrl,
     setProfilePicUrl,
     profilePicFile,

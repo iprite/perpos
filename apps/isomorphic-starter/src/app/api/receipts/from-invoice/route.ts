@@ -19,6 +19,19 @@ export async function POST(req: Request) {
 
     const supabase = createSupabaseAdminClient();
 
+    const existingRes = await supabase
+      .from("receipts")
+      .select("id,doc_no,status")
+      .eq("invoice_id", invoiceId)
+      .neq("status", "voided")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (existingRes.error) return NextResponse.json({ error: existingRes.error.message }, { status: 500 });
+    if (existingRes.data?.id) {
+      return NextResponse.json({ ok: true, receiptId: String((existingRes.data as any).id), receiptNo: (existingRes.data as any).doc_no ?? null });
+    }
+
     const invRes = await supabase
       .from("invoices")
       .select("id,doc_no,status,issue_date,customer_id,customer_snapshot,currency,subtotal,discount_total,include_vat,vat_rate,vat_amount,grand_total,paid_confirmed_at")
@@ -60,6 +73,20 @@ export async function POST(req: Request) {
       .select("id,doc_no")
       .single();
     if (receiptInsert.error || !receiptInsert.data) {
+      const msg = String(receiptInsert.error?.message ?? "");
+      if (msg.toLowerCase().includes("duplicate") || msg.includes("uq_receipts_invoice_active")) {
+        const retry = await supabase
+          .from("receipts")
+          .select("id,doc_no")
+          .eq("invoice_id", invoiceId)
+          .neq("status", "voided")
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (!retry.error && retry.data?.id) {
+          return NextResponse.json({ ok: true, receiptId: String((retry.data as any).id), receiptNo: (retry.data as any).doc_no ?? null });
+        }
+      }
       return NextResponse.json({ error: receiptInsert.error?.message ?? "Create receipt failed" }, { status: 500 });
     }
 
@@ -77,7 +104,7 @@ export async function POST(req: Request) {
     }));
 
     if (payload.length) {
-      const insItems = await supabase.from("receipt_items").insert(payload);
+      const insItems = await supabase.from("receipt_items").upsert(payload, { onConflict: "receipt_id,sort_order" });
       if (insItems.error) return NextResponse.json({ error: insItems.error.message }, { status: 500 });
     }
 
@@ -86,4 +113,3 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Unexpected error" }, { status: 500 });
   }
 }
-
