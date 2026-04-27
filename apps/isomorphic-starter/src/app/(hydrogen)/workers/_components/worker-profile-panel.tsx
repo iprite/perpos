@@ -163,6 +163,7 @@ export function WorkerProfilePanel({
             }
             selectClassName="h-10 px-3"
             dropdownClassName="!z-[9999]"
+            inPortal={false}
             disabled={loading}
           />
         </div>
@@ -178,6 +179,7 @@ export function WorkerProfilePanel({
             displayValue={(selected) => nationalityOptions.find((o) => o.value === selected)?.label ?? ""}
             selectClassName="h-10 px-3"
             dropdownClassName="!z-[9999]"
+            inPortal={false}
             disabled={loading}
           />
         </div>

@@ -73,6 +73,7 @@ export function WorkerFieldsForm({
             dropdownClassName="!z-[9999]"
             searchable
             searchPlaceHolder="ค้นหานายจ้าง..."
+            inPortal={false}
             disabled={loading}
           />
         </div>
@@ -101,6 +102,7 @@ export function WorkerFieldsForm({
             displayValue={(selected) => passportTypeOptions.find((o) => o.value === selected)?.label ?? ""}
             selectClassName="h-10 px-3"
             dropdownClassName="!z-[9999]"
+            inPortal={false}
             disabled={loading}
           />
         </div>
