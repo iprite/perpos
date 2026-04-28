@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button, Input } from "rizzui";
 import { Title, Text } from "rizzui/typography";
 import toast from "react-hot-toast";
@@ -8,6 +8,7 @@ import AppSelect from "@core/ui/app-select";
 import TablePagination from "@core/components/table/pagination";
 import { getCoreRowModel, useReactTable } from "@tanstack/react-table";
 import TableSearch from "@/components/table/table-search";
+import { useSearchParams } from "next/navigation";
 
 import { Modal } from "@core/modal-views/modal";
 
@@ -288,6 +289,8 @@ export default function OrdersPage() {
   const { role, userId } = useAuth();
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
   const topRef = useRef<HTMLDivElement | null>(null);
+  const searchParams = useSearchParams();
+  const autoOpenOrderIdRef = useRef<string | null>(null);
   const workersLoadSeq = useRef(0);
 
   const [loading, setLoading] = useState(false);
@@ -956,6 +959,106 @@ export default function OrdersPage() {
     [refreshOrderEvents, supabase, userId]
   );
 
+  const clearOrderIdParam = useCallback(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const url = new URL(window.location.href);
+      if (!url.searchParams.has("order_id")) return;
+      url.searchParams.delete("order_id");
+      const q = url.searchParams.toString();
+      const next = `${url.pathname}${q ? `?${q}` : ""}${url.hash ?? ""}`;
+      window.history.replaceState({}, "", next);
+    } catch {
+      return;
+    }
+  }, []);
+
+  const openOrderForEdit = useCallback(
+    async (orderId: string) => {
+      if (!canEdit) return;
+      const id = String(orderId ?? "").trim();
+      if (!id) return;
+      setLoading(true);
+      setError(null);
+      try {
+        const { data: ord, error: ordErr } = await supabase
+          .from("orders")
+          .select("id,status,display_id,source_quote_id,customer_id,total,paid_amount,remaining_amount,discount,include_vat,wht_rate")
+          .eq("id", id)
+          .single();
+        if (ordErr) {
+          setError(ordErr.message);
+          setLoading(false);
+          topRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+          return;
+        }
+
+        setEditingId((ord as any).id);
+        setEditingStatus((ord as any).status);
+        setEditingDisplayId((ord as any).display_id ?? null);
+        setEditingSourceQuoteId((ord as any).source_quote_id ?? null);
+        setEditingTotalAmount(Number((ord as any).total ?? 0));
+        setEditingPaidAmount(Number((ord as any).paid_amount ?? 0));
+        setEditingRemainingAmount(Number((ord as any).remaining_amount ?? 0));
+        setShowForm(true);
+        setCustomerId(String((ord as any).customer_id ?? ""));
+        setDiscount(String((ord as any).discount ?? 0));
+        setIncludeVat(!!(ord as any).include_vat);
+        setWhtRate(String((ord as any).wht_rate ?? 3));
+
+        const { data: itemRows, error: itemErr } = await supabase
+          .from("order_items")
+          .select("id,service_id,quantity,description")
+          .eq("order_id", id)
+          .order("created_at", { ascending: true });
+        if (itemErr) {
+          setError(itemErr.message);
+          setItems([{ key: "1", serviceId: "", quantity: "1", note: "" }]);
+          setLoadedOrderItemIds([]);
+          setLoading(false);
+          topRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+          return;
+        }
+
+        const mapped = ((itemRows ?? []) as OrderItemRow[])
+          .map((x) => ({ key: x.id, serviceId: x.service_id ?? "", quantity: String(x.quantity ?? 1), note: x.description ?? "" }))
+          .filter((x) => x.serviceId.length > 0);
+        setItems(mapped.length ? mapped : [{ key: "1", serviceId: "", quantity: "1", note: "" }]);
+        setLoadedOrderItemIds(mapped.map((x) => x.key));
+        await refreshOrderItemWorkers(mapped.map((x) => x.key));
+        refreshWorkersForCustomer(String((ord as any).customer_id ?? ""));
+        await refreshOrderDocs(id);
+        await refreshOrderTransactions(id);
+        await refreshOrderEvents(id);
+        setLoading(false);
+        topRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      } catch (e: any) {
+        setError(e?.message ?? "โหลดข้อมูลออเดอร์ไม่สำเร็จ");
+        setLoading(false);
+        topRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    },
+    [
+      canEdit,
+      refreshOrderDocs,
+      refreshOrderEvents,
+      refreshOrderItemWorkers,
+      refreshOrderTransactions,
+      refreshWorkersForCustomer,
+      supabase,
+    ],
+  );
+
+  useEffect(() => {
+    const target = searchParams.get("order_id");
+    if (!target) return;
+    if (!canEdit) return;
+    if (autoOpenOrderIdRef.current === target) return;
+    autoOpenOrderIdRef.current = target;
+    clearOrderIdParam();
+    openOrderForEdit(target);
+  }, [canEdit, clearOrderIdParam, openOrderForEdit, searchParams]);
+
   return (
     <div ref={topRef}>
       <div className="flex flex-col justify-between gap-3 md:flex-row md:items-end">
@@ -969,11 +1072,70 @@ export default function OrdersPage() {
               <Text className="mt-1 text-sm text-gray-600">อัปเดตสถานะงาน ผูกแรงงาน และจัดการเอกสารออเดอร์</Text>
             </div>
             <div className="flex flex-wrap items-center justify-end gap-2">
+              {editingSourceQuoteId ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={loading}
+                  onClick={() => {
+                    window.location.href = `/quotes?quote_id=${editingSourceQuoteId}`;
+                  }}
+                >
+                  ใบเสนอราคา
+                </Button>
+              ) : null}
+              {editingStatus === "draft" ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={loading || !!firstInstallment}
+                  onClick={() => {
+                    setPayOrderId(editingId);
+                    setPayOrderDisplayId(editingDisplayId ?? null);
+                    setPayCustomerName(selectedCustomerName);
+                    setPayTotal(editingTotalAmount);
+                    setPayAmount("");
+                    setPayOpen(true);
+                  }}
+                >
+                  วางบิลงวดแรก
+                </Button>
+              ) : null}
+              {editingStatus === "draft" && canStart ? (
+                <Button
+                  size="sm"
+                  disabled={loading}
+                  onClick={async () => {
+                    if (!editingId) return;
+                    setLoading(true);
+                    setError(null);
+                    const { error: e } = await supabase.from("orders").update({ status: "in_progress" }).eq("id", editingId);
+                    if (e) {
+                      setError(e.message);
+                      setLoading(false);
+                      return;
+                    }
+                    setEditingStatus("in_progress");
+                    await addOrderEvent({
+                      orderId: editingId,
+                      eventType: "order_started",
+                      message: `เริ่มดำเนินการออเดอร์ ${editingDisplayId ?? ""}`.trim(),
+                      entityTable: "orders",
+                      entityId: editingId,
+                    });
+                    setLoading(false);
+                    refresh();
+                  }}
+                >
+                  เริ่มดำเนินการ
+                </Button>
+              ) : null}
               <Button
                 size="sm"
                 variant="outline"
                 disabled={loading}
                 onClick={() => {
+                  clearOrderIdParam();
                   resetForm();
                   setShowForm(false);
                 }}
@@ -1152,35 +1314,6 @@ export default function OrdersPage() {
                 <div className="rounded-xl border border-gray-200 bg-white p-4">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="text-sm font-semibold text-gray-900">ข้อมูลออเดอร์</div>
-                    {editingStatus === "draft" ? (
-                      <Button
-                        size="sm"
-                        disabled={loading || !canStart}
-                        onClick={async () => {
-                          if (!editingId) return;
-                          setLoading(true);
-                          setError(null);
-                          const { error: e } = await supabase.from("orders").update({ status: "in_progress" }).eq("id", editingId);
-                          if (e) {
-                            setError(e.message);
-                            setLoading(false);
-                            return;
-                          }
-                          setEditingStatus("in_progress");
-                          await addOrderEvent({
-                            orderId: editingId,
-                            eventType: "order_started",
-                            message: `เริ่มดำเนินการออเดอร์ ${editingDisplayId ?? ""}`.trim(),
-                            entityTable: "orders",
-                            entityId: editingId,
-                          });
-                          setLoading(false);
-                          refresh();
-                        }}
-                      >
-                        เริ่มดำเนินการ
-                      </Button>
-                    ) : null}
                   </div>
                   <div className="mt-2 grid gap-2 text-sm text-gray-700">
                     <div className="flex items-center justify-between">
@@ -1356,79 +1489,7 @@ export default function OrdersPage() {
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="text-sm font-semibold text-gray-900">ข้อมูลการเงิน</div>
                     <div className="flex flex-wrap items-center justify-end gap-2">
-                      {editingSourceQuoteId ? (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          disabled={loading}
-                          onClick={async () => {
-                            if (!editingSourceQuoteId) return;
-                            setQuotePreviewOpen(true);
-                            setQuotePreviewLoading(true);
-                            setQuotePreviewError(null);
-                            try {
-                              const [qRes, itRes] = await Promise.all([
-                                supabase
-                                  .from("sales_quotes")
-                                  .select(
-                                    "id,quote_no,customer_name,subtotal,discount_total,include_vat,vat_rate,vat_amount,wht_rate,wht_amount,grand_total,created_at",
-                                  )
-                                  .eq("id", editingSourceQuoteId)
-                                  .single(),
-                                supabase
-                                  .from("sales_quote_items")
-                                  .select("id,name,quantity,unit_price,line_total,sort_order,created_at")
-                                  .eq("quote_id", editingSourceQuoteId)
-                                  .order("sort_order", { ascending: true })
-                                  .order("created_at", { ascending: true }),
-                              ]);
-
-                              if ((qRes as any).error) {
-                                setQuotePreviewError((qRes as any).error.message);
-                                setQuotePreview(null);
-                                setQuotePreviewItems([]);
-                                setQuotePreviewLoading(false);
-                                return;
-                              }
-                              if ((itRes as any).error) {
-                                setQuotePreviewError((itRes as any).error.message);
-                                setQuotePreview(null);
-                                setQuotePreviewItems([]);
-                                setQuotePreviewLoading(false);
-                                return;
-                              }
-
-                              setQuotePreview(((qRes as any).data ?? null) as QuotePreviewRow | null);
-                              setQuotePreviewItems((((itRes as any).data ?? []) as QuotePreviewItemRow[]) ?? []);
-                              setQuotePreviewLoading(false);
-                            } catch (e: any) {
-                              setQuotePreviewError(e?.message ?? "โหลดใบเสนอราคาไม่สำเร็จ");
-                              setQuotePreview(null);
-                              setQuotePreviewItems([]);
-                              setQuotePreviewLoading(false);
-                            }
-                          }}
-                        >
-                          แสดงใบเสนอราคา
-                        </Button>
-                      ) : null}
-                      {editingStatus === "draft" ? (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          disabled={loading || !!firstInstallment}
-                          onClick={() => {
-                            setPayOrderId(editingId);
-                            setPayOrderDisplayId(editingDisplayId ?? null);
-                            setPayCustomerName(selectedCustomerName);
-                            setPayTotal(editingTotalAmount);
-                            setPayAmount("");
-                            setPayOpen(true);
-                          }}
-                        >
-                          วางบิลงวดแรก
-                        </Button>
-                      ) : firstInstallment ? (
+                      {firstInstallment ? (
                         <Button
                           size="sm"
                           variant="outline"

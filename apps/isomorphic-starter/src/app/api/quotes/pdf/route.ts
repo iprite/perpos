@@ -395,7 +395,7 @@ export async function POST(request: Request) {
 
     const totalsHtml = isLast
       ? `
-        <div class="summary">
+        <div class="summary" id="qt-summary-block">
           <div class="summary-left">
             <div class="summary-title">
               <span>สรุป</span>
@@ -423,7 +423,7 @@ export async function POST(request: Request) {
         </div>
 
         <div class="qt-footer" id="qt-footer-block">
-          <div class="notes">
+          <div class="notes" id="qt-notes-block">
             <div class="section-title"><span>หมายเหตุ</span></div>
             <div class="notes-body">${notesHtml}</div>
           </div>
@@ -731,8 +731,16 @@ export async function POST(request: Request) {
           if (sheet) {
             var footerRect = footer.getBoundingClientRect();
             var sheetRect = sheet.getBoundingClientRect();
-            var overflow = footerRect.bottom > sheetRect.bottom - 24;
-            if (overflow) {
+            var summary = document.getElementById("qt-summary-block");
+            var notes = document.getElementById("qt-notes-block");
+            var overflow = Math.ceil(footerRect.bottom) > Math.floor(sheetRect.bottom);
+            var overlap = false;
+            if (summary && notes) {
+              var summaryRect = summary.getBoundingClientRect();
+              var notesRect = notes.getBoundingClientRect();
+              overlap = Math.floor(notesRect.top) < Math.ceil(summaryRect.bottom + 8);
+            }
+            if (overflow || overlap) {
               footerSheet.style.display = \"\";
               host.appendChild(footer);
             }

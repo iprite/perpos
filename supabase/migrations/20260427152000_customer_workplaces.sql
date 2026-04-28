@@ -23,6 +23,7 @@ WITH CHECK (public.current_role() IN ('admin','sale','operation'));
 
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.customer_workplaces TO authenticated;
 
+NOTIFY pgrst, 'reload schema';
 NOTIFY pgrst, 'reload config';
 
 COMMIT;

@@ -5,6 +5,7 @@ ALTER TABLE public.workers
 
 CREATE INDEX IF NOT EXISTS idx_workers_workplace_id ON public.workers(workplace_id);
 
+NOTIFY pgrst, 'reload schema';
 NOTIFY pgrst, 'reload config';
 
 COMMIT;

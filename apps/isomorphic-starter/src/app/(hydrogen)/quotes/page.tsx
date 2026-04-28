@@ -16,6 +16,7 @@ import { useAuth } from "@/app/shared/auth-provider";
 import { useConfirmDialog } from "@/app/shared/confirm-dialog/provider";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { buildQuotePdfBytes } from "@/utils/quote-pdf";
+import { useSearchParams } from "next/navigation";
 
 import type { SalesFollowupRow, SalesQuoteItemRow, SalesQuoteRow, QuoteStatus } from "./quote-types";
 import { quotesListGlobalDueTasks, quoteIsDueRelevant } from "./quote-data";
@@ -240,6 +241,8 @@ export default function QuotesPage() {
   const { role, userId } = useAuth();
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
   const topRef = useRef<HTMLDivElement | null>(null);
+  const searchParams = useSearchParams();
+  const autoOpenQuoteIdRef = useRef<string | null>(null);
   const confirm = useConfirmDialog();
 
   const canEdit = role === "admin" || role === "sale";
@@ -259,7 +262,7 @@ export default function QuotesPage() {
   const [detailOpen, setDetailOpen] = useState(false);
   const [selectedItems, setSelectedItems] = useState<SalesQuoteItemRow[]>([]);
   const [selectedFollowups, setSelectedFollowups] = useState<SalesFollowupRow[]>([]);
-  const [selectedTab, setSelectedTab] = useState<"summary" | "items" | "followups">("summary");
+  
   const [existingOrder, setExistingOrder] = useState<{ id: string; display_id: string | null } | null | undefined>(undefined);
 
   const [showForm, setShowForm] = useState(false);
@@ -396,7 +399,9 @@ export default function QuotesPage() {
         setSelected((cur) => {
           if (cur) {
             const next = list.find((x) => x.id === cur.id) ?? null;
-            return next ?? list[0] ?? null;
+            if (next) return next;
+            if (detailOpen) return cur;
+            return list[0] ?? null;
           }
           return list[0] ?? null;
         });
@@ -408,7 +413,7 @@ export default function QuotesPage() {
         setLoading(false);
       }
     });
-  }, [pagination.pageIndex, pagination.pageSize, search, supabase]);
+  }, [detailOpen, pagination.pageIndex, pagination.pageSize, search, supabase]);
 
   const refreshSelected = useCallback(
     (quoteId: string) => {
@@ -448,6 +453,20 @@ export default function QuotesPage() {
     });
   }, [supabase]);
 
+  const clearQuoteIdParam = useCallback(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const url = new URL(window.location.href);
+      if (!url.searchParams.has("quote_id")) return;
+      url.searchParams.delete("quote_id");
+      const q = url.searchParams.toString();
+      const next = `${url.pathname}${q ? `?${q}` : ""}${url.hash ?? ""}`;
+      window.history.replaceState({}, "", next);
+    } catch {
+      return;
+    }
+  }, []);
+
   React.useEffect(() => {
     refreshCustomersAndServices();
   }, [refreshCustomersAndServices]);
@@ -480,6 +499,39 @@ export default function QuotesPage() {
   React.useEffect(() => {
     refreshGlobalTasks();
   }, [refreshGlobalTasks]);
+
+  React.useEffect(() => {
+    const target = searchParams.get("quote_id");
+    if (!target) return;
+    if (autoOpenQuoteIdRef.current === target) return;
+    autoOpenQuoteIdRef.current = target;
+    clearQuoteIdParam();
+    Promise.resolve().then(async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const { data, error: e } = await supabase
+          .from("sales_quotes")
+          .select(
+            "id,quote_no,customer_id,customer_name,customer_company,customer_email,customer_phone,billing_address,notes,currency,subtotal,discount_total,include_vat,vat_rate,vat_amount,wht_rate,wht_amount,tax_total,grand_total,valid_until,status,created_by_profile_id,approved_by_profile_id,approved_at,pdf_storage_path,created_at,updated_at",
+          )
+          .eq("id", target)
+          .single();
+        if (e) {
+          setError(e.message);
+          setLoading(false);
+          return;
+        }
+        setSelected((data ?? null) as SalesQuoteRow | null);
+        setDetailOpen(true);
+        setLoading(false);
+        topRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      } catch (err: any) {
+        setError(err?.message ?? "โหลดใบเสนอราคาไม่สำเร็จ");
+        setLoading(false);
+      }
+    });
+  }, [clearQuoteIdParam, searchParams, supabase]);
 
   React.useEffect(() => {
     if (!selected) return;
@@ -974,7 +1026,6 @@ export default function QuotesPage() {
       const found = rows.find((r) => r.id === quoteId) ?? null;
       if (found) {
         setSelected(found);
-        setSelectedTab("followups");
         setDetailOpen(true);
       }
     },
@@ -987,19 +1038,81 @@ export default function QuotesPage() {
   return (
     <div ref={topRef}>
       <div className="flex flex-col justify-between gap-3 md:flex-row md:items-end">
-        <div>
-          <Title as="h1" className="text-lg font-semibold text-gray-900">
-            ใบเสนอราคา
-          </Title>
-          <Text className="mt-1 text-sm text-gray-600">สร้าง อนุมัติ ดาวน์โหลด PDF และสร้างออเดอร์จากใบเสนอราคาที่อนุมัติ</Text>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {detailOpen ? (
-            <Button variant="outline" onClick={() => setDetailOpen(false)} disabled={loading}>
-              ปิดรายละเอียด
-            </Button>
-          ) : (
-            <>
+        {detailOpen && selected ? (
+          <div className="flex w-full flex-col justify-between gap-3 md:flex-row md:items-start">
+            <div>
+              <div className="text-xs font-medium text-gray-500">จัดการใบเสนอราคา / {selected.quote_no}</div>
+              <Title as="h1" className="mt-1 text-xl font-semibold text-gray-900">
+                ใบเสนอราคา {selected.quote_no}
+              </Title>
+              <Text className="mt-1 text-sm text-gray-600">ข้อมูลรายละเอียดในใบเสนอราคา</Text>
+            </div>
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              {canEdit && canEditSelected ? (
+                <Button size="sm" variant="outline" disabled={loading} onClick={() => openEdit(selected)}>
+                  แก้ไข
+                </Button>
+              ) : null}
+              {canEdit && selected.status === "draft" && existingOrder === null ? (
+                <Button size="sm" variant="outline" disabled={loading} onClick={deleteSelectedQuote}>
+                  ลบ
+                </Button>
+              ) : null}
+              {canEdit && selected.status === "draft" ? (
+                <Button size="sm" variant="outline" disabled={loading} onClick={sendForApproval}>
+                  ส่งขออนุมัติ
+                </Button>
+              ) : null}
+              {canApprove && selected.status === "pending_approval" ? (
+                <Button size="sm" disabled={loading} onClick={() => approveOrReject("approved")}>
+                  อนุมัติ
+                </Button>
+              ) : null}
+              {canApprove && selected.status === "pending_approval" ? (
+                <Button size="sm" variant="outline" disabled={loading} onClick={() => approveOrReject("rejected")}>
+                  ไม่อนุมัติ
+                </Button>
+              ) : null}
+              <Button size="sm" variant="outline" disabled={loading} onClick={downloadPdf}>
+                ดาวน์โหลด PDF
+              </Button>
+              {existingOrder ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={loading}
+                  onClick={() => (window.location.href = `/orders?order_id=${existingOrder.id}`)}
+                >
+                  ออเดอร์ {existingOrder.display_id ?? ""}
+                </Button>
+              ) : null}
+              {selected.status === "approved" && existingOrder === null ? (
+                <Button size="sm" variant="outline" disabled={loading} onClick={createOrderFromQuote}>
+                  สร้างออเดอร์
+                </Button>
+              ) : null}
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  clearQuoteIdParam();
+                  setDetailOpen(false);
+                }}
+                disabled={loading}
+              >
+                ปิด
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <>
+            <div>
+              <Title as="h1" className="text-lg font-semibold text-gray-900">
+                ใบเสนอราคา
+              </Title>
+              <Text className="mt-1 text-sm text-gray-600">ข้อมูลรายละเอียดในใบเสนอราคา</Text>
+            </div>
+            <div className="flex flex-wrap gap-2">
               <TableSearch value={search} onChange={setSearch} />
               <Button
                 variant="outline"
@@ -1016,9 +1129,9 @@ export default function QuotesPage() {
                   สร้างใบเสนอราคา
                 </Button>
               ) : null}
-            </>
-          )}
-        </div>
+            </div>
+          </>
+        )}
       </div>
 
       <Modal isOpen={showForm && canEdit} onClose={() => setShowForm(false)} size="lg" rounded="md">
@@ -1326,128 +1439,18 @@ export default function QuotesPage() {
       {detailOpen && selected && (
         <div className="mt-4">
           <div className="mt-3 space-y-3">
-            <div className="rounded-xl border border-gray-200 bg-white p-3">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <div className="text-sm font-semibold text-gray-900">{selected.quote_no}</div>
-                    <div className="mt-1 text-sm font-medium text-gray-900">{selected.customer_name}</div>
-                  </div>
-                  <div className="flex flex-wrap justify-end gap-2">
-                    {canEdit && canEditSelected ? (
-                      <Button size="sm" variant="outline" disabled={loading} onClick={() => openEdit(selected)}>
-                        แก้ไข
-                      </Button>
-                    ) : null}
-                    {canEdit && selected.status === "draft" && existingOrder === null ? (
-                      <Button size="sm" variant="outline" disabled={loading} onClick={deleteSelectedQuote}>
-                        ลบ
-                      </Button>
-                    ) : null}
-                    {canEdit && selected.status === "draft" ? (
-                      <Button size="sm" variant="outline" disabled={loading} onClick={sendForApproval}>
-                        ส่งขออนุมัติ
-                      </Button>
-                    ) : null}
-                    {canApprove && selected.status === "pending_approval" ? (
-                      <Button size="sm" disabled={loading} onClick={() => approveOrReject("approved")}>
-                        อนุมัติ
-                      </Button>
-                    ) : null}
-                    {canApprove && selected.status === "pending_approval" ? (
-                      <Button size="sm" variant="outline" disabled={loading} onClick={() => approveOrReject("rejected")}>
-                        ไม่อนุมัติ
-                      </Button>
-                    ) : null}
-                    <Button size="sm" variant="outline" disabled={loading} onClick={downloadPdf}>
-                      ดาวน์โหลด PDF
-                    </Button>
-                    {existingOrder ? (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        disabled={loading}
-                        onClick={() => (window.location.href = `/manage-orders/${existingOrder.id}`)}
-                      >
-                        เปิดออเดอร์ {existingOrder.display_id ?? ""}
-                      </Button>
-                    ) : null}
-                    {selected.status === "approved" && existingOrder === null ? (
-                      <Button size="sm" variant="outline" disabled={loading} onClick={createOrderFromQuote}>
-                        สร้างออเดอร์
-                      </Button>
-                    ) : null}
-                  </div>
-                </div>
-
-                <div className="mt-3 grid grid-cols-3 gap-2 rounded-lg bg-gray-50 p-2">
-                  <button
-                    type="button"
-                    className={`h-9 rounded-md text-sm font-semibold ${selectedTab === "summary" ? "bg-white shadow-sm" : "text-gray-700 hover:bg-white"}`}
-                    onClick={() => setSelectedTab("summary")}
-                  >
-                    สรุป
-                  </button>
-                  <button
-                    type="button"
-                    className={`h-9 rounded-md text-sm font-semibold ${selectedTab === "items" ? "bg-white shadow-sm" : "text-gray-700 hover:bg-white"}`}
-                    onClick={() => setSelectedTab("items")}
-                  >
-                    รายการ
-                  </button>
-                  <button
-                    type="button"
-                    className={`h-9 rounded-md text-sm font-semibold ${selectedTab === "followups" ? "bg-white shadow-sm" : "text-gray-700 hover:bg-white"}`}
-                    onClick={() => setSelectedTab("followups")}
-                  >
-                    ติดตามงาน
-                  </button>
-                </div>
-              </div>
-
-              {selectedTab === "summary" ? (
+            <div className="grid gap-3 lg:grid-cols-12">
+              <div className="space-y-3 lg:col-span-5">
                 <div className="rounded-xl border border-gray-200 bg-white p-4">
                   <div className="text-sm font-semibold text-gray-900">ข้อมูลลูกค้า</div>
                   <div className="mt-2 grid gap-1 text-sm text-gray-700">
+                    <div>{selected.customer_name}</div>
                     <div>{selected.customer_company ? `บริษัท/สาขา: ${selected.customer_company}` : null}</div>
                     <div className="flex gap-4">
                       <div>{selected.customer_phone ? `โทร: ${selected.customer_phone}` : null}</div>
                       <div>{selected.customer_email ? `อีเมล: ${selected.customer_email}` : null}</div>
                     </div>
                     <div>{selected.billing_address ? `ที่อยู่: ${selected.billing_address}` : null}</div>
-                  </div>
-
-                  <div className="mt-4 text-sm font-semibold text-gray-900">สรุปยอด</div>
-                  <div className="mt-2 space-y-1 text-sm">
-                    <div className="flex items-center justify-between">
-                      <div className="text-gray-600">รวมก่อนส่วนลด</div>
-                      <div className="font-medium text-gray-900">{asMoney(Number(selected.subtotal ?? 0))}</div>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <div className="text-gray-600">ส่วนลด</div>
-                      <div className="font-medium text-gray-900">{asMoney(Number(selected.discount_total ?? 0))}</div>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <div className="text-gray-600">ยอดหลังส่วนลด</div>
-                      <div className="font-medium text-gray-900">
-                        {asMoney(Math.max(0, Number(selected.subtotal ?? 0) - Number(selected.discount_total ?? 0)))}
-                      </div>
-                    </div>
-                    {selected.include_vat ? (
-                      <div className="flex items-center justify-between">
-                        <div className="text-gray-600">VAT ({Number(selected.vat_rate ?? 0)}%)</div>
-                        <div className="font-medium text-gray-900">{asMoney(Number(selected.vat_amount ?? 0))}</div>
-                      </div>
-                    ) : null}
-                    {Number(selected.wht_rate ?? 0) > 0 ? (
-                      <div className="flex items-center justify-between">
-                        <div className="text-gray-600">หัก ณ ที่จ่าย ({Number(selected.wht_rate ?? 0)}%)</div>
-                        <div className="font-medium text-gray-900">-{asMoney(Number(selected.wht_amount ?? 0))}</div>
-                      </div>
-                    ) : null}
-                    <div className="flex items-center justify-between">
-                      <div className="text-gray-600">ยอดสุทธิ</div>
-                      <div className="text-base font-semibold text-gray-900">{asMoney(Number(selected.grand_total ?? 0))}</div>
-                    </div>
                   </div>
 
                   <div className="mt-4 text-sm font-semibold text-gray-900">การอนุมัติ</div>
@@ -1475,37 +1478,6 @@ export default function QuotesPage() {
                     ) : null}
                   </div>
                 </div>
-              ) : null}
-
-              {selectedTab === "items" ? (
-                <div className="rounded-xl border border-gray-200 bg-white p-4">
-                  <div className="text-sm font-semibold text-gray-900">รายการ</div>
-                  <div className="mt-3 space-y-2">
-                    {selectedItems.length === 0 ? <div className="text-sm text-gray-600">ยังไม่มีรายการ</div> : null}
-                    {selectedItems.map((it) => (
-                      <div key={it.id} className="flex items-start justify-between gap-3 rounded-lg border border-gray-200 p-3">
-                        <div className="min-w-0">
-                          <div className="truncate text-sm font-medium text-gray-900">{it.name}</div>
-                          <div className="mt-0.5 text-xs text-gray-600">จำนวน {it.quantity} × {asMoney(Number(it.unit_price ?? 0))}</div>
-                          {Array.isArray((it as any).task_list) && (it as any).task_list.length ? (
-                            <ul className="mt-2 list-disc space-y-0.5 pl-4 text-xs text-gray-600">
-                              {((it as any).task_list as unknown[])
-                                .filter((x) => typeof x === "string" && x.trim().length)
-                                .slice(0, 12)
-                                .map((t, idx) => (
-                                  <li key={idx}>{String(t).trim()}</li>
-                                ))}
-                            </ul>
-                          ) : null}
-                        </div>
-                        <div className="text-sm font-semibold text-gray-900">{asMoney(Number(it.line_total ?? 0))}</div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ) : null}
-
-              {selectedTab === "followups" ? (
                 <div className="rounded-xl border border-gray-200 bg-white p-4">
                   <div className="flex items-center justify-between">
                     <div className="text-sm font-semibold text-gray-900">ติดตามงาน</div>
@@ -1555,9 +1527,79 @@ export default function QuotesPage() {
                     ))}
                   </div>
                 </div>
-              ) : null}
+              </div>
+
+              <div className="space-y-3 lg:col-span-7">
+                <div className="rounded-xl border border-gray-200 bg-white p-4">
+                  <div className="text-sm font-semibold text-gray-900">รายการบริการ</div>
+                  <div className="mt-3 space-y-2">
+                    {selectedItems.length === 0 ? <div className="text-sm text-gray-600">ยังไม่มีรายการ</div> : null}
+                    {selectedItems.map((it) => (
+                      <div key={it.id} className="flex items-start justify-between gap-3 rounded-lg border border-gray-200 p-3">
+                        <div className="min-w-0">
+                          <div className="truncate text-sm font-medium text-gray-900">{it.name}</div>
+                          <div className="mt-0.5 text-xs text-gray-600">จำนวน {it.quantity} × {asMoney(Number(it.unit_price ?? 0))}</div>
+                          {Array.isArray((it as any).task_list) && (it as any).task_list.length ? (
+                            <ul className="mt-2 list-disc space-y-0.5 pl-4 text-xs text-gray-600">
+                              {((it as any).task_list as unknown[])
+                                .filter((x) => typeof x === "string" && x.trim().length)
+                                .slice(0, 12)
+                                .map((t, idx) => (
+                                  <li key={idx}>{String(t).trim()}</li>
+                                ))}
+                            </ul>
+                          ) : null}
+                        </div>
+                        <div className="text-sm font-semibold text-gray-900">{asMoney(Number(it.line_total ?? 0))}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-gray-200 bg-white p-4">
+                  <div className="text-sm font-semibold text-gray-900">หมายเหตุ</div>
+                  <div className="mt-2 whitespace-pre-wrap text-sm text-gray-700">{selected.notes?.trim() || "-"}</div>
+                </div>
+
+                <div className="rounded-xl border border-gray-200 bg-white p-4">
+                  <div className="text-sm font-semibold text-gray-900">สรุปยอด</div>
+                  <div className="mt-3 space-y-1 text-sm">
+                    <div className="flex items-center justify-between">
+                      <div className="text-gray-600">รวมก่อนส่วนลด</div>
+                      <div className="font-medium text-gray-900">{asMoney(Number(selected.subtotal ?? 0))}</div>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div className="text-gray-600">ส่วนลด</div>
+                      <div className="font-medium text-gray-900">{asMoney(Number(selected.discount_total ?? 0))}</div>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div className="text-gray-600">ยอดหลังส่วนลด</div>
+                      <div className="font-medium text-gray-900">
+                        {asMoney(Math.max(0, Number(selected.subtotal ?? 0) - Number(selected.discount_total ?? 0)))}
+                      </div>
+                    </div>
+                    {selected.include_vat ? (
+                      <div className="flex items-center justify-between">
+                        <div className="text-gray-600">VAT ({Number(selected.vat_rate ?? 0)}%)</div>
+                        <div className="font-medium text-gray-900">{asMoney(Number(selected.vat_amount ?? 0))}</div>
+                      </div>
+                    ) : null}
+                    {Number(selected.wht_rate ?? 0) > 0 ? (
+                      <div className="flex items-center justify-between">
+                        <div className="text-gray-600">หัก ณ ที่จ่าย ({Number(selected.wht_rate ?? 0)}%)</div>
+                        <div className="font-medium text-gray-900">-{asMoney(Number(selected.wht_amount ?? 0))}</div>
+                      </div>
+                    ) : null}
+                    <div className="flex items-center justify-between">
+                      <div className="text-gray-600">ยอดสุทธิ</div>
+                      <div className="text-base font-semibold text-gray-900">{asMoney(Number(selected.grand_total ?? 0))}</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
+        </div>
       )}
 
       {!detailOpen && (
@@ -1584,7 +1626,6 @@ export default function QuotesPage() {
                       className="grid grid-cols-[0.9fr_1.2fr_0.7fr_0.8fr_0.7fr] items-center gap-3 border-b border-gray-100 px-4 py-3 last:border-b-0 cursor-pointer transition-colors hover:bg-gray-100 active:bg-gray-200"
                       onClick={() => {
                         setSelected(r);
-                        setSelectedTab("summary");
                         setDetailOpen(true);
                       }}
                       onKeyDown={(e) => {
