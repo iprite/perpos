@@ -13,6 +13,7 @@ import TableSearch from "@/components/table/table-search";
 
 import { useAuth } from "@/app/shared/auth-provider";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { resolvePoaUnitPricePerWorker } from "@/components/poa/poa-pricing";
 
 type TypeOption = { id: string; name: string; base_price: number; is_active: boolean };
 
@@ -135,6 +136,8 @@ export default function MyPoaRequestsPage() {
 
   const typeById = useMemo(() => new Map(types.map((t) => [t.id, t])), [types]);
 
+  const [resolvedTypePriceById, setResolvedTypePriceById] = useState<Map<string, number>>(new Map());
+
   React.useEffect(() => {
     if (isMouSelected) return;
     setWorkerMale("");
@@ -150,6 +153,29 @@ export default function MyPoaRequestsPage() {
     const sum = male + female;
     setWorkerCount(String(Math.max(1, sum)));
   }, [isMouSelected, workerFemale, workerMale]);
+
+  React.useEffect(() => {
+    Promise.resolve().then(async () => {
+      if (!userId) return;
+      if (types.length === 0) {
+        setResolvedTypePriceById(new Map());
+        return;
+      }
+      const { data: myRep } = await supabase.from("company_representatives").select("rep_code").eq("profile_id", userId).maybeSingle();
+      const repCode = String((myRep as any)?.rep_code ?? "").trim();
+      if (!repCode) {
+        setResolvedTypePriceById(new Map());
+        return;
+      }
+      const entries = await Promise.all(
+        types.map(async (t) => {
+          const resolved = await resolvePoaUnitPricePerWorker({ supabase, repCode, poaRequestTypeId: t.id, fallbackUnitPrice: Number(t.base_price ?? 0) });
+          return [t.id, resolved.unit] as const;
+        }),
+      );
+      setResolvedTypePriceById(new Map(entries));
+    });
+  }, [supabase, types, userId]);
 
   const resetForm = useCallback(() => {
     setEmployerName("");
@@ -339,7 +365,10 @@ export default function MyPoaRequestsPage() {
               placeholder="เลือกหนังสือมอบอำนาจ"
               options={types
                 .filter((t) => t.is_active)
-                .map((t) => ({ value: t.id, label: `${t.name} • ราคา/คน: ${Number(t.base_price ?? 0).toLocaleString()}` }))}
+                .map((t) => ({
+                  value: t.id,
+                  label: `${t.name} • ราคา/คน: ${Number(resolvedTypePriceById.get(t.id) ?? t.base_price ?? 0).toLocaleString()}`,
+                }))}
               disabled={loading}
               onChange={(v) => setSelectedTypeId(v)}
             />
@@ -480,7 +509,14 @@ export default function MyPoaRequestsPage() {
                   const typeMap = new Map(types.map((t) => [t.id, t]));
                   const t = typeMap.get(selectedTypeId);
                   if (!t) throw new Error("ไม่พบรายการหนังสือมอบอำนาจที่เลือก");
-                  const unit = Number(t.base_price ?? 0);
+
+                  const resolved = await resolvePoaUnitPricePerWorker({
+                    supabase,
+                    repCode,
+                    poaRequestTypeId: selectedTypeId,
+                    fallbackUnitPrice: Number(t.base_price ?? 0),
+                  });
+                  const unit = resolved.unit;
                   const upsertRow = {
                     poa_request_id: requestId,
                     poa_request_type_id: selectedTypeId,

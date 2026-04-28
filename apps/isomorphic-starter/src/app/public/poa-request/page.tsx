@@ -98,6 +98,9 @@ export default function PublicPoaRequestPage() {
   const selectedType = useMemo(() => types.find((t) => t.id === selectedTypeId) ?? null, [types, selectedTypeId]);
   const isMouSelected = useMemo(() => String(selectedType?.name ?? "").trim().toUpperCase() === "MOU", [selectedType]);
 
+  const [resolvedUnit, setResolvedUnit] = useState<number | null>(null);
+  const [resolvedSource, setResolvedSource] = useState<"default" | "override" | null>(null);
+
   const computedWorkerCount = useMemo(() => {
     if (isMouSelected) {
       const male = asIntOrNull(workerMale) ?? 0;
@@ -108,11 +111,46 @@ export default function PublicPoaRequestPage() {
     return Math.max(1, wc);
   }, [isMouSelected, workerCount, workerFemale, workerMale]);
 
-  const computedTotalPrice = useMemo(() => {
-    const unit = Number(selectedType?.base_price ?? 0);
-    const safeUnit = Number.isFinite(unit) ? unit : 0;
-    return safeUnit * computedWorkerCount;
-  }, [computedWorkerCount, selectedType?.base_price]);
+  React.useEffect(() => {
+    const repCode = String(representativeRepCode ?? "").trim();
+    const typeId = String(selectedTypeId ?? "").trim();
+    if (!repCode || !typeId) {
+      setResolvedUnit(null);
+      setResolvedSource(null);
+      return;
+    }
+    Promise.resolve().then(async () => {
+      try {
+        const res = await fetch(`/api/public/poa-price?rep_code=${encodeURIComponent(repCode)}&poa_request_type_id=${encodeURIComponent(typeId)}`);
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          setResolvedUnit(null);
+          setResolvedSource(null);
+          return;
+        }
+        const unit = Number((data as any)?.unit_price_per_worker ?? NaN);
+        if (!Number.isFinite(unit)) {
+          setResolvedUnit(null);
+          setResolvedSource(null);
+          return;
+        }
+        setResolvedUnit(unit);
+        setResolvedSource(((data as any)?.source ?? null) as any);
+      } catch {
+        setResolvedUnit(null);
+        setResolvedSource(null);
+      }
+    });
+  }, [representativeRepCode, selectedTypeId]);
+
+  const computedUnitPrice = useMemo(() => {
+    const base = Number(selectedType?.base_price ?? 0);
+    const baseUnit = Number.isFinite(base) ? base : 0;
+    if (Number.isFinite(Number(resolvedUnit))) return Number(resolvedUnit);
+    return baseUnit;
+  }, [resolvedUnit, selectedType?.base_price]);
+
+  const computedTotalPrice = useMemo(() => computedUnitPrice * computedWorkerCount, [computedUnitPrice, computedWorkerCount]);
 
   React.useEffect(() => {
     if (!isMouSelected) {
@@ -427,7 +465,10 @@ export default function PublicPoaRequestPage() {
                     </div>
                     <div className="flex items-center justify-between gap-3">
                       <div className="text-gray-600">ราคา/คน</div>
-                      <div className="font-medium text-gray-900">{asMoney(Number(selectedType?.base_price ?? 0))}</div>
+                      <div className="flex items-center gap-2 font-medium text-gray-900">
+                        <span>{asMoney(computedUnitPrice)}</span>
+                        {resolvedSource === "override" ? <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700">ราคาพิเศษ</span> : null}
+                      </div>
                     </div>
                     <div className="flex items-center justify-between gap-3">
                       <div className="text-gray-600">ยอดที่ต้องชำระ</div>

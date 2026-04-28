@@ -15,6 +15,32 @@ type PoaTypeOption = {
   is_active: boolean;
 };
 
+async function resolveUnitPriceForRep({
+  admin,
+  repCode,
+  poaRequestTypeId,
+  fallbackUnit,
+}: {
+  admin: ReturnType<typeof createSupabaseAdminClient>;
+  repCode: string | null;
+  poaRequestTypeId: string;
+  fallbackUnit: number;
+}) {
+  const code = String(repCode ?? "").trim();
+  if (!code) return { unit: fallbackUnit, source: "default" as const };
+  const { data, error } = await admin
+    .from("poa_request_type_rep_price_overrides")
+    .select("unit_price_per_worker,active")
+    .eq("rep_code", code)
+    .eq("poa_request_type_id", poaRequestTypeId)
+    .maybeSingle();
+  if (error || !data) return { unit: fallbackUnit, source: "default" as const };
+  if (!(data as any).active) return { unit: fallbackUnit, source: "default" as const };
+  const unit = Number((data as any).unit_price_per_worker ?? NaN);
+  if (!Number.isFinite(unit)) return { unit: fallbackUnit, source: "default" as const };
+  return { unit, source: "override" as const };
+}
+
 function repDisplayName(input: { prefix?: string | null; first_name?: string | null; last_name?: string | null; rep_code?: string | null }) {
   const first = String(input.first_name ?? "").trim();
   const last = String(input.last_name ?? "").trim();
@@ -178,7 +204,9 @@ export async function POST(req: Request) {
     const requestId = String((created as any).id);
     const displayId = String((created as any).display_id ?? "").trim() || null;
 
-    const unit = Number.isFinite(poaBasePrice) ? poaBasePrice : 0;
+    const baseUnit = Number.isFinite(poaBasePrice) ? poaBasePrice : 0;
+    const resolved = await resolveUnitPriceForRep({ admin, repCode, poaRequestTypeId: input.poa_request_type_id, fallbackUnit: baseUnit });
+    const unit = resolved.unit;
     const total = unit * wc;
     const upsertRow = {
       poa_request_id: requestId,

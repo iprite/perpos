@@ -14,6 +14,7 @@ import FileUploader from "@/components/form/file-uploader";
 
 import { buildPoaPdfBytes } from "./poa-pdf";
 import { poaStatusLabel, poaSumTotal, type PoaRequestItemRow, type PoaRequestRow } from "./poa-types";
+import { resolvePoaUnitPricePerWorker } from "./poa-pricing";
 
 type Props = {
   id: string;
@@ -445,7 +446,15 @@ export function PoaRequestDetail({ id, role, userId }: Props) {
                           throw new Error("มีรายการที่ยืนยันชำระแล้ว จึงไม่สามารถเปลี่ยนหนังสือมอบอำนาจได้");
                         }
 
-                        const unit = Number(t.base_price ?? 0);
+                        const baseUnit = Number(t.base_price ?? 0);
+                        const unit = (
+                          await resolvePoaUnitPricePerWorker({
+                            supabase,
+                            repCode: (req as any)?.representative_rep_code ?? null,
+                            poaRequestTypeId: editTypeId,
+                            fallbackUnitPrice: baseUnit,
+                          })
+                        ).unit;
                         const upsertRow = {
                           poa_request_id: req.id,
                           poa_request_type_id: editTypeId,

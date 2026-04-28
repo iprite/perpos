@@ -161,6 +161,12 @@ export function getMenuItems(role: Role | null): MenuItem[] {
       roles: ["admin"],
     },
     {
+      name: "ราคาพิเศษ POA",
+      href: "/poa-price-overrides",
+      icon: <FileSignature className="h-5 w-5" />,
+      roles: ["admin"],
+    },
+    {
       name: "ตัวแทนบริษัท",
       href: "/representatives",
       icon: <UserSquare2 className="h-5 w-5" />,

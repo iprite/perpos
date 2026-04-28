@@ -5,6 +5,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { buildPoaPdfBytes } from "@/components/poa/poa-pdf";
 import type { PoaRequestRow } from "@/components/poa/poa-types";
 import type { CompanyRepRow, TypeOption } from "./poa-request-create-form";
+import { resolvePoaUnitPricePerWorker } from "./poa-pricing";
 
 function repDisplayName(r: CompanyRepRow | null) {
   if (!r) return null;
@@ -78,7 +79,8 @@ export async function createPoaRequestAndMaybePdf({
 
   const requestId = String((created as any)?.id);
 
-  const unit = isOperationContext ? 0 : Number(type.base_price ?? 0);
+  const baseUnit = Number(type.base_price ?? 0);
+  const unit = isOperationContext ? 0 : (await resolvePoaUnitPricePerWorker({ supabase, repCode: rep.rep_code, poaRequestTypeId: type.id, fallbackUnitPrice: baseUnit })).unit;
   const itemRow = {
     poa_request_id: requestId,
     poa_request_type_id: type.id,
@@ -135,4 +137,3 @@ export async function createPoaRequestAndMaybePdf({
 
   return { requestId, createdAt: (created as any)?.created_at ?? null, pdf: { bytes, filename } };
 }
-

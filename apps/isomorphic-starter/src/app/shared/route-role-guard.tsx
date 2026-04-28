@@ -16,6 +16,7 @@ const rules: Rule[] = [
   { prefix: "/users", roles: ["admin"] },
   { prefix: "/services", roles: ["admin"] },
   { prefix: "/poa-request-types", roles: ["admin"] },
+  { prefix: "/poa-price-overrides", roles: ["admin"] },
   { prefix: "/representatives", roles: ["admin"] },
 
   { prefix: "/invoices", roles: ["admin", "sale", "operation"] },
