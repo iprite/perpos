@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Button, Input } from "rizzui";
+import { Button, Input, Popover } from "rizzui";
 import { Title, Text } from "rizzui/typography";
 import toast from "react-hot-toast";
 import AppSelect from "@core/ui/app-select";
@@ -9,12 +9,14 @@ import TablePagination from "@core/components/table/pagination";
 import { getCoreRowModel, useReactTable } from "@tanstack/react-table";
 import TableSearch from "@/components/table/table-search";
 import { useSearchParams } from "next/navigation";
+import { PiCaretDownBold } from "react-icons/pi";
 
 import { Modal } from "@core/modal-views/modal";
 
 import { useAuth } from "@/app/shared/auth-provider";
 import FileUploader from "@/components/form/file-uploader";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { buildQuotePdfBytes } from "@/utils/quote-pdf";
 
 type CustomerOption = { id: string; name: string };
 type ServiceOption = { id: string; name: string; sell_price: number };
@@ -355,6 +357,11 @@ export default function OrdersPage() {
   const [firstIvPayNote, setFirstIvPayNote] = useState("");
   const [firstIvPayFile, setFirstIvPayFile] = useState<File | null>(null);
 
+  const [downloadMenuOpen, setDownloadMenuOpen] = useState(false);
+  const [downloadInvoice, setDownloadInvoice] = useState<InvoiceLiteRow | null>(null);
+  const [downloadReceipt, setDownloadReceipt] = useState<ReceiptLiteRow | null>(null);
+  const [downloadDocsLoading, setDownloadDocsLoading] = useState(false);
+
 
   const [cancelOpen, setCancelOpen] = useState(false);
   const [cancelOrderId, setCancelOrderId] = useState<string | null>(null);
@@ -403,6 +410,9 @@ export default function OrdersPage() {
     setEditingTotalAmount(0);
     setEditingPaidAmount(0);
     setEditingRemainingAmount(0);
+    setDownloadMenuOpen(false);
+    setDownloadInvoice(null);
+    setDownloadReceipt(null);
     setCustomerId("");
     setDiscount("0");
     setIncludeVat(true);
@@ -437,6 +447,31 @@ export default function OrdersPage() {
       } satisfies InvoiceLiteRow;
     },
     [supabase]
+  );
+
+  const loadLatestInvoiceForOrder = useCallback(
+    async (orderId: string) => {
+      if (!orderId) return null;
+      const res = await supabase
+        .from("invoices")
+        .select("id,doc_no,status,grand_total,issued_at")
+        .eq("order_id", orderId)
+        .neq("status", "cancelled")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (res.error) throw res.error;
+      const row = res.data as any;
+      if (!row?.id) return null;
+      return {
+        id: String(row.id),
+        doc_no: row.doc_no ? String(row.doc_no) : null,
+        status: String(row.status ?? ""),
+        grand_total: Number(row.grand_total ?? 0),
+        issued_at: row.issued_at ? String(row.issued_at) : null,
+      } satisfies InvoiceLiteRow;
+    },
+    [supabase],
   );
 
   const downloadInvoicePdf = useCallback(
@@ -484,6 +519,54 @@ export default function OrdersPage() {
     [supabase]
   );
 
+  const loadLatestReceiptForOrder = useCallback(
+    async (orderId: string) => {
+      if (!orderId) return null;
+      const res = await supabase
+        .from("receipts")
+        .select("id,doc_no,invoice_id,invoices!inner(order_id)")
+        .eq("invoices.order_id", orderId)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (res.error) throw res.error;
+      const row = res.data as any;
+      if (!row?.id) return null;
+      return {
+        id: String(row.id),
+        doc_no: row.doc_no ? String(row.doc_no) : null,
+      } satisfies ReceiptLiteRow;
+    },
+    [supabase],
+  );
+
+  const refreshDownloadDocsForOrder = useCallback(
+    async (orderId: string) => {
+      if (!orderId) {
+        setDownloadDocsLoading(false);
+        setDownloadInvoice(null);
+        setDownloadReceipt(null);
+        return;
+      }
+      setDownloadDocsLoading(true);
+      try {
+        let inv = await loadLatestInvoiceForOrder(orderId).catch(() => null);
+        if (!inv?.id) {
+          inv = await loadFirstInstallmentInvoice(orderId).catch(() => null);
+        }
+        setDownloadInvoice(inv);
+        let rec = await loadLatestReceiptForOrder(orderId).catch(() => null);
+        if (!rec?.id && inv?.id) {
+          rec = await loadReceiptForInvoice(inv.id).catch(() => null);
+        }
+        setDownloadReceipt(rec);
+      } finally {
+        setDownloadDocsLoading(false);
+      }
+    },
+    [loadFirstInstallmentInvoice, loadLatestInvoiceForOrder, loadLatestReceiptForOrder, loadReceiptForInvoice],
+  );
+
   const createReceiptFromInvoice = useCallback(async (invoiceId: string) => {
     const res = await fetch("/api/receipts/from-invoice", {
       method: "POST",
@@ -518,6 +601,98 @@ export default function OrdersPage() {
     a.remove();
     URL.revokeObjectURL(objUrl);
   }, []);
+
+  const downloadQuotePdf = useCallback(
+    async (quoteId: string) => {
+      if (!quoteId) return;
+      setLoading(true);
+      setError(null);
+      try {
+        const { data: quote, error: qErr } = await supabase
+          .from("sales_quotes")
+          .select(
+            "id,quote_no,customer_id,customer_name,customer_company,customer_email,customer_phone,billing_address,notes,currency,subtotal,discount_total,include_vat,vat_rate,vat_amount,wht_rate,wht_amount,tax_total,grand_total,valid_until,status,created_by_profile_id,approved_by_profile_id,approved_at,pdf_storage_path,created_at,updated_at",
+          )
+          .eq("id", quoteId)
+          .maybeSingle();
+        if (qErr) throw qErr;
+        if (!quote?.id) throw new Error("ไม่พบใบเสนอราคา");
+
+        const { data: quoteItems, error: itErr } = await supabase
+          .from("sales_quote_items")
+          .select("id,quote_id,service_id,name,description,task_list,quantity,unit_price,line_total,sort_order,created_at")
+          .eq("quote_id", quoteId)
+          .order("sort_order", { ascending: true })
+          .order("created_at", { ascending: true });
+        if (itErr) throw itErr;
+
+        const serviceIds = Array.from(
+          new Set(
+            (quoteItems ?? [])
+              .map((it) => String((it as any).service_id ?? ""))
+              .filter((x) => x.trim().length > 0),
+          ),
+        );
+        const serviceTasksById = new Map<string, string[]>();
+        if (serviceIds.length) {
+          const { data: svcRows, error: svcErr } = await supabase.from("services").select("id,task_list").in("id", serviceIds);
+          if (!svcErr) {
+            for (const s of (svcRows ?? []) as any[]) {
+              const id = String(s?.id ?? "");
+              if (!id) continue;
+              const list = Array.isArray(s?.task_list)
+                ? (s.task_list as unknown[]).filter((x) => typeof x === "string" && x.trim().length).map((x) => String(x).trim())
+                : [];
+              serviceTasksById.set(id, list);
+            }
+          }
+        }
+
+        const itemsWithTasks = (quoteItems ?? []).map((it) => {
+          const perQuoteTasks = Array.isArray((it as any).task_list)
+            ? ((it as any).task_list as unknown[]).filter((x) => typeof x === "string" && x.trim().length).map((x) => String(x).trim())
+            : [];
+          const fallbackTasks = (it as any).service_id ? (serviceTasksById.get(String((it as any).service_id)) ?? []) : [];
+          return { ...(it as any), task_list: perQuoteTasks.length ? perQuoteTasks : fallbackTasks };
+        });
+
+        const customerId = String((quote as any).customer_id ?? "").trim();
+        const { data: cust } = customerId
+          ? await supabase.from("customers").select("tax_id,branch_name,address,contact_name").eq("id", customerId).maybeSingle()
+          : { data: null };
+        const customer = cust
+          ? {
+              tax_id: (cust as any).tax_id ?? null,
+              branch_name: (cust as any).branch_name ?? null,
+              address: (cust as any).address ?? null,
+              contact_name: (cust as any).contact_name ?? null,
+            }
+          : null;
+
+        const bytes = await buildQuotePdfBytes({
+          quote: quote as any,
+          items: itemsWithTasks as any,
+          customer,
+          preparedByProfileId: userId,
+        });
+
+        const blob = new Blob([bytes], { type: "application/pdf" });
+        const objUrl = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = objUrl;
+        a.download = `${String((quote as any).quote_no ?? "quotation")}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(objUrl);
+        setLoading(false);
+      } catch (e: any) {
+        setError(e?.message ?? "ดาวน์โหลดใบเสนอราคาไม่สำเร็จ");
+        setLoading(false);
+      }
+    },
+    [supabase, userId],
+  );
 
   const statusLabel = useCallback((status: string) => {
     if (status === "draft") return "เปิดออเดอร์";
@@ -696,6 +871,18 @@ export default function OrdersPage() {
   }, [editingId, items, orderItemWorkers]);
 
   const canStart = !!editingId && editingStatus === "draft" && !!firstInstallment && workersComplete;
+
+  const canDownloadQuote = !!editingSourceQuoteId;
+  const canDownloadInvoice = !!downloadInvoice;
+  const canDownloadReceipt = !!downloadReceipt;
+  const mayHaveFinanceDocs = editingStatus === "billed_first_installment" || editingStatus === "paid_first_installment" || !!firstInstallment;
+  const hasDownloadMenu = canDownloadQuote || mayHaveFinanceDocs || canDownloadInvoice || canDownloadReceipt;
+
+  useEffect(() => {
+    if (!downloadMenuOpen) return;
+    if (!editingId) return;
+    refreshDownloadDocsForOrder(editingId);
+  }, [downloadMenuOpen, editingId, refreshDownloadDocsForOrder]);
 
   const customerOptions = useMemo(
     () => customers.map((c) => ({ label: c.name, value: c.id })),
@@ -978,6 +1165,7 @@ export default function OrdersPage() {
       if (!canEdit) return;
       const id = String(orderId ?? "").trim();
       if (!id) return;
+      setDownloadMenuOpen(false);
       setLoading(true);
       setError(null);
       try {
@@ -1030,6 +1218,7 @@ export default function OrdersPage() {
         await refreshOrderDocs(id);
         await refreshOrderTransactions(id);
         await refreshOrderEvents(id);
+        await refreshDownloadDocsForOrder(id);
         setLoading(false);
         topRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
       } catch (e: any) {
@@ -1042,6 +1231,7 @@ export default function OrdersPage() {
       canEdit,
       refreshOrderDocs,
       refreshOrderEvents,
+      refreshDownloadDocsForOrder,
       refreshOrderItemWorkers,
       refreshOrderTransactions,
       refreshWorkersForCustomer,
@@ -1129,6 +1319,92 @@ export default function OrdersPage() {
                 >
                   เริ่มดำเนินการ
                 </Button>
+              ) : null}
+              {hasDownloadMenu ? (
+                <Popover isOpen={downloadMenuOpen} setIsOpen={setDownloadMenuOpen} shadow="sm" placement="bottom-end">
+                  <Popover.Trigger>
+                    <button
+                      type="button"
+                      disabled={loading}
+                      className="inline-flex h-9 items-center justify-center rounded-md border border-gray-200 bg-white px-3 text-sm font-medium text-gray-700 hover:bg-gray-100 disabled:opacity-60"
+                    >
+                      ดาวน์โหลด
+                      <PiCaretDownBold strokeWidth={3} className="ml-1.5 h-3.5 w-3.5 text-gray-500" />
+                    </button>
+                  </Popover.Trigger>
+                  <Popover.Content className="z-[9999] w-56 p-2 [&>svg]:hidden">
+                    <div className="flex flex-col gap-1">
+                      {downloadDocsLoading && mayHaveFinanceDocs && !canDownloadInvoice && !canDownloadReceipt ? (
+                        <div className="px-3 py-2 text-xs text-gray-500">กำลังโหลดเอกสาร...</div>
+                      ) : null}
+                      {canDownloadQuote ? (
+                        <button
+                          type="button"
+                          className="w-full rounded-md px-3 py-2 text-left text-sm text-gray-900 hover:bg-gray-100"
+                          onClick={() => {
+                            if (!editingSourceQuoteId) return;
+                            setDownloadMenuOpen(false);
+                            downloadQuotePdf(editingSourceQuoteId);
+                          }}
+                        >
+                          ใบเสนอราคา
+                        </button>
+                      ) : null}
+                      {canDownloadInvoice ? (
+                        <button
+                          type="button"
+                          className="w-full rounded-md px-3 py-2 text-left text-sm text-gray-900 hover:bg-gray-100"
+                          onClick={async () => {
+                            if (!downloadInvoice) return;
+                            if (!downloadInvoice.doc_no) {
+                              setDownloadMenuOpen(false);
+                              setError("ใบแจ้งหนี้ยังไม่มีเลขที่เอกสาร จึงยังดาวน์โหลดไม่ได้");
+                              return;
+                            }
+                            setDownloadMenuOpen(false);
+                            setLoading(true);
+                            setError(null);
+                            try {
+                              await downloadInvoicePdf(downloadInvoice);
+                            } catch (e: any) {
+                              setError(e?.message ?? "ดาวน์โหลดใบแจ้งหนี้ไม่สำเร็จ");
+                            } finally {
+                              setLoading(false);
+                            }
+                          }}
+                        >
+                          ใบแจ้งหนี้
+                        </button>
+                      ) : null}
+                      {canDownloadReceipt ? (
+                        <button
+                          type="button"
+                          className="w-full rounded-md px-3 py-2 text-left text-sm text-gray-900 hover:bg-gray-100"
+                          onClick={async () => {
+                            if (!downloadReceipt) return;
+                            if (!downloadReceipt.doc_no) {
+                              setDownloadMenuOpen(false);
+                              setError("ใบเสร็จรับเงินยังไม่มีเลขที่เอกสาร จึงยังดาวน์โหลดไม่ได้");
+                              return;
+                            }
+                            setDownloadMenuOpen(false);
+                            setLoading(true);
+                            setError(null);
+                            try {
+                              await downloadReceiptPdf(downloadReceipt);
+                            } catch (e: any) {
+                              setError(e?.message ?? "ดาวน์โหลดใบเสร็จไม่สำเร็จ");
+                            } finally {
+                              setLoading(false);
+                            }
+                          }}
+                        >
+                          ใบเสร็จรับเงิน
+                        </button>
+                      ) : null}
+                    </div>
+                  </Popover.Content>
+                </Popover>
               ) : null}
               <Button
                 size="sm"
@@ -1501,6 +1777,7 @@ export default function OrdersPage() {
                             try {
                               const inv = await loadFirstInstallmentInvoice(editingId);
                               if (!inv?.id) throw new Error("ไม่พบใบแจ้งหนี้งวดแรก");
+                              setDownloadInvoice(inv);
                               let rec = await loadReceiptForInvoice(inv.id);
                               if (!rec?.id) {
                                 const created = await createReceiptFromInvoice(inv.id);
@@ -1508,6 +1785,7 @@ export default function OrdersPage() {
                                 rec = created.receiptId ? await loadReceiptForInvoice(inv.id) : null;
                               }
                               if (!rec?.id) throw new Error("ไม่พบใบเสร็จรับเงินงวดแรก");
+                              setDownloadReceipt(rec);
                               await downloadReceiptPdf(rec);
                             } catch (e: any) {
                               setError(e?.message ?? "ดาวน์โหลดใบเสร็จไม่สำเร็จ");
@@ -1538,6 +1816,7 @@ export default function OrdersPage() {
                             try {
                               const inv = await loadFirstInstallmentInvoice(editingId);
                               setFirstIvInvoice(inv);
+                              setDownloadInvoice(inv);
                               setFirstIvPayAmount(inv ? String(inv.grand_total ?? 0) : "");
                             } catch (e: any) {
                               setFirstIvInvoice(null);
@@ -2340,6 +2619,7 @@ export default function OrdersPage() {
                   }
                 } catch {}
                 await refreshOrderDocs(billedOrderId);
+                await refreshDownloadDocsForOrder(billedOrderId);
                 refresh();
               }}
               disabled={

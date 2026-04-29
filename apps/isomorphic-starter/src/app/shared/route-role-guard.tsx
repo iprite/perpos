@@ -14,7 +14,7 @@ type Rule = {
 const rules: Rule[] = [
   { prefix: "/admin", roles: ["admin"] },
   { prefix: "/users", roles: ["admin"] },
-  { prefix: "/services", roles: ["admin"] },
+  { prefix: "/services", roles: ["admin", "sale"] },
   { prefix: "/poa-request-types", roles: ["admin"] },
   { prefix: "/poa-price-overrides", roles: ["admin"] },
   { prefix: "/representatives", roles: ["admin"] },
