@@ -14,6 +14,7 @@ type InvoiceRow = {
   id: string;
   doc_no: string | null;
   status: string;
+  payment_mode: string;
   issue_date: string;
   customer_snapshot: any;
   grand_total: number;
@@ -64,7 +65,7 @@ export default function InvoicesPage() {
       setError(null);
       const res = await supabase
         .from("invoices")
-        .select("id,doc_no,status,issue_date,customer_snapshot,grand_total,created_at")
+        .select("id,doc_no,status,payment_mode,issue_date,customer_snapshot,grand_total,created_at")
         .order("created_at", { ascending: false })
         .limit(300);
       if (res.error) {
@@ -197,7 +198,10 @@ export default function InvoicesPage() {
                 <div className="truncate text-gray-700">{String((r.customer_snapshot ?? {})?.name ?? "-")}</div>
                 <div className="text-gray-700">{r.issue_date}</div>
                 <div className="text-right font-semibold text-gray-900">{asMoney(Number(r.grand_total ?? 0))}</div>
-                <div className="text-gray-700">{statusLabel(String(r.status ?? ""))}</div>
+                <div className="text-gray-700">
+                  <div>{statusLabel(String(r.status ?? ""))}</div>
+                  <div className="mt-0.5 text-xs text-gray-500">{String(r.payment_mode) === "full" ? "ชำระเต็ม" : "แบ่งชำระ"}</div>
+                </div>
               </Link>
             ))
           )}
@@ -236,4 +240,3 @@ export default function InvoicesPage() {
     </div>
   );
 }
-

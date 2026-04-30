@@ -12,10 +12,11 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { Modal } from "@core/modal-views/modal";
 import AppSelect from "@core/ui/app-select";
 import FileUploader from "@/components/form/file-uploader";
+import { InvoiceCreateModal } from "@/components/billing/invoice-create-modal";
 
 import { asMoney, customerNameFromRel, serviceNameFromRel, type EventRow, type OrderItemRow, type OrderRow, type PaymentRow } from "./_types";
 import { ManageOrderEventsCard, ManageOrderServicesCard, ManageOrderSummaryCard } from "./_services-events";
-import { ManageOrderClosePanel, ManageOrderDocumentsPanel, ManageOrderTransactionsPanel, RecordInstallmentModal } from "./_side-panels";
+import { ManageOrderClosePanel, ManageOrderDocumentsPanel, ManageOrderTransactionsPanel } from "./_side-panels";
 import { useManageOrderActions } from "./_actions";
 import { TransactionModal } from "@/components/finance/transaction-modal";
 
@@ -794,19 +795,21 @@ export default function ManageOrderDetailPage() {
         onClose={() => setExpenseOpen(false)}
       />
 
-      <RecordInstallmentModal
+      <InvoiceCreateModal
         isOpen={payOpen}
-        onClose={() => setPayOpen(false)}
-        disabled={loading || isLocked || !isOperableStatus}
-        order={order}
+        onClose={() => {
+          setPayOpen(false);
+          setPayAmount("");
+        }}
         orderId={orderId}
+        orderDisplayId={order?.display_id ?? null}
+        customerName={customerNameFromRel(order?.customers ?? null)}
         installmentNo={nextInstallmentNo}
-        unbilledRemaining={unbilledRemaining}
-        unbilledBaseRemaining={unbilledBaseRemaining}
-        unpaidBilledTotal={unpaidBilledTotal}
-        amount={payAmount}
-        onAmountChange={setPayAmount}
-        onSubmit={billInstallment}
+        disabled={loading || isLocked || !isOperableStatus}
+        onCreated={async () => {
+          refresh();
+          topRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+        }}
       />
 
       <Modal

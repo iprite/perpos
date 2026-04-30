@@ -92,11 +92,13 @@ export async function POST(req: Request) {
       .from("invoices")
       .insert({
         status: "issued",
+        payment_mode: "installment",
         order_id: orderId,
         installment_no: installmentNo,
         issue_date: now.slice(0, 10),
         customer_id: customerId,
         customer_snapshot: customerSnapshot,
+        source_quote_id: quoteId || null,
         subtotal: totals.subtotal,
         discount_total: 0,
         include_vat: includeVat,

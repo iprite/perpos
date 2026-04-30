@@ -477,8 +477,8 @@ export async function POST(request: Request) {
               <tr>
                 <th>บริการ</th>
                 <th class="num">จำนวน</th>
-                <th class="num">ราคาต่อหน่วย</th>
-                <th class="num">รวม</th>
+                <th class="num">ราคา</th>
+                <th class="num">มูลค่า</th>
               </tr>
             </thead>
             <tbody>

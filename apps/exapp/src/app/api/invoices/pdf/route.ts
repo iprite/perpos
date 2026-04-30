@@ -271,7 +271,7 @@ export async function POST(request: Request) {
       supabase
         .from("invoices")
         .select(
-          "id,doc_no,status,issue_date,due_date,order_id,installment_no,customer_snapshot,subtotal,discount_total,include_vat,vat_rate,vat_amount,wht_rate,wht_amount,grand_total,notes,created_by_profile_id",
+          "id,doc_no,status,payment_mode,issue_date,due_date,order_id,installment_no,customer_snapshot,subtotal,discount_total,include_vat,vat_rate,vat_amount,wht_rate,wht_amount,grand_total,notes,created_by_profile_id",
         )
         .eq("id", invoiceId)
         .single(),
@@ -373,7 +373,8 @@ export async function POST(request: Request) {
       unit_price: Number(it.unit_price ?? 0),
       line_total: Number(it.line_total ?? 0),
     }));
-    if (installmentNo === 1 && items.length > 0) {
+    const canAttachQtDetails = String((invoice as any).payment_mode ?? "") !== "full" && installmentNo === 1 && items.length === 1;
+    if (canAttachQtDetails) {
       if (qtContext.quoteNo) {
         const n = String(items[0].name ?? "").trim();
         items[0].name = n.includes(qtContext.quoteNo) ? n : `${n} (${qtContext.quoteNo})`;
@@ -563,8 +564,8 @@ export async function POST(request: Request) {
               <tr>
                 <th>บริการ</th>
                 <th class="num">จำนวน</th>
-                <th class="num">ราคาต่อหน่วย</th>
-                <th class="num">รวม</th>
+                <th class="num">ราคา</th>
+                <th class="num">มูลค่า</th>
               </tr>
             </thead>
             <tbody>

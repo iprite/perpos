@@ -12,12 +12,14 @@ type InvoiceRow = {
   id: string;
   doc_no: string | null;
   status: string;
+  payment_mode: string;
   order_id: string | null;
   installment_no: number | null;
   issue_date: string;
   due_date: string | null;
   customer_id: string | null;
   customer_snapshot: any;
+  source_quote_id: string | null;
   subtotal: number;
   discount_total: number;
   include_vat: boolean;
@@ -166,7 +168,7 @@ export default function InvoiceDetailPage() {
         supabase
           .from("invoices")
           .select(
-            "id,doc_no,status,order_id,installment_no,issue_date,due_date,customer_id,customer_snapshot,subtotal,discount_total,include_vat,vat_rate,vat_amount,wht_rate,wht_amount,grand_total,notes,issued_at,paid_confirmed_at",
+            "id,doc_no,status,payment_mode,order_id,installment_no,issue_date,due_date,customer_id,customer_snapshot,source_quote_id,subtotal,discount_total,include_vat,vat_rate,vat_amount,wht_rate,wht_amount,grand_total,notes,issued_at,paid_confirmed_at",
           )
           .eq("id", id)
           .single(),
@@ -450,7 +452,8 @@ export default function InvoiceDetailPage() {
   if (loading) return <div className="text-sm text-gray-600">กำลังโหลด...</div>;
   if (!invoice) return <div className="text-sm text-red-700">{error ?? "ไม่พบเอกสาร"}</div>;
 
-  const canEdit = invoice.status === "draft";
+  const isFullMode = String(invoice.payment_mode ?? "") === "full";
+  const canEdit = invoice.status === "draft" && !isFullMode;
   const canIssue = invoice.status === "draft";
   const canConfirmPayment = invoice.status === "issued";
   const canIssueReceipt = invoice.status === "paid_confirmed";
@@ -462,6 +465,7 @@ export default function InvoiceDetailPage() {
           <div className="text-xl font-semibold text-gray-900">ใบแจ้งหนี้ (IV)</div>
           <div className="mt-1 text-sm text-gray-600">
             เลขที่: <span className="font-medium text-gray-900">{invoice.doc_no ?? "(ร่าง)"}</span> • สถานะ: {statusLabel(invoice.status)}
+            {invoice.payment_mode ? ` • โหมด: ${isFullMode ? "ชำระเต็ม" : "แบ่งชำระ"}` : ""}
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -748,6 +752,8 @@ export default function InvoiceDetailPage() {
             <div className="font-semibold text-gray-900">ข้อมูลอ้างอิง</div>
             <div className="mt-2">Order: {invoice.order_id ?? "-"}</div>
             <div>งวด: {invoice.installment_no ?? "-"}</div>
+            <div>โหมด: {isFullMode ? "ชำระเต็ม" : "แบ่งชำระ"}</div>
+            <div>อ้างอิง QT: {invoice.source_quote_id ?? "-"}</div>
             <div>ออกเอกสารเมื่อ: {invoice.issued_at ?? "-"}</div>
           </div>
         </div>

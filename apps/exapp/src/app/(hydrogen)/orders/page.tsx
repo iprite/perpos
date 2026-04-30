@@ -14,6 +14,7 @@ import { PiCaretDownBold } from "react-icons/pi";
 import { Modal } from "@core/modal-views/modal";
 
 import { useAuth } from "@/app/shared/auth-provider";
+import { InvoiceCreateModal } from "@/components/billing/invoice-create-modal";
 import FileUploader from "@/components/form/file-uploader";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { buildQuotePdfBytes } from "@/utils/quote-pdf";
@@ -1276,7 +1277,7 @@ export default function OrdersPage() {
                     setPayOpen(true);
                   }}
                 >
-                  วางบิลงวดแรก
+                  ออกใบแจ้งหนี้ (IV)
                 </Button>
               ) : null}
               {editingStatus === "draft" && canStart ? (
@@ -2444,122 +2445,52 @@ export default function OrdersPage() {
         </div>
       </Modal>
 
-      <Modal isOpen={payOpen} onClose={() => setPayOpen(false)}>
-        <div className="rounded-xl bg-white p-5">
-          <div className="text-base font-semibold text-gray-900">วางบิลงวดแรก</div>
-          <div className="mt-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="font-medium text-gray-900">{payOrderDisplayId ?? payOrderId ?? "-"}</div>
-              <div className="font-medium text-gray-900">ยอดสุทธิ: {asMoney(Number(payTotal ?? 0))}</div>
-            </div>
-            <div className="mt-0.5 truncate text-xs text-gray-600">{payCustomerName ?? "-"}</div>
-          </div>
-          <div className="mt-4 grid gap-3">
-            <div>
-              <div className="text-sm font-medium text-gray-700">ยอดก่อน VAT</div>
-              <input
-                className="mt-2 h-10 w-full rounded-md border border-gray-200 bg-white px-3 text-right text-sm"
-                value={payAmount}
-                onChange={(e) => setPayAmount(e.target.value)}
-                inputMode="decimal"
-              />
-            </div>
-
-          </div>
-
-          <div className="mt-5 flex flex-wrap justify-end gap-2">
-            <Button
-              onClick={async () => {
-                if (!payOrderId) return;
-                const amtNum = Number(payAmount || 0);
-                const amt = Number.isFinite(amtNum) ? amtNum : 0;
-                if (amt <= 0) {
-                  setError("กรุณาใส่ยอดเงิน");
-                  return;
-                }
-                setLoading(true);
-                setError(null);
-                const billedOrderId = payOrderId;
-                const ivResult = await fetch("/api/invoices/create-from-order-first-payment", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ orderId: billedOrderId, amount: amt }),
-                });
-                if (!ivResult.ok) {
-                  const data = (await ivResult.json().catch(() => ({}))) as { error?: string };
-                  setError(data.error || "ออกใบแจ้งหนี้ไม่สำเร็จ");
-                  setLoading(false);
-                  return;
-                }
-                const ivData = (await ivResult.json().catch(() => ({}))) as { invoiceId?: string; invoiceNo?: string | null };
-                const invoiceId = String(ivData.invoiceId ?? "").trim();
-                setPayOpen(false);
-                setPayOrderId(null);
-                setPayOrderDisplayId(null);
-                setPayCustomerName(null);
-                setPayTotal(0);
-                setPayAmount("");
-
-    setFirstIvOpen(false);
-    setFirstIvOrderId(null);
-    setFirstIvOrderDisplayId(null);
-    setFirstIvCustomerName(null);
-    setFirstIvTotal(0);
-    setFirstIvLoading(false);
-    setFirstIvInvoice(null);
-    setFirstIvPayAmount("");
-    setFirstIvPayNote("");
-    setFirstIvPayFile(null);
-                setLoading(false);
-                if (billedOrderId) {
-                  await addOrderEvent({
-                    orderId: billedOrderId,
-                    eventType: "first_installment_billed",
-                    message: `วางบิลงวดแรก ${asMoney(amt)} บาท`,
-                    entityTable: "orders",
-                    entityId: billedOrderId,
-                  });
-                }
-
-                if (invoiceId) {
-                  toast.success(`ออกใบแจ้งหนี้${ivData.invoiceNo ? ` ${ivData.invoiceNo}` : ""} แล้ว`);
-                  window.open(`/invoices/${invoiceId}`, "_blank", "noopener,noreferrer");
-                }
-                try {
-                  const { data: ord } = await supabase
-                    .from("orders")
-                    .select("status,paid_amount,remaining_amount,total,source_quote_id")
-                    .eq("id", billedOrderId)
-                    .single();
-                  if (ord && editingId === billedOrderId) {
-                    setEditingStatus((ord as any).status ?? null);
-                    setEditingSourceQuoteId((ord as any).source_quote_id ?? null);
-                    setEditingTotalAmount(Number((ord as any).total ?? 0));
-                    setEditingPaidAmount(Number((ord as any).paid_amount ?? 0));
-                    setEditingRemainingAmount(Number((ord as any).remaining_amount ?? 0));
-                  }
-                } catch {}
-                await refreshOrderDocs(billedOrderId);
-                await refreshDownloadDocsForOrder(billedOrderId);
-                refresh();
-              }}
-              disabled={
-                loading ||
-                !payOrderId ||
-                (() => {
-                  const n = Number(payAmount || 0);
-                  return !Number.isFinite(n) || n <= 0;
-                })()
-              }
-            >
-              วางบิลงวดแรก (ออก IV)
-            </Button>
-            <Button variant="outline" onClick={() => setPayOpen(false)} disabled={loading}>
-              ปิด
-            </Button>
-          </div>
-        </div>
-      </Modal>
+      <InvoiceCreateModal
+        isOpen={payOpen}
+        onClose={() => {
+          setPayOpen(false);
+          setPayOrderId(null);
+          setPayOrderDisplayId(null);
+          setPayCustomerName(null);
+          setPayTotal(0);
+          setPayAmount("");
+        }}
+        orderId={payOrderId}
+        orderDisplayId={payOrderDisplayId}
+        customerName={payCustomerName}
+        installmentNo={1}
+        disabled={loading}
+        onCreated={async (invoiceId) => {
+          const billedOrderId = String(payOrderId ?? "").trim();
+          if (!billedOrderId) return;
+          try {
+            await addOrderEvent({
+              orderId: billedOrderId,
+              eventType: "first_installment_billed",
+              message: "ออกใบแจ้งหนี้งวดแรก",
+              entityTable: "invoices",
+              entityId: invoiceId,
+            });
+          } catch {}
+          try {
+            const { data: ord } = await supabase
+              .from("orders")
+              .select("status,paid_amount,remaining_amount,total,source_quote_id")
+              .eq("id", billedOrderId)
+              .single();
+            if (ord && editingId === billedOrderId) {
+              setEditingStatus((ord as any).status ?? null);
+              setEditingSourceQuoteId((ord as any).source_quote_id ?? null);
+              setEditingTotalAmount(Number((ord as any).total ?? 0));
+              setEditingPaidAmount(Number((ord as any).paid_amount ?? 0));
+              setEditingRemainingAmount(Number((ord as any).remaining_amount ?? 0));
+            }
+          } catch {}
+          await refreshOrderDocs(billedOrderId);
+          await refreshDownloadDocsForOrder(billedOrderId);
+          refresh();
+        }}
+      />
 
       <Modal
         isOpen={firstIvOpen}

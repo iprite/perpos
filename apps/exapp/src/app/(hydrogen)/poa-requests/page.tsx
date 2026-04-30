@@ -167,6 +167,12 @@ export default function PoaRequestsPage() {
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
   const topRef = useRef<HTMLDivElement | null>(null);
 
+  const statusParam = searchParams.get("status");
+  const [statusFilter, setStatusFilter] = useState<"all" | "submitted" | "paid">(() => {
+    if (statusParam === "submitted" || statusParam === "paid") return statusParam;
+    return "all";
+  });
+
   const [loading, setLoading] = useState(false);
   const [rows, setRows] = useState<PoaRow[]>([]);
   const [types, setTypes] = useState<TypeOption[]>([]);
@@ -225,6 +231,29 @@ export default function PoaRequestsPage() {
     [selectableRequestIds, selectedRequestIds],
   );
 
+  React.useEffect(() => {
+    const next = statusParam === "submitted" || statusParam === "paid" ? statusParam : "all";
+    setStatusFilter((prev) => (prev === next ? prev : next));
+  }, [statusParam]);
+
+  const setStatusFilterWithUrl = useCallback(
+    (next: "all" | "submitted" | "paid") => {
+      setStatusFilter(next);
+      setSelectedRequestIds({});
+      const params = new URLSearchParams(searchParams.toString());
+      if (next === "all") params.delete("status");
+      else params.set("status", next);
+      const qs = params.toString();
+      router.push(qs ? `/poa-requests?${qs}` : "/poa-requests");
+    },
+    [router, searchParams],
+  );
+
+  React.useEffect(() => {
+    if (pagination.pageIndex === 0) return;
+    setPagination((p) => ({ ...p, pageIndex: 0 }));
+  }, [statusFilter]);
+
   const refresh = useCallback(() => {
     Promise.resolve().then(async () => {
       setLoading(true);
@@ -238,8 +267,12 @@ export default function PoaRequestsPage() {
         .select(
           "id,display_id,import_temp_id,poa_request_type_id,representative_profile_id,representative_rep_code,representative_name,representative_company_name,employer_name,employer_tax_id,employer_tel,employer_type,employer_address,worker_count,worker_male,worker_female,worker_nation,worker_type,status,created_at,profiles(email),poa_request_items(id,poa_request_type_id,unit_price_per_worker,worker_count,total_price,payment_status,poa_request_types(id,name,base_price))"
         )
+        .in("status", ["submitted", "paid"])
         .order("created_at", { ascending: false })
         .range(from, to);
+      if (statusFilter !== "all") {
+        poaQuery = poaQuery.eq("status", statusFilter);
+      }
       if (role === "representative") {
         setError("หน้านี้สำหรับทีมงานปฏิบัติการ • กรุณาไปที่เมนู ‘คำขอ POA’");
         setRows([]);
@@ -289,11 +322,13 @@ export default function PoaRequestsPage() {
       setLoading(false);
 
       Promise.resolve().then(async () => {
-        const countRes = await supabase.from("poa_requests").select("id", { count: "estimated", head: true });
+        let countQ = supabase.from("poa_requests").select("id", { count: "estimated", head: true }).in("status", ["submitted", "paid"]);
+        if (statusFilter !== "all") countQ = countQ.eq("status", statusFilter);
+        const countRes = await countQ;
         if (!countRes.error) setTotalCount(countRes.count ?? 0);
       });
     });
-  }, [pagination.pageIndex, pagination.pageSize, role, supabase]);
+  }, [pagination.pageIndex, pagination.pageSize, role, statusFilter, supabase]);
 
   const refreshTypes = useCallback(() => {
     Promise.resolve().then(async () => {
@@ -348,6 +383,38 @@ export default function PoaRequestsPage() {
         </div>
         <div className="flex flex-wrap gap-2">
           <TableSearch value={search} onChange={setSearch} disabled={loading} />
+          <div className="inline-flex overflow-hidden rounded-md border border-gray-200 bg-white">
+            <button
+              type="button"
+              className={`h-9 px-3 text-sm font-medium ${
+                statusFilter === "all" ? "bg-gray-100 text-gray-900" : "bg-white text-gray-700 hover:bg-gray-50"
+              }`}
+              onClick={() => setStatusFilterWithUrl("all")}
+              disabled={loading}
+            >
+              ทั้งหมด
+            </button>
+            <button
+              type="button"
+              className={`h-9 border-l border-gray-200 px-3 text-sm font-medium ${
+                statusFilter === "submitted" ? "bg-gray-100 text-gray-900" : "bg-white text-gray-700 hover:bg-gray-50"
+              }`}
+              onClick={() => setStatusFilterWithUrl("submitted")}
+              disabled={loading}
+            >
+              รอชำระ
+            </button>
+            <button
+              type="button"
+              className={`h-9 border-l border-gray-200 px-3 text-sm font-medium ${
+                statusFilter === "paid" ? "bg-gray-100 text-gray-900" : "bg-white text-gray-700 hover:bg-gray-50"
+              }`}
+              onClick={() => setStatusFilterWithUrl("paid")}
+              disabled={loading}
+            >
+              ชำระแล้ว
+            </button>
+          </div>
           {canOperate ? (
             <Button
               variant="outline"
