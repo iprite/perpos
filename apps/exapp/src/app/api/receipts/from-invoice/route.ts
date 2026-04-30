@@ -35,7 +35,7 @@ export async function POST(req: Request) {
     const invRes = await supabase
       .from("invoices")
       .select(
-        "id,doc_no,status,issue_date,customer_id,customer_snapshot,currency,subtotal,discount_total,include_vat,vat_rate,vat_amount,wht_rate,wht_amount,grand_total,paid_confirmed_at",
+        "id,doc_no,status,issue_date,customer_id,customer_snapshot,currency,source_quote_id,subtotal,discount_total,include_vat,vat_rate,vat_amount,wht_rate,wht_amount,grand_total,paid_confirmed_at",
       )
       .eq("id", invoiceId)
       .single();
@@ -45,10 +45,38 @@ export async function POST(req: Request) {
 
     const itemsRes = await supabase
       .from("invoice_items")
-      .select("name,description,quantity,unit,unit_price,line_total,sort_order")
+      .select("name,description,quantity,unit,unit_price,line_total,sort_order,source_quote_item_id")
       .eq("invoice_id", invoiceId)
       .order("sort_order", { ascending: true });
     if (itemsRes.error) return NextResponse.json({ error: itemsRes.error.message }, { status: 500 });
+
+    const quoteId = String(inv.source_quote_id ?? "").trim() || null;
+    const quoteItemIds = quoteId
+      ? Array.from(
+          new Set(
+            ((itemsRes.data ?? []) as any[])
+              .map((x) => String((x as any).source_quote_item_id ?? "").trim())
+              .filter((x) => !!x),
+          ),
+        )
+      : [];
+    const quoteItemsById = new Map<string, { task_list: unknown; description: unknown }>();
+    if (quoteItemIds.length) {
+      const qItemRes = await supabase.from("sales_quote_items").select("id,task_list,description").in("id", quoteItemIds);
+      if (!qItemRes.error) {
+        for (const row of (qItemRes.data ?? []) as any[]) {
+          quoteItemsById.set(String(row.id), { task_list: row.task_list, description: row.description });
+        }
+      }
+    }
+
+    const combine = (input: { description: unknown; task_list: unknown }) => {
+      const desc = String(input.description ?? "").trim();
+      const raw = input.task_list as unknown;
+      const tasks = Array.isArray(raw) ? raw.filter((x) => typeof x === "string" && x.trim().length).map((x) => `• ${x.trim()}`) : [];
+      const out = [desc, ...tasks].filter((x) => !!String(x ?? "").trim()).join("\n");
+      return out || null;
+    };
 
     const today = new Date().toISOString().slice(0, 10);
     const receiptInsert = await supabase
@@ -96,16 +124,26 @@ export async function POST(req: Request) {
 
     const receiptId = String((receiptInsert.data as any).id);
 
-    const payload = ((itemsRes.data ?? []) as any[]).map((it, idx) => ({
+    const payload = ((itemsRes.data ?? []) as any[]).map((it, idx) => {
+      const sourceQuoteItemId = String((it as any).source_quote_item_id ?? "").trim() || null;
+      const fromQuote = sourceQuoteItemId ? quoteItemsById.get(sourceQuoteItemId) : null;
+      const desc = (() => {
+        const existing = String(it.description ?? "").trim();
+        if (existing) return existing;
+        if (!fromQuote) return null;
+        return combine({ description: fromQuote.description, task_list: fromQuote.task_list });
+      })();
+      return {
       receipt_id: receiptId,
       name: String(it.name ?? "-") || "-",
-      description: it.description ?? null,
+        description: desc,
       quantity: it.quantity ?? 1,
       unit: it.unit ?? null,
       unit_price: it.unit_price ?? 0,
       line_total: it.line_total ?? 0,
       sort_order: Number(it.sort_order ?? idx + 1),
-    }));
+      };
+    });
 
     if (payload.length) {
       const insItems = await supabase.from("receipt_items").upsert(payload, { onConflict: "receipt_id,sort_order" });

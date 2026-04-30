@@ -271,7 +271,7 @@ export async function POST(request: Request) {
       supabase
         .from("receipts")
         .select(
-          "id,doc_no,status,issue_date,paid_date,customer_snapshot,subtotal,discount_total,include_vat,vat_rate,vat_amount,wht_rate,wht_amount,grand_total,notes,created_by_profile_id",
+          "id,doc_no,status,invoice_id,issue_date,paid_date,customer_snapshot,subtotal,discount_total,include_vat,vat_rate,vat_amount,wht_rate,wht_amount,grand_total,notes,created_by_profile_id",
         )
         .eq("id", receiptId)
         .single(),
@@ -304,13 +304,65 @@ export async function POST(request: Request) {
     const notesText = String(receipt.notes ?? "").trim();
     const notesHtml = escapeHtml(notesText || "-").replaceAll("\n", "<br/>");
 
-    const items = ((itemRes.data ?? []) as any[]).map((it) => ({
-      name: String(it.name ?? "-"),
-      description: String(it.description ?? ""),
-      quantity: Number(it.quantity ?? 0),
-      unit_price: Number(it.unit_price ?? 0),
-      line_total: Number(it.line_total ?? 0),
-    }));
+    const receiptItemsRaw = ((itemRes.data ?? []) as any[]) as any[];
+    const needFallback = receiptItemsRaw.some((x) => !String(x?.description ?? "").trim());
+
+    const fallbackBySortOrder = new Map<number, { description: string; source_quote_item_id: string | null }>();
+    const quoteItemsById = new Map<string, { description: unknown; task_list: unknown }>();
+
+    const combine = (input: { description: unknown; task_list: unknown }) => {
+      const desc = String(input.description ?? "").trim();
+      const raw = input.task_list as unknown;
+      const tasks = Array.isArray(raw) ? raw.filter((x) => typeof x === "string" && x.trim().length).map((x) => `• ${x.trim()}`) : [];
+      const out = [desc, ...tasks].filter((x) => !!String(x ?? "").trim()).join("\n");
+      return out || "";
+    };
+
+    if (needFallback) {
+      const invId = String(receipt.invoice_id ?? "").trim();
+      if (invId) {
+        const invItemsRes = await supabase
+          .from("invoice_items")
+          .select("sort_order,description,source_quote_item_id")
+          .eq("invoice_id", invId)
+          .order("sort_order", { ascending: true });
+        if (!invItemsRes.error) {
+          const invItems = ((invItemsRes.data ?? []) as any[]) as any[];
+          for (const row of invItems) {
+            const so = Number(row.sort_order ?? 0);
+            const d = String(row.description ?? "").trim();
+            const qid = String(row.source_quote_item_id ?? "").trim() || null;
+            fallbackBySortOrder.set(so, { description: d, source_quote_item_id: qid });
+          }
+
+          const quoteItemIds = Array.from(new Set(invItems.map((x) => String(x.source_quote_item_id ?? "").trim()).filter((x) => !!x)));
+          if (quoteItemIds.length) {
+            const qItemsRes = await supabase.from("sales_quote_items").select("id,description,task_list").in("id", quoteItemIds);
+            if (!qItemsRes.error) {
+              for (const row of (qItemsRes.data ?? []) as any[]) {
+                quoteItemsById.set(String(row.id), { description: row.description, task_list: row.task_list });
+              }
+            }
+          }
+        }
+      }
+    }
+
+    const items = receiptItemsRaw.map((it) => {
+      const sortOrder = Number(it.sort_order ?? 0);
+      const existingDesc = String(it.description ?? "").trim();
+      const fb = fallbackBySortOrder.get(sortOrder);
+      const fromInvDesc = fb?.description ? fb.description : "";
+      const fromQuote = fb?.source_quote_item_id ? quoteItemsById.get(fb.source_quote_item_id) : null;
+      const merged = existingDesc || fromInvDesc || (fromQuote ? combine(fromQuote) : "");
+      return {
+        name: String(it.name ?? "-"),
+        description: merged,
+        quantity: Number(it.quantity ?? 0),
+        unit_price: Number(it.unit_price ?? 0),
+        line_total: Number(it.line_total ?? 0),
+      };
+    });
 
     const perPage = 18;
     const pages = chunk(items, perPage);

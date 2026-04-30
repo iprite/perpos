@@ -13,6 +13,14 @@ function round2(n: number) {
   return Math.round(safeNumber(n) * 100) / 100;
 }
 
+function combineDescriptionAndTasks(input: { description: unknown; task_list: unknown }) {
+  const desc = String(input.description ?? "").trim();
+  const raw = input.task_list as unknown;
+  const tasks = Array.isArray(raw) ? raw.filter((x) => typeof x === "string" && x.trim().length).map((x) => `• ${x.trim()}`) : [];
+  const out = [desc, ...tasks].filter((x) => !!String(x ?? "").trim()).join("\n");
+  return out || null;
+}
+
 function computeTotalsFromAfterDiscount(input: { afterDiscountBase: number; includeVat: boolean; vatRate: number; whtRate: number }) {
   const b = Math.max(0, safeNumber(input.afterDiscountBase));
   const vr = Math.max(0, safeNumber(input.vatRate));
@@ -94,7 +102,7 @@ export async function POST(req: Request) {
           .single(),
         supabase
           .from("sales_quote_items")
-          .select("id,name,description,quantity,unit_price,line_total,sort_order")
+          .select("id,name,description,task_list,quantity,unit_price,line_total,sort_order")
           .eq("quote_id", quoteId)
           .order("sort_order", { ascending: true }),
       ]);
@@ -143,7 +151,7 @@ export async function POST(req: Request) {
         return {
           invoice_id: invoiceId,
           name: String(it.name ?? "").trim() || "บริการ",
-          description: it.description ?? null,
+          description: combineDescriptionAndTasks({ description: it.description, task_list: (it as any).task_list }),
           quantity: qty,
           unit: null,
           unit_price: unitPrice,
@@ -249,4 +257,3 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: e?.message ?? "Unexpected error" }, { status: 500 });
   }
 }
-
