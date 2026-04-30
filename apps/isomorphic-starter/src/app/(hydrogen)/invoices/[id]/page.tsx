@@ -6,6 +6,7 @@ import { Button, Input, Textarea } from "rizzui";
 import toast from "react-hot-toast";
 
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { useAuth } from "@/app/shared/auth-provider";
 
 type InvoiceRow = {
   id: string;
@@ -22,6 +23,8 @@ type InvoiceRow = {
   include_vat: boolean;
   vat_rate: number;
   vat_amount: number;
+  wht_rate: number;
+  wht_amount: number;
   grand_total: number;
   notes: string | null;
   issued_at: string | null;
@@ -107,6 +110,7 @@ export default function InvoiceDetailPage() {
   const params = useParams();
   const router = useRouter();
   const supabase = React.useMemo(() => createSupabaseBrowserClient(), []);
+  const { userId } = useAuth();
   const id = String((params as any)?.id ?? "").trim();
 
   const [loading, setLoading] = React.useState(true);
@@ -127,6 +131,7 @@ export default function InvoiceDetailPage() {
   const [dueDate, setDueDate] = React.useState("");
   const [includeVat, setIncludeVat] = React.useState(true);
   const [vatRate, setVatRate] = React.useState("7");
+  const [whtRate, setWhtRate] = React.useState("0");
   const [discountTotal, setDiscountTotal] = React.useState("0");
   const [notes, setNotes] = React.useState("");
 
@@ -145,9 +150,11 @@ export default function InvoiceDetailPage() {
     const afterDiscount = Math.max(0, subtotal - discount);
     const vr = Math.max(0, safeNumber(vatRate));
     const vat = includeVat && vr > 0 ? Math.round(afterDiscount * (vr / 100) * 100) / 100 : 0;
-    const grand = Math.round((afterDiscount + vat) * 100) / 100;
-    return { subtotal, discount, afterDiscount, vat, grand };
-  }, [discountTotal, includeVat, items, vatRate]);
+    const wr = Math.max(0, safeNumber(whtRate));
+    const wht = wr > 0 ? Math.round(afterDiscount * (wr / 100) * 100) / 100 : 0;
+    const grand = Math.round((afterDiscount + vat - wht) * 100) / 100;
+    return { subtotal, discount, afterDiscount, vat, wht, grand, whtRate: wr };
+  }, [discountTotal, includeVat, items, vatRate, whtRate]);
 
   const refresh = React.useCallback(() => {
     if (!id) return;
@@ -159,7 +166,7 @@ export default function InvoiceDetailPage() {
         supabase
           .from("invoices")
           .select(
-            "id,doc_no,status,order_id,installment_no,issue_date,due_date,customer_id,customer_snapshot,subtotal,discount_total,include_vat,vat_rate,vat_amount,grand_total,notes,issued_at,paid_confirmed_at",
+            "id,doc_no,status,order_id,installment_no,issue_date,due_date,customer_id,customer_snapshot,subtotal,discount_total,include_vat,vat_rate,vat_amount,wht_rate,wht_amount,grand_total,notes,issued_at,paid_confirmed_at",
           )
           .eq("id", id)
           .single(),
@@ -219,6 +226,7 @@ export default function InvoiceDetailPage() {
       setDueDate(String(inv.due_date ?? ""));
       setIncludeVat(!!inv.include_vat);
       setVatRate(String(inv.vat_rate ?? 7));
+      setWhtRate(String((inv as any).wht_rate ?? 0));
       setDiscountTotal(String(inv.discount_total ?? 0));
       setNotes(String(inv.notes ?? ""));
 
@@ -309,6 +317,8 @@ export default function InvoiceDetailPage() {
           include_vat: includeVat,
           vat_rate: safeNumber(vatRate),
           vat_amount: computed.vat,
+          wht_rate: computed.whtRate,
+          wht_amount: computed.wht,
           grand_total: computed.grand,
           notes: notes.trim() || null,
         })
@@ -417,7 +427,7 @@ export default function InvoiceDetailPage() {
       const res = await fetch("/api/invoices/pdf", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ invoiceId: invoice.id }),
+        body: JSON.stringify({ invoiceId: invoice.id, issued_by_profile_id: userId }),
       });
       if (!res.ok) {
         const data = (await res.json().catch(() => ({}))) as { error?: string };
@@ -435,7 +445,7 @@ export default function InvoiceDetailPage() {
     } catch (e: any) {
       toast.error(e?.message ?? "สร้าง PDF ไม่สำเร็จ");
     }
-  }, [invoice]);
+  }, [invoice, userId]);
 
   if (loading) return <div className="text-sm text-gray-600">กำลังโหลด...</div>;
   if (!invoice) return <div className="text-sm text-red-700">{error ?? "ไม่พบเอกสาร"}</div>;
@@ -709,10 +719,24 @@ export default function InvoiceDetailPage() {
                 <div className="text-gray-600">ยอดหลังส่วนลด</div>
                 <div className="font-medium text-gray-900">{asMoney(computed.afterDiscount)}</div>
               </div>
-              <div className="flex items-center justify-between">
-                <div className="text-gray-600">VAT</div>
-                <div className="font-medium text-gray-900">{asMoney(computed.vat)}</div>
-              </div>
+              {includeVat ? (
+                <div className="flex items-center justify-between">
+                  <div className="text-gray-600">VAT</div>
+                  <div className="font-medium text-gray-900">{asMoney(computed.vat)}</div>
+                </div>
+              ) : null}
+              {computed.whtRate > 0 ? (
+                <div className="flex items-center justify-between">
+                  <div className="text-gray-600">หัก ณ ที่จ่าย ({computed.whtRate}%)</div>
+                  <div className="font-medium text-gray-900">{asMoney(computed.wht)}</div>
+                </div>
+              ) : null}
+              {computed.whtRate > 0 ? (
+                <div className="flex items-center justify-between">
+                  <div className="text-gray-600">ยอดก่อนหัก ณ ที่จ่าย</div>
+                  <div className="font-medium text-gray-900">{asMoney(computed.grand + computed.wht)}</div>
+                </div>
+              ) : null}
               <div className="mt-2 flex items-center justify-between border-t border-gray-200 pt-2">
                 <div className="text-sm font-semibold text-gray-900">ยอดสุทธิ</div>
                 <div className="text-sm font-semibold text-gray-900">{asMoney(computed.grand)}</div>

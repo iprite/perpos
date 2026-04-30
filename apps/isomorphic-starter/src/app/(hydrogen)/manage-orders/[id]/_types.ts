@@ -20,6 +20,13 @@ export type OrderRow = {
   id: string;
   display_id: string | null;
   status: string;
+  subtotal?: number | null;
+  discount?: number | null;
+  include_vat?: boolean | null;
+  vat_rate?: number | null;
+  vat_amount?: number | null;
+  wht_rate?: number | null;
+  wht_amount?: number | null;
   total: number;
   paid_amount: number;
   remaining_amount: number;

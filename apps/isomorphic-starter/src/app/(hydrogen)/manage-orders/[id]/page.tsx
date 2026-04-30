@@ -69,6 +69,12 @@ type InvoiceRow = {
   doc_no: string | null;
   status: string;
   installment_no: number;
+  subtotal: number;
+  include_vat: boolean;
+  vat_rate: number;
+  vat_amount: number;
+  wht_rate: number;
+  wht_amount: number;
   grand_total: number;
   issued_at: string | null;
   paid_confirmed_at: string | null;
@@ -195,7 +201,7 @@ export default function ManageOrderDetailPage() {
         supabase
           .from("orders")
           .select(
-            "id,display_id,status,total,paid_amount,remaining_amount,created_at,closed_at,source_quote_id,customers(name,tax_id,address,contact_name,phone)",
+            "id,display_id,status,subtotal,discount,include_vat,vat_rate,vat_amount,wht_rate,wht_amount,total,paid_amount,remaining_amount,created_at,closed_at,source_quote_id,customers(name,tax_id,address,contact_name,phone)",
           )
           .eq("id", orderId)
           .single(),
@@ -211,7 +217,7 @@ export default function ManageOrderDetailPage() {
           .order("installment_no", { ascending: true }),
         supabase
           .from("invoices")
-          .select("id,doc_no,status,installment_no,grand_total,issued_at,paid_confirmed_at")
+          .select("id,doc_no,status,installment_no,subtotal,include_vat,vat_rate,vat_amount,wht_rate,wht_amount,grand_total,issued_at,paid_confirmed_at")
           .eq("order_id", orderId)
           .neq("status", "cancelled")
           .order("installment_no", { ascending: true })
@@ -397,6 +403,20 @@ export default function ManageOrderDetailPage() {
       .filter((inv) => String(inv.status) !== "paid_confirmed" && String(inv.status) !== "cancelled")
       .reduce((acc, inv) => acc + Number(inv.grand_total ?? 0), 0);
   }, [invoices]);
+
+  const billedBaseTotal = useMemo(() => {
+    return (invoices ?? [])
+      .filter((inv) => String(inv.status) !== "cancelled")
+      .reduce((acc, inv) => acc + Number(inv.subtotal ?? 0), 0);
+  }, [invoices]);
+
+  const unbilledBaseRemaining = useMemo(() => {
+    const subtotal = Number(order?.subtotal ?? 0);
+    const discount = Number(order?.discount ?? 0);
+    const baseTotal = Math.max(0, (Number.isFinite(subtotal) ? subtotal : 0) - (Number.isFinite(discount) ? discount : 0));
+    const billedBase = Number.isFinite(billedBaseTotal) ? billedBaseTotal : 0;
+    return Math.max(0, baseTotal - billedBase);
+  }, [billedBaseTotal, order?.discount, order?.subtotal]);
 
   const unbilledRemaining = useMemo(() => {
     const remaining = Number(order?.remaining_amount ?? 0);
@@ -767,6 +787,7 @@ export default function ManageOrderDetailPage() {
         orderId={orderId}
         installmentNo={nextInstallmentNo}
         unbilledRemaining={unbilledRemaining}
+        unbilledBaseRemaining={unbilledBaseRemaining}
         unpaidBilledTotal={unpaidBilledTotal}
         amount={payAmount}
         onAmountChange={setPayAmount}

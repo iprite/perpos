@@ -550,6 +550,7 @@ export function RecordInstallmentModal({
   orderId,
   installmentNo,
   unbilledRemaining,
+  unbilledBaseRemaining,
   unpaidBilledTotal,
   amount,
   onAmountChange,
@@ -562,6 +563,7 @@ export function RecordInstallmentModal({
   orderId: string;
   installmentNo: number;
   unbilledRemaining: number;
+  unbilledBaseRemaining: number;
   unpaidBilledTotal: number;
   amount: string;
   onAmountChange: (v: string) => void;
@@ -570,7 +572,30 @@ export function RecordInstallmentModal({
   const remaining = Number(order?.remaining_amount ?? 0);
   const unpaidBilled = Number(unpaidBilledTotal ?? 0);
   const unbilled = Number(unbilledRemaining ?? 0);
-  const maxAmount = Math.max(0, unbilled);
+  const maxNet = Math.max(0, unbilled);
+  const baseRemaining = Math.max(0, Number(unbilledBaseRemaining ?? 0));
+
+  const includeVat = Boolean(order?.include_vat);
+  const vatRate = Math.max(0, Number(order?.vat_rate ?? 0));
+  const whtRate = Math.max(0, Number(order?.wht_rate ?? 0));
+  const factor = (() => {
+    const vatFactor = includeVat && vatRate > 0 ? vatRate / 100 : 0;
+    const whtFactor = whtRate > 0 ? whtRate / 100 : 0;
+    return Math.max(0, 1 + vatFactor - whtFactor);
+  })();
+  const maxBaseFromNet = factor > 0 ? maxNet / factor : 0;
+  const maxBase = Math.max(0, Math.min(baseRemaining, maxBaseFromNet));
+
+  const parsedBase = (() => {
+    const raw = String(amount ?? "").replaceAll(",", "").trim();
+    const n = Number(raw || 0);
+    return Number.isFinite(n) ? n : 0;
+  })();
+  const base = Math.max(0, parsedBase);
+  const vatAmount = includeVat && vatRate > 0 ? Math.round(base * (vatRate / 100) * 100) / 100 : 0;
+  const whtAmount = whtRate > 0 ? Math.round(base * (whtRate / 100) * 100) / 100 : 0;
+  const preWhtTotal = Math.round((base + vatAmount) * 100) / 100;
+  const grandTotal = Math.round((base + vatAmount - whtAmount) * 100) / 100;
   return (
     <Modal isOpen={isOpen} onClose={onClose}>
       <div className="rounded-xl bg-white p-5">
@@ -592,14 +617,18 @@ export function RecordInstallmentModal({
             </div>
             <div className="flex items-center justify-between gap-2">
               <div className="text-gray-600">ยอดคงเหลือที่ยังไม่ได้วางบิล</div>
-              <div className="font-semibold text-gray-900">{asMoney(maxAmount)}</div>
+              <div className="font-semibold text-gray-900">{asMoney(maxNet)}</div>
+            </div>
+            <div className="flex items-center justify-between gap-2">
+              <div className="text-gray-600">ฐานที่ยังไม่ได้วางบิล</div>
+              <div className="font-semibold text-gray-900">{asMoney(baseRemaining)}</div>
             </div>
           </div>
         </div>
 
         <div className="mt-4 grid gap-3">
           <div>
-            <div className="text-sm font-medium text-gray-700">ยอดเงิน</div>
+            <div className="text-sm font-medium text-gray-700">ยอดวางบิล (ฐานก่อน VAT/WHT)</div>
             <input
               className="mt-2 h-10 w-full rounded-md border border-gray-200 bg-white px-3 text-right text-sm"
               value={amount}
@@ -607,13 +636,35 @@ export function RecordInstallmentModal({
               inputMode="decimal"
               disabled={disabled}
             />
-            <div className="mt-1 text-xs text-gray-500">ใส่ได้ไม่เกิน {asMoney(maxAmount)} บาท</div>
+            <div className="mt-1 text-xs text-gray-500">ใส่ได้ไม่เกิน {asMoney(maxBase)} บาท</div>
+            <div className="mt-3 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-700">
+              <div className="flex items-center justify-between gap-2">
+                <div className="text-gray-600">VAT{includeVat && vatRate > 0 ? ` (${vatRate}%)` : ""}</div>
+                <div className="font-semibold text-gray-900">{asMoney(vatAmount)}</div>
+              </div>
+              {whtRate > 0 ? (
+                <div className="mt-1 flex items-center justify-between gap-2">
+                  <div className="text-gray-600">หัก ณ ที่จ่าย ({whtRate}%)</div>
+                  <div className="font-semibold text-gray-900">{asMoney(whtAmount)}</div>
+                </div>
+              ) : null}
+              {whtRate > 0 ? (
+                <div className="mt-1 flex items-center justify-between gap-2">
+                  <div className="text-gray-600">ยอดก่อนหัก ณ ที่จ่าย</div>
+                  <div className="font-semibold text-gray-900">{asMoney(preWhtTotal)}</div>
+                </div>
+              ) : null}
+              <div className="mt-2 flex items-center justify-between gap-2 border-t border-gray-200 pt-2">
+                <div className="font-semibold text-gray-900">ยอดสุทธิออกใบแจ้งหนี้ (IV)</div>
+                <div className="font-semibold text-gray-900">{asMoney(grandTotal)}</div>
+              </div>
+            </div>
             <div className="mt-2 flex flex-wrap justify-end gap-2">
               <Button
                 size="sm"
                 variant="outline"
-                onClick={() => onAmountChange(String(maxAmount))}
-                disabled={disabled || maxAmount <= 0}
+                onClick={() => onAmountChange(String(maxBase))}
+                disabled={disabled || maxBase <= 0}
               >
                 ยอดคงเหลือทั้งหมด
               </Button>
@@ -627,8 +678,9 @@ export function RecordInstallmentModal({
             disabled={
               disabled ||
               (() => {
-                const n = Number(amount || 0);
-                return !Number.isFinite(n) || n <= 0 || n > maxAmount;
+                const raw = String(amount ?? "").replaceAll(",", "").trim();
+                const n = Number(raw || 0);
+                return !Number.isFinite(n) || n <= 0 || n > maxBase;
               })()
             }
           >

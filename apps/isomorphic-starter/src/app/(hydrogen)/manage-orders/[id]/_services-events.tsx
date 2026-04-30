@@ -102,6 +102,17 @@ export function ManageOrderSummaryCard({
   const unpaidBilled = Number(unpaidBilledTotal ?? 0);
   const hasUnpaidBilled = Number.isFinite(unpaidBilled) ? unpaidBilled > 0 : false;
 
+  const subtotal = Number(order?.subtotal ?? 0);
+  const discount = Number(order?.discount ?? 0);
+  const afterDiscount = Math.max(0, (Number.isFinite(subtotal) ? subtotal : 0) - (Number.isFinite(discount) ? discount : 0));
+  const includeVat = Boolean(order?.include_vat);
+  const vatRate = Math.max(0, Number(order?.vat_rate ?? 0));
+  const vatAmount = Number(order?.vat_amount ?? 0);
+  const whtRate = Math.max(0, Number(order?.wht_rate ?? 0));
+  const whtAmount = Number(order?.wht_amount ?? 0);
+  const netTotal = Number(order?.total ?? 0);
+  const preWhtTotal = whtRate > 0 ? netTotal + (Number.isFinite(whtAmount) ? whtAmount : 0) : netTotal;
+
   const customer = customerFromRel((order as any)?.customers ?? null) as
     | { name?: string | null; tax_id?: string | null; address?: string | null; contact_name?: string | null; phone?: string | null }
     | null;
@@ -170,8 +181,30 @@ export function ManageOrderSummaryCard({
         <div className="text-sm font-semibold text-gray-900">ข้อมูลการเงิน</div>
         <div className="mt-4 space-y-3">
           <div className="flex items-baseline justify-between gap-3">
+            <div className="text-sm text-gray-600">ยอดหลังส่วนลด</div>
+            <div className="text-base tabular-nums text-gray-900">{asMoney(Number.isFinite(afterDiscount) ? afterDiscount : 0)}</div>
+          </div>
+          {includeVat && vatRate > 0 ? (
+            <div className="flex items-baseline justify-between gap-3">
+              <div className="text-sm text-gray-600">VAT ({vatRate}%)</div>
+              <div className="text-base tabular-nums text-gray-900">{asMoney(Number.isFinite(vatAmount) ? vatAmount : 0)}</div>
+            </div>
+          ) : null}
+          {whtRate > 0 ? (
+            <div className="flex items-baseline justify-between gap-3">
+              <div className="text-sm text-gray-600">หัก ณ ที่จ่าย ({whtRate}%)</div>
+              <div className="text-base tabular-nums text-gray-900">{asMoney(Number.isFinite(whtAmount) ? whtAmount : 0)}</div>
+            </div>
+          ) : null}
+          {whtRate > 0 ? (
+            <div className="flex items-baseline justify-between gap-3">
+              <div className="text-sm text-gray-600">ยอดก่อนหัก ณ ที่จ่าย</div>
+              <div className="text-base tabular-nums text-gray-900">{asMoney(Number.isFinite(preWhtTotal) ? preWhtTotal : 0)}</div>
+            </div>
+          ) : null}
+          <div className="flex items-baseline justify-between gap-3">
             <div className="text-sm text-gray-600">ยอดสุทธิ</div>
-            <div className="text-lg font-semibold tabular-nums text-gray-900">{asMoney(Number(order?.total ?? 0))}</div>
+            <div className="text-lg font-semibold tabular-nums text-gray-900">{asMoney(Number.isFinite(netTotal) ? netTotal : 0)}</div>
           </div>
           <div className="flex items-baseline justify-between gap-3">
             <div className="text-sm text-gray-600">ยอดชำระแล้ว</div>

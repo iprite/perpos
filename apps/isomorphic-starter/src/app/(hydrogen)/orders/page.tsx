@@ -479,7 +479,7 @@ export default function OrdersPage() {
       const res = await fetch("/api/invoices/pdf", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ invoiceId: invoice.id }),
+        body: JSON.stringify({ invoiceId: invoice.id, issued_by_profile_id: userId }),
       });
       if (!res.ok) {
         const data = (await res.json().catch(() => ({}))) as { error?: string };
@@ -495,7 +495,7 @@ export default function OrdersPage() {
       a.remove();
       URL.revokeObjectURL(objUrl);
     },
-    []
+    [userId]
   );
 
   const loadReceiptForInvoice = useCallback(
@@ -585,7 +585,7 @@ export default function OrdersPage() {
     const res = await fetch("/api/receipts/pdf", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ receiptId: receipt.id }),
+      body: JSON.stringify({ receiptId: receipt.id, issued_by_profile_id: userId }),
     });
     if (!res.ok) {
       const data = (await res.json().catch(() => ({}))) as { error?: string };
@@ -600,7 +600,7 @@ export default function OrdersPage() {
     a.click();
     a.remove();
     URL.revokeObjectURL(objUrl);
-  }, []);
+  }, [userId]);
 
   const downloadQuotePdf = useCallback(
     async (quoteId: string) => {
@@ -1262,18 +1262,6 @@ export default function OrdersPage() {
               <Text className="mt-1 text-sm text-gray-600">อัปเดตสถานะงาน ผูกแรงงาน และจัดการเอกสารออเดอร์</Text>
             </div>
             <div className="flex flex-wrap items-center justify-end gap-2">
-              {editingSourceQuoteId ? (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={loading}
-                  onClick={() => {
-                    window.location.href = `/quotes?quote_id=${editingSourceQuoteId}`;
-                  }}
-                >
-                  ใบเสนอราคา
-                </Button>
-              ) : null}
               {editingStatus === "draft" ? (
                 <Button
                   size="sm"
@@ -1323,16 +1311,12 @@ export default function OrdersPage() {
               {hasDownloadMenu ? (
                 <Popover isOpen={downloadMenuOpen} setIsOpen={setDownloadMenuOpen} shadow="sm" placement="bottom-end">
                   <Popover.Trigger>
-                    <button
-                      type="button"
-                      disabled={loading}
-                      className="inline-flex h-9 items-center justify-center rounded-md border border-gray-200 bg-white px-3 text-sm font-medium text-gray-700 hover:bg-gray-100 disabled:opacity-60"
-                    >
+                    <Button size="sm" variant="outline" type="button" disabled={loading} className="whitespace-nowrap">
                       ดาวน์โหลด
                       <PiCaretDownBold strokeWidth={3} className="ml-1.5 h-3.5 w-3.5 text-gray-500" />
-                    </button>
+                    </Button>
                   </Popover.Trigger>
-                  <Popover.Content className="z-[9999] w-56 p-2 [&>svg]:hidden">
+                  <Popover.Content className="z-[9999] w-auto min-w-max p-2 [&>svg]:hidden">
                     <div className="flex flex-col gap-1">
                       {downloadDocsLoading && mayHaveFinanceDocs && !canDownloadInvoice && !canDownloadReceipt ? (
                         <div className="px-3 py-2 text-xs text-gray-500">กำลังโหลดเอกสาร...</div>
@@ -1340,7 +1324,7 @@ export default function OrdersPage() {
                       {canDownloadQuote ? (
                         <button
                           type="button"
-                          className="w-full rounded-md px-3 py-2 text-left text-sm text-gray-900 hover:bg-gray-100"
+                          className="w-full whitespace-nowrap rounded-md px-3 py-2 text-left text-sm text-gray-900 hover:bg-gray-100"
                           onClick={() => {
                             if (!editingSourceQuoteId) return;
                             setDownloadMenuOpen(false);
@@ -1353,7 +1337,7 @@ export default function OrdersPage() {
                       {canDownloadInvoice ? (
                         <button
                           type="button"
-                          className="w-full rounded-md px-3 py-2 text-left text-sm text-gray-900 hover:bg-gray-100"
+                          className="w-full whitespace-nowrap rounded-md px-3 py-2 text-left text-sm text-gray-900 hover:bg-gray-100"
                           onClick={async () => {
                             if (!downloadInvoice) return;
                             if (!downloadInvoice.doc_no) {
@@ -1379,7 +1363,7 @@ export default function OrdersPage() {
                       {canDownloadReceipt ? (
                         <button
                           type="button"
-                          className="w-full rounded-md px-3 py-2 text-left text-sm text-gray-900 hover:bg-gray-100"
+                          className="w-full whitespace-nowrap rounded-md px-3 py-2 text-left text-sm text-gray-900 hover:bg-gray-100"
                           onClick={async () => {
                             if (!downloadReceipt) return;
                             if (!downloadReceipt.doc_no) {
@@ -1406,6 +1390,18 @@ export default function OrdersPage() {
                   </Popover.Content>
                 </Popover>
               ) : null}
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  setAddDocType("");
+                  setAddDocFile(null);
+                  setAddDocOpen(true);
+                }}
+                disabled={loading || !editingId}
+              >
+                เพิ่มเอกสาร
+              </Button>
               <Button
                 size="sm"
                 variant="outline"
@@ -1765,69 +1761,6 @@ export default function OrdersPage() {
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="text-sm font-semibold text-gray-900">ข้อมูลการเงิน</div>
                     <div className="flex flex-wrap items-center justify-end gap-2">
-                      {firstInstallment ? (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          disabled={loading || !editingId}
-                          onClick={async () => {
-                            if (!editingId) return;
-                            setLoading(true);
-                            setError(null);
-                            try {
-                              const inv = await loadFirstInstallmentInvoice(editingId);
-                              if (!inv?.id) throw new Error("ไม่พบใบแจ้งหนี้งวดแรก");
-                              setDownloadInvoice(inv);
-                              let rec = await loadReceiptForInvoice(inv.id);
-                              if (!rec?.id) {
-                                const created = await createReceiptFromInvoice(inv.id);
-                                if (created.receiptNo) toast.success(`ออกใบเสร็จ ${created.receiptNo} แล้ว`);
-                                rec = created.receiptId ? await loadReceiptForInvoice(inv.id) : null;
-                              }
-                              if (!rec?.id) throw new Error("ไม่พบใบเสร็จรับเงินงวดแรก");
-                              setDownloadReceipt(rec);
-                              await downloadReceiptPdf(rec);
-                            } catch (e: any) {
-                              setError(e?.message ?? "ดาวน์โหลดใบเสร็จไม่สำเร็จ");
-                            }
-                            setLoading(false);
-                          }}
-                        >
-                          ใบเสร็จรับเงินงวดแรก
-                        </Button>
-                      ) : editingStatus === "billed_first_installment" ? (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          disabled={loading || !editingId}
-                          onClick={async () => {
-                            if (!editingId) return;
-                            setError(null);
-                            setFirstIvOrderId(editingId);
-                            setFirstIvOrderDisplayId(editingDisplayId ?? null);
-                            setFirstIvCustomerName(selectedCustomerName);
-                            setFirstIvTotal(editingTotalAmount);
-                            setFirstIvInvoice(null);
-                            setFirstIvPayFile(null);
-                            setFirstIvPayNote("");
-                            setFirstIvPayAmount("");
-                            setFirstIvOpen(true);
-                            setFirstIvLoading(true);
-                            try {
-                              const inv = await loadFirstInstallmentInvoice(editingId);
-                              setFirstIvInvoice(inv);
-                              setDownloadInvoice(inv);
-                              setFirstIvPayAmount(inv ? String(inv.grand_total ?? 0) : "");
-                            } catch (e: any) {
-                              setFirstIvInvoice(null);
-                              setError(e?.message ?? "โหลดใบแจ้งหนี้งวดแรกไม่สำเร็จ");
-                            }
-                            setFirstIvLoading(false);
-                          }}
-                        >
-                          ใบแจ้งหนี้งวดแรก
-                        </Button>
-                      ) : null}
                     </div>
                   </div>
                   <div className="mt-2 grid gap-2 text-sm text-gray-700">
@@ -1985,18 +1918,6 @@ export default function OrdersPage() {
                 <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
                   <div className="flex items-center justify-between gap-2 bg-white px-4 py-3">
                     <div className="text-sm font-semibold text-gray-900">รายการเอกสาร</div>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => {
-                        setAddDocType("");
-                        setAddDocFile(null);
-                        setAddDocOpen(true);
-                      }}
-                      disabled={loading || !editingId}
-                    >
-                      เพิ่มเอกสาร
-                    </Button>
                   </div>
                   <div className="p-3">
                     {!hasAnyDocs ? (
@@ -2535,7 +2456,7 @@ export default function OrdersPage() {
           </div>
           <div className="mt-4 grid gap-3">
             <div>
-              <div className="text-sm font-medium text-gray-700">ยอดเงิน</div>
+              <div className="text-sm font-medium text-gray-700">ยอดก่อน VAT</div>
               <input
                 className="mt-2 h-10 w-full rounded-md border border-gray-200 bg-white px-3 text-right text-sm"
                 value={payAmount}

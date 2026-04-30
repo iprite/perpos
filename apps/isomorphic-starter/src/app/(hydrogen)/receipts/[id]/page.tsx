@@ -6,6 +6,7 @@ import { Button } from "rizzui";
 import toast from "react-hot-toast";
 
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { useAuth } from "@/app/shared/auth-provider";
 
 type ReceiptRow = {
   id: string;
@@ -19,6 +20,8 @@ type ReceiptRow = {
   include_vat: boolean;
   vat_rate: number;
   vat_amount: number;
+  wht_rate: number;
+  wht_amount: number;
   grand_total: number;
   paid_date: string | null;
   payment_method: string | null;
@@ -46,6 +49,7 @@ export default function ReceiptDetailPage() {
   const params = useParams();
   const router = useRouter();
   const supabase = React.useMemo(() => createSupabaseBrowserClient(), []);
+  const { userId } = useAuth();
   const id = String((params as any)?.id ?? "").trim();
 
   const [loading, setLoading] = React.useState(true);
@@ -62,7 +66,7 @@ export default function ReceiptDetailPage() {
         supabase
           .from("receipts")
           .select(
-            "id,doc_no,status,invoice_id,issue_date,customer_snapshot,subtotal,discount_total,include_vat,vat_rate,vat_amount,grand_total,paid_date,payment_method,payment_ref,notes",
+            "id,doc_no,status,invoice_id,issue_date,customer_snapshot,subtotal,discount_total,include_vat,vat_rate,vat_amount,wht_rate,wht_amount,grand_total,paid_date,payment_method,payment_ref,notes",
           )
           .eq("id", id)
           .single(),
@@ -92,7 +96,7 @@ export default function ReceiptDetailPage() {
       const res = await fetch("/api/receipts/pdf", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ receiptId: receipt.id }),
+        body: JSON.stringify({ receiptId: receipt.id, issued_by_profile_id: userId }),
       });
       if (!res.ok) {
         const data = (await res.json().catch(() => ({}))) as { error?: string };
@@ -110,7 +114,7 @@ export default function ReceiptDetailPage() {
     } catch (e: any) {
       toast.error(e?.message ?? "สร้าง PDF ไม่สำเร็จ");
     }
-  }, [receipt]);
+  }, [receipt, userId]);
 
   if (loading) return <div className="text-sm text-gray-600">กำลังโหลด...</div>;
   if (!receipt) return <div className="text-sm text-red-700">{error ?? "ไม่พบเอกสาร"}</div>;
@@ -180,9 +184,31 @@ export default function ReceiptDetailPage() {
                 <div className="font-medium text-gray-900">{asMoney(Number(receipt.discount_total ?? 0))}</div>
               </div>
               <div className="flex items-center justify-between">
-                <div className="text-gray-600">VAT</div>
-                <div className="font-medium text-gray-900">{asMoney(Number(receipt.vat_amount ?? 0))}</div>
+                <div className="text-gray-600">ยอดหลังส่วนลด</div>
+                <div className="font-medium text-gray-900">
+                  {asMoney(Math.max(0, Number(receipt.subtotal ?? 0) - Number(receipt.discount_total ?? 0)))}
+                </div>
               </div>
+              {Boolean(receipt.include_vat) ? (
+                <div className="flex items-center justify-between">
+                  <div className="text-gray-600">VAT</div>
+                  <div className="font-medium text-gray-900">{asMoney(Number(receipt.vat_amount ?? 0))}</div>
+                </div>
+              ) : null}
+              {Number(receipt.wht_rate ?? 0) > 0 ? (
+                <div className="flex items-center justify-between">
+                  <div className="text-gray-600">หัก ณ ที่จ่าย ({Number(receipt.wht_rate ?? 0)}%)</div>
+                  <div className="font-medium text-gray-900">{asMoney(Number(receipt.wht_amount ?? 0))}</div>
+                </div>
+              ) : null}
+              {Number(receipt.wht_rate ?? 0) > 0 ? (
+                <div className="flex items-center justify-between">
+                  <div className="text-gray-600">ยอดก่อนหัก ณ ที่จ่าย</div>
+                  <div className="font-medium text-gray-900">
+                    {asMoney(Number(receipt.grand_total ?? 0) + Number(receipt.wht_amount ?? 0))}
+                  </div>
+                </div>
+              ) : null}
               <div className="mt-2 flex items-center justify-between border-t border-gray-200 pt-2">
                 <div className="text-sm font-semibold text-gray-900">ยอดสุทธิ</div>
                 <div className="text-sm font-semibold text-gray-900">{asMoney(Number(receipt.grand_total ?? 0))}</div>
@@ -201,4 +227,3 @@ export default function ReceiptDetailPage() {
     </div>
   );
 }
-

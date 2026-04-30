@@ -9,17 +9,18 @@ function safeNumber(v: unknown) {
   return Number.isFinite(n) ? n : 0;
 }
 
-function computeVatFromGrand(grandTotal: number, includeVat: boolean, vatRate: number) {
-  const g = Math.max(0, safeNumber(grandTotal));
-  const r = Math.max(0, safeNumber(vatRate));
-  if (!includeVat || r <= 0) return { subtotal: g, vatAmount: 0, grandTotal: g };
-  const base = g / (1 + r / 100);
-  const vat = g - base;
-  return {
-    subtotal: Math.round(base * 100) / 100,
-    vatAmount: Math.round(vat * 100) / 100,
-    grandTotal: Math.round(g * 100) / 100,
-  };
+function round2(n: number) {
+  return Math.round(safeNumber(n) * 100) / 100;
+}
+
+function computeTotalsFromBase(input: { base: number; includeVat: boolean; vatRate: number; whtRate: number }) {
+  const b = Math.max(0, safeNumber(input.base));
+  const vr = Math.max(0, safeNumber(input.vatRate));
+  const wr = Math.max(0, safeNumber(input.whtRate));
+  const vatAmount = input.includeVat && vr > 0 ? round2(b * (vr / 100)) : 0;
+  const whtAmount = wr > 0 ? round2(b * (wr / 100)) : 0;
+  const grandTotal = round2(b + vatAmount - whtAmount);
+  return { subtotal: round2(b), vatAmount, whtRate: round2(wr), whtAmount, grandTotal };
 }
 
 export async function POST(req: Request) {
@@ -36,7 +37,7 @@ export async function POST(req: Request) {
 
     const orderRes = await supabase
       .from("orders")
-      .select("id,display_id,customer_id,include_vat,vat_rate,status")
+      .select("id,display_id,customer_id,include_vat,vat_rate,wht_rate,status,source_quote_id")
       .eq("id", orderId)
       .single();
     if (orderRes.error || !orderRes.data) return NextResponse.json({ error: orderRes.error?.message ?? "Order not found" }, { status: 404 });
@@ -67,7 +68,17 @@ export async function POST(req: Request) {
 
     const includeVat = !!order.include_vat;
     const vatRate = safeNumber(order.vat_rate);
-    const totals = computeVatFromGrand(amountNum, includeVat, vatRate);
+
+    let whtRate = Math.max(0, safeNumber(order.wht_rate));
+    const quoteId = String(order.source_quote_id ?? "").trim();
+    if (whtRate <= 0 && quoteId) {
+      const qRes = await supabase.from("sales_quotes").select("wht_rate").eq("id", quoteId).maybeSingle();
+      if (!qRes.error && qRes.data) {
+        whtRate = Math.max(0, safeNumber((qRes.data as any).wht_rate));
+      }
+    }
+
+    const totals = computeTotalsFromBase({ base: amountNum, includeVat, vatRate, whtRate });
 
     const customerSnapshot = {
       name: String((custRes.data as any).name ?? "").trim(),
@@ -91,6 +102,8 @@ export async function POST(req: Request) {
         include_vat: includeVat,
         vat_rate: vatRate,
         vat_amount: totals.vatAmount,
+        wht_rate: totals.whtRate,
+        wht_amount: totals.whtAmount,
         grand_total: totals.grandTotal,
         notes: `วางบิลงวดที่ ${installmentNo} ของออเดอร์ ${(order.display_id ?? orderId) as string}`,
         issued_at: now,
@@ -131,4 +144,3 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: e?.message ?? "Unexpected error" }, { status: 500 });
   }
 }
-

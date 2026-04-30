@@ -220,7 +220,45 @@ function chunk<T>(arr: T[], size: number) {
   return out.length ? out : [[]];
 }
 
-type ReceiptPdfRequest = { receiptId: string };
+function mimeFromFilename(fileName: string | null | undefined) {
+  const f = String(fileName ?? "").toLowerCase();
+  if (f.endsWith(".jpg") || f.endsWith(".jpeg")) return "image/jpeg";
+  if (f.endsWith(".webp")) return "image/webp";
+  return "image/png";
+}
+
+async function loadUserAssetDataUrls(input: {
+  profileId: string;
+  supabase: ReturnType<typeof createSupabaseAdminClient>;
+}) {
+  const res = await input.supabase
+    .from("user_assets")
+    .select("asset_type,storage_bucket,storage_path,file_name,mime_type")
+    .eq("profile_id", input.profileId)
+    .in("asset_type", ["signature", "stamp"]);
+
+  if (res.error) return { signatureDataUrl: null as string | null, stampDataUrl: null as string | null };
+
+  let signatureDataUrl: string | null = null;
+  let stampDataUrl: string | null = null;
+
+  for (const row of (res.data ?? []) as any[]) {
+    const bucket = String(row.storage_bucket ?? "");
+    const path = String(row.storage_path ?? "");
+    if (!bucket || !path) continue;
+    const dl = await input.supabase.storage.from(bucket).download(path);
+    if (dl.error || !dl.data) continue;
+    const bytes = Buffer.from(await dl.data.arrayBuffer());
+    const mime = String(row.mime_type ?? "").trim() || mimeFromFilename(row.file_name);
+    const url = `data:${mime};base64,${bytes.toString("base64")}`;
+    if (row.asset_type === "signature") signatureDataUrl = url;
+    if (row.asset_type === "stamp") stampDataUrl = url;
+  }
+
+  return { signatureDataUrl, stampDataUrl };
+}
+
+type ReceiptPdfRequest = { receiptId: string; issued_by_profile_id?: string | null };
 
 export async function POST(request: Request) {
   try {
@@ -233,7 +271,7 @@ export async function POST(request: Request) {
       supabase
         .from("receipts")
         .select(
-          "id,doc_no,status,issue_date,paid_date,customer_snapshot,subtotal,discount_total,include_vat,vat_rate,vat_amount,grand_total,notes",
+          "id,doc_no,status,issue_date,paid_date,customer_snapshot,subtotal,discount_total,include_vat,vat_rate,vat_amount,wht_rate,wht_amount,grand_total,notes,created_by_profile_id",
         )
         .eq("id", receiptId)
         .single(),
@@ -283,6 +321,14 @@ export async function POST(request: Request) {
     const afterDiscount = Math.max(0, subtotal - discountTotal);
     const grand = Number.isFinite(receipt.grand_total) ? Number(receipt.grand_total) : 0;
     const vat = Number.isFinite(receipt.vat_amount) ? Number(receipt.vat_amount) : 0;
+    const vatRateNum = Number(receipt.vat_rate ?? 0);
+    const whtRateNum = Number(receipt.wht_rate ?? 0);
+    const wht = Number.isFinite(receipt.wht_amount) ? Number(receipt.wht_amount) : 0;
+
+    const issuedByProfileId = String(body?.issued_by_profile_id ?? "").trim() || String(receipt.created_by_profile_id ?? "").trim();
+    const { signatureDataUrl, stampDataUrl } = issuedByProfileId
+      ? await loadUserAssetDataUrls({ profileId: issuedByProfileId, supabase })
+      : { signatureDataUrl: null, stampDataUrl: null };
 
     const sheetHtml = (rows: typeof items, pageIndex: number) => {
       const isLast = pageIndex === totalPages - 1;
@@ -314,8 +360,8 @@ export async function POST(request: Request) {
 
       const totalsHtml = isLast
         ? `
-        <div class="bottom">
-        <div class="summary">
+        <div class="bottom" id="qt-bottom-block">
+        <div class="summary" id="qt-summary-block">
           <div class="summary-left">
             <div class="summary-title"><span>สรุป</span></div>
             <div class="summary-words">จำนวนเงินทั้งหมด ${escapeHtml(thaiBahtText(grand))}</div>
@@ -331,26 +377,56 @@ export async function POST(request: Request) {
                   ? `<div class="summary-line"><div>รวมก่อนส่วนลด</div><div class="num">${money(subtotal)} บาท</div></div>
                      <div class="summary-line"><div>ส่วนลด</div><div class="num">${money(discountTotal)} บาท</div></div>
                      <div class="summary-line"><div>ยอดหลังส่วนลด</div><div class="num">${money(afterDiscount)} บาท</div></div>`
-                  : `<div class="summary-line"><div>รวม</div><div class="num">${money(afterDiscount)} บาท</div></div>`
+                  : ``
               }
               ${
                 receipt.include_vat
-                  ? `<div class="summary-line"><div>VAT (${Number(receipt.vat_rate ?? 0)}%)</div><div class="num">${money(vat)} บาท</div></div>`
+                  ? `<div class="summary-line"><div>VAT (${vatRateNum}%)</div><div class="num">${money(vat)} บาท</div></div>`
                   : ``
               }
+              ${whtRateNum > 0 ? `<div class="summary-line"><div>หัก ณ ที่จ่าย (${whtRateNum}%)</div><div class="num">-${money(wht)} บาท</div></div>` : ``}
               <div class="summary-line total"><div>ยอดสุทธิ</div><div class="num">${money(grand)} บาท</div></div>
             </div>
           </div>
         </div>
 
-        <div class="sigmeta">
-          <div class="sigfield"><div class="k">ผู้รับเงิน</div><div class="v">__________________________</div></div>
-          <div class="sigfield"><div class="k">วันที่</div><div class="v">____/____/____</div></div>
-        </div>
+        <div class="qt-footer" id="qt-footer-block">
+          <div class="notes" id="qt-notes-block">
+            <div class="section-title"><span>หมายเหตุ</span></div>
+            <div class="notes-body">${notesHtml}</div>
+          </div>
 
-        <div class="notes">
-          <div class="notes-title">หมายเหตุ</div>
-          <div class="notes-body">${notesHtml}</div>
+          <div class="cert">
+            <div class="section-title"><span>รับรอง</span></div>
+            <div class="cert-grid">
+              <div class="sigcard">
+                <div class="sigcard-top">
+                  <div class="sigrole">ผู้รับบริการ</div>
+                </div>
+                <div class="sigcard-body">
+                  <div class="sigmeta">
+                    <div class="sigfield"><span class="k">ลงชื่อ</span><span class="v">&nbsp;</span></div>
+                    <div class="sigfield"><span class="k">วันที่</span><span class="v">&nbsp;</span></div>
+                  </div>
+                </div>
+              </div>
+              <div class="sigcard">
+                <div class="sigcard-top">
+                  <div class="sigrole">ผู้ออกเอกสาร</div>
+                </div>
+                <div class="sigcard-body">
+                  <div class="sigimgs">
+                    ${signatureDataUrl ? `<img class="signature" alt="signature" src="${signatureDataUrl}" />` : ``}
+                    ${stampDataUrl ? `<img class="stamp" alt="stamp" src="${stampDataUrl}" />` : ``}
+                  </div>
+                  <div class="sigmeta">
+                    <div class="sigfield"><span class="k">ลงชื่อ</span><span class="v">&nbsp;</span></div>
+                    <div class="sigfield"><span class="k">วันที่</span><span class="v">${escapeHtml(new Intl.DateTimeFormat("th-TH", { day: "2-digit", month: "2-digit", year: "numeric" }).format(issueAt))}</span></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
         </div>
       `
@@ -361,7 +437,7 @@ export async function POST(request: Request) {
         <div class="header">
           <div class="topbar"></div>
           <div class="header-row">
-            <div class="logo"><span class="ex">Ex</span><span class="worker">Worker</span></div>
+            <div class="logo"><span class="ex">EX</span><span class="worker">WORKER</span></div>
             <div class="doc-title-wrap">
               <div class="doc-copy">RECEIPT / TAX INVOICE</div>
               <div class="doc-title">ใบเสร็จรับเงิน/ใบกำกับภาษี</div>
@@ -375,10 +451,6 @@ export async function POST(request: Request) {
               <div class="seller-row"><div class="k">ผู้ขาย :</div><div class="v">บริษัท นำคนต่างด้าวมาทำงานในประเทศ เอ็กซ์เวิร์คเกอร์ จำกัด</div></div>
               <div class="seller-row"><div class="k">เลขที่ภาษี :</div><div class="v">0115559001880 (สำนักงานใหญ่)</div></div>
               <div class="seller-row"><div class="k">ที่อยู่ :</div><div class="v">เลขที่ 6/15 หมู่ที่ 7 ถนน ศรีนครินทร์ ตำบล บางเมือง อำเภอเมืองสมุทรปราการ จังหวัด สมุทรปราการ 10270</div></div>
-              <div class="seller-contacts">
-                <div class="contact"><span class="ci">✉</span> sales@exworker.co.th</div>
-                <div class="contact"><span class="ci">☎</span> 098-648-6488</div>
-              </div>
             </div>
             <div class="docbox">
               <div class="docbox-row"><div class="k">เลขที่เอกสาร :</div><div class="v">${receiptNo}</div></div>
@@ -415,13 +487,22 @@ export async function POST(request: Request) {
           </table>
 
           ${totalsHtml}
-          <div class="page-no">หน้า ${pageIndex + 1} / ${totalPages}</div>
+          <div class="page-no" data-page-index="${pageIndex + 1}"></div>
         </div>
       </div>
     `;
     };
 
     const sheetsHtml = pages.map((p, idx) => sheetHtml(p, idx)).join("");
+    const footerHostSheet = `
+      <div class="sheet qt-footer-sheet" id="qt-footer-sheet" style="display:none">
+        <div class="header"></div>
+        <div class="content qt-footer-content">
+          <div class="qt-footer-host" id="qt-footer-host"></div>
+          <div class="page-no" data-page-index="${totalPages + 1}"></div>
+        </div>
+      </div>
+    `;
 
     const html = `<!doctype html>
 <html lang="th">
@@ -447,20 +528,24 @@ export async function POST(request: Request) {
       .logo .worker { font-weight: 300; color: #666; }
       .doc-title-wrap { text-align: right; }
       .doc-copy { font-size: 11px; color: #6b7280; }
-      .doc-title { margin-top: 2px; font-weight: 700; font-size: 22px; color: #4aa3df; letter-spacing: 0.3px; }
+      .doc-title { margin-top: 2px; font-weight: 700; font-size: 28px; color: #4aa3df; letter-spacing: 0.3px; }
 
       .sheet { display: flex; flex-direction: column; }
       .header { flex: 0 0 114px; }
       .content { flex: 1 1 auto; display: flex; flex-direction: column; padding: 10px 34px 14px 34px; }
+      .qt-footer { margin-top: auto; break-inside: avoid; page-break-inside: avoid; }
+      .qt-footer-sheet .header { display: none; }
+      .qt-footer-content { display: flex; flex-direction: column; height: 100%; }
+      .qt-footer-host { margin-top: auto; }
 
       .top-grid { display: grid; grid-template-columns: 1fr 240px; gap: 18px; align-items: start; }
       .seller { font-size: 12px; color: #111827; }
       .seller-row { display: grid; grid-template-columns: 70px 1fr; gap: 8px; margin-top: 6px; }
       .seller-row .k { font-weight: 700; color: #374151; }
       .seller-row .v { color: #111827; }
-      .seller-contacts { display: grid; grid-template-columns: 1fr; gap: 6px; margin-top: 10px; }
-      .contact { display: flex; gap: 8px; align-items: center; color: #111827; }
-      .ci { display: inline-flex; width: 16px; justify-content: center; color: #6b7280; font-size: 11px; line-height: 1; }
+
+      .section-title { font-weight: 700; color: #111827; font-size: 12px; }
+      .section-title span { background: #eaf4ff; border-radius: 999px; padding: 4px 10px; display: inline-block; }
 
       .docbox { background: #eaf4ff; border-radius: 10px; padding: 12px 14px; font-size: 12px; color: #111827; }
       .docbox-row { display: grid; grid-template-columns: 92px 1fr; gap: 8px; margin-top: 6px; }
@@ -492,23 +577,48 @@ export async function POST(request: Request) {
       .num { text-align: right; white-space: nowrap; }
       .empty { text-align: center; color: #6b7280; padding: 18px 0; }
 
-      .bottom { margin-top: auto; }
+      .bottom { margin-top: auto; display: flex; flex-direction: column; }
       .summary { display: grid; grid-template-columns: 1fr 310px; gap: 16px; align-items: start; }
       .summary-title { font-weight: 700; color: #111827; font-size: 13px; }
       .summary-words { margin-top: 4px; font-size: 12px; color: #111827; }
-      .summary-totalbox { background: #0b2441; color: #fff; border-radius: 10px; padding: 12px 14px; }
-      .summary-totalbox-title { font-size: 11px; opacity: 0.9; }
-      .summary-totalbox-amount { margin-top: 6px; font-weight: 700; font-size: 20px; letter-spacing: 0.2px; }
-      .summary-totalbox-amount .currency { font-size: 12px; opacity: 0.9; }
-      .summary-lines { margin-top: 10px; display: grid; gap: 6px; font-size: 12px; }
-      .summary-line { display: flex; justify-content: space-between; color: #111827; }
-      .summary-line.total { font-weight: 700; }
+      .summary-totalbox { background: #eaf4ff; border-radius: 10px; padding: 12px 14px; }
+      .summary-totalbox-title { font-weight: 700; font-size: 12px; color: #111827; }
+      .summary-totalbox-amount { margin-top: 6px; font-weight: 700; font-size: 18px; color: #2e7bcf; text-align: right; }
+      .summary-totalbox-amount .currency { font-weight: 700; font-size: 12px; color: #111827; }
+      .summary-lines { margin-top: 8px; padding: 0 14px; font-size: 11px; color: #111827; }
+      .summary-line { display: flex; justify-content: space-between; padding: 3px 0; }
+      .summary-line.total { border-top: 1px solid #e5e7eb; padding-top: 8px; margin-top: 6px; }
 
-      .notes { margin-top: 14px; border-top: 1px solid #e5e7eb; padding-top: 10px; }
-      .notes-title { font-weight: 700; font-size: 12px; color: #111827; }
-      .notes-body { margin-top: 6px; font-size: 12px; color: #374151; line-height: 1.45; }
+      .qt-footer .section-title { display: flex; align-items: center; gap: 8px; font-weight: 700; color: #111827; margin-top: 16px; font-size: 12px; }
+      .qt-footer .section-title span { background: transparent; border-radius: 0; padding: 0; display: inline; }
 
-      .sigmeta { margin-top: 14px; display: flex; flex-direction: column; gap: 6px; font-size: 12px; }
+      .qt-footer .notes { margin-top: 14px; border-top: 0; padding-top: 0; }
+      .qt-footer .notes-body { margin-top: 10px; min-height: 18px; font-size: 12px; color: #111827; line-height: 1.45; }
+
+      .qt-footer .cert { margin-top: 10px; margin-bottom: 26px; }
+      .qt-footer .cert-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 10px; align-items: center; }
+      .sigcard {
+        border: 1px solid #dbe7f7;
+        border-radius: 14px;
+        background: linear-gradient(180deg, #f4f9ff 0%, #ffffff 70%);
+        height: 118px;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      }
+      .sigcard-top {
+        padding: 10px 12px;
+        background: rgba(74, 163, 223, 0.12);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .sigrole { font-weight: 700; font-size: 12px; color: #0b2441; }
+      .sigcard-body { padding: 10px 14px 10px 14px; display: flex; flex: 1 1 auto; flex-direction: column; position: relative; }
+      .sigimgs { position: absolute; left: 14px; right: 14px; top: 8px; bottom: 8px; z-index: 2; }
+      .sigimgs .signature { position: absolute; left: 28px; bottom: 15px; max-height: 62px; max-width: 190px; object-fit: contain; opacity: 0.98; }
+      .sigimgs .stamp { position: absolute; right: 0; bottom: 0; width: 192px; height: auto; object-fit: contain; opacity: 0.92; }
+      .sigmeta { margin-top: auto; display: flex; flex-direction: column; gap: 6px; font-size: 12px; position: relative; z-index: 1; }
       .sigfield { display: flex; justify-content: space-between; gap: 10px; align-items: center; }
       .sigfield .k { font-weight: 700; color: #374151; white-space: nowrap; }
       .sigfield .v { color: #111827; white-space: nowrap; min-width: 140px; text-align: right; }
@@ -519,6 +629,43 @@ export async function POST(request: Request) {
   </head>
   <body>
     ${sheetsHtml}
+    ${footerHostSheet}
+    <script>
+      (function () {
+        var bottom = document.getElementById("qt-bottom-block");
+        var footerSheet = document.getElementById("qt-footer-sheet");
+        var host = document.getElementById("qt-footer-host");
+        if (bottom && footerSheet && host) {
+          var sheet = bottom.closest(".sheet");
+          if (sheet) {
+            var bottomRect = bottom.getBoundingClientRect();
+            var sheetRect = sheet.getBoundingClientRect();
+            var summary = document.getElementById("qt-summary-block");
+            var notes = document.getElementById("qt-notes-block");
+            var overflow = Math.ceil(bottomRect.bottom) > Math.floor(sheetRect.bottom);
+            var overlap = false;
+            if (summary && notes) {
+              var summaryRect = summary.getBoundingClientRect();
+              var notesRect = notes.getBoundingClientRect();
+              overlap = Math.floor(notesRect.top) < Math.ceil(summaryRect.bottom + 8);
+            }
+            if (overflow || overlap) {
+              footerSheet.style.display = "";
+              host.appendChild(bottom);
+            }
+          }
+        }
+
+        var sheets = Array.prototype.slice.call(document.querySelectorAll('.sheet')).filter(function (el) {
+          return window.getComputedStyle(el).display !== 'none';
+        });
+        var total = sheets.length || 1;
+        for (var i = 0; i < sheets.length; i++) {
+          var p = sheets[i].querySelector('.page-no');
+          if (p) p.textContent = 'หน้า ' + (i + 1) + '/' + total;
+        }
+      })();
+    </script>
   </body>
 </html>`;
 

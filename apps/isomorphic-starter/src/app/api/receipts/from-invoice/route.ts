@@ -34,7 +34,9 @@ export async function POST(req: Request) {
 
     const invRes = await supabase
       .from("invoices")
-      .select("id,doc_no,status,issue_date,customer_id,customer_snapshot,currency,subtotal,discount_total,include_vat,vat_rate,vat_amount,grand_total,paid_confirmed_at")
+      .select(
+        "id,doc_no,status,issue_date,customer_id,customer_snapshot,currency,subtotal,discount_total,include_vat,vat_rate,vat_amount,wht_rate,wht_amount,grand_total,paid_confirmed_at",
+      )
       .eq("id", invoiceId)
       .single();
     if (invRes.error || !invRes.data) return NextResponse.json({ error: invRes.error?.message ?? "Invoice not found" }, { status: 404 });
@@ -63,6 +65,8 @@ export async function POST(req: Request) {
         include_vat: inv.include_vat ?? true,
         vat_rate: inv.vat_rate ?? 7,
         vat_amount: inv.vat_amount ?? 0,
+        wht_rate: inv.wht_rate ?? 0,
+        wht_amount: inv.wht_amount ?? 0,
         grand_total: inv.grand_total ?? 0,
         paid_date: paidDate ?? (inv.paid_confirmed_at ? String(inv.paid_confirmed_at).slice(0, 10) : today),
         payment_method: paymentMethod,

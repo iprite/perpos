@@ -134,7 +134,7 @@ export function useManageOrderActions({
   }, [setPayAmount, setPayOpen]);
 
   const billInstallment = useCallback(async () => {
-    const amtNum = Number(payAmount || 0);
+    const amtNum = Number(String(payAmount ?? "").replaceAll(",", "").trim() || 0);
     const amt = Number.isFinite(amtNum) ? amtNum : 0;
     if (!orderId || amt <= 0) return;
     setLoading(true);
@@ -154,7 +154,7 @@ export function useManageOrderActions({
     const invoiceId = String(data.invoiceId ?? "").trim();
     await addEvent(
       "installment_billed",
-      `วางบิลงวด ${nextInstallmentNo}: ${asMoney(amt)} บาท${data.invoiceNo ? ` (${data.invoiceNo})` : ""}`,
+      `วางบิลงวด ${nextInstallmentNo} (ฐาน): ${asMoney(amt)} บาท${data.invoiceNo ? ` (${data.invoiceNo})` : ""}`,
       invoiceId ? "invoices" : "orders",
       invoiceId || orderId,
     );

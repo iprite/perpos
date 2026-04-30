@@ -395,6 +395,7 @@ export async function POST(request: Request) {
 
     const totalsHtml = isLast
       ? `
+        <div class="bottom" id="qt-bottom-block">
         <div class="summary" id="qt-summary-block">
           <div class="summary-left">
             <div class="summary-title">
@@ -459,6 +460,7 @@ export async function POST(request: Request) {
               </div>
             </div>
           </div>
+        </div>
         </div>
       `
       : `
@@ -600,7 +602,7 @@ export async function POST(request: Request) {
       .header { flex: 0 0 114px; }
       .content { flex: 1 1 auto; display: flex; flex-direction: column; padding: 10px 34px 14px 34px; }
 
-      .qt-footer { margin-top: auto; break-inside: avoid; page-break-inside: avoid; }
+      .qt-footer { margin-top: 0; break-inside: avoid; page-break-inside: avoid; }
       .qt-footer-sheet .header { display: none; }
       .qt-footer-content { display: flex; flex-direction: column; height: 100%; }
       .qt-footer-host { margin-top: auto; }
@@ -661,7 +663,7 @@ export async function POST(request: Request) {
       .center { text-align: center; white-space: nowrap; }
       .empty { text-align: center; color: #6b7280; padding: 18px 0; }
 
-      .bottom { margin-top: auto; }
+      .bottom { margin-top: auto; display: flex; flex-direction: column; }
       .summary { display: grid; grid-template-columns: 1fr 310px; gap: 16px; align-items: start; }
       .summary-title { display: flex; align-items: center; gap: 8px; font-weight: 700; color: #111827; }
       .summary-icon { color: #111827; }
@@ -723,17 +725,17 @@ export async function POST(request: Request) {
     ${footerHostSheet}
     <script>
       (function () {
-        var footer = document.getElementById("qt-footer-block");
+        var bottom = document.getElementById("qt-bottom-block");
         var footerSheet = document.getElementById("qt-footer-sheet");
         var host = document.getElementById("qt-footer-host");
-        if (footer && footerSheet && host) {
-          var sheet = footer.closest(".sheet");
+        if (bottom && footerSheet && host) {
+          var sheet = bottom.closest(".sheet");
           if (sheet) {
-            var footerRect = footer.getBoundingClientRect();
+            var bottomRect = bottom.getBoundingClientRect();
             var sheetRect = sheet.getBoundingClientRect();
             var summary = document.getElementById("qt-summary-block");
             var notes = document.getElementById("qt-notes-block");
-            var overflow = Math.ceil(footerRect.bottom) > Math.floor(sheetRect.bottom);
+            var overflow = Math.ceil(bottomRect.bottom) > Math.floor(sheetRect.bottom);
             var overlap = false;
             if (summary && notes) {
               var summaryRect = summary.getBoundingClientRect();
@@ -742,7 +744,7 @@ export async function POST(request: Request) {
             }
             if (overflow || overlap) {
               footerSheet.style.display = \"\";
-              host.appendChild(footer);
+              host.appendChild(bottom);
             }
           }
         }
