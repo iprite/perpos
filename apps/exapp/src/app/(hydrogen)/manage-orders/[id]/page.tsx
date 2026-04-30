@@ -16,7 +16,7 @@ import { InvoiceCreateModal } from "@/components/billing/invoice-create-modal";
 
 import { asMoney, customerNameFromRel, serviceNameFromRel, type EventRow, type OrderItemRow, type OrderRow, type PaymentRow } from "./_types";
 import { ManageOrderEventsCard, ManageOrderServicesCard, ManageOrderSummaryCard } from "./_services-events";
-import { ManageOrderClosePanel, ManageOrderDocumentsPanel, ManageOrderTransactionsPanel } from "./_side-panels";
+import { ManageOrderDocumentsPanel, ManageOrderTransactionsPanel } from "./_side-panels";
 import { useManageOrderActions } from "./_actions";
 import { TransactionModal } from "@/components/finance/transaction-modal";
 
@@ -532,13 +532,7 @@ export default function ManageOrderDetailPage() {
   const remaining = Number(order?.remaining_amount ?? 0);
   const noOutstanding = Number.isFinite(remaining) ? remaining <= 0 : false;
   const canCloseOrder = !isLocked && isOperableStatus && allServicesDone && noOutstanding;
-
-  const pendingReason = useMemo(() => {
-    if (!isOperableStatus) return "ออเดอร์ต้องอยู่สถานะกำลังดำเนินการ";
-    if (!allServicesDone) return "ยังมีบริการที่ไม่เสร็จสิ้น";
-    if (!noOutstanding) return `ยังมียอดคงค้าง ${asMoney(Number(order?.remaining_amount ?? 0))} บาท`;
-    return "ยังไม่พร้อมปิดออเดอร์";
-  }, [allServicesDone, isOperableStatus, noOutstanding, order?.remaining_amount]);
+  const canAddInstallment = canCancelOrder && !isLocked && isOperableStatus && Number.isFinite(remaining) && remaining > 0;
 
   const { startService, doneService, closeOrder, openAddInstallment, billInstallment } = useManageOrderActions({
     orderId,
@@ -655,6 +649,11 @@ export default function ManageOrderDetailPage() {
           >
             บันทึกรายจ่าย
           </Button>
+          {canAddInstallment ? (
+            <Button size="sm" variant="outline" disabled={loading} onClick={openAddInstallment}>
+              วางบิลงวดถัดไป
+            </Button>
+          ) : null}
           <Button
             size="sm"
             variant="outline"
@@ -683,7 +682,14 @@ export default function ManageOrderDetailPage() {
             events={events}
             loading={loading || quotePreviewLoading}
             isLocked={isLocked}
-            onOpenAddInstallment={openAddInstallment}
+            canCancelOrder={canCancelOrder}
+            canCloseOrder={canCloseOrder}
+            onCancelOrder={() => {
+              setCancelAmount("");
+              setCancelFile(null);
+              setCancelOpen(true);
+            }}
+            onCloseOrder={closeOrder}
             unpaidBilledTotal={unpaidBilledTotal}
             incomeTotal={financeTotals.income}
             expenseTotal={financeTotals.expense}
@@ -755,23 +761,6 @@ export default function ManageOrderDetailPage() {
           </div>
 
           <ManageOrderTransactionsPanel order={order} transactions={financeTxns as any} loading={loading} />
-
-          <ManageOrderClosePanel
-            order={order}
-            canCloseOrder={canCloseOrder}
-            canCancelOrder={canCancelOrder}
-            isLocked={isLocked}
-            allServicesDone={allServicesDone}
-            noOutstanding={noOutstanding}
-            pendingReason={pendingReason}
-            loading={loading}
-            onCloseOrder={closeOrder}
-            onCancelOrder={() => {
-              setCancelAmount("");
-              setCancelFile(null);
-              setCancelOpen(true);
-            }}
-          />
         </div>
       </div>
 

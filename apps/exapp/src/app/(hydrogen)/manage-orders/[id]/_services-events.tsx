@@ -38,7 +38,10 @@ export function ManageOrderSummaryCard({
   events,
   loading,
   isLocked,
-  onOpenAddInstallment,
+  canCancelOrder,
+  canCloseOrder,
+  onCancelOrder,
+  onCloseOrder,
   unpaidBilledTotal,
   incomeTotal,
   expenseTotal,
@@ -49,7 +52,10 @@ export function ManageOrderSummaryCard({
   events: EventRow[];
   loading: boolean;
   isLocked: boolean;
-  onOpenAddInstallment: () => void;
+  canCancelOrder: boolean;
+  canCloseOrder: boolean;
+  onCancelOrder: () => void;
+  onCloseOrder: () => void;
   unpaidBilledTotal: number;
   incomeTotal: number;
   expenseTotal: number;
@@ -96,7 +102,6 @@ export function ManageOrderSummaryCard({
 
   const remaining = Number(order?.remaining_amount ?? 0);
   const hasOutstanding = Number.isFinite(remaining) ? remaining > 0 : false;
-  const canAddInstallment = hasOutstanding && !isLocked && order?.status === "in_progress";
   const unpaidBilled = Number(unpaidBilledTotal ?? 0);
   const hasUnpaidBilled = Number.isFinite(unpaidBilled) ? unpaidBilled > 0 : false;
 
@@ -121,6 +126,7 @@ export function ManageOrderSummaryCard({
   const customerPhone = String(customer?.phone ?? "").trim();
 
   const status = String(order?.status ?? "");
+  const showCancel = !canCloseOrder && canCancelOrder && !isLocked && order?.status === "in_progress";
 
   return (
     <div className="grid gap-4 md:grid-cols-2">
@@ -172,6 +178,19 @@ export function ManageOrderSummaryCard({
             </div>
           </div>
 
+        </div>
+
+        <div className="mt-4 flex flex-wrap justify-end gap-2">
+          {showCancel ? (
+            <Button size="sm" color="danger" variant="outline" onClick={onCancelOrder} disabled={loading}>
+              ยกเลิกออเดอร์
+            </Button>
+          ) : null}
+          {canCloseOrder ? (
+            <Button size="sm" onClick={onCloseOrder} disabled={loading || !canCloseOrder}>
+              ปิดออเดอร์
+            </Button>
+          ) : null}
         </div>
       </div>
 
@@ -232,13 +251,6 @@ export function ManageOrderSummaryCard({
             <div className="text-lg font-semibold tabular-nums text-gray-900">{asMoney(Number(netProfit ?? 0))}</div>
           </div>
         </div>
-        {hasOutstanding ? (
-          <div className="mt-4 flex flex-wrap justify-end gap-2">
-            <Button size="sm" variant="outline" onClick={onOpenAddInstallment} disabled={loading || !canAddInstallment}>
-              วางบิลงวดถัดไป
-            </Button>
-          </div>
-        ) : null}
       </div>
     </div>
   );

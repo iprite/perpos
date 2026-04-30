@@ -806,6 +806,16 @@ export default function CustomersPage() {
                     <div className="text-base font-semibold text-gray-900">{workplaceEditingId ? "แก้ไขที่อยู่ที่ทำงาน" : "เพิ่มที่อยู่ที่ทำงาน"}</div>
                     <div className="mt-3 grid gap-3">
                       <Input label="ชื่อสถานที่ (ถ้ามี)" value={workplaceName} onChange={(e) => setWorkplaceName(e.target.value)} disabled={loading} />
+                      <div className="flex justify-end">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setWorkplaceAddress(address)}
+                          disabled={loading || !address.trim()}
+                        >
+                          คัดลอกจากที่อยู่นายจ้าง
+                        </Button>
+                      </div>
                       <Textarea
                         label="ที่อยู่ที่ทำงาน"
                         value={workplaceAddress}
