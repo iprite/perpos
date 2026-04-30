@@ -335,7 +335,7 @@ export async function POST(request: Request) {
       const itemsHtml = rows
         .map((it, idx) => {
           const name = escapeHtml(String(it.name ?? "-") || "-");
-          const desc = escapeHtml(String(it.description ?? "") || "");
+          const desc = escapeHtml(String(it.description ?? "") || "").replaceAll("\n", "<br/>");
           const qty = Number.isFinite(it.quantity) ? it.quantity : 0;
           const unit = Number.isFinite(it.unit_price) ? it.unit_price : 0;
           const total = Number.isFinite(it.line_total) ? it.line_total : qty * unit;
