@@ -45,7 +45,7 @@ export type WorkerDocumentRow = {
 };
 
 export const nationalityOptions = [
-  { label: "เลือก", value: "" },
+  { label: "—", value: "" },
   { label: "เมียนมา", value: "เมียนมา" },
   { label: "กัมพูชา", value: "กัมพูชา" },
   { label: "ลาว", value: "ลาว" },

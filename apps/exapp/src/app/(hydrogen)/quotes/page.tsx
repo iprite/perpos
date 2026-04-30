@@ -979,6 +979,16 @@ export default function QuotesPage() {
         return;
       }
 
+      const sessionRes = await supabase.auth.getSession();
+      const token = sessionRes.data.session?.access_token;
+      if (token) {
+        await fetch("/api/notifications/line/order-created", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ orderId }),
+        }).catch(() => null);
+      }
+
       setExistingOrder({ id: orderId, display_id: (created as any).display_id ?? null });
       setLoading(false);
     } catch (e: any) {
@@ -1401,10 +1411,7 @@ export default function QuotesPage() {
             disabled={loading}
           />
         </div>
-        <div className="flex flex-wrap gap-2 border-t border-gray-200 px-5 py-4">
-          <Button onClick={saveQuote} disabled={loading || !canSave}>
-            {editingId ? "อัปเดต" : "บันทึก"}
-          </Button>
+        <div className="flex flex-wrap justify-end gap-2 border-t border-gray-200 px-5 py-4">
           <Button
             variant="outline"
             onClick={() => {
@@ -1414,6 +1421,9 @@ export default function QuotesPage() {
             disabled={loading}
           >
             ยกเลิก
+          </Button>
+          <Button onClick={saveQuote} disabled={loading || !canSave}>
+            {editingId ? "อัปเดต" : "บันทึก"}
           </Button>
         </div>
       </Modal>

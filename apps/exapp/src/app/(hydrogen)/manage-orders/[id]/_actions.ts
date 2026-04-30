@@ -112,21 +112,25 @@ export function useManageOrderActions({
     if (!ok) return;
     setLoading(true);
     setError(null);
-    const now = new Date().toISOString();
-    const { error: updErr } = await supabase
-      .from("orders")
-      .update({ status: "completed", closed_at: now, closed_by_profile_id: userId })
-      .eq("id", orderId);
-    if (updErr) {
-      setError(updErr.message);
+    try {
+      const sessionRes = await supabase.auth.getSession();
+      const token = sessionRes.data.session?.access_token;
+      if (!token) throw new Error("ยังไม่ได้เข้าสู่ระบบ");
+      const res = await fetch("/api/orders/close", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ orderId }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) throw new Error(data.error || "ปิดออเดอร์ไม่สำเร็จ");
       setLoading(false);
-      return;
+      toast.success("ปิดออเดอร์แล้ว");
+      refresh();
+    } catch (e: any) {
+      setError(e?.message ?? "ปิดออเดอร์ไม่สำเร็จ");
+      setLoading(false);
     }
-    await addEvent("order_closed", "ปิดออเดอร์", "orders", orderId);
-    setLoading(false);
-    toast.success("ปิดออเดอร์แล้ว");
-    refresh();
-  }, [addEvent, canCloseOrder, confirm, orderId, refresh, setError, setLoading, supabase, userId]);
+  }, [canCloseOrder, confirm, orderId, refresh, setError, setLoading, supabase]);
 
   const openAddInstallment = useCallback(() => {
     setPayAmount("");

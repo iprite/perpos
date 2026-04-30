@@ -102,8 +102,8 @@ export function WorkerEditModal({
   return (
     <>
       <Modal isOpen={open} onClose={form.closeAndReset} size="xl" customSize={880} rounded="md">
-        <div className="rounded-xl bg-white">
-          <div className="flex items-start justify-between gap-3 border-b border-gray-100 px-5 py-4">
+        <div className="max-h-[85vh] overflow-y-auto rounded-xl bg-white">
+          <div className="sticky top-0 z-10 flex items-start justify-between gap-3 border-b border-gray-100 bg-white px-5 py-4">
             <div className="min-w-0">
               <div className="truncate text-base font-semibold text-gray-900">{formTitle}</div>
               <div className="mt-1 text-sm text-gray-600">กรอกข้อมูลแรงงานและจัดการเอกสารประกอบ</div>
@@ -200,10 +200,11 @@ export function WorkerEditModal({
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-gray-100 px-5 py-4">
+          <div className="sticky bottom-0 z-10 flex flex-wrap items-center justify-between gap-2 border-t border-gray-100 bg-white px-5 py-4">
             <div>
               {form.editingId && canDelete ? (
                 <Button
+                  color="danger"
                   variant="outline"
                   onClick={async () => {
                     const ok = await confirmDialog({ title: "ยืนยันการลบ", message: "ต้องการลบแรงงานนี้หรือไม่?", confirmText: "ลบ", tone: "danger" });

@@ -143,9 +143,9 @@ export function WorkerProfilePanel({
         <div>
           <AppSelect
             label="ประเภทแรงงาน"
-            placeholder="เลือก"
+            placeholder="—"
             options={[
-              { label: "เลือก", value: "" },
+              { label: "—", value: "" },
               { label: "ขึ้นทะเบียน", value: "ขึ้นทะเบียน" },
               { label: "MOU", value: "MOU" },
             ]}
@@ -155,7 +155,7 @@ export function WorkerProfilePanel({
             displayValue={(selected) =>
               (
                 [
-                  { label: "เลือก", value: "" },
+                  { label: "—", value: "" },
                   { label: "ขึ้นทะเบียน", value: "ขึ้นทะเบียน" },
                   { label: "MOU", value: "MOU" },
                 ] as Array<{ label: string; value: string }>
@@ -171,7 +171,7 @@ export function WorkerProfilePanel({
         <div>
           <AppSelect
             label="สัญชาติ"
-            placeholder="เลือก"
+            placeholder="—"
             options={nationalityOptions}
             value={nationality}
             onChange={(v: string) => onChangeNationality(v || "เมียนมา")}

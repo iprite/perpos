@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
-import { Button, Input, Textarea } from "rizzui";
+import { Box, Button, Input, Popover, Textarea } from "rizzui";
 import { Title, Text } from "rizzui/typography";
 import AppSelect from "@core/ui/app-select";
 import TablePagination from "@core/components/table/pagination";
@@ -15,6 +15,9 @@ import TableSearch from "@/components/table/table-search";
 import { Modal } from "@core/modal-views/modal";
 import { DatePicker } from "@core/ui/datepicker";
 import FileUploader from "@/components/form/file-uploader";
+import { PiFilePlus, PiTrashSimple } from "react-icons/pi";
+import { WorkerEditModal } from "@/app/(hydrogen)/workers/_components/worker-edit-modal";
+import type { CustomerOption as WorkerCustomerOption, WorkerRow as WorkerRow } from "@/app/(hydrogen)/workers/_components/worker-edit-types";
 
 import { useAuth } from "@/app/shared/auth-provider";
 import { useConfirmDialog } from "@/app/shared/confirm-dialog/provider";
@@ -92,6 +95,42 @@ async function deleteStorageDoc(input: { supabase: any; table: "customer_documen
 function isPdfUrl(url: string) {
   const u = url.toLowerCase();
   return u.includes(".pdf") || u.includes("application/pdf");
+}
+
+function digitsOnly(v: string) {
+  return String(v ?? "").replace(/\D/g, "");
+}
+
+function normalizeThaiTaxIdDigits(v: string) {
+  return digitsOnly(v).slice(0, 13);
+}
+
+function normalizeThaiPhoneDigits(v: string) {
+  const d = digitsOnly(v);
+  if (d.startsWith("02")) return d.slice(0, 9);
+  if (d.startsWith("0")) return d.slice(0, 10);
+  return d.slice(0, 10);
+}
+
+function formatThaiPhoneDigits(digits: string) {
+  const d = normalizeThaiPhoneDigits(digits);
+  if (!d) return "";
+  if (d.startsWith("02")) {
+    if (d.length <= 2) return d;
+    if (d.length <= 5) return `${d.slice(0, 2)}-${d.slice(2)}`;
+    return `${d.slice(0, 2)}-${d.slice(2, 5)}-${d.slice(5)}`;
+  }
+  if (d.startsWith("0")) {
+    if (d.length <= 3) return d;
+    if (d.length <= 6) return `${d.slice(0, 3)}-${d.slice(3)}`;
+    return `${d.slice(0, 3)}-${d.slice(3, 6)}-${d.slice(6)}`;
+  }
+  return d;
+}
+
+function displayThaiPhone(v: string | null | undefined) {
+  const d = normalizeThaiPhoneDigits(v ?? "");
+  return d ? formatThaiPhoneDigits(d) : "-";
 }
 
 const DEFAULT_THAI_PROVINCES = [
@@ -179,6 +218,16 @@ export default function CustomersPage() {
   const confirm = useConfirmDialog();
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
   const topRef = useRef<HTMLDivElement | null>(null);
+  const initialFormRef = useRef<{
+    province: string;
+    name: string;
+    taxId: string;
+    address: string;
+    branchName: string;
+    contactName: string;
+    phone: string;
+    email: string;
+  } | null>(null);
 
   const [loading, setLoading] = useState(false);
   const [rows, setRows] = useState<CustomerRow[]>([]);
@@ -216,6 +265,12 @@ export default function CustomersPage() {
   const [docViewerTitle, setDocViewerTitle] = useState<string | null>(null);
   const [docViewerError, setDocViewerError] = useState<string | null>(null);
 
+  const [workerRows, setWorkerRows] = useState<WorkerRow[]>([]);
+  const [workersLoading, setWorkersLoading] = useState(false);
+  const [workersError, setWorkersError] = useState<string | null>(null);
+  const [workerEditOpen, setWorkerEditOpen] = useState(false);
+  const [workerEditing, setWorkerEditing] = useState<WorkerRow | null>(null);
+
   const [workplaceRows, setWorkplaceRows] = useState<CustomerWorkplaceRow[]>([]);
   const [workplaceAddOpen, setWorkplaceAddOpen] = useState(false);
   const [workplaceEditingId, setWorkplaceEditingId] = useState<string | null>(null);
@@ -223,6 +278,7 @@ export default function CustomersPage() {
   const [workplaceAddress, setWorkplaceAddress] = useState("");
 
   const resetForm = useCallback(() => {
+    initialFormRef.current = null;
     setEditingId(null);
     setEditingDisplayId(null);
     setProvince("");
@@ -245,6 +301,12 @@ export default function CustomersPage() {
     setDocViewerTitle(null);
     setDocViewerError(null);
 
+    setWorkerRows([]);
+    setWorkersLoading(false);
+    setWorkersError(null);
+    setWorkerEditOpen(false);
+    setWorkerEditing(null);
+
     setWorkplaceRows([]);
     setWorkplaceAddOpen(false);
     setWorkplaceEditingId(null);
@@ -255,15 +317,27 @@ export default function CustomersPage() {
   const openEditCustomer = useCallback(
     (r: CustomerRow) => {
       if (role === "employer") return;
+      const taxIdDigits = normalizeThaiTaxIdDigits(r.tax_id ?? "");
+      const phoneDigits = normalizeThaiPhoneDigits(r.phone ?? "");
+      initialFormRef.current = {
+        province: r.province_th ?? "",
+        name: r.name ?? "",
+        taxId: taxIdDigits,
+        address: r.address ?? "",
+        branchName: r.branch_name ?? "สำนักงานใหญ่",
+        contactName: r.contact_name ?? "",
+        phone: phoneDigits,
+        email: r.email ?? "",
+      };
       setEditingId(r.id);
       setEditingDisplayId(r.display_id ?? null);
       setProvince(r.province_th ?? "");
       setName(r.name ?? "");
-      setTaxId(r.tax_id ?? "");
+      setTaxId(taxIdDigits);
       setAddress(r.address ?? "");
       setBranchName(r.branch_name ?? "สำนักงานใหญ่");
       setContactName(r.contact_name ?? "");
-      setPhone(r.phone ?? "");
+      setPhone(phoneDigits);
       setEmail(r.email ?? "");
       setDocAddOpen(false);
       setDocViewerOpen(false);
@@ -306,6 +380,39 @@ export default function CustomersPage() {
     [supabase],
   );
 
+  const refreshWorkers = useCallback(
+    (customerId: string) => {
+      Promise.resolve().then(async () => {
+        setWorkersLoading(true);
+        setWorkersError(null);
+        try {
+          const res = await supabase
+            .from("workers")
+            .select(
+              "id,worker_id,full_name,customer_id,workplace_id,order_id,passport_no,passport_type,passport_expire_date,nationality,birth_date,os_sex,profile_pic_url,visa_exp_date,wp_number,wp_expire_date,wp_type,created_at",
+            )
+            .eq("customer_id", customerId)
+            .order("created_at", { ascending: false })
+            .order("id", { ascending: false })
+            .limit(200);
+          if (res.error) {
+            setWorkersError(res.error.message);
+            setWorkerRows([]);
+            setWorkersLoading(false);
+            return;
+          }
+          setWorkerRows(((res.data ?? []) as any[]) as WorkerRow[]);
+          setWorkersLoading(false);
+        } catch (e: any) {
+          setWorkersError(e?.message ?? "โหลดรายการแรงงานไม่สำเร็จ");
+          setWorkerRows([]);
+          setWorkersLoading(false);
+        }
+      });
+    },
+    [supabase],
+  );
+
   const refreshWorkplaces = useCallback(
     (customerId: string) => {
       Promise.resolve().then(async () => {
@@ -331,6 +438,12 @@ export default function CustomersPage() {
     if (!editingId) return;
     refreshDocs(editingId);
   }, [editingId, refreshDocs, showForm]);
+
+  useEffect(() => {
+    if (!showForm) return;
+    if (!editingId) return;
+    refreshWorkers(editingId);
+  }, [editingId, refreshWorkers, showForm]);
 
   useEffect(() => {
     if (!showForm) return;
@@ -485,11 +598,100 @@ export default function CustomersPage() {
     getCoreRowModel: getCoreRowModel(),
   });
 
-  const canSave = name.trim().length > 0;
+  const taxIdDigits = useMemo(() => normalizeThaiTaxIdDigits(taxId), [taxId]);
+  const taxIdOk = taxIdDigits.length === 0 || taxIdDigits.length === 13;
+  const canSave = name.trim().length > 0 && taxIdOk;
   const canDelete = !!editingId;
+  const workerModalCustomers = useMemo(() => {
+    if (!editingId) return [] as WorkerCustomerOption[];
+    return [{ id: editingId, name: name.trim() || "ลูกค้า" }];
+  }, [editingId, name]);
   const isFormMode = Boolean(showForm);
   const contactCardRef = useRef<HTMLDivElement | null>(null);
   const [docCardHeight, setDocCardHeight] = useState<number | null>(null);
+  const isDirty = useMemo(() => {
+    if (!editingId) return true;
+    const init = initialFormRef.current;
+    if (!init) return true;
+    const normalize = (v: {
+      province: string;
+      name: string;
+      taxId: string;
+      address: string;
+      branchName: string;
+      contactName: string;
+      phone: string;
+      email: string;
+    }) => ({
+      province: v.province.trim(),
+      name: v.name.trim(),
+      taxId: normalizeThaiTaxIdDigits(v.taxId),
+      address: v.address.trim(),
+      branchName: v.branchName.trim() || "สำนักงานใหญ่",
+      contactName: v.contactName.trim(),
+      phone: normalizeThaiPhoneDigits(v.phone),
+      email: v.email.trim(),
+    });
+    const a = normalize(init);
+    const b = normalize({ province, name, taxId, address, branchName, contactName, phone, email });
+    return (
+      a.province !== b.province ||
+      a.name !== b.name ||
+      a.taxId !== b.taxId ||
+      a.address !== b.address ||
+      a.branchName !== b.branchName ||
+      a.contactName !== b.contactName ||
+      a.phone !== b.phone ||
+      a.email !== b.email
+    );
+  }, [address, branchName, contactName, editingId, email, name, phone, province, taxId]);
+
+  const deleteCustomer = useCallback(async () => {
+    if (!editingId) return;
+    const ok = await confirm({
+      title: "ยืนยันการลบ",
+      message: "ต้องการลบรายการนี้หรือไม่?",
+      confirmText: "ลบ",
+      tone: "danger",
+    });
+    if (!ok) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const { count, error: countErr } = await supabase
+        .from("orders")
+        .select("id", { count: "exact", head: true })
+        .eq("customer_id", editingId);
+      if (countErr) {
+        setError(countErr.message);
+        setLoading(false);
+        return;
+      }
+      if ((count ?? 0) > 0) {
+        setError(`ลบไม่ได้ เนื่องจากมีออเดอร์ผูกอยู่ ${count} รายการ`);
+        setLoading(false);
+        return;
+      }
+    } catch {
+      setLoading(false);
+      return;
+    }
+    const { error: e } = await supabase.from("customers").delete().eq("id", editingId);
+    if (e) {
+      if (String(e.message || "").includes("orders_customer_id_fkey")) {
+        setError("ลบไม่ได้ เนื่องจากมีออเดอร์ผูกอยู่ (กรุณาย้าย/ลบออเดอร์ก่อน)");
+      } else {
+        setError(e.message);
+      }
+      setLoading(false);
+      return;
+    }
+    toast.success("ลบแล้ว");
+    resetForm();
+    setShowForm(false);
+    setLoading(false);
+    refresh();
+  }, [confirm, editingId, refresh, resetForm, supabase]);
 
   useLayoutEffect(() => {
     if (!showForm) {
@@ -548,112 +750,96 @@ export default function CustomersPage() {
               <div className="mt-1 text-sm text-gray-600">ข้อมูลนายจ้าง/ลูกค้า และผู้ติดต่อ</div>
             </div>
             <div className="flex flex-wrap items-center justify-end gap-2">
-              <Button
-                size="sm"
-                onClick={async () => {
-                  setLoading(true);
-                  setError(null);
-                  const payload = {
-                    province_th: province.trim() || null,
-                    name: name.trim(),
-                    tax_id: taxId.trim() || null,
-                    address: address.trim() || null,
-                    branch_name: branchName.trim() || "สำนักงานใหญ่",
-                    contact_name: contactName.trim() || null,
-                    phone: phone.trim() || null,
-                    email: email.trim() || null,
-                  };
+              {!editingId || isDirty ? (
+                <Button
+                  size="sm"
+                  onClick={async () => {
+                    setLoading(true);
+                    setError(null);
+                    const payload = {
+                      province_th: province.trim() || null,
+                      name: name.trim(),
+                    tax_id: taxIdDigits || null,
+                      address: address.trim() || null,
+                      branch_name: branchName.trim() || "สำนักงานใหญ่",
+                      contact_name: contactName.trim() || null,
+                      phone: phone.trim() || null,
+                      email: email.trim() || null,
+                    };
 
-                  if (editingId) {
-                    const { error: e } = await supabase.from("customers").update(payload).eq("id", editingId);
+                    if (editingId) {
+                      const { error: e } = await supabase.from("customers").update(payload).eq("id", editingId);
+                      if (e) {
+                        setError(e.message);
+                        setLoading(false);
+                        return;
+                      }
+                      toast.success("อัปเดตแล้ว");
+                      resetForm();
+                      setShowForm(false);
+                      setLoading(false);
+                      refresh();
+                      return;
+                    }
+
+                    const { data: created, error: e } = await supabase
+                      .from("customers")
+                      .insert({ ...payload, created_by_profile_id: userId })
+                      .select("id,display_id")
+                      .single();
                     if (e) {
                       setError(e.message);
                       setLoading(false);
                       return;
                     }
-                    toast.success("อัปเดตแล้ว");
+                    toast.success("บันทึกแล้ว");
                     resetForm();
                     setShowForm(false);
                     setLoading(false);
                     refresh();
-                    return;
-                  }
-
-                  const { data: created, error: e } = await supabase
-                    .from("customers")
-                    .insert({ ...payload, created_by_profile_id: userId })
-                    .select("id,display_id")
-                    .single();
-                  if (e) {
-                    setError(e.message);
-                    setLoading(false);
-                    return;
-                  }
-                  toast.success("บันทึกแล้ว");
-                  resetForm();
-                  setShowForm(false);
-                  setLoading(false);
-                  refresh();
-                }}
-                disabled={loading || !canSave}
-              >
-                {editingId ? "อัปเดต" : "บันทึก"}
-              </Button>
-              {canDelete ? (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={async () => {
-                    if (!editingId) return;
-                  const ok = await confirm({
-                    title: "ยืนยันการลบ",
-                    message: "ต้องการลบรายการนี้หรือไม่?",
-                    confirmText: "ลบ",
-                    tone: "danger",
-                  });
-                  if (!ok) return;
-                  setLoading(true);
-                  setError(null);
-                  try {
-                    const { count, error: countErr } = await supabase
-                      .from("orders")
-                      .select("id", { count: "exact", head: true })
-                      .eq("customer_id", editingId);
-                    if (countErr) {
-                      setError(countErr.message);
-                      setLoading(false);
-                      return;
-                    }
-                    if ((count ?? 0) > 0) {
-                      setError(`ลบไม่ได้ เนื่องจากมีออเดอร์ผูกอยู่ ${count} รายการ`);
-                      setLoading(false);
-                      return;
-                    }
-                  } catch {
-                    setLoading(false);
-                    return;
-                  }
-                  const { error: e } = await supabase.from("customers").delete().eq("id", editingId);
-                  if (e) {
-                    if (String(e.message || "").includes("orders_customer_id_fkey")) {
-                      setError("ลบไม่ได้ เนื่องจากมีออเดอร์ผูกอยู่ (กรุณาย้าย/ลบออเดอร์ก่อน)");
-                    } else {
-                      setError(e.message);
-                    }
-                    setLoading(false);
-                    return;
-                  }
-                  toast.success("ลบแล้ว");
-                  resetForm();
-                  setShowForm(false);
-                  setLoading(false);
-                  refresh();
                   }}
-                  disabled={loading}
+                  disabled={loading || !canSave}
                 >
-                  ลบ
+                  {editingId ? "อัปเดต" : "บันทึก"}
                 </Button>
               ) : null}
+              <Popover placement="bottom-end">
+                <Popover.Trigger>
+                  <Button size="sm" variant="outline" disabled={loading}>
+                    จัดการ
+                  </Button>
+                </Popover.Trigger>
+                <Popover.Content className="z-0 min-w-max px-2 py-2 dark:bg-gray-100 [&>svg]:dark:fill-gray-100">
+                  {({ setOpen }) => (
+                    <Box className="text-gray-900">
+                      <Button
+                        variant="text"
+                        className="flex w-full items-center justify-start whitespace-nowrap px-2 py-2 hover:bg-gray-100 focus:outline-none dark:hover:bg-gray-50"
+                        onClick={() => {
+                          setDocAddOpen(true);
+                          setOpen(false);
+                        }}
+                        disabled={loading || !editingId}
+                      >
+                        <PiFilePlus className="mr-2 h-4 w-4 text-gray-500" />
+                        เพิ่มเอกสาร
+                      </Button>
+                      <Button
+                        variant="text"
+                        className="flex w-full items-center justify-start whitespace-nowrap px-2 py-2 text-red-700 hover:bg-red-50 focus:outline-none dark:hover:bg-red-50"
+                        onClick={async () => {
+                          await deleteCustomer();
+                          setOpen(false);
+                        }}
+                        disabled={loading || !canDelete}
+                      >
+                        <PiTrashSimple className="mr-2 h-4 w-4 text-red-700" />
+                        ลบ
+                      </Button>
+                    </Box>
+                  )}
+                </Popover.Content>
+              </Popover>
               <Button
                 size="sm"
                 variant="outline"
@@ -663,7 +849,7 @@ export default function CustomersPage() {
                 }}
                 disabled={loading}
               >
-                ยกเลิก
+                ปิด
               </Button>
             </div>
           </div>
@@ -674,7 +860,14 @@ export default function CustomersPage() {
                 <div className="text-sm font-semibold text-gray-900">ข้อมูลลูกค้า</div>
                 <div className="mt-4 grid gap-4 md:grid-cols-2">
                   <Input id="customer-name" label="ชื่อลูกค้า" value={name} onChange={(e) => setName(e.target.value)} className="md:col-span-2" />
-                  <Input label="Tax ID" value={taxId} onChange={(e) => setTaxId(e.target.value)} />
+                  <Input
+                    label="Tax ID"
+                    value={taxIdDigits}
+                    onChange={(e) => setTaxId(normalizeThaiTaxIdDigits(e.target.value))}
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    autoComplete="off"
+                  />
                   <Input label="สาขา" value={branchName} onChange={(e) => setBranchName(e.target.value)} placeholder="สำนักงานใหญ่" />
                   {provinceOptions.length ? (
                     <div className="md:col-span-2">
@@ -686,8 +879,9 @@ export default function CustomersPage() {
                         onChange={(v: string) => setProvince(v)}
                         getOptionValue={(o) => o.value}
                         displayValue={(selected) => provinceOptions.find((o) => o.value === selected)?.label ?? ""}
-                        inPortal={false}
+                        inPortal={true}
                         selectClassName="h-10 px-3"
+                        dropdownClassName="!z-[9999]"
                       />
                     </div>
                   ) : (
@@ -893,7 +1087,14 @@ export default function CustomersPage() {
                 <div className="text-sm font-semibold text-gray-900">ข้อมูลผู้ติดต่อ</div>
                 <div className="mt-4 grid gap-4 md:grid-cols-2">
                   <Input label="ชื่อผู้ติดต่อ" value={contactName} onChange={(e) => setContactName(e.target.value)} />
-                  <Input label="โทรศัพท์" value={phone} onChange={(e) => setPhone(e.target.value)} />
+                  <Input
+                    label="เบอร์ติดต่อ"
+                    value={formatThaiPhoneDigits(phone)}
+                    onChange={(e) => setPhone(normalizeThaiPhoneDigits(e.target.value))}
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    autoComplete="tel"
+                  />
                   <Input className="md:col-span-2" label="อีเมล" value={email} onChange={(e) => setEmail(e.target.value)} inputMode="email" />
                 </div>
               </div>
@@ -907,9 +1108,6 @@ export default function CustomersPage() {
                     <div className="text-sm font-semibold text-gray-900">รายการเอกสาร</div>
                     <div className="mt-0.5 text-xs text-gray-500">เอกสารประกอบของลูกค้า</div>
                   </div>
-                  <Button size="sm" variant="outline" onClick={() => setDocAddOpen(true)} disabled={loading || !editingId}>
-                    เพิ่มเอกสาร
-                  </Button>
                 </div>
 
                 {!editingId ? (
@@ -1149,8 +1347,77 @@ export default function CustomersPage() {
                   </div>
                 </Modal>
               </div>
+
+              <div className="rounded-2xl border border-gray-200 bg-white/70 p-4 backdrop-blur">
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div>
+                    <div className="text-sm font-semibold text-gray-900">รายการแรงงาน</div>
+                    <div className="mt-0.5 text-xs text-gray-500">แรงงานที่ผูกกับนายจ้าง/ลูกค้านี้</div>
+                  </div>
+                </div>
+
+                {!editingId ? (
+                  <div className="mt-3 rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-700">บันทึกลูกค้าก่อน แล้วจึงดูรายการแรงงานได้</div>
+                ) : workersError ? (
+                  <div className="mt-3 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{workersError}</div>
+                ) : (
+                  <div className="mt-4">
+                    {workersLoading ? (
+                      <div className="text-sm text-gray-600">กำลังโหลด...</div>
+                    ) : workerRows.length === 0 ? (
+                      <div className="text-sm text-gray-600">ยังไม่มีแรงงาน</div>
+                    ) : (
+                      <div className="grid gap-2">
+                        {workerRows.map((w) => (
+                          <button
+                            key={w.id}
+                            type="button"
+                            className="flex w-full flex-wrap items-center justify-between gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-left transition-colors hover:bg-gray-50"
+                            onClick={() => {
+                              setWorkerEditing(w);
+                              setWorkerEditOpen(true);
+                            }}
+                            disabled={loading}
+                          >
+                            <div className="min-w-[220px]">
+                              <div className="text-sm font-medium text-gray-900">{w.full_name || "-"}</div>
+                              <div className="text-xs text-gray-600">
+                                {(() => {
+                                  const wid = String(w.worker_id ?? "").trim();
+                                  const nat = String(w.nationality ?? "").trim();
+                                  const pass = String(w.passport_no ?? "").trim();
+                                  const wp = String(w.wp_number ?? "").trim();
+                                  const parts = [wid, nat, pass ? `P ${pass}` : "", wp ? `WP ${wp}` : ""].filter(Boolean);
+                                  return parts.length ? parts.join(" • ") : "-";
+                                })()}
+                              </div>
+                            </div>
+                            <div className="text-xs font-semibold text-gray-700">ดูรายละเอียด</div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
+
+          <WorkerEditModal
+            open={workerEditOpen}
+            onClose={() => {
+              setWorkerEditOpen(false);
+              setWorkerEditing(null);
+            }}
+            initial={workerEditing}
+            supabase={supabase}
+            role={role}
+            userId={userId}
+            customers={workerModalCustomers}
+            onSaved={() => {
+              if (editingId) refreshWorkers(editingId);
+            }}
+          />
         </div>
       ) : null}
 
@@ -1165,7 +1432,7 @@ export default function CustomersPage() {
               <div>ลูกค้า</div>
               <div>จังหวัด</div>
               <div>ผู้ติดต่อ</div>
-              <div>โทรศัพท์</div>
+              <div>เบอร์ติดต่อ</div>
             </div>
             {rows.length === 0 ? (
               <div className="px-4 py-8 text-sm text-gray-500">{loading ? "กำลังโหลด..." : "ยังไม่มีข้อมูล"}</div>
@@ -1194,7 +1461,7 @@ export default function CustomersPage() {
                     <div className="text-sm font-medium text-gray-900">{r.name}</div>
                     <div className="text-sm text-gray-700">{r.province_th ?? "-"}</div>
                     <div className="text-sm text-gray-700">{r.contact_name ?? "-"}</div>
-                    <div className="text-sm text-gray-700">{r.phone ?? "-"}</div>
+                    <div className="text-sm text-gray-700">{displayThaiPhone(r.phone)}</div>
                   </div>
                 );
               })

@@ -33,7 +33,7 @@ export default function AppSelect<OptionType extends SelectOption>({
   size = "md",
   shadow = "md",
   suffix,
-  gap = 8,
+  gap = 4,
   inPortal = true,
   placement = "bottom-start",
   searchable,
