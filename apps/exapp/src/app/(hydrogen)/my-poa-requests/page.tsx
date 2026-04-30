@@ -531,6 +531,16 @@ export default function MyPoaRequestsPage() {
                     .upsert([upsertRow], { onConflict: "poa_request_id,poa_request_type_id" });
                   if (itemErr) throw new Error(itemErr.message);
 
+                  const sessionRes = await supabase.auth.getSession();
+                  const token = sessionRes.data.session?.access_token;
+                  if (token) {
+                    await fetch("/api/notifications/line/poa-request-created", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                      body: JSON.stringify({ requestId }),
+                    }).catch(() => null);
+                  }
+
                   toast.success("ส่งคำขอแล้ว");
                   resetForm();
                   setShowForm(false);
