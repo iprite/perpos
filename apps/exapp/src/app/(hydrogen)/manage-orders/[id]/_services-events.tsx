@@ -255,7 +255,7 @@ export function ManageOrderServicesCard({
     <div className="rounded-xl border border-gray-200 bg-white">
       <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3">
         <div className="text-sm font-semibold text-gray-900">งานบริการในออเดอร์</div>
-        <div className="text-xs text-gray-500">คลิกเพื่อเริ่ม/ปิดงานรายบริการ</div>
+        <div className="text-xs font-semibold text-gray-500">{items.length} งาน</div>
       </div>
       {items.length === 0 ? (
         <div className="px-4 py-8 text-sm text-gray-500">{loading ? "กำลังโหลด..." : "ยังไม่มีบริการในออเดอร์"}</div>

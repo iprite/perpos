@@ -105,6 +105,7 @@ export default function FinancePage() {
       if (dateEnd) q = q.lte("txn_date", dateEnd);
       if (txnType) q = q.eq("txn_type", txnType);
       if (sourceType) q = q.eq("source_type", sourceType);
+      if (!txnType || txnType === "INCOME") q = q.neq("source_table", "invoice_payments");
 
       const s = search.trim();
       if (s) q = q.or(`expense_name.ilike.%${s}%,note.ilike.%${s}%`);

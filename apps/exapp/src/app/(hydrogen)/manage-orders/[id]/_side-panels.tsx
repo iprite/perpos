@@ -154,6 +154,7 @@ export function ManageOrderDocumentsPanel({
 }) {
   const hasDocs = (orderDocuments?.length ?? 0) > 0;
   const hasItemDocs = (orderItemDocuments?.length ?? 0) > 0;
+  const docCount = (orderDocuments?.length ?? 0) + (orderItemDocuments?.length ?? 0);
   const supabase = React.useMemo(() => createSupabaseBrowserClient(), []);
   const [docViewerOpen, setDocViewerOpen] = React.useState(false);
   const [docViewerLoading, setDocViewerLoading] = React.useState(false);
@@ -170,6 +171,7 @@ export function ManageOrderDocumentsPanel({
     <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
       <div className="flex items-center justify-between gap-2 bg-white px-4 py-3">
         <div className="text-sm font-semibold text-gray-900">รายการเอกสาร</div>
+        <div className="text-xs font-semibold text-gray-500">{docCount} รายการ</div>
       </div>
 
       <div className="p-3">
@@ -434,6 +436,7 @@ export function ManageOrderTransactionsPanel({
   loading: boolean;
 }) {
   const hasTxns = (transactions?.length ?? 0) > 0;
+  const txnCount = transactions?.length ?? 0;
 
   if (!order?.id) return null;
 
@@ -441,6 +444,7 @@ export function ManageOrderTransactionsPanel({
     <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
       <div className="flex items-center justify-between gap-2 bg-white px-4 py-3">
         <div className="text-sm font-semibold text-gray-900">รายการธุรกรรม</div>
+        <div className="text-xs font-semibold text-gray-500">{txnCount} รายการ</div>
       </div>
 
       <div className="p-3">

@@ -3,9 +3,10 @@
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import React, { useCallback, useMemo, useRef, useState } from "react";
-import { Button } from "rizzui";
+import { Box, Button, Popover } from "rizzui";
 import { Title, Text } from "rizzui/typography";
 import toast from "react-hot-toast";
+import { PiCoinsDuotone, PiFilePlus, PiScroll, PiTrashSimple } from "react-icons/pi";
 
 import { useAuth } from "@/app/shared/auth-provider";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -625,55 +626,85 @@ export default function ManageOrderDetailPage() {
           <div className="mt-1 text-sm text-gray-600">อัปเดตสถานะงาน และจัดการเอกสารออเดอร์</div>
         </div>
         <div className="flex flex-wrap justify-end gap-2">
-          {canCancelOrder && !isLocked && order?.status === "in_progress" ? (
-            <Button
-              size="sm"
-              color="danger"
-              variant="outline"
-              disabled={loading}
-              onClick={() => {
-                setCancelAmount("");
-                setCancelFile(null);
-                setCancelOpen(true);
-              }}
-            >
-              ยกเลิกออเดอร์
-            </Button>
-          ) : null}
           {canCloseOrder ? (
             <Button size="sm" disabled={loading} onClick={closeOrder}>
               ปิดออเดอร์
             </Button>
           ) : null}
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={loading || isLocked}
-            onClick={() => {
-              setAddDocType("");
-              setAddDocFile(null);
-              setAddDocOrderItemId(null);
-              setAddDocServiceName(null);
-              setAddDocOpen(true);
-            }}
-          >
-            เพิ่มเอกสาร
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={loading}
-            onClick={() => {
-              setExpenseOpen(true);
-            }}
-          >
-            บันทึกรายจ่าย
-          </Button>
-          {canAddInstallment ? (
-            <Button size="sm" variant="outline" disabled={loading} onClick={openAddInstallment}>
-              วางบิลงวดถัดไป
-            </Button>
-          ) : null}
+          <Popover placement="bottom-end">
+            <Popover.Trigger>
+              <Button size="sm" variant="outline" disabled={loading}>
+                จัดการ
+              </Button>
+            </Popover.Trigger>
+            <Popover.Content className="z-0 min-w-max px-2 py-2 dark:bg-gray-100 [&>svg]:dark:fill-gray-100">
+              {({ setOpen }) => (
+                <Box className="text-gray-900">
+                  <Button
+                    variant="text"
+                    className="flex w-full items-center justify-start whitespace-nowrap px-2 py-2 hover:bg-gray-100 focus:outline-none dark:hover:bg-gray-50"
+                    disabled={loading || isLocked}
+                    onClick={() => {
+                      setAddDocType("");
+                      setAddDocFile(null);
+                      setAddDocOrderItemId(null);
+                      setAddDocServiceName(null);
+                      setAddDocOpen(true);
+                      setOpen(false);
+                    }}
+                  >
+                    <PiFilePlus className="mr-2 h-4 w-4 text-gray-500" />
+                    เพิ่มเอกสาร
+                  </Button>
+                  <Button
+                    variant="text"
+                    className="flex w-full items-center justify-start whitespace-nowrap px-2 py-2 hover:bg-gray-100 focus:outline-none dark:hover:bg-gray-50"
+                    disabled={loading}
+                    onClick={() => {
+                      setExpenseOpen(true);
+                      setOpen(false);
+                    }}
+                  >
+                    <PiCoinsDuotone className="mr-2 h-4 w-4 text-gray-500" />
+                    บันทึกรายจ่าย
+                  </Button>
+                  {canAddInstallment ? (
+                    <Button
+                      variant="text"
+                      className="flex w-full items-center justify-start whitespace-nowrap px-2 py-2 hover:bg-gray-100 focus:outline-none dark:hover:bg-gray-50"
+                      disabled={loading}
+                      onClick={() => {
+                        openAddInstallment();
+                        setOpen(false);
+                      }}
+                    >
+                      <PiScroll className="mr-2 h-4 w-4 text-gray-500" />
+                      วางบิลงวดถัดไป
+                    </Button>
+                  ) : null}
+                  {canCancelOrder && !isLocked && order?.status === "in_progress" ? (
+                    <>
+                      <div className="my-1 h-px bg-gray-100" />
+                      <Button
+                        variant="text"
+                        className="flex w-full items-center justify-start whitespace-nowrap px-2 py-2 text-red-700 hover:bg-red-50 focus:outline-none dark:hover:bg-red-50"
+                        disabled={loading}
+                        onClick={() => {
+                          setCancelAmount("");
+                          setCancelFile(null);
+                          setCancelOpen(true);
+                          setOpen(false);
+                        }}
+                      >
+                        <PiTrashSimple className="mr-2 h-4 w-4 text-red-700" />
+                        ยกเลิกออเดอร์
+                      </Button>
+                    </>
+                  ) : null}
+                </Box>
+              )}
+            </Popover.Content>
+          </Popover>
           <Button
             size="sm"
             variant="outline"
