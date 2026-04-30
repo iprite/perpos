@@ -17,6 +17,14 @@ function createSupabaseRlsClient(accessToken: string) {
   return createClient(url, anonKey, { global: { headers: { Authorization: "Bearer " + accessToken } } });
 }
 
+function allowedEventKeysForRole(role: string | null) {
+  const r = String(role ?? "").trim();
+  if (r === "admin" || r === "sale" || r === "operation") return null;
+  if (r === "employer") return ["order_created"];
+  if (r === "representative") return ["poa_request_created"];
+  return [];
+}
+
 export async function GET(req: Request) {
   try {
     const token = getBearerToken(req);
@@ -27,8 +35,23 @@ export async function GET(req: Request) {
     const userId = String(userRes.data.user?.id ?? "").trim();
     if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+    const roleRes = await rls.from("profiles").select("role").eq("id", userId).maybeSingle();
+    if (roleRes.error) return NextResponse.json({ error: roleRes.error.message }, { status: 500 });
+    const allowedKeys = allowedEventKeysForRole((roleRes.data as any)?.role ?? null);
+
+    if (Array.isArray(allowedKeys) && allowedKeys.length === 0) {
+      return NextResponse.json({ ok: true, items: [] });
+    }
+
+    const eventsQuery = rls
+      .from("notification_events")
+      .select("key,name,description,is_active,sort_order")
+      .eq("is_active", true)
+      .order("sort_order");
+    const eventsReq = Array.isArray(allowedKeys) ? eventsQuery.in("key", allowedKeys) : eventsQuery;
+
     const [eventsRes, settingsRes] = await Promise.all([
-      rls.from("notification_events").select("key,name,description,is_active,sort_order").eq("is_active", true).order("sort_order"),
+      eventsReq,
       rls.from("user_notification_settings").select("event_key,enabled").eq("profile_id", userId),
     ]);
 
@@ -67,6 +90,13 @@ export async function POST(req: Request) {
     const userRes = await rls.auth.getUser();
     const userId = String(userRes.data.user?.id ?? "").trim();
     if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    const roleRes = await rls.from("profiles").select("role").eq("id", userId).maybeSingle();
+    if (roleRes.error) return NextResponse.json({ error: roleRes.error.message }, { status: 500 });
+    const allowedKeys = allowedEventKeysForRole((roleRes.data as any)?.role ?? null);
+    if (Array.isArray(allowedKeys) && !allowedKeys.includes(eventKey)) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
 
     const { error } = await rls
       .from("user_notification_settings")
