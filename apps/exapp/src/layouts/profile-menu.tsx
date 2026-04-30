@@ -100,6 +100,19 @@ function DropdownMenu() {
           className="h-auto w-full justify-start p-0 font-medium text-gray-700 outline-none focus-within:text-gray-600 hover:text-gray-900 focus-visible:ring-0"
           variant="text"
           disabled={signingOut}
+          onClick={() => {
+            router.push("/settings");
+          }}
+        >
+          ตั้งค่าโปรไฟล์
+        </Button>
+
+        <div className="my-4 h-px w-full bg-gray-200" />
+
+        <Button
+          className="h-auto w-full justify-start p-0 font-medium text-gray-700 outline-none focus-within:text-gray-600 hover:text-gray-900 focus-visible:ring-0"
+          variant="text"
+          disabled={signingOut}
           onClick={async () => {
             setSigningOut(true);
             await signOut();
