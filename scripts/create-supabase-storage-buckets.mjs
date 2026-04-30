@@ -1,6 +1,6 @@
 import { createRequire } from "module";
 
-const require = createRequire(new URL("../apps/isomorphic-starter/package.json", import.meta.url));
+const require = createRequire(new URL("../apps/app/package.json", import.meta.url));
 const { createClient } = require("@supabase/supabase-js");
 
 function env(name) {
