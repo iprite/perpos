@@ -5,7 +5,7 @@
 - ถ้าเคยส่ง key ผ่านแชท/ที่สาธารณะ แนะนำให้ rotate key ทันทีใน Supabase Dashboard → Settings → API
 
 ## 1) สลับโปรเจกต์ในแอป (Env)
-`apps/app` ใช้:
+`apps/exapp` ใช้:
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY` (หรือ `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY`)
 - `SUPABASE_URL`
