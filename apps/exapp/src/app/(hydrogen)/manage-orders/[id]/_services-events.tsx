@@ -38,10 +38,6 @@ export function ManageOrderSummaryCard({
   events,
   loading,
   isLocked,
-  canCancelOrder,
-  canCloseOrder,
-  onCancelOrder,
-  onCloseOrder,
   unpaidBilledTotal,
   incomeTotal,
   expenseTotal,
@@ -52,10 +48,6 @@ export function ManageOrderSummaryCard({
   events: EventRow[];
   loading: boolean;
   isLocked: boolean;
-  canCancelOrder: boolean;
-  canCloseOrder: boolean;
-  onCancelOrder: () => void;
-  onCloseOrder: () => void;
   unpaidBilledTotal: number;
   incomeTotal: number;
   expenseTotal: number;
@@ -126,7 +118,6 @@ export function ManageOrderSummaryCard({
   const customerPhone = String(customer?.phone ?? "").trim();
 
   const status = String(order?.status ?? "");
-  const showCancel = !canCloseOrder && canCancelOrder && !isLocked && order?.status === "in_progress";
 
   return (
     <div className="grid gap-4 md:grid-cols-2">
@@ -179,76 +170,63 @@ export function ManageOrderSummaryCard({
           </div>
 
         </div>
-
-        <div className="mt-4 flex flex-wrap justify-end gap-2">
-          {showCancel ? (
-            <Button size="sm" color="danger" variant="outline" onClick={onCancelOrder} disabled={loading}>
-              ยกเลิกออเดอร์
-            </Button>
-          ) : null}
-          {canCloseOrder ? (
-            <Button size="sm" onClick={onCloseOrder} disabled={loading || !canCloseOrder}>
-              ปิดออเดอร์
-            </Button>
-          ) : null}
-        </div>
       </div>
 
       <div className="rounded-xl border border-gray-200 bg-white p-4">
         <div className="text-sm font-semibold text-gray-900">ข้อมูลการเงิน</div>
-        <div className="mt-4 space-y-3">
+        <div className="mt-3 space-y-2">
           <div className="flex items-baseline justify-between gap-3">
             <div className="text-sm text-gray-600">ยอดหลังส่วนลด</div>
-            <div className="text-base tabular-nums text-gray-900">{asMoney(Number.isFinite(afterDiscount) ? afterDiscount : 0)}</div>
+            <div className="text-sm font-medium tabular-nums text-gray-900">{asMoney(Number.isFinite(afterDiscount) ? afterDiscount : 0)}</div>
           </div>
           {includeVat && vatRate > 0 ? (
             <div className="flex items-baseline justify-between gap-3">
               <div className="text-sm text-gray-600">VAT ({vatRate}%)</div>
-              <div className="text-base tabular-nums text-gray-900">{asMoney(Number.isFinite(vatAmount) ? vatAmount : 0)}</div>
+              <div className="text-sm font-medium tabular-nums text-gray-900">{asMoney(Number.isFinite(vatAmount) ? vatAmount : 0)}</div>
             </div>
           ) : null}
           {whtRate > 0 ? (
             <div className="flex items-baseline justify-between gap-3">
               <div className="text-sm text-gray-600">หัก ณ ที่จ่าย ({whtRate}%)</div>
-              <div className="text-base tabular-nums text-gray-900">{asMoney(Number.isFinite(whtAmount) ? whtAmount : 0)}</div>
+              <div className="text-sm font-medium tabular-nums text-gray-900">{asMoney(Number.isFinite(whtAmount) ? whtAmount : 0)}</div>
             </div>
           ) : null}
           {whtRate > 0 ? (
             <div className="flex items-baseline justify-between gap-3">
               <div className="text-sm text-gray-600">ยอดก่อนหัก ณ ที่จ่าย</div>
-              <div className="text-base tabular-nums text-gray-900">{asMoney(Number.isFinite(preWhtTotal) ? preWhtTotal : 0)}</div>
+              <div className="text-sm font-medium tabular-nums text-gray-900">{asMoney(Number.isFinite(preWhtTotal) ? preWhtTotal : 0)}</div>
             </div>
           ) : null}
           <div className="flex items-baseline justify-between gap-3">
             <div className="text-sm text-gray-600">ยอดสุทธิ</div>
-            <div className="text-lg font-semibold tabular-nums text-gray-900">{asMoney(Number.isFinite(netTotal) ? netTotal : 0)}</div>
+            <div className="text-sm font-semibold tabular-nums text-gray-900">{asMoney(Number.isFinite(netTotal) ? netTotal : 0)}</div>
           </div>
           <div className="flex items-baseline justify-between gap-3">
             <div className="text-sm text-gray-600">ยอดชำระแล้ว</div>
-            <div className="text-base tabular-nums text-gray-900">{asMoney(Number(order?.paid_amount ?? 0))}</div>
+            <div className="text-sm font-medium tabular-nums text-gray-900">{asMoney(Number(order?.paid_amount ?? 0))}</div>
           </div>
           {hasUnpaidBilled ? (
             <div className="flex items-baseline justify-between gap-3">
               <div className="text-sm text-gray-600">ยอดวางบิลค้างชำระ</div>
-              <div className="text-base tabular-nums text-amber-700">{asMoney(unpaidBilled)}</div>
+              <div className="text-sm font-medium tabular-nums text-amber-700">{asMoney(unpaidBilled)}</div>
             </div>
           ) : null}
           <div className="flex items-baseline justify-between gap-3">
             <div className="text-sm text-gray-600">ยอดคงเหลือ</div>
-            <div className="text-base tabular-nums text-gray-900">{asMoney(Number(order?.remaining_amount ?? 0))}</div>
+            <div className="text-sm font-medium tabular-nums text-gray-900">{asMoney(Number(order?.remaining_amount ?? 0))}</div>
           </div>
           <div className="h-px bg-gray-100" />
           <div className="flex items-baseline justify-between gap-3">
             <div className="text-sm text-gray-600">รวมรายรับ</div>
-            <div className="text-base tabular-nums text-green-700">{asMoney(Number(incomeTotal ?? 0))}</div>
+            <div className="text-sm font-medium tabular-nums text-green-700">{asMoney(Number(incomeTotal ?? 0))}</div>
           </div>
           <div className="flex items-baseline justify-between gap-3">
             <div className="text-sm text-gray-600">รวมรายจ่าย</div>
-            <div className="text-base tabular-nums text-red-700">{asMoney(Number(expenseTotal ?? 0))}</div>
+            <div className="text-sm font-medium tabular-nums text-red-700">{asMoney(Number(expenseTotal ?? 0))}</div>
           </div>
           <div className="flex items-baseline justify-between gap-3">
             <div className="text-sm font-semibold text-gray-900">กำไรสุทธิ</div>
-            <div className="text-lg font-semibold tabular-nums text-gray-900">{asMoney(Number(netProfit ?? 0))}</div>
+            <div className="text-sm font-semibold tabular-nums text-gray-900">{asMoney(Number(netProfit ?? 0))}</div>
           </div>
         </div>
       </div>

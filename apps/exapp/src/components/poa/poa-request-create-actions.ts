@@ -92,6 +92,18 @@ export async function createPoaRequestAndMaybePdf({
   const { error: itemErr } = await supabase.from("poa_request_items").upsert([itemRow], { onConflict: "poa_request_id,poa_request_type_id" });
   if (itemErr) throw new Error(itemErr.message);
 
+  try {
+    const sessionRes = await supabase.auth.getSession();
+    const token = sessionRes.data.session?.access_token;
+    if (token) {
+      await fetch("/api/notifications/line/poa-request-created", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ requestId }),
+      }).catch(() => null);
+    }
+  } catch {}
+
   if (!isOperationContext) {
     return { requestId, createdAt: (created as any)?.created_at ?? null };
   }

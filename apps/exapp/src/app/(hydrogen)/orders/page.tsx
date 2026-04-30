@@ -1319,22 +1319,25 @@ export default function OrdersPage() {
                     if (!editingId) return;
                     setLoading(true);
                     setError(null);
-                    const { error: e } = await supabase.from("orders").update({ status: "in_progress" }).eq("id", editingId);
-                    if (e) {
-                      setError(e.message);
+                    try {
+                      const sessionRes = await supabase.auth.getSession();
+                      const token = sessionRes.data.session?.access_token;
+                      if (!token) throw new Error("ยังไม่ได้เข้าสู่ระบบ");
+                      const res = await fetch("/api/orders/start", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                        body: JSON.stringify({ orderId: editingId }),
+                      });
+                      const data = (await res.json().catch(() => ({}))) as { error?: string };
+                      if (!res.ok) throw new Error(data.error || "เริ่มดำเนินการไม่สำเร็จ");
+                      setEditingStatus("in_progress");
+                      await refreshOrderEvents(editingId);
+                      refresh();
+                    } catch (e: any) {
+                      setError(e?.message ?? "เริ่มดำเนินการไม่สำเร็จ");
+                    } finally {
                       setLoading(false);
-                      return;
                     }
-                    setEditingStatus("in_progress");
-                    await addOrderEvent({
-                      orderId: editingId,
-                      eventType: "order_started",
-                      message: `เริ่มดำเนินการออเดอร์ ${editingDisplayId ?? ""}`.trim(),
-                      entityTable: "orders",
-                      entityId: editingId,
-                    });
-                    setLoading(false);
-                    refresh();
                   }}
                 >
                   เริ่มดำเนินการ

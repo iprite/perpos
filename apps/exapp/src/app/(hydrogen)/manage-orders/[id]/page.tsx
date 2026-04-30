@@ -625,6 +625,26 @@ export default function ManageOrderDetailPage() {
           <div className="mt-1 text-sm text-gray-600">อัปเดตสถานะงาน และจัดการเอกสารออเดอร์</div>
         </div>
         <div className="flex flex-wrap justify-end gap-2">
+          {canCancelOrder && !isLocked && order?.status === "in_progress" ? (
+            <Button
+              size="sm"
+              color="danger"
+              variant="outline"
+              disabled={loading}
+              onClick={() => {
+                setCancelAmount("");
+                setCancelFile(null);
+                setCancelOpen(true);
+              }}
+            >
+              ยกเลิกออเดอร์
+            </Button>
+          ) : null}
+          {canCloseOrder ? (
+            <Button size="sm" disabled={loading} onClick={closeOrder}>
+              ปิดออเดอร์
+            </Button>
+          ) : null}
           <Button
             size="sm"
             variant="outline"
@@ -682,14 +702,6 @@ export default function ManageOrderDetailPage() {
             events={events}
             loading={loading || quotePreviewLoading}
             isLocked={isLocked}
-            canCancelOrder={canCancelOrder}
-            canCloseOrder={canCloseOrder}
-            onCancelOrder={() => {
-              setCancelAmount("");
-              setCancelFile(null);
-              setCancelOpen(true);
-            }}
-            onCloseOrder={closeOrder}
             unpaidBilledTotal={unpaidBilledTotal}
             incomeTotal={financeTotals.income}
             expenseTotal={financeTotals.expense}
