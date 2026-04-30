@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { sendLineText } from "@/lib/line/send-text";
 
 type RepresentativeOption = {
   rep_code: string | null;
@@ -46,6 +47,45 @@ function repDisplayName(input: { prefix?: string | null; first_name?: string | n
   const last = String(input.last_name ?? "").trim();
   const full = `${first} ${last}`.trim();
   return full || String(input.rep_code ?? "").trim() || "-";
+}
+
+async function resolveRecipients(args: {
+  admin: ReturnType<typeof createSupabaseAdminClient>;
+  eventKey: string;
+  roles: string[];
+}) {
+  const { admin, eventKey, roles } = args;
+
+  const evRes = await admin.from("notification_events").select("key,is_active").eq("key", eventKey).maybeSingle();
+  if (evRes.error) throw new Error(evRes.error.message);
+  if (!evRes.data || !(evRes.data as any).is_active) return [];
+
+  const profRes = await admin
+    .from("profiles")
+    .select("id,role,line_user_id")
+    .in("role", roles)
+    .not("line_user_id", "is", null)
+    .limit(2000);
+  if (profRes.error) throw new Error(profRes.error.message);
+
+  const profiles = ((profRes.data ?? []) as any[]).map((p) => ({ id: String(p.id), line_user_id: String(p.line_user_id ?? "") }));
+  if (!profiles.length) return [];
+
+  const ids = profiles.map((p) => p.id);
+  const setRes = await admin
+    .from("user_notification_settings")
+    .select("profile_id,enabled")
+    .eq("event_key", eventKey)
+    .in("profile_id", ids)
+    .limit(2000);
+  if (setRes.error) throw new Error(setRes.error.message);
+
+  const enabledById = new Map<string, boolean>();
+  for (const r of (setRes.data ?? []) as any[]) {
+    enabledById.set(String(r.profile_id), !!r.enabled);
+  }
+
+  return profiles.filter((p) => (enabledById.has(p.id) ? enabledById.get(p.id) === true : true));
 }
 
 export async function GET() {
@@ -222,7 +262,24 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: itemErr.message }, { status: 400 });
     }
 
-    return NextResponse.json({ ok: true, id: requestId, reference: displayId ?? requestId });
+    let notified = false;
+    let warn: string | null = null;
+    try {
+      const text = `มีคำขอ POA ใหม่: ${displayId ?? requestId}${repName ? ` | ${repName}` : ""}${payload.employer_name ? ` | ${payload.employer_name}` : ""}${
+        poaTypeName ? ` | ${poaTypeName}` : ""
+      } | จำนวน ${wc}`;
+      const recipients = await resolveRecipients({ admin, eventKey: "poa_request_created", roles: ["admin", "sale", "operation"] });
+      const to = recipients.map((r) => r.line_user_id).filter((x) => !!x);
+      if (to.length) {
+        const sendRes = await sendLineText({ to, text });
+        if (!sendRes.ok) warn = sendRes.error;
+        notified = sendRes.ok;
+      }
+    } catch (e: any) {
+      warn = e?.message ?? "notify_failed";
+    }
+
+    return NextResponse.json({ ok: true, id: requestId, reference: displayId ?? requestId, notified, warn });
   } catch (e: any) {
     return NextResponse.json({ error: e?.message ?? "submit_failed" }, { status: 500 });
   }
