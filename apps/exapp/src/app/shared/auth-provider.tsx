@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { Profile, Role } from "@/lib/supabase/types";
@@ -12,6 +12,7 @@ type AuthState = {
   email: string | null;
   role: Role | null;
   profile: Profile | null;
+  refreshProfile: () => Promise<void>;
   signOut: () => Promise<void>;
 };
 
@@ -159,6 +160,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, [supabase]);
 
+  const refreshProfile = useCallback(async () => {
+    if (!supabase) return;
+    const uid = userId;
+    if (!uid) return;
+    const { data: p, error } = await supabase
+      .from("profiles")
+      .select("id,email,role,display_name,avatar_url,line_user_id,line_linked_at,created_at")
+      .eq("id", uid)
+      .single();
+    if (error) {
+      setProfile(null);
+      return;
+    }
+    setProfile(p as Profile);
+  }, [supabase, userId]);
+
   const value = useMemo<AuthState>(
     () => ({
       loading,
@@ -167,6 +184,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       email,
       role,
       profile,
+      refreshProfile,
       signOut: async () => {
         if (!supabase) {
           clearStartedAt();
@@ -195,7 +213,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       },
     }),
-    [email, envError, loading, profile, role, supabase, userId],
+    [email, envError, loading, profile, refreshProfile, role, supabase, userId],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

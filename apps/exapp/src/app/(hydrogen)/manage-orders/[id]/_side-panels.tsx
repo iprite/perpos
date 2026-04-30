@@ -145,14 +145,12 @@ export function ManageOrderDocumentsPanel({
   orderItemDocuments,
   isLocked,
   loading,
-  onOpenAdd,
 }: {
   order: OrderRow | null;
   orderDocuments: any[];
   orderItemDocuments: any[];
   isLocked: boolean;
   loading: boolean;
-  onOpenAdd: () => void;
 }) {
   const hasDocs = (orderDocuments?.length ?? 0) > 0;
   const hasItemDocs = (orderItemDocuments?.length ?? 0) > 0;
@@ -172,9 +170,6 @@ export function ManageOrderDocumentsPanel({
     <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
       <div className="flex items-center justify-between gap-2 bg-white px-4 py-3">
         <div className="text-sm font-semibold text-gray-900">รายการเอกสาร</div>
-        <Button size="sm" variant="outline" onClick={onOpenAdd} disabled={loading || isLocked}>
-          เพิ่มเอกสาร
-        </Button>
       </div>
 
       <div className="p-3">

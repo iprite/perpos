@@ -621,16 +621,41 @@ export default function ManageOrderDetailPage() {
           <div className="text-sm text-gray-500">
             <Link href="/manage-orders" className="hover:underline">
               จัดการออเดอร์
-            </Link>
-            <span> / </span>
-            <span>{order?.display_id ?? orderId}</span>
+            </Link>{" "}
+            / {order?.display_id ?? orderId}
           </div>
           <Title as="h1" className="mt-1 text-lg font-semibold text-gray-900">
             {customerNameFromRel((order as any)?.customers ?? null)}
           </Title>
+          <div className="mt-1 text-sm text-gray-600">อัปเดตสถานะงาน และจัดการเอกสารออเดอร์</div>
         </div>
-        <div className="flex justify-end">
+        <div className="flex flex-wrap justify-end gap-2">
           <Button
+            size="sm"
+            variant="outline"
+            disabled={loading || isLocked}
+            onClick={() => {
+              setAddDocType("");
+              setAddDocFile(null);
+              setAddDocOrderItemId(null);
+              setAddDocServiceName(null);
+              setAddDocOpen(true);
+            }}
+          >
+            เพิ่มเอกสาร
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={loading}
+            onClick={() => {
+              setExpenseOpen(true);
+            }}
+          >
+            บันทึกรายจ่าย
+          </Button>
+          <Button
+            size="sm"
             variant="outline"
             disabled={loading}
             onClick={() => {
@@ -662,9 +687,6 @@ export default function ManageOrderDetailPage() {
             incomeTotal={financeTotals.income}
             expenseTotal={financeTotals.expense}
             netProfit={financeTotals.net}
-            onCreateExpense={() => {
-              setExpenseOpen(true);
-            }}
           />
           <ManageOrderServicesCard
             items={items}
@@ -678,20 +700,13 @@ export default function ManageOrderDetailPage() {
           <ManageOrderEventsCard events={events} loading={loading} />
         </div>
 
-        <div className="grid h-fit gap-4 lg:sticky lg:top-4">
+        <div className="grid h-fit gap-4 lg:sticky lg:top-[88px]">
           <ManageOrderDocumentsPanel
             order={order}
             orderDocuments={orderDocuments}
             orderItemDocuments={orderItemDocuments}
             isLocked={isLocked}
             loading={loading}
-            onOpenAdd={() => {
-              setAddDocType("");
-              setAddDocFile(null);
-              setAddDocOrderItemId(null);
-              setAddDocServiceName(null);
-              setAddDocOpen(true);
-            }}
           />
 
           <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">

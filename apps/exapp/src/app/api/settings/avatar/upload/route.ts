@@ -80,12 +80,13 @@ export async function POST(req: Request) {
     }
 
     const publicUrl = admin.storage.from(bucket).getPublicUrl(objectPath).data.publicUrl;
-    const { error: upErr } = await rls.from("profiles").update({ avatar_url: publicUrl }).eq("id", userId);
+    const avatarUrl = `${publicUrl}?v=${Date.now()}`;
+    const { error: upErr } = await rls.from("profiles").update({ avatar_url: avatarUrl }).eq("id", userId);
     if (upErr) {
       return NextResponse.json({ error: upErr.message }, { status: 500 });
     }
 
-    return NextResponse.json({ ok: true, avatarUrl: publicUrl });
+    return NextResponse.json({ ok: true, avatarUrl });
   } catch (e: any) {
     return NextResponse.json({ error: e?.message ?? "Unexpected error" }, { status: 500 });
   }

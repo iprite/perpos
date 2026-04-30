@@ -271,7 +271,7 @@ export async function POST(request: Request) {
       supabase
         .from("invoices")
         .select(
-          "id,doc_no,status,issue_date,due_date,customer_snapshot,subtotal,discount_total,include_vat,vat_rate,vat_amount,wht_rate,wht_amount,grand_total,notes,created_by_profile_id",
+          "id,doc_no,status,issue_date,due_date,order_id,installment_no,customer_snapshot,subtotal,discount_total,include_vat,vat_rate,vat_amount,wht_rate,wht_amount,grand_total,notes,created_by_profile_id",
         )
         .eq("id", invoiceId)
         .single(),
@@ -301,7 +301,69 @@ export async function POST(request: Request) {
     const customerTaxIdRaw = String(customerSnapshot.tax_id ?? "").trim();
     const customerTaxId = escapeHtml(formatTaxIdWithBranch(customerTaxIdRaw, customerBranchRaw));
     const customerContact = "-";
-    const notesText = String(invoice.notes ?? "").trim();
+
+    const buildQuoteDetails = (quoteNo: string, quoteItems: any[]) => {
+      const lines: string[] = [];
+      for (const q of quoteItems) {
+        const name = String(q?.name ?? "-").trim() || "-";
+        const desc = String(q?.description ?? "").trim();
+        lines.push(`${name}${desc ? `: ${desc}` : ""}`);
+        const taskList = Array.isArray(q?.task_list) ? (q.task_list as any[]) : [];
+        for (const t of taskList) {
+          const s = String(t ?? "").trim();
+          if (!s) continue;
+          lines.push(`• ${s}`);
+        }
+        lines.push("");
+      }
+      return lines
+        .join("\n")
+        .replaceAll(/\n{3,}/g, "\n\n")
+        .trim();
+    };
+
+    const orderId = String(invoice.order_id ?? "").trim();
+    const installmentNo = Number(invoice.installment_no ?? 0);
+    const qtContext = { quoteNo: "", quoteNotes: "", orderNo: "", details: "" };
+    if (installmentNo === 1 && orderId) {
+      const orderRes = await supabase.from("orders").select("display_id,source_quote_id").eq("id", orderId).maybeSingle();
+      if (!orderRes.error && orderRes.data) {
+        qtContext.orderNo = String((orderRes.data as any).display_id ?? "").trim();
+        const quoteId = String((orderRes.data as any).source_quote_id ?? "").trim();
+        if (quoteId) {
+          const [qtRes, qtItemRes] = await Promise.all([
+            supabase.from("sales_quotes").select("quote_no,notes").eq("id", quoteId).maybeSingle(),
+            supabase
+              .from("sales_quote_items")
+              .select("name,description,sort_order,task_list")
+              .eq("quote_id", quoteId)
+              .order("sort_order", { ascending: true }),
+          ]);
+          if (!qtRes.error && qtRes.data) {
+            qtContext.quoteNo = String((qtRes.data as any).quote_no ?? "").trim();
+            qtContext.quoteNotes = String((qtRes.data as any).notes ?? "").trim();
+          }
+          if (!qtItemRes.error && Array.isArray(qtItemRes.data) && qtContext.quoteNo) {
+            qtContext.details = buildQuoteDetails(qtContext.quoteNo, qtItemRes.data as any[]);
+          }
+        }
+      }
+    }
+
+    const installmentNote =
+      installmentNo === 1 && qtContext.quoteNo
+        ? `งวดที่ 1 ของ เลข QT ${qtContext.quoteNo}${qtContext.orderNo ? ` และ เลขออเดอร์ ${qtContext.orderNo}` : ""}`
+        : "";
+
+    const notesText = [
+      qtContext.quoteNotes,
+      String(invoice.notes ?? "").trim(),
+      installmentNote,
+    ]
+      .map((s) => String(s ?? "").trim())
+      .filter((s) => !!s)
+      .join("\n");
+
     const notesHtml = escapeHtml(notesText || "-").replaceAll("\n", "<br/>");
 
     const items = ((itemRes.data ?? []) as any[]).map((it) => ({
@@ -311,6 +373,23 @@ export async function POST(request: Request) {
       unit_price: Number(it.unit_price ?? 0),
       line_total: Number(it.line_total ?? 0),
     }));
+    if (installmentNo === 1 && items.length > 0) {
+      if (qtContext.quoteNo) {
+        const n = String(items[0].name ?? "").trim();
+        items[0].name = n.includes(qtContext.quoteNo) ? n : `${n} (${qtContext.quoteNo})`;
+      }
+      if (qtContext.details) {
+        const current = String(items[0].description ?? "")
+          .split("\n")
+          .map((s) => s.trim())
+          .filter((s) => !!s)
+          .filter((s) => !/^อ้างอิงออเด/i.test(s))
+          .filter((s) => !s.includes("รายละเอียดบริการจากใบเสนอราคา"))
+          .join("\n")
+          .trim();
+        items[0].description = [current, qtContext.details].filter((s) => !!String(s ?? "").trim()).join("\n");
+      }
+    }
 
     const perPage = 18;
     const pages = chunk(items, perPage);
@@ -335,7 +414,7 @@ export async function POST(request: Request) {
       const itemsHtml = rows
         .map((it, idx) => {
           const name = escapeHtml(String(it.name ?? "-") || "-");
-          const desc = escapeHtml(String(it.description ?? "") || "");
+          const desc = escapeHtml(String(it.description ?? "") || "").replaceAll("\n", "<br/>");
           const qty = Number.isFinite(it.quantity) ? it.quantity : 0;
           const unit = Number.isFinite(it.unit_price) ? it.unit_price : 0;
           const total = Number.isFinite(it.line_total) ? it.line_total : qty * unit;

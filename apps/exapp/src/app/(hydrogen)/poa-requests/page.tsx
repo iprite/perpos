@@ -85,6 +85,20 @@ function statusLabel(s: string) {
   return s;
 }
 
+function dateTimeTH(iso: string | null | undefined) {
+  if (!iso) return "-";
+  const d = new Date(String(iso));
+  if (Number.isNaN(d.getTime())) return "-";
+  return d.toLocaleString("th-TH", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+}
+
 function sumTotal(items: ItemRow[] | undefined) {
   return (items ?? []).reduce((acc, x) => acc + Number(x.total_price ?? 0), 0);
 }
@@ -400,12 +414,12 @@ export default function PoaRequestsPage() {
         ) : null}
 
         <div className="custom-scrollbar w-full max-w-full overflow-x-auto scroll-smooth">
-          <div className="min-w-[1000px]">
+          <div className="min-w-[1100px]">
             <div
               className={`grid ${
                 canOperate
-                  ? "grid-cols-[56px_0.8fr_1.1fr_0.9fr_100px_120px_120px]"
-                  : "grid-cols-[0.8fr_1.1fr_0.9fr_100px_120px_120px]"
+                  ? "grid-cols-[56px_180px_0.8fr_1.1fr_0.9fr_56px_120px_120px]"
+                  : "grid-cols-[180px_0.8fr_1.1fr_0.9fr_56px_120px_120px]"
               } items-center gap-4 border-b border-gray-200 bg-gray-50 px-4 py-2 text-xs font-semibold text-gray-600`}
             >
               {canOperate ? (
@@ -426,6 +440,7 @@ export default function PoaRequestsPage() {
                   />
                 </div>
               ) : null}
+              <div className="text-center">วันที่ขอ</div>
               <div>ตัวแทน</div>
               <div>นายจ้าง</div>
               <div>หนังสือมอบอำนาจ</div>
@@ -448,8 +463,8 @@ export default function PoaRequestsPage() {
                     tabIndex={0}
                     className={`grid ${
                       canOperate
-                        ? "grid-cols-[56px_0.8fr_1.1fr_0.9fr_100px_120px_120px]"
-                        : "grid-cols-[0.8fr_1.1fr_0.9fr_100px_120px_120px]"
+                        ? "grid-cols-[56px_180px_0.8fr_1.1fr_0.9fr_56px_120px_120px]"
+                        : "grid-cols-[180px_0.8fr_1.1fr_0.9fr_56px_120px_120px]"
                     } gap-4 border-b border-gray-100 px-4 py-3 last:border-b-0 cursor-pointer transition-colors hover:bg-gray-100 active:bg-gray-200`}
                     onClick={() => {
                       router.push(`/poa-requests/${r.id}`);
@@ -476,6 +491,11 @@ export default function PoaRequestsPage() {
                         />
                       </div>
                     ) : null}
+                    <div className="flex items-center justify-center">
+                      <span className="inline-flex items-center rounded-full border border-gray-200 bg-gray-50 px-2 py-1 text-xs font-medium text-gray-700">
+                        {dateTimeTH(r.created_at)}
+                      </span>
+                    </div>
                     <div className="min-w-0">
                       <div className="truncate text-sm font-medium text-gray-900">{r.representative_name || r.profiles?.[0]?.email || "-"}</div>
                       <div className="mt-0.5 truncate text-xs text-gray-500">

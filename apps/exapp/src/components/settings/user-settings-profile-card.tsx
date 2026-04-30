@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useRef } from "react";
 import { Button, Input } from "rizzui";
 
 export default function ProfileEditCard({
@@ -21,6 +21,7 @@ export default function ProfileEditCard({
   onUploadAvatar: (f: File) => void;
 }) {
   const initial = (email ?? "U").trim().charAt(0).toUpperCase();
+  const fileRef = useRef<HTMLInputElement | null>(null);
   return (
     <div className="rounded-xl border border-gray-200 bg-white p-5">
       <div className="text-base font-semibold text-gray-900">แก้ไขโปรไฟล์</div>
@@ -42,22 +43,28 @@ export default function ProfileEditCard({
         </div>
 
         <div className="flex flex-wrap gap-2">
-          <label className="inline-flex">
-            <input
-              type="file"
-              accept="image/png,image/jpeg,image/webp"
-              className="hidden"
-              onChange={(e) => {
-                const f = e.target.files?.[0] ?? null;
-                e.target.value = "";
-                if (!f) return;
-                onUploadAvatar(f);
-              }}
-            />
-            <Button variant="outline" disabled={loading}>
-              อัปโหลดรูป
-            </Button>
-          </label>
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0] ?? null;
+              e.target.value = "";
+              if (!f) return;
+              onUploadAvatar(f);
+            }}
+          />
+          <Button
+            type="button"
+            variant="outline"
+            disabled={loading}
+            onClick={() => {
+              fileRef.current?.click();
+            }}
+          >
+            อัปโหลดรูป
+          </Button>
         </div>
       </div>
 
@@ -81,4 +88,3 @@ export default function ProfileEditCard({
     </div>
   );
 }
-

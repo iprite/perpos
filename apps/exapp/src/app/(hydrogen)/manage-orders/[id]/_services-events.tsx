@@ -43,7 +43,6 @@ export function ManageOrderSummaryCard({
   incomeTotal,
   expenseTotal,
   netProfit,
-  onCreateExpense,
 }: {
   order: OrderRow | null;
   items: OrderItemRow[];
@@ -55,7 +54,6 @@ export function ManageOrderSummaryCard({
   incomeTotal: number;
   expenseTotal: number;
   netProfit: number;
-  onCreateExpense: () => void;
 }) {
   const startedAt = (() => {
     const parse = (s: string | null | undefined) => {
@@ -234,16 +232,13 @@ export function ManageOrderSummaryCard({
             <div className="text-lg font-semibold tabular-nums text-gray-900">{asMoney(Number(netProfit ?? 0))}</div>
           </div>
         </div>
-        <div className="mt-4 flex flex-wrap justify-end gap-2">
-          <Button size="sm" variant="outline" onClick={onCreateExpense} disabled={loading}>
-            บันทึกรายจ่าย
-          </Button>
-          {hasOutstanding ? (
+        {hasOutstanding ? (
+          <div className="mt-4 flex flex-wrap justify-end gap-2">
             <Button size="sm" variant="outline" onClick={onOpenAddInstallment} disabled={loading || !canAddInstallment}>
               วางบิลงวดถัดไป
             </Button>
-          ) : null}
-        </div>
+          </div>
+        ) : null}
       </div>
     </div>
   );

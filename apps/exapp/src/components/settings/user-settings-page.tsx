@@ -32,7 +32,7 @@ export type NotiItem = {
 };
 
 export default function UserSettingsPage() {
-  const { userId, email, envError, loading: authLoading } = useAuth();
+  const { userId, email, envError, loading: authLoading, refreshProfile: refreshAuthProfile } = useAuth();
   const confirm = useConfirmDialog();
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
 
@@ -56,7 +56,7 @@ export default function UserSettingsPage() {
     return { Authorization: `Bearer ${token}` };
   }, [supabase]);
 
-  const refreshProfile = useCallback(async () => {
+  const refreshSettingsProfile = useCallback(async () => {
     const headers = await authHeader();
     const res = await fetch("/api/settings/profile", { headers });
     const json = await res.json().catch(() => null);
@@ -105,7 +105,7 @@ export default function UserSettingsPage() {
     Promise.resolve()
       .then(async () => {
         setLoading(true);
-        await refreshProfile();
+        await refreshSettingsProfile();
         await refreshNoti();
       })
       .catch((e: any) => {
@@ -117,7 +117,7 @@ export default function UserSettingsPage() {
     return () => {
       cancelled = true;
     };
-  }, [authLoading, envError, refreshNoti, refreshProfile, userId]);
+  }, [authLoading, envError, refreshNoti, refreshSettingsProfile, userId]);
 
   useEffect(() => {
     if (!profile) return;
@@ -144,8 +144,8 @@ export default function UserSettingsPage() {
       return;
     }
     toast.success("บันทึกแล้ว");
-    await refreshProfile();
-  }, [authHeader, displayNameDraft, refreshProfile]);
+    await Promise.all([refreshSettingsProfile(), refreshAuthProfile()]);
+  }, [authHeader, displayNameDraft, refreshAuthProfile, refreshSettingsProfile]);
 
   const onUploadAvatar = useCallback(
     async (file: File) => {
@@ -161,9 +161,9 @@ export default function UserSettingsPage() {
       const url = String(json?.avatarUrl ?? "");
       if (url) setAvatarUrl(url);
       toast.success("อัปโหลดรูปแล้ว");
-      await refreshProfile();
+      await Promise.all([refreshSettingsProfile(), refreshAuthProfile()]);
     },
-    [authHeader, refreshProfile],
+    [authHeader, refreshAuthProfile, refreshSettingsProfile],
   );
 
   const onToggleNoti = useCallback(
@@ -208,9 +208,9 @@ export default function UserSettingsPage() {
     toast.success("ยกเลิกการเชื่อมแล้ว");
     setLineLinkUrl(null);
     setLineExpiresAt(null);
-    await refreshProfile();
+    await Promise.all([refreshSettingsProfile(), refreshAuthProfile()]);
     void refreshLineQr();
-  }, [authHeader, confirm, refreshLineQr, refreshProfile]);
+  }, [authHeader, confirm, refreshAuthProfile, refreshLineQr, refreshSettingsProfile]);
 
   const lineLinked = Boolean(profile?.line_user_id);
 
