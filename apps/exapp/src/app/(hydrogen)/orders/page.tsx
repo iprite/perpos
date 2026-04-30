@@ -388,6 +388,7 @@ export default function OrdersPage() {
   const [loadedOrderItemIds, setLoadedOrderItemIds] = useState<string[]>([]);
 
   const canEdit = role === "admin" || role === "sale" || role === "operation";
+  const canConfirmFirstInstallmentPayment = role === "admin" || role === "operation";
 
   React.useEffect(() => {
     setPagination((p) => ({ ...p, pageIndex: 0 }));
@@ -1278,6 +1279,36 @@ export default function OrdersPage() {
                   }}
                 >
                   ออกใบแจ้งหนี้ (IV)
+                </Button>
+              ) : null}
+              {editingStatus === "billed_first_installment" && canConfirmFirstInstallmentPayment ? (
+                <Button
+                  size="sm"
+                  disabled={loading}
+                  onClick={async () => {
+                    if (!editingId) return;
+                    setFirstIvOrderId(editingId);
+                    setFirstIvOrderDisplayId(editingDisplayId ?? null);
+                    setFirstIvCustomerName(selectedCustomerName);
+                    setFirstIvTotal(editingTotalAmount);
+                    setFirstIvPayAmount("");
+                    setFirstIvPayNote("");
+                    setFirstIvPayFile(null);
+                    setFirstIvOpen(true);
+                    try {
+                      setFirstIvLoading(true);
+                      setError(null);
+                      const inv = await loadFirstInstallmentInvoice(editingId);
+                      setFirstIvInvoice(inv);
+                      if (inv?.grand_total != null) setFirstIvPayAmount(String(Number(inv.grand_total ?? 0)));
+                    } catch (e: any) {
+                      setFirstIvInvoice(null);
+                      setError(e?.message ?? "โหลดใบแจ้งหนี้งวดแรกไม่สำเร็จ");
+                    }
+                    setFirstIvLoading(false);
+                  }}
+                >
+                  ยืนยันชำระเงิน (แนบสลิป)
                 </Button>
               ) : null}
               {editingStatus === "draft" && canStart ? (
