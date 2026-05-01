@@ -271,7 +271,12 @@ export async function POST(req: Request) {
           lines.push(`เดือนนี้ • เติมเงิน ${money(s.monthTopUp)} • ใช้เงิน ${money(s.monthSpend)}`);
           await replyText({ replyToken, text: lines.join("\n") });
         } catch (e: any) {
-          await replyText({ replyToken, text: e?.message ?? "ดึงสรุปไม่สำเร็จ" });
+          const msg = String(e?.message ?? "");
+          if (msg.toLowerCase().includes("petty_cash_summary") && msg.toLowerCase().includes("does not exist")) {
+            await replyText({ replyToken, text: "ระบบสรุป /pc ยังไม่พร้อมใช้งาน กรุณา apply migration petty_cash_summary_rpc.sql ใน Supabase ก่อน" });
+          } else {
+            await replyText({ replyToken, text: msg || "ดึงสรุปไม่สำเร็จ" });
+          }
         }
         continue;
       }
