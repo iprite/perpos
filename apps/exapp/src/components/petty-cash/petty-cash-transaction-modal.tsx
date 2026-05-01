@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import dayjs from "dayjs";
 import { Button, Input, Textarea } from "rizzui";
 import AppSelect from "@core/ui/app-select";
@@ -102,8 +102,18 @@ export function PettyCashTransactionModal({
   const [amount, setAmount] = useState(String(initial?.amount ?? ""));
   const [occurredAt, setOccurredAt] = useState(String(initial?.occurred_at ?? dayjs().format("YYYY-MM-DD")));
   const [categoryName, setCategoryName] = useState(String(initial?.category_name ?? ""));
-  const [title, setTitle] = useState(String((initial as any)?.title ?? (initial as any)?.note ?? ""));
+  const [title, setTitle] = useState(String((initial as any)?.title ?? ""));
   const [file, setFile] = useState<File | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    setTxnType((((initial?.txn_type as any) ?? "SPEND") as TxnType) === "TOP_UP" ? "TOP_UP" : "SPEND");
+    setAmount(initial?.amount != null ? String(initial.amount) : "");
+    setOccurredAt(String(initial?.occurred_at ?? dayjs().format("YYYY-MM-DD")));
+    setCategoryName(String(initial?.category_name ?? ""));
+    setTitle(String((initial as any)?.title ?? ""));
+    setFile(null);
+  }, [open, mode, (initial as any)?.id]);
 
   const typeOptions = useMemo(() => [{ value: "TOP_UP", label: "เติมเงิน" }, { value: "SPEND", label: "ใช้เงิน" }], []);
   const categoryOptions = useMemo(() => {
