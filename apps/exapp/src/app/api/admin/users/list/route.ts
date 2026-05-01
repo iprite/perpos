@@ -58,7 +58,7 @@ export async function GET(req: Request) {
     ids.length
       ? admin
           .from("company_representatives")
-          .select("id,rep_code,profile_id")
+          .select("id,rep_code,profile_id,prefix,first_name,last_name")
           .in("profile_id", ids)
       : Promise.resolve({ data: [], error: null } as any),
     admin.from("organizations").select("id,name"),
@@ -87,10 +87,23 @@ export async function GET(req: Request) {
     });
   }
 
-  const repByProfileId = new Map<string, { id: string; rep_code: string | null }>();
-  for (const r of (repsRes.data ?? []) as Array<{ id: string; rep_code: string | null; profile_id: string | null }>) {
+  const repByProfileId = new Map<string, { id: string; rep_code: string | null; prefix: string | null; first_name: string | null; last_name: string | null }>();
+  for (const r of (repsRes.data ?? []) as Array<{
+    id: string;
+    rep_code: string | null;
+    profile_id: string | null;
+    prefix: string | null;
+    first_name: string | null;
+    last_name: string | null;
+  }>) {
     if (!r.profile_id) continue;
-    repByProfileId.set(r.profile_id, { id: r.id, rep_code: r.rep_code ?? null });
+    repByProfileId.set(r.profile_id, {
+      id: r.id,
+      rep_code: r.rep_code ?? null,
+      prefix: r.prefix ?? null,
+      first_name: r.first_name ?? null,
+      last_name: r.last_name ?? null,
+    });
   }
 
   const items = users.map((u) => {

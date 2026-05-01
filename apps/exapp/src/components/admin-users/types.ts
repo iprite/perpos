@@ -1,7 +1,7 @@
 import type { RepresentativeLevel, Role } from "@/lib/supabase/types";
 
-export type OrgOption = { label: string; value: string };
-export type RepOption = { label: string; value: string };
+export type OrgOption = { label: string; value: string; email?: string | null };
+export type RepOption = { label: string; value: string; repCode?: string | null; email?: string | null };
 
 export type ListedUser = {
   id: string;
@@ -18,6 +18,5 @@ export type ListedUser = {
     created_at: string;
   } | null;
   employer_org: { organization_id: string; organization_name: string | null } | null;
-  representative: { id: string; rep_code: string | null } | null;
+  representative: { id: string; rep_code: string | null; prefix: string | null; first_name: string | null; last_name: string | null } | null;
 };
-

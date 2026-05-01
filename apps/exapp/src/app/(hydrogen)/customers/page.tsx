@@ -698,9 +698,9 @@ export default function CustomersPage() {
         {!isFormMode ? (
           <div>
             <Title as="h1" className="text-lg font-semibold text-gray-900">
-              นายจ้าง/ลูกค้า
+              นายจ้าง
             </Title>
-            <Text className="mt-1 text-sm text-gray-600">ข้อมูลนายจ้าง/ลูกค้า และผู้ติดต่อ</Text>
+            <Text className="mt-1 text-sm text-gray-600">ข้อมูลนายจ้าง และผู้ติดต่อ</Text>
           </div>
         ) : null}
         {role !== "employer" && !isFormMode ? (
@@ -728,7 +728,7 @@ export default function CustomersPage() {
           <div className="flex flex-col justify-between gap-3 md:flex-row md:items-end">
             <div>
               <div className="text-lg font-semibold text-gray-900">{editingId ? "แก้ไขลูกค้า" : "เพิ่มลูกค้า"}</div>
-              <div className="mt-1 text-sm text-gray-600">ข้อมูลนายจ้าง/ลูกค้า และผู้ติดต่อ</div>
+              <div className="mt-1 text-sm text-gray-600">ข้อมูลนายจ้าง และผู้ติดต่อ</div>
             </div>
             <div className="flex flex-wrap items-center justify-end gap-2">
               {!editingId || isDirty ? (
@@ -1330,7 +1330,7 @@ export default function CustomersPage() {
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div>
                     <div className="text-sm font-semibold text-gray-900">รายการแรงงาน</div>
-                    <div className="mt-0.5 text-xs text-gray-500">แรงงานที่ผูกกับนายจ้าง/ลูกค้านี้</div>
+                    <div className="mt-0.5 text-xs text-gray-500">แรงงานที่ผูกกับนายจ้างนี้</div>
                   </div>
                 </div>
 

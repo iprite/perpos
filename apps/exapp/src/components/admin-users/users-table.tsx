@@ -17,17 +17,31 @@ function formatStatus(u: ListedUser) {
 
 export default function UsersTable({
   items,
+  repLabelByCode,
   loading,
   onReset,
   onDelete,
 }: {
   items: ListedUser[];
+  repLabelByCode: Map<string, string>;
   loading: boolean;
   onReset: (email: string) => Promise<void>;
   onDelete: (userId: string) => Promise<void>;
 }) {
   const confirmDialog = useConfirmDialog();
   const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 10 });
+
+  const representativeLabel = useMemo(() => {
+    return (rep: ListedUser["representative"]) => {
+      if (!rep) return "-";
+      const code = String(rep.rep_code ?? rep.id).trim() || rep.id;
+      const prefix = String(rep.prefix ?? "").trim();
+      const firstName = String(rep.first_name ?? "").trim();
+      const lastName = String(rep.last_name ?? "").trim();
+      const fullName = `${prefix}${firstName}${lastName ? ` ${lastName}` : ""}`.trim();
+      return fullName ? `${code} (${fullName})` : code;
+    };
+  }, []);
 
   const table = useReactTable({
     data: items,
@@ -53,11 +67,13 @@ export default function UsersTable({
         table.getRowModel().rows.map((row) => {
           const u = row.original as ListedUser;
           const r = u.profile?.role ?? "sale";
+          const repCode = String(u.representative?.rep_code ?? "").trim();
+          const repLabel = repCode ? repLabelByCode.get(repCode) : undefined;
           const right =
             r === "employer"
               ? u.employer_org?.organization_name ?? u.employer_org?.organization_id ?? "-"
               : r === "representative"
-                ? u.representative?.rep_code ?? u.representative?.id ?? "-"
+                ? repLabel ?? representativeLabel(u.representative)
                 : "-";
 
           return (

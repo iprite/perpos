@@ -61,7 +61,7 @@ export function getMenuItems(role: Role | null): MenuItem[] {
   items.push({ name: "รายชื่อ", roles: ["admin", "sale", "operation", "employer"] });
   items.push(
     {
-      name: "นายจ้าง/ลูกค้า",
+      name: "นายจ้าง",
       href: "/customers",
       icon: <Building2 className="h-5 w-5" />,
       roles: ["admin", "sale", "operation", "employer"],

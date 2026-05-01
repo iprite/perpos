@@ -41,6 +41,7 @@ export default function InviteForm({
   }) => Promise<void>;
 }) {
   const [email, setEmail] = useState("");
+  const [lastAutoEmail, setLastAutoEmail] = useState("");
   const [role, setRole] = useState<Role>("sale");
   const [customerId, setCustomerId] = useState<string>("");
   const [companyRepresentativeId, setCompanyRepresentativeId] = useState<string>("");
@@ -64,14 +65,25 @@ export default function InviteForm({
     <div className="mt-5 grid gap-3 rounded-xl border border-gray-200 bg-white p-4">
       <div className="text-sm font-semibold text-gray-900">เพิ่มผู้ใช้และส่งอีเมลตั้งรหัส</div>
       <div className="grid gap-3 md:grid-cols-2">
-        <Input label="อีเมล" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@company.com" />
+        <Input
+          label="อีเมล"
+          value={email}
+          onChange={(e) => {
+            setEmail(e.target.value);
+            if (lastAutoEmail.trim()) setLastAutoEmail("");
+          }}
+          placeholder="name@company.com"
+        />
         <div>
           <AppSelect
             label="Role"
             placeholder="เลือก"
             options={roleOptions}
             value={role}
-            onChange={(v: Role) => setRole(v)}
+            onChange={(v: Role) => {
+              setRole(v);
+              setLastAutoEmail("");
+            }}
             getOptionValue={(o) => o.value}
             displayValue={(selected) => roleOptions.find((o) => o.value === selected)?.label ?? ""}
             selectClassName="h-10 px-3"
@@ -83,17 +95,32 @@ export default function InviteForm({
         <div>
           <AppSelect
             label="ผู้องค์กร (นายจ้าง)"
-            placeholder={orgOptions.length ? "เลือกนายจ้าง/ลูกค้า" : "ยังไม่มีนายจ้าง/ลูกค้า"}
+            placeholder={orgOptions.length ? "เลือกนายจ้าง" : "ยังไม่มีนายจ้าง"}
             options={orgOptions}
             value={customerId}
-            onChange={(v: string) => setCustomerId(v)}
+            onChange={(v: string) => {
+              const nextId = String(v ?? "");
+              setCustomerId(nextId);
+              const emailTrimmed = email.trim();
+              const autoTrimmed = lastAutoEmail.trim();
+              const shouldAutofill = emailTrimmed.length === 0 || (autoTrimmed.length > 0 && emailTrimmed === autoTrimmed);
+              if (!shouldAutofill) return;
+              const nextEmail = String(orgOptions.find((o) => o.value === nextId)?.email ?? "").trim();
+              if (!nextEmail) {
+                setEmail("");
+                setLastAutoEmail("");
+                return;
+              }
+              setEmail(nextEmail);
+              setLastAutoEmail(nextEmail);
+            }}
             getOptionValue={(o) => o.value}
             displayValue={(selected) => orgOptions.find((o) => o.value === selected)?.label ?? ""}
             selectClassName="h-10 px-3"
           />
           {!orgOptions.length ? (
             <div className="mt-2 text-sm text-gray-600">
-              ยังไม่มีข้อมูลนายจ้าง/ลูกค้า กรุณาไปเพิ่มที่ <a className="text-blue-600 underline" href="/customers">หน้า นายจ้าง/ลูกค้า</a>
+              ยังไม่มีข้อมูลนายจ้าง กรุณาไปเพิ่มที่ <a className="text-blue-600 underline" href="/customers">หน้า นายจ้าง</a>
             </div>
           ) : null}
         </div>
@@ -107,7 +134,22 @@ export default function InviteForm({
               placeholder="เลือกตัวแทน"
               options={repOptions}
               value={companyRepresentativeId}
-              onChange={(v: string) => setCompanyRepresentativeId(v)}
+              onChange={(v: string) => {
+                const nextId = String(v ?? "");
+                setCompanyRepresentativeId(nextId);
+                const emailTrimmed = email.trim();
+                const autoTrimmed = lastAutoEmail.trim();
+                const shouldAutofill = emailTrimmed.length === 0 || (autoTrimmed.length > 0 && emailTrimmed === autoTrimmed);
+                if (!shouldAutofill) return;
+                const nextEmail = String(repOptions.find((o) => o.value === nextId)?.email ?? "").trim();
+                if (!nextEmail) {
+                  setEmail("");
+                  setLastAutoEmail("");
+                  return;
+                }
+                setEmail(nextEmail);
+                setLastAutoEmail(nextEmail);
+              }}
               getOptionValue={(o) => o.value}
               displayValue={(selected) => repOptions.find((o) => o.value === selected)?.label ?? ""}
               selectClassName="h-10 px-3"
@@ -155,6 +197,7 @@ export default function InviteForm({
               representativeLeadId: role === "representative" && repLevel === "member" ? repLeadId : undefined,
             });
             setEmail("");
+            setLastAutoEmail("");
             setCustomerId("");
             setCompanyRepresentativeId("");
             setRepLeadId("");

@@ -91,7 +91,7 @@ export function CustomersCsvImportModal({ onImported }: CustomersCsvImportModalP
 
   return (
     <div className="p-4">
-      <div className="text-base font-semibold text-gray-900">นำเข้านายจ้าง/ลูกค้าจาก CSV</div>
+      <div className="text-base font-semibold text-gray-900">นำเข้านายจ้างจาก CSV</div>
       <div className="mt-1 text-sm text-gray-600">ระบบจะเก็บ unique id ชั่วคราวไว้ที่ลูกค้าเพื่อใช้ mapping กับแรงงาน</div>
 
       <div className="mt-4 grid gap-3 rounded-xl border border-gray-200 bg-white p-4">

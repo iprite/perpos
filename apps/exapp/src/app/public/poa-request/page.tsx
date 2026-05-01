@@ -206,7 +206,7 @@ export default function PublicPoaRequestPage() {
     if (!representativeRepCode) next.representative_rep_code = representatives.length ? "กรุณาเลือกชื่อตัวแทน" : "กรุณากรอกรหัสตัวแทน";
     if (!representatives.length && !trimOrEmpty(representativeNameManual)) next.representative_name = "กรุณากรอกชื่อตัวแทน";
     if (!selectedTypeId) next.poa_request_type_id = "กรุณาเลือกประเภทหนังสือมอบอำนาจ";
-    if (!trimOrEmpty(employerName)) next.employer_name = "กรุณากรอกชื่อนายจ้าง/ลูกค้า";
+    if (!trimOrEmpty(employerName)) next.employer_name = "กรุณากรอกชื่อนายจ้าง";
     if (isMouSelected) {
       const male = asIntOrNull(workerMale);
       const female = asIntOrNull(workerFemale);
@@ -339,9 +339,9 @@ export default function PublicPoaRequestPage() {
                 </div>
 
                 <div className="grid gap-3 rounded-xl border border-gray-200 bg-white p-4">
-                  <div className="text-sm font-semibold text-gray-900">ข้อมูลนายจ้าง/ลูกค้า</div>
+                  <div className="text-sm font-semibold text-gray-900">ข้อมูลนายจ้าง</div>
                   <Input
-                    label="ชื่อนายจ้าง/ลูกค้า *"
+                    label="ชื่อนายจ้าง *"
                     value={employerName}
                     onChange={(e) => {
                       setEmployerName(e.target.value);
@@ -456,7 +456,7 @@ export default function PublicPoaRequestPage() {
                       <div className="truncate font-medium text-gray-900">{selectedType?.name ?? "-"}</div>
                     </div>
                     <div className="flex items-center justify-between gap-3">
-                      <div className="text-gray-600">นายจ้าง/ลูกค้า</div>
+                      <div className="text-gray-600">นายจ้าง</div>
                       <div className="truncate font-medium text-gray-900">{trimOrEmpty(employerName) || "-"}</div>
                     </div>
                     <div className="flex items-center justify-between gap-3">
@@ -545,7 +545,7 @@ export default function PublicPoaRequestPage() {
                 <div className={selectedTypeId ? "font-semibold text-green-700" : "font-semibold text-gray-400"}>{selectedTypeId ? "ครบ" : "-"}</div>
               </div>
               <div className="flex items-center justify-between gap-3">
-                <div className="text-gray-700">ชื่อนายจ้าง/ลูกค้า</div>
+                <div className="text-gray-700">ชื่อนายจ้าง</div>
                 <div className={trimOrEmpty(employerName) ? "font-semibold text-green-700" : "font-semibold text-gray-400"}>{trimOrEmpty(employerName) ? "ครบ" : "-"}</div>
               </div>
               <div className="flex items-center justify-between gap-3">

@@ -26,6 +26,22 @@ export default function AdminUsersPage() {
   const [orgOptions, setOrgOptions] = useState<OrgOption[]>([]);
   const [repOptions, setRepOptions] = useState<RepOption[]>([]);
 
+  const repLabelByCode = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const o of repOptions) {
+      const code = String(o.repCode ?? "").trim();
+      if (!code) continue;
+      m.set(code, o.label);
+    }
+    return m;
+  }, [repOptions]);
+
+  const isMissingRepEmailColumnError = useCallback((message: string | null | undefined) => {
+    const m = (message ?? "").toLowerCase();
+    if (!m) return false;
+    return m.includes("company_representatives.email") || (m.includes("column") && m.includes("email") && m.includes("does not exist"));
+  }, []);
+
   const authHeader = useCallback(async () => {
     const { data } = await supabase.auth.getSession();
     const token = data.session?.access_token;
@@ -40,7 +56,10 @@ export default function AdminUsersPage() {
       setMessage(null);
       try {
         const headers = await authHeader();
-        const res = await fetch("/api/admin/users/meta", { headers });
+        const [res, repsWithEmailRes] = await Promise.all([
+          fetch("/api/admin/users/meta", { headers }),
+          supabase.from("company_representatives").select("id,rep_code,prefix,first_name,last_name,email").order("rep_code", { ascending: true }),
+        ]);
         const json = await res.json().catch(() => null);
         if (!res.ok) {
           setError(json?.error ?? "โหลดข้อมูลประกอบไม่สำเร็จ");
@@ -48,24 +67,60 @@ export default function AdminUsersPage() {
           return;
         }
 
-        const customers = (json?.customers ?? []) as Array<{ id: string; name: string | null; display_id: string | null }>;
-        const reps = (json?.companyRepresentatives ?? []) as Array<{ id: string; rep_code: string | null }>;
+        const customers = (json?.customers ?? []) as Array<{ id: string; name: string | null; display_id: string | null; email?: string | null }>;
         setOrgOptions(
           customers
             .filter((c) => (c.name ?? "").trim().length > 0)
             .map((c) => ({
               label: c.display_id ? `${c.name} (${c.display_id})` : (c.name as string),
               value: c.id,
+              email: c.email ?? null,
             })),
         );
-        setRepOptions(reps.map((r) => ({ label: r.rep_code ?? r.id, value: r.id })));
+
+        const repsData =
+          repsWithEmailRes.error && isMissingRepEmailColumnError(repsWithEmailRes.error.message)
+            ? await supabase
+                .from("company_representatives")
+                .select("id,rep_code,prefix,first_name,last_name")
+                .order("rep_code", { ascending: true })
+            : repsWithEmailRes;
+
+        if (repsData.error) {
+          setError(repsData.error.message);
+          setLoading(false);
+          return;
+        }
+
+        const reps = (repsData.data ?? []) as Array<{
+          id: string;
+          rep_code: string | null;
+          prefix?: string | null;
+          first_name?: string | null;
+          last_name?: string | null;
+          email?: string | null;
+        }>;
+
+        setRepOptions(
+          reps.map((r) => {
+            const code = String(r.rep_code ?? r.id).trim() || r.id;
+            const prefix = String(r.prefix ?? "").trim();
+            const firstName = String(r.first_name ?? "").trim();
+            const lastName = String(r.last_name ?? "").trim();
+            const fullName = `${prefix}${firstName}${lastName ? ` ${lastName}` : ""}`.trim();
+            const emailHint = String(r.email ?? "").trim();
+            const hint = fullName || emailHint;
+            const label = hint ? `${code} (${hint})` : code;
+            return { label, value: r.id, repCode: r.rep_code ?? null, email: r.email ?? null };
+          }),
+        );
         setLoading(false);
       } catch (e: any) {
         setError(e?.message ?? "โหลดข้อมูลไม่สำเร็จ");
         setLoading(false);
       }
     });
-  }, [authHeader]);
+  }, [authHeader, isMissingRepEmailColumnError, supabase]);
 
   const refreshUsers = useCallback(() => {
     Promise.resolve().then(async () => {
@@ -264,6 +319,7 @@ export default function AdminUsersPage() {
 
       <UsersTable
         items={filtered}
+        repLabelByCode={repLabelByCode}
         loading={loading}
         onReset={async (email) => {
           setLoading(true);
