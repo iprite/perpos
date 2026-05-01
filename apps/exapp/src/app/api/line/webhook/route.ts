@@ -63,6 +63,19 @@ async function getPettyCashBalance(admin: any) {
   return Number(res.data ?? 0);
 }
 
+async function getPettyCashSummary(admin: any) {
+  const res = await admin.rpc("petty_cash_summary");
+  if (res.error) throw new Error(res.error.message);
+  const d = (res.data ?? {}) as any;
+  return {
+    balance: Number(d.balance ?? 0),
+    todayTopUp: Number(d.today_top_up ?? 0),
+    todaySpend: Number(d.today_spend ?? 0),
+    monthTopUp: Number(d.month_top_up ?? 0),
+    monthSpend: Number(d.month_spend ?? 0),
+  };
+}
+
 async function fetchProfileByLineUserId(admin: any, lineUserId: string) {
   const res = await admin.from("profiles").select("id,role,display_name").eq("line_user_id", lineUserId).maybeSingle();
   if (res.error) return null;
@@ -247,11 +260,27 @@ export async function POST(req: Request) {
         continue;
       }
 
+      if (cmd.kind === "summary") {
+        try {
+          const s = await getPettyCashSummary(admin);
+          const lines: string[] = [];
+          lines.push("สรุปเงินสดย่อย");
+          lines.push(`ยอดคงเหลือ: ${money(s.balance)} บาท`);
+          lines.push("──────────");
+          lines.push(`วันนี้ • เติมเงิน ${money(s.todayTopUp)} • ใช้เงิน ${money(s.todaySpend)}`);
+          lines.push(`เดือนนี้ • เติมเงิน ${money(s.monthTopUp)} • ใช้เงิน ${money(s.monthSpend)}`);
+          await replyText({ replyToken, text: lines.join("\n") });
+        } catch (e: any) {
+          await replyText({ replyToken, text: e?.message ?? "ดึงสรุปไม่สำเร็จ" });
+        }
+        continue;
+      }
+
       if (cmd.kind === "last") {
         const limit = Number.isFinite(cmd.limit) ? cmd.limit : 5;
         const res = await admin
           .from("petty_cash_transactions")
-          .select("txn_type,amount,occurred_at,category_name,title,note")
+          .select("txn_type,amount,occurred_at,category_name,title")
           .order("occurred_at", { ascending: false })
           .order("created_at", { ascending: false })
           .limit(limit);

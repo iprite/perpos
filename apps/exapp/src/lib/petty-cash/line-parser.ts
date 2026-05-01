@@ -1,6 +1,7 @@
 import dayjs from "dayjs";
 
 export type PettyCashLineCommand =
+  | { kind: "summary" }
   | { kind: "balance" }
   | { kind: "last"; limit: number }
   | {
@@ -73,10 +74,11 @@ function parseSlashMultiLine(text: string): PettyCashLineCommand | null {
   if (!lines.length) return null;
 
   const head = String(lines[0] ?? "").trim();
-  const m = head.match(/^\/pc\s+(in|out|bal|last)(?:\s+(\d{1,2}))?$/i);
+  const m = head.match(/^\/pc(?:\s+(in|out|bal|last)(?:\s+(\d{1,2}))?)?$/i);
   if (!m) return null;
-  const action = String(m[1]).toLowerCase();
+  const action = String(m[1] ?? "").toLowerCase();
 
+  if (!action) return { kind: "summary" };
   if (action === "bal") return { kind: "balance" };
   if (action === "last") {
     const limitRaw = Number(m[2] ?? lines[1] ?? 5);
