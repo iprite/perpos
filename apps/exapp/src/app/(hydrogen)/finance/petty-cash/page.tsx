@@ -8,6 +8,8 @@ import { Button, Input } from "rizzui";
 import { Title, Text } from "rizzui/typography";
 import AppSelect from "@core/ui/app-select";
 import { Modal } from "@core/modal-views/modal";
+import { Pencil, Trash2 } from "lucide-react";
+import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
 import { useAuth } from "@/app/shared/auth-provider";
 import { useConfirmDialog } from "@/app/shared/confirm-dialog/provider";
@@ -76,12 +78,14 @@ export default function PettyCashPage() {
       { value: "today", label: "วันนี้" },
       { value: "week", label: "สัปดาห์นี้" },
       { value: "month", label: "เดือนนี้" },
+      { value: "year", label: "ปีนี้" },
     ];
   }, []);
 
   const periodStart = useMemo(() => {
     if (period === "today") return dayjs().startOf("day");
     if (period === "week") return dayjs().startOf("week");
+    if (period === "year") return dayjs().startOf("year");
     return dayjs().startOf("month");
   }, [period]);
 
@@ -109,6 +113,27 @@ export default function PettyCashPage() {
 
     return { balance, allTopUp, allSpend, pTopUp, pSpend };
   }, [periodStart, rows]);
+
+  const monthlySeries = useMemo(() => {
+    const start = dayjs("2026-04-01").startOf("month");
+    const end = dayjs().startOf("month");
+    const count = end.diff(start, "month");
+    if (!Number.isFinite(count) || count < 0) return [];
+    const months = Array.from({ length: count + 1 }, (_, idx) => start.add(idx, "month"));
+    const byKey: Record<string, { label: string; topUp: number; spend: number }> = {};
+    for (const m of months) {
+      const key = m.format("YYYY-MM");
+      byKey[key] = { label: m.format("MM/YY"), topUp: 0, spend: 0 };
+    }
+    for (const r of rows) {
+      const key = dayjs(r.occurred_at).format("YYYY-MM");
+      const item = byKey[key];
+      if (!item) continue;
+      if (r.txn_type === "TOP_UP") item.topUp += Number(r.amount ?? 0);
+      if (r.txn_type === "SPEND") item.spend += Number(r.amount ?? 0);
+    }
+    return months.map((m) => byKey[m.format("YYYY-MM")]);
+  }, [rows]);
 
   const lowThreshold = Number(settings?.low_balance_threshold ?? 0);
   const lowEnabled = Boolean(settings?.in_app_alert_enabled ?? true);
@@ -189,58 +214,92 @@ export default function PettyCashPage() {
 
       {error ? <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div> : null}
 
-      <div className="mt-4 rounded-xl border border-gray-200 bg-white p-4">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <div className="text-sm font-semibold text-gray-900">ยอดคงเหลือ</div>
-            <div className="mt-1 text-2xl font-semibold text-gray-900">{money(totals.balance)}</div>
-            <div className="mt-1 text-xs text-gray-500">อัปเดตจากรายการล่าสุด</div>
-          </div>
-          <div className="min-w-[240px]">
-            <AppSelect
-              label="ช่วงเวลา"
-              placeholder="-"
-              options={periodOptions}
-              value={period}
-              onChange={(v: string) => setPeriod(String(v))}
-              getOptionValue={(o) => o.value}
-              displayValue={(selected) => periodOptions.find((o) => o.value === selected)?.label ?? ""}
-              inPortal={false}
-              selectClassName="h-10 px-3"
-            />
-            <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
-              <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
-                <div className="text-xs font-semibold text-gray-600">เติมเงิน</div>
-                <div className="mt-1 font-semibold text-gray-900">{money(totals.pTopUp)}</div>
-              </div>
-              <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
-                <div className="text-xs font-semibold text-gray-600">ใช้เงิน</div>
-                <div className="mt-1 font-semibold text-gray-900">{money(totals.pSpend)}</div>
-              </div>
+      <div className="mt-4 grid gap-4 md:grid-cols-2">
+        <div className="rounded-xl border border-gray-200 bg-white p-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <div className="text-sm font-semibold text-gray-900">ยอดคงเหลือ</div>
+              <div className="mt-1 text-2xl font-semibold text-gray-900">{money(totals.balance)}</div>
+              <div className="mt-1 text-xs text-gray-500">อัปเดตจากรายการล่าสุด</div>
+            </div>
+            <div className="w-full md:w-[260px]">
+              <AppSelect
+                label="ช่วงเวลา"
+                placeholder="-"
+                options={periodOptions}
+                value={period}
+                onChange={(v: string) => setPeriod(String(v))}
+                getOptionValue={(o) => o.value}
+                displayValue={(selected) => periodOptions.find((o) => o.value === selected)?.label ?? ""}
+                inPortal={false}
+                selectClassName="h-10 px-3"
+              />
             </div>
           </div>
+
+          <div className="mt-4 grid grid-cols-2 gap-2 text-sm">
+            <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+              <div className="text-xs font-semibold text-gray-600">เติมเงิน</div>
+              <div className="mt-1 font-semibold text-gray-900">{money(totals.pTopUp)}</div>
+            </div>
+            <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+              <div className="text-xs font-semibold text-gray-600">ใช้เงิน</div>
+              <div className="mt-1 font-semibold text-gray-900">{money(totals.pSpend)}</div>
+            </div>
+          </div>
+
+          {isLow ? (
+            <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-4">
+              <div className="text-sm font-semibold text-red-800">เงินสดย่อยเหลือน้อย</div>
+              <div className="mt-1 text-sm text-red-700">เกณฑ์แจ้งเตือน {money(lowThreshold)} • ยอดคงเหลือ {money(totals.balance)}</div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Button
+                  disabled={loading || !canWrite}
+                  onClick={() => {
+                    setEditing({ txn_type: "TOP_UP", occurred_at: dayjs().format("YYYY-MM-DD"), amount: 0, category_name: null, title: "เติมเงินสดย่อย", id: "", receipt_object_path: null, receipt_file_name: null } as any);
+                    setModalOpen(true);
+                  }}
+                >
+                  เติมเงินตอนนี้
+                </Button>
+                <Link href="/finance/petty-cash/settings" className="inline-flex">
+                  <Button variant="outline">ปรับเกณฑ์</Button>
+                </Link>
+              </div>
+            </div>
+          ) : null}
         </div>
 
-        {isLow ? (
-          <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-4">
-            <div className="text-sm font-semibold text-red-800">เงินสดย่อยเหลือน้อย</div>
-            <div className="mt-1 text-sm text-red-700">เกณฑ์แจ้งเตือน {money(lowThreshold)} • ยอดคงเหลือ {money(totals.balance)}</div>
-            <div className="mt-3 flex flex-wrap gap-2">
-              <Button
-                disabled={loading || !canWrite}
-                onClick={() => {
-                  setEditing({ txn_type: "TOP_UP", occurred_at: dayjs().format("YYYY-MM-DD"), amount: 0, category_name: null, title: "เติมเงินสดย่อย", id: "", receipt_object_path: null, receipt_file_name: null } as any);
-                  setModalOpen(true);
-                }}
-              >
-                เติมเงินตอนนี้
-              </Button>
-              <Link href="/finance/petty-cash/settings" className="inline-flex">
-                <Button variant="outline">ปรับเกณฑ์</Button>
-              </Link>
+        <div className="rounded-xl border border-gray-200 bg-white p-4">
+          <div className="flex items-center justify-between gap-2">
+            <div>
+              <div className="text-sm font-semibold text-gray-900">สรุปยอดรายเดือน</div>
+              <div className="mt-1 text-xs text-gray-500">เริ่มตั้งแต่ 04/26 (เติมเงิน/ใช้เงิน)</div>
             </div>
           </div>
-        ) : null}
+          <div className="mt-3 h-[220px]">
+            {loading ? (
+              <div className="h-full w-full animate-pulse rounded-lg bg-gray-100" />
+            ) : monthlySeries.length === 0 ? (
+              <div className="flex h-full items-center justify-center text-sm text-gray-500">ไม่มีข้อมูล</div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={monthlySeries} margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
+                  <XAxis dataKey="label" tick={{ fontSize: 12, fill: "#6B7280" }} interval={0} />
+                  <YAxis tick={{ fontSize: 12, fill: "#6B7280" }} tickFormatter={(v) => `${Number(v).toLocaleString()}`} width={56} />
+                  <Tooltip
+                    formatter={(v: any, name: any) => [`${money(Number(v ?? 0))} บาท`, name === "topUp" ? "เติมเงิน" : "ใช้เงิน"]}
+                    labelFormatter={(l) => `เดือน ${l}`}
+                    contentStyle={{ borderRadius: 12, borderColor: "#E5E7EB" }}
+                  />
+                  <Bar dataKey="topUp" name="เติมเงิน" fill="#34D399" radius={[6, 6, 0, 0]} />
+                  <Bar dataKey="spend" name="ใช้เงิน" fill="#FB7185" radius={[6, 6, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+        </div>
       </div>
 
       <div className="mt-4 rounded-xl border border-gray-200 bg-white p-4">
@@ -300,18 +359,19 @@ export default function PettyCashPage() {
 
                   <button
                     type="button"
-                    className="text-sm font-medium text-gray-900 underline disabled:opacity-50"
+                    className="rounded-md p-2 text-gray-600 hover:bg-gray-100 disabled:opacity-50"
                     disabled={loading || !canWrite}
                     onClick={() => {
                       setEditing(r);
                       setModalOpen(true);
                     }}
+                    aria-label="แก้ไข"
                   >
-                    แก้ไข
+                    <Pencil className="h-4 w-4" />
                   </button>
                   <button
                     type="button"
-                    className="text-sm font-medium text-red-700 underline disabled:opacity-50"
+                    className="rounded-md p-2 text-red-700 hover:bg-red-50 disabled:opacity-50"
                     disabled={loading || !canWrite}
                     onClick={async () => {
                       const ok = await confirmDialog({ title: "ยืนยันการลบ", message: "ต้องการลบรายการนี้หรือไม่?", confirmText: "ลบ", tone: "danger" });
@@ -329,8 +389,9 @@ export default function PettyCashPage() {
                         setError(e?.message ?? "ลบไม่สำเร็จ");
                       }
                     }}
+                    aria-label="ลบ"
                   >
-                    ลบ
+                    <Trash2 className="h-4 w-4" />
                   </button>
                 </div>
               </div>

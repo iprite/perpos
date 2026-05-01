@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Image from "next/image";
 import toast from "react-hot-toast";
 import { Box, Button, Input, Popover, Textarea } from "rizzui";
 import { Title, Text } from "rizzui/typography";
@@ -607,8 +608,6 @@ export default function CustomersPage() {
     return [{ id: editingId, name: name.trim() || "ลูกค้า" }];
   }, [editingId, name]);
   const isFormMode = Boolean(showForm);
-  const contactCardRef = useRef<HTMLDivElement | null>(null);
-  const [docCardHeight, setDocCardHeight] = useState<number | null>(null);
   const isDirty = useMemo(() => {
     if (!editingId) return true;
     const init = initialFormRef.current;
@@ -692,24 +691,6 @@ export default function CustomersPage() {
     setLoading(false);
     refresh();
   }, [confirm, editingId, refresh, resetForm, supabase]);
-
-  useLayoutEffect(() => {
-    if (!showForm) {
-      setDocCardHeight(null);
-      return;
-    }
-    const el = contactCardRef.current;
-    if (!el) return;
-    const update = () => setDocCardHeight(el.offsetHeight || null);
-    update();
-    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(update) : null;
-    ro?.observe(el);
-    window.addEventListener("resize", update);
-    return () => {
-      ro?.disconnect();
-      window.removeEventListener("resize", update);
-    };
-  }, [showForm]);
 
   return (
     <div ref={topRef}>
@@ -1083,7 +1064,7 @@ export default function CustomersPage() {
             </div>
 
             <div className="grid gap-5">
-              <div ref={contactCardRef} className="rounded-2xl border border-gray-200 bg-white/70 p-4 backdrop-blur">
+              <div className="rounded-2xl border border-gray-200 bg-white/70 p-4 backdrop-blur">
                 <div className="text-sm font-semibold text-gray-900">ข้อมูลผู้ติดต่อ</div>
                 <div className="mt-4 grid gap-4 md:grid-cols-2">
                   <Input label="ชื่อผู้ติดต่อ" value={contactName} onChange={(e) => setContactName(e.target.value)} />
@@ -1099,10 +1080,7 @@ export default function CustomersPage() {
                 </div>
               </div>
 
-              <div
-                className="rounded-2xl border border-gray-200 bg-white/70 p-4 backdrop-blur"
-                style={docCardHeight ? { height: docCardHeight } : undefined}
-              >
+              <div className="rounded-2xl border border-gray-200 bg-white/70 p-4 backdrop-blur">
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div>
                     <div className="text-sm font-semibold text-gray-900">รายการเอกสาร</div>
@@ -1116,7 +1094,7 @@ export default function CustomersPage() {
                   </div>
                 ) : null}
 
-                <div className="mt-4 h-[calc(100%-48px)] overflow-y-auto">
+                <div className="mt-4 max-h-[360px] overflow-y-auto">
                   <div className="grid gap-2">
                     {editingId && docRows.length === 0 ? <div className="text-sm text-gray-600">ยังไม่มีเอกสาร</div> : null}
                     {editingId
@@ -1379,17 +1357,34 @@ export default function CustomersPage() {
                             }}
                             disabled={loading}
                           >
-                            <div className="min-w-[220px]">
-                              <div className="text-sm font-medium text-gray-900">{w.full_name || "-"}</div>
-                              <div className="text-xs text-gray-600">
-                                {(() => {
-                                  const wid = String(w.worker_id ?? "").trim();
-                                  const nat = String(w.nationality ?? "").trim();
-                                  const pass = String(w.passport_no ?? "").trim();
-                                  const wp = String(w.wp_number ?? "").trim();
-                                  const parts = [wid, nat, pass ? `P ${pass}` : "", wp ? `WP ${wp}` : ""].filter(Boolean);
-                                  return parts.length ? parts.join(" • ") : "-";
-                                })()}
+                            <div className="flex min-w-[220px] items-center gap-3">
+                              <div className="relative h-9 w-9 overflow-hidden rounded-full border border-gray-200 bg-gray-100">
+                                {w.profile_pic_url ? (
+                                  <Image src={String(w.profile_pic_url)} alt="worker" fill unoptimized className="object-cover" />
+                                ) : (
+                                  <div className="flex h-full w-full items-center justify-center text-xs font-semibold text-gray-600">
+                                    {String(w.full_name ?? "")
+                                      .trim()
+                                      .split(/\s+/)
+                                      .slice(0, 2)
+                                      .map((x) => x.slice(0, 1))
+                                      .join("")
+                                      .toUpperCase() || "W"}
+                                  </div>
+                                )}
+                              </div>
+                              <div className="min-w-0">
+                                <div className="text-sm font-medium text-gray-900">{w.full_name || "-"}</div>
+                                <div className="text-xs text-gray-600">
+                                  {(() => {
+                                    const wid = String(w.worker_id ?? "").trim();
+                                    const nat = String(w.nationality ?? "").trim();
+                                    const pass = String(w.passport_no ?? "").trim();
+                                    const wp = String(w.wp_number ?? "").trim();
+                                    const parts = [wid, nat, pass ? `P ${pass}` : "", wp ? `WP ${wp}` : ""].filter(Boolean);
+                                    return parts.length ? parts.join(" • ") : "-";
+                                  })()}
+                                </div>
                               </div>
                             </div>
                             <div className="text-xs font-semibold text-gray-700">ดูรายละเอียด</div>

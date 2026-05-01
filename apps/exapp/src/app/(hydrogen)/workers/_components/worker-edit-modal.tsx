@@ -4,7 +4,6 @@ import React, { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { Button } from "rizzui";
 import { Modal } from "@core/modal-views/modal";
-import { X } from "lucide-react";
 
 import { useConfirmDialog } from "@/app/shared/confirm-dialog/provider";
 
@@ -108,14 +107,6 @@ export function WorkerEditModal({
               <div className="truncate text-base font-semibold text-gray-900">{formTitle}</div>
               <div className="mt-1 text-sm text-gray-600">กรอกข้อมูลแรงงานและจัดการเอกสารประกอบ</div>
             </div>
-            <button
-              type="button"
-              className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 text-gray-700 hover:bg-gray-50"
-              onClick={form.closeAndReset}
-              disabled={form.loading}
-            >
-              <X className="h-4 w-4" />
-            </button>
           </div>
 
           {form.error ? <div className="mx-5 mt-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{form.error}</div> : null}

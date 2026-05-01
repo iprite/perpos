@@ -2,7 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import dayjs from "dayjs";
-import { Button, Input, Textarea } from "rizzui";
+import { Button, Input } from "rizzui";
 import AppSelect from "@core/ui/app-select";
 import { DatePicker } from "@core/ui/datepicker";
 import { Modal } from "@core/modal-views/modal";
@@ -147,9 +147,6 @@ export function PettyCashTransactionModal({
             <div className="text-base font-semibold text-gray-900">{mode === "edit" ? "แก้ไขรายการเงินสดย่อย" : "บันทึกรายการเงินสดย่อย"}</div>
             <div className="mt-1 text-sm text-gray-600">เติมเงิน/ใช้เงิน พร้อมรายละเอียดเพื่อดูยอดคงเหลือ</div>
           </div>
-          <Button size="sm" variant="outline" onClick={onClose} disabled={loading} className="whitespace-nowrap">
-            ปิด
-          </Button>
         </div>
 
         {!canWrite ? <div className="mt-4 rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm text-gray-700">คุณมีสิทธิ์ดูข้อมูลเท่านั้น</div> : null}
@@ -185,7 +182,7 @@ export function PettyCashTransactionModal({
             )}
           </div>
 
-          <Textarea label="รายการ" value={title} onChange={(e) => setTitle(e.target.value)} disabled={loading || !canWrite} />
+          <Input label="รายการ" value={title} onChange={(e) => setTitle(e.target.value)} disabled={loading || !canWrite} />
 
           <div>
             <div className="text-sm font-medium text-gray-700">หลักฐาน (ถ้ามี)</div>
@@ -200,7 +197,7 @@ export function PettyCashTransactionModal({
             </div>
           </div>
 
-          <div className="flex flex-wrap gap-2">
+          <div className="flex justify-end gap-2">
             <Button
               disabled={loading || !canSubmit}
               onClick={async () => {
