@@ -90,7 +90,7 @@ export default function PettyCashPage() {
     const list = rows.slice().sort((a, b) => String(b.occurred_at).localeCompare(String(a.occurred_at)));
     if (!q) return list;
     return list.filter((r) => {
-      const s = [r.txn_type, r.category_name, r.note, r.amount, r.occurred_at].filter(Boolean).join(" ").toLowerCase();
+      const s = [r.txn_type, r.category_name, r.title, r.amount, r.occurred_at].filter(Boolean).join(" ").toLowerCase();
       return s.includes(q);
     });
   }, [rows, search]);
@@ -124,7 +124,7 @@ export default function PettyCashPage() {
         supabase.from("petty_cash_categories").select("id,name,is_active,sort_order").order("sort_order", { ascending: true }).limit(200),
         supabase
           .from("petty_cash_transactions")
-          .select("id,txn_type,amount,occurred_at,category_name,note,receipt_object_path,receipt_file_name")
+            .select("id,txn_type,amount,occurred_at,category_name,title,receipt_object_path,receipt_file_name")
           .order("occurred_at", { ascending: false })
           .order("created_at", { ascending: false })
           .limit(500),
@@ -229,7 +229,7 @@ export default function PettyCashPage() {
               <Button
                 disabled={loading || !canWrite}
                 onClick={() => {
-                  setEditing({ txn_type: "TOP_UP", occurred_at: dayjs().format("YYYY-MM-DD"), amount: 0, category_name: null, note: null, id: "", receipt_object_path: null, receipt_file_name: null } as any);
+                  setEditing({ txn_type: "TOP_UP", occurred_at: dayjs().format("YYYY-MM-DD"), amount: 0, category_name: null, title: "เติมเงินสดย่อย", id: "", receipt_object_path: null, receipt_file_name: null } as any);
                   setModalOpen(true);
                 }}
               >
@@ -257,7 +257,7 @@ export default function PettyCashPage() {
             <div>ประเภท</div>
             <div>หมวดหมู่</div>
             <div className="text-right">จำนวนเงิน</div>
-            <div>หมายเหตุ</div>
+            <div>รายการ</div>
             <div className="text-right">จัดการ</div>
           </div>
           {filteredRows.length === 0 ? (
@@ -269,7 +269,7 @@ export default function PettyCashPage() {
                 <div className="text-gray-700">{r.txn_type === "TOP_UP" ? "เติมเงิน" : "ใช้เงิน"}</div>
                 <div className="truncate text-gray-700">{r.category_name ?? "-"}</div>
                 <div className="text-right font-medium text-gray-900">{money(Number(r.amount ?? 0))}</div>
-                <div className="truncate text-gray-700">{r.note ?? "-"}</div>
+                <div className="truncate text-gray-700">{r.title ?? "-"}</div>
                 <div className="flex justify-end gap-2">
                   {r.receipt_object_path ? (
                     <button

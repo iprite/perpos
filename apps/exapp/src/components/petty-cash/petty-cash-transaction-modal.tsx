@@ -17,7 +17,7 @@ export type PettyCashTransactionRow = {
   amount: number;
   occurred_at: string;
   category_name: string | null;
-  note: string | null;
+  title: string | null;
   receipt_object_path: string | null;
   receipt_file_name: string | null;
 };
@@ -102,7 +102,7 @@ export function PettyCashTransactionModal({
   const [amount, setAmount] = useState(String(initial?.amount ?? ""));
   const [occurredAt, setOccurredAt] = useState(String(initial?.occurred_at ?? dayjs().format("YYYY-MM-DD")));
   const [categoryName, setCategoryName] = useState(String(initial?.category_name ?? ""));
-  const [note, setNote] = useState(String(initial?.note ?? ""));
+  const [title, setTitle] = useState(String((initial as any)?.title ?? (initial as any)?.note ?? ""));
   const [file, setFile] = useState<File | null>(null);
 
   const typeOptions = useMemo(() => [{ value: "TOP_UP", label: "เติมเงิน" }, { value: "SPEND", label: "ใช้เงิน" }], []);
@@ -117,8 +117,9 @@ export function PettyCashTransactionModal({
     if (!Number.isFinite(n) || n <= 0) return false;
     if (!occurredAt) return false;
     if (txnType === "SPEND" && !categoryName.trim()) return false;
+    if (!title.trim()) return false;
     return true;
-  }, [amount, canWrite, categoryName, occurredAt, txnType]);
+  }, [amount, canWrite, categoryName, occurredAt, title, txnType]);
 
   return (
     <Modal
@@ -174,7 +175,7 @@ export function PettyCashTransactionModal({
             )}
           </div>
 
-          <Textarea label="หมายเหตุ" value={note} onChange={(e) => setNote(e.target.value)} disabled={loading || !canWrite} />
+          <Textarea label="รายการ" value={title} onChange={(e) => setTitle(e.target.value)} disabled={loading || !canWrite} />
 
           <div>
             <div className="text-sm font-medium text-gray-700">หลักฐาน (ถ้ามี)</div>
@@ -206,7 +207,8 @@ export function PettyCashTransactionModal({
                     amount: Math.max(0, n),
                     occurred_at: occurredAt,
                     category_name: txnType === "SPEND" ? (categoryName.trim() || null) : null,
-                    note: note.trim() || null,
+                    title: title.trim() || null,
+                    note: null,
                   };
 
                   let txnId = String(initial?.id ?? "");
@@ -252,4 +254,3 @@ export function PettyCashTransactionModal({
     </Modal>
   );
 }
-

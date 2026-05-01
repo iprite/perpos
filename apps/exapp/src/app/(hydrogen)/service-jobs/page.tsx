@@ -359,9 +359,11 @@ export default function ServiceJobsPage() {
               <div className="text-gray-600">General</div>
               <div className="font-semibold text-gray-900 tabular-nums">{summaryByGroup.general.toLocaleString()}</div>
             </button>
-            <div className="mt-1 flex items-center justify-between border-t border-gray-100 pt-2">
-              <div className="text-gray-600">รวม</div>
-              <div className="font-semibold text-gray-900 tabular-nums">{totalJobs.toLocaleString()}</div>
+            <div className="mt-1 border-t border-gray-100 pt-2">
+              <div className="flex items-center justify-between rounded-lg px-2 py-1.5">
+                <div className="text-gray-600">รวม</div>
+                <div className="font-semibold text-gray-900 tabular-nums">{totalJobs.toLocaleString()}</div>
+              </div>
             </div>
             {groupFilter ? (
               <div className="pt-1">
