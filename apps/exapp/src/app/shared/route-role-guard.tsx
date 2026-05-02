@@ -22,6 +22,8 @@ const rules: Rule[] = [
   { prefix: "/invoices", roles: ["admin", "sale", "operation"] },
   { prefix: "/receipts", roles: ["admin", "sale", "operation"] },
 
+  { prefix: "/posts", roles: ["admin", "sale"] },
+
   { prefix: "/manage-orders", roles: ["admin", "operation"] },
   { prefix: "/poa-requests", roles: ["admin", "operation"] },
 

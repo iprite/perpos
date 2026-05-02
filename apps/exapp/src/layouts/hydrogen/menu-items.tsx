@@ -4,6 +4,7 @@ import {
   BriefcaseBusiness,
   Building2,
   ClipboardList,
+  Newspaper,
   PenTool,
   Receipt,
   FileSignature,
@@ -112,6 +113,14 @@ export function getMenuItems(role: Role | null): MenuItem[] {
       roles: ["admin", "operation"],
     },
   );
+
+  items.push({ name: "คอนเทนต์", roles: ["admin", "sale"] });
+  items.push({
+    name: "โพสต์",
+    href: "/posts",
+    icon: <Newspaper className="h-5 w-5" />,
+    roles: ["admin", "sale"],
+  });
 
   items.push({ name: "บัญชี", roles: ["admin", "sale", "operation"] });
   items.push(

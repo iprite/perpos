@@ -11,6 +11,11 @@ module.exports = {
         protocol: "https",
         hostname: "randomuser.me",
       },
+      {
+        protocol: "https",
+        hostname: "oswwcmcdbetvaunzmyff.supabase.co",
+        pathname: "/storage/v1/object/public/**",
+      },
     ],
   },
   transpilePackages: ["core"],
