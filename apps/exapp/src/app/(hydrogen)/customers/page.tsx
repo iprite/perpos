@@ -1244,6 +1244,47 @@ export default function CustomersPage() {
                     >
                       สร้างลิงก์เชื่อมต่อ
                     </Button>
+                    {editingLineConn?.status === "CONNECTED" ? (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={async () => {
+                          if (!editingId) return;
+                          const ok = await confirm({
+                            title: "ตัดการเชื่อมต่อ LINE",
+                            message: "ต้องการตัดการเชื่อมต่อ LINE ของนายจ้างรายนี้หรือไม่?",
+                            confirmText: "ตัดการเชื่อมต่อ",
+                            tone: "danger",
+                          });
+                          if (!ok) return;
+                          try {
+                            setLoading(true);
+                            const sessionRes = await supabase.auth.getSession();
+                            const token = sessionRes.data.session?.access_token;
+                            if (!token) throw new Error("ยังไม่ได้เข้าสู่ระบบ");
+                            const res = await fetch("/api/line/employer/disconnect", {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                              body: JSON.stringify({ customerId: editingId }),
+                            });
+                            const data = (await res.json().catch(() => ({}))) as any;
+                            if (!res.ok) throw new Error(data.error || "ตัดการเชื่อมต่อไม่สำเร็จ");
+                            setLineLinkUrl("");
+                            setLineLinkExpiresAt("");
+                            toast.success("ตัดการเชื่อมต่อแล้ว");
+                            await refreshEditingLinePanels(editingId);
+                            await refreshLineConnectionsForList([editingId]);
+                          } catch (e: any) {
+                            toast.error(e?.message ?? "ตัดการเชื่อมต่อไม่สำเร็จ");
+                          } finally {
+                            setLoading(false);
+                          }
+                        }}
+                        disabled={loading || !(role === "admin" || role === "sale")}
+                      >
+                        ตัดการเชื่อมต่อ
+                      </Button>
+                    ) : null}
                     <Button
                       size="sm"
                       variant="outline"
