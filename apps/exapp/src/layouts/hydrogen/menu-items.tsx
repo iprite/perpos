@@ -146,6 +146,22 @@ export function getMenuItems(role: Role | null): MenuItem[] {
     },
   );
 
+  items.push(
+    { name: "รายชื่อ", roles: ["representative"] },
+    {
+      name: "นายจ้าง",
+      href: "/customers",
+      icon: <Building2 className="h-5 w-5" />,
+      roles: ["representative"],
+    },
+    {
+      name: "แรงงาน",
+      href: "/workers",
+      icon: <Users className="h-5 w-5" />,
+      roles: ["representative"],
+    },
+  );
+
   items.push({ name: "ตั้งค่า", roles: ["admin", "sale", "operation"] });
   items.push(
     {

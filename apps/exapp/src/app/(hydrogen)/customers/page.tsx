@@ -32,6 +32,7 @@ type CustomerRow = {
   province_th: string | null;
   name: string;
   tax_id: string | null;
+  business_type: string | null;
   address: string | null;
   branch_name: string | null;
   contact_name: string | null;
@@ -223,6 +224,7 @@ export default function CustomersPage() {
     province: string;
     name: string;
     taxId: string;
+    businessType: string;
     address: string;
     branchName: string;
     contactName: string;
@@ -248,6 +250,7 @@ export default function CustomersPage() {
   const [province, setProvince] = useState("");
   const [name, setName] = useState("");
   const [taxId, setTaxId] = useState("");
+  const [businessType, setBusinessType] = useState("");
   const [address, setAddress] = useState("");
   const [branchName, setBranchName] = useState("สำนักงานใหญ่");
   const [contactName, setContactName] = useState("");
@@ -285,6 +288,7 @@ export default function CustomersPage() {
     setProvince("");
     setName("");
     setTaxId("");
+    setBusinessType("");
     setAddress("");
     setBranchName("สำนักงานใหญ่");
     setContactName("");
@@ -324,6 +328,7 @@ export default function CustomersPage() {
         province: r.province_th ?? "",
         name: r.name ?? "",
         taxId: taxIdDigits,
+        businessType: r.business_type ?? "",
         address: r.address ?? "",
         branchName: r.branch_name ?? "สำนักงานใหญ่",
         contactName: r.contact_name ?? "",
@@ -335,6 +340,7 @@ export default function CustomersPage() {
       setProvince(r.province_th ?? "");
       setName(r.name ?? "");
       setTaxId(taxIdDigits);
+      setBusinessType(r.business_type ?? "");
       setAddress(r.address ?? "");
       setBranchName(r.branch_name ?? "สำนักงานใหญ่");
       setContactName(r.contact_name ?? "");
@@ -466,7 +472,7 @@ export default function CustomersPage() {
           let query = supabase
             .from("customers")
             .select(
-              "id,display_id,import_temp_id,province_th,name,tax_id,address,branch_name,contact_name,phone,email,organization_id,created_at,updated_at",
+              "id,display_id,import_temp_id,province_th,name,tax_id,business_type,address,branch_name,contact_name,phone,email,organization_id,created_at,updated_at",
               { count: "estimated" },
             );
           if (preferUpdatedAt) {
@@ -605,7 +611,7 @@ export default function CustomersPage() {
   const canDelete = !!editingId;
   const workerModalCustomers = useMemo(() => {
     if (!editingId) return [] as WorkerCustomerOption[];
-    return [{ id: editingId, name: name.trim() || "ลูกค้า" }];
+    return [{ id: editingId, name: name.trim() || "นายจ้าง" }];
   }, [editingId, name]);
   const isFormMode = Boolean(showForm);
   const isDirty = useMemo(() => {
@@ -616,6 +622,7 @@ export default function CustomersPage() {
       province: string;
       name: string;
       taxId: string;
+      businessType: string;
       address: string;
       branchName: string;
       contactName: string;
@@ -625,6 +632,7 @@ export default function CustomersPage() {
       province: v.province.trim(),
       name: v.name.trim(),
       taxId: normalizeThaiTaxIdDigits(v.taxId),
+      businessType: v.businessType.trim(),
       address: v.address.trim(),
       branchName: v.branchName.trim() || "สำนักงานใหญ่",
       contactName: v.contactName.trim(),
@@ -632,18 +640,19 @@ export default function CustomersPage() {
       email: v.email.trim(),
     });
     const a = normalize(init);
-    const b = normalize({ province, name, taxId, address, branchName, contactName, phone, email });
+    const b = normalize({ province, name, taxId, businessType, address, branchName, contactName, phone, email });
     return (
       a.province !== b.province ||
       a.name !== b.name ||
       a.taxId !== b.taxId ||
+      a.businessType !== b.businessType ||
       a.address !== b.address ||
       a.branchName !== b.branchName ||
       a.contactName !== b.contactName ||
       a.phone !== b.phone ||
       a.email !== b.email
     );
-  }, [address, branchName, contactName, editingId, email, name, phone, province, taxId]);
+  }, [address, branchName, businessType, contactName, editingId, email, name, phone, province, taxId]);
 
   const deleteCustomer = useCallback(async () => {
     if (!editingId) return;
@@ -727,7 +736,7 @@ export default function CustomersPage() {
         <div className="mt-5">
           <div className="flex flex-col justify-between gap-3 md:flex-row md:items-end">
             <div>
-              <div className="text-lg font-semibold text-gray-900">{editingId ? "แก้ไขลูกค้า" : "เพิ่มลูกค้า"}</div>
+              <div className="text-lg font-semibold text-gray-900">{editingId ? "แก้ไขนายจ้าง" : "เพิ่มนายจ้าง"}</div>
               <div className="mt-1 text-sm text-gray-600">ข้อมูลนายจ้าง และผู้ติดต่อ</div>
             </div>
             <div className="flex flex-wrap items-center justify-end gap-2">
@@ -740,7 +749,8 @@ export default function CustomersPage() {
                     const payload = {
                       province_th: province.trim() || null,
                       name: name.trim(),
-                    tax_id: taxIdDigits || null,
+                      tax_id: taxIdDigits || null,
+                      business_type: businessType.trim() || null,
                       address: address.trim() || null,
                       branch_name: branchName.trim() || "สำนักงานใหญ่",
                       contact_name: contactName.trim() || null,
@@ -838,9 +848,9 @@ export default function CustomersPage() {
           <div className="mt-4 grid gap-5 lg:grid-cols-2 lg:items-start">
             <div className="grid gap-5">
               <div className="rounded-2xl border border-gray-200 bg-white/70 p-4 backdrop-blur">
-                <div className="text-sm font-semibold text-gray-900">ข้อมูลลูกค้า</div>
+                <div className="text-sm font-semibold text-gray-900">ข้อมูลนายจ้าง</div>
                 <div className="mt-4 grid gap-4 md:grid-cols-2">
-                  <Input id="customer-name" label="ชื่อลูกค้า" value={name} onChange={(e) => setName(e.target.value)} className="md:col-span-2" />
+                  <Input id="customer-name" label="ชื่อนายจ้าง" value={name} onChange={(e) => setName(e.target.value)} className="md:col-span-2" />
                   <Input
                     label="Tax ID"
                     value={taxIdDigits}
@@ -851,29 +861,27 @@ export default function CustomersPage() {
                   />
                   <Input label="สาขา" value={branchName} onChange={(e) => setBranchName(e.target.value)} placeholder="สำนักงานใหญ่" />
                   {provinceOptions.length ? (
-                    <div className="md:col-span-2">
-                      <AppSelect
-                        label="จังหวัด"
-                        placeholder="เลือกจังหวัด"
-                        options={provinceOptions}
-                        value={province}
-                        onChange={(v: string) => setProvince(v)}
-                        getOptionValue={(o) => o.value}
-                        displayValue={(selected) => provinceOptions.find((o) => o.value === selected)?.label ?? ""}
-                        inPortal={true}
-                        selectClassName="h-10 px-3"
-                        dropdownClassName="!z-[9999]"
-                      />
-                    </div>
+                    <AppSelect
+                      label="จังหวัด"
+                      placeholder="เลือกจังหวัด"
+                      options={provinceOptions}
+                      value={province}
+                      onChange={(v: string) => setProvince(v)}
+                      getOptionValue={(o) => o.value}
+                      displayValue={(selected) => provinceOptions.find((o) => o.value === selected)?.label ?? ""}
+                      inPortal={true}
+                      selectClassName="h-10 px-3"
+                      dropdownClassName="!z-[9999]"
+                    />
                   ) : (
                     <Input
                       label="จังหวัด"
                       value={province}
                       onChange={(e) => setProvince(e.target.value)}
                       placeholder="พิมพ์จังหวัด"
-                      className="md:col-span-2"
                     />
                   )}
+                  <Input label="ประเภทกิจการ" value={businessType} onChange={(e) => setBusinessType(e.target.value)} />
                   <div className="md:col-span-2">
                     <Textarea label="ที่อยู่" value={address} onChange={(e) => setAddress(e.target.value)} rows={3} disabled={loading} />
                   </div>
@@ -884,7 +892,7 @@ export default function CustomersPage() {
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div>
                     <div className="text-sm font-semibold text-gray-900">ที่อยู่ที่ทำงาน</div>
-                    <div className="mt-0.5 text-xs text-gray-500">สามารถเพิ่มได้หลายที่ต่อ 1 ลูกค้า</div>
+                    <div className="mt-0.5 text-xs text-gray-500">สามารถเพิ่มได้หลายที่ต่อ 1 นายจ้าง</div>
                   </div>
                   <Button
                     size="sm"

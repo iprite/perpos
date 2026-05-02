@@ -70,6 +70,11 @@ export function CreateRequestModal({
   const [employerTel, setEmployerTel] = useState("");
   const [employerType, setEmployerType] = useState("");
   const [employerAddress, setEmployerAddress] = useState("");
+  const [employerSuggestOpen, setEmployerSuggestOpen] = useState(false);
+  const [employerSuggestLoading, setEmployerSuggestLoading] = useState(false);
+  const [employerSuggestions, setEmployerSuggestions] = useState<
+    { id: string; name: string; tax_id: string | null; phone: string | null; address: string | null; business_type: string | null }[]
+  >([]);
 
   const [workerCount, setWorkerCount] = useState("1");
   const [workerMale, setWorkerMale] = useState("");
@@ -99,7 +104,53 @@ export function CreateRequestModal({
     setWorkerNation("");
     setWorkerType("");
     setSelectedTypeId("");
+    setEmployerSuggestOpen(false);
+    setEmployerSuggestLoading(false);
+    setEmployerSuggestions([]);
   }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    if (loading) return;
+    const q = employerName.trim();
+    if (q.length < 2) {
+      setEmployerSuggestions([]);
+      setEmployerSuggestOpen(false);
+      setEmployerSuggestLoading(false);
+      return;
+    }
+    const like = `%${q.replaceAll("%", "\\%").replaceAll("_", "\\_")}%`;
+    const t = window.setTimeout(() => {
+      Promise.resolve().then(async () => {
+        setEmployerSuggestLoading(true);
+        const res = await supabase
+          .from("customers")
+          .select("id,name,tax_id,phone,address,business_type,created_at")
+          .ilike("name", like)
+          .order("created_at", { ascending: false })
+          .order("id", { ascending: false })
+          .limit(8);
+        if (res.error) {
+          setEmployerSuggestions([]);
+          setEmployerSuggestOpen(false);
+          setEmployerSuggestLoading(false);
+          return;
+        }
+        const next = ((res.data ?? []) as any[]).map((r) => ({
+          id: String(r.id),
+          name: String(r.name ?? "").trim(),
+          tax_id: r.tax_id ?? null,
+          phone: r.phone ?? null,
+          address: r.address ?? null,
+          business_type: r.business_type ?? null,
+        }));
+        setEmployerSuggestions(next.filter((x) => x.name));
+        setEmployerSuggestOpen(true);
+        setEmployerSuggestLoading(false);
+      });
+    }, 350);
+    return () => window.clearTimeout(t);
+  }, [employerName, loading, open, supabase]);
 
   useEffect(() => {
     if (!open) return;
@@ -201,7 +252,49 @@ export function CreateRequestModal({
             </>
           ) : null}
 
-          <Input label="ชื่อนายจ้าง" value={employerName} onChange={(e) => setEmployerName(e.target.value)} disabled={loading} />
+          <div className="relative">
+            <Input
+              label="ชื่อนายจ้าง"
+              value={employerName}
+              onChange={(e) => setEmployerName(e.target.value)}
+              disabled={loading}
+              onFocus={() => {
+                if (employerSuggestions.length) setEmployerSuggestOpen(true);
+              }}
+              onBlur={() => {
+                window.setTimeout(() => setEmployerSuggestOpen(false), 150);
+              }}
+            />
+            {employerSuggestOpen && employerName.trim().length >= 2 ? (
+              <div className="absolute left-0 right-0 top-[76px] z-[9999] overflow-hidden rounded-md border border-gray-200 bg-white shadow-lg">
+                {employerSuggestLoading ? <div className="px-3 py-2 text-sm text-gray-600">กำลังค้นหา…</div> : null}
+                {!employerSuggestLoading && employerSuggestions.length === 0 ? (
+                  <div className="px-3 py-2 text-sm text-gray-600">ไม่พบรายการที่ตรง</div>
+                ) : null}
+                {employerSuggestions.map((s) => (
+                  <button
+                    key={s.id}
+                    type="button"
+                    className="flex w-full flex-col gap-0.5 px-3 py-2 text-left text-sm hover:bg-gray-50"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => {
+                      setEmployerName(s.name);
+                      setEmployerTaxId(String(s.tax_id ?? ""));
+                      setEmployerTel(String(s.phone ?? ""));
+                      setEmployerType(String(s.business_type ?? ""));
+                      setEmployerAddress(String(s.address ?? ""));
+                      setEmployerSuggestOpen(false);
+                    }}
+                  >
+                    <div className="font-medium text-gray-900">{s.name}</div>
+                    <div className="text-xs text-gray-600">
+                      {[s.tax_id ? `Tax: ${s.tax_id}` : null, s.phone ? `โทร: ${s.phone}` : null].filter(Boolean).join(" • ")}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </div>
           <Input
             label="เลขนายจ้าง/เลขประจำตัวผู้เสียภาษี"
             value={employerTaxId}

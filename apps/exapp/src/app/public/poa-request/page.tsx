@@ -56,6 +56,11 @@ export default function PublicPoaRequestPage() {
   const [employerTel, setEmployerTel] = useState("");
   const [employerType, setEmployerType] = useState("");
   const [employerAddress, setEmployerAddress] = useState("");
+  const [employerSuggestOpen, setEmployerSuggestOpen] = useState(false);
+  const [employerSuggestLoading, setEmployerSuggestLoading] = useState(false);
+  const [employerSuggestions, setEmployerSuggestions] = useState<
+    { id: string; name: string; tax_id: string | null; phone: string | null; address: string | null; business_type: string | null }[]
+  >([]);
 
   const [workerCount, setWorkerCount] = useState("1");
   const [workerMale, setWorkerMale] = useState("");
@@ -87,6 +92,47 @@ export default function PublicPoaRequestPage() {
       }
     });
   }, []);
+
+  React.useEffect(() => {
+    if (loading || bootstrapLoading) return;
+    const q = trimOrEmpty(employerName);
+    const repCode = trimOrEmpty(representativeRepCode);
+    if (!repCode || q.length < 2) {
+      setEmployerSuggestions([]);
+      setEmployerSuggestOpen(false);
+      setEmployerSuggestLoading(false);
+      return;
+    }
+    const t = window.setTimeout(() => {
+      Promise.resolve().then(async () => {
+        setEmployerSuggestLoading(true);
+        try {
+          const res = await fetch(
+            `/api/public/employer-suggestions?rep_code=${encodeURIComponent(repCode)}&q=${encodeURIComponent(q)}`,
+            { method: "GET" },
+          );
+          if (!res.ok) throw new Error("โหลดรายการไม่สำเร็จ");
+          const data = (await res.json().catch(() => ({}))) as { ok?: boolean; items?: any[] };
+          const items = ((data.items ?? []) as any[]).map((r) => ({
+            id: String(r.id),
+            name: String(r.name ?? "").trim(),
+            tax_id: r.tax_id ?? null,
+            phone: r.phone ?? null,
+            address: r.address ?? null,
+            business_type: r.business_type ?? null,
+          }));
+          setEmployerSuggestions(items.filter((x) => x.id && x.name));
+          setEmployerSuggestOpen(true);
+          setEmployerSuggestLoading(false);
+        } catch {
+          setEmployerSuggestions([]);
+          setEmployerSuggestOpen(false);
+          setEmployerSuggestLoading(false);
+        }
+      });
+    }, 350);
+    return () => window.clearTimeout(t);
+  }, [bootstrapLoading, employerName, loading, representativeRepCode]);
 
   const representativeOptions = useMemo(
     () => representatives.map((r) => ({ value: String(r.rep_code ?? "").trim(), label: r.rep_code ? `${r.display_name} (${r.rep_code})` : r.display_name })),
@@ -340,19 +386,56 @@ export default function PublicPoaRequestPage() {
 
                 <div className="grid gap-3 rounded-xl border border-gray-200 bg-white p-4">
                   <div className="text-sm font-semibold text-gray-900">ข้อมูลนายจ้าง</div>
-                  <Input
-                    label="ชื่อนายจ้าง *"
-                    value={employerName}
-                    onChange={(e) => {
-                      setEmployerName(e.target.value);
-                      setFieldError((m) => {
-                        const next = { ...m };
-                        delete next.employer_name;
-                        return next;
-                      });
-                    }}
-                    disabled={loading}
-                  />
+                  <div className="relative">
+                    <Input
+                      label="ชื่อนายจ้าง *"
+                      value={employerName}
+                      onChange={(e) => {
+                        setEmployerName(e.target.value);
+                        setFieldError((m) => {
+                          const next = { ...m };
+                          delete next.employer_name;
+                          return next;
+                        });
+                      }}
+                      onFocus={() => {
+                        if (employerSuggestions.length) setEmployerSuggestOpen(true);
+                      }}
+                      onBlur={() => {
+                        window.setTimeout(() => setEmployerSuggestOpen(false), 150);
+                      }}
+                      disabled={loading}
+                    />
+                    {employerSuggestOpen && trimOrEmpty(employerName).length >= 2 ? (
+                      <div className="absolute left-0 right-0 top-[76px] z-[9999] overflow-hidden rounded-md border border-gray-200 bg-white shadow-lg">
+                        {employerSuggestLoading ? <div className="px-3 py-2 text-sm text-gray-600">กำลังค้นหา…</div> : null}
+                        {!employerSuggestLoading && employerSuggestions.length === 0 ? (
+                          <div className="px-3 py-2 text-sm text-gray-600">ไม่พบรายการที่ตรง</div>
+                        ) : null}
+                        {employerSuggestions.map((s) => (
+                          <button
+                            key={s.id}
+                            type="button"
+                            className="flex w-full flex-col gap-0.5 px-3 py-2 text-left text-sm hover:bg-gray-50"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => {
+                              setEmployerName(s.name);
+                              setEmployerTaxId(String(s.tax_id ?? ""));
+                              setEmployerTel(String(s.phone ?? ""));
+                              setEmployerType(String(s.business_type ?? ""));
+                              setEmployerAddress(String(s.address ?? ""));
+                              setEmployerSuggestOpen(false);
+                            }}
+                          >
+                            <div className="font-medium text-gray-900">{s.name}</div>
+                            <div className="text-xs text-gray-600">
+                              {[s.tax_id ? `Tax: ${s.tax_id}` : null, s.phone ? `โทร: ${s.phone}` : null].filter(Boolean).join(" • ")}
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
                   {fieldError.employer_name ? <div className="-mt-2 text-xs font-medium text-red-600">{fieldError.employer_name}</div> : null}
 
                   <div className="grid gap-3 md:grid-cols-2">

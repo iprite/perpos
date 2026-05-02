@@ -30,7 +30,7 @@ const rules: Rule[] = [
   { prefix: "/my-workers", roles: [] },
 ];
 
-const representativeAllowedPrefixes = ["/my-poa-requests", "/workspace", "/notifications", "/settings"];
+const representativeAllowedPrefixes = ["/my-poa-requests", "/customers", "/workers", "/workspace", "/notifications", "/settings"];
 
 function pickRedirect(role: Role | null) {
   if (role === "representative") return "/my-poa-requests";
