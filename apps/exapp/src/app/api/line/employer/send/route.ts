@@ -49,6 +49,7 @@ function createQuoteFlexMessage(args: {
   amountText: string;
   itemsCountText: string;
   validUntilText: string;
+  showValidUntil: boolean;
 }) {
   const altText = `ใบเสนอราคา ${args.quoteNo}`;
   const headerColor = "#2563EB";
@@ -126,14 +127,18 @@ function createQuoteFlexMessage(args: {
                   { type: "text", text: args.amountText, size: "sm", color: "#111827", flex: 7, wrap: true },
                 ],
               },
-              {
-                type: "box",
-                layout: "baseline",
-                contents: [
-                  { type: "text", text: "หมดอายุ", size: "sm", color: "#6B7280", flex: 3 },
-                  { type: "text", text: args.validUntilText, size: "sm", color: "#111827", flex: 7, wrap: true },
-                ],
-              },
+              ...(args.showValidUntil
+                ? [
+                    {
+                      type: "box",
+                      layout: "baseline",
+                      contents: [
+                        { type: "text", text: "หมดอายุ", size: "sm", color: "#6B7280", flex: 3 },
+                        { type: "text", text: args.validUntilText, size: "sm", color: "#111827", flex: 7, wrap: true },
+                      ],
+                    },
+                  ]
+                : []),
             ],
           },
         ],
@@ -186,6 +191,7 @@ export async function POST(req: Request) {
     let quoteValidUntil: string | null = null;
     let quoteItemsCount = 0;
     let quoteJobNameText = "-";
+    let showQuoteValidUntilRow = true;
 
     if (kind === "quote") {
       const q = await admin
@@ -198,6 +204,7 @@ export async function POST(req: Request) {
       quoteNo = String((q.data as any).quote_no ?? "").trim() || id;
       const rawStatus = String((q.data as any).status ?? "").trim();
       statusText = quoteStatusLabel(rawStatus);
+      showQuoteValidUntilRow = rawStatus !== "approved";
       amountText = `${money(Number((q.data as any).grand_total ?? 0))} บาท`;
       quoteValidUntil = (q.data as any).valid_until ? String((q.data as any).valid_until) : null;
 
@@ -277,6 +284,7 @@ export async function POST(req: Request) {
                 amountText,
                 itemsCountText: `${quoteItemsCount} รายการ`,
                 validUntilText: formatShortDate(quoteValidUntil),
+                showValidUntil: showQuoteValidUntilRow,
               }),
             ],
           })
