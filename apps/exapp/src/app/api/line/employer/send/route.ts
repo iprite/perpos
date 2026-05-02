@@ -34,6 +34,19 @@ function quoteStatusLabel(s: string) {
   return s || "-";
 }
 
+function orderStatusLabel(s: string) {
+  if (s === "draft") return "เปิดออเดอร์";
+  if (s === "in_progress") return "กำลังดำเนินการ";
+  if (s === "billed_first_installment") return "วางบิลงวดแรกแล้ว";
+  if (s === "paid_first_installment") return "ชำระงวดแรกแล้ว";
+  if (s === "completed") return "ปิดออเดอร์";
+  if (s === "pending_approval") return "รออนุมัติ";
+  if (s === "approved") return "อนุมัติแล้ว";
+  if (s === "rejected") return "ไม่อนุมัติ";
+  if (s === "cancelled") return "ยกเลิกออเดอร์";
+  return s || "-";
+}
+
 function formatShortDate(input: string | null) {
   if (!input) return "-";
   const d = new Date(input);
@@ -147,6 +160,99 @@ function createQuoteFlexMessage(args: {
   };
 }
 
+function createOrderFlexMessage(args: {
+  employerName: string;
+  orderNo: string;
+  statusText: string;
+  jobNameText: string;
+  itemsCountText: string;
+  amountLabelText: string;
+  amountText: string;
+}) {
+  const altText = `ออเดอร์ ${args.orderNo}`;
+  const headerColor = "#059669";
+
+  return {
+    type: "flex" as const,
+    altText,
+    contents: {
+      type: "bubble",
+      size: "mega",
+      header: {
+        type: "box",
+        layout: "vertical",
+        backgroundColor: headerColor,
+        paddingAll: "16px",
+        contents: [
+          {
+            type: "text",
+            text: `ออเดอร์ ${args.orderNo}`,
+            color: "#FFFFFF",
+            weight: "bold",
+            size: "lg",
+            wrap: true,
+          },
+        ],
+      },
+      body: {
+        type: "box",
+        layout: "vertical",
+        spacing: "md",
+        contents: [
+          {
+            type: "box",
+            layout: "vertical",
+            spacing: "sm",
+            margin: "sm",
+            contents: [
+              {
+                type: "box",
+                layout: "baseline",
+                contents: [
+                  { type: "text", text: "ลูกค้า", size: "sm", color: "#6B7280", flex: 3 },
+                  { type: "text", text: args.employerName, size: "sm", color: "#111827", flex: 7, wrap: true },
+                ],
+              },
+              {
+                type: "box",
+                layout: "baseline",
+                contents: [
+                  { type: "text", text: "ชื่องาน", size: "sm", color: "#6B7280", flex: 3 },
+                  { type: "text", text: args.jobNameText, size: "sm", color: "#111827", flex: 7, wrap: true },
+                ],
+              },
+              {
+                type: "box",
+                layout: "baseline",
+                contents: [
+                  { type: "text", text: "สถานะ", size: "sm", color: "#6B7280", flex: 3 },
+                  { type: "text", text: args.statusText, size: "sm", color: "#111827", flex: 7, wrap: true },
+                ],
+              },
+              {
+                type: "box",
+                layout: "baseline",
+                contents: [
+                  { type: "text", text: "รายการ", size: "sm", color: "#6B7280", flex: 3 },
+                  { type: "text", text: args.itemsCountText, size: "sm", color: "#111827", flex: 7, wrap: true },
+                ],
+              },
+              {
+                type: "box",
+                layout: "baseline",
+                contents: [
+                  { type: "text", text: args.amountLabelText, size: "sm", color: "#6B7280", flex: 3 },
+                  { type: "text", text: args.amountText, size: "sm", color: "#111827", flex: 7, wrap: true },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    },
+  };
+}
+
 function renderTemplate(template: string, vars: Record<string, string>) {
   return template.replace(/\{([a-zA-Z0-9_]+)\}/g, (_m, key) => {
     const k = String(key ?? "");
@@ -192,6 +298,9 @@ export async function POST(req: Request) {
     let quoteItemsCount = 0;
     let quoteJobNameText = "-";
     let showQuoteValidUntilRow = true;
+    let orderItemsCount = 0;
+    let orderJobNameText = "-";
+    let orderAmountLabelText = "ค้างชำระ";
 
     if (kind === "quote") {
       const q = await admin
@@ -229,13 +338,61 @@ export async function POST(req: Request) {
     }
 
     if (kind === "order") {
-      const o = await admin.from("orders").select("id,display_id,status,customer_id,remaining_amount").eq("id", id).maybeSingle();
+      const o = await admin
+        .from("orders")
+        .select("id,display_id,status,customer_id,remaining_amount,total")
+        .eq("id", id)
+        .maybeSingle();
       if (o.error || !o.data) return NextResponse.json({ error: "Order not found" }, { status: 404 });
       customerId = String((o.data as any).customer_id ?? "").trim() || null;
       orderNo = String((o.data as any).display_id ?? "").trim() || id;
-      statusText = String((o.data as any).status ?? "").trim();
+      const rawStatus = String((o.data as any).status ?? "").trim();
+      statusText = orderStatusLabel(rawStatus);
       const rem = Number((o.data as any).remaining_amount ?? 0);
-      amountText = `ยอดค้างชำระ ${money(rem)} บาท`;
+      const total = Number((o.data as any).total ?? 0);
+      const useRemaining = Number.isFinite(rem) ? rem : 0;
+      const useTotal = Number.isFinite(total) ? total : 0;
+      orderAmountLabelText = "ค้างชำระ";
+      amountText = `${money(useRemaining)} บาท`;
+      if (!Number.isFinite(rem) && Number.isFinite(total)) {
+        orderAmountLabelText = "ยอดรวม";
+        amountText = `${money(useTotal)} บาท`;
+      }
+
+      const cnt = await admin.from("order_items").select("id", { count: "exact", head: true }).eq("order_id", id);
+      orderItemsCount = Number(cnt.count ?? 0);
+
+      const itRes = await admin
+        .from("order_items")
+        .select("service_id,description,created_at")
+        .eq("order_id", id)
+        .order("created_at", { ascending: true })
+        .limit(5);
+      const items = ((itRes.data ?? []) as any[]) ?? [];
+      const serviceIds = Array.from(new Set(items.map((r) => String(r?.service_id ?? "").trim()).filter((x) => x.length > 0)));
+      const svcById = new Map<string, string>();
+      if (serviceIds.length) {
+        const svcRes = await admin.from("services").select("id,name").in("id", serviceIds).limit(200);
+        for (const s of (svcRes.data ?? []) as any[]) {
+          const sid = String(s?.id ?? "").trim();
+          const nm = String(s?.name ?? "").trim();
+          if (sid && nm) svcById.set(sid, nm);
+        }
+      }
+
+      const names = items
+        .map((r) => {
+          const sid = String(r?.service_id ?? "").trim();
+          const nm = sid ? svcById.get(sid) ?? "" : "";
+          const fallback = String(r?.description ?? "").trim();
+          return (nm || fallback).trim();
+        })
+        .filter((x) => x.length > 0);
+      if (names.length) {
+        const shown = names.slice(0, 2);
+        const more = Math.max(0, orderItemsCount - shown.length);
+        orderJobNameText = `${shown.join(", ")}${more > 0 ? ` + อีก ${more} รายการ` : ""}`;
+      }
     }
 
     if (!customerId) return NextResponse.json({ error: "Missing customer" }, { status: 400 });
@@ -288,6 +445,21 @@ export async function POST(req: Request) {
               }),
             ],
           })
+        : kind === "order" && eventKey === "order_updated"
+          ? await sendLineMessages({
+              to: lineUserId,
+              messages: [
+                createOrderFlexMessage({
+                  employerName,
+                  orderNo,
+                  statusText,
+                  jobNameText: orderJobNameText,
+                  itemsCountText: `${orderItemsCount} รายการ`,
+                  amountLabelText: orderAmountLabelText,
+                  amountText,
+                }),
+              ],
+            })
         : await sendLineText({ to: lineUserId, text });
     const now = new Date().toISOString();
 
