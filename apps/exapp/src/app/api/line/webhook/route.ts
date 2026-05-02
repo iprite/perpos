@@ -70,9 +70,27 @@ function isEmployerWorkersCommand(text: string) {
   return t === "/worker" || t === "/workers" || t === "worker" || t === "workers";
 }
 
+function isEmployerOrdersCommand(text: string) {
+  const t = String(text ?? "").trim().toLowerCase();
+  return t === "/order" || t === "/orders" || t === "order" || t === "orders";
+}
+
 function money(n: number) {
   const x = Number.isFinite(n) ? n : 0;
   return x.toLocaleString("th-TH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function orderStatusLabel(s: string) {
+  if (s === "draft") return "เปิดออเดอร์";
+  if (s === "in_progress") return "กำลังดำเนินการ";
+  if (s === "billed_first_installment") return "วางบิลงวดแรกแล้ว";
+  if (s === "paid_first_installment") return "ชำระงวดแรกแล้ว";
+  if (s === "completed") return "ปิดออเดอร์";
+  if (s === "pending_approval") return "รออนุมัติ";
+  if (s === "approved") return "อนุมัติแล้ว";
+  if (s === "rejected") return "ไม่อนุมัติ";
+  if (s === "cancelled") return "ยกเลิกออเดอร์";
+  return s || "-";
 }
 
 async function getActivePettyCashCategories(admin: any) {
@@ -308,6 +326,130 @@ function createWorkersSummaryBubble(workers: any[]) {
   };
 }
 
+function createOrderBubble(order: any) {
+  const displayId = String(order?.display_id ?? "").trim() || "-";
+  const statusRaw = String(order?.status ?? "").trim();
+  const statusText = orderStatusLabel(statusRaw);
+  const total = Number(order?.total ?? 0);
+  const remaining = Number(order?.remaining_amount ?? 0);
+  const createdAt = order?.created_at ? formatShortDate(String(order.created_at)) : "-";
+
+  const totalText = `${money(Number.isFinite(total) ? total : 0)} บาท`;
+  const remainingText = `${money(Number.isFinite(remaining) ? remaining : 0)} บาท`;
+
+  return {
+    type: "bubble",
+    header: {
+      type: "box",
+      layout: "vertical",
+      backgroundColor: "#059669",
+      paddingAll: "14px",
+      contents: [
+        { type: "text", text: `ออเดอร์ ${displayId}`, color: "#FFFFFF", weight: "bold", size: "md", wrap: true },
+      ],
+    },
+    body: {
+      type: "box",
+      layout: "vertical",
+      spacing: "sm",
+      contents: [
+        {
+          type: "box",
+          layout: "vertical",
+          spacing: "xs",
+          contents: [
+            {
+              type: "box",
+              layout: "baseline",
+              contents: [
+                { type: "text", text: "สถานะ", size: "sm", color: "#6B7280", flex: 3 },
+                { type: "text", text: statusText, size: "sm", color: "#111827", flex: 7, wrap: true },
+              ],
+            },
+            {
+              type: "box",
+              layout: "baseline",
+              contents: [
+                { type: "text", text: "ยอดรวม", size: "sm", color: "#6B7280", flex: 3 },
+                { type: "text", text: totalText, size: "sm", color: "#111827", flex: 7, wrap: true },
+              ],
+            },
+            {
+              type: "box",
+              layout: "baseline",
+              contents: [
+                { type: "text", text: "ค้างชำระ", size: "sm", color: "#6B7280", flex: 3 },
+                { type: "text", text: remainingText, size: "sm", color: "#111827", flex: 7, wrap: true },
+              ],
+            },
+            {
+              type: "box",
+              layout: "baseline",
+              contents: [
+                { type: "text", text: "วันที่", size: "sm", color: "#6B7280", flex: 3 },
+                { type: "text", text: createdAt, size: "sm", color: "#111827", flex: 7, wrap: true },
+              ],
+            },
+          ],
+        },
+      ],
+    },
+  };
+}
+
+function createOrdersSummaryBubble(args: { orders: any[]; limit: number }) {
+  const orders = Array.isArray(args.orders) ? args.orders : [];
+  const total = orders.length;
+  const sumRemaining = orders.reduce((sum, o) => sum + (Number.isFinite(Number(o?.remaining_amount ?? 0)) ? Number(o.remaining_amount) : 0), 0);
+  const byStatus = new Map<string, number>();
+  for (const o of orders) {
+    const s = orderStatusLabel(String(o?.status ?? "").trim());
+    byStatus.set(s, (byStatus.get(s) ?? 0) + 1);
+  }
+  const statusRows = Array.from(byStatus.entries())
+    .map(([name, count]) => ({ name, count }))
+    .sort((a, b) => (b.count !== a.count ? b.count - a.count : a.name.localeCompare(b.name, "th")));
+
+  return {
+    type: "bubble",
+    body: {
+      type: "box",
+      layout: "vertical",
+      spacing: "sm",
+      contents: [
+        { type: "text", text: "สรุปออเดอร์", weight: "bold", size: "md", wrap: true },
+        { type: "text", text: `แสดงล่าสุด ${Math.min(total, args.limit)} รายการ`, size: "xs", color: "#6B7280" },
+        { type: "separator", margin: "md" },
+        {
+          type: "box",
+          layout: "vertical",
+          spacing: "xs",
+          margin: "md",
+          contents: [
+            {
+              type: "box",
+              layout: "baseline",
+              contents: [
+                { type: "text", text: "ยอดค้างรวม", size: "sm", color: "#6B7280", flex: 6 },
+                { type: "text", text: `${money(sumRemaining)} บาท`, size: "sm", color: "#111827", flex: 4, align: "end" },
+              ],
+            },
+            { type: "separator", margin: "md" },
+            ...statusRows.map((r) => ({
+              type: "box",
+              layout: "baseline",
+              contents: [
+                { type: "text", text: r.name, size: "sm", color: "#111827", flex: 7, wrap: true },
+                { type: "text", text: `${r.count}`, size: "sm", color: "#111827", flex: 3, align: "end" },
+              ],
+            })),
+          ],
+        },
+      ],
+    },
+  };
+}
+
 export async function POST(req: Request) {
   const signature = req.headers.get("x-line-signature");
   const body = await req.text();
@@ -422,6 +564,53 @@ export async function POST(req: Request) {
       const flex = {
         type: "flex",
         altText: "รายการแรงงาน",
+        contents: {
+          type: "carousel",
+          contents: bubbles,
+        },
+      };
+      await replyMessages({ replyToken, messages: [flex] });
+      continue;
+    }
+
+    if (isEmployerOrdersCommand(text)) {
+      const connRes = await admin
+        .from("customer_line_connections")
+        .select("customer_id,status,updated_at")
+        .eq("line_user_id", lineUserId)
+        .order("updated_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      const conn = connRes.data as any;
+      if (connRes.error || !conn?.customer_id || String(conn?.status ?? "") !== "CONNECTED") {
+        await replyText({ replyToken, text: "ยังไม่ได้เชื่อมต่อกับนายจ้าง กรุณาติดต่อทีมงานเพื่อขอลิงก์เชื่อมต่อ" });
+        continue;
+      }
+
+      const customerId = String(conn.customer_id);
+      const limit = 9;
+      const ordersRes = await admin
+        .from("orders")
+        .select("id,display_id,status,total,remaining_amount,created_at")
+        .eq("customer_id", customerId)
+        .order("created_at", { ascending: false })
+        .limit(limit);
+      if (ordersRes.error) {
+        await replyText({ replyToken, text: ordersRes.error.message });
+        continue;
+      }
+
+      const orders = (ordersRes.data ?? []) as any[];
+      if (!orders.length) {
+        await replyText({ replyToken, text: "ยังไม่พบออเดอร์ของบริษัทนี้ในระบบ" });
+        continue;
+      }
+
+      const summary = createOrdersSummaryBubble({ orders, limit });
+      const bubbles = [summary, ...orders.map((o) => createOrderBubble(o))].slice(0, 10);
+      const flex = {
+        type: "flex",
+        altText: "รายการออเดอร์",
         contents: {
           type: "carousel",
           contents: bubbles,
