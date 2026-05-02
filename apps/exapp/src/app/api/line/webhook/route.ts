@@ -235,7 +235,7 @@ export async function POST(req: Request) {
 
       const custRes = await admin.from("customers").select("name").eq("id", customerId).maybeSingle();
       const name = String((custRes.data as any)?.name ?? "").trim() || "นายจ้าง";
-      await replyText({ replyToken, text: `เชื่อมต่อสำเร็จ: ${name}\nคุณจะได้รับอัปเดตใบเสนอราคา/ออเดอร์ตามที่ทีมงานส่งให้` });
+      await replyText({ replyToken, text: `ผลการเชื่อมต่อ\nเชื่อมต่อสำเร็จ: ${name}` });
       continue;
     }
 
