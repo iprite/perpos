@@ -205,7 +205,7 @@ export default function ServiceJobsPage() {
         const to = from + pagination.pageSize - 1;
 
         const baseSelect =
-          "id,order_id,created_at,ops_status,ops_started_at,ops_completed_at,ops_note,orders(display_id,customers(name)),services!inner(name,service_group_code)";
+          "id,order_id,job_display_id,created_at,ops_status,ops_started_at,ops_completed_at,ops_note,orders(display_id,customers(name)),services!inner(name,service_group_code)";
 
         const q = search.trim();
         const qValue = q.replaceAll(",", " ").replaceAll("%", "");
@@ -220,14 +220,14 @@ export default function ServiceJobsPage() {
         if (groupFilter === "mou") query = query.eq("services.service_group_code", "mou");
         if (groupFilter === "general") query = query.neq("services.service_group_code", "mou");
         if (qValue) {
-          const orFilter = `services.name.ilike.${pat},orders.display_id.ilike.${pat},orders.customers.name.ilike.${pat},ops_note.ilike.${pat}`;
+          const orFilter = `services.name.ilike.${pat},job_display_id.ilike.${pat},orders.display_id.ilike.${pat},orders.customers.name.ilike.${pat},ops_note.ilike.${pat}`;
           query = query.or(orFilter);
         }
         let res: any = await query;
 
         if (res.error && String(res.error.message ?? "").includes("ops_note")) {
           const fallbackSelect =
-            "id,order_id,created_at,ops_status,ops_started_at,ops_completed_at,orders(display_id,customers(name)),services!inner(name,service_group_code)";
+            "id,order_id,job_display_id,created_at,ops_status,ops_started_at,ops_completed_at,orders(display_id,customers(name)),services!inner(name,service_group_code)";
           let q2: any = supabase
             .from("order_items")
             .select(fallbackSelect, { count: "estimated" })
@@ -237,7 +237,7 @@ export default function ServiceJobsPage() {
           if (groupFilter === "mou") q2 = q2.eq("services.service_group_code", "mou");
           if (groupFilter === "general") q2 = q2.neq("services.service_group_code", "mou");
           if (qValue) {
-            const orFilter = `services.name.ilike.${pat},orders.display_id.ilike.${pat},orders.customers.name.ilike.${pat}`;
+            const orFilter = `services.name.ilike.${pat},job_display_id.ilike.${pat},orders.display_id.ilike.${pat},orders.customers.name.ilike.${pat}`;
             q2 = q2.or(orFilter);
           }
           res = await q2;
@@ -427,7 +427,7 @@ export default function ServiceJobsPage() {
           <div className="flex w-full flex-col gap-2 md:w-auto md:flex-row md:items-center">
             <input
               className="h-9 w-full rounded-md border border-gray-200 bg-white px-3 text-sm md:w-[320px]"
-              placeholder="ค้นหาชื่องาน/เลขออเดอร์/ลูกค้า/หมายเหตุ"
+              placeholder="ค้นหาชื่องาน/เลขงาน/เลขออเดอร์/ลูกค้า/หมายเหตุ"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
@@ -457,7 +457,7 @@ export default function ServiceJobsPage() {
                 const orderRel = firstRel(r.orders as any);
                 const serviceRel = firstRel(r.services as any);
                 const serviceName = String(serviceRel?.name ?? "-") || "-";
-                const orderNo = String(orderRel?.display_id ?? "-") || "-";
+                const jobNo = String((r as any)?.job_display_id ?? "-") || "-";
                 const customerName = customerNameFromRel((orderRel as any)?.customers ?? null);
                 const group = serviceGroupLabel((serviceRel as any)?.service_group_code ?? null);
                 const workerCount = workerCountByItemId[r.id] ?? 0;
@@ -476,7 +476,7 @@ export default function ServiceJobsPage() {
                   >
                     <div>
                       <div className="text-sm font-medium text-gray-900">{serviceName}</div>
-                      <div className="mt-0.5 text-xs text-gray-500">ออเดอร์ {orderNo}</div>
+                      <div className="mt-0.5 text-xs text-gray-500">Job {jobNo}</div>
                     </div>
 
                     <div className="text-sm text-gray-900">{customerName}</div>
@@ -534,7 +534,7 @@ export default function ServiceJobsPage() {
           {detailRow ? (
             <div className="mt-3 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700">
               <div className="font-semibold text-gray-900">{String(firstRel((detailRow as any).services as any)?.name ?? "-")}</div>
-              <div className="mt-0.5 text-xs text-gray-600">ออเดอร์ {String(firstRel((detailRow as any).orders as any)?.display_id ?? "-")}</div>
+                <div className="mt-0.5 text-xs text-gray-600">Job {String((detailRow as any)?.job_display_id ?? "-")}</div>
               <div className="mt-0.5 text-xs text-gray-600">ลูกค้า {customerNameFromRel((firstRel((detailRow as any).orders as any) as any)?.customers ?? null)}</div>
             </div>
           ) : null}

@@ -25,6 +25,7 @@ export type ServiceRel =
 export type ServiceJobRow = {
   id: string;
   order_id: string;
+  job_display_id?: string | null;
   created_at: string;
   ops_status: "not_started" | "in_progress" | "done";
   ops_started_at: string | null;
