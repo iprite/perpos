@@ -35,6 +35,24 @@ async function replyText(args: { replyToken: string; text: string }) {
   }).catch(() => null);
 }
 
+async function replyMessages(args: { replyToken: string; messages: any[] }) {
+  const accessToken = process.env.LINE_CHANNEL_ACCESS_TOKEN ?? "";
+  if (!accessToken) return;
+  const messages = Array.isArray(args.messages) ? args.messages : [];
+  if (!messages.length) return;
+  await fetch("https://api.line.me/v2/bot/message/reply", {
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${accessToken}`,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      replyToken: args.replyToken,
+      messages,
+    }),
+  }).catch(() => null);
+}
+
 function extractLinkTokenFromText(text: string) {
   const t = String(text ?? "").trim();
   const m = t.match(/^link\s*[:：]?\s*([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i);
@@ -45,6 +63,11 @@ function extractEmployerConnectTokenFromText(text: string) {
   const t = String(text ?? "").trim();
   const m = t.match(/^employer_connect\s*[:：]?\s*([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i);
   return m?.[1] ?? null;
+}
+
+function isEmployerWorkersCommand(text: string) {
+  const t = String(text ?? "").trim().toLowerCase();
+  return t === "/worker" || t === "/workers" || t === "worker" || t === "workers";
 }
 
 function money(n: number) {
@@ -162,6 +185,87 @@ async function insertPettyCashTxn(admin: any, args: { profileId: string; lineUse
   return ins.data as any;
 }
 
+function formatShortDate(input: string | null) {
+  if (!input) return "-";
+  const d = new Date(input);
+  if (!(d instanceof Date) || Number.isNaN(d.getTime())) return "-";
+  return new Intl.DateTimeFormat("th-TH", { day: "2-digit", month: "short", year: "numeric" }).format(d);
+}
+
+function createWorkerBubble(worker: any) {
+  const fullName = String(worker?.full_name ?? "").trim() || "แรงงาน";
+  const workerId = String(worker?.worker_id ?? "").trim();
+  const nationality = String(worker?.nationality ?? "").trim();
+  const passportNo = String(worker?.passport_no ?? "").trim();
+  const sex = String(worker?.os_sex ?? "").trim();
+  const wpNumber = String(worker?.wp_number ?? "").trim();
+  const wpExpire = worker?.wp_expire_date ? formatShortDate(String(worker.wp_expire_date)) : "-";
+  const profilePicUrl = String(worker?.profile_pic_url ?? "").trim();
+
+  const hero = profilePicUrl
+    ? {
+        type: "image",
+        url: profilePicUrl,
+        size: "full",
+        aspectRatio: "20:13",
+        aspectMode: "cover",
+      }
+    : undefined;
+
+  const sub = [workerId, nationality, sex].filter((x) => !!x).join(" • ");
+
+  return {
+    type: "bubble",
+    hero,
+    body: {
+      type: "box",
+      layout: "vertical",
+      spacing: "sm",
+      contents: [
+        { type: "text", text: fullName, weight: "bold", size: "md", wrap: true },
+        sub ? { type: "text", text: sub, size: "xs", color: "#6B7280", wrap: true } : { type: "text", text: "-", size: "xs", color: "#6B7280" },
+        { type: "separator", margin: "md" },
+        {
+          type: "box",
+          layout: "vertical",
+          spacing: "xs",
+          margin: "md",
+          contents: [
+            passportNo
+              ? {
+                  type: "box",
+                  layout: "baseline",
+                  contents: [
+                    { type: "text", text: "Passport", size: "sm", color: "#6B7280", flex: 3 },
+                    { type: "text", text: passportNo, size: "sm", color: "#111827", flex: 7, wrap: true },
+                  ],
+                }
+              : null,
+            wpNumber
+              ? {
+                  type: "box",
+                  layout: "baseline",
+                  contents: [
+                    { type: "text", text: "WP", size: "sm", color: "#6B7280", flex: 3 },
+                    { type: "text", text: wpNumber, size: "sm", color: "#111827", flex: 7, wrap: true },
+                  ],
+                }
+              : null,
+            {
+              type: "box",
+              layout: "baseline",
+              contents: [
+                { type: "text", text: "หมดอายุ WP", size: "sm", color: "#6B7280", flex: 3 },
+                { type: "text", text: wpExpire, size: "sm", color: "#111827", flex: 7, wrap: true },
+              ],
+            },
+          ].filter(Boolean),
+        },
+      ],
+    },
+  };
+}
+
 export async function POST(req: Request) {
   const signature = req.headers.get("x-line-signature");
   const body = await req.text();
@@ -236,6 +340,51 @@ export async function POST(req: Request) {
       const custRes = await admin.from("customers").select("name").eq("id", customerId).maybeSingle();
       const name = String((custRes.data as any)?.name ?? "").trim() || "นายจ้าง";
       await replyText({ replyToken, text: `ผลการเชื่อมต่อ\nเชื่อมต่อสำเร็จ: ${name}` });
+      continue;
+    }
+
+    if (isEmployerWorkersCommand(text)) {
+      const connRes = await admin
+        .from("customer_line_connections")
+        .select("customer_id,status,updated_at")
+        .eq("line_user_id", lineUserId)
+        .order("updated_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      const conn = connRes.data as any;
+      if (connRes.error || !conn?.customer_id || String(conn?.status ?? "") !== "CONNECTED") {
+        await replyText({ replyToken, text: "ยังไม่ได้เชื่อมต่อกับนายจ้าง กรุณาติดต่อทีมงานเพื่อขอลิงก์เชื่อมต่อ" });
+        continue;
+      }
+
+      const customerId = String(conn.customer_id);
+      const workersRes = await admin
+        .from("workers")
+        .select("id,worker_id,full_name,nationality,passport_no,os_sex,profile_pic_url,wp_number,wp_expire_date,created_at")
+        .eq("customer_id", customerId)
+        .order("created_at", { ascending: false })
+        .limit(10);
+      if (workersRes.error) {
+        await replyText({ replyToken, text: workersRes.error.message });
+        continue;
+      }
+
+      const workers = (workersRes.data ?? []) as any[];
+      if (!workers.length) {
+        await replyText({ replyToken, text: "ยังไม่พบแรงงานของบริษัทนี้ในระบบ" });
+        continue;
+      }
+
+      const bubbles = workers.map((w) => createWorkerBubble(w));
+      const flex = {
+        type: "flex",
+        altText: "รายการแรงงาน",
+        contents: {
+          type: "carousel",
+          contents: bubbles,
+        },
+      };
+      await replyMessages({ replyToken, messages: [flex] });
       continue;
     }
 
