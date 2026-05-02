@@ -2,7 +2,7 @@
 
 import React, { useCallback, useMemo, useState } from "react";
 import toast from "react-hot-toast";
-import { Button, Input, Switch, Textarea } from "rizzui";
+import { Button, Input } from "rizzui";
 import { Title, Text } from "rizzui/typography";
 
 import { useAuth } from "@/app/shared/auth-provider";
@@ -10,13 +10,6 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import AppSelect from "@core/ui/app-select";
 
 type CustomerOption = { id: string; name: string };
-
-type EmployerLineTemplateRow = {
-  event_key: string;
-  enabled: boolean;
-  template_text: string;
-  updated_at: string;
-};
 
 type EmployerLineLogRow = {
   id: string;
@@ -45,7 +38,6 @@ export default function SettingsConnectPage() {
   const [generatedLinkUrl, setGeneratedLinkUrl] = useState<string>("");
   const [generatedExpiresAt, setGeneratedExpiresAt] = useState<string>("");
 
-  const [templates, setTemplates] = useState<EmployerLineTemplateRow[]>([]);
   const [logs, setLogs] = useState<EmployerLineLogRow[]>([]);
 
   const customerOptions = useMemo(
@@ -63,9 +55,8 @@ export default function SettingsConnectPage() {
     setLoading(true);
     setError(null);
     try {
-      const [custRes, tplRes, logRes] = await Promise.all([
+      const [custRes, logRes] = await Promise.all([
         supabase.from("customers").select("id,name").order("updated_at", { ascending: false }).order("created_at", { ascending: false }).limit(800),
-        supabase.from("employer_line_templates").select("event_key,enabled,template_text,updated_at").order("event_key", { ascending: true }),
         supabase
           .from("employer_line_message_logs")
           .select("id,customer_id,event_key,ref_table,ref_id,delivery_status,error_message,created_at,created_by_profile_id")
@@ -86,15 +77,12 @@ export default function SettingsConnectPage() {
         setCustomers((custRes.data ?? []) as CustomerOption[]);
       }
 
-      if (tplRes.error) throw new Error(tplRes.error.message);
       if (logRes.error) throw new Error(logRes.error.message);
 
-      setTemplates((tplRes.data ?? []) as EmployerLineTemplateRow[]);
       setLogs((logRes.data ?? []) as EmployerLineLogRow[]);
     } catch (e: any) {
       setError(e?.message ?? "โหลดข้อมูลไม่สำเร็จ");
       setCustomers([]);
-      setTemplates([]);
       setLogs([]);
     } finally {
       setLoading(false);
@@ -129,26 +117,6 @@ export default function SettingsConnectPage() {
     await navigator.clipboard.writeText(url);
     toast.success("คัดลอกลิงก์แล้ว");
   }, [generatedLinkUrl]);
-
-  const saveTemplate = useCallback(
-    async (eventKey: string, next: { enabled: boolean; template_text: string }) => {
-      const { error: e } = await supabase
-        .from("employer_line_templates")
-        .upsert(
-          {
-            event_key: eventKey,
-            enabled: next.enabled,
-            template_text: next.template_text,
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: "event_key" },
-        );
-      if (e) throw new Error(e.message);
-      toast.success("บันทึกแม่แบบแล้ว");
-      await refresh();
-    },
-    [refresh, supabase],
-  );
 
   if (!canManage) {
     return (
@@ -220,77 +188,6 @@ export default function SettingsConnectPage() {
             <div className="text-xs text-gray-600">
               {generatedExpiresAt ? `หมดอายุ: ${generatedExpiresAt}` : ""}
             </div>
-          </div>
-        </div>
-
-        <div className="rounded-2xl border border-gray-200 bg-white/70 p-4 backdrop-blur">
-          <div className="text-sm font-semibold text-gray-900">แม่แบบข้อความ (ส่งไปนายจ้าง)</div>
-          <div className="mt-1 text-xs text-gray-600">ตัวแปรที่ใช้ได้: {"{employerName}"}, {"{quoteNo}"}, {"{orderNo}"}, {"{status}"}, {"{amount}"}</div>
-
-          <div className="mt-4 grid gap-4">
-            {templates.length === 0 ? (
-              <div className="text-sm text-gray-600">ยังไม่มีแม่แบบ</div>
-            ) : (
-              templates.map((t) => (
-                <div key={t.event_key} className="rounded-xl border border-gray-200 bg-white p-3">
-                  <div className="flex flex-wrap items-start justify-between gap-2">
-                    <div>
-                      <div className="text-sm font-medium text-gray-900">{t.event_key}</div>
-                      <div className="mt-0.5 text-xs text-gray-600">อัปเดตล่าสุด: {t.updated_at}</div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="text-xs text-gray-600">เปิดใช้งาน</div>
-                      <Switch
-                        checked={!!t.enabled}
-                        onChange={async (e) => {
-                          const checked = Boolean((e as any)?.target?.checked);
-                          try {
-                            setLoading(true);
-                            await saveTemplate(t.event_key, { enabled: checked, template_text: t.template_text });
-                          } catch (e: any) {
-                            toast.error(e?.message ?? "บันทึกไม่สำเร็จ");
-                          } finally {
-                            setLoading(false);
-                          }
-                        }}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="mt-3">
-                    <Textarea
-                      label="ข้อความ"
-                      value={t.template_text}
-                      onChange={(e) => {
-                        const next = e.target.value;
-                        setTemplates((prev) => prev.map((x) => (x.event_key === t.event_key ? { ...x, template_text: next } : x)));
-                      }}
-                      rows={4}
-                      disabled={loading}
-                    />
-                  </div>
-
-                  <div className="mt-3 flex justify-end">
-                    <Button
-                      size="sm"
-                      onClick={async () => {
-                        try {
-                          setLoading(true);
-                          await saveTemplate(t.event_key, { enabled: !!t.enabled, template_text: t.template_text });
-                        } catch (e: any) {
-                          toast.error(e?.message ?? "บันทึกไม่สำเร็จ");
-                        } finally {
-                          setLoading(false);
-                        }
-                      }}
-                      disabled={loading}
-                    >
-                      บันทึก
-                    </Button>
-                  </div>
-                </div>
-              ))
-            )}
           </div>
         </div>
       </div>
