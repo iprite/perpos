@@ -45,10 +45,10 @@ function createQuoteFlexMessage(args: {
   employerName: string;
   quoteNo: string;
   statusText: string;
+  jobNameText: string;
   amountText: string;
   itemsCountText: string;
   validUntilText: string;
-  summaryText: string;
 }) {
   const altText = `ใบเสนอราคา ${args.quoteNo}`;
   const headerColor = "#2563EB";
@@ -89,18 +89,19 @@ function createQuoteFlexMessage(args: {
         spacing: "md",
         contents: [
           {
-            type: "text",
-            text: args.summaryText,
-            wrap: true,
-            size: "sm",
-            color: "#111827",
-          },
-          {
             type: "box",
             layout: "vertical",
             spacing: "sm",
-            margin: "md",
+            margin: "sm",
             contents: [
+              {
+                type: "box",
+                layout: "baseline",
+                contents: [
+                  { type: "text", text: "ชื่องาน", size: "sm", color: "#6B7280", flex: 3 },
+                  { type: "text", text: args.jobNameText, size: "sm", color: "#111827", flex: 7, wrap: true },
+                ],
+              },
               {
                 type: "box",
                 layout: "baseline",
@@ -184,6 +185,7 @@ export async function POST(req: Request) {
     let amountText = "";
     let quoteValidUntil: string | null = null;
     let quoteItemsCount = 0;
+    let quoteJobNameText = "-";
 
     if (kind === "quote") {
       const q = await admin
@@ -196,11 +198,27 @@ export async function POST(req: Request) {
       quoteNo = String((q.data as any).quote_no ?? "").trim() || id;
       const rawStatus = String((q.data as any).status ?? "").trim();
       statusText = quoteStatusLabel(rawStatus);
-      amountText = `ยอดรวม ${money(Number((q.data as any).grand_total ?? 0))} บาท`;
+      amountText = `${money(Number((q.data as any).grand_total ?? 0))} บาท`;
       quoteValidUntil = (q.data as any).valid_until ? String((q.data as any).valid_until) : null;
 
       const cnt = await admin.from("sales_quote_items").select("id", { count: "exact", head: true }).eq("quote_id", id);
       quoteItemsCount = Number(cnt.count ?? 0);
+
+      const itemRes = await admin
+        .from("sales_quote_items")
+        .select("name,quantity,sort_order,created_at")
+        .eq("quote_id", id)
+        .order("sort_order", { ascending: true })
+        .order("created_at", { ascending: true })
+        .limit(3);
+      const names = ((itemRes.data ?? []) as any[])
+        .map((r) => String(r?.name ?? "").trim())
+        .filter((x) => x.length > 0);
+      if (names.length) {
+        const shown = names.slice(0, 2);
+        const more = Math.max(0, quoteItemsCount - shown.length);
+        quoteJobNameText = `${shown.join(", ")}${more > 0 ? ` + อีก ${more} รายการ` : ""}`;
+      }
     }
 
     if (kind === "order") {
@@ -255,10 +273,10 @@ export async function POST(req: Request) {
                 employerName,
                 quoteNo,
                 statusText,
+                jobNameText: quoteJobNameText,
                 amountText,
                 itemsCountText: `${quoteItemsCount} รายการ`,
                 validUntilText: formatShortDate(quoteValidUntil),
-                summaryText: text,
               }),
             ],
           })
