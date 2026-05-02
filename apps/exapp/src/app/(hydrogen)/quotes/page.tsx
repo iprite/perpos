@@ -263,7 +263,9 @@ export default function QuotesPage() {
   const [detailOpen, setDetailOpen] = useState(false);
   const [selectedItems, setSelectedItems] = useState<SalesQuoteItemRow[]>([]);
   const [selectedFollowups, setSelectedFollowups] = useState<SalesFollowupRow[]>([]);
-  
+
+  const [employerLineStatus, setEmployerLineStatus] = useState<"NOT_CONNECTED" | "PENDING" | "CONNECTED" | "ERROR" | null>(null);
+
   const [existingOrder, setExistingOrder] = useState<{ id: string; display_id: string | null } | null | undefined>(undefined);
 
   const [showForm, setShowForm] = useState(false);
@@ -538,6 +540,29 @@ export default function QuotesPage() {
     if (!selected) return;
     refreshSelected(selected.id);
   }, [refreshSelected, selected]);
+
+  React.useEffect(() => {
+    const customerId = detailOpen ? selected?.customer_id ?? null : null;
+    if (!customerId) {
+      setEmployerLineStatus(null);
+      return;
+    }
+    let cancelled = false;
+    Promise.resolve().then(async () => {
+      const res = await supabase.from("customer_line_connections").select("status").eq("customer_id", customerId).maybeSingle();
+      if (cancelled) return;
+      if (res.error) {
+        setEmployerLineStatus("NOT_CONNECTED");
+        return;
+      }
+      const st = String((res.data as any)?.status ?? "NOT_CONNECTED");
+      if (st === "CONNECTED" || st === "PENDING" || st === "ERROR" || st === "NOT_CONNECTED") setEmployerLineStatus(st);
+      else setEmployerLineStatus("NOT_CONNECTED");
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [detailOpen, selected?.customer_id, supabase]);
 
   React.useEffect(() => {
     if (!selected) {
@@ -1118,7 +1143,7 @@ export default function QuotesPage() {
                   ไม่อนุมัติ
                 </Button>
               ) : null}
-              {role === "admin" || role === "sale" ? (
+              {(role === "admin" || role === "sale") && employerLineStatus === "CONNECTED" ? (
                 <Button
                   size="sm"
                   variant="outline"

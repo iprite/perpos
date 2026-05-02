@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
+import { sendLineMessages } from "@/lib/line/send-messages";
 import { sendLineText } from "@/lib/line/send-text";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
@@ -22,6 +23,122 @@ function createSupabaseRlsClient(accessToken: string) {
 function money(n: number) {
   const x = Number.isFinite(n) ? n : 0;
   return x.toLocaleString("th-TH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function quoteStatusLabel(s: string) {
+  if (s === "draft") return "ร่าง";
+  if (s === "pending_approval") return "รออนุมัติ";
+  if (s === "approved") return "อนุมัติแล้ว";
+  if (s === "rejected") return "ไม่อนุมัติ";
+  if (s === "cancelled") return "ยกเลิก";
+  return s || "-";
+}
+
+function formatShortDate(input: string | null) {
+  if (!input) return "-";
+  const d = new Date(input);
+  if (!(d instanceof Date) || Number.isNaN(d.getTime())) return "-";
+  return new Intl.DateTimeFormat("th-TH", { day: "2-digit", month: "short", year: "numeric" }).format(d);
+}
+
+function createQuoteFlexMessage(args: {
+  employerName: string;
+  quoteNo: string;
+  statusText: string;
+  amountText: string;
+  itemsCountText: string;
+  validUntilText: string;
+  summaryText: string;
+}) {
+  const altText = `ใบเสนอราคา ${args.quoteNo}`;
+  const headerColor = "#2563EB";
+
+  return {
+    type: "flex" as const,
+    altText,
+    contents: {
+      type: "bubble",
+      size: "mega",
+      header: {
+        type: "box",
+        layout: "vertical",
+        backgroundColor: headerColor,
+        paddingAll: "16px",
+        contents: [
+          {
+            type: "text",
+            text: `ใบเสนอราคา ${args.quoteNo}`,
+            color: "#FFFFFF",
+            weight: "bold",
+            size: "lg",
+            wrap: true,
+          },
+          {
+            type: "text",
+            text: args.employerName,
+            color: "#DBEAFE",
+            size: "sm",
+            wrap: true,
+            margin: "sm",
+          },
+        ],
+      },
+      body: {
+        type: "box",
+        layout: "vertical",
+        spacing: "md",
+        contents: [
+          {
+            type: "text",
+            text: args.summaryText,
+            wrap: true,
+            size: "sm",
+            color: "#111827",
+          },
+          {
+            type: "box",
+            layout: "vertical",
+            spacing: "sm",
+            margin: "md",
+            contents: [
+              {
+                type: "box",
+                layout: "baseline",
+                contents: [
+                  { type: "text", text: "สถานะ", size: "sm", color: "#6B7280", flex: 3 },
+                  { type: "text", text: args.statusText, size: "sm", color: "#111827", flex: 7, wrap: true },
+                ],
+              },
+              {
+                type: "box",
+                layout: "baseline",
+                contents: [
+                  { type: "text", text: "รายการ", size: "sm", color: "#6B7280", flex: 3 },
+                  { type: "text", text: args.itemsCountText, size: "sm", color: "#111827", flex: 7, wrap: true },
+                ],
+              },
+              {
+                type: "box",
+                layout: "baseline",
+                contents: [
+                  { type: "text", text: "ยอดรวม", size: "sm", color: "#6B7280", flex: 3 },
+                  { type: "text", text: args.amountText, size: "sm", color: "#111827", flex: 7, wrap: true },
+                ],
+              },
+              {
+                type: "box",
+                layout: "baseline",
+                contents: [
+                  { type: "text", text: "หมดอายุ", size: "sm", color: "#6B7280", flex: 3 },
+                  { type: "text", text: args.validUntilText, size: "sm", color: "#111827", flex: 7, wrap: true },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    },
+  };
 }
 
 function renderTemplate(template: string, vars: Record<string, string>) {
@@ -65,14 +182,25 @@ export async function POST(req: Request) {
     let quoteNo = "";
     let orderNo = "";
     let amountText = "";
+    let quoteValidUntil: string | null = null;
+    let quoteItemsCount = 0;
 
     if (kind === "quote") {
-      const q = await admin.from("sales_quotes").select("id,quote_no,status,customer_id,grand_total").eq("id", id).maybeSingle();
+      const q = await admin
+        .from("sales_quotes")
+        .select("id,quote_no,status,customer_id,grand_total,valid_until")
+        .eq("id", id)
+        .maybeSingle();
       if (q.error || !q.data) return NextResponse.json({ error: "Quote not found" }, { status: 404 });
       customerId = String((q.data as any).customer_id ?? "").trim() || null;
       quoteNo = String((q.data as any).quote_no ?? "").trim() || id;
-      statusText = String((q.data as any).status ?? "").trim();
+      const rawStatus = String((q.data as any).status ?? "").trim();
+      statusText = quoteStatusLabel(rawStatus);
       amountText = `ยอดรวม ${money(Number((q.data as any).grand_total ?? 0))} บาท`;
+      quoteValidUntil = (q.data as any).valid_until ? String((q.data as any).valid_until) : null;
+
+      const cnt = await admin.from("sales_quote_items").select("id", { count: "exact", head: true }).eq("quote_id", id);
+      quoteItemsCount = Number(cnt.count ?? 0);
     }
 
     if (kind === "order") {
@@ -106,7 +234,7 @@ export async function POST(req: Request) {
     const templateText = tplRes.data ? String((tplRes.data as any).template_text ?? "") : "";
     if (!enabled) return NextResponse.json({ ok: true, skipped: true, reason: "disabled" });
 
-    const fallback = kind === "quote" ? "อัปเดตใบเสนอราคา {quoteNo}\nสถานะ: {status}" : "อัปเดตออเดอร์ {orderNo}\nสถานะ: {status}";
+    const fallback = kind === "quote" ? "ใบเสนอราคา {quoteNo}\nสถานะ: {status}\n{amount}" : "อัปเดตออเดอร์ {orderNo}\nสถานะ: {status}";
     const base = templateText.trim() || fallback;
 
     const text = renderTemplate(base, {
@@ -118,7 +246,23 @@ export async function POST(req: Request) {
       link: "",
     }).trim();
 
-    const sendRes = await sendLineText({ to: lineUserId, text });
+    const sendRes =
+      kind === "quote" && eventKey === "quote_updated"
+        ? await sendLineMessages({
+            to: lineUserId,
+            messages: [
+              createQuoteFlexMessage({
+                employerName,
+                quoteNo,
+                statusText,
+                amountText,
+                itemsCountText: `${quoteItemsCount} รายการ`,
+                validUntilText: formatShortDate(quoteValidUntil),
+                summaryText: text,
+              }),
+            ],
+          })
+        : await sendLineText({ to: lineUserId, text });
     const now = new Date().toISOString();
 
     if (!sendRes.ok) {
@@ -157,4 +301,3 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: e?.message ?? "Unexpected error" }, { status: 500 });
   }
 }
-

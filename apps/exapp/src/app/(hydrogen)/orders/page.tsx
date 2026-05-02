@@ -335,6 +335,7 @@ export default function OrdersPage() {
   const [addDocFile, setAddDocFile] = useState<File | null>(null);
 
   const [customerId, setCustomerId] = useState("");
+  const [employerLineStatus, setEmployerLineStatus] = useState<"NOT_CONNECTED" | "PENDING" | "CONNECTED" | "ERROR" | null>(null);
   const [discount, setDiscount] = useState("0");
   const [includeVat, setIncludeVat] = useState(true);
   const [whtRate, setWhtRate] = useState("3");
@@ -1251,6 +1252,29 @@ export default function OrdersPage() {
     openOrderForEdit(target);
   }, [canEdit, clearOrderIdParam, openOrderForEdit, searchParams]);
 
+  useEffect(() => {
+    const cid = String(customerId ?? "").trim();
+    if (!editingId || !cid) {
+      setEmployerLineStatus(null);
+      return;
+    }
+    let cancelled = false;
+    Promise.resolve().then(async () => {
+      const res = await supabase.from("customer_line_connections").select("status").eq("customer_id", cid).maybeSingle();
+      if (cancelled) return;
+      if (res.error) {
+        setEmployerLineStatus("NOT_CONNECTED");
+        return;
+      }
+      const st = String((res.data as any)?.status ?? "NOT_CONNECTED");
+      if (st === "CONNECTED" || st === "PENDING" || st === "ERROR" || st === "NOT_CONNECTED") setEmployerLineStatus(st);
+      else setEmployerLineStatus("NOT_CONNECTED");
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [customerId, editingId, supabase]);
+
   return (
     <div ref={topRef}>
       <div className="flex flex-col justify-between gap-3 md:flex-row md:items-end">
@@ -1358,7 +1382,7 @@ export default function OrdersPage() {
                 </Button>
               ) : null}
 
-              {editingId && (role === "admin" || role === "sale") ? (
+              {editingId && (role === "admin" || role === "sale") && employerLineStatus === "CONNECTED" ? (
                 <Button
                   size="sm"
                   variant="outline"
