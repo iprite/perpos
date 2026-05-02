@@ -266,6 +266,48 @@ function createWorkerBubble(worker: any) {
   };
 }
 
+function createWorkersSummaryBubble(workers: any[]) {
+  const total = Array.isArray(workers) ? workers.length : 0;
+  const counts = new Map<string, number>();
+  for (const w of Array.isArray(workers) ? workers : []) {
+    const key = String(w?.nationality ?? "").trim() || "ไม่ระบุ";
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  const rows = Array.from(counts.entries())
+    .map(([name, count]) => ({ name, count }))
+    .sort((a, b) => (b.count !== a.count ? b.count - a.count : a.name.localeCompare(b.name, "th")));
+
+  return {
+    type: "bubble",
+    body: {
+      type: "box",
+      layout: "vertical",
+      spacing: "sm",
+      contents: [
+        { type: "text", text: "สรุปแรงงานตามสัญชาติ", weight: "bold", size: "md", wrap: true },
+        { type: "text", text: `ทั้งหมด ${total} คน`, size: "xs", color: "#6B7280" },
+        { type: "separator", margin: "md" },
+        {
+          type: "box",
+          layout: "vertical",
+          spacing: "xs",
+          margin: "md",
+          contents: rows.length
+            ? rows.map((r) => ({
+                type: "box",
+                layout: "baseline",
+                contents: [
+                  { type: "text", text: r.name, size: "sm", color: "#111827", flex: 7, wrap: true },
+                  { type: "text", text: `${r.count} คน`, size: "sm", color: "#111827", flex: 3, align: "end" },
+                ],
+              }))
+            : [{ type: "text", text: "-", size: "sm", color: "#6B7280" }],
+        },
+      ],
+    },
+  };
+}
+
 export async function POST(req: Request) {
   const signature = req.headers.get("x-line-signature");
   const body = await req.text();
@@ -363,7 +405,7 @@ export async function POST(req: Request) {
         .select("id,worker_id,full_name,nationality,passport_no,os_sex,profile_pic_url,wp_number,wp_expire_date,created_at")
         .eq("customer_id", customerId)
         .order("created_at", { ascending: false })
-        .limit(10);
+        .limit(9);
       if (workersRes.error) {
         await replyText({ replyToken, text: workersRes.error.message });
         continue;
@@ -375,7 +417,8 @@ export async function POST(req: Request) {
         continue;
       }
 
-      const bubbles = workers.map((w) => createWorkerBubble(w));
+      const summaryBubble = createWorkersSummaryBubble(workers);
+      const bubbles = [summaryBubble, ...workers.map((w) => createWorkerBubble(w))];
       const flex = {
         type: "flex",
         altText: "รายการแรงงาน",
