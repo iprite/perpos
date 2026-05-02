@@ -74,14 +74,6 @@ function createQuoteFlexMessage(args: {
             size: "lg",
             wrap: true,
           },
-          {
-            type: "text",
-            text: args.employerName,
-            color: "#DBEAFE",
-            size: "sm",
-            wrap: true,
-            margin: "sm",
-          },
         ],
       },
       body: {
@@ -95,6 +87,14 @@ function createQuoteFlexMessage(args: {
             spacing: "sm",
             margin: "sm",
             contents: [
+              {
+                type: "box",
+                layout: "baseline",
+                contents: [
+                  { type: "text", text: "ลูกค้า", size: "sm", color: "#6B7280", flex: 3 },
+                  { type: "text", text: args.employerName, size: "sm", color: "#111827", flex: 7, wrap: true },
+                ],
+              },
               {
                 type: "box",
                 layout: "baseline",
