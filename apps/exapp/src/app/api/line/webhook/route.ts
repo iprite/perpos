@@ -65,6 +65,12 @@ function extractEmployerConnectTokenFromText(text: string) {
   return m?.[1] ?? null;
 }
 
+function extractJobDisplayIdFromText(text: string) {
+  const t = String(text ?? "").trim().toUpperCase();
+  const m = t.match(/^(OR-\d{4}\/\d{5})\/(\d{2})$/);
+  return m ? `${m[1]}/${m[2]}` : null;
+}
+
 function isEmployerWorkersCommand(text: string) {
   const t = String(text ?? "").trim().toLowerCase();
   return t === "/worker" || t === "/workers" || t === "worker" || t === "workers";
@@ -321,6 +327,178 @@ async function fetchProfileByLineUserId(admin: any, lineUserId: string) {
 
 function isAllowedPettyCashRole(role: string | null) {
   return role === "admin" || role === "operation";
+}
+
+function isAllowedServiceJobRole(role: string | null) {
+  return role === "admin" || role === "operation";
+}
+
+function jobOpsStatusLabel(s: string) {
+  if (s === "not_started") return "ยังไม่เริ่ม";
+  if (s === "in_progress") return "กำลังดำเนินการ";
+  if (s === "done") return "เสร็จสิ้น";
+  return s || "-";
+}
+
+function createServiceJobFlexMessage(args: {
+  jobNo: string;
+  serviceName: string;
+  customerName: string;
+  orderNo: string;
+  groupLabel: string;
+  workerCount: number;
+  opsStatus: string;
+  startedAt: string | null;
+  completedAt: string | null;
+  note: string;
+  orderItemId: string;
+}) {
+  const statusText = jobOpsStatusLabel(args.opsStatus);
+  const headerColor = args.opsStatus === "done" ? "#16A34A" : args.opsStatus === "in_progress" ? "#2563EB" : "#6B7280";
+
+  const rows: any[] = [
+    {
+      type: "box",
+      layout: "baseline",
+      contents: [
+        { type: "text", text: "ลูกค้า", size: "sm", color: "#6B7280", flex: 3 },
+        { type: "text", text: args.customerName, size: "sm", color: "#111827", flex: 7, wrap: true },
+      ],
+    },
+    {
+      type: "box",
+      layout: "baseline",
+      contents: [
+        { type: "text", text: "ออเดอร์", size: "sm", color: "#6B7280", flex: 3 },
+        { type: "text", text: args.orderNo, size: "sm", color: "#111827", flex: 7, wrap: true },
+      ],
+    },
+    {
+      type: "box",
+      layout: "baseline",
+      contents: [
+        { type: "text", text: "บริการ", size: "sm", color: "#6B7280", flex: 3 },
+        { type: "text", text: args.serviceName, size: "sm", color: "#111827", flex: 7, wrap: true },
+      ],
+    },
+    {
+      type: "box",
+      layout: "baseline",
+      contents: [
+        { type: "text", text: "กลุ่ม", size: "sm", color: "#6B7280", flex: 3 },
+        { type: "text", text: args.groupLabel, size: "sm", color: "#111827", flex: 7, wrap: true },
+      ],
+    },
+    {
+      type: "box",
+      layout: "baseline",
+      contents: [
+        { type: "text", text: "แรงงาน", size: "sm", color: "#6B7280", flex: 3 },
+        { type: "text", text: `${Math.max(0, Math.trunc(args.workerCount))} คน`, size: "sm", color: "#111827", flex: 7, wrap: true },
+      ],
+    },
+    {
+      type: "box",
+      layout: "baseline",
+      contents: [
+        { type: "text", text: "สถานะ", size: "sm", color: "#6B7280", flex: 3 },
+        { type: "text", text: statusText, size: "sm", color: "#111827", flex: 7, wrap: true },
+      ],
+    },
+    ...(args.startedAt
+      ? [
+          {
+            type: "box",
+            layout: "baseline",
+            contents: [
+              { type: "text", text: "เริ่ม", size: "sm", color: "#6B7280", flex: 3 },
+              { type: "text", text: formatShortDateTime(args.startedAt), size: "sm", color: "#111827", flex: 7, wrap: true },
+            ],
+          },
+        ]
+      : []),
+    ...(args.completedAt
+      ? [
+          {
+            type: "box",
+            layout: "baseline",
+            contents: [
+              { type: "text", text: "ปิด", size: "sm", color: "#6B7280", flex: 3 },
+              { type: "text", text: formatShortDateTime(args.completedAt), size: "sm", color: "#111827", flex: 7, wrap: true },
+            ],
+          },
+        ]
+      : []),
+    {
+      type: "box",
+      layout: "baseline",
+      contents: [
+        { type: "text", text: "หมายเหตุ", size: "sm", color: "#6B7280", flex: 3 },
+        { type: "text", text: args.note || "-", size: "sm", color: "#111827", flex: 7, wrap: true },
+      ],
+    },
+  ];
+
+  const footerButtons: any[] = [];
+  if (args.opsStatus === "not_started") {
+    footerButtons.push({
+      type: "button",
+      style: "primary",
+      color: "#2563EB",
+      action: { type: "postback", label: "เริ่มดำเนินการ", data: `job_action=start&order_item_id=${encodeURIComponent(args.orderItemId)}` },
+    });
+  }
+  if (args.opsStatus === "in_progress") {
+    footerButtons.push({
+      type: "button",
+      style: "primary",
+      color: "#DC2626",
+      action: { type: "postback", label: "ปิดงาน", data: `job_action=close&order_item_id=${encodeURIComponent(args.orderItemId)}` },
+    });
+  }
+
+  return {
+    type: "flex",
+    altText: `Job ${args.jobNo}`,
+    contents: {
+      type: "bubble",
+      size: "mega",
+      header: {
+        type: "box",
+        layout: "vertical",
+        backgroundColor: headerColor,
+        paddingAll: "16px",
+        contents: [
+          { type: "text", text: "งานบริการ", color: "#FFFFFF", weight: "bold", size: "lg", wrap: true },
+          { type: "text", text: args.jobNo, color: "#E5E7EB", size: "sm", wrap: true },
+        ],
+      },
+      body: {
+        type: "box",
+        layout: "vertical",
+        spacing: "md",
+        contents: [
+          {
+            type: "box",
+            layout: "vertical",
+            spacing: "sm",
+            margin: "sm",
+            contents: rows,
+          },
+        ],
+      },
+      ...(footerButtons.length
+        ? {
+            footer: {
+              type: "box",
+              layout: "vertical",
+              spacing: "sm",
+              contents: footerButtons,
+            },
+          }
+        : {}),
+    },
+  };
 }
 
 function formatCategoryConfirmMessage(args: { input: string; suggestions: string[]; allowedAll?: string[] | null }) {
@@ -654,14 +832,109 @@ export async function POST(req: Request) {
   const admin = createSupabaseAdminClient();
 
   for (const ev of events) {
+    const replyToken = String(ev?.replyToken ?? "");
+    const lineUserId = String(ev?.source?.userId ?? "");
+    if (!replyToken || !lineUserId) continue;
+
+    if (ev?.type === "postback") {
+      const data = String(ev?.postback?.data ?? "");
+      const m = data.match(/(?:^|&)job_action=(start|close)(?:&|$)/i);
+      const mId = data.match(/(?:^|&)order_item_id=([^&]+)(?:&|$)/i);
+      const action = m?.[1]?.toLowerCase() ?? "";
+      const orderItemId = mId?.[1] ? decodeURIComponent(mId[1]) : "";
+      if (!action || !orderItemId) {
+        await replyText({ replyToken, text: "คำสั่งไม่ถูกต้อง" });
+        continue;
+      }
+
+      const profile = await fetchProfileByLineUserId(admin, lineUserId);
+      const role = String(profile?.role ?? "");
+      const profileId = String(profile?.id ?? "");
+      if (!profileId) {
+        await replyText({ replyToken, text: "ยังไม่เชื่อมบัญชี กรุณาเชื่อม LINE จากหน้า ตั้งค่าผู้ใช้" });
+        continue;
+      }
+      if (!isAllowedServiceJobRole(role)) {
+        await replyText({ replyToken, text: "ไม่มีสิทธิ์จัดการงานบริการ (อนุญาตเฉพาะ admin/operation)" });
+        continue;
+      }
+
+      const now = new Date().toISOString();
+      const jobRes = await admin
+        .from("order_items")
+        .select("id,order_id,job_display_id,ops_status,ops_started_at,ops_completed_at,ops_note,orders(display_id,customers(name)),services(name,service_group_code)")
+        .eq("id", orderItemId)
+        .maybeSingle();
+      if (jobRes.error || !jobRes.data) {
+        await replyText({ replyToken, text: "ไม่พบงานบริการ" });
+        continue;
+      }
+
+      const current = jobRes.data as any;
+      const currentStatus = String(current.ops_status ?? "");
+      const patch: any = { ops_updated_at: now, ops_updated_by_profile_id: profileId };
+      if (action === "start") {
+        if (currentStatus === "done") {
+          await replyText({ replyToken, text: "งานนี้ถูกปิดแล้ว" });
+          continue;
+        }
+        patch.ops_status = "in_progress";
+        if (!current.ops_started_at) patch.ops_started_at = now;
+        patch.ops_completed_at = null;
+      }
+      if (action === "close") {
+        patch.ops_status = "done";
+        if (!current.ops_started_at) patch.ops_started_at = now;
+        patch.ops_completed_at = now;
+      }
+
+      const updRes = await admin.from("order_items").update(patch).eq("id", orderItemId);
+      if (updRes.error) {
+        await replyText({ replyToken, text: updRes.error.message });
+        continue;
+      }
+
+      const afterRes = await admin
+        .from("order_items")
+        .select("id,order_id,job_display_id,ops_status,ops_started_at,ops_completed_at,ops_note,orders(display_id,customers(name)),services(name,service_group_code)")
+        .eq("id", orderItemId)
+        .maybeSingle();
+      const d = (afterRes.data ?? current) as any;
+
+      const wcRes = await admin
+        .from("order_item_workers")
+        .select("id", { count: "exact", head: true })
+        .eq("order_item_id", orderItemId);
+      const workerCount = Number(wcRes.count ?? 0);
+
+      const orderRel = Array.isArray(d.orders) ? d.orders[0] : d.orders;
+      const serviceRel = Array.isArray(d.services) ? d.services[0] : d.services;
+      const orderNo = String(orderRel?.display_id ?? "-") || "-";
+      const customerName = Array.isArray(orderRel?.customers) ? String(orderRel.customers[0]?.name ?? "-") : String(orderRel?.customers?.name ?? "-") || "-";
+      const serviceName = String(serviceRel?.name ?? "-") || "-";
+      const groupLabel = String(serviceRel?.service_group_code ?? "") === "mou" ? "MOU" : "General";
+
+      const flex = createServiceJobFlexMessage({
+        jobNo: String(d.job_display_id ?? "-") || "-",
+        serviceName,
+        customerName,
+        orderNo,
+        groupLabel,
+        workerCount,
+        opsStatus: String(d.ops_status ?? ""),
+        startedAt: d.ops_started_at ? String(d.ops_started_at) : null,
+        completedAt: d.ops_completed_at ? String(d.ops_completed_at) : null,
+        note: String(d.ops_note ?? "").trim(),
+        orderItemId: String(d.id ?? orderItemId),
+      });
+      await replyMessages({ replyToken, messages: [flex] });
+      continue;
+    }
+
     if (ev?.type !== "message") continue;
     if (ev?.message?.type !== "text") continue;
 
-    const replyToken = String(ev?.replyToken ?? "");
-    const lineUserId = String(ev?.source?.userId ?? "");
     const text = String(ev?.message?.text ?? "");
-
-    if (!replyToken || !lineUserId) continue;
 
     const employerConnectToken = extractEmployerConnectTokenFromText(text);
     if (employerConnectToken) {
@@ -714,6 +987,61 @@ export async function POST(req: Request) {
       const custRes = await admin.from("customers").select("name").eq("id", customerId).maybeSingle();
       const name = String((custRes.data as any)?.name ?? "").trim() || "นายจ้าง";
       await replyText({ replyToken, text: `ผลการเชื่อมต่อ\nเชื่อมต่อสำเร็จ: ${name}` });
+      continue;
+    }
+
+    const jobDisplayId = extractJobDisplayIdFromText(text);
+    if (jobDisplayId) {
+      const profile = await fetchProfileByLineUserId(admin, lineUserId);
+      const role = String(profile?.role ?? "");
+      if (!String(profile?.id ?? "").trim()) {
+        await replyText({ replyToken, text: "ยังไม่เชื่อมบัญชี กรุณาเชื่อม LINE จากหน้า ตั้งค่าผู้ใช้" });
+        continue;
+      }
+      if (!isAllowedServiceJobRole(role)) {
+        await replyText({ replyToken, text: "ไม่มีสิทธิ์ดูงานบริการ (อนุญาตเฉพาะ admin/operation)" });
+        continue;
+      }
+
+      const jobRes = await admin
+        .from("order_items")
+        .select("id,order_id,job_display_id,ops_status,ops_started_at,ops_completed_at,ops_note,orders(display_id,customers(name)),services(name,service_group_code)")
+        .eq("job_display_id", jobDisplayId)
+        .maybeSingle();
+      if (jobRes.error || !jobRes.data) {
+        await replyText({ replyToken, text: "ไม่พบงานบริการ" });
+        continue;
+      }
+
+      const d = jobRes.data as any;
+      const orderItemId = String(d.id ?? "");
+      const wcRes = await admin
+        .from("order_item_workers")
+        .select("id", { count: "exact", head: true })
+        .eq("order_item_id", orderItemId);
+      const workerCount = Number(wcRes.count ?? 0);
+
+      const orderRel = Array.isArray(d.orders) ? d.orders[0] : d.orders;
+      const serviceRel = Array.isArray(d.services) ? d.services[0] : d.services;
+      const orderNo = String(orderRel?.display_id ?? "-") || "-";
+      const customerName = Array.isArray(orderRel?.customers) ? String(orderRel.customers[0]?.name ?? "-") : String(orderRel?.customers?.name ?? "-") || "-";
+      const serviceName = String(serviceRel?.name ?? "-") || "-";
+      const groupLabel = String(serviceRel?.service_group_code ?? "") === "mou" ? "MOU" : "General";
+
+      const flex = createServiceJobFlexMessage({
+        jobNo: String(d.job_display_id ?? jobDisplayId) || jobDisplayId,
+        serviceName,
+        customerName,
+        orderNo,
+        groupLabel,
+        workerCount,
+        opsStatus: String(d.ops_status ?? ""),
+        startedAt: d.ops_started_at ? String(d.ops_started_at) : null,
+        completedAt: d.ops_completed_at ? String(d.ops_completed_at) : null,
+        note: String(d.ops_note ?? "").trim(),
+        orderItemId,
+      });
+      await replyMessages({ replyToken, messages: [flex] });
       continue;
     }
 
