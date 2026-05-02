@@ -1190,9 +1190,7 @@ export default function CustomersPage() {
                   </div>
                 </Modal>
               </div>
-            </div>
 
-            <div className="grid gap-5">
               <div className="rounded-2xl border border-gray-200 bg-white/70 p-4 backdrop-blur">
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div>
@@ -1282,7 +1280,9 @@ export default function CustomersPage() {
                   </div>
                 </div>
               </div>
+            </div>
 
+            <div className="grid gap-5">
               <div className="rounded-2xl border border-gray-200 bg-white/70 p-4 backdrop-blur">
                 <div className="text-sm font-semibold text-gray-900">ข้อมูลผู้ติดต่อ</div>
                 <div className="mt-4 grid gap-4 md:grid-cols-2">
