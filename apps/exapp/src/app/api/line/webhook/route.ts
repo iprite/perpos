@@ -540,6 +540,11 @@ function createEmployerDetailBubble(args: {
   email: string;
   lineStatus: string;
   connectedAt: string | null;
+  workerCount: number;
+  orderCount: number;
+  totalAmount: number;
+  paidAmount: number;
+  remainingAmount: number;
 }) {
   const statusText = lineConnStatusLabel(String(args.lineStatus ?? ""));
   const headerColor = String(args.lineStatus ?? "") === "CONNECTED" ? "#06C755" : "#6B7280";
@@ -552,6 +557,46 @@ function createEmployerDetailBubble(args: {
       contents: [
         { type: "text", text: "สถานะ LINE", size: "sm", color: "#6B7280", flex: 3 },
         { type: "text", text: statusText, size: "sm", color: "#111827", flex: 7, wrap: true },
+      ],
+    },
+    {
+      type: "box",
+      layout: "baseline",
+      contents: [
+        { type: "text", text: "แรงงาน", size: "sm", color: "#6B7280", flex: 3 },
+        { type: "text", text: `${Math.max(0, Math.trunc(args.workerCount))} คน`, size: "sm", color: "#111827", flex: 7, wrap: true },
+      ],
+    },
+    {
+      type: "box",
+      layout: "baseline",
+      contents: [
+        { type: "text", text: "ออเดอร์", size: "sm", color: "#6B7280", flex: 3 },
+        { type: "text", text: `${Math.max(0, Math.trunc(args.orderCount))} รายการ`, size: "sm", color: "#111827", flex: 7, wrap: true },
+      ],
+    },
+    {
+      type: "box",
+      layout: "baseline",
+      contents: [
+        { type: "text", text: "ยอดรวม", size: "sm", color: "#6B7280", flex: 3 },
+        { type: "text", text: `${money(args.totalAmount)} บาท`, size: "sm", color: "#111827", flex: 7, wrap: true },
+      ],
+    },
+    {
+      type: "box",
+      layout: "baseline",
+      contents: [
+        { type: "text", text: "ดำเนินการแล้ว", size: "sm", color: "#6B7280", flex: 3 },
+        { type: "text", text: `${money(args.paidAmount)} บาท`, size: "sm", color: "#111827", flex: 7, wrap: true },
+      ],
+    },
+    {
+      type: "box",
+      layout: "baseline",
+      contents: [
+        { type: "text", text: "ค้างชำระ", size: "sm", color: "#6B7280", flex: 3 },
+        { type: "text", text: `${money(args.remainingAmount)} บาท`, size: "sm", color: "#111827", flex: 7, wrap: true },
       ],
     },
     ...(String(args.displayId ?? "").trim()
@@ -1208,9 +1253,38 @@ export async function POST(req: Request) {
         connById.set(String(r.customer_id), r);
       }
 
+      const statsById = new Map<
+        string,
+        {
+          workerCount: number;
+          orderCount: number;
+          totalAmount: number;
+          paidAmount: number;
+          remainingAmount: number;
+        }
+      >();
+      await Promise.all(
+        ids.map(async (customerId) => {
+          const [wcRes, ordersRes] = await Promise.all([
+            admin.from("workers").select("id", { count: "exact", head: true }).eq("customer_id", customerId),
+            admin.from("orders").select("total,paid_amount,remaining_amount").eq("customer_id", customerId).limit(5000),
+          ]);
+
+          const workerCount = Number(wcRes.count ?? 0);
+          const rows = (ordersRes.data ?? []) as any[];
+          const orderCount = rows.length;
+          const totalAmount = rows.reduce((sum, r) => sum + (Number.isFinite(Number(r.total ?? 0)) ? Number(r.total) : 0), 0);
+          const paidAmount = rows.reduce((sum, r) => sum + (Number.isFinite(Number(r.paid_amount ?? 0)) ? Number(r.paid_amount) : 0), 0);
+          const remainingAmount = rows.reduce((sum, r) => sum + (Number.isFinite(Number(r.remaining_amount ?? 0)) ? Number(r.remaining_amount) : 0), 0);
+
+          statsById.set(customerId, { workerCount, orderCount, totalAmount, paidAmount, remainingAmount });
+        }),
+      );
+
       const bubbles = customers.map((c) => {
         const id = String(c.id ?? "");
         const conn = connById.get(id);
+        const stats = statsById.get(id) ?? { workerCount: 0, orderCount: 0, totalAmount: 0, paidAmount: 0, remainingAmount: 0 };
         return createEmployerDetailBubble({
           displayId: String(c.display_id ?? "").trim(),
           name: String(c.name ?? "").trim(),
@@ -1223,6 +1297,11 @@ export async function POST(req: Request) {
           email: String(c.email ?? "").trim(),
           lineStatus: String(conn?.status ?? "NOT_CONNECTED"),
           connectedAt: conn?.connected_at ? String(conn.connected_at) : null,
+          workerCount: stats.workerCount,
+          orderCount: stats.orderCount,
+          totalAmount: stats.totalAmount,
+          paidAmount: stats.paidAmount,
+          remainingAmount: stats.remainingAmount,
         });
       });
 
