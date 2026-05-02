@@ -80,6 +80,196 @@ function money(n: number) {
   return x.toLocaleString("th-TH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+function formatShortDateTime(input: string | null) {
+  if (!input) return "-";
+  const d = new Date(input);
+  if (!(d instanceof Date) || Number.isNaN(d.getTime())) return "-";
+  const date = new Intl.DateTimeFormat("th-TH", { day: "2-digit", month: "short", year: "numeric" }).format(d);
+  const time = new Intl.DateTimeFormat("th-TH", { hour: "2-digit", minute: "2-digit" }).format(d);
+  return `${date} ${time}`;
+}
+
+function createPettyCashBalanceFlexMessage(args: { balance: number }) {
+  return {
+    type: "flex",
+    altText: "ยอดคงเหลือเงินสดย่อย",
+    contents: {
+      type: "bubble",
+      size: "mega",
+      body: {
+        type: "box",
+        layout: "vertical",
+        spacing: "md",
+        contents: [
+          { type: "text", text: "ยอดคงเหลือเงินสดย่อย", weight: "bold", size: "lg", wrap: true },
+          { type: "text", text: `${money(args.balance)} บาท`, weight: "bold", size: "xl", color: "#111827", wrap: true },
+        ],
+      },
+    },
+  };
+}
+
+function createPettyCashSummaryFlexMessage(args: { balance: number; todayTopUp: number; todaySpend: number; monthTopUp: number; monthSpend: number }) {
+  const headerColor = "#F59E0B";
+  return {
+    type: "flex",
+    altText: "สรุปเงินสดย่อย",
+    contents: {
+      type: "bubble",
+      size: "mega",
+      header: {
+        type: "box",
+        layout: "vertical",
+        backgroundColor: headerColor,
+        paddingAll: "16px",
+        contents: [{ type: "text", text: "สรุปเงินสดย่อย", color: "#111827", weight: "bold", size: "lg", wrap: true }],
+      },
+      body: {
+        type: "box",
+        layout: "vertical",
+        spacing: "md",
+        contents: [
+          {
+            type: "box",
+            layout: "vertical",
+            spacing: "sm",
+            contents: [
+              {
+                type: "box",
+                layout: "baseline",
+                contents: [
+                  { type: "text", text: "ยอดคงเหลือ", size: "sm", color: "#6B7280", flex: 4 },
+                  { type: "text", text: `${money(args.balance)} บาท`, size: "sm", color: "#111827", flex: 6, align: "end", wrap: true },
+                ],
+              },
+              { type: "separator", margin: "md" },
+              {
+                type: "box",
+                layout: "baseline",
+                contents: [
+                  { type: "text", text: "วันนี้", size: "sm", color: "#6B7280", flex: 2 },
+                  { type: "text", text: `เติม ${money(args.todayTopUp)} • ใช้ ${money(args.todaySpend)}`, size: "sm", color: "#111827", flex: 8, align: "end", wrap: true },
+                ],
+              },
+              {
+                type: "box",
+                layout: "baseline",
+                contents: [
+                  { type: "text", text: "เดือนนี้", size: "sm", color: "#6B7280", flex: 2 },
+                  { type: "text", text: `เติม ${money(args.monthTopUp)} • ใช้ ${money(args.monthSpend)}`, size: "sm", color: "#111827", flex: 8, align: "end", wrap: true },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    },
+  };
+}
+
+function createPettyCashTxnSavedFlexMessage(args: { txnType: "TOP_UP" | "SPEND"; amount: number; occurredAt: string | null; categoryName: string | null; balance: number }) {
+  const headerColor = args.txnType === "TOP_UP" ? "#10B981" : "#EF4444";
+  const verb = args.txnType === "TOP_UP" ? "เติมเงิน" : "ใช้เงิน";
+  const cat = args.txnType === "SPEND" ? String(args.categoryName ?? "-") : "-";
+  const occurredText = formatShortDateTime(args.occurredAt);
+  return {
+    type: "flex",
+    altText: "บันทึกเงินสดย่อยแล้ว",
+    contents: {
+      type: "bubble",
+      size: "mega",
+      header: {
+        type: "box",
+        layout: "vertical",
+        backgroundColor: headerColor,
+        paddingAll: "16px",
+        contents: [{ type: "text", text: "บันทึกแล้ว", color: "#FFFFFF", weight: "bold", size: "lg", wrap: true }],
+      },
+      body: {
+        type: "box",
+        layout: "vertical",
+        spacing: "md",
+        contents: [
+          { type: "text", text: `${verb} ${money(args.amount)} บาท`, size: "md", weight: "bold", color: "#111827", wrap: true },
+          {
+            type: "box",
+            layout: "vertical",
+            spacing: "sm",
+            contents: [
+              {
+                type: "box",
+                layout: "baseline",
+                contents: [
+                  { type: "text", text: "หมวด", size: "sm", color: "#6B7280", flex: 3 },
+                  { type: "text", text: cat, size: "sm", color: "#111827", flex: 7, wrap: true },
+                ],
+              },
+              {
+                type: "box",
+                layout: "baseline",
+                contents: [
+                  { type: "text", text: "เวลา", size: "sm", color: "#6B7280", flex: 3 },
+                  { type: "text", text: occurredText, size: "sm", color: "#111827", flex: 7, wrap: true },
+                ],
+              },
+              {
+                type: "box",
+                layout: "baseline",
+                contents: [
+                  { type: "text", text: "ยอดคงเหลือ", size: "sm", color: "#6B7280", flex: 3 },
+                  { type: "text", text: `${money(args.balance)} บาท`, size: "sm", color: "#111827", flex: 7, wrap: true },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    },
+  };
+}
+
+function createPettyCashLastFlexMessage(args: { rows: any[]; balance: number | null }) {
+  const headerColor = "#0EA5E9";
+  const items = (Array.isArray(args.rows) ? args.rows : []).slice(0, 8).map((r) => {
+    const sign = String(r?.txn_type) === "TOP_UP" ? "+" : "-";
+    const amountText = `${sign}${money(Number(r?.amount ?? 0))}`;
+    const cat = String(r?.category_name ?? "-");
+    const title = String(r?.title ?? "").trim() || "-";
+    const d = String(r?.occurred_at ?? "");
+    return `${d} • ${amountText} • ${cat} • ${title}`;
+  });
+  const lines = items.length ? items : ["-"];
+  return {
+    type: "flex",
+    altText: "รายการเงินสดย่อยล่าสุด",
+    contents: {
+      type: "bubble",
+      size: "mega",
+      header: {
+        type: "box",
+        layout: "vertical",
+        backgroundColor: headerColor,
+        paddingAll: "16px",
+        contents: [{ type: "text", text: "รายการเงินสดย่อยล่าสุด", color: "#FFFFFF", weight: "bold", size: "lg", wrap: true }],
+      },
+      body: {
+        type: "box",
+        layout: "vertical",
+        spacing: "sm",
+        contents: [
+          ...lines.map((t) => ({ type: "text", text: t, size: "xs", color: "#111827", wrap: true })),
+          ...(args.balance == null
+            ? []
+            : [
+                { type: "separator", margin: "md" },
+                { type: "text", text: `ยอดคงเหลือ: ${money(args.balance)} บาท`, size: "sm", color: "#111827", weight: "bold", wrap: true },
+              ]),
+        ],
+      },
+    },
+  };
+}
+
 function orderStatusLabel(s: string) {
   if (s === "draft") return "เปิดออเดอร์";
   if (s === "in_progress") return "กำลังดำเนินการ";
@@ -671,10 +861,14 @@ export async function POST(req: Request) {
             });
             await markPending(admin, String(pending.id), "used");
             const bal = await getPettyCashBalance(admin);
-            await replyText({
-              replyToken,
-              text: `บันทึกแล้ว\nยอดคงเหลือ: ${money(bal)} บาท`,
+            const flex = createPettyCashTxnSavedFlexMessage({
+              txnType: String(txn?.txnType) === "TOP_UP" ? "TOP_UP" : "SPEND",
+              amount: Number(txn?.amount ?? 0),
+              occurredAt: txn?.occurredAt ? String(txn.occurredAt) : null,
+              categoryName,
+              balance: bal,
             });
+            await replyMessages({ replyToken, messages: [flex] });
           } catch (e: any) {
             await replyText({ replyToken, text: e?.message ?? "บันทึกไม่สำเร็จ" });
           }
@@ -695,7 +889,8 @@ export async function POST(req: Request) {
       if (cmd.kind === "balance") {
         try {
           const bal = await getPettyCashBalance(admin);
-          await replyText({ replyToken, text: `ยอดคงเหลือเงินสดย่อย: ${money(bal)} บาท` });
+          const flex = createPettyCashBalanceFlexMessage({ balance: bal });
+          await replyMessages({ replyToken, messages: [flex] });
         } catch (e: any) {
           await replyText({ replyToken, text: e?.message ?? "ดึงยอดไม่สำเร็จ" });
         }
@@ -705,13 +900,14 @@ export async function POST(req: Request) {
       if (cmd.kind === "summary") {
         try {
           const s = await getPettyCashSummary(admin);
-          const lines: string[] = [];
-          lines.push("สรุปเงินสดย่อย");
-          lines.push(`ยอดคงเหลือ: ${money(s.balance)} บาท`);
-          lines.push("──────────");
-          lines.push(`วันนี้ • เติมเงิน ${money(s.todayTopUp)} • ใช้เงิน ${money(s.todaySpend)}`);
-          lines.push(`เดือนนี้ • เติมเงิน ${money(s.monthTopUp)} • ใช้เงิน ${money(s.monthSpend)}`);
-          await replyText({ replyToken, text: lines.join("\n") });
+          const flex = createPettyCashSummaryFlexMessage({
+            balance: s.balance,
+            todayTopUp: s.todayTopUp,
+            todaySpend: s.todaySpend,
+            monthTopUp: s.monthTopUp,
+            monthSpend: s.monthSpend,
+          });
+          await replyMessages({ replyToken, messages: [flex] });
         } catch (e: any) {
           const msg = String(e?.message ?? "");
           if (msg.toLowerCase().includes("petty_cash_summary") && msg.toLowerCase().includes("does not exist")) {
@@ -740,21 +936,13 @@ export async function POST(req: Request) {
           await replyText({ replyToken, text: "ยังไม่มีรายการเงินสดย่อย" });
           continue;
         }
-        const lines: string[] = [];
-        lines.push(`รายการล่าสุด ${rows.length} รายการ`);
-        for (const r of rows) {
-          const sign = String(r.txn_type) === "TOP_UP" ? "+" : "-";
-          const cat = String(r.category_name ?? "-");
-          const title = String(r.title ?? "").trim() || "-";
-          const d = String(r.occurred_at ?? "-");
-          lines.push(`${d} ${sign}${money(Number(r.amount ?? 0))} | ${cat} | ${title}`);
-        }
+        let bal: number | null = null;
         try {
-          const bal = await getPettyCashBalance(admin);
-          lines.push(`ยอดคงเหลือ: ${money(bal)} บาท`);
+          bal = await getPettyCashBalance(admin);
         } catch {
         }
-        await replyText({ replyToken, text: lines.join("\n") });
+        const flex = createPettyCashLastFlexMessage({ rows, balance: bal });
+        await replyMessages({ replyToken, messages: [flex] });
         continue;
       }
 
@@ -801,12 +989,14 @@ export async function POST(req: Request) {
             rawText: cmd.rawText,
           });
           const bal = await getPettyCashBalance(admin);
-          const verb = cmd.txnType === "TOP_UP" ? "เติมเงิน" : "ใช้เงิน";
-          const cat = cmd.txnType === "SPEND" ? String(categoryName ?? "-") : "-";
-          await replyText({
-            replyToken,
-            text: `บันทึกแล้ว\n${verb} ${money(cmd.amount)} บาท\nหมวด: ${cat}\nยอดคงเหลือ: ${money(bal)} บาท`,
+          const flex = createPettyCashTxnSavedFlexMessage({
+            txnType: cmd.txnType,
+            amount: cmd.amount,
+            occurredAt: cmd.occurredAt || null,
+            categoryName,
+            balance: bal,
           });
+          await replyMessages({ replyToken, messages: [flex] });
         } catch (e: any) {
           await replyText({ replyToken, text: e?.message ?? "บันทึกไม่สำเร็จ" });
         }

@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import { sendLineText } from "@/lib/line/send-text";
+import { sendLineMessages } from "@/lib/line/send-messages";
+import { createPoaRequestCreatedFlexMessage } from "@/lib/line/flex/poa";
 
 type RepresentativeOption = {
   rep_code: string | null;
@@ -265,13 +266,20 @@ export async function POST(req: Request) {
     let notified = false;
     let warn: string | null = null;
     try {
-      const text = `มีคำขอ POA ใหม่: ${displayId ?? requestId}${repName ? ` | ${repName}` : ""}${payload.employer_name ? ` | ${payload.employer_name}` : ""}${
-        poaTypeName ? ` | ${poaTypeName}` : ""
-      } | จำนวน ${wc}`;
       const recipients = await resolveRecipients({ admin, eventKey: "poa_request_created", roles: ["admin", "sale", "operation"] });
       const to = recipients.map((r) => r.line_user_id).filter((x) => !!x);
       if (to.length) {
-        const sendRes = await sendLineText({ to, text });
+        const flex = createPoaRequestCreatedFlexMessage({
+          reference: displayId ?? requestId,
+          employerName: String(payload.employer_name ?? "").trim(),
+          representativeName: repName,
+          poaTypeName,
+          workerCount: wc,
+          totalPrice: total,
+          status: String(payload.status ?? "").trim(),
+          createdAt: null,
+        });
+        const sendRes = await sendLineMessages({ to, messages: [flex] });
         if (!sendRes.ok) warn = sendRes.error;
         notified = sendRes.ok;
       }

@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import { sendLineText } from "@/lib/line/send-text";
+import { sendLineMessages } from "@/lib/line/send-messages";
+import { createPoaRequestCreatedFlexMessage } from "@/lib/line/flex/poa";
 
 export const runtime = "nodejs";
 
@@ -82,7 +83,9 @@ export async function POST(req: Request) {
 
     const reqRes = await admin
       .from("poa_requests")
-      .select("id,display_id,employer_name,representative_name,representative_rep_code,created_at,status")
+      .select(
+        "id,display_id,employer_name,representative_name,representative_rep_code,created_at,status,poa_request_items(worker_count,total_price,poa_request_types(name))",
+      )
       .eq("id", requestId)
       .single();
     if (reqRes.error || !reqRes.data) return NextResponse.json({ error: reqRes.error?.message ?? "Not found" }, { status: 404 });
@@ -92,13 +95,26 @@ export async function POST(req: Request) {
     const rep = String(d.representative_name ?? d.representative_rep_code ?? "").trim();
     const employer = String(d.employer_name ?? "").trim();
     const status = String(d.status ?? "").trim();
+    const item0 = Array.isArray(d.poa_request_items) ? d.poa_request_items[0] : null;
+    const typeName = String(item0?.poa_request_types?.name ?? "").trim();
+    const workerCount = item0?.worker_count == null ? null : Number(item0.worker_count);
+    const totalPrice = item0?.total_price == null ? null : Number(item0.total_price);
 
-    const text = `มีคำขอ POA ใหม่: ${displayId || requestId}${rep ? ` | ${rep}` : ""}${employer ? ` | ${employer}` : ""}${status ? ` | สถานะ: ${status}` : ""}`;
+    const flex = createPoaRequestCreatedFlexMessage({
+      reference: displayId || requestId,
+      employerName: employer,
+      representativeName: rep,
+      poaTypeName: typeName,
+      workerCount,
+      totalPrice,
+      status,
+      createdAt: d.created_at ? String(d.created_at) : null,
+    });
 
     const recipients = await resolveRecipients({ admin, eventKey: "poa_request_created", roles: ["admin", "sale", "operation"] });
     const to = recipients.map((r) => r.line_user_id).filter((x) => !!x);
     if (to.length) {
-      const sendRes = await sendLineText({ to, text });
+      const sendRes = await sendLineMessages({ to, messages: [flex] });
       if (!sendRes.ok) {
         return NextResponse.json({ ok: true, notified: false, warn: sendRes.error }, { status: 200 });
       }
@@ -109,4 +125,3 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: e?.message ?? "Unexpected error" }, { status: 500 });
   }
 }
-
