@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useCallback, useMemo, useRef, useState } from "react";
+import toast from "react-hot-toast";
 import { Button, Input, Textarea } from "rizzui";
 import { Title, Text } from "rizzui/typography";
 import dayjs from "dayjs";
@@ -799,6 +800,30 @@ export default function QuotesPage() {
     }
   }, [canEdit, computed.discountTotal, computed.normalized, computed.subtotal, computed.total, computed.vatAmount, computed.vatRateNum, computed.whtAmount, computed.whtRateNum, customerById, customerId, editingId, includeVat, includeWht, notes, refresh, resetForm, supabase, userId, validUntil]);
 
+  const sendEmployerLineUpdate = useCallback(
+    async (kind: "quote" | "order", id: string) => {
+      const sessionRes = await supabase.auth.getSession();
+      const token = sessionRes.data.session?.access_token;
+      if (!token) throw new Error("ยังไม่ได้เข้าสู่ระบบ");
+      const res = await fetch("/api/line/employer/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ kind, id }),
+      });
+      const data = (await res.json().catch(() => ({}))) as any;
+      if (!res.ok) {
+        const msg = String(data.error ?? "ส่งไม่สำเร็จ");
+        if (msg.toLowerCase().includes("not connected")) {
+          toast("นายจ้างยังไม่เชื่อมต่อ LINE");
+          return;
+        }
+        throw new Error(msg);
+      }
+      toast.success("ส่งอัปเดต LINE แล้ว");
+    },
+    [supabase],
+  );
+
   const sendForApproval = useCallback(async () => {
     if (!selected) return;
     if (!canEdit) return;
@@ -820,7 +845,12 @@ export default function QuotesPage() {
     setSelected((s) => (s && s.id === selectedId ? { ...s, status: "pending_approval", updated_at: now } : s));
     setLoading(false);
     refresh();
-  }, [canEdit, refresh, selected, supabase]);
+
+    try {
+      await sendEmployerLineUpdate("quote", selectedId);
+    } catch {
+    }
+  }, [canEdit, refresh, selected, sendEmployerLineUpdate, supabase]);
 
   const approveOrReject = useCallback(
     async (next: "approved" | "rejected") => {
@@ -857,8 +887,13 @@ export default function QuotesPage() {
       );
       setLoading(false);
       refresh();
+
+      try {
+        await sendEmployerLineUpdate("quote", selectedId);
+      } catch {
+      }
     },
-    [canApprove, refresh, selected, supabase, userId],
+    [canApprove, refresh, selected, sendEmployerLineUpdate, supabase, userId],
   );
 
   const downloadPdf = useCallback(async () => {
@@ -1081,6 +1116,25 @@ export default function QuotesPage() {
               {canApprove && selected.status === "pending_approval" ? (
                 <Button size="sm" variant="outline" disabled={loading} onClick={() => approveOrReject("rejected")}>
                   ไม่อนุมัติ
+                </Button>
+              ) : null}
+              {role === "admin" || role === "sale" ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={loading}
+                  onClick={async () => {
+                    try {
+                      setLoading(true);
+                      await sendEmployerLineUpdate("quote", selected.id);
+                    } catch (e: any) {
+                      toast.error(e?.message ?? "ส่งไม่สำเร็จ");
+                    } finally {
+                      setLoading(false);
+                    }
+                  }}
+                >
+                  ส่งอัปเดต LINE
                 </Button>
               ) : null}
               <Button size="sm" variant="outline" disabled={loading} onClick={downloadPdf}>

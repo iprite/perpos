@@ -9,6 +9,7 @@ import {
   FileSignature,
   FileText,
   LayoutDashboard,
+  Link2,
   Shield,
   Users,
   UserSquare2,
@@ -164,6 +165,12 @@ export function getMenuItems(role: Role | null): MenuItem[] {
 
   items.push({ name: "ตั้งค่า", roles: ["admin", "sale", "operation"] });
   items.push(
+    {
+      name: "เชื่อมต่อ",
+      href: "/settings/connect",
+      icon: <Link2 className="h-5 w-5" />,
+      roles: ["admin", "sale"],
+    },
     {
       name: "บริการของเรา",
       href: "/services",

@@ -123,6 +123,21 @@ export function useManageOrderActions({
       });
       const data = (await res.json().catch(() => ({}))) as { error?: string };
       if (!res.ok) throw new Error(data.error || "ปิดออเดอร์ไม่สำเร็จ");
+
+      try {
+        const lineRes = await fetch("/api/line/employer/send", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ kind: "order", id: orderId }),
+        });
+        const lineData = (await lineRes.json().catch(() => ({}))) as any;
+        if (!lineRes.ok) {
+          const msg = String(lineData.error ?? "");
+          if (!msg.toLowerCase().includes("not connected")) toast(msg || "ส่ง LINE ไม่สำเร็จ");
+        }
+      } catch {
+      }
+
       setLoading(false);
       toast.success("ปิดออเดอร์แล้ว");
       refresh();

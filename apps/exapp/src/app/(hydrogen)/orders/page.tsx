@@ -1333,6 +1333,20 @@ export default function OrdersPage() {
                       setEditingStatus("in_progress");
                       await refreshOrderEvents(editingId);
                       refresh();
+
+                      try {
+                        const lineRes = await fetch("/api/line/employer/send", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                          body: JSON.stringify({ kind: "order", id: editingId }),
+                        });
+                        const lineData = (await lineRes.json().catch(() => ({}))) as any;
+                        if (!lineRes.ok) {
+                          const msg = String(lineData.error ?? "");
+                          if (!msg.toLowerCase().includes("not connected")) toast(msg || "ส่ง LINE ไม่สำเร็จ");
+                        }
+                      } catch {
+                      }
                     } catch (e: any) {
                       setError(e?.message ?? "เริ่มดำเนินการไม่สำเร็จ");
                     } finally {
@@ -1341,6 +1355,40 @@ export default function OrdersPage() {
                   }}
                 >
                   เริ่มดำเนินการ
+                </Button>
+              ) : null}
+
+              {editingId && (role === "admin" || role === "sale") ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={loading}
+                  onClick={async () => {
+                    if (!editingId) return;
+                    setLoading(true);
+                    setError(null);
+                    try {
+                      const sessionRes = await supabase.auth.getSession();
+                      const token = sessionRes.data.session?.access_token;
+                      if (!token) throw new Error("ยังไม่ได้เข้าสู่ระบบ");
+                      const res = await fetch("/api/line/employer/send", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                        body: JSON.stringify({ kind: "order", id: editingId }),
+                      });
+                      const data = (await res.json().catch(() => ({}))) as any;
+                      if (!res.ok) throw new Error(data.error || "ส่งไม่สำเร็จ");
+                      toast.success("ส่งอัปเดต LINE แล้ว");
+                    } catch (e: any) {
+                      const msg = String(e?.message ?? "");
+                      if (msg.toLowerCase().includes("not connected")) toast("นายจ้างยังไม่เชื่อมต่อ LINE");
+                      else setError(msg || "ส่งไม่สำเร็จ");
+                    } finally {
+                      setLoading(false);
+                    }
+                  }}
+                >
+                  ส่งอัปเดต LINE
                 </Button>
               ) : null}
               {hasDownloadMenu ? (

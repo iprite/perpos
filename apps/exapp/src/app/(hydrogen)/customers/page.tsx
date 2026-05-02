@@ -62,6 +62,32 @@ type CustomerWorkplaceRow = {
   created_at: string;
 };
 
+type CustomerLineConnectionRow = {
+  customer_id: string;
+  status: "NOT_CONNECTED" | "PENDING" | "CONNECTED" | "ERROR";
+  line_user_id: string | null;
+  connected_at: string | null;
+  last_error_message: string | null;
+  updated_at: string;
+};
+
+type EmployerLineLogRow = {
+  id: string;
+  customer_id: string;
+  event_key: string;
+  delivery_status: "SENT" | "FAILED";
+  error_message: string | null;
+  created_at: string;
+};
+
+function lineStatusBadge(status: string | null | undefined) {
+  const s = String(status ?? "");
+  if (s === "CONNECTED") return { label: "เชื่อมแล้ว", cls: "bg-green-50 text-green-700 border-green-200" };
+  if (s === "PENDING") return { label: "รอเชื่อม", cls: "bg-amber-50 text-amber-700 border-amber-200" };
+  if (s === "ERROR") return { label: "มีปัญหา", cls: "bg-red-50 text-red-700 border-red-200" };
+  return { label: "ยังไม่เชื่อม", cls: "bg-gray-50 text-gray-700 border-gray-200" };
+}
+
 async function getSignedStorageUrl(input: { supabase: any; table: "customer_documents"; id: string; disposition: "inline" | "attachment" }) {
   const sessionRes = await input.supabase.auth.getSession();
   const token = sessionRes.data.session?.access_token;
@@ -281,6 +307,12 @@ export default function CustomersPage() {
   const [workplaceName, setWorkplaceName] = useState("");
   const [workplaceAddress, setWorkplaceAddress] = useState("");
 
+  const [lineConnByCustomerId, setLineConnByCustomerId] = useState<Record<string, CustomerLineConnectionRow | undefined>>({});
+  const [editingLineConn, setEditingLineConn] = useState<CustomerLineConnectionRow | null>(null);
+  const [editingLineLogs, setEditingLineLogs] = useState<EmployerLineLogRow[]>([]);
+  const [lineLinkUrl, setLineLinkUrl] = useState<string>("");
+  const [lineLinkExpiresAt, setLineLinkExpiresAt] = useState<string>("");
+
   const resetForm = useCallback(() => {
     initialFormRef.current = null;
     setEditingId(null);
@@ -317,7 +349,86 @@ export default function CustomersPage() {
     setWorkplaceEditingId(null);
     setWorkplaceName("");
     setWorkplaceAddress("");
+
+    setEditingLineConn(null);
+    setEditingLineLogs([]);
+    setLineLinkUrl("");
+    setLineLinkExpiresAt("");
   }, []);
+
+  const refreshLineConnectionsForList = useCallback(
+    async (customerIds: string[]) => {
+      const ids = customerIds.filter(Boolean);
+      if (!ids.length) {
+        setLineConnByCustomerId({});
+        return;
+      }
+      try {
+        const res = await supabase
+          .from("customer_line_connections")
+          .select("customer_id,status,line_user_id,connected_at,last_error_message,updated_at")
+          .in("customer_id", ids)
+          .limit(2000);
+        if (res.error) return;
+        const map: Record<string, CustomerLineConnectionRow> = {};
+        for (const r of (res.data ?? []) as any[]) {
+          const cid = String((r as any).customer_id ?? "");
+          if (!cid) continue;
+          map[cid] = {
+            customer_id: cid,
+            status: (String((r as any).status ?? "NOT_CONNECTED") as any) || "NOT_CONNECTED",
+            line_user_id: (r as any).line_user_id ?? null,
+            connected_at: (r as any).connected_at ?? null,
+            last_error_message: (r as any).last_error_message ?? null,
+            updated_at: String((r as any).updated_at ?? ""),
+          };
+        }
+        setLineConnByCustomerId(map);
+      } catch {
+        return;
+      }
+    },
+    [supabase],
+  );
+
+  const refreshEditingLinePanels = useCallback(
+    async (customerId: string) => {
+      const cid = String(customerId ?? "").trim();
+      if (!cid) return;
+      try {
+        const [connRes, logRes] = await Promise.all([
+          supabase
+            .from("customer_line_connections")
+            .select("customer_id,status,line_user_id,connected_at,last_error_message,updated_at")
+            .eq("customer_id", cid)
+            .maybeSingle(),
+          supabase
+            .from("employer_line_message_logs")
+            .select("id,customer_id,event_key,delivery_status,error_message,created_at")
+            .eq("customer_id", cid)
+            .order("created_at", { ascending: false })
+            .limit(5),
+        ]);
+        if (!connRes.error && connRes.data) {
+          const r = connRes.data as any;
+          setEditingLineConn({
+            customer_id: String(r.customer_id ?? cid),
+            status: (String(r.status ?? "NOT_CONNECTED") as any) || "NOT_CONNECTED",
+            line_user_id: r.line_user_id ?? null,
+            connected_at: r.connected_at ?? null,
+            last_error_message: r.last_error_message ?? null,
+            updated_at: String(r.updated_at ?? ""),
+          });
+        } else {
+          setEditingLineConn(null);
+        }
+        if (!logRes.error) setEditingLineLogs((logRes.data ?? []) as EmployerLineLogRow[]);
+      } catch {
+        return;
+      }
+    },
+    [supabase],
+  );
 
   const openEditCustomer = useCallback(
     (r: CustomerRow) => {
@@ -458,6 +569,12 @@ export default function CustomersPage() {
     refreshWorkplaces(editingId);
   }, [editingId, refreshWorkplaces, showForm]);
 
+  useEffect(() => {
+    if (!showForm) return;
+    if (!editingId) return;
+    refreshEditingLinePanels(editingId);
+  }, [editingId, refreshEditingLinePanels, showForm]);
+
 
   const refresh = useCallback(() => {
     Promise.resolve().then(async () => {
@@ -515,9 +632,11 @@ export default function CustomersPage() {
               setLoading(false);
               return;
             }
-            setRows((fallbackRes.data ?? []) as CustomerRow[]);
+            const nextRows = (fallbackRes.data ?? []) as CustomerRow[];
+            setRows(nextRows);
             setTotalRows(fallbackRes.count ?? 0);
             setLoading(false);
+            refreshLineConnectionsForList(nextRows.map((r) => r.id));
             return;
           }
           setError(msg || "โหลดข้อมูลไม่สำเร็จ");
@@ -526,9 +645,11 @@ export default function CustomersPage() {
           setLoading(false);
           return;
         }
-        setRows((res.data ?? []) as CustomerRow[]);
+        const nextRows = (res.data ?? []) as CustomerRow[];
+        setRows(nextRows);
         setTotalRows(res.count ?? 0);
         setLoading(false);
+        refreshLineConnectionsForList(nextRows.map((r) => r.id));
       } catch (e: any) {
         setError(e?.message ?? "โหลดข้อมูลไม่สำเร็จ");
         setRows([]);
@@ -536,7 +657,7 @@ export default function CustomersPage() {
         setLoading(false);
       }
     });
-  }, [pagination.pageIndex, pagination.pageSize, search, supabase]);
+  }, [pagination.pageIndex, pagination.pageSize, refreshLineConnectionsForList, search, supabase]);
 
   const refreshProvinces = useCallback(() => {
     Promise.resolve().then(async () => {
@@ -1073,6 +1194,96 @@ export default function CustomersPage() {
 
             <div className="grid gap-5">
               <div className="rounded-2xl border border-gray-200 bg-white/70 p-4 backdrop-blur">
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div>
+                    <div className="text-sm font-semibold text-gray-900">LINE เชื่อมต่อ</div>
+                    <div className="mt-0.5 text-xs text-gray-500">เชื่อมต่อนายจ้างเพื่อรับอัปเดตใบเสนอราคา/ออเดอร์ผ่าน LINE</div>
+                  </div>
+                  <div>
+                    {(() => {
+                      const b = lineStatusBadge(editingLineConn?.status);
+                      return <span className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${b.cls}`}>{b.label}</span>;
+                    })()}
+                  </div>
+                </div>
+
+                <div className="mt-3 grid gap-2">
+                  {editingLineConn?.connected_at ? <div className="text-xs text-gray-600">เชื่อมเมื่อ: {editingLineConn.connected_at}</div> : null}
+                  {editingLineConn?.last_error_message ? (
+                    <div className="rounded-lg border border-red-200 bg-red-50 p-2 text-xs text-red-700">{editingLineConn.last_error_message}</div>
+                  ) : null}
+                </div>
+
+                <div className="mt-4 grid gap-2">
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      size="sm"
+                      onClick={async () => {
+                        if (!editingId) return;
+                        try {
+                          setLoading(true);
+                          const sessionRes = await supabase.auth.getSession();
+                          const token = sessionRes.data.session?.access_token;
+                          if (!token) throw new Error("ยังไม่ได้เข้าสู่ระบบ");
+                          const res = await fetch("/api/line/employer/connect-token", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                            body: JSON.stringify({ customerId: editingId }),
+                          });
+                          const data = (await res.json().catch(() => ({}))) as any;
+                          if (!res.ok) throw new Error(data.error || "สร้างลิงก์ไม่สำเร็จ");
+                          setLineLinkUrl(String(data.linkUrl ?? ""));
+                          setLineLinkExpiresAt(String(data.expiresAt ?? ""));
+                          toast.success("สร้างลิงก์แล้ว");
+                          await refreshEditingLinePanels(editingId);
+                        } catch (e: any) {
+                          toast.error(e?.message ?? "สร้างลิงก์ไม่สำเร็จ");
+                        } finally {
+                          setLoading(false);
+                        }
+                      }}
+                      disabled={loading || !(role === "admin" || role === "sale")}
+                    >
+                      สร้างลิงก์เชื่อมต่อ
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={async () => {
+                        const url = lineLinkUrl.trim();
+                        if (!url) return;
+                        await navigator.clipboard.writeText(url);
+                        toast.success("คัดลอกลิงก์แล้ว");
+                      }}
+                      disabled={!lineLinkUrl.trim()}
+                    >
+                      คัดลอกลิงก์
+                    </Button>
+                  </div>
+
+                  <Input label="ลิงก์" value={lineLinkUrl} readOnly />
+                  {lineLinkExpiresAt ? <div className="text-xs text-gray-600">หมดอายุ: {lineLinkExpiresAt}</div> : null}
+                </div>
+
+                <div className="mt-4">
+                  <div className="text-sm font-semibold text-gray-900">ประวัติการส่งล่าสุด</div>
+                  <div className="mt-2 grid gap-2">
+                    {editingLineLogs.length === 0 ? <div className="text-sm text-gray-600">ยังไม่มีการส่ง</div> : null}
+                    {editingLineLogs.map((l) => (
+                      <div key={l.id} className="rounded-xl border border-gray-200 bg-white p-2">
+                        <div className="flex flex-wrap items-start justify-between gap-2">
+                          <div className="text-xs text-gray-600">{l.created_at}</div>
+                          <div className={`text-xs font-semibold ${l.delivery_status === "SENT" ? "text-green-700" : "text-red-700"}`}>{l.delivery_status}</div>
+                        </div>
+                        <div className="mt-1 text-sm font-medium text-gray-900">{l.event_key}</div>
+                        {l.error_message ? <div className="mt-1 text-xs text-red-700">{l.error_message}</div> : null}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-gray-200 bg-white/70 p-4 backdrop-blur">
                 <div className="text-sm font-semibold text-gray-900">ข้อมูลผู้ติดต่อ</div>
                 <div className="mt-4 grid gap-4 md:grid-cols-2">
                   <Input label="ชื่อผู้ติดต่อ" value={contactName} onChange={(e) => setContactName(e.target.value)} />
@@ -1430,9 +1641,10 @@ export default function CustomersPage() {
       <div className="mt-4 overflow-hidden rounded-xl border border-gray-200 bg-white">
         <div className="overflow-x-auto">
           <div className="min-w-[1100px] overflow-hidden rounded-xl">
-            <div className="grid grid-cols-[0.6fr_1.4fr_0.8fr_0.9fr_0.8fr] gap-3 border-b border-gray-200 bg-gray-50 px-4 py-2 text-xs font-semibold text-gray-600">
+            <div className="grid grid-cols-[0.6fr_1.2fr_0.6fr_0.8fr_0.9fr_0.8fr] gap-3 border-b border-gray-200 bg-gray-50 px-4 py-2 text-xs font-semibold text-gray-600">
               <div>ID</div>
               <div>ลูกค้า</div>
+              <div>LINE</div>
               <div>จังหวัด</div>
               <div>ผู้ติดต่อ</div>
               <div>เบอร์ติดต่อ</div>
@@ -1442,12 +1654,14 @@ export default function CustomersPage() {
             ) : (
               table.getRowModel().rows.map((row) => {
                 const r = row.original as CustomerRow;
+                const conn = lineConnByCustomerId[r.id];
+                const badge = lineStatusBadge(conn?.status);
                 return (
                   <div
                     key={r.id}
                     role={role !== "employer" ? "button" : undefined}
                     tabIndex={role !== "employer" ? 0 : undefined}
-                    className={`grid grid-cols-[0.6fr_1.4fr_0.8fr_0.9fr_0.8fr] gap-3 border-b border-gray-100 px-4 py-3 last:border-b-0 ${
+                    className={`grid grid-cols-[0.6fr_1.2fr_0.6fr_0.8fr_0.9fr_0.8fr] gap-3 border-b border-gray-100 px-4 py-3 last:border-b-0 ${
                       role !== "employer" ? "cursor-pointer transition-colors hover:bg-gray-100 active:bg-gray-200" : ""
                     }`}
                     onClick={() => {
@@ -1462,6 +1676,9 @@ export default function CustomersPage() {
                   >
                     <div className="text-sm font-medium text-gray-900">{r.display_id ?? "-"}</div>
                     <div className="text-sm font-medium text-gray-900">{r.name}</div>
+                    <div>
+                      <span className={`inline-flex rounded-full border px-2 py-0.5 text-xs font-semibold ${badge.cls}`}>{badge.label}</span>
+                    </div>
                     <div className="text-sm text-gray-700">{r.province_th ?? "-"}</div>
                     <div className="text-sm text-gray-700">{r.contact_name ?? "-"}</div>
                     <div className="text-sm text-gray-700">{displayThaiPhone(r.phone)}</div>

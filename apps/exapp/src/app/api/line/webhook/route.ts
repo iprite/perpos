@@ -41,6 +41,12 @@ function extractLinkTokenFromText(text: string) {
   return m?.[1] ?? null;
 }
 
+function extractEmployerConnectTokenFromText(text: string) {
+  const t = String(text ?? "").trim();
+  const m = t.match(/^employer_connect\s*[:：]?\s*([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i);
+  return m?.[1] ?? null;
+}
+
 function money(n: number) {
   const x = Number.isFinite(n) ? n : 0;
   return x.toLocaleString("th-TH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -178,6 +184,61 @@ export async function POST(req: Request) {
     const text = String(ev?.message?.text ?? "");
 
     if (!replyToken || !lineUserId) continue;
+
+    const employerConnectToken = extractEmployerConnectTokenFromText(text);
+    if (employerConnectToken) {
+      const tokenRow = await admin
+        .from("customer_line_connect_tokens")
+        .select("token,customer_id,expires_at,used_at")
+        .eq("token", employerConnectToken)
+        .maybeSingle();
+
+      if (tokenRow.error || !tokenRow.data) {
+        await replyText({ replyToken, text: "โค้ดเชื่อมต่อไม่ถูกต้อง กรุณาติดต่อทีมงานเพื่อขอลิงก์ใหม่" });
+        continue;
+      }
+
+      const expiresAt = new Date(String((tokenRow.data as any).expires_at));
+      const usedAt = (tokenRow.data as any).used_at;
+      if (usedAt) {
+        await replyText({ replyToken, text: "โค้ดนี้ถูกใช้งานแล้ว กรุณาติดต่อทีมงานเพื่อขอลิงก์ใหม่" });
+        continue;
+      }
+      if (Number.isNaN(expiresAt.getTime()) || expiresAt.getTime() < Date.now()) {
+        await replyText({ replyToken, text: "โค้ดหมดอายุ กรุณาติดต่อทีมงานเพื่อขอลิงก์ใหม่" });
+        continue;
+      }
+
+      const customerId = String((tokenRow.data as any).customer_id ?? "").trim();
+      if (!customerId) {
+        await replyText({ replyToken, text: "โค้ดไม่สมบูรณ์ กรุณาติดต่อทีมงาน" });
+        continue;
+      }
+
+      const now = new Date().toISOString();
+      await admin
+        .from("customer_line_connections")
+        .upsert(
+          {
+            customer_id: customerId,
+            line_user_id: lineUserId,
+            status: "CONNECTED",
+            connected_at: now,
+            last_error_at: null,
+            last_error_message: null,
+            updated_at: now,
+          },
+          { onConflict: "customer_id" },
+        );
+
+      await admin.from("customer_line_connect_tokens").update({ used_at: now }).eq("token", employerConnectToken);
+
+      const custRes = await admin.from("customers").select("name").eq("id", customerId).maybeSingle();
+      const name = String((custRes.data as any)?.name ?? "").trim() || "นายจ้าง";
+      await replyText({ replyToken, text: `เชื่อมต่อสำเร็จ: ${name}\nคุณจะได้รับอัปเดตใบเสนอราคา/ออเดอร์ตามที่ทีมงานส่งให้` });
+      continue;
+    }
+
     const linkToken = extractLinkTokenFromText(text);
     if (!linkToken) {
       const cmd = parsePettyCashLineText(text);
