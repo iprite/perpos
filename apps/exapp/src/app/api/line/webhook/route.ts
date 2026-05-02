@@ -81,6 +81,24 @@ function isEmployerOrdersCommand(text: string) {
   return t === "/order" || t === "/orders" || t === "order" || t === "orders";
 }
 
+function getEmployerLookupQuery(text: string) {
+  const t = String(text ?? "").trim();
+  const m = t.match(/^\/(.+)$/);
+  if (!m) return null;
+
+  const q = String(m[1] ?? "").trim();
+  if (!q) return null;
+
+  const lower = q.toLowerCase();
+  const reserved = ["worker", "workers", "order", "orders", "pc", "help"];
+  if (reserved.includes(lower)) return null;
+  if (lower.startsWith("pc ")) return null;
+  if (lower.startsWith("worker ") || lower.startsWith("workers ")) return null;
+  if (lower.startsWith("order ") || lower.startsWith("orders ")) return null;
+
+  return q;
+}
+
 function money(n: number) {
   const x = Number.isFinite(n) ? n : 0;
   return x.toLocaleString("th-TH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -499,6 +517,156 @@ function createServiceJobFlexMessage(args: {
             },
           }
         : {}),
+    },
+  };
+}
+
+function lineConnStatusLabel(s: string) {
+  if (s === "CONNECTED") return "เชื่อมแล้ว";
+  if (s === "PENDING") return "รอเชื่อม";
+  if (s === "ERROR") return "ผิดพลาด";
+  return "ยังไม่เชื่อม";
+}
+
+function createEmployerDetailBubble(args: {
+  displayId: string;
+  name: string;
+  taxId: string;
+  businessType: string;
+  address: string;
+  branchName: string;
+  contactName: string;
+  phone: string;
+  email: string;
+  lineStatus: string;
+  connectedAt: string | null;
+}) {
+  const statusText = lineConnStatusLabel(String(args.lineStatus ?? ""));
+  const headerColor = String(args.lineStatus ?? "") === "CONNECTED" ? "#06C755" : "#6B7280";
+  const connectedText = args.connectedAt ? formatShortDateTime(args.connectedAt) : "-";
+
+  const rows: any[] = [
+    {
+      type: "box",
+      layout: "baseline",
+      contents: [
+        { type: "text", text: "สถานะ LINE", size: "sm", color: "#6B7280", flex: 3 },
+        { type: "text", text: statusText, size: "sm", color: "#111827", flex: 7, wrap: true },
+      ],
+    },
+    ...(String(args.displayId ?? "").trim()
+      ? [
+          {
+            type: "box",
+            layout: "baseline",
+            contents: [
+              { type: "text", text: "รหัส", size: "sm", color: "#6B7280", flex: 3 },
+              { type: "text", text: String(args.displayId), size: "sm", color: "#111827", flex: 7, wrap: true },
+            ],
+          },
+        ]
+      : []),
+    ...(args.taxId
+      ? [
+          {
+            type: "box",
+            layout: "baseline",
+            contents: [
+              { type: "text", text: "เลขผู้เสียภาษี", size: "sm", color: "#6B7280", flex: 3 },
+              { type: "text", text: args.taxId, size: "sm", color: "#111827", flex: 7, wrap: true },
+            ],
+          },
+        ]
+      : []),
+    ...(args.businessType
+      ? [
+          {
+            type: "box",
+            layout: "baseline",
+            contents: [
+              { type: "text", text: "ประเภทธุรกิจ", size: "sm", color: "#6B7280", flex: 3 },
+              { type: "text", text: args.businessType, size: "sm", color: "#111827", flex: 7, wrap: true },
+            ],
+          },
+        ]
+      : []),
+    ...(args.address
+      ? [
+          {
+            type: "box",
+            layout: "baseline",
+            contents: [
+              { type: "text", text: "ที่อยู่", size: "sm", color: "#6B7280", flex: 3 },
+              { type: "text", text: args.address, size: "sm", color: "#111827", flex: 7, wrap: true },
+            ],
+          },
+        ]
+      : []),
+    {
+      type: "box",
+      layout: "baseline",
+      contents: [
+        { type: "text", text: "สาขา", size: "sm", color: "#6B7280", flex: 3 },
+        { type: "text", text: args.branchName || "สำนักงานใหญ่", size: "sm", color: "#111827", flex: 7, wrap: true },
+      ],
+    },
+    { type: "separator", margin: "md" },
+    {
+      type: "box",
+      layout: "baseline",
+      contents: [
+        { type: "text", text: "ผู้ติดต่อ", size: "sm", color: "#6B7280", flex: 3 },
+        { type: "text", text: args.contactName || "-", size: "sm", color: "#111827", flex: 7, wrap: true },
+      ],
+    },
+    {
+      type: "box",
+      layout: "baseline",
+      contents: [
+        { type: "text", text: "โทร", size: "sm", color: "#6B7280", flex: 3 },
+        { type: "text", text: args.phone || "-", size: "sm", color: "#111827", flex: 7, wrap: true },
+      ],
+    },
+    {
+      type: "box",
+      layout: "baseline",
+      contents: [
+        { type: "text", text: "อีเมล", size: "sm", color: "#6B7280", flex: 3 },
+        { type: "text", text: args.email || "-", size: "sm", color: "#111827", flex: 7, wrap: true },
+      ],
+    },
+    ...(String(args.lineStatus ?? "") === "CONNECTED"
+      ? [
+          {
+            type: "box",
+            layout: "baseline",
+            contents: [
+              { type: "text", text: "เชื่อมเมื่อ", size: "sm", color: "#6B7280", flex: 3 },
+              { type: "text", text: connectedText, size: "sm", color: "#111827", flex: 7, wrap: true },
+            ],
+          },
+        ]
+      : []),
+  ];
+
+  return {
+    type: "bubble",
+    size: "mega",
+    header: {
+      type: "box",
+      layout: "vertical",
+      backgroundColor: headerColor,
+      paddingAll: "16px",
+      contents: [
+        { type: "text", text: "นายจ้าง", color: "#FFFFFF", weight: "bold", size: "lg", wrap: true },
+        { type: "text", text: args.name || "-", color: "#E5E7EB", size: "sm", wrap: true },
+      ],
+    },
+    body: {
+      type: "box",
+      layout: "vertical",
+      spacing: "sm",
+      contents: rows,
     },
   };
 }
@@ -989,6 +1157,90 @@ export async function POST(req: Request) {
       const custRes = await admin.from("customers").select("name").eq("id", customerId).maybeSingle();
       const name = String((custRes.data as any)?.name ?? "").trim() || "นายจ้าง";
       await replyText({ replyToken, text: `ผลการเชื่อมต่อ\nเชื่อมต่อสำเร็จ: ${name}` });
+      continue;
+    }
+
+    const employerLookup = getEmployerLookupQuery(text);
+    if (employerLookup) {
+      const profile = await fetchProfileByLineUserId(admin, lineUserId);
+      const role = String(profile?.role ?? "");
+      const profileId = String(profile?.id ?? "").trim();
+      if (!profileId) {
+        await replyText({ replyToken, text: "ยังไม่เชื่อมบัญชี กรุณาเชื่อม LINE จากหน้า ตั้งค่าผู้ใช้" });
+        continue;
+      }
+      if (!(role === "admin" || role === "sale" || role === "operation")) {
+        await replyText({ replyToken, text: "ไม่มีสิทธิ์ดูข้อมูลนายจ้าง" });
+        continue;
+      }
+
+      const q = employerLookup.replaceAll("%", "").replaceAll(",", " ").trim();
+      if (q.length < 2) {
+        await replyText({ replyToken, text: "กรุณาพิมพ์ / ตามด้วยชื่อนายจ้างอย่างน้อย 2 ตัวอักษร" });
+        continue;
+      }
+
+      const like = `%${q}%`;
+      const custRes = await admin
+        .from("customers")
+        .select("id,display_id,name,tax_id,business_type,address,branch_name,contact_name,phone,email,updated_at")
+        .ilike("name", like)
+        .order("updated_at", { ascending: false })
+        .limit(5);
+      if (custRes.error) {
+        await replyText({ replyToken, text: custRes.error.message });
+        continue;
+      }
+      const customers = (custRes.data ?? []) as any[];
+      if (!customers.length) {
+        await replyText({ replyToken, text: "ไม่พบนายจ้าง" });
+        continue;
+      }
+
+      const ids = customers.map((c) => String(c.id ?? "")).filter(Boolean);
+      const connRes = await admin
+        .from("customer_line_connections")
+        .select("customer_id,status,connected_at")
+        .in("customer_id", ids)
+        .limit(2000);
+      const connById = new Map<string, any>();
+      for (const r of (connRes.data ?? []) as any[]) {
+        connById.set(String(r.customer_id), r);
+      }
+
+      const bubbles = customers.map((c) => {
+        const id = String(c.id ?? "");
+        const conn = connById.get(id);
+        return createEmployerDetailBubble({
+          displayId: String(c.display_id ?? "").trim(),
+          name: String(c.name ?? "").trim(),
+          taxId: String(c.tax_id ?? "").trim(),
+          businessType: String(c.business_type ?? "").trim(),
+          address: String(c.address ?? "").trim(),
+          branchName: String(c.branch_name ?? "").trim(),
+          contactName: String(c.contact_name ?? "").trim(),
+          phone: String(c.phone ?? "").trim(),
+          email: String(c.email ?? "").trim(),
+          lineStatus: String(conn?.status ?? "NOT_CONNECTED"),
+          connectedAt: conn?.connected_at ? String(conn.connected_at) : null,
+        });
+      });
+
+      if (bubbles.length === 1) {
+        await replyMessages({ replyToken, messages: [{ type: "flex", altText: "ข้อมูลนายจ้าง", contents: bubbles[0] }] });
+        continue;
+      }
+
+      await replyMessages({
+        replyToken,
+        messages: [
+          {
+            type: "flex",
+            altText: "ผลการค้นหานายจ้าง",
+            contents: { type: "carousel", contents: bubbles.slice(0, 10) },
+          },
+        ],
+      });
       continue;
     }
 
