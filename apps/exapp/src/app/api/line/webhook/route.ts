@@ -352,6 +352,7 @@ function createServiceJobFlexMessage(args: {
   completedAt: string | null;
   note: string;
   orderItemId: string;
+  allowActions?: boolean;
 }) {
   const statusText = jobOpsStatusLabel(args.opsStatus);
   const headerColor = args.opsStatus === "done" ? "#16A34A" : args.opsStatus === "in_progress" ? "#2563EB" : "#6B7280";
@@ -439,8 +440,9 @@ function createServiceJobFlexMessage(args: {
     },
   ];
 
+  const allowActions = args.allowActions !== false;
   const footerButtons: any[] = [];
-  if (args.opsStatus === "not_started") {
+  if (allowActions && args.opsStatus === "not_started") {
     footerButtons.push({
       type: "button",
       style: "primary",
@@ -448,7 +450,7 @@ function createServiceJobFlexMessage(args: {
       action: { type: "postback", label: "เริ่มดำเนินการ", data: `job_action=start&order_item_id=${encodeURIComponent(args.orderItemId)}` },
     });
   }
-  if (args.opsStatus === "in_progress") {
+  if (allowActions && args.opsStatus === "in_progress") {
     footerButtons.push({
       type: "button",
       style: "primary",
@@ -994,26 +996,88 @@ export async function POST(req: Request) {
     if (jobDisplayId) {
       const profile = await fetchProfileByLineUserId(admin, lineUserId);
       const role = String(profile?.role ?? "");
-      if (!String(profile?.id ?? "").trim()) {
-        await replyText({ replyToken, text: "ยังไม่เชื่อมบัญชี กรุณาเชื่อม LINE จากหน้า ตั้งค่าผู้ใช้" });
-        continue;
-      }
-      if (!isAllowedServiceJobRole(role)) {
-        await replyText({ replyToken, text: "ไม่มีสิทธิ์ดูงานบริการ (อนุญาตเฉพาะ admin/operation)" });
+      const profileId = String(profile?.id ?? "").trim();
+
+      if (profileId) {
+        if (!isAllowedServiceJobRole(role)) {
+          await replyText({ replyToken, text: "ไม่มีสิทธิ์ดูงานบริการ (อนุญาตเฉพาะ admin/operation)" });
+          continue;
+        }
+
+        const jobRes = await admin
+          .from("order_items")
+          .select("id,order_id,job_display_id,ops_status,ops_started_at,ops_completed_at,ops_note,orders(display_id,customers(name)),services(name,service_group_code)")
+          .eq("job_display_id", jobDisplayId)
+          .maybeSingle();
+        if (jobRes.error || !jobRes.data) {
+          await replyText({ replyToken, text: "ไม่พบงานบริการ" });
+          continue;
+        }
+
+        const d = jobRes.data as any;
+        const orderItemId = String(d.id ?? "");
+        const wcRes = await admin
+          .from("order_item_workers")
+          .select("id", { count: "exact", head: true })
+          .eq("order_item_id", orderItemId);
+        const workerCount = Number(wcRes.count ?? 0);
+
+        const orderRel = Array.isArray(d.orders) ? d.orders[0] : d.orders;
+        const serviceRel = Array.isArray(d.services) ? d.services[0] : d.services;
+        const orderNo = String(orderRel?.display_id ?? "-") || "-";
+        const customerName = Array.isArray(orderRel?.customers) ? String(orderRel.customers[0]?.name ?? "-") : String(orderRel?.customers?.name ?? "-") || "-";
+        const serviceName = String(serviceRel?.name ?? "-") || "-";
+        const groupLabel = String(serviceRel?.service_group_code ?? "") === "mou" ? "MOU" : "General";
+
+        const flex = createServiceJobFlexMessage({
+          jobNo: String(d.job_display_id ?? jobDisplayId) || jobDisplayId,
+          serviceName,
+          customerName,
+          orderNo,
+          groupLabel,
+          workerCount,
+          opsStatus: String(d.ops_status ?? ""),
+          startedAt: d.ops_started_at ? String(d.ops_started_at) : null,
+          completedAt: d.ops_completed_at ? String(d.ops_completed_at) : null,
+          note: String(d.ops_note ?? "").trim(),
+          orderItemId,
+        });
+        await replyMessages({ replyToken, messages: [flex] });
         continue;
       }
 
+      const connRes = await admin
+        .from("customer_line_connections")
+        .select("customer_id,status,updated_at")
+        .eq("line_user_id", lineUserId)
+        .order("updated_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      const conn = connRes.data as any;
+      if (connRes.error || !conn?.customer_id || String(conn?.status ?? "") !== "CONNECTED") {
+        await replyText({ replyToken, text: "ยังไม่ได้เชื่อมต่อกับนายจ้าง กรุณาติดต่อทีมงานเพื่อขอลิงก์เชื่อมต่อ" });
+        continue;
+      }
+
+      const customerId = String(conn.customer_id);
       const jobRes = await admin
         .from("order_items")
-        .select("id,order_id,job_display_id,ops_status,ops_started_at,ops_completed_at,ops_note,orders(display_id,customers(name)),services(name,service_group_code)")
+        .select("id,order_id,job_display_id,ops_status,ops_started_at,ops_completed_at,ops_note,orders(display_id,customer_id,customers(name)),services(name,service_group_code)")
         .eq("job_display_id", jobDisplayId)
         .maybeSingle();
       if (jobRes.error || !jobRes.data) {
-        await replyText({ replyToken, text: "ไม่พบงานบริการ" });
+        await replyText({ replyToken, text: "ไม่พบงานบริการของบริษัทนี้" });
         continue;
       }
 
       const d = jobRes.data as any;
+      const orderRel = Array.isArray(d.orders) ? d.orders[0] : d.orders;
+      const orderCustomerId = String(orderRel?.customer_id ?? "").trim();
+      if (!orderCustomerId || orderCustomerId !== customerId) {
+        await replyText({ replyToken, text: "ไม่พบงานบริการของบริษัทนี้" });
+        continue;
+      }
+
       const orderItemId = String(d.id ?? "");
       const wcRes = await admin
         .from("order_item_workers")
@@ -1021,7 +1085,6 @@ export async function POST(req: Request) {
         .eq("order_item_id", orderItemId);
       const workerCount = Number(wcRes.count ?? 0);
 
-      const orderRel = Array.isArray(d.orders) ? d.orders[0] : d.orders;
       const serviceRel = Array.isArray(d.services) ? d.services[0] : d.services;
       const orderNo = String(orderRel?.display_id ?? "-") || "-";
       const customerName = Array.isArray(orderRel?.customers) ? String(orderRel.customers[0]?.name ?? "-") : String(orderRel?.customers?.name ?? "-") || "-";
@@ -1040,6 +1103,7 @@ export async function POST(req: Request) {
         completedAt: d.ops_completed_at ? String(d.ops_completed_at) : null,
         note: String(d.ops_note ?? "").trim(),
         orderItemId,
+        allowActions: false,
       });
       await replyMessages({ replyToken, messages: [flex] });
       continue;
