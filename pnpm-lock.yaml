@@ -27,7 +27,7 @@ importers:
         specifier: workspace:*
         version: link:packages/config-typescript
 
-  apps/exapp:
+  apps/perpos:
     dependencies:
       '@dnd-kit/core':
         specifier: ^6.3.1

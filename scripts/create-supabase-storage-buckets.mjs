@@ -1,6 +1,6 @@
 import { createRequire } from "module";
 
-const require = createRequire(new URL("../apps/exapp/package.json", import.meta.url));
+const require = createRequire(new URL("../apps/perpos/package.json", import.meta.url));
 const { createClient } = require("@supabase/supabase-js");
 
 function env(name) {
