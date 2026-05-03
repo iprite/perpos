@@ -9,6 +9,8 @@ import { useAuth } from "@/app/shared/auth-provider";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { APP_BASE_PATH, withBasePath } from "@/utils/base-path";
 
+const SUPABASE_OAUTH_PROVIDER = (process.env.NEXT_PUBLIC_SUPABASE_OAUTH_PROVIDER ?? "oidc").trim();
+
 function normalizeBasePath(basePath: string) {
   const trimmed = (basePath ?? "").trim();
   if (!trimmed) return "";
@@ -81,7 +83,7 @@ export default function SignInLineOnlyPage() {
 
               const supabase = createSupabaseBrowserClient();
               const { data, error: e } = await supabase.auth.signInWithOAuth({
-                provider: "line" as any,
+                provider: SUPABASE_OAUTH_PROVIDER as any,
                 options: { redirectTo: callbackUrl },
               });
               if (e) throw new Error(e.message);
@@ -122,4 +124,3 @@ export default function SignInLineOnlyPage() {
     </div>
   );
 }
-
