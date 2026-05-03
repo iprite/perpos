@@ -20,7 +20,7 @@ function verifyLineSignature(args: { body: string; signature: string | null; cha
 }
 
 async function replyText(args: { replyToken: string; text: string }) {
-  const accessToken = process.env.LINE_CHANNEL_ACCESS_TOKEN ?? "";
+  const accessToken = process.env.LINE_MESSAGING_CHANNEL_ACCESS_TOKEN ?? "";
   if (!accessToken) return;
   await fetch("https://api.line.me/v2/bot/message/reply", {
     method: "POST",
@@ -36,7 +36,7 @@ async function replyText(args: { replyToken: string; text: string }) {
 }
 
 async function replyMessages(args: { replyToken: string; messages: any[] }) {
-  const accessToken = process.env.LINE_CHANNEL_ACCESS_TOKEN ?? "";
+  const accessToken = process.env.LINE_MESSAGING_CHANNEL_ACCESS_TOKEN ?? "";
   if (!accessToken) return;
   const messages = Array.isArray(args.messages) ? args.messages : [];
   if (!messages.length) return;
@@ -1037,7 +1037,7 @@ export async function POST(req: Request) {
   const signature = req.headers.get("x-line-signature");
   const body = await req.text();
 
-  const ok = verifyLineSignature({ body, signature, channelSecret: process.env.LINE_CHANNEL_SECRET });
+  const ok = verifyLineSignature({ body, signature, channelSecret: process.env.LINE_MESSAGING_CHANNEL_SECRET });
   if (!ok) return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
 
   const payload = JSON.parse(body) as any;

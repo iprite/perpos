@@ -1,4 +1,4 @@
-export const APP_BASE_PATH = (process.env.NEXT_PUBLIC_BASE_PATH ?? "/perpos").trim();
+export const APP_BASE_PATH = (process.env.NEXT_PUBLIC_BASE_PATH ?? "").trim();
 
 function normalizeBasePath(basePath: string) {
   if (!basePath) return "";
