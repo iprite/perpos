@@ -14,7 +14,7 @@ export function SidebarMenu() {
   const pathname = usePathname();
   const router = useRouter();
   const { role } = useAuth();
-  const menuItems = getMenuItems(role);
+  const menuItems = getMenuItems(role, pathname ?? "/");
   const prefetchHrefs = useMemo(() => {
     const hrefs: string[] = [];
     for (const item of menuItems) {

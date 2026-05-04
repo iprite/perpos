@@ -150,7 +150,7 @@ export default function AuthPasswordClient() {
     return () => {
       cancelled = true;
     };
-  }, [code, supabase]);
+  }, [code, supabase, tokenHash, type]);
 
   return (
     <div className="mx-auto w-full max-w-lg">

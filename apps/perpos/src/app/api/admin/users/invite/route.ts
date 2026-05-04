@@ -10,11 +10,7 @@ export const runtime = "nodejs";
 
 const BodySchema = z.object({
   email: z.string().email(),
-  role: z.enum(["admin", "sale", "operation", "employer", "representative"]),
-  customerId: z.string().uuid().optional(),
-  companyRepresentativeId: z.string().uuid().optional(),
-  representativeLevel: z.enum(["lead", "member"]).optional(),
-  representativeLeadId: z.string().uuid().optional(),
+  role: z.enum(["admin", "user"]),
   redirectTo: z.string().url(),
 });
 
@@ -30,28 +26,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "invalid_body", issues: parsed.error.issues }, { status: 400 });
   }
 
-  const {
-    email,
-    role,
-    customerId,
-    companyRepresentativeId,
-    representativeLevel,
-    representativeLeadId,
-    redirectTo,
-  } = parsed.data;
-
-  if (role === "employer" && !customerId) {
-    return NextResponse.json({ error: "missing_customer" }, { status: 400 });
-  }
-  if (role === "representative" && !companyRepresentativeId) {
-    return NextResponse.json({ error: "missing_representative" }, { status: 400 });
-  }
-  if (role === "representative" && !representativeLevel) {
-    return NextResponse.json({ error: "missing_representative_level" }, { status: 400 });
-  }
-  if (role === "representative" && representativeLevel === "member" && !representativeLeadId) {
-    return NextResponse.json({ error: "missing_representative_lead" }, { status: 400 });
-  }
+  const { email, role, redirectTo } = parsed.data;
 
   let admin: ReturnType<typeof createSupabaseAdminClient>;
   try {
@@ -96,65 +71,12 @@ export async function POST(req: Request) {
       id: userId,
       email,
       role,
-      representative_level: role === "representative" ? representativeLevel ?? null : null,
-      representative_lead_id: role === "representative" && representativeLevel === "member" ? representativeLeadId ?? null : null,
+      is_active: true,
     },
     { onConflict: "id" },
   );
   if (profileError) {
     return NextResponse.json({ error: profileError.message }, { status: 400 });
-  }
-
-  if (role === "employer" && customerId) {
-    const { data: customer, error: customerError } = await admin
-      .from("customers")
-      .select("id,name,organization_id")
-      .eq("id", customerId)
-      .single();
-    if (customerError || !customer) {
-      return NextResponse.json({ error: customerError?.message ?? "customer_not_found" }, { status: 400 });
-    }
-
-    let organizationId = (customer as any).organization_id as string | null;
-    if (!organizationId) {
-      const { data: orgInserted, error: orgError } = await admin
-        .from("organizations")
-        .insert({ name: (customer as any).name ?? "องค์กร" })
-        .select("id")
-        .single();
-      if (orgError || !orgInserted) {
-        return NextResponse.json({ error: orgError?.message ?? "create_organization_failed" }, { status: 400 });
-      }
-
-      organizationId = (orgInserted as any).id as string;
-      const { error: linkError } = await admin
-        .from("customers")
-        .update({ organization_id: organizationId })
-        .eq("id", customerId);
-      if (linkError) {
-        return NextResponse.json({ error: linkError.message }, { status: 400 });
-      }
-    }
-
-    const { error: memberError } = await admin
-      .from("organization_members")
-      .upsert(
-        { organization_id: organizationId, profile_id: userId, member_role: "member" },
-        { onConflict: "organization_id,profile_id" },
-      );
-    if (memberError) {
-      return NextResponse.json({ error: memberError.message }, { status: 400 });
-    }
-  }
-
-  if (role === "representative" && companyRepresentativeId) {
-    const { error: repError } = await admin
-      .from("company_representatives")
-      .update({ profile_id: userId })
-      .eq("id", companyRepresentativeId);
-    if (repError) {
-      return NextResponse.json({ error: repError.message }, { status: 400 });
-    }
   }
 
   const subject = "ตั้งรหัสผ่านเพื่อเข้าใช้งานระบบ";

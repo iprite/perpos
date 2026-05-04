@@ -49,6 +49,7 @@ dist/
 *.tsbuildinfo
 /*.pdf
 /*.csv
+/apps/**/artifacts/
 
 # legacy folder (not part of deploy)
 web_legacy/

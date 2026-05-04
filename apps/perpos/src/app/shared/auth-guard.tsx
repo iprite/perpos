@@ -26,15 +26,18 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const { loading, userId } = useAuth();
+  const { loading, blocked, userId } = useAuth();
 
   useEffect(() => {
-    if (loading || userId) return;
-    const qs = searchParams?.toString() ? `?${searchParams.toString()}` : "";
-    const current = `${stripBasePath(pathname)}${qs}`;
-    const dest = current && current.startsWith("/") ? current : "/";
-    router.replace(withBasePath(`/signin?returnTo=${encodeURIComponent(dest)}`));
-  }, [loading, pathname, router, searchParams, userId]);
+    if (loading) return;
+    if (!userId || blocked) {
+      const qs = searchParams?.toString() ? `?${searchParams.toString()}` : "";
+      const current = `${stripBasePath(pathname)}${qs}`;
+      const dest = current && current.startsWith("/") ? current : "/";
+      const extra = blocked ? "&blocked=1" : "";
+      router.replace(withBasePath(`/signin?returnTo=${encodeURIComponent(dest)}${extra}`));
+    }
+  }, [blocked, loading, pathname, router, searchParams, userId]);
 
   if (loading) {
     return (
@@ -44,6 +47,6 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (!userId) return null;
+  if (!userId || blocked) return null;
   return <>{children}</>;
 }

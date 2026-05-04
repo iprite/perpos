@@ -41,7 +41,7 @@ function clearReturnToFromSession() {
   window.sessionStorage.removeItem("auth:returnTo");
 }
 
-export default function LineAuthCallbackPage() {
+export default function AuthCallbackPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [status, setStatus] = useState<"processing" | "error">("processing");
@@ -91,12 +91,12 @@ export default function LineAuthCallbackPage() {
   if (status === "processing") {
     return (
       <div className="mx-auto w-full max-w-md">
-        <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+        <div className="rounded-2xl border border-white/10 bg-slate-950/85 p-6 text-white shadow-[0_20px_60px_rgba(0,0,0,0.55)] backdrop-blur-[14px]">
           <div className="flex items-center gap-3">
-            <div className="h-6 w-6 animate-spin rounded-full border-2 border-gray-300 border-t-gray-700" />
+            <div className="h-6 w-6 animate-spin rounded-full border-2 border-white/30 border-t-white" />
             <div>
-              <div className="text-base font-semibold text-gray-900">กำลังเข้าสู่ระบบ...</div>
-              <div className="mt-1 text-sm text-gray-600">กรุณารอสักครู่ ระบบกำลังตรวจสอบสิทธิ์</div>
+              <div className="text-base font-semibold">กำลังเข้าสู่ระบบ...</div>
+              <div className="mt-1 text-sm text-white/70">กรุณารอสักครู่ ระบบกำลังตรวจสอบสิทธิ์</div>
             </div>
           </div>
         </div>
@@ -106,24 +106,24 @@ export default function LineAuthCallbackPage() {
 
   return (
     <div className="mx-auto w-full max-w-md">
-      <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+      <div className="rounded-2xl border border-white/10 bg-slate-950/85 p-6 text-white shadow-[0_20px_60px_rgba(0,0,0,0.55)] backdrop-blur-[14px]">
         <div className="flex items-start gap-3">
-          <div className="grid h-10 w-10 place-items-center rounded-xl bg-amber-50 text-amber-700">
+          <div className="grid h-10 w-10 place-items-center rounded-xl bg-amber-500/15 text-amber-300">
             <AlertTriangle className="h-5 w-5" />
           </div>
           <div className="min-w-0">
-            <div className="text-base font-semibold text-gray-900">เข้าสู่ระบบไม่สำเร็จ</div>
-            {message ? <div className="mt-1 text-sm text-gray-600">{String(message).slice(0, 240)}</div> : null}
+            <div className="text-base font-semibold">เข้าสู่ระบบไม่สำเร็จ</div>
+            {message ? <div className="mt-1 text-sm text-white/70">{String(message).slice(0, 240)}</div> : null}
           </div>
         </div>
 
         <div className="mt-5 grid gap-2">
-          <Button className="w-full bg-[#06C755] text-white hover:bg-[#05b14a]" onClick={() => router.replace(withBasePath("/signin"))}>
+          <Button className="w-full bg-indigo-600 text-white hover:bg-indigo-500" onClick={() => router.replace(withBasePath("/signin"))}>
             กลับไปหน้าเข้าสู่ระบบ
           </Button>
           <Button
             variant="outline"
-            className="w-full"
+            className="w-full border-white/15 text-white hover:bg-white/5"
             onClick={() => {
               clearReturnToFromSession();
               router.replace(withBasePath("/signin"));
@@ -139,4 +139,3 @@ export default function LineAuthCallbackPage() {
     </div>
   );
 }
-

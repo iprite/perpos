@@ -1,13 +1,10 @@
-export type Role = "admin" | "sale" | "operation" | "employer" | "representative";
-
-export type RepresentativeLevel = "lead" | "member";
+export type Role = "admin" | "user";
 
 export type Profile = {
   id: string;
   email: string | null;
   role: Role;
-  representative_level?: RepresentativeLevel | null;
-  representative_lead_id?: string | null;
+  is_active?: boolean | null;
   display_name?: string | null;
   avatar_url?: string | null;
   line_user_id?: string | null;

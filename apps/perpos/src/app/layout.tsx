@@ -13,8 +13,8 @@ import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "ExApp",
-  description: "Company Management Dashboard",
+  title: "PERPOS",
+  description: "ระบบผู้ช่วยทำงาน PERPOS",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

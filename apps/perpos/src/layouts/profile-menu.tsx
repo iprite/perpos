@@ -4,7 +4,7 @@ import { Title, Text, Avatar, Button, Popover } from "rizzui";
 import cn from "@core/utils/class-names";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { PiGearSix, PiSignOut } from "react-icons/pi";
+import { LayoutDashboard, Settings, Shield, LogOut } from "lucide-react";
 
 import { useAuth } from "@/app/shared/auth-provider";
 import { withBasePath } from "@/utils/base-path";
@@ -33,8 +33,9 @@ export default function ProfileMenu({
           <Avatar
             src={profile?.avatar_url ?? undefined}
             name={name}
+            color="secondary"
             className={cn(
-              "bg-white ring-1 ring-gray-300 text-sm font-semibold text-gray-700",
+              "bg-gray-100 ring-1 ring-gray-300 text-sm font-semibold text-gray-700",
               "!h-9 !w-9 sm:!h-10 sm:!w-10",
               avatarClassName
             )}
@@ -79,6 +80,28 @@ function DropdownMenu() {
   const { email, role, profile, signOut } = useAuth();
   const name = String(profile?.display_name ?? email ?? "U");
   const [signingOut, setSigningOut] = useState(false);
+  const isAdmin = role === "admin";
+
+  const items: Array<{ label: string; href: string; icon: React.ReactNode; show: boolean }> = [
+    {
+      label: "แดชบอร์ด",
+      href: "/me",
+      icon: <LayoutDashboard className="h-4 w-4 text-gray-500" />,
+      show: true,
+    },
+    {
+      label: "ตั้งค่าผู้ใช้งาน",
+      href: "/settings",
+      icon: <Settings className="h-4 w-4 text-gray-500" />,
+      show: true,
+    },
+    {
+      label: "จัดการระบบ",
+      href: "/admin",
+      icon: <Shield className="h-4 w-4 text-gray-500" />,
+      show: isAdmin,
+    },
+  ];
 
   return (
     <div className="w-64 text-left rtl:text-right">
@@ -86,7 +109,8 @@ function DropdownMenu() {
         <Avatar
           src={profile?.avatar_url ?? undefined}
           name={name}
-          className="bg-white ring-1 ring-gray-300 text-sm font-semibold text-gray-700 !h-10 !w-10"
+          color="secondary"
+          className="bg-gray-100 ring-1 ring-gray-300 text-sm font-semibold text-gray-700 !h-10 !w-10"
         />
         <div className="ms-3">
           <Title
@@ -99,17 +123,24 @@ function DropdownMenu() {
         </div>
       </div>
       <div className="border-t border-gray-300 px-6 pb-6 pt-5">
-        <Button
-          className="h-auto w-full items-center justify-start gap-2 p-0 font-medium text-gray-700 outline-none focus-within:text-gray-600 hover:text-gray-900 focus-visible:ring-0"
-          variant="text"
-          disabled={signingOut}
-          onClick={() => {
-            router.push("/settings");
-          }}
-        >
-          <PiGearSix className="h-4 w-4 text-gray-500" />
-          ตั้งค่าโปรไฟล์
-        </Button>
+        <div className="grid gap-3">
+          {items
+            .filter((it) => it.show)
+            .map((it) => (
+              <Button
+                key={it.href}
+                className="h-auto w-full items-center justify-start gap-2 p-0 font-medium text-gray-700 outline-none focus-within:text-gray-600 hover:text-gray-900 focus-visible:ring-0"
+                variant="text"
+                disabled={signingOut}
+                onClick={() => {
+                  router.push(withBasePath(it.href));
+                }}
+              >
+                {it.icon}
+                {it.label}
+              </Button>
+            ))}
+        </div>
 
         <div className="my-4 h-px w-full bg-gray-200" />
 
@@ -124,7 +155,7 @@ function DropdownMenu() {
             setSigningOut(false);
           }}
         >
-          <PiSignOut className="h-4 w-4 text-gray-500" />
+          <LogOut className="h-4 w-4 text-gray-500" />
           {signingOut ? "กำลังลงชื่อออก..." : "ลงชื่อออก"}
         </Button>
       </div>

@@ -1,20 +1,10 @@
 import React from "react";
 import {
-  BadgePercent,
-  BriefcaseBusiness,
-  Building2,
-  ClipboardList,
   Newspaper,
-  PenTool,
-  Receipt,
-  FileSignature,
-  FileText,
   LayoutDashboard,
   Link2,
   Shield,
   Users,
-  UserSquare2,
-  Wallet,
 } from "lucide-react";
 
 import type { Role } from "@/lib/supabase/types";
@@ -41,7 +31,7 @@ export function isLinkMenuItem(item: MenuItem): item is LinkMenuItem {
   return (item as LinkMenuItem).href !== undefined;
 }
 
-const allRoles: Role[] = ["admin", "sale", "operation", "employer", "representative"];
+const allRoles: Role[] = ["admin", "user"];
 
 function hasRole(itemRoles: Role[] | undefined, role: Role | null) {
   if (!itemRoles) return true;
@@ -49,174 +39,66 @@ function hasRole(itemRoles: Role[] | undefined, role: Role | null) {
   return itemRoles.includes(role);
 }
 
-export function getMenuItems(role: Role | null): MenuItem[] {
-  const items: MenuItem[] = [
-    { name: "ภาพรวม", roles: ["admin", "sale", "operation", "employer"] },
+function buildUserMenuItems(): MenuItem[] {
+  return [
+    { name: "PERPOS", roles: allRoles },
     {
       name: "แดชบอร์ด",
-      href: "/",
+      href: "/me",
       icon: <LayoutDashboard className="h-5 w-5" />,
-      roles: ["admin", "sale", "operation", "employer"],
+      roles: allRoles,
     },
   ];
+}
 
-  items.push({ name: "รายชื่อ", roles: ["admin", "sale", "operation", "employer"] });
-  items.push(
+function buildAdminMenuItems(): MenuItem[] {
+  return [
+    { name: "แอดมินคอนโซล", roles: ["admin"] },
     {
-      name: "นายจ้าง",
-      href: "/customers",
-      icon: <Building2 className="h-5 w-5" />,
-      roles: ["admin", "sale", "operation", "employer"],
-    },
-    {
-      name: "แรงงาน",
-      href: "/workers",
-      icon: <Users className="h-5 w-5" />,
-      roles: ["admin", "sale", "operation", "employer"],
-    },
-  );
-
-  items.push({ name: "การขายและบริการ", roles: ["admin", "sale", "employer"] });
-  items.push(
-    {
-      name: "ใบเสนอราคา",
-      href: "/quotes",
-      icon: <FileText className="h-5 w-5" />,
-      roles: ["admin", "sale"],
-    },
-    {
-      name: "ออเดอร์",
-      href: "/orders",
-      icon: <BriefcaseBusiness className="h-5 w-5" />,
-      roles: ["admin", "sale", "employer"],
-    },
-  );
-
-  items.push({ name: "งานปฏิบัติการ", roles: ["admin", "operation"] });
-  items.push(
-    {
-      name: "จัดการคำขอ",
-      href: "/poa-requests",
-      icon: <FileSignature className="h-5 w-5" />,
-      roles: ["admin", "operation"],
-    },
-    {
-      name: "จัดการออเดอร์",
-      href: "/manage-orders",
-      icon: <BriefcaseBusiness className="h-5 w-5" />,
-      roles: ["admin", "operation"],
-    },
-    {
-      name: "รายการงานบริการ",
-      href: "/service-jobs",
-      icon: <ClipboardList className="h-5 w-5" />,
-      roles: ["admin", "operation"],
-    },
-  );
-
-  items.push({ name: "คอนเทนต์", roles: ["admin", "sale"] });
-  items.push({
-    name: "โพสต์",
-    href: "/posts",
-    icon: <Newspaper className="h-5 w-5" />,
-    roles: ["admin", "sale"],
-  });
-
-  items.push({ name: "บัญชี", roles: ["admin", "sale", "operation"] });
-  items.push(
-    {
-      name: "เอกสาร IV/RT",
-      href: "/invoices",
-      icon: <Receipt className="h-5 w-5" />,
-      dropdownItems: [
-        { name: "ใบแจ้งหนี้ (IV)", href: "/invoices", roles: ["admin", "sale", "operation"] },
-        { name: "ใบเสร็จ/ใบกำกับภาษี (RT)", href: "/receipts", roles: ["admin", "sale", "operation"] },
-      ],
-      roles: ["admin", "sale", "operation"],
-    },
-    {
-      name: "ธุรกรรมการเงิน",
-      href: "/finance",
-      icon: <Wallet className="h-5 w-5" />,
-      dropdownItems: [
-        { name: "รายรับ/รายจ่าย", href: "/finance", roles: ["admin", "operation"] },
-        { name: "เงินสดย่อย", href: "/finance/petty-cash", roles: ["admin", "operation"] },
-      ],
-      roles: ["admin", "operation"],
-    },
-  );
-
-  items.push(
-    { name: "หนังสือมอบอำนาจ", roles: ["representative"] },
-    {
-      name: "คำขอ POA",
-      href: "/my-poa-requests",
-      icon: <FileText className="h-5 w-5" />,
-      roles: ["representative"],
-    },
-  );
-
-  items.push(
-    { name: "รายชื่อ", roles: ["representative"] },
-    {
-      name: "นายจ้าง",
-      href: "/customers",
-      icon: <Building2 className="h-5 w-5" />,
-      roles: ["representative"],
-    },
-    {
-      name: "แรงงาน",
-      href: "/workers",
-      icon: <Users className="h-5 w-5" />,
-      roles: ["representative"],
-    },
-  );
-
-  items.push({ name: "ตั้งค่า", roles: ["admin", "sale", "operation"] });
-  items.push(
-    {
-      name: "เชื่อมต่อ",
-      href: "/settings/connect",
-      icon: <Link2 className="h-5 w-5" />,
-      roles: ["admin", "sale"],
-    },
-    {
-      name: "บริการของเรา",
-      href: "/services",
-      icon: <BadgePercent className="h-5 w-5" />,
-      roles: ["admin", "sale"],
-    },
-    {
-      name: "หนังสือมอบอำนาจ",
-      href: "/poa-request-types",
-      icon: <FileSignature className="h-5 w-5" />,
+      name: "ภาพรวม",
+      href: "/admin",
+      icon: <LayoutDashboard className="h-5 w-5" />,
       roles: ["admin"],
     },
     {
-      name: "ราคาพิเศษ POA",
-      href: "/poa-price-overrides",
-      icon: <FileSignature className="h-5 w-5" />,
-      roles: ["admin"],
-    },
-    {
-      name: "ตัวแทนบริษัท",
-      href: "/representatives",
-      icon: <UserSquare2 className="h-5 w-5" />,
-      roles: ["admin", "operation"],
-    },
-    {
-      name: "ลายเซ็นและตราประทับ",
-      href: "/settings/signature-stamp",
-      icon: <PenTool className="h-5 w-5" />,
-      roles: ["admin", "sale", "operation"],
-    },
-    {
-      name: "ผู้ใช้และสิทธิ์",
+      name: "ผู้ใช้",
       href: "/admin/users",
+      icon: <Users className="h-5 w-5" />,
+      roles: ["admin"],
+    },
+    {
+      name: "สิทธิ์รายฟังก์ชัน",
+      href: "/admin/permissions",
       icon: <Shield className="h-5 w-5" />,
       roles: ["admin"],
     },
-  );
+    {
+      name: "News Agent",
+      href: "/admin/news-agent",
+      icon: <Newspaper className="h-5 w-5" />,
+      roles: ["admin"],
+    },
+    {
+      name: "การส่งผ่าน LINE",
+      href: "/admin/delivery",
+      icon: <Link2 className="h-5 w-5" />,
+      roles: ["admin"],
+    },
+  ];
+}
+
+function pickMenuContext(pathname: string, role: Role | null) {
+  const p = pathname || "/";
+  if (p === "/me" || p.startsWith("/me/")) return "user";
+  if (p === "/settings" || p.startsWith("/settings/")) return "user";
+  if (p.startsWith("/templates")) return "user";
+  if (p === "/admin" || p.startsWith("/admin/")) return role === "admin" ? "admin" : "user";
+  return role === "admin" ? "admin" : "user";
+}
+
+export function getMenuItems(role: Role | null, pathname: string): MenuItem[] {
+  const context = pickMenuContext(pathname, role);
+  const items = context === "admin" ? buildAdminMenuItems() : buildUserMenuItems();
 
   return items.filter((item) => {
     if (!("href" in item)) return hasRole(item.roles, role);

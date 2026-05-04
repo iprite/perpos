@@ -8,10 +8,12 @@ import type { Profile, Role } from "@/lib/supabase/types";
 type AuthState = {
   loading: boolean;
   envError: string | null;
+  profileError: string | null;
   userId: string | null;
   email: string | null;
   role: Role | null;
   profile: Profile | null;
+  blocked: boolean;
   refreshProfile: () => Promise<void>;
   signOut: () => Promise<void>;
 };
@@ -41,11 +43,13 @@ function clearStartedAt() {
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [envError, setEnvError] = useState<string | null>(null);
+  const [profileError, setProfileError] = useState<string | null>(null);
   const [supabase, setSupabase] = useState<ReturnType<typeof createSupabaseBrowserClient> | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [email, setEmail] = useState<string | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const role = profile?.role ?? null;
+  const blocked = Boolean(userId && !loading && (profile?.is_active === false || !profile || !!profileError));
   const logoutTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -74,6 +78,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUserId(null);
       setEmail(null);
       setProfile(null);
+      setProfileError(null);
       setLoading(false);
     };
 
@@ -99,6 +104,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
+      if (!cancelled) {
+        setLoading(true);
+      }
+
       const startedAt = readStartedAt() ?? Date.now();
       if (!readStartedAt()) writeStartedAt(startedAt);
       const elapsed = Date.now() - startedAt;
@@ -118,27 +127,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (!cancelled) {
         setUserId(uid);
         setEmail(userEmail);
-        setLoading(false);
       }
 
-      Promise.resolve()
-        .then(async () => {
-          const { data: p, error } = await supabase
-            .from("profiles")
-            .select("id,email,role,display_name,avatar_url,line_user_id,line_linked_at,created_at")
-            .eq("id", uid)
-            .single();
-          if (cancelled) return;
-          if (error) {
-            setProfile(null);
-          } else {
-            setProfile(p as Profile);
-          }
-        })
-        .catch(() => {
-          if (cancelled) return;
+      try {
+        const { data: p, error } = await supabase
+          .from("profiles")
+          .select("id,email,role,is_active,display_name,avatar_url,line_user_id,line_linked_at,created_at")
+          .eq("id", uid)
+          .single();
+        if (cancelled) return;
+        if (error) {
           setProfile(null);
-        });
+          setProfileError(error.message);
+        } else {
+          setProfile(p as Profile);
+          setProfileError(null);
+        }
+      } catch (e: any) {
+        if (cancelled) return;
+        setProfile(null);
+        setProfileError(String(e?.message ?? "profile_fetch_error"));
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
     };
 
     refresh();
@@ -166,24 +177,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!uid) return;
     const { data: p, error } = await supabase
       .from("profiles")
-      .select("id,email,role,display_name,avatar_url,line_user_id,line_linked_at,created_at")
+      .select("id,email,role,is_active,display_name,avatar_url,line_user_id,line_linked_at,created_at")
       .eq("id", uid)
       .single();
     if (error) {
       setProfile(null);
+      setProfileError(error.message);
       return;
     }
     setProfile(p as Profile);
+    setProfileError(null);
   }, [supabase, userId]);
 
   const value = useMemo<AuthState>(
     () => ({
       loading,
       envError,
+      profileError,
       userId,
       email,
       role,
       profile,
+      blocked,
       refreshProfile,
       signOut: async () => {
         if (!supabase) {
@@ -195,6 +210,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setUserId(null);
           setEmail(null);
           setProfile(null);
+          setProfileError(null);
           setLoading(false);
           return;
         }
@@ -209,11 +225,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setUserId(null);
           setEmail(null);
           setProfile(null);
+          setProfileError(null);
           setLoading(false);
         }
       },
     }),
-    [email, envError, loading, profile, refreshProfile, role, supabase, userId],
+    [blocked, email, envError, loading, profile, profileError, refreshProfile, role, supabase, userId],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

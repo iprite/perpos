@@ -53,38 +53,38 @@
     /* ----------------------------------- */
     /* secondary colors */
     /* ----------------------------------- */
-    --secondary-lighter: 221 227 255; /* #dde3ff */
-    --secondary-default: 78 54 245; /* #4e36f5 */
-    --secondary-dark: 67 42 216; /* #432ad8 */
+    --secondary-lighter: 227 227 227; /* #e3e3e3 */
+    --secondary-default: 17 17 17; /* #111111 */
+    --secondary-dark: 0 0 0; /* #000000 */
     --secondary-foreground: 255 255 255; /* #ffffff */
 
     /* ----------------------------------- */
     /* red/error colors */
     /* ----------------------------------- */
-    --red-lighter: 247 212 214; /* #f7d4d6 */
-    --red-default: 238 0 0; /* #e00 */
-    --red-dark: 197 0 0; /* #c50000 */
+    --red-lighter: 227 227 227; /* #e3e3e3 */
+    --red-default: 17 17 17; /* #111111 */
+    --red-dark: 0 0 0; /* #000000 */
 
     /* ----------------------------------- */
     /* orange/warning colors */
     /* ----------------------------------- */
-    --orange-lighter: 255 239 207; /* #ffefcf */
-    --orange-default: 245 166 35; /* #f5a623 */
-    --orange-dark: 171 87 10; /* #ab570a */
+    --orange-lighter: 227 227 227; /* #e3e3e3 */
+    --orange-default: 17 17 17; /* #111111 */
+    --orange-dark: 0 0 0; /* #000000 */
 
     /* ----------------------------------- */
     /* blue/info colors */
     /* ----------------------------------- */
-    --blue-lighter: 211 229 255; /* #d3e5ff */
-    --blue-default: 0 112 243; /* #0070f3 */
-    --blue-dark: 7 97 209; /* #0761d1 */
+    --blue-lighter: 227 227 227; /* #e3e3e3 */
+    --blue-default: 17 17 17; /* #111111 */
+    --blue-dark: 0 0 0; /* #000000 */
 
     /* ----------------------------------- */
     /* green/success colors */
     /* ----------------------------------- */
-    --green-lighter: 185 249 207; /* #b9f9cf */
-    --green-default: 17 168 73; /* #11a849 */
-    --green-dark: 17 132 60; /* #11843c */
+    --green-lighter: 227 227 227; /* #e3e3e3 */
+    --green-default: 17 17 17; /* #111111 */
+    --green-dark: 0 0 0; /* #000000 */
 
     --upl-bg: rgb(var(--background));
     --upl-surface: rgb(var(--gray-0));
@@ -146,32 +146,38 @@
     /* ----------------------------------- */
     /* secondary colors */
     /* ----------------------------------- */
-    --secondary-lighter: 31 22 90; /* #1f165a */
-    --secondary-dark: 193 203 255; /* #c1cbff */
+    --secondary-lighter: 34 34 34; /* #222222 */
+    --secondary-default: 241 241 241; /* #f1f1f1 */
+    --secondary-dark: 223 223 223; /* #dfdfdf */
+    --secondary-foreground: 0 0 0; /* #000000 */
 
     /* ----------------------------------- */
     /* red/error colors */
     /* ----------------------------------- */
-    --red-lighter: 80 0 0; /* #500000 */
-    --red-dark: 255 193 193; /* #ffc1c1 */
+    --red-lighter: 34 34 34; /* #222222 */
+    --red-default: 241 241 241; /* #f1f1f1 */
+    --red-dark: 223 223 223; /* #dfdfdf */
 
     /* ----------------------------------- */
     /* orange/warning colors */
     /* ----------------------------------- */
-    --orange-lighter: 68 29 4; /* #441d04 */
-    --orange-dark: 252 234 139; /* #fcea8b */
+    --orange-lighter: 34 34 34; /* #222222 */
+    --orange-default: 241 241 241; /* #f1f1f1 */
+    --orange-dark: 223 223 223; /* #dfdfdf */
 
     /* ----------------------------------- */
     /* blue/info colors */
     /* ----------------------------------- */
-    --blue-lighter: 13 51 94; /* #0d335e */
-    --blue-dark: 181 233 255; /* #b5e9ff */
+    --blue-lighter: 34 34 34; /* #222222 */
+    --blue-default: 241 241 241; /* #f1f1f1 */
+    --blue-dark: 223 223 223; /* #dfdfdf */
 
     /* ----------------------------------- */
     /* green/success colors */
     /* ----------------------------------- */
-    --green-lighter: 3 48 22; /* #033016 */
-    --green-dark: 185 249 207; /* #b9f9cf */
+    --green-lighter: 34 34 34; /* #222222 */
+    --green-default: 241 241 241; /* #f1f1f1 */
+    --green-dark: 223 223 223; /* #dfdfdf */
 
     /* here you can customize other colors for dark theme if design required */
   }
