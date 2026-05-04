@@ -41,7 +41,10 @@ async function downloadLineMessageContent(messageId: string) {
   const res = await fetch(`https://api-data.line.me/v2/bot/message/${encodeURIComponent(messageId)}/content`, {
     headers: { authorization: `Bearer ${accessToken}` },
   });
-  if (!res.ok) throw new Error(`line_content_${res.status}`);
+  if (!res.ok) {
+    const errText = await res.text().catch(() => "");
+    throw new Error(`line_content_${res.status}${errText ? `:${errText.slice(0, 180)}` : ""}`);
+  }
   const mimeType = res.headers.get("content-type") || "application/octet-stream";
   const bytes = new Uint8Array(await res.arrayBuffer());
   return { mimeType, bytes };
@@ -173,6 +176,12 @@ export async function POST(req: Request) {
       const messageType = String(ev?.message?.type ?? "");
 
       if (messageType !== "text") {
+        const supported = new Set(["file", "image", "video", "audio"]);
+        if (!supported.has(messageType)) {
+          await replyText({ replyToken, text: "ตอนนี้รองรับเฉพาะไฟล์/รูป/วิดีโอ/เสียง" });
+          return;
+        }
+
         const profRes = await admin
           .from("profiles")
           .select("id,is_active")
@@ -242,9 +251,11 @@ export async function POST(req: Request) {
           const fileName = suggestedName || `line-${messageId}.${ext}`;
           const uploaded = await uploadFileToDrive({ accessToken, fileName, mimeType, bytes, folderId });
 
-          await replyText({ replyToken, text: `อัปโหลดไป Google Drive แล้ว: ${uploaded.name ?? fileName}` });
-        } catch {
-          await replyText({ replyToken, text: "อัปโหลดไป Google Drive ไม่สำเร็จ" });
+          const link = uploaded.webViewLink ? `\n${uploaded.webViewLink}` : "";
+          await replyText({ replyToken, text: `อัปโหลดไป Google Drive แล้ว: ${uploaded.name ?? fileName}${link}` });
+        } catch (e: any) {
+          const msg = String(e?.message ?? "unknown_error").slice(0, 160);
+          await replyText({ replyToken, text: `อัปโหลดไป Google Drive ไม่สำเร็จ (${msg})` });
         }
         return;
       }

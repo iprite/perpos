@@ -139,7 +139,12 @@ export async function uploadFileToDrive(params: {
     `Content-Type: ${params.mimeType}\r\n\r\n`;
   const closing = `\r\n--${boundary}--\r\n`;
 
-  const body = new Blob([metaPart, fileHeader, params.bytes, closing]);
+  const body = Buffer.concat([
+    Buffer.from(metaPart, "utf8"),
+    Buffer.from(fileHeader, "utf8"),
+    Buffer.from(params.bytes),
+    Buffer.from(closing, "utf8"),
+  ]);
 
   const url = `https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=${encodeURIComponent(
     "id,name,webViewLink"
@@ -149,6 +154,7 @@ export async function uploadFileToDrive(params: {
     headers: {
       authorization: `Bearer ${params.accessToken}`,
       "content-type": `multipart/related; boundary=${boundary}`,
+      "content-length": String(body.length),
     },
     body,
   });
@@ -176,4 +182,3 @@ export async function getDriveAccessTokenForRow(
   });
   return refreshed.access_token;
 }
-
