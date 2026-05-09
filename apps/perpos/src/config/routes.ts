@@ -102,6 +102,22 @@ export const routes = {
     billingNotes:  "/sales/billing-notes",
     newBillingNote:"/sales/billing-notes/new",
   },
+  finance: {
+    pettyCashAccounts:  "/finance/petty-cash-accounts",
+    bankAccounts:       "/finance/bank-accounts",
+    paymentChannels:    "/finance/payment-channels",
+    reserveAccounts:    "/finance/reserve-accounts",
+    checkDeposits:      "/finance/check-deposits",
+    checkPayments:      "/finance/check-payments",
+    ledger:             "/finance/ledger",
+    balanceSheet:       "/finance/balance-sheet",
+    // existing pages (linked in menu)
+    journal:            "/journal",
+    accounts:           "/accounts",
+    bankReconciliation: "/bank/reconciliation",
+    financialReports:   "/financial-reports",
+    taxAndClosing:      "/tax-and-closing",
+  },
   purchase: {
     orders:              "/purchase/orders",
     newOrder:            "/purchase/orders/new",

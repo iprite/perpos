@@ -10,6 +10,7 @@ import {
   ShoppingCart,
   BarChart3,
   ShieldCheck,
+  Wallet,
 } from "lucide-react";
 
 import type { Role } from "@/lib/supabase/types";
@@ -106,6 +107,27 @@ function buildUserMenuItems(): MenuItem[] {
         { name: "แดชบอร์ดผู้บริหาร", href: "/executive-dashboard", roles: allRoles },
         { name: "รายงานการเงิน", href: "/financial-reports", roles: allRoles },
         { name: "ภาษี & ปิดงบ", href: "/tax-and-closing", roles: allRoles },
+      ],
+    },
+    {
+      name: "ข้อมูลการเงิน-บัญชี",
+      href: "/finance/bank-accounts",
+      icon: <Wallet className="h-5 w-5" />,
+      roles: allRoles,
+      dropdownItems: [
+        { name: "เงินสดย่อย",        href: "/finance/petty-cash-accounts", roles: allRoles },
+        { name: "บัญชีธนาคาร",       href: "/finance/bank-accounts",       roles: allRoles },
+        { name: "ช่องทางรับเงิน",    href: "/finance/payment-channels",    roles: allRoles },
+        { name: "บัญชีสำรอง",        href: "/finance/reserve-accounts",    roles: allRoles },
+        { name: "เช็ครับ",           href: "/finance/check-deposits",      roles: allRoles },
+        { name: "เช็คจ่าย",          href: "/finance/check-payments",      roles: allRoles },
+        { name: "สมุดรายวัน",        href: "/journal",                     roles: allRoles },
+        { name: "ผังบัญชี",          href: "/accounts",                    roles: allRoles },
+        { name: "บัญชีแยกประเภท",    href: "/finance/ledger",              roles: allRoles },
+        { name: "งบดุล",             href: "/finance/balance-sheet",       roles: allRoles },
+        { name: "กระทบยอดธนาคาร",    href: "/bank/reconciliation",         roles: allRoles },
+        { name: "รายงานการเงิน",     href: "/financial-reports",           roles: allRoles },
+        { name: "ภาษี & ปิดงบ",      href: "/tax-and-closing",             roles: allRoles },
       ],
     },
     {
