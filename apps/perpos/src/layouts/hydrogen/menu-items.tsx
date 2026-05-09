@@ -7,6 +7,7 @@ import {
   Users,
   BookOpenText,
   ReceiptText,
+  ShoppingCart,
   BarChart3,
   ShieldCheck,
 } from "lucide-react";
@@ -77,6 +78,23 @@ function buildUserMenuItems(): MenuItem[] {
         { name: "ใบลดหนี้",         href: "/sales/credit-notes",  roles: allRoles },
         { name: "ใบเพิ่มหนี้",      href: "/sales/debit-notes",   roles: allRoles },
         { name: "ใบวางบิล",         href: "/sales/billing-notes", roles: allRoles },
+      ],
+    },
+    {
+      name: "ซื้อ",
+      href: "/purchase/orders",
+      icon: <ShoppingCart className="h-5 w-5" />,
+      roles: allRoles,
+      dropdownItems: [
+        { name: "ใบสั่งซื้อ",                            href: "/purchase/orders",                 roles: allRoles },
+        { name: "ใบจ่ายมัดจำ",                           href: "/purchase/deposits",               roles: allRoles },
+        { name: "บันทึกซื้อสินค้า",                       href: "/purchase/goods-receipts",         roles: allRoles },
+        { name: "บันทึกค่าใช้จ่าย และการจ่ายเงิน",       href: "/purchase/expenses",               roles: allRoles },
+        { name: "บันทึกรายจ่ายที่มีภาษีหัก ณ ที่จ่าย",  href: "/purchase/wht-expenses",          roles: allRoles },
+        { name: "ใบกำกับภาษีซื้อ",                        href: "/purchase/tax-invoices",          roles: allRoles },
+        { name: "ใบรวมจ่าย",                             href: "/purchase/payment-summaries",      roles: allRoles },
+        { name: "รับใบลดหนี้",                           href: "/purchase/received-credit-notes",  roles: allRoles },
+        { name: "รับใบเพิ่มหนี้",                        href: "/purchase/received-debit-notes",   roles: allRoles },
       ],
     },
     {
