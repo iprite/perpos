@@ -184,11 +184,8 @@ function buildAdminMenuItems(): MenuItem[] {
 
 function pickMenuContext(pathname: string, role: Role | null) {
   const p = pathname || "/";
-  if (p === "/me" || p.startsWith("/me/")) return "user";
-  if (p === "/settings" || p.startsWith("/settings/")) return "user";
-  if (p.startsWith("/templates")) return "user";
   if (p === "/admin" || p.startsWith("/admin/")) return role === "admin" ? "admin" : "user";
-  return role === "admin" ? "admin" : "user";
+  return "user";
 }
 
 export function getMenuItems(role: Role | null, pathname: string): MenuItem[] {
