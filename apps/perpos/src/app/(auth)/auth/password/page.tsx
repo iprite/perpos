@@ -1,12 +1,12 @@
-import { redirect } from "next/navigation";
+import { Suspense } from "react";
+import AuthPasswordClient from "./auth-password-client";
 
-export default async function AuthPasswordPage({
-  searchParams,
-}: {
-  searchParams?: Promise<Record<string, string | string[] | undefined>>;
-}) {
-  const sp = (await searchParams) ?? {};
-  const raw = sp.returnTo;
-  const v = Array.isArray(raw) ? raw[0] : raw;
-  redirect(v ? `/signin?returnTo=${encodeURIComponent(String(v))}` : "/signin");
+export default function AuthPasswordPage() {
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4">
+      <Suspense>
+        <AuthPasswordClient />
+      </Suspense>
+    </div>
+  );
 }
