@@ -75,7 +75,7 @@ CREATE POLICY sdoc_select ON public.sale_documents FOR SELECT
   USING (EXISTS (
     SELECT 1 FROM public.organization_members om
     WHERE om.organization_id = sale_documents.organization_id
-      AND om.profile_id = auth.uid()
+      AND om.user_id = auth.uid()
   ));
 
 DROP POLICY IF EXISTS sdoc_insert ON public.sale_documents;
@@ -83,7 +83,7 @@ CREATE POLICY sdoc_insert ON public.sale_documents FOR INSERT
   WITH CHECK (EXISTS (
     SELECT 1 FROM public.organization_members om
     WHERE om.organization_id = sale_documents.organization_id
-      AND om.profile_id = auth.uid()
+      AND om.user_id = auth.uid()
       AND om.role IN ('owner','admin')
   ));
 
@@ -92,7 +92,7 @@ CREATE POLICY sdoc_update ON public.sale_documents FOR UPDATE
   USING (EXISTS (
     SELECT 1 FROM public.organization_members om
     WHERE om.organization_id = sale_documents.organization_id
-      AND om.profile_id = auth.uid()
+      AND om.user_id = auth.uid()
       AND om.role IN ('owner','admin')
   ));
 
@@ -103,7 +103,7 @@ CREATE POLICY sdoc_delete ON public.sale_documents FOR DELETE
     AND EXISTS (
       SELECT 1 FROM public.organization_members om
       WHERE om.organization_id = sale_documents.organization_id
-        AND om.profile_id = auth.uid()
+        AND om.user_id = auth.uid()
         AND om.role IN ('owner','admin')
     )
   );
@@ -114,7 +114,7 @@ CREATE POLICY sdoc_items_select ON public.sale_document_items FOR SELECT
   USING (EXISTS (
     SELECT 1 FROM public.organization_members om
     WHERE om.organization_id = sale_document_items.organization_id
-      AND om.profile_id = auth.uid()
+      AND om.user_id = auth.uid()
   ));
 
 DROP POLICY IF EXISTS sdoc_items_insert ON public.sale_document_items;
@@ -122,7 +122,7 @@ CREATE POLICY sdoc_items_insert ON public.sale_document_items FOR INSERT
   WITH CHECK (EXISTS (
     SELECT 1 FROM public.organization_members om
     WHERE om.organization_id = sale_document_items.organization_id
-      AND om.profile_id = auth.uid()
+      AND om.user_id = auth.uid()
       AND om.role IN ('owner','admin')
   ));
 
@@ -131,7 +131,7 @@ CREATE POLICY sdoc_items_delete ON public.sale_document_items FOR DELETE
   USING (EXISTS (
     SELECT 1 FROM public.organization_members om
     WHERE om.organization_id = sale_document_items.organization_id
-      AND om.profile_id = auth.uid()
+      AND om.user_id = auth.uid()
       AND om.role IN ('owner','admin')
   ));
 
@@ -181,7 +181,7 @@ BEGIN
   -- membership + role
   SELECT role INTO v_role
   FROM public.organization_members
-  WHERE organization_id = p_organization_id AND profile_id = v_uid;
+  WHERE organization_id = p_organization_id AND user_id = v_uid;
 
   IF v_role IS NULL THEN RAISE EXCEPTION 'not_member'; END IF;
   IF v_role NOT IN ('owner','admin') THEN RAISE EXCEPTION 'permission_denied'; END IF;
@@ -323,7 +323,7 @@ BEGIN
 
   SELECT role INTO v_role
   FROM public.organization_members
-  WHERE organization_id = p_organization_id AND profile_id = v_uid;
+  WHERE organization_id = p_organization_id AND user_id = v_uid;
 
   IF v_role NOT IN ('owner','admin') THEN RAISE EXCEPTION 'permission_denied'; END IF;
 
