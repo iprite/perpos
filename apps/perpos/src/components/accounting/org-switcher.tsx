@@ -1,13 +1,13 @@
 "use client";
 
-import React, { useMemo, useState, useTransition } from "react";
-import { Building2, Plus } from "lucide-react";
+import React, { useMemo, useState, useRef, useEffect, useTransition } from "react";
+import { Building2, Check, ChevronsUpDown, Plus, Search } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 import { createOrganizationAction, setActiveOrganizationAction } from "@/lib/accounting/actions";
 import type { OrganizationSummary } from "@/lib/accounting/queries";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
@@ -16,66 +16,124 @@ type OrgSwitcherProps = {
   activeOrganizationId: string | null;
 };
 
+const ROLE_LABEL: Record<string, string> = {
+  owner: "OWNER",
+  admin: "ADMIN",
+  user:  "USER",
+};
+
 export function OrgSwitcher({ organizations, activeOrganizationId }: OrgSwitcherProps) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
   const [newOrgName, setNewOrgName] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const [createError, setCreateError] = useState<string | null>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const canChoose = organizations.length > 0;
   const selected = activeOrganizationId ?? (organizations[0]?.id ?? "");
+  const selectedOrg = useMemo(() => organizations.find((o) => o.id === selected), [organizations, selected]);
 
-  const selectedRole = useMemo(() => {
-    const org = organizations.find((o) => o.id === selected);
-    return org?.role ?? null;
-  }, [organizations, selected]);
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return organizations;
+    return organizations.filter((o) => o.name.toLowerCase().includes(q));
+  }, [organizations, search]);
+
+  // Close on outside click
+  useEffect(() => {
+    function handle(e: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setOpen(false);
+        setSearch("");
+      }
+    }
+    if (open) document.addEventListener("mousedown", handle);
+    return () => document.removeEventListener("mousedown", handle);
+  }, [open]);
+
+  function switchOrg(id: string) {
+    if (id === selected) { setOpen(false); setSearch(""); return; }
+    startTransition(async () => {
+      const res = await setActiveOrganizationAction(id);
+      if (res.ok) { setOpen(false); setSearch(""); router.refresh(); }
+    });
+  }
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <div className="flex items-center gap-2">
+    <div className="relative" ref={dropdownRef}>
+      {/* Trigger */}
+      <button
+        type="button"
+        onClick={() => { setOpen((v) => !v); setSearch(""); }}
+        disabled={pending}
+        className="inline-flex h-9 items-center gap-2 rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-800 hover:bg-slate-50 focus:outline-none disabled:opacity-60"
+      >
         <Building2 className="h-4 w-4 shrink-0 text-slate-500" />
-        <select
-          className="bg-transparent text-sm font-medium text-slate-800 focus:outline-none disabled:opacity-60 cursor-pointer"
-          disabled={!canChoose || pending}
-          value={selected}
-          onChange={(e) => {
-            const nextId = e.target.value;
-            setError(null);
-            startTransition(async () => {
-              const res = await setActiveOrganizationAction(nextId);
-              if (!res.ok) {
-                setError(res.error ?? "เปลี่ยนองค์กรไม่สำเร็จ");
-                return;
-              }
-              router.refresh();
-            });
-          }}
-        >
-          {organizations.map((o) => (
-            <option key={o.id} value={o.id}>
-              {o.name}
-            </option>
-          ))}
-        </select>
-
-        {selectedRole ? (
-          <div className="rounded-full bg-slate-100 px-2 py-1 text-xs text-slate-500">{selectedRole}</div>
+        <span className="max-w-[160px] truncate font-medium">{selectedOrg?.name ?? "เลือกองค์กร"}</span>
+        {selectedOrg?.role ? (
+          <span className="rounded border border-slate-200 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+            {ROLE_LABEL[selectedOrg.role] ?? selectedOrg.role}
+          </span>
         ) : null}
-      </div>
+        <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+      </button>
 
+      {/* Dropdown panel */}
+      {open && (
+        <div className="absolute left-0 top-full z-50 mt-1.5 w-72 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg">
+          {/* Search */}
+          <div className="flex items-center gap-2 border-b border-slate-100 px-3 py-2.5">
+            <Search className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+            <input
+              autoFocus
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Find organization..."
+              className="w-full bg-transparent text-sm text-slate-700 placeholder-slate-400 focus:outline-none"
+            />
+          </div>
+
+          {/* Org list */}
+          <div className="max-h-60 overflow-y-auto py-1">
+            {filtered.length === 0 && (
+              <div className="px-4 py-3 text-sm text-slate-400">ไม่พบองค์กร</div>
+            )}
+            {filtered.map((org) => (
+              <button
+                key={org.id}
+                type="button"
+                onClick={() => switchOrg(org.id)}
+                disabled={pending}
+                className="flex w-full items-center justify-between px-4 py-2.5 text-left text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+              >
+                <span className="truncate">{org.name}</span>
+                {org.id === selected && <Check className="h-4 w-4 shrink-0 text-slate-600" />}
+              </button>
+            ))}
+          </div>
+
+          {/* New org */}
+          <div className="border-t border-slate-100">
+            <button
+              type="button"
+              onClick={() => { setOpen(false); setSearch(""); setCreateOpen(true); }}
+              className="flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-sm text-slate-600 hover:bg-slate-50"
+            >
+              <Plus className="h-4 w-4 shrink-0 text-slate-400" />
+              New organization
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Create dialog */}
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogTrigger asChild>
-          <Button variant="outline" className="gap-2" disabled={pending}>
-            <Plus className="h-4 w-4" />
-            สร้างองค์กร
-          </Button>
-        </DialogTrigger>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>สร้างองค์กรใหม่</DialogTitle>
           </DialogHeader>
-
           <div className="grid gap-2">
             <Label htmlFor="org-name">ชื่อองค์กร</Label>
             <Input
@@ -84,17 +142,13 @@ export function OrgSwitcher({ organizations, activeOrganizationId }: OrgSwitcher
               onChange={(e) => setNewOrgName(e.target.value)}
               placeholder="เช่น บริษัท เอ บี ซี จำกัด"
             />
-            {error ? <div className="text-sm text-red-600">{error}</div> : null}
+            {createError ? <div className="text-sm text-red-600">{createError}</div> : null}
           </div>
-
           <DialogFooter>
             <Button
               variant="secondary"
               type="button"
-              onClick={() => {
-                setCreateOpen(false);
-                setError(null);
-              }}
+              onClick={() => { setCreateOpen(false); setCreateError(null); }}
             >
               ยกเลิก
             </Button>
@@ -103,13 +157,10 @@ export function OrgSwitcher({ organizations, activeOrganizationId }: OrgSwitcher
               disabled={pending || !newOrgName.trim()}
               onClick={() => {
                 const name = newOrgName;
-                setError(null);
+                setCreateError(null);
                 startTransition(async () => {
                   const res = await createOrganizationAction(name);
-                  if (!res.ok) {
-                    setError(res.error ?? "สร้างองค์กรไม่สำเร็จ");
-                    return;
-                  }
+                  if (!res.ok) { setCreateError(res.error ?? "สร้างองค์กรไม่สำเร็จ"); return; }
                   setCreateOpen(false);
                   setNewOrgName("");
                   router.refresh();
