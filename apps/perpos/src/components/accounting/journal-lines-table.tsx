@@ -60,7 +60,7 @@ export function JournalLinesTable(props: {
                   <div className="col-span-12 md:col-span-4">
                     <select
                       className={cn(
-                        "h-9 w-full rounded-md border bg-white px-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2",
+                        "h-9 w-full rounded-md border bg-white px-2 text-sm text-slate-900 focus:outline-none",
                         (form.formState.errors.lines?.[idx] as any)?.accountId?.message ? "border-red-300" : "border-slate-200",
                       )}
                       disabled={!props.canCreate || props.pending}
@@ -80,7 +80,7 @@ export function JournalLinesTable(props: {
 
                   <div className="col-span-12 md:col-span-2">
                     <select
-                      className="h-9 w-full rounded-md border border-slate-200 bg-white px-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                      className="h-9 w-full rounded-md border border-slate-200 bg-white px-2 text-sm text-slate-900 focus:outline-none"
                       disabled={!props.canCreate || props.pending}
                       {...form.register(`lines.${idx}.contactId`)}
                     >

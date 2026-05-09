@@ -64,7 +64,7 @@ export function CheckTransactionForm({ organizationId, txnType, contacts, financ
     });
   }
 
-  const inputCls = "w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500";
+  const inputCls = "w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:outline-none";
   const labelCls = "block text-sm font-medium text-slate-700 mb-1";
 
   const bankAccounts = financeAccounts.filter((a) => a.category === "bank");

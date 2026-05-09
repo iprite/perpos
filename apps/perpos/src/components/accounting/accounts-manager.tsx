@@ -136,7 +136,7 @@ export function AccountsManager(props: {
                 <div className="grid gap-2">
                   <Label>ประเภทบัญชี</Label>
                   <select
-                    className="h-9 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                    className="h-9 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-900 focus:outline-none"
                     value={draft.type}
                     onChange={(e) => {
                       const t = e.target.value as AccountType;
@@ -154,7 +154,7 @@ export function AccountsManager(props: {
                 <div className="grid gap-2">
                   <Label>Normal balance</Label>
                   <select
-                    className="h-9 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                    className="h-9 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-900 focus:outline-none"
                     value={draft.normalBalance}
                     onChange={(e) => setDraft((s) => ({ ...s, normalBalance: e.target.value as NormalBalance }))}
                   >
@@ -167,7 +167,7 @@ export function AccountsManager(props: {
               <div className="grid gap-2">
                 <Label>บัญชีแม่ (ถ้ามี)</Label>
                 <select
-                  className="h-9 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                  className="h-9 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-900 focus:outline-none"
                   value={draft.parentAccountId ?? ""}
                   onChange={(e) => setDraft((s) => ({ ...s, parentAccountId: e.target.value || null }))}
                 >

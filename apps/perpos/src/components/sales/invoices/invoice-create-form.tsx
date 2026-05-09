@@ -111,7 +111,7 @@ export function InvoiceCreateForm(props: {
               <Label>ลูกค้า</Label>
               <select
                 className={cn(
-                  "h-9 w-full rounded-md border bg-white px-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2",
+                  "h-9 w-full rounded-md border bg-white px-3 text-sm text-slate-900 focus:outline-none",
                   form.formState.errors.contactId?.message ? "border-red-300" : "border-slate-200",
                 )}
                 disabled={disabled}

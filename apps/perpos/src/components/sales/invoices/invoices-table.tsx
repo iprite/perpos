@@ -78,7 +78,7 @@ export function InvoicesTable(props: {
             />
           </div>
           <select
-            className="h-9 rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+            className="h-9 rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-900 focus:outline-none"
             value={status}
             onChange={(e) => setStatus(e.target.value as any)}
           >

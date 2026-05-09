@@ -49,7 +49,7 @@ export function CheckTransactionsTable({ rows, organizationId }: Props) {
   }
 
   if (rows.length === 0) {
-    return <div className="rounded-lg border border-dashed border-slate-300 py-12 text-center text-sm text-slate-500">ยังไม่มีรายการ</div>;
+    return <div className="rounded-lg border border-dashed border-slate-200 py-12 text-center text-sm text-slate-500">ยังไม่มีรายการ</div>;
   }
 
   return (
@@ -58,7 +58,7 @@ export function CheckTransactionsTable({ rows, organizationId }: Props) {
         value={search}
         onChange={(e) => setSearch(e.target.value)}
         placeholder="ค้นหาเช็ค..."
-        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 sm:max-w-xs"
+        className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:outline-none sm:max-w-xs"
       />
       <div className="overflow-x-auto rounded-lg border border-slate-200">
         <table className="min-w-full text-sm">

@@ -114,7 +114,7 @@ export function PurchaseDocCreateForm(props: {
               <Label>ผู้จำหน่าย / คู่ค้า</Label>
               <select
                 className={cn(
-                  "h-9 w-full rounded-md border bg-white px-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2",
+                  "h-9 w-full rounded-md border bg-white px-3 text-sm text-slate-900 focus:outline-none",
                   form.formState.errors.contactId?.message ? "border-red-300" : "border-slate-200",
                 )}
                 disabled={disabled}
@@ -160,7 +160,7 @@ export function PurchaseDocCreateForm(props: {
               <div className="grid gap-2">
                 <Label>อ้างอิงเอกสาร</Label>
                 <select
-                  className="h-9 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                  className="h-9 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-900 focus:outline-none"
                   disabled={disabled}
                   {...form.register("refDocId")}
                 >

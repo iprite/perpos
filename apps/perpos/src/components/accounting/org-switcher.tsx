@@ -84,14 +84,15 @@ export function OrgSwitcher({ organizations, activeOrganizationId }: OrgSwitcher
       {open && (
         <div className="absolute left-0 top-full z-50 mt-1.5 w-72 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg">
           {/* Search */}
-          <div className="flex items-center gap-2 border-b border-slate-100 px-3 py-2.5">
+          <div className="flex items-center gap-2 border-b border-slate-100 px-4 py-1.5">
             <Search className="h-3.5 w-3.5 shrink-0 text-slate-400" />
             <input
               autoFocus
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Find organization..."
-              className="w-full bg-transparent text-sm text-slate-700 placeholder-slate-400 focus:outline-none"
+              className="w-full border-0 bg-transparent text-sm text-slate-700 placeholder-slate-400 outline-none ring-0 focus:outline-none focus-visible:outline-none focus:ring-0"
+              style={{ outline: "none", border: "none" }}
             />
           </div>
 

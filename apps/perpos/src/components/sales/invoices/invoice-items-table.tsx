@@ -58,7 +58,7 @@ export function InvoiceItemsTable(props: {
                 <div className="col-span-12 md:col-span-5">
                   {props.inventoryOptions?.length ? (
                     <select
-                      className="mb-2 h-9 w-full rounded-md border border-slate-200 bg-white px-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                      className="mb-2 h-9 w-full rounded-md border border-slate-200 bg-white px-2 text-sm text-slate-900 focus:outline-none"
                       disabled={props.disabled}
                       value={form.getValues(`items.${idx}.inventoryItemId`) ?? ""}
                       onChange={(e) => {
@@ -108,7 +108,7 @@ export function InvoiceItemsTable(props: {
 
                 <div className="col-span-4 md:col-span-2">
                   <select
-                    className="h-9 w-full rounded-md border border-slate-200 bg-white px-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                    className="h-9 w-full rounded-md border border-slate-200 bg-white px-2 text-sm text-slate-900 focus:outline-none"
                     disabled={props.disabled}
                     {...form.register(`items.${idx}.vatType`)}
                   >

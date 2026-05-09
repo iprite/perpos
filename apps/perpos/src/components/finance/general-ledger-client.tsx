@@ -45,7 +45,7 @@ export function GeneralLedgerClient({
           <select
             value={accountId}
             onChange={(e) => { setAccountId(e.target.value); reload(e.target.value, startDate, endDate); }}
-            className="min-w-[240px] rounded-md border border-slate-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="min-w-[240px] rounded-md border border-slate-200 px-3 py-1.5 text-sm focus:outline-none"
           >
             <option value="">เลือกบัญชี</option>
             {accounts.map((a) => (
@@ -59,7 +59,7 @@ export function GeneralLedgerClient({
             type="date"
             value={startDate}
             onChange={(e) => { setStartDate(e.target.value); reload(accountId, e.target.value, endDate); }}
-            className="rounded-md border border-slate-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="rounded-md border border-slate-200 px-3 py-1.5 text-sm focus:outline-none"
           />
         </div>
         <div className="flex items-center gap-2">
@@ -68,7 +68,7 @@ export function GeneralLedgerClient({
             type="date"
             value={endDate}
             onChange={(e) => { setEndDate(e.target.value); reload(accountId, startDate, e.target.value); }}
-            className="rounded-md border border-slate-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="rounded-md border border-slate-200 px-3 py-1.5 text-sm focus:outline-none"
           />
         </div>
         {isPending && <span className="text-sm text-slate-400">กำลังโหลด...</span>}
@@ -77,11 +77,11 @@ export function GeneralLedgerClient({
       {error && <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
 
       {!accountId && (
-        <div className="rounded-lg border border-dashed border-slate-300 py-12 text-center text-sm text-slate-500">กรุณาเลือกบัญชี</div>
+        <div className="rounded-lg border border-dashed border-slate-200 py-12 text-center text-sm text-slate-500">กรุณาเลือกบัญชี</div>
       )}
 
       {accountId && rows.length === 0 && !isPending && (
-        <div className="rounded-lg border border-dashed border-slate-300 py-12 text-center text-sm text-slate-500">ไม่มีรายการในช่วงเวลานี้</div>
+        <div className="rounded-lg border border-dashed border-slate-200 py-12 text-center text-sm text-slate-500">ไม่มีรายการในช่วงเวลานี้</div>
       )}
 
       {accountId && rows.length > 0 && (

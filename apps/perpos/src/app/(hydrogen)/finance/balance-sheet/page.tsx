@@ -33,7 +33,7 @@ export default async function BalanceSheetPage() {
             initialRows={initialRows}
           />
         ) : (
-          <div className="rounded-lg border border-dashed border-slate-300 py-12 text-center text-sm text-slate-500">กรุณาเลือกองค์กร</div>
+          <div className="rounded-lg border border-dashed border-slate-200 py-12 text-center text-sm text-slate-500">กรุณาเลือกองค์กร</div>
         )}
       </div>
     </div>

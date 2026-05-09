@@ -50,7 +50,7 @@ export function BalanceSheetClient({ organizationId, initialDate, initialRows }:
             type="date"
             value={asOfDate}
             onChange={(e) => { setAsOfDate(e.target.value); reload(e.target.value); }}
-            className="rounded-md border border-slate-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="rounded-md border border-slate-200 px-3 py-1.5 text-sm focus:outline-none"
           />
         </div>
         {isPending && <span className="text-sm text-slate-400">กำลังโหลด...</span>}
@@ -59,7 +59,7 @@ export function BalanceSheetClient({ organizationId, initialDate, initialRows }:
       {error && <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
 
       {rows.length === 0 && !isPending && (
-        <div className="rounded-lg border border-dashed border-slate-300 py-12 text-center text-sm text-slate-500">ไม่มีข้อมูล</div>
+        <div className="rounded-lg border border-dashed border-slate-200 py-12 text-center text-sm text-slate-500">ไม่มีข้อมูล</div>
       )}
 
       {sections.map((section) => {
