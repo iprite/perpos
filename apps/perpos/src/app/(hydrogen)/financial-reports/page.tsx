@@ -1,8 +1,7 @@
 import React from "react";
 
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { getActiveOrganizationId, getOrganizationsForCurrentUser } from "@/lib/accounting/queries";
-import { OrgSwitcher } from "@/components/accounting/org-switcher";
+import { getActiveOrganizationId } from "@/lib/accounting/queries";
 import { FinancialReportsClient } from "@/components/reports/financial-reports-client";
 import type { PnlRow, TrialBalanceRow } from "@/lib/reports/actions";
 
@@ -14,7 +13,6 @@ function startOfMonthISO(d: Date) {
 }
 
 export default async function FinancialReportsPage() {
-  const organizations = await getOrganizationsForCurrentUser();
   const activeOrganizationId = await getActiveOrganizationId();
   const supabase = await createSupabaseServerClient();
 
@@ -80,7 +78,6 @@ export default async function FinancialReportsPage() {
           <div className="text-xl font-semibold text-slate-900">รายงานการเงิน</div>
           <div className="mt-1 text-sm text-slate-600">Trial Balance และกำไรขาดทุน (P&L)</div>
         </div>
-        <OrgSwitcher organizations={organizations} activeOrganizationId={activeOrganizationId} />
       </div>
 
       {error ? <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div> : null}

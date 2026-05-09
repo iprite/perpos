@@ -1,15 +1,13 @@
 import React from "react";
 
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { getActiveOrganizationId, getOrganizationsForCurrentUser } from "@/lib/accounting/queries";
-import { OrgSwitcher } from "@/components/accounting/org-switcher";
+import { getActiveOrganizationId } from "@/lib/accounting/queries";
 import { AuditLogsClient } from "@/components/phase4/security/audit-logs-client";
 import type { AuditLogRow } from "@/lib/phase4/security/actions";
 
 export const dynamic = "force-dynamic";
 
 export default async function AuditLogsPage() {
-  const organizations = await getOrganizationsForCurrentUser();
   const activeOrganizationId = await getActiveOrganizationId();
   const supabase = await createSupabaseServerClient();
 
@@ -43,7 +41,6 @@ export default async function AuditLogsPage() {
           <div className="text-xl font-semibold text-slate-900">Audit Logs</div>
           <div className="mt-1 text-sm text-slate-600">ติดตามว่าใครแก้ไขอะไร และเมื่อไหร่</div>
         </div>
-        <OrgSwitcher organizations={organizations} activeOrganizationId={activeOrganizationId} />
       </div>
 
       {error ? <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div> : null}

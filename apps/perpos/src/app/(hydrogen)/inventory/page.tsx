@@ -1,15 +1,13 @@
 import React from "react";
 
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { getActiveOrganizationId, getOrganizationsForCurrentUser } from "@/lib/accounting/queries";
-import { OrgSwitcher } from "@/components/accounting/org-switcher";
+import { getActiveOrganizationId } from "@/lib/accounting/queries";
 import { InventoryClient } from "@/components/phase4/inventory/inventory-client";
 import type { InventoryItemRow } from "@/lib/phase4/inventory/actions";
 
 export const dynamic = "force-dynamic";
 
 export default async function InventoryPage() {
-  const organizations = await getOrganizationsForCurrentUser();
   const activeOrganizationId = await getActiveOrganizationId();
   const supabase = await createSupabaseServerClient();
 
@@ -44,7 +42,6 @@ export default async function InventoryPage() {
           <div className="text-xl font-semibold text-slate-900">สินค้า/สต๊อก (FIFO)</div>
           <div className="mt-1 text-sm text-slate-600">ติดตามสต๊อกและคำนวณต้นทุนแบบ FIFO</div>
         </div>
-        <OrgSwitcher organizations={organizations} activeOrganizationId={activeOrganizationId} />
       </div>
 
       {error ? <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div> : null}

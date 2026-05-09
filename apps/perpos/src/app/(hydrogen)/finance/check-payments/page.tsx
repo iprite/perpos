@@ -1,7 +1,6 @@
 import React from "react";
 
-import { getOrganizationsForCurrentUser, getActiveOrganizationId } from "@/lib/accounting/queries";
-import { OrgSwitcher } from "@/components/accounting/org-switcher";
+import { getActiveOrganizationId } from "@/lib/accounting/queries";
 import { fetchCheckTransactions, fetchFinancePageData } from "@/lib/finance/queries";
 import { CheckTransactionsTable } from "@/components/finance/check-transactions-table";
 import { CheckTransactionForm } from "@/components/finance/check-transaction-form";
@@ -9,7 +8,6 @@ import { CheckTransactionForm } from "@/components/finance/check-transaction-for
 export const dynamic = "force-dynamic";
 
 export default async function CheckPaymentsPage() {
-  const organizations        = await getOrganizationsForCurrentUser();
   const activeOrganizationId = await getActiveOrganizationId();
   const { rows, error }      = await fetchCheckTransactions("payment");
   const { contacts, financeAccounts } = await fetchFinancePageData();
@@ -21,7 +19,6 @@ export default async function CheckPaymentsPage() {
           <div className="text-xl font-semibold text-slate-900">เช็คจ่าย</div>
           <div className="mt-1 text-sm text-slate-600">รายการเช็คจ่ายขององค์กร</div>
         </div>
-        <OrgSwitcher organizations={organizations} activeOrganizationId={activeOrganizationId} />
       </div>
       {error ? <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div> : null}
       {activeOrganizationId && (

@@ -1,7 +1,6 @@
 import React from "react";
 
 import { getOrganizationsForCurrentUser } from "@/lib/accounting/queries";
-import { OrgSwitcher } from "@/components/accounting/org-switcher";
 import { PurchaseDocCreateForm } from "@/components/purchase/documents/purchase-doc-create-form";
 import { PURCHASE_DOC_TYPE_CONFIGS } from "@/components/purchase/documents/purchase-doc-type-config";
 import { fetchNewPurchaseDocPageData } from "@/lib/purchase/documents/queries";
@@ -11,7 +10,7 @@ export const dynamic = "force-dynamic";
 const config = PURCHASE_DOC_TYPE_CONFIGS.wht_expense;
 
 export default async function NewWhtExpensePage() {
-  const organizations = await getOrganizationsForCurrentUser();
+  const organizations        = await getOrganizationsForCurrentUser();
   const { activeOrganizationId, vendors, inventoryOptions, refDocOptions } = await fetchNewPurchaseDocPageData();
 
   return (
@@ -21,7 +20,6 @@ export default async function NewWhtExpensePage() {
           <div className="text-xl font-semibold text-slate-900">สร้าง{config.nameTh}</div>
           <div className="mt-1 text-sm text-slate-600">คำนวณ VAT แบบเรียลไทม์</div>
         </div>
-        <OrgSwitcher organizations={organizations} activeOrganizationId={activeOrganizationId} />
       </div>
       <div className="mt-6">
         <PurchaseDocCreateForm

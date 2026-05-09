@@ -1,7 +1,6 @@
 import React from "react";
 
-import { getOrganizationsForCurrentUser, getActiveOrganizationId } from "@/lib/accounting/queries";
-import { OrgSwitcher } from "@/components/accounting/org-switcher";
+import { getActiveOrganizationId } from "@/lib/accounting/queries";
 import { fetchFinancePageData } from "@/lib/finance/queries";
 import { GeneralLedgerClient } from "@/components/finance/general-ledger-client";
 
@@ -12,7 +11,6 @@ function startOfMonthISO(d: Date) {
 }
 
 export default async function LedgerPage() {
-  const organizations        = await getOrganizationsForCurrentUser();
   const activeOrganizationId = await getActiveOrganizationId();
   const { chartAccounts }    = await fetchFinancePageData();
 
@@ -27,7 +25,6 @@ export default async function LedgerPage() {
           <div className="text-xl font-semibold text-slate-900">บัญชีแยกประเภท</div>
           <div className="mt-1 text-sm text-slate-600">General Ledger — รายการเคลื่อนไหวแต่ละบัญชี</div>
         </div>
-        <OrgSwitcher organizations={organizations} activeOrganizationId={activeOrganizationId} />
       </div>
       <div className="mt-6">
         {activeOrganizationId ? (

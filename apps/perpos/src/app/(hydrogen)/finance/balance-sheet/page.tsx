@@ -1,14 +1,12 @@
 import React from "react";
 
-import { getOrganizationsForCurrentUser, getActiveOrganizationId } from "@/lib/accounting/queries";
-import { OrgSwitcher } from "@/components/accounting/org-switcher";
+import { getActiveOrganizationId } from "@/lib/accounting/queries";
 import { getBalanceSheetAction, type BalanceSheetRow } from "@/lib/finance/report-actions";
 import { BalanceSheetClient } from "@/components/finance/balance-sheet-client";
 
 export const dynamic = "force-dynamic";
 
 export default async function BalanceSheetPage() {
-  const organizations        = await getOrganizationsForCurrentUser();
   const activeOrganizationId = await getActiveOrganizationId();
 
   const today        = new Date().toISOString().slice(0, 10);
@@ -26,7 +24,6 @@ export default async function BalanceSheetPage() {
           <div className="text-xl font-semibold text-slate-900">งบดุล</div>
           <div className="mt-1 text-sm text-slate-600">Balance Sheet — สินทรัพย์ หนี้สิน และส่วนของผู้ถือหุ้น</div>
         </div>
-        <OrgSwitcher organizations={organizations} activeOrganizationId={activeOrganizationId} />
       </div>
       <div className="mt-6">
         {activeOrganizationId ? (

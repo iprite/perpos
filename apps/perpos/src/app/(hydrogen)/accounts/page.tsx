@@ -1,14 +1,13 @@
 import React from "react";
 
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { getActiveOrganizationId, getOrganizationsForCurrentUser } from "@/lib/accounting/queries";
-import { OrgSwitcher } from "@/components/accounting/org-switcher";
+import { getOrganizationsForCurrentUser, getActiveOrganizationId } from "@/lib/accounting/queries";
 import { AccountsManager, type AccountRow } from "@/components/accounting/accounts-manager";
 
 export const dynamic = "force-dynamic";
 
 export default async function AccountsPage() {
-  const organizations = await getOrganizationsForCurrentUser();
+  const organizations        = await getOrganizationsForCurrentUser();
   const activeOrganizationId = await getActiveOrganizationId();
 
   const supabase = await createSupabaseServerClient();
@@ -46,7 +45,6 @@ export default async function AccountsPage() {
           <div className="text-xl font-semibold text-slate-900">ผังบัญชี</div>
           <div className="mt-1 text-sm text-slate-600">จัดการรหัสบัญชีและโครงสร้างบัญชีขององค์กร</div>
         </div>
-        <OrgSwitcher organizations={organizations} activeOrganizationId={activeOrganizationId} />
       </div>
 
       {error ? <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div> : null}

@@ -1,15 +1,13 @@
 import React from "react";
 
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { getActiveOrganizationId, getOrganizationsForCurrentUser } from "@/lib/accounting/queries";
-import { OrgSwitcher } from "@/components/accounting/org-switcher";
+import { getActiveOrganizationId } from "@/lib/accounting/queries";
 import { ExecutiveDashboardClient } from "@/components/reports/executive-dashboard-client";
 import type { AgingRow, ExecKpis, ExecTrendRow, TopExpenseRow } from "@/lib/reports/actions";
 
 export const dynamic = "force-dynamic";
 
 export default async function ExecutiveDashboardPage() {
-  const organizations = await getOrganizationsForCurrentUser();
   const activeOrganizationId = await getActiveOrganizationId();
   const supabase = await createSupabaseServerClient();
 
@@ -67,7 +65,6 @@ export default async function ExecutiveDashboardPage() {
           <div className="text-xl font-semibold text-slate-900">แดชบอร์ดผู้บริหาร</div>
           <div className="mt-1 text-sm text-slate-600">สรุปภาพรวมรายได้ ค่าใช้จ่าย และลูกหนี้คงค้าง</div>
         </div>
-        <OrgSwitcher organizations={organizations} activeOrganizationId={activeOrganizationId} />
       </div>
 
       {error ? <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div> : null}

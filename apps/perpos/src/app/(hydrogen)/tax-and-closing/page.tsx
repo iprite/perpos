@@ -1,8 +1,7 @@
 import React from "react";
 
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { getActiveOrganizationId, getOrganizationsForCurrentUser } from "@/lib/accounting/queries";
-import { OrgSwitcher } from "@/components/accounting/org-switcher";
+import { getActiveOrganizationId } from "@/lib/accounting/queries";
 import { TaxAndClosingClient } from "@/components/reports/tax-and-closing-client";
 import type { OutputVatRow } from "@/lib/reports/actions";
 
@@ -14,7 +13,6 @@ function startOfMonthISO(d: Date) {
 }
 
 export default async function TaxAndClosingPage() {
-  const organizations = await getOrganizationsForCurrentUser();
   const activeOrganizationId = await getActiveOrganizationId();
   const supabase = await createSupabaseServerClient();
 
@@ -62,7 +60,6 @@ export default async function TaxAndClosingPage() {
           <div className="text-xl font-semibold text-slate-900">รายงานภาษีไทย & ปิดงบ</div>
           <div className="mt-1 text-sm text-slate-600">ภาษีขาย (Output VAT) และสรุปหัก ณ ที่จ่าย</div>
         </div>
-        <OrgSwitcher organizations={organizations} activeOrganizationId={activeOrganizationId} />
       </div>
 
       {error ? <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div> : null}

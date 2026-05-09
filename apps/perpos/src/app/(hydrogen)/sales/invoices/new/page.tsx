@@ -1,14 +1,13 @@
 import React from "react";
 
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { getActiveOrganizationId, getOrganizationsForCurrentUser } from "@/lib/accounting/queries";
-import { OrgSwitcher } from "@/components/accounting/org-switcher";
+import { getOrganizationsForCurrentUser, getActiveOrganizationId } from "@/lib/accounting/queries";
 import { InvoiceCreateForm, type CustomerOption, type InventoryOption } from "@/components/sales/invoices/invoice-create-form";
 
 export const dynamic = "force-dynamic";
 
 export default async function NewInvoicePage() {
-  const organizations = await getOrganizationsForCurrentUser();
+  const organizations        = await getOrganizationsForCurrentUser();
   const activeOrganizationId = await getActiveOrganizationId();
   const supabase = await createSupabaseServerClient();
 
@@ -42,7 +41,6 @@ export default async function NewInvoicePage() {
           <div className="text-xl font-semibold text-slate-900">สร้างใบแจ้งหนี้</div>
           <div className="mt-1 text-sm text-slate-600">คำนวณ VAT แบบเรียลไทม์ และโพสต์เข้าบัญชีอัตโนมัติ</div>
         </div>
-        <OrgSwitcher organizations={organizations} activeOrganizationId={activeOrganizationId} />
       </div>
 
       <div className="mt-6">

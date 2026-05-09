@@ -1,15 +1,13 @@
 import React from "react";
 
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { getActiveOrganizationId, getOrganizationsForCurrentUser } from "@/lib/accounting/queries";
-import { OrgSwitcher } from "@/components/accounting/org-switcher";
+import { getActiveOrganizationId } from "@/lib/accounting/queries";
 import { BankReconciliationClient } from "@/components/phase4/bank/bank-reconciliation-client";
 import type { BankImportRow } from "@/lib/phase4/bank/actions";
 
 export const dynamic = "force-dynamic";
 
 export default async function BankReconciliationPage() {
-  const organizations = await getOrganizationsForCurrentUser();
   const activeOrganizationId = await getActiveOrganizationId();
   const supabase = await createSupabaseServerClient();
 
@@ -41,7 +39,6 @@ export default async function BankReconciliationPage() {
           <div className="text-xl font-semibold text-slate-900">กระทบยอดธนาคาร</div>
           <div className="mt-1 text-sm text-slate-600">อัปโหลด statement และจับคู่กับรายการบัญชีในระบบ</div>
         </div>
-        <OrgSwitcher organizations={organizations} activeOrganizationId={activeOrganizationId} />
       </div>
 
       {error ? <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div> : null}

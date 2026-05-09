@@ -1,15 +1,18 @@
-"use client";
-
 import Link from "next/link";
 import HamburgerButton from "@/layouts/hamburger-button";
 import Sidebar from "@/layouts/hydrogen/sidebar";
 import Logo from "@core/components/logo";
 import HeaderMenuRight from "@/layouts/header-menu-right";
 import StickyHeader from "@/layouts/sticky-header";
+import { OrgSwitcher } from "@/components/accounting/org-switcher";
+import { getOrganizationsForCurrentUser, getActiveOrganizationId } from "@/lib/accounting/queries";
 
-export default function Header() {
+export default async function Header() {
+  const organizations        = await getOrganizationsForCurrentUser();
+  const activeOrganizationId = await getActiveOrganizationId();
+
   return (
-    <StickyHeader className="z-[990] 2xl:py-5 3xl:px-8  4xl:px-10">
+    <StickyHeader className="z-[990] 2xl:py-5 3xl:px-8 4xl:px-10">
       <div className="flex w-full max-w-2xl items-center">
         <HamburgerButton view={<Sidebar className="static w-full 2xl:w-full" />} />
         <Link
@@ -19,6 +22,10 @@ export default function Header() {
         >
           <Logo iconOnly={true} />
         </Link>
+      </div>
+
+      <div className="mx-4 flex-1">
+        <OrgSwitcher organizations={organizations} activeOrganizationId={activeOrganizationId} />
       </div>
 
       <HeaderMenuRight />
