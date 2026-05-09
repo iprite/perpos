@@ -62,7 +62,7 @@ export default function GoogleAuthView({ mode = "modal", returnTo, onClose }: Pr
     setError(null);
     setSubmitting(true);
     try {
-      const redirectTo = `${window.location.origin}${withBasePath("/auth/password")}`;
+      const redirectTo = `${window.location.origin}${withBasePath("/auth/callback")}?returnTo=${encodeURIComponent(withBasePath("/auth/password"))}`;
       const { error: e } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo });
       if (e) { setError(e.message); return; }
       setView("forgot_sent");
