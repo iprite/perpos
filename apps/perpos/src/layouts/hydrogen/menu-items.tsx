@@ -64,10 +64,20 @@ function buildUserMenuItems(): MenuItem[] {
     },
     {
       name: "ขาย",
-      href: "/sales/invoices",
+      href: "/sales/quotations",
       icon: <ReceiptText className="h-5 w-5" />,
       roles: allRoles,
-      dropdownItems: [{ name: "ใบแจ้งหนี้", href: "/sales/invoices", roles: allRoles }],
+      dropdownItems: [
+        { name: "ใบเสนอราคา",       href: "/sales/quotations",    roles: allRoles },
+        { name: "ใบรับมัดจำ",       href: "/sales/deposits",      roles: allRoles },
+        { name: "ใบแจ้งหนี้",       href: "/sales/invoices",      roles: allRoles },
+        { name: "ใบเสร็จรับเงิน",   href: "/sales/receipts",      roles: allRoles },
+        { name: "ใบกำกับภาษีขาย",   href: "/sales/tax-invoices",  roles: allRoles },
+        { name: "e-Tax Invoice",     href: "/sales/etax-invoices", roles: allRoles },
+        { name: "ใบลดหนี้",         href: "/sales/credit-notes",  roles: allRoles },
+        { name: "ใบเพิ่มหนี้",      href: "/sales/debit-notes",   roles: allRoles },
+        { name: "ใบวางบิล",         href: "/sales/billing-notes", roles: allRoles },
+      ],
     },
     {
       name: "รายงาน",
