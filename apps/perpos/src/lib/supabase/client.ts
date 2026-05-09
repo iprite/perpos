@@ -1,4 +1,5 @@
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { createBrowserClient } from "@supabase/ssr";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 let browserClient: SupabaseClient | null = null;
 
@@ -11,6 +12,6 @@ export function createSupabaseBrowserClient() {
       "Missing Supabase env. Create apps/perpos/.env.local with NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY (or NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY), then restart dev server.",
     );
   }
-  browserClient = createClient<any>(url, anonKey);
+  browserClient = createBrowserClient<any>(url, anonKey);
   return browserClient;
 }

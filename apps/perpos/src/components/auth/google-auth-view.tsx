@@ -32,8 +32,12 @@ export default function GoogleAuthView({ mode = "modal", returnTo, onClose }: Go
   const effectiveReturnTo = useMemo(() => returnTo ?? getCurrentPathWithQuery(), [returnTo]);
   const callbackUrl = useMemo(() => {
     if (typeof window === "undefined") return "";
-    return `${window.location.origin}${withBasePath("/auth/callback")}`;
-  }, []);
+    const base = `${window.location.origin}${withBasePath("/auth/callback")}`;
+    if (!effectiveReturnTo) return base;
+    const u = new URL(base);
+    u.searchParams.set("returnTo", effectiveReturnTo);
+    return u.toString();
+  }, [effectiveReturnTo]);
 
   useEffect(() => {
     if (authLoading || !userId) return;

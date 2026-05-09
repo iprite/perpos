@@ -5,6 +5,10 @@ import {
   Link2,
   Shield,
   Users,
+  BookOpenText,
+  ReceiptText,
+  BarChart3,
+  ShieldCheck,
 } from "lucide-react";
 
 import type { Role } from "@/lib/supabase/types";
@@ -47,6 +51,47 @@ function buildUserMenuItems(): MenuItem[] {
       href: "/me",
       icon: <LayoutDashboard className="h-5 w-5" />,
       roles: allRoles,
+    },
+    {
+      name: "บัญชี",
+      href: "/journal",
+      icon: <BookOpenText className="h-5 w-5" />,
+      roles: allRoles,
+      dropdownItems: [
+        { name: "สมุดรายวัน", href: "/journal", roles: allRoles },
+        { name: "ผังบัญชี", href: "/accounts", roles: allRoles },
+      ],
+    },
+    {
+      name: "ขาย",
+      href: "/sales/invoices",
+      icon: <ReceiptText className="h-5 w-5" />,
+      roles: allRoles,
+      dropdownItems: [{ name: "ใบแจ้งหนี้", href: "/sales/invoices", roles: allRoles }],
+    },
+    {
+      name: "รายงาน",
+      href: "/executive-dashboard",
+      icon: <BarChart3 className="h-5 w-5" />,
+      roles: allRoles,
+      dropdownItems: [
+        { name: "แดชบอร์ดผู้บริหาร", href: "/executive-dashboard", roles: allRoles },
+        { name: "รายงานการเงิน", href: "/financial-reports", roles: allRoles },
+        { name: "ภาษี & ปิดงบ", href: "/tax-and-closing", roles: allRoles },
+      ],
+    },
+    {
+      name: "ฟีเจอร์องค์กร",
+      href: "/tax/wht-documents",
+      icon: <ShieldCheck className="h-5 w-5" />,
+      roles: allRoles,
+      dropdownItems: [
+        { name: "WHT + เอกสาร", href: "/tax/wht-documents", roles: allRoles },
+        { name: "กระทบยอดธนาคาร", href: "/bank/reconciliation", roles: allRoles },
+        { name: "สินค้า/สต๊อก", href: "/inventory", roles: allRoles },
+        { name: "Audit Logs", href: "/security/audit-logs", roles: allRoles },
+        { name: "ตั้งค่าองค์กร", href: "/settings/organization", roles: allRoles },
+      ],
     },
   ];
 }
