@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import cn from "@core/utils/class-names";
 
 const MODULES = [
-  { id: "accounting", label: "Accounting", href: "/me",             match: (p: string) => !p.startsWith("/payroll") && !p.startsWith("/admin") },
+  { id: "accounting", label: "Accounting", href: "/executive-dashboard", match: (p: string) => !p.startsWith("/payroll") && !p.startsWith("/admin") },
   { id: "payroll",    label: "Payroll",    href: "/payroll/salary", match: (p: string) => p.startsWith("/payroll") },
 ];
 

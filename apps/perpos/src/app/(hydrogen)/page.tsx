@@ -16,7 +16,7 @@ export default function DashboardPage() {
       return;
     }
     if (role === "user") {
-      router.replace("/me");
+      router.replace("/executive-dashboard");
       return;
     }
     router.replace("/signin");
