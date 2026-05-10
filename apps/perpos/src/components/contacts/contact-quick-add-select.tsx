@@ -2,7 +2,7 @@
 
 import { useEffect, useLayoutEffect, useRef, useState, useTransition } from "react";
 import { createPortal } from "react-dom";
-import { Check, ChevronsUpDown, Plus } from "lucide-react";
+import { Check, ChevronsUpDown, Plus, Search } from "lucide-react";
 import { toast } from "react-hot-toast";
 
 import { Button } from "@/components/ui/button";
@@ -114,13 +114,14 @@ export function ContactQuickAddSelect({
             style={{ position: "fixed", top: rect.bottom + 4, left: rect.left, width: rect.width, zIndex: 9999 }}
             className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg"
           >
-            <div className="border-b border-slate-100 px-3 py-1.5">
+            <div className="flex items-center gap-2 border-b border-slate-100 px-3 py-1.5">
+              <Search className="h-3.5 w-3.5 shrink-0 text-slate-400" />
               <input
                 ref={searchRef}
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="ค้นหา..."
-                className="w-full bg-transparent py-1 text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none"
+                className="w-full border-0 bg-transparent py-1 text-sm text-slate-700 placeholder-slate-400 outline-none ring-0 focus:outline-none focus-visible:outline-none focus:ring-0"
               />
             </div>
             <div className="max-h-52 overflow-y-auto py-1">
