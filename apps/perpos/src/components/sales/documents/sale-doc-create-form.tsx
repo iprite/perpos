@@ -10,6 +10,7 @@ import { toast } from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import { Input }  from "@/components/ui/input";
 import { Label }  from "@/components/ui/label";
+import { CustomSelect } from "@/components/ui/custom-select";
 import { SaleDocItemsTable } from "./sale-doc-items-table";
 import { computeDocTotals, saleDocFormSchema, type SaleDocFormValues } from "./sale-doc-form-schema";
 import { createSaleDocumentAction } from "@/lib/sales/documents/actions";
@@ -112,19 +113,14 @@ export function SaleDocCreateForm(props: {
             {/* Customer */}
             <div className="grid gap-2 md:col-span-2">
               <Label>ลูกค้า</Label>
-              <select
-                className={cn(
-                  "h-9 w-full rounded-md border bg-white px-3 text-sm text-slate-900 focus:outline-none",
-                  form.formState.errors.contactId?.message ? "border-red-300" : "border-slate-200",
-                )}
+              <CustomSelect
                 disabled={disabled}
-                {...form.register("contactId")}
-              >
-                <option value="">เลือกชื่อลูกค้า</option>
-                {props.customers.map((c) => (
-                  <option key={c.id} value={c.id}>{c.label}</option>
-                ))}
-              </select>
+                hasError={!!form.formState.errors.contactId}
+                value={form.watch("contactId") ?? ""}
+                onChange={(v) => form.setValue("contactId", v, { shouldValidate: true, shouldDirty: true })}
+                placeholder="เลือกชื่อลูกค้า"
+                options={props.customers.map((c) => ({ value: c.id, label: c.label }))}
+              />
               {form.formState.errors.contactId?.message ? (
                 <div className="text-sm text-red-600">{form.formState.errors.contactId.message}</div>
               ) : null}
@@ -157,16 +153,16 @@ export function SaleDocCreateForm(props: {
             {config.canRefInvoice && props.invoiceOptions?.length ? (
               <div className="grid gap-2">
                 <Label>อ้างอิงใบแจ้งหนี้</Label>
-                <select
-                  className="h-9 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-900 focus:outline-none"
+                <CustomSelect
                   disabled={disabled}
-                  {...form.register("refInvoiceId")}
-                >
-                  <option value="">(ไม่อ้างอิง)</option>
-                  {props.invoiceOptions.map((inv) => (
-                    <option key={inv.id} value={inv.id}>{inv.label}</option>
-                  ))}
-                </select>
+                  value={form.watch("refInvoiceId") ?? ""}
+                  onChange={(v) => form.setValue("refInvoiceId", v, { shouldDirty: true })}
+                  placeholder="(ไม่อ้างอิง)"
+                  options={[
+                    { value: "", label: "(ไม่อ้างอิง)" },
+                    ...props.invoiceOptions.map((inv) => ({ value: inv.id, label: inv.label })),
+                  ]}
+                />
               </div>
             ) : null}
 

@@ -10,6 +10,7 @@ import { toast } from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import { Input }  from "@/components/ui/input";
 import { Label }  from "@/components/ui/label";
+import { CustomSelect } from "@/components/ui/custom-select";
 import { PurchaseDocItemsTable } from "./purchase-doc-items-table";
 import { computePurchaseDocTotals, purchaseDocFormSchema, type PurchaseDocFormValues } from "./purchase-doc-form-schema";
 import { createPurchaseDocumentAction } from "@/lib/purchase/documents/actions";
@@ -112,19 +113,14 @@ export function PurchaseDocCreateForm(props: {
             {/* Vendor */}
             <div className="grid gap-2 md:col-span-2">
               <Label>ผู้จำหน่าย / คู่ค้า</Label>
-              <select
-                className={cn(
-                  "h-9 w-full rounded-md border bg-white px-3 text-sm text-slate-900 focus:outline-none",
-                  form.formState.errors.contactId?.message ? "border-red-300" : "border-slate-200",
-                )}
+              <CustomSelect
                 disabled={disabled}
-                {...form.register("contactId")}
-              >
-                <option value="">เลือกผู้จำหน่าย</option>
-                {props.vendors.map((v) => (
-                  <option key={v.id} value={v.id}>{v.label}</option>
-                ))}
-              </select>
+                hasError={!!form.formState.errors.contactId}
+                value={form.watch("contactId") ?? ""}
+                onChange={(v) => form.setValue("contactId", v, { shouldValidate: true, shouldDirty: true })}
+                placeholder="เลือกผู้จำหน่าย"
+                options={props.vendors.map((v) => ({ value: v.id, label: v.label }))}
+              />
               {form.formState.errors.contactId?.message ? (
                 <div className="text-sm text-red-600">{form.formState.errors.contactId.message}</div>
               ) : null}
@@ -159,16 +155,16 @@ export function PurchaseDocCreateForm(props: {
             {config.canRefDoc && props.refDocOptions?.length ? (
               <div className="grid gap-2">
                 <Label>อ้างอิงเอกสาร</Label>
-                <select
-                  className="h-9 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-900 focus:outline-none"
+                <CustomSelect
                   disabled={disabled}
-                  {...form.register("refDocId")}
-                >
-                  <option value="">(ไม่อ้างอิง)</option>
-                  {props.refDocOptions.map((d) => (
-                    <option key={d.id} value={d.id}>{d.label}</option>
-                  ))}
-                </select>
+                  value={form.watch("refDocId") ?? ""}
+                  onChange={(v) => form.setValue("refDocId", v, { shouldDirty: true })}
+                  placeholder="(ไม่อ้างอิง)"
+                  options={[
+                    { value: "", label: "(ไม่อ้างอิง)" },
+                    ...props.refDocOptions.map((d) => ({ value: d.id, label: d.label })),
+                  ]}
+                />
               </div>
             ) : null}
 

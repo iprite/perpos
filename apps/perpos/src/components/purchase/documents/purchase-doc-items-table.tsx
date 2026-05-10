@@ -7,7 +7,14 @@ import type { UseFieldArrayReturn, UseFormReturn } from "react-hook-form";
 import cn from "@core/utils/class-names";
 import { Button } from "@/components/ui/button";
 import { Input }  from "@/components/ui/input";
+import { CustomSelect } from "@/components/ui/custom-select";
 import type { PurchaseDocFormValues } from "./purchase-doc-form-schema";
+
+const VAT_OPTIONS = [
+  { value: "exclude", label: "Exclude VAT" },
+  { value: "include", label: "Include VAT" },
+  { value: "none",    label: "No VAT" },
+];
 
 export function PurchaseDocItemsTable(props: {
   form:             UseFormReturn<PurchaseDocFormValues>;
@@ -57,23 +64,20 @@ export function PurchaseDocItemsTable(props: {
               <div className="grid grid-cols-12 gap-2">
                 <div className="col-span-12 md:col-span-5">
                   {props.inventoryOptions?.length ? (
-                    <select
-                      className="mb-2 h-9 w-full rounded-md border border-slate-200 bg-white px-2 text-sm text-slate-900 focus:outline-none"
+                    <CustomSelect
+                      className="mb-2"
                       disabled={props.disabled}
-                      value={form.getValues(`items.${idx}.inventoryItemId`) ?? ""}
-                      onChange={(e) => {
-                        const id = e.target.value || "";
+                      value={form.watch(`items.${idx}.inventoryItemId`) ?? ""}
+                      onChange={(id) => {
                         form.setValue(`items.${idx}.inventoryItemId`, id, { shouldDirty: true });
                         const opt = props.inventoryOptions?.find((x) => x.id === id);
                         if (opt) form.setValue(`items.${idx}.productName`, opt.label, { shouldDirty: true });
-                        if (!id) form.setValue(`items.${idx}.inventoryItemId`, "", { shouldDirty: true });
                       }}
-                    >
-                      <option value="">(ไม่ผูกสต๊อก) เลือกสินค้า</option>
-                      {props.inventoryOptions.map((o) => (
-                        <option key={o.id} value={o.id}>{o.label}</option>
-                      ))}
-                    </select>
+                      options={[
+                        { value: "", label: "(ไม่ผูกสต๊อก) เลือกสินค้า" },
+                        ...props.inventoryOptions.map((o) => ({ value: o.id, label: o.label })),
+                      ]}
+                    />
                   ) : null}
                   <Input
                     placeholder="เช่น ค่าวัตถุดิบ / ค่าบริการ"
@@ -105,15 +109,12 @@ export function PurchaseDocItemsTable(props: {
                 </div>
 
                 <div className="col-span-4 md:col-span-2">
-                  <select
-                    className="h-9 w-full rounded-md border border-slate-200 bg-white px-2 text-sm text-slate-900 focus:outline-none"
+                  <CustomSelect
                     disabled={props.disabled}
-                    {...form.register(`items.${idx}.vatType`)}
-                  >
-                    <option value="exclude">Exclude VAT</option>
-                    <option value="include">Include VAT</option>
-                    <option value="none">No VAT</option>
-                  </select>
+                    value={form.watch(`items.${idx}.vatType`) ?? "exclude"}
+                    onChange={(v) => form.setValue(`items.${idx}.vatType`, v as any, { shouldDirty: true })}
+                    options={VAT_OPTIONS}
+                  />
                 </div>
 
                 <div className="col-span-12 md:col-span-1 flex items-center justify-end">
