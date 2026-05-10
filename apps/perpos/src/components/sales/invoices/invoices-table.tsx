@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useMemo, useState, useTransition } from "react";
+import { CustomSelect } from "@/components/ui/custom-select";
 import { useRouter } from "next/navigation";
 import { CheckCircle2, FileDown, Search, XCircle, Layers3 } from "lucide-react";
 import { toast } from "react-hot-toast";
@@ -77,18 +78,18 @@ export function InvoicesTable(props: {
               className="pl-9 w-72"
             />
           </div>
-          <select
-            className="h-9 rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-900 focus:outline-none"
+          <CustomSelect
             value={status}
-            onChange={(e) => setStatus(e.target.value as any)}
-          >
-            <option value="all">ทุกสถานะ</option>
-            <option value="draft">Draft</option>
-            <option value="sent">Sent</option>
-            <option value="overdue">Overdue</option>
-            <option value="paid">Paid</option>
-            <option value="void">Void</option>
-          </select>
+            onChange={(v) => setStatus(v as "all" | InvoiceStatus)}
+            options={[
+              { value: "all", label: "ทุกสถานะ" },
+              { value: "draft", label: "Draft" },
+              { value: "sent", label: "Sent" },
+              { value: "overdue", label: "Overdue" },
+              { value: "paid", label: "Paid" },
+              { value: "void", label: "Void" },
+            ]}
+          />
         </div>
 
         <Button onClick={() => router.push("/sales/invoices/new")} className="gap-2">

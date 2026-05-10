@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useTransition } from "react";
+import { CustomSelect } from "@/components/ui/custom-select";
 import { getGeneralLedgerAction, type LedgerRow } from "@/lib/finance/report-actions";
 
 type AccountOption = { id: string; label: string };
@@ -42,16 +43,15 @@ export function GeneralLedgerClient({
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex items-center gap-2">
           <label className="text-sm font-medium text-slate-700">บัญชี</label>
-          <select
+          <CustomSelect
             value={accountId}
-            onChange={(e) => { setAccountId(e.target.value); reload(e.target.value, startDate, endDate); }}
-            className="min-w-[240px] rounded-md border border-slate-200 px-3 py-1.5 text-sm focus:outline-none"
-          >
-            <option value="">เลือกบัญชี</option>
-            {accounts.map((a) => (
-              <option key={a.id} value={a.id}>{a.label}</option>
-            ))}
-          </select>
+            onChange={(v) => { setAccountId(v); reload(v, startDate, endDate); }}
+            options={[
+              { value: "", label: "เลือกบัญชี" },
+              ...accounts.map((a) => ({ value: a.id, label: a.label })),
+            ]}
+            className="min-w-[240px]"
+          />
         </div>
         <div className="flex items-center gap-2">
           <label className="text-sm font-medium text-slate-700">ตั้งแต่</label>

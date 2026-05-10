@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useMemo, useState, useTransition } from "react";
+import { CustomSelect } from "@/components/ui/custom-select";
 import { useRouter } from "next/navigation";
 import { FileDown, Search, XCircle } from "lucide-react";
 import { toast } from "react-hot-toast";
@@ -68,16 +69,14 @@ export function SaleDocsTable(props: {
               className="pl-9 w-72"
             />
           </div>
-          <select
-            className="h-9 rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-900 focus:outline-none"
+          <CustomSelect
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value as any)}
-          >
-            <option value="all">ทุกสถานะ</option>
-            {config.statuses.map((s) => (
-              <option key={s} value={s}>{s}</option>
-            ))}
-          </select>
+            onChange={(v) => setStatusFilter(v as "all" | AnyDocStatus)}
+            options={[
+              { value: "all", label: "ทุกสถานะ" },
+              ...config.statuses.map((s) => ({ value: s, label: s })),
+            ]}
+          />
         </div>
 
         <Button onClick={() => router.push(`${config.path}/new`)} className="gap-2">

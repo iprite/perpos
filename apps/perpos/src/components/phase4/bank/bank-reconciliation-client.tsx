@@ -5,6 +5,7 @@ import { toast } from "react-hot-toast";
 import { CheckCircle2, RefreshCw, UploadCloud, XCircle } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { CustomSelect } from "@/components/ui/custom-select";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import cn from "@core/utils/class-names";
@@ -204,12 +205,16 @@ export function BankReconciliationClient(props: {
         <div className="mt-4 grid gap-3 md:grid-cols-5">
           <div className="grid gap-1 md:col-span-1">
             <div className="text-xs text-slate-600">ธนาคาร</div>
-            <select className="h-9 rounded-md border border-slate-200 bg-white px-3 text-sm" value={bankName} onChange={(e) => setBankName(e.target.value)}>
-              <option value="KBank">KBank</option>
-              <option value="SCB">SCB</option>
-              <option value="BBL">BBL</option>
-              <option value="Other">Other</option>
-            </select>
+            <CustomSelect
+              value={bankName}
+              onChange={setBankName}
+              options={[
+                { value: "KBank", label: "KBank" },
+                { value: "SCB", label: "SCB" },
+                { value: "BBL", label: "BBL" },
+                { value: "Other", label: "Other" },
+              ]}
+            />
           </div>
           <div className="grid gap-1 md:col-span-2">
             <div className="text-xs text-slate-600">ชื่อบัญชี</div>
@@ -279,21 +284,14 @@ export function BankReconciliationClient(props: {
         <div className="rounded-xl border border-slate-200 bg-white p-4 lg:col-span-7">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="text-sm font-semibold text-slate-900">รายการ Statement</div>
-            <select
-              className="h-9 rounded-md border border-slate-200 bg-white px-3 text-sm"
+            <CustomSelect
               value={activeImportId}
-              onChange={(e) => {
-                const id = e.target.value;
+              onChange={(id) => {
                 setActiveImportId(id);
                 if (id) loadLines(id);
               }}
-            >
-              {imports.map((im) => (
-                <option key={im.id} value={im.id}>
-                  {im.bankName} • {im.bankAccountName}
-                </option>
-              ))}
-            </select>
+              options={imports.map((im) => ({ value: im.id, label: `${im.bankName} • ${im.bankAccountName}` }))}
+            />
           </div>
 
           <div className="mt-3 max-h-[520px] overflow-auto rounded-lg border border-slate-200">
@@ -387,18 +385,14 @@ function MappingSelect(props: {
   return (
     <div className="grid gap-1">
       <div className="text-xs text-slate-600">{props.label}</div>
-      <select
-        className="h-9 rounded-md border border-slate-200 bg-white px-3 text-sm"
+      <CustomSelect
         value={props.value}
-        onChange={(e) => props.onChange(e.target.value)}
-      >
-        <option value="">{props.optional ? "(ไม่ระบุ)" : "เลือกคอลัมน์"}</option>
-        {props.headers.map((h) => (
-          <option key={h} value={h}>
-            {h}
-          </option>
-        ))}
-      </select>
+        onChange={props.onChange}
+        options={[
+          { value: "", label: props.optional ? "(ไม่ระบุ)" : "เลือกคอลัมน์" },
+          ...props.headers.map((h) => ({ value: h, label: h })),
+        ]}
+      />
     </div>
   );
 }

@@ -1,0 +1,80 @@
+import React from "react";
+
+import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getActiveOrganizationId } from "@/lib/accounting/queries";
+import { RequisitionsClient } from "@/components/inventory/requisitions-client";
+import type { RequisitionRow } from "@/lib/inventory/actions";
+
+export const dynamic = "force-dynamic";
+
+export default async function RequisitionsPage() {
+  const activeOrganizationId = await getActiveOrganizationId();
+  const supabase = await createSupabaseServerClient();
+
+  let rows: RequisitionRow[] = [];
+  let inventoryItems: { id: string; name: string; uom: string }[] = [];
+  let error: string | null = null;
+
+  if (activeOrganizationId) {
+    const [reqResult, itemsResult] = await Promise.all([
+      supabase
+        .from("stock_requisitions")
+        .select("id,doc_number,doc_date,requester,department,notes,status,created_at")
+        .eq("organization_id", activeOrganizationId)
+        .order("created_at", { ascending: false })
+        .limit(500),
+      supabase
+        .from("inventory_items")
+        .select("id,name,uom")
+        .eq("organization_id", activeOrganizationId)
+        .eq("status", "active")
+        .order("name", { ascending: true })
+        .limit(500),
+    ]);
+
+    if (reqResult.error) error = reqResult.error.message;
+    rows = (reqResult.data ?? []).map((r: any) => ({
+      id: String(r.id),
+      docNumber: String(r.doc_number),
+      docDate: String(r.doc_date),
+      requester: r.requester ? String(r.requester) : null,
+      department: r.department ? String(r.department) : null,
+      notes: r.notes ? String(r.notes) : null,
+      status: String(r.status),
+      createdAt: String(r.created_at),
+    }));
+
+    inventoryItems = (itemsResult.data ?? []).map((r: any) => ({
+      id: String(r.id),
+      name: String(r.name),
+      uom: String(r.uom),
+    }));
+  }
+
+  return (
+    <div className="mx-auto w-full max-w-6xl px-4 py-6">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <div className="text-xl font-semibold text-slate-900">ใบเบิกสินค้า</div>
+          <div className="mt-1 text-sm text-slate-600">สร้างและติดตามใบเบิกสินค้า</div>
+        </div>
+      </div>
+
+      {error ? (
+        <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>
+      ) : null}
+
+      {activeOrganizationId ? (
+        <div className="mt-6">
+          <RequisitionsClient
+            organizationId={activeOrganizationId}
+            initialRows={rows}
+            inventoryItems={inventoryItems}
+          />
+        </div>
+      ) : (
+        <div className="mt-6 rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-700">กรุณาเลือกองค์กร</div>
+      )}
+    </div>
+  );
+}

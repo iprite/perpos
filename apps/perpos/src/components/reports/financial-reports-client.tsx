@@ -26,8 +26,9 @@ export function FinancialReportsClient(props: {
   initialEndDate: string;
   initialTrialBalance: TrialBalanceRow[];
   initialPnl: PnlRow[];
+  initialTab?: "trial" | "pnl";
 }) {
-  const [tab, setTab] = useState<"trial" | "pnl">("trial");
+  const [tab, setTab] = useState<"trial" | "pnl">(props.initialTab ?? "trial");
   const [startDate, setStartDate] = useState(props.initialStartDate);
   const [endDate, setEndDate] = useState(props.initialEndDate);
   const [postedOnly, setPostedOnly] = useState(true);

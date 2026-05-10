@@ -5,6 +5,7 @@ import { toast } from "react-hot-toast";
 import { Save, UploadCloud } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { CustomSelect } from "@/components/ui/custom-select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import cn from "@core/utils/class-names";
@@ -172,11 +173,15 @@ function SequenceCard(props: { title: string; seq: DocSequence; onChange: (p: Pa
           </div>
           <div className="grid gap-2">
             <Label>Reset</Label>
-            <select className="h-9 rounded-md border border-slate-200 bg-white px-3 text-sm" value={props.seq.resetPolicy} onChange={(e) => props.onChange({ resetPolicy: e.target.value as any })}>
-              <option value="never">Never</option>
-              <option value="yearly">Yearly</option>
-              <option value="monthly">Monthly</option>
-            </select>
+            <CustomSelect
+              value={props.seq.resetPolicy}
+              onChange={(v) => props.onChange({ resetPolicy: v as any })}
+              options={[
+                { value: "never",   label: "Never" },
+                { value: "yearly",  label: "Yearly" },
+                { value: "monthly", label: "Monthly" },
+              ]}
+            />
           </div>
         </div>
         <div className="text-xs text-slate-600">ตัวอย่าง: {previewDocNo(props.seq)}</div>

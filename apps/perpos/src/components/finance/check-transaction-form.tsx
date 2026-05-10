@@ -8,6 +8,7 @@ import { z } from "zod";
 import toast from "react-hot-toast";
 import { Button } from "rizzui";
 import { createCheckTransactionAction } from "@/lib/finance/actions";
+import { CustomSelect } from "@/components/ui/custom-select";
 
 const schema = z.object({
   checkNumber:     z.string().min(1, "กรุณาระบุเลขที่เช็ค"),
@@ -36,7 +37,7 @@ export function CheckTransactionForm({ organizationId, txnType, contacts, financ
 
   const today = new Date().toISOString().slice(0, 10);
 
-  const { register, handleSubmit, formState: { errors } } = useForm<FormValues>({
+  const { register, handleSubmit, watch, setValue, formState: { errors } } = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: { checkDate: today },
   });
@@ -104,24 +105,28 @@ export function CheckTransactionForm({ organizationId, txnType, contacts, financ
       {contacts.length > 0 && (
         <div>
           <label className={labelCls}>{txnType === "deposit" ? "ผู้ออกเช็ค" : "ผู้รับเช็ค"}</label>
-          <select {...register("contactId")} className={inputCls}>
-            <option value="">เลือก{txnType === "deposit" ? "ผู้ออกเช็ค" : "ผู้รับเช็ค"}</option>
-            {contacts.map((c) => (
-              <option key={c.id} value={c.id}>{c.label}</option>
-            ))}
-          </select>
+          <CustomSelect
+            value={watch("contactId") ?? ""}
+            onChange={(v) => setValue("contactId", v, { shouldDirty: true })}
+            options={[
+              { value: "", label: `เลือก${txnType === "deposit" ? "ผู้ออกเช็ค" : "ผู้รับเช็ค"}` },
+              ...contacts.map((c) => ({ value: c.id, label: c.label })),
+            ]}
+          />
         </div>
       )}
 
       {bankAccounts.length > 0 && (
         <div>
           <label className={labelCls}>บัญชีธนาคาร{txnType === "deposit" ? "ที่รับ" : "ที่จ่าย"}</label>
-          <select {...register("financeAccountId")} className={inputCls}>
-            <option value="">เลือกบัญชีธนาคาร</option>
-            {bankAccounts.map((a) => (
-              <option key={a.id} value={a.id}>{a.label}</option>
-            ))}
-          </select>
+          <CustomSelect
+            value={watch("financeAccountId") ?? ""}
+            onChange={(v) => setValue("financeAccountId", v, { shouldDirty: true })}
+            options={[
+              { value: "", label: "เลือกบัญชีธนาคาร" },
+              ...bankAccounts.map((a) => ({ value: a.id, label: a.label })),
+            ]}
+          />
         </div>
       )}
 

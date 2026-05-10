@@ -8,6 +8,7 @@ import { z } from "zod";
 import toast from "react-hot-toast";
 import { Button } from "rizzui";
 import { createFinanceAccountAction } from "@/lib/finance/actions";
+import { CustomSelect } from "@/components/ui/custom-select";
 
 const schema = z.object({
   name:            z.string().min(1, "กรุณาระบุชื่อบัญชี"),
@@ -57,7 +58,7 @@ export function FinanceAccountForm({ organizationId, accountCategory, chartAccou
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
-  const { register, handleSubmit, formState: { errors } } = useForm<FormValues>({
+  const { register, handleSubmit, watch, setValue, formState: { errors } } = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: { initialBalance: 0 },
   });
@@ -123,12 +124,14 @@ export function FinanceAccountForm({ organizationId, accountCategory, chartAccou
             </div>
             <div>
               <label className={labelCls}>ประเภทบัญชี</label>
-              <select {...register("bankAccountType")} className={inputCls}>
-                <option value="">เลือกประเภท</option>
-                {Object.entries(BANK_ACCOUNT_TYPE_LABELS).map(([v, l]) => (
-                  <option key={v} value={v}>{l}</option>
-                ))}
-              </select>
+              <CustomSelect
+                value={watch("bankAccountType") ?? ""}
+                onChange={(v) => setValue("bankAccountType", v as any, { shouldDirty: true })}
+                options={[
+                  { value: "", label: "เลือกประเภท" },
+                  ...Object.entries(BANK_ACCOUNT_TYPE_LABELS).map(([v, l]) => ({ value: v, label: l })),
+                ]}
+              />
             </div>
           </div>
         </>
@@ -137,12 +140,14 @@ export function FinanceAccountForm({ organizationId, accountCategory, chartAccou
       {accountCategory === "payment_channel" && (
         <div>
           <label className={labelCls}>ประเภทช่องทาง</label>
-          <select {...register("channelType")} className={inputCls}>
-            <option value="">เลือกประเภท</option>
-            {Object.entries(CHANNEL_TYPE_LABELS).map(([v, l]) => (
-              <option key={v} value={v}>{l}</option>
-            ))}
-          </select>
+          <CustomSelect
+            value={watch("channelType") ?? ""}
+            onChange={(v) => setValue("channelType", v as any, { shouldDirty: true })}
+            options={[
+              { value: "", label: "เลือกประเภท" },
+              ...Object.entries(CHANNEL_TYPE_LABELS).map(([v, l]) => ({ value: v, label: l })),
+            ]}
+          />
         </div>
       )}
 
@@ -163,12 +168,14 @@ export function FinanceAccountForm({ organizationId, accountCategory, chartAccou
       {chartAccounts.length > 0 && (
         <div>
           <label className={labelCls}>เชื่อมบัญชีผังบัญชี</label>
-          <select {...register("linkedAccountId")} className={inputCls}>
-            <option value="">ไม่เชื่อม</option>
-            {chartAccounts.map((a) => (
-              <option key={a.id} value={a.id}>{a.label}</option>
-            ))}
-          </select>
+          <CustomSelect
+            value={watch("linkedAccountId") ?? ""}
+            onChange={(v) => setValue("linkedAccountId", v, { shouldDirty: true })}
+            options={[
+              { value: "", label: "ไม่เชื่อม" },
+              ...chartAccounts.map((a) => ({ value: a.id, label: a.label })),
+            ]}
+          />
         </div>
       )}
 

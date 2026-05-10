@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import { CustomSelect } from "@/components/ui/custom-select";
 import { Plus, Trash2 } from "lucide-react";
 import type { UseFieldArrayAppend, UseFieldArrayRemove, UseFieldArrayReturn, UseFormReturn } from "react-hook-form";
 
@@ -58,39 +59,31 @@ export function JournalLinesTable(props: {
               <div key={f.id} className="px-3 py-2">
                 <div className="grid grid-cols-12 gap-2">
                   <div className="col-span-12 md:col-span-4">
-                    <select
-                      className={cn(
-                        "h-9 w-full rounded-md border bg-white px-2 text-sm text-slate-900 focus:outline-none",
-                        (form.formState.errors.lines?.[idx] as any)?.accountId?.message ? "border-red-300" : "border-slate-200",
-                      )}
+                    <CustomSelect
+                      value={form.watch(`lines.${idx}.accountId`) ?? ""}
+                      onChange={(v) => form.setValue(`lines.${idx}.accountId`, v, { shouldValidate: true, shouldDirty: true })}
+                      options={[
+                        { value: "", label: "เลือกบัญชี" },
+                        ...props.accounts.map((a) => ({ value: a.id, label: a.label })),
+                      ]}
                       disabled={!props.canCreate || props.pending}
-                      {...form.register(`lines.${idx}.accountId`)}
-                    >
-                      <option value="">เลือกบัญชี</option>
-                      {props.accounts.map((a) => (
-                        <option key={a.id} value={a.id}>
-                          {a.label}
-                        </option>
-                      ))}
-                    </select>
+                      hasError={!!(form.formState.errors.lines?.[idx] as any)?.accountId?.message}
+                    />
                     {(form.formState.errors.lines?.[idx] as any)?.accountId?.message ? (
                       <div className="mt-1 text-xs text-red-600">{(form.formState.errors.lines?.[idx] as any).accountId.message}</div>
                     ) : null}
                   </div>
 
                   <div className="col-span-12 md:col-span-2">
-                    <select
-                      className="h-9 w-full rounded-md border border-slate-200 bg-white px-2 text-sm text-slate-900 focus:outline-none"
+                    <CustomSelect
+                      value={form.watch(`lines.${idx}.contactId`) ?? ""}
+                      onChange={(v) => form.setValue(`lines.${idx}.contactId`, v, { shouldDirty: true })}
+                      options={[
+                        { value: "", label: "-" },
+                        ...props.contacts.map((c) => ({ value: c.id, label: c.label })),
+                      ]}
                       disabled={!props.canCreate || props.pending}
-                      {...form.register(`lines.${idx}.contactId`)}
-                    >
-                      <option value="">-</option>
-                      {props.contacts.map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.label}
-                        </option>
-                      ))}
-                    </select>
+                    />
                   </div>
 
                   <div className="col-span-12 md:col-span-3">

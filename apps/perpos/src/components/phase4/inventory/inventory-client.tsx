@@ -5,6 +5,7 @@ import { toast } from "react-hot-toast";
 import { Plus, RefreshCw } from "lucide-react";
 
 import cn from "@core/utils/class-names";
+import { CustomSelect } from "@/components/ui/custom-select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -245,10 +246,14 @@ export function InventoryClient(props: { organizationId: string; initialItems: I
             </div>
             <div className="grid gap-2">
               <Label>สถานะ</Label>
-              <select className="h-9 rounded-md border border-slate-200 bg-white px-3 text-sm" value={edit.status} onChange={(e) => setEdit((s) => ({ ...s, status: e.target.value as any }))}>
-                <option value="active">Active</option>
-                <option value="inactive">Inactive</option>
-              </select>
+              <CustomSelect
+                value={edit.status}
+                onChange={(v) => setEdit((s) => ({ ...s, status: v as "active" | "inactive" }))}
+                options={[
+                  { value: "active", label: "Active" },
+                  { value: "inactive", label: "Inactive" },
+                ]}
+              />
             </div>
             <div className="flex justify-end">
               <Button onClick={saveItem} disabled={pending}>บันทึก</Button>
@@ -265,22 +270,26 @@ export function InventoryClient(props: { organizationId: string; initialItems: I
           <div className="grid gap-3">
             <div className="grid gap-2">
               <Label>สินค้า</Label>
-              <select className="h-9 rounded-md border border-slate-200 bg-white px-3 text-sm" value={move.itemId} onChange={(e) => setMove((s) => ({ ...s, itemId: e.target.value }))}>
-                <option value="">เลือกสินค้า</option>
-                {items.map((it) => (
-                  <option key={it.id} value={it.id}>
-                    {it.sku} {it.name}
-                  </option>
-                ))}
-              </select>
+              <CustomSelect
+                value={move.itemId}
+                onChange={(v) => setMove((s) => ({ ...s, itemId: v }))}
+                options={[
+                  { value: "", label: "เลือกสินค้า" },
+                  ...items.map((it) => ({ value: it.id, label: `${it.sku} ${it.name}` })),
+                ]}
+              />
             </div>
             <div className="grid grid-cols-2 gap-2">
               <div className="grid gap-2">
                 <Label>ประเภท</Label>
-                <select className="h-9 rounded-md border border-slate-200 bg-white px-3 text-sm" value={move.type} onChange={(e) => setMove((s) => ({ ...s, type: e.target.value as any }))}>
-                  <option value="in">รับเข้า</option>
-                  <option value="out">จ่ายออก</option>
-                </select>
+                <CustomSelect
+                  value={move.type}
+                  onChange={(v) => setMove((s) => ({ ...s, type: v as "in" | "out" }))}
+                  options={[
+                    { value: "in", label: "รับเข้า" },
+                    { value: "out", label: "จ่ายออก" },
+                  ]}
+                />
               </div>
               <div className="grid gap-2">
                 <Label>จำนวน</Label>

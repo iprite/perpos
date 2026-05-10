@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useMemo, useState, useTransition } from "react";
+import { CustomSelect } from "@/components/ui/custom-select";
 import { Plus } from "lucide-react";
 import { useRouter } from "next/navigation";
 
@@ -135,49 +136,39 @@ export function AccountsManager(props: {
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="grid gap-2">
                   <Label>ประเภทบัญชี</Label>
-                  <select
-                    className="h-9 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-900 focus:outline-none"
+                  <CustomSelect
                     value={draft.type}
-                    onChange={(e) => {
-                      const t = e.target.value as AccountType;
+                    onChange={(v) => {
+                      const t = v as AccountType;
                       setDraft((s) => ({ ...s, type: t, normalBalance: defaultNormalBalance(t) }));
                     }}
-                  >
-                    {(Object.keys(typeLabels) as AccountType[]).map((k) => (
-                      <option key={k} value={k}>
-                        {formatType(k)}
-                      </option>
-                    ))}
-                  </select>
+                    options={(Object.keys(typeLabels) as AccountType[]).map((k) => ({ value: k, label: formatType(k) }))}
+                  />
                 </div>
 
                 <div className="grid gap-2">
                   <Label>Normal balance</Label>
-                  <select
-                    className="h-9 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-900 focus:outline-none"
+                  <CustomSelect
                     value={draft.normalBalance}
-                    onChange={(e) => setDraft((s) => ({ ...s, normalBalance: e.target.value as NormalBalance }))}
-                  >
-                    <option value="debit">Debit</option>
-                    <option value="credit">Credit</option>
-                  </select>
+                    onChange={(v) => setDraft((s) => ({ ...s, normalBalance: v as NormalBalance }))}
+                    options={[
+                      { value: "debit", label: "Debit" },
+                      { value: "credit", label: "Credit" },
+                    ]}
+                  />
                 </div>
               </div>
 
               <div className="grid gap-2">
                 <Label>บัญชีแม่ (ถ้ามี)</Label>
-                <select
-                  className="h-9 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-900 focus:outline-none"
+                <CustomSelect
                   value={draft.parentAccountId ?? ""}
-                  onChange={(e) => setDraft((s) => ({ ...s, parentAccountId: e.target.value || null }))}
-                >
-                  <option value="">ไม่มี</option>
-                  {parentOptions.map((o) => (
-                    <option key={o.id} value={o.id}>
-                      {o.label}
-                    </option>
-                  ))}
-                </select>
+                  onChange={(v) => setDraft((s) => ({ ...s, parentAccountId: v || null }))}
+                  options={[
+                    { value: "", label: "ไม่มี" },
+                    ...parentOptions.map((o) => ({ value: o.id, label: o.label })),
+                  ]}
+                />
               </div>
 
               <div className="grid gap-2">

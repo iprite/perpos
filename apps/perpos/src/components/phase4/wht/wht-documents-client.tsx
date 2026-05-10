@@ -6,6 +6,7 @@ import { Download, FilePlus2, RefreshCw } from "lucide-react";
 import { toast } from "react-hot-toast";
 
 import { Button } from "@/components/ui/button";
+import { CustomSelect } from "@/components/ui/custom-select";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -227,16 +228,16 @@ export function WhtDocumentsClient(props: {
               </div>
               <div className="grid gap-2">
                 <Label>อัตรา</Label>
-                <select
-                  className="h-9 rounded-md border border-slate-200 bg-white px-3 text-sm"
+                <CustomSelect
                   value={form.whtRate}
-                  onChange={(e) => setForm((s) => ({ ...s, whtRate: e.target.value }))}
-                >
-                  <option value="0.01">1%</option>
-                  <option value="0.03">3%</option>
-                  <option value="0.05">5%</option>
-                  <option value="0.10">10%</option>
-                </select>
+                  onChange={(v) => setForm((s) => ({ ...s, whtRate: v }))}
+                  options={[
+                    { value: "0.01", label: "1%" },
+                    { value: "0.03", label: "3%" },
+                    { value: "0.05", label: "5%" },
+                    { value: "0.10", label: "10%" },
+                  ]}
+                />
               </div>
             </div>
 

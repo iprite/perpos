@@ -6,6 +6,7 @@ import { toast } from "react-hot-toast";
 
 import cn from "@core/utils/class-names";
 import { Button } from "@/components/ui/button";
+import { CustomSelect } from "@/components/ui/custom-select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { listAuditLogsAction, type AuditLogRow } from "@/lib/phase4/security/actions";
@@ -35,11 +36,36 @@ export function AuditLogsClient(props: { organizationId: string; initialRows: Au
         <div className="flex flex-wrap items-center gap-2">
           <div className="grid gap-1">
             <div className="text-xs text-slate-600">Table</div>
-            <InputSelect value={tableName} onChange={setTableName} options={["journal_entries","journal_items","invoices","wht_certificates","bank_lines","inventory_items"]} />
+            <CustomSelect
+              value={tableName}
+              onChange={setTableName}
+              className="w-44"
+              placeholder="ทั้งหมด"
+              options={[
+                { value: "", label: "ทั้งหมด" },
+                { value: "journal_entries",  label: "journal_entries" },
+                { value: "journal_items",    label: "journal_items" },
+                { value: "invoices",         label: "invoices" },
+                { value: "wht_certificates", label: "wht_certificates" },
+                { value: "bank_lines",       label: "bank_lines" },
+                { value: "inventory_items",  label: "inventory_items" },
+              ]}
+            />
           </div>
           <div className="grid gap-1">
             <div className="text-xs text-slate-600">Action</div>
-            <InputSelect value={action} onChange={setAction} options={["INSERT","UPDATE","DELETE"]} />
+            <CustomSelect
+              value={action}
+              onChange={setAction}
+              className="w-36"
+              placeholder="ทั้งหมด"
+              options={[
+                { value: "",       label: "ทั้งหมด" },
+                { value: "INSERT", label: "INSERT" },
+                { value: "UPDATE", label: "UPDATE" },
+                { value: "DELETE", label: "DELETE" },
+              ]}
+            />
           </div>
         </div>
         <Button variant="outline" className="gap-2" onClick={refresh} disabled={pending}>
@@ -105,20 +131,5 @@ export function AuditLogsClient(props: { organizationId: string; initialRows: Au
   );
 }
 
-function InputSelect(props: { value: string; onChange: (v: string) => void; options: string[] }) {
-  return (
-    <select
-      className="h-9 rounded-md border border-slate-200 bg-white px-3 text-sm"
-      value={props.value}
-      onChange={(e) => props.onChange(e.target.value)}
-    >
-      <option value="">ทั้งหมด</option>
-      {props.options.map((o) => (
-        <option key={o} value={o}>
-          {o}
-        </option>
-      ))}
-    </select>
-  );
-}
+
 
