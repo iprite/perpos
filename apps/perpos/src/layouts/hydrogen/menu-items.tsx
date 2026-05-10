@@ -16,6 +16,8 @@ import {
   Building2,
   DollarSign,
   Landmark,
+  FileText,
+  Percent,
 } from "lucide-react";
 
 import type { Role } from "@/lib/supabase/types";
@@ -138,6 +140,30 @@ function buildUserMenuItems(): MenuItem[] {
         { name: "ทะเบียนสินทรัพย์", href: "/assets/register",          roles: allRoles },
         { name: "ซื้อสินทรัพย์",    href: "/purchase/goods-receipts",  roles: allRoles },
         { name: "ขายสินทรัพย์",     href: "/assets/disposals",         roles: allRoles },
+      ],
+    },
+    {
+      name: "ภาษีมูลค่าเพิ่ม",
+      href: "/tax/pp30",
+      icon: <Percent className="h-5 w-5" />,
+      roles: allRoles,
+      dropdownItems: [
+        { name: "รายการภาษีขาย",  href: "/tax/vat/sales",     roles: allRoles },
+        { name: "รายการภาษีซื้อ", href: "/tax/vat/purchases",  roles: allRoles },
+        { name: "แบบ ภ.พ.30",     href: "/tax/pp30",           roles: allRoles },
+      ],
+    },
+    {
+      name: "ภาษีหัก ณ ที่จ่าย",
+      href: "/tax/wht-certificates",
+      icon: <FileText className="h-5 w-5" />,
+      roles: allRoles,
+      dropdownItems: [
+        { name: "ใบหัก ณ ที่จ่าย", href: "/tax/wht-certificates", roles: allRoles },
+        { name: "แบบ ภ.ง.ด.1",     href: "/tax/pnd/1",            roles: allRoles },
+        { name: "แบบ ภ.ง.ด.2",     href: "/tax/pnd/2",            roles: allRoles },
+        { name: "แบบ ภ.ง.ด.3",     href: "/tax/pnd/3",            roles: allRoles },
+        { name: "แบบ ภ.ง.ด.53",    href: "/tax/pnd/53",           roles: allRoles },
       ],
     },
     {
