@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input }  from "@/components/ui/input";
 import { Label }  from "@/components/ui/label";
 import { CustomSelect } from "@/components/ui/custom-select";
+import { ContactQuickAddSelect } from "@/components/contacts/contact-quick-add-select";
 import { PurchaseDocItemsTable } from "./purchase-doc-items-table";
 import { computePurchaseDocTotals, purchaseDocFormSchema, type PurchaseDocFormValues } from "./purchase-doc-form-schema";
 import { createPurchaseDocumentAction } from "@/lib/purchase/documents/actions";
@@ -113,13 +114,15 @@ export function PurchaseDocCreateForm(props: {
             {/* Vendor */}
             <div className="grid gap-2 md:col-span-2">
               <Label>ผู้จำหน่าย / คู่ค้า</Label>
-              <CustomSelect
+              <ContactQuickAddSelect
                 disabled={disabled}
                 hasError={!!form.formState.errors.contactId}
                 value={form.watch("contactId") ?? ""}
                 onChange={(v) => form.setValue("contactId", v, { shouldValidate: true, shouldDirty: true })}
                 placeholder="เลือกผู้จำหน่าย"
-                options={props.vendors.map((v) => ({ value: v.id, label: v.label }))}
+                initialOptions={props.vendors.map((v) => ({ value: v.id, label: v.label }))}
+                organizationId={props.activeOrganizationId}
+                contactType="vendor"
               />
               {form.formState.errors.contactId?.message ? (
                 <div className="text-sm text-red-600">{form.formState.errors.contactId.message}</div>

@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input }  from "@/components/ui/input";
 import { Label }  from "@/components/ui/label";
 import { CustomSelect } from "@/components/ui/custom-select";
+import { ContactQuickAddSelect } from "@/components/contacts/contact-quick-add-select";
 import { SaleDocItemsTable } from "./sale-doc-items-table";
 import { computeDocTotals, saleDocFormSchema, type SaleDocFormValues } from "./sale-doc-form-schema";
 import { createSaleDocumentAction } from "@/lib/sales/documents/actions";
@@ -113,13 +114,15 @@ export function SaleDocCreateForm(props: {
             {/* Customer */}
             <div className="grid gap-2 md:col-span-2">
               <Label>ลูกค้า</Label>
-              <CustomSelect
+              <ContactQuickAddSelect
                 disabled={disabled}
                 hasError={!!form.formState.errors.contactId}
                 value={form.watch("contactId") ?? ""}
                 onChange={(v) => form.setValue("contactId", v, { shouldValidate: true, shouldDirty: true })}
                 placeholder="เลือกชื่อลูกค้า"
-                options={props.customers.map((c) => ({ value: c.id, label: c.label }))}
+                initialOptions={props.customers.map((c) => ({ value: c.id, label: c.label }))}
+                organizationId={props.activeOrganizationId}
+                contactType="customer"
               />
               {form.formState.errors.contactId?.message ? (
                 <div className="text-sm text-red-600">{form.formState.errors.contactId.message}</div>
