@@ -98,17 +98,6 @@ function buildUserMenuItems(): MenuItem[] {
       ],
     },
     {
-      name: "สินทรัพย์",
-      href: "/assets/register",
-      icon: <Landmark className="h-5 w-5" />,
-      roles: allRoles,
-      dropdownItems: [
-        { name: "ทะเบียนสินทรัพย์", href: "/assets/register",          roles: allRoles },
-        { name: "ซื้อสินทรัพย์",    href: "/purchase/goods-receipts",  roles: allRoles },
-        { name: "ขายสินทรัพย์",     href: "/assets/disposals",         roles: allRoles },
-      ],
-    },
-    {
       name: "การเงิน",
       href: "/finance/bank-accounts",
       icon: <Wallet className="h-5 w-5" />,
@@ -138,6 +127,17 @@ function buildUserMenuItems(): MenuItem[] {
         { name: "งบฐานะการเงิน",  href: "/finance/financial-position", roles: allRoles },
         { name: "งบกำไรขาดทุน",   href: "/finance/income-statement",  roles: allRoles },
         { name: "งบกระแสเงินสด",  href: "/finance/cash-flow",         roles: allRoles },
+      ],
+    },
+    {
+      name: "สินทรัพย์",
+      href: "/assets/register",
+      icon: <Landmark className="h-5 w-5" />,
+      roles: allRoles,
+      dropdownItems: [
+        { name: "ทะเบียนสินทรัพย์", href: "/assets/register",          roles: allRoles },
+        { name: "ซื้อสินทรัพย์",    href: "/purchase/goods-receipts",  roles: allRoles },
+        { name: "ขายสินทรัพย์",     href: "/assets/disposals",         roles: allRoles },
       ],
     },
     {
