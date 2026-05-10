@@ -3,6 +3,8 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getActiveOrganizationId } from "@/lib/accounting/queries";
 
+export type BranchType = "head_office" | "branch" | "unspecified";
+
 export type ContactRow = {
   id: string;
   name: string;
@@ -12,6 +14,8 @@ export type ContactRow = {
   address: string | null;
   notes: string | null;
   contactType: "customer" | "vendor" | "both" | "other";
+  branchType: BranchType;
+  branchNumber: string | null;
   isActive: boolean;
 };
 
@@ -22,7 +26,7 @@ export async function listContactsAction(params: {
   const supabase = await createSupabaseServerClient();
   let q = supabase
     .from("contacts")
-    .select("id,name,tax_id,email,phone,address,notes,contact_type,is_active")
+    .select("id,name,tax_id,email,phone,address,notes,contact_type,branch_type,branch_number,is_active")
     .eq("organization_id", params.organizationId)
     .order("name", { ascending: true })
     .limit(500);
@@ -39,15 +43,17 @@ export async function listContactsAction(params: {
   if (error) return { ok: false, error: error.message ?? "query_failed" };
 
   const rows: ContactRow[] = (data ?? []).map((r: any) => ({
-    id:          String(r.id),
-    name:        String(r.name),
-    taxId:       r.tax_id   ? String(r.tax_id)   : null,
-    email:       r.email    ? String(r.email)    : null,
-    phone:       r.phone    ? String(r.phone)    : null,
-    address:     r.address  ? String(r.address)  : null,
-    notes:       r.notes    ? String(r.notes)    : null,
-    contactType: String(r.contact_type) as ContactRow["contactType"],
-    isActive:    Boolean(r.is_active),
+    id:           String(r.id),
+    name:         String(r.name),
+    taxId:        r.tax_id        ? String(r.tax_id)        : null,
+    email:        r.email         ? String(r.email)         : null,
+    phone:        r.phone         ? String(r.phone)         : null,
+    address:      r.address       ? String(r.address)       : null,
+    notes:        r.notes         ? String(r.notes)         : null,
+    contactType:  String(r.contact_type)  as ContactRow["contactType"],
+    branchType:   (r.branch_type  ?? "unspecified")         as ContactRow["branchType"],
+    branchNumber: r.branch_number ? String(r.branch_number) : null,
+    isActive:     Boolean(r.is_active),
   }));
   return { ok: true, rows };
 }
@@ -62,9 +68,13 @@ export async function upsertContactAction(params: {
   phone?: string;
   address?: string;
   notes?: string;
+  branchType?: BranchType;
+  branchNumber?: string;
   isActive?: boolean;
 }): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
   const supabase = await createSupabaseServerClient();
+  const branchType   = params.branchType   ?? "unspecified";
+  const branchNumber = branchType === "branch" ? (params.branchNumber?.trim() || null) : null;
   const payload: any = {
     organization_id: params.organizationId,
     name:            params.name.trim(),
@@ -74,6 +84,8 @@ export async function upsertContactAction(params: {
     phone:           params.phone?.trim()   || null,
     address:         params.address?.trim() || null,
     notes:           params.notes?.trim()   || null,
+    branch_type:     branchType,
+    branch_number:   branchNumber,
     is_active:       params.isActive ?? true,
   };
   if (params.id) payload.id = params.id;
