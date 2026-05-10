@@ -91,7 +91,7 @@ function buildUserMenuItems(): MenuItem[] {
       dropdownItems: [
         { name: "ใบสั่งซื้อ",                            href: "/purchase/orders",                 roles: allRoles },
         { name: "ใบจ่ายมัดจำ",                           href: "/purchase/deposits",               roles: allRoles },
-        { name: "บันทึกค่าใช้จ่าย และการจ่ายเงิน",       href: "/purchase/expenses",               roles: allRoles },
+        { name: "บันทึกค่าใช้จ่าย",                         href: "/purchase/expenses",               roles: allRoles },
         { name: "บันทึกรายจ่ายที่มีภาษีหัก ณ ที่จ่าย",  href: "/purchase/wht-expenses",          roles: allRoles },
         { name: "ใบกำกับภาษีซื้อ",                        href: "/purchase/tax-invoices",          roles: allRoles },
         { name: "ใบรวมจ่าย",                             href: "/purchase/payment-summaries",      roles: allRoles },

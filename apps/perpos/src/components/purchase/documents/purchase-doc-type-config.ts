@@ -62,8 +62,8 @@ export const PURCHASE_DOC_TYPE_CONFIGS: Record<PurchaseDocType, PurchaseDocTypeC
   },
   expense_record: {
     docType:        "expense_record",
-    nameTh:         "บันทึกค่าใช้จ่าย และการจ่ายเงิน",
-    nameEn:         "Expense & Payment Record",
+    nameTh:         "บันทึกค่าใช้จ่าย",
+    nameEn:         "Expense Record",
     prefix:         "EXP",
     path:           "/purchase/expenses",
     canHaveDueDate: false,

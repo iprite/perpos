@@ -1,6 +1,7 @@
 import Header from "./header";
 import Sidebar from "./sidebar";
 import Link from "next/link";
+import { Breadcrumb } from "@/components/ui/breadcrumb";
 
 export default function HydrogenLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -9,6 +10,7 @@ export default function HydrogenLayout({ children }: { children: React.ReactNode
       <div className="flex w-full flex-col xl:ms-[270px] xl:w-[calc(100%-270px)] 2xl:ms-72 2xl:w-[calc(100%-288px)]">
         <Header />
         <div className="flex flex-grow flex-col px-4 pb-6 pt-2 md:px-5 lg:px-6 lg:pb-8 3xl:px-8 3xl:pt-4 4xl:px-10 4xl:pb-9">
+          <Breadcrumb />
           {children}
         </div>
         <footer className="border-t border-gray-200 bg-white/70 px-4 py-5 text-sm text-gray-600 backdrop-blur md:px-5 lg:px-6 3xl:px-8 4xl:px-10">
