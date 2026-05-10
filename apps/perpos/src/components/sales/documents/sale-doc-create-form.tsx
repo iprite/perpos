@@ -237,6 +237,14 @@ export function SaleDocCreateForm(props: {
             <FileText className="h-4 w-4" />
             ออก{config.nameTh}
           </Button>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={pending}
+            onClick={() => router.push(config.path)}
+          >
+            ยกเลิก
+          </Button>
         </div>
       </div>
     </div>

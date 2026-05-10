@@ -166,49 +166,47 @@ function getGroup(path: string): string | null {
   return null;
 }
 
+function findGroupHref(group: string, exclude: string[]): string {
+  const keys = Object.keys(GROUP_MAP).sort((a, b) => b.length - a.length);
+  const entry = Object.entries(PAGE_MAP).find(([p]) => {
+    if (exclude.includes(p)) return false;
+    const gk = keys.find(k => p === k || p.startsWith(k + "/"));
+    return gk ? GROUP_MAP[gk] === group : false;
+  });
+  return entry?.[0] ?? exclude[0] ?? "/";
+}
+
 function getCrumbs(pathname: string): Crumb[] {
   const crumbs: Crumb[] = [];
 
-  // Check dynamic detail pages first
+  // 1. Dynamic detail pages
   for (const { prefix, parent, parentHref } of DETAIL_PARENTS) {
     if (pathname.startsWith(prefix) && pathname !== prefix) {
       const group = getGroup(pathname);
-      if (group) crumbs.push({ label: group, href: parentHref });
+      if (group) crumbs.push({ label: group, href: findGroupHref(group, [pathname, parentHref]) });
       crumbs.push({ label: parent, href: parentHref });
       crumbs.push({ label: "รายละเอียด", href: pathname });
       return crumbs;
     }
   }
 
-  // Direct match
-  const pageLabel = PAGE_MAP[pathname];
-  if (pageLabel) {
-    const group = getGroup(pathname);
-    if (group) {
-      // Find a reasonable group href (first page in that group)
-      const groupHref = Object.entries(PAGE_MAP).find(
-        ([p]) => GROUP_MAP[Object.keys(GROUP_MAP).sort((a, b) => b.length - a.length).find(k => p === k || p.startsWith(k + "/")) ?? ""] === group && p !== pathname
-      )?.[0] ?? pathname;
-      crumbs.push({ label: group, href: groupHref });
-    }
-    crumbs.push({ label: pageLabel, href: pathname });
-    return crumbs;
-  }
-
-  // /new sub-pages: derive parent
+  // 2. /new sub-pages — must come before direct match so "สร้างใหม่" always gets 3 levels
   if (pathname.endsWith("/new")) {
     const parentPath = pathname.slice(0, -4);
     const parentLabel = PAGE_MAP[parentPath];
-    const currentLabel = PAGE_MAP[pathname] ?? "สร้างใหม่";
     const group = getGroup(parentPath);
-    if (group) {
-      const groupHref = Object.entries(PAGE_MAP).find(
-        ([p]) => GROUP_MAP[Object.keys(GROUP_MAP).sort((a, b) => b.length - a.length).find(k => p === k || p.startsWith(k + "/")) ?? ""] === group && p !== parentPath && p !== pathname
-      )?.[0] ?? parentPath;
-      crumbs.push({ label: group, href: groupHref });
-    }
+    if (group) crumbs.push({ label: group, href: findGroupHref(group, [pathname, parentPath]) });
     if (parentLabel) crumbs.push({ label: parentLabel, href: parentPath });
-    crumbs.push({ label: currentLabel, href: pathname });
+    crumbs.push({ label: "สร้างใหม่", href: pathname });
+    return crumbs;
+  }
+
+  // 3. Direct match
+  const pageLabel = PAGE_MAP[pathname];
+  if (pageLabel) {
+    const group = getGroup(pathname);
+    if (group) crumbs.push({ label: group, href: findGroupHref(group, [pathname]) });
+    crumbs.push({ label: pageLabel, href: pathname });
     return crumbs;
   }
 
