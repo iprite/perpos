@@ -195,7 +195,9 @@ function buildUserMenuItems(): MenuItem[] {
       icon: <ShieldCheck className="h-5 w-5" />,
       roles: allRoles,
       dropdownItems: [
-        { name: "WHT + เอกสาร",   href: "/tax/wht-documents",     roles: allRoles },
+        { name: "ผู้ใช้งาน",       href: "/settings/users",         roles: allRoles },
+        { name: "สิทธิ์การใช้งาน", href: "/settings/roles",         roles: allRoles },
+        { name: "WHT + เอกสาร",   href: "/tax/wht-documents",      roles: allRoles },
         { name: "กระทบยอดธนาคาร", href: "/bank/reconciliation",    roles: allRoles },
         { name: "Audit Logs",     href: "/security/audit-logs",    roles: allRoles },
         { name: "ตั้งค่าองค์กร",  href: "/settings/organization",  roles: allRoles },
