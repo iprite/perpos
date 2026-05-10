@@ -15,6 +15,7 @@ import {
   Contact,
   Building2,
   DollarSign,
+  Landmark,
 } from "lucide-react";
 
 import type { Role } from "@/lib/supabase/types";
@@ -88,13 +89,23 @@ function buildUserMenuItems(): MenuItem[] {
       dropdownItems: [
         { name: "ใบสั่งซื้อ",                            href: "/purchase/orders",                 roles: allRoles },
         { name: "ใบจ่ายมัดจำ",                           href: "/purchase/deposits",               roles: allRoles },
-        { name: "บันทึกซื้อสินค้า",                       href: "/purchase/goods-receipts",         roles: allRoles },
         { name: "บันทึกค่าใช้จ่าย และการจ่ายเงิน",       href: "/purchase/expenses",               roles: allRoles },
         { name: "บันทึกรายจ่ายที่มีภาษีหัก ณ ที่จ่าย",  href: "/purchase/wht-expenses",          roles: allRoles },
         { name: "ใบกำกับภาษีซื้อ",                        href: "/purchase/tax-invoices",          roles: allRoles },
         { name: "ใบรวมจ่าย",                             href: "/purchase/payment-summaries",      roles: allRoles },
         { name: "รับใบลดหนี้",                           href: "/purchase/received-credit-notes",  roles: allRoles },
         { name: "รับใบเพิ่มหนี้",                        href: "/purchase/received-debit-notes",   roles: allRoles },
+      ],
+    },
+    {
+      name: "สินทรัพย์",
+      href: "/assets/register",
+      icon: <Landmark className="h-5 w-5" />,
+      roles: allRoles,
+      dropdownItems: [
+        { name: "ทะเบียนสินทรัพย์", href: "/assets/register",          roles: allRoles },
+        { name: "ซื้อสินทรัพย์",    href: "/purchase/goods-receipts",  roles: allRoles },
+        { name: "ขายสินทรัพย์",     href: "/assets/disposals",         roles: allRoles },
       ],
     },
     {
