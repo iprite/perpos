@@ -13,6 +13,8 @@ import {
   Wallet,
   Package,
   Contact,
+  Building2,
+  DollarSign,
 } from "lucide-react";
 
 import type { Role } from "@/lib/supabase/types";
@@ -201,15 +203,40 @@ function buildAdminMenuItems(): MenuItem[] {
   ];
 }
 
+function buildPayrollMenuItems(): MenuItem[] {
+  return [
+    { name: "Payroll", roles: allRoles },
+    { name: "รายงาน", href: "/payroll/reports", icon: <BarChart3 className="h-5 w-5" />, roles: allRoles },
+    { name: "เงินเดือน", href: "/payroll/salary", icon: <ReceiptText className="h-5 w-5" />, roles: allRoles },
+    { name: "พนักงาน", href: "/payroll/employees", icon: <Users className="h-5 w-5" />, roles: allRoles },
+    { name: "แผนก", href: "/payroll/departments", icon: <Building2 className="h-5 w-5" />, roles: allRoles },
+    { name: "เงินเพิ่ม/เงินหัก", href: "/payroll/pay-items", icon: <DollarSign className="h-5 w-5" />, roles: allRoles },
+    {
+      name: "ตั้งค่า",
+      href: "/payroll/settings/funds",
+      icon: <ShieldCheck className="h-5 w-5" />,
+      roles: allRoles,
+      dropdownItems: [
+        { name: "ข้อมูลกองทุน", href: "/payroll/settings/funds", roles: allRoles },
+        { name: "ตั้งค่าการบันทึกบัญชี", href: "/payroll/settings/accounting", roles: allRoles },
+      ],
+    },
+  ];
+}
+
 function pickMenuContext(pathname: string, role: Role | null) {
   const p = pathname || "/";
   if (p === "/admin" || p.startsWith("/admin/")) return role === "admin" ? "admin" : "user";
+  if (p.startsWith("/payroll")) return "payroll";
   return "user";
 }
 
 export function getMenuItems(role: Role | null, pathname: string): MenuItem[] {
   const context = pickMenuContext(pathname, role);
-  const items = context === "admin" ? buildAdminMenuItems() : buildUserMenuItems();
+  const items =
+    context === "admin"   ? buildAdminMenuItems()   :
+    context === "payroll" ? buildPayrollMenuItems()  :
+    buildUserMenuItems();
 
   return items.filter((item) => {
     if (!("href" in item)) return hasRole(item.roles, role);

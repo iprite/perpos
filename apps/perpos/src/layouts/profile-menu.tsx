@@ -4,7 +4,7 @@ import { Title, Text, Avatar, Button, Popover } from "rizzui";
 import cn from "@core/utils/class-names";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { LayoutDashboard, Settings, Shield, LogOut } from "lucide-react";
+import { LayoutDashboard, Settings, Shield, LogOut, Calculator } from "lucide-react";
 
 import { useAuth } from "@/app/shared/auth-provider";
 import { withBasePath } from "@/utils/base-path";
@@ -87,6 +87,12 @@ function DropdownMenu() {
       label: "Accounting",
       href: "/me",
       icon: <LayoutDashboard className="h-4 w-4 text-gray-500" />,
+      show: true,
+    },
+    {
+      label: "Payroll",
+      href: "/payroll/salary",
+      icon: <Calculator className="h-4 w-4 text-gray-500" />,
       show: true,
     },
     {
