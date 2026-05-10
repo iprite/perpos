@@ -5,6 +5,7 @@ import Logo from "@core/components/logo";
 import HeaderMenuRight from "@/layouts/header-menu-right";
 import StickyHeader from "@/layouts/sticky-header";
 import { OrgSwitcher } from "@/components/accounting/org-switcher";
+import { ModuleSwitcher } from "@/components/module-switcher";
 import { getOrganizationsForCurrentUser, getActiveOrganizationId } from "@/lib/accounting/queries";
 
 export default async function Header() {
@@ -24,7 +25,8 @@ export default async function Header() {
         </Link>
       </div>
 
-      <div className="mx-4 flex-1">
+      <div className="mx-4 flex flex-1 items-center gap-3">
+        <ModuleSwitcher />
         <OrgSwitcher organizations={organizations} activeOrganizationId={activeOrganizationId} />
       </div>
 
