@@ -16,7 +16,7 @@ export default function HydrogenLayout({ children }: { children: React.ReactNode
         </div>
         <StickyFooter className="px-4 py-5 text-sm text-gray-600 md:px-5 lg:px-6 3xl:px-8 4xl:px-10">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div>© 2026 P2P Solutions. All Rights Reserved.</div>
+            <div className="text-center sm:text-left">© 2026 P2P Solutions. All Rights Reserved.</div>
             <div className="hidden sm:flex flex-wrap gap-x-4 gap-y-2">
               <Link href="/privacy" className="hover:text-gray-900">
                 นโยบายความเป็นส่วนตัว
