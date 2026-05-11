@@ -6,6 +6,7 @@ import { RefreshCw } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ThaiDatePicker } from "@/components/ui/thai-date-picker";
 import cn from "@core/utils/class-names";
 import {
   getExecutiveDashboardAction,
@@ -62,7 +63,7 @@ export function ExecutiveDashboardClient(props: {
         <div className="flex items-end gap-3">
           <div className="grid gap-1">
             <div className="text-xs text-slate-600">สิ้นงวด (ใช้เป็นวันอ้างอิง)</div>
-            <Input type="date" value={endMonth} onChange={(e) => setEndMonth(e.target.value)} className="w-[180px]" />
+            <ThaiDatePicker value={endMonth} onChange={(v) => setEndMonth(v)} className="w-[180px]" />
           </div>
         </div>
         <Button variant="outline" className="gap-2" onClick={refresh} disabled={pending}>

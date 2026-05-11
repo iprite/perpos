@@ -3,6 +3,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
+// ChevronLeft used for prev-month button only
 import cn from "@core/utils/class-names";
 
 // ─── Thai locale constants ────────────────────────────────────────────────────
@@ -90,10 +91,11 @@ export function ThaiDatePicker({ value, onChange, disabled, hasError, className,
   const todayIso = toIso(today.getFullYear(), today.getMonth() + 1, today.getDate());
 
   const parsed = parseIso(value);
-  const [viewYear,  setViewYear]  = useState(parsed?.y  ?? today.getFullYear());
-  const [viewMonth, setViewMonth] = useState(parsed?.m  ?? today.getMonth() + 1);
-  const [open,      setOpen]      = useState(false);
-  const [rect,      setRect]      = useState<DOMRect | null>(null);
+  const [viewYear,   setViewYear]  = useState(parsed?.y  ?? today.getFullYear());
+  const [viewMonth,  setViewMonth] = useState(parsed?.m  ?? today.getMonth() + 1);
+  const [yearInput,  setYearInput] = useState(String((parsed?.y ?? today.getFullYear()) + TO_BE));
+  const [open,       setOpen]      = useState(false);
+  const [rect,       setRect]      = useState<DOMRect | null>(null);
 
   const triggerRef = useRef<HTMLButtonElement>(null);
   const panelRef   = useRef<HTMLDivElement>(null);
@@ -101,7 +103,7 @@ export function ThaiDatePicker({ value, onChange, disabled, hasError, className,
   // Sync view when value changes externally
   useEffect(() => {
     const p = parseIso(value);
-    if (p) { setViewYear(p.y); setViewMonth(p.m); }
+    if (p) { setViewYear(p.y); setViewMonth(p.m); setYearInput(String(p.y + TO_BE)); }
   }, [value]);
 
   useLayoutEffect(() => {
@@ -120,16 +122,32 @@ export function ThaiDatePicker({ value, onChange, disabled, hasError, className,
 
   useEffect(() => {
     if (!open) return;
-    const close = () => setOpen(false);
+    const close = () => {
+      // Don't close if an input inside the panel has focus (e.g. year input)
+      if (panelRef.current?.contains(document.activeElement)) return;
+      setOpen(false);
+    };
     window.addEventListener("scroll", close, true);
     return () => window.removeEventListener("scroll", close, true);
   }, [open]);
 
   const prevMonth = () => {
-    setViewMonth((m) => { if (m === 1) { setViewYear((y) => y - 1); return 12; } return m - 1; });
+    setViewMonth((m) => {
+      if (m === 1) {
+        setViewYear((y) => { setYearInput(String(y - 1 + TO_BE)); return y - 1; });
+        return 12;
+      }
+      return m - 1;
+    });
   };
   const nextMonth = () => {
-    setViewMonth((m) => { if (m === 12) { setViewYear((y) => y + 1); return 1; } return m + 1; });
+    setViewMonth((m) => {
+      if (m === 12) {
+        setViewYear((y) => { setYearInput(String(y + 1 + TO_BE)); return y + 1; });
+        return 1;
+      }
+      return m + 1;
+    });
   };
 
   const select = (iso: string) => {
@@ -146,53 +164,51 @@ export function ThaiDatePicker({ value, onChange, disabled, hasError, className,
     ? createPortal(
         <div
           ref={panelRef}
-          style={{ position: "fixed", top: rect.bottom + 4, left: rect.left, zIndex: 9999 }}
-          className="w-72 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl"
+          style={{ position: "fixed", top: rect.bottom + 4, left: rect.left, width: rect.width, zIndex: 9999 }}
+          className="rounded-xl border border-slate-200 bg-white shadow-xl"
         >
           {/* Header */}
-          <div className="flex items-center justify-between border-b border-slate-100 px-3 py-2.5">
+          <div className="flex items-center border-b border-slate-100 px-3 py-2.5">
             <button
               type="button"
               onClick={prevMonth}
-              className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+              className="shrink-0 rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
             >
               <ChevronLeft className="h-4 w-4" />
             </button>
 
-            <div className="flex items-center gap-2 text-sm font-medium text-slate-800">
+            <div className="flex flex-1 items-center justify-center gap-3 text-[11px] font-medium text-slate-800">
               {/* Month dropdown */}
-              <div className="relative">
-                <select
-                  value={viewMonth}
-                  onChange={(e) => setViewMonth(Number(e.target.value))}
-                  className="appearance-none rounded bg-transparent pr-4 font-medium text-slate-800 focus:outline-none cursor-pointer"
-                >
-                  {MONTH_FULL.map((name, i) => (
-                    <option key={i} value={i + 1}>{name}</option>
-                  ))}
-                </select>
-                <ChevronLeft className="pointer-events-none absolute right-0 top-1/2 h-3 w-3 -translate-y-1/2 -rotate-90 text-slate-400" />
-              </div>
+              <select
+                value={viewMonth}
+                onChange={(e) => setViewMonth(Number(e.target.value))}
+                className="appearance-none border-0 bg-transparent font-medium text-slate-800 outline-none ring-0 focus:outline-none focus:ring-0 cursor-pointer"
+              >
+                {MONTH_FULL.map((name, i) => (
+                  <option key={i} value={i + 1}>{name}</option>
+                ))}
+              </select>
 
-              {/* Year dropdown (BE) */}
-              <div className="relative">
-                <select
-                  value={viewYear}
-                  onChange={(e) => setViewYear(Number(e.target.value))}
-                  className="appearance-none rounded bg-transparent pr-4 font-medium text-slate-800 focus:outline-none cursor-pointer"
-                >
-                  {yearOptions.map((y) => (
-                    <option key={y} value={y}>{y + TO_BE}</option>
-                  ))}
-                </select>
-                <ChevronLeft className="pointer-events-none absolute right-0 top-1/2 h-3 w-3 -translate-y-1/2 -rotate-90 text-slate-400" />
-              </div>
+              {/* Year input (BE) */}
+              <input
+                type="text"
+                inputMode="numeric"
+                maxLength={4}
+                value={yearInput}
+                onChange={(e) => {
+                  const v = e.target.value.replace(/\D/g, "");
+                  setYearInput(v);
+                  if (v.length === 4 && Number(v) > 2400) setViewYear(Number(v) - TO_BE);
+                }}
+                onBlur={() => setYearInput(String(viewYear + TO_BE))}
+                className="w-[4.55rem] shrink-0 border-0 bg-transparent text-center font-medium text-slate-800 outline-none ring-0 focus:outline-none focus:ring-0"
+              />
             </div>
 
             <button
               type="button"
               onClick={nextMonth}
-              className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+              className="shrink-0 rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
             >
               <ChevronRight className="h-4 w-4" />
             </button>

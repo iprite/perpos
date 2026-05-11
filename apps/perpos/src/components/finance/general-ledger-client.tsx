@@ -3,6 +3,7 @@
 import React, { useState, useTransition } from "react";
 import { CustomSelect } from "@/components/ui/custom-select";
 import { getGeneralLedgerAction, type LedgerRow } from "@/lib/finance/report-actions";
+import { ThaiDatePicker } from "@/components/ui/thai-date-picker";
 
 type AccountOption = { id: string; label: string };
 
@@ -55,20 +56,16 @@ export function GeneralLedgerClient({
         </div>
         <div className="flex items-center gap-2">
           <label className="text-sm font-medium text-slate-700">ตั้งแต่</label>
-          <input
-            type="date"
+          <ThaiDatePicker
             value={startDate}
-            onChange={(e) => { setStartDate(e.target.value); reload(accountId, e.target.value, endDate); }}
-            className="rounded-md border border-slate-200 px-3 py-1.5 text-sm focus:outline-none"
+            onChange={(v) => { setStartDate(v); reload(accountId, v, endDate); }}
           />
         </div>
         <div className="flex items-center gap-2">
           <label className="text-sm font-medium text-slate-700">ถึง</label>
-          <input
-            type="date"
+          <ThaiDatePicker
             value={endDate}
-            onChange={(e) => { setEndDate(e.target.value); reload(accountId, startDate, e.target.value); }}
-            className="rounded-md border border-slate-200 px-3 py-1.5 text-sm focus:outline-none"
+            onChange={(v) => { setEndDate(v); reload(accountId, startDate, v); }}
           />
         </div>
         {isPending && <span className="text-sm text-slate-400">กำลังโหลด...</span>}

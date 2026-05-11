@@ -7,6 +7,7 @@ import { CheckCircle2, RefreshCw, UploadCloud, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { CustomSelect } from "@/components/ui/custom-select";
 import { Input } from "@/components/ui/input";
+import { ThaiDatePicker } from "@/components/ui/thai-date-picker";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import cn from "@core/utils/class-names";
 import { parseCsv } from "@/utils/csv";
@@ -222,11 +223,11 @@ export function BankReconciliationClient(props: {
           </div>
           <div className="grid gap-1">
             <div className="text-xs text-slate-600">งวดจาก</div>
-            <Input type="date" value={periodFrom} onChange={(e) => setPeriodFrom(e.target.value)} />
+            <ThaiDatePicker value={periodFrom} onChange={(v) => setPeriodFrom(v)} />
           </div>
           <div className="grid gap-1">
             <div className="text-xs text-slate-600">งวดถึง</div>
-            <Input type="date" value={periodTo} onChange={(e) => setPeriodTo(e.target.value)} />
+            <ThaiDatePicker value={periodTo} onChange={(v) => setPeriodTo(v)} />
           </div>
         </div>
 

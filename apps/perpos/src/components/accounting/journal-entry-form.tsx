@@ -10,6 +10,7 @@ import { createJournalEntryAction } from "@/lib/accounting/journal-actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ThaiDatePicker } from "@/components/ui/thai-date-picker";
 import { JournalLinesTable } from "@/components/accounting/journal-lines-table";
 import { computeTotals, journalEntryFormSchema, type JournalEntryFormValues } from "@/components/accounting/journal-form-schema";
 
@@ -103,7 +104,10 @@ export function JournalEntryForm(props: {
       <div className="grid gap-4 md:grid-cols-3">
         <div className="grid gap-2">
           <Label htmlFor="je-date">วันที่</Label>
-          <Input id="je-date" type="date" {...form.register("entryDate")} />
+          <ThaiDatePicker
+            value={form.watch("entryDate") ?? ""}
+            onChange={(v) => form.setValue("entryDate", v, { shouldValidate: true, shouldDirty: true })}
+          />
           {form.formState.errors.entryDate?.message ? (
             <div className="text-sm text-red-600">{form.formState.errors.entryDate.message}</div>
           ) : null}

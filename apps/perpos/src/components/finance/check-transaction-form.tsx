@@ -9,6 +9,7 @@ import toast from "react-hot-toast";
 import { Button } from "rizzui";
 import { createCheckTransactionAction } from "@/lib/finance/actions";
 import { CustomSelect } from "@/components/ui/custom-select";
+import { ThaiDatePicker } from "@/components/ui/thai-date-picker";
 
 const schema = z.object({
   checkNumber:     z.string().min(1, "กรุณาระบุเลขที่เช็ค"),
@@ -87,12 +88,20 @@ export function CheckTransactionForm({ organizationId, txnType, contacts, financ
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className={labelCls}>วันที่เช็ค *</label>
-          <input {...register("checkDate")} type="date" className={inputCls} />
+          <ThaiDatePicker
+            value={watch("checkDate") ?? ""}
+            onChange={(v) => setValue("checkDate", v, { shouldValidate: true })}
+            hasError={!!errors.checkDate}
+          />
           {errors.checkDate && <p className="mt-1 text-xs text-red-600">{errors.checkDate.message}</p>}
         </div>
         <div>
           <label className={labelCls}>วันที่ครบกำหนด</label>
-          <input {...register("dueDate")} type="date" className={inputCls} />
+          <ThaiDatePicker
+            value={watch("dueDate") ?? ""}
+            onChange={(v) => setValue("dueDate", v)}
+            placeholder="(ไม่ระบุ)"
+          />
         </div>
       </div>
 

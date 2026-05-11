@@ -8,6 +8,7 @@ import { toast } from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import { CustomSelect } from "@/components/ui/custom-select";
 import { Input } from "@/components/ui/input";
+import { ThaiDatePicker } from "@/components/ui/thai-date-picker";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
@@ -200,7 +201,7 @@ export function WhtDocumentsClient(props: {
           <div className="grid gap-4">
             <div className="grid gap-2">
               <Label>วันที่</Label>
-              <Input type="date" value={form.whtDate} onChange={(e) => setForm((s) => ({ ...s, whtDate: e.target.value }))} />
+              <ThaiDatePicker value={form.whtDate} onChange={(v) => setForm((s) => ({ ...s, whtDate: v }))} />
             </div>
 
             <div className="grid gap-2">

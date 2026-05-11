@@ -6,6 +6,7 @@ import cn from "@core/utils/class-names";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ThaiDatePicker } from "@/components/ui/thai-date-picker";
 import {
   Dialog,
   DialogContent,
@@ -141,7 +142,7 @@ export function AssetDisposalClient({
               </p>
               <div className="space-y-1.5">
                 <Label>วันที่จำหน่าย <span className="text-red-500">*</span></Label>
-                <Input type="date" value={form.disposal_date} onChange={(e) => set("disposal_date", e.target.value)} />
+                <ThaiDatePicker value={form.disposal_date} onChange={(v) => set("disposal_date", v)} />
               </div>
               <div className="space-y-1.5">
                 <Label>มูลค่าที่จำหน่าย (บาท)</Label>

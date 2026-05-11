@@ -5,6 +5,7 @@ import { Download, RefreshCw } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ThaiDatePicker } from "@/components/ui/thai-date-picker";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { downloadCsv, toCsv } from "@/components/reports/csv";
 import { getOutputVatReportAction, getWhtSummaryAction, type OutputVatRow } from "@/lib/reports/actions";
@@ -61,9 +62,9 @@ export function TaxAndClosingClient(props: {
           <div className="grid gap-1">
             <div className="text-xs text-slate-600">ช่วงวันที่</div>
             <div className="flex items-center gap-2">
-              <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="w-[160px]" />
+              <ThaiDatePicker value={startDate} onChange={(v) => setStartDate(v)} className="w-[160px]" />
               <div className="text-sm text-slate-500">–</div>
-              <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="w-[160px]" />
+              <ThaiDatePicker value={endDate} onChange={(v) => setEndDate(v)} className="w-[160px]" />
             </div>
           </div>
         </div>

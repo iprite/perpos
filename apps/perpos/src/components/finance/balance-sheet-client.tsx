@@ -2,6 +2,7 @@
 
 import React, { useState, useTransition } from "react";
 import { getBalanceSheetAction, type BalanceSheetRow } from "@/lib/finance/report-actions";
+import { ThaiDatePicker } from "@/components/ui/thai-date-picker";
 
 type Props = {
   organizationId: string;
@@ -46,11 +47,9 @@ export function BalanceSheetClient({ organizationId, initialDate, initialRows }:
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex items-center gap-2">
           <label className="text-sm font-medium text-slate-700">ณ วันที่</label>
-          <input
-            type="date"
+          <ThaiDatePicker
             value={asOfDate}
-            onChange={(e) => { setAsOfDate(e.target.value); reload(e.target.value); }}
-            className="rounded-md border border-slate-200 px-3 py-1.5 text-sm focus:outline-none"
+            onChange={(v) => { setAsOfDate(v); reload(v); }}
           />
         </div>
         {isPending && <span className="text-sm text-slate-400">กำลังโหลด...</span>}

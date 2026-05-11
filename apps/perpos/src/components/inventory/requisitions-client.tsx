@@ -7,6 +7,7 @@ import { Plus, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ThaiDatePicker } from "@/components/ui/thai-date-picker";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -197,7 +198,7 @@ export function RequisitionsClient(props: {
               </div>
               <div className="grid gap-1.5">
                 <Label>วันที่</Label>
-                <Input type="date" value={docDate} onChange={(e) => setDocDate(e.target.value)} />
+                <ThaiDatePicker value={docDate} onChange={(v) => setDocDate(v)} />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">

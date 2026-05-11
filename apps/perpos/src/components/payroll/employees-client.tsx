@@ -7,6 +7,7 @@ import { MoreVertical, PencilLine, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ThaiDatePicker } from "@/components/ui/thai-date-picker";
 import { CustomSelect } from "@/components/ui/custom-select";
 import {
   Dialog,
@@ -321,7 +322,7 @@ export function EmployeesClient({
               </div>
               <div className="space-y-1.5">
                 <Label>วันที่เริ่มงาน</Label>
-                <Input type="date" value={form.start_date} onChange={(e) => set("start_date", e.target.value)} />
+                <ThaiDatePicker value={form.start_date} onChange={(v) => set("start_date", v)} />
               </div>
             </div>
             {err && <p className="text-sm text-red-500">{err}</p>}

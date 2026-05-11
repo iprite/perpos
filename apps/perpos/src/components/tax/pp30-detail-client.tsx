@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { ThaiDatePicker } from "@/components/ui/thai-date-picker";
 import { CustomSelect } from "@/components/ui/custom-select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import cn from "@core/utils/class-names";
@@ -314,7 +315,7 @@ export function PP30DetailClient({
             </div>
             <div className="space-y-1.5">
               <Label>วันที่ยื่นแบบ</Label>
-              <Input type="date" value={submittedAt} onChange={(e) => setSubmittedAt(e.target.value)} />
+              <ThaiDatePicker value={submittedAt} onChange={(v) => setSubmittedAt(v)} />
             </div>
             <div className="space-y-1.5">
               <Label>จำนวนเงินที่ชำระ</Label>

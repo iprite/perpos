@@ -6,6 +6,7 @@ import { MoreVertical, PencilLine, Plus } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ThaiDatePicker } from "@/components/ui/thai-date-picker";
 import { Label } from "@/components/ui/label";
 import { CustomSelect } from "@/components/ui/custom-select";
 import {
@@ -306,7 +307,7 @@ export function AssetRegisterClient({
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label>วันที่ซื้อ</Label>
-                <Input type="date" value={form.purchase_date} onChange={(e) => set("purchase_date", e.target.value)} />
+                <ThaiDatePicker value={form.purchase_date} onChange={(v) => set("purchase_date", v)} />
               </div>
               <div className="space-y-1.5">
                 <Label>ราคาทุน (บาท)</Label>

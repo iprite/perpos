@@ -4,6 +4,7 @@ import React, { useState, useTransition } from "react";
 import { RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ThaiDatePicker } from "@/components/ui/thai-date-picker";
 import { getCashFlowAction, type CashFlowRow } from "@/lib/finance/report-actions";
 import cn from "@core/utils/class-names";
 
@@ -52,11 +53,11 @@ export function CashFlowClient(props: {
       <div className="flex flex-wrap items-end gap-3">
         <div className="grid gap-1">
           <div className="text-xs text-slate-500">ตั้งแต่วันที่</div>
-          <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="h-9 w-40" />
+          <ThaiDatePicker value={startDate} onChange={(v) => setStartDate(v)} className="h-9 w-40" />
         </div>
         <div className="grid gap-1">
           <div className="text-xs text-slate-500">ถึงวันที่</div>
-          <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="h-9 w-40" />
+          <ThaiDatePicker value={endDate} onChange={(v) => setEndDate(v)} className="h-9 w-40" />
         </div>
         <Button variant="secondary" className="gap-2 h-9" onClick={refresh} disabled={pending}>
           <RefreshCw className={cn("h-4 w-4", pending && "animate-spin")} />

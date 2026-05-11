@@ -10,6 +10,7 @@ import { toast } from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import { Input }  from "@/components/ui/input";
 import { Label }  from "@/components/ui/label";
+import { ThaiDatePicker } from "@/components/ui/thai-date-picker";
 import { CustomSelect } from "@/components/ui/custom-select";
 import { ContactQuickAddSelect } from "@/components/contacts/contact-quick-add-select";
 import { PurchaseDocItemsTable } from "./purchase-doc-items-table";
@@ -132,7 +133,11 @@ export function PurchaseDocCreateForm(props: {
             {/* Issue date */}
             <div className="grid gap-2">
               <Label>วันที่เอกสาร</Label>
-              <Input type="date" disabled={disabled} {...form.register("issueDate")} />
+              <ThaiDatePicker
+                disabled={disabled}
+                value={form.watch("issueDate") ?? ""}
+                onChange={(v) => form.setValue("issueDate", v, { shouldValidate: true, shouldDirty: true })}
+              />
               {form.formState.errors.issueDate?.message ? (
                 <div className="text-sm text-red-600">{form.formState.errors.issueDate.message}</div>
               ) : null}
@@ -142,7 +147,11 @@ export function PurchaseDocCreateForm(props: {
             {config.canHaveDueDate ? (
               <div className="grid gap-2">
                 <Label>กำหนดส่ง / วันหมดอายุ</Label>
-                <Input type="date" disabled={disabled} {...form.register("dueDate")} />
+                <ThaiDatePicker
+                  disabled={disabled}
+                  value={form.watch("dueDate") ?? ""}
+                  onChange={(v) => form.setValue("dueDate", v, { shouldValidate: true, shouldDirty: true })}
+                />
               </div>
             ) : <div />}
 

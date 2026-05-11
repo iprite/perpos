@@ -10,6 +10,7 @@ import { toast } from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ThaiDatePicker } from "@/components/ui/thai-date-picker";
 import { CustomSelect } from "@/components/ui/custom-select";
 import { InvoiceItemsTable } from "@/components/sales/invoices/invoice-items-table";
 import { computeInvoiceTotals, invoiceFormSchema, type InvoiceFormValues } from "@/components/sales/invoices/invoice-form-schema";
@@ -125,7 +126,11 @@ export function InvoiceCreateForm(props: {
 
             <div className="grid gap-2">
               <Label>วันที่ใบแจ้งหนี้</Label>
-              <Input type="date" disabled={disabled} {...form.register("issueDate")} />
+              <ThaiDatePicker
+                disabled={disabled}
+                value={form.watch("issueDate") ?? ""}
+                onChange={(v) => form.setValue("issueDate", v, { shouldValidate: true, shouldDirty: true })}
+              />
               {form.formState.errors.issueDate?.message ? (
                 <div className="text-sm text-red-600">{form.formState.errors.issueDate.message}</div>
               ) : null}
@@ -133,7 +138,11 @@ export function InvoiceCreateForm(props: {
 
             <div className="grid gap-2">
               <Label>กำหนดชำระ</Label>
-              <Input type="date" disabled={disabled} {...form.register("dueDate")} />
+              <ThaiDatePicker
+                disabled={disabled}
+                value={form.watch("dueDate") ?? ""}
+                onChange={(v) => form.setValue("dueDate", v, { shouldValidate: true, shouldDirty: true })}
+              />
             </div>
 
             <div className="grid gap-2">
