@@ -31,7 +31,7 @@ export default function StickyFooter({
     <footer
       className={cn(
         "sticky bottom-0 bg-gray-0/80 backdrop-blur-xl transition-shadow",
-        atBottom ? "" : "card-shadow",
+        atBottom ? "" : "card-shadow-top",
         className
       )}
     >
