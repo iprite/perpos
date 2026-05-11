@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useMemo, useState, useRef, useEffect, useTransition } from "react";
+import React, { useMemo, useState, useRef, useEffect, useLayoutEffect, useTransition } from "react";
+import { createPortal } from "react-dom";
 import { Building2, Check, ChevronsUpDown, Plus, Search } from "lucide-react";
 import { useRouter } from "next/navigation";
 
@@ -31,6 +32,8 @@ export function OrgSwitcher({ organizations, activeOrganizationId }: OrgSwitcher
   const [newOrgName, setNewOrgName] = useState("");
   const [createError, setCreateError] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const triggerRef  = useRef<HTMLButtonElement>(null);
+  const [rect, setRect] = useState<DOMRect | null>(null);
 
   const selected = activeOrganizationId ?? (organizations[0]?.id ?? "");
   const selectedOrg = useMemo(() => organizations.find((o) => o.id === selected), [organizations, selected]);
@@ -41,10 +44,18 @@ export function OrgSwitcher({ organizations, activeOrganizationId }: OrgSwitcher
     return organizations.filter((o) => o.name.toLowerCase().includes(q));
   }, [organizations, search]);
 
+  useLayoutEffect(() => {
+    if (open && triggerRef.current) setRect(triggerRef.current.getBoundingClientRect());
+  }, [open]);
+
   // Close on outside click
   useEffect(() => {
     function handle(e: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+      const t = e.target as Node;
+      if (
+        triggerRef.current && !triggerRef.current.contains(t) &&
+        dropdownRef.current && !dropdownRef.current.contains(t)
+      ) {
         setOpen(false);
         setSearch("");
       }
@@ -62,9 +73,10 @@ export function OrgSwitcher({ organizations, activeOrganizationId }: OrgSwitcher
   }
 
   return (
-    <div className="relative" ref={dropdownRef}>
+    <div className="relative">
       {/* Trigger */}
       <button
+        ref={triggerRef}
         type="button"
         onClick={() => { setOpen((v) => !v); setSearch(""); }}
         disabled={pending}
@@ -80,9 +92,13 @@ export function OrgSwitcher({ organizations, activeOrganizationId }: OrgSwitcher
         <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 text-slate-400" />
       </button>
 
-      {/* Dropdown panel */}
-      {open && (
-        <div className="absolute left-0 top-full z-50 mt-1.5 w-72 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg">
+      {/* Dropdown panel — portal so overflow-x-auto doesn't clip it */}
+      {open && rect && createPortal(
+        <div
+          ref={dropdownRef}
+          style={{ position: "fixed", top: rect.bottom + 6, right: window.innerWidth - rect.right, zIndex: 9999 }}
+          className="w-72 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg"
+        >
           {/* Search */}
           <div className="flex items-center gap-2 border-b border-slate-100 px-4 py-1.5">
             <Search className="h-3.5 w-3.5 shrink-0 text-slate-400" />
@@ -126,7 +142,8 @@ export function OrgSwitcher({ organizations, activeOrganizationId }: OrgSwitcher
               New organization
             </button>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Create dialog */}

@@ -25,7 +25,8 @@ export default async function Header() {
         </Link>
       </div>
 
-      <div className="mx-2 flex flex-1 items-center gap-3 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mx-4">
+      <div className="flex-1" />
+      <div className="mx-2 flex items-center gap-3 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mx-4">
         <div className="shrink-0"><ModuleSwitcher /></div>
         <div className="shrink-0"><OrgSwitcher organizations={organizations} activeOrganizationId={activeOrganizationId} /></div>
       </div>
