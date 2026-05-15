@@ -138,41 +138,48 @@ type Command =
   | { type: "task_done"; index: number }
   | { type: "task_postpone"; index: number }
   | { type: "task_overdue" }
-  | { type: "unknown" };
+  | { type: "unknown_slash" }  // starts with / but no match → show error
+  | { type: "unknown" };       // no / → try NLP
 
+// All commands must start with /  Plain text (no /) goes to NLP fallback.
 function pickCommand(text: string): Command {
   const t = String(text ?? "").trim();
-  const lower = t.toLowerCase();
 
-  if (lower === "help" || t === "ช่วยด้วย" || t === "คำสั่ง") return { type: "help" };
+  // Not a command — let NLP handle it
+  if (!t.startsWith("/")) return { type: "unknown" };
 
-  const linkMatch = t.match(/^(?:link|ผูกบัญชี)\s*[:：]?\s*([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i);
+  const body  = t.slice(1).trim();           // strip leading /
+  const lower = body.toLowerCase();
+
+  if (lower === "help" || lower === "คำสั่ง") return { type: "help" };
+
+  const linkMatch = body.match(/^(?:link|ผูกบัญชี)\s+([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i);
   if (linkMatch?.[1]) return { type: "link", token: linkMatch[1] };
 
-  if (lower === "news" || t === "สรุปข่าว" || t === "ข่าว") return { type: "news" };
-  if (lower === "latest" || t === "สรุปล่าสุด") return { type: "news_latest" };
+  if (lower === "news" || lower === "สรุปข่าว" || lower === "ข่าว") return { type: "news" };
+  if (lower === "latest" || lower === "สรุปล่าสุด") return { type: "news_latest" };
 
-  const incomeMatch = t.match(/^(?:income|รายรับ)\s+([0-9.,]+)\s*(.*)$/i);
+  const incomeMatch = body.match(/^(?:income|รายรับ)\s+([0-9.,]+)\s*(.*)$/i);
   if (incomeMatch?.[1]) return { type: "income", amountText: incomeMatch[1], note: (incomeMatch[2] ?? "").trim() };
 
-  const expenseMatch = t.match(/^(?:expense|รายจ่าย)\s+([0-9.,]+)\s*(.*)$/i);
+  const expenseMatch = body.match(/^(?:expense|รายจ่าย)\s+([0-9.,]+)\s*(.*)$/i);
   if (expenseMatch?.[1]) return { type: "expense", amountText: expenseMatch[1], note: (expenseMatch[2] ?? "").trim() };
 
-  const addMeetMatch = t.match(/^(?:meet|นัด)\s+([0-9]{1,2}:[0-9]{2})\s+(.+)$/i);
+  const addMeetMatch = body.match(/^(?:meet|นัด)\s+([0-9]{1,2}:[0-9]{2})\s+(.+)$/i);
   if (addMeetMatch?.[1] && addMeetMatch?.[2]) return { type: "calendar_add", time: addMeetMatch[1], title: addMeetMatch[2].trim() };
 
-  if (lower === "today" || t === "วันนี้") return { type: "calendar_today" };
+  if (lower === "today" || lower === "วันนี้") return { type: "calendar_today" };
 
-  if (lower === "tasks" || t === "งาน" || t === "รายการงาน") return { type: "task_list" };
-  if (lower === "overdue" || t === "งานค้าง" || t === "งานเกิน") return { type: "task_overdue" };
+  if (lower === "tasks" || lower === "งาน" || lower === "รายการงาน") return { type: "task_list" };
+  if (lower === "overdue" || lower === "งานค้าง") return { type: "task_overdue" };
 
-  const doneMatch = t.match(/^(?:done|เสร็จ|เสร็จแล้ว)\s+([0-9]+)$/i);
+  const doneMatch = body.match(/^(?:done|เสร็จ)\s+([0-9]+)$/i);
   if (doneMatch?.[1]) return { type: "task_done", index: parseInt(doneMatch[1]) };
 
-  const postponeMatch = t.match(/^(?:postpone|เลื่อน)\s+([0-9]+)$/i);
+  const postponeMatch = body.match(/^(?:postpone|เลื่อน)\s+([0-9]+)$/i);
   if (postponeMatch?.[1]) return { type: "task_postpone", index: parseInt(postponeMatch[1]) };
 
-  return { type: "unknown" };
+  return { type: "unknown_slash" };
 }
 
 // ─────────────────────────────────────────────
@@ -197,7 +204,7 @@ function buildTaskListText(tasks: Array<{ title: string; due_at: string | null; 
     const time = t.due_at ? ` (${fmtBangkokDateTime(t.due_at)})` : "";
     return `${i + 1}. ${t.title}${time}`;
   });
-  return `📋 ${label} (${tasks.length} รายการ)\n${lines.join("\n")}\n\nพิมพ์ เสร็จ <เลข> หรือ เลื่อน <เลข>`;
+  return `📋 ${label} (${tasks.length} รายการ)\n${lines.join("\n")}\n\nพิมพ์ /เสร็จ <เลข> หรือ /เลื่อน <เลข>`;
 }
 
 function buildTaskConfirmFlex(args: { title: string; dueAt?: string; priority: string; remindBefore: number }) {
@@ -316,19 +323,21 @@ export async function POST(req: Request) {
         await replyText({
           replyToken,
           text:
-            "PERPOS คำสั่งหลัก\n────────────────\n" +
-            "LINK <token>  ผูกบัญชี\n" +
-            "สรุปข่าว      ข่าวล่าสุด\n" +
-            "รายรับ <จำนวน> <โน้ต>\n" +
-            "รายจ่าย <จำนวน> <โน้ต>\n" +
-            "นัด <HH:MM> <เรื่อง>\n" +
-            "วันนี้        นัดวันนี้\n" +
+            "PERPOS — คำสั่งทั้งหมด\n" +
+            "════════════════\n" +
+            "🔗 /link <token>        ผูกบัญชี LINE\n" +
+            "📰 /ข่าว                สรุปข่าว\n" +
+            "💰 /รายรับ <จำนวน> <โน้ต>\n" +
+            "💸 /รายจ่าย <จำนวน> <โน้ต>\n" +
+            "📅 /นัด <HH:MM> <เรื่อง>  เพิ่มนัด\n" +
+            "🗓 /วันนี้              นัดวันนี้\n" +
             "────────────────\n" +
-            "งาน           รายการงาน\n" +
-            "งานค้าง       งานเกินกำหนด\n" +
-            "เสร็จ <เลข>   ปิดงาน\n" +
-            "เลื่อน <เลข>  เลื่อน 1 วัน\n" +
-            "หรือพิมพ์ข้อความเพื่อบันทึกงานใหม่",
+            "📋 /งาน                รายการงาน\n" +
+            "⚠️ /งานค้าง            งานเกินกำหนด\n" +
+            "✅ /เสร็จ <เลข>        ปิดงาน\n" +
+            "📆 /เลื่อน <เลข>       เลื่อน 1 วัน\n" +
+            "════════════════\n" +
+            "💡 พิมพ์ข้อความธรรมดา\n   เพื่อบันทึกงานด้วย AI",
         });
         return;
       }
@@ -443,7 +452,13 @@ export async function POST(req: Request) {
         return;
       }
 
-      // ── NLP fallback: create task from natural language ──────────────────
+      // ── Unknown slash command ────────────────────────────────────────────
+      if (cmd.type === "unknown_slash") {
+        await replyText({ replyToken, text: "ไม่รู้จักคำสั่งนี้\nพิมพ์ /help เพื่อดูคำสั่งทั้งหมด" });
+        return;
+      }
+
+      // ── NLP fallback: create task from plain-text natural language ────────
       const apiKey = process.env.OPENAI_API_KEY ?? "";
       if (apiKey) {
         const okPerm = await hasPermission(admin, profileId, "bot.assistant.tasks");

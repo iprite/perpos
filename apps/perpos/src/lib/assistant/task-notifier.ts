@@ -131,7 +131,7 @@ export async function sendDailyBriefing(admin: ReturnType<typeof createSupabaseA
       });
     }
 
-    lines.push("\nพิมพ์ งาน เพื่อดูรายการทั้งหมด");
+    lines.push("\nพิมพ์ /งาน เพื่อดูรายการทั้งหมด");
 
     await sendLineMessages({ to: lineUserId, messages: [{ type: "text", text: lines.join("\n") }] });
   }
@@ -167,7 +167,7 @@ export async function sendFollowUp(admin: ReturnType<typeof createSupabaseAdminC
     profileTasks.forEach((t: any, i: number) => {
       lines.push(`${i + 1}. ${t.title}`);
     });
-    lines.push("\nพิมพ์ เสร็จ <เลข> เพื่อปิดงาน หรือ เลื่อน <เลข> เพื่อเลื่อน 1 วัน");
+    lines.push("\nพิมพ์ /เสร็จ <เลข> เพื่อปิดงาน หรือ /เลื่อน <เลข> เพื่อเลื่อน 1 วัน");
 
     await sendLineMessages({ to: lineUserId, messages: [{ type: "text", text: lines.join("\n") }] });
     taskIds.push(...profileTasks.map((t: any) => t.id as string));
