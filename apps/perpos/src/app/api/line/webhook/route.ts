@@ -252,6 +252,40 @@ function buildTaskConfirmFlex(args: { title: string; dueAt?: string; priority: s
 }
 
 // ─────────────────────────────────────────────
+// saveTask — shared insert + reply
+// ─────────────────────────────────────────────
+
+async function saveTask(args: {
+  admin: ReturnType<typeof createSupabaseAdminClient>;
+  profileId: string;
+  title: string;
+  dueAt?: string;
+  remindAt?: string;
+  remindBefore?: number;
+  priority?: string;
+  rawInput?: string;
+  replyToken: string;
+}) {
+  const { admin, profileId, title, dueAt, remindAt, remindBefore = 15, priority = "medium", rawInput, replyToken } = args;
+  const ins = await admin.from("tasks").insert({
+    profile_id: profileId,
+    title,
+    due_at: dueAt ?? null,
+    remind_at: remindAt ?? null,
+    remind_before_minutes: remindBefore,
+    priority,
+    source: "line",
+    raw_input: rawInput ?? null,
+  });
+  if (ins.error) { await replyText({ replyToken, text: "บันทึกงานไม่สำเร็จ" }); return; }
+  await replyFlex({
+    replyToken,
+    altText: `บันทึกงาน: ${title}`,
+    contents: buildTaskConfirmFlex({ title, dueAt, priority, remindBefore }),
+  });
+}
+
+// ─────────────────────────────────────────────
 // Webhook POST handler
 // ─────────────────────────────────────────────
 
@@ -342,7 +376,7 @@ export async function POST(req: Request) {
             "✅ /เสร็จ <เลข>        ปิดงาน\n" +
             "📆 /เลื่อน <เลข>       เลื่อน 1 วัน\n" +
             "════════════════\n" +
-            "💡 พิมพ์ข้อความธรรมดา\n   เพื่อบันทึกงานด้วย AI",
+            "💡 พิมพ์ข้อความธรรมดา\n   เพื่อบันทึกงานทันที",
         });
         return;
       }
@@ -457,37 +491,13 @@ export async function POST(req: Request) {
         return;
       }
 
-      // ── /t <text> → NLP task creation ───────────────────────────────────
+      // ── /t <text> → save task directly (no AI needed) ───────────────────
       if (cmd.type === "task_create") {
         const okPerm = await hasPermission(admin, profileId, "bot.assistant.tasks");
         if (!okPerm) { await replyText({ replyToken, text: "คุณไม่มีสิทธิ์ใช้ Task Manager" }); return; }
         const input = cmd.input;
-        if (!input) { await replyText({ replyToken, text: "ระบุรายละเอียดงานด้วย\nเช่น /t พรุ่งนี้ 10 โมงประชุม Q3" }); return; }
-        const apiKey = process.env.OPENAI_API_KEY ?? "";
-        if (!apiKey) { await replyText({ replyToken, text: "ยังไม่ได้ตั้งค่า OPENAI_API_KEY" }); return; }
-        try {
-          const parsed = await parseTaskFromText({ text: input, apiKey, todayBangkok: bangkokToday() });
-          if (!parsed) { await replyText({ replyToken, text: "ไม่สามารถสร้างงานได้ ลองระบุชื่องาน วัน และเวลาให้ชัดขึ้น" }); return; }
-          const ins = await admin.from("tasks").insert({
-            profile_id: profileId,
-            title: parsed.title,
-            description: parsed.description ?? null,
-            due_at: parsed.due_at ?? null,
-            remind_at: parsed.remind_at ?? null,
-            remind_before_minutes: parsed.remind_before_minutes,
-            priority: parsed.priority,
-            source: "line",
-            raw_input: input,
-          });
-          if (ins.error) { await replyText({ replyToken, text: "บันทึกงานไม่สำเร็จ" }); return; }
-          await replyFlex({
-            replyToken,
-            altText: `บันทึกงาน: ${parsed.title}`,
-            contents: buildTaskConfirmFlex({ title: parsed.title, dueAt: parsed.due_at, priority: parsed.priority, remindBefore: parsed.remind_before_minutes }),
-          });
-        } catch {
-          await replyText({ replyToken, text: "เกิดข้อผิดพลาด ลองใหม่อีกครั้ง" });
-        }
+        if (!input) { await replyText({ replyToken, text: "ระบุชื่องานด้วย เช่น /t ประชุม Q3" }); return; }
+        await saveTask({ admin, profileId, title: input, rawInput: input, replyToken });
         return;
       }
 
@@ -497,41 +507,29 @@ export async function POST(req: Request) {
         return;
       }
 
-      // ── NLP fallback: create task from plain-text natural language ────────
-      const apiKey = process.env.OPENAI_API_KEY ?? "";
-      if (apiKey) {
+      // ── Plain-text fallback: save as task (AI-enhanced if key available) ──
+      {
         const okPerm = await hasPermission(admin, profileId, "bot.assistant.tasks");
         if (okPerm) {
-          try {
-            const parsed = await parseTaskFromText({ text, apiKey, todayBangkok: bangkokToday() });
-            if (parsed) {
-              const ins = await admin.from("tasks").insert({
-                profile_id: profileId,
-                title: parsed.title,
-                description: parsed.description ?? null,
-                due_at: parsed.due_at ?? null,
-                remind_at: parsed.remind_at ?? null,
-                remind_before_minutes: parsed.remind_before_minutes,
-                priority: parsed.priority,
-                source: "line",
-                raw_input: text,
-              });
-              if (!ins.error) {
-                await replyFlex({
-                  replyToken,
-                  altText: `บันทึกงาน: ${parsed.title}`,
-                  contents: buildTaskConfirmFlex({ title: parsed.title, dueAt: parsed.due_at, priority: parsed.priority, remindBefore: parsed.remind_before_minutes }),
-                });
+          const apiKey = process.env.OPENAI_API_KEY ?? "";
+          if (apiKey) {
+            try {
+              const parsed = await parseTaskFromText({ text, apiKey, todayBangkok: bangkokToday() });
+              if (parsed) {
+                await saveTask({ admin, profileId, title: parsed.title, dueAt: parsed.due_at, remindAt: parsed.remind_at, remindBefore: parsed.remind_before_minutes, priority: parsed.priority, rawInput: text, replyToken });
                 return;
               }
+            } catch {
+              // AI failed → fall through to plain save
             }
-          } catch {
-            // fall through to unknown
           }
+          // No API key or AI couldn't parse → save text as-is
+          await saveTask({ admin, profileId, title: text, rawInput: text, replyToken });
+          return;
         }
       }
 
-      await replyText({ replyToken, text: "ไม่เข้าใจคำสั่ง ลองพิมพ์ HELP" });
+      await replyText({ replyToken, text: "ไม่เข้าใจคำสั่ง ลองพิมพ์ /help" });
     }),
   );
 
