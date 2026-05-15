@@ -507,29 +507,7 @@ export async function POST(req: Request) {
         return;
       }
 
-      // ── Plain-text fallback: save as task (AI-enhanced if key available) ──
-      {
-        const okPerm = await hasPermission(admin, profileId, "bot.assistant.tasks");
-        if (okPerm) {
-          const apiKey = process.env.OPENAI_API_KEY ?? "";
-          if (apiKey) {
-            try {
-              const parsed = await parseTaskFromText({ text, apiKey, todayBangkok: bangkokToday() });
-              if (parsed) {
-                await saveTask({ admin, profileId, title: parsed.title, dueAt: parsed.due_at, remindAt: parsed.remind_at, remindBefore: parsed.remind_before_minutes, priority: parsed.priority, rawInput: text, replyToken });
-                return;
-              }
-            } catch {
-              // AI failed → fall through to plain save
-            }
-          }
-          // No API key or AI couldn't parse → save text as-is
-          await saveTask({ admin, profileId, title: text, rawInput: text, replyToken });
-          return;
-        }
-      }
-
-      await replyText({ replyToken, text: "ไม่เข้าใจคำสั่ง ลองพิมพ์ /help" });
+      // cmd.type === "unknown" means no leading / → ignore silently
     }),
   );
 
