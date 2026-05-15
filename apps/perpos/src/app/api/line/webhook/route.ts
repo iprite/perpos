@@ -138,8 +138,9 @@ type Command =
   | { type: "task_done"; index: number }
   | { type: "task_postpone"; index: number }
   | { type: "task_overdue" }
-  | { type: "unknown_slash" }  // starts with / but no match → show error
-  | { type: "unknown" };       // no / → try NLP
+  | { type: "task_create"; input: string }  // /t <text> → force NLP task creation
+  | { type: "unknown_slash" }              // starts with / but no match → show error
+  | { type: "unknown" };                   // no / → try NLP
 
 // All commands must start with /  Plain text (no /) goes to NLP fallback.
 function pickCommand(text: string): Command {
@@ -152,6 +153,9 @@ function pickCommand(text: string): Command {
   const lower = body.toLowerCase();
 
   if (lower === "help" || lower === "คำสั่ง") return { type: "help" };
+
+  const taskCreateMatch = body.match(/^t(?:\s+(.+))?$/i);
+  if (taskCreateMatch !== null) return { type: "task_create", input: (taskCreateMatch[1] ?? "").trim() };
 
   const linkMatch = body.match(/^(?:link|ผูกบัญชี)\s+([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i);
   if (linkMatch?.[1]) return { type: "link", token: linkMatch[1] };
@@ -332,6 +336,7 @@ export async function POST(req: Request) {
             "📅 /นัด <HH:MM> <เรื่อง>  เพิ่มนัด\n" +
             "🗓 /วันนี้              นัดวันนี้\n" +
             "────────────────\n" +
+            "✍️ /t <ข้อความ>        บันทึกงานใหม่\n" +
             "📋 /งาน                รายการงาน\n" +
             "⚠️ /งานค้าง            งานเกินกำหนด\n" +
             "✅ /เสร็จ <เลข>        ปิดงาน\n" +
@@ -449,6 +454,40 @@ export async function POST(req: Request) {
         const newRemindAt = new Date(new Date(newDueAt).getTime() - 15 * 60 * 1000).toISOString();
         await admin.from("tasks").update({ due_at: newDueAt, remind_at: newRemindAt, follow_up_sent_at: null }).eq("id", task.id);
         await replyText({ replyToken, text: `📅 เลื่อนงาน "${task.title}" เป็น ${fmtBangkokDateTime(newDueAt)}` });
+        return;
+      }
+
+      // ── /t <text> → NLP task creation ───────────────────────────────────
+      if (cmd.type === "task_create") {
+        const okPerm = await hasPermission(admin, profileId, "bot.assistant.tasks");
+        if (!okPerm) { await replyText({ replyToken, text: "คุณไม่มีสิทธิ์ใช้ Task Manager" }); return; }
+        const input = cmd.input;
+        if (!input) { await replyText({ replyToken, text: "ระบุรายละเอียดงานด้วย\nเช่น /t พรุ่งนี้ 10 โมงประชุม Q3" }); return; }
+        const apiKey = process.env.OPENAI_API_KEY ?? "";
+        if (!apiKey) { await replyText({ replyToken, text: "ยังไม่ได้ตั้งค่า OPENAI_API_KEY" }); return; }
+        try {
+          const parsed = await parseTaskFromText({ text: input, apiKey, todayBangkok: bangkokToday() });
+          if (!parsed) { await replyText({ replyToken, text: "ไม่สามารถสร้างงานได้ ลองระบุชื่องาน วัน และเวลาให้ชัดขึ้น" }); return; }
+          const ins = await admin.from("tasks").insert({
+            profile_id: profileId,
+            title: parsed.title,
+            description: parsed.description ?? null,
+            due_at: parsed.due_at ?? null,
+            remind_at: parsed.remind_at ?? null,
+            remind_before_minutes: parsed.remind_before_minutes,
+            priority: parsed.priority,
+            source: "line",
+            raw_input: input,
+          });
+          if (ins.error) { await replyText({ replyToken, text: "บันทึกงานไม่สำเร็จ" }); return; }
+          await replyFlex({
+            replyToken,
+            altText: `บันทึกงาน: ${parsed.title}`,
+            contents: buildTaskConfirmFlex({ title: parsed.title, dueAt: parsed.due_at, priority: parsed.priority, remindBefore: parsed.remind_before_minutes }),
+          });
+        } catch {
+          await replyText({ replyToken, text: "เกิดข้อผิดพลาด ลองใหม่อีกครั้ง" });
+        }
         return;
       }
 
