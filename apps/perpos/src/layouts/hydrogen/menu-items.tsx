@@ -18,6 +18,7 @@ import {
   Landmark,
   FileText,
   Percent,
+  BotMessageSquare,
 } from "lucide-react";
 
 import type { Role } from "@/lib/supabase/types";
@@ -54,6 +55,13 @@ function hasRole(itemRoles: Role[] | undefined, role: Role | null) {
 
 function buildUserMenuItems(): MenuItem[] {
   return [
+    { name: "Assistant", roles: allRoles },
+    {
+      name: "Task Manager",
+      href: "/assistant",
+      icon: <BotMessageSquare className="h-5 w-5" />,
+      roles: allRoles,
+    },
     { name: "Accounting", roles: allRoles },
     {
       name: "รายงาน",
