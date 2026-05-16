@@ -95,7 +95,8 @@ function TaskRow({ task, onDone }: { task: Task; onDone: (id: string) => void })
 
 // ─── Appointment row ──────────────────────────────────────────────────────────
 
-function ApptRow({ appt }: { appt: Appointment }) {
+function ApptRow({ appt, onCancel }: { appt: Appointment; onCancel?: (id: string) => void }) {
+  const [cancelling, setCancelling] = useState(false);
   const past     = isPast(appt.starts_at);
   const today    = isToday(appt.starts_at);
   const tomorrow = isTomorrow(appt.starts_at);
@@ -126,6 +127,16 @@ function ApptRow({ appt }: { appt: Appointment }) {
           {fmtDateFull(appt.starts_at)} &middot; {fmtTime(appt.starts_at)}
         </div>
       </div>
+      {!past && onCancel && (
+        <button
+          type="button"
+          disabled={cancelling}
+          onClick={() => { setCancelling(true); onCancel(appt.id); }}
+          className="shrink-0 rounded-lg border border-red-200 bg-red-50 px-3 py-1 text-xs font-medium text-red-600 hover:bg-red-100 disabled:opacity-50"
+        >
+          ยกเลิก
+        </button>
+      )}
     </div>
   );
 }
@@ -161,6 +172,11 @@ export default function AssistantPage() {
   const markDone = useCallback(async (id: string) => {
     await supabase.from("tasks").update({ status: "completed", completed_at: new Date().toISOString() }).eq("id", id);
     setTasks((prev) => prev.map((t) => t.id === id ? { ...t, status: "completed", completed_at: new Date().toISOString() } : t));
+  }, [supabase]);
+
+  const cancelAppt = useCallback(async (id: string) => {
+    await supabase.from("appointments").delete().eq("id", id);
+    setAppointments((prev) => prev.filter((a) => a.id !== id));
   }, [supabase]);
 
   const onProcessTasks = tasks.filter((t) => t.status === "pending" || t.status === "in_progress");
@@ -268,14 +284,14 @@ export default function AssistantPage() {
           {todayAppts.length > 0 && (
             <section>
               <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-indigo-500">วันนี้</h2>
-              <div className="space-y-2">{todayAppts.map((a) => <ApptRow key={a.id} appt={a} />)}</div>
+              <div className="space-y-2">{todayAppts.map((a) => <ApptRow key={a.id} appt={a} onCancel={cancelAppt} />)}</div>
             </section>
           )}
 
           {upcomingAppts.length > 0 && (
             <section>
               <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-gray-400">กำลังจะถึง</h2>
-              <div className="space-y-2">{upcomingAppts.map((a) => <ApptRow key={a.id} appt={a} />)}</div>
+              <div className="space-y-2">{upcomingAppts.map((a) => <ApptRow key={a.id} appt={a} onCancel={cancelAppt} />)}</div>
             </section>
           )}
 
@@ -296,8 +312,9 @@ export default function AssistantPage() {
             <div className="font-semibold">คำสั่ง LINE Bot — นัดหมาย</div>
             <div className="mt-2 space-y-1 font-mono text-xs">
               <div><span className="font-bold">/a</span> ประชุม Q3 พรุ่งนี้ 10:00</div>
-              <div><span className="font-bold">/a</span> call client 20/5 14:30</div>
-              <div><span className="font-bold">/ap</span> &nbsp;— ดูนัดวันนี้</div>
+              <div><span className="font-bold">/ap</span> &nbsp;— นัดวันนี้ + ปุ่มยกเลิก</div>
+              <div><span className="font-bold">/ap all</span> &nbsp;— นัดทั้งหมดที่กำลังจะถึง</div>
+              <div><span className="font-bold">/ac 1</span> &nbsp;— ยกเลิกนัดที่ 1</div>
             </div>
           </section>
         </div>

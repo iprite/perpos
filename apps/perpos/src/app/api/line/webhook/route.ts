@@ -118,10 +118,12 @@ type Command =
   | { type: "income"; amountText: string; note: string }
   | { type: "expense"; amountText: string; note: string }
   | { type: "task_create"; input: string }       // /t <name>
-  | { type: "task_list" }                         // /งาน
-  | { type: "task_done"; index: number }          // /เสร็จ <N>
+  | { type: "task_list" }                         // /tk
+  | { type: "task_done"; index: number }          // /d <N>
   | { type: "appt_create"; input: string }        // /a <title> <date> <time>
-  | { type: "appt_today" }                        // /นัดวันนี้
+  | { type: "appt_today" }                        // /ap
+  | { type: "appt_all" }                          // /ap all
+  | { type: "appt_cancel"; index: number }        // /ac <N>
   | { type: "unknown_slash" }
   | { type: "unknown" };
 
@@ -160,7 +162,11 @@ function pickCommand(text: string): Command {
   const doneMatch = body.match(/^d\s+([0-9]+)$/i);
   if (doneMatch?.[1]) return { type: "task_done", index: parseInt(doneMatch[1]) };
 
+  if (lower === "ap all") return { type: "appt_all" };
   if (lower === "ap") return { type: "appt_today" };
+
+  const cancelMatch = body.match(/^ac\s+([0-9]+)$/i);
+  if (cancelMatch?.[1]) return { type: "appt_cancel", index: parseInt(cancelMatch[1]) };
 
   return { type: "unknown_slash" };
 }
@@ -217,6 +223,80 @@ function buildTaskConfirmFlex(title: string) {
 // ─────────────────────────────────────────────
 // Appointment helpers
 // ─────────────────────────────────────────────
+
+type ApptRow = { id: string; starts_at: string; title: string; google_event_id: string | null };
+
+function bkkDayBounds() {
+  const now = new Date();
+  const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok", year: "numeric", month: "2-digit", day: "2-digit" })
+    .formatToParts(now)
+    .reduce((a, p) => { if (p.type !== "literal") (a as any)[p.type] = p.value; return a; }, {} as Record<string, string>);
+  return {
+    start: new Date(`${parts.year}-${parts.month}-${parts.day}T00:00:00+07:00`).toISOString(),
+    end:   new Date(`${parts.year}-${parts.month}-${parts.day}T23:59:59+07:00`).toISOString(),
+  };
+}
+
+async function getTodayAppts(admin: ReturnType<typeof createSupabaseAdminClient>, profileId: string): Promise<ApptRow[]> {
+  const { start, end } = bkkDayBounds();
+  const { data } = await admin
+    .from("appointments")
+    .select("id,title,starts_at,google_event_id")
+    .eq("profile_id", profileId)
+    .gte("starts_at", start)
+    .lte("starts_at", end)
+    .order("starts_at", { ascending: true });
+  return (data ?? []) as ApptRow[];
+}
+
+function buildApptTodayFlex(rows: ApptRow[]) {
+  return {
+    type: "bubble",
+    size: "kilo",
+    header: {
+      type: "box",
+      layout: "vertical",
+      backgroundColor: "#0F7B6C",
+      paddingAll: "14px",
+      contents: [{ type: "text", text: `📅 นัดวันนี้ (${rows.length} รายการ)`, color: "#ffffff", weight: "bold", size: "sm" }],
+    },
+    body: {
+      type: "box",
+      layout: "vertical",
+      spacing: "md",
+      paddingAll: "14px",
+      contents: rows.map((r, i) => ({
+        type: "box",
+        layout: "horizontal",
+        alignItems: "center",
+        spacing: "sm",
+        contents: [
+          {
+            type: "box",
+            layout: "vertical",
+            flex: 5,
+            contents: [
+              { type: "text", text: r.title, size: "sm", weight: "bold", wrap: true, flex: 0 },
+              { type: "text", text: fmtBangkokTime(r.starts_at), size: "xs", color: "#888888", flex: 0 },
+            ],
+          },
+          {
+            type: "button",
+            flex: 3,
+            action: { type: "message", label: `ยกเลิก ${i + 1}`, text: `/ac ${i + 1}` },
+            style: "secondary",
+            height: "sm",
+          },
+        ],
+      })),
+    },
+    footer: {
+      type: "box",
+      layout: "horizontal",
+      contents: [{ type: "button", action: { type: "message", label: "ดูนัดทั้งหมด", text: "/ap all" }, style: "secondary", height: "sm" }],
+    },
+  };
+}
 
 function buildApptConfirmFlex(args: { title: string; startsAt: string; calendarSynced: boolean; calendarError?: string | null }) {
   const { title, startsAt, calendarSynced, calendarError } = args;
@@ -351,7 +431,9 @@ export async function POST(req: Request) {
             "✅ /d <เลข>             ปิดงาน\n" +
             "────────────────\n" +
             "📅 /a <ชื่อ> <วัน> <HH:MM>  บันทึกนัด\n" +
-            "🗓 /ap                  นัดวันนี้\n" +
+            "🗓 /ap                  นัดวันนี้ + ยกเลิกได้\n" +
+            "📋 /ap all              นัดทั้งหมดที่กำลังจะถึง\n" +
+            "🗑 /ac <เลข>            ยกเลิกนัดที่ <เลข>\n" +
             "────────────────\n" +
             "ตัวอย่างนัด:\n" +
             "/a ประชุม Q3 พรุ่งนี้ 10:00\n" +
@@ -483,19 +565,61 @@ export async function POST(req: Request) {
         return;
       }
 
-      // ── /นัดวันนี้ — today's appointments ───────────────────────────────
+      // ── /ap — today's appointments with cancel buttons ──────────────────
       if (cmd.type === "appt_today") {
         const okPerm = await hasPermission(admin, profileId, "bot.assistant.tasks");
         if (!okPerm) { await replyText({ replyToken, text: "คุณไม่มีสิทธิ์ใช้ Task Manager" }); return; }
-        const now = new Date();
-        const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(now).reduce((a, p) => { if (p.type !== "literal") (a as any)[p.type] = p.value; return a; }, {} as Record<string, string>);
-        const dayStart = new Date(`${parts.year}-${parts.month}-${parts.day}T00:00:00+07:00`).toISOString();
-        const dayEnd   = new Date(`${parts.year}-${parts.month}-${parts.day}T23:59:59+07:00`).toISOString();
-        const res = await admin.from("appointments").select("starts_at,title").eq("profile_id", profileId).gte("starts_at", dayStart).lte("starts_at", dayEnd).order("starts_at", { ascending: true });
+        const rows = await getTodayAppts(admin, profileId);
+        if (!rows.length) { await replyText({ replyToken, text: "วันนี้ไม่มีนัด" }); return; }
+        await replyFlex({ replyToken, altText: `นัดวันนี้ ${rows.length} รายการ`, contents: buildApptTodayFlex(rows) });
+        return;
+      }
+
+      // ── /ap all — all upcoming appointments ─────────────────────────────
+      if (cmd.type === "appt_all") {
+        const okPerm = await hasPermission(admin, profileId, "bot.assistant.tasks");
+        if (!okPerm) { await replyText({ replyToken, text: "คุณไม่มีสิทธิ์ใช้ Task Manager" }); return; }
+        const res = await admin.from("appointments")
+          .select("starts_at,title")
+          .eq("profile_id", profileId)
+          .gte("starts_at", new Date().toISOString())
+          .order("starts_at", { ascending: true })
+          .limit(15);
         if (res.error) { await replyText({ replyToken, text: "โหลดนัดไม่สำเร็จ" }); return; }
         const rows = (res.data ?? []) as Array<{ starts_at: string; title: string }>;
-        if (!rows.length) { await replyText({ replyToken, text: "วันนี้ไม่มีนัด" }); return; }
-        await replyText({ replyToken, text: `📅 นัดวันนี้\n${rows.map((r, i) => `${i + 1}. ${fmtBangkokTime(r.starts_at)} ${r.title}`).join("\n")}` });
+        if (!rows.length) { await replyText({ replyToken, text: "ไม่มีนัดที่กำลังจะถึง" }); return; }
+        const lines = rows.map((r, i) => `${i + 1}. ${fmtBangkokDateTime(r.starts_at)}  ${r.title}`);
+        await replyText({ replyToken, text: `📅 นัดทั้งหมด (${rows.length} รายการ)\n${lines.join("\n")}` });
+        return;
+      }
+
+      // ── /ac <N> — cancel appointment N from today ────────────────────────
+      if (cmd.type === "appt_cancel") {
+        const okPerm = await hasPermission(admin, profileId, "bot.assistant.tasks");
+        if (!okPerm) { await replyText({ replyToken, text: "คุณไม่มีสิทธิ์ใช้ Task Manager" }); return; }
+        const rows = await getTodayAppts(admin, profileId);
+        const idx = cmd.index - 1;
+        if (idx < 0 || idx >= rows.length) {
+          await replyText({ replyToken, text: `ไม่พบนัดที่ ${cmd.index} พิมพ์ /ap เพื่อดูรายการใหม่` });
+          return;
+        }
+        const appt = rows[idx];
+        // Remove from Google Calendar if linked
+        if (appt.google_event_id) {
+          try {
+            const driveRes = await admin.from("google_drive_tokens").select("access_token,refresh_token,expires_at,scope,token_type").eq("profile_id", profileId).maybeSingle();
+            if (driveRes.data) {
+              const { deleteCalendarEvent } = await import("@/lib/google/calendar");
+              const { getDriveAccessTokenForRow } = await import("@/lib/google/drive");
+              const accessToken = await getDriveAccessTokenForRow(driveRes.data as any, async (patch) => {
+                await admin.from("google_drive_tokens").update({ ...patch, updated_at: new Date().toISOString() }).eq("profile_id", profileId);
+              });
+              await deleteCalendarEvent({ accessToken, eventId: appt.google_event_id });
+            }
+          } catch { /* silent — Calendar delete failure should not block DB delete */ }
+        }
+        await admin.from("appointments").delete().eq("id", appt.id);
+        await replyText({ replyToken, text: `🗑 ยกเลิกนัดแล้ว: "${appt.title}" (${fmtBangkokTime(appt.starts_at)})` });
         return;
       }
 
