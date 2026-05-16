@@ -258,8 +258,8 @@ export default function AssistantPage() {
             <div className="font-semibold">คำสั่ง LINE Bot — งาน</div>
             <div className="mt-2 space-y-1 font-mono text-xs">
               <div><span className="font-bold">/t</span> ประชุม Q3 &nbsp;— บันทึกงานใหม่</div>
-              <div><span className="font-bold">/งาน</span> &nbsp;— ดูงานค้าง</div>
-              <div><span className="font-bold">/เสร็จ 1</span> &nbsp;— ปิดงานที่ 1</div>
+              <div><span className="font-bold">/tk</span> &nbsp;— ดูงานค้าง</div>
+              <div><span className="font-bold">/d 1</span> &nbsp;— ปิดงานที่ 1</div>
             </div>
           </section>
         </div>
@@ -297,7 +297,7 @@ export default function AssistantPage() {
             <div className="mt-2 space-y-1 font-mono text-xs">
               <div><span className="font-bold">/a</span> ประชุม Q3 พรุ่งนี้ 10:00</div>
               <div><span className="font-bold">/a</span> call client 20/5 14:30</div>
-              <div><span className="font-bold">/นัดวันนี้</span> &nbsp;— ดูนัดวันนี้</div>
+              <div><span className="font-bold">/ap</span> &nbsp;— ดูนัดวันนี้</div>
             </div>
           </section>
         </div>

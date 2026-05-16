@@ -155,12 +155,12 @@ function pickCommand(text: string): Command {
   const expenseMatch = body.match(/^(?:expense|รายจ่าย)\s+([0-9.,]+)\s*(.*)$/i);
   if (expenseMatch?.[1]) return { type: "expense", amountText: expenseMatch[1], note: (expenseMatch[2] ?? "").trim() };
 
-  if (lower === "tasks" || lower === "งาน") return { type: "task_list" };
+  if (lower === "tk") return { type: "task_list" };
 
-  const doneMatch = body.match(/^(?:done|เสร็จ)\s+([0-9]+)$/i);
+  const doneMatch = body.match(/^d\s+([0-9]+)$/i);
   if (doneMatch?.[1]) return { type: "task_done", index: parseInt(doneMatch[1]) };
 
-  if (lower === "นัดวันนี้" || lower === "today" || lower === "วันนี้") return { type: "appt_today" };
+  if (lower === "ap") return { type: "appt_today" };
 
   return { type: "unknown_slash" };
 }
@@ -182,7 +182,7 @@ async function getPendingTasks(admin: ReturnType<typeof createSupabaseAdminClien
 function buildTaskListText(tasks: Array<{ title: string }>) {
   if (!tasks.length) return "ไม่มีงานค้าง ✅";
   const lines = tasks.map((t, i) => `${i + 1}. ${t.title}`);
-  return `📋 งานที่ยังทำอยู่ (${tasks.length} รายการ)\n${lines.join("\n")}\n\nพิมพ์ /เสร็จ <เลข> เพื่อปิดงาน`;
+  return `📋 งานที่ยังทำอยู่ (${tasks.length} รายการ)\n${lines.join("\n")}\n\nพิมพ์ /d <เลข> เพื่อปิดงาน`;
 }
 
 function buildTaskConfirmFlex(title: string) {
@@ -209,7 +209,7 @@ function buildTaskConfirmFlex(title: string) {
     footer: {
       type: "box",
       layout: "horizontal",
-      contents: [{ type: "button", action: { type: "message", label: "ดูงานทั้งหมด", text: "/งาน" }, style: "secondary", height: "sm" }],
+      contents: [{ type: "button", action: { type: "message", label: "ดูงานทั้งหมด", text: "/tk" }, style: "secondary", height: "sm" }],
     },
   };
 }
@@ -256,7 +256,7 @@ function buildApptConfirmFlex(args: { title: string; startsAt: string; calendarS
     footer: {
       type: "box",
       layout: "horizontal",
-      contents: [{ type: "button", action: { type: "message", label: "นัดวันนี้", text: "/นัดวันนี้" }, style: "secondary", height: "sm" }],
+      contents: [{ type: "button", action: { type: "message", label: "นัดวันนี้", text: "/ap" }, style: "secondary", height: "sm" }],
     },
   };
 }
@@ -344,12 +344,12 @@ export async function POST(req: Request) {
             "💰 /รายรับ <จำนวน> <โน้ต>\n" +
             "💸 /รายจ่าย <จำนวน> <โน้ต>\n" +
             "────────────────\n" +
-            "✍️ /t <ชื่องาน>         บันทึกงานใหม่\n" +
-            "📋 /งาน                 รายการงานค้าง\n" +
-            "✅ /เสร็จ <เลข>         ปิดงาน\n" +
+            "✍️ /t <ชื่องาน>          บันทึกงานใหม่\n" +
+            "📋 /tk                  รายการงานค้าง\n" +
+            "✅ /d <เลข>             ปิดงาน\n" +
             "────────────────\n" +
             "📅 /a <ชื่อ> <วัน> <HH:MM>  บันทึกนัด\n" +
-            "🗓 /นัดวันนี้            นัดวันนี้\n" +
+            "🗓 /ap                  นัดวันนี้\n" +
             "────────────────\n" +
             "ตัวอย่างนัด:\n" +
             "/a ประชุม Q3 พรุ่งนี้ 10:00\n" +
@@ -424,7 +424,7 @@ export async function POST(req: Request) {
         if (!okPerm) { await replyText({ replyToken, text: "คุณไม่มีสิทธิ์ใช้ Task Manager" }); return; }
         const tasks = await getPendingTasks(admin, profileId);
         const idx = cmd.index - 1;
-        if (idx < 0 || idx >= tasks.length) { await replyText({ replyToken, text: `ไม่พบงานที่ ${cmd.index} พิมพ์ /งาน เพื่อดูรายการใหม่` }); return; }
+        if (idx < 0 || idx >= tasks.length) { await replyText({ replyToken, text: `ไม่พบงานที่ ${cmd.index} พิมพ์ /tk เพื่อดูรายการใหม่` }); return; }
         await admin.from("tasks").update({ status: "completed", completed_at: new Date().toISOString() }).eq("id", tasks[idx].id);
         await replyText({ replyToken, text: `✅ ปิดงานแล้ว: "${tasks[idx].title}"` });
         return;

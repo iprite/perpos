@@ -86,7 +86,7 @@ export async function sendDailyTaskBriefing(admin: ReturnType<typeof createSupab
       (tasks as any[]).forEach((t, i) => {
         lines.push(`${i + 1}. ${t.title}`);
       });
-      lines.push("\nพิมพ์ /เสร็จ <เลข> เพื่อปิดงาน");
+      lines.push("\nพิมพ์ /d <เลข> เพื่อปิดงาน");
     } else {
       lines.push("\n✅ ไม่มีงานค้าง วันนี้ว่างเต็มที่!");
     }

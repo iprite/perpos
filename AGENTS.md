@@ -107,10 +107,10 @@ pnpm build
 | `/นัด <HH:MM> <เรื่อง>` | เพิ่มนัดวันนี้ | `bot.calendar.add` |
 | `/วันนี้` | ดูนัดวันนี้ | `bot.calendar.today` |
 | `/t <ข้อความ>` | บันทึก task ใหม่ | `bot.assistant.tasks` |
-| `/งาน` | รายการ task ที่รอ | `bot.assistant.tasks` |
-| `/งานค้าง` | task เกินกำหนด | `bot.assistant.tasks` |
-| `/เสร็จ <N>` | ปิด task ที่ N | `bot.assistant.tasks` |
-| `/เลื่อน <N>` | เลื่อน task ที่ N +1 วัน | `bot.assistant.tasks` |
+| `/tk` | รายการ task ที่รอ | `bot.assistant.tasks` |
+| `/d <N>` | ปิด task ที่ N | `bot.assistant.tasks` |
+| `/a <ชื่อ> <วัน> <HH:MM>` | บันทึกนัดหมาย | `bot.assistant.tasks` |
+| `/ap` | นัดวันนี้ | `bot.assistant.tasks` |
 
 **หมายเหตุ:** Admin role ข้ามการเช็ค permission ทั้งหมด
 
