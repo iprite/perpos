@@ -19,6 +19,7 @@ import {
   FileText,
   Percent,
   BotMessageSquare,
+  LayoutGrid,
 } from "lucide-react";
 
 import type { Role } from "@/lib/supabase/types";
@@ -245,6 +246,12 @@ function buildAdminMenuItems(): MenuItem[] {
       name: "การส่งผ่าน LINE",
       href: "/admin/delivery",
       icon: <Link2 className="h-5 w-5" />,
+      roles: ["admin"],
+    },
+    {
+      name: "จัดการ Modules",
+      href: "/admin/modules",
+      icon: <LayoutGrid className="h-5 w-5" />,
       roles: ["admin"],
     },
   ];

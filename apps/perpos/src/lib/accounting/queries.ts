@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { ALL_MODULE_KEYS } from "@/lib/modules";
 
 export type OrganizationSummary = {
   id: string;
@@ -42,4 +43,26 @@ export async function getActiveOrganizationId(): Promise<string | null> {
   if (!orgs.length) return null;
   if (preferred && orgs.some((o) => o.id === preferred)) return preferred;
   return orgs[0].id;
+}
+
+export async function getEnabledModulesForOrg(
+  orgId: string | null,
+  memberRole: "owner" | "admin" | "member" | null,
+): Promise<string[]> {
+  if (!orgId) return ALL_MODULE_KEYS;
+  const supabase = await createSupabaseServerClient();
+  const { data } = await supabase
+    .from("org_module_settings")
+    .select("module_key,is_enabled,allowed_roles")
+    .eq("organization_id", orgId);
+
+  if (!data?.length) return ALL_MODULE_KEYS;
+
+  return (data as any[])
+    .filter((row) => {
+      if (!row.is_enabled) return false;
+      if (!memberRole) return true;
+      return (row.allowed_roles as string[]).includes(memberRole);
+    })
+    .map((row) => row.module_key as string);
 }

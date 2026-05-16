@@ -6,11 +6,20 @@ import HeaderMenuRight from "@/layouts/header-menu-right";
 import StickyHeader from "@/layouts/sticky-header";
 import { OrgSwitcher } from "@/components/accounting/org-switcher";
 import { ModuleSwitcher } from "@/components/module-switcher";
-import { getOrganizationsForCurrentUser, getActiveOrganizationId } from "@/lib/accounting/queries";
+import {
+  getOrganizationsForCurrentUser,
+  getActiveOrganizationId,
+  getEnabledModulesForOrg,
+} from "@/lib/accounting/queries";
 
 export default async function Header() {
   const organizations        = await getOrganizationsForCurrentUser();
   const activeOrganizationId = await getActiveOrganizationId();
+  const activeOrg            = organizations.find((o) => o.id === activeOrganizationId);
+  const enabledModuleKeys    = await getEnabledModulesForOrg(
+    activeOrganizationId,
+    activeOrg?.role ?? null,
+  );
 
   return (
     <StickyHeader className="z-[990] 2xl:py-5 3xl:px-8 4xl:px-10">
@@ -27,8 +36,12 @@ export default async function Header() {
 
       <div className="flex-1" />
       <div className="mx-2 flex items-center gap-3 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mx-4">
-        <div className="shrink-0"><ModuleSwitcher /></div>
-        <div className="shrink-0"><OrgSwitcher organizations={organizations} activeOrganizationId={activeOrganizationId} /></div>
+        <div className="shrink-0">
+          <ModuleSwitcher enabledModuleKeys={enabledModuleKeys} />
+        </div>
+        <div className="shrink-0">
+          <OrgSwitcher organizations={organizations} activeOrganizationId={activeOrganizationId} />
+        </div>
       </div>
 
       <HeaderMenuRight />
