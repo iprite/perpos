@@ -5,7 +5,7 @@ const BKK = "Asia/Bangkok";
 
 function bkkHourMin(d: Date) {
   const hour = parseInt(
-    new Intl.DateTimeFormat("en", { timeZone: BKK, hour: "numeric" }).format(d),
+    new Intl.DateTimeFormat("en", { timeZone: BKK, hour: "numeric", hour12: false }).format(d),
   );
   const minute = parseInt(
     new Intl.DateTimeFormat("en", { timeZone: BKK, minute: "numeric" }).format(d),
@@ -31,14 +31,23 @@ function fmtDate(iso: string) {
   }).format(new Date(iso));
 }
 
-const PRIORITY_LABEL: Record<string, string> = {
-  low: "ต่ำ",
-  medium: "ปานกลาง",
-  high: "สูง",
-  urgent: "ด่วนมาก",
-};
+function bkkDayBounds(d: Date): { start: string; end: string } {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: BKK,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(d).reduce((a, p) => {
+    if (p.type !== "literal") (a as any)[p.type] = p.value;
+    return a;
+  }, {} as Record<string, string>);
+  const { year: y, month: m, day: dd } = parts;
+  return {
+    start: new Date(`${y}-${m}-${dd}T00:00:00+07:00`).toISOString(),
+    end:   new Date(`${y}-${m}-${dd}T23:59:59+07:00`).toISOString(),
+  };
+}
 
-// Fetch the LINE user ID for a profile
 async function getLineUserId(
   admin: ReturnType<typeof createSupabaseAdminClient>,
   profileId: string,
@@ -47,40 +56,10 @@ async function getLineUserId(
   return (res.data as any)?.line_user_id ?? null;
 }
 
-// 1. Send due-soon reminders (called every minute by cron)
-export async function sendDueReminders(admin: ReturnType<typeof createSupabaseAdminClient>) {
-  const now = new Date();
-  const windowStart = new Date(now.getTime() - 5 * 60 * 1000);
+// ─── 1. Daily task briefing at 08:00 BKK ────────────────────────────────────
+// Sends every on-process (pending/in_progress) task to each user.
 
-  const { data: tasks, error } = await admin
-    .from("tasks")
-    .select("id,profile_id,title,due_at,priority")
-    .eq("status", "pending")
-    .lte("remind_at", now.toISOString())
-    .gte("remind_at", windowStart.toISOString());
-
-  if (error || !tasks?.length) return;
-
-  for (const task of tasks as any[]) {
-    const lineUserId = await getLineUserId(admin, task.profile_id);
-    if (!lineUserId) continue;
-
-    const dueInfo = task.due_at ? `\n🕐 ${fmtDate(task.due_at)} เวลา ${fmtTime(task.due_at)}` : "";
-    const pri = PRIORITY_LABEL[task.priority] ?? "";
-    const text = `⏰ แจ้งเตือนงาน\n📋 ${task.title}${dueInfo}${pri ? `\n🔴 ความสำคัญ: ${pri}` : ""}`;
-
-    await sendLineMessages({ to: lineUserId, messages: [{ type: "text", text }] });
-  }
-}
-
-// 2. Daily briefing at 08:30 BKK — send today's pending tasks to each user
-export async function sendDailyBriefing(admin: ReturnType<typeof createSupabaseAdminClient>) {
-  const now = new Date();
-  const todayStr = new Intl.DateTimeFormat("en-CA", { timeZone: BKK }).format(now);
-  const dayStart = new Date(`${todayStr}T00:00:00+07:00`).toISOString();
-  const dayEnd = new Date(`${todayStr}T23:59:59+07:00`).toISOString();
-
-  // Get all profiles that have a LINE user ID
+export async function sendDailyTaskBriefing(admin: ReturnType<typeof createSupabaseAdminClient>) {
   const { data: profiles } = await admin
     .from("profiles")
     .select("id,line_user_id,display_name")
@@ -92,111 +71,111 @@ export async function sendDailyBriefing(admin: ReturnType<typeof createSupabaseA
   for (const profile of profiles as any[]) {
     const lineUserId = profile.line_user_id as string;
 
-    // Pending tasks due today
-    const { data: todayTasks } = await admin
+    const { data: tasks } = await admin
       .from("tasks")
-      .select("title,due_at,priority")
+      .select("title,created_at")
       .eq("profile_id", profile.id)
-      .eq("status", "pending")
-      .gte("due_at", dayStart)
-      .lte("due_at", dayEnd)
-      .order("due_at", { ascending: true });
-
-    // Overdue tasks (due before today, still pending)
-    const { data: overdueTasks } = await admin
-      .from("tasks")
-      .select("title,due_at")
-      .eq("profile_id", profile.id)
-      .eq("status", "pending")
-      .lt("due_at", dayStart);
+      .in("status", ["pending", "in_progress"])
+      .order("created_at", { ascending: true });
 
     const name = (profile.display_name as string) || "คุณ";
     const lines: string[] = [`🌅 สวัสดีตอนเช้า ${name}!`];
 
-    if (todayTasks?.length) {
-      lines.push(`\n📋 งานวันนี้ (${todayTasks.length} รายการ):`);
-      (todayTasks as any[]).forEach((t, i) => {
-        const time = t.due_at ? ` ${fmtTime(t.due_at)}` : "";
-        lines.push(`${i + 1}.${time} ${t.title}`);
+    if (tasks?.length) {
+      lines.push(`\n📋 งานที่ยังค้างอยู่ (${tasks.length} รายการ):`);
+      (tasks as any[]).forEach((t, i) => {
+        lines.push(`${i + 1}. ${t.title}`);
       });
+      lines.push("\nพิมพ์ /เสร็จ <เลข> เพื่อปิดงาน");
     } else {
-      lines.push("\n✅ วันนี้ไม่มีงานที่กำหนดไว้");
+      lines.push("\n✅ ไม่มีงานค้าง วันนี้ว่างเต็มที่!");
     }
-
-    if (overdueTasks?.length) {
-      lines.push(`\n⚠️ งานค้าง (${overdueTasks.length} รายการ):`);
-      (overdueTasks as any[]).forEach((t) => {
-        const date = t.due_at ? fmtDate(t.due_at) : "ไม่ระบุ";
-        lines.push(`• ${t.title} (กำหนด: ${date})`);
-      });
-    }
-
-    lines.push("\nพิมพ์ /งาน เพื่อดูรายการทั้งหมด");
 
     await sendLineMessages({ to: lineUserId, messages: [{ type: "text", text: lines.join("\n") }] });
   }
 }
 
-// 3. Follow-up at 17:00 BKK — ask about tasks that passed due time but aren't done
-export async function sendFollowUp(admin: ReturnType<typeof createSupabaseAdminClient>) {
-  const now = new Date();
+// ─── 2. Appointment reminders ────────────────────────────────────────────────
+// Called every minute. Handles 3 reminder levels:
+//   A) 1 day before at 08:00 BKK  → reminded_day_before
+//   B) day of at 08:00 BKK        → reminded_day_of
+//   C) 1 hour before               → reminded_1h_before
 
-  const { data: tasks } = await admin
-    .from("tasks")
-    .select("id,profile_id,title,due_at")
-    .eq("status", "pending")
-    .lt("due_at", now.toISOString())
-    .is("follow_up_sent_at", null);
-
-  if (!tasks?.length) return;
-
-  const byProfile: Record<string, any[]> = {};
-  for (const t of tasks as any[]) {
-    if (!byProfile[t.profile_id]) byProfile[t.profile_id] = [];
-    byProfile[t.profile_id].push(t);
-  }
-
-  const taskIds: string[] = [];
-
-  for (const profileId of Object.keys(byProfile)) {
-    const profileTasks: any[] = byProfile[profileId];
-    const lineUserId = await getLineUserId(admin, profileId);
-    if (!lineUserId) continue;
-
-    const lines = [`🔔 ติดตามงานค้าง (${profileTasks.length} รายการ):`];
-    profileTasks.forEach((t: any, i: number) => {
-      lines.push(`${i + 1}. ${t.title}`);
-    });
-    lines.push("\nพิมพ์ /เสร็จ <เลข> เพื่อปิดงาน หรือ /เลื่อน <เลข> เพื่อเลื่อน 1 วัน");
-
-    await sendLineMessages({ to: lineUserId, messages: [{ type: "text", text: lines.join("\n") }] });
-    taskIds.push(...profileTasks.map((t: any) => t.id as string));
-  }
-
-  if (taskIds.length) {
-    await admin
-      .from("tasks")
-      .update({ follow_up_sent_at: now.toISOString() })
-      .in("id", taskIds);
-  }
-}
-
-// Entry point for the scheduler cron endpoint
-export async function runScheduler() {
-  const admin = createSupabaseAdminClient();
+export async function sendAppointmentReminders(admin: ReturnType<typeof createSupabaseAdminClient>) {
   const now = new Date();
   const { hour, minute } = bkkHourMin(now);
+  const isMorningWindow = hour === 8 && minute <= 4;
 
-  // Always check due reminders
-  await sendDueReminders(admin);
+  // ── A & B: morning window reminders ────────────────────────────────────
+  if (isMorningWindow) {
+    const today     = bkkDayBounds(now);
+    const tomorrow  = bkkDayBounds(new Date(now.getTime() + 24 * 60 * 60 * 1000));
 
-  // Daily briefing: 08:28–08:32 BKK
-  if (hour === 8 && minute >= 28 && minute <= 32) {
-    await sendDailyBriefing(admin);
+    // Day-before reminders: appointments tomorrow not yet notified
+    const { data: dayBefore } = await admin
+      .from("appointments")
+      .select("id,profile_id,title,starts_at")
+      .eq("reminded_day_before", false)
+      .gte("starts_at", tomorrow.start)
+      .lte("starts_at", tomorrow.end);
+
+    for (const appt of (dayBefore ?? []) as any[]) {
+      const lineUserId = await getLineUserId(admin, appt.profile_id);
+      if (!lineUserId) continue;
+      const text = `🔔 แจ้งเตือนล่วงหน้า 1 วัน\n📅 ${appt.title}\n🗓 ${fmtDate(appt.starts_at)} เวลา ${fmtTime(appt.starts_at)}`;
+      await sendLineMessages({ to: lineUserId, messages: [{ type: "text", text }] });
+      await admin.from("appointments").update({ reminded_day_before: true }).eq("id", appt.id);
+    }
+
+    // Day-of reminders: appointments today not yet notified
+    const { data: dayOf } = await admin
+      .from("appointments")
+      .select("id,profile_id,title,starts_at")
+      .eq("reminded_day_of", false)
+      .gte("starts_at", today.start)
+      .lte("starts_at", today.end);
+
+    for (const appt of (dayOf ?? []) as any[]) {
+      const lineUserId = await getLineUserId(admin, appt.profile_id);
+      if (!lineUserId) continue;
+      const text = `📅 วันนี้มีนัด!\n📌 ${appt.title}\n🕐 เวลา ${fmtTime(appt.starts_at)}`;
+      await sendLineMessages({ to: lineUserId, messages: [{ type: "text", text }] });
+      await admin.from("appointments").update({ reminded_day_of: true }).eq("id", appt.id);
+    }
   }
 
-  // Follow-up: 17:00–17:04 BKK
-  if (hour === 17 && minute >= 0 && minute <= 4) {
-    await sendFollowUp(admin);
+  // ── C: 1-hour-before reminder (every minute check, window 55–65 min) ──
+  const windowStart = new Date(now.getTime() + 55 * 60 * 1000).toISOString();
+  const windowEnd   = new Date(now.getTime() + 65 * 60 * 1000).toISOString();
+
+  const { data: upcoming } = await admin
+    .from("appointments")
+    .select("id,profile_id,title,starts_at")
+    .eq("reminded_1h_before", false)
+    .gte("starts_at", windowStart)
+    .lte("starts_at", windowEnd);
+
+  for (const appt of (upcoming ?? []) as any[]) {
+    const lineUserId = await getLineUserId(admin, appt.profile_id);
+    if (!lineUserId) continue;
+    const text = `⏰ อีก 1 ชั่วโมง มีนัด!\n📌 ${appt.title}\n🕐 เวลา ${fmtTime(appt.starts_at)}`;
+    await sendLineMessages({ to: lineUserId, messages: [{ type: "text", text }] });
+    await admin.from("appointments").update({ reminded_1h_before: true }).eq("id", appt.id);
+  }
+}
+
+// ─── Entry point for scheduler cron ─────────────────────────────────────────
+
+export async function runScheduler() {
+  const admin = createSupabaseAdminClient();
+  const now   = new Date();
+  const { hour, minute } = bkkHourMin(now);
+
+  // Appointment reminders every minute (all 3 levels handled internally)
+  await sendAppointmentReminders(admin);
+
+  // Daily task briefing at 08:00–08:04 BKK
+  if (hour === 8 && minute <= 4) {
+    await sendDailyTaskBriefing(admin);
   }
 }

@@ -4,7 +4,8 @@ import { NextResponse } from "next/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { ensureDriveFolder, getDriveAccessTokenForRow, uploadFileToDrive } from "@/lib/google/drive";
 import { basicHeadlineSummary, fetchRssItems, summarizeWithOpenAI } from "@/lib/news/news-agent";
-import { parseTaskFromText, bangkokToday } from "@/lib/assistant/task-parser";
+import { createCalendarEvent } from "@/lib/google/calendar";
+import { parseAppointmentText } from "@/lib/assistant/appointment-parser";
 
 export const runtime = "nodejs";
 
@@ -66,28 +67,12 @@ function parseMoney(text: string) {
   return Math.round(n * 100) / 100;
 }
 
-function bangkokDayRange(now: Date) {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Bangkok",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  })
-    .formatToParts(now)
-    .reduce((acc, p) => {
-      if (p.type !== "literal") (acc as any)[p.type] = p.value;
-      return acc;
-    }, {} as Record<string, string>);
-  const { year: y, month: m, day: d } = parts;
-  return {
-    start: new Date(`${y}-${m}-${d}T00:00:00+07:00`),
-    end: new Date(`${y}-${m}-${d}T23:59:59+07:00`),
-    y, m, d,
-  };
-}
-
 function fmtBangkokTime(iso: string) {
   return new Intl.DateTimeFormat("th-TH", { timeZone: "Asia/Bangkok", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(iso));
+}
+
+function fmtBangkokDate(iso: string) {
+  return new Intl.DateTimeFormat("th-TH", { timeZone: "Asia/Bangkok", day: "numeric", month: "short", year: "numeric" }).format(new Date(iso));
 }
 
 function fmtBangkokDateTime(iso: string) {
@@ -132,31 +117,32 @@ type Command =
   | { type: "news_latest" }
   | { type: "income"; amountText: string; note: string }
   | { type: "expense"; amountText: string; note: string }
-  | { type: "calendar_add"; time: string; title: string }
-  | { type: "calendar_today" }
-  | { type: "task_list" }
-  | { type: "task_done"; index: number }
-  | { type: "task_postpone"; index: number }
-  | { type: "task_overdue" }
-  | { type: "task_create"; input: string }  // /t <text> → force NLP task creation
-  | { type: "unknown_slash" }              // starts with / but no match → show error
-  | { type: "unknown" };                   // no / → try NLP
+  | { type: "task_create"; input: string }       // /t <name>
+  | { type: "task_list" }                         // /งาน
+  | { type: "task_done"; index: number }          // /เสร็จ <N>
+  | { type: "appt_create"; input: string }        // /a <title> <date> <time>
+  | { type: "appt_today" }                        // /นัดวันนี้
+  | { type: "unknown_slash" }
+  | { type: "unknown" };
 
-// All commands must start with /  Plain text (no /) goes to NLP fallback.
 function pickCommand(text: string): Command {
   const t = String(text ?? "").trim();
-
-  // Not a command — let NLP handle it
   if (!t.startsWith("/")) return { type: "unknown" };
 
-  const body  = t.slice(1).trim();           // strip leading /
+  const body  = t.slice(1).trim();
   const lower = body.toLowerCase();
 
   if (lower === "help" || lower === "คำสั่ง") return { type: "help" };
 
-  const taskCreateMatch = body.match(/^t(?:\s+(.+))?$/i);
-  if (taskCreateMatch !== null) return { type: "task_create", input: (taskCreateMatch[1] ?? "").trim() };
+  // /t <task name>
+  const taskMatch = body.match(/^t(?:\s+(.+))?$/i);
+  if (taskMatch !== null) return { type: "task_create", input: (taskMatch[1] ?? "").trim() };
 
+  // /a <appointment>
+  const apptMatch = body.match(/^a(?:\s+(.+))?$/i);
+  if (apptMatch !== null) return { type: "appt_create", input: (apptMatch[1] ?? "").trim() };
+
+  // /link
   const linkMatch = body.match(/^(?:link|ผูกบัญชี)\s+([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i);
   if (linkMatch?.[1]) return { type: "link", token: linkMatch[1] };
 
@@ -169,19 +155,12 @@ function pickCommand(text: string): Command {
   const expenseMatch = body.match(/^(?:expense|รายจ่าย)\s+([0-9.,]+)\s*(.*)$/i);
   if (expenseMatch?.[1]) return { type: "expense", amountText: expenseMatch[1], note: (expenseMatch[2] ?? "").trim() };
 
-  const addMeetMatch = body.match(/^(?:meet|นัด)\s+([0-9]{1,2}:[0-9]{2})\s+(.+)$/i);
-  if (addMeetMatch?.[1] && addMeetMatch?.[2]) return { type: "calendar_add", time: addMeetMatch[1], title: addMeetMatch[2].trim() };
-
-  if (lower === "today" || lower === "วันนี้") return { type: "calendar_today" };
-
-  if (lower === "tasks" || lower === "งาน" || lower === "รายการงาน") return { type: "task_list" };
-  if (lower === "overdue" || lower === "งานค้าง") return { type: "task_overdue" };
+  if (lower === "tasks" || lower === "งาน") return { type: "task_list" };
 
   const doneMatch = body.match(/^(?:done|เสร็จ)\s+([0-9]+)$/i);
   if (doneMatch?.[1]) return { type: "task_done", index: parseInt(doneMatch[1]) };
 
-  const postponeMatch = body.match(/^(?:postpone|เลื่อน)\s+([0-9]+)$/i);
-  if (postponeMatch?.[1]) return { type: "task_postpone", index: parseInt(postponeMatch[1]) };
+  if (lower === "นัดวันนี้" || lower === "today" || lower === "วันนี้") return { type: "appt_today" };
 
   return { type: "unknown_slash" };
 }
@@ -190,29 +169,23 @@ function pickCommand(text: string): Command {
 // Task helpers
 // ─────────────────────────────────────────────
 
-const PRIORITY_LABEL: Record<string, string> = { low: "ต่ำ", medium: "ปานกลาง", high: "สูง", urgent: "ด่วนมาก" };
-
 async function getPendingTasks(admin: ReturnType<typeof createSupabaseAdminClient>, profileId: string) {
   const { data } = await admin
     .from("tasks")
-    .select("id,title,due_at,priority,status")
+    .select("id,title,status,created_at")
     .eq("profile_id", profileId)
     .in("status", ["pending", "in_progress"])
-    .order("due_at", { ascending: true, nullsFirst: false });
-  return (data ?? []) as Array<{ id: string; title: string; due_at: string | null; priority: string; status: string }>;
+    .order("created_at", { ascending: true });
+  return (data ?? []) as Array<{ id: string; title: string; status: string; created_at: string }>;
 }
 
-function buildTaskListText(tasks: Array<{ title: string; due_at: string | null; priority: string }>, label: string) {
-  if (!tasks.length) return `ไม่มี${label}`;
-  const lines = tasks.map((t, i) => {
-    const time = t.due_at ? ` (${fmtBangkokDateTime(t.due_at)})` : "";
-    return `${i + 1}. ${t.title}${time}`;
-  });
-  return `📋 ${label} (${tasks.length} รายการ)\n${lines.join("\n")}\n\nพิมพ์ /เสร็จ <เลข> หรือ /เลื่อน <เลข>`;
+function buildTaskListText(tasks: Array<{ title: string }>) {
+  if (!tasks.length) return "ไม่มีงานค้าง ✅";
+  const lines = tasks.map((t, i) => `${i + 1}. ${t.title}`);
+  return `📋 งานที่ยังทำอยู่ (${tasks.length} รายการ)\n${lines.join("\n")}\n\nพิมพ์ /เสร็จ <เลข> เพื่อปิดงาน`;
 }
 
-function buildTaskConfirmFlex(args: { title: string; dueAt?: string; priority: string; remindBefore: number }) {
-  const { title, dueAt, priority, remindBefore } = args;
+function buildTaskConfirmFlex(title: string) {
   return {
     type: "bubble",
     size: "kilo",
@@ -230,59 +203,62 @@ function buildTaskConfirmFlex(args: { title: string; dueAt?: string; priority: s
       paddingAll: "14px",
       contents: [
         { type: "text", text: title, weight: "bold", size: "md", wrap: true },
+        { type: "text", text: "สถานะ: กำลังดำเนินการ", size: "sm", color: "#888888", margin: "md" },
+      ],
+    },
+    footer: {
+      type: "box",
+      layout: "horizontal",
+      contents: [{ type: "button", action: { type: "message", label: "ดูงานทั้งหมด", text: "/งาน" }, style: "secondary", height: "sm" }],
+    },
+  };
+}
+
+// ─────────────────────────────────────────────
+// Appointment helpers
+// ─────────────────────────────────────────────
+
+function buildApptConfirmFlex(args: { title: string; startsAt: string; calendarSynced: boolean }) {
+  const { title, startsAt, calendarSynced } = args;
+  const calLine = calendarSynced
+    ? { type: "text", text: "📆 บันทึกใน Google Calendar แล้ว", size: "xs", color: "#34A853" }
+    : { type: "text", text: "📆 ยังไม่ได้เชื่อม Google Calendar", size: "xs", color: "#888888" };
+  return {
+    type: "bubble",
+    size: "kilo",
+    header: {
+      type: "box",
+      layout: "vertical",
+      backgroundColor: "#0F7B6C",
+      paddingAll: "14px",
+      contents: [{ type: "text", text: "📅 บันทึกนัดแล้ว", color: "#ffffff", weight: "bold", size: "sm" }],
+    },
+    body: {
+      type: "box",
+      layout: "vertical",
+      spacing: "sm",
+      paddingAll: "14px",
+      contents: [
+        { type: "text", text: title, weight: "bold", size: "md", wrap: true },
         {
           type: "box",
           layout: "vertical",
           margin: "md",
           spacing: "xs",
           contents: [
-            { type: "box", layout: "horizontal", contents: [{ type: "text", text: "📅 กำหนด", size: "sm", color: "#888888", flex: 2 }, { type: "text", text: dueAt ? fmtBangkokDateTime(dueAt) : "ไม่ระบุ", size: "sm", flex: 3 }] },
-            { type: "box", layout: "horizontal", contents: [{ type: "text", text: "🔴 ความสำคัญ", size: "sm", color: "#888888", flex: 2 }, { type: "text", text: PRIORITY_LABEL[priority] ?? priority, size: "sm", flex: 3 }] },
-            { type: "box", layout: "horizontal", contents: [{ type: "text", text: "⏰ แจ้งเตือน", size: "sm", color: "#888888", flex: 2 }, { type: "text", text: `ก่อน ${remindBefore} นาที`, size: "sm", flex: 3 }] },
+            { type: "box", layout: "horizontal", contents: [{ type: "text", text: "📅 วัน", size: "sm", color: "#888888", flex: 2 }, { type: "text", text: fmtBangkokDate(startsAt), size: "sm", flex: 3 }] },
+            { type: "box", layout: "horizontal", contents: [{ type: "text", text: "🕐 เวลา", size: "sm", color: "#888888", flex: 2 }, { type: "text", text: fmtBangkokTime(startsAt), size: "sm", flex: 3 }] },
           ],
         },
+        calLine,
       ],
     },
     footer: {
       type: "box",
       layout: "horizontal",
-      contents: [{ type: "button", action: { type: "message", label: "ดูงานทั้งหมด", text: "งาน" }, style: "secondary", height: "sm" }],
+      contents: [{ type: "button", action: { type: "message", label: "นัดวันนี้", text: "/นัดวันนี้" }, style: "secondary", height: "sm" }],
     },
   };
-}
-
-// ─────────────────────────────────────────────
-// saveTask — shared insert + reply
-// ─────────────────────────────────────────────
-
-async function saveTask(args: {
-  admin: ReturnType<typeof createSupabaseAdminClient>;
-  profileId: string;
-  title: string;
-  dueAt?: string;
-  remindAt?: string;
-  remindBefore?: number;
-  priority?: string;
-  rawInput?: string;
-  replyToken: string;
-}) {
-  const { admin, profileId, title, dueAt, remindAt, remindBefore = 15, priority = "medium", rawInput, replyToken } = args;
-  const ins = await admin.from("tasks").insert({
-    profile_id: profileId,
-    title,
-    due_at: dueAt ?? null,
-    remind_at: remindAt ?? null,
-    remind_before_minutes: remindBefore,
-    priority,
-    source: "line",
-    raw_input: rawInput ?? null,
-  });
-  if (ins.error) { await replyText({ replyToken, text: "บันทึกงานไม่สำเร็จ" }); return; }
-  await replyFlex({
-    replyToken,
-    altText: `บันทึกงาน: ${title}`,
-    contents: buildTaskConfirmFlex({ title, dueAt, priority, remindBefore }),
-  });
 }
 
 // ─────────────────────────────────────────────
@@ -322,7 +298,7 @@ export async function POST(req: Request) {
           return;
         }
         const profRes = await admin.from("profiles").select("id,is_active").eq("line_user_id", lineUserId).maybeSingle();
-        if (profRes.error || !profRes.data) { await replyText({ replyToken, text: "ยังไม่ได้ผูกบัญชี\nพิมพ์: LINK <token>" }); return; }
+        if (profRes.error || !profRes.data) { await replyText({ replyToken, text: "ยังไม่ได้ผูกบัญชี\nพิมพ์: /link <token>" }); return; }
         const profileId = String((profRes.data as any).id);
         if ((profRes.data as any).is_active === false) { await replyText({ replyToken, text: "บัญชีถูกปิดใช้งาน" }); return; }
         const okPerm = await hasPermission(admin, profileId, "bot.drive.upload");
@@ -355,7 +331,7 @@ export async function POST(req: Request) {
 
       // ── Text message ─────────────────────────────────────────────────────
       const text = String(ev?.message?.text ?? "");
-      const cmd = pickCommand(text);
+      const cmd  = pickCommand(text);
 
       if (cmd.type === "help") {
         await replyText({
@@ -367,16 +343,17 @@ export async function POST(req: Request) {
             "📰 /ข่าว                สรุปข่าว\n" +
             "💰 /รายรับ <จำนวน> <โน้ต>\n" +
             "💸 /รายจ่าย <จำนวน> <โน้ต>\n" +
-            "📅 /นัด <HH:MM> <เรื่อง>  เพิ่มนัด\n" +
-            "🗓 /วันนี้              นัดวันนี้\n" +
             "────────────────\n" +
-            "✍️ /t <ข้อความ>        บันทึกงานใหม่\n" +
-            "📋 /งาน                รายการงาน\n" +
-            "⚠️ /งานค้าง            งานเกินกำหนด\n" +
-            "✅ /เสร็จ <เลข>        ปิดงาน\n" +
-            "📆 /เลื่อน <เลข>       เลื่อน 1 วัน\n" +
-            "════════════════\n" +
-            "💡 พิมพ์ข้อความธรรมดา\n   เพื่อบันทึกงานทันที",
+            "✍️ /t <ชื่องาน>         บันทึกงานใหม่\n" +
+            "📋 /งาน                 รายการงานค้าง\n" +
+            "✅ /เสร็จ <เลข>         ปิดงาน\n" +
+            "────────────────\n" +
+            "📅 /a <ชื่อ> <วัน> <HH:MM>  บันทึกนัด\n" +
+            "🗓 /นัดวันนี้            นัดวันนี้\n" +
+            "────────────────\n" +
+            "ตัวอย่างนัด:\n" +
+            "/a ประชุม Q3 พรุ่งนี้ 10:00\n" +
+            "/a call client 20/5 14:30",
         });
         return;
       }
@@ -398,7 +375,7 @@ export async function POST(req: Request) {
 
       // Resolve profile for all remaining commands
       const profRes = await admin.from("profiles").select("id,role,is_active").eq("line_user_id", lineUserId).maybeSingle();
-      if (profRes.error || !profRes.data) { await replyText({ replyToken, text: "ยังไม่ได้ผูกบัญชี\nพิมพ์: LINK <token>" }); return; }
+      if (profRes.error || !profRes.data) { await replyText({ replyToken, text: "ยังไม่ได้ผูกบัญชี\nพิมพ์ /link <token> เพื่อผูกบัญชี" }); return; }
       const profileId = String((profRes.data as any).id);
       if ((profRes.data as any).is_active === false) { await replyText({ replyToken, text: "บัญชีถูกปิดใช้งาน" }); return; }
 
@@ -413,101 +390,117 @@ export async function POST(req: Request) {
         const okPerm = await hasPermission(admin, profileId, cmd.type === "income" ? "bot.finance.income_add" : "bot.finance.expense_add");
         if (!okPerm) { await replyText({ replyToken, text: "คุณไม่มีสิทธิ์บันทึกรายรับ/รายจ่าย" }); return; }
         const amount = parseMoney(cmd.amountText);
-        if (!amount) { await replyText({ replyToken, text: "กรุณาระบุจำนวนเงิน เช่น รายรับ 1000 ขายของ" }); return; }
+        if (!amount) { await replyText({ replyToken, text: "กรุณาระบุจำนวนเงิน เช่น /รายรับ 1000 ขายของ" }); return; }
         const ins = await admin.from("finance_entries").insert({ profile_id: profileId, entry_type: cmd.type === "income" ? "income" : "expense", amount, note: cmd.note || null, occurred_at: new Date().toISOString() });
         if (ins.error) { await replyText({ replyToken, text: "บันทึกไม่สำเร็จ" }); return; }
         await replyText({ replyToken, text: `บันทึก${cmd.type === "income" ? "รายรับ" : "รายจ่าย"} ${amount.toLocaleString("th-TH")} บาทแล้ว` });
         return;
       }
 
-      if (cmd.type === "calendar_add") {
-        const okPerm = await hasPermission(admin, profileId, "bot.calendar.add");
-        if (!okPerm) { await replyText({ replyToken, text: "คุณไม่มีสิทธิ์เพิ่มนัด" }); return; }
-        const m = cmd.time.match(/^([0-9]{1,2}):([0-9]{2})$/);
-        if (!m) { await replyText({ replyToken, text: "รูปแบบเวลาไม่ถูกต้อง เช่น นัด 10:30 ประชุม" }); return; }
-        const hh = Number(m[1]), mm = Number(m[2]);
-        if (!Number.isFinite(hh) || !Number.isFinite(mm) || hh < 0 || hh > 23 || mm < 0 || mm > 59) { await replyText({ replyToken, text: "รูปแบบเวลาไม่ถูกต้อง" }); return; }
-        const { y, m: mo, d } = bangkokDayRange(new Date());
-        const startsAt = new Date(`${y}-${mo}-${d}T${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}:00+07:00`).toISOString();
-        const ins = await admin.from("calendar_events").insert({ profile_id: profileId, starts_at: startsAt, title: cmd.title });
-        if (ins.error) { await replyText({ replyToken, text: "เพิ่มนัดไม่สำเร็จ" }); return; }
-        await replyText({ replyToken, text: `เพิ่มนัดวันนี้ ${cmd.time} - ${cmd.title}` });
+      // ── /t <name> — create task ──────────────────────────────────────────
+      if (cmd.type === "task_create") {
+        const okPerm = await hasPermission(admin, profileId, "bot.assistant.tasks");
+        if (!okPerm) { await replyText({ replyToken, text: "คุณไม่มีสิทธิ์ใช้ Task Manager" }); return; }
+        const title = cmd.input;
+        if (!title) { await replyText({ replyToken, text: "ระบุชื่องานด้วย เช่น /t ประชุม Q3" }); return; }
+        const ins = await admin.from("tasks").insert({ profile_id: profileId, title, status: "pending", source: "line", raw_input: title });
+        if (ins.error) { await replyText({ replyToken, text: "บันทึกงานไม่สำเร็จ" }); return; }
+        await replyFlex({ replyToken, altText: `บันทึกงาน: ${title}`, contents: buildTaskConfirmFlex(title) });
         return;
       }
 
-      if (cmd.type === "calendar_today") {
-        const okPerm = await hasPermission(admin, profileId, "bot.calendar.today");
-        if (!okPerm) { await replyText({ replyToken, text: "คุณไม่มีสิทธิ์ดูนัดวันนี้" }); return; }
-        const { start, end } = bangkokDayRange(new Date());
-        const res = await admin.from("calendar_events").select("starts_at,title").eq("profile_id", profileId).gte("starts_at", start.toISOString()).lte("starts_at", end.toISOString()).order("starts_at", { ascending: true });
-        if (res.error) { await replyText({ replyToken, text: "โหลดนัดวันนี้ไม่สำเร็จ" }); return; }
-        const rows = (res.data ?? []) as Array<{ starts_at: string; title: string }>;
-        if (!rows.length) { await replyText({ replyToken, text: "วันนี้ไม่มีนัด" }); return; }
-        await replyText({ replyToken, text: `นัดวันนี้\n${rows.map((r, i) => `${i + 1}. ${fmtBangkokTime(r.starts_at)} ${r.title}`).join("\n")}` });
-        return;
-      }
-
-      // ── Task commands ────────────────────────────────────────────────────
-
+      // ── /งาน — list tasks ────────────────────────────────────────────────
       if (cmd.type === "task_list") {
         const okPerm = await hasPermission(admin, profileId, "bot.assistant.tasks");
         if (!okPerm) { await replyText({ replyToken, text: "คุณไม่มีสิทธิ์ใช้ Task Manager" }); return; }
         const tasks = await getPendingTasks(admin, profileId);
-        await replyText({ replyToken, text: buildTaskListText(tasks, "งานที่รอดำเนินการ") });
+        await replyText({ replyToken, text: buildTaskListText(tasks) });
         return;
       }
 
-      if (cmd.type === "task_overdue") {
-        const okPerm = await hasPermission(admin, profileId, "bot.assistant.tasks");
-        if (!okPerm) { await replyText({ replyToken, text: "คุณไม่มีสิทธิ์ใช้ Task Manager" }); return; }
-        const { data } = await admin.from("tasks").select("id,title,due_at,priority").eq("profile_id", profileId).eq("status", "pending").lt("due_at", new Date().toISOString()).order("due_at", { ascending: true });
-        await replyText({ replyToken, text: buildTaskListText((data ?? []) as any[], "งานค้าง") });
-        return;
-      }
-
+      // ── /เสร็จ <N> — mark task done ──────────────────────────────────────
       if (cmd.type === "task_done") {
         const okPerm = await hasPermission(admin, profileId, "bot.assistant.tasks");
         if (!okPerm) { await replyText({ replyToken, text: "คุณไม่มีสิทธิ์ใช้ Task Manager" }); return; }
         const tasks = await getPendingTasks(admin, profileId);
         const idx = cmd.index - 1;
-        if (idx < 0 || idx >= tasks.length) { await replyText({ replyToken, text: `ไม่พบงานที่ ${cmd.index} ลองพิมพ์ "งาน" เพื่อดูรายการใหม่` }); return; }
+        if (idx < 0 || idx >= tasks.length) { await replyText({ replyToken, text: `ไม่พบงานที่ ${cmd.index} พิมพ์ /งาน เพื่อดูรายการใหม่` }); return; }
         await admin.from("tasks").update({ status: "completed", completed_at: new Date().toISOString() }).eq("id", tasks[idx].id);
         await replyText({ replyToken, text: `✅ ปิดงานแล้ว: "${tasks[idx].title}"` });
         return;
       }
 
-      if (cmd.type === "task_postpone") {
+      // ── /a <title> <date> <time> — create appointment ───────────────────
+      if (cmd.type === "appt_create") {
         const okPerm = await hasPermission(admin, profileId, "bot.assistant.tasks");
         if (!okPerm) { await replyText({ replyToken, text: "คุณไม่มีสิทธิ์ใช้ Task Manager" }); return; }
-        const tasks = await getPendingTasks(admin, profileId);
-        const idx = cmd.index - 1;
-        if (idx < 0 || idx >= tasks.length) { await replyText({ replyToken, text: `ไม่พบงานที่ ${cmd.index} ลองพิมพ์ "งาน" เพื่อดูรายการใหม่` }); return; }
-        const task = tasks[idx];
-        const base = task.due_at ? new Date(task.due_at).getTime() : Date.now();
-        const newDueAt = new Date(base + 24 * 60 * 60 * 1000).toISOString();
-        const newRemindAt = new Date(new Date(newDueAt).getTime() - 15 * 60 * 1000).toISOString();
-        await admin.from("tasks").update({ due_at: newDueAt, remind_at: newRemindAt, follow_up_sent_at: null }).eq("id", task.id);
-        await replyText({ replyToken, text: `📅 เลื่อนงาน "${task.title}" เป็น ${fmtBangkokDateTime(newDueAt)}` });
-        return;
-      }
 
-      // ── /t <text> → save task directly (no AI needed) ───────────────────
-      if (cmd.type === "task_create") {
-        const okPerm = await hasPermission(admin, profileId, "bot.assistant.tasks");
-        if (!okPerm) { await replyText({ replyToken, text: "คุณไม่มีสิทธิ์ใช้ Task Manager" }); return; }
         const input = cmd.input;
-        if (!input) { await replyText({ replyToken, text: "ระบุชื่องานด้วย เช่น /t ประชุม Q3" }); return; }
-        await saveTask({ admin, profileId, title: input, rawInput: input, replyToken });
+        if (!input) {
+          await replyText({ replyToken, text: "ระบุนัดด้วย เช่น /a ประชุม Q3 พรุ่งนี้ 10:00" });
+          return;
+        }
+
+        const parsed = parseAppointmentText(input);
+        if (!parsed) {
+          await replyText({ replyToken, text: "รูปแบบไม่ถูกต้อง ต้องระบุชื่อ วัน และเวลา\nเช่น /a ประชุม Q3 พรุ่งนี้ 10:00" });
+          return;
+        }
+
+        // Try Google Calendar sync
+        let googleEventId: string | null = null;
+        const driveRes = await admin.from("google_drive_tokens").select("access_token,refresh_token,expires_at").eq("profile_id", profileId).maybeSingle();
+        if (driveRes.data) {
+          try {
+            const row = driveRes.data as any;
+            const accessToken = await getDriveAccessTokenForRow(row, async (patch) => {
+              await admin.from("google_drive_tokens").update({ ...patch, updated_at: new Date().toISOString() }).eq("profile_id", profileId);
+            });
+            const result = await createCalendarEvent({ accessToken, title: parsed.title, startsAt: parsed.startsAt });
+            googleEventId = result?.id ?? null;
+          } catch {
+            // Calendar sync failed silently — token may lack Calendar scope
+          }
+        }
+
+        const ins = await admin.from("appointments").insert({
+          profile_id: profileId,
+          title: parsed.title,
+          starts_at: parsed.startsAt,
+          google_event_id: googleEventId,
+          source: "line",
+        });
+        if (ins.error) { await replyText({ replyToken, text: "บันทึกนัดไม่สำเร็จ" }); return; }
+
+        await replyFlex({
+          replyToken,
+          altText: `บันทึกนัด: ${parsed.title}`,
+          contents: buildApptConfirmFlex({ title: parsed.title, startsAt: parsed.startsAt, calendarSynced: !!googleEventId }),
+        });
         return;
       }
 
-      // ── Unknown slash command ────────────────────────────────────────────
+      // ── /นัดวันนี้ — today's appointments ───────────────────────────────
+      if (cmd.type === "appt_today") {
+        const okPerm = await hasPermission(admin, profileId, "bot.assistant.tasks");
+        if (!okPerm) { await replyText({ replyToken, text: "คุณไม่มีสิทธิ์ใช้ Task Manager" }); return; }
+        const now = new Date();
+        const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(now).reduce((a, p) => { if (p.type !== "literal") (a as any)[p.type] = p.value; return a; }, {} as Record<string, string>);
+        const dayStart = new Date(`${parts.year}-${parts.month}-${parts.day}T00:00:00+07:00`).toISOString();
+        const dayEnd   = new Date(`${parts.year}-${parts.month}-${parts.day}T23:59:59+07:00`).toISOString();
+        const res = await admin.from("appointments").select("starts_at,title").eq("profile_id", profileId).gte("starts_at", dayStart).lte("starts_at", dayEnd).order("starts_at", { ascending: true });
+        if (res.error) { await replyText({ replyToken, text: "โหลดนัดไม่สำเร็จ" }); return; }
+        const rows = (res.data ?? []) as Array<{ starts_at: string; title: string }>;
+        if (!rows.length) { await replyText({ replyToken, text: "วันนี้ไม่มีนัด" }); return; }
+        await replyText({ replyToken, text: `📅 นัดวันนี้\n${rows.map((r, i) => `${i + 1}. ${fmtBangkokTime(r.starts_at)} ${r.title}`).join("\n")}` });
+        return;
+      }
+
       if (cmd.type === "unknown_slash") {
         await replyText({ replyToken, text: "ไม่รู้จักคำสั่งนี้\nพิมพ์ /help เพื่อดูคำสั่งทั้งหมด" });
         return;
       }
-
-      // cmd.type === "unknown" means no leading / → ignore silently
+      // cmd.type === "unknown" → plain text without / → ignore silently
     }),
   );
 
