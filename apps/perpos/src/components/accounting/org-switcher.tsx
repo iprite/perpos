@@ -96,8 +96,8 @@ export function OrgSwitcher({ organizations, activeOrganizationId }: OrgSwitcher
       {open && rect && createPortal(
         <div
           ref={dropdownRef}
-          style={{ position: "fixed", top: rect.bottom + 6, right: window.innerWidth - rect.right, zIndex: 9999 }}
-          className="w-72 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg"
+          style={{ position: "fixed", top: rect.bottom + 6, left: rect.left, width: rect.width, zIndex: 9999 }}
+          className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg"
         >
           {/* Search */}
           <div className="flex items-center gap-2 border-b border-slate-100 px-4 py-1.5">

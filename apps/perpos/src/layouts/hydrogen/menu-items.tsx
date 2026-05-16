@@ -56,13 +56,6 @@ function hasRole(itemRoles: Role[] | undefined, role: Role | null) {
 
 function buildUserMenuItems(): MenuItem[] {
   return [
-    { name: "Assistant", roles: allRoles },
-    {
-      name: "Task Manager",
-      href: "/assistant",
-      icon: <BotMessageSquare className="h-5 w-5" />,
-      roles: allRoles,
-    },
     { name: "Accounting", roles: allRoles },
     {
       name: "รายงาน",
@@ -257,6 +250,18 @@ function buildAdminMenuItems(): MenuItem[] {
   ];
 }
 
+function buildAssistantMenuItems(): MenuItem[] {
+  return [
+    { name: "Assistant", roles: allRoles },
+    {
+      name: "Task Manager",
+      href: "/assistant",
+      icon: <BotMessageSquare className="h-5 w-5" />,
+      roles: allRoles,
+    },
+  ];
+}
+
 function buildPayrollMenuItems(): MenuItem[] {
   return [
     { name: "Payroll", roles: allRoles },
@@ -282,14 +287,16 @@ function pickMenuContext(pathname: string, role: Role | null) {
   const p = pathname || "/";
   if (p === "/admin" || p.startsWith("/admin/")) return role === "admin" ? "admin" : "user";
   if (p.startsWith("/payroll")) return "payroll";
+  if (p.startsWith("/assistant")) return "assistant";
   return "user";
 }
 
 export function getMenuItems(role: Role | null, pathname: string): MenuItem[] {
   const context = pickMenuContext(pathname, role);
   const items =
-    context === "admin"   ? buildAdminMenuItems()   :
-    context === "payroll" ? buildPayrollMenuItems()  :
+    context === "admin"     ? buildAdminMenuItems()     :
+    context === "payroll"   ? buildPayrollMenuItems()   :
+    context === "assistant" ? buildAssistantMenuItems() :
     buildUserMenuItems();
 
   return items.filter((item) => {

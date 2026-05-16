@@ -36,7 +36,11 @@ export async function createCalendarEvent(args: {
     body,
   });
 
-  if (!res.ok) return null;
+  if (!res.ok) {
+    const errData = await res.json().catch(() => null);
+    const msg = errData?.error?.message || errData?.error || res.statusText || `http_${res.status}`;
+    throw new Error(String(msg));
+  }
 
   const data = await res.json().catch(() => null);
   if (!data?.id) return null;

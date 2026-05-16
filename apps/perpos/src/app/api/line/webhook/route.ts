@@ -218,10 +218,12 @@ function buildTaskConfirmFlex(title: string) {
 // Appointment helpers
 // ─────────────────────────────────────────────
 
-function buildApptConfirmFlex(args: { title: string; startsAt: string; calendarSynced: boolean }) {
-  const { title, startsAt, calendarSynced } = args;
+function buildApptConfirmFlex(args: { title: string; startsAt: string; calendarSynced: boolean; calendarError?: string | null }) {
+  const { title, startsAt, calendarSynced, calendarError } = args;
   const calLine = calendarSynced
     ? { type: "text", text: "📆 บันทึกใน Google Calendar แล้ว", size: "xs", color: "#34A853" }
+    : calendarError
+    ? { type: "text", text: `📆 Calendar sync ล้มเหลว: ${calendarError.slice(0, 80)}`, size: "xs", color: "#D93025", wrap: true }
     : { type: "text", text: "📆 ยังไม่ได้เชื่อม Google Calendar", size: "xs", color: "#888888" };
   return {
     type: "bubble",
@@ -449,7 +451,8 @@ export async function POST(req: Request) {
 
         // Try Google Calendar sync
         let googleEventId: string | null = null;
-        const driveRes = await admin.from("google_drive_tokens").select("access_token,refresh_token,expires_at").eq("profile_id", profileId).maybeSingle();
+        let calendarError: string | null = null;
+        const driveRes = await admin.from("google_drive_tokens").select("access_token,refresh_token,expires_at,scope,token_type").eq("profile_id", profileId).maybeSingle();
         if (driveRes.data) {
           try {
             const row = driveRes.data as any;
@@ -458,8 +461,8 @@ export async function POST(req: Request) {
             });
             const result = await createCalendarEvent({ accessToken, title: parsed.title, startsAt: parsed.startsAt });
             googleEventId = result?.id ?? null;
-          } catch {
-            // Calendar sync failed silently — token may lack Calendar scope
+          } catch (e: any) {
+            calendarError = String(e?.message ?? "unknown_error");
           }
         }
 
@@ -475,7 +478,7 @@ export async function POST(req: Request) {
         await replyFlex({
           replyToken,
           altText: `บันทึกนัด: ${parsed.title}`,
-          contents: buildApptConfirmFlex({ title: parsed.title, startsAt: parsed.startsAt, calendarSynced: !!googleEventId }),
+          contents: buildApptConfirmFlex({ title: parsed.title, startsAt: parsed.startsAt, calendarSynced: !!googleEventId, calendarError }),
         });
         return;
       }

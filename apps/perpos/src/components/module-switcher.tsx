@@ -58,8 +58,8 @@ export function ModuleSwitcher({ enabledModuleKeys }: ModuleSwitcherProps) {
       {open && rect && createPortal(
         <div
           ref={dropdownRef}
-          style={{ position: "fixed", top: rect.bottom + 6, left: rect.left, zIndex: 9999 }}
-          className="w-48 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg"
+          style={{ position: "fixed", top: rect.bottom + 6, left: rect.left, width: rect.width, zIndex: 9999 }}
+          className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg"
         >
           <div className="py-1">
             {visibleModules.map((m) => (
