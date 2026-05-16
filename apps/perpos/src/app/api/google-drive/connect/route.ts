@@ -5,7 +5,11 @@ import { createSignedOAuthState } from "@/lib/google/oauth-state";
 
 export const runtime = "nodejs";
 
-const DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.file";
+// Drive + Calendar scopes combined — single OAuth consent covers both
+const GOOGLE_SCOPES = [
+  "https://www.googleapis.com/auth/drive.file",
+  "https://www.googleapis.com/auth/calendar.events",
+].join(" ");
 
 function requiredEnv(name: string) {
   const v = String(process.env[name] ?? "").trim();
@@ -33,7 +37,7 @@ export async function POST(req: Request) {
     authUrl.searchParams.set("client_id", clientId);
     authUrl.searchParams.set("redirect_uri", redirectUri);
     authUrl.searchParams.set("response_type", "code");
-    authUrl.searchParams.set("scope", DRIVE_SCOPE);
+    authUrl.searchParams.set("scope", GOOGLE_SCOPES);
     authUrl.searchParams.set("access_type", "offline");
     authUrl.searchParams.set("prompt", "consent");
     authUrl.searchParams.set("include_granted_scopes", "true");

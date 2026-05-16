@@ -265,7 +265,7 @@ export default function UserSettingsPage() {
             <div className="flex items-center justify-between gap-3 text-gray-900">
               <div className="flex items-center gap-2">
                 <HardDrive className="h-4 w-4" />
-                <div className="text-sm font-semibold">เชื่อมต่อ Google Drive</div>
+                <div className="text-sm font-semibold">Connect to Google</div>
               </div>
               <Badge
                 variant="flat"
@@ -278,7 +278,7 @@ export default function UserSettingsPage() {
             </div>
 
             <div className="mt-3 text-sm text-gray-700">
-              {driveConnected ? "พร้อมอัปโหลดไฟล์จาก LINE ไปเก็บใน Google Drive" : "เชื่อมต่อเพื่อให้บอทอัปโหลดไฟล์จาก LINE ไปเก็บใน Google Drive"}
+              {driveConnected ? "เชื่อมต่อแล้ว — รองรับ Google Drive และ Google Calendar" : "เชื่อมต่อเพื่อให้บอทอัปโหลดไฟล์ไป Drive และบันทึกนัดใน Calendar"}
             </div>
 
             {driveError ? (
@@ -311,7 +311,7 @@ export default function UserSettingsPage() {
                   }
                 }}
               >
-                {driveLoading ? "กำลังไปที่ Google..." : driveConnected ? "เชื่อมใหม่" : "เชื่อมต่อ Google Drive"}
+                {driveLoading ? "กำลังไปที่ Google..." : driveConnected ? "เชื่อมใหม่" : "Connect to Google"}
               </Button>
               {driveConnected ? (
                 <Button
