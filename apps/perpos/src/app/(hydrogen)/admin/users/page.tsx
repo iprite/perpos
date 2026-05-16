@@ -25,6 +25,26 @@ type ListedUser = {
   } | null;
 };
 
+type OrgMembership = {
+  id: string;
+  orgId: string;
+  orgName: string;
+  role: string;
+};
+
+type OrgItem = {
+  id: string;
+  name: string;
+};
+
+type OrgData = {
+  memberships: OrgMembership[];
+  allOrgs: OrgItem[];
+};
+
+const ORG_ROLES = ["owner", "admin", "member"] as const;
+type OrgRole = (typeof ORG_ROLES)[number];
+
 export default function AdminUsersPage() {
   const { role, loading: authLoading } = useAuth();
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
@@ -37,6 +57,16 @@ export default function AdminUsersPage() {
 
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<Role>("user");
+
+  // Org panel state
+  const [expandedUserId, setExpandedUserId] = useState<string | null>(null);
+  const [orgData, setOrgData] = useState<Record<string, OrgData>>({});
+  const [orgLoading, setOrgLoading] = useState<string | null>(null);
+  const [orgError, setOrgError] = useState<string | null>(null);
+
+  // Add-org form state per user
+  const [addOrgId, setAddOrgId] = useState<Record<string, string>>({});
+  const [addOrgRole, setAddOrgRole] = useState<Record<string, OrgRole>>({});
 
   const authHeader = useCallback(async () => {
     const { data } = await supabase.auth.getSession();
@@ -70,6 +100,136 @@ export default function AdminUsersPage() {
     });
   }, [authHeader]);
 
+  const loadOrgData = useCallback(
+    async (userId: string) => {
+      setOrgLoading(userId);
+      setOrgError(null);
+      try {
+        const headers = await authHeader();
+        const res = await fetch(withBasePath(`/api/admin/users/orgs?userId=${userId}`), { headers });
+        const json = await res.json().catch(() => null);
+        if (!res.ok) {
+          setOrgError(json?.error ?? "โหลดข้อมูล org ไม่สำเร็จ");
+          setOrgLoading(null);
+          return;
+        }
+        setOrgData((prev) => ({ ...prev, [userId]: json as OrgData }));
+        setOrgLoading(null);
+      } catch (e: any) {
+        setOrgError(e?.message ?? "โหลดข้อมูล org ไม่สำเร็จ");
+        setOrgLoading(null);
+      }
+    },
+    [authHeader],
+  );
+
+  const toggleExpand = useCallback(
+    (userId: string) => {
+      if (expandedUserId === userId) {
+        setExpandedUserId(null);
+        return;
+      }
+      setExpandedUserId(userId);
+      if (!orgData[userId]) {
+        loadOrgData(userId);
+      }
+    },
+    [expandedUserId, orgData, loadOrgData],
+  );
+
+  const handleRoleChange = useCallback(
+    async (userId: string, orgId: string, newRole: OrgRole) => {
+      try {
+        const headers = await authHeader();
+        const res = await fetch(withBasePath("/api/admin/users/orgs"), {
+          method: "PUT",
+          headers: { ...headers, "content-type": "application/json" },
+          body: JSON.stringify({ userId, orgId, role: newRole }),
+        });
+        const json = await res.json().catch(() => null);
+        if (!res.ok) {
+          setOrgError(json?.error ?? "อัปเดต role ไม่สำเร็จ");
+          return;
+        }
+        // Update local state
+        setOrgData((prev) => {
+          const d = prev[userId];
+          if (!d) return prev;
+          return {
+            ...prev,
+            [userId]: {
+              ...d,
+              memberships: d.memberships.map((m) => (m.orgId === orgId ? { ...m, role: newRole } : m)),
+            },
+          };
+        });
+      } catch (e: any) {
+        setOrgError(e?.message ?? "อัปเดต role ไม่สำเร็จ");
+      }
+    },
+    [authHeader],
+  );
+
+  const handleRemoveMembership = useCallback(
+    async (userId: string, orgId: string) => {
+      try {
+        const headers = await authHeader();
+        const res = await fetch(withBasePath("/api/admin/users/orgs"), {
+          method: "DELETE",
+          headers: { ...headers, "content-type": "application/json" },
+          body: JSON.stringify({ userId, orgId }),
+        });
+        const json = await res.json().catch(() => null);
+        if (!res.ok) {
+          setOrgError(json?.error ?? "ลบ membership ไม่สำเร็จ");
+          return;
+        }
+        setOrgData((prev) => {
+          const d = prev[userId];
+          if (!d) return prev;
+          return {
+            ...prev,
+            [userId]: {
+              ...d,
+              memberships: d.memberships.filter((m) => m.orgId !== orgId),
+            },
+          };
+        });
+      } catch (e: any) {
+        setOrgError(e?.message ?? "ลบ membership ไม่สำเร็จ");
+      }
+    },
+    [authHeader],
+  );
+
+  const handleAddMembership = useCallback(
+    async (userId: string) => {
+      const selectedOrgId = addOrgId[userId] ?? "";
+      const selectedRole = addOrgRole[userId] ?? "member";
+      if (!selectedOrgId) return;
+      try {
+        const headers = await authHeader();
+        const res = await fetch(withBasePath("/api/admin/users/orgs"), {
+          method: "PUT",
+          headers: { ...headers, "content-type": "application/json" },
+          body: JSON.stringify({ userId, orgId: selectedOrgId, role: selectedRole }),
+        });
+        const json = await res.json().catch(() => null);
+        if (!res.ok) {
+          setOrgError(json?.error ?? "เพิ่ม org ไม่สำเร็จ");
+          return;
+        }
+        // Reload org data for this user
+        await loadOrgData(userId);
+        setAddOrgId((prev) => ({ ...prev, [userId]: "" }));
+        setAddOrgRole((prev) => ({ ...prev, [userId]: "member" }));
+      } catch (e: any) {
+        setOrgError(e?.message ?? "เพิ่ม org ไม่สำเร็จ");
+      }
+    },
+    [authHeader, addOrgId, addOrgRole, loadOrgData],
+  );
+
   React.useEffect(() => {
     refreshUsers();
   }, [refreshUsers]);
@@ -90,9 +250,7 @@ export default function AdminUsersPage() {
         <Title as="h1" className="text-lg font-semibold text-gray-900">
           ไม่พบสิทธิ์ผู้ใช้
         </Title>
-        <Text className="mt-2 text-sm text-gray-600">
-          ระบบไม่พบข้อมูล role ในโปรไฟล์ (profiles) ของบัญชีนี้
-        </Text>
+        <Text className="mt-2 text-sm text-gray-600">ระบบไม่พบข้อมูล role ในโปรไฟล์ (profiles) ของบัญชีนี้</Text>
       </div>
     );
   }
@@ -204,25 +362,141 @@ export default function AdminUsersPage() {
         </div>
       ) : null}
 
+      {orgError ? <div className="mt-4 rounded-xl border border-orange-200 bg-orange-50 p-3 text-sm text-orange-700">{orgError}</div> : null}
+
       <div className="mt-4 overflow-hidden rounded-2xl border border-gray-200 bg-white">
-        <div className="grid grid-cols-[1fr_120px_120px_160px] gap-0 border-b border-gray-200 bg-gray-50 px-4 py-3 text-xs font-semibold text-gray-600">
+        {/* Header */}
+        <div className="grid grid-cols-[1fr_100px_100px_140px_120px] gap-0 border-b border-gray-200 bg-gray-50 px-4 py-3 text-xs font-semibold text-gray-600">
           <div>อีเมล</div>
           <div>Role</div>
           <div>Active</div>
           <div>LINE</div>
+          <div>Orgs</div>
         </div>
+
+        {/* Rows */}
         <div className="divide-y divide-gray-100">
-          {items.map((u) => (
-            <div key={u.id} className="grid grid-cols-[1fr_120px_120px_160px] items-center gap-0 px-4 py-3 text-sm">
-              <div className="min-w-0">
-                <div className="truncate font-medium text-gray-900">{u.email ?? "-"}</div>
-                <div className="truncate text-xs text-gray-500">{u.id}</div>
+          {items.map((u) => {
+            const isExpanded = expandedUserId === u.id;
+            const data = orgData[u.id];
+            const membershipCount = data?.memberships.length ?? null;
+            const isLoadingOrgs = orgLoading === u.id;
+
+            return (
+              <div key={u.id}>
+                {/* User row */}
+                <div className="grid grid-cols-[1fr_100px_100px_140px_120px] items-center gap-0 px-4 py-3 text-sm">
+                  <div className="min-w-0">
+                    <div className="truncate font-medium text-gray-900">{u.email ?? "-"}</div>
+                    <div className="truncate text-xs text-gray-500">{u.id}</div>
+                  </div>
+                  <div className="text-gray-700">{u.profile?.role ?? "-"}</div>
+                  <div className="text-gray-700">{u.profile?.is_active === false ? "ปิด" : "เปิด"}</div>
+                  <div className="text-gray-700">{u.profile?.line_user_id ? "เชื่อมแล้ว" : "ยังไม่เชื่อม"}</div>
+                  <div>
+                    <button
+                      onClick={() => toggleExpand(u.id)}
+                      className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${
+                        isExpanded
+                          ? "bg-indigo-100 text-indigo-700 hover:bg-indigo-200"
+                          : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                      }`}
+                    >
+                      {isLoadingOrgs
+                        ? "..."
+                        : membershipCount !== null
+                          ? `${membershipCount} org${membershipCount !== 1 ? "s" : ""}`
+                          : "จัดการ"}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Expanded org panel */}
+                {isExpanded && (
+                  <div className="border-b border-indigo-100 bg-indigo-50/30 px-4 py-4">
+                    {isLoadingOrgs ? (
+                      <div className="text-sm text-gray-500">กำลังโหลด…</div>
+                    ) : data ? (
+                      <div className="space-y-3">
+                        <div className="text-xs font-semibold uppercase tracking-wide text-indigo-700">
+                          สมาชิก Organizations
+                        </div>
+
+                        {/* Membership list */}
+                        {data.memberships.length === 0 ? (
+                          <div className="text-sm text-gray-500">ยังไม่มี org</div>
+                        ) : (
+                          <div className="space-y-2">
+                            {data.memberships.map((m) => (
+                              <div key={m.id} className="flex items-center gap-2 rounded-lg border border-indigo-100 bg-white px-3 py-2">
+                                <span className="flex-1 text-sm font-medium text-gray-800">{m.orgName}</span>
+                                <select
+                                  value={m.role}
+                                  onChange={(e) => handleRoleChange(u.id, m.orgId, e.target.value as OrgRole)}
+                                  className="rounded border border-gray-200 bg-gray-50 px-2 py-1 text-xs text-gray-700 focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                                >
+                                  {ORG_ROLES.map((r) => (
+                                    <option key={r} value={r}>
+                                      {r}
+                                    </option>
+                                  ))}
+                                </select>
+                                <button
+                                  onClick={() => handleRemoveMembership(u.id, m.orgId)}
+                                  className="rounded px-2 py-1 text-xs text-red-500 hover:bg-red-50 hover:text-red-700"
+                                >
+                                  ลบ
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Add org row */}
+                        <div className="flex flex-wrap items-center gap-2 pt-1">
+                          <span className="text-xs font-medium text-gray-600">เพิ่ม Org:</span>
+                          <select
+                            value={addOrgId[u.id] ?? ""}
+                            onChange={(e) => setAddOrgId((prev) => ({ ...prev, [u.id]: e.target.value }))}
+                            className="rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-700 focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                          >
+                            <option value="">-- เลือก org --</option>
+                            {data.allOrgs
+                              .filter((o) => !data.memberships.some((m) => m.orgId === o.id))
+                              .map((o) => (
+                                <option key={o.id} value={o.id}>
+                                  {o.name}
+                                </option>
+                              ))}
+                          </select>
+                          <select
+                            value={addOrgRole[u.id] ?? "member"}
+                            onChange={(e) => setAddOrgRole((prev) => ({ ...prev, [u.id]: e.target.value as OrgRole }))}
+                            className="rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-700 focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                          >
+                            {ORG_ROLES.map((r) => (
+                              <option key={r} value={r}>
+                                {r}
+                              </option>
+                            ))}
+                          </select>
+                          <button
+                            onClick={() => handleAddMembership(u.id)}
+                            disabled={!addOrgId[u.id]}
+                            className="rounded bg-indigo-600 px-3 py-1 text-xs font-medium text-white hover:bg-indigo-500 disabled:opacity-40"
+                          >
+                            เพิ่ม
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-sm text-gray-500">ไม่สามารถโหลดข้อมูลได้</div>
+                    )}
+                  </div>
+                )}
               </div>
-              <div className="text-gray-700">{u.profile?.role ?? "-"}</div>
-              <div className="text-gray-700">{u.profile?.is_active === false ? "ปิด" : "เปิด"}</div>
-              <div className="text-gray-700">{u.profile?.line_user_id ? "เชื่อมแล้ว" : "ยังไม่เชื่อม"}</div>
-            </div>
-          ))}
+            );
+          })}
           {items.length === 0 ? <div className="px-4 py-6 text-sm text-gray-600">ยังไม่มีข้อมูล</div> : null}
         </div>
       </div>
