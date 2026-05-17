@@ -5,7 +5,7 @@ import { Button, Input, Switch } from "rizzui";
 import { Title, Text } from "rizzui/typography";
 
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
-import { withBasePath } from "@/utils/base-path";
+import { backendUrl } from "@/lib/backend";
 
 type PermissionRow = { function_key: string; allowed: boolean };
 
@@ -44,7 +44,7 @@ export default function AdminPermissionsPage() {
     setError(null);
     try {
       const headers = await authHeader();
-      const res = await fetch(withBasePath(`/api/admin/users/permissions?userId=${encodeURIComponent(id)}`), { headers });
+      const res = await fetch(backendUrl(`/admin/users/permissions?userId=${encodeURIComponent(id)}`), { headers });
       const json = await res.json().catch(() => null);
       if (!res.ok) {
         setError(String(json?.error ?? "โหลดสิทธิ์ไม่สำเร็จ"));
@@ -68,7 +68,7 @@ export default function AdminPermissionsPage() {
     setError(null);
     try {
       const headers = await authHeader();
-      const res = await fetch(withBasePath("/api/admin/users/permissions"), {
+      const res = await fetch(backendUrl("/admin/users/permissions"), {
         method: "PUT",
         headers: { ...headers, "content-type": "application/json" },
         body: JSON.stringify({ userId: id, items }),

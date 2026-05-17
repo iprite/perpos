@@ -31,6 +31,7 @@ import {
   type OrgMemberRow,
   type OrgInviteRow,
 } from "@/lib/settings/user-actions";
+import { backendUrl } from "@/lib/backend";
 
 const ROLE_LABELS: Record<string, string> = {
   owner:  "เจ้าของ",
@@ -195,12 +196,9 @@ export function OrgUsersClient({
     setInviteSuccess(null);
 
     const redirectTo = `${window.location.origin}/signin`;
-    const token = (await fetch("/api/auth/token").then(r => r.json()).catch(() => null))?.token
-      ?? null;
 
     const headers: Record<string, string> = { "Content-Type": "application/json" };
 
-    // Get current session token via Supabase client
     const { createSupabaseBrowserClient } = await import("@/lib/supabase/client");
     const sb = createSupabaseBrowserClient();
     const { data: sess } = await sb.auth.getSession();
@@ -208,7 +206,7 @@ export function OrgUsersClient({
       headers["Authorization"] = `Bearer ${sess.session.access_token}`;
     }
 
-    const res = await fetch("/api/org/invite", {
+    const res = await fetch(backendUrl("/org/invite"), {
       method: "POST",
       headers,
       body: JSON.stringify({ email, orgRole: inviteRole, organizationId, redirectTo }),

@@ -5,7 +5,7 @@ import { Button, Input, Textarea } from "rizzui";
 import { Title, Text } from "rizzui/typography";
 
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
-import { withBasePath } from "@/utils/base-path";
+import { backendUrl } from "@/lib/backend";
 
 export default function AdminNewsAgentPage() {
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
@@ -31,7 +31,7 @@ export default function AdminNewsAgentPage() {
     setPreview(null);
     try {
       const headers = await authHeader();
-      const res = await fetch(withBasePath("/api/admin/news-agent/preview"), {
+      const res = await fetch(backendUrl("/admin/news-agent/preview"), {
         method: "POST",
         headers: { ...headers, "content-type": "application/json" },
         body: JSON.stringify({

@@ -8,6 +8,7 @@ import { useAuth } from "@/app/shared/auth-provider";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { Role } from "@/lib/supabase/types";
 import { withBasePath } from "@/utils/base-path";
+import { backendUrl } from "@/lib/backend";
 
 type ListedUser = {
   id: string;
@@ -82,7 +83,7 @@ export default function AdminUsersPage() {
       setMessage(null);
       try {
         const headers = await authHeader();
-        const res = await fetch(withBasePath("/api/admin/users/list?page=1&perPage=200"), { headers });
+        const res = await fetch(backendUrl("/admin/users/list?page=1&perPage=200"), { headers });
         const json = await res.json().catch(() => null);
         if (!res.ok) {
           setError(json?.error ?? "โหลดรายการผู้ใช้ไม่สำเร็จ");
@@ -106,7 +107,7 @@ export default function AdminUsersPage() {
       setOrgError(null);
       try {
         const headers = await authHeader();
-        const res = await fetch(withBasePath(`/api/admin/users/orgs?userId=${userId}`), { headers });
+        const res = await fetch(backendUrl(`/admin/users/orgs?userId=${userId}`), { headers });
         const json = await res.json().catch(() => null);
         if (!res.ok) {
           setOrgError(json?.error ?? "โหลดข้อมูล org ไม่สำเร็จ");
@@ -141,7 +142,7 @@ export default function AdminUsersPage() {
     async (userId: string, orgId: string, newRole: OrgRole) => {
       try {
         const headers = await authHeader();
-        const res = await fetch(withBasePath("/api/admin/users/orgs"), {
+        const res = await fetch(backendUrl("/admin/users/orgs"), {
           method: "PUT",
           headers: { ...headers, "content-type": "application/json" },
           body: JSON.stringify({ userId, orgId, role: newRole }),
@@ -174,7 +175,7 @@ export default function AdminUsersPage() {
     async (userId: string, orgId: string) => {
       try {
         const headers = await authHeader();
-        const res = await fetch(withBasePath("/api/admin/users/orgs"), {
+        const res = await fetch(backendUrl("/admin/users/orgs"), {
           method: "DELETE",
           headers: { ...headers, "content-type": "application/json" },
           body: JSON.stringify({ userId, orgId }),
@@ -209,7 +210,7 @@ export default function AdminUsersPage() {
       if (!selectedOrgId) return;
       try {
         const headers = await authHeader();
-        const res = await fetch(withBasePath("/api/admin/users/orgs"), {
+        const res = await fetch(backendUrl("/admin/users/orgs"), {
           method: "PUT",
           headers: { ...headers, "content-type": "application/json" },
           body: JSON.stringify({ userId, orgId: selectedOrgId, role: selectedRole }),
@@ -308,7 +309,7 @@ export default function AdminUsersPage() {
               try {
                 const headers = await authHeader();
                 const redirectTo = `${window.location.origin}${withBasePath("/auth/password")}`;
-                const res = await fetch(withBasePath("/api/admin/users/invite"), {
+                const res = await fetch(backendUrl("/admin/users/invite"), {
                   method: "POST",
                   headers: { ...headers, "content-type": "application/json" },
                   body: JSON.stringify({ email, role: inviteRole, redirectTo }),

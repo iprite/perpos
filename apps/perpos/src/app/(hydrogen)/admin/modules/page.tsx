@@ -6,7 +6,7 @@ import { Title, Text } from "rizzui/typography";
 import { ChevronDown } from "lucide-react";
 
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
-import { withBasePath } from "@/utils/base-path";
+import { backendUrl } from "@/lib/backend";
 import { ALL_MODULES, MODULE_LABELS, ORG_ROLES, type OrgRole } from "@/lib/modules";
 
 type OrgItem = { id: string; name: string };
@@ -42,7 +42,7 @@ export default function AdminModulesPage() {
     void (async () => {
       try {
         const headers = await authHeader();
-        const res = await fetch(withBasePath("/api/admin/modules"), { headers });
+        const res = await fetch(backendUrl("/admin/modules"), { headers });
         const json = await res.json().catch(() => null);
         if (!res.ok) { setError(json?.error ?? "โหลดองค์กรไม่สำเร็จ"); return; }
         const list = (json?.orgs ?? []) as OrgItem[];
@@ -64,7 +64,7 @@ export default function AdminModulesPage() {
       try {
         const headers = await authHeader();
         const res = await fetch(
-          withBasePath(`/api/admin/modules?orgId=${encodeURIComponent(selectedOrgId)}`),
+          backendUrl(`/admin/modules?orgId=${encodeURIComponent(selectedOrgId)}`),
           { headers },
         );
         const json = await res.json().catch(() => null);
@@ -104,7 +104,7 @@ export default function AdminModulesPage() {
     setSaved(false);
     try {
       const headers = await authHeader();
-      const res = await fetch(withBasePath("/api/admin/modules"), {
+      const res = await fetch(backendUrl("/admin/modules"), {
         method: "PUT",
         headers: { ...headers, "content-type": "application/json" },
         body: JSON.stringify({ orgId: selectedOrgId, settings }),

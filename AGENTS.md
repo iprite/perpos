@@ -7,11 +7,14 @@
 ## ภาพรวมโปรเจกต์
 
 **PERPOS** — ระบบบัญชีและ ERP สำหรับธุรกิจ SME ประเทศไทย พร้อม LINE Bot assistant
-- Framework: Next.js 15 (App Router), React 19, TypeScript
+- Frontend: Next.js 15 (App Router), React 19, TypeScript
+- **Backend: Nest.js 10 + TypeScript (ทุก API route ย้ายมาอยู่ใน `services/api/`)**
 - Database: Supabase (PostgreSQL) พร้อม Row Level Security
 - Auth: Supabase Auth (Google OAuth + LINE Login)
 - UI: Rizzui, Tailwind CSS, Radix UI
 - Monorepo: pnpm workspaces + Turbo
+
+> **กฎสำคัญ**: ห้ามเขียน API logic ใน Next.js `app/api/` — ทุก endpoint ต้องอยู่ใน `services/api/` (Nest.js) เท่านั้น
 
 ---
 
@@ -19,13 +22,23 @@
 
 ```
 perpos/
-├── apps/perpos/          # Next.js app หลัก (port 3002)
+├── apps/perpos/          # Next.js frontend (port 3002) — UI เท่านั้น ไม่มี API routes
 ├── packages/
 │   ├── config-tailwind/  # Shared Tailwind config
 │   ├── config-typescript/
 │   └── isomorphic-core/  # Shared components
 ├── services/
-│   └── pdf-renderer/     # PDF microservice (Cloud Run)
+│   ├── api/              # Nest.js backend (port 3001) — API ทั้งหมด
+│   │   └── src/
+│   │       ├── line/         # LINE Bot (webhook, link-token, unlink)
+│   │       ├── assistant/    # Scheduler + TaskNotifier
+│   │       ├── admin/        # Users, Delivery, NewsAgent, Modules
+│   │       ├── google/       # Drive + Calendar
+│   │       ├── org/          # Organization invites
+│   │       ├── news/         # NewsService
+│   │       ├── email/        # EmailService
+│   │       └── supabase/     # SupabaseService (admin + authed clients)
+│   └── pdf-renderer/     # Nest.js PDF microservice (Cloud Run, port 8080)
 └── supabase/
     └── migrations/       # Migration SQL files
 ```
@@ -38,11 +51,21 @@ perpos/
 # ติดตั้ง dependencies (จาก root)
 pnpm install
 
-# รัน dev server (apps/perpos)
-pnpm starter:dev       # หรือ cd apps/perpos && pnpm dev
+# รัน frontend (apps/perpos)
+pnpm starter:dev       # port 3002
 
-# Type check
+# รัน Nest.js API backend (services/api)
+pnpm api:dev           # port 3001
+# หรือ: cd services/api && pnpm dev
+
+# รัน PDF microservice (services/pdf-renderer)
+pnpm pdf:dev           # port 8080
+# หรือ: cd services/pdf-renderer && pnpm dev
+
+# Type check (ทุก service)
 cd apps/perpos && pnpm exec tsc --noEmit
+cd services/api && pnpm type-check
+cd services/pdf-renderer && pnpm type-check
 
 # Lint
 pnpm lint
@@ -69,26 +92,37 @@ pnpm build
 | `(hydrogen)/payroll/` | เงินเดือน, พนักงาน |
 | `(hydrogen)/tax/` | ภาษีมูลค่าเพิ่ม, ภาษีหัก ณ ที่จ่าย |
 | `(auth)/` | Login, signup |
-| `api/` | API routes |
 
 ---
 
-## API Routes (`apps/perpos/src/app/api/`)
+## API Endpoints — Nest.js Backend (`services/api/` port 3001)
 
-| Route | Method | หน้าที่ |
-|-------|--------|---------|
-| `/api/line/webhook` | POST | LINE Bot webhook หลัก |
-| `/api/assistant/scheduler` | GET/POST | Cron trigger สำหรับแจ้งเตือน task |
-| `/api/admin/delivery/schedule` | PUT | ตั้ง cron schedule ส่งข่าว |
-| `/api/admin/delivery/send-now` | POST | ส่งข่าวทันที |
-| `/api/admin/delivery/logs` | GET | ดู logs การส่ง |
-| `/api/admin/news-agent/preview` | POST | Preview ข่าว |
-| `/api/admin/users/list` | GET | รายชื่อ users |
-| `/api/admin/users/invite` | POST | เชิญ user |
-| `/api/admin/users/permissions` | PUT | จัดการสิทธิ์ |
-| `/api/google-drive/connect` | POST | เชื่อม Google Drive |
-| `/api/org/invite` | POST | เชิญเข้า organization |
-| `/api/line/link-token` | POST | สร้าง token ผูกบัญชี LINE |
+| Endpoint | Method | Module | หน้าที่ |
+|----------|--------|--------|---------|
+| `/line/webhook` | POST | LineModule | LINE Bot webhook หลัก |
+| `/line/link-token` | POST | LineModule | สร้าง token ผูกบัญชี LINE |
+| `/line/unlink` | POST | LineModule | ยกเลิกผูกบัญชี LINE |
+| `/assistant/scheduler` | GET/POST | AssistantModule | Cron trigger สำหรับแจ้งเตือน task |
+| `/admin/delivery/logs` | GET | AdminModule | ดู logs การส่ง |
+| `/admin/delivery/schedule` | PUT | AdminModule | ตั้ง cron schedule ส่งข่าว |
+| `/admin/delivery/send-now` | POST | AdminModule | ส่งข่าวทันที |
+| `/admin/news-agent/preview` | POST | AdminModule | Preview ข่าว |
+| `/admin/users/list` | GET | AdminModule | รายชื่อ users |
+| `/admin/users/invite` | POST | AdminModule | เชิญ user |
+| `/admin/users/delete` | POST | AdminModule | ลบ user |
+| `/admin/users/permissions` | GET/PUT | AdminModule | จัดการสิทธิ์ |
+| `/admin/users/orgs` | GET/PUT/DELETE | AdminModule | จัดการ org memberships |
+| `/admin/modules` | GET/PUT | AdminModule | ตั้งค่า module ต่อ org |
+| `/google-drive/connect` | POST | GoogleModule | เชื่อม Google Drive+Calendar |
+| `/google-drive/callback` | GET | GoogleModule | OAuth callback |
+| `/google-drive/disconnect` | POST | GoogleModule | ยกเลิกการเชื่อม |
+| `/google-drive/status` | GET | GoogleModule | ตรวจสถานะการเชื่อม |
+| `/org/invite` | POST | OrgModule | เชิญเข้า organization |
+
+**Auth Guards:**
+- `AdminGuard` — Bearer token + `profiles.role = 'admin'`
+- `ActiveUserGuard` — Bearer token + `profiles.is_active = true`
+- `CronAuthGuard` — `CRON_SECRET` via header หรือ Authorization
 
 ---
 

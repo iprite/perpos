@@ -16,6 +16,10 @@
     "starter:build": "turbo build --filter=starter",
     "starter:start": "turbo start --filter=starter",
     "starter:clean": "turbo clean --filter=starter",
+    "api:dev": "turbo dev --filter=api",
+    "api:build": "turbo build --filter=api",
+    "pdf:dev": "turbo dev --filter=pdf-renderer",
+    "pdf:build": "turbo build --filter=pdf-renderer",
     "gen-icons": "turbo gen-icons --filter=core",
     "prepare": "husky"
   },

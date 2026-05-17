@@ -5,7 +5,7 @@ import { Button, Input, Textarea } from "rizzui";
 import { Title, Text } from "rizzui/typography";
 
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
-import { withBasePath } from "@/utils/base-path";
+import { backendUrl } from "@/lib/backend";
 
 type DeliveryLog = {
   id: string;
@@ -38,7 +38,7 @@ export default function AdminDeliveryPage() {
     setError(null);
     try {
       const headers = await authHeader();
-      const res = await fetch(withBasePath("/api/admin/delivery/logs"), { headers });
+      const res = await fetch(backendUrl("/admin/delivery/logs"), { headers });
       const json = await res.json().catch(() => null);
       if (!res.ok) {
         setError(String(json?.error ?? "โหลด log ไม่สำเร็จ"));
@@ -60,7 +60,7 @@ export default function AdminDeliveryPage() {
     setError(null);
     try {
       const headers = await authHeader();
-      const res = await fetch(withBasePath("/api/admin/delivery/schedule"), {
+      const res = await fetch(backendUrl("/admin/delivery/schedule"), {
         method: "PUT",
         headers: { ...headers, "content-type": "application/json" },
         body: JSON.stringify({ cron, timezone }),
@@ -87,7 +87,7 @@ export default function AdminDeliveryPage() {
         .split("\n")
         .map((x) => x.trim())
         .filter(Boolean);
-      const res = await fetch(withBasePath("/api/admin/delivery/send-now"), {
+      const res = await fetch(backendUrl("/admin/delivery/send-now"), {
         method: "POST",
         headers: { ...headers, "content-type": "application/json" },
         body: JSON.stringify({ toUserIds }),

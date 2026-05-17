@@ -7,6 +7,7 @@ import { HardDrive, Image as ImageIcon, Link2, Save, X } from "lucide-react";
 
 import { useAuth } from "@/app/shared/auth-provider";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { backendUrl } from "@/lib/backend";
 
 type LinkTokenResponse =
   | { ok: true; token: string; expiresAt: string; linkUrl: string }
@@ -78,7 +79,7 @@ export default function UserSettingsPage() {
         const { data } = await supabase.auth.getSession();
         const token = data.session?.access_token;
         if (!token) return;
-        const res = await fetch("/api/google-drive/status", { headers: { authorization: `Bearer ${token}` } });
+        const res = await fetch(backendUrl("/google-drive/status"), { headers: { authorization: `Bearer ${token}` } });
         const json = (await res.json().catch(() => null)) as DriveStatusResponse | null;
         if (!res.ok) throw new Error(String((json as any)?.error ?? "request_failed"));
         if (!json || !(json as any).ok) throw new Error(String((json as any)?.error ?? "request_failed"));
@@ -296,7 +297,7 @@ export default function UserSettingsPage() {
                     const { data } = await supabase.auth.getSession();
                     const token = data.session?.access_token;
                     if (!token) throw new Error("Unauthorized");
-                    const res = await fetch("/api/google-drive/connect", {
+                    const res = await fetch(backendUrl("/google-drive/connect"), {
                       method: "POST",
                       headers: { authorization: `Bearer ${token}` },
                     });
@@ -325,7 +326,7 @@ export default function UserSettingsPage() {
                       const { data } = await supabase.auth.getSession();
                       const token = data.session?.access_token;
                       if (!token) throw new Error("Unauthorized");
-                      const res = await fetch("/api/google-drive/disconnect", {
+                      const res = await fetch(backendUrl("/google-drive/disconnect"), {
                         method: "POST",
                         headers: { authorization: `Bearer ${token}` },
                       });
@@ -403,7 +404,7 @@ export default function UserSettingsPage() {
                     const { data } = await supabase.auth.getSession();
                     const token = data.session?.access_token;
                     if (!token) throw new Error("Unauthorized");
-                    const res = await fetch("/api/line/link-token", {
+                    const res = await fetch(backendUrl("/line/link-token"), {
                       method: "POST",
                       headers: { authorization: `Bearer ${token}` },
                     });
