@@ -86,6 +86,7 @@ export default function AdminUsersPage() {
   // Per-user action states
   const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
   const [resettingUserId, setResettingUserId] = useState<string | null>(null);
+  const [togglingUserId, setTogglingUserId] = useState<string | null>(null);
 
   const authHeader = useCallback(async () => {
     const { data } = await supabase.auth.getSession();
@@ -245,6 +246,37 @@ export default function AdminUsersPage() {
       }
     },
     [authHeader, addOrgId, addOrgRole, loadOrgData],
+  );
+
+  const handleToggleStatus = useCallback(
+    async (userId: string, currentActive: boolean) => {
+      setTogglingUserId(userId);
+      try {
+        const headers = await authHeader();
+        const res = await fetch(backendUrl("/admin/users/status"), {
+          method: "PUT",
+          headers: { ...headers, "content-type": "application/json" },
+          body: JSON.stringify({ userId, isActive: !currentActive }),
+        });
+        const json = await res.json().catch(() => null);
+        if (!res.ok) {
+          setError(json?.error ?? "อัปเดตสถานะไม่สำเร็จ");
+        } else {
+          setItems((prev) =>
+            prev.map((u) =>
+              u.id === userId && u.profile
+                ? { ...u, profile: { ...u.profile, is_active: !currentActive } }
+                : u,
+            ),
+          );
+        }
+      } catch (e: unknown) {
+        setError((e as Error)?.message ?? "อัปเดตสถานะไม่สำเร็จ");
+      } finally {
+        setTogglingUserId(null);
+      }
+    },
+    [authHeader],
   );
 
   const handleDeleteUser = useCallback(
@@ -545,10 +577,10 @@ export default function AdminUsersPage() {
       {/* ── User list ── */}
       <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white">
         {/* Table header */}
-        <div className="grid grid-cols-[1fr_90px_80px_110px_180px] gap-0 border-b border-gray-200 bg-gray-50 px-4 py-3 text-xs font-semibold text-gray-600">
+        <div className="grid grid-cols-[1fr_90px_140px_100px_180px] gap-0 border-b border-gray-200 bg-gray-50 px-4 py-3 text-xs font-semibold text-gray-600">
           <div>อีเมล</div>
           <div>Role</div>
-          <div>Active</div>
+          <div>สถานะ</div>
           <div>LINE</div>
           <div>การจัดการ</div>
         </div>
@@ -562,17 +594,47 @@ export default function AdminUsersPage() {
             const isLoadingOrgs = orgLoading === u.id;
             const isDeleting = deletingUserId === u.id;
             const isResetting = resettingUserId === u.email;
+            const isToggling = togglingUserId === u.id;
+
+            // Derive display status
+            const isActive = u.profile?.is_active !== false;
+            const hasSigned = !!u.last_sign_in_at;
+            const wasInvited = !!u.invited_at;
+            const isPending = wasInvited && !hasSigned;
 
             return (
               <div key={u.id}>
                 {/* User row */}
-                <div className="grid grid-cols-[1fr_90px_80px_110px_180px] items-center gap-0 px-4 py-3 text-sm">
+                <div className="grid grid-cols-[1fr_90px_140px_100px_180px] items-center gap-0 px-4 py-3 text-sm">
                   <div className="min-w-0">
                     <div className="truncate font-medium text-gray-900">{u.email ?? "-"}</div>
                     <div className="truncate text-xs text-gray-400">{u.id}</div>
                   </div>
                   <div className="text-gray-700">{u.profile?.role ?? "-"}</div>
-                  <div className="text-gray-700">{u.profile?.is_active === false ? "ปิด" : "เปิด"}</div>
+                  {/* Status column */}
+                  <div className="flex items-center gap-1.5">
+                    {/* Badge */}
+                    {!isActive ? (
+                      <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-600">ปิดใช้งาน</span>
+                    ) : isPending ? (
+                      <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-600">รอตั้งรหัส</span>
+                    ) : (
+                      <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">ใช้งานได้</span>
+                    )}
+                    {/* Toggle button */}
+                    <button
+                      onClick={() => handleToggleStatus(u.id, isActive)}
+                      disabled={isToggling}
+                      title={isActive ? "คลิกเพื่อปิดใช้งาน" : "คลิกเพื่อเปิดใช้งาน"}
+                      className={`rounded-full px-2 py-0.5 text-xs font-medium transition-colors disabled:opacity-40 ${
+                        isActive
+                          ? "bg-gray-100 text-gray-500 hover:bg-red-50 hover:text-red-600"
+                          : "bg-gray-100 text-gray-500 hover:bg-green-50 hover:text-green-700"
+                      }`}
+                    >
+                      {isToggling ? "..." : isActive ? "ปิด" : "เปิด"}
+                    </button>
+                  </div>
                   <div className="text-gray-700">{u.profile?.line_user_id ? "เชื่อมแล้ว" : "ยังไม่เชื่อม"}</div>
                   <div className="flex items-center gap-1 flex-wrap">
                     {/* Orgs toggle */}
