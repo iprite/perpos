@@ -3,7 +3,14 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { backendUrl } from '@/lib/backend';
-import { Button } from 'rizzui';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { CustomSelect } from '@/components/ui/custom-select';
+import { ThaiDatePicker } from '@/components/ui/thai-date-picker';
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+} from '@/components/ui/dialog';
 import { Plus, Filter } from 'lucide-react';
 
 const TMC_ORG_ID = '1f52618c-09c4-49c5-a929-ea5060f26e7d';
@@ -86,8 +93,7 @@ export default function TmcFinancePage() {
     setSaving(true);
     const h = await headers();
     await fetch(backendUrl('/tmc/finance'), {
-      method: 'POST',
-      headers: h,
+      method: 'POST', headers: h,
       body: JSON.stringify({ orgId: TMC_ORG_ID, ...form }),
     });
     setSaving(false);
@@ -99,15 +105,45 @@ export default function TmcFinancePage() {
   const totalIncome = entries.reduce((s, e) => s + (e.income ?? 0), 0);
   const totalExpense = entries.reduce((s, e) => s + (e.expense ?? 0), 0);
 
+  const accountOptions = useMemo(() => [
+    { value: '', label: 'ทุกบัญชี' },
+    ...accounts.map(a => ({ value: a.id, label: a.name })),
+  ], [accounts]);
+
+  const propertyOptions = useMemo(() => [
+    { value: '', label: 'ทุกแปลง' },
+    ...PROPERTY_CODES.map(c => ({ value: c, label: c })),
+  ], []);
+
+  const categoryOptions = useMemo(() => [
+    { value: '', label: 'ทุกหมวด' },
+    ...CATEGORIES.map(c => ({ value: c, label: c })),
+  ], []);
+
+  const accountFormOptions = useMemo(() => [
+    { value: '', label: 'เลือกบัญชี' },
+    ...accounts.map(a => ({ value: a.id, label: a.name })),
+  ], [accounts]);
+
+  const propertyFormOptions = useMemo(() => [
+    { value: '', label: '-' },
+    ...PROPERTY_CODES.map(c => ({ value: c, label: c })),
+  ], []);
+
+  const categoryFormOptions = useMemo(() => [
+    { value: '', label: 'เลือกหมวด' },
+    ...CATEGORIES.map(c => ({ value: c, label: c })),
+  ], []);
+
   return (
     <div className="p-4 md:p-6 space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold text-gray-900">บัญชีและการเงิน</h1>
-          <p className="text-sm text-gray-500">TMC Management</p>
+          <h1 className="text-xl font-bold text-slate-900">บัญชีและการเงิน</h1>
+          <p className="text-sm text-slate-500">TMC Management</p>
         </div>
-        <Button onClick={() => setShowForm(true)} className="gap-1">
+        <Button onClick={() => setShowForm(true)}>
           <Plus className="w-4 h-4" /> เพิ่มรายการ
         </Button>
       </div>
@@ -131,76 +167,52 @@ export default function TmcFinancePage() {
       </div>
 
       {/* Filters */}
-      <div className="bg-white rounded-xl border p-4 flex flex-wrap gap-3">
-        <Filter className="w-4 h-4 text-gray-400 mt-2" />
-        <select
-          className="border rounded-lg px-3 py-1.5 text-sm text-gray-700"
-          value={accountId} onChange={e => setAccountId(e.target.value)}
-        >
-          <option value="">ทุกบัญชี</option>
-          {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-        </select>
-        <select
-          className="border rounded-lg px-3 py-1.5 text-sm text-gray-700"
-          value={propertyCode} onChange={e => setPropertyCode(e.target.value)}
-        >
-          <option value="">ทุกแปลง</option>
-          {PROPERTY_CODES.map(c => <option key={c} value={c}>{c}</option>)}
-        </select>
-        <select
-          className="border rounded-lg px-3 py-1.5 text-sm text-gray-700"
-          value={category} onChange={e => setCategory(e.target.value)}
-        >
-          <option value="">ทุกหมวด</option>
-          {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-        </select>
-        <input type="date" value={from} onChange={e => setFrom(e.target.value)}
-          className="border rounded-lg px-3 py-1.5 text-sm text-gray-700" />
-        <input type="date" value={to} onChange={e => setTo(e.target.value)}
-          className="border rounded-lg px-3 py-1.5 text-sm text-gray-700" />
+      <div className="bg-white rounded-xl border p-3 flex flex-wrap items-center gap-2">
+        <Filter className="w-4 h-4 text-slate-400 shrink-0" />
+        <CustomSelect value={accountId} onChange={setAccountId} options={accountOptions} className="w-36" />
+        <CustomSelect value={propertyCode} onChange={setPropertyCode} options={propertyOptions} className="w-28" />
+        <CustomSelect value={category} onChange={setCategory} options={categoryOptions} className="w-36" />
+        <ThaiDatePicker value={from} onChange={setFrom} placeholder="ตั้งแต่" className="w-32" />
+        <ThaiDatePicker value={to} onChange={setTo} placeholder="ถึง" className="w-32" />
       </div>
 
       {/* Table */}
       <div className="bg-white rounded-xl border overflow-x-auto">
         {loading ? (
-          <div className="p-8 text-center text-gray-400">กำลังโหลด...</div>
+          <div className="p-8 text-center text-slate-400">กำลังโหลด...</div>
         ) : entries.length === 0 ? (
-          <div className="p-8 text-center text-gray-400">ยังไม่มีรายการ</div>
+          <div className="p-8 text-center text-slate-400">ยังไม่มีรายการ</div>
         ) : (
           <table className="w-full text-sm">
-            <thead className="bg-gray-50 border-b">
+            <thead className="bg-slate-50 border-b">
               <tr>
-                <th className="text-left px-4 py-3 text-gray-600 font-medium">วันที่</th>
-                <th className="text-left px-4 py-3 text-gray-600 font-medium">รายการ</th>
-                <th className="text-left px-4 py-3 text-gray-600 font-medium">หมวด</th>
-                <th className="text-left px-4 py-3 text-gray-600 font-medium">แปลง</th>
-                <th className="text-left px-4 py-3 text-gray-600 font-medium">บัญชี</th>
+                <th className="text-left px-4 py-3 text-slate-600 font-medium">วันที่</th>
+                <th className="text-left px-4 py-3 text-slate-600 font-medium">รายการ</th>
+                <th className="text-left px-4 py-3 text-slate-600 font-medium">หมวด</th>
+                <th className="text-left px-4 py-3 text-slate-600 font-medium">แปลง</th>
+                <th className="text-left px-4 py-3 text-slate-600 font-medium">บัญชี</th>
                 <th className="text-right px-4 py-3 text-green-600 font-medium">รายรับ</th>
                 <th className="text-right px-4 py-3 text-red-600 font-medium">รายจ่าย</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-50">
+            <tbody className="divide-y divide-slate-50">
               {entries.map(e => (
-                <tr key={e.id} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-4 py-3 text-gray-600 whitespace-nowrap">
+                <tr key={e.id} className="hover:bg-slate-50 transition-colors">
+                  <td className="px-4 py-3 text-slate-600 whitespace-nowrap">
                     {new Date(e.entry_date).toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: '2-digit' })}
                   </td>
-                  <td className="px-4 py-3 text-gray-800 max-w-xs truncate" title={e.description}>
+                  <td className="px-4 py-3 text-slate-800 max-w-xs truncate" title={e.description}>
                     {e.description}
                   </td>
                   <td className="px-4 py-3">
-                    <span className="inline-block bg-gray-100 text-gray-700 text-xs px-2 py-0.5 rounded-full">
-                      {e.category}
-                    </span>
+                    <span className="inline-block bg-slate-100 text-slate-700 text-xs px-2 py-0.5 rounded-full">{e.category}</span>
                   </td>
                   <td className="px-4 py-3">
                     {e.property_code && (
-                      <span className="inline-block bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded-full">
-                        {e.property_code}
-                      </span>
+                      <span className="inline-block bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded-full">{e.property_code}</span>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-gray-500 text-xs">{e.tmc_accounts?.name}</td>
+                  <td className="px-4 py-3 text-slate-500 text-xs">{e.tmc_accounts?.name}</td>
                   <td className="px-4 py-3 text-right font-medium text-green-600">{fmt(e.income)}</td>
                   <td className="px-4 py-3 text-right font-medium text-red-600">{fmt(e.expense)}</td>
                 </tr>
@@ -210,85 +222,65 @@ export default function TmcFinancePage() {
         )}
       </div>
 
-      {/* Add Entry Modal */}
-      {showForm && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-lg p-6 space-y-4">
-            <h2 className="text-lg font-bold">เพิ่มรายการบัญชี</h2>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="col-span-2">
-                <label className="text-xs text-gray-500 mb-1 block">บัญชี *</label>
-                <select className="w-full border rounded-lg px-3 py-2 text-sm"
-                  value={form.accountId} onChange={e => setForm(f => ({ ...f, accountId: e.target.value }))}>
-                  <option value="">เลือกบัญชี</option>
-                  {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="text-xs text-gray-500 mb-1 block">วันที่ *</label>
-                <input type="date" className="w-full border rounded-lg px-3 py-2 text-sm"
-                  value={form.entryDate} onChange={e => setForm(f => ({ ...f, entryDate: e.target.value }))} />
-              </div>
-              <div>
-                <label className="text-xs text-gray-500 mb-1 block">แปลง</label>
-                <select className="w-full border rounded-lg px-3 py-2 text-sm"
-                  value={form.propertyCode} onChange={e => setForm(f => ({ ...f, propertyCode: e.target.value }))}>
-                  <option value="">-</option>
-                  {PROPERTY_CODES.map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
-              </div>
-              <div className="col-span-2">
-                <label className="text-xs text-gray-500 mb-1 block">รายการ *</label>
-                <input className="w-full border rounded-lg px-3 py-2 text-sm"
-                  placeholder="เช่น คุณวชิราภรณ์ เข้าพัก 1 คืน"
-                  value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
-              </div>
-              <div>
-                <label className="text-xs text-gray-500 mb-1 block">วันเช็คอิน</label>
-                <input type="date" className="w-full border rounded-lg px-3 py-2 text-sm"
-                  value={form.checkInDate} onChange={e => setForm(f => ({ ...f, checkInDate: e.target.value }))} />
-              </div>
-              <div>
-                <label className="text-xs text-gray-500 mb-1 block">วันเช็คเอาต์</label>
-                <input type="date" className="w-full border rounded-lg px-3 py-2 text-sm"
-                  value={form.checkOutDate} onChange={e => setForm(f => ({ ...f, checkOutDate: e.target.value }))} />
-              </div>
-              <div className="col-span-2">
-                <label className="text-xs text-gray-500 mb-1 block">หมวดหมู่ *</label>
-                <select className="w-full border rounded-lg px-3 py-2 text-sm"
-                  value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))}>
-                  <option value="">เลือกหมวด</option>
-                  {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="text-xs text-gray-500 mb-1 block">รายรับ (บาท)</label>
-                <input type="number" className="w-full border rounded-lg px-3 py-2 text-sm"
-                  placeholder="0.00" value={form.income}
-                  onChange={e => setForm(f => ({ ...f, income: e.target.value, expense: '' }))} />
-              </div>
-              <div>
-                <label className="text-xs text-gray-500 mb-1 block">รายจ่าย (บาท)</label>
-                <input type="number" className="w-full border rounded-lg px-3 py-2 text-sm"
-                  placeholder="0.00" value={form.expense}
-                  onChange={e => setForm(f => ({ ...f, expense: e.target.value, income: '' }))} />
-              </div>
-              <div className="col-span-2">
-                <label className="text-xs text-gray-500 mb-1 block">หมายเหตุ</label>
-                <input className="w-full border rounded-lg px-3 py-2 text-sm"
-                  value={form.note} onChange={e => setForm(f => ({ ...f, note: e.target.value }))} />
-              </div>
+      {/* Add Entry Dialog */}
+      <Dialog open={showForm} onOpenChange={setShowForm}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>เพิ่มรายการบัญชี</DialogTitle>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="col-span-2 space-y-1.5">
+              <Label>บัญชี *</Label>
+              <CustomSelect value={form.accountId} onChange={v => setForm(f => ({ ...f, accountId: v }))} options={accountFormOptions} />
             </div>
-            <div className="flex gap-2 pt-2">
-              <Button className="flex-1" onClick={handleSave} isLoading={saving}
-                disabled={!form.accountId || !form.description || !form.category}>
-                บันทึก
-              </Button>
-              <Button variant="outline" className="flex-1" onClick={() => setShowForm(false)}>ยกเลิก</Button>
+            <div className="space-y-1.5">
+              <Label>วันที่ *</Label>
+              <ThaiDatePicker value={form.entryDate} onChange={v => setForm(f => ({ ...f, entryDate: v }))} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>แปลง</Label>
+              <CustomSelect value={form.propertyCode} onChange={v => setForm(f => ({ ...f, propertyCode: v }))} options={propertyFormOptions} />
+            </div>
+            <div className="col-span-2 space-y-1.5">
+              <Label>รายการ *</Label>
+              <Input placeholder="เช่น คุณวชิราภรณ์ เข้าพัก 1 คืน"
+                value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>วันเช็คอิน</Label>
+              <ThaiDatePicker value={form.checkInDate} onChange={v => setForm(f => ({ ...f, checkInDate: v }))} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>วันเช็คเอาต์</Label>
+              <ThaiDatePicker value={form.checkOutDate} onChange={v => setForm(f => ({ ...f, checkOutDate: v }))} />
+            </div>
+            <div className="col-span-2 space-y-1.5">
+              <Label>หมวดหมู่ *</Label>
+              <CustomSelect value={form.category} onChange={v => setForm(f => ({ ...f, category: v }))} options={categoryFormOptions} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>รายรับ (บาท)</Label>
+              <Input type="number" placeholder="0.00" value={form.income}
+                onChange={e => setForm(f => ({ ...f, income: e.target.value, expense: '' }))} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>รายจ่าย (บาท)</Label>
+              <Input type="number" placeholder="0.00" value={form.expense}
+                onChange={e => setForm(f => ({ ...f, expense: e.target.value, income: '' }))} />
+            </div>
+            <div className="col-span-2 space-y-1.5">
+              <Label>หมายเหตุ</Label>
+              <Input value={form.note} onChange={e => setForm(f => ({ ...f, note: e.target.value }))} />
             </div>
           </div>
-        </div>
-      )}
+          <DialogFooter className="gap-2 sm:gap-2">
+            <Button variant="outline" onClick={() => setShowForm(false)}>ยกเลิก</Button>
+            <Button onClick={handleSave} disabled={saving || !form.accountId || !form.description || !form.category}>
+              {saving ? 'กำลังบันทึก…' : 'บันทึก'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

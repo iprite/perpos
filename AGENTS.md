@@ -250,6 +250,153 @@ Endpoint: `POST /api/assistant/scheduler`
 
 ---
 
+## Design System — UI Components
+
+> **กฎบังคับ**: ทุก UI ใน `apps/perpos/` ต้องใช้ components จาก `@/components/ui/` เท่านั้น  
+> ห้ามใช้ `rizzui`, raw `<button>`, `<input>`, `<select>`, `<label>` โดยตรง
+
+### Components ที่ต้องใช้เสมอ
+
+| ต้องการ | ใช้ | Import จาก |
+|---------|-----|-----------|
+| ปุ่ม | `<Button>` | `@/components/ui/button` |
+| Text input / number | `<Input>` | `@/components/ui/input` |
+| **Dropdown / Select** | `<CustomSelect>` | `@/components/ui/custom-select` |
+| **Date picker** | `<ThaiDatePicker>` | `@/components/ui/thai-date-picker` |
+| Label | `<Label>` | `@/components/ui/label` |
+| Modal / Dialog | `<Dialog>`, `<DialogContent>`, `<DialogHeader>`, `<DialogTitle>`, `<DialogFooter>` | `@/components/ui/dialog` |
+| Native select (เฉพาะ `type="month"` หรือกรณีพิเศษ) | `<NativeSelect>` | `@/components/ui/native-select` |
+| Time input | `<Input type="time">` | `@/components/ui/input` |
+
+### Button variants
+
+```tsx
+import { Button } from '@/components/ui/button';
+
+<Button>Primary (blue)</Button>
+<Button variant="outline">Outline</Button>
+<Button variant="secondary">Secondary (gray)</Button>
+<Button variant="ghost">Ghost</Button>
+<Button variant="destructive">Destructive (red)</Button>
+<Button size="sm">Small</Button>
+<Button size="lg">Large</Button>
+<Button size="icon"><IconName /></Button>
+
+// Loading state — Button ไม่มี isLoading prop ให้ใช้ disabled + text แทน
+<Button disabled={saving}>{saving ? 'กำลังบันทึก…' : 'บันทึก'}</Button>
+```
+
+### Input
+
+```tsx
+import { Input } from '@/components/ui/input';
+
+<Input placeholder="..." />
+<Input type="date" />
+<Input type="number" />
+<Input type="time" />
+```
+
+### NativeSelect
+
+```tsx
+import { NativeSelect } from '@/components/ui/native-select';
+
+<NativeSelect value={val} onChange={e => setVal(e.target.value)}>
+  <option value="">— เลือก —</option>
+  <option value="a">A</option>
+</NativeSelect>
+
+// ถ้าต้องการ width อัตโนมัติ (ไม่ full-width)
+<NativeSelect className="w-auto">...</NativeSelect>
+```
+
+### Label
+
+```tsx
+import { Label } from '@/components/ui/label';
+
+<Label htmlFor="field-id">ชื่อ *</Label>
+<Input id="field-id" ... />
+```
+
+### Dialog
+
+```tsx
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+} from '@/components/ui/dialog';
+
+<Dialog open={open} onOpenChange={setOpen}>
+  <DialogContent>                       {/* max-w-lg by default */}
+    <DialogHeader>
+      <DialogTitle>หัวข้อ</DialogTitle>
+    </DialogHeader>
+    {/* content */}
+    <DialogFooter className="gap-2 sm:gap-2">
+      <Button variant="outline" onClick={() => setOpen(false)}>ยกเลิก</Button>
+      <Button onClick={handleSave}>บันทึก</Button>
+    </DialogFooter>
+  </DialogContent>
+</Dialog>
+
+// Dialog ขนาดใหญ่ / scrollable
+<DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+```
+
+### CustomSelect
+
+```tsx
+import { CustomSelect } from '@/components/ui/custom-select';
+
+// options ต้องเป็น { value: string; label: string }[]
+<CustomSelect
+  value={val}
+  onChange={(v) => setVal(v)}
+  options={[
+    { value: '', label: 'ทุกสถานะ' },
+    { value: 'active', label: 'ใช้งาน' },
+  ]}
+/>
+
+// กำหนดความกว้าง
+<CustomSelect ... className="w-36" />
+```
+
+### ThaiDatePicker
+
+```tsx
+import { ThaiDatePicker } from '@/components/ui/thai-date-picker';
+
+// value และ onChange ใช้ ISO string "YYYY-MM-DD" (CE)
+<ThaiDatePicker
+  value={form.date}           // "2025-01-15" หรือ ""
+  onChange={(iso) => setForm(f => ({ ...f, date: iso }))}
+  placeholder="เลือกวันที่"  // optional
+/>
+```
+
+### ห้ามใช้เด็ดขาด
+
+```tsx
+// ❌ ห้าม
+import { Button } from 'rizzui';
+<button className="...">Click</button>
+<input className="border rounded-lg ..." />
+<select className="border rounded-lg ...">
+<label className="text-xs ...">
+<input type="date" ...>   // ❌ ใช้ ThaiDatePicker แทน
+
+// ✅ ถูกต้อง
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { CustomSelect } from '@/components/ui/custom-select';
+import { ThaiDatePicker } from '@/components/ui/thai-date-picker';
+import { Label } from '@/components/ui/label';
+```
+
+---
+
 ## Supabase Project
 
 - **Project ID**: `zftnyipifpaiqzukiyzi`

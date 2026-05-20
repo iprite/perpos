@@ -385,11 +385,10 @@ export default function TmcPettyCashPage() {
         <CustomSelect value={filterProp} onChange={setFilterProp} options={propFilterOpts} className="w-28" />
         <ThaiDatePicker value={from} onChange={setFrom} placeholder="ตั้งแต่" className="w-32" />
         <ThaiDatePicker value={to}   onChange={setTo}   placeholder="ถึง"     className="w-32" />
-        {hasFilter && (
-          <Button variant="ghost" size="sm" onClick={() => { setFilterFund(''); setFilterType(''); setFilterProp(''); setFrom(''); setTo(''); }}>
-            ล้างตัวกรอง
-          </Button>
-        )}
+        <Button variant="ghost" size="sm" disabled={!hasFilter}
+          onClick={() => { setFilterFund(''); setFilterType(''); setFilterProp(''); setFrom(''); setTo(''); }}>
+          ล้างตัวกรอง
+        </Button>
       </div>
 
       {/* Table */}
