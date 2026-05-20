@@ -64,11 +64,22 @@ export function OrgSwitcher({ organizations, activeOrganizationId }: OrgSwitcher
     return () => document.removeEventListener("mousedown", handle);
   }, [open]);
 
+  // Custom ERP orgs — redirect to their dedicated entry page on switch
+  const CUSTOM_ERP_REDIRECT: Record<string, string> = {
+    '1f52618c-09c4-49c5-a929-ea5060f26e7d': '/tmc/finance', // TMC Management
+  };
+
   function switchOrg(id: string) {
     if (id === selected) { setOpen(false); setSearch(""); return; }
     startTransition(async () => {
       const res = await setActiveOrganizationAction(id);
-      if (res.ok) { setOpen(false); setSearch(""); router.refresh(); }
+      if (res.ok) {
+        setOpen(false);
+        setSearch("");
+        const redirectPath = CUSTOM_ERP_REDIRECT[id] ?? '/';
+        router.push(redirectPath);
+        router.refresh();
+      }
     });
   }
 
@@ -125,7 +136,14 @@ export function OrgSwitcher({ organizations, activeOrganizationId }: OrgSwitcher
                 disabled={pending}
                 className="flex w-full items-center justify-between px-4 py-2.5 text-left text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-50"
               >
-                <span className="truncate">{org.name}</span>
+                <span className="flex items-center gap-2 truncate">
+                  <span className="truncate">{org.name}</span>
+                  {CUSTOM_ERP_REDIRECT[org.id] && (
+                    <span className="shrink-0 rounded bg-blue-50 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-blue-600">
+                      ERP
+                    </span>
+                  )}
+                </span>
                 {org.id === selected && <Check className="h-4 w-4 shrink-0 text-slate-600" />}
               </button>
             ))}

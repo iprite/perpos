@@ -283,11 +283,49 @@ function buildPayrollMenuItems(): MenuItem[] {
   ];
 }
 
+function buildTmcMenuItems(): MenuItem[] {
+  return [
+    { name: "TMC Management" },
+    {
+      name: "บัญชีและการเงิน",
+      href: "/tmc/finance",
+      icon: <Landmark className="h-5 w-5" />,
+    },
+    {
+      name: "Stock คลัง",
+      href: "/tmc/stock",
+      icon: <Package className="h-5 w-5" />,
+    },
+    {
+      name: "การเข้าพัก",
+      href: "/tmc/stays",
+      icon: <Building2 className="h-5 w-5" />,
+    },
+    { name: "ระบบหลัก" },
+    {
+      name: "แดชบอร์ด",
+      href: "/",
+      icon: <LayoutDashboard className="h-5 w-5" />,
+    },
+    {
+      name: "Task Manager",
+      href: "/assistant",
+      icon: <BotMessageSquare className="h-5 w-5" />,
+    },
+    {
+      name: "ตั้งค่า",
+      href: "/settings",
+      icon: <ShieldCheck className="h-5 w-5" />,
+    },
+  ];
+}
+
 function pickMenuContext(pathname: string, role: Role | null) {
   const p = pathname || "/";
   if (p === "/admin" || p.startsWith("/admin/")) return role === "admin" ? "admin" : "user";
   if (p.startsWith("/payroll")) return "payroll";
   if (p.startsWith("/assistant")) return "assistant";
+  if (p.startsWith("/tmc")) return "tmc";
   return "user";
 }
 
@@ -297,6 +335,7 @@ export function getMenuItems(role: Role | null, pathname: string): MenuItem[] {
     context === "admin"     ? buildAdminMenuItems()     :
     context === "payroll"   ? buildPayrollMenuItems()   :
     context === "assistant" ? buildAssistantMenuItems() :
+    context === "tmc"       ? buildTmcMenuItems()       :
     buildUserMenuItems();
 
   return items.filter((item) => {
