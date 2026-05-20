@@ -9,6 +9,10 @@ export type OrgSettings = {
   address: string;
   taxId: string;
   branchInfo: string;
+  phone: string;
+  email: string;
+  website: string;
+  fax: string;
   logoObjectPath: string | null;
   accountantSignatureObjectPath: string | null;
   authorizedSignatureObjectPath: string | null;
@@ -30,6 +34,10 @@ export async function upsertOrgSettingsAction(params: { organizationId: string; 
     address: params.settings.address,
     tax_id: params.settings.taxId,
     branch_info: params.settings.branchInfo,
+    phone: params.settings.phone || null,
+    email: params.settings.email || null,
+    website: params.settings.website || null,
+    fax: params.settings.fax || null,
     logo_object_path: params.settings.logoObjectPath,
     accountant_signature_object_path: params.settings.accountantSignatureObjectPath,
     authorized_signature_object_path: params.settings.authorizedSignatureObjectPath,
@@ -52,6 +60,20 @@ export async function upsertDocumentSequencesAction(params: { organizationId: st
   }));
   const { error } = await supabase.from("document_sequences").upsert(rows);
   if (error) return { ok: false as const, error: error.message ?? "save_failed" };
+  return { ok: true as const };
+}
+
+export async function updateOrgAction(params: {
+  organizationId: string;
+  name: string;
+  baseCurrency: string;
+}) {
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase
+    .from('organizations')
+    .update({ name: params.name, base_currency: params.baseCurrency, updated_at: new Date().toISOString() })
+    .eq('id', params.organizationId);
+  if (error) return { ok: false as const, error: error.message ?? 'save_failed' };
   return { ok: true as const };
 }
 

@@ -11,38 +11,51 @@ export default async function OrganizationSettingsPage() {
   const activeOrganizationId = await getActiveOrganizationId();
   const supabase = await createSupabaseServerClient();
 
+  let orgName = "";
+  let baseCurrency = "THB";
   let settings: OrgSettings = {
-    companyNameTh: "",
-    companyNameEn: "",
-    address: "",
-    taxId: "",
-    branchInfo: "",
-    logoObjectPath: null,
-    accountantSignatureObjectPath: null,
-    authorizedSignatureObjectPath: null,
+    companyNameTh: "", companyNameEn: "", address: "", taxId: "", branchInfo: "",
+    phone: "", email: "", website: "", fax: "",
+    logoObjectPath: null, accountantSignatureObjectPath: null, authorizedSignatureObjectPath: null,
   };
   let sequences: DocSequence[] = [];
   let error: string | null = null;
 
   if (activeOrganizationId) {
+    // Fetch org base info
+    const { data: org } = await supabase
+      .from("organizations")
+      .select("name,base_currency")
+      .eq("id", activeOrganizationId)
+      .maybeSingle();
+    if (org) {
+      orgName = String((org as any).name ?? "");
+      baseCurrency = String((org as any).base_currency ?? "THB");
+    }
+
     const { data: s, error: se } = await supabase
       .from("org_settings")
       .select(
-        "company_name_th,company_name_en,address,tax_id,branch_info,logo_object_path,accountant_signature_object_path,authorized_signature_object_path",
+        "company_name_th,company_name_en,address,tax_id,branch_info,phone,email,website,fax,logo_object_path,accountant_signature_object_path,authorized_signature_object_path",
       )
       .eq("organization_id", activeOrganizationId)
       .maybeSingle();
     if (se) error = se.message;
     if (s) {
+      const r = s as any;
       settings = {
-        companyNameTh: s.company_name_th ? String((s as any).company_name_th) : "",
-        companyNameEn: s.company_name_en ? String((s as any).company_name_en) : "",
-        address: s.address ? String((s as any).address) : "",
-        taxId: s.tax_id ? String((s as any).tax_id) : "",
-        branchInfo: s.branch_info ? String((s as any).branch_info) : "",
-        logoObjectPath: s.logo_object_path ? String((s as any).logo_object_path) : null,
-        accountantSignatureObjectPath: s.accountant_signature_object_path ? String((s as any).accountant_signature_object_path) : null,
-        authorizedSignatureObjectPath: s.authorized_signature_object_path ? String((s as any).authorized_signature_object_path) : null,
+        companyNameTh: String(r.company_name_th ?? ""),
+        companyNameEn: String(r.company_name_en ?? ""),
+        address: String(r.address ?? ""),
+        taxId: String(r.tax_id ?? ""),
+        branchInfo: String(r.branch_info ?? ""),
+        phone: String(r.phone ?? ""),
+        email: String(r.email ?? ""),
+        website: String(r.website ?? ""),
+        fax: String(r.fax ?? ""),
+        logoObjectPath: r.logo_object_path ? String(r.logo_object_path) : null,
+        accountantSignatureObjectPath: r.accountant_signature_object_path ? String(r.accountant_signature_object_path) : null,
+        authorizedSignatureObjectPath: r.authorized_signature_object_path ? String(r.authorized_signature_object_path) : null,
       };
     }
 
@@ -73,7 +86,13 @@ export default async function OrganizationSettingsPage() {
 
       {activeOrganizationId ? (
         <div className="mt-6">
-          <OrgSettingsClient organizationId={activeOrganizationId} initialSettings={settings} initialSequences={sequences} />
+          <OrgSettingsClient
+          organizationId={activeOrganizationId}
+          initialOrgName={orgName}
+          initialBaseCurrency={baseCurrency}
+          initialSettings={settings}
+          initialSequences={sequences}
+        />
         </div>
       ) : (
         <div className="mt-6 rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-700">กรุณาเลือกองค์กรก่อน</div>

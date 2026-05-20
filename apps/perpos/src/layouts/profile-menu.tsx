@@ -4,10 +4,11 @@ import { Title, Text, Avatar, Button, Popover } from "rizzui";
 import cn from "@core/utils/class-names";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Settings, Shield, LogOut, LayoutGrid } from "lucide-react";
+import { Settings, Shield, LogOut, LayoutGrid, Building2 } from "lucide-react";
 
 import { useAuth } from "@/app/shared/auth-provider";
 import { withBasePath } from "@/utils/base-path";
+import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 export default function ProfileMenu({
   buttonClassName,
@@ -77,10 +78,31 @@ function ProfileMenuPopover({ children }: React.PropsWithChildren<{}>) {
 
 function DropdownMenu() {
   const router = useRouter();
-  const { email, role, profile, signOut } = useAuth();
+  const { email, role, profile, userId, signOut } = useAuth();
   const name = String(profile?.display_name ?? email ?? "U");
   const [signingOut, setSigningOut] = useState(false);
+  const [isOrgManager, setIsOrgManager] = useState(false);
   const isAdmin = role === "admin";
+
+  // Check if user is owner/admin of the active org
+  useEffect(() => {
+    if (!userId) return;
+    const match = document.cookie.match(/perpos\.activeOrgId=([^;]+)/);
+    const activeOrgId = match ? decodeURIComponent(match[1]) : null;
+    if (!activeOrgId) return;
+    const supabase = createSupabaseBrowserClient();
+    supabase
+      .from("organization_members")
+      .select("role")
+      .eq("user_id", userId)
+      .eq("organization_id", activeOrgId)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data?.role && ["owner", "admin"].includes(String(data.role))) {
+          setIsOrgManager(true);
+        }
+      });
+  }, [userId]);
 
   const items: Array<{ label: string; href: string; icon: React.ReactNode; show: boolean }> = [
     {
@@ -88,6 +110,12 @@ function DropdownMenu() {
       href: "/executive-dashboard",
       icon: <LayoutGrid className="h-4 w-4 text-gray-500" />,
       show: true,
+    },
+    {
+      label: "จัดการองค์กร",
+      href: "/settings/organization",
+      icon: <Building2 className="h-4 w-4 text-gray-500" />,
+      show: isOrgManager,
     },
     {
       label: "ข้อมูลส่วนตัว",

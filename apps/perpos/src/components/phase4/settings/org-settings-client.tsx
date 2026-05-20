@@ -9,14 +9,18 @@ import { CustomSelect } from "@/components/ui/custom-select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import cn from "@core/utils/class-names";
-import { uploadOrgAssetAction, upsertDocumentSequencesAction, upsertOrgSettingsAction, type DocSequence, type OrgSettings } from "@/lib/phase4/settings/actions";
+import { updateOrgAction, uploadOrgAssetAction, upsertDocumentSequencesAction, upsertOrgSettingsAction, type DocSequence, type OrgSettings } from "@/lib/phase4/settings/actions";
 
 export function OrgSettingsClient(props: {
   organizationId: string;
+  initialOrgName: string;
+  initialBaseCurrency: string;
   initialSettings: OrgSettings;
   initialSequences: DocSequence[];
 }) {
   const [pending, startTransition] = useTransition();
+  const [orgName, setOrgName] = useState(props.initialOrgName);
+  const [baseCurrency, setBaseCurrency] = useState(props.initialBaseCurrency);
   const [settings, setSettings] = useState(props.initialSettings);
   const [sequences, setSequences] = useState<DocSequence[]>(props.initialSequences);
 
@@ -50,18 +54,14 @@ export function OrgSettingsClient(props: {
 
   const saveAll = () => {
     startTransition(async () => {
-      const [a, b] = await Promise.all([
+      const [a, b, c] = await Promise.all([
+        updateOrgAction({ organizationId: props.organizationId, name: orgName, baseCurrency }),
         upsertOrgSettingsAction({ organizationId: props.organizationId, settings }),
         upsertDocumentSequencesAction({ organizationId: props.organizationId, sequences }),
       ]);
-      if (!a.ok) {
-        toast.error(a.error);
-        return;
-      }
-      if (!b.ok) {
-        toast.error(b.error);
-        return;
-      }
+      if (!a.ok) { toast.error(a.error); return; }
+      if (!b.ok) { toast.error(b.error); return; }
+      if (!c.ok) { toast.error(c.error); return; }
       toast.success("บันทึกการตั้งค่าแล้ว");
     });
   };
@@ -71,8 +71,35 @@ export function OrgSettingsClient(props: {
 
   return (
     <div className="grid gap-6">
+      {/* ── Section 1: ข้อมูลในระบบ ── */}
       <div className="rounded-xl border border-slate-200 bg-white p-5">
-        <div className="text-sm font-semibold text-slate-900">ข้อมูลองค์กร</div>
+        <div className="text-sm font-semibold text-slate-900">ข้อมูลในระบบ</div>
+        <div className="mt-4 grid gap-4 md:grid-cols-2">
+          <div className="grid gap-2">
+            <Label>ชื่อองค์กรในระบบ</Label>
+            <Input value={orgName} onChange={(e) => setOrgName(e.target.value)} placeholder="ชื่อที่แสดงใน org switcher" />
+          </div>
+          <div className="grid gap-2">
+            <Label>สกุลเงินหลัก</Label>
+            <CustomSelect
+              value={baseCurrency}
+              onChange={setBaseCurrency}
+              options={[
+                { value: "THB", label: "THB — บาทไทย" },
+                { value: "USD", label: "USD — US Dollar" },
+                { value: "EUR", label: "EUR — Euro" },
+                { value: "JPY", label: "JPY — Japanese Yen" },
+                { value: "CNY", label: "CNY — Chinese Yuan" },
+                { value: "SGD", label: "SGD — Singapore Dollar" },
+              ]}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* ── Section 2: ข้อมูลนิติบุคคล ── */}
+      <div className="rounded-xl border border-slate-200 bg-white p-5">
+        <div className="text-sm font-semibold text-slate-900">ข้อมูลนิติบุคคล</div>
         <div className="mt-4 grid gap-4 md:grid-cols-2">
           <div className="grid gap-2">
             <Label>ชื่อบริษัท (ไทย)</Label>
@@ -84,15 +111,43 @@ export function OrgSettingsClient(props: {
           </div>
           <div className="grid gap-2 md:col-span-2">
             <Label>ที่อยู่</Label>
-            <Input value={settings.address} onChange={(e) => setSettings((s) => ({ ...s, address: e.target.value }))} />
+            <textarea
+              rows={2}
+              value={settings.address}
+              onChange={(e) => setSettings((s) => ({ ...s, address: e.target.value }))}
+              className="flex w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 ring-offset-white resize-none"
+            />
           </div>
           <div className="grid gap-2">
-            <Label>เลขผู้เสียภาษี</Label>
-            <Input value={settings.taxId} onChange={(e) => setSettings((s) => ({ ...s, taxId: e.target.value }))} />
+            <Label>เลขประจำตัวผู้เสียภาษี</Label>
+            <Input value={settings.taxId} onChange={(e) => setSettings((s) => ({ ...s, taxId: e.target.value }))} placeholder="0000000000000" />
           </div>
           <div className="grid gap-2">
             <Label>สาขา</Label>
-            <Input value={settings.branchInfo} onChange={(e) => setSettings((s) => ({ ...s, branchInfo: e.target.value }))} placeholder="สำนักงานใหญ่/สาขา ..." />
+            <Input value={settings.branchInfo} onChange={(e) => setSettings((s) => ({ ...s, branchInfo: e.target.value }))} placeholder="สำนักงานใหญ่ / สาขา 0001" />
+          </div>
+        </div>
+      </div>
+
+      {/* ── Section 3: ข้อมูลติดต่อ ── */}
+      <div className="rounded-xl border border-slate-200 bg-white p-5">
+        <div className="text-sm font-semibold text-slate-900">ข้อมูลติดต่อ</div>
+        <div className="mt-4 grid gap-4 md:grid-cols-2">
+          <div className="grid gap-2">
+            <Label>โทรศัพท์</Label>
+            <Input type="tel" value={settings.phone} onChange={(e) => setSettings((s) => ({ ...s, phone: e.target.value }))} placeholder="02-xxx-xxxx" />
+          </div>
+          <div className="grid gap-2">
+            <Label>โทรสาร (Fax)</Label>
+            <Input type="tel" value={settings.fax} onChange={(e) => setSettings((s) => ({ ...s, fax: e.target.value }))} placeholder="02-xxx-xxxx" />
+          </div>
+          <div className="grid gap-2">
+            <Label>อีเมลองค์กร</Label>
+            <Input type="email" value={settings.email} onChange={(e) => setSettings((s) => ({ ...s, email: e.target.value }))} placeholder="info@company.com" />
+          </div>
+          <div className="grid gap-2">
+            <Label>เว็บไซต์</Label>
+            <Input type="url" value={settings.website} onChange={(e) => setSettings((s) => ({ ...s, website: e.target.value }))} placeholder="https://www.company.com" />
           </div>
         </div>
       </div>
