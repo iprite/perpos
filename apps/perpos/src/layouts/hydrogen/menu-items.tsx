@@ -301,22 +301,6 @@ function buildTmcMenuItems(): MenuItem[] {
       href: "/tmc/stays",
       icon: <Building2 className="h-5 w-5" />,
     },
-    { name: "ระบบหลัก" },
-    {
-      name: "แดชบอร์ด",
-      href: "/",
-      icon: <LayoutDashboard className="h-5 w-5" />,
-    },
-    {
-      name: "Task Manager",
-      href: "/assistant",
-      icon: <BotMessageSquare className="h-5 w-5" />,
-    },
-    {
-      name: "ตั้งค่า",
-      href: "/settings",
-      icon: <ShieldCheck className="h-5 w-5" />,
-    },
   ];
 }
 
