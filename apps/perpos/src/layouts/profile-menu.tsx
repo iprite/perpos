@@ -4,7 +4,7 @@ import { Title, Text, Avatar, Button, Popover } from "rizzui";
 import cn from "@core/utils/class-names";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Settings, Shield, LogOut } from "lucide-react";
+import { Settings, Shield, LogOut, LayoutGrid } from "lucide-react";
 
 import { useAuth } from "@/app/shared/auth-provider";
 import { withBasePath } from "@/utils/base-path";
@@ -77,12 +77,20 @@ function ProfileMenuPopover({ children }: React.PropsWithChildren<{}>) {
 
 function DropdownMenu() {
   const router = useRouter();
+  const pathname = usePathname();
   const { email, role, profile, signOut } = useAuth();
   const name = String(profile?.display_name ?? email ?? "U");
   const [signingOut, setSigningOut] = useState(false);
   const isAdmin = role === "admin";
+  const isTmcPath = pathname?.startsWith("/tmc") ?? false;
 
   const items: Array<{ label: string; href: string; icon: React.ReactNode; show: boolean }> = [
+    {
+      label: "PERPOS ERP",
+      href: "/executive-dashboard",
+      icon: <LayoutGrid className="h-4 w-4 text-gray-500" />,
+      show: isTmcPath,
+    },
     {
       label: "ข้อมูลส่วนตัว",
       href: "/settings",
