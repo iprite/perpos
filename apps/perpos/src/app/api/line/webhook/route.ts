@@ -2,6 +2,194 @@ import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { createAdminClient } from '../../_lib/supabase';
 
+// ─── TMC Org ID (TMC Management) ─────────────────────────────────────────────
+const TMC_ORG_ID = '1f52618c-09c4-49c5-a929-ea5060f26e7d';
+
+// ─── TMC LINE helpers ─────────────────────────────────────────────────────────
+
+async function getTmcMembership(admin: ReturnType<typeof createAdminClient>, profileId: string) {
+  const { data } = await admin
+    .from('organization_members')
+    .select('role')
+    .eq('organization_id', TMC_ORG_ID)
+    .eq('user_id', profileId)
+    .maybeSingle();
+  return data as { role: string } | null;
+}
+
+async function handleTmcRab(
+  admin: ReturnType<typeof createAdminClient>,
+  args: string[], profileId: string, replyToken: string,
+) {
+  // /รับ <จำนวน> <หมวด> <แปลง> [บัญชี]
+  // e.g. /รับ 31900 "รายรับ ค่าเช่า" TMC1
+  const amount = parseFloat(args[0] ?? '');
+  if (!amount || isNaN(amount)) return replyText(replyToken, '❌ ระบุจำนวนเงิน เช่น /รับ 31900 "รายรับ ค่าเช่า" TMC1');
+  const category = args[1] ?? 'รายรับ ค่าเช่า';
+  const propertyCode = args[2] ?? 'ส่วนกลาง';
+
+  // Default to กสิกร ออมทรัพย์
+  const { data: account } = await admin
+    .from('tmc_accounts').select('id').eq('org_id', TMC_ORG_ID).eq('account_type', 'savings').maybeSingle();
+  const { data: prop } = await admin
+    .from('tmc_properties').select('id').eq('org_id', TMC_ORG_ID).eq('code', propertyCode).maybeSingle();
+
+  await admin.from('tmc_finance_entries').insert({
+    org_id: TMC_ORG_ID,
+    account_id: account?.id,
+    entry_date: new Date().toISOString().slice(0, 10),
+    description: `[LINE] รายรับ ${category} ${propertyCode}`,
+    category,
+    property_id: prop?.id ?? null,
+    property_code: propertyCode,
+    income: amount,
+    created_by: profileId,
+  });
+  return replyText(replyToken, `✅ บันทึกรายรับ ${amount.toLocaleString('th-TH')} บาท\nหมวด: ${category} | แปลง: ${propertyCode}`);
+}
+
+async function handleTmcJai(
+  admin: ReturnType<typeof createAdminClient>,
+  args: string[], profileId: string, replyToken: string,
+) {
+  // /จ่าย <จำนวน> <หมวด> <แปลง>
+  const amount = parseFloat(args[0] ?? '');
+  if (!amount || isNaN(amount)) return replyText(replyToken, '❌ ระบุจำนวนเงิน เช่น /จ่าย 1630 ค่าอาหาร ส่วนกลาง');
+  const category = args[1] ?? 'ค่าใช้จ่ายอื่นๆ';
+  const propertyCode = args[2] ?? 'ส่วนกลาง';
+
+  const { data: account } = await admin
+    .from('tmc_accounts').select('id').eq('org_id', TMC_ORG_ID).eq('account_type', 'savings').maybeSingle();
+  const { data: prop } = await admin
+    .from('tmc_properties').select('id').eq('org_id', TMC_ORG_ID).eq('code', propertyCode).maybeSingle();
+
+  await admin.from('tmc_finance_entries').insert({
+    org_id: TMC_ORG_ID,
+    account_id: account?.id,
+    entry_date: new Date().toISOString().slice(0, 10),
+    description: `[LINE] รายจ่าย ${category} ${propertyCode}`,
+    category,
+    property_id: prop?.id ?? null,
+    property_code: propertyCode,
+    expense: amount,
+    created_by: profileId,
+  });
+  return replyText(replyToken, `✅ บันทึกรายจ่าย ${amount.toLocaleString('th-TH')} บาท\nหมวด: ${category} | แปลง: ${propertyCode}`);
+}
+
+async function handleTmcStock(
+  admin: ReturnType<typeof createAdminClient>,
+  subCmd: string, args: string[], profileId: string, replyToken: string,
+) {
+  // /stock ออก <ชื่อของ> <จำนวน> [แปลง]
+  // /stock รับ <ชื่อของ> <จำนวน>
+  const itemName = args[0] ?? '';
+  const qty = parseFloat(args[1] ?? '');
+  const propertyCode = args[2] ?? null;
+  if (!itemName || !qty || isNaN(qty)) {
+    return replyText(replyToken, '❌ เช่น /stock ออก ผ้าขนหนู 5 TMC1\n   /stock รับ สบู่ 20');
+  }
+
+  // Find or create item
+  let { data: item } = await admin
+    .from('tmc_stock_items').select('id, name, current_qty, unit')
+    .eq('org_id', TMC_ORG_ID).ilike('name', itemName).maybeSingle();
+
+  if (!item) {
+    const { data: created } = await admin.from('tmc_stock_items')
+      .insert({ org_id: TMC_ORG_ID, name: itemName, unit: 'ชิ้น' })
+      .select('id, name, current_qty, unit').single();
+    item = created;
+  }
+  if (!item) return replyText(replyToken, '❌ ไม่สามารถเพิ่มรายการสินค้าได้');
+
+  const movType = subCmd === 'รับ' ? 'in' : 'out';
+  const { data: prop } = propertyCode
+    ? await admin.from('tmc_properties').select('id').eq('org_id', TMC_ORG_ID).eq('code', propertyCode).maybeSingle()
+    : { data: null };
+
+  await admin.from('tmc_stock_movements').insert({
+    org_id: TMC_ORG_ID,
+    item_id: item.id,
+    movement_type: movType,
+    quantity: qty,
+    property_id: prop?.id ?? null,
+    property_code: propertyCode,
+    created_by: profileId,
+  });
+
+  // Read updated qty
+  const { data: updated } = await admin.from('tmc_stock_items').select('current_qty').eq('id', item.id).single();
+  const newQty = (updated as Record<string, number> | null)?.current_qty ?? 0;
+  return replyText(replyToken,
+    `✅ ${subCmd === 'รับ' ? 'รับเข้า' : 'เบิกออก'} ${item.name} ${qty} ${item.unit}\n` +
+    `${propertyCode ? `แปลง: ${propertyCode}\n` : ''}` +
+    `คงเหลือ: ${newQty} ${item.unit}`,
+  );
+}
+
+async function handleTmcCheckin(
+  admin: ReturnType<typeof createAdminClient>,
+  args: string[], profileId: string, replyToken: string,
+) {
+  // /เช็คอิน <ชื่อ> <แปลง> <วันออก> [ยอด] [ช่องทาง]
+  // e.g. /เช็คอิน คุณวชิราภรณ์ TMC7 2026-05-22 31900 Line
+  const firstName = args[0] ?? '';
+  const propertyCode = args[1] ?? '';
+  const checkOut = args[2] ?? '';
+  if (!firstName || !propertyCode || !checkOut) {
+    return replyText(replyToken, '❌ เช่น /เช็คอิน คุณวชิราภรณ์ TMC7 2026-05-22 31900 Line');
+  }
+  const roomRate = args[3] ? parseFloat(args[3]) : null;
+  const channel = args[4] ?? 'Line';
+  const today = new Date().toISOString().slice(0, 10);
+
+  const { data: prop } = await admin
+    .from('tmc_properties').select('id').eq('org_id', TMC_ORG_ID).eq('code', propertyCode).maybeSingle();
+
+  // Upsert guest (no tel from LINE)
+  const { data: guest } = await admin.from('tmc_guests')
+    .insert({ org_id: TMC_ORG_ID, first_name: firstName })
+    .select('id').single();
+
+  await admin.from('tmc_stays').insert({
+    org_id: TMC_ORG_ID,
+    guest_id: guest?.id ?? null,
+    property_id: prop?.id ?? null,
+    property_code: propertyCode,
+    check_in: today,
+    check_out: checkOut,
+    booking_channel: channel,
+    stay_type: roomRate ? 'paid' : 'free',
+    room_rate: roomRate,
+    created_by: profileId,
+  });
+
+  return replyText(replyToken,
+    `✅ บันทึกเช็คอิน\n` +
+    `ลูกค้า: ${firstName}\nแปลง: ${propertyCode}\n` +
+    `วันออก: ${checkOut}` +
+    (roomRate ? `\nยอด: ${roomRate.toLocaleString('th-TH')} บาท` : ''),
+  );
+}
+
+async function handleTmcHelp(replyToken: string) {
+  return replyText(replyToken,
+    '📖 คำสั่ง TMC Management:\n\n' +
+    '💰 บัญชี:\n' +
+    '/รับ <จำนวน> <หมวด> <แปลง>\n' +
+    '/จ่าย <จำนวน> <หมวด> <แปลง>\n\n' +
+    '📦 Stock:\n' +
+    '/stock รับ <ของ> <จำนวน> [แปลง]\n' +
+    '/stock ออก <ของ> <จำนวน> [แปลง]\n\n' +
+    '🏠 เข้าพัก:\n' +
+    '/เช็คอิน <ชื่อ> <แปลง> <วันออก> [ยอด] [ช่องทาง]\n\n' +
+    'แปลง: TMC1 TMC5 TMC7 ส่วนกลาง\n' +
+    'หมวดรายรับ: รายรับ ค่าเช่า, ค่ามัดจำ\n' +
+    'หมวดรายจ่าย: ค่าอาหาร, ค่าแรง, ซักผ้า, ค่าไฟ ฯลฯ',
+  );
+}
+
 // ─── Signature ────────────────────────────────────────────────────────────────
 
 function verifySignature(body: string, signature: string | null): boolean {
@@ -96,9 +284,42 @@ export async function POST(req: NextRequest) {
 
     // /help
     if (cmd === 'help') {
-      await replyText(replyToken, '📖 คำสั่งที่ใช้ได้:\n/ข่าว\n/รายรับ <จำนวน> <โน้ต>\n/รายจ่าย <จำนวน> <โน้ต>\n/t <งาน>\n/tk\n/d <N>');
+      await replyText(replyToken, '📖 คำสั่งที่ใช้ได้:\n/ข่าว\n/รายรับ <จำนวน> <โน้ต>\n/รายจ่าย <จำนวน> <โน้ต>\n/t <งาน>\n/tk\n/d <N>\n\nสำหรับ TMC:\n/tmc help');
       continue;
     }
+
+    // ─── TMC Commands (/รับ /จ่าย /stock /เช็คอิน /tmc) ───────────────────────
+    if (cmd === 'tmc' && args[0] === 'help') {
+      await handleTmcHelp(replyToken);
+      continue;
+    }
+
+    if (['รับ', 'จ่าย', 'stock', 'เช็คอิน'].includes(cmd)) {
+      const profile = await getProfileByLineId(admin, lineUserId);
+      if (!profile) {
+        await replyText(replyToken, '❌ ยังไม่ได้ผูกบัญชี LINE กรุณาใช้ /link <token>');
+        continue;
+      }
+      const tmcMember = await getTmcMembership(admin, profile.id);
+      if (!tmcMember) {
+        await replyText(replyToken, '❌ ไม่มีสิทธิ์ใช้งาน TMC Management');
+        continue;
+      }
+
+      if (cmd === 'รับ') { await handleTmcRab(admin, args, profile.id, replyToken); continue; }
+      if (cmd === 'จ่าย') { await handleTmcJai(admin, args, profile.id, replyToken); continue; }
+      if (cmd === 'stock') {
+        const subCmd = args[0] ?? '';
+        if (!['รับ', 'ออก'].includes(subCmd)) {
+          await replyText(replyToken, '❌ ใช้ /stock รับ หรือ /stock ออก');
+        } else {
+          await handleTmcStock(admin, subCmd, args.slice(1), profile.id, replyToken);
+        }
+        continue;
+      }
+      if (cmd === 'เช็คอิน') { await handleTmcCheckin(admin, args, profile.id, replyToken); continue; }
+    }
+    // ─────────────────────────────────────────────────────────────────────────
 
     const profile = await getProfileByLineId(admin, lineUserId);
     if (!profile) {
