@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { createAdminClient } from '../../_lib/supabase';
+import { upsertMobileToken } from '../../tmc/mobile/_lib';
 
 // ─── TMC Org ID (TMC Management) ─────────────────────────────────────────────
 const TMC_ORG_ID = '1f52618c-09c4-49c5-a929-ea5060f26e7d';
@@ -791,6 +792,30 @@ export async function POST(req: NextRequest) {
     // ─── TMC Commands (/รับ /จ่าย /stock /เช็คอิน /tmc) ───────────────────────
     if (cmd === 'tmc' && args[0] === 'help') {
       await handleTmcHelp(replyToken);
+      continue;
+    }
+
+    // /tmc — ไม่มี args → ส่ง link บันทึกการเข้าพัก
+    if (cmd === 'tmc' && !args[0]) {
+      const profile = await getProfileByLineId(admin, lineUserId);
+      if (!profile) {
+        await replyText(replyToken, '❌ ยังไม่ได้ผูกบัญชี LINE กรุณาใช้ /link <token>');
+        continue;
+      }
+      const tmcMember = await getTmcMembership(admin, profile.id);
+      if (!tmcMember) {
+        await replyText(replyToken, '❌ ไม่มีสิทธิ์ใช้งาน TMC Management');
+        continue;
+      }
+      const token = await upsertMobileToken(profile.id, TMC_ORG_ID);
+      const baseUrl = process.env.NEXT_PUBLIC_BASE_URL ?? 'https://perpos.io';
+      await replyText(replyToken,
+        `🏠 บันทึกการเข้าพัก TMC\n\n` +
+        `${baseUrl}/tmc/checkin?t=${token}\n\n` +
+        `⏱️ ลิงก์นี้ใช้ได้ 7 วัน\n` +
+        `💡 กด "บันทึกรายการใหม่" ในหน้าถัดไปหลังบันทึก\n` +
+        `    เพื่อรับลิงก์แก้ไขสำหรับรายการนั้น`,
+      );
       continue;
     }
 
