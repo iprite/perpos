@@ -1,30 +1,37 @@
-"use client";
+import { redirect } from "next/navigation";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
+import {
+  getActiveOrganizationId,
+  getOrganizationsForCurrentUser,
+  getEnabledModulesForOrg,
+} from "@/lib/accounting/queries";
+import { ALL_MODULES } from "@/lib/modules";
 
-import React, { useEffect } from "react";
-import { useRouter } from "next/navigation";
+export const dynamic = "force-dynamic";
 
-import { useAuth } from "@/app/shared/auth-provider";
+export default async function DashboardPage() {
+  const supabase = await createSupabaseServerClient();
+  const { data: { user } } = await supabase.auth.getUser();
 
-export default function DashboardPage() {
-  const router = useRouter();
-  const { loading, role } = useAuth();
+  if (!user) redirect("/signin");
 
-  useEffect(() => {
-    if (loading) return;
-    if (role === "admin") {
-      router.replace("/admin");
-      return;
-    }
-    if (role === "user") {
-      router.replace("/executive-dashboard");
-      return;
-    }
-    router.replace("/signin");
-  }, [loading, role, router]);
+  // Admin → admin console
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .maybeSingle();
 
-  return (
-    <div className="flex min-h-[60vh] items-center justify-center">
-      <div className="h-6 w-6 animate-spin rounded-full border-2 border-gray-300 border-t-gray-700" />
-    </div>
-  );
+  if (profile?.role === "admin") redirect("/admin");
+
+  // User → first enabled module for active org
+  const [activeOrgId, orgs] = await Promise.all([
+    getActiveOrganizationId(),
+    getOrganizationsForCurrentUser(),
+  ]);
+  const activeOrg = orgs.find((o) => o.id === activeOrgId);
+  const enabledKeys = await getEnabledModulesForOrg(activeOrgId, activeOrg?.role ?? null);
+  const firstModule = ALL_MODULES.find((m) => enabledKeys.includes(m.key));
+
+  redirect(firstModule?.href ?? "/executive-dashboard");
 }
