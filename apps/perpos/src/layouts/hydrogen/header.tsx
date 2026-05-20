@@ -11,19 +11,11 @@ import {
   getEnabledModulesForOrg,
 } from "@/lib/accounting/queries";
 
-// Custom ERP orgs — these orgs have their own module system and don't need the Module Switcher
-const CUSTOM_ERP_ORG_IDS = new Set([
-  '1f52618c-09c4-49c5-a929-ea5060f26e7d', // TMC Management
-]);
-
 export default async function Header() {
   const organizations        = await getOrganizationsForCurrentUser();
   const activeOrganizationId = await getActiveOrganizationId();
   const activeOrg            = organizations.find((o) => o.id === activeOrganizationId);
-  const isCustomErpOrg       = activeOrganizationId ? CUSTOM_ERP_ORG_IDS.has(activeOrganizationId) : false;
-  const enabledModuleKeys    = isCustomErpOrg
-    ? []
-    : await getEnabledModulesForOrg(activeOrganizationId, activeOrg?.role ?? null);
+  const enabledModuleKeys    = await getEnabledModulesForOrg(activeOrganizationId, activeOrg?.role ?? null);
 
   return (
     <StickyHeader className="z-[990] 2xl:py-5 3xl:px-8 4xl:px-10">
@@ -43,7 +35,6 @@ export default async function Header() {
         enabledModuleKeys={enabledModuleKeys}
         organizations={organizations}
         activeOrganizationId={activeOrganizationId}
-        isCustomErpOrg={isCustomErpOrg}
       />
       <HeaderMenuRight />
     </StickyHeader>

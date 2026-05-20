@@ -15,6 +15,7 @@ type ModuleSetting = { module_key: string; is_enabled: boolean; allowed_roles: O
 const ROLE_LABEL: Record<OrgRole, string> = {
   owner: "Owner",
   admin: "Admin",
+  management: "Management",
   member: "Member",
 };
 
@@ -183,7 +184,7 @@ export default function AdminModulesPage() {
       {selectedOrgId && !loading && settings.length > 0 && (
         <div className="mt-5 overflow-hidden rounded-2xl border border-gray-200 bg-white">
           {/* Header row */}
-          <div className="grid grid-cols-[1fr_100px_repeat(3,80px)] items-center border-b border-gray-100 bg-gray-50 px-5 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500">
+          <div className="grid grid-cols-[1fr_100px_repeat(4,72px)] items-center border-b border-gray-100 bg-gray-50 px-5 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500">
             <div>Module</div>
             <div className="text-center">เปิดใช้งาน</div>
             {ORG_ROLES.map((r) => (
@@ -197,7 +198,7 @@ export default function AdminModulesPage() {
             return (
               <div
                 key={mod.key}
-                className="grid grid-cols-[1fr_100px_repeat(3,80px)] items-center border-b border-gray-100 px-5 py-4 last:border-0"
+                className="grid grid-cols-[1fr_100px_repeat(4,72px)] items-center border-b border-gray-100 px-5 py-4 last:border-0"
               >
                 <div>
                   <div className="text-sm font-medium text-gray-900">{MODULE_LABELS[mod.key]}</div>

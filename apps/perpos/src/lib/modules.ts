@@ -13,7 +13,8 @@ export const ALL_MODULES: ModuleDef[] = [
     match: (p) =>
       !p.startsWith("/payroll") &&
       !p.startsWith("/admin") &&
-      !p.startsWith("/assistant"),
+      !p.startsWith("/assistant") &&
+      !p.startsWith("/tmc"),
   },
   {
     key: "payroll",
@@ -27,6 +28,12 @@ export const ALL_MODULES: ModuleDef[] = [
     href: "/assistant",
     match: (p) => p.startsWith("/assistant"),
   },
+  {
+    key: "tmc",
+    label: "TMC Management",
+    href: "/tmc/stays",
+    match: (p) => p.startsWith("/tmc"),
+  },
 ];
 
 export const ALL_MODULE_KEYS = ALL_MODULES.map((m) => m.key);
@@ -35,5 +42,5 @@ export const MODULE_LABELS: Record<string, string> = Object.fromEntries(
   ALL_MODULES.map((m) => [m.key, m.label]),
 );
 
-export const ORG_ROLES = ["owner", "admin", "member"] as const;
+export const ORG_ROLES = ["owner", "admin", "management", "member"] as const;
 export type OrgRole = (typeof ORG_ROLES)[number];
