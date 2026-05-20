@@ -40,7 +40,7 @@ export function ModuleSwitcher({ enabledModuleKeys }: ModuleSwitcherProps) {
     return () => document.removeEventListener("mousedown", handle);
   }, [open]);
 
-  if (visibleModules.length === 0) return null;
+  if (visibleModules.length <= 1) return null;
 
   return (
     <div className="relative">
