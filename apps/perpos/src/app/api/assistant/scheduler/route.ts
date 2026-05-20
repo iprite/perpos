@@ -50,8 +50,8 @@ async function run(req: NextRequest) {
     await admin.from('tasks').update({ remind_at: null }).eq('id', task.id);
   }
 
-  // 2. Daily briefing at 08:00–08:04 BKK
-  if (hour === 8 && minute <= 4) {
+  // 2. Daily briefing at 08:00 BKK (once only)
+  if (hour === 8 && minute === 0) {
     const { data: profiles } = await admin
       .from('profiles')
       .select('id, line_user_id, display_name')
@@ -75,8 +75,8 @@ async function run(req: NextRequest) {
     }
   }
 
-  // 3. Follow-up at 17:00–17:04 BKK
-  if (hour === 17 && minute <= 4) {
+  // 3. Follow-up at 17:00 BKK (once only)
+  if (hour === 17 && minute === 0) {
     const { data: profiles } = await admin
       .from('profiles')
       .select('id, line_user_id, display_name')
