@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 
 import { createOrganizationAction, setActiveOrganizationAction } from "@/lib/accounting/actions";
 import type { OrganizationSummary } from "@/lib/accounting/queries";
+import { useAuth } from "@/app/shared/auth-provider";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -25,6 +26,8 @@ const ROLE_LABEL: Record<string, string> = {
 
 export function OrgSwitcher({ organizations, activeOrganizationId }: OrgSwitcherProps) {
   const router = useRouter();
+  const { role } = useAuth();
+  const isSystemAdmin = role === "admin";
   const [pending, startTransition] = useTransition();
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -149,17 +152,19 @@ export function OrgSwitcher({ organizations, activeOrganizationId }: OrgSwitcher
             ))}
           </div>
 
-          {/* New org */}
-          <div className="border-t border-slate-100">
-            <button
-              type="button"
-              onClick={() => { setOpen(false); setSearch(""); setCreateOpen(true); }}
-              className="flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-sm text-slate-600 hover:bg-slate-50"
-            >
-              <Plus className="h-4 w-4 shrink-0 text-slate-400" />
-              New organization
-            </button>
-          </div>
+          {/* New org — admin only */}
+          {isSystemAdmin && (
+            <div className="border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => { setOpen(false); setSearch(""); setCreateOpen(true); }}
+                className="flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-sm text-slate-600 hover:bg-slate-50"
+              >
+                <Plus className="h-4 w-4 shrink-0 text-slate-400" />
+                New organization
+              </button>
+            </div>
+          )}
         </div>,
         document.body
       )}

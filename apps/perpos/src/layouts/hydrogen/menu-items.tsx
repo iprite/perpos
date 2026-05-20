@@ -292,6 +292,11 @@ function buildTmcMenuItems(): MenuItem[] {
       icon: <Landmark className="h-5 w-5" />,
     },
     {
+      name: "เงินสดย่อย",
+      href: "/tmc/petty-cash",
+      icon: <Wallet className="h-5 w-5" />,
+    },
+    {
       name: "Stock คลัง",
       href: "/tmc/stock",
       icon: <Package className="h-5 w-5" />,

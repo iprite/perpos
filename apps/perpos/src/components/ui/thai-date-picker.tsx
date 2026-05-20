@@ -164,7 +164,7 @@ export function ThaiDatePicker({ value, onChange, disabled, hasError, className,
     ? createPortal(
         <div
           ref={panelRef}
-          style={{ position: "fixed", top: rect.bottom + 4, left: rect.left, width: rect.width, zIndex: 9999 }}
+          style={{ position: "fixed", top: rect.bottom + 4, left: rect.left, minWidth: 280, width: Math.max(rect.width, 280), zIndex: 9999 }}
           className="rounded-xl border border-slate-200 bg-white shadow-xl"
         >
           {/* Header */}

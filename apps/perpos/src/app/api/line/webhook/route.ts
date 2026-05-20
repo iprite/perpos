@@ -17,14 +17,33 @@ async function getTmcMembership(admin: ReturnType<typeof createAdminClient>, pro
   return data as { role: string } | null;
 }
 
+const RAB_USAGE =
+  '📌 รูปแบบ: /รับ <จำนวน> [หมวด] [แปลง]\n\n' +
+  'ตัวอย่าง:\n' +
+  '• /รับ 31900\n' +
+  '• /รับ 31900 รายรับ ค่าเช่า TMC1\n' +
+  '• /รับ 5000 ค่ามัดจำ TMC7\n\n' +
+  'หมวดรายรับ: รายรับ ค่าเช่า, ค่ามัดจำ, คืนเงินมัดจำ\n' +
+  'แปลง: TMC1 TMC2 TMC3-4 TMC5 TMC6 TMC7 ส่วนกลาง';
+
+const JAI_USAGE =
+  '📌 รูปแบบ: /จ่าย <จำนวน> [หมวด] [แปลง]\n\n' +
+  'ตัวอย่าง:\n' +
+  '• /จ่าย 1630 ค่าอาหาร\n' +
+  '• /จ่าย 2500 ค่าแรง(เงินเดือน+จ้างนอก) ส่วนกลาง\n' +
+  '• /จ่าย 800 ซักผ้า TMC1\n\n' +
+  'หมวดรายจ่าย: ค่าอาหาร, ค่าแรง, ค่าไฟ, ค่าน้ำ, ซักผ้า\n' +
+  'ล้างแอร์, ค่าของใช้ทั่วไป, ค่าใช้จ่ายอื่นๆ\n' +
+  'แปลง: TMC1 TMC2 TMC3-4 TMC5 TMC6 TMC7 ส่วนกลาง';
+
 async function handleTmcRab(
   admin: ReturnType<typeof createAdminClient>,
   args: string[], profileId: string, replyToken: string,
 ) {
-  // /รับ <จำนวน> <หมวด> <แปลง> [บัญชี]
-  // e.g. /รับ 31900 "รายรับ ค่าเช่า" TMC1
-  const amount = parseFloat(args[0] ?? '');
-  if (!amount || isNaN(amount)) return replyText(replyToken, '❌ ระบุจำนวนเงิน เช่น /รับ 31900 "รายรับ ค่าเช่า" TMC1');
+  if (!args[0]) return replyText(replyToken, `❌ ยังไม่ระบุจำนวนเงิน\n\n${RAB_USAGE}`);
+  const amount = parseFloat(args[0]);
+  if (isNaN(amount)) return replyText(replyToken, `❌ "${args[0]}" ไม่ใช่ตัวเลข\n\n${RAB_USAGE}`);
+  if (amount <= 0)   return replyText(replyToken, `❌ จำนวนเงินต้องมากกว่า 0\n\n${RAB_USAGE}`);
   const category = args[1] ?? 'รายรับ ค่าเช่า';
   const propertyCode = args[2] ?? 'ส่วนกลาง';
 
@@ -52,9 +71,10 @@ async function handleTmcJai(
   admin: ReturnType<typeof createAdminClient>,
   args: string[], profileId: string, replyToken: string,
 ) {
-  // /จ่าย <จำนวน> <หมวด> <แปลง>
-  const amount = parseFloat(args[0] ?? '');
-  if (!amount || isNaN(amount)) return replyText(replyToken, '❌ ระบุจำนวนเงิน เช่น /จ่าย 1630 ค่าอาหาร ส่วนกลาง');
+  if (!args[0]) return replyText(replyToken, `❌ ยังไม่ระบุจำนวนเงิน\n\n${JAI_USAGE}`);
+  const amount = parseFloat(args[0]);
+  if (isNaN(amount)) return replyText(replyToken, `❌ "${args[0]}" ไม่ใช่ตัวเลข\n\n${JAI_USAGE}`);
+  if (amount <= 0)   return replyText(replyToken, `❌ จำนวนเงินต้องมากกว่า 0\n\n${JAI_USAGE}`);
   const category = args[1] ?? 'ค่าใช้จ่ายอื่นๆ';
   const propertyCode = args[2] ?? 'ส่วนกลาง';
 
@@ -176,18 +196,249 @@ async function handleTmcCheckin(
 async function handleTmcHelp(replyToken: string) {
   return replyText(replyToken,
     '📖 คำสั่ง TMC Management:\n\n' +
-    '💰 บัญชี:\n' +
+    '💰 บัญชีหลัก:\n' +
     '/รับ <จำนวน> <หมวด> <แปลง>\n' +
     '/จ่าย <จำนวน> <หมวด> <แปลง>\n\n' +
+    '💵 เงินสดย่อย:\n' +
+    '/pcin <จำนวน> [รายการ]\n' +
+    '/pcout <จำนวน> <รายการ> [หมวด] [แปลง]\n' +
+    '/pcbal  — ดูยอดคงเหลือ\n' +
+    '/pcfunds — รายชื่อกระเป๋า\n\n' +
     '📦 Stock:\n' +
     '/stock รับ <ของ> <จำนวน> [แปลง]\n' +
     '/stock ออก <ของ> <จำนวน> [แปลง]\n\n' +
     '🏠 เข้าพัก:\n' +
     '/เช็คอิน <ชื่อ> <แปลง> <วันออก> [ยอด] [ช่องทาง]\n\n' +
     'แปลง: TMC1 TMC5 TMC7 ส่วนกลาง\n' +
-    'หมวดรายรับ: รายรับ ค่าเช่า, ค่ามัดจำ\n' +
-    'หมวดรายจ่าย: ค่าอาหาร, ค่าแรง, ซักผ้า, ค่าไฟ ฯลฯ',
+    'หมวดรายจ่าย: ค่าอาหาร, ค่าของใช้, ซักผ้า, ค่าไฟ ฯลฯ',
   );
+}
+
+// ─── Petty Cash helpers ───────────────────────────────────────────────────────
+
+/** ดึงกระเป๋าแรก (active) ของ TMC org — ถ้ามีหลายกระเป๋า ให้ระบุชื่อ */
+async function getDefaultFund(
+  admin: ReturnType<typeof createAdminClient>,
+  fundHint?: string,
+) {
+  let q = admin
+    .from('tmc_petty_cash_funds')
+    .select('id, name')
+    .eq('org_id', TMC_ORG_ID)
+    .eq('is_active', true)
+    .order('created_at');
+
+  if (fundHint) {
+    q = q.ilike('name', `%${fundHint}%`) as typeof q;
+  }
+  const { data } = await q.limit(1).maybeSingle();
+  return data as { id: string; name: string } | null;
+}
+
+const PC_IN_USAGE =
+  '📌 รูปแบบ: /pcin <จำนวน> [รายการ]\n\n' +
+  'ตัวอย่าง:\n' +
+  '• /pcin 1000\n' +
+  '• /pcin 1000 เติมรอบสัปดาห์\n' +
+  '• /pcin 500 รับเงินคืนค่าของ';
+
+const PC_OUT_USAGE =
+  '📌 รูปแบบ: /pcout <จำนวน> <รายการ> [หมวด] [แปลง]\n\n' +
+  'ตัวอย่าง:\n' +
+  '• /pcout 150 ซื้อน้ำดื่ม\n' +
+  '• /pcout 300 ซื้อสบู่ ค่าของใช้\n' +
+  '• /pcout 80 ค่ารถ ค่าส่งของ TMC1\n\n' +
+  'หมวดที่ใช้บ่อย:\n' +
+  'ค่าอาหาร, ค่าของใช้, ค่าส่งของ\n' +
+  'ซักผ้า, ค่าไฟ, ค่าใช้จ่ายอื่นๆ\n\n' +
+  'แปลง: TMC1 TMC2 TMC3-4 TMC5 TMC6 TMC7 ส่วนกลาง';
+
+/** เติมเงินสดย่อย: /pcin <amount> [description] */
+async function handlePcIn(
+  admin: ReturnType<typeof createAdminClient>,
+  args: string[], profileId: string, replyToken: string,
+) {
+  // ไม่มี args เลย
+  if (!args[0]) {
+    return replyText(replyToken, `❌ ยังไม่ระบุจำนวนเงิน\n\n${PC_IN_USAGE}`);
+  }
+
+  const amount = parseFloat(args[0]);
+  if (isNaN(amount)) {
+    return replyText(replyToken, `❌ "${args[0]}" ไม่ใช่ตัวเลข กรุณาระบุจำนวนเงินเป็นตัวเลข\n\n${PC_IN_USAGE}`);
+  }
+  if (amount <= 0) {
+    return replyText(replyToken, `❌ จำนวนเงินต้องมากกว่า 0\n\n${PC_IN_USAGE}`);
+  }
+
+  const description = args.slice(1).join(' ').trim() || 'เติมเงินสดย่อย';
+
+  const fund = await getDefaultFund(admin);
+  if (!fund) {
+    return replyText(replyToken,
+      '❌ ยังไม่มีกระเป๋าเงินสดย่อย\n' +
+      'กรุณาสร้างกระเป๋าในระบบ PERPOS ก่อน\n' +
+      'หรือพิมพ์ /pcfunds เพื่อตรวจสอบ',
+    );
+  }
+
+  const today = new Date().toISOString().slice(0, 10);
+  const { error } = await admin.from('tmc_petty_cash_txns').insert({
+    fund_id:     fund.id,
+    org_id:      TMC_ORG_ID,
+    txn_date:    today,
+    txn_type:    'top_up',
+    amount,
+    description: `[LINE] ${description}`,
+    created_by:  profileId,
+  });
+
+  if (error) return replyText(replyToken, `❌ บันทึกไม่สำเร็จ: ${error.message}`);
+
+  const bal = await getFundBalance(admin, fund.id);
+  return replyText(replyToken,
+    `✅ เติมเงินสดย่อย +${amount.toLocaleString('th-TH')} บาท\n` +
+    `รายการ: ${description}\n` +
+    `กระเป๋า: ${fund.name}\n` +
+    `💰 คงเหลือ: ${bal.toLocaleString('th-TH')} บาท`,
+  );
+}
+
+/** ใช้เงินสดย่อย: /pcout <amount> <description> [category] [property_code] */
+async function handlePcOut(
+  admin: ReturnType<typeof createAdminClient>,
+  args: string[], profileId: string, replyToken: string,
+) {
+  // ไม่มี args เลย
+  if (!args[0]) {
+    return replyText(replyToken, `❌ ยังไม่ระบุจำนวนเงิน\n\n${PC_OUT_USAGE}`);
+  }
+
+  const amount = parseFloat(args[0]);
+  if (isNaN(amount)) {
+    return replyText(replyToken, `❌ "${args[0]}" ไม่ใช่ตัวเลข กรุณาระบุจำนวนเงินเป็นตัวเลข\n\n${PC_OUT_USAGE}`);
+  }
+  if (amount <= 0) {
+    return replyText(replyToken, `❌ จำนวนเงินต้องมากกว่า 0\n\n${PC_OUT_USAGE}`);
+  }
+
+  const description = args[1]?.trim() || '';
+  if (!description) {
+    return replyText(replyToken, `❌ ยังไม่ระบุรายการ (ต้องระบุว่าซื้ออะไร/ใช้จ่ายอะไร)\n\n${PC_OUT_USAGE}`);
+  }
+
+  const category     = args[2]?.trim() || null;
+  const propertyCode = args[3]?.trim() || null;
+
+  // ตรวจ propertyCode ถ้าระบุมาว่าถูกต้องไหม
+  const validProps = ['TMC1','TMC2','TMC3-4','TMC5','TMC6','TMC7','ส่วนกลาง'];
+  if (propertyCode && !validProps.includes(propertyCode)) {
+    return replyText(replyToken,
+      `❌ แปลง "${propertyCode}" ไม่ถูกต้อง\n` +
+      `แปลงที่ใช้ได้: ${validProps.join(', ')}\n\n${PC_OUT_USAGE}`,
+    );
+  }
+
+  const fund = await getDefaultFund(admin);
+  if (!fund) {
+    return replyText(replyToken,
+      '❌ ยังไม่มีกระเป๋าเงินสดย่อย\n' +
+      'กรุณาสร้างกระเป๋าในระบบ PERPOS ก่อน',
+    );
+  }
+
+  const today = new Date().toISOString().slice(0, 10);
+  const { error } = await admin.from('tmc_petty_cash_txns').insert({
+    fund_id:       fund.id,
+    org_id:        TMC_ORG_ID,
+    txn_date:      today,
+    txn_type:      'expense',
+    amount,
+    description:   `[LINE] ${description}`,
+    category,
+    property_code: propertyCode,
+    created_by:    profileId,
+  });
+
+  if (error) return replyText(replyToken, `❌ บันทึกไม่สำเร็จ: ${error.message}`);
+
+  const bal = await getFundBalance(admin, fund.id);
+  return replyText(replyToken,
+    `✅ บันทึกใช้เงินสดย่อย -${amount.toLocaleString('th-TH')} บาท\n` +
+    `รายการ: ${description}\n` +
+    (category     ? `หมวด: ${category}\n`    : '') +
+    (propertyCode ? `แปลง: ${propertyCode}\n` : '') +
+    `กระเป๋า: ${fund.name}\n` +
+    `💰 คงเหลือ: ${bal.toLocaleString('th-TH')} บาท`,
+  );
+}
+
+/** ดูยอดคงเหลือ: /pcbal */
+async function handlePcBal(
+  admin: ReturnType<typeof createAdminClient>,
+  replyToken: string,
+) {
+  const { data: funds } = await admin
+    .from('tmc_petty_cash_funds')
+    .select('id, name')
+    .eq('org_id', TMC_ORG_ID)
+    .eq('is_active', true)
+    .order('created_at');
+
+  if (!funds?.length) {
+    return replyText(replyToken, '❌ ยังไม่มีกระเป๋าเงินสดย่อย');
+  }
+
+  const lines: string[] = ['💰 ยอดเงินสดย่อย:\n'];
+  for (const f of funds as { id: string; name: string }[]) {
+    const bal = await getFundBalance(admin, f.id);
+    lines.push(`${f.name}: ${bal.toLocaleString('th-TH')} บาท`);
+  }
+  return replyText(replyToken, lines.join('\n'));
+}
+
+/** รายชื่อกระเป๋า: /pcfunds */
+async function handlePcFunds(
+  admin: ReturnType<typeof createAdminClient>,
+  replyToken: string,
+) {
+  const { data: funds } = await admin
+    .from('tmc_petty_cash_funds')
+    .select('id, name, note')
+    .eq('org_id', TMC_ORG_ID)
+    .eq('is_active', true)
+    .order('created_at');
+
+  if (!funds?.length) {
+    return replyText(replyToken,
+      '❌ ยังไม่มีกระเป๋าเงินสดย่อย\nสร้างกระเป๋าได้ที่เมนู "เงินสดย่อย" ใน PERPOS',
+    );
+  }
+
+  const lines = (funds as { id: string; name: string; note: string | null }[])
+    .map((f, i) => `${i + 1}. ${f.name}${f.note ? ` (${f.note})` : ''}`);
+
+  return replyText(replyToken,
+    `📋 กระเป๋าเงินสดย่อย (${funds.length} กระเป๋า):\n\n` +
+    lines.join('\n') + '\n\n' +
+    'ใช้ /pcin หรือ /pcout เพื่อบันทึกรายการ',
+  );
+}
+
+/** คำนวณยอดคงเหลือของกระเป๋า */
+async function getFundBalance(
+  admin: ReturnType<typeof createAdminClient>,
+  fundId: string,
+): Promise<number> {
+  const { data } = await admin
+    .from('tmc_petty_cash_txns')
+    .select('txn_type, amount')
+    .eq('fund_id', fundId);
+
+  if (!data) return 0;
+  return (data as { txn_type: string; amount: number }[]).reduce((sum, t) => {
+    return sum + (t.txn_type === 'top_up' ? t.amount : -t.amount);
+  }, 0);
 }
 
 // ─── Signature ────────────────────────────────────────────────────────────────
@@ -284,7 +535,20 @@ export async function POST(req: NextRequest) {
 
     // /help
     if (cmd === 'help') {
-      await replyText(replyToken, '📖 คำสั่งที่ใช้ได้:\n/ข่าว\n/รายรับ <จำนวน> <โน้ต>\n/รายจ่าย <จำนวน> <โน้ต>\n/t <งาน>\n/tk\n/d <N>\n\nสำหรับ TMC:\n/tmc help');
+      await replyText(replyToken,
+        '📖 คำสั่งทั่วไป:\n' +
+        '/รายรับ <จำนวน> [โน้ต]\n' +
+        '/รายจ่าย <จำนวน> [โน้ต]\n' +
+        '/t <งาน>  — บันทึก task\n' +
+        '/tk       — รายการ task\n' +
+        '/d <N>    — ปิด task\n\n' +
+        '💵 TMC เงินสดย่อย:\n' +
+        '/pcin <จำนวน> [รายการ]\n' +
+        '/pcout <จำนวน> <รายการ> [หมวด] [แปลง]\n' +
+        '/pcbal    — ยอดคงเหลือ\n' +
+        '/pcfunds  — รายชื่อกระเป๋า\n\n' +
+        '📖 TMC ทั้งหมด: /tmc help',
+      );
       continue;
     }
 
@@ -294,7 +558,7 @@ export async function POST(req: NextRequest) {
       continue;
     }
 
-    if (['รับ', 'จ่าย', 'stock', 'เช็คอิน'].includes(cmd)) {
+    if (['รับ', 'จ่าย', 'stock', 'เช็คอิน', 'pcin', 'pcout', 'pcbal', 'pcfunds'].includes(cmd)) {
       const profile = await getProfileByLineId(admin, lineUserId);
       if (!profile) {
         await replyText(replyToken, '❌ ยังไม่ได้ผูกบัญชี LINE กรุณาใช้ /link <token>');
@@ -318,6 +582,12 @@ export async function POST(req: NextRequest) {
         continue;
       }
       if (cmd === 'เช็คอิน') { await handleTmcCheckin(admin, args, profile.id, replyToken); continue; }
+
+      // ── Petty Cash ──────────────────────────────────────────────────────────
+      if (cmd === 'pcin')    { await handlePcIn(admin, args, profile.id, replyToken);   continue; }
+      if (cmd === 'pcout')   { await handlePcOut(admin, args, profile.id, replyToken);  continue; }
+      if (cmd === 'pcbal')   { await handlePcBal(admin, replyToken);                    continue; }
+      if (cmd === 'pcfunds') { await handlePcFunds(admin, replyToken);                  continue; }
     }
     // ─────────────────────────────────────────────────────────────────────────
 
