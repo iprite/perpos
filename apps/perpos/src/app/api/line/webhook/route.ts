@@ -97,39 +97,128 @@ async function handleTmcJai(
   return replyText(replyToken, `✅ บันทึกรายจ่าย ${amount.toLocaleString('th-TH')} บาท\nหมวด: ${category} | แปลง: ${propertyCode}`);
 }
 
-async function handleTmcStock(
-  admin: ReturnType<typeof createAdminClient>,
-  subCmd: string, args: string[], profileId: string, replyToken: string,
-) {
-  // /stock ออก <ชื่อของ> <จำนวน> [แปลง]
-  // /stock รับ <ชื่อของ> <จำนวน>
-  const itemName = args[0] ?? '';
-  const qty = parseFloat(args[1] ?? '');
-  const propertyCode = args[2] ?? null;
-  if (!itemName || !qty || isNaN(qty)) {
-    return replyText(replyToken, '❌ เช่น /stock ออก ผ้าขนหนู 5 TMC1\n   /stock รับ สบู่ 20');
-  }
+// ─── Stock usage strings ──────────────────────────────────────────────────────
 
-  // Find or create item
-  let { data: item } = await admin
-    .from('tmc_stock_items').select('id, name, current_qty, unit')
-    .eq('org_id', TMC_ORG_ID).ilike('name', itemName).maybeSingle();
+const STK_IN_USAGE =
+  '📌 รูปแบบ: /stkin <ชื่อสินค้า> <จำนวน> [แปลง]\n\n' +
+  'ตัวอย่าง:\n' +
+  '• /stkin ผ้าขนหนู 20\n' +
+  '• /stkin สบู่ 50 TMC1\n' +
+  '• /stkin น้ำยาซักผ้า 10 ส่วนกลาง\n\n' +
+  'แปลง: TMC1 TMC2 TMC3-4 TMC5 TMC6 TMC7 ส่วนกลาง';
+
+const STK_OUT_USAGE =
+  '📌 รูปแบบ: /stkout <ชื่อสินค้า> <จำนวน> [แปลง]\n\n' +
+  'ตัวอย่าง:\n' +
+  '• /stkout ผ้าขนหนู 5\n' +
+  '• /stkout สบู่ 3 TMC2\n' +
+  '• /stkout กระดาษชำระ 2 TMC7\n\n' +
+  'แปลง: TMC1 TMC2 TMC3-4 TMC5 TMC6 TMC7 ส่วนกลาง';
+
+// ─── Push multicast helper ────────────────────────────────────────────────────
+
+async function pushLineToUsers(lineUserIds: string[], text: string) {
+  const token = process.env.LINE_MESSAGING_CHANNEL_ACCESS_TOKEN ?? '';
+  if (!token || !lineUserIds.length) return;
+  // LINE multicast supports up to 500 recipients per call
+  const chunks: string[][] = [];
+  for (let i = 0; i < lineUserIds.length; i += 500) {
+    chunks.push(lineUserIds.slice(i, i + 500));
+  }
+  for (const chunk of chunks) {
+    await fetch('https://api.line.me/v2/bot/message/multicast', {
+      method: 'POST',
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ to: chunk, messages: [{ type: 'text', text }] }),
+    });
+  }
+}
+
+/** ดึง line_user_id ของสมาชิก TMC ทุกคนที่ผูก LINE แล้ว */
+async function getTmcLineUserIds(admin: ReturnType<typeof createAdminClient>): Promise<string[]> {
+  const { data } = await admin
+    .from('organization_members')
+    .select('user_id')
+    .eq('organization_id', TMC_ORG_ID);
+  if (!data?.length) return [];
+
+  const userIds = (data as { user_id: string }[]).map(m => m.user_id);
+  const { data: profiles } = await admin
+    .from('profiles')
+    .select('line_user_id')
+    .in('id', userIds)
+    .not('line_user_id', 'is', null);
+
+  return (profiles as { line_user_id: string }[] | null)?.map(p => p.line_user_id).filter(Boolean) ?? [];
+}
+
+/** ตรวจสต๊อกหลัง movement — ถ้าถึงขั้นต่ำให้ push แจ้งเตือน */
+async function checkAndAlertLowStock(
+  admin: ReturnType<typeof createAdminClient>,
+  itemId: string,
+) {
+  const { data: item } = await admin
+    .from('tmc_stock_items')
+    .select('name, unit, current_qty, min_quantity')
+    .eq('id', itemId)
+    .single();
+
+  if (!item) return;
+  const { name, unit, current_qty, min_quantity } = item as {
+    name: string; unit: string; current_qty: number; min_quantity: number;
+  };
+  if (min_quantity <= 0 || current_qty > min_quantity) return;
+
+  const lineIds = await getTmcLineUserIds(admin);
+  if (!lineIds.length) return;
+
+  await pushLineToUsers(lineIds,
+    `⚠️ แจ้งเตือน: สินค้าใกล้หมด!\n\n` +
+    `📦 ${name}\n` +
+    `คงเหลือ: ${current_qty} ${unit}\n` +
+    `ขั้นต่ำ: ${min_quantity} ${unit}\n\n` +
+    `กรุณาสั่งซื้อเพิ่ม`,
+  );
+}
+
+// ─── Shared: record a stock movement & return updated item ────────────────────
+
+type StockMovResult = {
+  ok: boolean;
+  item?: { id: string; name: string; unit: string; current_qty: number; min_quantity: number };
+  error?: string;
+};
+
+async function recordStockMovement(
+  admin: ReturnType<typeof createAdminClient>,
+  orgId: string,
+  itemName: string,
+  movType: 'in' | 'out',
+  qty: number,
+  propertyCode: string | null,
+  profileId: string,
+): Promise<StockMovResult> {
+  // ค้นหาสินค้าด้วยชื่อ (partial match)
+  const { data: item } = await admin
+    .from('tmc_stock_items')
+    .select('id, name, current_qty, unit, min_quantity')
+    .eq('org_id', orgId)
+    .ilike('name', `%${itemName}%`)
+    .eq('is_active', true)
+    .order('name')
+    .limit(1)
+    .maybeSingle();
 
   if (!item) {
-    const { data: created } = await admin.from('tmc_stock_items')
-      .insert({ org_id: TMC_ORG_ID, name: itemName, unit: 'ชิ้น' })
-      .select('id, name, current_qty, unit').single();
-    item = created;
+    return { ok: false, error: `❌ ไม่พบสินค้า "${itemName}"\nลองใช้ชื่อย่อหรือบางส่วนของชื่อ\nดูรายการทั้งหมด: /stk` };
   }
-  if (!item) return replyText(replyToken, '❌ ไม่สามารถเพิ่มรายการสินค้าได้');
 
-  const movType = subCmd === 'รับ' ? 'in' : 'out';
   const { data: prop } = propertyCode
-    ? await admin.from('tmc_properties').select('id').eq('org_id', TMC_ORG_ID).eq('code', propertyCode).maybeSingle()
+    ? await admin.from('tmc_properties').select('id').eq('org_id', orgId).eq('code', propertyCode).maybeSingle()
     : { data: null };
 
-  await admin.from('tmc_stock_movements').insert({
-    org_id: TMC_ORG_ID,
+  const { error: movErr } = await admin.from('tmc_stock_movements').insert({
+    org_id: orgId,
     item_id: item.id,
     movement_type: movType,
     quantity: qty,
@@ -137,15 +226,158 @@ async function handleTmcStock(
     property_code: propertyCode,
     created_by: profileId,
   });
+  if (movErr) return { ok: false, error: `❌ บันทึกไม่สำเร็จ: ${movErr.message}` };
 
-  // Read updated qty
-  const { data: updated } = await admin.from('tmc_stock_items').select('current_qty').eq('id', item.id).single();
-  const newQty = (updated as Record<string, number> | null)?.current_qty ?? 0;
+  // อ่านค่า current_qty ล่าสุด
+  const { data: updated } = await admin
+    .from('tmc_stock_items')
+    .select('id, name, unit, current_qty, min_quantity')
+    .eq('id', (item as { id: string }).id)
+    .single();
+
+  return { ok: true, item: updated as StockMovResult['item'] };
+}
+
+// ─── /stkin — รับสินค้าเข้า ───────────────────────────────────────────────────
+async function handleStkIn(
+  admin: ReturnType<typeof createAdminClient>,
+  args: string[], profileId: string, replyToken: string,
+) {
+  if (!args[0]) return replyText(replyToken, `❌ ยังไม่ระบุชื่อสินค้า\n\n${STK_IN_USAGE}`);
+
+  const itemName    = args[0];
+  const qty         = parseFloat(args[1] ?? '');
+  const propertyCode = args[2]?.trim() || null;
+
+  if (!args[1] || isNaN(qty)) return replyText(replyToken, `❌ ยังไม่ระบุจำนวน\n\n${STK_IN_USAGE}`);
+  if (qty <= 0) return replyText(replyToken, `❌ จำนวนต้องมากกว่า 0\n\n${STK_IN_USAGE}`);
+
+  const validProps = ['TMC1','TMC2','TMC3-4','TMC5','TMC6','TMC7','ส่วนกลาง'];
+  if (propertyCode && !validProps.includes(propertyCode)) {
+    return replyText(replyToken, `❌ แปลง "${propertyCode}" ไม่ถูกต้อง\nแปลงที่ใช้ได้: ${validProps.join(', ')}\n\n${STK_IN_USAGE}`);
+  }
+
+  const result = await recordStockMovement(admin, TMC_ORG_ID, itemName, 'in', qty, propertyCode, profileId);
+  if (!result.ok || !result.item) return replyText(replyToken, result.error ?? '❌ บันทึกไม่สำเร็จ');
+
+  const { name, unit, current_qty, min_quantity } = result.item;
+  const lowWarn = min_quantity > 0 && current_qty <= min_quantity
+    ? `\n⚠️ สินค้าคงเหลือถึงขั้นต่ำ (${min_quantity} ${unit})` : '';
+
   return replyText(replyToken,
-    `✅ ${subCmd === 'รับ' ? 'รับเข้า' : 'เบิกออก'} ${item.name} ${qty} ${item.unit}\n` +
-    `${propertyCode ? `แปลง: ${propertyCode}\n` : ''}` +
-    `คงเหลือ: ${newQty} ${item.unit}`,
+    `✅ รับสินค้าเข้า +${qty} ${unit}\n` +
+    `📦 ${name}\n` +
+    (propertyCode ? `แปลง: ${propertyCode}\n` : '') +
+    `คงเหลือ: ${current_qty} ${unit}${lowWarn}`,
   );
+}
+
+// ─── /stkout — เบิกสินค้าออก ─────────────────────────────────────────────────
+async function handleStkOut(
+  admin: ReturnType<typeof createAdminClient>,
+  args: string[], profileId: string, replyToken: string,
+) {
+  if (!args[0]) return replyText(replyToken, `❌ ยังไม่ระบุชื่อสินค้า\n\n${STK_OUT_USAGE}`);
+
+  const itemName     = args[0];
+  const qty          = parseFloat(args[1] ?? '');
+  const propertyCode = args[2]?.trim() || null;
+
+  if (!args[1] || isNaN(qty)) return replyText(replyToken, `❌ ยังไม่ระบุจำนวน\n\n${STK_OUT_USAGE}`);
+  if (qty <= 0) return replyText(replyToken, `❌ จำนวนต้องมากกว่า 0\n\n${STK_OUT_USAGE}`);
+
+  const validProps = ['TMC1','TMC2','TMC3-4','TMC5','TMC6','TMC7','ส่วนกลาง'];
+  if (propertyCode && !validProps.includes(propertyCode)) {
+    return replyText(replyToken, `❌ แปลง "${propertyCode}" ไม่ถูกต้อง\nแปลงที่ใช้ได้: ${validProps.join(', ')}\n\n${STK_OUT_USAGE}`);
+  }
+
+  const result = await recordStockMovement(admin, TMC_ORG_ID, itemName, 'out', qty, propertyCode, profileId);
+  if (!result.ok || !result.item) return replyText(replyToken, result.error ?? '❌ บันทึกไม่สำเร็จ');
+
+  const { name, unit, current_qty, min_quantity } = result.item;
+  const isLow = min_quantity > 0 && current_qty <= min_quantity;
+  const lowWarn = isLow ? `\n⚠️ สินค้าใกล้หมด! (ขั้นต่ำ ${min_quantity} ${unit})` : '';
+
+  await replyText(replyToken,
+    `✅ เบิกสินค้าออก -${qty} ${unit}\n` +
+    `📦 ${name}\n` +
+    (propertyCode ? `แปลง: ${propertyCode}\n` : '') +
+    `คงเหลือ: ${current_qty} ${unit}${lowWarn}`,
+  );
+
+  // push alert ถ้าถึงขั้นต่ำ
+  if (isLow) {
+    await checkAndAlertLowStock(admin, result.item.id);
+  }
+}
+
+// ─── /stk — ดูรายการสต๊อก ────────────────────────────────────────────────────
+async function handleStkBal(
+  admin: ReturnType<typeof createAdminClient>,
+  replyToken: string,
+) {
+  const { data: items } = await admin
+    .from('tmc_stock_items')
+    .select('name, unit, current_qty, min_quantity')
+    .eq('org_id', TMC_ORG_ID)
+    .eq('is_active', true)
+    .order('name');
+
+  if (!items?.length) return replyText(replyToken, '❌ ยังไม่มีรายการสินค้าในคลัง');
+
+  type Item = { name: string; unit: string; current_qty: number; min_quantity: number };
+  const list = items as Item[];
+
+  // เรียงใกล้หมดขึ้นก่อน
+  list.sort((a, b) => {
+    const aLow = a.min_quantity > 0 && a.current_qty <= a.min_quantity ? 0 : 1;
+    const bLow = b.min_quantity > 0 && b.current_qty <= b.min_quantity ? 0 : 1;
+    return aLow - bLow || a.name.localeCompare(b.name);
+  });
+
+  const lines = list.map(i => {
+    const isLow = i.min_quantity > 0 && i.current_qty <= i.min_quantity;
+    const icon = isLow ? '⚠️' : '✅';
+    return `${icon} ${i.name}: ${i.current_qty} ${i.unit}`;
+  });
+
+  const lowCount = list.filter(i => i.min_quantity > 0 && i.current_qty <= i.min_quantity).length;
+  const header = lowCount > 0
+    ? `📦 สต๊อกคลัง (⚠️ ใกล้หมด ${lowCount} รายการ):\n\n`
+    : `📦 สต๊อกคลัง (${list.length} รายการ):\n\n`;
+
+  return replyText(replyToken, header + lines.join('\n'));
+}
+
+// ─── (compat) /stock รับ|ออก — เรียกใช้ shared helper ───────────────────────
+async function handleTmcStock(
+  admin: ReturnType<typeof createAdminClient>,
+  subCmd: string, args: string[], profileId: string, replyToken: string,
+) {
+  const itemName    = args[0] ?? '';
+  const qty         = parseFloat(args[1] ?? '');
+  const propertyCode = args[2] ?? null;
+  if (!itemName || !qty || isNaN(qty)) {
+    return replyText(replyToken,
+      '❌ รูปแบบไม่ถูกต้อง\n\n' +
+      `${subCmd === 'รับ' ? STK_IN_USAGE : STK_OUT_USAGE}`,
+    );
+  }
+  const movType: 'in' | 'out' = subCmd === 'รับ' ? 'in' : 'out';
+  const result = await recordStockMovement(admin, TMC_ORG_ID, itemName, movType, qty, propertyCode, profileId);
+  if (!result.ok || !result.item) return replyText(replyToken, result.error ?? '❌ บันทึกไม่สำเร็จ');
+
+  const { name, unit, current_qty, min_quantity } = result.item;
+  const isLow = min_quantity > 0 && current_qty <= min_quantity;
+  await replyText(replyToken,
+    `✅ ${subCmd === 'รับ' ? 'รับเข้า' : 'เบิกออก'} ${name} ${qty} ${unit}\n` +
+    (propertyCode ? `แปลง: ${propertyCode}\n` : '') +
+    `คงเหลือ: ${current_qty} ${unit}` +
+    (isLow ? `\n⚠️ สินค้าใกล้หมด!` : ''),
+  );
+  if (isLow && movType === 'out') {
+    await checkAndAlertLowStock(admin, result.item.id);
+  }
 }
 
 async function handleTmcCheckin(
@@ -202,15 +434,15 @@ async function handleTmcHelp(replyToken: string) {
     '💵 เงินสดย่อย:\n' +
     '/pcin <จำนวน> [รายการ]\n' +
     '/pcout <จำนวน> <รายการ> [หมวด] [แปลง]\n' +
-    '/pcbal  — ดูยอดคงเหลือ\n' +
+    '/pcbal   — ยอดคงเหลือ\n' +
     '/pcfunds — รายชื่อกระเป๋า\n\n' +
-    '📦 Stock:\n' +
-    '/stock รับ <ของ> <จำนวน> [แปลง]\n' +
-    '/stock ออก <ของ> <จำนวน> [แปลง]\n\n' +
+    '📦 Stock คลัง:\n' +
+    '/stkin <ชื่อ> <จำนวน> [แปลง]  — รับเข้า\n' +
+    '/stkout <ชื่อ> <จำนวน> [แปลง] — เบิกออก\n' +
+    '/stk — ดูสต๊อกทั้งหมด\n\n' +
     '🏠 เข้าพัก:\n' +
     '/เช็คอิน <ชื่อ> <แปลง> <วันออก> [ยอด] [ช่องทาง]\n\n' +
-    'แปลง: TMC1 TMC5 TMC7 ส่วนกลาง\n' +
-    'หมวดรายจ่าย: ค่าอาหาร, ค่าของใช้, ซักผ้า, ค่าไฟ ฯลฯ',
+    'แปลง: TMC1 TMC2 TMC3-4 TMC5 TMC6 TMC7 ส่วนกลาง',
   );
 }
 
@@ -547,6 +779,10 @@ export async function POST(req: NextRequest) {
         '/pcout <จำนวน> <รายการ> [หมวด] [แปลง]\n' +
         '/pcbal    — ยอดคงเหลือ\n' +
         '/pcfunds  — รายชื่อกระเป๋า\n\n' +
+        '📦 TMC Stock:\n' +
+        '/stkin <ชื่อ> <จำนวน> [แปลง]  — รับเข้า\n' +
+        '/stkout <ชื่อ> <จำนวน> [แปลง] — เบิกออก\n' +
+        '/stk — ดูสต๊อกทั้งหมด\n\n' +
         '📖 TMC ทั้งหมด: /tmc help',
       );
       continue;
@@ -558,7 +794,7 @@ export async function POST(req: NextRequest) {
       continue;
     }
 
-    if (['รับ', 'จ่าย', 'stock', 'เช็คอิน', 'pcin', 'pcout', 'pcbal', 'pcfunds'].includes(cmd)) {
+    if (['รับ', 'จ่าย', 'stock', 'stkin', 'stkout', 'stk', 'เช็คอิน', 'pcin', 'pcout', 'pcbal', 'pcfunds'].includes(cmd)) {
       const profile = await getProfileByLineId(admin, lineUserId);
       if (!profile) {
         await replyText(replyToken, '❌ ยังไม่ได้ผูกบัญชี LINE กรุณาใช้ /link <token>');
@@ -581,6 +817,9 @@ export async function POST(req: NextRequest) {
         }
         continue;
       }
+      if (cmd === 'stkin')  { await handleStkIn(admin,  args, profile.id, replyToken); continue; }
+      if (cmd === 'stkout') { await handleStkOut(admin, args, profile.id, replyToken); continue; }
+      if (cmd === 'stk')    { await handleStkBal(admin, replyToken); continue; }
       if (cmd === 'เช็คอิน') { await handleTmcCheckin(admin, args, profile.id, replyToken); continue; }
 
       // ── Petty Cash ──────────────────────────────────────────────────────────
