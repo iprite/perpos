@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import nodemailer from 'nodemailer';
 import { requireAdmin } from '../../../_lib/auth';
 import { createAdminClient } from '../../../_lib/supabase';
 import { withBasePath } from '@/utils/base-path';
@@ -26,5 +27,31 @@ export async function POST(req: NextRequest) {
   const actionLink =
     ((data as unknown as Record<string, Record<string, string>>)?.properties)?.action_link ?? null;
 
-  return NextResponse.json({ ok: true, actionLink });
+  // Send email via SMTP if configured
+  let emailSent = false;
+  const smtpHost = process.env.SMTP_HOST ?? '';
+  if (smtpHost && actionLink) {
+    try {
+      const transporter = nodemailer.createTransport({
+        host: smtpHost,
+        port: Number(process.env.SMTP_PORT ?? 587),
+        secure: Number(process.env.SMTP_PORT ?? 587) === 465,
+        auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASSWORD },
+      });
+      await transporter.sendMail({
+        from: process.env.SMTP_FROM_EMAIL,
+        to: email,
+        subject: 'ตั้งรหัสผ่านใหม่ — PERPOS',
+        html: `
+          <p>มีการร้องขอให้ตั้งรหัสผ่านใหม่สำหรับบัญชี PERPOS ของคุณ</p>
+          <p><a href="${actionLink}" style="display:inline-block;padding:10px 20px;background:#4f46e5;color:#fff;border-radius:6px;text-decoration:none;">ตั้งรหัสผ่านใหม่</a></p>
+          <p style="color:#888;font-size:12px;">ลิงก์นี้จะหมดอายุใน 1 ชั่วโมง หากคุณไม่ได้ร้องขอ กรุณาเพิกเฉยต่ออีเมลนี้</p>
+        `,
+        text: `ตั้งรหัสผ่านใหม่ PERPOS\n\n${actionLink}\n\nลิงก์นี้จะหมดอายุใน 1 ชั่วโมง`,
+      });
+      emailSent = true;
+    } catch { /* SMTP not configured or failed — fall through */ }
+  }
+
+  return NextResponse.json({ ok: true, actionLink, emailSent });
 }

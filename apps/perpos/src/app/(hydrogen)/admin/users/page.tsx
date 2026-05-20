@@ -294,6 +294,10 @@ export default function AdminUsersPage() {
           if (link) {
             setActionLink(link);
             await navigator.clipboard.writeText(link).catch(() => undefined);
+          }
+          if (json?.emailSent) {
+            setMessage(`ส่งอีเมล reset password ไปที่ ${email} แล้ว`);
+          } else {
             setMessage("สร้างลิงก์ reset password แล้ว (คัดลอกไว้ในคลิปบอร์ด)");
           }
         }
