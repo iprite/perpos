@@ -63,5 +63,10 @@ export async function POST(req: NextRequest) {
     } catch { /* SMTP not configured or failed */ }
   }
 
-  return NextResponse.json({ ok: true, actionLink, emailSent });
+  // Return userId so the caller can immediately add org membership
+  const userId: string | null =
+    (linkRes.data as unknown as Record<string, Record<string, string>>)?.user?.id ??
+    null;
+
+  return NextResponse.json({ ok: true, actionLink, emailSent, userId });
 }

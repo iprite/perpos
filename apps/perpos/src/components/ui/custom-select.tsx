@@ -40,10 +40,13 @@ export function CustomSelect({ value, onChange, options, placeholder = "เล�
     return () => document.removeEventListener("mousedown", handle);
   }, [open]);
 
-  // Close on scroll so panel doesn't drift
+  // Close on scroll so panel doesn't drift — but ignore scroll inside the panel itself
   useEffect(() => {
     if (open) {
-      const close = () => setOpen(false);
+      const close = (e: Event) => {
+        if (panelRef.current?.contains(e.target as Node)) return;
+        setOpen(false);
+      };
       window.addEventListener("scroll", close, true);
       return () => window.removeEventListener("scroll", close, true);
     }
@@ -65,7 +68,7 @@ export function CustomSelect({ value, onChange, options, placeholder = "เล�
             }}
             className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg"
           >
-            <div className="max-h-60 overflow-y-auto py-1">
+            <div className="max-h-72 overflow-y-auto py-1">
               {options.map((opt) => (
                 <button
                   key={opt.value}

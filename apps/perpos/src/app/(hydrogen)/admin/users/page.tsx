@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Button, Input, Select } from "rizzui";
 import { Text, Title } from "rizzui/typography";
+import { CustomSelect } from "@/components/ui/custom-select";
 
 import { useAuth } from "@/app/shared/auth-provider";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -58,6 +59,11 @@ export default function AdminUsersPage() {
 
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<Role>("user");
+  // For user role: list of { orgId, orgRole } mappings
+  const [inviteMappings, setInviteMappings] = useState<{ orgId: string; orgRole: OrgRole }[]>([
+    { orgId: "", orgRole: "member" },
+  ]);
+  const [allOrgs, setAllOrgs] = useState<OrgItem[]>([]);
 
   // Org panel state
   const [expandedUserId, setExpandedUserId] = useState<string | null>(null);
@@ -235,6 +241,16 @@ export default function AdminUsersPage() {
     refreshUsers();
   }, [refreshUsers]);
 
+  // Load orgs list once for the invite form
+  useEffect(() => {
+    authHeader().then(async (h) => {
+      const res = await fetch(backendUrl("/admin/users/orgs"), { headers: h });
+      const json = await res.json().catch(() => null);
+      if (json?.allOrgs) setAllOrgs(json.allOrgs as OrgItem[]);
+    }).catch(() => undefined);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   if (authLoading) {
     return (
       <div className="rounded-xl border border-gray-200 bg-white p-6">
@@ -283,22 +299,88 @@ export default function AdminUsersPage() {
         </div>
       </div>
 
-      <div className="mt-4 rounded-2xl border border-gray-200 bg-white p-5">
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-[1fr_220px_140px] md:items-end">
-          <Input label="อีเมล" value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} placeholder="name@example.com" disabled={loading} />
+      <div className="mt-4 rounded-2xl border border-gray-200 bg-white p-5 space-y-4">
+        {/* Row 1: email + system role */}
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-[1fr_200px] md:items-end">
+          <Input
+            label="อีเมล"
+            value={inviteEmail}
+            onChange={(e) => setInviteEmail(e.target.value)}
+            placeholder="name@example.com"
+            disabled={loading}
+          />
           <Select
-            label="Role"
+            label="Role ระบบ"
             value={{ label: inviteRole, value: inviteRole }}
             options={[
-              { label: "admin", value: "admin" },
-              { label: "user", value: "user" },
+              { label: "user — ต้องกำหนด Org", value: "user" },
+              { label: "admin — คุมทุก Org", value: "admin" },
             ]}
             onChange={(opt: any) => setInviteRole((opt?.value as Role) ?? "user")}
             disabled={loading}
           />
-          <Button
+        </div>
+
+        {/* Row 2: org mappings (user only) */}
+        {inviteRole === "user" && (
+          <div className="space-y-2">
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Org ที่เข้าถึงได้</p>
+            {inviteMappings.map((m, i) => (
+              <div key={i} className="flex items-center gap-2">
+                <div className="flex-1">
+                  <CustomSelect
+                    value={m.orgId}
+                    onChange={(v) =>
+                      setInviteMappings((prev) => prev.map((x, j) => (j === i ? { ...x, orgId: v } : x)))
+                    }
+                    placeholder="เลือก Org"
+                    options={[
+                      { value: "", label: "— เลือก Org —" },
+                      ...allOrgs.map((o) => ({ value: o.id, label: o.name })),
+                    ]}
+                    disabled={loading}
+                  />
+                </div>
+                <div className="w-36">
+                  <CustomSelect
+                    value={m.orgRole}
+                    onChange={(v) =>
+                      setInviteMappings((prev) => prev.map((x, j) => (j === i ? { ...x, orgRole: v as OrgRole } : x)))
+                    }
+                    options={ORG_ROLES.map((r) => ({ value: r, label: r }))}
+                    disabled={loading || !m.orgId}
+                  />
+                </div>
+                {inviteMappings.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => setInviteMappings((prev) => prev.filter((_, j) => j !== i))}
+                    className="text-red-400 hover:text-red-600 px-1 text-lg leading-none"
+                    disabled={loading}
+                  >
+                    ×
+                  </button>
+                )}
+              </div>
+            ))}
+            <button
+              type="button"
+              onClick={() => setInviteMappings((prev) => [...prev, { orgId: "", orgRole: "member" }])}
+              className="text-xs text-indigo-600 hover:text-indigo-800 font-medium"
+              disabled={loading}
+            >
+              + เพิ่ม Org
+            </button>
+          </div>
+        )}
+
+        {inviteRole === "admin" && (
+          <p className="text-xs text-gray-400 italic">Admin มีสิทธิ์เข้าถึงทุก Org โดยอัตโนมัติ</p>
+        )}
+
+        <Button
             className="h-10 bg-indigo-600 text-white hover:bg-indigo-500"
-            disabled={loading}
+            disabled={loading || !inviteEmail.trim() || (inviteRole === "user" && inviteMappings.every((m) => !m.orgId))}
             onClick={async () => {
               const email = inviteEmail.trim();
               if (!email) return;
@@ -325,8 +407,29 @@ export default function AdminUsersPage() {
                   setLoading(false);
                   return;
                 }
+
+                // Auto-add org memberships for user role
+                const newUserId = (json?.userId as string | undefined) ?? null;
+                if (newUserId && inviteRole === "user") {
+                  const validMappings = inviteMappings.filter((m) => m.orgId);
+                  await Promise.all(
+                    validMappings.map(async (m) => {
+                      try {
+                        const h2 = await authHeader();
+                        await fetch(backendUrl("/admin/users/orgs"), {
+                          method: "PUT",
+                          headers: { ...h2, "content-type": "application/json" },
+                          body: JSON.stringify({ userId: newUserId, orgId: m.orgId, role: m.orgRole }),
+                        });
+                      } catch { /* non-critical */ }
+                    }),
+                  );
+                }
+
                 setMessage(Boolean(json?.emailSent) ? "ส่งอีเมลเชิญแล้ว" : "สร้างลิงก์เชิญแล้ว (คัดลอกไว้ในคลิปบอร์ด) ");
                 setInviteEmail("");
+                setInviteRole("user");
+                setInviteMappings([{ orgId: "", orgRole: "member" }]);
                 setLoading(false);
                 refreshUsers();
               } catch (e: any) {
@@ -337,7 +440,6 @@ export default function AdminUsersPage() {
           >
             เชิญผู้ใช้
           </Button>
-        </div>
       </div>
 
       {error ? <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div> : null}

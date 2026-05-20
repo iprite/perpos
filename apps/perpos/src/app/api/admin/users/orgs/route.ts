@@ -7,9 +7,16 @@ export async function GET(req: NextRequest) {
   if (!auth.ok) return auth.res;
 
   const userId = req.nextUrl.searchParams.get('userId');
-  if (!userId) return NextResponse.json({ error: 'missing userId' }, { status: 400 });
 
   const admin = createAdminClient();
+
+  // No userId — return only allOrgs (used by invite form)
+  if (!userId) {
+    const { data, error } = await admin.from('organizations').select('id, name').order('name');
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ ok: true, memberships: [], allOrgs: data ?? [] });
+  }
+
   const [memberRes, orgsRes] = await Promise.all([
     admin
       .from('organization_members')
