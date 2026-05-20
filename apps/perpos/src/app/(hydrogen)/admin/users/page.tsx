@@ -1,15 +1,17 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Button, Input, Select } from "rizzui";
 import { Text, Title } from "rizzui/typography";
-import { CustomSelect } from "@/components/ui/custom-select";
 
 import { useAuth } from "@/app/shared/auth-provider";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { Role } from "@/lib/supabase/types";
 import { withBasePath } from "@/utils/base-path";
 import { backendUrl } from "@/lib/backend";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { CustomSelect } from "@/components/ui/custom-select";
 
 type ListedUser = {
   id: string;
@@ -44,8 +46,14 @@ type OrgData = {
   allOrgs: OrgItem[];
 };
 
-const ORG_ROLES = ["owner", "admin", "member"] as const;
+const ORG_ROLES = ["owner", "admin", "management", "member"] as const;
 type OrgRole = (typeof ORG_ROLES)[number];
+
+const ORG_ROLE_OPTIONS = ORG_ROLES.map((r) => ({ value: r, label: r }));
+const SYSTEM_ROLE_OPTIONS = [
+  { value: "user", label: "user — ต้องกำหนด Org" },
+  { value: "admin", label: "admin — คุมทุก Org" },
+];
 
 export default function AdminUsersPage() {
   const { role, loading: authLoading } = useAuth();
@@ -57,9 +65,9 @@ export default function AdminUsersPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [actionLink, setActionLink] = useState<string | null>(null);
 
+  // Invite form
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<Role>("user");
-  // For user role: list of { orgId, orgRole } mappings
   const [inviteMappings, setInviteMappings] = useState<{ orgId: string; orgRole: OrgRole }[]>([
     { orgId: "", orgRole: "member" },
   ]);
@@ -74,6 +82,10 @@ export default function AdminUsersPage() {
   // Add-org form state per user
   const [addOrgId, setAddOrgId] = useState<Record<string, string>>({});
   const [addOrgRole, setAddOrgRole] = useState<Record<string, OrgRole>>({});
+
+  // Per-user action states
+  const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
+  const [resettingUserId, setResettingUserId] = useState<string | null>(null);
 
   const authHeader = useCallback(async () => {
     const { data } = await supabase.auth.getSession();
@@ -99,8 +111,8 @@ export default function AdminUsersPage() {
         }
         setItems((json?.items ?? []) as ListedUser[]);
         setLoading(false);
-      } catch (e: any) {
-        setError(e?.message ?? "โหลดรายการผู้ใช้ไม่สำเร็จ");
+      } catch (e: unknown) {
+        setError((e as Error)?.message ?? "โหลดรายการผู้ใช้ไม่สำเร็จ");
         setItems([]);
         setLoading(false);
       }
@@ -122,8 +134,8 @@ export default function AdminUsersPage() {
         }
         setOrgData((prev) => ({ ...prev, [userId]: json as OrgData }));
         setOrgLoading(null);
-      } catch (e: any) {
-        setOrgError(e?.message ?? "โหลดข้อมูล org ไม่สำเร็จ");
+      } catch (e: unknown) {
+        setOrgError((e as Error)?.message ?? "โหลดข้อมูล org ไม่สำเร็จ");
         setOrgLoading(null);
       }
     },
@@ -158,7 +170,6 @@ export default function AdminUsersPage() {
           setOrgError(json?.error ?? "อัปเดต role ไม่สำเร็จ");
           return;
         }
-        // Update local state
         setOrgData((prev) => {
           const d = prev[userId];
           if (!d) return prev;
@@ -170,8 +181,8 @@ export default function AdminUsersPage() {
             },
           };
         });
-      } catch (e: any) {
-        setOrgError(e?.message ?? "อัปเดต role ไม่สำเร็จ");
+      } catch (e: unknown) {
+        setOrgError((e as Error)?.message ?? "อัปเดต role ไม่สำเร็จ");
       }
     },
     [authHeader],
@@ -202,8 +213,8 @@ export default function AdminUsersPage() {
             },
           };
         });
-      } catch (e: any) {
-        setOrgError(e?.message ?? "ลบ membership ไม่สำเร็จ");
+      } catch (e: unknown) {
+        setOrgError((e as Error)?.message ?? "ลบ membership ไม่สำเร็จ");
       }
     },
     [authHeader],
@@ -226,15 +237,73 @@ export default function AdminUsersPage() {
           setOrgError(json?.error ?? "เพิ่ม org ไม่สำเร็จ");
           return;
         }
-        // Reload org data for this user
         await loadOrgData(userId);
         setAddOrgId((prev) => ({ ...prev, [userId]: "" }));
         setAddOrgRole((prev) => ({ ...prev, [userId]: "member" }));
-      } catch (e: any) {
-        setOrgError(e?.message ?? "เพิ่ม org ไม่สำเร็จ");
+      } catch (e: unknown) {
+        setOrgError((e as Error)?.message ?? "เพิ่ม org ไม่สำเร็จ");
       }
     },
     [authHeader, addOrgId, addOrgRole, loadOrgData],
+  );
+
+  const handleDeleteUser = useCallback(
+    async (userId: string, email: string | null) => {
+      if (!confirm(`ลบผู้ใช้ "${email ?? userId}" ออกจากระบบ?\nการกระทำนี้ไม่สามารถย้อนกลับได้`)) return;
+      setDeletingUserId(userId);
+      try {
+        const headers = await authHeader();
+        const res = await fetch(backendUrl("/admin/users/delete"), {
+          method: "POST",
+          headers: { ...headers, "content-type": "application/json" },
+          body: JSON.stringify({ userId }),
+        });
+        const json = await res.json().catch(() => null);
+        if (!res.ok) {
+          setError(json?.error ?? "ลบผู้ใช้ไม่สำเร็จ");
+        } else {
+          setMessage(`ลบ ${email ?? userId} แล้ว`);
+          refreshUsers();
+        }
+      } catch (e: unknown) {
+        setError((e as Error)?.message ?? "ลบผู้ใช้ไม่สำเร็จ");
+      } finally {
+        setDeletingUserId(null);
+      }
+    },
+    [authHeader, refreshUsers],
+  );
+
+  const handleResetPassword = useCallback(
+    async (email: string | null) => {
+      if (!email) return;
+      setResettingUserId(email);
+      try {
+        const headers = await authHeader();
+        const redirectTo = `${window.location.origin}${withBasePath("/auth/password")}`;
+        const res = await fetch(backendUrl("/admin/users/reset-password"), {
+          method: "POST",
+          headers: { ...headers, "content-type": "application/json" },
+          body: JSON.stringify({ email, redirectTo }),
+        });
+        const json = await res.json().catch(() => null);
+        if (!res.ok) {
+          setError(json?.error ?? "สร้างลิงก์ reset password ไม่สำเร็จ");
+        } else {
+          const link = json?.actionLink as string | null;
+          if (link) {
+            setActionLink(link);
+            await navigator.clipboard.writeText(link).catch(() => undefined);
+            setMessage("สร้างลิงก์ reset password แล้ว (คัดลอกไว้ในคลิปบอร์ด)");
+          }
+        }
+      } catch (e: unknown) {
+        setError((e as Error)?.message ?? "สร้างลิงก์ reset password ไม่สำเร็จ");
+      } finally {
+        setResettingUserId(null);
+      }
+    },
+    [authHeader],
   );
 
   React.useEffect(() => {
@@ -243,20 +312,25 @@ export default function AdminUsersPage() {
 
   // Load orgs list once for the invite form
   useEffect(() => {
-    authHeader().then(async (h) => {
-      const res = await fetch(backendUrl("/admin/users/orgs"), { headers: h });
-      const json = await res.json().catch(() => null);
-      if (json?.allOrgs) setAllOrgs(json.allOrgs as OrgItem[]);
-    }).catch(() => undefined);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    authHeader()
+      .then(async (h) => {
+        const res = await fetch(backendUrl("/admin/users/orgs"), { headers: h });
+        const json = await res.json().catch(() => null);
+        if (json?.allOrgs) setAllOrgs(json.allOrgs as OrgItem[]);
+      })
+      .catch(() => undefined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const allOrgOptions = useMemo(
+    () => [{ value: "", label: "— เลือก Org —" }, ...allOrgs.map((o) => ({ value: o.id, label: o.name }))],
+    [allOrgs],
+  );
 
   if (authLoading) {
     return (
       <div className="rounded-xl border border-gray-200 bg-white p-6">
-        <Title as="h1" className="text-lg font-semibold text-gray-900">
-          กำลังโหลด…
-        </Title>
+        <Title as="h1" className="text-lg font-semibold text-gray-900">กำลังโหลด…</Title>
       </div>
     );
   }
@@ -264,9 +338,7 @@ export default function AdminUsersPage() {
   if (role === null) {
     return (
       <div className="rounded-xl border border-gray-200 bg-white p-6">
-        <Title as="h1" className="text-lg font-semibold text-gray-900">
-          ไม่พบสิทธิ์ผู้ใช้
-        </Title>
+        <Title as="h1" className="text-lg font-semibold text-gray-900">ไม่พบสิทธิ์ผู้ใช้</Title>
         <Text className="mt-2 text-sm text-gray-600">ระบบไม่พบข้อมูล role ในโปรไฟล์ (profiles) ของบัญชีนี้</Text>
       </div>
     );
@@ -275,53 +347,50 @@ export default function AdminUsersPage() {
   if (role !== "admin") {
     return (
       <div className="rounded-xl border border-gray-200 bg-white p-6">
-        <Title as="h1" className="text-lg font-semibold text-gray-900">
-          ไม่มีสิทธิ์เข้าถึงหน้านี้
-        </Title>
+        <Title as="h1" className="text-lg font-semibold text-gray-900">ไม่มีสิทธิ์เข้าถึงหน้านี้</Title>
         <Text className="mt-2 text-sm text-gray-600">หน้านี้สำหรับ Admin เท่านั้น</Text>
       </div>
     );
   }
 
   return (
-    <div>
+    <div className="space-y-4">
+      {/* Page header */}
       <div className="flex flex-col justify-between gap-3 md:flex-row md:items-end">
         <div>
-          <Title as="h1" className="text-lg font-semibold text-gray-900">
-            จัดการผู้ใช้
-          </Title>
-          <Text className="mt-1 text-sm text-gray-600">ระบบ invite-only • roles: admin/user • ผูก LINE ต่อผู้ใช้</Text>
+          <Title as="h1" className="text-lg font-semibold text-gray-900">จัดการผู้ใช้</Title>
+          <Text className="mt-1 text-sm text-gray-600">ระบบ invite-only • roles: admin / user</Text>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Button variant="outline" onClick={() => refreshUsers()} disabled={loading}>
-            รีเฟรช
-          </Button>
-        </div>
+        <Button variant="outline" onClick={() => refreshUsers()} disabled={loading}>รีเฟรช</Button>
       </div>
 
-      <div className="mt-4 rounded-2xl border border-gray-200 bg-white p-5 space-y-4">
-        {/* Row 1: email + system role */}
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-[1fr_200px] md:items-end">
-          <Input
-            label="อีเมล"
-            value={inviteEmail}
-            onChange={(e) => setInviteEmail(e.target.value)}
-            placeholder="name@example.com"
-            disabled={loading}
-          />
-          <Select
-            label="Role ระบบ"
-            value={{ label: inviteRole, value: inviteRole }}
-            options={[
-              { label: "user — ต้องกำหนด Org", value: "user" },
-              { label: "admin — คุมทุก Org", value: "admin" },
-            ]}
-            onChange={(opt: any) => setInviteRole((opt?.value as Role) ?? "user")}
-            disabled={loading}
-          />
+      {/* ── Invite form ── */}
+      <div className="rounded-2xl border border-gray-200 bg-white p-5 space-y-4">
+        <p className="text-sm font-semibold text-gray-700">เชิญผู้ใช้ใหม่</p>
+
+        {/* Email + System role */}
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-[1fr_220px]">
+          <div className="space-y-1.5">
+            <Label>อีเมล</Label>
+            <Input
+              value={inviteEmail}
+              onChange={(e) => setInviteEmail(e.target.value)}
+              placeholder="name@example.com"
+              disabled={loading}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Role ระบบ</Label>
+            <CustomSelect
+              value={inviteRole}
+              onChange={(v) => setInviteRole(v as Role)}
+              options={SYSTEM_ROLE_OPTIONS}
+              disabled={loading}
+            />
+          </div>
         </div>
 
-        {/* Row 2: org mappings (user only) */}
+        {/* Org mappings — user only */}
         {inviteRole === "user" && (
           <div className="space-y-2">
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Org ที่เข้าถึงได้</p>
@@ -334,20 +403,17 @@ export default function AdminUsersPage() {
                       setInviteMappings((prev) => prev.map((x, j) => (j === i ? { ...x, orgId: v } : x)))
                     }
                     placeholder="เลือก Org"
-                    options={[
-                      { value: "", label: "— เลือก Org —" },
-                      ...allOrgs.map((o) => ({ value: o.id, label: o.name })),
-                    ]}
+                    options={allOrgOptions}
                     disabled={loading}
                   />
                 </div>
-                <div className="w-36">
+                <div className="w-40">
                   <CustomSelect
                     value={m.orgRole}
                     onChange={(v) =>
                       setInviteMappings((prev) => prev.map((x, j) => (j === i ? { ...x, orgRole: v as OrgRole } : x)))
                     }
-                    options={ORG_ROLES.map((r) => ({ value: r, label: r }))}
+                    options={ORG_ROLE_OPTIONS}
                     disabled={loading || !m.orgId}
                   />
                 </div>
@@ -379,78 +445,83 @@ export default function AdminUsersPage() {
         )}
 
         <Button
-            className="h-10 bg-indigo-600 text-white hover:bg-indigo-500"
-            disabled={loading || !inviteEmail.trim() || (inviteRole === "user" && inviteMappings.every((m) => !m.orgId))}
-            onClick={async () => {
-              const email = inviteEmail.trim();
-              if (!email) return;
-              setLoading(true);
-              setError(null);
-              setMessage(null);
-              setActionLink(null);
-              try {
-                const headers = await authHeader();
-                const redirectTo = `${window.location.origin}${withBasePath("/auth/password")}`;
-                const res = await fetch(backendUrl("/admin/users/invite"), {
-                  method: "POST",
-                  headers: { ...headers, "content-type": "application/json" },
-                  body: JSON.stringify({ email, role: inviteRole, redirectTo }),
-                });
-                const json = await res.json().catch(() => null);
-                const link = (json?.actionLink as string | undefined) ?? null;
-                if (link) {
-                  setActionLink(link);
-                  await navigator.clipboard.writeText(link).catch(() => undefined);
-                }
-                if (!res.ok) {
-                  setError(String(json?.error ?? "ส่ง invite ไม่สำเร็จ"));
-                  setLoading(false);
-                  return;
-                }
-
-                // Auto-add org memberships for user role
-                const newUserId = (json?.userId as string | undefined) ?? null;
-                if (newUserId && inviteRole === "user") {
-                  const validMappings = inviteMappings.filter((m) => m.orgId);
-                  await Promise.all(
-                    validMappings.map(async (m) => {
-                      try {
-                        const h2 = await authHeader();
-                        await fetch(backendUrl("/admin/users/orgs"), {
-                          method: "PUT",
-                          headers: { ...h2, "content-type": "application/json" },
-                          body: JSON.stringify({ userId: newUserId, orgId: m.orgId, role: m.orgRole }),
-                        });
-                      } catch { /* non-critical */ }
-                    }),
-                  );
-                }
-
-                setMessage(Boolean(json?.emailSent) ? "ส่งอีเมลเชิญแล้ว" : "สร้างลิงก์เชิญแล้ว (คัดลอกไว้ในคลิปบอร์ด) ");
-                setInviteEmail("");
-                setInviteRole("user");
-                setInviteMappings([{ orgId: "", orgRole: "member" }]);
-                setLoading(false);
-                refreshUsers();
-              } catch (e: any) {
-                setError(e?.message ?? "ส่ง invite ไม่สำเร็จ");
-                setLoading(false);
+          disabled={
+            loading ||
+            !inviteEmail.trim() ||
+            (inviteRole === "user" && inviteMappings.every((m) => !m.orgId))
+          }
+          onClick={async () => {
+            const email = inviteEmail.trim();
+            if (!email) return;
+            setLoading(true);
+            setError(null);
+            setMessage(null);
+            setActionLink(null);
+            try {
+              const headers = await authHeader();
+              const redirectTo = `${window.location.origin}${withBasePath("/auth/password")}`;
+              const res = await fetch(backendUrl("/admin/users/invite"), {
+                method: "POST",
+                headers: { ...headers, "content-type": "application/json" },
+                body: JSON.stringify({ email, role: inviteRole, redirectTo }),
+              });
+              const json = await res.json().catch(() => null);
+              const link = (json?.actionLink as string | undefined) ?? null;
+              if (link) {
+                setActionLink(link);
+                await navigator.clipboard.writeText(link).catch(() => undefined);
               }
-            }}
-          >
-            เชิญผู้ใช้
-          </Button>
+              if (!res.ok) {
+                setError(String(json?.error ?? "ส่ง invite ไม่สำเร็จ"));
+                setLoading(false);
+                return;
+              }
+
+              // Auto-add org memberships for user role
+              const newUserId = (json?.userId as string | undefined) ?? null;
+              if (newUserId && inviteRole === "user") {
+                const validMappings = inviteMappings.filter((m) => m.orgId);
+                await Promise.all(
+                  validMappings.map(async (m) => {
+                    try {
+                      const h2 = await authHeader();
+                      await fetch(backendUrl("/admin/users/orgs"), {
+                        method: "PUT",
+                        headers: { ...h2, "content-type": "application/json" },
+                        body: JSON.stringify({ userId: newUserId, orgId: m.orgId, role: m.orgRole }),
+                      });
+                    } catch { /* non-critical */ }
+                  }),
+                );
+              }
+
+              setMessage(Boolean(json?.emailSent) ? "ส่งอีเมลเชิญแล้ว" : "สร้างลิงก์เชิญแล้ว (คัดลอกไว้ในคลิปบอร์ด)");
+              setInviteEmail("");
+              setInviteRole("user");
+              setInviteMappings([{ orgId: "", orgRole: "member" }]);
+              setLoading(false);
+              refreshUsers();
+            } catch (e: unknown) {
+              setError((e as Error)?.message ?? "ส่ง invite ไม่สำเร็จ");
+              setLoading(false);
+            }
+          }}
+        >
+          เชิญผู้ใช้
+        </Button>
       </div>
 
-      {error ? <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div> : null}
-      {message ? <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">{message}</div> : null}
-      {actionLink ? (
-        <div className="mt-3 rounded-xl border border-gray-200 bg-white p-4 text-sm text-gray-700">
+      {/* Feedback messages */}
+      {error && <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div>}
+      {message && <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">{message}</div>}
+      {actionLink && (
+        <div className="rounded-xl border border-gray-200 bg-white p-4 text-sm text-gray-700">
           <div className="font-medium text-gray-900">ลิงก์สำหรับตั้งรหัสผ่าน</div>
           <div className="mt-2 break-all rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-700">{actionLink}</div>
           <div className="mt-3 flex flex-wrap gap-2">
             <Button
               variant="outline"
+              size="sm"
               onClick={async () => {
                 await navigator.clipboard.writeText(actionLink).catch(() => undefined);
                 setMessage("คัดลอกลิงก์แล้ว");
@@ -458,23 +529,24 @@ export default function AdminUsersPage() {
             >
               คัดลอกลิงก์
             </Button>
-            <Button variant="outline" onClick={() => window.open(actionLink, "_blank", "noopener,noreferrer")}>
+            <Button variant="outline" size="sm" onClick={() => window.open(actionLink, "_blank", "noopener,noreferrer")}>
               เปิดลิงก์
             </Button>
           </div>
         </div>
-      ) : null}
+      )}
 
-      {orgError ? <div className="mt-4 rounded-xl border border-orange-200 bg-orange-50 p-3 text-sm text-orange-700">{orgError}</div> : null}
+      {orgError && <div className="rounded-xl border border-orange-200 bg-orange-50 p-3 text-sm text-orange-700">{orgError}</div>}
 
-      <div className="mt-4 overflow-hidden rounded-2xl border border-gray-200 bg-white">
-        {/* Header */}
-        <div className="grid grid-cols-[1fr_100px_100px_140px_120px] gap-0 border-b border-gray-200 bg-gray-50 px-4 py-3 text-xs font-semibold text-gray-600">
+      {/* ── User list ── */}
+      <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white">
+        {/* Table header */}
+        <div className="grid grid-cols-[1fr_90px_80px_110px_180px] gap-0 border-b border-gray-200 bg-gray-50 px-4 py-3 text-xs font-semibold text-gray-600">
           <div>อีเมล</div>
           <div>Role</div>
           <div>Active</div>
           <div>LINE</div>
-          <div>Orgs</div>
+          <div>การจัดการ</div>
         </div>
 
         {/* Rows */}
@@ -484,19 +556,22 @@ export default function AdminUsersPage() {
             const data = orgData[u.id];
             const membershipCount = data?.memberships.length ?? null;
             const isLoadingOrgs = orgLoading === u.id;
+            const isDeleting = deletingUserId === u.id;
+            const isResetting = resettingUserId === u.email;
 
             return (
               <div key={u.id}>
                 {/* User row */}
-                <div className="grid grid-cols-[1fr_100px_100px_140px_120px] items-center gap-0 px-4 py-3 text-sm">
+                <div className="grid grid-cols-[1fr_90px_80px_110px_180px] items-center gap-0 px-4 py-3 text-sm">
                   <div className="min-w-0">
                     <div className="truncate font-medium text-gray-900">{u.email ?? "-"}</div>
-                    <div className="truncate text-xs text-gray-500">{u.id}</div>
+                    <div className="truncate text-xs text-gray-400">{u.id}</div>
                   </div>
                   <div className="text-gray-700">{u.profile?.role ?? "-"}</div>
                   <div className="text-gray-700">{u.profile?.is_active === false ? "ปิด" : "เปิด"}</div>
                   <div className="text-gray-700">{u.profile?.line_user_id ? "เชื่อมแล้ว" : "ยังไม่เชื่อม"}</div>
-                  <div>
+                  <div className="flex items-center gap-1 flex-wrap">
+                    {/* Orgs toggle */}
                     <button
                       onClick={() => toggleExpand(u.id)}
                       className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${
@@ -505,11 +580,23 @@ export default function AdminUsersPage() {
                           : "bg-gray-100 text-gray-600 hover:bg-gray-200"
                       }`}
                     >
-                      {isLoadingOrgs
-                        ? "..."
-                        : membershipCount !== null
-                          ? `${membershipCount} org${membershipCount !== 1 ? "s" : ""}`
-                          : "จัดการ"}
+                      {isLoadingOrgs ? "..." : membershipCount !== null ? `${membershipCount} org` : "Orgs"}
+                    </button>
+                    {/* Reset password */}
+                    <button
+                      onClick={() => handleResetPassword(u.email)}
+                      disabled={isResetting || !u.email}
+                      className="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700 hover:bg-amber-100 disabled:opacity-40"
+                    >
+                      {isResetting ? "..." : "Reset PW"}
+                    </button>
+                    {/* Delete */}
+                    <button
+                      onClick={() => handleDeleteUser(u.id, u.email)}
+                      disabled={isDeleting}
+                      className="inline-flex items-center rounded-full bg-red-50 px-2.5 py-1 text-xs font-medium text-red-600 hover:bg-red-100 disabled:opacity-40"
+                    >
+                      {isDeleting ? "..." : "ลบ"}
                     </button>
                   </div>
                 </div>
@@ -533,17 +620,13 @@ export default function AdminUsersPage() {
                             {data.memberships.map((m) => (
                               <div key={m.id} className="flex items-center gap-2 rounded-lg border border-indigo-100 bg-white px-3 py-2">
                                 <span className="flex-1 text-sm font-medium text-gray-800">{m.orgName}</span>
-                                <select
-                                  value={m.role}
-                                  onChange={(e) => handleRoleChange(u.id, m.orgId, e.target.value as OrgRole)}
-                                  className="rounded border border-gray-200 bg-gray-50 px-2 py-1 text-xs text-gray-700 focus:outline-none focus:ring-1 focus:ring-indigo-400"
-                                >
-                                  {ORG_ROLES.map((r) => (
-                                    <option key={r} value={r}>
-                                      {r}
-                                    </option>
-                                  ))}
-                                </select>
+                                <div className="w-36">
+                                  <CustomSelect
+                                    value={m.role}
+                                    onChange={(v) => handleRoleChange(u.id, m.orgId, v as OrgRole)}
+                                    options={ORG_ROLE_OPTIONS}
+                                  />
+                                </div>
                                 <button
                                   onClick={() => handleRemoveMembership(u.id, m.orgId)}
                                   className="rounded px-2 py-1 text-xs text-red-500 hover:bg-red-50 hover:text-red-700"
@@ -558,38 +641,33 @@ export default function AdminUsersPage() {
                         {/* Add org row */}
                         <div className="flex flex-wrap items-center gap-2 pt-1">
                           <span className="text-xs font-medium text-gray-600">เพิ่ม Org:</span>
-                          <select
-                            value={addOrgId[u.id] ?? ""}
-                            onChange={(e) => setAddOrgId((prev) => ({ ...prev, [u.id]: e.target.value }))}
-                            className="rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-700 focus:outline-none focus:ring-1 focus:ring-indigo-400"
-                          >
-                            <option value="">-- เลือก org --</option>
-                            {data.allOrgs
-                              .filter((o) => !data.memberships.some((m) => m.orgId === o.id))
-                              .map((o) => (
-                                <option key={o.id} value={o.id}>
-                                  {o.name}
-                                </option>
-                              ))}
-                          </select>
-                          <select
-                            value={addOrgRole[u.id] ?? "member"}
-                            onChange={(e) => setAddOrgRole((prev) => ({ ...prev, [u.id]: e.target.value as OrgRole }))}
-                            className="rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-700 focus:outline-none focus:ring-1 focus:ring-indigo-400"
-                          >
-                            {ORG_ROLES.map((r) => (
-                              <option key={r} value={r}>
-                                {r}
-                              </option>
-                            ))}
-                          </select>
-                          <button
-                            onClick={() => handleAddMembership(u.id)}
+                          <div className="w-52">
+                            <CustomSelect
+                              value={addOrgId[u.id] ?? ""}
+                              onChange={(v) => setAddOrgId((prev) => ({ ...prev, [u.id]: v }))}
+                              options={[
+                                { value: "", label: "— เลือก org —" },
+                                ...data.allOrgs
+                                  .filter((o) => !data.memberships.some((m) => m.orgId === o.id))
+                                  .map((o) => ({ value: o.id, label: o.name })),
+                              ]}
+                            />
+                          </div>
+                          <div className="w-36">
+                            <CustomSelect
+                              value={addOrgRole[u.id] ?? "member"}
+                              onChange={(v) => setAddOrgRole((prev) => ({ ...prev, [u.id]: v as OrgRole }))}
+                              options={ORG_ROLE_OPTIONS}
+                              disabled={!addOrgId[u.id]}
+                            />
+                          </div>
+                          <Button
+                            size="sm"
                             disabled={!addOrgId[u.id]}
-                            className="rounded bg-indigo-600 px-3 py-1 text-xs font-medium text-white hover:bg-indigo-500 disabled:opacity-40"
+                            onClick={() => handleAddMembership(u.id)}
                           >
                             เพิ่ม
-                          </button>
+                          </Button>
                         </div>
                       </div>
                     ) : (
@@ -600,7 +678,9 @@ export default function AdminUsersPage() {
               </div>
             );
           })}
-          {items.length === 0 ? <div className="px-4 py-6 text-sm text-gray-600">ยังไม่มีข้อมูล</div> : null}
+          {items.length === 0 && (
+            <div className="px-4 py-6 text-sm text-gray-600">ยังไม่มีข้อมูล</div>
+          )}
         </div>
       </div>
     </div>
