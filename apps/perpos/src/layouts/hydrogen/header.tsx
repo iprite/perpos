@@ -11,11 +11,17 @@ import {
   getEnabledModulesForOrg,
 } from "@/lib/accounting/queries";
 
-export default async function Header() {
+interface HeaderProps {
+  enabledModuleKeys?: string[];
+}
+
+export default async function Header({ enabledModuleKeys: enabledModuleKeysProp }: HeaderProps = {}) {
   const organizations        = await getOrganizationsForCurrentUser();
   const activeOrganizationId = await getActiveOrganizationId();
   const activeOrg            = organizations.find((o) => o.id === activeOrganizationId);
-  const enabledModuleKeys    = await getEnabledModulesForOrg(activeOrganizationId, activeOrg?.role ?? null);
+  // Use prop if provided (avoids duplicate DB fetch), otherwise fetch
+  const enabledModuleKeys    = enabledModuleKeysProp
+    ?? await getEnabledModulesForOrg(activeOrganizationId, activeOrg?.role ?? null);
 
   return (
     <StickyHeader className="z-[990] 2xl:py-5 3xl:px-8 4xl:px-10">

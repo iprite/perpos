@@ -314,17 +314,22 @@ function buildTmcMenuItems(): MenuItem[] {
   ];
 }
 
-function pickMenuContext(pathname: string, role: Role | null) {
+function pickMenuContext(pathname: string, role: Role | null, enabledKeys: string[]): string {
   const p = pathname || "/";
   if (p === "/admin" || p.startsWith("/admin/")) return role === "admin" ? "admin" : "user";
   if (p.startsWith("/payroll")) return "payroll";
   if (p.startsWith("/assistant")) return "assistant";
   if (p.startsWith("/tmc")) return "tmc";
+  // Default "user" context = accounting. If accounting isn't enabled, show first enabled module's menu.
+  if (enabledKeys.length === 0 || enabledKeys.includes("accounting")) return "user";
+  if (enabledKeys.includes("tmc")) return "tmc";
+  if (enabledKeys.includes("payroll")) return "payroll";
+  if (enabledKeys.includes("assistant")) return "assistant";
   return "user";
 }
 
-export function getMenuItems(role: Role | null, pathname: string): MenuItem[] {
-  const context = pickMenuContext(pathname, role);
+export function getMenuItems(role: Role | null, pathname: string, enabledKeys: string[] = []): MenuItem[] {
+  const context = pickMenuContext(pathname, role, enabledKeys);
   const items =
     context === "admin"     ? buildAdminMenuItems()     :
     context === "payroll"   ? buildPayrollMenuItems()   :

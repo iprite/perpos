@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { cookies } from "next/headers";
 
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -9,7 +10,7 @@ export type OrganizationSummary = {
   role: "owner" | "admin" | "team_lead" | "team_member";
 };
 
-export async function getOrganizationsForCurrentUser(): Promise<OrganizationSummary[]> {
+export const getOrganizationsForCurrentUser = cache(async function getOrganizationsForCurrentUser(): Promise<OrganizationSummary[]> {
   const supabase = await createSupabaseServerClient();
   const { data: userRes, error: userErr } = await supabase.auth.getUser();
   if (userErr || !userRes.user) return [];
@@ -33,9 +34,9 @@ export async function getOrganizationsForCurrentUser(): Promise<OrganizationSumm
   return (orgs as any[])
     .map((o) => ({ id: String(o.id), name: String(o.name), role: roleByOrg.get(String(o.id)) ?? "team_member" }))
     .sort((a, b) => a.name.localeCompare(b.name, "th"));
-}
+});
 
-export async function getActiveOrganizationId(): Promise<string | null> {
+export const getActiveOrganizationId = cache(async function getActiveOrganizationId(): Promise<string | null> {
   const cookieStore = await cookies();
   const preferred = cookieStore.get("perpos.activeOrgId")?.value ?? null;
 
@@ -43,7 +44,7 @@ export async function getActiveOrganizationId(): Promise<string | null> {
   if (!orgs.length) return null;
   if (preferred && orgs.some((o) => o.id === preferred)) return preferred;
   return orgs[0].id;
-}
+});
 
 export async function getEnabledModulesForOrg(
   orgId: string | null,
