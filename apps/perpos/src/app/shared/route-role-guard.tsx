@@ -17,7 +17,7 @@ const rules: Rule[] = [
 
 function pickRedirect(role: Role | null) {
   if (role === "admin") return "/admin";
-  if (role === "user") return "/me";
+  if (role === "user") return "/";
   return "/signin";
 }
 
