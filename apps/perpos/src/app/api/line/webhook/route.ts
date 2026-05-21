@@ -18,24 +18,76 @@ async function getTmcMembership(admin: ReturnType<typeof createAdminClient>, pro
   return data as { role: string } | null;
 }
 
+// ─── Account IDs ──────────────────────────────────────────────────────────────
+const ACC_SAVINGS  = 'a4ee27ea-6568-4097-abd7-a91fbf4805d0'; // กสิกร ออมทรัพย์
+const ACC_CURRENT  = '273463cc-2475-439c-acfe-f054be5ffee4'; // กสิกร กระแสรายวัน
+
 const RAB_USAGE =
-  '📌 รูปแบบ: /รับ <จำนวน> [หมวด] [แปลง]\n\n' +
+  '📌 รูปแบบ: /รับ <จำนวน> [หมวด] [แปลง] [@บัญชี]\n\n' +
   'ตัวอย่าง:\n' +
   '• /รับ 31900\n' +
   '• /รับ 31900 รายรับ ค่าเช่า TMC1\n' +
-  '• /รับ 5000 ค่ามัดจำ TMC7\n\n' +
+  '• /รับ 5000 ค่ามัดจำ TMC7 @กระแส\n\n' +
   'หมวดรายรับ: รายรับ ค่าเช่า, ค่ามัดจำ, คืนเงินมัดจำ\n' +
-  'แปลง: TMC1 TMC2 TMC3-4 TMC5 TMC6 TMC7 ส่วนกลาง';
+  'แปลง: TMC1 TMC2 TMC3-4 TMC5 TMC6 TMC7 ส่วนกลาง\n' +
+  'บัญชี: @ออม (default), @กระแส';
 
 const JAI_USAGE =
-  '📌 รูปแบบ: /จ่าย <จำนวน> [หมวด] [แปลง]\n\n' +
+  '📌 รูปแบบ: /จ่าย <จำนวน> [หมวด] [แปลง] [@บัญชี]\n\n' +
   'ตัวอย่าง:\n' +
   '• /จ่าย 1630 ค่าอาหาร\n' +
   '• /จ่าย 2500 ค่าแรง(เงินเดือน+จ้างนอก) ส่วนกลาง\n' +
-  '• /จ่าย 800 ซักผ้า TMC1\n\n' +
+  '• /จ่าย 800 ซักผ้า TMC1 @กระแส\n\n' +
   'หมวดรายจ่าย: ค่าอาหาร, ค่าแรง, ค่าไฟ, ค่าน้ำ, ซักผ้า\n' +
   'ล้างแอร์, ค่าของใช้ทั่วไป, ค่าใช้จ่ายอื่นๆ\n' +
-  'แปลง: TMC1 TMC2 TMC3-4 TMC5 TMC6 TMC7 ส่วนกลาง';
+  'แปลง: TMC1 TMC2 TMC3-4 TMC5 TMC6 TMC7 ส่วนกลาง\n' +
+  'บัญชี: @ออม (default), @กระแส';
+
+/** แยก @บัญชี tag ออกจาก args และ resolve accountId */
+function resolveAccount(args: string[]): { accountId: string; accountLabel: string; cleanArgs: string[] } {
+  const accIdx = args.findIndex(a => a.startsWith('@'));
+  let accountId = ACC_SAVINGS;
+  let accountLabel = 'ออมทรัพย์';
+  const cleanArgs = [...args];
+  if (accIdx !== -1) {
+    const tag = args[accIdx].toLowerCase();
+    if (tag.includes('กระแส') || tag === '@cur' || tag === '@current') {
+      accountId = ACC_CURRENT;
+      accountLabel = 'กระแสรายวัน';
+    }
+    cleanArgs.splice(accIdx, 1);
+  }
+  return { accountId, accountLabel, cleanArgs };
+}
+
+/** ยอดเดือนนี้ของบัญชี */
+async function getMonthlyBalance(
+  admin: ReturnType<typeof createAdminClient>,
+  accountId?: string,
+): Promise<{ income: number; expense: number; label: string }> {
+  const now = new Date();
+  const from = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+
+  let q = admin
+    .from('tmc_finance_entries')
+    .select('income, expense, tmc_accounts(name)')
+    .eq('org_id', TMC_ORG_ID)
+    .gte('entry_date', from);
+
+  if (accountId) {
+    q = q.eq('account_id', accountId) as typeof q;
+  } else {
+    q = q.neq('account_id', '2366c3f9-dcc5-4091-8ab0-c421b77e7fe7') as typeof q; // ไม่รวมเงินสดย่อย
+  }
+
+  const { data } = await q;
+  const rows = (data ?? []) as { income: number | null; expense: number | null }[];
+  const income  = rows.reduce((s, r) => s + Number(r.income  ?? 0), 0);
+  const expense = rows.reduce((s, r) => s + Number(r.expense ?? 0), 0);
+
+  const month = now.toLocaleDateString('th-TH', { month: 'long', year: 'numeric' });
+  return { income, expense, label: month };
+}
 
 async function handleTmcRab(
   admin: ReturnType<typeof createAdminClient>,
@@ -45,27 +97,36 @@ async function handleTmcRab(
   const amount = parseFloat(args[0]);
   if (isNaN(amount)) return replyText(replyToken, `❌ "${args[0]}" ไม่ใช่ตัวเลข\n\n${RAB_USAGE}`);
   if (amount <= 0)   return replyText(replyToken, `❌ จำนวนเงินต้องมากกว่า 0\n\n${RAB_USAGE}`);
-  const category = args[1] ?? 'รายรับ ค่าเช่า';
-  const propertyCode = args[2] ?? 'ส่วนกลาง';
 
-  // Default to กสิกร ออมทรัพย์
-  const { data: account } = await admin
-    .from('tmc_accounts').select('id').eq('org_id', TMC_ORG_ID).eq('account_type', 'savings').maybeSingle();
+  const { accountId, accountLabel, cleanArgs } = resolveAccount(args.slice(1));
+  const category     = cleanArgs[0] ?? 'รายรับ ค่าเช่า';
+  const propertyCode = cleanArgs[1] ?? 'ส่วนกลาง';
+
   const { data: prop } = await admin
     .from('tmc_properties').select('id').eq('org_id', TMC_ORG_ID).eq('code', propertyCode).maybeSingle();
 
+  const today = new Date().toISOString().slice(0, 10);
   await admin.from('tmc_finance_entries').insert({
-    org_id: TMC_ORG_ID,
-    account_id: account?.id,
-    entry_date: new Date().toISOString().slice(0, 10),
-    description: `[LINE] รายรับ ${category} ${propertyCode}`,
+    org_id:        TMC_ORG_ID,
+    account_id:    accountId,
+    entry_date:    today,
+    description:   `[LINE] รายรับ ${category} ${propertyCode}`,
     category,
-    property_id: prop?.id ?? null,
+    property_id:   prop?.id ?? null,
     property_code: propertyCode,
-    income: amount,
-    created_by: profileId,
+    income:        amount,
+    created_by:    profileId,
   });
-  return replyText(replyToken, `✅ บันทึกรายรับ ${amount.toLocaleString('th-TH')} บาท\nหมวด: ${category} | แปลง: ${propertyCode}`);
+
+  const bal = await getMonthlyBalance(admin, accountId);
+  return replyText(replyToken,
+    `✅ บันทึกรายรับ +${amount.toLocaleString('th-TH')} บาท\n` +
+    `หมวด: ${category}\nแปลง: ${propertyCode}\nบัญชี: ${accountLabel}\n\n` +
+    `📊 ${bal.label}:\n` +
+    `รายรับ: ${bal.income.toLocaleString('th-TH')} บาท\n` +
+    `รายจ่าย: ${bal.expense.toLocaleString('th-TH')} บาท\n` +
+    `สุทธิ: ${(bal.income - bal.expense).toLocaleString('th-TH')} บาท`,
+  );
 }
 
 async function handleTmcJai(
@@ -76,26 +137,97 @@ async function handleTmcJai(
   const amount = parseFloat(args[0]);
   if (isNaN(amount)) return replyText(replyToken, `❌ "${args[0]}" ไม่ใช่ตัวเลข\n\n${JAI_USAGE}`);
   if (amount <= 0)   return replyText(replyToken, `❌ จำนวนเงินต้องมากกว่า 0\n\n${JAI_USAGE}`);
-  const category = args[1] ?? 'ค่าใช้จ่ายอื่นๆ';
-  const propertyCode = args[2] ?? 'ส่วนกลาง';
 
-  const { data: account } = await admin
-    .from('tmc_accounts').select('id').eq('org_id', TMC_ORG_ID).eq('account_type', 'savings').maybeSingle();
+  const { accountId, accountLabel, cleanArgs } = resolveAccount(args.slice(1));
+  const category     = cleanArgs[0] ?? 'ค่าใช้จ่ายอื่นๆ';
+  const propertyCode = cleanArgs[1] ?? 'ส่วนกลาง';
+
   const { data: prop } = await admin
     .from('tmc_properties').select('id').eq('org_id', TMC_ORG_ID).eq('code', propertyCode).maybeSingle();
 
+  const today = new Date().toISOString().slice(0, 10);
   await admin.from('tmc_finance_entries').insert({
-    org_id: TMC_ORG_ID,
-    account_id: account?.id,
-    entry_date: new Date().toISOString().slice(0, 10),
-    description: `[LINE] รายจ่าย ${category} ${propertyCode}`,
+    org_id:        TMC_ORG_ID,
+    account_id:    accountId,
+    entry_date:    today,
+    description:   `[LINE] รายจ่าย ${category} ${propertyCode}`,
     category,
-    property_id: prop?.id ?? null,
+    property_id:   prop?.id ?? null,
     property_code: propertyCode,
-    expense: amount,
-    created_by: profileId,
+    expense:       amount,
+    created_by:    profileId,
   });
-  return replyText(replyToken, `✅ บันทึกรายจ่าย ${amount.toLocaleString('th-TH')} บาท\nหมวด: ${category} | แปลง: ${propertyCode}`);
+
+  const bal = await getMonthlyBalance(admin, accountId);
+  return replyText(replyToken,
+    `✅ บันทึกรายจ่าย -${amount.toLocaleString('th-TH')} บาท\n` +
+    `หมวด: ${category}\nแปลง: ${propertyCode}\nบัญชี: ${accountLabel}\n\n` +
+    `📊 ${bal.label}:\n` +
+    `รายรับ: ${bal.income.toLocaleString('th-TH')} บาท\n` +
+    `รายจ่าย: ${bal.expense.toLocaleString('th-TH')} บาท\n` +
+    `สุทธิ: ${(bal.income - bal.expense).toLocaleString('th-TH')} บาท`,
+  );
+}
+
+/** /บัญชี [สรุป|ออม|กระแส] — ดูยอดบัญชีเดือนนี้ */
+async function handleTmcBill(
+  admin: ReturnType<typeof createAdminClient>,
+  args: string[], replyToken: string,
+) {
+  const sub = args[0]?.toLowerCase() ?? '';
+  const isGra = sub.includes('กระแส') || sub === 'cur';
+  const isOom = sub.includes('ออม')   || sub === 'sav';
+
+  if (isGra || isOom) {
+    // แสดงเฉพาะบัญชีนั้น
+    const accountId = isGra ? ACC_CURRENT : ACC_SAVINGS;
+    const label     = isGra ? 'กระแสรายวัน' : 'ออมทรัพย์';
+    const bal = await getMonthlyBalance(admin, accountId);
+    return replyText(replyToken,
+      `🏦 บัญชี ${label} — ${bal.label}\n\n` +
+      `รายรับ:  ${bal.income.toLocaleString('th-TH')} บาท\n` +
+      `รายจ่าย: ${bal.expense.toLocaleString('th-TH')} บาท\n` +
+      `─────────────────\n` +
+      `สุทธิ:   ${(bal.income - bal.expense).toLocaleString('th-TH')} บาท`,
+    );
+  }
+
+  // สรุปทั้งหมด (ทุกบัญชียกเว้นเงินสดย่อย)
+  const [oom, gra] = await Promise.all([
+    getMonthlyBalance(admin, ACC_SAVINGS),
+    getMonthlyBalance(admin, ACC_CURRENT),
+  ]);
+  const pettyBal = await (async () => {
+    const now = new Date();
+    const from = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+    const { data } = await admin
+      .from('tmc_petty_cash_txns')
+      .select('txn_type, amount')
+      .eq('org_id', TMC_ORG_ID)
+      .gte('txn_date', from);
+    const rows = (data ?? []) as { txn_type: string; amount: number }[];
+    const exp = rows.filter(r => r.txn_type === 'expense').reduce((s, r) => s + Number(r.amount), 0);
+    return exp;
+  })();
+
+  const totalIn  = oom.income + gra.income;
+  const totalOut = oom.expense + gra.expense + pettyBal;
+
+  return replyText(replyToken,
+    `📊 สรุปบัญชี TMC — ${oom.label}\n\n` +
+    `🏦 ออมทรัพย์\n` +
+    `  รับ ${oom.income.toLocaleString('th-TH')} / จ่าย ${oom.expense.toLocaleString('th-TH')}\n` +
+    `  สุทธิ ${(oom.income - oom.expense).toLocaleString('th-TH')} บาท\n\n` +
+    `🏦 กระแสรายวัน\n` +
+    `  รับ ${gra.income.toLocaleString('th-TH')} / จ่าย ${gra.expense.toLocaleString('th-TH')}\n` +
+    `  สุทธิ ${(gra.income - gra.expense).toLocaleString('th-TH')} บาท\n\n` +
+    `💵 เงินสดย่อย จ่าย ${pettyBal.toLocaleString('th-TH')} บาท\n\n` +
+    `─────────────────\n` +
+    `รายรับรวม:  ${totalIn.toLocaleString('th-TH')} บาท\n` +
+    `รายจ่ายรวม: ${totalOut.toLocaleString('th-TH')} บาท\n` +
+    `สุทธิรวม:   ${(totalIn - totalOut).toLocaleString('th-TH')} บาท\n\n` +
+    `💡 /บัญชี ออม  หรือ  /บัญชี กระแส`,
+  );
 }
 
 // ─── Stock usage strings ──────────────────────────────────────────────────────
@@ -428,22 +560,28 @@ async function handleTmcCheckin(
 
 async function handleTmcHelp(replyToken: string) {
   return replyText(replyToken,
-    '📖 คำสั่ง TMC Management:\n\n' +
-    '💰 บัญชีหลัก:\n' +
-    '/รับ <จำนวน> <หมวด> <แปลง>\n' +
-    '/จ่าย <จำนวน> <หมวด> <แปลง>\n\n' +
-    '💵 เงินสดย่อย:\n' +
-    '/pcin <จำนวน> [รายการ]\n' +
+    '📖 คำสั่ง TMC Management\n\n' +
+    '─── 💰 บัญชีการเงิน ───\n' +
+    '/รับ <จำนวน> [หมวด] [แปลง] [@บัญชี]\n' +
+    '  → บันทึกรายรับลงบัญชี\n' +
+    '/จ่าย <จำนวน> [หมวด] [แปลง] [@บัญชี]\n' +
+    '  → บันทึกรายจ่ายลงบัญชี\n' +
+    '/บัญชี         — สรุปยอดทั้งหมดเดือนนี้\n' +
+    '/บัญชี ออม    — เฉพาะออมทรัพย์\n' +
+    '/บัญชี กระแส  — เฉพาะกระแสรายวัน\n\n' +
+    '@บัญชี: @ออม (default) / @กระแส\n\n' +
+    '─── 💵 เงินสดย่อย ───\n' +
+    '/pcin <จำนวน> [รายการ]  — เติมเงิน\n' +
     '/pcout <จำนวน> <รายการ> [หมวด] [แปลง]\n' +
-    '/pcbal   — ยอดคงเหลือ\n' +
-    '/pcfunds — รายชื่อกระเป๋า\n\n' +
-    '📦 Stock คลัง:\n' +
-    '/stkin <ชื่อ> <จำนวน> [แปลง]  — รับเข้า\n' +
-    '/stkout <ชื่อ> <จำนวน> [แปลง] — เบิกออก\n' +
-    '/stk — ดูสต๊อกทั้งหมด\n\n' +
-    '🏠 เข้าพัก:\n' +
-    '/เช็คอิน <ชื่อ> <แปลง> <วันออก> [ยอด] [ช่องทาง]\n\n' +
-    'แปลง: TMC1 TMC2 TMC3-4 TMC5 TMC6 TMC7 ส่วนกลาง',
+    '/pcbal   — ยอดคงเหลือ\n\n' +
+    '─── 📦 Stock ───\n' +
+    '/stkin <ชื่อ> <จำนวน> [แปลง]\n' +
+    '/stkout <ชื่อ> <จำนวน> [แปลง]\n' +
+    '/stk   — ดูสต๊อกทั้งหมด\n\n' +
+    '─── 🏠 เข้าพัก ───\n' +
+    '/เช็คอิน <ชื่อ> <แปลง> <วันออก> [ยอด]\n' +
+    '/tmc   — ลิงก์บันทึกเข้าพัก\n\n' +
+    'แปลง: TMC1 TMC5 TMC7 ส่วนกลาง ฯลฯ',
   );
 }
 
@@ -769,22 +907,22 @@ export async function POST(req: NextRequest) {
     // /help
     if (cmd === 'help') {
       await replyText(replyToken,
-        '📖 คำสั่งทั่วไป:\n' +
-        '/รายรับ <จำนวน> [โน้ต]\n' +
-        '/รายจ่าย <จำนวน> [โน้ต]\n' +
-        '/t <งาน>  — บันทึก task\n' +
-        '/tk       — รายการ task\n' +
-        '/d <N>    — ปิด task\n\n' +
-        '💵 TMC เงินสดย่อย:\n' +
+        '📖 คำสั่งทั้งหมด\n\n' +
+        '─── 💰 TMC บัญชีการเงิน ───\n' +
+        '/รับ <จำนวน> [หมวด] [แปลง] [@บัญชี]\n' +
+        '/จ่าย <จำนวน> [หมวด] [แปลง] [@บัญชี]\n' +
+        '/บัญชี  — ยอดสรุปเดือนนี้\n\n' +
+        '─── 💵 TMC เงินสดย่อย ───\n' +
         '/pcin <จำนวน> [รายการ]\n' +
         '/pcout <จำนวน> <รายการ> [หมวด] [แปลง]\n' +
-        '/pcbal    — ยอดคงเหลือ\n' +
-        '/pcfunds  — รายชื่อกระเป๋า\n\n' +
-        '📦 TMC Stock:\n' +
-        '/stkin <ชื่อ> <จำนวน> [แปลง]  — รับเข้า\n' +
-        '/stkout <ชื่อ> <จำนวน> [แปลง] — เบิกออก\n' +
-        '/stk — ดูสต๊อกทั้งหมด\n\n' +
-        '📖 TMC ทั้งหมด: /tmc help',
+        '/pcbal\n\n' +
+        '─── 📦 TMC Stock ───\n' +
+        '/stkin <ชื่อ> <จำนวน> [แปลง]\n' +
+        '/stkout <ชื่อ> <จำนวน> [แปลง]\n' +
+        '/stk\n\n' +
+        '─── 🏠 เข้าพัก ───\n' +
+        '/tmc  — ลิงก์บันทึกเข้าพัก\n\n' +
+        '📖 คำสั่ง TMC ทั้งหมด: /tmc help',
       );
       continue;
     }
@@ -819,7 +957,7 @@ export async function POST(req: NextRequest) {
       continue;
     }
 
-    if (['รับ', 'จ่าย', 'stock', 'stkin', 'stkout', 'stk', 'เช็คอิน', 'pcin', 'pcout', 'pcbal', 'pcfunds'].includes(cmd)) {
+    if (['รับ', 'จ่าย', 'บัญชี', 'stock', 'stkin', 'stkout', 'stk', 'เช็คอิน', 'pcin', 'pcout', 'pcbal', 'pcfunds'].includes(cmd)) {
       const profile = await getProfileByLineId(admin, lineUserId);
       if (!profile) {
         await replyText(replyToken, '❌ ยังไม่ได้ผูกบัญชี LINE กรุณาใช้ /link <token>');
@@ -831,8 +969,9 @@ export async function POST(req: NextRequest) {
         continue;
       }
 
-      if (cmd === 'รับ') { await handleTmcRab(admin, args, profile.id, replyToken); continue; }
-      if (cmd === 'จ่าย') { await handleTmcJai(admin, args, profile.id, replyToken); continue; }
+      if (cmd === 'รับ')    { await handleTmcRab(admin, args, profile.id, replyToken); continue; }
+      if (cmd === 'จ่าย')   { await handleTmcJai(admin, args, profile.id, replyToken); continue; }
+      if (cmd === 'บัญชี')  { await handleTmcBill(admin, args, replyToken);            continue; }
       if (cmd === 'stock') {
         const subCmd = args[0] ?? '';
         if (!['รับ', 'ออก'].includes(subCmd)) {

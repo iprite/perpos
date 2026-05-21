@@ -11,7 +11,7 @@ import { ThaiDatePicker } from '@/components/ui/thai-date-picker';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog';
-import { Plus, Filter } from 'lucide-react';
+import { Plus, Filter, ChevronLeft, ChevronRight } from 'lucide-react';
 
 const TMC_ORG_ID = '1f52618c-09c4-49c5-a929-ea5060f26e7d';
 
@@ -48,6 +48,10 @@ export default function TmcFinancePage() {
   const [category, setCategory] = useState('');
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
+
+  // pagination
+  const PAGE_SIZE = 10;
+  const [page, setPage] = useState(1);
 
   // form
   const [showForm, setShowForm] = useState(false);
@@ -87,6 +91,7 @@ export default function TmcFinancePage() {
   }, [headers, accountId, propertyCode, category, from, to]);
 
   useEffect(() => { load(); }, [load]);
+  useEffect(() => { setPage(1); }, [entries]);
 
   async function handleSave() {
     if (!form.accountId || !form.description || !form.category) return;
@@ -105,9 +110,14 @@ export default function TmcFinancePage() {
   const totalIncome = entries.reduce((s, e) => s + (e.income ?? 0), 0);
   const totalExpense = entries.reduce((s, e) => s + (e.expense ?? 0), 0);
 
+  const totalPages = Math.max(1, Math.ceil(entries.length / PAGE_SIZE));
+  const pagedEntries = entries.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
   const accountOptions = useMemo(() => [
     { value: '', label: 'ทุกบัญชี' },
-    ...accounts.map(a => ({ value: a.id, label: a.name })),
+    ...accounts
+      .filter(a => a.account_type !== 'petty_cash')
+      .map(a => ({ value: a.id, label: a.name })),
   ], [accounts]);
 
   const propertyOptions = useMemo(() => [
@@ -122,7 +132,9 @@ export default function TmcFinancePage() {
 
   const accountFormOptions = useMemo(() => [
     { value: '', label: 'เลือกบัญชี' },
-    ...accounts.map(a => ({ value: a.id, label: a.name })),
+    ...accounts
+      .filter(a => a.account_type !== 'petty_cash')
+      .map(a => ({ value: a.id, label: a.name })),
   ], [accounts]);
 
   const propertyFormOptions = useMemo(() => [
@@ -196,7 +208,7 @@ export default function TmcFinancePage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
-              {entries.map(e => (
+              {pagedEntries.map(e => (
                 <tr key={e.id} className="hover:bg-slate-50 transition-colors">
                   <td className="px-4 py-3 text-slate-600 whitespace-nowrap">
                     {new Date(e.entry_date).toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: '2-digit' })}
@@ -219,6 +231,58 @@ export default function TmcFinancePage() {
               ))}
             </tbody>
           </table>
+        )}
+
+        {/* Pagination Footer */}
+        {!loading && entries.length > 0 && (
+          <div className="flex items-center justify-between px-4 py-3 border-t bg-slate-50">
+            <p className="text-xs text-slate-500">
+              แสดง {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, entries.length)} จาก {entries.length} รายการ
+            </p>
+            <div className="flex items-center gap-1">
+              <Button
+                variant="ghost" size="icon"
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                disabled={page === 1}
+                className="h-8 w-8"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </Button>
+
+              {/* Page number pills */}
+              {Array.from({ length: totalPages }, (_, i) => i + 1)
+                .filter(p => p === 1 || p === totalPages || Math.abs(p - page) <= 1)
+                .reduce<(number | 'ellipsis')[]>((acc, p, idx, arr) => {
+                  if (idx > 0 && p - (arr[idx - 1] as number) > 1) acc.push('ellipsis');
+                  acc.push(p);
+                  return acc;
+                }, [])
+                .map((item, idx) =>
+                  item === 'ellipsis' ? (
+                    <span key={`e${idx}`} className="px-1 text-slate-400 text-xs">…</span>
+                  ) : (
+                    <Button
+                      key={item}
+                      variant={item === page ? 'default' : 'ghost'}
+                      size="icon"
+                      onClick={() => setPage(item as number)}
+                      className="h-8 w-8 text-xs"
+                    >
+                      {item}
+                    </Button>
+                  )
+                )}
+
+              <Button
+                variant="ghost" size="icon"
+                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                disabled={page === totalPages}
+                className="h-8 w-8"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </Button>
+            </div>
+          </div>
         )}
       </div>
 

@@ -14,6 +14,12 @@ import {
 import { Plus, X } from 'lucide-react';
 
 const TMC_ORG_ID = '1f52618c-09c4-49c5-a929-ea5060f26e7d';
+const SAV_ACCOUNT_ID  = 'a4ee27ea-6568-4097-abd7-a91fbf4805d0'; // กสิกร ออมทรัพย์
+const CUR_ACCOUNT_ID  = '273463cc-2475-439c-acfe-f054be5ffee4'; // กสิกร กระแสรายวัน
+const DEPOSIT_ACCOUNT_OPTIONS = [
+  { value: SAV_ACCOUNT_ID, label: 'กสิกร ออมทรัพย์' },
+  { value: CUR_ACCOUNT_ID, label: 'กสิกร กระแสรายวัน' },
+];
 const PROPERTY_CODES = ['TMC1', 'TMC2', 'TMC3-4', 'TMC5', 'TMC6', 'TMC7'];
 const BOOKING_CHANNELS = ['Line', 'Agoda', 'Walk-in', 'IG', 'Call', 'Friend', 'อินฟลู', 'อื่นๆ'];
 const GROUP_TYPES = ['Family', 'Couple', 'Friend', 'Solo'];
@@ -55,6 +61,7 @@ type Stay = {
   room_rate: number | null; group_type: string | null; group_size: number | null;
   butler_service_visit: string | null; food_amount: number | null;
   mookata_amount: number | null; bbq_amount: number | null;
+  deposit_received: number | null; deposit_returned: number | null;
   feedback: string | null; issues: string | null; damaged_items: string | null;
   tmc_guests: { first_name: string; last_name: string | null; nickname: string | null; tel: string | null } | null;
 };
@@ -73,7 +80,8 @@ const emptyForm = {
   propertyCode: '', checkIn: '', checkOut: '',
   checkInTime: '15:00', checkOutTime: '12:00',
   bookingChannel: 'Line', stayType: 'paid',
-  roomRate: '', promotionPct: '', depositAmount: '',
+  roomRate: '', promotionPct: '',
+  depositReceived: '', depositReturned: '', depositAccountId: SAV_ACCOUNT_ID,
   groupSize: '', groupType: 'Family',
   butlerServiceVisit: '', foodAmount: '', drinkAmount: '',
   mookataAmount: '', bbqAmount: '', activityDetail: '',
@@ -251,6 +259,20 @@ export default function TmcStaysPage() {
                     {stay.bbq_amount ? <span>🔥 {fmt(stay.bbq_amount)}</span> : null}
                   </div>
                 )}
+                {(stay.deposit_received || stay.deposit_returned) && (
+                  <div className="flex gap-2 flex-wrap text-xs">
+                    {stay.deposit_received
+                      ? <span className="bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-full">
+                          💵 มัดจำ {fmt(stay.deposit_received)}
+                        </span>
+                      : null}
+                    {stay.deposit_returned
+                      ? <span className="bg-slate-100 text-slate-500 border border-slate-200 px-2 py-0.5 rounded-full">
+                          ↩ คืน {fmt(stay.deposit_returned)}
+                        </span>
+                      : null}
+                  </div>
+                )}
                 {(stay.feedback || stay.issues || stay.damaged_items) && (
                   <div className="border-t pt-2 space-y-1 text-xs">
                     {stay.feedback && <p className="text-slate-600">💬 {stay.feedback}</p>}
@@ -373,6 +395,44 @@ export default function TmcStaysPage() {
                   <Input placeholder="เช่น ส่องสัตว์, ตักบาตร" value={form.activityDetail} onChange={e => setForm(f => ({ ...f, activityDetail: e.target.value }))} />
                 </div>
               </div>
+            </div>
+
+            {/* Deposit */}
+            <div className="bg-amber-50 border border-amber-100 rounded-xl p-4">
+              <p className="text-sm font-semibold text-amber-800 mb-3">💵 เงินมัดจำ
+                <span className="ml-2 text-xs font-normal text-amber-600">บันทึกลงบัญชีอัตโนมัติ</span>
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label>รับเงินมัดจำ (บาท)</Label>
+                  <Input type="number" placeholder="0"
+                    value={form.depositReceived}
+                    onChange={e => setForm(f => ({ ...f, depositReceived: e.target.value }))} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>คืนเงินมัดจำ (บาท)</Label>
+                  <Input type="number" placeholder="0"
+                    value={form.depositReturned}
+                    onChange={e => setForm(f => ({ ...f, depositReturned: e.target.value }))} />
+                </div>
+                <div className="col-span-2 space-y-1.5">
+                  <Label>บันทึกเข้าบัญชี</Label>
+                  <CustomSelect
+                    value={form.depositAccountId}
+                    onChange={v => setForm(f => ({ ...f, depositAccountId: v }))}
+                    options={DEPOSIT_ACCOUNT_OPTIONS}
+                  />
+                </div>
+              </div>
+              {(form.depositReceived || form.depositReturned) && (
+                <p className="mt-2 text-xs text-amber-700">
+                  {form.depositReceived && Number(form.depositReceived) > 0
+                    ? `✅ รับมัดจำ ${Number(form.depositReceived).toLocaleString('th-TH')} บาท → บันทึกรายรับ หมวด ค่ามัดจำ` : ''}
+                  {form.depositReceived && form.depositReturned && <br />}
+                  {form.depositReturned && Number(form.depositReturned) > 0
+                    ? `✅ คืนมัดจำ ${Number(form.depositReturned).toLocaleString('th-TH')} บาท → บันทึกรายจ่าย หมวด คืนเงินมัดจำ` : ''}
+                </p>
+              )}
             </div>
 
             {/* CRM */}

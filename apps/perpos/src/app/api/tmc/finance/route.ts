@@ -26,32 +26,10 @@ export async function GET(req: NextRequest) {
   if (p.get('from')) q = q.gte('entry_date', p.get('from')!);
   if (p.get('to')) q = q.lte('entry_date', p.get('to')!);
 
-  const limit = Math.min(Number(p.get('limit') ?? 100), 500);
-  const offset = Number(p.get('offset') ?? 0);
-  q = q.range(offset, offset + limit - 1);
-
   const { data, error } = await q;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  // Summary totals
-  const { data: totals } = await auth.rls
-    .from('tmc_finance_entries')
-    .select('income, expense')
-    .eq('org_id', orgId)
-    .then(async (res) => {
-      // filter same params for totals
-      let tq = auth.rls
-        .from('tmc_finance_entries')
-        .select('income.sum(), expense.sum()')
-        .eq('org_id', orgId);
-      if (p.get('accountId')) tq = tq.eq('account_id', p.get('accountId')!);
-      if (p.get('propertyCode')) tq = tq.eq('property_code', p.get('propertyCode')!);
-      if (p.get('from')) tq = tq.gte('entry_date', p.get('from')!);
-      if (p.get('to')) tq = tq.lte('entry_date', p.get('to')!);
-      return tq.single();
-    });
-
-  return NextResponse.json({ entries: data ?? [], totals: totals ?? null });
+  return NextResponse.json({ entries: data ?? [] });
 }
 
 export async function POST(req: NextRequest) {

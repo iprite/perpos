@@ -287,6 +287,11 @@ function buildTmcMenuItems(): MenuItem[] {
   return [
     { name: "TMC Management" },
     {
+      name: "Dashboard",
+      href: "/tmc/dashboard",
+      icon: <LayoutDashboard className="h-5 w-5" />,
+    },
+    {
       name: "บัญชีและการเงิน",
       href: "/tmc/finance",
       icon: <Landmark className="h-5 w-5" />,

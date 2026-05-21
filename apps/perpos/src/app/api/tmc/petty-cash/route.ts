@@ -24,10 +24,6 @@ export async function GET(req: NextRequest) {
   if (p.get('from'))         q = q.gte('txn_date', p.get('from')!);
   if (p.get('to'))           q = q.lte('txn_date', p.get('to')!);
 
-  const limit  = Math.min(Number(p.get('limit')  ?? 200), 500);
-  const offset = Number(p.get('offset') ?? 0);
-  q = q.range(offset, offset + limit - 1);
-
   const { data, error } = await q;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 

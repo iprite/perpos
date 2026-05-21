@@ -13,6 +13,7 @@ import {
 import {
   Plus, Filter, Wallet, ArrowDownCircle, ArrowUpCircle,
   Pencil, Trash2, Settings, Tag, MapPin, Check, X,
+  ChevronLeft, ChevronRight,
 } from 'lucide-react';
 
 const TMC_ORG_ID = '1f52618c-09c4-49c5-a929-ea5060f26e7d';
@@ -154,6 +155,10 @@ export default function TmcPettyCashPage() {
   // delete confirm
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
+  // pagination
+  const PAGE_SIZE = 10;
+  const [page, setPage] = useState(1);
+
   const authHeader = useCallback(async () => {
     const { data } = await supabase.auth.getSession();
     return { Authorization: `Bearer ${data.session?.access_token ?? ''}` };
@@ -193,6 +198,7 @@ export default function TmcPettyCashPage() {
 
   useEffect(() => { void loadMaster(); }, [loadMaster]);
   useEffect(() => { void load(); }, [load]);
+  useEffect(() => { setPage(1); }, [txns]);
 
   // ── Save txn ───────────────────────────────────────────────────────────────
   async function handleSave() {
@@ -312,6 +318,9 @@ export default function TmcPettyCashPage() {
   const hasFilter = filterFund || filterType || filterProp || from || to;
   const balance   = totalTopUp - totalExpense;
 
+  const totalPages  = Math.max(1, Math.ceil(txns.length / PAGE_SIZE));
+  const pagedTxns   = txns.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
   return (
     <div className="p-4 md:p-6 space-y-4">
 
@@ -412,7 +421,7 @@ export default function TmcPettyCashPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
-              {txns.map(t => (
+              {pagedTxns.map(t => (
                 <tr key={t.id} className="hover:bg-slate-50 transition-colors">
                   <td className="whitespace-nowrap px-4 py-3 text-slate-500">{fmtDate(t.txn_date)}</td>
                   <td className="max-w-[200px] truncate px-4 py-3 text-slate-800" title={t.description}>
@@ -448,6 +457,57 @@ export default function TmcPettyCashPage() {
               ))}
             </tbody>
           </table>
+        )}
+
+        {/* Pagination Footer */}
+        {!loading && txns.length > 0 && (
+          <div className="flex items-center justify-between border-t bg-slate-50 px-4 py-3">
+            <p className="text-xs text-slate-500">
+              แสดง {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, txns.length)} จาก {txns.length} รายการ
+            </p>
+            <div className="flex items-center gap-1">
+              <Button
+                variant="ghost" size="icon"
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                disabled={page === 1}
+                className="h-8 w-8"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </Button>
+
+              {Array.from({ length: totalPages }, (_, i) => i + 1)
+                .filter(p => p === 1 || p === totalPages || Math.abs(p - page) <= 1)
+                .reduce<(number | 'ellipsis')[]>((acc, p, idx, arr) => {
+                  if (idx > 0 && p - (arr[idx - 1] as number) > 1) acc.push('ellipsis');
+                  acc.push(p);
+                  return acc;
+                }, [])
+                .map((item, idx) =>
+                  item === 'ellipsis' ? (
+                    <span key={`e${idx}`} className="px-1 text-xs text-slate-400">…</span>
+                  ) : (
+                    <Button
+                      key={item}
+                      variant={item === page ? 'default' : 'ghost'}
+                      size="icon"
+                      onClick={() => setPage(item as number)}
+                      className="h-8 w-8 text-xs"
+                    >
+                      {item}
+                    </Button>
+                  )
+                )}
+
+              <Button
+                variant="ghost" size="icon"
+                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                disabled={page === totalPages}
+                className="h-8 w-8"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </Button>
+            </div>
+          </div>
         )}
       </div>
 
