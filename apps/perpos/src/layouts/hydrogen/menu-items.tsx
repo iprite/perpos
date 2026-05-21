@@ -48,6 +48,8 @@ export function isLinkMenuItem(item: MenuItem): item is LinkMenuItem {
 
 const allRoles: Role[] = ["admin", "user"];
 
+const SYSTEM_SEGMENTS = new Set(["admin", "user", "signin", "no-org", "no-module"]);
+
 function hasRole(itemRoles: Role[] | undefined, role: Role | null) {
   if (!itemRoles) return true;
   if (!role) return false;
@@ -335,13 +337,19 @@ export function getMenuItems(
   enabledKeys: string[] = [],
   orgSlug: string = "",
 ): MenuItem[] {
+  // Fallback: always resolve orgSlug from the URL's first segment so links
+  // are never empty even if context hasn't propagated yet.
+  const segments = pathname.split("/").filter(Boolean);
+  const slugFromPath = segments[0] && !SYSTEM_SEGMENTS.has(segments[0]) ? segments[0] : "";
+  const org = orgSlug || slugFromPath;
+
   const context = pickMenuContext(pathname, role, enabledKeys);
   const items =
-    context === "admin"     ? buildAdminMenuItems()          :
-    context === "payroll"   ? buildPayrollMenuItems(orgSlug) :
-    context === "assistant" ? buildAssistantMenuItems(orgSlug) :
-    context === "tmc"       ? buildTmcMenuItems(orgSlug)     :
-    buildUserMenuItems(orgSlug);
+    context === "admin"     ? buildAdminMenuItems()        :
+    context === "payroll"   ? buildPayrollMenuItems(org)   :
+    context === "assistant" ? buildAssistantMenuItems(org) :
+    context === "tmc"       ? buildTmcMenuItems(org)       :
+    buildUserMenuItems(org);
 
   return items.filter((item) => {
     if (!("href" in item)) return hasRole(item.roles, role);
