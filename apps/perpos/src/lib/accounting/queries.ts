@@ -51,7 +51,10 @@ export async function getEnabledModulesForOrg(
   memberRole: "owner" | "admin" | "team_lead" | "team_member" | null,
 ): Promise<string[]> {
   if (!orgId) return [];
-  const supabase = await createSupabaseServerClient();
+  // Use admin client to bypass RLS — this function is server-only and
+  // the orgId + memberRole parameters already scope the result correctly.
+  const { createSupabaseAdminClient } = await import("@/lib/supabase/admin");
+  const supabase = createSupabaseAdminClient();
   const { data } = await supabase
     .from("org_module_settings")
     .select("module_key,is_enabled,allowed_roles")
