@@ -15,6 +15,11 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "PERPOS",
   description: "ระบบผู้ช่วยทำงาน PERPOS",
+  icons: {
+    icon: "/tmc-logo-short.svg",
+    shortcut: "/tmc-logo-short.svg",
+    apple: "/tmc-logo-short.svg",
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
