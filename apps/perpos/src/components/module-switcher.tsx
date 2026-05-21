@@ -6,6 +6,7 @@ import { Check, ChevronsUpDown, LayoutGrid } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 
 import { ALL_MODULES } from "@/lib/modules";
+import { useOrgSlug } from "@/app/shared/module-provider";
 
 type ModuleSwitcherProps = {
   enabledModuleKeys: string[];
@@ -13,6 +14,7 @@ type ModuleSwitcherProps = {
 
 export function ModuleSwitcher({ enabledModuleKeys }: ModuleSwitcherProps) {
   const pathname = usePathname() ?? "/";
+  const orgSlug = useOrgSlug();
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -66,7 +68,7 @@ export function ModuleSwitcher({ enabledModuleKeys }: ModuleSwitcherProps) {
               <button
                 key={m.key}
                 type="button"
-                onClick={() => { setOpen(false); router.push(m.href); }}
+                onClick={() => { setOpen(false); router.push(`/${orgSlug}${m.href}`); }}
                 className="flex w-full items-center justify-between px-4 py-2.5 text-left text-sm text-slate-700 hover:bg-slate-50"
               >
                 <span>{m.label}</span>
