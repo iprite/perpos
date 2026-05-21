@@ -29,10 +29,19 @@ export default async function DashboardPage() {
     getActiveOrganizationId(),
     getOrganizationsForCurrentUser(),
   ]);
+
+  // No org membership at all
+  if (!isAdmin && orgs.length === 0) redirect("/no-org");
+
   const activeOrg = orgs.find((o) => o.id === activeOrgId);
   const enabledKeys = await getEnabledModulesForOrg(activeOrgId, activeOrg?.role ?? null);
   const firstModule = ALL_MODULES.find((m) => enabledKeys.includes(m.key));
 
-  // Admin with no org/modules → admin console; otherwise go to first module
-  redirect(firstModule?.href ?? (isAdmin ? "/admin" : "/executive-dashboard"));
+  // Admin → admin console if no module found
+  if (isAdmin && !firstModule) redirect("/admin");
+
+  // Regular user with no accessible module
+  if (!firstModule) redirect("/no-module");
+
+  redirect(firstModule.href);
 }
