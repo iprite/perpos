@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '../../_lib/auth';
 import { createAdminClient } from '../../_lib/supabase';
 
-const ALL_MODULE_KEYS = ['accounting', 'payroll', 'assistant'] as const;
+const ALL_MODULE_KEYS = ['accounting', 'payroll', 'assistant', 'tmc'] as const;
 
 export async function GET(req: NextRequest) {
   const auth = await requireAdmin(req);
