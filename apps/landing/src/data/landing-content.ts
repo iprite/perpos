@@ -17,14 +17,14 @@ export const heroContent = {
   subheadline:
     "PERPOS รวมงานขาย งานซื้อ บัญชี ภาษี และเงินเดือน พร้อมผู้ช่วย AI ผ่าน LINE — แพลตฟอร์มเดียวที่ออกแบบมาเพื่อ SME ไทยโดยเฉพาะ",
   primaryCta: {
-    label: "เริ่มใช้งานฟรี",
-    href: APP_URL,
+    label: "ติดต่อทีมงาน",
+    href: "mailto:contact@perpos.io",
   },
   secondaryCta: {
     label: "ดูฟีเจอร์ทั้งหมด",
     href: "#features",
   },
-  highlights: ["ทดลองใช้ฟรี 14 วัน", "ไม่ต้องใช้บัตรเครดิต", "เริ่มใช้งานได้ทันที"],
+  highlights: ["ออกแบบสำหรับ SME ไทย", "รองรับภาษีไทยครบถ้วน", "ผู้ช่วย AI ผ่าน LINE"],
 };
 
 export const statsContent = [
@@ -150,7 +150,7 @@ export const pricingContent = [
       "LINE Bot Assistant",
       "สนับสนุนทางอีเมล",
     ],
-    cta: "เริ่มต้นฟรี",
+    cta: "ติดต่อทีมงาน",
     popular: false,
   },
   {
@@ -166,7 +166,7 @@ export const pricingContent = [
       "สนับสนุน 24/7",
       "Google Calendar Sync",
     ],
-    cta: "เริ่มทดลองใช้",
+    cta: "ติดต่อทีมงาน",
     popular: true,
   },
   {

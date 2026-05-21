@@ -2,7 +2,7 @@ import { Check, Star } from "lucide-react";
 import { Container } from "@/components/ui/container";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { Button } from "@/components/ui/button";
-import { pricingContent, APP_URL } from "@/data/landing-content";
+import { pricingContent } from "@/data/landing-content";
 import { cn } from "@/lib/utils";
 
 export function PricingSection() {
@@ -120,11 +120,7 @@ export function PricingSection() {
                 <Button
                   variant={isPopular ? "white" : "secondary"}
                   className="w-full"
-                  href={
-                    plan.name === "Enterprise"
-                      ? "mailto:contact@perpos.io"
-                      : APP_URL
-                  }
+                  href="mailto:contact@perpos.io"
                 >
                   {plan.cta}
                 </Button>

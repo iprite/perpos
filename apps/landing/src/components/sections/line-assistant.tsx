@@ -83,7 +83,7 @@ export function LineAssistantSection() {
               {/* App bar */}
               <div className="flex items-center gap-3 border-b border-white/10 bg-white/[0.03] px-4 py-3.5">
                 <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-white">
-                  <LogoMark className="h-4 w-auto" />
+                  <LogoMark className="h-5 w-5 brightness-0 invert" />
                 </span>
                 <div>
                   <p className="text-sm font-semibold text-white">
@@ -101,7 +101,7 @@ export function LineAssistantSection() {
                 {/* bot greeting */}
                 <div className="flex items-end gap-2">
                   <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary text-white">
-                    <LogoMark className="h-3 w-auto" />
+                    <LogoMark className="h-4 w-4 brightness-0 invert" />
                   </span>
                   <div className="max-w-[78%] rounded-2xl rounded-bl-md bg-white/[0.06] px-3.5 py-2.5">
                     <p className="text-sm text-slate-200">
@@ -122,7 +122,7 @@ export function LineAssistantSection() {
                 {/* bot result */}
                 <div className="flex items-end gap-2">
                   <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary text-white">
-                    <LogoMark className="h-3 w-auto" />
+                    <LogoMark className="h-4 w-4 brightness-0 invert" />
                   </span>
                   <div className="max-w-[78%] rounded-2xl rounded-bl-md bg-white/[0.06] px-3.5 py-2.5">
                     <p className="text-sm text-slate-200">{active.result}</p>

@@ -1,20 +1,15 @@
 import type { Metadata } from "next";
-import { Kanit, Inter } from "next/font/google";
+import { Noto_Sans_Thai } from "next/font/google";
 import "./globals.css";
 
-const kanit = Kanit({
+const notoSansThai = Noto_Sans_Thai({
   subsets: ["latin", "thai"],
-  weight: ["400", "500", "600", "700"],
-  variable: "--font-kanit",
+  weight: ["300", "400", "500", "600", "700", "800"],
+  variable: "--font-noto-thai",
   display: "swap",
 });
 
-const inter = Inter({
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
-  variable: "--font-inter",
-  display: "swap",
-});
+const BASE_URL = "https://perpos.io";
 
 export const metadata: Metadata = {
   title: "PERPOS - ระบบบัญชีและ ERP สำหรับ SME ไทย",
@@ -33,17 +28,26 @@ export const metadata: Metadata = {
   openGraph: {
     title: "PERPOS - ระบบบัญชีและ ERP สำหรับ SME ไทย",
     description:
-      "ระบบบัญชีและ ERP พร้อม LINE Bot assistant อัจฉริยะ",
-    url: "https://perpos.io",
+      "รวมงานขาย งานซื้อ บัญชี ภาษี และเงินเดือน พร้อมผู้ช่วย AI ผ่าน LINE — แพลตฟอร์มเดียวสำหรับ SME ไทย",
+    url: BASE_URL,
     siteName: "PERPOS",
     locale: "th_TH",
     type: "website",
+    images: [
+      {
+        url: `${BASE_URL}/og-image.png`,
+        width: 1200,
+        height: 630,
+        alt: "PERPOS - ระบบบัญชีและ ERP สำหรับ SME ไทย",
+      },
+    ],
   },
   twitter: {
     card: "summary_large_image",
     title: "PERPOS - ระบบบัญชีและ ERP สำหรับ SME ไทย",
     description:
-      "ระบบบัญชีและ ERP พร้อม LINE Bot assistant อัจฉริยะ",
+      "รวมงานขาย งานซื้อ บัญชี ภาษี และเงินเดือน พร้อมผู้ช่วย AI ผ่าน LINE — แพลตฟอร์มเดียวสำหรับ SME ไทย",
+    images: [`${BASE_URL}/og-image.png`],
   },
   robots: {
     index: true,
@@ -57,7 +61,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="th" className={`${kanit.variable} ${inter.variable}`}>
+    <html lang="th" className={notoSansThai.variable}>
       <body className="font-sans antialiased">{children}</body>
     </html>
   );

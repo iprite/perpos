@@ -1,7 +1,7 @@
 import { ArrowRight, Check } from "lucide-react";
 import { Container } from "@/components/ui/container";
 import { Button } from "@/components/ui/button";
-import { heroContent, APP_URL } from "@/data/landing-content";
+import { heroContent } from "@/data/landing-content";
 
 export function CtaSection() {
   return (
@@ -17,20 +17,16 @@ export function CtaSection() {
 
           <div className="relative mx-auto max-w-2xl">
             <h2 className="text-balance text-3xl font-bold text-white md:text-4xl lg:text-[2.75rem]">
-              พร้อมยกระดับการจัดการธุรกิจของคุณแล้วหรือยัง?
+              สนใจ PERPOS สำหรับธุรกิจของคุณ?
             </h2>
             <p className="mx-auto mt-4 max-w-xl text-pretty text-slate-300">
-              เข้าสู่ระบบด้วยบัญชี Google แล้วเริ่มใช้งาน PERPOS
-              ได้ทันที — ไม่มีค่าใช้จ่ายเริ่มต้น
+              ติดต่อทีมงานของเราเพื่อรับข้อมูลและนัดสาธิตระบบโดยไม่มีค่าใช้จ่าย
             </p>
 
             <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
-              <Button size="lg" variant="white" href={APP_URL}>
-                เริ่มใช้งานฟรี
-                <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover/btn:translate-x-0.5" />
-              </Button>
-              <Button size="lg" variant="outline-light" href="mailto:contact@perpos.io">
+              <Button size="lg" variant="white" href="mailto:contact@perpos.io">
                 ติดต่อทีมงาน
+                <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover/btn:translate-x-0.5" />
               </Button>
             </div>
 
@@ -42,6 +38,7 @@ export function CtaSection() {
                 </div>
               ))}
             </div>
+
           </div>
         </div>
       </Container>

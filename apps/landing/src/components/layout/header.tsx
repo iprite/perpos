@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { Menu, X, ArrowRight } from "lucide-react";
+import { Menu, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Logo } from "@/components/ui/logo";
 import { navigationItems, APP_URL } from "@/data/landing-content";
@@ -49,10 +49,6 @@ export function Header() {
               <Button variant="ghost" size="sm" href={APP_URL}>
                 เข้าสู่ระบบ
               </Button>
-              <Button size="sm" href={APP_URL}>
-                เริ่มใช้ฟรี
-                <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover/btn:translate-x-0.5" />
-              </Button>
             </div>
 
             <button
@@ -87,9 +83,6 @@ export function Header() {
             <div className="my-2 h-px bg-border" />
             <Button variant="secondary" href={APP_URL} className="w-full">
               เข้าสู่ระบบ
-            </Button>
-            <Button href={APP_URL} className="w-full">
-              เริ่มใช้ฟรี
             </Button>
           </div>
         </div>

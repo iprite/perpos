@@ -47,8 +47,8 @@ const config: Config = {
         },
       },
       fontFamily: {
-        heading: ["var(--font-kanit)", "sans-serif"],
-        sans: ["var(--font-inter)", "sans-serif"],
+        heading: ["var(--font-noto-thai)", "sans-serif"],
+        sans: ["var(--font-noto-thai)", "sans-serif"],
       },
       borderRadius: {
         DEFAULT: "8px",
