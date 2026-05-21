@@ -49,14 +49,15 @@ export async function getEnabledModulesForOrg(
   orgId: string | null,
   memberRole: "owner" | "admin" | "member" | null,
 ): Promise<string[]> {
-  if (!orgId) return ALL_MODULE_KEYS;
+  if (!orgId) return [];
   const supabase = await createSupabaseServerClient();
   const { data } = await supabase
     .from("org_module_settings")
     .select("module_key,is_enabled,allowed_roles")
     .eq("organization_id", orgId);
 
-  if (!data?.length) return ALL_MODULE_KEYS;
+  // ถ้ายังไม่มีการตั้งค่า module ใน org นี้ ไม่ return all เพราะจะทำให้เห็น module ที่ไม่ได้เปิดไว้
+  if (!data?.length) return [];
 
   return (data as any[])
     .filter((row) => {

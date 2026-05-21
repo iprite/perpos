@@ -426,10 +426,13 @@ export default function AdminUsersPage() {
           </div>
         </div>
 
-        {/* Org mappings — user only */}
-        {inviteRole === "user" && (
+        {/* Org mappings — all roles */}
+        {true && (
           <div className="space-y-2">
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Org ที่เข้าถึงได้</p>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+              Org และสิทธิ์ภายใน Org
+              {inviteRole === "admin" && <span className="ml-1 text-gray-400 normal-case font-normal">(admin เห็นทุก module ใน org ที่กำหนด)</span>}
+            </p>
             {inviteMappings.map((m, i) => (
               <div key={i} className="flex items-center gap-2">
                 <div className="flex-1">
@@ -476,15 +479,11 @@ export default function AdminUsersPage() {
           </div>
         )}
 
-        {inviteRole === "admin" && (
-          <p className="text-xs text-gray-400 italic">Admin มีสิทธิ์เข้าถึงทุก Org โดยอัตโนมัติ</p>
-        )}
-
         <Button
           disabled={
             loading ||
             !inviteEmail.trim() ||
-            (inviteRole === "user" && inviteMappings.every((m) => !m.orgId))
+            inviteMappings.every((m) => !m.orgId)
           }
           onClick={async () => {
             const email = inviteEmail.trim();
@@ -513,9 +512,9 @@ export default function AdminUsersPage() {
                 return;
               }
 
-              // Auto-add org memberships for user role
+              // Auto-add org memberships (all roles)
               const newUserId = (json?.userId as string | undefined) ?? null;
-              if (newUserId && inviteRole === "user") {
+              if (newUserId) {
                 const validMappings = inviteMappings.filter((m) => m.orgId);
                 await Promise.all(
                   validMappings.map(async (m) => {
