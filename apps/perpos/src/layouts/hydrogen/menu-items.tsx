@@ -57,15 +57,16 @@ function hasRole(itemRoles: Role[] | undefined, role: Role | null) {
 // ─── Accounting module ──────────────────────────────────────────────────────
 function buildUserMenuItems(org: string): MenuItem[] {
   const a = (path: string) => `/${org}/accounting/${path}`;
+  const base = `/${org}/accounting`;
   return [
     { name: "Accounting", roles: allRoles },
     {
       name: "รายงาน",
-      href: a("dashboard"),
+      href: base,
       icon: <BarChart3 className="h-5 w-5" />,
       roles: allRoles,
       dropdownItems: [
-        { name: "แดชบอร์ดผู้บริหาร", href: a("dashboard"),        roles: allRoles },
+        { name: "แดชบอร์ดผู้บริหาร", href: base,                  roles: allRoles },
         { name: "รายงานการเงิน",     href: a("reports"),           roles: allRoles },
         { name: "ภาษี & ปิดงบ",      href: a("tax-and-closing"),  roles: allRoles },
       ],
@@ -260,7 +261,7 @@ function buildAssistantMenuItems(org: string): MenuItem[] {
     { name: "Assistant", roles: allRoles },
     {
       name: "Task Manager",
-      href: `/${org}/assistant/tasks`,
+      href: `/${org}/assistant`,
       icon: <BotMessageSquare className="h-5 w-5" />,
       roles: allRoles,
     },
@@ -273,7 +274,7 @@ function buildPayrollMenuItems(org: string): MenuItem[] {
   return [
     { name: "Payroll", roles: allRoles },
     { name: "รายงาน",        href: p("reports"),             icon: <BarChart3 className="h-5 w-5" />,   roles: allRoles },
-    { name: "เงินเดือน",     href: p("salary"),              icon: <ReceiptText className="h-5 w-5" />, roles: allRoles },
+    { name: "เงินเดือน",     href: `/${org}/payroll`,        icon: <ReceiptText className="h-5 w-5" />, roles: allRoles },
     { name: "พนักงาน",       href: p("employees"),           icon: <Users className="h-5 w-5" />,       roles: allRoles },
     { name: "แผนก",          href: p("departments"),         icon: <Building2 className="h-5 w-5" />,   roles: allRoles },
     { name: "เงินเพิ่ม/เงินหัก", href: p("pay-items"),      icon: <DollarSign className="h-5 w-5" />,  roles: allRoles },
@@ -295,7 +296,7 @@ function buildTmcMenuItems(org: string): MenuItem[] {
   const t = (path: string) => `/${org}/tmc/${path}`;
   return [
     { name: "TMC Management" },
-    { name: "Dashboard",      href: t("dashboard"),  icon: <LayoutDashboard className="h-5 w-5" /> },
+    { name: "Dashboard",      href: `/${org}/tmc`,   icon: <LayoutDashboard className="h-5 w-5" /> },
     { name: "บัญชีและการเงิน", href: t("finance"),    icon: <Landmark className="h-5 w-5" /> },
     { name: "เงินสดย่อย",     href: t("petty-cash"), icon: <Wallet className="h-5 w-5" /> },
     { name: "Stock คลัง",     href: t("stock"),      icon: <Package className="h-5 w-5" /> },

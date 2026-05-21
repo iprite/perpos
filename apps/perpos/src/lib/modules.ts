@@ -14,7 +14,7 @@ export const ALL_MODULES: ModuleDef[] = [
   {
     key: "accounting",
     label: "Accounting",
-    href: "/accounting/dashboard",
+    href: "/accounting",
     match: (p) => {
       const seg = p.split("/").filter(Boolean);
       return seg.length >= 2 && seg[1] === "accounting";
@@ -23,7 +23,7 @@ export const ALL_MODULES: ModuleDef[] = [
   {
     key: "payroll",
     label: "Payroll",
-    href: "/payroll/salary",
+    href: "/payroll",
     match: (p) => {
       const seg = p.split("/").filter(Boolean);
       return seg.length >= 2 && seg[1] === "payroll";
@@ -32,7 +32,7 @@ export const ALL_MODULES: ModuleDef[] = [
   {
     key: "assistant",
     label: "Assistant",
-    href: "/assistant/tasks",
+    href: "/assistant",
     match: (p) => {
       const seg = p.split("/").filter(Boolean);
       return seg.length >= 2 && seg[1] === "assistant";
@@ -41,7 +41,7 @@ export const ALL_MODULES: ModuleDef[] = [
   {
     key: "tmc",
     label: "TMC Management",
-    href: "/tmc/dashboard",
+    href: "/tmc",
     specific: true,
     match: (p) => {
       const seg = p.split("/").filter(Boolean);
