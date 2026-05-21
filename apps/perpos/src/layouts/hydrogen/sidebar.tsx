@@ -17,7 +17,7 @@ export default function Sidebar({ className }: { className?: string }) {
         <Link
           href={"/"}
           aria-label="Site Logo"
-          className="text-gray-800 hover:text-gray-900"
+          className="flex justify-center text-gray-800 hover:text-gray-900"
         >
           <Logo className="max-w-[155px]" />
         </Link>

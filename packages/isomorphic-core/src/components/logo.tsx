@@ -17,6 +17,7 @@ export default function Logo({ iconOnly = false, className, style }: IconProps) 
         className={className}
         style={{ objectFit: 'contain', ...style }}
         priority
+        unoptimized
       />
     );
   }
@@ -30,6 +31,7 @@ export default function Logo({ iconOnly = false, className, style }: IconProps) 
       className={className}
       style={{ objectFit: 'contain', ...style }}
       priority
+      unoptimized
     />
   );
 }
