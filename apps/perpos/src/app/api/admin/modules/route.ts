@@ -3,7 +3,6 @@ import { requireAdmin } from '../../_lib/auth';
 import { createAdminClient } from '../../_lib/supabase';
 import { ALL_MODULES, MODULE_MENUS, ORG_ROLES } from '@/lib/modules';
 
-const ALL_MODULE_KEYS = ALL_MODULES.map((m) => m.key);
 const DEFAULT_MODULE_ROLES = ['owner', 'admin'];
 const ALL_ROLES = [...ORG_ROLES];
 
@@ -28,10 +27,16 @@ export async function GET(req: NextRequest) {
     .eq('organization_id', orgId);
 
   const moduleMap = new Map((moduleRows ?? []).map((r: Record<string, unknown>) => [r.module_key, r]));
-  const settings = ALL_MODULE_KEYS.map((key) => ({
-    module_key:    key,
-    is_enabled:    Boolean((moduleMap.get(key) as Record<string, unknown> | undefined)?.is_enabled ?? false),
-    allowed_roles: ((moduleMap.get(key) as Record<string, unknown> | undefined)?.allowed_roles as string[]) ?? DEFAULT_MODULE_ROLES,
+
+  // Specific modules (e.g. tmc) only appear in module manager if already enabled for this org
+  const enabledModuleKeys = new Set((moduleRows ?? []).map((r: Record<string, unknown>) => String(r.module_key)));
+  const visibleModules = ALL_MODULES.filter((m) => !m.specific || enabledModuleKeys.has(m.key));
+
+  const settings = visibleModules.map((m) => ({
+    module_key:    m.key,
+    is_enabled:    Boolean((moduleMap.get(m.key) as Record<string, unknown> | undefined)?.is_enabled ?? false),
+    allowed_roles: ((moduleMap.get(m.key) as Record<string, unknown> | undefined)?.allowed_roles as string[]) ?? DEFAULT_MODULE_ROLES,
+    specific:      m.specific ?? false,
   }));
 
   // Menu-level settings
@@ -44,11 +49,11 @@ export async function GET(req: NextRequest) {
     (menuRows ?? []).map((r: Record<string, unknown>) => [`${r.module_key}:${r.menu_key}`, r]),
   );
 
-  const menuSettings = ALL_MODULE_KEYS.flatMap((moduleKey) =>
-    (MODULE_MENUS[moduleKey] ?? []).map((menu) => {
-      const stored = menuMap.get(`${moduleKey}:${menu.key}`) as Record<string, unknown> | undefined;
+  const menuSettings = visibleModules.flatMap((m) =>
+    (MODULE_MENUS[m.key] ?? []).map((menu) => {
+      const stored = menuMap.get(`${m.key}:${menu.key}`) as Record<string, unknown> | undefined;
       return {
-        module_key:    moduleKey,
+        module_key:    m.key,
         menu_key:      menu.key,
         allowed_roles: (stored?.allowed_roles as string[]) ?? ALL_ROLES,
       };

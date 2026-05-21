@@ -1,10 +1,13 @@
 import React from "react";
+import { headers } from "next/headers";
+import { redirect } from "next/navigation";
 import Header from "./header";
 import Sidebar from "./sidebar";
 import Link from "next/link";
 import { Breadcrumb } from "@/components/ui/breadcrumb";
 import StickyFooter from "@/layouts/sticky-footer";
 import { ModuleProvider } from "@/app/shared/module-provider";
+import { ALL_MODULES } from "@/lib/modules";
 import {
   getOrganizationsForCurrentUser,
   getActiveOrganizationId,
@@ -18,6 +21,22 @@ export default async function HydrogenLayout({ children }: { children: React.Rea
   ]);
   const activeOrg    = orgs.find((o) => o.id === activeOrgId);
   const enabledKeys  = await getEnabledModulesForOrg(activeOrgId, activeOrg?.role ?? null);
+
+  // ── Server-side module access guard ─────────────────────────────────────────
+  // Read the pathname forwarded by middleware (x-pathname header).
+  // If the current route belongs to a module the active org hasn't enabled,
+  // redirect immediately — no flash, no client-side delay.
+  const headersList = await headers();
+  const pathname    = headersList.get("x-pathname") ?? "/";
+
+  // Skip guard for root (handled by page.tsx) and /admin/* (role-guarded separately)
+  if (pathname !== "/" && !pathname.startsWith("/admin")) {
+    const currentModule = ALL_MODULES.find((m) => m.match(pathname));
+    if (currentModule && !enabledKeys.includes(currentModule.key)) {
+      const firstEnabled = ALL_MODULES.find((m) => enabledKeys.includes(m.key));
+      redirect(firstEnabled?.href ?? "/no-module");
+    }
+  }
 
   return (
     <ModuleProvider enabledKeys={enabledKeys}>

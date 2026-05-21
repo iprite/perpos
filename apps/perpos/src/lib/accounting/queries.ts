@@ -2,7 +2,6 @@ import { cache } from "react";
 import { cookies } from "next/headers";
 
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { ALL_MODULE_KEYS } from "@/lib/modules";
 
 export type OrganizationSummary = {
   id: string;
@@ -11,19 +10,25 @@ export type OrganizationSummary = {
 };
 
 export const getOrganizationsForCurrentUser = cache(async function getOrganizationsForCurrentUser(): Promise<OrganizationSummary[]> {
+  // Use user-level client only for auth (to get the current user's UID)
   const supabase = await createSupabaseServerClient();
   const { data: userRes, error: userErr } = await supabase.auth.getUser();
   if (userErr || !userRes.user) return [];
 
   const uid = userRes.user.id;
-  const { data: memberships, error: memErr } = await supabase
+
+  // Use admin client to bypass RLS — membership/org data is scoped by uid below
+  const { createSupabaseAdminClient } = await import("@/lib/supabase/admin");
+  const adminClient = createSupabaseAdminClient();
+
+  const { data: memberships, error: memErr } = await adminClient
     .from("organization_members")
     .select("organization_id,role")
     .eq("user_id", uid);
   if (memErr || !memberships?.length) return [];
 
   const orgIds = Array.from(new Set(memberships.map((m: any) => String(m.organization_id))));
-  const { data: orgs, error: orgErr } = await supabase.from("organizations").select("id,name").in("id", orgIds);
+  const { data: orgs, error: orgErr } = await adminClient.from("organizations").select("id,name").in("id", orgIds);
   if (orgErr || !orgs?.length) return [];
 
   const roleByOrg = new Map<string, OrganizationSummary["role"]>();

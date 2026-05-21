@@ -2,6 +2,9 @@ export type ModuleDef = {
   key: string;
   label: string;
   href: string;
+  /** specific = true → module is org-specific and should only appear in module
+   *  manager for orgs that already have it enabled (e.g. TMC Management). */
+  specific?: boolean;
   match: (pathname: string) => boolean;
 };
 
@@ -32,6 +35,7 @@ export const ALL_MODULES: ModuleDef[] = [
     key: "tmc",
     label: "TMC Management",
     href: "/tmc/stays",
+    specific: true,
     match: (p) => p.startsWith("/tmc"),
   },
 ];

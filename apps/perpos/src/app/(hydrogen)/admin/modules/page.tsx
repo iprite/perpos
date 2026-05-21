@@ -11,7 +11,7 @@ import { ALL_MODULES, MODULE_LABELS, MODULE_MENUS, ORG_ROLES, type OrgRole } fro
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type OrgItem      = { id: string; name: string };
-type ModuleSetting = { module_key: string; is_enabled: boolean; allowed_roles: OrgRole[] };
+type ModuleSetting = { module_key: string; is_enabled: boolean; allowed_roles: OrgRole[]; specific?: boolean };
 type MenuSetting   = { module_key: string; menu_key: string; allowed_roles: OrgRole[] };
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -188,6 +188,10 @@ export default function AdminModulesPage() {
 
   const selectedOrg = orgs.find((o) => o.id === selectedOrgId);
 
+  // Group modules by type (specific modules only appear if the org already has them)
+  const commonSettings  = settings.filter((s) => !s.specific);
+  const specificSettings = settings.filter((s) => s.specific);
+
   // ── Render ────────────────────────────────────────────────────────────────────
 
   return (
@@ -254,110 +258,129 @@ export default function AdminModulesPage() {
             ))}
           </div>
 
-          {/* Rows */}
-          {ALL_MODULES.map((mod) => {
-            const s = settings.find((x) => x.module_key === mod.key);
-            if (!s) return null;
-            const menus      = MODULE_MENUS[mod.key] ?? [];
-            const isExpanded = expandedModules.has(mod.key);
-
+          {/* ── Module rows renderer ── */}
+          {(
+            [
+              { label: null,          list: commonSettings },
+              { label: "เฉพาะองค์กร", list: specificSettings },
+            ] as { label: string | null; list: ModuleSetting[] }[]
+          ).map(({ label: sectionLabel, list: sectionList }) => {
+            if (sectionList.length === 0) return null;
             return (
-              <div key={mod.key}>
-                {/* ── Module row ── */}
-                <div
-                  className="grid grid-cols-[28px_1fr_72px_repeat(4,60px)] items-center border-b border-gray-100 px-4 py-3 hover:bg-gray-50/60"
-                >
-                  {/* Expand button */}
-                  <button
-                    type="button"
-                    disabled={menus.length === 0}
-                    onClick={() => toggleExpand(mod.key)}
-                    className="flex items-center justify-center text-gray-400 hover:text-gray-700 disabled:opacity-30"
-                  >
-                    {isExpanded
-                      ? <ChevronDown className="h-4 w-4" />
-                      : <ChevronRight className="h-4 w-4" />
-                    }
-                  </button>
-
-                  {/* Module name */}
-                  <div>
-                    <div className="text-sm font-semibold text-gray-900">{MODULE_LABELS[mod.key]}</div>
-                    {menus.length > 0 && (
-                      <div className="text-xs text-gray-400">{menus.length} เมนู</div>
-                    )}
+              <React.Fragment key={sectionLabel ?? "common"}>
+                {/* Section header for specific modules */}
+                {sectionLabel && (
+                  <div className="flex items-center gap-3 border-b border-gray-100 bg-amber-50 px-4 py-2">
+                    <span className="text-xs font-semibold uppercase tracking-wide text-amber-700">{sectionLabel}</span>
+                    <span className="text-xs text-amber-500">module เฉพาะสำหรับองค์กรนี้</span>
                   </div>
-
-                  {/* Enable toggle */}
-                  <div className="flex justify-center">
-                    <Toggle
-                      checked={s.is_enabled}
-                      onChange={() => { updateEnabled(mod.key, !s.is_enabled); if (!isExpanded) toggleExpand(mod.key); }}
-                    />
-                  </div>
-
-                  {/* Module-level role checkboxes */}
-                  {ORG_ROLES.map((role) => (
-                    <div key={role} className="flex justify-center">
-                      <input
-                        type="checkbox"
-                        title={ROLE_FULL[role]}
-                        className="h-4 w-4 cursor-pointer rounded border-gray-300 accent-blue-600 disabled:cursor-not-allowed"
-                        checked={s.allowed_roles.includes(role)}
-                        disabled={!s.is_enabled}
-                        onChange={() => toggleModuleRole(mod.key, role)}
-                      />
-                    </div>
-                  ))}
-                </div>
-
-                {/* ── Menu rows (accordion) ── */}
-                {isExpanded && menus.map((menu, idx) => {
-                  const menuRoles = getMenuRoles(mod.key, menu.key);
-                  const isLast    = idx === menus.length - 1;
+                )}
+                {sectionList.map((s) => {
+                  const mod        = ALL_MODULES.find((m) => m.key === s.module_key);
+                  if (!mod) return null;
+                  const menus      = MODULE_MENUS[mod.key] ?? [];
+                  const isExpanded = expandedModules.has(mod.key);
 
                   return (
-                    <div
-                      key={menu.key}
-                      className={[
-                        "grid grid-cols-[28px_1fr_72px_repeat(4,60px)] items-center bg-slate-50/60 px-4 py-2.5",
-                        !isLast ? "border-b border-gray-100" : "border-b border-gray-200",
-                      ].join(" ")}
-                    >
-                      {/* Indent indicator */}
-                      <div className="flex justify-center">
-                        <span className="h-3 w-px bg-gray-200" />
-                      </div>
+                    <div key={mod.key}>
+                      {/* ── Module row ── */}
+                      <div
+                        className="grid grid-cols-[28px_1fr_72px_repeat(4,60px)] items-center border-b border-gray-100 px-4 py-3 hover:bg-gray-50/60"
+                      >
+                        {/* Expand button */}
+                        <button
+                          type="button"
+                          disabled={menus.length === 0}
+                          onClick={() => toggleExpand(mod.key)}
+                          className="flex items-center justify-center text-gray-400 hover:text-gray-700 disabled:opacity-30"
+                        >
+                          {isExpanded
+                            ? <ChevronDown className="h-4 w-4" />
+                            : <ChevronRight className="h-4 w-4" />
+                          }
+                        </button>
 
-                      {/* Menu name */}
-                      <div className="flex items-center gap-2 pl-2">
-                        <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-gray-300" />
-                        <span className="text-sm text-gray-700">{menu.label}</span>
-                      </div>
+                        {/* Module name */}
+                        <div>
+                          <div className="text-sm font-semibold text-gray-900">{MODULE_LABELS[mod.key]}</div>
+                          {menus.length > 0 && (
+                            <div className="text-xs text-gray-400">{menus.length} เมนู</div>
+                          )}
+                        </div>
 
-                      {/* Empty (no toggle for menus) */}
-                      <div />
+                        {/* Enable toggle */}
+                        <div className="flex justify-center">
+                          <Toggle
+                            checked={s.is_enabled}
+                            onChange={() => { updateEnabled(mod.key, !s.is_enabled); if (!isExpanded) toggleExpand(mod.key); }}
+                          />
+                        </div>
 
-                      {/* Menu-level role checkboxes */}
-                      {ORG_ROLES.map((role) => {
-                        const moduleAllows = s.allowed_roles.includes(role);
-                        return (
+                        {/* Module-level role checkboxes */}
+                        {ORG_ROLES.map((role) => (
                           <div key={role} className="flex justify-center">
                             <input
                               type="checkbox"
-                              title={`${ROLE_FULL[role]}${!moduleAllows ? " (ไม่มีสิทธิ์ module)" : ""}`}
-                              className="h-4 w-4 cursor-pointer rounded border-gray-300 accent-blue-600 disabled:cursor-not-allowed disabled:opacity-40"
-                              checked={menuRoles.includes(role)}
-                              disabled={!s.is_enabled || !moduleAllows}
-                              onChange={() => toggleMenuRole(mod.key, menu.key, role)}
+                              title={ROLE_FULL[role]}
+                              className="h-4 w-4 cursor-pointer rounded border-gray-300 accent-blue-600 disabled:cursor-not-allowed"
+                              checked={s.allowed_roles.includes(role)}
+                              disabled={!s.is_enabled}
+                              onChange={() => toggleModuleRole(mod.key, role)}
                             />
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* ── Menu rows (accordion) ── */}
+                      {isExpanded && menus.map((menu, idx) => {
+                        const menuRoles = getMenuRoles(mod.key, menu.key);
+                        const isLast    = idx === menus.length - 1;
+
+                        return (
+                          <div
+                            key={menu.key}
+                            className={[
+                              "grid grid-cols-[28px_1fr_72px_repeat(4,60px)] items-center bg-slate-50/60 px-4 py-2.5",
+                              !isLast ? "border-b border-gray-100" : "border-b border-gray-200",
+                            ].join(" ")}
+                          >
+                            {/* Indent indicator */}
+                            <div className="flex justify-center">
+                              <span className="h-3 w-px bg-gray-200" />
+                            </div>
+
+                            {/* Menu name */}
+                            <div className="flex items-center gap-2 pl-2">
+                              <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-gray-300" />
+                              <span className="text-sm text-gray-700">{menu.label}</span>
+                            </div>
+
+                            {/* Empty (no toggle for menus) */}
+                            <div />
+
+                            {/* Menu-level role checkboxes */}
+                            {ORG_ROLES.map((role) => {
+                              const moduleAllows = s.allowed_roles.includes(role);
+                              return (
+                                <div key={role} className="flex justify-center">
+                                  <input
+                                    type="checkbox"
+                                    title={`${ROLE_FULL[role]}${!moduleAllows ? " (ไม่มีสิทธิ์ module)" : ""}`}
+                                    className="h-4 w-4 cursor-pointer rounded border-gray-300 accent-blue-600 disabled:cursor-not-allowed disabled:opacity-40"
+                                    checked={menuRoles.includes(role)}
+                                    disabled={!s.is_enabled || !moduleAllows}
+                                    onChange={() => toggleMenuRole(mod.key, menu.key, role)}
+                                  />
+                                </div>
+                              );
+                            })}
                           </div>
                         );
                       })}
                     </div>
                   );
                 })}
-              </div>
+              </React.Fragment>
             );
           })}
         </div>
