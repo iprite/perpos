@@ -34,21 +34,24 @@ import {
 import { backendUrl } from "@/lib/backend";
 
 const ROLE_LABELS: Record<string, string> = {
-  owner:  "เจ้าของ",
-  admin:  "ผู้ดูแลระบบ",
-  member: "สมาชิก",
+  owner:      "เจ้าของ",
+  admin:      "ผู้ดูแลระบบ",
+  management: "Team lead",
+  member:     "Team member",
 };
 
 const ROLE_COLORS: Record<string, string> = {
-  owner:  "bg-violet-50 text-violet-700",
-  admin:  "bg-blue-50 text-blue-700",
-  member: "bg-slate-100 text-slate-600",
+  owner:      "bg-violet-50 text-violet-700",
+  admin:      "bg-blue-50 text-blue-700",
+  management: "bg-amber-50 text-amber-700",
+  member:     "bg-slate-100 text-slate-600",
 };
 
 const ROLE_OPTIONS = [
-  { value: "owner",  label: "เจ้าของ" },
-  { value: "admin",  label: "ผู้ดูแลระบบ" },
-  { value: "member", label: "สมาชิก" },
+  { value: "owner",      label: "เจ้าของ" },
+  { value: "admin",      label: "ผู้ดูแลระบบ" },
+  { value: "management", label: "Team lead" },
+  { value: "member",     label: "Team member" },
 ];
 
 function Avatar({ name, avatarUrl }: { name: string; avatarUrl: string | null }) {

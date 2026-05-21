@@ -49,7 +49,13 @@ type OrgData = {
 const ORG_ROLES = ["owner", "admin", "management", "member"] as const;
 type OrgRole = (typeof ORG_ROLES)[number];
 
-const ORG_ROLE_OPTIONS = ORG_ROLES.map((r) => ({ value: r, label: r }));
+const ORG_ROLE_LABELS: Record<string, string> = {
+  owner:      "Owner",
+  admin:      "Admin",
+  management: "Team lead",
+  member:     "Team member",
+};
+const ORG_ROLE_OPTIONS = ORG_ROLES.map((r) => ({ value: r, label: ORG_ROLE_LABELS[r] ?? r }));
 const SYSTEM_ROLE_OPTIONS = [
   { value: "user", label: "user — ต้องกำหนด Org" },
   { value: "admin", label: "admin — คุมทุก Org" },
