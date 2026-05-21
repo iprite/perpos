@@ -7,7 +7,7 @@ import {
   FileText,
   Landmark,
   CalendarCheck,
-  LucideIcon,
+  type LucideIcon,
 } from "lucide-react";
 import { Container } from "@/components/ui/container";
 import { SectionHeading } from "@/components/ui/section-heading";
@@ -26,26 +26,31 @@ const iconMap: Record<string, LucideIcon> = {
 
 export function ModulesSection() {
   return (
-    <section className="section-padding bg-background-secondary">
+    <section id="modules" className="section-padding bg-background-secondary">
       <Container>
         <SectionHeading
           eyebrow="โมดูล"
-          title="ระบบครบทุกฟังก์ชันที่ธุรกิจ SME ต้องการ"
-          description="เลือกใช้งานได้ตามความต้องการของธุรกิจ ขยายได้เมื่อธุรกิจเติบโต"
+          title="เลือกใช้เฉพาะโมดูลที่ธุรกิจคุณต้องการ"
+          description="เปิดใช้งานได้ตามความต้องการ และขยายเพิ่มได้เมื่อธุรกิจเติบโต"
         />
 
         <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-          {modulesContent.map((module, index) => {
+          {modulesContent.map((module) => {
             const Icon = iconMap[module.icon] || Calculator;
             return (
               <div
-                key={index}
-                className="group flex flex-col items-center rounded-xl border border-border bg-white p-6 text-center transition-all hover:border-primary hover:shadow-lg"
+                key={module.name}
+                className="group rounded-card border border-border bg-white p-5 transition-all duration-300 hover:-translate-y-1 hover:border-primary/30 hover:shadow-card-hover"
               >
-                <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-xl bg-primary/10 text-primary transition-colors group-hover:bg-primary group-hover:text-white">
-                  <Icon className="h-7 w-7" />
+                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10 text-primary transition-colors duration-300 group-hover:bg-primary group-hover:text-white">
+                  <Icon className="h-5 w-5" />
                 </div>
-                <span className="font-medium text-foreground">{module.name}</span>
+                <h3 className="mt-4 text-sm font-bold text-foreground">
+                  {module.name}
+                </h3>
+                <p className="mt-1 text-xs leading-relaxed text-foreground-secondary">
+                  {module.description}
+                </p>
               </div>
             );
           })}

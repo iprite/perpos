@@ -1,60 +1,75 @@
+export const APP_URL = "https://app.perpos.io/signin";
+
 export const navigationItems = [
   { label: "ฟีเจอร์", href: "#features" },
+  { label: "โมดูล", href: "#modules" },
   { label: "LINE Bot", href: "#line-assistant" },
   { label: "ราคา", href: "#pricing" },
   { label: "FAQ", href: "#faq" },
 ];
 
 export const heroContent = {
-  headline: "ระบบบัญชีและ ERP สำหรับ SME ไทย",
+  badge: "ระบบ ERP & บัญชี สำหรับธุรกิจไทย",
+  headline: {
+    lead: "บริหารบัญชีและธุรกิจ",
+    accent: "ครบ จบ ในที่เดียว",
+  },
   subheadline:
-    "บริหารธุรกิจได้ทุกที่ทุกเวลาผ่าน LINE ที่คุณคุ้นเคย พร้อม AI Assistant อัจฉริยะที่ช่วยบันทึกรายรับ รายจ่าย และนัดหมายอัตโนมัติ",
+    "PERPOS รวมงานขาย งานซื้อ บัญชี ภาษี และเงินเดือน พร้อมผู้ช่วย AI ผ่าน LINE — แพลตฟอร์มเดียวที่ออกแบบมาเพื่อ SME ไทยโดยเฉพาะ",
   primaryCta: {
-    label: "เริ่มใช้ฟรี",
-    href: "https://app.perpos.io/signin",
+    label: "เริ่มใช้งานฟรี",
+    href: APP_URL,
   },
   secondaryCta: {
-    label: "ดูตัวอย่าง",
+    label: "ดูฟีเจอร์ทั้งหมด",
     href: "#features",
   },
+  highlights: ["ทดลองใช้ฟรี 14 วัน", "ไม่ต้องใช้บัตรเครดิต", "เริ่มใช้งานได้ทันที"],
 };
+
+export const statsContent = [
+  { value: "1,000+", label: "ธุรกิจที่ไว้วางใจ" },
+  { value: "20+", label: "ประเภทเอกสารบัญชี" },
+  { value: "99.9%", label: "ความเสถียรของระบบ" },
+  { value: "24/7", label: "ผู้ช่วยผ่าน LINE" },
+];
 
 export const featuresContent = [
   {
     icon: "BookOpen",
-    title: "บัญชีและการเงิน",
+    title: "บัญชีและงบการเงิน",
     description:
-      "ผังบัญชี, สมุดรายวัน, งบการเงิน รายงานภาษี ครบในที่เดียว",
+      "ผังบัญชี สมุดรายวัน งบดุล งบกำไรขาดทุน และงบกระแสเงินสด แบบเรียลไทม์",
   },
   {
     icon: "ShoppingCart",
-    title: "การขาย",
+    title: "งานขายครบวงจร",
     description:
-      "ใบเสนอราคา, ใบแจ้งหนี้, ใบเสร็จ สร้างและติดตามได้ง่าย",
+      "ใบเสนอราคา ใบแจ้งหนี้ ใบเสร็จ ใบกำกับภาษี และ e-Tax Invoice ครบทุกขั้นตอน",
   },
   {
     icon: "Package",
-    title: "การซื้อและสต็อก",
+    title: "งานซื้อและสต๊อก",
     description:
-      "ใบสั่งซื้อ, บันทึกค่าใช้จ่าย, จัดการสินค้าและคลังอย่างมีประสิทธิภาพ",
+      "ใบสั่งซื้อ บันทึกค่าใช้จ่าย รับสินค้า และจัดการคลังสินค้าอย่างเป็นระบบ",
+  },
+  {
+    icon: "Percent",
+    title: "ภาษีไทยครบถ้วน",
+    description:
+      "ภ.พ.30 ภ.ง.ด.1/2/3/53 ภาษีหัก ณ ที่จ่าย ตามมาตรฐานกรมสรรพากร",
   },
   {
     icon: "Users",
-    title: "เงินเดือนและพนักงาน",
+    title: "เงินเดือนพนักงาน",
     description:
-      "ติดตามพนักงาน, กองทุนต่างๆ, ภาษีหัก ณ ที่จ่าย สะดวกรวดเร็ว",
-  },
-  {
-    icon: "Calendar",
-    title: "นัดหมายและงาน",
-    description:
-      "จัดการตารางนัดหมายและงานที่ต้องทำ พร้อมแจ้งเตือนอัตโนมัติ",
+      "คำนวณเงินเดือน ประกันสังคม กองทุนสำรองเลี้ยงชีพ พร้อมบันทึกบัญชีอัตโนมัติ",
   },
   {
     icon: "MessageSquare",
-    title: "LINE Bot Assistant",
+    title: "ผู้ช่วย AI ผ่าน LINE",
     description:
-      "ทำทุกอย่างผ่าน LINE ที่คุณคุ้นเคย ไม่ต้องเปิดแอปใหม่",
+      "บันทึกรายรับรายจ่าย สร้างนัดหมาย และติดตามงานได้ทันทีผ่าน LINE",
   },
 ];
 
@@ -81,15 +96,45 @@ export const lineCommands = [
   },
 ];
 
+export const lineBenefits = [
+  "บันทึกรายรับ–รายจ่ายได้ทันที ไม่ต้องเปิดคอม",
+  "สร้างและติดตามงานพร้อมแจ้งเตือนอัตโนมัติ",
+  "จัดการนัดหมายและซิงก์กับ Google Calendar",
+  "รับสรุปข่าวและรายงานประจำวันอัตโนมัติ",
+];
+
 export const modulesContent = [
-  { name: "บัญชี", icon: "Calculator" },
-  { name: "การขาย", icon: "Receipt" },
-  { name: "การซื้อ", icon: "ShoppingBag" },
-  { name: "สินค้า/สต็อก", icon: "Boxes" },
-  { name: "เงินเดือน", icon: "Wallet" },
-  { name: "ภาษี", icon: "FileText" },
-  { name: "ธนาคาร", icon: "Landmark" },
-  { name: "นัดหมาย", icon: "CalendarCheck" },
+  { name: "บัญชี", icon: "Calculator", description: "สมุดรายวัน ผังบัญชี งบการเงิน" },
+  { name: "การขาย", icon: "Receipt", description: "ใบเสนอราคา ใบแจ้งหนี้ ใบเสร็จ" },
+  { name: "การซื้อ", icon: "ShoppingBag", description: "ใบสั่งซื้อ บันทึกค่าใช้จ่าย" },
+  { name: "สินค้า/สต๊อก", icon: "Boxes", description: "จัดการสินค้าและคลังสินค้า" },
+  { name: "เงินเดือน", icon: "Wallet", description: "คำนวณเงินเดือนและกองทุน" },
+  { name: "ภาษี", icon: "FileText", description: "ภ.พ.30 ภ.ง.ด. และ WHT" },
+  { name: "ธนาคาร", icon: "Landmark", description: "เช็ค กระทบยอด เงินสดย่อย" },
+  { name: "นัดหมาย", icon: "CalendarCheck", description: "ตารางงานและการแจ้งเตือน" },
+];
+
+export const whyContent = [
+  {
+    icon: "Globe",
+    title: "ออกแบบเพื่อธุรกิจไทย",
+    description: "เอกสาร ภาษี และภาษาไทยครบถ้วนตามมาตรฐานกรมสรรพากร",
+  },
+  {
+    icon: "ShieldCheck",
+    title: "ปลอดภัยระดับองค์กร",
+    description: "ปกป้องข้อมูลด้วย Row Level Security แยกข้อมูลแต่ละองค์กรชัดเจน",
+  },
+  {
+    icon: "Layers",
+    title: "รองรับหลายองค์กร",
+    description: "บริหารหลายบริษัทในบัญชีเดียว สลับองค์กรได้ในคลิกเดียว",
+  },
+  {
+    icon: "Zap",
+    title: "ใช้งานง่าย รวดเร็ว",
+    description: "อินเทอร์เฟซที่เข้าใจง่าย เริ่มต้นใช้งานได้ทันทีโดยไม่ต้องอบรม",
+  },
 ];
 
 export const pricingContent = [
@@ -174,26 +219,33 @@ export const footerContent = {
   brand: {
     name: "PERPOS",
     description:
-      "ระบบบัญชีและ ERP สำหรับ SME ไทย พร้อม LINE Bot assistant อัจฉริยะ",
+      "ระบบบัญชีและ ERP สำหรับธุรกิจ SME ไทย พร้อม LINE Bot assistant อัจฉริยะ บริหารธุรกิจได้ทุกที่ทุกเวลา",
   },
-  quickLinks: [
-    { label: "ฟีเจอร์", href: "#features" },
-    { label: "ราคา", href: "#pricing" },
-    { label: "ติดต่อเรา", href: "mailto:contact@perpos.io" },
-  ],
-  legal: [
-    { label: "นโยบายความเป็นส่วนตัว", href: "/privacy" },
-    { label: "เงื่อนไขการใช้งาน", href: "/terms" },
-  ],
-  appLinks: [
+  columns: [
     {
-      label: "เข้าสู่ระบบ",
-      href: "https://app.perpos.io/signin",
+      title: "ผลิตภัณฑ์",
+      links: [
+        { label: "ฟีเจอร์", href: "#features" },
+        { label: "โมดูล", href: "#modules" },
+        { label: "LINE Bot", href: "#line-assistant" },
+        { label: "ราคา", href: "#pricing" },
+      ],
     },
     {
-      label: "สมัครใช้งาน",
-      href: "https://app.perpos.io/signup",
+      title: "บริษัท",
+      links: [
+        { label: "คำถามที่พบบ่อย", href: "#faq" },
+        { label: "ติดต่อเรา", href: "mailto:contact@perpos.io" },
+        { label: "เข้าสู่ระบบ", href: APP_URL },
+      ],
+    },
+    {
+      title: "กฎหมาย",
+      links: [
+        { label: "นโยบายความเป็นส่วนตัว", href: "/privacy" },
+        { label: "เงื่อนไขการใช้งาน", href: "/terms" },
+      ],
     },
   ],
-  copyright: `© ${new Date().getFullYear()} PERPOS. สงวนลิขสิทธิ์.`,
+  copyright: `© ${new Date().getFullYear()} P2P Solutions. สงวนลิขสิทธิ์.`,
 };
