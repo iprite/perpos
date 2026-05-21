@@ -1,4 +1,3 @@
-import { cache } from "react";
 import { cookies } from "next/headers";
 
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -10,7 +9,10 @@ export type OrganizationSummary = {
   role: "owner" | "admin" | "team_lead" | "team_member";
 };
 
-export const getOrganizationsForCurrentUser = cache(async function getOrganizationsForCurrentUser(): Promise<OrganizationSummary[]> {
+// NOTE: ไม่ใช้ React cache() เพื่อป้องกัน cross-request cache pollution
+// เมื่อ test หลาย account — Next.js จะ deduplicate ได้เองภายใน render tree
+// เดียวกันผ่าน concurrent request coalescing
+export async function getOrganizationsForCurrentUser(): Promise<OrganizationSummary[]> {
   // Use user-level client only for auth (to get the current user's UID)
   const supabase = await createSupabaseServerClient();
   const { data: userRes, error: userErr } = await supabase.auth.getUser();
@@ -45,9 +47,9 @@ export const getOrganizationsForCurrentUser = cache(async function getOrganizati
       role: roleByOrg.get(String(o.id)) ?? "team_member",
     }))
     .sort((a, b) => a.name.localeCompare(b.name, "th"));
-});
+}
 
-export const getActiveOrganizationId = cache(async function getActiveOrganizationId(): Promise<string | null> {
+export async function getActiveOrganizationId(): Promise<string | null> {
   const cookieStore = await cookies();
   const preferred = cookieStore.get("perpos.activeOrgId")?.value ?? null;
 
@@ -55,7 +57,7 @@ export const getActiveOrganizationId = cache(async function getActiveOrganizatio
   if (!orgs.length) return null;
   if (preferred && orgs.some((o) => o.id === preferred)) return preferred;
   return orgs[0].id;
-});
+}
 
 export async function getEnabledModulesForOrg(
   orgId: string | null,
