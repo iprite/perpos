@@ -13,7 +13,7 @@ import {
 import type { OrgMemberRow } from "@/lib/settings/user-actions";
 
 type RoleDef = {
-  role: "owner" | "admin" | "member";
+  role: "owner" | "admin" | "team_lead" | "team_member";
   label: string;
   description: string;
   color: string;
@@ -36,8 +36,15 @@ const ROLE_DEFS: RoleDef[] = [
     capabilities: ["เชิญและจัดการผู้ใช้", "เข้าถึงข้อมูลทุกส่วน", "แก้ไขข้อมูลทุกส่วน"],
   },
   {
-    role:         "member",
-    label:        "สมาชิก",
+    role:         "team_lead",
+    label:        "Team lead",
+    description:  "หัวหน้าทีม สามารถจัดการข้อมูลหลักและอนุมัติรายการได้",
+    color:        "bg-amber-50 text-amber-700",
+    capabilities: ["เข้าถึงข้อมูลทุกส่วน", "แก้ไขข้อมูลหลัก", "อนุมัติรายการ"],
+  },
+  {
+    role:         "team_member",
+    label:        "Team member",
     description:  "เข้าถึงและใช้งานระบบตามสิทธิ์พื้นฐาน ไม่สามารถจัดการผู้ใช้ได้",
     color:        "bg-slate-100 text-slate-600",
     capabilities: ["เข้าถึงข้อมูลทั่วไป", "สร้างและแก้ไขเอกสาร"],

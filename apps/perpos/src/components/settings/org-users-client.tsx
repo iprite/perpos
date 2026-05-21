@@ -34,24 +34,24 @@ import {
 import { backendUrl } from "@/lib/backend";
 
 const ROLE_LABELS: Record<string, string> = {
-  owner:      "เจ้าของ",
-  admin:      "ผู้ดูแลระบบ",
-  management: "Team lead",
-  member:     "Team member",
+  owner:       "เจ้าของ",
+  admin:       "ผู้ดูแลระบบ",
+  team_lead:   "Team lead",
+  team_member: "Team member",
 };
 
 const ROLE_COLORS: Record<string, string> = {
-  owner:      "bg-violet-50 text-violet-700",
-  admin:      "bg-blue-50 text-blue-700",
-  management: "bg-amber-50 text-amber-700",
-  member:     "bg-slate-100 text-slate-600",
+  owner:       "bg-violet-50 text-violet-700",
+  admin:       "bg-blue-50 text-blue-700",
+  team_lead:   "bg-amber-50 text-amber-700",
+  team_member: "bg-slate-100 text-slate-600",
 };
 
 const ROLE_OPTIONS = [
-  { value: "owner",      label: "เจ้าของ" },
-  { value: "admin",      label: "ผู้ดูแลระบบ" },
-  { value: "management", label: "Team lead" },
-  { value: "member",     label: "Team member" },
+  { value: "owner",       label: "เจ้าของ" },
+  { value: "admin",       label: "ผู้ดูแลระบบ" },
+  { value: "team_lead",   label: "Team lead" },
+  { value: "team_member", label: "Team member" },
 ];
 
 function Avatar({ name, avatarUrl }: { name: string; avatarUrl: string | null }) {
@@ -105,7 +105,7 @@ function MemberMenu({
     setRemoving(true);
     await removeMemberAction({ organizationId, memberId: member.id });
     setRemoving(false);
-    onUpdated({ ...member, role: "member" }); // signal removal via parent
+    onUpdated({ ...member, role: "team_member" }); // signal removal via parent
   }
 
   return (
@@ -186,7 +186,7 @@ export function OrgUsersClient({
 
   const [inviteOpen, setInviteOpen] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
-  const [inviteRole, setInviteRole] = useState("member");
+  const [inviteRole, setInviteRole] = useState("team_member");
   const [inviting, setInviting] = useState(false);
   const [inviteErr, setInviteErr] = useState<string | null>(null);
   const [inviteSuccess, setInviteSuccess] = useState<string | null>(null);
@@ -224,7 +224,7 @@ export function OrgUsersClient({
 
     setInviteSuccess(`ส่งคำเชิญไปที่ ${email} เรียบร้อยแล้ว`);
     setInviteEmail("");
-    setInviteRole("member");
+    setInviteRole("team_member");
 
     // Optimistically add to invites tab
     setInvites((prev) => [

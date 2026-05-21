@@ -42,5 +42,5 @@ export const MODULE_LABELS: Record<string, string> = Object.fromEntries(
   ALL_MODULES.map((m) => [m.key, m.label]),
 );
 
-export const ORG_ROLES = ["owner", "admin", "management", "member"] as const;
+export const ORG_ROLES = ["owner", "admin", "team_lead", "team_member"] as const;
 export type OrgRole = (typeof ORG_ROLES)[number];

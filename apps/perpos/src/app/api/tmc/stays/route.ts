@@ -267,8 +267,8 @@ export async function DELETE(req: NextRequest) {
 
   const auth = await requireTmcMember(req, orgId);
   if (!auth.ok) return auth.res;
-  if (!['owner', 'admin', 'management'].includes(auth.role)) {
-    return NextResponse.json({ error: 'ต้องการสิทธิ์ management' }, { status: 403 });
+  if (!['owner', 'admin', 'team_lead'].includes(auth.role)) {
+    return NextResponse.json({ error: 'ต้องการสิทธิ์ team_lead' }, { status: 403 });
   }
 
   const admin = createAdminClient();

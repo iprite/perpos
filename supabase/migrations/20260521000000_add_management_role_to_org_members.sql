@@ -1,6 +1,5 @@
--- Add 'management' to organization_members role check constraint
--- Previously only: owner, admin, member
-ALTER TABLE organization_members
-  DROP CONSTRAINT organization_members_role_check,
-  ADD CONSTRAINT organization_members_role_check
-    CHECK (role = ANY (ARRAY['owner','admin','management','member']));
+-- SUPERSEDED by 20260521010000_rename_roles_management_member_to_team_lead_team_member.sql
+-- This migration was originally written to add 'management' role, but before it was applied
+-- the decision was made to use 'team_lead'/'team_member' names instead.
+-- The rename migration handles the full transition.
+SELECT 1;

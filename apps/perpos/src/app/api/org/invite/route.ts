@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
     orgRole?: string;
     redirectTo?: string;
   };
-  const { email, organizationId, orgRole = 'member', redirectTo: clientRedirectTo } = body;
+  const { email, organizationId, orgRole = 'team_member', redirectTo: clientRedirectTo } = body;
   if (!email || !organizationId) return NextResponse.json({ error: 'missing email or organizationId' }, { status: 400 });
 
   // Verify caller is owner or admin of this org

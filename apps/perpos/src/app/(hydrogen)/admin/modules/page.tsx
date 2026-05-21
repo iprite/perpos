@@ -13,10 +13,10 @@ type OrgItem = { id: string; name: string };
 type ModuleSetting = { module_key: string; is_enabled: boolean; allowed_roles: OrgRole[] };
 
 const ROLE_LABEL: Record<OrgRole, string> = {
-  owner:      "Owner",
-  admin:      "Admin",
-  management: "Team lead",
-  member:     "Team member",
+  owner:       "Owner",
+  admin:       "Admin",
+  team_lead:   "Team lead",
+  team_member: "Team member",
 };
 
 export default function AdminModulesPage() {

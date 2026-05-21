@@ -46,14 +46,14 @@ type OrgData = {
   allOrgs: OrgItem[];
 };
 
-const ORG_ROLES = ["owner", "admin", "management", "member"] as const;
+const ORG_ROLES = ["owner", "admin", "team_lead", "team_member"] as const;
 type OrgRole = (typeof ORG_ROLES)[number];
 
 const ORG_ROLE_LABELS: Record<string, string> = {
-  owner:      "Owner",
-  admin:      "Admin",
-  management: "Team lead",
-  member:     "Team member",
+  owner:       "Owner",
+  admin:       "Admin",
+  team_lead:   "Team lead",
+  team_member: "Team member",
 };
 const ORG_ROLE_OPTIONS = ORG_ROLES.map((r) => ({ value: r, label: ORG_ROLE_LABELS[r] ?? r }));
 const SYSTEM_ROLE_OPTIONS = [
@@ -75,7 +75,7 @@ export default function AdminUsersPage() {
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<Role>("user");
   const [inviteMappings, setInviteMappings] = useState<{ orgId: string; orgRole: OrgRole }[]>([
-    { orgId: "", orgRole: "member" },
+    { orgId: "", orgRole: "team_member" },
   ]);
   const [allOrgs, setAllOrgs] = useState<OrgItem[]>([]);
 
@@ -230,7 +230,7 @@ export default function AdminUsersPage() {
   const handleAddMembership = useCallback(
     async (userId: string) => {
       const selectedOrgId = addOrgId[userId] ?? "";
-      const selectedRole = addOrgRole[userId] ?? "member";
+      const selectedRole = addOrgRole[userId] ?? "team_member";
       if (!selectedOrgId) return;
       try {
         const headers = await authHeader();
@@ -246,7 +246,7 @@ export default function AdminUsersPage() {
         }
         await loadOrgData(userId);
         setAddOrgId((prev) => ({ ...prev, [userId]: "" }));
-        setAddOrgRole((prev) => ({ ...prev, [userId]: "member" }));
+        setAddOrgRole((prev) => ({ ...prev, [userId]: "team_member" }));
       } catch (e: unknown) {
         setOrgError((e as Error)?.message ?? "เพิ่ม org ไม่สำเร็จ");
       }
@@ -476,7 +476,7 @@ export default function AdminUsersPage() {
             ))}
             <button
               type="button"
-              onClick={() => setInviteMappings((prev) => [...prev, { orgId: "", orgRole: "member" }])}
+              onClick={() => setInviteMappings((prev) => [...prev, { orgId: "", orgRole: "team_member" }])}
               className="text-xs text-indigo-600 hover:text-indigo-800 font-medium"
               disabled={loading}
             >
@@ -544,7 +544,7 @@ export default function AdminUsersPage() {
               }
               setInviteEmail("");
               setInviteRole("user");
-              setInviteMappings([{ orgId: "", orgRole: "member" }]);
+              setInviteMappings([{ orgId: "", orgRole: "team_member" }]);
               setLoading(false);
               refreshUsers();
             } catch (e: unknown) {
@@ -731,7 +731,7 @@ export default function AdminUsersPage() {
                           </div>
                           <div className="w-36">
                             <CustomSelect
-                              value={addOrgRole[u.id] ?? "member"}
+                              value={addOrgRole[u.id] ?? "team_member"}
                               onChange={(v) => setAddOrgRole((prev) => ({ ...prev, [u.id]: v as OrgRole }))}
                               options={ORG_ROLE_OPTIONS}
                               disabled={!addOrgId[u.id]}

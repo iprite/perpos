@@ -6,7 +6,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 export type OrgMemberRow = {
   id: string;
   user_id: string;
-  role: "owner" | "admin" | "member";
+  role: "owner" | "admin" | "team_lead" | "team_member";
   email: string | null;
   display_name: string | null;
   avatar_url: string | null;
@@ -16,7 +16,7 @@ export type OrgMemberRow = {
 export type OrgInviteRow = {
   id: string;
   email: string;
-  org_role: "owner" | "admin" | "member";
+  org_role: "owner" | "admin" | "team_lead" | "team_member";
   status: "pending" | "accepted" | "expired";
   created_at: string;
   expires_at: string;
@@ -65,7 +65,7 @@ export async function listOrgInvites(params: { organizationId: string }): Promis
 export async function updateMemberRoleAction(params: {
   organizationId: string;
   memberId: string;
-  role: "owner" | "admin" | "member";
+  role: "owner" | "admin" | "team_lead" | "team_member";
 }): Promise<{ ok: true } | { ok: false; error: string }> {
   const supabase = await createSupabaseServerClient();
   const { error } = await supabase

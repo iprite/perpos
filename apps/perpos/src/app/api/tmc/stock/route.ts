@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
 
   // action: 'add_item' | 'movement'
   if (body.action === 'add_item') {
-    if (!['owner', 'admin', 'management', 'team_lead'].includes(auth.role)) {
+    if (!['owner', 'admin', 'team_lead'].includes(auth.role)) {
       return NextResponse.json({ error: 'ต้องการสิทธิ์ team_lead ขึ้นไป' }, { status: 403 });
     }
     const { data, error } = await admin

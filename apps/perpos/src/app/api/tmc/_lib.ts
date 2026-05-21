@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createAuthedClient } from '../_lib/supabase';
 import { extractBearer, requireUser } from '../_lib/auth';
 
-export type TmcRole = 'owner' | 'admin' | 'management' | 'team_lead' | 'team_member';
+export type TmcRole = 'owner' | 'admin' | 'team_lead' | 'team_member';
 
 export interface TmcAuth {
   ok: true;
@@ -46,9 +46,9 @@ export async function requireTmcMember(
   };
 }
 
-/** Only management/owner/admin can mutate finance entries */
+/** Only team_lead/owner/admin can mutate finance entries */
 export function canWriteFinance(role: TmcRole) {
-  return ['owner', 'admin', 'management', 'team_lead'].includes(role);
+  return ['owner', 'admin', 'team_lead'].includes(role);
 }
 
 export const FINANCE_CATEGORIES = [

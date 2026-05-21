@@ -6,7 +6,7 @@ import { ALL_MODULE_KEYS } from "@/lib/modules";
 export type OrganizationSummary = {
   id: string;
   name: string;
-  role: "owner" | "admin" | "member";
+  role: "owner" | "admin" | "team_lead" | "team_member";
 };
 
 export async function getOrganizationsForCurrentUser(): Promise<OrganizationSummary[]> {
@@ -31,7 +31,7 @@ export async function getOrganizationsForCurrentUser(): Promise<OrganizationSumm
   }
 
   return (orgs as any[])
-    .map((o) => ({ id: String(o.id), name: String(o.name), role: roleByOrg.get(String(o.id)) ?? "member" }))
+    .map((o) => ({ id: String(o.id), name: String(o.name), role: roleByOrg.get(String(o.id)) ?? "team_member" }))
     .sort((a, b) => a.name.localeCompare(b.name, "th"));
 }
 
@@ -47,7 +47,7 @@ export async function getActiveOrganizationId(): Promise<string | null> {
 
 export async function getEnabledModulesForOrg(
   orgId: string | null,
-  memberRole: "owner" | "admin" | "member" | null,
+  memberRole: "owner" | "admin" | "team_lead" | "team_member" | null,
 ): Promise<string[]> {
   if (!orgId) return [];
   const supabase = await createSupabaseServerClient();

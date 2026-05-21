@@ -42,7 +42,7 @@ export async function PUT(req: NextRequest) {
   if (!auth.ok) return auth.res;
 
   const body = await req.json().catch(() => ({})) as { userId?: string; orgId?: string; role?: string };
-  const { userId, orgId, role = 'member' } = body;
+  const { userId, orgId, role = 'team_member' } = body;
   if (!userId || !orgId) return NextResponse.json({ error: 'missing userId or orgId' }, { status: 400 });
 
   const admin = createAdminClient();
