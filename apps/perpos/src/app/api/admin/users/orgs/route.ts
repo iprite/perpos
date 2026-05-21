@@ -43,7 +43,8 @@ export async function PUT(req: NextRequest) {
 
   const body = await req.json().catch(() => ({})) as { userId?: string; orgId?: string; role?: string };
   const { userId, orgId, role = 'team_member' } = body;
-  if (!userId || !orgId) return NextResponse.json({ error: 'missing userId or orgId' }, { status: 400 });
+  console.log('[orgs PUT] role received:', role);
+if (!userId || !orgId) return NextResponse.json({ error: 'missing userId or orgId' }, { status: 400 });
 
   const admin = createAdminClient();
   const { error } = await admin
