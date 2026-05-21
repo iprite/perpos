@@ -531,7 +531,12 @@ export default function AdminUsersPage() {
                 );
               }
 
-              setMessage(Boolean(json?.emailSent) ? "ส่งอีเมลเชิญแล้ว" : "สร้างลิงก์เชิญแล้ว (คัดลอกไว้ในคลิปบอร์ด)");
+              if (Boolean(json?.emailSent)) {
+                setMessage("✅ ส่งอีเมลเชิญไปที่ " + email + " แล้ว");
+              } else {
+                const smtpErr = json?.smtpError as string | undefined;
+                setMessage("สร้างลิงก์เชิญแล้ว (คัดลอกไว้ในคลิปบอร์ด)" + (smtpErr ? ` — ส่งเมลไม่สำเร็จ: ${smtpErr}` : ""));
+              }
               setInviteEmail("");
               setInviteRole("user");
               setInviteMappings([{ orgId: "", orgRole: "member" }]);
