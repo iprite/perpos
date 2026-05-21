@@ -8,7 +8,7 @@ function getRedirectTo(clientRedirectTo?: string): string {
   const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL ?? '').replace(/\/$/, '');
   if (siteUrl) return `${siteUrl}/auth/password`;
   if (clientRedirectTo) return clientRedirectTo;
-  return 'https://perpos.io/auth/password';
+  return 'https://app.perpos.io/auth/password';
 }
 
 export async function POST(req: NextRequest) {

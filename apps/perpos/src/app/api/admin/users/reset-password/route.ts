@@ -13,7 +13,7 @@ export async function POST(req: NextRequest) {
   if (!email) return NextResponse.json({ error: 'missing email' }, { status: 400 });
 
   const admin = createAdminClient();
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://perpos.io';
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://app.perpos.io';
   const finalRedirect = redirectTo ?? `${baseUrl}${withBasePath('/auth/password')}`;
 
   const { data, error } = await admin.auth.admin.generateLink({

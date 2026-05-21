@@ -946,7 +946,7 @@ export async function POST(req: NextRequest) {
         continue;
       }
       const token = await upsertMobileToken(profile.id, TMC_ORG_ID);
-      const baseUrl = process.env.NEXT_PUBLIC_BASE_URL ?? 'https://perpos.io';
+      const baseUrl = process.env.NEXT_PUBLIC_BASE_URL ?? 'https://app.perpos.io';
       await replyText(replyToken,
         `🏠 บันทึกการเข้าพัก TMC\n\n` +
         `${baseUrl}/tmc/checkin?t=${token}\n\n` +
