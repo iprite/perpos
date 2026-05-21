@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 import { Settings, Shield, LogOut, LayoutGrid, Building2 } from "lucide-react";
 
 import { useAuth } from "@/app/shared/auth-provider";
+import { useOrgSlug } from "@/app/shared/module-provider";
 import { withBasePath } from "@/utils/base-path";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
@@ -79,6 +80,7 @@ function ProfileMenuPopover({ children }: React.PropsWithChildren<{}>) {
 function DropdownMenu() {
   const router = useRouter();
   const { email, role, profile, userId, signOut } = useAuth();
+  const orgSlug = useOrgSlug();
   const name = String(profile?.display_name ?? email ?? "U");
   const [signingOut, setSigningOut] = useState(false);
   const [isOrgManager, setIsOrgManager] = useState(false);
@@ -112,19 +114,19 @@ function DropdownMenu() {
       show: true,
     },
     {
-      label: "จัดการองค์กร",
-      href: "/settings/organization",
+      label: "ตั้งค่าองค์กร",
+      href: orgSlug ? `/${orgSlug}/setting` : "/",
       icon: <Building2 className="h-4 w-4 text-gray-500" />,
-      show: isOrgManager,
+      show: isOrgManager && !!orgSlug,
     },
     {
-      label: "ข้อมูลส่วนตัว",
-      href: "/settings",
+      label: "ตั้งค่าผู้ใช้งาน",
+      href: "/user",
       icon: <Settings className="h-4 w-4 text-gray-500" />,
       show: true,
     },
     {
-      label: "จัดการระบบ",
+      label: "Super Admin",
       href: "/admin",
       icon: <Shield className="h-4 w-4 text-gray-500" />,
       show: isAdmin,

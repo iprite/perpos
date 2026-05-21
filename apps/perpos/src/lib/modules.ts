@@ -8,35 +8,45 @@ export type ModuleDef = {
   match: (pathname: string) => boolean;
 };
 
+// All hrefs are relative to /:orgSlug — callers prefix with `/${orgSlug}`.
+// match() receives the full pathname (e.g. "/p2p/accounting/invoices").
 export const ALL_MODULES: ModuleDef[] = [
   {
     key: "accounting",
     label: "Accounting",
-    href: "/executive-dashboard",
-    match: (p) =>
-      !p.startsWith("/payroll") &&
-      !p.startsWith("/admin") &&
-      !p.startsWith("/assistant") &&
-      !p.startsWith("/tmc"),
+    href: "/accounting/dashboard",
+    match: (p) => {
+      const seg = p.split("/").filter(Boolean);
+      return seg.length >= 2 && seg[1] === "accounting";
+    },
   },
   {
     key: "payroll",
     label: "Payroll",
     href: "/payroll/salary",
-    match: (p) => p.startsWith("/payroll"),
+    match: (p) => {
+      const seg = p.split("/").filter(Boolean);
+      return seg.length >= 2 && seg[1] === "payroll";
+    },
   },
   {
     key: "assistant",
     label: "Assistant",
-    href: "/assistant",
-    match: (p) => p.startsWith("/assistant"),
+    href: "/assistant/tasks",
+    match: (p) => {
+      const seg = p.split("/").filter(Boolean);
+      return seg.length >= 2 && seg[1] === "assistant";
+    },
   },
   {
     key: "tmc",
     label: "TMC Management",
     href: "/tmc/stays",
     specific: true,
-    match: (p) => p.startsWith("/tmc"),
+    match: (p) => {
+      const seg = p.split("/").filter(Boolean);
+      return seg.length >= 2 && seg[1] === "tmc";
+    },
   },
 ];
 

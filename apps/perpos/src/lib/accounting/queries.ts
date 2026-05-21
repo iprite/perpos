@@ -6,6 +6,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 export type OrganizationSummary = {
   id: string;
   name: string;
+  slug: string;
   role: "owner" | "admin" | "team_lead" | "team_member";
 };
 
@@ -28,7 +29,7 @@ export const getOrganizationsForCurrentUser = cache(async function getOrganizati
   if (memErr || !memberships?.length) return [];
 
   const orgIds = Array.from(new Set(memberships.map((m: any) => String(m.organization_id))));
-  const { data: orgs, error: orgErr } = await adminClient.from("organizations").select("id,name").in("id", orgIds);
+  const { data: orgs, error: orgErr } = await adminClient.from("organizations").select("id,name,slug").in("id", orgIds);
   if (orgErr || !orgs?.length) return [];
 
   const roleByOrg = new Map<string, OrganizationSummary["role"]>();
@@ -37,7 +38,12 @@ export const getOrganizationsForCurrentUser = cache(async function getOrganizati
   }
 
   return (orgs as any[])
-    .map((o) => ({ id: String(o.id), name: String(o.name), role: roleByOrg.get(String(o.id)) ?? "team_member" }))
+    .map((o) => ({
+      id:   String(o.id),
+      name: String(o.name),
+      slug: String(o.slug ?? o.id),
+      role: roleByOrg.get(String(o.id)) ?? "team_member",
+    }))
     .sort((a, b) => a.name.localeCompare(b.name, "th"));
 });
 

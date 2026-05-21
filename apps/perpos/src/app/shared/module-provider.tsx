@@ -2,20 +2,31 @@
 
 import React, { createContext, useContext } from "react";
 
-const ModuleContext = createContext<string[]>([]);
+type ModuleContextValue = {
+  enabledKeys: string[];
+  orgSlug: string;
+};
+
+const ModuleContext = createContext<ModuleContextValue>({ enabledKeys: [], orgSlug: "" });
 
 export function ModuleProvider({
   children,
   enabledKeys,
+  orgSlug,
 }: {
   children: React.ReactNode;
   enabledKeys: string[];
+  orgSlug: string;
 }) {
   return (
-    <ModuleContext.Provider value={enabledKeys}>{children}</ModuleContext.Provider>
+    <ModuleContext.Provider value={{ enabledKeys, orgSlug }}>{children}</ModuleContext.Provider>
   );
 }
 
 export function useEnabledModules(): string[] {
-  return useContext(ModuleContext);
+  return useContext(ModuleContext).enabledKeys;
+}
+
+export function useOrgSlug(): string {
+  return useContext(ModuleContext).orgSlug;
 }

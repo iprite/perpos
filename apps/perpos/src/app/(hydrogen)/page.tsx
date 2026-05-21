@@ -43,5 +43,7 @@ export default async function DashboardPage() {
   // Regular user with no accessible module
   if (!firstModule) redirect("/no-module");
 
-  redirect(firstModule.href);
+  // Redirect to /:orgSlug/:module/:defaultMenu
+  const orgSlug = activeOrg?.slug ?? activeOrgId ?? "";
+  redirect(`/${orgSlug}${firstModule.href}`);
 }

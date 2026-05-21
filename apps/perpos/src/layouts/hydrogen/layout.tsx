@@ -14,55 +14,77 @@ import {
   getEnabledModulesForOrg,
 } from "@/lib/accounting/queries";
 
-export default async function HydrogenLayout({ children }: { children: React.ReactNode }) {
-  const [activeOrgId, orgs] = await Promise.all([
-    getActiveOrganizationId(),
-    getOrganizationsForCurrentUser(),
-  ]);
-  const activeOrg    = orgs.find((o) => o.id === activeOrgId);
-  const enabledKeys  = await getEnabledModulesForOrg(activeOrgId, activeOrg?.role ?? null);
+// Path segments that are NOT org slugs
+const SYSTEM_SEGMENTS = new Set(["admin", "user", "signin", "no-org", "no-module"]);
 
-  // ── Server-side module access guard ─────────────────────────────────────────
-  // Read the pathname forwarded by middleware (x-pathname header).
-  // If the current route belongs to a module the active org hasn't enabled,
-  // redirect immediately — no flash, no client-side delay.
+export default async function HydrogenLayout({ children }: { children: React.ReactNode }) {
   const headersList = await headers();
   const pathname    = headersList.get("x-pathname") ?? "/";
+  const segments    = pathname.split("/").filter(Boolean);
 
-  // Skip guard for root (handled by page.tsx) and /admin/* (role-guarded separately)
-  if (pathname !== "/" && !pathname.startsWith("/admin")) {
-    const currentModule = ALL_MODULES.find((m) => m.match(pathname));
+  // Determine the active org:
+  // - If path is /:orgSlug/... → use slug lookup
+  // - For /admin, /user, etc.  → fall back to cookie-based active org
+  const orgs            = await getOrganizationsForCurrentUser();
+  const firstSegment    = segments[0] ?? "";
+  const isOrgRoute      = firstSegment.length > 0 && !SYSTEM_SEGMENTS.has(firstSegment);
+  const orgSlugFromUrl  = isOrgRoute ? firstSegment : null;
+
+  let activeOrg = orgSlugFromUrl
+    ? orgs.find((o) => o.slug === orgSlugFromUrl)
+    : (() => {
+        // For non-org routes (admin, user) fall back to cookie-based active org
+        return undefined; // enabledKeys not needed for admin/user routes
+      })();
+
+  // Fallback: if org slug in URL doesn't match any membership, keep activeOrg undefined.
+  // The [orgSlug]/layout.tsx will handle notFound() for invalid slugs.
+
+  // For non-org routes, fetch module keys using cookie-based active org (sidebar org switcher)
+  if (!activeOrg && !isOrgRoute) {
+    const cookieOrgId = await getActiveOrganizationId();
+    activeOrg = orgs.find((o) => o.id === cookieOrgId);
+  }
+
+  const enabledKeys = await getEnabledModulesForOrg(activeOrg?.id ?? null, activeOrg?.role ?? null);
+
+  // ── Server-side module access guard ─────────────────────────────────────────
+  // Only enforce for org routes where a module segment is present.
+  if (isOrgRoute && segments.length >= 2) {
+    const moduleKey     = segments[1];
+    const currentModule = ALL_MODULES.find((m) => m.key === moduleKey);
     if (currentModule && !enabledKeys.includes(currentModule.key)) {
       const firstEnabled = ALL_MODULES.find((m) => enabledKeys.includes(m.key));
-      redirect(firstEnabled?.href ?? "/no-module");
+      const orgSlug      = activeOrg?.slug ?? orgSlugFromUrl ?? "";
+      redirect(orgSlug && firstEnabled ? `/${orgSlug}${firstEnabled.href}` : "/no-module");
     }
   }
 
   return (
-    <ModuleProvider enabledKeys={enabledKeys}>
-    <main className="flex min-h-screen flex-grow">
-      <Sidebar className="fixed hidden xl:block dark:bg-gray-50" />
-      <div className="flex w-full flex-col xl:ms-[270px] xl:w-[calc(100%-270px)] 2xl:ms-72 2xl:w-[calc(100%-288px)]">
-        <Header enabledModuleKeys={enabledKeys} />
-        <div className="flex flex-grow flex-col px-4 pb-6 pt-2 md:px-5 lg:px-6 lg:pb-8 3xl:px-8 3xl:pt-4 4xl:px-10 4xl:pb-9">
-          <Breadcrumb />
-          {children}
-        </div>
-        <StickyFooter className="px-4 py-5 text-sm text-gray-600 md:px-5 lg:px-6 3xl:px-8 4xl:px-10">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="text-center sm:text-left">© 2026 P2P Solutions. All Rights Reserved.</div>
-            <div className="hidden sm:flex flex-wrap gap-x-4 gap-y-2">
-              <Link href="/privacy" className="hover:text-gray-900">
-                นโยบายความเป็นส่วนตัว
-              </Link>
-              <Link href="/terms" className="hover:text-gray-900">
-                ข้อกำหนดการให้บริการ
-              </Link>
-            </div>
+    <ModuleProvider enabledKeys={enabledKeys} orgSlug={activeOrg?.slug ?? orgSlugFromUrl ?? ""}>
+      <main className="flex min-h-screen flex-grow">
+        <Sidebar className="fixed hidden xl:block dark:bg-gray-50" />
+        <div className="flex w-full flex-col xl:ms-[270px] xl:w-[calc(100%-270px)] 2xl:ms-72 2xl:w-[calc(100%-288px)]">
+          <Header enabledModuleKeys={enabledKeys} />
+          <div className="flex flex-grow flex-col px-4 pb-6 pt-2 md:px-5 lg:px-6 lg:pb-8 3xl:px-8 3xl:pt-4 4xl:px-10 4xl:pb-9">
+            <Breadcrumb />
+            {children}
           </div>
-        </StickyFooter>
-      </div>
-    </main>
+          <StickyFooter className="px-4 py-5 text-sm text-gray-600 md:px-5 lg:px-6 3xl:px-8 4xl:px-10">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="text-center sm:text-left">© 2026 P2P Solutions. All Rights Reserved.</div>
+              <div className="hidden sm:flex flex-wrap gap-x-4 gap-y-2">
+                <Link href="/privacy" className="hover:text-gray-900">
+                  นโยบายความเป็นส่วนตัว
+                </Link>
+                <Link href="/terms" className="hover:text-gray-900">
+                  ข้อกำหนดการให้บริการ
+                </Link>
+              </div>
+            </div>
+          </StickyFooter>
+        </div>
+      </main>
     </ModuleProvider>
   );
 }
