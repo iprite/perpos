@@ -1,9 +1,9 @@
 "use client";
 
 import { LayoutGrid, LogOut } from "lucide-react";
-import { createSupabaseBrowserClient } from "@/lib/supabase/client";
-import { useRouter } from "next/navigation";
 import { useMemo } from "react";
+import { useRouter } from "next/navigation";
+import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 
 export default function NoModulePage() {
@@ -16,7 +16,7 @@ export default function NoModulePage() {
   };
 
   return (
-    <div className="flex min-h-[70vh] flex-col items-center justify-center gap-5 text-center">
+    <div className="flex flex-1 flex-col items-center justify-center gap-5 text-center">
       <div className="rounded-full bg-slate-100 p-5">
         <LayoutGrid className="h-10 w-10 text-slate-400" />
       </div>

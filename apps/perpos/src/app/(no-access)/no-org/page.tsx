@@ -1,9 +1,9 @@
 "use client";
 
 import { Building2, LogOut } from "lucide-react";
-import { createSupabaseBrowserClient } from "@/lib/supabase/client";
-import { useRouter } from "next/navigation";
 import { useMemo } from "react";
+import { useRouter } from "next/navigation";
+import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 
 export default function NoOrgPage() {
@@ -16,7 +16,7 @@ export default function NoOrgPage() {
   };
 
   return (
-    <div className="flex min-h-[70vh] flex-col items-center justify-center gap-5 text-center">
+    <div className="flex flex-1 flex-col items-center justify-center gap-5 text-center">
       <div className="rounded-full bg-amber-100 p-5">
         <Building2 className="h-10 w-10 text-amber-500" />
       </div>
