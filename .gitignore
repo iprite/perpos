@@ -45,6 +45,9 @@ dist/
 # trae
 .trae/
 
+# playwright mcp logs
+.playwright-mcp/
+
 # build artifacts / local outputs
 *.tsbuildinfo
 /*.pdf
