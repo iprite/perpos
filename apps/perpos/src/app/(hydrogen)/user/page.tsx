@@ -166,7 +166,7 @@ export default function UserSettingsPage() {
 
                         const { error } = await supabase
                           .from("profiles")
-                          .update({ avatar_url: publicUrl, updated_at: new Date().toISOString() })
+                          .update({ avatar_url: publicUrl })
                           .eq("id", userId);
                         if (error) throw new Error(error.message);
 
@@ -229,7 +229,7 @@ export default function UserSettingsPage() {
                       const supabase = createSupabaseBrowserClient();
                       const { error } = await supabase
                         .from("profiles")
-                        .update({ display_name: v, updated_at: new Date().toISOString() })
+                        .update({ display_name: v })
                         .eq("id", userId);
                       if (error) throw new Error(error.message);
                       await refreshProfile();
