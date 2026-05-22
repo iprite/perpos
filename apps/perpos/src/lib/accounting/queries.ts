@@ -20,10 +20,32 @@ export async function getOrganizationsForCurrentUser(): Promise<OrganizationSumm
 
   const uid = userRes.user.id;
 
-  // Use admin client to bypass RLS — membership/org data is scoped by uid below
+  // Use admin client to bypass RLS
   const { createSupabaseAdminClient } = await import("@/lib/supabase/admin");
   const adminClient = createSupabaseAdminClient();
 
+  // Check if user is a system admin — admins can see ALL organizations
+  const { data: profile } = await adminClient
+    .from("profiles")
+    .select("role")
+    .eq("id", uid)
+    .maybeSingle();
+
+  if (profile?.role === "super_admin") {
+    const { data: allOrgs, error: orgsErr } = await adminClient
+      .from("organizations")
+      .select("id,name,slug")
+      .order("name");
+    if (orgsErr || !allOrgs?.length) return [];
+    return (allOrgs as any[]).map((o) => ({
+      id:   String(o.id),
+      name: String(o.name),
+      slug: String(o.slug ?? o.id),
+      role: "admin" as OrganizationSummary["role"],
+    }));
+  }
+
+  // Regular users — only orgs they are a member of
   const { data: memberships, error: memErr } = await adminClient
     .from("organization_members")
     .select("organization_id,role")

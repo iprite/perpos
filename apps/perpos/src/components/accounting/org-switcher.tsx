@@ -27,7 +27,7 @@ const ROLE_LABEL: Record<string, string> = {
 export function OrgSwitcher({ organizations, activeOrganizationId }: OrgSwitcherProps) {
   const router = useRouter();
   const { role } = useAuth();
-  const isSystemAdmin = role === "admin";
+  const isSystemAdmin = role === "super_admin";
   const [pending, startTransition] = useTransition();
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -74,9 +74,11 @@ export function OrgSwitcher({ organizations, activeOrganizationId }: OrgSwitcher
       if (res.ok) {
         setOpen(false);
         setSearch("");
-        // Redirect to root — page.tsx will resolve /{orgSlug}/{module}/{menu}
-        // based on the active org cookie that was just set.
-        router.push('/');
+        const org = organizations.find((o) => o.id === id);
+        // Admin navigates directly to org slug so page.tsx /admin redirect is bypassed.
+        // Regular users navigate to root — page.tsx resolves the active org + module.
+        const dest = isSystemAdmin && org ? `/${org.slug}` : '/';
+        router.push(dest);
         router.refresh();
       }
     });

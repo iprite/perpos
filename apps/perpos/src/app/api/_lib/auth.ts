@@ -10,7 +10,7 @@ type AuthResult =
   | { ok: true; userId: string; token: string }
   | { ok: false; res: NextResponse };
 
-/** Verify Bearer token + check profiles.role = 'admin' */
+/** Verify Bearer token + check profiles.role = 'super_admin' */
 export async function requireAdmin(req: NextRequest): Promise<AuthResult> {
   const token = extractBearer(req);
   if (!token) return { ok: false, res: NextResponse.json({ error: 'unauthorized' }, { status: 401 }) };
@@ -22,7 +22,7 @@ export async function requireAdmin(req: NextRequest): Promise<AuthResult> {
 
     const admin = createAdminClient();
     const { data: profile } = await admin.from('profiles').select('role').eq('id', user.id).maybeSingle();
-    if (profile?.role !== 'admin') return { ok: false, res: NextResponse.json({ error: 'forbidden' }, { status: 403 }) };
+    if (profile?.role !== 'super_admin') return { ok: false, res: NextResponse.json({ error: 'forbidden' }, { status: 403 }) };
 
     return { ok: true, userId: user.id, token };
   } catch {

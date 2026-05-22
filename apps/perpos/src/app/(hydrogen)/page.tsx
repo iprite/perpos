@@ -22,7 +22,10 @@ export default async function DashboardPage() {
     .eq("id", user.id)
     .maybeSingle();
 
-  const isAdmin = profile?.role === "admin";
+  const isAdmin = profile?.role === "super_admin";
+
+  // System admin → always land on admin console
+  if (isAdmin) redirect("/admin");
 
   // Everyone → first enabled module for active org
   const [activeOrgId, orgs] = await Promise.all([
@@ -31,14 +34,11 @@ export default async function DashboardPage() {
   ]);
 
   // No org membership at all
-  if (!isAdmin && orgs.length === 0) redirect("/no-org");
+  if (orgs.length === 0) redirect("/no-org");
 
   const activeOrg = orgs.find((o) => o.id === activeOrgId);
   const enabledKeys = await getEnabledModulesForOrg(activeOrgId, activeOrg?.role ?? null);
   const firstModule = ALL_MODULES.find((m) => enabledKeys.includes(m.key));
-
-  // Admin → admin console if no module found
-  if (isAdmin && !firstModule) redirect("/admin");
 
   // Regular user with no accessible module
   if (!firstModule) redirect("/no-module");

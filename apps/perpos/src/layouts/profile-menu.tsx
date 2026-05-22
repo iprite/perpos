@@ -84,7 +84,7 @@ function DropdownMenu() {
   const name = String(profile?.display_name ?? email ?? "U");
   const [signingOut, setSigningOut] = useState(false);
   const [isOrgManager, setIsOrgManager] = useState(false);
-  const isAdmin = role === "admin";
+  const isAdmin = role === "super_admin";
 
   // Check if user is owner/admin of the active org
   useEffect(() => {

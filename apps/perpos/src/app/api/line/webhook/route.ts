@@ -866,7 +866,7 @@ async function getProfileByLineId(admin: ReturnType<typeof createAdminClient>, l
 }
 
 async function checkPermission(admin: ReturnType<typeof createAdminClient>, profileId: string, key: string, role: string): Promise<boolean> {
-  if (role === 'admin') return true;
+  if (role === 'super_admin') return true;
   const { data } = await admin.from('user_permissions').select('allowed').eq('user_id', profileId).eq('function_key', key).maybeSingle();
   return Boolean((data as Record<string, unknown> | null)?.allowed);
 }

@@ -46,7 +46,7 @@ export function isLinkMenuItem(item: MenuItem): item is LinkMenuItem {
   return (item as LinkMenuItem).href !== undefined;
 }
 
-const allRoles: Role[] = ["admin", "user"];
+const allRoles: Role[] = ["super_admin", "user"];
 
 const SYSTEM_SEGMENTS = new Set(["admin", "user", "signin", "no-org", "no-module"]);
 
@@ -217,42 +217,42 @@ function buildUserMenuItems(org: string): MenuItem[] {
 // ─── Admin module ───────────────────────────────────────────────────────────
 function buildAdminMenuItems(): MenuItem[] {
   return [
-    { name: "แอดมินคอนโซล", roles: ["admin"] },
+    { name: "แอดมินคอนโซล", roles: ["super_admin"] },
     {
       name: "ภาพรวม",
       href: "/admin",
       icon: <LayoutDashboard className="h-5 w-5" />,
-      roles: ["admin"],
+      roles: ["super_admin"],
     },
     {
       name: "ผู้ใช้",
       href: "/admin/users",
       icon: <Users className="h-5 w-5" />,
-      roles: ["admin"],
+      roles: ["super_admin"],
     },
     {
       name: "สิทธิ์รายฟังก์ชัน",
       href: "/admin/permissions",
       icon: <Shield className="h-5 w-5" />,
-      roles: ["admin"],
+      roles: ["super_admin"],
     },
     {
       name: "News Agent",
       href: "/admin/news-agent",
       icon: <Newspaper className="h-5 w-5" />,
-      roles: ["admin"],
+      roles: ["super_admin"],
     },
     {
       name: "การส่งผ่าน LINE",
       href: "/admin/delivery",
       icon: <Link2 className="h-5 w-5" />,
-      roles: ["admin"],
+      roles: ["super_admin"],
     },
     {
       name: "จัดการ Modules",
       href: "/admin/modules",
       icon: <LayoutGrid className="h-5 w-5" />,
-      roles: ["admin"],
+      roles: ["super_admin"],
     },
   ];
 }
@@ -312,7 +312,7 @@ function pickMenuContext(pathname: string, role: Role | null, enabledKeys: strin
   const segments = (pathname || "/").split("/").filter(Boolean);
 
   // /admin/* is always admin console
-  if (segments[0] === "admin") return role === "admin" ? "admin" : "user";
+  if (segments[0] === "admin") return role === "super_admin" ? "admin" : "user";
 
   // For org routes: /:orgSlug/:module/*  →  segments[1] is the module key
   if (segments.length >= 2) {

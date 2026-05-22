@@ -12,11 +12,11 @@ type Rule = {
 };
 
 const rules: Rule[] = [
-  { prefix: "/admin", roles: ["admin"] },
+  { prefix: "/admin", roles: ["super_admin"] },
 ];
 
 function pickRedirect(role: Role | null) {
-  if (role === "admin") return "/admin";
+  if (role === "super_admin") return "/admin";
   if (role === "user") return "/";
   return "/signin";
 }

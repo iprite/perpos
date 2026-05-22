@@ -58,7 +58,7 @@ const ORG_ROLE_LABELS: Record<string, string> = {
 const ORG_ROLE_OPTIONS = ORG_ROLES.map((r) => ({ value: r, label: ORG_ROLE_LABELS[r] ?? r }));
 const SYSTEM_ROLE_OPTIONS = [
   { value: "user", label: "user — ต้องกำหนด Org" },
-  { value: "admin", label: "admin — คุมทุก Org" },
+  { value: "super_admin", label: "super admin — คุมทุก Org" },
 ];
 
 export default function AdminUsersPage() {
@@ -73,7 +73,7 @@ export default function AdminUsersPage() {
 
   // Invite form
   const [inviteEmail, setInviteEmail] = useState("");
-  const [inviteRole, setInviteRole] = useState<Role>("user");
+  const [inviteRole, setInviteRole] = useState<string>("user");
   const [inviteMappings, setInviteMappings] = useState<{ orgId: string; orgRole: OrgRole }[]>([
     { orgId: "", orgRole: "team_member" },
   ]);
@@ -386,7 +386,7 @@ export default function AdminUsersPage() {
     );
   }
 
-  if (role !== "admin") {
+  if (role !== "super_admin") {
     return (
       <div className="rounded-xl border border-gray-200 bg-white p-6">
         <Title as="h1" className="text-lg font-semibold text-gray-900">ไม่มีสิทธิ์เข้าถึงหน้านี้</Title>
@@ -425,7 +425,7 @@ export default function AdminUsersPage() {
             <Label>Role ระบบ</Label>
             <CustomSelect
               value={inviteRole}
-              onChange={(v) => setInviteRole(v as Role)}
+              onChange={(v) => setInviteRole(v)}
               options={SYSTEM_ROLE_OPTIONS}
               disabled={loading}
             />
@@ -437,7 +437,7 @@ export default function AdminUsersPage() {
           <div className="space-y-2">
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
               Org และสิทธิ์ภายใน Org
-              {inviteRole === "admin" && <span className="ml-1 text-gray-400 normal-case font-normal">(admin เห็นทุก module ใน org ที่กำหนด)</span>}
+              {inviteRole === "super_admin" && <span className="ml-1 text-gray-400 normal-case font-normal">(super admin เห็นทุก org ในระบบ)</span>}
             </p>
             {inviteMappings.map((m, i) => (
               <div key={i} className="flex items-center gap-2">
