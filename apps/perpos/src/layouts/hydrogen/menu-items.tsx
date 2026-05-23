@@ -254,6 +254,12 @@ function buildAdminMenuItems(): MenuItem[] {
       icon: <LayoutGrid className="h-5 w-5" />,
       roles: ["super_admin"],
     },
+    {
+      name: "Audit Log",
+      href: "/admin/audit",
+      icon: <ShieldCheck className="h-5 w-5" />,
+      roles: ["super_admin"],
+    },
   ];
 }
 
