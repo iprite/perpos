@@ -13,18 +13,34 @@ import {
 } from '@/components/ui/dialog';
 import {
   Plus, Filter, Settings, Tag, MapPin, Check, X, Pencil, Trash2,
-  ChevronLeft, ChevronRight,
+  ChevronLeft, ChevronRight, Landmark,
 } from 'lucide-react';
 
 const TMC_ORG_ID = '1f52618c-09c4-49c5-a929-ea5060f26e7d';
 
-type Account  = { id: string; name: string; account_type: string };
+const ACCOUNT_TYPES = [
+  { value: 'savings',    label: 'ออมทรัพย์' },
+  { value: 'current',   label: 'กระแสรายวัน' },
+  { value: 'petty_cash', label: 'เงินสดย่อย' },
+  { value: 'other',     label: 'อื่นๆ' },
+];
+
+function accountTypeBadge(type: string) {
+  switch (type) {
+    case 'savings':    return 'bg-green-100 text-green-700 border border-green-200';
+    case 'current':    return 'bg-purple-100 text-purple-700 border border-purple-200';
+    case 'petty_cash': return 'bg-amber-100 text-amber-700 border border-amber-200';
+    default:           return 'bg-slate-100 text-slate-600 border border-slate-200';
+  }
+}
+
+type Account  = { id: string; name: string; account_type: string; bank_name: string | null; account_no: string | null; sort_order: number; is_active: boolean };
 type Category = { id: string; name: string; sort_order: number; is_active: boolean };
 type Property = { id: string; code: string; name: string; is_active: boolean; sort_order: number };
 type Entry = {
   id: string; entry_date: string; description: string; category: string;
   property_code: string | null; income: number | null; expense: number | null;
-  note: string | null; tmc_accounts: { name: string } | null;
+  note: string | null; tmc_accounts: { name: string; account_type: string } | null;
 };
 
 function fmt(n: number | null) {
@@ -104,6 +120,8 @@ function EditableRow({
 }
 
 // ── Main page ────────────────────────────────────────────────────────────────
+const EMPTY_ACCOUNT = { name: '', account_type: 'savings', bank_name: '', account_no: '' };
+
 export default function TmcFinancePage() {
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
   const [accounts,   setAccounts]   = useState<Account[]>([]);
@@ -123,7 +141,7 @@ export default function TmcFinancePage() {
   const PAGE_SIZE = 10;
   const [page, setPage] = useState(1);
 
-  // form
+  // entry form
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<{
     accountId: string; entryDate: string; description: string;
@@ -136,13 +154,20 @@ export default function TmcFinancePage() {
   });
   const [saving, setSaving] = useState(false);
 
-  // master data management
+  // master data management (categories / properties)
   const [showMaster,   setShowMaster]   = useState(false);
   const [masterTab,    setMasterTab]    = useState<'category' | 'property'>('category');
   const [newCatName,   setNewCatName]   = useState('');
   const [newPropCode,  setNewPropCode]  = useState('');
   const [newPropName,  setNewPropName]  = useState('');
   const [masterSaving, setMasterSaving] = useState(false);
+
+  // accounts management
+  const [showAccounts,   setShowAccounts]   = useState(false);
+  const [editAccount,    setEditAccount]    = useState<Account | null>(null);
+  const [accountForm,    setAccountForm]    = useState({ ...EMPTY_ACCOUNT });
+  const [accountSaving,  setAccountSaving]  = useState(false);
+  const [showAccountForm, setShowAccountForm] = useState(false);
 
   const authHeader = useCallback(async () => {
     const { data } = await supabase.auth.getSession();
@@ -153,6 +178,13 @@ export default function TmcFinancePage() {
   }, [supabase]);
 
   // ── Loaders ────────────────────────────────────────────────────────────────
+  const loadAccounts = useCallback(async () => {
+    const h = await authHeader();
+    const res = await fetch(backendUrl(`/tmc/accounts?orgId=${TMC_ORG_ID}&all=1`), { headers: h });
+    const data = await res.json();
+    setAccounts(Array.isArray(data) ? data : []);
+  }, [authHeader]);
+
   const loadMaster = useCallback(async () => {
     const h = await authHeader();
     const [cRes, pRes] = await Promise.all([
@@ -179,7 +211,7 @@ export default function TmcFinancePage() {
       fetch(backendUrl(`/tmc/finance?${p}`), { headers: h }),
     ]);
     const [accData, entData] = await Promise.all([accRes.json(), entRes.json()]);
-    setAccounts(accData);
+    setAccounts(Array.isArray(accData) ? accData : []);
     setEntries(entData.entries ?? []);
     setLoading(false);
   }, [authHeader, accountId, propertyCode, category, from, to]);
@@ -207,6 +239,39 @@ export default function TmcFinancePage() {
     setSaving(false);
     setShowForm(false);
     setForm({ accountId: '', entryDate: new Date().toISOString().slice(0, 10), description: '', entryType: '', category: '', propertyCode: '', amount: '', note: '' });
+    void load();
+  }
+
+  // ── Account CRUD ───────────────────────────────────────────────────────────
+  async function handleSaveAccount() {
+    if (!accountForm.name.trim()) return;
+    setAccountSaving(true);
+    const h = await authHeader();
+    if (editAccount) {
+      await fetch(backendUrl('/tmc/accounts'), {
+        method: 'PATCH', headers: h,
+        body: JSON.stringify({ orgId: TMC_ORG_ID, id: editAccount.id, ...accountForm }),
+      });
+    } else {
+      await fetch(backendUrl('/tmc/accounts'), {
+        method: 'POST', headers: h,
+        body: JSON.stringify({ orgId: TMC_ORG_ID, ...accountForm }),
+      });
+    }
+    setAccountSaving(false);
+    setShowAccountForm(false);
+    setEditAccount(null);
+    setAccountForm({ ...EMPTY_ACCOUNT });
+    void loadAccounts();
+    void load();
+  }
+
+  async function handleDeleteAccount(id: string) {
+    const h = await authHeader();
+    await fetch(backendUrl(`/tmc/accounts?id=${id}&orgId=${TMC_ORG_ID}`), {
+      method: 'DELETE', headers: h,
+    });
+    void loadAccounts();
     void load();
   }
 
@@ -269,6 +334,7 @@ export default function TmcFinancePage() {
   }
 
   // ── Options ────────────────────────────────────────────────────────────────
+  const activeAccounts   = useMemo(() => accounts.filter(a => a.is_active && a.account_type !== 'petty_cash'), [accounts]);
   const activeCategories = useMemo(() => categories.filter(c => c.is_active), [categories]);
   const activeProperties = useMemo(() => properties.filter(p => p.is_active), [properties]);
 
@@ -278,10 +344,10 @@ export default function TmcFinancePage() {
   const totalPages   = Math.max(1, Math.ceil(entries.length / PAGE_SIZE));
   const pagedEntries = entries.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
-  const accountOptions = useMemo(() => [
+  const accountFilterOpts = useMemo(() => [
     { value: '', label: 'ทุกบัญชี' },
-    ...accounts.filter(a => a.account_type !== 'petty_cash').map(a => ({ value: a.id, label: a.name })),
-  ], [accounts]);
+    ...activeAccounts.map(a => ({ value: a.id, label: a.name })),
+  ], [activeAccounts]);
 
   const propertyFilterOpts = useMemo(() => [
     { value: '', label: 'ทุกแปลง' },
@@ -295,8 +361,8 @@ export default function TmcFinancePage() {
 
   const accountFormOptions = useMemo(() => [
     { value: '', label: 'เลือกบัญชี' },
-    ...accounts.filter(a => a.account_type !== 'petty_cash').map(a => ({ value: a.id, label: a.name })),
-  ], [accounts]);
+    ...activeAccounts.map(a => ({ value: a.id, label: a.name })),
+  ], [activeAccounts]);
 
   const propertyFormOptions = useMemo(() => [
     { value: '', label: '-' },
@@ -308,6 +374,8 @@ export default function TmcFinancePage() {
     ...activeCategories.map(c => ({ value: c.name, label: c.name })),
   ], [activeCategories]);
 
+  const accountTypeOpts = ACCOUNT_TYPES.map(t => ({ value: t.value, label: t.label }));
+
   return (
     <div className="p-4 md:p-6 space-y-4">
       {/* Header */}
@@ -317,6 +385,9 @@ export default function TmcFinancePage() {
           <p className="text-sm text-slate-500">TMC Management</p>
         </div>
         <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => { void loadAccounts(); setShowAccounts(true); }}>
+            <Landmark className="w-4 h-4" /> จัดการบัญชี
+          </Button>
           <Button variant="outline" size="sm" onClick={() => { setMasterTab('category'); setShowMaster(true); }}>
             <Settings className="w-4 h-4" /> จัดการหมวด/แปลง
           </Button>
@@ -347,9 +418,9 @@ export default function TmcFinancePage() {
       {/* Filters */}
       <div className="bg-white rounded-xl border p-3 flex flex-wrap items-center gap-2">
         <Filter className="w-4 h-4 text-slate-400 shrink-0" />
-        <CustomSelect value={accountId}    onChange={setAccountId}    options={accountOptions}      className="w-36" />
-        <CustomSelect value={propertyCode} onChange={setPropertyCode} options={propertyFilterOpts}  className="w-28" />
-        <CustomSelect value={category}     onChange={setCategory}     options={categoryFilterOpts}  className="w-36" />
+        <CustomSelect value={accountId}    onChange={setAccountId}    options={accountFilterOpts}  className="w-36" />
+        <CustomSelect value={propertyCode} onChange={setPropertyCode} options={propertyFilterOpts} className="w-28" />
+        <CustomSelect value={category}     onChange={setCategory}     options={categoryFilterOpts} className="w-36" />
         <ThaiDatePicker value={from} onChange={setFrom} placeholder="ตั้งแต่" className="w-32" />
         <ThaiDatePicker value={to}   onChange={setTo}   placeholder="ถึง"     className="w-32" />
       </div>
@@ -374,27 +445,36 @@ export default function TmcFinancePage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
-              {pagedEntries.map(e => (
-                <tr key={e.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="px-4 py-3 text-slate-600 whitespace-nowrap">
-                    {new Date(e.entry_date).toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: '2-digit' })}
-                  </td>
-                  <td className="px-4 py-3 text-slate-800 max-w-xs truncate" title={e.description}>
-                    {e.description}
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className="inline-block bg-slate-100 text-slate-700 text-xs px-2 py-0.5 rounded-full">{e.category}</span>
-                  </td>
-                  <td className="px-4 py-3">
-                    {e.property_code && (
-                      <span className="inline-block bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded-full">{e.property_code}</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-slate-500 text-xs">{e.tmc_accounts?.name}</td>
-                  <td className="px-4 py-3 text-right font-medium text-green-600">{fmt(e.income)}</td>
-                  <td className="px-4 py-3 text-right font-medium text-red-600">{fmt(e.expense)}</td>
-                </tr>
-              ))}
+              {pagedEntries.map(e => {
+                const acct = e.tmc_accounts;
+                return (
+                  <tr key={e.id} className="hover:bg-slate-50 transition-colors">
+                    <td className="px-4 py-3 text-slate-600 whitespace-nowrap">
+                      {new Date(e.entry_date).toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: '2-digit' })}
+                    </td>
+                    <td className="px-4 py-3 text-slate-800 max-w-xs truncate" title={e.description}>
+                      {e.description}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="inline-block bg-slate-100 text-slate-700 text-xs px-2 py-0.5 rounded-full">{e.category}</span>
+                    </td>
+                    <td className="px-4 py-3">
+                      {e.property_code && (
+                        <span className="inline-block bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded-full">{e.property_code}</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      {acct && (
+                        <span className={`inline-block text-xs px-2 py-0.5 rounded-full font-medium ${accountTypeBadge(acct.account_type)}`}>
+                          {acct.name}
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-right font-medium text-green-600">{fmt(e.income)}</td>
+                    <td className="px-4 py-3 text-right font-medium text-red-600">{fmt(e.expense)}</td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         )}
@@ -406,15 +486,9 @@ export default function TmcFinancePage() {
               แสดง {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, entries.length)} จาก {entries.length} รายการ
             </p>
             <div className="flex items-center gap-1">
-              <Button
-                variant="ghost" size="icon"
-                onClick={() => setPage(p => Math.max(1, p - 1))}
-                disabled={page === 1}
-                className="h-8 w-8"
-              >
+              <Button variant="ghost" size="icon" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="h-8 w-8">
                 <ChevronLeft className="w-4 h-4" />
               </Button>
-
               {Array.from({ length: totalPages }, (_, i) => i + 1)
                 .filter(p => p === 1 || p === totalPages || Math.abs(p - page) <= 1)
                 .reduce<(number | 'ellipsis')[]>((acc, p, idx, arr) => {
@@ -426,24 +500,13 @@ export default function TmcFinancePage() {
                   item === 'ellipsis' ? (
                     <span key={`e${idx}`} className="px-1 text-slate-400 text-xs">…</span>
                   ) : (
-                    <Button
-                      key={item}
-                      variant={item === page ? 'default' : 'ghost'}
-                      size="icon"
-                      onClick={() => setPage(item as number)}
-                      className="h-8 w-8 text-xs"
-                    >
+                    <Button key={item} variant={item === page ? 'default' : 'ghost'} size="icon"
+                      onClick={() => setPage(item as number)} className="h-8 w-8 text-xs">
                       {item}
                     </Button>
                   )
                 )}
-
-              <Button
-                variant="ghost" size="icon"
-                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                disabled={page === totalPages}
-                className="h-8 w-8"
-              >
+              <Button variant="ghost" size="icon" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} className="h-8 w-8">
                 <ChevronRight className="w-4 h-4" />
               </Button>
             </div>
@@ -458,28 +521,23 @@ export default function TmcFinancePage() {
             <DialogTitle>เพิ่มรายการบัญชี</DialogTitle>
           </DialogHeader>
           <div className="grid grid-cols-2 gap-3">
-            {/* ประเภท toggle */}
             <div className="col-span-2 space-y-1.5">
               <Label>ประเภท *</Label>
               <div className="grid grid-cols-2 gap-2">
-                <Button
-                  type="button"
+                <Button type="button"
                   variant={form.entryType === 'income' ? 'default' : 'outline'}
                   className={form.entryType === 'income'
                     ? 'bg-green-600 hover:bg-green-700 border-green-600 text-white'
                     : 'text-green-700 border-green-200 hover:bg-green-50 hover:text-green-800'}
-                  onClick={() => setForm(f => ({ ...f, entryType: 'income' }))}
-                >
+                  onClick={() => setForm(f => ({ ...f, entryType: 'income' }))}>
                   ↑ รายรับ
                 </Button>
-                <Button
-                  type="button"
+                <Button type="button"
                   variant={form.entryType === 'expense' ? 'default' : 'outline'}
                   className={form.entryType === 'expense'
                     ? 'bg-red-600 hover:bg-red-700 border-red-600 text-white'
                     : 'text-red-700 border-red-200 hover:bg-red-50 hover:text-red-800'}
-                  onClick={() => setForm(f => ({ ...f, entryType: 'expense' }))}
-                >
+                  onClick={() => setForm(f => ({ ...f, entryType: 'expense' }))}>
                   ↓ รายจ่าย
                 </Button>
               </div>
@@ -524,22 +582,110 @@ export default function TmcFinancePage() {
         </DialogContent>
       </Dialog>
 
+      {/* ── Manage Accounts Dialog ── */}
+      <Dialog open={showAccounts} onOpenChange={v => { setShowAccounts(v); if (!v) { setShowAccountForm(false); setEditAccount(null); setAccountForm({ ...EMPTY_ACCOUNT }); } }}>
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Landmark className="h-4 w-4" /> จัดการบัญชี
+            </DialogTitle>
+          </DialogHeader>
+
+          {/* Account list */}
+          <div className="space-y-2">
+            {accounts.filter(a => a.is_active).map(acc => (
+              <div key={acc.id} className="flex items-center justify-between rounded-lg border border-slate-100 bg-white px-3 py-2.5 hover:border-slate-200">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <span className={`shrink-0 inline-block text-xs px-2 py-0.5 rounded-full font-medium ${accountTypeBadge(acc.account_type)}`}>
+                    {ACCOUNT_TYPES.find(t => t.value === acc.account_type)?.label ?? acc.account_type}
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-slate-800 truncate">{acc.name}</p>
+                    {acc.account_no && <p className="text-xs text-slate-400">{acc.account_no}</p>}
+                  </div>
+                </div>
+                <div className="flex items-center gap-1 shrink-0 ml-2">
+                  <button type="button"
+                    onClick={() => { setEditAccount(acc); setAccountForm({ name: acc.name, account_type: acc.account_type, bank_name: acc.bank_name ?? '', account_no: acc.account_no ?? '' }); setShowAccountForm(true); }}
+                    className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700">
+                    <Pencil className="h-3.5 w-3.5" />
+                  </button>
+                  <button type="button"
+                    onClick={() => void handleDeleteAccount(acc.id)}
+                    className="rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-600">
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </div>
+            ))}
+            {accounts.filter(a => a.is_active).length === 0 && (
+              <p className="py-4 text-center text-sm text-slate-400">ยังไม่มีบัญชี</p>
+            )}
+          </div>
+
+          {/* Add / Edit form */}
+          {showAccountForm ? (
+            <div className="space-y-3 rounded-xl border border-blue-200 bg-blue-50 p-4">
+              <p className="text-sm font-medium text-blue-800">{editAccount ? 'แก้ไขบัญชี' : 'เพิ่มบัญชีใหม่'}</p>
+              <div className="space-y-1.5">
+                <Label>ชื่อบัญชี *</Label>
+                <Input placeholder="เช่น กสิกร ออมทรัพย์"
+                  value={accountForm.name} onChange={e => setAccountForm(f => ({ ...f, name: e.target.value }))} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>ประเภทบัญชี</Label>
+                <CustomSelect value={accountForm.account_type}
+                  onChange={v => setAccountForm(f => ({ ...f, account_type: v }))}
+                  options={accountTypeOpts} />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1.5">
+                  <Label>ธนาคาร</Label>
+                  <Input placeholder="เช่น กสิกรไทย"
+                    value={accountForm.bank_name} onChange={e => setAccountForm(f => ({ ...f, bank_name: e.target.value }))} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>เลขที่บัญชี</Label>
+                  <Input placeholder="xxx-x-xxxxx-x"
+                    value={accountForm.account_no} onChange={e => setAccountForm(f => ({ ...f, account_no: e.target.value }))} />
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <Button size="sm" onClick={handleSaveAccount} disabled={accountSaving || !accountForm.name.trim()}>
+                  {accountSaving ? 'กำลังบันทึก…' : editAccount ? 'บันทึกการแก้ไข' : 'เพิ่มบัญชี'}
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => { setShowAccountForm(false); setEditAccount(null); setAccountForm({ ...EMPTY_ACCOUNT }); }}>
+                  ยกเลิก
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <button type="button"
+              onClick={() => { setEditAccount(null); setAccountForm({ ...EMPTY_ACCOUNT }); setShowAccountForm(true); }}
+              className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-slate-300 p-3 text-sm text-slate-500 hover:border-slate-400 hover:text-slate-700 transition-colors">
+              <Plus className="h-4 w-4" /> เพิ่มบัญชีใหม่
+            </button>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowAccounts(false)}>ปิด</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* ── Master Data Dialog (หมวด / แปลง) ── */}
       <Dialog open={showMaster} onOpenChange={setShowMaster}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>จัดการหมวดและแปลง</DialogTitle></DialogHeader>
 
-          {/* Tabs */}
           <div className="flex overflow-hidden rounded-lg border border-slate-200">
-            <button type="button"
-              onClick={() => setMasterTab('category')}
+            <button type="button" onClick={() => setMasterTab('category')}
               className={`flex flex-1 items-center justify-center gap-2 py-2 text-sm font-medium transition-colors ${
                 masterTab === 'category' ? 'bg-slate-800 text-white' : 'bg-white text-slate-500 hover:bg-slate-50'
               }`}>
               <Tag className="h-4 w-4" /> หมวดหมู่
             </button>
-            <button type="button"
-              onClick={() => setMasterTab('property')}
+            <button type="button" onClick={() => setMasterTab('property')}
               className={`flex flex-1 items-center justify-center gap-2 py-2 text-sm font-medium transition-colors ${
                 masterTab === 'property' ? 'bg-slate-800 text-white' : 'bg-white text-slate-500 hover:bg-slate-50'
               }`}>
@@ -547,24 +693,16 @@ export default function TmcFinancePage() {
             </button>
           </div>
 
-          {/* Categories Tab */}
           {masterTab === 'category' && (
             <div className="space-y-3">
               <p className="text-xs text-slate-400">คลิก ✏️ เพื่อแก้ไขชื่อ | 🗑️ เพื่อลบ</p>
               <div className="max-h-56 space-y-1.5 overflow-y-auto pr-1">
                 {categories.map(cat => (
-                  <EditableRow
-                    key={cat.id}
-                    label={cat.name}
-                    value={cat.name}
-                    placeholder="ชื่อหมวด"
+                  <EditableRow key={cat.id} label={cat.name} value={cat.name} placeholder="ชื่อหมวด"
                     onSave={async (name) => { await updateCategory(cat.id, name); }}
-                    onDelete={async () => { await deleteCategory(cat.id); }}
-                  />
+                    onDelete={async () => { await deleteCategory(cat.id); }} />
                 ))}
-                {categories.length === 0 && (
-                  <p className="py-4 text-center text-sm text-slate-400">ยังไม่มีหมวด</p>
-                )}
+                {categories.length === 0 && <p className="py-4 text-center text-sm text-slate-400">ยังไม่มีหมวด</p>}
               </div>
               <div className="flex gap-2 rounded-xl border border-dashed border-slate-300 p-3">
                 <Input placeholder="ชื่อหมวดใหม่ เช่น ค่าซ่อมแซม"
@@ -578,36 +716,23 @@ export default function TmcFinancePage() {
             </div>
           )}
 
-          {/* Properties Tab */}
           {masterTab === 'property' && (
             <div className="space-y-3">
               <p className="text-xs text-slate-400">คลิก ✏️ เพื่อแก้ไขชื่อและรหัส | 🗑️ เพื่อลบ</p>
               <div className="max-h-56 space-y-1.5 overflow-y-auto pr-1">
                 {properties.map(prop => (
-                  <EditableRow
-                    key={prop.id}
-                    label={prop.name}
-                    value={prop.name}
-                    placeholder="ชื่อแปลง"
+                  <EditableRow key={prop.id} label={prop.name} value={prop.name} placeholder="ชื่อแปลง"
                     extraField={{ label: 'รหัส', value: prop.code, placeholder: 'รหัส' }}
                     onSave={async (name, code) => { await updateProperty(prop.id, name, code); }}
-                    onDelete={async () => { await deleteProperty(prop.id); }}
-                  />
+                    onDelete={async () => { await deleteProperty(prop.id); }} />
                 ))}
-                {properties.length === 0 && (
-                  <p className="py-4 text-center text-sm text-slate-400">ยังไม่มีแปลง</p>
-                )}
+                {properties.length === 0 && <p className="py-4 text-center text-sm text-slate-400">ยังไม่มีแปลง</p>}
               </div>
               <div className="flex gap-2 rounded-xl border border-dashed border-slate-300 p-3">
-                <Input placeholder="รหัส เช่น TMC8"
-                  value={newPropCode} onChange={e => setNewPropCode(e.target.value)}
-                  className="w-24" />
-                <Input placeholder="ชื่อแปลง เช่น บ้านสวน"
-                  value={newPropName} onChange={e => setNewPropName(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter') void createProperty(); }}
-                  className="flex-1" />
-                <Button size="sm" onClick={createProperty}
-                  disabled={masterSaving || !newPropCode.trim() || !newPropName.trim()}>
+                <Input placeholder="รหัส เช่น TMC8" value={newPropCode} onChange={e => setNewPropCode(e.target.value)} className="w-24" />
+                <Input placeholder="ชื่อแปลง เช่น บ้านสวน" value={newPropName} onChange={e => setNewPropName(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') void createProperty(); }} className="flex-1" />
+                <Button size="sm" onClick={createProperty} disabled={masterSaving || !newPropCode.trim() || !newPropName.trim()}>
                   <Plus className="h-4 w-4" />
                 </Button>
               </div>
