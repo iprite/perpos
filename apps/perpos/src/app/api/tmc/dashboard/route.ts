@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
 
   const db = auth.rls;
 
-  const [finRes, pettyRes, staysRes, stockRes] = await Promise.all([
+  const [finRes, pettyRes, staysRes, stockRes, staysCountRes] = await Promise.all([
     db.from('tmc_finance_entries')
       .select('entry_date, income, expense, category, property_code, account_id')
       .eq('org_id', orgId)
@@ -38,6 +38,10 @@ export async function GET(req: NextRequest) {
       .eq('org_id', orgId)
       .eq('is_active', true)
       .order('current_qty', { ascending: true }),
+    // All-time stays count (no date filter) — for summary card accuracy
+    db.from('tmc_stays')
+      .select('id', { count: 'exact', head: true })
+      .eq('org_id', orgId),
   ]);
 
   const finRows   = finRes.data   ?? [];
@@ -178,6 +182,7 @@ export async function GET(req: NextRequest) {
         Number(i.min_quantity) > 0 && Number(i.current_qty) <= Number(i.min_quantity)
       ).length,
     },
+    staysAllTime: staysCountRes.count ?? 0,
   };
 
   return NextResponse.json({

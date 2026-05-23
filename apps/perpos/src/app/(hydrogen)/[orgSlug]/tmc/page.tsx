@@ -55,10 +55,11 @@ function rangeFromMonths(n: number) {
 
 // ── Types ────────────────────────────────────────────────────────────
 type Totals = {
-  finance: { income: number; expense: number };
-  petty:   { top_up: number; expense: number };
-  stays:   { count: number; nights: number; revenue: number };
-  stock:   { items: number; low: number };
+  finance:      { income: number; expense: number };
+  petty:        { top_up: number; expense: number };
+  stays:        { count: number; nights: number; revenue: number };
+  stock:        { items: number; low: number };
+  staysAllTime: number;
 };
 type Monthly = { month: string; income?: number; expense?: number; top_up?: number; stays?: number; nights?: number; revenue?: number };
 type PropRow = { property: string; finIncome: number; finExpense: number; pettyExpense: number; stays: number; stayRevenue: number };
@@ -174,9 +175,9 @@ export default function TmcDashboardPage() {
         />
         <SummaryCard
           icon={<Building2 className="w-5 h-5 text-emerald-500" />}
-          label="การเข้าพัก"
-          value={t ? `${t.stays.count} ครั้ง · ${t.stays.nights} คืน` : '—'}
-          sub={t ? `รายรับห้อง ฿${fmtK(t.stays.revenue)}` : undefined}
+          label="การเข้าพัก (ทั้งหมด)"
+          value={t ? `${t.staysAllTime} ครั้ง` : '—'}
+          sub={t ? `ช่วงนี้ ${t.stays.count} ครั้ง · ${t.stays.nights} คืน · ฿${fmtK(t.stays.revenue)}` : undefined}
           color="bg-emerald-50 border-emerald-100"
         />
         <SummaryCard
