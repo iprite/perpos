@@ -20,11 +20,11 @@ export async function GET(req: NextRequest) {
     .eq('org_id', orgId)
     .order('entry_date', { ascending: false });
 
-  if (p.get('accountId')) q = q.eq('account_id', p.get('accountId')!);
+  if (p.get('accountId'))    q = q.eq('account_id',    p.get('accountId')!);
   if (p.get('propertyCode')) q = q.eq('property_code', p.get('propertyCode')!);
-  if (p.get('category')) q = q.eq('category', p.get('category')!);
-  if (p.get('from')) q = q.gte('entry_date', p.get('from')!);
-  if (p.get('to')) q = q.lte('entry_date', p.get('to')!);
+  if (p.get('category'))     q = q.eq('category',      p.get('category')!);
+  if (p.get('from'))         q = q.gte('entry_date',   p.get('from')!);
+  if (p.get('to'))           q = q.lte('entry_date',   p.get('to')!);
 
   const { data, error } = await q;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -43,14 +43,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'ต้องการสิทธิ์ team_lead ขึ้นไป' }, { status: 403 });
   }
 
-  const { accountId, entryDate, description, checkInDate, checkOutDate,
-    category, propertyCode, income, expense, note } = body as Record<string, string>;
+  const { accountId, entryDate, description, category,
+          propertyCode, income, expense, note } = body as Record<string, string>;
 
   if (!accountId || !entryDate || !description || !category) {
     return NextResponse.json({ error: 'missing required fields' }, { status: 400 });
   }
 
-  // Resolve property_id from code
   const admin = createAdminClient();
   const { data: prop } = await admin
     .from('tmc_properties')
@@ -66,12 +65,10 @@ export async function POST(req: NextRequest) {
       account_id: accountId,
       entry_date: entryDate,
       description,
-      check_in_date: checkInDate || null,
-      check_out_date: checkOutDate || null,
       category,
-      property_id: prop?.id ?? null,
+      property_id:   prop?.id ?? null,
       property_code: propertyCode || null,
-      income: income ? Number(income) : null,
+      income:  income  ? Number(income)  : null,
       expense: expense ? Number(expense) : null,
       note: note || null,
       created_by: auth.userId,
@@ -85,7 +82,7 @@ export async function POST(req: NextRequest) {
 
 export async function PUT(req: NextRequest) {
   const body = await req.json().catch(() => ({})) as Record<string, unknown>;
-  const { id, orgId, ...fields } = body as Record<string, string>;
+  const { id, orgId } = body as Record<string, string>;
   if (!id || !orgId) return NextResponse.json({ error: 'missing id or orgId' }, { status: 400 });
 
   const auth = await requireTmcMember(req, orgId);
@@ -94,30 +91,57 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ error: 'ต้องการสิทธิ์ team_lead ขึ้นไป' }, { status: 403 });
   }
 
+  const fields = body as Record<string, string>;
   const admin = createAdminClient();
+
+  // Fetch old record for audit log
+  const { data: oldEntry } = await admin
+    .from('tmc_finance_entries')
+    .select('*')
+    .eq('id', id)
+    .eq('org_id', orgId)
+    .maybeSingle();
+
+  const patch: Record<string, unknown> = {
+    entry_date:    fields.entryDate,
+    description:   fields.description,
+    category:      fields.category,
+    property_code: fields.propertyCode || null,
+    income:  fields.income  ? Number(fields.income)  : null,
+    expense: fields.expense ? Number(fields.expense) : null,
+    note:    fields.note    || null,
+  };
+  if (fields.accountId) patch.account_id = fields.accountId;
+
   const { data, error } = await admin
     .from('tmc_finance_entries')
-    .update({
-      entry_date: fields.entryDate,
-      description: fields.description,
-      category: fields.category,
-      property_code: fields.propertyCode || null,
-      income: fields.income ? Number(fields.income) : null,
-      expense: fields.expense ? Number(fields.expense) : null,
-      note: fields.note || null,
-    })
+    .update(patch)
     .eq('id', id)
     .eq('org_id', orgId)
     .select()
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  // Write audit log (non-blocking)
+  if (oldEntry) {
+    await admin.from('tmc_audit_logs').insert({
+      org_id:     orgId,
+      table_name: 'tmc_finance_entries',
+      record_id:  id,
+      action:     'update',
+      changed_by: auth.userId,
+      old_data:   oldEntry,
+      new_data:   data,
+    }).then(() => {/* ignore */});
+  }
+
   return NextResponse.json(data);
 }
 
 export async function DELETE(req: NextRequest) {
-  const p = req.nextUrl.searchParams;
-  const id = p.get('id') ?? '';
+  const p     = req.nextUrl.searchParams;
+  const id    = p.get('id')    ?? '';
   const orgId = p.get('orgId') ?? '';
   if (!id || !orgId) return NextResponse.json({ error: 'missing id or orgId' }, { status: 400 });
 
@@ -128,6 +152,15 @@ export async function DELETE(req: NextRequest) {
   }
 
   const admin = createAdminClient();
+
+  // Fetch before delete for audit log
+  const { data: oldEntry } = await admin
+    .from('tmc_finance_entries')
+    .select('*')
+    .eq('id', id)
+    .eq('org_id', orgId)
+    .maybeSingle();
+
   const { error } = await admin
     .from('tmc_finance_entries')
     .delete()
@@ -135,5 +168,19 @@ export async function DELETE(req: NextRequest) {
     .eq('org_id', orgId);
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  // Write audit log (non-blocking)
+  if (oldEntry) {
+    await admin.from('tmc_audit_logs').insert({
+      org_id:     orgId,
+      table_name: 'tmc_finance_entries',
+      record_id:  id,
+      action:     'delete',
+      changed_by: auth.userId,
+      old_data:   oldEntry,
+      new_data:   null,
+    }).then(() => {/* ignore */});
+  }
+
   return NextResponse.json({ ok: true });
 }

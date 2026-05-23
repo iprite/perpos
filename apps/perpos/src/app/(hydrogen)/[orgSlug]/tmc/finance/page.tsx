@@ -13,7 +13,7 @@ import {
 } from '@/components/ui/dialog';
 import {
   Plus, Filter, Settings, Tag, MapPin, Check, X, Pencil, Trash2,
-  ChevronLeft, ChevronRight, Landmark,
+  ChevronLeft, ChevronRight, Landmark, History,
 } from 'lucide-react';
 
 const TMC_ORG_ID = '1f52618c-09c4-49c5-a929-ea5060f26e7d';
@@ -34,21 +34,70 @@ function accountTypeBadge(type: string) {
   }
 }
 
+// ── Types ─────────────────────────────────────────────────────────────────────
 type Account  = { id: string; name: string; account_type: string; bank_name: string | null; account_no: string | null; sort_order: number; is_active: boolean };
 type Category = { id: string; name: string; sort_order: number; is_active: boolean };
 type Property = { id: string; code: string; name: string; is_active: boolean; sort_order: number };
 type Entry = {
-  id: string; entry_date: string; description: string; category: string;
+  id: string; account_id: string; entry_date: string; description: string; category: string;
   property_code: string | null; income: number | null; expense: number | null;
   note: string | null; tmc_accounts: { name: string; account_type: string } | null;
 };
+type AuditLog = {
+  id: string;
+  action: 'update' | 'delete';
+  changed_at: string;
+  old_data: Record<string, unknown> | null;
+  new_data: Record<string, unknown> | null;
+  profiles: { display_name: string | null; email: string } | null;
+};
 
+// ── Helpers ────────────────────────────────────────────────────────────────────
 function fmt(n: number | null) {
   if (!n) return '—';
   return n.toLocaleString('th-TH', { minimumFractionDigits: 2 });
 }
+function fmtDateTime(iso: string) {
+  return new Date(iso).toLocaleString('th-TH', {
+    day: '2-digit', month: 'short', year: '2-digit',
+    hour: '2-digit', minute: '2-digit',
+  });
+}
 
-// ── Inline editable row ───────────────────────────────────────────────────────
+const DIFF_FIELDS: [string, string][] = [
+  ['entry_date',    'วันที่'],
+  ['description',   'รายการ'],
+  ['category',      'หมวด'],
+  ['property_code', 'แปลง'],
+  ['income',        'รายรับ'],
+  ['expense',       'รายจ่าย'],
+  ['note',          'หมายเหตุ'],
+];
+
+function diffSummary(log: AuditLog): string {
+  if (log.action === 'delete') {
+    const old = log.old_data ?? {};
+    const desc = String(old.description ?? '—');
+    const amount = old.income != null ? Number(old.income) : old.expense != null ? Number(old.expense) : null;
+    return `ลบ: "${desc}"${amount != null ? ` (${amount.toLocaleString('th-TH')} บาท)` : ''}`;
+  }
+  const oldD = log.old_data ?? {};
+  const newD = log.new_data ?? {};
+  const changes: string[] = [];
+  for (const [key, label] of DIFF_FIELDS) {
+    if (JSON.stringify(oldD[key]) !== JSON.stringify(newD[key])) {
+      const fmtVal = (v: unknown) => {
+        if (v == null) return '—';
+        if (key === 'income' || key === 'expense') return Number(v).toLocaleString('th-TH');
+        return String(v);
+      };
+      changes.push(`${label}: ${fmtVal(oldD[key])} → ${fmtVal(newD[key])}`);
+    }
+  }
+  return changes.length > 0 ? changes.join(' | ') : 'ไม่มีการเปลี่ยนแปลง';
+}
+
+// ── Inline editable row ────────────────────────────────────────────────────────
 function EditableRow({
   label, value, placeholder, onSave, onDelete, extraField,
 }: {
@@ -58,8 +107,8 @@ function EditableRow({
   extraField?: { label: string; value: string; placeholder?: string };
 }) {
   const [editing, setEditing] = useState(false);
-  const [val,  setVal]  = useState(value);
-  const [ext,  setExt]  = useState(extraField?.value ?? '');
+  const [val, setVal] = useState(value);
+  const [ext, setExt] = useState(extraField?.value ?? '');
   const [busy, setBusy] = useState(false);
 
   async function save() {
@@ -68,9 +117,7 @@ function EditableRow({
     await onSave(val.trim(), ext.trim() || undefined);
     setBusy(false); setEditing(false);
   }
-  async function remove() {
-    setBusy(true); await onDelete(); setBusy(false);
-  }
+  async function remove() { setBusy(true); await onDelete(); setBusy(false); }
 
   if (editing) {
     return (
@@ -94,7 +141,6 @@ function EditableRow({
       </div>
     );
   }
-
   return (
     <div className="flex items-center justify-between rounded-lg border border-slate-100 bg-white px-3 py-2.5 hover:border-slate-200">
       <span className="flex items-center gap-2 text-sm text-slate-700">
@@ -119,11 +165,18 @@ function EditableRow({
   );
 }
 
-// ── Main page ────────────────────────────────────────────────────────────────
+// ── Constants ─────────────────────────────────────────────────────────────────
 const EMPTY_ACCOUNT = { name: '', account_type: 'savings', bank_name: '', account_no: '' };
+const EMPTY_FORM = {
+  accountId: '', entryDate: new Date().toISOString().slice(0, 10),
+  description: '', entryType: '' as 'income' | 'expense' | '',
+  category: '', propertyCode: '', amount: '', note: '',
+};
 
+// ── Main page ──────────────────────────────────────────────────────────────────
 export default function TmcFinancePage() {
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
+
   const [accounts,   setAccounts]   = useState<Account[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [properties, setProperties] = useState<Property[]>([]);
@@ -131,9 +184,9 @@ export default function TmcFinancePage() {
   const [loading,    setLoading]    = useState(true);
 
   // filters
-  const [accountId,    setAccountId]    = useState('');
-  const [propertyCode, setPropertyCode] = useState('');
-  const [category,     setCategory]     = useState('');
+  const [filterAccountId, setFilterAccountId] = useState('');
+  const [filterPropCode,  setFilterPropCode]  = useState('');
+  const [filterCategory,  setFilterCategory]  = useState('');
   const [from, setFrom] = useState('');
   const [to,   setTo]   = useState('');
 
@@ -141,20 +194,15 @@ export default function TmcFinancePage() {
   const PAGE_SIZE = 10;
   const [page, setPage] = useState(1);
 
-  // entry form
-  const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState<{
-    accountId: string; entryDate: string; description: string;
-    entryType: 'income' | 'expense' | ''; category: string;
-    propertyCode: string; amount: string; note: string;
-  }>({
-    accountId: '', entryDate: new Date().toISOString().slice(0, 10),
-    description: '', entryType: '',
-    category: '', propertyCode: '', amount: '', note: '',
-  });
-  const [saving, setSaving] = useState(false);
+  // entry form (create / edit)
+  const [showForm,   setShowForm]   = useState(false);
+  const [editEntry,  setEditEntry]  = useState<Entry | null>(null);
+  const [form,       setForm]       = useState({ ...EMPTY_FORM });
+  const [saving,     setSaving]     = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState(false);
+  const [deleting,   setDeleting]   = useState(false);
 
-  // master data management (categories / properties)
+  // master data (categories / properties)
   const [showMaster,   setShowMaster]   = useState(false);
   const [masterTab,    setMasterTab]    = useState<'category' | 'property'>('category');
   const [newCatName,   setNewCatName]   = useState('');
@@ -163,11 +211,16 @@ export default function TmcFinancePage() {
   const [masterSaving, setMasterSaving] = useState(false);
 
   // accounts management
-  const [showAccounts,   setShowAccounts]   = useState(false);
-  const [editAccount,    setEditAccount]    = useState<Account | null>(null);
-  const [accountForm,    setAccountForm]    = useState({ ...EMPTY_ACCOUNT });
-  const [accountSaving,  setAccountSaving]  = useState(false);
+  const [showAccounts,    setShowAccounts]    = useState(false);
+  const [editAccount,     setEditAccount]     = useState<Account | null>(null);
+  const [accountForm,     setAccountForm]     = useState({ ...EMPTY_ACCOUNT });
+  const [accountSaving,   setAccountSaving]   = useState(false);
   const [showAccountForm, setShowAccountForm] = useState(false);
+
+  // audit log viewer
+  const [showLogs,   setShowLogs]   = useState(false);
+  const [logs,       setLogs]       = useState<AuditLog[]>([]);
+  const [logsLoading, setLogsLoading] = useState(false);
 
   const authHeader = useCallback(async () => {
     const { data } = await supabase.auth.getSession();
@@ -177,7 +230,7 @@ export default function TmcFinancePage() {
     };
   }, [supabase]);
 
-  // ── Loaders ────────────────────────────────────────────────────────────────
+  // ── Loaders ──────────────────────────────────────────────────────────────────
   const loadAccounts = useCallback(async () => {
     const h = await authHeader();
     const res = await fetch(backendUrl(`/tmc/accounts?orgId=${TMC_ORG_ID}&all=1`), { headers: h });
@@ -200,11 +253,11 @@ export default function TmcFinancePage() {
     setLoading(true);
     const h = await authHeader();
     const p = new URLSearchParams({ orgId: TMC_ORG_ID });
-    if (accountId)    p.set('accountId',    accountId);
-    if (propertyCode) p.set('propertyCode', propertyCode);
-    if (category)     p.set('category',     category);
-    if (from)         p.set('from',         from);
-    if (to)           p.set('to',           to);
+    if (filterAccountId) p.set('accountId',    filterAccountId);
+    if (filterPropCode)  p.set('propertyCode', filterPropCode);
+    if (filterCategory)  p.set('category',     filterCategory);
+    if (from)            p.set('from',         from);
+    if (to)              p.set('to',           to);
 
     const [accRes, entRes] = await Promise.all([
       fetch(backendUrl(`/tmc/accounts?orgId=${TMC_ORG_ID}`), { headers: h }),
@@ -214,35 +267,96 @@ export default function TmcFinancePage() {
     setAccounts(Array.isArray(accData) ? accData : []);
     setEntries(entData.entries ?? []);
     setLoading(false);
-  }, [authHeader, accountId, propertyCode, category, from, to]);
+  }, [authHeader, filterAccountId, filterPropCode, filterCategory, from, to]);
+
+  const loadLogs = useCallback(async () => {
+    setLogsLoading(true);
+    const h = await authHeader();
+    const res = await fetch(backendUrl(`/tmc/audit-logs?orgId=${TMC_ORG_ID}&table=tmc_finance_entries&limit=100`), { headers: h });
+    const data = await res.json();
+    setLogs(Array.isArray(data) ? data : []);
+    setLogsLoading(false);
+  }, [authHeader]);
 
   useEffect(() => { void loadMaster(); }, [loadMaster]);
   useEffect(() => { void load(); }, [load]);
   useEffect(() => { setPage(1); }, [entries]);
 
-  // ── Save entry ─────────────────────────────────────────────────────────────
+  // ── Entry form helpers ───────────────────────────────────────────────────────
+  function openCreate() {
+    setEditEntry(null);
+    setForm({ ...EMPTY_FORM, entryDate: new Date().toISOString().slice(0, 10) });
+    setShowForm(true);
+  }
+
+  function openEdit(entry: Entry) {
+    setEditEntry(entry);
+    setForm({
+      accountId:  entry.account_id,
+      entryDate:  entry.entry_date.slice(0, 10),
+      description: entry.description,
+      entryType:  entry.income != null ? 'income' : 'expense',
+      category:   entry.category,
+      propertyCode: entry.property_code ?? '',
+      amount:     String(entry.income ?? entry.expense ?? ''),
+      note:       entry.note ?? '',
+    });
+    setShowForm(true);
+  }
+
+  function closeForm() {
+    setShowForm(false);
+    setEditEntry(null);
+    setDeleteConfirm(false);
+    setForm({ ...EMPTY_FORM, entryDate: new Date().toISOString().slice(0, 10) });
+  }
+
   async function handleSave() {
     if (!form.accountId || !form.description || !form.category || !form.entryType || !form.amount) return;
     setSaving(true);
     const h = await authHeader();
     const income  = form.entryType === 'income'  ? form.amount : '';
     const expense = form.entryType === 'expense' ? form.amount : '';
-    await fetch(backendUrl('/tmc/finance'), {
-      method: 'POST', headers: h,
-      body: JSON.stringify({
-        orgId: TMC_ORG_ID,
-        accountId: form.accountId, entryDate: form.entryDate,
-        description: form.description, category: form.category,
-        propertyCode: form.propertyCode, income, expense, note: form.note,
-      }),
-    });
+
+    if (editEntry) {
+      await fetch(backendUrl('/tmc/finance'), {
+        method: 'PUT', headers: h,
+        body: JSON.stringify({
+          id: editEntry.id, orgId: TMC_ORG_ID,
+          accountId: form.accountId, entryDate: form.entryDate,
+          description: form.description, category: form.category,
+          propertyCode: form.propertyCode, income, expense, note: form.note,
+        }),
+      });
+    } else {
+      await fetch(backendUrl('/tmc/finance'), {
+        method: 'POST', headers: h,
+        body: JSON.stringify({
+          orgId: TMC_ORG_ID,
+          accountId: form.accountId, entryDate: form.entryDate,
+          description: form.description, category: form.category,
+          propertyCode: form.propertyCode, income, expense, note: form.note,
+        }),
+      });
+    }
     setSaving(false);
-    setShowForm(false);
-    setForm({ accountId: '', entryDate: new Date().toISOString().slice(0, 10), description: '', entryType: '', category: '', propertyCode: '', amount: '', note: '' });
+    closeForm();
     void load();
   }
 
-  // ── Account CRUD ───────────────────────────────────────────────────────────
+  async function handleDelete() {
+    if (!editEntry) return;
+    setDeleting(true);
+    const h = await authHeader();
+    await fetch(backendUrl(`/tmc/finance?id=${editEntry.id}&orgId=${TMC_ORG_ID}`), {
+      method: 'DELETE', headers: h,
+    });
+    setDeleting(false);
+    closeForm();
+    void load();
+  }
+
+  // ── Account CRUD ─────────────────────────────────────────────────────────────
   async function handleSaveAccount() {
     if (!accountForm.name.trim()) return;
     setAccountSaving(true);
@@ -275,7 +389,7 @@ export default function TmcFinancePage() {
     void load();
   }
 
-  // ── Category CRUD ──────────────────────────────────────────────────────────
+  // ── Category CRUD ────────────────────────────────────────────────────────────
   async function createCategory() {
     if (!newCatName.trim()) return;
     setMasterSaving(true);
@@ -286,7 +400,6 @@ export default function TmcFinancePage() {
     });
     setNewCatName(''); setMasterSaving(false); void loadMaster();
   }
-
   async function updateCategory(id: string, name: string) {
     const h = await authHeader();
     await fetch(backendUrl('/tmc/finance/categories'), {
@@ -295,7 +408,6 @@ export default function TmcFinancePage() {
     });
     void loadMaster();
   }
-
   async function deleteCategory(id: string) {
     const h = await authHeader();
     await fetch(backendUrl(`/tmc/finance/categories?id=${id}&orgId=${TMC_ORG_ID}`), {
@@ -304,7 +416,7 @@ export default function TmcFinancePage() {
     void loadMaster();
   }
 
-  // ── Property CRUD ──────────────────────────────────────────────────────────
+  // ── Property CRUD ────────────────────────────────────────────────────────────
   async function createProperty() {
     if (!newPropCode.trim() || !newPropName.trim()) return;
     setMasterSaving(true);
@@ -315,7 +427,6 @@ export default function TmcFinancePage() {
     });
     setNewPropCode(''); setNewPropName(''); setMasterSaving(false); void loadMaster();
   }
-
   async function updateProperty(id: string, name: string, code?: string) {
     const h = await authHeader();
     await fetch(backendUrl('/tmc/properties'), {
@@ -324,7 +435,6 @@ export default function TmcFinancePage() {
     });
     void loadMaster();
   }
-
   async function deleteProperty(id: string) {
     const h = await authHeader();
     await fetch(backendUrl(`/tmc/properties?id=${id}&orgId=${TMC_ORG_ID}`), {
@@ -333,71 +443,52 @@ export default function TmcFinancePage() {
     void loadMaster();
   }
 
-  // ── Options ────────────────────────────────────────────────────────────────
+  // ── Options ──────────────────────────────────────────────────────────────────
   const activeAccounts   = useMemo(() => accounts.filter(a => a.is_active && a.account_type !== 'petty_cash'), [accounts]);
   const activeCategories = useMemo(() => categories.filter(c => c.is_active), [categories]);
   const activeProperties = useMemo(() => properties.filter(p => p.is_active), [properties]);
 
   const totalIncome  = entries.reduce((s, e) => s + (e.income  ?? 0), 0);
   const totalExpense = entries.reduce((s, e) => s + (e.expense ?? 0), 0);
-
   const totalPages   = Math.max(1, Math.ceil(entries.length / PAGE_SIZE));
   const pagedEntries = entries.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
-  const accountFilterOpts = useMemo(() => [
-    { value: '', label: 'ทุกบัญชี' },
-    ...activeAccounts.map(a => ({ value: a.id, label: a.name })),
-  ], [activeAccounts]);
+  const accountFilterOpts  = useMemo(() => [{ value: '', label: 'ทุกบัญชี' }, ...activeAccounts.map(a => ({ value: a.id, label: a.name }))], [activeAccounts]);
+  const propertyFilterOpts = useMemo(() => [{ value: '', label: 'ทุกแปลง' }, ...activeProperties.map(p => ({ value: p.code, label: p.code }))], [activeProperties]);
+  const categoryFilterOpts = useMemo(() => [{ value: '', label: 'ทุกหมวด' }, ...activeCategories.map(c => ({ value: c.name, label: c.name }))], [activeCategories]);
+  const accountFormOptions = useMemo(() => [{ value: '', label: 'เลือกบัญชี' }, ...activeAccounts.map(a => ({ value: a.id, label: a.name }))], [activeAccounts]);
+  const propertyFormOpts   = useMemo(() => [{ value: '', label: '-' }, ...activeProperties.map(p => ({ value: p.code, label: p.code }))], [activeProperties]);
+  const categoryFormOpts   = useMemo(() => [{ value: '', label: 'เลือกหมวด' }, ...activeCategories.map(c => ({ value: c.name, label: c.name }))], [activeCategories]);
+  const accountTypeOpts    = ACCOUNT_TYPES.map(t => ({ value: t.value, label: t.label }));
 
-  const propertyFilterOpts = useMemo(() => [
-    { value: '', label: 'ทุกแปลง' },
-    ...activeProperties.map(p => ({ value: p.code, label: p.code })),
-  ], [activeProperties]);
-
-  const categoryFilterOpts = useMemo(() => [
-    { value: '', label: 'ทุกหมวด' },
-    ...activeCategories.map(c => ({ value: c.name, label: c.name })),
-  ], [activeCategories]);
-
-  const accountFormOptions = useMemo(() => [
-    { value: '', label: 'เลือกบัญชี' },
-    ...activeAccounts.map(a => ({ value: a.id, label: a.name })),
-  ], [activeAccounts]);
-
-  const propertyFormOptions = useMemo(() => [
-    { value: '', label: '-' },
-    ...activeProperties.map(p => ({ value: p.code, label: p.code })),
-  ], [activeProperties]);
-
-  const categoryFormOptions = useMemo(() => [
-    { value: '', label: 'เลือกหมวด' },
-    ...activeCategories.map(c => ({ value: c.name, label: c.name })),
-  ], [activeCategories]);
-
-  const accountTypeOpts = ACCOUNT_TYPES.map(t => ({ value: t.value, label: t.label }));
+  const canSave = !saving && !!form.accountId && !!form.description && !!form.category && !!form.entryType && !!form.amount;
 
   return (
     <div className="p-4 md:p-6 space-y-4">
-      {/* Header */}
+
+      {/* ── Header ── */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-slate-900">บัญชีและการเงิน</h1>
           <p className="text-sm text-slate-500">TMC Management</p>
         </div>
         <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => { void loadLogs(); setShowLogs(true); }}>
+            <History className="w-4 h-4" /> ประวัติ
+          </Button>
           <Button variant="outline" size="sm" onClick={() => { void loadAccounts(); setShowAccounts(true); }}>
             <Landmark className="w-4 h-4" /> จัดการบัญชี
           </Button>
           <Button variant="outline" size="sm" onClick={() => { setMasterTab('category'); setShowMaster(true); }}>
             <Settings className="w-4 h-4" /> จัดการหมวด/แปลง
           </Button>
-          <Button onClick={() => setShowForm(true)}>
+          <Button onClick={openCreate}>
             <Plus className="w-4 h-4" /> เพิ่มรายการ
           </Button>
         </div>
       </div>
 
-      {/* Summary Cards */}
+      {/* ── Summary Cards ── */}
       <div className="grid grid-cols-3 gap-3">
         <div className="bg-green-50 rounded-xl p-4 border border-green-100">
           <p className="text-xs text-green-600 font-medium">รายรับรวม</p>
@@ -415,17 +506,17 @@ export default function TmcFinancePage() {
         </div>
       </div>
 
-      {/* Filters */}
+      {/* ── Filters ── */}
       <div className="bg-white rounded-xl border p-3 flex flex-wrap items-center gap-2">
         <Filter className="w-4 h-4 text-slate-400 shrink-0" />
-        <CustomSelect value={accountId}    onChange={setAccountId}    options={accountFilterOpts}  className="w-36" />
-        <CustomSelect value={propertyCode} onChange={setPropertyCode} options={propertyFilterOpts} className="w-28" />
-        <CustomSelect value={category}     onChange={setCategory}     options={categoryFilterOpts} className="w-36" />
+        <CustomSelect value={filterAccountId} onChange={setFilterAccountId} options={accountFilterOpts}  className="w-36" />
+        <CustomSelect value={filterPropCode}  onChange={setFilterPropCode}  options={propertyFilterOpts} className="w-28" />
+        <CustomSelect value={filterCategory}  onChange={setFilterCategory}  options={categoryFilterOpts} className="w-36" />
         <ThaiDatePicker value={from} onChange={setFrom} placeholder="ตั้งแต่" className="w-32" />
         <ThaiDatePicker value={to}   onChange={setTo}   placeholder="ถึง"     className="w-32" />
       </div>
 
-      {/* Table */}
+      {/* ── Table ── */}
       <div className="bg-white rounded-xl border overflow-x-auto">
         {loading ? (
           <div className="p-8 text-center text-slate-400">กำลังโหลด...</div>
@@ -445,41 +536,40 @@ export default function TmcFinancePage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
-              {pagedEntries.map(e => {
-                const acct = e.tmc_accounts;
-                return (
-                  <tr key={e.id} className="hover:bg-slate-50 transition-colors">
-                    <td className="px-4 py-3 text-slate-600 whitespace-nowrap">
-                      {new Date(e.entry_date).toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: '2-digit' })}
-                    </td>
-                    <td className="px-4 py-3 text-slate-800 max-w-xs truncate" title={e.description}>
-                      {e.description}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className="inline-block bg-slate-100 text-slate-700 text-xs px-2 py-0.5 rounded-full">{e.category}</span>
-                    </td>
-                    <td className="px-4 py-3">
-                      {e.property_code && (
-                        <span className="inline-block bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded-full">{e.property_code}</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      {acct && (
-                        <span className={`inline-block text-xs px-2 py-0.5 rounded-full font-medium ${accountTypeBadge(acct.account_type)}`}>
-                          {acct.name}
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-right font-medium text-green-600">{fmt(e.income)}</td>
-                    <td className="px-4 py-3 text-right font-medium text-red-600">{fmt(e.expense)}</td>
-                  </tr>
-                );
-              })}
+              {pagedEntries.map(e => (
+                <tr key={e.id}
+                  onClick={() => openEdit(e)}
+                  className="hover:bg-blue-50 cursor-pointer transition-colors group">
+                  <td className="px-4 py-3 text-slate-600 whitespace-nowrap">
+                    {new Date(e.entry_date).toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: '2-digit' })}
+                  </td>
+                  <td className="px-4 py-3 text-slate-800 max-w-xs">
+                    <span className="truncate block">{e.description}</span>
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className="inline-block bg-slate-100 text-slate-700 text-xs px-2 py-0.5 rounded-full">{e.category}</span>
+                  </td>
+                  <td className="px-4 py-3">
+                    {e.property_code && (
+                      <span className="inline-block bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded-full">{e.property_code}</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3">
+                    {e.tmc_accounts && (
+                      <span className={`inline-block text-xs px-2 py-0.5 rounded-full font-medium ${accountTypeBadge(e.tmc_accounts.account_type)}`}>
+                        {e.tmc_accounts.name}
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-right font-medium text-green-600">{fmt(e.income)}</td>
+                  <td className="px-4 py-3 text-right font-medium text-red-600">{fmt(e.expense)}</td>
+                </tr>
+              ))}
             </tbody>
           </table>
         )}
 
-        {/* Pagination Footer */}
+        {/* Pagination */}
         {!loading && entries.length > 0 && (
           <div className="flex items-center justify-between px-4 py-3 border-t bg-slate-50">
             <p className="text-xs text-slate-500">
@@ -493,18 +583,13 @@ export default function TmcFinancePage() {
                 .filter(p => p === 1 || p === totalPages || Math.abs(p - page) <= 1)
                 .reduce<(number | 'ellipsis')[]>((acc, p, idx, arr) => {
                   if (idx > 0 && p - (arr[idx - 1] as number) > 1) acc.push('ellipsis');
-                  acc.push(p);
-                  return acc;
+                  acc.push(p); return acc;
                 }, [])
                 .map((item, idx) =>
-                  item === 'ellipsis' ? (
-                    <span key={`e${idx}`} className="px-1 text-slate-400 text-xs">…</span>
-                  ) : (
-                    <Button key={item} variant={item === page ? 'default' : 'ghost'} size="icon"
-                      onClick={() => setPage(item as number)} className="h-8 w-8 text-xs">
-                      {item}
-                    </Button>
-                  )
+                  item === 'ellipsis'
+                    ? <span key={`e${idx}`} className="px-1 text-slate-400 text-xs">…</span>
+                    : <Button key={item} variant={item === page ? 'default' : 'ghost'} size="icon"
+                        onClick={() => setPage(item as number)} className="h-8 w-8 text-xs">{item}</Button>
                 )}
               <Button variant="ghost" size="icon" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} className="h-8 w-8">
                 <ChevronRight className="w-4 h-4" />
@@ -514,13 +599,14 @@ export default function TmcFinancePage() {
         )}
       </div>
 
-      {/* ── Add Entry Dialog ── */}
-      <Dialog open={showForm} onOpenChange={setShowForm}>
+      {/* ── Add / Edit Entry Dialog ── */}
+      <Dialog open={showForm} onOpenChange={v => { if (!v) closeForm(); }}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>เพิ่มรายการบัญชี</DialogTitle>
+            <DialogTitle>{editEntry ? 'แก้ไขรายการ' : 'เพิ่มรายการบัญชี'}</DialogTitle>
           </DialogHeader>
           <div className="grid grid-cols-2 gap-3">
+            {/* ประเภท toggle */}
             <div className="col-span-2 space-y-1.5">
               <Label>ประเภท *</Label>
               <div className="grid grid-cols-2 gap-2">
@@ -552,7 +638,7 @@ export default function TmcFinancePage() {
             </div>
             <div className="space-y-1.5">
               <Label>แปลง</Label>
-              <CustomSelect value={form.propertyCode} onChange={v => setForm(f => ({ ...f, propertyCode: v }))} options={propertyFormOptions} />
+              <CustomSelect value={form.propertyCode} onChange={v => setForm(f => ({ ...f, propertyCode: v }))} options={propertyFormOpts} />
             </div>
             <div className="col-span-2 space-y-1.5">
               <Label>รายการ *</Label>
@@ -561,7 +647,7 @@ export default function TmcFinancePage() {
             </div>
             <div className="col-span-2 space-y-1.5">
               <Label>หมวดหมู่ *</Label>
-              <CustomSelect value={form.category} onChange={v => setForm(f => ({ ...f, category: v }))} options={categoryFormOptions} />
+              <CustomSelect value={form.category} onChange={v => setForm(f => ({ ...f, category: v }))} options={categoryFormOpts} />
             </div>
             <div className="col-span-2 space-y-1.5">
               <Label>จำนวน (บาท) *</Label>
@@ -573,11 +659,114 @@ export default function TmcFinancePage() {
               <Input value={form.note} onChange={e => setForm(f => ({ ...f, note: e.target.value }))} />
             </div>
           </div>
+
+          {/* Footer: delete left, cancel+save right */}
+          <div className="flex items-center justify-between gap-2 pt-2">
+            {editEntry ? (
+              <Button type="button" variant="destructive" size="sm"
+                onClick={() => setDeleteConfirm(true)}>
+                <Trash2 className="h-4 w-4" /> ลบรายการ
+              </Button>
+            ) : <span />}
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={closeForm}>ยกเลิก</Button>
+              <Button onClick={handleSave} disabled={!canSave}>
+                {saving ? 'กำลังบันทึก…' : editEntry ? 'บันทึกการแก้ไข' : 'บันทึก'}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Delete Confirm Dialog ── */}
+      <Dialog open={deleteConfirm} onOpenChange={v => { if (!v) setDeleteConfirm(false); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>ยืนยันการลบ</DialogTitle>
+          </DialogHeader>
+          {editEntry && (
+            <div className="space-y-2 rounded-lg bg-red-50 border border-red-100 p-3 text-sm">
+              <p className="font-medium text-slate-800 truncate">{editEntry.description}</p>
+              <p className="text-slate-500">
+                {editEntry.income != null
+                  ? <span className="text-green-700 font-semibold">รายรับ {fmt(editEntry.income)} บาท</span>
+                  : <span className="text-red-700 font-semibold">รายจ่าย {fmt(editEntry.expense)} บาท</span>}
+                {' · '}
+                {new Date(editEntry.entry_date).toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: '2-digit' })}
+              </p>
+            </div>
+          )}
+          <p className="text-sm text-slate-500">ต้องการลบรายการนี้ใช่หรือไม่? การดำเนินการนี้ไม่สามารถยกเลิกได้</p>
           <DialogFooter className="gap-2 sm:gap-2">
-            <Button variant="outline" onClick={() => setShowForm(false)}>ยกเลิก</Button>
-            <Button onClick={handleSave} disabled={saving || !form.accountId || !form.description || !form.category || !form.entryType || !form.amount}>
-              {saving ? 'กำลังบันทึก…' : 'บันทึก'}
+            <Button variant="outline" onClick={() => setDeleteConfirm(false)}>ยกเลิก</Button>
+            <Button variant="destructive" onClick={handleDelete} disabled={deleting}>
+              {deleting ? 'กำลังลบ…' : 'ลบ'}
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Audit Log Viewer ── */}
+      <Dialog open={showLogs} onOpenChange={setShowLogs}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <History className="h-4 w-4" /> ประวัติการแก้ไขและลบ
+            </DialogTitle>
+          </DialogHeader>
+
+          {logsLoading ? (
+            <div className="py-10 text-center text-sm text-slate-400">กำลังโหลด...</div>
+          ) : logs.length === 0 ? (
+            <div className="py-10 text-center text-sm text-slate-400">ยังไม่มีประวัติการแก้ไข</div>
+          ) : (
+            <div className="overflow-x-auto rounded-lg border">
+              <table className="w-full text-sm">
+                <thead className="bg-slate-50 border-b">
+                  <tr>
+                    <th className="text-left px-3 py-2.5 text-slate-600 font-medium whitespace-nowrap">วันเวลา</th>
+                    <th className="text-left px-3 py-2.5 text-slate-600 font-medium whitespace-nowrap">ผู้แก้ไข</th>
+                    <th className="text-left px-3 py-2.5 text-slate-600 font-medium">รายการ</th>
+                    <th className="text-center px-3 py-2.5 text-slate-600 font-medium whitespace-nowrap">ประเภท</th>
+                    <th className="text-left px-3 py-2.5 text-slate-600 font-medium">สรุปการเปลี่ยนแปลง</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-50">
+                  {logs.map(log => {
+                    const diff = diffSummary(log);
+                    const editor = log.profiles?.display_name ?? log.profiles?.email ?? 'ไม่ทราบ';
+                    const refDesc = String(log.old_data?.description ?? log.new_data?.description ?? '—');
+                    return (
+                      <tr key={log.id} className="hover:bg-slate-50">
+                        <td className="px-3 py-2.5 text-slate-500 text-xs whitespace-nowrap">
+                          {fmtDateTime(log.changed_at)}
+                        </td>
+                        <td className="px-3 py-2.5 text-slate-700 text-xs whitespace-nowrap max-w-[120px] truncate" title={editor}>
+                          {editor}
+                        </td>
+                        <td className="px-3 py-2.5 text-slate-700 max-w-[140px] truncate" title={refDesc}>
+                          {refDesc}
+                        </td>
+                        <td className="px-3 py-2.5 text-center">
+                          {log.action === 'delete' ? (
+                            <span className="inline-block rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700">ลบ</span>
+                          ) : (
+                            <span className="inline-block rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">แก้ไข</span>
+                          )}
+                        </td>
+                        <td className="px-3 py-2.5 text-slate-500 text-xs max-w-xs truncate" title={diff}>
+                          {diff}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowLogs(false)}>ปิด</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -590,8 +779,6 @@ export default function TmcFinancePage() {
               <Landmark className="h-4 w-4" /> จัดการบัญชี
             </DialogTitle>
           </DialogHeader>
-
-          {/* Account list */}
           <div className="space-y-2">
             {accounts.filter(a => a.is_active).map(acc => (
               <div key={acc.id} className="flex items-center justify-between rounded-lg border border-slate-100 bg-white px-3 py-2.5 hover:border-slate-200">
@@ -610,8 +797,7 @@ export default function TmcFinancePage() {
                     className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700">
                     <Pencil className="h-3.5 w-3.5" />
                   </button>
-                  <button type="button"
-                    onClick={() => void handleDeleteAccount(acc.id)}
+                  <button type="button" onClick={() => void handleDeleteAccount(acc.id)}
                     className="rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-600">
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>
@@ -623,7 +809,6 @@ export default function TmcFinancePage() {
             )}
           </div>
 
-          {/* Add / Edit form */}
           {showAccountForm ? (
             <div className="space-y-3 rounded-xl border border-blue-200 bg-blue-50 p-4">
               <p className="text-sm font-medium text-blue-800">{editAccount ? 'แก้ไขบัญชี' : 'เพิ่มบัญชีใหม่'}</p>
@@ -666,7 +851,6 @@ export default function TmcFinancePage() {
               <Plus className="h-4 w-4" /> เพิ่มบัญชีใหม่
             </button>
           )}
-
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowAccounts(false)}>ปิด</Button>
           </DialogFooter>
@@ -677,18 +861,15 @@ export default function TmcFinancePage() {
       <Dialog open={showMaster} onOpenChange={setShowMaster}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>จัดการหมวดและแปลง</DialogTitle></DialogHeader>
-
           <div className="flex overflow-hidden rounded-lg border border-slate-200">
             <button type="button" onClick={() => setMasterTab('category')}
               className={`flex flex-1 items-center justify-center gap-2 py-2 text-sm font-medium transition-colors ${
-                masterTab === 'category' ? 'bg-slate-800 text-white' : 'bg-white text-slate-500 hover:bg-slate-50'
-              }`}>
+                masterTab === 'category' ? 'bg-slate-800 text-white' : 'bg-white text-slate-500 hover:bg-slate-50'}`}>
               <Tag className="h-4 w-4" /> หมวดหมู่
             </button>
             <button type="button" onClick={() => setMasterTab('property')}
               className={`flex flex-1 items-center justify-center gap-2 py-2 text-sm font-medium transition-colors ${
-                masterTab === 'property' ? 'bg-slate-800 text-white' : 'bg-white text-slate-500 hover:bg-slate-50'
-              }`}>
+                masterTab === 'property' ? 'bg-slate-800 text-white' : 'bg-white text-slate-500 hover:bg-slate-50'}`}>
               <MapPin className="h-4 w-4" /> แปลง
             </button>
           </div>
@@ -707,8 +888,7 @@ export default function TmcFinancePage() {
               <div className="flex gap-2 rounded-xl border border-dashed border-slate-300 p-3">
                 <Input placeholder="ชื่อหมวดใหม่ เช่น ค่าซ่อมแซม"
                   value={newCatName} onChange={e => setNewCatName(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter') void createCategory(); }}
-                  className="flex-1" />
+                  onKeyDown={e => { if (e.key === 'Enter') void createCategory(); }} className="flex-1" />
                 <Button size="sm" onClick={createCategory} disabled={masterSaving || !newCatName.trim()}>
                   <Plus className="h-4 w-4" />
                 </Button>
