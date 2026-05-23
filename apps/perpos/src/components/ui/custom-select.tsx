@@ -81,24 +81,37 @@ export function CustomSelect({ value, onChange, options, placeholder = "เล�
     return () => window.removeEventListener("scroll", close, true);
   }, [open]);
 
-  // Native wheel handler — bypasses react-remove-scroll (used by Radix Dialog)
-  // which intercepts wheel events at window level with capture:true.
-  // Manually updating scrollTop works even after preventDefault() is called upstream.
+  // Native wheel handler — intercepts at document-level capture so it runs
+  // regardless of what react-remove-scroll (Radix Dialog) does at window-level.
+  // Manually assigning scrollTop bypasses any upstream preventDefault().
+  // Dependency is `pos` (not `open`) because the portal only renders after pos is set,
+  // so scrollRef.current is guaranteed non-null when this effect fires.
   useEffect(() => {
-    if (!open) return;
+    if (!pos) return;
     const el = scrollRef.current;
     if (!el) return;
+
     const onWheel = (e: WheelEvent) => {
-      const atTop    = el.scrollTop === 0 && e.deltaY < 0;
-      const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight && e.deltaY > 0;
-      if (atTop || atBottom) return; // let the browser decide at boundaries
+      // Only handle events whose target is inside our scroll panel
+      if (!el.contains(e.target as Node) && e.target !== el) return;
+
+      // Normalize to pixels: mode 0=px, 1=lines(~40px), 2=page
+      const delta =
+        e.deltaMode === 1 ? e.deltaY * 40
+        : e.deltaMode === 2 ? e.deltaY * el.clientHeight
+        : e.deltaY;
+
+      const next = Math.max(0, Math.min(el.scrollTop + delta, el.scrollHeight - el.clientHeight));
+      if (next === el.scrollTop) return; // already at boundary — allow default (page scroll)
       e.preventDefault();
-      e.stopPropagation();
-      el.scrollTop += e.deltaY;
+      el.scrollTop = next;
     };
-    el.addEventListener("wheel", onWheel, { passive: false });
-    return () => el.removeEventListener("wheel", onWheel);
-  }, [open]);
+
+    // Capture at document so we run after window (react-remove-scroll), but JS
+    // scrollTop assignment is unaffected by any upstream preventDefault.
+    document.addEventListener("wheel", onWheel, { passive: false, capture: true });
+    return () => document.removeEventListener("wheel", onWheel, { capture: true });
+  }, [pos]);
 
   // Recalculate on window resize while open
   useEffect(() => {
@@ -144,7 +157,7 @@ export function CustomSelect({ value, onChange, options, placeholder = "เล�
             <div
               ref={scrollRef}
               style={{ maxHeight: pos.maxHeight, overscrollBehavior: "contain" }}
-              className="overflow-y-auto py-1"
+              className="overflow-y-scroll py-1"
             >
               {options.map((opt) => (
                 <button
