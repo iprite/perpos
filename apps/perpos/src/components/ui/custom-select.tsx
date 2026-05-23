@@ -65,6 +65,7 @@ export function CustomSelect({ value, onChange, options, placeholder = "เล�
               left: rect.left,
               width: rect.width,
               zIndex: 9999,
+              pointerEvents: "auto",
             }}
             className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg"
           >
