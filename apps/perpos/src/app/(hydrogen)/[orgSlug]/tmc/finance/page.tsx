@@ -11,20 +11,16 @@ import { ThaiDatePicker } from '@/components/ui/thai-date-picker';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog';
-import { Plus, Filter, ChevronLeft, ChevronRight } from 'lucide-react';
+import {
+  Plus, Filter, Settings, Tag, MapPin, Check, X, Pencil, Trash2,
+  ChevronLeft, ChevronRight,
+} from 'lucide-react';
 
 const TMC_ORG_ID = '1f52618c-09c4-49c5-a929-ea5060f26e7d';
 
-const CATEGORIES = [
-  'รายรับ ค่าเช่า', 'ค่ามัดจำ', 'คืนเงินมัดจำ', 'ค่าอาหาร', 'อาหารเช้า',
-  'หมูกระทะ', 'บาร์บีคิว', 'ค่าแรง(เงินเดือน+จ้างนอก)', 'ค่าไฟ', 'ค่าน้ำ',
-  'ซักผ้า', 'ล้างแอร์', 'ค่าของใช้ทั่วไป', 'ค่าโทรศัพท์', 'ค่าใช้จ่ายอื่นๆ',
-  'ค่าส่งของ', 'ค่าเสื้อพนักงาน', 'ค่านวด', 'เงินสดย่อย', 'แมคโค', 'ส่วนกลาง', 'บัญชี',
-];
-
-const PROPERTY_CODES = ['TMC1', 'TMC2', 'TMC3-4', 'TMC5', 'TMC6', 'TMC7', 'ส่วนกลาง'];
-
-type Account = { id: string; name: string; account_type: string };
+type Account  = { id: string; name: string; account_type: string };
+type Category = { id: string; name: string; sort_order: number; is_active: boolean };
+type Property = { id: string; code: string; name: string; is_active: boolean; sort_order: number };
 type Entry = {
   id: string; entry_date: string; description: string; category: string;
   property_code: string | null; income: number | null; expense: number | null;
@@ -36,18 +32,92 @@ function fmt(n: number | null) {
   return n.toLocaleString('th-TH', { minimumFractionDigits: 2 });
 }
 
+// ── Inline editable row ───────────────────────────────────────────────────────
+function EditableRow({
+  label, value, placeholder, onSave, onDelete, extraField,
+}: {
+  label: string; value: string; placeholder?: string;
+  onSave: (val: string, extra?: string) => Promise<void>;
+  onDelete: () => Promise<void>;
+  extraField?: { label: string; value: string; placeholder?: string };
+}) {
+  const [editing, setEditing] = useState(false);
+  const [val,  setVal]  = useState(value);
+  const [ext,  setExt]  = useState(extraField?.value ?? '');
+  const [busy, setBusy] = useState(false);
+
+  async function save() {
+    if (!val.trim()) return;
+    setBusy(true);
+    await onSave(val.trim(), ext.trim() || undefined);
+    setBusy(false); setEditing(false);
+  }
+  async function remove() {
+    setBusy(true); await onDelete(); setBusy(false);
+  }
+
+  if (editing) {
+    return (
+      <div className="flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2">
+        {extraField && (
+          <Input value={ext} onChange={e => setExt(e.target.value)}
+            placeholder={extraField.placeholder} className="w-24 h-7 text-sm" />
+        )}
+        <Input value={val} onChange={e => setVal(e.target.value)}
+          placeholder={placeholder} className="flex-1 h-7 text-sm"
+          onKeyDown={e => { if (e.key === 'Enter') void save(); if (e.key === 'Escape') setEditing(false); }}
+          autoFocus />
+        <button type="button" onClick={() => void save()} disabled={busy || !val.trim()}
+          className="rounded p-1 text-green-600 hover:bg-green-100 disabled:opacity-40">
+          <Check className="h-4 w-4" />
+        </button>
+        <button type="button" onClick={() => { setEditing(false); setVal(value); setExt(extraField?.value ?? ''); }}
+          className="rounded p-1 text-slate-400 hover:bg-slate-100">
+          <X className="h-4 w-4" />
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center justify-between rounded-lg border border-slate-100 bg-white px-3 py-2.5 hover:border-slate-200">
+      <span className="flex items-center gap-2 text-sm text-slate-700">
+        {extraField && (
+          <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs font-mono font-semibold text-slate-600">
+            {extraField.value}
+          </span>
+        )}
+        {label}
+      </span>
+      <div className="flex items-center gap-1">
+        <button type="button" onClick={() => setEditing(true)}
+          className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700">
+          <Pencil className="h-3.5 w-3.5" />
+        </button>
+        <button type="button" onClick={() => void remove()} disabled={busy}
+          className="rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-600 disabled:opacity-40">
+          <Trash2 className="h-3.5 w-3.5" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── Main page ────────────────────────────────────────────────────────────────
 export default function TmcFinancePage() {
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
-  const [accounts, setAccounts] = useState<Account[]>([]);
-  const [entries, setEntries] = useState<Entry[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [accounts,   setAccounts]   = useState<Account[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [properties, setProperties] = useState<Property[]>([]);
+  const [entries,    setEntries]    = useState<Entry[]>([]);
+  const [loading,    setLoading]    = useState(true);
 
   // filters
-  const [accountId, setAccountId] = useState('');
+  const [accountId,    setAccountId]    = useState('');
   const [propertyCode, setPropertyCode] = useState('');
-  const [category, setCategory] = useState('');
+  const [category,     setCategory]     = useState('');
   const [from, setFrom] = useState('');
-  const [to, setTo] = useState('');
+  const [to,   setTo]   = useState('');
 
   // pagination
   const PAGE_SIZE = 10;
@@ -66,7 +136,15 @@ export default function TmcFinancePage() {
   });
   const [saving, setSaving] = useState(false);
 
-  const headers = useCallback(async () => {
+  // master data management
+  const [showMaster,   setShowMaster]   = useState(false);
+  const [masterTab,    setMasterTab]    = useState<'category' | 'property'>('category');
+  const [newCatName,   setNewCatName]   = useState('');
+  const [newPropCode,  setNewPropCode]  = useState('');
+  const [newPropName,  setNewPropName]  = useState('');
+  const [masterSaving, setMasterSaving] = useState(false);
+
+  const authHeader = useCallback(async () => {
     const { data } = await supabase.auth.getSession();
     return {
       'Content-Type': 'application/json',
@@ -74,15 +152,27 @@ export default function TmcFinancePage() {
     };
   }, [supabase]);
 
+  // ── Loaders ────────────────────────────────────────────────────────────────
+  const loadMaster = useCallback(async () => {
+    const h = await authHeader();
+    const [cRes, pRes] = await Promise.all([
+      fetch(backendUrl(`/tmc/finance/categories?orgId=${TMC_ORG_ID}`), { headers: h }),
+      fetch(backendUrl(`/tmc/properties?orgId=${TMC_ORG_ID}&all=1`), { headers: h }),
+    ]);
+    const [cData, pData] = await Promise.all([cRes.json(), pRes.json()]);
+    setCategories(Array.isArray(cData) ? cData : []);
+    setProperties(Array.isArray(pData) ? pData : []);
+  }, [authHeader]);
+
   const load = useCallback(async () => {
     setLoading(true);
-    const h = await headers();
+    const h = await authHeader();
     const p = new URLSearchParams({ orgId: TMC_ORG_ID });
-    if (accountId) p.set('accountId', accountId);
+    if (accountId)    p.set('accountId',    accountId);
     if (propertyCode) p.set('propertyCode', propertyCode);
-    if (category) p.set('category', category);
-    if (from) p.set('from', from);
-    if (to) p.set('to', to);
+    if (category)     p.set('category',     category);
+    if (from)         p.set('from',         from);
+    if (to)           p.set('to',           to);
 
     const [accRes, entRes] = await Promise.all([
       fetch(backendUrl(`/tmc/accounts?orgId=${TMC_ORG_ID}`), { headers: h }),
@@ -92,15 +182,17 @@ export default function TmcFinancePage() {
     setAccounts(accData);
     setEntries(entData.entries ?? []);
     setLoading(false);
-  }, [headers, accountId, propertyCode, category, from, to]);
+  }, [authHeader, accountId, propertyCode, category, from, to]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { void loadMaster(); }, [loadMaster]);
+  useEffect(() => { void load(); }, [load]);
   useEffect(() => { setPage(1); }, [entries]);
 
+  // ── Save entry ─────────────────────────────────────────────────────────────
   async function handleSave() {
     if (!form.accountId || !form.description || !form.category || !form.entryType || !form.amount) return;
     setSaving(true);
-    const h = await headers();
+    const h = await authHeader();
     const income  = form.entryType === 'income'  ? form.amount : '';
     const expense = form.entryType === 'expense' ? form.amount : '';
     await fetch(backendUrl('/tmc/finance'), {
@@ -115,48 +207,106 @@ export default function TmcFinancePage() {
     setSaving(false);
     setShowForm(false);
     setForm({ accountId: '', entryDate: new Date().toISOString().slice(0, 10), description: '', entryType: '', category: '', propertyCode: '', amount: '', note: '' });
-    load();
+    void load();
   }
 
-  const totalIncome = entries.reduce((s, e) => s + (e.income ?? 0), 0);
+  // ── Category CRUD ──────────────────────────────────────────────────────────
+  async function createCategory() {
+    if (!newCatName.trim()) return;
+    setMasterSaving(true);
+    const h = await authHeader();
+    await fetch(backendUrl('/tmc/finance/categories'), {
+      method: 'POST', headers: h,
+      body: JSON.stringify({ orgId: TMC_ORG_ID, name: newCatName }),
+    });
+    setNewCatName(''); setMasterSaving(false); void loadMaster();
+  }
+
+  async function updateCategory(id: string, name: string) {
+    const h = await authHeader();
+    await fetch(backendUrl('/tmc/finance/categories'), {
+      method: 'PATCH', headers: h,
+      body: JSON.stringify({ orgId: TMC_ORG_ID, id, name }),
+    });
+    void loadMaster();
+  }
+
+  async function deleteCategory(id: string) {
+    const h = await authHeader();
+    await fetch(backendUrl(`/tmc/finance/categories?id=${id}&orgId=${TMC_ORG_ID}`), {
+      method: 'DELETE', headers: h,
+    });
+    void loadMaster();
+  }
+
+  // ── Property CRUD ──────────────────────────────────────────────────────────
+  async function createProperty() {
+    if (!newPropCode.trim() || !newPropName.trim()) return;
+    setMasterSaving(true);
+    const h = await authHeader();
+    await fetch(backendUrl('/tmc/properties'), {
+      method: 'POST', headers: h,
+      body: JSON.stringify({ orgId: TMC_ORG_ID, code: newPropCode, name: newPropName }),
+    });
+    setNewPropCode(''); setNewPropName(''); setMasterSaving(false); void loadMaster();
+  }
+
+  async function updateProperty(id: string, name: string, code?: string) {
+    const h = await authHeader();
+    await fetch(backendUrl('/tmc/properties'), {
+      method: 'PATCH', headers: h,
+      body: JSON.stringify({ orgId: TMC_ORG_ID, id, name, ...(code ? { code } : {}) }),
+    });
+    void loadMaster();
+  }
+
+  async function deleteProperty(id: string) {
+    const h = await authHeader();
+    await fetch(backendUrl(`/tmc/properties?id=${id}&orgId=${TMC_ORG_ID}`), {
+      method: 'DELETE', headers: h,
+    });
+    void loadMaster();
+  }
+
+  // ── Options ────────────────────────────────────────────────────────────────
+  const activeCategories = useMemo(() => categories.filter(c => c.is_active), [categories]);
+  const activeProperties = useMemo(() => properties.filter(p => p.is_active), [properties]);
+
+  const totalIncome  = entries.reduce((s, e) => s + (e.income  ?? 0), 0);
   const totalExpense = entries.reduce((s, e) => s + (e.expense ?? 0), 0);
 
-  const totalPages = Math.max(1, Math.ceil(entries.length / PAGE_SIZE));
+  const totalPages   = Math.max(1, Math.ceil(entries.length / PAGE_SIZE));
   const pagedEntries = entries.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const accountOptions = useMemo(() => [
     { value: '', label: 'ทุกบัญชี' },
-    ...accounts
-      .filter(a => a.account_type !== 'petty_cash')
-      .map(a => ({ value: a.id, label: a.name })),
+    ...accounts.filter(a => a.account_type !== 'petty_cash').map(a => ({ value: a.id, label: a.name })),
   ], [accounts]);
 
-  const propertyOptions = useMemo(() => [
+  const propertyFilterOpts = useMemo(() => [
     { value: '', label: 'ทุกแปลง' },
-    ...PROPERTY_CODES.map(c => ({ value: c, label: c })),
-  ], []);
+    ...activeProperties.map(p => ({ value: p.code, label: p.code })),
+  ], [activeProperties]);
 
-  const categoryOptions = useMemo(() => [
+  const categoryFilterOpts = useMemo(() => [
     { value: '', label: 'ทุกหมวด' },
-    ...CATEGORIES.map(c => ({ value: c, label: c })),
-  ], []);
+    ...activeCategories.map(c => ({ value: c.name, label: c.name })),
+  ], [activeCategories]);
 
   const accountFormOptions = useMemo(() => [
     { value: '', label: 'เลือกบัญชี' },
-    ...accounts
-      .filter(a => a.account_type !== 'petty_cash')
-      .map(a => ({ value: a.id, label: a.name })),
+    ...accounts.filter(a => a.account_type !== 'petty_cash').map(a => ({ value: a.id, label: a.name })),
   ], [accounts]);
 
   const propertyFormOptions = useMemo(() => [
     { value: '', label: '-' },
-    ...PROPERTY_CODES.map(c => ({ value: c, label: c })),
-  ], []);
+    ...activeProperties.map(p => ({ value: p.code, label: p.code })),
+  ], [activeProperties]);
 
   const categoryFormOptions = useMemo(() => [
     { value: '', label: 'เลือกหมวด' },
-    ...CATEGORIES.map(c => ({ value: c, label: c })),
-  ], []);
+    ...activeCategories.map(c => ({ value: c.name, label: c.name })),
+  ], [activeCategories]);
 
   return (
     <div className="p-4 md:p-6 space-y-4">
@@ -166,9 +316,14 @@ export default function TmcFinancePage() {
           <h1 className="text-xl font-bold text-slate-900">บัญชีและการเงิน</h1>
           <p className="text-sm text-slate-500">TMC Management</p>
         </div>
-        <Button onClick={() => setShowForm(true)}>
-          <Plus className="w-4 h-4" /> เพิ่มรายการ
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => { setMasterTab('category'); setShowMaster(true); }}>
+            <Settings className="w-4 h-4" /> จัดการหมวด/แปลง
+          </Button>
+          <Button onClick={() => setShowForm(true)}>
+            <Plus className="w-4 h-4" /> เพิ่มรายการ
+          </Button>
+        </div>
       </div>
 
       {/* Summary Cards */}
@@ -192,11 +347,11 @@ export default function TmcFinancePage() {
       {/* Filters */}
       <div className="bg-white rounded-xl border p-3 flex flex-wrap items-center gap-2">
         <Filter className="w-4 h-4 text-slate-400 shrink-0" />
-        <CustomSelect value={accountId} onChange={setAccountId} options={accountOptions} className="w-36" />
-        <CustomSelect value={propertyCode} onChange={setPropertyCode} options={propertyOptions} className="w-28" />
-        <CustomSelect value={category} onChange={setCategory} options={categoryOptions} className="w-36" />
+        <CustomSelect value={accountId}    onChange={setAccountId}    options={accountOptions}      className="w-36" />
+        <CustomSelect value={propertyCode} onChange={setPropertyCode} options={propertyFilterOpts}  className="w-28" />
+        <CustomSelect value={category}     onChange={setCategory}     options={categoryFilterOpts}  className="w-36" />
         <ThaiDatePicker value={from} onChange={setFrom} placeholder="ตั้งแต่" className="w-32" />
-        <ThaiDatePicker value={to} onChange={setTo} placeholder="ถึง" className="w-32" />
+        <ThaiDatePicker value={to}   onChange={setTo}   placeholder="ถึง"     className="w-32" />
       </div>
 
       {/* Table */}
@@ -260,7 +415,6 @@ export default function TmcFinancePage() {
                 <ChevronLeft className="w-4 h-4" />
               </Button>
 
-              {/* Page number pills */}
               {Array.from({ length: totalPages }, (_, i) => i + 1)
                 .filter(p => p === 1 || p === totalPages || Math.abs(p - page) <= 1)
                 .reduce<(number | 'ellipsis')[]>((acc, p, idx, arr) => {
@@ -297,7 +451,7 @@ export default function TmcFinancePage() {
         )}
       </div>
 
-      {/* Add Entry Dialog */}
+      {/* ── Add Entry Dialog ── */}
       <Dialog open={showForm} onOpenChange={setShowForm}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
@@ -366,6 +520,102 @@ export default function TmcFinancePage() {
             <Button onClick={handleSave} disabled={saving || !form.accountId || !form.description || !form.category || !form.entryType || !form.amount}>
               {saving ? 'กำลังบันทึก…' : 'บันทึก'}
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Master Data Dialog (หมวด / แปลง) ── */}
+      <Dialog open={showMaster} onOpenChange={setShowMaster}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>จัดการหมวดและแปลง</DialogTitle></DialogHeader>
+
+          {/* Tabs */}
+          <div className="flex overflow-hidden rounded-lg border border-slate-200">
+            <button type="button"
+              onClick={() => setMasterTab('category')}
+              className={`flex flex-1 items-center justify-center gap-2 py-2 text-sm font-medium transition-colors ${
+                masterTab === 'category' ? 'bg-slate-800 text-white' : 'bg-white text-slate-500 hover:bg-slate-50'
+              }`}>
+              <Tag className="h-4 w-4" /> หมวดหมู่
+            </button>
+            <button type="button"
+              onClick={() => setMasterTab('property')}
+              className={`flex flex-1 items-center justify-center gap-2 py-2 text-sm font-medium transition-colors ${
+                masterTab === 'property' ? 'bg-slate-800 text-white' : 'bg-white text-slate-500 hover:bg-slate-50'
+              }`}>
+              <MapPin className="h-4 w-4" /> แปลง
+            </button>
+          </div>
+
+          {/* Categories Tab */}
+          {masterTab === 'category' && (
+            <div className="space-y-3">
+              <p className="text-xs text-slate-400">คลิก ✏️ เพื่อแก้ไขชื่อ | 🗑️ เพื่อลบ</p>
+              <div className="max-h-56 space-y-1.5 overflow-y-auto pr-1">
+                {categories.map(cat => (
+                  <EditableRow
+                    key={cat.id}
+                    label={cat.name}
+                    value={cat.name}
+                    placeholder="ชื่อหมวด"
+                    onSave={async (name) => { await updateCategory(cat.id, name); }}
+                    onDelete={async () => { await deleteCategory(cat.id); }}
+                  />
+                ))}
+                {categories.length === 0 && (
+                  <p className="py-4 text-center text-sm text-slate-400">ยังไม่มีหมวด</p>
+                )}
+              </div>
+              <div className="flex gap-2 rounded-xl border border-dashed border-slate-300 p-3">
+                <Input placeholder="ชื่อหมวดใหม่ เช่น ค่าซ่อมแซม"
+                  value={newCatName} onChange={e => setNewCatName(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') void createCategory(); }}
+                  className="flex-1" />
+                <Button size="sm" onClick={createCategory} disabled={masterSaving || !newCatName.trim()}>
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Properties Tab */}
+          {masterTab === 'property' && (
+            <div className="space-y-3">
+              <p className="text-xs text-slate-400">คลิก ✏️ เพื่อแก้ไขชื่อและรหัส | 🗑️ เพื่อลบ</p>
+              <div className="max-h-56 space-y-1.5 overflow-y-auto pr-1">
+                {properties.map(prop => (
+                  <EditableRow
+                    key={prop.id}
+                    label={prop.name}
+                    value={prop.name}
+                    placeholder="ชื่อแปลง"
+                    extraField={{ label: 'รหัส', value: prop.code, placeholder: 'รหัส' }}
+                    onSave={async (name, code) => { await updateProperty(prop.id, name, code); }}
+                    onDelete={async () => { await deleteProperty(prop.id); }}
+                  />
+                ))}
+                {properties.length === 0 && (
+                  <p className="py-4 text-center text-sm text-slate-400">ยังไม่มีแปลง</p>
+                )}
+              </div>
+              <div className="flex gap-2 rounded-xl border border-dashed border-slate-300 p-3">
+                <Input placeholder="รหัส เช่น TMC8"
+                  value={newPropCode} onChange={e => setNewPropCode(e.target.value)}
+                  className="w-24" />
+                <Input placeholder="ชื่อแปลง เช่น บ้านสวน"
+                  value={newPropName} onChange={e => setNewPropName(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') void createProperty(); }}
+                  className="flex-1" />
+                <Button size="sm" onClick={createProperty}
+                  disabled={masterSaving || !newPropCode.trim() || !newPropName.trim()}>
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowMaster(false)}>ปิด</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
