@@ -410,3 +410,127 @@ import { Label } from '@/components/ui/label';
 - **Domain**: perpos.io
 - **PDF Service**: Google Cloud Run (`asia-southeast1`)
 - **Cron**: Google Cloud Scheduler (`asia-southeast1`) → `POST https://perpos.io/api/assistant/scheduler`
+
+---
+
+## สถาปัตยกรรม — BFF + Serverless Workers
+
+PERPOS ใช้รูปแบบ **"BFF (Backend for Frontend) + Serverless Workers"** ซึ่งเป็นท่ามาตรฐานของ Tech Startup ยุคใหม่ที่ได้ข้อดีของสองโลกรวมกัน:
+
+| Layer | เทคโนโลยี | หน้าที่ |
+|-------|-----------|---------|
+| **Frontend + Core API** | Next.js + Supabase | UI, business logic, RLS, Trigger — พัฒนาไว ลีน ตอบสนองทันที |
+| **Heavy Workers** | Google Cloud Run | งานหนัก (PDF, Payroll batch, AI analysis) — สเกลแยกอิสระ ไม่กวน Core |
+
+### ทำไมต้องแยก Heavy Jobs ออกไป Cloud Run?
+
+- **PDF / Puppeteer กิน RAM หนักมาก** — บางครั้งซด 1–2 GB ต่อ session ถ้าไม่แยกออกไป Next.js Core จะค้าง
+- **Pay-per-use 100%** — Cloud Run สเกลลงเหลือ 0 instance เมื่อไม่มีงาน ไม่ต้องจ่ายค่าเซิร์ฟเวอร์ทิ้งตลอดเดือน
+- **ไม่ติด Timeout** — Next.js Route Handler อยู่ที่ 10–60 วินาที, Cloud Run รันได้สูงสุด 60 นาที เหมาะกับ batch ปิดงบ/คำนวณ payroll
+
+### Database-Driven Job Queue (ท่าที่ใช้ใน PERPOS)
+
+ไม่ต้องตั้ง messaging queue เพิ่ม — ใช้ Supabase ที่มีอยู่แล้วเป็นตัวแจกงาน:
+
+```
+1. [Next.js] User กดสั่งงาน
+        → INSERT job_queues (status = 'pending', triggered_by = user_id, correlation_id)
+        → ตอบ User ทันทีว่า "กำลังปั่นเอกสาร..."
+
+2. [Supabase Webhook] ตรวจเจอ row ใหม่ใน job_queues
+        → HTTP POST → Cloud Run URL (payload: job_id, org_id, correlation_id)
+        → Auth: Verify JWT หรือ Google Cloud IAM
+
+3. [Cloud Run] ตื่นขึ้นมาประมวลผล
+        → ดึงข้อมูลจาก Supabase
+        → รันงานหนัก (render PDF, คำนวณ payroll, ฯลฯ)
+        → อัปโหลดผลลัพธ์ขึ้น Object Storage → ได้ URL
+
+4. [Cloud Run → Supabase] อัปเดตสถานะ
+        → UPDATE job_queues SET status = 'completed', output_url = '...', completed_at = now()
+
+5. [Supabase Realtime → Next.js] แจ้ง User ทันที
+        → ปุ่มดาวน์โหลดเด้งขึ้นหน้าจอโดยอัตโนมัติ
+```
+
+### Schema ตาราง job_queues (แนวทาง)
+
+```sql
+CREATE TABLE job_queues (
+  id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id        uuid NOT NULL REFERENCES organizations(id),
+  job_type      text NOT NULL,           -- 'pdf_report' | 'payroll_run' | 'batch_close'
+  status        text NOT NULL DEFAULT 'pending'
+                  CHECK (status IN ('pending','processing','completed','failed')),
+  payload       jsonb NOT NULL DEFAULT '{}',
+  output_url    text,
+  error_message text,
+  -- Audit / tracing
+  triggered_by  uuid REFERENCES profiles(id),  -- user ที่กดสั่ง
+  correlation_id uuid NOT NULL DEFAULT gen_random_uuid(),
+  started_at    timestamptz,
+  completed_at  timestamptz,
+  created_at    timestamptz NOT NULL DEFAULT now()
+);
+```
+
+---
+
+## Audit Log — กฎสำหรับ Cloud Run Workers
+
+เมื่อ Cloud Run เขียนข้อมูลกลับมายัง Supabase **ต้องส่ง Correlation ID** ของ user ที่สั่งงานตั้งแต่แรกข้ามมาด้วยเสมอ เพื่อให้ Audit Log ระบุได้ว่า "Cloud Run เป็นคนเขียน แต่ใครเป็นคนสั่ง"
+
+```typescript
+// ตัวอย่าง payload ที่ Next.js ส่งไปให้ Cloud Run
+const jobPayload = {
+  job_id:         jobId,
+  org_id:         orgId,
+  correlation_id: job.correlation_id,   // ← UUID ของ job นั้น
+  triggered_by:   auth.userId,           // ← user ที่กดสั่ง
+  triggered_by_email: auth.email,
+};
+
+// Cloud Run ใช้ค่าเหล่านี้เขียน audit log
+await supabase.from('audit_logs').insert({
+  actor_type:     'cloud_run_worker',
+  actor_id:       jobPayload.triggered_by,        // user ต้นทาง
+  actor_email:    jobPayload.triggered_by_email,
+  correlation_id: jobPayload.correlation_id,
+  action:         'pdf.generated',
+  ...
+});
+```
+
+**กฎเด็ดขาด**:
+- Cloud Run ต้องรับ `triggered_by` + `correlation_id` ใน payload เสมอ
+- ห้ามใช้ service account ID เป็น `actor_id` ใน audit log — ต้องใช้ user จริงที่กดสั่ง
+- ถ้า job ล้มเหลว ให้ UPDATE `job_queues.status = 'failed'` + บันทึก `error_message` ก่อน ค่อย throw
+
+---
+
+## Security — Cloud Run Service-to-Service Auth
+
+การเปิด Cloud Run ให้ Supabase Webhook เรียกได้ **ต้องล็อกสิทธิ์** ด้วยวิธีใดวิธีหนึ่ง:
+
+| วิธี | แนะนำเมื่อ |
+|------|-----------|
+| **Google Cloud IAM (Invoke)** | Production — Supabase Webhook ใช้ Service Account ที่มี `roles/run.invoker` เท่านั้น |
+| **Shared Secret Header** | Dev/Staging — Cloud Run ตรวจ `X-Worker-Secret` header ที่ตรงกับ env var `WORKER_SECRET` |
+
+```typescript
+// Cloud Run — ตรวจ secret ฝั่ง worker (ถ้าไม่ใช้ IAM)
+const secret = req.headers.get('x-worker-secret');
+if (secret !== process.env.WORKER_SECRET) {
+  return new Response('Unauthorized', { status: 401 });
+}
+```
+
+**Scoped Permission สำหรับ AI Workers**: ถ้าใช้ AI บน Cloud Run วิเคราะห์บัญชีและเขียนผลลัพธ์กลับ ให้สร้าง Supabase Service Token แบบ Scoped — เขียนได้เฉพาะตารางรายงาน ห้ามแตะตาราง `profiles`, `user_permissions`, `organizations`, หรือตารางสิทธิ์ใดๆ
+
+```sql
+-- ตัวอย่าง RLS policy สำหรับ AI worker service role (scoped)
+CREATE POLICY "ai_worker_write_reports_only"
+  ON report_outputs FOR INSERT
+  WITH CHECK (true);  -- service role ของ AI worker เขียนได้เฉพาะตารางนี้
+-- ตารางอื่นไม่มี policy เปิด → INSERT/UPDATE/DELETE ถูก deny อัตโนมัติ
+```
