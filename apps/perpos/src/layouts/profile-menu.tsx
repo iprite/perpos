@@ -109,7 +109,7 @@ function DropdownMenu() {
   const items: Array<{ label: string; href: string; icon: React.ReactNode; show: boolean }> = [
     {
       label: "PERPOS ERP",
-      href: "/",
+      href: orgSlug ? `/${orgSlug}` : "/",
       icon: <LayoutGrid className="h-4 w-4 text-gray-500" />,
       show: true,
     },
