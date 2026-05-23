@@ -1,3 +1,11 @@
+/** A single role available inside a module */
+export type ModuleRoleDef = {
+  key: string;
+  label: string;
+  /** If true this role can create/edit/delete records in the module */
+  canWrite: boolean;
+};
+
 export type ModuleDef = {
   key: string;
   label: string;
@@ -6,6 +14,9 @@ export type ModuleDef = {
    *  (e.g. TMC Management). Hidden from other orgs' module manager entirely. */
   specific?: boolean;
   match: (pathname: string) => boolean;
+  /** Role definitions available inside this module.
+   *  First entry is considered the highest-privilege role. */
+  roles: ModuleRoleDef[];
 };
 
 // All hrefs are relative to /:orgSlug — callers prefix with `/${orgSlug}`.
@@ -19,6 +30,11 @@ export const ALL_MODULES: ModuleDef[] = [
       const seg = p.split("/").filter(Boolean);
       return seg.length >= 2 && seg[1] === "accounting";
     },
+    roles: [
+      { key: "owner",       label: "Owner",      canWrite: true  },
+      { key: "accountant",  label: "Accountant", canWrite: true  },
+      { key: "viewer",      label: "Viewer",     canWrite: false },
+    ],
   },
   {
     key: "payroll",
@@ -28,6 +44,12 @@ export const ALL_MODULES: ModuleDef[] = [
       const seg = p.split("/").filter(Boolean);
       return seg.length >= 2 && seg[1] === "payroll";
     },
+    roles: [
+      { key: "owner",      label: "Owner",      canWrite: true  },
+      { key: "hr_manager", label: "HR Manager", canWrite: true  },
+      { key: "hr_staff",   label: "HR Staff",   canWrite: true  },
+      { key: "viewer",     label: "Viewer",     canWrite: false },
+    ],
   },
   {
     key: "assistant",
@@ -37,6 +59,10 @@ export const ALL_MODULES: ModuleDef[] = [
       const seg = p.split("/").filter(Boolean);
       return seg.length >= 2 && seg[1] === "assistant";
     },
+    roles: [
+      { key: "owner",  label: "Owner",  canWrite: true },
+      { key: "member", label: "Member", canWrite: true },
+    ],
   },
   {
     key: "tmc",
@@ -47,6 +73,12 @@ export const ALL_MODULES: ModuleDef[] = [
       const seg = p.split("/").filter(Boolean);
       return seg.length >= 2 && seg[1] === "tmc";
     },
+    roles: [
+      { key: "owner",       label: "Owner",       canWrite: true  },
+      { key: "admin",       label: "Admin",        canWrite: true  },
+      { key: "team_lead",   label: "Team Lead",    canWrite: true  },
+      { key: "team_member", label: "Team Member",  canWrite: false },
+    ],
   },
 ];
 
@@ -91,6 +123,22 @@ export const MODULE_MENUS: Record<string, MenuDef[]> = {
 export const MODULE_LABELS: Record<string, string> = Object.fromEntries(
   ALL_MODULES.map((m) => [m.key, m.label]),
 );
+
+/** Map of module_key → its role definitions */
+export const MODULE_ROLES: Record<string, ModuleRoleDef[]> = Object.fromEntries(
+  ALL_MODULES.map((m) => [m.key, m.roles]),
+);
+
+/** Returns the role defs for a module, or [] if unknown */
+export function getModuleRoles(moduleKey: string): ModuleRoleDef[] {
+  return MODULE_ROLES[moduleKey] ?? [];
+}
+
+/** True if the given module role is allowed to write */
+export function canModuleWrite(moduleKey: string, moduleRole: string): boolean {
+  const def = getModuleRoles(moduleKey).find((r) => r.key === moduleRole);
+  return def?.canWrite ?? false;
+}
 
 export const ORG_ROLES = ["owner", "admin", "team_lead", "team_member"] as const;
 export type OrgRole = (typeof ORG_ROLES)[number];

@@ -20,6 +20,14 @@ import {
   Percent,
   BotMessageSquare,
   LayoutGrid,
+  PlusCircle,
+  SlidersHorizontal,
+  Languages,
+  Activity,
+  Webhook,
+  ShieldBan,
+  CreditCard,
+  HeartPulse,
 } from "lucide-react";
 
 import type { Role } from "@/lib/supabase/types";
@@ -225,6 +233,12 @@ function buildAdminMenuItems(): MenuItem[] {
       roles: ["super_admin"],
     },
     {
+      name: "Tenant Onboarding",
+      href: "/admin/onboarding",
+      icon: <PlusCircle className="h-5 w-5" />,
+      roles: ["super_admin"],
+    },
+    {
       name: "ผู้ใช้",
       href: "/admin/users",
       icon: <Users className="h-5 w-5" />,
@@ -252,6 +266,48 @@ function buildAdminMenuItems(): MenuItem[] {
       name: "จัดการ Modules",
       href: "/admin/modules",
       icon: <LayoutGrid className="h-5 w-5" />,
+      roles: ["super_admin"],
+    },
+    {
+      name: "Custom Fields",
+      href: "/admin/custom-fields",
+      icon: <SlidersHorizontal className="h-5 w-5" />,
+      roles: ["super_admin"],
+    },
+    {
+      name: "Label Overrides",
+      href: "/admin/labels",
+      icon: <Languages className="h-5 w-5" />,
+      roles: ["super_admin"],
+    },
+    {
+      name: "Resource Monitor",
+      href: "/admin/resources",
+      icon: <Activity className="h-5 w-5" />,
+      roles: ["super_admin"],
+    },
+    {
+      name: "Webhooks",
+      href: "/admin/webhooks",
+      icon: <Webhook className="h-5 w-5" />,
+      roles: ["super_admin"],
+    },
+    {
+      name: "Rate Limits",
+      href: "/admin/rate-limits",
+      icon: <ShieldBan className="h-5 w-5" />,
+      roles: ["super_admin"],
+    },
+    {
+      name: "Billing & Plans",
+      href: "/admin/billing",
+      icon: <CreditCard className="h-5 w-5" />,
+      roles: ["super_admin"],
+    },
+    {
+      name: "Tenant Health",
+      href: "/admin/health",
+      icon: <HeartPulse className="h-5 w-5" />,
       roles: ["super_admin"],
     },
     {

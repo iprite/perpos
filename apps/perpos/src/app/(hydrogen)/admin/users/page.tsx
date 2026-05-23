@@ -12,6 +12,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { CustomSelect } from "@/components/ui/custom-select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { startImpersonationSession } from "@/components/impersonation-banner";
 
 type ListedUser = {
   id: string;
@@ -93,6 +101,13 @@ export default function AdminUsersPage() {
   const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
   const [resettingUserId, setResettingUserId] = useState<string | null>(null);
   const [togglingUserId, setTogglingUserId] = useState<string | null>(null);
+
+  // Impersonation modal state
+  const [impersonateTarget, setImpersonateTarget] = useState<ListedUser | null>(null);
+  const [impersonateReason, setImpersonateReason] = useState("");
+  const [impersonateOrgId, setImpersonateOrgId] = useState("");
+  const [impersonateLoading, setImpersonateLoading] = useState(false);
+  const [impersonateError, setImpersonateError] = useState<string | null>(null);
 
   const authHeader = useCallback(async () => {
     const { data } = await supabase.auth.getSession();
@@ -348,6 +363,39 @@ export default function AdminUsersPage() {
     [authHeader],
   );
 
+  const handleStartImpersonation = useCallback(async () => {
+    if (!impersonateTarget || !impersonateOrgId || !impersonateReason.trim()) return;
+    setImpersonateLoading(true);
+    setImpersonateError(null);
+    try {
+      const headers = await authHeader();
+      const res = await fetch(backendUrl("/admin/impersonate"), {
+        method: "POST",
+        headers: { ...headers, "content-type": "application/json" },
+        body: JSON.stringify({
+          targetUserId: impersonateTarget.id,
+          orgId:        impersonateOrgId,
+          reason:       impersonateReason.trim(),
+        }),
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok) {
+        setImpersonateError(json?.error ?? "เริ่ม session ไม่สำเร็จ");
+        setImpersonateLoading(false);
+        return;
+      }
+      // Store session ID → banner will pick it up
+      startImpersonationSession(json.sessionId as string);
+      setImpersonateTarget(null);
+      setImpersonateReason("");
+      setImpersonateOrgId("");
+      setImpersonateLoading(false);
+    } catch (e: unknown) {
+      setImpersonateError((e as Error)?.message ?? "เริ่ม session ไม่สำเร็จ");
+      setImpersonateLoading(false);
+    }
+  }, [impersonateTarget, impersonateOrgId, impersonateReason, authHeader]);
+
   React.useEffect(() => {
     refreshUsers();
   }, [refreshUsers]);
@@ -584,6 +632,95 @@ export default function AdminUsersPage() {
 
       {orgError && <div className="rounded-xl border border-orange-200 bg-orange-50 p-3 text-sm text-orange-700">{orgError}</div>}
 
+      {/* ── Impersonation modal ── */}
+      <Dialog
+        open={!!impersonateTarget}
+        onOpenChange={(open) => {
+          if (!open) {
+            setImpersonateTarget(null);
+            setImpersonateReason("");
+            setImpersonateOrgId("");
+            setImpersonateError(null);
+          }
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-700">
+              <span>⚠️</span>
+              <span>สวมรอยเป็นผู้ใช้</span>
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 py-1">
+            {/* Target user info */}
+            <div className="rounded-lg border border-red-100 bg-red-50 px-4 py-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-red-600">ผู้ใช้เป้าหมาย</p>
+              <p className="mt-1 font-medium text-gray-900">{impersonateTarget?.email ?? "—"}</p>
+              <p className="text-xs text-gray-500">{impersonateTarget?.id}</p>
+            </div>
+
+            {/* Org selector */}
+            <div className="space-y-1.5">
+              <Label>บริบทองค์กร <span className="text-red-500">*</span></Label>
+              <CustomSelect
+                value={impersonateOrgId}
+                onChange={(v) => setImpersonateOrgId(v)}
+                options={[
+                  { value: "", label: "— เลือกองค์กร —" },
+                  ...allOrgs.map((o) => ({ value: o.id, label: o.name })),
+                ]}
+                disabled={impersonateLoading}
+              />
+            </div>
+
+            {/* Reason */}
+            <div className="space-y-1.5">
+              <Label>เหตุผล <span className="text-red-500">*</span></Label>
+              <textarea
+                value={impersonateReason}
+                onChange={(e) => setImpersonateReason(e.target.value)}
+                placeholder="ระบุเหตุผลที่ต้องสวมรอย เช่น 'ช่วย debug ปัญหา invoice #123'"
+                rows={3}
+                disabled={impersonateLoading}
+                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100 disabled:opacity-50 resize-none"
+              />
+            </div>
+
+            {impersonateError && (
+              <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                {impersonateError}
+              </div>
+            )}
+
+            <p className="text-xs text-gray-500">
+              Session จะหมดอายุอัตโนมัติใน <strong>30 นาที</strong> และถูกบันทึกใน audit log ทุกครั้ง
+            </p>
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setImpersonateTarget(null)}
+              disabled={impersonateLoading}
+            >
+              ยกเลิก
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleStartImpersonation}
+              disabled={
+                impersonateLoading ||
+                !impersonateOrgId ||
+                !impersonateReason.trim()
+              }
+            >
+              {impersonateLoading ? "กำลังเริ่ม…" : "เริ่มสวมรอย"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* ── User list ── */}
       <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white">
         {/* Table header */}
@@ -666,6 +803,24 @@ export default function AdminUsersPage() {
                     >
                       {isResetting ? "..." : "Reset PW"}
                     </button>
+                    {/* View As (Impersonate) */}
+                    {u.profile?.role !== "super_admin" && (
+                      <button
+                        onClick={() => {
+                          setImpersonateTarget(u);
+                          setImpersonateReason("");
+                          setImpersonateOrgId("");
+                          setImpersonateError(null);
+                          // Pre-select org if user has only one
+                          if (orgData[u.id]?.memberships.length === 1) {
+                            setImpersonateOrgId(orgData[u.id].memberships[0].orgId);
+                          }
+                        }}
+                        className="inline-flex items-center rounded-full bg-orange-50 px-2.5 py-1 text-xs font-medium text-orange-700 hover:bg-orange-100"
+                      >
+                        View As
+                      </button>
+                    )}
                     {/* Delete */}
                     <button
                       onClick={() => handleDeleteUser(u.id, u.email)}

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAuthedClient } from '../_lib/supabase';
-import { extractBearer, requireUser } from '../_lib/auth';
+import { requireModuleMember } from '../_lib/module-auth';
 
 export type TmcRole = 'owner' | 'admin' | 'team_lead' | 'team_member';
 
@@ -12,37 +12,22 @@ export interface TmcAuth {
   rls: ReturnType<typeof createAuthedClient>;
 }
 
-/** Require user to be a member of a TMC org. orgId must be provided in body/query. */
+/** Require user to be an active member of the TMC module.
+ *  Delegates to the generic requireModuleMember() registry checker.
+ */
 export async function requireTmcMember(
   req: NextRequest,
   orgId: string,
 ): Promise<TmcAuth | { ok: false; res: NextResponse }> {
-  const auth = await requireUser(req);
-  if (!auth.ok) return { ok: false, res: auth.res };
-
-  const token = extractBearer(req)!;
-  const rls = createAuthedClient(token);
-
-  const { data: membership } = await rls
-    .from('organization_members')
-    .select('role')
-    .eq('organization_id', orgId)
-    .eq('user_id', auth.userId)
-    .maybeSingle();
-
-  if (!membership) {
-    return {
-      ok: false,
-      res: NextResponse.json({ error: 'ไม่มีสิทธิ์เข้าถึง TMC module' }, { status: 403 }),
-    };
-  }
+  const result = await requireModuleMember(req, orgId, 'tmc');
+  if (!result.ok) return result;
 
   return {
     ok: true,
-    userId: auth.userId,
-    orgId,
-    role: (membership as Record<string, string>).role as TmcRole,
-    rls,
+    userId: result.userId,
+    orgId:  result.orgId,
+    role:   result.moduleRole as TmcRole,
+    rls:    result.rls,
   };
 }
 

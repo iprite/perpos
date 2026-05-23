@@ -6,6 +6,51 @@ import { ALL_MODULES, MODULE_MENUS, ORG_ROLES } from '@/lib/modules';
 const DEFAULT_MODULE_ROLES = ['owner', 'admin'];
 const ALL_ROLES = [...ORG_ROLES];
 
+// ── Change log helper ─────────────────────────────────────────────────────────
+async function writeChangeLogs(
+  admin: ReturnType<typeof createAdminClient>,
+  orgId: string,
+  changedBy: string,
+  prev: Record<string, { is_enabled: boolean; allowed_roles: string[] }>,
+  next: { module_key: string; is_enabled: boolean; allowed_roles: string[] }[],
+) {
+  const entries: {
+    org_id: string; module_key: string; action: string;
+    changed_by: string; old_value: unknown; new_value: unknown;
+  }[] = [];
+
+  for (const s of next) {
+    const old = prev[s.module_key];
+    if (!old) continue;
+
+    if (old.is_enabled !== s.is_enabled) {
+      entries.push({
+        org_id: orgId, module_key: s.module_key,
+        action: s.is_enabled ? 'enabled' : 'disabled',
+        changed_by: changedBy,
+        old_value: { is_enabled: old.is_enabled },
+        new_value: { is_enabled: s.is_enabled },
+      });
+    } else {
+      const oldR = [...old.allowed_roles].sort().join(',');
+      const newR = [...s.allowed_roles].sort().join(',');
+      if (oldR !== newR) {
+        entries.push({
+          org_id: orgId, module_key: s.module_key,
+          action: 'roles_updated',
+          changed_by: changedBy,
+          old_value: { allowed_roles: old.allowed_roles },
+          new_value: { allowed_roles: s.allowed_roles },
+        });
+      }
+    }
+  }
+
+  if (entries.length) {
+    await admin.from('org_module_change_log').insert(entries);
+  }
+}
+
 export async function GET(req: NextRequest) {
   const auth = await requireAdmin(req);
   if (!auth.ok) return auth.res;
@@ -60,7 +105,21 @@ export async function GET(req: NextRequest) {
     }),
   );
 
-  return NextResponse.json({ orgs: orgs ?? [], settings, menuSettings });
+  // Optional: include recent change history
+  const withHistory = req.nextUrl.searchParams.get('history') === '1';
+  let changeLog: unknown[] = [];
+  if (withHistory) {
+    const { data: logRows } = await admin
+      .from('org_module_change_log')
+      .select(`id, module_key, action, old_value, new_value, changed_at,
+               changer:profiles!org_module_change_log_changed_by_fkey(display_name, email)`)
+      .eq('org_id', orgId)
+      .order('changed_at', { ascending: false })
+      .limit(50);
+    changeLog = logRows ?? [];
+  }
+
+  return NextResponse.json({ orgs: orgs ?? [], settings, menuSettings, changeLog });
 }
 
 export async function PUT(req: NextRequest) {
@@ -79,6 +138,19 @@ export async function PUT(req: NextRequest) {
 
   const admin = createAdminClient();
   const now = new Date().toISOString();
+
+  // Snapshot previous state before overwriting (for change log)
+  const { data: prevRows } = await admin
+    .from('org_module_settings')
+    .select('module_key, is_enabled, allowed_roles')
+    .eq('organization_id', orgId);
+  const prevMap: Record<string, { is_enabled: boolean; allowed_roles: string[] }> =
+    Object.fromEntries(
+      (prevRows ?? []).map((r: Record<string, unknown>) => [
+        String(r.module_key),
+        { is_enabled: Boolean(r.is_enabled), allowed_roles: (r.allowed_roles as string[]) ?? [] },
+      ]),
+    );
 
   // Upsert module-level settings
   const moduleRows = settings.map((s: unknown) => {
@@ -115,6 +187,17 @@ export async function PUT(req: NextRequest) {
       .upsert(menuRows, { onConflict: 'organization_id,module_key,menu_key' });
     if (menuErr) return NextResponse.json({ error: menuErr.message }, { status: 500 });
   }
+
+  // Write change log (fire-and-forget — don't block response)
+  const nextSettings = settings.map((s: unknown) => {
+    const setting = s as Record<string, unknown>;
+    return {
+      module_key:    String(setting.module_key),
+      is_enabled:    Boolean(setting.is_enabled),
+      allowed_roles: Array.isArray(setting.allowed_roles) ? setting.allowed_roles as string[] : [],
+    };
+  });
+  void writeChangeLogs(admin, orgId, auth.userId, prevMap, nextSettings);
 
   return NextResponse.json({ ok: true });
 }

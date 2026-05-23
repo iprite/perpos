@@ -57,32 +57,46 @@ export function CustomSelect({ value, onChange, options, placeholder = "เล�
   const panel =
     open && rect
       ? createPortal(
-          <div
-            ref={panelRef}
-            style={{
-              position: "fixed",
-              top: rect.bottom + 4,
-              left: rect.left,
-              width: rect.width,
-              zIndex: 9999,
-              pointerEvents: "auto",
-            }}
-            className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg"
-          >
-            <div className="max-h-80 overflow-y-auto py-1">
-              {options.map((opt) => (
-                <button
-                  key={opt.value}
-                  type="button"
-                  onClick={() => { onChange(opt.value); setOpen(false); }}
-                  className="flex w-full items-center justify-between px-4 py-2.5 text-left text-sm text-slate-700 hover:bg-slate-50"
-                >
-                  <span className="truncate">{opt.label}</span>
-                  {opt.value === value && <Check className="ml-2 h-4 w-4 shrink-0 text-slate-600" />}
-                </button>
-              ))}
-            </div>
-          </div>,
+          (() => {
+            const GAP         = 6;
+            const spaceBelow  = window.innerHeight - rect.bottom - GAP;
+            const spaceAbove  = rect.top - GAP;
+            const openUpward  = spaceBelow < 160 && spaceAbove > spaceBelow;
+            const maxHeight   = Math.min(320, Math.max(openUpward ? spaceAbove : spaceBelow, 120));
+
+            const posStyle: React.CSSProperties = openUpward
+              ? { bottom: window.innerHeight - rect.top + GAP }
+              : { top:    rect.bottom + GAP };
+
+            return (
+              <div
+                ref={panelRef}
+                style={{
+                  position: "fixed",
+                  left: rect.left,
+                  width: rect.width,
+                  zIndex: 9999,
+                  pointerEvents: "auto",
+                  ...posStyle,
+                }}
+                className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg"
+              >
+                <div style={{ maxHeight }} className="overflow-y-auto py-1">
+                  {options.map((opt) => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => { onChange(opt.value); setOpen(false); }}
+                      className="flex w-full items-center justify-between px-4 py-2.5 text-left text-sm text-slate-700 hover:bg-slate-50"
+                    >
+                      <span className="truncate">{opt.label}</span>
+                      {opt.value === value && <Check className="ml-2 h-4 w-4 shrink-0 text-slate-600" />}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            );
+          })(),
           document.body
         )
       : null;
