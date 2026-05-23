@@ -33,6 +33,7 @@ export function CustomSelect({ value, onChange, options, placeholder = "เล�
   const [pos,      setPos]      = useState<PanelPos | null>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const panelRef   = useRef<HTMLDivElement>(null);
+  const scrollRef  = useRef<HTMLDivElement>(null);
 
   // Calculate position every time the dropdown opens (after layout, before paint)
   useLayoutEffect(() => {
@@ -80,6 +81,25 @@ export function CustomSelect({ value, onChange, options, placeholder = "เล�
     return () => window.removeEventListener("scroll", close, true);
   }, [open]);
 
+  // Native wheel handler — bypasses react-remove-scroll (used by Radix Dialog)
+  // which intercepts wheel events at window level with capture:true.
+  // Manually updating scrollTop works even after preventDefault() is called upstream.
+  useEffect(() => {
+    if (!open) return;
+    const el = scrollRef.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      const atTop    = el.scrollTop === 0 && e.deltaY < 0;
+      const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight && e.deltaY > 0;
+      if (atTop || atBottom) return; // let the browser decide at boundaries
+      e.preventDefault();
+      e.stopPropagation();
+      el.scrollTop += e.deltaY;
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, [open]);
+
   // Recalculate on window resize while open
   useEffect(() => {
     if (!open || !triggerRef.current) return;
@@ -122,7 +142,8 @@ export function CustomSelect({ value, onChange, options, placeholder = "เล�
             className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg"
           >
             <div
-              style={{ maxHeight: pos.maxHeight }}
+              ref={scrollRef}
+              style={{ maxHeight: pos.maxHeight, overscrollBehavior: "contain" }}
               className="overflow-y-auto py-1"
             >
               {options.map((opt) => (
