@@ -69,7 +69,7 @@ export function CustomSelect({ value, onChange, options, placeholder = "เล�
             }}
             className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg"
           >
-            <div className="max-h-72 overflow-y-auto py-1">
+            <div className="max-h-80 overflow-y-auto py-1">
               {options.map((opt) => (
                 <button
                   key={opt.value}
