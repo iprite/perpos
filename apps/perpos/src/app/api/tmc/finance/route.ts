@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '../../_lib/supabase';
 import { requireTmcMember, canWriteFinance } from '../_lib';
+import { setAuditContext } from '../../_lib/audit';
 
 export async function GET(req: NextRequest) {
   const p = req.nextUrl.searchParams;
@@ -50,6 +51,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'missing required fields' }, { status: 400 });
   }
 
+  await setAuditContext(req, auth.userId, orgId);
+
   const admin = createAdminClient();
   const { data: prop } = await admin
     .from('tmc_properties')
@@ -90,6 +93,8 @@ export async function PUT(req: NextRequest) {
   if (!canWriteFinance(auth.role)) {
     return NextResponse.json({ error: 'ต้องการสิทธิ์ team_lead ขึ้นไป' }, { status: 403 });
   }
+
+  await setAuditContext(req, auth.userId, orgId);
 
   const fields = body as Record<string, string>;
   const admin = createAdminClient();
@@ -150,6 +155,8 @@ export async function DELETE(req: NextRequest) {
   if (!['owner', 'admin', 'team_lead'].includes(auth.role)) {
     return NextResponse.json({ error: 'ต้องการสิทธิ์ team_lead ขึ้นไป' }, { status: 403 });
   }
+
+  await setAuditContext(req, auth.userId, orgId);
 
   const admin = createAdminClient();
 

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '../../_lib/supabase';
 import { requireTmcMember, canWriteFinance } from '../_lib';
+import { setAuditContext } from '../../_lib/audit';
 
 /** GET ?orgId= [&all=1] → accounts sorted */
 export async function GET(req: NextRequest) {
@@ -33,6 +34,8 @@ export async function POST(req: NextRequest) {
   const auth = await requireTmcMember(req, orgId);
   if (!auth.ok) return auth.res;
   if (!canWriteFinance(auth.role)) return NextResponse.json({ error: 'ไม่มีสิทธิ์' }, { status: 403 });
+
+  await setAuditContext(req, auth.userId, orgId);
 
   const { data: last } = await auth.rls
     .from('tmc_accounts')
@@ -71,6 +74,8 @@ export async function PATCH(req: NextRequest) {
   if (!auth.ok) return auth.res;
   if (!canWriteFinance(auth.role)) return NextResponse.json({ error: 'ไม่มีสิทธิ์' }, { status: 403 });
 
+  await setAuditContext(req, auth.userId, orgId);
+
   const patch: Record<string, unknown> = {};
   if (name         !== undefined) patch.name         = name.trim();
   if (account_type !== undefined) patch.account_type = account_type;
@@ -103,6 +108,8 @@ export async function DELETE(req: NextRequest) {
   if (!['owner', 'admin', 'team_lead'].includes(auth.role)) {
     return NextResponse.json({ error: 'ต้องการสิทธิ์ team_lead ขึ้นไป' }, { status: 403 });
   }
+
+  await setAuditContext(req, auth.userId, orgId);
 
   const admin = createAdminClient();
   const { error } = await admin
