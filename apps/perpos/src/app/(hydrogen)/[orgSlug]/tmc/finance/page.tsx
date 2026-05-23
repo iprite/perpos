@@ -55,10 +55,14 @@ export default function TmcFinancePage() {
 
   // form
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({
+  const [form, setForm] = useState<{
+    accountId: string; entryDate: string; description: string;
+    entryType: 'income' | 'expense' | ''; category: string;
+    propertyCode: string; amount: string; note: string;
+  }>({
     accountId: '', entryDate: new Date().toISOString().slice(0, 10),
-    description: '', checkInDate: '', checkOutDate: '',
-    category: '', propertyCode: '', income: '', expense: '', note: '',
+    description: '', entryType: '',
+    category: '', propertyCode: '', amount: '', note: '',
   });
   const [saving, setSaving] = useState(false);
 
@@ -94,16 +98,23 @@ export default function TmcFinancePage() {
   useEffect(() => { setPage(1); }, [entries]);
 
   async function handleSave() {
-    if (!form.accountId || !form.description || !form.category) return;
+    if (!form.accountId || !form.description || !form.category || !form.entryType || !form.amount) return;
     setSaving(true);
     const h = await headers();
+    const income  = form.entryType === 'income'  ? form.amount : '';
+    const expense = form.entryType === 'expense' ? form.amount : '';
     await fetch(backendUrl('/tmc/finance'), {
       method: 'POST', headers: h,
-      body: JSON.stringify({ orgId: TMC_ORG_ID, ...form }),
+      body: JSON.stringify({
+        orgId: TMC_ORG_ID,
+        accountId: form.accountId, entryDate: form.entryDate,
+        description: form.description, category: form.category,
+        propertyCode: form.propertyCode, income, expense, note: form.note,
+      }),
     });
     setSaving(false);
     setShowForm(false);
-    setForm({ accountId: '', entryDate: new Date().toISOString().slice(0, 10), description: '', checkInDate: '', checkOutDate: '', category: '', propertyCode: '', income: '', expense: '', note: '' });
+    setForm({ accountId: '', entryDate: new Date().toISOString().slice(0, 10), description: '', entryType: '', category: '', propertyCode: '', amount: '', note: '' });
     load();
   }
 
@@ -293,6 +304,32 @@ export default function TmcFinancePage() {
             <DialogTitle>เพิ่มรายการบัญชี</DialogTitle>
           </DialogHeader>
           <div className="grid grid-cols-2 gap-3">
+            {/* ประเภท toggle */}
+            <div className="col-span-2 space-y-1.5">
+              <Label>ประเภท *</Label>
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  type="button"
+                  variant={form.entryType === 'income' ? 'default' : 'outline'}
+                  className={form.entryType === 'income'
+                    ? 'bg-green-600 hover:bg-green-700 border-green-600 text-white'
+                    : 'text-green-700 border-green-200 hover:bg-green-50 hover:text-green-800'}
+                  onClick={() => setForm(f => ({ ...f, entryType: 'income' }))}
+                >
+                  ↑ รายรับ
+                </Button>
+                <Button
+                  type="button"
+                  variant={form.entryType === 'expense' ? 'default' : 'outline'}
+                  className={form.entryType === 'expense'
+                    ? 'bg-red-600 hover:bg-red-700 border-red-600 text-white'
+                    : 'text-red-700 border-red-200 hover:bg-red-50 hover:text-red-800'}
+                  onClick={() => setForm(f => ({ ...f, entryType: 'expense' }))}
+                >
+                  ↓ รายจ่าย
+                </Button>
+              </div>
+            </div>
             <div className="col-span-2 space-y-1.5">
               <Label>บัญชี *</Label>
               <CustomSelect value={form.accountId} onChange={v => setForm(f => ({ ...f, accountId: v }))} options={accountFormOptions} />
@@ -310,27 +347,14 @@ export default function TmcFinancePage() {
               <Input placeholder="เช่น คุณวชิราภรณ์ เข้าพัก 1 คืน"
                 value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
             </div>
-            <div className="space-y-1.5">
-              <Label>วันเช็คอิน</Label>
-              <ThaiDatePicker value={form.checkInDate} onChange={v => setForm(f => ({ ...f, checkInDate: v }))} />
-            </div>
-            <div className="space-y-1.5">
-              <Label>วันเช็คเอาต์</Label>
-              <ThaiDatePicker value={form.checkOutDate} onChange={v => setForm(f => ({ ...f, checkOutDate: v }))} />
-            </div>
             <div className="col-span-2 space-y-1.5">
               <Label>หมวดหมู่ *</Label>
               <CustomSelect value={form.category} onChange={v => setForm(f => ({ ...f, category: v }))} options={categoryFormOptions} />
             </div>
-            <div className="space-y-1.5">
-              <Label>รายรับ (บาท)</Label>
-              <Input type="number" placeholder="0.00" value={form.income}
-                onChange={e => setForm(f => ({ ...f, income: e.target.value, expense: '' }))} />
-            </div>
-            <div className="space-y-1.5">
-              <Label>รายจ่าย (บาท)</Label>
-              <Input type="number" placeholder="0.00" value={form.expense}
-                onChange={e => setForm(f => ({ ...f, expense: e.target.value, income: '' }))} />
+            <div className="col-span-2 space-y-1.5">
+              <Label>จำนวน (บาท) *</Label>
+              <Input type="number" placeholder="0.00" value={form.amount}
+                onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} />
             </div>
             <div className="col-span-2 space-y-1.5">
               <Label>หมายเหตุ</Label>
@@ -339,7 +363,7 @@ export default function TmcFinancePage() {
           </div>
           <DialogFooter className="gap-2 sm:gap-2">
             <Button variant="outline" onClick={() => setShowForm(false)}>ยกเลิก</Button>
-            <Button onClick={handleSave} disabled={saving || !form.accountId || !form.description || !form.category}>
+            <Button onClick={handleSave} disabled={saving || !form.accountId || !form.description || !form.category || !form.entryType || !form.amount}>
               {saving ? 'กำลังบันทึก…' : 'บันทึก'}
             </Button>
           </DialogFooter>
