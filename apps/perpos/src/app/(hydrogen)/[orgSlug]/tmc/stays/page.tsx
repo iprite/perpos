@@ -20,7 +20,7 @@ const DEPOSIT_ACCOUNT_OPTIONS = [
   { value: SAV_ACCOUNT_ID, label: 'กสิกร ออมทรัพย์' },
   { value: CUR_ACCOUNT_ID, label: 'กสิกร กระแสรายวัน' },
 ];
-const PROPERTY_CODES = ['TMC1', 'TMC2', 'TMC3-4', 'TMC5', 'TMC6', 'TMC7'];
+const PROPERTY_CODES = ['TMC1', 'TMC2', 'TMC3-4', 'TMC5', 'TMC6', 'TMC7', 'ส่วนกลาง'];
 const BOOKING_CHANNELS = ['Line', 'Agoda', 'Walk-in', 'IG', 'Call', 'Friend', 'อินฟลู', 'อื่นๆ'];
 const GROUP_TYPES = ['Family', 'Couple', 'Friend', 'Solo'];
 const STAY_TYPES = [
