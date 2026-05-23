@@ -134,8 +134,15 @@ export async function POST(req: NextRequest) {
 
     if (existing?.id) {
       guestId = existing.id;
+      // Update guest info in case details changed
+      await admin.from('tmc_guests').update({
+        first_name: firstName,
+        last_name:  lastName  || null,
+        nickname:   body.nickname ? String(body.nickname) : null,
+        tel:        tel || null,
+      }).eq('id', existing.id);
     } else {
-      const { data: newGuest } = await admin
+      const { data: newGuest, error: guestErr } = await admin
         .from('tmc_guests')
         .insert({
           org_id:     orgId,
@@ -147,49 +154,61 @@ export async function POST(req: NextRequest) {
         })
         .select('id')
         .single();
-      guestId = newGuest?.id ?? null;
+      if (guestErr) {
+        // Retry lookup (race condition / unique constraint)
+        const { data: retry } = tel
+          ? await admin.from('tmc_guests').select('id').eq('org_id', orgId).eq('tel', tel).maybeSingle()
+          : { data: null };
+        guestId = retry?.id ?? null;
+      } else {
+        guestId = newGuest?.id ?? null;
+      }
     }
   }
 
-  const depositReceived  = body.depositReceived  ? Number(body.depositReceived)  : null;
-  const depositReturned  = body.depositReturned  ? Number(body.depositReturned)  : null;
-  const depositAccountId = String(body.depositAccountId || DEFAULT_ACCOUNT_ID);
+  const depositReceived     = body.depositReceived     ? Number(body.depositReceived)  : null;
+  const depositReturned     = body.depositReturned     ? Number(body.depositReturned)  : null;
+  const depositAccountId    = String(body.depositAccountId || DEFAULT_ACCOUNT_ID);
+  const depositReceivedDate = body.depositReceivedDate ? String(body.depositReceivedDate) : null;
+  const depositReturnedDate = body.depositReturnedDate ? String(body.depositReturnedDate) : null;
   const checkIn  = String(body.checkIn  ?? '');
   const checkOut = String(body.checkOut ?? '');
 
   const { data, error } = await admin
     .from('tmc_stays')
     .insert({
-      org_id:               orgId,
-      guest_id:             guestId,
-      property_id:          prop?.id ?? null,
-      property_code:        propertyCode || null,
-      check_in:             checkIn,
-      check_out:            checkOut,
-      check_in_time:        body.checkInTime        ?? null,
-      check_out_time:       body.checkOutTime       ?? null,
-      booking_channel:      body.bookingChannel     ?? null,
-      stay_type:            body.stayType           ?? 'paid',
-      room_rate:            body.roomRate           ? Number(body.roomRate)           : null,
-      promotion_pct:        body.promotionPct       ? Number(body.promotionPct)       : null,
-      deposit_amount:       body.depositAmount      ? Number(body.depositAmount)      : null,
-      deposit_received:     depositReceived,
-      deposit_returned:     depositReturned,
-      deposit_account_id:   depositReceived || depositReturned ? depositAccountId : null,
-      group_size:           body.groupSize          ? Number(body.groupSize)          : null,
-      group_type:           body.groupType          ?? null,
-      butler_service_visit: body.butlerServiceVisit ?? null,
-      food_amount:          body.foodAmount         ? Number(body.foodAmount)         : null,
-      drink_amount:         body.drinkAmount        ? Number(body.drinkAmount)        : null,
-      mookata_amount:       body.mookataAmount      ? Number(body.mookataAmount)      : null,
-      bbq_amount:           body.bbqAmount          ? Number(body.bbqAmount)          : null,
-      activity_detail:      body.activityDetail     ?? null,
-      feedback:             body.feedback           ?? null,
-      issues:               body.issues             ?? null,
-      damaged_items:        body.damagedItems       ?? null,
-      created_by:           auth.userId,
+      org_id:                orgId,
+      guest_id:              guestId,
+      property_id:           prop?.id ?? null,
+      property_code:         propertyCode || null,
+      check_in:              checkIn,
+      check_out:             checkOut,
+      check_in_time:         body.checkInTime        ?? null,
+      check_out_time:        body.checkOutTime       ?? null,
+      booking_channel:       body.bookingChannel     ?? null,
+      stay_type:             body.stayType           ?? 'paid',
+      room_rate:             body.roomRate           ? Number(body.roomRate)           : null,
+      promotion_pct:         body.promotionPct       ? Number(body.promotionPct)       : null,
+      deposit_amount:        body.depositAmount      ? Number(body.depositAmount)      : null,
+      deposit_received:      depositReceived,
+      deposit_returned:      depositReturned,
+      deposit_account_id:    depositReceived || depositReturned ? depositAccountId : null,
+      deposit_received_date: depositReceivedDate,
+      deposit_returned_date: depositReturnedDate,
+      group_size:            body.groupSize          ? Number(body.groupSize)          : null,
+      group_type:            body.groupType          ?? null,
+      butler_service_visit:  body.butlerServiceVisit ?? null,
+      food_amount:           body.foodAmount         ? Number(body.foodAmount)         : null,
+      drink_amount:          body.drinkAmount        ? Number(body.drinkAmount)        : null,
+      mookata_amount:        body.mookataAmount      ? Number(body.mookataAmount)      : null,
+      bbq_amount:            body.bbqAmount          ? Number(body.bbqAmount)          : null,
+      activity_detail:       body.activityDetail     ?? null,
+      feedback:              body.feedback           ?? null,
+      issues:                body.issues             ?? null,
+      damaged_items:         body.damagedItems       ?? null,
+      created_by:            auth.userId,
     })
-    .select('*, tmc_guests(first_name, last_name, nickname, tel)')
+    .select('*, tmc_guests(id, first_name, last_name, nickname, tel)')
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -200,22 +219,28 @@ export async function POST(req: NextRequest) {
     actorId: auth.userId, newData: data as Record<string, unknown>,
   });
 
-  // Auto-create finance entries for deposit
-  if (depositReceived && depositReceived > 0 && checkIn) {
-    await createDepositFinanceEntry({
-      orgId, accountId: depositAccountId,
-      entryDate: checkIn, propertyCode: propertyCode || null,
-      guestName: guestName || 'ลูกค้า', type: 'received',
-      amount: depositReceived, createdBy: auth.userId,
-    });
+  // Auto-create finance entries for deposit — use explicit deposit date or fall back to check_in/check_out
+  if (depositReceived && depositReceived > 0) {
+    const entryDate = depositReceivedDate || checkIn;
+    if (entryDate) {
+      await createDepositFinanceEntry({
+        orgId, accountId: depositAccountId,
+        entryDate, propertyCode: propertyCode || null,
+        guestName: guestName || 'ลูกค้า', type: 'received',
+        amount: depositReceived, createdBy: auth.userId,
+      });
+    }
   }
-  if (depositReturned && depositReturned > 0 && (checkOut || checkIn)) {
-    await createDepositFinanceEntry({
-      orgId, accountId: depositAccountId,
-      entryDate: checkOut || checkIn, propertyCode: propertyCode || null,
-      guestName: guestName || 'ลูกค้า', type: 'returned',
-      amount: depositReturned, createdBy: auth.userId,
-    });
+  if (depositReturned && depositReturned > 0) {
+    const entryDate = depositReturnedDate || checkOut || checkIn;
+    if (entryDate) {
+      await createDepositFinanceEntry({
+        orgId, accountId: depositAccountId,
+        entryDate, propertyCode: propertyCode || null,
+        guestName: guestName || 'ลูกค้า', type: 'returned',
+        amount: depositReturned, createdBy: auth.userId,
+      });
+    }
   }
 
   return NextResponse.json(data, { status: 201 });
@@ -242,37 +267,57 @@ export async function PUT(req: NextRequest) {
 
   if (!existing) return NextResponse.json({ error: 'ไม่พบข้อมูลการเข้าพัก' }, { status: 404 });
 
-  const depositReceived  = body.depositReceived  ? Number(body.depositReceived)  : null;
-  const depositReturned  = body.depositReturned  ? Number(body.depositReturned)  : null;
-  const depositAccountId = String(body.depositAccountId || DEFAULT_ACCOUNT_ID);
+  const depositReceived     = body.depositReceived     ? Number(body.depositReceived)     : null;
+  const depositReturned     = body.depositReturned     ? Number(body.depositReturned)     : null;
+  const depositAccountId    = String(body.depositAccountId || DEFAULT_ACCOUNT_ID);
+  const depositReceivedDate = body.depositReceivedDate ? String(body.depositReceivedDate) : null;
+  const depositReturnedDate = body.depositReturnedDate ? String(body.depositReturnedDate) : null;
 
   const prevReceived  = Number(existing.deposit_received  ?? 0);
   const prevReturned  = Number(existing.deposit_returned  ?? 0);
   const checkIn       = existing.check_in  ?? '';
   const checkOut      = existing.check_out ?? '';
   const propertyCode  = existing.property_code ?? null;
+
+  // Update guest info if firstName provided in body
+  if (existing.guest_id && body.firstName) {
+    const firstName = String(body.firstName ?? '');
+    const lastName  = String(body.lastName  ?? '');
+    await admin.from('tmc_guests').update({
+      first_name: firstName,
+      last_name:  lastName || null,
+      nickname:   body.nickname ? String(body.nickname) : null,
+      tel:        body.tel     ? String(body.tel)       : null,
+    }).eq('id', existing.guest_id);
+  }
+
+  // Resolve guestName: prefer new body values, fall back to existing guest
   const g = existing.tmc_guests as { first_name?: string; last_name?: string | null; nickname?: string | null } | null;
-  const guestName = g?.nickname ?? [g?.first_name, g?.last_name].filter(Boolean).join(' ').trim() ?? 'ลูกค้า';
+  const guestName = body.firstName
+    ? ([body.nickname || body.firstName, body.lastName].filter(Boolean).join(' ').trim() as string)
+    : (g?.nickname ?? [g?.first_name, g?.last_name].filter(Boolean).join(' ').trim() ?? 'ลูกค้า');
 
   const patch = {
-    booking_channel:      body.bookingChannel      ?? null,
-    stay_type:            body.stayType            ?? 'paid',
-    room_rate:            body.roomRate            ? Number(body.roomRate)         : null,
-    promotion_pct:        body.promotionPct        ? Number(body.promotionPct)     : null,
-    deposit_received:     depositReceived,
-    deposit_returned:     depositReturned,
-    deposit_account_id:   depositReceived || depositReturned ? depositAccountId : null,
-    group_size:           body.groupSize           ? Number(body.groupSize)        : null,
-    group_type:           body.groupType           ?? null,
-    butler_service_visit: body.butlerServiceVisit  ?? null,
-    food_amount:          body.foodAmount          ? Number(body.foodAmount)       : null,
-    drink_amount:         body.drinkAmount         ? Number(body.drinkAmount)      : null,
-    mookata_amount:       body.mookataAmount       ? Number(body.mookataAmount)    : null,
-    bbq_amount:           body.bbqAmount           ? Number(body.bbqAmount)        : null,
-    activity_detail:      body.activityDetail      ?? null,
-    feedback:             body.feedback            ?? null,
-    issues:               body.issues              ?? null,
-    damaged_items:        body.damagedItems        ?? null,
+    booking_channel:       body.bookingChannel      ?? null,
+    stay_type:             body.stayType            ?? 'paid',
+    room_rate:             body.roomRate            ? Number(body.roomRate)         : null,
+    promotion_pct:         body.promotionPct        ? Number(body.promotionPct)     : null,
+    deposit_received:      depositReceived,
+    deposit_returned:      depositReturned,
+    deposit_account_id:    depositReceived || depositReturned ? depositAccountId : null,
+    deposit_received_date: depositReceivedDate,
+    deposit_returned_date: depositReturnedDate,
+    group_size:            body.groupSize           ? Number(body.groupSize)        : null,
+    group_type:            body.groupType           ?? null,
+    butler_service_visit:  body.butlerServiceVisit  ?? null,
+    food_amount:           body.foodAmount          ? Number(body.foodAmount)       : null,
+    drink_amount:          body.drinkAmount         ? Number(body.drinkAmount)      : null,
+    mookata_amount:        body.mookataAmount       ? Number(body.mookataAmount)    : null,
+    bbq_amount:            body.bbqAmount           ? Number(body.bbqAmount)        : null,
+    activity_detail:       body.activityDetail      ?? null,
+    feedback:              body.feedback            ?? null,
+    issues:                body.issues              ?? null,
+    damaged_items:         body.damagedItems        ?? null,
   };
 
   const { data, error } = await admin
@@ -293,22 +338,28 @@ export async function PUT(req: NextRequest) {
     newData: data     as Record<string, unknown>,
   });
 
-  // Finance entries only for newly added deposit values
-  if (depositReceived && depositReceived > 0 && depositReceived !== prevReceived && checkIn) {
-    await createDepositFinanceEntry({
-      orgId, accountId: depositAccountId,
-      entryDate: checkIn, propertyCode,
-      guestName, type: 'received',
-      amount: depositReceived, createdBy: auth.userId,
-    });
+  // Finance entries only for newly added deposit values — use explicit deposit dates
+  if (depositReceived && depositReceived > 0 && depositReceived !== prevReceived) {
+    const entryDate = depositReceivedDate || checkIn;
+    if (entryDate) {
+      await createDepositFinanceEntry({
+        orgId, accountId: depositAccountId,
+        entryDate, propertyCode,
+        guestName, type: 'received',
+        amount: depositReceived, createdBy: auth.userId,
+      });
+    }
   }
   if (depositReturned && depositReturned > 0 && depositReturned !== prevReturned) {
-    await createDepositFinanceEntry({
-      orgId, accountId: depositAccountId,
-      entryDate: checkOut || checkIn, propertyCode,
-      guestName, type: 'returned',
-      amount: depositReturned, createdBy: auth.userId,
-    });
+    const entryDate = depositReturnedDate || checkOut || checkIn;
+    if (entryDate) {
+      await createDepositFinanceEntry({
+        orgId, accountId: depositAccountId,
+        entryDate, propertyCode,
+        guestName, type: 'returned',
+        amount: depositReturned, createdBy: auth.userId,
+      });
+    }
   }
 
   return NextResponse.json(data);

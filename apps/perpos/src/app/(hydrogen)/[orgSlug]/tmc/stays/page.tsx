@@ -76,9 +76,11 @@ type Stay = {
   mookata_amount:       number | null;
   bbq_amount:           number | null;
   activity_detail:      string | null;
-  deposit_received:     number | null;
-  deposit_returned:     number | null;
-  deposit_account_id:   string | null;
+  deposit_received:      number | null;
+  deposit_returned:      number | null;
+  deposit_account_id:    string | null;
+  deposit_received_date: string | null;
+  deposit_returned_date: string | null;
   feedback:             string | null;
   issues:               string | null;
   damaged_items:        string | null;
@@ -102,6 +104,7 @@ const emptyForm = {
   bookingChannel: 'Line', stayType: 'paid',
   roomRate: '', promotionPct: '',
   depositReceived: '', depositReturned: '', depositAccountId: SAV_ACCOUNT_ID,
+  depositReceivedDate: '', depositReturnedDate: '',
   groupSize: '', groupType: 'Family',
   butlerServiceVisit: '', foodAmount: '', drinkAmount: '',
   mookataAmount: '', bbqAmount: '', activityDetail: '',
@@ -216,6 +219,8 @@ export default function TmcStaysPage() {
       depositReceived:    stay.deposit_received        != null ? String(stay.deposit_received)     : '',
       depositReturned:    stay.deposit_returned        != null ? String(stay.deposit_returned)     : '',
       depositAccountId:   stay.deposit_account_id     ?? SAV_ACCOUNT_ID,
+      depositReceivedDate: stay.deposit_received_date  ?? '',
+      depositReturnedDate: stay.deposit_returned_date  ?? '',
       groupSize:          stay.group_size              != null ? String(stay.group_size)           : '',
       groupType:          stay.group_type              ?? 'Family',
       butlerServiceVisit: stay.butler_service_visit    ?? '',
@@ -299,39 +304,27 @@ export default function TmcStaysPage() {
   const formBody = (
     <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
 
-      {/* Guest — read-only badge in edit mode, inputs in add mode */}
+      {/* Guest — editable in both add and edit mode */}
       <div>
         <p className="text-sm font-semibold text-slate-700 mb-3">👤 ข้อมูลลูกค้า</p>
-        {isEditMode ? (
-          <div className="rounded-lg bg-slate-50 border border-slate-200 px-4 py-3 flex items-center gap-3">
-            <div>
-              <p className="font-medium text-slate-800">{guestDisplayName(editingStay.tmc_guests)}</p>
-              {editingStay.tmc_guests?.tel && (
-                <p className="text-xs text-slate-400 mt-0.5">{editingStay.tmc_guests.tel}</p>
-              )}
-            </div>
-            <span className="ml-auto text-xs text-slate-400 italic">แก้ไขข้อมูลลูกค้าแยกต่างหาก</span>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1.5">
+            <Label>{isEditMode ? 'ชื่อ' : 'ชื่อ *'}</Label>
+            <Input placeholder="คุณ..." value={form.firstName} onChange={e => setForm(f => ({ ...f, firstName: e.target.value }))} />
           </div>
-        ) : (
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label>ชื่อ *</Label>
-              <Input placeholder="คุณ..." value={form.firstName} onChange={e => setForm(f => ({ ...f, firstName: e.target.value }))} />
-            </div>
-            <div className="space-y-1.5">
-              <Label>นามสกุล</Label>
-              <Input value={form.lastName} onChange={e => setForm(f => ({ ...f, lastName: e.target.value }))} />
-            </div>
-            <div className="space-y-1.5">
-              <Label>ชื่อเล่น</Label>
-              <Input value={form.nickname} onChange={e => setForm(f => ({ ...f, nickname: e.target.value }))} />
-            </div>
-            <div className="space-y-1.5">
-              <Label>เบอร์โทร</Label>
-              <Input value={form.tel} onChange={e => setForm(f => ({ ...f, tel: e.target.value }))} />
-            </div>
+          <div className="space-y-1.5">
+            <Label>นามสกุล</Label>
+            <Input value={form.lastName} onChange={e => setForm(f => ({ ...f, lastName: e.target.value }))} />
           </div>
-        )}
+          <div className="space-y-1.5">
+            <Label>ชื่อเล่น</Label>
+            <Input value={form.nickname} onChange={e => setForm(f => ({ ...f, nickname: e.target.value }))} />
+          </div>
+          <div className="space-y-1.5">
+            <Label>เบอร์โทร</Label>
+            <Input value={form.tel} onChange={e => setForm(f => ({ ...f, tel: e.target.value }))} />
+          </div>
+        </div>
       </div>
 
       {/* Stay Info */}
@@ -427,8 +420,16 @@ export default function TmcStaysPage() {
             <Input type="number" placeholder="0" value={form.depositReceived} onChange={e => setForm(f => ({ ...f, depositReceived: e.target.value }))} />
           </div>
           <div className="space-y-1.5">
+            <Label>วันที่รับเงินมัดจำ</Label>
+            <ThaiDatePicker value={form.depositReceivedDate} onChange={v => setForm(f => ({ ...f, depositReceivedDate: v }))} placeholder="เลือกวันที่" />
+          </div>
+          <div className="space-y-1.5">
             <Label>คืนเงินมัดจำ (บาท)</Label>
             <Input type="number" placeholder="0" value={form.depositReturned} onChange={e => setForm(f => ({ ...f, depositReturned: e.target.value }))} />
+          </div>
+          <div className="space-y-1.5">
+            <Label>วันที่คืนเงินมัดจำ</Label>
+            <ThaiDatePicker value={form.depositReturnedDate} onChange={v => setForm(f => ({ ...f, depositReturnedDate: v }))} placeholder="เลือกวันที่" />
           </div>
           <div className="col-span-2 space-y-1.5">
             <Label>บันทึกเข้าบัญชี</Label>
