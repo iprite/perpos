@@ -29,14 +29,15 @@ export async function GET(req: NextRequest) {
       .gte('txn_date', from)
       .lte('txn_date', to),
     db.from('tmc_stays')
-      .select('check_in, nights, room_rate, food_amount, drink_amount, mookata_amount, bbq_amount, property_code')
+      .select('check_in, check_out, room_rate, food_amount, drink_amount, mookata_amount, bbq_amount, property_code')
       .eq('org_id', orgId)
       .gte('check_in', from)
       .lte('check_in', to),
     db.from('tmc_stock_items')
-      .select('name, current_stock')
+      .select('name, current_qty, min_quantity')
       .eq('org_id', orgId)
-      .order('current_stock', { ascending: true }),
+      .eq('is_active', true)
+      .order('current_qty', { ascending: true }),
   ]);
 
   const finRows   = finRes.data   ?? [];
@@ -64,8 +65,14 @@ export async function GET(req: NextRequest) {
   for (const s of stayRows) {
     const m = s.check_in.slice(0, 7);
     if (!staysByMonth[m]) staysByMonth[m] = { stays: 0, nights: 0, revenue: 0, food: 0 };
+    // Calculate nights from check_in / check_out dates
+    const nights = s.check_out
+      ? Math.max(0, Math.round(
+          (new Date(s.check_out).getTime() - new Date(s.check_in).getTime()) / 86_400_000
+        ))
+      : 1; // default 1 night when check_out not set
     staysByMonth[m].stays++;
-    staysByMonth[m].nights  += Number(s.nights ?? 0);
+    staysByMonth[m].nights  += nights;
     staysByMonth[m].revenue += Number(s.room_rate ?? 0);
     staysByMonth[m].food    += Number(s.food_amount ?? 0) + Number(s.drink_amount ?? 0)
                              + Number(s.mookata_amount ?? 0) + Number(s.bbq_amount ?? 0);
@@ -116,6 +123,7 @@ export async function GET(req: NextRequest) {
     if (!staysByProp[k]) staysByProp[k] = { stays: 0, revenue: 0 };
     staysByProp[k].stays++;
     staysByProp[k].revenue += Number(s.room_rate ?? 0);
+    // (nights per stay computed separately above)
   }
 
   const propKeys = Array.from(new Set([
@@ -166,7 +174,9 @@ export async function GET(req: NextRequest) {
     },
     stock: {
       items: (stockRes.data ?? []).length,
-      low:   (stockRes.data ?? []).filter(i => Number(i.current_stock) <= 5).length,
+      low:   (stockRes.data ?? []).filter(i =>
+        Number(i.min_quantity) > 0 && Number(i.current_qty) <= Number(i.min_quantity)
+      ).length,
     },
   };
 
@@ -178,8 +188,8 @@ export async function GET(req: NextRequest) {
     byProperty,
     byCategory,
     stockLow: (stockRes.data ?? [])
-      .filter(i => Number(i.current_stock) <= 5)
+      .filter(i => Number(i.min_quantity) > 0 && Number(i.current_qty) <= Number(i.min_quantity))
       .slice(0, 10)
-      .map(i => ({ name: i.name, qty: Number(i.current_stock) })),
+      .map(i => ({ name: i.name, qty: Number(i.current_qty) })),
   });
 }
