@@ -81,12 +81,24 @@ function UserActionMenu({
   onToggleStatus, onDelete, onResetPassword, onImpersonate, onToggleOrgs,
 }: UserActionMenuProps) {
   const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
+  const [pos,  setPos]  = useState({ top: 0, right: 0 });
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  function openMenu() {
+    if (!btnRef.current) return;
+    const r = btnRef.current.getBoundingClientRect();
+    setPos({ top: r.bottom + 4, right: window.innerWidth - r.right });
+    setOpen(true);
+  }
 
   useEffect(() => {
     if (!open) return;
     function handler(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+      if (
+        menuRef.current && !menuRef.current.contains(e.target as Node) &&
+        btnRef.current  && !btnRef.current.contains(e.target as Node)
+      ) setOpen(false);
     }
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
@@ -95,9 +107,10 @@ function UserActionMenu({
   const orgLabel = isLoadingOrgs ? "…" : membershipCount !== null ? `${membershipCount} org` : "Orgs";
 
   return (
-    <div ref={ref} className="relative flex justify-center">
+    <div className="flex justify-center">
       <button
-        onClick={() => setOpen((v) => !v)}
+        ref={btnRef}
+        onClick={() => open ? setOpen(false) : openMenu()}
         title="การจัดการ"
         className={`flex h-7 w-7 items-center justify-center rounded-lg border transition-colors ${
           open
@@ -108,8 +121,12 @@ function UserActionMenu({
         <Settings2 className="h-3.5 w-3.5" />
       </button>
 
-      {open && (
-        <div className="absolute right-0 top-full z-50 mt-1 w-48 rounded-xl border border-gray-200 bg-white py-1 shadow-lg ring-1 ring-black/5">
+      {open && typeof window !== "undefined" && (
+        <div
+          ref={menuRef}
+          style={{ position: "fixed", top: pos.top, right: pos.right, zIndex: 9999 }}
+          className="w-48 rounded-xl border border-gray-200 bg-white py-1 shadow-lg ring-1 ring-black/5"
+        >
           {/* Orgs */}
           <MenuItem
             icon={<Building2 className="h-3.5 w-3.5" />}
