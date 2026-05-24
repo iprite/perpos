@@ -105,6 +105,8 @@ function EditDialog({
   const [form, setForm] = useState<EditForm>(() => toForm(org));
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState('');
+  const [canceling, setCanceling] = useState(false);
+  const [cancelInfo, setCancelInfo] = useState('');
 
   function set<K extends keyof EditForm>(key: K, val: string) {
     setForm((f) => ({ ...f, [key]: val }));
@@ -141,14 +143,46 @@ function EditDialog({
     finally { setSaving(false); }
   }
 
+  async function handleCancelAtPeriodEnd() {
+    if (!token) return;
+    const ok = window.confirm(`ยืนยันยกเลิก Subscription (มีผลเมื่อครบงวด) ของ "${org.org_name}" ?`);
+    if (!ok) return;
+
+    setCanceling(true);
+    setErr('');
+    setCancelInfo('');
+    try {
+      const res = await fetch('/api/admin/billing/cancel-subscription', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ orgId: org.org_id }),
+      });
+      const d = await res.json() as { error?: string; current_period_end?: string | null };
+      if (!res.ok) {
+        setErr(d.error ?? 'Error');
+        return;
+      }
+      const end = d.current_period_end ? fmtDate(d.current_period_end) : '—';
+      setCancelInfo(`ตั้งค่าแล้ว: ยกเลิกเมื่อครบงวด (${end})`);
+    } catch {
+      setErr('Network error');
+    } finally {
+      setCanceling(false);
+    }
+  }
+
   return (
     <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
-      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>แก้ไข Billing — {org.org_name}</DialogTitle>
-        </DialogHeader>
+      <DialogContent className="p-0 w-[95vw] max-w-2xl max-h-[80vh]">
+        <div className="flex flex-col max-h-[80vh]">
+          <div className="sticky top-0 z-10 border-b bg-white px-6 py-4">
+            <DialogHeader className="p-0">
+              <DialogTitle>แก้ไข Billing — {org.org_name}</DialogTitle>
+            </DialogHeader>
+          </div>
 
-        <div className="grid gap-4 py-2">
+          <div className="flex-1 overflow-y-auto px-6 py-4">
+            <div className="grid gap-4">
           {/* Plan tier + payment status */}
           <div className="grid grid-cols-2 gap-3">
             <div>
@@ -225,12 +259,20 @@ function EditDialog({
           </div>
 
           {err && <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-sm text-red-700">{err}</div>}
-        </div>
+          {cancelInfo && <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-700">{cancelInfo}</div>}
+            </div>
+          </div>
 
-        <DialogFooter className="gap-2 sm:gap-2">
-          <Button variant="outline" onClick={onClose} disabled={saving}>ยกเลิก</Button>
-          <Button onClick={handleSave} disabled={saving}>{saving ? 'กำลังบันทึก…' : 'บันทึก'}</Button>
-        </DialogFooter>
+          <div className="sticky bottom-0 z-10 border-t bg-white px-6 py-4">
+            <DialogFooter className="gap-2 sm:gap-2">
+              <Button variant="destructive" onClick={handleCancelAtPeriodEnd} disabled={canceling || saving}>
+                {canceling ? 'กำลังยกเลิก…' : 'Cancel (EOP)'}
+              </Button>
+              <Button variant="outline" onClick={onClose} disabled={saving || canceling}>ปิด</Button>
+              <Button onClick={handleSave} disabled={saving || canceling}>{saving ? 'กำลังบันทึก…' : 'บันทึก'}</Button>
+            </DialogFooter>
+          </div>
+        </div>
       </DialogContent>
     </Dialog>
   );
@@ -356,9 +398,9 @@ export default function AdminBillingPage() {
   }
 
   return (
-    <div className="p-6 max-w-4xl mx-auto space-y-6">
+    <div className="p-6 w-full space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between sticky top-0 z-10 bg-white/80 backdrop-blur border-b border-gray-100 py-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Billing & Plans</h1>
           <p className="text-sm text-gray-500 mt-0.5">จัดการ plan และราคาต่อรองของแต่ละ org</p>
