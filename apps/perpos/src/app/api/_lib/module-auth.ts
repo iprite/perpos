@@ -101,7 +101,7 @@ export async function requireModuleMember(
   if (isMutating) {
     const [{ data: org }, { data: billing }] = await Promise.all([
       admin.from('organizations').select('maintenance_mode').eq('id', orgId).maybeSingle(),
-      admin.from('org_billing').select('payment_status').eq('org_id', orgId).maybeSingle(),
+      admin.from('org_billing').select('payment_status, overdue_count').eq('org_id', orgId).maybeSingle(),
     ]);
 
     if ((org as Record<string, unknown> | null)?.maintenance_mode === true) {
@@ -111,7 +111,10 @@ export async function requireModuleMember(
       };
     }
 
-    if (String((billing as Record<string, unknown> | null)?.payment_status ?? '') === 'overdue') {
+    const row = billing as Record<string, unknown> | null;
+    const isOverdue = String(row?.payment_status ?? '') === 'overdue';
+    const overdueCount = Number(row?.overdue_count ?? 0);
+    if (isOverdue && overdueCount >= 2) {
       return {
         ok: false,
         res: NextResponse.json(

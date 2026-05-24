@@ -75,7 +75,7 @@ export async function GET(req: NextRequest) {
       notes:                billing?.notes ?? null,
       monthly_price:        billing?.monthly_price ?? null,
       currency:             (billing?.currency as string) ?? 'THB',
-      payment_status:       (billing?.payment_status as string) ?? 'active',
+      payment_status:       (billing?.payment_status as string) ?? 'trial',
       updated_at:           billing?.updated_at ?? null,
     };
   });
@@ -132,7 +132,7 @@ export async function PUT(req: NextRequest) {
   if (notes                 !== undefined) row.notes                     = notes        || null;
   if (monthlyPrice          !== undefined) row.monthly_price              = monthlyPrice === '' ? null : Number(monthlyPrice);
   if (currency              !== undefined) row.currency                   = currency     || 'THB';
-  if (paymentStatus         !== undefined) row.payment_status             = paymentStatus || 'active';
+  if (paymentStatus         !== undefined) row.payment_status             = paymentStatus || 'trial';
 
   const { data, error } = await admin
     .from('org_billing')

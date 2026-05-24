@@ -5,6 +5,8 @@ import { getStripe } from '../../_lib/stripe';
 
 export const runtime = 'nodejs';
 
+type PaymentStatus = 'trial' | 'active' | 'overdue' | 'cancelled' | 'pending';
+
 function asString(v: unknown) {
   return typeof v === 'string' ? v : '';
 }
@@ -52,14 +54,47 @@ async function upsertStripeEvent(admin: ReturnType<typeof createAdminClient>, ev
   return { inserted: false, error };
 }
 
-async function updateOrgBillingStatus(admin: ReturnType<typeof createAdminClient>, orgId: string, paymentStatus: 'active' | 'overdue' | 'cancelled' | 'pending') {
+async function updateOrgBilling(admin: ReturnType<typeof createAdminClient>, orgId: string, patch: Record<string, unknown>) {
   await admin
     .from('org_billing')
     .update({
-      payment_status: paymentStatus,
+      ...patch,
       updated_at: new Date().toISOString(),
     })
     .eq('org_id', orgId);
+}
+
+async function setOrgBillingStatus(admin: ReturnType<typeof createAdminClient>, orgId: string, paymentStatus: PaymentStatus) {
+  await updateOrgBilling(admin, orgId, { payment_status: paymentStatus });
+}
+
+async function resetOverdue(admin: ReturnType<typeof createAdminClient>, orgId: string, paymentStatus: PaymentStatus) {
+  await updateOrgBilling(admin, orgId, {
+    payment_status: paymentStatus,
+    overdue_count: 0,
+    last_failed_invoice_id: null,
+  });
+}
+
+async function markOverdueCycle(admin: ReturnType<typeof createAdminClient>, orgId: string, invoiceId: string | null) {
+  const { data } = await admin
+    .from('org_billing')
+    .select('overdue_count, last_failed_invoice_id')
+    .eq('org_id', orgId)
+    .maybeSingle();
+
+  const row = data as Record<string, unknown> | null;
+  const currentCount = Number(row?.overdue_count ?? 0);
+  const lastInvoiceId = String(row?.last_failed_invoice_id ?? '');
+
+  const shouldIncrement = Boolean(invoiceId) && invoiceId !== lastInvoiceId;
+  const nextCount = shouldIncrement ? currentCount + 1 : currentCount;
+
+  await updateOrgBilling(admin, orgId, {
+    payment_status: 'overdue',
+    overdue_count: nextCount,
+    last_failed_invoice_id: invoiceId ? invoiceId : (lastInvoiceId || null),
+  });
 }
 
 async function upsertOrgStripe(admin: ReturnType<typeof createAdminClient>, orgId: string, patch: Record<string, unknown>) {
@@ -100,7 +135,7 @@ async function handleCheckoutSessionCompleted(admin: ReturnType<typeof createAdm
     cancel_at_period_end: subscription?.cancel_at_period_end ?? false,
   });
 
-  await updateOrgBillingStatus(admin, orgId, 'pending');
+  await resetOverdue(admin, orgId, 'pending');
   return orgId;
 }
 
@@ -131,7 +166,7 @@ async function handleInvoicePaymentSucceeded(admin: ReturnType<typeof createAdmi
     });
   }
 
-  await updateOrgBillingStatus(admin, orgId, 'active');
+  await resetOverdue(admin, orgId, 'active');
   return orgId;
 }
 
@@ -160,7 +195,7 @@ async function handleInvoicePaymentFailed(admin: ReturnType<typeof createAdminCl
     });
   }
 
-  await updateOrgBillingStatus(admin, orgId, 'overdue');
+  await markOverdueCycle(admin, orgId, asString(invoice.id) || null);
   return orgId;
 }
 
@@ -180,11 +215,16 @@ async function handleSubscriptionUpdated(admin: ReturnType<typeof createAdminCli
   });
 
   if (sub.status === 'past_due' || sub.status === 'unpaid') {
-    await updateOrgBillingStatus(admin, orgId, 'overdue');
+    await setOrgBillingStatus(admin, orgId, 'overdue');
   }
 
   if (sub.status === 'canceled') {
-    await updateOrgBillingStatus(admin, orgId, 'cancelled');
+    await updateOrgBilling(admin, orgId, {
+      payment_status: 'trial',
+      monthly_price: null,
+      overdue_count: 0,
+      last_failed_invoice_id: null,
+    });
   }
 
   return orgId;
@@ -205,7 +245,12 @@ async function handleSubscriptionDeleted(admin: ReturnType<typeof createAdminCli
     cancel_at_period_end: sub.cancel_at_period_end,
   });
 
-  await updateOrgBillingStatus(admin, orgId, 'cancelled');
+  await updateOrgBilling(admin, orgId, {
+    payment_status: 'trial',
+    monthly_price: null,
+    overdue_count: 0,
+    last_failed_invoice_id: null,
+  });
   return orgId;
 }
 
@@ -265,4 +310,3 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({ ok: true });
 }
-

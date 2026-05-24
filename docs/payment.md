@@ -35,6 +35,7 @@
 - Stripe webhook: [stripe/webhook/route.ts](file:///Users/iprite/perpos/apps/perpos/src/app/api/stripe/webhook/route.ts)
 - Admin billing (แก้ plan/price/status): [admin/billing/route.ts](file:///Users/iprite/perpos/apps/perpos/src/app/api/admin/billing/route.ts)
 - Admin sync ราคาไป Stripe: [admin/billing/sync-stripe/route.ts](file:///Users/iprite/perpos/apps/perpos/src/app/api/admin/billing/sync-stripe/route.ts)
+- Admin cancel subscription (cancel at period end): [cancel-subscription/route.ts](file:///Users/iprite/perpos/apps/perpos/src/app/api/admin/billing/cancel-subscription/route.ts)
 - Read-only enforcement (เมื่อค้างชำระ): [module-auth.ts](file:///Users/iprite/perpos/apps/perpos/src/app/api/_lib/module-auth.ts)
 
 ### 2.1 ตาราง `org_billing` (มีอยู่แล้ว)
@@ -42,11 +43,13 @@
 - `plan_tier` (free/starter/pro/enterprise)
 - `monthly_price` (numeric)
 - `currency` (default THB)
-- `payment_status` (active/overdue/cancelled/pending)
+- `payment_status` (trial/active/overdue/cancelled/pending)
+- `overdue_count` (int) — นับรอบบิลที่ `invoice.payment_failed` ล่าสุดแบบต่อเนื่อง (reset เมื่อชำระสำเร็จ)
 
 อ้างอิง migration:
 - [20260523180000_org_billing.sql](file:///Users/iprite/perpos/supabase/migrations/20260523180000_org_billing.sql)
 - [20260524000000_billing_pricing_fields.sql](file:///Users/iprite/perpos/supabase/migrations/20260524000000_billing_pricing_fields.sql)
+- [20260524123000_billing_trial_cancel_and_overdue_grace.sql](file:///Users/iprite/perpos/supabase/migrations/20260524123000_billing_trial_cancel_and_overdue_grace.sql)
 
 มี API สำหรับอ่าน/แก้ไขแล้ว:
 - org view: [org/billing route](file:///Users/iprite/perpos/apps/perpos/src/app/api/org/billing/route.ts)
@@ -62,7 +65,7 @@
 - Owner/Admin เปิด Stripe Customer Portal เพื่ออัปเดตบัตร/ดู invoices (บังคับใช้ configuration เพื่อปิด cancel)
 - Stripe webhook sync สถานะการชำระเงินกลับเข้า DB แบบ idempotent (เก็บ `stripe_events`)
 - Super admin แก้ “ราคาต่อรอง/เดือน” ใน `org_billing` และกด sync ไป Stripe ได้ (no proration, มีผลรอบถัดไป, รองรับ dryRun)
-- เมื่อ `org_billing.payment_status='overdue'` ระบบ block การ “เขียน” (mutating requests) เป็น read-only ฝั่ง server
+- เมื่อ `org_billing.payment_status='overdue'` และ `overdue_count >= 2` ระบบ block การ “เขียน” (mutating requests) เป็น read-only ฝั่ง server
 
 ---
 
@@ -129,6 +132,9 @@ RLS:
 - org ต้องมี `org_billing.monthly_price` ไม่เป็น null และมากกว่า 0
 - ผู้ใช้งานต้องเป็น `organization_members.role in ('owner','admin')`
 - ระบบรองรับสกุลเงิน `THB` เท่านั้น (บังคับที่ server)
+  
+โหมด Trial:
+- ถ้า `monthly_price` เป็น null/0 ให้ถือว่า org อยู่ในโหมด `trial` (ใช้ฟรี) จนกว่า super admin จะ set ราคา
 
 ### 5.2 ขั้นตอน Setup การชำระเงินครั้งแรก
 1) Owner ไปหน้า Billing ในแอป (บน `app.perpos.io`)
@@ -164,7 +170,7 @@ API ที่ใช้งานจริง:
 - `GET/POST /api/admin/billing/sync-stripe` body `{ orgId, dryRun? }`
 
 ### 6.2 การหยุดให้บริการ
-เมื่อ `payment_status` เป็น overdue:
+เมื่อค้างชำระ 2 รอบบิล (`payment_status='overdue'` และ `overdue_count >= 2`):
 - Enforce แล้วฝั่ง server: block การเขียนข้อมูล (mutating requests) แต่ยังอ่านได้
 - Response: `402` + `{ error: 'billing_overdue_readonly' }`
 - (Future) เพิ่ม granular rules ต่อ module/feature (เช่นปิดเฉพาะโมดูลที่ต้องจ่าย)
@@ -197,6 +203,9 @@ API ที่ใช้งานจริง:
 - `GET/POST /api/admin/billing/sync-stripe`
   - `POST` body `{ orgId, dryRun? }`
   - ใช้ตอน super admin เปลี่ยนราคา แล้วต้องการ push ไป Stripe (update subscription/price)
+- `POST /api/admin/billing/cancel-subscription`
+  - body `{ orgId }`
+  - ยกเลิกแบบ `cancel_at_period_end=true` (ลูกค้ายกเลิกเองไม่ได้)
 
 ---
 
@@ -211,11 +220,12 @@ API ที่ใช้งานจริง:
   - set `org_billing.payment_status='active'`
   - update `org_stripe.current_period_end`
 - `invoice.payment_failed`
-  - set `org_billing.payment_status='overdue'` (หรือ past_due)
+  - set `org_billing.payment_status='overdue'`
+  - เพิ่ม `org_billing.overdue_count` (นับเป็น 1 รอบต่อ invoice id) เพื่อใช้กติกา “ค้าง 2 เดือนค่อย read-only”
 - `customer.subscription.updated`
   - sync `subscription_status`, `cancel_at_period_end`, period dates
 - `customer.subscription.deleted`
-  - set `org_billing.payment_status='cancelled'`
+  - set `org_billing.payment_status='trial'` และเคลียร์ `monthly_price` เพื่อกลับสู่โหมดทดลองใช้ฟรีจนกว่าจะตั้งราคาใหม่
 
 กติกา mapping org:
 - ทุก object ที่สร้างจากระบบต้องแนบ `metadata.org_id=<uuid>`
@@ -280,13 +290,14 @@ API ที่ใช้งานจริง:
 
 ตัดสินใจแล้ว:
 1) Owner ยกเลิก subscription เองไม่ได้ ต้องติดต่อ admin เท่านั้น
-2) ค้างชำระ (overdue/past_due) ให้ระบบเข้าโหมด read-only สำหรับองค์กรนั้น
+2) ค้างชำระ 2 รอบบิล ให้ระบบเข้าโหมด read-only สำหรับองค์กรนั้น
 3) เปลี่ยนราคาให้มีผล “รอบถัดไป” เท่านั้น (no proration)
 4) รองรับ THB อย่างเดียว
+5) Org ใหม่เป็น trial จนกว่าจะตั้ง `monthly_price` และเมื่อ subscription ถูกยกเลิก (ครบงวด) ให้กลับสู่ trial
 
 ผลกระทบที่ต้องทำตาม:
 - Stripe Customer Portal: ปิดการยกเลิก subscription โดยลูกค้า (อนุญาตเฉพาะอัปเดตวิธีชำระเงิน/ดูใบเสร็จ)
-- Enforcement: เพิ่ม guard ฝั่ง server ให้เขียนข้อมูลไม่ได้เมื่อ `org_billing.payment_status = 'overdue'` (แต่ยังอ่านได้)
+- Enforcement: เพิ่ม guard ฝั่ง server ให้เขียนข้อมูลไม่ได้เมื่อ `org_billing.payment_status='overdue'` และ `overdue_count >= 2` (แต่ยังอ่านได้)
 - Admin price change: เวลาอัปเดตราคาให้ set proration behavior เป็น none และใช้ราคาใหม่ในรอบถัดไป
 
 ---

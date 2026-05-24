@@ -39,10 +39,13 @@ export async function POST(req: NextRequest) {
   const admin = createAdminClient();
   const { data: billing } = await admin
     .from('org_billing')
-    .select('payment_status')
+    .select('payment_status, overdue_count')
     .eq('org_id', organizationId)
     .maybeSingle();
-  if (String((billing as Record<string, unknown> | null)?.payment_status ?? '') === 'overdue') {
+  const b = billing as Record<string, unknown> | null;
+  const isOverdue = String(b?.payment_status ?? '') === 'overdue';
+  const overdueCount = Number(b?.overdue_count ?? 0);
+  if (isOverdue && overdueCount >= 2) {
     return NextResponse.json({ error: 'billing_overdue_readonly' }, { status: 402 });
   }
   const redirectTo = getRedirectTo(clientRedirectTo);

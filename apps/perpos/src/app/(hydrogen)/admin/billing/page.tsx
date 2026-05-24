@@ -58,6 +58,7 @@ const TIER_OPTIONS = [
 ];
 
 const PAYMENT_OPTIONS = [
+  { value: 'trial',     label: 'Trial' },
   { value: 'active',    label: 'ชำระแล้ว' },
   { value: 'pending',   label: 'รอชำระ' },
   { value: 'overdue',   label: 'ค้างชำระ' },
@@ -65,6 +66,7 @@ const PAYMENT_OPTIONS = [
 ];
 
 const PAYMENT_CLS: Record<string, string> = {
+  trial:     'bg-blue-100 text-blue-700',
   active:    'bg-green-100 text-green-700',
   pending:   'bg-yellow-100 text-yellow-700',
   overdue:   'bg-red-100 text-red-700',
@@ -247,6 +249,9 @@ export default function AdminBillingPage() {
   const [syncing,  setSyncing]  = useState<string | null>(null);
   const [syncErr,  setSyncErr]  = useState<Record<string, string>>({});
   const [syncInfo, setSyncInfo] = useState<Record<string, string>>({});
+  const [canceling, setCanceling] = useState<string | null>(null);
+  const [cancelErr, setCancelErr] = useState<Record<string, string>>({});
+  const [cancelInfo, setCancelInfo] = useState<Record<string, string>>({});
 
   const load = useCallback(async () => {
     setLoading(true); setError('');
@@ -306,6 +311,39 @@ export default function AdminBillingPage() {
       setSyncErr((m) => ({ ...m, [orgId]: 'Network error' }));
     } finally {
       setSyncing(null);
+    }
+  }
+
+  async function cancelSubscription(orgId: string) {
+    if (!token) return;
+    setCanceling(orgId);
+    setCancelErr((m) => {
+      const next = { ...m };
+      delete next[orgId];
+      return next;
+    });
+    setCancelInfo((m) => {
+      const next = { ...m };
+      delete next[orgId];
+      return next;
+    });
+    try {
+      const res = await fetch('/api/admin/billing/cancel-subscription', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ orgId }),
+      });
+      const d = await res.json() as { error?: string; current_period_end?: string | null };
+      if (!res.ok) {
+        setCancelErr((m) => ({ ...m, [orgId]: d.error ?? 'Error' }));
+        return;
+      }
+      const end = d.current_period_end ? fmtDate(d.current_period_end) : '—';
+      setCancelInfo((m) => ({ ...m, [orgId]: `ยกเลิกเมื่อครบงวด: ${end}` }));
+    } catch {
+      setCancelErr((m) => ({ ...m, [orgId]: 'Network error' }));
+    } finally {
+      setCanceling(null);
     }
   }
 
@@ -421,11 +459,25 @@ export default function AdminBillingPage() {
                       >
                         Dry run
                       </Button>
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        disabled={canceling === o.org_id}
+                        onClick={() => void cancelSubscription(o.org_id)}
+                      >
+                        Cancel (EOP)
+                      </Button>
                       {syncErr[o.org_id] && (
                         <span className="text-xs text-red-600">{syncErr[o.org_id]}</span>
                       )}
                       {syncInfo[o.org_id] && (
                         <span className="text-xs text-gray-600">{syncInfo[o.org_id]}</span>
+                      )}
+                      {cancelErr[o.org_id] && (
+                        <span className="text-xs text-red-600">{cancelErr[o.org_id]}</span>
+                      )}
+                      {cancelInfo[o.org_id] && (
+                        <span className="text-xs text-gray-600">{cancelInfo[o.org_id]}</span>
                       )}
                       {!o.monthly_price && (
                         <span className="text-xs text-gray-500">ยังไม่ระบุราคา</span>

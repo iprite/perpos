@@ -58,6 +58,7 @@ interface StripeBillingInfo {
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 const PAYMENT_STATUS_CONFIG: Record<string, { label: string; icon: React.ReactNode; cls: string }> = {
+  trial:     { label: 'ทดลองใช้ฟรี', icon: <Clock         className="w-4 h-4" />, cls: 'text-blue-600 bg-blue-50 border-blue-200' },
   active:    { label: 'ชำระแล้ว',   icon: <CheckCircle  className="w-4 h-4" />, cls: 'text-green-600 bg-green-50 border-green-200' },
   overdue:   { label: 'ค้างชำระ',   icon: <AlertTriangle className="w-4 h-4" />, cls: 'text-red-600 bg-red-50 border-red-200' },
   pending:   { label: 'รอชำระ',     icon: <Clock         className="w-4 h-4" />, cls: 'text-yellow-600 bg-yellow-50 border-yellow-200' },

@@ -54,7 +54,7 @@ export async function GET(req: NextRequest) {
     plan_ends_at:         billing?.plan_ends_at ?? null,
     monthly_price:        billing?.monthly_price ?? null,
     currency:             billing?.currency ?? 'THB',
-    payment_status:       billing?.payment_status ?? 'active',
+    payment_status:       billing?.payment_status ?? 'trial',
     has_stripe_customer:  Boolean(stripeRow?.stripe_customer_id),
     has_stripe_subscription: Boolean(stripeRow?.stripe_subscription_id),
     notes:                billing?.notes ?? null,
