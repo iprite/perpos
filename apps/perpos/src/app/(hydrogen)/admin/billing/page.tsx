@@ -244,6 +244,9 @@ export default function AdminBillingPage() {
   const [token,    setToken]    = useState('');
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [editing,  setEditing]  = useState<OrgBilling | null>(null);
+  const [syncing,  setSyncing]  = useState<string | null>(null);
+  const [syncErr,  setSyncErr]  = useState<Record<string, string>>({});
+  const [syncInfo, setSyncInfo] = useState<Record<string, string>>({});
 
   const load = useCallback(async () => {
     setLoading(true); setError('');
@@ -262,6 +265,49 @@ export default function AdminBillingPage() {
   }, [supabase]);
 
   useEffect(() => { void load(); }, [load]);
+
+  async function syncStripe(orgId: string, dryRun: boolean) {
+    if (!token) return;
+    setSyncing(orgId);
+    setSyncErr((m) => {
+      const next = { ...m };
+      delete next[orgId];
+      return next;
+    });
+    setSyncInfo((m) => {
+      const next = { ...m };
+      delete next[orgId];
+      return next;
+    });
+    try {
+      const res = await fetch('/api/admin/billing/sync-stripe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ orgId, dryRun }),
+      });
+      if (!res.ok) {
+        const d = await res.json() as { error?: string };
+        setSyncErr((m) => ({ ...m, [orgId]: d.error ?? 'Error' }));
+        return;
+      }
+      const d = await res.json() as {
+        price_id?: string;
+        previous_price_id?: string | null;
+        dry_run?: boolean;
+      };
+      if (dryRun) {
+        const prev = d.previous_price_id ? `เดิม ${d.previous_price_id}` : 'เดิม —';
+        const next = d.price_id ? `ใหม่ ${d.price_id}` : 'ใหม่ —';
+        setSyncInfo((m) => ({ ...m, [orgId]: `${prev} → ${next}` }));
+      } else {
+        await load();
+      }
+    } catch {
+      setSyncErr((m) => ({ ...m, [orgId]: 'Network error' }));
+    } finally {
+      setSyncing(null);
+    }
+  }
 
   function toggleExpand(id: string) {
     setExpanded((prev) => {
@@ -358,6 +404,33 @@ export default function AdminBillingPage() {
                         <p className="text-gray-700 mt-1 whitespace-pre-wrap">{o.notes}</p>
                       </div>
                     )}
+                    <div className="col-span-2 flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={syncing === o.org_id || !o.monthly_price}
+                        onClick={() => void syncStripe(o.org_id, false)}
+                      >
+                        Sync Stripe
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        disabled={syncing === o.org_id || !o.monthly_price}
+                        onClick={() => void syncStripe(o.org_id, true)}
+                      >
+                        Dry run
+                      </Button>
+                      {syncErr[o.org_id] && (
+                        <span className="text-xs text-red-600">{syncErr[o.org_id]}</span>
+                      )}
+                      {syncInfo[o.org_id] && (
+                        <span className="text-xs text-gray-600">{syncInfo[o.org_id]}</span>
+                      )}
+                      {!o.monthly_price && (
+                        <span className="text-xs text-gray-500">ยังไม่ระบุราคา</span>
+                      )}
+                    </div>
                     <div className="col-span-2 text-xs text-gray-400">
                       อัปเดตล่าสุด {fmtDate(o.updated_at)}
                     </div>

@@ -43,6 +43,23 @@ export async function requireMobileToken(req: NextRequest): Promise<MobileAuth> 
 
   const row = data as { profile_id: string; org_id: string; expires_at: string };
 
+  const method = (req.method ?? 'GET').toUpperCase();
+  const isMutating = method === 'POST' || method === 'PUT' || method === 'PATCH' || method === 'DELETE';
+  if (isMutating) {
+    const [{ data: org }, { data: billing }] = await Promise.all([
+      admin.from('organizations').select('maintenance_mode').eq('id', row.org_id).maybeSingle(),
+      admin.from('org_billing').select('payment_status').eq('org_id', row.org_id).maybeSingle(),
+    ]);
+
+    if ((org as Record<string, unknown> | null)?.maintenance_mode === true) {
+      return { ok: false, res: NextResponse.json({ error: 'maintenance_mode' }, { status: 503 }) };
+    }
+
+    if (String((billing as Record<string, unknown> | null)?.payment_status ?? '') === 'overdue') {
+      return { ok: false, res: NextResponse.json({ error: 'billing_overdue_readonly' }, { status: 402 }) };
+    }
+  }
+
   // ดึงชื่อ profile
   const { data: profile } = await admin
     .from('profiles')

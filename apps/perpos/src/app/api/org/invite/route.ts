@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireUser } from '../../_lib/auth';
+import { extractBearer, requireUser } from '../../_lib/auth';
 import { createAdminClient, createAuthedClient } from '../../_lib/supabase';
-import { extractBearer } from '../../_lib/auth';
 import nodemailer from 'nodemailer';
 
 function getRedirectTo(clientRedirectTo?: string): string {
@@ -38,6 +37,14 @@ export async function POST(req: NextRequest) {
   }
 
   const admin = createAdminClient();
+  const { data: billing } = await admin
+    .from('org_billing')
+    .select('payment_status')
+    .eq('org_id', organizationId)
+    .maybeSingle();
+  if (String((billing as Record<string, unknown> | null)?.payment_status ?? '') === 'overdue') {
+    return NextResponse.json({ error: 'billing_overdue_readonly' }, { status: 402 });
+  }
   const redirectTo = getRedirectTo(clientRedirectTo);
 
   // Generate invite link
