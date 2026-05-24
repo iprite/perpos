@@ -48,6 +48,11 @@ dist/
 # playwright mcp logs
 .playwright-mcp/
 
+# local tool state
+.home/
+/supabase/.temp/
+/supabase/config.toml
+
 # build artifacts / local outputs
 *.tsbuildinfo
 /*.pdf
