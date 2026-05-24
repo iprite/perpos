@@ -193,13 +193,21 @@ export default function BillingPage() {
   }
 
   return (
-    <div className="p-6 max-w-2xl mx-auto space-y-6">
-      {/* Header */}
-      <div className="flex items-center gap-3">
-        <CreditCard className="w-6 h-6 text-gray-500" />
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Billing & Plan</h1>
-          <p className="text-sm text-gray-500 mt-0.5">{info.org_name}</p>
+    <div className="p-6 max-w-5xl mx-auto space-y-6">
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <CreditCard className="w-6 h-6 text-gray-500" />
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Billing & Plan</h1>
+            <p className="text-sm text-gray-500 mt-0.5">{info.org_name}</p>
+          </div>
+        </div>
+
+        <div className="text-right">
+          <div className="text-xs text-gray-500 mb-1">สถานะการชำระ</div>
+          <span className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-sm font-medium ${statusCfg.cls}`}>
+            {statusCfg.icon}{statusCfg.label}
+          </span>
         </div>
       </div>
 
@@ -225,61 +233,53 @@ export default function BillingPage() {
         </div>
       )}
 
-      {/* Plan card */}
-      <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
-        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-          <div>
-            <div className="text-xs text-gray-500 mb-1">แพ็กเกจปัจจุบัน</div>
-            <span className={`inline-flex items-center rounded-full px-3 py-1 text-sm font-semibold border ${planCls}`}>
-              {PLAN_LABELS[info.plan_tier]}
-            </span>
-          </div>
-          <div className="text-right">
-            <div className="text-xs text-gray-500 mb-1">สถานะการชำระ</div>
-            <span className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-sm font-medium ${statusCfg.cls}`}>
-              {statusCfg.icon}{statusCfg.label}
-            </span>
-          </div>
-        </div>
-
-        <div className="px-6 py-4 grid grid-cols-2 gap-4">
-          <div>
-            <div className="text-xs text-gray-500">ราคา/เดือน</div>
-            <div className="text-lg font-bold text-gray-900 mt-0.5">
-              {fmtPrice(info.monthly_price, info.currency)}
-            </div>
-          </div>
-          <div>
-            <div className="text-xs text-gray-500">วันที่เริ่มต้น</div>
-            <div className="text-sm text-gray-800 mt-0.5">{fmtDate(info.plan_starts_at)}</div>
-          </div>
-          <div>
-            <div className="text-xs text-gray-500">วันหมดอายุ</div>
-            <div className={`text-sm mt-0.5 ${info.is_expired ? 'text-red-600 font-semibold' : 'text-gray-800'}`}>
-              {fmtDate(info.plan_ends_at)}
-            </div>
-          </div>
-          {info.notes && (
-            <div className="col-span-2">
-              <div className="text-xs text-gray-500">หมายเหตุ</div>
-              <div className="text-sm text-gray-700 mt-0.5 whitespace-pre-wrap">{info.notes}</div>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {info.monthly_price !== null && (
+      <div className="grid gap-6 md:grid-cols-2">
         <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
-          <div className="px-6 py-3 border-b border-gray-100 text-sm font-semibold text-gray-700">
-            การชำระเงิน
+          <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+            <div>
+              <div className="text-xs text-gray-500 mb-1">แพ็กเกจปัจจุบัน</div>
+              <span className={`inline-flex items-center rounded-full px-3 py-1 text-sm font-semibold border ${planCls}`}>
+                {PLAN_LABELS[info.plan_tier]}
+              </span>
+            </div>
+            <div className="text-right">
+              <div className="text-xs text-gray-500 mb-1">ราคา/เดือน</div>
+              <div className="text-lg font-bold text-gray-900">
+                {fmtPrice(info.monthly_price, info.currency)}
+              </div>
+            </div>
+          </div>
+
+          <div className="px-6 py-4 grid grid-cols-2 gap-4">
+            <div>
+              <div className="text-xs text-gray-500">วันที่เริ่มต้น</div>
+              <div className="text-sm text-gray-900 font-medium mt-0.5">{fmtDate(info.plan_starts_at)}</div>
+            </div>
+            <div>
+              <div className="text-xs text-gray-500">วันหมดอายุ</div>
+              <div className={`text-sm font-medium mt-0.5 ${info.is_expired ? 'text-red-600' : 'text-gray-900'}`}>
+                {fmtDate(info.plan_ends_at)}
+              </div>
+            </div>
+
+            {info.notes && (
+              <div className="col-span-2">
+                <div className="text-xs text-gray-500">หมายเหตุ</div>
+                <div className="text-sm text-gray-700 mt-1 whitespace-pre-wrap">{info.notes}</div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+          <div className="px-6 py-4 border-b border-gray-100">
+            <div className="text-sm font-semibold text-gray-700">การชำระเงิน</div>
+            <div className="text-xs text-gray-500 mt-0.5">ตั้งค่าครั้งแรกเพื่อให้ตัดบัตรอัตโนมัติทุกเดือน</div>
           </div>
           <div className="px-6 py-4 space-y-3">
-            <div className="text-sm text-gray-600">
-              ระบบจะตัดบัตรอัตโนมัติทุกเดือนหลังจากตั้งค่าการชำระเงินครั้งแรก
-            </div>
             <div className="flex flex-wrap gap-2">
               {!info.has_stripe_subscription && (
-                <Button onClick={() => void startCheckout()} disabled={paying || !orgId || !token}>
+                <Button onClick={() => void startCheckout()} disabled={paying || !orgId || !token || info.monthly_price === null}>
                   {paying ? 'กำลังเปิดหน้า Stripe…' : 'เริ่มชำระเงิน'}
                 </Button>
               )}
@@ -289,9 +289,15 @@ export default function BillingPage() {
                 </Button>
               )}
             </div>
+
+            {info.monthly_price === null && (
+              <div className="text-sm text-gray-500">ยังไม่ระบุราคา กรุณาติดต่อทีมงาน PERPOS</div>
+            )}
+
             {actionErr && (
               <div className="text-sm text-red-600">{actionErr}</div>
             )}
+
             {info.has_stripe_subscription && (
               <div className="text-xs text-gray-400">
                 การยกเลิกแพ็กเกจต้องติดต่อทีมงาน PERPOS
@@ -299,14 +305,21 @@ export default function BillingPage() {
             )}
           </div>
         </div>
-      )}
 
-      {info.monthly_price !== null && (
-        <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
-          <div className="px-6 py-3 border-b border-gray-100 text-sm font-semibold text-gray-700">
-            รายการชำระเงิน (Stripe)
+        <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden md:col-span-2">
+          <div className="px-6 py-4 border-b border-gray-100 flex items-start justify-between gap-4">
+            <div>
+              <div className="text-sm font-semibold text-gray-700">รายการชำระเงิน (Stripe)</div>
+              <div className="text-xs text-gray-500 mt-0.5">แสดงรายการใบแจ้งหนี้ล่าสุด (สูงสุด 10 รายการ)</div>
+            </div>
+            {stripeInfo?.subscription_status && (
+              <div className="text-right">
+                <div className="text-xs text-gray-500">สถานะ Subscription</div>
+                <div className="text-sm font-semibold text-gray-900 mt-0.5">{stripeInfo.subscription_status}</div>
+              </div>
+            )}
           </div>
-          <div className="px-6 py-4 space-y-3">
+          <div className="px-6 py-4 space-y-4">
             {stripeLoading && (
               <div className="text-sm text-gray-400">กำลังโหลดรายการ…</div>
             )}
@@ -315,14 +328,18 @@ export default function BillingPage() {
             )}
             {!stripeLoading && !stripeErr && stripeInfo && (
               <>
-                <div className="grid grid-cols-2 gap-3 text-sm">
-                  <div>
-                    <div className="text-xs text-gray-500">สถานะ Subscription</div>
-                    <div className="text-gray-900 font-medium mt-0.5">{stripeInfo.subscription_status ?? '—'}</div>
-                  </div>
-                  <div>
+                <div className="grid gap-3 sm:grid-cols-3 text-sm">
+                  <div className="rounded-lg border border-gray-100 bg-gray-50 px-4 py-3">
                     <div className="text-xs text-gray-500">รอบถัดไป</div>
-                    <div className="text-gray-900 font-medium mt-0.5">{fmtDate(stripeInfo.current_period_end)}</div>
+                    <div className="text-sm font-semibold text-gray-900 mt-0.5">{fmtDate(stripeInfo.current_period_end)}</div>
+                  </div>
+                  <div className="rounded-lg border border-gray-100 bg-gray-50 px-4 py-3">
+                    <div className="text-xs text-gray-500">ตัดรอบล่าสุด</div>
+                    <div className="text-sm font-semibold text-gray-900 mt-0.5">{fmtDate(stripeInfo.current_period_start)}</div>
+                  </div>
+                  <div className="rounded-lg border border-gray-100 bg-gray-50 px-4 py-3">
+                    <div className="text-xs text-gray-500">การยกเลิก</div>
+                    <div className="text-sm font-semibold text-gray-900 mt-0.5">{stripeInfo.cancel_at_period_end ? 'ยกเลิกสิ้นรอบ' : 'ปกติ'}</div>
                   </div>
                 </div>
 
@@ -335,7 +352,7 @@ export default function BillingPage() {
                         <TableHead>วันที่</TableHead>
                         <TableHead>สถานะ</TableHead>
                         <TableHead className="text-right">ยอด</TableHead>
-                        <TableHead className="text-right">ใบเสร็จ</TableHead>
+                        <TableHead className="text-right">เอกสาร</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -345,15 +362,23 @@ export default function BillingPage() {
                           <TableCell>{inv.status ?? '—'}</TableCell>
                           <TableCell className="text-right">{fmtMoneyMinor(inv.amount_paid ?? inv.amount_due, inv.currency)}</TableCell>
                           <TableCell className="text-right">
-                            {inv.hosted_invoice_url ? (
-                              <Button asChild variant="ghost" size="sm">
-                                <a href={inv.hosted_invoice_url} target="_blank" rel="noreferrer">
-                                  เปิด
-                                </a>
-                              </Button>
-                            ) : (
-                              '—'
-                            )}
+                            <div className="inline-flex items-center gap-1">
+                              {inv.hosted_invoice_url ? (
+                                <Button asChild variant="ghost" size="sm">
+                                  <a href={inv.hosted_invoice_url} target="_blank" rel="noreferrer">
+                                    เปิด
+                                  </a>
+                                </Button>
+                              ) : null}
+                              {inv.invoice_pdf ? (
+                                <Button asChild variant="ghost" size="sm">
+                                  <a href={inv.invoice_pdf} target="_blank" rel="noreferrer">
+                                    PDF
+                                  </a>
+                                </Button>
+                              ) : null}
+                              {!inv.hosted_invoice_url && !inv.invoice_pdf ? '—' : null}
+                            </div>
                           </TableCell>
                         </TableRow>
                       ))}
@@ -368,7 +393,7 @@ export default function BillingPage() {
             )}
           </div>
         </div>
-      )}
+      </div>
 
       {/* Limits */}
       <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
