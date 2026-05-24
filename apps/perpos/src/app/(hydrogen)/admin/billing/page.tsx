@@ -11,7 +11,6 @@ import {
 } from '@/components/ui/dialog';
 import { RefreshCw, ChevronDown, ChevronRight, Pencil } from 'lucide-react';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
-import { PLAN_LABELS, PLAN_COLORS, type PlanTier } from '@/lib/billing';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -19,7 +18,6 @@ interface OrgBilling {
   org_id:               string;
   org_name:             string;
   maintenance_mode:     boolean;
-  plan_tier:            PlanTier;
   effective_limits:     { maxUsers: number | null; maxApiRequestsPerDay: number | null; maxWebhooks: number | null; maxCustomFields: number | null };
   is_expired:           boolean;
   trial_days_remaining: number | null;
@@ -34,7 +32,6 @@ interface OrgBilling {
 }
 
 interface EditForm {
-  planTier:             string;
   monthlyPrice:         string;
   currency:             string;
   paymentStatus:        string;
@@ -49,13 +46,6 @@ interface EditForm {
 }
 
 // ── Options ───────────────────────────────────────────────────────────────────
-
-const TIER_OPTIONS = [
-  { value: 'free',       label: 'Free' },
-  { value: 'starter',    label: 'Starter' },
-  { value: 'pro',        label: 'Pro' },
-  { value: 'enterprise', label: 'Enterprise' },
-];
 
 const PAYMENT_OPTIONS = [
   { value: 'trial',     label: 'Trial' },
@@ -82,7 +72,6 @@ function fmtDate(s: string | null) {
 
 function toForm(o: OrgBilling): EditForm {
   return {
-    planTier:             o.plan_tier,
     monthlyPrice:         o.monthly_price !== null ? String(o.monthly_price) : '',
     currency:             o.currency ?? 'THB',
     paymentStatus:        o.payment_status ?? 'active',
@@ -120,7 +109,6 @@ function EditDialog({
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({
           orgId:                org.org_id,
-          planTier:             form.planTier,
           monthlyPrice:         form.monthlyPrice,
           currency:             form.currency,
           paymentStatus:        form.paymentStatus,
@@ -182,17 +170,10 @@ function EditDialog({
           </div>
 
           <div className="flex-1 overflow-y-auto px-6 py-4">
-            <div className="grid gap-4">
-          {/* Plan tier + payment status */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <Label>แพ็กเกจ</Label>
-              <CustomSelect value={form.planTier} onChange={(v) => set('planTier', v)} options={TIER_OPTIONS} className="mt-1 w-full" />
-            </div>
-            <div>
-              <Label>สถานะการชำระ</Label>
-              <CustomSelect value={form.paymentStatus} onChange={(v) => set('paymentStatus', v)} options={PAYMENT_OPTIONS} className="mt-1 w-full" />
-            </div>
+            <div className="grid gap-4 pb-24">
+          <div>
+            <Label>สถานะการชำระ</Label>
+            <CustomSelect value={form.paymentStatus} onChange={(v) => set('paymentStatus', v)} options={PAYMENT_OPTIONS} className="mt-1 w-full" />
           </div>
 
           {/* Negotiated price */}
@@ -402,8 +383,8 @@ export default function AdminBillingPage() {
       {/* Header */}
       <div className="flex items-center justify-between sticky top-0 z-10 bg-white/80 backdrop-blur border-b border-gray-100 py-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Billing & Plans</h1>
-          <p className="text-sm text-gray-500 mt-0.5">จัดการ plan และราคาต่อรองของแต่ละ org</p>
+          <h1 className="text-2xl font-bold text-gray-900">Payments & Subscriptions</h1>
+          <p className="text-sm text-gray-500 mt-0.5">จัดการราคา, สถานะการชำระ และ subscription ของแต่ละ org</p>
         </div>
         <Button variant="outline" onClick={load} disabled={loading}>
           <RefreshCw className={`w-4 h-4 mr-1.5 ${loading ? 'animate-spin' : ''}`} />
@@ -415,21 +396,6 @@ export default function AdminBillingPage() {
         <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-red-700 text-sm">{error}</div>
       )}
 
-      {/* Summary stats */}
-      {!loading && orgs.length > 0 && (
-        <div className="grid grid-cols-4 gap-3">
-          {(['free', 'starter', 'pro', 'enterprise'] as PlanTier[]).map((tier) => {
-            const count = orgs.filter((o) => o.plan_tier === tier).length;
-            return (
-              <div key={tier} className={`rounded-xl border px-4 py-3 text-center ${PLAN_COLORS[tier]}`}>
-                <div className="text-xl font-bold">{count}</div>
-                <div className="text-xs font-medium">{PLAN_LABELS[tier]}</div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
       {/* Org list */}
       {loading && !orgs.length ? (
         <div className="py-16 text-center text-gray-400 text-sm">กำลังโหลด…</div>
@@ -437,7 +403,6 @@ export default function AdminBillingPage() {
         <div className="space-y-2">
           {orgs.map((o) => {
             const isOpen = expanded.has(o.org_id);
-            const planCls = PLAN_COLORS[o.plan_tier] ?? 'bg-gray-100 text-gray-600';
             const payCls  = PAYMENT_CLS[o.payment_status] ?? 'bg-gray-100 text-gray-500';
             return (
               <div key={o.org_id} className={`rounded-xl border overflow-hidden ${o.is_expired ? 'border-red-200' : 'border-gray-200'}`}>
@@ -448,7 +413,6 @@ export default function AdminBillingPage() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-semibold text-gray-900 text-sm">{o.org_name}</span>
-                      <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${planCls}`}>{PLAN_LABELS[o.plan_tier]}</span>
                       <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${payCls}`}>{PAYMENT_OPTIONS.find((p) => p.value === o.payment_status)?.label ?? o.payment_status}</span>
                       {o.is_expired && <span className="rounded-full px-2 py-0.5 text-xs font-medium bg-red-100 text-red-700">หมดอายุ</span>}
                     </div>
