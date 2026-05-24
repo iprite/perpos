@@ -146,9 +146,6 @@ const PAGE_MAP: Record<string, string> = {
   // Admin
   "/admin":                               "ภาพรวม",
   "/admin/users":                         "ผู้ใช้",
-  "/admin/permissions":                   "สิทธิ์รายฟังก์ชัน",
-  "/admin/news-agent":                    "News Agent",
-  "/admin/delivery":                      "การส่งผ่าน LINE",
 };
 
 // For [id] detail pages, derive from parent list label

@@ -1,12 +1,13 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { Button }       from '@/components/ui/button';
 import { CustomSelect } from '@/components/ui/custom-select';
 import {
   RefreshCw, ChevronDown, ChevronRight,
   Wifi, WebhookIcon, Clock, CreditCard, Wrench,
 } from 'lucide-react';
+import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -35,15 +36,6 @@ interface OrgHealth {
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-
-function getToken(): string {
-  if (typeof window === 'undefined') return '';
-  try {
-    const raw = Object.entries(localStorage).find(([k]) => k.includes('supabase') && k.includes('auth'));
-    if (!raw) return '';
-    return JSON.parse(raw[1])?.access_token ?? '';
-  } catch { return ''; }
-}
 
 const GRADE_COLOR: Record<Grade, string> = {
   A: 'bg-green-100  text-green-700  border-green-200',
@@ -134,6 +126,7 @@ const FILTER_OPTIONS = [
 ];
 
 export default function HealthPage() {
+  const supabase  = useMemo(() => createSupabaseBrowserClient(), []);
   const [orgs,     setOrgs]     = useState<OrgHealth[]>([]);
   const [loading,  setLoading]  = useState(true);
   const [error,    setError]    = useState('');
@@ -144,8 +137,10 @@ export default function HealthPage() {
   const load = useCallback(async () => {
     setLoading(true); setError('');
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token ?? '';
       const res = await fetch('/api/admin/health', {
-        headers: { Authorization: `Bearer ${getToken()}` },
+        headers: { Authorization: `Bearer ${token}` },
       });
       const d = await res.json() as { orgs?: OrgHealth[]; error?: string };
       if (!res.ok) { setError(d.error ?? 'Error'); return; }
@@ -153,7 +148,7 @@ export default function HealthPage() {
       setLastRefresh(new Date());
     } catch { setError('Network error'); }
     finally  { setLoading(false); }
-  }, []);
+  }, [supabase]);
 
   useEffect(() => { void load(); }, [load]);
 

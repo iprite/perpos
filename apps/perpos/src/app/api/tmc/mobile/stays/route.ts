@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '../../../_lib/supabase';
 import { requireMobileToken } from '../_lib';
+import { recordMetric } from '@/lib/metrics';
 
 const TMC_ORG_ID = '1f52618c-09c4-49c5-a929-ea5060f26e7d';
 
 /** GET ?t=<token>&id=<stayId>  → ดึง stay เดียว หรือ list ล่าสุด */
 export async function GET(req: NextRequest) {
+  const t0   = Date.now();
   const auth = await requireMobileToken(req);
   if (!auth.ok) return auth.res;
 
@@ -19,7 +21,11 @@ export async function GET(req: NextRequest) {
       .eq('id', stayId)
       .eq('org_id', TMC_ORG_ID)
       .single();
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (error) {
+      void recordMetric({ orgId: TMC_ORG_ID, route: '/api/tmc/mobile/stays', method: req.method, status: 500, t0 });
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+    void recordMetric({ orgId: TMC_ORG_ID, route: '/api/tmc/mobile/stays', method: req.method, status: 200, t0 });
     return NextResponse.json(data);
   }
 
@@ -32,12 +38,17 @@ export async function GET(req: NextRequest) {
     .order('created_at', { ascending: false })
     .limit(20);
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    void recordMetric({ orgId: TMC_ORG_ID, route: '/api/tmc/mobile/stays', method: req.method, status: 500, t0 });
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+  void recordMetric({ orgId: TMC_ORG_ID, route: '/api/tmc/mobile/stays', method: req.method, status: 200, t0 });
   return NextResponse.json(data ?? []);
 }
 
 /** POST { t, ...stayFields } → สร้าง stay ใหม่ */
 export async function POST(req: NextRequest) {
+  const t0   = Date.now();
   const auth = await requireMobileToken(req);
   if (!auth.ok) return auth.res;
 
@@ -107,12 +118,17 @@ export async function POST(req: NextRequest) {
     .select(`*, tmc_guests(first_name, last_name, nickname, tel)`)
     .single();
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    void recordMetric({ orgId: TMC_ORG_ID, route: '/api/tmc/mobile/stays', method: req.method, status: 500, t0 });
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+  void recordMetric({ orgId: TMC_ORG_ID, route: '/api/tmc/mobile/stays', method: req.method, status: 201, t0 });
   return NextResponse.json(data, { status: 201 });
 }
 
 /** PATCH { t, id, ...fields } → อัปเดต stay */
 export async function PATCH(req: NextRequest) {
+  const t0   = Date.now();
   const auth = await requireMobileToken(req);
   if (!auth.ok) return auth.res;
 
@@ -160,6 +176,10 @@ export async function PATCH(req: NextRequest) {
     .select(`*, tmc_guests(first_name, last_name, nickname, tel)`)
     .single();
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    void recordMetric({ orgId: TMC_ORG_ID, route: '/api/tmc/mobile/stays', method: req.method, status: 500, t0 });
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+  void recordMetric({ orgId: TMC_ORG_ID, route: '/api/tmc/mobile/stays', method: req.method, status: 200, t0 });
   return NextResponse.json(data);
 }

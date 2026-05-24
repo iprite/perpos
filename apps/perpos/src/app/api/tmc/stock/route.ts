@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '../../_lib/supabase';
 import { requireTmcMember } from '../_lib';
+import { recordMetric } from '@/lib/metrics';
 
 // GET /api/tmc/stock?orgId=&lowStock=true
 export async function GET(req: NextRequest) {
+  const t0 = Date.now();
   const p = req.nextUrl.searchParams;
   const orgId = p.get('orgId') ?? '';
   if (!orgId) return NextResponse.json({ error: 'missing orgId' }, { status: 400 });
@@ -33,11 +35,13 @@ export async function GET(req: NextRequest) {
     .order('created_at', { ascending: false })
     .limit(50);
 
+  void recordMetric({ orgId, route: '/api/tmc/stock', method: req.method, status: 200, t0 });
   return NextResponse.json({ items: items ?? [], movements: movements ?? [] });
 }
 
 // POST /api/tmc/stock — add item or record movement
 export async function POST(req: NextRequest) {
+  const t0 = Date.now();
   const body = await req.json().catch(() => ({})) as Record<string, unknown>;
   const orgId = String(body.orgId ?? '');
   if (!orgId) return NextResponse.json({ error: 'missing orgId' }, { status: 400 });
@@ -63,7 +67,11 @@ export async function POST(req: NextRequest) {
       })
       .select()
       .single();
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (error) {
+      void recordMetric({ orgId, route: '/api/tmc/stock', method: req.method, status: 500, t0 });
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+    void recordMetric({ orgId, route: '/api/tmc/stock', method: req.method, status: 201, t0 });
     return NextResponse.json(data, { status: 201 });
   }
 
@@ -93,6 +101,10 @@ export async function POST(req: NextRequest) {
     .select(`*, tmc_stock_items(name, unit, current_qty)`)
     .single();
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    void recordMetric({ orgId, route: '/api/tmc/stock', method: req.method, status: 500, t0 });
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+  void recordMetric({ orgId, route: '/api/tmc/stock', method: req.method, status: 201, t0 });
   return NextResponse.json(data, { status: 201 });
 }

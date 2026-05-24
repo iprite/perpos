@@ -2,8 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '../../_lib/supabase';
 import { requireTmcMember, canWriteFinance } from '../_lib';
 import { setAuditContext } from '../../_lib/audit';
+import { recordMetric } from '@/lib/metrics';
 
 export async function GET(req: NextRequest) {
+  const t0 = Date.now();
   const p = req.nextUrl.searchParams;
   const orgId = p.get('orgId') ?? '';
   if (!orgId) return NextResponse.json({ error: 'missing orgId' }, { status: 400 });
@@ -28,12 +30,16 @@ export async function GET(req: NextRequest) {
   if (p.get('to'))           q = q.lte('entry_date',   p.get('to')!);
 
   const { data, error } = await q;
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-
+  if (error) {
+    void recordMetric({ orgId, route: '/api/tmc/finance', method: req.method, status: 500, t0 });
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+  void recordMetric({ orgId, route: '/api/tmc/finance', method: req.method, status: 200, t0 });
   return NextResponse.json({ entries: data ?? [] });
 }
 
 export async function POST(req: NextRequest) {
+  const t0 = Date.now();
   const body = await req.json().catch(() => ({})) as Record<string, unknown>;
   const orgId = String(body.orgId ?? '');
   if (!orgId) return NextResponse.json({ error: 'missing orgId' }, { status: 400 });
@@ -79,11 +85,16 @@ export async function POST(req: NextRequest) {
     .select()
     .single();
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    void recordMetric({ orgId, route: '/api/tmc/finance', method: req.method, status: 500, t0 });
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+  void recordMetric({ orgId, route: '/api/tmc/finance', method: req.method, status: 201, t0 });
   return NextResponse.json(data, { status: 201 });
 }
 
 export async function PUT(req: NextRequest) {
+  const t0 = Date.now();
   const body = await req.json().catch(() => ({})) as Record<string, unknown>;
   const { id, orgId } = body as Record<string, string>;
   if (!id || !orgId) return NextResponse.json({ error: 'missing id or orgId' }, { status: 400 });
@@ -126,7 +137,10 @@ export async function PUT(req: NextRequest) {
     .select()
     .single();
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    void recordMetric({ orgId, route: '/api/tmc/finance', method: req.method, status: 500, t0 });
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
 
   // Write audit log (non-blocking)
   if (oldEntry) {
@@ -141,10 +155,12 @@ export async function PUT(req: NextRequest) {
     }).then(() => {/* ignore */});
   }
 
+  void recordMetric({ orgId, route: '/api/tmc/finance', method: req.method, status: 200, t0 });
   return NextResponse.json(data);
 }
 
 export async function DELETE(req: NextRequest) {
+  const t0    = Date.now();
   const p     = req.nextUrl.searchParams;
   const id    = p.get('id')    ?? '';
   const orgId = p.get('orgId') ?? '';
@@ -174,7 +190,10 @@ export async function DELETE(req: NextRequest) {
     .eq('id', id)
     .eq('org_id', orgId);
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    void recordMetric({ orgId, route: '/api/tmc/finance', method: req.method, status: 500, t0 });
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
 
   // Write audit log (non-blocking)
   if (oldEntry) {
@@ -189,5 +208,6 @@ export async function DELETE(req: NextRequest) {
     }).then(() => {/* ignore */});
   }
 
+  void recordMetric({ orgId, route: '/api/tmc/finance', method: req.method, status: 200, t0 });
   return NextResponse.json({ ok: true });
 }

@@ -1,9 +1,6 @@
 import React from "react";
 import {
-  Newspaper,
   LayoutDashboard,
-  Link2,
-  Shield,
   Users,
   BookOpenText,
   ReceiptText,
@@ -21,8 +18,6 @@ import {
   BotMessageSquare,
   LayoutGrid,
   PlusCircle,
-  SlidersHorizontal,
-  Languages,
   Activity,
   Webhook,
   ShieldBan,
@@ -245,39 +240,9 @@ function buildAdminMenuItems(): MenuItem[] {
       roles: ["super_admin"],
     },
     {
-      name: "สิทธิ์รายฟังก์ชัน",
-      href: "/admin/permissions",
-      icon: <Shield className="h-5 w-5" />,
-      roles: ["super_admin"],
-    },
-    {
-      name: "News Agent",
-      href: "/admin/news-agent",
-      icon: <Newspaper className="h-5 w-5" />,
-      roles: ["super_admin"],
-    },
-    {
-      name: "การส่งผ่าน LINE",
-      href: "/admin/delivery",
-      icon: <Link2 className="h-5 w-5" />,
-      roles: ["super_admin"],
-    },
-    {
       name: "จัดการ Modules",
       href: "/admin/modules",
       icon: <LayoutGrid className="h-5 w-5" />,
-      roles: ["super_admin"],
-    },
-    {
-      name: "Custom Fields",
-      href: "/admin/custom-fields",
-      icon: <SlidersHorizontal className="h-5 w-5" />,
-      roles: ["super_admin"],
-    },
-    {
-      name: "Label Overrides",
-      href: "/admin/labels",
-      icon: <Languages className="h-5 w-5" />,
       roles: ["super_admin"],
     },
     {

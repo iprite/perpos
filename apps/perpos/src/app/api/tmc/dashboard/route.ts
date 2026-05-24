@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireTmcMember } from '../_lib';
+import { recordMetric } from '@/lib/metrics';
 
 const PETTY_CASH_ACCOUNT = '2366c3f9-dcc5-4091-8ab0-c421b77e7fe7';
 
 export async function GET(req: NextRequest) {
+  const t0 = Date.now();
   const p = req.nextUrl.searchParams;
   const orgId = p.get('orgId') ?? '';
   if (!orgId) return NextResponse.json({ error: 'missing orgId' }, { status: 400 });
@@ -185,6 +187,7 @@ export async function GET(req: NextRequest) {
     staysAllTime: staysCountRes.count ?? 0,
   };
 
+  void recordMetric({ orgId, route: '/api/tmc/dashboard', method: req.method, status: 200, t0 });
   return NextResponse.json({
     totals,
     financeMonthly,

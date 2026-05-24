@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireTmcMember } from '../_lib';
+import { recordMetric } from '@/lib/metrics';
 
 /** GET ?orgId=&table=tmc_finance_entries&limit=100 */
 export async function GET(req: NextRequest) {
+  const t0    = Date.now();
   const p     = req.nextUrl.searchParams;
   const orgId = p.get('orgId') ?? '';
   const table = p.get('table') ?? 'tmc_finance_entries';
@@ -21,6 +23,10 @@ export async function GET(req: NextRequest) {
     .order('changed_at', { ascending: false })
     .limit(limit);
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    void recordMetric({ orgId, route: '/api/tmc/audit-logs', method: req.method, status: 500, t0 });
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+  void recordMetric({ orgId, route: '/api/tmc/audit-logs', method: req.method, status: 200, t0 });
   return NextResponse.json(data ?? []);
 }

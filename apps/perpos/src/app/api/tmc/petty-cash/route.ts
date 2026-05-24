@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '../../_lib/supabase';
 import { requireTmcMember, canWriteFinance } from '../_lib';
+import { recordMetric } from '@/lib/metrics';
 
 /** GET /api/tmc/petty-cash?orgId=&fundId=&from=&to=&type= */
 export async function GET(req: NextRequest) {
+  const t0 = Date.now();
   const p = req.nextUrl.searchParams;
   const orgId = p.get('orgId') ?? '';
   if (!orgId) return NextResponse.json({ error: 'missing orgId' }, { status: 400 });
@@ -25,18 +27,22 @@ export async function GET(req: NextRequest) {
   if (p.get('to'))           q = q.lte('txn_date', p.get('to')!);
 
   const { data, error } = await q;
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    void recordMetric({ orgId, route: '/api/tmc/petty-cash', method: req.method, status: 500, t0 });
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
 
-  // Compute running balance per fund
   const txns = data ?? [];
   const totalTopUp  = txns.filter(t => t.txn_type === 'top_up') .reduce((s: number, t: Record<string, unknown>) => s + Number(t.amount), 0);
   const totalExpense = txns.filter(t => t.txn_type === 'expense').reduce((s: number, t: Record<string, unknown>) => s + Number(t.amount), 0);
 
+  void recordMetric({ orgId, route: '/api/tmc/petty-cash', method: req.method, status: 200, t0 });
   return NextResponse.json({ txns, totalTopUp, totalExpense, balance: totalTopUp - totalExpense });
 }
 
 /** POST /api/tmc/petty-cash  → add transaction */
 export async function POST(req: NextRequest) {
+  const t0 = Date.now();
   const body = await req.json().catch(() => ({})) as Record<string, unknown>;
   const { orgId, fundId, txnDate, txnType, amount, description, category, propertyCode, note } =
     body as Record<string, string>;
@@ -72,12 +78,17 @@ export async function POST(req: NextRequest) {
     .select('*, tmc_petty_cash_funds(name)')
     .single();
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    void recordMetric({ orgId, route: '/api/tmc/petty-cash', method: req.method, status: 500, t0 });
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+  void recordMetric({ orgId, route: '/api/tmc/petty-cash', method: req.method, status: 201, t0 });
   return NextResponse.json(data, { status: 201 });
 }
 
 /** PUT /api/tmc/petty-cash  → edit transaction */
 export async function PUT(req: NextRequest) {
+  const t0 = Date.now();
   const body = await req.json().catch(() => ({})) as Record<string, string>;
   const { id, orgId, txnDate, txnType, amount, description, category, propertyCode, note } = body;
   if (!id || !orgId) return NextResponse.json({ error: 'missing id or orgId' }, { status: 400 });
@@ -105,13 +116,18 @@ export async function PUT(req: NextRequest) {
     .select('*, tmc_petty_cash_funds(name)')
     .single();
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    void recordMetric({ orgId, route: '/api/tmc/petty-cash', method: req.method, status: 500, t0 });
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+  void recordMetric({ orgId, route: '/api/tmc/petty-cash', method: req.method, status: 200, t0 });
   return NextResponse.json(data);
 }
 
 /** DELETE /api/tmc/petty-cash?id=&orgId= */
 export async function DELETE(req: NextRequest) {
-  const p = req.nextUrl.searchParams;
+  const t0    = Date.now();
+  const p     = req.nextUrl.searchParams;
   const id    = p.get('id')    ?? '';
   const orgId = p.get('orgId') ?? '';
   if (!id || !orgId) return NextResponse.json({ error: 'missing id or orgId' }, { status: 400 });
@@ -129,6 +145,10 @@ export async function DELETE(req: NextRequest) {
     .eq('id', id)
     .eq('org_id', orgId);
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    void recordMetric({ orgId, route: '/api/tmc/petty-cash', method: req.method, status: 500, t0 });
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+  void recordMetric({ orgId, route: '/api/tmc/petty-cash', method: req.method, status: 200, t0 });
   return NextResponse.json({ ok: true });
 }
