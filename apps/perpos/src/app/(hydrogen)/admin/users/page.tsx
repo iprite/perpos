@@ -81,14 +81,22 @@ function UserActionMenu({
   onToggleStatus, onDelete, onResetPassword, onImpersonate, onToggleOrgs,
 }: UserActionMenuProps) {
   const [open, setOpen] = useState(false);
-  const [pos,  setPos]  = useState({ top: 0, right: 0 });
+  const [pos,  setPos]  = useState<{ top?: number; bottom?: number; right: number }>({ right: 0 });
   const btnRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+
+  const MENU_H = 220; // estimated max height
 
   function openMenu() {
     if (!btnRef.current) return;
     const r = btnRef.current.getBoundingClientRect();
-    setPos({ top: r.bottom + 4, right: window.innerWidth - r.right });
+    const right = window.innerWidth - r.right;
+    const fitsBelow = r.bottom + 4 + MENU_H <= window.innerHeight;
+    if (fitsBelow) {
+      setPos({ top: r.bottom + 4, right });
+    } else {
+      setPos({ bottom: window.innerHeight - r.top + 4, right });
+    }
     setOpen(true);
   }
 
