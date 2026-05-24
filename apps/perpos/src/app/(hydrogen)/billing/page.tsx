@@ -1,8 +1,10 @@
 'use client';
 
 import { useEffect, useState, useMemo } from 'react';
+import { Button } from '@/components/ui/button';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { PLAN_LABELS, PLAN_COLORS, type PlanTier, type PlanLimits } from '@/lib/billing';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { CreditCard, CheckCircle, AlertTriangle, XCircle, Clock, Wrench } from 'lucide-react';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -21,8 +23,36 @@ interface BillingInfo {
   monthly_price:        number | null;
   currency:             string;
   payment_status:       string;
+  has_stripe_customer:  boolean;
+  has_stripe_subscription: boolean;
   notes:                string | null;
   updated_at:           string | null;
+}
+
+interface StripeInvoiceRow {
+  id: string;
+  number: string | null;
+  status: string | null;
+  currency: string | null;
+  amount_due: number | null;
+  amount_paid: number | null;
+  amount_remaining: number | null;
+  hosted_invoice_url: string | null;
+  invoice_pdf: string | null;
+  created_at: string | null;
+}
+
+interface StripeBillingInfo {
+  connected: boolean;
+  customer_id: string | null;
+  subscription_id: string | null;
+  subscription_status: string | null;
+  current_period_start: string | null;
+  current_period_end: string | null;
+  cancel_at_period_end: boolean;
+  price_id: string | null;
+  updated_at: string | null;
+  invoices: StripeInvoiceRow[];
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -49,6 +79,12 @@ function fmtPrice(price: number | null, currency: string) {
   return new Intl.NumberFormat('th-TH', { style: 'currency', currency }).format(price);
 }
 
+function fmtMoneyMinor(amountMinor: number | null, currency: string | null) {
+  if (amountMinor === null || !currency) return '—';
+  const major = amountMinor / 100;
+  return new Intl.NumberFormat('th-TH', { style: 'currency', currency: currency.toUpperCase() }).format(major);
+}
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function BillingPage() {
@@ -56,20 +92,30 @@ export default function BillingPage() {
   const [info, setInfo]       = useState<BillingInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState('');
+  const [token, setToken]     = useState('');
+  const [orgId, setOrgId]     = useState('');
+  const [actionErr, setActionErr] = useState('');
+  const [paying, setPaying]   = useState(false);
+  const [openingPortal, setOpeningPortal] = useState(false);
+  const [stripeInfo, setStripeInfo] = useState<StripeBillingInfo | null>(null);
+  const [stripeLoading, setStripeLoading] = useState(false);
+  const [stripeErr, setStripeErr] = useState('');
 
   useEffect(() => {
     void (async () => {
       const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token ?? '';
+      const t = session?.access_token ?? '';
+      setToken(t);
 
       // get active org from cookie
       const match = document.cookie.match(/perpos\.activeOrgId=([^;]+)/);
-      const orgId = match ? decodeURIComponent(match[1]) : null;
-      if (!orgId) { setError('ไม่พบ org ที่เปิดใช้งาน'); setLoading(false); return; }
+      const o = match ? decodeURIComponent(match[1]) : null;
+      if (!o) { setError('ไม่พบ org ที่เปิดใช้งาน'); setLoading(false); return; }
+      setOrgId(o);
 
       try {
-        const res = await fetch(`/api/org/billing?orgId=${orgId}`, {
-          headers: { Authorization: `Bearer ${token}` },
+        const res = await fetch(`/api/org/billing?orgId=${o}`, {
+          headers: { Authorization: `Bearer ${t}` },
         });
         const d = await res.json() as BillingInfo & { error?: string };
         if (!res.ok) { setError(d.error ?? 'เกิดข้อผิดพลาด'); return; }
@@ -79,12 +125,72 @@ export default function BillingPage() {
     })();
   }, [supabase]);
 
+  useEffect(() => {
+    if (!token || !orgId) return;
+    if (!info?.monthly_price) return;
+
+    setStripeLoading(true);
+    setStripeErr('');
+    void (async () => {
+      try {
+        const res = await fetch(`/api/org/billing/stripe?orgId=${orgId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const d = await res.json() as StripeBillingInfo & { error?: string };
+        if (!res.ok) { setStripeErr(d.error ?? 'เกิดข้อผิดพลาด'); return; }
+        setStripeInfo(d);
+      } catch {
+        setStripeErr('Network error');
+      } finally {
+        setStripeLoading(false);
+      }
+    })();
+  }, [token, orgId, info?.monthly_price]);
+
   if (loading) return <div className="p-8 text-center text-gray-400 text-sm">กำลังโหลด…</div>;
   if (error)   return <div className="p-8 text-center text-red-500 text-sm">{error}</div>;
   if (!info)   return null;
 
   const planCls  = PLAN_COLORS[info.plan_tier] ?? 'bg-gray-100 text-gray-600';
   const statusCfg = PAYMENT_STATUS_CONFIG[info.payment_status] ?? PAYMENT_STATUS_CONFIG.active;
+
+  async function startCheckout() {
+    setActionErr('');
+    setPaying(true);
+    try {
+      const res = await fetch('/api/org/billing/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ orgId }),
+      });
+      const d = await res.json() as { url?: string; error?: string };
+      if (!res.ok || !d.url) { setActionErr(d.error ?? 'เกิดข้อผิดพลาด'); return; }
+      window.location.href = d.url;
+    } catch {
+      setActionErr('Network error');
+    } finally {
+      setPaying(false);
+    }
+  }
+
+  async function openPortal() {
+    setActionErr('');
+    setOpeningPortal(true);
+    try {
+      const res = await fetch('/api/org/billing/portal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ orgId }),
+      });
+      const d = await res.json() as { url?: string; error?: string };
+      if (!res.ok || !d.url) { setActionErr(d.error ?? 'เกิดข้อผิดพลาด'); return; }
+      window.location.href = d.url;
+    } catch {
+      setActionErr('Network error');
+    } finally {
+      setOpeningPortal(false);
+    }
+  }
 
   return (
     <div className="p-6 max-w-2xl mx-auto space-y-6">
@@ -161,6 +267,108 @@ export default function BillingPage() {
           )}
         </div>
       </div>
+
+      {info.monthly_price !== null && (
+        <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+          <div className="px-6 py-3 border-b border-gray-100 text-sm font-semibold text-gray-700">
+            การชำระเงิน
+          </div>
+          <div className="px-6 py-4 space-y-3">
+            <div className="text-sm text-gray-600">
+              ระบบจะตัดบัตรอัตโนมัติทุกเดือนหลังจากตั้งค่าการชำระเงินครั้งแรก
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {!info.has_stripe_subscription && (
+                <Button onClick={() => void startCheckout()} disabled={paying || !orgId || !token}>
+                  {paying ? 'กำลังเปิดหน้า Stripe…' : 'เริ่มชำระเงิน'}
+                </Button>
+              )}
+              {info.has_stripe_customer && (
+                <Button variant="outline" onClick={() => void openPortal()} disabled={openingPortal || !orgId || !token}>
+                  {openingPortal ? 'กำลังเปิด Portal…' : 'จัดการบัตร/ใบเสร็จ'}
+                </Button>
+              )}
+            </div>
+            {actionErr && (
+              <div className="text-sm text-red-600">{actionErr}</div>
+            )}
+            {info.has_stripe_subscription && (
+              <div className="text-xs text-gray-400">
+                การยกเลิกแพ็กเกจต้องติดต่อทีมงาน PERPOS
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {info.monthly_price !== null && (
+        <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+          <div className="px-6 py-3 border-b border-gray-100 text-sm font-semibold text-gray-700">
+            รายการชำระเงิน (Stripe)
+          </div>
+          <div className="px-6 py-4 space-y-3">
+            {stripeLoading && (
+              <div className="text-sm text-gray-400">กำลังโหลดรายการ…</div>
+            )}
+            {!stripeLoading && stripeErr && (
+              <div className="text-sm text-red-600">{stripeErr}</div>
+            )}
+            {!stripeLoading && !stripeErr && stripeInfo && (
+              <>
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <div className="text-xs text-gray-500">สถานะ Subscription</div>
+                    <div className="text-gray-900 font-medium mt-0.5">{stripeInfo.subscription_status ?? '—'}</div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-gray-500">รอบถัดไป</div>
+                    <div className="text-gray-900 font-medium mt-0.5">{fmtDate(stripeInfo.current_period_end)}</div>
+                  </div>
+                </div>
+
+                {stripeInfo.invoices.length === 0 ? (
+                  <div className="text-sm text-gray-500">ยังไม่มีรายการชำระเงิน</div>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>วันที่</TableHead>
+                        <TableHead>สถานะ</TableHead>
+                        <TableHead className="text-right">ยอด</TableHead>
+                        <TableHead className="text-right">ใบเสร็จ</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {stripeInfo.invoices.map((inv) => (
+                        <TableRow key={inv.id}>
+                          <TableCell>{fmtDate(inv.created_at)}</TableCell>
+                          <TableCell>{inv.status ?? '—'}</TableCell>
+                          <TableCell className="text-right">{fmtMoneyMinor(inv.amount_paid ?? inv.amount_due, inv.currency)}</TableCell>
+                          <TableCell className="text-right">
+                            {inv.hosted_invoice_url ? (
+                              <Button asChild variant="ghost" size="sm">
+                                <a href={inv.hosted_invoice_url} target="_blank" rel="noreferrer">
+                                  เปิด
+                                </a>
+                              </Button>
+                            ) : (
+                              '—'
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+
+                <div className="text-xs text-gray-400">
+                  ดูรายละเอียด/เปลี่ยนบัตรได้ที่ปุ่ม “จัดการบัตร/ใบเสร็จ”
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Limits */}
       <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">

@@ -40,6 +40,9 @@ export async function POST(req: NextRequest) {
   ]);
 
   if (!org) return NextResponse.json({ error: 'org not found' }, { status: 404 });
+  if (orgStripe?.stripe_subscription_id && orgStripe?.subscription_status !== 'canceled') {
+    return NextResponse.json({ error: 'already_subscribed' }, { status: 400 });
+  }
 
   const currency = String(billing?.currency ?? 'THB');
   if (currency !== 'THB') return NextResponse.json({ error: 'currency_not_supported' }, { status: 400 });
@@ -110,4 +113,3 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({ url: session.url });
 }
-

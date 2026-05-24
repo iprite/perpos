@@ -30,9 +30,10 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'forbidden' }, { status: 403 });
   }
 
-  const [{ data: org }, { data: billing }] = await Promise.all([
+  const [{ data: org }, { data: billing }, { data: stripeRow }] = await Promise.all([
     admin.from('organizations').select('id, name, maintenance_mode').eq('id', orgId).single(),
     admin.from('org_billing').select('*').eq('org_id', orgId).maybeSingle(),
+    admin.from('org_stripe').select('stripe_customer_id, stripe_subscription_id').eq('org_id', orgId).maybeSingle(),
   ]);
 
   if (!org) return NextResponse.json({ error: 'org not found' }, { status: 404 });
@@ -54,6 +55,8 @@ export async function GET(req: NextRequest) {
     monthly_price:        billing?.monthly_price ?? null,
     currency:             billing?.currency ?? 'THB',
     payment_status:       billing?.payment_status ?? 'active',
+    has_stripe_customer:  Boolean(stripeRow?.stripe_customer_id),
+    has_stripe_subscription: Boolean(stripeRow?.stripe_subscription_id),
     notes:                billing?.notes ?? null,
     updated_at:           billing?.updated_at ?? null,
   });
