@@ -73,6 +73,9 @@ export async function GET(req: NextRequest) {
       plan_starts_at:       billing?.plan_starts_at ?? null,
       plan_ends_at:         billing?.plan_ends_at ?? null,
       notes:                billing?.notes ?? null,
+      monthly_price:        billing?.monthly_price ?? null,
+      currency:             (billing?.currency as string) ?? 'THB',
+      payment_status:       (billing?.payment_status as string) ?? 'active',
       updated_at:           billing?.updated_at ?? null,
     };
   });
@@ -90,6 +93,7 @@ export async function PUT(req: NextRequest) {
     maxWebhooks, maxCustomFields, trialEndsAt,
     planStartsAt, planEndsAt, notes,
     maintenanceMode, maintenanceMessage,
+    monthlyPrice, currency, paymentStatus,
   } = body;
 
   if (!orgId) return NextResponse.json({ error: 'orgId required' }, { status: 400 });
@@ -126,6 +130,9 @@ export async function PUT(req: NextRequest) {
   if (planStartsAt          !== undefined) row.plan_starts_at            = planStartsAt || null;
   if (planEndsAt            !== undefined) row.plan_ends_at              = planEndsAt   || null;
   if (notes                 !== undefined) row.notes                     = notes        || null;
+  if (monthlyPrice          !== undefined) row.monthly_price              = monthlyPrice === '' ? null : Number(monthlyPrice);
+  if (currency              !== undefined) row.currency                   = currency     || 'THB';
+  if (paymentStatus         !== undefined) row.payment_status             = paymentStatus || 'active';
 
   const { data, error } = await admin
     .from('org_billing')

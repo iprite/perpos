@@ -4,7 +4,7 @@ import { Title, Text, Avatar, Button, Popover } from "rizzui";
 import cn from "@core/utils/class-names";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Settings, Shield, LogOut, LayoutGrid, Building2 } from "lucide-react";
+import { Settings, Shield, LogOut, LayoutGrid, Building2, CreditCard } from "lucide-react";
 
 import { useAuth } from "@/app/shared/auth-provider";
 import { useOrgSlug } from "@/app/shared/module-provider";
@@ -84,6 +84,7 @@ function DropdownMenu() {
   const name = String(profile?.display_name ?? email ?? "U");
   const [signingOut, setSigningOut] = useState(false);
   const [isOrgManager, setIsOrgManager] = useState(false);
+  const [isOrgOwner,   setIsOrgOwner]   = useState(false);
   const isAdmin = role === "super_admin";
 
   // Check if user is owner/admin of the active org
@@ -103,6 +104,9 @@ function DropdownMenu() {
         if (data?.role && ["owner", "admin"].includes(String(data.role))) {
           setIsOrgManager(true);
         }
+        if (data?.role === "owner") {
+          setIsOrgOwner(true);
+        }
       });
   }, [userId]);
 
@@ -118,6 +122,12 @@ function DropdownMenu() {
       href: orgSlug ? `/${orgSlug}/setting` : "/",
       icon: <Building2 className="h-4 w-4 text-gray-500" />,
       show: isOrgManager && !!orgSlug,
+    },
+    {
+      label: "Billing & Plan",
+      href: "/billing",
+      icon: <CreditCard className="h-4 w-4 text-gray-500" />,
+      show: isOrgOwner,
     },
     {
       label: "ตั้งค่าผู้ใช้งาน",

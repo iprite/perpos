@@ -222,7 +222,7 @@ function buildAdminMenuItems(): MenuItem[] {
   return [
     { name: "แอดมินคอนโซล", roles: ["super_admin"] },
     {
-      name: "ภาพรวม",
+      name: "Dashboard",
       href: "/admin",
       icon: <LayoutDashboard className="h-5 w-5" />,
       roles: ["super_admin"],
@@ -234,7 +234,7 @@ function buildAdminMenuItems(): MenuItem[] {
       roles: ["super_admin"],
     },
     {
-      name: "ผู้ใช้",
+      name: "User Management",
       href: "/admin/users",
       icon: <Users className="h-5 w-5" />,
       roles: ["super_admin"],

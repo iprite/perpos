@@ -144,8 +144,10 @@ const PAGE_MAP: Record<string, string> = {
   "/payroll/settings/accounting":         "ตั้งค่าการบันทึกบัญชี",
 
   // Admin
-  "/admin":                               "ภาพรวม",
-  "/admin/users":                         "ผู้ใช้",
+  "/admin":                               "Dashboard",
+  "/admin/users":                         "User Management",
+  "/admin/billing":                       "Billing & Plans",
+  "/billing":                             "Billing & Plan",
 };
 
 // For [id] detail pages, derive from parent list label
