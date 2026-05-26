@@ -564,7 +564,7 @@ export async function handleCrmSolutions(
   }
 
   // Group by status
-  const ORDER = ['in_progress', 'pending', 'on_hold', 'completed', 'cancelled'];
+  const ORDER = ['in_progress', 'proposal', 'lead', 'on_hold', 'completed', 'cancelled'];
   const grouped = new Map<string, SolRow[]>();
   for (const s of ORDER) grouped.set(s, []);
   for (const r of rows) {
@@ -712,7 +712,8 @@ export async function handleCrmPhoto(
 // ── Phase D: Query helpers ────────────────────────────────────────────────────
 
 const STATUS_EMOJI: Record<string, string> = {
-  pending:     '🟡',
+  lead:        '💡',
+  proposal:    '📄',
   in_progress: '🔵',
   on_hold:     '🟠',
   completed:   '✅',
@@ -720,7 +721,8 @@ const STATUS_EMOJI: Record<string, string> = {
 };
 
 const STATUS_LABEL: Record<string, string> = {
-  pending:     'รอดำเนินการ',
+  lead:        'Lead',
+  proposal:    'Proposal',
   in_progress: 'กำลังดำเนินการ',
   on_hold:     'รอ/หยุดชั่วคราว',
   completed:   'เสร็จแล้ว',
