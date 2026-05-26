@@ -21,7 +21,7 @@ export default async function OrgSlugPage({
   const enabledKeys = await getEnabledModulesForOrg(org.id, org.role);
   const firstModule = ALL_MODULES.find((m) => enabledKeys.includes(m.key));
 
-  if (!firstModule) redirect("/no-module");
+  if (!firstModule) redirect("/no-org");
 
   redirect(`/${orgSlug}${firstModule.href}`);
 }

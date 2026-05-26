@@ -23,6 +23,7 @@ import {
   ShieldBan,
   CreditCard,
   HeartPulse,
+  TrendingUp,
 } from "lucide-react";
 
 import type { Role } from "@/lib/supabase/types";
@@ -330,6 +331,7 @@ function buildTmcMenuItems(org: string): MenuItem[] {
     { name: "เงินสดย่อย",     href: t("petty-cash"), icon: <Wallet className="h-5 w-5" /> },
     { name: "Stock คลัง",     href: t("stock"),      icon: <Package className="h-5 w-5" /> },
     { name: "การเข้าพัก",     href: t("stays"),      icon: <Building2 className="h-5 w-5" /> },
+    { name: "ต้นทุน & กำไร",  href: t("costs"),      icon: <TrendingUp className="h-5 w-5" /> },
   ];
 }
 

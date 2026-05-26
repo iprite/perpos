@@ -22,10 +22,7 @@ export default async function DashboardPage() {
     .eq("id", user.id)
     .maybeSingle();
 
-  const isAdmin = profile?.role === "super_admin";
-
-  // System admin → always land on admin console
-  if (isAdmin) redirect("/admin");
+  const isSuperAdmin = profile?.role === "super_admin";
 
   // Everyone → first enabled module for active org
   const [activeOrgId, orgs] = await Promise.all([
@@ -33,17 +30,23 @@ export default async function DashboardPage() {
     getOrganizationsForCurrentUser(),
   ]);
 
-  // No org membership at all
-  if (orgs.length === 0) redirect("/no-org");
+  // No org membership → super_admin goes to admin console, others to no-org
+  if (orgs.length === 0) {
+    if (isSuperAdmin) redirect("/admin");
+    redirect("/no-org");
+  }
 
-  const activeOrg = orgs.find((o) => o.id === activeOrgId);
-  const enabledKeys = await getEnabledModulesForOrg(activeOrgId, activeOrg?.role ?? null);
+  const activeOrg = orgs.find((o) => o.id === activeOrgId) ?? orgs[0];
+  const enabledKeys = await getEnabledModulesForOrg(activeOrg.id, activeOrg.role ?? null);
   const firstModule = ALL_MODULES.find((m) => enabledKeys.includes(m.key));
 
-  // Regular user with no accessible module
-  if (!firstModule) redirect("/no-module");
+  // No accessible module → super_admin falls back to admin console
+  if (!firstModule) {
+    if (isSuperAdmin) redirect("/admin");
+    redirect("/no-org");
+  }
 
   // Redirect to /:orgSlug/:module/:defaultMenu
-  const orgSlug = activeOrg?.slug ?? activeOrgId ?? "";
+  const orgSlug = activeOrg.slug ?? activeOrg.id;
   redirect(`/${orgSlug}${firstModule.href}`);
 }

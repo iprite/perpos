@@ -16,7 +16,7 @@ import {
 } from "@/lib/accounting/queries";
 
 // Path segments that are NOT org slugs
-const SYSTEM_SEGMENTS = new Set(["admin", "user", "signin", "no-org", "no-module"]);
+const SYSTEM_SEGMENTS = new Set(["admin", "user", "signin", "no-org"]);
 
 export default async function HydrogenLayout({ children }: { children: React.ReactNode }) {
   const headersList = await headers();
@@ -57,7 +57,7 @@ export default async function HydrogenLayout({ children }: { children: React.Rea
     if (currentModule && !enabledKeys.includes(currentModule.key)) {
       const firstEnabled = ALL_MODULES.find((m) => enabledKeys.includes(m.key));
       const orgSlug      = activeOrg?.slug ?? orgSlugFromUrl ?? "";
-      redirect(orgSlug && firstEnabled ? `/${orgSlug}${firstEnabled.href}` : "/no-module");
+      redirect(orgSlug && firstEnabled ? `/${orgSlug}${firstEnabled.href}` : "/");
     }
   }
 
