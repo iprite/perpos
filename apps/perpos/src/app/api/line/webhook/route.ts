@@ -861,8 +861,72 @@ async function handleLink(admin: ReturnType<typeof createAdminClient>, lineUserI
 }
 
 async function getProfileByLineId(admin: ReturnType<typeof createAdminClient>, lineUserId: string) {
-  const { data } = await admin.from('profiles').select('id, role').eq('line_user_id', lineUserId).maybeSingle();
-  return data as { id: string; role: string } | null;
+  const { data } = await admin.from('profiles').select('id, role, line_active_org_id').eq('line_user_id', lineUserId).maybeSingle();
+  return data as { id: string; role: string; line_active_org_id: string | null } | null;
+}
+
+type OrgInfo = { id: string; name: string; slug: string };
+
+type OrgMembership = { organization_id: string; role: string; organizations: OrgInfo };
+
+async function getUserOrgs(
+  admin: ReturnType<typeof createAdminClient>,
+  profileId: string,
+): Promise<OrgMembership[]> {
+  const { data } = await admin
+    .from('organization_members')
+    .select('organization_id, role, organizations(id, name, slug)')
+    .eq('user_id', profileId)
+    .order('created_at');
+  return (data ?? []) as unknown as OrgMembership[];
+}
+
+async function getOrSetActiveOrg(
+  admin: ReturnType<typeof createAdminClient>,
+  profileId: string,
+  currentActiveOrgId: string | null,
+): Promise<OrgInfo | null> {
+  const orgs = await getUserOrgs(admin, profileId);
+  if (!orgs.length) return null;
+
+  if (currentActiveOrgId) {
+    const current = orgs.find(m => m.organization_id === currentActiveOrgId);
+    if (current) return current.organizations;
+  }
+
+  // Auto-set to first org the user joined
+  const first = orgs[0];
+  await admin.from('profiles').update({ line_active_org_id: first.organization_id }).eq('id', profileId);
+  return first.organizations;
+}
+
+async function handleOrgCmd(
+  admin: ReturnType<typeof createAdminClient>,
+  profileId: string,
+  args: string[],
+  replyToken: string,
+) {
+  const orgs = await getUserOrgs(admin, profileId);
+  if (!orgs.length) {
+    return replyText(replyToken, '❌ ยังไม่ได้เข้าร่วม Organization ใดๆ\nติดต่อผู้ดูแลระบบเพื่อเชิญเข้า org');
+  }
+
+  if (!args[0]) {
+    const lines = orgs.map((m, i) => `${i + 1}. ${m.organizations.name}`);
+    return replyText(replyToken,
+      `🏢 Organizations ของคุณ (${orgs.length}):\n\n${lines.join('\n')}\n\n` +
+      `พิมพ์ /org <หมายเลข> เพื่อเปลี่ยน\nเช่น /org 1`,
+    );
+  }
+
+  const n = parseInt(args[0]);
+  if (isNaN(n) || n < 1 || n > orgs.length) {
+    return replyText(replyToken, `❌ หมายเลขไม่ถูกต้อง ต้องอยู่ระหว่าง 1-${orgs.length}`);
+  }
+
+  const selected = orgs[n - 1];
+  await admin.from('profiles').update({ line_active_org_id: selected.organization_id }).eq('id', profileId);
+  return replyText(replyToken, `✅ เปลี่ยน org เป็น: ${selected.organizations.name}`);
 }
 
 async function checkPermission(admin: ReturnType<typeof createAdminClient>, profileId: string, key: string, role: string): Promise<boolean> {
@@ -872,6 +936,8 @@ async function checkPermission(admin: ReturnType<typeof createAdminClient>, prof
 }
 
 // ─── Main webhook handler ─────────────────────────────────────────────────────
+
+const TMC_CMDS = ['รับ', 'จ่าย', 'บัญชี', 'stock', 'stkin', 'stkout', 'stk', 'เช็คอิน', 'pcin', 'pcout', 'pcbal', 'pcfunds', 'tmc'];
 
 export async function POST(req: NextRequest) {
   const rawBody = await req.text();
@@ -904,74 +970,76 @@ export async function POST(req: NextRequest) {
       continue;
     }
 
-    // /help
+    // All other commands require a linked profile
+    const profile = await getProfileByLineId(admin, lineUserId);
+    if (!profile) {
+      await replyText(replyToken,
+        '❌ ยังไม่ได้ผูกบัญชี LINE\n' +
+        'ไปที่ "ตั้งค่าโปรไฟล์" ในระบบ PERPOS แล้วกด "ผูกบัญชี LINE"',
+      );
+      continue;
+    }
+
+    // /org [N] — list or switch active organization
+    if (cmd === 'org') {
+      await handleOrgCmd(admin, profile.id, args, replyToken);
+      continue;
+    }
+
+    // Resolve active org (auto-sets on first use)
+    const activeOrg = await getOrSetActiveOrg(admin, profile.id, profile.line_active_org_id);
+
+    // /help — org-aware
     if (cmd === 'help') {
-      await replyText(replyToken,
-        '📖 คำสั่งทั้งหมด\n\n' +
-        '─── 💰 TMC บัญชีการเงิน ───\n' +
-        '/รับ <จำนวน> [หมวด] [แปลง] [@บัญชี]\n' +
-        '/จ่าย <จำนวน> [หมวด] [แปลง] [@บัญชี]\n' +
-        '/บัญชี  — ยอดสรุปเดือนนี้\n\n' +
-        '─── 💵 TMC เงินสดย่อย ───\n' +
-        '/pcin <จำนวน> [รายการ]\n' +
-        '/pcout <จำนวน> <รายการ> [หมวด] [แปลง]\n' +
-        '/pcbal\n\n' +
-        '─── 📦 TMC Stock ───\n' +
-        '/stkin <ชื่อ> <จำนวน> [แปลง]\n' +
-        '/stkout <ชื่อ> <จำนวน> [แปลง]\n' +
-        '/stk\n\n' +
-        '─── 🏠 เข้าพัก ───\n' +
-        '/tmc  — ลิงก์บันทึกเข้าพัก\n\n' +
-        '📖 คำสั่ง TMC ทั้งหมด: /tmc help',
-      );
+      if (activeOrg?.id === TMC_ORG_ID) {
+        await handleTmcHelp(replyToken);
+      } else {
+        await replyText(replyToken,
+          `📖 คำสั่ง PERPOS\n` +
+          `🏢 Org: ${activeOrg?.name ?? 'ไม่มี'}\n\n` +
+          `─── 📋 งาน ───\n` +
+          `/t <งาน>  — บันทึกงาน\n` +
+          `/tk  — รายการงานที่รอ\n` +
+          `/d <N>  — ปิดงานที่ N\n\n` +
+          `─── 💰 การเงินส่วนตัว ───\n` +
+          `/รายรับ <จำนวน> [โน้ต]\n` +
+          `/รายจ่าย <จำนวน> [โน้ต]\n\n` +
+          `─── 📰 ข่าว ───\n` +
+          `/ข่าว  — ข่าวสรุป\n\n` +
+          `/org  — ดู/เปลี่ยน Organization`,
+        );
+      }
       continue;
     }
 
-    // ─── TMC Commands (/รับ /จ่าย /stock /เช็คอิน /tmc) ───────────────────────
-    if (cmd === 'tmc' && args[0] === 'help') {
-      await handleTmcHelp(replyToken);
-      continue;
-    }
-
-    // /tmc — ไม่มี args → ส่ง link บันทึกการเข้าพัก
-    if (cmd === 'tmc' && !args[0]) {
-      const profile = await getProfileByLineId(admin, lineUserId);
-      if (!profile) {
-        await replyText(replyToken, '❌ ยังไม่ได้ผูกบัญชี LINE กรุณาใช้ /link <token>');
-        continue;
-      }
-      const tmcMember = await getTmcMembership(admin, profile.id);
-      if (!tmcMember) {
-        await replyText(replyToken, '❌ ไม่มีสิทธิ์ใช้งาน TMC Management');
-        continue;
-      }
-      const token = await upsertMobileToken(profile.id, TMC_ORG_ID);
-      const baseUrl = process.env.NEXT_PUBLIC_BASE_URL ?? 'https://app.perpos.io';
-      await replyText(replyToken,
-        `🏠 บันทึกการเข้าพัก TMC\n\n` +
-        `${baseUrl}/tmc/checkin?t=${token}\n\n` +
-        `⏱️ ลิงก์นี้ใช้ได้ 7 วัน\n` +
-        `💡 กด "บันทึกรายการใหม่" ในหน้าถัดไปหลังบันทึก\n` +
-        `    เพื่อรับลิงก์แก้ไขสำหรับรายการนั้น`,
-      );
-      continue;
-    }
-
-    if (['รับ', 'จ่าย', 'บัญชี', 'stock', 'stkin', 'stkout', 'stk', 'เช็คอิน', 'pcin', 'pcout', 'pcbal', 'pcfunds'].includes(cmd)) {
-      const profile = await getProfileByLineId(admin, lineUserId);
-      if (!profile) {
-        await replyText(replyToken, '❌ ยังไม่ได้ผูกบัญชี LINE กรุณาใช้ /link <token>');
-        continue;
-      }
-      const tmcMember = await getTmcMembership(admin, profile.id);
-      if (!tmcMember) {
-        await replyText(replyToken, '❌ ไม่มีสิทธิ์ใช้งาน TMC Management');
+    // ─── Org-specific commands (TMC) ─────────────────────────────────────────
+    if (TMC_CMDS.includes(cmd)) {
+      if (!activeOrg || activeOrg.id !== TMC_ORG_ID) {
+        await replyText(replyToken,
+          `❌ org ปัจจุบัน "${activeOrg?.name ?? 'ไม่มี'}" ไม่รองรับคำสั่งนี้\n` +
+          `พิมพ์ /org เพื่อดูและเปลี่ยน org`,
+        );
         continue;
       }
 
-      if (cmd === 'รับ')    { await handleTmcRab(admin, args, profile.id, replyToken); continue; }
-      if (cmd === 'จ่าย')   { await handleTmcJai(admin, args, profile.id, replyToken); continue; }
-      if (cmd === 'บัญชี')  { await handleTmcBill(admin, args, replyToken);            continue; }
+      if (cmd === 'tmc' && args[0] === 'help') { await handleTmcHelp(replyToken); continue; }
+
+      if (cmd === 'tmc' && !args[0]) {
+        const token = await upsertMobileToken(profile.id, TMC_ORG_ID);
+        const baseUrl = process.env.NEXT_PUBLIC_BASE_URL ?? 'https://app.perpos.io';
+        await replyText(replyToken,
+          `🏠 บันทึกการเข้าพัก TMC\n\n` +
+          `${baseUrl}/tmc/checkin?t=${token}\n\n` +
+          `⏱️ ลิงก์นี้ใช้ได้ 7 วัน\n` +
+          `💡 กด "บันทึกรายการใหม่" ในหน้าถัดไปหลังบันทึก\n` +
+          `    เพื่อรับลิงก์แก้ไขสำหรับรายการนั้น`,
+        );
+        continue;
+      }
+
+      if (cmd === 'รับ')    { await handleTmcRab(admin, args, profile.id, replyToken);  continue; }
+      if (cmd === 'จ่าย')   { await handleTmcJai(admin, args, profile.id, replyToken);  continue; }
+      if (cmd === 'บัญชี')  { await handleTmcBill(admin, args, replyToken);             continue; }
       if (cmd === 'stock') {
         const subCmd = args[0] ?? '';
         if (!['รับ', 'ออก'].includes(subCmd)) {
@@ -981,26 +1049,18 @@ export async function POST(req: NextRequest) {
         }
         continue;
       }
-      if (cmd === 'stkin')  { await handleStkIn(admin,  args, profile.id, replyToken); continue; }
-      if (cmd === 'stkout') { await handleStkOut(admin, args, profile.id, replyToken); continue; }
-      if (cmd === 'stk')    { await handleStkBal(admin, replyToken); continue; }
+      if (cmd === 'stkin')   { await handleStkIn(admin, args, profile.id, replyToken);  continue; }
+      if (cmd === 'stkout')  { await handleStkOut(admin, args, profile.id, replyToken); continue; }
+      if (cmd === 'stk')     { await handleStkBal(admin, replyToken);                   continue; }
       if (cmd === 'เช็คอิน') { await handleTmcCheckin(admin, args, profile.id, replyToken); continue; }
-
-      // ── Petty Cash ──────────────────────────────────────────────────────────
       if (cmd === 'pcin')    { await handlePcIn(admin, args, profile.id, replyToken);   continue; }
       if (cmd === 'pcout')   { await handlePcOut(admin, args, profile.id, replyToken);  continue; }
       if (cmd === 'pcbal')   { await handlePcBal(admin, replyToken);                    continue; }
       if (cmd === 'pcfunds') { await handlePcFunds(admin, replyToken);                  continue; }
     }
-    // ─────────────────────────────────────────────────────────────────────────
 
-    const profile = await getProfileByLineId(admin, lineUserId);
-    if (!profile) {
-      await replyText(replyToken, '❌ ยังไม่ได้ผูกบัญชี LINE กรุณาใช้ /link <token>');
-      continue;
-    }
+    // ─── Personal commands (all orgs, permission-gated) ───────────────────────
 
-    // /ข่าว
     if (cmd === 'ข่าว') {
       if (!await checkPermission(admin, profile.id, 'bot.news.request', profile.role)) {
         await replyText(replyToken, '❌ ไม่มีสิทธิ์ใช้คำสั่งนี้'); continue;
@@ -1009,7 +1069,6 @@ export async function POST(req: NextRequest) {
       continue;
     }
 
-    // /รายรับ <จำนวน> <โน้ต>
     if (cmd === 'รายรับ' || cmd === 'รายจ่าย') {
       const permKey = cmd === 'รายรับ' ? 'bot.finance.income_add' : 'bot.finance.expense_add';
       if (!await checkPermission(admin, profile.id, permKey, profile.role)) {
@@ -1023,7 +1082,6 @@ export async function POST(req: NextRequest) {
       continue;
     }
 
-    // /t <งาน>
     if (cmd === 't') {
       if (!await checkPermission(admin, profile.id, 'bot.assistant.tasks', profile.role)) {
         await replyText(replyToken, '❌ ไม่มีสิทธิ์ใช้คำสั่งนี้'); continue;
@@ -1035,7 +1093,6 @@ export async function POST(req: NextRequest) {
       continue;
     }
 
-    // /tk — list pending tasks
     if (cmd === 'tk') {
       if (!await checkPermission(admin, profile.id, 'bot.assistant.tasks', profile.role)) {
         await replyText(replyToken, '❌ ไม่มีสิทธิ์ใช้คำสั่งนี้'); continue;
@@ -1047,7 +1104,6 @@ export async function POST(req: NextRequest) {
       continue;
     }
 
-    // /d <N> — done task N
     if (cmd === 'd') {
       if (!await checkPermission(admin, profile.id, 'bot.assistant.tasks', profile.role)) {
         await replyText(replyToken, '❌ ไม่มีสิทธิ์ใช้คำสั่งนี้'); continue;
