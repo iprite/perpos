@@ -90,15 +90,25 @@ async function isCrmMember(admin: Admin, userId: string, orgId: string, userRole
 type SolutionRow = { id: string; title: string; status: string; assigned_to: string | null };
 
 /** fuzzy search solutions ใน org */
-async function searchSolutions(admin: Admin, orgId: string, query: string): Promise<SolutionRow[]> {
-  const { data } = await admin
+async function searchSolutions(
+  admin: Admin,
+  orgId: string,
+  query: string,
+  includeCompleted = false,
+): Promise<SolutionRow[]> {
+  let q = admin
     .from('crm_solutions')
     .select('id, title, status, assigned_to')
     .eq('org_id', orgId)
     .ilike('title', `%${query}%`)
-    .not('status', 'in', '("completed","cancelled")')
     .order('updated_at', { ascending: false })
     .limit(6);
+
+  if (!includeCompleted) {
+    q = q.not('status', 'in', '("completed","cancelled")') as typeof q;
+  }
+
+  const { data } = await q;
   return (data ?? []) as SolutionRow[];
 }
 
@@ -501,6 +511,333 @@ export async function handleCrmInStatus(
   );
 }
 
+// ── Phase D: Query helpers ────────────────────────────────────────────────────
+
+const STATUS_EMOJI: Record<string, string> = {
+  pending:     '🟡',
+  in_progress: '🔵',
+  on_hold:     '🟠',
+  completed:   '✅',
+  cancelled:   '❌',
+};
+
+const STATUS_LABEL: Record<string, string> = {
+  pending:     'รอดำเนินการ',
+  in_progress: 'กำลังดำเนินการ',
+  on_hold:     'รอ/หยุดชั่วคราว',
+  completed:   'เสร็จแล้ว',
+  cancelled:   'ยกเลิก',
+};
+
+/** วันจันทร์ต้นสัปดาห์ตามเวลากรุงเทพ (YYYY-MM-DD) */
+function getBkkWeekStart(): string {
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' }); // YYYY-MM-DD
+  const [y, m, d] = today.split('-').map(Number);
+  const date = new Date(y, m - 1, d);
+  const day = date.getDay(); // 0=Sun
+  date.setDate(date.getDate() - (day === 0 ? 6 : day - 1));
+  return date.toISOString().slice(0, 10);
+}
+
+/** วันที่ 1 ของเดือนตามเวลากรุงเทพ (YYYY-MM-DD) */
+function getBkkMonthStart(): string {
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' }).slice(0, 7) + '-01';
+}
+
+// ── /status handler ───────────────────────────────────────────────────────────
+
+export async function handleCrmStatus(
+  admin: Admin,
+  args: string[],
+  profileId: string,
+  profileRole: string,
+  activeOrgId: string,
+  replyToken: string,
+) {
+  const query = args.join(' ').trim();
+  if (!query) {
+    await replyText(replyToken, '📌 /status <ชื่อ solution>\nเช่น /status ABC Corp');
+    return;
+  }
+
+  if (!await isCrmMember(admin, profileId, activeOrgId, profileRole)) {
+    await replyText(replyToken, '❌ คุณไม่ได้เป็นสมาชิก CRM ของ org นี้');
+    return;
+  }
+
+  // Include completed/cancelled — useful for reviewing past projects
+  const solutions = await searchSolutions(admin, activeOrgId, query, true);
+
+  if (solutions.length === 0) {
+    await replyText(replyToken, `❌ ไม่พบ solution "${query}"`);
+    return;
+  }
+
+  if (solutions.length > 5) {
+    await replyText(replyToken,
+      `❌ พบมากเกินไป (${solutions.length} รายการ) กรุณาระบุชื่อให้ตรงกว่า`,
+    );
+    return;
+  }
+
+  if (solutions.length > 1) {
+    const list = solutions.map((s, i) =>
+      `${i + 1}. ${s.title} ${STATUS_EMOJI[s.status] ?? ''}`,
+    ).join('\n');
+    await replyTextWithQuickReplies(
+      replyToken,
+      `พบ ${solutions.length} solutions:\n${list}\n\n▼ เลือก solution:`,
+      solutions.map(s => ({ label: s.title, text: `/status ${s.title}` })),
+    );
+    return;
+  }
+
+  const sol = solutions[0];
+
+  // Assignee name
+  let assigneeName = '—';
+  if (sol.assigned_to) {
+    const { data: ap } = await admin.from('profiles')
+      .select('display_name, email').eq('id', sol.assigned_to).maybeSingle();
+    assigneeName = (ap as { display_name?: string; email?: string } | null)?.display_name
+      || (ap as { display_name?: string; email?: string } | null)?.email || '—';
+  }
+
+  // Latest note (excluding system_log noise)
+  const { data: lastNote } = await admin
+    .from('crm_solution_notes')
+    .select('note_type, content, created_at')
+    .eq('solution_id', sol.id)
+    .not('note_type', 'eq', 'system_log')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const statusEmoji = STATUS_EMOJI[sol.status] ?? '❓';
+  const statusLabel = STATUS_LABEL[sol.status] ?? sol.status;
+  let text = `📋 ${sol.title}\n\n${statusEmoji} ${statusLabel}\n👤 ${assigneeName}`;
+
+  if (lastNote) {
+    const n = lastNote as { note_type: string; content: string; created_at: string };
+    const noteEmoji = NOTE_TYPE_EMOJI[n.note_type as CrmNoteType] ?? '📝';
+    const date = new Date(n.created_at).toLocaleDateString('th-TH', {
+      month: 'short', day: 'numeric', timeZone: 'Asia/Bangkok',
+    });
+    const preview = n.content.length > 60 ? n.content.slice(0, 60) + '…' : n.content;
+    text += `\n\n📌 ล่าสุด (${date}):\n${noteEmoji} ${preview}`;
+  }
+
+  await replyText(replyToken, text);
+}
+
+// ── /notes handler ────────────────────────────────────────────────────────────
+
+export async function handleCrmNotes(
+  admin: Admin,
+  args: string[],
+  profileId: string,
+  profileRole: string,
+  activeOrgId: string,
+  replyToken: string,
+) {
+  const query = args.join(' ').trim();
+  if (!query) {
+    await replyText(replyToken, '📌 /notes <ชื่อ solution>\nเช่น /notes ABC Corp');
+    return;
+  }
+
+  if (!await isCrmMember(admin, profileId, activeOrgId, profileRole)) {
+    await replyText(replyToken, '❌ คุณไม่ได้เป็นสมาชิก CRM ของ org นี้');
+    return;
+  }
+
+  const solutions = await searchSolutions(admin, activeOrgId, query, true);
+
+  if (solutions.length === 0) {
+    await replyText(replyToken, `❌ ไม่พบ solution "${query}"`);
+    return;
+  }
+
+  if (solutions.length > 5) {
+    await replyText(replyToken,
+      `❌ พบมากเกินไป (${solutions.length} รายการ) กรุณาระบุชื่อให้ตรงกว่า`,
+    );
+    return;
+  }
+
+  if (solutions.length > 1) {
+    const list = solutions.map((s, i) => `${i + 1}. ${s.title}`).join('\n');
+    await replyTextWithQuickReplies(
+      replyToken,
+      `พบ ${solutions.length} solutions:\n${list}\n\n▼ เลือก solution:`,
+      solutions.map(s => ({ label: s.title, text: `/notes ${s.title}` })),
+    );
+    return;
+  }
+
+  const sol = solutions[0];
+
+  const { data: notes } = await admin
+    .from('crm_solution_notes')
+    .select('note_type, content, created_at, duration_minutes, is_billable')
+    .eq('solution_id', sol.id)
+    .order('created_at', { ascending: false })
+    .limit(5);
+
+  if (!notes?.length) {
+    await replyText(replyToken, `📋 ${sol.title}\n\nยังไม่มี notes`);
+    return;
+  }
+
+  type NoteRow = {
+    note_type: string; content: string; created_at: string;
+    duration_minutes: number | null; is_billable: boolean;
+  };
+  const rows = notes as NoteRow[];
+
+  const lines = rows.map(n => {
+    const emoji = NOTE_TYPE_EMOJI[n.note_type as CrmNoteType] ?? '📝';
+    const date = new Date(n.created_at).toLocaleDateString('th-TH', {
+      month: 'short', day: 'numeric', timeZone: 'Asia/Bangkok',
+    });
+    const preview = n.content.length > 60 ? n.content.slice(0, 60) + '…' : n.content;
+    const dur  = n.duration_minutes ? ` ⏱${fmtDuration(n.duration_minutes)}` : '';
+    const bill = n.is_billable ? ' 💰' : '';
+    return `${emoji} ${date}${dur}${bill}\n${preview}`;
+  });
+
+  await replyText(replyToken,
+    `📋 ${sol.title} — ${rows.length} Notes ล่าสุด:\n\n${lines.join('\n─────\n')}`,
+  );
+}
+
+// ── /issues handler ───────────────────────────────────────────────────────────
+
+export async function handleCrmIssues(
+  admin: Admin,
+  profileId: string,
+  profileRole: string,
+  activeOrgId: string,
+  replyToken: string,
+) {
+  if (!await isCrmMember(admin, profileId, activeOrgId, profileRole)) {
+    await replyText(replyToken, '❌ คุณไม่ได้เป็นสมาชิก CRM ของ org นี้');
+    return;
+  }
+
+  // Fetch recent issues — fetch extra so we can filter out closed solutions in JS
+  const { data } = await admin
+    .from('crm_solution_notes')
+    .select('content, created_at, crm_solutions!inner(title, status)')
+    .eq('org_id', activeOrgId)
+    .eq('note_type', 'issue')
+    .order('created_at', { ascending: false })
+    .limit(20);
+
+  type IssueRow = {
+    content: string; created_at: string;
+    crm_solutions: { title: string; status: string };
+  };
+  const rows = (data ?? []) as unknown as IssueRow[];
+
+  // Only show issues from non-closed solutions
+  const open = rows
+    .filter(r => !['completed', 'cancelled'].includes(r.crm_solutions?.status ?? ''))
+    .slice(0, 10);
+
+  if (!open.length) {
+    await replyText(replyToken, '✅ ไม่มี open issues ในขณะนี้');
+    return;
+  }
+
+  const lines = open.map((r, i) => {
+    const date = new Date(r.created_at).toLocaleDateString('th-TH', {
+      month: 'short', day: 'numeric', timeZone: 'Asia/Bangkok',
+    });
+    const preview = r.content.length > 50 ? r.content.slice(0, 50) + '…' : r.content;
+    return `${i + 1}. 📋 ${r.crm_solutions.title} (${date})\n   🚨 ${preview}`;
+  });
+
+  await replyText(replyToken, `🚨 Open Issues (${open.length}):\n\n${lines.join('\n\n')}`);
+}
+
+// ── /hours handler ────────────────────────────────────────────────────────────
+
+export async function handleCrmHours(
+  admin: Admin,
+  args: string[],
+  profileId: string,
+  activeOrgId: string,
+  replyToken: string,
+) {
+  const period = args[0]?.toLowerCase();
+  const isMonth = period === 'month' || period === 'เดือน';
+  const fromDate   = isMonth ? getBkkMonthStart() : getBkkWeekStart();
+  const periodLabel = isMonth ? 'เดือนนี้' : 'สัปดาห์นี้';
+
+  const { data } = await admin
+    .from('crm_solution_notes')
+    .select('solution_id, duration_minutes, is_billable, crm_solutions(title)')
+    .eq('created_by', profileId)
+    .eq('org_id', activeOrgId)
+    .not('duration_minutes', 'is', null)
+    .gte('created_at', fromDate);
+
+  type HoursRow = {
+    solution_id: string;
+    duration_minutes: number;
+    is_billable: boolean;
+    crm_solutions: { title: string } | null;
+  };
+  const rows = (data ?? []) as unknown as HoursRow[];
+
+  if (!rows.length) {
+    await replyText(replyToken,
+      `⏱ ยังไม่มีข้อมูลชั่วโมงทำงาน${periodLabel}\n\n💡 ใช้ /in <solution> เริ่มนับเวลา`,
+    );
+    return;
+  }
+
+  // Group by solution
+  const byProject = new Map<string, { title: string; minutes: number; billable: number }>();
+  let totalMin = 0;
+  let billableMin = 0;
+
+  for (const r of rows) {
+    const key   = r.solution_id;
+    const title = r.crm_solutions?.title ?? key;
+    const entry = byProject.get(key);
+    if (entry) {
+      entry.minutes += r.duration_minutes;
+      if (r.is_billable) entry.billable += r.duration_minutes;
+    } else {
+      byProject.set(key, {
+        title,
+        minutes:  r.duration_minutes,
+        billable: r.is_billable ? r.duration_minutes : 0,
+      });
+    }
+    totalMin += r.duration_minutes;
+    if (r.is_billable) billableMin += r.duration_minutes;
+  }
+
+  const projectLines = Array.from(byProject.values())
+    .sort((a, b) => b.minutes - a.minutes)
+    .map(p => {
+      const bill = p.billable > 0 ? ` (💰 ${fmtDuration(p.billable)})` : '';
+      return `  • ${p.title}: ${fmtDuration(p.minutes)}${bill}`;
+    });
+
+  await replyText(replyToken,
+    `⏱ ชั่วโมงทำงาน${periodLabel}:\n\n` +
+    projectLines.join('\n') + '\n\n' +
+    `─────────────────\n` +
+    `รวม: ${fmtDuration(totalMin)}\n` +
+    `💰 Billable: ${fmtDuration(billableMin)}\n` +
+    `📊 Non-billable: ${fmtDuration(totalMin - billableMin)}`,
+  );
+}
+
 // ── /crm help ─────────────────────────────────────────────────────────────────
 
 export function crmHelpText(): string {
@@ -515,6 +852,11 @@ export function crmHelpText(): string {
     `/in <solution>           — เริ่มนับเวลา\n` +
     `/out [billable] [note]   — หยุดนับ + บันทึก\n` +
     `/in status               — ดู session ปัจจุบัน\n\n` +
+    `─── 🔍 Query ───\n` +
+    `/status <solution>       — ดูสถานะ + note ล่าสุด\n` +
+    `/notes <solution>        — notes 5 รายการล่าสุด\n` +
+    `/issues                  — open issues ทั้งหมด\n` +
+    `/hours [month]           — ชั่วโมงทำงานของฉัน\n\n` +
     `💡 /n ABC Corp | ติดตั้งเสร็จ`
   );
 }

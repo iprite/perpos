@@ -2,7 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { createAdminClient } from '../../_lib/supabase';
 import { upsertMobileToken } from '../../tmc/mobile/_lib';
-import { handleCrmCmd, handleCrmIn, handleCrmOut, handleCrmInStatus, crmHelpText } from '../../crm/_line';
+import {
+  handleCrmCmd, handleCrmIn, handleCrmOut, handleCrmInStatus,
+  handleCrmStatus, handleCrmNotes, handleCrmIssues, handleCrmHours,
+  crmHelpText,
+} from '../../crm/_line';
 
 // ─── TMC Org ID (TMC Management) ─────────────────────────────────────────────
 const TMC_ORG_ID = '1f52618c-09c4-49c5-a929-ea5060f26e7d';
@@ -939,7 +943,7 @@ async function checkPermission(admin: ReturnType<typeof createAdminClient>, prof
 // ─── Main webhook handler ─────────────────────────────────────────────────────
 
 const TMC_CMDS = ['รับ', 'จ่าย', 'บัญชี', 'stock', 'stkin', 'stkout', 'stk', 'เช็คอิน', 'pcin', 'pcout', 'pcbal', 'pcfunds', 'tmc'];
-const CRM_CMDS = ['n', 'survey', 'issue', 'mtg', 'log', 'in', 'out'];
+const CRM_CMDS = ['n', 'survey', 'issue', 'mtg', 'log', 'in', 'out', 'status', 'notes', 'issues', 'hours'];
 
 export async function POST(req: NextRequest) {
   const rawBody = await req.text();
@@ -1092,6 +1096,24 @@ export async function POST(req: NextRequest) {
 
       if (cmd === 'out') {
         await handleCrmOut(admin, args, lineUserId, profile.id, profileName, replyToken);
+        continue;
+      }
+
+      // Phase D — query commands
+      if (cmd === 'status') {
+        await handleCrmStatus(admin, args, profile.id, profile.role, activeOrg.id, replyToken);
+        continue;
+      }
+      if (cmd === 'notes') {
+        await handleCrmNotes(admin, args, profile.id, profile.role, activeOrg.id, replyToken);
+        continue;
+      }
+      if (cmd === 'issues') {
+        await handleCrmIssues(admin, profile.id, profile.role, activeOrg.id, replyToken);
+        continue;
+      }
+      if (cmd === 'hours') {
+        await handleCrmHours(admin, args, profile.id, activeOrg.id, replyToken);
         continue;
       }
 
