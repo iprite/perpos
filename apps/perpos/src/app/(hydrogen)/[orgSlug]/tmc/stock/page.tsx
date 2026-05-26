@@ -12,8 +12,9 @@ import {
 } from '@/components/ui/dialog';
 import {
   Plus, ArrowUp, ArrowDown, Settings, Tag, Ruler,
-  Check, X, Pencil, Trash2,
+  Check, X, Pencil, Trash2, ShoppingCart,
 } from 'lucide-react';
+import { PurchaseDialog } from './purchase-dialog';
 
 const TMC_ORG_ID = '1f52618c-09c4-49c5-a929-ea5060f26e7d';
 
@@ -96,11 +97,14 @@ export default function TmcStockPage() {
   const [loading,    setLoading]    = useState(true);
   const [activeTab,  setActiveTab]  = useState<'items' | 'movements'>('items');
 
+  const [accounts, setAccounts] = useState<{ id: string; name: string }[]>([]);
+
   // dialogs
   const [showAddItem,  setShowAddItem]  = useState(false);
   const [showMovement, setShowMovement] = useState<'in' | 'out' | 'adjust' | null>(null);
   const [showMaster,   setShowMaster]   = useState(false);
   const [masterTab,    setMasterTab]    = useState<'categories' | 'units'>('categories');
+  const [showPurchase, setShowPurchase] = useState(false);
 
   // forms
   const [itemForm, setItemForm] = useState({ name: '', unit: '', minQuantity: '0', category: '' });
@@ -144,7 +148,14 @@ export default function TmcStockPage() {
     setUnits(Array.isArray(us)   ? us   : []);
   }, [authHeader]);
 
-  useEffect(() => { load(); loadMaster(); }, [load, loadMaster]);
+  const loadAccounts = useCallback(async () => {
+    const h = await authHeader();
+    const res = await fetch(backendUrl(`/tmc/accounts?orgId=${TMC_ORG_ID}`), { headers: h });
+    const data = await res.json() as { id: string; name: string }[];
+    setAccounts(Array.isArray(data) ? data : []);
+  }, [authHeader]);
+
+  useEffect(() => { load(); loadMaster(); loadAccounts(); }, [load, loadMaster, loadAccounts]);
 
   // derived options
   const activeCategories = useMemo(() => categories.filter(c => c.is_active), [categories]);
@@ -262,6 +273,13 @@ export default function TmcStockPage() {
     loadMaster();
   }
 
+  const accountOptions = useMemo(() => accounts.map(a => ({ value: a.id, label: a.name })), [accounts]);
+
+  const finCategoryOptions = useMemo(() => [
+    'แมคโค', 'ค่าของใช้ทั่วไป', 'ซักผ้า', 'ล้างแอร์', 'เงินสดย่อย',
+    'ส่วนกลาง', 'ค่าใช้จ่ายอื่นๆ',
+  ].map(c => ({ value: c, label: c })), []);
+
   const lowStock = items.filter(i => i.current_qty <= i.min_quantity && i.min_quantity > 0);
 
   return (
@@ -282,6 +300,9 @@ export default function TmcStockPage() {
           </Button>
           <Button variant="outline" onClick={() => setShowMovement('in')} className="text-green-600 border-green-200 hover:bg-green-50">
             <ArrowDown className="w-4 h-4" /> รับเข้า
+          </Button>
+          <Button variant="outline" onClick={() => setShowPurchase(true)} className="text-blue-600 border-blue-200 hover:bg-blue-50">
+            <ShoppingCart className="w-4 h-4" /> ซื้อเข้าคลัง
           </Button>
           <Button onClick={() => setShowAddItem(true)}>
             <Plus className="w-4 h-4" /> เพิ่มรายการ
@@ -478,6 +499,18 @@ export default function TmcStockPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* ── Purchase Dialog ─────────────────────────────────────────────────── */}
+      <PurchaseDialog
+        open={showPurchase}
+        onClose={() => setShowPurchase(false)}
+        onSaved={() => { setShowPurchase(false); load(); }}
+        authHeader={authHeader}
+        stockItems={items}
+        unitOptions={unitOptions}
+        categoryOptions={finCategoryOptions}
+        accountOptions={accountOptions}
+      />
 
       {/* ── Master Data Dialog ──────────────────────────────────────────────── */}
       <Dialog open={showMaster} onOpenChange={setShowMaster}>
