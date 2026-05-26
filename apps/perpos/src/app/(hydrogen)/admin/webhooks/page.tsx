@@ -18,6 +18,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -87,6 +88,8 @@ export default function WebhooksPage() {
   // Test ping state
   const [testingId, setTestingId]   = useState<string | null>(null);
   const [testResult, setTestResult] = useState<{ id: string; success: boolean; status: number | null; latencyMs: number } | null>(null);
+
+  const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean; webhook: Webhook | null }>({ open: false, webhook: null });
 
   const authHeader = useCallback(async () => {
     const { data } = await supabase.auth.getSession();
@@ -199,8 +202,9 @@ export default function WebhooksPage() {
     }
   };
 
-  const handleDelete = async (w: Webhook) => {
-    if (!confirm(`ลบ webhook "${w.name}"?\nlog การส่งทั้งหมดจะถูกลบด้วย`)) return;
+  const doDeleteWebhook = async () => {
+    const w = deleteConfirm.webhook;
+    if (!w) return;
     try {
       const h = await authHeader();
       await fetch(backendUrl(`/admin/webhooks?id=${w.id}`), { method: "DELETE", headers: h });
@@ -209,6 +213,8 @@ export default function WebhooksPage() {
       loadWebhooks();
     } catch (e: unknown) {
       setError((e as Error)?.message ?? "ลบไม่สำเร็จ");
+    } finally {
+      setDeleteConfirm({ open: false, webhook: null });
     }
   };
 
@@ -381,7 +387,7 @@ export default function WebhooksPage() {
                         <Pencil className="h-3.5 w-3.5" />
                       </button>
                       <button
-                        onClick={() => handleDelete(w)}
+                        onClick={() => setDeleteConfirm({ open: true, webhook: w })}
                         title="ลบ"
                         className="rounded-full bg-red-50 p-1.5 text-red-500 hover:bg-red-100"
                       >
@@ -454,6 +460,14 @@ export default function WebhooksPage() {
           เลือก Organization เพื่อดูและจัดการ Webhooks
         </div>
       )}
+
+      <ConfirmDeleteDialog
+        open={deleteConfirm.open}
+        onOpenChange={(o) => setDeleteConfirm((s) => ({ ...s, open: o }))}
+        title={`ลบ webhook "${deleteConfirm.webhook?.name ?? ''}"`}
+        description="log การส่งทั้งหมดจะถูกลบด้วย การกระทำนี้ไม่สามารถย้อนกลับได้"
+        onConfirm={doDeleteWebhook}
+      />
 
       {/* ── Add / Edit Modal ── */}
       <Dialog open={!!modalMode} onOpenChange={(o) => !o && setModalMode(null)}>

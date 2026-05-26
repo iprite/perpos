@@ -8,6 +8,7 @@ import { CustomSelect } from '@/components/ui/custom-select';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog';
+import { ConfirmDeleteDialog } from '@/components/ui/confirm-delete-dialog';
 import { Plus, Pencil, Trash2, ShieldAlert, ShieldCheck, ToggleLeft, ToggleRight } from 'lucide-react';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -74,6 +75,8 @@ export default function RateLimitsPage() {
   const [form,        setForm]       = useState<FormState>(BLANK_FORM);
   const [saving,      setSaving]     = useState(false);
   const [saveError,   setSaveError]  = useState('');
+
+  const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean; id: string }>({ open: false, id: '' });
 
   // Load orgs
   useEffect(() => {
@@ -146,12 +149,12 @@ export default function RateLimitsPage() {
     finally  { setSaving(false); }
   }
 
-  async function handleDelete(id: string) {
-    if (!confirm('ลบ rate limit นี้?')) return;
-    await fetch(`/api/admin/rate-limits?id=${id}`, {
+  async function doDelete() {
+    await fetch(`/api/admin/rate-limits?id=${deleteConfirm.id}`, {
       method: 'DELETE',
       headers: { Authorization: `Bearer ${getToken()}` },
     });
+    setDeleteConfirm({ open: false, id: '' });
     void loadLimits(orgId);
   }
 
@@ -266,7 +269,7 @@ export default function RateLimitsPage() {
                         <button onClick={() => openEdit(l)} className="text-gray-400 hover:text-blue-600">
                           <Pencil className="w-4 h-4" />
                         </button>
-                        <button onClick={() => handleDelete(l.id)} className="text-gray-400 hover:text-red-600">
+                        <button onClick={() => setDeleteConfirm({ open: true, id: l.id })} className="text-gray-400 hover:text-red-600">
                           <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
@@ -278,6 +281,14 @@ export default function RateLimitsPage() {
           </table>
         </div>
       )}
+
+      <ConfirmDeleteDialog
+        open={deleteConfirm.open}
+        onOpenChange={(o) => setDeleteConfirm((s) => ({ ...s, open: o }))}
+        title="ลบ Rate Limit"
+        description="การกระทำนี้ไม่สามารถย้อนกลับได้"
+        onConfirm={doDelete}
+      />
 
       {/* Add/Edit Modal */}
       <Dialog open={modalOpen} onOpenChange={setModalOpen}>

@@ -20,6 +20,7 @@ import { CustomSelect } from "@/components/ui/custom-select";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
+import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog";
 import { startImpersonationSession } from "@/components/impersonation-banner";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -247,6 +248,7 @@ export default function AdminUsersPage() {
   const [deletingUserId,  setDeletingUserId]  = useState<string | null>(null);
   const [resettingUserId, setResettingUserId] = useState<string | null>(null);
   const [togglingUserId,  setTogglingUserId]  = useState<string | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean; userId: string; email: string | null }>({ open: false, userId: '', email: null });
 
   // Impersonation modal
   const [impersonateTarget,  setImpersonateTarget]  = useState<ListedUser | null>(null);
@@ -373,9 +375,10 @@ export default function AdminUsersPage() {
     finally { setTogglingUserId(null); }
   }, [authHeader]);
 
-  const handleDeleteUser = useCallback(async (userId: string, email: string | null) => {
-    if (!confirm(`ลบผู้ใช้ "${email ?? userId}" ออกจากระบบ?\nการกระทำนี้ไม่สามารถย้อนกลับได้`)) return;
+  const doDeleteUser = useCallback(async () => {
+    const { userId, email } = deleteConfirm;
     setDeletingUserId(userId);
+    setDeleteConfirm({ open: false, userId: '', email: null });
     try {
       const headers = await authHeader();
       const res  = await fetch(backendUrl("/admin/users/delete"), {
@@ -388,7 +391,7 @@ export default function AdminUsersPage() {
       else          { setMessage(`ลบ ${email ?? userId} แล้ว`); refreshUsers(); }
     } catch (e: unknown) { setError((e as Error)?.message ?? "ลบผู้ใช้ไม่สำเร็จ"); }
     finally { setDeletingUserId(null); }
-  }, [authHeader, refreshUsers]);
+  }, [authHeader, refreshUsers, deleteConfirm]);
 
   const handleResetPassword = useCallback(async (email: string | null) => {
     if (!email) return;
@@ -705,7 +708,7 @@ export default function AdminUsersPage() {
                     isExpanded={isExpanded}
                     canImpersonate={u.profile?.role !== "super_admin"}
                     onToggleStatus={() => handleToggleStatus(u.id, isActive)}
-                    onDelete={() => handleDeleteUser(u.id, u.email)}
+                    onDelete={() => setDeleteConfirm({ open: true, userId: u.id, email: u.email })}
                     onResetPassword={() => handleResetPassword(u.email)}
                     onImpersonate={() => {
                       setImpersonateTarget(u);
@@ -788,6 +791,15 @@ export default function AdminUsersPage() {
           )}
         </div>
       </div>
+
+      <ConfirmDeleteDialog
+        open={deleteConfirm.open}
+        onOpenChange={(o) => setDeleteConfirm((s) => ({ ...s, open: o }))}
+        title={`ลบผู้ใช้ "${deleteConfirm.email ?? deleteConfirm.userId}"`}
+        description="การกระทำนี้ไม่สามารถย้อนกลับได้"
+        onConfirm={doDeleteUser}
+        loading={!!deletingUserId}
+      />
     </div>
   );
 }

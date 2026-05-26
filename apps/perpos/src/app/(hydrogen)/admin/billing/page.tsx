@@ -9,6 +9,7 @@ import { ThaiDatePicker } from '@/components/ui/thai-date-picker';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog';
+import { ConfirmDeleteDialog } from '@/components/ui/confirm-delete-dialog';
 import { RefreshCw, ChevronDown, ChevronRight, Pencil } from 'lucide-react';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 
@@ -96,6 +97,7 @@ function EditDialog({
   const [err, setErr] = useState('');
   const [canceling, setCanceling] = useState(false);
   const [cancelInfo, setCancelInfo] = useState('');
+  const [cancelConfirm, setCancelConfirm] = useState(false);
 
   function set<K extends keyof EditForm>(key: K, val: string) {
     setForm((f) => ({ ...f, [key]: val }));
@@ -131,11 +133,9 @@ function EditDialog({
     finally { setSaving(false); }
   }
 
-  async function handleCancelAtPeriodEnd() {
+  async function doCancelAtPeriodEnd() {
     if (!token) return;
-    const ok = window.confirm(`ยืนยันยกเลิก Subscription (มีผลเมื่อครบงวด) ของ "${org.org_name}" ?`);
-    if (!ok) return;
-
+    setCancelConfirm(false);
     setCanceling(true);
     setErr('');
     setCancelInfo('');
@@ -246,7 +246,7 @@ function EditDialog({
 
           <div className="sticky bottom-0 z-10 border-t bg-white px-6 py-4">
             <DialogFooter className="gap-2 sm:gap-2">
-              <Button variant="destructive" onClick={handleCancelAtPeriodEnd} disabled={canceling || saving}>
+              <Button variant="destructive" onClick={() => setCancelConfirm(true)} disabled={canceling || saving}>
                 {canceling ? 'กำลังยกเลิก…' : 'Cancel (EOP)'}
               </Button>
               <Button variant="outline" onClick={onClose} disabled={saving || canceling}>ปิด</Button>
@@ -255,6 +255,16 @@ function EditDialog({
           </div>
         </div>
       </DialogContent>
+
+      <ConfirmDeleteDialog
+        open={cancelConfirm}
+        onOpenChange={setCancelConfirm}
+        title={`ยืนยันยกเลิก Subscription`}
+        description={`ยกเลิก Subscription ของ "${org.org_name}" (มีผลเมื่อครบงวด) การกระทำนี้ไม่สามารถย้อนกลับได้`}
+        confirmLabel="ยืนยันยกเลิก"
+        onConfirm={doCancelAtPeriodEnd}
+        loading={canceling}
+      />
     </Dialog>
   );
 }

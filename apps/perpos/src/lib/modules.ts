@@ -80,6 +80,22 @@ export const ALL_MODULES: ModuleDef[] = [
       { key: "team_member", label: "Team Member",  canWrite: false },
     ],
   },
+  {
+    key: "crm",
+    label: "CRM & Solutions",
+    href: "/crm",
+    specific: true,
+    match: (p) => {
+      const seg = p.split("/").filter(Boolean);
+      return seg.length >= 2 && seg[1] === "crm";
+    },
+    roles: [
+      { key: "owner",       label: "Owner",       canWrite: true  },
+      { key: "manager",     label: "Manager",     canWrite: true  },
+      { key: "member",      label: "Member",      canWrite: true  },
+      { key: "viewer",      label: "Viewer",      canWrite: false },
+    ],
+  },
 ];
 
 export const ALL_MODULE_KEYS = ALL_MODULES.map((m) => m.key);
@@ -117,6 +133,11 @@ export const MODULE_MENUS: Record<string, MenuDef[]> = {
     { key: "petty-cash", label: "เงินสดย่อย" },
     { key: "stock",      label: "Stock คลัง" },
     { key: "stays",      label: "การเข้าพัก" },
+  ],
+  crm: [
+    { key: "dashboard",  label: "Dashboard" },
+    { key: "clients",    label: "ลูกค้า" },
+    { key: "solutions",  label: "Solutions" },
   ],
 };
 

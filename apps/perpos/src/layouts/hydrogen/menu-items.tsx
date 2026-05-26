@@ -24,6 +24,8 @@ import {
   CreditCard,
   HeartPulse,
   TrendingUp,
+  Briefcase,
+  Kanban,
 } from "lucide-react";
 
 import type { Role } from "@/lib/supabase/types";
@@ -321,6 +323,17 @@ function buildPayrollMenuItems(org: string): MenuItem[] {
   ];
 }
 
+// ─── CRM module ─────────────────────────────────────────────────────────────
+function buildCrmMenuItems(org: string): MenuItem[] {
+  const c = (path: string) => `/${org}/crm/${path}`;
+  return [
+    { name: "CRM & Solutions" },
+    { name: "Dashboard",  href: `/${org}/crm`,   icon: <LayoutDashboard className="h-5 w-5" /> },
+    { name: "ลูกค้า",    href: c("clients"),     icon: <Briefcase className="h-5 w-5" /> },
+    { name: "Solutions",  href: c("solutions"),   icon: <Kanban className="h-5 w-5" /> },
+  ];
+}
+
 // ─── TMC module ─────────────────────────────────────────────────────────────
 function buildTmcMenuItems(org: string): MenuItem[] {
   const t = (path: string) => `/${org}/tmc/${path}`;
@@ -349,12 +362,14 @@ function pickMenuContext(pathname: string, role: Role | null, enabledKeys: strin
     if (mod === "payroll")   return "payroll";
     if (mod === "assistant") return "assistant";
     if (mod === "tmc")       return "tmc";
+    if (mod === "crm")       return "crm";
     if (mod === "accounting") return "user";
   }
 
   // Fallback: pick based on what's enabled
   if (enabledKeys.includes("accounting")) return "user";
   if (enabledKeys.includes("tmc"))        return "tmc";
+  if (enabledKeys.includes("crm"))        return "crm";
   if (enabledKeys.includes("payroll"))    return "payroll";
   if (enabledKeys.includes("assistant"))  return "assistant";
   return "user";
@@ -378,6 +393,7 @@ export function getMenuItems(
     context === "payroll"   ? buildPayrollMenuItems(org)   :
     context === "assistant" ? buildAssistantMenuItems(org) :
     context === "tmc"       ? buildTmcMenuItems(org)       :
+    context === "crm"       ? buildCrmMenuItems(org)       :
     buildUserMenuItems(org);
 
   return items.filter((item) => {
