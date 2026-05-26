@@ -5,7 +5,7 @@ import { upsertMobileToken } from '../../tmc/mobile/_lib';
 import {
   handleCrmCmd, handleCrmIn, handleCrmOut, handleCrmInStatus,
   handleCrmStatus, handleCrmNotes, handleCrmIssues, handleCrmHours,
-  handleCrmPhoto,
+  handleCrmSolutions, handleCrmPhoto,
   crmHelpText,
 } from '../../crm/_line';
 
@@ -944,7 +944,7 @@ async function checkPermission(admin: ReturnType<typeof createAdminClient>, prof
 // ─── Main webhook handler ─────────────────────────────────────────────────────
 
 const TMC_CMDS = ['รับ', 'จ่าย', 'บัญชี', 'stock', 'stkin', 'stkout', 'stk', 'เช็คอิน', 'pcin', 'pcout', 'pcbal', 'pcfunds', 'tmc'];
-const CRM_CMDS = ['n', 'survey', 'issue', 'mtg', 'log', 'in', 'out', 'status', 'notes', 'issues', 'hours'];
+const CRM_CMDS = ['n', 'survey', 'issue', 'mtg', 'log', 'in', 'out', 'sol', 'status', 'notes', 'issues', 'hours'];
 
 export async function POST(req: NextRequest) {
   const rawBody = await req.text();
@@ -1115,6 +1115,10 @@ export async function POST(req: NextRequest) {
       }
 
       // Phase D — query commands
+      if (cmd === 'sol') {
+        await handleCrmSolutions(admin, args, profile.id, profile.role, activeOrg.id, replyToken);
+        continue;
+      }
       if (cmd === 'status') {
         await handleCrmStatus(admin, args, profile.id, profile.role, activeOrg.id, replyToken);
         continue;

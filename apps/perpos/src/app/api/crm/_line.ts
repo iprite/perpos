@@ -511,6 +511,98 @@ export async function handleCrmInStatus(
   );
 }
 
+// ── /sol handler — list solutions ────────────────────────────────────────────
+
+export async function handleCrmSolutions(
+  admin: Admin,
+  args: string[],
+  profileId: string,
+  profileRole: string,
+  activeOrgId: string,
+  replyToken: string,
+) {
+  if (!await isCrmMember(admin, profileId, activeOrgId, profileRole)) {
+    await replyText(replyToken, '❌ คุณไม่ได้เป็นสมาชิก CRM ของ org นี้');
+    return;
+  }
+
+  const firstArg      = args[0]?.toLowerCase() ?? '';
+  const includeAll    = firstArg === 'all' || firstArg === 'ทั้งหมด';
+  const keyword       = !includeAll ? args.join(' ').trim() : '';
+
+  let q = admin
+    .from('crm_solutions')
+    .select('id, title, status, assigned_to, profiles!assigned_to(display_name, email)')
+    .eq('org_id', activeOrgId)
+    .order('status')
+    .order('updated_at', { ascending: false })
+    .limit(25);
+
+  if (!includeAll) {
+    q = q.not('status', 'in', '("completed","cancelled")') as typeof q;
+  }
+  if (keyword) {
+    q = q.ilike('title', `%${keyword}%`) as typeof q;
+  }
+
+  const { data } = await q;
+
+  type SolRow = {
+    id: string; title: string; status: string; assigned_to: string | null;
+    profiles: { display_name?: string; email?: string } | null;
+  };
+  const rows = (data ?? []) as unknown as SolRow[];
+
+  if (!rows.length) {
+    const hint = keyword
+      ? `ไม่พบ solution ที่มีคำว่า "${keyword}"`
+      : includeAll
+      ? 'ยังไม่มี solutions ใน org นี้'
+      : 'ไม่มี active solutions\n\nพิมพ์ /sol all เพื่อดูทั้งหมด';
+    await replyText(replyToken, `📋 ${hint}`);
+    return;
+  }
+
+  // Group by status
+  const ORDER = ['in_progress', 'pending', 'on_hold', 'completed', 'cancelled'];
+  const grouped = new Map<string, SolRow[]>();
+  for (const s of ORDER) grouped.set(s, []);
+  for (const r of rows) {
+    const bucket = grouped.get(r.status) ?? [];
+    bucket.push(r);
+    grouped.set(r.status, bucket);
+  }
+
+  const lines: string[] = [];
+  let idx = 1;
+  for (const status of ORDER) {
+    const bucket = grouped.get(status) ?? [];
+    if (!bucket.length) continue;
+    const emoji = STATUS_EMOJI[status] ?? '•';
+    const label = STATUS_LABEL[status] ?? status;
+    lines.push(`${emoji} ${label}:`);
+    for (const r of bucket) {
+      const assignee = r.profiles?.display_name || r.profiles?.email || '';
+      const who = assignee ? ` — ${assignee}` : '';
+      lines.push(`  ${idx}. ${r.title}${who}`);
+      idx++;
+    }
+  }
+
+  const total  = rows.length;
+  const header = keyword
+    ? `📋 Solutions "${keyword}" (${total}):\n\n`
+    : includeAll
+    ? `📋 Solutions ทั้งหมด (${total}):\n\n`
+    : `📋 Active Solutions (${total}):\n\n`;
+
+  const footer = !includeAll && !keyword
+    ? '\n\n/sol all — ดูทั้งหมด\n/status <ชื่อ> — รายละเอียด'
+    : '\n\n/status <ชื่อ> — รายละเอียด';
+
+  await replyText(replyToken, header + lines.join('\n') + footer);
+}
+
 // ── Phase E: Photo attachment ─────────────────────────────────────────────────
 
 /**
@@ -959,6 +1051,8 @@ export function crmHelpText(): string {
     `/out [billable] [note]   — หยุดนับ + บันทึก\n` +
     `/in status               — ดู session ปัจจุบัน\n\n` +
     `─── 🔍 Query ───\n` +
+    `/sol                     — รายการ solutions ทั้งหมด\n` +
+    `/sol <keyword>           — ค้นหา solution\n` +
     `/status <solution>       — ดูสถานะ + note ล่าสุด\n` +
     `/notes <solution>        — notes 5 รายการล่าสุด\n` +
     `/issues                  — open issues ทั้งหมด\n` +
