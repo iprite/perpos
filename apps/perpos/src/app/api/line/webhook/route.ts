@@ -5,6 +5,7 @@ import { upsertMobileToken } from '../../tmc/mobile/_lib';
 import {
   handleCrmCmd, handleCrmIn, handleCrmOut, handleCrmInStatus,
   handleCrmStatus, handleCrmNotes, handleCrmIssues, handleCrmHours,
+  handleCrmPhoto,
   crmHelpText,
 } from '../../crm/_line';
 
@@ -959,11 +960,25 @@ export async function POST(req: NextRequest) {
   for (const event of parsed.events ?? []) {
     if (event.type !== 'message') continue;
     const msg = event.message as Record<string, unknown>;
+
+    const replyToken  = String(event.replyToken ?? '');
+    const source      = event.source as Record<string, string>;
+    const lineUserId  = source?.userId ?? '';
+
+    // ─── Image messages — CRM photo attachment ──────────────────────────────
+    if (msg.type === 'image') {
+      const messageId = String(msg.id ?? '');
+      if (lineUserId && messageId) {
+        const imgProfile = await getProfileByLineId(admin, lineUserId);
+        if (imgProfile) {
+          await handleCrmPhoto(admin, lineUserId, messageId, imgProfile.id, replyToken);
+        }
+      }
+      continue;
+    }
+
     if (msg.type !== 'text') continue;
 
-    const replyToken = String(event.replyToken ?? '');
-    const source = event.source as Record<string, string>;
-    const lineUserId = source?.userId ?? '';
     const text = String(msg.text ?? '').trim();
 
     if (!text.startsWith('/')) continue;

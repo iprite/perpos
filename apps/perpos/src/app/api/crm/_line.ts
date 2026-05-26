@@ -511,6 +511,112 @@ export async function handleCrmInStatus(
   );
 }
 
+// ── Phase E: Photo attachment ─────────────────────────────────────────────────
+
+/**
+ * handleCrmPhoto — called when LINE sends an image event
+ *
+ * Requires an active /in session. Downloads the image from the LINE Content
+ * API, uploads to Supabase Storage (crm-attachments bucket), creates a note,
+ * and inserts a crm_note_attachments record.
+ */
+export async function handleCrmPhoto(
+  admin: Admin,
+  lineUserId: string,
+  messageId: string,
+  profileId: string,
+  replyToken: string,
+) {
+  // Require active session — photo must be tied to a solution
+  const session = await getSession(admin, lineUserId);
+  if (!session) {
+    await replyText(replyToken,
+      '📸 ได้รับรูปภาพแล้ว แต่ยังไม่มี session\n\n' +
+      'พิมพ์ /in <solution> ก่อน แล้วส่งรูปอีกครั้ง',
+    );
+    return;
+  }
+
+  // Download image from LINE Content API
+  const lineToken = process.env.LINE_MESSAGING_CHANNEL_ACCESS_TOKEN ?? '';
+  const contentRes = await fetch(
+    `https://api-data.line.me/v2/bot/message/${messageId}/content`,
+    { headers: { Authorization: `Bearer ${lineToken}` } },
+  );
+
+  if (!contentRes.ok) {
+    await replyText(replyToken, '❌ ดาวน์โหลดรูปภาพไม่สำเร็จ กรุณาลองใหม่');
+    return;
+  }
+
+  const mimeType = contentRes.headers.get('content-type') ?? 'image/jpeg';
+  const ext      = mimeType.includes('png') ? 'png' : mimeType.includes('gif') ? 'gif' : 'jpg';
+  const buffer   = Buffer.from(await contentRes.arrayBuffer());
+  const fileSize = buffer.length;
+
+  // Build a unique storage path: orgId/solutionId/timestamp_messageId.ext
+  const timestamp   = Date.now();
+  const fileName    = `${timestamp}_${messageId}.${ext}`;
+  const storagePath = `${session.org_id}/${session.solution_id}/${fileName}`;
+
+  const { error: uploadErr } = await admin.storage
+    .from('crm-attachments')
+    .upload(storagePath, buffer, { contentType: mimeType, upsert: false });
+
+  if (uploadErr) {
+    await replyText(replyToken, `❌ อัปโหลดรูปไม่สำเร็จ: ${uploadErr.message}`);
+    return;
+  }
+
+  // Create a note to anchor the attachment
+  const timeLabel = new Date().toLocaleTimeString('th-TH', {
+    hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Bangkok',
+  });
+  const { data: note, error: noteErr } = await admin
+    .from('crm_solution_notes')
+    .insert({
+      solution_id:    session.solution_id,
+      org_id:         session.org_id,
+      content:        `📸 รูปภาพจาก LINE (${timeLabel})`,
+      note_type:      'note',
+      content_format: 'plain',
+      created_by:     profileId,
+    })
+    .select('id')
+    .single();
+
+  if (noteErr || !note) {
+    // Best-effort cleanup of the uploaded file
+    void admin.storage.from('crm-attachments').remove([storagePath]);
+    await replyText(replyToken, `❌ บันทึก note ไม่สำเร็จ: ${noteErr?.message ?? 'unknown'}`);
+    return;
+  }
+
+  // Insert attachment record
+  const { error: attErr } = await admin.from('crm_note_attachments').insert({
+    note_id:      (note as { id: string }).id,
+    solution_id:  session.solution_id,
+    org_id:       session.org_id,
+    file_name:    fileName,
+    mime_type:    mimeType,
+    file_size:    fileSize,
+    storage_path: storagePath,
+    created_by:   profileId,
+  });
+
+  if (attErr) {
+    await replyText(replyToken, `❌ บันทึก attachment ไม่สำเร็จ: ${attErr.message}`);
+    return;
+  }
+
+  await replyText(replyToken,
+    `✅ บันทึกรูปภาพแล้ว\n` +
+    `📋 ${session.solution_title}\n` +
+    `📎 ${fileName}\n` +
+    `📁 ${(fileSize / 1024).toFixed(0)} KB`,
+  );
+}
+
 // ── Phase D: Query helpers ────────────────────────────────────────────────────
 
 const STATUS_EMOJI: Record<string, string> = {
