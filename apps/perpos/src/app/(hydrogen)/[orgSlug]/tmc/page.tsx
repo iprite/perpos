@@ -40,6 +40,7 @@ function propColor(p: string) { return PROPERTY_COLORS[p] ?? '#6366f1'; }
 
 // Range options
 const RANGE_OPTS = [
+  { value: '1',  label: '1 เดือนล่าสุด' },
   { value: '3',  label: '3 เดือนล่าสุด' },
   { value: '6',  label: '6 เดือนล่าสุด' },
   { value: '12', label: '12 เดือนล่าสุด' },
