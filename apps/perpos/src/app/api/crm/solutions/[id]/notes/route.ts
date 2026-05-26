@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '../../../../_lib/supabase';
 import { requireCrmMember, canWrite } from '../../../_lib';
 import { sendLineMessages } from '@/lib/line/send-messages';
+import { notifyIssueNote } from '../../../_notify';
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -56,10 +57,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const admin = createAdminClient();
 
-  // Fetch solution title for notifications
+  // Fetch solution title + assignee for notifications
   const { data: sol } = await admin
     .from('crm_solutions')
-    .select('title')
+    .select('title, assigned_to')
     .eq('id', id)
     .maybeSingle();
 
@@ -81,6 +82,30 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
+  // Fetch author display name (shared by mentions + issue notify)
+  const { data: authorProfile } = await admin
+    .from('profiles')
+    .select('display_name, email')
+    .eq('id', auth.userId)
+    .maybeSingle();
+  const authorName = (authorProfile as { display_name?: string; email?: string } | null)?.display_name
+    || (authorProfile as { display_name?: string; email?: string } | null)?.email
+    || 'Someone';
+
+  // Issue alert → assignee + managers (fire-and-forget)
+  if (note_type === 'issue') {
+    void notifyIssueNote({
+      admin,
+      orgId,
+      solutionId:         id,
+      solutionTitle:      (sol as { title?: string; assigned_to?: string | null } | null)?.title ?? '',
+      solutionAssignedTo: (sol as { title?: string; assigned_to?: string | null } | null)?.assigned_to ?? null,
+      authorId:           auth.userId,
+      authorName,
+      content,
+    });
+  }
+
   // Handle mentions (fire-and-forget)
   if (Array.isArray(mentioned_user_ids) && mentioned_user_ids.length > 0) {
     void handleMentions({
@@ -90,8 +115,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       orgId,
       mentionedUserIds: mentioned_user_ids,
       authorId:   auth.userId,
+      authorName,
       content,
-      solutionTitle: sol?.title ?? 'Solution',
+      solutionTitle: (sol as { title?: string } | null)?.title ?? 'Solution',
     });
   }
 
@@ -99,12 +125,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 }
 
 async function handleMentions({
-  admin, noteId, solutionId, orgId, mentionedUserIds, authorId, content, solutionTitle,
+  admin, noteId, solutionId, orgId, mentionedUserIds, authorId, authorName, content, solutionTitle,
 }: {
   admin: ReturnType<typeof createAdminClient>;
   noteId: string; solutionId: string; orgId: string;
   mentionedUserIds: string[];
   authorId: string;
+  authorName: string;
   content: string; solutionTitle: string;
 }) {
   // Filter out the author themselves
@@ -116,16 +143,6 @@ async function handleMentions({
     ids.map(uid => ({ note_id: noteId, solution_id: solutionId, org_id: orgId, mentioned_user_id: uid })),
     { onConflict: 'note_id,mentioned_user_id', ignoreDuplicates: true },
   );
-
-  // Fetch author display name
-  const { data: authorProfile } = await admin
-    .from('profiles')
-    .select('display_name, email')
-    .eq('id', authorId)
-    .maybeSingle();
-  const authorName = (authorProfile as { display_name?: string; email?: string } | null)?.display_name
-    || (authorProfile as { display_name?: string; email?: string } | null)?.email
-    || 'Someone';
 
   // Fetch LINE user IDs of mentioned users
   const { data: profiles } = await admin
