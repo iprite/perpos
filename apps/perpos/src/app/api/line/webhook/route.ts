@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { createAdminClient } from '../../_lib/supabase';
 import { upsertMobileToken } from '../../tmc/mobile/_lib';
-import { handleCrmCmd, crmHelpText } from '../../crm/_line';
+import { handleCrmCmd, handleCrmIn, handleCrmOut, handleCrmInStatus, crmHelpText } from '../../crm/_line';
 
 // ─── TMC Org ID (TMC Management) ─────────────────────────────────────────────
 const TMC_ORG_ID = '1f52618c-09c4-49c5-a929-ea5060f26e7d';
@@ -939,7 +939,7 @@ async function checkPermission(admin: ReturnType<typeof createAdminClient>, prof
 // ─── Main webhook handler ─────────────────────────────────────────────────────
 
 const TMC_CMDS = ['รับ', 'จ่าย', 'บัญชี', 'stock', 'stkin', 'stkout', 'stk', 'เช็คอิน', 'pcin', 'pcout', 'pcbal', 'pcfunds', 'tmc'];
-const CRM_CMDS = ['n', 'survey', 'issue', 'mtg', 'log'];
+const CRM_CMDS = ['n', 'survey', 'issue', 'mtg', 'log', 'in', 'out'];
 
 export async function POST(req: NextRequest) {
   const rawBody = await req.text();
@@ -1062,13 +1062,20 @@ export async function POST(req: NextRequest) {
       if (cmd === 'pcfunds') { await handlePcFunds(admin, replyToken);                  continue; }
     }
 
-    // ─── CRM commands (/n /survey /issue /mtg /log) ──────────────────────────
+    // ─── CRM commands (/n /survey /issue /mtg /log /in /out) ────────────────
     if (CRM_CMDS.includes(cmd)) {
+      // /in status — no org needed
+      if (cmd === 'in' && args[0] === 'status') {
+        await handleCrmInStatus(admin, lineUserId, replyToken);
+        continue;
+      }
+
       if (!activeOrg) {
         await replyText(replyToken, '❌ ยังไม่มี Organization\nพิมพ์ /org เพื่อตั้งค่า');
         continue;
       }
-      // Fetch profile name for notification author label
+
+      // Fetch profile name (shared by note commands + /out)
       const { data: pdata } = await admin
         .from('profiles')
         .select('display_name, email')
@@ -1077,6 +1084,18 @@ export async function POST(req: NextRequest) {
       const profileName = (pdata as { display_name?: string; email?: string } | null)?.display_name
         || (pdata as { display_name?: string; email?: string } | null)?.email
         || 'Someone';
+
+      if (cmd === 'in') {
+        await handleCrmIn(admin, args, lineUserId, profile.id, profile.role, activeOrg.id, replyToken);
+        continue;
+      }
+
+      if (cmd === 'out') {
+        await handleCrmOut(admin, args, lineUserId, profile.id, profileName, replyToken);
+        continue;
+      }
+
+      // /n /survey /issue /mtg /log
       await handleCrmCmd(admin, cmd, args, profile.id, profileName, profile.role, activeOrg.id, replyToken);
       continue;
     }

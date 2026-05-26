@@ -1,20 +1,16 @@
 /**
- * CRM LINE Bot — Inbound Command Handlers (Phase B)
+ * CRM LINE Bot — Inbound Command Handlers (Phase B + C)
  *
- * Commands:
+ * Phase B — Note commands:
  *   /n      <solution> | <content>  → note_type: note
  *   /survey <solution> | <content>  → note_type: site_survey
  *   /issue  <solution> | <content>  → note_type: issue
  *   /mtg    <solution> | <content>  → note_type: meeting
  *   /log    <solution> | <content>  → note_type: system_log
  *
- * Flow:
- *   1. Verify user is CRM member of their active org
- *   2. Fuzzy search solutions by query
- *   3. 0 matches → error reply
- *   4. 1 match   → create note → confirm reply
- *   5. 2–5 matches → list solutions + Quick Reply buttons
- *   6. >5 matches → ask to be more specific
+ * Phase C — Time tracking:
+ *   /in  <solution>               → start session
+ *   /out [billable] [<content>]   → end session, create note with duration
  */
 
 import { createAdminClient } from '../_lib/supabase';
@@ -265,17 +261,260 @@ export async function handleCrmCmd(
   );
 }
 
+// ── Time Tracking Helpers ─────────────────────────────────────────────────────
+
+type SessionRow = {
+  id: string;
+  solution_id: string;
+  org_id: string;
+  started_at: string;
+  solution_title?: string;
+};
+
+/** ดึง active session ของ user */
+async function getSession(admin: Admin, lineUserId: string): Promise<SessionRow | null> {
+  const { data } = await admin
+    .from('crm_line_sessions')
+    .select('id, solution_id, org_id, started_at, crm_solutions(title)')
+    .eq('line_user_id', lineUserId)
+    .maybeSingle();
+  if (!data) return null;
+  const row = data as Record<string, unknown>;
+  return {
+    id:             row.id as string,
+    solution_id:    row.solution_id as string,
+    org_id:         row.org_id as string,
+    started_at:     row.started_at as string,
+    solution_title: (row.crm_solutions as { title?: string } | null)?.title ?? '',
+  };
+}
+
+/** แปลง minutes เป็น "Xh Ym" */
+function fmtDuration(minutes: number): string {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  if (h === 0) return `${m}m`;
+  if (m === 0) return `${h}h`;
+  return `${h}h ${m}m`;
+}
+
+/** แปลง ISO timestamp เป็นเวลาไทย "HH:MM" */
+function fmtTimeTH(iso: string): string {
+  return new Date(iso).toLocaleTimeString('th-TH', {
+    hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Bangkok',
+  });
+}
+
+// ── /in handler ───────────────────────────────────────────────────────────────
+
+export async function handleCrmIn(
+  admin: Admin,
+  args: string[],
+  lineUserId: string,
+  profileId: string,
+  profileRole: string,
+  activeOrgId: string,
+  replyToken: string,
+) {
+  const query = args.join(' ').trim();
+
+  if (!query) {
+    await replyText(replyToken,
+      `❌ ระบุชื่อ solution\n\n📌 /in <ชื่อ solution>\nเช่น /in ABC Corp`,
+    );
+    return;
+  }
+
+  // Check CRM membership
+  if (!await isCrmMember(admin, profileId, activeOrgId, profileRole)) {
+    await replyText(replyToken, `❌ คุณไม่ได้เป็นสมาชิก CRM ของ org นี้`);
+    return;
+  }
+
+  // Check for existing session
+  const existing = await getSession(admin, lineUserId);
+  if (existing) {
+    const elapsed = Math.round((Date.now() - new Date(existing.started_at).getTime()) / 60000);
+    await replyTextWithQuickReplies(
+      replyToken,
+      `⚠️ มี session ค้างอยู่\n📋 ${existing.solution_title}\n` +
+      `⏱ เริ่ม ${fmtTimeTH(existing.started_at)} (${fmtDuration(elapsed)} แล้ว)\n\n` +
+      `ต้องการทำอะไร?`,
+      [
+        { label: '✅ /out ปิด session เดิม', text: '/out' },
+        { label: '🔄 เปลี่ยน solution', text: `/in ${query}` },
+      ],
+    );
+    return;
+  }
+
+  // Search solution
+  const solutions = await searchSolutions(admin, activeOrgId, query);
+
+  if (solutions.length === 0) {
+    await replyText(replyToken,
+      `❌ ไม่พบ solution "${query}"\n💡 ลองใช้ชื่อบางส่วน เช่น /in ABC`,
+    );
+    return;
+  }
+
+  if (solutions.length > 5) {
+    await replyText(replyToken,
+      `❌ พบ solution มากเกินไป (${solutions.length} รายการ)\nกรุณาระบุชื่อให้ตรงกว่า`,
+    );
+    return;
+  }
+
+  if (solutions.length > 1) {
+    const list = solutions.map((s, i) => `${i + 1}. ${s.title}`).join('\n');
+    const quickItems = solutions.map(s => ({
+      label: s.title,
+      text:  `/in ${s.title}`,
+    }));
+    await replyTextWithQuickReplies(
+      replyToken,
+      `พบ ${solutions.length} solutions:\n${list}\n\n▼ เลือก solution:`,
+      quickItems,
+    );
+    return;
+  }
+
+  const sol = solutions[0];
+
+  // Upsert session (replace if somehow exists for same user)
+  await admin.from('crm_line_sessions').upsert(
+    { line_user_id: lineUserId, profile_id: profileId, solution_id: sol.id, org_id: activeOrgId, started_at: new Date().toISOString() },
+    { onConflict: 'line_user_id' },
+  );
+
+  const startTime = fmtTimeTH(new Date().toISOString());
+  await replyText(replyToken,
+    `⏱ เริ่มนับเวลา\n📋 ${sol.title}\n🕐 ${startTime}\n\nพิมพ์ /out เมื่อเสร็จงาน\n/out billable — ถ้าคิดค่าบริการ`,
+  );
+}
+
+// ── /out handler ──────────────────────────────────────────────────────────────
+
+export async function handleCrmOut(
+  admin: Admin,
+  args: string[],
+  lineUserId: string,
+  profileId: string,
+  profileName: string,
+  replyToken: string,
+) {
+  const session = await getSession(admin, lineUserId);
+
+  if (!session) {
+    await replyText(replyToken,
+      `❌ ไม่มี session ที่กำลังนับอยู่\nพิมพ์ /in <solution> เพื่อเริ่มนับเวลา`,
+    );
+    return;
+  }
+
+  // Parse args: /out [billable] [<content>]
+  let isBillable = false;
+  let content = '';
+
+  if (args[0]?.toLowerCase() === 'billable') {
+    isBillable = true;
+    content = args.slice(1).join(' ').trim();
+  } else {
+    content = args.join(' ').trim();
+  }
+
+  // Calculate duration
+  const startedAt  = new Date(session.started_at);
+  const endedAt    = new Date();
+  const durationMs = endedAt.getTime() - startedAt.getTime();
+  const durationMin = Math.max(1, Math.round(durationMs / 60000));
+
+  // Warn if session > 8h (possibly forgot to close)
+  const MAX_SESSION_HOURS = 8;
+  if (durationMin > MAX_SESSION_HOURS * 60) {
+    await replyTextWithQuickReplies(
+      replyToken,
+      `⚠️ Session นานผิดปกติ (${fmtDuration(durationMin)})\n` +
+      `📋 ${session.solution_title}\n` +
+      `เริ่ม: ${fmtTimeTH(session.started_at)}\n\n` +
+      `ยืนยันปิด session หรือไม่?`,
+      [
+        { label: '✅ ยืนยันปิด', text: `/out${isBillable ? ' billable' : ''}${content ? ' ' + content : ''}` },
+        { label: '❌ ยกเลิก', text: '/in status' },
+      ],
+    );
+    // NOTE: we don't delete the session here — user must confirm
+    return;
+  }
+
+  // Delete session
+  await admin.from('crm_line_sessions').delete().eq('line_user_id', lineUserId);
+
+  // Build note content
+  const noteContent = content ||
+    `ทำงาน ${fmtTimeTH(session.started_at)} – ${fmtTimeTH(endedAt.toISOString())}`;
+
+  // Create note with duration
+  await admin.from('crm_solution_notes').insert({
+    solution_id:      session.solution_id,
+    org_id:           session.org_id,
+    content:          noteContent,
+    note_type:        'note',
+    content_format:   'plain',
+    duration_minutes: durationMin,
+    is_billable:      isBillable,
+    created_by:       profileId,
+  });
+
+  const billableTag = isBillable ? '\n💰 Billable' : '';
+  const contentTag  = content ? `\n──────────────\n${content.slice(0, 80)}` : '';
+
+  await replyText(replyToken,
+    `✅ บันทึกเวลาแล้ว\n` +
+    `📋 ${session.solution_title}\n` +
+    `⏱ ${fmtDuration(durationMin)}` +
+    billableTag +
+    contentTag,
+  );
+}
+
+// ── /in status ────────────────────────────────────────────────────────────────
+
+export async function handleCrmInStatus(
+  admin: Admin,
+  lineUserId: string,
+  replyToken: string,
+) {
+  const session = await getSession(admin, lineUserId);
+  if (!session) {
+    await replyText(replyToken, `ℹ️ ไม่มี session ที่กำลังนับอยู่\nพิมพ์ /in <solution> เพื่อเริ่ม`);
+    return;
+  }
+  const elapsed = Math.round((Date.now() - new Date(session.started_at).getTime()) / 60000);
+  await replyTextWithQuickReplies(
+    replyToken,
+    `⏱ Session ปัจจุบัน\n📋 ${session.solution_title}\n🕐 เริ่ม ${fmtTimeTH(session.started_at)}\n⌛ ผ่านมา ${fmtDuration(elapsed)}`,
+    [
+      { label: '✅ /out ปิด', text: '/out' },
+      { label: '💰 /out billable', text: '/out billable' },
+    ],
+  );
+}
+
 // ── /crm help ─────────────────────────────────────────────────────────────────
 
 export function crmHelpText(): string {
   return (
     `─── 📋 CRM Notes ───\n` +
-    `/n <solution> | <note>     — บันทึก Note\n` +
-    `/survey <sol> | <detail>   — Site Survey\n` +
-    `/issue <sol> | <problem>   — รายงานปัญหา\n` +
-    `/mtg <sol> | <summary>     — สรุปประชุม\n` +
-    `/log <sol> | <event>       — System Log\n\n` +
-    `💡 ใช้ | (pipe) คั่นระหว่างชื่อ solution กับเนื้อหา\n` +
-    `เช่น /issue ABC Corp | ระบบไม่ตอบสนอง`
+    `/n <sol> | <note>        — บันทึก Note\n` +
+    `/survey <sol> | <detail> — Site Survey\n` +
+    `/issue <sol> | <problem> — รายงานปัญหา\n` +
+    `/mtg <sol> | <summary>   — สรุปประชุม\n` +
+    `/log <sol> | <event>     — System Log\n\n` +
+    `─── ⏱ Time Tracking ───\n` +
+    `/in <solution>           — เริ่มนับเวลา\n` +
+    `/out [billable] [note]   — หยุดนับ + บันทึก\n` +
+    `/in status               — ดู session ปัจจุบัน\n\n` +
+    `💡 /n ABC Corp | ติดตั้งเสร็จ`
   );
 }
