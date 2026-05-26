@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { createAdminClient } from '../../_lib/supabase';
 import { upsertMobileToken } from '../../tmc/mobile/_lib';
+import { handleCrmCmd, crmHelpText } from '../../crm/_line';
 
 // ─── TMC Org ID (TMC Management) ─────────────────────────────────────────────
 const TMC_ORG_ID = '1f52618c-09c4-49c5-a929-ea5060f26e7d';
@@ -938,6 +939,7 @@ async function checkPermission(admin: ReturnType<typeof createAdminClient>, prof
 // ─── Main webhook handler ─────────────────────────────────────────────────────
 
 const TMC_CMDS = ['รับ', 'จ่าย', 'บัญชี', 'stock', 'stkin', 'stkout', 'stk', 'เช็คอิน', 'pcin', 'pcout', 'pcbal', 'pcfunds', 'tmc'];
+const CRM_CMDS = ['n', 'survey', 'issue', 'mtg', 'log'];
 
 export async function POST(req: NextRequest) {
   const rawBody = await req.text();
@@ -1006,6 +1008,7 @@ export async function POST(req: NextRequest) {
           `/รายจ่าย <จำนวน> [โน้ต]\n\n` +
           `─── 📰 ข่าว ───\n` +
           `/ข่าว  — ข่าวสรุป\n\n` +
+          crmHelpText() + '\n\n' +
           `/org  — ดู/เปลี่ยน Organization`,
         );
       }
@@ -1057,6 +1060,25 @@ export async function POST(req: NextRequest) {
       if (cmd === 'pcout')   { await handlePcOut(admin, args, profile.id, replyToken);  continue; }
       if (cmd === 'pcbal')   { await handlePcBal(admin, replyToken);                    continue; }
       if (cmd === 'pcfunds') { await handlePcFunds(admin, replyToken);                  continue; }
+    }
+
+    // ─── CRM commands (/n /survey /issue /mtg /log) ──────────────────────────
+    if (CRM_CMDS.includes(cmd)) {
+      if (!activeOrg) {
+        await replyText(replyToken, '❌ ยังไม่มี Organization\nพิมพ์ /org เพื่อตั้งค่า');
+        continue;
+      }
+      // Fetch profile name for notification author label
+      const { data: pdata } = await admin
+        .from('profiles')
+        .select('display_name, email')
+        .eq('id', profile.id)
+        .maybeSingle();
+      const profileName = (pdata as { display_name?: string; email?: string } | null)?.display_name
+        || (pdata as { display_name?: string; email?: string } | null)?.email
+        || 'Someone';
+      await handleCrmCmd(admin, cmd, args, profile.id, profileName, profile.role, activeOrg.id, replyToken);
+      continue;
     }
 
     // ─── Personal commands (all orgs, permission-gated) ───────────────────────
