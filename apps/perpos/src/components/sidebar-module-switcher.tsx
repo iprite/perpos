@@ -2,8 +2,8 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { Check, ChevronDown } from "lucide-react";
 import {
+  Check, ChevronDown,
   BookOpenText, Users, BotMessageSquare, Building2, Briefcase, Calculator,
 } from "lucide-react";
 import { useAtomValue } from "jotai";
