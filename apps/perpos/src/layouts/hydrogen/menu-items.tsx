@@ -354,8 +354,9 @@ function buildAccFirmMenuItems(org: string): MenuItem[] {
   const f = (path: string) => `/${org}/acc-firm/${path}`;
   return [
     { name: "สำนักงานบัญชี" },
-    { name: "Dashboard",          href: `/${org}/acc-firm`,  icon: <LayoutDashboard className="h-5 w-5" /> },
-    { name: "Client Orgs",        href: f("clients"),        icon: <Calculator className="h-5 w-5" /> },
+    { name: "Dashboard",   href: `/${org}/acc-firm`, icon: <LayoutDashboard className="h-5 w-5" /> },
+    { name: "Client Orgs", href: f("clients"),       icon: <Calculator className="h-5 w-5" /> },
+    { name: "รายงานรวม",  href: f("reports"),       icon: <BarChart3 className="h-5 w-5" /> },
   ];
 }
 

@@ -164,6 +164,7 @@ export const MODULE_MENUS: Record<string, MenuDef[]> = {
   acc_firm: [
     { key: "dashboard", label: "Dashboard" },
     { key: "clients",   label: "ลูกค้า (Client Orgs)" },
+    { key: "reports",   label: "รายงานรวม" },
   ],
 };
 
