@@ -44,14 +44,23 @@ export async function POST(req: NextRequest) {
     actionLink = linkRes.data?.properties?.action_link ?? null;
   }
 
-  // Upsert profile role
+  // Upsert profile — set is_active = true and role for both new and existing users
+  const newUserId: string | null = linkRes.data?.user?.id ?? null;
   const { data: existing } = await admin.from('profiles').select('id').eq('email', email).maybeSingle();
   if (existing?.id) {
-    await admin.from('profiles').update({ role }).eq('id', existing.id);
+    await admin.from('profiles').update({ role, is_active: true }).eq('id', existing.id);
+  } else if (newUserId) {
+    // New user — upsert profile so it's active from the start
+    await admin.from('profiles').upsert({
+      id: newUserId,
+      email,
+      role,
+      is_active: true,
+    }, { onConflict: 'id' });
   }
 
   // Return userId so the caller can immediately add org membership
-  const userId: string | null = linkRes.data?.user?.id ?? null;
+  const userId: string | null = newUserId;
 
   // Send email if SMTP configured
   let emailSent = false;
@@ -64,12 +73,16 @@ export async function POST(req: NextRequest) {
     smtpError = 'ไม่มี action link สำหรับส่งในอีเมล';
   } else {
     try {
+      const smtpPort = Number(process.env.SMTP_PORT ?? 587);
       const transporter = nodemailer.createTransport({
         host: smtpHost,
-        port: Number(process.env.SMTP_PORT ?? 587),
-        secure: Number(process.env.SMTP_PORT ?? 587) === 465,
+        port: smtpPort,
+        secure: smtpPort === 465,
         auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASSWORD },
+        tls: { rejectUnauthorized: false },
       });
+      // Verify connection before sending
+      await transporter.verify();
       await transporter.sendMail({
         from: process.env.SMTP_FROM_EMAIL ?? process.env.SMTP_USER,
         to: email,
@@ -94,8 +107,14 @@ export async function POST(req: NextRequest) {
       });
       emailSent = true;
     } catch (e: unknown) {
-      smtpError = (e as Error)?.message ?? 'ส่งอีเมลไม่สำเร็จ';
-      console.error('[invite] SMTP error:', smtpError);
+      const err = e as Error & { code?: string; responseCode?: number; response?: string };
+      smtpError = `${err?.message ?? 'ส่งอีเมลไม่สำเร็จ'}${err?.code ? ` [${err.code}]` : ''}${err?.response ? ` — ${err.response}` : ''}`;
+      console.error('[invite] SMTP error:', {
+        host: smtpHost,
+        port: process.env.SMTP_PORT,
+        user: process.env.SMTP_USER,
+        error: smtpError,
+      });
     }
   }
 
