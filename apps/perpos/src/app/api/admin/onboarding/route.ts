@@ -59,7 +59,7 @@ export async function POST(req: NextRequest) {
   // ── Create organization ───────────────────────────────────────────────────────
   const { data: org, error: orgErr } = await admin
     .from('organizations')
-    .insert({ name: String(name).trim(), slug })
+    .insert({ name: String(name).trim(), slug, created_by: auth.userId })
     .select('id, name, slug')
     .single();
 
