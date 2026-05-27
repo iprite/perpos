@@ -96,6 +96,21 @@ export const ALL_MODULES: ModuleDef[] = [
       { key: "viewer",      label: "Viewer",      canWrite: false },
     ],
   },
+  {
+    key: "acc_firm",
+    label: "สำนักงานบัญชี",
+    href: "/acc-firm",
+    specific: true,
+    match: (p) => {
+      const seg = p.split("/").filter(Boolean);
+      return seg.length >= 2 && seg[1] === "acc-firm";
+    },
+    roles: [
+      { key: "owner",       label: "Owner",       canWrite: true  },
+      { key: "accountant",  label: "Accountant",  canWrite: true  },
+      { key: "viewer",      label: "Viewer",      canWrite: false },
+    ],
+  },
 ];
 
 export const ALL_MODULE_KEYS = ALL_MODULES.map((m) => m.key);
@@ -138,6 +153,10 @@ export const MODULE_MENUS: Record<string, MenuDef[]> = {
     { key: "dashboard",  label: "Dashboard" },
     { key: "clients",    label: "ลูกค้า" },
     { key: "solutions",  label: "Solutions" },
+  ],
+  acc_firm: [
+    { key: "dashboard", label: "Dashboard" },
+    { key: "clients",   label: "ลูกค้า (Client Orgs)" },
   ],
 };
 

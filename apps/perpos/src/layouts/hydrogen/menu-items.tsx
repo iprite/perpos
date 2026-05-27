@@ -26,6 +26,7 @@ import {
   TrendingUp,
   Briefcase,
   Kanban,
+  Calculator,
 } from "lucide-react";
 
 import type { Role } from "@/lib/supabase/types";
@@ -348,6 +349,16 @@ function buildTmcMenuItems(org: string): MenuItem[] {
   ];
 }
 
+// ─── Accounting Firm module ──────────────────────────────────────────────────
+function buildAccFirmMenuItems(org: string): MenuItem[] {
+  const f = (path: string) => `/${org}/acc-firm/${path}`;
+  return [
+    { name: "สำนักงานบัญชี" },
+    { name: "Dashboard",          href: `/${org}/acc-firm`,  icon: <LayoutDashboard className="h-5 w-5" /> },
+    { name: "Client Orgs",        href: f("clients"),        icon: <Calculator className="h-5 w-5" /> },
+  ];
+}
+
 // ─── Context picker ─────────────────────────────────────────────────────────
 
 function pickMenuContext(pathname: string, role: Role | null, enabledKeys: string[]): string {
@@ -363,6 +374,7 @@ function pickMenuContext(pathname: string, role: Role | null, enabledKeys: strin
     if (mod === "assistant") return "assistant";
     if (mod === "tmc")       return "tmc";
     if (mod === "crm")       return "crm";
+    if (mod === "acc-firm")  return "acc_firm";
     if (mod === "accounting") return "user";
   }
 
@@ -370,6 +382,7 @@ function pickMenuContext(pathname: string, role: Role | null, enabledKeys: strin
   if (enabledKeys.includes("accounting")) return "user";
   if (enabledKeys.includes("tmc"))        return "tmc";
   if (enabledKeys.includes("crm"))        return "crm";
+  if (enabledKeys.includes("acc_firm"))   return "acc_firm";
   if (enabledKeys.includes("payroll"))    return "payroll";
   if (enabledKeys.includes("assistant"))  return "assistant";
   return "user";
@@ -389,11 +402,12 @@ export function getMenuItems(
 
   const context = pickMenuContext(pathname, role, enabledKeys);
   const items =
-    context === "admin"     ? buildAdminMenuItems()        :
-    context === "payroll"   ? buildPayrollMenuItems(org)   :
-    context === "assistant" ? buildAssistantMenuItems(org) :
-    context === "tmc"       ? buildTmcMenuItems(org)       :
-    context === "crm"       ? buildCrmMenuItems(org)       :
+    context === "admin"     ? buildAdminMenuItems()          :
+    context === "payroll"   ? buildPayrollMenuItems(org)     :
+    context === "assistant" ? buildAssistantMenuItems(org)   :
+    context === "tmc"       ? buildTmcMenuItems(org)         :
+    context === "crm"       ? buildCrmMenuItems(org)         :
+    context === "acc_firm"  ? buildAccFirmMenuItems(org)     :
     buildUserMenuItems(org);
 
   return items.filter((item) => {
