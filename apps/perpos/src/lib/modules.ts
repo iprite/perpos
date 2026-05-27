@@ -13,6 +13,12 @@ export type ModuleDef = {
   /** specific = true → module built exclusively for one particular org
    *  (e.g. TMC Management). Hidden from other orgs' module manager entirely. */
   specific?: boolean;
+  /**
+   * forOrgSlugs — slugs ขององค์กรที่ได้รับอนุญาตให้เปิด specific module นี้
+   * ถ้าไม่ระบุ: admin เปิดให้ org ไหนก็ได้ (ท่า tmc เดิม)
+   * ถ้าระบุ: module จะโชว์ใน Admin → Modules เฉพาะ org เหล่านี้
+   */
+  forOrgSlugs?: string[];
   match: (pathname: string) => boolean;
   /** Role definitions available inside this module.
    *  First entry is considered the highest-privilege role. */
@@ -101,6 +107,7 @@ export const ALL_MODULES: ModuleDef[] = [
     label: "สำนักงานบัญชี",
     href: "/acc-firm",
     specific: true,
+    forOrgSlugs: ["jtacc"],
     match: (p) => {
       const seg = p.split("/").filter(Boolean);
       return seg.length >= 2 && seg[1] === "acc-firm";

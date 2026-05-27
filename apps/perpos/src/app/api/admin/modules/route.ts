@@ -58,12 +58,18 @@ export async function GET(req: NextRequest) {
   const admin = createAdminClient();
   const { data: orgs, error: orgErr } = await admin
     .from('organizations')
-    .select('id, name')
+    .select('id, name, slug')
     .order('name');
   if (orgErr) return NextResponse.json({ error: orgErr.message }, { status: 500 });
 
   const orgId = req.nextUrl.searchParams.get('orgId');
   if (!orgId) return NextResponse.json({ orgs: orgs ?? [] });
+
+  // Get slug of selected org (needed to match forOrgSlugs on specific modules)
+  const selectedOrg = (orgs ?? []).find((o: Record<string, unknown>) => o.id === orgId) as
+    | { id: string; name: string; slug: string }
+    | undefined;
+  const orgSlug = selectedOrg?.slug ?? '';
 
   // Module-level settings
   const { data: moduleRows } = await admin
@@ -73,9 +79,16 @@ export async function GET(req: NextRequest) {
 
   const moduleMap = new Map((moduleRows ?? []).map((r: Record<string, unknown>) => [r.module_key, r]));
 
-  // Specific modules (e.g. tmc) only appear in module manager if already enabled for this org
   const enabledModuleKeys = new Set((moduleRows ?? []).map((r: Record<string, unknown>) => String(r.module_key)));
-  const visibleModules = ALL_MODULES.filter((m) => !m.specific || enabledModuleKeys.has(m.key));
+
+  // Specific module visibility rules:
+  //   • forOrgSlugs defined → show only when org slug matches (even if not yet enabled)
+  //   • forOrgSlugs not defined → show only when already enabled (legacy tmc behaviour)
+  const visibleModules = ALL_MODULES.filter((m) => {
+    if (!m.specific) return true;
+    if (m.forOrgSlugs) return m.forOrgSlugs.includes(orgSlug);
+    return enabledModuleKeys.has(m.key);
+  });
 
   const settings = visibleModules.map((m) => ({
     module_key:    m.key,
