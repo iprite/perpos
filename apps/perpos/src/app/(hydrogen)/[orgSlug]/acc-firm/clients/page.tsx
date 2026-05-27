@@ -14,9 +14,11 @@ import {
 } from '@/components/ui/dialog';
 import {
   Building2, Plus, BookOpenText, Users, ArrowUpRight,
-  Calculator, MoreHorizontal,
+  Calculator, MoreHorizontal, UserCog, CheckCircle2,
+  Circle, ShieldCheck, ShieldOff, BookOpen,
 } from 'lucide-react';
 
+// ── Types ──────────────────────────────────────────────────────────────────────
 type ClientRow = {
   id: string;
   status: 'active' | 'inactive' | 'ended';
@@ -29,6 +31,23 @@ type ClientRow = {
 
 type OrgOption = { value: string; label: string };
 
+type FirmMember = {
+  userId: string;
+  firmRole: string;
+  displayName: string;
+  email: string;
+  avatarUrl: string | null;
+  hasAccess: boolean;
+  accessModules: string[];
+};
+
+type Engagement = {
+  id: string;
+  modulesManaged: string[];
+  status: string;
+};
+
+// ── Constants ──────────────────────────────────────────────────────────────────
 const STATUS_OPTIONS = [
   { value: 'active',   label: 'Active' },
   { value: 'inactive', label: 'Inactive' },
@@ -58,6 +77,18 @@ const EMPTY_FORM = {
   startedAt:      '',
 };
 
+// ── Avatar placeholder ─────────────────────────────────────────────────────────
+function Avatar({ name, url }: { name: string; url: string | null }) {
+  const initials = name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
+  if (url) return <img src={url} alt={name} className="w-8 h-8 rounded-full object-cover" />;
+  return (
+    <div className="w-8 h-8 rounded-full bg-teal-100 text-teal-700 text-xs font-bold flex items-center justify-center shrink-0">
+      {initials}
+    </div>
+  );
+}
+
+// ── Main page ──────────────────────────────────────────────────────────────────
 export default function AccFirmClientsPage() {
   const { orgSlug } = useParams<{ orgSlug: string }>();
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
@@ -73,7 +104,14 @@ export default function AccFirmClientsPage() {
   const [form, setForm]           = useState(EMPTY_FORM);
   const [filterStatus, setFilterStatus] = useState('');
 
-  // ── Load ──────────────────────────────────────────────────────────────────
+  // Provision dialog state
+  const [provClient, setProvClient]           = useState<ClientRow | null>(null);
+  const [firmMembers, setFirmMembers]         = useState<FirmMember[]>([]);
+  const [engagement, setEngagement]           = useState<Engagement | null>(null);
+  const [provLoading, setProvLoading]         = useState(false);
+  const [provSaving, setProvSaving]           = useState<string | null>(null); // userId being toggled
+
+  // ── Load clients ──────────────────────────────────────────────────────────
   const load = useCallback(async () => {
     setLoading(true);
     const [{ data: org }, { data: sess }] = await Promise.all([
@@ -102,7 +140,60 @@ export default function AccFirmClientsPage() {
 
   useEffect(() => { load(); }, [load]);
 
-  // ── Available orgs for add (exclude already-added + self) ─────────────────
+  // ── Load provision data when dialog opens ─────────────────────────────────
+  const openProvision = useCallback(async (client: ClientRow) => {
+    setProvClient(client);
+    setFirmMembers([]);
+    setEngagement(null);
+    setProvLoading(true);
+    const res = await fetch(
+      `/api/acc-firm/provision?firmOrgId=${orgId}&clientOrgId=${client.client_org.id}`,
+      { headers: { Authorization: `Bearer ${token}` } },
+    );
+    if (res.ok) {
+      const json = await res.json();
+      setFirmMembers(json.members ?? []);
+      setEngagement(json.engagement ?? null);
+    }
+    setProvLoading(false);
+  }, [orgId, token]);
+
+  // ── Toggle access for a firm member ──────────────────────────────────────
+  const toggleAccess = useCallback(async (member: FirmMember) => {
+    if (!provClient) return;
+    setProvSaving(member.userId);
+
+    if (member.hasAccess) {
+      // Revoke
+      await fetch('/api/acc-firm/provision', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          firmOrgId:   orgId,
+          clientOrgId: provClient.client_org.id,
+          userId:      member.userId,
+        }),
+      });
+    } else {
+      // Provision
+      await fetch('/api/acc-firm/provision', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          firmOrgId:   orgId,
+          clientOrgId: provClient.client_org.id,
+          userId:      member.userId,
+          modules:     engagement?.modulesManaged ?? provClient.modules_managed,
+        }),
+      });
+    }
+
+    // Refresh members list
+    await openProvision(provClient);
+    setProvSaving(null);
+  }, [provClient, orgId, token, engagement, openProvision]);
+
+  // ── Available orgs (exclude already-added + self) ─────────────────────────
   const usedOrgIds = useMemo(
     () => new Set([orgId, ...clients.map(c => c.client_org.id)]),
     [orgId, clients],
@@ -112,24 +203,7 @@ export default function AccFirmClientsPage() {
     [allOrgs, usedOrgIds],
   );
 
-  // ── Open add dialog ───────────────────────────────────────────────────────
-  const openAdd = () => {
-    setForm(EMPTY_FORM);
-    setShowAdd(true);
-  };
-
-  // ── Open edit dialog ──────────────────────────────────────────────────────
-  const openEdit = (row: ClientRow) => {
-    setEditRow(row);
-    setForm({
-      clientOrgId:    row.client_org.id,
-      modulesManaged: row.modules_managed,
-      note:           row.note ?? '',
-      startedAt:      row.started_at ?? '',
-    });
-  };
-
-  // ── Toggle module in form ─────────────────────────────────────────────────
+  // ── Toggle module in add/edit form ────────────────────────────────────────
   const toggleModule = (mod: string) => {
     setForm(f => ({
       ...f,
@@ -160,7 +234,7 @@ export default function AccFirmClientsPage() {
   };
 
   // ── Save edit ─────────────────────────────────────────────────────────────
-  const handleEdit = async (newStatus?: string) => {
+  const handleEdit = async () => {
     if (!editRow) return;
     setSaving(true);
     const res = await fetch('/api/acc-firm/clients', {
@@ -169,7 +243,7 @@ export default function AccFirmClientsPage() {
       body: JSON.stringify({
         id:             editRow.id,
         firmOrgId:      orgId,
-        status:         newStatus ?? editRow.status,
+        status:         editRow.status,
         modulesManaged: form.modulesManaged,
         note:           form.note || null,
       }),
@@ -179,11 +253,18 @@ export default function AccFirmClientsPage() {
     else { const e = await res.json(); alert(e.error); }
   };
 
+  const openEdit = (row: ClientRow) => {
+    setEditRow(row);
+    setForm({ clientOrgId: row.client_org.id, modulesManaged: row.modules_managed, note: row.note ?? '', startedAt: row.started_at ?? '' });
+  };
+
   // ── Filter ────────────────────────────────────────────────────────────────
   const filtered = filterStatus ? clients.filter(c => c.status === filterStatus) : clients;
 
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div className="p-4 md:p-6 space-y-5">
+
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
@@ -192,7 +273,7 @@ export default function AccFirmClientsPage() {
           </h1>
           <p className="text-sm text-slate-500">องค์กรที่อยู่ในการกำกับดูแลของสำนักงานบัญชี</p>
         </div>
-        <Button onClick={openAdd} className="gap-1.5">
+        <Button onClick={() => { setForm(EMPTY_FORM); setShowAdd(true); }} className="gap-1.5">
           <Plus className="w-4 h-4" /> เพิ่ม Client Org
         </Button>
       </div>
@@ -246,34 +327,35 @@ export default function AccFirmClientsPage() {
                         ))}
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-slate-500 text-xs">
-                      {c.started_at ?? '—'}
-                    </td>
+                    <td className="px-4 py-3 text-slate-500 text-xs">{c.started_at ?? '—'}</td>
                     <td className="px-4 py-3">
                       <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_CLS[c.status] ?? ''}`}>
                         {STATUS_OPTIONS.find(s => s.value === c.status)?.label ?? c.status}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-slate-400 text-xs max-w-[180px] truncate">
+                    <td className="px-4 py-3 text-slate-400 text-xs max-w-[160px] truncate">
                       {c.note ?? '—'}
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex gap-1 justify-end">
                         {c.status === 'active' && c.modules_managed.includes('accounting') && (
                           <Link href={`/${c.client_org.slug}/accounting`} target="_blank">
-                            <Button size="sm" variant="ghost" className="gap-1 text-xs">
-                              <BookOpenText className="w-3.5 h-3.5" /> บัญชี <ArrowUpRight className="w-3 h-3" />
+                            <Button size="sm" variant="ghost" className="gap-1 text-xs h-7 px-2">
+                              <BookOpenText className="w-3.5 h-3.5" />
+                              <ArrowUpRight className="w-3 h-3" />
                             </Button>
                           </Link>
                         )}
-                        {c.status === 'active' && c.modules_managed.includes('payroll') && (
-                          <Link href={`/${c.client_org.slug}/payroll`} target="_blank">
-                            <Button size="sm" variant="ghost" className="gap-1 text-xs">
-                              <Users className="w-3.5 h-3.5" /> Payroll <ArrowUpRight className="w-3 h-3" />
-                            </Button>
-                          </Link>
+                        {c.status === 'active' && (
+                          <Button
+                            size="sm" variant="outline"
+                            className="gap-1 text-xs h-7 px-2 text-teal-700 border-teal-200 hover:bg-teal-50"
+                            onClick={() => openProvision(c)}
+                          >
+                            <UserCog className="w-3.5 h-3.5" /> Accountants
+                          </Button>
                         )}
-                        <Button size="sm" variant="ghost" onClick={() => openEdit(c)}>
+                        <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => openEdit(c)}>
                           <MoreHorizontal className="w-4 h-4" />
                         </Button>
                       </div>
@@ -286,12 +368,10 @@ export default function AccFirmClientsPage() {
         )}
       </div>
 
-      {/* ── Add Dialog ───────────────────────────────────────────────────────── */}
+      {/* ── Add Dialog ──────────────────────────────────────────────────────── */}
       <Dialog open={showAdd} onOpenChange={setShowAdd}>
         <DialogContent>
-          <DialogHeader>
-            <DialogTitle>เพิ่ม Client Org</DialogTitle>
-          </DialogHeader>
+          <DialogHeader><DialogTitle>เพิ่ม Client Org</DialogTitle></DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-1.5">
               <Label>องค์กรลูกค้า *</Label>
@@ -305,16 +385,12 @@ export default function AccFirmClientsPage() {
               <Label>Modules ที่จะดูแล *</Label>
               <div className="flex gap-2 flex-wrap">
                 {MODULE_OPTIONS.map(m => (
-                  <button
-                    key={m.value}
-                    type="button"
-                    onClick={() => toggleModule(m.value)}
+                  <button key={m.value} type="button" onClick={() => toggleModule(m.value)}
                     className={`flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg border transition-colors ${
                       form.modulesManaged.includes(m.value)
                         ? 'bg-teal-50 border-teal-300 text-teal-700'
                         : 'border-slate-200 text-slate-500 hover:border-slate-300'
-                    }`}
-                  >
+                    }`}>
                     {MODULE_ICON[m.value]} {m.label}
                   </button>
                 ))}
@@ -322,19 +398,11 @@ export default function AccFirmClientsPage() {
             </div>
             <div className="space-y-1.5">
               <Label>วันที่เริ่มดูแล</Label>
-              <ThaiDatePicker
-                value={form.startedAt}
-                onChange={v => setForm(f => ({ ...f, startedAt: v }))}
-                placeholder="เลือกวันที่"
-              />
+              <ThaiDatePicker value={form.startedAt} onChange={v => setForm(f => ({ ...f, startedAt: v }))} placeholder="เลือกวันที่" />
             </div>
             <div className="space-y-1.5">
               <Label>หมายเหตุ</Label>
-              <Input
-                value={form.note}
-                onChange={e => setForm(f => ({ ...f, note: e.target.value }))}
-                placeholder="เช่น รับดูแลบัญชีรายเดือน"
-              />
+              <Input value={form.note} onChange={e => setForm(f => ({ ...f, note: e.target.value }))} placeholder="เช่น รับดูแลบัญชีรายเดือน" />
             </div>
           </div>
           <DialogFooter className="gap-2 sm:gap-2">
@@ -346,27 +414,21 @@ export default function AccFirmClientsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* ── Edit Dialog ──────────────────────────────────────────────────────── */}
+      {/* ── Edit Dialog ─────────────────────────────────────────────────────── */}
       <Dialog open={!!editRow} onOpenChange={v => { if (!v) setEditRow(null); }}>
         <DialogContent>
-          <DialogHeader>
-            <DialogTitle>แก้ไข — {editRow?.client_org.name}</DialogTitle>
-          </DialogHeader>
+          <DialogHeader><DialogTitle>แก้ไข — {editRow?.client_org.name}</DialogTitle></DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-1.5">
               <Label>Modules ที่ดูแล *</Label>
               <div className="flex gap-2 flex-wrap">
                 {MODULE_OPTIONS.map(m => (
-                  <button
-                    key={m.value}
-                    type="button"
-                    onClick={() => toggleModule(m.value)}
+                  <button key={m.value} type="button" onClick={() => toggleModule(m.value)}
                     className={`flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg border transition-colors ${
                       form.modulesManaged.includes(m.value)
                         ? 'bg-teal-50 border-teal-300 text-teal-700'
                         : 'border-slate-200 text-slate-500 hover:border-slate-300'
-                    }`}
-                  >
+                    }`}>
                     {MODULE_ICON[m.value]} {m.label}
                   </button>
                 ))}
@@ -382,18 +444,100 @@ export default function AccFirmClientsPage() {
             </div>
             <div className="space-y-1.5">
               <Label>หมายเหตุ</Label>
-              <Input
-                value={form.note}
-                onChange={e => setForm(f => ({ ...f, note: e.target.value }))}
-                placeholder="หมายเหตุ"
-              />
+              <Input value={form.note} onChange={e => setForm(f => ({ ...f, note: e.target.value }))} placeholder="หมายเหตุ" />
             </div>
           </div>
           <DialogFooter className="gap-2 sm:gap-2">
             <Button variant="outline" onClick={() => setEditRow(null)} disabled={saving}>ยกเลิก</Button>
-            <Button onClick={() => handleEdit(editRow?.status)} disabled={saving || form.modulesManaged.length === 0}>
+            <Button onClick={handleEdit} disabled={saving || form.modulesManaged.length === 0}>
               {saving ? 'กำลังบันทึก…' : 'บันทึก'}
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Provision Dialog ─────────────────────────────────────────────────── */}
+      <Dialog open={!!provClient} onOpenChange={v => { if (!v) setProvClient(null); }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <UserCog className="w-5 h-5 text-teal-500" />
+              จัดการ Accountants — {provClient?.client_org.name}
+            </DialogTitle>
+          </DialogHeader>
+
+          {/* Engagement modules info */}
+          {engagement && (
+            <div className="flex gap-1.5 flex-wrap">
+              {engagement.modulesManaged.map(m => (
+                <span key={m} className="flex items-center gap-1 text-xs bg-teal-50 text-teal-700 border border-teal-200 px-2 py-0.5 rounded-full">
+                  {MODULE_ICON[m]} {m}
+                </span>
+              ))}
+              <span className="text-xs text-slate-400 self-center ml-1">modules ที่จะ grant</span>
+            </div>
+          )}
+
+          <div className="space-y-2 py-1 max-h-[380px] overflow-y-auto">
+            {provLoading ? (
+              <div className="p-6 text-center text-slate-400 text-sm">กำลังโหลด…</div>
+            ) : firmMembers.length === 0 ? (
+              <div className="p-6 text-center text-slate-300 text-sm">ไม่พบสมาชิกใน firm org</div>
+            ) : (
+              firmMembers.map(m => {
+                const isSaving = provSaving === m.userId;
+                return (
+                  <div
+                    key={m.userId}
+                    className={`flex items-center gap-3 rounded-xl border px-3 py-2.5 transition-colors ${
+                      m.hasAccess ? 'bg-teal-50 border-teal-200' : 'bg-white border-slate-100'
+                    }`}
+                  >
+                    <Avatar name={m.displayName} url={m.avatarUrl} />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-slate-800 truncate">{m.displayName}</p>
+                      <p className="text-xs text-slate-400 truncate">{m.email}</p>
+                    </div>
+
+                    {/* Access status */}
+                    <div className="flex items-center gap-2 shrink-0">
+                      {m.hasAccess ? (
+                        <div className="flex gap-1">
+                          {m.accessModules.map(mod => (
+                            <span key={mod} className="flex items-center gap-0.5 text-xs text-teal-700 bg-teal-100 px-1.5 py-0.5 rounded">
+                              {mod === 'accounting' ? <BookOpen className="w-3 h-3" /> : <Users className="w-3 h-3" />}
+                            </span>
+                          ))}
+                        </div>
+                      ) : null}
+
+                      <button
+                        type="button"
+                        disabled={isSaving}
+                        onClick={() => toggleAccess(m)}
+                        className={`flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border font-medium transition-colors disabled:opacity-50 ${
+                          m.hasAccess
+                            ? 'border-red-200 text-red-600 hover:bg-red-50'
+                            : 'border-teal-300 text-teal-700 hover:bg-teal-50'
+                        }`}
+                      >
+                        {isSaving ? (
+                          <span className="animate-pulse">…</span>
+                        ) : m.hasAccess ? (
+                          <><ShieldOff className="w-3.5 h-3.5" /> ถอดสิทธิ์</>
+                        ) : (
+                          <><ShieldCheck className="w-3.5 h-3.5" /> Grant</>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setProvClient(null)}>ปิด</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
