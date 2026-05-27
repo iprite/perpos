@@ -133,7 +133,7 @@ function UserActionMenu({
       {open && typeof window !== "undefined" && (
         <div
           ref={menuRef}
-          style={{ position: "fixed", top: pos.top, right: pos.right, zIndex: 9999 }}
+          style={{ position: "fixed", top: pos.top, bottom: pos.bottom, right: pos.right, zIndex: 9999 }}
           className="w-48 rounded-xl border border-gray-200 bg-white py-1 shadow-lg ring-1 ring-black/5"
         >
           {/* Orgs */}
