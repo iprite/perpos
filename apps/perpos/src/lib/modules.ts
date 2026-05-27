@@ -162,9 +162,11 @@ export const MODULE_MENUS: Record<string, MenuDef[]> = {
     { key: "solutions",  label: "Solutions" },
   ],
   acc_firm: [
-    { key: "dashboard", label: "Dashboard" },
-    { key: "clients",   label: "ลูกค้า (Client Orgs)" },
-    { key: "reports",   label: "รายงานรวม" },
+    { key: "dashboard",       label: "Dashboard" },
+    { key: "clients",         label: "ลูกค้า (Client Orgs)" },
+    { key: "reports",         label: "รายงานรวม" },
+    { key: "petty-cash",      label: "เงินสดย่อย" },
+    { key: "service-clients", label: "ลูกค้าบริการ" },
   ],
 };
 
