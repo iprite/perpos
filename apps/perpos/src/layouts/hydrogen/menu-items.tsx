@@ -27,6 +27,7 @@ import {
   Briefcase,
   Kanban,
   Calculator,
+  Zap,
 } from "lucide-react";
 
 import type { Role } from "@/lib/supabase/types";
@@ -235,6 +236,12 @@ function buildAdminMenuItems(): MenuItem[] {
       name: "Tenant Onboarding",
       href: "/admin/onboarding",
       icon: <PlusCircle className="h-5 w-5" />,
+      roles: ["super_admin"],
+    },
+    {
+      name: "Module Provisioning",
+      href: "/admin/provisioning",
+      icon: <Zap className="h-5 w-5" />,
       roles: ["super_admin"],
     },
     {
