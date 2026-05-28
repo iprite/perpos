@@ -33,7 +33,7 @@ type Txn = {
 const EMPTY_FORM = {
   fundId: '', txnDate: new Date().toISOString().slice(0, 10),
   txnType: 'expense' as 'top_up' | 'expense',
-  amount: '', description: '', category: '', propertyCode: '', note: '',
+  amount: '', description: '', category: '', propertyCodes: [] as string[], note: '',
 };
 
 function fmt(n: number) { return n.toLocaleString('th-TH', { minimumFractionDigits: 2 }); }
@@ -211,7 +211,8 @@ export default function TmcPettyCashPage() {
     const body = {
       orgId: TMC_ORG_ID, fundId: form.fundId, txnDate: form.txnDate,
       txnType: form.txnType, amount: form.amount, description: form.description,
-      category: form.category || undefined, propertyCode: form.propertyCode || undefined,
+      category: form.category || undefined,
+      propertyCode: form.propertyCodes.length > 0 ? form.propertyCodes.join(',') : undefined,
       note: form.note || undefined,
     };
     const res = editId
@@ -226,7 +227,9 @@ export default function TmcPettyCashPage() {
   function openEdit(t: Txn) {
     setForm({ fundId: t.fund_id, txnDate: t.txn_date, txnType: t.txn_type,
       amount: String(t.amount), description: t.description,
-      category: t.category ?? '', propertyCode: t.property_code ?? '', note: t.note ?? '' });
+      category: t.category ?? '',
+      propertyCodes: t.property_code ? t.property_code.split(',').filter(Boolean) : [],
+      note: t.note ?? '' });
     setEditId(t.id); setFormErr(''); setShowForm(true);
   }
 
@@ -560,7 +563,12 @@ export default function TmcPettyCashPage() {
             )}
             <div className="space-y-1.5">
               <Label>แปลง</Label>
-              <CustomSelect value={form.propertyCode} onChange={v => setForm(f => ({ ...f, propertyCode: v }))} options={propFormOpts} />
+              <MultiSelect
+                value={form.propertyCodes}
+                onChange={v => setForm(f => ({ ...f, propertyCodes: v }))}
+                options={activeProperties.map(p => ({ value: p.code, label: `${p.code} ${p.name}` }))}
+                placeholder="— ไม่ระบุ —"
+              />
             </div>
             <div className="col-span-2 space-y-1.5">
               <Label>หมายเหตุ</Label>

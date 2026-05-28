@@ -171,7 +171,7 @@ const EMPTY_ACCOUNT = { name: '', account_type: 'savings', bank_name: '', accoun
 const EMPTY_FORM = {
   accountId: '', entryDate: new Date().toISOString().slice(0, 10),
   description: '', entryType: '' as 'income' | 'expense' | '',
-  category: '', propertyCode: '', amount: '', note: '',
+  category: '', propertyCodes: [] as string[], amount: '', note: '',
 };
 
 // ── Main page ──────────────────────────────────────────────────────────────────
@@ -298,7 +298,7 @@ export default function TmcFinancePage() {
       description: entry.description,
       entryType:  entry.income != null ? 'income' : 'expense',
       category:   entry.category,
-      propertyCode: entry.property_code ?? '',
+      propertyCodes: entry.property_code ? entry.property_code.split(',').filter(Boolean) : [],
       amount:     String(entry.income ?? entry.expense ?? ''),
       note:       entry.note ?? '',
     });
@@ -319,6 +319,7 @@ export default function TmcFinancePage() {
     const income  = form.entryType === 'income'  ? form.amount : '';
     const expense = form.entryType === 'expense' ? form.amount : '';
 
+    const propertyCode = form.propertyCodes.length > 0 ? form.propertyCodes.join(',') : '';
     if (editEntry) {
       await fetch(backendUrl('/tmc/finance'), {
         method: 'PUT', headers: h,
@@ -326,7 +327,7 @@ export default function TmcFinancePage() {
           id: editEntry.id, orgId: TMC_ORG_ID,
           accountId: form.accountId, entryDate: form.entryDate,
           description: form.description, category: form.category,
-          propertyCode: form.propertyCode, income, expense, note: form.note,
+          propertyCode, income, expense, note: form.note,
         }),
       });
     } else {
@@ -336,7 +337,7 @@ export default function TmcFinancePage() {
           orgId: TMC_ORG_ID,
           accountId: form.accountId, entryDate: form.entryDate,
           description: form.description, category: form.category,
-          propertyCode: form.propertyCode, income, expense, note: form.note,
+          propertyCode, income, expense, note: form.note,
         }),
       });
     }
@@ -639,7 +640,12 @@ export default function TmcFinancePage() {
             </div>
             <div className="space-y-1.5">
               <Label>แปลง</Label>
-              <CustomSelect value={form.propertyCode} onChange={v => setForm(f => ({ ...f, propertyCode: v }))} options={propertyFormOpts} />
+              <MultiSelect
+                value={form.propertyCodes}
+                onChange={v => setForm(f => ({ ...f, propertyCodes: v }))}
+                options={activeProperties.map(p => ({ value: p.code, label: `${p.code} ${p.name}` }))}
+                placeholder="— ไม่ระบุ —"
+              />
             </div>
             <div className="col-span-2 space-y-1.5">
               <Label>รายการ *</Label>
