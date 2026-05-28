@@ -53,6 +53,36 @@ function fmt(n: number) {
   return n.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+/** บีบอัดรูปก่อนส่ง API: ย่อขนาดสูงสุด 1920px และไม่เกิน 2MB */
+async function compressImage(file: File): Promise<{ base64: string; mimeType: string }> {
+  const MAX_PX    = 1920;
+  const MAX_BYTES = 2 * 1024 * 1024;
+
+  return new Promise((resolve, reject) => {
+    const img    = new Image();
+    const objUrl = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(objUrl);
+      const scale  = Math.min(1, MAX_PX / Math.max(img.width, img.height));
+      const canvas = document.createElement('canvas');
+      canvas.width  = Math.round(img.width  * scale);
+      canvas.height = Math.round(img.height * scale);
+      canvas.getContext('2d')!.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+      // ลด quality ทีละขั้น จนขนาดไม่เกิน 2MB
+      let quality = 0.85;
+      let dataUrl = canvas.toDataURL('image/jpeg', quality);
+      while (dataUrl.length * 0.75 > MAX_BYTES && quality > 0.4) {
+        quality -= 0.1;
+        dataUrl  = canvas.toDataURL('image/jpeg', quality);
+      }
+      resolve({ base64: dataUrl.split(',')[1], mimeType: 'image/jpeg' });
+    };
+    img.onerror = reject;
+    img.src = objUrl;
+  });
+}
+
 // ── PurchaseDialog ────────────────────────────────────────────────────────────
 export function PurchaseDialog({
   open, onClose, onSaved, authHeader, stockItems, unitOptions, categoryOptions, accountOptions,
@@ -103,33 +133,47 @@ export function PurchaseDialog({
     setPreviewUrl(URL.createObjectURL(file));
     setOcrLoading(true);
 
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onload = async () => {
-      const dataUrl  = reader.result as string;
-      const base64   = dataUrl.split(',')[1];
-      const mimeType = file.type || 'image/jpeg';
+    try {
+      // บีบอัดรูปก่อนส่ง (max 1920px / 2MB)
+      const { base64, mimeType } = await compressImage(file);
 
       const h = await authHeader();
       const res = await fetch('/api/tmc/stock/ocr', {
         method: 'POST', headers: h,
         body: JSON.stringify({ orgId: TMC_ORG_ID, imageBase64: base64, mimeType }),
       });
-      const data = await res.json() as { items?: LineItem[]; note?: string; error?: string };
+      const data = await res.json() as {
+        items?: LineItem[];
+        note?: string | null;
+        date?: string | null;
+        expense_category?: string | null;
+        error?: string;
+      };
 
       setOcrLoading(false);
-      if (!res.ok || data.error) { setOcrError(data.error ?? 'ไม่สามารถอ่านบิลได้'); return; }
+      if (!res.ok || data.error) {
+        setOcrError((data.error ?? 'ไม่สามารถอ่านบิลได้') + ' — ลองสลับเป็นโหมดกรอกเองได้เลย');
+        return;
+      }
 
-      if (data.note) setFinNote(data.note);
+      // Auto-fill fields จาก OCR
+      if (data.note)             setFinNote(data.note);
+      if (data.date)             setFinDate(data.date);
+      if (data.expense_category) setCategory(data.expense_category);
+
       const parsed = (data.items ?? []).map(i => ({
-        id: uid(),
-        name: String(i.name ?? ''),
-        unit: String(i.unit || 'ชิ้น'),
-        qty: String(i.qty ?? ''),
+        id:       uid(),
+        name:     String(i.name     ?? ''),
+        unit:     String(i.unit     || 'ชิ้น'),
+        qty:      String(i.qty      ?? ''),
         unitCost: String(i.unitCost ?? ''),
       }));
       if (parsed.length > 0) setLines(parsed);
-    };
+
+    } catch {
+      setOcrLoading(false);
+      setOcrError('เกิดข้อผิดพลาดในการอ่านบิล — กรุณาสลับเป็นโหมดกรอกเอง');
+    }
   }, [authHeader]);
 
   // ── Save ─────────────────────────────────────────────────────────────────────
@@ -220,14 +264,26 @@ export function PurchaseDialog({
             {ocrLoading && (
               <div className="flex items-center gap-2 text-sm text-blue-600 bg-blue-50 rounded-lg px-4 py-3">
                 <Loader2 className="w-4 h-4 animate-spin" />
-                กำลังอ่านบิล…
+                กำลังบีบอัดรูปและส่ง Gemini อ่านบิล…
               </div>
             )}
             {ocrError && (
-              <div className="text-sm text-red-600 bg-red-50 rounded-lg px-4 py-3">{ocrError}</div>
+              <div className="space-y-1.5">
+                <div className="text-sm text-red-600 bg-red-50 rounded-lg px-4 py-3">{ocrError}</div>
+                <button
+                  type="button"
+                  onClick={() => setMode('manual')}
+                  className="text-xs text-blue-600 underline hover:text-blue-800"
+                >
+                  → สลับเป็นโหมดกรอกเอง
+                </button>
+              </div>
             )}
-            {!ocrLoading && lines.some(l => l.name) && (
-              <p className="text-xs text-slate-500">อ่านบิลแล้ว — ตรวจสอบรายการด้านล่างก่อนบันทึก</p>
+            {!ocrLoading && !ocrError && lines.some(l => l.name) && (
+              <div className="flex items-center gap-2 rounded-lg bg-green-50 border border-green-200 px-4 py-2.5">
+                <span className="text-green-600 text-sm font-medium">✓ อ่านบิลสำเร็จ</span>
+                <span className="text-xs text-slate-500">— ตรวจสอบรายการและหมวดหมู่ด้านล่างก่อนบันทึก</span>
+              </div>
             )}
           </div>
         )}
