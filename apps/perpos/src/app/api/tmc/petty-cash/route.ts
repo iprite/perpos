@@ -20,7 +20,9 @@ export async function GET(req: NextRequest) {
     .order('txn_date', { ascending: false })
     .order('created_at', { ascending: false });
 
-  if (p.get('fundId'))       q = q.eq('fund_id', p.get('fundId')!);
+  const fundIds = p.get('fundIds') ? p.get('fundIds')!.split(',').filter(Boolean) : p.get('fundId') ? [p.get('fundId')!] : [];
+  if (fundIds.length === 1) q = q.eq('fund_id', fundIds[0]);
+  else if (fundIds.length > 1) q = q.in('fund_id', fundIds);
   if (p.get('txnType'))      q = q.eq('txn_type', p.get('txnType')!);
   if (p.get('propertyCode')) q = q.eq('property_code', p.get('propertyCode')!);
   if (p.get('from'))         q = q.gte('txn_date', p.get('from')!);

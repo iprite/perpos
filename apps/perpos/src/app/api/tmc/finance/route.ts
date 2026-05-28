@@ -23,7 +23,9 @@ export async function GET(req: NextRequest) {
     .eq('org_id', orgId)
     .order('entry_date', { ascending: false });
 
-  if (p.get('accountId'))    q = q.eq('account_id',    p.get('accountId')!);
+  const accountIds = p.get('accountIds') ? p.get('accountIds')!.split(',').filter(Boolean) : p.get('accountId') ? [p.get('accountId')!] : [];
+  if (accountIds.length === 1) q = q.eq('account_id', accountIds[0]);
+  else if (accountIds.length > 1) q = q.in('account_id', accountIds);
   if (p.get('propertyCode')) q = q.eq('property_code', p.get('propertyCode')!);
   if (p.get('category'))     q = q.eq('category',      p.get('category')!);
   if (p.get('from'))         q = q.gte('entry_date',   p.get('from')!);

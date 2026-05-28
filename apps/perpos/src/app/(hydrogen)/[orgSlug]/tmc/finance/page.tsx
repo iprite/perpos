@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { CustomSelect } from '@/components/ui/custom-select';
+import { MultiSelect } from '@/components/ui/multi-select';
 import { ThaiDatePicker } from '@/components/ui/thai-date-picker';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
@@ -184,7 +185,7 @@ export default function TmcFinancePage() {
   const [loading,    setLoading]    = useState(true);
 
   // filters
-  const [filterAccountId, setFilterAccountId] = useState('');
+  const [filterAccountId, setFilterAccountId] = useState<string[]>([]);
   const [filterPropCode,  setFilterPropCode]  = useState('');
   const [filterCategory,  setFilterCategory]  = useState('');
   const [from, setFrom] = useState('');
@@ -253,7 +254,7 @@ export default function TmcFinancePage() {
     setLoading(true);
     const h = await authHeader();
     const p = new URLSearchParams({ orgId: TMC_ORG_ID });
-    if (filterAccountId) p.set('accountId',    filterAccountId);
+    if (filterAccountId.length > 0) p.set('accountIds', filterAccountId.join(','));
     if (filterPropCode)  p.set('propertyCode', filterPropCode);
     if (filterCategory)  p.set('category',     filterCategory);
     if (from)            p.set('from',         from);
@@ -267,7 +268,7 @@ export default function TmcFinancePage() {
     setAccounts(Array.isArray(accData) ? accData : []);
     setEntries(entData.entries ?? []);
     setLoading(false);
-  }, [authHeader, filterAccountId, filterPropCode, filterCategory, from, to]);
+  }, [authHeader, filterAccountId.join(','), filterPropCode, filterCategory, from, to]);
 
   const loadLogs = useCallback(async () => {
     setLogsLoading(true);
@@ -509,7 +510,7 @@ export default function TmcFinancePage() {
       {/* ── Filters ── */}
       <div className="bg-white rounded-xl border p-3 flex flex-wrap items-center gap-2">
         <Filter className="w-4 h-4 text-slate-400 shrink-0" />
-        <CustomSelect value={filterAccountId} onChange={setFilterAccountId} options={accountFilterOpts}  className="w-36" />
+        <MultiSelect value={filterAccountId} onChange={setFilterAccountId} options={activeAccounts.map(a => ({ value: a.id, label: a.name }))} placeholder="ทุกบัญชี" className="w-44" />
         <CustomSelect value={filterPropCode}  onChange={setFilterPropCode}  options={propertyFilterOpts} className="w-28" />
         <CustomSelect value={filterCategory}  onChange={setFilterCategory}  options={categoryFilterOpts} className="w-36" />
         <ThaiDatePicker value={from} onChange={setFrom} placeholder="ตั้งแต่" className="w-32" />

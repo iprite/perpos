@@ -43,7 +43,7 @@ export async function upsertOrgSettingsAction(params: { organizationId: string; 
     authorized_signature_object_path: params.settings.authorizedSignatureObjectPath,
     updated_at: new Date().toISOString(),
   };
-  const { error } = await supabase.from("org_settings").upsert(payload);
+  const { error } = await supabase.from("org_settings").upsert(payload, { onConflict: "organization_id" });
   if (error) return { ok: false as const, error: error.message ?? "save_failed" };
   return { ok: true as const };
 }
@@ -58,7 +58,7 @@ export async function upsertDocumentSequencesAction(params: { organizationId: st
     reset_policy: s.resetPolicy,
     updated_at: new Date().toISOString(),
   }));
-  const { error } = await supabase.from("document_sequences").upsert(rows);
+  const { error } = await supabase.from("document_sequences").upsert(rows, { onConflict: "organization_id,doc_type" });
   if (error) return { ok: false as const, error: error.message ?? "save_failed" };
   return { ok: true as const };
 }

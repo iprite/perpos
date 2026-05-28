@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { CustomSelect } from '@/components/ui/custom-select';
+import { MultiSelect } from '@/components/ui/multi-select';
 import { ThaiDatePicker } from '@/components/ui/thai-date-picker';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
@@ -125,7 +126,7 @@ export default function TmcPettyCashPage() {
   const [loading, setLoading] = useState(true);
 
   // filters
-  const [filterFund, setFilterFund] = useState('');
+  const [filterFund, setFilterFund] = useState<string[]>([]);
   const [filterType, setFilterType] = useState('');
   const [filterProp, setFilterProp] = useState('');
   const [from, setFrom] = useState('');
@@ -182,7 +183,7 @@ export default function TmcPettyCashPage() {
     setLoading(true);
     const h = await authHeader();
     const p = new URLSearchParams({ orgId: TMC_ORG_ID });
-    if (filterFund) p.set('fundId',       filterFund);
+    if (filterFund.length > 0) p.set('fundIds', filterFund.join(','));
     if (filterType) p.set('txnType',      filterType);
     if (filterProp) p.set('propertyCode', filterProp);
     if (from)       p.set('from',         from);
@@ -194,7 +195,7 @@ export default function TmcPettyCashPage() {
     setTotalTopUp(data.totalTopUp ?? 0);
     setTotalExpense(data.totalExpense ?? 0);
     setLoading(false);
-  }, [authHeader, filterFund, filterType, filterProp, from, to]);
+  }, [authHeader, filterFund.join(','), filterType, filterProp, from, to]);
 
   useEffect(() => { void loadMaster(); }, [loadMaster]);
   useEffect(() => { void load(); }, [load]);
@@ -315,7 +316,7 @@ export default function TmcPettyCashPage() {
   const propFormOpts   = useMemo(() => [{ value: '', label: '—' }, ...activeProperties.map(p => ({ value: p.code, label: `${p.code} ${p.name}` }))], [activeProperties]);
   const catFormOpts    = useMemo(() => [{ value: '', label: '— ไม่ระบุ —' }, ...activeCategories.map(c => ({ value: c.name, label: c.name }))], [activeCategories]);
 
-  const hasFilter = filterFund || filterType || filterProp || from || to;
+  const hasFilter = filterFund.length > 0 || filterType || filterProp || from || to;
   const balance   = totalTopUp - totalExpense;
 
   const totalPages  = Math.max(1, Math.ceil(txns.length / PAGE_SIZE));
@@ -353,9 +354,9 @@ export default function TmcPettyCashPage() {
         <div className="flex flex-wrap gap-2">
           {funds.map(f => (
             <button key={f.id} type="button"
-              onClick={() => setFilterFund(p => p === f.id ? '' : f.id)}
+              onClick={() => setFilterFund(p => p.includes(f.id) ? p.filter(x => x !== f.id) : [...p, f.id])}
               className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
-                filterFund === f.id ? 'border-amber-400 bg-amber-50 text-amber-700' : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+                filterFund.includes(f.id) ? 'border-amber-400 bg-amber-50 text-amber-700' : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
               }`}>{f.name}</button>
           ))}
         </div>
@@ -389,13 +390,13 @@ export default function TmcPettyCashPage() {
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-2 rounded-xl border bg-white p-3">
         <Filter className="h-4 w-4 shrink-0 text-slate-400" />
-        <CustomSelect value={filterFund} onChange={setFilterFund} options={fundOptions} className="w-36" />
+        <MultiSelect value={filterFund} onChange={setFilterFund} options={fundOptions} placeholder="ทุกกระเป๋า" className="w-44" />
         <CustomSelect value={filterType} onChange={setFilterType} options={typeOptions} className="w-28" />
         <CustomSelect value={filterProp} onChange={setFilterProp} options={propFilterOpts} className="w-28" />
         <ThaiDatePicker value={from} onChange={setFrom} placeholder="ตั้งแต่" className="w-32" />
         <ThaiDatePicker value={to}   onChange={setTo}   placeholder="ถึง"     className="w-32" />
         <Button variant="ghost" size="sm" disabled={!hasFilter}
-          onClick={() => { setFilterFund(''); setFilterType(''); setFilterProp(''); setFrom(''); setTo(''); }}>
+          onClick={() => { setFilterFund([]); setFilterType(''); setFilterProp(''); setFrom(''); setTo(''); }}>
           ล้างตัวกรอง
         </Button>
       </div>
