@@ -14,12 +14,11 @@ export async function POST(req: NextRequest) {
   const auth = await requireTmcMember(req, orgId);
   if (!auth.ok) return auth.res;
 
-  const apiKey = process.env.OPENAI_API_KEY;
+  const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
-    return NextResponse.json({ error: 'OCR ไม่พร้อมใช้งาน (ไม่มี OPENAI_API_KEY)' }, { status: 503 });
+    return NextResponse.json({ error: 'OCR ไม่พร้อมใช้งาน (ไม่มี GEMINI_API_KEY)' }, { status: 503 });
   }
 
-  const model = process.env.OPENAI_MODEL ?? 'gpt-4o-mini';
   const imgMime = mimeType ?? 'image/jpeg';
 
   const prompt = `You are a Thai receipt OCR assistant. Extract all line items from this purchase receipt/bill.
@@ -37,29 +36,32 @@ Rules:
 - qty and unitCost must be positive numbers
 - Omit items with 0 quantity or price`;
 
-  const ocrRes = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-    body: JSON.stringify({
-      model,
-      max_tokens: 1500,
-      messages: [{
-        role: 'user',
-        content: [
-          { type: 'text', text: prompt },
-          { type: 'image_url', image_url: { url: `data:${imgMime};base64,${imageBase64}`, detail: 'high' } },
-        ],
-      }],
-    }),
-  });
+  const ocrRes = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{
+          parts: [
+            { text: prompt },
+            { inline_data: { mime_type: imgMime, data: imageBase64 } },
+          ],
+        }],
+        generationConfig: { maxOutputTokens: 1500, temperature: 0 },
+      }),
+    },
+  );
 
   if (!ocrRes.ok) {
     const err = await ocrRes.text();
-    return NextResponse.json({ error: `OpenAI error: ${err.slice(0, 200)}` }, { status: 502 });
+    return NextResponse.json({ error: `Gemini error: ${err.slice(0, 200)}` }, { status: 502 });
   }
 
-  const ocrJson = await ocrRes.json() as { choices: { message: { content: string } }[] };
-  const content = ocrJson.choices?.[0]?.message?.content ?? '';
+  const ocrJson = await ocrRes.json() as {
+    candidates: { content: { parts: { text: string }[] } }[];
+  };
+  const content = ocrJson.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
 
   // strip markdown code fences if present
   const cleaned = content.replace(/^```[a-z]*\n?/i, '').replace(/\n?```$/i, '').trim();
