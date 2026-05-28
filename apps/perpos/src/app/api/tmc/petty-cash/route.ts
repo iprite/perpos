@@ -23,8 +23,10 @@ export async function GET(req: NextRequest) {
   const fundIds = p.get('fundIds') ? p.get('fundIds')!.split(',').filter(Boolean) : p.get('fundId') ? [p.get('fundId')!] : [];
   if (fundIds.length === 1) q = q.eq('fund_id', fundIds[0]);
   else if (fundIds.length > 1) q = q.in('fund_id', fundIds);
-  if (p.get('txnType'))      q = q.eq('txn_type', p.get('txnType')!);
-  if (p.get('propertyCode')) q = q.eq('property_code', p.get('propertyCode')!);
+  if (p.get('txnType')) q = q.eq('txn_type', p.get('txnType')!);
+  const propCodes = p.get('propertyCodes') ? p.get('propertyCodes')!.split(',').filter(Boolean) : p.get('propertyCode') ? [p.get('propertyCode')!] : [];
+  if (propCodes.length === 1) q = q.eq('property_code', propCodes[0]);
+  else if (propCodes.length > 1) q = q.in('property_code', propCodes);
   if (p.get('from'))         q = q.gte('txn_date', p.get('from')!);
   if (p.get('to'))           q = q.lte('txn_date', p.get('to')!);
 

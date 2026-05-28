@@ -26,7 +26,9 @@ export async function GET(req: NextRequest) {
   const accountIds = p.get('accountIds') ? p.get('accountIds')!.split(',').filter(Boolean) : p.get('accountId') ? [p.get('accountId')!] : [];
   if (accountIds.length === 1) q = q.eq('account_id', accountIds[0]);
   else if (accountIds.length > 1) q = q.in('account_id', accountIds);
-  if (p.get('propertyCode')) q = q.eq('property_code', p.get('propertyCode')!);
+  const propCodes = p.get('propertyCodes') ? p.get('propertyCodes')!.split(',').filter(Boolean) : p.get('propertyCode') ? [p.get('propertyCode')!] : [];
+  if (propCodes.length === 1) q = q.eq('property_code', propCodes[0]);
+  else if (propCodes.length > 1) q = q.in('property_code', propCodes);
   if (p.get('category'))     q = q.eq('category',      p.get('category')!);
   if (p.get('from'))         q = q.gte('entry_date',   p.get('from')!);
   if (p.get('to'))           q = q.lte('entry_date',   p.get('to')!);

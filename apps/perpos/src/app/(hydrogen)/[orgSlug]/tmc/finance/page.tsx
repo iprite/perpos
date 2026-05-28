@@ -185,8 +185,8 @@ export default function TmcFinancePage() {
   const [loading,    setLoading]    = useState(true);
 
   // filters
-  const [filterAccountId, setFilterAccountId] = useState<string[]>([]);
-  const [filterPropCode,  setFilterPropCode]  = useState('');
+  const [filterAccountId, setFilterAccountId] = useState('');
+  const [filterPropCode,  setFilterPropCode]  = useState<string[]>([]);
   const [filterCategory,  setFilterCategory]  = useState('');
   const [from, setFrom] = useState('');
   const [to,   setTo]   = useState('');
@@ -254,8 +254,8 @@ export default function TmcFinancePage() {
     setLoading(true);
     const h = await authHeader();
     const p = new URLSearchParams({ orgId: TMC_ORG_ID });
-    if (filterAccountId.length > 0) p.set('accountIds', filterAccountId.join(','));
-    if (filterPropCode)  p.set('propertyCode', filterPropCode);
+    if (filterAccountId)           p.set('accountId',     filterAccountId);
+    if (filterPropCode.length > 0) p.set('propertyCodes', filterPropCode.join(','));
     if (filterCategory)  p.set('category',     filterCategory);
     if (from)            p.set('from',         from);
     if (to)              p.set('to',           to);
@@ -268,7 +268,7 @@ export default function TmcFinancePage() {
     setAccounts(Array.isArray(accData) ? accData : []);
     setEntries(entData.entries ?? []);
     setLoading(false);
-  }, [authHeader, filterAccountId.join(','), filterPropCode, filterCategory, from, to]);
+  }, [authHeader, filterAccountId, filterPropCode.join(','), filterCategory, from, to]);
 
   const loadLogs = useCallback(async () => {
     setLogsLoading(true);
@@ -510,8 +510,8 @@ export default function TmcFinancePage() {
       {/* ── Filters ── */}
       <div className="bg-white rounded-xl border p-3 flex flex-wrap items-center gap-2">
         <Filter className="w-4 h-4 text-slate-400 shrink-0" />
-        <MultiSelect value={filterAccountId} onChange={setFilterAccountId} options={activeAccounts.map(a => ({ value: a.id, label: a.name }))} placeholder="ทุกบัญชี" className="w-44" />
-        <CustomSelect value={filterPropCode}  onChange={setFilterPropCode}  options={propertyFilterOpts} className="w-28" />
+        <CustomSelect value={filterAccountId} onChange={setFilterAccountId} options={accountFilterOpts} className="w-44" />
+        <MultiSelect value={filterPropCode}  onChange={setFilterPropCode}  options={activeProperties.map(p => ({ value: p.code, label: p.code }))} placeholder="ทุกแปลง" className="w-36" />
         <CustomSelect value={filterCategory}  onChange={setFilterCategory}  options={categoryFilterOpts} className="w-36" />
         <ThaiDatePicker value={from} onChange={setFrom} placeholder="ตั้งแต่" className="w-32" />
         <ThaiDatePicker value={to}   onChange={setTo}   placeholder="ถึง"     className="w-32" />
