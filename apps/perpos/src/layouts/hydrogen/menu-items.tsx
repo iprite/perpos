@@ -382,6 +382,7 @@ function buildJustMeMenuItems(org: string, orgRole?: string | null): MenuItem[] 
   }
 
   items.push({ name: "Clock In/Out", href: p("clock-in-out"), icon: <Clock className="h-5 w-5" /> });
+  items.push({ name: "คลังสินค้า (Inventory)", href: p("inventory"), icon: <Package className="h-5 w-5" /> });
   return items;
 }
 

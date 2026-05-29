@@ -1,0 +1,1099 @@
+'use client';
+
+import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useParams } from 'next/navigation';
+import { createSupabaseBrowserClient } from '@/lib/supabase/client';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { NativeSelect } from '@/components/ui/native-select';
+import {
+  Package, Warehouse, ArrowLeftRight, History, AlertTriangle, Plus, Search,
+  FileText, CheckCircle, TrendingUp, AlertCircle, Loader2, Scissors, Info, RefreshCw
+} from 'lucide-react';
+import cn from '@core/utils/class-names';
+
+interface WarehouseData {
+  id: string;
+  name: string;
+  type: 'central' | 'site';
+  location_address: string | null;
+  is_active: boolean;
+  created_at: string;
+}
+
+interface InventoryItem {
+  id: string;
+  name: string;
+  code: string;
+  description: string | null;
+  unit: string;
+  has_serial: boolean;
+  has_cable_measurement: boolean;
+  conversion_rate: number;
+  min_stock: number;
+  created_at: string;
+}
+
+interface StockBalance {
+  id: string;
+  warehouse_id: string;
+  item_id: string;
+  quantity: number;
+  updated_at: string;
+}
+
+interface ItemSerial {
+  id: string;
+  item_id: string;
+  warehouse_id: string;
+  serial_number: string;
+  status: 'in_stock' | 'transferred' | 'issued' | 'returned';
+  is_scrap: boolean;
+  length_remaining: number | null;
+  created_at: string;
+}
+
+interface StockMovement {
+  id: string;
+  item_id: string;
+  movement_type: 'receive' | 'transfer' | 'issue' | 'return';
+  source_warehouse_id: string | null;
+  destination_warehouse_id: string | null;
+  quantity: number;
+  reference_no: string | null;
+  note: string | null;
+  created_by: string | null;
+  created_at: string;
+  creator: {
+    id: string;
+    display_name: string | null;
+    email: string | null;
+  } | null;
+}
+
+export default function JustMeInventoryPage() {
+  const { orgSlug } = useParams<{ orgSlug: string }>();
+  const supabase = useMemo(() => createSupabaseBrowserClient(), []);
+
+  // UI States
+  const [activeTab, setActiveTab] = useState<'overview' | 'warehouses' | 'items' | 'movement' | 'scraps' | 'history'>('overview');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+
+  // Data States
+  const [warehouses, setWarehouses] = useState<WarehouseData[]>([]);
+  const [items, setItems] = useState<InventoryItem[]>([]);
+  const [balances, setBalances] = useState<StockBalance[]>([]);
+  const [serials, setSerials] = useState<ItemSerial[]>([]);
+  const [movements, setMovements] = useState<StockMovement[]>([]);
+
+  // Search Filters
+  const [searchItem, setSearchItem] = useState('');
+  const [searchSerial, setSearchSerial] = useState('');
+
+  // Form States
+  const [formWarehouse, setFormWarehouse] = useState({ name: '', type: 'site', location_address: '' });
+  const [formItem, setFormItem] = useState({
+    name: '', code: '', description: '', unit: 'ชิ้น',
+    has_serial: false, has_cable_measurement: false, conversion_rate: '1', min_stock: '0'
+  });
+  const [formMovement, setFormMovement] = useState({
+    movement_type: 'receive', item_id: '', source_warehouse_id: '', destination_warehouse_id: '',
+    quantity: '1', reference_no: '', note: '', serialsText: '', length_remaining: ''
+  });
+  const [formLoading, setFormLoading] = useState(false);
+
+  const loadData = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const { data: org, error: orgErr } = await supabase
+        .from('organizations')
+        .select('id')
+        .eq('slug', orgSlug)
+        .single();
+
+      if (orgErr || !org) throw new Error('ไม่พบข้อมูลองค์กร');
+
+      const { data: sess } = await supabase.auth.getSession();
+      const token = sess.session?.access_token;
+      if (!token) throw new Error('กรุณาเข้าสู่ระบบใหม่');
+
+      const res = await fetch(`/api/just-me/inventory?orgId=${org.id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}));
+        throw new Error(errJson.error || 'เกิดข้อผิดพลาดในการโหลดข้อมูล');
+      }
+
+      const json = await res.json();
+      setWarehouses(json.warehouses || []);
+      setItems(json.items || []);
+      setBalances(json.balances || []);
+      setSerials(json.serials || []);
+      setMovements(json.movements || []);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [supabase, orgSlug]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  // Form Submit Handlers
+  const handleCreateWarehouse = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      setFormLoading(true);
+      setError(null);
+      setSuccess(null);
+
+      const { data: org } = await supabase.from('organizations').select('id').eq('slug', orgSlug).single();
+      const { data: sess } = await supabase.auth.getSession();
+      const token = sess.session?.access_token;
+
+      const res = await fetch(`/api/just-me/inventory?orgId=${org?.id}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          action: 'create_warehouse',
+          ...formWarehouse,
+        }),
+      });
+
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'สร้างคลังสินค้าไม่สำเร็จ');
+
+      setSuccess(`เพิ่มคลังสินค้า "${formWarehouse.name}" สำเร็จ`);
+      setFormWarehouse({ name: '', type: 'site', location_address: '' });
+      await loadData();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setFormLoading(false);
+    }
+  };
+
+  const handleCreateItem = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      setFormLoading(true);
+      setError(null);
+      setSuccess(null);
+
+      const { data: org } = await supabase.from('organizations').select('id').eq('slug', orgSlug).single();
+      const { data: sess } = await supabase.auth.getSession();
+      const token = sess.session?.access_token;
+
+      const res = await fetch(`/api/just-me/inventory?orgId=${org?.id}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          action: 'create_item',
+          ...formItem,
+        }),
+      });
+
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'เพิ่มข้อมูลวัสดุ/สินค้าไม่สำเร็จ');
+
+      setSuccess(`เพิ่มข้อมูลวัสดุ "${formItem.name}" สำเร็จ`);
+      setFormItem({
+        name: '', code: '', description: '', unit: 'ชิ้น',
+        has_serial: false, has_cable_measurement: false, conversion_rate: '1', min_stock: '0'
+      });
+      await loadData();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setFormLoading(false);
+    }
+  };
+
+  const handlePostMovement = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      setFormLoading(true);
+      setError(null);
+      setSuccess(null);
+
+      const { data: org } = await supabase.from('organizations').select('id').eq('slug', orgSlug).single();
+      const { data: sess } = await supabase.auth.getSession();
+      const token = sess.session?.access_token;
+
+      // Extract serials
+      const serial_numbers = formMovement.serialsText
+        .split('\n')
+        .map((s) => s.trim())
+        .filter(Boolean);
+
+      const res = await fetch(`/api/just-me/inventory?orgId=${org?.id}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          action: 'movement',
+          ...formMovement,
+          serial_numbers,
+        }),
+      });
+
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'บันทึกรายการเคลื่อนไหวไม่สำเร็จ');
+
+      setSuccess('บันทึกรายการเคลื่อนไหวสต็อกสำเร็จ');
+      setFormMovement({
+        movement_type: 'receive', item_id: '', source_warehouse_id: '', destination_warehouse_id: '',
+        quantity: '1', reference_no: '', note: '', serialsText: '', length_remaining: ''
+      });
+      await loadData();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setFormLoading(false);
+    }
+  };
+
+  // Memoized Calculations
+  const stockOverviewList = useMemo(() => {
+    return items.map((item) => {
+      // Find total quantities across all warehouses
+      const itemBalances = balances.filter((b) => b.item_id === item.id);
+      const totalQty = itemBalances.reduce((sum, b) => sum + Number(b.quantity), 0);
+      const isLow = totalQty < item.min_stock;
+
+      return {
+        ...item,
+        totalQty,
+        isLow,
+        balances: itemBalances.map((b) => {
+          const wh = warehouses.find((w) => w.id === b.warehouse_id);
+          return {
+            warehouseName: wh ? wh.name : 'ไม่พบชื่อคลัง',
+            warehouseType: wh ? wh.type : 'site',
+            qty: Number(b.quantity),
+          };
+        }),
+      };
+    });
+  }, [items, balances, warehouses]);
+
+  const lowStockItems = useMemo(() => {
+    return stockOverviewList.filter((item) => item.isLow);
+  }, [stockOverviewList]);
+
+  const filteredOverview = useMemo(() => {
+    return stockOverviewList.filter((item) => {
+      return (
+        item.name.toLowerCase().includes(searchItem.toLowerCase()) ||
+        item.code.toLowerCase().includes(searchItem.toLowerCase())
+      );
+    });
+  }, [stockOverviewList, searchItem]);
+
+  const leftoverCables = useMemo(() => {
+    return serials.filter((s) => {
+      const item = items.find((i) => i.id === s.item_id);
+      if (!item?.has_cable_measurement) return false;
+      return (
+        s.serial_number.toLowerCase().includes(searchSerial.toLowerCase()) ||
+        item.name.toLowerCase().includes(searchSerial.toLowerCase())
+      );
+    });
+  }, [serials, items, searchSerial]);
+
+  // Helpers to format movement type labels
+  const getMovementLabel = (type: string) => {
+    switch (type) {
+      case 'receive': return 'รับเข้า (Receive)';
+      case 'transfer': return 'โอนย้าย (Transfer)';
+      case 'issue': return 'เบิกใช้งาน (Issue)';
+      case 'return': return 'คืนสินค้า (Return)';
+      default: return type;
+    }
+  };
+
+  const getMovementBadgeClass = (type: string) => {
+    switch (type) {
+      case 'receive': return 'bg-emerald-50 text-emerald-700 border border-emerald-200';
+      case 'transfer': return 'bg-indigo-50 text-indigo-700 border border-indigo-200';
+      case 'issue': return 'bg-rose-50 text-rose-700 border border-rose-200';
+      case 'return': return 'bg-amber-50 text-amber-700 border border-amber-200';
+      default: return 'bg-slate-50 text-slate-700';
+    }
+  };
+
+  const fmtDateTime = (iso: string) => {
+    return new Date(iso).toLocaleString('th-TH', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      timeZone: 'Asia/Bangkok'
+    }) + ' น.';
+  };
+
+  // Find selected item in movement form
+  const selectedFormItemObj = useMemo(() => {
+    return items.find((i) => i.id === formMovement.item_id);
+  }, [items, formMovement.item_id]);
+
+  return (
+    <div className="p-4 md:p-6 space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between flex-wrap gap-4 border-b pb-5">
+        <div className="flex items-center gap-3">
+          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-md">
+            <Warehouse className="h-6 w-6" />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold text-slate-900">ระบบคลังสินค้า & สต๊อกวัสดุ</h1>
+            <p className="text-sm text-slate-500">จัดการคลังสินค้ากลาง ไซต์งาน และสายไฟเหลือใช้ (just-me)</p>
+          </div>
+        </div>
+        <Button variant="outline" size="sm" onClick={loadData} disabled={loading} className="gap-1.5">
+          <RefreshCw className={cn('h-4 w-4', loading && 'animate-spin')} />
+          รีเฟรชข้อมูล
+        </Button>
+      </div>
+
+      {error && (
+        <div className="flex items-center gap-2.5 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 leading-normal">
+          <AlertCircle className="h-4 w-4 text-red-500 shrink-0" />
+          <span>{error}</span>
+        </div>
+      )}
+
+      {success && (
+        <div className="flex items-center gap-2.5 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-700">
+          <CheckCircle className="h-4 w-4 text-emerald-500 shrink-0" />
+          <span>{success}</span>
+        </div>
+      )}
+
+      {loading && items.length === 0 ? (
+        <div className="flex h-64 items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-indigo-600" />
+        </div>
+      ) : (
+        <div className="space-y-6">
+          
+          {/* Custom Modern Tabs */}
+          <div className="flex flex-wrap gap-2 border-b pb-2">
+            {[
+              { id: 'overview', label: 'สรุปภาพรวม', icon: <TrendingUp className="h-4 w-4" /> },
+              { id: 'warehouses', label: 'คลังสินค้า & ไซต์', icon: <Warehouse className="h-4 w-4" /> },
+              { id: 'items', label: 'ข้อมูลวัสดุ/สินค้า', icon: <Package className="h-4 w-4" /> },
+              { id: 'movement', label: 'ทำรายการเบิก/โอน', icon: <ArrowLeftRight className="h-4 w-4" /> },
+              { id: 'scraps', label: 'เศษสายไฟเหลือใช้', icon: <Scissors className="h-4 w-4" /> },
+              { id: 'history', label: 'ประวัติการเคลื่อนไหว', icon: <History className="h-4 w-4" /> },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => {
+                  setActiveTab(tab.id as any);
+                  setError(null);
+                  setSuccess(null);
+                }}
+                className={cn(
+                  "flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg transition-all duration-150",
+                  activeTab === tab.id
+                    ? "bg-indigo-600 text-white shadow-sm"
+                    : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                )}
+              >
+                {tab.icon}
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
+          {/* TAB CONTENT: Overview */}
+          {activeTab === 'overview' && (
+            <div className="space-y-6">
+              
+              {/* Alert for Low Stock */}
+              {lowStockItems.length > 0 && (
+                <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+                  <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+                  <div className="space-y-1">
+                    <p className="font-bold">⚠️ แจ้งเตือนสินค้าต่ำกว่าจุดสั่งซื้อต่ำสุด (Safety Stock)</p>
+                    <div className="text-xs text-amber-700/90 pl-1 space-y-1">
+                      {lowStockItems.map((item) => (
+                        <p key={item.id}>
+                          • <strong>{item.name} ({item.code})</strong>: คงเหลือรวม {item.totalQty} {item.unit} (ขั้นต่ำที่ต้องมี: {item.min_stock} {item.unit})
+                        </p>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Grid overview */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="bg-white rounded-2xl border p-5 shadow-sm space-y-4">
+                  <div className="flex items-center justify-between border-b pb-3">
+                    <h2 className="text-base font-bold text-slate-800 flex items-center gap-2">
+                      <Package className="h-5 w-5 text-indigo-500" />
+                      รายงานสต็อกคงเหลือแยกคลัง/ไซต์งาน
+                    </h2>
+                    
+                    <div className="relative w-48">
+                      <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" />
+                      <input
+                        type="text"
+                        placeholder="ค้นหาวัสดุ..."
+                        value={searchItem}
+                        onChange={(e) => setSearchItem(e.target.value)}
+                        className="pl-8 py-1.5 text-xs border rounded-lg w-full bg-slate-50 border-slate-200"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-4 overflow-y-auto max-h-[400px] pr-1">
+                    {filteredOverview.length === 0 ? (
+                      <div className="text-center py-8 text-slate-400 text-sm">ไม่พบวัสดุที่ต้องการ</div>
+                    ) : (
+                      filteredOverview.map((item) => (
+                        <div key={item.id} className="p-3 border rounded-xl bg-slate-50/50 space-y-2">
+                          <div className="flex items-start justify-between gap-2">
+                            <div>
+                              <p className="font-bold text-sm text-slate-800">{item.name}</p>
+                              <code className="text-[11px] font-mono text-slate-400">{item.code}</code>
+                            </div>
+                            <span className={cn(
+                              "text-xs px-2.5 py-0.5 rounded-full font-bold",
+                              item.isLow ? "bg-red-50 text-red-600 border border-red-200" : "bg-emerald-50 text-emerald-600 border border-emerald-200"
+                            )}>
+                              รวม {item.totalQty} {item.unit}
+                            </span>
+                          </div>
+
+                          <div className="text-xs border-t pt-2 space-y-1.5">
+                            {item.balances.length === 0 ? (
+                              <p className="text-slate-400 italic pl-2">ไม่มีของในคลังใดเลย</p>
+                            ) : (
+                              item.balances.map((bal, idx) => (
+                                <div key={idx} className="flex justify-between text-slate-600 pl-2">
+                                  <span>{bal.warehouseName} ({bal.warehouseType === 'central' ? 'คลังกลาง' : 'ไซต์งาน'})</span>
+                                  <span className="font-semibold text-slate-800">{bal.qty} {item.unit}</span>
+                                </div>
+                              ))
+                            )}
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+
+                <div className="bg-white rounded-2xl border p-5 shadow-sm space-y-4">
+                  <h2 className="text-base font-bold text-slate-800 flex items-center gap-2 border-b pb-3">
+                    <Info className="h-5 w-5 text-indigo-500" />
+                    ข้อมูลสรุปสต็อก
+                  </h2>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="p-4 border rounded-xl bg-slate-50 text-center space-y-1">
+                      <p className="text-xs text-slate-400 font-semibold">คลังทั้งหมด</p>
+                      <p className="text-2xl font-black text-slate-800">{warehouses.length} คลัง</p>
+                    </div>
+                    <div className="p-4 border rounded-xl bg-slate-50 text-center space-y-1">
+                      <p className="text-xs text-slate-400 font-semibold">รายการวัสดุ</p>
+                      <p className="text-2xl font-black text-slate-800">{items.length} ชนิด</p>
+                    </div>
+                  </div>
+
+                  <div className="p-4 rounded-xl border border-indigo-100 bg-indigo-50/50 text-xs text-indigo-900 leading-relaxed space-y-2">
+                    <p className="font-bold">💡 คำแนะนำสำหรับการคุมสต็อกงานระบบไฟฟ้า:</p>
+                    <p>• <strong>สายไฟ (Cables)</strong>: ควรบันทึกรหัสแยกขนาด หากเบิกใช้เป็นเมตร จะถูกหักจากความยาวม้วนที่เก็บในระบบ</p>
+                    <p>• <strong>Serial Number</strong>: เหมาะกับอุปกรณ์ราคาสูง เช่น ตู้ไฟ, Inverter โซลาร์เซลล์ เพื่อให้สามารถติดตามประวัติและรับประกันได้</p>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+          )}
+
+          {/* TAB CONTENT: Warehouses */}
+          {activeTab === 'warehouses' && (
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              
+              {/* Form Create */}
+              <div className="lg:col-span-1 bg-white rounded-2xl border p-5 shadow-sm space-y-4 h-fit">
+                <h2 className="text-base font-bold text-slate-800 flex items-center gap-1.5 border-b pb-3">
+                  <Plus className="h-5 w-5 text-indigo-500" />
+                  เพิ่มคลังสินค้า / ไซต์งาน
+                </h2>
+                
+                <form onSubmit={handleCreateWarehouse} className="space-y-4">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="wh-name">ชื่อคลังสินค้า / ไซต์งาน *</Label>
+                    <Input
+                      id="wh-name"
+                      placeholder="เช่น คลังกลางสำนักงาน, ไซต์คอนโด A"
+                      value={formWarehouse.name}
+                      onChange={(e) => setFormWarehouse({ ...formWarehouse, name: e.target.value })}
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label htmlFor="wh-type">ประเภทคลัง</Label>
+                    <NativeSelect
+                      id="wh-type"
+                      value={formWarehouse.type}
+                      onChange={(e) => setFormWarehouse({ ...formWarehouse, type: e.target.value })}
+                    >
+                      <option value="site">ไซต์งาน (Site Storage)</option>
+                      <option value="central">คลังกลาง (Central Warehouse)</option>
+                    </NativeSelect>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label htmlFor="wh-addr">ที่อยู่ / พิกัดสถานที่</Label>
+                    <Input
+                      id="wh-addr"
+                      placeholder="ที่ตั้งคลัง หรือ ไซต์ก่อสร้าง"
+                      value={formWarehouse.location_address}
+                      onChange={(e) => setFormWarehouse({ ...formWarehouse, location_address: e.target.value })}
+                    />
+                  </div>
+
+                  <Button type="submit" className="w-full font-bold" disabled={formLoading}>
+                    {formLoading ? 'กำลังบันทึก…' : 'บันทึกข้อมูลคลัง'}
+                  </Button>
+                </form>
+              </div>
+
+              {/* List */}
+              <div className="lg:col-span-2 bg-white rounded-2xl border shadow-sm overflow-hidden">
+                <div className="border-b px-5 py-4">
+                  <h2 className="text-sm font-semibold text-slate-700">คลังสินค้าและไซต์งานปัจจุบัน</h2>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm text-left">
+                    <thead className="bg-slate-50 border-b text-xs text-slate-500 font-medium">
+                      <tr>
+                        <th className="px-5 py-3">ชื่อคลัง / ไซต์งาน</th>
+                        <th className="px-4 py-3">ประเภท</th>
+                        <th className="px-4 py-3">ที่อยู่</th>
+                        <th className="px-4 py-3">สถานะ</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {warehouses.map((wh) => (
+                        <tr key={wh.id} className="hover:bg-slate-50/50">
+                          <td className="px-5 py-3.5 font-bold text-slate-800">{wh.name}</td>
+                          <td className="px-4 py-3.5">
+                            <span className={cn(
+                              "text-xs px-2 py-0.5 rounded-full font-semibold border",
+                              wh.type === 'central' ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-blue-50 text-blue-700 border-blue-200"
+                            )}>
+                              {wh.type === 'central' ? 'คลังกลาง (Central)' : 'ไซต์งาน (Site)'}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3.5 text-xs text-slate-500 leading-normal max-w-xs">{wh.location_address || '—'}</td>
+                          <td className="px-4 py-3.5">
+                            <span className="inline-flex items-center gap-1 text-emerald-700 font-semibold text-xs">
+                              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                              ใช้งานอยู่
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+            </div>
+          )}
+
+          {/* TAB CONTENT: Items */}
+          {activeTab === 'items' && (
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              
+              {/* Form Create */}
+              <div className="lg:col-span-1 bg-white rounded-2xl border p-5 shadow-sm space-y-4 h-fit">
+                <h2 className="text-base font-bold text-slate-800 flex items-center gap-1.5 border-b pb-3">
+                  <Plus className="h-5 w-5 text-indigo-500" />
+                  เพิ่มวัสดุ / สินค้าคลัง
+                </h2>
+                
+                <form onSubmit={handleCreateItem} className="space-y-4">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="item-code">รหัสสินค้า / SKU *</Label>
+                    <Input
+                      id="item-code"
+                      placeholder="เช่น CABLE-THW-1X4, LOAD-12WAY"
+                      value={formItem.code}
+                      onChange={(e) => setFormItem({ ...formItem, code: e.target.value })}
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label htmlFor="item-name">ชื่อวัสดุ / สินค้า *</Label>
+                    <Input
+                      id="item-name"
+                      placeholder="เช่น สายไฟ THW 1x4 ตร.มม., ตู้คอนซูมเมอร์ 12 ช่อง"
+                      value={formItem.name}
+                      onChange={(e) => setFormItem({ ...formItem, name: e.target.value })}
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label htmlFor="item-desc">คำอธิบาย</Label>
+                    <Input
+                      id="item-desc"
+                      placeholder="รายละเอียด สเปกสินค้า"
+                      value={formItem.description}
+                      onChange={(e) => setFormItem({ ...formItem, description: e.target.value })}
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label htmlFor="item-unit">หน่วยนับพื้นฐาน *</Label>
+                    <Input
+                      id="item-unit"
+                      placeholder="เช่น เมตร, เครื่อง, ชุด, ม้วน"
+                      value={formItem.unit}
+                      onChange={(e) => setFormItem({ ...formItem, unit: e.target.value })}
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label htmlFor="item-min">จุดสั่งซื้อขั้นต่ำ (Safety Stock)</Label>
+                    <Input
+                      id="item-min"
+                      type="number"
+                      value={formItem.min_stock}
+                      onChange={(e) => setFormItem({ ...formItem, min_stock: e.target.value })}
+                    />
+                  </div>
+
+                  <div className="p-3 bg-slate-50 rounded-xl space-y-3 border text-xs">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="item-serial" className="cursor-pointer font-bold text-slate-700">ต้องการคุม Serial Number</Label>
+                      <input
+                        id="item-serial"
+                        type="checkbox"
+                        checked={formItem.has_serial}
+                        onChange={(e) => setFormItem({ ...formItem, has_serial: e.target.checked })}
+                        className="h-4 w-4 rounded text-indigo-600 focus:ring-indigo-500"
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="item-cable" className="cursor-pointer font-bold text-slate-700">เป็นสินค้าวัดความยาว (สายไฟ)</Label>
+                      <input
+                        id="item-cable"
+                        type="checkbox"
+                        checked={formItem.has_cable_measurement}
+                        onChange={(e) => setFormItem({ ...formItem, has_cable_measurement: e.target.checked })}
+                        className="h-4 w-4 rounded text-indigo-600 focus:ring-indigo-500"
+                      />
+                    </div>
+
+                    {formItem.has_cable_measurement && (
+                      <div className="space-y-1.5 pt-2 border-t mt-2">
+                        <Label htmlFor="item-conv">อัตราแปลงหน่วย (เช่น 1 ม้วน = กี่เมตร)</Label>
+                        <Input
+                          id="item-conv"
+                          type="number"
+                          value={formItem.conversion_rate}
+                          onChange={(e) => setFormItem({ ...formItem, conversion_rate: e.target.value })}
+                          placeholder="ปกติคือ 1"
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  <Button type="submit" className="w-full font-bold" disabled={formLoading}>
+                    {formLoading ? 'กำลังบันทึก…' : 'บันทึกข้อมูลสินค้า'}
+                  </Button>
+                </form>
+              </div>
+
+              {/* List */}
+              <div className="lg:col-span-2 bg-white rounded-2xl border shadow-sm overflow-hidden">
+                <div className="border-b px-5 py-4">
+                  <h2 className="text-sm font-semibold text-slate-700">ข้อมูลวัสดุทั้งหมด</h2>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm text-left">
+                    <thead className="bg-slate-50 border-b text-xs text-slate-500 font-medium">
+                      <tr>
+                        <th className="px-5 py-3">รหัสวัสดุ</th>
+                        <th className="px-4 py-3">ชื่อ</th>
+                        <th className="px-4 py-3">หน่วย</th>
+                        <th className="px-4 py-3">การติดตาม</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {items.map((item) => (
+                        <tr key={item.id} className="hover:bg-slate-50/50">
+                          <td className="px-5 py-3.5 font-mono text-xs text-indigo-600 font-bold">{item.code}</td>
+                          <td className="px-4 py-3.5 font-bold text-slate-800">
+                            <div>
+                              <p>{item.name}</p>
+                              {item.description && <p className="text-[11px] font-normal text-slate-400">{item.description}</p>}
+                            </div>
+                          </td>
+                          <td className="px-4 py-3.5 text-slate-600">{item.unit}</td>
+                          <td className="px-4 py-3.5 text-xs space-y-1">
+                            {item.has_serial && (
+                              <span className="block w-fit bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded border border-emerald-100 font-medium">
+                                Serial Number
+                              </span>
+                            )}
+                            {item.has_cable_measurement && (
+                              <span className="block w-fit bg-blue-50 text-blue-700 px-2 py-0.5 rounded border border-blue-100 font-medium">
+                                ตัดเมตร (เศษ {item.conversion_rate})
+                              </span>
+                            )}
+                            {!item.has_serial && !item.has_cable_measurement && (
+                              <span className="text-slate-400 italic">นับชิ้นปกติ</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+            </div>
+          )}
+
+          {/* TAB CONTENT: Movement Form */}
+          {activeTab === 'movement' && (
+            <div className="max-w-2xl mx-auto bg-white rounded-2xl border p-6 shadow-sm space-y-5">
+              <h2 className="text-base font-bold text-slate-800 flex items-center gap-2 border-b pb-3">
+                <ArrowLeftRight className="h-5 w-5 text-indigo-500" />
+                ทำรายการรับเข้า / เบิกจ่าย / โอนย้ายสินค้า
+              </h2>
+
+              <form onSubmit={handlePostMovement} className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="mov-type">ประเภทรายการ *</Label>
+                    <NativeSelect
+                      id="mov-type"
+                      value={formMovement.movement_type}
+                      onChange={(e) => setFormMovement({
+                        ...formMovement,
+                        movement_type: e.target.value,
+                        source_warehouse_id: ['transfer', 'issue', 'return'].includes(e.target.value) ? formMovement.source_warehouse_id : '',
+                        destination_warehouse_id: ['receive', 'transfer', 'return'].includes(e.target.value) ? formMovement.destination_warehouse_id : '',
+                      })}
+                    >
+                      <option value="receive">รับเข้าคลังกลาง (Receive from Supplier)</option>
+                      <option value="transfer">โอนย้ายสต็อก (Transfer between locations)</option>
+                      <option value="issue">เบิกไปใช้งานที่ไซต์ (Issue to Cost)</option>
+                      <option value="return">คืนของที่ไซต์เหลือมาคลังกลาง (Return to Warehouse)</option>
+                    </NativeSelect>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label htmlFor="mov-item">เลือกสินค้า / วัสดุ *</Label>
+                    <NativeSelect
+                      id="mov-item"
+                      value={formMovement.item_id}
+                      onChange={(e) => setFormMovement({ ...formMovement, item_id: e.target.value })}
+                      required
+                    >
+                      <option value="">— กรุณาเลือกสินค้า —</option>
+                      {items.map((i) => (
+                        <option key={i.id} value={i.id}>{i.name} ({i.code})</option>
+                      ))}
+                    </NativeSelect>
+                  </div>
+                </div>
+
+                {/* Warehouse Fields based on movement type */}
+                <div className="grid grid-cols-2 gap-4">
+                  {/* Source Warehouse */}
+                  {['transfer', 'issue', 'return'].includes(formMovement.movement_type) && (
+                    <div className="space-y-1.5">
+                      <Label htmlFor="mov-src">คลังต้นทาง *</Label>
+                      <NativeSelect
+                        id="mov-src"
+                        value={formMovement.source_warehouse_id}
+                        onChange={(e) => setFormMovement({ ...formMovement, source_warehouse_id: e.target.value })}
+                        required
+                      >
+                        <option value="">— เลือกคลังต้นทาง —</option>
+                        {warehouses.map((w) => (
+                          <option key={w.id} value={w.id}>{w.name} ({w.type === 'central' ? 'คลังกลาง' : 'ไซต์งาน'})</option>
+                        ))}
+                      </NativeSelect>
+                    </div>
+                  )}
+
+                  {/* Destination Warehouse */}
+                  {['receive', 'transfer', 'return'].includes(formMovement.movement_type) && (
+                    <div className="space-y-1.5">
+                      <Label htmlFor="mov-dest">คลังปลายทาง *</Label>
+                      <NativeSelect
+                        id="mov-dest"
+                        value={formMovement.destination_warehouse_id}
+                        onChange={(e) => setFormMovement({ ...formMovement, destination_warehouse_id: e.target.value })}
+                        required
+                      >
+                        <option value="">— เลือกคลังปลายทาง —</option>
+                        {warehouses.map((w) => (
+                          <option key={w.id} value={w.id}>{w.name} ({w.type === 'central' ? 'คลังกลาง' : 'ไซต์งาน'})</option>
+                        ))}
+                      </NativeSelect>
+                    </div>
+                  )}
+                </div>
+
+                {/* Quantity and reference */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="mov-qty">จำนวนสินค้า ({selectedFormItemObj ? selectedFormItemObj.unit : 'ชิ้น'}) *</Label>
+                    <Input
+                      id="mov-qty"
+                      type="number"
+                      value={formMovement.quantity}
+                      onChange={(e) => setFormMovement({ ...formMovement, quantity: e.target.value })}
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label htmlFor="mov-ref">เลขที่เอกสารอ้างอิง (PO / DO / จ็อบ)</Label>
+                    <Input
+                      id="mov-ref"
+                      placeholder="เช่น PO-2026-001"
+                      value={formMovement.reference_no}
+                      onChange={(e) => setFormMovement({ ...formMovement, reference_no: e.target.value })}
+                    />
+                  </div>
+                </div>
+
+                {/* Serial and Wire length sections */}
+                {selectedFormItemObj && (selectedFormItemObj.has_serial || selectedFormItemObj.has_cable_measurement) && (
+                  <div className="p-4 bg-slate-50 border rounded-xl space-y-3 text-xs">
+                    <p className="font-bold text-slate-800 flex items-center gap-1">
+                      <Info className="h-4 w-4 text-indigo-500" />
+                      สินค้าตัวนี้ต้องการข้อมูลสลาก (Serial/Cable info)
+                    </p>
+
+                    {selectedFormItemObj.has_serial && (
+                      <div className="space-y-1.5">
+                        <Label htmlFor="mov-serials" className="font-bold text-slate-700">Serial Numbers (บรรทัดละ 1 รหัสให้ครบตามจำนวนที่สั่ง) *</Label>
+                        <textarea
+                          id="mov-serials"
+                          rows={4}
+                          value={formMovement.serialsText}
+                          onChange={(e) => setFormMovement({ ...formMovement, serialsText: e.target.value })}
+                          placeholder="เช่น&#10;SN-882792837&#10;SN-882792838"
+                          className="w-full rounded-lg border border-slate-200 bg-white p-2.5 text-xs focus:border-indigo-500 focus:ring-indigo-500"
+                        />
+                      </div>
+                    )}
+
+                    {selectedFormItemObj.has_cable_measurement && ['receive', 'issue'].includes(formMovement.movement_type) && (
+                      <div className="space-y-1.5">
+                        <Label htmlFor="mov-len" className="font-bold text-slate-700">
+                          {formMovement.movement_type === 'receive' ? 'ความยาวสายไฟรับเข้า (เมตร)' : 'ความยาวสายไฟที่เหลือกลับเข้าสต็อก (เมตร)'}
+                        </Label>
+                        <Input
+                          id="mov-len"
+                          type="number"
+                          value={formMovement.length_remaining}
+                          onChange={(e) => setFormMovement({ ...formMovement, length_remaining: e.target.value })}
+                          placeholder="ปล่อยว่างหากรับเข้าม้วนเต็ม"
+                        />
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="mov-note">หมายเหตุ</Label>
+                  <Input
+                    id="mov-note"
+                    placeholder="เช่น เบิกไปงานติดตั้งชั้น 2"
+                    value={formMovement.note}
+                    onChange={(e) => setFormMovement({ ...formMovement, note: e.target.value })}
+                  />
+                </div>
+
+                <Button type="submit" className="w-full font-bold py-6 text-base" disabled={formLoading}>
+                  {formLoading ? 'กำลังบันทึกรายการ…' : '📍 ยืนยันบันทึกทำรายการสต็อก'}
+                </Button>
+              </form>
+            </div>
+          )}
+
+          {/* TAB CONTENT: Leftover Cables */}
+          {activeTab === 'scraps' && (
+            <div className="bg-white rounded-2xl border shadow-sm p-5 space-y-4">
+              <div className="flex items-center justify-between border-b pb-3 flex-wrap gap-2">
+                <div>
+                  <h2 className="text-base font-bold text-slate-800 flex items-center gap-2">
+                    <Scissors className="h-5 w-5 text-rose-500" />
+                    สต็อกสายไฟเหลือใช้ และเศษสายไฟ (Leftover & Scraps)
+                  </h2>
+                  <p className="text-xs text-slate-400">รายการสายไฟที่ตัดแบ่งใช้แล้ว และมีเศษความยาวที่ใช้งานเฉพาะจุดย่อยได้</p>
+                </div>
+
+                <div className="relative w-64">
+                  <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" />
+                  <Input
+                    placeholder="ค้นหารหัสเศษ/สายไฟ..."
+                    value={searchSerial}
+                    onChange={(e) => setSearchSerial(e.target.value)}
+                    className="pl-8 py-1.5 text-xs bg-slate-50 border-slate-200"
+                  />
+                </div>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm text-left">
+                  <thead className="bg-slate-50 border-b text-xs text-slate-500 font-medium">
+                    <tr>
+                      <th className="px-5 py-3">รหัสสายไฟ (Tag)</th>
+                      <th className="px-4 py-3">ชนิดสินค้า</th>
+                      <th className="px-4 py-3">คลังปัจจุบัน</th>
+                      <th className="px-4 py-3 text-right">ความยาวเหลือ (เมตร)</th>
+                      <th className="px-4 py-3">สถานะ</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {leftoverCables.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="py-8 text-center text-slate-400 text-sm">ไม่มีข้อมูลเศษสายไฟในระบบ</td>
+                      </tr>
+                    ) : (
+                      leftoverCables.map((s) => {
+                        const item = items.find((i) => i.id === s.item_id);
+                        const wh = warehouses.find((w) => w.id === s.warehouse_id);
+
+                        return (
+                          <tr key={s.id} className="hover:bg-slate-50/50">
+                            <td className="px-5 py-3.5 font-mono text-xs font-bold text-slate-800">{s.serial_number}</td>
+                            <td className="px-4 py-3.5">
+                              <span className="font-bold text-slate-800">{item ? item.name : '—'}</span>
+                            </td>
+                            <td className="px-4 py-3.5 text-slate-600">{wh ? wh.name : 'ไม่พบชื่อคลัง'}</td>
+                            <td className="px-4 py-3.5 text-right font-black text-slate-800">
+                              {s.length_remaining !== null ? `${s.length_remaining} เมตร` : '—'}
+                            </td>
+                            <td className="px-4 py-3.5">
+                              {s.is_scrap ? (
+                                <span className="bg-red-50 text-red-600 border border-red-200 px-2 py-0.5 rounded text-xs font-semibold">
+                                  เศษสั้น (Scrap &lt; 5m)
+                                </span>
+                              ) : (
+                                <span className="bg-emerald-50 text-emerald-600 border border-emerald-200 px-2 py-0.5 rounded text-xs font-semibold">
+                                  ม้วนตัดแบ่งใช้ (In Stock)
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* TAB CONTENT: History */}
+          {activeTab === 'history' && (
+            <div className="bg-white rounded-2xl border shadow-sm overflow-hidden">
+              <div className="border-b px-5 py-4">
+                <h2 className="text-sm font-semibold text-slate-700">ประวัติการทำรายการเดินคลังทั้งหมด</h2>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm text-left">
+                  <thead className="bg-slate-50 border-b text-xs text-slate-500 font-medium">
+                    <tr>
+                      <th className="px-5 py-3">วันที่ / เวลา</th>
+                      <th className="px-4 py-3">ประเภทรายการ</th>
+                      <th className="px-4 py-3">สินค้า</th>
+                      <th className="px-4 py-3 text-right">จำนวน</th>
+                      <th className="px-4 py-3">จากคลัง</th>
+                      <th className="px-4 py-3">ไปยังคลัง</th>
+                      <th className="px-4 py-3">เอกสารอ้างอิง / ผู้ทำรายการ</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {movements.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} className="py-8 text-center text-slate-400 text-sm">ยังไม่มีรายการบันทึก</td>
+                      </tr>
+                    ) : (
+                      movements.map((mov) => {
+                        const item = items.find((i) => i.id === mov.item_id);
+                        const src = warehouses.find((w) => w.id === mov.source_warehouse_id);
+                        const dest = warehouses.find((w) => w.id === mov.destination_warehouse_id);
+
+                        return (
+                          <tr key={mov.id} className="hover:bg-slate-50/50">
+                            <td className="px-5 py-3.5 text-xs text-slate-500 whitespace-nowrap">{fmtDateTime(mov.created_at)}</td>
+                            <td className="px-4 py-3.5">
+                              <span className={cn(
+                                "text-xs px-2.5 py-0.5 rounded-full font-bold",
+                                getMovementBadgeClass(mov.movement_type)
+                              )}>
+                                {getMovementLabel(mov.movement_type)}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3.5 font-bold text-slate-800">
+                              {item ? item.name : 'ไม่พบชื่อสินค้า'}
+                            </td>
+                            <td className="px-4 py-3.5 text-right font-black text-slate-800">
+                              {mov.quantity} {item ? item.unit : 'ชิ้น'}
+                            </td>
+                            <td className="px-4 py-3.5 text-xs text-slate-500">{src ? src.name : '—'}</td>
+                            <td className="px-4 py-3.5 text-xs text-slate-500">{dest ? dest.name : '—'}</td>
+                            <td className="px-4 py-3.5 text-xs space-y-0.5">
+                              {mov.reference_no && <p className="font-bold text-slate-700">อ้างอิง: {mov.reference_no}</p>}
+                              <p className="text-slate-400">โดย: {mov.creator?.display_name || 'ไม่ระบุชื่อ'}</p>
+                              {mov.note && <p className="italic text-slate-500">โน้ต: {mov.note}</p>}
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+        </div>
+      )}
+    </div>
+  );
+}

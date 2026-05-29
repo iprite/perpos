@@ -187,6 +187,7 @@ export const MODULE_MENUS: Record<string, MenuDef[]> = {
   just_me: [
     { key: "dashboard", label: "Dashboard" },
     { key: "clock_in_out", label: "Clock In/Out" },
+    { key: "inventory", label: "Inventory" },
   ],
 };
 
