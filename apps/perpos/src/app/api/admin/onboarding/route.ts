@@ -2,19 +2,20 @@
  * POST /api/admin/onboarding
  *
  * Creates a new organization with initial module settings and owner account.
- * Optionally sends an invite email to the owner.
  *
  * Body:
- *   name        string   — Organization display name
- *   slug        string   — URL slug (alphanumeric + hyphens, unique)
- *   moduleKeys  string[] — Shared modules to enable immediately
- *   ownerEmail  string   — Owner's email (will receive invite)
+ *   name                string   — Organization display name
+ *   slug                string   — URL slug (alphanumeric + hyphens, unique)
+ *   moduleKeys          string[] — Shared modules to enable immediately
+ *   specificModules     { key: string; moduleSlug: string }[] — Specific modules with their slugs
+ *   ownerEmail          string   — Owner's email (will receive invite)
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '../../_lib/auth';
 import { createAdminClient } from '../../_lib/supabase';
 import { ALL_MODULES } from '@/lib/modules';
+import { seedModule } from '../_lib/module-seed';
 
 const SLUG_RE = /^[a-z0-9][a-z0-9-]{1,48}[a-z0-9]$/;
 
@@ -23,7 +24,7 @@ export async function POST(req: NextRequest) {
   if (!auth.ok) return auth.res;
 
   const body = await req.json().catch(() => null) as Record<string, unknown> | null;
-  const { name, slug, moduleKeys, ownerEmail } = body ?? {};
+  const { name, slug, moduleKeys, specificModules, ownerEmail } = body ?? {};
 
   // ── Validation ────────────────────────────────────────────────────────────────
   if (!name || typeof name !== 'string' || !name.trim()) {
@@ -38,10 +39,18 @@ export async function POST(req: NextRequest) {
   if (!ownerEmail || typeof ownerEmail !== 'string' || !ownerEmail.includes('@')) {
     return NextResponse.json({ error: 'missing or invalid ownerEmail' }, { status: 400 });
   }
-  const modules = (Array.isArray(moduleKeys) ? moduleKeys : []) as string[];
-  // Only allow modules that exist in registry and are not specific
-  const validModuleKeys = modules.filter((k) =>
-    ALL_MODULES.some((m) => m.key === k && !m.specific),
+
+  const sharedKeys = (Array.isArray(moduleKeys) ? moduleKeys : []) as string[];
+  const validSharedKeys = sharedKeys.filter(k =>
+    ALL_MODULES.some(m => m.key === k && !m.specific),
+  );
+
+  type SpecificModuleInput = { key: string; moduleSlug: string };
+  const specificInputs = (Array.isArray(specificModules) ? specificModules : []) as SpecificModuleInput[];
+  const validSpecificInputs = specificInputs.filter(s =>
+    s.key && typeof s.key === 'string' &&
+    s.moduleSlug && typeof s.moduleSlug === 'string' &&
+    ALL_MODULES.some(m => m.key === s.key && m.specific),
   );
 
   const admin = createAdminClient();
@@ -69,27 +78,39 @@ export async function POST(req: NextRequest) {
 
   const orgId = (org as Record<string, string>).id;
 
-  // ── Enable selected modules ───────────────────────────────────────────────────
-  if (validModuleKeys.length > 0) {
-    const moduleRows = validModuleKeys.map((key) => ({
+  // ── Enable shared modules ─────────────────────────────────────────────────────
+  if (validSharedKeys.length > 0) {
+    const moduleRows = validSharedKeys.map(key => ({
       organization_id: orgId,
       module_key:      key,
       is_enabled:      true,
       allowed_roles:   ['owner', 'admin'],
+      config:          {},
     }));
-    const { error: modErr } = await admin
-      .from('org_module_settings')
-      .insert(moduleRows);
-    if (modErr) {
-      // Non-fatal: org created, just log the error
-      console.error('[onboarding] module settings error', modErr.message);
-    }
+    const { error: modErr } = await admin.from('org_module_settings').insert(moduleRows);
+    if (modErr) console.error('[onboarding] shared module settings error', modErr.message);
   }
 
-  // ── Find or invite owner user ─────────────────────────────────────────────────
-  let ownerId: string | null = null;
+  // ── Enable specific modules + seed data ───────────────────────────────────────
+  const seededSummary: Record<string, Record<string, number>> = {};
+  for (const { key, moduleSlug } of validSpecificInputs) {
+    const { error: modErr } = await admin.from('org_module_settings').insert({
+      organization_id: orgId,
+      module_key:      key,
+      is_enabled:      true,
+      allowed_roles:   ['owner', 'admin'],
+      config:          { moduleSlug },
+    });
+    if (modErr) {
+      console.error(`[onboarding] specific module ${key} error`, modErr.message);
+      continue;
+    }
+    const seeded = await seedModule(key, orgId, admin);
+    if (seeded) seededSummary[key] = seeded;
+  }
 
-  // Check if user already exists
+  // ── Find or invite owner ──────────────────────────────────────────────────────
+  let ownerId: string | null = null;
   const { data: existingUser } = await admin
     .from('profiles')
     .select('id')
@@ -99,7 +120,6 @@ export async function POST(req: NextRequest) {
   if (existingUser) {
     ownerId = (existingUser as Record<string, string>).id;
   } else {
-    // Invite new user via Supabase auth admin
     const { data: inviteData, error: inviteErr } = await admin.auth.admin.inviteUserByEmail(
       ownerEmail,
       { data: { invited_to_org: orgId, invited_as: 'owner' } },
@@ -111,25 +131,26 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // ── Add owner to organization ─────────────────────────────────────────────────
   if (ownerId) {
-    const { error: memberErr } = await admin
-      .from('organization_members')
-      .insert({
-        organization_id: orgId,
-        user_id:         ownerId,
-        role:            'owner',
-      });
-    if (memberErr) {
-      console.error('[onboarding] add owner error', memberErr.message);
-    }
+    const { error: memberErr } = await admin.from('organization_members').insert({
+      organization_id: orgId,
+      user_id:         ownerId,
+      role:            'owner',
+    });
+    if (memberErr) console.error('[onboarding] add owner error', memberErr.message);
   }
+
+  const allEnabledKeys = [
+    ...validSharedKeys,
+    ...validSpecificInputs.map(s => s.key),
+  ];
 
   return NextResponse.json({
     ok:  true,
     org: { id: orgId, name: (org as Record<string, string>).name, slug },
-    ownerInvited: !existingUser,
-    modulesEnabled: validModuleKeys,
+    ownerInvited:   !existingUser,
+    modulesEnabled: allEnabledKeys,
+    seededSummary,
   }, { status: 201 });
 }
 

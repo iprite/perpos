@@ -1,0 +1,589 @@
+'use client';
+
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useAuth } from '@/app/shared/auth-provider';
+import { createSupabaseBrowserClient } from '@/lib/supabase/client';
+import { Button }       from '@/components/ui/button';
+import { Input }        from '@/components/ui/input';
+import { Label }        from '@/components/ui/label';
+import { CustomSelect } from '@/components/ui/custom-select';
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+} from '@/components/ui/dialog';
+import {
+  Puzzle, Plus, Pencil, Trash2, Loader2, CheckCircle2,
+  AlertCircle, ToggleLeft, ToggleRight, ShieldAlert,
+  Building2, Globe,
+} from 'lucide-react';
+import cn from '@core/utils/class-names';
+
+// ─── Types ─────────────────────────────────────────────────────────────────────
+
+interface OrgRef { id: string; name: string; slug: string }
+
+interface ModuleRec {
+  id:            string;
+  key:           string;
+  label:         string;
+  href_slug:     string;
+  description:   string | null;
+  is_specific:   boolean;
+  is_builtin:    boolean;
+  is_active:     boolean;
+  sort_order:    number;
+  org_id:        string | null;
+  organizations: OrgRef | null;
+  created_at:    string;
+}
+
+interface Org { id: string; name: string; slug: string }
+
+type ModuleType = 'shared' | 'tailor-made';
+
+const EMPTY_FORM = {
+  moduleType:  'tailor-made' as ModuleType,
+  key:         '',
+  label:       '',
+  href_slug:   '',
+  description: '',
+  org_id:      '',
+};
+type FormState = typeof EMPTY_FORM;
+
+// ─── Helpers ───────────────────────────────────────────────────────────────────
+
+function toKey(label: string) {
+  return label.toLowerCase().replace(/[^a-z0-9\s_-]/g, '').trim().replace(/\s+/g, '_').slice(0, 30);
+}
+function toSlug(key: string) {
+  return key.replace(/_/g, '-').replace(/[^a-z0-9-]/g, '');
+}
+
+// ─── SectionHeader ─────────────────────────────────────────────────────────────
+
+function SectionHeader({ icon, title, count, note }: {
+  icon: React.ReactNode; title: string; count: number; note?: string;
+}) {
+  return (
+    <div className="flex items-center justify-between border-b bg-slate-50 px-5 py-3">
+      <div className="flex items-center gap-2">
+        {icon}
+        <h2 className="text-sm font-semibold text-slate-700">{title}</h2>
+        <span className="rounded-full bg-slate-200 px-2 py-0.5 text-xs text-slate-500">{count}</span>
+      </div>
+      {note && <p className="text-xs text-slate-400">{note}</p>}
+    </div>
+  );
+}
+
+// ─── ModuleRow ─────────────────────────────────────────────────────────────────
+
+function ModuleRow({ mod, onEdit, onDelete, onToggle, showOrg }: {
+  mod:      ModuleRec;
+  onEdit:   () => void;
+  onDelete?: () => void;
+  onToggle: () => void;
+  showOrg?: boolean;
+}) {
+  return (
+    <div className={cn(
+      'flex items-center gap-4 px-5 py-4 transition-colors hover:bg-slate-50',
+      !mod.is_active && 'opacity-50',
+    )}>
+      <span className={cn('h-2 w-2 shrink-0 rounded-full', mod.is_active ? 'bg-emerald-400' : 'bg-slate-300')} />
+
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="font-medium text-slate-800">{mod.label}</span>
+          <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs font-mono text-slate-500">{mod.key}</code>
+        </div>
+        <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-slate-400">
+          <span><code className="text-slate-500">/{'{orgSlug}'}/{mod.href_slug}/...</code></span>
+          {mod.description && <span className="truncate max-w-xs">{mod.description}</span>}
+          {showOrg && mod.organizations && (
+            <span className="flex items-center gap-1 font-medium text-amber-600">
+              <Building2 className="h-3 w-3" />
+              {mod.organizations.name}
+              <code className="text-amber-500">({mod.organizations.slug})</code>
+            </span>
+          )}
+          {showOrg && !mod.organizations && !mod.is_builtin && (
+            <span className="text-rose-400">ยังไม่ได้ผูก org</span>
+          )}
+        </div>
+      </div>
+
+      <div className="flex shrink-0 items-center gap-1">
+        <button type="button" onClick={onToggle}
+          title={mod.is_active ? 'ปิดใช้งาน' : 'เปิดใช้งาน'}
+          className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 transition-colors">
+          {mod.is_active
+            ? <ToggleRight className="h-5 w-5 text-emerald-500" />
+            : <ToggleLeft  className="h-5 w-5" />}
+        </button>
+        <button type="button" onClick={onEdit} title="แก้ไข"
+          className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 transition-colors">
+          <Pencil className="h-4 w-4" />
+        </button>
+        {onDelete && !mod.is_builtin && (
+          <button type="button" onClick={onDelete} title="ลบ"
+            className="rounded-lg p-2 text-slate-400 hover:bg-red-50 hover:text-red-500 transition-colors">
+            <Trash2 className="h-4 w-4" />
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Main Page ─────────────────────────────────────────────────────────────────
+
+export default function ModuleRegistryPage() {
+  const { role } = useAuth();
+  const supabase  = useMemo(() => createSupabaseBrowserClient(), []);
+
+  const getHeaders = useCallback(async () => {
+    const { data } = await supabase.auth.getSession();
+    return {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${data.session?.access_token ?? ''}`,
+    };
+  }, [supabase]);
+
+  const [modules,   setModules]   = useState<ModuleRec[]>([]);
+  const [orgs,      setOrgs]      = useState<Org[]>([]);
+  const [loading,   setLoading]   = useState(true);
+  const [toast,     setToast]     = useState<{ ok: boolean; msg: string } | null>(null);
+  const [dialog,    setDialog]    = useState<'create' | 'edit' | 'delete' | null>(null);
+  const [selected,  setSelected]  = useState<ModuleRec | null>(null);
+  const [form,      setForm]      = useState<FormState>(EMPTY_FORM);
+  const [saving,    setSaving]    = useState(false);
+  const [keyEdited, setKeyEdited] = useState(false);
+
+  if (role !== 'super_admin') {
+    return <div className="flex h-64 items-center justify-center text-gray-400">ไม่มีสิทธิ์เข้าถึงหน้านี้</div>;
+  }
+
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  useEffect(() => {
+    void (async () => {
+      const h = await getHeaders();
+      const [modRes, orgRes] = await Promise.all([
+        fetch('/api/admin/module-registry', { headers: h }),
+        fetch('/api/admin/modules', { headers: h }),
+      ]);
+      const modData = await modRes.json() as { modules?: ModuleRec[] };
+      const orgData = await orgRes.json() as { orgs?: Org[] };
+      setModules(modData.modules ?? []);
+      setOrgs(orgData.orgs ?? []);
+      setLoading(false);
+    })();
+  }, [getHeaders]);
+
+  function showToast(ok: boolean, msg: string) {
+    setToast({ ok, msg });
+    setTimeout(() => setToast(null), 4000);
+  }
+
+  // ── Grouped data ──────────────────────────────────────────────────────────────
+  const sharedMods   = modules.filter(m => !m.is_specific);
+  const tailoredMods = modules.filter(m =>  m.is_specific);
+
+  // ── Dialog helpers ────────────────────────────────────────────────────────────
+  function openCreate() {
+    setForm(EMPTY_FORM);
+    setKeyEdited(false);
+    setSelected(null);
+    setDialog('create');
+  }
+
+  function openEdit(mod: ModuleRec) {
+    setSelected(mod);
+    setForm({
+      moduleType:  mod.is_specific ? 'tailor-made' : 'shared',
+      key:         mod.key,
+      label:       mod.label,
+      href_slug:   mod.href_slug,
+      description: mod.description ?? '',
+      org_id:      mod.org_id ?? '',
+    });
+    setKeyEdited(true);
+    setDialog('edit');
+  }
+
+  function openDelete(mod: ModuleRec) {
+    setSelected(mod);
+    setDialog('delete');
+  }
+
+  function handleLabelChange(label: string) {
+    const next = { ...form, label };
+    if (!keyEdited) {
+      const k = toKey(label);
+      next.key      = k;
+      next.href_slug = toSlug(k);
+    }
+    setForm(next);
+  }
+
+  function handleKeyChange(raw: string) {
+    const k = raw.toLowerCase().replace(/[^a-z0-9_-]/g, '');
+    setForm(f => ({ ...f, key: k, href_slug: toSlug(k) }));
+    setKeyEdited(true);
+  }
+
+  // ── CRUD ──────────────────────────────────────────────────────────────────────
+  async function handleCreate() {
+    setSaving(true);
+    const h = await getHeaders();
+    const res = await fetch('/api/admin/module-registry', {
+      method: 'POST', headers: h,
+      body: JSON.stringify({
+        key:         form.key,
+        label:       form.label,
+        href_slug:   form.href_slug,
+        description: form.description || null,
+        is_specific: form.moduleType === 'tailor-made',
+        org_id:      form.moduleType === 'tailor-made' ? (form.org_id || null) : null,
+      }),
+    });
+    const data = await res.json() as { ok?: boolean; error?: string; module?: ModuleRec };
+    setSaving(false);
+    if (res.ok && data.ok && data.module) {
+      setModules(prev => [...prev, data.module!].sort((a, b) => a.sort_order - b.sort_order));
+      setDialog(null);
+      showToast(true, `สร้าง module "${data.module.label}" สำเร็จ`);
+    } else {
+      showToast(false, data.error ?? 'เกิดข้อผิดพลาด');
+    }
+  }
+
+  async function handleUpdate() {
+    if (!selected) return;
+    setSaving(true);
+    const h = await getHeaders();
+    const patch: Record<string, unknown> = {
+      key:         selected.key,
+      label:       form.label,
+      description: form.description || null,
+    };
+    // Allow binding org for specific modules not yet bound (builtin or custom)
+    if (selected.is_specific && !selected.org_id) {
+      patch.org_id = form.org_id || null;
+    }
+    const res = await fetch('/api/admin/module-registry', {
+      method: 'PATCH', headers: h, body: JSON.stringify(patch),
+    });
+    const data = await res.json() as { ok?: boolean; error?: string; module?: ModuleRec };
+    setSaving(false);
+    if (res.ok && data.ok && data.module) {
+      setModules(prev => prev.map(m => m.key === selected.key ? data.module! : m));
+      setDialog(null);
+      showToast(true, `อัปเดต module "${data.module.label}" สำเร็จ`);
+    } else {
+      showToast(false, data.error ?? 'เกิดข้อผิดพลาด');
+    }
+  }
+
+  async function handleDelete() {
+    if (!selected) return;
+    setSaving(true);
+    const h = await getHeaders();
+    const res = await fetch('/api/admin/module-registry', {
+      method: 'DELETE', headers: h, body: JSON.stringify({ key: selected.key }),
+    });
+    const data = await res.json() as { ok?: boolean; error?: string };
+    setSaving(false);
+    if (res.ok && data.ok) {
+      setModules(prev => prev.filter(m => m.key !== selected.key));
+      setDialog(null);
+      showToast(true, `ลบ module "${selected.label}" สำเร็จ`);
+    } else {
+      showToast(false, data.error ?? 'เกิดข้อผิดพลาด');
+    }
+  }
+
+  async function toggleActive(mod: ModuleRec) {
+    const h = await getHeaders();
+    const res = await fetch('/api/admin/module-registry', {
+      method: 'PATCH', headers: h,
+      body: JSON.stringify({ key: mod.key, is_active: !mod.is_active }),
+    });
+    const data = await res.json() as { ok?: boolean; module?: ModuleRec };
+    if (res.ok && data.ok && data.module) {
+      setModules(prev => prev.map(m => m.key === mod.key ? data.module! : m));
+    }
+  }
+
+  const isTailored = form.moduleType === 'tailor-made';
+  const canSave    = form.label.trim().length >= 2
+    && form.key.length >= 2
+    && form.href_slug.length >= 1
+    && (dialog === 'edit' || !isTailored || !!form.org_id);   // tailor-made create requires org
+
+  const orgOptions = [
+    { value: '', label: '— เลือก Org —' },
+    ...orgs.map(o => ({ value: o.id, label: `${o.name}  (${o.slug})` })),
+  ];
+
+  // ── Render ────────────────────────────────────────────────────────────────────
+  return (
+    <div className="mx-auto max-w-4xl p-4 md:p-8 space-y-6">
+
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-600">
+            <Puzzle className="h-5 w-5 text-white" />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold text-slate-900">Module Registry</h1>
+            <p className="text-sm text-slate-500">จัดการ module ทั้งหมดในระบบ</p>
+          </div>
+        </div>
+        <Button onClick={openCreate} className="gap-2">
+          <Plus className="h-4 w-4" /> สร้าง Module ใหม่
+        </Button>
+      </div>
+
+      {/* Toast */}
+      {toast && (
+        <div className={cn(
+          'flex items-center gap-2 rounded-xl border px-4 py-3 text-sm',
+          toast.ok ? 'border-green-200 bg-green-50 text-green-800' : 'border-red-200 bg-red-50 text-red-700',
+        )}>
+          {toast.ok ? <CheckCircle2 className="h-4 w-4 text-green-500" /> : <AlertCircle className="h-4 w-4 text-red-500" />}
+          {toast.msg}
+        </div>
+      )}
+
+      {loading ? (
+        <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-slate-400" /></div>
+      ) : (
+        <div className="space-y-6">
+
+          {/* ── Shared Modules ── */}
+          <div className="rounded-2xl border bg-white overflow-hidden">
+            <SectionHeader
+              icon={<Globe className="h-4 w-4 text-slate-400" />}
+              title="Shared Modules"
+              count={sharedMods.length}
+              note="ใช้ได้กับทุก org"
+            />
+            <div className="divide-y">
+              {sharedMods.map(mod => (
+                <ModuleRow key={mod.key} mod={mod}
+                  onEdit={() => openEdit(mod)}
+                  onToggle={() => void toggleActive(mod)}
+                />
+              ))}
+            </div>
+          </div>
+
+          {/* ── Tailor-made Modules ── */}
+          <div className="rounded-2xl border bg-white overflow-hidden">
+            <SectionHeader
+              icon={<Building2 className="h-4 w-4 text-slate-400" />}
+              title="Tailor-made Modules"
+              count={tailoredMods.length}
+              note="ผูกกับองค์กรเฉพาะ"
+            />
+            <div className="divide-y">
+              {tailoredMods.map(mod => (
+                <ModuleRow key={mod.key} mod={mod}
+                  onEdit={() => openEdit(mod)}
+                  onDelete={() => openDelete(mod)}
+                  onToggle={() => void toggleActive(mod)}
+                  showOrg
+                />
+              ))}
+              {tailoredMods.length === 0 && (
+                <div className="py-8 text-center text-sm text-slate-400">ยังไม่มี tailor-made module</div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Create / Edit Dialog ── */}
+      <Dialog open={dialog === 'create' || dialog === 'edit'} onOpenChange={o => !o && setDialog(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>
+              {dialog === 'create' ? 'สร้าง Module ใหม่' : `แก้ไข Module — ${selected?.label}`}
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+
+            {/* Module type picker (create only) */}
+            {dialog === 'create' && (
+              <div className="space-y-1.5">
+                <Label>ประเภท Module *</Label>
+                <div className="grid grid-cols-2 gap-3">
+                  {([
+                    { type: 'shared'       as ModuleType, icon: <Globe      className="h-5 w-5" />, label: 'Shared Module',       desc: 'ใช้ได้กับทุก org' },
+                    { type: 'tailor-made'  as ModuleType, icon: <Building2  className="h-5 w-5" />, label: 'Tailor-made Module',  desc: 'ผูกกับ org เดียว' },
+                  ]).map(opt => (
+                    <button
+                      key={opt.type} type="button"
+                      onClick={() => setForm(f => ({ ...f, moduleType: opt.type, org_id: '' }))}
+                      className={cn(
+                        'flex flex-col items-start gap-1.5 rounded-xl border-2 p-4 text-left transition-all',
+                        form.moduleType === opt.type
+                          ? opt.type === 'shared'
+                            ? 'border-blue-500 bg-blue-50'
+                            : 'border-amber-500 bg-amber-50'
+                          : 'border-slate-200 hover:border-slate-300',
+                      )}
+                    >
+                      <span className={cn(
+                        'flex h-8 w-8 items-center justify-center rounded-lg',
+                        form.moduleType === opt.type
+                          ? opt.type === 'shared' ? 'bg-blue-500 text-white' : 'bg-amber-500 text-white'
+                          : 'bg-slate-100 text-slate-400',
+                      )}>
+                        {opt.icon}
+                      </span>
+                      <span className={cn(
+                        'text-sm font-semibold',
+                        form.moduleType === opt.type
+                          ? opt.type === 'shared' ? 'text-blue-700' : 'text-amber-700'
+                          : 'text-slate-700',
+                      )}>
+                        {opt.label}
+                      </span>
+                      <span className="text-xs text-slate-400">{opt.desc}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Label */}
+            <div className="space-y-1.5">
+              <Label>ชื่อ Module *</Label>
+              <Input
+                placeholder="เช่น Property Management"
+                value={form.label}
+                onChange={e => handleLabelChange(e.target.value)}
+              />
+            </div>
+
+            {/* Key */}
+            <div className="space-y-1.5">
+              <Label>Module Key * <span className="text-xs text-slate-400">(unique ID)</span></Label>
+              <Input
+                placeholder="เช่น property_mgmt"
+                value={form.key}
+                onChange={e => handleKeyChange(e.target.value)}
+                disabled={dialog === 'edit'}
+                className="font-mono text-sm"
+              />
+              {dialog === 'edit' && (
+                <p className="text-xs text-slate-400">ไม่สามารถเปลี่ยน key หลังสร้างแล้ว</p>
+              )}
+            </div>
+
+            {/* URL slug */}
+            <div className="space-y-1.5">
+              <Label>URL Slug * <span className="text-xs text-slate-400">(path segment)</span></Label>
+              <div className="flex items-center gap-2">
+                <span className="shrink-0 text-sm text-slate-400">/{'{orgSlug}'}/</span>
+                <Input
+                  placeholder="property-mgmt"
+                  value={form.href_slug}
+                  onChange={e => setForm(f => ({ ...f, href_slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '') }))}
+                  disabled={dialog === 'edit'}
+                  className="font-mono text-sm"
+                />
+                <span className="shrink-0 text-sm text-slate-400">/...</span>
+              </div>
+              {dialog === 'edit' && (
+                <p className="text-xs text-slate-400">ไม่สามารถเปลี่ยน URL slug หลังสร้างแล้ว เพราะจะทำให้ routing พัง</p>
+              )}
+            </div>
+
+            {/* Description */}
+            <div className="space-y-1.5">
+              <Label>คำอธิบาย</Label>
+              <Input
+                placeholder="อธิบายหน้าที่ของ module นี้"
+                value={form.description}
+                onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
+              />
+            </div>
+
+            {/* Org selector — tailor-made only */}
+            {(dialog === 'create' ? isTailored : selected?.is_specific) && (
+              <div className="space-y-1.5 rounded-xl border border-amber-200 bg-amber-50 p-4">
+                <Label>องค์กรที่ใช้ Module นี้{dialog === 'create' && ' *'}</Label>
+
+                {/* Edit + already bound → read-only display */}
+                {dialog === 'edit' && selected?.org_id ? (
+                  <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-white px-3 py-2.5">
+                    <Building2 className="h-4 w-4 shrink-0 text-amber-500" />
+                    <span className="text-sm font-medium text-slate-700">
+                      {selected.organizations?.name ?? selected.org_id}
+                    </span>
+                    {selected.organizations?.slug && (
+                      <code className="text-xs text-slate-400">({selected.organizations.slug})</code>
+                    )}
+                    <span className="ml-auto text-xs text-slate-400">ผูกแล้ว — แก้ไขไม่ได้</span>
+                  </div>
+                ) : (
+                  <CustomSelect
+                    value={form.org_id}
+                    onChange={v => setForm(f => ({ ...f, org_id: v }))}
+                    options={orgOptions}
+                  />
+                )}
+                <p className="text-xs text-amber-700">ผูกได้ 1 org เท่านั้น — module จะปรากฏเฉพาะ org นั้น</p>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-2">
+            <Button variant="outline" onClick={() => setDialog(null)}>ยกเลิก</Button>
+            <Button
+              onClick={() => void (dialog === 'create' ? handleCreate() : handleUpdate())}
+              disabled={saving || !canSave}
+            >
+              {saving
+                ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />กำลังบันทึก…</>
+                : dialog === 'create' ? 'สร้าง Module' : 'บันทึก'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Delete Dialog ── */}
+      <Dialog open={dialog === 'delete'} onOpenChange={o => !o && setDialog(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-600">
+              <ShieldAlert className="h-5 w-5" /> ลบ Module
+            </DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-slate-600 py-2">
+            ยืนยันลบ <strong>{selected?.label}</strong>{' '}
+            (<code className="font-mono text-xs">{selected?.key}</code>)?
+          </p>
+          {selected?.organizations && (
+            <div className="flex items-center gap-2 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-700">
+              <Building2 className="h-3.5 w-3.5 shrink-0" />
+              Module นี้ผูกกับ <strong>{selected.organizations.name}</strong>
+            </div>
+          )}
+          <DialogFooter className="gap-2 sm:gap-2">
+            <Button variant="outline" onClick={() => setDialog(null)}>ยกเลิก</Button>
+            <Button variant="destructive" onClick={() => void handleDelete()} disabled={saving}>
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : 'ลบ Module'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+    </div>
+  );
+}
