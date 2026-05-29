@@ -1,4 +1,5 @@
 import { createAdminClient } from '../_lib/supabase';
+import { signClockToken } from './_lib';
 
 type Admin = ReturnType<typeof createAdminClient>;
 
@@ -71,7 +72,8 @@ export async function handleJustMeIn(
     .maybeSingle();
   const slug = org?.slug || 'justme';
   const baseUrl = process.env.APP_BASE_URL || 'https://app.perpos.io';
-  const clockUrl = `${baseUrl}/${slug}/just-me/clock-in-out`;
+  const token = signClockToken(profileId, orgId, 'in');
+  const clockUrl = `${baseUrl}/just-me-clock?token=${token}`;
 
   // 3. ส่ง Flex Card เพื่อให้ไปกดยืนยันตัวตนและบันทึกเวลาจริงจากพิกัด GPS ปัจจุบัน
   return replyLine(replyToken, [
@@ -161,7 +163,8 @@ export async function handleJustMeOut(
     .maybeSingle();
   const slug = org?.slug || 'justme';
   const baseUrl = process.env.APP_BASE_URL || 'https://app.perpos.io';
-  const clockUrl = `${baseUrl}/${slug}/just-me/clock-in-out`;
+  const token = signClockToken(profileId, orgId, 'out');
+  const clockUrl = `${baseUrl}/just-me-clock?token=${token}`;
 
   // 3. ส่ง Flex Card เพื่อให้ไปกดยืนยันตัวตนและบันทึกเวลาจริงจากพิกัด GPS ปัจจุบัน
   return replyLine(replyToken, [
