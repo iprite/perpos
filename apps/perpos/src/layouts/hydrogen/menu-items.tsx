@@ -370,13 +370,19 @@ function buildAccFirmMenuItems(org: string): MenuItem[] {
 }
 
 // ─── Just Me module ──────────────────────────────────────────────────────────
-function buildJustMeMenuItems(org: string): MenuItem[] {
+function buildJustMeMenuItems(org: string, orgRole?: string | null): MenuItem[] {
   const p = (path: string) => `/${org}/just-me/${path}`;
-  return [
+  const items: MenuItem[] = [
     { name: "Just Me" },
-    { name: "Dashboard", href: `/${org}/just-me`, icon: <LayoutDashboard className="h-5 w-5" /> },
-    { name: "Clock In/Out", href: p("clock-in-out"), icon: <Clock className="h-5 w-5" /> },
   ];
+
+  // Only show Dashboard to owner and admin roles
+  if (orgRole === "owner" || orgRole === "admin") {
+    items.push({ name: "Dashboard", href: `/${org}/just-me`, icon: <LayoutDashboard className="h-5 w-5" /> });
+  }
+
+  items.push({ name: "Clock In/Out", href: p("clock-in-out"), icon: <Clock className="h-5 w-5" /> });
+  return items;
 }
 
 // ─── Context picker ─────────────────────────────────────────────────────────
@@ -414,6 +420,7 @@ export function getMenuItems(
   pathname: string,
   enabledKeys: string[] = [],
   orgSlug: string = "",
+  orgRole?: string | null,
 ): MenuItem[] {
   // Fallback: always resolve orgSlug from the URL's first segment so links
   // are never empty even if context hasn't propagated yet.
@@ -429,7 +436,7 @@ export function getMenuItems(
     context === "tmc"       ? buildTmcMenuItems(org)         :
     context === "crm"       ? buildCrmMenuItems(org)         :
     context === "acc_firm"  ? buildAccFirmMenuItems(org)     :
-    context === "just_me"   ? buildJustMeMenuItems(org)      :
+    context === "just_me"   ? buildJustMeMenuItems(org, orgRole) :
     buildUserMenuItems(org);
 
   return items.filter((item) => {

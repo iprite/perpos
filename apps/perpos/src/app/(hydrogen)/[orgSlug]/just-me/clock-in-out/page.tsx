@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import {
-  Clock, LogIn, LogOut, MapPin, RefreshCw, Loader2, AlertCircle, Calendar
+  Clock, LogIn, LogOut, MapPin, RefreshCw, Loader2, AlertCircle, Calendar, MessageSquare, Bot
 } from 'lucide-react';
 import cn from '@core/utils/class-names';
 
@@ -42,7 +42,6 @@ export default function ClockInOutPage() {
   const [session, setSession] = useState<ClockSession | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [actionLoading, setActionLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
@@ -83,74 +82,7 @@ export default function ClockInOutPage() {
     }
   }, [supabase, orgSlug]);
 
-  const handleClockAction = async (type: 'in' | 'out') => {
-    try {
-      setActionLoading(true);
-      setError(null);
-      setSuccessMessage(null);
 
-      if (!navigator.geolocation) {
-        throw new Error('เบราว์เซอร์ของคุณไม่สนับสนุนการดึงพิกัดตำแหน่ง (Geolocation)');
-      }
-
-      navigator.geolocation.getCurrentPosition(
-        async (position) => {
-          try {
-            const { latitude, longitude } = position.coords;
-
-            const { data: sess } = await supabase.auth.getSession();
-            const token = sess.session?.access_token;
-            if (!token) throw new Error('กรุณาเข้าสู่ระบบใหม่');
-
-            const { data: org } = await supabase
-              .from('organizations')
-              .select('id')
-              .eq('slug', orgSlug)
-              .single();
-            if (!org) throw new Error('ไม่พบข้อมูลองค์กร');
-
-            const res = await fetch(`/api/just-me/clock-logs?orgId=${org.id}`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                Authorization: `Bearer ${token}`,
-              },
-              body: JSON.stringify({
-                type,
-                latitude,
-                longitude,
-                address: `พิกัด GPS (${latitude.toFixed(6)}, ${longitude.toFixed(6)})`,
-              }),
-            });
-
-            if (!res.ok) {
-              const errJson = await res.json().catch(() => ({}));
-              throw new Error(errJson.error || 'บันทึกเวลาไม่สำเร็จ');
-            }
-
-            setSuccessMessage(`บันทึกเวลา${type === 'in' ? 'เข้างาน (Clock In)' : 'ออกงาน (Clock Out)'} สำเร็จ`);
-            await loadData();
-          } catch (err: any) {
-            setError(err.message);
-          } finally {
-            setActionLoading(false);
-          }
-        },
-        (err) => {
-          let msg = 'ไม่สามารถดึงตำแหน่งพิกัดได้';
-          if (err.code === 1) msg = 'กรุณาอนุญาตสิทธิ์เข้าถึงพิกัดตำแหน่ง (Location Access) ในเบราว์เซอร์ของคุณ';
-          else if (err.code === 2) msg = 'ไม่สามารถระบุตำแหน่งพิกัด GPS ได้ในขณะนี้';
-          else if (err.code === 3) msg = 'หมดเวลาเชื่อมต่อสัญญาณ GPS';
-          setError(msg);
-          setActionLoading(false);
-        },
-        { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
-      );
-    } catch (err: any) {
-      setError(err.message);
-      setActionLoading(false);
-    }
-  };
 
   useEffect(() => {
     loadData();
@@ -267,20 +199,16 @@ export default function ClockInOutPage() {
                     )}
                   </div>
 
-                  {/* Clock Out Button */}
-                  <Button
-                    variant="destructive"
-                    className="w-full mt-4 gap-2 py-6 text-base font-bold shadow-sm border"
-                    onClick={() => handleClockAction('out')}
-                    disabled={actionLoading}
-                  >
-                    {actionLoading ? (
-                      <Loader2 className="h-5 w-5 animate-spin" />
-                    ) : (
-                      <LogOut className="h-5 w-5" />
-                    )}
-                    บันทึกออกงาน (Clock Out)
-                  </Button>
+                  {/* Clock Out Instructions */}
+                  <div className="rounded-xl border border-rose-100 bg-rose-50/50 p-4 text-xs text-rose-800 leading-relaxed space-y-2 mt-4">
+                    <div className="flex items-center gap-1.5 font-bold text-rose-900">
+                      <Bot className="h-4 w-4 text-rose-600 shrink-0" />
+                      <span>กรุณาบันทึกออกงานผ่าน LINE Bot</span>
+                    </div>
+                    <p className="text-slate-600 leading-normal">
+                      ไม่อนุญาตให้กดบันทึกผ่านหน้าจอนี้โดยตรง กรุณาเปิด LINE Bot แล้วพิมพ์ <code className="bg-rose-100 px-1 py-0.5 rounded font-mono font-bold text-rose-700">/out</code> เพื่อรับลิงก์ลงเวลาออกงาน
+                    </p>
+                  </div>
                 </div>
               ) : (
                 <div className="space-y-4">
@@ -290,23 +218,20 @@ export default function ClockInOutPage() {
                       ยังไม่เข้างาน (Clocked Out)
                     </span>
                     <p className="text-sm text-slate-400 leading-relaxed mt-2">
-                      ระบบจะบันทึกเวลาและพิกัดปัจจุบันของคุณโดยอัตโนมัติเมื่อกดปุ่มบันทึก
+                      กรุณาบันทึกเข้างานผ่าน LINE Bot โดยพิมพ์คำสั่ง <code className="bg-emerald-100 px-1 py-0.5 rounded font-mono font-bold text-emerald-700">/in</code>
                     </p>
                   </div>
 
-                  {/* Clock In Button */}
-                  <Button
-                    className="w-full gap-2 py-6 text-base font-bold shadow-sm bg-emerald-600 hover:bg-emerald-700 text-white"
-                    onClick={() => handleClockAction('in')}
-                    disabled={actionLoading}
-                  >
-                    {actionLoading ? (
-                      <Loader2 className="h-5 w-5 animate-spin" />
-                    ) : (
-                      <LogIn className="h-5 w-5" />
-                    )}
-                    บันทึกเข้างาน (Clock In)
-                  </Button>
+                  {/* Clock In Instructions */}
+                  <div className="rounded-xl border border-indigo-100 bg-indigo-50/50 p-4 text-xs text-indigo-800 leading-relaxed space-y-2">
+                    <div className="flex items-center gap-1.5 font-bold text-indigo-900">
+                      <MessageSquare className="h-4 w-4 text-indigo-600 shrink-0" />
+                      <span>ลงเวลาเข้างานผ่าน LINE เท่านั้น</span>
+                    </div>
+                    <p className="text-slate-600 leading-normal">
+                      เปิดห้องแชท LINE Bot พิมพ์ <code className="bg-indigo-100 px-1 py-0.5 rounded font-mono font-bold text-indigo-700">/in</code> จากนั้นแตะลิงก์ลงเวลาที่ได้รับในแชทเพื่อบันทึกพิกัด GPS
+                    </p>
+                  </div>
                 </div>
               )}
 

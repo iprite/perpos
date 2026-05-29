@@ -8,3 +8,4 @@ import { atom } from "jotai";
  */
 export const enabledModuleKeysAtom = atom<string[]>([]);
 export const orgSlugAtom            = atom<string>("");
+export const orgRoleAtom            = atom<string | null>(null);
