@@ -8,6 +8,9 @@ import {
   handleCrmSolutions, handleCrmPhoto,
   crmHelpText,
 } from '../../crm/_line';
+import {
+  handleJustMeIn, handleJustMeOut, handleJustMeLocation,
+} from '../../just-me/_line';
 
 // ─── TMC Org ID (TMC Management) ─────────────────────────────────────────────
 const TMC_ORG_ID = '1f52618c-09c4-49c5-a929-ea5060f26e7d';
@@ -977,6 +980,43 @@ export async function POST(req: NextRequest) {
       continue;
     }
 
+    // ─── Location messages — Clock In/Out ───────────────────────────────────
+    if (msg.type === 'location') {
+      const title     = String(msg.title ?? '');
+      const address   = String(msg.address ?? '');
+      const latitude  = Number(msg.latitude);
+      const longitude = Number(msg.longitude);
+
+      if (lineUserId) {
+        const locProfile = await getProfileByLineId(admin, lineUserId);
+        if (locProfile) {
+          const activeOrg = await getOrSetActiveOrg(admin, locProfile.id, locProfile.line_active_org_id);
+          if (activeOrg) {
+            // Check if just_me is enabled
+            const { data: moduleSetting } = await admin
+              .from('org_module_settings')
+              .select('is_enabled')
+              .eq('organization_id', activeOrg.id)
+              .eq('module_key', 'just_me')
+              .maybeSingle();
+
+            if (moduleSetting?.is_enabled) {
+              await handleJustMeLocation(
+                admin,
+                { latitude, longitude, address, title },
+                lineUserId,
+                locProfile.id,
+                activeOrg.id,
+                replyToken,
+              );
+              continue;
+            }
+          }
+        }
+      }
+      continue;
+    }
+
     if (msg.type !== 'text') continue;
 
     const text = String(msg.text ?? '').trim();
@@ -1103,6 +1143,25 @@ export async function POST(req: NextRequest) {
       const profileName = (pdata as { display_name?: string; email?: string } | null)?.display_name
         || (pdata as { display_name?: string; email?: string } | null)?.email
         || 'Someone';
+
+      // Check if just_me is enabled for the active org
+      const { data: justMeSetting } = await admin
+        .from('org_module_settings')
+        .select('is_enabled')
+        .eq('organization_id', activeOrg.id)
+        .eq('module_key', 'just_me')
+        .maybeSingle();
+
+      if (justMeSetting?.is_enabled) {
+        if (cmd === 'in') {
+          await handleJustMeIn(admin, lineUserId, profile.id, activeOrg.id, replyToken);
+          continue;
+        }
+        if (cmd === 'out') {
+          await handleJustMeOut(admin, lineUserId, profile.id, activeOrg.id, replyToken);
+          continue;
+        }
+      }
 
       if (cmd === 'in') {
         await handleCrmIn(admin, args, lineUserId, profile.id, profile.role, activeOrg.id, replyToken);

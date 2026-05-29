@@ -159,6 +159,8 @@ export default function ModuleRegistryPage() {
   const [form,      setForm]      = useState<FormState>(EMPTY_FORM);
   const [saving,    setSaving]    = useState(false);
   const [keyEdited, setKeyEdited] = useState(false);
+  const [createdCommand, setCreatedCommand] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   if (role !== 'super_admin') {
     return <div className="flex h-64 items-center justify-center text-gray-400">ไม่มีสิทธิ์เข้าถึงหน้านี้</div>;
@@ -252,6 +254,8 @@ export default function ModuleRegistryPage() {
     if (res.ok && data.ok && data.module) {
       setModules(prev => [...prev, data.module!].sort((a, b) => a.sort_order - b.sort_order));
       setDialog(null);
+      const cmd = `pnpm gen-module ${form.key} "${form.label}" ${form.href_slug} ${form.moduleType === 'tailor-made'}`;
+      setCreatedCommand(cmd);
       showToast(true, `สร้าง module "${data.module.label}" สำเร็จ`);
     } else {
       showToast(false, data.error ?? 'เกิดข้อผิดพลาด');
@@ -580,6 +584,45 @@ export default function ModuleRegistryPage() {
             <Button variant="destructive" onClick={() => void handleDelete()} disabled={saving}>
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : 'ลบ Module'}
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Success CLI Command Dialog ── */}
+      <Dialog open={!!createdCommand} onOpenChange={o => { if (!o) { setCreatedCommand(null); setCopied(false); } }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-emerald-600">
+              <CheckCircle2 className="h-5 w-5" /> ลงทะเบียนสำเร็จ
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2 text-sm text-slate-600">
+            <p>
+              โมดูลได้ถูกบันทึกลงฐานข้อมูลเรียบร้อยแล้ว! เพื่อสร้างไฟล์โค้ดของโมดูลในโปรเจกต์ของคุณ กรุณารันคำสั่งนี้ใน **Terminal ของเครื่องโลคอล (Local Development)**:
+            </p>
+            <div className="relative rounded-lg bg-slate-900 px-4 py-3 text-xs font-mono text-slate-100 flex items-center justify-between gap-4">
+              <span className="break-all select-all">{createdCommand}</span>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="shrink-0 text-slate-400 hover:text-white hover:bg-slate-800"
+                onClick={() => {
+                  if (createdCommand) {
+                    navigator.clipboard.writeText(createdCommand);
+                    setCopied(true);
+                    setTimeout(() => setCopied(false), 2000);
+                  }
+                }}
+              >
+                {copied ? 'คัดลอกแล้ว!' : 'คัดลอก'}
+              </Button>
+            </div>
+            <p className="text-xs text-slate-400">
+              💡 สคริปต์นี้จะสร้างโฟลเดอร์สำหรับหน้าจอ, API, Helper และไฟล์ SQL Migration พื้นฐานให้โดยอัตโนมัติ
+            </p>
+          </div>
+          <DialogFooter>
+            <Button onClick={() => { setCreatedCommand(null); setCopied(false); }}>ปิดหน้าต่าง</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

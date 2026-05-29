@@ -27,6 +27,7 @@ import {
   Briefcase,
   Kanban,
   Calculator,
+  Clock,
 } from "lucide-react";
 
 import type { Role } from "@/lib/supabase/types";
@@ -368,6 +369,16 @@ function buildAccFirmMenuItems(org: string): MenuItem[] {
   ];
 }
 
+// ─── Just Me module ──────────────────────────────────────────────────────────
+function buildJustMeMenuItems(org: string): MenuItem[] {
+  const p = (path: string) => `/${org}/just-me/${path}`;
+  return [
+    { name: "Just Me" },
+    { name: "Dashboard", href: `/${org}/just-me`, icon: <LayoutDashboard className="h-5 w-5" /> },
+    { name: "Clock In/Out", href: p("clock-in-out"), icon: <Clock className="h-5 w-5" /> },
+  ];
+}
+
 // ─── Context picker ─────────────────────────────────────────────────────────
 
 function pickMenuContext(pathname: string, role: Role | null, enabledKeys: string[]): string {
@@ -384,6 +395,7 @@ function pickMenuContext(pathname: string, role: Role | null, enabledKeys: strin
     if (mod === "tmc")       return "tmc";
     if (mod === "crm")       return "crm";
     if (mod === "acc-firm")  return "acc_firm";
+    if (mod === "just-me")   return "just_me";
     if (mod === "accounting") return "user";
   }
 
@@ -417,6 +429,7 @@ export function getMenuItems(
     context === "tmc"       ? buildTmcMenuItems(org)         :
     context === "crm"       ? buildCrmMenuItems(org)         :
     context === "acc_firm"  ? buildAccFirmMenuItems(org)     :
+    context === "just_me"   ? buildJustMeMenuItems(org)      :
     buildUserMenuItems(org);
 
   return items.filter((item) => {
