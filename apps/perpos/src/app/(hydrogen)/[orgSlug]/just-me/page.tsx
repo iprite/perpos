@@ -214,6 +214,7 @@ function ClockMap({ logs, sessions, focusLocation }: ClockMapProps) {
         });
       }
     }).catch(err => console.error(err));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [logs, sessions]);
 
   useEffect(() => {
