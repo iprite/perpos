@@ -1,7 +1,20 @@
 import Link from "next/link";
 import React from "react";
+import { headers } from "next/headers";
 
-export default function PublicLayout({ children }: { children: React.ReactNode }) {
+export default async function PublicLayout({ children }: { children: React.ReactNode }) {
+  const headersList = await headers();
+  const pathname    = headersList.get("x-pathname") ?? "/";
+  const isClockPage = pathname.includes("/just-me-clock");
+
+  if (isClockPage) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100 flex flex-col justify-center py-4">
+        <main className="mx-auto w-full max-w-md px-4">{children}</main>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100">
       <header className="border-b border-gray-200 bg-white/70 backdrop-blur">
