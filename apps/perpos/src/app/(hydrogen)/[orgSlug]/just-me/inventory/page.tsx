@@ -6,7 +6,7 @@ import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { NativeSelect } from '@/components/ui/native-select';
+import { CustomSelect } from '@/components/ui/custom-select';
 import {
   Package, Warehouse, ArrowLeftRight, History, AlertTriangle, Plus, Search,
   FileText, CheckCircle, TrendingUp, AlertCircle, Loader2, Scissors, Info, RefreshCw
@@ -99,11 +99,27 @@ export default function JustMeInventoryPage() {
     name: '', code: '', description: '', unit: 'ชิ้น',
     has_serial: false, has_cable_measurement: false, conversion_rate: '1', min_stock: '0'
   });
+  const [unitSelection, setUnitSelection] = useState('ชิ้น');
+  const [customUnit, setCustomUnit] = useState('');
   const [formMovement, setFormMovement] = useState({
     movement_type: 'receive', item_id: '', source_warehouse_id: '', destination_warehouse_id: '',
     quantity: '1', reference_no: '', note: '', serialsText: '', length_remaining: ''
   });
   const [formLoading, setFormLoading] = useState(false);
+
+  const handleUnitSelectionChange = (val: string) => {
+    setUnitSelection(val);
+    if (val !== 'custom') {
+      setFormItem((prev) => ({ ...prev, unit: val }));
+    } else {
+      setFormItem((prev) => ({ ...prev, unit: customUnit }));
+    }
+  };
+
+  const handleCustomUnitChange = (val: string) => {
+    setCustomUnit(val);
+    setFormItem((prev) => ({ ...prev, unit: val }));
+  };
 
   const loadData = useCallback(async () => {
     try {
@@ -216,6 +232,8 @@ export default function JustMeInventoryPage() {
         name: '', code: '', description: '', unit: 'ชิ้น',
         has_serial: false, has_cable_measurement: false, conversion_rate: '1', min_stock: '0'
       });
+      setUnitSelection('ชิ้น');
+      setCustomUnit('');
       await loadData();
     } catch (err: any) {
       setError(err.message);
@@ -234,6 +252,20 @@ export default function JustMeInventoryPage() {
       const { data: org } = await supabase.from('organizations').select('id').eq('slug', orgSlug).single();
       const { data: sess } = await supabase.auth.getSession();
       const token = sess.session?.access_token;
+
+      // Frontend Validations for CustomSelect
+      if (!formMovement.item_id) {
+        setError('กรุณาเลือกสินค้า / วัสดุ');
+        return;
+      }
+      if (['transfer', 'issue', 'return'].includes(formMovement.movement_type) && !formMovement.source_warehouse_id) {
+        setError('กรุณาเลือกคลังต้นทาง');
+        return;
+      }
+      if (['receive', 'transfer', 'return'].includes(formMovement.movement_type) && !formMovement.destination_warehouse_id) {
+        setError('กรุณาเลือกคลังปลายทาง');
+        return;
+      }
 
       // Extract serials
       const serial_numbers = formMovement.serialsText
@@ -355,6 +387,21 @@ export default function JustMeInventoryPage() {
     return items.find((i) => i.id === formMovement.item_id);
   }, [items, formMovement.item_id]);
 
+  // Memoized Select Options
+  const itemOptions = useMemo(() => {
+    return items.map((i) => ({
+      value: i.id,
+      label: `${i.name} (${i.code})`
+    }));
+  }, [items]);
+
+  const warehouseOptions = useMemo(() => {
+    return warehouses.map((w) => ({
+      value: w.id,
+      label: `${w.name} (${w.type === 'central' ? 'คลังกลาง' : 'ไซต์งาน'})`
+    }));
+  }, [warehouses]);
+
   return (
     <div className="p-4 md:p-6 space-y-6">
       {/* Header */}
@@ -456,13 +503,13 @@ export default function JustMeInventoryPage() {
                     </h2>
                     
                     <div className="relative w-48">
-                      <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" />
-                      <input
+                      <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-400 z-10" />
+                      <Input
                         type="text"
                         placeholder="ค้นหาวัสดุ..."
                         value={searchItem}
                         onChange={(e) => setSearchItem(e.target.value)}
-                        className="pl-8 py-1.5 text-xs border rounded-lg w-full bg-slate-50 border-slate-200"
+                        className="pl-8 text-xs bg-slate-50 border-slate-200 h-8"
                       />
                     </div>
                   </div>
@@ -557,14 +604,14 @@ export default function JustMeInventoryPage() {
 
                   <div className="space-y-1.5">
                     <Label htmlFor="wh-type">ประเภทคลัง</Label>
-                    <NativeSelect
-                      id="wh-type"
+                    <CustomSelect
                       value={formWarehouse.type}
-                      onChange={(e) => setFormWarehouse({ ...formWarehouse, type: e.target.value })}
-                    >
-                      <option value="site">ไซต์งาน (Site Storage)</option>
-                      <option value="central">คลังกลาง (Central Warehouse)</option>
-                    </NativeSelect>
+                      onChange={(val) => setFormWarehouse({ ...formWarehouse, type: val as 'central' | 'site' })}
+                      options={[
+                        { value: 'site', label: 'ไซต์งาน (Site Storage)' },
+                        { value: 'central', label: 'คลังกลาง (Central Warehouse)' },
+                      ]}
+                    />
                   </div>
 
                   <div className="space-y-1.5">
@@ -674,13 +721,29 @@ export default function JustMeInventoryPage() {
 
                   <div className="space-y-1.5">
                     <Label htmlFor="item-unit">หน่วยนับพื้นฐาน *</Label>
-                    <Input
-                      id="item-unit"
-                      placeholder="เช่น เมตร, เครื่อง, ชุด, ม้วน"
-                      value={formItem.unit}
-                      onChange={(e) => setFormItem({ ...formItem, unit: e.target.value })}
-                      required
+                    <CustomSelect
+                      value={unitSelection}
+                      onChange={handleUnitSelectionChange}
+                      options={[
+                        { value: 'ชิ้น', label: 'ชิ้น (Pieces)' },
+                        { value: 'เมตร', label: 'เมตร (Meters)' },
+                        { value: 'ม้วน', label: 'ม้วน (Rolls)' },
+                        { value: 'เครื่อง', label: 'เครื่อง (Machines)' },
+                        { value: 'ชุด', label: 'ชุด (Sets)' },
+                        { value: 'กล่อง', label: 'กล่อง (Boxes)' },
+                        { value: 'custom', label: 'อื่นๆ (ระบุเอง)' }
+                      ]}
                     />
+                    {unitSelection === 'custom' && (
+                      <div className="pt-2">
+                        <Input
+                          placeholder="ระบุหน่วยนับ เช่น ถุง, กิโลกรัม"
+                          value={customUnit}
+                          onChange={(e) => handleCustomUnitChange(e.target.value)}
+                          required
+                        />
+                      </div>
+                    )}
                   </div>
 
                   <div className="space-y-1.5">
@@ -800,36 +863,31 @@ export default function JustMeInventoryPage() {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1.5">
                     <Label htmlFor="mov-type">ประเภทรายการ *</Label>
-                    <NativeSelect
-                      id="mov-type"
+                    <CustomSelect
                       value={formMovement.movement_type}
-                      onChange={(e) => setFormMovement({
+                      onChange={(val) => setFormMovement({
                         ...formMovement,
-                        movement_type: e.target.value,
-                        source_warehouse_id: ['transfer', 'issue', 'return'].includes(e.target.value) ? formMovement.source_warehouse_id : '',
-                        destination_warehouse_id: ['receive', 'transfer', 'return'].includes(e.target.value) ? formMovement.destination_warehouse_id : '',
+                        movement_type: val,
+                        source_warehouse_id: ['transfer', 'issue', 'return'].includes(val) ? formMovement.source_warehouse_id : '',
+                        destination_warehouse_id: ['receive', 'transfer', 'return'].includes(val) ? formMovement.destination_warehouse_id : '',
                       })}
-                    >
-                      <option value="receive">รับเข้าคลังกลาง (Receive from Supplier)</option>
-                      <option value="transfer">โอนย้ายสต็อก (Transfer between locations)</option>
-                      <option value="issue">เบิกไปใช้งานที่ไซต์ (Issue to Cost)</option>
-                      <option value="return">คืนของที่ไซต์เหลือมาคลังกลาง (Return to Warehouse)</option>
-                    </NativeSelect>
+                      options={[
+                        { value: 'receive', label: 'รับเข้าคลังกลาง (Receive from Supplier)' },
+                        { value: 'transfer', label: 'โอนย้ายสต็อก (Transfer between locations)' },
+                        { value: 'issue', label: 'เบิกไปใช้งานที่ไซต์ (Issue to Cost)' },
+                        { value: 'return', label: 'คืนของที่ไซต์เหลือมาคลังกลาง (Return to Warehouse)' },
+                      ]}
+                    />
                   </div>
 
                   <div className="space-y-1.5">
                     <Label htmlFor="mov-item">เลือกสินค้า / วัสดุ *</Label>
-                    <NativeSelect
-                      id="mov-item"
+                    <CustomSelect
                       value={formMovement.item_id}
-                      onChange={(e) => setFormMovement({ ...formMovement, item_id: e.target.value })}
-                      required
-                    >
-                      <option value="">— กรุณาเลือกสินค้า —</option>
-                      {items.map((i) => (
-                        <option key={i.id} value={i.id}>{i.name} ({i.code})</option>
-                      ))}
-                    </NativeSelect>
+                      onChange={(val) => setFormMovement({ ...formMovement, item_id: val })}
+                      options={itemOptions}
+                      placeholder="— กรุณาเลือกสินค้า —"
+                    />
                   </div>
                 </div>
 
@@ -839,17 +897,12 @@ export default function JustMeInventoryPage() {
                   {['transfer', 'issue', 'return'].includes(formMovement.movement_type) && (
                     <div className="space-y-1.5">
                       <Label htmlFor="mov-src">คลังต้นทาง *</Label>
-                      <NativeSelect
-                        id="mov-src"
+                      <CustomSelect
                         value={formMovement.source_warehouse_id}
-                        onChange={(e) => setFormMovement({ ...formMovement, source_warehouse_id: e.target.value })}
-                        required
-                      >
-                        <option value="">— เลือกคลังต้นทาง —</option>
-                        {warehouses.map((w) => (
-                          <option key={w.id} value={w.id}>{w.name} ({w.type === 'central' ? 'คลังกลาง' : 'ไซต์งาน'})</option>
-                        ))}
-                      </NativeSelect>
+                        onChange={(val) => setFormMovement({ ...formMovement, source_warehouse_id: val })}
+                        options={warehouseOptions}
+                        placeholder="— เลือกคลังต้นทาง —"
+                      />
                     </div>
                   )}
 
@@ -857,17 +910,12 @@ export default function JustMeInventoryPage() {
                   {['receive', 'transfer', 'return'].includes(formMovement.movement_type) && (
                     <div className="space-y-1.5">
                       <Label htmlFor="mov-dest">คลังปลายทาง *</Label>
-                      <NativeSelect
-                        id="mov-dest"
+                      <CustomSelect
                         value={formMovement.destination_warehouse_id}
-                        onChange={(e) => setFormMovement({ ...formMovement, destination_warehouse_id: e.target.value })}
-                        required
-                      >
-                        <option value="">— เลือกคลังปลายทาง —</option>
-                        {warehouses.map((w) => (
-                          <option key={w.id} value={w.id}>{w.name} ({w.type === 'central' ? 'คลังกลาง' : 'ไซต์งาน'})</option>
-                        ))}
-                      </NativeSelect>
+                        onChange={(val) => setFormMovement({ ...formMovement, destination_warehouse_id: val })}
+                        options={warehouseOptions}
+                        placeholder="— เลือกคลังปลายทาง —"
+                      />
                     </div>
                   )}
                 </div>
@@ -965,7 +1013,7 @@ export default function JustMeInventoryPage() {
                 </div>
 
                 <div className="relative w-64">
-                  <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" />
+                  <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-400 z-10" />
                   <Input
                     placeholder="ค้นหารหัสเศษ/สายไฟ..."
                     value={searchSerial}
