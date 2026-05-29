@@ -42,6 +42,8 @@ export default function ClockInOutPage() {
   const [session, setSession] = useState<ClockSession | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [actionLoading, setActionLoading] = useState(false);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
     try {
@@ -80,6 +82,75 @@ export default function ClockInOutPage() {
       setLoading(false);
     }
   }, [supabase, orgSlug]);
+
+  const handleClockAction = async (type: 'in' | 'out') => {
+    try {
+      setActionLoading(true);
+      setError(null);
+      setSuccessMessage(null);
+
+      if (!navigator.geolocation) {
+        throw new Error('เบราว์เซอร์ของคุณไม่สนับสนุนการดึงพิกัดตำแหน่ง (Geolocation)');
+      }
+
+      navigator.geolocation.getCurrentPosition(
+        async (position) => {
+          try {
+            const { latitude, longitude } = position.coords;
+
+            const { data: sess } = await supabase.auth.getSession();
+            const token = sess.session?.access_token;
+            if (!token) throw new Error('กรุณาเข้าสู่ระบบใหม่');
+
+            const { data: org } = await supabase
+              .from('organizations')
+              .select('id')
+              .eq('slug', orgSlug)
+              .single();
+            if (!org) throw new Error('ไม่พบข้อมูลองค์กร');
+
+            const res = await fetch(`/api/just-me/clock-logs?orgId=${org.id}`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${token}`,
+              },
+              body: JSON.stringify({
+                type,
+                latitude,
+                longitude,
+                address: `พิกัด GPS (${latitude.toFixed(6)}, ${longitude.toFixed(6)})`,
+              }),
+            });
+
+            if (!res.ok) {
+              const errJson = await res.json().catch(() => ({}));
+              throw new Error(errJson.error || 'บันทึกเวลาไม่สำเร็จ');
+            }
+
+            setSuccessMessage(`บันทึกเวลา${type === 'in' ? 'เข้างาน (Clock In)' : 'ออกงาน (Clock Out)'} สำเร็จ`);
+            await loadData();
+          } catch (err: any) {
+            setError(err.message);
+          } finally {
+            setActionLoading(false);
+          }
+        },
+        (err) => {
+          let msg = 'ไม่สามารถดึงตำแหน่งพิกัดได้';
+          if (err.code === 1) msg = 'กรุณาอนุญาตสิทธิ์เข้าถึงพิกัดตำแหน่ง (Location Access) ในเบราว์เซอร์ของคุณ';
+          else if (err.code === 2) msg = 'ไม่สามารถระบุตำแหน่งพิกัด GPS ได้ในขณะนี้';
+          else if (err.code === 3) msg = 'หมดเวลาเชื่อมต่อสัญญาณ GPS';
+          setError(msg);
+          setActionLoading(false);
+        },
+        { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+      );
+    } catch (err: any) {
+      setError(err.message);
+      setActionLoading(false);
+    }
+  };
 
   useEffect(() => {
     loadData();
@@ -141,6 +212,13 @@ export default function ClockInOutPage() {
         </div>
       )}
 
+      {successMessage && (
+        <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-700">
+          <span className="h-2 w-2 rounded-full bg-emerald-500 animate-ping shrink-0" />
+          <span>{successMessage}</span>
+        </div>
+      )}
+
       {loading && logs.length === 0 ? (
         <div className="flex h-64 items-center justify-center">
           <Loader2 className="h-7 w-7 animate-spin text-indigo-600" />
@@ -188,6 +266,21 @@ export default function ClockInOutPage() {
                       </div>
                     )}
                   </div>
+
+                  {/* Clock Out Button */}
+                  <Button
+                    variant="destructive"
+                    className="w-full mt-4 gap-2 py-6 text-base font-bold shadow-sm border"
+                    onClick={() => handleClockAction('out')}
+                    disabled={actionLoading}
+                  >
+                    {actionLoading ? (
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                    ) : (
+                      <LogOut className="h-5 w-5" />
+                    )}
+                    บันทึกออกงาน (Clock Out)
+                  </Button>
                 </div>
               ) : (
                 <div className="space-y-4">
@@ -197,19 +290,33 @@ export default function ClockInOutPage() {
                       ยังไม่เข้างาน (Clocked Out)
                     </span>
                     <p className="text-sm text-slate-400 leading-relaxed mt-2">
-                      กรุณากดคำสั่ง **`/in`** ใน LINE Bot จากแชทของคุณ และกดยืนยันส่งพิกัดตำแหน่งเพื่อเริ่มบันทึกเข้างาน
+                      ระบบจะบันทึกเวลาและพิกัดปัจจุบันของคุณโดยอัตโนมัติเมื่อกดปุ่มบันทึก
                     </p>
                   </div>
+
+                  {/* Clock In Button */}
+                  <Button
+                    className="w-full gap-2 py-6 text-base font-bold shadow-sm bg-emerald-600 hover:bg-emerald-700 text-white"
+                    onClick={() => handleClockAction('in')}
+                    disabled={actionLoading}
+                  >
+                    {actionLoading ? (
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                    ) : (
+                      <LogIn className="h-5 w-5" />
+                    )}
+                    บันทึกเข้างาน (Clock In)
+                  </Button>
                 </div>
               )}
 
-              {/* LINE Bot Info */}
+              {/* Security info */}
               <div className="rounded-xl border border-indigo-100 bg-indigo-50/50 p-4 text-xs text-indigo-800 leading-relaxed space-y-1">
-                <p className="font-semibold">🤖 วิธีลงเวลาผ่าน LINE Bot:</p>
-                <p>• พิมพ์ <strong>/in</strong> เพื่อลงเวลาเข้างาน</p>
-                <p>• พิมพ์ <strong>/out</strong> เพื่อลงเวลาออกงาน</p>
+                <p className="font-semibold">🔒 ความปลอดภัยตำแหน่งพิกัด:</p>
+                <p>• ระบบดึงตำแหน่งจากเซนเซอร์ GPS ของสมาร์ทโฟนโดยตรง</p>
+                <p>• ไม่อนุญาตให้เลื่อนระบุตำแหน่งด้วยแผนที่เพื่อความโปร่งใสและถูกต้อง</p>
                 <p className="text-slate-400 pt-1 border-t mt-2">
-                  * หมายเหตุ: ต้องทำการแชร์ตำแหน่งสถานที่ผ่าน LINE บอท เพื่อยืนยันพิกัดเข้า-ออกงาน
+                  * กรุณาเปิดสิทธิ์การเข้าถึงตำแหน่งพิกัด (Location Access) เมื่อระบบถาม
                 </p>
               </div>
             </div>

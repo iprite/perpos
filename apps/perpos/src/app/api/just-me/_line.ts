@@ -63,32 +63,70 @@ export async function handleJustMeIn(
     return replyText(replyToken, `⚠️ คุณกำลังเข้างานค้างไว้ตั้งแต่ วันที่ ${dateStr} เวลา ${timeStr} กรุณาทำการบันทึกออกงาน (/out) ก่อน`);
   }
 
-  // 2. บันทึก/อัปเดตสถานะเป็นกำลังรอพิกัด Clock In (pending_in)
-  await admin.from('just_me_clock_sessions').upsert(
-    {
-      profile_id: profileId,
-      org_id:     orgId,
-      status:     'pending_in',
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: 'profile_id' }
-  );
+  // 2. ดึง slug ขององค์กร
+  const { data: org } = await admin
+    .from('organizations')
+    .select('slug')
+    .eq('id', orgId)
+    .maybeSingle();
+  const slug = org?.slug || 'justme';
+  const baseUrl = process.env.APP_BASE_URL || 'https://app.perpos.io';
+  const clockUrl = `${baseUrl}/${slug}/just-me/clock-in-out`;
 
-  // 3. ยิง Quick Reply ให้ส่งพิกัด Location
+  // 3. ส่ง Flex Card เพื่อให้ไปกดยืนยันตัวตนและบันทึกเวลาจริงจากพิกัด GPS ปัจจุบัน
   return replyLine(replyToken, [
     {
-      type: 'text',
-      text: '📌 กรุณากดปุ่มด้านล่างเพื่อส่งพิกัดตำแหน่งของคุณสำหรับ บันทึกเข้างาน (Clock In)',
-      quickReply: {
-        items: [
-          {
-            type: 'action',
-            action: {
-              type: 'location',
-              label: '📍 ส่งพิกัดเข้างาน',
+      type: 'flex',
+      altText: '⏰ บันทึกเวลาเข้างาน (Clock In)',
+      contents: {
+        type: 'bubble',
+        header: {
+          type: 'box',
+          layout: 'vertical',
+          backgroundColor: '#ECFDF5',
+          contents: [
+            {
+              type: 'text',
+              text: '⏰ CLOCK IN REQUEST',
+              weight: 'bold',
+              color: '#059669',
+              size: 'sm',
             },
-          },
-        ],
+            {
+              type: 'text',
+              text: 'บันทึกเวลาเข้างานด้วยตำแหน่งปัจจุบัน',
+              weight: 'bold',
+              size: 'md',
+              color: '#1F2937',
+              margin: 'xs',
+              wrap: true,
+            },
+          ],
+        },
+        body: {
+          type: 'box',
+          layout: 'vertical',
+          contents: [
+            {
+              type: 'text',
+              text: 'ระบบความปลอดภัยจะดึงพิกัด GPS ล่าสุดจากอุปกรณ์ของคุณโดยตรง และไม่อนุญาตให้เลื่อนระบุตำแหน่งบนแผนที่ด้วยตัวเอง',
+              color: '#4B5563',
+              size: 'xs',
+              wrap: true,
+            },
+            {
+              type: 'button',
+              style: 'primary',
+              color: '#10B981',
+              action: {
+                type: 'uri',
+                label: '📍 บันทึกเข้างาน ณ ตำแหน่งนี้',
+                uri: clockUrl,
+              },
+              margin: 'md',
+            },
+          ],
+        },
       },
     },
   ]);
@@ -115,27 +153,70 @@ export async function handleJustMeOut(
     return replyText(replyToken, '⚠️ คุณยังไม่ได้บันทึกเวลาเข้างานในระบบ กรุณาพิมพ์ /in เพื่อบันทึกเวลาเข้างานก่อนครับ');
   }
 
-  // 2. อัปเดตสถานะเป็นกำลังรอพิกัด Clock Out (pending_out)
-  await admin.from('just_me_clock_sessions').update({
-    status:     'pending_out',
-    updated_at: new Date().toISOString(),
-  }).eq('profile_id', profileId);
+  // 2. ดึง slug ขององค์กร
+  const { data: org } = await admin
+    .from('organizations')
+    .select('slug')
+    .eq('id', orgId)
+    .maybeSingle();
+  const slug = org?.slug || 'justme';
+  const baseUrl = process.env.APP_BASE_URL || 'https://app.perpos.io';
+  const clockUrl = `${baseUrl}/${slug}/just-me/clock-in-out`;
 
-  // 3. ยิง Quick Reply ให้ส่งพิกัด Location
+  // 3. ส่ง Flex Card เพื่อให้ไปกดยืนยันตัวตนและบันทึกเวลาจริงจากพิกัด GPS ปัจจุบัน
   return replyLine(replyToken, [
     {
-      type: 'text',
-      text: '📌 กรุณากดปุ่มด้านล่างเพื่อส่งพิกัดตำแหน่งของคุณสำหรับ บันทึกออกงาน (Clock Out)',
-      quickReply: {
-        items: [
-          {
-            type: 'action',
-            action: {
-              type: 'location',
-              label: '📍 ส่งพิกัดออกงาน',
+      type: 'flex',
+      altText: '⏰ บันทึกเวลาออกงาน (Clock Out)',
+      contents: {
+        type: 'bubble',
+        header: {
+          type: 'box',
+          layout: 'vertical',
+          backgroundColor: '#FEF2F2',
+          contents: [
+            {
+              type: 'text',
+              text: '⏰ CLOCK OUT REQUEST',
+              weight: 'bold',
+              color: '#DC2626',
+              size: 'sm',
             },
-          },
-        ],
+            {
+              type: 'text',
+              text: 'บันทึกเวลาออกงานด้วยตำแหน่งปัจจุบัน',
+              weight: 'bold',
+              size: 'md',
+              color: '#1F2937',
+              margin: 'xs',
+              wrap: true,
+            },
+          ],
+        },
+        body: {
+          type: 'box',
+          layout: 'vertical',
+          contents: [
+            {
+              type: 'text',
+              text: 'ระบบความปลอดภัยจะดึงพิกัด GPS ล่าสุดจากอุปกรณ์ของคุณโดยตรง และไม่อนุญาตให้เลื่อนระบุตำแหน่งบนแผนที่ด้วยตัวเอง',
+              color: '#4B5563',
+              size: 'xs',
+              wrap: true,
+            },
+            {
+              type: 'button',
+              style: 'primary',
+              color: '#EF4444',
+              action: {
+                type: 'uri',
+                label: '📍 บันทึกออกงาน ณ ตำแหน่งนี้',
+                uri: clockUrl,
+              },
+              margin: 'md',
+            },
+          ],
+        },
       },
     },
   ]);
