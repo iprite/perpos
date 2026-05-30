@@ -15,6 +15,8 @@ import {
   getEnabledModulesForOrg,
   getModuleRoleForCurrentUser,
   getModuleMenuLabels,
+  getPersonalModulesForUser,
+  getCurrentUserId,
 } from "@/lib/accounting/queries";
 
 // Path segments that are NOT org slugs
@@ -49,7 +51,13 @@ export default async function HydrogenLayout({ children }: { children: React.Rea
     activeOrg = orgs.find((o) => o.id === cookieOrgId);
   }
 
-  const enabledKeys  = await getEnabledModulesForOrg(activeOrg?.id ?? null, activeOrg?.role ?? null);
+  const [orgModuleKeys, currentUserId] = await Promise.all([
+    getEnabledModulesForOrg(activeOrg?.id ?? null, activeOrg?.role ?? null),
+    getCurrentUserId(),
+  ]);
+  const personalKeys = await getPersonalModulesForUser(currentUserId);
+  // Merge: personal modules are always visible regardless of org context
+  const enabledKeys  = Array.from(new Set([...orgModuleKeys, ...personalKeys]));
   const menuLabels   = await getModuleMenuLabels(enabledKeys);
 
   // ── Server-side module access guard ─────────────────────────────────────────

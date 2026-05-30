@@ -14,6 +14,7 @@ import {
   Puzzle, Plus, Pencil, Trash2, Loader2, CheckCircle2,
   AlertCircle, ToggleLeft, ToggleRight, ShieldAlert,
   Building2, Globe, Menu, ChevronDown, ChevronRight,
+  User, Link2, Link2Off, Users,
 } from 'lucide-react';
 import cn from '@core/utils/class-names';
 import { MODULE_MENUS } from '@/lib/modules';
@@ -29,6 +30,7 @@ interface ModuleRec {
   href_slug:     string;
   description:   string | null;
   is_specific:   boolean;
+  is_personal:   boolean;
   is_builtin:    boolean;
   is_active:     boolean;
   sort_order:    number;
@@ -40,7 +42,16 @@ interface ModuleRec {
 
 interface Org { id: string; name: string; slug: string }
 
-type ModuleType = 'shared' | 'tailor-made';
+interface UserGrant {
+  id:            string;
+  email:         string;
+  role:          string;
+  is_active:     boolean;
+  line_connected: boolean;
+  grant:         { is_enabled: boolean; created_at: string } | null;
+}
+
+type ModuleType = 'shared' | 'tailor-made' | 'personal';
 
 const EMPTY_FORM = {
   moduleType:  'tailor-made' as ModuleType,
@@ -163,6 +174,9 @@ export default function ModuleRegistryPage() {
   const [saving,        setSaving]        = useState(false);
   const [keyEdited,     setKeyEdited]     = useState(false);
   const [expandedMenus, setExpandedMenus] = useState<Set<string>>(new Set());
+  const [grantsUsers,   setGrantsUsers]   = useState<UserGrant[]>([]);
+  const [grantsLoading, setGrantsLoading] = useState(false);
+  const [grantSearch,   setGrantSearch]   = useState('');
   const [createdCommand, setCreatedCommand] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
@@ -192,8 +206,9 @@ export default function ModuleRegistryPage() {
   }
 
   // ── Grouped data ──────────────────────────────────────────────────────────────
-  const sharedMods   = modules.filter(m => !m.is_specific);
-  const tailoredMods = modules.filter(m =>  m.is_specific);
+  const sharedMods   = modules.filter(m => !m.is_specific && !m.is_personal);
+  const tailoredMods = modules.filter(m =>  m.is_specific && !m.is_personal);
+  const personalMods = modules.filter(m =>  m.is_personal);
 
   // ── Dialog helpers ────────────────────────────────────────────────────────────
   function openCreate() {
@@ -206,7 +221,7 @@ export default function ModuleRegistryPage() {
   function openEdit(mod: ModuleRec) {
     setSelected(mod);
     setForm({
-      moduleType:  mod.is_specific ? 'tailor-made' : 'shared',
+      moduleType:  mod.is_personal ? 'personal' : mod.is_specific ? 'tailor-made' : 'shared',
       key:         mod.key,
       label:       mod.label,
       href_slug:   mod.href_slug,
@@ -215,7 +230,43 @@ export default function ModuleRegistryPage() {
       menuLabels:  mod.menu_labels ?? {},
     });
     setKeyEdited(true);
+    setGrantsUsers([]);
+    setGrantSearch('');
+    if (mod.is_personal) void loadGrants(mod.key);
     setDialog('edit');
+  }
+
+  async function loadGrants(moduleKey: string) {
+    setGrantsLoading(true);
+    const h = await getHeaders();
+    const res = await fetch(`/api/admin/module-registry/grants?module_key=${moduleKey}`, { headers: h });
+    const data = await res.json() as { ok?: boolean; users?: UserGrant[] };
+    setGrantsUsers(data.users ?? []);
+    setGrantsLoading(false);
+  }
+
+  async function toggleGrant(moduleKey: string, userId: string, currentEnabled: boolean | null) {
+    const h = await getHeaders();
+    if (currentEnabled === null) {
+      // Grant doesn't exist yet — create enabled
+      await fetch('/api/admin/module-registry/grants', {
+        method: 'POST', headers: h,
+        body: JSON.stringify({ module_key: moduleKey, user_id: userId, is_enabled: true }),
+      });
+    } else if (currentEnabled) {
+      // Disable
+      await fetch('/api/admin/module-registry/grants', {
+        method: 'POST', headers: h,
+        body: JSON.stringify({ module_key: moduleKey, user_id: userId, is_enabled: false }),
+      });
+    } else {
+      // Remove grant entirely
+      await fetch('/api/admin/module-registry/grants', {
+        method: 'DELETE', headers: h,
+        body: JSON.stringify({ module_key: moduleKey, user_id: userId }),
+      });
+    }
+    void loadGrants(moduleKey);
   }
 
   function openDelete(mod: ModuleRec) {
@@ -250,6 +301,7 @@ export default function ModuleRegistryPage() {
         label:       form.label,
         href_slug:   form.href_slug,
         description: form.description || null,
+        is_personal: form.moduleType === 'personal',
         is_specific: form.moduleType === 'tailor-made',
         org_id:      form.moduleType === 'tailor-made' ? (form.org_id || null) : null,
       }),
@@ -259,7 +311,8 @@ export default function ModuleRegistryPage() {
     if (res.ok && data.ok && data.module) {
       setModules(prev => [...prev, data.module!].sort((a, b) => a.sort_order - b.sort_order));
       setDialog(null);
-      const cmd = `pnpm gen-module ${form.key} "${form.label}" ${form.href_slug} ${form.moduleType === 'tailor-made'}`;
+      const isPersonal = form.moduleType === 'personal';
+      const cmd = `pnpm gen-module ${form.key} "${form.label}" ${form.href_slug} ${!isPersonal}`;
       setCreatedCommand(cmd);
       showToast(true, `สร้าง module "${data.module.label}" สำเร็จ`);
     } else {
@@ -326,6 +379,7 @@ export default function ModuleRegistryPage() {
   }
 
   const isTailored = form.moduleType === 'tailor-made';
+  const isPersonal = form.moduleType === 'personal';
   const canSave    = form.label.trim().length >= 2
     && form.key.length >= 2
     && form.href_slug.length >= 1
@@ -412,6 +466,28 @@ export default function ModuleRegistryPage() {
               )}
             </div>
           </div>
+
+          {/* ── Personal Modules ── */}
+          <div className="rounded-2xl border bg-white overflow-hidden">
+            <SectionHeader
+              icon={<User className="h-4 w-4 text-slate-400" />}
+              title="Personal Modules"
+              count={personalMods.length}
+              note="ตัวช่วยส่วนตัว — ต้องเชื่อมต่อ LINE"
+            />
+            <div className="divide-y">
+              {personalMods.map(mod => (
+                <ModuleRow key={mod.key} mod={mod}
+                  onEdit={() => openEdit(mod)}
+                  onDelete={!mod.is_builtin ? () => openDelete(mod) : undefined}
+                  onToggle={() => void toggleActive(mod)}
+                />
+              ))}
+              {personalMods.length === 0 && (
+                <div className="py-8 text-center text-sm text-slate-400">ยังไม่มี personal module</div>
+              )}
+            </div>
+          </div>
         </div>
       )}
 
@@ -430,42 +506,36 @@ export default function ModuleRegistryPage() {
             {dialog === 'create' && (
               <div className="space-y-1.5">
                 <Label>ประเภท Module *</Label>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-3 gap-2">
                   {([
-                    { type: 'shared'       as ModuleType, icon: <Globe      className="h-5 w-5" />, label: 'Shared Module',       desc: 'ใช้ได้กับทุก org' },
-                    { type: 'tailor-made'  as ModuleType, icon: <Building2  className="h-5 w-5" />, label: 'Tailor-made Module',  desc: 'ผูกกับ org เดียว' },
-                  ]).map(opt => (
-                    <button
-                      key={opt.type} type="button"
-                      onClick={() => setForm(f => ({ ...f, moduleType: opt.type, org_id: '' }))}
-                      className={cn(
-                        'flex flex-col items-start gap-1.5 rounded-xl border-2 p-4 text-left transition-all',
-                        form.moduleType === opt.type
-                          ? opt.type === 'shared'
-                            ? 'border-blue-500 bg-blue-50'
-                            : 'border-amber-500 bg-amber-50'
-                          : 'border-slate-200 hover:border-slate-300',
-                      )}
-                    >
-                      <span className={cn(
-                        'flex h-8 w-8 items-center justify-center rounded-lg',
-                        form.moduleType === opt.type
-                          ? opt.type === 'shared' ? 'bg-blue-500 text-white' : 'bg-amber-500 text-white'
-                          : 'bg-slate-100 text-slate-400',
-                      )}>
-                        {opt.icon}
-                      </span>
-                      <span className={cn(
-                        'text-sm font-semibold',
-                        form.moduleType === opt.type
-                          ? opt.type === 'shared' ? 'text-blue-700' : 'text-amber-700'
-                          : 'text-slate-700',
-                      )}>
-                        {opt.label}
-                      </span>
-                      <span className="text-xs text-slate-400">{opt.desc}</span>
-                    </button>
-                  ))}
+                    { type: 'shared'      as ModuleType, icon: <Globe     className="h-5 w-5" />, label: 'Shared',      desc: 'ทุก org',          color: 'blue'   },
+                    { type: 'tailor-made' as ModuleType, icon: <Building2 className="h-5 w-5" />, label: 'Tailor-made', desc: 'org เดียว',        color: 'amber'  },
+                    { type: 'personal'    as ModuleType, icon: <User      className="h-5 w-5" />, label: 'Personal',    desc: 'ผู้ใช้ + LINE',    color: 'violet' },
+                  ]).map(opt => {
+                    const active = form.moduleType === opt.type;
+                    const colorMap = {
+                      blue:   { border: 'border-blue-500',   bg: 'bg-blue-50',   icon: 'bg-blue-500',   text: 'text-blue-700'   },
+                      amber:  { border: 'border-amber-500',  bg: 'bg-amber-50',  icon: 'bg-amber-500',  text: 'text-amber-700'  },
+                      violet: { border: 'border-violet-500', bg: 'bg-violet-50', icon: 'bg-violet-500', text: 'text-violet-700' },
+                    };
+                    const c = colorMap[opt.color as keyof typeof colorMap];
+                    return (
+                      <button
+                        key={opt.type} type="button"
+                        onClick={() => setForm(f => ({ ...f, moduleType: opt.type, org_id: '' }))}
+                        className={cn(
+                          'flex flex-col items-start gap-1.5 rounded-xl border-2 p-3 text-left transition-all',
+                          active ? `${c.border} ${c.bg}` : 'border-slate-200 hover:border-slate-300',
+                        )}
+                      >
+                        <span className={cn('flex h-7 w-7 items-center justify-center rounded-lg', active ? `${c.icon} text-white` : 'bg-slate-100 text-slate-400')}>
+                          {opt.icon}
+                        </span>
+                        <span className={cn('text-sm font-semibold', active ? c.text : 'text-slate-700')}>{opt.label}</span>
+                        <span className="text-xs text-slate-400">{opt.desc}</span>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -607,6 +677,83 @@ export default function ModuleRegistryPage() {
                       </div>
                     );
                   })}
+                </div>
+              </div>
+            )}
+
+            {/* Personal grants — edit only */}
+            {dialog === 'edit' && selected?.is_personal && (
+              <div className="rounded-xl border border-violet-200 bg-violet-50 overflow-hidden">
+                <div className="flex items-center gap-2 border-b border-violet-200 bg-white px-4 py-2.5">
+                  <Users className="h-4 w-4 text-violet-400" />
+                  <span className="text-sm font-medium text-slate-700">ผู้ใช้ที่ได้รับสิทธิ์</span>
+                  <span className="text-xs text-slate-400">— ต้องเชื่อมต่อ LINE ก่อนใช้งาน</span>
+                </div>
+
+                {/* Search */}
+                <div className="px-3 py-2 bg-white border-b border-violet-100">
+                  <Input
+                    placeholder="ค้นหา email…"
+                    value={grantSearch}
+                    onChange={e => setGrantSearch(e.target.value)}
+                    className="h-8 text-sm"
+                  />
+                </div>
+
+                <div className="max-h-64 overflow-y-auto divide-y divide-violet-50 bg-white">
+                  {grantsLoading ? (
+                    <div className="flex justify-center py-6">
+                      <Loader2 className="h-5 w-5 animate-spin text-violet-400" />
+                    </div>
+                  ) : grantsUsers
+                      .filter(u => !grantSearch || u.email.toLowerCase().includes(grantSearch.toLowerCase()))
+                      .map(u => {
+                        const granted   = u.grant !== null;
+                        const enabled   = u.grant?.is_enabled ?? false;
+                        const canToggle = u.line_connected;
+                        return (
+                          <div key={u.id} className={cn('flex items-center gap-3 px-4 py-2.5', !u.is_active && 'opacity-50')}>
+                            {/* Avatar */}
+                            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-500 text-xs font-medium">
+                              {u.email.charAt(0).toUpperCase()}
+                            </span>
+
+                            {/* Email */}
+                            <span className="flex-1 truncate text-sm text-slate-700">{u.email}</span>
+
+                            {/* LINE badge */}
+                            {u.line_connected
+                              ? <span className="flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-xs text-green-700">
+                                  <Link2 className="h-3 w-3" /> LINE
+                                </span>
+                              : <span className="flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-400">
+                                  <Link2Off className="h-3 w-3" /> ยังไม่เชื่อม
+                                </span>
+                            }
+
+                            {/* Toggle */}
+                            <button
+                              type="button"
+                              disabled={!canToggle}
+                              title={!canToggle ? 'ผู้ใช้ต้องเชื่อมต่อ LINE ก่อน' : granted && enabled ? 'ปิดสิทธิ์' : 'เปิดสิทธิ์'}
+                              onClick={() => void toggleGrant(selected.key, u.id, granted ? enabled : null)}
+                              className="shrink-0 disabled:opacity-30"
+                            >
+                              {granted && enabled
+                                ? <ToggleRight className="h-6 w-6 text-violet-500" />
+                                : <ToggleLeft  className="h-6 w-6 text-slate-300" />}
+                            </button>
+                          </div>
+                        );
+                      })
+                  }
+                  {!grantsLoading && grantsUsers.filter(u => !grantSearch || u.email.toLowerCase().includes(grantSearch.toLowerCase())).length === 0 && (
+                    <div className="py-6 text-center text-sm text-slate-400">ไม่พบผู้ใช้</div>
+                  )}
+                </div>
+
+                <div className="px-4 py-2 text-xs text-violet-600 bg-violet-50 border-t border-violet-100">
+                  ผู้ใช้ที่เปิด + เชื่อมต่อ LINE แล้วจะเห็น module นี้ใน sidebar ของตัวเอง
                 </div>
               </div>
             )}

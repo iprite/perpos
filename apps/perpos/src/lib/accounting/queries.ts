@@ -139,6 +139,38 @@ export async function getModuleMenuLabels(
   return result;
 }
 
+/** Returns the current authenticated user's ID, or null if not signed in. Server-only. */
+export async function getCurrentUserId(): Promise<string | null> {
+  const supabase = await createSupabaseServerClient();
+  const { data } = await supabase.auth.getUser();
+  return data.user?.id ?? null;
+}
+
+/** Returns personal module keys for a user — only if grant is_enabled AND user has LINE connected. */
+export async function getPersonalModulesForUser(userId: string | null): Promise<string[]> {
+  if (!userId) return [];
+  const { createSupabaseAdminClient } = await import("@/lib/supabase/admin");
+  const supabase = createSupabaseAdminClient();
+
+  // Check LINE connection first
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("line_user_id")
+    .eq("id", userId)
+    .maybeSingle();
+
+  if (!(profile as Record<string, unknown> | null)?.line_user_id) return [];
+
+  // Fetch enabled personal grants
+  const { data: grants } = await supabase
+    .from("personal_module_grants")
+    .select("module_key")
+    .eq("user_id", userId)
+    .eq("is_enabled", true);
+
+  return (grants ?? []).map((g) => (g as Record<string, string>).module_key);
+}
+
 export async function getEnabledModulesForOrg(
   orgId: string | null,
   memberRole: "owner" | "admin" | "team_lead" | "team_member" | null,

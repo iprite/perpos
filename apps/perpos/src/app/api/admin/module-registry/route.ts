@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
   if (!auth.ok) return auth.res;
 
   const body = await req.json().catch(() => null) as Record<string, unknown> | null;
-  const { key, label, href_slug, description, org_id } = body ?? {};
+  const { key, label, href_slug, description, org_id, is_personal } = body ?? {};
 
   if (!key || typeof key !== 'string' || !KEY_RE.test(key)) {
     return NextResponse.json({ error: 'key ต้องเป็นตัวเล็ก a-z 0-9 _ - ความยาว 2-50' }, { status: 400 });
@@ -45,6 +45,10 @@ export async function POST(req: NextRequest) {
   if (!href_slug || typeof href_slug !== 'string' || !SLUG_RE.test(href_slug)) {
     return NextResponse.json({ error: 'href_slug ต้องเป็นตัวเล็ก a-z 0-9 -' }, { status: 400 });
   }
+
+  const isPersonal = Boolean(is_personal);
+  // personal modules are never org-specific
+  const isSpecific = isPersonal ? false : Boolean(body?.is_specific ?? true);
 
   const admin = createAdminClient();
 
@@ -58,8 +62,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: `module key "${key}" ถูกใช้แล้ว` }, { status: 409 });
   }
 
-  // Validate org_id if provided
-  if (org_id) {
+  // Validate org_id — not applicable for personal modules
+  if (!isPersonal && org_id) {
     const { data: org } = await admin.from('organizations').select('id').eq('id', org_id).maybeSingle();
     if (!org) return NextResponse.json({ error: 'org not found' }, { status: 404 });
   }
@@ -71,10 +75,11 @@ export async function POST(req: NextRequest) {
       label:       String(label).trim(),
       href_slug:   String(href_slug).trim(),
       description: description ? String(description).trim() : null,
-      is_specific: Boolean(body?.is_specific ?? true),
+      is_specific: isSpecific,
+      is_personal: isPersonal,
       is_builtin:  false,
       is_active:   true,
-      org_id:      org_id ?? null,
+      org_id:      isPersonal ? null : (org_id ?? null),
       created_by:  auth.userId,
     })
     .select('*, organizations(id, name, slug)')
@@ -99,7 +104,7 @@ export async function PATCH(req: NextRequest) {
 
   const { data: mod } = await admin
     .from('module_registry')
-    .select('is_builtin, is_specific, org_id')
+    .select('is_builtin, is_specific, is_personal, org_id')
     .eq('key', key)
     .maybeSingle();
 
