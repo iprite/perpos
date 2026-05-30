@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
-import { ClipboardList, CalendarDays, CheckCircle2, Clock, RefreshCw, CalendarCheck } from "lucide-react";
+import { ClipboardList, CalendarDays, CheckCircle2, Clock, RefreshCw } from "lucide-react";
 import cn from "@core/utils/class-names";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -19,7 +19,7 @@ type Appointment = {
   id: string;
   title: string;
   starts_at: string;
-  google_event_id: string | null;
+  note: string | null;
   created_at: string;
 };
 
@@ -119,9 +119,6 @@ function ApptRow({ appt, onCancel }: { appt: Appointment; onCancel?: (id: string
         <div className="flex items-center gap-2">
           <span className="truncate text-sm font-medium text-gray-800">{appt.title}</span>
           {dateBadge}
-          {appt.google_event_id && (
-            <CalendarCheck className="h-3.5 w-3.5 shrink-0 text-green-500" />
-          )}
         </div>
         <div className="mt-0.5 text-xs text-gray-400">
           {fmtDateFull(appt.starts_at)} &middot; {fmtTime(appt.starts_at)}
@@ -159,7 +156,7 @@ export default function AssistantPage() {
 
     const [taskRes, apptRes] = await Promise.all([
       supabase.from("tasks").select("id,title,status,created_at,completed_at").eq("profile_id", user.id).order("created_at", { ascending: false }),
-      supabase.from("appointments").select("id,title,starts_at,google_event_id,created_at").eq("profile_id", user.id).order("starts_at", { ascending: true }),
+      supabase.from("calendar_events").select("id,title,starts_at,note,created_at").eq("profile_id", user.id).order("starts_at", { ascending: true }),
     ]);
 
     setTasks((taskRes.data ?? []) as Task[]);
@@ -175,7 +172,7 @@ export default function AssistantPage() {
   }, [supabase]);
 
   const cancelAppt = useCallback(async (id: string) => {
-    await supabase.from("appointments").delete().eq("id", id);
+    await supabase.from("calendar_events").delete().eq("id", id);
     setAppointments((prev) => prev.filter((a) => a.id !== id));
   }, [supabase]);
 
