@@ -7,9 +7,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { CustomSelect } from '@/components/ui/custom-select';
+import { OcrReceiveDialog } from './ocr-receive-dialog';
 import {
   Package, Warehouse, ArrowLeftRight, History, AlertTriangle, Plus, Search,
-  FileText, CheckCircle, TrendingUp, AlertCircle, Loader2, Scissors, Info, RefreshCw
+  FileText, CheckCircle, TrendingUp, AlertCircle, Loader2, Scissors, Info, RefreshCw,
+  ScanLine,
 } from 'lucide-react';
 import cn from '@core/utils/class-names';
 
@@ -89,6 +91,11 @@ export default function JustMeInventoryPage() {
   const [serials, setSerials] = useState<ItemSerial[]>([]);
   const [movements, setMovements] = useState<StockMovement[]>([]);
 
+  // OCR dialog
+  const [ocrDialogOpen, setOcrDialogOpen] = useState(false);
+  const [authToken, setAuthToken] = useState('');
+  const [orgId, setOrgId] = useState('');
+
   // Search Filters
   const [searchItem, setSearchItem] = useState('');
   const [searchSerial, setSearchSerial] = useState('');
@@ -137,6 +144,9 @@ export default function JustMeInventoryPage() {
       const { data: sess } = await supabase.auth.getSession();
       const token = sess.session?.access_token;
       if (!token) throw new Error('กรุณาเข้าสู่ระบบใหม่');
+
+      setAuthToken(token);
+      setOrgId(org.id);
 
       const res = await fetch(`/api/just-me/inventory?orgId=${org.id}`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -405,20 +415,28 @@ export default function JustMeInventoryPage() {
   return (
     <div className="p-4 md:p-6 space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-4 border-b pb-5">
-        <div className="flex items-center gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-md">
-            <Warehouse className="h-6 w-6" />
-          </div>
-          <div>
-            <h1 className="text-xl font-bold text-slate-900">ระบบคลังสินค้า & สต๊อกวัสดุ</h1>
-            <p className="text-sm text-slate-500">จัดการคลังสินค้ากลาง ไซต์งาน และสายไฟเหลือใช้ (just-me)</p>
-          </div>
+      <div className="flex items-center justify-between flex-wrap gap-3 border-b pb-4">
+        <div>
+          <h1 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+            <Warehouse className="w-5 h-5 text-indigo-500" />
+            ระบบคลังสินค้า & สต๊อกวัสดุ
+          </h1>
+          <p className="text-sm text-slate-500">จัดการคลังสินค้ากลาง ไซต์งาน และสายไฟเหลือใช้</p>
         </div>
-        <Button variant="outline" size="sm" onClick={loadData} disabled={loading} className="gap-1.5">
-          <RefreshCw className={cn('h-4 w-4', loading && 'animate-spin')} />
-          รีเฟรชข้อมูล
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            onClick={() => setOcrDialogOpen(true)}
+            disabled={loading || warehouses.length === 0}
+            className="gap-1.5"
+          >
+            <ScanLine className="h-4 w-4" />
+            สแกนบิลรับของ
+          </Button>
+          <Button variant="ghost" size="icon" onClick={loadData} disabled={loading}>
+            <RefreshCw className={cn('h-4 w-4', loading && 'animate-spin')} />
+          </Button>
+        </div>
       </div>
 
       {error && (
@@ -442,32 +460,27 @@ export default function JustMeInventoryPage() {
       ) : (
         <div className="space-y-6">
           
-          {/* Custom Modern Tabs */}
-          <div className="flex flex-wrap gap-2 border-b pb-2">
+          {/* Tabs */}
+          <div className="flex flex-wrap gap-1 bg-slate-100 p-1 rounded-lg w-fit">
             {[
-              { id: 'overview', label: 'สรุปภาพรวม', icon: <TrendingUp className="h-4 w-4" /> },
+              { id: 'overview',   label: 'สรุปภาพรวม',        icon: <TrendingUp className="h-4 w-4" /> },
               { id: 'warehouses', label: 'คลังสินค้า & ไซต์', icon: <Warehouse className="h-4 w-4" /> },
-              { id: 'items', label: 'ข้อมูลวัสดุ/สินค้า', icon: <Package className="h-4 w-4" /> },
-              { id: 'movement', label: 'ทำรายการเบิก/โอน', icon: <ArrowLeftRight className="h-4 w-4" /> },
-              { id: 'scraps', label: 'เศษสายไฟเหลือใช้', icon: <Scissors className="h-4 w-4" /> },
-              { id: 'history', label: 'ประวัติการเคลื่อนไหว', icon: <History className="h-4 w-4" /> },
+              { id: 'items',      label: 'วัสดุ/สินค้า',       icon: <Package className="h-4 w-4" /> },
+              { id: 'movement',   label: 'เบิก/โอน',           icon: <ArrowLeftRight className="h-4 w-4" /> },
+              { id: 'scraps',     label: 'เศษสายไฟ',           icon: <Scissors className="h-4 w-4" /> },
+              { id: 'history',    label: 'ประวัติ',             icon: <History className="h-4 w-4" /> },
             ].map((tab) => (
               <button
                 key={tab.id}
-                onClick={() => {
-                  setActiveTab(tab.id as any);
-                  setError(null);
-                  setSuccess(null);
-                }}
+                onClick={() => { setActiveTab(tab.id as any); setError(null); setSuccess(null); }}
                 className={cn(
-                  "flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg transition-all duration-150",
+                  'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors',
                   activeTab === tab.id
-                    ? "bg-indigo-600 text-white shadow-sm"
-                    : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                    ? 'bg-white text-slate-900 shadow-sm'
+                    : 'text-slate-500 hover:text-slate-700'
                 )}
               >
-                {tab.icon}
-                {tab.label}
+                {tab.icon}{tab.label}
               </button>
             ))}
           </div>
@@ -495,9 +508,9 @@ export default function JustMeInventoryPage() {
 
               {/* Grid overview */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="bg-white rounded-2xl border p-5 shadow-sm space-y-4">
+                <div className="bg-white rounded-xl border p-5 space-y-4">
                   <div className="flex items-center justify-between border-b pb-3">
-                    <h2 className="text-base font-bold text-slate-800 flex items-center gap-2">
+                    <h2 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
                       <Package className="h-5 w-5 text-indigo-500" />
                       รายงานสต็อกคงเหลือแยกคลัง/ไซต์งาน
                     </h2>
@@ -551,20 +564,20 @@ export default function JustMeInventoryPage() {
                   </div>
                 </div>
 
-                <div className="bg-white rounded-2xl border p-5 shadow-sm space-y-4">
-                  <h2 className="text-base font-bold text-slate-800 flex items-center gap-2 border-b pb-3">
+                <div className="bg-white rounded-xl border p-5 space-y-4">
+                  <h2 className="text-sm font-semibold text-slate-700 flex items-center gap-2 border-b pb-3">
                     <Info className="h-5 w-5 text-indigo-500" />
                     ข้อมูลสรุปสต็อก
                   </h2>
                   
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="p-4 border rounded-xl bg-slate-50 text-center space-y-1">
-                      <p className="text-xs text-slate-400 font-semibold">คลังทั้งหมด</p>
-                      <p className="text-2xl font-black text-slate-800">{warehouses.length} คลัง</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="p-4 border rounded-xl text-center">
+                      <p className="text-2xl font-bold text-slate-800">{warehouses.length}</p>
+                      <p className="text-xs text-slate-400 mt-1">คลังทั้งหมด</p>
                     </div>
-                    <div className="p-4 border rounded-xl bg-slate-50 text-center space-y-1">
-                      <p className="text-xs text-slate-400 font-semibold">รายการวัสดุ</p>
-                      <p className="text-2xl font-black text-slate-800">{items.length} ชนิด</p>
+                    <div className="p-4 border rounded-xl text-center">
+                      <p className="text-2xl font-bold text-slate-800">{items.length}</p>
+                      <p className="text-xs text-slate-400 mt-1">รายการวัสดุ</p>
                     </div>
                   </div>
 
@@ -584,8 +597,8 @@ export default function JustMeInventoryPage() {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               
               {/* Form Create */}
-              <div className="lg:col-span-1 bg-white rounded-2xl border p-5 shadow-sm space-y-4 h-fit">
-                <h2 className="text-base font-bold text-slate-800 flex items-center gap-1.5 border-b pb-3">
+              <div className="lg:col-span-1 bg-white rounded-xl border p-5 space-y-4 h-fit">
+                <h2 className="text-sm font-semibold text-slate-700 flex items-center gap-1.5 border-b pb-3">
                   <Plus className="h-5 w-5 text-indigo-500" />
                   เพิ่มคลังสินค้า / ไซต์งาน
                 </h2>
@@ -631,7 +644,7 @@ export default function JustMeInventoryPage() {
               </div>
 
               {/* List */}
-              <div className="lg:col-span-2 bg-white rounded-2xl border shadow-sm overflow-hidden">
+              <div className="lg:col-span-2 bg-white rounded-xl border overflow-hidden">
                 <div className="border-b px-5 py-4">
                   <h2 className="text-sm font-semibold text-slate-700">คลังสินค้าและไซต์งานปัจจุบัน</h2>
                 </div>
@@ -680,8 +693,8 @@ export default function JustMeInventoryPage() {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               
               {/* Form Create */}
-              <div className="lg:col-span-1 bg-white rounded-2xl border p-5 shadow-sm space-y-4 h-fit">
-                <h2 className="text-base font-bold text-slate-800 flex items-center gap-1.5 border-b pb-3">
+              <div className="lg:col-span-1 bg-white rounded-xl border p-5 space-y-4 h-fit">
+                <h2 className="text-sm font-semibold text-slate-700 flex items-center gap-1.5 border-b pb-3">
                   <Plus className="h-5 w-5 text-indigo-500" />
                   เพิ่มวัสดุ / สินค้าคลัง
                 </h2>
@@ -800,7 +813,7 @@ export default function JustMeInventoryPage() {
               </div>
 
               {/* List */}
-              <div className="lg:col-span-2 bg-white rounded-2xl border shadow-sm overflow-hidden">
+              <div className="lg:col-span-2 bg-white rounded-xl border overflow-hidden">
                 <div className="border-b px-5 py-4">
                   <h2 className="text-sm font-semibold text-slate-700">ข้อมูลวัสดุทั้งหมด</h2>
                 </div>
@@ -853,8 +866,8 @@ export default function JustMeInventoryPage() {
 
           {/* TAB CONTENT: Movement Form */}
           {activeTab === 'movement' && (
-            <div className="max-w-2xl mx-auto bg-white rounded-2xl border p-6 shadow-sm space-y-5">
-              <h2 className="text-base font-bold text-slate-800 flex items-center gap-2 border-b pb-3">
+            <div className="max-w-2xl mx-auto bg-white rounded-xl border p-6 space-y-5">
+              <h2 className="text-sm font-semibold text-slate-700 flex items-center gap-2 border-b pb-3">
                 <ArrowLeftRight className="h-5 w-5 text-indigo-500" />
                 ทำรายการรับเข้า / เบิกจ่าย / โอนย้ายสินค้า
               </h2>
@@ -993,8 +1006,8 @@ export default function JustMeInventoryPage() {
                   />
                 </div>
 
-                <Button type="submit" className="w-full font-bold py-6 text-base" disabled={formLoading}>
-                  {formLoading ? 'กำลังบันทึกรายการ…' : '📍 ยืนยันบันทึกทำรายการสต็อก'}
+                <Button type="submit" className="w-full" disabled={formLoading}>
+                  {formLoading ? 'กำลังบันทึก…' : 'ยืนยันบันทึกรายการสต็อก'}
                 </Button>
               </form>
             </div>
@@ -1002,10 +1015,10 @@ export default function JustMeInventoryPage() {
 
           {/* TAB CONTENT: Leftover Cables */}
           {activeTab === 'scraps' && (
-            <div className="bg-white rounded-2xl border shadow-sm p-5 space-y-4">
+            <div className="bg-white rounded-xl border p-5 space-y-4">
               <div className="flex items-center justify-between border-b pb-3 flex-wrap gap-2">
                 <div>
-                  <h2 className="text-base font-bold text-slate-800 flex items-center gap-2">
+                  <h2 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
                     <Scissors className="h-5 w-5 text-rose-500" />
                     สต็อกสายไฟเหลือใช้ และเศษสายไฟ (Leftover & Scraps)
                   </h2>
@@ -1077,7 +1090,7 @@ export default function JustMeInventoryPage() {
 
           {/* TAB CONTENT: History */}
           {activeTab === 'history' && (
-            <div className="bg-white rounded-2xl border shadow-sm overflow-hidden">
+            <div className="bg-white rounded-xl border overflow-hidden">
               <div className="border-b px-5 py-4">
                 <h2 className="text-sm font-semibold text-slate-700">ประวัติการทำรายการเดินคลังทั้งหมด</h2>
               </div>
@@ -1141,6 +1154,21 @@ export default function JustMeInventoryPage() {
           )}
 
         </div>
+      )}
+      {ocrDialogOpen && (
+        <OcrReceiveDialog
+          open={ocrDialogOpen}
+          onClose={() => setOcrDialogOpen(false)}
+          onSaved={async () => {
+            setOcrDialogOpen(false);
+            setSuccess('บันทึกรับของเข้าคลังสำเร็จ');
+            await loadData();
+          }}
+          orgId={orgId}
+          authToken={authToken}
+          existingItemNames={items.map(i => i.name)}
+          warehouseOptions={warehouseOptions}
+        />
       )}
     </div>
   );

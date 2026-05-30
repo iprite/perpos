@@ -81,6 +81,41 @@ export async function getActiveOrganizationId(): Promise<string | null> {
   return orgs[0].id;
 }
 
+/**
+ * Fetch a user's role inside a specific module (module_members.module_role).
+ * Super-admins always get "owner". Returns null if not a member.
+ */
+export async function getModuleRoleForCurrentUser(
+  orgId: string,
+  moduleKey: string,
+): Promise<string | null> {
+  const supabase = await createSupabaseServerClient();
+  const { data: userRes } = await supabase.auth.getUser();
+  if (!userRes.user) return null;
+
+  const { createSupabaseAdminClient } = await import("@/lib/supabase/admin");
+  const admin = createSupabaseAdminClient();
+
+  // Super-admins bypass module membership
+  const { data: profile } = await admin
+    .from("profiles")
+    .select("role")
+    .eq("id", userRes.user.id)
+    .maybeSingle();
+  if ((profile as any)?.role === "super_admin") return "owner";
+
+  const { data: member } = await admin
+    .from("module_members")
+    .select("module_role")
+    .eq("org_id", orgId)
+    .eq("module_key", moduleKey)
+    .eq("user_id", userRes.user.id)
+    .eq("is_active", true)
+    .maybeSingle();
+
+  return (member as any)?.module_role ?? null;
+}
+
 export async function getEnabledModulesForOrg(
   orgId: string | null,
   memberRole: "owner" | "admin" | "team_lead" | "team_member" | null,

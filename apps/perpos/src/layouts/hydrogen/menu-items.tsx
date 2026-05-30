@@ -28,6 +28,9 @@ import {
   Kanban,
   Calculator,
   Clock,
+  CalendarDays,
+  ClipboardList,
+  BedDouble,
 } from "lucide-react";
 
 import type { Role } from "@/lib/supabase/types";
@@ -369,6 +372,18 @@ function buildAccFirmMenuItems(org: string): MenuItem[] {
   ];
 }
 
+// ─── US Villa PMS module ─────────────────────────────────────────────────────
+function buildUsvillaMenuItems(org: string): MenuItem[] {
+  const p = (path: string) => `/${org}/usvilla/${path}`;
+  return [
+    { name: "PMS — Us Villa" },
+    { name: "รายวัน",           href: `/${org}/usvilla`,    icon: <BedDouble className="h-5 w-5" /> },
+    { name: "ปฏิทิน",          href: p("calendar"),         icon: <CalendarDays className="h-5 w-5" /> },
+    { name: "บันทึกประจำวัน",  href: p("sheet"),            icon: <ClipboardList className="h-5 w-5" /> },
+    { name: "รายงานรายได้",    href: p("report"),           icon: <BarChart3 className="h-5 w-5" /> },
+  ];
+}
+
 // ─── Just Me module ──────────────────────────────────────────────────────────
 function buildJustMeMenuItems(org: string, orgRole?: string | null): MenuItem[] {
   const p = (path: string) => `/${org}/just-me/${path}`;
@@ -403,6 +418,7 @@ function pickMenuContext(pathname: string, role: Role | null, enabledKeys: strin
     if (mod === "crm")       return "crm";
     if (mod === "acc-firm")  return "acc_firm";
     if (mod === "just-me")   return "just_me";
+    if (mod === "usvilla")   return "usvilla";
     if (mod === "accounting") return "user";
   }
 
@@ -438,6 +454,7 @@ export function getMenuItems(
     context === "crm"       ? buildCrmMenuItems(org)         :
     context === "acc_firm"  ? buildAccFirmMenuItems(org)     :
     context === "just_me"   ? buildJustMeMenuItems(org, orgRole) :
+    context === "usvilla"   ? buildUsvillaMenuItems(org) :
     buildUserMenuItems(org);
 
   return items.filter((item) => {

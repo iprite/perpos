@@ -13,6 +13,7 @@ import {
   getOrganizationsForCurrentUser,
   getActiveOrganizationId,
   getEnabledModulesForOrg,
+  getModuleRoleForCurrentUser,
 } from "@/lib/accounting/queries";
 
 // Path segments that are NOT org slugs
@@ -61,8 +62,17 @@ export default async function HydrogenLayout({ children }: { children: React.Rea
     }
   }
 
+  // ── Module-level role override ───────────────────────────────────────────────
+  // For modules that use per-module roles (module_members table), use the
+  // module role instead of the org-level role so sidebar gating is correct.
+  let effectiveOrgRole: string | null = activeOrg?.role ?? null;
+  if (isOrgRoute && segments[1] === "just-me" && activeOrg?.id) {
+    const moduleRole = await getModuleRoleForCurrentUser(activeOrg.id, "just_me");
+    if (moduleRole) effectiveOrgRole = moduleRole;
+  }
+
   return (
-    <ModuleProvider enabledKeys={enabledKeys} orgSlug={activeOrg?.slug ?? orgSlugFromUrl ?? ""} orgRole={activeOrg?.role ?? null}>
+    <ModuleProvider enabledKeys={enabledKeys} orgSlug={activeOrg?.slug ?? orgSlugFromUrl ?? ""} orgRole={effectiveOrgRole}>
       <main className="flex min-h-screen flex-grow">
         <Sidebar className="fixed hidden xl:block dark:bg-gray-50" />
         <div className="flex w-full flex-col xl:ms-[270px] xl:w-[calc(100%-270px)] 2xl:ms-72 2xl:w-[calc(100%-288px)]">

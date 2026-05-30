@@ -1,7 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useEffect } from "react";
-import { useSetAtom } from "jotai";
+import { useAtomValue, useSetAtom } from "jotai";
 import { enabledModuleKeysAtom, orgSlugAtom, orgRoleAtom } from "./module-atoms";
 
 type ModuleContextValue = {
@@ -54,5 +54,6 @@ export function useOrgSlug(): string {
 }
 
 export function useOrgRole(): string | null {
-  return useContext(ModuleContext).orgRole;
+  // Read from atom so this works inside GlobalDrawer (outside ModuleProvider context tree)
+  return useAtomValue(orgRoleAtom);
 }

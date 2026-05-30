@@ -134,6 +134,22 @@ export const ALL_MODULES: ModuleDef[] = [
       { key: "viewer",  label: "Viewer",  canWrite: false },
     ],
   },
+  {
+    key: "usvilla",
+    label: "PMS",
+    href: "/usvilla",
+    specific: true,
+    forOrgSlugs: ["usvilla"],
+    match: (p) => {
+      const seg = p.split("/").filter(Boolean);
+      return seg.length >= 2 && seg[1] === "usvilla";
+    },
+    roles: [
+      { key: "owner",   label: "Owner",   canWrite: true  },
+      { key: "manager", label: "Manager", canWrite: true  },
+      { key: "viewer",  label: "Viewer",  canWrite: false },
+    ],
+  },
 ];
 
 export const ALL_MODULE_KEYS = ALL_MODULES.map((m) => m.key);
@@ -188,6 +204,9 @@ export const MODULE_MENUS: Record<string, MenuDef[]> = {
     { key: "dashboard", label: "Dashboard" },
     { key: "clock_in_out", label: "Clock In/Out" },
     { key: "inventory", label: "Inventory" },
+  ],
+  usvilla: [
+    { key: "dashboard", label: "Dashboard" },
   ],
 };
 
