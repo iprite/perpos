@@ -34,8 +34,9 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
       const qs = searchParams?.toString() ? `?${searchParams.toString()}` : "";
       const current = `${stripBasePath(pathname)}${qs}`;
       const dest = current && current.startsWith("/") ? current : "/";
-      const extra = blocked ? "&blocked=1" : "";
-      router.replace(withBasePath(`/signin?returnTo=${encodeURIComponent(dest)}${extra}`));
+      const returnToParam = dest && dest !== "/" ? `?returnTo=${encodeURIComponent(dest)}` : "";
+      const extra = blocked ? (returnToParam ? "&blocked=1" : "?blocked=1") : "";
+      router.replace(withBasePath(`/signin${returnToParam}${extra}`));
     }
   }, [blocked, loading, pathname, router, searchParams, userId]);
 
