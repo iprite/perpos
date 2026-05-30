@@ -28,7 +28,7 @@ export function SidebarModuleSwitcher() {
   const [open, setOpen] = useState(false);
   const containerRef    = useRef<HTMLDivElement>(null);
 
-  const visibleModules = ALL_MODULES.filter((m) => enabledKeys.includes(m.key));
+  const visibleModules = ALL_MODULES.filter((m) => enabledKeys.includes(m.key) && !m.personal);
   const activeModule   = visibleModules.find((m) => m.match(pathname)) ?? visibleModules[0];
 
   // Close on outside click

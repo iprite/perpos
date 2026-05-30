@@ -21,7 +21,7 @@ export function ModuleSwitcher({ enabledModuleKeys }: ModuleSwitcherProps) {
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [rect, setRect] = useState<DOMRect | null>(null);
 
-  const visibleModules = ALL_MODULES.filter((m) => enabledModuleKeys.includes(m.key));
+  const visibleModules = ALL_MODULES.filter((m) => enabledModuleKeys.includes(m.key) && !m.personal);
   const activeModule = visibleModules.find((m) => m.match(pathname)) ?? visibleModules[0];
 
   useLayoutEffect(() => {

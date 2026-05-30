@@ -13,6 +13,9 @@ export type ModuleDef = {
   /** specific = true → module built exclusively for one particular org
    *  (e.g. TMC Management). Hidden from other orgs' module manager entirely. */
   specific?: boolean;
+  /** personal = true → user-level module (personal grant + LINE required).
+   *  Hidden from org module switchers — accessed via header icon instead. */
+  personal?: boolean;
   /**
    * forOrgSlugs — slugs ขององค์กรที่ได้รับอนุญาตให้เปิด specific module นี้
    * ถ้าไม่ระบุ: admin เปิดให้ org ไหนก็ได้ (ท่า tmc เดิม)
@@ -61,6 +64,7 @@ export const ALL_MODULES: ModuleDef[] = [
     key: "assistant",
     label: "Assistant",
     href: "/assistant",
+    personal: true,
     match: (p) => {
       const seg = p.split("/").filter(Boolean);
       return seg.length >= 2 && seg[1] === "assistant";
