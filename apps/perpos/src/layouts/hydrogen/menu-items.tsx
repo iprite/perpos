@@ -16,6 +16,7 @@ import {
   FileText,
   Percent,
   BotMessageSquare,
+  Wifi,
   LayoutGrid,
   PlusCircle,
   Activity,
@@ -311,6 +312,12 @@ function buildAssistantMenuItems(org: string, labels: Record<string, string> = {
       icon: <BotMessageSquare className="h-5 w-5" />,
       roles: allRoles,
     },
+    {
+      name: l("connections", "การเชื่อมต่อ"),
+      href: `/${org}/assistant/connections`,
+      icon: <Wifi className="h-5 w-5" />,
+      roles: allRoles,
+    },
   ];
 }
 
@@ -431,6 +438,7 @@ function pickMenuContext(pathname: string, role: Role | null, enabledKeys: strin
   // For org routes: /:orgSlug/:module/*  →  segments[1] is the module key
   if (segments.length >= 2) {
     const mod = segments[1];
+    if (mod === "assistant") return "assistant";
     if (mod === "payroll")   return "payroll";
     if (mod === "tmc")       return "tmc";
     if (mod === "crm")       return "crm";

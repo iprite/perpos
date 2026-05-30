@@ -81,6 +81,18 @@ export async function getActiveOrganizationId(): Promise<string | null> {
   return orgs[0].id;
 }
 
+/** Read the last-active module key for a given org slug from the cookie.
+ *  Returns null if no cookie is found or not in enabledKeys. */
+export async function getActiveModuleKey(
+  orgSlug: string,
+  enabledKeys: string[],
+): Promise<string | null> {
+  const cookieStore = await cookies();
+  const saved = cookieStore.get(`perpos.activeModule.${orgSlug}`)?.value ?? null;
+  if (saved && enabledKeys.includes(saved)) return saved;
+  return null;
+}
+
 /**
  * Fetch a user's role inside a specific module (module_members.module_role).
  * Super-admins always get "owner". Returns null if not a member.

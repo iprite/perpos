@@ -6,8 +6,11 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Settings, Shield, LogOut, LayoutGrid, Building2, CreditCard } from "lucide-react";
 
+import { useAtomValue } from "jotai";
 import { useAuth } from "@/app/shared/auth-provider";
 import { useOrgSlug } from "@/app/shared/module-provider";
+import { activeModuleKeyAtom, enabledModuleKeysAtom } from "@/app/shared/module-atoms";
+import { ALL_MODULES } from "@/lib/modules";
 import { withBasePath } from "@/utils/base-path";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
@@ -80,8 +83,14 @@ function ProfileMenuPopover({ children }: React.PropsWithChildren<{}>) {
 function DropdownMenu() {
   const router = useRouter();
   const { email, role, profile, userId, signOut } = useAuth();
-  const orgSlug = useOrgSlug();
+  const orgSlug        = useOrgSlug();
+  const activeModuleKey = useAtomValue(activeModuleKeyAtom);
+  const enabledKeys     = useAtomValue(enabledModuleKeysAtom);
   const name = String(profile?.display_name ?? email ?? "U");
+
+  const visibleModules = ALL_MODULES.filter((m) => enabledKeys.includes(m.key) && !m.personal);
+  const activeModule   = visibleModules.find((m) => m.key === activeModuleKey) ?? visibleModules[0];
+  const erpHref        = orgSlug && activeModule ? `/${orgSlug}${activeModule.href}` : orgSlug ? `/${orgSlug}` : "/";
   const [signingOut, setSigningOut] = useState(false);
   const [isOrgManager, setIsOrgManager] = useState(false);
   const [isOrgOwner,   setIsOrgOwner]   = useState(false);
@@ -112,8 +121,8 @@ function DropdownMenu() {
 
   const items: Array<{ label: string; href: string; icon: React.ReactNode; show: boolean }> = [
     {
-      label: "PERPOS ERP",
-      href: orgSlug ? `/${orgSlug}` : "/",
+      label: "PERPOS",
+      href: erpHref,
       icon: <LayoutGrid className="h-4 w-4 text-gray-500" />,
       show: true,
     },

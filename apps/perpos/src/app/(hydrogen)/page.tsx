@@ -4,6 +4,7 @@ import {
   getActiveOrganizationId,
   getOrganizationsForCurrentUser,
   getEnabledModulesForOrg,
+  getActiveModuleKey,
 } from "@/lib/accounting/queries";
 import { ALL_MODULES } from "@/lib/modules";
 
@@ -37,16 +38,24 @@ export default async function DashboardPage() {
   }
 
   const activeOrg = orgs.find((o) => o.id === activeOrgId) ?? orgs[0];
+  const orgSlug = activeOrg.slug ?? activeOrg.id;
   const enabledKeys = await getEnabledModulesForOrg(activeOrg.id, activeOrg.role ?? null);
-  const firstModule = ALL_MODULES.find((m) => enabledKeys.includes(m.key));
 
   // No accessible module → super_admin falls back to admin console
-  if (!firstModule) {
+  if (!ALL_MODULES.some((m) => enabledKeys.includes(m.key))) {
     if (isSuperAdmin) redirect("/admin");
     redirect("/no-org");
   }
 
-  // Redirect to /:orgSlug/:module/:defaultMenu
-  const orgSlug = activeOrg.slug ?? activeOrg.id;
-  redirect(`/${orgSlug}${firstModule.href}`);
+  // Restore last-active module for this org, fall back to first enabled
+  const savedModuleKey = await getActiveModuleKey(orgSlug, enabledKeys);
+  const targetModule = (savedModuleKey ? ALL_MODULES.find((m) => m.key === savedModuleKey) : null)
+    ?? ALL_MODULES.find((m) => enabledKeys.includes(m.key));
+
+  if (!targetModule) {
+    if (isSuperAdmin) redirect("/admin");
+    redirect("/no-org");
+  }
+
+  redirect(`/${orgSlug}${targetModule.href}`);
 }

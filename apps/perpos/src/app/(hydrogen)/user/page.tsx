@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Avatar, Badge, Button, Input, Title, Text } from "rizzui";
 import { QRCodeSVG } from "qrcode.react";
-import { HardDrive, Image as ImageIcon, Link2, Save, X } from "lucide-react";
+import { Image as ImageIcon, Link2, Save, X } from "lucide-react";
 
 import { useAuth } from "@/app/shared/auth-provider";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -11,10 +11,6 @@ import { backendUrl } from "@/lib/backend";
 
 type LinkTokenResponse =
   | { ok: true; token: string; expiresAt: string; linkUrl: string }
-  | { error: string };
-
-type DriveStatusResponse =
-  | { ok: true; connected: boolean; expiresAt: string | null; folderId: string | null }
   | { error: string };
 
 function extFromFile(file: File) {
@@ -56,10 +52,6 @@ export default function UserSettingsPage() {
   const [link, setLink] = useState<{ token: string; expiresAt: string; linkUrl: string } | null>(null);
   const [linkError, setLinkError] = useState<string | null>(null);
 
-  const [driveLoading, setDriveLoading] = useState(false);
-  const [driveConnected, setDriveConnected] = useState(false);
-  const [driveError, setDriveError] = useState<string | null>(null);
-
   const previewUrl = useMemo(() => {
     if (!file) return null;
     return URL.createObjectURL(file);
@@ -69,32 +61,6 @@ export default function UserSettingsPage() {
   const displayName = String(profile?.display_name ?? email ?? "").trim();
   const canSaveNickname = nickname.trim().length > 0 && nickname.trim() !== String(profile?.display_name ?? "").trim();
   const isLinkExpired = link ? new Date(link.expiresAt).getTime() <= Date.now() : false;
-
-  useEffect(() => {
-    let cancelled = false;
-    const run = async () => {
-      setDriveError(null);
-      try {
-        const supabase = createSupabaseBrowserClient();
-        const { data } = await supabase.auth.getSession();
-        const token = data.session?.access_token;
-        if (!token) return;
-        const res = await fetch(backendUrl("/google-drive/status"), { headers: { authorization: `Bearer ${token}` } });
-        const json = (await res.json().catch(() => null)) as DriveStatusResponse | null;
-        if (!res.ok) throw new Error(String((json as any)?.error ?? "request_failed"));
-        if (!json || !(json as any).ok) throw new Error(String((json as any)?.error ?? "request_failed"));
-        if (cancelled) return;
-        setDriveConnected(Boolean((json as any).connected));
-      } catch (e: any) {
-        if (cancelled) return;
-        setDriveError(String(e?.message ?? "ไม่สามารถโหลดสถานะ Google Drive ได้"));
-      }
-    };
-    void run();
-    return () => {
-      cancelled = true;
-    };
-  }, [userId]);
 
   return (
     <div className="mx-auto w-full max-w-5xl px-4 py-6">
@@ -262,90 +228,6 @@ export default function UserSettingsPage() {
         </div>
 
         <div className="grid gap-4 lg:col-span-4">
-          <div className="rounded-2xl border border-gray-200 bg-white p-5">
-            <div className="flex items-center justify-between gap-3 text-gray-900">
-              <div className="flex items-center gap-2">
-                <HardDrive className="h-4 w-4" />
-                <div className="text-sm font-semibold">Connect to Google</div>
-              </div>
-              <Badge
-                variant="flat"
-                size="sm"
-                color={driveConnected ? "success" : "danger"}
-                className="border px-2 py-0.5 text-xs font-normal tracking-wide"
-              >
-                {driveConnected ? "เชื่อมต่อแล้ว" : "ยังไม่เชื่อม"}
-              </Badge>
-            </div>
-
-            <div className="mt-3 text-sm text-gray-700">
-              {driveConnected ? "เชื่อมต่อแล้ว — รองรับ Google Drive และ Google Calendar" : "เชื่อมต่อเพื่อให้บอทอัปโหลดไฟล์ไป Drive และบันทึกนัดใน Calendar"}
-            </div>
-
-            {driveError ? (
-              <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{driveError}</div>
-            ) : null}
-
-            <div className="mt-4 grid gap-2">
-              <Button
-                disabled={driveLoading}
-                onClick={async () => {
-                  setDriveError(null);
-                  setDriveLoading(true);
-                  try {
-                    const supabase = createSupabaseBrowserClient();
-                    const { data } = await supabase.auth.getSession();
-                    const token = data.session?.access_token;
-                    if (!token) throw new Error("Unauthorized");
-                    const res = await fetch(backendUrl("/google-drive/connect"), {
-                      method: "POST",
-                      headers: { authorization: `Bearer ${token}` },
-                    });
-                    const json = (await res.json().catch(() => null)) as any;
-                    if (!res.ok) throw new Error(String(json?.error ?? "request_failed"));
-                    const url = String(json?.url ?? "").trim();
-                    if (!url) throw new Error("missing_url");
-                    window.location.assign(url);
-                  } catch (e: any) {
-                    setDriveError(String(e?.message ?? "ไม่สามารถเริ่มการเชื่อมต่อได้"));
-                    setDriveLoading(false);
-                  }
-                }}
-              >
-                {driveLoading ? "กำลังไปที่ Google..." : driveConnected ? "เชื่อมใหม่" : "Connect to Google"}
-              </Button>
-              {driveConnected ? (
-                <Button
-                  variant="outline"
-                  disabled={driveLoading}
-                  onClick={async () => {
-                    setDriveError(null);
-                    setDriveLoading(true);
-                    try {
-                      const supabase = createSupabaseBrowserClient();
-                      const { data } = await supabase.auth.getSession();
-                      const token = data.session?.access_token;
-                      if (!token) throw new Error("Unauthorized");
-                      const res = await fetch(backendUrl("/google-drive/disconnect"), {
-                        method: "POST",
-                        headers: { authorization: `Bearer ${token}` },
-                      });
-                      const json = (await res.json().catch(() => null)) as any;
-                      if (!res.ok) throw new Error(String(json?.error ?? "request_failed"));
-                      setDriveConnected(false);
-                    } catch (e: any) {
-                      setDriveError(String(e?.message ?? "ยกเลิกการเชื่อมต่อไม่สำเร็จ"));
-                    } finally {
-                      setDriveLoading(false);
-                    }
-                  }}
-                >
-                  ยกเลิกการเชื่อมต่อ
-                </Button>
-              ) : null}
-            </div>
-          </div>
-
           <div className="rounded-2xl border border-gray-200 bg-white p-5">
             <div className="flex items-center justify-between gap-3 text-gray-900">
               <div className="flex items-center gap-2">
