@@ -85,13 +85,19 @@ export async function handleJustMeIn(
         header: {
           type: 'box',
           layout: 'vertical',
-          backgroundColor: '#ECFDF5',
+          paddingAll: '16px',
+          background: {
+            type: 'linearGradient',
+            angle: '135deg',
+            startColor: '#059669',
+            endColor: '#34D399',
+          },
           contents: [
             {
               type: 'text',
               text: '⏰ CLOCK IN REQUEST',
               weight: 'bold',
-              color: '#059669',
+              color: '#FFFFFF',
               size: 'sm',
             },
             {
@@ -99,7 +105,7 @@ export async function handleJustMeIn(
               text: 'บันทึกเวลาเข้างานด้วยตำแหน่งปัจจุบัน',
               weight: 'bold',
               size: 'md',
-              color: '#1F2937',
+              color: '#FFFFFF',
               margin: 'xs',
               wrap: true,
             },
@@ -108,24 +114,37 @@ export async function handleJustMeIn(
         body: {
           type: 'box',
           layout: 'vertical',
+          paddingAll: '16px',
+          spacing: 'md',
           contents: [
             {
-              type: 'text',
-              text: 'ระบบความปลอดภัยจะดึงพิกัด GPS ล่าสุดจากอุปกรณ์ของคุณโดยตรง และไม่อนุญาตให้เลื่อนระบุตำแหน่งบนแผนที่ด้วยตัวเอง',
-              color: '#4B5563',
-              size: 'xs',
-              wrap: true,
+              type: 'box',
+              layout: 'vertical',
+              backgroundColor: '#F8FAFC',
+              cornerRadius: 'md',
+              paddingAll: '12px',
+              borderWidth: '1px',
+              borderColor: '#E2E8F0',
+              contents: [
+                {
+                  type: 'text',
+                  text: '🔒 ระบบความปลอดภัยจะดึงพิกัด GPS จริงของคุณโดยตรงจากอุปกรณ์ และไม่อนุญาตให้ปรับเปลี่ยนตำแหน่งด้วยตัวเอง',
+                  color: '#475569',
+                  size: 'xs',
+                  wrap: true,
+                },
+              ],
             },
             {
               type: 'button',
               style: 'primary',
-              color: '#10B981',
+              color: '#059669',
+              cornerRadius: 'md',
               action: {
                 type: 'uri',
                 label: '📍 บันทึกเข้างาน ณ ตำแหน่งนี้',
                 uri: clockUrl,
               },
-              margin: 'md',
             },
           ],
         },
@@ -176,13 +195,19 @@ export async function handleJustMeOut(
         header: {
           type: 'box',
           layout: 'vertical',
-          backgroundColor: '#FEF2F2',
+          paddingAll: '16px',
+          background: {
+            type: 'linearGradient',
+            angle: '135deg',
+            startColor: '#DC2626',
+            endColor: '#FB7185',
+          },
           contents: [
             {
               type: 'text',
               text: '⏰ CLOCK OUT REQUEST',
               weight: 'bold',
-              color: '#DC2626',
+              color: '#FFFFFF',
               size: 'sm',
             },
             {
@@ -190,7 +215,7 @@ export async function handleJustMeOut(
               text: 'บันทึกเวลาออกงานด้วยตำแหน่งปัจจุบัน',
               weight: 'bold',
               size: 'md',
-              color: '#1F2937',
+              color: '#FFFFFF',
               margin: 'xs',
               wrap: true,
             },
@@ -199,24 +224,37 @@ export async function handleJustMeOut(
         body: {
           type: 'box',
           layout: 'vertical',
+          paddingAll: '16px',
+          spacing: 'md',
           contents: [
             {
-              type: 'text',
-              text: 'ระบบความปลอดภัยจะดึงพิกัด GPS ล่าสุดจากอุปกรณ์ของคุณโดยตรง และไม่อนุญาตให้เลื่อนระบุตำแหน่งบนแผนที่ด้วยตัวเอง',
-              color: '#4B5563',
-              size: 'xs',
-              wrap: true,
+              type: 'box',
+              layout: 'vertical',
+              backgroundColor: '#F8FAFC',
+              cornerRadius: 'md',
+              paddingAll: '12px',
+              borderWidth: '1px',
+              borderColor: '#E2E8F0',
+              contents: [
+                {
+                  type: 'text',
+                  text: '🔒 ระบบความปลอดภัยจะดึงพิกัด GPS จริงของคุณโดยตรงจากอุปกรณ์ และไม่อนุญาตให้ปรับเปลี่ยนตำแหน่งด้วยตัวเอง',
+                  color: '#475569',
+                  size: 'xs',
+                  wrap: true,
+                },
+              ],
             },
             {
               type: 'button',
               style: 'primary',
-              color: '#EF4444',
+              color: '#DC2626',
+              cornerRadius: 'md',
               action: {
                 type: 'uri',
                 label: '📍 บันทึกออกงาน ณ ตำแหน่งนี้',
                 uri: clockUrl,
               },
-              margin: 'md',
             },
           ],
         },
@@ -286,13 +324,19 @@ export async function handleJustMeLocation(
           header: {
             type: 'box',
             layout: 'vertical',
-            backgroundColor: '#ECFDF5',
+            paddingAll: '16px',
+            background: {
+              type: 'linearGradient',
+              angle: '135deg',
+              startColor: '#059669',
+              endColor: '#34D399',
+            },
             contents: [
               {
                 type: 'text',
                 text: '🟢 CLOCK IN SUCCESS',
                 weight: 'bold',
-                color: '#059669',
+                color: '#FFFFFF',
                 size: 'sm',
               },
               {
@@ -300,7 +344,7 @@ export async function handleJustMeLocation(
                 text: 'บันทึกเวลาเข้างานสำเร็จ',
                 weight: 'bold',
                 size: 'lg',
-                color: '#1F2937',
+                color: '#FFFFFF',
                 margin: 'xs',
               },
             ],
@@ -308,32 +352,44 @@ export async function handleJustMeLocation(
           body: {
             type: 'box',
             layout: 'vertical',
+            paddingAll: '16px',
             contents: [
               {
                 type: 'box',
-                layout: 'horizontal',
+                layout: 'vertical',
+                backgroundColor: '#F8FAFC',
+                cornerRadius: 'md',
+                paddingAll: '12px',
+                borderWidth: '1px',
+                borderColor: '#E2E8F0',
                 contents: [
-                  { type: 'text', text: 'วันที่:', color: '#6B7280', size: 'sm', flex: 2 },
-                  { type: 'text', text: fmtDateTH(now), color: '#1F2937', size: 'sm', weight: 'bold', flex: 4 },
+                  {
+                    type: 'box',
+                    layout: 'horizontal',
+                    contents: [
+                      { type: 'text', text: '📅 วันที่', color: '#64748B', size: 'sm', flex: 3 },
+                      { type: 'text', text: fmtDateTH(now), color: '#0F172A', size: 'sm', weight: 'bold', flex: 7 },
+                    ],
+                  },
+                  {
+                    type: 'box',
+                    layout: 'horizontal',
+                    contents: [
+                      { type: 'text', text: '⏰ เวลาเข้า', color: '#64748B', size: 'sm', flex: 3 },
+                      { type: 'text', text: fmtTimeTH(now), color: '#059669', size: 'sm', weight: 'bold', flex: 7 },
+                    ],
+                    margin: 'md',
+                  },
+                  {
+                    type: 'box',
+                    layout: 'horizontal',
+                    contents: [
+                      { type: 'text', text: '📍 สถานที่', color: '#64748B', size: 'sm', flex: 3 },
+                      { type: 'text', text: addressName, color: '#0F172A', size: 'sm', wrap: true, flex: 7 },
+                    ],
+                    margin: 'md',
+                  },
                 ],
-              },
-              {
-                type: 'box',
-                layout: 'horizontal',
-                contents: [
-                  { type: 'text', text: 'เวลา:', color: '#6B7280', size: 'sm', flex: 2 },
-                  { type: 'text', text: fmtTimeTH(now), color: '#1F2937', size: 'sm', weight: 'bold', flex: 4 },
-                ],
-                margin: 'sm',
-              },
-              {
-                type: 'box',
-                layout: 'horizontal',
-                contents: [
-                  { type: 'text', text: 'สถานที่:', color: '#6B7280', size: 'sm', flex: 2 },
-                  { type: 'text', text: addressName, color: '#1F2937', size: 'sm', wrap: true, flex: 4 },
-                ],
-                margin: 'sm',
               },
             ],
           },
@@ -376,13 +432,19 @@ export async function handleJustMeLocation(
           header: {
             type: 'box',
             layout: 'vertical',
-            backgroundColor: '#FEF2F2',
+            paddingAll: '16px',
+            background: {
+              type: 'linearGradient',
+              angle: '135deg',
+              startColor: '#DC2626',
+              endColor: '#FB7185',
+            },
             contents: [
               {
                 type: 'text',
                 text: '🔴 CLOCK OUT SUCCESS',
                 weight: 'bold',
-                color: '#DC2626',
+                color: '#FFFFFF',
                 size: 'sm',
               },
               {
@@ -390,7 +452,7 @@ export async function handleJustMeLocation(
                 text: 'บันทึกเวลาออกงานสำเร็จ',
                 weight: 'bold',
                 size: 'lg',
-                color: '#1F2937',
+                color: '#FFFFFF',
                 margin: 'xs',
               },
             ],
@@ -398,41 +460,53 @@ export async function handleJustMeLocation(
           body: {
             type: 'box',
             layout: 'vertical',
+            paddingAll: '16px',
             contents: [
               {
                 type: 'box',
-                layout: 'horizontal',
+                layout: 'vertical',
+                backgroundColor: '#F8FAFC',
+                cornerRadius: 'md',
+                paddingAll: '12px',
+                borderWidth: '1px',
+                borderColor: '#E2E8F0',
                 contents: [
-                  { type: 'text', text: 'เวลาเข้า:', color: '#6B7280', size: 'sm', flex: 2 },
-                  { type: 'text', text: fmtTimeTH(session.last_in_time), color: '#4B5563', size: 'sm', flex: 4 },
+                  {
+                    type: 'box',
+                    layout: 'horizontal',
+                    contents: [
+                      { type: 'text', text: '📥 เวลาเข้า', color: '#64748B', size: 'sm', flex: 3 },
+                      { type: 'text', text: fmtTimeTH(session.last_in_time), color: '#475569', size: 'sm', flex: 7 },
+                    ],
+                  },
+                  {
+                    type: 'box',
+                    layout: 'horizontal',
+                    contents: [
+                      { type: 'text', text: '📤 เวลาออก', color: '#64748B', size: 'sm', flex: 3 },
+                      { type: 'text', text: fmtTimeTH(now), color: '#DC2626', size: 'sm', weight: 'bold', flex: 7 },
+                    ],
+                    margin: 'md',
+                  },
+                  {
+                    type: 'box',
+                    layout: 'horizontal',
+                    contents: [
+                      { type: 'text', text: '⏱️ ระยะเวลา', color: '#64748B', size: 'sm', flex: 3 },
+                      { type: 'text', text: fmtDuration(diffMin), color: '#2563EB', size: 'sm', weight: 'bold', flex: 7 },
+                    ],
+                    margin: 'md',
+                  },
+                  {
+                    type: 'box',
+                    layout: 'horizontal',
+                    contents: [
+                      { type: 'text', text: '📍 สถานที่ออก', color: '#64748B', size: 'sm', flex: 3 },
+                      { type: 'text', text: addressName, color: '#0F172A', size: 'sm', wrap: true, flex: 7 },
+                    ],
+                    margin: 'md',
+                  },
                 ],
-              },
-              {
-                type: 'box',
-                layout: 'horizontal',
-                contents: [
-                  { type: 'text', text: 'เวลาออก:', color: '#6B7280', size: 'sm', flex: 2 },
-                  { type: 'text', text: fmtTimeTH(now), color: '#1F2937', size: 'sm', weight: 'bold', flex: 4 },
-                ],
-                margin: 'sm',
-              },
-              {
-                type: 'box',
-                layout: 'horizontal',
-                contents: [
-                  { type: 'text', text: 'ระยะเวลา:', color: '#6B7280', size: 'sm', flex: 2 },
-                  { type: 'text', text: fmtDuration(diffMin), color: '#2563EB', size: 'sm', weight: 'bold', flex: 4 },
-                ],
-                margin: 'sm',
-              },
-              {
-                type: 'box',
-                layout: 'horizontal',
-                contents: [
-                  { type: 'text', text: 'สถานที่ออก:', color: '#6B7280', size: 'sm', flex: 2 },
-                  { type: 'text', text: addressName, color: '#1F2937', size: 'sm', wrap: true, flex: 4 },
-                ],
-                margin: 'sm',
               },
             ],
           },
