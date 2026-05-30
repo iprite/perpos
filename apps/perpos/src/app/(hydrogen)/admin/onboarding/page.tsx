@@ -7,7 +7,7 @@ import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { Button }  from '@/components/ui/button';
 import { Input }   from '@/components/ui/input';
 import { Label }   from '@/components/ui/label';
-import { MODULE_MENUS, MODULE_LABELS } from '@/lib/modules';
+import { MODULE_MENUS, MODULE_LABELS, ALL_MODULES } from '@/lib/modules';
 import {
   CheckCircle2, ChevronRight, ChevronLeft,
   Building2, LayoutGrid, Settings2, UserPlus, Eye,
@@ -125,8 +125,9 @@ export default function OnboardingPage() {
   const [registryMods, setRegistryMods] = useState<RegistryModule[]>([]);
   const [registryLoading, setRegistryLoading] = useState(true);
 
-  const sharedMods   = registryMods.filter(m => !m.is_specific && m.is_active);
-  const specificMods = registryMods.filter(m => m.is_specific  && m.is_active);
+  const personalKeys = ALL_MODULES.filter(m => m.personal).map(m => m.key);
+  const sharedMods   = registryMods.filter(m => !m.is_specific && m.is_active && !personalKeys.includes(m.key));
+  const specificMods: RegistryModule[] = []; // Cut out taylormade modules completely
 
   useEffect(() => {
     void (async () => {

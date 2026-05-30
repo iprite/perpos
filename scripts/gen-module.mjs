@@ -1,6 +1,8 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { execSync } from 'child_process';
+
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -9,22 +11,23 @@ const rootDir = path.resolve(__dirname, '..');
 const KEY_RE = /^[a-z][a-z0-9_-]{1,48}[a-z0-9]$/;
 const SLUG_RE = /^[a-z][a-z0-9-]{0,48}[a-z0-9]$|^[a-z]$/;
 
-const [,, key, label, slug, isSpecificStr] = process.argv;
+const [,, key, label, slug, isSpecificStr, forOrgSlugsStr] = process.argv;
 
 if (!key || !label || !slug) {
   console.log(`
 ❌ ข้อมูลไม่ครบถ้วน!
 Usage:
-  pnpm gen-module <key> <label> <slug> [is_specific]
+  pnpm gen-module <key> <label> <slug> [is_specific] [for_org_slugs]
 
 Arguments:
   key          : รหัสโมดูลตัวเล็กคั่นด้วย underscore/hyphen (เช่น just_me)
   label        : ชื่อโมดูลแสดงผล (เช่น "Just Me")
   slug         : Slug URL ของโมดูล (เช่น just-me)
   is_specific  : โมดูลเฉพาะองค์กรหรือไม่ (true/false) ค่าเริ่มต้นคือ true
+  for_org_slugs: สลักขององค์กรที่ผูกโมดูลนี้ (คั่นด้วย comma เช่น p2psolutions) (ไม่บังคับ)
 
 Example:
-  pnpm gen-module just_me "Just Me" just-me true
+  pnpm gen-module just_me "Just Me" just-me true justme
 `);
   process.exit(1);
 }
@@ -40,6 +43,7 @@ if (!SLUG_RE.test(slug)) {
 }
 
 const isSpecific = isSpecificStr !== 'false';
+const forOrgSlugs = forOrgSlugsStr ? forOrgSlugsStr.split(',').map(s => s.trim()).filter(Boolean) : [];
 
 // Helper to convert snake/kebab to PascalCase
 function toPascalCase(str) {
@@ -274,6 +278,24 @@ export function canWrite(role: ${pascalName}Role): boolean {
 }
 `;
 
+let orgSettingsInsertSql = '';
+if (!isSpecific) {
+  orgSettingsInsertSql = `
+-- Enable for existing organizations by default
+INSERT INTO org_module_settings (organization_id, module_key, is_enabled, allowed_roles)
+SELECT id, '${key}', true, ARRAY['owner','admin','team_lead','team_member']::text[]
+FROM organizations
+ON CONFLICT (organization_id, module_key) DO NOTHING;`;
+} else if (forOrgSlugs.length > 0) {
+  orgSettingsInsertSql = `
+-- Enable for specific organizations by default
+INSERT INTO org_module_settings (organization_id, module_key, is_enabled, allowed_roles)
+SELECT id, '${key}', true, ARRAY['owner','admin','team_lead','team_member']::text[]
+FROM organizations
+WHERE slug = ANY (ARRAY[${forOrgSlugs.map(s => `'${s}'`).join(', ')}]::text[])
+ON CONFLICT (organization_id, module_key) DO NOTHING;`;
+}
+
 const sqlTemplate = `-- Initial migration for ${label} module (${key})
 -- Created at: ${dateStr}
 
@@ -306,6 +328,13 @@ CREATE INDEX IF NOT EXISTS ${key}_records_org_id_idx ON ${key}_records(org_id);
 -- CREATE TRIGGER ${key}_records_audit
 --   AFTER INSERT OR UPDATE OR DELETE ON ${key}_records
 --   FOR EACH ROW EXECUTE FUNCTION fn_audit_log_changes();
+
+-- Register module in module_registry
+INSERT INTO module_registry (key, label, href_slug, description, is_specific, is_builtin, is_active, sort_order)
+VALUES ('${key}', '${label}', '${slug}', 'โมดูลการทำงานเฉพาะองค์กร ${label}', ${isSpecific}, false, true, 100)
+ON CONFLICT (key) DO NOTHING;
+
+${orgSettingsInsertSql}
 `;
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -324,8 +353,111 @@ try {
   fs.writeFileSync(apiLibPath, apiLibTemplate, 'utf8');
   fs.writeFileSync(migrationPath, sqlTemplate, 'utf8');
 
+  // ─── Automating code registration ───
+  console.log('Modifying apps/perpos/src/lib/modules.ts...');
+  const modulesFilePath = path.join(rootDir, 'apps', 'perpos', 'src', 'lib', 'modules.ts');
+  let modulesContent = fs.readFileSync(modulesFilePath, 'utf8');
+
+  // 1. Insert into ALL_MODULES
+  const allModulesPattern = /\];\s*\n\nexport const ALL_MODULE_KEYS/m;
+  const allModulesReplacement = `  {
+    key: "${key}",
+    label: "${label}",
+    href: "/${slug}",
+    specific: ${isSpecific},
+    ${forOrgSlugs.length > 0 ? `forOrgSlugs: [${forOrgSlugs.map(s => `"${s}"`).join(', ')}],` : ''}
+    match: (p) => {
+      const seg = p.split("/").filter(Boolean);
+      return seg.length >= 2 && seg[1] === "${slug}";
+    },
+    roles: [
+      { key: "owner",   label: "Owner",   canWrite: true  },
+      { key: "manager", label: "Manager", canWrite: true  },
+      { key: "viewer",  label: "Viewer",  canWrite: false },
+    ],
+  },
+];
+
+export const ALL_MODULE_KEYS`;
+
+  if (modulesContent.includes(`key: "${key}"`)) {
+    console.log(`⚠️ Module "${key}" already registered in ALL_MODULES.`);
+  } else {
+    modulesContent = modulesContent.replace(allModulesPattern, allModulesReplacement);
+  }
+
+  // 2. Insert into MODULE_MENUS
+  const moduleMenusPattern = /\};\s*\n\nexport const MODULE_LABELS/m;
+  const moduleMenusReplacement = `  ${key}: [
+    { key: "dashboard", label: "Dashboard" },
+  ],
+};
+
+export const MODULE_LABELS`;
+
+  if (modulesContent.includes(`${key}: [`)) {
+    console.log(`⚠️ Module "${key}" already has menu definition in MODULE_MENUS.`);
+  } else {
+    modulesContent = modulesContent.replace(moduleMenusPattern, moduleMenusReplacement);
+  }
+
+  fs.writeFileSync(modulesFilePath, modulesContent, 'utf8');
+  console.log('✅ apps/perpos/src/lib/modules.ts updated.');
+
+  console.log('Modifying apps/perpos/src/layouts/hydrogen/menu-items.tsx...');
+  const menuItemsRealFilePath = path.join(rootDir, 'apps', 'perpos', 'src', 'layouts', 'hydrogen', 'menu-items.tsx');
+  let menuItemsContent = fs.readFileSync(menuItemsRealFilePath, 'utf8');
+
+  // 1. Add builder function before "// ─── Context picker"
+  const builderFunction = `function build${pascalName}MenuItems(org: string, labels: Record<string, string> = {}): MenuItem[] {
+  const l = (key: string, fallback: string) => labels[key] || fallback;
+  return [
+    { name: "${label}" },
+    { name: l("dashboard", "Dashboard"), href: \`/\${org}/${slug}\`, icon: <LayoutDashboard className="h-5 w-5" /> },
+  ];
+}
+
+\n`;
+
+  if (menuItemsContent.includes(`function build${pascalName}MenuItems`)) {
+    console.log(`⚠️ Menu builder for "${pascalName}" already exists.`);
+  } else {
+    const contextPickerPattern = /\/\/ ─── Context picker/m;
+    menuItemsContent = menuItemsContent.replace(contextPickerPattern, `${builderFunction}// ─── Context picker`);
+  }
+
+  // 2. Add path segment check in pickMenuContext
+  const contextPattern = /if\s*\(mod\s*===\s*"accounting"\)/;
+  const contextReplacement = `if (mod === "${slug}") return "${key}";\n    if (mod === "accounting")`;
+  if (menuItemsContent.includes(`if (mod === "${slug}")`)) {
+    console.log(`⚠️ Route picker context for "${slug}" already exists.`);
+  } else {
+    menuItemsContent = menuItemsContent.replace(contextPattern, contextReplacement);
+  }
+
+  // 3. Add context mapping in getMenuItems
+  const menuItemsPattern = /buildUserMenuItems\(org,\s*menuLabels\.accounting\s*\?\?\s*\{\}\);/;
+  const menuItemsReplacement = `context === "${key}" ? build${pascalName}MenuItems(org, menuLabels.${key} ?? {}) :\n    buildUserMenuItems(org, menuLabels.accounting ?? {});`;
+  if (menuItemsContent.includes(`context === "${key}"`)) {
+    console.log(`⚠️ Menu items rendering for "${key}" already exists.`);
+  } else {
+    menuItemsContent = menuItemsContent.replace(menuItemsPattern, menuItemsReplacement);
+  }
+
+  fs.writeFileSync(menuItemsRealFilePath, menuItemsContent, 'utf8');
+  console.log('✅ apps/perpos/src/layouts/hydrogen/menu-items.tsx updated.');
+
+  // ─── Automating DB Migration ───
+  try {
+    console.log('Applying database migration on remote Supabase database...');
+    execSync(`supabase db query --linked -f "${migrationPath}"`, { stdio: 'inherit' });
+    console.log('✅ Remote Supabase database migration applied successfully!');
+  } catch (dbErr) {
+    console.warn('⚠️ Warning: Failed to apply database migration via Supabase CLI. You may need to run it manually.');
+  }
+
   console.log(`
-✅ สร้างไฟล์โครงสร้างโมดูล "${label}" เรียบร้อยแล้ว!
+✅ สร้างไฟล์โครงสร้างโมดูล "${label}" และเปิดใช้งานในระบบเรียบร้อยแล้ว!
 
 📂 ไฟล์ที่ถูกสร้าง:
   1. Frontend Page : apps/perpos/src/app/(hydrogen)/[orgSlug]/${slug}/page.tsx

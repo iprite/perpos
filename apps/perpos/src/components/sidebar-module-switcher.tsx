@@ -29,7 +29,9 @@ export function SidebarModuleSwitcher() {
   const containerRef    = useRef<HTMLDivElement>(null);
 
   const visibleModules = ALL_MODULES.filter((m) => enabledKeys.includes(m.key) && !m.personal);
-  const activeModule   = visibleModules.find((m) => m.match(pathname)) ?? visibleModules[0];
+  // Match against all enabled modules (including personal modules like assistant)
+  // so the switcher button displays the active personal module and doesn't select any org modules in the dropdown.
+  const activeModule   = ALL_MODULES.find((m) => enabledKeys.includes(m.key) && m.match(pathname)) ?? visibleModules[0];
 
   // Close on outside click
   useEffect(() => {

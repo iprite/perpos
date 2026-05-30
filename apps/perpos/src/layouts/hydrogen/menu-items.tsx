@@ -427,6 +427,33 @@ function buildJaquarMenuItems(org: string, labels: Record<string, string> = {}):
   ];
 }
 
+function buildB2gMenuItems(org: string, labels: Record<string, string> = {}): MenuItem[] {
+  const l = (key: string, fallback: string) => labels[key] || fallback;
+  return [
+    { name: "B2G" },
+    { name: l("dashboard", "Dashboard"), href: `/${org}/b2g`, icon: <LayoutDashboard className="h-5 w-5" /> },
+  ];
+}
+
+
+function buildP2pSupplyMenuItems(org: string, labels: Record<string, string> = {}): MenuItem[] {
+  const l = (key: string, fallback: string) => labels[key] || fallback;
+  return [
+    { name: "P2P Supply" },
+    { name: l("dashboard", "Dashboard"), href: `/${org}/p2p-supply`, icon: <LayoutDashboard className="h-5 w-5" /> },
+  ];
+}
+
+
+function buildP2pGroupMenuItems(org: string, labels: Record<string, string> = {}): MenuItem[] {
+  const l = (key: string, fallback: string) => labels[key] || fallback;
+  return [
+    { name: "P2P Group" },
+    { name: l("dashboard", "Dashboard"), href: `/${org}/p2p-group`, icon: <LayoutDashboard className="h-5 w-5" /> },
+  ];
+}
+
+
 // ─── Context picker ─────────────────────────────────────────────────────────
 
 function pickMenuContext(pathname: string, role: Role | null, enabledKeys: string[]): string {
@@ -446,6 +473,9 @@ function pickMenuContext(pathname: string, role: Role | null, enabledKeys: strin
     if (mod === "just-me")   return "just_me";
     if (mod === "usvilla")   return "usvilla";
     if (mod === "jaquar")    return "jaquar";
+    if (mod === "b2g") return "b2g";
+    if (mod === "p2p-supply") return "p2p_supply";
+    if (mod === "p2p-group") return "p2p_group";
     if (mod === "accounting") return "user";
   }
 
@@ -483,6 +513,9 @@ export function getMenuItems(
     context === "just_me"   ? buildJustMeMenuItems(org, orgRole, menuLabels.just_me ?? {}) :
     context === "usvilla"   ? buildUsvillaMenuItems(org,  menuLabels.usvilla   ?? {})    :
     context === "jaquar"    ? buildJaquarMenuItems(org,   menuLabels.jaquar    ?? {})    :
+    context === "b2g" ? buildB2gMenuItems(org, menuLabels.b2g ?? {}) :
+    context === "p2p_supply" ? buildP2pSupplyMenuItems(org, menuLabels.p2p_supply ?? {}) :
+    context === "p2p_group" ? buildP2pGroupMenuItems(org, menuLabels.p2p_group ?? {}) :
     buildUserMenuItems(org, menuLabels.accounting ?? {});
 
   return items.filter((item) => {

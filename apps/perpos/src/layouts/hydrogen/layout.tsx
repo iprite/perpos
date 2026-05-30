@@ -63,8 +63,7 @@ export default async function HydrogenLayout({ children }: { children: React.Rea
   // ── Server-side module access guard ─────────────────────────────────────────
   // Only enforce for org routes where a module segment is present.
   if (isOrgRoute && segments.length >= 2) {
-    const moduleKey     = segments[1];
-    const currentModule = ALL_MODULES.find((m) => m.key === moduleKey);
+    const currentModule = ALL_MODULES.find((m) => m.match(pathname));
     if (currentModule && !enabledKeys.includes(currentModule.key)) {
       const firstEnabled = ALL_MODULES.find((m) => enabledKeys.includes(m.key));
       const orgSlug      = activeOrg?.slug ?? orgSlugFromUrl ?? "";

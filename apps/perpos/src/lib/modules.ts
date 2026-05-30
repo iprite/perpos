@@ -169,6 +169,54 @@ export const ALL_MODULES: ModuleDef[] = [
       { key: "viewer",  label: "Viewer",  canWrite: false },
     ],
   },
+  {
+    key: "b2g",
+    label: "B2G",
+    href: "/b2g",
+    specific: true,
+    forOrgSlugs: ["p2p-x-89"],
+    match: (p) => {
+      const seg = p.split("/").filter(Boolean);
+      return seg.length >= 2 && seg[1] === "b2g";
+    },
+    roles: [
+      { key: "owner",   label: "Owner",   canWrite: true  },
+      { key: "manager", label: "Manager", canWrite: true  },
+      { key: "viewer",  label: "Viewer",  canWrite: false },
+    ],
+  },
+  {
+    key: "p2p_supply",
+    label: "P2P Supply",
+    href: "/p2p-supply",
+    specific: true,
+    forOrgSlugs: ["p2psupply"],
+    match: (p) => {
+      const seg = p.split("/").filter(Boolean);
+      return seg.length >= 2 && seg[1] === "p2p-supply";
+    },
+    roles: [
+      { key: "owner",   label: "Owner",   canWrite: true  },
+      { key: "manager", label: "Manager", canWrite: true  },
+      { key: "viewer",  label: "Viewer",  canWrite: false },
+    ],
+  },
+  {
+    key: "p2p_group",
+    label: "P2P Group",
+    href: "/p2p-group",
+    specific: true,
+    forOrgSlugs: ["p2pholding"],
+    match: (p) => {
+      const seg = p.split("/").filter(Boolean);
+      return seg.length >= 2 && seg[1] === "p2p-group";
+    },
+    roles: [
+      { key: "owner",   label: "Owner",   canWrite: true  },
+      { key: "manager", label: "Manager", canWrite: true  },
+      { key: "viewer",  label: "Viewer",  canWrite: false },
+    ],
+  },
 ];
 
 export const ALL_MODULE_KEYS = ALL_MODULES.map((m) => m.key);
@@ -304,6 +352,15 @@ export const MODULE_MENUS: Record<string, MenuDef[]> = {
     { key: "dashboard", label: "Dashboard" },
   ],
   jaquar: [
+    { key: "dashboard", label: "Dashboard" },
+  ],
+  b2g: [
+    { key: "dashboard", label: "Dashboard" },
+  ],
+  p2p_supply: [
+    { key: "dashboard", label: "Dashboard" },
+  ],
+  p2p_group: [
     { key: "dashboard", label: "Dashboard" },
   ],
 };
