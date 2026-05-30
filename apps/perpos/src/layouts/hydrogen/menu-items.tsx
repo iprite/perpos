@@ -432,7 +432,6 @@ function pickMenuContext(pathname: string, role: Role | null, enabledKeys: strin
   if (segments.length >= 2) {
     const mod = segments[1];
     if (mod === "payroll")   return "payroll";
-    if (mod === "assistant") return "assistant";
     if (mod === "tmc")       return "tmc";
     if (mod === "crm")       return "crm";
     if (mod === "acc-firm")  return "acc_firm";
@@ -470,7 +469,6 @@ export function getMenuItems(
   const items =
     context === "admin"     ? buildAdminMenuItems()                                      :
     context === "payroll"   ? buildPayrollMenuItems(org,  menuLabels.payroll   ?? {})    :
-    context === "assistant" ? buildAssistantMenuItems(org, menuLabels.assistant ?? {})   :
     context === "tmc"       ? buildTmcMenuItems(org,      menuLabels.tmc       ?? {})    :
     context === "crm"       ? buildCrmMenuItems(org,      menuLabels.crm       ?? {})    :
     context === "acc_firm"  ? buildAccFirmMenuItems(org,  menuLabels.acc_firm  ?? {})    :
