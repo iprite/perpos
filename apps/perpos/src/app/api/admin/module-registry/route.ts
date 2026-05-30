@@ -108,10 +108,19 @@ export async function PATCH(req: NextRequest) {
   const m = mod as Record<string, unknown>;
   const allowed: Record<string, unknown> = {};
 
-  // label + description + is_active — editable for all modules
-  if (updates.label       !== undefined) allowed.label       = String(updates.label).trim();
-  if (updates.description !== undefined) allowed.description = updates.description ? String(updates.description).trim() : null;
-  if (updates.is_active   !== undefined) allowed.is_active   = Boolean(updates.is_active);
+  // label + description + is_active + menu_labels — editable for all modules
+  if (updates.label        !== undefined) allowed.label        = String(updates.label).trim();
+  if (updates.description  !== undefined) allowed.description  = updates.description ? String(updates.description).trim() : null;
+  if (updates.is_active    !== undefined) allowed.is_active    = Boolean(updates.is_active);
+  if (updates.menu_labels  !== undefined && typeof updates.menu_labels === 'object' && updates.menu_labels !== null) {
+    // Only store string values — sanitise
+    const raw = updates.menu_labels as Record<string, unknown>;
+    allowed.menu_labels = Object.fromEntries(
+      Object.entries(raw)
+        .filter(([, v]) => typeof v === 'string')
+        .map(([k, v]) => [k, (v as string).trim()]),
+    );
+  }
 
   // href_slug + sort_order — only for non-builtin
   if (!m.is_builtin) {

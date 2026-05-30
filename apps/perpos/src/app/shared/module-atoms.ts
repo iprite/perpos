@@ -9,3 +9,5 @@ import { atom } from "jotai";
 export const enabledModuleKeysAtom = atom<string[]>([]);
 export const orgSlugAtom            = atom<string>("");
 export const orgRoleAtom            = atom<string | null>(null);
+/** moduleKey → { menuKey → customLabel } */
+export const moduleMenuLabelsAtom   = atom<Record<string, Record<string, string>>>({});

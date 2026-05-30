@@ -116,6 +116,29 @@ export async function getModuleRoleForCurrentUser(
   return (member as any)?.module_role ?? null;
 }
 
+/** Fetch menu_labels for the given module keys from module_registry.
+ *  Returns: { moduleKey: { menuKey: customLabel } } — only keys with non-empty labels. */
+export async function getModuleMenuLabels(
+  moduleKeys: string[],
+): Promise<Record<string, Record<string, string>>> {
+  if (!moduleKeys.length) return {};
+  const { createSupabaseAdminClient } = await import("@/lib/supabase/admin");
+  const supabase = createSupabaseAdminClient();
+  const { data } = await supabase
+    .from("module_registry")
+    .select("key, menu_labels")
+    .in("key", moduleKeys);
+
+  if (!data?.length) return {};
+  const result: Record<string, Record<string, string>> = {};
+  for (const row of data as { key: string; menu_labels: Record<string, string> | null }[]) {
+    const labels = row.menu_labels ?? {};
+    const filtered = Object.fromEntries(Object.entries(labels).filter(([, v]) => v && v.trim()));
+    if (Object.keys(filtered).length) result[row.key] = filtered;
+  }
+  return result;
+}
+
 export async function getEnabledModulesForOrg(
   orgId: string | null,
   memberRole: "owner" | "admin" | "team_lead" | "team_member" | null,

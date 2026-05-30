@@ -8,7 +8,7 @@ import cn from "@core/utils/class-names";
 import { PiCaretDownBold } from "react-icons/pi";
 import { getMenuItems, isLinkMenuItem } from "@/layouts/hydrogen/menu-items";
 import { useAuth } from "@/app/shared/auth-provider";
-import { useEnabledModules, useOrgSlug, useOrgRole } from "@/app/shared/module-provider";
+import { useEnabledModules, useOrgSlug, useOrgRole, useMenuLabels } from "@/app/shared/module-provider";
 import StatusBadge from "@core/components/get-status-badge";
 
 export function SidebarMenu() {
@@ -18,7 +18,8 @@ export function SidebarMenu() {
   const enabledKeys = useEnabledModules();
   const orgSlug    = useOrgSlug();
   const orgRole    = useOrgRole();
-  const menuItems  = getMenuItems(role, pathname ?? "/", enabledKeys, orgSlug, orgRole);
+  const menuLabels = useMenuLabels();
+  const menuItems  = getMenuItems(role, pathname ?? "/", enabledKeys, orgSlug, orgRole, menuLabels);
   const prefetchHrefs = useMemo(() => {
     const hrefs: string[] = [];
     for (const item of menuItems) {

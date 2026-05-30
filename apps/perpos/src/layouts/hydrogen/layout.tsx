@@ -14,6 +14,7 @@ import {
   getActiveOrganizationId,
   getEnabledModulesForOrg,
   getModuleRoleForCurrentUser,
+  getModuleMenuLabels,
 } from "@/lib/accounting/queries";
 
 // Path segments that are NOT org slugs
@@ -48,7 +49,8 @@ export default async function HydrogenLayout({ children }: { children: React.Rea
     activeOrg = orgs.find((o) => o.id === cookieOrgId);
   }
 
-  const enabledKeys = await getEnabledModulesForOrg(activeOrg?.id ?? null, activeOrg?.role ?? null);
+  const enabledKeys  = await getEnabledModulesForOrg(activeOrg?.id ?? null, activeOrg?.role ?? null);
+  const menuLabels   = await getModuleMenuLabels(enabledKeys);
 
   // ── Server-side module access guard ─────────────────────────────────────────
   // Only enforce for org routes where a module segment is present.
@@ -72,7 +74,7 @@ export default async function HydrogenLayout({ children }: { children: React.Rea
   }
 
   return (
-    <ModuleProvider enabledKeys={enabledKeys} orgSlug={activeOrg?.slug ?? orgSlugFromUrl ?? ""} orgRole={effectiveOrgRole}>
+    <ModuleProvider enabledKeys={enabledKeys} orgSlug={activeOrg?.slug ?? orgSlugFromUrl ?? ""} orgRole={effectiveOrgRole} menuLabels={menuLabels}>
       <main className="flex min-h-screen flex-grow">
         <Sidebar className="fixed hidden xl:block dark:bg-gray-50" />
         <div className="flex w-full flex-col xl:ms-[270px] xl:w-[calc(100%-270px)] 2xl:ms-72 2xl:w-[calc(100%-288px)]">

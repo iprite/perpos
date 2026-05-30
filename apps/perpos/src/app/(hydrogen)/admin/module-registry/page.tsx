@@ -13,9 +13,10 @@ import {
 import {
   Puzzle, Plus, Pencil, Trash2, Loader2, CheckCircle2,
   AlertCircle, ToggleLeft, ToggleRight, ShieldAlert,
-  Building2, Globe,
+  Building2, Globe, Menu, ChevronDown, ChevronRight,
 } from 'lucide-react';
 import cn from '@core/utils/class-names';
+import { MODULE_MENUS } from '@/lib/modules';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -32,6 +33,7 @@ interface ModuleRec {
   is_active:     boolean;
   sort_order:    number;
   org_id:        string | null;
+  menu_labels:   Record<string, string>;
   organizations: OrgRef | null;
   created_at:    string;
 }
@@ -47,6 +49,7 @@ const EMPTY_FORM = {
   href_slug:   '',
   description: '',
   org_id:      '',
+  menuLabels:  {} as Record<string, string>,
 };
 type FormState = typeof EMPTY_FORM;
 
@@ -157,8 +160,9 @@ export default function ModuleRegistryPage() {
   const [dialog,    setDialog]    = useState<'create' | 'edit' | 'delete' | null>(null);
   const [selected,  setSelected]  = useState<ModuleRec | null>(null);
   const [form,      setForm]      = useState<FormState>(EMPTY_FORM);
-  const [saving,    setSaving]    = useState(false);
-  const [keyEdited, setKeyEdited] = useState(false);
+  const [saving,        setSaving]        = useState(false);
+  const [keyEdited,     setKeyEdited]     = useState(false);
+  const [expandedMenus, setExpandedMenus] = useState<Set<string>>(new Set());
   const [createdCommand, setCreatedCommand] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
@@ -208,6 +212,7 @@ export default function ModuleRegistryPage() {
       href_slug:   mod.href_slug,
       description: mod.description ?? '',
       org_id:      mod.org_id ?? '',
+      menuLabels:  mod.menu_labels ?? {},
     });
     setKeyEdited(true);
     setDialog('edit');
@@ -267,9 +272,10 @@ export default function ModuleRegistryPage() {
     setSaving(true);
     const h = await getHeaders();
     const patch: Record<string, unknown> = {
-      key:         selected.key,
-      label:       form.label,
-      description: form.description || null,
+      key:          selected.key,
+      label:        form.label,
+      description:  form.description || null,
+      menu_labels:  form.menuLabels,
     };
     // Allow binding org for specific modules not yet bound (builtin or custom)
     if (selected.is_specific && !selected.org_id) {
@@ -411,7 +417,7 @@ export default function ModuleRegistryPage() {
 
       {/* ── Create / Edit Dialog ── */}
       <Dialog open={dialog === 'create' || dialog === 'edit'} onOpenChange={o => !o && setDialog(null)}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               {dialog === 'create' ? 'สร้าง Module ใหม่' : `แก้ไข Module — ${selected?.label}`}
@@ -517,6 +523,93 @@ export default function ModuleRegistryPage() {
                 onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
               />
             </div>
+
+            {/* Menu labels — edit only, show when module has known menus */}
+            {dialog === 'edit' && selected && (MODULE_MENUS[selected.key]?.length ?? 0) > 0 && (
+              <div className="rounded-xl border border-slate-200 bg-slate-50 overflow-hidden">
+                {/* Section header */}
+                <div className="flex items-center gap-2 border-b border-slate-200 bg-white px-4 py-2.5">
+                  <Menu className="h-4 w-4 text-slate-400" />
+                  <span className="text-sm font-medium text-slate-700">ชื่อ Menu</span>
+                  <span className="text-xs text-slate-400">(เว้นว่างเพื่อใช้ชื่อเริ่มต้น)</span>
+                </div>
+
+                <div className="divide-y divide-slate-100">
+                  {MODULE_MENUS[selected.key].map(menu => {
+                    const hasItems   = (menu.items?.length ?? 0) > 0;
+                    const isExpanded = expandedMenus.has(menu.key);
+                    const subLabelKey = (itemKey: string) => `${menu.key}.${itemKey}`;
+
+                    return (
+                      <div key={menu.key}>
+                        {/* Top-level menu row */}
+                        <div className="flex items-center gap-2 px-4 py-2">
+                          {/* Expand/collapse toggle */}
+                          {hasItems ? (
+                            <button
+                              type="button"
+                              onClick={() => setExpandedMenus(prev => {
+                                const next = new Set(prev);
+                                next.has(menu.key) ? next.delete(menu.key) : next.add(menu.key);
+                                return next;
+                              })}
+                              className="shrink-0 rounded p-0.5 text-slate-400 hover:text-slate-600 transition-colors"
+                            >
+                              {isExpanded
+                                ? <ChevronDown className="h-3.5 w-3.5" />
+                                : <ChevronRight className="h-3.5 w-3.5" />}
+                            </button>
+                          ) : (
+                            <span className="h-3.5 w-3.5 shrink-0" />
+                          )}
+
+                          {/* Default label */}
+                          <span className="w-36 shrink-0 truncate text-xs text-slate-500">
+                            {menu.label}
+                            {hasItems && (
+                              <span className="ml-1 text-slate-300">({menu.items!.length})</span>
+                            )}
+                          </span>
+
+                          {/* Custom label input */}
+                          <Input
+                            placeholder={menu.label}
+                            value={form.menuLabels[menu.key] ?? ''}
+                            onChange={e => setForm(f => ({
+                              ...f,
+                              menuLabels: { ...f.menuLabels, [menu.key]: e.target.value },
+                            }))}
+                            className="h-7 flex-1 text-sm"
+                          />
+                        </div>
+
+                        {/* Sub-items (dropdown items) */}
+                        {hasItems && isExpanded && (
+                          <div className="border-t border-slate-100 bg-white divide-y divide-slate-50">
+                            {menu.items!.map(item => (
+                              <div key={item.key} className="flex items-center gap-2 py-1.5 pl-10 pr-4">
+                                <span className="w-36 shrink-0 truncate text-xs text-slate-400">
+                                  {item.label}
+                                </span>
+                                <Input
+                                  placeholder={item.label}
+                                  value={form.menuLabels[subLabelKey(item.key)] ?? ''}
+                                  onChange={e => setForm(f => ({
+                                    ...f,
+                                    menuLabels: { ...f.menuLabels, [subLabelKey(item.key)]: e.target.value },
+                                  }))}
+                                  className="h-7 flex-1 text-sm"
+                                />
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* Org selector — tailor-made only */}
             {(dialog === 'create' ? isTailored : selected?.is_specific) && (
