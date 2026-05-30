@@ -944,6 +944,28 @@ async function checkPermission(admin: ReturnType<typeof createAdminClient>, prof
   return Boolean((data as Record<string, unknown> | null)?.allowed);
 }
 
+/** ตรวจ personal_module_grants — คืน true ถ้า user ได้รับสิทธิ์ personal module นั้น */
+async function checkPersonalGrant(admin: ReturnType<typeof createAdminClient>, profileId: string, moduleKey: string): Promise<boolean> {
+  const { data } = await admin
+    .from('personal_module_grants')
+    .select('is_enabled')
+    .eq('user_id', profileId)
+    .eq('module_key', moduleKey)
+    .eq('is_enabled', true)
+    .maybeSingle();
+  return data !== null;
+}
+
+/** ตรวจสิทธิ์ assistant — ผ่านถ้า super_admin หรือมี user_permission หรือมี personal_module_grant */
+async function checkAssistantAccess(admin: ReturnType<typeof createAdminClient>, profileId: string, role: string): Promise<boolean> {
+  if (role === 'super_admin') return true;
+  const [perm, grant] = await Promise.all([
+    checkPermission(admin, profileId, 'bot.assistant.tasks', role),
+    checkPersonalGrant(admin, profileId, 'assistant'),
+  ]);
+  return perm || grant;
+}
+
 // ─── Main webhook handler ─────────────────────────────────────────────────────
 
 const TMC_CMDS = ['รับ', 'จ่าย', 'บัญชี', 'stock', 'stkin', 'stkout', 'stk', 'เช็คอิน', 'pcin', 'pcout', 'pcbal', 'pcfunds', 'tmc'];
@@ -1055,13 +1077,18 @@ export async function POST(req: NextRequest) {
       if (activeOrg?.id === TMC_ORG_ID) {
         await handleTmcHelp(replyToken);
       } else {
+        const hasAssistant = await checkAssistantAccess(admin, profile.id, profile.role);
         await replyText(replyToken,
           `📖 คำสั่ง PERPOS\n` +
           `🏢 Org: ${activeOrg?.name ?? 'ไม่มี'}\n\n` +
-          `─── 📋 งาน ───\n` +
-          `/t <งาน>  — บันทึกงาน\n` +
-          `/tk  — รายการงานที่รอ\n` +
-          `/d <N>  — ปิดงานที่ N\n\n` +
+          (hasAssistant
+            ? `─── 📋 Task Manager ───\n` +
+              `/t <งาน>  — บันทึกงาน\n` +
+              `/tk  — รายการงานที่รอ\n` +
+              `/d <N>  — ปิดงานที่ N\n` +
+              `/a <ชื่อ> <HH:MM>  — บันทึกนัดหมาย\n` +
+              `/ap  — นัดหมายวันนี้\n\n`
+            : '') +
           `─── 💰 การเงินส่วนตัว ───\n` +
           `/รายรับ <จำนวน> [โน้ต]\n` +
           `/รายจ่าย <จำนวน> [โน้ต]\n\n` +
@@ -1224,38 +1251,116 @@ export async function POST(req: NextRequest) {
     }
 
     if (cmd === 't') {
-      if (!await checkPermission(admin, profile.id, 'bot.assistant.tasks', profile.role)) {
+      if (!await checkAssistantAccess(admin, profile.id, profile.role)) {
         await replyText(replyToken, '❌ ไม่มีสิทธิ์ใช้คำสั่งนี้'); continue;
       }
       const title = args.join(' ').trim();
       if (!title) { await replyText(replyToken, '❌ ระบุชื่องาน เช่น /t ติดต่อลูกค้า'); continue; }
-      await admin.from('tasks').insert({ profile_id: profile.id, title, status: 'pending', priority: 'medium' });
+      const { error: tErr } = await admin.from('tasks').insert({ profile_id: profile.id, title, status: 'pending', priority: 'medium' });
+      if (tErr) { await replyText(replyToken, `❌ บันทึกไม่สำเร็จ: ${tErr.message}`); continue; }
       await replyText(replyToken, `✅ บันทึกงาน: ${title}`);
       continue;
     }
 
     if (cmd === 'tk') {
-      if (!await checkPermission(admin, profile.id, 'bot.assistant.tasks', profile.role)) {
+      if (!await checkAssistantAccess(admin, profile.id, profile.role)) {
         await replyText(replyToken, '❌ ไม่มีสิทธิ์ใช้คำสั่งนี้'); continue;
       }
       const { data: tasks } = await admin.from('tasks').select('title').eq('profile_id', profile.id).eq('status', 'pending').order('created_at').limit(10);
       if (!tasks?.length) { await replyText(replyToken, '✅ ไม่มีงานที่รออยู่'); continue; }
-      const lines = tasks.map((t: Record<string, string>, i: number) => `${i + 1}. ${t.title}`);
-      await replyText(replyToken, `📋 งานที่รอ:\n${lines.join('\n')}`);
+      const lines = (tasks as { title: string }[]).map((t, i) => `${i + 1}. ${t.title}`);
+      await replyText(replyToken, `📋 งานที่รอ (${tasks.length}):\n${lines.join('\n')}`);
       continue;
     }
 
     if (cmd === 'd') {
-      if (!await checkPermission(admin, profile.id, 'bot.assistant.tasks', profile.role)) {
+      if (!await checkAssistantAccess(admin, profile.id, profile.role)) {
         await replyText(replyToken, '❌ ไม่มีสิทธิ์ใช้คำสั่งนี้'); continue;
       }
       const n = parseInt(args[0] ?? '');
       if (!n || isNaN(n)) { await replyText(replyToken, '❌ ระบุหมายเลขงาน เช่น /d 1'); continue; }
       const { data: tasks } = await admin.from('tasks').select('id, title').eq('profile_id', profile.id).eq('status', 'pending').order('created_at').limit(20);
-      const target = tasks?.[n - 1] as Record<string, string> | undefined;
+      const target = (tasks as { id: string; title: string }[] | null)?.[n - 1];
       if (!target) { await replyText(replyToken, `❌ ไม่พบงานที่ ${n}`); continue; }
       await admin.from('tasks').update({ status: 'completed' }).eq('id', target.id);
       await replyText(replyToken, `✅ ปิดงาน: ${target.title}`);
+      continue;
+    }
+
+    // /a <ชื่อ> <วัน YYYY-MM-DD|today|วันนี้> <HH:MM> — บันทึกนัดหมาย
+    if (cmd === 'a') {
+      if (!await checkAssistantAccess(admin, profile.id, profile.role)) {
+        await replyText(replyToken, '❌ ไม่มีสิทธิ์ใช้คำสั่งนี้'); continue;
+      }
+      // /a <ชื่อ> <HH:MM>  หรือ  /a <ชื่อ> <YYYY-MM-DD> <HH:MM>
+      if (!args[0]) {
+        await replyText(replyToken, '❌ รูปแบบ: /a <ชื่องาน> <HH:MM>\nหรือ: /a <ชื่องาน> <วัน YYYY-MM-DD> <HH:MM>\nเช่น: /a ประชุมทีม 14:00');
+        continue;
+      }
+      // detect if args contains a date (YYYY-MM-DD) or time (HH:MM)
+      const timeRe  = /^\d{1,2}:\d{2}$/;
+      const dateRe  = /^\d{4}-\d{2}-\d{2}$/;
+      const todayIso = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Bangkok' });
+
+      let title = '';
+      let dateStr = todayIso;
+      let timeStr = '';
+
+      // last arg: time, second-to-last: optional date, rest: title
+      const lastArg = args[args.length - 1];
+      if (timeRe.test(lastArg)) {
+        timeStr = lastArg;
+        const rest = args.slice(0, -1);
+        if (rest.length > 0 && dateRe.test(rest[rest.length - 1])) {
+          dateStr = rest[rest.length - 1];
+          title   = rest.slice(0, -1).join(' ').trim();
+        } else {
+          title = rest.join(' ').trim();
+        }
+      } else {
+        await replyText(replyToken, '❌ ต้องระบุเวลา HH:MM ท้ายสุด เช่น /a ประชุมทีม 14:00');
+        continue;
+      }
+
+      if (!title) { await replyText(replyToken, '❌ ระบุชื่อนัดหมาย เช่น /a ประชุมทีม 14:00'); continue; }
+
+      const startsAt = `${dateStr}T${timeStr}:00+07:00`;
+      const { error: aErr } = await admin.from('calendar_events').insert({
+        profile_id: profile.id,
+        title,
+        starts_at: startsAt,
+      });
+      if (aErr) { await replyText(replyToken, `❌ บันทึกไม่สำเร็จ: ${aErr.message}`); continue; }
+
+      const displayDate = dateStr === todayIso ? 'วันนี้' : dateStr;
+      await replyText(replyToken, `✅ บันทึกนัดหมาย\n📅 ${displayDate} ${timeStr} น.\n📌 ${title}`);
+      continue;
+    }
+
+    // /ap — รายการนัดวันนี้
+    if (cmd === 'ap') {
+      if (!await checkAssistantAccess(admin, profile.id, profile.role)) {
+        await replyText(replyToken, '❌ ไม่มีสิทธิ์ใช้คำสั่งนี้'); continue;
+      }
+      const todayIso = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Bangkok' });
+      const tomorrowIso = new Date(Date.now() + 86400000).toLocaleDateString('sv-SE', { timeZone: 'Asia/Bangkok' });
+      const { data: events } = await admin
+        .from('calendar_events')
+        .select('title, starts_at')
+        .eq('profile_id', profile.id)
+        .gte('starts_at', `${todayIso}T00:00:00+07:00`)
+        .lt('starts_at',  `${tomorrowIso}T00:00:00+07:00`)
+        .order('starts_at');
+
+      if (!events?.length) {
+        await replyText(replyToken, '📅 ไม่มีนัดหมายวันนี้\nเพิ่มนัดด้วย /a <ชื่อ> <HH:MM>');
+        continue;
+      }
+      const lines = (events as { title: string; starts_at: string }[]).map(e => {
+        const t = new Date(e.starts_at).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Bangkok' });
+        return `🕐 ${t} — ${e.title}`;
+      });
+      await replyText(replyToken, `📅 นัดหมายวันนี้ (${events.length}):\n\n${lines.join('\n')}`);
       continue;
     }
   }
