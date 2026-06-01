@@ -380,11 +380,10 @@ export default function ClockInOutPage() {
                     </div>
                   ) : null}
 
-                  {/* /arrive tip */}
                   <div className="rounded-lg bg-violet-50 border border-violet-100 p-3 text-xs text-violet-800 leading-relaxed">
-                    <p className="font-semibold">💡 บันทึกจุดแวะระหว่างวัน</p>
+                    <p className="font-semibold">💡 บันทึก site เพิ่มเติม</p>
                     <p className="text-slate-500 mt-0.5">
-                      พิมพ์ <code className="bg-violet-100 px-1 rounded font-mono font-bold text-violet-700">/arrive ชื่อสถานที่</code> ใน LINE Bot เพื่อบันทึกการมาถึงแต่ละจุด ระบบจะคำนวณค่าเดินทางทุก hop อัตโนมัติเมื่อออกงาน
+                      พิมพ์ <code className="bg-violet-100 px-1 rounded font-mono font-bold text-violet-700">/ck site ชื่อ</code> ทุกครั้งที่ถึงหรือออกจาก site ระบบคำนวณ hop ให้อัตโนมัติ
                     </p>
                   </div>
                 </div>
@@ -400,9 +399,9 @@ export default function ClockInOutPage() {
                 </div>
                 <div className="rounded-lg bg-violet-50 border border-violet-100 p-4 text-xs text-violet-800 leading-relaxed space-y-1.5">
                   <p className="font-semibold">📍 วิธีบันทึกการเดินทางวันนี้</p>
-                  <p className="text-slate-600">1. <code className="bg-violet-100 px-1 rounded font-mono font-bold text-violet-700">/in</code> — ลงเวลาเข้างาน (บันทึกพิกัดจุดเริ่มต้น)</p>
-                  <p className="text-slate-600">2. <code className="bg-violet-100 px-1 rounded font-mono font-bold text-violet-700">/arrive บริษัท ABC</code> — บันทึกการมาถึงแต่ละ site</p>
-                  <p className="text-slate-600">3. <code className="bg-violet-100 px-1 rounded font-mono font-bold text-violet-700">/out</code> — ลงเวลาออกงาน → ระบบคำนวณค่าเดินทางทั้งหมดอัตโนมัติ</p>
+                  <p className="text-slate-600">1. <code className="bg-blue-100 px-1 rounded font-mono font-bold text-blue-700">/ck home</code> — ออกจากบ้าน (บันทึกพิกัดต้นทาง)</p>
+                  <p className="text-slate-600">2. <code className="bg-violet-100 px-1 rounded font-mono font-bold text-violet-700">/ck site บริษัท ABC</code> — ถึงหน้างาน / ออกจากหน้างาน</p>
+                  <p className="text-slate-600">3. <code className="bg-blue-100 px-1 rounded font-mono font-bold text-blue-700">/ck home</code> — ถึงบ้าน → ระบบคำนวณค่าเดินทางทั้งหมดอัตโนมัติ</p>
                 </div>
               </div>
             )}
