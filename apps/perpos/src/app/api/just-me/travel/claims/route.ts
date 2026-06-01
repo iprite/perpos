@@ -30,9 +30,15 @@ export async function GET(req: NextRequest) {
   }
 
   if (month) {
+    const [yearStr, monthStr] = month.split('-');
+    const year = parseInt(yearStr, 10);
+    const monthInt = parseInt(monthStr, 10);
+    const lastDay = new Date(year, monthInt, 0).getDate();
+    const lastDayStr = String(lastDay).padStart(2, '0');
+
     query = query
       .gte('work_date', `${month}-01`)
-      .lte('work_date', `${month}-31`);
+      .lte('work_date', `${month}-${lastDayStr}`);
   }
 
   const { data, error } = await query;
