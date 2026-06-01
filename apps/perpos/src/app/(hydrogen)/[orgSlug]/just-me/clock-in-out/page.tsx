@@ -5,24 +5,11 @@ import { useParams } from 'next/navigation';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import {
-  Clock, LogIn, LogOut, MapPin, RefreshCw, Loader2, AlertCircle,
+  Clock, MapPin, RefreshCw, Loader2, AlertCircle,
   MessageSquare, Navigation, Fuel, ChevronRight,
+  ChevronDown, ChevronUp
 } from 'lucide-react';
 import cn from '@core/utils/class-names';
-
-interface ClockLog {
-  id: string;
-  type: 'in' | 'out';
-  timestamp: string;
-  latitude: number | null;
-  longitude: number | null;
-  address: string | null;
-  profile: {
-    id: string;
-    display_name: string | null;
-    email: string | null;
-  } | null;
-}
 
 interface ClockSession {
   profile_id: string;
@@ -63,6 +50,7 @@ interface TravelClaim {
   work_start_time?: string | null;
   work_end_time?: string | null;
   work_minutes?: number | null;
+  note?: string | null;
 }
 
 interface TravelSettings {
@@ -75,7 +63,6 @@ export default function ClockInOutPage() {
   const { orgSlug } = useParams<{ orgSlug: string }>();
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
   
-  const [logs, setLogs] = useState<ClockLog[]>([]);
   const [session, setSession] = useState<ClockSession | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -83,6 +70,10 @@ export default function ClockInOutPage() {
   const [travelStops, setTravelStops] = useState<TravelStop[]>([]);
   const [travelClaim, setTravelClaim] = useState<TravelClaim | null>(null);
   const [travelSettings, setTravelSettings] = useState<TravelSettings | null>(null);
+  
+  // History of all claims and expand state
+  const [claimsHistory, setClaimsHistory] = useState<TravelClaim[]>([]);
+  const [expandedClaimIds, setExpandedClaimIds] = useState<Record<string, boolean>>({});
 
   const loadData = useCallback(async () => {
     try {
@@ -102,21 +93,17 @@ export default function ClockInOutPage() {
       const token = sess.session?.access_token;
       if (!token) throw new Error('กรุณาเข้าสู่ระบบใหม่');
 
-      // 2. Fetch Clock Logs & Session state
+      // 2. Fetch Session state (via the existing clock-logs endpoint which packs session)
       const res = await fetch(`/api/just-me/clock-logs?orgId=${org.id}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
-      if (!res.ok) {
-        const errJson = await res.json().catch(() => ({}));
-        throw new Error(errJson.error || 'เกิดข้อผิดพลาดในการโหลดข้อมูล');
+      if (res.ok) {
+        const json = await res.json();
+        setSession(json.session || null);
       }
 
-      const json = await res.json();
-      setLogs(json.logs || []);
-      setSession(json.session || null);
-
-      // Fetch today's travel data
+      // 3. Fetch today's travel data
       const travelRes = await fetch(`/api/just-me/travel/today?orgId=${org.id}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -126,6 +113,15 @@ export default function ClockInOutPage() {
         setTravelClaim(td.claim || null);
         setTravelSettings(td.settings || null);
       }
+
+      // 4. Fetch all travel claims history
+      const claimsRes = await fetch(`/api/just-me/travel/claims?orgId=${org.id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (claimsRes.ok) {
+        const cd = await claimsRes.json();
+        setClaimsHistory(cd.claims || []);
+      }
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -133,14 +129,12 @@ export default function ClockInOutPage() {
     }
   }, [supabase, orgSlug]);
 
-
-
   useEffect(() => {
     loadData();
   }, [loadData]);
 
   // Helpers to format Thai Date/Time
-  const fmtTime = (iso: string) => {
+  const fmtTime = (iso: string | null | undefined) => {
     if (!iso) return '—';
     try {
       const normalized = iso.includes(' ') && !iso.includes('T') ? iso.replace(' ', 'T') : iso;
@@ -158,7 +152,7 @@ export default function ClockInOutPage() {
     }
   };
 
-  const fmtDate = (iso: string) => {
+  const fmtDate = (iso: string | null | undefined) => {
     if (!iso) return '—';
     try {
       const normalized = iso.includes(' ') && !iso.includes('T') ? iso.replace(' ', 'T') : iso;
@@ -184,14 +178,12 @@ export default function ClockInOutPage() {
     return `${hrs} ชม. ${m} นาที`;
   };
 
-  // Calculate elapsed time for clocked_in session
-  const getElapsedText = (startTimeIso: string) => {
-    const diffMs = Date.now() - new Date(startTimeIso).getTime();
-    const diffMin = Math.floor(diffMs / 60000);
-    const hrs = Math.floor(diffMin / 60);
-    const mins = diffMin % 60;
-    if (hrs === 0) return `${mins} นาที`;
-    return `${hrs} ชม. ${mins} นาที`;
+  // Toggle expanded details for a specific claim
+  const toggleExpandClaim = (id: string) => {
+    setExpandedClaimIds((prev) => ({
+      ...prev,
+      [id]: !prev[id],
+    }));
   };
 
   return (
@@ -205,7 +197,7 @@ export default function ClockInOutPage() {
               <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/20 backdrop-blur-sm">
                 <Navigation className="h-5 w-5 text-white" />
               </div>
-              <h1 className="text-xl font-black tracking-tight">การเดินทางและค่าเบิกจ่าย</h1>
+              <h1 className="text-xl font-black tracking-tight">เวลาทำงานและการเดินทาง</h1>
             </div>
             <p className="text-sm text-indigo-200 pl-11">บันทึก GPS ทุกจุดแวะ — ระบบคำนวณค่าน้ำมันให้อัตโนมัติ</p>
           </div>
@@ -249,7 +241,7 @@ export default function ClockInOutPage() {
         </div>
       )}
 
-      {loading && logs.length === 0 ? (
+      {loading && claimsHistory.length === 0 ? (
         <div className="flex h-64 items-center justify-center">
           <Loader2 className="h-7 w-7 animate-spin text-indigo-600" />
         </div>
@@ -272,7 +264,7 @@ export default function ClockInOutPage() {
                         กำลังเดินทาง
                       </span>
                       <p className="text-xs text-slate-500 mt-1">
-                        ออกจาก: {(session as any).last_depart_address || '—'}
+                        ออกจาก: {session.last_depart_address || '—'}
                       </p>
                       <p className="text-xs text-slate-400 pt-1 border-t mt-1">
                         พิมพ์ <code className="bg-blue-100 px-1 rounded font-mono font-bold text-blue-700">/ck ชื่อสถานที่</code> เมื่อถึงปลายทาง
@@ -335,147 +327,224 @@ export default function ClockInOutPage() {
             </div>
           </div>
 
-          {/* Right Column: Travel Summary + Historical Logs */}
-          <div className="lg:col-span-2 space-y-4">
+          {/* Right Column: Today's active travel stops + Claims History */}
+          <div className="lg:col-span-2 space-y-6">
 
-            {/* Today's Travel Summary */}
-            {(travelStops.length > 0 || travelClaim) && (
+            {/* 1. Today's Active Stops Timeline */}
+            {travelStops.length > 0 && (
               <div className="bg-white rounded-2xl border shadow-sm overflow-hidden">
-                <div className="border-b px-5 py-4 flex items-center justify-between">
+                <div className="border-b px-5 py-4 flex items-center justify-between bg-slate-50/50">
                   <div className="flex items-center gap-2">
-                    <Navigation className="h-4 w-4 text-violet-600" />
-                    <h2 className="text-sm font-semibold text-slate-700">ค่าเดินทางวันนี้</h2>
+                    <Navigation className="h-4 w-4 text-indigo-600" />
+                    <h2 className="text-sm font-bold text-slate-700">เส้นทางการเดินทางวันนี้</h2>
                   </div>
-                  {travelClaim && (
-                    <span className={cn(
-                      'rounded-full px-2.5 py-0.5 text-xs font-semibold',
-                      travelClaim.status === 'pending' && 'bg-amber-50 text-amber-700',
-                      travelClaim.status === 'approved' && 'bg-emerald-50 text-emerald-700',
-                      travelClaim.status === 'paid' && 'bg-blue-50 text-blue-700',
-                      travelClaim.status === 'rejected' && 'bg-rose-50 text-rose-700',
-                    )}>
-                      {travelClaim.status === 'pending' && 'รอการอนุมัติ'}
-                      {travelClaim.status === 'approved' && 'อนุมัติแล้ว'}
-                      {travelClaim.status === 'paid' && 'จ่ายแล้ว'}
-                      {travelClaim.status === 'rejected' && 'ปฏิเสธ'}
-                    </span>
-                  )}
+                  <span className="rounded-full bg-indigo-50 border border-indigo-100 text-indigo-700 px-2.5 py-0.5 text-xs font-semibold">
+                    มี {travelStops.length} จุดแวะจอด
+                  </span>
                 </div>
 
                 <div className="p-5 space-y-4">
-                  {/* Stops timeline */}
-                  {travelStops.length > 0 && (
-                    <div className="space-y-1">
-                      {travelStops.map((stop, i) => (
-                        <div key={stop.id} className="flex items-start gap-3">
-                          <div className="flex flex-col items-center">
-                            <div className={cn(
-                              'h-7 w-7 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0',
-                              stop.stop_type === 'start' && 'bg-emerald-500',
-                              stop.stop_type === 'site' && 'bg-violet-500',
-                              stop.stop_type === 'end' && 'bg-rose-500',
-                            )}>
-                              {i + 1}
-                            </div>
-                            {i < travelStops.length - 1 && (
-                              <div className="w-0.5 h-5 bg-slate-200 mt-0.5" />
-                            )}
+                  <div className="space-y-1.5">
+                    {travelStops.map((stop, i) => (
+                      <div key={stop.id} className="flex items-start gap-3">
+                        <div className="flex flex-col items-center">
+                          <div className={cn(
+                            'h-7 w-7 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0',
+                            stop.stop_type === 'start' && 'bg-emerald-500',
+                            stop.stop_type === 'site' && 'bg-violet-500',
+                            stop.stop_type === 'end' && 'bg-rose-500',
+                          )}>
+                            {i + 1}
                           </div>
-                          <div className="pb-1">
-                            <p className="text-xs font-semibold text-slate-700">
-                              {stop.note || stop.address || 'ไม่ระบุสถานที่'}
-                            </p>
-                            <p className="text-[11px] text-slate-400">
-                              {stop.stop_type === 'start' ? 'เริ่มงาน' : stop.stop_type === 'end' ? 'สิ้นสุดงาน' : 'จุดแวะ'}{' '}
-                              · {fmtTime(stop.timestamp)}
-                            </p>
-                          </div>
+                          {i < travelStops.length - 1 && (
+                            <div className="w-0.5 h-5 bg-slate-200 mt-0.5" />
+                          )}
                         </div>
-                      ))}
-                    </div>
-                  )}
-
-                  {/* Extracted Work Hours Block */}
-                  {travelClaim && travelClaim.work_start_time && (
-                    <div className="rounded-xl bg-slate-50 border p-4 space-y-3">
-                      <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700 border-b pb-2">
-                        <Clock className="h-4 w-4 text-indigo-600 shrink-0" />
-                        <span>เวลาปฏิบัติงานวันนี้ (ถอดจากหน้างาน)</span>
-                      </div>
-                      <div className="grid grid-cols-2 gap-4 text-xs">
-                        <div>
-                          <p className="text-slate-400">เข้างาน (Site แรก)</p>
-                          <p className="text-sm font-bold text-slate-800 mt-0.5">
-                            {fmtTime(travelClaim.work_start_time)}
+                        <div className="pb-1 min-w-0 flex-1">
+                          <p className="text-xs font-semibold text-slate-700 truncate">
+                            {stop.note || stop.address || 'ไม่ระบุสถานที่'}
                           </p>
-                        </div>
-                        <div>
-                          <p className="text-slate-400">ออกงาน (Site สุดท้าย)</p>
-                          <p className="text-sm font-bold text-slate-800 mt-0.5">
-                            {travelClaim.work_end_time ? fmtTime(travelClaim.work_end_time) : 'ยังไม่กลับ (กำลังทำงาน)'}
+                          <p className="text-[11px] text-slate-400 mt-0.5">
+                            {stop.stop_type === 'start' ? 'เริ่มงาน' : stop.stop_type === 'end' ? 'สิ้นสุดงาน' : 'จุดแวะ'}{' '}
+                            · {fmtTime(stop.timestamp)}
                           </p>
                         </div>
                       </div>
-                      <div className="pt-2 border-t flex justify-between items-center text-xs">
-                        <span className="text-slate-500 font-medium">เวลารวมปฏิบัติงาน:</span>
-                        <span className="font-bold text-indigo-600">
-                          {fmtWorkMinutes(travelClaim.work_minutes)}
-                        </span>
-                      </div>
-                    </div>
-                  )}
+                    ))}
+                  </div>
 
-                  {/* Claim summary */}
                   {travelClaim ? (
-                    <div className="rounded-xl bg-violet-50 border border-violet-100 p-4 space-y-3">
-                      {Array.isArray(travelClaim.hops) && travelClaim.hops.length > 0 && (
-                        <div className="space-y-1.5">
-                          {travelClaim.hops.map((hop, i) => (
-                            <div key={i} className="flex items-center gap-2 text-xs text-slate-600">
-                              <ChevronRight className="h-3 w-3 text-violet-400 shrink-0" />
-                              <span className="truncate">{hop.fromAddress}</span>
-                              <span className="text-slate-400 shrink-0">→</span>
-                              <span className="truncate">{hop.toAddress}</span>
-                              <span className="ml-auto font-semibold text-violet-700 shrink-0">{Number(hop.distanceKm || 0)} km</span>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                      <div className="pt-3 border-t border-violet-200 flex items-center justify-between">
-                        <div className="flex items-center gap-1.5 text-xs text-slate-500">
-                          <Fuel className="h-3.5 w-3.5 text-violet-500" />
-                          <span>{Number(travelClaim.total_distance_km || 0)} km × {Number(travelClaim.fuel_rate_per_km || 0)} บาท/km</span>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-lg font-black text-violet-700">
-                            ฿{Number(travelClaim.total_amount || 0).toLocaleString('th-TH', { minimumFractionDigits: 2 })}
-                          </p>
-                        </div>
+                    <div className="pt-3 border-t flex items-center justify-between text-xs bg-indigo-50/30 -mx-5 -mb-5 p-5">
+                      <div className="flex items-center gap-1 text-slate-500">
+                        <Fuel className="h-4 w-4 text-indigo-500 shrink-0" />
+                        <span className="font-semibold">{Number(travelClaim.total_distance_km || 0)} km × {Number(travelClaim.fuel_rate_per_km || 0)} บาท</span>
                       </div>
+                      <p className="text-base font-black text-indigo-700">
+                        ฿{Number(travelClaim.total_amount || 0).toLocaleString('th-TH', { minimumFractionDigits: 2 })}
+                      </p>
                     </div>
-                  ) : travelStops.length > 0 ? (
+                  ) : (
                     <div className="rounded-xl bg-slate-50 border border-dashed border-slate-200 p-4 text-center text-xs text-slate-400">
                       <Loader2 className="h-4 w-4 animate-spin mx-auto mb-1 text-slate-300" />
-                      กำลังรอการออกงาน (Clock Out) เพื่อคำนวณค่าเดินทาง
+                      กำลังรอการออกงาน (Clock Out) เพื่อคำนวณค่าเดินทางของวันนี้
                     </div>
-                  ) : null}
-
-                  <div className="rounded-lg bg-violet-50 border border-violet-100 p-3 text-xs text-violet-800 leading-relaxed">
-                    <p className="font-semibold">💡 บันทึก site เพิ่มเติม</p>
-                    <p className="text-slate-500 mt-0.5">
-                      พิมพ์ <code className="bg-violet-100 px-1 rounded font-mono font-bold text-violet-700">/ck site ชื่อ</code> ทุกครั้งที่ถึงหรือออกจาก site ระบบคำนวณ hop ให้อัตโนมัติ
-                    </p>
-                  </div>
+                  )}
                 </div>
               </div>
             )}
 
-            {/* No travel data yet — show tip */}
-            {travelStops.length === 0 && !travelClaim && (
+            {/* 2. Historical Claims list: "รายการการทำงาน" */}
+            <div className="bg-white rounded-2xl border shadow-sm overflow-hidden">
+              <div className="border-b px-5 py-4 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Clock className="h-4.5 w-4.5 text-violet-600" />
+                  <h2 className="text-sm font-bold text-slate-700">รายการการทำงาน</h2>
+                </div>
+                <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs text-slate-500 font-medium">
+                  ประวัติ {claimsHistory.length} รายการ
+                </span>
+              </div>
+
+              {claimsHistory.length === 0 ? (
+                <div className="p-8 text-center text-sm text-slate-400 space-y-2">
+                  <Navigation className="h-8 w-8 text-slate-300 mx-auto" />
+                  <p>ยังไม่มีประวัติรายการการทำงานและการเดินทาง</p>
+                </div>
+              ) : (
+                <div className="divide-y divide-slate-100">
+                  {claimsHistory.map((claim) => {
+                    const isExpanded = expandedClaimIds[claim.id] || false;
+                    const totalKm = Number(claim.total_distance_km || 0);
+                    const fuelRate = Number(claim.fuel_rate_per_km || 0);
+                    const totalAmount = Number(claim.total_amount || 0);
+
+                    return (
+                      <div key={claim.id} className="p-4 hover:bg-slate-50/20 transition-colors">
+                        
+                        {/* Compact row summary (always visible) */}
+                        <div className="flex items-center justify-between flex-wrap gap-3">
+                          <div className="space-y-1">
+                            <p className="font-bold text-sm text-slate-800">
+                              {fmtDate(claim.work_date)}
+                            </p>
+                            <div className="flex items-center gap-3 text-xs text-slate-500">
+                              <span className="flex items-center gap-1">
+                                <Navigation className="h-3.5 w-3.5 text-slate-400" />
+                                ระยะทาง: <strong className="text-slate-700">{totalKm} km</strong>
+                              </span>
+                              <span className="flex items-center gap-1">
+                                <Clock className="h-3.5 w-3.5 text-slate-400" />
+                                เวลาทำงาน: <strong className="text-slate-700">{fmtWorkMinutes(claim.work_minutes)}</strong>
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-3 shrink-0">
+                            {/* Status badge */}
+                            <span className={cn(
+                              'rounded-full px-2 py-0.5 text-[10px] font-semibold border',
+                              claim.status === 'pending' && 'bg-amber-50 text-amber-700 border-amber-200',
+                              claim.status === 'approved' && 'bg-emerald-50 text-emerald-700 border-emerald-200',
+                              claim.status === 'paid' && 'bg-blue-50 text-blue-700 border-blue-200',
+                              claim.status === 'rejected' && 'bg-rose-50 text-rose-700 border-rose-200',
+                            )}>
+                              {claim.status === 'pending' && 'รออนุมัติ'}
+                              {claim.status === 'approved' && 'อนุมัติแล้ว'}
+                              {claim.status === 'paid' && 'จ่ายเงินแล้ว'}
+                              {claim.status === 'rejected' && 'ปฏิเสธ'}
+                            </span>
+
+                            {/* Expand button */}
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 px-2.5 text-xs text-indigo-600 font-bold hover:bg-indigo-50 border border-slate-100 gap-1"
+                              onClick={() => toggleExpandClaim(claim.id)}
+                            >
+                              {isExpanded ? (
+                                <>
+                                  ซ่อนรายละเอียด
+                                  <ChevronUp className="h-3.5 w-3.5" />
+                                </>
+                              ) : (
+                                <>
+                                  ดูรายละเอียด
+                                  <ChevronDown className="h-3.5 w-3.5" />
+                                </>
+                              )}
+                            </Button>
+                          </div>
+                        </div>
+
+                        {/* Expandable Details Container */}
+                        {isExpanded && (
+                          <div className="mt-4 pt-4 border-t border-slate-100 space-y-4 animate-in fade-in slide-in-from-top-1 duration-150">
+                            
+                            {/* Hours breakdown */}
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs bg-slate-50 p-3 rounded-xl border">
+                              <div>
+                                <span className="text-slate-400">⏰ เข้างาน (Site แรก)</span>
+                                <p className="font-bold text-slate-700 mt-0.5">{fmtTime(claim.work_start_time)}</p>
+                              </div>
+                              <div>
+                                <span className="text-slate-400">⏰ ออกงาน (Site สุดท้าย)</span>
+                                <p className="font-bold text-slate-700 mt-0.5">
+                                  {claim.work_end_time ? fmtTime(claim.work_end_time) : 'ยังไม่ระบุ'}
+                                </p>
+                              </div>
+                              <div>
+                                <span className="text-slate-400">💵 ค่าน้ำมันเบิกจ่าย</span>
+                                <p className="font-black text-indigo-700 mt-0.5">
+                                  ฿{totalAmount.toLocaleString('th-TH', { minimumFractionDigits: 2 })}{' '}
+                                  <span className="font-normal text-[10px] text-slate-400">
+                                    ({totalKm} km × {fuelRate} บ.)
+                                  </span>
+                                </p>
+                              </div>
+                            </div>
+
+                            {/* Hops */}
+                            {Array.isArray(claim.hops) && claim.hops.length > 0 && (
+                              <div className="space-y-1.5">
+                                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                                  เส้นทางการจอดรถ / Checkpoints
+                                </p>
+                                <div className="space-y-1">
+                                  {claim.hops.map((hop, index) => (
+                                    <div key={index} className="flex items-center gap-2 text-xs text-slate-600 bg-slate-50/50 p-2 rounded-lg border border-slate-100">
+                                      <ChevronRight className="h-3 w-3 text-violet-400 shrink-0" />
+                                      <span className="truncate max-w-[150px] md:max-w-xs">{hop.fromAddress}</span>
+                                      <span className="text-slate-400 shrink-0">→</span>
+                                      <span className="truncate max-w-[150px] md:max-w-xs">{hop.toAddress}</span>
+                                      <span className="ml-auto font-semibold text-violet-700 shrink-0">{Number(hop.distanceKm || 0)} km</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {claim.note && (
+                              <div className="text-xs bg-amber-50 border border-amber-100 text-amber-800 p-2.5 rounded-lg italic">
+                                💡 หมายเหตุจากผู้อนุมัติ: {claim.note}
+                              </div>
+                            )}
+
+                          </div>
+                        )}
+
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Instruction tooltip when no active travel today */}
+            {travelStops.length === 0 && (
               <div className="bg-white rounded-2xl border shadow-sm p-5">
                 <div className="flex items-center gap-2 mb-3">
                   <Navigation className="h-4 w-4 text-violet-500" />
-                  <h2 className="text-sm font-semibold text-slate-700">การเบิกค่าเดินทาง</h2>
+                  <h2 className="text-sm font-semibold text-slate-700">คำแนะนำการเริ่มต้นการเดินทางวันนี้</h2>
                 </div>
                 <div className="rounded-lg bg-violet-50 border border-violet-100 p-4 text-xs text-violet-800 leading-relaxed space-y-1.5">
                   <p className="font-semibold">📍 วิธีบันทึกการเดินทางวันนี้</p>
@@ -486,76 +555,6 @@ export default function ClockInOutPage() {
               </div>
             )}
 
-            <div className="bg-white rounded-2xl border overflow-hidden shadow-sm">
-              <div className="border-b px-5 py-4 flex items-center justify-between">
-                <h2 className="text-sm font-semibold text-slate-700">ประวัติการลงเวลาล่าสุด</h2>
-                <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs text-slate-500 font-medium">
-                  {logs.length} รายการ
-                </span>
-              </div>
-
-              {logs.length === 0 ? (
-                <div className="p-8 text-center text-sm text-slate-400 space-y-2">
-                  <Clock className="h-8 w-8 text-slate-300 mx-auto" />
-                  <p>ยังไม่มีประวัติการบันทึกเวลาเข้า-ออกงาน</p>
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead className="bg-slate-50 border-b text-xs text-slate-500 font-medium">
-                      <tr>
-                        <th className="text-left px-5 py-3">ประเภท</th>
-                        <th className="text-left px-4 py-3">วันที่</th>
-                        <th className="text-left px-4 py-3">เวลา</th>
-                        <th className="text-left px-4 py-3">พิกัด / สถานที่</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {logs.map((log) => {
-                        const isIn = log.type === 'in';
-                        return (
-                          <tr key={log.id} className="hover:bg-slate-50/50 transition-colors">
-                            <td className="px-5 py-3.5">
-                              <span className={cn(
-                                "inline-flex items-center gap-1 text-xs px-2.5 py-0.5 rounded-full font-semibold",
-                                isIn ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"
-                              )}>
-                                {isIn ? (
-                                  <LogIn className="h-3 w-3" />
-                                ) : (
-                                  <LogOut className="h-3 w-3" />
-                                )}
-                                {isIn ? 'Clock In' : 'Clock Out'}
-                              </span>
-                            </td>
-                            <td className="px-4 py-3.5 text-slate-700 font-medium">
-                              {fmtDate(log.timestamp)}
-                            </td>
-                            <td className="px-4 py-3.5 font-bold text-slate-800">
-                              {fmtTime(log.timestamp)}
-                            </td>
-                            <td className="px-4 py-3.5 text-xs text-slate-500 leading-normal max-w-xs">
-                              {log.address ? (
-                                <div className="space-y-1">
-                                  <p className="font-semibold text-slate-700">{log.address}</p>
-                                  {log.latitude !== null && log.latitude !== undefined && log.longitude !== null && log.longitude !== undefined && (
-                                    <p className="text-slate-400 font-mono">({Number(log.latitude).toFixed(6)}, {Number(log.longitude).toFixed(6)})</p>
-                                  )}
-                                </div>
-                              ) : log.latitude !== null && log.latitude !== undefined && log.longitude !== null && log.longitude !== undefined ? (
-                                <code className="font-mono text-slate-400">({Number(log.latitude).toFixed(6)}, {Number(log.longitude).toFixed(6)})</code>
-                              ) : (
-                                '—'
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
           </div>
 
         </div>
