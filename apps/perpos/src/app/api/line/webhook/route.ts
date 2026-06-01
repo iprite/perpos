@@ -969,7 +969,7 @@ async function checkAssistantAccess(admin: ReturnType<typeof createAdminClient>,
 // ─── Main webhook handler ─────────────────────────────────────────────────────
 
 const TMC_CMDS = ['รับ', 'จ่าย', 'บัญชี', 'stock', 'stkin', 'stkout', 'stk', 'เช็คอิน', 'pcin', 'pcout', 'pcbal', 'pcfunds', 'tmc'];
-const CRM_CMDS = ['n', 'survey', 'issue', 'mtg', 'log', 'ck', 'sol', 'status', 'notes', 'issues', 'hours'];
+const CRM_CMDS = ['n', 'survey', 'issue', 'mtg', 'log', 'sol', 'status', 'notes', 'issues', 'hours'];
 
 export async function POST(req: NextRequest) {
   const rawBody = await req.text();
@@ -1114,6 +1114,33 @@ export async function POST(req: NextRequest) {
       if (cmd === 'pcfunds') { await handlePcFunds(admin, replyToken);                  continue; }
     }
 
+    // ─── Just Me travel clock (/ck home | /ck site) ─────────────────────────
+    if (cmd === 'ck') {
+      if (!activeOrg) {
+        await replyText(replyToken, '❌ ยังไม่มี Organization\nพิมพ์ /org เพื่อตั้งค่า');
+        continue;
+      }
+      const { data: ckModuleSetting } = await admin
+        .from('org_module_settings')
+        .select('is_enabled')
+        .eq('organization_id', activeOrg.id)
+        .eq('module_key', 'just_me')
+        .maybeSingle();
+      if (!ckModuleSetting?.is_enabled) {
+        await replyText(replyToken, '❌ Just Me module ยังไม่ได้เปิดใช้งาน\nกรุณาติดต่อผู้ดูแลระบบเพื่อเปิด module "Just Me" ใน Admin → Modules');
+        continue;
+      }
+      const subCmd = (args[0] ?? '').toLowerCase();
+      if (subCmd !== 'home' && subCmd !== 'site') {
+        await replyText(replyToken, '📍 วิธีใช้:\n/ck home — บันทึก clock ที่บ้าน\n/ck site [ชื่อ] — บันทึก clock ที่หน้างาน\n\nตัวอย่าง:\n/ck home\n/ck site บริษัท ABC');
+        continue;
+      }
+      const locationType = subCmd as 'home' | 'site';
+      const ckNote = args.slice(1).join(' ').trim() || undefined;
+      await handleJustMeClock(admin, lineUserId, profile.id, activeOrg.id, replyToken, locationType, ckNote);
+      continue;
+    }
+
     // ─── CRM commands (/n /survey /issue /mtg /log /in /out) ────────────────
     if (CRM_CMDS.includes(cmd)) {
       // /in status — no org needed
@@ -1136,30 +1163,6 @@ export async function POST(req: NextRequest) {
       const profileName = (pdata as { display_name?: string; email?: string } | null)?.display_name
         || (pdata as { display_name?: string; email?: string } | null)?.email
         || 'Someone';
-
-      // Check if just_me is enabled for the active org
-      const { data: justMeSetting } = await admin
-        .from('org_module_settings')
-        .select('is_enabled')
-        .eq('organization_id', activeOrg.id)
-        .eq('module_key', 'just_me')
-        .maybeSingle();
-
-      if (justMeSetting?.is_enabled) {
-        if (cmd === 'ck') {
-          // /ck home [label]  — clock at home
-          // /ck site [name]   — clock at a work site
-          const subCmd = (args[0] ?? '').toLowerCase();
-          if (subCmd !== 'home' && subCmd !== 'site') {
-            await replyText(replyToken, '📍 วิธีใช้:\n/ck home — บันทึก clock ที่บ้าน\n/ck site [ชื่อ] — บันทึก clock ที่หน้างาน\n\nตัวอย่าง:\n/ck home\n/ck site บริษัท ABC');
-            continue;
-          }
-          const locationType = subCmd as 'home' | 'site';
-          const note = args.slice(1).join(' ').trim() || undefined;
-          await handleJustMeClock(admin, lineUserId, profile.id, activeOrg.id, replyToken, locationType, note);
-          continue;
-        }
-      }
 
       if (cmd === 'in') {
         await handleCrmIn(admin, args, lineUserId, profile.id, profile.role, activeOrg.id, replyToken);
