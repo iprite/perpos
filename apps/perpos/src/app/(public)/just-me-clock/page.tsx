@@ -70,14 +70,19 @@ function ClockDirectContent() {
     try {
       const parts = token.split('.');
       if (parts[0]) {
-        const payloadStr = atob(parts[0].replace(/-/g, '+').replace(/_/g, '/'));
+        let base64 = parts[0].replace(/-/g, '+').replace(/_/g, '/');
+        while (base64.length % 4) {
+          base64 += '=';
+        }
+        const payloadStr = atob(base64);
         const payload = JSON.parse(payloadStr) as { type: TokenType; locationType?: LocType; note?: string | null };
         setType(payload.type);
         setLocType(payload.locationType ?? null);
         if (payload.note) setNote(payload.note);
       }
-    } catch {
-      // Server will validate securely
+    } catch (e) {
+      console.error('Failed to parse token client-side:', e);
+      setError('โทเค็นการลงเวลามีรูปแบบไม่ถูกต้อง หรือลิงก์หมดอายุ กรุณาพิมพ์คำสั่งใหม่ทาง LINE Bot');
     }
   }, [token]);
 
