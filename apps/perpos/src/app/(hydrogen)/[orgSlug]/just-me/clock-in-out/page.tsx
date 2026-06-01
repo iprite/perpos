@@ -5,8 +5,8 @@ import { useParams } from 'next/navigation';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import {
-  Clock, LogIn, LogOut, MapPin, RefreshCw, Loader2, AlertCircle, Calendar,
-  MessageSquare, Bot, Navigation, Fuel, ChevronRight, CheckCircle,
+  Clock, LogIn, LogOut, MapPin, RefreshCw, Loader2, AlertCircle,
+  MessageSquare, Navigation, Fuel, ChevronRight,
 } from 'lucide-react';
 import cn from '@core/utils/class-names';
 
@@ -27,7 +27,7 @@ interface ClockLog {
 interface ClockSession {
   profile_id: string;
   org_id: string;
-  status: 'pending_in' | 'pending_out' | 'clocked_in' | 'traveling' | 'working';
+  status: 'traveling' | 'working';
   last_in_time: string | null;
   last_in_latitude: number | null;
   last_in_longitude: number | null;
@@ -251,67 +251,24 @@ export default function ClockInOutPage() {
                     <p className="text-slate-600">พิมพ์ <code className="bg-violet-100 px-1 rounded font-mono font-bold text-violet-700">/ck ชื่อสถานที่</code> ใน LINE Bot ทุกครั้งที่ออก/ถึงจุดหมาย ระบบจะสลับ depart ↔ arrive อัตโนมัติ</p>
                   </div>
                 </div>
-              ) : session && session.status === 'clocked_in' ? (
-                // Legacy clock-in session
-                <div className="space-y-4">
-                  <div className="rounded-xl bg-emerald-50 border border-emerald-100 p-4 text-center space-y-2">
-                    <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-semibold text-emerald-800 animate-pulse">
-                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                      กำลังทำงาน (Clocked In)
-                    </span>
-                    <p className="text-2xl font-black text-slate-800 tracking-tight">
-                      {session.last_in_time ? fmtTime(session.last_in_time) : ''}
-                    </p>
-                    <p className="text-xs text-slate-400">
-                      ทำงานไปแล้ว: {session.last_in_time ? getElapsedText(session.last_in_time) : ''}
-                    </p>
-                  </div>
-                  <div className="text-xs space-y-3 text-slate-600 border-t pt-4">
-                    <div className="flex items-start gap-2">
-                      <Calendar className="h-4 w-4 text-slate-400 shrink-0 mt-0.5" />
-                      <div>
-                        <p className="font-semibold">เริ่มวันที่</p>
-                        <p className="text-slate-500">{session.last_in_time ? fmtDate(session.last_in_time) : ''}</p>
-                      </div>
-                    </div>
-                    {session.last_in_address && (
-                      <div className="flex items-start gap-2">
-                        <MapPin className="h-4 w-4 text-slate-400 shrink-0 mt-0.5" />
-                        <div>
-                          <p className="font-semibold">สถานที่เข้างาน</p>
-                          <p className="text-slate-500 leading-normal">{session.last_in_address}</p>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                  <div className="rounded-xl border border-rose-100 bg-rose-50/50 p-4 text-xs text-rose-800 leading-relaxed space-y-2">
-                    <div className="flex items-center gap-1.5 font-bold text-rose-900">
-                      <Bot className="h-4 w-4 text-rose-600 shrink-0" />
-                      <span>บันทึกออกงานผ่าน LINE Bot</span>
-                    </div>
-                    <p className="text-slate-600 leading-normal">
-                      พิมพ์ <code className="bg-rose-100 px-1 py-0.5 rounded font-mono font-bold text-rose-700">/out</code> เพื่อรับลิงก์ออกงาน
-                    </p>
-                  </div>
-                </div>
               ) : (
-                // No session
+                // No active session
                 <div className="space-y-4">
                   <div className="rounded-xl bg-slate-50 border p-5 text-center space-y-2">
                     <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-200 px-2.5 py-0.5 text-xs font-semibold text-slate-600">
                       ยังไม่ได้เริ่มงาน
                     </span>
                     <p className="text-xs text-slate-400 mt-2 leading-relaxed">
-                      พิมพ์ <code className="bg-blue-100 px-1 py-0.5 rounded font-mono font-bold text-blue-700">/ck</code> เพื่อเริ่มบันทึกการเดินทาง หรือ <code className="bg-emerald-100 px-1 py-0.5 rounded font-mono font-bold text-emerald-700">/in</code> สำหรับเข้างานแบบปกติ
+                      พิมพ์ <code className="bg-blue-100 px-1 py-0.5 rounded font-mono font-bold text-blue-700">/ck home</code> ใน LINE Bot เพื่อเริ่มบันทึกการเดินทาง
                     </p>
                   </div>
-                  <div className="rounded-xl border border-indigo-100 bg-indigo-50/50 p-4 text-xs text-indigo-800 leading-relaxed space-y-2">
+                  <div className="rounded-xl border border-indigo-100 bg-indigo-50/50 p-4 text-xs text-indigo-800 leading-relaxed space-y-1.5">
                     <div className="flex items-center gap-1.5 font-bold text-indigo-900">
                       <MessageSquare className="h-4 w-4 text-indigo-600 shrink-0" />
-                      <span>คำสั่ง LINE Bot</span>
+                      <span>วิธีใช้คำสั่ง</span>
                     </div>
-                    <p className="text-slate-600"><code className="bg-blue-100 px-1 rounded font-mono font-bold text-blue-700">/ck ชื่อสถานที่</code> — บันทึกการเดินทาง + ค่าน้ำมัน</p>
-                    <p className="text-slate-600"><code className="bg-emerald-100 px-1 rounded font-mono font-bold text-emerald-700">/in</code> / <code className="bg-rose-100 px-1 rounded font-mono font-bold text-rose-700">/out</code> — เวลาเข้า-ออกงานแบบปกติ</p>
+                    <p className="text-slate-600"><code className="bg-blue-100 px-1 rounded font-mono font-bold text-blue-700">/ck home</code> — ออกจากบ้าน / ถึงบ้าน</p>
+                    <p className="text-slate-600"><code className="bg-violet-100 px-1 rounded font-mono font-bold text-violet-700">/ck site ชื่อ</code> — ถึงหน้างาน / ออกจากหน้างาน</p>
                   </div>
                 </div>
               )}

@@ -25,38 +25,10 @@ export async function POST(req: NextRequest) {
   const { profileId, orgId, type, locationType, note } = payload;
   const admin = createAdminClient();
 
-  if (type === 'in' || type === 'out') {
-    return handleLegacyClock(admin, profileId, orgId, type, latitude, longitude, address);
-  }
   if (type === 'depart') return handleDepart(admin, profileId, orgId, locationType, note, latitude, longitude, address);
   if (type === 'arrive') return handleArrive(admin, profileId, orgId, locationType, note, latitude, longitude, address);
 
   return NextResponse.json({ error: 'unknown token type' }, { status: 400 });
-}
-
-// ─── Legacy /in / /out ────────────────────────────────────────────────────────
-async function handleLegacyClock(
-  admin: ReturnType<typeof createAdminClient>,
-  profileId: string, orgId: string, type: 'in' | 'out',
-  latitude?: number, longitude?: number, address?: string,
-) {
-  const now = new Date().toISOString();
-  const addr = address || 'พิกัด GPS';
-  const { data: session } = await admin.from('just_me_clock_sessions').select('status').eq('profile_id', profileId).eq('org_id', orgId).maybeSingle();
-
-  if (type === 'in') {
-    if (session?.status === 'clocked_in') return NextResponse.json({ error: 'คุณกำลังเข้างานค้างไว้ กรุณาออกงานก่อน' }, { status: 400 });
-    await admin.from('just_me_clock_logs').insert({ org_id: orgId, profile_id: profileId, type: 'in', timestamp: now, latitude: latitude ?? null, longitude: longitude ?? null, address: addr });
-    await admin.from('just_me_clock_sessions').upsert({ profile_id: profileId, org_id: orgId, status: 'clocked_in', last_in_time: now, last_in_latitude: latitude ?? null, last_in_longitude: longitude ?? null, last_in_address: addr, updated_at: now }, { onConflict: 'profile_id' });
-  } else {
-    if (session?.status !== 'clocked_in') return NextResponse.json({ error: 'คุณยังไม่ได้บันทึกเวลาเข้างาน' }, { status: 400 });
-    await admin.from('just_me_clock_logs').insert({ org_id: orgId, profile_id: profileId, type: 'out', timestamp: now, latitude: latitude ?? null, longitude: longitude ?? null, address: addr });
-    await admin.from('just_me_clock_sessions').delete().eq('profile_id', profileId);
-  }
-
-  const { data: p } = await admin.from('profiles').select('email, display_name').eq('id', profileId).maybeSingle();
-  const name = p?.display_name || p?.email || 'พนักงาน';
-  return NextResponse.json({ ok: true, message: `บันทึกเวลา${type === 'in' ? 'เข้างาน' : 'ออกงาน'} สำเร็จสำหรับคุณ ${name}` });
 }
 
 // ─── DEPART: leaving current location, set as origin for next hop ─────────────

@@ -26,10 +26,9 @@ import crypto from 'crypto';
 
 const SIGNING_SECRET = process.env.SUPABASE_SERVICE_ROLE_KEY || 'just-me-clock-secret-key';
 
-// 'in'/'out'   = legacy work-session clock (no travel)
-// 'depart'     = leaving current location (records origin GPS)
-// 'arrive'     = arriving at destination (records destination GPS, calculates hop)
-export type ClockTokenType = 'in' | 'out' | 'depart' | 'arrive';
+// 'depart' = leaving current location (records origin GPS)
+// 'arrive' = arriving at destination (records destination GPS, calculates hop)
+export type ClockTokenType = 'depart' | 'arrive';
 export type LocationType = 'home' | 'site';
 
 export interface ClockTokenPayload {

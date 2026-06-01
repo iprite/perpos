@@ -9,7 +9,7 @@ import {
   crmHelpText,
 } from '../../crm/_line';
 import {
-  handleJustMeIn, handleJustMeOut, handleJustMeClock, handleJustMeLocation,
+  handleJustMeClock,
 } from '../../just-me/_line';
 
 // ─── TMC Org ID (TMC Management) ─────────────────────────────────────────────
@@ -969,7 +969,7 @@ async function checkAssistantAccess(admin: ReturnType<typeof createAdminClient>,
 // ─── Main webhook handler ─────────────────────────────────────────────────────
 
 const TMC_CMDS = ['รับ', 'จ่าย', 'บัญชี', 'stock', 'stkin', 'stkout', 'stk', 'เช็คอิน', 'pcin', 'pcout', 'pcbal', 'pcfunds', 'tmc'];
-const CRM_CMDS = ['n', 'survey', 'issue', 'mtg', 'log', 'in', 'out', 'ck', 'sol', 'status', 'notes', 'issues', 'hours'];
+const CRM_CMDS = ['n', 'survey', 'issue', 'mtg', 'log', 'ck', 'sol', 'status', 'notes', 'issues', 'hours'];
 
 export async function POST(req: NextRequest) {
   const rawBody = await req.text();
@@ -1002,42 +1002,8 @@ export async function POST(req: NextRequest) {
       continue;
     }
 
-    // ─── Location messages — Clock In/Out ───────────────────────────────────
-    if (msg.type === 'location') {
-      const title     = String(msg.title ?? '');
-      const address   = String(msg.address ?? '');
-      const latitude  = Number(msg.latitude);
-      const longitude = Number(msg.longitude);
-
-      if (lineUserId) {
-        const locProfile = await getProfileByLineId(admin, lineUserId);
-        if (locProfile) {
-          const activeOrg = await getOrSetActiveOrg(admin, locProfile.id, locProfile.line_active_org_id);
-          if (activeOrg) {
-            // Check if just_me is enabled
-            const { data: moduleSetting } = await admin
-              .from('org_module_settings')
-              .select('is_enabled')
-              .eq('organization_id', activeOrg.id)
-              .eq('module_key', 'just_me')
-              .maybeSingle();
-
-            if (moduleSetting?.is_enabled) {
-              await handleJustMeLocation(
-                admin,
-                { latitude, longitude, address, title },
-                lineUserId,
-                locProfile.id,
-                activeOrg.id,
-                replyToken,
-              );
-              continue;
-            }
-          }
-        }
-      }
-      continue;
-    }
+    // Location messages not handled (GPS captured via web link instead)
+    if (msg.type === 'location') continue;
 
     if (msg.type !== 'text') continue;
 
@@ -1180,14 +1146,6 @@ export async function POST(req: NextRequest) {
         .maybeSingle();
 
       if (justMeSetting?.is_enabled) {
-        if (cmd === 'in') {
-          await handleJustMeIn(admin, lineUserId, profile.id, activeOrg.id, replyToken);
-          continue;
-        }
-        if (cmd === 'out') {
-          await handleJustMeOut(admin, lineUserId, profile.id, activeOrg.id, replyToken);
-          continue;
-        }
         if (cmd === 'ck') {
           // /ck home [label]  — clock at home
           // /ck site [name]   — clock at a work site

@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { MapPin, Loader2, CheckCircle2, AlertCircle, Clock, Navigation } from 'lucide-react';
 
-type TokenType = 'in' | 'out' | 'depart' | 'arrive';
+type TokenType = 'depart' | 'arrive';
 type LocType = 'home' | 'site' | null;
 
 interface CfgEntry {
@@ -19,24 +19,6 @@ interface CfgEntry {
 }
 
 const CONFIG: Record<TokenType, CfgEntry> = {
-  in: {
-    headerTitle: 'ลงเวลาเข้างาน (Clock In)',
-    headerSub: () => 'บันทึกเวลาเข้างาน',
-    infoText: () => '🔒 ระบบล็อกพิกัดจาก GPS อุปกรณ์โดยตรง ไม่สามารถปรับเปลี่ยนตำแหน่งได้',
-    btnLabel: () => '📍 กดเพื่อเข้างาน (Clock In)',
-    btnColor: () => 'bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800',
-    iconBg: 'bg-emerald-50 border-emerald-100',
-    iconColor: 'text-emerald-600',
-  },
-  out: {
-    headerTitle: 'ลงเวลาออกงาน (Clock Out)',
-    headerSub: () => 'บันทึกเวลาออกงาน',
-    infoText: () => '🔒 ระบบล็อกพิกัดจาก GPS อุปกรณ์โดยตรง ไม่สามารถปรับเปลี่ยนตำแหน่งได้',
-    btnLabel: () => '📍 กดเพื่อออกงาน (Clock Out)',
-    btnColor: () => 'bg-rose-600 hover:bg-rose-700 active:bg-rose-800',
-    iconBg: 'bg-rose-50 border-rose-100',
-    iconColor: 'text-rose-600',
-  },
   depart: {
     headerTitle: '🚗 บันทึกการออกเดินทาง',
     headerSub: (note, loc) => note ? `ออกจาก: ${note}` : loc === 'home' ? 'ออกจากบ้าน' : 'ออกจากหน้างาน',
