@@ -31,6 +31,8 @@ interface TravelStop {
   timestamp: string;
   address: string | null;
   note: string | null;
+  latitude?: number | string | null;
+  longitude?: number | string | null;
 }
 
 interface TravelHop {
@@ -362,7 +364,16 @@ export default function ClockInOutPage() {
                         </div>
                         <div className="pb-1 min-w-0 flex-1">
                           <p className="text-xs font-semibold text-slate-700 truncate">
-                            {stop.note || stop.address || 'ไม่ระบุสถานที่'}
+                            {(() => {
+                              const lat = Number(stop.latitude);
+                              const lng = Number(stop.longitude);
+                              const coordStr = !isNaN(lat) && !isNaN(lng) ? `(${lat.toFixed(6)}, ${lng.toFixed(6)})` : '';
+                              if (stop.stop_type === 'start' || stop.stop_type === 'end') {
+                                return `บ้าน ${coordStr}`.trim();
+                              }
+                              const name = stop.note || stop.address || 'ไม่ระบุสถานที่';
+                              return `${name} ${coordStr}`.trim();
+                            })()}
                           </p>
                           <p className="text-[11px] text-slate-400 mt-0.5">
                             {stop.stop_type === 'start' ? 'เริ่มงาน' : stop.stop_type === 'end' ? 'สิ้นสุดงาน' : 'จุดแวะ'}{' '}

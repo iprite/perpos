@@ -43,7 +43,9 @@ async function handleDepart(
 
   const now = new Date().toISOString();
   const workDate = new Date(now).toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' });
-  const addr = note || address || `GPS (${latitude.toFixed(5)}, ${longitude.toFixed(5)})`;
+  const coords = `(${latitude.toFixed(6)}, ${longitude.toFixed(6)})`;
+  const placeName = locationType === 'home' ? 'บ้าน' : (note || address || 'หน้างาน');
+  const addr = `${placeName} ${coords}`;
 
   const { data: session } = await admin.from('just_me_clock_sessions').select('status, last_in_time, last_in_address').eq('profile_id', profileId).maybeSingle();
 
@@ -91,7 +93,9 @@ async function handleArrive(
 
   const now = new Date().toISOString();
   const workDate = new Date(now).toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' });
-  const addr = note || address || `GPS (${latitude.toFixed(5)}, ${longitude.toFixed(5)})`;
+  const coords = `(${latitude.toFixed(6)}, ${longitude.toFixed(6)})`;
+  const placeName = locationType === 'home' ? 'บ้าน' : (note || address || 'หน้างาน');
+  const addr = `${placeName} ${coords}`;
 
   const { data: session } = await admin
     .from('just_me_clock_sessions')
