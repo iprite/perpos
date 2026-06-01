@@ -116,7 +116,6 @@ export async function handleJustMeClock(
             {
               type: 'button', style: 'primary',
               color: btnColor,
-              cornerRadius: 'md',
               action: { type: 'uri', label: btnLabel, uri: url },
             },
           ],
@@ -176,7 +175,6 @@ export async function handleJustMeClock(
           {
             type: 'button', style: 'primary',
             color: btnColor,
-            cornerRadius: 'md',
             action: { type: 'uri', label: btnLabel, uri: url },
           },
         ],
