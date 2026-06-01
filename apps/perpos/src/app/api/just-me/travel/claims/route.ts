@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
     .select(`
       id, work_date, hops, total_distance_km, fuel_rate_per_km,
       total_amount, status, note, approved_at, created_at,
-      profile:profiles(id, display_name, email)
+      profile:profiles!profile_id(id, display_name, email)
     `)
     .eq('org_id', orgId)
     .order('work_date', { ascending: false })
