@@ -169,20 +169,41 @@ export default function ClockInOutPage() {
     <div className="p-4 md:p-6 space-y-6">
       
       {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-4 border-b pb-5">
-        <div className="flex items-center gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-indigo-600 text-white">
-            <Clock className="h-6 w-6" />
+      <div className="rounded-2xl bg-gradient-to-br from-indigo-600 to-violet-600 p-5 md:p-6 text-white shadow-lg">
+        <div className="flex items-start justify-between gap-4 flex-wrap">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2.5">
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/20 backdrop-blur-sm">
+                <Navigation className="h-5 w-5 text-white" />
+              </div>
+              <h1 className="text-xl font-black tracking-tight">การเดินทางและค่าเบิกจ่าย</h1>
+            </div>
+            <p className="text-sm text-indigo-200 pl-11">บันทึก GPS ทุกจุดแวะ — ระบบคำนวณค่าน้ำมันให้อัตโนมัติ</p>
           </div>
-          <div>
-            <h1 className="text-xl font-bold text-slate-900">Clock In/Out</h1>
-            <p className="text-sm text-slate-500">บันทึกและตรวจสอบเวลาเข้า-ออกงานของคุณ</p>
-          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={loadData}
+            disabled={loading}
+            className="gap-1.5 border-white/30 bg-white/10 text-white hover:bg-white/20 backdrop-blur-sm shrink-0"
+          >
+            <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
+            รีเฟรช
+          </Button>
         </div>
-        <Button variant="outline" size="sm" onClick={loadData} disabled={loading} className="gap-1.5">
-          <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
-          รีเฟรชข้อมูล
-        </Button>
+
+        {/* Command pills */}
+        <div className="mt-4 flex flex-wrap gap-2">
+          {[
+            { cmd: '/ck home', label: 'ออกบ้าน / ถึงบ้าน', color: 'bg-blue-500/30 border-blue-300/30' },
+            { cmd: '/ck site ชื่อ', label: 'ถึง / ออกจากหน้างาน', color: 'bg-violet-500/30 border-violet-300/30' },
+          ].map(({ cmd, label, color }) => (
+            <div key={cmd} className={`flex items-center gap-2 rounded-full border px-3 py-1 text-xs ${color}`}>
+              <code className="font-mono font-bold text-white">{cmd}</code>
+              <span className="text-white/70">— {label}</span>
+            </div>
+          ))}
+        </div>
       </div>
 
       {error && (
