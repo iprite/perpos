@@ -1,5 +1,5 @@
 import { createAdminClient } from '../_lib/supabase';
-import { signClockToken } from './_lib';
+import { signClockToken, type LocationType } from './_lib';
 
 type Admin = ReturnType<typeof createAdminClient>;
 
@@ -185,7 +185,19 @@ export async function handleJustMeOut(
   const token = signClockToken(profileId, orgId, 'out');
   const clockUrl = `${baseUrl}/just-me-clock?token=${token}`;
 
-  // 3. ส่ง Flex Card เพื่อให้ไปกดยืนยันตัวตนและบันทึกเวลาจริงจากพิกัด GPS ปัจจุบัน
+  // 3. ดึงจำนวน intermediate stops ที่บันทึกไว้วันนี้ เพื่อแสดงใน card
+  const workDate = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' });
+  const { count: stopCount } = await admin
+    .from('just_me_travel_logs')
+    .select('id', { count: 'exact', head: true })
+    .eq('profile_id', profileId)
+    .eq('org_id', orgId)
+    .eq('work_date', workDate);
+  const sitesText = stopCount && stopCount > 0
+    ? `🗺️ มี ${stopCount} จุดแวะที่บันทึกไว้ — ระบบจะคำนวณค่าเดินทางอัตโนมัติหลังออกงาน`
+    : '🔒 ระบบจะดึงพิกัด GPS จริงของคุณโดยตรงจากอุปกรณ์';
+
+  // 4. ส่ง Flex Card เพื่อให้ไปกดยืนยันตัวตนและบันทึกเวลาจริงจากพิกัด GPS ปัจจุบัน
   return replyLine(replyToken, [
     {
       type: 'flex',
@@ -203,22 +215,8 @@ export async function handleJustMeOut(
             endColor: '#FB7185',
           },
           contents: [
-            {
-              type: 'text',
-              text: '⏰ CLOCK OUT REQUEST',
-              weight: 'bold',
-              color: '#FFFFFF',
-              size: 'sm',
-            },
-            {
-              type: 'text',
-              text: 'บันทึกเวลาออกงานด้วยตำแหน่งปัจจุบัน',
-              weight: 'bold',
-              size: 'md',
-              color: '#FFFFFF',
-              margin: 'xs',
-              wrap: true,
-            },
+            { type: 'text', text: '⏰ CLOCK OUT REQUEST', weight: 'bold', color: '#FFFFFF', size: 'sm' },
+            { type: 'text', text: 'บันทึกเวลาออกงานด้วยตำแหน่งปัจจุบัน', weight: 'bold', size: 'md', color: '#FFFFFF', margin: 'xs', wrap: true },
           ],
         },
         body: {
@@ -236,13 +234,7 @@ export async function handleJustMeOut(
               borderWidth: '1px',
               borderColor: '#E2E8F0',
               contents: [
-                {
-                  type: 'text',
-                  text: '🔒 ระบบความปลอดภัยจะดึงพิกัด GPS จริงของคุณโดยตรงจากอุปกรณ์ และไม่อนุญาตให้ปรับเปลี่ยนตำแหน่งด้วยตัวเอง',
-                  color: '#475569',
-                  size: 'xs',
-                  wrap: true,
-                },
+                { type: 'text', text: sitesText, color: '#475569', size: 'xs', wrap: true },
               ],
             },
             {
@@ -250,11 +242,7 @@ export async function handleJustMeOut(
               style: 'primary',
               color: '#DC2626',
               cornerRadius: 'md',
-              action: {
-                type: 'uri',
-                label: '📍 บันทึกออกงาน ณ ตำแหน่งนี้',
-                uri: clockUrl,
-              },
+              action: { type: 'uri', label: '📍 บันทึกออกงาน ณ ตำแหน่งนี้', uri: clockUrl },
             },
           ],
         },
@@ -518,4 +506,139 @@ export async function handleJustMeLocation(
     // กรณีที่เคย clocked_in อยู่ แต่ยังไม่เคยกดพิมพ์ /out เลย ดันส่ง location เข้ามาดื้อๆ
     return replyText(replyToken, '💡 เพื่อบันทึกเวลาออกงาน กรุณาพิมพ์คำสั่ง /out ก่อน แล้วจึงส่งพิกัดตำแหน่งครับ');
   }
+}
+
+// ─── Travel Clock State Machine (/ck home | /ck site [name]) ────────────────
+//
+// Commands:
+//   /ck home [label]  — clock at home location
+//   /ck site [name]   — clock at a work site
+//
+// State machine (direction determined by current status):
+//   idle / working → DEPART  (leaving current location, record origin GPS)
+//   traveling      → ARRIVE  (reached destination, record GPS + calculate hop)
+//
+// Work time:
+//   START = first /ck site arrival
+//   END   = last /ck site departure
+
+export async function handleJustMeClock(
+  admin: Admin,
+  lineUserId: string,
+  profileId: string,
+  orgId: string,
+  replyToken: string,
+  locationType: LocationType,
+  note: string | undefined,
+) {
+  const { data: session } = await admin
+    .from('just_me_clock_sessions')
+    .select('status, last_depart_address, last_in_address')
+    .eq('profile_id', profileId)
+    .maybeSingle();
+
+  const baseUrl = process.env.APP_BASE_URL || 'https://app.perpos.io';
+  const status = (session?.status ?? 'idle') as string;
+
+  // ── Validation: /ck home only valid when idle (first clock) or traveling (arriving home) ──
+  // /ck site only valid when traveling (arriving at site) or working/idle (departing)
+  // We don't block — state machine handles it naturally.
+
+  if (status === 'traveling') {
+    // ─── ARRIVE: reached destination ────────────────────────────────────────────
+    const token = signClockToken(profileId, orgId, 'arrive', locationType, note);
+    const url = `${baseUrl}/just-me-clock?token=${token}`;
+    const fromLabel = session?.last_depart_address || 'ต้นทาง';
+    const isArriveHome = locationType === 'home';
+    const toLabel = note || (isArriveHome ? 'บ้าน 🏠' : 'หน้างาน');
+
+    return replyLine(replyToken, [{
+      type: 'flex',
+      altText: `✅ ถึง${toLabel}แล้ว`,
+      contents: {
+        type: 'bubble',
+        header: {
+          type: 'box', layout: 'vertical', paddingAll: '16px',
+          background: {
+            type: 'linearGradient', angle: '135deg',
+            startColor: isArriveHome ? '#059669' : '#7C3AED',
+            endColor:   isArriveHome ? '#34D399' : '#A78BFA',
+          },
+          contents: [
+            { type: 'text', text: isArriveHome ? '🏠 ถึงบ้านแล้ว' : '📍 ถึงหน้างานแล้ว', weight: 'bold', color: '#FFFFFF', size: 'sm' },
+            { type: 'text', text: toLabel, weight: 'bold', size: 'md', color: '#FFFFFF', margin: 'xs', wrap: true },
+          ],
+        },
+        body: {
+          type: 'box', layout: 'vertical', paddingAll: '16px', spacing: 'md',
+          contents: [
+            {
+              type: 'box', layout: 'vertical',
+              backgroundColor: isArriveHome ? '#F0FDF4' : '#F5F3FF',
+              cornerRadius: 'md', paddingAll: '12px',
+              borderWidth: '1px', borderColor: isArriveHome ? '#BBF7D0' : '#DDD6FE',
+              contents: [
+                { type: 'text', text: `🚗 จาก: ${fromLabel}`, color: isArriveHome ? '#15803D' : '#5B21B6', size: 'sm', weight: 'bold' },
+                { type: 'text', text: isArriveHome ? 'ระบบคำนวณระยะทาง hop สุดท้ายและสรุปค่าเดินทางวันนี้' : 'ระบบคำนวณระยะทางและเริ่มจับเวลางาน', color: '#475569', size: 'xs', wrap: true, margin: 'sm' },
+              ],
+            },
+            {
+              type: 'button', style: 'primary',
+              color: isArriveHome ? '#059669' : '#7C3AED',
+              cornerRadius: 'md',
+              action: { type: 'uri', label: `📍 บันทึกมาถึง ${toLabel}`, uri: url },
+            },
+          ],
+        },
+      },
+    }]);
+  }
+
+  // ─── DEPART: leaving current location ───────────────────────────────────────
+  const isLeavingSite = status === 'working';
+  const isDepartingHome = locationType === 'home';
+  const token = signClockToken(profileId, orgId, 'depart', locationType, note);
+  const url = `${baseUrl}/just-me-clock?token=${token}`;
+  const currentPlace = isLeavingSite ? (session?.last_in_address || 'หน้างาน') : (note || 'บ้าน');
+
+  const headerText = isDepartingHome ? '🏠 ออกจากบ้าน' : '🚗 ออกจากหน้างาน';
+  const headerSub  = note || (isDepartingHome ? 'บันทึกพิกัดต้นทาง (บ้าน)' : 'บันทึกพิกัดการออกจากหน้างาน');
+  const bgColor    = isDepartingHome ? { start: '#2563EB', end: '#60A5FA' } : { start: '#D97706', end: '#FCD34D' };
+
+  return replyLine(replyToken, [{
+    type: 'flex',
+    altText: headerText,
+    contents: {
+      type: 'bubble',
+      header: {
+        type: 'box', layout: 'vertical', paddingAll: '16px',
+        background: { type: 'linearGradient', angle: '135deg', startColor: bgColor.start, endColor: bgColor.end },
+        contents: [
+          { type: 'text', text: headerText, weight: 'bold', color: '#FFFFFF', size: 'sm' },
+          { type: 'text', text: headerSub, weight: 'bold', size: 'md', color: '#FFFFFF', margin: 'xs', wrap: true },
+        ],
+      },
+      body: {
+        type: 'box', layout: 'vertical', paddingAll: '16px', spacing: 'md',
+        contents: [
+          {
+            type: 'box', layout: 'vertical',
+            backgroundColor: isDepartingHome ? '#EFF6FF' : '#FFFBEB',
+            cornerRadius: 'md', paddingAll: '12px',
+            borderWidth: '1px', borderColor: isDepartingHome ? '#BFDBFE' : '#FDE68A',
+            contents: [
+              { type: 'text', text: `📍 กำลังออกจาก: ${currentPlace}`, color: isDepartingHome ? '#1E40AF' : '#92400E', size: 'xs', wrap: true },
+              { type: 'text', text: 'GPS ณ ตำแหน่งนี้จะเป็นจุดเริ่มต้นของ hop ถัดไป', color: '#64748B', size: 'xs', wrap: true, margin: 'sm' },
+            ],
+          },
+          {
+            type: 'button', style: 'primary',
+            color: isDepartingHome ? '#2563EB' : '#D97706',
+            cornerRadius: 'md',
+            action: { type: 'uri', label: `📍 ${headerText} (บันทึก GPS)`, uri: url },
+          },
+        ],
+      },
+    },
+  }]);
 }

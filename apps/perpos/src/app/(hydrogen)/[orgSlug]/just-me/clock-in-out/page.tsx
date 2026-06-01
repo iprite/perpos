@@ -5,7 +5,8 @@ import { useParams } from 'next/navigation';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import {
-  Clock, LogIn, LogOut, MapPin, RefreshCw, Loader2, AlertCircle, Calendar, MessageSquare, Bot
+  Clock, LogIn, LogOut, MapPin, RefreshCw, Loader2, AlertCircle, Calendar,
+  MessageSquare, Bot, Navigation, Fuel, ChevronRight, CheckCircle,
 } from 'lucide-react';
 import cn from '@core/utils/class-names';
 
@@ -26,12 +27,45 @@ interface ClockLog {
 interface ClockSession {
   profile_id: string;
   org_id: string;
-  status: 'pending_in' | 'pending_out' | 'clocked_in';
+  status: 'pending_in' | 'pending_out' | 'clocked_in' | 'traveling' | 'working';
   last_in_time: string | null;
   last_in_latitude: number | null;
   last_in_longitude: number | null;
   last_in_address: string | null;
+  last_depart_time: string | null;
+  last_depart_address: string | null;
   updated_at: string;
+}
+
+interface TravelStop {
+  id: string;
+  sequence: number;
+  stop_type: 'start' | 'site' | 'end';
+  timestamp: string;
+  address: string | null;
+  note: string | null;
+}
+
+interface TravelHop {
+  fromAddress: string;
+  toAddress: string;
+  distanceKm: number;
+}
+
+interface TravelClaim {
+  id: string;
+  work_date: string;
+  hops: TravelHop[];
+  total_distance_km: number;
+  fuel_rate_per_km: number;
+  total_amount: number;
+  status: 'pending' | 'approved' | 'paid' | 'rejected';
+}
+
+interface TravelSettings {
+  fuel_rate_per_km: number;
+  home_address: string | null;
+  include_return: boolean;
 }
 
 export default function ClockInOutPage() {
@@ -43,6 +77,9 @@ export default function ClockInOutPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [travelStops, setTravelStops] = useState<TravelStop[]>([]);
+  const [travelClaim, setTravelClaim] = useState<TravelClaim | null>(null);
+  const [travelSettings, setTravelSettings] = useState<TravelSettings | null>(null);
 
   const loadData = useCallback(async () => {
     try {
@@ -75,6 +112,17 @@ export default function ClockInOutPage() {
       const json = await res.json();
       setLogs(json.logs || []);
       setSession(json.session || null);
+
+      // Fetch today's travel data
+      const travelRes = await fetch(`/api/just-me/travel/today?orgId=${org.id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (travelRes.ok) {
+        const td = await travelRes.json();
+        setTravelStops(td.stops || []);
+        setTravelClaim(td.claim || null);
+        setTravelSettings(td.settings || null);
+      }
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -163,9 +211,49 @@ export default function ClockInOutPage() {
             <div className="bg-white rounded-2xl border p-5 shadow-sm space-y-5">
               <h2 className="text-sm font-semibold text-slate-700">สถานะปัจจุบัน</h2>
               
-              {session && session.status === 'clocked_in' ? (
+              {/* ─── Travel clock state machine ─── */}
+              {session && (session.status === 'traveling' || session.status === 'working') ? (
                 <div className="space-y-4">
-                  {/* Status Indicator */}
+                  {session.status === 'traveling' ? (
+                    // กำลังเดินทาง
+                    <div className="rounded-xl bg-blue-50 border border-blue-100 p-4 text-center space-y-2">
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-semibold text-blue-800 animate-pulse">
+                        <Navigation className="h-3 w-3" />
+                        กำลังเดินทาง
+                      </span>
+                      <p className="text-xs text-slate-500 mt-1">
+                        ออกจาก: {(session as any).last_depart_address || '—'}
+                      </p>
+                      <p className="text-xs text-slate-400 pt-1 border-t mt-1">
+                        พิมพ์ <code className="bg-blue-100 px-1 rounded font-mono font-bold text-blue-700">/ck ชื่อสถานที่</code> เมื่อถึงปลายทาง
+                      </p>
+                    </div>
+                  ) : (
+                    // กำลังทำงานอยู่ที่ site
+                    <div className="rounded-xl bg-emerald-50 border border-emerald-100 p-4 text-center space-y-2">
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-semibold text-emerald-800 animate-pulse">
+                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                        กำลังทำงาน
+                      </span>
+                      {session.last_in_time && (
+                        <p className="text-2xl font-black text-slate-800">{fmtTime(session.last_in_time)}</p>
+                      )}
+                      {session.last_in_address && (
+                        <p className="text-xs text-slate-500">📍 {session.last_in_address}</p>
+                      )}
+                      <p className="text-xs text-slate-400 pt-1 border-t mt-1">
+                        พิมพ์ <code className="bg-amber-100 px-1 rounded font-mono font-bold text-amber-700">/ck</code> เมื่อจะออกเดินทาง
+                      </p>
+                    </div>
+                  )}
+                  <div className="rounded-xl border border-violet-100 bg-violet-50/50 p-4 text-xs space-y-1.5">
+                    <p className="font-semibold text-violet-800">🚗 วิธีใช้ระบบค่าเดินทาง</p>
+                    <p className="text-slate-600">พิมพ์ <code className="bg-violet-100 px-1 rounded font-mono font-bold text-violet-700">/ck ชื่อสถานที่</code> ใน LINE Bot ทุกครั้งที่ออก/ถึงจุดหมาย ระบบจะสลับ depart ↔ arrive อัตโนมัติ</p>
+                  </div>
+                </div>
+              ) : session && session.status === 'clocked_in' ? (
+                // Legacy clock-in session
+                <div className="space-y-4">
                   <div className="rounded-xl bg-emerald-50 border border-emerald-100 p-4 text-center space-y-2">
                     <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-semibold text-emerald-800 animate-pulse">
                       <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
@@ -178,8 +266,6 @@ export default function ClockInOutPage() {
                       ทำงานไปแล้ว: {session.last_in_time ? getElapsedText(session.last_in_time) : ''}
                     </p>
                   </div>
-
-                  {/* Start details */}
                   <div className="text-xs space-y-3 text-slate-600 border-t pt-4">
                     <div className="flex items-start gap-2">
                       <Calendar className="h-4 w-4 text-slate-400 shrink-0 mt-0.5" />
@@ -198,39 +284,34 @@ export default function ClockInOutPage() {
                       </div>
                     )}
                   </div>
-
-                  {/* Clock Out Instructions */}
-                  <div className="rounded-xl border border-rose-100 bg-rose-50/50 p-4 text-xs text-rose-800 leading-relaxed space-y-2 mt-4">
+                  <div className="rounded-xl border border-rose-100 bg-rose-50/50 p-4 text-xs text-rose-800 leading-relaxed space-y-2">
                     <div className="flex items-center gap-1.5 font-bold text-rose-900">
                       <Bot className="h-4 w-4 text-rose-600 shrink-0" />
-                      <span>กรุณาบันทึกออกงานผ่าน LINE Bot</span>
+                      <span>บันทึกออกงานผ่าน LINE Bot</span>
                     </div>
                     <p className="text-slate-600 leading-normal">
-                      ไม่อนุญาตให้กดบันทึกผ่านหน้าจอนี้โดยตรง กรุณาเปิด LINE Bot แล้วพิมพ์ <code className="bg-rose-100 px-1 py-0.5 rounded font-mono font-bold text-rose-700">/out</code> เพื่อรับลิงก์ลงเวลาออกงาน
+                      พิมพ์ <code className="bg-rose-100 px-1 py-0.5 rounded font-mono font-bold text-rose-700">/out</code> เพื่อรับลิงก์ออกงาน
                     </p>
                   </div>
                 </div>
               ) : (
+                // No session
                 <div className="space-y-4">
-                  {/* Out status */}
                   <div className="rounded-xl bg-slate-50 border p-5 text-center space-y-2">
                     <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-200 px-2.5 py-0.5 text-xs font-semibold text-slate-600">
-                      ยังไม่เข้างาน (Clocked Out)
+                      ยังไม่ได้เริ่มงาน
                     </span>
-                    <p className="text-sm text-slate-400 leading-relaxed mt-2">
-                      กรุณาบันทึกเข้างานผ่าน LINE Bot โดยพิมพ์คำสั่ง <code className="bg-emerald-100 px-1 py-0.5 rounded font-mono font-bold text-emerald-700">/in</code>
+                    <p className="text-xs text-slate-400 mt-2 leading-relaxed">
+                      พิมพ์ <code className="bg-blue-100 px-1 py-0.5 rounded font-mono font-bold text-blue-700">/ck</code> เพื่อเริ่มบันทึกการเดินทาง หรือ <code className="bg-emerald-100 px-1 py-0.5 rounded font-mono font-bold text-emerald-700">/in</code> สำหรับเข้างานแบบปกติ
                     </p>
                   </div>
-
-                  {/* Clock In Instructions */}
                   <div className="rounded-xl border border-indigo-100 bg-indigo-50/50 p-4 text-xs text-indigo-800 leading-relaxed space-y-2">
                     <div className="flex items-center gap-1.5 font-bold text-indigo-900">
                       <MessageSquare className="h-4 w-4 text-indigo-600 shrink-0" />
-                      <span>ลงเวลาเข้างานผ่าน LINE เท่านั้น</span>
+                      <span>คำสั่ง LINE Bot</span>
                     </div>
-                    <p className="text-slate-600 leading-normal">
-                      เปิดห้องแชท LINE Bot พิมพ์ <code className="bg-indigo-100 px-1 py-0.5 rounded font-mono font-bold text-indigo-700">/in</code> จากนั้นแตะลิงก์ลงเวลาที่ได้รับในแชทเพื่อบันทึกพิกัด GPS
-                    </p>
+                    <p className="text-slate-600"><code className="bg-blue-100 px-1 rounded font-mono font-bold text-blue-700">/ck ชื่อสถานที่</code> — บันทึกการเดินทาง + ค่าน้ำมัน</p>
+                    <p className="text-slate-600"><code className="bg-emerald-100 px-1 rounded font-mono font-bold text-emerald-700">/in</code> / <code className="bg-rose-100 px-1 rounded font-mono font-bold text-rose-700">/out</code> — เวลาเข้า-ออกงานแบบปกติ</p>
                   </div>
                 </div>
               )}
@@ -247,8 +328,128 @@ export default function ClockInOutPage() {
             </div>
           </div>
 
-          {/* Right Column: Historical Logs */}
+          {/* Right Column: Travel Summary + Historical Logs */}
           <div className="lg:col-span-2 space-y-4">
+
+            {/* Today's Travel Summary */}
+            {(travelStops.length > 0 || travelClaim) && (
+              <div className="bg-white rounded-2xl border shadow-sm overflow-hidden">
+                <div className="border-b px-5 py-4 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Navigation className="h-4 w-4 text-violet-600" />
+                    <h2 className="text-sm font-semibold text-slate-700">ค่าเดินทางวันนี้</h2>
+                  </div>
+                  {travelClaim && (
+                    <span className={cn(
+                      'rounded-full px-2.5 py-0.5 text-xs font-semibold',
+                      travelClaim.status === 'pending' && 'bg-amber-50 text-amber-700',
+                      travelClaim.status === 'approved' && 'bg-emerald-50 text-emerald-700',
+                      travelClaim.status === 'paid' && 'bg-blue-50 text-blue-700',
+                      travelClaim.status === 'rejected' && 'bg-rose-50 text-rose-700',
+                    )}>
+                      {travelClaim.status === 'pending' && 'รอการอนุมัติ'}
+                      {travelClaim.status === 'approved' && 'อนุมัติแล้ว'}
+                      {travelClaim.status === 'paid' && 'จ่ายแล้ว'}
+                      {travelClaim.status === 'rejected' && 'ปฏิเสธ'}
+                    </span>
+                  )}
+                </div>
+
+                <div className="p-5 space-y-4">
+                  {/* Stops timeline */}
+                  {travelStops.length > 0 && (
+                    <div className="space-y-1">
+                      {travelStops.map((stop, i) => (
+                        <div key={stop.id} className="flex items-start gap-3">
+                          <div className="flex flex-col items-center">
+                            <div className={cn(
+                              'h-7 w-7 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0',
+                              stop.stop_type === 'start' && 'bg-emerald-500',
+                              stop.stop_type === 'site' && 'bg-violet-500',
+                              stop.stop_type === 'end' && 'bg-rose-500',
+                            )}>
+                              {i + 1}
+                            </div>
+                            {i < travelStops.length - 1 && (
+                              <div className="w-0.5 h-5 bg-slate-200 mt-0.5" />
+                            )}
+                          </div>
+                          <div className="pb-1">
+                            <p className="text-xs font-semibold text-slate-700">
+                              {stop.note || stop.address || 'ไม่ระบุสถานที่'}
+                            </p>
+                            <p className="text-[11px] text-slate-400">
+                              {stop.stop_type === 'start' ? 'เริ่มงาน' : stop.stop_type === 'end' ? 'สิ้นสุดงาน' : 'จุดแวะ'}{' '}
+                              · {fmtTime(stop.timestamp)}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Claim summary */}
+                  {travelClaim ? (
+                    <div className="rounded-xl bg-violet-50 border border-violet-100 p-4 space-y-3">
+                      {travelClaim.hops.length > 0 && (
+                        <div className="space-y-1.5">
+                          {travelClaim.hops.map((hop, i) => (
+                            <div key={i} className="flex items-center gap-2 text-xs text-slate-600">
+                              <ChevronRight className="h-3 w-3 text-violet-400 shrink-0" />
+                              <span className="truncate">{hop.fromAddress}</span>
+                              <span className="text-slate-400 shrink-0">→</span>
+                              <span className="truncate">{hop.toAddress}</span>
+                              <span className="ml-auto font-semibold text-violet-700 shrink-0">{hop.distanceKm} km</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      <div className="pt-3 border-t border-violet-200 flex items-center justify-between">
+                        <div className="flex items-center gap-1.5 text-xs text-slate-500">
+                          <Fuel className="h-3.5 w-3.5 text-violet-500" />
+                          <span>{travelClaim.total_distance_km} km × {travelClaim.fuel_rate_per_km} บาท/km</span>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-lg font-black text-violet-700">
+                            ฿{travelClaim.total_amount.toLocaleString('th-TH', { minimumFractionDigits: 2 })}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ) : travelStops.length > 0 ? (
+                    <div className="rounded-xl bg-slate-50 border border-dashed border-slate-200 p-4 text-center text-xs text-slate-400">
+                      <Loader2 className="h-4 w-4 animate-spin mx-auto mb-1 text-slate-300" />
+                      กำลังรอการออกงาน (Clock Out) เพื่อคำนวณค่าเดินทาง
+                    </div>
+                  ) : null}
+
+                  {/* /arrive tip */}
+                  <div className="rounded-lg bg-violet-50 border border-violet-100 p-3 text-xs text-violet-800 leading-relaxed">
+                    <p className="font-semibold">💡 บันทึกจุดแวะระหว่างวัน</p>
+                    <p className="text-slate-500 mt-0.5">
+                      พิมพ์ <code className="bg-violet-100 px-1 rounded font-mono font-bold text-violet-700">/arrive ชื่อสถานที่</code> ใน LINE Bot เพื่อบันทึกการมาถึงแต่ละจุด ระบบจะคำนวณค่าเดินทางทุก hop อัตโนมัติเมื่อออกงาน
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* No travel data yet — show tip */}
+            {travelStops.length === 0 && !travelClaim && (
+              <div className="bg-white rounded-2xl border shadow-sm p-5">
+                <div className="flex items-center gap-2 mb-3">
+                  <Navigation className="h-4 w-4 text-violet-500" />
+                  <h2 className="text-sm font-semibold text-slate-700">การเบิกค่าเดินทาง</h2>
+                </div>
+                <div className="rounded-lg bg-violet-50 border border-violet-100 p-4 text-xs text-violet-800 leading-relaxed space-y-1.5">
+                  <p className="font-semibold">📍 วิธีบันทึกการเดินทางวันนี้</p>
+                  <p className="text-slate-600">1. <code className="bg-violet-100 px-1 rounded font-mono font-bold text-violet-700">/in</code> — ลงเวลาเข้างาน (บันทึกพิกัดจุดเริ่มต้น)</p>
+                  <p className="text-slate-600">2. <code className="bg-violet-100 px-1 rounded font-mono font-bold text-violet-700">/arrive บริษัท ABC</code> — บันทึกการมาถึงแต่ละ site</p>
+                  <p className="text-slate-600">3. <code className="bg-violet-100 px-1 rounded font-mono font-bold text-violet-700">/out</code> — ลงเวลาออกงาน → ระบบคำนวณค่าเดินทางทั้งหมดอัตโนมัติ</p>
+                </div>
+              </div>
+            )}
+
             <div className="bg-white rounded-2xl border overflow-hidden shadow-sm">
               <div className="border-b px-5 py-4 flex items-center justify-between">
                 <h2 className="text-sm font-semibold text-slate-700">ประวัติการลงเวลาล่าสุด</h2>

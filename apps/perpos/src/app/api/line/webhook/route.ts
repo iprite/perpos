@@ -9,7 +9,7 @@ import {
   crmHelpText,
 } from '../../crm/_line';
 import {
-  handleJustMeIn, handleJustMeOut, handleJustMeLocation,
+  handleJustMeIn, handleJustMeOut, handleJustMeClock, handleJustMeLocation,
 } from '../../just-me/_line';
 
 // ─── TMC Org ID (TMC Management) ─────────────────────────────────────────────
@@ -969,7 +969,7 @@ async function checkAssistantAccess(admin: ReturnType<typeof createAdminClient>,
 // ─── Main webhook handler ─────────────────────────────────────────────────────
 
 const TMC_CMDS = ['รับ', 'จ่าย', 'บัญชี', 'stock', 'stkin', 'stkout', 'stk', 'เช็คอิน', 'pcin', 'pcout', 'pcbal', 'pcfunds', 'tmc'];
-const CRM_CMDS = ['n', 'survey', 'issue', 'mtg', 'log', 'in', 'out', 'sol', 'status', 'notes', 'issues', 'hours'];
+const CRM_CMDS = ['n', 'survey', 'issue', 'mtg', 'log', 'in', 'out', 'ck', 'sol', 'status', 'notes', 'issues', 'hours'];
 
 export async function POST(req: NextRequest) {
   const rawBody = await req.text();
@@ -1186,6 +1186,19 @@ export async function POST(req: NextRequest) {
         }
         if (cmd === 'out') {
           await handleJustMeOut(admin, lineUserId, profile.id, activeOrg.id, replyToken);
+          continue;
+        }
+        if (cmd === 'ck') {
+          // /ck home [label]  — clock at home
+          // /ck site [name]   — clock at a work site
+          const subCmd = (args[0] ?? '').toLowerCase();
+          if (subCmd !== 'home' && subCmd !== 'site') {
+            await replyText(replyToken, '📍 วิธีใช้:\n/ck home — บันทึก clock ที่บ้าน\n/ck site [ชื่อ] — บันทึก clock ที่หน้างาน\n\nตัวอย่าง:\n/ck home\n/ck site บริษัท ABC');
+            continue;
+          }
+          const locationType = subCmd as 'home' | 'site';
+          const note = args.slice(1).join(' ').trim() || undefined;
+          await handleJustMeClock(admin, lineUserId, profile.id, activeOrg.id, replyToken, locationType, note);
           continue;
         }
       }
