@@ -18,6 +18,7 @@ export async function GET(req: NextRequest) {
     .select(`
       id, work_date, hops, total_distance_km, fuel_rate_per_km,
       total_amount, status, note, approved_at, created_at,
+      work_start_time, work_end_time, work_minutes,
       profile:profiles!profile_id(id, display_name, email)
     `)
     .eq('org_id', orgId)

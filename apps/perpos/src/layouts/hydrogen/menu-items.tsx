@@ -415,7 +415,7 @@ function buildJustMeMenuItems(org: string, orgRole?: string | null, labels: Reco
     items.push({ name: l("travel_claims", "อนุมัติค่าเดินทาง"), href: p("travel-claims"), icon: <Navigation className="h-5 w-5" /> });
   }
 
-  items.push({ name: l("clock_in_out", "เวลาทำงานและการเดินทาง"), href: p("clock-in-out"), icon: <Clock className="h-5 w-5" /> });
+  items.push({ name: "เวลาทำงานและการเดินทาง", href: p("clock-in-out"), icon: <Clock className="h-5 w-5" /> });
   items.push({ name: l("inventory", "คลังสินค้า (Inventory)"), href: p("inventory"), icon: <Package className="h-5 w-5" /> });
   return items;
 }

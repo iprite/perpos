@@ -373,6 +373,36 @@ export default function ClockInOutPage() {
                     ))}
                   </div>
 
+                  {/* Extracted Work Hours Block for Today */}
+                  {travelClaim && travelClaim.work_start_time && (
+                    <div className="rounded-xl bg-slate-50 border p-4 space-y-3 my-4">
+                      <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700 border-b pb-2">
+                        <Clock className="h-4 w-4 text-indigo-600 shrink-0" />
+                        <span>เวลาปฏิบัติงานวันนี้ (ถอดจากหน้างาน)</span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4 text-xs">
+                        <div>
+                          <p className="text-slate-400">เข้างาน (Site แรก)</p>
+                          <p className="text-sm font-bold text-slate-800 mt-0.5">
+                            {fmtTime(travelClaim.work_start_time)}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-slate-400">ออกงาน (Site สุดท้าย)</p>
+                          <p className="text-sm font-bold text-slate-800 mt-0.5">
+                            {travelClaim.work_end_time ? fmtTime(travelClaim.work_end_time) : 'ยังไม่กลับ (กำลังทำงาน)'}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="pt-2 border-t flex justify-between items-center text-xs">
+                        <span className="text-slate-500 font-medium">เวลารวมปฏิบัติงาน:</span>
+                        <span className="font-bold text-indigo-600">
+                          {fmtWorkMinutes(travelClaim.work_minutes)}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
                   {travelClaim ? (
                     <div className="pt-3 border-t flex items-center justify-between text-xs bg-indigo-50/30 -mx-5 -mb-5 p-5">
                       <div className="flex items-center gap-1 text-slate-500">
