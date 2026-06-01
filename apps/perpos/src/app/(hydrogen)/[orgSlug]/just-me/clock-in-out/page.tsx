@@ -138,21 +138,39 @@ export default function ClockInOutPage() {
 
   // Helpers to format Thai Date/Time
   const fmtTime = (iso: string) => {
-    return new Date(iso).toLocaleTimeString('th-TH', {
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-      timeZone: 'Asia/Bangkok'
-    }) + ' น.';
+    if (!iso) return '—';
+    try {
+      const normalized = iso.includes(' ') && !iso.includes('T') ? iso.replace(' ', 'T') : iso;
+      const d = new Date(normalized);
+      if (isNaN(d.getTime())) return '—';
+      return d.toLocaleTimeString('th-TH', {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        timeZone: 'Asia/Bangkok'
+      }) + ' น.';
+    } catch (e) {
+      console.error('fmtTime error:', e);
+      return '—';
+    }
   };
 
   const fmtDate = (iso: string) => {
-    return new Date(iso).toLocaleDateString('th-TH', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      timeZone: 'Asia/Bangkok'
-    });
+    if (!iso) return '—';
+    try {
+      const normalized = iso.includes(' ') && !iso.includes('T') ? iso.replace(' ', 'T') : iso;
+      const d = new Date(normalized);
+      if (isNaN(d.getTime())) return '—';
+      return d.toLocaleDateString('th-TH', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        timeZone: 'Asia/Bangkok'
+      });
+    } catch (e) {
+      console.error('fmtDate error:', e);
+      return '—';
+    }
   };
 
   // Calculate elapsed time for clocked_in session
@@ -369,7 +387,7 @@ export default function ClockInOutPage() {
                   {/* Claim summary */}
                   {travelClaim ? (
                     <div className="rounded-xl bg-violet-50 border border-violet-100 p-4 space-y-3">
-                      {travelClaim.hops.length > 0 && (
+                      {Array.isArray(travelClaim.hops) && travelClaim.hops.length > 0 && (
                         <div className="space-y-1.5">
                           {travelClaim.hops.map((hop, i) => (
                             <div key={i} className="flex items-center gap-2 text-xs text-slate-600">
@@ -479,12 +497,12 @@ export default function ClockInOutPage() {
                               {log.address ? (
                                 <div className="space-y-1">
                                   <p className="font-semibold text-slate-700">{log.address}</p>
-                                  {log.latitude && log.longitude && (
-                                    <p className="text-slate-400 font-mono">({log.latitude.toFixed(6)}, {log.longitude.toFixed(6)})</p>
+                                  {log.latitude !== null && log.latitude !== undefined && log.longitude !== null && log.longitude !== undefined && (
+                                    <p className="text-slate-400 font-mono">({Number(log.latitude).toFixed(6)}, {Number(log.longitude).toFixed(6)})</p>
                                   )}
                                 </div>
-                              ) : log.latitude && log.longitude ? (
-                                <code className="font-mono text-slate-400">({log.latitude.toFixed(6)}, {log.longitude.toFixed(6)})</code>
+                              ) : log.latitude !== null && log.latitude !== undefined && log.longitude !== null && log.longitude !== undefined ? (
+                                <code className="font-mono text-slate-400">({Number(log.latitude).toFixed(6)}, {Number(log.longitude).toFixed(6)})</code>
                               ) : (
                                 '—'
                               )}
