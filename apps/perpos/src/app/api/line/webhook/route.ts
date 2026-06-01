@@ -917,15 +917,60 @@ async function handleOrgCmd(
 ) {
   const orgs = await getUserOrgs(admin, profileId);
   if (!orgs.length) {
-    return replyText(replyToken, '❌ ยังไม่ได้เข้าร่วม Organization ใดๆ\nติดต่อผู้ดูแลระบบเพื่อเชิญเข้า org');
+    return replyLine(replyToken, [{
+      type: 'flex',
+      altText: 'Organizations',
+      contents: {
+        type: 'bubble',
+        header: {
+          type: 'box', layout: 'vertical', paddingAll: '16px',
+          background: { type: 'linearGradient', angle: '135deg', startColor: '#1E40AF', endColor: '#3B82F6' },
+          contents: [
+            { type: 'text', text: '🏢 ORGANIZATIONS', weight: 'bold', color: '#FFFFFF', size: 'sm' },
+            { type: 'text', text: 'ยังไม่ได้เข้าร่วม Org', weight: 'bold', size: 'md', color: '#FFFFFF', margin: 'xs', wrap: true },
+          ],
+        },
+        body: {
+          type: 'box', layout: 'vertical', paddingAll: '16px', spacing: 'md',
+          contents: [{
+            type: 'box', layout: 'vertical', backgroundColor: '#FEF2F2', cornerRadius: 'md',
+            paddingAll: '12px', borderWidth: '1px', borderColor: '#FECACA',
+            contents: [{ type: 'text', text: 'ติดต่อผู้ดูแลระบบเพื่อเชิญเข้า Organization', color: '#DC2626', size: 'sm', wrap: true }],
+          }],
+        },
+      },
+    }]);
   }
 
   if (!args[0]) {
-    const lines = orgs.map((m, i) => `${i + 1}. ${m.organizations.name}`);
-    return replyText(replyToken,
-      `🏢 Organizations ของคุณ (${orgs.length}):\n\n${lines.join('\n')}\n\n` +
-      `พิมพ์ /org <หมายเลข> เพื่อเปลี่ยน\nเช่น /org 1`,
-    );
+    const orgRows = orgs.map((m, i) => ({
+      type: 'box', layout: 'horizontal', contents: [
+        { type: 'text', text: `${i + 1}. ${m.organizations.name}`, size: 'sm', color: '#1F2937', flex: 1, wrap: true },
+      ],
+    }));
+    return replyLine(replyToken, [{
+      type: 'flex',
+      altText: `Organizations (${orgs.length})`,
+      contents: {
+        type: 'bubble',
+        header: {
+          type: 'box', layout: 'vertical', paddingAll: '16px',
+          background: { type: 'linearGradient', angle: '135deg', startColor: '#1E40AF', endColor: '#3B82F6' },
+          contents: [
+            { type: 'text', text: '🏢 ORGANIZATIONS', weight: 'bold', color: '#FFFFFF', size: 'sm' },
+            { type: 'text', text: `เลือก Org ที่ต้องการ`, weight: 'bold', size: 'md', color: '#FFFFFF', margin: 'xs', wrap: true },
+          ],
+        },
+        body: {
+          type: 'box', layout: 'vertical', paddingAll: '16px', spacing: 'md',
+          contents: [
+            ...orgRows,
+            { type: 'separator' },
+            { type: 'text', text: 'พิมพ์ /org <N> เพื่อเปลี่ยน', size: 'xs', color: '#6B7280', wrap: true },
+          ],
+        },
+      },
+    }]);
   }
 
   const n = parseInt(args[0]);
@@ -935,7 +980,29 @@ async function handleOrgCmd(
 
   const selected = orgs[n - 1];
   await admin.from('profiles').update({ line_active_org_id: selected.organization_id }).eq('id', profileId);
-  return replyText(replyToken, `✅ เปลี่ยน org เป็น: ${selected.organizations.name}`);
+  return replyLine(replyToken, [{
+    type: 'flex',
+    altText: `เปลี่ยน Org เป็น ${selected.organizations.name}`,
+    contents: {
+      type: 'bubble',
+      header: {
+        type: 'box', layout: 'vertical', paddingAll: '16px',
+        background: { type: 'linearGradient', angle: '135deg', startColor: '#059669', endColor: '#34D399' },
+        contents: [
+          { type: 'text', text: '✅ เปลี่ยน ORG แล้ว', weight: 'bold', color: '#FFFFFF', size: 'sm' },
+          { type: 'text', text: selected.organizations.name, weight: 'bold', size: 'md', color: '#FFFFFF', margin: 'xs', wrap: true },
+        ],
+      },
+      body: {
+        type: 'box', layout: 'vertical', paddingAll: '16px', spacing: 'md',
+        contents: [{
+          type: 'box', layout: 'vertical', backgroundColor: '#F0FDF4', cornerRadius: 'md',
+          paddingAll: '12px', borderWidth: '1px', borderColor: '#BBF7D0',
+          contents: [{ type: 'text', text: `Org ที่ใช้งานอยู่ตอนนี้: ${selected.organizations.name}`, color: '#15803D', size: 'sm', wrap: true }],
+        }],
+      },
+    },
+  }]);
 }
 
 async function checkPermission(admin: ReturnType<typeof createAdminClient>, profileId: string, key: string, role: string): Promise<boolean> {
@@ -1038,42 +1105,336 @@ export async function POST(req: NextRequest) {
     // Resolve active org (auto-sets on first use)
     const activeOrg = await getOrSetActiveOrg(admin, profile.id, profile.line_active_org_id);
 
-    // /help — org-aware
+    // /help — org-aware Flex Card
     if (cmd === 'help') {
       if (activeOrg?.id === TMC_ORG_ID) {
         await handleTmcHelp(replyToken);
       } else {
         const hasAssistant = await checkAssistantAccess(admin, profile.id, profile.role);
-        await replyText(replyToken,
-          `📖 คำสั่ง PERPOS\n` +
-          `🏢 Org: ${activeOrg?.name ?? 'ไม่มี'}\n\n` +
-          (hasAssistant
-            ? `─── 📋 Task Manager ───\n` +
-              `/t <งาน>  — บันทึกงาน\n` +
-              `/tk  — รายการงานที่รอ\n` +
-              `/d <N>  — ปิดงานที่ N\n` +
-              `/a <ชื่อ> <HH:MM>  — บันทึกนัดหมาย\n` +
-              `/ap  — นัดหมายวันนี้\n\n`
-            : '') +
-          `─── 💰 การเงินส่วนตัว ───\n` +
-          `/รายรับ <จำนวน> [โน้ต]\n` +
-          `/รายจ่าย <จำนวน> [โน้ต]\n\n` +
-          `─── 📰 ข่าว ───\n` +
-          `/ข่าว  — ข่าวสรุป\n\n` +
-          crmHelpText() + '\n\n' +
-          `/org  — ดู/เปลี่ยน Organization`,
+        // Check just_me module
+        let hasJustMe = false;
+        if (activeOrg) {
+          const { data: jmSetting } = await admin
+            .from('org_module_settings')
+            .select('is_enabled')
+            .eq('organization_id', activeOrg.id)
+            .eq('module_key', 'just_me')
+            .maybeSingle();
+          hasJustMe = Boolean(jmSetting?.is_enabled);
+        }
+
+        const cmdRow = (code: string, desc: string) => ({
+          type: 'box', layout: 'horizontal', spacing: 'sm',
+          contents: [
+            { type: 'text', text: code, size: 'xs', color: '#6D28D9', flex: 2, weight: 'bold' },
+            { type: 'text', text: desc, size: 'xs', color: '#374151', flex: 4, wrap: true },
+          ],
+        });
+
+        const bodyContents: unknown[] = [
+          {
+            type: 'box', layout: 'vertical', backgroundColor: '#F3F4F6', cornerRadius: 'md',
+            paddingAll: '10px', borderWidth: '1px', borderColor: '#E5E7EB',
+            contents: [{ type: 'text', text: `🏢 ${activeOrg?.name ?? 'ไม่มี Org'}`, size: 'sm', color: '#1F2937', weight: 'bold', wrap: true }],
+          },
+          { type: 'separator', margin: 'md' },
+          { type: 'text', text: 'คำสั่งหลัก', size: 'xs', color: '#9CA3AF', margin: 'md' },
+          cmdRow('/org', 'ดู/เปลี่ยน Organization'),
+          cmdRow('/help', 'แสดงคำสั่งทั้งหมด'),
+        ];
+
+        if (hasAssistant) {
+          bodyContents.push(
+            { type: 'separator', margin: 'md' },
+            { type: 'text', text: 'Assistant', size: 'xs', color: '#9CA3AF', margin: 'md' },
+            cmdRow('/t <งาน>', 'บันทึกงานใหม่'),
+            cmdRow('/tk', 'รายการงานที่รอ'),
+            cmdRow('/d <N>', 'ปิดงานที่ N'),
+            cmdRow('/a <ชื่อ> <HH:MM>', 'บันทึกนัดหมาย'),
+            cmdRow('/ap', 'นัดหมายวันนี้'),
+          );
+        }
+
+        if (hasJustMe) {
+          bodyContents.push(
+            { type: 'separator', margin: 'md' },
+            { type: 'text', text: 'Just Me', size: 'xs', color: '#9CA3AF', margin: 'md' },
+            cmdRow('/ck home', 'บันทึก clock ที่บ้าน'),
+            cmdRow('/ck site [ชื่อ]', 'บันทึก clock ที่หน้างาน'),
+          );
+        }
+
+        bodyContents.push(
+          { type: 'separator', margin: 'md' },
+          { type: 'text', text: 'การเงิน', size: 'xs', color: '#9CA3AF', margin: 'md' },
+          cmdRow('/รายรับ <จำนวน>', 'บันทึกรายรับ'),
+          cmdRow('/รายจ่าย <จำนวน>', 'บันทึกรายจ่าย'),
         );
+
+        await replyLine(replyToken, [{
+          type: 'flex',
+          altText: 'คำสั่ง PERPOS Bot',
+          contents: {
+            type: 'bubble',
+            header: {
+              type: 'box', layout: 'vertical', paddingAll: '16px',
+              background: { type: 'linearGradient', angle: '135deg', startColor: '#1E293B', endColor: '#475569' },
+              contents: [
+                { type: 'text', text: '💡 PERPOS BOT', weight: 'bold', color: '#FFFFFF', size: 'sm' },
+                { type: 'text', text: 'คำสั่งทั้งหมด', weight: 'bold', size: 'md', color: '#FFFFFF', margin: 'xs', wrap: true },
+              ],
+            },
+            body: {
+              type: 'box', layout: 'vertical', paddingAll: '16px', spacing: 'sm',
+              contents: bodyContents,
+            },
+          },
+        }]);
       }
+      continue;
+    }
+
+    // ─── Global commands (no active org required) ────────────────────────────
+
+    if (cmd === 'ข่าว') {
+      if (!await checkPermission(admin, profile.id, 'bot.news.request', profile.role)) {
+        await replyText(replyToken, '❌ ไม่มีสิทธิ์ใช้คำสั่งนี้'); continue;
+      }
+      await replyText(replyToken, '⏳ กำลังดึงข่าว...');
+      continue;
+    }
+
+    if (cmd === 'รายรับ' || cmd === 'รายจ่าย') {
+      const permKey = cmd === 'รายรับ' ? 'bot.finance.income_add' : 'bot.finance.expense_add';
+      if (!await checkPermission(admin, profile.id, permKey, profile.role)) {
+        await replyText(replyToken, '❌ ไม่มีสิทธิ์ใช้คำสั่งนี้'); continue;
+      }
+      const amount = parseFloat(args[0] ?? '');
+      if (!amount || isNaN(amount)) { await replyText(replyToken, '❌ ระบุจำนวนเงินให้ถูกต้อง'); continue; }
+      const note = args.slice(1).join(' ') || '';
+      await admin.from('finance_entries').insert({ profile_id: profile.id, entry_type: cmd === 'รายรับ' ? 'income' : 'expense', amount, note });
+      await replyText(replyToken, `✅ บันทึก${cmd} ${amount.toLocaleString('th-TH')} บาท${note ? ` (${note})` : ''}`);
+      continue;
+    }
+
+    if (cmd === 't') {
+      if (!await checkAssistantAccess(admin, profile.id, profile.role)) {
+        await replyText(replyToken, '❌ ไม่มีสิทธิ์ใช้คำสั่งนี้'); continue;
+      }
+      const title = args.join(' ').trim();
+      if (!title) { await replyText(replyToken, '❌ ระบุชื่องาน เช่น /t ติดต่อลูกค้า'); continue; }
+      const { error: tErr } = await admin.from('tasks').insert({ profile_id: profile.id, title, status: 'pending', priority: 'medium' });
+      if (tErr) { await replyText(replyToken, `❌ บันทึกไม่สำเร็จ: ${tErr.message}`); continue; }
+      await replyText(replyToken, `✅ บันทึกงาน: ${title}`);
+      continue;
+    }
+
+    if (cmd === 'tk') {
+      if (!await checkAssistantAccess(admin, profile.id, profile.role)) {
+        await replyText(replyToken, '❌ ไม่มีสิทธิ์ใช้คำสั่งนี้'); continue;
+      }
+      const { data: tasks } = await admin.from('tasks').select('title').eq('profile_id', profile.id).eq('status', 'pending').order('created_at').limit(10);
+      const taskList = (tasks ?? []) as { title: string }[];
+
+      let bodyContents: unknown[];
+      if (!taskList.length) {
+        bodyContents = [{
+          type: 'box', layout: 'vertical', backgroundColor: '#F0FDF4', cornerRadius: 'md',
+          paddingAll: '12px', borderWidth: '1px', borderColor: '#BBF7D0',
+          contents: [
+            { type: 'text', text: '✅ ไม่มีงานที่รออยู่', color: '#15803D', size: 'sm', wrap: true },
+            { type: 'text', text: '/t ชื่องาน เพื่อเพิ่มงาน', color: '#166534', size: 'xs', wrap: true, margin: 'xs' },
+          ],
+        }];
+      } else {
+        const taskRows = taskList.map((t, i) => ({
+          type: 'box', layout: 'horizontal', contents: [
+            { type: 'text', text: `${i + 1}.`, size: 'sm', color: '#7C3AED', flex: 0, margin: 'none' },
+            { type: 'text', text: t.title, size: 'sm', color: '#1F2937', flex: 1, wrap: true, margin: 'sm' },
+          ],
+        }));
+        bodyContents = [
+          ...taskRows,
+          { type: 'separator', margin: 'md' },
+          { type: 'text', text: '/d <N> เพื่อปิดงาน', size: 'xs', color: '#6B7280', margin: 'sm' },
+        ];
+      }
+
+      await replyLine(replyToken, [{
+        type: 'flex',
+        altText: `งานที่รอ (${taskList.length})`,
+        contents: {
+          type: 'bubble',
+          header: {
+            type: 'box', layout: 'vertical', paddingAll: '16px',
+            background: { type: 'linearGradient', angle: '135deg', startColor: '#7C3AED', endColor: '#A78BFA' },
+            contents: [
+              { type: 'text', text: '📋 TASK LIST', weight: 'bold', color: '#FFFFFF', size: 'sm' },
+              { type: 'text', text: 'งานที่รอดำเนินการ', weight: 'bold', size: 'md', color: '#FFFFFF', margin: 'xs', wrap: true },
+            ],
+          },
+          body: {
+            type: 'box', layout: 'vertical', paddingAll: '16px', spacing: 'sm',
+            contents: bodyContents,
+          },
+        },
+      }]);
+      continue;
+    }
+
+    if (cmd === 'd') {
+      if (!await checkAssistantAccess(admin, profile.id, profile.role)) {
+        await replyText(replyToken, '❌ ไม่มีสิทธิ์ใช้คำสั่งนี้'); continue;
+      }
+      const n = parseInt(args[0] ?? '');
+      if (!n || isNaN(n)) { await replyText(replyToken, '❌ ระบุหมายเลขงาน เช่น /d 1'); continue; }
+      const { data: tasks } = await admin.from('tasks').select('id, title').eq('profile_id', profile.id).eq('status', 'pending').order('created_at').limit(20);
+      const target = (tasks as { id: string; title: string }[] | null)?.[n - 1];
+      if (!target) { await replyText(replyToken, `❌ ไม่พบงานที่ ${n}`); continue; }
+      await admin.from('tasks').update({ status: 'completed' }).eq('id', target.id);
+      await replyText(replyToken, `✅ ปิดงาน: ${target.title}`);
+      continue;
+    }
+
+    // /a <ชื่อ> <วัน YYYY-MM-DD|today|วันนี้> <HH:MM> — บันทึกนัดหมาย
+    if (cmd === 'a') {
+      if (!await checkAssistantAccess(admin, profile.id, profile.role)) {
+        await replyText(replyToken, '❌ ไม่มีสิทธิ์ใช้คำสั่งนี้'); continue;
+      }
+      // /a <ชื่อ> <HH:MM>  หรือ  /a <ชื่อ> <YYYY-MM-DD> <HH:MM>
+      if (!args[0]) {
+        await replyText(replyToken, '❌ รูปแบบ: /a <ชื่องาน> <HH:MM>\nหรือ: /a <ชื่องาน> <วัน YYYY-MM-DD> <HH:MM>\nเช่น: /a ประชุมทีม 14:00');
+        continue;
+      }
+      // detect if args contains a date (YYYY-MM-DD) or time (HH:MM)
+      const timeRe  = /^\d{1,2}:\d{2}$/;
+      const dateRe  = /^\d{4}-\d{2}-\d{2}$/;
+      const todayIso = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Bangkok' });
+
+      let title = '';
+      let dateStr = todayIso;
+      let timeStr = '';
+
+      // last arg: time, second-to-last: optional date, rest: title
+      const lastArg = args[args.length - 1];
+      if (timeRe.test(lastArg)) {
+        timeStr = lastArg;
+        const rest = args.slice(0, -1);
+        if (rest.length > 0 && dateRe.test(rest[rest.length - 1])) {
+          dateStr = rest[rest.length - 1];
+          title   = rest.slice(0, -1).join(' ').trim();
+        } else {
+          title = rest.join(' ').trim();
+        }
+      } else {
+        await replyText(replyToken, '❌ ต้องระบุเวลา HH:MM ท้ายสุด เช่น /a ประชุมทีม 14:00');
+        continue;
+      }
+
+      if (!title) { await replyText(replyToken, '❌ ระบุชื่อนัดหมาย เช่น /a ประชุมทีม 14:00'); continue; }
+
+      const startsAt = `${dateStr}T${timeStr}:00+07:00`;
+      const { error: aErr } = await admin.from('calendar_events').insert({
+        profile_id: profile.id,
+        title,
+        starts_at: startsAt,
+      });
+      if (aErr) { await replyText(replyToken, `❌ บันทึกไม่สำเร็จ: ${aErr.message}`); continue; }
+
+      const displayDate = dateStr === todayIso ? 'วันนี้' : dateStr;
+      await replyText(replyToken, `✅ บันทึกนัดหมาย\n📅 ${displayDate} ${timeStr} น.\n📌 ${title}`);
+      continue;
+    }
+
+    // /ap — รายการนัดวันนี้
+    if (cmd === 'ap') {
+      if (!await checkAssistantAccess(admin, profile.id, profile.role)) {
+        await replyText(replyToken, '❌ ไม่มีสิทธิ์ใช้คำสั่งนี้'); continue;
+      }
+      const todayIso = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Bangkok' });
+      const tomorrowIso = new Date(Date.now() + 86400000).toLocaleDateString('sv-SE', { timeZone: 'Asia/Bangkok' });
+      const thaiDateTitle = new Date().toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'Asia/Bangkok' });
+      const { data: events } = await admin
+        .from('calendar_events')
+        .select('title, starts_at')
+        .eq('profile_id', profile.id)
+        .gte('starts_at', `${todayIso}T00:00:00+07:00`)
+        .lt('starts_at',  `${tomorrowIso}T00:00:00+07:00`)
+        .order('starts_at');
+
+      const eventList = (events ?? []) as { title: string; starts_at: string }[];
+
+      let bodyContents: unknown[];
+      if (!eventList.length) {
+        bodyContents = [{
+          type: 'box', layout: 'vertical', backgroundColor: '#F0F9FF', cornerRadius: 'md',
+          paddingAll: '12px', borderWidth: '1px', borderColor: '#BAE6FD',
+          contents: [
+            { type: 'text', text: 'ไม่มีนัดหมายวันนี้', color: '#0369A1', size: 'sm', wrap: true },
+            { type: 'text', text: '/a ชื่อ HH:MM เพื่อเพิ่มนัด', color: '#075985', size: 'xs', wrap: true, margin: 'xs' },
+          ],
+        }];
+      } else {
+        const eventRows = eventList.map(e => {
+          const t = new Date(e.starts_at).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Bangkok' });
+          return {
+            type: 'box', layout: 'horizontal', contents: [
+              { type: 'text', text: `🕐 ${t}`, size: 'sm', color: '#0369A1', flex: 0 },
+              { type: 'text', text: `— ${e.title}`, size: 'sm', color: '#1F2937', flex: 1, wrap: true, margin: 'sm' },
+            ],
+          };
+        });
+        bodyContents = eventRows;
+      }
+
+      await replyLine(replyToken, [{
+        type: 'flex',
+        altText: `นัดหมายวันนี้ (${eventList.length})`,
+        contents: {
+          type: 'bubble',
+          header: {
+            type: 'box', layout: 'vertical', paddingAll: '16px',
+            background: { type: 'linearGradient', angle: '135deg', startColor: '#0369A1', endColor: '#38BDF8' },
+            contents: [
+              { type: 'text', text: "📅 TODAY'S SCHEDULE", weight: 'bold', color: '#FFFFFF', size: 'sm' },
+              { type: 'text', text: `วันนี้ ${thaiDateTitle}`, weight: 'bold', size: 'md', color: '#FFFFFF', margin: 'xs', wrap: true },
+            ],
+          },
+          body: {
+            type: 'box', layout: 'vertical', paddingAll: '16px', spacing: 'sm',
+            contents: bodyContents,
+          },
+        },
+      }]);
       continue;
     }
 
     // ─── Org-specific commands (TMC) ─────────────────────────────────────────
     if (TMC_CMDS.includes(cmd)) {
       if (!activeOrg || activeOrg.id !== TMC_ORG_ID) {
-        await replyText(replyToken,
-          `❌ org ปัจจุบัน "${activeOrg?.name ?? 'ไม่มี'}" ไม่รองรับคำสั่งนี้\n` +
-          `พิมพ์ /org เพื่อดูและเปลี่ยน org`,
-        );
+        await replyLine(replyToken, [{
+          type: 'flex',
+          altText: 'ไม่รองรับคำสั่งนี้',
+          contents: {
+            type: 'bubble',
+            header: {
+              type: 'box', layout: 'vertical', paddingAll: '16px',
+              background: { type: 'linearGradient', angle: '135deg', startColor: '#DC2626', endColor: '#F87171' },
+              contents: [
+                { type: 'text', text: '❌ ORG ไม่รองรับ', weight: 'bold', color: '#FFFFFF', size: 'sm' },
+                { type: 'text', text: `${activeOrg?.name ?? 'ไม่มี Org'}`, weight: 'bold', size: 'md', color: '#FFFFFF', margin: 'xs', wrap: true },
+              ],
+            },
+            body: {
+              type: 'box', layout: 'vertical', paddingAll: '16px', spacing: 'md',
+              contents: [{
+                type: 'box', layout: 'vertical', backgroundColor: '#FEF2F2', cornerRadius: 'md',
+                paddingAll: '12px', borderWidth: '1px', borderColor: '#FECACA',
+                contents: [{ type: 'text', text: 'พิมพ์ /org เพื่อดูและเปลี่ยน Org', color: '#DC2626', size: 'sm', wrap: true }],
+              }],
+            },
+          },
+        }]);
         continue;
       }
 
@@ -1117,7 +1478,29 @@ export async function POST(req: NextRequest) {
     // ─── Just Me travel clock (/ck home | /ck site) ─────────────────────────
     if (cmd === 'ck') {
       if (!activeOrg) {
-        await replyText(replyToken, '❌ ยังไม่มี Organization\nพิมพ์ /org เพื่อตั้งค่า');
+        await replyLine(replyToken, [{
+          type: 'flex',
+          altText: 'ยังไม่มี Organization',
+          contents: {
+            type: 'bubble',
+            header: {
+              type: 'box', layout: 'vertical', paddingAll: '16px',
+              background: { type: 'linearGradient', angle: '135deg', startColor: '#DC2626', endColor: '#F87171' },
+              contents: [
+                { type: 'text', text: '❌ ไม่มี Organization', weight: 'bold', color: '#FFFFFF', size: 'sm' },
+                { type: 'text', text: 'กรุณาตั้งค่า Org ก่อน', weight: 'bold', size: 'md', color: '#FFFFFF', margin: 'xs', wrap: true },
+              ],
+            },
+            body: {
+              type: 'box', layout: 'vertical', paddingAll: '16px', spacing: 'md',
+              contents: [{
+                type: 'box', layout: 'vertical', backgroundColor: '#FEF2F2', cornerRadius: 'md',
+                paddingAll: '12px', borderWidth: '1px', borderColor: '#FECACA',
+                contents: [{ type: 'text', text: 'พิมพ์ /org เพื่อตั้งค่า', color: '#DC2626', size: 'sm', wrap: true }],
+              }],
+            },
+          },
+        }]);
         continue;
       }
       const { data: ckModuleSetting } = await admin
@@ -1198,143 +1581,6 @@ export async function POST(req: NextRequest) {
 
       // /n /survey /issue /mtg /log
       await handleCrmCmd(admin, cmd, args, profile.id, profileName, profile.role, activeOrg.id, replyToken);
-      continue;
-    }
-
-    // ─── Personal commands (all orgs, permission-gated) ───────────────────────
-
-    if (cmd === 'ข่าว') {
-      if (!await checkPermission(admin, profile.id, 'bot.news.request', profile.role)) {
-        await replyText(replyToken, '❌ ไม่มีสิทธิ์ใช้คำสั่งนี้'); continue;
-      }
-      await replyText(replyToken, '⏳ กำลังดึงข่าว...');
-      continue;
-    }
-
-    if (cmd === 'รายรับ' || cmd === 'รายจ่าย') {
-      const permKey = cmd === 'รายรับ' ? 'bot.finance.income_add' : 'bot.finance.expense_add';
-      if (!await checkPermission(admin, profile.id, permKey, profile.role)) {
-        await replyText(replyToken, '❌ ไม่มีสิทธิ์ใช้คำสั่งนี้'); continue;
-      }
-      const amount = parseFloat(args[0] ?? '');
-      if (!amount || isNaN(amount)) { await replyText(replyToken, '❌ ระบุจำนวนเงินให้ถูกต้อง'); continue; }
-      const note = args.slice(1).join(' ') || '';
-      await admin.from('finance_entries').insert({ profile_id: profile.id, entry_type: cmd === 'รายรับ' ? 'income' : 'expense', amount, note });
-      await replyText(replyToken, `✅ บันทึก${cmd} ${amount.toLocaleString('th-TH')} บาท${note ? ` (${note})` : ''}`);
-      continue;
-    }
-
-    if (cmd === 't') {
-      if (!await checkAssistantAccess(admin, profile.id, profile.role)) {
-        await replyText(replyToken, '❌ ไม่มีสิทธิ์ใช้คำสั่งนี้'); continue;
-      }
-      const title = args.join(' ').trim();
-      if (!title) { await replyText(replyToken, '❌ ระบุชื่องาน เช่น /t ติดต่อลูกค้า'); continue; }
-      const { error: tErr } = await admin.from('tasks').insert({ profile_id: profile.id, title, status: 'pending', priority: 'medium' });
-      if (tErr) { await replyText(replyToken, `❌ บันทึกไม่สำเร็จ: ${tErr.message}`); continue; }
-      await replyText(replyToken, `✅ บันทึกงาน: ${title}`);
-      continue;
-    }
-
-    if (cmd === 'tk') {
-      if (!await checkAssistantAccess(admin, profile.id, profile.role)) {
-        await replyText(replyToken, '❌ ไม่มีสิทธิ์ใช้คำสั่งนี้'); continue;
-      }
-      const { data: tasks } = await admin.from('tasks').select('title').eq('profile_id', profile.id).eq('status', 'pending').order('created_at').limit(10);
-      if (!tasks?.length) { await replyText(replyToken, '✅ ไม่มีงานที่รออยู่'); continue; }
-      const lines = (tasks as { title: string }[]).map((t, i) => `${i + 1}. ${t.title}`);
-      await replyText(replyToken, `📋 งานที่รอ (${tasks.length}):\n${lines.join('\n')}`);
-      continue;
-    }
-
-    if (cmd === 'd') {
-      if (!await checkAssistantAccess(admin, profile.id, profile.role)) {
-        await replyText(replyToken, '❌ ไม่มีสิทธิ์ใช้คำสั่งนี้'); continue;
-      }
-      const n = parseInt(args[0] ?? '');
-      if (!n || isNaN(n)) { await replyText(replyToken, '❌ ระบุหมายเลขงาน เช่น /d 1'); continue; }
-      const { data: tasks } = await admin.from('tasks').select('id, title').eq('profile_id', profile.id).eq('status', 'pending').order('created_at').limit(20);
-      const target = (tasks as { id: string; title: string }[] | null)?.[n - 1];
-      if (!target) { await replyText(replyToken, `❌ ไม่พบงานที่ ${n}`); continue; }
-      await admin.from('tasks').update({ status: 'completed' }).eq('id', target.id);
-      await replyText(replyToken, `✅ ปิดงาน: ${target.title}`);
-      continue;
-    }
-
-    // /a <ชื่อ> <วัน YYYY-MM-DD|today|วันนี้> <HH:MM> — บันทึกนัดหมาย
-    if (cmd === 'a') {
-      if (!await checkAssistantAccess(admin, profile.id, profile.role)) {
-        await replyText(replyToken, '❌ ไม่มีสิทธิ์ใช้คำสั่งนี้'); continue;
-      }
-      // /a <ชื่อ> <HH:MM>  หรือ  /a <ชื่อ> <YYYY-MM-DD> <HH:MM>
-      if (!args[0]) {
-        await replyText(replyToken, '❌ รูปแบบ: /a <ชื่องาน> <HH:MM>\nหรือ: /a <ชื่องาน> <วัน YYYY-MM-DD> <HH:MM>\nเช่น: /a ประชุมทีม 14:00');
-        continue;
-      }
-      // detect if args contains a date (YYYY-MM-DD) or time (HH:MM)
-      const timeRe  = /^\d{1,2}:\d{2}$/;
-      const dateRe  = /^\d{4}-\d{2}-\d{2}$/;
-      const todayIso = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Bangkok' });
-
-      let title = '';
-      let dateStr = todayIso;
-      let timeStr = '';
-
-      // last arg: time, second-to-last: optional date, rest: title
-      const lastArg = args[args.length - 1];
-      if (timeRe.test(lastArg)) {
-        timeStr = lastArg;
-        const rest = args.slice(0, -1);
-        if (rest.length > 0 && dateRe.test(rest[rest.length - 1])) {
-          dateStr = rest[rest.length - 1];
-          title   = rest.slice(0, -1).join(' ').trim();
-        } else {
-          title = rest.join(' ').trim();
-        }
-      } else {
-        await replyText(replyToken, '❌ ต้องระบุเวลา HH:MM ท้ายสุด เช่น /a ประชุมทีม 14:00');
-        continue;
-      }
-
-      if (!title) { await replyText(replyToken, '❌ ระบุชื่อนัดหมาย เช่น /a ประชุมทีม 14:00'); continue; }
-
-      const startsAt = `${dateStr}T${timeStr}:00+07:00`;
-      const { error: aErr } = await admin.from('calendar_events').insert({
-        profile_id: profile.id,
-        title,
-        starts_at: startsAt,
-      });
-      if (aErr) { await replyText(replyToken, `❌ บันทึกไม่สำเร็จ: ${aErr.message}`); continue; }
-
-      const displayDate = dateStr === todayIso ? 'วันนี้' : dateStr;
-      await replyText(replyToken, `✅ บันทึกนัดหมาย\n📅 ${displayDate} ${timeStr} น.\n📌 ${title}`);
-      continue;
-    }
-
-    // /ap — รายการนัดวันนี้
-    if (cmd === 'ap') {
-      if (!await checkAssistantAccess(admin, profile.id, profile.role)) {
-        await replyText(replyToken, '❌ ไม่มีสิทธิ์ใช้คำสั่งนี้'); continue;
-      }
-      const todayIso = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Bangkok' });
-      const tomorrowIso = new Date(Date.now() + 86400000).toLocaleDateString('sv-SE', { timeZone: 'Asia/Bangkok' });
-      const { data: events } = await admin
-        .from('calendar_events')
-        .select('title, starts_at')
-        .eq('profile_id', profile.id)
-        .gte('starts_at', `${todayIso}T00:00:00+07:00`)
-        .lt('starts_at',  `${tomorrowIso}T00:00:00+07:00`)
-        .order('starts_at');
-
-      if (!events?.length) {
-        await replyText(replyToken, '📅 ไม่มีนัดหมายวันนี้\nเพิ่มนัดด้วย /a <ชื่อ> <HH:MM>');
-        continue;
-      }
-      const lines = (events as { title: string; starts_at: string }[]).map(e => {
-        const t = new Date(e.starts_at).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Bangkok' });
-        return `🕐 ${t} — ${e.title}`;
-      });
-      await replyText(replyToken, `📅 นัดหมายวันนี้ (${events.length}):\n\n${lines.join('\n')}`);
       continue;
     }
   }
