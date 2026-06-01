@@ -32,6 +32,7 @@ import {
   CalendarDays,
   ClipboardList,
   BedDouble,
+  Navigation,
 } from "lucide-react";
 
 import type { Role } from "@/lib/supabase/types";
@@ -411,6 +412,7 @@ function buildJustMeMenuItems(org: string, orgRole?: string | null, labels: Reco
   // Only show Dashboard to owner and admin roles
   if (orgRole === "owner" || orgRole === "admin") {
     items.push({ name: l("dashboard", "Dashboard"), href: `/${org}/just-me`, icon: <LayoutDashboard className="h-5 w-5" /> });
+    items.push({ name: l("travel_claims", "อนุมัติค่าเดินทาง"), href: p("travel-claims"), icon: <Navigation className="h-5 w-5" /> });
   }
 
   items.push({ name: l("clock_in_out", "Clock In/Out"), href: p("clock-in-out"), icon: <Clock className="h-5 w-5" /> });
