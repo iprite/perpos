@@ -395,7 +395,7 @@ export default function ClockInOutPage() {
                               <span className="truncate">{hop.fromAddress}</span>
                               <span className="text-slate-400 shrink-0">→</span>
                               <span className="truncate">{hop.toAddress}</span>
-                              <span className="ml-auto font-semibold text-violet-700 shrink-0">{hop.distanceKm} km</span>
+                              <span className="ml-auto font-semibold text-violet-700 shrink-0">{Number(hop.distanceKm || 0)} km</span>
                             </div>
                           ))}
                         </div>
@@ -403,11 +403,11 @@ export default function ClockInOutPage() {
                       <div className="pt-3 border-t border-violet-200 flex items-center justify-between">
                         <div className="flex items-center gap-1.5 text-xs text-slate-500">
                           <Fuel className="h-3.5 w-3.5 text-violet-500" />
-                          <span>{travelClaim.total_distance_km} km × {travelClaim.fuel_rate_per_km} บาท/km</span>
+                          <span>{Number(travelClaim.total_distance_km || 0)} km × {Number(travelClaim.fuel_rate_per_km || 0)} บาท/km</span>
                         </div>
                         <div className="text-right">
                           <p className="text-lg font-black text-violet-700">
-                            ฿{travelClaim.total_amount.toLocaleString('th-TH', { minimumFractionDigits: 2 })}
+                            ฿{Number(travelClaim.total_amount || 0).toLocaleString('th-TH', { minimumFractionDigits: 2 })}
                           </p>
                         </div>
                       </div>
