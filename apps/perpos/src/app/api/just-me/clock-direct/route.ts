@@ -95,12 +95,14 @@ async function handleArrive(
 
   const { data: session } = await admin
     .from('just_me_clock_sessions')
-    .select('status, last_depart_time, last_depart_latitude, last_depart_longitude, last_depart_address')
+    .select('status, last_depart_time, last_depart_latitude, last_depart_longitude, last_depart_address, last_in_time, last_in_latitude, last_in_longitude, last_in_address')
     .eq('profile_id', profileId)
     .maybeSingle();
 
-  if (!session || session.status !== 'traveling') {
-    return NextResponse.json({ error: 'ยังไม่มีการบันทึกต้นทาง กรุณาพิมพ์ /ck home หรือ /ck site ก่อน' }, { status: 400 });
+  const sessionStatus = session?.status ?? 'idle';
+
+  if (locationType === 'home' && sessionStatus === 'idle') {
+    return NextResponse.json({ error: 'คุณยังไม่ได้เริ่มบันทึกการเดินทางของวันนี้' }, { status: 400 });
   }
 
   const nextSeq = await getNextSeq(admin, profileId, orgId, workDate);
@@ -116,9 +118,22 @@ async function handleArrive(
 
   // Calculate this hop's distance
   let hopResult: { distanceKm: number; fromAddress: string; toAddress: string } | null = null;
-  if (session.last_depart_latitude != null && session.last_depart_longitude != null) {
+  
+  // Decide where we departed from
+  let departLat = session?.last_depart_latitude;
+  let departLng = session?.last_depart_longitude;
+  let departAddr = session?.last_depart_address;
+
+  if (sessionStatus === 'working') {
+    // If they skipped depart log, the previous point is the arrival point of the last site they worked at
+    departLat = session?.last_in_latitude;
+    departLng = session?.last_in_longitude;
+    departAddr = session?.last_in_address;
+  }
+
+  if (departLat != null && departLng != null) {
     const waypoints: LatLng[] = [
-      { lat: Number(session.last_depart_latitude), lng: Number(session.last_depart_longitude), address: session.last_depart_address || undefined },
+      { lat: Number(departLat), lng: Number(departLng), address: departAddr || undefined },
       { lat: latitude, lng: longitude, address: addr },
     ];
     const route = await computeTravelRoute(waypoints);
@@ -132,6 +147,20 @@ async function handleArrive(
 
   // If arriving home → clear session (day done); else → set working at this site
   if (locationType === 'home') {
+    const { data: claim } = await admin
+      .from('just_me_travel_claims')
+      .select('work_start_time, work_end_time')
+      .eq('profile_id', profileId).eq('org_id', orgId).eq('work_date', workDate)
+      .maybeSingle();
+
+    if (claim && claim.work_start_time && !claim.work_end_time) {
+      const endTime = now;
+      const workMinutes = Math.round((new Date(endTime).getTime() - new Date(claim.work_start_time).getTime()) / 60000);
+      await admin.from('just_me_travel_claims')
+        .update({ work_end_time: endTime, work_minutes: workMinutes, updated_at: new Date().toISOString() })
+        .eq('profile_id', profileId).eq('org_id', orgId).eq('work_date', workDate);
+    }
+
     await admin.from('just_me_clock_sessions').delete().eq('profile_id', profileId);
   } else {
     await admin.from('just_me_clock_sessions').upsert({

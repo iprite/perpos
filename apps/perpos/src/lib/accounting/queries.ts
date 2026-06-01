@@ -188,23 +188,32 @@ export async function getEnabledModulesForOrg(
   memberRole: "owner" | "admin" | "team_lead" | "team_member" | null,
 ): Promise<string[]> {
   if (!orgId) return [];
-  // Use admin client to bypass RLS — this function is server-only and
-  // the orgId + memberRole parameters already scope the result correctly.
   const { createSupabaseAdminClient } = await import("@/lib/supabase/admin");
+  const { ALL_MODULES } = await import("@/lib/modules");
   const supabase = createSupabaseAdminClient();
-  const { data } = await supabase
-    .from("org_module_settings")
-    .select("module_key,is_enabled,allowed_roles")
-    .eq("organization_id", orgId);
 
-  // ถ้ายังไม่มีการตั้งค่า module ใน org นี้ ไม่ return all เพราะจะทำให้เห็น module ที่ไม่ได้เปิดไว้
+  // Fetch org slug alongside module settings — needed to enforce forOrgSlugs
+  const [{ data: orgData }, { data }] = await Promise.all([
+    supabase.from("organizations").select("slug").eq("id", orgId).single(),
+    supabase
+      .from("org_module_settings")
+      .select("module_key,is_enabled,allowed_roles")
+      .eq("organization_id", orgId),
+  ]);
+
   if (!data?.length) return [];
+
+  const orgSlug = (orgData as { slug: string } | null)?.slug ?? "";
 
   return (data as any[])
     .filter((row) => {
       if (!row.is_enabled) return false;
-      if (!memberRole) return true;
-      return (row.allowed_roles as string[]).includes(memberRole);
+      if (memberRole && !(row.allowed_roles as string[]).includes(memberRole)) return false;
+      // Guard: specific modules with forOrgSlugs must match this org's slug.
+      // This prevents a module from being served to a wrong org even if DB has stale data.
+      const def = ALL_MODULES.find((m) => m.key === row.module_key);
+      if (def?.forOrgSlugs && !def.forOrgSlugs.includes(orgSlug)) return false;
+      return true;
     })
     .map((row) => row.module_key as string);
 }

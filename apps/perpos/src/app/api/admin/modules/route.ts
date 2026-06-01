@@ -3,6 +3,13 @@ import { requireAdmin } from '../../_lib/auth';
 import { createAdminClient } from '../../_lib/supabase';
 import { ALL_MODULES, MODULE_MENUS, ORG_ROLES } from '@/lib/modules';
 
+/** Returns true if this module is allowed to be enabled for the given org slug */
+function isModuleAllowedForOrg(moduleKey: string, orgSlug: string): boolean {
+  const def = ALL_MODULES.find((m) => m.key === moduleKey);
+  if (!def?.forOrgSlugs) return true; // no slug restriction — always allowed
+  return def.forOrgSlugs.includes(orgSlug);
+}
+
 const DEFAULT_MODULE_ROLES = ['owner', 'admin'];
 const ALL_ROLES = [...ORG_ROLES];
 
@@ -165,17 +172,34 @@ export async function PUT(req: NextRequest) {
       ]),
     );
 
-  // Upsert module-level settings
-  const moduleRows = settings.map((s: unknown) => {
-    const setting = s as Record<string, unknown>;
-    return {
-      organization_id: orgId,
-      module_key:      String(setting.module_key),
-      is_enabled:      Boolean(setting.is_enabled),
-      allowed_roles:   Array.isArray(setting.allowed_roles) ? setting.allowed_roles : [],
-      updated_at:      now,
-    };
-  });
+  // Fetch org slug to validate forOrgSlugs restrictions
+  const { data: orgData } = await admin
+    .from('organizations')
+    .select('slug')
+    .eq('id', orgId)
+    .single();
+  const orgSlug = (orgData as { slug: string } | null)?.slug ?? '';
+
+  // Upsert module-level settings — skip any module that is not allowed for this org
+  // (i.e. specific modules with forOrgSlugs that don't include this org's slug)
+  const moduleRows = settings
+    .map((s: unknown) => {
+      const setting = s as Record<string, unknown>;
+      return {
+        organization_id: orgId,
+        module_key:      String(setting.module_key),
+        is_enabled:      Boolean(setting.is_enabled),
+        allowed_roles:   Array.isArray(setting.allowed_roles) ? setting.allowed_roles : [],
+        updated_at:      now,
+      };
+    })
+    .filter((row) => {
+      if (!isModuleAllowedForOrg(row.module_key, orgSlug)) {
+        console.warn(`[modules/PUT] Rejected: module "${row.module_key}" is not allowed for org "${orgSlug}"`);
+        return false;
+      }
+      return true;
+    });
 
   const { error: modErr } = await admin
     .from('org_module_settings')

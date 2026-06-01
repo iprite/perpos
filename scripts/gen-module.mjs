@@ -45,6 +45,20 @@ if (!SLUG_RE.test(slug)) {
 const isSpecific = isSpecificStr !== 'false';
 const forOrgSlugs = forOrgSlugsStr ? forOrgSlugsStr.split(',').map(s => s.trim()).filter(Boolean) : [];
 
+// Guard: specific modules without forOrgSlugs have no org-level lock —
+// they can be enabled for ANY org by any admin, which is almost never intended.
+if (isSpecific && forOrgSlugs.length === 0) {
+  console.warn(`
+⚠️  คำเตือน: คุณกำลังสร้าง specific module "${key}" โดยไม่ระบุ for_org_slugs
+   ซึ่งหมายความว่า admin สามารถเปิด module นี้ให้ org ใดก็ได้โดยไม่มีการล็อก
+   ถ้าต้องการล็อกเฉพาะ org ให้ระบุ:
+     pnpm gen-module ${key} "${label}" ${slug} true <org-slug1>,<org-slug2>
+
+   กด Ctrl+C เพื่อยกเลิก หรือรอ 5 วินาทีเพื่อดำเนินการต่อโดยไม่มีการล็อก...
+`);
+  await new Promise(resolve => setTimeout(resolve, 5000));
+}
+
 // Helper to convert snake/kebab to PascalCase
 function toPascalCase(str) {
   return str

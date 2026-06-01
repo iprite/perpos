@@ -3,94 +3,817 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useParams } from 'next/navigation';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
+import { backendUrl } from '@/lib/backend';
 import { Button } from '@/components/ui/button';
-import { LayoutGrid, Loader2, AlertCircle } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { CustomSelect } from '@/components/ui/custom-select';
+import { ThaiDatePicker } from '@/components/ui/thai-date-picker';
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+} from '@/components/ui/dialog';
+import {
+  Building2, TrendingUp, Loader2, AlertCircle, Plus, Pencil,
+  Trash2, RefreshCw, ClipboardList, BadgeCheck, Clock, PackageCheck,
+} from 'lucide-react';
 
-export default function B2gPage() {
+// ─── Types ────────────────────────────────────────────────────────────────────
+type B2gOrder = {
+  id: string;
+  seq_no: number | null;
+  customer_name: string;
+  department: string | null;
+  company: string | null;
+  qt_reference: string | null;
+  product_description: string | null;
+  start_date: string | null;
+  price_incl_vat: number | null;
+  price_excl_vat: number | null;
+  withholding_tax: number | null;
+  net_receivable: number | null;
+  cost_price: number | null;
+  gross_profit: number | null;
+  security_deposit: number | null;
+  transfer_date: string | null;
+  transfer_round1: string | null;
+  transfer_round2: string | null;
+  customer_change: number | null;
+  customer_change_slip: string | null;
+  petty_cash: number | null;
+  petty_cash_slip: string | null;
+  transport_buy: number | null;
+  transport_sell: number | null;
+  transport_other: number | null;
+  operate_89: number | null;
+  total_cost_89: number | null;
+  net_profit_89: number | null;
+  profit_pct: number | null;
+  contract_date: string | null;
+  payment_order_date: string | null;
+  delivery_date: string | null;
+  receipt_date: string | null;
+  duration_days: number | null;
+  job_status: string | null;
+  finance_payment_date: string | null;
+  support_payment_date: string | null;
+  commission_payment_date: string | null;
+  notes: string | null;
+  created_at: string;
+};
+
+type FormData = Omit<B2gOrder, 'id' | 'created_at'>;
+
+const EMPTY_FORM: FormData = {
+  seq_no: null, customer_name: '', department: null, company: null,
+  qt_reference: null, product_description: null, start_date: null,
+  price_incl_vat: null, price_excl_vat: null, withholding_tax: null,
+  net_receivable: null, cost_price: null, gross_profit: null, security_deposit: null,
+  transfer_date: null, transfer_round1: null, transfer_round2: null,
+  customer_change: null, customer_change_slip: null, petty_cash: null,
+  petty_cash_slip: null, transport_buy: null, transport_sell: null,
+  transport_other: null, operate_89: null, total_cost_89: null,
+  net_profit_89: null, profit_pct: null, contract_date: null,
+  payment_order_date: null, delivery_date: null, receipt_date: null,
+  duration_days: null, job_status: null, finance_payment_date: null,
+  support_payment_date: null, commission_payment_date: null, notes: null,
+};
+
+// ─── Constants ────────────────────────────────────────────────────────────────
+const STATUS_OPTS = [
+  { value: '', label: 'ทุกสถานะ' },
+  { value: 'รับเช็คแล้ว', label: 'รับเช็คแล้ว' },
+  { value: 'ส่งสินค้าแล้ว รอรับเช็ค', label: 'ส่งสินค้าแล้ว รอรับเช็ค' },
+  { value: 'เซ็นสัญญาแล้ว รอส่งของ', label: 'เซ็นสัญญาแล้ว รอส่งของ' },
+  { value: '_empty_', label: 'ยังไม่ระบุ' },
+];
+const COMPANY_OPTS = [
+  { value: '', label: 'ทุกบริษัท' },
+  { value: '89 Global Work', label: '89 Global Work' },
+  { value: 'P2P Supply', label: 'P2P Supply' },
+];
+const COMPANY_FORM_OPTS = [
+  { value: '', label: '— เลือกบริษัท —' },
+  { value: '89 Global Work', label: '89 Global Work' },
+  { value: 'P2P Supply', label: 'P2P Supply' },
+];
+const STATUS_FORM_OPTS = [
+  { value: '', label: '— เลือกสถานะ —' },
+  { value: 'เซ็นสัญญาแล้ว รอส่งของ', label: 'เซ็นสัญญาแล้ว รอส่งของ' },
+  { value: 'ส่งสินค้าแล้ว รอรับเช็ค', label: 'ส่งสินค้าแล้ว รอรับเช็ค' },
+  { value: 'รับเช็คแล้ว', label: 'รับเช็คแล้ว' },
+];
+const SLIP_FORM_OPTS = [
+  { value: '', label: '— ยังไม่ดำเนินการ —' },
+  { value: 'Done', label: 'Done ✓' },
+  { value: '-', label: '- (ไม่มี)' },
+];
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+function fmt(n: number | null | undefined, decimals = 2) {
+  if (n == null) return '—';
+  return n.toLocaleString('th-TH', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+}
+function fmtDate(s: string | null | undefined) {
+  if (!s) return '—';
+  const d = new Date(s);
+  if (isNaN(d.getTime())) return '—';
+  return d.toLocaleDateString('th-TH', { year: '2-digit', month: 'short', day: 'numeric' });
+}
+function n(v: number | null) { return v ?? 0; }
+
+function StatusBadge({ status }: { status: string | null }) {
+  if (!status) return <span className="text-slate-300 text-xs">ยังไม่ระบุ</span>;
+  const map: Record<string, string> = {
+    'รับเช็คแล้ว': 'bg-green-100 text-green-700',
+    'ส่งสินค้าแล้ว รอรับเช็ค': 'bg-yellow-100 text-yellow-700',
+    'เซ็นสัญญาแล้ว รอส่งของ': 'bg-blue-100 text-blue-700',
+  };
+  return (
+    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${map[status] ?? 'bg-slate-100 text-slate-600'}`}>
+      {status}
+    </span>
+  );
+}
+
+// ─── Main Page ────────────────────────────────────────────────────────────────
+export default function B2gOrdersPage() {
   const { orgSlug } = useParams<{ orgSlug: string }>();
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
+
+  const [orgId,   setOrgId]   = useState<string | null>(null);
+  const [orders,  setOrders]  = useState<B2gOrder[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [data, setData] = useState<any[]>([]);
+  const [error,   setError]   = useState<string | null>(null);
+  const [token,   setToken]   = useState<string | null>(null);
 
-  const loadData = useCallback(async () => {
+  // Filters
+  const [filterStatus,  setFilterStatus]  = useState('');
+  const [filterCompany, setFilterCompany] = useState('');
+  const [search,        setSearch]        = useState('');
+
+  // Dialog
+  const [dlgOpen,  setDlgOpen]  = useState(false);
+  const [editing,  setEditing]  = useState<B2gOrder | null>(null);
+  const [form,     setForm]     = useState<FormData>(EMPTY_FORM);
+  const [saving,   setSaving]   = useState(false);
+  const [deleting, setDeleting] = useState<string | null>(null);
+
+  // Active tab in dialog
+  const [activeTab, setActiveTab] = useState<'basic' | 'finance' | 'timeline' | 'internal'>('basic');
+
+  // ─── Load ──────────────────────────────────────────────────────────────────
+  const load = useCallback(async () => {
     try {
-      setLoading(true);
-      setError(null);
+      setLoading(true); setError(null);
 
-      // 1. ดึงข้อมูล ID ขององค์กรจาก Slug URL
       const { data: org, error: orgErr } = await supabase
-        .from('organizations')
-        .select('id')
-        .eq('slug', orgSlug)
-        .single();
-
+        .from('organizations').select('id').eq('slug', orgSlug).single();
       if (orgErr) throw new Error('ไม่พบข้อมูลองค์กร');
 
       const { data: sess } = await supabase.auth.getSession();
-      const token = sess.session?.access_token;
-      if (!token) throw new Error('กรุณาเข้าสู่ระบบใหม่');
+      const tok = sess.session?.access_token;
+      if (!tok) throw new Error('กรุณาเข้าสู่ระบบใหม่');
 
-      // 2. ดึงข้อมูลจาก API Route ของโมดูล
-      const res = await fetch(`/api/b2g?orgId=${org.id}`, {
-        headers: { Authorization: `Bearer ${token}` },
+      setOrgId(org.id); setToken(tok);
+
+      const res = await fetch(backendUrl(`/b2g/orders?orgId=${org.id}`), {
+        headers: { Authorization: `Bearer ${tok}` },
       });
-
       if (!res.ok) {
-        const errJson = await res.json().catch(() => ({}));
-        throw new Error(errJson.error || 'เกิดข้อผิดพลาดในการโหลดข้อมูล');
+        const j = await res.json().catch(() => ({}));
+        throw new Error(j.error || 'เกิดข้อผิดพลาด');
       }
-
       const json = await res.json();
-      setData(json.records || []);
-    } catch (err: any) {
-      setError(err.message);
+      setOrders(json.orders ?? []);
+    } catch (e: unknown) {
+      setError((e as Error).message);
     } finally {
       setLoading(false);
     }
   }, [supabase, orgSlug]);
 
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
+  useEffect(() => { void load(); }, [load]);
 
+  // ─── Filtered orders ───────────────────────────────────────────────────────
+  const filtered = useMemo(() => {
+    return orders.filter(o => {
+      if (filterStatus === '_empty_' && o.job_status) return false;
+      if (filterStatus && filterStatus !== '_empty_' && o.job_status !== filterStatus) return false;
+      if (filterCompany && o.company !== filterCompany) return false;
+      if (search) {
+        const q = search.toLowerCase();
+        return (
+          o.customer_name?.toLowerCase().includes(q) ||
+          o.department?.toLowerCase().includes(q) ||
+          o.qt_reference?.toLowerCase().includes(q) ||
+          o.product_description?.toLowerCase().includes(q)
+        );
+      }
+      return true;
+    });
+  }, [orders, filterStatus, filterCompany, search]);
+
+  // ─── Summary stats ─────────────────────────────────────────────────────────
+  const stats = useMemo(() => {
+    const total      = filtered.reduce((s, o) => s + n(o.price_incl_vat), 0);
+    const profit     = filtered.reduce((s, o) => s + n(o.net_profit_89), 0);
+    const done       = filtered.filter(o => o.job_status === 'รับเช็คแล้ว').length;
+    const waiting    = filtered.filter(o => o.job_status === 'ส่งสินค้าแล้ว รอรับเช็ค').length;
+    const processing = filtered.filter(o => o.job_status === 'เซ็นสัญญาแล้ว รอส่งของ').length;
+    return { total, profit, done, waiting, processing };
+  }, [filtered]);
+
+  // ─── Dialog helpers ────────────────────────────────────────────────────────
+  function openAdd() {
+    setEditing(null);
+    setForm({ ...EMPTY_FORM });
+    setActiveTab('basic');
+    setDlgOpen(true);
+  }
+  function openEdit(o: B2gOrder) {
+    setEditing(o);
+    const { id: _id, created_at: _ca, ...rest } = o;
+    setForm(rest as FormData);
+    setActiveTab('basic');
+    setDlgOpen(true);
+  }
+  function setF<K extends keyof FormData>(key: K, val: FormData[K]) {
+    setForm(prev => ({ ...prev, [key]: val }));
+  }
+  function numF(key: keyof FormData, raw: string) {
+    const v = raw === '' ? null : parseFloat(raw);
+    setForm(prev => ({ ...prev, [key]: isNaN(v as number) ? null : v }));
+  }
+
+  async function handleSave() {
+    if (!orgId || !token) return;
+    if (!form.customer_name?.trim()) { alert('กรุณาระบุชื่อลูกค้า'); return; }
+    setSaving(true);
+    try {
+      const url = editing
+        ? backendUrl(`/b2g/orders/${editing.id}?orgId=${orgId}`)
+        : backendUrl(`/b2g/orders?orgId=${orgId}`);
+      const method = editing ? 'PUT' : 'POST';
+      const res = await fetch(url, {
+        method, headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(form),
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        throw new Error(j.error || 'บันทึกไม่สำเร็จ');
+      }
+      setDlgOpen(false);
+      await load();
+    } catch (e: unknown) {
+      alert((e as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDelete(id: string) {
+    if (!orgId || !token) return;
+    if (!confirm('ยืนยันลบรายการนี้?')) return;
+    setDeleting(id);
+    try {
+      const res = await fetch(backendUrl(`/b2g/orders/${id}?orgId=${orgId}`), {
+        method: 'DELETE', headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) { const j = await res.json().catch(() => ({})); throw new Error(j.error || 'ลบไม่สำเร็จ'); }
+      await load();
+    } catch (e: unknown) {
+      alert((e as Error).message);
+    } finally {
+      setDeleting(null);
+    }
+  }
+
+  // ─── Render ────────────────────────────────────────────────────────────────
   return (
     <div className="p-4 md:p-6 space-y-5">
+
       {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-2 border-b pb-4">
+      <div className="flex items-center justify-between flex-wrap gap-3 border-b pb-4">
         <div>
           <h1 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-            <LayoutGrid className="w-5 h-5 text-indigo-500" />
-            B2G
+            <Building2 className="w-5 h-5 text-indigo-500" />
+            B2G — คำสั่งซื้อภาครัฐ
           </h1>
-          <p className="text-sm text-slate-500">โมดูลการทำงานเฉพาะองค์กร (B2G)</p>
+          <p className="text-sm text-slate-500">ติดตามคำสั่งซื้อและผลกำไร Business-to-Government</p>
         </div>
-        <Button variant="outline" size="sm" onClick={loadData} disabled={loading}>
-          {loading ? 'กำลังโหลด…' : 'รีเฟรช'}
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={load} disabled={loading}>
+            <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${loading ? 'animate-spin' : ''}`} />
+            รีเฟรช
+          </Button>
+          <Button size="sm" onClick={openAdd}>
+            <Plus className="w-3.5 h-3.5 mr-1.5" />
+            เพิ่มรายการ
+          </Button>
+        </div>
       </div>
 
-      {/* Content */}
       {loading ? (
         <div className="flex h-48 items-center justify-center">
           <Loader2 className="h-6 w-6 animate-spin text-slate-400" />
         </div>
       ) : error ? (
         <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-          <AlertCircle className="h-4 w-4 text-red-500 shrink-0" />
-          <span>{error}</span>
+          <AlertCircle className="h-4 w-4 shrink-0" /><span>{error}</span>
         </div>
       ) : (
-        <div className="bg-white rounded-xl border p-6 text-center space-y-4">
-          <p className="text-slate-600 font-medium">เชื่อมต่อระบบโมดูล B2G สำเร็จเรียบร้อยแล้ว!</p>
-          <div className="max-w-md mx-auto p-4 bg-slate-50 border rounded-lg text-left text-xs font-mono text-slate-500 space-y-1">
-            <p>• Module Key: b2g</p>
-            <p>• URL Path: /{orgSlug}/b2g</p>
-            <p>• API Route: /api/b2g</p>
-            <p>• Records loaded: {data.length} records</p>
+        <>
+          {/* Summary Cards */}
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+            <SummaryCard
+              icon={<ClipboardList className="w-4 h-4 text-slate-500" />}
+              label="รายการทั้งหมด"
+              value={`${filtered.length} รายการ`}
+              sub={`จาก ${orders.length} รายการ`}
+              bg="bg-slate-50"
+            />
+            <SummaryCard
+              icon={<TrendingUp className="w-4 h-4 text-indigo-500" />}
+              label="ยอดรวม (incl.VAT)"
+              value={`฿${fmt(stats.total, 0)}`}
+              bg="bg-indigo-50"
+            />
+            <SummaryCard
+              icon={<TrendingUp className="w-4 h-4 text-emerald-500" />}
+              label="กำไรสุทธิ 89"
+              value={`฿${fmt(stats.profit, 0)}`}
+              bg="bg-emerald-50"
+            />
+            <SummaryCard
+              icon={<BadgeCheck className="w-4 h-4 text-green-500" />}
+              label="รับเช็คแล้ว"
+              value={`${stats.done} รายการ`}
+              bg="bg-green-50"
+            />
+            <SummaryCard
+              icon={<Clock className="w-4 h-4 text-yellow-500" />}
+              label="รอดำเนินการ"
+              value={`${stats.waiting + stats.processing} รายการ`}
+              sub={`ส่งของแล้ว ${stats.waiting} | รอส่ง ${stats.processing}`}
+              bg="bg-yellow-50"
+            />
           </div>
-        </div>
+
+          {/* Filters */}
+          <div className="flex flex-wrap items-center gap-2">
+            <Input
+              placeholder="ค้นหา QT, สินค้า, แผนก…"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="w-52 h-8 text-sm"
+            />
+            <CustomSelect
+              value={filterStatus}
+              onChange={setFilterStatus}
+              options={STATUS_OPTS}
+              className="w-44"
+            />
+            <CustomSelect
+              value={filterCompany}
+              onChange={setFilterCompany}
+              options={COMPANY_OPTS}
+              className="w-36"
+            />
+          </div>
+
+          {/* Table */}
+          <div className="overflow-x-auto rounded-xl border bg-white">
+            <table className="min-w-full text-sm">
+              <thead>
+                <tr className="bg-slate-50 border-b text-xs text-slate-500 uppercase tracking-wide">
+                  <th className="px-3 py-2.5 text-center w-8">#</th>
+                  <th className="px-3 py-2.5 text-left min-w-[140px]">QT / สินค้า</th>
+                  <th className="px-3 py-2.5 text-left min-w-[120px]">แผนก</th>
+                  <th className="px-3 py-2.5 text-left w-28">บริษัท</th>
+                  <th className="px-3 py-2.5 text-right w-28">ยอดเสนอ</th>
+                  <th className="px-3 py-2.5 text-right w-24">ทุน</th>
+                  <th className="px-3 py-2.5 text-right w-24">กำไร 89</th>
+                  <th className="px-3 py-2.5 text-right w-16">%</th>
+                  <th className="px-3 py-2.5 text-center w-28">สัญญา</th>
+                  <th className="px-3 py-2.5 text-center w-28">รับเงิน</th>
+                  <th className="px-3 py-2.5 text-center w-36">สถานะ</th>
+                  <th className="px-3 py-2.5 text-center w-16">จัดการ</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {filtered.length === 0 ? (
+                  <tr>
+                    <td colSpan={12} className="py-12 text-center text-slate-400">
+                      ไม่มีรายการ
+                    </td>
+                  </tr>
+                ) : filtered.map((o) => (
+                  <tr key={o.id} className="hover:bg-slate-50 transition-colors">
+                    <td className="px-3 py-2.5 text-center text-slate-400 text-xs">{o.seq_no ?? '—'}</td>
+                    <td className="px-3 py-2.5">
+                      <div className="font-medium text-slate-800 text-xs">{o.qt_reference ?? '—'}</div>
+                      <div className="text-slate-500 text-xs line-clamp-1 mt-0.5">{o.product_description ?? '—'}</div>
+                    </td>
+                    <td className="px-3 py-2.5 text-slate-600 text-xs">{o.department ?? '—'}</td>
+                    <td className="px-3 py-2.5">
+                      <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${
+                        o.company === '89 Global Work'
+                          ? 'bg-indigo-100 text-indigo-700'
+                          : 'bg-orange-100 text-orange-700'
+                      }`}>
+                        {o.company ?? '—'}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2.5 text-right font-mono text-xs text-slate-700">
+                      {o.price_incl_vat ? `฿${fmt(o.price_incl_vat, 0)}` : '—'}
+                    </td>
+                    <td className="px-3 py-2.5 text-right font-mono text-xs text-slate-600">
+                      {o.total_cost_89 ? `฿${fmt(o.total_cost_89, 0)}` : '—'}
+                    </td>
+                    <td className="px-3 py-2.5 text-right font-mono text-xs">
+                      {o.net_profit_89 != null ? (
+                        <span className={o.net_profit_89 < 0 ? 'text-red-600' : 'text-emerald-600'}>
+                          {o.net_profit_89 < 0 ? '' : '+'}฿{fmt(o.net_profit_89, 0)}
+                        </span>
+                      ) : '—'}
+                    </td>
+                    <td className="px-3 py-2.5 text-right font-mono text-xs">
+                      {o.profit_pct != null ? (
+                        <span className={o.profit_pct < 0 ? 'text-red-500' : 'text-slate-600'}>
+                          {o.profit_pct.toFixed(1)}%
+                        </span>
+                      ) : '—'}
+                    </td>
+                    <td className="px-3 py-2.5 text-center text-xs text-slate-500">{fmtDate(o.contract_date)}</td>
+                    <td className="px-3 py-2.5 text-center text-xs text-slate-500">{fmtDate(o.receipt_date)}</td>
+                    <td className="px-3 py-2.5 text-center"><StatusBadge status={o.job_status} /></td>
+                    <td className="px-3 py-2.5">
+                      <div className="flex items-center justify-center gap-1">
+                        <button
+                          onClick={() => openEdit(o)}
+                          className="rounded p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => void handleDelete(o.id)}
+                          disabled={deleting === o.id}
+                          className="rounded p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors disabled:opacity-40"
+                        >
+                          {deleting === o.id
+                            ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            : <Trash2 className="w-3.5 h-3.5" />
+                          }
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+
+              {/* Footer total row */}
+              {filtered.length > 0 && (
+                <tfoot>
+                  <tr className="bg-slate-50 border-t text-xs font-semibold text-slate-700">
+                    <td colSpan={4} className="px-3 py-2.5 text-right text-slate-500">รวม {filtered.length} รายการ</td>
+                    <td className="px-3 py-2.5 text-right font-mono">฿{fmt(stats.total, 0)}</td>
+                    <td className="px-3 py-2.5 text-right font-mono">
+                      ฿{fmt(filtered.reduce((s, o) => s + n(o.total_cost_89), 0), 0)}
+                    </td>
+                    <td className="px-3 py-2.5 text-right font-mono text-emerald-700">
+                      ฿{fmt(stats.profit, 0)}
+                    </td>
+                    <td className="px-3 py-2.5 text-right font-mono text-slate-500">
+                      {stats.total > 0 ? ((stats.profit / stats.total) * 100).toFixed(1) : '0.0'}%
+                    </td>
+                    <td colSpan={4} />
+                  </tr>
+                </tfoot>
+              )}
+            </table>
+          </div>
+        </>
       )}
+
+      {/* ─── Add / Edit Dialog ─────────────────────────────────────────────────── */}
+      <Dialog open={dlgOpen} onOpenChange={setDlgOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{editing ? 'แก้ไขรายการ B2G' : 'เพิ่มรายการ B2G'}</DialogTitle>
+          </DialogHeader>
+
+          {/* Tab bar */}
+          <div className="flex gap-1 border-b mb-4 -mx-1 px-1">
+            {([
+              ['basic',    'ข้อมูลพื้นฐาน'],
+              ['finance',  'การเงิน'],
+              ['internal', 'ภายใน 89'],
+              ['timeline', 'Timeline & สถานะ'],
+            ] as const).map(([key, label]) => (
+              <button key={key} onClick={() => setActiveTab(key)}
+                className={`px-3 py-1.5 text-sm rounded-t transition-colors ${
+                  activeTab === key
+                    ? 'bg-white border border-b-white -mb-px font-medium text-indigo-600'
+                    : 'text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          <div className="space-y-3">
+            {/* ── Tab: Basic ── */}
+            {activeTab === 'basic' && (
+              <>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label htmlFor="seq_no">ลำดับ No.</Label>
+                    <Input id="seq_no" type="number" placeholder="1"
+                      value={form.seq_no ?? ''}
+                      onChange={e => numF('seq_no', e.target.value)} />
+                  </div>
+                  <div>
+                    <Label htmlFor="qt_ref">QT Reference</Label>
+                    <Input id="qt_ref" placeholder="QT2026010001"
+                      value={form.qt_reference ?? ''}
+                      onChange={e => setF('qt_reference', e.target.value || null)} />
+                  </div>
+                </div>
+                <div>
+                  <Label htmlFor="customer_name">ชื่อลูกค้า *</Label>
+                  <Input id="customer_name" placeholder="เทศบาลเมืองบางแก้ว"
+                    value={form.customer_name}
+                    onChange={e => setF('customer_name', e.target.value)} />
+                </div>
+                <div>
+                  <Label htmlFor="department">กอง/หน่วยงาน/แผนก</Label>
+                  <Input id="department" placeholder="กองการศึกษา"
+                    value={form.department ?? ''}
+                    onChange={e => setF('department', e.target.value || null)} />
+                </div>
+                <div>
+                  <Label>บริษัทรับงาน</Label>
+                  <CustomSelect
+                    value={form.company ?? ''}
+                    onChange={v => setF('company', v || null)}
+                    options={COMPANY_FORM_OPTS}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="product">รายการสินค้า/บริการ</Label>
+                  <Input id="product" placeholder="โต๊ะประชุม..."
+                    value={form.product_description ?? ''}
+                    onChange={e => setF('product_description', e.target.value || null)} />
+                </div>
+                <div>
+                  <Label>วันที่เริ่มงาน</Label>
+                  <ThaiDatePicker
+                    value={form.start_date ?? ''}
+                    onChange={v => setF('start_date', v || null)}
+                    placeholder="เลือกวันที่เริ่มงาน"
+                  />
+                </div>
+              </>
+            )}
+
+            {/* ── Tab: Finance ── */}
+            {activeTab === 'finance' && (
+              <>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label htmlFor="price_incl_vat">ยอดเสนอราคา (รวม VAT)</Label>
+                    <Input id="price_incl_vat" type="number" placeholder="0"
+                      value={form.price_incl_vat ?? ''}
+                      onChange={e => numF('price_incl_vat', e.target.value)} />
+                  </div>
+                  <div>
+                    <Label htmlFor="price_excl_vat">ยอดก่อน VAT</Label>
+                    <Input id="price_excl_vat" type="number" placeholder="0"
+                      value={form.price_excl_vat ?? ''}
+                      onChange={e => numF('price_excl_vat', e.target.value)} />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label htmlFor="wht">หัก ณ ที่จ่าย 1%</Label>
+                    <Input id="wht" type="number" placeholder="0"
+                      value={form.withholding_tax ?? ''}
+                      onChange={e => numF('withholding_tax', e.target.value)} />
+                  </div>
+                  <div>
+                    <Label htmlFor="net_recv">ยอดสุทธิที่รับ</Label>
+                    <Input id="net_recv" type="number" placeholder="0"
+                      value={form.net_receivable ?? ''}
+                      onChange={e => numF('net_receivable', e.target.value)} />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label htmlFor="cost_price">ราคาทุน</Label>
+                    <Input id="cost_price" type="number" placeholder="0"
+                      value={form.cost_price ?? ''}
+                      onChange={e => numF('cost_price', e.target.value)} />
+                  </div>
+                  <div>
+                    <Label htmlFor="gross_profit">กำไรขั้นต้น</Label>
+                    <Input id="gross_profit" type="number" placeholder="0"
+                      value={form.gross_profit ?? ''}
+                      onChange={e => numF('gross_profit', e.target.value)} />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label htmlFor="security">เงินประกันสัญญา</Label>
+                    <Input id="security" type="number" placeholder="0"
+                      value={form.security_deposit ?? ''}
+                      onChange={e => numF('security_deposit', e.target.value)} />
+                  </div>
+                </div>
+                <div className="border-t pt-3">
+                  <p className="text-xs font-medium text-slate-500 mb-2">วันที่โอนเงินซื้อของ</p>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div>
+                      <Label>Date</Label>
+                      <ThaiDatePicker value={form.transfer_date ?? ''} onChange={v => setF('transfer_date', v || null)} />
+                    </div>
+                    <div>
+                      <Label>โอนรอบที่ 1</Label>
+                      <ThaiDatePicker value={form.transfer_round1 ?? ''} onChange={v => setF('transfer_round1', v || null)} />
+                    </div>
+                    <div>
+                      <Label>โอนรอบที่ 2</Label>
+                      <ThaiDatePicker value={form.transfer_round2 ?? ''} onChange={v => setF('transfer_round2', v || null)} />
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* ── Tab: Internal (89) ── */}
+            {activeTab === 'internal' && (
+              <>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label htmlFor="cust_change">ทอนลูกค้า (10%)</Label>
+                    <Input id="cust_change" type="number" placeholder="0"
+                      value={form.customer_change ?? ''}
+                      onChange={e => numF('customer_change', e.target.value)} />
+                  </div>
+                  <div>
+                    <Label>Slip ทอนลูกค้า</Label>
+                    <CustomSelect value={form.customer_change_slip ?? ''} onChange={v => setF('customer_change_slip', v || null)} options={SLIP_FORM_OPTS} />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label htmlFor="petty">Petty Cash (5%)</Label>
+                    <Input id="petty" type="number" placeholder="0"
+                      value={form.petty_cash ?? ''}
+                      onChange={e => numF('petty_cash', e.target.value)} />
+                  </div>
+                  <div>
+                    <Label>Slip Petty Cash</Label>
+                    <CustomSelect value={form.petty_cash_slip ?? ''} onChange={v => setF('petty_cash_slip', v || null)} options={SLIP_FORM_OPTS} />
+                  </div>
+                </div>
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <Label htmlFor="trans_buy">ขนส่ง ซื้อ</Label>
+                    <Input id="trans_buy" type="number" placeholder="0"
+                      value={form.transport_buy ?? ''}
+                      onChange={e => numF('transport_buy', e.target.value)} />
+                  </div>
+                  <div>
+                    <Label htmlFor="trans_sell">ขนส่ง ขาย</Label>
+                    <Input id="trans_sell" type="number" placeholder="0"
+                      value={form.transport_sell ?? ''}
+                      onChange={e => numF('transport_sell', e.target.value)} />
+                  </div>
+                  <div>
+                    <Label htmlFor="trans_other">ขนส่ง อื่นๆ</Label>
+                    <Input id="trans_other" type="number" placeholder="0"
+                      value={form.transport_other ?? ''}
+                      onChange={e => numF('transport_other', e.target.value)} />
+                  </div>
+                </div>
+                <div>
+                  <Label htmlFor="operate89">Operate 89 (10%)</Label>
+                  <Input id="operate89" type="number" placeholder="0"
+                    value={form.operate_89 ?? ''}
+                    onChange={e => numF('operate_89', e.target.value)} />
+                </div>
+                <div className="grid grid-cols-3 gap-3 border-t pt-3">
+                  <div>
+                    <Label htmlFor="total_cost">ทุน 89 (รวม)</Label>
+                    <Input id="total_cost" type="number" placeholder="0"
+                      value={form.total_cost_89 ?? ''}
+                      onChange={e => numF('total_cost_89', e.target.value)} />
+                  </div>
+                  <div>
+                    <Label htmlFor="net_profit">กำไร 89</Label>
+                    <Input id="net_profit" type="number" placeholder="0"
+                      value={form.net_profit_89 ?? ''}
+                      onChange={e => numF('net_profit_89', e.target.value)} />
+                  </div>
+                  <div>
+                    <Label htmlFor="profit_pct">% กำไร</Label>
+                    <Input id="profit_pct" type="number" placeholder="0.00" step="0.01"
+                      value={form.profit_pct ?? ''}
+                      onChange={e => numF('profit_pct', e.target.value)} />
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* ── Tab: Timeline & Status ── */}
+            {activeTab === 'timeline' && (
+              <>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label>วันที่เซ็นสัญญา</Label>
+                    <ThaiDatePicker value={form.contract_date ?? ''} onChange={v => setF('contract_date', v || null)} />
+                  </div>
+                  <div>
+                    <Label>ชำระเงิน/สั่งของ</Label>
+                    <ThaiDatePicker value={form.payment_order_date ?? ''} onChange={v => setF('payment_order_date', v || null)} />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label>วันที่ส่งของ</Label>
+                    <ThaiDatePicker value={form.delivery_date ?? ''} onChange={v => setF('delivery_date', v || null)} />
+                  </div>
+                  <div>
+                    <Label>วันที่รับเงิน</Label>
+                    <ThaiDatePicker value={form.receipt_date ?? ''} onChange={v => setF('receipt_date', v || null)} />
+                  </div>
+                </div>
+                <div>
+                  <Label htmlFor="duration">ระยะเวลา (วัน)</Label>
+                  <Input id="duration" type="number" placeholder="0"
+                    value={form.duration_days ?? ''}
+                    onChange={e => numF('duration_days', e.target.value)} />
+                </div>
+                <div className="border-t pt-3">
+                  <div>
+                    <Label>สถานะงาน</Label>
+                    <CustomSelect
+                      value={form.job_status ?? ''}
+                      onChange={v => setF('job_status', v || null)}
+                      options={STATUS_FORM_OPTS}
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label>วันที่ Finance จ่าย</Label>
+                    <ThaiDatePicker value={form.finance_payment_date ?? ''} onChange={v => setF('finance_payment_date', v || null)} />
+                  </div>
+                  <div>
+                    <Label>วันที่จ่าย Support</Label>
+                    <ThaiDatePicker value={form.support_payment_date ?? ''} onChange={v => setF('support_payment_date', v || null)} />
+                  </div>
+                </div>
+                <div>
+                  <Label>วันที่จ่ายค่าคอม</Label>
+                  <ThaiDatePicker value={form.commission_payment_date ?? ''} onChange={v => setF('commission_payment_date', v || null)} />
+                </div>
+                <div>
+                  <Label htmlFor="notes">หมายเหตุ</Label>
+                  <Input id="notes" placeholder="หมายเหตุเพิ่มเติม…"
+                    value={form.notes ?? ''}
+                    onChange={e => setF('notes', e.target.value || null)} />
+                </div>
+              </>
+            )}
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-2 mt-4">
+            <Button variant="outline" onClick={() => setDlgOpen(false)}>ยกเลิก</Button>
+            <Button onClick={() => void handleSave()} disabled={saving}>
+              {saving ? 'กำลังบันทึก…' : editing ? 'อัปเดต' : 'บันทึก'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// ─── Summary Card ─────────────────────────────────────────────────────────────
+function SummaryCard({
+  icon, label, value, sub, bg,
+}: {
+  icon: React.ReactNode; label: string; value: string; sub?: string; bg: string;
+}) {
+  return (
+    <div className={`rounded-xl border p-3 ${bg} space-y-1`}>
+      <div className="flex items-center gap-1.5 text-xs text-slate-500">
+        {icon}<span>{label}</span>
+      </div>
+      <div className="text-base font-bold text-slate-800">{value}</div>
+      {sub && <div className="text-xs text-slate-400">{sub}</div>}
     </div>
   );
 }
