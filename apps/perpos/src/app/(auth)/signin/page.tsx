@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo } from "react";
+import React, { useEffect, useMemo, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import { useAuth } from "@/app/shared/auth-provider";
@@ -36,7 +36,7 @@ function sanitizeReturnTo(raw: string | null) {
   return v;
 }
 
-export default function SignInPage() {
+function SignInContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { blocked, profile, userId, loading: authLoading } = useAuth();
@@ -55,5 +55,17 @@ export default function SignInPage() {
     <div className="w-full">
       <GoogleAuthView mode="page" returnTo={returnTo} />
     </div>
+  );
+}
+
+export default function SignInPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex min-h-[40vh] items-center justify-center">
+        <div className="h-6 w-6 animate-spin rounded-full border-2 border-gray-300 border-t-gray-700" />
+      </div>
+    }>
+      <SignInContent />
+    </Suspense>
   );
 }

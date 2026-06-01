@@ -1,6 +1,6 @@
 "use client";
 
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import React, { useEffect } from "react";
 
 import { useAuth } from "@/app/shared/auth-provider";
@@ -25,20 +25,19 @@ function stripBasePath(pathname: string) {
 export default function AuthGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const searchParams = useSearchParams();
   const { loading, blocked, userId } = useAuth();
 
   useEffect(() => {
     if (loading) return;
     if (!userId || blocked) {
-      const qs = searchParams?.toString() ? `?${searchParams.toString()}` : "";
+      const qs = typeof window !== "undefined" ? window.location.search : "";
       const current = `${stripBasePath(pathname)}${qs}`;
       const dest = current && current.startsWith("/") ? current : "/";
       const returnToParam = dest && dest !== "/" ? `?returnTo=${encodeURIComponent(dest)}` : "";
       const extra = blocked ? (returnToParam ? "&blocked=1" : "?blocked=1") : "";
       router.replace(withBasePath(`/signin${returnToParam}${extra}`));
     }
-  }, [blocked, loading, pathname, router, searchParams, userId]);
+  }, [blocked, loading, pathname, router, userId]);
 
   if (loading) {
     return (
