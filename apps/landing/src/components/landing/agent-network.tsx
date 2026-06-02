@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import Link from "next/link";
 import { Sparkles, Database, ArrowRight, Cpu } from "lucide-react";
 
 interface Agent {
@@ -129,6 +130,20 @@ const AGENTS: Agent[] = [
   }
 ];
 
+function getAgentSlug(name: string): string {
+  const mapping: Record<string, string> = {
+    "Sales Agent": "sales",
+    "Marketing Agent": "marketing",
+    "Procurement Agent": "procurement",
+    "Finance & OCR Agent": "finance",
+    "HR & Operations Agent": "hr",
+    "Admin Agent": "admin",
+    "Executive Assistant": "executive",
+    "Scenario Simulator": "simulator",
+  };
+  return mapping[name] ?? "sales";
+}
+
 export default function AgentNetwork() {
   const [hoveredAgent, setHoveredAgent] = useState<Agent | null>(AGENTS[6]); // Defaults to Executive Assistant
 
@@ -242,6 +257,16 @@ export default function AgentNetwork() {
               <p className="leading-relaxed">
                 เชื่อมต่อชุดข้อมูลร่วมกับ Agent แผนกอื่นผ่าน <strong className="text-slate-800">Central Data Engine</strong> บนระบบคลาวด์ ป้องกันการทำงานซ้ำซ้อน
               </p>
+            </div>
+
+            <div className="pt-2">
+              <Link
+                href={`/agents/${getAgentSlug(hoveredAgent.name)}`}
+                className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-brand-gradient hover:opacity-90 text-white font-bold text-sm py-3.5 transition-all shadow-md duration-300 hover:shadow-lg"
+              >
+                ดูเจาะลึกฟีเจอร์และการทำงานจริง
+                <ArrowRight size={16} />
+              </Link>
             </div>
           </div>
         ) : (
