@@ -444,7 +444,7 @@ export default function AgentDetailsView({ slug }: AgentDetailsViewProps) {
               </h3>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 {agent.roi.map((item, idx) => (
-                  <div key={idx} className="bg-slate-50 border border-slate-200/60 rounded-2xl p-4.5 space-y-1">
+                  <div key={idx} className="bg-slate-50 border border-slate-200/60 rounded-2xl p-5 sm:p-6 space-y-1.5">
                     <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{item.label}</div>
                     <div className="text-base font-black text-[#292e91]">{item.value}</div>
                     <div className="text-[10.5px] text-slate-550 leading-normal">{item.desc}</div>
