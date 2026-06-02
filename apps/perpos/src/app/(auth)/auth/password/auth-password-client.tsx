@@ -2,11 +2,13 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import React, { useEffect, useMemo, useState } from "react";
-import { Button, Password } from "rizzui";
-import { Text, Title } from "rizzui/typography";
+import { Lock, Eye, EyeOff } from "lucide-react";
 
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { withBasePath } from "@/utils/base-path";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
 
 function cleanupAuthUrl() {
   if (typeof window === "undefined") return;
@@ -37,7 +39,10 @@ export default function AuthPasswordClient() {
 
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+
   const canSubmit = useMemo(() => password.trim().length >= 8 && password === confirm, [confirm, password]);
 
   useEffect(() => {
@@ -153,69 +158,139 @@ export default function AuthPasswordClient() {
   }, [code, supabase, tokenHash, type]);
 
   return (
-    <div className="mx-auto w-full max-w-lg">
-      <Title as="h2" className="text-xl font-semibold text-gray-900">
-        ตั้งรหัสผ่าน
-      </Title>
-      <Text className="mt-2 text-sm text-gray-600">ตั้งรหัสผ่านเพื่อเข้าสู่ระบบ</Text>
-
-      {checking ? (
-        <div className="mt-6 rounded-lg border border-gray-200 bg-white p-4 text-sm text-gray-700">กำลังตรวจสอบลิงก์...</div>
-      ) : null}
-
-      {error ? <div className="mt-6 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div> : null}
-
-      {ready ? (
-        <div className="mt-6 rounded-lg border border-gray-200 bg-white p-4">
-          <div className="grid gap-4">
-            <div className="grid gap-2">
-              <Password
-                label="รหัสผ่านใหม่"
-                placeholder="อย่างน้อย 8 ตัวอักษร"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                autoComplete="new-password"
-              />
-              <div className="mt-2 text-xs text-gray-500">อย่างน้อย 8 ตัวอักษร</div>
+    <div className="mx-auto w-full max-w-md">
+      <div className="relative overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-lg">
+        <div className="p-8">
+          {/* Header */}
+          <div className="flex flex-col items-center text-center">
+            {/* Logo */}
+            <div className="mb-6">
+              <img src="/tmc-logo.svg" alt="PERPOS" className="h-9 w-auto" />
             </div>
-            <Password
-              label="ยืนยันรหัสผ่าน"
-              placeholder="พิมพ์ซ้ำอีกครั้ง"
-              value={confirm}
-              onChange={(e) => setConfirm(e.target.value)}
-              autoComplete="new-password"
-            />
-            <div className="flex flex-wrap gap-2">
-              <Button
-                disabled={!canSubmit || submitting}
-                onClick={async () => {
-                  setSubmitting(true);
-                  setError(null);
-                  try {
-                    const { error: updateError } = await supabase.auth.updateUser({ password });
-                    if (updateError) {
-                      setError(updateError.message);
+
+            <div className="text-xl font-bold text-slate-800 font-inter">
+              ตั้งรหัสผ่านใหม่
+            </div>
+            <div className="mt-1.5 text-sm text-slate-500 leading-relaxed max-w-xs">
+              ตั้งรหัสผ่านใหม่เพื่อเริ่มใช้งานบัญชีผู้ใช้ของคุณบน PERPOS
+            </div>
+          </div>
+
+          {/* Checking status */}
+          {checking && (
+            <div className="mt-6 flex flex-col items-center justify-center py-6 text-slate-500">
+              <div className="h-6 w-6 animate-spin rounded-full border-2 border-slate-300 border-t-blue-600 mb-2" />
+              <div className="text-sm font-medium">กำลังตรวจสอบความถูกต้องของลิงก์...</div>
+            </div>
+          )}
+
+          {/* Error Alert */}
+          {error && (
+            <div className="mt-6 rounded-xl border border-red-150 bg-red-50 px-4 py-3 text-sm text-red-700 leading-relaxed">
+              {error}
+            </div>
+          )}
+
+          {/* Form */}
+          {ready && (
+            <div className="mt-6 grid gap-4">
+              <div>
+                <Label className="mb-1.5 block text-xs font-bold text-slate-700">รหัสผ่านใหม่</Label>
+                <div className="relative">
+                  <Input
+                    type={showPassword ? "text" : "password"}
+                    required
+                    autoComplete="new-password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="อย่างน้อย 8 ตัวอักษร"
+                    className="h-11 rounded-xl pr-10 bg-slate-50/50 focus:bg-white transition-colors"
+                    disabled={submitting}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((v) => !v)}
+                    tabIndex={-1}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none"
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+                <span className="mt-1 block text-[11px] text-slate-400">อย่างน้อย 8 ตัวอักษร</span>
+              </div>
+
+              <div>
+                <Label className="mb-1.5 block text-xs font-bold text-slate-700">ยืนยันรหัสผ่าน</Label>
+                <div className="relative">
+                  <Input
+                    type={showConfirmPassword ? "text" : "password"}
+                    required
+                    autoComplete="new-password"
+                    value={confirm}
+                    onChange={(e) => setConfirm(e.target.value)}
+                    placeholder="พิมพ์ซ้ำอีกครั้งเพื่อยืนยัน"
+                    className="h-11 rounded-xl pr-10 bg-slate-50/50 focus:bg-white transition-colors"
+                    disabled={submitting}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword((v) => !v)}
+                    tabIndex={-1}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none"
+                  >
+                    {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+              </div>
+
+              <div className="mt-2 flex flex-col gap-2">
+                <Button
+                  className="h-11 w-full rounded-xl bg-blue-600 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50 transition-colors shadow-md shadow-blue-500/10"
+                  disabled={!canSubmit || submitting}
+                  onClick={async () => {
+                    setSubmitting(true);
+                    setError(null);
+                    try {
+                      const { error: updateError } = await supabase.auth.updateUser({ password });
+                      if (updateError) {
+                        setError(updateError.message);
+                        setSubmitting(false);
+                        return;
+                      }
+                      await supabase.auth.signOut();
+                      router.replace(withBasePath("/signin"));
                       setSubmitting(false);
-                      return;
+                    } catch (e: any) {
+                      setError(e?.message ?? "ตั้งรหัสผ่านไม่สำเร็จ");
+                      setSubmitting(false);
                     }
-                    await supabase.auth.signOut();
-                    router.replace(withBasePath("/signin"));
-                    setSubmitting(false);
-                  } catch (e: any) {
-                    setError(e?.message ?? "ตั้งรหัสผ่านไม่สำเร็จ");
-                    setSubmitting(false);
-                  }
-                }}
-              >
-                {submitting ? "กำลังบันทึก..." : "บันทึกรหัสผ่าน"}
-              </Button>
-              <Button variant="outline" onClick={() => router.replace(withBasePath("/signin"))} disabled={submitting}>
-                ไปหน้าเข้าสู่ระบบ
-              </Button>
+                  }}
+                >
+                  {submitting ? "กำลังบันทึกรหัสผ่าน..." : "บันทึกรหัสผ่าน"}
+                </Button>
+                
+                <Button 
+                  variant="outline" 
+                  className="h-11 w-full rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
+                  onClick={() => router.replace(withBasePath("/signin"))} 
+                  disabled={submitting}
+                >
+                  ไปที่หน้าเข้าสู่ระบบ
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="border-t border-slate-100 bg-slate-50/80">
+          <div className="p-4.5 text-center py-4">
+            <div className="inline-flex items-center gap-1.5 text-xs text-slate-400 whitespace-nowrap">
+              <Lock className="h-3.5 w-3.5 text-blue-500 shrink-0" />
+              <span>Secured by <span className="font-semibold text-slate-600">Supabase Security</span></span>
             </div>
           </div>
         </div>
-      ) : null}
+      </div>
     </div>
   );
 }

@@ -49,6 +49,8 @@ const config: Config = {
       fontFamily: {
         heading: ["var(--font-noto-thai)", "sans-serif"],
         sans: ["var(--font-noto-thai)", "sans-serif"],
+        inter: ["var(--font-noto-thai)", "sans-serif"],
+        lexend: ["var(--font-noto-thai)", "sans-serif"],
       },
       borderRadius: {
         DEFAULT: "8px",

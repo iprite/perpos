@@ -2,11 +2,14 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Lock, X, Mail, Eye, EyeOff } from "lucide-react";
+import { Lock, X, Eye, EyeOff } from "lucide-react";
 
 import { useAuth } from "@/app/shared/auth-provider";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { withBasePath } from "@/utils/base-path";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 type Props = {
   mode?: "modal" | "page";
@@ -71,179 +74,184 @@ export default function GoogleAuthView({ mode = "modal", returnTo, onClose }: Pr
     }
   }
 
-  const inputCls =
-    "w-full rounded-lg border border-gray-200 bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:border-gray-400 focus:outline-none focus:ring-0 disabled:opacity-60";
-
   return (
     <div className={mode === "page" ? "mx-auto w-full max-w-md" : "w-full"}>
-      <div className="relative overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-[0_20px_60px_rgba(0,0,0,0.18)]">
+      <div className="relative overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-lg">
         {mode === "modal" && (
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="icon"
             onClick={() => onClose?.()}
-            className="absolute right-3 top-3 grid h-9 w-9 place-items-center rounded-xl border border-gray-200 bg-white text-gray-500 transition hover:bg-gray-50 hover:text-gray-800 focus:outline-none"
+            className="absolute right-4 top-4 h-8 w-8 rounded-xl border border-slate-200 bg-white text-slate-500 transition hover:bg-slate-50 hover:text-slate-800 focus:outline-none"
             aria-label="ปิด"
           >
             <X className="h-4 w-4" />
-          </button>
+          </Button>
         )}
 
-        <div className="p-6">
+        <div className="p-8">
           {/* Header */}
           <div className="flex flex-col items-center text-center">
-            <div className="grid h-12 w-12 place-items-center rounded-2xl border border-gray-200 bg-gray-50 text-gray-900">
-              {view === "forgot" || view === "forgot_sent" ? (
-                <Mail className="h-5 w-5" />
-              ) : (
-                <Lock className="h-5 w-5" />
-              )}
+            {/* Logo */}
+            <div className="mb-6">
+              <img src="/tmc-logo.svg" alt="PERPOS" className="h-9 w-auto" />
             </div>
-            <div className="mt-4 text-xl font-semibold text-gray-900">
-              {view === "signin"      && "Sign in to PERPOS"}
-              {view === "forgot"      && "Reset password"}
-              {view === "forgot_sent" && "Check your email"}
+            
+            <div className="text-xl font-bold text-slate-800 font-inter">
+              {view === "signin"      && "เข้าสู่ระบบ PERPOS"}
+              {view === "forgot"      && "รีเซ็ตรหัสผ่าน"}
+              {view === "forgot_sent" && "ตรวจสอบอีเมลของคุณ"}
             </div>
-            <div className="mt-1 text-sm text-gray-500">
-              {view === "signin"      && "Welcome back! Please sign in to continue"}
-              {view === "forgot"      && "We'll send a reset link to your email"}
-              {view === "forgot_sent" && `Sent to ${email} — check your inbox`}
+            <div className="mt-1.5 text-sm text-slate-500 leading-relaxed max-w-xs">
+              {view === "signin"      && "ยินดีต้อนรับกลับมา! กรุณาเข้าสู่ระบบเพื่อใช้งาน"}
+              {view === "forgot"      && "เราจะส่งลิงก์รีเซ็ตรหัสผ่านไปที่อีเมลของคุณ"}
+              {view === "forgot_sent" && `ส่งลิงก์ไปที่ ${email} เรียบร้อยแล้ว`}
             </div>
           </div>
 
           {/* Alerts */}
-          {envError     && <div className="mt-5 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{envError}</div>}
-          {profileError && <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{profileError}</div>}
-          {error        && <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
+          {envError     && <div className="mt-5 rounded-xl border border-red-150 bg-red-50 px-4 py-3 text-sm text-red-700 leading-relaxed">{envError}</div>}
+          {profileError && <div className="mt-4 rounded-xl border border-red-150 bg-red-50 px-4 py-3 text-sm text-red-700 leading-relaxed">{profileError}</div>}
+          {error        && <div className="mt-4 rounded-xl border border-red-150 bg-red-50 px-4 py-3 text-sm text-red-700 leading-relaxed">{error}</div>}
 
           {blocked && (
-            <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+            <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 leading-relaxed">
               บัญชีนี้ยังไม่ได้รับเชิญหรือยังไม่ถูกเปิดใช้งาน
               <div className="mt-3">
-                <button
+                <Button
                   type="button"
+                  variant="outline"
+                  size="sm"
                   disabled={submitting}
                   onClick={async () => { setSubmitting(true); try { await signOut(); } finally { setSubmitting(false); } }}
-                  className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                  className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-50 transition-colors"
                 >
                   ออกจากระบบ
-                </button>
+                </Button>
               </div>
             </div>
           )}
 
           {/* Sign in form */}
           {view === "signin" && (
-            <form onSubmit={handleSignIn} className="mt-6 grid gap-3">
+            <form onSubmit={handleSignIn} className="mt-6 grid gap-4">
               <div>
-                <label className="mb-1.5 block text-xs font-medium text-gray-600">Email</label>
-                <input
+                <Label className="mb-1.5 block text-xs font-bold text-slate-700">อีเมล (Email)</Label>
+                <Input
                   type="email"
                   required
                   autoComplete="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="you@example.com"
-                  className={inputCls}
+                  className="h-11 rounded-xl bg-slate-50/50 focus:bg-white transition-colors"
                   disabled={submitting}
                 />
               </div>
               <div>
                 <div className="mb-1.5 flex items-center justify-between">
-                  <label className="text-xs font-medium text-gray-600">Password</label>
-                  <button
+                  <Label className="text-xs font-bold text-slate-700">รหัสผ่าน (Password)</Label>
+                  <Button
                     type="button"
+                    variant="ghost"
+                    size="sm"
                     onClick={() => { setView("forgot"); setError(null); }}
-                    className="text-xs text-gray-400 hover:text-gray-600"
+                    className="h-auto p-0 text-xs text-slate-400 hover:text-blue-600 hover:bg-transparent transition-colors focus-visible:ring-0"
                   >
-                    Forgot password?
-                  </button>
+                    ลืมรหัสผ่าน?
+                  </Button>
                 </div>
                 <div className="relative">
-                  <input
+                  <Input
                     type={showPassword ? "text" : "password"}
                     required
                     autoComplete="current-password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="••••••••"
-                    className={`${inputCls} pr-10`}
+                    className="h-11 rounded-xl pr-10 bg-slate-50/50 focus:bg-white transition-colors"
                     disabled={submitting}
                   />
-                  <button
+                  <Button
                     type="button"
+                    variant="ghost"
+                    size="icon"
                     onClick={() => setShowPassword((v) => !v)}
                     tabIndex={-1}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 h-8 w-8 text-slate-400 hover:text-slate-600 hover:bg-transparent focus-visible:ring-0"
                   >
                     {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </button>
+                  </Button>
                 </div>
               </div>
-              <button
+              <Button
                 type="submit"
                 disabled={submitting || !email.trim() || !password}
-                className="mt-1 h-11 w-full rounded-lg bg-[#2D2F36] text-sm font-medium text-white hover:bg-[#3B3E45] disabled:opacity-50"
+                className="mt-2 h-11 w-full rounded-xl bg-blue-600 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50 transition-colors shadow-md shadow-blue-500/10"
               >
-                {submitting ? "กำลังเข้าสู่ระบบ..." : "Sign in"}
-              </button>
+                {submitting ? "กำลังเข้าสู่ระบบ..." : "เข้าสู่ระบบ"}
+              </Button>
             </form>
           )}
 
           {/* Forgot password form */}
           {view === "forgot" && (
-            <form onSubmit={handleForgot} className="mt-6 grid gap-3">
+            <form onSubmit={handleForgot} className="mt-6 grid gap-4">
               <div>
-                <label className="mb-1.5 block text-xs font-medium text-gray-600">Email</label>
-                <input
+                <Label className="mb-1.5 block text-xs font-bold text-slate-700">อีเมล (Email)</Label>
+                <Input
                   type="email"
                   required
                   autoComplete="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="you@example.com"
-                  className={inputCls}
+                  className="h-11 rounded-xl bg-slate-50/50 focus:bg-white transition-colors"
                   disabled={submitting}
                 />
               </div>
-              <button
+              <Button
                 type="submit"
                 disabled={submitting || !email.trim()}
-                className="mt-1 h-11 w-full rounded-lg bg-[#2D2F36] text-sm font-medium text-white hover:bg-[#3B3E45] disabled:opacity-50"
+                className="mt-2 h-11 w-full rounded-xl bg-blue-600 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50 transition-colors shadow-md shadow-blue-500/10"
               >
-                {submitting ? "กำลังส่ง..." : "Send reset link"}
-              </button>
-              <button
+                {submitting ? "กำลังส่ง..." : "ส่งลิงก์รีเซ็ตรหัสผ่าน"}
+              </Button>
+              <Button
                 type="button"
+                variant="ghost"
                 onClick={() => { setView("signin"); setError(null); }}
-                className="text-center text-xs text-gray-400 hover:text-gray-600"
+                className="w-full text-center text-xs text-slate-400 hover:text-blue-600 hover:bg-transparent transition-colors pt-2 h-auto py-1"
               >
-                ← Back to sign in
-              </button>
+                ← กลับสู่หน้าเข้าสู่ระบบ
+              </Button>
             </form>
           )}
 
           {/* Sent confirmation */}
           {view === "forgot_sent" && (
-            <div className="mt-6 grid gap-3">
-              <div className="rounded-xl border border-green-200 bg-green-50 p-4 text-sm text-green-800">
-                ส่ง reset link ไปที่ <strong>{email}</strong> แล้ว — กรุณาตรวจสอบกล่องขาเข้า
+            <div className="mt-6 grid gap-4">
+              <div className="rounded-xl border border-green-200 bg-green-50 p-4 text-sm text-green-800 leading-relaxed">
+                ส่งลิงก์รีเซ็ตรหัสผ่านไปที่ <strong>{email}</strong> แล้ว — กรุณาตรวจสอบกล่องข้อความในอีเมลของคุณ
               </div>
-              <button
+              <Button
                 type="button"
+                variant="ghost"
                 onClick={() => { setView("signin"); setError(null); }}
-                className="text-center text-xs text-gray-400 hover:text-gray-600"
+                className="w-full text-center text-xs text-slate-400 hover:text-blue-600 hover:bg-transparent transition-colors pt-2 h-auto py-1"
               >
-                ← Back to sign in
-              </button>
+                ← กลับสู่หน้าเข้าสู่ระบบ
+              </Button>
             </div>
           )}
         </div>
 
-        <div className="border-t border-gray-200">
-          <div className="bg-[repeating-linear-gradient(135deg,rgba(249,115,22,0.08)_0,rgba(249,115,22,0.08)_10px,rgba(249,115,22,0.03)_10px,rgba(249,115,22,0.03)_20px)] p-5 text-center">
-            <div className="inline-flex items-center gap-1.5 text-xs text-gray-500">
-              <Lock className="h-3.5 w-3.5" />
-              <span>Secured by <span className="font-semibold text-gray-700">Supabase</span></span>
+        <div className="border-t border-slate-100 bg-slate-50/80">
+          <div className="p-4.5 text-center py-4">
+            <div className="inline-flex items-center gap-1.5 text-xs text-slate-400 whitespace-nowrap">
+              <Lock className="h-3.5 w-3.5 text-blue-500 shrink-0" />
+              <span>Secured by <span className="font-semibold text-slate-600">Supabase Security</span></span>
             </div>
           </div>
         </div>
