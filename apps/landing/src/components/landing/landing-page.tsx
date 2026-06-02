@@ -23,6 +23,17 @@ import CostSimulator from "./cost-simulator";
 
 const APP_SIGNIN_URL = "https://app.perpos.io/signin";
 
+const MENU_AGENTS = [
+  { name: "Sales Agent", slug: "sales", desc: "เสนอราคาทาง LINE ใน 3 วินาที" },
+  { name: "Marketing Agent", slug: "marketing", desc: "วิเคราะห์แคมเปญรายบุคคล" },
+  { name: "Procurement Agent", slug: "procurement", desc: "จัดซื้อและมอนิเตอร์สต๊อกสินค้า" },
+  { name: "Finance & OCR Agent", slug: "finance", desc: "สแกนบิลและกระทบยอดเงินโอน" },
+  { name: "HR & Operations Agent", slug: "hr", desc: "จัดกะกะทัดรัด/สรุป Payroll พนักงาน" },
+  { name: "Admin Agent", slug: "admin", desc: "คำนวณแผนการเดินทางขนส่งที่ดีที่สุด" },
+  { name: "Executive Assistant", slug: "executive", desc: "สนทนา BI รายงานธุรกิจทันใจ" },
+  { name: "Scenario Simulator", slug: "simulator", desc: "ทดลองตัวแปรความเสี่ยง What-If" },
+];
+
 export default function LandingPage() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isVisible, setIsVisible] = useState(true);
@@ -85,11 +96,38 @@ export default function LandingPage() {
             <img src="/logo.svg" alt="PERPOS" className="h-8 w-auto" />
           </Link>
           <nav className="hidden md:flex items-center gap-8 text-sm font-semibold text-slate-600">
-            <a href="#features" className="hover:text-[#292e91] transition-colors">AI Agents</a>
+            {/* AI Agents Dropdown Menu */}
+            <div className="relative group py-4">
+              <button className="flex items-center gap-1 hover:text-[#292e91] transition-colors font-semibold cursor-pointer outline-none text-slate-600">
+                AI Agents
+                <svg className="w-4 h-4 transition-transform duration-200 group-hover:rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+              
+              {/* Dropdown Container */}
+              <div className="absolute top-[80%] left-1/2 -translate-x-1/2 w-[520px] bg-white/95 backdrop-blur-md border border-slate-200/80 rounded-2xl shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 p-3 grid grid-cols-2 gap-1.5 origin-top mt-2">
+                {MENU_AGENTS.map((item) => (
+                  <Link
+                    key={item.slug}
+                    href={`/agents/${item.slug}`}
+                    className="flex flex-col text-left p-2.5 rounded-xl hover:bg-slate-50 border border-transparent hover:border-slate-100 transition-all"
+                  >
+                    <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0" />
+                      {item.name}
+                    </span>
+                    <span className="text-[10px] text-slate-400 mt-1 pl-3 leading-normal">{item.desc}</span>
+                  </Link>
+                ))}
+              </div>
+            </div>
+
             <a href="#shift" className="hover:text-[#292e91] transition-colors">The Shift</a>
             <a href="#architecture" className="hover:text-[#292e91] transition-colors">Architecture</a>
             <a href="#model" className="hover:text-[#292e91] transition-colors">Pricing</a>
           </nav>
+
           <div className="flex items-center gap-4">
             <a
               href={APP_SIGNIN_URL}
