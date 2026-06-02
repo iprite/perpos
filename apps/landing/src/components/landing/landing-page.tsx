@@ -85,10 +85,10 @@ export default function LandingPage() {
             <img src="/logo.svg" alt="PERPOS" className="h-8 w-auto" />
           </Link>
           <nav className="hidden md:flex items-center gap-8 text-sm font-semibold text-slate-600">
-            <a href="#features" className="hover:text-blue-600 transition-colors">AI Agents</a>
-            <a href="#shift" className="hover:text-blue-600 transition-colors">The Shift</a>
-            <a href="#architecture" className="hover:text-blue-600 transition-colors">Architecture</a>
-            <a href="#model" className="hover:text-blue-600 transition-colors">Pricing</a>
+            <a href="#features" className="hover:text-[#292e91] transition-colors">AI Agents</a>
+            <a href="#shift" className="hover:text-[#292e91] transition-colors">The Shift</a>
+            <a href="#architecture" className="hover:text-[#292e91] transition-colors">Architecture</a>
+            <a href="#model" className="hover:text-[#292e91] transition-colors">Pricing</a>
           </nav>
           <div className="flex items-center gap-4">
             <a
@@ -99,7 +99,7 @@ export default function LandingPage() {
             </a>
             <button
               onClick={() => setIsModalOpen(true)}
-              className="hidden sm:inline-flex items-center justify-center rounded-lg bg-blue-600 hover:bg-blue-700 px-4 py-2 text-sm font-semibold text-white transition-colors"
+              className="hidden sm:inline-flex items-center justify-center rounded-lg bg-brand-gradient hover:opacity-90 px-4 py-2 text-sm font-semibold text-white transition-all shadow-sm duration-300 hover:shadow-md"
             >
               Request Demo
             </button>
@@ -118,13 +118,13 @@ export default function LandingPage() {
             
             {/* Copy Block */}
             <div className="lg:col-span-7 space-y-6 text-left">
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 border border-blue-100 text-xs font-semibold text-blue-600">
-                <Sparkles size={14} className="text-blue-500" />
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50/50 border border-[#292e91]/15 text-xs font-semibold text-[#292e91]">
+                <Sparkles size={14} className="bg-brand-gradient bg-clip-text text-transparent" />
                 <span>Next-Gen Agentic AI ERP</span>
               </div>
               <h1 className="text-3xl sm:text-4xl md:text-5xl font-black font-lexend text-slate-900 leading-tight tracking-tight">
                 Next-Gen Agentic AI ERP: <br />
-                <span className="bg-gradient-to-r from-blue-600 via-blue-500 to-cyan-600 bg-clip-text text-transparent">
+                <span className="bg-gradient-to-r from-[#292e91] to-[#4ca9df] bg-clip-text text-transparent">
                   Tailored to Empower Your Business Flow
                 </span>
               </h1>
@@ -134,7 +134,7 @@ export default function LandingPage() {
               <div className="flex flex-col sm:flex-row gap-4 pt-4">
                 <button
                   onClick={() => setIsModalOpen(true)}
-                  className="flex items-center justify-center gap-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm px-6 py-3.5 transition-all shadow-[0_4px_12px_rgba(37,99,235,0.2)]"
+                  className="flex items-center justify-center gap-2 rounded-xl bg-brand-gradient hover:opacity-90 text-white font-bold text-sm px-6 py-3.5 transition-all shadow-[0_4px_12px_rgba(41,46,145,0.2)] duration-300 hover:shadow-[0_6px_16px_rgba(41,46,145,0.25)]"
                 >
                   Request Enterprise Demo
                   <ArrowRight size={16} />
@@ -160,10 +160,10 @@ export default function LandingPage() {
             {/* Metric 1 */}
             <div className="p-6 rounded-2xl bg-white border border-slate-200/80 hover:border-blue-500/20 hover:shadow-md transition-all flex flex-col justify-between min-h-[140px] group">
               <div className="flex justify-between items-start">
-                <div className="text-4xl font-extrabold text-blue-600 tracking-tight group-hover:scale-105 transition-transform duration-300">
+                <div className="text-4xl font-extrabold bg-gradient-to-r from-[#292e91] to-[#4ca9df] bg-clip-text text-transparent tracking-tight group-hover:scale-105 transition-all duration-300">
                   8 AI Agents
                 </div>
-                <div className="p-2 rounded-lg bg-blue-50 border border-blue-100 text-blue-600">
+                <div className="p-2 rounded-lg bg-blue-50/50 border border-[#292e91]/15 text-[#292e91]">
                   <Cpu size={16} />
                 </div>
               </div>
@@ -178,10 +178,10 @@ export default function LandingPage() {
             {/* Metric 2 */}
             <div className="p-6 rounded-2xl bg-white border border-slate-200/80 hover:border-blue-500/20 hover:shadow-md transition-all flex flex-col justify-between min-h-[140px] group">
               <div className="flex justify-between items-start">
-                <div className="text-4xl font-extrabold text-blue-600 tracking-tight group-hover:scale-105 transition-transform duration-300">
+                <div className="text-4xl font-extrabold bg-gradient-to-r from-[#292e91] to-[#4ca9df] bg-clip-text text-transparent tracking-tight group-hover:scale-105 transition-all duration-300">
                   10x Faster
                 </div>
-                <div className="p-2 rounded-lg bg-blue-50 border border-blue-100 text-blue-600">
+                <div className="p-2 rounded-lg bg-blue-50/50 border border-[#292e91]/15 text-[#292e91]">
                   <Zap size={16} />
                 </div>
               </div>
@@ -196,10 +196,10 @@ export default function LandingPage() {
             {/* Metric 3 */}
             <div className="p-6 rounded-2xl bg-white border border-slate-200/80 hover:border-blue-500/20 hover:shadow-md transition-all flex flex-col justify-between min-h-[140px] group">
               <div className="flex justify-between items-start">
-                <div className="text-4xl font-extrabold text-blue-600 tracking-tight group-hover:scale-105 transition-transform duration-300">
+                <div className="text-4xl font-extrabold bg-gradient-to-r from-[#292e91] to-[#4ca9df] bg-clip-text text-transparent tracking-tight group-hover:scale-105 transition-all duration-300">
                   Real-time
                 </div>
-                <div className="p-2 rounded-lg bg-blue-50 border border-blue-100 text-blue-600">
+                <div className="p-2 rounded-lg bg-blue-50/50 border border-[#292e91]/15 text-[#292e91]">
                   <Database size={16} />
                 </div>
               </div>
@@ -250,7 +250,7 @@ export default function LandingPage() {
             {/* The PERPOS Way */}
             <div className="bg-gradient-to-br from-blue-50/30 via-white to-white border border-blue-200/60 rounded-3xl p-6 lg:p-8 flex flex-col justify-between space-y-6 shadow-sm text-left">
               <div className="space-y-4">
-                <div className="w-10 h-10 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600">
+                <div className="w-10 h-10 rounded-xl bg-blue-50/50 border border-[#292e91]/15 flex items-center justify-center text-[#292e91]">
                   <Sparkles size={20} />
                 </div>
                 <h3 className="text-lg font-bold text-slate-800">ระบบ PERPOS: System of Action</h3>
@@ -288,7 +288,7 @@ export default function LandingPage() {
           {/* Inline OCR simulator simulation showcase */}
           <div className="mt-16 grid grid-cols-1 lg:grid-cols-12 gap-8 items-center bg-white border border-slate-200 rounded-3xl p-6 lg:p-8">
             <div className="lg:col-span-5 space-y-5 text-left">
-              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-blue-50 border border-blue-100 text-[10px] text-blue-600 font-semibold w-fit">
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-blue-50/50 border border-[#292e91]/15 text-[10px] text-[#292e91] font-semibold w-fit">
                 <Sparkles size={11} />
                 BACK-OFFICE AUTOMATION
               </div>
@@ -300,11 +300,11 @@ export default function LandingPage() {
               </p>
               <ul className="space-y-2.5 text-sm text-slate-600">
                 <li className="flex gap-2">
-                  <span className="text-blue-500 font-bold">•</span>
+                  <span className="text-[#4ca9df] font-bold">•</span>
                   <span>ความแม่นยำสูง ดึงข้อมูลชื่อร้านค้า เลขผู้เสียภาษี และรายละเอียดราคา</span>
                 </li>
                 <li className="flex gap-2">
-                  <span className="text-blue-500 font-bold">•</span>
+                  <span className="text-[#4ca9df] font-bold">•</span>
                   <span>จับคู่รายการเดินบัญชี (Reconciliation) แบบเรียลไทม์ลดความล่าช้า</span>
                 </li>
               </ul>
@@ -323,7 +323,7 @@ export default function LandingPage() {
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
             
             <div className="lg:col-span-6 space-y-6 text-left">
-              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-blue-50 border border-blue-100 text-[10px] text-blue-600 font-semibold w-fit">
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-blue-50/50 border border-[#292e91]/15 text-[10px] text-[#292e91] font-semibold w-fit">
                 <ShieldCheck size={12} />
                 ENTERPRISE SECURITY & PRIVACY
               </div>
@@ -338,7 +338,7 @@ export default function LandingPage() {
                 
                 {/* Point 1 */}
                 <div className="flex gap-4">
-                  <div className="w-10 h-10 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-center shrink-0 text-blue-600">
+                  <div className="w-10 h-10 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-center shrink-0 text-[#292e91]">
                     <Lock size={18} />
                   </div>
                   <div>
@@ -351,7 +351,7 @@ export default function LandingPage() {
 
                 {/* Point 2 */}
                 <div className="flex gap-4">
-                  <div className="w-10 h-10 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-center shrink-0 text-blue-600">
+                  <div className="w-10 h-10 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-center shrink-0 text-[#292e91]">
                     <Layers size={18} />
                   </div>
                   <div>
@@ -368,7 +368,7 @@ export default function LandingPage() {
             {/* Visual graphics */}
             <div className="lg:col-span-6 bg-slate-50 border border-slate-200 rounded-3xl p-6 lg:p-8 space-y-6">
               <div className="flex items-center gap-3 border-b border-slate-200 pb-4">
-                <Server className="text-blue-600" size={20} />
+                <Server className="text-[#292e91]" size={20} />
                 <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Cloud Infrastructure Stack</h4>
               </div>
 
@@ -376,7 +376,7 @@ export default function LandingPage() {
                 {/* Tech Item 1 */}
                 <div className="flex items-center justify-between p-3 rounded-xl bg-white border border-slate-100 shadow-sm">
                   <div className="flex items-center gap-3">
-                    <span className="w-2 h-2 rounded-full bg-blue-600" />
+                    <span className="w-2 h-2 rounded-full bg-[#292e91]" />
                     <span className="text-slate-700">Database Engine</span>
                   </div>
                   <span className="text-xs text-slate-550 font-semibold font-mono">Supabase PostgreSQL (RLS Active)</span>
@@ -384,7 +384,7 @@ export default function LandingPage() {
                 {/* Tech Item 2 */}
                 <div className="flex items-center justify-between p-3 rounded-xl bg-white border border-slate-100 shadow-sm">
                   <div className="flex items-center gap-3">
-                    <span className="w-2 h-2 rounded-full bg-blue-600" />
+                    <span className="w-2 h-2 rounded-full bg-[#292e91]" />
                     <span className="text-slate-700">Vector Embedding Engine</span>
                   </div>
                   <span className="text-xs text-slate-550 font-semibold font-mono">pgvector for Long-Term AI Memory</span>
@@ -392,7 +392,7 @@ export default function LandingPage() {
                 {/* Tech Item 3 */}
                 <div className="flex items-center justify-between p-3 rounded-xl bg-white border border-slate-100 shadow-sm">
                   <div className="flex items-center gap-3">
-                    <span className="w-2 h-2 rounded-full bg-blue-600" />
+                    <span className="w-2 h-2 rounded-full bg-[#292e91]" />
                     <span className="text-slate-700">Serverless Microservice Workers</span>
                   </div>
                   <span className="text-xs text-slate-550 font-semibold font-mono">Google Cloud Run (Pay-as-you-go Scale)</span>
@@ -400,7 +400,7 @@ export default function LandingPage() {
                 {/* Tech Item 4 */}
                 <div className="flex items-center justify-between p-3 rounded-xl bg-white border border-slate-100 shadow-sm">
                   <div className="flex items-center gap-3">
-                    <span className="w-2 h-2 rounded-full bg-blue-600" />
+                    <span className="w-2 h-2 rounded-full bg-[#292e91]" />
                     <span className="text-slate-700">Notification cron schedules</span>
                   </div>
                   <span className="text-xs text-slate-550 font-semibold font-mono">Google Cloud Scheduler (Every Minute)</span>
@@ -438,7 +438,7 @@ export default function LandingPage() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 relative text-left">
               {/* Step 1 */}
               <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-4 shadow-sm">
-                <div className="w-8 h-8 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600 font-bold text-xs font-mono">
+                <div className="w-8 h-8 rounded-lg bg-blue-50/50 border border-[#292e91]/15 flex items-center justify-center text-[#292e91] font-bold text-xs font-mono">
                   01
                 </div>
                 <h4 className="text-sm font-bold text-slate-800 uppercase tracking-wider">Phase 1: Flow Audit & AI Mapping</h4>
@@ -449,7 +449,7 @@ export default function LandingPage() {
 
               {/* Step 2 */}
               <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-4 shadow-sm">
-                <div className="w-8 h-8 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600 font-bold text-xs font-mono">
+                <div className="w-8 h-8 rounded-lg bg-blue-50/50 border border-[#292e91]/15 flex items-center justify-center text-[#292e91] font-bold text-xs font-mono">
                   02
                 </div>
                 <h4 className="text-sm font-bold text-slate-800 uppercase tracking-wider">Phase 2: Hybrid Integration</h4>
@@ -460,7 +460,7 @@ export default function LandingPage() {
 
               {/* Step 3 */}
               <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-4 shadow-sm">
-                <div className="w-8 h-8 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600 font-bold text-xs font-mono">
+                <div className="w-8 h-8 rounded-lg bg-blue-50/50 border border-[#292e91]/15 flex items-center justify-center text-[#292e91] font-bold text-xs font-mono">
                   03
                 </div>
                 <h4 className="text-sm font-bold text-slate-800 uppercase tracking-wider">Phase 3: Continuous Intelligence</h4>
@@ -486,7 +486,7 @@ export default function LandingPage() {
           <div className="flex flex-col sm:flex-row gap-4 justify-center pt-4">
             <button
               onClick={() => setIsModalOpen(true)}
-              className="flex items-center justify-center gap-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm px-8 py-3.5 transition-all shadow-[0_4px_12px_rgba(37,99,235,0.25)]"
+              className="flex items-center justify-center gap-2 rounded-xl bg-brand-gradient hover:opacity-90 text-white font-bold text-sm px-8 py-3.5 transition-all shadow-[0_4px_12px_rgba(41,46,145,0.25)] duration-300 hover:shadow-[0_6px_16px_rgba(41,46,145,0.3)]"
             >
               Request Enterprise Demo
               <ArrowRight size={16} />
@@ -502,7 +502,7 @@ export default function LandingPage() {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
             <div className="md:col-span-2 space-y-4">
               <img src="/logo.svg" alt="PERPOS" className="h-8 w-auto" />
-              <p className="text-base text-slate-500 max-w-md leading-relaxed">
+              <p className="text-base text-slate-550 max-w-md leading-relaxed">
                 Next-Gen Agentic AI ERP — Tailored to Empower Your Business Flow.
                 ระบบบัญชีและ ERP สำหรับธุรกิจ SME ยุคใหม่ ปฏิบัติงานเชิงรุกด้วย AI Agents แบบ Real-time
               </p>
@@ -511,12 +511,12 @@ export default function LandingPage() {
               <h4 className="text-sm font-bold text-slate-800 uppercase tracking-wider">เอกสาร</h4>
               <ul className="mt-4 space-y-2 text-sm text-slate-500">
                 <li>
-                  <Link href="/privacy" className="hover:text-blue-600 transition-colors">
+                  <Link href="/privacy" className="hover:text-[#292e91] transition-colors">
                     นโยบายความเป็นส่วนตัว
                   </Link>
                 </li>
                 <li>
-                  <Link href="/terms" className="hover:text-blue-600 transition-colors">
+                  <Link href="/terms" className="hover:text-[#292e91] transition-colors">
                     ข้อกำหนดการให้บริการ
                   </Link>
                 </li>
@@ -577,7 +577,7 @@ export default function LandingPage() {
                     setSubmitStatus("idle");
                     setFormState({ name: "", company: "", email: "", phone: "", details: "" });
                   }}
-                  className="w-full max-w-xs mt-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm py-3 transition-colors shadow-md mx-auto"
+                  className="w-full max-w-xs mt-4 rounded-xl bg-brand-gradient hover:opacity-90 text-white font-bold text-sm py-3 transition-all shadow-md mx-auto duration-300"
                 >
                   ตกลง
                 </button>
@@ -593,7 +593,7 @@ export default function LandingPage() {
                     placeholder="เช่น สมชาย ใจดี"
                     value={formState.name}
                     onChange={(e) => setFormState({ ...formState, name: e.target.value })}
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3.5 py-2.5 text-sm text-slate-800 placeholder-slate-400 outline-none focus:border-blue-500 focus:bg-white transition-colors"
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3.5 py-2.5 text-sm text-slate-800 placeholder-slate-400 outline-none focus:border-[#292e91] focus:bg-white transition-colors"
                   />
                 </div>
 
@@ -606,7 +606,7 @@ export default function LandingPage() {
                     placeholder="เช่น บริษัท เอ็มเอสอี จำกัด"
                     value={formState.company}
                     onChange={(e) => setFormState({ ...formState, company: e.target.value })}
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3.5 py-2.5 text-sm text-slate-800 placeholder-slate-400 outline-none focus:border-blue-500 focus:bg-white transition-colors"
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3.5 py-2.5 text-sm text-slate-800 placeholder-slate-400 outline-none focus:border-[#292e91] focus:bg-white transition-colors"
                   />
                 </div>
 
@@ -620,7 +620,7 @@ export default function LandingPage() {
                       placeholder="you@example.com"
                       value={formState.email}
                       onChange={(e) => setFormState({ ...formState, email: e.target.value })}
-                      className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3.5 py-2.5 text-sm text-slate-800 placeholder-slate-400 outline-none focus:border-blue-500 focus:bg-white transition-colors"
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3.5 py-2.5 text-sm text-slate-800 placeholder-slate-400 outline-none focus:border-[#292e91] focus:bg-white transition-colors"
                     />
                   </div>
                   <div className="space-y-1.5">
@@ -631,7 +631,7 @@ export default function LandingPage() {
                       placeholder="081-234-5678"
                       value={formState.phone}
                       onChange={(e) => setFormState({ ...formState, phone: e.target.value })}
-                      className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3.5 py-2.5 text-sm text-slate-800 placeholder-slate-400 outline-none focus:border-blue-500 focus:bg-white transition-colors"
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3.5 py-2.5 text-sm text-slate-800 placeholder-slate-400 outline-none focus:border-[#292e91] focus:bg-white transition-colors"
                     />
                   </div>
                 </div>
@@ -644,7 +644,7 @@ export default function LandingPage() {
                     placeholder="ความต้องการพิเศษของธุรกิจ หรือโมดูล AI ที่สนใจทดลองใช้เป็นพิเศษ..."
                     value={formState.details}
                     onChange={(e) => setFormState({ ...formState, details: e.target.value })}
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3.5 py-2.5 text-sm text-slate-800 placeholder-slate-400 outline-none focus:border-blue-500 focus:bg-white transition-colors resize-none"
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3.5 py-2.5 text-sm text-slate-800 placeholder-slate-400 outline-none focus:border-[#292e91] focus:bg-white transition-colors resize-none"
                   />
                 </div>
 
@@ -663,7 +663,7 @@ export default function LandingPage() {
                   <button
                     type="submit"
                     disabled={submitStatus === "loading"}
-                    className="w-2/3 flex items-center justify-center gap-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm py-3 transition-colors shadow-md disabled:opacity-70 font-sans"
+                    className="w-2/3 flex items-center justify-center gap-2 rounded-xl bg-brand-gradient hover:opacity-90 text-white font-bold text-sm py-3 transition-all shadow-md disabled:opacity-70 font-sans duration-300 hover:shadow-lg"
                   >
                     {submitStatus === "loading" ? (
                       <>

@@ -3,9 +3,9 @@
 @tailwind utilities;
 
 :root {
-  --color-primary: #2563eb;
-  --color-primary-dark: #1d4ed8;
-  --color-secondary: #10b981;
+  --color-primary: #292e91;
+  --color-primary-dark: #1e2270;
+  --color-secondary: #4ca9df;
   --color-accent: #f59e0b;
   --color-ink: #0b1120;
   --color-background: #ffffff;
@@ -79,10 +79,14 @@ h6 {
 
   /* Brand gradient text */
   .gradient-text {
-    background: linear-gradient(120deg, #2563eb 0%, #3b82f6 45%, #06b6d4 100%);
+    background: linear-gradient(135deg, #292e91 0%, #3a68b8 50%, #4ca9df 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
+  }
+
+  .bg-brand-gradient {
+    background: linear-gradient(135deg, #292e91 0%, #4ca9df 100%);
   }
 
   /* Subtle grid background */
