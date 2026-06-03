@@ -46,6 +46,37 @@ const MENU_AGENTS = [
 ];
 
 export default function LandingPage() {
+  const HERO_WORDS = ["Business Flow", "Operations", "Team Efficiency", "Financial Growth"];
+  const [currentWordIndex, setCurrentWordIndex] = useState(0);
+  const [currentText, setCurrentText] = useState("");
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+    const currentWord = HERO_WORDS[currentWordIndex];
+    
+    // Typing speed: 85ms, Deleting speed: 45ms
+    const speed = isDeleting ? 45 : 85;
+
+    if (!isDeleting && currentText === currentWord) {
+      // Pause at full word
+      timer = setTimeout(() => setIsDeleting(true), 2500);
+    } else if (isDeleting && currentText === "") {
+      setIsDeleting(false);
+      setCurrentWordIndex((prev) => (prev + 1) % HERO_WORDS.length);
+    } else {
+      timer = setTimeout(() => {
+        setCurrentText(
+          isDeleting
+            ? currentWord.substring(0, currentText.length - 1)
+            : currentWord.substring(0, currentText.length + 1)
+        );
+      }, speed);
+    }
+
+    return () => clearTimeout(timer);
+  }, [currentText, isDeleting, currentWordIndex]);
+
   const [isScrolled, setIsScrolled] = useState(false);
   const [isVisible, setIsVisible] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -229,9 +260,22 @@ export default function LandingPage() {
               <h1 className="text-3xl sm:text-4xl md:text-5xl font-black font-lexend text-slate-900 leading-tight tracking-tight">
                 Next-Gen Agentic AI ERP: <br />
                 <span className="bg-gradient-to-r from-[#292e91] to-[#4ca9df] bg-clip-text text-transparent">
-                  Tailored to Empower Your Business Flow
+                  Tailored to Empower Your <br className="sm:hidden" />
+                  <span className="relative inline-block">
+                    {currentText || "\u200B"}
+                    <span className="inline-block w-[3px] h-[0.85em] ml-1.5 bg-[#4ca9df] align-middle cursor-blink" />
+                  </span>
                 </span>
               </h1>
+              <style>{`
+                @keyframes cursor-blink-anim {
+                  0%, 100% { opacity: 1; }
+                  50% { opacity: 0; }
+                }
+                .cursor-blink {
+                  animation: cursor-blink-anim 0.8s step-end infinite;
+                }
+              `}</style>
               <p className="text-base sm:text-lg text-slate-600 max-w-2xl leading-relaxed">
                 หนึ่งเครือข่าย AI Agents เชื่อมต่อทั้งองค์กรให้เป็นทีมเดียว จากหน้าบ้านถึงหลังบ้าน เชื่อมข้อมูลแบบ Real-time บนระบบคลาวด์ระดับองค์กร (Enterprise Cloud) — ทลายไซโล ตัดคอขวดการทำงาน 100%
               </p>
