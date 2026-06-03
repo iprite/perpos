@@ -1,6 +1,6 @@
 import { MetadataRoute } from "next";
 
-const BASE_URL = "https://perpos.io";
+const BASE_URL = "https://www.perpos.io";
 const VALID_SLUGS = [
   "sales",
   "marketing",

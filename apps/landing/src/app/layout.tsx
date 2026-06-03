@@ -9,7 +9,7 @@ const notoSansThai = Noto_Sans_Thai({
   display: "swap",
 });
 
-const BASE_URL = "https://perpos.io";
+const BASE_URL = "https://www.perpos.io";
 
 export const metadata: Metadata = {
   title: "PERPOS - Next-Gen Agentic AI ERP",
