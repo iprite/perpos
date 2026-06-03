@@ -558,104 +558,170 @@ export default function LandingPage() {
             </div>
 
             {/* Visual graphics */}
-            <div className="lg:col-span-6 bg-slate-900 border border-slate-800 rounded-3xl p-6 lg:p-8 space-y-6 relative overflow-hidden shadow-2xl">
-              {/* Decorative glows */}
-              <div className="absolute -top-12 -right-12 w-40 h-40 bg-[#292e91]/20 rounded-full blur-3xl pointer-events-none" />
-              <div className="absolute -bottom-12 -left-12 w-40 h-40 bg-[#4ca9df]/10 rounded-full blur-3xl pointer-events-none" />
+            <div className="lg:col-span-6 bg-slate-50/80 border border-slate-200/80 rounded-3xl p-6 lg:p-8 space-y-6 relative overflow-hidden shadow-xl backdrop-blur-sm">
+              {/* Decorative light glows */}
+              <div className="absolute -top-12 -right-12 w-48 h-48 bg-blue-100/30 rounded-full blur-3xl pointer-events-none" />
+              <div className="absolute -bottom-12 -left-12 w-48 h-48 bg-cyan-100/30 rounded-full blur-3xl pointer-events-none" />
 
-              <div className="flex items-center justify-between border-b border-slate-800/80 pb-4">
+              <div className="flex items-center justify-between border-b border-slate-200 pb-4 relative z-10">
                 <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-xl bg-blue-500/10 border border-blue-500/20 text-[#4ca9df]">
+                  <div className="p-2 rounded-xl bg-blue-50 border border-blue-100 text-[#292e91]">
                     <Layers size={20} className="animate-pulse" />
                   </div>
-                  <h4 className="text-xs font-bold text-white uppercase tracking-wider">Cloud Infrastructure & App Stack</h4>
+                  <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Cloud Infrastructure & App Stack</h4>
                 </div>
-                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-blue-500/10 text-[#4ca9df] border border-blue-500/20">
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
                   Production-Ready
                 </span>
               </div>
 
-              <div className="grid grid-cols-1 gap-3.5 text-left">
+              {/* Connected diagram */}
+              <div className="relative grid grid-cols-1 md:grid-cols-2 gap-x-16 gap-y-6 pt-2 z-10">
+                {/* SVG connection lines with flowing pulses */}
+                <svg className="absolute inset-0 w-full h-full pointer-events-none hidden md:block" viewBox="0 0 100 100" preserveAspectRatio="none" style={{ zIndex: 0 }}>
+                  <defs>
+                    <linearGradient id="flow-grad-1" x1="0%" y1="0%" x2="100%" y2="0%">
+                      <stop offset="0%" stopColor="#292e91" />
+                      <stop offset="100%" stopColor="#4ca9df" />
+                    </linearGradient>
+                    <linearGradient id="flow-grad-2" x1="0%" y1="100%" x2="100%" y2="0%">
+                      <stop offset="0%" stopColor="#fbbf24" />
+                      <stop offset="100%" stopColor="#22d3ee" />
+                    </linearGradient>
+                    <linearGradient id="flow-grad-diagonal" x1="0%" y1="0%" x2="100%" y2="100%">
+                      <stop offset="0%" stopColor="#292e91" />
+                      <stop offset="100%" stopColor="#10b981" />
+                    </linearGradient>
+                    <linearGradient id="flow-grad-reverse" x1="100%" y1="0%" x2="0%" y2="100%">
+                      <stop offset="0%" stopColor="#10b981" />
+                      <stop offset="100%" stopColor="#c084fc" />
+                    </linearGradient>
+                  </defs>
+
+                  {/* Flow 1: Frontend (Top Left) -> Serverless Workers (Top Right) */}
+                  <path d="M 44,16 H 56" fill="none" stroke="#e2e8f0" strokeWidth="2" />
+                  <path d="M 44,16 H 56" fill="none" stroke="url(#flow-grad-1)" strokeWidth="3" 
+                        strokeDasharray="4 8" className="animate-flow-dash-fast" />
+
+                  {/* Flow 2: Frontend (Top Left) -> Database Engine (Middle Right) */}
+                  <path d="M 44,22 L 56,48" fill="none" stroke="#e2e8f0" strokeWidth="2" />
+                  <path d="M 44,22 L 56,48" fill="none" stroke="url(#flow-grad-diagonal)" strokeWidth="3" 
+                        strokeDasharray="5 10" className="animate-flow-dash" />
+
+                  {/* Flow 3: Cron Schedules (Middle Left) -> Serverless Workers (Top Right) */}
+                  <path d="M 44,48 L 56,22" fill="none" stroke="#e2e8f0" strokeWidth="2" />
+                  <path d="M 44,48 L 56,22" fill="none" stroke="url(#flow-grad-2)" strokeWidth="3" 
+                        strokeDasharray="5 10" className="animate-flow-dash" />
+
+                  {/* Flow 4: Serverless Workers (Top Right) -> Database Engine (Middle Right) */}
+                  <path d="M 78,28 V 38" fill="none" stroke="#e2e8f0" strokeWidth="2" />
+                  <path d="M 78,28 V 38" fill="none" stroke="url(#flow-grad-diagonal)" strokeWidth="3" 
+                        strokeDasharray="4 8" className="animate-flow-dash-fast" />
+
+                  {/* Flow 5: Database Engine (Middle Right) -> Vector Engine (Bottom Left) */}
+                  <path d="M 56,55 L 44,80" fill="none" stroke="#e2e8f0" strokeWidth="2" />
+                  <path d="M 56,55 L 44,80" fill="none" stroke="url(#flow-grad-reverse)" strokeWidth="3" 
+                        strokeDasharray="5 10" className="animate-flow-dash" />
+                </svg>
+
                 {/* Tech Item: Frontend */}
-                <div className="group relative flex items-center justify-between p-4 rounded-2xl bg-slate-950/40 border border-slate-800/50 hover:border-[#4ca9df]/40 hover:bg-slate-950/80 transition-all duration-300 shadow-lg">
-                  <div className="flex items-center gap-4">
-                    <div className="p-2.5 rounded-xl bg-blue-600/10 text-blue-400 group-hover:bg-blue-600/20 group-hover:text-blue-300 transition-colors border border-blue-500/10">
+                <div className="group relative flex flex-col p-4 rounded-2xl bg-white border border-slate-200 hover:border-blue-400 hover:shadow-md hover:shadow-blue-50/50 transition-all duration-300 shadow-sm" style={{ zIndex: 1 }}>
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-xl bg-blue-50 text-blue-600 border border-blue-100 group-hover:bg-blue-100 transition-colors">
                       <Globe size={18} />
                     </div>
-                    <div>
-                      <div className="text-[10px] text-slate-500 font-bold tracking-wider uppercase">Frontend Web App</div>
-                      <div className="text-sm font-black text-slate-200 mt-0.5">Next.js 15 & React 19</div>
-                    </div>
+                    <div className="text-[10px] text-slate-400 font-bold tracking-wider uppercase">Frontend Web App</div>
                   </div>
-                  <span className="text-[10px] font-extrabold text-[#4ca9df] bg-blue-500/10 px-2.5 py-1 rounded-md border border-blue-500/25 uppercase tracking-wide group-hover:scale-105 transition-transform">
-                    BFF App Router
-                  </span>
-                </div>
-
-                {/* Tech Item: Database */}
-                <div className="group relative flex items-center justify-between p-4 rounded-2xl bg-slate-950/40 border border-slate-800/50 hover:border-[#4ca9df]/40 hover:bg-slate-950/80 transition-all duration-300 shadow-lg">
-                  <div className="flex items-center gap-4">
-                    <div className="p-2.5 rounded-xl bg-emerald-600/10 text-emerald-400 group-hover:bg-emerald-600/20 group-hover:text-emerald-300 transition-colors border border-emerald-500/10">
-                      <Database size={18} />
-                    </div>
-                    <div>
-                      <div className="text-[10px] text-slate-500 font-bold tracking-wider uppercase">Database Engine</div>
-                      <div className="text-sm font-black text-slate-200 mt-0.5">Supabase PostgreSQL</div>
-                    </div>
+                  <div className="flex items-center justify-between mt-3">
+                    <span className="text-sm font-extrabold text-slate-800">Next.js 15 & React 19</span>
+                    <span className="text-[9px] font-bold text-blue-700 bg-blue-50/80 px-2 py-0.5 rounded border border-blue-150 uppercase tracking-wide">
+                      BFF App Router
+                    </span>
                   </div>
-                  <span className="text-[10px] font-extrabold text-[#10b981] bg-emerald-500/10 px-2.5 py-1 rounded-md border border-emerald-500/25 uppercase tracking-wide group-hover:scale-105 transition-transform">
-                    RLS Active
-                  </span>
-                </div>
-
-                {/* Tech Item: Vector */}
-                <div className="group relative flex items-center justify-between p-4 rounded-2xl bg-slate-950/40 border border-slate-800/50 hover:border-[#4ca9df]/40 hover:bg-slate-950/80 transition-all duration-300 shadow-lg">
-                  <div className="flex items-center gap-4">
-                    <div className="p-2.5 rounded-xl bg-purple-600/10 text-purple-400 group-hover:bg-purple-600/20 group-hover:text-purple-300 transition-colors border border-purple-500/10">
-                      <Cpu size={18} />
-                    </div>
-                    <div>
-                      <div className="text-[10px] text-slate-500 font-bold tracking-wider uppercase">Vector Embedding Engine</div>
-                      <div className="text-sm font-black text-slate-200 mt-0.5">pgvector Extension</div>
-                    </div>
-                  </div>
-                  <span className="text-[10px] font-extrabold text-[#c084fc] bg-purple-500/10 px-2.5 py-1 rounded-md border border-purple-500/25 uppercase tracking-wide group-hover:scale-105 transition-transform">
-                    AI Memory
-                  </span>
                 </div>
 
                 {/* Tech Item: Cloud Run */}
-                <div className="group relative flex items-center justify-between p-4 rounded-2xl bg-slate-950/40 border border-slate-800/50 hover:border-[#4ca9df]/40 hover:bg-slate-950/80 transition-all duration-300 shadow-lg">
-                  <div className="flex items-center gap-4">
-                    <div className="p-2.5 rounded-xl bg-cyan-600/10 text-cyan-400 group-hover:bg-cyan-600/20 group-hover:text-cyan-300 transition-colors border border-cyan-500/10">
+                <div className="group relative flex flex-col p-4 rounded-2xl bg-white border border-slate-200 hover:border-cyan-400 hover:shadow-md hover:shadow-cyan-50/50 transition-all duration-300 shadow-sm" style={{ zIndex: 1 }}>
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-xl bg-cyan-50 text-cyan-600 border border-cyan-100 group-hover:bg-cyan-100 transition-colors">
                       <Server size={18} />
                     </div>
-                    <div>
-                      <div className="text-[10px] text-slate-500 font-bold tracking-wider uppercase">Serverless Workers</div>
-                      <div className="text-sm font-black text-slate-200 mt-0.5">Google Cloud Run</div>
-                    </div>
+                    <div className="text-[10px] text-slate-400 font-bold tracking-wider uppercase">Serverless Workers</div>
                   </div>
-                  <span className="text-[10px] font-extrabold text-[#22d3ee] bg-cyan-500/10 px-2.5 py-1 rounded-md border border-cyan-500/25 uppercase tracking-wide group-hover:scale-105 transition-transform">
-                    Auto-Scale
-                  </span>
+                  <div className="flex items-center justify-between mt-3">
+                    <span className="text-sm font-extrabold text-slate-800">Google Cloud Run</span>
+                    <span className="text-[9px] font-bold text-cyan-700 bg-cyan-50/80 px-2 py-0.5 rounded border border-cyan-150 uppercase tracking-wide">
+                      Auto-Scale
+                    </span>
+                  </div>
                 </div>
 
                 {/* Tech Item: Cron */}
-                <div className="group relative flex items-center justify-between p-4 rounded-2xl bg-slate-950/40 border border-slate-800/50 hover:border-[#4ca9df]/40 hover:bg-slate-950/80 transition-all duration-300 shadow-lg">
-                  <div className="flex items-center gap-4">
-                    <div className="p-2.5 rounded-xl bg-amber-600/10 text-amber-400 group-hover:bg-amber-600/20 group-hover:text-amber-300 transition-colors border border-amber-500/10">
+                <div className="group relative flex flex-col p-4 rounded-2xl bg-white border border-slate-200 hover:border-amber-400 hover:shadow-md hover:shadow-amber-50/50 transition-all duration-300 shadow-sm" style={{ zIndex: 1 }}>
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-xl bg-amber-50 text-amber-600 border border-amber-100 group-hover:bg-amber-100 transition-colors">
                       <Clock size={18} />
                     </div>
-                    <div>
-                      <div className="text-[10px] text-slate-500 font-bold tracking-wider uppercase">Cron Schedules</div>
-                      <div className="text-sm font-black text-slate-200 mt-0.5">Google Cloud Scheduler</div>
-                    </div>
+                    <div className="text-[10px] text-slate-400 font-bold tracking-wider uppercase">Cron Schedules</div>
                   </div>
-                  <span className="text-[10px] font-extrabold text-[#fbbf24] bg-amber-500/10 px-2.5 py-1 rounded-md border border-amber-500/25 uppercase tracking-wide group-hover:scale-105 transition-transform">
-                    1-Min Interval
-                  </span>
+                  <div className="flex items-center justify-between mt-3">
+                    <span className="text-sm font-extrabold text-slate-800">Cloud Scheduler</span>
+                    <span className="text-[9px] font-bold text-amber-700 bg-amber-50/80 px-2 py-0.5 rounded border border-amber-150 uppercase tracking-wide">
+                      1-Min Interval
+                    </span>
+                  </div>
                 </div>
+
+                {/* Tech Item: Database */}
+                <div className="group relative flex flex-col p-4 rounded-2xl bg-white border border-slate-200 hover:border-emerald-400 hover:shadow-md hover:shadow-emerald-50/50 transition-all duration-300 shadow-sm" style={{ zIndex: 1 }}>
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-100 group-hover:bg-emerald-100 transition-colors">
+                      <Database size={18} />
+                    </div>
+                    <div className="text-[10px] text-slate-400 font-bold tracking-wider uppercase">Database Engine</div>
+                  </div>
+                  <div className="flex items-center justify-between mt-3">
+                    <span className="text-sm font-extrabold text-slate-800">Supabase PostgreSQL</span>
+                    <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50/80 px-2 py-0.5 rounded border border-emerald-150 uppercase tracking-wide">
+                      RLS Active
+                    </span>
+                  </div>
+                </div>
+
+                {/* Tech Item: Vector */}
+                <div className="group relative flex flex-col p-4 rounded-2xl bg-white border border-slate-200 hover:border-purple-400 hover:shadow-md hover:shadow-purple-50/50 transition-all duration-300 shadow-sm" style={{ zIndex: 1 }}>
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-xl bg-purple-50 text-purple-650 border border-purple-100 group-hover:bg-purple-100 transition-colors">
+                      <Cpu size={18} className="text-purple-600" />
+                    </div>
+                    <div className="text-[10px] text-slate-400 font-bold tracking-wider uppercase">Vector Embedding Engine</div>
+                  </div>
+                  <div className="flex items-center justify-between mt-3">
+                    <span className="text-sm font-extrabold text-slate-800">pgvector Extension</span>
+                    <span className="text-[9px] font-bold text-purple-700 bg-purple-50/80 px-2 py-0.5 rounded border border-purple-150 uppercase tracking-wide">
+                      AI Memory
+                    </span>
+                  </div>
+                </div>
+
+                {/* Empty Spacer */}
+                <div className="hidden md:block pointer-events-none" />
               </div>
+
+              {/* Add keyframe style tag */}
+              <style>{`
+                @keyframes flow-dash-anim {
+                  to {
+                    stroke-dashoffset: -40;
+                  }
+                }
+                .animate-flow-dash {
+                  animation: flow-dash-anim 2s linear infinite;
+                }
+                .animate-flow-dash-fast {
+                  animation: flow-dash-anim 1.2s linear infinite;
+                }
+              `}</style>
             </div>
 
           </div>
