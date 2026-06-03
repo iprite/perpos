@@ -325,45 +325,90 @@ export default function LandingPage() {
               จากบันทึกอดีต สู่ระบบปฏิบัติการเชิงรุก
             </h2>
             <p className="text-base text-slate-550 leading-relaxed">
-              ERP แบบเดิมเพียงทําหน้าที่จดบันทึกประวัติสิ่งที่ล่วงเลยไปแล้ว (System of Record) ทำให้เกิดคอขวดที่พนักงานต้องมาคอยพิมพ์งานซ้ำซาก แต่ PERPOS คือ &ldquo;System of Action&rdquo; ที่ระบบประมวลผลวิเคราะห์และเริ่มทำงานโดยอัตโนมัติ
+              เปลี่ยนขบวนการทำงานจาก ERP แบบเดิมๆ ที่คอยจดบันทึกประวัติเอกสารย้อนหลัง มาเป็นระบบปฏิบัติงานอัตโนมัติที่ช่วยคิด มอนิเตอร์ และทำงานแทนคุณเชิงรุกแบบ Real-time
             </p>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-stretch">
             
             {/* The Old Way */}
-            <div className="bg-slate-50/50 border border-slate-100 rounded-3xl p-6 lg:p-8 flex flex-col justify-between space-y-6 text-left">
+            <div className="bg-slate-50/50 border border-slate-100 rounded-3xl p-6 lg:p-8 flex flex-col justify-between space-y-6 text-left opacity-80">
               <div className="space-y-4">
                 <div className="w-10 h-10 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-400">
                   <ShieldCheck size={20} />
                 </div>
-                <h3 className="text-lg font-bold text-slate-500">แบบเดิม: System of Record</h3>
-                <p className="text-sm text-slate-500 leading-relaxed">
-                  พนักงานเสียเวลาหลายชั่วโมงไปกับการพิมพ์คีย์ใบเสนอราคา บันทึกข้อมูลซื้อขาย หรือต้องคอยเดินเอกสารอนุมัติทางบัญชีด้วยตัวเอง มีความเฉื่อยของข้อมูล (Data Lag) สูงกว่าจะรับรู้ข้อมูลผลกำไรมักช้าไปหลายสัปดาห์
-                </p>
+                <div>
+                  <h3 className="text-lg font-bold text-slate-500">แบบเดิม: System of Record</h3>
+                  <p className="text-sm text-slate-450 mt-1">เน้นจดบันทึกเอกสารและประวัติย้อนหลัง เสียเวลากับงานแมนนวลซ้ำซาก</p>
+                </div>
               </div>
-              <div className="border-t border-slate-150 pt-4 space-y-2 text-sm text-slate-500">
-                <div className="flex gap-2">❌ ต้องคีย์ใบสั่งซื้อ ยอดขาย และลงบัญชีแยกแผนกด้วยมือ</div>
-                <div className="flex gap-2">❌ สต๊อกสินค้าขาดหรือล้นจากการขาดการพยากรณ์เชิงรุก</div>
-                <div className="flex gap-2">❌ ผู้บริหารรับทราบข้อมูลการเงินช้าและเป็นอดีตเสมอ</div>
+              
+              <div className="space-y-5 pt-6 border-t border-slate-200">
+                {/* Point 1 */}
+                <div className="flex gap-3.5 items-start">
+                  <span className="text-red-500 shrink-0 text-base">❌</span>
+                  <div>
+                    <h4 className="text-sm font-bold text-slate-700">ลงบัญชีและคีย์ข้อมูลด้วยมือ</h4>
+                    <p className="text-xs text-slate-500 leading-relaxed mt-1">พนักงานต้องคีย์ใบเสนอราคา ใบสั่งซื้อ และลงบัญชีแยกแผนกด้วยมือทีละขั้นตอน</p>
+                  </div>
+                </div>
+                {/* Point 2 */}
+                <div className="flex gap-3.5 items-start">
+                  <span className="text-red-500 shrink-0 text-base">❌</span>
+                  <div>
+                    <h4 className="text-sm font-bold text-slate-700">สต๊อกสินค้าขาดหรือล้นคลัง</h4>
+                    <p className="text-xs text-slate-500 leading-relaxed mt-1">นับสต๊อกด้วยมือ เสียโอกาสการขายจากการขาดข้อมูลวิเคราะห์พยากรณ์เชิงรุก</p>
+                  </div>
+                </div>
+                {/* Point 3 */}
+                <div className="flex gap-3.5 items-start">
+                  <span className="text-red-500 shrink-0 text-base">❌</span>
+                  <div>
+                    <h4 className="text-sm font-bold text-slate-700">รับข้อมูลล่าช้าเป็นสัปดาห์</h4>
+                    <p className="text-xs text-slate-500 leading-relaxed mt-1">ผู้บริหารทราบผลกำไรและการเงินช้า ต้องรอสเปรดชีตและปิดงบปลายเดือนเสมอ</p>
+                  </div>
+                </div>
               </div>
             </div>
 
             {/* The PERPOS Way */}
-            <div className="bg-gradient-to-br from-blue-50/30 via-white to-white border border-blue-200/60 rounded-3xl p-6 lg:p-8 flex flex-col justify-between space-y-6 shadow-sm text-left">
+            <div className="bg-gradient-to-br from-blue-50/50 via-white to-white border border-blue-200/60 rounded-3xl p-6 lg:p-8 flex flex-col justify-between space-y-6 shadow-sm text-left relative overflow-hidden group hover:shadow-md transition-shadow duration-300">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-[#4ca9df]/5 rounded-full blur-3xl pointer-events-none" />
               <div className="space-y-4">
                 <div className="w-10 h-10 rounded-xl bg-blue-50/50 border border-[#292e91]/15 flex items-center justify-center text-[#292e91]">
-                  <Sparkles size={20} />
+                  <Sparkles size={20} className="animate-pulse" />
                 </div>
-                <h3 className="text-lg font-bold text-slate-800">ระบบ PERPOS: System of Action</h3>
-                <p className="text-sm text-slate-600 leading-relaxed">
-                  ระบบงานขับเคลื่อนเชิงรุกด้วย AI Agents ทั้ง 8 แผนก ทำการตรวจจับ สแกนใบเสร็จด้วย OCR และอัปเดตยอดคงเหลืออัตโนมัติ ส่งข้อมูลปิดบัญชีพร้อมแจ้งเตือนผู้บริหารทันทีเมื่อพบโอกาสหรือความเสี่ยงทางธุรกิจ
-                </p>
+                <div>
+                  <h3 className="text-lg font-bold bg-gradient-to-r from-[#292e91] to-[#4ca9df] bg-clip-text text-transparent">ระบบ PERPOS: System of Action</h3>
+                  <p className="text-sm text-slate-555 mt-1">เน้นการประมวลผลเชิงรุกด้วย AI Agents ทำงานแทนและแจ้งเตือนทันที</p>
+                </div>
               </div>
-              <div className="border-t border-blue-150 pt-4 space-y-2 text-sm text-blue-750">
-                <div className="flex gap-2">✓ เครือข่าย AI ดึงเอกสารใบแจ้งหนี้ คีย์แยกประเภท และลงบัญชีแบบอัตโนมัติ</div>
-                <div className="flex gap-2">✓ ทำนายปริมาณของเข้าออกสต๊อก ป้องกันของขาด (Auto-Replenishment)</div>
-                <div className="flex gap-2">✓ สรุป Insights ทันใจด้วยผู้ช่วยบริหารแชตตอบกลับใน 3 วินาที</div>
+              
+              <div className="space-y-5 pt-6 border-t border-blue-100">
+                {/* Point 1 */}
+                <div className="flex gap-3.5 items-start">
+                  <span className="text-emerald-500 shrink-0 bg-emerald-50 p-0.5 rounded-full text-xs">✓</span>
+                  <div>
+                    <h4 className="text-sm font-extrabold text-[#292e91]">AI Autopilot ทำงานอัตโนมัติ</h4>
+                    <p className="text-xs text-slate-600 leading-relaxed mt-1 font-medium">AI OCR สกัดวิเคราะห์บิล คีย์แยกประเภท และลงบัญชีเรียลไทม์ใน 3 วินาที</p>
+                  </div>
+                </div>
+                {/* Point 2 */}
+                <div className="flex gap-3.5 items-start">
+                  <span className="text-emerald-500 shrink-0 bg-emerald-50 p-0.5 rounded-full text-xs">✓</span>
+                  <div>
+                    <h4 className="text-sm font-extrabold text-[#292e91]">คำนวณอัตราขายและพยากรณ์สต๊อก</h4>
+                    <p className="text-xs text-slate-600 leading-relaxed mt-1 font-medium">ทำนายปริมาณการขาย (Auto-Replenishment) ออกเอกสารสั่งซื้อเมื่อของต่ำกว่าจุดวิกฤต</p>
+                  </div>
+                </div>
+                {/* Point 3 */}
+                <div className="flex gap-3.5 items-start">
+                  <span className="text-emerald-500 shrink-0 bg-emerald-50 p-0.5 rounded-full text-xs">✓</span>
+                  <div>
+                    <h4 className="text-sm font-extrabold text-[#292e91]">สรุป Insights ส่งตรงในแชตบอท</h4>
+                    <p className="text-xs text-slate-600 leading-relaxed mt-1 font-medium">ผู้บริหารเรียกดูรายงานการเงิน ยอดขาย และวิเคราะห์ความเสี่ยงลึกได้ทุกอุปกรณ์ 24 ชม.</p>
+                  </div>
+                </div>
               </div>
             </div>
 
