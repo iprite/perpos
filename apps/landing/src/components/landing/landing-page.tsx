@@ -169,7 +169,7 @@ export default function LandingPage() {
             {/* Copy Block */}
             <div className="lg:col-span-7 space-y-6 text-left">
               <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50/50 border border-[#292e91]/15 text-xs font-semibold text-[#292e91]">
-                <Sparkles size={14} className="bg-brand-gradient bg-clip-text text-transparent" />
+                <Sparkles size={14} className="text-[#292e91]" />
                 <span>Next-Gen Agentic AI ERP</span>
               </div>
               <h1 className="text-3xl sm:text-4xl md:text-5xl font-black font-lexend text-slate-900 leading-tight tracking-tight">
