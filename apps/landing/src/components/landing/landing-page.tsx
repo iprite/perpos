@@ -22,7 +22,8 @@ import {
   Users,
   Truck,
   TrendingUp,
-  Sliders
+  Sliders,
+  Menu
 } from "lucide-react";
 import ChatTerminal from "./chat-terminal";
 import OcrSimulation from "./ocr-simulation";
@@ -46,6 +47,7 @@ export default function LandingPage() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isVisible, setIsVisible] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [submitStatus, setSubmitStatus] = useState<"idle" | "loading" | "success">("idle");
   const [formState, setFormState] = useState({
     name: "",
@@ -140,21 +142,71 @@ export default function LandingPage() {
             <a href="#model" className="hover:text-[#292e91] transition-colors">Pricing</a>
           </nav>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 sm:gap-4">
             <a
               href={APP_SIGNIN_URL}
-              className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 transition-colors"
+              className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 transition-colors"
             >
               เข้าสู่ระบบ
             </a>
+
+            {/* Mobile Menu Toggle Button */}
             <button
-              onClick={() => setIsModalOpen(true)}
-              className="hidden sm:inline-flex items-center justify-center rounded-lg bg-brand-gradient hover:opacity-90 px-4 py-2 text-sm font-semibold text-white transition-all shadow-sm duration-300 hover:shadow-md"
+              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              className="md:hidden p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer"
             >
-              Request Demo
+              {isMobileMenuOpen ? <X size={18} /> : <Menu size={18} />}
             </button>
+
+            <button
+               onClick={() => setIsModalOpen(true)}
+               className="hidden sm:inline-flex items-center justify-center rounded-lg bg-brand-gradient hover:opacity-90 px-4 py-2 text-sm font-semibold text-white transition-all shadow-sm duration-300 hover:shadow-md"
+             >
+               ขอเดโมระบบ
+             </button>
           </div>
         </div>
+
+        {/* Mobile Menu Panel */}
+        {isMobileMenuOpen && (
+          <div className="md:hidden fixed inset-x-0 top-[68px] bg-white border-b border-slate-200 shadow-lg z-40 p-4 max-h-[calc(100vh-68px)] overflow-y-auto animate-fade-in text-left">
+            <div className="flex flex-col gap-4 text-sm font-semibold text-slate-700">
+              <a href="#features" onClick={() => setIsMobileMenuOpen(false)} className="hover:text-[#292e91] py-2 border-b border-slate-100">AI Agents ทั้งหมด</a>
+              <a href="#shift" onClick={() => setIsMobileMenuOpen(false)} className="hover:text-[#292e91] py-2 border-b border-slate-100">The Shift</a>
+              <a href="#architecture" onClick={() => setIsMobileMenuOpen(false)} className="hover:text-[#292e91] py-2 border-b border-slate-100">Architecture</a>
+              <a href="#model" onClick={() => setIsMobileMenuOpen(false)} className="hover:text-[#292e91] py-2 border-b border-slate-100">Pricing</a>
+              
+              <div className="pt-2">
+                <div className="text-xs text-slate-400 font-bold uppercase tracking-wider mb-2">เจาะลึก AI Agents</div>
+                <div className="grid grid-cols-1 gap-2 pl-2">
+                  {MENU_AGENTS.map((item) => (
+                    <Link
+                      key={item.slug}
+                      href={`/agents/${item.slug}`}
+                      onClick={() => setIsMobileMenuOpen(false)}
+                      className="flex items-center gap-2.5 py-1.5 hover:text-[#292e91] text-xs"
+                    >
+                      <div className={`p-1.5 rounded-lg border ${item.color}`}>
+                        <item.icon size={12} />
+                      </div>
+                      <span className="font-bold">{item.name}</span>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+              
+              <button
+                onClick={() => {
+                  setIsMobileMenuOpen(false);
+                  setIsModalOpen(true);
+                }}
+                className="w-full mt-4 rounded-xl bg-brand-gradient hover:opacity-90 px-4 py-3 text-sm font-bold text-white shadow-md transition-all text-center"
+              >
+                ขอเดโมระบบ
+              </button>
+            </div>
+          </div>
+        )}
       </header>
 
       {/* 1. HERO SECTION */}
@@ -547,12 +599,12 @@ export default function LandingPage() {
       </section>
 
       {/* FOOTER */}
-      <footer className="border-t border-slate-200/80 bg-slate-50 py-12 text-left">
+      <footer className="border-t border-slate-200/80 bg-slate-50 py-12 text-center md:text-left">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
             <div className="md:col-span-2 space-y-4">
-              <img src="/logo.svg" alt="PERPOS" className="h-8 w-auto" />
-              <p className="text-base text-slate-550 max-w-md leading-relaxed">
+              <img src="/logo.svg" alt="PERPOS" className="h-8 w-auto mx-auto md:mx-0" />
+              <p className="text-base text-slate-550 max-w-md leading-relaxed mx-auto md:mx-0">
                 Next-Gen Agentic AI ERP — Tailored to Empower Your Business Flow.
                 ระบบบัญชีและ ERP สำหรับธุรกิจ SME ยุคใหม่ ปฏิบัติงานเชิงรุกด้วย AI Agents แบบ Real-time
               </p>

@@ -5,11 +5,11 @@ import { footerContent } from "@/data/landing-content";
 
 export function Footer() {
   return (
-    <footer className="border-t border-slate-200 bg-slate-50 text-slate-650">
+    <footer className="border-t border-slate-200 bg-slate-50 text-slate-650 text-center md:text-left">
       <Container className="py-14 md:py-16">
         <div className="grid gap-10 md:grid-cols-12">
           {/* Brand */}
-          <div className="md:col-span-5">
+          <div className="md:col-span-5 flex flex-col items-center md:items-start">
             <Logo tone="dark" />
             <p className="mt-4 max-w-sm text-sm leading-relaxed text-slate-500">
               {footerContent.brand.description}
