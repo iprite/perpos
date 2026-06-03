@@ -353,6 +353,7 @@ export const MODULE_MENUS: Record<string, MenuDef[]> = {
   ],
   jaquar: [
     { key: "dashboard", label: "Dashboard" },
+    { key: "stock", label: "คลังสินค้า (Stock)" },
   ],
   b2g: [
     { key: "dashboard", label: "Dashboard" },

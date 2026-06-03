@@ -423,9 +423,11 @@ function buildJustMeMenuItems(org: string, orgRole?: string | null, labels: Reco
 // ─── Jaquar module ───────────────────────────────────────────────────────────
 function buildJaquarMenuItems(org: string, labels: Record<string, string> = {}): MenuItem[] {
   const l = (key: string, fallback: string) => labels[key] || fallback;
+  const p = (path: string) => `/${org}/jaquar/${path}`;
   return [
     { name: "Jaquar" },
     { name: l("dashboard", "Dashboard"), href: `/${org}/jaquar`, icon: <LayoutDashboard className="h-5 w-5" /> },
+    { name: l("stock", "คลังสินค้า (Stock)"), href: p("stock"), icon: <Package className="h-5 w-5" /> },
   ];
 }
 
