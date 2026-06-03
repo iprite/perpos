@@ -13,7 +13,14 @@ import {
   Layers,
   FileText,
   Clock,
-  Play
+  Play,
+  MessageSquare,
+  Target,
+  ShoppingCart,
+  Receipt,
+  Users,
+  Truck,
+  Sliders
 } from "lucide-react";
 
 // Import all simulation widgets
@@ -29,15 +36,16 @@ import SimulatorWidget from "./agent-widgets/simulator-widget";
 const APP_SIGNIN_URL = "https://app.perpos.io/signin";
 
 const MENU_AGENTS = [
-  { name: "Sales Agent", slug: "sales", desc: "เสนอราคาทาง LINE ใน 3 วินาที" },
-  { name: "Marketing Agent", slug: "marketing", desc: "วิเคราะห์แคมเปญรายบุคคล" },
-  { name: "Procurement Agent", slug: "procurement", desc: "จัดซื้อและมอนิเตอร์สต๊อกสินค้า" },
-  { name: "Finance & OCR Agent", slug: "finance", desc: "สแกนบิลและกระทบยอดเงินโอน" },
-  { name: "HR & Operations Agent", slug: "hr", desc: "จัดกะกะทัดรัด/สรุป Payroll พนักงาน" },
-  { name: "Admin Agent", slug: "admin", desc: "คำนวณแผนการเดินทางขนส่งที่ดีที่สุด" },
-  { name: "Executive Assistant", slug: "executive", desc: "สนทนา BI รายงานธุรกิจทันใจ" },
-  { name: "Scenario Simulator", slug: "simulator", desc: "ทดลองตัวแปรความเสี่ยง What-If" },
+  { name: "Sales Agent", slug: "sales", desc: "เสนอราคาทาง LINE ใน 3 วินาที", icon: MessageSquare, color: "text-blue-600 bg-blue-50 border-blue-100" },
+  { name: "Marketing Agent", slug: "marketing", desc: "วิเคราะห์แคมเปญรายบุคคล", icon: Target, color: "text-indigo-600 bg-indigo-50 border-indigo-100" },
+  { name: "Procurement Agent", slug: "procurement", desc: "จัดซื้อและมอนิเตอร์สต๊อกสินค้า", icon: ShoppingCart, color: "text-emerald-600 bg-emerald-50 border-emerald-100" },
+  { name: "Finance & OCR Agent", slug: "finance", desc: "สแกนบิลและกระทบยอดเงินโอน", icon: Receipt, color: "text-rose-600 bg-rose-50 border-rose-100" },
+  { name: "HR & Operations Agent", slug: "hr", desc: "จัดกะกะทัดรัด/สรุป Payroll พนักงาน", icon: Users, color: "text-violet-600 bg-violet-50 border-violet-100" },
+  { name: "Admin Agent", slug: "admin", desc: "คำนวณแผนการเดินทางขนส่งที่ดีที่สุด", icon: Truck, color: "text-amber-600 bg-amber-50 border-amber-100" },
+  { name: "Executive Assistant", slug: "executive", desc: "สนทนา BI รายงานธุรกิจทันใจ", icon: TrendingUp, color: "text-cyan-600 bg-cyan-50 border-cyan-100" },
+  { name: "Scenario Simulator", slug: "simulator", desc: "ทดลองตัวแปรความเสี่ยง What-If", icon: Sliders, color: "text-teal-600 bg-teal-50 border-teal-100" },
 ];
+
 
 interface AgentData {
   title: string;
@@ -338,18 +346,22 @@ export default function AgentDetailsView({ slug }: AgentDetailsViewProps) {
               </button>
               
               {/* Dropdown Container */}
-              <div className="absolute top-[80%] left-1/2 -translate-x-1/2 w-[520px] bg-white/95 backdrop-blur-md border border-slate-200/80 rounded-2xl shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 p-3 grid grid-cols-2 gap-1.5 origin-top mt-2">
+              <div className="absolute top-[85%] left-1/2 -translate-x-1/2 w-[580px] bg-white/95 backdrop-blur-md border border-slate-200/80 rounded-2xl shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 p-3.5 grid grid-cols-2 gap-2 origin-top mt-2">
                 {MENU_AGENTS.map((item) => (
                   <Link
                     key={item.slug}
                     href={`/agents/${item.slug}`}
-                    className="flex flex-col text-left p-2.5 rounded-xl hover:bg-slate-50 border border-transparent hover:border-slate-100 transition-all font-semibold"
+                    className="flex items-start gap-3 p-3 rounded-xl hover:bg-slate-50 border border-transparent hover:border-slate-100 transition-all group/item"
                   >
-                    <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                      <span className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0" />
-                      {item.name}
-                    </span>
-                    <span className="text-[10px] text-slate-400 mt-1 pl-3 font-normal leading-normal">{item.desc}</span>
+                    <div className={`p-2 rounded-xl border shrink-0 transition-colors ${item.color}`}>
+                      <item.icon size={16} />
+                    </div>
+                    <div className="flex flex-col text-left">
+                      <span className="text-sm font-extrabold text-slate-800 leading-snug">
+                        {item.name}
+                      </span>
+                      <span className="text-[11px] text-slate-500 mt-1 font-normal leading-normal">{item.desc}</span>
+                    </div>
                   </Link>
                 ))}
               </div>
