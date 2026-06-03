@@ -13,10 +13,10 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         {children}
       </div>
 
-      <footer className="border-t border-slate-200/80 bg-white/70 backdrop-blur relative z-10">
+      <footer className="border-t border-slate-200/80 bg-white/70 backdrop-blur relative z-10 text-center sm:text-left">
         <div className="mx-auto flex w-full max-w-5xl flex-col gap-3 px-5 py-6 text-sm text-slate-500 sm:flex-row sm:items-center sm:justify-between sm:px-6">
           <div>© 2026 P2P Solutions. All Rights Reserved.</div>
-          <div className="flex flex-wrap gap-x-4 gap-y-2">
+          <div className="flex flex-wrap justify-center gap-x-4 gap-y-2 sm:justify-start">
             <Link href="/privacy" className="text-slate-400 hover:text-blue-600 transition-colors">
               นโยบายความเป็นส่วนตัว
             </Link>
