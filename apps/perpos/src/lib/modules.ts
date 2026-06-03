@@ -159,6 +159,7 @@ export const ALL_MODULES: ModuleDef[] = [
     label: "Jaquar",
     href: "/jaquar",
     specific: true,
+    forOrgSlugs: ["p2psupply"],
     match: (p) => {
       const seg = p.split("/").filter(Boolean);
       return seg.length >= 2 && seg[1] === "jaquar";

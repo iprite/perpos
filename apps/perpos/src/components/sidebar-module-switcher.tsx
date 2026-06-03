@@ -4,7 +4,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import {
   Check, ChevronDown,
-  BookOpenText, Users, BotMessageSquare, Building2, Briefcase, Calculator,
+  BookOpenText, Users, BotMessageSquare, Building2, Briefcase, Calculator, Boxes,
 } from "lucide-react";
 import { useAtomValue } from "jotai";
 import { ALL_MODULES } from "@/lib/modules";
@@ -18,6 +18,7 @@ const MODULE_ICONS: Record<string, React.ReactNode> = {
   tmc:        <Building2    className="h-4 w-4" />,
   crm:        <Briefcase    className="h-4 w-4" />,
   acc_firm:   <Calculator   className="h-4 w-4" />,
+  jaquar:     <Boxes        className="h-4 w-4" />,
 };
 
 export function SidebarModuleSwitcher() {
