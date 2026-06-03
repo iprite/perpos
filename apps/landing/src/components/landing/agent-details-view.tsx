@@ -425,7 +425,7 @@ export default function AgentDetailsView({ slug }: AgentDetailsViewProps) {
                 {agent.workflow.map((flow, idx) => (
                   <div key={idx} className="relative">
                     {/* Node Dot */}
-                    <div className="absolute -left-[31px] top-1 w-4.5 h-4.5 rounded-full bg-white border-2 border-blue-500 flex items-center justify-center text-[10px] font-bold text-blue-600 shadow-sm">
+                    <div className="absolute -left-[36px] top-0.5 w-6 h-6 rounded-full bg-blue-50 border-2 border-blue-500 flex items-center justify-center text-xs font-bold text-blue-600 shadow-sm">
                       {idx + 1}
                     </div>
                     <p className="text-sm text-slate-650 leading-relaxed font-medium">
