@@ -2,16 +2,34 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { Menu, X } from "lucide-react";
+import { Menu, X, Globe } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Logo } from "@/components/ui/logo";
 import { navigationItems, APP_URL } from "@/data/landing-content";
 import { cn } from "@/lib/utils";
+import { useLanguage } from "../landing/language-context";
+import { translations } from "../landing/locales";
+
+const getNavLabel = (label: string, lang: "th" | "en") => {
+  if (lang === "en") {
+    switch (label) {
+      case "ฟีเจอร์": return "Features";
+      case "โมดูล": return "Modules";
+      case "LINE Bot": return "LINE Bot";
+      case "ราคา": return "Pricing";
+      case "FAQ": return "FAQ";
+      default: return label;
+    }
+  }
+  return label;
+};
 
 export function Header() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isVisible, setIsVisible] = useState(true);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const { lang, setLang } = useLanguage();
+  const t = translations[lang];
 
   useEffect(() => {
     let lastScrollY = window.scrollY;
@@ -55,14 +73,23 @@ export function Header() {
                   href={item.href}
                   className="rounded-lg px-3.5 py-2 text-sm font-medium text-foreground-secondary transition-colors hover:bg-foreground/5 hover:text-foreground"
                 >
-                  {item.label}
+                  {getNavLabel(item.label, lang)}
                 </Link>
               ))}
             </div>
 
             <div className="hidden items-center gap-2 md:flex">
+              <button
+                onClick={() => setLang(lang === "th" ? "en" : "th")}
+                className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-650 hover:bg-slate-50 transition-colors shadow-sm cursor-pointer mr-2"
+                aria-label="Toggle Language"
+              >
+                <Globe size={14} className="text-slate-400" />
+                <span className="uppercase">{lang === "th" ? "en" : "th"}</span>
+              </button>
+
               <Button variant="ghost" size="sm" href={APP_URL}>
-                เข้าสู่ระบบ
+                {t.nav.login}
               </Button>
             </div>
 
@@ -92,13 +119,26 @@ export function Header() {
                 className="rounded-lg px-3 py-2.5 text-sm font-medium text-foreground-secondary transition-colors hover:bg-foreground/5 hover:text-foreground"
                 onClick={() => setIsMobileMenuOpen(false)}
               >
-                {item.label}
+                {getNavLabel(item.label, lang)}
               </Link>
             ))}
             <div className="my-2 h-px bg-border" />
-            <Button variant="secondary" href={APP_URL} className="w-full">
-              เข้าสู่ระบบ
-            </Button>
+            
+            <div className="flex flex-col gap-2">
+              <button
+                onClick={() => {
+                  setLang(lang === "th" ? "en" : "th");
+                }}
+                className="flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white py-2.5 text-sm font-bold text-slate-700 shadow-sm hover:bg-slate-50 transition-colors w-full cursor-pointer"
+              >
+                <Globe size={16} className="text-slate-400" />
+                <span className="uppercase">{lang === "th" ? "en" : "th"}</span>
+              </button>
+
+              <Button variant="secondary" href={APP_URL} className="w-full">
+                {t.nav.login}
+              </Button>
+            </div>
           </div>
         </div>
       )}

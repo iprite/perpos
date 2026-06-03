@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import { Terminal, CheckCircle2, AlertTriangle, Sparkles } from "lucide-react";
+import { translations } from "./locales";
 
 interface Question {
   id: string;
@@ -39,14 +40,23 @@ const PRESET_QUESTIONS: Question[] = [
   }
 ];
 
-export default function ChatTerminal() {
+export default function ChatTerminal({ lang = "th" }: { lang?: "th" | "en" }) {
   const [activeQuestion, setActiveQuestion] = useState<Question | null>(null);
   const [isTyping, setIsTyping] = useState(false);
   const [step, setStep] = useState<"idle" | "user" | "sql" | "chart">("idle");
+  const t = translations[lang].chatTerminal;
+
+  const presetQuestions: Question[] = PRESET_QUESTIONS.map((q, idx) => ({
+    ...q,
+    label: t.presets[idx]?.label || q.label,
+    queryText: t.presets[idx]?.queryText || q.queryText,
+    response: t.presets[idx]?.response || q.response
+  }));
 
   const handleSelectQuestion = (q: Question) => {
     if (isTyping) return;
-    setActiveQuestion(q);
+    const matchedQuestion = presetQuestions.find((pq) => pq.id === q.id) || q;
+    setActiveQuestion(matchedQuestion);
     setStep("user");
     setIsTyping(true);
 
@@ -59,6 +69,10 @@ export default function ChatTerminal() {
       }, 1200);
     }, 1000);
   };
+
+  const currentQuestion = activeQuestion
+    ? presetQuestions.find((pq) => pq.id === activeQuestion.id) || activeQuestion
+    : null;
 
   return (
     <div className="w-full rounded-2xl border border-slate-200 bg-[#f8fafc] shadow-lg overflow-hidden font-mono text-xs text-slate-700">
@@ -88,49 +102,49 @@ export default function ChatTerminal() {
               <div className="w-12 h-12 rounded-full bg-blue-50 border border-blue-100 flex items-center justify-center mx-auto animate-bounce">
                 <Sparkles className="text-blue-500" size={24} />
               </div>
-              <p className="text-sm font-semibold text-slate-800">ทดสอบใช้งาน Executive Assistant</p>
-              <p className="text-slate-500 text-[11px] leading-relaxed">
-                คลิกคำถามเชิงกลยุทธ์ด้านล่างเพื่อสั่งงาน AI วิเคราะห์ฐานข้อมูลองค์กรและดึงคำตอบพร้อมแผนภูมิวิเคราะห์แบบทันที
+              <p className="text-sm font-semibold text-slate-800">{t.title}</p>
+              <p className="text-slate-550 text-[11px] leading-relaxed">
+                {t.desc}
               </p>
             </div>
           )}
 
           {/* User question */}
-          {step !== "idle" && activeQuestion && (
+          {step !== "idle" && currentQuestion && (
             <div className="space-y-1">
               <div className="text-slate-400 flex items-center gap-1.5">
-                <span className="text-blue-600">CEO@PERPOS:~ $</span> ask_ai --query
+                <span className="text-blue-600">CEO@PERPOS:~ $</span> {t.askAi}
               </div>
               <div className="p-3 rounded-lg bg-white border border-slate-200 text-slate-800 leading-relaxed text-[11px]">
-                &ldquo;{activeQuestion.queryText}&rdquo;
+                &ldquo;{currentQuestion.queryText}&rdquo;
               </div>
             </div>
           )}
 
           {/* SQL parsing state */}
-          {(step === "sql" || step === "chart") && activeQuestion && (
+          {(step === "sql" || step === "chart") && currentQuestion && (
             <div className="space-y-1 animate-fade-in">
               <div className="text-slate-400 flex items-center gap-1.5">
-                <span className="text-blue-600">AI_AGENT:~ $</span> sql_generator --target ledger_db
+                <span className="text-blue-600">AI_AGENT:~ $</span> {t.sqlGen}
               </div>
               <div className="p-2.5 rounded-md bg-[#0f172a] text-cyan-400 text-[10px] whitespace-pre-wrap overflow-x-auto leading-normal">
-                {activeQuestion.sql}
+                {currentQuestion.sql}
               </div>
             </div>
           )}
 
           {/* Result Response & SVG charts */}
-          {step === "chart" && activeQuestion && (
+          {step === "chart" && currentQuestion && (
             <div className="space-y-3.5 animate-fade-in">
               <div className="text-slate-400 flex items-center gap-1.5">
-                <span className="text-blue-600">AI_AGENT:~ $</span> render_executive_briefing
+                <span className="text-blue-600">AI_AGENT:~ $</span> {t.renderBrief}
               </div>
               <div className="p-4 rounded-lg bg-white border border-slate-200 text-slate-800 space-y-4">
                 <div className="flex gap-2.5 items-start">
                   <div className="w-5 h-5 rounded bg-blue-50 border border-blue-100 flex items-center justify-center shrink-0 mt-0.5">
                     <Sparkles className="text-blue-600" size={12} />
                   </div>
-                  <p className="text-[11px] leading-relaxed text-slate-700">{activeQuestion.response}</p>
+                  <p className="text-[11px] leading-relaxed text-slate-700">{currentQuestion.response}</p>
                 </div>
 
                 {/* SVG Chart Rendering */}
@@ -138,7 +152,7 @@ export default function ChatTerminal() {
                   {/* Grid Lines */}
                   <div className="absolute inset-0 bg-[linear-gradient(rgba(0,0,0,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(0,0,0,0.02)_1px,transparent_1px)] bg-[size:20px_20px]" />
 
-                  {activeQuestion.chartType === "line" && (
+                  {currentQuestion.chartType === "line" && (
                     <svg width="320" height="120" className="relative z-10 overflow-visible">
                       <defs>
                         <linearGradient id="gradient-line" x1="0%" y1="0%" x2="0%" y2="100%">
@@ -178,19 +192,19 @@ export default function ChatTerminal() {
                       <circle cx="290" cy="20" r="3" fill="#2563eb" />
 
                       {/* Text tags */}
-                      <text x="12" y="112" fill="#94a3b8" fontSize="9">Today</text>
-                      <text x="260" y="112" fill="#94a3b8" fontSize="9">30 Days</text>
+                      <text x="12" y="112" fill="#94a3b8" fontSize="9">{t.today}</text>
+                      <text x="260" y="112" fill="#94a3b8" fontSize="9">{t.days30}</text>
                       <text x="235" y="15" fill="#10b981" fontSize="9" fontWeight="bold">+342,000 THB</text>
                     </svg>
                   )}
 
-                  {activeQuestion.chartType === "bar" && (
-                    <div className="w-full max-w-[280px] space-y-3.5 relative z-10 py-1">
+                  {currentQuestion.chartType === "bar" && (
+                    <div className="w-full max-w-[280px] space-y-3.5 relative z-10 py-1 font-sans">
                       {/* Bar 1 */}
                       <div className="space-y-1">
                         <div className="flex justify-between text-[9px] text-slate-500">
                           <span>1. Contract Enterprise SaaS</span>
-                          <span className="text-blue-600 font-semibold">42% (Sales share)</span>
+                          <span className="text-blue-600 font-semibold">42% ({t.chartShare})</span>
                         </div>
                         <div className="h-2 w-full bg-slate-100 rounded overflow-hidden border border-slate-200">
                           <div className="h-full bg-gradient-to-r from-blue-600 to-blue-400 rounded transition-all duration-1000 ease-out" style={{ width: "85%" }} />
@@ -200,7 +214,7 @@ export default function ChatTerminal() {
                       <div className="space-y-1">
                         <div className="flex justify-between text-[9px] text-slate-500">
                           <span>2. Implementation Service</span>
-                          <span className="text-blue-600 font-semibold">28%</span>
+                          <span className="text-blue-600 font-semibold">28% ({t.chartShare})</span>
                         </div>
                         <div className="h-2 w-full bg-slate-100 rounded overflow-hidden border border-slate-200">
                           <div className="h-full bg-gradient-to-r from-cyan-600 to-blue-500 rounded transition-all duration-1000 ease-out" style={{ width: "65%" }} />
@@ -210,7 +224,7 @@ export default function ChatTerminal() {
                       <div className="space-y-1">
                         <div className="flex justify-between text-[9px] text-slate-500">
                           <span>3. API Integration Service</span>
-                          <span className="text-blue-600 font-semibold">18%</span>
+                          <span className="text-blue-600 font-semibold">18% ({t.chartShare})</span>
                         </div>
                         <div className="h-2 w-full bg-slate-100 rounded overflow-hidden border border-slate-200">
                           <div className="h-full bg-gradient-to-r from-cyan-700 to-cyan-500 rounded transition-all duration-1000 ease-out" style={{ width: "40%" }} />
@@ -219,8 +233,8 @@ export default function ChatTerminal() {
                     </div>
                   )}
 
-                  {activeQuestion.chartType === "radial" && (
-                    <div className="flex items-center gap-6 relative z-10 p-2">
+                  {currentQuestion.chartType === "radial" && (
+                    <div className="flex items-center gap-6 relative z-10 p-2 font-sans">
                       <svg width="80" height="80" className="transform -rotate-90">
                         <circle cx="40" cy="40" r="30" stroke="#f1f5f9" strokeWidth="6" fill="transparent" />
                         <circle
@@ -238,13 +252,13 @@ export default function ChatTerminal() {
                       <div className="space-y-1.5">
                         <div className="flex items-center gap-1.5 text-red-500 font-semibold text-[11px]">
                           <AlertTriangle size={12} />
-                          Procurement Leakage Detected
+                          {t.radLeak}
                         </div>
                         <div className="text-[14px] font-bold text-slate-800">
-                          12.4% <span className="text-[10px] text-slate-400 font-normal">of procurement value</span>
+                          12.4% <span className="text-[10px] text-slate-400 font-normal">{t.radValue}</span>
                         </div>
-                        <div className="text-[9px] text-slate-500 leading-snug">
-                          พบการเรียกเก็บซ้ำซ้อน 2 รายการ<br />มูลค่าเสี่ยงสูญเสีย 84,200 THB
+                        <div className="text-[9px] text-slate-550 leading-snug">
+                          {t.radDesc}
                         </div>
                       </div>
                     </div>
@@ -255,9 +269,9 @@ export default function ChatTerminal() {
                 <div className="flex items-center justify-between text-[9px] text-slate-400 border-t border-slate-100 pt-2.5">
                   <span className="flex items-center gap-1 text-emerald-600">
                     <CheckCircle2 size={11} />
-                    Verified by Auditing Engine
+                    {t.verified}
                   </span>
-                  <span>Latency: 2.18s</span>
+                  <span>{t.latency}</span>
                 </div>
               </div>
             </div>
@@ -265,30 +279,30 @@ export default function ChatTerminal() {
 
           {/* Typing Indicator */}
           {isTyping && (
-            <div className="flex items-center gap-2 p-3 bg-slate-100/50 border border-slate-200 rounded-lg text-slate-500 animate-pulse">
+            <div className="flex items-center gap-2 p-3 bg-slate-100/50 border border-slate-200 rounded-lg text-slate-550 animate-pulse font-sans">
               <div className="flex gap-1">
                 <span className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
                 <span className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: "200ms" }} />
                 <span className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: "400ms" }} />
               </div>
-              <span className="text-[10px] italic">Executive Assistant กำลังดึงข้อมูลและประมวลผลโมเดล...</span>
+              <span className="text-[10px] italic">{t.typing}</span>
             </div>
           )}
         </div>
 
         {/* Input box / Question Selector */}
-        <div className="space-y-3">
-          <div className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">
-            คำถามวิเคราะห์ข้อมูลเชิงกลยุทธ์ (Strategic Inquiries)
+        <div className="space-y-3 font-sans">
+          <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+            {t.sectionTitle}
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-            {PRESET_QUESTIONS.map((q) => (
+            {presetQuestions.map((q) => (
               <button
                 key={q.id}
                 onClick={() => handleSelectQuestion(q)}
                 disabled={isTyping}
                 className={`text-left p-2.5 rounded-lg border transition-all ${
-                  activeQuestion?.id === q.id
+                  currentQuestion?.id === q.id
                     ? "border-blue-400 bg-blue-50/50 text-blue-700 font-medium"
                     : "border-slate-200 bg-white hover:border-blue-400/40 hover:bg-slate-50 text-slate-600 hover:text-slate-900"
                 } disabled:opacity-50`}
@@ -298,6 +312,7 @@ export default function ChatTerminal() {
             ))}
           </div>
         </div>
+
       </div>
       <style dangerouslySetInnerHTML={{ __html: `
         @keyframes draw-path {

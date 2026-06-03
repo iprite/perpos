@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Noto_Sans_Thai } from "next/font/google";
 import "./globals.css";
+import { LanguageProvider } from "@/components/landing/language-context";
 
 const notoSansThai = Noto_Sans_Thai({
   subsets: ["thai", "latin"],
@@ -64,7 +65,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="th" className={notoSansThai.variable}>
-      <body className="font-sans antialiased bg-white text-slate-900">{children}</body>
+      <body className="font-sans antialiased bg-white text-slate-900">
+        <LanguageProvider>{children}</LanguageProvider>
+      </body>
     </html>
   );
 }
+

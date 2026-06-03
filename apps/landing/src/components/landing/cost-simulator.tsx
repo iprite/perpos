@@ -2,9 +2,11 @@
 
 import React, { useState } from "react";
 import { Coins, Sparkles, AlertCircle, ArrowUpRight } from "lucide-react";
+import { translations } from "./locales";
 
-export default function CostSimulator() {
+export default function CostSimulator({ lang = "th" }: { lang?: "th" | "en" }) {
   const [txVolume, setTxVolume] = useState<number>(12000); // Default 12,000 transactions/month
+  const t = translations[lang].costSimulator;
 
   // Calculations:
   // 1. Traditional ERP licensing:
@@ -28,24 +30,24 @@ export default function CostSimulator() {
         <div className="text-left">
           <h3 className="text-xl font-bold text-slate-800 flex items-center gap-2">
             <Coins className="text-blue-600" size={20} />
-            Cost Simulator (ตัวจำลองต้นทุน)
+            {t.title}
           </h3>
           <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-            เปรียบเทียบค่าใช้จ่ายรายเดือนระหว่างโมเดลคิดตามปริมาณการใช้งานจริง (Serverless) และระบบ ERP แบบเดิม
+            {t.desc}
           </p>
         </div>
         <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 border border-blue-100 text-[10px] text-blue-600 font-semibold w-fit">
           <Sparkles size={11} />
-          PAY-AS-YOU-GO MODEL
+          {t.badge}
         </div>
       </div>
 
       {/* Slider Input Block */}
       <div className="space-y-4 text-left">
         <div className="flex justify-between items-end">
-          <span className="text-xs text-slate-500 font-medium">จำนวนธุรกรรมทางธุรกิจต่อเดือน (Monthly Transactions):</span>
+          <span className="text-xs text-slate-500 font-medium">{t.volumeLabel}</span>
           <span className="text-lg font-bold text-slate-800 bg-blue-50/50 border border-blue-100 px-3 py-1 rounded-lg">
-            {txVolume.toLocaleString()} <span className="text-xs text-slate-500 font-normal">รายการ/เดือน</span>
+            {txVolume.toLocaleString()} <span className="text-xs text-slate-500 font-normal">{t.unit}</span>
           </span>
         </div>
 
@@ -60,9 +62,9 @@ export default function CostSimulator() {
         />
 
         <div className="flex justify-between text-[10px] text-slate-400">
-          <span>1,000 รายการ (SME ขนาดเล็ก)</span>
-          <span>25,000 รายการ</span>
-          <span>50,000 รายการ (SME เติบโตรวดเร็ว)</span>
+          <span>{t.smallSme}</span>
+          <span>{t.medSme}</span>
+          <span>{t.largeSme}</span>
         </div>
       </div>
 
@@ -71,54 +73,54 @@ export default function CostSimulator() {
         {/* Traditional ERP Card */}
         <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-3 shadow-sm">
           <div className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">
-            Traditional ERP Seat Licensing
+            {t.tradTitle}
           </div>
           <div className="space-y-1">
             <div className="text-2xl font-bold text-slate-450 line-through">
-              {traditionalCost.toLocaleString()} <span className="text-xs text-slate-400 font-normal">THB / เดือน</span>
+              {traditionalCost.toLocaleString()} <span className="text-xs text-slate-400 font-normal">THB / {lang === "th" ? "เดือน" : "month"}</span>
             </div>
-            <p className="text-[10px] text-slate-500 leading-relaxed">
-              คิดราคาคงที่รายปีจากจํานวนบัญชีผู้ใช้ (Seat License) + ค่าบริการเช่าเซิร์ฟเวอร์ + ค่าซ่อมบำรุง
+            <p className="text-[10px] text-slate-550 leading-relaxed">
+              {t.tradDesc}
             </p>
           </div>
           <div className="border-t border-slate-100 pt-3 text-[10px] text-slate-400 space-y-1 font-sans">
-            <div>• Seats: 30 ผู้ใช้งานคงที่</div>
-            <div>• Implementation fee: รวมคิดรายเดือนแฝง</div>
-            <div>• ชำระล่วงหน้าเป็นรายปี ผูกมัดสัญญา</div>
+            {t.tradPoints.map((p, idx) => (
+              <div key={idx}>{p}</div>
+            ))}
           </div>
         </div>
 
         {/* PERPOS Card */}
         <div className="bg-gradient-to-br from-blue-50/60 to-cyan-50/20 border border-blue-200 rounded-2xl p-5 space-y-3 shadow-md relative overflow-hidden">
           <div className="absolute top-4 right-4 bg-emerald-100 border border-emerald-200 text-emerald-700 text-[10px] px-2 py-0.5 rounded-md font-bold flex items-center gap-1">
-            Save {savingsPercentage}%
+            {t.saveBadge} {savingsPercentage}%
             <ArrowUpRight size={11} className="rotate-45" />
           </div>
 
           <div className="text-[10px] text-blue-600 font-bold uppercase tracking-wider">
-            PERPOS Serverless ERP
+            {t.perposTitle}
           </div>
           <div className="space-y-1">
             <div className="text-3xl font-extrabold text-blue-700">
-              {perposCost.toLocaleString()} <span className="text-xs text-blue-500 font-normal">THB / เดือน</span>
+              {perposCost.toLocaleString()} <span className="text-xs text-blue-500 font-normal">THB / {lang === "th" ? "เดือน" : "month"}</span>
             </div>
-            <p className="text-[10px] text-slate-600 leading-relaxed">
-              คิดตามจํานวนการประมวลผลธุรกรรมของ AI Agents จริง + ค่าสิทธิ์บริการรายเดือนพื้นฐานคงที่แบบลีน
+            <p className="text-[10px] text-slate-650 leading-relaxed">
+              {t.perposDesc}
             </p>
           </div>
-          <div className="border-t border-blue-100 pt-3 text-[10px] text-slate-500 space-y-1 font-sans">
-            <div>• Base Platform Fee: 3,200 THB/เดือน (รวมการเข้าใช้งานไม่จำกัดจำนวน User)</div>
-            <div>• Job run cost: {txVolume.toLocaleString()} x {costPerTx.toFixed(2)} THB/รายการ</div>
-            <div className="text-emerald-600 font-semibold">• ประหยัดเงินได้ประมาณ {(traditionalCost - perposCost).toLocaleString()} THB/เดือน</div>
+          <div className="border-t border-blue-100 pt-3 text-[10px] text-slate-550 space-y-1 font-sans">
+            <div>{t.perposPoints[0]}</div>
+            <div>{t.perposPoints[1].replace("{volume}", txVolume.toLocaleString())}</div>
+            <div className="text-emerald-600 font-bold">{t.perposPoints[2].replace("{saving}", (traditionalCost - perposCost).toLocaleString())}</div>
           </div>
         </div>
       </div>
 
       {/* Info Warning Alert */}
-      <div className="bg-blue-50/40 border border-blue-100 rounded-xl p-4 flex gap-3 text-[10px] text-slate-500 text-left">
+      <div className="bg-blue-50/40 border border-blue-100 rounded-xl p-4 flex gap-3 text-[10px] text-slate-550 text-left">
         <AlertCircle className="text-blue-500 shrink-0 mt-0.5" size={16} />
         <p className="leading-relaxed font-sans">
-          <strong className="text-slate-800 font-bold">Why Serverless Pay-as-you-go?</strong> ระบบ ERP ทั่วไปมักบังคับเก็บสิทธิ์ผู้ใช้รายปีในราคาแพง แม้พนักงานบางแผนกจะล็อกอินเพียง 1-2 ครั้งต่อสัปดาห์ แต่โมเดลของ PERPOS ปลดล็อกผู้ใช้งานไม่จำกัด (Unlimited Seats) แล้วผันค่าใช้จ่ายหลักไปคำนวณตามปริมาณธุรกรรมที่ AI ประมวลผล ช่วยรักษากระแสเงินสดธุรกิจของท่านในระยะยาว
+          <strong className="text-slate-800 font-bold">{t.alertTitle}</strong> {t.alertDesc}
         </p>
       </div>
     </div>

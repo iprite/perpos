@@ -31,6 +31,8 @@ import ChatTerminal from "./chat-terminal";
 import OcrSimulation from "./ocr-simulation";
 import AgentNetwork from "./agent-network";
 import CostSimulator from "./cost-simulator";
+import { translations, MENU_AGENTS_TRANSLATED } from "./locales";
+import { useLanguage } from "./language-context";
 
 const APP_SIGNIN_URL = "https://app.perpos.io/signin";
 
@@ -46,14 +48,17 @@ const MENU_AGENTS = [
 ];
 
 export default function LandingPage() {
-  const HERO_WORDS = ["Business Flow", "Operations", "Team Efficiency", "Financial Growth"];
+  const { lang, setLang } = useLanguage();
+  const t = translations[lang];
+
+  const HERO_WORDS = t.hero.words;
   const [currentWordIndex, setCurrentWordIndex] = useState(0);
   const [currentText, setCurrentText] = useState("");
   const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     let timer: NodeJS.Timeout;
-    const currentWord = HERO_WORDS[currentWordIndex];
+    const currentWord = HERO_WORDS[currentWordIndex] || "";
     
     // Typing speed: 85ms, Deleting speed: 45ms
     const speed = isDeleting ? 45 : 85;
@@ -75,7 +80,7 @@ export default function LandingPage() {
     }
 
     return () => clearTimeout(timer);
-  }, [currentText, isDeleting, currentWordIndex]);
+  }, [currentText, isDeleting, currentWordIndex, HERO_WORDS]);
 
   const [isScrolled, setIsScrolled] = useState(false);
   const [isVisible, setIsVisible] = useState(true);
@@ -98,8 +103,11 @@ export default function LandingPage() {
       setSubmitStatus("success");
 
       const emailTo = "admin@perpos.io";
+      const isTh = lang === "th";
       const subject = `Request Demo PERPOS - ${formState.company}`;
-      const body = `เรียน ทีมงาน PERPOS,\n\nมีความประสงค์ขอรับการสาธิตการใช้งานระบบ PERPOS ERP (Request Demo)\n\nรายละเอียดผู้ติดต่อ:\n- ชื่อผู้ติดต่อ: ${formState.name}\n- บริษัท/องค์กร: ${formState.company}\n- อีเมล: ${formState.email}\n- เบอร์โทรศัพท์: ${formState.phone}\n- ความต้องการเพิ่มเติม: ${formState.details || "ไม่มี"}\n\nขอแสดงความนับถือ,\n${formState.name}`;
+      const body = isTh
+        ? `เรียน ทีมงาน PERPOS,\n\nมีความประสงค์ขอรับการสาธิตการใช้งานระบบ PERPOS ERP (Request Demo)\n\nรายละเอียดผู้ติดต่อ:\n- ชื่อผู้ติดต่อ: ${formState.name}\n- บริษัท/องค์กร: ${formState.company}\n- อีเมล: ${formState.email}\n- เบอร์โทรศัพท์: ${formState.phone}\n- ความต้องการเพิ่มเติม: ${formState.details || "ไม่มี"}\n\nขอแสดงความนับถือ,\n${formState.name}`
+        : `Dear PERPOS Team,\n\nI would like to request a demo of the PERPOS ERP system.\n\nContact Details:\n- Contact Person: ${formState.name}\n- Company/Organization: ${formState.company}\n- Email: ${formState.email}\n- Phone Number: ${formState.phone}\n- Additional Details: ${formState.details || "None"}\n\nBest Regards,\n${formState.name}`;
       
       const mailtoUrl = `mailto:${emailTo}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
       window.location.href = mailtoUrl;
@@ -142,7 +150,7 @@ export default function LandingPage() {
             {/* AI Agents Dropdown Menu */}
             <div className="relative group py-4">
               <button className="flex items-center gap-1 hover:text-[#292e91] transition-colors font-semibold cursor-pointer outline-none text-slate-600">
-                AI Agents
+                {t.nav.aiAgents}
                 <svg className="w-4 h-4 transition-transform duration-200 group-hover:rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                 </svg>
@@ -150,37 +158,51 @@ export default function LandingPage() {
               
               {/* Dropdown Container */}
               <div className="absolute top-[85%] left-1/2 -translate-x-1/2 w-[580px] bg-white/95 backdrop-blur-md border border-slate-200/80 rounded-2xl shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 p-3.5 grid grid-cols-2 gap-2 origin-top mt-2">
-                {MENU_AGENTS.map((item) => (
-                  <Link
-                    key={item.slug}
-                    href={`/agents/${item.slug}`}
-                    className="flex items-start gap-3 p-3 rounded-xl hover:bg-slate-50 border border-transparent hover:border-slate-100 transition-all group/item"
-                  >
-                    <div className={`p-2 rounded-xl border shrink-0 transition-colors ${item.color}`}>
-                      <item.icon size={16} />
-                    </div>
-                    <div className="flex flex-col text-left">
-                      <span className="text-sm font-extrabold text-slate-800 leading-snug">
-                        {item.name}
-                      </span>
-                      <span className="text-[11px] text-slate-500 mt-1 font-normal leading-normal">{item.desc}</span>
-                    </div>
-                  </Link>
-                ))}
+                {MENU_AGENTS.map((item) => {
+                  const trans = MENU_AGENTS_TRANSLATED[lang].find((m) => m.slug === item.slug);
+                  const name = trans?.name || item.name;
+                  const desc = trans?.desc || item.desc;
+                  return (
+                    <Link
+                      key={item.slug}
+                      href={`/agents/${item.slug}`}
+                      className="flex items-start gap-3 p-3 rounded-xl hover:bg-slate-50 border border-transparent hover:border-slate-100 transition-all group/item"
+                    >
+                      <div className={`p-2 rounded-xl border shrink-0 transition-colors ${item.color}`}>
+                        <item.icon size={16} />
+                      </div>
+                      <div className="flex flex-col text-left">
+                        <span className="text-sm font-extrabold text-slate-800 leading-snug">
+                          {name}
+                        </span>
+                        <span className="text-[11px] text-slate-500 mt-1 font-normal leading-normal">{desc}</span>
+                      </div>
+                    </Link>
+                  );
+                })}
               </div>
             </div>
 
-            <a href="#shift" className="hover:text-[#292e91] transition-colors">The Shift</a>
-            <a href="#architecture" className="hover:text-[#292e91] transition-colors">Architecture</a>
-            <a href="#model" className="hover:text-[#292e91] transition-colors">Pricing</a>
+            <a href="#shift" className="hover:text-[#292e91] transition-colors">{t.nav.theShift}</a>
+            <a href="#architecture" className="hover:text-[#292e91] transition-colors">{t.nav.architecture}</a>
+            <a href="#model" className="hover:text-[#292e91] transition-colors">{t.nav.pricing}</a>
           </nav>
 
           <div className="flex items-center gap-2 sm:gap-4">
+            <button
+              onClick={() => setLang(lang === "th" ? "en" : "th")}
+              className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 sm:px-3 sm:py-2 text-xs sm:text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors shadow-sm cursor-pointer"
+              aria-label="Toggle Language"
+            >
+              <Globe size={15} className="text-slate-400" />
+              <span className="uppercase">{lang === "th" ? "en" : "th"}</span>
+            </button>
+
             <a
               href={APP_SIGNIN_URL}
               className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 transition-colors"
             >
-              เข้าสู่ระบบ
+              {t.nav.login}
             </a>
 
             {/* Mobile Menu Toggle Button */}
@@ -193,9 +215,9 @@ export default function LandingPage() {
 
             <button
                onClick={() => setIsModalOpen(true)}
-               className="hidden sm:inline-flex items-center justify-center rounded-lg bg-brand-gradient hover:opacity-90 px-4 py-2 text-sm font-semibold text-white transition-all shadow-sm duration-300 hover:shadow-md"
+               className="hidden sm:inline-flex items-center justify-center rounded-lg bg-brand-gradient hover:opacity-90 px-4 py-2 text-sm font-semibold text-white transition-all shadow-sm duration-300 hover:shadow-md cursor-pointer"
              >
-               ขอเดโมระบบ
+               {t.nav.demo}
              </button>
           </div>
         </div>
@@ -204,27 +226,31 @@ export default function LandingPage() {
         {isMobileMenuOpen && (
           <div className="md:hidden fixed inset-x-0 top-[68px] bg-white border-b border-slate-200 shadow-lg z-40 p-4 max-h-[calc(100vh-68px)] overflow-y-auto animate-fade-in text-left">
             <div className="flex flex-col gap-4 text-sm font-semibold text-slate-700">
-              <a href="#features" onClick={() => setIsMobileMenuOpen(false)} className="hover:text-[#292e91] py-2 border-b border-slate-100">AI Agents ทั้งหมด</a>
-              <a href="#shift" onClick={() => setIsMobileMenuOpen(false)} className="hover:text-[#292e91] py-2 border-b border-slate-100">The Shift</a>
-              <a href="#architecture" onClick={() => setIsMobileMenuOpen(false)} className="hover:text-[#292e91] py-2 border-b border-slate-100">Architecture</a>
-              <a href="#model" onClick={() => setIsMobileMenuOpen(false)} className="hover:text-[#292e91] py-2 border-b border-slate-100">Pricing</a>
+              <a href="#features" onClick={() => setIsMobileMenuOpen(false)} className="hover:text-[#292e91] py-2 border-b border-slate-100">{t.nav.allAgents}</a>
+              <a href="#shift" onClick={() => setIsMobileMenuOpen(false)} className="hover:text-[#292e91] py-2 border-b border-slate-100">{t.nav.theShift}</a>
+              <a href="#architecture" onClick={() => setIsMobileMenuOpen(false)} className="hover:text-[#292e91] py-2 border-b border-slate-100">{t.nav.architecture}</a>
+              <a href="#model" onClick={() => setIsMobileMenuOpen(false)} className="hover:text-[#292e91] py-2 border-b border-slate-100">{t.nav.pricing}</a>
               
               <div className="pt-2">
-                <div className="text-xs text-slate-400 font-bold uppercase tracking-wider mb-2">เจาะลึก AI Agents</div>
+                <div className="text-xs text-slate-400 font-bold uppercase tracking-wider mb-2">{t.nav.deepDive}</div>
                 <div className="grid grid-cols-1 gap-2 pl-2">
-                  {MENU_AGENTS.map((item) => (
-                    <Link
-                      key={item.slug}
-                      href={`/agents/${item.slug}`}
-                      onClick={() => setIsMobileMenuOpen(false)}
-                      className="flex items-center gap-2.5 py-1.5 hover:text-[#292e91] text-xs"
-                    >
-                      <div className={`p-1.5 rounded-lg border ${item.color}`}>
-                        <item.icon size={12} />
-                      </div>
-                      <span className="font-bold">{item.name}</span>
-                    </Link>
-                  ))}
+                  {MENU_AGENTS.map((item) => {
+                    const trans = MENU_AGENTS_TRANSLATED[lang].find((m) => m.slug === item.slug);
+                    const name = trans?.name || item.name;
+                    return (
+                      <Link
+                        key={item.slug}
+                        href={`/agents/${item.slug}`}
+                        onClick={() => setIsMobileMenuOpen(false)}
+                        className="flex items-center gap-2.5 py-1.5 hover:text-[#292e91] text-xs"
+                      >
+                        <div className={`p-1.5 rounded-lg border ${item.color}`}>
+                          <item.icon size={12} />
+                        </div>
+                        <span className="font-bold">{name}</span>
+                      </Link>
+                    );
+                  })}
                 </div>
               </div>
               
@@ -233,9 +259,9 @@ export default function LandingPage() {
                   setIsMobileMenuOpen(false);
                   setIsModalOpen(true);
                 }}
-                className="w-full mt-4 rounded-xl bg-brand-gradient hover:opacity-90 px-4 py-3 text-sm font-bold text-white shadow-md transition-all text-center"
+                className="w-full mt-4 rounded-xl bg-brand-gradient hover:opacity-90 px-4 py-3 text-sm font-bold text-white shadow-md transition-all text-center cursor-pointer"
               >
-                ขอเดโมระบบ
+                {t.nav.demo}
               </button>
             </div>
           </div>
@@ -255,13 +281,13 @@ export default function LandingPage() {
             <div className="lg:col-span-7 space-y-6 text-left">
               <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50/50 border border-[#292e91]/15 text-xs font-semibold text-[#292e91]">
                 <Sparkles size={14} className="text-[#292e91]" />
-                <span>Next-Gen Agentic AI ERP</span>
+                <span>{t.hero.badge}</span>
               </div>
               <h1 className="text-3xl sm:text-4xl md:text-5xl font-black font-lexend text-slate-900 leading-tight tracking-tight">
-                Next-Gen Agentic AI ERP: <br />
+                {t.hero.titlePre} <br />
                 <span className="relative">
                   <span className="bg-gradient-to-r from-[#292e91] to-[#4ca9df] bg-clip-text text-transparent">
-                    Tailored to Empower Your <br className="sm:hidden" /> {currentText || "\u200B"}
+                    {t.hero.titlePost} <br className="sm:hidden" /> {currentText || "\u200B"}
                   </span>
                   <span className="inline-block w-[3px] h-[0.85em] ml-1.5 bg-[#4ca9df] align-middle cursor-blink" />
                 </span>
@@ -276,14 +302,14 @@ export default function LandingPage() {
                 }
               `}</style>
               <p className="text-base sm:text-lg text-slate-600 max-w-2xl leading-relaxed">
-                หนึ่งเครือข่าย AI Agents เชื่อมต่อทั้งองค์กรให้เป็นทีมเดียว จากหน้าบ้านถึงหลังบ้าน เชื่อมข้อมูลแบบ Real-time บนระบบคลาวด์ระดับองค์กร (Enterprise Cloud) — ทลายไซโล ตัดคอขวดการทำงาน 100%
+                {t.hero.desc}
               </p>
               <div className="flex flex-col sm:flex-row gap-4 pt-4">
                 <button
                   onClick={() => setIsModalOpen(true)}
-                  className="flex items-center justify-center gap-2 rounded-xl bg-brand-gradient hover:opacity-90 text-white font-bold text-sm px-6 py-3.5 transition-all shadow-[0_4px_12px_rgba(41,46,145,0.2)] duration-300 hover:shadow-[0_6px_16px_rgba(41,46,145,0.25)]"
+                  className="flex items-center justify-center gap-2 rounded-xl bg-brand-gradient hover:opacity-90 text-white font-bold text-sm px-6 py-3.5 transition-all shadow-[0_4px_12px_rgba(41,46,145,0.2)] duration-300 hover:shadow-[0_6px_16px_rgba(41,46,145,0.25)] cursor-pointer"
                 >
-                  Request Enterprise Demo
+                  {t.hero.cta}
                   <ArrowRight size={16} />
                 </button>
 
@@ -292,7 +318,7 @@ export default function LandingPage() {
 
             {/* Live Chat terminal Widget */}
             <div className="lg:col-span-5 w-full">
-              <ChatTerminal />
+              <ChatTerminal lang={lang} />
             </div>
 
           </div>
@@ -308,16 +334,16 @@ export default function LandingPage() {
             <div className="p-6 rounded-2xl bg-white border border-slate-200/80 hover:border-blue-500/20 hover:shadow-md transition-all flex flex-col justify-between min-h-[140px] group">
               <div className="flex justify-between items-start">
                 <div className="text-4xl font-extrabold bg-gradient-to-r from-[#292e91] to-[#4ca9df] bg-clip-text text-transparent tracking-tight group-hover:scale-105 transition-all duration-300">
-                  8 AI Agents
+                  {t.metrics.agentsTitle}
                 </div>
                 <div className="p-2 rounded-lg bg-blue-50/50 border border-[#292e91]/15 text-[#292e91]">
                   <Cpu size={16} />
                 </div>
               </div>
               <div className="mt-4 text-left">
-                <h4 className="text-sm font-bold text-slate-805 uppercase tracking-wider">Autonomous Workforce</h4>
+                <h4 className="text-sm font-bold text-slate-805 uppercase tracking-wider">{t.metrics.agentsSub}</h4>
                 <p className="text-xs sm:text-sm text-slate-500 leading-relaxed mt-1.5">
-                  ปฏิบัติงานเชิงรุกแทนมนุษย์ในทุกแผนกตลอด 24/7 เพื่อสกัดข้อมูลและประสานงานข้ามไซโล
+                  {t.metrics.agentsDesc}
                 </p>
               </div>
             </div>
@@ -326,16 +352,16 @@ export default function LandingPage() {
             <div className="p-6 rounded-2xl bg-white border border-slate-200/80 hover:border-blue-500/20 hover:shadow-md transition-all flex flex-col justify-between min-h-[140px] group">
               <div className="flex justify-between items-start">
                 <div className="text-4xl font-extrabold bg-gradient-to-r from-[#292e91] to-[#4ca9df] bg-clip-text text-transparent tracking-tight group-hover:scale-105 transition-all duration-300">
-                  10x Faster
+                  {t.metrics.speedTitle}
                 </div>
                 <div className="p-2 rounded-lg bg-blue-50/50 border border-[#292e91]/15 text-[#292e91]">
                   <Zap size={16} />
                 </div>
               </div>
               <div className="mt-4 text-left">
-                <h4 className="text-sm font-bold text-slate-805 uppercase tracking-wider">Operation Efficiency</h4>
+                <h4 className="text-sm font-bold text-slate-805 uppercase tracking-wider">{t.metrics.speedSub}</h4>
                 <p className="text-xs sm:text-sm text-slate-500 leading-relaxed mt-1.5">
-                  สกัดข้อมูลใบเสร็จ คีย์เอกสาร และประมวลผลตรรกะบัญชีการจัดซื้อเร็วกว่าวิถีดั้งเดิม 10 เท่า
+                  {t.metrics.speedDesc}
                 </p>
               </div>
             </div>
@@ -344,16 +370,16 @@ export default function LandingPage() {
             <div className="p-6 rounded-2xl bg-white border border-slate-200/80 hover:border-blue-500/20 hover:shadow-md transition-all flex flex-col justify-between min-h-[140px] group">
               <div className="flex justify-between items-start">
                 <div className="text-4xl font-extrabold bg-gradient-to-r from-[#292e91] to-[#4ca9df] bg-clip-text text-transparent tracking-tight group-hover:scale-105 transition-all duration-300">
-                  Real-time
+                  {t.metrics.realtimeTitle}
                 </div>
                 <div className="p-2 rounded-lg bg-blue-50/50 border border-[#292e91]/15 text-[#292e91]">
                   <Database size={16} />
                 </div>
               </div>
               <div className="mt-4 text-left">
-                <h4 className="text-sm font-bold text-slate-805 uppercase tracking-wider">AI-Ready Data Layer</h4>
+                <h4 className="text-sm font-bold text-slate-805 uppercase tracking-wider">{t.metrics.realtimeSub}</h4>
                 <p className="text-xs sm:text-sm text-slate-500 leading-relaxed mt-1.5">
-                  ฐานข้อมูลบัญชีศูนย์กลางเข้าถึงได้ทันที สรุปกระแสเงินสดและสัญญาลึกถึงโครงสร้างใน 3 วินาที
+                  {t.metrics.realtimeDesc}
                 </p>
               </div>
             </div>
@@ -367,10 +393,10 @@ export default function LandingPage() {
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="text-center max-w-3xl mx-auto space-y-3 mb-16">
             <h2 className="text-2xl md:text-3xl font-extrabold text-slate-900 font-lexend">
-              จากบันทึกอดีต สู่ระบบปฏิบัติการเชิงรุก
+              {t.shift.title}
             </h2>
             <p className="text-base text-slate-550 leading-relaxed">
-              เปลี่ยนขบวนการทำงานจาก ERP แบบเดิมๆ ที่คอยจดบันทึกประวัติเอกสารย้อนหลัง มาเป็นระบบปฏิบัติงานอัตโนมัติที่ช่วยคิด มอนิเตอร์ และทำงานแทนคุณเชิงรุกแบบ Real-time
+              {t.shift.subtitle}
             </p>
           </div>
 
@@ -383,8 +409,8 @@ export default function LandingPage() {
                   <ShieldCheck size={20} />
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold text-slate-500">แบบเดิม: System of Record</h3>
-                  <p className="text-sm text-slate-450 mt-1">เน้นจดบันทึกเอกสารและประวัติย้อนหลัง เสียเวลากับงานแมนนวลซ้ำซาก</p>
+                  <h3 className="text-lg font-bold text-slate-500">{t.shift.oldWay}</h3>
+                  <p className="text-sm text-slate-450 mt-1">{t.shift.oldDesc}</p>
                 </div>
               </div>
               
@@ -393,24 +419,24 @@ export default function LandingPage() {
                 <div className="flex gap-3.5 items-start">
                   <span className="text-red-500 shrink-0 text-base">❌</span>
                   <div>
-                    <h4 className="text-sm font-bold text-slate-700">ลงบัญชีและคีย์ข้อมูลด้วยมือ</h4>
-                    <p className="text-xs text-slate-500 leading-relaxed mt-1">พนักงานต้องคีย์ใบเสนอราคา ใบสั่งซื้อ และลงบัญชีแยกแผนกด้วยมือทีละขั้นตอน</p>
+                    <h4 className="text-sm font-bold text-slate-700">{t.shift.oldPoints[0].title}</h4>
+                    <p className="text-xs text-slate-500 leading-relaxed mt-1">{t.shift.oldPoints[0].desc}</p>
                   </div>
                 </div>
                 {/* Point 2 */}
                 <div className="flex gap-3.5 items-start">
                   <span className="text-red-500 shrink-0 text-base">❌</span>
                   <div>
-                    <h4 className="text-sm font-bold text-slate-700">สต๊อกสินค้าขาดหรือล้นคลัง</h4>
-                    <p className="text-xs text-slate-500 leading-relaxed mt-1">นับสต๊อกด้วยมือ เสียโอกาสการขายจากการขาดข้อมูลวิเคราะห์พยากรณ์เชิงรุก</p>
+                    <h4 className="text-sm font-bold text-slate-700">{t.shift.oldPoints[1].title}</h4>
+                    <p className="text-xs text-slate-500 leading-relaxed mt-1">{t.shift.oldPoints[1].desc}</p>
                   </div>
                 </div>
                 {/* Point 3 */}
                 <div className="flex gap-3.5 items-start">
                   <span className="text-red-500 shrink-0 text-base">❌</span>
                   <div>
-                    <h4 className="text-sm font-bold text-slate-700">รับข้อมูลล่าช้าเป็นสัปดาห์</h4>
-                    <p className="text-xs text-slate-500 leading-relaxed mt-1">ผู้บริหารทราบผลกำไรและการเงินช้า ต้องรอสเปรดชีตและปิดงบปลายเดือนเสมอ</p>
+                    <h4 className="text-sm font-bold text-slate-700">{t.shift.oldPoints[2].title}</h4>
+                    <p className="text-xs text-slate-500 leading-relaxed mt-1">{t.shift.oldPoints[2].desc}</p>
                   </div>
                 </div>
               </div>
@@ -424,8 +450,8 @@ export default function LandingPage() {
                   <Sparkles size={20} className="animate-pulse" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold bg-gradient-to-r from-[#292e91] to-[#4ca9df] bg-clip-text text-transparent">ระบบ PERPOS: System of Action</h3>
-                  <p className="text-sm text-slate-555 mt-1">เน้นการประมวลผลเชิงรุกด้วย AI Agents ทำงานแทนและแจ้งเตือนทันที</p>
+                  <h3 className="text-lg font-bold bg-gradient-to-r from-[#292e91] to-[#4ca9df] bg-clip-text text-transparent">{t.shift.newWay}</h3>
+                  <p className="text-sm text-slate-555 mt-1">{t.shift.newDesc}</p>
                 </div>
               </div>
               
@@ -434,24 +460,24 @@ export default function LandingPage() {
                 <div className="flex gap-3.5 items-start">
                   <span className="text-emerald-500 shrink-0 bg-emerald-50 p-0.5 rounded-full text-xs">✓</span>
                   <div>
-                    <h4 className="text-sm font-extrabold text-[#292e91]">AI Autopilot ทำงานอัตโนมัติ</h4>
-                    <p className="text-xs text-slate-600 leading-relaxed mt-1 font-medium">AI OCR สกัดวิเคราะห์บิล คีย์แยกประเภท และลงบัญชีเรียลไทม์ใน 3 วินาที</p>
+                    <h4 className="text-sm font-extrabold text-[#292e91]">{t.shift.newPoints[0].title}</h4>
+                    <p className="text-xs text-slate-600 leading-relaxed mt-1 font-medium">{t.shift.newPoints[0].desc}</p>
                   </div>
                 </div>
                 {/* Point 2 */}
                 <div className="flex gap-3.5 items-start">
                   <span className="text-emerald-500 shrink-0 bg-emerald-50 p-0.5 rounded-full text-xs">✓</span>
                   <div>
-                    <h4 className="text-sm font-extrabold text-[#292e91]">คำนวณอัตราขายและพยากรณ์สต๊อก</h4>
-                    <p className="text-xs text-slate-600 leading-relaxed mt-1 font-medium">ทำนายปริมาณการขาย (Auto-Replenishment) ออกเอกสารสั่งซื้อเมื่อของต่ำกว่าจุดวิกฤต</p>
+                    <h4 className="text-sm font-extrabold text-[#292e91]">{t.shift.newPoints[1].title}</h4>
+                    <p className="text-xs text-slate-600 leading-relaxed mt-1 font-medium">{t.shift.newPoints[1].desc}</p>
                   </div>
                 </div>
                 {/* Point 3 */}
                 <div className="flex gap-3.5 items-start">
                   <span className="text-emerald-500 shrink-0 bg-emerald-50 p-0.5 rounded-full text-xs">✓</span>
                   <div>
-                    <h4 className="text-sm font-extrabold text-[#292e91]">สรุป Insights ส่งตรงในแชตบอท</h4>
-                    <p className="text-xs text-slate-600 leading-relaxed mt-1 font-medium">ผู้บริหารเรียกดูรายงานการเงิน ยอดขาย และวิเคราะห์ความเสี่ยงลึกได้ทุกอุปกรณ์ 24 ชม.</p>
+                    <h4 className="text-sm font-extrabold text-[#292e91]">{t.shift.newPoints[2].title}</h4>
+                    <p className="text-xs text-slate-600 leading-relaxed mt-1 font-medium">{t.shift.newPoints[2].desc}</p>
                   </div>
                 </div>
               </div>
@@ -467,42 +493,42 @@ export default function LandingPage() {
           
           <div className="text-center max-w-3xl mx-auto space-y-3 mb-16">
             <h2 className="text-2xl md:text-3xl font-extrabold text-slate-900 font-lexend">
-              การทำงานประสานของ 8 Autonomous AI Agents
+              {t.agentsSection.title}
             </h2>
             <p className="text-base text-slate-550 leading-relaxed">
-              ทำงานประสานสอดคล้องจากหน้าบ้านถึงหลังบ้าน (Front-Office to Back-Office) เชื่อมข้อมูลระบบบัญชี ซื้อ ขาย คลังสินค้า ขนส่ง และวิเคราะห์ข้อมูลในที่เดียว
+              {t.agentsSection.subtitle}
             </p>
           </div>
 
           {/* Interactive Agent Network Node Graph */}
-          <AgentNetwork />
+          <AgentNetwork lang={lang} />
 
           {/* Inline OCR simulator simulation showcase */}
           <div className="mt-16 grid grid-cols-1 lg:grid-cols-12 gap-8 items-center bg-white border border-slate-200 rounded-3xl p-6 lg:p-8">
             <div className="lg:col-span-5 space-y-5 text-left">
               <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-blue-50/50 border border-[#292e91]/15 text-[10px] text-[#292e91] font-semibold w-fit">
                 <Sparkles size={11} />
-                BACK-OFFICE AUTOMATION
+                {t.agentsSection.badge}
               </div>
               <h3 className="text-xl font-bold text-slate-800 font-lexend">
-                Finance & OCR Agent: สแกน ตรวจสอบ และบันทึกบัญชีอัจฉริยะ
+                {t.agentsSection.financeOcrTitle}
               </h3>
               <p className="text-sm text-slate-550 leading-relaxed">
-                ทลายขีดจำกัดการคีย์เอกสารทางการเงิน ด้วย AI OCR ที่มีประสิทธิภาพสูง แปลงไฟล์บิลซื้อ เอกสารค่าใช้จ่าย เข้าเป็นโครงสร้างข้อมูลมาตรฐาน พร้อมลงบันทึกในสมุดรายวันแยกประเภทและจัดคู่ยอดโอนเข้าบัญชีทันทีเมื่อเงินผ่านธนาคาร
+                {t.agentsSection.financeOcrDesc}
               </p>
               <ul className="space-y-2.5 text-sm text-slate-600">
                 <li className="flex gap-2">
                   <span className="text-[#4ca9df] font-bold">•</span>
-                  <span>ความแม่นยำสูง ดึงข้อมูลชื่อร้านค้า เลขผู้เสียภาษี และรายละเอียดราคา</span>
+                  <span>{t.agentsSection.points[0]}</span>
                 </li>
                 <li className="flex gap-2">
                   <span className="text-[#4ca9df] font-bold">•</span>
-                  <span>จับคู่รายการเดินบัญชี (Reconciliation) แบบเรียลไทม์ลดความล่าช้า</span>
+                  <span>{t.agentsSection.points[1]}</span>
                 </li>
               </ul>
             </div>
             <div className="lg:col-span-7">
-              <OcrSimulation />
+              <OcrSimulation lang={lang} />
             </div>
           </div>
 
@@ -517,13 +543,13 @@ export default function LandingPage() {
             <div className="lg:col-span-6 space-y-6 text-left">
               <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-blue-50/50 border border-[#292e91]/15 text-[10px] text-[#292e91] font-semibold w-fit">
                 <ShieldCheck size={12} />
-                ENTERPRISE SECURITY & PRIVACY
+                {t.architecture.badge}
               </div>
               <h2 className="text-2xl md:text-3xl font-extrabold text-slate-900 font-lexend leading-snug">
-                โครงสร้างระบบระดับสากลและนโยบายความเป็นส่วนตัวสูงสุด
+                {t.architecture.title}
               </h2>
               <p className="text-sm text-slate-550 leading-relaxed">
-                PERPOS ถูกพัฒนาขึ้นบนสถาปัตยกรรมไร้เซิร์ฟเวอร์ (Serverless Microservices Architecture) ร่วมกับฐานข้อมูลระดับองค์กร Supabase (PostgreSQL) พร้อมด้วยระบบ RLS (Row Level Security) เพื่อประสิทธิภาพ ความยืดหยุ่น และความปลอดภัยสูงสุดในการขยายตัวของธุรกิจ
+                {t.architecture.desc}
               </p>
 
               <div className="space-y-4 pt-2">
@@ -534,9 +560,9 @@ export default function LandingPage() {
                     <Lock size={18} />
                   </div>
                   <div>
-                    <h4 className="text-sm font-bold text-slate-800">Enterprise Data Privacy Guaranteed</h4>
+                    <h4 className="text-sm font-bold text-slate-800">{t.architecture.point1Title}</h4>
                     <p className="text-xs sm:text-sm text-slate-500 leading-relaxed mt-1">
-                      ข้อมูลทางบัญชีและการค้าทั้งหมดจะถูกจัดเก็บแยกพาร์ทิชันเด็ดขาดใน Secure Database ข้อมูลการดำเนินธุรกิจของคุณจะไม่ถูกใช้เพื่อนำไปป้อนข้อมูลสำหรับฝึกโมเดลสาธารณะ (No training on public models)
+                      {t.architecture.point1Desc}
                     </p>
                   </div>
                 </div>
@@ -547,9 +573,9 @@ export default function LandingPage() {
                     <Layers size={18} />
                   </div>
                   <div>
-                    <h4 className="text-sm font-bold text-slate-800">Secure API Gateway Integrations</h4>
+                    <h4 className="text-sm font-bold text-slate-800">{t.architecture.point2Title}</h4>
                     <p className="text-xs sm:text-sm text-slate-500 leading-relaxed mt-1">
-                      เชื่อมต่ออย่างสมบูรณ์แบบปลอดภัยผ่าน Secure API Gateways ร่วมกับระบบดั้งเดิม (Legacy ERP), LINE Official Account สำหรับการส่งมอบเอกสารและแจ้งเตือน และ Google Workspace เพื่อจัดเก็บบิลและซิงค์งานนัดหมาย
+                      {t.architecture.point2Desc}
                     </p>
                   </div>
                 </div>
@@ -568,10 +594,10 @@ export default function LandingPage() {
                   <div className="p-2 rounded-xl bg-blue-50 border border-blue-100 text-[#292e91]">
                     <Layers size={20} className="animate-pulse" />
                   </div>
-                  <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Cloud Infrastructure & App Stack</h4>
+                  <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">{t.architecture.infraTitle}</h4>
                 </div>
                 <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                  Production-Ready
+                  {t.architecture.productionReady}
                 </span>
               </div>
 
@@ -616,12 +642,12 @@ export default function LandingPage() {
                     <div className="p-2 rounded-xl bg-blue-50 text-blue-600 border border-blue-100 group-hover:bg-blue-100 transition-colors">
                       <Globe size={18} />
                     </div>
-                    <div className="text-[10px] text-slate-400 font-bold tracking-wider uppercase">Frontend Web App</div>
+                    <div className="text-[10px] text-slate-400 font-bold tracking-wider uppercase">{t.architecture.items.frontend.title}</div>
                   </div>
                   <div className="flex items-center justify-between mt-3">
-                    <span className="text-sm font-extrabold text-slate-800">Next.js 15 & React 19</span>
+                    <span className="text-sm font-extrabold text-slate-800">{t.architecture.items.frontend.tech}</span>
                     <span className="text-[9px] font-bold text-blue-700 bg-blue-50/80 px-2 py-0.5 rounded border border-blue-150 uppercase tracking-wide">
-                      BFF App Router
+                      {t.architecture.items.frontend.badge}
                     </span>
                   </div>
                 </div>
@@ -632,12 +658,12 @@ export default function LandingPage() {
                     <div className="p-2 rounded-xl bg-cyan-50 text-cyan-600 border border-cyan-100 group-hover:bg-cyan-100 transition-colors">
                       <Server size={18} />
                     </div>
-                    <div className="text-[10px] text-slate-400 font-bold tracking-wider uppercase">Serverless Workers</div>
+                    <div className="text-[10px] text-slate-400 font-bold tracking-wider uppercase">{t.architecture.items.workers.title}</div>
                   </div>
                   <div className="flex items-center justify-between mt-3">
-                    <span className="text-sm font-extrabold text-slate-800">Google Cloud Run</span>
+                    <span className="text-sm font-extrabold text-slate-800">{t.architecture.items.workers.tech}</span>
                     <span className="text-[9px] font-bold text-cyan-700 bg-cyan-50/80 px-2 py-0.5 rounded border border-cyan-150 uppercase tracking-wide">
-                      Auto-Scale
+                      {t.architecture.items.workers.badge}
                     </span>
                   </div>
                 </div>
@@ -648,12 +674,12 @@ export default function LandingPage() {
                     <div className="p-2 rounded-xl bg-amber-50 text-amber-600 border border-amber-100 group-hover:bg-amber-100 transition-colors">
                       <Clock size={18} />
                     </div>
-                    <div className="text-[10px] text-slate-400 font-bold tracking-wider uppercase">Cron Schedules</div>
+                    <div className="text-[10px] text-slate-400 font-bold tracking-wider uppercase">{t.architecture.items.cron.title}</div>
                   </div>
                   <div className="flex items-center justify-between mt-3">
-                    <span className="text-sm font-extrabold text-slate-800">Cloud Scheduler</span>
+                    <span className="text-sm font-extrabold text-slate-800">{t.architecture.items.cron.tech}</span>
                     <span className="text-[9px] font-bold text-amber-700 bg-amber-50/80 px-2 py-0.5 rounded border border-amber-150 uppercase tracking-wide">
-                      1-Min Interval
+                      {t.architecture.items.cron.badge}
                     </span>
                   </div>
                 </div>
@@ -664,12 +690,12 @@ export default function LandingPage() {
                     <div className="p-2 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-100 group-hover:bg-emerald-100 transition-colors">
                       <Database size={18} />
                     </div>
-                    <div className="text-[10px] text-slate-400 font-bold tracking-wider uppercase">Database Engine</div>
+                    <div className="text-[10px] text-slate-400 font-bold tracking-wider uppercase">{t.architecture.items.database.title}</div>
                   </div>
                   <div className="flex items-center justify-between mt-3">
-                    <span className="text-sm font-extrabold text-slate-800">Supabase PostgreSQL</span>
+                    <span className="text-sm font-extrabold text-slate-800">{t.architecture.items.database.tech}</span>
                     <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50/80 px-2 py-0.5 rounded border border-emerald-150 uppercase tracking-wide">
-                      RLS Active
+                      {t.architecture.items.database.badge}
                     </span>
                   </div>
                 </div>
@@ -680,12 +706,12 @@ export default function LandingPage() {
                     <div className="p-2 rounded-xl bg-purple-50 text-purple-650 border border-purple-100 group-hover:bg-purple-100 transition-colors">
                       <Cpu size={18} className="text-purple-600" />
                     </div>
-                    <div className="text-[10px] text-slate-400 font-bold tracking-wider uppercase">Vector Embedding Engine</div>
+                    <div className="text-[10px] text-slate-400 font-bold tracking-wider uppercase">{t.architecture.items.vector.title}</div>
                   </div>
                   <div className="flex items-center justify-between mt-3">
-                    <span className="text-sm font-extrabold text-slate-800">pgvector Extension</span>
+                    <span className="text-sm font-extrabold text-slate-800">{t.architecture.items.vector.tech}</span>
                     <span className="text-[9px] font-bold text-purple-700 bg-purple-50/80 px-2 py-0.5 rounded border border-purple-150 uppercase tracking-wide">
-                      AI Memory
+                      {t.architecture.items.vector.badge}
                     </span>
                   </div>
                 </div>
@@ -716,54 +742,54 @@ export default function LandingPage() {
           
           <div className="text-center max-w-3xl mx-auto space-y-3 mb-16">
             <h2 className="text-2xl md:text-3xl font-extrabold text-slate-900 font-lexend">
-              โมเดลการประหยัดต้นทุนและความเป็นพันธมิตร
+              {t.pricingSection.title}
             </h2>
             <p className="text-base text-slate-550 leading-relaxed">
-              ไม่มีค่าสิทธิ์รายผู้ใช้รายปีที่ไม่ได้ถูกใช้งานจริง ปรับงบประมาณตามกิจกรรมธุรกิจด้วยโมเดลแบบคิดค่าบริการประมวลผลจริงตามธุรกรรม
+              {t.pricingSection.subtitle}
             </p>
           </div>
 
           {/* Cost Simulator component */}
-          <CostSimulator />
+          <CostSimulator lang={lang} />
 
           {/* Tech Partner Roadmap */}
           <div className="mt-20 space-y-10" id="contact">
             <div className="text-center space-y-2">
-              <h3 className="text-lg font-bold text-slate-800 font-lexend">Tech Partner Engagement Roadmap</h3>
-              <p className="text-sm text-slate-500">แผนขั้นตอนการร่วมพัฒนา ติดตั้ง และเชื่อมโยงกระแสงานร่วมกับผู้เชี่ยวชาญเทคโนโลยีของเรา</p>
+              <h3 className="text-lg font-bold text-slate-800 font-lexend">{t.pricingSection.roadmapTitle}</h3>
+              <p className="text-sm text-slate-500">{t.pricingSection.roadmapSub}</p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 relative text-left">
               {/* Step 1 */}
               <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-4 shadow-sm">
                 <div className="w-8 h-8 rounded-lg bg-blue-50/50 border border-[#292e91]/15 flex items-center justify-center text-[#292e91] font-bold text-xs font-mono">
-                  01
+                  {t.pricingSection.phases[0].num}
                 </div>
-                <h4 className="text-sm font-bold text-slate-800 uppercase tracking-wider">Phase 1: Flow Audit & AI Mapping</h4>
+                <h4 className="text-sm font-bold text-slate-800 uppercase tracking-wider">{t.pricingSection.phases[0].title}</h4>
                 <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
-                  ทีมผู้เชี่ยวชาญเทคโนโลยีของเราจะประเมินกระแสข้อมูลในธุรกิจเดิมของท่าน ค้นหารอยรั่วไหล และทำแผนวางระบบ AI Agents เชื่อมต่อกับแผนกต่างๆ
+                  {t.pricingSection.phases[0].desc}
                 </p>
               </div>
 
               {/* Step 2 */}
               <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-4 shadow-sm">
                 <div className="w-8 h-8 rounded-lg bg-blue-50/50 border border-[#292e91]/15 flex items-center justify-center text-[#292e91] font-bold text-xs font-mono">
-                  02
+                  {t.pricingSection.phases[1].num}
                 </div>
-                <h4 className="text-sm font-bold text-slate-800 uppercase tracking-wider">Phase 2: Hybrid Integration</h4>
+                <h4 className="text-sm font-bold text-slate-800 uppercase tracking-wider">{t.pricingSection.phases[1].title}</h4>
                 <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
-                  เชื่อมต่อระบบ ERP ฐานข้อมูลเก่าเข้ากับ AI Ready Layer บน Supabase Cloud และทดสอบระบบการทำงานของ AI Agents ควบคู่เพื่อไม่ให้สะดุด
+                  {t.pricingSection.phases[1].desc}
                 </p>
               </div>
 
               {/* Step 3 */}
               <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-4 shadow-sm">
                 <div className="w-8 h-8 rounded-lg bg-blue-50/50 border border-[#292e91]/15 flex items-center justify-center text-[#292e91] font-bold text-xs font-mono">
-                  03
+                  {t.pricingSection.phases[2].num}
                 </div>
-                <h4 className="text-sm font-bold text-slate-800 uppercase tracking-wider">Phase 3: Continuous Intelligence</h4>
+                <h4 className="text-sm font-bold text-slate-800 uppercase tracking-wider">{t.pricingSection.phases[2].title}</h4>
                 <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
-                  ระบบส่งมอบรายงานแบบกระชับ รัน What-If Scenario จำลองกระแสเงินสด เพื่อการตัดสินใจและจัดการคลังอย่างเฉียบขาดในแบบเรียลไทม์
+                  {t.pricingSection.phases[2].desc}
                 </p>
               </div>
             </div>
@@ -776,17 +802,17 @@ export default function LandingPage() {
       <section className="py-24 bg-gradient-to-br from-blue-50 via-white to-cyan-50/30 text-center border-b border-slate-200">
         <div className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 relative z-10 space-y-6">
           <h2 className="text-2xl md:text-3xl font-black font-lexend text-slate-900 leading-tight">
-            ทลายคอขวดองค์กร ด้วย Agentic AI ERP
+            {t.bottomCta.title}
           </h2>
-          <p className="text-base text-slate-650 max-w-lg mx-auto leading-relaxed">
-            ยกระดับจากระบบบันทึกแบบเดิม สู่ระบบประมวลผลเชิงปฏิบัติการที่คอยตรวจจับ วิ่งงาน และสรุปวิเคราะห์ข้อมูลให้ท่านแบบเรียลไทม์ 24 ชั่วโมง
+          <p className="text-base text-slate-655 max-w-lg mx-auto leading-relaxed">
+            {t.bottomCta.desc}
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center pt-4">
             <button
               onClick={() => setIsModalOpen(true)}
-              className="flex items-center justify-center gap-2 rounded-xl bg-brand-gradient hover:opacity-90 text-white font-bold text-sm px-8 py-3.5 transition-all shadow-[0_4px_12px_rgba(41,46,145,0.25)] duration-300 hover:shadow-[0_6px_16px_rgba(41,46,145,0.3)]"
+              className="flex items-center justify-center gap-2 rounded-xl bg-brand-gradient hover:opacity-90 text-white font-bold text-sm px-8 py-3.5 transition-all shadow-[0_4px_12px_rgba(41,46,145,0.25)] duration-300 hover:shadow-[0_6px_16px_rgba(41,46,145,0.3)] cursor-pointer"
             >
-              Request Enterprise Demo
+              {t.bottomCta.cta}
               <ArrowRight size={16} />
             </button>
 
@@ -801,27 +827,26 @@ export default function LandingPage() {
             <div className="md:col-span-2 space-y-4">
               <img src="/logo.svg" alt="PERPOS" className="h-8 w-auto mx-auto md:mx-0" />
               <p className="text-base text-slate-550 max-w-md leading-relaxed mx-auto md:mx-0">
-                Next-Gen Agentic AI ERP — Tailored to Empower Your Business Flow.
-                ระบบบัญชีและ ERP สำหรับธุรกิจ SME ยุคใหม่ ปฏิบัติงานเชิงรุกด้วย AI Agents แบบ Real-time
+                {t.footer.desc}
               </p>
             </div>
             <div>
-              <h4 className="text-sm font-bold text-slate-800 uppercase tracking-wider">เอกสาร</h4>
+              <h4 className="text-sm font-bold text-slate-800 uppercase tracking-wider">{t.footer.docs}</h4>
               <ul className="mt-4 space-y-2 text-sm text-slate-500">
                 <li>
                   <Link href="/privacy" className="hover:text-[#292e91] transition-colors">
-                    นโยบายความเป็นส่วนตัว
+                    {t.footer.privacy}
                   </Link>
                 </li>
                 <li>
                   <Link href="/terms" className="hover:text-[#292e91] transition-colors">
-                    ข้อกำหนดการให้บริการ
+                    {t.footer.terms}
                   </Link>
                 </li>
               </ul>
             </div>
             <div>
-              <h4 className="text-sm font-bold text-slate-800 uppercase tracking-wider">การเชื่อมต่อ</h4>
+              <h4 className="text-sm font-bold text-slate-800 uppercase tracking-wider">{t.footer.connections}</h4>
               <ul className="mt-4 space-y-2 text-sm text-slate-500">
                 <li>LINE OA</li>
                 <li>Google Workspace</li>
@@ -830,9 +855,9 @@ export default function LandingPage() {
             </div>
           </div>
           <div className="mt-12 border-t border-slate-200/60 pt-8 flex flex-col sm:flex-row items-center justify-between text-sm text-slate-400">
-            <div>© 2026 P2P Solutions. All Rights Reserved.</div>
+            <div>{t.footer.rights}</div>
             <div className="mt-4 sm:mt-0 flex gap-6">
-              <span className="text-slate-400/80">Enterprise Cloud Hosting</span>
+              <span className="text-slate-400/80">{t.footer.hosting}</span>
             </div>
           </div>
         </div>
@@ -845,8 +870,8 @@ export default function LandingPage() {
             {/* Header */}
             <div className="px-6 py-5 border-b border-slate-100 flex justify-between items-start">
               <div>
-                <h3 className="text-lg font-bold text-slate-900 font-lexend">ขอสาธิตการใช้งาน PERPOS</h3>
-                <p className="text-xs text-slate-500 mt-1">กรอกรายละเอียดเพื่อให้ทีมงานติดต่อกลับแนะนำระบบสาธิต</p>
+                <h3 className="text-lg font-bold text-slate-900 font-lexend">{t.demoModal.title}</h3>
+                <p className="text-xs text-slate-500 mt-1">{t.demoModal.sub}</p>
               </div>
               <button
                 onClick={() => {
@@ -865,9 +890,9 @@ export default function LandingPage() {
                 <div className="w-16 h-16 rounded-full bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-500 animate-bounce mx-auto">
                   <CheckCircle2 size={32} />
                 </div>
-                <h4 className="text-lg font-bold text-slate-900 font-lexend">ส่งข้อมูลสำเร็จแล้ว!</h4>
+                <h4 className="text-lg font-bold text-slate-900 font-lexend">{t.demoModal.successTitle}</h4>
                 <p className="text-sm text-slate-655 leading-relaxed max-w-xs mx-auto text-slate-600">
-                  ระบบได้บันทึกคำขอของคุณและเปิดโปรแกรมอีเมลของคุณเพื่อส่งข้อมูลแจ้งเตือนไปยัง <strong className="text-slate-800">admin@perpos.io</strong> เรียบร้อยแล้ว ทีมงานของเราจะติดต่อกลับภายใน 24 ชั่วโมง
+                  {t.demoModal.successDesc}
                 </p>
                 <button
                   onClick={() => {
@@ -877,18 +902,18 @@ export default function LandingPage() {
                   }}
                   className="w-full max-w-xs mt-4 rounded-xl bg-brand-gradient hover:opacity-90 text-white font-bold text-sm py-3 transition-all shadow-md mx-auto duration-300"
                 >
-                  ตกลง
+                  {t.demoModal.ok}
                 </button>
               </div>
             ) : (
               <form onSubmit={handleFormSubmit} className="p-6 space-y-4">
                 {/* Name */}
                 <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-700 block">ชื่อผู้ติดต่อ *</label>
+                  <label className="text-xs font-bold text-slate-700 block">{t.demoModal.nameLabel}</label>
                   <input
                     type="text"
                     required
-                    placeholder="เช่น สมชาย ใจดี"
+                    placeholder={t.demoModal.namePlaceholder}
                     value={formState.name}
                     onChange={(e) => setFormState({ ...formState, name: e.target.value })}
                     className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3.5 py-2.5 text-sm text-slate-800 placeholder-slate-400 outline-none focus:border-[#292e91] focus:bg-white transition-colors"
@@ -897,11 +922,11 @@ export default function LandingPage() {
 
                 {/* Company */}
                 <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-700 block">ชื่อบริษัท / องค์กร *</label>
+                  <label className="text-xs font-bold text-slate-700 block">{t.demoModal.companyLabel}</label>
                   <input
                     type="text"
                     required
-                    placeholder="เช่น บริษัท เอ็มเอสอี จำกัด"
+                    placeholder={t.demoModal.companyPlaceholder}
                     value={formState.company}
                     onChange={(e) => setFormState({ ...formState, company: e.target.value })}
                     className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3.5 py-2.5 text-sm text-slate-800 placeholder-slate-400 outline-none focus:border-[#292e91] focus:bg-white transition-colors"
@@ -911,22 +936,22 @@ export default function LandingPage() {
                 {/* Grid for Email & Phone */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-slate-700 block">อีเมลผู้ติดต่อ *</label>
+                    <label className="text-xs font-bold text-slate-700 block">{t.demoModal.emailLabel}</label>
                     <input
                       type="email"
                       required
-                      placeholder="you@example.com"
+                      placeholder={t.demoModal.emailPlaceholder}
                       value={formState.email}
                       onChange={(e) => setFormState({ ...formState, email: e.target.value })}
                       className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3.5 py-2.5 text-sm text-slate-800 placeholder-slate-400 outline-none focus:border-[#292e91] focus:bg-white transition-colors"
                     />
                   </div>
                   <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-slate-700 block">เบอร์โทรศัพท์ *</label>
+                    <label className="text-xs font-bold text-slate-700 block">{t.demoModal.phoneLabel}</label>
                     <input
                       type="tel"
                       required
-                      placeholder="081-234-5678"
+                      placeholder={t.demoModal.phonePlaceholder}
                       value={formState.phone}
                       onChange={(e) => setFormState({ ...formState, phone: e.target.value })}
                       className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3.5 py-2.5 text-sm text-slate-800 placeholder-slate-400 outline-none focus:border-[#292e91] focus:bg-white transition-colors"
@@ -936,10 +961,10 @@ export default function LandingPage() {
 
                 {/* Details */}
                 <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-700 block">รายละเอียดเพิ่มเติม / ข้อความ</label>
+                  <label className="text-xs font-bold text-slate-700 block">{t.demoModal.detailsLabel}</label>
                   <textarea
                     rows={3}
-                    placeholder="ความต้องการพิเศษของธุรกิจ หรือโมดูล AI ที่สนใจทดลองใช้เป็นพิเศษ..."
+                    placeholder={t.demoModal.detailsPlaceholder}
                     value={formState.details}
                     onChange={(e) => setFormState({ ...formState, details: e.target.value })}
                     className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3.5 py-2.5 text-sm text-slate-800 placeholder-slate-400 outline-none focus:border-[#292e91] focus:bg-white transition-colors resize-none"
@@ -954,22 +979,22 @@ export default function LandingPage() {
                       setIsModalOpen(false);
                       setFormState({ name: "", company: "", email: "", phone: "", details: "" });
                     }}
-                    className="w-1/3 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-bold text-sm py-3 transition-colors font-sans"
+                    className="w-1/3 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-bold text-sm py-3 transition-colors font-sans cursor-pointer"
                   >
-                    ยกเลิก
+                    {t.demoModal.cancel}
                   </button>
                   <button
                     type="submit"
                     disabled={submitStatus === "loading"}
-                    className="w-2/3 flex items-center justify-center gap-2 rounded-xl bg-brand-gradient hover:opacity-90 text-white font-bold text-sm py-3 transition-all shadow-md disabled:opacity-70 font-sans duration-300 hover:shadow-lg"
+                    className="w-2/3 flex items-center justify-center gap-2 rounded-xl bg-brand-gradient hover:opacity-90 text-white font-bold text-sm py-3 transition-all shadow-md disabled:opacity-70 font-sans duration-300 hover:shadow-lg cursor-pointer"
                   >
                     {submitStatus === "loading" ? (
                       <>
                         <div className="w-4 h-4 rounded-full border-2 border-white/20 border-t-white animate-spin" />
-                        <span>กำลังส่ง...</span>
+                        <span>{t.demoModal.sending}</span>
                       </>
                     ) : (
-                      <span>ส่งข้อมูลขอสาธิตระบบ</span>
+                      <span>{t.demoModal.submit}</span>
                     )}
                   </button>
                 </div>

@@ -2,8 +2,10 @@
 
 import React, { useState } from "react";
 import { Sparkles, MapPin, CheckCircle2, Navigation, RefreshCw } from "lucide-react";
+import { useLanguage } from "../language-context";
 
 export default function AdminWidget() {
+  const { lang } = useLanguage();
   const [optimized, setOptimized] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -17,6 +19,24 @@ export default function AdminWidget() {
 
   const resetWidget = () => {
     setOptimized(false);
+  };
+
+  const t = {
+    distance: lang === "th" ? "ระยะทางขนส่ง (Distance)" : "Distance",
+    optimizedDist: lang === "th" ? "88 กม." : "88 km",
+    baselineDist: lang === "th" ? "120 กม." : "120 km",
+    fuelSavings: lang === "th" ? "ประหยัดเชื้อเพลิง" : "Fuel Savings",
+    fuelSavingsVal: lang === "th" ? "26% (ประหยัด 480 บาท)" : "26% (Saved 480 THB)",
+    avgCost: lang === "th" ? "ค่าขนส่งเฉลี่ย" : "Avg Delivery Cost",
+    avgCostVal: lang === "th" ? "1,820 บาท" : "1,820 THB",
+    hub: lang === "th" ? "คลัง" : "Hub",
+    chonburi: lang === "th" ? "ชลบุรี" : "Chonburi",
+    rayong: lang === "th" ? "ระยอง" : "Rayong",
+    pattaya: lang === "th" ? "พัทยา" : "Pattaya",
+    bestRoute: lang === "th" ? "เส้นทางที่ดีที่สุด" : "Optimal Route",
+    loadingText: lang === "th" ? "กำลังวิเคราะห์เส้นทางที่ดีที่สุด..." : "Analyzing optimal route...",
+    optimizeBtn: lang === "th" ? "ค้นหาเส้นทางขนส่งประหยัดสุด (Optimize Route)" : "Optimize Delivery Route",
+    resetBtn: lang === "th" ? "จำลองรอบใหม่" : "Simulate Again"
   };
 
   return (
@@ -35,22 +55,22 @@ export default function AdminWidget() {
       <div className="p-5 flex-1 space-y-4 text-xs">
         {/* Route Details Box */}
         <div className="grid grid-cols-2 gap-3 text-center">
-          <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200">
-            <div className="text-[9px] text-slate-400 font-bold uppercase">ระยะทางขนส่ง (Distance)</div>
+          <div className="p-3 rounded-2xl bg-slate-50/70 border border-slate-200">
+            <div className="text-[9px] text-slate-400 font-bold uppercase">{t.distance}</div>
             <div className="text-base font-black text-slate-800 mt-0.5">
-              {optimized ? "88 กม." : "120 กม."}
+              {optimized ? t.optimizedDist : t.baselineDist}
             </div>
           </div>
-          <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200">
+          <div className="p-3 rounded-2xl bg-slate-50/70 border border-slate-200">
             {optimized ? (
               <>
-                <div className="text-[9px] text-emerald-600 font-bold uppercase">ประหยัดเชื้อเพลิง</div>
-                <div className="text-base font-black text-emerald-600 mt-0.5">26% (ประหยัด 480 บาท)</div>
+                <div className="text-[9px] text-emerald-600 font-bold uppercase">{t.fuelSavings}</div>
+                <div className="text-base font-black text-emerald-600 mt-0.5">{t.fuelSavingsVal}</div>
               </>
             ) : (
               <>
-                <div className="text-[9px] text-slate-400 font-bold uppercase">ค่าขนส่งเฉลี่ย</div>
-                <div className="text-base font-black text-slate-800 mt-0.5">1,820 บาท</div>
+                <div className="text-[9px] text-slate-400 font-bold uppercase">{t.avgCost}</div>
+                <div className="text-base font-black text-slate-800 mt-0.5">{t.avgCostVal}</div>
               </>
             )}
           </div>
@@ -99,7 +119,7 @@ export default function AdminWidget() {
             <div className="w-5 h-5 rounded-full bg-slate-800 border-2 border-white flex items-center justify-center text-white shadow">
               <MapPin size={10} />
             </div>
-            <span className="text-[8px] bg-slate-800 text-white px-1 rounded mt-0.5 font-bold font-sans">คลัง</span>
+            <span className="text-[8px] bg-slate-800 text-white px-1 rounded mt-0.5 font-bold font-sans">{t.hub}</span>
           </div>
 
           {/* Node A */}
@@ -107,7 +127,7 @@ export default function AdminWidget() {
             <div className="w-5 h-5 rounded-full bg-blue-600 border-2 border-white flex items-center justify-center text-white shadow">
               <span className="text-[9px] font-bold">A</span>
             </div>
-            <span className="text-[8px] bg-white border border-slate-200 text-slate-600 px-1 rounded mt-0.5 font-bold">ชลบุรี</span>
+            <span className="text-[8px] bg-white border border-slate-200 text-slate-600 px-1 rounded mt-0.5 font-bold">{t.chonburi}</span>
           </div>
 
           {/* Node B */}
@@ -115,7 +135,7 @@ export default function AdminWidget() {
             <div className="w-5 h-5 rounded-full bg-blue-600 border-2 border-white flex items-center justify-center text-white shadow">
               <span className="text-[9px] font-bold">B</span>
             </div>
-            <span className="text-[8px] bg-white border border-slate-200 text-slate-600 px-1 rounded mt-0.5 font-bold">ระยอง</span>
+            <span className="text-[8px] bg-white border border-slate-200 text-slate-600 px-1 rounded mt-0.5 font-bold">{t.rayong}</span>
           </div>
 
           {/* Node C */}
@@ -123,14 +143,14 @@ export default function AdminWidget() {
             <div className="w-5 h-5 rounded-full bg-blue-600 border-2 border-white flex items-center justify-center text-white shadow">
               <span className="text-[9px] font-bold">C</span>
             </div>
-            <span className="text-[8px] bg-white border border-slate-200 text-slate-600 px-1 rounded mt-0.5 font-bold">พัทยา</span>
+            <span className="text-[8px] bg-white border border-slate-200 text-slate-600 px-1 rounded mt-0.5 font-bold">{t.pattaya}</span>
           </div>
 
           {/* Optimization Metric Overlay */}
           {optimized && (
             <div className="absolute top-3 left-3 bg-emerald-500 text-white px-2 py-0.5 rounded-md font-bold text-[9px] flex items-center gap-1 shadow animate-scale-up">
               <CheckCircle2 size={10} />
-              <span>เส้นทางที่ดีที่สุด</span>
+              <span>{t.bestRoute}</span>
             </div>
           )}
         </div>
@@ -145,12 +165,12 @@ export default function AdminWidget() {
             {loading ? (
               <>
                 <div className="w-4 h-4 rounded-full border-2 border-white/20 border-t-white animate-spin" />
-                <span>กำลังวิเคราะห์เส้นทางที่ดีที่สุด...</span>
+                <span>{t.loadingText}</span>
               </>
             ) : (
               <>
                 <Navigation size={14} />
-                <span>ค้นหาเส้นทางขนส่งประหยัดสุด (Optimize Route)</span>
+                <span>{t.optimizeBtn}</span>
               </>
             )}
           </button>
@@ -160,7 +180,7 @@ export default function AdminWidget() {
             className="w-full flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-semibold py-2.5 transition-colors font-sans text-xs"
           >
             <RefreshCw size={12} />
-            <span>จำลองรอบใหม่</span>
+            <span>{t.resetBtn}</span>
           </button>
         )}
       </div>

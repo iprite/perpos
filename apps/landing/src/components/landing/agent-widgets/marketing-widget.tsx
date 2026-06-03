@@ -1,14 +1,23 @@
 "use client";
 
 import React, { useState } from "react";
-import { Sparkles, Play, Megaphone, Send, ArrowRight } from "lucide-react";
+import { Sparkles, Play, Megaphone } from "lucide-react";
+import { useLanguage } from "../language-context";
 
 export default function MarketingWidget() {
-  const [product, setProduct] = useState("ครีมกันแดดไฮบริด ออร์แกนิก SPF50");
+  const { lang } = useLanguage();
+  const [product, setProduct] = useState(
+    lang === "th" ? "ครีมกันแดดไฮบริด ออร์แกนิก SPF50" : "Organic Hybrid Sunscreen SPF50"
+  );
   const [tone, setTone] = useState<"premium" | "bold" | "creative">("premium");
   const [budget, setBudget] = useState(15000);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<any | null>(null);
+
+  React.useEffect(() => {
+    setProduct(lang === "th" ? "ครีมกันแดดไฮบริด ออร์แกนิก SPF50" : "Organic Hybrid Sunscreen SPF50");
+    setResult(null);
+  }, [lang]);
 
   const runSimulation = () => {
     setLoading(true);
@@ -20,21 +29,40 @@ export default function MarketingWidget() {
       let estRoi = 0;
       let estConversion = 0;
 
-      if (tone === "premium") {
-        copy = `✨ สัมผัสความเบาสบายขั้นสุดที่ปกป้องผิวคุณอย่างสมบูรณ์แบบ...\n\nขอแนะนำ "${product}" ครีมกันแดดสูตรออร์แกนิกพรีเมียม ปกป้องสูงสุด SPF50 PA++++ ผสานคุณค่าสารสกัดธรรมชาติเพื่อการบำรุงล้ำลึก เนื้อสัมผัสเซรั่มซึมไว ไม่ทิ้งคราบขาว\n\n📌 ช้อปความพิเศษเพื่อผิวคุณได้แล้ววันนี้ รับส่วนลด 15% พร้อมส่งฟรี`;
-        audience = "ผู้หญิงอายุ 25-45 ปี, สนใจครีมบำรุงผิวพรีเมียม, สินค้าออร์แกนิก, ผิวแพ้ง่าย";
-        estRoi = 3.6;
-        estConversion = 4.2;
-      } else if (tone === "bold") {
-        copy = `🔥 แดดเมืองไทยแรงแค่ไหน ก็ทำร้ายผิวคุณไม่ได้!\n\nหมดกังวลเรื่องหน้าเยิ้ม ผิวคล้ำเสียระหว่างวันด้วย "${product}" กันแดดเนื้อไฮบริดออร์แกนิก สูตรคุมมันกันน้ำกันเหงื่อ 100% ปกป้องยาวนาน 12 ชั่วโมงเต็ม\n\n⚡️ โปรโมชันท้าแดดด่วน! ซื้อ 1 แถม 1 เฉพาะสัปดาห์นี้เท่านั้น คลิกสั่งซื้อด่วนก่อนสินค้าหมดสต๊อก!`;
-        audience = "คนรุ่นใหม่อายุ 18-35 ปี, กิจกรรมกลางแจ้ง, วิ่งมาราธอน, ท่องเที่ยวทะเล";
-        estRoi = 3.1;
-        estConversion = 3.8;
+      if (lang === "th") {
+        if (tone === "premium") {
+          copy = `✨ สัมผัสความเบาสบายขั้นสุดที่ปกป้องผิวคุณอย่างสมบูรณ์แบบ...\n\nขอแนะนำ "${product}" ครีมกันแดดสูตรออร์แกนิกพรีเมียม ปกป้องสูงสุด SPF50 PA++++ ผสานคุณค่าสารสกัดธรรมชาติเพื่อการบำรุงล้ำลึก เนื้อสัมผัสเซรั่มซึมไว ไม่ทิ้งคราบขาว\n\n📌 ช้อปความพิเศษเพื่อผิวคุณได้แล้ววันนี้ รับส่วนลด 15% พร้อมส่งฟรี`;
+          audience = "ผู้หญิงอายุ 25-45 ปี, สนใจครีมบำรุงผิวพรีเมียม, สินค้าออร์แกนิก, ผิวแพ้ง่าย";
+          estRoi = 3.6;
+          estConversion = 4.2;
+        } else if (tone === "bold") {
+          copy = `🔥 แดดเมืองไทยแรงแค่ไหน ก็ทำร้ายผิวคุณไม่ได้!\n\nหมดกังวลเรื่องหน้าเยิ้ม ผิวคล้ำเสียระหว่างวันด้วย "${product}" กันแดดเนื้อไฮบริดออร์แกนิก สูตรคุมมันกันน้ำกันเหงื่อ 100% ปกป้องยาวนาน 12 ชั่วโมงเต็ม\n\n⚡️ โปรโมชันท้าแดดด่วน! ซื้อ 1 แถม 1 เฉพาะสัปดาห์นี้เท่านั้น คลิกสั่งซื้อด่วนก่อนสินค้าหมดสต๊อก!`;
+          audience = "คนรุ่นใหม่อายุ 18-35 ปี, กิจกรรมกลางแจ้ง, วิ่งมาราธอน, ท่องเที่ยวทะเล";
+          estRoi = 3.1;
+          estConversion = 3.8;
+        } else {
+          copy = `💡 รู้หรือไม่? ครีมกันแดดทั่วไปอาจอุดตันและทำร้ายปะการัง...\n\nก้าวสู่อนาคตการดูแลผิวที่เป็นมิตรต่อธรรมชาติกับ "${product}" นวัตกรรมกันแดดออร์แกนิก 100% ที่ย่อยสลายได้ง่าย ปกป้องผิวคุณพร้อมรักษ์โลกไปในตัว 🌊\n\n💬 ทักแชตวันนี้เพื่อรับสิทธิ์ตรวจสภาพผิวฟรี พร้อมคำแนะนำจากผู้เชี่ยวชาญ`;
+          audience = "กลุ่มผู้อนุรักษ์ธรรมชาติ, ท่องเที่ยวเชิงอนุรักษ์, ผู้ชื่นชอบนวัตกรรมรักษ์โลก, ทำบุญ";
+          estRoi = 3.4;
+          estConversion = 4.0;
+        }
       } else {
-        copy = `💡 รู้หรือไม่? ครีมกันแดดทั่วไปอาจอุดตันและทำร้ายปะการัง...\n\nก้าวสู่อนาคตการดูแลผิวที่เป็นมิตรต่อธรรมชาติกับ "${product}" นวัตกรรมกันแดดออร์แกนิก 100% ที่ย่อยสลายได้ง่าย ปกป้องผิวคุณพร้อมรักษ์โลกไปในตัว 🌊\n\n💬 ทักแชตวันนี้เพื่อรับสิทธิ์ตรวจสภาพผิวฟรี พร้อมคำแนะนำจากผู้เชี่ยวชาญ`;
-        audience = "กลุ่มผู้อนุรักษ์ธรรมชาติ, ท่องเที่ยวเชิงอนุรักษ์, ผู้ชื่นชอบนวัตกรรมรักษ์โลก, ทำบุญ";
-        estRoi = 3.4;
-        estConversion = 4.0;
+        if (tone === "premium") {
+          copy = `✨ Experience the ultimate lightweight shield that perfectly protects your skin...\n\nIntroducing "${product}", a premium organic sunscreen offering maximum protection at SPF50 PA++++. Enriched with natural extracts for deep skin nourishment. Quick-absorbing serum texture with zero white cast.\n\n📌 Shop now to experience premium care. Get 15% off plus free shipping!`;
+          audience = "Women aged 25-45, premium skincare enthusiasts, organic products, sensitive skin";
+          estRoi = 3.6;
+          estConversion = 4.2;
+        } else if (tone === "bold") {
+          copy = `🔥 No matter how hot the sun is, it can't harm your skin!\n\nSay goodbye to greasy, sun-damaged skin with "${product}", our organic hybrid sunscreen. 100% oil-control, waterproof, and sweatproof. Protects you for 12 full hours.\n\n⚡️ Summer Deal! Buy 1 Get 1 Free this week only. Click to order now before stocks run out!`;
+          audience = "Young adults aged 18-35, outdoor activities, marathon runners, beach travelers";
+          estRoi = 3.1;
+          estConversion = 3.8;
+        } else {
+          copy = `💡 Did you know? Typical chemical sunscreens can clog pores and bleach coral reefs...\n\nStep into the future of eco-friendly skincare with "${product}", a 100% organic, reef-safe sunscreen. Protect your skin while protecting our oceans. 🌊\n\n💬 Message us today for a free skin consultation with our experts.`;
+          audience = "Eco-conscious groups, eco-tourism, green tech lovers, health & wellness";
+          estRoi = 3.4;
+          estConversion = 4.0;
+        }
       }
 
       setResult({
@@ -47,6 +75,22 @@ export default function MarketingWidget() {
       });
       setLoading(false);
     }, 1500);
+  };
+
+  const t = {
+    productLabel: lang === "th" ? "ชื่อสินค้า (Product Name)" : "Product Name",
+    premium: lang === "th" ? "หรูหรา / Premium" : "Premium / Elegant",
+    bold: lang === "th" ? "เร่งเร้า / Bold" : "Bold / Promo",
+    creative: lang === "th" ? "สร้างสรรค์ / Story" : "Story / Creative",
+    budgetLabel: lang === "th" ? "งบประมาณแคมเปญ (Budget)" : "Campaign Budget",
+    currency: lang === "th" ? "บาท" : "THB",
+    loadingText: lang === "th" ? "กำลังวิเคราะห์ตลาดและสร้างแคมเปญ..." : "Analyzing market data & generating copy...",
+    generateBtn: lang === "th" ? "สร้างแคมเปญด้วย Marketing Agent" : "Generate Campaign with AI Agent",
+    roiLabel: lang === "th" ? "Predicted ROI" : "Predicted ROI",
+    convLabel: lang === "th" ? "Conv. Rate" : "Conv. Rate",
+    ordersLabel: lang === "th" ? "Est. Orders" : "Est. Orders",
+    adCopyHeader: lang === "th" ? "Facebook Ad Copywriting (AI Generated):" : "Facebook Ad Copywriting (AI Generated):",
+    targetHeader: lang === "th" ? "กลุ่มเป้าหมายแนะนำ (Target Keywords):" : "Recommended Target Audience (Keywords):"
   };
 
   return (
@@ -66,7 +110,7 @@ export default function MarketingWidget() {
       <div className="p-5 flex-1 space-y-4 text-xs">
         <div className="grid gap-3.5">
           <div className="space-y-1.5 text-left">
-            <label className="font-bold text-slate-750">ชื่อสินค้า (Product Name)</label>
+            <label className="font-bold text-slate-750">{t.productLabel}</label>
             <input
               type="text"
               value={product}
@@ -76,27 +120,27 @@ export default function MarketingWidget() {
           </div>
 
           <div className="grid grid-cols-3 gap-2">
-            {(["premium", "bold", "creative"] as const).map((t) => (
+            {(["premium", "bold", "creative"] as const).map((tVal) => (
               <button
-                key={t}
-                onClick={() => setTone(t)}
-                className={`py-2 px-1 text-center font-bold capitalize rounded-xl border text-[11px] transition-all ${
-                  tone === t
+                key={tVal}
+                onClick={() => setTone(tVal)}
+                className={`py-2 px-1 text-center font-bold rounded-xl border text-[10px] transition-all cursor-pointer ${
+                  tone === tVal
                     ? "bg-[#292e91] border-[#292e91] text-white"
                     : "bg-slate-50 border-slate-200 text-slate-650 hover:bg-slate-100"
                 }`}
               >
-                {t === "premium" && "หรูหรา / Premium"}
-                {t === "bold" && "เร่งเร้า / Bold"}
-                {t === "creative" && "สร้างสรรค์ / Story"}
+                {tVal === "premium" && t.premium}
+                {tVal === "bold" && t.bold}
+                {tVal === "creative" && t.creative}
               </button>
             ))}
           </div>
 
           <div className="space-y-1.5 text-left">
             <div className="flex justify-between items-center font-bold text-slate-750">
-              <span>งบประมาณแคมเปญ (Budget)</span>
-              <span className="text-[#292e91]">{budget.toLocaleString()} บาท</span>
+              <span>{t.budgetLabel}</span>
+              <span className="text-[#292e91]">{budget.toLocaleString()} {t.currency}</span>
             </div>
             <input
               type="range"
@@ -112,17 +156,17 @@ export default function MarketingWidget() {
           <button
             onClick={runSimulation}
             disabled={loading || !product.trim()}
-            className="w-full flex items-center justify-center gap-2 rounded-xl bg-brand-gradient hover:opacity-90 text-white font-bold py-3 transition-all shadow-md disabled:opacity-50"
+            className="w-full flex items-center justify-center gap-2 rounded-xl bg-brand-gradient hover:opacity-90 text-white font-bold py-3 transition-all shadow-md disabled:opacity-50 cursor-pointer"
           >
             {loading ? (
               <>
                 <div className="w-4 h-4 rounded-full border-2 border-white/20 border-t-white animate-spin" />
-                <span>กำลังวิเคราะห์ตลาดและสร้างแคมเปญ...</span>
+                <span>{t.loadingText}</span>
               </>
             ) : (
               <>
                 <Play size={14} />
-                <span>สร้างแคมเปญด้วย Marketing Agent</span>
+                <span>{t.generateBtn}</span>
               </>
             )}
           </button>
@@ -133,15 +177,15 @@ export default function MarketingWidget() {
           <div className="mt-4 border-t border-slate-150 pt-4 space-y-4 animate-scale-up text-left">
             <div className="grid grid-cols-3 gap-2.5 text-center">
               <div className="p-2 rounded-xl bg-slate-50 border border-slate-200">
-                <div className="text-[10px] text-slate-400 font-bold uppercase">Predicted ROI</div>
+                <div className="text-[10px] text-slate-400 font-bold uppercase">{t.roiLabel}</div>
                 <div className="text-sm font-black text-[#292e91] mt-0.5">{result.estRoi}x</div>
               </div>
               <div className="p-2 rounded-xl bg-slate-50 border border-slate-200">
-                <div className="text-[10px] text-slate-400 font-bold uppercase">Conv. Rate</div>
+                <div className="text-[10px] text-slate-400 font-bold uppercase">{t.convLabel}</div>
                 <div className="text-sm font-black text-emerald-600 mt-0.5">{result.estConversion}%</div>
               </div>
               <div className="p-2 rounded-xl bg-slate-50 border border-slate-200">
-                <div className="text-[10px] text-slate-400 font-bold uppercase">Est. Orders</div>
+                <div className="text-[10px] text-slate-400 font-bold uppercase">{t.ordersLabel}</div>
                 <div className="text-sm font-black text-slate-800 mt-0.5">{result.estSales}</div>
               </div>
             </div>
@@ -149,7 +193,7 @@ export default function MarketingWidget() {
             <div className="space-y-1.5">
               <div className="font-bold text-slate-700 flex items-center gap-1.5">
                 <Megaphone size={14} className="text-blue-500" />
-                <span>Facebook Ad Copywriting (AI Generated):</span>
+                <span>{t.adCopyHeader}</span>
               </div>
               <div className="bg-[#f8fafc] border border-slate-200 p-3 rounded-2xl text-[11px] font-sans text-slate-800 leading-relaxed max-h-[110px] overflow-y-auto whitespace-pre-wrap">
                 {result.copy}
@@ -157,7 +201,7 @@ export default function MarketingWidget() {
             </div>
 
             <div className="p-2.5 rounded-xl border border-blue-150 bg-blue-50/50">
-              <div className="font-bold text-[#292e91]">กลุ่มเป้าหมายแนะนำ (Target Keywords):</div>
+              <div className="font-bold text-[#292e91]">{t.targetHeader}</div>
               <p className="text-[10px] text-slate-600 mt-0.5 font-sans leading-relaxed">{result.audience}</p>
             </div>
           </div>

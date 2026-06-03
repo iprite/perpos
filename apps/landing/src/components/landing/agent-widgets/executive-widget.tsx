@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useState } from "react";
-import { Sparkles, MessageSquare, Terminal, BarChart3, TrendingUp, RefreshCw, Send } from "lucide-react";
+import { Sparkles, MessageSquare, Terminal, RefreshCw, Send } from "lucide-react";
+import { useLanguage } from "../language-context";
 
 interface QueryOption {
   question: string;
@@ -11,7 +12,7 @@ interface QueryOption {
   insight: string;
 }
 
-const QUERY_OPTIONS: QueryOption[] = [
+const QUERY_OPTIONS_TH: QueryOption[] = [
   {
     question: "ขอยอดขายแยกตามแผนกในปีนี้",
     sql: "SELECT category, SUM(amount) FROM sales_invoice_items JOIN sales_invoices ON invoice_id = sales_invoices.id WHERE EXTRACT(YEAR FROM created_at) = 2026 GROUP BY category;",
@@ -39,7 +40,7 @@ const QUERY_OPTIONS: QueryOption[] = [
   {
     question: "คาดการณ์กระแสเงินสดในอีก 30 วันข้างหน้า",
     sql: "SELECT date, cash_balance FROM forecast_cash_flow(30);",
-    chartType: "pie", // We'll show a donut balance ratio or indicator
+    chartType: "pie",
     data: [
       { label: "เงินสดรับคาดการณ์", value: 650000, color: "bg-emerald-500" },
       { label: "เงินสดจ่ายคงที่", value: 320000, color: "bg-rose-500" },
@@ -49,11 +50,52 @@ const QUERY_OPTIONS: QueryOption[] = [
   },
 ];
 
+const QUERY_OPTIONS_EN: QueryOption[] = [
+  {
+    question: "Sales by department this year",
+    sql: "SELECT category, SUM(amount) FROM sales_invoice_items JOIN sales_invoices ON invoice_id = sales_invoices.id WHERE EXTRACT(YEAR FROM created_at) = 2026 GROUP BY category;",
+    chartType: "bar",
+    data: [
+      { label: "Beverages", value: 340000, color: "bg-blue-500" },
+      { label: "Snacks", value: 210000, color: "bg-cyan-500" },
+      { label: "Fresh Food", value: 480000, color: "bg-emerald-500" },
+      { label: "Stationery", value: 120000, color: "bg-violet-500" },
+    ],
+    insight: "The 'Fresh Food' department generated the highest sales, representing 41.7% of the portfolio, growing 12% MoM due to holiday imports.",
+  },
+  {
+    question: "Analyze gross profit trend for past 4 months",
+    sql: "SELECT TO_CHAR(date, 'Mon') as month, SUM(revenue - cost) as profit FROM financial_summaries GROUP BY month ORDER BY min(date);",
+    chartType: "line",
+    data: [
+      { label: "Jan", value: 145000, color: "bg-blue-500" },
+      { label: "Feb", value: 168000, color: "bg-blue-500" },
+      { label: "Mar", value: 189000, color: "bg-blue-500" },
+      { label: "Apr", value: 232000, color: "bg-blue-500" },
+    ],
+    insight: "Gross margin continues to rise, averaging 18% monthly growth, following successful wholesale price negotiations with key suppliers.",
+  },
+  {
+    question: "Forecast cash flow for the next 30 days",
+    sql: "SELECT date, cash_balance FROM forecast_cash_flow(30);",
+    chartType: "pie",
+    data: [
+      { label: "Forecasted Inflow", value: 650000, color: "bg-emerald-500" },
+      { label: "Fixed Cash Outflow", value: 320000, color: "bg-rose-500" },
+      { label: "Safety Cash Reserve", value: 150000, color: "bg-amber-500" },
+    ],
+    insight: "Net cash inflow is forecasted to be positive by 330,000 THB in the next 30 days. No liquidity risks detected; short-term investment advised.",
+  },
+];
+
 export default function ExecutiveWidget() {
+  const { lang } = useLanguage();
   const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   const [customText, setCustomText] = useState("");
   const [showResult, setShowResult] = useState(false);
+
+  const options = lang === "th" ? QUERY_OPTIONS_TH : QUERY_OPTIONS_EN;
 
   const handleSelectQuery = (idx: number) => {
     setLoading(true);
@@ -69,7 +111,6 @@ export default function ExecutiveWidget() {
     e.preventDefault();
     if (!customText.trim()) return;
     setLoading(true);
-    // Find closest index or default to sales (0)
     setSelectedIdx(0);
     setShowResult(false);
     setTimeout(() => {
@@ -78,7 +119,16 @@ export default function ExecutiveWidget() {
     }, 2000);
   };
 
-  const currentQuery = selectedIdx !== null ? QUERY_OPTIONS[selectedIdx] : null;
+  const currentQuery = selectedIdx !== null ? options[selectedIdx] : null;
+
+  const t = {
+    title: lang === "th" ? "คำถามยอดนิยม หรือเริ่มถามเพื่อทดลองใช้งาน:" : "Popular inquiries or start typing to test:",
+    placeholder: lang === "th" ? "พิมพ์คำถามธุรกิจ เช่น ขอยอดขายรายเดือน..." : "Type your business inquiry, e.g., monthly sales...",
+    fallbackText: lang === "th" ? "เลือกหัวข้อคำถามด้านบน เพื่อดูกระบวนการแปลงคำสั่งและการเรนเดอร์กราฟรายงาน" : "Select an inquiry topic above to see SQL translation and graph rendering.",
+    loadingText: lang === "th" ? "กำลังประมวลผลคำถามภาษาไทยเป็นคำสั่ง SQL..." : "Translating natural language question to Postgres SQL...",
+    inflowLabel: lang === "th" ? "เงินสดรับ" : "Inflow",
+    insightPrefix: lang === "th" ? "AI วิเคราะห์:" : "AI Insight:"
+  };
 
   return (
     <div className="w-full rounded-2xl border border-slate-200 bg-white overflow-hidden shadow-lg flex flex-col min-h-[500px] text-slate-700 font-sans">
@@ -96,9 +146,9 @@ export default function ExecutiveWidget() {
       <div className="p-5 flex-1 flex flex-col justify-between gap-4">
         {/* Chat Terminal / Prompt list */}
         <div className="space-y-3">
-          <div className="text-xs text-slate-500 font-medium">คำถามยอดนิยม หรือเริ่มถามเพื่อทดลองใช้งาน:</div>
+          <div className="text-xs text-slate-500 font-medium">{t.title}</div>
           <div className="flex flex-wrap gap-2">
-            {QUERY_OPTIONS.map((opt, idx) => (
+            {options.map((opt, idx) => (
               <button
                 key={idx}
                 onClick={() => handleSelectQuery(idx)}
@@ -121,7 +171,7 @@ export default function ExecutiveWidget() {
                 type="text"
                 value={customText}
                 onChange={(e) => setCustomText(e.target.value)}
-                placeholder="พิมพ์คำถามธุรกิจ เช่น ขอยอดขายรายเดือน..."
+                placeholder={t.placeholder}
                 className="w-full text-xs pl-3 pr-8 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:border-indigo-500"
               />
               <MessageSquare size={14} className="absolute right-3 top-3 text-slate-400" />
@@ -141,20 +191,20 @@ export default function ExecutiveWidget() {
           <div className="absolute inset-0 bg-[linear-gradient(to_right,#1e293b_1px,transparent_1px),linear-gradient(to_bottom,#1e293b_1px,transparent_1px)] bg-[size:14px_14px] opacity-25 pointer-events-none" />
 
           {loading && (
-            <div className="absolute inset-0 bg-slate-900/90 flex flex-col items-center justify-center gap-3 z-10">
+            <div className="absolute inset-0 bg-slate-900/90 flex flex-col items-center justify-center gap-3 z-10 font-sans">
               <div className="flex gap-1.5 items-center">
                 <span className="w-2.5 h-2.5 rounded-full bg-indigo-500 animate-bounce [animation-delay:-0.3s]" />
                 <span className="w-2.5 h-2.5 rounded-full bg-indigo-400 animate-bounce [animation-delay:-0.15s]" />
                 <span className="w-2.5 h-2.5 rounded-full bg-indigo-300 animate-bounce" />
               </div>
-              <span className="text-[10px] text-slate-400 animate-pulse">กำลังประมวลผลคำถามภาษาไทยเป็นคำสั่ง SQL...</span>
+              <span className="text-[10px] text-slate-400 animate-pulse">{t.loadingText}</span>
             </div>
           )}
 
           {!loading && !showResult && (
-            <div className="flex-1 flex flex-col items-center justify-center text-center text-slate-500 py-10">
+            <div className="flex-1 flex flex-col items-center justify-center text-center text-slate-500 py-10 font-sans">
               <Terminal size={24} className="mb-2 text-slate-600" />
-              <p className="text-[11px]">เลือกหัวข้อคำถามด้านบน เพื่อดูกระบวนการแปลงคำสั่งและการเรนเดอร์กราฟรายงาน</p>
+              <p className="text-[11px] px-4">{t.fallbackText}</p>
             </div>
           )}
 
@@ -184,7 +234,7 @@ export default function ExecutiveWidget() {
                             className={`w-8 rounded-t-md ${item.color} transition-all duration-1000 ease-out`}
                             style={{ height: `${percentage}%` }}
                           />
-                          <span className="text-[9px] text-slate-400 truncate w-full text-center mt-0.5">{item.label}</span>
+                          <span className="text-[9px] text-slate-400 truncate w-full text-center mt-0.5 font-sans">{item.label}</span>
                         </div>
                       );
                     })}
@@ -214,7 +264,7 @@ export default function ExecutiveWidget() {
                         <circle cx="95" cy="10" r="2.5" fill="#60a5fa" />
                       </svg>
                     </div>
-                    <div className="flex justify-between text-[9px] text-slate-400 px-6 mt-1">
+                    <div className="flex justify-between text-[9px] text-slate-400 px-6 mt-1 font-sans">
                       {currentQuery.data.map((item, idx) => (
                         <span key={idx}>{item.label} ({Math.round(item.value / 1000)}k)</span>
                       ))}
@@ -223,18 +273,18 @@ export default function ExecutiveWidget() {
                 )}
 
                 {currentQuery.chartType === "pie" && (
-                  <div className="flex gap-4 items-center justify-center w-full px-4">
+                  <div className="flex gap-4 items-center justify-center w-full px-4 font-sans">
                     {/* Mock circular progress / Donut chart */}
                     <div className="w-16 h-16 rounded-full border-8 border-slate-800 relative flex items-center justify-center shrink-0">
                       <div className="absolute inset-0 rounded-full border-8 border-emerald-500 border-t-transparent border-r-transparent animate-spin-slow" />
-                      <div className="text-[9px] text-slate-300 font-bold">Inflow</div>
+                      <div className="text-[9px] text-slate-300 font-bold">{t.inflowLabel}</div>
                     </div>
                     <div className="grid grid-cols-1 gap-1 text-[9px] text-slate-400 flex-1">
                       {currentQuery.data.map((item, idx) => (
                         <div key={idx} className="flex items-center gap-1.5">
                           <span className={`w-2 h-2 rounded-full ${item.color}`} />
                           <span className="font-semibold text-slate-350">{item.label}:</span>
-                          <span>{(item.value / 1000).toLocaleString()}k</span>
+                          <span className="font-mono">{(item.value / 1000).toLocaleString()}k</span>
                         </div>
                       ))}
                     </div>
@@ -246,7 +296,7 @@ export default function ExecutiveWidget() {
               <div className="bg-indigo-950/60 border border-indigo-900/60 rounded-xl p-3 flex gap-2.5 items-start">
                 <Sparkles size={14} className="text-indigo-400 shrink-0 mt-0.5" />
                 <p className="text-[10px] text-indigo-200 leading-relaxed font-sans">
-                  <strong className="text-indigo-100">AI Insight:</strong> {currentQuery.insight}
+                  <strong className="text-indigo-100">{t.insightPrefix}</strong> {currentQuery.insight}
                 </p>
               </div>
             </div>

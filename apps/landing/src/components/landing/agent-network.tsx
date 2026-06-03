@@ -1,13 +1,12 @@
-"use client";
-
 import React, { useState } from "react";
 import Link from "next/link";
 import { Sparkles, Database, ArrowRight, Cpu } from "lucide-react";
+import { translations, AGENTS_DETAILS_TRANSLATED } from "./locales";
 
 interface Agent {
   id: number;
   name: string;
-  category: "Front-Office" | "Back-Office" | "Operations & Support" | "Executive Management";
+  category: string;
   role: string;
   metric: string;
   details: string[];
@@ -144,8 +143,26 @@ function getAgentSlug(name: string): string {
   return mapping[name] ?? "sales";
 }
 
-export default function AgentNetwork() {
+export default function AgentNetwork({ lang = "th" }: { lang?: "th" | "en" }) {
   const [hoveredAgent, setHoveredAgent] = useState<Agent | null>(AGENTS[6]); // Defaults to Executive Assistant
+  const t = translations[lang].agentsSection;
+
+  const translatedAgents = AGENTS.map((agent) => {
+    const slug = getAgentSlug(agent.name);
+    const trans = AGENTS_DETAILS_TRANSLATED[lang][slug as keyof typeof AGENTS_DETAILS_TRANSLATED["th"]];
+    return {
+      ...agent,
+      name: trans?.title || agent.name,
+      category: trans?.category || agent.category,
+      role: trans?.role || agent.role,
+      metric: trans?.metric || agent.metric,
+      details: trans?.details || agent.details,
+    };
+  });
+
+  const activeAgent = hoveredAgent
+    ? translatedAgents.find((a) => a.id === hoveredAgent.id) || null
+    : null;
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center bg-[#f8fafc]/50 border border-slate-200 rounded-3xl p-6 lg:p-8 text-slate-700">
@@ -159,8 +176,8 @@ export default function AgentNetwork() {
             <circle cx="160" cy="160" r="70" fill="#3b82f6" fillOpacity="0.01" />
 
             {/* Render lines connecting outer agents to center */}
-            {AGENTS.map((agent) => {
-              const isHovered = hoveredAgent?.id === agent.id;
+            {translatedAgents.map((agent) => {
+              const isHovered = activeAgent?.id === agent.id;
               return (
                 <g key={`lines-${agent.id}`}>
                   {/* Outer glow stroke path */}
@@ -192,12 +209,12 @@ export default function AgentNetwork() {
           {/* Central database engine node */}
           <div className="absolute top-[125px] left-[125px] w-[70px] h-[70px] rounded-full bg-white border-2 border-blue-500 shadow-[0_0_20px_rgba(37,99,235,0.2)] flex flex-col items-center justify-center z-10">
             <Database className="text-blue-600" size={24} />
-            <span className="text-[7px] text-blue-700 font-bold text-center mt-1 scale-90 uppercase">PERPOS DB</span>
+            <span className="text-[7px] text-blue-700 font-bold text-center mt-1 scale-90 uppercase">{t.dbLabel}</span>
           </div>
 
           {/* Outer Agent Nodes */}
-          {AGENTS.map((agent) => {
-            const isHovered = hoveredAgent?.id === agent.id;
+          {translatedAgents.map((agent) => {
+            const isHovered = activeAgent?.id === agent.id;
             return (
               <button
                 key={`node-${agent.id}`}
@@ -224,24 +241,24 @@ export default function AgentNetwork() {
 
       {/* Description Panel (Right Column) */}
       <div className="lg:col-span-6 space-y-5 animate-fade-in">
-        {hoveredAgent ? (
+        {activeAgent ? (
           <div className="space-y-4 text-left">
             <div className="space-y-1">
               <span className="text-xs uppercase tracking-wider font-bold text-blue-700 bg-blue-50 border border-blue-100 px-2.5 py-0.5 rounded-full inline-block">
-                {hoveredAgent.category}
+                {activeAgent.category}
               </span>
               <h3 className="text-xl font-bold text-slate-800 flex items-center gap-2 mt-2">
-                {hoveredAgent.name}
+                {activeAgent.name}
               </h3>
               <p className="text-xs sm:text-sm text-emerald-600 font-bold flex items-center gap-1.5 mt-0.5">
                 <Sparkles size={12} />
-                {hoveredAgent.role} — {hoveredAgent.metric}
+                {activeAgent.role} — {activeAgent.metric}
               </p>
             </div>
 
             <div className="border-t border-slate-200 pt-4">
               <ul className="space-y-3 text-sm text-slate-650">
-                {hoveredAgent.details.map((detail, idx) => (
+                {activeAgent.details.map((detail, idx) => (
                   <li key={idx} className="flex gap-2.5 items-start">
                     <span className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0 mt-1.5" />
                     <span className="leading-relaxed">{detail}</span>
@@ -255,16 +272,16 @@ export default function AgentNetwork() {
                 <ArrowRight size={14} />
               </div>
               <p className="leading-relaxed">
-                เชื่อมต่อชุดข้อมูลร่วมกับ Agent แผนกอื่นผ่าน <strong className="text-slate-800">Central Data Engine</strong> บนระบบคลาวด์ ป้องกันการทำงานซ้ำซ้อน
+                {t.connectLabel}
               </p>
             </div>
 
             <div className="pt-2">
               <Link
-                href={`/agents/${getAgentSlug(hoveredAgent.name)}`}
+                href={`/agents/${getAgentSlug(activeAgent.name)}`}
                 className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-brand-gradient hover:opacity-90 text-white font-bold text-sm py-3.5 transition-all shadow-md duration-300 hover:shadow-lg"
               >
-                ดูเจาะลึกฟีเจอร์และการทำงานจริง
+                {t.viewDeepDive}
                 <ArrowRight size={16} />
               </Link>
             </div>
@@ -272,7 +289,7 @@ export default function AgentNetwork() {
         ) : (
           <div className="h-full flex flex-col justify-center items-center text-center py-12 text-slate-400">
             <Cpu size={32} className="text-slate-300 animate-bounce mb-3" />
-            <p className="text-sm">เอาเมาส์ชี้ที่ Node แผนก AI เพื่อดูข้อมูลความสามารถและผลลัพธ์</p>
+            <p className="text-sm">{t.hoverTip}</p>
           </div>
         )}
       </div>
@@ -293,3 +310,4 @@ export default function AgentNetwork() {
     </div>
   );
 }
+
