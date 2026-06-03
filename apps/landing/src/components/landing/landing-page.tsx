@@ -579,49 +579,35 @@ export default function LandingPage() {
               <div className="relative grid grid-cols-1 md:grid-cols-2 gap-x-16 gap-y-6 pt-2 z-10">
                 {/* SVG connection lines with flowing pulses */}
                 <svg className="absolute inset-0 w-full h-full pointer-events-none hidden md:block" viewBox="0 0 100 100" preserveAspectRatio="none" style={{ zIndex: 0 }}>
-                  <defs>
-                    <linearGradient id="flow-grad-1" x1="0%" y1="0%" x2="100%" y2="0%">
-                      <stop offset="0%" stopColor="#292e91" />
-                      <stop offset="100%" stopColor="#4ca9df" />
-                    </linearGradient>
-                    <linearGradient id="flow-grad-2" x1="0%" y1="100%" x2="100%" y2="0%">
-                      <stop offset="0%" stopColor="#fbbf24" />
-                      <stop offset="100%" stopColor="#22d3ee" />
-                    </linearGradient>
-                    <linearGradient id="flow-grad-diagonal" x1="0%" y1="0%" x2="100%" y2="100%">
-                      <stop offset="0%" stopColor="#292e91" />
-                      <stop offset="100%" stopColor="#10b981" />
-                    </linearGradient>
-                    <linearGradient id="flow-grad-reverse" x1="100%" y1="0%" x2="0%" y2="100%">
-                      <stop offset="0%" stopColor="#10b981" />
-                      <stop offset="100%" stopColor="#c084fc" />
-                    </linearGradient>
-                  </defs>
-
                   {/* Flow 1: Frontend (Top Left) -> Serverless Workers (Top Right) */}
-                  <path d="M 44,16 H 56" fill="none" stroke="#e2e8f0" strokeWidth="2" />
-                  <path d="M 44,16 H 56" fill="none" stroke="url(#flow-grad-1)" strokeWidth="3" 
-                        strokeDasharray="4 8" className="animate-flow-dash-fast" />
+                  <path d="M 44,16 H 56" fill="none" stroke="#cbd5e1" strokeWidth="1.2" strokeOpacity="0.6" />
+                  <circle r="1" fill="#3b82f6" className="animate-pulse-dot">
+                    <animateMotion dur="1.8s" repeatCount="indefinite" path="M 44,16 H 56" />
+                  </circle>
 
                   {/* Flow 2: Frontend (Top Left) -> Database Engine (Middle Right) */}
-                  <path d="M 44,22 L 56,48" fill="none" stroke="#e2e8f0" strokeWidth="2" />
-                  <path d="M 44,22 L 56,48" fill="none" stroke="url(#flow-grad-diagonal)" strokeWidth="3" 
-                        strokeDasharray="5 10" className="animate-flow-dash" />
+                  <path d="M 44,22 L 56,48" fill="none" stroke="#cbd5e1" strokeWidth="1.2" strokeOpacity="0.6" />
+                  <circle r="1" fill="#10b981" className="animate-pulse-dot">
+                    <animateMotion dur="2.4s" repeatCount="indefinite" path="M 44,22 L 56,48" />
+                  </circle>
 
                   {/* Flow 3: Cron Schedules (Middle Left) -> Serverless Workers (Top Right) */}
-                  <path d="M 44,48 L 56,22" fill="none" stroke="#e2e8f0" strokeWidth="2" />
-                  <path d="M 44,48 L 56,22" fill="none" stroke="url(#flow-grad-2)" strokeWidth="3" 
-                        strokeDasharray="5 10" className="animate-flow-dash" />
+                  <path d="M 44,48 L 56,22" fill="none" stroke="#cbd5e1" strokeWidth="1.2" strokeOpacity="0.6" />
+                  <circle r="1" fill="#fbbf24" className="animate-pulse-dot">
+                    <animateMotion dur="2.2s" repeatCount="indefinite" path="M 44,48 L 56,22" />
+                  </circle>
 
                   {/* Flow 4: Serverless Workers (Top Right) -> Database Engine (Middle Right) */}
-                  <path d="M 78,28 V 38" fill="none" stroke="#e2e8f0" strokeWidth="2" />
-                  <path d="M 78,28 V 38" fill="none" stroke="url(#flow-grad-diagonal)" strokeWidth="3" 
-                        strokeDasharray="4 8" className="animate-flow-dash-fast" />
+                  <path d="M 78,28 V 38" fill="none" stroke="#cbd5e1" strokeWidth="1.2" strokeOpacity="0.6" />
+                  <circle r="1" fill="#06b6d4" className="animate-pulse-dot">
+                    <animateMotion dur="1.5s" repeatCount="indefinite" path="M 78,28 V 38" />
+                  </circle>
 
                   {/* Flow 5: Database Engine (Middle Right) -> Vector Engine (Bottom Left) */}
-                  <path d="M 56,55 L 44,80" fill="none" stroke="#e2e8f0" strokeWidth="2" />
-                  <path d="M 56,55 L 44,80" fill="none" stroke="url(#flow-grad-reverse)" strokeWidth="3" 
-                        strokeDasharray="5 10" className="animate-flow-dash" />
+                  <path d="M 56,55 L 44,80" fill="none" stroke="#cbd5e1" strokeWidth="1.2" strokeOpacity="0.6" />
+                  <circle r="1" fill="#8b5cf6" className="animate-pulse-dot">
+                    <animateMotion dur="2.6s" repeatCount="indefinite" path="M 56,55 L 44,80" />
+                  </circle>
                 </svg>
 
                 {/* Tech Item: Frontend */}
@@ -708,18 +694,14 @@ export default function LandingPage() {
                 <div className="hidden md:block pointer-events-none" />
               </div>
 
-              {/* Add keyframe style tag */}
+              {/* Add pulse keyframe style tag */}
               <style>{`
-                @keyframes flow-dash-anim {
-                  to {
-                    stroke-dashoffset: -40;
-                  }
+                @keyframes stack-pulse-anim {
+                  from { opacity: 1; }
+                  to { opacity: 0.2; }
                 }
-                .animate-flow-dash {
-                  animation: flow-dash-anim 2s linear infinite;
-                }
-                .animate-flow-dash-fast {
-                  animation: flow-dash-anim 1.2s linear infinite;
+                .animate-pulse-dot {
+                  animation: stack-pulse-anim 0.4s ease-in-out infinite alternate;
                 }
               `}</style>
             </div>
