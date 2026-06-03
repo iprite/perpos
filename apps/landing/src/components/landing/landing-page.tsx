@@ -580,33 +580,33 @@ export default function LandingPage() {
                 {/* SVG connection lines with flowing pulses */}
                 <svg className="absolute inset-0 w-full h-full pointer-events-none hidden md:block" viewBox="0 0 100 100" preserveAspectRatio="none" style={{ zIndex: 0 }}>
                   {/* Flow 1: Frontend (Top Left) -> Serverless Workers (Top Right) */}
-                  <path d="M 44,16 H 56" fill="none" stroke="#cbd5e1" strokeWidth="1.2" strokeOpacity="0.6" />
+                  <path d="M 38,16.6 H 62" fill="none" stroke="#cbd5e1" strokeWidth="1.2" strokeOpacity="0.6" />
                   <circle r="1" fill="#3b82f6" className="animate-pulse-dot">
-                    <animateMotion dur="1.8s" repeatCount="indefinite" path="M 44,16 H 56" />
+                    <animateMotion dur="1.8s" repeatCount="indefinite" path="M 38,16.6 H 62" />
                   </circle>
 
                   {/* Flow 2: Frontend (Top Left) -> Database Engine (Middle Right) */}
-                  <path d="M 44,22 L 56,48" fill="none" stroke="#cbd5e1" strokeWidth="1.2" strokeOpacity="0.6" />
+                  <path d="M 38,16.6 L 62,50" fill="none" stroke="#cbd5e1" strokeWidth="1.2" strokeOpacity="0.6" />
                   <circle r="1" fill="#10b981" className="animate-pulse-dot">
-                    <animateMotion dur="2.4s" repeatCount="indefinite" path="M 44,22 L 56,48" />
+                    <animateMotion dur="2.4s" repeatCount="indefinite" path="M 38,16.6 L 62,50" />
                   </circle>
 
                   {/* Flow 3: Cron Schedules (Middle Left) -> Serverless Workers (Top Right) */}
-                  <path d="M 44,48 L 56,22" fill="none" stroke="#cbd5e1" strokeWidth="1.2" strokeOpacity="0.6" />
+                  <path d="M 38,50 L 62,16.6" fill="none" stroke="#cbd5e1" strokeWidth="1.2" strokeOpacity="0.6" />
                   <circle r="1" fill="#fbbf24" className="animate-pulse-dot">
-                    <animateMotion dur="2.2s" repeatCount="indefinite" path="M 44,48 L 56,22" />
+                    <animateMotion dur="2.2s" repeatCount="indefinite" path="M 38,50 L 62,16.6" />
                   </circle>
 
                   {/* Flow 4: Serverless Workers (Top Right) -> Database Engine (Middle Right) */}
-                  <path d="M 78,28 V 38" fill="none" stroke="#cbd5e1" strokeWidth="1.2" strokeOpacity="0.6" />
+                  <path d="M 78,16.6 V 50" fill="none" stroke="#cbd5e1" strokeWidth="1.2" strokeOpacity="0.6" />
                   <circle r="1" fill="#06b6d4" className="animate-pulse-dot">
-                    <animateMotion dur="1.5s" repeatCount="indefinite" path="M 78,28 V 38" />
+                    <animateMotion dur="1.5s" repeatCount="indefinite" path="M 78,16.6 V 50" />
                   </circle>
 
                   {/* Flow 5: Database Engine (Middle Right) -> Vector Engine (Bottom Left) */}
-                  <path d="M 56,55 L 44,80" fill="none" stroke="#cbd5e1" strokeWidth="1.2" strokeOpacity="0.6" />
+                  <path d="M 62,50 L 38,83.3" fill="none" stroke="#cbd5e1" strokeWidth="1.2" strokeOpacity="0.6" />
                   <circle r="1" fill="#8b5cf6" className="animate-pulse-dot">
-                    <animateMotion dur="2.6s" repeatCount="indefinite" path="M 56,55 L 44,80" />
+                    <animateMotion dur="2.6s" repeatCount="indefinite" path="M 62,50 L 38,83.3" />
                   </circle>
                 </svg>
 
