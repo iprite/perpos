@@ -259,12 +259,11 @@ export default function LandingPage() {
               </div>
               <h1 className="text-3xl sm:text-4xl md:text-5xl font-black font-lexend text-slate-900 leading-tight tracking-tight">
                 Next-Gen Agentic AI ERP: <br />
-                <span className="bg-gradient-to-r from-[#292e91] to-[#4ca9df] bg-clip-text text-transparent">
-                  Tailored to Empower Your <br className="sm:hidden" />
-                  <span className="relative inline-block">
-                    {currentText || "\u200B"}
-                    <span className="inline-block w-[3px] h-[0.85em] ml-1.5 bg-[#4ca9df] align-middle cursor-blink" />
+                <span className="relative">
+                  <span className="bg-gradient-to-r from-[#292e91] to-[#4ca9df] bg-clip-text text-transparent">
+                    Tailored to Empower Your <br className="sm:hidden" /> {currentText || "\u200B"}
                   </span>
+                  <span className="inline-block w-[3px] h-[0.85em] ml-1.5 bg-[#4ca9df] align-middle cursor-blink" />
                 </span>
               </h1>
               <style>{`
