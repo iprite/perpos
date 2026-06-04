@@ -905,13 +905,133 @@ async function handleJaquarStock(
   if (items.length === 1) {
     const item = items[0];
     const qty = Number(item.total_saleable || 0);
-    return replyText(
-      replyToken,
-      `📦 ข้อมูลสินค้า: ${item.item_code}\n` +
-      `📝 รายละเอียด: ${item.description || 'ไม่มีรายละเอียด'}\n` +
-      `📍 ที่เก็บ: ${item.location || 'ไม่ระบุ'}\n` +
-      `🟢 สต๊อกพร้อมขาย: ${qty.toLocaleString('th-TH')} ชิ้น`
-    );
+
+    let qtyColor = '#059669'; // เขียว (in_stock)
+    let qtyStatusText = '🟢 สต๊อกพร้อมขาย';
+    if (qty === 0) {
+      qtyColor = '#DC2626'; // แดง (out_of_stock)
+      qtyStatusText = '🔴 สินค้าหมด';
+    } else if (qty < 5) {
+      qtyColor = '#D97706'; // ส้ม (low_stock)
+      qtyStatusText = '⚠️ สต๊อกใกล้หมด';
+    }
+
+    return replyLine(replyToken, [{
+      type: 'flex',
+      altText: `ข้อมูลสินค้า ${item.item_code}`,
+      contents: {
+        type: 'bubble',
+        header: {
+          type: 'box',
+          layout: 'vertical',
+          paddingAll: '16px',
+          background: {
+            type: 'linearGradient',
+            angle: '135deg',
+            startColor: '#1E293B',
+            endColor: '#334155'
+          },
+          contents: [
+            {
+              type: 'text',
+              text: '📦 ข้อมูลสินค้า / STOCK',
+              weight: 'bold',
+              color: '#94A3B8',
+              size: 'xs'
+            },
+            {
+              type: 'text',
+              text: item.item_code,
+              weight: 'bold',
+              size: 'xl',
+              color: '#FFFFFF',
+              margin: 'xs',
+              wrap: true
+            }
+          ]
+        },
+        body: {
+          type: 'box',
+          layout: 'vertical',
+          paddingAll: '16px',
+          spacing: 'md',
+          contents: [
+            {
+              type: 'box',
+              layout: 'vertical',
+              spacing: 'xs',
+              contents: [
+                {
+                  type: 'text',
+                  text: 'รายละเอียด',
+                  size: 'xs',
+                  color: '#64748B'
+                },
+                {
+                  type: 'text',
+                  text: item.description || 'ไม่มีรายละเอียด',
+                  size: 'sm',
+                  color: '#1E293B',
+                  wrap: true
+                }
+              ]
+            },
+            {
+              type: 'separator'
+            },
+            {
+              type: 'box',
+              layout: 'horizontal',
+              contents: [
+                {
+                  type: 'text',
+                  text: '📍 ที่เก็บสินค้า',
+                  size: 'sm',
+                  color: '#64748B',
+                  flex: 2
+                },
+                {
+                  type: 'text',
+                  text: item.location || 'ไม่ระบุ',
+                  size: 'sm',
+                  color: '#1E293B',
+                  weight: 'bold',
+                  flex: 3,
+                  align: 'end',
+                  wrap: true
+                }
+              ]
+            },
+            {
+              type: 'separator'
+            },
+            {
+              type: 'box',
+              layout: 'horizontal',
+              align: 'center',
+              contents: [
+                {
+                  type: 'text',
+                  text: qtyStatusText,
+                  size: 'sm',
+                  color: '#64748B',
+                  flex: 2
+                },
+                {
+                  type: 'text',
+                  text: `${qty.toLocaleString('th-TH')} ชิ้น`,
+                  size: 'lg',
+                  color: qtyColor,
+                  weight: 'bold',
+                  flex: 3,
+                  align: 'end'
+                }
+              ]
+            }
+          ]
+        }
+      }
+    }]);
   }
 
   // กรณีพบหลายรายการ
