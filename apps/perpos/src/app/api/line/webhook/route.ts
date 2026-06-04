@@ -1008,7 +1008,7 @@ async function handleJaquarStock(
             {
               type: 'box',
               layout: 'horizontal',
-              align: 'center',
+              alignItems: 'center',
               contents: [
                 {
                   type: 'text',
