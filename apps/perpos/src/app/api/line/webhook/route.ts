@@ -869,6 +869,75 @@ async function handleLink(admin: ReturnType<typeof createAdminClient>, lineUserI
   return replyText(replyToken, '✅ ผูกบัญชี LINE สำเร็จแล้ว!');
 }
 
+async function handleJaquarStock(
+  admin: ReturnType<typeof createAdminClient>,
+  orgId: string,
+  args: string[],
+  replyToken: string,
+) {
+  const search = args.join(' ').trim();
+  if (!search) {
+    return replyText(
+      replyToken,
+      `📌 รูปแบบ: /jq <รหัสสินค้า หรือ คำค้นหา>\n` +
+      `ตัวอย่าง: /jq JQ-101`
+    );
+  }
+
+  // ค้นหาสินค้าจาก jaquar_inventory_items
+  const { data: items, error } = await admin
+    .from('jaquar_inventory_items')
+    .select('item_code, description, location, total_saleable')
+    .eq('org_id', orgId)
+    .or(`item_code.ilike.%${search}%,description.ilike.%${search}%`)
+    .order('item_code', { ascending: true })
+    .limit(50);
+
+  if (error) {
+    return replyText(replyToken, `❌ เกิดข้อผิดพลาดในการดึงข้อมูล: ${error.message}`);
+  }
+
+  if (!items || items.length === 0) {
+    return replyText(replyToken, `❌ ไม่พบสินค้าสำหรับคำค้นหา "${search}"`);
+  }
+
+  // กรณีพบ 1 รายการ
+  if (items.length === 1) {
+    const item = items[0];
+    const qty = Number(item.total_saleable || 0);
+    return replyText(
+      replyToken,
+      `📦 ข้อมูลสินค้า: ${item.item_code}\n` +
+      `📝 รายละเอียด: ${item.description || 'ไม่มีรายละเอียด'}\n` +
+      `📍 ที่เก็บ: ${item.location || 'ไม่ระบุ'}\n` +
+      `🟢 สต๊อกพร้อมขาย: ${qty.toLocaleString('th-TH')} ชิ้น`
+    );
+  }
+
+  // กรณีพบหลายรายการ
+  const totalFound = items.length;
+  const showLimit = 10;
+  const listLines = items.slice(0, showLimit).map((item) => {
+    const qty = Number(item.total_saleable || 0);
+    const loc = item.location ? ` (ที่เก็บ: ${item.location})` : '';
+    const desc = item.description ? ` - ${item.description}` : '';
+    return `• ${item.item_code}${desc}: ${qty.toLocaleString('th-TH')} ชิ้น${loc}`;
+  });
+
+  let suffix = '';
+  if (totalFound > showLimit) {
+    suffix = `\n... และสินค้าอื่น ๆ อีก ${(totalFound - showLimit).toLocaleString('th-TH')} รายการ\n`;
+  }
+
+  return replyText(
+    replyToken,
+    `🔍 พบสินค้าที่ใกล้เคียง ${totalFound} รายการ:\n\n` +
+    listLines.join('\n') +
+    suffix +
+    `\n💡 พิมพ์ /jq <รหัสสินค้า> ให้ระบุเจาะจงขึ้นเพื่อดูข้อมูล`
+  );
+}
+
 async function getProfileByLineId(admin: ReturnType<typeof createAdminClient>, lineUserId: string) {
   const { data } = await admin.from('profiles').select('id, role, line_active_org_id').eq('line_user_id', lineUserId).maybeSingle();
   return data as { id: string; role: string; line_active_org_id: string | null } | null;
@@ -1113,14 +1182,25 @@ export async function POST(req: NextRequest) {
         const hasAssistant = await checkAssistantAccess(admin, profile.id, profile.role);
         // Check just_me module
         let hasJustMe = false;
+        // Check jaquar module
+        let hasJaquar = false;
         if (activeOrg) {
-          const { data: jmSetting } = await admin
-            .from('org_module_settings')
-            .select('is_enabled')
-            .eq('organization_id', activeOrg.id)
-            .eq('module_key', 'just_me')
-            .maybeSingle();
-          hasJustMe = Boolean(jmSetting?.is_enabled);
+          const [jmSetting, jqSetting] = await Promise.all([
+            admin
+              .from('org_module_settings')
+              .select('is_enabled')
+              .eq('organization_id', activeOrg.id)
+              .eq('module_key', 'just_me')
+              .maybeSingle(),
+            admin
+              .from('org_module_settings')
+              .select('is_enabled')
+              .eq('organization_id', activeOrg.id)
+              .eq('module_key', 'jaquar')
+              .maybeSingle()
+          ]);
+          hasJustMe = Boolean(jmSetting.data?.is_enabled);
+          hasJaquar = Boolean(jqSetting.data?.is_enabled);
         }
 
         const cmdRow = (code: string, desc: string) => ({
@@ -1161,6 +1241,14 @@ export async function POST(req: NextRequest) {
             { type: 'text', text: 'Just Me', size: 'xs', color: '#9CA3AF', margin: 'md' },
             cmdRow('/ck home', 'บันทึก clock ที่บ้าน'),
             cmdRow('/ck site [ชื่อ]', 'บันทึก clock ที่หน้างาน'),
+          );
+        }
+
+        if (hasJaquar) {
+          bodyContents.push(
+            { type: 'separator', margin: 'md' },
+            { type: 'text', text: 'Jaquar', size: 'xs', color: '#9CA3AF', margin: 'md' },
+            cmdRow('/jq <สินค้า>', 'เช็คสต๊อกสินค้า'),
           );
         }
 
@@ -1521,6 +1609,29 @@ export async function POST(req: NextRequest) {
       const locationType = subCmd as 'home' | 'site';
       const ckNote = args.slice(1).join(' ').trim() || undefined;
       await handleJustMeClock(admin, lineUserId, profile.id, activeOrg.id, replyToken, locationType, ckNote);
+      continue;
+    }
+
+    // ─── Jaquar Stock Check (/jq | /jaquar) ─────────────────────────────────
+    if (cmd === 'jq' || cmd === 'jaquar') {
+      if (!activeOrg) {
+        await replyText(replyToken, '❌ ยังไม่มี Organization\nพิมพ์ /org เพื่อตั้งค่า');
+        continue;
+      }
+
+      const { data: jaquarSetting } = await admin
+        .from('org_module_settings')
+        .select('is_enabled')
+        .eq('organization_id', activeOrg.id)
+        .eq('module_key', 'jaquar')
+        .maybeSingle();
+
+      if (!jaquarSetting?.is_enabled) {
+        await replyText(replyToken, '❌ Jaquar module ยังไม่ได้เปิดใช้งานใน Organization นี้');
+        continue;
+      }
+
+      await handleJaquarStock(admin, activeOrg.id, args, replyToken);
       continue;
     }
 
