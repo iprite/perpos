@@ -43,6 +43,7 @@ export function ImpersonationBanner() {
   const [info, setInfo] = useState<ImpersonationInfo | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [ending, setEnding] = useState(false);
+  const bannerRef = React.useRef<HTMLDivElement>(null);
 
   const clearSession = useCallback(() => {
     localStorage.removeItem(IMPERSONATION_SESSION_KEY);
@@ -117,6 +118,39 @@ export function ImpersonationBanner() {
     return () => window.removeEventListener("storage", onStorage);
   }, [checkSession]);
 
+  // Track banner height and set as CSS custom property
+  useEffect(() => {
+    if (!info) {
+      document.documentElement.style.removeProperty("--impersonation-banner-height");
+      return;
+    }
+
+    const updateHeight = () => {
+      if (bannerRef.current) {
+        const height = bannerRef.current.offsetHeight;
+        document.documentElement.style.setProperty(
+          "--impersonation-banner-height",
+          `${height}px`
+        );
+      }
+    };
+
+    updateHeight();
+
+    const resizeObserver = new ResizeObserver(() => {
+      updateHeight();
+    });
+
+    if (bannerRef.current) {
+      resizeObserver.observe(bannerRef.current);
+    }
+
+    return () => {
+      resizeObserver.disconnect();
+      document.documentElement.style.removeProperty("--impersonation-banner-height");
+    };
+  }, [info]);
+
   const handleEndSession = useCallback(async () => {
     if (!sessionId) return;
     setEnding(true);
@@ -158,7 +192,10 @@ export function ImpersonationBanner() {
   );
 
   return (
-    <div className="fixed left-0 right-0 top-0 z-[9999] flex items-center gap-3 bg-red-600 px-4 py-2.5 text-white shadow-lg">
+    <div
+      ref={bannerRef}
+      className="fixed left-0 right-0 top-0 z-[9999] flex items-center gap-3 bg-red-600 px-4 py-2.5 text-white shadow-lg"
+    >
       <AlertTriangle className="h-4 w-4 flex-shrink-0" />
       <div className="flex flex-1 flex-wrap items-center gap-x-3 gap-y-1 text-sm min-w-0">
         <span className="font-semibold whitespace-nowrap">⚠️ โหมดสวมรอย</span>
