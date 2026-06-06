@@ -1,0 +1,123 @@
+name: Deploy Cloud Run Workers
+
+on:
+  # Manual trigger — เลือก service ที่จะ deploy
+  workflow_dispatch:
+    inputs:
+      service:
+        description: 'Service to deploy'
+        required: true
+        type: choice
+        options:
+          - pdf-renderer
+          - ocr-worker
+          - both
+
+  # Auto-trigger เมื่อ push ถึง main และมีการเปลี่ยนแปลง source
+  push:
+    branches: [main]
+    paths:
+      - 'services/pdf-renderer/**'
+      - 'services/ocr-worker/**'
+
+env:
+  PROJECT_ID: perpos
+  REGION: asia-southeast1
+
+jobs:
+  # ─────────────────────────────────────────────────────────────────────────────
+  # PDF Renderer
+  # ─────────────────────────────────────────────────────────────────────────────
+  deploy-pdf-renderer:
+    name: Deploy pdf-renderer
+    runs-on: ubuntu-latest
+    # รันเมื่อ: manual (both/pdf-renderer) หรือ push ที่แตะไฟล์ pdf-renderer
+    if: |
+      (github.event_name == 'workflow_dispatch' &&
+       (github.event.inputs.service == 'pdf-renderer' || github.event.inputs.service == 'both'))
+      ||
+      (github.event_name == 'push' &&
+       contains(join(github.event.commits.*.modified, ','), 'services/pdf-renderer'))
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Deploy pdf-renderer to Cloud Run
+        working-directory: services/pdf-renderer
+        run: |
+          gcloud run deploy perpos-pdf-renderer \
+            --source . \
+            --region ${{ env.REGION }} \
+            --project ${{ env.PROJECT_ID }} \
+            --memory 2Gi \
+            --cpu 1 \
+            --min-instances 0 \
+            --max-instances 5 \
+            --timeout 120 \
+            --concurrency 5 \
+            --allow-unauthenticated \
+            --set-secrets "PDF_SERVICE_SECRET=PDF_SERVICE_SECRET:latest" \
+            --quiet
+
+      - name: Print service URL
+        run: |
+          gcloud run services describe perpos-pdf-renderer \
+            --region ${{ env.REGION }} \
+            --project ${{ env.PROJECT_ID }} \
+            --format="value(status.url)"
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # OCR Worker
+  # ─────────────────────────────────────────────────────────────────────────────
+  deploy-ocr-worker:
+    name: Deploy ocr-worker
+    runs-on: ubuntu-latest
+    if: |
+      (github.event_name == 'workflow_dispatch' &&
+       (github.event.inputs.service == 'ocr-worker' || github.event.inputs.service == 'both'))
+      ||
+      (github.event_name == 'push' &&
+       contains(join(github.event.commits.*.modified, ','), 'services/ocr-worker'))
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Deploy ocr-worker to Cloud Run
+        working-directory: services/ocr-worker
+        run: |
+          gcloud run deploy perpos-ocr-worker \
+            --source . \
+            --region ${{ env.REGION }} \
+            --project ${{ env.PROJECT_ID }} \
+            --memory 1Gi \
+            --cpu 1 \
+            --min-instances 0 \
+            --max-instances 5 \
+            --timeout 540 \
+            --concurrency 10 \
+            --allow-unauthenticated \
+            --set-secrets "WORKER_SECRET=WORKER_SECRET:latest,GEMINI_API_KEY=GEMINI_API_KEY:latest,SUPABASE_URL=SUPABASE_URL:latest,SUPABASE_SERVICE_ROLE_KEY=SUPABASE_SERVICE_ROLE_KEY:latest" \
+            --quiet
+
+      - name: Print service URL
+        run: |
+          gcloud run services describe perpos-ocr-worker \
+            --region ${{ env.REGION }} \
+            --project ${{ env.PROJECT_ID }} \
+            --format="value(status.url)"
