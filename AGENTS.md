@@ -41,7 +41,8 @@ perpos/
 │   ├── config-typescript/
 │   └── isomorphic-core/            # Shared components
 ├── services/
-│   └── pdf-renderer/               # Next.js PDF microservice (Cloud Run, port 8080)
+│   ├── pdf-renderer/               # PDF microservice — Express + Playwright (Cloud Run, port 8080)
+│   └── ocr-worker/                 # AI bookkeeping worker — Express + Gemini (Cloud Run, port 8080)
 └── supabase/
     └── migrations/                 # Migration SQL files
 ```
@@ -60,6 +61,10 @@ pnpm starter:dev       # port 3002
 # รัน PDF microservice (services/pdf-renderer)
 pnpm pdf:dev           # port 8080
 # หรือ: cd services/pdf-renderer && pnpm dev
+
+# รัน OCR worker (services/ocr-worker)
+pnpm ocr-worker:dev    # port 8080
+# หรือ: cd services/ocr-worker && pnpm dev
 
 # Type check
 cd apps/perpos && pnpm exec tsc --noEmit
@@ -411,8 +416,55 @@ import { Label } from '@/components/ui/label';
 
 - **Platform**: Vercel (Hobby plan)
 - **Domain**: perpos.io
-- **PDF Service**: Google Cloud Run (`asia-southeast1`)
+- **PDF Service**: Google Cloud Run (`asia-southeast1`) — `perpos-pdf-renderer`
+- **OCR Worker**: Google Cloud Run (`asia-southeast1`) — `perpos-ocr-worker`
 - **Cron**: Google Cloud Scheduler (`asia-southeast1`) → `POST https://perpos.io/api/assistant/scheduler`
+
+### Cloud Run Workers — กฎบังคับ
+
+> **Stack**: ทุก Cloud Run worker ใช้ **plain Express + TypeScript** เท่านั้น — ห้ามใช้ NestJS, Fastify, หรือ framework อื่น
+> Worker มีแค่ 2 endpoints: `GET /healthz` และ `POST /<action>` ตรวจ `x-worker-secret` header
+
+**โครงสร้าง worker มาตรฐาน:**
+```
+services/<worker-name>/
+├── src/
+│   ├── main.ts          # Express server (healthz + action endpoint)
+│   └── <name>.service.ts # plain functions — ไม่มี class/decorator
+├── Dockerfile
+├── .gcloudignore        # ← ต้องมีเสมอ (ดูด้านล่าง)
+├── package.json         # deps: express + domain libs เท่านั้น
+└── tsconfig.json        # ไม่มี experimentalDecorators
+```
+
+**`.gcloudignore` — ต้องมีทุก service** (ถ้าไม่มี `node_modules` จะถูก upload ทั้งหมด ทำให้ deploy ช้ามาก):
+```
+.gcloudignore
+.git
+.gitignore
+node_modules/
+dist/
+*.log
+.env*
+!.env.example
+README.md
+```
+
+**Deploy command มาตรฐาน** (ห้ามใส่ `--set-env-vars PORT=8080` — Cloud Run inject ให้อัตโนมัติ):
+```bash
+gcloud run deploy <service-name> \
+  --source . \
+  --region asia-southeast1 \
+  --project perpos \
+  --memory <RAM> \
+  --cpu 1 \
+  --min-instances 0 \
+  --max-instances 5 \
+  --timeout 540 \
+  --concurrency 10 \
+  --allow-unauthenticated \
+  --set-secrets "WORKER_SECRET=WORKER_SECRET:latest,..."
+```
 
 ---
 
