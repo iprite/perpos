@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useState, useCallback, useMemo } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
+import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -12,7 +12,8 @@ import { ThaiDatePicker } from '@/components/ui/thai-date-picker';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import {
   Calculator, RefreshCw, AlertTriangle, FileText, CheckCircle2,
-  Trash2, Plus, ArrowLeft, Loader2, Play, BookOpen, AlertCircle
+  Trash2, Plus, ArrowLeft, Loader2, Play, BookOpen, AlertCircle,
+  UploadCloud, Sparkles, X, FileUp, Lock,
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 
@@ -31,6 +32,7 @@ type OcrJob = {
   updated_at: string;
   // Join fields
   client_name?: string;
+  journal_status?: string | null;
 };
 
 type ClientOption = { value: string; label: string };
@@ -63,31 +65,62 @@ const STATUS_TEXT: Record<string, string> = {
   failed: 'ล้มเหลว',
 };
 
+const ACCEPT_TYPES = 'image/png,image/jpeg,image/jpg,image/webp,application/pdf';
+
+function confidenceChip(score: number | undefined | null) {
+  if (typeof score !== 'number') return null;
+  const pct = Math.round(score * 100);
+  const cls =
+    score >= 0.9 ? 'bg-green-50 text-green-700 border-green-100'
+    : score >= 0.8 ? 'bg-teal-50 text-teal-700 border-teal-100'
+    : score >= 0.6 ? 'bg-amber-50 text-amber-700 border-amber-100'
+    : 'bg-red-50 text-red-700 border-red-100';
+  return { pct, cls };
+}
+
+function safeFileName(name: string): string {
+  const dot = name.lastIndexOf('.');
+  const ext = dot >= 0 ? name.slice(dot).toLowerCase().replace(/[^a-z0-9.]/g, '') : '';
+  const base = (dot >= 0 ? name.slice(0, dot) : name)
+    .replace(/[^a-zA-Z0-9._-]+/g, '_')
+    .slice(0, 80) || 'document';
+  return `${base}${ext}`;
+}
+
 export default function AccFirmOcrPage() {
   const { orgSlug } = useParams<{ orgSlug: string }>();
-  const router = useRouter();
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
 
   // Workspace Auth/Context States
   const [orgId, setOrgId] = useState('');
   const [token, setToken] = useState('');
-  
+
   // Data States
   const [jobs, setJobs] = useState<OcrJob[]>([]);
   const [clients, setClients] = useState<ClientOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [processingJobId, setProcessingJobId] = useState<string | null>(null);
+  const [batchRunning, setBatchRunning] = useState(false);
 
   // Filters
   const [filterClient, setFilterClient] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
 
-  // Dialog & Review Workspace States
+  // Upload Dialog States
+  const [uploadOpen, setUploadOpen] = useState(false);
+  const [uploadClient, setUploadClient] = useState('');
+  const [uploadFiles, setUploadFiles] = useState<File[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Review Workspace States
   const [activeJob, setActiveJob] = useState<OcrJob | null>(null);
   const [signedUrl, setSignedUrl] = useState<string | null>(null);
   const [loadingWorkspace, setLoadingWorkspace] = useState(false);
   const [clientContext, setClientContext] = useState<ClientContext | null>(null);
-  
+  const [reviewLocked, setReviewLocked] = useState(false);
+
   // Review Form States
   const [entryDate, setEntryDate] = useState('');
   const [referenceNumber, setReferenceNumber] = useState('');
@@ -96,7 +129,7 @@ export default function AccFirmOcrPage() {
   const [savingDraft, setSavingDraft] = useState(false);
   const [postingLedger, setPostingLedger] = useState(false);
 
-  // ── 2. Fetch OCR Queue Jobs ─────────────────────────────────────────────────
+  // ── Fetch OCR Queue Jobs ─────────────────────────────────────────────────────
   const fetchJobs = useCallback(async (firmId: string, accessToken: string) => {
     setLoading(true);
     try {
@@ -105,30 +138,38 @@ export default function AccFirmOcrPage() {
       });
 
       if (res.ok) {
-        const jobsList: OcrJob[] = await res.json();
-        
-        // Fetch client names to display nicely in the table
-        const { data: clientOrgs } = await supabase
-          .from('organizations')
-          .select('id, name');
-          
+        const payload = await res.json();
+        const jobsList: OcrJob[] = payload?.data ?? payload ?? [];
+
+        // Client names
+        const { data: clientOrgs } = await supabase.from('organizations').select('id, name');
         const clientMap = new Map(clientOrgs?.map(c => [c.id, c.name]) ?? []);
-        
-        const enriched = jobsList.map(job => ({
+
+        // Journal posting status for completed jobs (distinguish draft vs posted)
+        const draftIds = jobsList.map(j => j.draft_journal_id).filter(Boolean) as string[];
+        const journalMap = new Map<string, string>();
+        if (draftIds.length > 0) {
+          const { data: jes } = await supabase
+            .from('journal_entries')
+            .select('id, status')
+            .in('id', draftIds);
+          jes?.forEach(je => journalMap.set(je.id, je.status));
+        }
+
+        setJobs(jobsList.map(job => ({
           ...job,
           client_name: clientMap.get(job.client_org_id) || 'ไม่ทราบชื่อลูกค้า',
-        }));
-        
-        setJobs(enriched);
+          journal_status: job.draft_journal_id ? journalMap.get(job.draft_journal_id) ?? null : null,
+        })));
       }
-    } catch (err) {
+    } catch {
       toast.error('ไม่สามารถโหลดข้อมูลคิวงาน OCR ได้');
     } finally {
       setLoading(false);
     }
   }, [supabase]);
 
-  // ── 1. Initialize & Fetch Firm Metadata ─────────────────────────────────────
+  // ── Initialize ──────────────────────────────────────────────────────────────
   const init = useCallback(async () => {
     setLoading(true);
     const [{ data: org }, { data: sess }] = await Promise.all([
@@ -145,14 +186,12 @@ export default function AccFirmOcrPage() {
     setOrgId(org.id);
     setToken(accessToken);
 
-    // Fetch clients
     const clientsRes = await fetch(`/api/acc-firm/clients?orgId=${org.id}`, {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
-
     if (clientsRes.ok) {
       const json = await clientsRes.json();
-      const clientList = (json.clients ?? []).map((c: any) => ({
+      const clientList = (json.clients ?? json.data?.clients ?? []).map((c: any) => ({
         value: c.client_org.id,
         label: c.client_org.name,
       }));
@@ -162,89 +201,155 @@ export default function AccFirmOcrPage() {
     await fetchJobs(org.id, accessToken);
   }, [supabase, orgSlug, fetchJobs]);
 
-  useEffect(() => {
-    init();
-  }, [init]);
+  useEffect(() => { init(); }, [init]);
 
-  // ── 3. Queue Polling when Pending/Processing Jobs Exist ─────────────────────
+  // ── Poll while jobs are active ────────────────────────────────────────────────
   useEffect(() => {
     const hasActiveJobs = jobs.some(j => j.status === 'pending' || j.status === 'processing');
     if (!hasActiveJobs || !orgId || !token) return;
-
-    const interval = setInterval(() => {
-      fetchJobs(orgId, token);
-    }, 10000);
-
+    const interval = setInterval(() => { fetchJobs(orgId, token); }, 8000);
     return () => clearInterval(interval);
   }, [jobs, orgId, token, fetchJobs]);
 
-  // ── 4. Trigger / Retry AI Pipeline ──────────────────────────────────────────
+  // ── Trigger / Retry AI Pipeline ───────────────────────────────────────────────
+  const triggerProcess = useCallback(async (jobId: string): Promise<boolean> => {
+    const res = await fetch('/api/acc-firm/ocr/jobs/process', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ jobId, firmOrgId: orgId }),
+    });
+    if (res.ok) return true;
+    const err = await res.json().catch(() => null);
+    toast.error(err?.error?.message || 'การส่งงานวิเคราะห์ล้มเหลว');
+    return false;
+  }, [token, orgId]);
+
   const handleProcess = async (jobId: string) => {
     setProcessingJobId(jobId);
     try {
-      const res = await fetch('/api/acc-firm/ocr/jobs/process', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({ jobId, firmOrgId: orgId }),
-      });
-
-      if (res.ok) {
-        toast.success('วิเคราะห์เอกสารและตั้งค่าคู่บัญชีเรียบร้อยแล้ว');
-        fetchJobs(orgId, token);
-      } else {
-        const err = await res.json();
-        toast.error(err.error?.message || 'การวิเคราะห์เอกสารล้มเหลว');
-        fetchJobs(orgId, token);
-      }
-    } catch (e) {
+      const okRes = await triggerProcess(jobId);
+      if (okRes) toast.success('ส่งงานเข้าระบบวิเคราะห์แล้ว');
+      await fetchJobs(orgId, token);
+    } catch {
       toast.error('เกิดข้อผิดพลาดในการเรียกใช้ระบบวิเคราะห์');
     } finally {
       setProcessingJobId(null);
     }
   };
 
-  // ── 5. Open Review Workspace & Pre-populate Data ────────────────────────────
+  const handleBatchProcess = async () => {
+    const targets = jobs.filter(j => j.status === 'pending' || j.status === 'failed');
+    if (targets.length === 0) return;
+    setBatchRunning(true);
+    try {
+      for (const j of targets) {
+        // eslint-disable-next-line no-await-in-loop
+        await triggerProcess(j.id);
+      }
+      toast.success(`ส่งงานวิเคราะห์ ${targets.length} รายการเข้าระบบแล้ว`);
+      await fetchJobs(orgId, token);
+    } finally {
+      setBatchRunning(false);
+    }
+  };
+
+  // ── Upload flow ───────────────────────────────────────────────────────────────
+  const addFiles = (incoming: FileList | File[]) => {
+    const arr = Array.from(incoming).filter(f =>
+      f.type.startsWith('image/') || f.type === 'application/pdf',
+    );
+    if (arr.length === 0) {
+      toast.error('รองรับเฉพาะไฟล์รูปภาพหรือ PDF เท่านั้น');
+      return;
+    }
+    setUploadFiles(prev => [...prev, ...arr]);
+  };
+
+  const handleUpload = async () => {
+    if (!uploadClient) { toast.error('กรุณาเลือกบริษัทลูกค้า'); return; }
+    if (uploadFiles.length === 0) { toast.error('กรุณาเลือกไฟล์เอกสาร'); return; }
+
+    setUploading(true);
+    let success = 0;
+    try {
+      for (const file of uploadFiles) {
+        const path = `${uploadClient}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${safeFileName(file.name)}`;
+
+        // eslint-disable-next-line no-await-in-loop
+        const { error: upErr } = await supabase.storage
+          .from('client_documents')
+          .upload(path, file, { contentType: file.type, upsert: false });
+        if (upErr) { toast.error(`อัปโหลด ${file.name} ล้มเหลว: ${upErr.message}`); continue; }
+
+        // eslint-disable-next-line no-await-in-loop
+        const jobRes = await fetch('/api/acc-firm/ocr/jobs', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ firmOrgId: orgId, clientOrgId: uploadClient, documentUrl: path }),
+        });
+        if (!jobRes.ok) {
+          const e = await jobRes.json().catch(() => null);
+          toast.error(`สร้างงานสำหรับ ${file.name} ล้มเหลว: ${e?.error?.message ?? ''}`);
+          continue;
+        }
+        const created = await jobRes.json();
+        const jobId = created?.data?.id ?? created?.id;
+
+        // Auto-start the AI pipeline
+        if (jobId) await triggerProcess(jobId); // eslint-disable-line no-await-in-loop
+        success += 1;
+      }
+
+      if (success > 0) {
+        toast.success(`อัปโหลดและเริ่มวิเคราะห์ ${success} เอกสารแล้ว`);
+        setUploadOpen(false);
+        setUploadFiles([]);
+        setUploadClient('');
+        await fetchJobs(orgId, token);
+      }
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  // ── Open Review Workspace ─────────────────────────────────────────────────────
   const openReviewWorkspace = async (job: OcrJob) => {
     setActiveJob(job);
     setLoadingWorkspace(true);
     setSignedUrl(null);
     setClientContext(null);
+    setReviewLocked(false);
 
     try {
-      // 1. Get signed URL for the document from Supabase storage
       let storagePath = job.document_url;
       if (job.document_url.includes('/client_documents/')) {
         storagePath = job.document_url.split('/client_documents/')[1].split('?')[0];
       }
-
-      const { data: signData } = await supabase
-        .storage
+      const { data: signData } = await supabase.storage
         .from('client_documents')
         .createSignedUrl(storagePath, 3600);
-        
       setSignedUrl(signData?.signedUrl || null);
 
-      // 2. Fetch Client COA and Contacts Context
       const contextRes = await fetch(
         `/api/acc-firm/ocr/client-context?firmOrgId=${orgId}&clientOrgId=${job.client_org_id}`,
-        { headers: { Authorization: `Bearer ${token}` } }
+        { headers: { Authorization: `Bearer ${token}` } },
       );
-
       if (!contextRes.ok) throw new Error('โหลดผังบัญชีลูกค้าล้มเหลว');
-      const context: ClientContext = await contextRes.json();
+      const ctxPayload = await contextRes.json();
+      const context: ClientContext = ctxPayload?.data ?? ctxPayload;
       setClientContext(context);
 
-      // 3. Load Draft Journal Entry or Initialize from AI classified suggestions
       if (job.draft_journal_id) {
-        // Query journal entry and items
         const { data: je } = await supabase
           .from('journal_entries')
-          .select('entry_date, reference_number, memo')
+          .select('entry_date, reference_number, memo, status')
           .eq('id', job.draft_journal_id)
           .single();
+
+        // Posted / void entries are read-only — never allow re-edit.
+        if (je && (je.status === 'posted' || je.status === 'void')) {
+          setReviewLocked(true);
+        }
 
         const { data: items } = await supabase
           .from('journal_items')
@@ -255,17 +360,15 @@ export default function AccFirmOcrPage() {
         setEntryDate(je?.entry_date || '');
         setReferenceNumber(je?.reference_number || '');
         setMemo(je?.memo || '');
-        
+
         if (items && items.length > 0) {
-          setLines(
-            items.map(item => ({
-              accountId: String(item.account_id),
-              contactId: item.contact_id ? String(item.contact_id) : '',
-              debit: Number(item.debit) === 0 ? '' : String(item.debit),
-              credit: Number(item.credit) === 0 ? '' : String(item.credit),
-              description: item.description || '',
-            }))
-          );
+          setLines(items.map(item => ({
+            accountId: String(item.account_id),
+            contactId: item.contact_id ? String(item.contact_id) : '',
+            debit: Number(item.debit) === 0 ? '' : String(item.debit),
+            credit: Number(item.credit) === 0 ? '' : String(item.credit),
+            description: item.description || '',
+          })));
         } else {
           initializeFromAi(job, context);
         }
@@ -284,7 +387,10 @@ export default function AccFirmOcrPage() {
     const aiJournal = job.classified_json?.journal;
     if (!aiJournal) {
       toast.error('ไม่พบข้อมูลสมุดรายวันจากระบบ AI แนะนำ');
-      setLines([{ accountId: '', contactId: '', debit: '', credit: '', description: '' }]);
+      setLines([
+        { accountId: '', contactId: '', debit: '', credit: '', description: '' },
+        { accountId: '', contactId: '', debit: '', credit: '', description: '' },
+      ]);
       return;
     }
 
@@ -292,7 +398,6 @@ export default function AccFirmOcrPage() {
     setReferenceNumber(aiJournal.document_ref || '');
     setMemo(aiJournal.description || '');
 
-    // Map AI recommended account codes to actual account UUIDs
     const mappedLines: JournalLine[] = (aiJournal.entries || []).map((entry: any) => {
       const matchedAccount = context.chart_of_accounts.find(acc => acc.code === entry.account_code);
       return {
@@ -303,15 +408,15 @@ export default function AccFirmOcrPage() {
         description: entry.memo || '',
       };
     });
-
-    setLines(mappedLines);
+    setLines(mappedLines.length >= 2 ? mappedLines : [
+      ...mappedLines,
+      { accountId: '', contactId: '', debit: '', credit: '', description: '' },
+    ]);
   };
 
-  // ── 6. Save or Post Double-Entry Journal ────────────────────────────────────
+  // ── Save or Post Journal ──────────────────────────────────────────────────────
   const saveOrPostJournal = async (post: boolean) => {
     if (!activeJob || !clientContext) return;
-    
-    // Validations
     if (!entryDate) { toast.error('กรุณาระบุวันที่บันทึกบัญชี'); return; }
     if (lines.length < 2) { toast.error('ต้องมีรายการเดบิต/เครดิตอย่างน้อย 2 แถว'); return; }
 
@@ -321,16 +426,11 @@ export default function AccFirmOcrPage() {
       return;
     }
 
-    if (post) setPostingLedger(true);
-    else setSavingDraft(true);
-
+    if (post) setPostingLedger(true); else setSavingDraft(true);
     try {
       const res = await fetch('/api/acc-firm/ocr/jobs/approve', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({
           jobId: activeJob.id,
           firmOrgId: orgId,
@@ -342,9 +442,9 @@ export default function AccFirmOcrPage() {
             contactId: l.contactId || null,
             debit: Number(l.debit || 0),
             credit: Number(l.credit || 0),
-            description: l.description || null
+            description: l.description || null,
           })),
-          postToLedger: post
+          postToLedger: post,
         }),
       });
 
@@ -352,11 +452,11 @@ export default function AccFirmOcrPage() {
       if (res.ok) {
         toast.success(post ? 'อนุมัติลงสมุดรายวันแยกประเภทเสร็จสิ้น' : 'บันทึกสมุดรายวันร่างเรียบร้อย');
         setActiveJob(null);
-        fetchJobs(orgId, token);
+        await fetchJobs(orgId, token);
       } else {
         toast.error(json.error?.message || 'การบันทึกรายการบัญชีล้มเหลว');
       }
-    } catch (e) {
+    } catch {
       toast.error('เกิดข้อผิดพลาดทางเทคนิคในการส่งข้อมูลบันทึกบัญชี');
     } finally {
       setSavingDraft(false);
@@ -364,53 +464,40 @@ export default function AccFirmOcrPage() {
     }
   };
 
-  // ── 7. Review Table Calculations ────────────────────────────────────────────
-  const totals = useMemo(() => {
-    return lines.reduce(
-      (acc, l) => ({
-        debit: acc.debit + Number(l.debit || 0),
-        credit: acc.credit + Number(l.credit || 0),
-      }),
-      { debit: 0, credit: 0 }
-    );
-  }, [lines]);
+  // ── Derived ───────────────────────────────────────────────────────────────────
+  const totals = useMemo(() => lines.reduce(
+    (acc, l) => ({ debit: acc.debit + Number(l.debit || 0), credit: acc.credit + Number(l.credit || 0) }),
+    { debit: 0, credit: 0 },
+  ), [lines]);
 
   const diff = Math.abs(totals.debit - totals.credit);
   const isBalanced = diff < 0.01 && totals.debit > 0;
+  const busy = savingDraft || postingLedger;
 
-  // ── 8. Form Row Actions ─────────────────────────────────────────────────────
-  const addLine = () => {
-    setLines([...lines, { accountId: '', contactId: '', debit: '', credit: '', description: '' }]);
-  };
-
-  const removeLine = (index: number) => {
-    setLines(lines.filter((_, idx) => idx !== index));
-  };
+  const addLine = () => setLines([...lines, { accountId: '', contactId: '', debit: '', credit: '', description: '' }]);
+  const removeLine = (index: number) => setLines(lines.filter((_, idx) => idx !== index));
 
   const handleLineChange = (index: number, field: keyof JournalLine, value: string) => {
     const nextLines = [...lines];
-    
-    if (field === 'debit' && value) {
-      nextLines[index].credit = ''; // Mutually exclusive
-    } else if (field === 'credit' && value) {
-      nextLines[index].debit = ''; // Mutually exclusive
-    }
-
+    if (field === 'debit' && value) nextLines[index].credit = '';
+    else if (field === 'credit' && value) nextLines[index].debit = '';
     nextLines[index][field] = value;
     setLines(nextLines);
   };
 
-  // ── 9. Filter Options ────────────────────────────────────────────────────────
-  const filteredJobs = useMemo(() => {
-    return jobs.filter(job => {
-      const matchClient = filterClient ? job.client_org_id === filterClient : true;
-      const matchStatus = filterStatus ? job.status === filterStatus : true;
-      return matchClient && matchStatus;
-    });
-  }, [jobs, filterClient, filterStatus]);
+  const filteredJobs = useMemo(() => jobs.filter(job => {
+    const matchClient = filterClient ? job.client_org_id === filterClient : true;
+    const matchStatus = filterStatus ? job.status === filterStatus : true;
+    return matchClient && matchStatus;
+  }), [jobs, filterClient, filterStatus]);
 
-  // Document Type Detector
-  const isPdf = signedUrl?.split('?')[0].toLowerCase().endsWith('.pdf') || activeJob?.document_url.split('?')[0].toLowerCase().endsWith('.pdf');
+  const pendingCount = useMemo(
+    () => jobs.filter(j => j.status === 'pending' || j.status === 'failed').length,
+    [jobs],
+  );
+
+  const isPdf = signedUrl?.split('?')[0].toLowerCase().endsWith('.pdf')
+    || activeJob?.document_url.split('?')[0].toLowerCase().endsWith('.pdf');
 
   return (
     <div className="p-4 md:p-6 space-y-6">
@@ -430,10 +517,20 @@ export default function AccFirmOcrPage() {
           </div>
         </div>
 
-        <Button onClick={() => fetchJobs(orgId, token)} disabled={loading} variant="outline" className="gap-2 shrink-0">
-          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-          {loading ? 'กำลังรีเฟรช…' : 'รีเฟรชข้อมูล'}
-        </Button>
+        <div className="flex items-center gap-2 shrink-0">
+          {pendingCount > 0 && (
+            <Button onClick={handleBatchProcess} disabled={batchRunning} variant="outline" className="gap-2">
+              {batchRunning ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4 text-teal-600" />}
+              วิเคราะห์ทั้งหมด ({pendingCount})
+            </Button>
+          )}
+          <Button onClick={() => fetchJobs(orgId, token)} disabled={loading} variant="outline" size="icon" title="รีเฟรช">
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+          </Button>
+          <Button onClick={() => setUploadOpen(true)} className="gap-2">
+            <UploadCloud className="w-4 h-4" /> อัปโหลดเอกสาร
+          </Button>
+        </div>
       </div>
 
       {/* Filters Bar */}
@@ -446,7 +543,6 @@ export default function AccFirmOcrPage() {
             options={[{ value: '', label: 'ทุกบริษัทลูกค้า' }, ...clients]}
           />
         </div>
-
         <div className="w-full sm:w-48 space-y-1">
           <Label className="text-xs text-slate-500">สถานะคิวงาน</Label>
           <CustomSelect
@@ -473,8 +569,11 @@ export default function AccFirmOcrPage() {
         ) : filteredJobs.length === 0 ? (
           <div className="p-12 text-center text-slate-300 text-sm space-y-3">
             <FileText className="w-12 h-12 mx-auto text-slate-200" />
-            <p className="font-medium">ไม่พบคิวงานประมวลผล OCR ที่ตรงกับเงื่อนไข</p>
-            <p className="text-xs text-slate-400">อัปโหลดเอกสารบิลหรือ PDF จากหน้าประมวลผลระบบลูกค้า</p>
+            <p className="font-medium text-slate-500">ยังไม่มีคิวงานประมวลผล OCR</p>
+            <p className="text-xs text-slate-400">กดปุ่ม “อัปโหลดเอกสาร” ด้านบนเพื่อเริ่มวิเคราะห์บิล/ใบเสร็จด้วย AI</p>
+            <Button onClick={() => setUploadOpen(true)} variant="outline" className="gap-2 mt-2">
+              <UploadCloud className="w-4 h-4" /> อัปโหลดเอกสาร
+            </Button>
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -494,31 +593,47 @@ export default function AccFirmOcrPage() {
                   const fileName = job.document_url.split('/').pop()?.split('?')[0] || 'document';
                   const isProcessing = processingJobId === job.id || job.status === 'processing';
                   const amount = job.extracted_json?.amounts?.grand_total;
-                  
+                  const conf = confidenceChip(job.extracted_json?.confidence?.overall);
+                  const isPosted = job.journal_status === 'posted';
+
                   return (
                     <tr key={job.id} className="hover:bg-slate-50/80 transition-colors">
                       <td className="px-5 py-4">
                         <p className="font-semibold text-slate-800">{job.client_name}</p>
                       </td>
-                      <td className="px-5 py-4 max-w-[200px] truncate">
-                        <span className="text-slate-600 font-medium">{fileName}</span>
+                      <td className="px-5 py-4 max-w-[200px]">
+                        <span className="text-slate-600 font-medium block truncate" title={fileName}>{fileName}</span>
                       </td>
                       <td className="px-5 py-4">
                         {amount !== undefined && amount !== null ? (
-                          <span className="font-bold text-slate-800">฿{Number(amount).toLocaleString('th-TH', { minimumFractionDigits: 2 })}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-slate-800">฿{Number(amount).toLocaleString('th-TH', { minimumFractionDigits: 2 })}</span>
+                            {conf && (
+                              <span className={`text-[10px] px-1.5 py-0.5 rounded-full border font-semibold ${conf.cls}`}>
+                                {conf.pct}%
+                              </span>
+                            )}
+                          </div>
                         ) : job.status === 'failed' ? (
-                          <span className="text-red-500 text-xs flex items-center gap-1">
-                            <AlertCircle className="w-3.5 h-3.5" /> เกิดข้อผิดพลาด
+                          <span className="text-red-500 text-xs flex items-center gap-1" title={job.error_message || undefined}>
+                            <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                            <span className="truncate max-w-[180px]">{job.error_message || 'เกิดข้อผิดพลาด'}</span>
                           </span>
                         ) : (
                           <span className="text-slate-400 italic text-xs">รอการประมวลผล</span>
                         )}
                       </td>
                       <td className="px-5 py-4">
-                        <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold border ${STATUS_BADGE[job.status]}`}>
-                          {job.status === 'processing' && <Loader2 className="w-3 h-3 animate-spin" />}
-                          {STATUS_TEXT[job.status]}
-                        </span>
+                        {isPosted ? (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold border bg-emerald-50 text-emerald-700 border-emerald-100">
+                            <Lock className="w-3 h-3" /> ผ่านบัญชีแล้ว
+                          </span>
+                        ) : (
+                          <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold border ${STATUS_BADGE[job.status]}`}>
+                            {job.status === 'processing' && <Loader2 className="w-3 h-3 animate-spin" />}
+                            {STATUS_TEXT[job.status]}
+                          </span>
+                        )}
                       </td>
                       <td className="px-5 py-4 text-xs text-slate-400">
                         {new Date(job.created_at).toLocaleString('th-TH')}
@@ -533,23 +648,14 @@ export default function AccFirmOcrPage() {
                               disabled={isProcessing}
                               className="gap-1.5 text-xs text-teal-700 hover:bg-teal-50 border-teal-200"
                             >
-                              {isProcessing ? (
-                                <Loader2 className="w-3 h-3 animate-spin" />
-                              ) : (
-                                <Play className="w-3 h-3 fill-current" />
-                              )}
-                              เริ่มวิเคราะห์ AI
+                              {isProcessing ? <Loader2 className="w-3 h-3 animate-spin" /> : <Play className="w-3 h-3 fill-current" />}
+                              {job.status === 'failed' ? 'ลองวิเคราะห์ใหม่' : 'เริ่มวิเคราะห์ AI'}
                             </Button>
                           )}
-                          
                           {job.status === 'completed' && (
-                            <Button
-                              size="sm"
-                              onClick={() => openReviewWorkspace(job)}
-                              className="gap-1.5 text-xs"
-                            >
+                            <Button size="sm" variant={isPosted ? 'outline' : 'default'} onClick={() => openReviewWorkspace(job)} className="gap-1.5 text-xs">
                               <BookOpen className="w-3 h-3" />
-                              ตรวจทาน & บันทึก
+                              {isPosted ? 'ดูบัญชี' : 'ตรวจทาน & บันทึก'}
                             </Button>
                           )}
                         </div>
@@ -563,22 +669,98 @@ export default function AccFirmOcrPage() {
         )}
       </div>
 
+      {/* ── Upload Dialog ─────────────────────────────────────────────────────── */}
+      <Dialog open={uploadOpen} onOpenChange={v => { if (!uploading) { setUploadOpen(v); if (!v) { setUploadFiles([]); } } }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <UploadCloud className="w-5 h-5 text-teal-500" /> อัปโหลดเอกสารเข้าระบบ AI
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 py-1">
+            <div className="space-y-1">
+              <Label className="text-xs text-slate-500">บริษัทลูกค้า *</Label>
+              <CustomSelect
+                value={uploadClient}
+                onChange={setUploadClient}
+                options={[{ value: '', label: '— เลือกบริษัทลูกค้า —' }, ...clients]}
+              />
+            </div>
+
+            <div
+              onDragOver={e => { e.preventDefault(); setDragOver(true); }}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={e => { e.preventDefault(); setDragOver(false); addFiles(e.dataTransfer.files); }}
+              onClick={() => fileInputRef.current?.click()}
+              className={`border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-colors ${dragOver ? 'border-teal-400 bg-teal-50' : 'border-slate-200 hover:border-teal-300 hover:bg-slate-50'}`}
+            >
+              <FileUp className="w-8 h-8 mx-auto text-slate-300 mb-2" />
+              <p className="text-sm text-slate-600 font-medium">ลากไฟล์มาวาง หรือคลิกเพื่อเลือก</p>
+              <p className="text-xs text-slate-400 mt-1">รองรับรูปภาพ (JPG/PNG/WebP) และ PDF · เลือกได้หลายไฟล์</p>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept={ACCEPT_TYPES}
+                multiple
+                className="hidden"
+                onChange={e => { if (e.target.files) addFiles(e.target.files); e.target.value = ''; }}
+              />
+            </div>
+
+            {uploadFiles.length > 0 && (
+              <div className="space-y-1.5 max-h-44 overflow-y-auto">
+                {uploadFiles.map((f, idx) => (
+                  <div key={idx} className="flex items-center justify-between gap-2 bg-slate-50 border rounded-lg px-3 py-2 text-xs">
+                    <span className="flex items-center gap-2 min-w-0">
+                      <FileText className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                      <span className="truncate text-slate-700">{f.name}</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setUploadFiles(prev => prev.filter((_, i) => i !== idx))}
+                      className="text-slate-400 hover:text-red-500 shrink-0"
+                      aria-label="ลบไฟล์"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-2">
+            <Button variant="outline" onClick={() => setUploadOpen(false)} disabled={uploading}>ยกเลิก</Button>
+            <Button onClick={handleUpload} disabled={uploading || !uploadClient || uploadFiles.length === 0} className="gap-2">
+              {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <UploadCloud className="w-4 h-4" />}
+              {uploading ? 'กำลังอัปโหลด…' : `อัปโหลด & วิเคราะห์${uploadFiles.length ? ` (${uploadFiles.length})` : ''}`}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* ── Side-by-Side Review Dialog Workspace ───────────────────────────────── */}
-      <Dialog open={!!activeJob} onOpenChange={v => { if (!v && !savingDraft && !postingLedger) setActiveJob(null); }}>
+      <Dialog open={!!activeJob} onOpenChange={v => { if (!v && !busy) setActiveJob(null); }}>
         <DialogContent className="max-w-[95vw] w-[95vw] h-[92vh] max-h-[92vh] flex flex-col p-0 overflow-hidden bg-slate-900 border-none rounded-xl">
-          {/* Header Workspace */}
+          {/* Header */}
           <div className="bg-slate-800 border-b border-slate-700 px-6 py-4 flex items-center justify-between shrink-0">
-            <div>
+            <div className="min-w-0">
               <DialogTitle className="text-white text-md font-bold flex items-center gap-2">
-                <Calculator className="w-5 h-5 text-teal-400" />
-                Review Workspace : {activeJob?.client_name}
+                <Calculator className="w-5 h-5 text-teal-400 shrink-0" />
+                <span className="truncate">Review : {activeJob?.client_name}</span>
+                {reviewLocked && (
+                  <span className="text-[10px] bg-emerald-900/60 text-emerald-300 px-2 py-0.5 rounded border border-emerald-700 flex items-center gap-1">
+                    <Lock className="w-3 h-3" /> ผ่านบัญชีแล้ว
+                  </span>
+                )}
               </DialogTitle>
-              <p className="text-xs text-slate-400 mt-1">
-                ตรวจทานภาพต้นฉบับกับสมุดรายวันร่างที่ AI แนะนำ และอนุมัติการผ่านบัญชีไปยัง Ledger
+              <p className="text-xs text-slate-400 mt-1 truncate">
+                {activeJob?.document_url.split('/').pop()?.split('?')[0]}
               </p>
             </div>
-            
-            {activeJob?.extracted_json?.amounts?.grand_total && (
+
+            {activeJob?.extracted_json?.amounts?.grand_total != null && (
               <div className="bg-slate-900 border border-slate-700 rounded-lg px-4 py-1.5 text-right shrink-0">
                 <span className="text-[10px] text-slate-500 block uppercase font-medium">ยอดเงินเอกสาร</span>
                 <span className="text-teal-400 font-bold text-sm">
@@ -588,7 +770,6 @@ export default function AccFirmOcrPage() {
             )}
           </div>
 
-          {/* Body Split view Workspace */}
           {loadingWorkspace ? (
             <div className="flex-1 flex flex-col items-center justify-center text-slate-400">
               <Loader2 className="w-10 h-10 animate-spin text-teal-400 mb-4" />
@@ -596,27 +777,25 @@ export default function AccFirmOcrPage() {
             </div>
           ) : (
             <div className="flex-1 flex flex-col lg:flex-row min-h-0 divide-y lg:divide-y-0 lg:divide-x divide-slate-700">
-              
-              {/* LEFT SIDE: Original Document Viewer */}
+              {/* LEFT: Document */}
               <div className="w-full lg:w-1/2 flex flex-col p-4 bg-slate-950 min-h-0">
                 <div className="mb-2 shrink-0 flex items-center justify-between">
                   <span className="text-xs text-slate-400 font-bold flex items-center gap-1.5">
                     <FileText className="w-3.5 h-3.5" /> เอกสารต้นฉบับ
                   </span>
-                  
                   {activeJob?.extracted_json?.document_type && (
                     <span className="text-[10px] bg-slate-800 text-slate-300 px-2 py-0.5 rounded border border-slate-700 font-semibold uppercase">
                       AI Detected: {activeJob.extracted_json.document_type}
                     </span>
                   )}
                 </div>
-                
                 <div className="flex-1 min-h-0 flex items-center justify-center bg-slate-900 border border-slate-800 rounded-xl overflow-hidden relative">
                   {signedUrl ? (
                     isPdf ? (
                       <iframe src={signedUrl} className="w-full h-full border-none" />
                     ) : (
                       <div className="w-full h-full overflow-auto flex items-center justify-center p-2">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img src={signedUrl} alt="Receipt doc" className="max-w-full max-h-full object-contain" />
                       </div>
                     )
@@ -626,69 +805,68 @@ export default function AccFirmOcrPage() {
                 </div>
               </div>
 
-              {/* RIGHT SIDE: Balancer Form Workspace */}
+              {/* RIGHT: Balancer */}
               <div className="w-full lg:w-1/2 flex flex-col bg-white min-h-0">
-                {/* Scrollable Form Panel */}
                 <div className="flex-1 overflow-y-auto p-6 space-y-5">
-                  
-                  {/* AI Warnings / Mathematical Checks */}
-                  {activeJob?.extracted_json?.warnings && activeJob.extracted_json.warnings.length > 0 && (
+                  {reviewLocked && (
+                    <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3.5 flex items-center gap-2 text-xs text-emerald-800 font-medium">
+                      <Lock className="w-4 h-4 shrink-0" />
+                      รายการนี้ผ่านบัญชีไปยังสมุดแยกประเภทแล้ว แสดงผลแบบอ่านอย่างเดียว
+                    </div>
+                  )}
+
+                  {/* AI confidence */}
+                  {(() => {
+                    const conf = confidenceChip(activeJob?.extracted_json?.confidence?.overall);
+                    if (!conf) return null;
+                    return (
+                      <div className="flex items-center gap-2 text-xs">
+                        <Sparkles className="w-4 h-4 text-teal-500" />
+                        <span className="text-slate-500">ความมั่นใจของ AI ในการอ่านเอกสาร:</span>
+                        <span className={`px-2 py-0.5 rounded-full border font-semibold ${conf.cls}`}>{conf.pct}%</span>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Warnings */}
+                  {(activeJob?.extracted_json?.warnings?.length ?? 0) > 0 && (
                     <div className="bg-amber-50 border border-amber-200 rounded-xl p-3.5 space-y-1.5">
-                      <span className="text-xs text-amber-800 font-bold flex items-center gap-1.5 shrink-0">
+                      <span className="text-xs text-amber-800 font-bold flex items-center gap-1.5">
                         <AlertTriangle className="w-4 h-4" /> ข้อควรพิจารณาจากระบบวิเคราะห์:
                       </span>
                       <ul className="list-disc pl-5 text-xs text-amber-700 space-y-0.5 font-medium">
-                        {activeJob.extracted_json.warnings.map((w: string, idx: number) => (
-                          <li key={idx}>{w}</li>
-                        ))}
+                        {activeJob?.extracted_json?.warnings?.map((w: string, idx: number) => <li key={idx}>{w}</li>)}
                       </ul>
                     </div>
                   )}
 
-                  {/* General Journal Details */}
+                  {/* Header fields */}
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4 border-b pb-4">
                     <div className="space-y-1">
                       <Label className="text-xs text-slate-500">วันที่บันทึกบัญชี *</Label>
                       <ThaiDatePicker value={entryDate} onChange={setEntryDate} placeholder="เลือกวันที่" />
                     </div>
-                    
                     <div className="space-y-1">
                       <Label className="text-xs text-slate-500">เลขที่อ้างอิงเอกสาร</Label>
-                      <Input
-                        value={referenceNumber}
-                        onChange={e => setReferenceNumber(e.target.value)}
-                        placeholder="เช่น INV-2026-001"
-                        className="h-9"
-                      />
+                      <Input value={referenceNumber} onChange={e => setReferenceNumber(e.target.value)} placeholder="เช่น INV-2026-001" className="h-9" disabled={reviewLocked} />
                     </div>
-                    
                     <div className="space-y-1 md:col-span-3">
                       <Label className="text-xs text-slate-500">คำอธิบายรายการสมุดบัญชี (Memo)</Label>
-                      <Input
-                        value={memo}
-                        onChange={e => setMemo(e.target.value)}
-                        placeholder="เช่น จ่ายค่าวัสดุและอุปกรณ์สิ้นเปลือง"
-                        className="h-9"
-                      />
+                      <Input value={memo} onChange={e => setMemo(e.target.value)} placeholder="เช่น จ่ายค่าวัสดุและอุปกรณ์สิ้นเปลือง" className="h-9" disabled={reviewLocked} />
                     </div>
                   </div>
 
-                  {/* Balancer Lines Table */}
+                  {/* Lines */}
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
                         <BookOpen className="w-4 h-4 text-slate-400" /> บรรทัดรายการบัญชีคู่
                       </span>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        onClick={addLine}
-                        className="gap-1 h-7 text-xs text-teal-700 border-teal-200 hover:bg-teal-50"
-                      >
-                        <Plus className="w-3.5 h-3.5" />
-                        เพิ่มแถวรายการ
-                      </Button>
+                      {!reviewLocked && (
+                        <Button type="button" size="sm" variant="outline" onClick={addLine} className="gap-1 h-7 text-xs text-teal-700 border-teal-200 hover:bg-teal-50">
+                          <Plus className="w-3.5 h-3.5" /> เพิ่มแถวรายการ
+                        </Button>
+                      )}
                     </div>
 
                     <div className="border rounded-xl overflow-hidden bg-slate-50">
@@ -713,10 +891,7 @@ export default function AccFirmOcrPage() {
                                     onChange={v => handleLineChange(idx, 'accountId', v)}
                                     options={[
                                       { value: '', label: '— เลือกบัญชี —' },
-                                      ...(clientContext?.chart_of_accounts.map(acc => ({
-                                        value: acc.id,
-                                        label: `${acc.code} · ${acc.name}`,
-                                      })) || []),
+                                      ...(clientContext?.chart_of_accounts.map(acc => ({ value: acc.id, label: `${acc.code} · ${acc.name}` })) || []),
                                     ]}
                                     className="w-full h-8"
                                   />
@@ -727,49 +902,33 @@ export default function AccFirmOcrPage() {
                                     onChange={v => handleLineChange(idx, 'contactId', v)}
                                     options={[
                                       { value: '', label: '— ไม่มี —' },
-                                      ...(clientContext?.contacts.map(c => ({
-                                        value: c.id,
-                                        label: c.name,
-                                      })) || []),
+                                      ...(clientContext?.contacts.map(c => ({ value: c.id, label: c.name })) || []),
                                     ]}
                                     className="w-full h-8"
                                   />
                                 </td>
                                 <td className="p-2">
                                   <Input
-                                    type="number"
-                                    value={line.debit}
+                                    type="number" value={line.debit}
                                     onChange={e => handleLineChange(idx, 'debit', e.target.value)}
-                                    placeholder="0.00"
+                                    placeholder="0.00" disabled={reviewLocked}
                                     className="text-right font-medium h-8 p-1.5 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                                   />
                                 </td>
                                 <td className="p-2">
                                   <Input
-                                    type="number"
-                                    value={line.credit}
+                                    type="number" value={line.credit}
                                     onChange={e => handleLineChange(idx, 'credit', e.target.value)}
-                                    placeholder="0.00"
+                                    placeholder="0.00" disabled={reviewLocked}
                                     className="text-right font-medium h-8 p-1.5 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                                   />
                                 </td>
                                 <td className="p-2">
-                                  <Input
-                                    value={line.description}
-                                    onChange={e => handleLineChange(idx, 'description', e.target.value)}
-                                    placeholder="ใส่คำอธิบายย่อย..."
-                                    className="h-8"
-                                  />
+                                  <Input value={line.description} onChange={e => handleLineChange(idx, 'description', e.target.value)} placeholder="ใส่คำอธิบายย่อย..." className="h-8" disabled={reviewLocked} />
                                 </td>
                                 <td className="p-2 text-center">
-                                  {lines.length > 2 && (
-                                    <Button
-                                      type="button"
-                                      size="icon"
-                                      variant="ghost"
-                                      onClick={() => removeLine(idx)}
-                                      className="h-7 w-7 text-red-500 hover:text-red-700 hover:bg-red-50"
-                                    >
+                                  {!reviewLocked && lines.length > 2 && (
+                                    <Button type="button" size="icon" variant="ghost" onClick={() => removeLine(idx)} className="h-7 w-7 text-red-500 hover:text-red-700 hover:bg-red-50">
                                       <Trash2 className="w-3.5 h-3.5" />
                                     </Button>
                                   )}
@@ -780,8 +939,8 @@ export default function AccFirmOcrPage() {
                         </table>
                       </div>
 
-                      {/* Summary calculations Row */}
-                      <div className="bg-slate-100 border-t p-3 text-xs flex flex-wrap gap-4 justify-between items-center shrink-0">
+                      {/* Summary */}
+                      <div className="bg-slate-100 border-t p-3 text-xs flex flex-wrap gap-4 justify-between items-center">
                         <div className="flex gap-4">
                           <div>
                             <span className="text-slate-500 block text-[9px] uppercase font-medium">เดบิตรวม</span>
@@ -792,74 +951,55 @@ export default function AccFirmOcrPage() {
                             <span className="font-bold text-slate-800">฿{totals.credit.toLocaleString('th-TH', { minimumFractionDigits: 2 })}</span>
                           </div>
                         </div>
-
                         <div className="flex items-center gap-2 flex-wrap">
                           {!isBalanced && totals.debit > 0 && (
                             <span className="text-red-500 font-semibold bg-red-50 px-2 py-0.5 rounded border border-red-100 flex items-center gap-1 text-[10px]">
                               <AlertTriangle className="w-3.5 h-3.5" /> ไม่สมดุล (ต่างกัน ฿{diff.toFixed(2)})
                             </span>
                           )}
-                          
                           {isBalanced && (
-                            <span className="text-green-700 font-semibold bg-green-50 px-2 py-0.5 rounded border border-green-100 flex items-center gap-1 text-[10px] shrink-0">
+                            <span className="text-green-700 font-semibold bg-green-50 px-2 py-0.5 rounded border border-green-100 flex items-center gap-1 text-[10px]">
                               <CheckCircle2 className="w-3.5 h-3.5" /> บัญชีสมดุลแล้ว
                             </span>
                           )}
-
-                          {isBalanced && activeJob?.extracted_json?.amounts?.grand_total !== undefined && activeJob.extracted_json.amounts.grand_total !== null && (
-                            (() => {
-                              const grandTotal = Number(activeJob.extracted_json.amounts.grand_total || 0);
-                              const match = Math.abs(totals.debit - grandTotal) < 0.01;
-                              if (!match) {
-                                return (
-                                  <span className="text-amber-600 font-semibold bg-amber-50 px-2 py-0.5 rounded border border-amber-100 flex items-center gap-1 text-[10px]">
-                                    <AlertTriangle className="w-3.5 h-3.5" /> ยอดเดบิต/เครดิตไม่ตรงกับยอดเงินสุทธิในเอกสาร (ยอดในเอกสาร: ฿{grandTotal.toLocaleString('th-TH', { minimumFractionDigits: 2 })})
-                                  </span>
-                                );
-                              }
-                              return null;
-                            })()
-                          )}
+                          {isBalanced && activeJob?.extracted_json?.amounts?.grand_total != null && (() => {
+                            const grandTotal = Number(activeJob?.extracted_json?.amounts?.grand_total || 0);
+                            if (Math.abs(totals.debit - grandTotal) < 0.01) return null;
+                            return (
+                              <span className="text-amber-600 font-semibold bg-amber-50 px-2 py-0.5 rounded border border-amber-100 flex items-center gap-1 text-[10px]">
+                                <AlertTriangle className="w-3.5 h-3.5" /> ยอดไม่ตรงกับเอกสาร (฿{grandTotal.toLocaleString('th-TH', { minimumFractionDigits: 2 })})
+                              </span>
+                            );
+                          })()}
                         </div>
                       </div>
                     </div>
                   </div>
                 </div>
 
-                {/* Footer Controls */}
+                {/* Footer */}
                 <div className="bg-slate-50 border-t p-4 flex gap-3 shrink-0 items-center justify-between">
-                  <Button
-                    variant="outline"
-                    onClick={() => setActiveJob(null)}
-                    disabled={savingDraft || postingLedger}
-                  >
-                    ปิดการตรวจทาน
+                  <Button variant="outline" onClick={() => setActiveJob(null)} disabled={busy}>
+                    {reviewLocked ? 'ปิด' : 'ปิดการตรวจทาน'}
                   </Button>
-
-                  <div className="flex gap-2.5">
-                    <Button
-                      variant="secondary"
-                      onClick={() => saveOrPostJournal(false)}
-                      disabled={savingDraft || postingLedger}
-                      className="gap-1.5"
-                    >
-                      {savingDraft ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
-                      บันทึกร่าง
-                    </Button>
-
-                    <Button
-                      onClick={() => saveOrPostJournal(true)}
-                      disabled={savingDraft || postingLedger || !isBalanced}
-                      className="gap-1.5 bg-gradient-to-r from-teal-500 to-emerald-600 hover:from-teal-600 hover:to-emerald-700 border-none text-white font-semibold shadow-sm"
-                    >
-                      {postingLedger ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
-                      อนุมัติ & ผ่านบัญชี
-                    </Button>
-                  </div>
+                  {!reviewLocked && (
+                    <div className="flex gap-2.5">
+                      <Button variant="secondary" onClick={() => saveOrPostJournal(false)} disabled={busy} className="gap-1.5">
+                        {savingDraft ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
+                        บันทึกร่าง
+                      </Button>
+                      <Button
+                        onClick={() => saveOrPostJournal(true)}
+                        disabled={busy || !isBalanced}
+                        className="gap-1.5 bg-gradient-to-r from-teal-500 to-emerald-600 hover:from-teal-600 hover:to-emerald-700 border-none text-white font-semibold shadow-sm"
+                      >
+                        {postingLedger ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
+                        อนุมัติ & ผ่านบัญชี
+                      </Button>
+                    </div>
+                  )}
                 </div>
-
               </div>
-
             </div>
           )}
         </DialogContent>

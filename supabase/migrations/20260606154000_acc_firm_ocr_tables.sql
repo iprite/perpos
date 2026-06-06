@@ -30,9 +30,7 @@ CREATE POLICY client_configs_select ON public.acc_firm_client_configs
     EXISTS (
       SELECT 1 FROM public.organization_members om
       WHERE om.organization_id = acc_firm_client_configs.firm_org_id
-        AND om.user_id = auth.uid()
-        AND om.is_active = true
-    )
+        AND om.user_id = auth.uid()    )
   );
 
 DROP POLICY IF EXISTS client_configs_write ON public.acc_firm_client_configs;
@@ -43,18 +41,14 @@ CREATE POLICY client_configs_write ON public.acc_firm_client_configs
     EXISTS (
       SELECT 1 FROM public.organization_members om
       WHERE om.organization_id = acc_firm_client_configs.firm_org_id
-        AND om.user_id = auth.uid()
-        AND om.is_active = true
-        AND om.role IN ('owner', 'admin', 'team_lead')
+        AND om.user_id = auth.uid()        AND om.role IN ('owner', 'admin', 'team_lead')
     )
   )
   WITH CHECK (
     EXISTS (
       SELECT 1 FROM public.organization_members om
       WHERE om.organization_id = acc_firm_client_configs.firm_org_id
-        AND om.user_id = auth.uid()
-        AND om.is_active = true
-        AND om.role IN ('owner', 'admin', 'team_lead')
+        AND om.user_id = auth.uid()        AND om.role IN ('owner', 'admin', 'team_lead')
     )
   );
 
@@ -100,9 +94,7 @@ CREATE POLICY ocr_jobs_select ON public.ocr_processing_jobs
     EXISTS (
       SELECT 1 FROM public.organization_members om
       WHERE om.organization_id = ocr_processing_jobs.firm_org_id
-        AND om.user_id = auth.uid()
-        AND om.is_active = true
-    )
+        AND om.user_id = auth.uid()    )
   );
 
 DROP POLICY IF EXISTS ocr_jobs_write ON public.ocr_processing_jobs;
@@ -113,17 +105,13 @@ CREATE POLICY ocr_jobs_write ON public.ocr_processing_jobs
     EXISTS (
       SELECT 1 FROM public.organization_members om
       WHERE om.organization_id = ocr_processing_jobs.firm_org_id
-        AND om.user_id = auth.uid()
-        AND om.is_active = true
-    )
+        AND om.user_id = auth.uid()    )
   )
   WITH CHECK (
     EXISTS (
       SELECT 1 FROM public.organization_members om
       WHERE om.organization_id = ocr_processing_jobs.firm_org_id
-        AND om.user_id = auth.uid()
-        AND om.is_active = true
-    )
+        AND om.user_id = auth.uid()    )
   );
 
 DROP POLICY IF EXISTS ocr_jobs_super_admin ON public.ocr_processing_jobs;

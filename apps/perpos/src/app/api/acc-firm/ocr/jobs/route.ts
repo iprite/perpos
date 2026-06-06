@@ -96,15 +96,33 @@ export async function POST(req: NextRequest) {
     return Err.forbidden('ความสัมพันธ์ลูกค้าไม่อยู่ในสถานะที่ใช้งานได้');
   }
 
+  // ── ป้องกันการอ้างอิงไฟล์ข้ามองค์กร (cross-tenant) ──
+  // documentUrl ต้องเป็น storage path ภายใต้โฟลเดอร์ของลูกค้ารายนี้ (`<clientOrgId>/...`)
+  const storagePath = String(documentUrl).includes('/client_documents/')
+    ? String(documentUrl).split('/client_documents/')[1].split('?')[0]
+    : String(documentUrl).split('?')[0];
+
+  if (!storagePath.startsWith(`${clientOrgId}/`)) {
+    return Err.invalidFormat('documentUrl', 'เส้นทางไฟล์ต้องอยู่ภายใต้โฟลเดอร์ขององค์กรลูกค้า');
+  }
+
+  // ดึงอีเมลผู้สั่งงานไว้ใช้ระบุตัวตนใน audit log จากฝั่ง Cloud Run worker
+  const { data: profile } = await admin
+    .from('profiles')
+    .select('email')
+    .eq('id', auth.userId)
+    .maybeSingle();
+
   // บันทึกสร้างงานประมวลผลลงคิวฐานข้อมูล
   const { data: job, error } = await admin
     .from('ocr_processing_jobs')
     .insert({
-      firm_org_id:   firmOrgId,
-      client_org_id: clientOrgId,
-      document_url:  documentUrl,
-      status:        'pending',
-      triggered_by:  auth.userId,
+      firm_org_id:        firmOrgId,
+      client_org_id:      clientOrgId,
+      document_url:       storagePath,
+      status:             'pending',
+      triggered_by:       auth.userId,
+      triggered_by_email: profile?.email ?? null,
     })
     .select('*')
     .single();

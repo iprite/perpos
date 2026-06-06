@@ -2,21 +2,17 @@
  * API Route Handler: /api/acc-firm/ocr/jobs/process
  *
  * POST /api/acc-firm/ocr/jobs/process
- *   — สั่งเริ่มประมวลผลงาน OCR ดึงข้อมูลดิบจากบิล (Phase 2)
+ *   — Lightweight trigger. Claims the job (status -> 'processing') and hands the
+ *     heavy AI pipeline (download + Gemini OCR/classify/journal) off to the
+ *     Cloud Run ocr-worker, which returns 202 immediately and writes results back
+ *     to ocr_processing_jobs asynchronously. The UI polls for completion.
  *   body: { jobId, firmOrgId }
  */
 
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { requireModuleMember } from '../../../../_lib/module-auth';
 import { createAdminClient } from '../../../../_lib/supabase';
 import { ok, Err } from '../../../../_lib/response';
-import { 
-  downloadAndEncodeDocument, 
-  extractOcrWithGemini, 
-  getClientContext, 
-  classifyTransaction, 
-  generateJournalEntry 
-} from '../../../../../../lib/ai/gemini';
 
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null);
@@ -25,7 +21,6 @@ export async function POST(req: NextRequest) {
   if (!jobId) return Err.missingField('jobId');
   if (!firmOrgId) return Err.missingField('firmOrgId');
 
-  // ตรวจสอบสิทธิ์ผู้ใช้งานเป็นสำนักงานบัญชี
   const auth = await requireModuleMember(req, firmOrgId, 'acc_firm');
   if (!auth.ok) return auth.res;
 
@@ -33,12 +28,18 @@ export async function POST(req: NextRequest) {
     return Err.forbidden('ไม่มีสิทธิ์สั่งดำเนินการประมวลผล OCR');
   }
 
+  const workerUrl = process.env.OCR_WORKER_URL;
+  const workerSecret = process.env.WORKER_SECRET;
+  if (!workerUrl || !workerSecret) {
+    return Err.externalService('OCR worker', 'ยังไม่ได้ตั้งค่า OCR_WORKER_URL / WORKER_SECRET');
+  }
+
   const admin = createAdminClient();
 
-  // ดึงรายละเอียดข้อมูลงาน OCR
+  // Load job (scoped to the firm)
   const { data: job, error: jobError } = await admin
     .from('ocr_processing_jobs')
-    .select('*')
+    .select('id, status, client_org_id')
     .eq('id', jobId)
     .eq('firm_org_id', firmOrgId)
     .maybeSingle();
@@ -46,152 +47,65 @@ export async function POST(req: NextRequest) {
   if (jobError) return Err.dbError(jobError);
   if (!job) return Err.notFound(`OCR Job ID ${jobId}`);
 
-  // ตรวจสอบเพื่อไม่ประมวลผลซ้ำหากอยู่ในสถานะสำเร็จแล้ว
   if (job.status === 'completed') {
-    return ok({ message: 'งานประมวลผลเสร็จสมบูรณ์แล้ว', job });
+    return ok({ message: 'งานประมวลผลเสร็จสมบูรณ์แล้ว', status: 'completed' });
   }
 
-  // อัปเดตสถานะงานเป็น 'processing'
-  const { error: updateStartError } = await admin
+  // Client relationship must still be active
+  const { data: relation, error: relError } = await admin
+    .from('acc_firm_clients')
+    .select('id, status')
+    .eq('firm_org_id', firmOrgId)
+    .eq('client_org_id', job.client_org_id)
+    .maybeSingle();
+
+  if (relError) return Err.dbError(relError);
+  if (!relation || relation.status !== 'active') {
+    return Err.forbidden('ความสัมพันธ์ลูกค้าไม่อยู่ในสถานะที่ใช้งานได้');
+  }
+
+  // Atomically claim the job: only succeeds when it is still pending/failed.
+  // Prevents double-processing (concurrency) and duplicate Gemini spend.
+  const { data: claimed, error: claimError } = await admin
     .from('ocr_processing_jobs')
-    .update({ 
-      status: 'processing',
-      updated_at: new Date().toISOString()
-    })
-    .eq('id', jobId);
+    .update({ status: 'processing', error_message: null, updated_at: new Date().toISOString() })
+    .eq('id', jobId)
+    .in('status', ['pending', 'failed'])
+    .select('id');
 
-  if (updateStartError) return Err.dbError(updateStartError);
+  if (claimError) return Err.dbError(claimError);
+  if (!claimed || claimed.length === 0) {
+    // Already processing (or just completed) — idempotent no-op.
+    return ok({ message: 'งานนี้กำลังประมวลผลอยู่แล้ว', status: 'processing' });
+  }
 
+  // Hand off to the Cloud Run worker (returns 202 fast; heavy work runs there).
   try {
-    // 1. ดาวน์โหลดเอกสารและเข้ารหัสเป็น Base64
-    const { base64, mimeType } = await downloadAndEncodeDocument(job.document_url);
+    const resp = await fetch(`${workerUrl.replace(/\/$/, '')}/process`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-worker-secret': workerSecret,
+      },
+      body: JSON.stringify({ jobId, firmOrgId }),
+    });
 
-    // 2. เรียกใช้งาน Gemini 2.5 Flash เพื่อประมวลผลโครงสร้าง JSON (OCR Step)
-    const extractedData = await extractOcrWithGemini(base64, mimeType);
-
-    // 3. ดึง Client Context และ Chart of Accounts
-    const clientContext = await getClientContext(firmOrgId, job.client_org_id);
-
-    // 4. ประมวลผลหาคู่บัญชีแนะนำ (Classification Step)
-    const classification = await classifyTransaction(extractedData, clientContext);
-
-    // 5. บันทึกคำนวณเดบิต-เครดิต (Journal Entry Generation Step)
-    const journalData = await generateJournalEntry(extractedData, classification, clientContext);
-
-    // 6. แปลงรหัสบัญชี (Account Code) ในผลลัพธ์เป็น Account UUID และบันทึกบัญชีร่าง (Draft Journal)
-    let draftJournalId: string | null = null;
-    
-    if (journalData.entries && journalData.entries.length >= 2) {
-      // 6.1 บันทึกหัวข้อสมุดบัญชีรายวันร่าง (journal_entries)
-      const { data: je, error: jeError } = await admin
-        .from('journal_entries')
-        .insert({
-          organization_id: job.client_org_id,
-          entry_date: journalData.posting_date || new Date().toISOString().split('T')[0],
-          reference_number: journalData.document_ref || null,
-          memo: journalData.description || 'บันทึกบัญชีอัตโนมัติจากใบเสร็จ/บิล',
-          status: 'draft',
-          created_by: auth.userId,
-          created_by_ai: true,
-          ocr_job_id: jobId
-        })
-        .select('id')
-        .single();
-
-      if (jeError) throw jeError;
-      draftJournalId = je.id;
-
-      // 6.2 แมปรหัสบัญชีและสร้างรายการบรรทัดเดบิต/เครดิต (journal_items)
-      try {
-        const itemsToInsert = journalData.entries.map((entry: any) => {
-          const acc = clientContext.chart_of_accounts.find((a: any) => a.code === entry.account_code);
-          if (!acc) {
-            throw new Error(`ไม่พบรหัสบัญชี "${entry.account_code}" ในผังบัญชีของลูกค้า`);
-          }
-
-          let debit = Math.max(0, Number(entry.debit || 0));
-          let credit = Math.max(0, Number(entry.credit || 0));
-
-          if (debit > 0 && credit > 0) {
-            throw new Error(`บรรทัดรายการรหัสบัญชี "${entry.account_code}" ต้องมียอดเดบิตหรือเครดิตเพียงอย่างใดอย่างหนึ่งเท่านั้น`);
-          }
-          if (debit === 0 && credit === 0) {
-            throw new Error(`บรรทัดรายการรหัสบัญชี "${entry.account_code}" มียอดเงินเป็นศูนย์ทั้งสองฝั่ง`);
-          }
-
-          return {
-            organization_id: job.client_org_id,
-            journal_entry_id: draftJournalId,
-            line_no: entry.line,
-            account_id: acc.id,
-            description: entry.memo || null,
-            debit,
-            credit
-          };
-        });
-
-        const { error: jiError } = await admin
-          .from('journal_items')
-          .insert(itemsToInsert);
-
-        if (jiError) throw jiError;
-      } catch (insertError) {
-        if (draftJournalId) {
-          // ลบหัวข้อเอกสารที่ค้างไว้ทิ้งเพื่อความสมบูรณ์ทางธุรกรรม
-          await admin
-            .from('journal_entries')
-            .delete()
-            .eq('id', draftJournalId);
-        }
-        throw insertError;
-      }
+    if (!resp.ok) {
+      throw new Error(`worker responded ${resp.status}`);
     }
-
-    // 7. อัปเดตข้อมูลจ๊อบทั้งหมดลงตาราง ocr_processing_jobs
-    const { data: updatedJob, error: updateEndError } = await admin
-      .from('ocr_processing_jobs')
-      .update({
-        status: 'completed',
-        extracted_json: extractedData as any,
-        classified_json: {
-          classification,
-          journal: journalData
-        } as any,
-        draft_journal_id: draftJournalId,
-        error_message: null,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', jobId)
-      .select('*')
-      .single();
-
-    if (updateEndError) return Err.dbError(updateEndError);
-
-    return ok(updatedJob);
-
-  } catch (err: any) {
-    const errorMsg = err.message || 'เกิดข้อผิดพลาดในการประมวลผลเอกสาร';
-    console.error(`[OCR Process Error] Job ${jobId}:`, err);
-
-    // บันทึกข้อผิดพลาดกรณีการประมวลผลล้มเหลว
-    const { data: failedJob } = await admin
+  } catch (e) {
+    // Revert the claim so the user can retry.
+    await admin
       .from('ocr_processing_jobs')
       .update({
         status: 'failed',
-        error_message: errorMsg,
-        updated_at: new Date().toISOString()
+        error_message: 'ไม่สามารถส่งงานไปยังระบบวิเคราะห์ได้ กรุณาลองใหม่',
+        updated_at: new Date().toISOString(),
       })
-      .eq('id', jobId)
-      .select('*')
-      .single();
+      .eq('id', jobId);
 
-    return NextResponse.json({
-      ok: false,
-      error: {
-        code: 'ERR_EXTERNAL_SERVICE',
-        message: errorMsg,
-        details: { jobId }
-      }
-    }, { status: 502 });
+    return Err.externalService('OCR worker', String(e));
   }
+
+  return ok({ message: 'ส่งงานเข้าระบบวิเคราะห์แล้ว กำลังประมวลผล', status: 'processing' });
 }

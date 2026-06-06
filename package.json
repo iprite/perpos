@@ -22,6 +22,8 @@
     "api:build": "turbo build --filter=api",
     "pdf:dev": "turbo dev --filter=pdf-renderer",
     "pdf:build": "turbo build --filter=pdf-renderer",
+    "ocr-worker:dev": "turbo dev --filter=ocr-worker",
+    "ocr-worker:build": "turbo build --filter=ocr-worker",
     "gen-icons": "turbo gen-icons --filter=core",
     "prepare": "husky"
   },

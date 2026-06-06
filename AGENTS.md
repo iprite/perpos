@@ -221,6 +221,9 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 | `OPENAI_MODEL` | โมเดล OpenAI (default: gpt-4o-mini) | optional |
 | `PDF_RENDER_URL` | PDF microservice URL | optional |
 | `PDF_SERVICE_SECRET` | PDF service auth | optional |
+| `OCR_WORKER_URL` | URL ของ ocr-worker (Cloud Run) สำหรับ AI bookkeeping | acc_firm |
+| `WORKER_SECRET` | shared secret เรียก ocr-worker (`x-worker-secret`) | acc_firm |
+| `GEMINI_API_KEY` | Gemini 2.5 Flash OCR/classify/journal (ตั้งที่ ocr-worker) | acc_firm |
 | `SMTP_*` | Email invite | optional |
 
 ---

@@ -51,6 +51,21 @@ export async function POST(req: NextRequest) {
     return Err.forbidden('สิทธิ์ความสัมพันธ์ของลูกค้าถูกปิดใช้งานหรือไม่ถูกต้อง');
   }
 
+  // 2.2 ห้ามแก้ไข/ผ่านบัญชีซ้ำ หากสมุดรายวันถูกผ่านบัญชี (posted) หรือยกเลิก (void) แล้ว
+  if (job.draft_journal_id) {
+    const { data: existingJe, error: existingErr } = await admin
+      .from('journal_entries')
+      .select('status')
+      .eq('id', job.draft_journal_id)
+      .eq('organization_id', job.client_org_id)
+      .maybeSingle();
+
+    if (existingErr) return Err.dbError(existingErr);
+    if (existingJe && (existingJe.status === 'posted' || existingJe.status === 'void')) {
+      return Err.entryLocked(job.draft_journal_id);
+    }
+  }
+
   // 3. ตรวจสอบความถูกต้องของบัญชีคู่ (Debit = Credit)
   let totalDebit = 0;
   let totalCredit = 0;
@@ -80,6 +95,43 @@ export async function POST(req: NextRequest) {
       ok: false,
       error: { code: 'ERR_UNBALANCED_JOURNAL', message: `ยอดเดบิตและเครดิตไม่สมดุล (เดบิต: ${totalDebit.toFixed(2)}, เครดิต: ${totalCredit.toFixed(2)})` }
     }, { status: 400 });
+  }
+
+  // 3.1 ตรวจสอบว่าทุก accountId / contactId เป็นของลูกค้ารายนี้จริง (กันการอ้างอิงข้ามองค์กร)
+  const accountIds = Array.from(new Set(lines.map((l: any) => l.accountId).filter(Boolean)));
+  if (accountIds.length === 0) {
+    return Err.missingField('accountId');
+  }
+
+  const { data: validAccounts, error: accErr } = await admin
+    .from('accounts')
+    .select('id')
+    .eq('organization_id', job.client_org_id)
+    .in('id', accountIds);
+
+  if (accErr) return Err.dbError(accErr);
+  const validAccountSet = new Set((validAccounts || []).map((a: any) => a.id));
+  const badAccount = accountIds.find((id) => !validAccountSet.has(id));
+  if (badAccount) {
+    return Err.invalidFormat('accountId', 'มีรหัสบัญชีที่ไม่อยู่ในผังบัญชีของลูกค้ารายนี้');
+  }
+
+  const contactIds = Array.from(
+    new Set(lines.map((l: any) => l.contactId).filter(Boolean)),
+  );
+  if (contactIds.length > 0) {
+    const { data: validContacts, error: conErr } = await admin
+      .from('contacts')
+      .select('id')
+      .eq('organization_id', job.client_org_id)
+      .in('id', contactIds);
+
+    if (conErr) return Err.dbError(conErr);
+    const validContactSet = new Set((validContacts || []).map((c: any) => c.id));
+    const badContact = contactIds.find((id) => !validContactSet.has(id));
+    if (badContact) {
+      return Err.invalidFormat('contactId', 'มีผู้ติดต่อที่ไม่อยู่ในระบบของลูกค้ารายนี้');
+    }
   }
 
   // 4. บันทึก/อัปเดต Journal Entry
