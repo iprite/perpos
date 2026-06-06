@@ -1,14 +1,36 @@
-import { NestFactory } from '@nestjs/core';
-import { ValidationPipe } from '@nestjs/common';
-import { AppModule } from './app.module';
+import express from 'express';
+import { processJob } from './ocr/ocr.service';
 
-async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
-  app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
+const app = express();
+app.use(express.json());
 
-  const port = Number(process.env.PORT ?? 8080);
-  await app.listen(port);
+// ── Health check ──────────────────────────────────────────────────────────────
+app.get('/healthz', (_req, res) => {
+  res.json({ ok: true });
+});
+
+// ── OCR process trigger ───────────────────────────────────────────────────────
+app.post('/process', (req, res) => {
+  const secret = req.headers['x-worker-secret'];
+  const required = process.env.WORKER_SECRET ?? '';
+  if (!required || secret !== required) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return;
+  }
+
+  const { jobId, firmOrgId } = req.body as { jobId?: string; firmOrgId?: string };
+  if (!jobId || !firmOrgId) {
+    res.status(400).json({ error: 'jobId and firmOrgId are required' });
+    return;
+  }
+
+  // Fire-and-forget — respond immediately, process in background
+  res.status(202).json({ accepted: true });
+  void processJob(jobId, firmOrgId);
+});
+
+// ── Start ─────────────────────────────────────────────────────────────────────
+const port = Number(process.env.PORT ?? 8080);
+app.listen(port, () => {
   console.log(`ocr-worker listening on :${port}`);
-}
-
-bootstrap();
+});

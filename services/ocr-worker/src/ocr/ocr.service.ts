@@ -1,4 +1,3 @@
-import { Injectable, Logger } from '@nestjs/common';
 import { getAdminClient } from '../lib/supabase';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -191,370 +190,362 @@ Output JSON Schema:
 
 const GEMINI_MODEL = 'gemini-2.5-flash';
 
-@Injectable()
-export class OcrService {
-  private readonly log = new Logger(OcrService.name);
+// ── Public entrypoint (never throws — invoked fire-and-forget) ──────────────
+export async function processJob(jobId: string, firmOrgId: string): Promise<void> {
+  try {
+    await runJob(jobId, firmOrgId);
+  } catch (e) {
+    console.error(`[ocr-worker] Unhandled error processing job ${jobId}:`, e instanceof Error ? e.message : String(e));
+  }
+}
 
-  // ── Public entrypoint (never throws — invoked fire-and-forget) ──────────────
-  async processJob(jobId: string, firmOrgId: string): Promise<void> {
-    try {
-      await this.runJob(jobId, firmOrgId);
-    } catch (e) {
-      this.log.error(
-        `Unhandled error processing job ${jobId}: ${e instanceof Error ? e.message : String(e)}`,
-      );
-    }
+// ── Core job runner ───────────────────────────────────────────────────────────
+async function runJob(jobId: string, firmOrgId: string): Promise<void> {
+  const admin = getAdminClient();
+
+  const { data: job, error: jobError } = await admin
+    .from('ocr_processing_jobs')
+    .select('*')
+    .eq('id', jobId)
+    .eq('firm_org_id', firmOrgId)
+    .maybeSingle();
+
+  if (jobError) {
+    console.error(`[ocr-worker] Failed to load job ${jobId}:`, jobError.message);
+    return;
+  }
+  if (!job) {
+    console.warn(`[ocr-worker] Job ${jobId} not found for firm ${firmOrgId}`);
+    return;
+  }
+  if (job.status === 'completed') {
+    console.log(`[ocr-worker] Job ${jobId} already completed; skipping.`);
+    return;
   }
 
-  private async runJob(jobId: string, firmOrgId: string): Promise<void> {
-    const admin = getAdminClient();
+  // Best-effort: attribute downstream audit-log rows to the user who triggered
+  // the job (Tier-1 GUC). created_by on journal_entries provides Tier-2 fallback.
+  if (job.triggered_by) {
+    await admin
+      .rpc('set_audit_context', { p_actor_id: job.triggered_by, p_org_id: job.client_org_id })
+      .then(
+        () => undefined,
+        (e: unknown) => console.warn(`[ocr-worker] set_audit_context failed: ${String(e)}`),
+      );
+  }
 
-    const { data: job, error: jobError } = await admin
+  try {
+    // 1. Client relationship must still be active.
+    const { data: relation, error: relError } = await admin
+      .from('acc_firm_clients')
+      .select('id, status')
+      .eq('firm_org_id', firmOrgId)
+      .eq('client_org_id', job.client_org_id)
+      .maybeSingle();
+    if (relError) throw new Error(`โหลดความสัมพันธ์ลูกค้าล้มเหลว: ${relError.message}`);
+    if (!relation || relation.status !== 'active') {
+      throw new Error('ความสัมพันธ์ลูกค้าไม่อยู่ในสถานะที่ใช้งานได้');
+    }
+
+    // 2. Storage path must belong to this client org (defense against cross-tenant reads).
+    const storagePath = extractStoragePath(job.document_url);
+    if (!storagePath.startsWith(`${job.client_org_id}/`)) {
+      throw new Error('เส้นทางไฟล์เอกสารไม่ตรงกับองค์กรลูกค้า');
+    }
+
+    // 3. Download → OCR → classify → journal.
+    const { base64, mimeType } = await downloadAndEncodeDocument(storagePath);
+    const extractedData = await extractOcrWithGemini(base64, mimeType);
+    const clientContext = await getClientContext(firmOrgId, job.client_org_id);
+    const classification = await classifyTransaction(extractedData, clientContext);
+    const journalData = await generateJournalEntry(extractedData, classification, clientContext);
+
+    // 4. Persist draft journal (idempotent: clear stale draft first).
+    const draftJournalId = await persistDraftJournal(admin, job, journalData, clientContext);
+
+    // 5. Mark job completed.
+    const { error: updateEndError } = await admin
       .from('ocr_processing_jobs')
-      .select('*')
-      .eq('id', jobId)
-      .eq('firm_org_id', firmOrgId)
-      .maybeSingle();
-
-    if (jobError) {
-      this.log.error(`Failed to load job ${jobId}: ${jobError.message}`);
-      return;
-    }
-    if (!job) {
-      this.log.warn(`Job ${jobId} not found for firm ${firmOrgId}`);
-      return;
-    }
-    if (job.status === 'completed') {
-      this.log.log(`Job ${jobId} already completed; skipping.`);
-      return;
-    }
-
-    // Best-effort: attribute downstream audit-log rows to the user who triggered
-    // the job (Tier-1 GUC). created_by on journal_entries provides Tier-2 fallback.
-    if (job.triggered_by) {
-      await admin
-        .rpc('set_audit_context', { p_actor_id: job.triggered_by, p_org_id: job.client_org_id })
-        .then(
-          () => undefined,
-          (e: unknown) => this.log.warn(`set_audit_context failed: ${String(e)}`),
-        );
-    }
-
-    try {
-      // 1. Client relationship must still be active.
-      const { data: relation, error: relError } = await admin
-        .from('acc_firm_clients')
-        .select('id, status')
-        .eq('firm_org_id', firmOrgId)
-        .eq('client_org_id', job.client_org_id)
-        .maybeSingle();
-      if (relError) throw new Error(`โหลดความสัมพันธ์ลูกค้าล้มเหลว: ${relError.message}`);
-      if (!relation || relation.status !== 'active') {
-        throw new Error('ความสัมพันธ์ลูกค้าไม่อยู่ในสถานะที่ใช้งานได้');
-      }
-
-      // 2. Storage path must belong to this client org (defense against cross-tenant reads).
-      const storagePath = this.extractStoragePath(job.document_url);
-      if (!storagePath.startsWith(`${job.client_org_id}/`)) {
-        throw new Error('เส้นทางไฟล์เอกสารไม่ตรงกับองค์กรลูกค้า');
-      }
-
-      // 3. Download → OCR → classify → journal.
-      const { base64, mimeType } = await this.downloadAndEncodeDocument(storagePath);
-      const extractedData = await this.extractOcrWithGemini(base64, mimeType);
-      const clientContext = await this.getClientContext(firmOrgId, job.client_org_id);
-      const classification = await this.classifyTransaction(extractedData, clientContext);
-      const journalData = await this.generateJournalEntry(extractedData, classification, clientContext);
-
-      // 4. Persist draft journal (idempotent: clear stale draft first).
-      const draftJournalId = await this.persistDraftJournal(
-        admin,
-        job,
-        journalData,
-        clientContext,
-      );
-
-      // 5. Mark job completed.
-      const { error: updateEndError } = await admin
-        .from('ocr_processing_jobs')
-        .update({
-          status: 'completed',
-          extracted_json: extractedData,
-          classified_json: { classification, journal: journalData },
-          draft_journal_id: draftJournalId,
-          error_message: null,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', jobId);
-      if (updateEndError) throw new Error(updateEndError.message);
-
-      this.log.log(`Job ${jobId} completed (draft_journal_id=${draftJournalId ?? 'none'}).`);
-    } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : 'เกิดข้อผิดพลาดในการประมวลผลเอกสาร';
-      this.log.error(`Job ${jobId} failed: ${errorMsg}`);
-      await admin
-        .from('ocr_processing_jobs')
-        .update({ status: 'failed', error_message: errorMsg, updated_at: new Date().toISOString() })
-        .eq('id', jobId);
-    }
-  }
-
-  // ── Draft journal persistence (with idempotency + integrity guards) ──────────
-  private async persistDraftJournal(
-    admin: ReturnType<typeof getAdminClient>,
-    job: any,
-    journalData: JournalEntryResult,
-    clientContext: ClientContext,
-  ): Promise<string | null> {
-    if (!journalData.entries || journalData.entries.length < 2) return null;
-
-    // Idempotency: remove a previously-generated draft (only if still 'draft')
-    // so a re-run does not orphan duplicate journals.
-    if (job.draft_journal_id) {
-      const { data: existing } = await admin
-        .from('journal_entries')
-        .select('id, status')
-        .eq('id', job.draft_journal_id)
-        .maybeSingle();
-      if (existing && existing.status === 'draft') {
-        await admin.from('journal_items').delete().eq('journal_entry_id', existing.id);
-        await admin.from('journal_entries').delete().eq('id', existing.id);
-      }
-    }
-
-    const { data: je, error: jeError } = await admin
-      .from('journal_entries')
-      .insert({
-        organization_id: job.client_org_id,
-        entry_date: journalData.posting_date || new Date().toISOString().split('T')[0],
-        reference_number: journalData.document_ref || null,
-        memo: journalData.description || 'บันทึกบัญชีอัตโนมัติจากใบเสร็จ/บิล',
-        status: 'draft',
-        created_by: job.triggered_by,
-        created_by_ai: true,
-        ocr_job_id: job.id,
+      .update({
+        status: 'completed',
+        extracted_json: extractedData,
+        classified_json: { classification, journal: journalData },
+        draft_journal_id: draftJournalId,
+        error_message: null,
+        updated_at: new Date().toISOString(),
       })
-      .select('id')
-      .single();
-    if (jeError) throw new Error(jeError.message);
-    const draftJournalId = je.id as string;
+      .eq('id', jobId);
+    if (updateEndError) throw new Error(updateEndError.message);
 
-    try {
-      const itemsToInsert = journalData.entries.map((entry, idx) => {
-        const acc = clientContext.chart_of_accounts.find((a) => a.code === entry.account_code);
-        if (!acc) throw new Error(`ไม่พบรหัสบัญชี "${entry.account_code}" ในผังบัญชีของลูกค้า`);
-
-        const debit = Math.max(0, Number(entry.debit || 0));
-        const credit = Math.max(0, Number(entry.credit || 0));
-        if (debit > 0 && credit > 0) {
-          throw new Error(`บรรทัดรหัสบัญชี "${entry.account_code}" ต้องมีเดบิตหรือเครดิตเพียงฝั่งเดียว`);
-        }
-        if (debit === 0 && credit === 0) {
-          throw new Error(`บรรทัดรหัสบัญชี "${entry.account_code}" มียอดเงินเป็นศูนย์ทั้งสองฝั่ง`);
-        }
-
-        return {
-          organization_id: job.client_org_id,
-          journal_entry_id: draftJournalId,
-          line_no: idx + 1, // sequential — never trust AI-provided line numbers
-          account_id: acc.id,
-          description: entry.memo || null,
-          debit,
-          credit,
-        };
-      });
-
-      const { error: jiError } = await admin.from('journal_items').insert(itemsToInsert);
-      if (jiError) throw new Error(jiError.message);
-    } catch (insertError) {
-      // Roll back the header so we never leave a journal with no lines.
-      await admin.from('journal_entries').delete().eq('id', draftJournalId);
-      throw insertError;
-    }
-
-    return draftJournalId;
+    console.log(`[ocr-worker] Job ${jobId} completed (draft_journal_id=${draftJournalId ?? 'none'}).`);
+  } catch (err) {
+    const errorMsg = err instanceof Error ? err.message : 'เกิดข้อผิดพลาดในการประมวลผลเอกสาร';
+    console.error(`[ocr-worker] Job ${jobId} failed:`, errorMsg);
+    await admin
+      .from('ocr_processing_jobs')
+      .update({ status: 'failed', error_message: errorMsg, updated_at: new Date().toISOString() })
+      .eq('id', jobId);
   }
+}
 
-  // ── Storage ──────────────────────────────────────────────────────────────────
-  private extractStoragePath(documentUrl: string): string {
-    if (documentUrl.includes('/client_documents/')) {
-      return documentUrl.split('/client_documents/')[1].split('?')[0];
-    }
-    return documentUrl.split('?')[0];
-  }
+// ── Draft journal persistence (with idempotency + integrity guards) ──────────
+async function persistDraftJournal(
+  admin: ReturnType<typeof getAdminClient>,
+  job: Record<string, unknown>,
+  journalData: JournalEntryResult,
+  clientContext: ClientContext,
+): Promise<string | null> {
+  if (!journalData.entries || journalData.entries.length < 2) return null;
 
-  private async downloadAndEncodeDocument(
-    storagePath: string,
-  ): Promise<{ base64: string; mimeType: string }> {
-    const admin = getAdminClient();
-    const { data, error } = await admin.storage.from('client_documents').download(storagePath);
-    if (error) throw new Error(`ดาวน์โหลดเอกสารจาก storage ล้มเหลว: ${error.message}`);
-
-    const arrayBuffer = await data.arrayBuffer();
-    const base64 = Buffer.from(arrayBuffer).toString('base64');
-    const mimeType = data.type || 'application/pdf';
-    return { base64, mimeType };
-  }
-
-  // ── Gemini calls ─────────────────────────────────────────────────────────────
-  private async callGemini(parts: unknown[], maxOutputTokens: number): Promise<string> {
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) throw new Error('GEMINI_API_KEY is not configured.');
-
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts }],
-          generationConfig: {
-            maxOutputTokens,
-            temperature: 0.1,
-            responseMimeType: 'application/json',
-          },
-        }),
-      },
-    );
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Gemini API request failed: ${response.status} - ${errorText}`);
-    }
-
-    const result: any = await response.json();
-    if (!result.candidates || result.candidates.length === 0) {
-      const blockReason = result.promptFeedback?.blockReason || 'Blocked by Gemini safety settings or filter';
-      throw new Error(`Gemini API returned no candidates. Reason: ${blockReason}`);
-    }
-    const finishReason = result.candidates[0].finishReason;
-    if (finishReason && finishReason !== 'STOP') {
-      throw new Error(`Gemini response incomplete (finishReason=${finishReason}). อาจมีเนื้อหายาวเกินไป`);
-    }
-    return result.candidates[0].content?.parts?.[0]?.text || '';
-  }
-
-  private parseJson<T>(text: string, context: string): T {
-    const cleaned = text.replace(/^```[a-z]*\n?/i, '').replace(/\n?```$/i, '').trim();
-    try {
-      return JSON.parse(cleaned) as T;
-    } catch {
-      throw new Error(`แปลงผลลัพธ์ JSON จาก Gemini (${context}) ล้มเหลว`);
-    }
-  }
-
-  private async extractOcrWithGemini(base64Data: string, mimeType: string): Promise<OcrExtractionResult> {
-    const text = await this.callGemini(
-      [{ text: PROMPT_OCR }, { inline_data: { mime_type: mimeType, data: base64Data } }],
-      8000,
-    );
-    const parsed = this.parseJson<OcrExtractionResult>(text, 'OCR');
-    parsed.warnings = this.validateOcrMathematics(parsed);
-    return parsed;
-  }
-
-  private async classifyTransaction(
-    ocrData: OcrExtractionResult,
-    clientContext: ClientContext,
-  ): Promise<ClassificationResult> {
-    const input = `OCR EXTRACTED DOCUMENT:\n${JSON.stringify(ocrData, null, 2)}\n\nCLIENT CONTEXT:\n${JSON.stringify(clientContext, null, 2)}`;
-    const text = await this.callGemini([{ text: PROMPT_CLASSIFY }, { text: input }], 2000);
-    return this.parseJson<ClassificationResult>(text, 'classification');
-  }
-
-  private async generateJournalEntry(
-    ocrData: OcrExtractionResult,
-    classification: ClassificationResult,
-    clientContext: ClientContext,
-  ): Promise<JournalEntryResult> {
-    const input = `OCR EXTRACTED DOCUMENT:\n${JSON.stringify(ocrData, null, 2)}\n\nACCOUNTING CLASSIFICATION:\n${JSON.stringify(classification, null, 2)}\n\nCLIENT CONTEXT:\n${JSON.stringify(clientContext, null, 2)}`;
-    const text = await this.callGemini([{ text: PROMPT_JOURNAL }, { text: input }], 2000);
-    return this.parseJson<JournalEntryResult>(text, 'journal entry');
-  }
-
-  // ── Validation ─────────────────────────────────────────────────────────────
-  private validateOcrMathematics(data: OcrExtractionResult): string[] {
-    const warnings: string[] = [...(data.warnings || [])];
-    const amounts = data.amounts;
-
-    if (amounts && amounts.subtotal !== null && amounts.grand_total !== null) {
-      const subtotal = amounts.subtotal;
-      const discount = amounts.discount || 0;
-      const vat = amounts.vat_amount || 0;
-      const wht = amounts.withholding_tax_amount || 0;
-      const grandTotal = amounts.grand_total;
-
-      const calculatedInvoiceTotal = subtotal - discount + vat;
-      const diff = Math.abs(calculatedInvoiceTotal - grandTotal);
-      if (diff > 0.1) {
-        const calculatedNetPaid = subtotal - discount + vat - wht;
-        if (Math.abs(calculatedNetPaid - grandTotal) <= 0.1) {
-          warnings.push('ยอดเงินสุทธิคำนวณแบบหักภาษี ณ ที่จ่ายโดยตรง (Net Paid)');
-        } else {
-          warnings.push(`ผลรวมตัวเลขไม่สอดคล้องกัน (คำนวณได้: ${calculatedInvoiceTotal.toFixed(2)}, ยอดในเอกสาร: ${grandTotal.toFixed(2)})`);
-        }
-      }
-    }
-
-    if (data.confidence) {
-      if (typeof data.confidence.overall === 'number' && data.confidence.overall < 0.8) {
-        warnings.push(`ระดับความแม่นยำภาพรวมต่ำกว่าเกณฑ์ (${(data.confidence.overall * 100).toFixed(0)}%)`);
-      }
-      if (
-        typeof data.confidence.tax_id === 'number' &&
-        data.confidence.tax_id < 0.8 &&
-        (data.vendor?.tax_id || data.customer?.tax_id)
-      ) {
-        warnings.push('ระดับความแม่นยำของเลขประจำตัวผู้เสียภาษีต่ำ');
-      }
-    }
-
-    return warnings;
-  }
-
-  // ── Client context ───────────────────────────────────────────────────────────
-  private async getClientContext(firmOrgId: string, clientOrgId: string): Promise<ClientContext> {
-    const admin = getAdminClient();
-
-    const { data: org, error: orgError } = await admin
-      .from('organizations')
-      .select('id, name')
-      .eq('id', clientOrgId)
-      .single();
-    if (orgError) throw new Error(`โหลดข้อมูลองค์กรลูกค้าล้มเหลว: ${orgError.message}`);
-
-    const { data: accounts, error: accountsError } = await admin
-      .from('accounts')
-      .select('id, code, name, type')
-      .eq('organization_id', clientOrgId)
-      .eq('is_active', true);
-    if (accountsError) throw new Error(`โหลดผังบัญชีลูกค้าล้มเหลว: ${accountsError.message}`);
-
-    const { data: config, error: configError } = await admin
-      .from('acc_firm_client_configs')
-      .select('*')
-      .eq('firm_org_id', firmOrgId)
-      .eq('client_org_id', clientOrgId)
+  // Idempotency: remove a previously-generated draft (only if still 'draft')
+  // so a re-run does not orphan duplicate journals.
+  if (job.draft_journal_id) {
+    const { data: existing } = await admin
+      .from('journal_entries')
+      .select('id, status')
+      .eq('id', job.draft_journal_id)
       .maybeSingle();
-    if (configError) throw new Error(`โหลดค่ากำหนดลูกค้าล้มเหลว: ${configError.message}`);
-
-    const { data: contacts } = await admin
-      .from('contacts')
-      .select('name, tax_id, contact_type')
-      .eq('organization_id', clientOrgId)
-      .eq('is_active', true)
-      .limit(100);
-
-    return {
-      client_id: clientOrgId,
-      client_name: org.name,
-      business_type: 'general',
-      vat_registered: config ? config.vat_registered : true,
-      withholding_tax_required: config ? config.withholding_tax_required : true,
-      accounting_method: config ? config.accounting_method : 'accrual',
-      chart_of_accounts: accounts || [],
-      posting_rules: config?.custom_posting_rules || [],
-      contacts: contacts || [],
-    };
+    if (existing && existing.status === 'draft') {
+      await admin.from('journal_items').delete().eq('journal_entry_id', existing.id);
+      await admin.from('journal_entries').delete().eq('id', existing.id);
+    }
   }
+
+  const { data: je, error: jeError } = await admin
+    .from('journal_entries')
+    .insert({
+      organization_id: job.client_org_id,
+      entry_date: journalData.posting_date || new Date().toISOString().split('T')[0],
+      reference_number: journalData.document_ref || null,
+      memo: journalData.description || 'บันทึกบัญชีอัตโนมัติจากใบเสร็จ/บิล',
+      status: 'draft',
+      created_by: job.triggered_by,
+      created_by_ai: true,
+      ocr_job_id: job.id,
+    })
+    .select('id')
+    .single();
+  if (jeError) throw new Error(jeError.message);
+  const draftJournalId = je.id as string;
+
+  try {
+    const itemsToInsert = journalData.entries.map((entry, idx) => {
+      const acc = clientContext.chart_of_accounts.find((a) => a.code === entry.account_code);
+      if (!acc) throw new Error(`ไม่พบรหัสบัญชี "${entry.account_code}" ในผังบัญชีของลูกค้า`);
+
+      const debit = Math.max(0, Number(entry.debit || 0));
+      const credit = Math.max(0, Number(entry.credit || 0));
+      if (debit > 0 && credit > 0) {
+        throw new Error(`บรรทัดรหัสบัญชี "${entry.account_code}" ต้องมีเดบิตหรือเครดิตเพียงฝั่งเดียว`);
+      }
+      if (debit === 0 && credit === 0) {
+        throw new Error(`บรรทัดรหัสบัญชี "${entry.account_code}" มียอดเงินเป็นศูนย์ทั้งสองฝั่ง`);
+      }
+
+      return {
+        organization_id: job.client_org_id,
+        journal_entry_id: draftJournalId,
+        line_no: idx + 1, // sequential — never trust AI-provided line numbers
+        account_id: acc.id,
+        description: entry.memo || null,
+        debit,
+        credit,
+      };
+    });
+
+    const { error: jiError } = await admin.from('journal_items').insert(itemsToInsert);
+    if (jiError) throw new Error(jiError.message);
+  } catch (insertError) {
+    // Roll back the header so we never leave a journal with no lines.
+    await admin.from('journal_entries').delete().eq('id', draftJournalId);
+    throw insertError;
+  }
+
+  return draftJournalId;
+}
+
+// ── Storage ──────────────────────────────────────────────────────────────────
+function extractStoragePath(documentUrl: string): string {
+  if (documentUrl.includes('/client_documents/')) {
+    return documentUrl.split('/client_documents/')[1].split('?')[0];
+  }
+  return documentUrl.split('?')[0];
+}
+
+async function downloadAndEncodeDocument(
+  storagePath: string,
+): Promise<{ base64: string; mimeType: string }> {
+  const admin = getAdminClient();
+  const { data, error } = await admin.storage.from('client_documents').download(storagePath);
+  if (error) throw new Error(`ดาวน์โหลดเอกสารจาก storage ล้มเหลว: ${error.message}`);
+
+  const arrayBuffer = await data.arrayBuffer();
+  const base64 = Buffer.from(arrayBuffer).toString('base64');
+  const mimeType = data.type || 'application/pdf';
+  return { base64, mimeType };
+}
+
+// ── Gemini calls ─────────────────────────────────────────────────────────────
+async function callGemini(parts: unknown[], maxOutputTokens: number): Promise<string> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) throw new Error('GEMINI_API_KEY is not configured.');
+
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts }],
+        generationConfig: {
+          maxOutputTokens,
+          temperature: 0.1,
+          responseMimeType: 'application/json',
+        },
+      }),
+    },
+  );
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Gemini API request failed: ${response.status} - ${errorText}`);
+  }
+
+  const result = await response.json() as {
+    candidates?: Array<{ finishReason?: string; content?: { parts?: Array<{ text?: string }> } }>;
+    promptFeedback?: { blockReason?: string };
+  };
+  if (!result.candidates || result.candidates.length === 0) {
+    const blockReason = result.promptFeedback?.blockReason || 'Blocked by Gemini safety settings or filter';
+    throw new Error(`Gemini API returned no candidates. Reason: ${blockReason}`);
+  }
+  const finishReason = result.candidates[0].finishReason;
+  if (finishReason && finishReason !== 'STOP') {
+    throw new Error(`Gemini response incomplete (finishReason=${finishReason}). อาจมีเนื้อหายาวเกินไป`);
+  }
+  return result.candidates[0].content?.parts?.[0]?.text || '';
+}
+
+function parseJson<T>(text: string, context: string): T {
+  const cleaned = text.replace(/^```[a-z]*\n?/i, '').replace(/\n?```$/i, '').trim();
+  try {
+    return JSON.parse(cleaned) as T;
+  } catch {
+    throw new Error(`แปลงผลลัพธ์ JSON จาก Gemini (${context}) ล้มเหลว`);
+  }
+}
+
+async function extractOcrWithGemini(base64Data: string, mimeType: string): Promise<OcrExtractionResult> {
+  const text = await callGemini(
+    [{ text: PROMPT_OCR }, { inline_data: { mime_type: mimeType, data: base64Data } }],
+    8000,
+  );
+  const parsed = parseJson<OcrExtractionResult>(text, 'OCR');
+  parsed.warnings = validateOcrMathematics(parsed);
+  return parsed;
+}
+
+async function classifyTransaction(
+  ocrData: OcrExtractionResult,
+  clientContext: ClientContext,
+): Promise<ClassificationResult> {
+  const input = `OCR EXTRACTED DOCUMENT:\n${JSON.stringify(ocrData, null, 2)}\n\nCLIENT CONTEXT:\n${JSON.stringify(clientContext, null, 2)}`;
+  const text = await callGemini([{ text: PROMPT_CLASSIFY }, { text: input }], 2000);
+  return parseJson<ClassificationResult>(text, 'classification');
+}
+
+async function generateJournalEntry(
+  ocrData: OcrExtractionResult,
+  classification: ClassificationResult,
+  clientContext: ClientContext,
+): Promise<JournalEntryResult> {
+  const input = `OCR EXTRACTED DOCUMENT:\n${JSON.stringify(ocrData, null, 2)}\n\nACCOUNTING CLASSIFICATION:\n${JSON.stringify(classification, null, 2)}\n\nCLIENT CONTEXT:\n${JSON.stringify(clientContext, null, 2)}`;
+  const text = await callGemini([{ text: PROMPT_JOURNAL }, { text: input }], 2000);
+  return parseJson<JournalEntryResult>(text, 'journal entry');
+}
+
+// ── Validation ────────────────────────────────────────────────────────────────
+function validateOcrMathematics(data: OcrExtractionResult): string[] {
+  const warnings: string[] = [...(data.warnings || [])];
+  const amounts = data.amounts;
+
+  if (amounts && amounts.subtotal !== null && amounts.grand_total !== null) {
+    const subtotal = amounts.subtotal;
+    const discount = amounts.discount || 0;
+    const vat = amounts.vat_amount || 0;
+    const wht = amounts.withholding_tax_amount || 0;
+    const grandTotal = amounts.grand_total;
+
+    const calculatedInvoiceTotal = subtotal - discount + vat;
+    const diff = Math.abs(calculatedInvoiceTotal - grandTotal);
+    if (diff > 0.1) {
+      const calculatedNetPaid = subtotal - discount + vat - wht;
+      if (Math.abs(calculatedNetPaid - grandTotal) <= 0.1) {
+        warnings.push('ยอดเงินสุทธิคำนวณแบบหักภาษี ณ ที่จ่ายโดยตรง (Net Paid)');
+      } else {
+        warnings.push(`ผลรวมตัวเลขไม่สอดคล้องกัน (คำนวณได้: ${calculatedInvoiceTotal.toFixed(2)}, ยอดในเอกสาร: ${grandTotal.toFixed(2)})`);
+      }
+    }
+  }
+
+  if (data.confidence) {
+    if (typeof data.confidence.overall === 'number' && data.confidence.overall < 0.8) {
+      warnings.push(`ระดับความแม่นยำภาพรวมต่ำกว่าเกณฑ์ (${(data.confidence.overall * 100).toFixed(0)}%)`);
+    }
+    if (
+      typeof data.confidence.tax_id === 'number' &&
+      data.confidence.tax_id < 0.8 &&
+      (data.vendor?.tax_id || data.customer?.tax_id)
+    ) {
+      warnings.push('ระดับความแม่นยำของเลขประจำตัวผู้เสียภาษีต่ำ');
+    }
+  }
+
+  return warnings;
+}
+
+// ── Client context ────────────────────────────────────────────────────────────
+export async function getClientContext(firmOrgId: string, clientOrgId: string): Promise<ClientContext> {
+  const admin = getAdminClient();
+
+  const { data: org, error: orgError } = await admin
+    .from('organizations')
+    .select('id, name')
+    .eq('id', clientOrgId)
+    .single();
+  if (orgError) throw new Error(`โหลดข้อมูลองค์กรลูกค้าล้มเหลว: ${orgError.message}`);
+
+  const { data: accounts, error: accountsError } = await admin
+    .from('accounts')
+    .select('id, code, name, type')
+    .eq('organization_id', clientOrgId)
+    .eq('is_active', true);
+  if (accountsError) throw new Error(`โหลดผังบัญชีลูกค้าล้มเหลว: ${accountsError.message}`);
+
+  const { data: config, error: configError } = await admin
+    .from('acc_firm_client_configs')
+    .select('*')
+    .eq('firm_org_id', firmOrgId)
+    .eq('client_org_id', clientOrgId)
+    .maybeSingle();
+  if (configError) throw new Error(`โหลดค่ากำหนดลูกค้าล้มเหลว: ${configError.message}`);
+
+  const { data: contacts } = await admin
+    .from('contacts')
+    .select('name, tax_id, contact_type')
+    .eq('organization_id', clientOrgId)
+    .eq('is_active', true)
+    .limit(100);
+
+  return {
+    client_id: clientOrgId,
+    client_name: org.name,
+    business_type: 'general',
+    vat_registered: config ? config.vat_registered : true,
+    withholding_tax_required: config ? config.withholding_tax_required : true,
+    accounting_method: config ? config.accounting_method : 'accrual',
+    chart_of_accounts: accounts || [],
+    posting_rules: config?.custom_posting_rules || [],
+    contacts: contacts || [],
+  };
 }
