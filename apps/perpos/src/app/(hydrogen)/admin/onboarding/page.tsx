@@ -93,7 +93,7 @@ function StepBar({ current, hasSpecific }: { current: Step; hasSpecific: boolean
             <div className={cn(
               'flex items-center gap-2 rounded-full px-3 py-1.5 text-sm transition-colors',
               active ? 'bg-blue-600 text-white'
-                : done ? 'bg-emerald-100 text-emerald-700'
+                : done ? 'bg-emerald-50 border border-emerald-200 text-emerald-700'
                 : 'bg-gray-100 text-gray-400',
             )}>
               {done ? <CheckCircle2 className="h-4 w-4" /> : s.icon}
@@ -512,7 +512,7 @@ export default function OnboardingPage() {
                                   : <span className="rounded-full bg-violet-100 px-1.5 py-0.5 text-[9px] font-semibold text-violet-600">Custom</span>}
                                 {selected
                                   ? <CheckCircle2 className="h-4 w-4 text-amber-500" />
-                                  : <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-600">Specific</span>}
+                                  : <span className="rounded-full bg-amber-50 border border-amber-200 px-2 py-0.5 text-[10px] font-semibold text-amber-700">Specific</span>}
                               </div>
                             </div>
                             <div className="mt-1 text-xs text-gray-400">
@@ -654,7 +654,7 @@ export default function OnboardingPage() {
                   <span className="text-sm text-gray-500">Shared Modules</span>
                   <div className="mt-2 flex flex-wrap gap-1.5">
                     {form.moduleKeys.map(k => (
-                      <span key={k} className="rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-700">
+                      <span key={k} className="rounded-full bg-blue-50 border border-blue-200 px-2.5 py-0.5 text-xs font-medium text-blue-700">
                         {MODULE_LABELS[k] ?? k}
                       </span>
                     ))}
@@ -669,7 +669,7 @@ export default function OnboardingPage() {
                   <div className="mt-2 space-y-1.5">
                     {form.specificModules.map(sm => (
                       <div key={sm.key} className="flex items-center justify-between">
-                        <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-700">
+                        <span className="rounded-full bg-amber-50 border border-amber-200 px-2.5 py-0.5 text-xs font-medium text-amber-700">
                           {MODULE_LABELS[sm.key] ?? sm.key}
                         </span>
                         <code className="text-xs text-gray-500">

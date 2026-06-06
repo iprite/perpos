@@ -102,9 +102,9 @@ function ApptRow({ appt, onCancel }: { appt: Appointment; onCancel?: (id: string
   const tomorrow = isTomorrow(appt.starts_at);
 
   const dateBadge = today
-    ? <span className="rounded-md bg-indigo-100 px-2 py-0.5 text-xs font-semibold text-indigo-700">วันนี้</span>
+    ? <span className="rounded-md bg-indigo-50 border border-indigo-200 px-2.5 py-0.5 text-xs font-semibold text-indigo-700">วันนี้</span>
     : tomorrow
-    ? <span className="rounded-md bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700">พรุ่งนี้</span>
+    ? <span className="rounded-md bg-amber-50 border border-amber-200 px-2.5 py-0.5 text-xs font-semibold text-amber-700">พรุ่งนี้</span>
     : null;
 
   const dateParts = fmtDate(appt.starts_at).split(" ");
@@ -225,9 +225,9 @@ export default function AssistantPage() {
             {icon}
             {label}
             {badge > 0 && (
-              <span className={cn("rounded-full px-1.5 py-0.5 text-xs font-semibold",
-                badgeColor === "blue"   ? "bg-blue-100 text-blue-700"   :
-                badgeColor === "indigo" ? "bg-indigo-100 text-indigo-700" : ""
+              <span className={cn("rounded-full px-1.5 py-0.5 text-xs font-semibold border",
+                badgeColor === "blue"   ? "bg-blue-50 border-blue-200 text-blue-700"     :
+                badgeColor === "indigo" ? "bg-indigo-50 border-indigo-200 text-indigo-700" : ""
               )}>
                 {badge}
               </span>

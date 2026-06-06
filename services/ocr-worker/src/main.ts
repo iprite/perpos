@@ -5,6 +5,11 @@ const app = express();
 app.use(express.json());
 
 // ── Health check ──────────────────────────────────────────────────────────────
+app.get('/health', (_req, res) => {
+  res.json({ ok: true });
+});
+
+// Cloud Run intercepts /healthz at platform level — use /health instead
 app.get('/healthz', (_req, res) => {
   res.json({ ok: true });
 });

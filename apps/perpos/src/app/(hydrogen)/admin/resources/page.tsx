@@ -48,10 +48,10 @@ const WINDOW_OPTIONS = [
 
 function HealthBadge({ errorRate }: { errorRate: number }) {
   if (errorRate >= 5)
-    return <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700">🔴 Critical</span>;
+    return <span className="rounded-full bg-red-50 border border-red-200 px-2.5 py-0.5 text-xs font-semibold text-red-700">🔴 Critical</span>;
   if (errorRate >= 1)
-    return <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700">🟡 Warning</span>;
-  return <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-700">🟢 Good</span>;
+    return <span className="rounded-full bg-amber-50 border border-amber-200 px-2.5 py-0.5 text-xs font-semibold text-amber-700">🟡 Warning</span>;
+  return <span className="rounded-full bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 text-xs font-semibold text-emerald-700">🟢 Good</span>;
 }
 
 function LatencyBar({ value, max }: { value: number; max: number }) {
@@ -225,7 +225,7 @@ export default function ResourcesPage() {
             {alertOrgs.map((o) => (
               <span
                 key={o.org_id}
-                className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-800"
+                className="rounded-full bg-amber-50 border border-amber-200 px-2.5 py-0.5 text-xs font-medium text-amber-800"
               >
                 {o.org_name} — {o.error_rate_pct}%
               </span>

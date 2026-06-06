@@ -243,7 +243,7 @@ export default function RateLimitsPage() {
                     <td className="px-4 py-3 text-gray-900 font-medium">{l.max_requests.toLocaleString()}</td>
                     <td className="px-4 py-3">
                       {vCount > 0 ? (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-700">
+                        <span className="inline-flex items-center gap-1 rounded-full bg-red-50 border border-red-200 px-2.5 py-0.5 text-xs font-medium text-red-700">
                           <ShieldAlert className="w-3 h-3" />{vCount}
                         </span>
                       ) : (

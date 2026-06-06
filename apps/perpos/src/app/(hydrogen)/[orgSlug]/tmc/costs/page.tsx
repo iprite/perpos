@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { CustomSelect } from '@/components/ui/custom-select';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { ThaiDatePicker } from '@/components/ui/thai-date-picker';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog';
@@ -138,11 +139,10 @@ function EditInvestmentDialog({
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="inv-start">วันเริ่มนับ</Label>
-            <Input
-              id="inv-start"
-              type="date"
+            <ThaiDatePicker
               value={form.starts_at}
-              onChange={e => setForm(f => ({ ...f, starts_at: e.target.value }))}
+              onChange={(v) => setForm(f => ({ ...f, starts_at: v }))}
+              placeholder="เลือกวันที่เริ่มนับ"
             />
           </div>
           <div className="space-y-1.5">

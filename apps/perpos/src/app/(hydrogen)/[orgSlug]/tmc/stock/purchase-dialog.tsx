@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { CustomSelect } from '@/components/ui/custom-select';
 import { NativeSelect } from '@/components/ui/native-select';
+import { ThaiDatePicker } from '@/components/ui/thai-date-picker';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog';
@@ -378,7 +379,7 @@ export function PurchaseDialog({
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label htmlFor="pur-date">วันที่</Label>
-              <Input id="pur-date" type="date" value={finDate} onChange={e => setFinDate(e.target.value)} />
+              <ThaiDatePicker value={finDate} onChange={setFinDate} placeholder="เลือกวันที่" />
             </div>
             <div className="space-y-1.5">
               <Label>บัญชี *</Label>

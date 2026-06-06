@@ -2,6 +2,11 @@
 
 import { useEffect, useState, useCallback, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { NativeSelect } from '@/components/ui/native-select';
+import { ThaiDatePicker } from '@/components/ui/thai-date-picker';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type Info = {
@@ -56,16 +61,16 @@ function guestName(g: RecentStay['tmc_guests']) {
 function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
   return (
     <div className="space-y-1.5">
-      <label className="block text-sm font-medium text-slate-700">
-        {label}{required && <span className="text-red-500 ml-0.5">*</span>}
-      </label>
+      <Label className="text-slate-700">
+        {label}{required && <span className="ml-0.5 text-red-500">*</span>}
+      </Label>
       {children}
     </div>
   );
 }
 
-const inputCls = 'w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100 placeholder:text-slate-400';
-const selectCls = `${inputCls} appearance-none`;
+// Mobile-optimized input style
+const inputCls = 'w-full rounded-xl border-slate-200 bg-white px-4 py-3 text-sm focus:border-blue-400 placeholder:text-slate-400';
 
 // ─── Main form component ───────────────────────────────────────────────────────
 function CheckinForm() {
@@ -113,19 +118,16 @@ function CheckinForm() {
 
     async function init() {
       setLoading(true);
-      // load info
       const infoRes = await fetch(`/api/tmc/mobile/info?t=${token}`);
       if (!infoRes.ok) { setError('ลิงก์ไม่ถูกต้องหรือหมดอายุ กรุณาพิมพ์ /tmc ใหม่ใน LINE เพื่อรับลิงก์ใหม่'); setLoading(false); return; }
       const infoData: Info = await infoRes.json();
       setInfo(infoData);
 
       if (editId) {
-        // load stay for editing
         const stayRes = await fetch(`/api/tmc/mobile/stays?t=${token}&id=${editId}`);
         if (stayRes.ok) {
           const s: Stay = await stayRes.json();
           setStay(s);
-          // pre-fill form
           if (s.tmc_guests) {
             setFirstName(s.tmc_guests.first_name ?? '');
             setLastName(s.tmc_guests.last_name ?? '');
@@ -239,20 +241,36 @@ function CheckinForm() {
           <div className="rounded-xl bg-blue-50 p-3 text-left space-y-1.5">
             <p className="text-xs text-blue-600 font-medium">ลิงก์แก้ไขทีหลัง:</p>
             <p className="text-xs text-blue-800 break-all">{saved.editUrl}</p>
-            <button
+            <Button
+              type="button"
+              variant="secondary"
+              className="mt-1 w-full rounded-lg bg-blue-600 text-xs text-white hover:bg-blue-700"
               onClick={() => navigator.clipboard.writeText(saved.editUrl).then(() => alert('คัดลอกแล้ว!'))}
-              className="mt-1 rounded-lg bg-blue-600 px-3 py-1.5 text-xs text-white font-medium w-full">
+            >
               📋 คัดลอกลิงก์
-            </button>
+            </Button>
           </div>
           <div className="flex gap-2">
-            <button
-              onClick={() => { setSaved(null); if (!editId) { setFirstName(''); setTel(''); setPropertyCode(''); setRoomRate(''); setCheckOut(''); setFoodAmount(''); setDrinkAmount(''); setMookataAmount(''); setBbqAmount(''); setActivityDetail(''); setFeedback(''); setIssues(''); setDamagedItems(''); }}}
-              className="flex-1 rounded-xl bg-slate-100 py-3 text-sm font-medium text-slate-700">
+            <Button
+              type="button"
+              variant="secondary"
+              className="flex-1 rounded-xl py-3 text-sm"
+              onClick={() => {
+                setSaved(null);
+                if (!editId) {
+                  setFirstName(''); setTel(''); setPropertyCode(''); setRoomRate('');
+                  setCheckOut(''); setFoodAmount(''); setDrinkAmount('');
+                  setMookataAmount(''); setBbqAmount(''); setActivityDetail('');
+                  setFeedback(''); setIssues(''); setDamagedItems('');
+                }
+              }}
+            >
               {editId ? 'แก้ไขต่อ' : 'บันทึกรายการใหม่'}
-            </button>
-            <a href={saved.editUrl}
-              className="flex-1 rounded-xl bg-blue-600 py-3 text-sm font-medium text-white text-center">
+            </Button>
+            <a
+              href={saved.editUrl}
+              className="flex-1 rounded-xl bg-blue-600 py-3 text-sm font-medium text-white text-center flex items-center justify-center"
+            >
               แก้ไขรายการนี้
             </a>
           </div>
@@ -279,11 +297,15 @@ function CheckinForm() {
       {/* Recent stays button (create mode only) */}
       {!isEdit && (
         <div className="max-w-lg mx-auto px-4 pt-3">
-          <button onClick={loadRecent}
-            className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-600 text-left flex items-center justify-between">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={loadRecent}
+            className="w-full justify-between rounded-xl text-sm text-slate-600"
+          >
             <span>📋 รายการเข้าพักล่าสุด (แก้ไข)</span>
             <span className="text-slate-400">›</span>
-          </button>
+          </Button>
 
           {showRecent && (
             <div className="mt-2 rounded-xl border border-slate-200 bg-white overflow-hidden divide-y divide-slate-100">
@@ -292,7 +314,7 @@ function CheckinForm() {
               ) : recentStays.map(s => (
                 <a key={s.id}
                   href={`/tmc/checkin?t=${token}&id=${s.id}`}
-                  className="flex items-center gap-3 px-4 py-3 hover:bg-slate-50">
+                  className="flex items-center gap-3 px-4 py-3 hover:bg-slate-50 transition-colors duration-150">
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-slate-800 truncate">{guestName(s.tmc_guests)}</p>
                     <p className="text-xs text-slate-500">
@@ -317,16 +339,16 @@ function CheckinForm() {
             <span>👤</span> ข้อมูลแขก
           </h2>
           <Field label="ชื่อแขก" required>
-            <input className={inputCls} value={firstName} onChange={e => setFirstName(e.target.value)}
+            <Input className={inputCls} value={firstName} onChange={e => setFirstName(e.target.value)}
               placeholder="เช่น คุณมาลี" />
           </Field>
           <div className="grid grid-cols-2 gap-3">
             <Field label="นามสกุล">
-              <input className={inputCls} value={lastName} onChange={e => setLastName(e.target.value)}
+              <Input className={inputCls} value={lastName} onChange={e => setLastName(e.target.value)}
                 placeholder="ไม่บังคับ" />
             </Field>
             <Field label="เบอร์โทร">
-              <input className={inputCls} type="tel" value={tel} onChange={e => setTel(e.target.value)}
+              <Input className={inputCls} type="tel" value={tel} onChange={e => setTel(e.target.value)}
                 placeholder="0812345678" />
             </Field>
           </div>
@@ -338,50 +360,70 @@ function CheckinForm() {
             <span>🏠</span> การเข้าพัก
           </h2>
           <Field label="แปลง" required>
-            <select className={selectCls} value={propertyCode} onChange={e => setPropertyCode(e.target.value)}>
+            <NativeSelect
+              className="w-full rounded-xl border-slate-200 bg-white px-4 py-3 text-sm"
+              value={propertyCode}
+              onChange={e => setPropertyCode(e.target.value)}
+            >
               <option value="">— เลือกแปลง —</option>
               {info?.properties.map(p => (
                 <option key={p.id} value={p.code}>{p.code}{p.name ? ` — ${p.name}` : ''}</option>
               ))}
-            </select>
+            </NativeSelect>
           </Field>
           <div className="grid grid-cols-2 gap-3">
             <Field label="วันเข้าพัก" required>
-              <input className={inputCls} type="date" value={checkIn} onChange={e => setCheckIn(e.target.value)} />
+              <ThaiDatePicker
+                value={checkIn}
+                onChange={setCheckIn}
+                placeholder="เลือกวันที่"
+              />
             </Field>
             <Field label="วันออก">
-              <input className={inputCls} type="date" value={checkOut} onChange={e => setCheckOut(e.target.value)} />
+              <ThaiDatePicker
+                value={checkOut}
+                onChange={setCheckOut}
+                placeholder="(ยังไม่ออก)"
+              />
             </Field>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <Field label="ช่องทางจอง">
-              <select className={selectCls} value={bookingChannel} onChange={e => setBookingChannel(e.target.value)}>
+              <NativeSelect
+                className="w-full rounded-xl border-slate-200 bg-white px-4 py-3 text-sm"
+                value={bookingChannel}
+                onChange={e => setBookingChannel(e.target.value)}
+              >
                 {info?.bookingChannels.map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
+              </NativeSelect>
             </Field>
             <Field label="ประเภท">
-              <select className={selectCls} value={stayType} onChange={e => setStayType(e.target.value)}>
+              <NativeSelect
+                className="w-full rounded-xl border-slate-200 bg-white px-4 py-3 text-sm"
+                value={stayType}
+                onChange={e => setStayType(e.target.value)}
+              >
                 {info?.stayTypes.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-              </select>
+              </NativeSelect>
             </Field>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <Field label="ยอดค่าห้อง (บาท)">
-              <input className={inputCls} type="number" value={roomRate} onChange={e => setRoomRate(e.target.value)}
+              <Input className={inputCls} type="number" value={roomRate} onChange={e => setRoomRate(e.target.value)}
                 placeholder="0" />
             </Field>
             <Field label="มัดจำ (บาท)">
-              <input className={inputCls} type="number" value={depositAmount} onChange={e => setDepositAmount(e.target.value)}
+              <Input className={inputCls} type="number" value={depositAmount} onChange={e => setDepositAmount(e.target.value)}
                 placeholder="0" />
             </Field>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <Field label="จำนวนคน">
-              <input className={inputCls} type="number" value={groupSize} onChange={e => setGroupSize(e.target.value)}
+              <Input className={inputCls} type="number" value={groupSize} onChange={e => setGroupSize(e.target.value)}
                 placeholder="1" />
             </Field>
             <Field label="ส่วนลด (%)">
-              <input className={inputCls} type="number" value={promotionPct} onChange={e => setPromotionPct(e.target.value)}
+              <Input className={inputCls} type="number" value={promotionPct} onChange={e => setPromotionPct(e.target.value)}
                 placeholder="0" />
             </Field>
           </div>
@@ -395,54 +437,65 @@ function CheckinForm() {
           </h2>
           <div className="grid grid-cols-2 gap-3">
             <Field label="ค่าอาหาร (บาท)">
-              <input className={inputCls} type="number" value={foodAmount} onChange={e => setFoodAmount(e.target.value)}
+              <Input className={inputCls} type="number" value={foodAmount} onChange={e => setFoodAmount(e.target.value)}
                 placeholder="0" />
             </Field>
             <Field label="ค่าเครื่องดื่ม (บาท)">
-              <input className={inputCls} type="number" value={drinkAmount} onChange={e => setDrinkAmount(e.target.value)}
+              <Input className={inputCls} type="number" value={drinkAmount} onChange={e => setDrinkAmount(e.target.value)}
                 placeholder="0" />
             </Field>
             <Field label="มูกาต้า (บาท)">
-              <input className={inputCls} type="number" value={mookataAmount} onChange={e => setMookataAmount(e.target.value)}
+              <Input className={inputCls} type="number" value={mookataAmount} onChange={e => setMookataAmount(e.target.value)}
                 placeholder="0" />
             </Field>
             <Field label="BBQ (บาท)">
-              <input className={inputCls} type="number" value={bbqAmount} onChange={e => setBbqAmount(e.target.value)}
+              <Input className={inputCls} type="number" value={bbqAmount} onChange={e => setBbqAmount(e.target.value)}
                 placeholder="0" />
             </Field>
           </div>
           <Field label="กิจกรรม / รายละเอียดเพิ่มเติม">
-            <textarea className={inputCls} rows={2} value={activityDetail} onChange={e => setActivityDetail(e.target.value)}
-              placeholder="เช่น ปาร์ตี้วันเกิด, มาคู่" />
+            <textarea
+              className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm focus:border-blue-400 focus:outline-none placeholder:text-slate-400"
+              rows={2} value={activityDetail} onChange={e => setActivityDetail(e.target.value)}
+              placeholder="เช่น ปาร์ตี้วันเกิด, มาคู่"
+            />
           </Field>
         </section>
 
-        {/* ── ข้อมูลออก ─────────────────────────────────────────────────── */}
+        {/* ── บันทึกเพิ่มเติม ─────────────────────────────────────────────── */}
         <section className="rounded-2xl bg-white shadow-sm border border-slate-100 p-4 space-y-3">
           <h2 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
             <span>📝</span> บันทึกเพิ่มเติม
             <span className="text-xs font-normal text-slate-400">(แก้ไขได้ทีหลัง)</span>
           </h2>
           <Field label="Feedback จากแขก">
-            <textarea className={inputCls} rows={2} value={feedback} onChange={e => setFeedback(e.target.value)}
-              placeholder="ความคิดเห็น / รีวิว" />
+            <textarea
+              className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm focus:border-blue-400 focus:outline-none placeholder:text-slate-400"
+              rows={2} value={feedback} onChange={e => setFeedback(e.target.value)}
+              placeholder="ความคิดเห็น / รีวิว"
+            />
           </Field>
           <Field label="ปัญหาที่พบ">
-            <textarea className={inputCls} rows={2} value={issues} onChange={e => setIssues(e.target.value)}
-              placeholder="เช่น แอร์มีปัญหา, น้ำไม่ร้อน" />
+            <textarea
+              className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm focus:border-blue-400 focus:outline-none placeholder:text-slate-400"
+              rows={2} value={issues} onChange={e => setIssues(e.target.value)}
+              placeholder="เช่น แอร์มีปัญหา, น้ำไม่ร้อน"
+            />
           </Field>
           <Field label="ของชำรุด/เสียหาย">
-            <input className={inputCls} value={damagedItems} onChange={e => setDamagedItems(e.target.value)}
+            <Input className={inputCls} value={damagedItems} onChange={e => setDamagedItems(e.target.value)}
               placeholder="เช่น ผ้าขนหนู 1 ผืน" />
           </Field>
         </section>
 
         {/* Submit */}
-        <button type="submit" disabled={saving}
-          className="w-full rounded-2xl bg-blue-600 py-4 text-white font-semibold text-base
-            disabled:opacity-60 active:scale-95 transition-transform">
+        <Button
+          type="submit"
+          disabled={saving}
+          className="w-full rounded-2xl bg-blue-600 py-4 text-base font-semibold text-white hover:bg-blue-700 active:scale-[0.97] transition-transform duration-150 disabled:opacity-60"
+        >
           {saving ? 'กำลังบันทึก...' : isEdit ? '💾 บันทึกการแก้ไข' : '✅ บันทึกการเข้าพัก'}
-        </button>
+        </Button>
         <div className="pb-8" />
       </form>
     </div>

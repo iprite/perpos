@@ -90,10 +90,10 @@ const ACTION_OPTIONS = [
 
 function actionBadge(action: string) {
   switch (action) {
-    case "INSERT": return "bg-emerald-100 text-emerald-700 border border-emerald-200";
-    case "UPDATE": return "bg-blue-100 text-blue-700 border border-blue-200";
-    case "DELETE": return "bg-red-100 text-red-700 border border-red-200";
-    default:       return "bg-gray-100 text-gray-600";
+    case "INSERT": return "bg-emerald-50 border border-emerald-200 text-emerald-700";
+    case "UPDATE": return "bg-blue-50 border border-blue-200 text-blue-700";
+    case "DELETE": return "bg-red-50 border border-red-200 text-red-700";
+    default:       return "bg-gray-50 border border-gray-200 text-gray-600";
   }
 }
 
@@ -595,7 +595,7 @@ export default function AuditLogPage() {
                   <p className="mb-1.5 text-xs font-semibold text-gray-600">��ิลด์ที่เปลี่ยนแปลง</p>
                   <div className="flex flex-wrap gap-1.5">
                     {(detail.diff_keys ?? []).map((k) => (
-                      <span key={k} className="rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-700">{k}</span>
+                      <span key={k} className="rounded-full bg-blue-50 border border-blue-200 px-2.5 py-0.5 text-xs font-medium text-blue-700">{k}</span>
                     ))}
                   </div>
                 </div>

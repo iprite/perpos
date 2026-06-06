@@ -6,7 +6,9 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import toast from "react-hot-toast";
-import { Button } from "rizzui";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { createFinanceAccountAction } from "@/lib/finance/actions";
 import { CustomSelect } from "@/components/ui/custom-select";
 
@@ -89,49 +91,60 @@ export function FinanceAccountForm({ organizationId, accountCategory, chartAccou
     });
   }
 
-  const inputCls = "w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:outline-none";
-  const labelCls = "block text-sm font-medium text-slate-700 mb-1";
-
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
       <div>
-        <label className={labelCls}>ชื่อ{CATEGORY_LABELS[accountCategory]} *</label>
-        <input {...register("name")} className={inputCls} placeholder={`ระบุชื่อ${CATEGORY_LABELS[accountCategory]}`} />
+        <Label htmlFor="name">ชื่อ{CATEGORY_LABELS[accountCategory]} *</Label>
+        <Input
+          id="name"
+          {...register("name")}
+          placeholder={`ระบุชื่อ${CATEGORY_LABELS[accountCategory]}`}
+          className="mt-1"
+        />
         {errors.name && <p className="mt-1 text-xs text-red-600">{errors.name.message}</p>}
       </div>
 
       <div>
-        <label className={labelCls}>ยอดยกมา</label>
-        <input {...register("initialBalance")} type="number" step="0.01" className={inputCls} placeholder="0.00" />
+        <Label htmlFor="initialBalance">ยอดยกมา (฿)</Label>
+        <Input
+          id="initialBalance"
+          {...register("initialBalance")}
+          type="number"
+          step="0.01"
+          placeholder="0.00"
+          className="mt-1"
+        />
       </div>
 
       {accountCategory === "bank" && (
         <>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className={labelCls}>ชื่อธนาคาร</label>
-              <input {...register("bankName")} className={inputCls} placeholder="เช่น ธนาคารกสิกรไทย" />
+              <Label htmlFor="bankName">ชื่อธนาคาร</Label>
+              <Input id="bankName" {...register("bankName")} placeholder="เช่น ธนาคารกสิกรไทย" className="mt-1" />
             </div>
             <div>
-              <label className={labelCls}>เลขที่บัญชี</label>
-              <input {...register("accountNumber")} className={inputCls} placeholder="xxx-x-xxxxx-x" />
+              <Label htmlFor="accountNumber">เลขที่บัญชี</Label>
+              <Input id="accountNumber" {...register("accountNumber")} placeholder="xxx-x-xxxxx-x" className="mt-1" />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className={labelCls}>สาขา</label>
-              <input {...register("branch")} className={inputCls} placeholder="สาขา" />
+              <Label htmlFor="branch">สาขา</Label>
+              <Input id="branch" {...register("branch")} placeholder="สาขา" className="mt-1" />
             </div>
             <div>
-              <label className={labelCls}>ประเภทบัญชี</label>
-              <CustomSelect
-                value={watch("bankAccountType") ?? ""}
-                onChange={(v) => setValue("bankAccountType", v as any, { shouldDirty: true })}
-                options={[
-                  { value: "", label: "เลือกประเภท" },
-                  ...Object.entries(BANK_ACCOUNT_TYPE_LABELS).map(([v, l]) => ({ value: v, label: l })),
-                ]}
-              />
+              <Label>ประเภทบัญชี</Label>
+              <div className="mt-1">
+                <CustomSelect
+                  value={watch("bankAccountType") ?? ""}
+                  onChange={(v) => setValue("bankAccountType", v as any, { shouldDirty: true })}
+                  options={[
+                    { value: "", label: "เลือกประเภท" },
+                    ...Object.entries(BANK_ACCOUNT_TYPE_LABELS).map(([v, l]) => ({ value: v, label: l })),
+                  ]}
+                />
+              </div>
             </div>
           </div>
         </>
@@ -139,54 +152,69 @@ export function FinanceAccountForm({ organizationId, accountCategory, chartAccou
 
       {accountCategory === "payment_channel" && (
         <div>
-          <label className={labelCls}>ประเภทช่องทาง</label>
-          <CustomSelect
-            value={watch("channelType") ?? ""}
-            onChange={(v) => setValue("channelType", v as any, { shouldDirty: true })}
-            options={[
-              { value: "", label: "เลือกประเภท" },
-              ...Object.entries(CHANNEL_TYPE_LABELS).map(([v, l]) => ({ value: v, label: l })),
-            ]}
-          />
+          <Label>ประเภทช่องทาง</Label>
+          <div className="mt-1">
+            <CustomSelect
+              value={watch("channelType") ?? ""}
+              onChange={(v) => setValue("channelType", v as any, { shouldDirty: true })}
+              options={[
+                { value: "", label: "เลือกประเภท" },
+                ...Object.entries(CHANNEL_TYPE_LABELS).map(([v, l]) => ({ value: v, label: l })),
+              ]}
+            />
+          </div>
         </div>
       )}
 
       {accountCategory === "petty_cash" && (
         <div>
-          <label className={labelCls}>ชื่อผู้รับผิดชอบ</label>
-          <input {...register("custodianName")} className={inputCls} placeholder="ชื่อผู้ดูแลเงินสดย่อย" />
+          <Label htmlFor="custodianName">ชื่อผู้รับผิดชอบ</Label>
+          <Input
+            id="custodianName"
+            {...register("custodianName")}
+            placeholder="ชื่อผู้ดูแลเงินสดย่อย"
+            className="mt-1"
+          />
         </div>
       )}
 
       {accountCategory === "reserve" && (
         <div>
-          <label className={labelCls}>วัตถุประสงค์</label>
-          <input {...register("purpose")} className={inputCls} placeholder="ระบุวัตถุประสงค์" />
+          <Label htmlFor="purpose">วัตถุประสงค์</Label>
+          <Input id="purpose" {...register("purpose")} placeholder="ระบุวัตถุประสงค์" className="mt-1" />
         </div>
       )}
 
       {chartAccounts.length > 0 && (
         <div>
-          <label className={labelCls}>เชื่อมบัญชีผังบัญชี</label>
-          <CustomSelect
-            value={watch("linkedAccountId") ?? ""}
-            onChange={(v) => setValue("linkedAccountId", v, { shouldDirty: true })}
-            options={[
-              { value: "", label: "ไม่เชื่อม" },
-              ...chartAccounts.map((a) => ({ value: a.id, label: a.label })),
-            ]}
-          />
+          <Label>เชื่อมบัญชีผังบัญชี</Label>
+          <div className="mt-1">
+            <CustomSelect
+              value={watch("linkedAccountId") ?? ""}
+              onChange={(v) => setValue("linkedAccountId", v, { shouldDirty: true })}
+              options={[
+                { value: "", label: "ไม่เชื่อม" },
+                ...chartAccounts.map((a) => ({ value: a.id, label: a.label })),
+              ]}
+            />
+          </div>
         </div>
       )}
 
       <div>
-        <label className={labelCls}>หมายเหตุ</label>
-        <textarea {...register("notes")} className={inputCls} rows={2} placeholder="หมายเหตุ (ถ้ามี)" />
+        <Label htmlFor="notes">หมายเหตุ</Label>
+        <textarea
+          id="notes"
+          {...register("notes")}
+          rows={2}
+          placeholder="หมายเหตุ (ถ้ามี)"
+          className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+        />
       </div>
 
       <div className="flex justify-end">
-        <Button type="submit" isLoading={isPending} className="bg-blue-600 text-white hover:bg-blue-700">
-          บันทึก
+        <Button type="submit" disabled={isPending}>
+          {isPending ? "กำลังบันทึก…" : "บันทึก"}
         </Button>
       </div>
     </form>

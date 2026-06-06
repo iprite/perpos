@@ -683,11 +683,11 @@ export default function AdminUsersPage() {
                   {/* Status badge only */}
                   <div>
                     {!isActive ? (
-                      <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-600">ปิดใช้งาน</span>
+                      <span className="rounded-full bg-red-50 border border-red-200 px-2.5 py-0.5 text-xs font-medium text-red-700">ปิดใช้งาน</span>
                     ) : isPending ? (
-                      <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-600">รอตั้งรหัส</span>
+                      <span className="rounded-full bg-amber-50 border border-amber-200 px-2.5 py-0.5 text-xs font-medium text-amber-700">รอตั้งรหัส</span>
                     ) : (
-                      <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">ใช้งานได้</span>
+                      <span className="rounded-full bg-green-50 border border-green-200 px-2.5 py-0.5 text-xs font-medium text-green-700">ใช้งานได้</span>
                     )}
                   </div>
 

@@ -32,10 +32,10 @@ const ROLE_FULL: Record<OrgRole, string> = {
   owner: "Owner", admin: "Admin", team_lead: "Team lead", team_member: "Team member",
 };
 const ACTION_LABEL: Record<ChangeLogEntry['action'], { text: string; cls: string }> = {
-  enabled:              { text: "เปิดใช้งาน",       cls: "bg-emerald-100 text-emerald-700" },
-  disabled:             { text: "ปิดใช้งาน",        cls: "bg-red-100    text-red-700"     },
-  roles_updated:        { text: "แก้ไข Role",        cls: "bg-blue-100   text-blue-700"    },
-  menu_roles_updated:   { text: "แก้ไข Menu Role",   cls: "bg-purple-100 text-purple-700"  },
+  enabled:              { text: "เปิดใช้งาน",       cls: "bg-emerald-50 border border-emerald-200 text-emerald-700" },
+  disabled:             { text: "ปิดใช้งาน",        cls: "bg-red-50 border border-red-200 text-red-700"            },
+  roles_updated:        { text: "แก้ไข Role",        cls: "bg-blue-50 border border-blue-200 text-blue-700"         },
+  menu_roles_updated:   { text: "แก้ไข Menu Role",   cls: "bg-purple-50 border border-purple-200 text-purple-700"   },
 };
 
 // ─── Toggle switch ────────────────────────────────────────────────────────────

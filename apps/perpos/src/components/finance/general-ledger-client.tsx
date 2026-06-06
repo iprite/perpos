@@ -2,6 +2,7 @@
 
 import React, { useState, useTransition } from "react";
 import { CustomSelect } from "@/components/ui/custom-select";
+import { Label } from "@/components/ui/label";
 import { getGeneralLedgerAction, type LedgerRow } from "@/lib/finance/report-actions";
 import { ThaiDatePicker } from "@/components/ui/thai-date-picker";
 
@@ -43,7 +44,7 @@ export function GeneralLedgerClient({
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex items-center gap-2">
-          <label className="text-sm font-medium text-slate-700">บัญชี</label>
+          <Label>บัญชี</Label>
           <CustomSelect
             value={accountId}
             onChange={(v) => { setAccountId(v); reload(v, startDate, endDate); }}
@@ -55,14 +56,14 @@ export function GeneralLedgerClient({
           />
         </div>
         <div className="flex items-center gap-2">
-          <label className="text-sm font-medium text-slate-700">ตั้งแต่</label>
+          <Label>ตั้งแต่</Label>
           <ThaiDatePicker
             value={startDate}
             onChange={(v) => { setStartDate(v); reload(accountId, v, endDate); }}
           />
         </div>
         <div className="flex items-center gap-2">
-          <label className="text-sm font-medium text-slate-700">ถึง</label>
+          <Label>ถึง</Label>
           <ThaiDatePicker
             value={endDate}
             onChange={(v) => { setEndDate(v); reload(accountId, startDate, v); }}

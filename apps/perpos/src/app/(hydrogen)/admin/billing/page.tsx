@@ -57,11 +57,11 @@ const PAYMENT_OPTIONS = [
 ];
 
 const PAYMENT_CLS: Record<string, string> = {
-  trial:     'bg-blue-100 text-blue-700',
-  active:    'bg-green-100 text-green-700',
-  pending:   'bg-yellow-100 text-yellow-700',
-  overdue:   'bg-red-100 text-red-700',
-  cancelled: 'bg-gray-100 text-gray-500',
+  trial:     'bg-blue-50 border border-blue-200 text-blue-700',
+  active:    'bg-green-50 border border-green-200 text-green-700',
+  pending:   'bg-amber-50 border border-amber-200 text-amber-700',
+  overdue:   'bg-red-50 border border-red-200 text-red-700',
+  cancelled: 'bg-gray-50 border border-gray-200 text-gray-500',
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -424,7 +424,7 @@ export default function AdminBillingPage() {
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-semibold text-gray-900 text-sm">{o.org_name}</span>
                       <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${payCls}`}>{PAYMENT_OPTIONS.find((p) => p.value === o.payment_status)?.label ?? o.payment_status}</span>
-                      {o.is_expired && <span className="rounded-full px-2 py-0.5 text-xs font-medium bg-red-100 text-red-700">หมดอายุ</span>}
+                      {o.is_expired && <span className="rounded-full px-2.5 py-0.5 text-xs font-medium bg-red-50 border border-red-200 text-red-700">หมดอายุ</span>}
                     </div>
                     <div className="text-xs text-gray-400 mt-0.5">
                       {o.monthly_price !== null

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useTransition } from "react";
+import { Label } from "@/components/ui/label";
 import { getBalanceSheetAction, type BalanceSheetRow } from "@/lib/finance/report-actions";
 import { ThaiDatePicker } from "@/components/ui/thai-date-picker";
 
@@ -46,7 +47,7 @@ export function BalanceSheetClient({ organizationId, initialDate, initialRows }:
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex items-center gap-2">
-          <label className="text-sm font-medium text-slate-700">ณ วันที่</label>
+          <Label>ณ วันที่</Label>
           <ThaiDatePicker
             value={asOfDate}
             onChange={(v) => { setAsOfDate(v); reload(v); }}

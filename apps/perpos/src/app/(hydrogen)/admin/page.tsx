@@ -28,11 +28,11 @@ interface DashboardData {
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 const GRADE_COLOR: Record<string, string> = {
-  A: 'bg-green-100  text-green-700  border-green-200',
-  B: 'bg-blue-100   text-blue-700   border-blue-200',
-  C: 'bg-yellow-100 text-yellow-700 border-yellow-200',
-  D: 'bg-orange-100 text-orange-700 border-orange-200',
-  F: 'bg-red-100    text-red-700    border-red-200',
+  A: 'bg-green-50  border border-green-200  text-green-700',
+  B: 'bg-blue-50   border border-blue-200   text-blue-700',
+  C: 'bg-yellow-50 border border-yellow-200 text-yellow-700',
+  D: 'bg-orange-50 border border-orange-200 text-orange-700',
+  F: 'bg-red-50    border border-red-200    text-red-700',
 };
 
 function fmtNum(n: number) { return n.toLocaleString(); }
@@ -109,7 +109,7 @@ export default function AdminDashboardPage() {
   const apiStatus  = api.error_rate_pct > 5 ? 'critical' : api.error_rate_pct > 1 ? 'warning' : 'ok';
   const hookStatus = webhooks.fail_rate_pct > 10 ? 'critical' : webhooks.fail_rate_pct > 3 ? 'warning' : 'ok';
 
-  const statusColor = { ok: 'bg-green-100 text-green-600', warning: 'bg-yellow-100 text-yellow-600', critical: 'bg-red-100 text-red-600' } as const;
+  const statusColor = { ok: 'bg-green-50 border border-green-200 text-green-700', warning: 'bg-amber-50 border border-amber-200 text-amber-700', critical: 'bg-red-50 border border-red-200 text-red-700' } as const;
 
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-6">
@@ -236,8 +236,8 @@ export default function AdminDashboardPage() {
                 <div key={o.org_id} className="flex items-center justify-between py-1.5 border-b border-gray-100 last:border-0">
                   <span className="text-sm text-gray-800">{o.org_name}</span>
                   <div className="flex gap-1.5">
-                    {o.expired && <span className="rounded-full px-2 py-0.5 text-xs font-medium bg-red-100 text-red-700">หมดอายุ</span>}
-                    {o.overdue && <span className="rounded-full px-2 py-0.5 text-xs font-medium bg-orange-100 text-orange-700">ค้างชำระ</span>}
+                    {o.expired && <span className="rounded-full px-2.5 py-0.5 text-xs font-medium bg-red-50 border border-red-200 text-red-700">หมดอายุ</span>}
+                    {o.overdue && <span className="rounded-full px-2.5 py-0.5 text-xs font-medium bg-orange-50 border border-orange-200 text-orange-700">ค้างชำระ</span>}
                   </div>
                 </div>
               ))}

@@ -324,7 +324,7 @@ export default function JaquarDashboardPage() {
                     </div>
                     <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
                       <div
-                        className="bg-indigo-600 h-2 rounded-full transition-all duration-500"
+                        className="bg-indigo-600 h-2 rounded-full transition-[width] duration-300"
                         style={{ width: `${percentage}%` }}
                       />
                     </div>

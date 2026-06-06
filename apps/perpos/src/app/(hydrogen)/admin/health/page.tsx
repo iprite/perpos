@@ -38,11 +38,11 @@ interface OrgHealth {
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 const GRADE_COLOR: Record<Grade, string> = {
-  A: 'bg-green-100  text-green-700  border-green-200',
-  B: 'bg-blue-100   text-blue-700   border-blue-200',
-  C: 'bg-yellow-100 text-yellow-700 border-yellow-200',
-  D: 'bg-orange-100 text-orange-700 border-orange-200',
-  F: 'bg-red-100    text-red-700    border-red-200',
+  A: 'bg-green-50  border border-green-200  text-green-700',
+  B: 'bg-blue-50   border border-blue-200   text-blue-700',
+  C: 'bg-yellow-50 border border-yellow-200 text-yellow-700',
+  D: 'bg-orange-50 border border-orange-200 text-orange-700',
+  F: 'bg-red-50    border border-red-200    text-red-700',
 };
 
 const SCORE_BAR: Record<Grade, string> = {
@@ -265,7 +265,7 @@ export default function HealthPage() {
                     <div className="flex items-center gap-2">
                       <span className="font-semibold text-gray-900">{o.org_name}</span>
                       {o.maintenance_mode && (
-                        <span className="inline-flex items-center gap-1 text-xs bg-orange-100 text-orange-600 rounded-full px-2 py-0.5">
+                        <span className="inline-flex items-center gap-1 text-xs bg-orange-50 border border-orange-200 text-orange-700 rounded-full px-2.5 py-0.5">
                           <Wrench className="w-3 h-3" />Maintenance
                         </span>
                       )}

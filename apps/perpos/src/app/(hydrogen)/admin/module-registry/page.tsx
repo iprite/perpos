@@ -723,10 +723,10 @@ export default function ModuleRegistryPage() {
 
                             {/* LINE badge */}
                             {u.line_connected
-                              ? <span className="flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-xs text-green-700">
+                              ? <span className="flex items-center gap-1 rounded-full bg-green-50 border border-green-200 px-2.5 py-0.5 text-xs text-green-700">
                                   <Link2 className="h-3 w-3" /> LINE
                                 </span>
-                              : <span className="flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-400">
+                              : <span className="flex items-center gap-1 rounded-full bg-slate-50 border border-slate-200 px-2.5 py-0.5 text-xs text-slate-500">
                                   <Link2Off className="h-3 w-3" /> ยังไม่เชื่อม
                                 </span>
                             }
