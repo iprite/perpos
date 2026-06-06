@@ -61,3 +61,7 @@ dist/
 
 # legacy folder (not part of deploy)
 web_legacy/
+
+# agent skills cache
+.skills/
+

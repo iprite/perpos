@@ -1,0 +1,45 @@
+{
+  "repository": "https://github.com/cosmicstack-labs/mercury-agent-skills",
+  "skills": [
+    {
+      "category": "backend",
+      "slug": "api-design",
+      "description": "API Design patterns and idempotency"
+    },
+    {
+      "category": "backend",
+      "slug": "database-design",
+      "description": "Database design and PostgreSQL schemas"
+    },
+    {
+      "category": "frontend",
+      "slug": "nextjs-patterns",
+      "description": "Next.js routing, SSR, and page design"
+    },
+    {
+      "category": "frontend",
+      "slug": "react-patterns",
+      "description": "React component state and design patterns"
+    },
+    {
+      "category": "frontend",
+      "slug": "tailwind-css",
+      "description": "Tailwind CSS styling and responsive layout systems"
+    },
+    {
+      "category": "security",
+      "slug": "security-audit",
+      "description": "Security audit and secure coding practices"
+    },
+    {
+      "category": "development",
+      "slug": "git-workflow",
+      "description": "Clean git commits, flow, and trunk-based development"
+    },
+    {
+      "category": "devops",
+      "slug": "monitoring-observability",
+      "description": "Metrics collection, error logging, and audit logs shipping"
+    }
+  ]
+}

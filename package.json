@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "turbo dev --filter=starter",
     "gen-module": "node scripts/gen-module.mjs",
+    "skills:install": "node scripts/manage-skills.mjs",
     "lint": "turbo lint --filter=starter",
     "type:check": "turbo type:check --filter=starter",
     "build": "turbo build --filter=starter",

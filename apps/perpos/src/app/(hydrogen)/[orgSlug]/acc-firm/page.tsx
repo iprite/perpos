@@ -131,6 +131,11 @@ export default function AccFirmDashboardPage() {
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
             {loading ? 'กำลังโหลด…' : 'รีเฟรช'}
           </Button>
+          <Link href={`/${orgSlug}/acc-firm/ocr`}>
+            <Button size="sm" variant="outline" className="gap-1.5 text-teal-700 border-teal-200 hover:bg-teal-50">
+              <FileText className="w-3.5 h-3.5" /> ตรวจทานบิล AI (OCR)
+            </Button>
+          </Link>
           <Link href={`/${orgSlug}/acc-firm/clients`}>
             <Button size="sm" className="gap-1.5">
               <Calculator className="w-3.5 h-3.5" /> จัดการ Clients
@@ -317,22 +322,40 @@ export default function AccFirmDashboardPage() {
         )}
       </div>
 
-      {/* ── Bottom quick link ─────────────────────────────────────────────── */}
-      <Link
-        href={`/${orgSlug}/acc-firm/clients`}
-        className="bg-white rounded-xl border p-4 flex items-center justify-between hover:border-teal-300 hover:shadow-sm transition-all group"
-      >
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-lg bg-teal-100 flex items-center justify-center">
-            <Calculator className="w-5 h-5 text-teal-600" />
+      {/* ── Bottom quick links ────────────────────────────────────────────── */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Link
+          href={`/${orgSlug}/acc-firm/ocr`}
+          className="bg-white rounded-xl border p-4 flex items-center justify-between hover:border-teal-300 hover:shadow-sm transition-all group"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-lg bg-teal-50 border border-teal-100 flex items-center justify-center">
+              <FileText className="w-5 h-5 text-teal-600" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-slate-800">ระบบบันทึกบัญชีอัจฉริยะ (OCR)</p>
+              <p className="text-xs text-slate-400">ตรวจทาน ตรวจสอบคู่บัญชี และอนุมัติเอกสาร AI</p>
+            </div>
           </div>
-          <div>
-            <p className="text-sm font-semibold text-slate-800">จัดการ Client Orgs</p>
-            <p className="text-xs text-slate-400">เพิ่ม / แก้ไข / ดูรายละเอียด engagement</p>
+          <ArrowRight className="w-4 h-4 text-slate-300 group-hover:text-teal-400 transition-colors" />
+        </Link>
+
+        <Link
+          href={`/${orgSlug}/acc-firm/clients`}
+          className="bg-white rounded-xl border p-4 flex items-center justify-between hover:border-teal-300 hover:shadow-sm transition-all group"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-lg bg-teal-100 flex items-center justify-center">
+              <Calculator className="w-5 h-5 text-teal-600" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-slate-800">จัดการ Client Orgs</p>
+              <p className="text-xs text-slate-400">เพิ่ม / แก้ไข / ดูรายละเอียด engagement</p>
+            </div>
           </div>
-        </div>
-        <ArrowRight className="w-4 h-4 text-slate-300 group-hover:text-teal-400 transition-colors" />
-      </Link>
+          <ArrowRight className="w-4 h-4 text-slate-300 group-hover:text-teal-400 transition-colors" />
+        </Link>
+      </div>
     </div>
   );
 }
