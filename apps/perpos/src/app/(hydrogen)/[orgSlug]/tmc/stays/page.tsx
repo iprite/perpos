@@ -99,7 +99,9 @@ const emptyForm = {
   // guest (add only)
   firstName: '', lastName: '', nickname: '', tel: '',
   // stay
-  propertyCode: '', checkIn: '', checkOut: '',
+  propertyCode: '',
+  propertyCodes: [] as string[],
+  checkIn: '', checkOut: '',
   checkInTime: '15:00', checkOutTime: '12:00',
   bookingChannel: 'Line', stayType: 'paid',
   roomRate: '', promotionPct: '',
@@ -208,6 +210,7 @@ export default function TmcStaysPage() {
       nickname:           stay.tmc_guests?.nickname    ?? '',
       tel:                stay.tmc_guests?.tel         ?? '',
       propertyCode:       stay.property_code           ?? '',
+      propertyCodes:      stay.property_code            ? [stay.property_code] : [],
       checkIn:            stay.check_in,
       checkOut:           stay.check_out,
       checkInTime:        stay.check_in_time           ?? '15:00',
@@ -239,7 +242,8 @@ export default function TmcStaysPage() {
 
   // ── Save (add or edit) ─────────────────────────────────────────────────────
   async function handleSave() {
-    if (!form.propertyCode || !form.checkIn || !form.checkOut) return;
+    const hasProperty = editingStay ? !!form.propertyCode : form.propertyCodes.length > 0;
+    if (!hasProperty || !form.checkIn || !form.checkOut) return;
     if (!editingStay && !form.firstName) return;
     setSaving(true); setFormError('');
     try {
@@ -331,9 +335,41 @@ export default function TmcStaysPage() {
       <div>
         <p className="text-sm font-semibold text-slate-700 mb-3">🏠 ข้อมูลการเข้าพัก</p>
         <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1.5">
-            <Label>แปลง *</Label>
-            <CustomSelect value={form.propertyCode} onChange={v => setForm(f => ({ ...f, propertyCode: v }))} options={PROPERTY_FORM_OPTIONS} />
+          <div className="col-span-2 space-y-1.5">
+            <Label>แปลงที่จอง * {!isEditMode && <span className="text-xs text-slate-400 font-normal">(เลือกได้มากกว่า 1 แปลง)</span>}</Label>
+            <div className="grid grid-cols-4 sm:grid-cols-7 gap-2 mt-1">
+              {PROPERTY_CODES.map(code => {
+                const isSelected = isEditMode
+                  ? form.propertyCode === code
+                  : form.propertyCodes.includes(code);
+                return (
+                  <button
+                    key={code}
+                    type="button"
+                    onClick={() => {
+                      if (isEditMode) {
+                        setForm(f => ({ ...f, propertyCode: code }));
+                      } else {
+                        setForm(f => {
+                          const exist = f.propertyCodes.includes(code);
+                          const next = exist
+                            ? f.propertyCodes.filter(c => c !== code)
+                            : [...f.propertyCodes, code];
+                          return { ...f, propertyCodes: next };
+                        });
+                      }
+                    }}
+                    className={`px-3 py-2 text-sm font-medium rounded-lg border text-center transition-all ${
+                      isSelected
+                        ? 'bg-blue-600 border-blue-600 text-white shadow-sm'
+                        : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                    }`}
+                  >
+                    {code}
+                  </button>
+                );
+              })}
+            </div>
           </div>
           <div className="space-y-1.5">
             <Label>ประเภท</Label>
@@ -622,7 +658,7 @@ export default function TmcStaysPage() {
             <Button variant="outline" onClick={() => { setShowForm(false); setEditingStay(null); }}>ยกเลิก</Button>
             <Button
               onClick={handleSave}
-              disabled={saving || !form.propertyCode || !form.checkIn || !form.checkOut || (!isEditMode && !form.firstName)}>
+              disabled={saving || (isEditMode ? !form.propertyCode : form.propertyCodes.length === 0) || !form.checkIn || !form.checkOut || (!isEditMode && !form.firstName)}>
               {saving ? 'กำลังบันทึก…' : isEditMode ? 'บันทึกการแก้ไข' : 'บันทึก'}
             </Button>
           </DialogFooter>

@@ -75,6 +75,9 @@ pnpm lint
 
 # Build
 pnpm build
+
+# อัปเดต Knowledge Graph (Graphify) เพื่อให้ AI Agents เข้าใจโครงสร้างโค้ดล่าสุด
+.venv/bin/python3 -m graphify update .
 ```
 
 ---
@@ -589,3 +592,17 @@ CREATE POLICY "ai_worker_write_reports_only"
   WITH CHECK (true);  -- service role ของ AI worker เขียนได้เฉพาะตารางนี้
 -- ตารางอื่นไม่มี policy เปิด → INSERT/UPDATE/DELETE ถูก deny อัตโนมัติ
 ```
+
+---
+
+## Knowledge Graph (Graphify)
+
+โปรเจกต์นี้ใช้ **Graphify** ในการสร้างแผนภาพความสัมพันธ์และโครงสร้างของ codebase เพื่อช่วยให้ AI Agents (เช่น Antigravity) สามารถวิเคราะห์ ทำความเข้าใจ และแก้ไขระบบ Monorepo ได้อย่างถูกต้อง แม่นยำ และประหยัด token
+
+*   **ผลลัพธ์ของ Graph**: จะอยู่ในโฟลเดอร์ `graphify-out/` ประกอบด้วย `graph.json`, `GRAPH_REPORT.md` และ `graph.html` (สำหรับเปิดดูความสัมพันธ์เชิงแผนภาพบน browser)
+*   **กฎการอัปเดต**: ทุกครั้งที่มีการสร้างโมดูลใหม่, ย้ายโครงสร้างโฟลเดอร์ หรืออัปเดตโค้ดครั้งใหญ่ **ต้องสั่งรันอัปเดต Graph เสมอ** เพื่อให้ฐานข้อมูลความรู้ของ Agent เป็นปัจจุบัน ด้วยคำสั่ง:
+    ```bash
+    .venv/bin/python3 -m graphify update .
+    ```
+    *(ไม่มีค่าใช้จ่าย API ของ LLM เนื่องจากเป็นการดึงโครงสร้างแบบ AST ท้องถิ่น)*
+

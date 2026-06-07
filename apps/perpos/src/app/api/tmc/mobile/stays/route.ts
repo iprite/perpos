@@ -55,10 +55,20 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({})) as Record<string, unknown>;
   const admin = createAdminClient();
 
-  const propertyCode = String(body.propertyCode ?? '');
-  const { data: prop } = propertyCode
-    ? await admin.from('tmc_properties').select('id').eq('org_id', TMC_ORG_ID).eq('code', propertyCode).maybeSingle()
+  // Support either body.propertyCodes (array) or body.propertyCode (single string)
+  const propertyCodes: string[] = Array.isArray(body.propertyCodes)
+    ? body.propertyCodes.map(String)
+    : body.propertyCode
+      ? [String(body.propertyCode)]
+      : [];
+
+  // Fetch properties matching the codes
+  const { data: props } = propertyCodes.length > 0
+    ? await admin.from('tmc_properties').select('id, code').eq('org_id', TMC_ORG_ID).in('code', propertyCodes)
     : { data: null };
+
+  const propMap = new Map<string, string>();
+  props?.forEach(p => propMap.set(p.code, p.id));
 
   // upsert guest
   let guestId: string | null = null;
@@ -87,43 +97,62 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  const { data, error } = await admin
-    .from('tmc_stays')
-    .insert({
+  // If no property codes provided, insert a single empty row as fallback
+  const count = propertyCodes.length || 1;
+  const codesToInsert = propertyCodes.length > 0 ? propertyCodes : [''];
+
+  // Calculate divided room rate and deposit amount
+  const roomRate = body.roomRate ? Number(body.roomRate) : null;
+  const depositAmount = body.depositAmount ? Number(body.depositAmount) : null;
+
+  const dividedRate = roomRate !== null ? Number((roomRate / count).toFixed(2)) : null;
+  const dividedDeposit = depositAmount !== null ? Number((depositAmount / count).toFixed(2)) : null;
+
+  const rows = codesToInsert.map((code, idx) => {
+    const isFirst = idx === 0;
+    return {
       org_id: TMC_ORG_ID,
       guest_id: guestId,
-      property_id: (prop as { id: string } | null)?.id ?? null,
-      property_code: propertyCode || null,
+      property_id: code ? (propMap.get(code) ?? null) : null,
+      property_code: code || null,
       check_in: body.checkIn ?? new Date().toISOString().slice(0, 10),
       check_out: body.checkOut ?? null,
       check_in_time: body.checkInTime ?? null,
       check_out_time: body.checkOutTime ?? null,
       booking_channel: body.bookingChannel ?? null,
       stay_type: body.stayType ?? 'paid',
-      room_rate: body.roomRate ? Number(body.roomRate) : null,
+      room_rate: dividedRate,
       promotion_pct: body.promotionPct ? Number(body.promotionPct) : null,
-      deposit_amount: body.depositAmount ? Number(body.depositAmount) : null,
+      deposit_amount: dividedDeposit,
       group_size: body.groupSize ? Number(body.groupSize) : null,
       group_type: body.groupType ?? null,
-      food_amount: body.foodAmount ? Number(body.foodAmount) : null,
-      drink_amount: body.drinkAmount ? Number(body.drinkAmount) : null,
-      mookata_amount: body.mookataAmount ? Number(body.mookataAmount) : null,
-      bbq_amount: body.bbqAmount ? Number(body.bbqAmount) : null,
-      activity_detail: body.activityDetail ?? null,
-      feedback: body.feedback ?? null,
-      issues: body.issues ?? null,
-      damaged_items: body.damagedItems ?? null,
+      // Extra charges and notes only on first stay to avoid duplication
+      food_amount: isFirst && body.foodAmount ? Number(body.foodAmount) : null,
+      drink_amount: isFirst && body.drinkAmount ? Number(body.drinkAmount) : null,
+      mookata_amount: isFirst && body.mookataAmount ? Number(body.mookataAmount) : null,
+      bbq_amount: isFirst && body.bbqAmount ? Number(body.bbqAmount) : null,
+      activity_detail: isFirst ? (body.activityDetail ?? null) : null,
+      feedback: isFirst ? (body.feedback ?? null) : null,
+      issues: isFirst ? (body.issues ?? null) : null,
+      damaged_items: isFirst ? (body.damagedItems ?? null) : null,
       created_by: auth.profileId,
-    })
-    .select(`*, tmc_guests(first_name, last_name, nickname, tel)`)
-    .single();
+    };
+  });
+
+  const { data, error } = await admin
+    .from('tmc_stays')
+    .insert(rows)
+    .select(`*, tmc_guests(first_name, last_name, nickname, tel)`);
 
   if (error) {
     void recordMetric({ orgId: TMC_ORG_ID, route: '/api/tmc/mobile/stays', method: req.method, status: 500, t0 });
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
+
+  const savedData = data && data.length > 0 ? data[0] : null;
+
   void recordMetric({ orgId: TMC_ORG_ID, route: '/api/tmc/mobile/stays', method: req.method, status: 201, t0 });
-  return NextResponse.json(data, { status: 201 });
+  return NextResponse.json(savedData, { status: 201 });
 }
 
 /** PATCH { t, id, ...fields } → อัปเดต stay */

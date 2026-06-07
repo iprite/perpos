@@ -86,11 +86,11 @@ function CheckinForm() {
   const [saved,    setSaved]    = useState<{ id: string; editUrl: string } | null>(null);
 
   // form state
-  const [firstName,      setFirstName]      = useState('');
-  const [lastName,       setLastName]       = useState('');
-  const [tel,            setTel]            = useState('');
-  const [propertyCode,   setPropertyCode]   = useState('');
-  const [checkIn,        setCheckIn]        = useState(new Date().toISOString().slice(0, 10));
+  const [firstName,          setFirstName]          = useState('');
+  const [lastName,           setLastName]           = useState('');
+  const [tel,                setTel]                = useState('');
+  const [selectedProperties, setSelectedProperties] = useState<string[]>([]);
+  const [checkIn,            setCheckIn]            = useState(new Date().toISOString().slice(0, 10));
   const [checkOut,       setCheckOut]       = useState('');
   const [bookingChannel, setBookingChannel] = useState('Line');
   const [stayType,       setStayType]       = useState('paid');
@@ -133,7 +133,11 @@ function CheckinForm() {
             setLastName(s.tmc_guests.last_name ?? '');
             setTel(s.tmc_guests.tel ?? '');
           }
-          setPropertyCode(s.property_code ?? '');
+          if (s.property_code) {
+            setSelectedProperties([s.property_code]);
+          } else {
+            setSelectedProperties([]);
+          }
           setCheckIn(s.check_in ?? '');
           setCheckOut(s.check_out ?? '');
           setBookingChannel(s.booking_channel ?? 'Line');
@@ -165,7 +169,7 @@ function CheckinForm() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!propertyCode) { alert('กรุณาเลือกแปลง'); return; }
+    if (selectedProperties.length === 0) { alert('กรุณาเลือกแปลง'); return; }
     if (!firstName.trim()) { alert('กรุณาระบุชื่อแขก'); return; }
 
     setSaving(true);
@@ -173,7 +177,7 @@ function CheckinForm() {
       firstName: firstName.trim(),
       lastName: lastName.trim() || undefined,
       tel: tel.trim() || undefined,
-      propertyCode,
+      propertyCodes: selectedProperties,
       checkIn,
       checkOut: checkOut || undefined,
       bookingChannel,
@@ -194,7 +198,9 @@ function CheckinForm() {
 
     const url = '/api/tmc/mobile/stays';
     const method = editId ? 'PATCH' : 'POST';
-    const body = editId ? JSON.stringify({ ...payload, id: editId }) : JSON.stringify(payload);
+    const body = editId
+      ? JSON.stringify({ ...payload, id: editId, propertyCode: selectedProperties[0] || null })
+      : JSON.stringify(payload);
 
     const res = await fetch(url, { method, headers: authHeader(), body });
     const data = await res.json() as Stay & { error?: string };
@@ -258,7 +264,7 @@ function CheckinForm() {
               onClick={() => {
                 setSaved(null);
                 if (!editId) {
-                  setFirstName(''); setTel(''); setPropertyCode(''); setRoomRate('');
+                  setFirstName(''); setTel(''); setSelectedProperties([]); setRoomRate('');
                   setCheckOut(''); setFoodAmount(''); setDrinkAmount('');
                   setMookataAmount(''); setBbqAmount(''); setActivityDetail('');
                   setFeedback(''); setIssues(''); setDamagedItems('');
@@ -359,17 +365,36 @@ function CheckinForm() {
           <h2 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
             <span>🏠</span> การเข้าพัก
           </h2>
-          <Field label="แปลง" required>
-            <NativeSelect
-              className="w-full rounded-xl border-slate-200 bg-white px-4 py-3 text-sm"
-              value={propertyCode}
-              onChange={e => setPropertyCode(e.target.value)}
-            >
-              <option value="">— เลือกแปลง —</option>
-              {info?.properties.map(p => (
-                <option key={p.id} value={p.code}>{p.code}{p.name ? ` — ${p.name}` : ''}</option>
-              ))}
-            </NativeSelect>
+          <Field label="แปลงที่จอง (เลือกได้มากกว่า 1 แปลง)" required>
+            <div className="grid grid-cols-3 gap-2 mt-1">
+              {info?.properties.map(p => {
+                const isSelected = selectedProperties.includes(p.code);
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => {
+                      if (editId) {
+                        setSelectedProperties([p.code]);
+                      } else {
+                        setSelectedProperties(prev =>
+                          prev.includes(p.code)
+                            ? prev.filter(c => c !== p.code)
+                            : [...prev, p.code]
+                        );
+                      }
+                    }}
+                    className={`px-3 py-2.5 text-sm font-medium rounded-xl border text-center transition-all ${
+                      isSelected
+                        ? 'bg-blue-600 border-blue-600 text-white shadow-sm'
+                        : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                    }`}
+                  >
+                    {p.code}
+                  </button>
+                );
+              })}
+            </div>
           </Field>
           <div className="grid grid-cols-2 gap-3">
             <Field label="วันเข้าพัก" required>

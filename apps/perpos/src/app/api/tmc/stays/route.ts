@@ -119,12 +119,20 @@ export async function POST(req: NextRequest) {
   if (!auth.ok) return auth.res;
 
   const admin = createAdminClient();
-  const propertyCode = String(body.propertyCode ?? '');
+  // Support either body.propertyCodes (array) or body.propertyCode (single string)
+  const propertyCodes: string[] = Array.isArray(body.propertyCodes)
+    ? body.propertyCodes.map(String)
+    : body.propertyCode
+      ? [String(body.propertyCode)]
+      : [];
 
-  // Resolve property_id
-  const { data: prop } = propertyCode
-    ? await admin.from('tmc_properties').select('id').eq('org_id', orgId).eq('code', propertyCode).maybeSingle()
+  // Resolve property codes to IDs
+  const { data: props } = propertyCodes.length > 0
+    ? await admin.from('tmc_properties').select('id, code').eq('org_id', orgId).in('code', propertyCodes)
     : { data: null };
+
+  const propMap = new Map<string, string>();
+  props?.forEach(p => propMap.set(p.code, p.id));
 
   // Upsert guest
   let guestId   = (body.guestId as string | null) ?? null;
@@ -181,80 +189,107 @@ export async function POST(req: NextRequest) {
   const checkIn  = String(body.checkIn  ?? '');
   const checkOut = String(body.checkOut ?? '');
 
-  const { data, error } = await admin
-    .from('tmc_stays')
-    .insert({
+  // If no property codes provided, insert a single empty row as fallback
+  const count = propertyCodes.length || 1;
+  const codesToInsert = propertyCodes.length > 0 ? propertyCodes : [''];
+
+  const roomRate = body.roomRate ? Number(body.roomRate) : null;
+  const promotionPct = body.promotionPct ? Number(body.promotionPct) : null;
+  const depositAmount = body.depositAmount ? Number(body.depositAmount) : null;
+
+  const dividedRate = roomRate !== null ? Number((roomRate / count).toFixed(2)) : null;
+  const dividedDeposit = depositAmount !== null ? Number((depositAmount / count).toFixed(2)) : null;
+  const dividedReceived = depositReceived !== null ? Number((depositReceived / count).toFixed(2)) : null;
+  const dividedReturned = depositReturned !== null ? Number((depositReturned / count).toFixed(2)) : null;
+
+  const rows = codesToInsert.map((code, idx) => {
+    const isFirst = idx === 0;
+    return {
       org_id:                orgId,
       guest_id:              guestId,
-      property_id:           prop?.id ?? null,
-      property_code:         propertyCode || null,
+      property_id:           code ? (propMap.get(code) ?? null) : null,
+      property_code:         code || null,
       check_in:              checkIn,
       check_out:             checkOut,
       check_in_time:         body.checkInTime        ?? null,
       check_out_time:        body.checkOutTime       ?? null,
       booking_channel:       body.bookingChannel     ?? null,
       stay_type:             body.stayType           ?? 'paid',
-      room_rate:             body.roomRate           ? Number(body.roomRate)           : null,
-      promotion_pct:         body.promotionPct       ? Number(body.promotionPct)       : null,
-      deposit_amount:        body.depositAmount      ? Number(body.depositAmount)      : null,
-      deposit_received:      depositReceived,
-      deposit_returned:      depositReturned,
-      deposit_account_id:    depositReceived || depositReturned ? depositAccountId : null,
+      room_rate:             dividedRate,
+      promotion_pct:         promotionPct,
+      deposit_amount:        dividedDeposit,
+      deposit_received:      dividedReceived,
+      deposit_returned:      dividedReturned,
+      deposit_account_id:    dividedReceived || dividedReturned ? depositAccountId : null,
       deposit_received_date: depositReceivedDate,
       deposit_returned_date: depositReturnedDate,
       group_size:            body.groupSize          ? Number(body.groupSize)          : null,
       group_type:            body.groupType          ?? null,
       butler_service_visit:  body.butlerServiceVisit ?? null,
-      food_amount:           body.foodAmount         ? Number(body.foodAmount)         : null,
-      drink_amount:          body.drinkAmount        ? Number(body.drinkAmount)        : null,
-      mookata_amount:        body.mookataAmount      ? Number(body.mookataAmount)      : null,
-      bbq_amount:            body.bbqAmount          ? Number(body.bbqAmount)          : null,
-      activity_detail:       body.activityDetail     ?? null,
-      feedback:              body.feedback           ?? null,
-      issues:                body.issues             ?? null,
-      damaged_items:         body.damagedItems       ?? null,
+      // Extra charges and notes only on first stay to avoid duplication
+      food_amount:           isFirst && body.foodAmount         ? Number(body.foodAmount)         : null,
+      drink_amount:          isFirst && body.drinkAmount        ? Number(body.drinkAmount)        : null,
+      mookata_amount:        isFirst && body.mookataAmount      ? Number(body.mookataAmount)      : null,
+      bbq_amount:            isFirst && body.bbqAmount          ? Number(body.bbqAmount)          : null,
+      activity_detail:       isFirst ? (body.activityDetail     ?? null) : null,
+      feedback:              isFirst ? (body.feedback           ?? null) : null,
+      issues:                isFirst ? (body.issues             ?? null) : null,
+      damaged_items:         isFirst ? (body.damagedItems       ?? null) : null,
       created_by:            auth.userId,
-    })
-    .select('*, tmc_guests(id, first_name, last_name, nickname, tel)')
-    .single();
+    };
+  });
+
+  const { data, error } = await admin
+    .from('tmc_stays')
+    .insert(rows)
+    .select('*, tmc_guests(id, first_name, last_name, nickname, tel)');
 
   if (error) {
     void recordMetric({ orgId, route: '/api/tmc/stays', method: req.method, status: 500, t0 });
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  // Audit log — fire-and-forget
-  void writeAuditLog({
-    orgId, stayId: data.id, action: 'create',
-    actorId: auth.userId, newData: data as Record<string, unknown>,
-  });
+  // Audit log and Deposit Finance Entries for each stay row
+  if (data && Array.isArray(data)) {
+    for (const stayRow of data) {
+      void writeAuditLog({
+        orgId, stayId: stayRow.id, action: 'create',
+        actorId: auth.userId, newData: stayRow as Record<string, unknown>,
+      });
 
-  // Auto-create finance entries for deposit — use explicit deposit date or fall back to check_in/check_out
-  if (depositReceived && depositReceived > 0) {
-    const entryDate = depositReceivedDate || checkIn;
-    if (entryDate) {
-      await createDepositFinanceEntry({
-        orgId, accountId: depositAccountId,
-        entryDate, propertyCode: propertyCode || null,
-        guestName: guestName || 'ลูกค้า', type: 'received',
-        amount: depositReceived, createdBy: auth.userId,
-      });
+      const pCode = stayRow.property_code;
+      const depRec = stayRow.deposit_received;
+      const depRet = stayRow.deposit_returned;
+
+      if (depRec && depRec > 0) {
+        const entryDate = depositReceivedDate || checkIn;
+        if (entryDate) {
+          await createDepositFinanceEntry({
+            orgId, accountId: depositAccountId,
+            entryDate, propertyCode: pCode || null,
+            guestName: guestName || 'ลูกค้า', type: 'received',
+            amount: depRec, createdBy: auth.userId,
+          });
+        }
+      }
+      if (depRet && depRet > 0) {
+        const entryDate = depositReturnedDate || checkOut || checkIn;
+        if (entryDate) {
+          await createDepositFinanceEntry({
+            orgId, accountId: depositAccountId,
+            entryDate, propertyCode: pCode || null,
+            guestName: guestName || 'ลูกค้า', type: 'returned',
+            amount: depRet, createdBy: auth.userId,
+          });
+        }
+      }
     }
   }
-  if (depositReturned && depositReturned > 0) {
-    const entryDate = depositReturnedDate || checkOut || checkIn;
-    if (entryDate) {
-      await createDepositFinanceEntry({
-        orgId, accountId: depositAccountId,
-        entryDate, propertyCode: propertyCode || null,
-        guestName: guestName || 'ลูกค้า', type: 'returned',
-        amount: depositReturned, createdBy: auth.userId,
-      });
-    }
-  }
+
+  const savedData = data && data.length > 0 ? data[0] : null;
 
   void recordMetric({ orgId, route: '/api/tmc/stays', method: req.method, status: 201, t0 });
-  return NextResponse.json(data, { status: 201 });
+  return NextResponse.json(savedData, { status: 201 });
 }
 
 // ── PUT (update) ──────────────────────────────────────────────────────────────
