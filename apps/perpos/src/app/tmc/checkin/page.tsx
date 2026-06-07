@@ -367,7 +367,7 @@ function CheckinForm() {
           </h2>
           <Field label="แปลงที่จอง (เลือกได้มากกว่า 1 แปลง)" required>
             <div className="grid grid-cols-3 gap-2 mt-1">
-              {info?.properties.map(p => {
+              {info?.properties.filter(p => p.code !== 'ส่วนกลาง').map(p => {
                 const isSelected = selectedProperties.includes(p.code);
                 return (
                   <button

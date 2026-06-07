@@ -337,8 +337,8 @@ export default function TmcStaysPage() {
         <div className="grid grid-cols-2 gap-3">
           <div className="col-span-2 space-y-1.5">
             <Label>แปลงที่จอง * {!isEditMode && <span className="text-xs text-slate-400 font-normal">(เลือกได้มากกว่า 1 แปลง)</span>}</Label>
-            <div className="grid grid-cols-4 sm:grid-cols-7 gap-2 mt-1">
-              {PROPERTY_CODES.map(code => {
+            <div className="grid grid-cols-4 sm:grid-cols-6 gap-2 mt-1">
+              {PROPERTY_CODES.filter(code => code !== 'ส่วนกลาง').map(code => {
                 const isSelected = isEditMode
                   ? form.propertyCode === code
                   : form.propertyCodes.includes(code);
