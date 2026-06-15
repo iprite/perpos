@@ -14,7 +14,6 @@ import {
 import { toast } from 'react-hot-toast';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
-type TranscriptLine = { speaker: string; text: string };
 type KeyTopic = { topic: string; details: string };
 type ActionItem = { task: string; assignee: string; deadline: string };
 type TranscriptJson = {
@@ -25,7 +24,6 @@ type TranscriptJson = {
   key_topics?: KeyTopic[];
   decisions?: string[];
   action_items?: ActionItem[];
-  transcript: TranscriptLine[];
 };
 
 type Job = {
@@ -78,8 +76,6 @@ const STATUS_TEXT: Record<string, string> = {
   failed: 'ล้มเหลว',
 };
 
-// สีต่อผู้พูด (≤ 3 สีหลักตาม DESIGN.md)
-const SPEAKER_COLORS = ['text-indigo-700', 'text-emerald-700', 'text-amber-700', 'text-rose-700'];
 
 function fmtDateTime(iso: string) {
   return new Intl.DateTimeFormat('th-TH', {
@@ -263,12 +259,6 @@ export default function AssistantTranscribePage() {
     URL.revokeObjectURL(url);
   };
 
-  const speakerColor = (job: Job, speaker: string) => {
-    const list = job.transcript_json?.speakers ?? [];
-    const idx = list.indexOf(speaker);
-    return SPEAKER_COLORS[(idx >= 0 ? idx : 0) % SPEAKER_COLORS.length];
-  };
-
   // ── Render ──────────────────────────────────────────────────────────────────────
   return (
     <div className="mx-auto max-w-4xl px-4 py-6 sm:px-6">
@@ -436,9 +426,7 @@ export default function AssistantTranscribePage() {
               <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-gray-500">
                 <span>ภาษา: {activeJob.transcript_json.language || 'th'}</span>
                 <span>·</span>
-                <span>ผู้พูด {(activeJob.transcript_json.speakers ?? []).length} คน</span>
-                <span>·</span>
-                <span>{(activeJob.transcript_json.transcript ?? []).length} ช่วงสนทนา</span>
+                <span>ผู้เข้าร่วม {(activeJob.transcript_json.speakers ?? []).length} คน</span>
               </div>
 
               {/* สรุปภาพรวม */}
@@ -504,18 +492,17 @@ export default function AssistantTranscribePage() {
                 </section>
               ) : null}
 
-              {/* บทสนทนา (แยกผู้พูด) */}
-              <section>
-                <h4 className="mb-1.5 text-sm font-semibold text-gray-900">บทสนทนา</h4>
-                <div className="space-y-2.5 rounded-xl border border-gray-100 bg-gray-50 p-4">
-                  {(activeJob.transcript_json.transcript ?? []).map((e, i) => (
-                    <div key={i} className="text-sm leading-relaxed">
-                      <span className={`font-semibold ${speakerColor(activeJob, e.speaker)}`}>{e.speaker}:</span>{' '}
-                      <span className="text-gray-800">{e.text}</span>
-                    </div>
-                  ))}
-                </div>
-              </section>
+              {/* ผู้เข้าร่วม */}
+              {(activeJob.transcript_json.speakers ?? []).length > 0 ? (
+                <section>
+                  <h4 className="mb-1.5 text-sm font-semibold text-gray-900">ผู้เข้าร่วม</h4>
+                  <div className="flex flex-wrap gap-1.5">
+                    {activeJob.transcript_json.speakers.map((s, i) => (
+                      <span key={i} className="rounded-full bg-gray-100 px-2.5 py-0.5 text-xs text-gray-700">{s}</span>
+                    ))}
+                  </div>
+                </section>
+              ) : null}
             </div>
           ) : (
             <p className="py-8 text-center text-sm text-gray-500">ไม่มีข้อมูล transcript</p>

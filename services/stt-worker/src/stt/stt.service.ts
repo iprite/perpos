@@ -10,11 +10,6 @@ const geminiDispatcher = new Agent({
 });
 
 // ─── Types ───────────────────────────────────────────────────────────────────
-export type TranscriptLine = {
-  speaker: string;     // เช่น "ผู้พูด 1" หรือชื่อจริงถ้าเอ่ยถึงในเสียง
-  text: string;
-};
-
 export type KeyTopic = {
   topic: string;
   details: string;
@@ -34,7 +29,6 @@ export type TranscriptResult = {
   key_topics: KeyTopic[];    // ประเด็นที่หารือ
   decisions: string[];       // มติ / ข้อสรุปของที่ประชุม
   action_items: ActionItem[];
-  transcript: TranscriptLine[]; // บทสนทนาแยกผู้พูด (ไม่มีเวลา)
 };
 
 const ALLOWED_MODELS = ['gemini-2.5-flash', 'gemini-2.5-pro'] as const;
@@ -45,15 +39,18 @@ const GEMINI_BASE = 'https://generativelanguage.googleapis.com';
 
 // ─── Prompt: ถอดเสียง + แยกผู้พูด + สรุปแบบมืออาชีพ (สไตล์ Plaud) ───────────────
 // Gemini ฟังไฟล์เสียงแบบ native + รู้ timestamp เอง → ไม่ต้องตัดไฟล์/คำนวณ offset
-const PROMPT = `คุณคือ AI เลขานุการมืออาชีพ หน้าที่: ฟังไฟล์เสียง/วิดีโอการประชุมที่ให้มาทั้งไฟล์อย่างละเอียด แล้วจัดทำ "รายงานการประชุม (Minutes of Meeting)" ภาษาไทยที่เฉียบคม อ่านแล้วเข้าใจทั้งการประชุมโดยไม่ต้องฟังเสียงซ้ำ พร้อมถอดบทสนทนาโดยแยกว่าใครพูด
+const PROMPT = `คุณคือ AI เลขานุการมืออาชีพ หน้าที่: ฟังไฟล์เสียง/วิดีโอการประชุมที่ให้มาทั้งไฟล์อย่างละเอียด แล้วจัดทำ "รายงานการประชุม (Minutes of Meeting)" ภาษาไทยที่เฉียบคม อ่านแล้วเข้าใจทั้งการประชุมโดยไม่ต้องฟังเสียงซ้ำ
 
 กฎ:
-1. แยกผู้พูด (diarization): ตรวจจับผู้พูดแต่ละคน ตั้งชื่อสม่ำเสมอเป็น "ผู้พูด 1", "ผู้พูด 2" ... (ถ้ามีการเอ่ยชื่อจริงในเสียง ให้ใช้ชื่อจริงแทน) เสียงเดียวกันต้องใช้ป้ายเดิมตลอดทั้งไฟล์
-2. ห้ามใส่เวลา/timestamp ใด ๆ ทั้งสิ้น
-3. transcript: นี่คือ "บันทึกการประชุมแบบสรุปกระชับ แยกตามผู้พูด" — ไม่ใช่การถอดทุกคำ (verbatim) ให้สรุปว่าผู้พูดแต่ละคน "พูดประเด็นอะไร" เป็นข้อความกระชับ รวมหลายประโยคของคนเดียวกันในตอนเดียวเป็นรายการเดียว เรียงตามลำดับการสนทนา รักษาใจความ ตัวเลข ชื่อเฉพาะ และข้อโต้แย้งสำคัญให้ครบ — เพื่อให้ผลลัพธ์กระชับพอแม้ไฟล์ยาวหลายชั่วโมง
-4. ถอดเป็นภาษาที่พูดจริง (เสียงไทย → ข้อความไทย) ห้ามแต่งเติมเนื้อหาที่ไม่ได้พูด ช่วงที่ฟังไม่ชัดใช้ "[ฟังไม่ชัด]"
-5. สรุปแบบรายงานการประชุม: executive_summary (ภาพรวม), key_topics (ประเด็นที่หารือ + รายละเอียดเจาะตัวเลข/ข้อมูล), decisions (มติ/ข้อสรุปที่ตกลงกัน), action_items (สิ่งที่ต้องไปทำต่อ + ผู้รับผิดชอบ + กำหนดส่ง ถ้ามี)
-6. ตอบกลับเป็น JSON เท่านั้น ห้ามมีคำเกริ่นนำ ห้ามมี markdown
+1. ตรวจจับว่ามีผู้พูดกี่คน (diarization) เพื่อระบุผู้เข้าร่วมใน "speakers" — ตั้งชื่อเป็น "ผู้พูด 1", "ผู้พูด 2" ... (ถ้ามีการเอ่ยชื่อจริงในเสียง ให้ใช้ชื่อจริงแทน)
+2. ห้ามใส่เวลา/timestamp ใด ๆ และไม่ต้องถอดบทสนทนาคำต่อคำ — เน้นสรุปสาระ
+3. จับใจความเป็นภาษาที่พูดจริง (เสียงไทย → สรุปเป็นไทย) ห้ามแต่งเติมเนื้อหาที่ไม่ได้พูด
+4. สรุปแบบรายงานการประชุม:
+   - executive_summary: ภาพรวมสำคัญที่สุด 3-5 บรรทัด
+   - key_topics: ทุกประเด็นที่หารือ พร้อมรายละเอียดเชิงลึก เจาะตัวเลข/ข้อมูล/ข้อโต้แย้งให้ครบ
+   - decisions: มติ/ข้อสรุปที่ที่ประชุมตกลงกัน
+   - action_items: สิ่งที่ต้องไปทำต่อ + ผู้รับผิดชอบ + กำหนดส่ง (ถ้ามี)
+5. ตอบกลับเป็น JSON เท่านั้น ห้ามมีคำเกริ่นนำ ห้ามมี markdown
 
 โครงสร้าง JSON ที่ต้องการ:
 {
@@ -67,9 +64,6 @@ const PROMPT = `คุณคือ AI เลขานุการมืออา
   "decisions": [ "มติ/ข้อสรุปที่ที่ประชุมตกลงกัน" ],
   "action_items": [
     { "task": "สิ่งที่ต้องไปทำต่อ", "assignee": "ชื่อผู้รับผิดชอบ หรือ 'ไม่ระบุ'", "deadline": "กำหนดส่ง หรือ ''" }
-  ],
-  "transcript": [
-    { "speaker": "ผู้พูด 1", "text": "สรุปกระชับว่าผู้พูดคนนี้พูดประเด็นอะไรในตอนนี้" }
   ]
 }`;
 
@@ -143,7 +137,7 @@ async function runJob(jobId: string, orgId: string): Promise<void> {
       .eq('id', jobId);
     if (updateEndError) throw new Error(updateEndError.message);
 
-    console.log(`[stt-worker] Job ${jobId} completed (${transcript.transcript.length} transcript lines).`);
+    console.log(`[stt-worker] Job ${jobId} completed (${transcript.key_topics.length} topics, ${transcript.action_items.length} actions).`);
 
     // 4. Best-effort LINE notification (failure must not fail the job).
     await notifyLine(job).catch((e) =>
@@ -342,18 +336,6 @@ function parseTranscript(text: string): TranscriptResult {
     }
   }
 
-  const transcript: TranscriptLine[] = Array.isArray(parsed.transcript)
-    ? (parsed.transcript as unknown[]).map((e) => {
-        const o = (e ?? {}) as Record<string, unknown>;
-        return {
-          speaker: String(o.speaker ?? 'ผู้พูด'),
-          text: String(o.text ?? ''),
-        };
-      })
-    : [];
-
-  if (transcript.length === 0) throw new Error('Gemini ไม่พบเนื้อหาเสียงที่แกะได้');
-
   const key_topics: KeyTopic[] = Array.isArray(parsed.key_topics)
     ? (parsed.key_topics as unknown[]).map((e) => {
         const o = (e ?? {}) as Record<string, unknown>;
@@ -376,11 +358,11 @@ function parseTranscript(text: string): TranscriptResult {
       })
     : [];
 
-  const speakers = Array.isArray(parsed.speakers) && parsed.speakers.length
+  const speakers = Array.isArray(parsed.speakers)
     ? (parsed.speakers as unknown[]).map((x) => String(x))
-    : Array.from(new Set(transcript.map((t) => t.speaker)));
+    : [];
 
-  return {
+  const result: TranscriptResult = {
     meeting_title: String(parsed.meeting_title ?? ''),
     executive_summary: String(parsed.executive_summary ?? ''),
     language: String(parsed.language ?? 'th'),
@@ -388,8 +370,13 @@ function parseTranscript(text: string): TranscriptResult {
     key_topics,
     decisions,
     action_items,
-    transcript,
   };
+
+  // ต้องมีเนื้อหาอย่างน้อยบางส่วน ไม่งั้นถือว่าแกะไม่ได้
+  if (!result.executive_summary && key_topics.length === 0 && action_items.length === 0) {
+    throw new Error('Gemini ไม่พบเนื้อหาที่สรุปได้จากไฟล์นี้');
+  }
+  return result;
 }
 
 // ── Transcript plaintext (เผื่อ copy/download) ─────────────────────────────────
@@ -414,9 +401,8 @@ function buildTranscriptText(t: TranscriptResult): string {
     );
     parts.push('');
   }
-  parts.push('บทสนทนา');
-  t.transcript.forEach((e) => parts.push(`${e.speaker}: ${e.text}`));
-  return parts.join('\n');
+  if (t.speakers.length) parts.push(`ผู้เข้าร่วม: ${t.speakers.join(', ')}`);
+  return parts.join('\n').trimEnd();
 }
 
 // ── LINE push notification ─────────────────────────────────────────────────────
