@@ -13,7 +13,7 @@ RUN npm run build
 
 # ─── Production stage ─────────────────────────────────────────────────────────
 # Use the official Playwright image so Chromium is pre-installed
-FROM mcr.microsoft.com/playwright:v1.52.0-noble AS runner
+FROM mcr.microsoft.com/playwright:v1.59.1-noble AS runner
 
 WORKDIR /app
 

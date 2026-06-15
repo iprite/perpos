@@ -12,8 +12,6 @@ import {
   Copy, Check, Download, AlertCircle, Play, Sparkles,
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
-import { pdf } from '@react-pdf/renderer';
-import { MomPdf } from '@/components/assistant/mom-pdf';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 type KeyTopic = { topic: string; details: string };
@@ -263,33 +261,28 @@ export default function AssistantTranscribePage() {
   };
 
   const downloadMomPdf = async () => {
-    const tj = activeJob?.transcript_json;
-    if (!tj) return;
+    if (!activeJob?.transcript_json) return;
     setPdfBusy(true);
     try {
-      const dateText = new Intl.DateTimeFormat('th-TH', {
-        timeZone: BKK, day: 'numeric', month: 'long', year: 'numeric',
-      }).format(new Date(activeJob!.created_at));
-      const blob = await pdf(
-        <MomPdf data={{
-          meetingTitle: tj.meeting_title || activeJob!.file_name,
-          fileName: activeJob!.file_name,
-          dateText,
-          executiveSummary: tj.executive_summary || '',
-          speakers: tj.speakers ?? [],
-          keyTopics: tj.key_topics ?? [],
-          decisions: tj.decisions ?? [],
-          actionItems: tj.action_items ?? [],
-        }} />
-      ).toBlob();
+      // render ผ่าน pdf-renderer (Chromium) ฝั่ง server — ภาษาไทย shaping ถูกต้อง
+      const res = await fetch('/api/assistant/transcribe/mom-pdf', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ orgId, jobId: activeJob.id }),
+      });
+      if (!res.ok) {
+        const e = await res.json().catch(() => null);
+        throw new Error(e?.error?.message ?? `สร้าง PDF ไม่สำเร็จ (${res.status})`);
+      }
+      const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `MoM-${safeFileName(tj.meeting_title || activeJob!.file_name).replace(/\.[^.]+$/, '')}.pdf`;
+      a.download = `MoM-${safeFileName(activeJob.transcript_json.meeting_title || activeJob.file_name).replace(/\.[^.]+$/, '')}.pdf`;
       a.click();
       URL.revokeObjectURL(url);
     } catch (e) {
-      toast.error('สร้าง PDF ไม่สำเร็จ ลองใหม่อีกครั้ง');
+      toast.error(e instanceof Error ? e.message : 'สร้าง PDF ไม่สำเร็จ ลองใหม่อีกครั้ง');
       console.error(e);
     } finally {
       setPdfBusy(false);
