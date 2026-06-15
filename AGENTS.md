@@ -42,7 +42,8 @@ perpos/
 │   └── isomorphic-core/            # Shared components
 ├── services/
 │   ├── pdf-renderer/               # PDF microservice — Express + Playwright (Cloud Run, port 8080)
-│   └── ocr-worker/                 # AI bookkeeping worker — Express + Gemini (Cloud Run, port 8080)
+│   ├── ocr-worker/                 # AI bookkeeping worker — Express + Gemini (Cloud Run, port 8080)
+│   └── stt-worker/                 # Speech-to-text worker — Express + Gemini Files API (Cloud Run, port 8080)
 └── supabase/
     └── migrations/                 # Migration SQL files
 ```
@@ -65,6 +66,10 @@ pnpm pdf:dev           # port 8080
 # รัน OCR worker (services/ocr-worker)
 pnpm ocr-worker:dev    # port 8080
 # หรือ: cd services/ocr-worker && pnpm dev
+
+# รัน STT worker (services/stt-worker) — แกะเสียงเป็นข้อความ
+pnpm stt-worker:dev    # port 8080
+# หรือ: cd services/stt-worker && pnpm dev
 
 # Type check
 cd apps/perpos && pnpm exec tsc --noEmit
@@ -124,6 +129,8 @@ pnpm build
 | `/api/google-drive/disconnect` | POST | `google-drive/disconnect/route.ts` | ยกเลิกการเชื่อม |
 | `/api/google-drive/status` | GET | `google-drive/status/route.ts` | ตรวจสถานะการเชื่อม |
 | `/api/org/invite` | POST | `org/invite/route.ts` | เชิญเข้า organization |
+| `/api/assistant/transcribe/jobs` | GET/POST | `assistant/transcribe/jobs/route.ts` | สร้าง/ดึงงานแกะเสียง (STT) |
+| `/api/assistant/transcribe/jobs/process` | POST | `assistant/transcribe/jobs/process/route.ts` | claim job + ยิงไป stt-worker |
 | `/api/tmc/*` | various | `tmc/*/route.ts` | TMC Management endpoints |
 
 **Auth helpers** (`app/api/_lib/`):
@@ -230,8 +237,9 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 | `PDF_RENDER_URL` | PDF microservice URL | optional |
 | `PDF_SERVICE_SECRET` | PDF service auth | optional |
 | `OCR_WORKER_URL` | URL ของ ocr-worker (Cloud Run) สำหรับ AI bookkeeping | acc_firm |
-| `WORKER_SECRET` | shared secret เรียก ocr-worker (`x-worker-secret`) | acc_firm |
-| `GEMINI_API_KEY` | Gemini 2.5 Flash OCR/classify/journal (ตั้งที่ ocr-worker) | acc_firm |
+| `STT_WORKER_URL` | URL ของ stt-worker (Cloud Run) สำหรับแกะเสียงเป็นข้อความ | assistant |
+| `WORKER_SECRET` | shared secret เรียก ocr-worker/stt-worker (`x-worker-secret`) | acc_firm/assistant |
+| `GEMINI_API_KEY` | Gemini OCR/classify/journal + speech-to-text (ตั้งที่ ocr-worker + stt-worker) | acc_firm/assistant |
 | `SMTP_*` | Email invite | optional |
 
 ---
@@ -421,6 +429,7 @@ import { Label } from '@/components/ui/label';
 - **Domain**: perpos.io
 - **PDF Service**: Google Cloud Run (`asia-southeast1`) — `perpos-pdf-renderer`
 - **OCR Worker**: Google Cloud Run (`asia-southeast1`) — `perpos-ocr-worker`
+- **STT Worker**: Google Cloud Run (`asia-southeast1`) — `perpos-stt-worker` · deploy ด้วย `--memory 2Gi` (worker โหลดทั้งไฟล์เข้า RAM ก่อนส่ง Gemini Files API; bucket cap 200MB) · secrets: `WORKER_SECRET`, `GEMINI_API_KEY`, `LINE_MESSAGING_CHANNEL_ACCESS_TOKEN`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` · env (optional): `APP_BASE_URL` (default `https://perpos.io`, ใช้ทำ LINE deep-link)
 - **Cron**: Google Cloud Scheduler (`asia-southeast1`) → `POST https://perpos.io/api/assistant/scheduler`
 
 ### Cloud Run Workers — กฎบังคับ

@@ -1,0 +1,21 @@
+{
+  "name": "stt-worker",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/main",
+    "dev": "ts-node-dev --respawn --transpile-only src/main.ts",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.49.1",
+    "express": "^4.21.2"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.2",
+    "@types/node": "^22.15.3",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^5.8.3"
+  }
+}

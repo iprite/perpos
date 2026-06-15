@@ -1,8 +1,10 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { useParams } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
-import { ClipboardList, CalendarDays, CheckCircle2, Clock, RefreshCw } from "lucide-react";
+import { ClipboardList, CalendarDays, CheckCircle2, Clock, RefreshCw, Mic } from "lucide-react";
 import cn from "@core/utils/class-names";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -143,6 +145,7 @@ function ApptRow({ appt, onCancel }: { appt: Appointment; onCancel?: (id: string
 type Tab = "tasks" | "appointments";
 
 export default function AssistantPage() {
+  const { orgSlug } = useParams<{ orgSlug: string }>();
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
   const [tab, setTab]                   = useState<Tab>("tasks");
   const [tasks, setTasks]               = useState<Task[]>([]);
@@ -190,15 +193,24 @@ export default function AssistantPage() {
           <h1 className="text-xl font-bold text-gray-900">AI Task Manager</h1>
           <p className="mt-0.5 text-sm text-gray-500">จัดการงานและนัดหมายผ่าน LINE Bot</p>
         </div>
-        <button
-          type="button"
-          onClick={() => void load()}
-          disabled={loading}
-          className="flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-500 hover:bg-gray-50 disabled:opacity-50"
-        >
-          <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
-          รีเฟรช
-        </button>
+        <div className="flex items-center gap-2">
+          <Link
+            href={`/${orgSlug}/assistant/transcribe`}
+            className="flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-sm font-medium text-indigo-700 hover:bg-indigo-100"
+          >
+            <Mic className="h-3.5 w-3.5" />
+            แกะเสียง
+          </Link>
+          <button
+            type="button"
+            onClick={() => void load()}
+            disabled={loading}
+            className="flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-500 hover:bg-gray-50 disabled:opacity-50"
+          >
+            <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
+            รีเฟรช
+          </button>
+        </div>
       </div>
 
       {/* Stats */}
