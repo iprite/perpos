@@ -12,6 +12,8 @@ import {
   Copy, Check, Download, AlertCircle, Play, Sparkles,
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
+import { pdf } from '@react-pdf/renderer';
+import { MomPdf } from '@/components/assistant/mom-pdf';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 type KeyTopic = { topic: string; details: string };
@@ -123,6 +125,7 @@ export default function AssistantTranscribePage() {
   // result dialog
   const [activeJob, setActiveJob] = useState<Job | null>(null);
   const [copied, setCopied] = useState(false);
+  const [pdfBusy, setPdfBusy] = useState(false);
 
   // ── Data ──────────────────────────────────────────────────────────────────────
   const fetchJobs = useCallback(async (oid: string, tk: string) => {
@@ -257,6 +260,40 @@ export default function AssistantTranscribePage() {
     a.download = `${safeFileName(activeJob.file_name).replace(/\.[^.]+$/, '')}-transcript.txt`;
     a.click();
     URL.revokeObjectURL(url);
+  };
+
+  const downloadMomPdf = async () => {
+    const tj = activeJob?.transcript_json;
+    if (!tj) return;
+    setPdfBusy(true);
+    try {
+      const dateText = new Intl.DateTimeFormat('th-TH', {
+        timeZone: BKK, day: 'numeric', month: 'long', year: 'numeric',
+      }).format(new Date(activeJob!.created_at));
+      const blob = await pdf(
+        <MomPdf data={{
+          meetingTitle: tj.meeting_title || activeJob!.file_name,
+          fileName: activeJob!.file_name,
+          dateText,
+          executiveSummary: tj.executive_summary || '',
+          speakers: tj.speakers ?? [],
+          keyTopics: tj.key_topics ?? [],
+          decisions: tj.decisions ?? [],
+          actionItems: tj.action_items ?? [],
+        }} />
+      ).toBlob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `MoM-${safeFileName(tj.meeting_title || activeJob!.file_name).replace(/\.[^.]+$/, '')}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      toast.error('สร้าง PDF ไม่สำเร็จ ลองใหม่อีกครั้ง');
+      console.error(e);
+    } finally {
+      setPdfBusy(false);
+    }
   };
 
   // ── Render ──────────────────────────────────────────────────────────────────────
@@ -505,7 +542,7 @@ export default function AssistantTranscribePage() {
               ) : null}
             </div>
           ) : (
-            <p className="py-8 text-center text-sm text-gray-500">ไม่มีข้อมูล transcript</p>
+            <p className="py-8 text-center text-sm text-gray-500">ไม่มีข้อมูลสรุป</p>
           )}
 
           <DialogFooter className="gap-2 sm:gap-2">
@@ -513,7 +550,12 @@ export default function AssistantTranscribePage() {
               {copied ? <><Check className="mr-2 h-4 w-4 text-green-600" /> คัดลอกแล้ว</> : <><Copy className="mr-2 h-4 w-4" /> คัดลอก</>}
             </Button>
             <Button variant="outline" onClick={downloadTranscript}>
-              <Download className="mr-2 h-4 w-4" /> ดาวน์โหลด .txt
+              <Download className="mr-2 h-4 w-4" /> .txt
+            </Button>
+            <Button onClick={downloadMomPdf} disabled={pdfBusy}>
+              {pdfBusy
+                ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> กำลังสร้าง…</>
+                : <><Download className="mr-2 h-4 w-4" /> ดาวน์โหลด MoM (PDF)</>}
             </Button>
           </DialogFooter>
         </DialogContent>
