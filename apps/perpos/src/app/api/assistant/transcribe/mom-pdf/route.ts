@@ -119,7 +119,7 @@ function buildMomHtml(tj: MomJson, dateText: string): string {
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
-  @page { size: A4; margin: 16mm 15mm 18mm; }
+  @page { size: A4; margin: 16mm 15mm; }
   * { box-sizing: border-box; }
   html, body { margin: 0; padding: 0; }
   body { font-family: 'Noto Sans Thai', sans-serif; color: #1f2937; font-size: 11px; font-weight: 400; line-height: 1.65; }
@@ -148,7 +148,7 @@ function buildMomHtml(tj: MomJson, dateText: string): string {
   .cno { width: 34px; text-align: center; }
   .cwho { width: 130px; }
   .empty { text-align: center; color: #6b7280; }
-  .foot { position: fixed; bottom: 6mm; left: 0; right: 0; text-align: center; color: #9ca3af; font-size: 8px; }
+  .foot { margin-top: 26px; padding-top: 8px; border-top: 1px solid #e5e7eb; text-align: center; color: #9ca3af; font-size: 8px; }
 </style></head><body>
   <div class="brandrow"><span class="brand">PERPOS</span><span>รายงานการประชุม · Minutes of Meeting</span></div>
   <div class="accent"></div>
