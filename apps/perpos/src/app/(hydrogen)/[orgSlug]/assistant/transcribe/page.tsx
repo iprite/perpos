@@ -434,11 +434,11 @@ export default function AssistantTranscribePage() {
           {activeJob?.transcript_json ? (
             <div className="space-y-4">
               <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-gray-500">
-                <span>ภาษา: {activeJob.transcript_json.language}</span>
+                <span>ภาษา: {activeJob.transcript_json.language || 'th'}</span>
                 <span>·</span>
-                <span>ผู้พูด {activeJob.transcript_json.speakers.length} คน</span>
+                <span>ผู้พูด {(activeJob.transcript_json.speakers ?? []).length} คน</span>
                 <span>·</span>
-                <span>{activeJob.transcript_json.transcript.length} ช่วงสนทนา</span>
+                <span>{(activeJob.transcript_json.transcript ?? []).length} ช่วงสนทนา</span>
               </div>
 
               {/* สรุปภาพรวม */}
@@ -508,7 +508,7 @@ export default function AssistantTranscribePage() {
               <section>
                 <h4 className="mb-1.5 text-sm font-semibold text-gray-900">บทสนทนา</h4>
                 <div className="space-y-2.5 rounded-xl border border-gray-100 bg-gray-50 p-4">
-                  {activeJob.transcript_json.transcript.map((e, i) => (
+                  {(activeJob.transcript_json.transcript ?? []).map((e, i) => (
                     <div key={i} className="text-sm leading-relaxed">
                       <span className={`font-semibold ${speakerColor(activeJob, e.speaker)}`}>{e.speaker}:</span>{' '}
                       <span className="text-gray-800">{e.text}</span>
