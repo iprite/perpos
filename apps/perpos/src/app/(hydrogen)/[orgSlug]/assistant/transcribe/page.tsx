@@ -14,8 +14,19 @@ import {
 import { toast } from 'react-hot-toast';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
-type Segment = { speaker: string; start: number; end: number; text: string };
-type TranscriptJson = { language: string; speakers: string[]; segments: Segment[] };
+type TranscriptLine = { speaker: string; text: string };
+type KeyTopic = { topic: string; details: string };
+type ActionItem = { task: string; assignee: string; deadline: string };
+type TranscriptJson = {
+  meeting_title?: string;
+  executive_summary?: string;
+  language: string;
+  speakers: string[];
+  key_topics?: KeyTopic[];
+  decisions?: string[];
+  action_items?: ActionItem[];
+  transcript: TranscriptLine[];
+};
 
 type Job = {
   id: string;
@@ -82,12 +93,6 @@ function fmtSize(bytes: number | null) {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
-function fmtTs(seconds: number) {
-  const total = Math.max(0, Math.floor(seconds));
-  const m = Math.floor(total / 60);
-  const s = total % 60;
-  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-}
 
 function modelLabel(model: string) {
   return model === 'gemini-2.5-pro' ? 'แม่นยำ' : 'เร็ว';
@@ -415,30 +420,102 @@ export default function AssistantTranscribePage() {
       <Dialog open={!!activeJob} onOpenChange={(o) => { if (!o) setActiveJob(null); }}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <FileAudio className="h-5 w-5 text-indigo-600" />
-              <span className="truncate">{activeJob?.file_name}</span>
+            <DialogTitle className="flex items-start gap-2">
+              <FileAudio className="mt-0.5 h-5 w-5 shrink-0 text-indigo-600" />
+              <span className="min-w-0">
+                <span className="block truncate">{activeJob?.transcript_json?.meeting_title || activeJob?.file_name}</span>
+                {activeJob?.transcript_json?.meeting_title ? (
+                  <span className="block truncate text-xs font-normal text-gray-400">{activeJob.file_name}</span>
+                ) : null}
+              </span>
             </DialogTitle>
           </DialogHeader>
 
           {activeJob?.transcript_json ? (
-            <div className="space-y-3">
-              <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500">
+            <div className="space-y-4">
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-gray-500">
                 <span>ภาษา: {activeJob.transcript_json.language}</span>
                 <span>·</span>
                 <span>ผู้พูด {activeJob.transcript_json.speakers.length} คน</span>
                 <span>·</span>
-                <span>{activeJob.transcript_json.segments.length} ช่วง</span>
+                <span>{activeJob.transcript_json.transcript.length} ช่วงสนทนา</span>
               </div>
-              <div className="space-y-2.5 rounded-xl border border-gray-100 bg-gray-50 p-4">
-                {activeJob.transcript_json.segments.map((seg, i) => (
-                  <div key={i} className="text-sm leading-relaxed">
-                    <span className="mr-2 font-mono text-xs text-gray-400">[{fmtTs(seg.start)}]</span>
-                    <span className={`font-semibold ${speakerColor(activeJob, seg.speaker)}`}>{seg.speaker}:</span>{' '}
-                    <span className="text-gray-800">{seg.text}</span>
+
+              {/* สรุปภาพรวม */}
+              {activeJob.transcript_json.executive_summary ? (
+                <section>
+                  <h4 className="mb-1.5 text-sm font-semibold text-gray-900">สรุปภาพรวม</h4>
+                  <p className="rounded-xl border border-indigo-100 bg-indigo-50/60 p-3 text-sm leading-relaxed text-gray-800">
+                    {activeJob.transcript_json.executive_summary}
+                  </p>
+                </section>
+              ) : null}
+
+              {/* ประเด็นสำคัญ */}
+              {activeJob.transcript_json.key_topics && activeJob.transcript_json.key_topics.length > 0 ? (
+                <section>
+                  <h4 className="mb-1.5 text-sm font-semibold text-gray-900">ประเด็นสำคัญ</h4>
+                  <div className="space-y-2">
+                    {activeJob.transcript_json.key_topics.map((k, i) => (
+                      <div key={i} className="rounded-xl border border-gray-100 bg-white p-3">
+                        <span className="text-sm font-medium text-gray-900">{k.topic}</span>
+                        {k.details ? <p className="mt-1 text-sm leading-relaxed text-gray-600">{k.details}</p> : null}
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
+                </section>
+              ) : null}
+
+              {/* มติ / ข้อสรุป */}
+              {activeJob.transcript_json.decisions && activeJob.transcript_json.decisions.length > 0 ? (
+                <section>
+                  <h4 className="mb-1.5 text-sm font-semibold text-gray-900">มติ / ข้อสรุป</h4>
+                  <ul className="space-y-1.5">
+                    {activeJob.transcript_json.decisions.map((d, i) => (
+                      <li key={i} className="flex items-start gap-2 rounded-lg border border-emerald-100 bg-emerald-50/60 p-2.5 text-sm text-gray-800">
+                        <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
+                        <span>{d}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              ) : null}
+
+              {/* สิ่งที่ต้องทำต่อ */}
+              {activeJob.transcript_json.action_items && activeJob.transcript_json.action_items.length > 0 ? (
+                <section>
+                  <h4 className="mb-1.5 text-sm font-semibold text-gray-900">สิ่งที่ต้องทำต่อ</h4>
+                  <div className="space-y-1.5">
+                    {activeJob.transcript_json.action_items.map((a, i) => (
+                      <div key={i} className="flex items-start gap-2 rounded-lg border border-amber-100 bg-amber-50/60 p-2.5 text-sm">
+                        <span className="mt-0.5 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" />
+                        <div>
+                          <span className="text-gray-800">{a.task}</span>
+                          {(a.assignee && a.assignee !== 'ไม่ระบุ') || a.deadline ? (
+                            <span className="ml-1 text-xs text-gray-500">
+                              {a.assignee && a.assignee !== 'ไม่ระบุ' ? `· ${a.assignee}` : ''}
+                              {a.deadline ? ` · กำหนด ${a.deadline}` : ''}
+                            </span>
+                          ) : null}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              ) : null}
+
+              {/* บทสนทนา (แยกผู้พูด) */}
+              <section>
+                <h4 className="mb-1.5 text-sm font-semibold text-gray-900">บทสนทนา</h4>
+                <div className="space-y-2.5 rounded-xl border border-gray-100 bg-gray-50 p-4">
+                  {activeJob.transcript_json.transcript.map((e, i) => (
+                    <div key={i} className="text-sm leading-relaxed">
+                      <span className={`font-semibold ${speakerColor(activeJob, e.speaker)}`}>{e.speaker}:</span>{' '}
+                      <span className="text-gray-800">{e.text}</span>
+                    </div>
+                  ))}
+                </div>
+              </section>
             </div>
           ) : (
             <p className="py-8 text-center text-sm text-gray-500">ไม่มีข้อมูล transcript</p>

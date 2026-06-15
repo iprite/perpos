@@ -1,17 +1,40 @@
 import { getAdminClient } from '../lib/supabase';
+import { fetch as undiciFetch, Agent } from 'undici';
+
+// dispatcher สำหรับ Gemini generateContent: ปิด timeout เริ่มต้นของ undici (default
+// headersTimeout 300s) เพราะไฟล์ยาวอาจใช้เวลา generate หลายนาที
+const geminiDispatcher = new Agent({
+  headersTimeout: 600_000, // 10 นาที
+  bodyTimeout: 600_000,
+  connectTimeout: 60_000,
+});
 
 // ─── Types ───────────────────────────────────────────────────────────────────
-export type TranscriptSegment = {
-  speaker: string;       // เช่น "ผู้พูด 1"
-  start: number;         // วินาที
-  end: number;           // วินาที
+export type TranscriptLine = {
+  speaker: string;     // เช่น "ผู้พูด 1" หรือชื่อจริงถ้าเอ่ยถึงในเสียง
   text: string;
 };
 
+export type KeyTopic = {
+  topic: string;
+  details: string;
+};
+
+export type ActionItem = {
+  task: string;
+  assignee: string;    // "ไม่ระบุ" ถ้าไม่มี
+  deadline: string;    // "" ถ้าไม่มี
+};
+
 export type TranscriptResult = {
+  meeting_title: string;
+  executive_summary: string;
   language: string;
-  speakers: string[];
-  segments: TranscriptSegment[];
+  speakers: string[];        // ผู้เข้าร่วม / ผู้พูดที่ตรวจพบ
+  key_topics: KeyTopic[];    // ประเด็นที่หารือ
+  decisions: string[];       // มติ / ข้อสรุปของที่ประชุม
+  action_items: ActionItem[];
+  transcript: TranscriptLine[]; // บทสนทนาแยกผู้พูด (ไม่มีเวลา)
 };
 
 const ALLOWED_MODELS = ['gemini-2.5-flash', 'gemini-2.5-pro'] as const;
@@ -20,36 +43,34 @@ const DEFAULT_MODEL = 'gemini-2.5-flash';
 const BUCKET = 'assistant_audio';
 const GEMINI_BASE = 'https://generativelanguage.googleapis.com';
 
-// ─── Diarization prompt ──────────────────────────────────────────────────────
-const PROMPT_TRANSCRIBE = `You are an expert audio transcriber specialised in Thai-language speech with speaker diarization.
+// ─── Prompt: ถอดเสียง + แยกผู้พูด + สรุปแบบมืออาชีพ (สไตล์ Plaud) ───────────────
+// Gemini ฟังไฟล์เสียงแบบ native + รู้ timestamp เอง → ไม่ต้องตัดไฟล์/คำนวณ offset
+const PROMPT = `คุณคือ AI เลขานุการมืออาชีพ หน้าที่: ฟังไฟล์เสียง/วิดีโอการประชุมที่ให้มาทั้งไฟล์อย่างละเอียด แล้วจัดทำ "รายงานการประชุม (Minutes of Meeting)" ภาษาไทยที่เฉียบคม อ่านแล้วเข้าใจทั้งการประชุมโดยไม่ต้องฟังเสียงซ้ำ พร้อมถอดบทสนทนาโดยแยกว่าใครพูด
 
-Task:
-Transcribe the provided audio/video file into a structured transcript that identifies WHO is speaking ("who said what") and WHEN.
+กฎ:
+1. แยกผู้พูด (diarization): ตรวจจับผู้พูดแต่ละคน ตั้งชื่อสม่ำเสมอเป็น "ผู้พูด 1", "ผู้พูด 2" ... (ถ้ามีการเอ่ยชื่อจริงในเสียง ให้ใช้ชื่อจริงแทน) เสียงเดียวกันต้องใช้ป้ายเดิมตลอดทั้งไฟล์
+2. ห้ามใส่เวลา/timestamp ใด ๆ ทั้งสิ้น
+3. transcript: นี่คือ "บันทึกการประชุมแบบสรุปกระชับ แยกตามผู้พูด" — ไม่ใช่การถอดทุกคำ (verbatim) ให้สรุปว่าผู้พูดแต่ละคน "พูดประเด็นอะไร" เป็นข้อความกระชับ รวมหลายประโยคของคนเดียวกันในตอนเดียวเป็นรายการเดียว เรียงตามลำดับการสนทนา รักษาใจความ ตัวเลข ชื่อเฉพาะ และข้อโต้แย้งสำคัญให้ครบ — เพื่อให้ผลลัพธ์กระชับพอแม้ไฟล์ยาวหลายชั่วโมง
+4. ถอดเป็นภาษาที่พูดจริง (เสียงไทย → ข้อความไทย) ห้ามแต่งเติมเนื้อหาที่ไม่ได้พูด ช่วงที่ฟังไม่ชัดใช้ "[ฟังไม่ชัด]"
+5. สรุปแบบรายงานการประชุม: executive_summary (ภาพรวม), key_topics (ประเด็นที่หารือ + รายละเอียดเจาะตัวเลข/ข้อมูล), decisions (มติ/ข้อสรุปที่ตกลงกัน), action_items (สิ่งที่ต้องไปทำต่อ + ผู้รับผิดชอบ + กำหนดส่ง ถ้ามี)
+6. ตอบกลับเป็น JSON เท่านั้น ห้ามมีคำเกริ่นนำ ห้ามมี markdown
 
-Rules:
-1. Diarization: Detect distinct speakers and label them consistently as "ผู้พูด 1", "ผู้พูด 2", etc. Keep the same label for the same voice throughout.
-2. Timestamps: For every segment provide "start" and "end" in SECONDS (float, measured from the beginning of the file).
-3. Segment the transcript by speaker turn and natural pauses — do not merge two different speakers into one segment.
-4. Transcribe verbatim in the original spoken language. If the audio is Thai, output Thai text. Preserve numbers and proper nouns.
-5. Do NOT invent words. If a span is unintelligible, transcribe what is audible or use "[ฟังไม่ชัด]".
-6. "language": the dominant spoken language as an ISO code ("th", "en", ...).
-7. Output JSON ONLY (no markdown fences).
-
-Example output:
+โครงสร้าง JSON ที่ต้องการ:
 {
+  "meeting_title": "ชื่อหัวข้อการประชุม (วิเคราะห์จากเนื้อหา)",
   "language": "th",
   "speakers": ["ผู้พูด 1", "ผู้พูด 2"],
-  "segments": [
-    { "speaker": "ผู้พูด 1", "start": 0.0, "end": 3.2, "text": "สวัสดีครับ วันนี้เรามาคุยเรื่องยอดขาย" },
-    { "speaker": "ผู้พูด 2", "start": 3.4, "end": 6.1, "text": "ได้ครับ ผมเตรียมตัวเลขมาแล้ว" }
+  "executive_summary": "ภาพรวมสรุปสำคัญที่สุด 3-5 บรรทัด",
+  "key_topics": [
+    { "topic": "ชื่อประเด็นที่หารือ", "details": "รายละเอียดเชิงลึก เจาะตัวเลข/ข้อมูล" }
+  ],
+  "decisions": [ "มติ/ข้อสรุปที่ที่ประชุมตกลงกัน" ],
+  "action_items": [
+    { "task": "สิ่งที่ต้องไปทำต่อ", "assignee": "ชื่อผู้รับผิดชอบ หรือ 'ไม่ระบุ'", "deadline": "กำหนดส่ง หรือ ''" }
+  ],
+  "transcript": [
+    { "speaker": "ผู้พูด 1", "text": "สรุปกระชับว่าผู้พูดคนนี้พูดประเด็นอะไรในตอนนี้" }
   ]
-}
-
-Output JSON Schema:
-{
-  "language": string,
-  "speakers": string[],
-  "segments": [ { "speaker": string, "start": number, "end": number, "text": string } ]
 }`;
 
 // ── Public entrypoint (never throws — invoked fire-and-forget) ──────────────
@@ -95,17 +116,17 @@ async function runJob(jobId: string, orgId: string): Promise<void> {
       throw new Error('เส้นทางไฟล์เสียงไม่ตรงกับองค์กร');
     }
 
-    // 2. Download → upload to Gemini Files API → transcribe.
+    // 2. Download → upload ไฟล์ทั้งก้อนเข้า Gemini Files API → ถอด+สรุปในครั้งเดียว
+    //    (Gemini รับไฟล์เสียงยาวได้ถึง 2GB + context window ใหญ่ ไม่ต้องตัดไฟล์)
     const model = ALLOWED_MODELS.includes(job.model) ? (job.model as string) : DEFAULT_MODEL;
     const { bytes, mimeType } = await downloadAudio(storagePath);
-    const { fileUri, fileName } = await uploadToGeminiFiles(bytes, mimeType, String(job.file_name ?? 'audio'));
 
+    const { fileUri, fileName } = await uploadToGeminiFiles(bytes, mimeType, String(job.file_name ?? 'audio'));
     let transcript: TranscriptResult;
     try {
       transcript = await transcribeWithGemini(fileUri, mimeType, model);
     } finally {
-      // Cleanup ไฟล์บน Gemini Files API ทันที (ไม่รอ auto-expire 48 ชม.) — best-effort
-      await deleteGeminiFile(fileName).catch(() => undefined);
+      await deleteGeminiFile(fileName).catch(() => undefined); // best-effort cleanup
     }
     const transcriptText = buildTranscriptText(transcript);
 
@@ -122,7 +143,7 @@ async function runJob(jobId: string, orgId: string): Promise<void> {
       .eq('id', jobId);
     if (updateEndError) throw new Error(updateEndError.message);
 
-    console.log(`[stt-worker] Job ${jobId} completed (${transcript.segments.length} segments).`);
+    console.log(`[stt-worker] Job ${jobId} completed (${transcript.transcript.length} transcript lines).`);
 
     // 4. Best-effort LINE notification (failure must not fail the job).
     await notifyLine(job).catch((e) =>
@@ -157,7 +178,7 @@ async function downloadAudio(storagePath: string): Promise<{ bytes: Buffer; mime
   return { bytes, mimeType };
 }
 
-// ── Gemini Files API (resumable upload — รองรับไฟล์ใหญ่ถึง 2GB) ────────────────
+// ── Gemini Files API (resumable upload — รองรับไฟล์เสียงใหญ่ถึง 2GB) ────────────
 async function uploadToGeminiFiles(
   bytes: Buffer,
   mimeType: string,
@@ -206,7 +227,7 @@ async function uploadToGeminiFiles(
   if (!fileName || !fileUri) throw new Error('Gemini Files API ไม่ส่งข้อมูลไฟล์กลับมา');
 
   // 3. Poll until ACTIVE (audio/video ผ่าน PROCESSING ก่อนใช้งานได้).
-  const deadline = Date.now() + 4 * 60 * 1000; // 4 นาที
+  const deadline = Date.now() + 5 * 60 * 1000; // 5 นาที
   while (state === 'PROCESSING') {
     if (Date.now() > deadline) throw new Error('Gemini ประมวลผลไฟล์นานเกินกำหนด (timeout)');
     await sleep(2000);
@@ -221,14 +242,14 @@ async function uploadToGeminiFiles(
   return { fileUri, fileName };
 }
 
-// ลบไฟล์บน Gemini Files API (best-effort cleanup)
+// ลบไฟล์บน Gemini Files API (best-effort cleanup — ไม่รอ auto-expire 48 ชม.)
 async function deleteGeminiFile(fileName: string): Promise<void> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey || !fileName) return;
   await fetch(`${GEMINI_BASE}/v1beta/${fileName}?key=${apiKey}`, { method: 'DELETE' });
 }
 
-// ── Gemini transcription ─────────────────────────────────────────────────────
+// ── Gemini transcription + summary ─────────────────────────────────────────────
 async function transcribeWithGemini(
   fileUri: string,
   mimeType: string,
@@ -241,35 +262,43 @@ async function transcribeWithGemini(
     contents: [
       {
         parts: [
-          { text: PROMPT_TRANSCRIBE },
+          { text: PROMPT },
           { file_data: { mime_type: mimeType, file_uri: fileUri } },
         ],
       },
     ],
     generationConfig: {
       maxOutputTokens: 65536,
-      temperature: 0.1,
+      temperature: 0.2,
       responseMimeType: 'application/json',
     },
   });
 
-  // Retry-with-backoff สำหรับ error ชั่วคราวของ Gemini (429 rate limit, 500/503 overload)
+  // Retry-with-backoff สำหรับ error ชั่วคราว — ทั้ง HTTP status (429/500/503)
+  // และ network error ที่ fetch โยน (เช่น "fetch failed" / timeout ของไฟล์ยาว)
   const RETRYABLE = new Set([429, 500, 503]);
   const MAX_ATTEMPTS = 4;
-  let response: Response | null = null;
+  let response: Awaited<ReturnType<typeof undiciFetch>> | null = null;
   let lastErr = '';
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-    response = await fetch(
-      `${GEMINI_BASE}/v1beta/models/${model}:generateContent?key=${apiKey}`,
-      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: requestBody },
-    );
+    try {
+      response = await undiciFetch(
+        `${GEMINI_BASE}/v1beta/models/${model}:generateContent?key=${apiKey}`,
+        { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: requestBody, dispatcher: geminiDispatcher },
+      );
+    } catch (e) {
+      // network-level error (fetch failed/timeout) — retry
+      lastErr = `network: ${e instanceof Error ? e.message : String(e)}`;
+      if (attempt === MAX_ATTEMPTS) throw new Error(`Gemini API request failed: ${lastErr}`);
+      await sleep(3000 * 2 ** (attempt - 1));
+      continue;
+    }
     if (response.ok) break;
     lastErr = `${response.status} - ${await response.text()}`;
     if (!RETRYABLE.has(response.status) || attempt === MAX_ATTEMPTS) {
       throw new Error(`Gemini API request failed: ${lastErr}`);
     }
-    // backoff: 3s, 6s, 12s
-    await sleep(3000 * 2 ** (attempt - 1));
+    await sleep(3000 * 2 ** (attempt - 1)); // backoff: 3s, 6s, 12s
   }
   if (!response) throw new Error(`Gemini API request failed: ${lastErr || 'no response'}`);
 
@@ -283,59 +312,111 @@ async function transcribeWithGemini(
   }
   const finishReason = result.candidates[0].finishReason;
   if (finishReason === 'MAX_TOKENS') {
-    throw new Error('ไฟล์ยาวเกินกว่าจะแกะได้ในครั้งเดียว กรุณาแบ่งไฟล์ให้สั้นลงแล้วลองใหม่');
+    throw new Error('เนื้อหายาวมากจนผลลัพธ์เกินขนาดที่รองรับ — ลองใช้ไฟล์สั้นลง');
   }
   if (finishReason && finishReason !== 'STOP') {
     throw new Error(`Gemini ประมวลผลไม่สมบูรณ์ (finishReason=${finishReason})`);
   }
 
-  const text = result.candidates[0].content?.parts?.[0]?.text || '';
+  // output อาจถูกแบ่งเป็นหลาย parts — รวมทุก part เป็น JSON เดียว
+  const text = (result.candidates[0].content?.parts ?? [])
+    .map((p) => p?.text ?? '')
+    .join('');
   return parseTranscript(text);
 }
 
 function parseTranscript(text: string): TranscriptResult {
   const cleaned = text.replace(/^```[a-z]*\n?/i, '').replace(/\n?```$/i, '').trim();
-  let parsed: Partial<TranscriptResult>;
+  let parsed: Record<string, unknown>;
   try {
-    parsed = JSON.parse(cleaned) as Partial<TranscriptResult>;
+    parsed = JSON.parse(cleaned) as Record<string, unknown>;
   } catch {
-    throw new Error('แปลงผลลัพธ์ JSON จาก Gemini (transcript) ล้มเหลว');
+    // fallback: ดึงเฉพาะช่วง { ... } เผื่อมีข้อความปนหน้า/หลัง
+    const first = cleaned.indexOf('{');
+    const last = cleaned.lastIndexOf('}');
+    if (first < 0 || last <= first) throw new Error('แปลงผลลัพธ์ JSON จาก Gemini ล้มเหลว');
+    try {
+      parsed = JSON.parse(cleaned.slice(first, last + 1)) as Record<string, unknown>;
+    } catch {
+      throw new Error('แปลงผลลัพธ์ JSON จาก Gemini ล้มเหลว');
+    }
   }
 
-  const segments: TranscriptSegment[] = Array.isArray(parsed.segments)
-    ? parsed.segments.map((s) => ({
-        speaker: String(s?.speaker ?? 'ผู้พูด'),
-        start: Number(s?.start ?? 0),
-        end: Number(s?.end ?? 0),
-        text: String(s?.text ?? ''),
-      }))
+  const transcript: TranscriptLine[] = Array.isArray(parsed.transcript)
+    ? (parsed.transcript as unknown[]).map((e) => {
+        const o = (e ?? {}) as Record<string, unknown>;
+        return {
+          speaker: String(o.speaker ?? 'ผู้พูด'),
+          text: String(o.text ?? ''),
+        };
+      })
     : [];
 
-  if (segments.length === 0) throw new Error('Gemini ไม่พบเนื้อหาเสียงที่แกะได้');
+  if (transcript.length === 0) throw new Error('Gemini ไม่พบเนื้อหาเสียงที่แกะได้');
+
+  const key_topics: KeyTopic[] = Array.isArray(parsed.key_topics)
+    ? (parsed.key_topics as unknown[]).map((e) => {
+        const o = (e ?? {}) as Record<string, unknown>;
+        return { topic: String(o.topic ?? ''), details: String(o.details ?? '') };
+      })
+    : [];
+
+  const decisions: string[] = Array.isArray(parsed.decisions)
+    ? (parsed.decisions as unknown[]).map((x) => String(x)).filter((s) => s.trim().length > 0)
+    : [];
+
+  const action_items: ActionItem[] = Array.isArray(parsed.action_items)
+    ? (parsed.action_items as unknown[]).map((e) => {
+        const o = (e ?? {}) as Record<string, unknown>;
+        return {
+          task: String(o.task ?? ''),
+          assignee: String(o.assignee ?? 'ไม่ระบุ'),
+          deadline: String(o.deadline ?? ''),
+        };
+      })
+    : [];
 
   const speakers = Array.isArray(parsed.speakers) && parsed.speakers.length
-    ? parsed.speakers.map((x) => String(x))
-    : Array.from(new Set(segments.map((s) => s.speaker)));
+    ? (parsed.speakers as unknown[]).map((x) => String(x))
+    : Array.from(new Set(transcript.map((t) => t.speaker)));
 
   return {
+    meeting_title: String(parsed.meeting_title ?? ''),
+    executive_summary: String(parsed.executive_summary ?? ''),
     language: String(parsed.language ?? 'th'),
     speakers,
-    segments,
+    key_topics,
+    decisions,
+    action_items,
+    transcript,
   };
 }
 
 // ── Transcript plaintext (เผื่อ copy/download) ─────────────────────────────────
 function buildTranscriptText(t: TranscriptResult): string {
-  return t.segments
-    .map((s) => `[${fmtTimestamp(s.start)}] ${s.speaker}: ${s.text}`)
-    .join('\n');
-}
-
-function fmtTimestamp(seconds: number): string {
-  const total = Math.max(0, Math.floor(seconds));
-  const m = Math.floor(total / 60);
-  const s = total % 60;
-  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  const parts: string[] = [];
+  if (t.meeting_title) parts.push(t.meeting_title, '');
+  if (t.executive_summary) parts.push('สรุปภาพรวม', t.executive_summary, '');
+  if (t.key_topics.length) {
+    parts.push('ประเด็นที่หารือ');
+    t.key_topics.forEach((k) => parts.push(`- ${k.topic}: ${k.details}`));
+    parts.push('');
+  }
+  if (t.decisions.length) {
+    parts.push('มติ/ข้อสรุป');
+    t.decisions.forEach((d) => parts.push(`- ${d}`));
+    parts.push('');
+  }
+  if (t.action_items.length) {
+    parts.push('สิ่งที่ต้องทำต่อ');
+    t.action_items.forEach((a) =>
+      parts.push(`- ${a.task}${a.assignee ? ` (ผู้รับผิดชอบ: ${a.assignee})` : ''}${a.deadline ? ` [กำหนด: ${a.deadline}]` : ''}`),
+    );
+    parts.push('');
+  }
+  parts.push('บทสนทนา');
+  t.transcript.forEach((e) => parts.push(`${e.speaker}: ${e.text}`));
+  return parts.join('\n');
 }
 
 // ── LINE push notification ─────────────────────────────────────────────────────
@@ -356,7 +437,7 @@ async function notifyLine(job: Record<string, unknown>): Promise<void> {
   const lineUserId = (profile as { line_user_id?: string } | null)?.line_user_id;
   if (!lineUserId) return;
 
-  // Deep-link ไปหน้า transcribe ขององค์กรนั้น (ต้องใช้ org slug ไม่ใช่ org id)
+  // Deep-link ไปหน้า transcribe ขององค์กรนั้น (ใช้ org slug)
   const { data: org } = await admin
     .from('organizations')
     .select('slug')
