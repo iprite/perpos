@@ -63,7 +63,8 @@ export async function POST(req: NextRequest) {
   }).format(new Date(job.created_at as string));
 
   const html = buildMomHtml(tj, dateText);
-  const filename = `MoM-${(tj.meeting_title || job.file_name || 'meeting').replace(/[^\p{L}\p{N} _-]/gu, '').slice(0, 60) || 'meeting'}`;
+  // ชื่อไฟล์ฝั่ง server เป็น ASCII (กันปัญหา encode header) — ชื่อไทยจริงตั้งที่ frontend (a.download)
+  const filename = 'minutes-of-meeting';
 
   const resp = await fetch(`${renderUrl.replace(/\/$/, '')}/render`, {
     method: 'POST',
