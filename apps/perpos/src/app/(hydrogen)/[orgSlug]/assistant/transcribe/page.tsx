@@ -205,14 +205,19 @@ export default function AssistantTranscribePage() {
       const jobId = created?.data?.id;
 
       if (jobId) {
-        await fetch('/api/assistant/transcribe/jobs/process', {
+        const pr = await fetch('/api/assistant/transcribe/jobs/process', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
           body: JSON.stringify({ jobId, orgId }),
         });
+        if (pr.ok) {
+          toast.success('อัปโหลดและเริ่มแกะเสียงแล้ว');
+        } else {
+          const e = await pr.json().catch(() => null);
+          toast.error(e?.error?.message ?? 'อัปโหลดแล้วแต่เริ่มแกะเสียงไม่สำเร็จ — กดปุ่ม "ลองใหม่" ที่รายการได้');
+        }
       }
 
-      toast.success('อัปโหลดและเริ่มแกะเสียงแล้ว');
       setFile(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
       await fetchJobs(orgId, token);
@@ -390,9 +395,10 @@ export default function AssistantTranscribePage() {
                       <Button variant="outline" size="sm" onClick={() => { setActiveJob(job); setCopied(false); }}>
                         ดู transcript
                       </Button>
-                    ) : job.status === 'failed' ? (
+                    ) : job.status === 'failed' || job.status === 'pending' ? (
+                      // pending ที่ค้าง (เริ่มงานไม่สำเร็จ) ก็กดเริ่มใหม่ได้
                       <Button variant="outline" size="sm" onClick={() => retry(job.id)}>
-                        <Play className="mr-1 h-3.5 w-3.5" /> ลองใหม่
+                        <Play className="mr-1 h-3.5 w-3.5" /> {job.status === 'pending' ? 'เริ่มแกะเสียง' : 'ลองใหม่'}
                       </Button>
                     ) : (
                       <Loader2 className="ml-auto h-4 w-4 animate-spin text-gray-400" />

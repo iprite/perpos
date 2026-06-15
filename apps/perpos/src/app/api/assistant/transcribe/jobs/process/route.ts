@@ -68,7 +68,7 @@ export async function POST(req: NextRequest) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-worker-secret': workerSecret,
+        'x-worker-secret': workerSecret.trim(),
       },
       body: JSON.stringify({ jobId, orgId }),
     });

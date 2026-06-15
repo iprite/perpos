@@ -16,8 +16,8 @@ app.get('/healthz', (_req, res) => {
 
 // ── Speech-to-text process trigger ──────────────────────────────────────────────
 app.post('/process', (req, res) => {
-  const secret = req.headers['x-worker-secret'];
-  const required = process.env.WORKER_SECRET ?? '';
+  const secret = String(req.headers['x-worker-secret'] ?? '').trim();
+  const required = (process.env.WORKER_SECRET ?? '').trim();
   if (!required || secret !== required) {
     res.status(401).json({ error: 'Unauthorized' });
     return;

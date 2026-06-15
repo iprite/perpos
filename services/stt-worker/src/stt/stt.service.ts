@@ -237,32 +237,41 @@ async function transcribeWithGemini(
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new Error('GEMINI_API_KEY is not configured.');
 
-  const response = await fetch(
-    `${GEMINI_BASE}/v1beta/models/${model}:generateContent?key=${apiKey}`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [
-          {
-            parts: [
-              { text: PROMPT_TRANSCRIBE },
-              { file_data: { mime_type: mimeType, file_uri: fileUri } },
-            ],
-          },
+  const requestBody = JSON.stringify({
+    contents: [
+      {
+        parts: [
+          { text: PROMPT_TRANSCRIBE },
+          { file_data: { mime_type: mimeType, file_uri: fileUri } },
         ],
-        generationConfig: {
-          maxOutputTokens: 65536,
-          temperature: 0.1,
-          responseMimeType: 'application/json',
-        },
-      }),
+      },
+    ],
+    generationConfig: {
+      maxOutputTokens: 65536,
+      temperature: 0.1,
+      responseMimeType: 'application/json',
     },
-  );
+  });
 
-  if (!response.ok) {
-    throw new Error(`Gemini API request failed: ${response.status} - ${await response.text()}`);
+  // Retry-with-backoff สำหรับ error ชั่วคราวของ Gemini (429 rate limit, 500/503 overload)
+  const RETRYABLE = new Set([429, 500, 503]);
+  const MAX_ATTEMPTS = 4;
+  let response: Response | null = null;
+  let lastErr = '';
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    response = await fetch(
+      `${GEMINI_BASE}/v1beta/models/${model}:generateContent?key=${apiKey}`,
+      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: requestBody },
+    );
+    if (response.ok) break;
+    lastErr = `${response.status} - ${await response.text()}`;
+    if (!RETRYABLE.has(response.status) || attempt === MAX_ATTEMPTS) {
+      throw new Error(`Gemini API request failed: ${lastErr}`);
+    }
+    // backoff: 3s, 6s, 12s
+    await sleep(3000 * 2 ** (attempt - 1));
   }
+  if (!response) throw new Error(`Gemini API request failed: ${lastErr || 'no response'}`);
 
   const result = (await response.json()) as {
     candidates?: Array<{ finishReason?: string; content?: { parts?: Array<{ text?: string }> } }>;

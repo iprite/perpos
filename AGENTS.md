@@ -429,7 +429,10 @@ import { Label } from '@/components/ui/label';
 - **Domain**: perpos.io
 - **PDF Service**: Google Cloud Run (`asia-southeast1`) — `perpos-pdf-renderer`
 - **OCR Worker**: Google Cloud Run (`asia-southeast1`) — `perpos-ocr-worker`
-- **STT Worker**: Google Cloud Run (`asia-southeast1`) — `perpos-stt-worker` · deploy ด้วย `--memory 2Gi` (worker โหลดทั้งไฟล์เข้า RAM ก่อนส่ง Gemini Files API; bucket cap 200MB) · secrets: `WORKER_SECRET`, `GEMINI_API_KEY`, `LINE_MESSAGING_CHANNEL_ACCESS_TOKEN`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` · env (optional): `APP_BASE_URL` (default `https://perpos.io`, ใช้ทำ LINE deep-link)
+- **STT Worker**: Google Cloud Run (`asia-southeast1`) — `perpos-stt-worker` · deploy ด้วย `--memory 2Gi --concurrency 3 --no-cpu-throttling` · secrets: `WORKER_SECRET`, `GEMINI_API_KEY`, `LINE_MESSAGING_CHANNEL_ACCESS_TOKEN`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` · env (optional): `APP_BASE_URL` (default `https://perpos.io`)
+  - **`--no-cpu-throttling` บังคับ**: STT เป็นงาน async fire-and-forget ที่ใช้เวลา 30–90 วิหลังตอบ 202 — ถ้า CPU ถูก throttle หลังส่ง response (ค่า default ของ Cloud Run) background job จะค้างไม่จบ (job ค้าง `pending`/`processing`). ต่างจาก ocr-worker ที่งานสั้นจึงรอดด้วย default throttling
+  - **GEMINI_API_KEY ต้องเป็น paid tier**: free tier — `gemini-2.5-pro` quota = 0 (ใช้ไม่ได้), `gemini-2.5-flash` มักโดน 503 high-demand. ต้องเปิด billing บน Google AI Studio / ใช้ Vertex AI
+  - worker มี retry-with-backoff (429/500/503, 4 ครั้ง) + เปรียบเทียบ `WORKER_SECRET` แบบ `.trim()` (กัน secret ที่มี trailing newline ใน Secret Manager)
 - **Cron**: Google Cloud Scheduler (`asia-southeast1`) → `POST https://perpos.io/api/assistant/scheduler`
 
 ### Cloud Run Workers — กฎบังคับ
