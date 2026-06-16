@@ -81,12 +81,8 @@ export default function RateLimitsPage() {
     void (async () => {
       try {
         const res = await fetch('/api/admin/users/list', { headers: { Authorization: `Bearer ${await authToken()}` } });
-        const d = await res.json();
-        const seen = new Map<string, string>();
-        for (const u of d.users ?? []) {
-          if (u.org_id && u.org_name) seen.set(u.org_id, u.org_name);
-        }
-        setOrgs(Array.from(seen.entries()).map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name)));
+        const d = await res.json() as { allOrgs?: { id: string; name: string }[] };
+        setOrgs((d.allOrgs ?? []).map((o) => ({ id: o.id, name: o.name })).sort((a, b) => a.name.localeCompare(b.name)));
       } catch { /* ignore */ }
     })();
   }, []);
