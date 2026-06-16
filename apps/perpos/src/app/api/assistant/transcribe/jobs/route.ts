@@ -99,6 +99,7 @@ export async function POST(req: NextRequest) {
     .insert({
       org_id:             orgId,
       profile_id:         auth.userId,
+      kind:               'stt',
       audio_url:          storagePath,
       file_name:          String(fileName).slice(0, 255),
       mime_type:          String(mimeType),

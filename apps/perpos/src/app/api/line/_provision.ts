@@ -169,7 +169,10 @@ export async function provisionLineUser(admin: SupabaseClient, lineUserId: strin
     { user_id: profileId, module_key: 'stt' },
     { module_key: 'stt', user_id: profileId, granted_by: profileId, is_enabled: true });
 
-  // 4. active org pointer + quota
+  // 4. home org pointers + quota
+  //    personal_org_id = แหล่งความจริงของ home org (assistant-auth.resolveHomeOrg อ่านตรงนี้)
+  //    line_active_org_id = org ที่ active สำหรับ ERP context (อาจถูกสลับด้วย org switcher)
+  await admin.from('profiles').update({ personal_org_id: orgId }).eq('id', profileId);
   if (preferredOrgId !== orgId) {
     await admin.from('profiles').update({ line_active_org_id: orgId }).eq('id', profileId);
   }
