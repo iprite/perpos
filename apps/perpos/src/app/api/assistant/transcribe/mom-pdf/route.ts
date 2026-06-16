@@ -6,18 +6,17 @@
  */
 
 import { NextRequest } from 'next/server';
-import { requireModuleMember } from '../../../_lib/module-auth';
+import { requireAssistantUser } from '../../../_lib/assistant-auth';
 import { createAdminClient } from '../../../_lib/supabase';
 import { Err } from '../../../_lib/response';
 import { buildMomHtml, MOM_FOOTER_TEMPLATE, type MomJson } from '@/lib/assistant/mom-html';
 
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null);
-  const { orgId, jobId } = body ?? {};
-  if (!orgId) return Err.missingField('orgId');
+  const { jobId } = body ?? {};
   if (!jobId) return Err.missingField('jobId');
 
-  const auth = await requireModuleMember(req, orgId, 'stt');
+  const auth = await requireAssistantUser(req);
   if (!auth.ok) return auth.res;
 
   const renderUrl = process.env.PDF_RENDER_URL;
@@ -29,7 +28,7 @@ export async function POST(req: NextRequest) {
     .from('transcription_jobs')
     .select('file_name, status, transcript_json, created_at')
     .eq('id', jobId)
-    .eq('org_id', orgId)
+    .eq('profile_id', auth.userId)
     .maybeSingle();
   if (error) return Err.dbError(error);
   if (!job) return Err.notFound(`Transcription job ${jobId}`);

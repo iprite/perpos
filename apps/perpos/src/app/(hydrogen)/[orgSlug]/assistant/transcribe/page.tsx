@@ -108,7 +108,7 @@ export default function AssistantTranscribePage() {
   const { orgSlug } = useParams<{ orgSlug: string }>();
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
 
-  const [orgId, setOrgId] = useState('');
+  const [profileId, setProfileId] = useState('');
   const [token, setToken] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -130,9 +130,9 @@ export default function AssistantTranscribePage() {
   const [quota, setQuota] = useState<{ limit: number; used: number; remaining: number } | null>(null);
   const [fileDuration, setFileDuration] = useState<number | null>(null);
 
-  // ── Data ──────────────────────────────────────────────────────────────────────
-  const fetchJobs = useCallback(async (oid: string, tk: string) => {
-    const res = await fetch(`/api/assistant/transcribe/jobs?orgId=${oid}`, {
+  // ── Data (per-profile — ไม่ผูก org) ─────────────────────────────────────────────
+  const fetchJobs = useCallback(async (tk: string) => {
+    const res = await fetch(`/api/assistant/transcribe/jobs`, {
       headers: { Authorization: `Bearer ${tk}` },
     });
     if (!res.ok) return;
@@ -140,8 +140,8 @@ export default function AssistantTranscribePage() {
     setJobs((json.data ?? []) as Job[]);
   }, []);
 
-  const fetchQuota = useCallback(async (oid: string, tk: string) => {
-    const res = await fetch(`/api/assistant/transcribe/quota?orgId=${oid}`, {
+  const fetchQuota = useCallback(async (tk: string) => {
+    const res = await fetch(`/api/assistant/transcribe/quota`, {
       headers: { Authorization: `Bearer ${tk}` },
     });
     if (!res.ok) return;
@@ -153,33 +153,30 @@ export default function AssistantTranscribePage() {
     try {
       setLoading(true);
       setError(null);
-      const { data: org, error: orgErr } = await supabase
-        .from('organizations').select('id').eq('slug', orgSlug).single();
-      if (orgErr || !org) throw new Error('ไม่พบข้อมูลองค์กร');
-
       const { data: sess } = await supabase.auth.getSession();
       const accessToken = sess.session?.access_token;
-      if (!accessToken) throw new Error('กรุณาเข้าสู่ระบบใหม่');
+      const uid = sess.session?.user?.id;
+      if (!accessToken || !uid) throw new Error('กรุณาเข้าสู่ระบบใหม่');
 
-      setOrgId(org.id);
+      setProfileId(uid);
       setToken(accessToken);
-      await Promise.all([fetchJobs(org.id, accessToken), fetchQuota(org.id, accessToken)]);
+      await Promise.all([fetchJobs(accessToken), fetchQuota(accessToken)]);
     } catch (e: any) {
       setError(e?.message ?? 'โหลดข้อมูลไม่สำเร็จ');
     } finally {
       setLoading(false);
     }
-  }, [supabase, orgSlug, fetchJobs, fetchQuota]);
+  }, [supabase, fetchJobs, fetchQuota]);
 
   useEffect(() => { init(); }, [init]);
 
   // poll ขณะมีงานค้าง (อัปเดต jobs + โควต้า)
   useEffect(() => {
     const active = jobs.some((j) => j.status === 'pending' || j.status === 'processing');
-    if (!active || !orgId || !token) return;
-    const t = setInterval(() => { fetchJobs(orgId, token); fetchQuota(orgId, token); }, 5000);
+    if (!active || !token) return;
+    const t = setInterval(() => { fetchJobs(token); fetchQuota(token); }, 5000);
     return () => clearInterval(t);
-  }, [jobs, orgId, token, fetchJobs, fetchQuota]);
+  }, [jobs, token, fetchJobs, fetchQuota]);
 
   // ── Upload + start ─────────────────────────────────────────────────────────────
   const pickFile = (f: File | null) => {
@@ -212,11 +209,11 @@ export default function AssistantTranscribePage() {
   };
 
   const handleStart = async () => {
-    if (!file || !orgId || !token) return;
+    if (!file || !profileId || !token) return;
     setUploading(true);
     try {
       const mimeType = resolveMime(file);
-      const path = `${orgId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${safeFileName(file.name)}`;
+      const path = `${profileId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${safeFileName(file.name)}`;
       const { error: upErr } = await supabase.storage
         .from('assistant_audio')
         .upload(path, file, { contentType: mimeType, upsert: false });
@@ -226,7 +223,7 @@ export default function AssistantTranscribePage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({
-          orgId, audioUrl: path, fileName: file.name,
+          audioUrl: path, fileName: file.name,
           mimeType, model: STT_MODEL, fileSize: file.size,
         }),
       });
@@ -241,7 +238,7 @@ export default function AssistantTranscribePage() {
         const pr = await fetch('/api/assistant/transcribe/jobs/process', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-          body: JSON.stringify({ jobId, orgId }),
+          body: JSON.stringify({ jobId }),
         });
         if (pr.ok) {
           toast.success('อัปโหลดและเริ่มถอดเสียงแล้ว');
@@ -253,7 +250,7 @@ export default function AssistantTranscribePage() {
 
       setFile(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
-      await fetchJobs(orgId, token);
+      await fetchJobs(token);
     } catch (e: any) {
       toast.error(e?.message ?? 'เกิดข้อผิดพลาด');
     } finally {
@@ -262,13 +259,13 @@ export default function AssistantTranscribePage() {
   };
 
   const retry = async (jobId: string) => {
-    if (!orgId || !token) return;
+    if (!token) return;
     const res = await fetch('/api/assistant/transcribe/jobs/process', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ jobId, orgId }),
+      body: JSON.stringify({ jobId }),
     });
-    if (res.ok) { toast.success('ส่งงานใหม่แล้ว'); await fetchJobs(orgId, token); }
+    if (res.ok) { toast.success('ส่งงานใหม่แล้ว'); await fetchJobs(token); }
     else toast.error('ส่งงานใหม่ไม่สำเร็จ');
   };
 
@@ -299,7 +296,7 @@ export default function AssistantTranscribePage() {
       const res = await fetch('/api/assistant/transcribe/mom-pdf', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ orgId, jobId: job.id }),
+        body: JSON.stringify({ jobId: job.id }),
       });
       if (!res.ok) {
         const e = await res.json().catch(() => null);

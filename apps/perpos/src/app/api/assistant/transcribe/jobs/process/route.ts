@@ -10,29 +10,28 @@
  */
 
 import { NextRequest } from 'next/server';
-import { requireModuleMember } from '../../../../_lib/module-auth';
+import { requireAssistantUser } from '../../../../_lib/assistant-auth';
 import { createAdminClient } from '../../../../_lib/supabase';
 import { ok, Err } from '../../../../_lib/response';
 import { triggerSttWorker } from '@/lib/assistant/stt-trigger';
 
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null);
-  const { jobId, orgId } = body ?? {};
+  const { jobId } = body ?? {};
 
   if (!jobId) return Err.missingField('jobId');
-  if (!orgId) return Err.missingField('orgId');
 
-  const auth = await requireModuleMember(req, orgId, 'stt');
+  const auth = await requireAssistantUser(req);
   if (!auth.ok) return auth.res;
 
   const admin = createAdminClient();
 
-  // Load job (scoped to the org) — early-return ที่ completed เพื่อ messaging ที่ดี
+  // Load job (scoped to ตัวผู้ใช้) — ใช้ org_id ที่ผูกกับงานเรียก worker
   const { data: job, error: jobError } = await admin
     .from('transcription_jobs')
-    .select('id, status')
+    .select('id, status, org_id')
     .eq('id', jobId)
-    .eq('org_id', orgId)
+    .eq('profile_id', auth.userId)
     .maybeSingle();
 
   if (jobError) return Err.dbError(jobError);
@@ -42,7 +41,7 @@ export async function POST(req: NextRequest) {
   }
 
   // claim + ส่งไป worker (shared) — ถ้าคิวเต็ม (queued) งานคงสถานะ pending ให้ scheduler ยิงซ้ำ
-  const trig = await triggerSttWorker(admin, jobId, orgId);
+  const trig = await triggerSttWorker(admin, jobId, job.org_id as string);
   if (trig.ok) {
     return ok({ message: 'ส่งงานเข้าระบบถอดเสียงแล้ว กำลังประมวลผล', status: 'processing' });
   }

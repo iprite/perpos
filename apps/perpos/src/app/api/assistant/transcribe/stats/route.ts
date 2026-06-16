@@ -4,17 +4,15 @@
  */
 
 import { NextRequest } from 'next/server';
-import { requireModuleMember } from '../../../_lib/module-auth';
+import { requireAssistantUser } from '../../../_lib/assistant-auth';
 import { createAdminClient } from '../../../_lib/supabase';
-import { ok, Err } from '../../../_lib/response';
+import { ok } from '../../../_lib/response';
 
 const BKK = 'Asia/Bangkok';
 const dayStr = (d: Date) => new Intl.DateTimeFormat('en-CA', { timeZone: BKK }).format(d);
 
 export async function GET(req: NextRequest) {
-  const orgId = req.nextUrl.searchParams.get('orgId');
-  if (!orgId) return Err.missingField('orgId');
-  const auth = await requireModuleMember(req, orgId, 'stt');
+  const auth = await requireAssistantUser(req);
   if (!auth.ok) return auth.res;
 
   const admin = createAdminClient();
