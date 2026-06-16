@@ -51,7 +51,8 @@ cd services/stt-worker && gcloud run deploy perpos-stt-worker --source . \
 - URL: `https://perpos-pdf-renderer-120863058985.asia-southeast1.run.app`
 - Express + Playwright **v1.59.1-noble** (Dockerfile base ต้องตรง version playwright npm) + ฟอนต์ไทย (fonts-noto, fonts-thai-tlwg)
 - **public-invokable** (`allUsers` roles/run.invoker) + secret-gate `PDF_SERVICE_SECRET` (header `x-pdf-secret`)
-- Endpoint: `POST /render { html, filename }` → คืน PDF binary
+- Endpoint: `POST /render { html, filename, footerHtml?, headerHtml? }` → คืน PDF binary
+  - `footerHtml`/`headerHtml` (optional) → เปิด Playwright `displayHeaderFooter` = **running footer/header ทุกหน้า** (ใช้ class `pageNumber`/`totalPages` ได้). MoM ส่ง `MOM_FOOTER_TEMPLATE` (จาก mom-html.ts) = "จัดทำโดยระบบ PERPOS Assistant · หน้า X / Y" — กัน footer หลุดไปโดดบนหน้าเปล่า. template ไม่ inherit CSS body → inline style ล้วน, ฟอนต์ไทยใช้ fonts-thai-tlwg ใน image
 - Deploy: `cd services/pdf-renderer && gcloud run deploy perpos-pdf-renderer --source . --region asia-southeast1 --project perpos --allow-unauthenticated`
 
 ### App (Vercel)
@@ -84,7 +85,7 @@ migrations: `2026061512..._assistant_transcription`, `..0616120000_line_mom`, `.
 ## 5. Code Map
 **Worker:** `services/stt-worker/src/stt/stt.service.ts` (core ทั้งหมด: download web/LINE, measureDuration, quota reserve/refund, Gemini upload+generate, retry+multipart-JSON, deliver/notify) · `main.ts` (Express, x-worker-secret `.trim()`)
 
-**Shared libs:** `apps/perpos/src/lib/assistant/mom-html.ts` (buildMomHtml — ใช้ร่วม mom-pdf + mom-deliver) · `stt-trigger.ts` (triggerSttWorker: atomic claim + fetch worker)
+**Shared libs:** `apps/perpos/src/lib/assistant/mom-html.ts` (buildMomHtml + `MOM_FOOTER_TEMPLATE` — ใช้ร่วม mom-pdf + mom-deliver · page break: ทุก section ห่อด้วย `<table><thead>` → หัวข้อ repeat ตอนตัดข้ามหน้า, footer เป็น running footer ผ่าน renderer) · `stt-trigger.ts` (triggerSttWorker: atomic claim + fetch worker)
 
 **API routes** (`apps/perpos/src/app/api/`):
 - `assistant/transcribe/jobs` (POST สร้าง/GET list) · `jobs/process` (claim+trigger) · `mom-pdf` (เว็บดาวน์โหลด PDF) · `mom-deliver` (worker callback → PDF → LINE Flex, x-worker-secret) · `quota` (GET ตัวเอง) · `stats` (GET personal)
