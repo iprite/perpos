@@ -25,6 +25,10 @@ export default async function DashboardPage() {
 
   const isSuperAdmin = profile?.role === "super_admin";
 
+  // Super admin → admin console เป็นหน้าหลัก (เข้า org ผ่าน org switcher / admin)
+  // กันกรณี super_admin หลุดเข้า personal module (เช่น stt) จาก saved cookie
+  if (isSuperAdmin) redirect("/admin");
+
   // Everyone → first enabled module for active org
   const [activeOrgId, orgs] = await Promise.all([
     getActiveOrganizationId(),
@@ -47,9 +51,14 @@ export default async function DashboardPage() {
     redirect("/no-org");
   }
 
-  // Restore last-active module for this org, fall back to first enabled
+  // Restore last-active module — แต่เลี่ยง personal module (stt/assistant) เป็น landing
+  // ถ้ามี org module จริง (กัน B2B user หลุดเข้า stt จาก saved cookie); B2C ที่มีแค่ stt ยัง land stt ได้
+  const isPersonalKey = (k?: string | null) => !!k && !!ALL_MODULES.find((m) => m.key === k)?.personal;
   const savedModuleKey = await getActiveModuleKey(orgSlug, enabledKeys);
-  const targetModule = (savedModuleKey ? ALL_MODULES.find((m) => m.key === savedModuleKey) : null)
+  const savedModule = savedModuleKey && enabledKeys.includes(savedModuleKey) && !isPersonalKey(savedModuleKey)
+    ? ALL_MODULES.find((m) => m.key === savedModuleKey) : null;
+  const targetModule = savedModule
+    ?? ALL_MODULES.find((m) => enabledKeys.includes(m.key) && !m.personal)
     ?? ALL_MODULES.find((m) => enabledKeys.includes(m.key));
 
   if (!targetModule) {
