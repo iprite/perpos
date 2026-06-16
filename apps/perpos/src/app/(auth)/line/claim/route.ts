@@ -25,14 +25,19 @@ export async function GET(request: NextRequest) {
 
   const admin = createSupabaseAdminClient();
 
-  // 1. validate one-time token
+  // 1. validate token — ใช้ซ้ำได้จนหมดอายุ (ไม่ block ที่ used_at)
+  //    เหตุ: LINE link-preview bot prefetch URL ทันทีที่ส่งข้อความ (~2 วิ) ถ้า one-time
+  //    bot จะกิน token ก่อน → พอ user กดจริงจะ link_expired → เด้งไป /signin
+  //    แต่ละ GET generate Supabase magic link ใหม่ของตัวเอง การ prefetch จึงไม่กระทบ
+  //    การ login จริงของ user · ความเสี่ยง reuse ต่ำ (อายุ 5 นาที + ลิงก์ส่งเข้าแชทเจ้าตัวเท่านั้น)
   const { data: row } = await admin
     .from('web_login_tokens')
     .select('profile_id, expires_at, used_at')
     .eq('token', t)
     .maybeSingle();
-  if (!row || row.used_at || new Date(row.expires_at as string) < new Date()) return signin('link_expired');
-  await admin.from('web_login_tokens').update({ used_at: new Date().toISOString() }).eq('token', t);
+  if (!row || new Date(row.expires_at as string) < new Date()) return signin('link_expired');
+  // บันทึกเวลาใช้ครั้งแรกไว้เป็น audit (ไม่ block การใช้ซ้ำในช่วงยังไม่หมดอายุ)
+  if (!row.used_at) await admin.from('web_login_tokens').update({ used_at: new Date().toISOString() }).eq('token', t);
 
   // 2. email ของ user (shadow หรือ real)
   const { data: prof } = await admin.from('profiles').select('email').eq('id', row.profile_id as string).maybeSingle();
