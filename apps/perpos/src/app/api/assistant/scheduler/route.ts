@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireCron } from '../../_lib/auth';
 import { createAdminClient } from '../../_lib/supabase';
+import { triggerSttWorker } from '@/lib/assistant/stt-trigger';
 
 const BKK = 'Asia/Bangkok';
 
@@ -150,6 +151,39 @@ async function run(req: NextRequest) {
       await pushLine(accessToken, lineId,
         '❌ ขออภัย การถอดเสียงใช้เวลานานผิดปกติและถูกยกเลิก\nกรุณาพิมพ์ /mom แล้วส่งไฟล์อีกครั้งครับ');
     }
+  }
+
+  // 4.5 Requeue pending STT jobs — งานที่ติดคิว (trigger เจอ worker ไม่ว่าง → คืนเป็น pending)
+  //     หรือ trigger แรกพลาด → ยิงซ้ำให้ทุก ~1 นาที (DB เป็น retry queue, ไม่ทิ้งงาน)
+  //     เกิน 30 นาทียังเริ่มไม่ได้ → ยอมแพ้ mark failed + แจ้ง (กัน retry วนไม่จบตอน worker ตายยาว)
+  //     ยังไม่ reserve โควต้าตอน pending จึงไม่ต้อง refund
+  const REQUEUE_AFTER_MS = 60 * 1000;        // pending เกิน 1 นาที → ลองยิงใหม่
+  const GIVEUP_AFTER_MS = 30 * 60 * 1000;    // pending เกิน 30 นาที → ยอมแพ้
+  const { data: pendingJobs } = await admin
+    .from('transcription_jobs')
+    .select('id, org_id, source, profile_id, created_at')
+    .eq('status', 'pending')
+    .lt('updated_at', new Date(now.getTime() - REQUEUE_AFTER_MS).toISOString())
+    .order('created_at', { ascending: true })
+    .limit(10); // จำกัดต่อรอบ กัน burst กระแทก worker ซ้ำ
+
+  for (const pj of (pendingJobs ?? []) as Record<string, unknown>[]) {
+    const ageMs = now.getTime() - new Date(pj.created_at as string).getTime();
+    if (ageMs > GIVEUP_AFTER_MS) {
+      const { data: gv } = await admin
+        .from('transcription_jobs')
+        .update({ status: 'failed', error_message: 'ระบบไม่ว่างนานเกินไป — กรุณาลองใหม่อีกครั้ง', updated_at: now.toISOString() })
+        .eq('id', pj.id as string)
+        .eq('status', 'pending')
+        .select('id');
+      if ((gv ?? []).length && pj.source === 'line') {
+        const { data: prof } = await admin.from('profiles').select('line_user_id').eq('id', pj.profile_id as string).maybeSingle();
+        const lineId = (prof as { line_user_id?: string } | null)?.line_user_id;
+        if (lineId) await pushLine(accessToken, lineId, '❌ ขออภัย ระบบไม่ว่างเป็นเวลานาน งานถอดเสียงถูกยกเลิก\nกรุณาพิมพ์ /mom แล้วส่งไฟล์อีกครั้งครับ');
+      }
+      continue;
+    }
+    await triggerSttWorker(admin, pj.id as string, pj.org_id as string); // overload อีก → คืน pending เอง รอรอบหน้า
   }
 
   // 5. Privacy cleanup — ลบไฟล์เสียง + PDF ออกจาก storage และล้าง transcript ของงานที่

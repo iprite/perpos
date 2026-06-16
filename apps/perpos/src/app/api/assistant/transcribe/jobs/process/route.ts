@@ -13,6 +13,7 @@ import { NextRequest } from 'next/server';
 import { requireModuleMember } from '../../../../_lib/module-auth';
 import { createAdminClient } from '../../../../_lib/supabase';
 import { ok, Err } from '../../../../_lib/response';
+import { triggerSttWorker } from '@/lib/assistant/stt-trigger';
 
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null);
@@ -24,15 +25,9 @@ export async function POST(req: NextRequest) {
   const auth = await requireModuleMember(req, orgId, 'assistant');
   if (!auth.ok) return auth.res;
 
-  const workerUrl = process.env.STT_WORKER_URL;
-  const workerSecret = process.env.WORKER_SECRET;
-  if (!workerUrl || !workerSecret) {
-    return Err.externalService('STT worker', 'ยังไม่ได้ตั้งค่า STT_WORKER_URL / WORKER_SECRET');
-  }
-
   const admin = createAdminClient();
 
-  // Load job (scoped to the org)
+  // Load job (scoped to the org) — early-return ที่ completed เพื่อ messaging ที่ดี
   const { data: job, error: jobError } = await admin
     .from('transcription_jobs')
     .select('id, status')
@@ -42,53 +37,21 @@ export async function POST(req: NextRequest) {
 
   if (jobError) return Err.dbError(jobError);
   if (!job) return Err.notFound(`Transcription Job ID ${jobId}`);
-
   if (job.status === 'completed') {
-    return ok({ message: 'งานแกะเสียงเสร็จสมบูรณ์แล้ว', status: 'completed' });
+    return ok({ message: 'งานถอดเสียงเสร็จสมบูรณ์แล้ว', status: 'completed' });
   }
 
-  // Atomically claim the job: only succeeds when it is still pending/failed.
-  // Prevents double-processing (concurrency) and duplicate Gemini spend.
-  const { data: claimed, error: claimError } = await admin
-    .from('transcription_jobs')
-    .update({ status: 'processing', error_message: null, updated_at: new Date().toISOString() })
-    .eq('id', jobId)
-    .in('status', ['pending', 'failed'])
-    .select('id');
-
-  if (claimError) return Err.dbError(claimError);
-  if (!claimed || claimed.length === 0) {
-    // Already processing (or just completed) — idempotent no-op.
-    return ok({ message: 'งานนี้กำลังประมวลผลอยู่แล้ว', status: 'processing' });
+  // claim + ส่งไป worker (shared) — ถ้าคิวเต็ม (queued) งานคงสถานะ pending ให้ scheduler ยิงซ้ำ
+  const trig = await triggerSttWorker(admin, jobId, orgId);
+  if (trig.ok) {
+    return ok({ message: 'ส่งงานเข้าระบบถอดเสียงแล้ว กำลังประมวลผล', status: 'processing' });
   }
-
-  // Hand off to the Cloud Run worker (returns 202 fast; heavy work runs there).
-  try {
-    const resp = await fetch(`${workerUrl.replace(/\/$/, '')}/process`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-worker-secret': workerSecret.trim(),
-      },
-      body: JSON.stringify({ jobId, orgId }),
+  if (trig.queued) {
+    return ok({
+      message: 'ขณะนี้มีงานจำนวนมาก งานของคุณเข้าคิวแล้ว ระบบจะประมวลผลให้อัตโนมัติเมื่อถึงคิว',
+      status: 'pending',
+      queued: true,
     });
-
-    if (!resp.ok) {
-      throw new Error(`worker responded ${resp.status}`);
-    }
-  } catch (e) {
-    // Revert the claim so the user can retry.
-    await admin
-      .from('transcription_jobs')
-      .update({
-        status: 'failed',
-        error_message: 'ไม่สามารถส่งงานไปยังระบบแกะเสียงได้ กรุณาลองใหม่',
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', jobId);
-
-    return Err.externalService('STT worker', String(e));
   }
-
-  return ok({ message: 'ส่งงานเข้าระบบแกะเสียงแล้ว กำลังประมวลผล', status: 'processing' });
+  return Err.externalService('STT worker', trig.error ?? 'trigger failed');
 }

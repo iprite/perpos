@@ -1313,9 +1313,14 @@ async function handleMomAudio(
   // จากนั้นค่อยสั่ง worker — ถ้าล้มเหลว push แจ้ง (reply token ใช้ไปแล้ว ตอบซ้ำไม่ได้)
   const trig = await triggerSttWorker(admin, job.id as string, orgId);
   if (!trig.ok) {
+    // คิวเต็มชั่วคราว (queued) → งานไม่ถูกทิ้ง รอ scheduler ยิงซ้ำ → บอกให้รอ
+    // error จริง → ให้ลองใหม่
+    const text = trig.queued
+      ? '⏳ ขณะนี้มีงานเข้ามาจำนวนมาก งานของคุณเข้าคิวเรียบร้อยแล้ว ระบบจะถอดเสียงให้อัตโนมัติเมื่อถึงคิว รอสักครู่นะครับ 🙏'
+      : '❌ ขออภัย เริ่มถอดเสียงไม่สำเร็จ กรุณาพิมพ์ /mom แล้วส่งไฟล์อีกครั้ง';
     await sendLineMessages({
       to: lineUserId,
-      messages: [{ type: 'text', text: '❌ ขออภัย เริ่มถอดเสียงไม่สำเร็จ กรุณาพิมพ์ /mom แล้วส่งไฟล์อีกครั้ง' }],
+      messages: [{ type: 'text', text }],
     }).catch(() => undefined);
   }
 }
