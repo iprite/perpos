@@ -1320,6 +1320,30 @@ async function handleMomAudio(
   }
 }
 
+// ผู้ใช้กดปุ่ม "ถอดเสียงเลย" จาก Flex (กรณีส่งไฟล์มาก่อนพิมพ์ /mom) → ตรวจสิทธิ์+org+โควต้า
+// แล้วเริ่มถอดเสียงจาก messageId นั้น (handleMomAudio idempotent ต่อ line_message_id → กดซ้ำไม่สร้างงานซ้ำ)
+async function handleMomConfirm(
+  admin: ReturnType<typeof createAdminClient>,
+  lineUserId: string,
+  messageId: string,
+  replyToken: string,
+) {
+  if (!messageId) return;
+  const profile = await getProfileByLineId(admin, lineUserId);
+  if (!profile) { await replyText(replyToken, '❌ กรุณาแอด LINE และเริ่มต้นใช้งานก่อนครับ'); return; }
+  if (!await checkAssistantAccess(admin, profile.id, profile.role)) {
+    await replyText(replyToken, '❌ ไม่มีสิทธิ์ใช้คำสั่งนี้ (ต้องเปิดใช้งานผู้ช่วย AI ในองค์กร)'); return;
+  }
+  const activeOrg = await getOrSetActiveOrg(admin, profile.id, profile.line_active_org_id);
+  if (!activeOrg) { await replyText(replyToken, '❌ ยังไม่ได้เลือกองค์กร พิมพ์ /org เพื่อเลือกองค์กรก่อน'); return; }
+
+  const { data: q } = await admin.from('stt_quota').select('limit_seconds, used_seconds').eq('profile_id', profile.id).maybeSingle();
+  const qRemain = ((q as { limit_seconds?: number } | null)?.limit_seconds ?? 18000) - ((q as { used_seconds?: number } | null)?.used_seconds ?? 0);
+  if (qRemain <= 0) { await replyText(replyToken, '❌ โควต้าถอดเสียงของคุณหมดแล้ว (0 นาที)\nติดต่อแอดมินเพื่อเพิ่มโควต้าครับ'); return; }
+
+  await handleMomAudio(admin, lineUserId, messageId, profile.id, activeOrg.id, '', replyToken);
+}
+
 // auto-onboarding เมื่อมี follow event → provision + welcome Flex (การ์ดต้อนรับสวย ๆ)
 async function handleFollow(admin: ReturnType<typeof createAdminClient>, lineUserId: string) {
   const result = await provisionLineUser(admin, lineUserId);
@@ -1424,6 +1448,19 @@ export async function POST(req: NextRequest) {
       continue;
     }
 
+    // ─── Postback — ปุ่มยืนยันถอดเสียงจาก Flex (ผู้ใช้ส่งไฟล์ก่อนพิมพ์ /mom) ──────
+    if (event.type === 'postback') {
+      const pbUserId = (event.source as Record<string, string>)?.userId ?? '';
+      const pbReplyToken = String(event.replyToken ?? '');
+      const pbData = String((event.postback as Record<string, unknown>)?.data ?? '');
+      if (pbUserId && pbData.startsWith('momfile:')) {
+        await handleMomConfirm(admin, pbUserId, pbData.slice('momfile:'.length), pbReplyToken);
+      } else if (pbData === 'momcancel') {
+        await replyText(pbReplyToken, 'รับทราบครับ — หากต้องการถอดเสียงภายหลัง พิมพ์ /mom แล้วส่งไฟล์ได้เลย 🙏');
+      }
+      continue;
+    }
+
     if (event.type !== 'message') continue;
     const msg = event.message as Record<string, unknown>;
 
@@ -1451,21 +1488,63 @@ export async function POST(req: NextRequest) {
       const messageId = String(msg.id ?? '');
       if (!lineUserId || !messageId) continue;
 
+      const fileName = String(msg.fileName ?? '');
+      const isAudioFile = msg.type === 'audio' || /\.(ogg|mp3|m4a|wav|mp4|aac|flac|webm|opus)$/i.test(fileName);
+
       // เช็ค session ก่อน (ถูกกว่า) — session เก็บ profile_id/org_id ไว้แล้ว ไม่ต้อง lookup profile ซ้ำ
       const { data: sess } = await admin
         .from('assistant_line_sessions')
         .select('org_id, profile_id, expires_at')
         .eq('line_user_id', lineUserId)
         .maybeSingle();
-      // ไม่มี session /mom หรือหมดอายุ → เงียบ (ไม่ยุ่งฟีเจอร์อื่น)
-      if (!sess || new Date(sess.expires_at as string).getTime() < Date.now()) continue;
+      const hasSession = sess && new Date(sess.expires_at as string).getTime() >= Date.now();
 
-      const fileName = String(msg.fileName ?? '');
-      if (msg.type === 'file' && !/\.(ogg|mp3|m4a|wav|mp4|aac|flac|webm|opus)$/i.test(fileName)) {
-        await replyText(replyToken, '❌ ไฟล์นี้ไม่ใช่ไฟล์เสียง/วิดีโอ กรุณาส่งไฟล์เสียง (mp3, ogg, m4a, wav, mp4)');
+      // มี session /mom ค้างอยู่ → ถอดเสียงทันที (พฤติกรรมเดิม)
+      if (hasSession) {
+        if (msg.type === 'file' && !isAudioFile) {
+          await replyText(replyToken, '❌ ไฟล์นี้ไม่ใช่ไฟล์เสียง/วิดีโอ กรุณาส่งไฟล์เสียง (mp3, ogg, m4a, wav, mp4)');
+          continue;
+        }
+        await handleMomAudio(admin, lineUserId, messageId, String(sess!.profile_id), String(sess!.org_id), fileName, replyToken);
         continue;
       }
-      await handleMomAudio(admin, lineUserId, messageId, String(sess.profile_id), String(sess.org_id), fileName, replyToken);
+
+      // ไม่มี session — ถ้าเป็นไฟล์เสียง/วิดีโอ และผู้ใช้มีสิทธิ์ → ถามด้วย Flex ว่าจะถอดเสียงไหม
+      if (!isAudioFile) continue; // ไฟล์เอกสาร/อื่น ๆ ไม่ยุ่ง
+      const audioProfile = await getProfileByLineId(admin, lineUserId);
+      if (!audioProfile) continue;
+      if (!await checkAssistantAccess(admin, audioProfile.id, audioProfile.role)) continue;
+      await replyLine(replyToken, [{
+        type: 'flex',
+        altText: 'ได้รับไฟล์เสียงแล้ว — ต้องการให้ถอดเป็นรายงานการประชุมไหม?',
+        contents: {
+          type: 'bubble',
+          body: {
+            type: 'box', layout: 'vertical', spacing: 'sm', paddingAll: '18px',
+            contents: [
+              {
+                type: 'box', layout: 'horizontal', spacing: 'sm', alignItems: 'center',
+                contents: [
+                  { type: 'text', text: '🎧', size: 'lg', flex: 0 },
+                  { type: 'text', text: 'ได้รับไฟล์เสียงแล้ว', weight: 'bold', size: 'md', color: '#0284c7', gravity: 'center' },
+                ],
+              },
+              { type: 'separator', margin: 'md' },
+              { type: 'text', text: 'ต้องการให้ช่วยถอดเป็นรายงานการประชุม (MoM) จากไฟล์นี้ไหมครับ?', size: 'sm', wrap: true, color: '#374151', margin: 'md' },
+              ...(fileName ? [{ type: 'text', text: `📄 ${fileName}`, size: 'xs', wrap: true, color: '#94a3b8' } as const] : []),
+            ],
+          },
+          footer: {
+            type: 'box', layout: 'vertical', spacing: 'sm', paddingAll: '14px', paddingTop: '4px',
+            contents: [
+              { type: 'button', style: 'primary', color: '#0284c7', height: 'sm',
+                action: { type: 'postback', label: 'ถอดเสียงเลย', data: `momfile:${messageId}`, displayText: 'ถอดเสียงไฟล์นี้' } },
+              { type: 'button', style: 'secondary', height: 'sm',
+                action: { type: 'postback', label: 'ไม่เป็นไร', data: 'momcancel', displayText: 'ไม่เป็นไร' } },
+            ],
+          },
+        },
+      }]);
       continue;
     }
 
