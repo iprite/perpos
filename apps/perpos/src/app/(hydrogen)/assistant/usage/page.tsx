@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { BarChart3, Clock, CheckCircle2, FileAudio, Loader2, Globe, MessageCircle, Sparkles } from 'lucide-react';
@@ -26,7 +25,6 @@ function Card({ icon, label, value, sub, accent }: { icon: React.ReactNode; labe
 }
 
 export default function MyStatsPage() {
-  const { orgSlug } = useParams<{ orgSlug: string }>();
   const supabase = createSupabaseBrowserClient();
   const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -34,16 +32,15 @@ export default function MyStatsPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const { data: org } = await supabase.from('organizations').select('id').eq('slug', orgSlug).single();
       const { data: sess } = await supabase.auth.getSession();
       const token = sess.session?.access_token;
-      if (!org || !token) return;
-      const res = await fetch(`/api/assistant/transcribe/stats?orgId=${org.id}`, { headers: { Authorization: `Bearer ${token}` } });
+      if (!token) return;
+      const res = await fetch(`/api/assistant/transcribe/stats`, { headers: { Authorization: `Bearer ${token}` } });
       if (res.ok) setStats((await res.json()).data as Stats);
     } finally {
       setLoading(false);
     }
-  }, [supabase, orgSlug]);
+  }, [supabase]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -82,7 +79,7 @@ export default function MyStatsPage() {
           <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h3 className="text-sm font-semibold text-gray-700">โควต้าเดือนนี้</h3>
-              <Link href={`/${orgSlug}/assistant/transcribe/billing`} className="inline-flex items-center gap-1 text-xs font-medium text-indigo-600 hover:text-indigo-700">
+              <Link href="/assistant/billing" className="inline-flex items-center gap-1 text-xs font-medium text-indigo-600 hover:text-indigo-700">
                 <Sparkles className="h-3.5 w-3.5" /> ซื้อนาทีเพิ่ม
               </Link>
             </div>

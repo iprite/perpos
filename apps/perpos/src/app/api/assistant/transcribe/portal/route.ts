@@ -15,9 +15,6 @@ export async function POST(req: NextRequest) {
   const auth = await requireUser(req);
   if (!auth.ok) return auth.res;
 
-  const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
-  const orgSlug = String(body.orgSlug ?? '');
-
   const admin = createAdminClient();
   const { data: sub } = await admin
     .from('stt_subscriptions')
@@ -29,7 +26,7 @@ export async function POST(req: NextRequest) {
   if (!customerId) return NextResponse.json({ error: 'no_customer' }, { status: 400 });
 
   const baseUrl = getAppBaseUrl().replace(/\/$/, '');
-  const returnUrl = orgSlug ? `${baseUrl}/${orgSlug}/assistant/transcribe/billing` : `${baseUrl}/`;
+  const returnUrl = `${baseUrl}/assistant/billing`;
 
   const stripe = getStripe();
   const portal = await stripe.billingPortal.sessions.create({ customer: customerId, return_url: returnUrl });

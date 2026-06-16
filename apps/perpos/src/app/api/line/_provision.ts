@@ -13,7 +13,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 const DEFAULT_QUOTA_SECONDS = 18000; // 300 นาที
-const ASSISTANT_ALLOWED_ROLES = ['owner', 'admin', 'member'];
 
 export type ProvisionResult = { profileId: string; orgId: string; displayName: string; isNew: boolean };
 
@@ -163,19 +162,12 @@ export async function provisionLineUser(admin: SupabaseClient, lineUserId: strin
   // 2. personal org + owner membership (idempotent / reuse-if-exists)
   const orgId = await ensurePersonalOrg(admin, profileId, displayName, preferredOrgId);
 
-  // 3. module access — แจกเฉพาะ `stt` (B2C: ทุกคนที่แอด LINE ได้ trial แกะเสียง)
-  //    ครบทั้ง 3 ระบบสิทธิ์: org_module_settings (เปิด module ระดับ org) ·
-  //    personal_module_grants (LINE checkSttAccess) · module_members (requireModuleMember ของเว็บ)
-  //    NOTE: `assistant` + โมดูล B2B อื่น ๆ = superadmin เปิดให้ต่อ org เท่านั้น — ไม่แจกใน provisioning
-  await ensureRow(admin, 'org_module_settings',
-    { organization_id: orgId, module_key: 'stt' },
-    { organization_id: orgId, module_key: 'stt', is_enabled: true, allowed_roles: ASSISTANT_ALLOWED_ROLES });
+  // 3. ผู้ช่วย AI (key ภายใน 'stt') — per-profile: แค่ personal_module_grants ก็พอ
+  //    (สิทธิ์เช็คต่อ profile โดย requireAssistantUser / LINE checkSttAccess — ไม่ใช้ org module)
+  //    personal org ที่สร้างไว้ = "home org" สำหรับเก็บไฟล์/เรียก worker เท่านั้น
   await ensureRow(admin, 'personal_module_grants',
     { user_id: profileId, module_key: 'stt' },
     { module_key: 'stt', user_id: profileId, granted_by: profileId, is_enabled: true });
-  await ensureRow(admin, 'module_members',
-    { org_id: orgId, module_key: 'stt', user_id: profileId },
-    { org_id: orgId, module_key: 'stt', user_id: profileId, module_role: 'owner', is_active: true, invited_by: profileId });
 
   // 4. active org pointer + quota
   if (preferredOrgId !== orgId) {

@@ -2,12 +2,12 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { BotMessageSquare } from 'lucide-react';
+import { Mic } from 'lucide-react';
 import { OrgSwitcher } from '@/components/accounting/org-switcher';
 import type { OrganizationSummary } from '@/lib/accounting/queries';
 import { UsvillaLangDropdown } from './usvilla-lang-dropdown';
 
-const SYSTEM_SEGMENTS = new Set(['admin', 'user', 'signin', 'no-org', 'no-module']);
+const SYSTEM_SEGMENTS = new Set(['admin', 'user', 'signin', 'no-org', 'no-module', 'assistant']);
 
 interface Props {
   enabledModuleKeys: string[];
@@ -20,30 +20,28 @@ export function HeaderCenter({ enabledModuleKeys, organizations, activeOrganizat
   const segments = pathname.split('/').filter(Boolean);
   const isUsvilla = segments[1] === 'usvilla';
 
-  const hasAssistant = enabledModuleKeys.includes('assistant');
-  // Resolve orgSlug from URL — fallback to active org slug
-  const orgSlugFromUrl = segments[0] && !SYSTEM_SEGMENTS.has(segments[0]) ? segments[0] : null;
-  const activeOrgSlug  = organizations.find(o => o.id === activeOrganizationId)?.slug ?? null;
-  const orgSlug        = orgSlugFromUrl ?? activeOrgSlug ?? '';
+  // ผู้ช่วย AI (assistant) — internal key ยังเป็น 'stt'
+  const hasAssistant = enabledModuleKeys.includes('stt');
+  const onAssistant  = segments[0] === 'assistant';
 
   return (
     <div className="mx-2 flex items-center gap-2 sm:mx-4">
       {isUsvilla && <UsvillaLangDropdown />}
 
-      {/* Assistant shortcut — personal module users only */}
-      {hasAssistant && orgSlug && (
-        <Link
-          href={`/${orgSlug}/assistant`}
-          title="Task Manager (Assistant)"
-          className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-500 hover:bg-violet-50 hover:border-violet-200 hover:text-violet-600 transition-colors"
-        >
-          <BotMessageSquare className="h-4 w-4" />
-        </Link>
-      )}
-
-      {/* ซ่อน org switcher ถ้ามี org เดียว (เช่น B2C ที่มีแค่ personal org) */}
+      {/* ERP org switcher (B2B ที่มีหลาย org) — เลือก org = สลับกลับไป ERP */}
       {organizations.length > 1 && (
         <OrgSwitcher organizations={organizations} activeOrganizationId={activeOrganizationId} />
+      )}
+
+      {/* สลับไป "ผู้ช่วย AI" (per-profile) — แสดงเมื่อมีสิทธิ์และไม่ได้อยู่ในผู้ช่วย */}
+      {hasAssistant && !onAssistant && (
+        <Link
+          href="/assistant"
+          title="ผู้ช่วย AI"
+          className="inline-flex h-9 items-center gap-1.5 rounded-md border border-indigo-200 bg-indigo-50 px-3 text-sm font-medium text-indigo-700 transition-colors hover:bg-indigo-100"
+        >
+          <Mic className="h-4 w-4" /> ผู้ช่วย AI
+        </Link>
       )}
     </div>
   );

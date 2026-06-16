@@ -20,7 +20,7 @@ import {
 } from "@/lib/accounting/queries";
 
 // Path segments that are NOT org slugs
-const SYSTEM_SEGMENTS = new Set(["admin", "user", "signin", "no-org"]);
+const SYSTEM_SEGMENTS = new Set(["admin", "user", "signin", "no-org", "assistant"]);
 
 export default async function HydrogenLayout({ children }: { children: React.ReactNode }) {
   const headersList = await headers();

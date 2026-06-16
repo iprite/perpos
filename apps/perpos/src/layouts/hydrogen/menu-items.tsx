@@ -15,8 +15,6 @@ import {
   Landmark,
   FileText,
   Percent,
-  BotMessageSquare,
-  Wifi,
   LayoutGrid,
   PlusCircle,
   Activity,
@@ -64,7 +62,7 @@ export function isLinkMenuItem(item: MenuItem): item is LinkMenuItem {
 
 const allRoles: Role[] = ["super_admin", "user"];
 
-const SYSTEM_SEGMENTS = new Set(["admin", "user", "signin", "no-org", "no-module"]);
+const SYSTEM_SEGMENTS = new Set(["admin", "user", "signin", "no-org", "no-module", "assistant"]);
 
 function hasRole(itemRoles: Role[] | undefined, role: Role | null) {
   if (!itemRoles) return true;
@@ -337,51 +335,26 @@ function buildAdminMenuItems(): MenuItem[] {
 }
 
 // ─── Assistant module ───────────────────────────────────────────────────────
-function buildAssistantMenuItems(org: string, labels: Record<string, string> = {}): MenuItem[] {
+// ─── ผู้ช่วย AI (assistant) — per-profile, top-level ไม่มี org ───────────────────
+function buildSttMenuItems(_org: string, labels: Record<string, string> = {}): MenuItem[] {
   const l = (key: string, fallback: string) => labels[key] || fallback;
   return [
-    { name: "Assistant", roles: allRoles },
-    {
-      name: l("tasks", "Task Manager"),
-      href: `/${org}/assistant`,
-      icon: <BotMessageSquare className="h-5 w-5" />,
-      roles: allRoles,
-    },
-    {
-      name: l("connections", "การเชื่อมต่อ"),
-      href: `/${org}/assistant/connections`,
-      icon: <Wifi className="h-5 w-5" />,
-      roles: allRoles,
-    },
-    {
-      name: l("transcribe", "ถอดเสียง→รายงานประชุม"),
-      href: `/${org}/assistant/transcribe`,
-      icon: <Sparkles className="h-5 w-5" />,
-      roles: allRoles,
-    },
-  ];
-}
-
-// ─── STT module (ถอดเสียง→รายงานประชุม) — personal, มีแพ็กเกจรายเดือนแยก ───────
-function buildSttMenuItems(org: string, labels: Record<string, string> = {}): MenuItem[] {
-  const l = (key: string, fallback: string) => labels[key] || fallback;
-  return [
-    { name: "ถอดเสียง", roles: allRoles },
+    { name: "ผู้ช่วย AI", roles: allRoles },
     {
       name: l("transcribe", "ถอดเสียง"),
-      href: `/${org}/assistant/transcribe`,
+      href: `/assistant`,
       icon: <Mic className="h-5 w-5" />,
       roles: allRoles,
     },
     {
       name: l("usage", "การใช้งาน"),
-      href: `/${org}/assistant/transcribe/stats`,
+      href: `/assistant/usage`,
       icon: <BarChart3 className="h-5 w-5" />,
       roles: allRoles,
     },
     {
       name: l("billing", "การชำระเงิน"),
-      href: `/${org}/assistant/transcribe/billing`,
+      href: `/assistant/billing`,
       icon: <CreditCard className="h-5 w-5" />,
       roles: allRoles,
     },
@@ -532,11 +505,12 @@ function pickMenuContext(pathname: string, role: Role | null, enabledKeys: strin
   // /admin/* is always admin console
   if (segments[0] === "admin") return role === "super_admin" ? "admin" : "user";
 
+  // /assistant/* = ผู้ช่วย AI (per-profile, top-level ไม่มี org)
+  if (segments[0] === "assistant") return "stt";
+
   // For org routes: /:orgSlug/:module/*  →  segments[1] is the module key
   if (segments.length >= 2) {
     const mod = segments[1];
-    if (mod === "assistant" && segments[2] === "transcribe") return "stt";
-    if (mod === "assistant") return "assistant";
     if (mod === "payroll")   return "payroll";
     if (mod === "tmc")       return "tmc";
     if (mod === "crm")       return "crm";
@@ -556,7 +530,6 @@ function pickMenuContext(pathname: string, role: Role | null, enabledKeys: strin
   if (enabledKeys.includes("crm"))        return "crm";
   if (enabledKeys.includes("acc_firm"))   return "acc_firm";
   if (enabledKeys.includes("payroll"))    return "payroll";
-  if (enabledKeys.includes("assistant"))  return "assistant";
   if (enabledKeys.includes("stt"))        return "stt";
   return "user";
 }

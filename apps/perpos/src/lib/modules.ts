@@ -61,29 +61,15 @@ export const ALL_MODULES: ModuleDef[] = [
     ],
   },
   {
-    key: "assistant",
-    label: "Assistant",
+    // key ภายในยังเป็น 'stt' (เลี่ยง FK rename) — user-facing = "ผู้ช่วย AI"
+    key: "stt",
+    label: "ผู้ช่วย AI",
     href: "/assistant",
     personal: true,
-    // assistant = task/calendar/finance — ไม่รวม /assistant/transcribe (แยกเป็น module `stt`)
+    // ผู้ช่วย AI ส่วนตัว (per-profile) — top-level /assistant ไม่มี org
     match: (p) => {
       const seg = p.split("/").filter(Boolean);
-      return seg.length >= 2 && seg[1] === "assistant" && seg[2] !== "transcribe";
-    },
-    roles: [
-      { key: "owner",  label: "Owner",  canWrite: true },
-      { key: "member", label: "Member", canWrite: true },
-    ],
-  },
-  {
-    key: "stt",
-    label: "ถอดเสียง",
-    href: "/assistant/transcribe",
-    personal: true,
-    // แกะเสียง→รายงานประชุม (MoM) — ระดับบุคคล มีแพ็กเกจรายเดือนแยก
-    match: (p) => {
-      const seg = p.split("/").filter(Boolean);
-      return seg.length >= 3 && seg[1] === "assistant" && seg[2] === "transcribe";
+      return seg[0] === "assistant";
     },
     roles: [
       { key: "owner",  label: "Owner",  canWrite: true },
@@ -337,9 +323,6 @@ export const MODULE_MENUS: Record<string, MenuDef[]> = {
       { key: "funds",               label: "ข้อมูลกองทุน" },
       { key: "accounting-settings", label: "ตั้งค่าการบันทึกบัญชี" },
     ]},
-  ],
-  assistant: [
-    { key: "tasks", label: "Task Manager" },
   ],
   stt: [
     { key: "transcribe", label: "ถอดเสียง" },

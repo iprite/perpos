@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { useParams, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Loader2, Check, Clock, Sparkles, Plus, CreditCard, ShieldCheck } from 'lucide-react';
@@ -22,11 +22,9 @@ const thb = (n: number) => new Intl.NumberFormat('th-TH').format(n);
 const ACTIVE_SUB = ['trialing', 'active', 'past_due'];
 
 export default function TranscribeBillingPage() {
-  const { orgSlug } = useParams<{ orgSlug: string }>();
   const search = useSearchParams();
   const supabase = createSupabaseBrowserClient();
 
-  const [orgId, setOrgId] = useState('');
   const [token, setToken] = useState('');
   const [plans, setPlans] = useState<Plan[]>([]);
   const [sub, setSub] = useState<Sub | null>(null);
@@ -37,9 +35,6 @@ export default function TranscribeBillingPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const { data: org } = await supabase.from('organizations').select('id').eq('slug', orgSlug).single();
-      const oid = org?.id ? String(org.id) : '';
-      setOrgId(oid);
       const { data: sess } = await supabase.auth.getSession();
       const accessToken = sess.session?.access_token ?? '';
       setToken(accessToken);
@@ -47,7 +42,7 @@ export default function TranscribeBillingPage() {
       const [{ data: planRows }, { data: subRow }, quotaRes] = await Promise.all([
         supabase.from('stt_plans').select('id, code, name, kind, minutes, price, currency').eq('is_active', true).order('sort_order'),
         supabase.from('stt_subscriptions').select('plan_id, status, current_period_end, cancel_at_period_end').maybeSingle(),
-        oid ? fetch(`/api/assistant/transcribe/quota?orgId=${oid}`, { headers: { Authorization: `Bearer ${accessToken}` } }) : Promise.resolve(null),
+        accessToken ? fetch(`/api/assistant/transcribe/quota`, { headers: { Authorization: `Bearer ${accessToken}` } }) : Promise.resolve(null),
       ]);
       setPlans((planRows ?? []).map((p) => ({ ...p, price: Number(p.price) })) as Plan[]);
       setSub((subRow as Sub) ?? null);
@@ -58,7 +53,7 @@ export default function TranscribeBillingPage() {
     } finally {
       setLoading(false);
     }
-  }, [supabase, orgSlug]);
+  }, [supabase]);
   useEffect(() => { load(); }, [load]);
 
   useEffect(() => {
@@ -74,7 +69,7 @@ export default function TranscribeBillingPage() {
       const res = await fetch('/api/assistant/transcribe/portal', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ orgSlug }),
+        body: JSON.stringify({}),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.url) { toast.error('เปิดหน้าจัดการไม่สำเร็จ'); return; }

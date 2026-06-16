@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
-import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -105,7 +104,6 @@ function safeFileName(name: string): string {
 }
 
 export default function AssistantTranscribePage() {
-  const { orgSlug } = useParams<{ orgSlug: string }>();
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
 
   const [profileId, setProfileId] = useState('');
@@ -435,7 +433,7 @@ export default function AssistantTranscribePage() {
                     style={{ width: `${usedPct}%` }}
                   />
                 </div>
-                <Link href={`/${orgSlug}/assistant/transcribe/billing`} className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-indigo-600 hover:text-indigo-700">
+                <Link href="/assistant/billing" className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-indigo-600 hover:text-indigo-700">
                   <Sparkles className="h-3.5 w-3.5" /> ซื้อนาทีเพิ่ม
                 </Link>
               </div>
