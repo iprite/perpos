@@ -77,7 +77,7 @@ export const ALL_MODULES: ModuleDef[] = [
   },
   {
     key: "stt",
-    label: "แกะเสียง",
+    label: "ถอดเสียง",
     href: "/assistant/transcribe",
     personal: true,
     // แกะเสียง→รายงานประชุม (MoM) — ระดับบุคคล มีแพ็กเกจรายเดือนแยก
@@ -342,8 +342,8 @@ export const MODULE_MENUS: Record<string, MenuDef[]> = {
     { key: "tasks", label: "Task Manager" },
   ],
   stt: [
-    { key: "transcribe", label: "แกะเสียง" },
-    { key: "billing",    label: "ซื้อนาทีแกะเสียง" },
+    { key: "transcribe", label: "ถอดเสียง" },
+    { key: "billing",    label: "ซื้อนาทีถอดเสียง" },
   ],
   tmc: [
     { key: "dashboard",  label: "Dashboard" },

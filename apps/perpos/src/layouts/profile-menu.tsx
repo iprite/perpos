@@ -168,7 +168,10 @@ function DropdownMenu() {
           >
             {String(profile?.display_name ?? (role ? role.toUpperCase() : "")).trim()}
           </Title>
-          <Text className="text-gray-600">{email ?? ""}</Text>
+          {/* ซ่อน shadow email ของ LINE user (id ยาว) — แสดง "บัญชี LINE" แทน */}
+          <Text className="truncate text-gray-600">
+            {email && !email.endsWith("@stt-line.perpos.io") ? email : "บัญชี LINE"}
+          </Text>
         </div>
       </div>
       <div className="border-t border-gray-300 px-6 pb-6 pt-5">

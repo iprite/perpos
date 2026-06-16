@@ -354,7 +354,7 @@ function buildAssistantMenuItems(org: string, labels: Record<string, string> = {
       roles: allRoles,
     },
     {
-      name: l("transcribe", "แกะเสียง→รายงานประชุม"),
+      name: l("transcribe", "ถอดเสียง→รายงานประชุม"),
       href: `/${org}/assistant/transcribe`,
       icon: <Sparkles className="h-5 w-5" />,
       roles: allRoles,
@@ -362,19 +362,19 @@ function buildAssistantMenuItems(org: string, labels: Record<string, string> = {
   ];
 }
 
-// ─── STT module (แกะเสียง→รายงานประชุม) — personal, มีแพ็กเกจรายเดือนแยก ───────
+// ─── STT module (ถอดเสียง→รายงานประชุม) — personal, มีแพ็กเกจรายเดือนแยก ───────
 function buildSttMenuItems(org: string, labels: Record<string, string> = {}): MenuItem[] {
   const l = (key: string, fallback: string) => labels[key] || fallback;
   return [
-    { name: "แกะเสียง", roles: allRoles },
+    { name: "ถอดเสียง", roles: allRoles },
     {
-      name: l("transcribe", "แกะเสียง"),
+      name: l("transcribe", "ถอดเสียง"),
       href: `/${org}/assistant/transcribe`,
-      icon: <Sparkles className="h-5 w-5" />,
+      icon: <Mic className="h-5 w-5" />,
       roles: allRoles,
     },
     {
-      name: l("billing", "ซื้อนาทีแกะเสียง"),
+      name: l("billing", "ซื้อนาทีถอดเสียง"),
       href: `/${org}/assistant/transcribe/billing`,
       icon: <Sparkles className="h-5 w-5" />,
       roles: allRoles,

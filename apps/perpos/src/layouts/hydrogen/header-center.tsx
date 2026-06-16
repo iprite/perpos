@@ -41,7 +41,10 @@ export function HeaderCenter({ enabledModuleKeys, organizations, activeOrganizat
         </Link>
       )}
 
-      <OrgSwitcher organizations={organizations} activeOrganizationId={activeOrganizationId} />
+      {/* ซ่อน org switcher ถ้ามี org เดียว (เช่น B2C ที่มีแค่ personal org) */}
+      {organizations.length > 1 && (
+        <OrgSwitcher organizations={organizations} activeOrganizationId={activeOrganizationId} />
+      )}
     </div>
   );
 }
