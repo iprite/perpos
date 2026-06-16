@@ -87,6 +87,7 @@ export default function AdminSttStatsPage() {
         <div className="flex gap-2">
           <Link href="/admin/stt-jobs"><Button variant="outline" size="sm">งานแกะเสียง</Button></Link>
           <Link href="/admin/stt-users"><Button variant="outline" size="sm">จัดการผู้ใช้</Button></Link>
+          <Link href="/admin/stt-cost"><Button variant="outline" size="sm">ต้นทุน</Button></Link>
           <Button variant="outline" size="sm" onClick={load} disabled={loading}><RefreshCw className="mr-2 h-4 w-4" /> รีเฟรช</Button>
         </div>
       </div>

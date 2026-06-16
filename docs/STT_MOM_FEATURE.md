@@ -66,7 +66,7 @@ cd services/stt-worker && gcloud run deploy perpos-stt-worker --source . \
 ## 4. Database (Supabase `zftnyipifpaiqzukiyzi`)
 | ตาราง / RPC | หน้าที่ |
 |---|---|
-| `transcription_jobs` | งานแกะเสียง: org_id, profile_id, **source** (web/line), audio_url(nullable), **line_message_id**(unique idx), file_name, mime_type, file_size, model, status, transcript_json, transcript_text, **duration_seconds**, error_message, triggered_by |
+| `transcription_jobs` | งานแกะเสียง: org_id, profile_id, **source** (web/line), audio_url(nullable), **line_message_id**(unique idx), file_name, mime_type, file_size, model, status, transcript_json, transcript_text, **duration_seconds**, error_message, triggered_by · **token จริงจาก Gemini**: prompt_tokens, audio_input_tokens, output_tokens, thoughts_tokens, usage_metadata(jsonb) — worker เขียนตอน complete → ฝั่งอ่านคิดต้นทุนเป๊ะ |
 | bucket `assistant_audio` | private, cap 200MB, allowed_mime_types (audio/video + application/pdf); PDF ผลลัพธ์เก็บที่ `<org>/mom/<jobId>.pdf` |
 | `assistant_line_sessions` | state "รอไฟล์หลัง /mom" (line_user_id PK, org_id, profile_id, expires_at) |
 | `stt_quota` | โควต้าต่อคน: profile_id PK, **limit_seconds** (default 18000=300นาที), used_seconds |
@@ -137,6 +137,6 @@ curl -X POST <STT_WORKER_URL>/process -H "x-worker-secret: $SECRET" \
 
 ## 9. งานที่ยังเหลือ / ไอเดียต่อ
 - เทสต์ follow event จริงด้วย LINE ใหม่ (provisioning logic verify แล้ว แต่ event wiring ยังไม่เห็นของจริง)
-- ประมาณการค่าใช้จ่าย Gemini (นาที→บาท) ในหน้า admin stats · export CSV · filter ช่วงวันที่
+- ✅ **ต้นทุน Gemini** — หน้า `/admin/stt-cost` + API `/api/admin/stt-cost` + `scripts/stt-cost-report.mjs` · โมเดลราคา `lib/assistant/stt-cost.ts` (ราคาผ่าน env `STT_GEMINI_*`) · worker เก็บ token จริง (usageMetadata) ลง `transcription_jobs` → คิดเป๊ะ; งานเก่าไม่มี token = ประมาณจาก duration · **ต้อง redeploy stt-worker ให้เริ่มเก็บ token** · export CSV · filter ช่วงวันที่ (ยังไม่ทำ)
 - (ถ้าโต) rate-limit/invite-code กัน abuse จากการสร้าง LINE ใหม่เรื่อย ๆ · monthly quota reset
 - client-side audio compression (ogg/opus) ก่อนอัป (ลด bandwidth)

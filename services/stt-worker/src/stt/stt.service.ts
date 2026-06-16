@@ -38,6 +38,15 @@ export type TranscriptResult = {
   recommendations: string[]; // ข้อเสนอแนะจาก AI ต่อประเด็นในที่ประชุม
 };
 
+// token usage จริงจาก Gemini (เก็บลง transcription_jobs → คิดต้นทุนเป๊ะฝั่งอ่าน)
+export type GeminiUsage = {
+  prompt_tokens: number;            // input รวม (เสียง + ข้อความ prompt)
+  audio_input_tokens: number | null; // เฉพาะ modality=AUDIO (null ถ้า Gemini ไม่แยก)
+  output_tokens: number;            // candidates + thoughts (คิดที่ราคา output)
+  thoughts_tokens: number;          // thinking (subset ของ output)
+  raw: unknown;                     // usageMetadata ดิบ
+};
+
 // ใช้ flash อย่างเดียวก่อน (pro = paid-tier quota สูง/แพง) — model อื่นจะถูก fallback เป็น flash
 const ALLOWED_MODELS = ['gemini-2.5-flash'] as const;
 const DEFAULT_MODEL = 'gemini-2.5-flash';
@@ -188,8 +197,9 @@ async function runJob(jobId: string, orgId: string): Promise<void> {
 
     const { fileUri, fileName } = await uploadToGeminiFiles(bytes, mimeType, String(job.file_name ?? 'audio'));
     let transcript: TranscriptResult;
+    let usage: GeminiUsage | null;
     try {
-      transcript = await transcribeWithGemini(fileUri, mimeType, model);
+      ({ transcript, usage } = await transcribeWithGemini(fileUri, mimeType, model));
     } finally {
       await deleteGeminiFile(fileName).catch(() => undefined); // best-effort cleanup
     }
@@ -206,6 +216,12 @@ async function runJob(jobId: string, orgId: string): Promise<void> {
         transcript_json: transcript,
         transcript_text: transcriptText,
         error_message: null,
+        // token จริงจาก Gemini → ฝั่งอ่านคิดต้นทุนเป๊ะด้วยราคาปัจจุบัน (best-effort, ไม่มีก็ปล่อย null)
+        prompt_tokens: usage?.prompt_tokens ?? null,
+        audio_input_tokens: usage?.audio_input_tokens ?? null,
+        output_tokens: usage?.output_tokens ?? null,
+        thoughts_tokens: usage?.thoughts_tokens ?? null,
+        usage_metadata: usage?.raw ?? null,
         updated_at: new Date().toISOString(),
       })
       .eq('id', jobId)
@@ -407,7 +423,7 @@ async function transcribeWithGemini(
   fileUri: string,
   mimeType: string,
   model: string,
-): Promise<TranscriptResult> {
+): Promise<{ transcript: TranscriptResult; usage: GeminiUsage | null }> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new Error('GEMINI_API_KEY is not configured.');
 
@@ -458,6 +474,13 @@ async function transcribeWithGemini(
   const result = (await response.json()) as {
     candidates?: Array<{ finishReason?: string; content?: { parts?: Array<{ text?: string }> } }>;
     promptFeedback?: { blockReason?: string };
+    usageMetadata?: {
+      promptTokenCount?: number;
+      candidatesTokenCount?: number;
+      thoughtsTokenCount?: number;
+      totalTokenCount?: number;
+      promptTokensDetails?: Array<{ modality?: string; tokenCount?: number }>;
+    };
   };
   if (!result.candidates || result.candidates.length === 0) {
     const blockReason = result.promptFeedback?.blockReason || 'Blocked by Gemini safety settings or filter';
@@ -477,7 +500,32 @@ async function transcribeWithGemini(
   const text = (result.candidates[0].content?.parts ?? [])
     .map((p) => p?.text ?? '')
     .join('');
-  return parseTranscript(text);
+  return { transcript: parseTranscript(text), usage: parseGeminiUsage(result.usageMetadata) };
+}
+
+// แปลง usageMetadata ดิบ → GeminiUsage (แยก token เสียงจาก modality breakdown ถ้ามี)
+function parseGeminiUsage(meta: {
+  promptTokenCount?: number;
+  candidatesTokenCount?: number;
+  thoughtsTokenCount?: number;
+  promptTokensDetails?: Array<{ modality?: string; tokenCount?: number }>;
+} | undefined): GeminiUsage | null {
+  if (!meta) return null;
+  const prompt = Number(meta.promptTokenCount ?? 0);
+  const candidates = Number(meta.candidatesTokenCount ?? 0);
+  const thoughts = Number(meta.thoughtsTokenCount ?? 0);
+  let audio: number | null = null;
+  if (Array.isArray(meta.promptTokensDetails)) {
+    const a = meta.promptTokensDetails.find((d) => String(d?.modality ?? '').toUpperCase() === 'AUDIO');
+    if (a) audio = Number(a.tokenCount ?? 0);
+  }
+  return {
+    prompt_tokens: prompt,
+    audio_input_tokens: audio,
+    output_tokens: candidates + thoughts,
+    thoughts_tokens: thoughts,
+    raw: meta,
+  };
 }
 
 function parseTranscript(text: string): TranscriptResult {

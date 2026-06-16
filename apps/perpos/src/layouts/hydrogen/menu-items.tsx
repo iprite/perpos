@@ -299,6 +299,7 @@ function buildAdminMenuItems(): MenuItem[] {
       roles: ["super_admin"],
       dropdownItems: [
         { name: "ภาพรวม & สถิติ", href: "/admin/stt-stats", roles: ["super_admin"] },
+        { name: "ต้นทุน Gemini", href: "/admin/stt-cost", roles: ["super_admin"] },
         { name: "ผู้ใช้ & โควต้า", href: "/admin/stt-users", roles: ["super_admin"] },
         { name: "งานแกะเสียง (Jobs)", href: "/admin/stt-jobs", roles: ["super_admin"] },
       ],
