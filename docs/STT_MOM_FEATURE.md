@@ -78,6 +78,8 @@ cd services/stt-worker && gcloud run deploy perpos-stt-worker --source . \
 
 **สำคัญ:** `profiles.id → auth.users(id)` (สร้าง profile ลอยไม่ได้ → ต้อง shadow auth user) · `assistant` = **personal module** (สิทธิ์ผ่าน `personal_module_grants` ไม่ใช่ org module) · `organization_members` ใช้คอลัมน์ `user_id`/`role` (ไม่ใช่ profile_id/member_role)
 
+**Billing (per-profile, เชื่อม Stripe เดิม)** — `stt_plans` (catalog: subscription รายเดือน + topup เติมนาที, มี `stripe_price_id`) · `stt_subscriptions` (per-profile, mirror Stripe sub) · `stt_payments` (ledger เงินเข้า, idempotent ด้วย stripe_invoice_id/payment_intent_id) · `stt_quota` += `plan_seconds`(reset รายรอบ) + `topup_seconds`(สะสม). RPC (service_role only): `apply_stt_payment` (บันทึกเงิน+เติมโควต้า idempotent: topup→บวก, subscription→reset รอบใหม่), `upsert_stt_subscription`. Webhook reuse `stripe_events` เป็น idempotency log · **ยังต้องต่อ webhook handler** ใน `api/stripe/webhook` (แยก STT ด้วย metadata.kind='stt'+profile_id) + checkout route. แยกจาก `org_billing`/`org_stripe` (per-org เดิม) คนละระบบ
+
 migrations: `2026061512..._assistant_transcription`, `..0616120000_line_mom`, `..130000_line_mom_async`, `..150000_stt_quota`, `..170000_stt_refund_job`, `..190000_web_login_tokens`
 
 ---
@@ -92,7 +94,7 @@ migrations: `2026061512..._assistant_transcription`, `..0616120000_line_mom`, `.
 - `admin/stt-quota`, `admin/stt-users` (GET/PUT list+ปรับ+ระงับ), `admin/stt-stats` (GET ภาพรวม)
 - `account/claim` (POST ตั้ง email/password)
 - `line/webhook` (follow→onboard, /mom, /web, audio handling) · `line/_provision.ts` (provisionLineUser)
-- `assistant/scheduler` (cron: due reminders + **stuck-job sweep** >15นาที→failed+refund+LINE)
+- `assistant/scheduler` (cron: due reminders + **stuck-job sweep** >15นาที→failed+refund+LINE + **PDPA cleanup**: ลบไฟล์เสียงดิบทันทีเมื่อ job=completed/failed (audio_url→null), ลบ PDF+transcript เมื่อเก่า >48ชม. — คง row+duration ไว้ให้ ledger ไม่เพี้ยน)
 
 **Pages** (`apps/perpos/src/app/`):
 - `(hydrogen)/[orgSlug]/assistant/transcribe/page.tsx` (อัป+poll+Dialog MoM+ดาวน์โหลด+quota banner) · `.../stats` (กราฟ personal)
@@ -121,6 +123,7 @@ migrations: `2026061512..._assistant_transcription`, `..0616120000_line_mom`, `.
 10. **Quota race** → atomic `consume_stt_quota` (FOR UPDATE) + reserve ก่อน Gemini + **refund idempotent** (`refund_stt_job`) เรียกจาก worker catch **และ** stuck-sweep (กันรั่วตอน worker crash)
 11. **gemini-2.5-flash อย่างเดียว** (ALLOWED_MODELS=[flash]) — pro free-tier quota=0
 12. **pdf-renderer** เคยพัง (deploy เป็น NestJS เก่า + Playwright version mismatch) → แก้เป็น Express + base image ตรง playwright version
+13. **🔒 RPC SECURITY_DEFINER ต้อง REVOKE จาก `anon`+`authenticated` ตรง ๆ** — `REVOKE FROM PUBLIC` อย่างเดียว**ไม่พอ** (Supabase grant EXECUTE ให้ anon/authenticated เป็น default). ถ้าลืม = ใครก็ตามมี anon key (เปิดเผยใน frontend) ยิง `/rest/v1/rpc/<fn>` ได้ → เคยทำให้ `refund_stt_quota` เพิ่มโควต้าตัวเองไม่จำกัด. ตรวจทุก RPC ใหม่ด้วย `has_function_privilege('authenticated', oid, 'EXECUTE')` ต้อง false + รัน `get_advisors(security)` หลังเพิ่ม RPC
 
 ---
 

@@ -150,7 +150,7 @@ export async function POST(req: NextRequest) {
               type: 'box', layout: 'vertical', spacing: 'xs', margin: 'md',
               contents: [
                 { type: 'text', text: '🔒 ความเป็นส่วนตัวของข้อมูล', size: 'xs', weight: 'bold', color: '#6b7280' },
-                { type: 'text', text: 'ไฟล์เสียงและรายงานนี้จะถูกลบออกจากระบบโดยอัตโนมัติภายใน 48 ชั่วโมง กรุณาดาวน์โหลดเก็บไว้', size: 'xxs', wrap: true, color: '#94a3b8' },
+                { type: 'text', text: 'ไฟล์เสียงถูกลบออกจากระบบทันทีหลังประมวลผลเสร็จ · รายงาน PDF นี้จะถูกลบอัตโนมัติภายใน 48 ชั่วโมง กรุณาดาวน์โหลดเก็บไว้', size: 'xxs', wrap: true, color: '#94a3b8' },
                 { type: 'text', text: 'เราไม่นำข้อมูลของคุณไปใช้ฝึกหรือพัฒนาโมเดล AI ใด ๆ ทั้งสิ้น', size: 'xxs', wrap: true, color: '#94a3b8' },
               ],
             },

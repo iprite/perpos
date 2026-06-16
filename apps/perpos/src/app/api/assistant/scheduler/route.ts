@@ -186,11 +186,42 @@ async function run(req: NextRequest) {
     await triggerSttWorker(admin, pj.id as string, pj.org_id as string); // overload อีก → คืน pending เอง รอรอบหน้า
   }
 
-  // 5. Privacy cleanup — ลบไฟล์เสียง + PDF ออกจาก storage และล้าง transcript ของงานที่
-  //    เก่ากว่า 48 ชม. (ตรงกับหมายเหตุ privacy ในการ์ด MoM: ลบใน 48 ชม. ให้ดาวน์โหลดเก็บไว้)
+  const STT_BUCKET = 'assistant_audio';
+
+  // 5. PDPA data minimization — ลบ "ไฟล์เสียงดิบ" ทันทีที่งานถึงสถานะสุดท้าย (completed/failed)
+  //    ไฟล์เสียง = ข้อมูลส่วนบุคคลที่อ่อนไหวสุด · ใช้เสร็จตั้งแต่ตอนถอด → ไม่ต้องเก็บต่อ
+  //    (PDF/transcript ยังอยู่ถึง 48 ชม. ในขั้น 6 ให้ผู้ใช้ดาวน์โหลด · การส่ง PDF/แจ้งผล
+  //     ใช้ transcript_json ไม่ใช้เสียง → ลบได้ปลอดภัย) · idempotent ด้วย audio_url=null
+  const { data: doneJobs } = await admin
+    .from('transcription_jobs')
+    .select('id, audio_url')
+    .in('status', ['completed', 'failed'])
+    .not('audio_url', 'is', null)
+    .limit(200);
+
+  if (doneJobs && doneJobs.length) {
+    const paths: string[] = [];
+    for (const j of doneJobs as Record<string, unknown>[]) {
+      const audioUrl = String(j.audio_url ?? '');
+      if (!audioUrl) continue;
+      const p = audioUrl.includes(`/${STT_BUCKET}/`)
+        ? audioUrl.split(`/${STT_BUCKET}/`)[1].split('?')[0]
+        : audioUrl.split('?')[0];
+      if (p) paths.push(p);
+    }
+    if (paths.length) {
+      await admin.storage.from(STT_BUCKET).remove(paths).then(() => undefined, () => undefined);
+    }
+    await admin
+      .from('transcription_jobs')
+      .update({ audio_url: null })
+      .in('id', (doneJobs as Record<string, unknown>[]).map((j) => j.id as string));
+  }
+
+  // 6. Privacy cleanup — ลบ PDF ผลลัพธ์ + ล้าง transcript ของงานที่เก่ากว่า 48 ชม.
+  //    (ตรงกับหมายเหตุ privacy ในการ์ด MoM: ลบใน 48 ชม. ให้ดาวน์โหลดเก็บไว้)
   //    คง row + duration_seconds ไว้เพื่อ ledger โควต้า/สถิติไม่เพี้ยน · idempotent:
   //    เมื่อล้างแล้ว audio_url+transcript เป็น null → ไม่ถูกเลือกซ้ำในรอบถัดไป
-  const STT_BUCKET = 'assistant_audio';
   const cleanupBefore = new Date(now.getTime() - 48 * 60 * 60 * 1000).toISOString();
   const { data: oldJobs } = await admin
     .from('transcription_jobs')
