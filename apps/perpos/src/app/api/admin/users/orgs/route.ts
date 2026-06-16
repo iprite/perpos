@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '../../../_lib/auth';
 import { createAdminClient } from '../../../_lib/supabase';
+import { logAdminAction } from '../../../_lib/admin-audit';
+
+const VALID_ORG_ROLES = ['owner', 'admin', 'team_lead', 'team_member'] as const;
 
 export async function GET(req: NextRequest) {
   const auth = await requireAdmin(req);
@@ -43,8 +46,10 @@ export async function PUT(req: NextRequest) {
 
   const body = await req.json().catch(() => ({})) as { userId?: string; orgId?: string; role?: string };
   const { userId, orgId, role = 'team_member' } = body;
-  console.log('[orgs PUT] role received:', role);
-if (!userId || !orgId) return NextResponse.json({ error: 'missing userId or orgId' }, { status: 400 });
+  if (!userId || !orgId) return NextResponse.json({ error: 'missing userId or orgId' }, { status: 400 });
+  if (!(VALID_ORG_ROLES as readonly string[]).includes(role)) {
+    return NextResponse.json({ error: `invalid role — ต้องเป็น ${VALID_ORG_ROLES.join(' | ')}` }, { status: 400 });
+  }
 
   const admin = createAdminClient();
   const { error } = await admin
@@ -54,6 +59,13 @@ if (!userId || !orgId) return NextResponse.json({ error: 'missing userId or orgI
       { onConflict: 'user_id,organization_id' },
     );
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  await logAdminAction(req, auth.userId, {
+    action: 'org.member_set_role',
+    targetType: 'user',
+    targetId: userId,
+    metadata: { org_id: orgId, role },
+  });
 
   return NextResponse.json({ ok: true });
 }
@@ -73,6 +85,13 @@ export async function DELETE(req: NextRequest) {
     .eq('user_id', userId)
     .eq('organization_id', orgId);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  await logAdminAction(req, auth.userId, {
+    action: 'org.member_remove',
+    targetType: 'user',
+    targetId: userId,
+    metadata: { org_id: orgId },
+  });
 
   return NextResponse.json({ ok: true });
 }

@@ -8,6 +8,7 @@ import { NextRequest } from 'next/server';
 import { requireAdmin } from '../../_lib/auth';
 import { createAdminClient } from '../../_lib/supabase';
 import { ok, Err } from '../../_lib/response';
+import { logAdminAction } from '../../_lib/admin-audit';
 
 const SHADOW_DOMAIN = '@stt-line.perpos.io';
 const MAX_LIMIT = 6_000_000;
@@ -74,6 +75,16 @@ export async function PUT(req: NextRequest) {
     const { error } = await admin.from('profiles').update({ is_active: isActive }).eq('id', profileId);
     if (error) return Err.dbError(error);
   }
+
+  await logAdminAction(req, auth.userId, {
+    action: 'stt.user_update',
+    targetType: 'user',
+    targetId: profileId,
+    metadata: {
+      ...(typeof limitSeconds === 'number' ? { limit_seconds: Math.round(limitSeconds) } : {}),
+      ...(typeof isActive === 'boolean' ? { is_active: isActive } : {}),
+    },
+  });
 
   return ok({ updated: true });
 }

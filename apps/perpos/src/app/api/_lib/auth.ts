@@ -21,8 +21,9 @@ export async function requireAdmin(req: NextRequest): Promise<AuthResult> {
     if (error || !user) return { ok: false, res: NextResponse.json({ error: 'unauthorized' }, { status: 401 }) };
 
     const admin = createAdminClient();
-    const { data: profile } = await admin.from('profiles').select('role').eq('id', user.id).maybeSingle();
+    const { data: profile } = await admin.from('profiles').select('role, is_active').eq('id', user.id).maybeSingle();
     if (profile?.role !== 'super_admin') return { ok: false, res: NextResponse.json({ error: 'forbidden' }, { status: 403 }) };
+    if (profile?.is_active === false) return { ok: false, res: NextResponse.json({ error: 'account_inactive' }, { status: 403 }) };
 
     return { ok: true, userId: user.id, token };
   } catch {

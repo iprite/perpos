@@ -13,6 +13,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '../../_lib/auth';
 import { createAdminClient } from '../../_lib/supabase';
+import { logAdminAction } from '../../_lib/admin-audit';
 
 const SESSION_DURATION_MS = 30 * 60 * 1000; // 30 minutes
 
@@ -155,6 +156,14 @@ export async function POST(req: NextRequest) {
     new Date(s.started_at as string).getTime() + SESSION_DURATION_MS,
   ).toISOString();
 
+  await logAdminAction(req, auth.userId, {
+    action: 'impersonate.start',
+    targetType: 'user',
+    targetId: targetUserId,
+    targetLabel: (tp.email as string | undefined) ?? (tp.display_name as string | undefined) ?? null,
+    metadata: { org_id: orgId, reason: String(reason).trim(), session_id: s.id },
+  });
+
   return NextResponse.json({
     ok:        true,
     sessionId: s.id,
@@ -198,6 +207,12 @@ export async function DELETE(req: NextRequest) {
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
+
+  await logAdminAction(req, auth.userId, {
+    action: 'impersonate.end',
+    targetType: 'impersonation_session',
+    targetId: sessionId,
+  });
 
   return NextResponse.json({ ok: true });
 }

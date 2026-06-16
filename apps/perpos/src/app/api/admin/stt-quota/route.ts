@@ -8,6 +8,7 @@ import { NextRequest } from 'next/server';
 import { requireAdmin } from '../../_lib/auth';
 import { createAdminClient } from '../../_lib/supabase';
 import { ok, Err } from '../../_lib/response';
+import { logAdminAction } from '../../_lib/admin-audit';
 
 const MAX_LIMIT = 6_000_000; // ~100,000 นาที กันตั้งค่าพลาด
 
@@ -60,5 +61,13 @@ export async function PUT(req: NextRequest) {
 
   const limit = data.limit_seconds as number;
   const used = data.used_seconds as number;
+
+  await logAdminAction(req, auth.userId, {
+    action: 'stt.quota_set',
+    targetType: 'user',
+    targetId: profileId,
+    metadata: { limit_seconds: limit },
+  });
+
   return ok({ profile_id: profileId, limit_seconds: limit, used_seconds: used, remaining_seconds: Math.max(0, limit - used) });
 }

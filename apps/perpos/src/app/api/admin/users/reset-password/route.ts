@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import nodemailer from 'nodemailer';
 import { requireAdmin } from '../../../_lib/auth';
 import { createAdminClient } from '../../../_lib/supabase';
+import { logAdminAction } from '../../../_lib/admin-audit';
 import { withBasePath } from '@/utils/base-path';
 
 export async function POST(req: NextRequest) {
@@ -53,5 +54,14 @@ export async function POST(req: NextRequest) {
     } catch { /* SMTP not configured or failed — fall through */ }
   }
 
-  return NextResponse.json({ ok: true, actionLink, emailSent });
+  await logAdminAction(req, auth.userId, {
+    action: 'user.reset_password',
+    targetType: 'user',
+    targetLabel: email,
+    metadata: { email_sent: emailSent, link_returned: !emailSent },
+  });
+
+  // ความปลอดภัย: ไม่คืน action_link เมื่อส่งอีเมลสำเร็จ — กันยึดบัญชีเงียบๆ ผ่าน response
+  // คืนเฉพาะกรณี SMTP ไม่ได้ตั้งค่า (admin ต้องส่งลิงก์ให้ user เอง) เป็น fallback
+  return NextResponse.json({ ok: true, actionLink: emailSent ? null : actionLink, emailSent });
 }

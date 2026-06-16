@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '../../../_lib/auth';
 import { createAdminClient } from '../../../_lib/supabase';
 import { getStripe } from '../../../_lib/stripe';
+import { logAdminAction } from '../../../_lib/admin-audit';
 
 export const runtime = 'nodejs';
 
@@ -35,6 +36,13 @@ export async function POST(req: NextRequest) {
     current_period_end: updated.current_period_end ? new Date(updated.current_period_end * 1000).toISOString() : null,
     cancel_at_period_end: updated.cancel_at_period_end ?? false,
     updated_at: new Date().toISOString(),
+  });
+
+  await logAdminAction(req, adminAuth.userId, {
+    action: 'billing.cancel_subscription',
+    targetType: 'subscription',
+    targetId: updated.id,
+    metadata: { org_id: orgId, cancel_at_period_end: updated.cancel_at_period_end ?? false, status: updated.status },
   });
 
   return NextResponse.json({
