@@ -95,7 +95,7 @@ pnpm build
 | Path | หน้าที่ |
 |------|---------|
 | `(hydrogen)/` | Protected routes (ต้อง login) |
-| `(hydrogen)/assistant/` | AI Task Manager dashboard |
+| `(hydrogen)/assistant/` | ผู้ช่วย AI (per-profile) — แกะเสียง→MoM + usage + billing |
 | `(hydrogen)/admin/` | Admin console |
 | `(hydrogen)/sales/` | ใบเสนอราคา, ใบแจ้งหนี้, ใบเสร็จ |
 | `(hydrogen)/purchase/` | ใบสั่งซื้อ, บันทึกค่าใช้จ่าย |
@@ -155,12 +155,10 @@ pnpm build
 | `/สรุปล่าสุด` | ข่าวล่าสุด | `bot.news.latest` |
 | `/รายรับ <จำนวน> <โน้ต>` | บันทึกรายรับ | `bot.finance.income_add` |
 | `/รายจ่าย <จำนวน> <โน้ต>` | บันทึกรายจ่าย | `bot.finance.expense_add` |
-| `/นัด <HH:MM> <เรื่อง>` | เพิ่มนัดวันนี้ | `bot.calendar.add` |
-| `/วันนี้` | ดูนัดวันนี้ | `bot.calendar.today` |
 | `/mom` | ส่งไฟล์เสียง → ได้รายงานการประชุม (MoM) PDF กลับทาง LINE | `bot.assistant.transcribe` (ผู้ช่วย AI, per-profile) |
 | `/web` | รับ magic link เข้าเว็บผู้ช่วย AI | — |
 
-**หมายเหตุ:** Admin role ข้ามการเช็ค permission ทั้งหมด · คำสั่ง Task Manager เดิม (`/t /tk /d /a /ap`) **ยกเลิกแล้ว** (module assistant เดิมถูกลบ)
+**หมายเหตุ:** Admin role ข้ามการเช็ค permission ทั้งหมด · คำสั่ง Task Manager เดิม (`/t /tk /d /a /ap`) + ปฏิทิน (`/นัด /วันนี้`) **ยกเลิก/ลบโค้ดแล้ว** (module assistant เดิม + ตาราง `tasks`/`calendar_events` ไม่มีช่องทางสร้างแล้ว)
 
 **Auto-onboarding (LINE-first / B2C):** เมื่อมี `follow` event (แอด OA) → `provisionLineUser` ([api/line/_provision.ts](apps/perpos/src/app/api/line/_provision.ts)) สร้าง shadow auth user (email `line.<id>@stt-line.perpos.io`) → trigger สร้าง profile → personal org (= "home org" เก็บไฟล์) + member(owner) + **`personal_module_grants('stt')` (ผู้ช่วย AI, per-profile)** + stt_quota(300นาที = trial) + line_active_org_id → push welcome Flex. idempotent. พิมพ์ `/mom` ได้ทันที — **ไม่แจกโมดูล B2B ใด ๆ**
 
@@ -226,8 +224,9 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 | Path | หน้าที่ |
 |------|---------|
-| `lib/assistant/task-parser.ts` | NLP parse ข้อความเป็น task (OpenAI, optional) |
-| `lib/assistant/task-notifier.ts` | ส่งแจ้งเตือน due/daily briefing/follow-up |
+| `lib/assistant/stt-trigger.ts` | triggerSttWorker — atomic claim job + ยิงไป stt-worker |
+| `lib/assistant/mom-html.ts` | buildMomHtml + MOM_FOOTER_TEMPLATE (ใช้ร่วม mom-pdf/mom-deliver) |
+| `lib/assistant/stt-cost.ts` | โมเดลราคา Gemini สำหรับคิดต้นทุนต่อ job |
 | `lib/line/send-messages.ts` | Push/multicast LINE messages |
 | `lib/news/news-agent.ts` | Fetch RSS + summarize ด้วย OpenAI |
 | `lib/google/drive.ts` | Google Drive OAuth + upload |
@@ -264,10 +263,10 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 Endpoint: `POST /api/assistant/scheduler`
 - ป้องกันด้วย `Authorization: Bearer <CRON_SECRET>` หรือ `x-vercel-cron-secret`
 - ตั้ง cron ทุก 1 นาทีผ่าน **Google Cloud Scheduler** (Vercel Hobby ไม่รองรับ every-minute)
-- Logic:
-  - ทุก run → ส่ง due reminders (remind_at ≤ now ≤ now-5min)
-  - 08:28–08:32 BKK → Daily Briefing
-  - 17:00–17:04 BKK → Follow-up งานค้าง
+- Logic (เหลือเฉพาะงาน STT — task/briefing/follow-up เดิมถูกลบแล้ว):
+  - Stuck STT jobs (`processing` ค้าง) → mark failed + refund quota + แจ้ง LINE
+  - Requeue pending STT jobs (worker ไม่ว่าง/trigger พลาด) → ยิงซ้ำ, เกิน 30 นาที = ยอมแพ้
+  - PDPA cleanup → ลบไฟล์เสียงดิบเมื่อ job ถึงสถานะสุดท้าย + ลบ PDF/transcript เมื่อเก่า >48 ชม.
 
 ---
 
