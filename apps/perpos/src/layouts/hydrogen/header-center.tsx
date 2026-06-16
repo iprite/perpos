@@ -2,12 +2,14 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Mic } from 'lucide-react';
+import { Mic, Building2 } from 'lucide-react';
 import { OrgSwitcher } from '@/components/accounting/org-switcher';
 import type { OrganizationSummary } from '@/lib/accounting/queries';
 import { UsvillaLangDropdown } from './usvilla-lang-dropdown';
 
 const SYSTEM_SEGMENTS = new Set(['admin', 'user', 'signin', 'no-org', 'no-module', 'assistant']);
+const isPersonalOrg = (o: OrganizationSummary) =>
+  o.name.startsWith('พื้นที่ส่วนตัว') || /^u[a-z0-9]{10}$/.test(o.slug);
 
 interface Props {
   enabledModuleKeys: string[];
@@ -24,16 +26,31 @@ export function HeaderCenter({ enabledModuleKeys, organizations, activeOrganizat
   const hasAssistant = enabledModuleKeys.includes('stt');
   const onAssistant  = segments[0] === 'assistant';
 
+  // Biz (ERP) — org ที่ไม่ใช่ personal · ปุ่มสลับไป biz ของ active/แรก
+  const bizOrgs   = organizations.filter((o) => !isPersonalOrg(o));
+  const activeBiz = bizOrgs.find((o) => o.id === activeOrganizationId) ?? bizOrgs[0];
+
   return (
     <div className="mx-2 flex items-center gap-2 sm:mx-4">
       {isUsvilla && <UsvillaLangDropdown />}
 
-      {/* ERP org switcher (B2B ที่มีหลาย org) — เลือก org = สลับกลับไป ERP */}
-      {organizations.length > 1 && (
+      {/* อยู่ในผู้ช่วย → ปุ่มสลับไป Biz (ERP) */}
+      {onAssistant && activeBiz && (
+        <Link
+          href={`/${activeBiz.slug}`}
+          title="Biz (ระบบบัญชี/ERP)"
+          className="inline-flex h-9 items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
+        >
+          <Building2 className="h-4 w-4 text-slate-500" /> Biz
+        </Link>
+      )}
+
+      {/* อยู่ใน Biz → org switcher (เปลี่ยนบริษัท) เมื่อมีหลาย biz org */}
+      {!onAssistant && bizOrgs.length > 1 && (
         <OrgSwitcher organizations={organizations} activeOrganizationId={activeOrganizationId} />
       )}
 
-      {/* สลับไป "ผู้ช่วย AI" (per-profile) — แสดงเมื่อมีสิทธิ์และไม่ได้อยู่ในผู้ช่วย */}
+      {/* สลับไป "ผู้ช่วย AI" — แสดงเมื่อมีสิทธิ์และไม่ได้อยู่ในผู้ช่วย */}
       {hasAssistant && !onAssistant && (
         <Link
           href="/assistant"
