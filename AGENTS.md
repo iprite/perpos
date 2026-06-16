@@ -132,8 +132,9 @@ pnpm build
 | `/api/google-drive/disconnect` | POST | `google-drive/disconnect/route.ts` | ยกเลิกการเชื่อม |
 | `/api/google-drive/status` | GET | `google-drive/status/route.ts` | ตรวจสถานะการเชื่อม |
 | `/api/org/invite` | POST | `org/invite/route.ts` | เชิญเข้า organization |
-| `/api/assistant/transcribe/jobs` | GET/POST | `assistant/transcribe/jobs/route.ts` | สร้าง/ดึงงานแกะเสียง (STT) |
-| `/api/assistant/transcribe/jobs/process` | POST | `assistant/transcribe/jobs/process/route.ts` | claim job + ยิงไป stt-worker |
+| `/api/assistant/jobs` | GET/POST | `assistant/jobs/route.ts` | สร้าง/ดึงงาน (generic, kind=stt) |
+| `/api/assistant/jobs/process` | POST | `assistant/jobs/process/route.ts` | claim job + ยิงไป stt-worker |
+| `/api/assistant/stt/mom-deliver` | POST | `assistant/stt/mom-deliver/route.ts` | worker callback → PDF → LINE (มี alias เดิม `transcribe/mom-deliver`) |
 | `/api/tmc/*` | various | `tmc/*/route.ts` | TMC Management endpoints |
 
 **Auth helpers** (`app/api/_lib/`):
@@ -167,8 +168,8 @@ pnpm build
 - **B2B = ERP**: shared (accounting/payroll) + tailor-made (tmc/crm/acc_firm/…) — ระดับ org, **superadmin เปิดให้ต่อ org เท่านั้น** (`admin/modules` = `requireAdmin` = super_admin) · **module `assistant` เดิม (Task Manager) ถูกยกเลิกทิ้งหมดแล้ว**
 - **สลับ STT ↔ ERP**: header มีปุ่ม **"ผู้ช่วย AI"** (→ `/assistant`) + org switcher (ERP) · B2C เห็นแค่ผู้ช่วย · B2B เห็นทั้งคู่ · super_admin → `/admin` (เลือกเข้า org/assistant)
 - **redirect หลัง login**: ERP (B2B) > ผู้ช่วย AI (B2C) > no-org · super_admin → /admin
-- **`assistant` ใน path/route group** = ผู้ช่วย AI per-profile (`(hydrogen)/assistant/*`, อยู่ใน SYSTEM_SEGMENTS — ไม่ใช่ org slug). API ยังอยู่ที่ `/api/assistant/transcribe/*` (path เดิม, แต่ guard เป็น per-profile)
-- หมายเหตุ: **key ภายในยังเป็น `stt`** และตาราง `stt_quota/stt_subscriptions/stt_plans/transcription_jobs` คงชื่อเดิม (เลี่ยง FK rename) — user-facing = "ผู้ช่วย AI" ทั้งหมด
+- **`assistant` ใน path/route group** = ผู้ช่วย AI per-profile (`(hydrogen)/assistant/*`, อยู่ใน SYSTEM_SEGMENTS — ไม่ใช่ org slug). API: generic `/api/assistant/{jobs,jobs/process,quota,stats}` + STT-เฉพาะ `/api/assistant/stt/{mom-pdf,mom-deliver,checkout,portal}` · guard per-profile (`requireAssistantUser` → kind-aware ผ่าน `ASSISTANT_KINDS` ใน [lib/assistant/kinds.ts](apps/perpos/src/lib/assistant/kinds.ts))
+- หมายเหตุ: job hub = **`assistant_jobs`** (generic, มีคอลัมน์ `kind`) · ของที่เป็น STT แท้คงชื่อ `stt_*` (`stt_quota/stt_subscriptions/stt_plans`) + `stt-worker` + bucket `assistant_audio` + `kind='stt'` — user-facing = "ผู้ช่วย AI" ทั้งหมด
 
 ---
 
@@ -183,9 +184,9 @@ pnpm build
 | `tasks` | AI Task Manager (profile_id, title, status, priority, due_at, remind_at) |
 | `calendar_events` | นัดหมาย LINE Bot (profile_id, starts_at, title) |
 | `finance_entries` | รายรับ/รายจ่าย LINE Bot (profile_id, entry_type, amount) |
-| `transcription_jobs` | งานแกะเสียง→MoM (profile_id, source web/line, status, transcript_json, duration_seconds) |
+| `assistant_jobs` (เดิม `transcription_jobs`) | job hub ใต้ร่ม assistant (kind, profile_id, source web/line, status, transcript_json, duration_seconds) — kind=`stt` ปัจจุบัน |
 | `stt_quota` | โควต้าแกะเสียงต่อคน (profile_id, limit_seconds default 18000=300นาที, used_seconds) — admin ปรับ limit ได้ |
-| `stt_usage_transactions` | ledger การใช้โควต้า (debit/refund) — RPC `consume_stt_quota`/`refund_stt_quota` (service role) atomic reserve+refund; quota บังคับใช้ที่ stt-worker (วัดความยาวด้วย music-metadata ก่อนเรียก Gemini) · API: `GET /api/assistant/transcribe/quota`, `GET|PUT /api/admin/stt-quota` |
+| `stt_usage_transactions` | ledger การใช้โควต้า (debit/refund) — RPC `consume_stt_quota`/`refund_stt_quota` (service role) atomic reserve+refund; quota บังคับใช้ที่ stt-worker (วัดความยาวด้วย music-metadata ก่อนเรียก Gemini) · API: `GET /api/assistant/quota`, `GET|PUT /api/admin/stt-quota` |
 | `news_agent_configs` | ตั้งค่า News Agent (topics, sources, summary_style) |
 | `delivery_schedules` | cron schedule ส่งข่าว |
 | `delivery_logs` | log การส่งข่าว |
