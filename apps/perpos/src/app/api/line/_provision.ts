@@ -40,10 +40,10 @@ async function ensureRow(
   match: Record<string, unknown>,
   insert: Record<string, unknown>,
 ): Promise<void> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let q = admin.from(table).select('*', { head: true, count: 'exact' }) as any;
-  for (const [k, v] of Object.entries(match)) q = q.eq(k, v);
-  const { count } = await q;
+  const { count } = await admin
+    .from(table)
+    .select('*', { head: true, count: 'exact' })
+    .match(match);
   if (!count) await admin.from(table).insert(insert);
 }
 
