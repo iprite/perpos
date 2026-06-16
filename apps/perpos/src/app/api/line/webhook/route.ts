@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import { createAdminClient } from '../../_lib/supabase';
 import { triggerSttWorker } from '@/lib/assistant/stt-trigger';
 import { sendLineMessages } from '@/lib/line/send-messages';
+import { provisionLineUser } from '../_provision';
 import { upsertMobileToken } from '../../tmc/mobile/_lib';
 import {
   handleCrmCmd, handleCrmIn, handleCrmOut, handleCrmInStatus,
@@ -1301,6 +1302,49 @@ async function handleMomAudio(
   }
 }
 
+// auto-onboarding เมื่อมี follow event → provision + welcome Flex
+async function handleFollow(admin: ReturnType<typeof createAdminClient>, lineUserId: string) {
+  const result = await provisionLineUser(admin, lineUserId);
+  const greeting = result.isNew
+    ? `สวัสดีครับ คุณ${result.displayName} 🎉`
+    : `ยินดีต้อนรับกลับมาครับ คุณ${result.displayName} 🙌`;
+  const subText = result.isNew ? 'คุณได้รับโควต้าแกะเสียงฟรี 300 นาที' : 'พร้อมใช้งานได้เลย';
+
+  await sendLineMessages({
+    to: lineUserId,
+    messages: [{
+      type: 'flex',
+      altText: 'ยินดีต้อนรับสู่ PERPOS Assistant',
+      contents: {
+        type: 'bubble',
+        header: {
+          type: 'box', layout: 'vertical', backgroundColor: '#533afd', paddingAll: '16px',
+          contents: [
+            { type: 'text', text: '🎙️ PERPOS Assistant', color: '#ffffff', weight: 'bold', size: 'lg' },
+            { type: 'text', text: 'แกะเสียงประชุม → รายงานการประชุม', color: '#e0e7ff', size: 'xs', margin: 'sm' },
+          ],
+        },
+        body: {
+          type: 'box', layout: 'vertical', spacing: 'sm',
+          contents: [
+            { type: 'text', text: greeting, weight: 'bold', size: 'md', color: '#111827', wrap: true },
+            { type: 'text', text: subText, size: 'sm', color: '#16a34a', wrap: true },
+            { type: 'separator', margin: 'md' },
+            { type: 'text', text: 'วิธีใช้: พิมพ์ /mom แล้วส่งไฟล์เสียง — ระบบจะถอดเป็นรายงานการประชุม (PDF) ส่งกลับให้อัตโนมัติ', size: 'xs', color: '#6b7280', wrap: true, margin: 'md' },
+          ],
+        },
+        footer: {
+          type: 'box', layout: 'vertical',
+          contents: [
+            { type: 'button', style: 'primary', color: '#533afd', height: 'sm',
+              action: { type: 'message', label: '🎙️ เริ่มแกะเสียง', text: '/mom' } },
+          ],
+        },
+      },
+    }],
+  }).catch(() => undefined);
+}
+
 // ─── Main webhook handler ─────────────────────────────────────────────────────
 
 const TMC_CMDS = ['รับ', 'จ่าย', 'บัญชี', 'stock', 'stkin', 'stkout', 'stk', 'เช็คอิน', 'pcin', 'pcout', 'pcbal', 'pcfunds', 'tmc'];
@@ -1318,6 +1362,15 @@ export async function POST(req: NextRequest) {
   const admin = createAdminClient();
 
   for (const event of parsed.events ?? []) {
+    // ─── Follow event — auto-onboarding (แอด LINE → สร้าง account + โควต้า + welcome) ──
+    if (event.type === 'follow') {
+      const fUserId = (event.source as Record<string, string>)?.userId ?? '';
+      if (fUserId) {
+        await handleFollow(admin, fUserId).catch((e) => console.error('[line] follow provision failed:', String(e)));
+      }
+      continue;
+    }
+
     if (event.type !== 'message') continue;
     const msg = event.message as Record<string, unknown>;
 

@@ -163,6 +163,8 @@ pnpm build
 
 **หมายเหตุ:** Admin role ข้ามการเช็ค permission ทั้งหมด
 
+**Auto-onboarding (LINE-first):** เมื่อมี `follow` event (แอด OA) → `provisionLineUser` ([api/line/_provision.ts](apps/perpos/src/app/api/line/_provision.ts)) สร้าง shadow auth user (email `line.<id>@stt-line.perpos.io`) → trigger สร้าง profile → personal org + member(owner) + org_module_settings(assistant) + personal_module_grants(assistant) + stt_quota(300นาที) + line_active_org_id → push welcome Flex. idempotent ต่อ `line_user_id` (re-follow ไม่สร้างซ้ำ). ผู้ใช้พิมพ์ `/mom` ได้ทันทีโดยไม่ต้องสมัครเว็บ
+
 ---
 
 ## Database Schema (Supabase)
