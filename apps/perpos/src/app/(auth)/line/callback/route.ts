@@ -81,10 +81,12 @@ export async function GET(request: NextRequest) {
 
   // 4. หา profile by line_user_id — ไม่มี → provision (idempotent, สร้างบัญชี + STT trial)
   let email: string | null = null;
-  const { data: prof } = await admin.from('profiles').select('id, email, is_active').eq('line_user_id', lineUserId).maybeSingle();
+  let role: string | null = null;
+  const { data: prof } = await admin.from('profiles').select('id, email, is_active, role').eq('line_user_id', lineUserId).maybeSingle();
   if (prof) {
     if ((prof as { is_active?: boolean }).is_active === false) return signin('account_inactive');
     email = (prof as { email?: string }).email ?? null;
+    role = (prof as { role?: string }).role ?? null;
   } else {
     try {
       const result = await provisionLineUser(admin, lineUserId);
@@ -102,7 +104,9 @@ export async function GET(request: NextRequest) {
   if (ge || !tokenHash) return signin('login_failed');
 
   // login เป็น LINE-only → เข้าแอปได้เลย (ไม่ต้องตั้ง email/password)
-  const dest = new URL(withBasePath(returnTo), request.url);
+  // super_admin → admin console เสมอ (ข้าม returnTo ที่อาจเป็น deep link เก่า เช่น stt)
+  const landing = role === 'super_admin' ? '/admin' : returnTo;
+  const dest = new URL(withBasePath(landing), request.url);
   const response = NextResponse.redirect(dest);
   // ล้าง oauth cookies
   response.cookies.set('line_oauth_state', '', { path: '/', maxAge: 0 });
