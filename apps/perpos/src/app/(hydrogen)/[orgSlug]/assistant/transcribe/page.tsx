@@ -121,6 +121,9 @@ export default function AssistantTranscribePage() {
   const [copied, setCopied] = useState(false);
   const [pdfBusy, setPdfBusy] = useState(false);
 
+  const [quota, setQuota] = useState<{ limit: number; used: number; remaining: number } | null>(null);
+  const [fileDuration, setFileDuration] = useState<number | null>(null);
+
   // ── Data ──────────────────────────────────────────────────────────────────────
   const fetchJobs = useCallback(async (oid: string, tk: string) => {
     const res = await fetch(`/api/assistant/transcribe/jobs?orgId=${oid}`, {
@@ -129,6 +132,15 @@ export default function AssistantTranscribePage() {
     if (!res.ok) return;
     const json = await res.json();
     setJobs((json.data ?? []) as Job[]);
+  }, []);
+
+  const fetchQuota = useCallback(async (oid: string, tk: string) => {
+    const res = await fetch(`/api/assistant/transcribe/quota?orgId=${oid}`, {
+      headers: { Authorization: `Bearer ${tk}` },
+    });
+    if (!res.ok) return;
+    const d = (await res.json()).data;
+    if (d) setQuota({ limit: d.limit_seconds, used: d.used_seconds, remaining: d.remaining_seconds });
   }, []);
 
   const init = useCallback(async () => {
@@ -145,23 +157,23 @@ export default function AssistantTranscribePage() {
 
       setOrgId(org.id);
       setToken(accessToken);
-      await fetchJobs(org.id, accessToken);
+      await Promise.all([fetchJobs(org.id, accessToken), fetchQuota(org.id, accessToken)]);
     } catch (e: any) {
       setError(e?.message ?? 'โหลดข้อมูลไม่สำเร็จ');
     } finally {
       setLoading(false);
     }
-  }, [supabase, orgSlug, fetchJobs]);
+  }, [supabase, orgSlug, fetchJobs, fetchQuota]);
 
   useEffect(() => { init(); }, [init]);
 
-  // poll ขณะมีงานค้าง
+  // poll ขณะมีงานค้าง (อัปเดต jobs + โควต้า)
   useEffect(() => {
     const active = jobs.some((j) => j.status === 'pending' || j.status === 'processing');
     if (!active || !orgId || !token) return;
-    const t = setInterval(() => { fetchJobs(orgId, token); }, 5000);
+    const t = setInterval(() => { fetchJobs(orgId, token); fetchQuota(orgId, token); }, 5000);
     return () => clearInterval(t);
-  }, [jobs, orgId, token, fetchJobs]);
+  }, [jobs, orgId, token, fetchJobs, fetchQuota]);
 
   // ── Upload + start ─────────────────────────────────────────────────────────────
   const pickFile = (f: File | null) => {
@@ -174,6 +186,24 @@ export default function AssistantTranscribePage() {
       return;
     }
     setFile(f);
+    // วัดความยาวฝั่ง client (advisory) เพื่อเตือนก่อนอัป — enforcement จริงที่ worker
+    setFileDuration(null);
+    const url = URL.createObjectURL(f);
+    const audio = document.createElement('audio');
+    audio.preload = 'metadata';
+    audio.onloadedmetadata = () => {
+      URL.revokeObjectURL(url);
+      const d = audio.duration;
+      if (Number.isFinite(d) && d > 0) {
+        const sec = Math.ceil(d);
+        setFileDuration(sec);
+        if (quota && sec > quota.remaining) {
+          toast.error(`ไฟล์นี้ยาว ~${Math.ceil(sec / 60)} นาที เกินโควต้าที่เหลือ ${Math.floor(quota.remaining / 60)} นาที`);
+        }
+      }
+    };
+    audio.onerror = () => URL.revokeObjectURL(url);
+    audio.src = url;
   };
 
   const handleStart = async () => {
@@ -306,6 +336,24 @@ export default function AssistantTranscribePage() {
         </Button>
       </div>
 
+      {/* Quota banner */}
+      {quota ? (
+        <div className="mb-4 rounded-xl border border-gray-100 bg-white p-4 shadow-sm">
+          <div className="flex items-center justify-between text-sm">
+            <span className="font-medium text-gray-700">โควต้าแกะเสียง (นาทีการประชุม)</span>
+            <span className={quota.remaining <= 0 ? 'font-semibold text-red-600' : 'font-semibold text-gray-900'}>
+              เหลือ {Math.floor(quota.remaining / 60)} / {Math.floor(quota.limit / 60)} นาที
+            </span>
+          </div>
+          <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-gray-100">
+            <div
+              className={`h-full rounded-full ${quota.remaining <= 0 ? 'bg-red-500' : 'bg-indigo-500'}`}
+              style={{ width: `${Math.min(100, quota.limit ? (quota.used / quota.limit) * 100 : 0)}%` }}
+            />
+          </div>
+        </div>
+      ) : null}
+
       {/* Upload card */}
       <div className="mb-8 rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
         <div
@@ -344,8 +392,17 @@ export default function AssistantTranscribePage() {
           )}
         </div>
 
-        <div className="mt-4 flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-end">
-          <Button disabled={!file || uploading} onClick={handleStart}>
+        <div className="mt-4 flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="text-xs text-gray-500">
+            {file && fileDuration ? `ความยาว ~${Math.ceil(fileDuration / 60)} นาที` : null}
+            {file && fileDuration && quota && fileDuration > quota.remaining
+              ? <span className="ml-1 text-red-600">· เกินโควต้าที่เหลือ ({Math.floor(quota.remaining / 60)} นาที)</span>
+              : null}
+          </div>
+          <Button
+            disabled={!file || uploading || !!(quota && fileDuration && fileDuration > quota.remaining)}
+            onClick={handleStart}
+          >
             {uploading
               ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> กำลังอัปโหลด…</>
               : <><Sparkles className="mr-2 h-4 w-4" /> เริ่มแกะเสียง</>}

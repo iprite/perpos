@@ -1534,6 +1534,12 @@ export async function POST(req: NextRequest) {
       if (!activeOrg) {
         await replyText(replyToken, '❌ ยังไม่ได้เลือกองค์กร พิมพ์ /org เพื่อเลือกองค์กรก่อน'); continue;
       }
+      // pre-check โควต้า — ถ้าหมดแล้วไม่ต้องเปิด session
+      const { data: q } = await admin.from('stt_quota').select('limit_seconds, used_seconds').eq('profile_id', profile.id).maybeSingle();
+      const qRemain = ((q as { limit_seconds?: number } | null)?.limit_seconds ?? 18000) - ((q as { used_seconds?: number } | null)?.used_seconds ?? 0);
+      if (qRemain <= 0) {
+        await replyText(replyToken, '❌ โควต้าแกะเสียงของคุณหมดแล้ว (0 นาที)\nติดต่อแอดมินเพื่อเพิ่มโควต้าครับ'); continue;
+      }
       // best-effort: เก็บกวาด session หมดอายุที่ค้างไว้
       void admin.from('assistant_line_sessions').delete().lt('expires_at', new Date().toISOString());
       const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
@@ -1543,6 +1549,7 @@ export async function POST(req: NextRequest) {
       await replyText(replyToken,
         '🎙️ ส่งไฟล์เสียงที่ต้องการถอดเป็นรายงานการประชุม (MoM) มาได้เลยครับ\n\n' +
         '• รองรับไฟล์เสียง/วิดีโอ ไม่เกิน 200MB\n' +
+        `• โควต้าคงเหลือ ~${Math.floor(qRemain / 60)} นาที\n` +
         '• เมื่อถอดเสร็จจะส่งไฟล์ PDF กลับมาให้อัตโนมัติ (ประมาณ 1–3 นาที)',
       );
       continue;

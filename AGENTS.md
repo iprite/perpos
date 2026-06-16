@@ -176,6 +176,9 @@ pnpm build
 | `tasks` | AI Task Manager (profile_id, title, status, priority, due_at, remind_at) |
 | `calendar_events` | นัดหมาย LINE Bot (profile_id, starts_at, title) |
 | `finance_entries` | รายรับ/รายจ่าย LINE Bot (profile_id, entry_type, amount) |
+| `transcription_jobs` | งานแกะเสียง→MoM (profile_id, source web/line, status, transcript_json, duration_seconds) |
+| `stt_quota` | โควต้าแกะเสียงต่อคน (profile_id, limit_seconds default 18000=300นาที, used_seconds) — admin ปรับ limit ได้ |
+| `stt_usage_transactions` | ledger การใช้โควต้า (debit/refund) — RPC `consume_stt_quota`/`refund_stt_quota` (service role) atomic reserve+refund; quota บังคับใช้ที่ stt-worker (วัดความยาวด้วย music-metadata ก่อนเรียก Gemini) · API: `GET /api/assistant/transcribe/quota`, `GET|PUT /api/admin/stt-quota` |
 | `news_agent_configs` | ตั้งค่า News Agent (topics, sources, summary_style) |
 | `delivery_schedules` | cron schedule ส่งข่าว |
 | `delivery_logs` | log การส่งข่าว |

@@ -1,5 +1,6 @@
 import { getAdminClient } from '../lib/supabase';
 import { fetch as undiciFetch, Agent } from 'undici';
+import { parseBuffer } from 'music-metadata';
 
 // dispatcher สำหรับ Gemini generateContent: ปิด timeout เริ่มต้นของ undici (default
 // headersTimeout 300s) เพราะไฟล์ยาวอาจใช้เวลา generate หลายนาที
@@ -107,6 +108,9 @@ async function runJob(jobId: string, orgId: string): Promise<void> {
     return;
   }
 
+  const profileId = String(job.profile_id ?? '');
+  let reservedSeconds = 0; // โควต้าที่จองไว้ — ใช้ refund ถ้า STT ล้มหลังจอง
+
   try {
     const model = ALLOWED_MODELS.includes(job.model) ? (job.model as string) : DEFAULT_MODEL;
 
@@ -125,6 +129,32 @@ async function runJob(jobId: string, orgId: string): Promise<void> {
       }
       ({ bytes, mimeType } = await downloadAudio(storagePath));
     }
+
+    // 1.5 วัดความยาว → จองโควต้า (atomic) ก่อนเรียก Gemini เพื่อคุมค่าใช้จ่าย
+    const durationSec = await measureDuration(bytes, mimeType);
+    await admin.from('transcription_jobs').update({ duration_seconds: durationSec }).eq('id', jobId);
+
+    const { data: reserveData } = await admin.rpc('consume_stt_quota', {
+      p_profile_id: profileId, p_seconds: durationSec, p_job_id: jobId, p_source: String(job.source ?? 'web'),
+    });
+    const reserve = reserveData as { ok?: boolean; remaining_seconds?: number } | null;
+    if (!reserve?.ok) {
+      const remainMin = Math.max(0, Math.floor((reserve?.remaining_seconds ?? 0) / 60));
+      const fileMin = Math.max(1, Math.ceil(durationSec / 60));
+      console.log(`[stt-worker] Job ${jobId} quota exceeded (file ${durationSec}s, remain ${reserve?.remaining_seconds}s)`);
+      await admin.from('transcription_jobs').update({
+        status: 'failed',
+        error_message: `quota_exceeded: ไฟล์ ~${fileMin} นาที เหลือ ${remainMin} นาที`,
+        updated_at: new Date().toISOString(),
+      }).eq('id', jobId);
+      if (job.source === 'line') {
+        await pushLineToProfile(profileId,
+          `❌ โควต้าไม่พอ\nไฟล์นี้ ~${fileMin} นาที · เหลือ ${remainMin} นาที\nติดต่อแอดมินเพื่อเพิ่มโควต้าครับ`,
+        ).catch(() => undefined);
+      }
+      return; // ไม่เรียก Gemini เลย
+    }
+    reservedSeconds = durationSec;
 
     // 2. upload ไฟล์ทั้งก้อนเข้า Gemini Files API → ถอด+สรุปในครั้งเดียว
 
@@ -166,6 +196,11 @@ async function runJob(jobId: string, orgId: string): Promise<void> {
   } catch (err) {
     const errorMsg = err instanceof Error ? err.message : 'เกิดข้อผิดพลาดในการแกะเสียง';
     console.error(`[stt-worker] Job ${jobId} failed:`, errorMsg);
+    // STT ล้มหลังจองโควต้าแล้ว → คืนโควต้า (ยุติธรรม — ผู้ใช้ไม่ได้ผลลัพธ์)
+    if (reservedSeconds > 0) {
+      await admin.rpc('refund_stt_quota', { p_profile_id: profileId, p_seconds: reservedSeconds, p_job_id: jobId })
+        .then(() => undefined, () => undefined);
+    }
     await admin
       .from('transcription_jobs')
       .update({ status: 'failed', error_message: errorMsg, updated_at: new Date().toISOString() })
@@ -537,6 +572,34 @@ async function notifyLine(job: Record<string, unknown>): Promise<void> {
       'content-type': 'application/json',
     },
     body: JSON.stringify({ to: lineUserId, messages: [{ type: 'text', text: message }] }),
+  });
+}
+
+// วัดความยาวไฟล์เสียง/วิดีโอ (วินาที) จาก buffer — ไม่ต้องใช้ ffmpeg
+// (music-metadata v7 = CommonJS; auto-detect format จาก magic bytes ไม่ต้องพึ่ง mimeType)
+async function measureDuration(bytes: Buffer, _mimeType: string): Promise<number> {
+  try {
+    const meta = await parseBuffer(new Uint8Array(bytes));
+    const dur = meta.format?.duration;
+    if (dur && Number.isFinite(dur) && dur > 0) return Math.ceil(dur);
+  } catch {
+    /* parse ไม่ได้ → throw ด้านล่าง */
+  }
+  throw new Error('อ่านความยาวไฟล์เสียงไม่ได้ กรุณาลองไฟล์อื่น (รองรับ mp3, m4a, ogg, wav, mp4)');
+}
+
+// push ข้อความ text หา LINE user จาก profile_id (สำหรับแจ้งโควต้าไม่พอ)
+async function pushLineToProfile(profileId: string, text: string): Promise<void> {
+  const accessToken = process.env.LINE_MESSAGING_CHANNEL_ACCESS_TOKEN;
+  if (!accessToken || !profileId) return;
+  const admin = getAdminClient();
+  const { data: profile } = await admin.from('profiles').select('line_user_id').eq('id', profileId).maybeSingle();
+  const lineUserId = (profile as { line_user_id?: string } | null)?.line_user_id;
+  if (!lineUserId) return;
+  await fetch('https://api.line.me/v2/bot/message/push', {
+    method: 'POST',
+    headers: { authorization: `Bearer ${accessToken}`, 'content-type': 'application/json' },
+    body: JSON.stringify({ to: lineUserId, messages: [{ type: 'text', text }] }),
   });
 }
 

@@ -95,7 +95,17 @@ export async function POST(req: NextRequest) {
     .createSignedUrl(path, 48 * 60 * 60, { download: `MoM-${jobId}.pdf` });
   if (signErr || !signed?.signedUrl) return failToLine(`signed url: ${signErr?.message ?? 'failed'}`);
 
-  // 3. push Flex (ปุ่มดาวน์โหลด) กลับ LINE
+  // 3. โควต้าคงเหลือ (แสดงใน Flex)
+  const { data: quota } = await admin
+    .from('stt_quota')
+    .select('limit_seconds, used_seconds')
+    .eq('profile_id', job.profile_id as string)
+    .maybeSingle();
+  const qLimit = (quota as { limit_seconds?: number } | null)?.limit_seconds ?? 18000;
+  const qUsed = (quota as { used_seconds?: number } | null)?.used_seconds ?? 0;
+  const quotaLine = `⏱️ โควต้าคงเหลือ ${Math.max(0, Math.floor((qLimit - qUsed) / 60))} / ${Math.floor(qLimit / 60)} นาที`;
+
+  // 4. push Flex (ปุ่มดาวน์โหลด) กลับ LINE
   const meetingTitle = String(tj.meeting_title || job.file_name || 'รายงานการประชุม');
   const sent = await sendLineMessages({
     to: lineUserId,
@@ -110,6 +120,7 @@ export async function POST(req: NextRequest) {
             { type: 'text', text: '📋 รายงานการประชุม (MoM)', weight: 'bold', size: 'md', color: '#0284c7' },
             { type: 'text', text: meetingTitle, size: 'sm', wrap: true, color: '#111827' },
             { type: 'text', text: 'แกะเสียงเสร็จแล้ว กดปุ่มด้านล่างเพื่อดาวน์โหลดไฟล์ PDF', size: 'xs', wrap: true, color: '#6b7280' },
+            { type: 'text', text: quotaLine, size: 'xs', color: '#94a3b8', margin: 'sm' },
           ],
         },
         footer: {
