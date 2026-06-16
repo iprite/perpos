@@ -148,9 +148,25 @@ async function runJob(jobId: string, orgId: string): Promise<void> {
         updated_at: new Date().toISOString(),
       }).eq('id', jobId);
       if (job.source === 'line') {
-        await pushLineToProfile(profileId,
-          `❌ โควต้าไม่พอ\nไฟล์นี้ ~${fileMin} นาที · เหลือ ${remainMin} นาที\nติดต่อแอดมินเพื่อเพิ่มโควต้าครับ`,
-        ).catch(() => undefined);
+        await pushLineToProfile(profileId, [{
+          type: 'flex',
+          altText: `โควต้าไม่พอ — ไฟล์ ~${fileMin} นาที เหลือ ${remainMin} นาที`,
+          contents: {
+            type: 'bubble',
+            header: {
+              type: 'box', layout: 'vertical', backgroundColor: '#dc2626', paddingAll: '14px',
+              contents: [{ type: 'text', text: '❌ ประมวลผลไม่ได้', color: '#ffffff', weight: 'bold', size: 'md' }],
+            },
+            body: {
+              type: 'box', layout: 'vertical', spacing: 'sm',
+              contents: [
+                { type: 'text', text: 'โควต้าแกะเสียงไม่พอ', weight: 'bold', size: 'sm', color: '#111827' },
+                { type: 'text', text: `ไฟล์เสียงของคุณยาว ~${fileMin} นาที แต่โควต้าคงเหลือมีเพียง ${remainMin} นาที`, wrap: true, size: 'xs', color: '#6b7280' },
+                { type: 'text', text: 'ติดต่อแอดมินเพื่อเพิ่มโควต้าครับ 🙏', wrap: true, size: 'xs', color: '#94a3b8', margin: 'md' },
+              ],
+            },
+          },
+        }]).catch(() => undefined);
       }
       return; // ไม่เรียก Gemini เลย
     }
@@ -196,10 +212,9 @@ async function runJob(jobId: string, orgId: string): Promise<void> {
   } catch (err) {
     const errorMsg = err instanceof Error ? err.message : 'เกิดข้อผิดพลาดในการแกะเสียง';
     console.error(`[stt-worker] Job ${jobId} failed:`, errorMsg);
-    // STT ล้มหลังจองโควต้าแล้ว → คืนโควต้า (ยุติธรรม — ผู้ใช้ไม่ได้ผลลัพธ์)
+    // STT ล้มหลังจองโควต้าแล้ว → คืนโควต้า (idempotent, ผูกกับ job → stuck-sweep เรียกซ้ำได้ปลอดภัย)
     if (reservedSeconds > 0) {
-      await admin.rpc('refund_stt_quota', { p_profile_id: profileId, p_seconds: reservedSeconds, p_job_id: jobId })
-        .then(() => undefined, () => undefined);
+      await admin.rpc('refund_stt_job', { p_job_id: jobId }).then(() => undefined, () => undefined);
     }
     await admin
       .from('transcription_jobs')
@@ -588,10 +603,10 @@ async function measureDuration(bytes: Buffer, _mimeType: string): Promise<number
   throw new Error('อ่านความยาวไฟล์เสียงไม่ได้ กรุณาลองไฟล์อื่น (รองรับ mp3, m4a, ogg, wav, mp4)');
 }
 
-// push ข้อความ text หา LINE user จาก profile_id (สำหรับแจ้งโควต้าไม่พอ)
-async function pushLineToProfile(profileId: string, text: string): Promise<void> {
+// push LINE message(s) หา user จาก profile_id (text หรือ flex)
+async function pushLineToProfile(profileId: string, messages: unknown[]): Promise<void> {
   const accessToken = process.env.LINE_MESSAGING_CHANNEL_ACCESS_TOKEN;
-  if (!accessToken || !profileId) return;
+  if (!accessToken || !profileId || !messages.length) return;
   const admin = getAdminClient();
   const { data: profile } = await admin.from('profiles').select('line_user_id').eq('id', profileId).maybeSingle();
   const lineUserId = (profile as { line_user_id?: string } | null)?.line_user_id;
@@ -599,7 +614,7 @@ async function pushLineToProfile(profileId: string, text: string): Promise<void>
   await fetch('https://api.line.me/v2/bot/message/push', {
     method: 'POST',
     headers: { authorization: `Bearer ${accessToken}`, 'content-type': 'application/json' },
-    body: JSON.stringify({ to: lineUserId, messages: [{ type: 'text', text }] }),
+    body: JSON.stringify({ to: lineUserId, messages }),
   });
 }
 

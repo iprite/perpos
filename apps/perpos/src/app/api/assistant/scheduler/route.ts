@@ -112,6 +112,9 @@ async function run(req: NextRequest) {
     .select('id, source, profile_id'); // returning = เฉพาะแถวที่เพิ่ง mark failed (atomic, กัน race กับ worker)
 
   for (const job of (stuckJobs ?? []) as Record<string, unknown>[]) {
+    // คืนโควต้าที่จองไว้ (idempotent) — กรณี worker crash กลางคันก่อน refund เอง
+    await admin.rpc('refund_stt_job', { p_job_id: job.id as string }).then(() => undefined, () => undefined);
+
     if (job.source !== 'line') continue; // งานเว็บ: UI มีปุ่มลองใหม่อยู่แล้ว
     const { data: prof } = await admin
       .from('profiles')
