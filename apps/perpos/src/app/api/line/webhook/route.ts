@@ -1216,19 +1216,7 @@ async function checkPersonalGrant(admin: ReturnType<typeof createAdminClient>, p
 }
 
 /** ตรวจสิทธิ์ assistant — ผ่านถ้า super_admin หรือมี user_permission หรือมี personal_module_grant */
-async function checkAssistantAccess(admin: ReturnType<typeof createAdminClient>, profileId: string, role: string): Promise<boolean> {
-  // ผู้ใช้ที่ถูกระงับ (is_active=false) → บล็อกทุกคำสั่งผู้ช่วย/แกะเสียง ไม่ว่า role ใด
-  const { data: prof } = await admin.from('profiles').select('is_active').eq('id', profileId).maybeSingle();
-  if ((prof as { is_active?: boolean } | null)?.is_active === false) return false;
-  if (role === 'super_admin') return true;
-  const [perm, grant] = await Promise.all([
-    checkPermission(admin, profileId, 'bot.assistant.tasks', role),
-    checkPersonalGrant(admin, profileId, 'assistant'),
-  ]);
-  return perm || grant;
-}
-
-// สิทธิ์แกะเสียง (/mom) — module `stt` แยกจาก assistant (เก็บเงินแยก subscription)
+// สิทธิ์ผู้ช่วย AI / แกะเสียง (/mom) — per-profile, key ภายในยังเป็น 'stt'
 // grant ให้ตั้งแต่ onboarding (พร้อม trial 300 นาที) → ด่านเก็บเงินจริงคือ quota ที่ stt-worker
 async function checkSttAccess(admin: ReturnType<typeof createAdminClient>, profileId: string, role: string): Promise<boolean> {
   const { data: prof } = await admin.from('profiles').select('is_active').eq('id', profileId).maybeSingle();
@@ -1277,7 +1265,7 @@ async function handleMomAudio(
   fileNameHint: string,
   replyToken: string,
 ) {
-  // กันผู้ใช้ที่ถูกระงับ (is_active=false) — path "audio ที่มี session ค้าง" เรียกตรงไม่ผ่าน checkAssistantAccess
+  // กันผู้ใช้ที่ถูกระงับ (is_active=false) — path "audio ที่มี session ค้าง" เรียกตรงไม่ผ่าน checkSttAccess
   const { data: prof } = await admin.from('profiles').select('is_active').eq('id', profileId).maybeSingle();
   if ((prof as { is_active?: boolean } | null)?.is_active === false) {
     await admin.from('assistant_line_sessions').delete().eq('line_user_id', lineUserId).then(() => undefined, () => undefined);
@@ -1615,10 +1603,7 @@ export async function POST(req: NextRequest) {
       if (activeOrg?.id === TMC_ORG_ID) {
         await handleTmcHelp(replyToken);
       } else {
-        const [hasAssistant, hasStt] = await Promise.all([
-          checkAssistantAccess(admin, profile.id, profile.role),
-          checkSttAccess(admin, profile.id, profile.role),
-        ]);
+        const hasStt = await checkSttAccess(admin, profile.id, profile.role);
         // Check just_me module
         let hasJustMe = false;
         // Check jaquar module
@@ -1662,23 +1647,12 @@ export async function POST(req: NextRequest) {
           cmdRow('/help', 'แสดงคำสั่งทั้งหมด'),
         ];
 
-        if (hasAssistant) {
-          bodyContents.push(
-            { type: 'separator', margin: 'md' },
-            { type: 'text', text: 'Assistant', size: 'xs', color: '#9CA3AF', margin: 'md' },
-            cmdRow('/t <งาน>', 'บันทึกงานใหม่'),
-            cmdRow('/tk', 'รายการงานที่รอ'),
-            cmdRow('/d <N>', 'ปิดงานที่ N'),
-            cmdRow('/a <ชื่อ> <HH:MM>', 'บันทึกนัดหมาย'),
-            cmdRow('/ap', 'นัดหมายวันนี้'),
-          );
-        }
-
         if (hasStt) {
           bodyContents.push(
             { type: 'separator', margin: 'md' },
-            { type: 'text', text: 'แกะเสียง → รายงานประชุม', size: 'xs', color: '#9CA3AF', margin: 'md' },
-            cmdRow('/mom', 'ส่งไฟล์เสียง → ได้รายงาน PDF'),
+            { type: 'text', text: 'ผู้ช่วย AI', size: 'xs', color: '#9CA3AF', margin: 'md' },
+            cmdRow('/mom', 'ส่งไฟล์เสียง → ได้รายงานประชุม (PDF)'),
+            cmdRow('/web', 'เปิดหน้าเว็บผู้ช่วย AI'),
           );
         }
 
@@ -1851,197 +1825,6 @@ export async function POST(req: NextRequest) {
       continue;
     }
 
-    if (cmd === 't') {
-      if (!await checkAssistantAccess(admin, profile.id, profile.role)) {
-        await replyText(replyToken, '❌ ไม่มีสิทธิ์ใช้คำสั่งนี้'); continue;
-      }
-      const title = args.join(' ').trim();
-      if (!title) { await replyText(replyToken, '❌ ระบุชื่องาน เช่น /t ติดต่อลูกค้า'); continue; }
-      const { error: tErr } = await admin.from('tasks').insert({ profile_id: profile.id, title, status: 'pending', priority: 'medium' });
-      if (tErr) { await replyText(replyToken, `❌ บันทึกไม่สำเร็จ: ${tErr.message}`); continue; }
-      await replyText(replyToken, `✅ บันทึกงาน: ${title}`);
-      continue;
-    }
-
-    if (cmd === 'tk') {
-      if (!await checkAssistantAccess(admin, profile.id, profile.role)) {
-        await replyText(replyToken, '❌ ไม่มีสิทธิ์ใช้คำสั่งนี้'); continue;
-      }
-      const { data: tasks } = await admin.from('tasks').select('title').eq('profile_id', profile.id).eq('status', 'pending').order('created_at').limit(10);
-      const taskList = (tasks ?? []) as { title: string }[];
-
-      let bodyContents: unknown[];
-      if (!taskList.length) {
-        bodyContents = [{
-          type: 'box', layout: 'vertical', backgroundColor: '#F0FDF4', cornerRadius: 'md',
-          paddingAll: '12px', borderWidth: '1px', borderColor: '#BBF7D0',
-          contents: [
-            { type: 'text', text: '✅ ไม่มีงานที่รออยู่', color: '#15803D', size: 'sm', wrap: true },
-            { type: 'text', text: '/t ชื่องาน เพื่อเพิ่มงาน', color: '#166534', size: 'xs', wrap: true, margin: 'xs' },
-          ],
-        }];
-      } else {
-        const taskRows = taskList.map((t, i) => ({
-          type: 'box', layout: 'horizontal', contents: [
-            { type: 'text', text: `${i + 1}.`, size: 'sm', color: '#7C3AED', flex: 0, margin: 'none' },
-            { type: 'text', text: t.title, size: 'sm', color: '#1F2937', flex: 1, wrap: true, margin: 'sm' },
-          ],
-        }));
-        bodyContents = [
-          ...taskRows,
-          { type: 'separator', margin: 'md' },
-          { type: 'text', text: '/d <N> เพื่อปิดงาน', size: 'xs', color: '#6B7280', margin: 'sm' },
-        ];
-      }
-
-      await replyLine(replyToken, [{
-        type: 'flex',
-        altText: `งานที่รอ (${taskList.length})`,
-        contents: {
-          type: 'bubble',
-          header: {
-            type: 'box', layout: 'vertical', paddingAll: '16px',
-            background: { type: 'linearGradient', angle: '135deg', startColor: '#7C3AED', endColor: '#A78BFA' },
-            contents: [
-              { type: 'text', text: '📋 TASK LIST', weight: 'bold', color: '#FFFFFF', size: 'sm' },
-              { type: 'text', text: 'งานที่รอดำเนินการ', weight: 'bold', size: 'md', color: '#FFFFFF', margin: 'xs', wrap: true },
-            ],
-          },
-          body: {
-            type: 'box', layout: 'vertical', paddingAll: '16px', spacing: 'sm',
-            contents: bodyContents,
-          },
-        },
-      }]);
-      continue;
-    }
-
-    if (cmd === 'd') {
-      if (!await checkAssistantAccess(admin, profile.id, profile.role)) {
-        await replyText(replyToken, '❌ ไม่มีสิทธิ์ใช้คำสั่งนี้'); continue;
-      }
-      const n = parseInt(args[0] ?? '');
-      if (!n || isNaN(n)) { await replyText(replyToken, '❌ ระบุหมายเลขงาน เช่น /d 1'); continue; }
-      const { data: tasks } = await admin.from('tasks').select('id, title').eq('profile_id', profile.id).eq('status', 'pending').order('created_at').limit(20);
-      const target = (tasks as { id: string; title: string }[] | null)?.[n - 1];
-      if (!target) { await replyText(replyToken, `❌ ไม่พบงานที่ ${n}`); continue; }
-      await admin.from('tasks').update({ status: 'completed' }).eq('id', target.id);
-      await replyText(replyToken, `✅ ปิดงาน: ${target.title}`);
-      continue;
-    }
-
-    // /a <ชื่อ> <วัน YYYY-MM-DD|today|วันนี้> <HH:MM> — บันทึกนัดหมาย
-    if (cmd === 'a') {
-      if (!await checkAssistantAccess(admin, profile.id, profile.role)) {
-        await replyText(replyToken, '❌ ไม่มีสิทธิ์ใช้คำสั่งนี้'); continue;
-      }
-      // /a <ชื่อ> <HH:MM>  หรือ  /a <ชื่อ> <YYYY-MM-DD> <HH:MM>
-      if (!args[0]) {
-        await replyText(replyToken, '❌ รูปแบบ: /a <ชื่องาน> <HH:MM>\nหรือ: /a <ชื่องาน> <วัน YYYY-MM-DD> <HH:MM>\nเช่น: /a ประชุมทีม 14:00');
-        continue;
-      }
-      // detect if args contains a date (YYYY-MM-DD) or time (HH:MM)
-      const timeRe  = /^\d{1,2}:\d{2}$/;
-      const dateRe  = /^\d{4}-\d{2}-\d{2}$/;
-      const todayIso = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Bangkok' });
-
-      let title = '';
-      let dateStr = todayIso;
-      let timeStr = '';
-
-      // last arg: time, second-to-last: optional date, rest: title
-      const lastArg = args[args.length - 1];
-      if (timeRe.test(lastArg)) {
-        timeStr = lastArg;
-        const rest = args.slice(0, -1);
-        if (rest.length > 0 && dateRe.test(rest[rest.length - 1])) {
-          dateStr = rest[rest.length - 1];
-          title   = rest.slice(0, -1).join(' ').trim();
-        } else {
-          title = rest.join(' ').trim();
-        }
-      } else {
-        await replyText(replyToken, '❌ ต้องระบุเวลา HH:MM ท้ายสุด เช่น /a ประชุมทีม 14:00');
-        continue;
-      }
-
-      if (!title) { await replyText(replyToken, '❌ ระบุชื่อนัดหมาย เช่น /a ประชุมทีม 14:00'); continue; }
-
-      const startsAt = `${dateStr}T${timeStr}:00+07:00`;
-      const { error: aErr } = await admin.from('calendar_events').insert({
-        profile_id: profile.id,
-        title,
-        starts_at: startsAt,
-      });
-      if (aErr) { await replyText(replyToken, `❌ บันทึกไม่สำเร็จ: ${aErr.message}`); continue; }
-
-      const displayDate = dateStr === todayIso ? 'วันนี้' : dateStr;
-      await replyText(replyToken, `✅ บันทึกนัดหมาย\n📅 ${displayDate} ${timeStr} น.\n📌 ${title}`);
-      continue;
-    }
-
-    // /ap — รายการนัดวันนี้
-    if (cmd === 'ap') {
-      if (!await checkAssistantAccess(admin, profile.id, profile.role)) {
-        await replyText(replyToken, '❌ ไม่มีสิทธิ์ใช้คำสั่งนี้'); continue;
-      }
-      const todayIso = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Bangkok' });
-      const tomorrowIso = new Date(Date.now() + 86400000).toLocaleDateString('sv-SE', { timeZone: 'Asia/Bangkok' });
-      const thaiDateTitle = new Date().toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'Asia/Bangkok' });
-      const { data: events } = await admin
-        .from('calendar_events')
-        .select('title, starts_at')
-        .eq('profile_id', profile.id)
-        .gte('starts_at', `${todayIso}T00:00:00+07:00`)
-        .lt('starts_at',  `${tomorrowIso}T00:00:00+07:00`)
-        .order('starts_at');
-
-      const eventList = (events ?? []) as { title: string; starts_at: string }[];
-
-      let bodyContents: unknown[];
-      if (!eventList.length) {
-        bodyContents = [{
-          type: 'box', layout: 'vertical', backgroundColor: '#F0F9FF', cornerRadius: 'md',
-          paddingAll: '12px', borderWidth: '1px', borderColor: '#BAE6FD',
-          contents: [
-            { type: 'text', text: 'ไม่มีนัดหมายวันนี้', color: '#0369A1', size: 'sm', wrap: true },
-            { type: 'text', text: '/a ชื่อ HH:MM เพื่อเพิ่มนัด', color: '#075985', size: 'xs', wrap: true, margin: 'xs' },
-          ],
-        }];
-      } else {
-        const eventRows = eventList.map(e => {
-          const t = new Date(e.starts_at).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Bangkok' });
-          return {
-            type: 'box', layout: 'horizontal', contents: [
-              { type: 'text', text: `🕐 ${t}`, size: 'sm', color: '#0369A1', flex: 0 },
-              { type: 'text', text: `— ${e.title}`, size: 'sm', color: '#1F2937', flex: 1, wrap: true, margin: 'sm' },
-            ],
-          };
-        });
-        bodyContents = eventRows;
-      }
-
-      await replyLine(replyToken, [{
-        type: 'flex',
-        altText: `นัดหมายวันนี้ (${eventList.length})`,
-        contents: {
-          type: 'bubble',
-          header: {
-            type: 'box', layout: 'vertical', paddingAll: '16px',
-            background: { type: 'linearGradient', angle: '135deg', startColor: '#0369A1', endColor: '#38BDF8' },
-            contents: [
-              { type: 'text', text: "📅 TODAY'S SCHEDULE", weight: 'bold', color: '#FFFFFF', size: 'sm' },
-              { type: 'text', text: `วันนี้ ${thaiDateTitle}`, weight: 'bold', size: 'md', color: '#FFFFFF', margin: 'xs', wrap: true },
-            ],
-          },
-          body: {
-            type: 'box', layout: 'vertical', paddingAll: '16px', spacing: 'sm',
-            contents: bodyContents,
-          },
-        },
-      }]);
-      continue;
-    }
 
     // ─── Org-specific commands (TMC) ─────────────────────────────────────────
     if (TMC_CMDS.includes(cmd)) {

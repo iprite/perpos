@@ -157,24 +157,20 @@ pnpm build
 | `/รายจ่าย <จำนวน> <โน้ต>` | บันทึกรายจ่าย | `bot.finance.expense_add` |
 | `/นัด <HH:MM> <เรื่อง>` | เพิ่มนัดวันนี้ | `bot.calendar.add` |
 | `/วันนี้` | ดูนัดวันนี้ | `bot.calendar.today` |
-| `/mom` | แกะเสียงเป็นรายงานการประชุม (ส่งไฟล์เสียงตามหลัง → ได้ PDF กลับทาง LINE) | `bot.assistant.transcribe` (module `stt`) |
-| `/web` | รับ magic link เข้าเว็บ (ล็อกอินอัตโนมัติ + เคลมบัญชี ตั้ง email/password) | — |
-| `/t <ข้อความ>` | บันทึก task ใหม่ | `bot.assistant.tasks` |
-| `/tk` | รายการ task ที่รอ | `bot.assistant.tasks` |
-| `/d <N>` | ปิด task ที่ N | `bot.assistant.tasks` |
-| `/a <ชื่อ> <วัน> <HH:MM>` | บันทึกนัดหมาย | `bot.assistant.tasks` |
-| `/ap` | นัดวันนี้ | `bot.assistant.tasks` |
+| `/mom` | ส่งไฟล์เสียง → ได้รายงานการประชุม (MoM) PDF กลับทาง LINE | `bot.assistant.transcribe` (ผู้ช่วย AI, per-profile) |
+| `/web` | รับ magic link เข้าเว็บผู้ช่วย AI | — |
 
-**หมายเหตุ:** Admin role ข้ามการเช็ค permission ทั้งหมด
+**หมายเหตุ:** Admin role ข้ามการเช็ค permission ทั้งหมด · คำสั่ง Task Manager เดิม (`/t /tk /d /a /ap`) **ยกเลิกแล้ว** (module assistant เดิมถูกลบ)
 
-**Auto-onboarding (LINE-first / B2C):** เมื่อมี `follow` event (แอด OA) → `provisionLineUser` ([api/line/_provision.ts](apps/perpos/src/app/api/line/_provision.ts)) สร้าง shadow auth user (email `line.<id>@stt-line.perpos.io`) → trigger สร้าง profile → personal org + member(owner) + **module `stt` เท่านั้น** (org_module_settings + personal_module_grants + module_members ครบ 3 ตาราง) + stt_quota(300นาที = trial) + line_active_org_id → push welcome Flex (เน้น STT). idempotent ต่อ `line_user_id`. ผู้ใช้พิมพ์ `/mom` ได้ทันทีโดยไม่ต้องสมัครเว็บ — **ไม่แจก `assistant`/โมดูล B2B ใด ๆ**
+**Auto-onboarding (LINE-first / B2C):** เมื่อมี `follow` event (แอด OA) → `provisionLineUser` ([api/line/_provision.ts](apps/perpos/src/app/api/line/_provision.ts)) สร้าง shadow auth user (email `line.<id>@stt-line.perpos.io`) → trigger สร้าง profile → personal org (= "home org" เก็บไฟล์) + member(owner) + **`personal_module_grants('stt')` (ผู้ช่วย AI, per-profile)** + stt_quota(300นาที = trial) + line_active_org_id → push welcome Flex. idempotent. พิมพ์ `/mom` ได้ทันที — **ไม่แจกโมดูล B2B ใด ๆ**
 
-**โมเดล B2B vs B2C:**
-- **B2C = `stt`** (แกะเสียง→MoM) — ระดับบุคคล, subscription แยก (฿99/เดือน, trial 300 นาที), per-profile quota, gate ด้วย `checkSttAccess` / `bot.assistant.transcribe` / grant `stt` + `requireModuleMember(orgId,'stt')`. ทำงานข้าม org ได้เสมอ (ไม่ผูก active org). ด่านเก็บเงินจริง = `stt_quota` ที่ stt-worker. **ทุกคนที่แอด LINE ได้ B2C นี้อัตโนมัติ**
-- **B2B = shared modules (accounting/payroll) + tailor-made (tmc/crm/acc_firm/…) + `assistant`** — ระดับ org, **superadmin เปิดให้ต่อ org เท่านั้น** (`admin/modules` = `requireAdmin` = role `super_admin`). ไม่มี self-serve. `assistant` = task/calendar/finance/news (`/t /tk /d /a /ap /นัด`), gate `checkAssistantAccess` / `bot.assistant.tasks` / grant `assistant`
-- **สลับ org บน LINE:** `/org` (ดูรายการ) + `/org <N>` (เปลี่ยน `line_active_org_id`) — ผู้ใช้ที่ superadmin เปิดหลาย org สลับไปใช้คำสั่งของ org นั้น ๆ ได้ (TMC/CRM commands route ตาม active org). STT ใช้ได้ทุก org เพราะเป็น per-profile
-- **personal org** (auto-provision, name `พื้นที่ส่วนตัว…` / slug `u<10>`) = มีแค่ `stt` เท่านั้น (migration `strip_assistant_from_personal_orgs` ถอด assistant ออกแล้ว)
-- `stt` URL อยู่ใต้ `/{org}/assistant/transcribe/*` แต่แยก menu context จาก `assistant` ด้วย segment `transcribe`
+**โมเดล B2B vs B2C (LINE login เท่านั้น):**
+- **B2C = ผู้ช่วย AI (key ภายใน `stt`)** — บริการ per-profile (umbrella, ตอนนี้ = ถอดเสียง→MoM, อนาคตเพิ่มตัวช่วยอื่น). subscription แยก (฿99/เดือน, trial 300 นาที), per-profile quota. **URL top-level `/assistant`, `/assistant/usage`, `/assistant/billing` — ไม่มี [org]**. gate = `requireAssistantUser` (เว็บ) / `checkSttAccess` (LINE) = grant `stt` หรือ `bot.assistant.transcribe` หรือ super_admin · ด่านเก็บเงิน = `stt_quota` ที่ stt-worker · **ทุกคนที่แอด LINE ได้อัตโนมัติ** · guard resolve "home org" ภายในไว้เก็บไฟล์/เรียก worker (ไม่โผล่ใน URL)
+- **B2B = ERP**: shared (accounting/payroll) + tailor-made (tmc/crm/acc_firm/…) — ระดับ org, **superadmin เปิดให้ต่อ org เท่านั้น** (`admin/modules` = `requireAdmin` = super_admin) · **module `assistant` เดิม (Task Manager) ถูกยกเลิกทิ้งหมดแล้ว**
+- **สลับ STT ↔ ERP**: header มีปุ่ม **"ผู้ช่วย AI"** (→ `/assistant`) + org switcher (ERP) · B2C เห็นแค่ผู้ช่วย · B2B เห็นทั้งคู่ · super_admin → `/admin` (เลือกเข้า org/assistant)
+- **redirect หลัง login**: ERP (B2B) > ผู้ช่วย AI (B2C) > no-org · super_admin → /admin
+- **`assistant` ใน path/route group** = ผู้ช่วย AI per-profile (`(hydrogen)/assistant/*`, อยู่ใน SYSTEM_SEGMENTS — ไม่ใช่ org slug). API ยังอยู่ที่ `/api/assistant/transcribe/*` (path เดิม, แต่ guard เป็น per-profile)
+- หมายเหตุ: **key ภายในยังเป็น `stt`** และตาราง `stt_quota/stt_subscriptions/stt_plans/transcription_jobs` คงชื่อเดิม (เลี่ยง FK rename) — user-facing = "ผู้ช่วย AI" ทั้งหมด
 
 ---
 
