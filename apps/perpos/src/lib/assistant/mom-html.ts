@@ -2,11 +2,11 @@
  * MoM (Minutes of Meeting) HTML template — render เป็น PDF ผ่าน pdf-renderer (Chromium)
  * ใช้ร่วมกันโดย: mom-pdf route (ดาวน์โหลดจากเว็บ) และ mom-deliver route (ส่งกลับ LINE)
  *
- * การแบ่งหน้า (page break) ระดับมืออาชีพ:
- *   ทุก section ถูกห่อด้วย <table> ที่มี <thead> เป็นหัวข้อ — Chromium จะ "ซ้ำ thead"
- *   ทุกหน้าที่ตารางนั้นพาดข้ามไป (display: table-header-group) ดังนั้นเมื่อเนื้อหา
- *   (รายการ/การ์ด/ตาราง Action Items) ถูกตัดข้ามหน้า หัวข้อจะตามไปขึ้นต้นหน้าใหม่เสมอ
- *   ส่วนตาราง Action Items มี thead 2 แถว (ชื่อหัวข้อ + หัวคอลัมน์) จึงซ้ำทั้งคู่
+ * การแบ่งหน้า (page break):
+ *   - section ข้อความ (สรุป/ประเด็น/มติ/ข้อเสนอแนะ) = ก้อนเดียว (break-inside: avoid)
+ *     ถ้าเนื้อที่หน้าปัจจุบันไม่พอ → ยกทั้ง section ไปขึ้นหน้าใหม่ (ไม่ตัดครึ่ง/หัวข้อไม่ซ้ำ)
+ *     เฉพาะ section ที่ยาวเกิน 1 หน้าจริง ๆ จึงถูกบังคับตัด แล้ว thead จะ repeat เป็น fallback
+ *   - ตาราง Action Items = ยาวข้ามหน้าได้ตามปกติ + หัวข้อ/หัวคอลัมน์ (thead) ซ้ำทุกหน้า
  */
 
 export type MomKeyTopic = { topic?: string; details?: string };
