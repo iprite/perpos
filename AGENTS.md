@@ -155,6 +155,7 @@ pnpm build
 | `/นัด <HH:MM> <เรื่อง>` | เพิ่มนัดวันนี้ | `bot.calendar.add` |
 | `/วันนี้` | ดูนัดวันนี้ | `bot.calendar.today` |
 | `/mom` | แกะเสียงเป็นรายงานการประชุม (ส่งไฟล์เสียงตามหลัง → ได้ PDF กลับทาง LINE) | `bot.assistant.tasks` |
+| `/web` | รับ magic link เข้าเว็บ (ล็อกอินอัตโนมัติ + เคลมบัญชี ตั้ง email/password) | — |
 | `/t <ข้อความ>` | บันทึก task ใหม่ | `bot.assistant.tasks` |
 | `/tk` | รายการ task ที่รอ | `bot.assistant.tasks` |
 | `/d <N>` | ปิด task ที่ N | `bot.assistant.tasks` |

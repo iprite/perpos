@@ -1608,6 +1608,20 @@ export async function POST(req: NextRequest) {
       continue;
     }
 
+    if (cmd === 'web') {
+      // magic link เคลมบัญชี/ดูประวัติบนเว็บ (one-time, อายุ 5 นาที)
+      const token = crypto.randomBytes(24).toString('base64url');
+      const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
+      await admin.from('web_login_tokens').insert({ token, profile_id: profile.id, expires_at: expiresAt });
+      const baseUrl = (process.env.APP_BASE_URL ?? 'https://app.perpos.io').replace(/\/$/, '');
+      await replyText(replyToken,
+        '🔗 เปิดลิงก์นี้เพื่อเข้าเว็บ (เข้าระบบอัตโนมัติ ดูประวัติ + ตั้ง email/รหัสผ่านเพื่อเป็นเจ้าของบัญชีถาวร)\n' +
+        `${baseUrl}/line/claim?t=${token}\n\n` +
+        '⏳ ลิงก์ใช้ได้ครั้งเดียว ภายใน 5 นาที',
+      );
+      continue;
+    }
+
     if (cmd === 't') {
       if (!await checkAssistantAccess(admin, profile.id, profile.role)) {
         await replyText(replyToken, '❌ ไม่มีสิทธิ์ใช้คำสั่งนี้'); continue;
