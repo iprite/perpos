@@ -72,7 +72,7 @@ export async function POST(req: NextRequest) {
       currency: 'thb',
       unit_amount: unitAmount,
       ...(plan.kind === 'subscription' ? { recurring: { interval: 'month' as const } } : {}),
-      product_data: { name: `PERPOS แกะเสียง — ${plan.name}` },
+      product_data: { name: `PERPOS Assistant | Voice — ${plan.name}` },
       metadata: { kind: 'stt', plan_id: plan.id, plan_code: plan.code },
     });
     priceId = price.id;
@@ -85,8 +85,8 @@ export async function POST(req: NextRequest) {
     mode: plan.kind === 'subscription' ? 'subscription' : 'payment',
     customer: customerId,
     line_items: [{ price: priceId, quantity: 1 }],
-    success_url: `${baseUrl}/assistant/transcribe?billing=success&session_id={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${baseUrl}/assistant/transcribe?billing=canceled`,
+    success_url: `${baseUrl}/assistant/billing?billing=success&session_id={CHECKOUT_SESSION_ID}`,
+    cancel_url: `${baseUrl}/assistant/billing?billing=canceled`,
     metadata: meta,
     ...(plan.kind === 'subscription'
       ? { subscription_data: { metadata: meta } }
