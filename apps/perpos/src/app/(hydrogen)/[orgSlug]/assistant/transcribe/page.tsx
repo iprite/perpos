@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import {
   Mic, UploadCloud, RefreshCw, FileAudio, Loader2, X, ArrowLeft,
-  Copy, Check, Download, AlertCircle, Play, Sparkles,
+  Copy, Check, Download, AlertCircle, Play, Sparkles, BarChart3,
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 
@@ -331,9 +331,14 @@ export default function AssistantTranscribePage() {
             <p className="text-sm text-gray-500">อัปโหลดไฟล์เสียง/วิดีโอ แล้วระบบจะถอดเป็นข้อความพร้อมแยกผู้พูด</p>
           </div>
         </div>
-        <Button variant="outline" size="sm" disabled={!orgId} onClick={() => fetchJobs(orgId, token)}>
-          <RefreshCw className="mr-2 h-4 w-4" /> รีเฟรช
-        </Button>
+        <div className="flex gap-2">
+          <Link href={`/${orgSlug}/assistant/transcribe/stats`}>
+            <Button variant="outline" size="sm"><BarChart3 className="mr-2 h-4 w-4" /> สถิติ</Button>
+          </Link>
+          <Button variant="outline" size="sm" disabled={!orgId} onClick={() => fetchJobs(orgId, token)}>
+            <RefreshCw className="mr-2 h-4 w-4" /> รีเฟรช
+          </Button>
+        </div>
       </div>
 
       {/* Quota banner */}
