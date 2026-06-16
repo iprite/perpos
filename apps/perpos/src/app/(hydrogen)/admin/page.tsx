@@ -215,7 +215,9 @@ export default function AdminDashboardPage() {
               </div>
             ))}
           </div>
-          <div className="mt-3 flex justify-end gap-3 text-xs text-gray-400">
+          <div className="mt-3 flex flex-wrap justify-end gap-3 text-xs text-gray-400">
+            <Link href="/admin/stt-stats" className="hover:text-blue-600 underline-offset-2 hover:underline">สถิติแกะเสียง →</Link>
+            <Link href="/admin/stt-jobs" className="hover:text-blue-600 underline-offset-2 hover:underline">งานแกะเสียง →</Link>
             <Link href="/admin/stt-users" className="hover:text-blue-600 underline-offset-2 hover:underline">ผู้ใช้ LINE (แกะเสียง) →</Link>
             <Link href="/admin/users" className="hover:text-blue-600 underline-offset-2 hover:underline">User Management →</Link>
           </div>

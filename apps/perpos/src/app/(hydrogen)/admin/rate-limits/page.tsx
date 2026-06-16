@@ -9,6 +9,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog';
 import { ConfirmDeleteDialog } from '@/components/ui/confirm-delete-dialog';
+import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { Plus, Pencil, Trash2, ShieldAlert, ShieldCheck, ToggleLeft, ToggleRight } from 'lucide-react';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -51,13 +52,10 @@ function fmtWindow(s: number): string {
   return `${s / 86400}d`;
 }
 
-function getToken(): string {
-  if (typeof window === 'undefined') return '';
-  try {
-    const raw = Object.entries(localStorage).find(([k]) => k.includes('supabase') && k.includes('auth'));
-    if (!raw) return '';
-    return JSON.parse(raw[1])?.access_token ?? '';
-  } catch { return ''; }
+async function authToken(): Promise<string> {
+  const supabase = createSupabaseBrowserClient();
+  const { data } = await supabase.auth.getSession();
+  return data.session?.access_token ?? '';
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -80,16 +78,17 @@ export default function RateLimitsPage() {
 
   // Load orgs
   useEffect(() => {
-    fetch('/api/admin/users/list', { headers: { Authorization: `Bearer ${getToken()}` } })
-      .then((r) => r.json())
-      .then((d) => {
+    void (async () => {
+      try {
+        const res = await fetch('/api/admin/users/list', { headers: { Authorization: `Bearer ${await authToken()}` } });
+        const d = await res.json();
         const seen = new Map<string, string>();
         for (const u of d.users ?? []) {
           if (u.org_id && u.org_name) seen.set(u.org_id, u.org_name);
         }
         setOrgs(Array.from(seen.entries()).map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name)));
-      })
-      .catch(() => {});
+      } catch { /* ignore */ }
+    })();
   }, []);
 
   const loadLimits = useCallback(async (oid: string) => {
@@ -97,7 +96,7 @@ export default function RateLimitsPage() {
     setLoading(true); setError('');
     try {
       const res = await fetch(`/api/admin/rate-limits?orgId=${oid}&includeViolations=1`, {
-        headers: { Authorization: `Bearer ${getToken()}` },
+        headers: { Authorization: `Bearer ${await authToken()}` },
       });
       const d = await res.json() as { limits?: RateLimit[]; violations?: Record<string, Violation[]>; error?: string };
       if (!res.ok) { setError(d.error ?? 'Error'); return; }
@@ -138,7 +137,7 @@ export default function RateLimitsPage() {
         : { orgId: form.orgId, routePattern: form.routePattern, windowSeconds: Number(form.windowSeconds), maxRequests: Number(form.maxRequests) };
       const res = await fetch(url, {
         method,
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await authToken()}` },
         body: JSON.stringify(body),
       });
       const d = await res.json() as { error?: string };
@@ -152,7 +151,7 @@ export default function RateLimitsPage() {
   async function doDelete() {
     await fetch(`/api/admin/rate-limits?id=${deleteConfirm.id}`, {
       method: 'DELETE',
-      headers: { Authorization: `Bearer ${getToken()}` },
+      headers: { Authorization: `Bearer ${await authToken()}` },
     });
     setDeleteConfirm({ open: false, id: '' });
     void loadLimits(orgId);
@@ -161,7 +160,7 @@ export default function RateLimitsPage() {
   async function toggleActive(l: RateLimit) {
     await fetch('/api/admin/rate-limits', {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await authToken()}` },
       body: JSON.stringify({ id: l.id, isActive: !l.is_active }),
     });
     void loadLimits(orgId);

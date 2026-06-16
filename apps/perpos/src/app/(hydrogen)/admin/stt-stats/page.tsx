@@ -3,8 +3,12 @@
 import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { BarChart3, Users, Clock, FileAudio, RefreshCw, Loader2 } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { BarChart3, Users, Clock, FileAudio, RefreshCw, Loader2, Settings } from 'lucide-react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
+import { toast } from 'react-hot-toast';
+import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 
 type AdminStats = {
   users: { total: number; active: number; claimed: number };
@@ -14,13 +18,10 @@ type AdminStats = {
   top_users: { display_name: string; minutes: number; jobs: number }[];
 };
 
-function getToken(): string {
-  if (typeof window === 'undefined') return '';
-  try {
-    const raw = Object.entries(localStorage).find(([k]) => k.includes('supabase') && k.includes('auth'));
-    if (!raw) return '';
-    return JSON.parse(raw[1])?.access_token ?? '';
-  } catch { return ''; }
+async function authToken(): Promise<string> {
+  const supabase = createSupabaseBrowserClient();
+  const { data } = await supabase.auth.getSession();
+  return data.session?.access_token ?? '';
 }
 
 function Card({ icon, label, value, sub, accent }: { icon: React.ReactNode; label: string; value: string; sub?: string; accent: string }) {
@@ -37,17 +38,45 @@ function Card({ icon, label, value, sub, accent }: { icon: React.ReactNode; labe
 export default function AdminSttStatsPage() {
   const [s, setS] = useState<AdminStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [defaultMin, setDefaultMin] = useState('');
+  const [savingDefault, setSavingDefault] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/admin/stt-stats', { headers: { Authorization: `Bearer ${getToken()}` } });
-      if (res.ok) setS((await res.json()).data as AdminStats);
+      const [statsRes, settingsRes] = await Promise.all([
+        fetch('/api/admin/stt-stats', { headers: { Authorization: `Bearer ${await authToken()}` } }),
+        fetch('/api/admin/stt-settings', { headers: { Authorization: `Bearer ${await authToken()}` } }),
+      ]);
+      if (statsRes.ok) setS((await statsRes.json()).data as AdminStats);
+      if (settingsRes.ok) {
+        const sec = (await settingsRes.json()).data?.default_quota_seconds ?? 18000;
+        setDefaultMin(String(Math.floor(sec / 60)));
+      }
     } finally {
       setLoading(false);
     }
   }, []);
   useEffect(() => { load(); }, [load]);
+
+  const saveDefault = async () => {
+    const m = parseInt(defaultMin, 10);
+    if (isNaN(m) || m < 0) { toast.error('ระบุจำนวนนาทีให้ถูกต้อง'); return; }
+    setSavingDefault(true);
+    try {
+      const res = await fetch('/api/admin/stt-settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await authToken()}` },
+        body: JSON.stringify({ defaultQuotaSeconds: m * 60 }),
+      });
+      if (!res.ok) throw new Error();
+      toast.success('บันทึกโควต้าเริ่มต้นแล้ว');
+    } catch {
+      toast.error('บันทึกไม่สำเร็จ');
+    } finally {
+      setSavingDefault(false);
+    }
+  };
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6">
@@ -56,6 +85,7 @@ export default function AdminSttStatsPage() {
           <BarChart3 className="h-6 w-6 text-indigo-600" /> สถิติแกะเสียง (ภาพรวม)
         </h1>
         <div className="flex gap-2">
+          <Link href="/admin/stt-jobs"><Button variant="outline" size="sm">งานแกะเสียง</Button></Link>
           <Link href="/admin/stt-users"><Button variant="outline" size="sm">จัดการผู้ใช้</Button></Link>
           <Button variant="outline" size="sm" onClick={load} disabled={loading}><RefreshCw className="mr-2 h-4 w-4" /> รีเฟรช</Button>
         </div>
@@ -72,6 +102,18 @@ export default function AdminSttStatsPage() {
             <Card icon={<FileAudio className="h-5 w-5" />} label="งานทั้งหมด (30 วัน)" value={String(s.totals.jobs)} sub={`สำเร็จ ${s.totals.completed} · ล้ม ${s.totals.failed}`} accent="bg-purple-50 text-purple-600" />
             <Card icon={<Clock className="h-5 w-5" />} label="นาทีที่ประมวลผล" value={String(s.totals.minutes)} accent="bg-amber-50 text-amber-600" />
             <Card icon={<BarChart3 className="h-5 w-5" />} label="เว็บ / LINE (นาที)" value={`${s.by_source.web.minutes} / ${s.by_source.line.minutes}`} accent="bg-green-50 text-green-600" />
+          </div>
+
+          <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
+            <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-gray-700"><Settings className="h-4 w-4 text-gray-400" /> โควต้าเริ่มต้นผู้ใช้ใหม่</h3>
+            <p className="mb-3 text-xs text-gray-500">ผู้ใช้ LINE ที่แอด OA ใหม่จะได้รับโควต้าแกะเสียงเท่านี้โดยอัตโนมัติ</p>
+            <div className="flex items-end gap-3">
+              <div>
+                <Label htmlFor="default-quota">โควต้า (นาที)</Label>
+                <Input id="default-quota" type="number" value={defaultMin} onChange={(e) => setDefaultMin(e.target.value)} className="mt-1 w-40" />
+              </div>
+              <Button onClick={saveDefault} disabled={savingDefault}>{savingDefault ? 'กำลังบันทึก…' : 'บันทึก'}</Button>
+            </div>
           </div>
 
           <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">

@@ -33,6 +33,8 @@ import {
   ClipboardList,
   BedDouble,
   Navigation,
+  Mic,
+  ScrollText,
 } from "lucide-react";
 
 import type { Role } from "@/lib/supabase/types";
@@ -230,9 +232,12 @@ function buildUserMenuItems(org: string, labels: Record<string, string> = {}): M
 }
 
 // ─── Admin module ───────────────────────────────────────────────────────────
+// จัดเป็น 4 หมวดด้วย section header (label ไม่มี href) — ทุกเมนูคลิกเดียวถึง
+// ยกเว้น "แกะเสียง / MoM" ที่เป็น dropdown เพราะมี 3 หน้าย่อย
 function buildAdminMenuItems(): MenuItem[] {
   return [
-    { name: "แอดมินคอนโซล", roles: ["super_admin"] },
+    // ── ภาพรวม ────────────────────────────────────────────────────────────────
+    { name: "ภาพรวม", roles: ["super_admin"] },
     {
       name: "Dashboard",
       href: "/admin",
@@ -240,15 +245,24 @@ function buildAdminMenuItems(): MenuItem[] {
       roles: ["super_admin"],
     },
     {
-      name: "Tenant Onboarding",
-      href: "/admin/onboarding",
-      icon: <PlusCircle className="h-5 w-5" />,
+      name: "Tenant Health",
+      href: "/admin/health",
+      icon: <HeartPulse className="h-5 w-5" />,
       roles: ["super_admin"],
     },
     {
-      name: "Module Registry",
-      href: "/admin/module-registry",
-      icon: <Briefcase className="h-5 w-5" />,
+      name: "Resource Monitor",
+      href: "/admin/resources",
+      icon: <Activity className="h-5 w-5" />,
+      roles: ["super_admin"],
+    },
+
+    // ── องค์กร & ผู้ใช้ ─────────────────────────────────────────────────────────
+    { name: "องค์กร & ผู้ใช้", roles: ["super_admin"] },
+    {
+      name: "Tenant Onboarding",
+      href: "/admin/onboarding",
+      icon: <PlusCircle className="h-5 w-5" />,
       roles: ["super_admin"],
     },
     {
@@ -264,11 +278,34 @@ function buildAdminMenuItems(): MenuItem[] {
       roles: ["super_admin"],
     },
     {
-      name: "Resource Monitor",
-      href: "/admin/resources",
-      icon: <Activity className="h-5 w-5" />,
+      name: "Module Registry",
+      href: "/admin/module-registry",
+      icon: <Briefcase className="h-5 w-5" />,
       roles: ["super_admin"],
     },
+
+    // ── การเงิน & บริการ ───────────────────────────────────────────────────────
+    { name: "การเงิน & บริการ", roles: ["super_admin"] },
+    {
+      name: "Billing & Plans",
+      href: "/admin/billing",
+      icon: <CreditCard className="h-5 w-5" />,
+      roles: ["super_admin"],
+    },
+    {
+      name: "แกะเสียง / MoM",
+      href: "/admin/stt-stats",
+      icon: <Mic className="h-5 w-5" />,
+      roles: ["super_admin"],
+      dropdownItems: [
+        { name: "ภาพรวม & สถิติ", href: "/admin/stt-stats", roles: ["super_admin"] },
+        { name: "ผู้ใช้ & โควต้า", href: "/admin/stt-users", roles: ["super_admin"] },
+        { name: "งานแกะเสียง (Jobs)", href: "/admin/stt-jobs", roles: ["super_admin"] },
+      ],
+    },
+
+    // ── ระบบ & ความปลอดภัย ─────────────────────────────────────────────────────
+    { name: "ระบบ & ความปลอดภัย", roles: ["super_admin"] },
     {
       name: "Webhooks",
       href: "/admin/webhooks",
@@ -282,21 +319,15 @@ function buildAdminMenuItems(): MenuItem[] {
       roles: ["super_admin"],
     },
     {
-      name: "Billing & Plans",
-      href: "/admin/billing",
-      icon: <CreditCard className="h-5 w-5" />,
-      roles: ["super_admin"],
-    },
-    {
-      name: "Tenant Health",
-      href: "/admin/health",
-      icon: <HeartPulse className="h-5 w-5" />,
-      roles: ["super_admin"],
-    },
-    {
       name: "Audit Log",
       href: "/admin/audit",
       icon: <ShieldCheck className="h-5 w-5" />,
+      roles: ["super_admin"],
+    },
+    {
+      name: "บันทึกการจัดการ",
+      href: "/admin/admin-audit",
+      icon: <ScrollText className="h-5 w-5" />,
       roles: ["super_admin"],
     },
   ];
