@@ -13,8 +13,6 @@ import { createSupabaseAdminClient } from '@/lib/supabase/admin';
 import { provisionLineUser } from '@/app/api/line/_provision';
 import { withBasePath } from '@/utils/base-path';
 
-const SHADOW_DOMAIN = '@stt-line.perpos.io';
-
 function appBaseUrl(): string {
   return (process.env.APP_BASE_URL ?? 'https://app.perpos.io').replace(/\/$/, '');
 }
@@ -97,15 +95,14 @@ export async function GET(request: NextRequest) {
     }
   }
   if (!email) return signin('account_missing');
-  const isShadow = email.endsWith(SHADOW_DOMAIN);
 
   // 5. magic link → token_hash → verifyOtp → ตั้ง session cookies
   const { data: gl, error: ge } = await admin.auth.admin.generateLink({ type: 'magiclink', email });
   const tokenHash = gl?.properties?.hashed_token;
   if (ge || !tokenHash) return signin('login_failed');
 
-  // shadow → ไป /claim-account (ตั้ง email/password ถ้าอยาก, optional) · real → returnTo
-  const dest = new URL(withBasePath(isShadow ? '/claim-account' : returnTo), request.url);
+  // login เป็น LINE-only → เข้าแอปได้เลย (ไม่ต้องตั้ง email/password)
+  const dest = new URL(withBasePath(returnTo), request.url);
   const response = NextResponse.redirect(dest);
   // ล้าง oauth cookies
   response.cookies.set('line_oauth_state', '', { path: '/', maxAge: 0 });

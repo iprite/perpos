@@ -12,7 +12,7 @@
 - Frontend + Backend: Next.js 15 (App Router), React 19, TypeScript
 - **API routes อยู่ใน `apps/perpos/src/app/api/` (Next.js Route Handlers)**
 - Database: Supabase (PostgreSQL) พร้อม Row Level Security
-- Auth: Supabase Auth — Google OAuth + **LINE Login** (เข้าเว็บด้วย LINE: `/line/login` → `/line/callback`, bridge เข้า Supabase session ด้วย magic-link เดิม · Supabase ไม่มี LINE provider จึงทำ OAuth เอง) + magic-link claim (`/web`) + email/password
+- Auth: Supabase Auth — **LINE Login เท่านั้น** (signin มีปุ่ม LINE ปุ่มเดียว · `/line/login` → `/line/callback` bridge เข้า session ด้วย magic-link · Supabase ไม่มี LINE provider จึงทำ OAuth เอง · login แล้วเข้าแอปเลย ไม่ต้องตั้ง password). Google เป็น **admin fallback ซ่อนไว้** เปิดด้วย `/signin?admin=1` กันล็อกเอาต์ (super_admin ก็มี LINE linked จึง login ผ่าน LINE ได้). magic-link claim (`/web`) + email/password ยังมีอยู่แต่ไม่ใช่ช่องทางหลัก
   - **LINE Login channel ต้องอยู่ provider เดียวกับ Messaging channel** — `userId` ถึงตรงกับ `line_user_id` ที่เก็บไว้ (ถ้าคนละ provider จะ provision เป็นคนละคน) · callback URL ที่ต้องลงทะเบียนใน LINE console = `${APP_BASE_URL}/line/callback`
 - UI: Rizzui, Tailwind CSS, Radix UI
 - Monorepo: pnpm workspaces + Turbo
