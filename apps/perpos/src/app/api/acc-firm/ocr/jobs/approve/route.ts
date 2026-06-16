@@ -76,28 +76,21 @@ export async function POST(req: NextRequest) {
     if (debit > 0 && credit > 0) {
       return NextResponse.json({
         ok: false,
-        error: { code: 'ERR_INVALID_PAYLOAD', message: 'แต่ละบรรทัดต้องมีเดบิตหรือเครดิตเพียงฝั่งเดียวเท่านั้น' }
-      }, { status: 400 });
-    }
-    if (debit === 0 && credit === 0) {
-      return NextResponse.json({
-        ok: false,
-        error: { code: 'ERR_INVALID_PAYLOAD', message: 'พบรายการมียอดเงินเป็นศูนย์' }
+        error: { code: 'ERR_INVALID_PAYLOAD', message: 'แต่ละบรรทัดต้องมีเดบิตหรือเครดิตอย่างใดอย่างหนึ่ง ไม่ใช่ทั้งสอง' }
       }, { status: 400 });
     }
     totalDebit += debit;
     totalCredit += credit;
   }
 
-  const diff = Math.abs(totalDebit - totalCredit);
-  if (diff > 0.01) {
+  // ยอดเดบิตและเครดิตต้องสมดุล
+  if (Math.round(totalDebit * 100) !== Math.round(totalCredit * 100)) {
     return NextResponse.json({
       ok: false,
-      error: { code: 'ERR_UNBALANCED_JOURNAL', message: `ยอดเดบิตและเครดิตไม่สมดุล (เดบิต: ${totalDebit.toFixed(2)}, เครดิต: ${totalCredit.toFixed(2)})` }
+      error: { code: 'ERR_INVALID_PAYLOAD', message: 'ยอดเดบิตและเครดิตไม่สมดุล' }
     }, { status: 400 });
   }
 
-  // 3.1 ตรวจสอบว่าทุก accountId / contactId เป็นของลูกค้ารายนี้จริง (กันการอ้างอิงข้ามองค์กร)
   const accountIds = Array.from(new Set(lines.map((l: any) => l.accountId).filter(Boolean)));
   if (accountIds.length === 0) {
     return Err.missingField('accountId');
@@ -105,13 +98,12 @@ export async function POST(req: NextRequest) {
 
   const { data: validAccounts, error: accErr } = await admin
     .from('accounts')
-    .select('id')
-    .eq('organization_id', job.client_org_id)
-    .in('id', accountIds);
+    .select('id, code')
+    .eq('organization_id', job.client_org_id);
 
   if (accErr) return Err.dbError(accErr);
-  const validAccountSet = new Set((validAccounts || []).map((a: any) => a.id));
-  const badAccount = accountIds.find((id) => !validAccountSet.has(id));
+  const validAccountMap = new Map((validAccounts || []).map((a: any) => [a.id, a.code]));
+  const badAccount = accountIds.find((id) => !validAccountMap.has(id));
   if (badAccount) {
     return Err.invalidFormat('accountId', 'มีรหัสบัญชีที่ไม่อยู่ในผังบัญชีของลูกค้ารายนี้');
   }
@@ -257,6 +249,128 @@ export async function POST(req: NextRequest) {
     .eq('id', jobId);
 
   if (updateJobErr) return Err.dbError(updateJobErr);
+
+  // ─── 7. Learning Loop Feedback & Vendor Mapping Updates ───
+  try {
+    const ext = job.extracted_json as any;
+    const vendorName = ext?.vendor?.name ? String(ext.vendor.name).trim() : '';
+    const vendorTaxId = ext?.vendor?.tax_id ? String(ext.vendor.tax_id).trim() : null;
+
+    let primaryDebitAccountId: string | null = null;
+    let primaryDebitContactId: string | null = null;
+    const debitLines = lines.filter((l: any) => Number(l.debit || 0) > 0);
+    if (debitLines.length > 0) {
+      const sorted = [...debitLines].sort((a, b) => Number(b.debit || 0) - Number(a.debit || 0));
+      primaryDebitAccountId = sorted[0].accountId;
+      primaryDebitContactId = sorted[0].contactId || null;
+    }
+
+    if (vendorName && primaryDebitAccountId) {
+      let existingMap = null;
+      if (vendorTaxId) {
+        const { data } = await admin
+          .from('ocr_vendor_mappings')
+          .select('id, use_count')
+          .eq('org_id', job.client_org_id)
+          .eq('vendor_tax_id', vendorTaxId)
+          .maybeSingle();
+        existingMap = data;
+      }
+      if (!existingMap) {
+        const { data } = await admin
+          .from('ocr_vendor_mappings')
+          .select('id, use_count')
+          .eq('org_id', job.client_org_id)
+          .eq('vendor_name', vendorName)
+          .maybeSingle();
+        existingMap = data;
+      }
+
+      if (existingMap) {
+        await admin
+          .from('ocr_vendor_mappings')
+          .update({
+            vendor_tax_id: vendorTaxId || null,
+            debit_account_id: primaryDebitAccountId,
+            contact_id: primaryDebitContactId || null,
+            use_count: (existingMap.use_count || 1) + 1,
+            last_used_at: new Date().toISOString()
+          })
+          .eq('id', existingMap.id);
+      } else {
+        await admin
+          .from('ocr_vendor_mappings')
+          .insert({
+            org_id: job.client_org_id,
+            vendor_name: vendorName,
+            vendor_tax_id: vendorTaxId || null,
+            debit_account_id: primaryDebitAccountId,
+            contact_id: primaryDebitContactId || null,
+            use_count: 1,
+            last_used_at: new Date().toISOString()
+          });
+      }
+    }
+
+    // Save feedback log
+    const aiJournal = job.classified_json?.journal;
+    const originalClassified = job.classified_json?.classification ?? {};
+    const originalJournal = aiJournal ?? {};
+
+    const approvedClassified = {
+      transaction_type: originalClassified.transaction_type || 'purchase',
+      business_event: originalClassified.business_event || '',
+      primary_debit_account_id: primaryDebitAccountId,
+      tax_treatment: originalClassified.tax_treatment || {}
+    };
+
+    const approvedJournal = {
+      posting_date: entryDate,
+      document_ref: referenceNumber || null,
+      description: memo || null,
+      entries: lines.map((l, idx) => ({
+        line: idx + 1,
+        account_code: validAccountMap.get(l.accountId) || '',
+        debit: Number(l.debit || 0),
+        credit: Number(l.credit || 0),
+        description: l.description || null
+      }))
+    };
+
+    let isEdited = false;
+    const aiEntries = aiJournal?.entries || [];
+    if (aiEntries.length !== lines.length) {
+      isEdited = true;
+    } else {
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        const aiLine = aiEntries[i];
+        const lineCode = validAccountMap.get(line.accountId) || '';
+
+        if (
+          lineCode !== aiLine?.account_code ||
+          Number(line.debit || 0) !== Number(aiLine?.debit || 0) ||
+          Number(line.credit || 0) !== Number(aiLine?.credit || 0)
+        ) {
+          isEdited = true;
+          break;
+        }
+      }
+    }
+
+    await admin.from('ocr_feedback_logs').insert({
+      job_id: jobId,
+      org_id: job.client_org_id,
+      original_classified: originalClassified,
+      approved_classified: approvedClassified,
+      original_journal: originalJournal,
+      approved_journal: approvedJournal,
+      is_edited: isEdited
+    });
+  } catch (feedbackErr) {
+    console.error('[ocr-api] Failed to save learning loop feedback:', feedbackErr);
+    // Feedback loop failures should not block successful approval response
+  }
 
   return ok({
     message: postToLedger ? 'ผ่านรายการสมุดรายวันเสร็จสมบูรณ์' : 'บันทึกสมุดรายวันร่างเรียบร้อย',
