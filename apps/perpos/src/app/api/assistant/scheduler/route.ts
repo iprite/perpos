@@ -131,5 +131,41 @@ async function run(req: NextRequest) {
     }
   }
 
+  // 5. Privacy cleanup — ลบไฟล์เสียง + PDF ออกจาก storage และล้าง transcript ของงานที่
+  //    เก่ากว่า 48 ชม. (ตรงกับหมายเหตุ privacy ในการ์ด MoM: ลบใน 48 ชม. ให้ดาวน์โหลดเก็บไว้)
+  //    คง row + duration_seconds ไว้เพื่อ ledger โควต้า/สถิติไม่เพี้ยน · idempotent:
+  //    เมื่อล้างแล้ว audio_url+transcript เป็น null → ไม่ถูกเลือกซ้ำในรอบถัดไป
+  const STT_BUCKET = 'assistant_audio';
+  const cleanupBefore = new Date(now.getTime() - 48 * 60 * 60 * 1000).toISOString();
+  const { data: oldJobs } = await admin
+    .from('transcription_jobs')
+    .select('id, org_id, audio_url')
+    .lt('created_at', cleanupBefore)
+    .or('transcript_json.not.is.null,audio_url.not.is.null')
+    .limit(200);
+
+  if (oldJobs && oldJobs.length) {
+    const paths: string[] = [];
+    for (const j of oldJobs as Record<string, unknown>[]) {
+      const orgId = String(j.org_id ?? '');
+      const audioUrl = j.audio_url ? String(j.audio_url) : '';
+      if (audioUrl) {
+        const p = audioUrl.includes(`/${STT_BUCKET}/`)
+          ? audioUrl.split(`/${STT_BUCKET}/`)[1].split('?')[0]
+          : audioUrl.split('?')[0];
+        if (p) paths.push(p);
+      }
+      if (orgId) paths.push(`${orgId}/mom/${String(j.id)}.pdf`); // PDF ผลลัพธ์ (อาจไม่มีถ้างาน fail)
+    }
+    if (paths.length) {
+      await admin.storage.from(STT_BUCKET).remove(paths).then(() => undefined, () => undefined);
+    }
+    const ids = (oldJobs as Record<string, unknown>[]).map((j) => j.id as string);
+    await admin
+      .from('transcription_jobs')
+      .update({ transcript_json: null, transcript_text: null, audio_url: null })
+      .in('id', ids);
+  }
+
   return NextResponse.json({ ok: true });
 }
