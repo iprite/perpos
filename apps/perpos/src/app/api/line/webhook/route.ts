@@ -1287,10 +1287,28 @@ async function handleMomAudio(
 
   // ตอบรับ "ทันที" ด้วย replyToken (อายุสั้น) — ต้องทำ **ก่อน** trigger worker
   // ซึ่ง await การตอบจาก Cloud Run ที่อาจช้า 2–5 วิจาก cold start
-  await replyText(replyToken,
-    '✅ ได้รับไฟล์แล้ว กำลังถอดเสียงเป็นรายงานการประชุม…\n' +
-    'เมื่อเสร็จจะส่งไฟล์ PDF กลับมาให้อัตโนมัติ (ประมาณ 1–3 นาที) 🙏',
-  );
+  await replyLine(replyToken, [{
+    type: 'flex',
+    altText: 'ได้รับไฟล์แล้ว — กำลังจัดทำรายงานการประชุม',
+    contents: {
+      type: 'bubble',
+      body: {
+        type: 'box', layout: 'vertical', spacing: 'md', paddingAll: '20px',
+        contents: [
+          {
+            type: 'box', layout: 'horizontal', spacing: 'sm', alignItems: 'center',
+            contents: [
+              { type: 'text', text: '✅', size: 'lg', flex: 0 },
+              { type: 'text', text: 'รับไฟล์เรียบร้อย', weight: 'bold', size: 'md', color: '#0284c7', gravity: 'center' },
+            ],
+          },
+          { type: 'separator', margin: 'md' },
+          { type: 'text', text: 'ระบบกำลังถอดเสียงและจัดทำรายงานการประชุม (Minutes of Meeting)', size: 'sm', wrap: true, color: '#374151', margin: 'md' },
+          { type: 'text', text: 'เสร็จแล้วจะส่งไฟล์ PDF กลับมาให้อัตโนมัติ ไม่ต้องส่งซ้ำ', size: 'xs', wrap: true, color: '#94a3b8' },
+        ],
+      },
+    },
+  }]);
 
   // จากนั้นค่อยสั่ง worker — ถ้าล้มเหลว push แจ้ง (reply token ใช้ไปแล้ว ตอบซ้ำไม่ได้)
   const trig = await triggerSttWorker(admin, job.id as string, orgId);
@@ -1342,7 +1360,7 @@ async function handleFollow(admin: ReturnType<typeof createAdminClient>, lineUse
           type: 'box', layout: 'vertical', backgroundColor: '#533afd', paddingAll: '20px', paddingBottom: '16px', spacing: 'sm',
           contents: [
             { type: 'text', text: 'PERPOS Assistant', color: '#ffffff', weight: 'bold', size: 'xl' },
-            { type: 'text', text: '🎙️ แกะเสียงประชุม → รายงานการประชุม (PDF)', color: '#dfe3ff', size: 'xs', wrap: true },
+            { type: 'text', text: '🎙️ ถอดเสียงประชุม → รายงานการประชุม (PDF)', color: '#dfe3ff', size: 'xs', wrap: true },
           ],
         },
         body: {
@@ -1371,7 +1389,7 @@ async function handleFollow(admin: ReturnType<typeof createAdminClient>, lineUse
           type: 'box', layout: 'vertical', spacing: 'sm', paddingAll: '16px', paddingTop: '8px',
           contents: [
             { type: 'button', style: 'primary', color: '#533afd', height: 'md',
-              action: { type: 'message', label: '🎙️ เริ่มแกะเสียงเลย', text: '/mom' } },
+              action: { type: 'message', label: '🎙️ เริ่มถอดเสียงเลย', text: '/mom' } },
             { type: 'text', text: 'รองรับไฟล์เสียง/วิดีโอ ไม่เกิน 200MB', size: 'xxs', color: '#9ca3af', align: 'center' },
           ],
         },
@@ -1626,7 +1644,24 @@ export async function POST(req: NextRequest) {
       const { data: q } = await admin.from('stt_quota').select('limit_seconds, used_seconds').eq('profile_id', profile.id).maybeSingle();
       const qRemain = ((q as { limit_seconds?: number } | null)?.limit_seconds ?? 18000) - ((q as { used_seconds?: number } | null)?.used_seconds ?? 0);
       if (qRemain <= 0) {
-        await replyText(replyToken, '❌ โควต้าแกะเสียงของคุณหมดแล้ว (0 นาที)\nติดต่อแอดมินเพื่อเพิ่มโควต้าครับ'); continue;
+        await replyLine(replyToken, [{
+          type: 'flex',
+          altText: 'โควต้าถอดเสียงหมดแล้ว — ติดต่อแอดมินเพื่อเพิ่มโควต้า',
+          contents: {
+            type: 'bubble',
+            header: {
+              type: 'box', layout: 'vertical', backgroundColor: '#dc2626', paddingAll: '16px',
+              contents: [{ type: 'text', text: '⏱️ โควต้าหมดแล้ว', color: '#ffffff', weight: 'bold', size: 'md' }],
+            },
+            body: {
+              type: 'box', layout: 'vertical', spacing: 'sm', paddingAll: '20px',
+              contents: [
+                { type: 'text', text: 'โควต้าถอดเสียงของคุณคงเหลือ 0 นาที', weight: 'bold', size: 'sm', color: '#111827', wrap: true },
+                { type: 'text', text: 'กรุณาติดต่อแอดมินเพื่อขอเพิ่มโควต้า แล้วจึงส่งไฟล์ได้อีกครั้ง 🙏', size: 'xs', color: '#6b7280', wrap: true, margin: 'sm' },
+              ],
+            },
+          },
+        }]); continue;
       }
       // best-effort: เก็บกวาด session หมดอายุที่ค้างไว้
       void admin.from('assistant_line_sessions').delete().lt('expires_at', new Date().toISOString());
@@ -1634,12 +1669,52 @@ export async function POST(req: NextRequest) {
       await admin.from('assistant_line_sessions').upsert({
         line_user_id: lineUserId, org_id: activeOrg.id, profile_id: profile.id, action: 'mom', expires_at: expiresAt,
       }, { onConflict: 'line_user_id' });
-      await replyText(replyToken,
-        '🎙️ ส่งไฟล์เสียงที่ต้องการถอดเป็นรายงานการประชุม (MoM) มาได้เลยครับ\n\n' +
-        '• รองรับไฟล์เสียง/วิดีโอ ไม่เกิน 200MB\n' +
-        `• โควต้าคงเหลือ ~${Math.floor(qRemain / 60)} นาที\n` +
-        '• เมื่อถอดเสร็จจะส่งไฟล์ PDF กลับมาให้อัตโนมัติ (ประมาณ 1–3 นาที)',
-      );
+      await replyLine(replyToken, [{
+        type: 'flex',
+        altText: 'พร้อมรับไฟล์เสียง — ส่งไฟล์การประชุมมาได้เลย',
+        contents: {
+          type: 'bubble',
+          header: {
+            type: 'box', layout: 'vertical', backgroundColor: '#0284c7', paddingAll: '18px', paddingBottom: '14px', spacing: 'xs',
+            contents: [
+              { type: 'text', text: '🎙️ ถอดเสียงเป็นรายงานการประชุม', color: '#ffffff', weight: 'bold', size: 'md', wrap: true },
+              { type: 'text', text: 'Minutes of Meeting', color: '#cdeafd', size: 'xxs' },
+            ],
+          },
+          body: {
+            type: 'box', layout: 'vertical', spacing: 'md', paddingAll: '20px',
+            contents: [
+              { type: 'text', text: 'ส่งไฟล์เสียงการประชุมเข้ามาได้เลยครับ', weight: 'bold', size: 'sm', color: '#1f2937', wrap: true },
+              {
+                type: 'box', layout: 'vertical', spacing: 'sm',
+                contents: [
+                  {
+                    type: 'box', layout: 'horizontal', spacing: 'sm', alignItems: 'center',
+                    contents: [
+                      { type: 'text', text: '🎧', size: 'sm', flex: 0 },
+                      { type: 'text', text: 'รองรับไฟล์เสียง / วิดีโอ ขนาดไม่เกิน 200MB', size: 'xs', color: '#6b7280', wrap: true, gravity: 'center' },
+                    ],
+                  },
+                  {
+                    type: 'box', layout: 'horizontal', spacing: 'sm', alignItems: 'center',
+                    contents: [
+                      { type: 'text', text: '⏱️', size: 'sm', flex: 0 },
+                      { type: 'text', text: `โควต้าคงเหลือ ${Math.floor(qRemain / 60)} นาที`, size: 'xs', color: '#6b7280', wrap: true, gravity: 'center' },
+                    ],
+                  },
+                  {
+                    type: 'box', layout: 'horizontal', spacing: 'sm', alignItems: 'center',
+                    contents: [
+                      { type: 'text', text: '📄', size: 'sm', flex: 0 },
+                      { type: 'text', text: 'ได้รับไฟล์ PDF รายงานการประชุมกลับอัตโนมัติ', size: 'xs', color: '#6b7280', wrap: true, gravity: 'center' },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        },
+      }]);
       continue;
     }
 

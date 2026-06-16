@@ -1,6 +1,12 @@
 /**
  * MoM (Minutes of Meeting) HTML template — render เป็น PDF ผ่าน pdf-renderer (Chromium)
  * ใช้ร่วมกันโดย: mom-pdf route (ดาวน์โหลดจากเว็บ) และ mom-deliver route (ส่งกลับ LINE)
+ *
+ * การแบ่งหน้า (page break) ระดับมืออาชีพ:
+ *   ทุก section ถูกห่อด้วย <table> ที่มี <thead> เป็นหัวข้อ — Chromium จะ "ซ้ำ thead"
+ *   ทุกหน้าที่ตารางนั้นพาดข้ามไป (display: table-header-group) ดังนั้นเมื่อเนื้อหา
+ *   (รายการ/การ์ด/ตาราง Action Items) ถูกตัดข้ามหน้า หัวข้อจะตามไปขึ้นต้นหน้าใหม่เสมอ
+ *   ส่วนตาราง Action Items มี thead 2 แถว (ชื่อหัวข้อ + หัวคอลัมน์) จึงซ้ำทั้งคู่
  */
 
 export type MomKeyTopic = { topic?: string; details?: string };
@@ -21,6 +27,11 @@ const esc = (s: unknown): string =>
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
+
+// ห่อ section ด้วยตารางหัวข้อซ้ำได้ — เมื่อเนื้อหาตัดข้ามหน้า หัวข้อจะ repeat ตามไปด้วย
+const section = (heading: string, inner: string): string =>
+  `<table class="sec"><thead><tr><th>${esc(heading)}</th></tr></thead>` +
+  `<tbody><tr><td>${inner}</td></tr></tbody></table>`;
 
 export function buildMomHtml(tj: MomJson, dateText: string): string {
   const title = esc(tj.meeting_title || 'รายงานการประชุม');
@@ -43,6 +54,13 @@ export function buildMomHtml(tj: MomJson, dateText: string): string {
         .join('')
     : `<tr><td class="empty" colspan="3">— ไม่มีรายการที่ต้องดำเนินการ —</td></tr>`;
 
+  // ตาราง Action Items — thead 2 แถว (ชื่อหัวข้อ + หัวคอลัมน์) ซ้ำทุกหน้าเมื่อตารางยาวข้ามหน้า
+  const actionTable =
+    `<table class="ai"><thead>` +
+    `<tr><th class="aih" colspan="3">ตารางสรุปสิ่งที่ต้องดำเนินการ (Action Items)</th></tr>` +
+    `<tr><th class="cno">#</th><th>สิ่งที่ต้องดำเนินการ</th><th class="cwho">ผู้รับผิดชอบ</th></tr>` +
+    `</thead><tbody>${actions}</tbody></table>`;
+
   return `<!doctype html><html lang="th"><head><meta charset="utf-8">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -55,30 +73,40 @@ export function buildMomHtml(tj: MomJson, dateText: string): string {
   .brandrow { display: flex; justify-content: space-between; align-items: center; font-size: 9px; color: #6b7280; }
   .brand { color: #0284c7; font-weight: 600; letter-spacing: 1.5px; }
   .accent { height: 3px; background: #0284c7; border-radius: 2px; margin: 6px 0 0; }
-  .title { font-size: 19px; font-weight: 600; margin: 24px 0 14px; line-height: 1.35; }
-  .meta { border: 1px solid #e5e7eb; background: #f9fafb; border-radius: 8px; padding: 12px 14px; margin-bottom: 22px; }
+  .title { font-size: 19px; font-weight: 600; margin: 24px 0 14px; line-height: 1.35; break-after: avoid; }
+  .meta { border: 1px solid #e5e7eb; background: #f9fafb; border-radius: 8px; padding: 12px 14px; margin-bottom: 22px; break-inside: avoid; }
   .meta .r { display: flex; margin: 1px 0; }
   .meta .l { color: #6b7280; width: 70px; flex: none; }
-  /* กัน heading ค้างท้ายหน้าโดยเนื้อหาตกไปหน้าถัดไป + กัน item ถูกตัดครึ่ง */
-  h2 { font-size: 13px; font-weight: 600; color: #0284c7; margin: 0 0 8px; padding-bottom: 4px; border-bottom: 1px solid #e5e7eb; break-after: avoid; }
-  section { margin-bottom: 18px; break-inside: auto; }
-  li { break-inside: avoid; }
+
+  /* ── Section = ตารางหัวข้อซ้ำได้ (หัวข้อ repeat เมื่อเนื้อหาตัดข้ามหน้า) ── */
+  table.sec, table.ai { width: 100%; border-collapse: collapse; margin-bottom: 18px; break-inside: auto; }
+  table.sec > thead, table.ai > thead { display: table-header-group; }
+  /* หัวข้อ section (thead) — สไตล์เดียวกับ h2 เดิม, ซ้ำทุกหน้า, ห้าม orphan */
+  table.sec > thead > tr > th {
+    text-align: left; font-size: 13px; font-weight: 600; color: #0284c7;
+    padding: 0 0 4px; border: none; border-bottom: 1px solid #e5e7eb; break-after: avoid;
+  }
+  table.sec > tbody > tr > td { padding: 8px 0 0; border: none; vertical-align: top; }
+
   .summary { border: 1px solid #bae6fd; background: #f0f9ff; border-radius: 8px; padding: 12px 14px; break-inside: avoid; }
   ol.topics { margin: 0; padding-left: 20px; }
-  ol.topics li { margin-bottom: 8px; }
+  ol.topics li { margin-bottom: 8px; break-inside: avoid; }
   ol.topics .t { font-weight: 500; }
   ol.topics .d { color: #374151; font-weight: 400; }
   ul.dec { margin: 0; padding-left: 20px; }
-  ul.dec li { margin-bottom: 5px; }
-  .rec { border: 1px solid #e5e7eb; background: #fafafa; border-radius: 8px; padding: 6px 14px 6px; }
+  ul.dec li { margin-bottom: 5px; break-inside: avoid; }
+  .rec { border: 1px solid #e5e7eb; background: #fafafa; border-radius: 8px; padding: 6px 14px; }
   ul.rec-list { margin: 6px 0; padding-left: 20px; }
-  ul.rec-list li { margin-bottom: 6px; }
-  table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-  th, td { border: 1px solid #e5e7eb; padding: 7px 9px; text-align: left; vertical-align: top; word-wrap: break-word; overflow-wrap: break-word; }
-  thead { display: table-header-group; }
-  thead th { background: #0284c7; color: #ffffff; font-weight: 600; font-size: 10.5px; }
-  tbody tr:nth-child(even) { background: #f9fafb; }
-  tr { break-inside: avoid; }
+  ul.rec-list li { margin-bottom: 6px; break-inside: avoid; }
+
+  /* ── ตาราง Action Items ── */
+  table.ai { table-layout: fixed; }
+  table.ai th, table.ai td { border: 1px solid #e5e7eb; padding: 7px 9px; text-align: left; vertical-align: top; word-wrap: break-word; overflow-wrap: break-word; }
+  /* แถวชื่อหัวข้อในตาราง — โปร่ง สไตล์เหมือนหัวข้อ section (ซ้ำทุกหน้า) */
+  table.ai th.aih { background: transparent; color: #0284c7; font-size: 13px; font-weight: 600; border: none; border-bottom: 1px solid #e5e7eb; padding: 0 0 6px; }
+  table.ai thead th:not(.aih) { background: #0284c7; color: #ffffff; font-weight: 600; font-size: 10.5px; }
+  table.ai tbody tr:nth-child(even) { background: #f9fafb; }
+  table.ai tbody tr { break-inside: avoid; }
   .cno { width: 34px; text-align: center; }
   .cwho { width: 130px; }
   .empty { text-align: center; color: #6b7280; }
@@ -94,21 +122,15 @@ export function buildMomHtml(tj: MomJson, dateText: string): string {
     <div class="r"><span class="l">ผู้เข้าร่วม</span><span>${speakers.length ? `${speakers.length} คน — ${speakers.join(', ')}` : '—'}</span></div>
   </div>
 
-  ${summary ? `<section><h2>บทสรุปผู้บริหาร</h2><div class="summary">${summary}</div></section>` : ''}
+  ${summary ? section('บทสรุปการประชุม', `<div class="summary">${summary}</div>`) : ''}
 
-  ${topics ? `<section><h2>ประเด็นที่หารือ</h2><ol class="topics">${topics}</ol></section>` : ''}
+  ${topics ? section('ประเด็นในที่ประชุม', `<ol class="topics">${topics}</ol>`) : ''}
 
-  ${decisions ? `<section><h2>มติ / ข้อสรุปที่ประชุม</h2><ul class="dec">${decisions}</ul></section>` : ''}
+  ${decisions ? section('มติ / ข้อสรุปที่ประชุม', `<ul class="dec">${decisions}</ul>`) : ''}
 
-  <section>
-    <h2>ตารางสรุปสิ่งที่ต้องดำเนินการ (Action Items)</h2>
-    <table>
-      <thead><tr><th class="cno">#</th><th>สิ่งที่ต้องดำเนินการ</th><th class="cwho">ผู้รับผิดชอบ</th></tr></thead>
-      <tbody>${actions}</tbody>
-    </table>
-  </section>
+  ${actionTable}
 
-  ${recommendations ? `<section><h2>ข้อเสนอแนะจาก AI</h2><div class="rec"><ul class="rec-list">${recommendations}</ul></div></section>` : ''}
+  ${recommendations ? section('ข้อเสนอแนะ', `<div class="rec"><ul class="rec-list">${recommendations}</ul></div>`) : ''}
 
   <div class="foot">จัดทำโดยระบบ PERPOS Assistant</div>
 </body></html>`;

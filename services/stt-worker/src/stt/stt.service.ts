@@ -165,7 +165,7 @@ async function runJob(jobId: string, orgId: string): Promise<void> {
             body: {
               type: 'box', layout: 'vertical', spacing: 'sm',
               contents: [
-                { type: 'text', text: 'โควต้าแกะเสียงไม่พอ', weight: 'bold', size: 'sm', color: '#111827' },
+                { type: 'text', text: 'โควต้าถอดเสียงไม่พอ', weight: 'bold', size: 'sm', color: '#111827' },
                 { type: 'text', text: `ไฟล์เสียงของคุณยาว ~${fileMin} นาที แต่โควต้าคงเหลือมีเพียง ${remainMin} นาที`, wrap: true, size: 'xs', color: '#6b7280' },
                 { type: 'text', text: 'ติดต่อแอดมินเพื่อเพิ่มโควต้าครับ 🙏', wrap: true, size: 'xs', color: '#94a3b8', margin: 'md' },
               ],
@@ -598,7 +598,7 @@ async function notifyLine(job: Record<string, unknown>): Promise<void> {
   const link = slug ? `\n🔗 ${baseUrl}/${slug}/assistant/transcribe` : '';
 
   const fileName = String(job.file_name ?? 'ไฟล์เสียง');
-  const message = `✅ แกะเสียงเสร็จแล้ว\n📄 ${fileName}${link}`;
+  const message = `✅ ถอดเสียงเสร็จแล้ว\n📄 ${fileName}${link}`;
 
   await fetch('https://api.line.me/v2/bot/message/push', {
     method: 'POST',

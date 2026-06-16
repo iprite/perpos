@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
     const reason = String(job.error_message ?? '').trim();
     const failText = reason
       ? `❌ ${reason}\n(พิมพ์ /mom เพื่อส่งไฟล์ใหม่)`
-      : '❌ ขออภัย แกะเสียงไม่สำเร็จ กรุณาลองส่งไฟล์ใหม่อีกครั้ง (พิมพ์ /mom)';
+      : '❌ ขออภัย ถอดเสียงไม่สำเร็จ กรุณาลองส่งไฟล์ใหม่อีกครั้ง (พิมพ์ /mom)';
     await sendLineMessages({
       to: lineUserId,
       messages: [{ type: 'text', text: failText }],
@@ -123,7 +123,7 @@ export async function POST(req: NextRequest) {
           contents: [
             { type: 'text', text: '📋 รายงานการประชุม (MoM)', weight: 'bold', size: 'md', color: '#0284c7' },
             { type: 'text', text: meetingTitle, size: 'sm', wrap: true, color: '#111827' },
-            { type: 'text', text: 'แกะเสียงเสร็จแล้ว กดปุ่มด้านล่างเพื่อดาวน์โหลดไฟล์ PDF', size: 'xs', wrap: true, color: '#6b7280' },
+            { type: 'text', text: 'ถอดเสียงเสร็จแล้ว กดปุ่มด้านล่างเพื่อดาวน์โหลดไฟล์ PDF', size: 'xs', wrap: true, color: '#6b7280' },
             { type: 'text', text: quotaLine, size: 'xs', color: '#94a3b8', margin: 'sm' },
           ],
         },
