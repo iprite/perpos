@@ -97,24 +97,43 @@ async function run(req: NextRequest) {
     }
   }
 
-  // 4. Stuck STT jobs — งานถอดเสียงค้าง 'processing' เกิน 45 นาที (worker สะดุด/ตาย)
-  //    → mark failed + แจ้ง LINE user (ไม่งั้นเงียบหายไม่รู้ว่าพัง). งานปกติ 1–3 นาทีก็เสร็จ
-  //    threshold ตั้งสูง (45 นาที) เผื่อไฟล์ประชุมยาวหลายชั่วโมง (Cloud Run timeout = 3600s)
-  //    กัน false-positive timeout; ส่วน race กับ worker ที่เพิ่งเสร็จกัน double ด้วย status guard
-  //    ฝั่ง worker (update completed เฉพาะตอน status='processing') แล้ว
-  const stuckThreshold = new Date(now.getTime() - 45 * 60 * 1000).toISOString();
-  const { data: stuckJobs } = await admin
+  // 4. Stuck STT jobs — งานถอดเสียงค้าง 'processing' (worker สะดุด/ตาย) → mark failed +
+  //    แจ้ง LINE user (ไม่งั้นเงียบหายไม่รู้ว่าพัง). threshold แบบ adaptive ตามความยาวไฟล์:
+  //      max(10 นาที, duration_seconds × 3)  · cap 75 นาที (Cloud Run timeout = 60 นาที)
+  //      · duration ยังไม่รู้ (worker ยังไม่วัด) → fallback 30 นาที
+  //    ไฟล์สั้นไม่ต้องรอนาน (แจ้งเร็ว) ไฟล์ยาวให้เวลามากขึ้น กัน false-positive
+  //    candidate = processing ที่ค้างเกิน 10 นาที (ขั้นต่ำ) แล้วค่อยกรอง threshold ราย job
+  const MIN_S = 10 * 60, CAP_S = 75 * 60, UNKNOWN_S = 30 * 60;
+  const tenMinAgo = new Date(now.getTime() - MIN_S * 1000).toISOString();
+  const { data: processingJobs } = await admin
     .from('transcription_jobs')
-    .update({
-      status: 'failed',
-      error_message: 'ประมวลผลนานเกินกำหนด (timeout) — กรุณาลองใหม่',
-      updated_at: now.toISOString(),
-    })
+    .select('id, source, profile_id, duration_seconds, updated_at')
     .eq('status', 'processing')
-    .lt('updated_at', stuckThreshold)
-    .select('id, source, profile_id'); // returning = เฉพาะแถวที่เพิ่ง mark failed (atomic, กัน race กับ worker)
+    .lt('updated_at', tenMinAgo);
 
-  for (const job of (stuckJobs ?? []) as Record<string, unknown>[]) {
+  for (const j of (processingJobs ?? []) as Record<string, unknown>[]) {
+    const dur = j.duration_seconds == null ? null : Number(j.duration_seconds);
+    const thresholdS = dur && dur > 0 ? Math.min(CAP_S, Math.max(MIN_S, dur * 3)) : UNKNOWN_S;
+    const ageS = (now.getTime() - new Date(j.updated_at as string).getTime()) / 1000;
+    if (ageS < thresholdS) continue;
+
+    // atomic per-job: re-check status='processing' + ไม่ถูกแตะตั้งแต่ cutoff (กัน race กับ worker
+    // ที่อาจอัปเดต updated_at ระหว่างทาง) — fail เฉพาะแถวที่เพิ่งเปลี่ยนจริง
+    const cutoff = new Date(now.getTime() - thresholdS * 1000).toISOString();
+    const { data: failed } = await admin
+      .from('transcription_jobs')
+      .update({
+        status: 'failed',
+        error_message: 'ประมวลผลนานเกินกำหนด (timeout) — กรุณาลองใหม่',
+        updated_at: now.toISOString(),
+      })
+      .eq('id', j.id as string)
+      .eq('status', 'processing')
+      .lt('updated_at', cutoff)
+      .select('id, source, profile_id');
+    const job = (failed ?? [])[0] as Record<string, unknown> | undefined;
+    if (!job) continue; // worker เพิ่งเสร็จ/อัปเดตทัน → ข้าม
+
     // คืนโควต้าที่จองไว้ (idempotent) — กรณี worker crash กลางคันก่อน refund เอง
     await admin.rpc('refund_stt_job', { p_job_id: job.id as string }).then(() => undefined, () => undefined);
 
