@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { createAdminClient } from '../../_lib/supabase';
 import { triggerSttWorker } from '@/lib/assistant/stt-trigger';
+import { sendLineMessages } from '@/lib/line/send-messages';
 import { upsertMobileToken } from '../../tmc/mobile/_lib';
 import {
   handleCrmCmd, handleCrmIn, handleCrmOut, handleCrmInStatus,
@@ -1262,13 +1263,13 @@ async function handleMomAudio(
   const { ext } = normalizeAudioMime('', fileNameHint);
   const fileName = fileNameHint || `line-เสียง-${Date.now()}.${ext}`;
 
-  const { data: prof } = await admin.from('profiles').select('email').eq('id', profileId).maybeSingle();
+  // ตอบ LINE ให้เร็วที่สุด → insert งานเลย (ไม่ lookup email; profile_id พอสำหรับ audit)
   const { data: job, error: jobErr } = await admin
     .from('transcription_jobs')
     .insert({
       org_id: orgId, profile_id: profileId, audio_url: null, line_message_id: messageId,
       file_name: fileName, mime_type: 'audio/mp4', model: 'gemini-2.5-flash', source: 'line',
-      triggered_by: profileId, triggered_by_email: (prof as { email?: string } | null)?.email ?? null,
+      triggered_by: profileId,
     })
     .select('id')
     .single();
@@ -1283,16 +1284,21 @@ async function handleMomAudio(
   // ใช้ session แล้ว — ลบทิ้ง (กันส่งไฟล์ซ้ำเข้าคิวเดิม)
   await admin.from('assistant_line_sessions').delete().eq('line_user_id', lineUserId);
 
-  const trig = await triggerSttWorker(admin, job.id as string, orgId);
-  if (!trig.ok) {
-    await replyText(replyToken, `❌ เริ่มถอดเสียงไม่สำเร็จ: ${trig.error ?? 'ลองใหม่อีกครั้ง'}`);
-    return;
-  }
-
+  // ตอบรับ "ทันที" ด้วย replyToken (อายุสั้น) — ต้องทำ **ก่อน** trigger worker
+  // ซึ่ง await การตอบจาก Cloud Run ที่อาจช้า 2–5 วิจาก cold start
   await replyText(replyToken,
     '✅ ได้รับไฟล์แล้ว กำลังถอดเสียงเป็นรายงานการประชุม…\n' +
     'เมื่อเสร็จจะส่งไฟล์ PDF กลับมาให้อัตโนมัติ (ประมาณ 1–3 นาที) 🙏',
   );
+
+  // จากนั้นค่อยสั่ง worker — ถ้าล้มเหลว push แจ้ง (reply token ใช้ไปแล้ว ตอบซ้ำไม่ได้)
+  const trig = await triggerSttWorker(admin, job.id as string, orgId);
+  if (!trig.ok) {
+    await sendLineMessages({
+      to: lineUserId,
+      messages: [{ type: 'text', text: '❌ ขออภัย เริ่มถอดเสียงไม่สำเร็จ กรุณาพิมพ์ /mom แล้วส่งไฟล์อีกครั้ง' }],
+    }).catch(() => undefined);
+  }
 }
 
 // ─── Main webhook handler ─────────────────────────────────────────────────────
