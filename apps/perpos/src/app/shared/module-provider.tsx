@@ -39,7 +39,9 @@ function ModuleAtomSync({
     const key = activeModule?.key ?? "";
     setActiveModule(key);
     if (key && orgSlug) {
-      document.cookie = `perpos.activeModule.${orgSlug}=${key};path=/;samesite=lax`;
+      // Persistent (1 year) so the last-active module is restored on re-login,
+      // not just within the current browser session.
+      document.cookie = `perpos.activeModule.${orgSlug}=${key};path=/;samesite=lax;max-age=${60 * 60 * 24 * 365}`;
     }
   }, [activeModule?.key, orgSlug, setActiveModule]);
 

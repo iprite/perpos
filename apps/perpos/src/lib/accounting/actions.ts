@@ -4,6 +4,10 @@ import { cookies } from "next/headers";
 
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
+// Persist the active-org cookie for 1 year so the last-selected org is restored
+// on re-login, not just within the current browser session.
+const ACTIVE_ORG_COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
+
 export async function setActiveOrganizationAction(orgId: string) {
   const id = String(orgId ?? "").trim();
   if (!id) return { ok: false, error: "missing_org_id" };
@@ -22,7 +26,11 @@ export async function setActiveOrganizationAction(orgId: string) {
   if (e || !m) return { ok: false, error: "not_member" };
 
   const cookieStore = await cookies();
-  cookieStore.set("perpos.activeOrgId", id, { path: "/", sameSite: "lax" });
+  cookieStore.set("perpos.activeOrgId", id, {
+    path: "/",
+    sameSite: "lax",
+    maxAge: ACTIVE_ORG_COOKIE_MAX_AGE,
+  });
   return { ok: true };
 }
 
@@ -48,6 +56,10 @@ export async function createOrganizationAction(name: string) {
   if (memErr) return { ok: false, error: memErr.message };
 
   const cookieStore = await cookies();
-  cookieStore.set("perpos.activeOrgId", String(org.id), { path: "/", sameSite: "lax" });
+  cookieStore.set("perpos.activeOrgId", String(org.id), {
+    path: "/",
+    sameSite: "lax",
+    maxAge: ACTIVE_ORG_COOKIE_MAX_AGE,
+  });
   return { ok: true, organizationId: String(org.id) };
 }
