@@ -65,3 +65,6 @@ web_legacy/
 # agent skills cache
 .skills/
 
+# codex CLI local config
+.codex/
+
