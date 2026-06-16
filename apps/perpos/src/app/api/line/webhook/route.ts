@@ -1217,6 +1217,9 @@ async function checkPersonalGrant(admin: ReturnType<typeof createAdminClient>, p
 
 /** ตรวจสิทธิ์ assistant — ผ่านถ้า super_admin หรือมี user_permission หรือมี personal_module_grant */
 async function checkAssistantAccess(admin: ReturnType<typeof createAdminClient>, profileId: string, role: string): Promise<boolean> {
+  // ผู้ใช้ที่ถูกระงับ (is_active=false) → บล็อกทุกคำสั่งผู้ช่วย/แกะเสียง ไม่ว่า role ใด
+  const { data: prof } = await admin.from('profiles').select('is_active').eq('id', profileId).maybeSingle();
+  if ((prof as { is_active?: boolean } | null)?.is_active === false) return false;
   if (role === 'super_admin') return true;
   const [perm, grant] = await Promise.all([
     checkPermission(admin, profileId, 'bot.assistant.tasks', role),
@@ -1261,6 +1264,14 @@ async function handleMomAudio(
   fileNameHint: string,
   replyToken: string,
 ) {
+  // กันผู้ใช้ที่ถูกระงับ (is_active=false) — path "audio ที่มี session ค้าง" เรียกตรงไม่ผ่าน checkAssistantAccess
+  const { data: prof } = await admin.from('profiles').select('is_active').eq('id', profileId).maybeSingle();
+  if ((prof as { is_active?: boolean } | null)?.is_active === false) {
+    await admin.from('assistant_line_sessions').delete().eq('line_user_id', lineUserId).then(() => undefined, () => undefined);
+    await replyText(replyToken, '❌ บัญชีของคุณถูกระงับการใช้งาน กรุณาติดต่อผู้ดูแลระบบ');
+    return;
+  }
+
   const { ext } = normalizeAudioMime('', fileNameHint);
   const fileName = fileNameHint || `line-เสียง-${Date.now()}.${ext}`;
 
