@@ -107,16 +107,25 @@ async function runJob(jobId: string, orgId: string): Promise<void> {
   }
 
   try {
-    // 1. Storage path must belong to this org (defense against cross-tenant reads).
-    const storagePath = extractStoragePath(job.audio_url as string);
-    if (!storagePath.startsWith(`${orgId}/`)) {
-      throw new Error('เส้นทางไฟล์เสียงไม่ตรงกับองค์กร');
+    const model = ALLOWED_MODELS.includes(job.model) ? (job.model as string) : DEFAULT_MODEL;
+
+    // 1. หาไฟล์เสียง:
+    //    - งาน LINE (source='line', ยังไม่มี audio_url) → โหลดจาก LINE content API เองที่นี่
+    //      (ย้ายงานหนักมาจาก webhook กัน Vercel timeout/LINE retry) แล้วอัปขึ้น storage
+    //    - งานเว็บ → โหลดจาก storage ตามปกติ
+    let bytes: Buffer;
+    let mimeType: string;
+    if (job.source === 'line' && !job.audio_url && job.line_message_id) {
+      ({ bytes, mimeType } = await ingestLineAudio(admin, job, orgId));
+    } else {
+      const storagePath = extractStoragePath(job.audio_url as string);
+      if (!storagePath.startsWith(`${orgId}/`)) {
+        throw new Error('เส้นทางไฟล์เสียงไม่ตรงกับองค์กร');
+      }
+      ({ bytes, mimeType } = await downloadAudio(storagePath));
     }
 
-    // 2. Download → upload ไฟล์ทั้งก้อนเข้า Gemini Files API → ถอด+สรุปในครั้งเดียว
-    //    (Gemini รับไฟล์เสียงยาวได้ถึง 2GB + context window ใหญ่ ไม่ต้องตัดไฟล์)
-    const model = ALLOWED_MODELS.includes(job.model) ? (job.model as string) : DEFAULT_MODEL;
-    const { bytes, mimeType } = await downloadAudio(storagePath);
+    // 2. upload ไฟล์ทั้งก้อนเข้า Gemini Files API → ถอด+สรุปในครั้งเดียว
 
     const { fileUri, fileName } = await uploadToGeminiFiles(bytes, mimeType, String(job.file_name ?? 'audio'));
     let transcript: TranscriptResult;
@@ -175,6 +184,7 @@ async function deliverMomToLine(jobId: string, orgId: string): Promise<void> {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-worker-secret': secret },
     body: JSON.stringify({ jobId, orgId }),
+    signal: AbortSignal.timeout(180_000),
   });
   if (!resp.ok) throw new Error(`mom-deliver responded ${resp.status}`);
 }
@@ -195,6 +205,53 @@ async function downloadAudio(storagePath: string): Promise<{ bytes: Buffer; mime
   const arrayBuffer = await data.arrayBuffer();
   const bytes = Buffer.from(arrayBuffer);
   const mimeType = data.type || 'audio/mpeg';
+  return { bytes, mimeType };
+}
+
+// ── LINE: โหลดไฟล์เสียงจาก content API → อัป storage → อัปเดต job (สำหรับงาน source='line') ──
+const STT_ALLOWED_MIME = new Set([
+  'audio/mpeg', 'audio/mp3', 'audio/ogg', 'audio/wav', 'audio/x-wav', 'audio/aac',
+  'audio/flac', 'audio/mp4', 'audio/x-m4a', 'audio/webm', 'video/mp4', 'video/webm', 'video/quicktime',
+]);
+const MIME_TO_EXT: Record<string, string> = {
+  'audio/mpeg': 'mp3', 'audio/ogg': 'ogg', 'audio/wav': 'wav', 'audio/aac': 'aac', 'audio/flac': 'flac',
+  'audio/mp4': 'm4a', 'audio/x-m4a': 'm4a', 'audio/webm': 'webm', 'video/mp4': 'mp4', 'video/quicktime': 'mov',
+};
+
+async function ingestLineAudio(
+  admin: ReturnType<typeof getAdminClient>,
+  job: Record<string, unknown>,
+  orgId: string,
+): Promise<{ bytes: Buffer; mimeType: string }> {
+  const lineToken = process.env.LINE_MESSAGING_CHANNEL_ACCESS_TOKEN ?? '';
+  const messageId = String(job.line_message_id);
+
+  const res = await fetch(`https://api-data.line.me/v2/bot/message/${messageId}/content`, {
+    headers: { Authorization: `Bearer ${lineToken}` },
+    signal: AbortSignal.timeout(180_000),
+  });
+  if (!res.ok) throw new Error(`ดาวน์โหลดไฟล์เสียงจาก LINE ล้มเหลว (${res.status})`);
+
+  const bytes = Buffer.from(await res.arrayBuffer());
+  if (bytes.length > 200 * 1024 * 1024) {
+    throw new Error('ไฟล์ใหญ่เกิน 200MB กรุณาส่งไฟล์ที่เล็กลง');
+  }
+
+  let mimeType = (res.headers.get('content-type') ?? '').split(';')[0].trim().toLowerCase();
+  if (!STT_ALLOWED_MIME.has(mimeType)) mimeType = 'audio/mp4';
+  const ext = MIME_TO_EXT[mimeType] ?? 'm4a';
+  const storagePath = `${orgId}/line/${Date.now()}-${messageId}.${ext}`;
+
+  const { error: upErr } = await admin.storage
+    .from(BUCKET)
+    .upload(storagePath, bytes, { contentType: mimeType, upsert: true });
+  if (upErr) throw new Error(`อัปโหลดไฟล์เสียงไม่สำเร็จ: ${upErr.message}`);
+
+  await admin
+    .from('transcription_jobs')
+    .update({ audio_url: storagePath, mime_type: mimeType, file_size: bytes.length, updated_at: new Date().toISOString() })
+    .eq('id', job.id as string);
+
   return { bytes, mimeType };
 }
 

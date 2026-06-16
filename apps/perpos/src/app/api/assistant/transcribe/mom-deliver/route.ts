@@ -53,7 +53,17 @@ export async function POST(req: NextRequest) {
 
   const renderUrl = process.env.PDF_RENDER_URL;
   const renderSecret = process.env.PDF_SERVICE_SECRET;
-  if (!renderUrl) return Err.externalService('PDF renderer', 'ยังไม่ได้ตั้งค่า PDF_RENDER_URL');
+
+  // ถ้าสร้าง PDF ไม่สำเร็จด้วยเหตุใด ๆ → แจ้งผู้ใช้ทาง LINE แล้วค่อย return error
+  const failToLine = async (reason: string) => {
+    await sendLineMessages({
+      to: lineUserId,
+      messages: [{ type: 'text', text: '❌ ขออภัย สร้างไฟล์ PDF รายงานการประชุมไม่สำเร็จ กรุณาลองใหม่ภายหลัง' }],
+    }).catch(() => undefined);
+    return Err.externalService('mom-pdf', reason);
+  };
+
+  if (!renderUrl) return failToLine('ยังไม่ได้ตั้งค่า PDF_RENDER_URL');
 
   const tj = job.transcript_json as MomJson;
   const dateText = new Intl.DateTimeFormat('th-TH', {
@@ -65,24 +75,25 @@ export async function POST(req: NextRequest) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...(renderSecret ? { 'x-pdf-secret': renderSecret } : {}) },
     body: JSON.stringify({ html: buildMomHtml(tj, dateText), filename: 'minutes-of-meeting' }),
-  });
+    signal: AbortSignal.timeout(120_000),
+  }).catch((e) => { throw e; });
   if (!resp.ok) {
     const detail = await resp.text().catch(() => '');
-    return Err.externalService('PDF renderer', `${resp.status} ${detail}`.slice(0, 300));
+    return failToLine(`PDF renderer ${resp.status} ${detail}`.slice(0, 200));
   }
   const pdfBytes = Buffer.from(await resp.arrayBuffer());
 
-  // 2. upload + signed URL (7 วัน)
+  // 2. upload + signed URL (48 ชม. — MoM อาจมีข้อมูลละเอียดอ่อน)
   const path = `${orgId}/mom/${jobId}.pdf`;
   const { error: upErr } = await admin.storage
     .from(BUCKET)
     .upload(path, pdfBytes, { contentType: 'application/pdf', upsert: true });
-  if (upErr) return Err.externalService('Storage', upErr.message);
+  if (upErr) return failToLine(`Storage upload: ${upErr.message}`);
 
   const { data: signed, error: signErr } = await admin.storage
     .from(BUCKET)
-    .createSignedUrl(path, 7 * 24 * 60 * 60, { download: `MoM-${jobId}.pdf` });
-  if (signErr || !signed?.signedUrl) return Err.externalService('Storage', signErr?.message ?? 'signed url failed');
+    .createSignedUrl(path, 48 * 60 * 60, { download: `MoM-${jobId}.pdf` });
+  if (signErr || !signed?.signedUrl) return failToLine(`signed url: ${signErr?.message ?? 'failed'}`);
 
   // 3. push Flex (ปุ่มดาวน์โหลด) กลับ LINE
   const meetingTitle = String(tj.meeting_title || job.file_name || 'รายงานการประชุม');

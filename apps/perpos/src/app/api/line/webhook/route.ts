@@ -1248,6 +1248,8 @@ function normalizeAudioMime(rawMime: string, fileName: string): { mime: string; 
   return { mime, ext: MIME_TO_EXT[mime] ?? 'm4a' };
 }
 
+// webhook ต้องตอบ LINE เร็ว → **ไม่โหลดไฟล์ที่นี่** (ไฟล์ประชุมใหญ่จะ timeout + LINE retry).
+// แค่ INSERT job เก็บ line_message_id แล้วให้ stt-worker (Cloud Run) โหลดจาก LINE เองทีหลัง.
 async function handleMomAudio(
   admin: ReturnType<typeof createAdminClient>,
   lineUserId: string,
@@ -1257,52 +1259,28 @@ async function handleMomAudio(
   fileNameHint: string,
   replyToken: string,
 ) {
-  const lineToken = process.env.LINE_MESSAGING_CHANNEL_ACCESS_TOKEN ?? '';
-  const contentRes = await fetch(
-    `https://api-data.line.me/v2/bot/message/${messageId}/content`,
-    { headers: { Authorization: `Bearer ${lineToken}` } },
-  );
-  if (!contentRes.ok) {
-    await replyText(replyToken, '❌ ดาวน์โหลดไฟล์เสียงไม่สำเร็จ กรุณาลองส่งใหม่');
-    return;
-  }
-
-  const buffer = Buffer.from(await contentRes.arrayBuffer());
-  const fileSize = buffer.length;
-  if (fileSize > 200 * 1024 * 1024) {
-    await replyText(replyToken, '❌ ไฟล์ใหญ่เกิน 200MB กรุณาส่งไฟล์ที่เล็กลง (แนะนำบีบเป็น .ogg/.m4a)');
-    return;
-  }
-
-  const { mime, ext } = normalizeAudioMime(contentRes.headers.get('content-type') ?? '', fileNameHint);
+  const { ext } = normalizeAudioMime('', fileNameHint);
   const fileName = fileNameHint || `line-เสียง-${Date.now()}.${ext}`;
-  const storagePath = `${orgId}/line/${Date.now()}-${messageId}.${ext}`;
-
-  const { error: upErr } = await admin.storage
-    .from('assistant_audio')
-    .upload(storagePath, buffer, { contentType: mime, upsert: false });
-  if (upErr) {
-    await replyText(replyToken, `❌ อัปโหลดไฟล์ไม่สำเร็จ: ${upErr.message}`);
-    return;
-  }
 
   const { data: prof } = await admin.from('profiles').select('email').eq('id', profileId).maybeSingle();
   const { data: job, error: jobErr } = await admin
     .from('transcription_jobs')
     .insert({
-      org_id: orgId, profile_id: profileId, audio_url: storagePath, file_name: fileName,
-      mime_type: mime, file_size: fileSize, model: 'gemini-2.5-flash', source: 'line',
+      org_id: orgId, profile_id: profileId, audio_url: null, line_message_id: messageId,
+      file_name: fileName, mime_type: 'audio/mp4', model: 'gemini-2.5-flash', source: 'line',
       triggered_by: profileId, triggered_by_email: (prof as { email?: string } | null)?.email ?? null,
     })
     .select('id')
     .single();
+
   if (jobErr || !job) {
-    void admin.storage.from('assistant_audio').remove([storagePath]);
+    // unique violation (23505) = LINE ส่ง event เดิมซ้ำ → งานถูกคิวไว้แล้ว เงียบได้
+    if ((jobErr as { code?: string } | null)?.code === '23505') return;
     await replyText(replyToken, `❌ สร้างงานถอดเสียงไม่สำเร็จ: ${jobErr?.message ?? ''}`);
     return;
   }
 
-  // ใช้ session แล้ว — ลบทิ้ง
+  // ใช้ session แล้ว — ลบทิ้ง (กันส่งไฟล์ซ้ำเข้าคิวเดิม)
   await admin.from('assistant_line_sessions').delete().eq('line_user_id', lineUserId);
 
   const trig = await triggerSttWorker(admin, job.id as string, orgId);
@@ -1360,12 +1338,11 @@ export async function POST(req: NextRequest) {
     if (msg.type === 'audio' || msg.type === 'file') {
       const messageId = String(msg.id ?? '');
       if (!lineUserId || !messageId) continue;
-      const sttProfile = await getProfileByLineId(admin, lineUserId);
-      if (!sttProfile) continue; // ยังไม่ผูก LINE → เงียบ
 
+      // เช็ค session ก่อน (ถูกกว่า) — session เก็บ profile_id/org_id ไว้แล้ว ไม่ต้อง lookup profile ซ้ำ
       const { data: sess } = await admin
         .from('assistant_line_sessions')
-        .select('org_id, expires_at')
+        .select('org_id, profile_id, expires_at')
         .eq('line_user_id', lineUserId)
         .maybeSingle();
       // ไม่มี session /mom หรือหมดอายุ → เงียบ (ไม่ยุ่งฟีเจอร์อื่น)
@@ -1376,7 +1353,7 @@ export async function POST(req: NextRequest) {
         await replyText(replyToken, '❌ ไฟล์นี้ไม่ใช่ไฟล์เสียง/วิดีโอ กรุณาส่งไฟล์เสียง (mp3, ogg, m4a, wav, mp4)');
         continue;
       }
-      await handleMomAudio(admin, lineUserId, messageId, sttProfile.id, String(sess.org_id), fileName, replyToken);
+      await handleMomAudio(admin, lineUserId, messageId, String(sess.profile_id), String(sess.org_id), fileName, replyToken);
       continue;
     }
 
@@ -1551,6 +1528,8 @@ export async function POST(req: NextRequest) {
       if (!activeOrg) {
         await replyText(replyToken, '❌ ยังไม่ได้เลือกองค์กร พิมพ์ /org เพื่อเลือกองค์กรก่อน'); continue;
       }
+      // best-effort: เก็บกวาด session หมดอายุที่ค้างไว้
+      void admin.from('assistant_line_sessions').delete().lt('expires_at', new Date().toISOString());
       const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
       await admin.from('assistant_line_sessions').upsert({
         line_user_id: lineUserId, org_id: activeOrg.id, profile_id: profile.id, action: 'mom', expires_at: expiresAt,
