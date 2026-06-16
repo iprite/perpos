@@ -1818,9 +1818,9 @@ export async function POST(req: NextRequest) {
       await admin.from('web_login_tokens').insert({ token, profile_id: profile.id, expires_at: expiresAt });
       const baseUrl = (process.env.APP_BASE_URL ?? 'https://app.perpos.io').replace(/\/$/, '');
       await replyText(replyToken,
-        '🔗 เปิดลิงก์นี้เพื่อเข้าเว็บ (เข้าระบบอัตโนมัติ ดูประวัติ + ตั้ง email/รหัสผ่านเพื่อเป็นเจ้าของบัญชีถาวร)\n' +
+        '🔗 เปิดลิงก์นี้เพื่อเข้าเว็บผู้ช่วย AI (เข้าระบบอัตโนมัติ ดูประวัติ/ดาวน์โหลดรายงาน)\n' +
         `${baseUrl}/line/claim?t=${token}\n\n` +
-        '⏳ ลิงก์ใช้ได้ครั้งเดียว ภายใน 5 นาที',
+        '⏳ ลิงก์ใช้ได้ภายใน 5 นาที',
       );
       continue;
     }

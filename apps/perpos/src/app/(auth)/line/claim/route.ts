@@ -9,7 +9,6 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { createSupabaseAdminClient } from '@/lib/supabase/admin';
 import { withBasePath } from '@/utils/base-path';
 
-const SHADOW_DOMAIN = '@stt-line.perpos.io';
 
 export async function GET(request: NextRequest) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -39,19 +38,18 @@ export async function GET(request: NextRequest) {
   // บันทึกเวลาใช้ครั้งแรกไว้เป็น audit (ไม่ block การใช้ซ้ำในช่วงยังไม่หมดอายุ)
   if (!row.used_at) await admin.from('web_login_tokens').update({ used_at: new Date().toISOString() }).eq('token', t);
 
-  // 2. email ของ user (shadow หรือ real)
+  // 2. email ของ user
   const { data: prof } = await admin.from('profiles').select('email').eq('id', row.profile_id as string).maybeSingle();
   const email = (prof as { email?: string } | null)?.email;
   if (!email) return signin('account_missing');
-  const isShadow = email.endsWith(SHADOW_DOMAIN);
 
   // 3. magic link → token_hash
   const { data: gl, error: ge } = await admin.auth.admin.generateLink({ type: 'magiclink', email });
   const tokenHash = gl?.properties?.hashed_token;
   if (ge || !tokenHash) return signin('login_failed');
 
-  // 4. verifyOtp ผ่าน SSR client → ตั้ง session cookies บน response
-  const dest = new URL(withBasePath(isShadow ? '/claim-account' : '/'), request.url);
+  // 4. verifyOtp ผ่าน SSR client → ตั้ง session cookies → เข้าแอป (LINE-only, ไม่ต้องตั้ง password)
+  const dest = new URL(withBasePath('/'), request.url);
   const response = NextResponse.redirect(dest);
   const supabase = createServerClient(url, anonKey, {
     cookies: {
