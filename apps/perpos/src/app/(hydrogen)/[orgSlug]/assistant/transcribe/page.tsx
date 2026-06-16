@@ -24,6 +24,7 @@ type TranscriptJson = {
   key_topics?: KeyTopic[];
   decisions?: string[];
   action_items?: ActionItem[];
+  recommendations?: string[];
 };
 
 type Job = {
@@ -519,6 +520,23 @@ export default function AssistantTranscribePage() {
                       </div>
                     ))}
                   </div>
+                </section>
+              ) : null}
+
+              {/* ข้อเสนอแนะจาก AI */}
+              {activeJob.transcript_json.recommendations && activeJob.transcript_json.recommendations.length > 0 ? (
+                <section>
+                  <h4 className="mb-1.5 flex items-center gap-1.5 text-sm font-semibold text-gray-900">
+                    <Sparkles className="h-4 w-4 text-sky-600" /> ข้อเสนอแนะจาก AI
+                  </h4>
+                  <ul className="space-y-1.5">
+                    {activeJob.transcript_json.recommendations.map((r, i) => (
+                      <li key={i} className="flex items-start gap-2 rounded-lg border border-sky-100 bg-sky-50/60 p-2.5 text-sm text-gray-800">
+                        <Sparkles className="mt-0.5 h-3.5 w-3.5 shrink-0 text-sky-500" />
+                        <span>{r}</span>
+                      </li>
+                    ))}
+                  </ul>
                 </section>
               ) : null}
 

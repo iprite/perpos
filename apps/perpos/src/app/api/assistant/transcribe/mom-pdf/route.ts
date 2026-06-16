@@ -19,6 +19,7 @@ type MomJson = {
   key_topics?: KeyTopic[];
   decisions?: string[];
   action_items?: ActionItem[];
+  recommendations?: string[];
 };
 
 const esc = (s: unknown): string =>
@@ -104,6 +105,7 @@ function buildMomHtml(tj: MomJson, dateText: string): string {
     .join('');
 
   const decisions = (tj.decisions ?? []).map((d) => `<li>${esc(d)}</li>`).join('');
+  const recommendations = (tj.recommendations ?? []).map((r) => `<li>${esc(r)}</li>`).join('');
 
   const actions = (tj.action_items ?? []).length
     ? (tj.action_items ?? [])
@@ -130,15 +132,20 @@ function buildMomHtml(tj: MomJson, dateText: string): string {
   .meta { border: 1px solid #e5e7eb; background: #f9fafb; border-radius: 8px; padding: 12px 14px; margin-bottom: 22px; }
   .meta .r { display: flex; margin: 1px 0; }
   .meta .l { color: #6b7280; width: 70px; flex: none; }
-  h2 { font-size: 13px; font-weight: 600; color: #0284c7; margin: 0 0 8px; padding-bottom: 4px; border-bottom: 1px solid #e5e7eb; }
-  section { margin-bottom: 18px; }
-  .summary { border: 1px solid #bae6fd; background: #f0f9ff; border-radius: 8px; padding: 12px 14px; }
+  /* กัน heading ค้างท้ายหน้าโดยเนื้อหาตกไปหน้าถัดไป + กัน item ถูกตัดครึ่ง */
+  h2 { font-size: 13px; font-weight: 600; color: #0284c7; margin: 0 0 8px; padding-bottom: 4px; border-bottom: 1px solid #e5e7eb; break-after: avoid; }
+  section { margin-bottom: 18px; break-inside: auto; }
+  li { break-inside: avoid; }
+  .summary { border: 1px solid #bae6fd; background: #f0f9ff; border-radius: 8px; padding: 12px 14px; break-inside: avoid; }
   ol.topics { margin: 0; padding-left: 20px; }
   ol.topics li { margin-bottom: 8px; }
   ol.topics .t { font-weight: 500; }
   ol.topics .d { color: #374151; font-weight: 400; }
   ul.dec { margin: 0; padding-left: 20px; }
   ul.dec li { margin-bottom: 5px; }
+  .rec { border: 1px solid #e5e7eb; background: #fafafa; border-radius: 8px; padding: 6px 14px 6px; }
+  ul.rec-list { margin: 6px 0; padding-left: 20px; }
+  ul.rec-list li { margin-bottom: 6px; }
   table { width: 100%; border-collapse: collapse; table-layout: fixed; }
   th, td { border: 1px solid #e5e7eb; padding: 7px 9px; text-align: left; vertical-align: top; word-wrap: break-word; overflow-wrap: break-word; }
   thead { display: table-header-group; }
@@ -173,6 +180,8 @@ function buildMomHtml(tj: MomJson, dateText: string): string {
       <tbody>${actions}</tbody>
     </table>
   </section>
+
+  ${recommendations ? `<section><h2>ข้อเสนอแนะจาก AI</h2><div class="rec"><ul class="rec-list">${recommendations}</ul></div></section>` : ''}
 
   <div class="foot">จัดทำโดยระบบ PERPOS Assistant</div>
 </body></html>`;

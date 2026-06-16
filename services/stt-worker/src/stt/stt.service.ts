@@ -29,6 +29,7 @@ export type TranscriptResult = {
   key_topics: KeyTopic[];    // ประเด็นที่หารือ
   decisions: string[];       // มติ / ข้อสรุปของที่ประชุม
   action_items: ActionItem[];
+  recommendations: string[]; // ข้อเสนอแนะจาก AI ต่อประเด็นในที่ประชุม
 };
 
 const ALLOWED_MODELS = ['gemini-2.5-flash', 'gemini-2.5-pro'] as const;
@@ -50,6 +51,7 @@ const PROMPT = `คุณคือ AI เลขานุการมืออา
    - key_topics: ทุกประเด็นที่หารือ พร้อมรายละเอียดเชิงลึก เจาะตัวเลข/ข้อมูล/ข้อโต้แย้งให้ครบ
    - decisions: มติ/ข้อสรุปที่ที่ประชุมตกลงกัน
    - action_items: สิ่งที่ต้องไปทำต่อ + ผู้รับผิดชอบ + กำหนดส่ง (ถ้ามี)
+   - recommendations: ข้อเสนอแนะจากมุมมอง AI — วิเคราะห์เนื้อหาทั้งหมด แล้วเสนอสิ่งที่เป็นประโยชน์ต่อที่ประชุม (เช่น ความเสี่ยงที่ควรระวัง, จุดที่ยังตกหล่น/ควรตัดสินใจเพิ่ม, แนวทางปฏิบัติที่ดี, โอกาส) ให้เจาะจงกับประเด็นหลักจริง ๆ ที่คุยกัน ไม่พูดลอย ๆ — 3-6 ข้อ
 5. ตอบกลับเป็น JSON เท่านั้น ห้ามมีคำเกริ่นนำ ห้ามมี markdown
 
 โครงสร้าง JSON ที่ต้องการ:
@@ -64,7 +66,8 @@ const PROMPT = `คุณคือ AI เลขานุการมืออา
   "decisions": [ "มติ/ข้อสรุปที่ที่ประชุมตกลงกัน" ],
   "action_items": [
     { "task": "สิ่งที่ต้องไปทำต่อ", "assignee": "ชื่อผู้รับผิดชอบ หรือ 'ไม่ระบุ'", "deadline": "กำหนดส่ง หรือ ''" }
-  ]
+  ],
+  "recommendations": [ "ข้อเสนอแนะที่เป็นประโยชน์ต่อที่ประชุม เจาะจงกับประเด็นหลัก" ]
 }`;
 
 // ── Public entrypoint (never throws — invoked fire-and-forget) ──────────────
@@ -347,6 +350,10 @@ function parseTranscript(text: string): TranscriptResult {
     ? (parsed.decisions as unknown[]).map((x) => String(x)).filter((s) => s.trim().length > 0)
     : [];
 
+  const recommendations: string[] = Array.isArray(parsed.recommendations)
+    ? (parsed.recommendations as unknown[]).map((x) => String(x)).filter((s) => s.trim().length > 0)
+    : [];
+
   const action_items: ActionItem[] = Array.isArray(parsed.action_items)
     ? (parsed.action_items as unknown[]).map((e) => {
         const o = (e ?? {}) as Record<string, unknown>;
@@ -370,6 +377,7 @@ function parseTranscript(text: string): TranscriptResult {
     key_topics,
     decisions,
     action_items,
+    recommendations,
   };
 
   // ต้องมีเนื้อหาอย่างน้อยบางส่วน ไม่งั้นถือว่าแกะไม่ได้
@@ -399,6 +407,11 @@ function buildTranscriptText(t: TranscriptResult): string {
     t.action_items.forEach((a) =>
       parts.push(`- ${a.task}${a.assignee ? ` (ผู้รับผิดชอบ: ${a.assignee})` : ''}${a.deadline ? ` [กำหนด: ${a.deadline}]` : ''}`),
     );
+    parts.push('');
+  }
+  if (t.recommendations.length) {
+    parts.push('ข้อเสนอแนะจาก AI');
+    t.recommendations.forEach((r) => parts.push(`- ${r}`));
     parts.push('');
   }
   if (t.speakers.length) parts.push(`ผู้เข้าร่วม: ${t.speakers.join(', ')}`);
