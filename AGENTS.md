@@ -12,7 +12,8 @@
 - Frontend + Backend: Next.js 15 (App Router), React 19, TypeScript
 - **API routes อยู่ใน `apps/perpos/src/app/api/` (Next.js Route Handlers)**
 - Database: Supabase (PostgreSQL) พร้อม Row Level Security
-- Auth: Supabase Auth (Google OAuth + LINE Login)
+- Auth: Supabase Auth — Google OAuth + **LINE Login** (เข้าเว็บด้วย LINE: `/line/login` → `/line/callback`, bridge เข้า Supabase session ด้วย magic-link เดิม · Supabase ไม่มี LINE provider จึงทำ OAuth เอง) + magic-link claim (`/web`) + email/password
+  - **LINE Login channel ต้องอยู่ provider เดียวกับ Messaging channel** — `userId` ถึงตรงกับ `line_user_id` ที่เก็บไว้ (ถ้าคนละ provider จะ provision เป็นคนละคน) · callback URL ที่ต้องลงทะเบียนใน LINE console = `${APP_BASE_URL}/line/callback`
 - UI: Rizzui, Tailwind CSS, Radix UI
 - Monorepo: pnpm workspaces + Turbo
 
@@ -247,6 +248,8 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role (server only) | ✅ |
 | `LINE_MESSAGING_CHANNEL_SECRET` | LINE webhook signature verify | ✅ |
 | `LINE_MESSAGING_CHANNEL_ACCESS_TOKEN` | ส่งข้อความ LINE | ✅ |
+| `LINE_LOGIN_CHANNEL_ID` | LINE Login (เข้าเว็บด้วย LINE) — channel ID | LINE login |
+| `LINE_LOGIN_CHANNEL_SECRET` | LINE Login — channel secret | LINE login |
 | `CRON_SECRET` | ป้องกัน scheduler endpoint | ✅ |
 | `OPENAI_API_KEY` | NLP task parse + news summary | optional |
 | `OPENAI_MODEL` | โมเดล OpenAI (default: gpt-4o-mini) | optional |

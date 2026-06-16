@@ -78,8 +78,8 @@ export default function ClaimAccountPage() {
           </div>
         ) : (
           <>
-            <h1 className="text-lg font-semibold text-gray-900">ตั้งค่าบัญชีถาวร</h1>
-            <p className="mt-1 text-sm text-gray-500">ตั้ง email และรหัสผ่าน เพื่อเข้าเว็บได้โดยไม่ต้องผ่าน LINE</p>
+            <h1 className="text-lg font-semibold text-gray-900">ตั้งค่าบัญชีถาวร (ไม่บังคับ)</h1>
+            <p className="mt-1 text-sm text-gray-500">ตั้ง email และรหัสผ่าน เพื่อเข้าเว็บได้โดยไม่ต้องผ่าน LINE — หรือใช้ปุ่ม “เข้าสู่ระบบด้วย LINE” ต่อไปก็ได้</p>
             <div className="mt-4 space-y-4">
               <div>
                 <Label htmlFor="email">อีเมล *</Label>
@@ -96,6 +96,9 @@ export default function ClaimAccountPage() {
               <Button className="w-full" disabled={saving || !email || password.length < 8} onClick={handleClaim}>
                 {saving ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> กำลังบันทึก…</> : 'ยืนยันเป็นเจ้าของบัญชี'}
               </Button>
+              <Link href="/" className="block text-center text-sm text-gray-500 hover:text-gray-700">
+                ข้ามไปก่อน — ไปหน้าหลัก
+              </Link>
             </div>
           </>
         )}
