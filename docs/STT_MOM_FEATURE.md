@@ -1,7 +1,25 @@
 # คัมภีร์: ระบบแกะเสียง → รายงานการประชุม (STT / MoM)
 
 > เอกสารอ้างอิงฉบับเต็มสำหรับ AI agents / devs ที่ทำงานต่อกับฟีเจอร์นี้
-> อัปเดตล่าสุด: 2026-06-16 · ทุกอย่างใน production แล้ว (Supabase + Cloud Run + Vercel)
+> อัปเดตล่าสุด: 2026-06-17 · ทุกอย่างใน production แล้ว (Supabase + Cloud Run + Vercel)
+
+---
+
+## ⚡ อัปเดต v2 (สำคัญ — assistant per-profile) — 2026-06-17
+
+ฟีเจอร์นี้ถูกจัดเป็น **"ผู้ช่วย AI" (assistant) บริการ per-profile** (umbrella, ตอนนี้ = ถอดเสียง→MoM, อนาคตเพิ่มตัวช่วยอื่น) — เปลี่ยนจาก org-scoped เป็น **per-profile** ทั้งระบบ:
+
+- **URL ใหม่ top-level ไม่มี [org]:** `/assistant` (ถอดเสียง) · `/assistant/usage` (การใช้งาน) · `/assistant/billing` (การชำระเงิน) · `assistant` อยู่ใน SYSTEM_SEGMENTS (ไม่ใช่ org slug)
+- **API guard:** `requireAssistantUser` ([api/_lib/assistant-auth.ts]) = grant `stt` หรือ `bot.assistant.transcribe` หรือ super_admin (ต่อ profile, ไม่ใช่ `requireModuleMember`) · resolve "home org" ภายในไว้ tag งาน/เรียก worker (ไม่โผล่ URL)
+- **5 routes** (`jobs/process/quota/stats/mom-pdf`) เลิกรับ `orgId` → scope ด้วย `profile_id`
+- **Storage:** เว็บอัปไฟล์ใต้ `<profileId>/` (self-folder policy) · LINE `/mom` ไม่ใช้ bucket (โหลดเสียงจาก LINE ตรง, `audio_url=null`+`line_message_id`)
+- **RLS** `transcription_jobs` = `profile_id = auth.uid()` เท่านั้น
+- **module key ภายในยังเป็น `stt`** (เลี่ยง FK rename) แต่ user-facing = "ผู้ช่วย AI" · ตาราง `stt_*` คงชื่อเดิม
+- **B2B/B2C:** B2C login LINE → `/assistant` · B2B → ERP (biz) + ปุ่มสลับ "ผู้ช่วย AI"/"Biz" บน header · super_admin → `/admin`
+- **module `assistant` เดิม (Task Manager: `/t /tk /d /a /ap`) ยกเลิกทิ้งหมดแล้ว**
+- **Login:** เข้าระบบด้วย **LINE เท่านั้น** (`/line/login`→`/line/callback`, Google ซ่อนใต้ `/signin?admin=1`) · ⚠️ **Login channel ต้อง provider เดียวกับ Messaging channel** (userId ถึงตรง ไม่งั้นสร้างบัญชีซ้ำ)
+
+> ส่วนด้านล่างเป็นรายละเอียดเดิม — path `[orgSlug]/assistant/transcribe/*` และ `requireModuleMember` ในเอกสารเก่าถูกแทนที่ด้วยข้างบนแล้ว
 
 ---
 
