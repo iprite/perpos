@@ -254,6 +254,122 @@ async function handleSubscriptionDeleted(admin: ReturnType<typeof createAdminCli
   return orgId;
 }
 
+// ─── STT billing (per-profile) ───────────────────────────────────────────────
+// แยกจาก org billing: ระบุด้วย metadata.kind === 'stt' (+ profile_id) หรือ row ใน stt_subscriptions
+
+function isSttSession(session: Stripe.Checkout.Session) {
+  return asString(session.metadata?.kind) === 'stt';
+}
+
+// หา profile/plan ของ STT subscription จาก subId/customerId (กรณี invoice/sub event ไม่มี metadata)
+async function sttSubByStripe(admin: ReturnType<typeof createAdminClient>, ids: { subscriptionId?: string; customerId?: string }) {
+  if (ids.subscriptionId) {
+    const { data } = await admin.from('stt_subscriptions').select('profile_id, plan_id').eq('stripe_subscription_id', ids.subscriptionId).maybeSingle();
+    if (data?.profile_id) return data as { profile_id: string; plan_id: string | null };
+  }
+  if (ids.customerId) {
+    const { data } = await admin.from('stt_subscriptions').select('profile_id, plan_id').eq('stripe_customer_id', ids.customerId).maybeSingle();
+    if (data?.profile_id) return data as { profile_id: string; plan_id: string | null };
+  }
+  return null;
+}
+
+// resolve แผน → { id, minutes } จาก plan_id (เรา) หรือ stripe_price_id
+async function resolveSttPlan(admin: ReturnType<typeof createAdminClient>, by: { planId?: string | null; priceId?: string | null }) {
+  if (by.planId) {
+    const { data } = await admin.from('stt_plans').select('id, minutes').eq('id', by.planId).maybeSingle();
+    if (data) return data as { id: string; minutes: number };
+  }
+  if (by.priceId) {
+    const { data } = await admin.from('stt_plans').select('id, minutes').eq('stripe_price_id', by.priceId).maybeSingle();
+    if (data) return data as { id: string; minutes: number };
+  }
+  return null;
+}
+
+function subPeriod(sub: Stripe.Subscription) {
+  return {
+    status: sub.status,
+    start: sub.current_period_start ? new Date(sub.current_period_start * 1000).toISOString() : null,
+    end: sub.current_period_end ? new Date(sub.current_period_end * 1000).toISOString() : null,
+    cancel: sub.cancel_at_period_end ?? false,
+  };
+}
+
+async function upsertSttSub(admin: ReturnType<typeof createAdminClient>, profileId: string, planId: string | null, customerId: string, sub: Stripe.Subscription) {
+  const p = subPeriod(sub);
+  await admin.rpc('upsert_stt_subscription', {
+    p_profile_id: profileId, p_plan_id: planId, p_customer: customerId || null, p_subscription: sub.id,
+    p_status: p.status, p_period_start: p.start, p_period_end: p.end, p_cancel_at_period_end: p.cancel,
+  });
+}
+
+async function handleSttCheckout(admin: ReturnType<typeof createAdminClient>, stripe: ReturnType<typeof getStripe>, session: Stripe.Checkout.Session, eventId: string) {
+  const profileId = asString(session.metadata?.profile_id);
+  const planIdMeta = asString(session.metadata?.plan_id) || null;
+  if (!profileId) return;
+  const currency = (session.currency ?? 'thb').toUpperCase();
+
+  if (session.mode === 'payment') {
+    // topup (จ่ายครั้งเดียว) — เติมนาทีทันที
+    const plan = await resolveSttPlan(admin, { planId: planIdMeta });
+    if (!plan) return;
+    await admin.rpc('apply_stt_payment', {
+      p_profile_id: profileId, p_plan_id: plan.id, p_kind: 'topup',
+      p_amount: (session.amount_total ?? 0) / 100, p_currency: currency, p_minutes: plan.minutes,
+      p_status: 'succeeded', p_payment_intent: asString(session.payment_intent) || null,
+      p_invoice: null, p_event_id: eventId,
+    });
+  } else if (session.mode === 'subscription') {
+    // subscription — บันทึก sub (เติมนาทีรอ invoice.payment_succeeded)
+    const subId = asString(session.subscription);
+    if (!subId) return;
+    const sub = await stripe.subscriptions.retrieve(subId);
+    await upsertSttSub(admin, profileId, planIdMeta, asString(session.customer), sub);
+  }
+}
+
+async function handleSttInvoicePaid(admin: ReturnType<typeof createAdminClient>, stripe: ReturnType<typeof getStripe>, invoice: Stripe.Invoice, eventId: string) {
+  const subscriptionId = asString(invoice.subscription);
+  const customerId = asString(invoice.customer);
+  if (!subscriptionId) return false; // ไม่มี sub = ไม่ใช่ STT subscription invoice
+
+  // หา profile/plan จาก row ที่มีอยู่ ก่อน — ถ้าไม่เจอ (event มาก่อน checkout) อ่าน metadata จาก subscription
+  let row = await sttSubByStripe(admin, { subscriptionId, customerId });
+  const sub = await stripe.subscriptions.retrieve(subscriptionId);
+  if (!row) {
+    if (asString(sub.metadata?.kind) !== 'stt') return false; // ไม่ใช่ STT → ให้ org handler จัดการ
+    const profileId = asString(sub.metadata?.profile_id);
+    if (!profileId) return false;
+    row = { profile_id: profileId, plan_id: asString(sub.metadata?.plan_id) || null };
+  }
+
+  const priceId = asString(invoice.lines?.data?.[0]?.price?.id);
+  const plan = await resolveSttPlan(admin, { planId: row.plan_id, priceId });
+  // sync สถานะ/รอบก่อนเสมอ (สร้าง row ถ้ายังไม่มี — กัน race)
+  await upsertSttSub(admin, row.profile_id, plan?.id ?? row.plan_id, customerId, sub);
+  if (!plan) return true;
+
+  // เติมโควต้ารอบนี้ (idempotent ด้วย invoice.id)
+  await admin.rpc('apply_stt_payment', {
+    p_profile_id: row.profile_id, p_plan_id: plan.id, p_kind: 'subscription',
+    p_amount: (invoice.amount_paid ?? 0) / 100, p_currency: (invoice.currency ?? 'thb').toUpperCase(),
+    p_minutes: plan.minutes, p_status: 'succeeded',
+    p_payment_intent: asString((invoice as unknown as { payment_intent?: string }).payment_intent) || null,
+    p_invoice: asString(invoice.id) || null, p_event_id: eventId,
+  });
+  return true;
+}
+
+async function handleSttSubscriptionEvent(admin: ReturnType<typeof createAdminClient>, sub: Stripe.Subscription) {
+  const row = await sttSubByStripe(admin, { subscriptionId: sub.id, customerId: asString(sub.customer) });
+  const profileId = asString(sub.metadata?.profile_id) || row?.profile_id;
+  if (!profileId) return false; // ไม่ใช่ STT
+  const planId = asString(sub.metadata?.plan_id) || row?.plan_id || null;
+  await upsertSttSub(admin, profileId, planId, asString(sub.customer), sub);
+  return true;
+}
+
 export async function POST(req: NextRequest) {
   const secret = process.env.STRIPE_WEBHOOK_SECRET ?? '';
   if (!secret) return NextResponse.json({ error: 'missing_STRIPE_WEBHOOK_SECRET' }, { status: 500 });
@@ -290,15 +406,27 @@ export async function POST(req: NextRequest) {
 
   try {
     if (event.type === 'checkout.session.completed') {
-      resolvedOrgId = await handleCheckoutSessionCompleted(admin, stripe, event.data.object as Stripe.Checkout.Session);
+      const session = event.data.object as Stripe.Checkout.Session;
+      if (isSttSession(session)) {
+        await handleSttCheckout(admin, stripe, session, event.id);
+      } else {
+        resolvedOrgId = await handleCheckoutSessionCompleted(admin, stripe, session);
+      }
     } else if (event.type === 'invoice.payment_succeeded') {
-      resolvedOrgId = await handleInvoicePaymentSucceeded(admin, stripe, event.data.object as Stripe.Invoice);
+      // ลอง STT ก่อน — ถ้า invoice นี้เป็นของ stt_subscription จะจัดการ + return true
+      const invoice = event.data.object as Stripe.Invoice;
+      const handledStt = await handleSttInvoicePaid(admin, stripe, invoice, event.id);
+      if (!handledStt) resolvedOrgId = await handleInvoicePaymentSucceeded(admin, stripe, invoice);
     } else if (event.type === 'invoice.payment_failed') {
       resolvedOrgId = await handleInvoicePaymentFailed(admin, stripe, event.data.object as Stripe.Invoice);
     } else if (event.type === 'customer.subscription.updated') {
-      resolvedOrgId = await handleSubscriptionUpdated(admin, event.data.object as Stripe.Subscription);
+      const sub = event.data.object as Stripe.Subscription;
+      const handledStt = await handleSttSubscriptionEvent(admin, sub);
+      if (!handledStt) resolvedOrgId = await handleSubscriptionUpdated(admin, sub);
     } else if (event.type === 'customer.subscription.deleted') {
-      resolvedOrgId = await handleSubscriptionDeleted(admin, event.data.object as Stripe.Subscription);
+      const sub = event.data.object as Stripe.Subscription;
+      const handledStt = await handleSttSubscriptionEvent(admin, sub);
+      if (!handledStt) resolvedOrgId = await handleSubscriptionDeleted(admin, sub);
     }
   } catch {
     return NextResponse.json({ error: 'processing_error' }, { status: 500 });
