@@ -5,7 +5,6 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
-import { CustomSelect } from '@/components/ui/custom-select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import {
   Mic, UploadCloud, RefreshCw, FileAudio, Loader2, X, ArrowLeft,
@@ -59,10 +58,7 @@ function resolveMime(f: File): string {
   return EXT_MIME[ext] ?? 'application/octet-stream';
 }
 
-const MODEL_OPTIONS = [
-  { value: 'gemini-2.5-flash', label: 'เร็ว — Gemini 2.5 Flash' },
-  { value: 'gemini-2.5-pro', label: 'แม่นยำ — Gemini 2.5 Pro' },
-];
+const STT_MODEL = 'gemini-2.5-flash';
 
 const STATUS_BADGE: Record<string, string> = {
   pending: 'bg-amber-50 text-amber-700 border-amber-200',
@@ -116,7 +112,6 @@ export default function AssistantTranscribePage() {
 
   // upload state
   const [file, setFile] = useState<File | null>(null);
-  const [model, setModel] = useState('gemini-2.5-flash');
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -197,7 +192,7 @@ export default function AssistantTranscribePage() {
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({
           orgId, audioUrl: path, fileName: file.name,
-          mimeType, model, fileSize: file.size,
+          mimeType, model: STT_MODEL, fileSize: file.size,
         }),
       });
       if (!jobRes.ok) {
@@ -349,11 +344,7 @@ export default function AssistantTranscribePage() {
           )}
         </div>
 
-        <div className="mt-4 flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-gray-500">โมเดล:</span>
-            <CustomSelect value={model} onChange={setModel} options={MODEL_OPTIONS} className="w-56" />
-          </div>
+        <div className="mt-4 flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-end">
           <Button disabled={!file || uploading} onClick={handleStart}>
             {uploading
               ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> กำลังอัปโหลด…</>

@@ -32,7 +32,8 @@ export type TranscriptResult = {
   recommendations: string[]; // ข้อเสนอแนะจาก AI ต่อประเด็นในที่ประชุม
 };
 
-const ALLOWED_MODELS = ['gemini-2.5-flash', 'gemini-2.5-pro'] as const;
+// ใช้ flash อย่างเดียวก่อน (pro = paid-tier quota สูง/แพง) — model อื่นจะถูก fallback เป็น flash
+const ALLOWED_MODELS = ['gemini-2.5-flash'] as const;
 const DEFAULT_MODEL = 'gemini-2.5-flash';
 
 const BUCKET = 'assistant_audio';

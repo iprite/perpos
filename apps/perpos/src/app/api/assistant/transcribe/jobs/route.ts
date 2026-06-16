@@ -15,7 +15,7 @@ import { requireModuleMember } from '../../../_lib/module-auth';
 import { createAdminClient } from '../../../_lib/supabase';
 import { ok, created, Err } from '../../../_lib/response';
 
-const ALLOWED_MODELS = ['gemini-2.5-flash', 'gemini-2.5-pro'];
+const ALLOWED_MODELS = ['gemini-2.5-flash'];
 const MAX_FILE_BYTES = 200 * 1024 * 1024; // 200MB — ต้องตรงกับ file_size_limit ของ bucket
 
 // ── GET: ดึงสถานะหรือรายการงานแกะเสียง ─────────────────────────────────────────
