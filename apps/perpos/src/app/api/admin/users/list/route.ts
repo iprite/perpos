@@ -18,13 +18,18 @@ export async function GET(req: NextRequest) {
 
   const { data: profiles, error } = await admin
     .from('profiles')
-    .select('id, display_name, email, role, is_active, line_user_id, line_picture_url, created_at')
+    .select('id, display_name, email, role, is_active, line_user_id, line_picture_url, personal_org_id, created_at')
     .order('created_at', { ascending: false })
     .limit(1000);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   const rows = profiles ?? [];
   const ids = rows.map((p) => p.id as string);
+
+  // personal/home org ของผู้ช่วย AI (B2C) — ไม่นับเป็นองค์กร Biz (ERP)
+  const personalOrgIds = new Set(
+    rows.map((p) => p.personal_org_id as string | null).filter((v): v is string => !!v),
+  );
 
   // ── รูปโปรไฟล์ LINE — backfill ที่ยังไม่มี (ผู้ใช้เก่าก่อนเก็บรูป) ────────────
   const pictureById = new Map<string, string | null>();
@@ -68,10 +73,12 @@ export async function GET(req: NextRequest) {
 
   const orgsByUser = new Map<string, { orgId: string; orgName: string; role: string }[]>();
   for (const m of (membersRes.data ?? []) as Record<string, unknown>[]) {
+    const orgId = String(m.organization_id);
+    if (personalOrgIds.has(orgId)) continue; // home org ของผู้ช่วย AI — ไม่ใช่องค์กร Biz
     const uid = String(m.user_id);
     const list = orgsByUser.get(uid) ?? [];
     list.push({
-      orgId: String(m.organization_id),
+      orgId,
       orgName: String((m.organizations as Record<string, unknown>)?.name ?? ''),
       role: String(m.role),
     });
@@ -107,5 +114,8 @@ export async function GET(req: NextRequest) {
     };
   });
 
-  return NextResponse.json({ ok: true, items, allOrgs: orgsRes.data ?? [] });
+  // ตัด personal/home org ออกจากตัวเลือก "เพิ่มองค์กร" — เหลือเฉพาะองค์กร Biz จริง
+  const allOrgs = (orgsRes.data ?? []).filter((o) => !personalOrgIds.has(String((o as { id: string }).id)));
+
+  return NextResponse.json({ ok: true, items, allOrgs });
 }

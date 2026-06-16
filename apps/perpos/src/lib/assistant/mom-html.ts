@@ -89,8 +89,14 @@ export function buildMomHtml(tj: MomJson, dateText: string): string {
   .meta .r { display: flex; margin: 1px 0; }
   .meta .l { color: #6b7280; width: 70px; flex: none; }
 
-  /* ── Section = ตารางหัวข้อซ้ำได้ (หัวข้อ repeat เมื่อเนื้อหาตัดข้ามหน้า) ── */
-  table.sec, table.ai { width: 100%; border-collapse: collapse; margin-bottom: 18px; break-inside: auto; }
+  /* ── Section ── */
+  table.sec, table.ai { width: 100%; border-collapse: collapse; margin-bottom: 18px; }
+  /* section ข้อความ = เป็นก้อนเดียว: ถ้าไม่พอในหน้า → ยกทั้ง section ไปขึ้นหน้าใหม่
+     (break-inside: avoid). เฉพาะ section ที่ยาวเกิน 1 หน้าจริง ๆ จึงจะถูกบังคับตัด
+     แล้ว thead จะ repeat เป็น fallback */
+  table.sec { break-inside: avoid; }
+  /* ตาราง Action Items = ข้อมูลที่ยาวข้ามหน้าได้ตามปกติ + หัวข้อ/หัวคอลัมน์ซ้ำทุกหน้า */
+  table.ai { break-inside: auto; }
   table.sec > thead, table.ai > thead { display: table-header-group; }
   /* หัวข้อ section (thead) — สไตล์เดียวกับ h2 เดิม, ซ้ำทุกหน้า, ห้าม orphan */
   table.sec > thead > tr > th {
