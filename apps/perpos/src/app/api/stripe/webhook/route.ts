@@ -367,6 +367,10 @@ async function handleSttSubscriptionEvent(admin: ReturnType<typeof createAdminCl
   if (!profileId) return false; // ไม่ใช่ STT
   const planId = asString(sub.metadata?.plan_id) || row?.plan_id || null;
   await upsertSttSub(admin, profileId, planId, asString(sub.customer), sub);
+  // subscription จบ (ยกเลิก/ค้างชำระ) → ล้างโควต้าแผนที่เหลือ (ไม่ให้ 300 นาทีค้างถาวรเกิน 30 วัน)
+  if (['canceled', 'unpaid', 'incomplete_expired'].includes(String(sub.status))) {
+    await admin.rpc('expire_stt_plan', { p_profile_id: profileId });
+  }
   return true;
 }
 

@@ -145,7 +145,8 @@ export default function TranscribeBillingPage() {
 
           {/* Subscriptions */}
           <div>
-            <h2 className="mb-3 text-lg font-semibold text-gray-900">แพ็กเกจรายเดือน</h2>
+            <h2 className="text-lg font-semibold text-gray-900">แพ็กเกจรายเดือน</h2>
+            <p className="mb-3 mt-0.5 text-sm text-gray-500">ตัดบัตรอัตโนมัติทุก 30 วัน · นาทีรีเซ็ตทุกรอบ (ใช้ไม่หมดไม่สะสม) · ยกเลิกได้ทุกเมื่อ ไม่มีคืนเงิน</p>
             <div className="grid gap-4 sm:grid-cols-2">
               {subscriptions.map((p, i) => (
                 <div key={p.id} className={`rounded-2xl border bg-white p-6 shadow-sm ${i === 0 ? 'border-indigo-300 ring-1 ring-indigo-100' : 'border-gray-100'}`}>
@@ -165,7 +166,8 @@ export default function TranscribeBillingPage() {
             </div>
           </div>
 
-          {/* Top-ups */}
+          {/* Top-ups — แสดงเฉพาะเมื่อมีแพ็ก topup ที่เปิดขาย (ปัจจุบันปิด — subscription อย่างเดียว) */}
+          {topups.length > 0 && (
           <div>
             <h2 className="mb-1 text-lg font-semibold text-gray-900">เติมนาที (จ่ายครั้งเดียว)</h2>
             <p className="mb-3 text-sm text-gray-500">นาทีที่เติมไม่หมดอายุ สะสมข้ามรอบได้</p>
@@ -183,6 +185,7 @@ export default function TranscribeBillingPage() {
               ))}
             </div>
           </div>
+          )}
 
           <p className="flex items-center gap-1.5 text-xs text-gray-400">
             <Check className="h-3.5 w-3.5 text-green-500" /> ชำระผ่าน Stripe ปลอดภัย · เราไม่นำข้อมูลเสียงไปฝึกโมเดล AI
