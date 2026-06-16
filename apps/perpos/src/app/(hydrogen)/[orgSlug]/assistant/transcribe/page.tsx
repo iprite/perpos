@@ -439,12 +439,12 @@ export default function AssistantTranscribePage() {
 
       {/* Result dialog */}
       <Dialog open={!!activeJob} onOpenChange={(o) => { if (!o) setActiveJob(null); }}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
+        <DialogContent className="flex max-h-[85vh] w-[calc(100vw-1.5rem)] max-w-2xl flex-col gap-0 overflow-hidden p-0 sm:w-full">
+          <DialogHeader className="shrink-0 border-b border-gray-100 px-4 pb-3 pr-10 pt-4 sm:px-6 sm:pr-12">
             <DialogTitle className="flex items-start gap-2">
               <FileAudio className="mt-0.5 h-5 w-5 shrink-0 text-indigo-600" />
               <span className="min-w-0">
-                <span className="block truncate">{activeJob?.transcript_json?.meeting_title || activeJob?.file_name}</span>
+                <span className="block truncate text-base">{activeJob?.transcript_json?.meeting_title || activeJob?.file_name}</span>
                 {activeJob?.transcript_json?.meeting_title ? (
                   <span className="block truncate text-xs font-normal text-gray-400">{activeJob.file_name}</span>
                 ) : null}
@@ -452,6 +452,7 @@ export default function AssistantTranscribePage() {
             </DialogTitle>
           </DialogHeader>
 
+          <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6">
           {activeJob?.transcript_json ? (
             <div className="space-y-4">
               <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-gray-500">
@@ -555,15 +556,16 @@ export default function AssistantTranscribePage() {
           ) : (
             <p className="py-8 text-center text-sm text-gray-500">ไม่มีข้อมูลสรุป</p>
           )}
+          </div>
 
-          <DialogFooter className="gap-2 sm:gap-2">
-            <Button variant="outline" onClick={copyTranscript}>
+          <DialogFooter className="shrink-0 gap-2 border-t border-gray-100 px-4 py-3 sm:gap-2 sm:px-6">
+            <Button variant="outline" onClick={copyTranscript} className="sm:w-auto">
               {copied ? <><Check className="mr-2 h-4 w-4 text-green-600" /> คัดลอกแล้ว</> : <><Copy className="mr-2 h-4 w-4" /> คัดลอก</>}
             </Button>
-            <Button variant="outline" onClick={downloadTranscript}>
+            <Button variant="outline" onClick={downloadTranscript} className="sm:w-auto">
               <Download className="mr-2 h-4 w-4" /> .txt
             </Button>
-            <Button onClick={downloadMomPdf} disabled={pdfBusy}>
+            <Button onClick={downloadMomPdf} disabled={pdfBusy} className="sm:w-auto">
               {pdfBusy
                 ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> กำลังสร้าง…</>
                 : <><Download className="mr-2 h-4 w-4" /> ดาวน์โหลด MoM (PDF)</>}
