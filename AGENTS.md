@@ -166,9 +166,14 @@ pnpm build
 
 **หมายเหตุ:** Admin role ข้ามการเช็ค permission ทั้งหมด
 
-**Auto-onboarding (LINE-first):** เมื่อมี `follow` event (แอด OA) → `provisionLineUser` ([api/line/_provision.ts](apps/perpos/src/app/api/line/_provision.ts)) สร้าง shadow auth user (email `line.<id>@stt-line.perpos.io`) → trigger สร้าง profile → personal org + member(owner) + **module `assistant` และ `stt`** (org_module_settings + personal_module_grants + module_members ครบทั้ง 3 ตารางต่อ module) + stt_quota(300นาที = trial) + line_active_org_id → push welcome Flex. idempotent ต่อ `line_user_id` (re-follow ไม่สร้างซ้ำ). ผู้ใช้พิมพ์ `/mom` ได้ทันทีโดยไม่ต้องสมัครเว็บ
+**Auto-onboarding (LINE-first / B2C):** เมื่อมี `follow` event (แอด OA) → `provisionLineUser` ([api/line/_provision.ts](apps/perpos/src/app/api/line/_provision.ts)) สร้าง shadow auth user (email `line.<id>@stt-line.perpos.io`) → trigger สร้าง profile → personal org + member(owner) + **module `stt` เท่านั้น** (org_module_settings + personal_module_grants + module_members ครบ 3 ตาราง) + stt_quota(300นาที = trial) + line_active_org_id → push welcome Flex (เน้น STT). idempotent ต่อ `line_user_id`. ผู้ใช้พิมพ์ `/mom` ได้ทันทีโดยไม่ต้องสมัครเว็บ — **ไม่แจก `assistant`/โมดูล B2B ใด ๆ**
 
-**โมดูล `assistant` vs `stt` (แยกกัน):** `assistant` = ผู้ช่วยฟรีระดับ org (task/calendar/finance/news — คำสั่ง `/t /tk /d /a /ap /นัด ฯลฯ`, gate ด้วย `checkAssistantAccess` / `bot.assistant.tasks` / grant `assistant`). `stt` = แกะเสียง→MoM ระดับบุคคล มี **subscription แยก** (`/mom`, หน้าเว็บ `/{org}/assistant/transcribe/*`, gate ด้วย `checkSttAccess` / `bot.assistant.transcribe` / grant `stt` + `requireModuleMember(orgId,'stt')`). ด่านเก็บเงินจริงคือ `stt_quota` ที่ stt-worker — trial 300 นาทีหมดต้อง subscribe (฿99/เดือน). ทั้งสอง module อยู่ใต้ URL `/{org}/assistant/...` แต่แยก menu context ด้วย segment `transcribe`
+**โมเดล B2B vs B2C:**
+- **B2C = `stt`** (แกะเสียง→MoM) — ระดับบุคคล, subscription แยก (฿99/เดือน, trial 300 นาที), per-profile quota, gate ด้วย `checkSttAccess` / `bot.assistant.transcribe` / grant `stt` + `requireModuleMember(orgId,'stt')`. ทำงานข้าม org ได้เสมอ (ไม่ผูก active org). ด่านเก็บเงินจริง = `stt_quota` ที่ stt-worker. **ทุกคนที่แอด LINE ได้ B2C นี้อัตโนมัติ**
+- **B2B = shared modules (accounting/payroll) + tailor-made (tmc/crm/acc_firm/…) + `assistant`** — ระดับ org, **superadmin เปิดให้ต่อ org เท่านั้น** (`admin/modules` = `requireAdmin` = role `super_admin`). ไม่มี self-serve. `assistant` = task/calendar/finance/news (`/t /tk /d /a /ap /นัด`), gate `checkAssistantAccess` / `bot.assistant.tasks` / grant `assistant`
+- **สลับ org บน LINE:** `/org` (ดูรายการ) + `/org <N>` (เปลี่ยน `line_active_org_id`) — ผู้ใช้ที่ superadmin เปิดหลาย org สลับไปใช้คำสั่งของ org นั้น ๆ ได้ (TMC/CRM commands route ตาม active org). STT ใช้ได้ทุก org เพราะเป็น per-profile
+- **personal org** (auto-provision, name `พื้นที่ส่วนตัว…` / slug `u<10>`) = มีแค่ `stt` เท่านั้น (migration `strip_assistant_from_personal_orgs` ถอด assistant ออกแล้ว)
+- `stt` URL อยู่ใต้ `/{org}/assistant/transcribe/*` แต่แยก menu context จาก `assistant` ด้วย segment `transcribe`
 
 ---
 
