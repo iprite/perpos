@@ -635,6 +635,11 @@ async function measureDuration(bytes: Buffer, _mimeType: string): Promise<number
   const iso = isoBmffDurationSeconds(bytes);
   if (iso && iso > 0) return Math.ceil(iso);
 
+  // fallback: Ogg (Opus/Vorbis) — LINE voice message + ไฟล์ .ogg ที่ music-metadata
+  // อ่าน duration ไม่ออก คำนวณจาก granule position ของ page สุดท้ายเอง
+  const ogg = oggDurationSeconds(bytes);
+  if (ogg && ogg > 0) return Math.ceil(ogg);
+
   console.warn(`[stt-worker] measureDuration failed: ${parseErr}`);
   throw new UserFacingError(
     'อ่านความยาวไฟล์ไม่ได้ — ไฟล์อาจเสียหรือไม่รองรับ กรุณาแปลงเป็นไฟล์เสียง (mp3 หรือ m4a) แล้วส่งใหม่อีกครั้ง',
@@ -686,6 +691,52 @@ function isoBmffDurationSeconds(buf: Buffer): number | null {
     }
     if (!timescale || !duration || duration === 0xffffffff) return null;
     return duration / timescale;
+  } catch {
+    return null;
+  }
+}
+
+// ── Ogg (Opus/Vorbis) duration จาก granule position — pure JS (ไม่ต้อง ffmpeg) ──
+// ใช้เป็น fallback เมื่อ music-metadata อ่าน .ogg ไม่ออก (LINE voice message ก็เป็น Ogg/Opus)
+// Opus: granule rate = 48000 เสมอ, หัก pre-skip · Vorbis: อ่าน sample rate จาก ID header
+function oggDurationSeconds(buf: Buffer): number | null {
+  try {
+    if (buf.length < 4 || buf.toString('latin1', 0, 4) !== 'OggS') return null;
+
+    // sample rate + pre-skip จาก header page แรก
+    let granuleRate = 48000; // default = Opus
+    let preSkip = 0;
+    const opusIdx = buf.indexOf('OpusHead', 0, 'latin1');
+    if (opusIdx >= 0 && opusIdx + 12 <= buf.length) {
+      // "OpusHead"(8) + version(1) + channels(1) → pre_skip(2 LE) @+10
+      preSkip = buf.readUInt16LE(opusIdx + 10);
+      granuleRate = 48000;
+    } else {
+      const vorbisIdx = buf.indexOf('\x01vorbis', 0, 'latin1');
+      if (vorbisIdx >= 0 && vorbisIdx + 16 <= buf.length) {
+        // "\x01vorbis"(7) + version(4) + channels(1) → sample_rate(4 LE) @+12
+        granuleRate = buf.readUInt32LE(vorbisIdx + 12);
+      }
+    }
+    if (!granuleRate || granuleRate <= 0) return null;
+
+    // granule position ของ page สุดท้ายที่ valid (ไล่จากท้ายไฟล์; page สุดท้ายอยู่ใกล้ EOF)
+    const scanStart = Math.max(0, buf.length - 1_000_000);
+    let lastGranule = -1;
+    for (let off = buf.length - 14; off >= scanStart; off--) {
+      if (buf[off] === 0x4f && buf[off + 1] === 0x67 && buf[off + 2] === 0x67 && buf[off + 3] === 0x53) {
+        const lo = buf.readUInt32LE(off + 6);
+        const hi = buf.readUInt32LE(off + 10);
+        if (lo === 0xffffffff && hi === 0xffffffff) continue; // granule -1 (page ไม่จบ packet)
+        lastGranule = hi * 2 ** 32 + lo;
+        break;
+      }
+    }
+    if (lastGranule < 0) return null;
+
+    const samples = Math.max(0, lastGranule - preSkip);
+    const dur = samples / granuleRate;
+    return dur > 0 ? dur : null;
   } catch {
     return null;
   }

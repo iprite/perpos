@@ -14,6 +14,32 @@ import { sendLineMessages } from '@/lib/line/send-messages';
 
 const BUCKET = 'assistant_audio';
 
+// Flex card แจ้งงานล้มเหลว (แทน text เดิม) — reason = ข้อความที่เป็นมิตรจาก worker ถ้ามี
+function buildFailFlex(reason: string) {
+  const detail = reason && !reason.startsWith('quota_exceeded')
+    ? reason
+    : 'ขออภัย ไม่สามารถถอดเสียงไฟล์นี้ได้';
+  return {
+    type: 'flex' as const,
+    altText: `ถอดเสียงไม่สำเร็จ — ${detail}`.slice(0, 380),
+    contents: {
+      type: 'bubble',
+      header: {
+        type: 'box', layout: 'vertical', backgroundColor: '#dc2626', paddingAll: '14px',
+        contents: [{ type: 'text', text: '❌ ถอดเสียงไม่สำเร็จ', color: '#ffffff', weight: 'bold', size: 'md' }],
+      },
+      body: {
+        type: 'box', layout: 'vertical', spacing: 'sm', paddingAll: '18px',
+        contents: [
+          { type: 'text', text: detail, size: 'sm', wrap: true, color: '#374151' },
+          { type: 'separator', margin: 'md' },
+          { type: 'text', text: 'พิมพ์ /mom แล้วส่งไฟล์ใหม่อีกครั้งได้เลยครับ 🙏', size: 'xs', wrap: true, color: '#94a3b8', margin: 'md' },
+        ],
+      },
+    },
+  };
+}
+
 export async function POST(req: NextRequest) {
   const required = (process.env.WORKER_SECRET ?? '').trim();
   const got = (req.headers.get('x-worker-secret') ?? '').trim();
@@ -42,27 +68,21 @@ export async function POST(req: NextRequest) {
   const lineUserId = (profile as { line_user_id?: string } | null)?.line_user_id;
   if (!lineUserId) return ok({ skipped: 'no line_user_id' });
 
-  // งานล้มเหลว → แจ้ง text (ใช้ error_message ที่เป็นมิตรจาก worker ถ้ามี ไม่งั้น generic)
+  // งานล้มเหลว → แจ้งด้วย Flex card (ใช้ error_message ที่เป็นมิตรจาก worker ถ้ามี)
   if (job.status !== 'completed' || !job.transcript_json) {
     const reason = String(job.error_message ?? '').trim();
-    const failText = reason
-      ? `❌ ${reason}\n(พิมพ์ /mom เพื่อส่งไฟล์ใหม่)`
-      : '❌ ขออภัย ถอดเสียงไม่สำเร็จ กรุณาลองส่งไฟล์ใหม่อีกครั้ง (พิมพ์ /mom)';
-    await sendLineMessages({
-      to: lineUserId,
-      messages: [{ type: 'text', text: failText }],
-    });
+    await sendLineMessages({ to: lineUserId, messages: [buildFailFlex(reason)] });
     return ok({ delivered: 'error_notice' });
   }
 
   const renderUrl = process.env.PDF_RENDER_URL;
   const renderSecret = process.env.PDF_SERVICE_SECRET;
 
-  // ถ้าสร้าง PDF ไม่สำเร็จด้วยเหตุใด ๆ → แจ้งผู้ใช้ทาง LINE แล้วค่อย return error
+  // ถ้าสร้าง PDF ไม่สำเร็จด้วยเหตุใด ๆ → แจ้งผู้ใช้ทาง LINE (Flex) แล้วค่อย return error
   const failToLine = async (reason: string) => {
     await sendLineMessages({
       to: lineUserId,
-      messages: [{ type: 'text', text: '❌ ขออภัย สร้างไฟล์ PDF รายงานการประชุมไม่สำเร็จ กรุณาลองใหม่ภายหลัง' }],
+      messages: [buildFailFlex('สร้างไฟล์ PDF รายงานการประชุมไม่สำเร็จ กรุณาลองใหม่ภายหลัง')],
     }).catch(() => undefined);
     return Err.externalService('mom-pdf', reason);
   };
