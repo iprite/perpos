@@ -98,12 +98,14 @@ async function run(req: NextRequest) {
   }
 
   // 4. Stuck STT jobs — งานถอดเสียงค้าง 'processing' (worker สะดุด/ตาย) → mark failed +
-  //    แจ้ง LINE user (ไม่งั้นเงียบหายไม่รู้ว่าพัง). threshold แบบ adaptive ตามความยาวไฟล์:
-  //      max(10 นาที, duration_seconds × 3)  · cap 75 นาที (Cloud Run timeout = 60 นาที)
-  //      · duration ยังไม่รู้ (worker ยังไม่วัด) → fallback 30 นาที
-  //    ไฟล์สั้นไม่ต้องรอนาน (แจ้งเร็ว) ไฟล์ยาวให้เวลามากขึ้น กัน false-positive
+  //    แจ้ง LINE user (ไม่งั้นเงียบหายไม่รู้ว่าพัง). threshold แบบ adaptive + เพดาน 60 นาที
+  //    (= Cloud Run timeout — เกินนี้ instance ตายแน่ ไม่ต้องรอ):
+  //      • duration รู้แล้ว = กำลังประมวลผล Gemini จริง → max(10 นาที, duration ÷ 3)
+  //          (ไฟล์ 60 นาที → ~20 นาที; Gemini เร็วกว่า realtime จึงไม่ควรเกินนี้)
+  //      • duration ยังเป็น null = worker ยังไม่เริ่ม/ยังไม่ได้วัด — อาจ "ติดคิว" ตอน request
+  //          เข้าเยอะ (Cloud Run concurrency จำกัด) → ให้เวลาเต็มเพดาน 60 นาที กัน false-fail
   //    candidate = processing ที่ค้างเกิน 10 นาที (ขั้นต่ำ) แล้วค่อยกรอง threshold ราย job
-  const MIN_S = 10 * 60, CAP_S = 75 * 60, UNKNOWN_S = 30 * 60;
+  const MIN_S = 10 * 60, MAX_S = 60 * 60;
   const tenMinAgo = new Date(now.getTime() - MIN_S * 1000).toISOString();
   const { data: processingJobs } = await admin
     .from('transcription_jobs')
@@ -113,7 +115,7 @@ async function run(req: NextRequest) {
 
   for (const j of (processingJobs ?? []) as Record<string, unknown>[]) {
     const dur = j.duration_seconds == null ? null : Number(j.duration_seconds);
-    const thresholdS = dur && dur > 0 ? Math.min(CAP_S, Math.max(MIN_S, dur * 3)) : UNKNOWN_S;
+    const thresholdS = dur && dur > 0 ? Math.min(MAX_S, Math.max(MIN_S, Math.round(dur / 3))) : MAX_S;
     const ageS = (now.getTime() - new Date(j.updated_at as string).getTime()) / 1000;
     if (ageS < thresholdS) continue;
 
