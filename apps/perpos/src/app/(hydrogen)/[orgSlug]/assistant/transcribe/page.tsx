@@ -7,8 +7,8 @@ import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import {
-  Mic, UploadCloud, RefreshCw, FileAudio, Loader2, X, ArrowLeft,
-  Copy, Check, Download, AlertCircle, Play, Sparkles, BarChart3,
+  Mic, UploadCloud, FileAudio, Loader2, X,
+  Copy, Check, Download, AlertCircle, Play, Sparkles,
   Clock, Eye, CheckCircle2, Hourglass, Timer,
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
@@ -335,29 +335,14 @@ export default function AssistantTranscribePage() {
   return (
     <div className="w-full px-4 py-6 lg:px-8">
       {/* Header */}
-      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-3">
-          <Link href={`/${orgSlug}/assistant`}>
-            <Button variant="ghost" size="icon" aria-label="ย้อนกลับ"><ArrowLeft className="h-5 w-5" /></Button>
-          </Link>
-          <div>
-            <h1 className="flex items-center gap-2 text-2xl font-semibold text-gray-900">
-              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
-                <Mic className="h-5 w-5" />
-              </span>
-              ถอดเสียงเป็นข้อความ
-            </h1>
-            <p className="mt-0.5 text-sm text-gray-500">อัปโหลดไฟล์เสียง/วิดีโอ ระบบจะถอดเป็นรายงานการประชุม (MoM) พร้อมแยกผู้พูด</p>
-          </div>
-        </div>
-        <div className="flex gap-2">
-          <Link href={`/${orgSlug}/assistant/transcribe/stats`}>
-            <Button variant="outline" size="sm"><BarChart3 className="mr-2 h-4 w-4" /> สถิติ</Button>
-          </Link>
-          <Button variant="outline" size="sm" disabled={!orgId} onClick={() => { fetchJobs(orgId, token); fetchQuota(orgId, token); }}>
-            <RefreshCw className="mr-2 h-4 w-4" /> รีเฟรช
-          </Button>
-        </div>
+      <div className="mb-6">
+        <h1 className="flex items-center gap-2.5 text-2xl font-semibold text-gray-900">
+          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
+            <Mic className="h-5 w-5" />
+          </span>
+          ถอดเสียงเป็นข้อความ
+        </h1>
+        <p className="mt-1 text-sm text-gray-500">อัปโหลดไฟล์เสียง/วิดีโอ ระบบจะถอดเป็นรายงานการประชุม (MoM) พร้อมแยกผู้พูด</p>
       </div>
 
       {/* KPI dashboard */}

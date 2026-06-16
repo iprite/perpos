@@ -4,8 +4,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
-import { Button } from '@/components/ui/button';
-import { ArrowLeft, BarChart3, Clock, CheckCircle2, FileAudio, Loader2 } from 'lucide-react';
+import { BarChart3, Clock, CheckCircle2, FileAudio, Loader2, Globe, MessageCircle, Sparkles } from 'lucide-react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 
 type Stats = {
@@ -50,16 +49,19 @@ export default function MyStatsPage() {
 
   const remMin = stats ? Math.floor(stats.quota.remaining_seconds / 60) : 0;
   const limMin = stats ? Math.floor(stats.quota.limit_seconds / 60) : 0;
+  const usedPct = stats && stats.quota.limit_seconds
+    ? Math.min(100, (stats.quota.used_seconds / stats.quota.limit_seconds) * 100) : 0;
 
   return (
-    <div className="mx-auto max-w-4xl px-4 py-6 sm:px-6">
-      <div className="mb-6 flex items-center gap-3">
-        <Link href={`/${orgSlug}/assistant/transcribe`}>
-          <Button variant="ghost" size="icon" aria-label="ย้อนกลับ"><ArrowLeft className="h-5 w-5" /></Button>
-        </Link>
-        <h1 className="flex items-center gap-2 text-2xl font-semibold text-gray-900">
-          <BarChart3 className="h-6 w-6 text-indigo-600" /> สถิติการใช้งานของฉัน
+    <div className="w-full px-4 py-6 lg:px-8">
+      <div className="mb-6">
+        <h1 className="flex items-center gap-2.5 text-2xl font-semibold text-gray-900">
+          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
+            <BarChart3 className="h-5 w-5" />
+          </span>
+          การใช้งาน
         </h1>
+        <p className="mt-1 text-sm text-gray-500">ภาพรวมการใช้โควต้าและสถิติการถอดเสียงของคุณ</p>
       </div>
 
       {loading ? (
@@ -68,36 +70,60 @@ export default function MyStatsPage() {
         <p className="py-10 text-center text-sm text-gray-400">โหลดข้อมูลไม่สำเร็จ</p>
       ) : (
         <div className="space-y-6">
-          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+          {/* KPI */}
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             <Card icon={<Clock className="h-5 w-5" />} label="โควต้าคงเหลือ" value={`${remMin} นาที`} sub={`จาก ${limMin} นาที`} accent="bg-indigo-50 text-indigo-600" />
             <Card icon={<CheckCircle2 className="h-5 w-5" />} label="ประชุมที่ถอดสำเร็จ" value={String(stats.totals.completed)} accent="bg-green-50 text-green-600" />
             <Card icon={<Clock className="h-5 w-5" />} label="นาทีที่ใช้ไป" value={String(stats.totals.minutes)} accent="bg-amber-50 text-amber-600" />
             <Card icon={<FileAudio className="h-5 w-5" />} label="งานทั้งหมด" value={String(stats.totals.jobs)} sub={`ล้มเหลว ${stats.totals.failed}`} accent="bg-purple-50 text-purple-600" />
           </div>
 
+          {/* โควต้า progress */}
           <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
-            <h3 className="mb-4 text-sm font-semibold text-gray-700">นาทีที่ใช้ — 30 วันล่าสุด</h3>
-            <ResponsiveContainer width="100%" height={240}>
-              <BarChart data={stats.daily} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-                <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#9ca3af' }} tickFormatter={(d) => String(d).slice(5)} interval={4} />
-                <YAxis tick={{ fontSize: 10, fill: '#9ca3af' }} allowDecimals={false} />
-                <Tooltip labelFormatter={(d) => `วันที่ ${d}`} formatter={(v: number) => [`${v} นาที`, 'ใช้ไป']} />
-                <Bar dataKey="minutes" fill="#533afd" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h3 className="text-sm font-semibold text-gray-700">โควต้าเดือนนี้</h3>
+              <Link href={`/${orgSlug}/assistant/transcribe/billing`} className="inline-flex items-center gap-1 text-xs font-medium text-indigo-600 hover:text-indigo-700">
+                <Sparkles className="h-3.5 w-3.5" /> ซื้อนาทีเพิ่ม
+              </Link>
+            </div>
+            <div className="mt-3 flex items-end justify-between text-sm">
+              <span className="text-gray-500">ใช้ไป <span className="font-semibold tabular-nums text-gray-900">{Math.floor(stats.quota.used_seconds / 60)}</span> นาที</span>
+              <span className={remMin <= 0 ? 'font-semibold text-red-600' : 'font-semibold text-gray-900'}>เหลือ {remMin} / {limMin} นาที</span>
+            </div>
+            <div className="mt-2 h-2.5 w-full overflow-hidden rounded-full bg-gray-100">
+              <div className={`h-full rounded-full ${remMin <= 0 ? 'bg-red-500' : 'bg-indigo-500'}`} style={{ width: `${usedPct}%` }} />
+            </div>
           </div>
 
-          <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
-            <h3 className="mb-3 text-sm font-semibold text-gray-700">แยกตามช่องทาง</h3>
-            <div className="grid grid-cols-2 gap-4">
-              {([['เว็บ', stats.by_source.web], ['LINE', stats.by_source.line]] as const).map(([label, s]) => (
-                <div key={label} className="rounded-xl border border-gray-100 bg-gray-50 p-4">
-                  <div className="text-sm text-gray-500">{label}</div>
-                  <div className="mt-1 text-xl font-bold text-gray-900">{s.minutes} นาที</div>
-                  <div className="text-xs text-gray-400">{s.jobs} งาน</div>
-                </div>
-              ))}
+          {/* Chart + ช่องทาง (desktop side-by-side) */}
+          <div className="grid gap-6 lg:grid-cols-3">
+            <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm lg:col-span-2">
+              <h3 className="mb-4 text-sm font-semibold text-gray-700">นาทีที่ใช้ — 30 วันล่าสุด</h3>
+              <ResponsiveContainer width="100%" height={280}>
+                <BarChart data={stats.daily} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                  <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#9ca3af' }} tickFormatter={(d) => String(d).slice(5)} interval={4} />
+                  <YAxis tick={{ fontSize: 10, fill: '#9ca3af' }} allowDecimals={false} />
+                  <Tooltip labelFormatter={(d) => `วันที่ ${d}`} formatter={(v: number) => [`${v} นาที`, 'ใช้ไป']} />
+                  <Bar dataKey="minutes" fill="#533afd" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+
+            <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
+              <h3 className="mb-3 text-sm font-semibold text-gray-700">แยกตามช่องทาง</h3>
+              <div className="space-y-3">
+                {([['เว็บ', <Globe key="w" className="h-4 w-4" />, stats.by_source.web, 'bg-sky-50 text-sky-600'],
+                   ['LINE', <MessageCircle key="l" className="h-4 w-4" />, stats.by_source.line, 'bg-green-50 text-green-600']] as const).map(([label, icon, s, accent]) => (
+                  <div key={label} className="flex items-center gap-3 rounded-xl border border-gray-100 bg-gray-50 p-3">
+                    <span className={`flex h-9 w-9 items-center justify-center rounded-lg ${accent}`}>{icon}</span>
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium text-gray-900">{label}</div>
+                      <div className="text-xs text-gray-500">{s.minutes} นาที · {s.jobs} งาน</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </div>

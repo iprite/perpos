@@ -343,7 +343,8 @@ export const MODULE_MENUS: Record<string, MenuDef[]> = {
   ],
   stt: [
     { key: "transcribe", label: "ถอดเสียง" },
-    { key: "billing",    label: "ซื้อนาทีถอดเสียง" },
+    { key: "usage",      label: "การใช้งาน" },
+    { key: "billing",    label: "การชำระเงิน" },
   ],
   tmc: [
     { key: "dashboard",  label: "Dashboard" },

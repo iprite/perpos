@@ -374,9 +374,15 @@ function buildSttMenuItems(org: string, labels: Record<string, string> = {}): Me
       roles: allRoles,
     },
     {
-      name: l("billing", "ซื้อนาทีถอดเสียง"),
+      name: l("usage", "การใช้งาน"),
+      href: `/${org}/assistant/transcribe/stats`,
+      icon: <BarChart3 className="h-5 w-5" />,
+      roles: allRoles,
+    },
+    {
+      name: l("billing", "การชำระเงิน"),
       href: `/${org}/assistant/transcribe/billing`,
-      icon: <Sparkles className="h-5 w-5" />,
+      icon: <CreditCard className="h-5 w-5" />,
       roles: allRoles,
     },
   ];
