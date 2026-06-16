@@ -17,20 +17,20 @@ const ASSISTANT_ALLOWED_ROLES = ['owner', 'admin', 'member'];
 
 export type ProvisionResult = { profileId: string; orgId: string; displayName: string; isNew: boolean };
 
-async function getLineDisplayName(lineUserId: string): Promise<string> {
+async function getLineProfile(lineUserId: string): Promise<{ displayName: string; pictureUrl: string | null }> {
   const token = process.env.LINE_MESSAGING_CHANNEL_ACCESS_TOKEN ?? '';
   try {
     const res = await fetch(`https://api.line.me/v2/bot/profile/${lineUserId}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (res.ok) {
-      const j = (await res.json()) as { displayName?: string };
-      if (j.displayName) return j.displayName;
+      const j = (await res.json()) as { displayName?: string; pictureUrl?: string };
+      return { displayName: j.displayName || 'ผู้ใช้ LINE', pictureUrl: j.pictureUrl ?? null };
     }
   } catch {
     /* ignore */
   }
-  return 'ผู้ใช้ LINE';
+  return { displayName: 'ผู้ใช้ LINE', pictureUrl: null };
 }
 
 /** insert แถวเฉพาะเมื่อยังไม่มี (idempotent) — ใช้กับตาราง access ที่ provision ต้องมีครบ */
@@ -141,7 +141,8 @@ export async function provisionLineUser(admin: SupabaseClient, lineUserId: strin
     displayName = ex.display_name ?? 'ผู้ใช้ LINE';
     isNew = false;
   } else {
-    displayName = await getLineDisplayName(lineUserId);
+    const prof = await getLineProfile(lineUserId);
+    displayName = prof.displayName;
     const shadowEmail = `line.${lineUserId.toLowerCase()}@stt-line.perpos.io`;
     const { data: created, error: createErr } = await admin.auth.admin.createUser({
       email: shadowEmail,
@@ -154,7 +155,7 @@ export async function provisionLineUser(admin: SupabaseClient, lineUserId: strin
     profileId = created.user.id;
     await admin
       .from('profiles')
-      .update({ line_user_id: lineUserId, line_linked_at: new Date().toISOString(), display_name: displayName, is_active: true })
+      .update({ line_user_id: lineUserId, line_linked_at: new Date().toISOString(), display_name: displayName, line_picture_url: prof.pictureUrl, is_active: true })
       .eq('id', profileId);
     isNew = true;
   }

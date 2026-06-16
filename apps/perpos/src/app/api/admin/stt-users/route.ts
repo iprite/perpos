@@ -20,11 +20,35 @@ export async function GET(req: NextRequest) {
   const admin = createAdminClient();
   const { data: profiles, error } = await admin
     .from('profiles')
-    .select('id, display_name, email, is_active, created_at')
+    .select('id, display_name, email, is_active, created_at, line_user_id, line_picture_url')
     .not('line_user_id', 'is', null)
     .order('created_at', { ascending: false })
     .limit(500);
   if (error) return Err.dbError(error);
+
+  // backfill รูปโปรไฟล์ LINE ที่ยังไม่มี (ผู้ใช้เก่าที่ provision ก่อนเก็บรูป) — ดึงจาก LINE profile API ครั้งเดียวแล้ว cache ลง DB
+  const pictureById = new Map<string, string | null>();
+  for (const p of profiles ?? []) pictureById.set(p.id as string, (p.line_picture_url as string | null) ?? null);
+  const missing = (profiles ?? []).filter((p) => !p.line_picture_url && p.line_user_id).slice(0, 50);
+  if (missing.length) {
+    const token = process.env.LINE_MESSAGING_CHANNEL_ACCESS_TOKEN ?? '';
+    await Promise.all(
+      missing.map(async (p) => {
+        try {
+          const res = await fetch(`https://api.line.me/v2/bot/profile/${p.line_user_id}`, { headers: { Authorization: `Bearer ${token}` } });
+          if (!res.ok) return;
+          const j = (await res.json()) as { pictureUrl?: string };
+          const url = j.pictureUrl ?? null;
+          if (url) {
+            pictureById.set(p.id as string, url);
+            await admin.from('profiles').update({ line_picture_url: url }).eq('id', p.id as string);
+          }
+        } catch {
+          /* ignore — รูปไม่ใช่ของสำคัญ */
+        }
+      }),
+    );
+  }
 
   const ids = (profiles ?? []).map((p) => p.id as string);
   const quotaById = new Map<string, { limit_seconds: number; used_seconds: number }>();
@@ -41,6 +65,7 @@ export async function GET(req: NextRequest) {
     return {
       profile_id: p.id,
       display_name: p.display_name ?? 'ผู้ใช้ LINE',
+      picture_url: pictureById.get(p.id as string) ?? null,
       claimed: !email.endsWith(SHADOW_DOMAIN),
       email: email.endsWith(SHADOW_DOMAIN) ? null : email,
       is_active: p.is_active,

@@ -13,6 +13,7 @@ import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 type SttUser = {
   profile_id: string;
   display_name: string;
+  picture_url: string | null;
   claimed: boolean;
   email: string | null;
   is_active: boolean;
@@ -29,6 +30,27 @@ async function authToken(): Promise<string> {
 }
 
 const min = (s: number) => Math.floor(s / 60);
+
+function Avatar({ src, name }: { src: string | null; name: string }) {
+  const [failed, setFailed] = useState(false);
+  const letter = (name || 'L').charAt(0).toUpperCase();
+  if (src && !failed) {
+    return (
+      <img
+        src={src}
+        alt={name}
+        referrerPolicy="no-referrer"
+        onError={() => setFailed(true)}
+        className="h-10 w-10 shrink-0 rounded-full object-cover"
+      />
+    );
+  }
+  return (
+    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-indigo-50 text-sm font-semibold text-indigo-600">
+      {letter}
+    </div>
+  );
+}
 
 export default function SttUsersPage() {
   const [items, setItems] = useState<SttUser[]>([]);
@@ -118,9 +140,7 @@ export default function SttUsersPage() {
               >
                 {/* identity */}
                 <div className="flex min-w-0 items-center gap-3">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-indigo-50 text-sm font-semibold text-indigo-600">
-                    {(u.display_name || 'L').charAt(0).toUpperCase()}
-                  </div>
+                  <Avatar src={u.picture_url} name={u.display_name} />
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
                       <span className="truncate font-medium text-gray-900">{u.display_name}</span>
