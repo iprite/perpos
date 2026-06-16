@@ -1302,42 +1302,77 @@ async function handleMomAudio(
   }
 }
 
-// auto-onboarding เมื่อมี follow event → provision + welcome Flex
+// auto-onboarding เมื่อมี follow event → provision + welcome Flex (การ์ดต้อนรับสวย ๆ)
 async function handleFollow(admin: ReturnType<typeof createAdminClient>, lineUserId: string) {
   const result = await provisionLineUser(admin, lineUserId);
-  const greeting = result.isNew
-    ? `สวัสดีครับ คุณ${result.displayName} 🎉`
-    : `ยินดีต้อนรับกลับมาครับ คุณ${result.displayName} 🙌`;
-  const subText = result.isNew ? 'คุณได้รับโควต้าแกะเสียงฟรี 300 นาที' : 'พร้อมใช้งานได้เลย';
+  const name = result.displayName;
+  const greeting = result.isNew ? `ยินดีต้อนรับ คุณ${name} 🎉` : `ยินดีต้อนรับกลับมา คุณ${name} 🙌`;
+
+  // โควต้าคงเหลือ (ใหม่ = 300, กลับมา = ที่เหลือจริง)
+  const { data: q } = await admin.from('stt_quota').select('limit_seconds, used_seconds').eq('profile_id', result.profileId).maybeSingle();
+  const qq = q as { limit_seconds?: number; used_seconds?: number } | null;
+  const remainMin = qq ? Math.max(0, Math.floor(((qq.limit_seconds ?? 18000) - (qq.used_seconds ?? 0)) / 60)) : 300;
+  const giftLabel = result.isNew ? 'โควต้าฟรีสำหรับคุณ' : 'โควต้าคงเหลือ';
+
+  const steps: Array<[string, string]> = [
+    ['1', 'พิมพ์ /mom ในแชท'],
+    ['2', 'ส่งไฟล์เสียงการประชุม'],
+    ['3', 'รับรายงาน PDF อัตโนมัติ'],
+  ];
+  const stepBoxes = steps.map(([n, txt]) => ({
+    type: 'box', layout: 'horizontal', spacing: 'md', alignItems: 'center', margin: 'md',
+    contents: [
+      {
+        type: 'box', layout: 'vertical', width: '26px', height: '26px', backgroundColor: '#ede9fe',
+        cornerRadius: '13px', justifyContent: 'center', flex: 0,
+        contents: [{ type: 'text', text: n, size: 'sm', weight: 'bold', color: '#533afd', align: 'center' }],
+      },
+      { type: 'text', text: txt, size: 'sm', color: '#4b5563', wrap: true, gravity: 'center' },
+    ],
+  }));
 
   await sendLineMessages({
     to: lineUserId,
     messages: [{
       type: 'flex',
-      altText: 'ยินดีต้อนรับสู่ PERPOS Assistant',
+      altText: `ยินดีต้อนรับสู่ PERPOS Assistant — โควต้า ${remainMin} นาที`,
       contents: {
-        type: 'bubble',
+        type: 'bubble', size: 'mega',
         header: {
-          type: 'box', layout: 'vertical', backgroundColor: '#533afd', paddingAll: '16px',
+          type: 'box', layout: 'vertical', backgroundColor: '#533afd', paddingAll: '20px', paddingBottom: '16px', spacing: 'sm',
           contents: [
-            { type: 'text', text: '🎙️ PERPOS Assistant', color: '#ffffff', weight: 'bold', size: 'lg' },
-            { type: 'text', text: 'แกะเสียงประชุม → รายงานการประชุม', color: '#e0e7ff', size: 'xs', margin: 'sm' },
+            { type: 'text', text: 'PERPOS Assistant', color: '#ffffff', weight: 'bold', size: 'xl' },
+            { type: 'text', text: '🎙️ แกะเสียงประชุม → รายงานการประชุม (PDF)', color: '#dfe3ff', size: 'xs', wrap: true },
           ],
         },
         body: {
-          type: 'box', layout: 'vertical', spacing: 'sm',
+          type: 'box', layout: 'vertical', spacing: 'md', paddingAll: '20px',
           contents: [
-            { type: 'text', text: greeting, weight: 'bold', size: 'md', color: '#111827', wrap: true },
-            { type: 'text', text: subText, size: 'sm', color: '#16a34a', wrap: true },
-            { type: 'separator', margin: 'md' },
-            { type: 'text', text: 'วิธีใช้: พิมพ์ /mom แล้วส่งไฟล์เสียง — ระบบจะถอดเป็นรายงานการประชุม (PDF) ส่งกลับให้อัตโนมัติ', size: 'xs', color: '#6b7280', wrap: true, margin: 'md' },
+            { type: 'text', text: greeting, weight: 'bold', size: 'md', color: '#1f2937', wrap: true },
+            {
+              type: 'box', layout: 'horizontal', backgroundColor: '#ecfdf5', cornerRadius: '12px', paddingAll: '14px', spacing: 'md', alignItems: 'center',
+              contents: [
+                { type: 'text', text: '🎁', size: 'xxl', flex: 0, gravity: 'center' },
+                {
+                  type: 'box', layout: 'vertical', spacing: 'none',
+                  contents: [
+                    { type: 'text', text: giftLabel, size: 'xs', color: '#047857' },
+                    { type: 'text', text: `${remainMin} นาที`, weight: 'bold', size: 'xxl', color: '#065f46' },
+                  ],
+                },
+              ],
+            },
+            { type: 'separator', margin: 'lg' },
+            { type: 'text', text: 'ใช้งานง่าย 3 ขั้นตอน', weight: 'bold', size: 'sm', color: '#374151', margin: 'lg' },
+            ...stepBoxes,
           ],
         },
         footer: {
-          type: 'box', layout: 'vertical',
+          type: 'box', layout: 'vertical', spacing: 'sm', paddingAll: '16px', paddingTop: '8px',
           contents: [
-            { type: 'button', style: 'primary', color: '#533afd', height: 'sm',
-              action: { type: 'message', label: '🎙️ เริ่มแกะเสียง', text: '/mom' } },
+            { type: 'button', style: 'primary', color: '#533afd', height: 'md',
+              action: { type: 'message', label: '🎙️ เริ่มแกะเสียงเลย', text: '/mom' } },
+            { type: 'text', text: 'รองรับไฟล์เสียง/วิดีโอ ไม่เกิน 200MB', size: 'xxs', color: '#9ca3af', align: 'center' },
           ],
         },
       },
