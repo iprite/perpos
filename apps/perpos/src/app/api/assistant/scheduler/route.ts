@@ -97,5 +97,33 @@ async function run(req: NextRequest) {
     }
   }
 
+  // 4. Stuck STT jobs — งานถอดเสียงค้าง 'processing' เกิน 15 นาที (worker สะดุด/ตาย)
+  //    → mark failed + แจ้ง LINE user (ไม่งั้นเงียบหายไม่รู้ว่าพัง). งานปกติ 1–3 นาทีก็เสร็จ
+  const stuckThreshold = new Date(now.getTime() - 15 * 60 * 1000).toISOString();
+  const { data: stuckJobs } = await admin
+    .from('transcription_jobs')
+    .update({
+      status: 'failed',
+      error_message: 'ประมวลผลนานเกินกำหนด (timeout) — กรุณาลองใหม่',
+      updated_at: now.toISOString(),
+    })
+    .eq('status', 'processing')
+    .lt('updated_at', stuckThreshold)
+    .select('id, source, profile_id'); // returning = เฉพาะแถวที่เพิ่ง mark failed (atomic, กัน race กับ worker)
+
+  for (const job of (stuckJobs ?? []) as Record<string, unknown>[]) {
+    if (job.source !== 'line') continue; // งานเว็บ: UI มีปุ่มลองใหม่อยู่แล้ว
+    const { data: prof } = await admin
+      .from('profiles')
+      .select('line_user_id')
+      .eq('id', job.profile_id as string)
+      .maybeSingle();
+    const lineId = (prof as { line_user_id?: string } | null)?.line_user_id;
+    if (lineId) {
+      await pushLine(accessToken, lineId,
+        '❌ ขออภัย การถอดเสียงใช้เวลานานผิดปกติและถูกยกเลิก\nกรุณาพิมพ์ /mom แล้วส่งไฟล์อีกครั้งครับ');
+    }
+  }
+
   return NextResponse.json({ ok: true });
 }
