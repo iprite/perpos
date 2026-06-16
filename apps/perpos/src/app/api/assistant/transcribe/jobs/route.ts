@@ -72,7 +72,7 @@ export async function POST(req: NextRequest) {
 
   const chosenModel = model ?? 'gemini-2.5-flash';
   if (!ALLOWED_MODELS.includes(chosenModel)) {
-    return Err.invalidFormat('model', 'รองรับเฉพาะ gemini-2.5-flash หรือ gemini-2.5-pro');
+    return Err.invalidFormat('model', 'รองรับเฉพาะ gemini-2.5-flash');
   }
 
   if (typeof fileSize === 'number' && fileSize > MAX_FILE_BYTES) {

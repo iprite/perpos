@@ -97,9 +97,12 @@ async function run(req: NextRequest) {
     }
   }
 
-  // 4. Stuck STT jobs — งานถอดเสียงค้าง 'processing' เกิน 15 นาที (worker สะดุด/ตาย)
+  // 4. Stuck STT jobs — งานถอดเสียงค้าง 'processing' เกิน 45 นาที (worker สะดุด/ตาย)
   //    → mark failed + แจ้ง LINE user (ไม่งั้นเงียบหายไม่รู้ว่าพัง). งานปกติ 1–3 นาทีก็เสร็จ
-  const stuckThreshold = new Date(now.getTime() - 15 * 60 * 1000).toISOString();
+  //    threshold ตั้งสูง (45 นาที) เผื่อไฟล์ประชุมยาวหลายชั่วโมง (Cloud Run timeout = 3600s)
+  //    กัน false-positive timeout; ส่วน race กับ worker ที่เพิ่งเสร็จกัน double ด้วย status guard
+  //    ฝั่ง worker (update completed เฉพาะตอน status='processing') แล้ว
+  const stuckThreshold = new Date(now.getTime() - 45 * 60 * 1000).toISOString();
   const { data: stuckJobs } = await admin
     .from('transcription_jobs')
     .update({

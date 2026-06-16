@@ -10,6 +10,11 @@ const geminiDispatcher = new Agent({
   connectTimeout: 60_000,
 });
 
+// error ที่ "ผู้ใช้แก้เองได้" (ไฟล์เสีย/ยาวเกิน/ไม่มีเนื้อหา) → ข้อความนี้แสดงให้ผู้ใช้ตรง ๆ
+// ได้ทั้งบนเว็บ (error_message) และ LINE. ส่วน error เทคนิค (Gemini 503, network, storage)
+// จะถูกแปลงเป็นข้อความ generic แทน ไม่รั่วรายละเอียดเทคนิคไปหาผู้ใช้
+class UserFacingError extends Error {}
+
 // ─── Types ───────────────────────────────────────────────────────────────────
 export type KeyTopic = {
   topic: string;
@@ -183,8 +188,11 @@ async function runJob(jobId: string, orgId: string): Promise<void> {
     }
     const transcriptText = buildTranscriptText(transcript);
 
-    // 3. Mark job completed.
-    const { error: updateEndError } = await admin
+    // 3. Mark job completed — guard บน status='processing' กัน race กับ stuck-sweep:
+    //    ถ้า scheduler ชิง mark job เป็น 'failed' + refund ไปแล้ว (งานยาวเกิน threshold)
+    //    update นี้จะได้ 0 แถว → ห้าม overwrite เป็น completed และห้าม deliver ซ้ำ
+    //    (ไม่งั้นผู้ใช้ได้ทั้งข้อความ timeout และ PDF + โควต้าถูก refund ทั้งที่งานสำเร็จ)
+    const { data: finalized, error: updateEndError } = await admin
       .from('transcription_jobs')
       .update({
         status: 'completed',
@@ -193,8 +201,14 @@ async function runJob(jobId: string, orgId: string): Promise<void> {
         error_message: null,
         updated_at: new Date().toISOString(),
       })
-      .eq('id', jobId);
+      .eq('id', jobId)
+      .eq('status', 'processing')
+      .select('id');
     if (updateEndError) throw new Error(updateEndError.message);
+    if (!finalized || finalized.length === 0) {
+      console.warn(`[stt-worker] Job ${jobId} no longer 'processing' (likely stuck-swept) — skipping delivery.`);
+      return;
+    }
 
     console.log(`[stt-worker] Job ${jobId} completed (${transcript.key_topics.length} topics, ${transcript.action_items.length} actions).`);
 
@@ -210,8 +224,12 @@ async function runJob(jobId: string, orgId: string): Promise<void> {
       );
     }
   } catch (err) {
-    const errorMsg = err instanceof Error ? err.message : 'เกิดข้อผิดพลาดในการแกะเสียง';
-    console.error(`[stt-worker] Job ${jobId} failed:`, errorMsg);
+    const rawMsg = err instanceof Error ? err.message : String(err);
+    console.error(`[stt-worker] Job ${jobId} failed:`, rawMsg);
+    // user-facing → แสดงข้อความ actionable ตรง ๆ · เทคนิค → generic (ไม่รั่วรายละเอียดไปหาผู้ใช้)
+    const errorMsg = err instanceof UserFacingError
+      ? err.message
+      : 'ประมวลผลไม่สำเร็จ กรุณาลองส่งไฟล์ใหม่อีกครั้ง';
     // STT ล้มหลังจองโควต้าแล้ว → คืนโควต้า (idempotent, ผูกกับ job → stuck-sweep เรียกซ้ำได้ปลอดภัย)
     if (reservedSeconds > 0) {
       await admin.rpc('refund_stt_job', { p_job_id: jobId }).then(() => undefined, () => undefined);
@@ -436,14 +454,16 @@ async function transcribeWithGemini(
   };
   if (!result.candidates || result.candidates.length === 0) {
     const blockReason = result.promptFeedback?.blockReason || 'Blocked by Gemini safety settings or filter';
-    throw new Error(`Gemini API returned no candidates. Reason: ${blockReason}`);
+    console.warn(`[stt-worker] Gemini no candidates: ${blockReason}`);
+    throw new UserFacingError('ไม่สามารถประมวลผลไฟล์นี้ได้ (อาจถูกตัวกรองเนื้อหา) กรุณาลองไฟล์อื่น');
   }
   const finishReason = result.candidates[0].finishReason;
   if (finishReason === 'MAX_TOKENS') {
-    throw new Error('เนื้อหายาวมากจนผลลัพธ์เกินขนาดที่รองรับ — ลองใช้ไฟล์สั้นลง');
+    throw new UserFacingError('เนื้อหายาวมากจนผลลัพธ์เกินขนาดที่รองรับ — ลองใช้ไฟล์สั้นลง');
   }
   if (finishReason && finishReason !== 'STOP') {
-    throw new Error(`Gemini ประมวลผลไม่สมบูรณ์ (finishReason=${finishReason})`);
+    console.warn(`[stt-worker] Gemini incomplete finishReason=${finishReason}`);
+    throw new UserFacingError('ประมวลผลไฟล์ไม่สมบูรณ์ กรุณาลองส่งไฟล์ใหม่อีกครั้ง');
   }
 
   // output อาจถูกแบ่งเป็นหลาย parts — รวมทุก part เป็น JSON เดียว
@@ -513,7 +533,7 @@ function parseTranscript(text: string): TranscriptResult {
 
   // ต้องมีเนื้อหาอย่างน้อยบางส่วน ไม่งั้นถือว่าแกะไม่ได้
   if (!result.executive_summary && key_topics.length === 0 && action_items.length === 0) {
-    throw new Error('Gemini ไม่พบเนื้อหาที่สรุปได้จากไฟล์นี้');
+    throw new UserFacingError('ไม่พบเนื้อหาที่สรุปได้จากไฟล์นี้ — ไฟล์อาจเงียบหรือไม่มีบทสนทนา');
   }
   return result;
 }
@@ -593,14 +613,75 @@ async function notifyLine(job: Record<string, unknown>): Promise<void> {
 // วัดความยาวไฟล์เสียง/วิดีโอ (วินาที) จาก buffer — ไม่ต้องใช้ ffmpeg
 // (music-metadata v7 = CommonJS; auto-detect format จาก magic bytes ไม่ต้องพึ่ง mimeType)
 async function measureDuration(bytes: Buffer, _mimeType: string): Promise<number> {
+  let parseErr = '';
   try {
     const meta = await parseBuffer(new Uint8Array(bytes));
     const dur = meta.format?.duration;
     if (dur && Number.isFinite(dur) && dur > 0) return Math.ceil(dur);
-  } catch {
-    /* parse ไม่ได้ → throw ด้านล่าง */
+    parseErr = `no duration in metadata (container=${meta.format?.container ?? '?'})`;
+  } catch (e) {
+    parseErr = e instanceof Error ? e.message : String(e);
   }
-  throw new Error('อ่านความยาวไฟล์เสียงไม่ได้ กรุณาลองไฟล์อื่น (รองรับ mp3, m4a, ogg, wav, mp4)');
+  // fallback: อ่าน moov.mvhd เองสำหรับไฟล์ ISO-BMFF (mp4/mov/m4v) — music-metadata
+  // ไม่คืน duration เมื่อไฟล์เป็น "วิดีโอ" (เน้น track เสียง) หรือ throw กับ quicktime
+  // ครอบคลุมคลิปประชุมจากมือถือ (mp4/mov) ซึ่งเป็นรูปแบบหลักที่ผู้ใช้ส่งมา
+  const iso = isoBmffDurationSeconds(bytes);
+  if (iso && iso > 0) return Math.ceil(iso);
+
+  console.warn(`[stt-worker] measureDuration failed: ${parseErr}`);
+  throw new UserFacingError(
+    'อ่านความยาวไฟล์ไม่ได้ — ไฟล์อาจเสียหรือไม่รองรับ กรุณาแปลงเป็นไฟล์เสียง (mp3 หรือ m4a) แล้วส่งใหม่อีกครั้ง',
+  );
+}
+
+// ── ISO-BMFF (mp4/mov/m4v/m4a) duration จาก moov.mvhd — pure JS (ไม่ต้อง ffmpeg) ──
+// ใช้เป็น fallback ของ measureDuration สำหรับไฟล์วิดีโอที่ music-metadata อ่านไม่ออก
+type Box = { start: number; end: number };
+function findBox(buf: Buffer, type: string, start: number, end: number): Box | null {
+  let off = start;
+  while (off + 8 <= end) {
+    let size = buf.readUInt32BE(off);
+    const boxType = buf.toString('latin1', off + 4, off + 8);
+    let headerSize = 8;
+    if (size === 1) {
+      // 64-bit largesize
+      const hi = buf.readUInt32BE(off + 8);
+      const lo = buf.readUInt32BE(off + 12);
+      size = hi * 2 ** 32 + lo;
+      headerSize = 16;
+    } else if (size === 0) {
+      size = end - off; // ขยายถึงท้ายไฟล์
+    }
+    if (size < headerSize || off + size > end) break;
+    if (boxType === type) return { start: off + headerSize, end: off + size };
+    off += size;
+  }
+  return null;
+}
+function isoBmffDurationSeconds(buf: Buffer): number | null {
+  try {
+    const moov = findBox(buf, 'moov', 0, buf.length);
+    if (!moov) return null;
+    const mvhd = findBox(buf, 'mvhd', moov.start, moov.end);
+    if (!mvhd) return null;
+    const p = mvhd.start;
+    const version = buf.readUInt8(p);
+    let timescale: number;
+    let duration: number;
+    if (version === 1) {
+      timescale = buf.readUInt32BE(p + 4 + 8 + 8);
+      const hi = buf.readUInt32BE(p + 4 + 8 + 8 + 4);
+      const lo = buf.readUInt32BE(p + 4 + 8 + 8 + 8);
+      duration = hi * 2 ** 32 + lo;
+    } else {
+      timescale = buf.readUInt32BE(p + 4 + 4 + 4);
+      duration = buf.readUInt32BE(p + 4 + 4 + 4 + 4);
+    }
+    if (!timescale || !duration || duration === 0xffffffff) return null;
+    return duration / timescale;
+  } catch {
+    return null;
+  }
 }
 
 // push LINE message(s) หา user จาก profile_id (text หรือ flex)

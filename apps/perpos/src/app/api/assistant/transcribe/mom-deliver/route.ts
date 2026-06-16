@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
   const admin = createAdminClient();
   const { data: job, error } = await admin
     .from('transcription_jobs')
-    .select('file_name, status, transcript_json, created_at, profile_id')
+    .select('file_name, status, transcript_json, created_at, profile_id, error_message')
     .eq('id', jobId)
     .eq('org_id', orgId)
     .maybeSingle();
@@ -42,11 +42,15 @@ export async function POST(req: NextRequest) {
   const lineUserId = (profile as { line_user_id?: string } | null)?.line_user_id;
   if (!lineUserId) return ok({ skipped: 'no line_user_id' });
 
-  // งานล้มเหลว → แจ้ง text
+  // งานล้มเหลว → แจ้ง text (ใช้ error_message ที่เป็นมิตรจาก worker ถ้ามี ไม่งั้น generic)
   if (job.status !== 'completed' || !job.transcript_json) {
+    const reason = String(job.error_message ?? '').trim();
+    const failText = reason
+      ? `❌ ${reason}\n(พิมพ์ /mom เพื่อส่งไฟล์ใหม่)`
+      : '❌ ขออภัย แกะเสียงไม่สำเร็จ กรุณาลองส่งไฟล์ใหม่อีกครั้ง (พิมพ์ /mom)';
     await sendLineMessages({
       to: lineUserId,
-      messages: [{ type: 'text', text: '❌ ขออภัย แกะเสียงไม่สำเร็จ กรุณาลองส่งไฟล์ใหม่อีกครั้ง (พิมพ์ /mom)' }],
+      messages: [{ type: 'text', text: failText }],
     });
     return ok({ delivered: 'error_notice' });
   }
