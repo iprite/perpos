@@ -67,6 +67,24 @@ export default function TranscribeBillingPage() {
     if (search.get('billing') === 'canceled') toast('ยกเลิกการชำระเงิน', { icon: 'ℹ️' });
   }, [search]);
 
+  const [portalLoading, setPortalLoading] = useState(false);
+  const openPortal = async () => {
+    if (!token) return;
+    setPortalLoading(true);
+    try {
+      const res = await fetch('/api/assistant/transcribe/portal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ orgSlug }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.url) { toast.error('เปิดหน้าจัดการไม่สำเร็จ'); return; }
+      window.location.href = data.url as string;
+    } finally {
+      setPortalLoading(false);
+    }
+  };
+
   const buy = async (planCode: string) => {
     if (!token) return;
     setBuying(planCode);
@@ -113,10 +131,15 @@ export default function TranscribeBillingPage() {
             <div className="flex items-center gap-2 text-sm text-gray-500"><Clock className="h-4 w-4" /> โควต้าคงเหลือ</div>
             <div className="mt-1 text-3xl font-bold tabular-nums text-gray-900">{remainMin != null ? `${thb(remainMin)} นาที` : '—'}</div>
             {hasActiveSub ? (
-              <p className="mt-1 text-xs text-gray-500">
-                แพ็กเกจรายเดือนทำงานอยู่{sub?.current_period_end ? ` · ต่ออายุ ${new Date(sub.current_period_end).toLocaleDateString('th-TH')}` : ''}
-                {sub?.cancel_at_period_end ? ' · จะยกเลิกเมื่อสิ้นรอบ' : ''}
-              </p>
+              <div className="mt-2 flex flex-wrap items-center gap-3">
+                <p className="text-xs text-gray-500">
+                  แพ็กเกจรายเดือนทำงานอยู่{sub?.current_period_end ? ` · ต่ออายุ ${new Date(sub.current_period_end).toLocaleDateString('th-TH')}` : ''}
+                  {sub?.cancel_at_period_end ? ' · จะยกเลิกเมื่อสิ้นรอบ' : ''}
+                </p>
+                <Button variant="outline" size="sm" onClick={openPortal} disabled={portalLoading}>
+                  {portalLoading ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : null} จัดการการเรียกเก็บเงิน
+                </Button>
+              </div>
             ) : null}
           </div>
 
