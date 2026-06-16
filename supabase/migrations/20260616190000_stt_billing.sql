@@ -185,7 +185,7 @@ GRANT EXECUTE ON FUNCTION public.apply_stt_payment(uuid, uuid, text, numeric, te
 
 -- ── 6. Seed catalog (stripe_price_id เติมทีหลังหลังสร้าง Price ใน Stripe) ──────
 INSERT INTO public.stt_plans (code, name, kind, minutes, price, currency, sort_order) VALUES
-  ('pro_300_monthly',  'Pro 300 นาที/เดือน',   'subscription', 300,  299, 'THB', 10),
+  ('pro_300_monthly',  'Pro 300 นาที/เดือน',   'subscription', 300,  99,  'THB', 10),
   ('pro_1200_monthly', 'Pro 1,200 นาที/เดือน', 'subscription', 1200, 990, 'THB', 20),
   ('topup_100',        'เติม 100 นาที',         'topup',        100,  150, 'THB', 30),
   ('topup_300',        'เติม 300 นาที',         'topup',        300,  390, 'THB', 40)

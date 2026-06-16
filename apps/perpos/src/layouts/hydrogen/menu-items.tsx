@@ -35,6 +35,7 @@ import {
   Navigation,
   Mic,
   ScrollText,
+  Sparkles,
 } from "lucide-react";
 
 import type { Role } from "@/lib/supabase/types";
@@ -349,6 +350,12 @@ function buildAssistantMenuItems(org: string, labels: Record<string, string> = {
       name: l("connections", "การเชื่อมต่อ"),
       href: `/${org}/assistant/connections`,
       icon: <Wifi className="h-5 w-5" />,
+      roles: allRoles,
+    },
+    {
+      name: l("transcribe_billing", "ซื้อนาทีแกะเสียง"),
+      href: `/${org}/assistant/transcribe/billing`,
+      icon: <Sparkles className="h-5 w-5" />,
       roles: allRoles,
     },
   ];
