@@ -2,6 +2,8 @@
 
 คู่มือสำหรับ AI agents ที่ทำงานกับ codebase นี้
 
+> 📘 **ฟีเจอร์แกะเสียง→รายงานการประชุม (STT/MoM/LINE/quota/onboarding):** อ่านคัมภีร์ฉบับเต็มที่ [`docs/STT_MOM_FEATURE.md`](docs/STT_MOM_FEATURE.md) — สถาปัตยกรรม, deploy, DB schema, code map, กับดักที่แก้แล้ว ก่อนทำงานต่อกับส่วนนี้
+
 ---
 
 ## ภาพรวมโปรเจกต์
