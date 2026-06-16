@@ -42,7 +42,7 @@ export default function TranscribeBillingPage() {
       const [{ data: planRows }, { data: subRow }, quotaRes] = await Promise.all([
         supabase.from('stt_plans').select('id, code, name, kind, minutes, price, currency').eq('is_active', true).order('sort_order'),
         supabase.from('stt_subscriptions').select('plan_id, status, current_period_end, cancel_at_period_end').maybeSingle(),
-        accessToken ? fetch(`/api/assistant/transcribe/quota`, { headers: { Authorization: `Bearer ${accessToken}` } }) : Promise.resolve(null),
+        accessToken ? fetch(`/api/assistant/quota`, { headers: { Authorization: `Bearer ${accessToken}` } }) : Promise.resolve(null),
       ]);
       setPlans((planRows ?? []).map((p) => ({ ...p, price: Number(p.price) })) as Plan[]);
       setSub((subRow as Sub) ?? null);
@@ -66,7 +66,7 @@ export default function TranscribeBillingPage() {
     if (!token) return;
     setPortalLoading(true);
     try {
-      const res = await fetch('/api/assistant/transcribe/portal', {
+      const res = await fetch('/api/assistant/stt/portal', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({}),
@@ -83,7 +83,7 @@ export default function TranscribeBillingPage() {
     if (!token) return;
     setBuying(planCode);
     try {
-      const res = await fetch('/api/assistant/transcribe/checkout', {
+      const res = await fetch('/api/assistant/stt/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ planCode }),

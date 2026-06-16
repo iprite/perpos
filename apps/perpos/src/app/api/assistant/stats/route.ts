@@ -1,12 +1,12 @@
 /**
- * GET /api/assistant/transcribe/stats?orgId=<orgId>
+ * GET /api/assistant/stats?orgId=<orgId>
  *   — สถิติการใช้แกะเสียงของผู้ใช้ที่ล็อกอิน (ตัวเอง)
  */
 
 import { NextRequest } from 'next/server';
-import { requireAssistantUser } from '../../../_lib/assistant-auth';
-import { createAdminClient } from '../../../_lib/supabase';
-import { ok } from '../../../_lib/response';
+import { requireAssistantUser } from '../../_lib/assistant-auth';
+import { createAdminClient } from '../../_lib/supabase';
+import { ok } from '../../_lib/response';
 
 const BKK = 'Asia/Bangkok';
 const dayStr = (d: Date) => new Intl.DateTimeFormat('en-CA', { timeZone: BKK }).format(d);
@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
 
   const admin = createAdminClient();
   const { data: jobs } = await admin
-    .from('transcription_jobs')
+    .from('assistant_jobs')
     .select('status, source, duration_seconds, created_at')
     .eq('profile_id', auth.userId)
     .order('created_at', { ascending: false })

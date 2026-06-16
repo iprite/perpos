@@ -130,7 +130,7 @@ export default function AssistantTranscribePage() {
 
   // ── Data (per-profile — ไม่ผูก org) ─────────────────────────────────────────────
   const fetchJobs = useCallback(async (tk: string) => {
-    const res = await fetch(`/api/assistant/transcribe/jobs`, {
+    const res = await fetch(`/api/assistant/jobs`, {
       headers: { Authorization: `Bearer ${tk}` },
     });
     if (!res.ok) return;
@@ -139,7 +139,7 @@ export default function AssistantTranscribePage() {
   }, []);
 
   const fetchQuota = useCallback(async (tk: string) => {
-    const res = await fetch(`/api/assistant/transcribe/quota`, {
+    const res = await fetch(`/api/assistant/quota`, {
       headers: { Authorization: `Bearer ${tk}` },
     });
     if (!res.ok) return;
@@ -217,7 +217,7 @@ export default function AssistantTranscribePage() {
         .upload(path, file, { contentType: mimeType, upsert: false });
       if (upErr) throw new Error(`อัปโหลดล้มเหลว: ${upErr.message}`);
 
-      const jobRes = await fetch('/api/assistant/transcribe/jobs', {
+      const jobRes = await fetch('/api/assistant/jobs', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({
@@ -233,7 +233,7 @@ export default function AssistantTranscribePage() {
       const jobId = created?.data?.id;
 
       if (jobId) {
-        const pr = await fetch('/api/assistant/transcribe/jobs/process', {
+        const pr = await fetch('/api/assistant/jobs/process', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
           body: JSON.stringify({ jobId }),
@@ -258,7 +258,7 @@ export default function AssistantTranscribePage() {
 
   const retry = async (jobId: string) => {
     if (!token) return;
-    const res = await fetch('/api/assistant/transcribe/jobs/process', {
+    const res = await fetch('/api/assistant/jobs/process', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify({ jobId }),
@@ -291,7 +291,7 @@ export default function AssistantTranscribePage() {
     if (!job?.transcript_json) return;
     if (opts?.rowId) setPdfBusyId(opts.rowId); else setPdfBusy(true);
     try {
-      const res = await fetch('/api/assistant/transcribe/mom-pdf', {
+      const res = await fetch('/api/assistant/stt/mom-pdf', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ jobId: job.id }),

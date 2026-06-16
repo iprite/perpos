@@ -4,7 +4,7 @@ let cached: SupabaseClient | null = null;
 
 /**
  * Service-role Supabase client (bypasses RLS). The worker only touches
- * transcription_jobs + the assistant_audio storage bucket; do not use it to
+ * assistant_jobs + the assistant_audio storage bucket; do not use it to
  * mutate auth/permission tables.
  */
 export function getAdminClient(): SupabaseClient {

@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
   const since = new Date(Date.now() - 30 * 86400000).toISOString();
 
   const { data: jobs } = await admin
-    .from('transcription_jobs')
+    .from('assistant_jobs')
     .select('status, source, duration_seconds, created_at, profile_id')
     .gte('created_at', since)
     .limit(20000);

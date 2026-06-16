@@ -1,5 +1,5 @@
 /**
- * Super admin: มอนิเตอร์งานแกะเสียง (transcription_jobs) ทั้งระบบ
+ * Super admin: มอนิเตอร์งานแกะเสียง (assistant_jobs) ทั้งระบบ
  *   GET  /api/admin/stt-jobs?status=&source=&limit=   — รายการงานล่าสุด + ชื่อผู้ใช้
  *   POST /api/admin/stt-jobs   body { jobId, action: 'fail' }
  *        — ปิดงานที่ค้าง (pending/processing) เป็น failed + คืนโควต้าที่ debit ไปแล้ว
@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
 
   const admin = createAdminClient();
   let q = admin
-    .from('transcription_jobs')
+    .from('assistant_jobs')
     .select('id, profile_id, file_name, mime_type, file_size, duration_seconds, model, status, source, error_message, created_at, updated_at')
     .order('created_at', { ascending: false })
     .limit(limit);
@@ -49,7 +49,7 @@ export async function GET(req: NextRequest) {
 
   // นับสรุปตามสถานะ (ทั้งระบบ ไม่จำกัด limit)
   const counts: Record<string, number> = { pending: 0, processing: 0, completed: 0, failed: 0 };
-  const { data: allStatuses } = await admin.from('transcription_jobs').select('status');
+  const { data: allStatuses } = await admin.from('assistant_jobs').select('status');
   for (const r of allStatuses ?? []) {
     const s = r.status as string;
     if (s in counts) counts[s] += 1;
@@ -84,7 +84,7 @@ export async function POST(req: NextRequest) {
 
   const admin = createAdminClient();
   const { data: job, error: jErr } = await admin
-    .from('transcription_jobs')
+    .from('assistant_jobs')
     .select('id, profile_id, status')
     .eq('id', jobId)
     .maybeSingle();
@@ -115,7 +115,7 @@ export async function POST(req: NextRequest) {
   }
 
   const { error: uErr } = await admin
-    .from('transcription_jobs')
+    .from('assistant_jobs')
     .update({ status: 'failed', error_message: 'ปิดงานโดยแอดมิน (ค้างเกินกำหนด) + คืนโควต้า', updated_at: new Date().toISOString() })
     .eq('id', jobId);
   if (uErr) return Err.dbError(uErr);

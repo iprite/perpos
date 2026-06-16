@@ -1,5 +1,5 @@
 /**
- * POST /api/assistant/transcribe/mom-pdf
+ * POST /api/assistant/stt/mom-pdf
  *   body: { orgId, jobId }
  *   — สร้างรายงานการประชุม (Minutes of Meeting) เป็น PDF ผ่าน pdf-renderer (Chromium)
  *     เพื่อให้ภาษาไทย shaping ถูกต้อง (สระล่าง/ตัวสะกดไม่ตกหล่นแบบ @react-pdf)
@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
 
   const admin = createAdminClient();
   const { data: job, error } = await admin
-    .from('transcription_jobs')
+    .from('assistant_jobs')
     .select('file_name, status, transcript_json, created_at')
     .eq('id', jobId)
     .eq('profile_id', auth.userId)

@@ -1278,7 +1278,7 @@ async function handleMomAudio(
 
   // ตอบ LINE ให้เร็วที่สุด → insert งานเลย (ไม่ lookup email; profile_id พอสำหรับ audit)
   const { data: job, error: jobErr } = await admin
-    .from('transcription_jobs')
+    .from('assistant_jobs')
     .insert({
       org_id: orgId, profile_id: profileId, audio_url: null, line_message_id: messageId,
       file_name: fileName, mime_type: 'audio/mp4', model: 'gemini-2.5-flash', source: 'line',

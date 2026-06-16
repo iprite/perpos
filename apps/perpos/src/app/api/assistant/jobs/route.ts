@@ -1,19 +1,19 @@
 /**
- * API Route Handler: /api/assistant/transcribe/jobs
+ * API Route Handler: /api/assistant/jobs
  *
- * GET  /api/assistant/transcribe/jobs?orgId=<orgId>&jobId=<jobId>
- * GET  /api/assistant/transcribe/jobs?orgId=<orgId>
+ * GET  /api/assistant/jobs?orgId=<orgId>&jobId=<jobId>
+ * GET  /api/assistant/jobs?orgId=<orgId>
  *   — ดึงสถานะงานเดี่ยว หรือรายการงานแกะเสียงล่าสุดของ org (ใช้สำหรับ polling)
  *
- * POST /api/assistant/transcribe/jobs
+ * POST /api/assistant/jobs
  *   — ลงทะเบียนงานแกะเสียงใบใหม่
  *   body: { orgId, audioUrl, fileName, mimeType, model, fileSize? }
  */
 
 import { NextRequest } from 'next/server';
-import { requireAssistantUser } from '../../../_lib/assistant-auth';
-import { createAdminClient } from '../../../_lib/supabase';
-import { ok, created, Err } from '../../../_lib/response';
+import { requireAssistantUser } from '../../_lib/assistant-auth';
+import { createAdminClient } from '../../_lib/supabase';
+import { ok, created, Err } from '../../_lib/response';
 
 const ALLOWED_MODELS = ['gemini-2.5-flash'];
 const MAX_FILE_BYTES = 200 * 1024 * 1024; // 200MB — ต้องตรงกับ file_size_limit ของ bucket
@@ -30,7 +30,7 @@ export async function GET(req: NextRequest) {
 
   if (jobId) {
     const { data: job, error } = await admin
-      .from('transcription_jobs')
+      .from('assistant_jobs')
       .select('*')
       .eq('id', jobId)
       .eq('profile_id', auth.userId)
@@ -43,7 +43,7 @@ export async function GET(req: NextRequest) {
   }
 
   const { data: jobs, error } = await admin
-    .from('transcription_jobs')
+    .from('assistant_jobs')
     .select('*')
     .eq('profile_id', auth.userId)
     .order('created_at', { ascending: false })
@@ -95,7 +95,7 @@ export async function POST(req: NextRequest) {
     .maybeSingle();
 
   const { data: job, error } = await admin
-    .from('transcription_jobs')
+    .from('assistant_jobs')
     .insert({
       org_id:             orgId,
       profile_id:         auth.userId,

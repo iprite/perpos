@@ -35,7 +35,7 @@ export default function MyStatsPage() {
       const { data: sess } = await supabase.auth.getSession();
       const token = sess.session?.access_token;
       if (!token) return;
-      const res = await fetch(`/api/assistant/transcribe/stats`, { headers: { Authorization: `Bearer ${token}` } });
+      const res = await fetch(`/api/assistant/stats`, { headers: { Authorization: `Bearer ${token}` } });
       if (res.ok) setStats((await res.json()).data as Stats);
     } finally {
       setLoading(false);

@@ -1,5 +1,5 @@
 /**
- * POST /api/assistant/transcribe/checkout — สร้าง Stripe Checkout ซื้อแพ็กแกะเสียง (per-profile)
+ * POST /api/assistant/stt/checkout — สร้าง Stripe Checkout ซื้อแพ็กแกะเสียง (per-profile)
  *   body { planCode }  — code ใน stt_plans (subscription รายเดือน หรือ topup เติมนาที)
  * คืน { url } ให้ redirect ไป Stripe · webhook (stripe/webhook) เติมโควต้าหลังจ่ายสำเร็จ
  *

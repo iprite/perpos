@@ -1,5 +1,5 @@
 /**
- * POST /api/assistant/transcribe/portal — เปิด Stripe Customer Portal ของผู้ใช้ (per-profile)
+ * POST /api/assistant/stt/portal — เปิด Stripe Customer Portal ของผู้ใช้ (per-profile)
  *   ให้ลูกค้าจัดการเอง: ยกเลิก/เปลี่ยนบัตร/ดูใบเสร็จ/ประวัติการชำระ
  * คืน { url } ให้ redirect · ต้องมี stripe_customer_id (เคยซื้ออย่างน้อย 1 ครั้ง)
  */

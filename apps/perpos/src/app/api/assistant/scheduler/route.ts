@@ -34,7 +34,7 @@ async function run(req: NextRequest) {
   const MIN_S = 10 * 60, MAX_S = 60 * 60;
   const tenMinAgo = new Date(now.getTime() - MIN_S * 1000).toISOString();
   const { data: processingJobs } = await admin
-    .from('transcription_jobs')
+    .from('assistant_jobs')
     .select('id, source, profile_id, duration_seconds, updated_at')
     .eq('status', 'processing')
     .lt('updated_at', tenMinAgo);
@@ -49,7 +49,7 @@ async function run(req: NextRequest) {
     // ที่อาจอัปเดต updated_at ระหว่างทาง) — fail เฉพาะแถวที่เพิ่งเปลี่ยนจริง
     const cutoff = new Date(now.getTime() - thresholdS * 1000).toISOString();
     const { data: failed } = await admin
-      .from('transcription_jobs')
+      .from('assistant_jobs')
       .update({
         status: 'failed',
         error_message: 'ประมวลผลนานเกินกำหนด (timeout) — กรุณาลองใหม่',
@@ -85,7 +85,7 @@ async function run(req: NextRequest) {
   const REQUEUE_AFTER_MS = 60 * 1000;        // pending เกิน 1 นาที → ลองยิงใหม่
   const GIVEUP_AFTER_MS = 30 * 60 * 1000;    // pending เกิน 30 นาที → ยอมแพ้
   const { data: pendingJobs } = await admin
-    .from('transcription_jobs')
+    .from('assistant_jobs')
     .select('id, org_id, source, profile_id, created_at')
     .eq('status', 'pending')
     .lt('updated_at', new Date(now.getTime() - REQUEUE_AFTER_MS).toISOString())
@@ -96,7 +96,7 @@ async function run(req: NextRequest) {
     const ageMs = now.getTime() - new Date(pj.created_at as string).getTime();
     if (ageMs > GIVEUP_AFTER_MS) {
       const { data: gv } = await admin
-        .from('transcription_jobs')
+        .from('assistant_jobs')
         .update({ status: 'failed', error_message: 'ระบบไม่ว่างนานเกินไป — กรุณาลองใหม่อีกครั้ง', updated_at: now.toISOString() })
         .eq('id', pj.id as string)
         .eq('status', 'pending')
@@ -118,7 +118,7 @@ async function run(req: NextRequest) {
   //    (PDF/transcript ยังอยู่ถึง 48 ชม. ในขั้น 6 ให้ผู้ใช้ดาวน์โหลด · การส่ง PDF/แจ้งผล
   //     ใช้ transcript_json ไม่ใช้เสียง → ลบได้ปลอดภัย) · idempotent ด้วย audio_url=null
   const { data: doneJobs } = await admin
-    .from('transcription_jobs')
+    .from('assistant_jobs')
     .select('id, audio_url')
     .in('status', ['completed', 'failed'])
     .not('audio_url', 'is', null)
@@ -138,7 +138,7 @@ async function run(req: NextRequest) {
       await admin.storage.from(STT_BUCKET).remove(paths).then(() => undefined, () => undefined);
     }
     await admin
-      .from('transcription_jobs')
+      .from('assistant_jobs')
       .update({ audio_url: null })
       .in('id', (doneJobs as Record<string, unknown>[]).map((j) => j.id as string));
   }
@@ -149,7 +149,7 @@ async function run(req: NextRequest) {
   //    เมื่อล้างแล้ว audio_url+transcript เป็น null → ไม่ถูกเลือกซ้ำในรอบถัดไป
   const cleanupBefore = new Date(now.getTime() - 48 * 60 * 60 * 1000).toISOString();
   const { data: oldJobs } = await admin
-    .from('transcription_jobs')
+    .from('assistant_jobs')
     .select('id, org_id, audio_url')
     .lt('created_at', cleanupBefore)
     .or('transcript_json.not.is.null,audio_url.not.is.null')
@@ -173,7 +173,7 @@ async function run(req: NextRequest) {
     }
     const ids = (oldJobs as Record<string, unknown>[]).map((j) => j.id as string);
     await admin
-      .from('transcription_jobs')
+      .from('assistant_jobs')
       .update({ transcript_json: null, transcript_text: null, audio_url: null })
       .in('id', ids);
   }

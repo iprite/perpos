@@ -2,7 +2,7 @@
  * GET /api/admin/stt-cost — ต้นทุน Gemini ของฟีเจอร์แกะเสียง (super admin)
  *   ?days=30   ช่วงข้อมูล (default 30, max 365)
  *
- * ฐานข้อมูล: `transcription_jobs` (status=completed) ในช่วงที่เลือก
+ * ฐานข้อมูล: `assistant_jobs` (status=completed) ในช่วงที่เลือก
  *   - งานที่มี token จริง (prompt_tokens != null) → คิดต้นทุน "เป๊ะ" จาก usageMetadata
  *   - งานเก่าที่ยังไม่มี token → "ประมาณ" จาก duration_seconds
  * คิด cost ตอนอ่านด้วยราคาปัจจุบัน (lib/assistant/stt-cost, ปรับผ่าน env)
@@ -54,7 +54,7 @@ export async function GET(req: NextRequest) {
 
   const admin = createAdminClient();
   const { data: jobs } = await admin
-    .from('transcription_jobs')
+    .from('assistant_jobs')
     .select('source, duration_seconds, created_at, prompt_tokens, audio_input_tokens, output_tokens, thoughts_tokens')
     .eq('status', 'completed')
     .gte('created_at', since)

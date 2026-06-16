@@ -38,7 +38,7 @@ export type TranscriptResult = {
   recommendations: string[]; // ข้อเสนอแนะจาก AI ต่อประเด็นในที่ประชุม
 };
 
-// token usage จริงจาก Gemini (เก็บลง transcription_jobs → คิดต้นทุนเป๊ะฝั่งอ่าน)
+// token usage จริงจาก Gemini (เก็บลง assistant_jobs → คิดต้นทุนเป๊ะฝั่งอ่าน)
 export type GeminiUsage = {
   prompt_tokens: number;            // input รวม (เสียง + ข้อความ prompt)
   audio_input_tokens: number | null; // เฉพาะ modality=AUDIO (null ถ้า Gemini ไม่แยก)
@@ -110,7 +110,7 @@ async function runJob(jobId: string, orgId: string): Promise<void> {
   const admin = getAdminClient();
 
   const { data: job, error: jobError } = await admin
-    .from('transcription_jobs')
+    .from('assistant_jobs')
     .select('*')
     .eq('id', jobId)
     .eq('org_id', orgId)
@@ -153,7 +153,7 @@ async function runJob(jobId: string, orgId: string): Promise<void> {
 
     // 1.5 วัดความยาว → จองโควต้า (atomic) ก่อนเรียก Gemini เพื่อคุมค่าใช้จ่าย
     const durationSec = await measureDuration(bytes, mimeType);
-    await admin.from('transcription_jobs').update({ duration_seconds: durationSec }).eq('id', jobId);
+    await admin.from('assistant_jobs').update({ duration_seconds: durationSec }).eq('id', jobId);
 
     const { data: reserveData } = await admin.rpc('consume_stt_quota', {
       p_profile_id: profileId, p_seconds: durationSec, p_job_id: jobId, p_source: String(job.source ?? 'web'),
@@ -163,7 +163,7 @@ async function runJob(jobId: string, orgId: string): Promise<void> {
       const remainMin = Math.max(0, Math.floor((reserve?.remaining_seconds ?? 0) / 60));
       const fileMin = Math.max(1, Math.ceil(durationSec / 60));
       console.log(`[stt-worker] Job ${jobId} quota exceeded (file ${durationSec}s, remain ${reserve?.remaining_seconds}s)`);
-      await admin.from('transcription_jobs').update({
+      await admin.from('assistant_jobs').update({
         status: 'failed',
         error_message: `quota_exceeded: ไฟล์ ~${fileMin} นาที เหลือ ${remainMin} นาที`,
         updated_at: new Date().toISOString(),
@@ -210,7 +210,7 @@ async function runJob(jobId: string, orgId: string): Promise<void> {
     //    update นี้จะได้ 0 แถว → ห้าม overwrite เป็น completed และห้าม deliver ซ้ำ
     //    (ไม่งั้นผู้ใช้ได้ทั้งข้อความ timeout และ PDF + โควต้าถูก refund ทั้งที่งานสำเร็จ)
     const { data: finalized, error: updateEndError } = await admin
-      .from('transcription_jobs')
+      .from('assistant_jobs')
       .update({
         status: 'completed',
         transcript_json: transcript,
@@ -258,7 +258,7 @@ async function runJob(jobId: string, orgId: string): Promise<void> {
       await admin.rpc('refund_stt_job', { p_job_id: jobId }).then(() => undefined, () => undefined);
     }
     await admin
-      .from('transcription_jobs')
+      .from('assistant_jobs')
       .update({ status: 'failed', error_message: errorMsg, updated_at: new Date().toISOString() })
       .eq('id', jobId);
     // งานจาก LINE ที่ fail → แจ้งผู้ใช้ผ่าน deliver route (push text error)
@@ -272,7 +272,7 @@ async function runJob(jobId: string, orgId: string): Promise<void> {
 async function deliverMomToLine(jobId: string, orgId: string): Promise<void> {
   const baseUrl = (process.env.APP_BASE_URL ?? 'https://perpos.io').replace(/\/$/, '');
   const secret = (process.env.WORKER_SECRET ?? '').trim();
-  const resp = await fetch(`${baseUrl}/api/assistant/transcribe/mom-deliver`, {
+  const resp = await fetch(`${baseUrl}/api/assistant/stt/mom-deliver`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-worker-secret': secret },
     body: JSON.stringify({ jobId, orgId }),
@@ -340,7 +340,7 @@ async function ingestLineAudio(
   if (upErr) throw new Error(`อัปโหลดไฟล์เสียงไม่สำเร็จ: ${upErr.message}`);
 
   await admin
-    .from('transcription_jobs')
+    .from('assistant_jobs')
     .update({ audio_url: storagePath, mime_type: mimeType, file_size: bytes.length, updated_at: new Date().toISOString() })
     .eq('id', job.id as string);
 

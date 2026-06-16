@@ -23,7 +23,7 @@ export async function triggerSttWorker(
 
   // Atomic claim — succeed only while pending/failed (กัน double-process)
   const { data: claimed, error: claimErr } = await admin
-    .from('transcription_jobs')
+    .from('assistant_jobs')
     .update({ status: 'processing', error_message: null, updated_at: new Date().toISOString() })
     .eq('id', jobId)
     .eq('org_id', orgId)
@@ -35,7 +35,7 @@ export async function triggerSttWorker(
   // คืนงานเป็น pending → scheduler จะ re-trigger เมื่อ instance ว่าง (ไม่ทิ้งงาน)
   const requeue = () =>
     admin
-      .from('transcription_jobs')
+      .from('assistant_jobs')
       .update({ status: 'pending', updated_at: new Date().toISOString() })
       .eq('id', jobId)
       .eq('status', 'processing')
@@ -64,7 +64,7 @@ export async function triggerSttWorker(
 
   // error จริง (4xx อื่น เช่น 400/401/403) → fail
   await admin
-    .from('transcription_jobs')
+    .from('assistant_jobs')
     .update({ status: 'failed', error_message: 'ส่งงานไปยังระบบวิเคราะห์ไม่สำเร็จ', updated_at: new Date().toISOString() })
     .eq('id', jobId);
   return { ok: false, error: `worker ${resp.status}` };

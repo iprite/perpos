@@ -1,18 +1,18 @@
 /**
- * API Route Handler: /api/assistant/transcribe/jobs/process
+ * API Route Handler: /api/assistant/jobs/process
  *
- * POST /api/assistant/transcribe/jobs/process
+ * POST /api/assistant/jobs/process
  *   — Lightweight trigger. Claims the job (status -> 'processing') and hands the
  *     heavy work (download + Gemini Files API + transcription/diarization) off to
  *     the Cloud Run stt-worker, which returns 202 immediately and writes the
- *     transcript back to transcription_jobs asynchronously. The UI polls for it.
+ *     transcript back to assistant_jobs asynchronously. The UI polls for it.
  *   body: { jobId, orgId }
  */
 
 import { NextRequest } from 'next/server';
-import { requireAssistantUser } from '../../../../_lib/assistant-auth';
-import { createAdminClient } from '../../../../_lib/supabase';
-import { ok, Err } from '../../../../_lib/response';
+import { requireAssistantUser } from '../../../_lib/assistant-auth';
+import { createAdminClient } from '../../../_lib/supabase';
+import { ok, Err } from '../../../_lib/response';
 import { triggerSttWorker } from '@/lib/assistant/stt-trigger';
 
 export async function POST(req: NextRequest) {
@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
 
   // Load job (scoped to ตัวผู้ใช้) — ใช้ org_id ที่ผูกกับงานเรียก worker
   const { data: job, error: jobError } = await admin
-    .from('transcription_jobs')
+    .from('assistant_jobs')
     .select('id, status, org_id')
     .eq('id', jobId)
     .eq('profile_id', auth.userId)

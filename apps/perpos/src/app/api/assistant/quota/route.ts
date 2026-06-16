@@ -1,12 +1,12 @@
 /**
- * GET /api/assistant/transcribe/quota?orgId=<orgId>
+ * GET /api/assistant/quota?orgId=<orgId>
  *   — โควต้าแกะเสียง (วินาที) ของผู้ใช้ที่ล็อกอิน (default 300 นาที)
  */
 
 import { NextRequest } from 'next/server';
-import { requireAssistantUser } from '../../../_lib/assistant-auth';
-import { createAdminClient } from '../../../_lib/supabase';
-import { ok } from '../../../_lib/response';
+import { requireAssistantUser } from '../../_lib/assistant-auth';
+import { createAdminClient } from '../../_lib/supabase';
+import { ok } from '../../_lib/response';
 
 const DEFAULT_LIMIT = 18000; // 300 นาที
 
