@@ -5,82 +5,82 @@
     "semantic_hash": "beb35ad1e5141226299d6e2ac4271907"
   },
   ".husky/_/applypatch-msg": {
-    "mtime": 1780368603.8766162,
+    "mtime": 1781507002.7548077,
     "ast_hash": "0b71c2e7d39daa010985d529f1320b37",
     "semantic_hash": "0b71c2e7d39daa010985d529f1320b37"
   },
   ".husky/_/commit-msg": {
-    "mtime": 1780368603.8763638,
+    "mtime": 1781507002.7545986,
     "ast_hash": "0b71c2e7d39daa010985d529f1320b37",
     "semantic_hash": "0b71c2e7d39daa010985d529f1320b37"
   },
   ".husky/_/h": {
-    "mtime": 1780368603.8760252,
+    "mtime": 1781507002.7538764,
     "ast_hash": "15239a01c5554e56ff745570fb583a91",
     "semantic_hash": "15239a01c5554e56ff745570fb583a91"
   },
   ".husky/_/husky.sh": {
-    "mtime": 1780368603.8773835,
+    "mtime": 1781507002.7558846,
     "ast_hash": "13871d2ab13e8423790ecb2c01c78c18",
     "semantic_hash": "13871d2ab13e8423790ecb2c01c78c18"
   },
   ".husky/_/post-applypatch": {
-    "mtime": 1780368603.8767617,
+    "mtime": 1781507002.7550075,
     "ast_hash": "0b71c2e7d39daa010985d529f1320b37",
     "semantic_hash": "0b71c2e7d39daa010985d529f1320b37"
   },
   ".husky/_/post-checkout": {
-    "mtime": 1780368603.8770852,
+    "mtime": 1781507002.7554839,
     "ast_hash": "0b71c2e7d39daa010985d529f1320b37",
     "semantic_hash": "0b71c2e7d39daa010985d529f1320b37"
   },
   ".husky/_/post-commit": {
-    "mtime": 1780368603.8764322,
+    "mtime": 1781507002.7547102,
     "ast_hash": "0b71c2e7d39daa010985d529f1320b37",
     "semantic_hash": "0b71c2e7d39daa010985d529f1320b37"
   },
   ".husky/_/post-merge": {
-    "mtime": 1780368603.8771532,
+    "mtime": 1781507002.7555854,
     "ast_hash": "0b71c2e7d39daa010985d529f1320b37",
     "semantic_hash": "0b71c2e7d39daa010985d529f1320b37"
   },
   ".husky/_/post-rewrite": {
-    "mtime": 1780368603.8770115,
+    "mtime": 1781507002.755352,
     "ast_hash": "0b71c2e7d39daa010985d529f1320b37",
     "semantic_hash": "0b71c2e7d39daa010985d529f1320b37"
   },
   ".husky/_/pre-applypatch": {
-    "mtime": 1780368603.8766897,
+    "mtime": 1781507002.7548974,
     "ast_hash": "0b71c2e7d39daa010985d529f1320b37",
     "semantic_hash": "0b71c2e7d39daa010985d529f1320b37"
   },
   ".husky/_/pre-auto-gc": {
-    "mtime": 1780368603.8772986,
+    "mtime": 1781507002.7557747,
     "ast_hash": "0b71c2e7d39daa010985d529f1320b37",
     "semantic_hash": "0b71c2e7d39daa010985d529f1320b37"
   },
   ".husky/_/pre-commit": {
-    "mtime": 1780368603.8761387,
+    "mtime": 1781507002.7542403,
     "ast_hash": "0b71c2e7d39daa010985d529f1320b37",
     "semantic_hash": "0b71c2e7d39daa010985d529f1320b37"
   },
   ".husky/_/pre-merge-commit": {
-    "mtime": 1780368603.876221,
+    "mtime": 1781507002.754353,
     "ast_hash": "0b71c2e7d39daa010985d529f1320b37",
     "semantic_hash": "0b71c2e7d39daa010985d529f1320b37"
   },
   ".husky/_/pre-push": {
-    "mtime": 1780368603.8772218,
+    "mtime": 1781507002.7556858,
     "ast_hash": "0b71c2e7d39daa010985d529f1320b37",
     "semantic_hash": "0b71c2e7d39daa010985d529f1320b37"
   },
   ".husky/_/pre-rebase": {
-    "mtime": 1780368603.8768413,
+    "mtime": 1781507002.7551105,
     "ast_hash": "0b71c2e7d39daa010985d529f1320b37",
     "semantic_hash": "0b71c2e7d39daa010985d529f1320b37"
   },
   ".husky/_/prepare-commit-msg": {
-    "mtime": 1780368603.8762867,
+    "mtime": 1781507002.7544339,
     "ast_hash": "0b71c2e7d39daa010985d529f1320b37",
     "semantic_hash": "0b71c2e7d39daa010985d529f1320b37"
   },
@@ -343,11 +343,6 @@
     "mtime": 1777513495.78156,
     "ast_hash": "61cfd86360765452aad1316081b1aa43",
     "semantic_hash": "61cfd86360765452aad1316081b1aa43"
-  },
-  "apps/perpos/middleware.ts": {
-    "mtime": 1780455939.564634,
-    "ast_hash": "6a40d85f93f64bf93b53e85bb5c4105e",
-    "semantic_hash": "6a40d85f93f64bf93b53e85bb5c4105e"
   },
   "apps/perpos/next-env.d.ts": {
     "mtime": 1777513495.7819893,
@@ -805,9 +800,9 @@
     "semantic_hash": "ba18b24037dc873f582b6ac16f684022"
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/assistant/page.tsx": {
-    "mtime": 1780763141.8929667,
-    "ast_hash": "401d49875ce7724dd3d01485a8b23412",
-    "semantic_hash": "401d49875ce7724dd3d01485a8b23412"
+    "mtime": 1781506974.4030704,
+    "ast_hash": "c9b3ae0600e71bf70cb5b40ccc7084be",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/b2g/page.tsx": {
     "mtime": 1780139410.9541075,
@@ -1095,9 +1090,9 @@
     "semantic_hash": "1ac254baa8cdc690f90bdb65733b1a4c"
   },
   "apps/perpos/src/app/(hydrogen)/admin/page.tsx": {
-    "mtime": 1780763046.887507,
-    "ast_hash": "3377e3bf668a56188cecd83ab030922f",
-    "semantic_hash": "3377e3bf668a56188cecd83ab030922f"
+    "mtime": 1781587679.9176896,
+    "ast_hash": "42e51dcfb1c988cbcf7479f30a84f9be",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/admin/permissions/page.tsx": {
     "mtime": 1779588050.5469923,
@@ -1105,9 +1100,9 @@
     "semantic_hash": "9a36707a4b876eee5e6a423dabe98e1e"
   },
   "apps/perpos/src/app/(hydrogen)/admin/rate-limits/page.tsx": {
-    "mtime": 1780763114.00161,
-    "ast_hash": "477e8803c7f6f3b50914b75624256f17",
-    "semantic_hash": "477e8803c7f6f3b50914b75624256f17"
+    "mtime": 1781588809.1691253,
+    "ast_hash": "23aed59a8015662d74f5335fee89edbc",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/admin/resources/page.tsx": {
     "mtime": 1780763092.0416002,
@@ -1195,9 +1190,9 @@
     "semantic_hash": "52d50b199edf64f5edeb7eeffc408913"
   },
   "apps/perpos/src/app/api/_lib/auth.ts": {
-    "mtime": 1779423112.5482578,
-    "ast_hash": "6a3a24e1df213eea6e707fe0200de714",
-    "semantic_hash": "6a3a24e1df213eea6e707fe0200de714"
+    "mtime": 1781589319.7206826,
+    "ast_hash": "3edfb3cf80408da0f9025f2ed1bb1430",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/api/_lib/module-auth.ts": {
     "mtime": 1779612784.6861537,
@@ -1240,9 +1235,9 @@
     "semantic_hash": "ee29ffa1c9deef11f7805a5c15a394b3"
   },
   "apps/perpos/src/app/api/acc-firm/ocr/jobs/approve/route.ts": {
-    "mtime": 1780738937.854387,
-    "ast_hash": "218e928a805dfb5a9e6d566f4dd88bbf",
-    "semantic_hash": "218e928a805dfb5a9e6d566f4dd88bbf"
+    "mtime": 1781534734.3910038,
+    "ast_hash": "c5e840e5c7991d1a648248a504225db8",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/api/acc-firm/ocr/jobs/process/route.ts": {
     "mtime": 1780738891.827914,
@@ -1290,9 +1285,9 @@
     "semantic_hash": "57b94c4dae03e127d998613230d31b53"
   },
   "apps/perpos/src/app/api/admin/billing/cancel-subscription/route.ts": {
-    "mtime": 1779612748.757196,
-    "ast_hash": "4a45558d83e5b672937efab39346ef8a",
-    "semantic_hash": "4a45558d83e5b672937efab39346ef8a"
+    "mtime": 1781589450.8578126,
+    "ast_hash": "86c09bbd7624967a86ecb5e0f3602dcd",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/api/admin/billing/route.ts": {
     "mtime": 1779612837.1426966,
@@ -1335,9 +1330,9 @@
     "semantic_hash": "34da8478f95b37b2b030817a4bc37664"
   },
   "apps/perpos/src/app/api/admin/impersonate/route.ts": {
-    "mtime": 1779525225.7952135,
-    "ast_hash": "db72dd1b540e74db52df53c6eb0a86a2",
-    "semantic_hash": "db72dd1b540e74db52df53c6eb0a86a2"
+    "mtime": 1781589439.5081713,
+    "ast_hash": "39594226131d48dcc67de80438f5b5d2",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/api/admin/labels/route.ts": {
     "mtime": 1779525794.4403124,
@@ -1380,9 +1375,9 @@
     "semantic_hash": "4277e7f6c3bb538a95e568eefac5305e"
   },
   "apps/perpos/src/app/api/admin/users/delete/route.ts": {
-    "mtime": 1779241176.76113,
-    "ast_hash": "0fa2b1a159561abcf169f546c0e4c10a",
-    "semantic_hash": "0fa2b1a159561abcf169f546c0e4c10a"
+    "mtime": 1781589332.7091072,
+    "ast_hash": "fab28aca53850a264d9eeff69e9b83f6",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/api/admin/users/invite/route.ts": {
     "mtime": 1779883896.0849638,
@@ -1395,24 +1390,24 @@
     "semantic_hash": "41711573319e1ccefaae9b6ff95b6c12"
   },
   "apps/perpos/src/app/api/admin/users/orgs/route.ts": {
-    "mtime": 1779340837.402479,
-    "ast_hash": "17ea3e6334f5862adca2495faa1b4db4",
-    "semantic_hash": "17ea3e6334f5862adca2495faa1b4db4"
+    "mtime": 1781589378.1780267,
+    "ast_hash": "59cf21bb9a1864e8848aa4b448b99c6c",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/api/admin/users/permissions/route.ts": {
-    "mtime": 1779241184.7812111,
-    "ast_hash": "7be041bc42e1eb665ff7beaabc23e97b",
-    "semantic_hash": "7be041bc42e1eb665ff7beaabc23e97b"
+    "mtime": 1781589419.1062891,
+    "ast_hash": "681185ca9669592750143b2b5fd4b7bf",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/api/admin/users/reset-password/route.ts": {
-    "mtime": 1779373396.903801,
-    "ast_hash": "86809cc601f346c725ca00d0d7576d02",
-    "semantic_hash": "86809cc601f346c725ca00d0d7576d02"
+    "mtime": 1781589352.4642408,
+    "ast_hash": "2586809dcfd5f343aa7dd2a76ab15df2",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/api/admin/users/status/route.ts": {
-    "mtime": 1779271105.4839873,
-    "ast_hash": "b961c68aa45db8ae1277b6ff73a09f37",
-    "semantic_hash": "b961c68aa45db8ae1277b6ff73a09f37"
+    "mtime": 1781589399.2787642,
+    "ast_hash": "6ff21401149d3cf1d843d21488d78682",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/api/admin/webhooks/route.ts": {
     "mtime": 1779526600.375283,
@@ -1420,9 +1415,9 @@
     "semantic_hash": "3baca9eece05a8239738c33e41050a92"
   },
   "apps/perpos/src/app/api/assistant/scheduler/route.ts": {
-    "mtime": 1779242610.6656556,
-    "ast_hash": "af68fc9c326e49aaf5cab5230afff5e1",
-    "semantic_hash": "af68fc9c326e49aaf5cab5230afff5e1"
+    "mtime": 1781590539.6424768,
+    "ast_hash": "e3576b1edfe3cea9add0377d68d113c5",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/api/b2g/_lib.ts": {
     "mtime": 1780117018.6963873,
@@ -1635,9 +1630,9 @@
     "semantic_hash": "fb809f6fe6688d23aaae8c3c677614cd"
   },
   "apps/perpos/src/app/api/line/webhook/route.ts": {
-    "mtime": 1780540431.2289393,
-    "ast_hash": "e994d2b757d69ee7b058808f6796d30f",
-    "semantic_hash": "e994d2b757d69ee7b058808f6796d30f"
+    "mtime": 1781586294.9256637,
+    "ast_hash": "099e2bbd617484da00c1423cadbfe686",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/api/org/billing/checkout/route.ts": {
     "mtime": 1779601803.7739184,
@@ -1890,9 +1885,9 @@
     "semantic_hash": "839c604206b02b8d67d89fa508f7518d"
   },
   "apps/perpos/src/app/shared/module-provider.tsx": {
-    "mtime": 1780109624.119224,
-    "ast_hash": "5b2aec5266e0afb6ea6040330dbcd2ae",
-    "semantic_hash": "5b2aec5266e0afb6ea6040330dbcd2ae"
+    "mtime": 1781570341.5043383,
+    "ast_hash": "43c513532f1e23cc724e858abaf25d9e",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/shared/route-role-guard.tsx": {
     "mtime": 1779423106.9836202,
@@ -2420,9 +2415,9 @@
     "semantic_hash": "639c30005b8a6d8f181360778e7f5a41"
   },
   "apps/perpos/src/layouts/hydrogen/menu-items.tsx": {
-    "mtime": 1780497215.0996392,
-    "ast_hash": "8358ff34c2f38f35afe26f3c08439b3d",
-    "semantic_hash": "8358ff34c2f38f35afe26f3c08439b3d"
+    "mtime": 1781589793.0973797,
+    "ast_hash": "5715f24706b0caccfed2d17236ae0438",
+    "semantic_hash": ""
   },
   "apps/perpos/src/layouts/hydrogen/sidebar-menu.tsx": {
     "mtime": 1780115430.565014,
@@ -2460,9 +2455,9 @@
     "semantic_hash": "14acb5accf4a29024140e232fee6e783"
   },
   "apps/perpos/src/lib/accounting/actions.ts": {
-    "mtime": 1778315003.0970035,
-    "ast_hash": "fe82bb7463fa349bad5b5488ee228392",
-    "semantic_hash": "fe82bb7463fa349bad5b5488ee228392"
+    "mtime": 1781570328.7553732,
+    "ast_hash": "299ffccaf34d8c1a104917bece5692ec",
+    "semantic_hash": ""
   },
   "apps/perpos/src/lib/accounting/journal-actions.ts": {
     "mtime": 1778315017.352581,
@@ -2710,9 +2705,9 @@
     "semantic_hash": "e353f5203887e83fa32ddfffccabb7cb"
   },
   "apps/perpos/src/middleware.ts": {
-    "mtime": 1779357921.5125334,
-    "ast_hash": "a350569895768182f570000b76742e1a",
-    "semantic_hash": "a350569895768182f570000b76742e1a"
+    "mtime": 1781570297.2148564,
+    "ast_hash": "f804e8ee4ef00ababcbf0f1940222171",
+    "semantic_hash": ""
   },
   "apps/perpos/src/utils/base-path.ts": {
     "mtime": 1777786787.1707187,
@@ -2755,9 +2750,9 @@
     "semantic_hash": "e14c71202787fddfca2feac6d9a15ca5"
   },
   "package.json": {
-    "mtime": 1780738805.8556886,
-    "ast_hash": "c97f05a7da3fe94eabac98a9e6c356e7",
-    "semantic_hash": "c97f05a7da3fe94eabac98a9e6c356e7"
+    "mtime": 1781506988.0561893,
+    "ast_hash": "a6fc57f3ec4bf78eda803f7d7dc6ab3e",
+    "semantic_hash": ""
   },
   "packages/config-tailwind/package.json": {
     "mtime": 1742897202.0,
@@ -6173,5 +6168,200 @@
     "mtime": 1774761152.1367073,
     "ast_hash": "304366417f9a77205bec7deb5b85ebe3",
     "semantic_hash": "304366417f9a77205bec7deb5b85ebe3"
+  },
+  "apps/perpos/src/app/(auth)/claim-account/page.tsx": {
+    "mtime": 1781585600.0523431,
+    "ast_hash": "f3a4815c1c3fdbfea2486e3f4ae6b9ac",
+    "semantic_hash": ""
+  },
+  "apps/perpos/src/app/(auth)/line/claim/route.ts": {
+    "mtime": 1781585538.6278167,
+    "ast_hash": "8589ebd448a4eae9225717ce762d5821",
+    "semantic_hash": ""
+  },
+  "apps/perpos/src/app/(hydrogen)/[orgSlug]/assistant/transcribe/page.tsx": {
+    "mtime": 1781586673.6769688,
+    "ast_hash": "0c9f2096fe56d51e79d81ef719caffba",
+    "semantic_hash": ""
+  },
+  "apps/perpos/src/app/(hydrogen)/[orgSlug]/assistant/transcribe/stats/page.tsx": {
+    "mtime": 1781586606.5721161,
+    "ast_hash": "8486622a544b90ea68d91e2702706f71",
+    "semantic_hash": ""
+  },
+  "apps/perpos/src/app/(hydrogen)/admin/stt-jobs/page.tsx": {
+    "mtime": 1781588646.651878,
+    "ast_hash": "5551c977f97682a1620b684201bfcdc0",
+    "semantic_hash": ""
+  },
+  "apps/perpos/src/app/(hydrogen)/admin/stt-stats/page.tsx": {
+    "mtime": 1781588646.64753,
+    "ast_hash": "e2dda48eb7a1d2be016a161f90a68d59",
+    "semantic_hash": ""
+  },
+  "apps/perpos/src/app/(hydrogen)/admin/stt-users/page.tsx": {
+    "mtime": 1781588794.0457556,
+    "ast_hash": "6b25d8036aecfc471f8e106fafbbc251",
+    "semantic_hash": ""
+  },
+  "apps/perpos/src/app/api/account/claim/route.ts": {
+    "mtime": 1781585562.3731077,
+    "ast_hash": "ad28221ffbe82ea92d2322ddfa41ac9f",
+    "semantic_hash": ""
+  },
+  "apps/perpos/src/app/api/admin/stt-jobs/route.ts": {
+    "mtime": 1781589468.2870696,
+    "ast_hash": "85e0f1d4a6992ebdf84c29c4e7d6fea5",
+    "semantic_hash": ""
+  },
+  "apps/perpos/src/app/api/admin/stt-quota/route.ts": {
+    "mtime": 1781589501.4266622,
+    "ast_hash": "6c4fb3b09c57d3c44efff6f96a21b5e1",
+    "semantic_hash": ""
+  },
+  "apps/perpos/src/app/api/admin/stt-settings/route.ts": {
+    "mtime": 1781589490.3457108,
+    "ast_hash": "790584abfca18d6c6065a0c516f650b2",
+    "semantic_hash": ""
+  },
+  "apps/perpos/src/app/api/admin/stt-stats/route.ts": {
+    "mtime": 1781586720.4388607,
+    "ast_hash": "a3d118d035c765587d7f5c13917918c3",
+    "semantic_hash": ""
+  },
+  "apps/perpos/src/app/api/admin/stt-users/route.ts": {
+    "mtime": 1781589480.0539544,
+    "ast_hash": "7877ddb7d95447ea0f06519825e5d7b0",
+    "semantic_hash": ""
+  },
+  "apps/perpos/src/app/api/assistant/transcribe/jobs/process/route.ts": {
+    "mtime": 1781510142.8867664,
+    "ast_hash": "3275b192929579e1bcb888957af3ea24",
+    "semantic_hash": ""
+  },
+  "apps/perpos/src/app/api/assistant/transcribe/jobs/route.ts": {
+    "mtime": 1781591344.1156552,
+    "ast_hash": "bacc7686ad196572f359edf50eb42752",
+    "semantic_hash": ""
+  },
+  "apps/perpos/src/app/api/assistant/transcribe/mom-deliver/route.ts": {
+    "mtime": 1781591069.1122975,
+    "ast_hash": "6bf45ef092d1ea9284599822960adad8",
+    "semantic_hash": ""
+  },
+  "apps/perpos/src/app/api/assistant/transcribe/mom-pdf/route.ts": {
+    "mtime": 1781574909.6131175,
+    "ast_hash": "a5eba6c3c10096ea37dda8cb383925e8",
+    "semantic_hash": ""
+  },
+  "apps/perpos/src/app/api/assistant/transcribe/quota/route.ts": {
+    "mtime": 1781582137.1264107,
+    "ast_hash": "ea13f3eea12098af3f7b0426082ae8e1",
+    "semantic_hash": ""
+  },
+  "apps/perpos/src/app/api/assistant/transcribe/stats/route.ts": {
+    "mtime": 1781586549.0266767,
+    "ast_hash": "940709183d919cda1f486ef7e022fa1c",
+    "semantic_hash": ""
+  },
+  "apps/perpos/src/app/api/line/_provision.ts": {
+    "mtime": 1781591929.3268032,
+    "ast_hash": "086d1d2d74afbd4b02ce31f232d73a18",
+    "semantic_hash": ""
+  },
+  "apps/perpos/src/lib/assistant/mom-html.ts": {
+    "mtime": 1781574869.4170465,
+    "ast_hash": "b9f2d4296fe132c6b8953f5d52abc89b",
+    "semantic_hash": ""
+  },
+  "apps/perpos/src/lib/assistant/stt-trigger.ts": {
+    "mtime": 1781575046.2245889,
+    "ast_hash": "7ab8eb41e925b6f193dbd34ef6d7ea81",
+    "semantic_hash": ""
+  },
+  "services/stt-worker/package.json": {
+    "mtime": 1781582083.7267027,
+    "ast_hash": "c4b5dc4ed6a71f270dac710a8d339599",
+    "semantic_hash": ""
+  },
+  "services/stt-worker/src/lib/supabase.ts": {
+    "mtime": 1781506715.7305706,
+    "ast_hash": "c8a640306ac28d8ef2f07d2ff2e5e3a4",
+    "semantic_hash": ""
+  },
+  "services/stt-worker/src/main.ts": {
+    "mtime": 1781510130.7573004,
+    "ast_hash": "e15673fc67e34137c2f617a8d309103c",
+    "semantic_hash": ""
+  },
+  "services/stt-worker/src/stt/stt.service.ts": {
+    "mtime": 1781591272.8293452,
+    "ast_hash": "7397ef1d55e08c8cff50e1a31fd02fe4",
+    "semantic_hash": ""
+  },
+  "services/stt-worker/tsconfig.json": {
+    "mtime": 1781506682.523204,
+    "ast_hash": "6ab7ad1570e888fb4881b9c62cd10527",
+    "semantic_hash": ""
+  },
+  "supabase/migrations/20260607140000_ocr_learning_loop.sql": {
+    "mtime": 1780815484.2028115,
+    "ast_hash": "67e5e735e655f2da1adbdf35db46cdec",
+    "semantic_hash": ""
+  },
+  "supabase/migrations/20260615120000_assistant_transcription.sql": {
+    "mtime": 1781507510.9435606,
+    "ast_hash": "7556decd7ee62dde1dd3a9a656daf01e",
+    "semantic_hash": ""
+  },
+  "supabase/migrations/20260616120000_line_mom.sql": {
+    "mtime": 1781574933.2638178,
+    "ast_hash": "3ac9d2ee73ae7872a006cc3768b83bf7",
+    "semantic_hash": ""
+  },
+  "supabase/migrations/20260616130000_line_mom_async.sql": {
+    "mtime": 1781575831.4614704,
+    "ast_hash": "5523b8b0ed3dbb9a7d8d549621dd4fc7",
+    "semantic_hash": ""
+  },
+  "supabase/migrations/20260616150000_stt_quota.sql": {
+    "mtime": 1781581797.9676108,
+    "ast_hash": "d3ff16e0d6f041f646580f598fc836ac",
+    "semantic_hash": ""
+  },
+  "supabase/migrations/20260616160000_stt_settings.sql": {
+    "mtime": 1781587482.6045005,
+    "ast_hash": "c5b86417c6e01f99729a77ea3faa7256",
+    "semantic_hash": ""
+  },
+  "supabase/migrations/20260616170000_stt_refund_job.sql": {
+    "mtime": 1781583129.188915,
+    "ast_hash": "da79403f79ec8bab99fdec1d44ec50f2",
+    "semantic_hash": ""
+  },
+  "apps/perpos/src/app/(hydrogen)/admin/admin-audit/page.tsx": {
+    "mtime": 1781589558.5792346,
+    "ast_hash": "f811f463eabb389c1f826fa0e56ccbdf",
+    "semantic_hash": ""
+  },
+  "apps/perpos/src/app/api/_lib/admin-audit.ts": {
+    "mtime": 1781589304.035747,
+    "ast_hash": "a063a7f4f262775f1d74daf89f56097b",
+    "semantic_hash": ""
+  },
+  "apps/perpos/src/app/api/admin/admin-audit/route.ts": {
+    "mtime": 1781589533.0406394,
+    "ast_hash": "cbd103c8fc985eb1e0bf6d2fe0549d31",
+    "semantic_hash": ""
+  },
+  "supabase/migrations/20260616170000_admin_audit_log.sql": {
+    "mtime": 1781589271.0527198,
+    "ast_hash": "c44511e3196ee673dd339b502d83642e",
+    "semantic_hash": ""
+  },
+  "supabase/migrations/20260616200000_assistant_module_members_backfill.sql": {
+    "mtime": 1781590383.7597122,
+    "ast_hash": "d60af57503641b039420ff195128e8d2",
+    "semantic_hash": ""
   }
 }
