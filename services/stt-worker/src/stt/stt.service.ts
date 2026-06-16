@@ -142,10 +142,17 @@ async function runJob(jobId: string, orgId: string): Promise<void> {
 
     console.log(`[stt-worker] Job ${jobId} completed (${transcript.key_topics.length} topics, ${transcript.action_items.length} actions).`);
 
-    // 4. Best-effort LINE notification (failure must not fail the job).
-    await notifyLine(job).catch((e) =>
-      console.warn(`[stt-worker] LINE notify failed for ${jobId}: ${String(e)}`),
-    );
+    // 4. Best-effort delivery (failure must not fail the job).
+    if (job.source === 'line') {
+      // งานจาก LINE → ให้ฝั่ง Next.js สร้าง PDF แล้วส่ง Flex (ปุ่มดาวน์โหลด) กลับ LINE
+      await deliverMomToLine(jobId, orgId).catch((e) =>
+        console.warn(`[stt-worker] mom-deliver failed for ${jobId}: ${String(e)}`),
+      );
+    } else {
+      await notifyLine(job).catch((e) =>
+        console.warn(`[stt-worker] LINE notify failed for ${jobId}: ${String(e)}`),
+      );
+    }
   } catch (err) {
     const errorMsg = err instanceof Error ? err.message : 'เกิดข้อผิดพลาดในการแกะเสียง';
     console.error(`[stt-worker] Job ${jobId} failed:`, errorMsg);
@@ -153,7 +160,23 @@ async function runJob(jobId: string, orgId: string): Promise<void> {
       .from('transcription_jobs')
       .update({ status: 'failed', error_message: errorMsg, updated_at: new Date().toISOString() })
       .eq('id', jobId);
+    // งานจาก LINE ที่ fail → แจ้งผู้ใช้ผ่าน deliver route (push text error)
+    if (job.source === 'line') {
+      await deliverMomToLine(jobId, orgId).catch(() => undefined);
+    }
   }
+}
+
+// ส่งงานให้ฝั่ง Next.js สร้าง PDF MoM แล้ว push กลับ LINE (secret-gated)
+async function deliverMomToLine(jobId: string, orgId: string): Promise<void> {
+  const baseUrl = (process.env.APP_BASE_URL ?? 'https://perpos.io').replace(/\/$/, '');
+  const secret = (process.env.WORKER_SECRET ?? '').trim();
+  const resp = await fetch(`${baseUrl}/api/assistant/transcribe/mom-deliver`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-worker-secret': secret },
+    body: JSON.stringify({ jobId, orgId }),
+  });
+  if (!resp.ok) throw new Error(`mom-deliver responded ${resp.status}`);
 }
 
 // ── Storage ──────────────────────────────────────────────────────────────────

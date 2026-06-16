@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { createAdminClient } from '../../_lib/supabase';
+import { triggerSttWorker } from '@/lib/assistant/stt-trigger';
 import { upsertMobileToken } from '../../tmc/mobile/_lib';
 import {
   handleCrmCmd, handleCrmIn, handleCrmOut, handleCrmInStatus,
@@ -1222,6 +1223,100 @@ async function checkAssistantAccess(admin: ReturnType<typeof createAdminClient>,
   return perm || grant;
 }
 
+// ─── /mom — รับไฟล์เสียงจาก LINE → STT → ส่ง PDF MoM กลับ ──────────────────────
+const STT_ALLOWED_MIME = new Set([
+  'audio/mpeg', 'audio/mp3', 'audio/ogg', 'audio/wav', 'audio/x-wav', 'audio/aac',
+  'audio/flac', 'audio/mp4', 'audio/x-m4a', 'audio/webm', 'video/mp4', 'video/webm', 'video/quicktime',
+]);
+const EXT_TO_MIME: Record<string, string> = {
+  ogg: 'audio/ogg', opus: 'audio/ogg', mp3: 'audio/mpeg', m4a: 'audio/mp4', wav: 'audio/wav',
+  aac: 'audio/aac', flac: 'audio/flac', mp4: 'video/mp4', webm: 'audio/webm',
+};
+const MIME_TO_EXT: Record<string, string> = {
+  'audio/mpeg': 'mp3', 'audio/mp3': 'mp3', 'audio/ogg': 'ogg', 'audio/wav': 'wav', 'audio/x-wav': 'wav',
+  'audio/aac': 'aac', 'audio/flac': 'flac', 'audio/mp4': 'm4a', 'audio/x-m4a': 'm4a', 'audio/webm': 'webm',
+  'video/mp4': 'mp4', 'video/webm': 'webm', 'video/quicktime': 'mov',
+};
+
+/** normalize content-type ของ LINE ให้เป็น mime ที่ bucket อนุญาต (LINE เสียง = m4a/audio/x-m4a) */
+function normalizeAudioMime(rawMime: string, fileName: string): { mime: string; ext: string } {
+  let mime = (rawMime || '').split(';')[0].trim().toLowerCase();
+  if (!STT_ALLOWED_MIME.has(mime)) {
+    const ext = (fileName.split('.').pop() ?? '').toLowerCase();
+    mime = EXT_TO_MIME[ext] ?? 'audio/mp4';
+  }
+  return { mime, ext: MIME_TO_EXT[mime] ?? 'm4a' };
+}
+
+async function handleMomAudio(
+  admin: ReturnType<typeof createAdminClient>,
+  lineUserId: string,
+  messageId: string,
+  profileId: string,
+  orgId: string,
+  fileNameHint: string,
+  replyToken: string,
+) {
+  const lineToken = process.env.LINE_MESSAGING_CHANNEL_ACCESS_TOKEN ?? '';
+  const contentRes = await fetch(
+    `https://api-data.line.me/v2/bot/message/${messageId}/content`,
+    { headers: { Authorization: `Bearer ${lineToken}` } },
+  );
+  if (!contentRes.ok) {
+    await replyText(replyToken, '❌ ดาวน์โหลดไฟล์เสียงไม่สำเร็จ กรุณาลองส่งใหม่');
+    return;
+  }
+
+  const buffer = Buffer.from(await contentRes.arrayBuffer());
+  const fileSize = buffer.length;
+  if (fileSize > 200 * 1024 * 1024) {
+    await replyText(replyToken, '❌ ไฟล์ใหญ่เกิน 200MB กรุณาส่งไฟล์ที่เล็กลง (แนะนำบีบเป็น .ogg/.m4a)');
+    return;
+  }
+
+  const { mime, ext } = normalizeAudioMime(contentRes.headers.get('content-type') ?? '', fileNameHint);
+  const fileName = fileNameHint || `line-เสียง-${Date.now()}.${ext}`;
+  const storagePath = `${orgId}/line/${Date.now()}-${messageId}.${ext}`;
+
+  const { error: upErr } = await admin.storage
+    .from('assistant_audio')
+    .upload(storagePath, buffer, { contentType: mime, upsert: false });
+  if (upErr) {
+    await replyText(replyToken, `❌ อัปโหลดไฟล์ไม่สำเร็จ: ${upErr.message}`);
+    return;
+  }
+
+  const { data: prof } = await admin.from('profiles').select('email').eq('id', profileId).maybeSingle();
+  const { data: job, error: jobErr } = await admin
+    .from('transcription_jobs')
+    .insert({
+      org_id: orgId, profile_id: profileId, audio_url: storagePath, file_name: fileName,
+      mime_type: mime, file_size: fileSize, model: 'gemini-2.5-flash', source: 'line',
+      triggered_by: profileId, triggered_by_email: (prof as { email?: string } | null)?.email ?? null,
+    })
+    .select('id')
+    .single();
+  if (jobErr || !job) {
+    void admin.storage.from('assistant_audio').remove([storagePath]);
+    await replyText(replyToken, `❌ สร้างงานถอดเสียงไม่สำเร็จ: ${jobErr?.message ?? ''}`);
+    return;
+  }
+
+  // ใช้ session แล้ว — ลบทิ้ง
+  await admin.from('assistant_line_sessions').delete().eq('line_user_id', lineUserId);
+
+  const trig = await triggerSttWorker(admin, job.id as string, orgId);
+  if (!trig.ok) {
+    await replyText(replyToken, `❌ เริ่มถอดเสียงไม่สำเร็จ: ${trig.error ?? 'ลองใหม่อีกครั้ง'}`);
+    return;
+  }
+
+  await replyText(replyToken,
+    '✅ ได้รับไฟล์แล้ว กำลังถอดเสียงเป็นรายงานการประชุม…\n' +
+    'เมื่อเสร็จจะส่งไฟล์ PDF กลับมาให้อัตโนมัติ (ประมาณ 1–3 นาที) 🙏',
+  );
+}
+
 // ─── Main webhook handler ─────────────────────────────────────────────────────
 
 const TMC_CMDS = ['รับ', 'จ่าย', 'บัญชี', 'stock', 'stkin', 'stkout', 'stk', 'เช็คอิน', 'pcin', 'pcout', 'pcbal', 'pcfunds', 'tmc'];
@@ -1260,6 +1355,30 @@ export async function POST(req: NextRequest) {
 
     // Location messages not handled (GPS captured via web link instead)
     if (msg.type === 'location') continue;
+
+    // ─── Audio / file messages — STT MoM (เฉพาะเมื่อมี session /mom ค้างอยู่) ──────
+    if (msg.type === 'audio' || msg.type === 'file') {
+      const messageId = String(msg.id ?? '');
+      if (!lineUserId || !messageId) continue;
+      const sttProfile = await getProfileByLineId(admin, lineUserId);
+      if (!sttProfile) continue; // ยังไม่ผูก LINE → เงียบ
+
+      const { data: sess } = await admin
+        .from('assistant_line_sessions')
+        .select('org_id, expires_at')
+        .eq('line_user_id', lineUserId)
+        .maybeSingle();
+      // ไม่มี session /mom หรือหมดอายุ → เงียบ (ไม่ยุ่งฟีเจอร์อื่น)
+      if (!sess || new Date(sess.expires_at as string).getTime() < Date.now()) continue;
+
+      const fileName = String(msg.fileName ?? '');
+      if (msg.type === 'file' && !/\.(ogg|mp3|m4a|wav|mp4|aac|flac|webm|opus)$/i.test(fileName)) {
+        await replyText(replyToken, '❌ ไฟล์นี้ไม่ใช่ไฟล์เสียง/วิดีโอ กรุณาส่งไฟล์เสียง (mp3, ogg, m4a, wav, mp4)');
+        continue;
+      }
+      await handleMomAudio(admin, lineUserId, messageId, sttProfile.id, String(sess.org_id), fileName, replyToken);
+      continue;
+    }
 
     if (msg.type !== 'text') continue;
 
@@ -1422,6 +1541,25 @@ export async function POST(req: NextRequest) {
       const note = args.slice(1).join(' ') || '';
       await admin.from('finance_entries').insert({ profile_id: profile.id, entry_type: cmd === 'รายรับ' ? 'income' : 'expense', amount, note });
       await replyText(replyToken, `✅ บันทึก${cmd} ${amount.toLocaleString('th-TH')} บาท${note ? ` (${note})` : ''}`);
+      continue;
+    }
+
+    if (cmd === 'mom') {
+      if (!await checkAssistantAccess(admin, profile.id, profile.role)) {
+        await replyText(replyToken, '❌ ไม่มีสิทธิ์ใช้คำสั่งนี้ (ต้องเปิดใช้งานผู้ช่วย AI ในองค์กร)'); continue;
+      }
+      if (!activeOrg) {
+        await replyText(replyToken, '❌ ยังไม่ได้เลือกองค์กร พิมพ์ /org เพื่อเลือกองค์กรก่อน'); continue;
+      }
+      const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+      await admin.from('assistant_line_sessions').upsert({
+        line_user_id: lineUserId, org_id: activeOrg.id, profile_id: profile.id, action: 'mom', expires_at: expiresAt,
+      }, { onConflict: 'line_user_id' });
+      await replyText(replyToken,
+        '🎙️ ส่งไฟล์เสียงที่ต้องการถอดเป็นรายงานการประชุม (MoM) มาได้เลยครับ\n\n' +
+        '• รองรับไฟล์เสียง/วิดีโอ ไม่เกิน 200MB\n' +
+        '• เมื่อถอดเสร็จจะส่งไฟล์ PDF กลับมาให้อัตโนมัติ (ประมาณ 1–3 นาที)',
+      );
       continue;
     }
 
