@@ -46,7 +46,9 @@ app.get('/health', (_req, res) => {
 app.post('/render', async (req, res) => {
   if (!requireSecret(req, res)) return;
 
-  const { html, filename } = req.body as { html?: string; filename?: string };
+  const { html, filename, footerHtml, headerHtml } = req.body as {
+    html?: string; filename?: string; footerHtml?: string; headerHtml?: string;
+  };
 
   if (!html || typeof html !== 'string' || html.length < 20) {
     res.status(400).type('text/plain').send('html is required (min 20 chars)');
@@ -60,7 +62,7 @@ app.post('/render', async (req, res) => {
   const safeName = normalizeName(filename ?? 'document');
 
   try {
-    const pdfBuffer = await renderPdf(html);
+    const pdfBuffer = await renderPdf(html, { footerHtml, headerHtml });
     res
       .status(200)
       .setHeader('Content-Type', 'application/pdf')

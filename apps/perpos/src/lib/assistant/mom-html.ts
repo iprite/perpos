@@ -28,6 +28,17 @@ const esc = (s: unknown): string =>
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
 
+/**
+ * Running footer — ส่งให้ pdf-renderer (Playwright displayHeaderFooter) เพื่อพิมพ์
+ * ท้าย "ทุกหน้า" ใน margin ล่าง พร้อมเลขหน้า (มืออาชีพ ไม่หลุดไปโดดบนหน้าเปล่า)
+ * NOTE: template นี้ไม่ inherit CSS ของ body — ต้อง inline style ทั้งหมด
+ */
+export const MOM_FOOTER_TEMPLATE =
+  `<div style="width:100%; box-sizing:border-box; padding:0 15mm; font-family:'Noto Sans Thai','TLwg Typist',sans-serif; font-size:7px; color:#9ca3af; display:flex; justify-content:space-between; align-items:center;">` +
+  `<span>จัดทำโดยระบบ PERPOS Assistant</span>` +
+  `<span>หน้า <span class="pageNumber"></span> / <span class="totalPages"></span></span>` +
+  `</div>`;
+
 // ห่อ section ด้วยตารางหัวข้อซ้ำได้ — เมื่อเนื้อหาตัดข้ามหน้า หัวข้อจะ repeat ตามไปด้วย
 const section = (heading: string, inner: string): string =>
   `<table class="sec"><thead><tr><th>${esc(heading)}</th></tr></thead>` +
@@ -66,7 +77,7 @@ export function buildMomHtml(tj: MomJson, dateText: string): string {
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
-  @page { size: A4; margin: 16mm 15mm; }
+  @page { size: A4; margin: 16mm 15mm 20mm; }
   * { box-sizing: border-box; }
   html, body { margin: 0; padding: 0; }
   body { font-family: 'Noto Sans Thai', sans-serif; color: #1f2937; font-size: 11px; font-weight: 400; line-height: 1.65; }
@@ -110,7 +121,6 @@ export function buildMomHtml(tj: MomJson, dateText: string): string {
   .cno { width: 34px; text-align: center; }
   .cwho { width: 130px; }
   .empty { text-align: center; color: #6b7280; }
-  .foot { margin-top: 26px; padding-top: 8px; border-top: 1px solid #e5e7eb; text-align: center; color: #9ca3af; font-size: 8px; }
 </style></head><body>
   <div class="brandrow"><span class="brand">PERPOS</span><span>รายงานการประชุม · Minutes of Meeting</span></div>
   <div class="accent"></div>
@@ -131,7 +141,5 @@ export function buildMomHtml(tj: MomJson, dateText: string): string {
   ${actionTable}
 
   ${recommendations ? section('ข้อเสนอแนะ', `<div class="rec"><ul class="rec-list">${recommendations}</ul></div>`) : ''}
-
-  <div class="foot">จัดทำโดยระบบ PERPOS Assistant</div>
 </body></html>`;
 }

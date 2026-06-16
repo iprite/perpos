@@ -9,7 +9,7 @@ import { NextRequest } from 'next/server';
 import { requireModuleMember } from '../../../_lib/module-auth';
 import { createAdminClient } from '../../../_lib/supabase';
 import { Err } from '../../../_lib/response';
-import { buildMomHtml, type MomJson } from '@/lib/assistant/mom-html';
+import { buildMomHtml, MOM_FOOTER_TEMPLATE, type MomJson } from '@/lib/assistant/mom-html';
 
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null);
@@ -55,7 +55,7 @@ export async function POST(req: NextRequest) {
       'Content-Type': 'application/json',
       ...(renderSecret ? { 'x-pdf-secret': renderSecret } : {}),
     },
-    body: JSON.stringify({ html, filename }),
+    body: JSON.stringify({ html, filename, footerHtml: MOM_FOOTER_TEMPLATE }),
   }).catch((e) => {
     throw e;
   });

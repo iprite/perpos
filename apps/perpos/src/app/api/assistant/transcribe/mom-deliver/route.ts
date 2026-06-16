@@ -9,7 +9,7 @@
 import { NextRequest } from 'next/server';
 import { createAdminClient } from '../../../_lib/supabase';
 import { ok, Err } from '../../../_lib/response';
-import { buildMomHtml, type MomJson } from '@/lib/assistant/mom-html';
+import { buildMomHtml, MOM_FOOTER_TEMPLATE, type MomJson } from '@/lib/assistant/mom-html';
 import { sendLineMessages } from '@/lib/line/send-messages';
 
 const BUCKET = 'assistant_audio';
@@ -78,7 +78,7 @@ export async function POST(req: NextRequest) {
   const resp = await fetch(`${renderUrl.replace(/\/$/, '')}/render`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...(renderSecret ? { 'x-pdf-secret': renderSecret } : {}) },
-    body: JSON.stringify({ html: buildMomHtml(tj, dateText), filename: 'minutes-of-meeting' }),
+    body: JSON.stringify({ html: buildMomHtml(tj, dateText), filename: 'minutes-of-meeting', footerHtml: MOM_FOOTER_TEMPLATE }),
     signal: AbortSignal.timeout(120_000),
   }).catch((e) => { throw e; });
   if (!resp.ok) {
