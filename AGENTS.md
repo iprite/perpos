@@ -156,7 +156,7 @@ pnpm build
 | `/รายจ่าย <จำนวน> <โน้ต>` | บันทึกรายจ่าย | `bot.finance.expense_add` |
 | `/นัด <HH:MM> <เรื่อง>` | เพิ่มนัดวันนี้ | `bot.calendar.add` |
 | `/วันนี้` | ดูนัดวันนี้ | `bot.calendar.today` |
-| `/mom` | แกะเสียงเป็นรายงานการประชุม (ส่งไฟล์เสียงตามหลัง → ได้ PDF กลับทาง LINE) | `bot.assistant.tasks` |
+| `/mom` | แกะเสียงเป็นรายงานการประชุม (ส่งไฟล์เสียงตามหลัง → ได้ PDF กลับทาง LINE) | `bot.assistant.transcribe` (module `stt`) |
 | `/web` | รับ magic link เข้าเว็บ (ล็อกอินอัตโนมัติ + เคลมบัญชี ตั้ง email/password) | — |
 | `/t <ข้อความ>` | บันทึก task ใหม่ | `bot.assistant.tasks` |
 | `/tk` | รายการ task ที่รอ | `bot.assistant.tasks` |
@@ -166,7 +166,9 @@ pnpm build
 
 **หมายเหตุ:** Admin role ข้ามการเช็ค permission ทั้งหมด
 
-**Auto-onboarding (LINE-first):** เมื่อมี `follow` event (แอด OA) → `provisionLineUser` ([api/line/_provision.ts](apps/perpos/src/app/api/line/_provision.ts)) สร้าง shadow auth user (email `line.<id>@stt-line.perpos.io`) → trigger สร้าง profile → personal org + member(owner) + org_module_settings(assistant) + personal_module_grants(assistant) + stt_quota(300นาที) + line_active_org_id → push welcome Flex. idempotent ต่อ `line_user_id` (re-follow ไม่สร้างซ้ำ). ผู้ใช้พิมพ์ `/mom` ได้ทันทีโดยไม่ต้องสมัครเว็บ
+**Auto-onboarding (LINE-first):** เมื่อมี `follow` event (แอด OA) → `provisionLineUser` ([api/line/_provision.ts](apps/perpos/src/app/api/line/_provision.ts)) สร้าง shadow auth user (email `line.<id>@stt-line.perpos.io`) → trigger สร้าง profile → personal org + member(owner) + **module `assistant` และ `stt`** (org_module_settings + personal_module_grants + module_members ครบทั้ง 3 ตารางต่อ module) + stt_quota(300นาที = trial) + line_active_org_id → push welcome Flex. idempotent ต่อ `line_user_id` (re-follow ไม่สร้างซ้ำ). ผู้ใช้พิมพ์ `/mom` ได้ทันทีโดยไม่ต้องสมัครเว็บ
+
+**โมดูล `assistant` vs `stt` (แยกกัน):** `assistant` = ผู้ช่วยฟรีระดับ org (task/calendar/finance/news — คำสั่ง `/t /tk /d /a /ap /นัด ฯลฯ`, gate ด้วย `checkAssistantAccess` / `bot.assistant.tasks` / grant `assistant`). `stt` = แกะเสียง→MoM ระดับบุคคล มี **subscription แยก** (`/mom`, หน้าเว็บ `/{org}/assistant/transcribe/*`, gate ด้วย `checkSttAccess` / `bot.assistant.transcribe` / grant `stt` + `requireModuleMember(orgId,'stt')`). ด่านเก็บเงินจริงคือ `stt_quota` ที่ stt-worker — trial 300 นาทีหมดต้อง subscribe (฿99/เดือน). ทั้งสอง module อยู่ใต้ URL `/{org}/assistant/...` แต่แยก menu context ด้วย segment `transcribe`
 
 ---
 

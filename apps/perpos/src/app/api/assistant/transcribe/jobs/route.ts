@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
   const orgId = req.nextUrl.searchParams.get('orgId');
   if (!orgId) return Err.missingField('orgId');
 
-  const auth = await requireModuleMember(req, orgId, 'assistant');
+  const auth = await requireModuleMember(req, orgId, 'stt');
   if (!auth.ok) return auth.res;
 
   const jobId = req.nextUrl.searchParams.get('jobId');
@@ -67,7 +67,7 @@ export async function POST(req: NextRequest) {
   if (!fileName) return Err.missingField('fileName');
   if (!mimeType) return Err.missingField('mimeType');
 
-  const auth = await requireModuleMember(req, orgId, 'assistant');
+  const auth = await requireModuleMember(req, orgId, 'stt');
   if (!auth.ok) return auth.res;
 
   const chosenModel = model ?? 'gemini-2.5-flash';

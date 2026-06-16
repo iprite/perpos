@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
   if (!jobId) return Err.missingField('jobId');
   if (!orgId) return Err.missingField('orgId');
 
-  const auth = await requireModuleMember(req, orgId, 'assistant');
+  const auth = await requireModuleMember(req, orgId, 'stt');
   if (!auth.ok) return auth.res;
 
   const admin = createAdminClient();

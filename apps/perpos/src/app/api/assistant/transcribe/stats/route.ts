@@ -14,7 +14,7 @@ const dayStr = (d: Date) => new Intl.DateTimeFormat('en-CA', { timeZone: BKK }).
 export async function GET(req: NextRequest) {
   const orgId = req.nextUrl.searchParams.get('orgId');
   if (!orgId) return Err.missingField('orgId');
-  const auth = await requireModuleMember(req, orgId, 'assistant');
+  const auth = await requireModuleMember(req, orgId, 'stt');
   if (!auth.ok) return auth.res;
 
   const admin = createAdminClient();

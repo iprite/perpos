@@ -163,18 +163,21 @@ export async function provisionLineUser(admin: SupabaseClient, lineUserId: strin
   // 2. personal org + owner membership (idempotent / reuse-if-exists)
   const orgId = await ensurePersonalOrg(admin, profileId, displayName, preferredOrgId);
 
-  // 3. assistant access — ครบทั้ง 3 ระบบสิทธิ์:
-  //    org_module_settings (เปิด module ระดับ org) · personal_module_grants (LINE checkAssistantAccess)
+  // 3. module access — ครบทั้ง 3 ระบบสิทธิ์ต่อ module:
+  //    org_module_settings (เปิด module ระดับ org) · personal_module_grants (LINE checkAccess)
   //    · module_members (requireModuleMember ของ route เว็บ — ขาดไม่ได้ ไม่งั้นเว็บ 403)
-  await ensureRow(admin, 'org_module_settings',
-    { organization_id: orgId, module_key: 'assistant' },
-    { organization_id: orgId, module_key: 'assistant', is_enabled: true, allowed_roles: ASSISTANT_ALLOWED_ROLES });
-  await ensureRow(admin, 'personal_module_grants',
-    { user_id: profileId, module_key: 'assistant' },
-    { module_key: 'assistant', user_id: profileId, granted_by: profileId, is_enabled: true });
-  await ensureRow(admin, 'module_members',
-    { org_id: orgId, module_key: 'assistant', user_id: profileId },
-    { org_id: orgId, module_key: 'assistant', user_id: profileId, module_role: 'owner', is_active: true, invited_by: profileId });
+  //    ให้ทั้ง `assistant` (ผู้ช่วยฟรี: task/calendar/finance) และ `stt` (แกะเสียง: trial 300 นาที → subscribe)
+  for (const moduleKey of ['assistant', 'stt'] as const) {
+    await ensureRow(admin, 'org_module_settings',
+      { organization_id: orgId, module_key: moduleKey },
+      { organization_id: orgId, module_key: moduleKey, is_enabled: true, allowed_roles: ASSISTANT_ALLOWED_ROLES });
+    await ensureRow(admin, 'personal_module_grants',
+      { user_id: profileId, module_key: moduleKey },
+      { module_key: moduleKey, user_id: profileId, granted_by: profileId, is_enabled: true });
+    await ensureRow(admin, 'module_members',
+      { org_id: orgId, module_key: moduleKey, user_id: profileId },
+      { org_id: orgId, module_key: moduleKey, user_id: profileId, module_role: 'owner', is_active: true, invited_by: profileId });
+  }
 
   // 4. active org pointer + quota
   if (preferredOrgId !== orgId) {

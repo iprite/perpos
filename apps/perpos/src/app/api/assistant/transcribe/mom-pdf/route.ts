@@ -17,7 +17,7 @@ export async function POST(req: NextRequest) {
   if (!orgId) return Err.missingField('orgId');
   if (!jobId) return Err.missingField('jobId');
 
-  const auth = await requireModuleMember(req, orgId, 'assistant');
+  const auth = await requireModuleMember(req, orgId, 'stt');
   if (!auth.ok) return auth.res;
 
   const renderUrl = process.env.PDF_RENDER_URL;

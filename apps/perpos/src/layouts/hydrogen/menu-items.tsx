@@ -354,7 +354,27 @@ function buildAssistantMenuItems(org: string, labels: Record<string, string> = {
       roles: allRoles,
     },
     {
-      name: l("transcribe_billing", "ซื้อนาทีแกะเสียง"),
+      name: l("transcribe", "แกะเสียง→รายงานประชุม"),
+      href: `/${org}/assistant/transcribe`,
+      icon: <Sparkles className="h-5 w-5" />,
+      roles: allRoles,
+    },
+  ];
+}
+
+// ─── STT module (แกะเสียง→รายงานประชุม) — personal, มีแพ็กเกจรายเดือนแยก ───────
+function buildSttMenuItems(org: string, labels: Record<string, string> = {}): MenuItem[] {
+  const l = (key: string, fallback: string) => labels[key] || fallback;
+  return [
+    { name: "แกะเสียง", roles: allRoles },
+    {
+      name: l("transcribe", "แกะเสียง"),
+      href: `/${org}/assistant/transcribe`,
+      icon: <Sparkles className="h-5 w-5" />,
+      roles: allRoles,
+    },
+    {
+      name: l("billing", "ซื้อนาทีแกะเสียง"),
       href: `/${org}/assistant/transcribe/billing`,
       icon: <Sparkles className="h-5 w-5" />,
       roles: allRoles,
@@ -509,6 +529,7 @@ function pickMenuContext(pathname: string, role: Role | null, enabledKeys: strin
   // For org routes: /:orgSlug/:module/*  →  segments[1] is the module key
   if (segments.length >= 2) {
     const mod = segments[1];
+    if (mod === "assistant" && segments[2] === "transcribe") return "stt";
     if (mod === "assistant") return "assistant";
     if (mod === "payroll")   return "payroll";
     if (mod === "tmc")       return "tmc";
@@ -530,6 +551,7 @@ function pickMenuContext(pathname: string, role: Role | null, enabledKeys: strin
   if (enabledKeys.includes("acc_firm"))   return "acc_firm";
   if (enabledKeys.includes("payroll"))    return "payroll";
   if (enabledKeys.includes("assistant"))  return "assistant";
+  if (enabledKeys.includes("stt"))        return "stt";
   return "user";
 }
 
@@ -550,6 +572,7 @@ export function getMenuItems(
   const context = pickMenuContext(pathname, role, enabledKeys);
   const items =
     context === "admin"     ? buildAdminMenuItems()                                      :
+    context === "stt"       ? buildSttMenuItems(org,      menuLabels.stt       ?? {})    :
     context === "payroll"   ? buildPayrollMenuItems(org,  menuLabels.payroll   ?? {})    :
     context === "tmc"       ? buildTmcMenuItems(org,      menuLabels.tmc       ?? {})    :
     context === "crm"       ? buildCrmMenuItems(org,      menuLabels.crm       ?? {})    :

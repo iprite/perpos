@@ -1228,6 +1228,19 @@ async function checkAssistantAccess(admin: ReturnType<typeof createAdminClient>,
   return perm || grant;
 }
 
+// สิทธิ์แกะเสียง (/mom) — module `stt` แยกจาก assistant (เก็บเงินแยก subscription)
+// grant ให้ตั้งแต่ onboarding (พร้อม trial 300 นาที) → ด่านเก็บเงินจริงคือ quota ที่ stt-worker
+async function checkSttAccess(admin: ReturnType<typeof createAdminClient>, profileId: string, role: string): Promise<boolean> {
+  const { data: prof } = await admin.from('profiles').select('is_active').eq('id', profileId).maybeSingle();
+  if ((prof as { is_active?: boolean } | null)?.is_active === false) return false;
+  if (role === 'super_admin') return true;
+  const [perm, grant] = await Promise.all([
+    checkPermission(admin, profileId, 'bot.assistant.transcribe', role),
+    checkPersonalGrant(admin, profileId, 'stt'),
+  ]);
+  return perm || grant;
+}
+
 // ─── /mom — รับไฟล์เสียงจาก LINE → STT → ส่ง PDF MoM กลับ ──────────────────────
 const STT_ALLOWED_MIME = new Set([
   'audio/mpeg', 'audio/mp3', 'audio/ogg', 'audio/wav', 'audio/x-wav', 'audio/aac',
@@ -1347,15 +1360,15 @@ async function handleMomConfirm(
   if (!messageId) return;
   const profile = await getProfileByLineId(admin, lineUserId);
   if (!profile) { await replyText(replyToken, '❌ กรุณาแอด LINE และเริ่มต้นใช้งานก่อนครับ'); return; }
-  if (!await checkAssistantAccess(admin, profile.id, profile.role)) {
-    await replyText(replyToken, '❌ ไม่มีสิทธิ์ใช้คำสั่งนี้ (ต้องเปิดใช้งานผู้ช่วย AI ในองค์กร)'); return;
+  if (!await checkSttAccess(admin, profile.id, profile.role)) {
+    await replyText(replyToken, '❌ ไม่มีสิทธิ์ถอดเสียง (ต้องเปิดใช้งานฟีเจอร์แกะเสียงก่อน)'); return;
   }
   const activeOrg = await getOrSetActiveOrg(admin, profile.id, profile.line_active_org_id);
   if (!activeOrg) { await replyText(replyToken, '❌ ยังไม่ได้เลือกองค์กร พิมพ์ /org เพื่อเลือกองค์กรก่อน'); return; }
 
   const { data: q } = await admin.from('stt_quota').select('limit_seconds, used_seconds').eq('profile_id', profile.id).maybeSingle();
   const qRemain = ((q as { limit_seconds?: number } | null)?.limit_seconds ?? 18000) - ((q as { used_seconds?: number } | null)?.used_seconds ?? 0);
-  if (qRemain <= 0) { await replyText(replyToken, '❌ โควต้าถอดเสียงของคุณหมดแล้ว (0 นาที)\nติดต่อแอดมินเพื่อเพิ่มโควต้าครับ'); return; }
+  if (qRemain <= 0) { await replyText(replyToken, '❌ นาทีถอดเสียงของคุณหมดแล้ว (0 นาที)\nสมัครแพ็กเกจรายเดือนเพื่อใช้ต่อ พิมพ์ /web เพื่อเปิดหน้าซื้อครับ'); return; }
 
   await handleMomAudio(admin, lineUserId, messageId, profile.id, activeOrg.id, '', replyToken);
 }
@@ -1529,7 +1542,7 @@ export async function POST(req: NextRequest) {
       if (!isAudioFile) continue; // ไฟล์เอกสาร/อื่น ๆ ไม่ยุ่ง
       const audioProfile = await getProfileByLineId(admin, lineUserId);
       if (!audioProfile) continue;
-      if (!await checkAssistantAccess(admin, audioProfile.id, audioProfile.role)) continue;
+      if (!await checkSttAccess(admin, audioProfile.id, audioProfile.role)) continue;
       await replyLine(replyToken, [{
         type: 'flex',
         altText: 'ได้รับไฟล์เสียงแล้ว — ต้องการให้ถอดเป็นรายงานการประชุมไหม?',
@@ -1602,7 +1615,10 @@ export async function POST(req: NextRequest) {
       if (activeOrg?.id === TMC_ORG_ID) {
         await handleTmcHelp(replyToken);
       } else {
-        const hasAssistant = await checkAssistantAccess(admin, profile.id, profile.role);
+        const [hasAssistant, hasStt] = await Promise.all([
+          checkAssistantAccess(admin, profile.id, profile.role),
+          checkSttAccess(admin, profile.id, profile.role),
+        ]);
         // Check just_me module
         let hasJustMe = false;
         // Check jaquar module
@@ -1655,6 +1671,14 @@ export async function POST(req: NextRequest) {
             cmdRow('/d <N>', 'ปิดงานที่ N'),
             cmdRow('/a <ชื่อ> <HH:MM>', 'บันทึกนัดหมาย'),
             cmdRow('/ap', 'นัดหมายวันนี้'),
+          );
+        }
+
+        if (hasStt) {
+          bodyContents.push(
+            { type: 'separator', margin: 'md' },
+            { type: 'text', text: 'แกะเสียง → รายงานประชุม', size: 'xs', color: '#9CA3AF', margin: 'md' },
+            cmdRow('/mom', 'ส่งไฟล์เสียง → ได้รายงาน PDF'),
           );
         }
 
@@ -1729,8 +1753,8 @@ export async function POST(req: NextRequest) {
     }
 
     if (cmd === 'mom') {
-      if (!await checkAssistantAccess(admin, profile.id, profile.role)) {
-        await replyText(replyToken, '❌ ไม่มีสิทธิ์ใช้คำสั่งนี้ (ต้องเปิดใช้งานผู้ช่วย AI ในองค์กร)'); continue;
+      if (!await checkSttAccess(admin, profile.id, profile.role)) {
+        await replyText(replyToken, '❌ ไม่มีสิทธิ์ถอดเสียง (ต้องเปิดใช้งานฟีเจอร์แกะเสียงก่อน)'); continue;
       }
       if (!activeOrg) {
         await replyText(replyToken, '❌ ยังไม่ได้เลือกองค์กร พิมพ์ /org เพื่อเลือกองค์กรก่อน'); continue;
