@@ -3,8 +3,9 @@
 import Link from "next/link";
 import { Fragment, useEffect, useMemo } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { Title, Collapse } from "rizzui";
+import { Collapse } from "rizzui";
 import cn from "@core/utils/class-names";
+import { Title } from "@/components/ui/typography";
 import { PiCaretDownBold } from "react-icons/pi";
 import { getMenuItems, isLinkMenuItem } from "@/layouts/hydrogen/menu-items";
 import { useAuth } from "@/app/shared/auth-provider";

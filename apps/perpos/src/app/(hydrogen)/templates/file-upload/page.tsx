@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useMemo, useState } from "react";
-import { Title, Text } from "rizzui/typography";
+import { Title, Text } from "@/components/ui/typography";
 
 import FileUploader from "@/components/form/file-uploader";
 

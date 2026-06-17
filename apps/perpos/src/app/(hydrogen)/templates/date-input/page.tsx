@@ -2,7 +2,7 @@
 
 import React, { useMemo, useState } from "react";
 import DatePicker from "react-datepicker";
-import { Title, Text } from "rizzui/typography";
+import { Title, Text } from "@/components/ui/typography";
 
 import "react-datepicker/dist/react-datepicker.css";
 

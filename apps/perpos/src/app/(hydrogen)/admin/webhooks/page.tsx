@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Title } from "rizzui/typography";
+import { Title } from "@/components/ui/typography";
 import { Plus, Pencil, Trash2, Play, ChevronDown, ChevronUp, CheckCircle2, XCircle, Clock, Webhook as WebhookIcon } from "lucide-react";
 
 import { useAuth } from "@/app/shared/auth-provider";

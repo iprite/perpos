@@ -1,13 +1,15 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import { Avatar, Badge, Title, Text } from "rizzui";
 import { QRCodeSVG } from "qrcode.react";
-import { Image as ImageIcon, Link2, Save, X } from "lucide-react";
+import { Image as ImageIcon, Link2, Save, X, UserCog } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Avatar } from "@/components/ui/avatar";
+import { StatusBadge } from "@/components/ui/badge";
+import { PageShell } from "@/components/ui/page-shell";
 import { useAuth } from "@/app/shared/auth-provider";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { backendUrl } from "@/lib/backend";
@@ -66,15 +68,13 @@ export default function UserSettingsPage() {
   const isLinkExpired = link ? new Date(link.expiresAt).getTime() <= Date.now() : false;
 
   return (
-    <div className="mx-auto w-full max-w-5xl px-4 py-6">
-      <div>
-        <Title as="h1" className="text-xl font-semibold">
-          ตั้งค่าผู้ใช้งาน
-        </Title>
-        <Text className="mt-1 text-sm text-gray-600">อัปเดตโปรไฟล์ และเชื่อมต่อ LINE @perpos</Text>
-      </div>
-
-      <div className="mt-6 grid gap-4 lg:grid-cols-12">
+    <PageShell
+      title="ตั้งค่าผู้ใช้งาน"
+      description="อัปเดตโปรไฟล์ และเชื่อมต่อ LINE @perpos"
+      icon={<UserCog className="h-6 w-6" />}
+      width="wide"
+    >
+      <div className="grid gap-4 lg:grid-cols-12">
         <div className="grid gap-4 lg:col-span-8">
           <div className="rounded-2xl border border-gray-200 bg-white p-5">
             <div className="flex items-center gap-2 text-gray-900">
@@ -86,7 +86,6 @@ export default function UserSettingsPage() {
               <Avatar
                 src={previewUrl ?? profile?.avatar_url ?? undefined}
                 name={displayName || email || "U"}
-                color="secondary"
                 className="bg-gray-100 ring-1 ring-gray-200 text-sm font-semibold text-gray-700 !h-20 !w-20"
               />
 
@@ -241,14 +240,9 @@ export default function UserSettingsPage() {
               <Link2 className="h-4 w-4" />
               <div className="text-sm font-semibold">เชื่อมต่อ LINE @perpos</div>
               </div>
-              <Badge
-                variant="flat"
-                size="sm"
-                color={isLineLinked ? "success" : "danger"}
-                className="border px-2 py-0.5 text-xs font-normal tracking-wide"
-              >
+              <StatusBadge tone={isLineLinked ? "success" : "danger"} className="font-normal tracking-wide">
                 {isLineLinked ? "เชื่อมต่อแล้ว" : "ยังไม่เชื่อม"}
-              </Badge>
+              </StatusBadge>
             </div>
 
             <div className="mt-3 text-sm text-gray-700">
@@ -277,9 +271,9 @@ export default function UserSettingsPage() {
             <div className="mt-4 grid gap-3">
               {linkLoading ? (
                 <div className="flex items-center justify-end">
-                  <Badge variant="flat" size="sm" color="warning" className="border px-2 py-0.5 text-xs font-normal tracking-wide">
+                  <StatusBadge tone="warning" className="font-normal tracking-wide">
                     กำลังสร้างโค้ด
-                  </Badge>
+                  </StatusBadge>
                 </div>
               ) : null}
               <Button
@@ -315,14 +309,9 @@ export default function UserSettingsPage() {
                 <div className="rounded-xl border border-gray-200 bg-gray-50 p-3">
                   <div className="flex items-center justify-between gap-3">
                     <div className="text-xs font-medium text-gray-700">โค้ดผูกบัญชี</div>
-                    <Badge
-                      variant="flat"
-                      size="sm"
-                      color={isLinkExpired ? "danger" : "warning"}
-                      className="border px-2 py-0.5 text-xs font-normal tracking-wide"
-                    >
+                    <StatusBadge tone={isLinkExpired ? "danger" : "warning"} className="font-normal tracking-wide">
                       {isLinkExpired ? "หมดอายุ" : "รอผูกบัญชี"}
-                    </Badge>
+                    </StatusBadge>
                   </div>
                   <div className="flex items-center justify-center rounded-lg bg-white p-3">
                     <QRCodeSVG value={link.linkUrl} size={200} />
@@ -345,6 +334,6 @@ export default function UserSettingsPage() {
           </div>
         </div>
       </div>
-    </div>
+    </PageShell>
   );
 }

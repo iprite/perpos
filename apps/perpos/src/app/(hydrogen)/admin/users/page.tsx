@@ -3,7 +3,7 @@
 import React, {
   useCallback, useEffect, useMemo, useRef, useState,
 } from "react";
-import { Text, Title } from "rizzui/typography";
+import { Text, Title } from "@/components/ui/typography";
 import {
   Settings2, Building2, KeyRound, Eye, UserX, UserCheck, Trash2,
   Gauge, Search, RefreshCw, ChevronDown, Users as UsersIcon, Copy, Check,

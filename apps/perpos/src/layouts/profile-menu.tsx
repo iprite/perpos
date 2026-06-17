@@ -1,8 +1,9 @@
 "use client";
 
-import { Title, Avatar } from "rizzui";
 import cn from "@core/utils/class-names";
 import { Button } from "@/components/ui/button";
+import { Title } from "@/components/ui/typography";
+import { Avatar } from "@/components/ui/avatar";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -35,7 +36,6 @@ export default function ProfileMenu({
           <Avatar
             src={profile?.avatar_url ?? undefined}
             name={name}
-            color="secondary"
             className="!h-10 !w-10 !rounded-lg bg-gray-100 text-sm font-semibold text-gray-700"
           />
           <div className="min-w-0 flex-1">
@@ -95,7 +95,6 @@ function DropdownMenu() {
         <Avatar
           src={profile?.avatar_url ?? undefined}
           name={name}
-          color="secondary"
           className="!h-9 !w-9 !rounded-lg bg-gray-100 text-sm font-semibold text-gray-700 shrink-0"
         />
         <div className="min-w-0">

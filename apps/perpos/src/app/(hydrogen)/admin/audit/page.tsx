@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Title, Text } from "rizzui/typography";
+import { Title, Text } from "@/components/ui/typography";
 import {
   ShieldCheck, ShieldAlert, Download, RefreshCw, ChevronDown, ChevronUp,
   Clock, Database, Truck, AlertCircle, CheckCircle2

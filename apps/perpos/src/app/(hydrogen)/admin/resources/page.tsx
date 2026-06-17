@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Title } from "rizzui/typography";
+import { Title } from "@/components/ui/typography";
 import { RefreshCw, AlertTriangle, TrendingUp, Clock, Zap, Activity } from "lucide-react";
 
 import { useAuth } from "@/app/shared/auth-provider";

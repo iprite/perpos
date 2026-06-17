@@ -303,6 +303,12 @@ Endpoint: `POST /api/assistant/scheduler`
 | Modal / Dialog | `<Dialog>`, `<DialogContent>`, `<DialogBody>`, `<DialogHeader>`, `<DialogTitle>`, `<DialogFooter>` | `@/components/ui/dialog` |
 | Native select (เฉพาะ `type="month"` หรือกรณีพิเศษ) | `<NativeSelect>` | `@/components/ui/native-select` |
 | Time input | `<Input type="time">` | `@/components/ui/input` |
+| **หัวข้อ/ข้อความ (Title/Text)** | `<Title>`, `<Text>` | `@/components/ui/typography` |
+| **รูปโปรไฟล์ + fallback อักษรย่อ** | `<Avatar>` | `@/components/ui/avatar` |
+| ป้ายสถานะ | `<StatusBadge tone=…>` | `@/components/ui/badge` |
+| KPI/การ์ดสรุป | `<StatCard>` | `@/components/ui/stat-card` |
+
+> **rizzui**: เลิกใช้แล้วเกือบทั้งหมด — ห้าม import `Button/Input/Select/Title/Text/Avatar/Badge` จาก `rizzui`/`rizzui/typography` (ใช้ `@/components/ui/*` แทน) · ยังคงเหลือเฉพาะ `Collapse` (sidebar nav) + `Drawer` (mobile drawer) ที่ยังไม่มีตัวแทน — สองตัวนี้ใช้ rizzui ได้ชั่วคราว
 
 ### Dropdown vs Popover — เลือกใช้อะไร?
 
