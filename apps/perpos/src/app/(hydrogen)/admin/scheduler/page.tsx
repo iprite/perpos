@@ -3,6 +3,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Clock, RefreshCw, Loader2, CheckCircle2, AlertTriangle, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { StatusBadge } from '@/components/ui/badge';
+import {
+  Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableEmpty,
+} from '@/components/ui/table';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { AdminPage, AdminCard } from '../_components/admin-page';
 
@@ -117,42 +121,40 @@ export default function SchedulerMonitorPage() {
 
           {/* Run log */}
           <AdminCard title="ประวัติการรันล่าสุด" bodyClassName="p-0">
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-gray-200 bg-gray-50 text-left text-xs font-medium uppercase tracking-wide text-gray-500">
-                    <th className="px-4 py-2.5">เวลา</th>
-                    <th className="px-4 py-2.5 text-center">สถานะ</th>
-                    <th className="px-4 py-2.5 text-right">ใช้เวลา</th>
-                    <th className="px-4 py-2.5 text-right">ปิดงานค้าง</th>
-                    <th className="px-4 py-2.5 text-right">requeue</th>
-                    <th className="px-4 py-2.5 text-right">ยอมแพ้</th>
-                    <th className="px-4 py-2.5 text-right">cleanup</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {data.runs.length === 0 ? (
-                    <tr><td colSpan={7} className="px-4 py-10 text-center text-gray-400">ยังไม่มีบันทึกการรัน</td></tr>
-                  ) : data.runs.map((r) => (
-                    <tr key={r.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-2.5 text-gray-700">{fmtTs(r.ran_at)}</td>
-                      <td className="px-4 py-2.5 text-center">
-                        {r.ok ? (
-                          <span className="inline-flex items-center gap-1 rounded-full border border-green-200 bg-green-50 px-2 py-0.5 text-xs text-green-700"><CheckCircle2 className="h-3 w-3" /> สำเร็จ</span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-xs text-red-700" title={r.error_message ?? ''}><XCircle className="h-3 w-3" /> ล้มเหลว</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-2.5 text-right tabular-nums text-gray-600">{r.duration_ms} ms</td>
-                      <td className="px-4 py-2.5 text-right tabular-nums">{r.stuck_failed || '—'}</td>
-                      <td className="px-4 py-2.5 text-right tabular-nums">{r.requeued || '—'}</td>
-                      <td className="px-4 py-2.5 text-right tabular-nums">{r.requeue_gaveup || '—'}</td>
-                      <td className="px-4 py-2.5 text-right tabular-nums">{r.cleaned_jobs || '—'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <Table wrapperClassName="rounded-none border-0">
+              <TableHeader>
+                <TableRow>
+                  <TableHead>เวลา</TableHead>
+                  <TableHead align="center">สถานะ</TableHead>
+                  <TableHead align="right">ใช้เวลา</TableHead>
+                  <TableHead align="right">ปิดงานค้าง</TableHead>
+                  <TableHead align="right">requeue</TableHead>
+                  <TableHead align="right">ยอมแพ้</TableHead>
+                  <TableHead align="right">cleanup</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {data.runs.length === 0 ? (
+                  <TableEmpty colSpan={7}>ยังไม่มีบันทึกการรัน</TableEmpty>
+                ) : data.runs.map((r) => (
+                  <TableRow key={r.id}>
+                    <TableCell className="text-gray-700">{fmtTs(r.ran_at)}</TableCell>
+                    <TableCell align="center">
+                      {r.ok ? (
+                        <StatusBadge tone="success"><CheckCircle2 className="mr-1 h-3 w-3" /> สำเร็จ</StatusBadge>
+                      ) : (
+                        <StatusBadge tone="danger" title={r.error_message ?? ''}><XCircle className="mr-1 h-3 w-3" /> ล้มเหลว</StatusBadge>
+                      )}
+                    </TableCell>
+                    <TableCell align="right" tabular className="text-gray-600">{r.duration_ms} ms</TableCell>
+                    <TableCell align="right" tabular>{r.stuck_failed || '—'}</TableCell>
+                    <TableCell align="right" tabular>{r.requeued || '—'}</TableCell>
+                    <TableCell align="right" tabular>{r.requeue_gaveup || '—'}</TableCell>
+                    <TableCell align="right" tabular>{r.cleaned_jobs || '—'}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           </AdminCard>
         </div>
       )}

@@ -1,13 +1,17 @@
 'use client';
 
 import { useEffect, useState, useCallback, useMemo } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { CustomSelect } from '@/components/ui/custom-select';
 import { PageShell } from '@/components/ui/page-shell';
+import { StatusBadge, type BadgeTone } from '@/components/ui/badge';
+import {
+  Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableEmpty,
+} from '@/components/ui/table';
 import { Plus, Briefcase, RefreshCw, Search, Trash2, ExternalLink } from 'lucide-react';
 import { ConfirmDeleteDialog } from '@/components/ui/confirm-delete-dialog';
 
@@ -24,13 +28,13 @@ type Solution = {
   client: { id: string; name: string } | null;
 };
 
-const STATUSES = [
-  { value: 'lead',        label: 'Lead',        color: 'border-slate-200',   header: 'bg-slate-50 text-slate-600'   },
-  { value: 'proposal',    label: 'Proposal',    color: 'border-blue-200',    header: 'bg-blue-50 text-blue-700'    },
-  { value: 'in_progress', label: 'In Progress', color: 'border-amber-200',   header: 'bg-amber-50 text-amber-700'  },
-  { value: 'on_hold',     label: 'On Hold',     color: 'border-orange-200',  header: 'bg-orange-50 text-orange-700'},
-  { value: 'completed',   label: 'Completed',   color: 'border-green-200',   header: 'bg-green-50 text-green-700'  },
-  { value: 'cancelled',   label: 'Cancelled',   color: 'border-red-200',     header: 'bg-red-50 text-red-600'      },
+const STATUSES: { value: string; label: string; color: string; header: string; tone: BadgeTone }[] = [
+  { value: 'lead',        label: 'Lead',        color: 'border-slate-200',   header: 'bg-slate-50 text-slate-600',   tone: 'neutral' },
+  { value: 'proposal',    label: 'Proposal',    color: 'border-blue-200',    header: 'bg-blue-50 text-blue-700',     tone: 'info'    },
+  { value: 'in_progress', label: 'In Progress', color: 'border-amber-200',   header: 'bg-amber-50 text-amber-700',   tone: 'warning' },
+  { value: 'on_hold',     label: 'On Hold',     color: 'border-orange-200',  header: 'bg-orange-50 text-orange-700', tone: 'warning' },
+  { value: 'completed',   label: 'Completed',   color: 'border-green-200',   header: 'bg-green-50 text-green-700',   tone: 'success' },
+  { value: 'cancelled',   label: 'Cancelled',   color: 'border-red-200',     header: 'bg-red-50 text-red-600',       tone: 'danger'  },
 ];
 
 const PRIORITY_DOT: Record<string, string> = {
@@ -48,6 +52,7 @@ const STATUS_FILTER_OPTS = [
 
 export default function CrmSolutionsPage() {
   const { orgSlug } = useParams<{ orgSlug: string }>();
+  const router = useRouter();
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
   const [orgId, setOrgId]         = useState('');
   const [token, setToken]         = useState('');
@@ -233,81 +238,56 @@ export default function CrmSolutionsPage() {
         </div>
       ) : (
         /* ── List view ── */
-        <div className="bg-white rounded-xl border">
-          {filtered.length === 0 ? (
-            <div className="py-10 text-center text-slate-400 text-sm">ไม่มี solutions</div>
-          ) : (
-            <table className="w-full text-sm">
-              <thead className="border-b bg-slate-50 text-xs text-slate-500">
-                <tr>
-                  <th className="text-left px-4 py-3 font-medium">Solution</th>
-                  <th className="text-left px-3 py-3 font-medium">ลูกค้า</th>
-                  <th className="text-left px-3 py-3 font-medium">Status</th>
-                  <th className="text-left px-3 py-3 font-medium">Priority</th>
-                  <th className="text-right px-3 py-3 font-medium">มูลค่า</th>
-                  <th className="px-3 py-3" />
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-50">
-                {filtered.map(s => {
-                  const sc = STATUSES.find(x => x.value === s.status);
-                  return (
-                    <tr key={s.id} className="hover:bg-slate-50 group">
-                      <td className="px-4 py-3 max-w-xs">
-                        <div className="flex items-center gap-2">
-                          <Briefcase className="w-4 h-4 text-slate-400 shrink-0" />
-                          <Link href={`/${orgSlug}/crm/solutions/${s.id}`} className="font-medium text-slate-800 hover:text-indigo-600 truncate">
-                            {s.title}
-                          </Link>
-                        </div>
-                        {s.description && (
-                          <p className="text-xs text-slate-400 mt-0.5 pl-6 truncate">{s.description}</p>
-                        )}
-                        {s.tags?.length > 0 && (
-                          <div className="flex gap-1 mt-1 pl-6 flex-wrap">
-                            {s.tags.map(tag => (
-                              <span key={tag} className="text-xs bg-indigo-50 text-indigo-600 px-1.5 py-0.5 rounded">
-                                {tag}
-                              </span>
-                            ))}
-                          </div>
-                        )}
-                      </td>
-                      <td className="px-3 py-3 whitespace-nowrap">
-                        {s.client ? (
-                          <Link href={`/${orgSlug}/crm/clients/${s.client.id}`} className="text-indigo-600 hover:underline text-xs">
-                            {s.client.name}
-                          </Link>
-                        ) : <span className="text-slate-300">—</span>}
-                      </td>
-                      <td className="px-3 py-3">
-                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${sc?.header ?? ''}`}>
-                          {sc?.label ?? s.status}
-                        </span>
-                      </td>
-                      <td className="px-3 py-3">
-                        <span className="text-xs font-medium" style={{ color: PRIORITY_COLOR[s.priority] ?? '#94a3b8' }}>
-                          {s.priority}
-                        </span>
-                      </td>
-                      <td className="px-3 py-3 text-right text-slate-600 whitespace-nowrap">
-                        {s.value != null ? `฿${s.value.toLocaleString('th-TH')}` : <span className="text-slate-300">—</span>}
-                      </td>
-                      <td className="px-3 py-3">
-                        <button
-                          onClick={() => setDeleteConfirm({ open: true, id: s.id, title: s.title })}
-                          className="opacity-0 group-hover:opacity-100 text-slate-300 hover:text-red-400 transition-all p-1"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          )}
-        </div>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Solution</TableHead>
+              <TableHead>ลูกค้า</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead>Priority</TableHead>
+              <TableHead align="right">มูลค่า</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {filtered.length === 0 ? (
+              <TableEmpty colSpan={5}>ไม่มี solutions</TableEmpty>
+            ) : filtered.map(s => {
+              const sc = STATUSES.find(x => x.value === s.status);
+              return (
+                <TableRow key={s.id} clickable onClick={() => router.push(`/${orgSlug}/crm/solutions/${s.id}`)}>
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      <Briefcase className="h-4 w-4 shrink-0 text-slate-400" />
+                      <span className="font-medium text-slate-800">{s.title}</span>
+                    </div>
+                    {s.description && <p className="mt-0.5 max-w-xs truncate pl-6 text-xs text-slate-400">{s.description}</p>}
+                    {s.tags?.length > 0 && (
+                      <div className="mt-1 flex gap-1 pl-6">
+                        {s.tags.map(tag => (
+                          <span key={tag} className="whitespace-nowrap rounded bg-indigo-50 px-1.5 py-0.5 text-xs text-indigo-600">{tag}</span>
+                        ))}
+                      </div>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {s.client ? (
+                      <Link href={`/${orgSlug}/crm/clients/${s.client.id}`} onClick={e => e.stopPropagation()} className="text-xs text-indigo-600 hover:underline">
+                        {s.client.name}
+                      </Link>
+                    ) : <span className="text-slate-300">—</span>}
+                  </TableCell>
+                  <TableCell><StatusBadge tone={sc?.tone ?? 'neutral'}>{sc?.label ?? s.status}</StatusBadge></TableCell>
+                  <TableCell>
+                    <span className="text-xs font-medium" style={{ color: PRIORITY_COLOR[s.priority] ?? '#94a3b8' }}>{s.priority}</span>
+                  </TableCell>
+                  <TableCell align="right" tabular className="text-slate-600">
+                    {s.value != null ? `฿${s.value.toLocaleString('th-TH')}` : <span className="text-slate-300">—</span>}
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
       )}
 
       {/* Empty hint */}

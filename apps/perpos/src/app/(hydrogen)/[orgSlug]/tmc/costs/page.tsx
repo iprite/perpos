@@ -10,7 +10,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ThaiDatePicker } from '@/components/ui/thai-date-picker';
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+  Table, TableHeader, TableBody, TableFooter, TableRow, TableHead, TableCell,
+} from '@/components/ui/table';
+import {
+  Dialog, DialogContent, DialogHeader, DialogBody, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
@@ -18,7 +21,7 @@ import {
 } from 'recharts';
 import {
   TrendingUp, TrendingDown, DollarSign, Building2,
-  Landmark, Pencil, ChevronDown, ChevronUp,
+  Landmark, ChevronDown, ChevronUp,
 } from 'lucide-react';
 
 const TMC_ORG_ID = '1f52618c-09c4-49c5-a929-ea5060f26e7d';
@@ -114,11 +117,12 @@ function EditInvestmentDialog({
 
   return (
     <Dialog open onOpenChange={onClose}>
-      <DialogContent>
+      <DialogContent size="md">
         <DialogHeader>
           <DialogTitle>แก้ไขต้นทุน {cfg.property_code}</DialogTitle>
         </DialogHeader>
-        <div className="space-y-4 py-2">
+        <DialogBody>
+        <div className="space-y-4">
           <div className="space-y-1.5">
             <Label htmlFor="inv-amount">เงินลงทุน (บาท)</Label>
             <Input
@@ -155,7 +159,8 @@ function EditInvestmentDialog({
             />
           </div>
         </div>
-        <DialogFooter className="gap-2 sm:gap-2">
+        </DialogBody>
+        <DialogFooter>
           <Button variant="outline" onClick={onClose}>ยกเลิก</Button>
           <Button
             disabled={saving}
@@ -321,51 +326,45 @@ export default function TmcCostsPage() {
           <div className="px-4 py-3 border-b">
             <h2 className="text-sm font-semibold text-slate-700">สรุปกำไรสุทธิแต่ละแปลง</h2>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead className="bg-slate-50 border-b">
-                <tr>
-                  <th className="text-left px-4 py-2.5 text-slate-500 font-medium">แปลง</th>
-                  <th className="text-right px-3 py-2.5 text-slate-500 font-medium">เงินลงทุน</th>
-                  <th className="text-right px-3 py-2.5 text-green-600 font-medium">รายรับ</th>
-                  <th className="text-right px-3 py-2.5 text-red-500 font-medium">ค่าดำเนินการ</th>
-                  <th className="text-right px-3 py-2.5 text-violet-600 font-medium">ต้นทุนนักลงทุน</th>
-                  <th className="text-right px-3 py-2.5 text-amber-600 font-medium">ส่วนกลาง</th>
-                  <th className="text-right px-4 py-2.5 text-blue-600 font-medium">กำไรสุทธิ</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-50">
-                {data.byProperty.map(r => (
-                  <tr key={r.code} className="hover:bg-slate-50">
-                    <td className="px-4 py-2.5 font-medium text-slate-700">
-                      <span className="inline-block w-2 h-2 rounded-full mr-2" style={{ backgroundColor: propColor(r.code) }} />
-                      {r.code}
-                    </td>
-                    <td className="px-3 py-2.5 text-right text-slate-500">{fmt(r.investment)}</td>
-                    <td className="px-3 py-2.5 text-right text-green-700 font-medium">{fmt(r.income)}</td>
-                    <td className="px-3 py-2.5 text-right text-red-600">{fmt(r.opex + r.petty)}</td>
-                    <td className="px-3 py-2.5 text-right text-violet-700">{fmt(r.investor_cost)}</td>
-                    <td className="px-3 py-2.5 text-right text-amber-700">{fmt(r.shared_alloc)}</td>
-                    <td className={`px-4 py-2.5 text-right font-bold ${r.net >= 0 ? 'text-blue-700' : 'text-red-600'}`}>
-                      {fmt(r.net)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-              <tfoot className="border-t-2 border-slate-200 bg-slate-50">
-                <tr>
-                  <td className="px-4 py-2.5 font-bold text-slate-700" colSpan={2}>รวม</td>
-                  <td className="px-3 py-2.5 text-right font-bold text-green-700">{g ? fmt(g.income) : '—'}</td>
-                  <td className="px-3 py-2.5 text-right font-bold text-red-600">{g ? fmt(g.opex + g.petty) : '—'}</td>
-                  <td className="px-3 py-2.5 text-right font-bold text-violet-700">{g ? fmt(g.investor_cost) : '—'}</td>
-                  <td className="px-3 py-2.5 text-right font-bold text-amber-700">{g ? fmt(g.shared_expense) : '—'}</td>
-                  <td className={`px-4 py-2.5 text-right font-bold ${g && g.net >= 0 ? 'text-blue-700' : 'text-red-600'}`}>
-                    {g ? fmt(g.net) : '—'}
-                  </td>
-                </tr>
-              </tfoot>
-            </table>
-          </div>
+          <Table wrapperClassName="rounded-none border-0">
+            <TableHeader>
+              <TableRow>
+                <TableHead>แปลง</TableHead>
+                <TableHead align="right">เงินลงทุน</TableHead>
+                <TableHead align="right">รายรับ</TableHead>
+                <TableHead align="right">ค่าดำเนินการ</TableHead>
+                <TableHead align="right">ต้นทุนนักลงทุน</TableHead>
+                <TableHead align="right">ส่วนกลาง</TableHead>
+                <TableHead align="right">กำไรสุทธิ</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {data.byProperty.map(r => (
+                <TableRow key={r.code}>
+                  <TableCell className="font-medium text-slate-700">
+                    <span className="mr-2 inline-block h-2 w-2 rounded-full" style={{ backgroundColor: propColor(r.code) }} />
+                    {r.code}
+                  </TableCell>
+                  <TableCell align="right" tabular className="text-slate-500">{fmt(r.investment)}</TableCell>
+                  <TableCell align="right" tabular className="font-medium text-green-700">{fmt(r.income)}</TableCell>
+                  <TableCell align="right" tabular className="text-red-600">{fmt(r.opex + r.petty)}</TableCell>
+                  <TableCell align="right" tabular className="text-violet-700">{fmt(r.investor_cost)}</TableCell>
+                  <TableCell align="right" tabular className="text-amber-700">{fmt(r.shared_alloc)}</TableCell>
+                  <TableCell align="right" tabular className={`font-bold ${r.net >= 0 ? 'text-blue-700' : 'text-red-600'}`}>{fmt(r.net)}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+            <TableFooter>
+              <TableRow>
+                <TableCell colSpan={2} className="font-bold text-slate-700">รวม</TableCell>
+                <TableCell align="right" tabular className="font-bold text-green-700">{g ? fmt(g.income) : '—'}</TableCell>
+                <TableCell align="right" tabular className="font-bold text-red-600">{g ? fmt(g.opex + g.petty) : '—'}</TableCell>
+                <TableCell align="right" tabular className="font-bold text-violet-700">{g ? fmt(g.investor_cost) : '—'}</TableCell>
+                <TableCell align="right" tabular className="font-bold text-amber-700">{g ? fmt(g.shared_expense) : '—'}</TableCell>
+                <TableCell align="right" tabular className={`font-bold ${g && g.net >= 0 ? 'text-blue-700' : 'text-red-600'}`}>{g ? fmt(g.net) : '—'}</TableCell>
+              </TableRow>
+            </TableFooter>
+          </Table>
 
           {/* Bar chart by property */}
           <div className="p-4 border-t">
@@ -424,36 +423,34 @@ export default function TmcCostsPage() {
 
                   {/* Expanded per-property rows */}
                   {isOpen && (
-                    <div className="bg-slate-50 border-t">
-                      <table className="w-full text-xs">
-                        <thead>
-                          <tr className="border-b border-slate-200">
-                            <th className="text-left px-8 py-2 text-slate-400 font-medium">แปลง</th>
-                            <th className="text-right px-3 py-2 text-green-600 font-medium">รายรับ</th>
-                            <th className="text-right px-3 py-2 text-red-500 font-medium">ค่าดำเนินการ</th>
-                            <th className="text-right px-3 py-2 text-violet-600 font-medium">ต้นทุนนักลงทุน/เดือน</th>
-                            <th className="text-right px-3 py-2 text-amber-600 font-medium">ส่วนกลางจัดสรร</th>
-                            <th className="text-right px-4 py-2 text-blue-600 font-medium">กำไรสุทธิ</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
+                    <div className="border-t bg-slate-50">
+                      <Table wrapperClassName="rounded-none border-0 bg-transparent">
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>แปลง</TableHead>
+                            <TableHead align="right">รายรับ</TableHead>
+                            <TableHead align="right">ค่าดำเนินการ</TableHead>
+                            <TableHead align="right">ต้นทุนนักลงทุน/เดือน</TableHead>
+                            <TableHead align="right">ส่วนกลางจัดสรร</TableHead>
+                            <TableHead align="right">กำไรสุทธิ</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
                           {row.properties.map(pr => (
-                            <tr key={pr.code} className="hover:bg-white">
-                              <td className="px-8 py-2 font-medium text-slate-700">
-                                <span className="inline-block w-2 h-2 rounded-full mr-2" style={{ backgroundColor: propColor(pr.code) }} />
+                            <TableRow key={pr.code}>
+                              <TableCell className="font-medium text-slate-700">
+                                <span className="mr-2 inline-block h-2 w-2 rounded-full" style={{ backgroundColor: propColor(pr.code) }} />
                                 {pr.code}
-                              </td>
-                              <td className="px-3 py-2 text-right text-green-700">{fmt(pr.income)}</td>
-                              <td className="px-3 py-2 text-right text-red-600">{fmt(pr.opex + pr.petty)}</td>
-                              <td className="px-3 py-2 text-right text-violet-700">{fmt(pr.investor_cost)}</td>
-                              <td className="px-3 py-2 text-right text-amber-700">{fmt(pr.shared_alloc)}</td>
-                              <td className={`px-4 py-2 text-right font-bold ${pr.net >= 0 ? 'text-blue-700' : 'text-red-600'}`}>
-                                {fmt(pr.net)}
-                              </td>
-                            </tr>
+                              </TableCell>
+                              <TableCell align="right" tabular className="text-green-700">{fmt(pr.income)}</TableCell>
+                              <TableCell align="right" tabular className="text-red-600">{fmt(pr.opex + pr.petty)}</TableCell>
+                              <TableCell align="right" tabular className="text-violet-700">{fmt(pr.investor_cost)}</TableCell>
+                              <TableCell align="right" tabular className="text-amber-700">{fmt(pr.shared_alloc)}</TableCell>
+                              <TableCell align="right" tabular className={`font-bold ${pr.net >= 0 ? 'text-blue-700' : 'text-red-600'}`}>{fmt(pr.net)}</TableCell>
+                            </TableRow>
                           ))}
-                        </tbody>
-                      </table>
+                        </TableBody>
+                      </Table>
                     </div>
                   )}
                 </div>
@@ -470,49 +467,36 @@ export default function TmcCostsPage() {
             <h2 className="text-sm font-semibold text-slate-700">ตั้งค่าเงินลงทุน</h2>
             <p className="text-xs text-slate-400 mt-0.5">ต้นทุนนักลงทุนรายเดือน = เงินลงทุน × อัตรา / 12</p>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead className="bg-slate-50 border-b">
-                <tr>
-                  <th className="text-left px-4 py-2.5 text-slate-500 font-medium">แปลง</th>
-                  <th className="text-right px-3 py-2.5 text-slate-500 font-medium">เงินลงทุน</th>
-                  <th className="text-right px-3 py-2.5 text-slate-500 font-medium">อัตรา</th>
-                  <th className="text-right px-3 py-2.5 text-violet-600 font-medium">ต้นทุน/เดือน</th>
-                  <th className="text-left px-3 py-2.5 text-slate-500 font-medium">เริ่มจ่าย</th>
-                  <th className="text-left px-3 py-2.5 text-slate-500 font-medium">หมายเหตุ</th>
-                  <th className="px-3 py-2.5" />
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-50">
-                {data.investments.map(inv => {
-                  const monthly = (inv.investment_amount * inv.annual_rate) / 12;
-                  return (
-                    <tr key={inv.id} className="hover:bg-slate-50">
-                      <td className="px-4 py-2.5 font-medium text-slate-700">
-                        <span className="inline-block w-2 h-2 rounded-full mr-2" style={{ backgroundColor: propColor(inv.property_code) }} />
-                        {inv.property_code}
-                      </td>
-                      <td className="px-3 py-2.5 text-right text-slate-700">{fmt(inv.investment_amount)}</td>
-                      <td className="px-3 py-2.5 text-right text-slate-500">{(inv.annual_rate * 100).toFixed(1)}%</td>
-                      <td className="px-3 py-2.5 text-right text-violet-700 font-medium">{fmt(monthly)}</td>
-                      <td className="px-3 py-2.5 text-slate-600">{inv.starts_at}</td>
-                      <td className="px-3 py-2.5 text-slate-400">{inv.note ?? '—'}</td>
-                      <td className="px-3 py-2.5">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7"
-                          onClick={() => setEditing(inv)}
-                        >
-                          <Pencil className="w-3.5 h-3.5" />
-                        </Button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+          <Table wrapperClassName="rounded-none border-0">
+            <TableHeader>
+              <TableRow>
+                <TableHead>แปลง</TableHead>
+                <TableHead align="right">เงินลงทุน</TableHead>
+                <TableHead align="right">อัตรา</TableHead>
+                <TableHead align="right">ต้นทุน/เดือน</TableHead>
+                <TableHead>เริ่มจ่าย</TableHead>
+                <TableHead>หมายเหตุ</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {data.investments.map(inv => {
+                const monthly = (inv.investment_amount * inv.annual_rate) / 12;
+                return (
+                  <TableRow key={inv.id} clickable onClick={() => setEditing(inv)}>
+                    <TableCell className="font-medium text-slate-700">
+                      <span className="mr-2 inline-block h-2 w-2 rounded-full" style={{ backgroundColor: propColor(inv.property_code) }} />
+                      {inv.property_code}
+                    </TableCell>
+                    <TableCell align="right" tabular className="text-slate-700">{fmt(inv.investment_amount)}</TableCell>
+                    <TableCell align="right" tabular className="text-slate-500">{(inv.annual_rate * 100).toFixed(1)}%</TableCell>
+                    <TableCell align="right" tabular className="font-medium text-violet-700">{fmt(monthly)}</TableCell>
+                    <TableCell className="text-slate-600">{inv.starts_at}</TableCell>
+                    <TableCell className="text-slate-400">{inv.note ?? '—'}</TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
         </div>
       )}
 

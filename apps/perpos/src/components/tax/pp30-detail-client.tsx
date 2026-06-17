@@ -5,7 +5,7 @@ import { CheckCircle2, Circle, ChevronDown, Printer } from "lucide-react";
 import { toast } from "react-hot-toast";
 
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogBody, DialogFooter, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { ThaiDatePicker } from "@/components/ui/thai-date-picker";
@@ -295,11 +295,12 @@ export function PP30DetailClient({
 
       {/* Update status dialog */}
       <Dialog open={statusOpen} onOpenChange={setStatusOpen}>
-        <DialogContent className="max-w-sm">
+        <DialogContent size="sm">
           <DialogHeader>
             <DialogTitle>อัปเดตสถานะ</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 py-2">
+          <DialogBody>
+          <div className="space-y-4">
             <div className="space-y-1.5">
               <Label>สถานะ</Label>
               <CustomSelect
@@ -330,14 +331,15 @@ export function PP30DetailClient({
               <Input value={receiptRef} onChange={(e) => setReceiptRef(e.target.value)} placeholder="เลขที่ใบเสร็จ..." />
             </div>
           </div>
-          <div className="flex justify-end gap-2 pt-2">
+          </DialogBody>
+          <DialogFooter>
             <Button variant="outline" onClick={() => setStatusOpen(false)} disabled={pending}>
               ยกเลิก
             </Button>
             <Button onClick={handleStatusUpdate} disabled={pending}>
               {pending ? "กำลังบันทึก..." : "บันทึก"}
             </Button>
-          </div>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

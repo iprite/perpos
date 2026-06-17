@@ -9,8 +9,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ThaiDatePicker } from "@/components/ui/thai-date-picker";
 import { Label } from "@/components/ui/label";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogBody, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { StatusBadge, type BadgeTone } from "@/components/ui/badge";
 import {
   listStockRequisitionsAction,
   createStockRequisitionAction,
@@ -30,11 +31,11 @@ type ItemLine = {
 
 const EMPTY_LINE: ItemLine = { inventoryItemId: "", productName: "", qty: "1", unit: "EA", notes: "" };
 
-const STATUS_BADGE: Record<string, string> = {
-  draft: "bg-slate-100 text-slate-600",
-  approved: "bg-blue-100 text-blue-700",
-  issued: "bg-green-100 text-green-700",
-  cancelled: "bg-red-100 text-red-600",
+const STATUS_TONE: Record<string, BadgeTone> = {
+  draft: "neutral",
+  approved: "info",
+  issued: "success",
+  cancelled: "danger",
 };
 
 const STATUS_TH: Record<string, string> = {
@@ -161,9 +162,7 @@ export function RequisitionsClient(props: {
                 <TableCell className="text-sm">{r.requester ?? "-"}</TableCell>
                 <TableCell className="text-sm">{r.department ?? "-"}</TableCell>
                 <TableCell>
-                  <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_BADGE[r.status] ?? "bg-slate-100 text-slate-600"}`}>
-                    {STATUS_TH[r.status] ?? r.status}
-                  </span>
+                  <StatusBadge tone={STATUS_TONE[r.status] ?? "neutral"}>{STATUS_TH[r.status] ?? r.status}</StatusBadge>
                 </TableCell>
                 <TableCell>
                   {r.status === "draft" && (
@@ -186,10 +185,11 @@ export function RequisitionsClient(props: {
       </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent size="xl">
           <DialogHeader>
             <DialogTitle>สร้างใบเบิกสินค้า</DialogTitle>
           </DialogHeader>
+          <DialogBody>
           <div className="grid gap-3">
             <div className="grid grid-cols-2 gap-3">
               <div className="grid gap-1.5">
@@ -277,11 +277,12 @@ export function RequisitionsClient(props: {
               </div>
             </div>
 
-            <div className="flex justify-end gap-2 pt-1">
-              <Button variant="outline" onClick={() => setOpen(false)}>ยกเลิก</Button>
-              <Button onClick={save} disabled={pending}>บันทึก</Button>
-            </div>
           </div>
+          </DialogBody>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpen(false)}>ยกเลิก</Button>
+            <Button onClick={save} disabled={pending}>บันทึก</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

@@ -7,7 +7,7 @@ import { Label }         from '@/components/ui/label';
 import { CustomSelect }  from '@/components/ui/custom-select';
 import { ThaiDatePicker } from '@/components/ui/thai-date-picker';
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+  Dialog, DialogContent, DialogHeader, DialogBody, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog';
 import { ConfirmDeleteDialog } from '@/components/ui/confirm-delete-dialog';
 import { RefreshCw, ChevronDown, ChevronRight, Pencil, CreditCard } from 'lucide-react';
@@ -162,16 +162,13 @@ function EditDialog({
 
   return (
     <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
-      <DialogContent className="p-0 w-[95vw] max-w-2xl max-h-[80vh]">
-        <div className="flex flex-col max-h-[80vh]">
-          <div className="sticky top-0 z-10 border-b bg-white px-6 py-4">
-            <DialogHeader className="p-0">
-              <DialogTitle>แก้ไข Billing — {org.org_name}</DialogTitle>
-            </DialogHeader>
-          </div>
+      <DialogContent size="xl">
+          <DialogHeader>
+            <DialogTitle>แก้ไข Billing — {org.org_name}</DialogTitle>
+          </DialogHeader>
 
-          <div className="flex-1 overflow-y-auto px-6 py-4">
-            <div className="grid gap-4 pb-24">
+          <DialogBody>
+            <div className="grid gap-4">
           <div>
             <Label>สถานะการชำระ</Label>
             <CustomSelect value={form.paymentStatus} onChange={(v) => set('paymentStatus', v)} options={PAYMENT_OPTIONS} className="mt-1 w-full" />
@@ -243,18 +240,15 @@ function EditDialog({
           {err && <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-sm text-red-700">{err}</div>}
           {cancelInfo && <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-700">{cancelInfo}</div>}
             </div>
-          </div>
+          </DialogBody>
 
-          <div className="sticky bottom-0 z-10 border-t bg-white px-6 py-4">
-            <DialogFooter className="gap-2 sm:gap-2">
-              <Button variant="destructive" onClick={() => setCancelConfirm(true)} disabled={canceling || saving}>
-                {canceling ? 'กำลังยกเลิก…' : 'Cancel (EOP)'}
-              </Button>
-              <Button variant="outline" onClick={onClose} disabled={saving || canceling}>ปิด</Button>
-              <Button onClick={handleSave} disabled={saving || canceling}>{saving ? 'กำลังบันทึก…' : 'บันทึก'}</Button>
-            </DialogFooter>
-          </div>
-        </div>
+          <DialogFooter>
+            <Button variant="destructive" className="mr-auto" onClick={() => setCancelConfirm(true)} disabled={canceling || saving}>
+              {canceling ? 'กำลังยกเลิก…' : 'Cancel (EOP)'}
+            </Button>
+            <Button variant="outline" onClick={onClose} disabled={saving || canceling}>ปิด</Button>
+            <Button onClick={handleSave} disabled={saving || canceling}>{saving ? 'กำลังบันทึก…' : 'บันทึก'}</Button>
+          </DialogFooter>
       </DialogContent>
 
       <ConfirmDeleteDialog

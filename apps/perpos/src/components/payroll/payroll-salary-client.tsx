@@ -1,14 +1,15 @@
 "use client";
 
 import React, { useState } from "react";
-import cn from "@core/utils/class-names";
 import { Plus } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { StatusBadge, type BadgeTone } from "@/components/ui/badge";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
+  DialogBody,
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
@@ -31,12 +32,12 @@ const STATUS_LABELS: Record<string, string> = {
   cancelled:        "ยกเลิก",
 };
 
-const STATUS_COLORS: Record<string, string> = {
-  draft:            "bg-slate-100 text-slate-600",
-  pending_approval: "bg-amber-50 text-amber-700",
-  approved:         "bg-blue-50 text-blue-700",
-  paid:             "bg-teal-50 text-teal-700",
-  cancelled:        "bg-red-50 text-red-600",
+const STATUS_TONE: Record<string, BadgeTone> = {
+  draft:            "neutral",
+  pending_approval: "warning",
+  approved:         "info",
+  paid:             "success",
+  cancelled:        "danger",
 };
 
 const MONTHS_TH = [
@@ -65,13 +66,13 @@ export function PayrollSalaryClient({
       <div>
         <Table>
           <TableHeader>
-            <TableRow className="bg-slate-50">
+            <TableRow>
               <TableHead>รอบ</TableHead>
               <TableHead>ปี / เดือน</TableHead>
-              <TableHead className="text-right">รายได้รวม</TableHead>
-              <TableHead className="text-right">รายหักรวม</TableHead>
-              <TableHead className="text-right">ยอดสุทธิ</TableHead>
-              <TableHead className="w-36 text-center">สถานะ</TableHead>
+              <TableHead align="right">รายได้รวม</TableHead>
+              <TableHead align="right">รายหักรวม</TableHead>
+              <TableHead align="right">ยอดสุทธิ</TableHead>
+              <TableHead align="center">สถานะ</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -83,24 +84,22 @@ export function PayrollSalaryClient({
               </TableRow>
             ) : (
               rows.map((row) => (
-                <TableRow key={row.id} className="hover:bg-slate-50">
+                <TableRow key={row.id}>
                   <TableCell className="font-mono text-sm">{row.run_number}</TableCell>
                   <TableCell className="text-sm text-slate-700">
                     {MONTHS_TH[row.period_month] ?? row.period_month} {row.period_year + 543}
                   </TableCell>
-                  <TableCell className="text-right text-sm text-slate-700">
+                  <TableCell align="right" tabular className="text-sm text-slate-700">
                     {row.total_earnings.toLocaleString("th-TH", { minimumFractionDigits: 2 })}
                   </TableCell>
-                  <TableCell className="text-right text-sm text-slate-700">
+                  <TableCell align="right" tabular className="text-sm text-slate-700">
                     {row.total_deductions.toLocaleString("th-TH", { minimumFractionDigits: 2 })}
                   </TableCell>
-                  <TableCell className="text-right text-sm font-semibold text-slate-900">
+                  <TableCell align="right" tabular className="text-sm font-semibold text-slate-900">
                     {row.total_net.toLocaleString("th-TH", { minimumFractionDigits: 2 })}
                   </TableCell>
-                  <TableCell className="text-center">
-                    <span className={cn("rounded-full px-2.5 py-0.5 text-xs font-medium", STATUS_COLORS[row.status] ?? "bg-slate-100 text-slate-600")}>
-                      {STATUS_LABELS[row.status] ?? row.status}
-                    </span>
+                  <TableCell align="center">
+                    <StatusBadge tone={STATUS_TONE[row.status] ?? "neutral"}>{STATUS_LABELS[row.status] ?? row.status}</StatusBadge>
                   </TableCell>
                 </TableRow>
               ))
@@ -111,13 +110,15 @@ export function PayrollSalaryClient({
 
       {/* Stub dialog */}
       <Dialog open={stubOpen} onOpenChange={(v) => { if (!v) setStubOpen(false); }}>
-        <DialogContent className="max-w-sm">
+        <DialogContent size="sm">
           <DialogHeader>
             <DialogTitle>สร้างรอบเงินเดือน</DialogTitle>
           </DialogHeader>
-          <div className="py-4 text-center text-sm text-slate-500">
+          <DialogBody>
+          <div className="py-2 text-center text-sm text-slate-500">
             ฟีเจอร์สร้างรอบเงินเดือนอยู่ระหว่างพัฒนา
           </div>
+          </DialogBody>
           <DialogFooter>
             <Button variant="outline" onClick={() => setStubOpen(false)}>ปิด</Button>
           </DialogFooter>

@@ -13,7 +13,7 @@ import { Label } from '@/components/ui/label';
 import { CustomSelect } from '@/components/ui/custom-select';
 import { ThaiDatePicker } from '@/components/ui/thai-date-picker';
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+  Dialog, DialogContent, DialogHeader, DialogBody, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog';
 import { ConfirmDeleteDialog } from '@/components/ui/confirm-delete-dialog';
 import {
@@ -804,7 +804,8 @@ export default function SolutionDetailPage() {
       {/* ── Image preview Dialog ── */}
       {preview && (
         <Dialog open onOpenChange={() => setPreview(null)}>
-          <DialogContent className="max-w-3xl p-0 overflow-hidden">
+          <DialogContent size="2xl">
+            <DialogBody className="p-0">
             <div className="relative">
               <img src={preview.url} alt={preview.name} className="w-full h-auto max-h-[80vh] object-contain" />
               <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/50 to-transparent px-4 py-3 flex items-center justify-between">
@@ -815,15 +816,17 @@ export default function SolutionDetailPage() {
                 </a>
               </div>
             </div>
+            </DialogBody>
           </DialogContent>
         </Dialog>
       )}
 
       {/* ── Edit Solution Dialog ── */}
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogContent size="lg">
           <DialogHeader><DialogTitle>แก้ไข Solution</DialogTitle></DialogHeader>
-          <div className="space-y-3 py-2">
+          <DialogBody>
+          <div className="space-y-3">
             <div>
               <Label htmlFor="e-title">ชื่อ *</Label>
               <Input id="e-title" value={editForm.title} onChange={e => setEditForm(f => ({ ...f, title: e.target.value }))} />
@@ -845,7 +848,8 @@ export default function SolutionDetailPage() {
               <div><Label>วันสิ้นสุด</Label><ThaiDatePicker value={editForm.end_date} onChange={v => setEditForm(f => ({ ...f, end_date: v }))} /></div>
             </div>
           </div>
-          <DialogFooter className="gap-2 sm:gap-2">
+          </DialogBody>
+          <DialogFooter>
             <Button variant="outline" onClick={() => setEditOpen(false)}>ยกเลิก</Button>
             <Button onClick={saveSol} disabled={saving || !editForm.title.trim()}>{saving ? 'กำลังบันทึก…' : 'บันทึก'}</Button>
           </DialogFooter>

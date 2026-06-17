@@ -4,7 +4,11 @@ import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { StatusBadge, type BadgeTone } from '@/components/ui/badge';
+import {
+  Table, TableHeader, TableBody, TableRow, TableHead, TableCell,
+} from '@/components/ui/table';
+import { Dialog, DialogContent, DialogHeader, DialogBody, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import {
   Mic, UploadCloud, FileAudio, Loader2, X,
   Copy, Check, Download, AlertCircle, Play, Sparkles,
@@ -60,11 +64,11 @@ function resolveMime(f: File): string {
 
 const STT_MODEL = 'gemini-2.5-flash';
 
-const STATUS_BADGE: Record<string, string> = {
-  pending: 'bg-amber-50 text-amber-700 border-amber-200',
-  processing: 'bg-blue-50 text-blue-700 border-blue-200 animate-pulse',
-  completed: 'bg-green-50 text-green-700 border-green-200',
-  failed: 'bg-red-50 text-red-700 border-red-200',
+const STATUS_TONE: Record<string, BadgeTone> = {
+  pending: 'warning',
+  processing: 'info',
+  completed: 'success',
+  failed: 'danger',
 };
 const STATUS_TEXT: Record<string, string> = {
   pending: 'รอดำเนินการ',
@@ -456,95 +460,76 @@ export default function AssistantTranscribePage() {
               </Button>
             </div>
           ) : (
-            <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-gray-100 bg-gray-50">
-                      <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">ไฟล์</th>
-                      <th className="px-4 py-3 text-center text-xs font-medium uppercase tracking-wide text-gray-500">สถานะ</th>
-                      <th className="hidden px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500 md:table-cell">สร้างเมื่อ</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-500">หมดอายุ</th>
-                      <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wide text-gray-500">จัดการ</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {jobs.map((job) => {
-                      const exp = job.status === 'completed' ? expiryInfo(job.created_at) : null;
-                      return (
-                        <tr key={job.id} className="transition-colors duration-150 hover:bg-gray-50">
-                          <td className="px-4 py-3">
-                            <button
-                              type="button"
-                              onClick={() => { if (job.status === 'completed') { setActiveJob(job); setCopied(false); } }}
-                              className={`flex items-center gap-2 text-left ${job.status === 'completed' ? 'cursor-pointer' : 'cursor-default'}`}
-                            >
-                              <FileAudio className="h-4 w-4 shrink-0 text-gray-400" />
-                              <div className="min-w-0">
-                                <div className={`truncate font-medium ${job.status === 'completed' ? 'text-gray-900 hover:text-indigo-600' : 'text-gray-900'}`}>
-                                  {job.transcript_json?.meeting_title || job.file_name}
-                                </div>
-                                <div className="truncate text-xs text-gray-400">
-                                  {job.file_name}{job.file_size ? ` · ${fmtSize(job.file_size)}` : ''}
-                                </div>
-                              </div>
-                            </button>
-                          </td>
-                          <td className="px-4 py-3 text-center">
-                            <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${STATUS_BADGE[job.status]}`}>
-                              {STATUS_TEXT[job.status]}
-                            </span>
-                            {job.status === 'failed' && job.error_message ? (
-                              <div className="mt-1 max-w-[200px] truncate text-xs text-red-600" title={job.error_message}>{job.error_message}</div>
-                            ) : null}
-                          </td>
-                          <td className="hidden whitespace-nowrap px-4 py-3 text-gray-500 md:table-cell">{fmtDateTime(job.created_at)}</td>
-                          <td className="whitespace-nowrap px-4 py-3">
-                            {exp ? (
-                              <span className={`inline-flex items-center gap-1 text-xs ${exp.expired ? 'text-gray-400' : exp.soon ? 'text-amber-600' : 'text-gray-500'}`}>
-                                <Clock className="h-3.5 w-3.5" /> {exp.label}
-                              </span>
-                            ) : <span className="text-xs text-gray-300">—</span>}
-                          </td>
-                          <td className="px-4 py-3">
-                            <div className="flex items-center justify-end gap-1.5">
-                              {job.status === 'completed' ? (
-                                <>
-                                  <Button variant="ghost" size="icon" aria-label="ดูรายละเอียด"
-                                    onClick={() => { setActiveJob(job); setCopied(false); }}>
-                                    <Eye className="h-4 w-4" />
-                                  </Button>
-                                  <Button size="sm" disabled={pdfBusyId === job.id || exp?.expired}
-                                    onClick={() => downloadPdf(job, { rowId: job.id })}>
-                                    {pdfBusyId === job.id
-                                      ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                      : <><Download className="mr-1 h-3.5 w-3.5" /> ดาวน์โหลด</>}
-                                  </Button>
-                                </>
-                              ) : job.status === 'failed' || job.status === 'pending' ? (
-                                <Button variant="outline" size="sm" onClick={() => retry(job.id)}>
-                                  <Play className="mr-1 h-3.5 w-3.5" /> {job.status === 'pending' ? 'เริ่มถอดเสียง' : 'ลองใหม่'}
-                                </Button>
-                              ) : (
-                                <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>ไฟล์</TableHead>
+                  <TableHead align="center">สถานะ</TableHead>
+                  <TableHead className="hidden md:table-cell">สร้างเมื่อ</TableHead>
+                  <TableHead>หมดอายุ</TableHead>
+                  <TableHead align="right">จัดการ</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {jobs.map((job) => {
+                  const exp = job.status === 'completed' ? expiryInfo(job.created_at) : null;
+                  const isDone = job.status === 'completed';
+                  return (
+                    <TableRow key={job.id} clickable={isDone} onClick={isDone ? () => { setActiveJob(job); setCopied(false); } : undefined}>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <FileAudio className="h-4 w-4 shrink-0 text-gray-400" />
+                          <div className="min-w-0">
+                            <div className="truncate font-medium text-gray-900">{job.transcript_json?.meeting_title || job.file_name}</div>
+                            <div className="truncate text-xs text-gray-400">{job.file_name}{job.file_size ? ` · ${fmtSize(job.file_size)}` : ''}</div>
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell align="center">
+                        <StatusBadge tone={STATUS_TONE[job.status]}>{STATUS_TEXT[job.status]}</StatusBadge>
+                        {job.status === 'failed' && job.error_message ? (
+                          <div className="mt-1 max-w-[200px] truncate text-xs text-red-600" title={job.error_message}>{job.error_message}</div>
+                        ) : null}
+                      </TableCell>
+                      <TableCell className="hidden text-gray-500 md:table-cell">{fmtDateTime(job.created_at)}</TableCell>
+                      <TableCell>
+                        {exp ? (
+                          <span className={`inline-flex items-center gap-1 text-xs ${exp.expired ? 'text-gray-400' : exp.soon ? 'text-amber-600' : 'text-gray-500'}`}>
+                            <Clock className="h-3.5 w-3.5" /> {exp.label}
+                          </span>
+                        ) : <span className="text-xs text-gray-300">—</span>}
+                      </TableCell>
+                      <TableCell align="right" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center justify-end gap-1.5">
+                          {job.status === 'completed' ? (
+                            <Button size="sm" disabled={pdfBusyId === job.id || exp?.expired}
+                              onClick={() => downloadPdf(job, { rowId: job.id })}>
+                              {pdfBusyId === job.id
+                                ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                : <><Download className="mr-1 h-3.5 w-3.5" /> ดาวน์โหลด</>}
+                            </Button>
+                          ) : job.status === 'failed' || job.status === 'pending' ? (
+                            <Button variant="outline" size="sm" onClick={() => retry(job.id)}>
+                              <Play className="mr-1 h-3.5 w-3.5" /> {job.status === 'pending' ? 'เริ่มถอดเสียง' : 'ลองใหม่'}
+                            </Button>
+                          ) : (
+                            <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
           )}
         </div>
       </div>
 
       {/* Result dialog */}
       <Dialog open={!!activeJob} onOpenChange={(o) => { if (!o) setActiveJob(null); }}>
-        <DialogContent className="flex max-h-[85vh] w-[calc(100vw-1.5rem)] max-w-2xl flex-col gap-0 overflow-hidden p-0 sm:w-full">
-          <DialogHeader className="shrink-0 border-b border-gray-100 px-4 pb-3 pr-10 pt-4 sm:px-6 sm:pr-12">
+        <DialogContent size="xl">
+          <DialogHeader>
             <DialogTitle className="flex items-start gap-2">
               <FileAudio className="mt-0.5 h-5 w-5 shrink-0 text-indigo-600" />
               <span className="min-w-0">
@@ -556,7 +541,7 @@ export default function AssistantTranscribePage() {
             </DialogTitle>
           </DialogHeader>
 
-          <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6">
+          <DialogBody>
           {activeJob?.transcript_json ? (
             <div className="space-y-4">
               <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-gray-500">
@@ -654,9 +639,9 @@ export default function AssistantTranscribePage() {
           ) : (
             <p className="py-8 text-center text-sm text-gray-500">ไม่มีข้อมูลสรุป</p>
           )}
-          </div>
+          </DialogBody>
 
-          <DialogFooter className="shrink-0 gap-2 border-t border-gray-100 px-4 py-3 sm:gap-2 sm:px-6">
+          <DialogFooter>
             <Button variant="outline" onClick={copyTranscript} className="sm:w-auto">
               {copied ? <><Check className="mr-2 h-4 w-4 text-green-600" /> คัดลอกแล้ว</> : <><Copy className="mr-2 h-4 w-4" /> คัดลอก</>}
             </Button>

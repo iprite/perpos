@@ -84,7 +84,11 @@ export default async function HydrogenLayout({ children }: { children: React.Rea
   return (
     <ModuleProvider enabledKeys={enabledKeys} orgSlug={activeOrg?.slug ?? orgSlugFromUrl ?? ""} orgRole={effectiveOrgRole} menuLabels={menuLabels}>
       <main className="flex min-h-screen flex-grow">
-        <Sidebar className="fixed hidden xl:block dark:bg-gray-50" />
+        <Sidebar
+          className="fixed hidden xl:flex dark:bg-gray-50"
+          organizations={orgs}
+          activeOrganizationId={activeOrg?.id ?? null}
+        />
         <div className="flex w-full flex-col xl:ms-[270px] xl:w-[calc(100%-270px)] 2xl:ms-72 2xl:w-[calc(100%-288px)] pt-[var(--impersonation-banner-height,0px)]">
           <Header enabledModuleKeys={enabledKeys} />
           <ImpersonationBanner />

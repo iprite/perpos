@@ -4,8 +4,12 @@ import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { CustomSelect } from '@/components/ui/custom-select';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { FileAudio, RefreshCw, Loader2, AlertTriangle } from 'lucide-react';
+import { StatusBadge, type BadgeTone } from '@/components/ui/badge';
+import {
+  Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableEmpty, TableLoading,
+} from '@/components/ui/table';
+import { Dialog, DialogContent, DialogHeader, DialogBody, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { FileAudio, RefreshCw, AlertTriangle } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { AdminPage } from '../_components/admin-page';
@@ -33,11 +37,8 @@ async function authToken(): Promise<string> {
   return data.session?.access_token ?? '';
 }
 
-const STATUS_BADGE: Record<Job['status'], string> = {
-  pending: 'border-amber-200 bg-amber-50 text-amber-700',
-  processing: 'border-blue-200 bg-blue-50 text-blue-700',
-  completed: 'border-green-200 bg-green-50 text-green-700',
-  failed: 'border-red-200 bg-red-50 text-red-700',
+const STATUS_TONE: Record<Job['status'], BadgeTone> = {
+  pending: 'warning', processing: 'info', completed: 'success', failed: 'danger',
 };
 const STATUS_LABEL: Record<Job['status'], string> = {
   pending: 'รอคิว', processing: 'กำลังประมวลผล', completed: 'สำเร็จ', failed: 'ล้มเหลว',
@@ -53,7 +54,7 @@ export default function SttJobsPage() {
   const [counts, setCounts] = useState<Counts>({ pending: 0, processing: 0, completed: 0, failed: 0 });
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState('');
-  const [confirmJob, setConfirmJob] = useState<Job | null>(null);
+  const [detailJob, setDetailJob] = useState<Job | null>(null);
   const [acting, setActing] = useState(false);
 
   const load = useCallback(async () => {
@@ -75,19 +76,19 @@ export default function SttJobsPage() {
   useEffect(() => { load(); }, [load]);
 
   const failJob = async () => {
-    if (!confirmJob) return;
+    if (!detailJob) return;
     setActing(true);
     try {
       const res = await fetch('/api/admin/stt-jobs', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await authToken()}` },
-        body: JSON.stringify({ jobId: confirmJob.id, action: 'fail' }),
+        body: JSON.stringify({ jobId: detailJob.id, action: 'fail' }),
       });
       const d = await res.json();
       if (!res.ok) throw new Error(d?.error?.message ?? 'ดำเนินการไม่สำเร็จ');
       const refMin = Math.floor((d.data?.refunded_seconds ?? 0) / 60);
       toast.success(refMin > 0 ? `ปิดงานแล้ว — คืนโควต้า ${refMin} นาที` : 'ปิดงานแล้ว');
-      setConfirmJob(null);
+      setDetailJob(null);
       await load();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'ดำเนินการไม่สำเร็จ');
@@ -137,70 +138,87 @@ export default function SttJobsPage() {
         />
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-gray-100 bg-gray-50 text-left text-xs font-medium uppercase tracking-wide text-gray-500">
-                <th className="px-4 py-3">ไฟล์ / ผู้ใช้</th>
-                <th className="px-4 py-3 text-center">ที่มา</th>
-                <th className="px-4 py-3 text-right">ความยาว</th>
-                <th className="px-4 py-3 text-center">สถานะ</th>
-                <th className="px-4 py-3">สร้างเมื่อ</th>
-                <th className="px-4 py-3 text-right">จัดการ</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {loading ? (
-                <tr><td colSpan={6} className="px-4 py-10 text-center text-gray-400"><Loader2 className="mx-auto h-5 w-5 animate-spin" /></td></tr>
-              ) : items.length === 0 ? (
-                <tr><td colSpan={6} className="px-4 py-10 text-center text-sm text-gray-400">ไม่มีงานในสถานะนี้</td></tr>
-              ) : items.map((j) => {
-                const stuck = isStuck(j);
-                return (
-                  <tr key={j.id} className="transition-colors hover:bg-gray-50">
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-1.5 font-medium text-gray-900">
-                        {stuck && <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-500" />}
-                        <span className="max-w-[260px] truncate">{j.file_name}</span>
-                      </div>
-                      <div className="text-xs text-gray-400">{j.display_name} · {fmtSize(j.file_size)}</div>
-                      {j.error_message && j.status === 'failed' && (
-                        <div className="mt-0.5 max-w-[320px] truncate text-xs text-red-500" title={j.error_message}>{j.error_message}</div>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      <span className="inline-flex rounded-full border border-gray-200 bg-gray-50 px-2 py-0.5 text-xs text-gray-600">{j.source === 'line' ? 'LINE' : 'เว็บ'}</span>
-                    </td>
-                    <td className="px-4 py-3 text-right tabular-nums text-gray-600">{fmtDur(j.duration_seconds)}</td>
-                    <td className="px-4 py-3 text-center">
-                      <span className={`inline-flex rounded-full border px-2.5 py-0.5 text-xs font-medium ${STATUS_BADGE[j.status]}`}>{STATUS_LABEL[j.status]}</span>
-                      {stuck && <div className="mt-0.5 text-[10px] text-amber-600">ค้างเกิน 10 นาที</div>}
-                    </td>
-                    <td className="px-4 py-3 text-xs text-gray-500">{fmtTime(j.created_at)}</td>
-                    <td className="px-4 py-3 text-right">
-                      {(j.status === 'pending' || j.status === 'processing') ? (
-                        <Button variant="destructive" size="sm" onClick={() => setConfirmJob(j)}>ปิดงาน + คืนโควต้า</Button>
-                      ) : <span className="text-xs text-gray-300">—</span>}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>ไฟล์ / ผู้ใช้</TableHead>
+            <TableHead align="center">ที่มา</TableHead>
+            <TableHead align="right">ความยาว</TableHead>
+            <TableHead align="center">สถานะ</TableHead>
+            <TableHead>สร้างเมื่อ</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {loading ? (
+            <TableLoading colSpan={5} />
+          ) : items.length === 0 ? (
+            <TableEmpty colSpan={5}>ไม่มีงานในสถานะนี้</TableEmpty>
+          ) : items.map((j) => {
+            const stuck = isStuck(j);
+            return (
+              <TableRow key={j.id} clickable onClick={() => setDetailJob(j)}>
+                <TableCell>
+                  <div className="flex items-center gap-1.5 font-medium text-gray-900">
+                    {stuck && <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-500" />}
+                    <span>{j.file_name}</span>
+                  </div>
+                  <div className="text-xs text-gray-400">{j.display_name} · {fmtSize(j.file_size)}</div>
+                </TableCell>
+                <TableCell align="center">
+                  <StatusBadge tone="neutral">{j.source === 'line' ? 'LINE' : 'เว็บ'}</StatusBadge>
+                </TableCell>
+                <TableCell align="right" tabular className="text-gray-600">{fmtDur(j.duration_seconds)}</TableCell>
+                <TableCell align="center">
+                  <StatusBadge tone={STATUS_TONE[j.status]}>{STATUS_LABEL[j.status]}</StatusBadge>
+                  {stuck && <div className="mt-0.5 text-[10px] text-amber-600">ค้างเกิน 10 นาที</div>}
+                </TableCell>
+                <TableCell className="text-xs text-gray-500">{fmtTime(j.created_at)}</TableCell>
+              </TableRow>
+            );
+          })}
+        </TableBody>
+      </Table>
 
-      <Dialog open={!!confirmJob} onOpenChange={(o) => { if (!o) setConfirmJob(null); }}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>ปิดงานที่ค้าง + คืนโควต้า</DialogTitle></DialogHeader>
-          <div className="space-y-2 text-sm text-gray-600">
-            <p>ปิดงาน <span className="font-medium text-gray-900">{confirmJob?.file_name}</span> เป็นสถานะ &ldquo;ล้มเหลว&rdquo; และคืนโควต้าที่หักไปแล้วให้ <span className="font-medium text-gray-900">{confirmJob?.display_name}</span></p>
-            <p className="text-xs text-amber-600">ใช้กับงานที่ค้างเพราะ worker ไม่ตอบกลับ — การกระทำนี้ย้อนกลับไม่ได้</p>
-          </div>
-          <DialogFooter className="gap-2 sm:gap-2">
-            <Button variant="outline" onClick={() => setConfirmJob(null)}>ยกเลิก</Button>
-            <Button variant="destructive" onClick={failJob} disabled={acting}>{acting ? 'กำลังดำเนินการ…' : 'ปิดงาน + คืนโควต้า'}</Button>
+      <Dialog open={!!detailJob} onOpenChange={(o) => { if (!o) setDetailJob(null); }}>
+        <DialogContent size="md">
+          <DialogHeader><DialogTitle>รายละเอียดงานแกะเสียง</DialogTitle></DialogHeader>
+          <DialogBody>
+          {detailJob && (
+            <div className="space-y-3 text-sm">
+              <div className="grid grid-cols-2 gap-3">
+                {[
+                  ['ไฟล์', detailJob.file_name],
+                  ['ผู้ใช้', detailJob.display_name],
+                  ['ที่มา', detailJob.source === 'line' ? 'LINE' : 'เว็บ'],
+                  ['ขนาด', fmtSize(detailJob.file_size)],
+                  ['ความยาว', fmtDur(detailJob.duration_seconds)],
+                  ['โมเดล', detailJob.model],
+                  ['สร้างเมื่อ', fmtTime(detailJob.created_at)],
+                ].map(([k, v]) => (
+                  <div key={k} className="space-y-0.5">
+                    <p className="text-xs font-medium text-gray-500">{k}</p>
+                    <p className="break-words text-sm text-gray-800">{v}</p>
+                  </div>
+                ))}
+                <div className="space-y-0.5">
+                  <p className="text-xs font-medium text-gray-500">สถานะ</p>
+                  <StatusBadge tone={STATUS_TONE[detailJob.status]}>{STATUS_LABEL[detailJob.status]}</StatusBadge>
+                </div>
+              </div>
+              {detailJob.error_message && (
+                <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">{detailJob.error_message}</div>
+              )}
+              {(detailJob.status === 'pending' || detailJob.status === 'processing') && (
+                <p className="text-xs text-amber-600">ใช้กับงานที่ค้างเพราะ worker ไม่ตอบกลับ — ปิดงานเป็น &ldquo;ล้มเหลว&rdquo; และคืนโควต้าที่หักไปแล้ว · ย้อนกลับไม่ได้</p>
+              )}
+            </div>
+          )}
+          </DialogBody>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDetailJob(null)}>ปิด</Button>
+            {detailJob && (detailJob.status === 'pending' || detailJob.status === 'processing') && (
+              <Button variant="destructive" onClick={failJob} disabled={acting}>{acting ? 'กำลังดำเนินการ…' : 'ปิดงาน + คืนโควต้า'}</Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

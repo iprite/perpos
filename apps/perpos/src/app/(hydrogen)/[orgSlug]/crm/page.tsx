@@ -6,6 +6,10 @@ import Link from 'next/link';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { PageShell } from '@/components/ui/page-shell';
+import { StatusBadge, type BadgeTone } from '@/components/ui/badge';
+import {
+  Table, TableHeader, TableBody, TableRow, TableHead, TableCell,
+} from '@/components/ui/table';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, LineChart, Line, Cell,
@@ -26,13 +30,13 @@ type DashData = {
   monthly: { month: string; count: number }[];
 };
 
-const STATUS_CONFIG: Record<string, { label: string; color: string; bar: string }> = {
-  lead:        { label: 'Lead',        color: 'bg-slate-100 text-slate-600',   bar: '#94a3b8' },
-  proposal:    { label: 'Proposal',    color: 'bg-blue-100 text-blue-700',     bar: '#3b82f6' },
-  in_progress: { label: 'In Progress', color: 'bg-amber-100 text-amber-700',   bar: '#f59e0b' },
-  on_hold:     { label: 'On Hold',     color: 'bg-orange-100 text-orange-700', bar: '#f97316' },
-  completed:   { label: 'Completed',   color: 'bg-green-100 text-green-700',   bar: '#22c55e' },
-  cancelled:   { label: 'Cancelled',   color: 'bg-red-100 text-red-600',       bar: '#f87171' },
+const STATUS_CONFIG: Record<string, { label: string; tone: BadgeTone; bar: string }> = {
+  lead:        { label: 'Lead',        tone: 'neutral', bar: '#94a3b8' },
+  proposal:    { label: 'Proposal',    tone: 'info',    bar: '#3b82f6' },
+  in_progress: { label: 'In Progress', tone: 'warning', bar: '#f59e0b' },
+  on_hold:     { label: 'On Hold',     tone: 'warning', bar: '#f97316' },
+  completed:   { label: 'Completed',   tone: 'success', bar: '#22c55e' },
+  cancelled:   { label: 'Cancelled',   tone: 'danger',  bar: '#f87171' },
 };
 
 const TH_MONTHS = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
@@ -197,36 +201,30 @@ export default function CrmDashboardPage() {
             <DollarSign className="w-4 h-4 text-slate-400" />
             <h2 className="text-sm font-semibold text-slate-700">มูลค่าแยกตาม Status</h2>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-slate-50 border-b text-xs text-slate-500">
-                <tr>
-                  <th className="text-left px-4 py-2.5 font-medium">Status</th>
-                  <th className="text-right px-4 py-2.5 font-medium">จำนวน</th>
-                  <th className="text-right px-4 py-2.5 font-medium">มูลค่ารวม</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-50">
-                {Object.entries(STATUS_CONFIG).map(([key, cfg]) => {
-                  const row = data.byStatus[key];
-                  if (!row) return null;
-                  return (
-                    <tr key={key} className="hover:bg-slate-50">
-                      <td className="px-4 py-2.5">
-                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${cfg.color}`}>
-                          {cfg.label}
-                        </span>
-                      </td>
-                      <td className="px-4 py-2.5 text-right text-slate-600">{row.count}</td>
-                      <td className="px-4 py-2.5 text-right font-medium text-slate-800">
-                        {row.value > 0 ? `฿${row.value.toLocaleString('th-TH', { minimumFractionDigits: 0 })}` : '—'}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+          <Table wrapperClassName="rounded-none border-0">
+            <TableHeader>
+              <TableRow>
+                <TableHead>Status</TableHead>
+                <TableHead align="right">จำนวน</TableHead>
+                <TableHead align="right">มูลค่ารวม</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {Object.entries(STATUS_CONFIG).map(([key, cfg]) => {
+                const row = data.byStatus[key];
+                if (!row) return null;
+                return (
+                  <TableRow key={key}>
+                    <TableCell><StatusBadge tone={cfg.tone}>{cfg.label}</StatusBadge></TableCell>
+                    <TableCell align="right" tabular className="text-slate-600">{row.count}</TableCell>
+                    <TableCell align="right" tabular className="font-medium text-slate-800">
+                      {row.value > 0 ? `฿${row.value.toLocaleString('th-TH', { minimumFractionDigits: 0 })}` : '—'}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
         </div>
       )}
 

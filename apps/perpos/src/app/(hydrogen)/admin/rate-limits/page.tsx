@@ -6,11 +6,15 @@ import { Input }        from '@/components/ui/input';
 import { Label }        from '@/components/ui/label';
 import { CustomSelect } from '@/components/ui/custom-select';
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+  Dialog, DialogContent, DialogHeader, DialogBody, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog';
 import { ConfirmDeleteDialog } from '@/components/ui/confirm-delete-dialog';
+import { StatusBadge } from '@/components/ui/badge';
+import {
+  Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableEmpty, TableLoading,
+} from '@/components/ui/table';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
-import { Plus, Pencil, Trash2, ShieldAlert, ShieldCheck, ToggleLeft, ToggleRight, ShieldBan } from 'lucide-react';
+import { Plus, Trash2, ShieldAlert, ShieldCheck, ToggleLeft, ToggleRight, ShieldBan } from 'lucide-react';
 import { AdminPage } from '../_components/admin-page';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -211,69 +215,46 @@ export default function RateLimitsPage() {
         <div className="rounded-xl border border-dashed border-gray-300 py-16 text-center text-gray-400 text-sm">
           เลือก Organization เพื่อดู rate limits
         </div>
-      ) : loading ? (
-        <div className="py-16 text-center text-gray-400 text-sm">กำลังโหลด…</div>
-      ) : limits.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-gray-300 py-16 text-center text-gray-400 text-sm">
-          ยังไม่มี rate limit — กด &quot;เพิ่ม Limit&quot; เพื่อเริ่ม
-        </div>
       ) : (
-        <div className="rounded-xl border border-gray-200 overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 border-b border-gray-200">
-              <tr>
-                {['Route Pattern', 'Window', 'Max Requests', 'Violations (24h)', 'สถานะ', ''].map((h) => (
-                  <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {limits.map((l) => {
-                const vCount = (violations[l.route_pattern] ?? []).length;
-                return (
-                  <tr key={l.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 font-mono text-xs text-gray-800">{l.route_pattern}</td>
-                    <td className="px-4 py-3 text-gray-600">{fmtWindow(l.window_seconds)}</td>
-                    <td className="px-4 py-3 text-gray-900 font-medium">{l.max_requests.toLocaleString()}</td>
-                    <td className="px-4 py-3">
-                      {vCount > 0 ? (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-red-50 border border-red-200 px-2.5 py-0.5 text-xs font-medium text-red-700">
-                          <ShieldAlert className="w-3 h-3" />{vCount}
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 text-xs text-gray-400">
-                          <ShieldCheck className="w-3 h-3" />ไม่มี
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      <button
-                        onClick={() => toggleActive(l)}
-                        className={`inline-flex items-center gap-1 text-xs font-medium ${
-                          l.is_active ? 'text-green-600' : 'text-gray-400'
-                        }`}
-                      >
-                        {l.is_active
-                          ? <><ToggleRight className="w-4 h-4" />เปิด</>
-                          : <><ToggleLeft  className="w-4 h-4" />ปิด</>}
-                      </button>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2 justify-end">
-                        <button onClick={() => openEdit(l)} className="text-gray-400 hover:text-blue-600">
-                          <Pencil className="w-4 h-4" />
-                        </button>
-                        <button onClick={() => setDeleteConfirm({ open: true, id: l.id })} className="text-gray-400 hover:text-red-600">
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Route Pattern</TableHead>
+              <TableHead>Window</TableHead>
+              <TableHead align="right">Max Requests</TableHead>
+              <TableHead>Violations (24h)</TableHead>
+              <TableHead align="center">สถานะ</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {loading ? (
+              <TableLoading colSpan={5} />
+            ) : limits.length === 0 ? (
+              <TableEmpty colSpan={5}>ยังไม่มี rate limit — กด &quot;เพิ่ม Limit&quot; เพื่อเริ่ม</TableEmpty>
+            ) : limits.map((l) => {
+              const vCount = (violations[l.route_pattern] ?? []).length;
+              return (
+                <TableRow key={l.id} clickable onClick={() => openEdit(l)}>
+                  <TableCell className="font-mono text-xs text-gray-800">{l.route_pattern}</TableCell>
+                  <TableCell className="text-gray-600">{fmtWindow(l.window_seconds)}</TableCell>
+                  <TableCell align="right" tabular className="font-medium text-gray-900">{l.max_requests.toLocaleString()}</TableCell>
+                  <TableCell>
+                    {vCount > 0 ? (
+                      <StatusBadge tone="danger"><ShieldAlert className="mr-1 h-3 w-3" />{vCount}</StatusBadge>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 text-xs text-gray-400">
+                        <ShieldCheck className="h-3 w-3" />ไม่มี
+                      </span>
+                    )}
+                  </TableCell>
+                  <TableCell align="center">
+                    <StatusBadge tone={l.is_active ? 'success' : 'neutral'}>{l.is_active ? 'เปิด' : 'ปิด'}</StatusBadge>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
       )}
 
       <ConfirmDeleteDialog
@@ -286,11 +267,12 @@ export default function RateLimitsPage() {
 
       {/* Add/Edit Modal */}
       <Dialog open={modalOpen} onOpenChange={setModalOpen}>
-        <DialogContent>
+        <DialogContent size="md">
           <DialogHeader>
             <DialogTitle>{editing ? 'แก้ไข Rate Limit' : 'เพิ่ม Rate Limit'}</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 py-2">
+          <DialogBody>
+          <div className="space-y-4">
             <div>
               <Label>Route Pattern</Label>
               <Input
@@ -325,11 +307,34 @@ export default function RateLimitsPage() {
                 />
               </div>
             </div>
+            {editing && (
+              <div className="flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
+                <span className="text-sm text-gray-600">สถานะการใช้งาน</span>
+                <button
+                  onClick={() => { void toggleActive(editing); setModalOpen(false); }}
+                  className={`inline-flex items-center gap-1 text-xs font-medium ${editing.is_active ? 'text-green-600' : 'text-gray-400'}`}
+                >
+                  {editing.is_active
+                    ? <><ToggleRight className="h-4 w-4" />เปิด (กดเพื่อปิด)</>
+                    : <><ToggleLeft className="h-4 w-4" />ปิด (กดเพื่อเปิด)</>}
+                </button>
+              </div>
+            )}
             {saveError && (
               <p className="text-sm text-red-600">{saveError}</p>
             )}
           </div>
-          <DialogFooter className="gap-2 sm:gap-2">
+          </DialogBody>
+          <DialogFooter>
+            {editing && (
+              <Button
+                variant="ghost"
+                className="mr-auto text-red-600 hover:bg-red-50 hover:text-red-700"
+                onClick={() => { setModalOpen(false); setDeleteConfirm({ open: true, id: editing.id }); }}
+              >
+                <Trash2 className="mr-1.5 h-4 w-4" /> ลบ
+              </Button>
+            )}
             <Button variant="outline" onClick={() => setModalOpen(false)}>ยกเลิก</Button>
             <Button onClick={handleSave} disabled={saving}>
               {saving ? 'กำลังบันทึก…' : 'บันทึก'}

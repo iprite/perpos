@@ -1,16 +1,17 @@
 "use client";
 
 import React, { useState } from "react";
-import cn from "@core/utils/class-names";
-import { MoreVertical, PencilLine, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { StatusBadge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
+  DialogBody,
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
@@ -24,36 +25,6 @@ import {
 } from "@/components/ui/table";
 
 import { upsertDepartmentAction, type DepartmentRow } from "@/lib/payroll/actions";
-
-function ActionMenu({ onEdit }: { onEdit: () => void }) {
-  const [open, setOpen] = useState(false);
-  return (
-    <div className="relative inline-block">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
-      >
-        <MoreVertical className="h-4 w-4" />
-      </button>
-      {open && (
-        <>
-          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 z-20 mt-1 w-28 overflow-hidden rounded-md border border-slate-200 bg-white shadow-md">
-            <button
-              type="button"
-              onClick={() => { setOpen(false); onEdit(); }}
-              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
-            >
-              <PencilLine className="h-3.5 w-3.5" />
-              แก้ไข
-            </button>
-          </div>
-        </>
-      )}
-    </div>
-  );
-}
 
 export function DepartmentsClient({
   organizationId,
@@ -125,37 +96,28 @@ export function DepartmentsClient({
       <div>
         <Table>
           <TableHeader>
-            <TableRow className="bg-slate-50">
-              <TableHead className="w-14 text-center">ลำดับ</TableHead>
-              <TableHead className="w-32">รหัส</TableHead>
+            <TableRow>
+              <TableHead align="center">ลำดับ</TableHead>
+              <TableHead>รหัส</TableHead>
               <TableHead>ชื่อแผนก</TableHead>
-              <TableHead className="w-28 text-center">สถานะ</TableHead>
-              <TableHead className="w-12" />
+              <TableHead align="center">สถานะ</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {rows.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="py-10 text-center text-sm text-slate-400">
+                <TableCell colSpan={4} className="py-10 text-center text-sm text-slate-400">
                   ไม่มีข้อมูลแผนก
                 </TableCell>
               </TableRow>
             ) : (
               rows.map((row, idx) => (
-                <TableRow key={row.id} className="hover:bg-slate-50">
-                  <TableCell className="text-center text-sm text-slate-500">{idx + 1}</TableCell>
+                <TableRow key={row.id} clickable onClick={() => openEdit(row)}>
+                  <TableCell align="center" className="text-sm text-slate-500">{idx + 1}</TableCell>
                   <TableCell className="font-mono text-sm">{row.code ?? "—"}</TableCell>
                   <TableCell className="text-sm font-medium text-slate-900">{row.name}</TableCell>
-                  <TableCell className="text-center">
-                    <span className={cn(
-                      "rounded-full px-2.5 py-0.5 text-xs font-medium",
-                      row.active ? "bg-teal-50 text-teal-700" : "bg-slate-100 text-slate-500"
-                    )}>
-                      {row.active ? "ใช้งาน" : "ปิดใช้งาน"}
-                    </span>
-                  </TableCell>
-                  <TableCell>
-                    <ActionMenu onEdit={() => openEdit(row)} />
+                  <TableCell align="center">
+                    <StatusBadge tone={row.active ? "success" : "neutral"}>{row.active ? "ใช้งาน" : "ปิดใช้งาน"}</StatusBadge>
                   </TableCell>
                 </TableRow>
               ))
@@ -165,11 +127,12 @@ export function DepartmentsClient({
       </div>
 
       <Dialog open={dialogOpen} onOpenChange={(v) => { if (!v) setDialogOpen(false); }}>
-        <DialogContent className="max-w-sm">
+        <DialogContent size="sm">
           <DialogHeader>
             <DialogTitle>{editing ? "แก้ไขแผนก" : "เพิ่มแผนกใหม่"}</DialogTitle>
           </DialogHeader>
-          <div className="grid gap-4 py-2">
+          <DialogBody>
+          <div className="grid gap-4">
             <div className="space-y-1.5">
               <Label>รหัสแผนก</Label>
               <Input value={code} onChange={(e) => setCode(e.target.value)} placeholder="เช่น ACC" />
@@ -180,6 +143,7 @@ export function DepartmentsClient({
             </div>
             {err && <p className="text-sm text-red-500">{err}</p>}
           </div>
+          </DialogBody>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)} disabled={saving}>ยกเลิก</Button>
             <Button onClick={handleSave} disabled={saving}>{saving ? "กำลังบันทึก..." : "บันทึก"}</Button>

@@ -10,8 +10,12 @@ import { Label } from '@/components/ui/label';
 import { CustomSelect } from '@/components/ui/custom-select';
 import { MultiSelect } from '@/components/ui/multi-select';
 import { ThaiDatePicker } from '@/components/ui/thai-date-picker';
+import { StatusBadge } from '@/components/ui/badge';
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+  Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableEmpty, TableLoading,
+} from '@/components/ui/table';
+import {
+  Dialog, DialogContent, DialogHeader, DialogBody, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog';
 import {
   Plus, Filter, Settings, Tag, MapPin, Check, X, Pencil, Trash2,
@@ -519,94 +523,83 @@ export default function TmcFinancePage() {
       </div>
 
       {/* ── Table ── */}
-      <div className="bg-white rounded-xl border overflow-x-auto">
-        {loading ? (
-          <div className="p-8 text-center text-slate-400">กำลังโหลด...</div>
-        ) : entries.length === 0 ? (
-          <div className="p-8 text-center text-slate-400">ยังไม่มีรายการ</div>
-        ) : (
-          <table className="w-full text-sm">
-            <thead className="bg-slate-50 border-b">
-              <tr>
-                <th className="text-left px-4 py-3 text-slate-600 font-medium">วันที่</th>
-                <th className="text-left px-4 py-3 text-slate-600 font-medium">รายการ</th>
-                <th className="text-left px-4 py-3 text-slate-600 font-medium">หมวด</th>
-                <th className="text-left px-4 py-3 text-slate-600 font-medium">แปลง</th>
-                <th className="text-left px-4 py-3 text-slate-600 font-medium">บัญชี</th>
-                <th className="text-right px-4 py-3 text-green-600 font-medium">รายรับ</th>
-                <th className="text-right px-4 py-3 text-red-600 font-medium">รายจ่าย</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-50">
-              {pagedEntries.map(e => (
-                <tr key={e.id}
-                  onClick={() => openEdit(e)}
-                  className="hover:bg-blue-50 cursor-pointer transition-colors group">
-                  <td className="px-4 py-3 text-slate-600 whitespace-nowrap">
-                    {new Date(e.entry_date).toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: '2-digit' })}
-                  </td>
-                  <td className="px-4 py-3 text-slate-800 max-w-xs">
-                    <span className="truncate block">{e.description}</span>
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className="inline-block bg-slate-100 text-slate-700 text-xs px-2 py-0.5 rounded-full">{e.category}</span>
-                  </td>
-                  <td className="px-4 py-3">
-                    {e.property_code && (
-                      <span className="inline-block bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded-full">{e.property_code}</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3">
-                    {e.tmc_accounts && (
-                      <span className={`inline-block text-xs px-2 py-0.5 rounded-full font-medium ${accountTypeBadge(e.tmc_accounts.account_type)}`}>
-                        {e.tmc_accounts.name}
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-right font-medium text-green-600">{fmt(e.income)}</td>
-                  <td className="px-4 py-3 text-right font-medium text-red-600">{fmt(e.expense)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-
-        {/* Pagination */}
-        {!loading && entries.length > 0 && (
-          <div className="flex items-center justify-between px-4 py-3 border-t bg-slate-50">
-            <p className="text-xs text-slate-500">
-              แสดง {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, entries.length)} จาก {entries.length} รายการ
-            </p>
-            <div className="flex items-center gap-1">
-              <Button variant="ghost" size="icon" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="h-8 w-8">
-                <ChevronLeft className="w-4 h-4" />
-              </Button>
-              {Array.from({ length: totalPages }, (_, i) => i + 1)
-                .filter(p => p === 1 || p === totalPages || Math.abs(p - page) <= 1)
-                .reduce<(number | 'ellipsis')[]>((acc, p, idx, arr) => {
-                  if (idx > 0 && p - (arr[idx - 1] as number) > 1) acc.push('ellipsis');
-                  acc.push(p); return acc;
-                }, [])
-                .map((item, idx) =>
-                  item === 'ellipsis'
-                    ? <span key={`e${idx}`} className="px-1 text-slate-400 text-xs">…</span>
-                    : <Button key={item} variant={item === page ? 'default' : 'ghost'} size="icon"
-                        onClick={() => setPage(item as number)} className="h-8 w-8 text-xs">{item}</Button>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>วันที่</TableHead>
+            <TableHead>รายการ</TableHead>
+            <TableHead>หมวด</TableHead>
+            <TableHead>แปลง</TableHead>
+            <TableHead>บัญชี</TableHead>
+            <TableHead align="right">รายรับ</TableHead>
+            <TableHead align="right">รายจ่าย</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {loading ? (
+            <TableLoading colSpan={7} />
+          ) : entries.length === 0 ? (
+            <TableEmpty colSpan={7}>ยังไม่มีรายการ</TableEmpty>
+          ) : pagedEntries.map(e => (
+            <TableRow key={e.id} clickable onClick={() => openEdit(e)}>
+              <TableCell className="text-slate-600">
+                {new Date(e.entry_date).toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: '2-digit' })}
+              </TableCell>
+              <TableCell className="text-slate-800">{e.description}</TableCell>
+              <TableCell><StatusBadge tone="neutral">{e.category}</StatusBadge></TableCell>
+              <TableCell>
+                {e.property_code && <StatusBadge tone="info">{e.property_code}</StatusBadge>}
+              </TableCell>
+              <TableCell>
+                {e.tmc_accounts && (
+                  <span className={`inline-block whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium ${accountTypeBadge(e.tmc_accounts.account_type)}`}>
+                    {e.tmc_accounts.name}
+                  </span>
                 )}
-              <Button variant="ghost" size="icon" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} className="h-8 w-8">
-                <ChevronRight className="w-4 h-4" />
-              </Button>
-            </div>
+              </TableCell>
+              <TableCell align="right" tabular className="font-medium text-green-600">{fmt(e.income)}</TableCell>
+              <TableCell align="right" tabular className="font-medium text-red-600">{fmt(e.expense)}</TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+
+      {/* Pagination */}
+      {!loading && entries.length > 0 && (
+        <div className="flex items-center justify-between px-1">
+          <p className="text-xs text-slate-500">
+            แสดง {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, entries.length)} จาก {entries.length} รายการ
+          </p>
+          <div className="flex items-center gap-1">
+            <Button variant="ghost" size="icon" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="h-8 w-8">
+              <ChevronLeft className="w-4 h-4" />
+            </Button>
+            {Array.from({ length: totalPages }, (_, i) => i + 1)
+              .filter(p => p === 1 || p === totalPages || Math.abs(p - page) <= 1)
+              .reduce<(number | 'ellipsis')[]>((acc, p, idx, arr) => {
+                if (idx > 0 && p - (arr[idx - 1] as number) > 1) acc.push('ellipsis');
+                acc.push(p); return acc;
+              }, [])
+              .map((item, idx) =>
+                item === 'ellipsis'
+                  ? <span key={`e${idx}`} className="px-1 text-slate-400 text-xs">…</span>
+                  : <Button key={item} variant={item === page ? 'default' : 'ghost'} size="icon"
+                      onClick={() => setPage(item as number)} className="h-8 w-8 text-xs">{item}</Button>
+              )}
+            <Button variant="ghost" size="icon" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} className="h-8 w-8">
+              <ChevronRight className="w-4 h-4" />
+            </Button>
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* ── Add / Edit Entry Dialog ── */}
       <Dialog open={showForm} onOpenChange={v => { if (!v) closeForm(); }}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogContent size="lg">
           <DialogHeader>
             <DialogTitle>{editEntry ? 'แก้ไขรายการ' : 'เพิ่มรายการบัญชี'}</DialogTitle>
           </DialogHeader>
+          <DialogBody>
           <div className="grid grid-cols-2 gap-3">
             {/* ประเภท toggle */}
             <div className="col-span-2 space-y-1.5">
@@ -666,31 +659,30 @@ export default function TmcFinancePage() {
               <Input value={form.note} onChange={e => setForm(f => ({ ...f, note: e.target.value }))} />
             </div>
           </div>
+          </DialogBody>
 
-          {/* Footer: delete left, cancel+save right */}
-          <div className="flex items-center justify-between gap-2 pt-2">
-            {editEntry ? (
-              <Button type="button" variant="destructive" size="sm"
+          <DialogFooter>
+            {editEntry && (
+              <Button type="button" variant="destructive" className="mr-auto"
                 onClick={() => setDeleteConfirm(true)}>
                 <Trash2 className="h-4 w-4" /> ลบรายการ
               </Button>
-            ) : <span />}
-            <div className="flex gap-2">
-              <Button variant="outline" onClick={closeForm}>ยกเลิก</Button>
-              <Button onClick={handleSave} disabled={!canSave}>
-                {saving ? 'กำลังบันทึก…' : editEntry ? 'บันทึกการแก้ไข' : 'บันทึก'}
-              </Button>
-            </div>
-          </div>
+            )}
+            <Button variant="outline" onClick={closeForm}>ยกเลิก</Button>
+            <Button onClick={handleSave} disabled={!canSave}>
+              {saving ? 'กำลังบันทึก…' : editEntry ? 'บันทึกการแก้ไข' : 'บันทึก'}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
       {/* ── Delete Confirm Dialog ── */}
       <Dialog open={deleteConfirm} onOpenChange={v => { if (!v) setDeleteConfirm(false); }}>
-        <DialogContent className="max-w-sm">
+        <DialogContent size="sm">
           <DialogHeader>
             <DialogTitle>ยืนยันการลบ</DialogTitle>
           </DialogHeader>
+          <DialogBody className="space-y-3">
           {editEntry && (
             <div className="space-y-2 rounded-lg bg-red-50 border border-red-100 p-3 text-sm">
               <p className="font-medium text-slate-800 truncate">{editEntry.description}</p>
@@ -704,7 +696,8 @@ export default function TmcFinancePage() {
             </div>
           )}
           <p className="text-sm text-slate-500">ต้องการลบรายการนี้ใช่หรือไม่? การดำเนินการนี้ไม่สามารถยกเลิกได้</p>
-          <DialogFooter className="gap-2 sm:gap-2">
+          </DialogBody>
+          <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteConfirm(false)}>ยกเลิก</Button>
             <Button variant="destructive" onClick={handleDelete} disabled={deleting}>
               {deleting ? 'กำลังลบ…' : 'ลบ'}
@@ -715,62 +708,52 @@ export default function TmcFinancePage() {
 
       {/* ── Audit Log Viewer ── */}
       <Dialog open={showLogs} onOpenChange={setShowLogs}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogContent size="3xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <History className="h-4 w-4" /> ประวัติการแก้ไขและลบ
             </DialogTitle>
           </DialogHeader>
 
+          <DialogBody>
           {logsLoading ? (
             <div className="py-10 text-center text-sm text-slate-400">กำลังโหลด...</div>
           ) : logs.length === 0 ? (
             <div className="py-10 text-center text-sm text-slate-400">ยังไม่มีประวัติการแก้ไข</div>
           ) : (
-            <div className="overflow-x-auto rounded-lg border">
-              <table className="w-full text-sm">
-                <thead className="bg-slate-50 border-b">
-                  <tr>
-                    <th className="text-left px-3 py-2.5 text-slate-600 font-medium whitespace-nowrap">วันเวลา</th>
-                    <th className="text-left px-3 py-2.5 text-slate-600 font-medium whitespace-nowrap">ผู้แก้ไข</th>
-                    <th className="text-left px-3 py-2.5 text-slate-600 font-medium">รายการ</th>
-                    <th className="text-center px-3 py-2.5 text-slate-600 font-medium whitespace-nowrap">ประเภท</th>
-                    <th className="text-left px-3 py-2.5 text-slate-600 font-medium">สรุปการเปลี่ยนแปลง</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-50">
-                  {logs.map(log => {
-                    const diff = diffSummary(log);
-                    const editor = log.profiles?.display_name ?? log.profiles?.email ?? 'ไม่ทราบ';
-                    const refDesc = String(log.old_data?.description ?? log.new_data?.description ?? '—');
-                    return (
-                      <tr key={log.id} className="hover:bg-slate-50">
-                        <td className="px-3 py-2.5 text-slate-500 text-xs whitespace-nowrap">
-                          {fmtDateTime(log.changed_at)}
-                        </td>
-                        <td className="px-3 py-2.5 text-slate-700 text-xs whitespace-nowrap max-w-[120px] truncate" title={editor}>
-                          {editor}
-                        </td>
-                        <td className="px-3 py-2.5 text-slate-700 max-w-[140px] truncate" title={refDesc}>
-                          {refDesc}
-                        </td>
-                        <td className="px-3 py-2.5 text-center">
-                          {log.action === 'delete' ? (
-                            <span className="inline-block rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700">ลบ</span>
-                          ) : (
-                            <span className="inline-block rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">แก้ไข</span>
-                          )}
-                        </td>
-                        <td className="px-3 py-2.5 text-slate-500 text-xs max-w-xs truncate" title={diff}>
-                          {diff}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>วันเวลา</TableHead>
+                  <TableHead>ผู้แก้ไข</TableHead>
+                  <TableHead>รายการ</TableHead>
+                  <TableHead align="center">ประเภท</TableHead>
+                  <TableHead>สรุปการเปลี่ยนแปลง</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {logs.map(log => {
+                  const diff = diffSummary(log);
+                  const editor = log.profiles?.display_name ?? log.profiles?.email ?? 'ไม่ทราบ';
+                  const refDesc = String(log.old_data?.description ?? log.new_data?.description ?? '—');
+                  return (
+                    <TableRow key={log.id}>
+                      <TableCell className="text-xs text-slate-500">{fmtDateTime(log.changed_at)}</TableCell>
+                      <TableCell className="max-w-[120px] truncate text-xs text-slate-700" title={editor}>{editor}</TableCell>
+                      <TableCell className="max-w-[140px] truncate text-slate-700" title={refDesc}>{refDesc}</TableCell>
+                      <TableCell align="center">
+                        {log.action === 'delete'
+                          ? <StatusBadge tone="danger">ลบ</StatusBadge>
+                          : <StatusBadge tone="warning">แก้ไข</StatusBadge>}
+                      </TableCell>
+                      <TableCell wrap className="max-w-xs text-xs text-slate-500" title={diff}>{diff}</TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
           )}
+          </DialogBody>
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowLogs(false)}>ปิด</Button>
@@ -780,12 +763,13 @@ export default function TmcFinancePage() {
 
       {/* ── Manage Accounts Dialog ── */}
       <Dialog open={showAccounts} onOpenChange={v => { setShowAccounts(v); if (!v) { setShowAccountForm(false); setEditAccount(null); setAccountForm({ ...EMPTY_ACCOUNT }); } }}>
-        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+        <DialogContent size="md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Landmark className="h-4 w-4" /> จัดการบัญชี
             </DialogTitle>
           </DialogHeader>
+          <DialogBody>
           <div className="space-y-2">
             {accounts.filter(a => a.is_active).map(acc => (
               <div key={acc.id} className="flex items-center justify-between rounded-lg border border-slate-100 bg-white px-3 py-2.5 hover:border-slate-200">
@@ -858,6 +842,7 @@ export default function TmcFinancePage() {
               <Plus className="h-4 w-4" /> เพิ่มบัญชีใหม่
             </button>
           )}
+          </DialogBody>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowAccounts(false)}>ปิด</Button>
           </DialogFooter>
@@ -866,8 +851,9 @@ export default function TmcFinancePage() {
 
       {/* ── Master Data Dialog (หมวด / แปลง) ── */}
       <Dialog open={showMaster} onOpenChange={setShowMaster}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogContent size="lg">
           <DialogHeader><DialogTitle>จัดการหมวดและแปลง</DialogTitle></DialogHeader>
+          <DialogBody>
           <div className="flex overflow-hidden rounded-lg border border-slate-200">
             <button type="button" onClick={() => setMasterTab('category')}
               className={`flex flex-1 items-center justify-center gap-2 py-2 text-sm font-medium transition-colors ${
@@ -925,6 +911,7 @@ export default function TmcFinancePage() {
               </div>
             </div>
           )}
+          </DialogBody>
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowMaster(false)}>ปิด</Button>

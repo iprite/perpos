@@ -8,8 +8,9 @@ import { Button } from "@/components/ui/button";
 import { CustomSelect } from "@/components/ui/custom-select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogBody, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { StatusBadge } from "@/components/ui/badge";
 import {
   listInventoryItemsAction,
   upsertInventoryItemAction,
@@ -97,36 +98,30 @@ export function ProductsClient(props: { organizationId: string; initialItems: In
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-[140px]">SKU</TableHead>
+              <TableHead>SKU</TableHead>
               <TableHead>ชื่อสินค้า/บริการ</TableHead>
-              <TableHead className="w-[100px]">หน่วย</TableHead>
-              <TableHead className="w-[140px] text-right">ราคาต้นทุน</TableHead>
-              <TableHead className="w-[100px]">สถานะ</TableHead>
-              <TableHead className="w-[80px]"></TableHead>
+              <TableHead>หน่วย</TableHead>
+              <TableHead align="right">ราคาต้นทุน</TableHead>
+              <TableHead>สถานะ</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {items.map((it) => (
-              <TableRow key={it.id} className="cursor-pointer hover:bg-slate-50" onClick={() => openEdit(it)}>
+              <TableRow key={it.id} clickable onClick={() => openEdit(it)}>
                 <TableCell className="font-mono text-sm">{it.sku}</TableCell>
                 <TableCell className="text-sm text-slate-900">{it.name}</TableCell>
                 <TableCell className="text-sm">{it.uom}</TableCell>
-                <TableCell className="text-right tabular-nums text-sm">{fmt(it.unitCost)}</TableCell>
+                <TableCell align="right" tabular className="text-sm">{fmt(it.unitCost)}</TableCell>
                 <TableCell>
-                  <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${it.status === "active" ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-500"}`}>
+                  <StatusBadge tone={it.status === "active" ? "success" : "neutral"}>
                     {it.status === "active" ? "ใช้งาน" : "ไม่ใช้งาน"}
-                  </span>
-                </TableCell>
-                <TableCell>
-                  <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); openEdit(it); }}>
-                    แก้ไข
-                  </Button>
+                  </StatusBadge>
                 </TableCell>
               </TableRow>
             ))}
             {!items.length ? (
               <TableRow>
-                <TableCell colSpan={6} className="py-10 text-center text-sm text-slate-500">
+                <TableCell colSpan={5} className="py-10 text-center text-sm text-slate-500">
                   ยังไม่มีสินค้า/บริการ
                 </TableCell>
               </TableRow>
@@ -136,10 +131,11 @@ export function ProductsClient(props: { organizationId: string; initialItems: In
       </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent>
+        <DialogContent size="md">
           <DialogHeader>
             <DialogTitle>{edit.id ? "แก้ไขสินค้า/บริการ" : "เพิ่มสินค้า/บริการ"}</DialogTitle>
           </DialogHeader>
+          <DialogBody>
           <div className="grid gap-3">
             <div className="grid gap-1.5">
               <Label>SKU</Label>
@@ -170,11 +166,12 @@ export function ProductsClient(props: { organizationId: string; initialItems: In
                 ]}
               />
             </div>
-            <div className="flex justify-end gap-2 pt-1">
-              <Button variant="outline" onClick={() => setOpen(false)}>ยกเลิก</Button>
-              <Button onClick={save} disabled={pending}>บันทึก</Button>
-            </div>
           </div>
+          </DialogBody>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpen(false)}>ยกเลิก</Button>
+            <Button onClick={save} disabled={pending}>บันทึก</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

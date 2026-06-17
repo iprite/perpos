@@ -3,6 +3,7 @@
 import React, { useMemo, useState } from "react";
 import { CustomSelect } from "@/components/ui/custom-select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { StatusBadge } from "@/components/ui/badge";
 import cn from "@core/utils/class-names";
 import type { VatDocRow } from "@/lib/tax/actions";
 
@@ -84,12 +85,12 @@ export function VatDocsClient({ rows, title, subtitle }: Props) {
         <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
           <Table>
             <TableHeader>
-              <TableRow className="bg-slate-50">
+              <TableRow>
                 <TableHead>เลขที่เอกสาร</TableHead>
                 <TableHead>วันที่</TableHead>
                 <TableHead>คู่ค้า</TableHead>
-                <TableHead className="text-right">ยอดก่อน VAT</TableHead>
-                <TableHead className="text-right">VAT (7%)</TableHead>
+                <TableHead align="right">ยอดก่อน VAT</TableHead>
+                <TableHead align="right">VAT (7%)</TableHead>
                 <TableHead>สถานะ</TableHead>
               </TableRow>
             </TableHeader>
@@ -107,14 +108,12 @@ export function VatDocsClient({ rows, title, subtitle }: Props) {
                       : "-"}
                   </TableCell>
                   <TableCell className="text-sm">{row.contact_name ?? "-"}</TableCell>
-                  <TableCell className="text-right tabular-nums text-sm">{fmt(row.sub_total)}</TableCell>
-                  <TableCell className="text-right tabular-nums text-sm font-medium text-teal-700">
+                  <TableCell align="right" tabular className="text-sm">{fmt(row.sub_total)}</TableCell>
+                  <TableCell align="right" tabular className="text-sm font-medium text-teal-700">
                     {fmt(row.vat_amount)}
                   </TableCell>
                   <TableCell>
-                    <span className="text-xs bg-slate-100 text-slate-600 rounded-full px-2 py-0.5">
-                      {row.status}
-                    </span>
+                    <StatusBadge tone="neutral">{row.status}</StatusBadge>
                   </TableCell>
                 </TableRow>
               ))}

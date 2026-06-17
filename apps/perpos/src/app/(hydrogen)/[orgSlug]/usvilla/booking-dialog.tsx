@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { CustomSelect } from '@/components/ui/custom-select';
 import { ThaiDatePicker } from '@/components/ui/thai-date-picker';
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+  Dialog, DialogContent, DialogHeader, DialogBody, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog';
 import { useLang } from './_lang-context';
 import { getPaymentMethods, getNationalities } from './_i18n';
@@ -145,12 +145,13 @@ export default function BookingDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+      <DialogContent size="lg">
         <DialogHeader>
           <DialogTitle>{t.dlg_checkin_title}</DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4 py-2">
+        <DialogBody>
+        <div className="space-y-4">
           <div className="space-y-1">
             <Label>{t.field_room} *</Label>
             <CustomSelect value={form.room_id} onChange={(v) => set('room_id', v)} options={roomOptions} />
@@ -230,8 +231,9 @@ export default function BookingDialog({
             <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>
           )}
         </div>
+        </DialogBody>
 
-        <DialogFooter className="gap-2">
+        <DialogFooter>
           <Button variant="outline" onClick={() => handleClose(false)} disabled={saving}>{t.btn_cancel}</Button>
           <Button onClick={handleSave} disabled={saving}>
             {saving ? t.btn_saving : t.dlg_checkin_btn}

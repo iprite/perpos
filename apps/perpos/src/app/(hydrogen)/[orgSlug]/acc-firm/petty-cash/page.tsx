@@ -9,9 +9,13 @@ import { Label } from '@/components/ui/label';
 import { CustomSelect } from '@/components/ui/custom-select';
 import { ThaiDatePicker } from '@/components/ui/thai-date-picker';
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+  Dialog, DialogContent, DialogHeader, DialogBody, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog';
-import { Plus, Pencil, Trash2, ChevronLeft, ChevronRight, Wallet } from 'lucide-react';
+import { StatusBadge } from '@/components/ui/badge';
+import {
+  Table, TableHeader, TableBody, TableFooter, TableRow, TableHead, TableCell, TableEmpty,
+} from '@/components/ui/table';
+import { Plus, Trash2, ChevronLeft, ChevronRight, Wallet } from 'lucide-react';
 import { PageShell } from '@/components/ui/page-shell';
 import type { PettyCashEntry } from '@/app/api/acc-firm/petty-cash/route';
 
@@ -220,96 +224,78 @@ export default function PettyCashPage() {
       </div>
 
       {/* Table */}
-      <div className="rounded-xl border overflow-hidden bg-white">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-gray-50 border-b text-left text-gray-600">
-                <th className="px-4 py-3 font-medium">วันที่</th>
-                <th className="px-4 py-3 font-medium">รายการ</th>
-                <th className="px-4 py-3 font-medium">บริษัท</th>
-                <th className="px-4 py-3 font-medium">ประเภท</th>
-                <th className="px-4 py-3 font-medium">ผู้รับเงิน</th>
-                <th className="px-4 py-3 font-medium text-right">เงินออก</th>
-                <th className="px-4 py-3 font-medium text-right">เงินเข้า</th>
-                <th className="px-4 py-3 font-medium text-right">เก็บเงิน</th>
-                <th className="px-4 py-3 font-medium">หมายเหตุ</th>
-                <th className="px-4 py-3"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr><td colSpan={10} className="text-center py-10 text-gray-400">กำลังโหลด…</td></tr>
-              ) : entries.length === 0 ? (
-                <tr><td colSpan={10} className="text-center py-10 text-gray-400">ไม่พบรายการ</td></tr>
-              ) : entries.map(e => (
-                <tr key={e.id} className="border-b hover:bg-gray-50 transition-colors">
-                  <td className="px-4 py-2.5 whitespace-nowrap text-gray-700">{fmtDate(e.entry_date)}</td>
-                  <td className="px-4 py-2.5 text-gray-800 max-w-[200px] truncate" title={e.description}>{e.description}</td>
-                  <td className="px-4 py-2.5 text-gray-600 text-xs">{e.company || '—'}</td>
-                  <td className="px-4 py-2.5">
-                    {e.category ? (
-                      <span className="inline-block px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 text-xs font-medium">{e.category}</span>
-                    ) : '—'}
-                  </td>
-                  <td className="px-4 py-2.5 text-gray-600 text-xs">{e.payee || '—'}</td>
-                  <td className="px-4 py-2.5 text-right font-mono text-red-600">{fmt(e.amount_out)}</td>
-                  <td className="px-4 py-2.5 text-right font-mono text-green-600">{fmt(e.amount_in)}</td>
-                  <td className="px-4 py-2.5 text-right font-mono text-blue-600">{fmt(e.collected)}</td>
-                  <td className="px-4 py-2.5 text-gray-500 text-xs max-w-[140px] truncate" title={e.note ?? ''}>{e.note || '—'}</td>
-                  <td className="px-4 py-2.5">
-                    <div className="flex gap-1">
-                      <button onClick={() => openEdit(e)} className="p-1 hover:bg-gray-100 rounded text-gray-500">
-                        <Pencil className="h-3.5 w-3.5" />
-                      </button>
-                      <button onClick={() => setDeleteId(e.id)} className="p-1 hover:bg-red-50 rounded text-gray-400 hover:text-red-500">
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-            {entries.length > 0 && (
-              <tfoot>
-                <tr className="bg-gray-50 border-t font-semibold">
-                  <td colSpan={5} className="px-4 py-2.5 text-gray-600 text-xs">รวมทั้งหมด ({total} รายการ)</td>
-                  <td className="px-4 py-2.5 text-right font-mono text-red-600">{fmt(totals.total_out)}</td>
-                  <td className="px-4 py-2.5 text-right font-mono text-green-600">{fmt(totals.total_in)}</td>
-                  <td className="px-4 py-2.5 text-right font-mono text-blue-600">{fmt(totals.total_collected)}</td>
-                  <td colSpan={2} />
-                </tr>
-              </tfoot>
-            )}
-          </table>
-        </div>
-
-        {/* Pagination */}
-        {totalPages > 1 && (
-          <div className="flex items-center justify-between px-4 py-3 border-t bg-gray-50">
-            <span className="text-sm text-gray-600">
-              หน้า {page} / {totalPages} ({total} รายการ)
-            </span>
-            <div className="flex gap-2">
-              <Button variant="outline" size="sm" onClick={() => setPage(p => p - 1)} disabled={page === 1}>
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <Button variant="outline" size="sm" onClick={() => setPage(p => p + 1)} disabled={page === totalPages}>
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>วันที่</TableHead>
+            <TableHead>รายการ</TableHead>
+            <TableHead>บริษัท</TableHead>
+            <TableHead>ประเภท</TableHead>
+            <TableHead>ผู้รับเงิน</TableHead>
+            <TableHead align="right">เงินออก</TableHead>
+            <TableHead align="right">เงินเข้า</TableHead>
+            <TableHead align="right">เก็บเงิน</TableHead>
+            <TableHead>หมายเหตุ</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {loading ? (
+            <TableEmpty colSpan={9}>กำลังโหลด…</TableEmpty>
+          ) : entries.length === 0 ? (
+            <TableEmpty colSpan={9}>ไม่พบรายการ</TableEmpty>
+          ) : entries.map(e => (
+            <TableRow key={e.id} clickable onClick={() => openEdit(e)}>
+              <TableCell className="text-gray-700">{fmtDate(e.entry_date)}</TableCell>
+              <TableCell className="max-w-[200px] truncate text-gray-800" title={e.description}>{e.description}</TableCell>
+              <TableCell className="text-xs text-gray-600">{e.company || '—'}</TableCell>
+              <TableCell>{e.category ? <StatusBadge tone="info">{e.category}</StatusBadge> : '—'}</TableCell>
+              <TableCell className="text-xs text-gray-600">{e.payee || '—'}</TableCell>
+              <TableCell align="right" tabular className="text-red-600">{fmt(e.amount_out)}</TableCell>
+              <TableCell align="right" tabular className="text-green-600">{fmt(e.amount_in)}</TableCell>
+              <TableCell align="right" tabular className="text-blue-600">{fmt(e.collected)}</TableCell>
+              <TableCell className="max-w-[140px] truncate text-xs text-gray-500" title={e.note ?? ''}>{e.note || '—'}</TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+        {entries.length > 0 && (
+          <TableFooter>
+            <TableRow>
+              <TableCell colSpan={5} className="text-xs text-gray-600">รวมทั้งหมด ({total} รายการ)</TableCell>
+              <TableCell align="right" tabular className="text-red-600">{fmt(totals.total_out)}</TableCell>
+              <TableCell align="right" tabular className="text-green-600">{fmt(totals.total_in)}</TableCell>
+              <TableCell align="right" tabular className="text-blue-600">{fmt(totals.total_collected)}</TableCell>
+              <TableCell />
+            </TableRow>
+          </TableFooter>
         )}
-      </div>
+      </Table>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between px-1">
+          <span className="text-sm text-gray-600">
+            หน้า {page} / {totalPages} ({total} รายการ)
+          </span>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={() => setPage(p => p - 1)} disabled={page === 1}>
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => setPage(p => p + 1)} disabled={page === totalPages}>
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Add/Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent size="xl">
           <DialogHeader>
             <DialogTitle>{editing ? 'แก้ไขรายการ' : 'เพิ่มรายการเงินสดย่อย'}</DialogTitle>
           </DialogHeader>
 
-          <div className="grid grid-cols-2 gap-4 py-2">
+          <DialogBody>
+          <div className="grid grid-cols-2 gap-4">
             <div className="col-span-2">
               <Label>วันที่ *</Label>
               <ThaiDatePicker value={form.entry_date} onChange={v => setForm(f => ({ ...f, entry_date: v }))} />
@@ -355,8 +341,9 @@ export default function PettyCashPage() {
               <Input value={form.note} onChange={e => setForm(f => ({ ...f, note: e.target.value }))} placeholder="หมายเหตุเพิ่มเติม" />
             </div>
           </div>
+          </DialogBody>
 
-          <DialogFooter className="gap-2">
+          <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>ยกเลิก</Button>
             <Button onClick={save} disabled={saving || !form.entry_date || !form.description}>
               {saving ? 'กำลังบันทึก…' : 'บันทึก'}
@@ -367,10 +354,12 @@ export default function PettyCashPage() {
 
       {/* Delete Confirm Dialog */}
       <Dialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
-        <DialogContent className="max-w-sm">
+        <DialogContent size="sm">
           <DialogHeader><DialogTitle>ยืนยันลบรายการ</DialogTitle></DialogHeader>
-          <p className="text-sm text-gray-600 py-2">ต้องการลบรายการนี้หรือไม่? ไม่สามารถยกเลิกได้</p>
-          <DialogFooter className="gap-2">
+          <DialogBody>
+          <p className="text-sm text-gray-600">ต้องการลบรายการนี้หรือไม่? ไม่สามารถยกเลิกได้</p>
+          </DialogBody>
+          <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteId(null)}>ยกเลิก</Button>
             <Button variant="destructive" onClick={() => deleteId && confirmDelete(deleteId)}>ลบ</Button>
           </DialogFooter>

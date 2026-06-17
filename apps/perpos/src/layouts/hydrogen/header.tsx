@@ -26,7 +26,15 @@ export default async function Header({ enabledModuleKeys: enabledModuleKeysProp 
   return (
     <StickyHeader className="z-[990] 2xl:py-5 3xl:px-8 4xl:px-10">
       <div className="flex shrink-0 items-center">
-        <HamburgerButton view={<Sidebar className="static w-full 2xl:w-full" />} />
+        <HamburgerButton
+          view={
+            <Sidebar
+              className="static w-full 2xl:w-full"
+              organizations={organizations}
+              activeOrganizationId={activeOrganizationId}
+            />
+          }
+        />
         <Link
           href={"/"}
           aria-label="Site Logo"

@@ -7,6 +7,9 @@ import { Button } from '@/components/ui/button';
 import { CustomSelect } from '@/components/ui/custom-select';
 import { PageShell } from '@/components/ui/page-shell';
 import {
+  Table, TableHeader, TableBody, TableRow, TableHead, TableCell,
+} from '@/components/ui/table';
+import {
   BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid,
   Tooltip, Legend, ResponsiveContainer, Cell,
 } from 'recharts';
@@ -252,48 +255,33 @@ export default function TmcDashboardPage() {
           <div className="px-4 py-3 border-b">
             <h2 className="text-sm font-semibold text-slate-700">สรุปตามแปลง</h2>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead className="bg-slate-50 border-b">
-                <tr>
-                  <th className="text-left px-4 py-2.5 text-slate-500 font-medium">แปลง</th>
-                  <th className="text-right px-3 py-2.5 text-green-600 font-medium">รายรับ (บัญชี)</th>
-                  <th className="text-right px-3 py-2.5 text-red-500 font-medium">รายจ่าย (บัญชี)</th>
-                  <th className="text-right px-3 py-2.5 text-violet-600 font-medium">เงินสดย่อย</th>
-                  <th className="text-right px-3 py-2.5 text-emerald-600 font-medium">รายรับห้อง</th>
-                  <th className="text-right px-3 py-2.5 text-slate-500 font-medium">เข้าพัก</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-50">
-                {data.byProperty.map(r => (
-                  <tr key={r.property} className="hover:bg-slate-50">
-                    <td className="px-4 py-2.5 font-medium text-slate-700">
-                      <span
-                        className="inline-block w-2 h-2 rounded-full mr-2"
-                        style={{ backgroundColor: propColor(r.property) }}
-                      />
-                      {r.property}
-                    </td>
-                    <td className="px-3 py-2.5 text-right text-green-700 font-medium">
-                      {r.finIncome > 0 ? fmt(r.finIncome) : '—'}
-                    </td>
-                    <td className="px-3 py-2.5 text-right text-red-600">
-                      {r.finExpense > 0 ? fmt(r.finExpense) : '—'}
-                    </td>
-                    <td className="px-3 py-2.5 text-right text-violet-700">
-                      {r.pettyExpense > 0 ? fmt(r.pettyExpense) : '—'}
-                    </td>
-                    <td className="px-3 py-2.5 text-right text-emerald-700 font-medium">
-                      {r.stayRevenue > 0 ? fmt(r.stayRevenue) : '—'}
-                    </td>
-                    <td className="px-3 py-2.5 text-right text-slate-500">
-                      {r.stays > 0 ? `${r.stays} ครั้ง` : '—'}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <Table wrapperClassName="rounded-none border-0">
+            <TableHeader>
+              <TableRow>
+                <TableHead>แปลง</TableHead>
+                <TableHead align="right">รายรับ (บัญชี)</TableHead>
+                <TableHead align="right">รายจ่าย (บัญชี)</TableHead>
+                <TableHead align="right">เงินสดย่อย</TableHead>
+                <TableHead align="right">รายรับห้อง</TableHead>
+                <TableHead align="right">เข้าพัก</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {data.byProperty.map(r => (
+                <TableRow key={r.property}>
+                  <TableCell className="font-medium text-slate-700">
+                    <span className="mr-2 inline-block h-2 w-2 rounded-full" style={{ backgroundColor: propColor(r.property) }} />
+                    {r.property}
+                  </TableCell>
+                  <TableCell align="right" tabular className="font-medium text-green-700">{r.finIncome > 0 ? fmt(r.finIncome) : '—'}</TableCell>
+                  <TableCell align="right" tabular className="text-red-600">{r.finExpense > 0 ? fmt(r.finExpense) : '—'}</TableCell>
+                  <TableCell align="right" tabular className="text-violet-700">{r.pettyExpense > 0 ? fmt(r.pettyExpense) : '—'}</TableCell>
+                  <TableCell align="right" tabular className="font-medium text-emerald-700">{r.stayRevenue > 0 ? fmt(r.stayRevenue) : '—'}</TableCell>
+                  <TableCell align="right" tabular className="text-slate-500">{r.stays > 0 ? `${r.stays} ครั้ง` : '—'}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
           {/* Property bar chart */}
           <div className="p-4 border-t">
             <p className="text-xs text-slate-500 mb-3">รายรับ / รายจ่าย แยกแปลง</p>
@@ -326,37 +314,29 @@ export default function TmcDashboardPage() {
           <div className="px-4 py-3 border-b">
             <h2 className="text-sm font-semibold text-slate-700">สรุปตามหมวด (บัญชีการเงิน)</h2>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead className="bg-slate-50 border-b">
-                <tr>
-                  <th className="text-left px-4 py-2.5 text-slate-500 font-medium">หมวด</th>
-                  <th className="text-right px-3 py-2.5 text-green-600 font-medium">รายรับ</th>
-                  <th className="text-right px-3 py-2.5 text-red-500 font-medium">รายจ่าย</th>
-                  <th className="text-right px-3 py-2.5 text-slate-500 font-medium">สุทธิ</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-50">
-                {data.byCategory.slice(0, 15).map(r => {
-                  const net = r.income - r.expense;
-                  return (
-                    <tr key={r.category} className="hover:bg-slate-50">
-                      <td className="px-4 py-2.5 text-slate-700 font-medium">{r.category}</td>
-                      <td className="px-3 py-2.5 text-right text-green-700">
-                        {r.income > 0 ? fmt(r.income) : '—'}
-                      </td>
-                      <td className="px-3 py-2.5 text-right text-red-600">
-                        {r.expense > 0 ? fmt(r.expense) : '—'}
-                      </td>
-                      <td className={`px-3 py-2.5 text-right font-medium ${net >= 0 ? 'text-blue-700' : 'text-orange-600'}`}>
-                        {fmt(net)}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+          <Table wrapperClassName="rounded-none border-0">
+            <TableHeader>
+              <TableRow>
+                <TableHead>หมวด</TableHead>
+                <TableHead align="right">รายรับ</TableHead>
+                <TableHead align="right">รายจ่าย</TableHead>
+                <TableHead align="right">สุทธิ</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {data.byCategory.slice(0, 15).map(r => {
+                const net = r.income - r.expense;
+                return (
+                  <TableRow key={r.category}>
+                    <TableCell className="font-medium text-slate-700">{r.category}</TableCell>
+                    <TableCell align="right" tabular className="text-green-700">{r.income > 0 ? fmt(r.income) : '—'}</TableCell>
+                    <TableCell align="right" tabular className="text-red-600">{r.expense > 0 ? fmt(r.expense) : '—'}</TableCell>
+                    <TableCell align="right" tabular className={`font-medium ${net >= 0 ? 'text-blue-700' : 'text-orange-600'}`}>{fmt(net)}</TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
           {/* Category bar chart — expense only */}
           {data.byCategory.some(r => r.expense > 0) && (
             <div className="p-4 border-t">

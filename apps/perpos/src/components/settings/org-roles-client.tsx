@@ -77,7 +77,7 @@ export function OrgRolesClient({ members }: { members: OrgMemberRow[] }) {
               <TableRow key={def.role} className="hover:bg-slate-50 align-top">
                 <TableCell className="text-sm text-slate-400 pt-4">{i + 1}</TableCell>
                 <TableCell className="pt-4">
-                  <span className={cn("rounded-full px-2.5 py-0.5 text-xs font-semibold", def.color)}>
+                  <span className={cn("inline-flex whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-semibold", def.color)}>
                     {def.label}
                   </span>
                 </TableCell>
@@ -128,7 +128,7 @@ export function OrgRolesClient({ members }: { members: OrgMemberRow[] }) {
                       {(() => {
                         const def = ROLE_DEFS.find((d) => d.role === m.role);
                         return (
-                          <span className={cn("rounded-full px-2.5 py-0.5 text-xs font-medium", def?.color ?? "bg-slate-100 text-slate-600")}>
+                          <span className={cn("inline-flex whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-medium", def?.color ?? "bg-slate-100 text-slate-600")}>
                             {def?.label ?? m.role}
                           </span>
                         );

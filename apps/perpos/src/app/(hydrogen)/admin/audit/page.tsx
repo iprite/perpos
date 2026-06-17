@@ -12,11 +12,14 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { backendUrl } from "@/lib/backend";
 import { AdminPage } from "../_components/admin-page";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { CustomSelect } from "@/components/ui/custom-select";
 import { ThaiDatePicker } from "@/components/ui/thai-date-picker";
+import { StatusBadge, type BadgeTone } from "@/components/ui/badge";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle,
+  Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableEmpty, TableLoading,
+} from "@/components/ui/table";
+import {
+  Dialog, DialogContent, DialogHeader, DialogBody, DialogTitle,
 } from "@/components/ui/dialog";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -89,12 +92,12 @@ const ACTION_OPTIONS = [
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function actionBadge(action: string) {
+function actionTone(action: string): BadgeTone {
   switch (action) {
-    case "INSERT": return "bg-emerald-50 border border-emerald-200 text-emerald-700";
-    case "UPDATE": return "bg-blue-50 border border-blue-200 text-blue-700";
-    case "DELETE": return "bg-red-50 border border-red-200 text-red-700";
-    default:       return "bg-gray-50 border border-gray-200 text-gray-600";
+    case "INSERT": return "success";
+    case "UPDATE": return "info";
+    case "DELETE": return "danger";
+    default:       return "neutral";
   }
 }
 
@@ -412,81 +415,62 @@ export default function AuditLogPage() {
       )}
 
       {/* ── Table ───────────────────────────────────────────────────── */}
-      <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white">
-        <div className="grid grid-cols-[56px_160px_120px_160px_140px_1fr_80px] gap-0 border-b border-gray-200 bg-gray-50 px-4 py-2.5 text-xs font-semibold text-gray-600">
-          <div>#</div>
-          <div>วันเวลา (BKK)</div>
-          <div>Action</div>
-          <div>ตาราง</div>
-          <div>ผู้ทำ</div>
-          <div>ฟิลด์ที่เปลี่ยน</div>
-          <div>ดูข้อมูล</div>
-        </div>
-        <div className="divide-y divide-gray-100">
-          {entries.map((e) => (
-            <div
-              key={e.id}
-              className="grid grid-cols-[56px_160px_120px_160px_140px_1fr_80px] items-center gap-0 px-4 py-2.5 text-sm hover:bg-slate-50"
-            >
-              <div className="text-xs text-gray-400 font-mono">{e.sequence_no}</div>
-              <div className="text-xs text-gray-600">{fmtTs(e.logged_at)}</div>
-              <div>
-                <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${actionBadge(e.action)}`}>
-                  {e.action}
-                </span>
-              </div>
-              <div className="truncate text-xs font-mono text-gray-700">{e.table_name}</div>
-              <div className="truncate text-xs text-gray-700">{actorLabel(e)}</div>
-              <div className="min-w-0">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead align="right">#</TableHead>
+            <TableHead>วันเวลา (BKK)</TableHead>
+            <TableHead>Action</TableHead>
+            <TableHead>ตาราง</TableHead>
+            <TableHead>ผู้ทำ</TableHead>
+            <TableHead>ฟิลด์ที่เปลี่ยน</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {loading ? (
+            <TableLoading colSpan={6} />
+          ) : entries.length === 0 ? (
+            <TableEmpty colSpan={6}>ไม่พบรายการ</TableEmpty>
+          ) : entries.map((e) => (
+            <TableRow key={e.id} clickable onClick={() => openDetail(e.id)}>
+              <TableCell align="right" tabular className="text-xs text-gray-400">{e.sequence_no}</TableCell>
+              <TableCell className="text-xs text-gray-600">{fmtTs(e.logged_at)}</TableCell>
+              <TableCell><StatusBadge tone={actionTone(e.action)}>{e.action}</StatusBadge></TableCell>
+              <TableCell className="font-mono text-xs text-gray-700">{e.table_name}</TableCell>
+              <TableCell className="text-xs text-gray-700">{actorLabel(e)}</TableCell>
+              <TableCell>
                 {(e.diff_keys ?? []).length > 0 ? (
-                  <div className="flex flex-wrap gap-1">
-                    {(e.diff_keys ?? []).slice(0, 4).map((k) => (
-                      <span key={k} className="rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600">{k}</span>
+                  <div className="flex gap-1">
+                    {(e.diff_keys ?? []).map((k) => (
+                      <span key={k} className="whitespace-nowrap rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600">{k}</span>
                     ))}
-                    {(e.diff_keys ?? []).length > 4 && (
-                      <span className="text-xs text-gray-400">+{(e.diff_keys ?? []).length - 4}</span>
-                    )}
                   </div>
                 ) : (
                   <span className="text-xs text-gray-400">—</span>
                 )}
-              </div>
-              <div>
-                <button
-                  onClick={() => openDetail(e.id)}
-                  className="rounded px-2 py-1 text-xs font-medium text-indigo-600 hover:bg-indigo-50"
-                >
-                  ดู
-                </button>
-              </div>
-            </div>
+              </TableCell>
+            </TableRow>
           ))}
-          {entries.length === 0 && !loading && (
-            <div className="px-4 py-8 text-center text-sm text-gray-500">ไม่พบรายการ</div>
-          )}
-          {loading && (
-            <div className="px-4 py-8 text-center text-sm text-gray-500">กำลังโหลด…</div>
-          )}
-        </div>
+        </TableBody>
+      </Table>
 
-        {/* Pagination */}
-        {totalPages > 1 && (
-          <div className="flex items-center justify-between border-t border-gray-200 px-4 py-3">
-            <span className="text-xs text-gray-500">
-              รายการ {(page - 1) * LIMIT + 1}–{Math.min(page * LIMIT, total)} จาก {total.toLocaleString()}
-            </span>
-            <div className="flex items-center gap-1">
-              <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => load(page - 1)}>
-                ‹
-              </Button>
-              <span className="px-2 text-xs text-gray-600">{page} / {totalPages}</span>
-              <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => load(page + 1)}>
-                ›
-              </Button>
-            </div>
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between px-1">
+          <span className="text-xs text-gray-500">
+            รายการ {(page - 1) * LIMIT + 1}–{Math.min(page * LIMIT, total)} จาก {total.toLocaleString()}
+          </span>
+          <div className="flex items-center gap-1">
+            <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => load(page - 1)}>
+              ‹
+            </Button>
+            <span className="px-2 text-xs text-gray-600">{page} / {totalPages}</span>
+            <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => load(page + 1)}>
+              ›
+            </Button>
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* ── Integrity Check ─────────────────────────────────────────── */}
       <div className="rounded-2xl border border-gray-200 bg-white p-5 space-y-4">
@@ -555,11 +539,12 @@ export default function AuditLogPage() {
 
       {/* ── Detail Dialog ────────────────────────────────────────────── */}
       <Dialog open={!!detail || detailLoading} onOpenChange={(o) => { if (!o) setDetail(null); }}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent size="xl">
           <DialogHeader>
             <DialogTitle>รายละเอียด Audit Entry</DialogTitle>
           </DialogHeader>
 
+          <DialogBody>
           {detailLoading && <p className="py-8 text-center text-sm text-gray-500">กำลังโหลด…</p>}
 
           {detail && (
@@ -629,6 +614,7 @@ export default function AuditLogPage() {
               )}
             </div>
           )}
+          </DialogBody>
         </DialogContent>
       </Dialog>
 

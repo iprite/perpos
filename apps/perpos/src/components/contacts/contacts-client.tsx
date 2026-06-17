@@ -1,14 +1,15 @@
 "use client";
 
 import React, { useCallback, useRef, useState, useTransition } from "react";
-import { Plus, Pencil, ToggleLeft, ToggleRight } from "lucide-react";
+import { Plus, ToggleLeft, ToggleRight } from "lucide-react";
 import { toast } from "react-hot-toast";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogBody, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { StatusBadge } from "@/components/ui/badge";
 import { upsertContactAction, toggleContactActiveAction, type ContactRow, type BranchType } from "@/lib/contacts/actions";
 import cn from "@core/utils/class-names";
 
@@ -156,7 +157,7 @@ export function ContactsClient({ organizationId, contactType, initialRows }: Pro
               </TableRow>
             ) : (
               rows.map((row) => (
-                <TableRow key={row.id} className={cn(!row.isActive && "opacity-50")}>
+                <TableRow key={row.id} clickable onClick={() => openEdit(row)} className={cn(!row.isActive && "opacity-50")}>
                   <TableCell className="font-medium text-sm">{row.name}</TableCell>
                   <TableCell className="font-mono text-sm">{row.taxId || "-"}</TableCell>
                   <TableCell className="text-sm text-slate-600">
@@ -169,19 +170,10 @@ export function ContactsClient({ organizationId, contactType, initialRows }: Pro
                   <TableCell className="text-sm">{row.phone || "-"}</TableCell>
                   <TableCell className="text-sm">{row.email || "-"}</TableCell>
                   <TableCell>
-                    <span className={cn("rounded-full px-2 py-0.5 text-xs font-medium",
-                      row.isActive ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500")}>
-                      {row.isActive ? "ใช้งาน" : "ปิดใช้"}
-                    </span>
+                    <StatusBadge tone={row.isActive ? "success" : "neutral"}>{row.isActive ? "ใช้งาน" : "ปิดใช้"}</StatusBadge>
                   </TableCell>
-                  <TableCell>
+                  <TableCell onClick={(e) => e.stopPropagation()}>
                     <div className="flex items-center gap-1">
-                      <button
-                        onClick={() => openEdit(row)}
-                        className="rounded p-1.5 hover:bg-slate-100 text-slate-500 hover:text-slate-700"
-                      >
-                        <Pencil className="h-3.5 w-3.5" />
-                      </button>
                       <button
                         onClick={() => toggleActive(row)}
                         className="rounded p-1.5 hover:bg-slate-100 text-slate-400 hover:text-slate-600"
@@ -201,11 +193,12 @@ export function ContactsClient({ organizationId, contactType, initialRows }: Pro
       </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent size="lg">
           <DialogHeader>
             <DialogTitle>{editing ? `แก้ไข${label}` : `เพิ่ม${label}ใหม่`}</DialogTitle>
           </DialogHeader>
-          <div className="grid gap-4 py-2">
+          <DialogBody>
+          <div className="grid gap-4">
             <div className="grid gap-2">
               <Label>ชื่อ <span className="text-red-500">*</span></Label>
               <Input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} placeholder={`ชื่อ${label}`} />
@@ -272,11 +265,12 @@ export function ContactsClient({ organizationId, contactType, initialRows }: Pro
               <Label>หมายเหตุ</Label>
               <Input value={form.notes} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} placeholder="(ไม่บังคับ)" />
             </div>
-            <div className="flex justify-end gap-2 pt-2">
-              <Button variant="secondary" onClick={() => setOpen(false)} disabled={pending}>ยกเลิก</Button>
-              <Button onClick={save} disabled={pending}>{editing ? "บันทึกการแก้ไข" : `เพิ่ม${label}`}</Button>
-            </div>
           </div>
+          </DialogBody>
+          <DialogFooter>
+            <Button variant="secondary" onClick={() => setOpen(false)} disabled={pending}>ยกเลิก</Button>
+            <Button onClick={save} disabled={pending}>{editing ? "บันทึกการแก้ไข" : `เพิ่ม${label}`}</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

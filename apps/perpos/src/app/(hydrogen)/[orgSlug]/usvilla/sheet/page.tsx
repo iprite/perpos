@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { PageShell } from '@/components/ui/page-shell';
 import { ThaiDatePicker } from '@/components/ui/thai-date-picker';
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+  Dialog, DialogContent, DialogHeader, DialogBody, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog';
 import DailySheet, { type SheetBooking } from '../daily-sheet';
 import type { CalBooking } from '../calendar-view';
@@ -108,14 +108,16 @@ export default function SheetPage() {
 
       {/* Checkout dialog */}
       <Dialog open={!!checkoutBooking} onOpenChange={(v) => !v && setCheckoutBooking(null)}>
-        <DialogContent className="max-w-sm">
+        <DialogContent size="sm">
           <DialogHeader><DialogTitle>ยืนยัน Check-out</DialogTitle></DialogHeader>
-          <div className="text-sm py-2 space-y-1">
+          <DialogBody>
+          <div className="text-sm space-y-1">
             <p>ห้อง <strong>{checkoutBooking?.pms_rooms.room_number}</strong></p>
             <p>แขก <strong>{checkoutBooking?.guest_name}</strong></p>
             <p className="text-slate-400">เวลา {new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}</p>
           </div>
-          <DialogFooter className="gap-2">
+          </DialogBody>
+          <DialogFooter>
             <Button variant="outline" onClick={() => setCheckoutBooking(null)} disabled={checkoutSaving}>ยกเลิก</Button>
             <Button onClick={handleCheckout} disabled={checkoutSaving}>
               <LogOut className="h-4 w-4 mr-1" />{checkoutSaving ? 'กำลังบันทึก…' : 'ยืนยัน Check-out'}

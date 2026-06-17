@@ -8,7 +8,7 @@ import { CustomSelect } from '@/components/ui/custom-select';
 import { NativeSelect } from '@/components/ui/native-select';
 import { ThaiDatePicker } from '@/components/ui/thai-date-picker';
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+  Dialog, DialogContent, DialogHeader, DialogBody, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog';
 import { Plus, Trash2, Upload, Loader2, Camera, Pencil } from 'lucide-react';
 
@@ -219,11 +219,12 @@ export function PurchaseDialog({
   // ── Render ───────────────────────────────────────────────────────────────────
   return (
     <Dialog open={open} onOpenChange={v => { if (!v) onClose(); }}>
-      <DialogContent className="max-w-2xl max-h-[92vh] overflow-y-auto">
+      <DialogContent size="xl">
         <DialogHeader>
           <DialogTitle>ซื้อสินค้าเข้าคลัง</DialogTitle>
         </DialogHeader>
 
+        <DialogBody>
         {/* Mode toggle */}
         <div className="flex gap-1 bg-slate-100 rounded-lg p-1 w-fit">
           {(['manual', 'ocr'] as const).map(m => (
@@ -401,8 +402,9 @@ export function PurchaseDialog({
         </div>
 
         {error && <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
+        </DialogBody>
 
-        <DialogFooter className="gap-2 sm:gap-2">
+        <DialogFooter>
           <Button variant="outline" onClick={onClose}>ยกเลิก</Button>
           <Button onClick={() => void handleSave()} disabled={saving || total === 0}>
             {saving ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />กำลังบันทึก…</> : `บันทึก ฿${fmt(total)}`}

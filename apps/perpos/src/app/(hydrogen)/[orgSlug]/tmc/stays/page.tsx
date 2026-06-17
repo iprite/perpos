@@ -10,7 +10,7 @@ import { Label }        from '@/components/ui/label';
 import { CustomSelect } from '@/components/ui/custom-select';
 import { ThaiDatePicker } from '@/components/ui/thai-date-picker';
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+  Dialog, DialogContent, DialogHeader, DialogBody, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog';
 import { Plus, X, Pencil, Trash2, AlertTriangle, BedDouble } from 'lucide-react';
 
@@ -307,7 +307,7 @@ export default function TmcStaysPage() {
 
   // ── Form body (shared between add + edit) ──────────────────────────────────
   const formBody = (
-    <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
+    <DialogBody className="space-y-5">
 
       {/* Guest — editable in both add and edit mode */}
       <div>
@@ -499,7 +499,7 @@ export default function TmcStaysPage() {
       {formError && (
         <p className="text-sm text-red-600">{formError}</p>
       )}
-    </div>
+    </DialogBody>
   );
 
   return (
@@ -647,14 +647,14 @@ export default function TmcStaysPage() {
 
       {/* ── Add / Edit Dialog ────────────────────────────────────────────── */}
       <Dialog open={showForm} onOpenChange={(open) => { if (!open) { setShowForm(false); setEditingStay(null); } }}>
-        <DialogContent className="max-w-2xl max-h-[75vh] flex flex-col p-0 gap-0 overflow-hidden">
-          <DialogHeader className="shrink-0 px-6 pt-6 pb-4 border-b border-slate-100">
+        <DialogContent size="xl">
+          <DialogHeader>
             <DialogTitle>
               {isEditMode ? `แก้ไขการเข้าพัก — ${guestDisplayName(editingStay.tmc_guests)}` : 'บันทึกการเข้าพัก'}
             </DialogTitle>
           </DialogHeader>
           {formBody}
-          <DialogFooter className="shrink-0 px-6 py-4 border-t border-slate-100 gap-2 sm:gap-2">
+          <DialogFooter>
             <Button variant="outline" onClick={() => { setShowForm(false); setEditingStay(null); }}>ยกเลิก</Button>
             <Button
               onClick={handleSave}
@@ -667,14 +667,15 @@ export default function TmcStaysPage() {
 
       {/* ── Delete Confirmation Dialog ───────────────────────────────────── */}
       <Dialog open={!!deleteTarget} onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}>
-        <DialogContent className="max-w-md">
+        <DialogContent size="md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-red-600">
               <AlertTriangle className="w-5 h-5" /> ยืนยันการลบ
             </DialogTitle>
           </DialogHeader>
+          <DialogBody>
           {deleteTarget && (
-            <div className="space-y-4 py-2">
+            <div className="space-y-4">
               <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm">
                 <p className="font-semibold text-red-800">
                   {guestDisplayName(deleteTarget.tmc_guests)}
@@ -702,7 +703,8 @@ export default function TmcStaysPage() {
               </p>
             </div>
           )}
-          <DialogFooter className="gap-2 sm:gap-2">
+          </DialogBody>
+          <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteTarget(null)}>ยกเลิก</Button>
             <Button variant="destructive" onClick={handleDelete} disabled={deleting}>
               {deleting ? 'กำลังลบ…' : 'ลบรายการนี้'}

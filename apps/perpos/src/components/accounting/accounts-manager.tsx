@@ -8,7 +8,7 @@ import { useRouter } from "next/navigation";
 import type { OrganizationSummary } from "@/lib/accounting/queries";
 import { upsertAccountAction, type AccountUpsertInput } from "@/lib/accounting/accounts-actions";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { AccountsCategorySection } from "@/components/accounting/accounts-category-section";
@@ -107,11 +107,12 @@ export function AccountsManager(props: {
               เพิ่มบัญชี
             </Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent size="md">
             <DialogHeader>
               <DialogTitle>{editing ? "แก้ไขบัญชี" : "เพิ่มบัญชีใหม่"}</DialogTitle>
             </DialogHeader>
 
+            <DialogBody>
             <div className="grid gap-4">
               <div className="grid gap-2">
                 <Label htmlFor="coa-code">รหัสบัญชี</Label>
@@ -183,6 +184,7 @@ export function AccountsManager(props: {
 
               {formError ? <div className="text-sm text-red-600">{formError}</div> : null}
             </div>
+            </DialogBody>
 
             <DialogFooter>
               <Button variant="secondary" type="button" onClick={() => setOpen(false)}>

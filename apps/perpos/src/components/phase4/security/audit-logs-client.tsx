@@ -8,7 +8,7 @@ import cn from "@core/utils/class-names";
 import { Button } from "@/components/ui/button";
 import { CustomSelect } from "@/components/ui/custom-select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogBody, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { listAuditLogsAction, type AuditLogRow } from "@/lib/phase4/security/actions";
 
 export function AuditLogsClient(props: { organizationId: string; initialRows: AuditLogRow[] }) {
@@ -118,13 +118,15 @@ export function AuditLogsClient(props: { organizationId: string; initialRows: Au
       </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent>
+        <DialogContent size="lg">
           <DialogHeader>
             <DialogTitle>Audit Log Detail</DialogTitle>
           </DialogHeader>
-          <pre className="max-h-[520px] overflow-auto rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-900">
+          <DialogBody>
+          <pre className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-900">
             {JSON.stringify(detail, null, 2)}
           </pre>
+          </DialogBody>
         </DialogContent>
       </Dialog>
     </div>

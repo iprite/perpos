@@ -8,8 +8,12 @@ import { PageShell } from '@/components/ui/page-shell';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { CustomSelect } from '@/components/ui/custom-select';
+import { StatusBadge } from '@/components/ui/badge';
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+  Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableEmpty,
+} from '@/components/ui/table';
+import {
+  Dialog, DialogContent, DialogHeader, DialogBody, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog';
 import {
   Plus, ArrowUp, ArrowDown, Settings, Tag, Ruler, Package,
@@ -334,83 +338,74 @@ export default function TmcStockPage() {
       {loading ? (
         <div className="p-8 text-center text-slate-400">กำลังโหลด...</div>
       ) : activeTab === 'items' ? (
-        <div className="bg-white rounded-xl border overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-slate-50 border-b">
-              <tr>
-                <th className="text-left px-4 py-3 text-slate-600 font-medium">รายการ</th>
-                <th className="text-left px-4 py-3 text-slate-600 font-medium">หมวด</th>
-                <th className="text-right px-4 py-3 text-slate-600 font-medium">คงเหลือ</th>
-                <th className="text-right px-4 py-3 text-slate-600 font-medium">ขั้นต่ำ</th>
-                <th className="text-center px-4 py-3 text-slate-600 font-medium">สถานะ</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-50">
-              {items.map(item => (
-                <tr key={item.id} className="hover:bg-slate-50">
-                  <td className="px-4 py-3 font-medium text-slate-800">{item.name}</td>
-                  <td className="px-4 py-3 text-slate-500 text-xs">{item.category ?? '—'}</td>
-                  <td className="px-4 py-3 text-right font-semibold">{item.current_qty} {item.unit}</td>
-                  <td className="px-4 py-3 text-right text-slate-400">{item.min_quantity} {item.unit}</td>
-                  <td className="px-4 py-3 text-center">
-                    {item.min_quantity > 0 && item.current_qty <= item.min_quantity ? (
-                      <span className="bg-red-100 text-red-700 text-xs px-2 py-0.5 rounded-full">⚠️ ใกล้หมด</span>
-                    ) : (
-                      <span className="bg-green-100 text-green-700 text-xs px-2 py-0.5 rounded-full">✓ ปกติ</span>
-                    )}
-                  </td>
-                </tr>
-              ))}
-              {items.length === 0 && (
-                <tr><td colSpan={5} className="px-4 py-8 text-center text-slate-400">ยังไม่มีรายการสินค้า</td></tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>รายการ</TableHead>
+              <TableHead>หมวด</TableHead>
+              <TableHead align="right">คงเหลือ</TableHead>
+              <TableHead align="right">ขั้นต่ำ</TableHead>
+              <TableHead align="center">สถานะ</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {items.map(item => (
+              <TableRow key={item.id}>
+                <TableCell className="font-medium text-slate-800">{item.name}</TableCell>
+                <TableCell className="text-xs text-slate-500">{item.category ?? '—'}</TableCell>
+                <TableCell align="right" tabular className="font-semibold">{item.current_qty} {item.unit}</TableCell>
+                <TableCell align="right" tabular className="text-slate-400">{item.min_quantity} {item.unit}</TableCell>
+                <TableCell align="center">
+                  {item.min_quantity > 0 && item.current_qty <= item.min_quantity
+                    ? <StatusBadge tone="danger">⚠️ ใกล้หมด</StatusBadge>
+                    : <StatusBadge tone="success">✓ ปกติ</StatusBadge>}
+                </TableCell>
+              </TableRow>
+            ))}
+            {items.length === 0 && <TableEmpty colSpan={5}>ยังไม่มีรายการสินค้า</TableEmpty>}
+          </TableBody>
+        </Table>
       ) : (
-        <div className="bg-white rounded-xl border overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-slate-50 border-b">
-              <tr>
-                <th className="text-left px-4 py-3 text-slate-600 font-medium">วันที่</th>
-                <th className="text-left px-4 py-3 text-slate-600 font-medium">รายการ</th>
-                <th className="text-center px-4 py-3 text-slate-600 font-medium">ประเภท</th>
-                <th className="text-right px-4 py-3 text-slate-600 font-medium">จำนวน</th>
-                <th className="text-left px-4 py-3 text-slate-600 font-medium">แปลง</th>
-                <th className="text-left px-4 py-3 text-slate-600 font-medium">หมายเหตุ</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-50">
-              {movements.map(m => (
-                <tr key={m.id} className="hover:bg-slate-50">
-                  <td className="px-4 py-3 text-slate-500 whitespace-nowrap">
-                    {new Date(m.created_at).toLocaleDateString('th-TH', { day: '2-digit', month: 'short' })}
-                  </td>
-                  <td className="px-4 py-3 font-medium">{m.tmc_stock_items?.name}</td>
-                  <td className="px-4 py-3 text-center">
-                    {m.movement_type === 'in'     && <span className="bg-green-100 text-green-700 text-xs px-2 py-0.5 rounded-full">รับเข้า</span>}
-                    {m.movement_type === 'out'    && <span className="bg-red-100 text-red-700 text-xs px-2 py-0.5 rounded-full">เบิกออก</span>}
-                    {m.movement_type === 'adjust' && <span className="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded-full">ปรับ</span>}
-                  </td>
-                  <td className="px-4 py-3 text-right">{m.quantity} {m.tmc_stock_items?.unit}</td>
-                  <td className="px-4 py-3 text-slate-500">{m.property_code ?? '—'}</td>
-                  <td className="px-4 py-3 text-slate-400 text-xs">{m.note ?? '—'}</td>
-                </tr>
-              ))}
-              {movements.length === 0 && (
-                <tr><td colSpan={6} className="px-4 py-8 text-center text-slate-400">ยังไม่มีประวัติการรับ-เบิก</td></tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>วันที่</TableHead>
+              <TableHead>รายการ</TableHead>
+              <TableHead align="center">ประเภท</TableHead>
+              <TableHead align="right">จำนวน</TableHead>
+              <TableHead>แปลง</TableHead>
+              <TableHead>หมายเหตุ</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {movements.map(m => (
+              <TableRow key={m.id}>
+                <TableCell className="text-slate-500">
+                  {new Date(m.created_at).toLocaleDateString('th-TH', { day: '2-digit', month: 'short' })}
+                </TableCell>
+                <TableCell className="font-medium">{m.tmc_stock_items?.name}</TableCell>
+                <TableCell align="center">
+                  {m.movement_type === 'in'     && <StatusBadge tone="success">รับเข้า</StatusBadge>}
+                  {m.movement_type === 'out'    && <StatusBadge tone="danger">เบิกออก</StatusBadge>}
+                  {m.movement_type === 'adjust' && <StatusBadge tone="info">ปรับ</StatusBadge>}
+                </TableCell>
+                <TableCell align="right" tabular>{m.quantity} {m.tmc_stock_items?.unit}</TableCell>
+                <TableCell className="text-slate-500">{m.property_code ?? '—'}</TableCell>
+                <TableCell className="text-xs text-slate-400">{m.note ?? '—'}</TableCell>
+              </TableRow>
+            ))}
+            {movements.length === 0 && <TableEmpty colSpan={6}>ยังไม่มีประวัติการรับ-เบิก</TableEmpty>}
+          </TableBody>
+        </Table>
       )}
 
       {/* ── Add Item Dialog ─────────────────────────────────────────────────── */}
       <Dialog open={showAddItem} onOpenChange={setShowAddItem}>
-        <DialogContent>
+        <DialogContent size="md">
           <DialogHeader>
             <DialogTitle>เพิ่มรายการสินค้า</DialogTitle>
           </DialogHeader>
+          <DialogBody>
           <div className="space-y-3">
             <div className="space-y-1.5">
               <Label>ชื่อสินค้า *</Label>
@@ -442,7 +437,8 @@ export default function TmcStockPage() {
               />
             </div>
           </div>
-          <DialogFooter className="gap-2 sm:gap-2">
+          </DialogBody>
+          <DialogFooter>
             <Button variant="outline" onClick={() => setShowAddItem(false)}>ยกเลิก</Button>
             <Button onClick={handleAddItem} disabled={saving || !itemForm.name || !itemForm.unit}>
               {saving ? 'กำลังบันทึก…' : 'บันทึก'}
@@ -453,12 +449,13 @@ export default function TmcStockPage() {
 
       {/* ── Movement Dialog ─────────────────────────────────────────────────── */}
       <Dialog open={!!showMovement} onOpenChange={v => { if (!v) setShowMovement(null); }}>
-        <DialogContent>
+        <DialogContent size="md">
           <DialogHeader>
             <DialogTitle>
               {showMovement === 'in' ? '📥 รับสินค้าเข้า' : showMovement === 'out' ? '📤 เบิกสินค้าออก' : '🔧 ปรับยอด'}
             </DialogTitle>
           </DialogHeader>
+          <DialogBody>
           <div className="space-y-3">
             <div className="space-y-1.5">
               <Label>รายการสินค้า *</Label>
@@ -491,7 +488,8 @@ export default function TmcStockPage() {
               <Input value={movForm.note} onChange={e => setMovForm(f => ({ ...f, note: e.target.value }))} />
             </div>
           </div>
-          <DialogFooter className="gap-2 sm:gap-2">
+          </DialogBody>
+          <DialogFooter>
             <Button variant="outline" onClick={() => setShowMovement(null)}>ยกเลิก</Button>
             <Button onClick={handleMovement} disabled={saving || !movForm.itemId || !movForm.quantity}>
               {saving ? 'กำลังบันทึก…' : 'บันทึก'}
@@ -514,11 +512,12 @@ export default function TmcStockPage() {
 
       {/* ── Master Data Dialog ──────────────────────────────────────────────── */}
       <Dialog open={showMaster} onOpenChange={setShowMaster}>
-        <DialogContent className="max-w-md max-h-[85vh] overflow-y-auto">
+        <DialogContent size="md">
           <DialogHeader>
             <DialogTitle>จัดการหมวดหมู่และหน่วย</DialogTitle>
           </DialogHeader>
 
+          <DialogBody>
           {/* Tab bar */}
           <div className="flex gap-1 bg-slate-100 rounded-lg p-1">
             <button onClick={() => setMasterTab('categories')}
@@ -594,6 +593,7 @@ export default function TmcStockPage() {
               </div>
             </div>
           )}
+          </DialogBody>
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowMaster(false)}>ปิด</Button>

@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { CustomSelect } from '@/components/ui/custom-select';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogBody, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { useLang } from './_lang-context';
 import { getPaymentMethods } from './_i18n';
 
@@ -53,14 +53,15 @@ export default function AddPaymentDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-sm">
+      <DialogContent size="sm">
         <DialogHeader>
           <DialogTitle>{t.dlg_add_pay_title}</DialogTitle>
         </DialogHeader>
+        <DialogBody>
         <p className="text-sm text-slate-500">
           {t.room_label} <strong className="text-slate-800">{roomNumber}</strong> · {guestName}
         </p>
-        <div className="space-y-4 py-2">
+        <div className="space-y-4 pt-3">
           <div className="space-y-1">
             <Label>{t.field_method}</Label>
             <CustomSelect value={method} onChange={setMethod} options={getPaymentMethods(t)} />
@@ -72,7 +73,8 @@ export default function AddPaymentDialog({
           </div>
           {error && <p className="text-sm text-red-600">{error}</p>}
         </div>
-        <DialogFooter className="gap-2">
+        </DialogBody>
+        <DialogFooter>
           <Button variant="outline" onClick={() => handleClose(false)} disabled={saving}>{t.btn_cancel}</Button>
           <Button onClick={handleSave} disabled={saving}>{saving ? t.btn_saving : t.btn_save}</Button>
         </DialogFooter>

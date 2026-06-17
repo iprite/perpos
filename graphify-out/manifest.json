@@ -380,494 +380,484 @@
     "semantic_hash": "1714441172d8ed14ac34ca783e51e533"
   },
   "apps/perpos/src/app/(auth)/signin/page.tsx": {
-    "mtime": 1780288960.0576658,
-    "ast_hash": "6c85dbd4bc5024acd553d1456f6e4fde",
-    "semantic_hash": "6c85dbd4bc5024acd553d1456f6e4fde"
+    "mtime": 1781617824.4893372,
+    "ast_hash": "c570c53ebc145c5050bcab925c0c805c",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/acc-firm/clients/page.tsx": {
-    "mtime": 1779847274.5725448,
-    "ast_hash": "633501071a0c8c6b39bbfd85ee2f7775",
-    "semantic_hash": "633501071a0c8c6b39bbfd85ee2f7775"
+    "mtime": 1781667270.7865026,
+    "ast_hash": "4706510e80a810ecdc024ec93532f885",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/acc-firm/ocr/page.tsx": {
-    "mtime": 1780739433.5285354,
-    "ast_hash": "007717e7d5192ebabf8f55b424404da5",
-    "semantic_hash": "007717e7d5192ebabf8f55b424404da5"
+    "mtime": 1781667322.9659774,
+    "ast_hash": "c614534ee14a8eee183adc374f68ef7c",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/acc-firm/page.tsx": {
-    "mtime": 1780735646.2996957,
-    "ast_hash": "e8dcd072e2299e217ec07181a455eca8",
-    "semantic_hash": "e8dcd072e2299e217ec07181a455eca8"
+    "mtime": 1781664084.6911352,
+    "ast_hash": "bf7c70f3e2bff0756429bfd704d162ea",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/acc-firm/petty-cash/page.tsx": {
-    "mtime": 1779866678.5220392,
-    "ast_hash": "d86e3970a0ffea85530d5ab4e5d4f171",
-    "semantic_hash": "d86e3970a0ffea85530d5ab4e5d4f171"
+    "mtime": 1781667359.3721697,
+    "ast_hash": "8cf799c1a183c1f01f6b451bf18603ac",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/acc-firm/reports/page.tsx": {
-    "mtime": 1779864884.1028066,
-    "ast_hash": "a8aca13425d17016ffd8ede71c117bce",
-    "semantic_hash": "a8aca13425d17016ffd8ede71c117bce"
+    "mtime": 1781666248.2632728,
+    "ast_hash": "b2dbb0a8592aad34d78321d55090c176",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/acc-firm/service-clients/page.tsx": {
-    "mtime": 1779866666.7169836,
-    "ast_hash": "a58bcde14033451fe9a93c4493c853ce",
-    "semantic_hash": "a58bcde14033451fe9a93c4493c853ce"
+    "mtime": 1781667398.1619546,
+    "ast_hash": "af42f3cee7ad0313d5bc5011b218ce92",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/accounting/accounting-users/page.tsx": {
-    "mtime": 1779361630.1593769,
-    "ast_hash": "614fa3c1f22d78432f0fb8dc6699cb65",
-    "semantic_hash": "614fa3c1f22d78432f0fb8dc6699cb65"
+    "mtime": 1781665045.3653135,
+    "ast_hash": "c0f179e83c67cba5f91cd095fdd983b5",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/accounting/accounts/page.tsx": {
-    "mtime": 1779361630.108293,
-    "ast_hash": "c9ac2d1e6619ae8bbdc904b8a16551ca",
-    "semantic_hash": "c9ac2d1e6619ae8bbdc904b8a16551ca"
+    "mtime": 1781665045.3668063,
+    "ast_hash": "1a50dd367875f433b8e64abd817a9a95",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/accounting/assets-disposals/page.tsx": {
-    "mtime": 1779361630.1129007,
-    "ast_hash": "56f0cb18a97cb8ce16bff18f5ae91980",
-    "semantic_hash": "56f0cb18a97cb8ce16bff18f5ae91980"
+    "mtime": 1781665045.3676088,
+    "ast_hash": "ce2b58314cdb00dd03ef848bf4b7471e",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/accounting/assets-register/page.tsx": {
-    "mtime": 1779361630.1106756,
-    "ast_hash": "1260bc3371d4f8a428cc09e8790b8584",
-    "semantic_hash": "1260bc3371d4f8a428cc09e8790b8584"
+    "mtime": 1781665045.3681242,
+    "ast_hash": "061bbcf085d73969a7ee3c695c4a1d9d",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/accounting/audit-logs/page.tsx": {
-    "mtime": 1779361630.167487,
-    "ast_hash": "9a8e05885ccfedadf61792fe527c6811",
-    "semantic_hash": "9a8e05885ccfedadf61792fe527c6811"
+    "mtime": 1781665045.368704,
+    "ast_hash": "810ab5fc2cdd9424983c59d1c05f251b",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/accounting/balance-sheet/page.tsx": {
-    "mtime": 1779361630.086451,
-    "ast_hash": "f604942e6c52b5593965e20bf1e519dd",
-    "semantic_hash": "f604942e6c52b5593965e20bf1e519dd"
+    "mtime": 1781665045.369266,
+    "ast_hash": "8f14bcbed060b2469a6c86ce59990f62",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/accounting/bank-accounts/page.tsx": {
-    "mtime": 1779361630.062297,
-    "ast_hash": "1a60e2fb91715021b1fdd499f28893e9",
-    "semantic_hash": "1a60e2fb91715021b1fdd499f28893e9"
+    "mtime": 1781665045.3706062,
+    "ast_hash": "aafd67c37e7f06d4652e78d1fde11eec",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/accounting/billing-notes/new/page.tsx": {
-    "mtime": 1779361629.9912596,
-    "ast_hash": "58c4ed61392cfb918cf74d194f6ae294",
-    "semantic_hash": "58c4ed61392cfb918cf74d194f6ae294"
+    "mtime": 1781665045.3713462,
+    "ast_hash": "dfe3fd2f053cce3e68234d249f854500",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/accounting/billing-notes/page.tsx": {
-    "mtime": 1779361629.9878893,
-    "ast_hash": "d8a7dd052b57fe5c249b6632b8191552",
-    "semantic_hash": "d8a7dd052b57fe5c249b6632b8191552"
+    "mtime": 1781665045.3720474,
+    "ast_hash": "16ee0f334dfe848eefc9a79e33c5ec1c",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/accounting/cash-flow/page.tsx": {
-    "mtime": 1779361630.100381,
-    "ast_hash": "dbd1c10aeafa8e2a7238035198736dab",
-    "semantic_hash": "dbd1c10aeafa8e2a7238035198736dab"
+    "mtime": 1781665045.3728728,
+    "ast_hash": "f6f9738a58d69f9ff28b826e58edd514",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/accounting/check-deposits/page.tsx": {
-    "mtime": 1779361630.0749164,
-    "ast_hash": "61a9af7a79e96d6c5169c5bc40882dbb",
-    "semantic_hash": "61a9af7a79e96d6c5169c5bc40882dbb"
+    "mtime": 1781665045.3743696,
+    "ast_hash": "4f2e7e17734ac5cddf1ed8509150bba2",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/accounting/check-payments/page.tsx": {
-    "mtime": 1779361630.0774786,
-    "ast_hash": "1ca790a1fbce1b151466f2ea4b143107",
-    "semantic_hash": "1ca790a1fbce1b151466f2ea4b143107"
+    "mtime": 1781665045.3748512,
+    "ast_hash": "f530603ea4982befaff0da4c8aad3417",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/accounting/credit-notes/new/page.tsx": {
-    "mtime": 1779361629.9688132,
-    "ast_hash": "5a8a22ea7a8cd98545a15aa92cf82626",
-    "semantic_hash": "5a8a22ea7a8cd98545a15aa92cf82626"
+    "mtime": 1781665045.375766,
+    "ast_hash": "e63872881cfa0d645712f0b4ca8dc0af",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/accounting/credit-notes/page.tsx": {
-    "mtime": 1779361629.966482,
-    "ast_hash": "6b1d18dd6c0be86ad36630da78f03414",
-    "semantic_hash": "6b1d18dd6c0be86ad36630da78f03414"
+    "mtime": 1781665045.3764346,
+    "ast_hash": "1b8b4b0a582ffddabd3973ba8123584a",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/accounting/customers/page.tsx": {
-    "mtime": 1779361630.1416092,
-    "ast_hash": "15f0589317537e7a07577a26262aea85",
-    "semantic_hash": "15f0589317537e7a07577a26262aea85"
+    "mtime": 1781665045.377316,
+    "ast_hash": "4ad56424a5761153f966a034dfef625a",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/accounting/debit-notes/new/page.tsx": {
-    "mtime": 1779361629.9806917,
-    "ast_hash": "29f79c1e718590fc1ee5ef4e889ac2c9",
-    "semantic_hash": "29f79c1e718590fc1ee5ef4e889ac2c9"
+    "mtime": 1781665045.378546,
+    "ast_hash": "6e9e4750b504b054b0dddcd479422609",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/accounting/debit-notes/page.tsx": {
-    "mtime": 1779361629.9738564,
-    "ast_hash": "9eb4f30374536acf56c41559425f2c10",
-    "semantic_hash": "9eb4f30374536acf56c41559425f2c10"
+    "mtime": 1781665045.3788698,
+    "ast_hash": "7a146682c96d8872f127f71351d57cbe",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/accounting/etax-invoices/new/page.tsx": {
-    "mtime": 1779361629.9639566,
-    "ast_hash": "2a9f097253ee2287ccb02728ac55245a",
-    "semantic_hash": "2a9f097253ee2287ccb02728ac55245a"
+    "mtime": 1781665045.383363,
+    "ast_hash": "cf45b0ea47c8d24b425b4652989603ca",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/accounting/etax-invoices/page.tsx": {
-    "mtime": 1779361629.9615295,
-    "ast_hash": "731a0953104b8310cdf14e23c2afe673",
-    "semantic_hash": "731a0953104b8310cdf14e23c2afe673"
+    "mtime": 1781665045.38376,
+    "ast_hash": "e5903eef8a4f7b4dcd86d049124f0d03",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/accounting/expenses/new/page.tsx": {
-    "mtime": 1779361630.0136414,
-    "ast_hash": "93a7aebfbe91725625803b9f08186153",
-    "semantic_hash": "93a7aebfbe91725625803b9f08186153"
+    "mtime": 1781665045.384482,
+    "ast_hash": "dc618e9a839921be6a3af33f5c7eede9",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/accounting/expenses/page.tsx": {
-    "mtime": 1779361630.0108287,
-    "ast_hash": "f951e88de1ae2eb700b5b40481f44110",
-    "semantic_hash": "f951e88de1ae2eb700b5b40481f44110"
+    "mtime": 1781665045.3847933,
+    "ast_hash": "910c421e3aad6a725e33dbf4bdd9329e",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/accounting/financial-position/page.tsx": {
-    "mtime": 1779361630.095694,
-    "ast_hash": "b94b8589e8db58426e53ef0502e83e4e",
-    "semantic_hash": "b94b8589e8db58426e53ef0502e83e4e"
+    "mtime": 1781665045.385314,
+    "ast_hash": "8f37f45529318c1649d524603e310549",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/accounting/goods-receipts/new/page.tsx": {
-    "mtime": 1779361630.05705,
-    "ast_hash": "3aa790256a19b7d7ed38517988967144",
-    "semantic_hash": "3aa790256a19b7d7ed38517988967144"
+    "mtime": 1781665045.3860033,
+    "ast_hash": "0006c15eda266cd65a5837794f7942e6",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/accounting/goods-receipts/page.tsx": {
-    "mtime": 1779361630.0527046,
-    "ast_hash": "4711779346ec687d390cb0d2a7c2822a",
-    "semantic_hash": "4711779346ec687d390cb0d2a7c2822a"
+    "mtime": 1781665045.3880427,
+    "ast_hash": "87fa38b97ff613ff983e0143258ec8c2",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/accounting/income-statement/page.tsx": {
-    "mtime": 1779361630.0980432,
-    "ast_hash": "1c177482ecbfe8d3b814e297f961c681",
-    "semantic_hash": "1c177482ecbfe8d3b814e297f961c681"
+    "mtime": 1781665045.38865,
+    "ast_hash": "90eba438642dc51ac8c0b7927debac58",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/accounting/inventory/page.tsx": {
-    "mtime": 1779361630.1507678,
-    "ast_hash": "b0b4994554131dfa0837a891704b796a",
-    "semantic_hash": "b0b4994554131dfa0837a891704b796a"
+    "mtime": 1781665045.38937,
+    "ast_hash": "d4e2cb7773f2436a74a86f3e87e192dd",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/accounting/invoices/new/page.tsx": {
-    "mtime": 1779361629.9499254,
-    "ast_hash": "bd7eefc96ce79830cfc714852842c29f",
-    "semantic_hash": "bd7eefc96ce79830cfc714852842c29f"
+    "mtime": 1781665045.3902876,
+    "ast_hash": "9203307192e831df09d77436588692f3",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/accounting/invoices/page.tsx": {
-    "mtime": 1779361629.9477868,
-    "ast_hash": "7051c7dd10d0f23fb6fb98532d1639d0",
-    "semantic_hash": "7051c7dd10d0f23fb6fb98532d1639d0"
+    "mtime": 1781665045.391443,
+    "ast_hash": "0401f3ad5f8724a451d1848941edd896",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/accounting/journal/page.tsx": {
-    "mtime": 1779361630.1026049,
-    "ast_hash": "9e71cadf68b5cc431f6d7eed0b59d78e",
-    "semantic_hash": "9e71cadf68b5cc431f6d7eed0b59d78e"
+    "mtime": 1781665045.3929987,
+    "ast_hash": "0ff032c240c0beab0884ee951d269cbe",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/accounting/ledger/page.tsx": {
-    "mtime": 1779361630.0840518,
-    "ast_hash": "928566517a81a9816022f9bcb5f1e442",
-    "semantic_hash": "928566517a81a9816022f9bcb5f1e442"
+    "mtime": 1781665045.3939543,
+    "ast_hash": "a6df630d03d9193d5e97edde0bfc7049",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/accounting/page.tsx": {
-    "mtime": 1779364370.5055919,
-    "ast_hash": "890caaa5b917ac6428958db8b7a33a3e",
-    "semantic_hash": "890caaa5b917ac6428958db8b7a33a3e"
+    "mtime": 1781665045.3956115,
+    "ast_hash": "1e01cfc88947e42eccdfc87f349a4ba6",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/accounting/paid-deposits/new/page.tsx": {
-    "mtime": 1779361630.0072753,
-    "ast_hash": "fc9ae3aa74afeb6d4eb9867158e3c832",
-    "semantic_hash": "fc9ae3aa74afeb6d4eb9867158e3c832"
+    "mtime": 1781665045.3962495,
+    "ast_hash": "2e64da216b4d129786cc62714b2099cb",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/accounting/paid-deposits/page.tsx": {
-    "mtime": 1779361630.0045357,
-    "ast_hash": "f59c1682d84fe3689bc9b887937c8f48",
-    "semantic_hash": "f59c1682d84fe3689bc9b887937c8f48"
+    "mtime": 1781665045.3972366,
+    "ast_hash": "4b84ea779a016b2532ad7f9ff499311f",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/accounting/payment-channels/page.tsx": {
-    "mtime": 1779361630.064634,
-    "ast_hash": "b72d9385988abf57ec7e6c7c30c947be",
-    "semantic_hash": "b72d9385988abf57ec7e6c7c30c947be"
+    "mtime": 1781665045.398255,
+    "ast_hash": "eb2a292f78a98d8ec394524cee80c34b",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/accounting/payment-summaries/new/page.tsx": {
-    "mtime": 1779361630.035542,
-    "ast_hash": "11c420467120e87bfdd120426ff41d4d",
-    "semantic_hash": "11c420467120e87bfdd120426ff41d4d"
+    "mtime": 1781665045.3993695,
+    "ast_hash": "6e445b6c37b38bd97e36f986d7ad8d68",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/accounting/payment-summaries/page.tsx": {
-    "mtime": 1779361630.0331883,
-    "ast_hash": "885f1c2be6a7f8e1fbe2cbd574d93d27",
-    "semantic_hash": "885f1c2be6a7f8e1fbe2cbd574d93d27"
+    "mtime": 1781665045.3999798,
+    "ast_hash": "daf513f895f4db408f4e8860042d64eb",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/accounting/petty-cash-accounts/page.tsx": {
-    "mtime": 1779361630.0596635,
-    "ast_hash": "45dd2f07223c0947e1031b759c4d4a27",
-    "semantic_hash": "45dd2f07223c0947e1031b759c4d4a27"
+    "mtime": 1781665045.4008262,
+    "ast_hash": "2fe914c86810b528f96b6769e06f5491",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/accounting/pnd/[type]/page.tsx": {
-    "mtime": 1779361630.1252334,
-    "ast_hash": "5732c25f069892708456bcf6448a31cc",
-    "semantic_hash": "5732c25f069892708456bcf6448a31cc"
+    "mtime": 1781665045.4029613,
+    "ast_hash": "576bfd9938715b1f5b91bb9a935d681d",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/accounting/pp30/[id]/page.tsx": {
-    "mtime": 1779361630.123019,
-    "ast_hash": "a8319e6eaf3477c3d91bc8b6d83ecfb0",
-    "semantic_hash": "a8319e6eaf3477c3d91bc8b6d83ecfb0"
+    "mtime": 1781665175.804942,
+    "ast_hash": "5d6402a634e434ec88353aa34546d198",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/accounting/pp30/page.tsx": {
-    "mtime": 1779361630.1202433,
-    "ast_hash": "9f76772ad7352fdd91531f1b3d503901",
-    "semantic_hash": "9f76772ad7352fdd91531f1b3d503901"
+    "mtime": 1781665045.4044137,
+    "ast_hash": "a9a49381c7a11f92ed646f42ac09c9c3",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/accounting/products/page.tsx": {
-    "mtime": 1779361630.1464043,
-    "ast_hash": "7350acb5dd4621b0a05ccd2e1b2d188a",
-    "semantic_hash": "7350acb5dd4621b0a05ccd2e1b2d188a"
+    "mtime": 1781665045.4052625,
+    "ast_hash": "74cd9f345c0d546c3933072ea96c1fc2",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/accounting/purchase-orders/new/page.tsx": {
-    "mtime": 1779361630.0011506,
-    "ast_hash": "bd6c2398fafd06a617c3623b8233b98d",
-    "semantic_hash": "bd6c2398fafd06a617c3623b8233b98d"
+    "mtime": 1781665045.4061935,
+    "ast_hash": "3a401403afac408c2b458cf73c1bf4ae",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/accounting/purchase-orders/page.tsx": {
-    "mtime": 1779361629.9949658,
-    "ast_hash": "99e8b3abb96f45276fb6b73c9f926b72",
-    "semantic_hash": "99e8b3abb96f45276fb6b73c9f926b72"
+    "mtime": 1781665045.4065747,
+    "ast_hash": "38cfc66859318e1785a4a1b66caad615",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/accounting/purchase-tax-invoices/new/page.tsx": {
-    "mtime": 1779361630.031,
-    "ast_hash": "e781c59780ccfe1280b44f91a1554a8f",
-    "semantic_hash": "e781c59780ccfe1280b44f91a1554a8f"
+    "mtime": 1781665045.4070146,
+    "ast_hash": "182cb5268d694863c893bef817dcc088",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/accounting/purchase-tax-invoices/page.tsx": {
-    "mtime": 1779361630.0286252,
-    "ast_hash": "53387050515e951da32bbef5d70506a6",
-    "semantic_hash": "53387050515e951da32bbef5d70506a6"
+    "mtime": 1781665045.408625,
+    "ast_hash": "8c75e3c7dd298b6e5b8612bf5e24d0cf",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/accounting/quotations/new/page.tsx": {
-    "mtime": 1779361629.9398327,
-    "ast_hash": "70331790bbc1d4c6d96e798f13e3ee28",
-    "semantic_hash": "70331790bbc1d4c6d96e798f13e3ee28"
+    "mtime": 1781665045.4104462,
+    "ast_hash": "1368d938ba2c7f27aef70a30a384379d",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/accounting/quotations/page.tsx": {
-    "mtime": 1779361629.9373982,
-    "ast_hash": "e4db57466a7069b2b68a4c7d3fe782a4",
-    "semantic_hash": "e4db57466a7069b2b68a4c7d3fe782a4"
+    "mtime": 1781665045.413277,
+    "ast_hash": "1d8dafb0e55cfa2258e94749573f3efc",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/accounting/receipts/new/page.tsx": {
-    "mtime": 1779361629.9550025,
-    "ast_hash": "d8920152d1e4fa826844ccf878dc0a79",
-    "semantic_hash": "d8920152d1e4fa826844ccf878dc0a79"
+    "mtime": 1781665045.4136412,
+    "ast_hash": "f02324a8f81ad0fcff01d7097b9fb72c",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/accounting/receipts/page.tsx": {
-    "mtime": 1779361629.952189,
-    "ast_hash": "9216860478d05b9f8d9fe59444c9a9e3",
-    "semantic_hash": "9216860478d05b9f8d9fe59444c9a9e3"
+    "mtime": 1781665045.414317,
+    "ast_hash": "f0ad26828f3e38c15c8930c72bb18d41",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/accounting/received-credit-notes/new/page.tsx": {
-    "mtime": 1779361630.0435295,
-    "ast_hash": "9d812d07ae685aebe844ef91a4274bc9",
-    "semantic_hash": "9d812d07ae685aebe844ef91a4274bc9"
+    "mtime": 1781665045.4151983,
+    "ast_hash": "426325e55aeea05fef772d67fbeee404",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/accounting/received-credit-notes/page.tsx": {
-    "mtime": 1779361630.0410872,
-    "ast_hash": "595c45c574383ce643ca04eb4edc8f9c",
-    "semantic_hash": "595c45c574383ce643ca04eb4edc8f9c"
+    "mtime": 1781665045.4160485,
+    "ast_hash": "53420434ddc2e60358b170305a12c2e0",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/accounting/received-debit-notes/new/page.tsx": {
-    "mtime": 1779361630.0481048,
-    "ast_hash": "1949d36cf8fd43433f14a282cca241aa",
-    "semantic_hash": "1949d36cf8fd43433f14a282cca241aa"
+    "mtime": 1781665045.4167445,
+    "ast_hash": "fa484b9a7db222c19e4b75581a4b42b0",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/accounting/received-debit-notes/page.tsx": {
-    "mtime": 1779361630.0457022,
-    "ast_hash": "1cfbd2de5ba49edaedc60d28b6a01b56",
-    "semantic_hash": "1cfbd2de5ba49edaedc60d28b6a01b56"
+    "mtime": 1781665045.4171176,
+    "ast_hash": "f9f9da0ae5f6093ad5a64955b429e0cf",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/accounting/received-deposits/new/page.tsx": {
-    "mtime": 1779361629.9449415,
-    "ast_hash": "1180d68ba498ba58ffb3f827a9617136",
-    "semantic_hash": "1180d68ba498ba58ffb3f827a9617136"
+    "mtime": 1781665045.417757,
+    "ast_hash": "6c5edf825586100d41780072e1046ab9",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/accounting/received-deposits/page.tsx": {
-    "mtime": 1779361629.942634,
-    "ast_hash": "afdecc5d6d348f61aef9d0bf60e5eb3e",
-    "semantic_hash": "afdecc5d6d348f61aef9d0bf60e5eb3e"
+    "mtime": 1781665045.4185615,
+    "ast_hash": "37f42f3bdf154ad337176dbd3e6c879d",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/accounting/reconciliation/page.tsx": {
-    "mtime": 1779361630.1649632,
-    "ast_hash": "a447efbeb7a70efe27ebb580bba64dc9",
-    "semantic_hash": "a447efbeb7a70efe27ebb580bba64dc9"
+    "mtime": 1781665045.4200587,
+    "ast_hash": "a0432e283c8815951de30f71c5dbda2e",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/accounting/reports/page.tsx": {
-    "mtime": 1779361629.932001,
-    "ast_hash": "51cc5d243809248df69b84339a02c57f",
-    "semantic_hash": "51cc5d243809248df69b84339a02c57f"
+    "mtime": 1781665045.4219406,
+    "ast_hash": "3cb3e9849a0827ab6b647ca3969da4e1",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/accounting/requisitions/page.tsx": {
-    "mtime": 1779361630.153965,
-    "ast_hash": "68ff59c97c4ea7f2840edfc339db2573",
-    "semantic_hash": "68ff59c97c4ea7f2840edfc339db2573"
+    "mtime": 1781665045.422657,
+    "ast_hash": "e40e585bc7b3f431757aa7ce0356cc84",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/accounting/reserve-accounts/page.tsx": {
-    "mtime": 1779361630.069519,
-    "ast_hash": "b0f34f37c06520b76d63a54b6a22cfed",
-    "semantic_hash": "b0f34f37c06520b76d63a54b6a22cfed"
+    "mtime": 1781665045.422947,
+    "ast_hash": "734365787e5037b57804c293bd384c6e",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/accounting/returns/page.tsx": {
-    "mtime": 1779361630.1566668,
-    "ast_hash": "54d05177d1c51035dba44c40b9331c28",
-    "semantic_hash": "54d05177d1c51035dba44c40b9331c28"
+    "mtime": 1781665045.4240205,
+    "ast_hash": "529b1e73f35ebb1916f3ac7f8e1314ff",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/accounting/roles/page.tsx": {
-    "mtime": 1779361630.1621554,
-    "ast_hash": "8469fc5768525c5326bcaa93bb5e5e7d",
-    "semantic_hash": "8469fc5768525c5326bcaa93bb5e5e7d"
+    "mtime": 1781665045.425645,
+    "ast_hash": "8f9c1dfbd11dbd77e62ab4f832cbd476",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/accounting/tax-and-closing/page.tsx": {
-    "mtime": 1779361629.9345136,
-    "ast_hash": "4bd5e93ef7ef52072a74167714bb60e8",
-    "semantic_hash": "4bd5e93ef7ef52072a74167714bb60e8"
+    "mtime": 1781665045.427002,
+    "ast_hash": "a3a9a4c3a4729c754405f91202b037dd",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/accounting/tax-invoices/new/page.tsx": {
-    "mtime": 1779361629.9591756,
-    "ast_hash": "7f9bd244aaa66de22638b24c28029bfb",
-    "semantic_hash": "7f9bd244aaa66de22638b24c28029bfb"
+    "mtime": 1781665045.4273114,
+    "ast_hash": "20cb95305dfe7edcf8f9475bc677b8db",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/accounting/tax-invoices/page.tsx": {
-    "mtime": 1779361629.9571958,
-    "ast_hash": "a64954ad9e5a85661ac627870a607298",
-    "semantic_hash": "a64954ad9e5a85661ac627870a607298"
+    "mtime": 1781665045.4275165,
+    "ast_hash": "705f3ddbfbccb140a2e9157f3aa56a5d",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/accounting/trial-balance/page.tsx": {
-    "mtime": 1779361630.0932882,
-    "ast_hash": "8a4051e33cf58810b0e4a5cd4af8ee2e",
-    "semantic_hash": "8a4051e33cf58810b0e4a5cd4af8ee2e"
+    "mtime": 1781665045.4285762,
+    "ast_hash": "80bb85f515084418d2839a0bd8dae120",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/accounting/units/page.tsx": {
-    "mtime": 1779361630.1484256,
-    "ast_hash": "ff2b44acccdb41d6782f19b403c01fc5",
-    "semantic_hash": "ff2b44acccdb41d6782f19b403c01fc5"
+    "mtime": 1781665045.4289777,
+    "ast_hash": "2495648b5ae966d0c5c3d368846bac87",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/accounting/vat-purchases/page.tsx": {
-    "mtime": 1779361630.117181,
-    "ast_hash": "9eee33703b1c9a4f1f8d0e0ce8bf610f",
-    "semantic_hash": "9eee33703b1c9a4f1f8d0e0ce8bf610f"
+    "mtime": 1781665045.4294822,
+    "ast_hash": "0fe6ac30f86dc23c6bc27209599c5e75",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/accounting/vat-sales/page.tsx": {
-    "mtime": 1779361630.1149852,
-    "ast_hash": "1811cc77805daaf3a92198e6f165cbed",
-    "semantic_hash": "1811cc77805daaf3a92198e6f165cbed"
+    "mtime": 1781665045.429758,
+    "ast_hash": "b0e17e2a5b56517852101935622c8f3d",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/accounting/vendors/page.tsx": {
-    "mtime": 1779361630.1441045,
-    "ast_hash": "2e4a871e87f622b55bb3e7954b1fa71c",
-    "semantic_hash": "2e4a871e87f622b55bb3e7954b1fa71c"
+    "mtime": 1781665045.4305255,
+    "ast_hash": "02a5c59782bb3b729bffe6bd213d3675",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/accounting/wht-certificates/[id]/page.tsx": {
-    "mtime": 1779361630.1298847,
-    "ast_hash": "e7d6bb2f6569f112e6642d668a16ae02",
-    "semantic_hash": "e7d6bb2f6569f112e6642d668a16ae02"
+    "mtime": 1781665199.0967906,
+    "ast_hash": "63edc74124178b30c93395291b808ee5",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/accounting/wht-certificates/page.tsx": {
-    "mtime": 1779361630.127615,
-    "ast_hash": "dd92d9e2361525b9079836b6b1ccaa91",
-    "semantic_hash": "dd92d9e2361525b9079836b6b1ccaa91"
+    "mtime": 1781665045.43146,
+    "ast_hash": "73901ade491b71eddb379c3caab1e876",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/accounting/wht-documents/page.tsx": {
-    "mtime": 1779361630.1361723,
-    "ast_hash": "453ffdd328c449ddebec7ccd008dea04",
-    "semantic_hash": "453ffdd328c449ddebec7ccd008dea04"
+    "mtime": 1781665045.431901,
+    "ast_hash": "494efbc9b113cb9952fa460b5ab95ff9",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/accounting/wht-expenses/new/page.tsx": {
-    "mtime": 1779361630.025929,
-    "ast_hash": "c0d375cc8b6488b6703404bd45844a6d",
-    "semantic_hash": "c0d375cc8b6488b6703404bd45844a6d"
+    "mtime": 1781665045.4322898,
+    "ast_hash": "1ff5e845286bdd5c16b6c1a726eecaa6",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/accounting/wht-expenses/page.tsx": {
-    "mtime": 1779361630.0168085,
-    "ast_hash": "7ba303c7f7a3dd79d99ec9e05714cdfb",
-    "semantic_hash": "7ba303c7f7a3dd79d99ec9e05714cdfb"
+    "mtime": 1781665045.432681,
+    "ast_hash": "1438442e8b749c46f1671037f7e4596e",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/accounting/wht-paid/page.tsx": {
-    "mtime": 1779361630.0820372,
-    "ast_hash": "d6e02221d0cbe6ce951263274fd1f54b",
-    "semantic_hash": "d6e02221d0cbe6ce951263274fd1f54b"
+    "mtime": 1781665045.4333181,
+    "ast_hash": "6476a856425240ee069574b2adeacd67",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/accounting/wht-received/page.tsx": {
-    "mtime": 1779361630.0798132,
-    "ast_hash": "586419d985f9d8f5c9eb0421e4addd8c",
-    "semantic_hash": "586419d985f9d8f5c9eb0421e4addd8c"
-  },
-  "apps/perpos/src/app/(hydrogen)/[orgSlug]/assistant/connections/page.tsx": {
-    "mtime": 1780111139.9937582,
-    "ast_hash": "ba18b24037dc873f582b6ac16f684022",
-    "semantic_hash": "ba18b24037dc873f582b6ac16f684022"
-  },
-  "apps/perpos/src/app/(hydrogen)/[orgSlug]/assistant/page.tsx": {
-    "mtime": 1781506974.4030704,
-    "ast_hash": "c9b3ae0600e71bf70cb5b40ccc7084be",
+    "mtime": 1781665045.4338708,
+    "ast_hash": "3f5b8158d76461ae8faf72a48966a0e6",
     "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/b2g/page.tsx": {
-    "mtime": 1780139410.9541075,
-    "ast_hash": "9febd30d9ace11d7f2d8c3cd70af7e43",
-    "semantic_hash": "9febd30d9ace11d7f2d8c3cd70af7e43"
+    "mtime": 1781667208.2677994,
+    "ast_hash": "4b471c1a3efbf70a8b061d293847edf8",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/crm/clients/[clientId]/page.tsx": {
-    "mtime": 1779792568.0172524,
-    "ast_hash": "02659430e6f2ad7620379a9d20338f17",
-    "semantic_hash": "02659430e6f2ad7620379a9d20338f17"
+    "mtime": 1781667119.7182148,
+    "ast_hash": "68c43215397578606c91546f9a7e1524",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/crm/clients/page.tsx": {
-    "mtime": 1779792351.6576424,
-    "ast_hash": "0ee2cef5b92ee8a18c798d93e3bbbaa5",
-    "semantic_hash": "0ee2cef5b92ee8a18c798d93e3bbbaa5"
+    "mtime": 1781667050.408481,
+    "ast_hash": "68dc44317160994665cc3d8b58330137",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/crm/page.tsx": {
-    "mtime": 1779788939.8690758,
-    "ast_hash": "01db956c056e00732285d3eb253a9dbf",
-    "semantic_hash": "01db956c056e00732285d3eb253a9dbf"
+    "mtime": 1781665946.8504715,
+    "ast_hash": "c384e1ef91469386f7b1d199d757fcf2",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/crm/solutions/[solutionId]/page.tsx": {
-    "mtime": 1779796887.7172842,
-    "ast_hash": "401c9d786a2e7bcf6fdb3ed70ef9e245",
-    "semantic_hash": "401c9d786a2e7bcf6fdb3ed70ef9e245"
+    "mtime": 1781667161.128348,
+    "ast_hash": "2778a123847665ea1b39d26a08d23567",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/crm/solutions/page.tsx": {
-    "mtime": 1779792465.1473632,
-    "ast_hash": "110cc7f837d6610a7aee709531fe589a",
-    "semantic_hash": "110cc7f837d6610a7aee709531fe589a"
+    "mtime": 1781666014.0832179,
+    "ast_hash": "e6bbfdf15ec032994e8e508cf7f9b650",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/jaquar/page.tsx": {
-    "mtime": 1780763178.5428772,
-    "ast_hash": "da16e4996f32d5b9381658a6bfba141c",
-    "semantic_hash": "da16e4996f32d5b9381658a6bfba141c"
+    "mtime": 1781663037.7647052,
+    "ast_hash": "3cdde10731e41d9babe9dcd0e9c44b30",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/jaquar/stock/page.tsx": {
-    "mtime": 1780497366.848652,
-    "ast_hash": "d382699aabea71d92215d89432f2bf77",
-    "semantic_hash": "d382699aabea71d92215d89432f2bf77"
+    "mtime": 1781667511.3740978,
+    "ast_hash": "d0e02eae1b6de0f58e40e8a61f7fb79e",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/just-me/clock-in-out/page.tsx": {
-    "mtime": 1780293409.4186573,
-    "ast_hash": "516472e23523deecf21ecdc22a613a00",
-    "semantic_hash": "516472e23523deecf21ecdc22a613a00"
+    "mtime": 1781664349.6344113,
+    "ast_hash": "310fbccf4408b493d7b0ad49dfadbc46",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/just-me/inventory/ocr-receive-dialog.tsx": {
-    "mtime": 1780069792.374582,
-    "ast_hash": "a41cee9d80ee23bc220912178299ef48",
-    "semantic_hash": "a41cee9d80ee23bc220912178299ef48"
+    "mtime": 1781667546.0068521,
+    "ast_hash": "bf4e8ec9823f87b455ec559e2de7b513",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/just-me/inventory/page.tsx": {
-    "mtime": 1780076652.3739126,
-    "ast_hash": "158c28f5646c0727fe9a8394a2969985",
-    "semantic_hash": "158c28f5646c0727fe9a8394a2969985"
+    "mtime": 1781667055.8745787,
+    "ast_hash": "22f52418278bb6b53e9ec3d4dbfdeade",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/just-me/page.tsx": {
-    "mtime": 1780066764.3969502,
-    "ast_hash": "3fe10983bf371acb319eccf1a9f663e5",
-    "semantic_hash": "3fe10983bf371acb319eccf1a9f663e5"
+    "mtime": 1781664268.018263,
+    "ast_hash": "386db1d0cfd3e545c41b4e926c5348bc",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/just-me/travel-claims/page.tsx": {
-    "mtime": 1780290768.2106075,
-    "ast_hash": "b8ab7ad30776eb8dd00cde5aa2be859c",
-    "semantic_hash": "b8ab7ad30776eb8dd00cde5aa2be859c"
+    "mtime": 1781664329.6980243,
+    "ast_hash": "e1ee19868387159ede3110f7c05eed62",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/layout.tsx": {
     "mtime": 1779361569.4871364,
@@ -875,14 +865,14 @@
     "semantic_hash": "36374e0019ab61e5cffb33bfc9f29fa8"
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/p2p-group/page.tsx": {
-    "mtime": 1780119099.5531163,
-    "ast_hash": "8d647f508e79e780e9b54bc586c56f30",
-    "semantic_hash": "8d647f508e79e780e9b54bc586c56f30"
+    "mtime": 1781662882.832615,
+    "ast_hash": "a97ae2c3f85c0eb149f297e1df1d688a",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/p2p-supply/page.tsx": {
-    "mtime": 1780117555.8367805,
-    "ast_hash": "b22caa14fe71f892f87bdb8ec368e09f",
-    "semantic_hash": "b22caa14fe71f892f87bdb8ec368e09f"
+    "mtime": 1781662910.8140838,
+    "ast_hash": "cafb9a28fd11a05ed44f117329886a45",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/page.tsx": {
     "mtime": 1779779193.9524176,
@@ -910,9 +900,9 @@
     "semantic_hash": "431a7ef6e13cddbb6c52be58cb3038d0"
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/payroll/page.tsx": {
-    "mtime": 1779364370.5083807,
-    "ast_hash": "86bc5f71cb8779189da28f46f2292985",
-    "semantic_hash": "86bc5f71cb8779189da28f46f2292985"
+    "mtime": 1781661793.8701055,
+    "ast_hash": "0fb9132754db678388bf7e1d3bebc7d0",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/payroll/pay-items/page.tsx": {
     "mtime": 1779361630.1858382,
@@ -925,44 +915,44 @@
     "semantic_hash": "0b19a19e1154adbb13deb6c2b6a9ca09"
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/setting/page.tsx": {
-    "mtime": 1779361630.1713264,
-    "ast_hash": "cfc22c0902d12abf310c4f58a4742c1c",
-    "semantic_hash": "cfc22c0902d12abf310c4f58a4742c1c"
+    "mtime": 1781663100.6903505,
+    "ast_hash": "0d86e4ae82d3c5521f240d654dcd389d",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/tmc/costs/page.tsx": {
-    "mtime": 1780763372.9437933,
-    "ast_hash": "165cc623a7fb98b0e58dae7c73307831",
-    "semantic_hash": "165cc623a7fb98b0e58dae7c73307831"
+    "mtime": 1781666689.7768683,
+    "ast_hash": "7693bf74beabdfa6620f17b7f3fd1bfc",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/tmc/finance/page.tsx": {
-    "mtime": 1779965866.9343066,
-    "ast_hash": "17d05e0655b4022405ea9e122823617a",
-    "semantic_hash": "17d05e0655b4022405ea9e122823617a"
+    "mtime": 1781666599.0935535,
+    "ast_hash": "02a44894c2ae4ca74efcc0688d88a6f8",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/tmc/page.tsx": {
-    "mtime": 1779780429.4917078,
-    "ast_hash": "50a9de1ef077f63591d6f9c8f8b35bc1",
-    "semantic_hash": "50a9de1ef077f63591d6f9c8f8b35bc1"
+    "mtime": 1781665773.493691,
+    "ast_hash": "005ba121267ae45342c7929cd1ac353a",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/tmc/petty-cash/page.tsx": {
-    "mtime": 1779965836.153444,
-    "ast_hash": "9dc9f0cb7f1033fb867a8859f6ef1778",
-    "semantic_hash": "9dc9f0cb7f1033fb867a8859f6ef1778"
+    "mtime": 1781666661.8449717,
+    "ast_hash": "e372171635b4131ea55bd2127d5aee5b",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/tmc/stays/page.tsx": {
-    "mtime": 1780814286.0605285,
-    "ast_hash": "855b6168fbd207787e770401affc6310",
+    "mtime": 1781666748.9306037,
+    "ast_hash": "77eb92d3adc9132fe16c10cc01413d82",
     "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/tmc/stock/page.tsx": {
-    "mtime": 1779780047.3244793,
-    "ast_hash": "de193cda277aebf31b766749e9610e37",
-    "semantic_hash": "de193cda277aebf31b766749e9610e37"
+    "mtime": 1781666817.3487778,
+    "ast_hash": "66d274dc25d93e4a7039b692bbfb583f",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/tmc/stock/purchase-dialog.tsx": {
-    "mtime": 1780763378.2370005,
-    "ast_hash": "538f163f634d3a2bbac7672dd1b0929d",
-    "semantic_hash": "538f163f634d3a2bbac7672dd1b0929d"
+    "mtime": 1781666849.4426978,
+    "ast_hash": "a06e4d4ed19ff897aac62d206d646b1e",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/usvilla/_i18n.ts": {
     "mtime": 1780075489.0136876,
@@ -980,19 +970,19 @@
     "semantic_hash": "e40fbafdd3671cd93dcd46e66ad0f944"
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/usvilla/add-payment-dialog.tsx": {
-    "mtime": 1780074428.137122,
-    "ast_hash": "347451b6a054e68127537e0390cc06f8",
-    "semantic_hash": "347451b6a054e68127537e0390cc06f8"
+    "mtime": 1781666922.7353158,
+    "ast_hash": "7bd0c90daa1a9420634eeb981290d64c",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/usvilla/booking-detail-dialog.tsx": {
-    "mtime": 1780074408.6802986,
-    "ast_hash": "42e09d9e9006032c732bba8d5c658fb9",
-    "semantic_hash": "42e09d9e9006032c732bba8d5c658fb9"
+    "mtime": 1781666898.6972198,
+    "ast_hash": "13a0c91f9c2b6d1ce2b7d07967f913db",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/usvilla/booking-dialog.tsx": {
-    "mtime": 1780074382.464784,
-    "ast_hash": "f48a33d3fc761b12116aee97e40eb7a3",
-    "semantic_hash": "f48a33d3fc761b12116aee97e40eb7a3"
+    "mtime": 1781666954.5690496,
+    "ast_hash": "97bce72687cfcdbe27a320498bae277b",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/usvilla/calendar-view.tsx": {
     "mtime": 1780072654.9648256,
@@ -1000,9 +990,9 @@
     "semantic_hash": "182fbb7495a991ca391524a1efb11ed0"
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/usvilla/calendar/page.tsx": {
-    "mtime": 1780075522.905263,
-    "ast_hash": "4b9ae20969c5df82836fe24c27ee00c3",
-    "semantic_hash": "4b9ae20969c5df82836fe24c27ee00c3"
+    "mtime": 1781663382.072689,
+    "ast_hash": "8b88804b917849b4a5c18a1ea3cce7a6",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/usvilla/daily-sheet.tsx": {
     "mtime": 1780074479.69648,
@@ -1010,9 +1000,9 @@
     "semantic_hash": "07991e659c73651d77a2d33524e17e30"
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/usvilla/dashboard.tsx": {
-    "mtime": 1780074528.8419695,
-    "ast_hash": "d997f320f412cf805907a20462406533",
-    "semantic_hash": "d997f320f412cf805907a20462406533"
+    "mtime": 1781666648.6412883,
+    "ast_hash": "d9b2d53c21a98df33354ac5e3aaf8974",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/usvilla/lang-switcher.tsx": {
     "mtime": 1780074338.8370128,
@@ -1025,73 +1015,53 @@
     "semantic_hash": "acf41524654d730742afb34fbcce725d"
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/usvilla/page.tsx": {
-    "mtime": 1780075510.597665,
-    "ast_hash": "572712b51cc413f1c9d55ebada6e0542",
-    "semantic_hash": "572712b51cc413f1c9d55ebada6e0542"
+    "mtime": 1781667011.2683227,
+    "ast_hash": "f4c4cf67df5362db92a3d3ebafa97fd6",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/usvilla/report/page.tsx": {
-    "mtime": 1780075546.7888668,
-    "ast_hash": "da4b817e31f6433b0cb08ec4254e296f",
-    "semantic_hash": "da4b817e31f6433b0cb08ec4254e296f"
+    "mtime": 1781663402.5545986,
+    "ast_hash": "d970eff9047e801ebc495f42f6846e3e",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/[orgSlug]/usvilla/sheet/page.tsx": {
-    "mtime": 1780075535.700052,
-    "ast_hash": "7594f2c507792774f16e7e7858f48a0d",
-    "semantic_hash": "7594f2c507792774f16e7e7858f48a0d"
+    "mtime": 1781666981.5766013,
+    "ast_hash": "d8d9f320682c87e7897433a964a06bfc",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/admin/audit/page.tsx": {
-    "mtime": 1780763344.25984,
-    "ast_hash": "45d217243f51cc778e9e117e40bd53ee",
-    "semantic_hash": "45d217243f51cc778e9e117e40bd53ee"
+    "mtime": 1781666288.252848,
+    "ast_hash": "1064837bee7558700fe1262de96afa9b",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/admin/billing/page.tsx": {
-    "mtime": 1780763075.3787751,
-    "ast_hash": "63cd4b07c651ef21ef6e2f55dc2770e9",
-    "semantic_hash": "63cd4b07c651ef21ef6e2f55dc2770e9"
-  },
-  "apps/perpos/src/app/(hydrogen)/admin/custom-fields/page.tsx": {
-    "mtime": 1779588461.0253353,
-    "ast_hash": "b75ea78ee52246af30e017bda492d9ad",
-    "semantic_hash": "b75ea78ee52246af30e017bda492d9ad"
-  },
-  "apps/perpos/src/app/(hydrogen)/admin/delivery/page.tsx": {
-    "mtime": 1779588121.5372846,
-    "ast_hash": "66ecce37a2c2a6e655a1ac8d489eec62",
-    "semantic_hash": "66ecce37a2c2a6e655a1ac8d489eec62"
+    "mtime": 1781666343.1573255,
+    "ast_hash": "c3515b9040f3579521c4f2bff747562a",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/admin/health/page.tsx": {
-    "mtime": 1780763104.6576016,
-    "ast_hash": "de04b02be6508804a86bf1e1c6933367",
-    "semantic_hash": "de04b02be6508804a86bf1e1c6933367"
-  },
-  "apps/perpos/src/app/(hydrogen)/admin/labels/page.tsx": {
-    "mtime": 1779588461.4452527,
-    "ast_hash": "f0bc403ef29374491adaaed5a4f042d2",
-    "semantic_hash": "f0bc403ef29374491adaaed5a4f042d2"
+    "mtime": 1781659641.3242037,
+    "ast_hash": "d2ccb2f040cc2c40ca5ec134693315f9",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/admin/module-registry/page.tsx": {
-    "mtime": 1780763126.2558498,
-    "ast_hash": "4c298cc0545c18b7ac198daf00df7316",
-    "semantic_hash": "4c298cc0545c18b7ac198daf00df7316"
+    "mtime": 1781666404.8468382,
+    "ast_hash": "5e9cc81620e25b44b6ae9fb4384f605a",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/admin/modules/page.tsx": {
-    "mtime": 1780763054.970568,
-    "ast_hash": "cf88f1f57cfe23c95bceaa7662169a2c",
-    "semantic_hash": "cf88f1f57cfe23c95bceaa7662169a2c"
-  },
-  "apps/perpos/src/app/(hydrogen)/admin/news-agent/page.tsx": {
-    "mtime": 1779588121.0533037,
-    "ast_hash": "e94daee64dcee6d8596c9896029b0094",
-    "semantic_hash": "e94daee64dcee6d8596c9896029b0094"
+    "mtime": 1781664913.066812,
+    "ast_hash": "0390cb6133e3ba0a826310783fdbb370",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/admin/onboarding/page.tsx": {
-    "mtime": 1780763360.1503234,
-    "ast_hash": "1ac254baa8cdc690f90bdb65733b1a4c",
-    "semantic_hash": "1ac254baa8cdc690f90bdb65733b1a4c"
+    "mtime": 1781660325.359507,
+    "ast_hash": "d23124f9a33758f57575d8787c5f49a0",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/admin/page.tsx": {
-    "mtime": 1781587679.9176896,
-    "ast_hash": "42e51dcfb1c988cbcf7479f30a84f9be",
+    "mtime": 1781659669.892165,
+    "ast_hash": "1607dea10d7b2e57a613e3e4292dcae1",
     "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/admin/permissions/page.tsx": {
@@ -1100,29 +1070,29 @@
     "semantic_hash": "9a36707a4b876eee5e6a423dabe98e1e"
   },
   "apps/perpos/src/app/(hydrogen)/admin/rate-limits/page.tsx": {
-    "mtime": 1781588809.1691253,
-    "ast_hash": "23aed59a8015662d74f5335fee89edbc",
+    "mtime": 1781666447.6798565,
+    "ast_hash": "94b17daf6be542b017c0e13ddce0b2a5",
     "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/admin/resources/page.tsx": {
-    "mtime": 1780763092.0416002,
-    "ast_hash": "3879cd758fa9f97bc917ee5b6766f97f",
-    "semantic_hash": "3879cd758fa9f97bc917ee5b6766f97f"
+    "mtime": 1781664875.4703228,
+    "ast_hash": "b49596cb57958c0c0abd019446c75c3b",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/admin/users/page.tsx": {
-    "mtime": 1780763079.2856357,
-    "ast_hash": "e6c679068d1d16730baf45273752d00d",
-    "semantic_hash": "e6c679068d1d16730baf45273752d00d"
+    "mtime": 1781666230.0737224,
+    "ast_hash": "3b88156a398aea5e30a8da01d43dc1b9",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/admin/webhooks/page.tsx": {
-    "mtime": 1779792318.6920257,
-    "ast_hash": "b256e826150a76f4fb15210c58bf5cc3",
-    "semantic_hash": "b256e826150a76f4fb15210c58bf5cc3"
+    "mtime": 1781666314.4941716,
+    "ast_hash": "4a7dabab003a257747980acadbcf15c5",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/billing/page.tsx": {
-    "mtime": 1779612821.0889187,
-    "ast_hash": "a6f9789db02046f9be4acb28836a87c1",
-    "semantic_hash": "a6f9789db02046f9be4acb28836a87c1"
+    "mtime": 1781667188.8618636,
+    "ast_hash": "db051dc648ee90fb6fdb6bafe9a17816",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/layout.tsx": {
     "mtime": 1777513495.791775,
@@ -1130,9 +1100,9 @@
     "semantic_hash": "00674264a957820c61607be4f77190ce"
   },
   "apps/perpos/src/app/(hydrogen)/page.tsx": {
-    "mtime": 1780368592.7033198,
-    "ast_hash": "88ea94709f1adbf38daaf78f9079c17d",
-    "semantic_hash": "88ea94709f1adbf38daaf78f9079c17d"
+    "mtime": 1781621930.3563254,
+    "ast_hash": "d5a4bddfa1ed462515946216ce0ece10",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/templates/date-input/page.tsx": {
     "mtime": 1777796015.9612238,
@@ -1379,15 +1349,10 @@
     "ast_hash": "fab28aca53850a264d9eeff69e9b83f6",
     "semantic_hash": ""
   },
-  "apps/perpos/src/app/api/admin/users/invite/route.ts": {
-    "mtime": 1779883896.0849638,
-    "ast_hash": "96ec70c853d232bfe5282293a3548418",
-    "semantic_hash": "96ec70c853d232bfe5282293a3548418"
-  },
   "apps/perpos/src/app/api/admin/users/list/route.ts": {
-    "mtime": 1779241159.5919678,
-    "ast_hash": "41711573319e1ccefaae9b6ff95b6c12",
-    "semantic_hash": "41711573319e1ccefaae9b6ff95b6c12"
+    "mtime": 1781630462.1259363,
+    "ast_hash": "c935dce8bdf405cbf9d8bddbd488e8a2",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/api/admin/users/orgs/route.ts": {
     "mtime": 1781589378.1780267,
@@ -1415,8 +1380,8 @@
     "semantic_hash": "3baca9eece05a8239738c33e41050a92"
   },
   "apps/perpos/src/app/api/assistant/scheduler/route.ts": {
-    "mtime": 1781590539.6424768,
-    "ast_hash": "e3576b1edfe3cea9add0377d68d113c5",
+    "mtime": 1781660706.9008505,
+    "ast_hash": "f3412952fbe424eef5832f14999f8b61",
     "semantic_hash": ""
   },
   "apps/perpos/src/app/api/b2g/_lib.ts": {
@@ -1630,8 +1595,8 @@
     "semantic_hash": "fb809f6fe6688d23aaae8c3c677614cd"
   },
   "apps/perpos/src/app/api/line/webhook/route.ts": {
-    "mtime": 1781586294.9256637,
-    "ast_hash": "099e2bbd617484da00c1423cadbfe686",
+    "mtime": 1781629286.8379414,
+    "ast_hash": "4367a20595cac29a276d56ae3c8a844d",
     "semantic_hash": ""
   },
   "apps/perpos/src/app/api/org/billing/checkout/route.ts": {
@@ -1680,9 +1645,9 @@
     "semantic_hash": "ecf7930efcd0c0e45e6633df2d77af09"
   },
   "apps/perpos/src/app/api/stripe/webhook/route.ts": {
-    "mtime": 1779612774.1878269,
-    "ast_hash": "eea8f6597f69001617d99ec94bc067b0",
-    "semantic_hash": "eea8f6597f69001617d99ec94bc067b0"
+    "mtime": 1781608593.5096178,
+    "ast_hash": "271f0dce3cae5eaed91a88fa417c9689",
+    "semantic_hash": ""
   },
   "apps/perpos/src/app/api/tmc/_lib.ts": {
     "mtime": 1779522530.7028496,
@@ -1925,9 +1890,9 @@
     "semantic_hash": "4181cc5187fba455601340fd3ffa773f"
   },
   "apps/perpos/src/components/accounting/accounts-manager.tsx": {
-    "mtime": 1778400986.6260908,
-    "ast_hash": "68655a61a6791362239230ae13fcc722",
-    "semantic_hash": "68655a61a6791362239230ae13fcc722"
+    "mtime": 1781667646.7513113,
+    "ast_hash": "2b1712e503d60cb09728441e31b45656",
+    "semantic_hash": ""
   },
   "apps/perpos/src/components/accounting/accounts-types.ts": {
     "mtime": 1778314772.4490318,
@@ -1950,19 +1915,19 @@
     "semantic_hash": "b3ffb2443b5159656d6a6d59c3570ae2"
   },
   "apps/perpos/src/components/accounting/org-switcher.tsx": {
-    "mtime": 1780118415.1530852,
-    "ast_hash": "f498dff0b5e3c2d599beab3fbce512a6",
-    "semantic_hash": "f498dff0b5e3c2d599beab3fbce512a6"
+    "mtime": 1781667408.9087465,
+    "ast_hash": "56f002339d5b243d64fe791c1c9d07cd",
+    "semantic_hash": ""
   },
   "apps/perpos/src/components/assets/asset-disposal-client.tsx": {
-    "mtime": 1778425702.8577766,
-    "ast_hash": "4d0789b6489c6aba5896170cff3334c1",
-    "semantic_hash": "4d0789b6489c6aba5896170cff3334c1"
+    "mtime": 1781668068.0851965,
+    "ast_hash": "e907ad6d9ff9deb30aeaae90779b4e81",
+    "semantic_hash": ""
   },
   "apps/perpos/src/components/assets/asset-register-client.tsx": {
-    "mtime": 1778462570.7369874,
-    "ast_hash": "cd4d32c66b6f47311b83ec0df12112f4",
-    "semantic_hash": "cd4d32c66b6f47311b83ec0df12112f4"
+    "mtime": 1781668730.8402288,
+    "ast_hash": "f277c8c92b303d49d1e2b9a924d3ae17",
+    "semantic_hash": ""
   },
   "apps/perpos/src/components/auth/google-auth-view.tsx": {
     "mtime": 1780372138.3393493,
@@ -1970,19 +1935,19 @@
     "semantic_hash": "4845b649c1a992f88138b3b902946267"
   },
   "apps/perpos/src/components/contacts/contact-quick-add-select.tsx": {
-    "mtime": 1778409147.8106008,
-    "ast_hash": "bf2099ea2f7443d68b3e74f1290a177f",
-    "semantic_hash": "bf2099ea2f7443d68b3e74f1290a177f"
+    "mtime": 1781668112.535131,
+    "ast_hash": "51c1ec4db6c09153cef89ff02db62e10",
+    "semantic_hash": ""
   },
   "apps/perpos/src/components/contacts/contacts-client.tsx": {
-    "mtime": 1778409193.986863,
-    "ast_hash": "848fd45b16c812af539f3b966c3c9ec0",
-    "semantic_hash": "848fd45b16c812af539f3b966c3c9ec0"
+    "mtime": 1781668787.184863,
+    "ast_hash": "f7d068f8040479932a316e03c5c14c59",
+    "semantic_hash": ""
   },
   "apps/perpos/src/components/finance/balance-sheet-client.tsx": {
-    "mtime": 1780763024.1302383,
-    "ast_hash": "6799414095e2d28a9d48e55e6f63afea",
-    "semantic_hash": "6799414095e2d28a9d48e55e6f63afea"
+    "mtime": 1781667509.4752657,
+    "ast_hash": "7aec3144f5ebdf20a58d6b153e920fee",
+    "semantic_hash": ""
   },
   "apps/perpos/src/components/finance/cash-flow-client.tsx": {
     "mtime": 1778425755.6092193,
@@ -1995,9 +1960,9 @@
     "semantic_hash": "5cdd7f9fbd6282138c9556b1550be19d"
   },
   "apps/perpos/src/components/finance/check-transactions-table.tsx": {
-    "mtime": 1780762970.6571753,
-    "ast_hash": "c62ff252ac5bc6a34934c788ab58d556",
-    "semantic_hash": "c62ff252ac5bc6a34934c788ab58d556"
+    "mtime": 1781667442.874096,
+    "ast_hash": "57042910f8eea7a1dab31825c1a8ccee",
+    "semantic_hash": ""
   },
   "apps/perpos/src/components/finance/finance-account-form.tsx": {
     "mtime": 1780762951.8808603,
@@ -2005,14 +1970,14 @@
     "semantic_hash": "610768494ca7459fdcb5907b56053356"
   },
   "apps/perpos/src/components/finance/finance-accounts-table.tsx": {
-    "mtime": 1780762984.936054,
-    "ast_hash": "73406383524f15546efe1d02abb13dcb",
-    "semantic_hash": "73406383524f15546efe1d02abb13dcb"
+    "mtime": 1781667396.7126493,
+    "ast_hash": "a72aa72a5cfbf26981cc33f9cc623d92",
+    "semantic_hash": ""
   },
   "apps/perpos/src/components/finance/general-ledger-client.tsx": {
-    "mtime": 1780763012.989,
-    "ast_hash": "0a81775565cd474a91d78cc84b075670",
-    "semantic_hash": "0a81775565cd474a91d78cc84b075670"
+    "mtime": 1781667480.0569913,
+    "ast_hash": "0d2d538e8eeb571b9d905fcc546ce2fd",
+    "semantic_hash": ""
   },
   "apps/perpos/src/components/finance/wht-received-client.tsx": {
     "mtime": 1778425695.561527,
@@ -2030,24 +1995,24 @@
     "semantic_hash": "f7e4d37aad23ad1b5cfd462d1bb6c948"
   },
   "apps/perpos/src/components/inventory/products-client.tsx": {
-    "mtime": 1778400986.6322324,
-    "ast_hash": "8bc8f6c2d2a0f5253da2a6397941d0cf",
-    "semantic_hash": "8bc8f6c2d2a0f5253da2a6397941d0cf"
+    "mtime": 1781668355.794587,
+    "ast_hash": "7876bf366ac59e711c057b0f8cb32b58",
+    "semantic_hash": ""
   },
   "apps/perpos/src/components/inventory/requisitions-client.tsx": {
-    "mtime": 1778462568.4775724,
-    "ast_hash": "816abec5ffbba3810dd6d8d240ee08fb",
-    "semantic_hash": "816abec5ffbba3810dd6d8d240ee08fb"
+    "mtime": 1781668501.4150004,
+    "ast_hash": "abc28320a58cad5e5bc0d370d57af872",
+    "semantic_hash": ""
   },
   "apps/perpos/src/components/inventory/returns-client.tsx": {
-    "mtime": 1778425733.5848591,
-    "ast_hash": "cd74155b3f434bb0905dbce7f172ad47",
-    "semantic_hash": "cd74155b3f434bb0905dbce7f172ad47"
+    "mtime": 1781668468.7031612,
+    "ast_hash": "680e766f81c1691c518bc1439368c45b",
+    "semantic_hash": ""
   },
   "apps/perpos/src/components/inventory/units-client.tsx": {
-    "mtime": 1778400986.6339417,
-    "ast_hash": "c91b2426f084650719d7ce149dc2a597",
-    "semantic_hash": "c91b2426f084650719d7ce149dc2a597"
+    "mtime": 1781668407.6132934,
+    "ast_hash": "4bed1cbbbfbbdeeb53c0baa5109baccc",
+    "semantic_hash": ""
   },
   "apps/perpos/src/components/module-switcher.tsx": {
     "mtime": 1780108377.464471,
@@ -2060,24 +2025,24 @@
     "semantic_hash": "f8a99129e5dcc668762b1a8aca2e3cd3"
   },
   "apps/perpos/src/components/payroll/departments-client.tsx": {
-    "mtime": 1778400986.6345615,
-    "ast_hash": "01d1586af0e77017d8ef2c8cd672eab5",
-    "semantic_hash": "01d1586af0e77017d8ef2c8cd672eab5"
+    "mtime": 1781667962.6719747,
+    "ast_hash": "b5064e8741c92737e1defdcd93932c76",
+    "semantic_hash": ""
   },
   "apps/perpos/src/components/payroll/employees-client.tsx": {
-    "mtime": 1778425747.6790626,
-    "ast_hash": "7189d87708bfa76c10d6d5dba14d49f4",
-    "semantic_hash": "7189d87708bfa76c10d6d5dba14d49f4"
+    "mtime": 1781667926.0205846,
+    "ast_hash": "3989435ef3fa103b36eeac4e689417f7",
+    "semantic_hash": ""
   },
   "apps/perpos/src/components/payroll/funds-client.tsx": {
-    "mtime": 1778400986.6358676,
-    "ast_hash": "f9d5e045654f90f67ba729d4f0939234",
-    "semantic_hash": "f9d5e045654f90f67ba729d4f0939234"
+    "mtime": 1781668057.5789065,
+    "ast_hash": "c397a0ce740be4113e5adb895d5ac149",
+    "semantic_hash": ""
   },
   "apps/perpos/src/components/payroll/pay-items-client.tsx": {
-    "mtime": 1778400986.6362636,
-    "ast_hash": "c1e1b6dc5eccd244205e26b1ecd021df",
-    "semantic_hash": "c1e1b6dc5eccd244205e26b1ecd021df"
+    "mtime": 1781668016.8833945,
+    "ast_hash": "69e00c42d6c2aa702ed48c54986b8cef",
+    "semantic_hash": ""
   },
   "apps/perpos/src/components/payroll/payroll-account-settings-client.tsx": {
     "mtime": 1778400986.6365144,
@@ -2090,9 +2055,9 @@
     "semantic_hash": "f2956409720d7a07eef6465eee8a6240"
   },
   "apps/perpos/src/components/payroll/payroll-salary-client.tsx": {
-    "mtime": 1778400986.6370058,
-    "ast_hash": "2090664d558d9934ae0de01b40f47401",
-    "semantic_hash": "2090664d558d9934ae0de01b40f47401"
+    "mtime": 1781668102.3955698,
+    "ast_hash": "3c353c7fb85df397c69fab2dc8dbb101",
+    "semantic_hash": ""
   },
   "apps/perpos/src/components/phase4/bank/bank-reconciliation-client.tsx": {
     "mtime": 1778425680.391686,
@@ -2100,14 +2065,14 @@
     "semantic_hash": "6d0d2b7baaef9232b74e565c946392a7"
   },
   "apps/perpos/src/components/phase4/inventory/inventory-client.tsx": {
-    "mtime": 1778400986.638968,
-    "ast_hash": "46e11bdf688bc58e3837f8b9c81da8de",
-    "semantic_hash": "46e11bdf688bc58e3837f8b9c81da8de"
+    "mtime": 1781668200.6850615,
+    "ast_hash": "1f15f9164d0b5e448ef8d565b5f45128",
+    "semantic_hash": ""
   },
   "apps/perpos/src/components/phase4/security/audit-logs-client.tsx": {
-    "mtime": 1778400986.639603,
-    "ast_hash": "23dcea8fa990713fc5aad630aa627581",
-    "semantic_hash": "23dcea8fa990713fc5aad630aa627581"
+    "mtime": 1781668206.2311316,
+    "ast_hash": "9bc933eac75c5fcc466f3db4ff1584f1",
+    "semantic_hash": ""
   },
   "apps/perpos/src/components/phase4/settings/org-settings-client.tsx": {
     "mtime": 1779272745.208453,
@@ -2115,9 +2080,9 @@
     "semantic_hash": "6f335d9b59aa6379fb419a88822ef7f5"
   },
   "apps/perpos/src/components/phase4/wht/wht-documents-client.tsx": {
-    "mtime": 1778425687.6567981,
-    "ast_hash": "b34c3bf1d437c374381174d1cb5d20b4",
-    "semantic_hash": "b34c3bf1d437c374381174d1cb5d20b4"
+    "mtime": 1781668219.3982422,
+    "ast_hash": "84d81f2e75f49089acd0f6abd2c89459",
+    "semantic_hash": ""
   },
   "apps/perpos/src/components/phase4/wht/wht-pdf.tsx": {
     "mtime": 1778318288.399942,
@@ -2155,9 +2120,9 @@
     "semantic_hash": "36573169c3ddcc444c0a4157ffe5c926"
   },
   "apps/perpos/src/components/reports/account-drilldown-dialog.tsx": {
-    "mtime": 1778317378.7218156,
-    "ast_hash": "521f6f589a92988bf41b51c2a9a11a78",
-    "semantic_hash": "521f6f589a92988bf41b51c2a9a11a78"
+    "mtime": 1781668231.1996875,
+    "ast_hash": "7690ee7541408909457327492739d405",
+    "semantic_hash": ""
   },
   "apps/perpos/src/components/reports/csv.ts": {
     "mtime": 1778317050.1260388,
@@ -2235,14 +2200,14 @@
     "semantic_hash": "c99147ee9c0c72965cd09843e1780562"
   },
   "apps/perpos/src/components/settings/org-roles-client.tsx": {
-    "mtime": 1779339050.363627,
-    "ast_hash": "296ef071b6b8a88d5fc9eb8b9f5c8751",
-    "semantic_hash": "296ef071b6b8a88d5fc9eb8b9f5c8751"
+    "mtime": 1781668624.8341143,
+    "ast_hash": "82858971d0bc0a9544dcf49374991ce6",
+    "semantic_hash": ""
   },
   "apps/perpos/src/components/settings/org-users-client.tsx": {
-    "mtime": 1779338955.660912,
-    "ast_hash": "e1b27963dacb7cc7b76ea145aa2849ca",
-    "semantic_hash": "e1b27963dacb7cc7b76ea145aa2849ca"
+    "mtime": 1781668596.4610562,
+    "ast_hash": "311358f88e4952186ff4e36e3aad9d6c",
+    "semantic_hash": ""
   },
   "apps/perpos/src/components/sidebar-module-switcher.tsx": {
     "mtime": 1780497916.614553,
@@ -2255,14 +2220,14 @@
     "semantic_hash": "7709bec42bead6fd0c5dd07af22eff23"
   },
   "apps/perpos/src/components/tax/pnd-list-client.tsx": {
-    "mtime": 1778400986.6495736,
-    "ast_hash": "c98660bbfe60fe06a5a600a5657316d3",
-    "semantic_hash": "c98660bbfe60fe06a5a600a5657316d3"
+    "mtime": 1781668242.5311697,
+    "ast_hash": "92b08c1d0b5cacb1da07e0f7ecf5e6d2",
+    "semantic_hash": ""
   },
   "apps/perpos/src/components/tax/pp30-detail-client.tsx": {
-    "mtime": 1778425709.5826914,
-    "ast_hash": "895944796db1f7d6dc245de0e99e1611",
-    "semantic_hash": "895944796db1f7d6dc245de0e99e1611"
+    "mtime": 1781667726.9201143,
+    "ast_hash": "d982655074a472ba343589f43989206b",
+    "semantic_hash": ""
   },
   "apps/perpos/src/components/tax/pp30-form-preview.tsx": {
     "mtime": 1778400986.6503973,
@@ -2270,14 +2235,14 @@
     "semantic_hash": "12cb5dd79b66caf26b8c4bffb9692fd8"
   },
   "apps/perpos/src/components/tax/pp30-list-client.tsx": {
-    "mtime": 1778400986.6507037,
-    "ast_hash": "e206e46a37e67bd5941e44b6304b9797",
-    "semantic_hash": "e206e46a37e67bd5941e44b6304b9797"
+    "mtime": 1781668186.0703337,
+    "ast_hash": "27a867d2a5b5282c71e143e8018206f3",
+    "semantic_hash": ""
   },
   "apps/perpos/src/components/tax/vat-docs-client.tsx": {
-    "mtime": 1778400986.6511767,
-    "ast_hash": "6144efa2d3b465c3d7ac3fa67822ffd1",
-    "semantic_hash": "6144efa2d3b465c3d7ac3fa67822ffd1"
+    "mtime": 1781668309.8266335,
+    "ast_hash": "9c60a223ee80f7dd5285bbaec67809e1",
+    "semantic_hash": ""
   },
   "apps/perpos/src/components/tax/wht-cert-detail-client.tsx": {
     "mtime": 1778400986.6514168,
@@ -2290,19 +2255,19 @@
     "semantic_hash": "8d554c3e28f39a5d7f442e38734c5a63"
   },
   "apps/perpos/src/components/tax/wht-cert-list-client.tsx": {
-    "mtime": 1778400986.6520975,
-    "ast_hash": "01f67a727a94eb2b6c5f2774afba3676",
-    "semantic_hash": "01f67a727a94eb2b6c5f2774afba3676"
+    "mtime": 1781668274.7686427,
+    "ast_hash": "c811e47f7de74038b40dd8ee0608a853",
+    "semantic_hash": ""
   },
   "apps/perpos/src/components/ui/badge.tsx": {
-    "mtime": 1778314534.256636,
-    "ast_hash": "293be382792b528d9252965778d9472d",
-    "semantic_hash": "293be382792b528d9252965778d9472d"
+    "mtime": 1781664398.4187157,
+    "ast_hash": "18f65eb32b522fc3801982a3a9e5a161",
+    "semantic_hash": ""
   },
   "apps/perpos/src/components/ui/breadcrumb.tsx": {
-    "mtime": 1779590791.4714255,
-    "ast_hash": "a7d7fc5aa980935d642211cf5bdecee8",
-    "semantic_hash": "a7d7fc5aa980935d642211cf5bdecee8"
+    "mtime": 1781659077.4705622,
+    "ast_hash": "271ca5e153391123e3d8c395bb8d6322",
+    "semantic_hash": ""
   },
   "apps/perpos/src/components/ui/button.tsx": {
     "mtime": 1778314499.813716,
@@ -2310,9 +2275,9 @@
     "semantic_hash": "e765ff48943939884b261680c95ab091"
   },
   "apps/perpos/src/components/ui/confirm-delete-dialog.tsx": {
-    "mtime": 1779792204.5047066,
-    "ast_hash": "972bd57af6f09893f08ed41c074575ac",
-    "semantic_hash": "972bd57af6f09893f08ed41c074575ac"
+    "mtime": 1781666184.415718,
+    "ast_hash": "28176e1747974ba4880932d36457a612",
+    "semantic_hash": ""
   },
   "apps/perpos/src/components/ui/custom-select.tsx": {
     "mtime": 1779543698.3909543,
@@ -2320,9 +2285,9 @@
     "semantic_hash": "9d307fe758f72b17932fbd59546a20aa"
   },
   "apps/perpos/src/components/ui/dialog.tsx": {
-    "mtime": 1779510152.7929146,
-    "ast_hash": "7ea87d96426a3e8b266b55ee48f5c1dd",
-    "semantic_hash": "7ea87d96426a3e8b266b55ee48f5c1dd"
+    "mtime": 1781666126.889747,
+    "ast_hash": "a03a08ab1b3f625e50654796d1f25781",
+    "semantic_hash": ""
   },
   "apps/perpos/src/components/ui/input.tsx": {
     "mtime": 1778314507.284096,
@@ -2345,9 +2310,9 @@
     "semantic_hash": "b1c70c77f388fc67fbd0bd210fdd477e"
   },
   "apps/perpos/src/components/ui/table.tsx": {
-    "mtime": 1778314526.2854862,
-    "ast_hash": "573a7a60108404af2221c7040c44bd9d",
-    "semantic_hash": "573a7a60108404af2221c7040c44bd9d"
+    "mtime": 1781664386.0440023,
+    "ast_hash": "a8dfa23c13d5957a39ec8df46a605a1f",
+    "semantic_hash": ""
   },
   "apps/perpos/src/components/ui/thai-date-picker.tsx": {
     "mtime": 1779514228.1147943,
@@ -2395,28 +2360,28 @@
     "semantic_hash": "95fc7fd84b88edb3ceb83b1fca21419e"
   },
   "apps/perpos/src/layouts/header-menu-right.tsx": {
-    "mtime": 1777795890.3971713,
-    "ast_hash": "c582c49ed9610c14446f211573474dd0",
-    "semantic_hash": "c582c49ed9610c14446f211573474dd0"
+    "mtime": 1781667496.8226683,
+    "ast_hash": "6cc482f50212c30485b4f1cbac5199fd",
+    "semantic_hash": ""
   },
   "apps/perpos/src/layouts/hydrogen/header-center.tsx": {
-    "mtime": 1780108044.6351178,
-    "ast_hash": "7e61c43b8e9918557c939ff4bc715041",
-    "semantic_hash": "7e61c43b8e9918557c939ff4bc715041"
+    "mtime": 1781667467.0909467,
+    "ast_hash": "810120206dd0764a322ebc514eede3d2",
+    "semantic_hash": ""
   },
   "apps/perpos/src/layouts/hydrogen/header.tsx": {
-    "mtime": 1779350996.613877,
-    "ast_hash": "8e5b4a8731c4f31c028080087cbcd5a3",
-    "semantic_hash": "8e5b4a8731c4f31c028080087cbcd5a3"
+    "mtime": 1781667450.5254478,
+    "ast_hash": "ec603143c6b0a93ce92df625c2a47774",
+    "semantic_hash": ""
   },
   "apps/perpos/src/layouts/hydrogen/layout.tsx": {
-    "mtime": 1780628078.7779384,
-    "ast_hash": "639c30005b8a6d8f181360778e7f5a41",
-    "semantic_hash": "639c30005b8a6d8f181360778e7f5a41"
+    "mtime": 1781667444.3125608,
+    "ast_hash": "1c392329ea456ac9aa0fb767f11174af",
+    "semantic_hash": ""
   },
   "apps/perpos/src/layouts/hydrogen/menu-items.tsx": {
-    "mtime": 1781589793.0973797,
-    "ast_hash": "5715f24706b0caccfed2d17236ae0438",
+    "mtime": 1781661822.1825526,
+    "ast_hash": "1cc70349291ba0280df0e436904e69b2",
     "semantic_hash": ""
   },
   "apps/perpos/src/layouts/hydrogen/sidebar-menu.tsx": {
@@ -2425,9 +2390,9 @@
     "semantic_hash": "0607c6b291bfc6ae5cef5555a7b65709"
   },
   "apps/perpos/src/layouts/hydrogen/sidebar.tsx": {
-    "mtime": 1780628074.3492746,
-    "ast_hash": "99435397c1d64e277948527b7208b48f",
-    "semantic_hash": "99435397c1d64e277948527b7208b48f"
+    "mtime": 1781667986.4843855,
+    "ast_hash": "7d16eba0c938a5bf550172c0a779f429",
+    "semantic_hash": ""
   },
   "apps/perpos/src/layouts/hydrogen/usvilla-lang-dropdown.tsx": {
     "mtime": 1780075460.2223816,
@@ -2435,9 +2400,9 @@
     "semantic_hash": "65a4638cc44c3615439abd8f51d42cbc"
   },
   "apps/perpos/src/layouts/profile-menu.tsx": {
-    "mtime": 1780109671.5179236,
-    "ast_hash": "1fbb51dc769121ee279b83924b0da507",
-    "semantic_hash": "1fbb51dc769121ee279b83924b0da507"
+    "mtime": 1781667964.7350392,
+    "ast_hash": "63938a6d9559bee34e38681904bc10f4",
+    "semantic_hash": ""
   },
   "apps/perpos/src/layouts/sticky-footer.tsx": {
     "mtime": 1778468128.0777433,
@@ -2488,21 +2453,6 @@
     "mtime": 1778400986.658246,
     "ast_hash": "479646ad27f2f9070e14a33215ea646d",
     "semantic_hash": "479646ad27f2f9070e14a33215ea646d"
-  },
-  "apps/perpos/src/lib/assistant/appointment-parser.ts": {
-    "mtime": 1778896294.8677056,
-    "ast_hash": "5aa03f6b60c91bac751e21c38272a688",
-    "semantic_hash": "5aa03f6b60c91bac751e21c38272a688"
-  },
-  "apps/perpos/src/lib/assistant/task-notifier.ts": {
-    "mtime": 1778896880.8525562,
-    "ast_hash": "db666d17d63e04a7dc160f570a2e8d7f",
-    "semantic_hash": "db666d17d63e04a7dc160f570a2e8d7f"
-  },
-  "apps/perpos/src/lib/assistant/task-parser.ts": {
-    "mtime": 1778806841.1245215,
-    "ast_hash": "c2e2167c5afb3f41ff02c1e04a31ec43",
-    "semantic_hash": "c2e2167c5afb3f41ff02c1e04a31ec43"
   },
   "apps/perpos/src/lib/backend.ts": {
     "mtime": 1779241062.7430215,
@@ -2590,9 +2540,9 @@
     "semantic_hash": "a29b524a753bca96c22440af1cd510ab"
   },
   "apps/perpos/src/lib/modules.ts": {
-    "mtime": 1780497910.0610912,
-    "ast_hash": "9c807c40decc123ac878c8ff2d75983a",
-    "semantic_hash": "9c807c40decc123ac878c8ff2d75983a"
+    "mtime": 1781621674.8181126,
+    "ast_hash": "355ebad85f4b47217def9cf3d4c7a3c3",
+    "semantic_hash": ""
   },
   "apps/perpos/src/lib/news/news-agent.ts": {
     "mtime": 1777796283.8414314,
@@ -5055,14 +5005,14 @@
     "semantic_hash": "596a84479f47216b9adf40dc9a442725"
   },
   "services/pdf-renderer/src/main.ts": {
-    "mtime": 1780758192.4960706,
-    "ast_hash": "44c7d1501aca48691d3a75ee00a98bf7",
-    "semantic_hash": "44c7d1501aca48691d3a75ee00a98bf7"
+    "mtime": 1781595745.3151672,
+    "ast_hash": "4a362d67f2f8b19ba07308bbd5a8fdbf",
+    "semantic_hash": ""
   },
   "services/pdf-renderer/src/pdf/pdf.service.ts": {
-    "mtime": 1780758177.6483586,
-    "ast_hash": "e2ba3c16aa5130641119cdbb720382c3",
-    "semantic_hash": "e2ba3c16aa5130641119cdbb720382c3"
+    "mtime": 1781595721.2165244,
+    "ast_hash": "a5e8e7f2940d5acfc74e6a5c4207e5b8",
+    "semantic_hash": ""
   },
   "services/pdf-renderer/tsconfig.json": {
     "mtime": 1780758169.8453596,
@@ -6169,49 +6119,29 @@
     "ast_hash": "304366417f9a77205bec7deb5b85ebe3",
     "semantic_hash": "304366417f9a77205bec7deb5b85ebe3"
   },
-  "apps/perpos/src/app/(auth)/claim-account/page.tsx": {
-    "mtime": 1781585600.0523431,
-    "ast_hash": "f3a4815c1c3fdbfea2486e3f4ae6b9ac",
-    "semantic_hash": ""
-  },
   "apps/perpos/src/app/(auth)/line/claim/route.ts": {
-    "mtime": 1781585538.6278167,
-    "ast_hash": "8589ebd448a4eae9225717ce762d5821",
-    "semantic_hash": ""
-  },
-  "apps/perpos/src/app/(hydrogen)/[orgSlug]/assistant/transcribe/page.tsx": {
-    "mtime": 1781586673.6769688,
-    "ast_hash": "0c9f2096fe56d51e79d81ef719caffba",
-    "semantic_hash": ""
-  },
-  "apps/perpos/src/app/(hydrogen)/[orgSlug]/assistant/transcribe/stats/page.tsx": {
-    "mtime": 1781586606.5721161,
-    "ast_hash": "8486622a544b90ea68d91e2702706f71",
+    "mtime": 1781625867.5447385,
+    "ast_hash": "d4141f71711a0a11e81bd79023e51ff5",
     "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/admin/stt-jobs/page.tsx": {
-    "mtime": 1781588646.651878,
-    "ast_hash": "5551c977f97682a1620b684201bfcdc0",
+    "mtime": 1781666468.142318,
+    "ast_hash": "353d1d9c99cb1d9c1053f335328bffde",
     "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/admin/stt-stats/page.tsx": {
-    "mtime": 1781588646.64753,
-    "ast_hash": "e2dda48eb7a1d2be016a161f90a68d59",
+    "mtime": 1781659772.440394,
+    "ast_hash": "962dfea74e74b11db45aeb3b351248f7",
     "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/admin/stt-users/page.tsx": {
-    "mtime": 1781588794.0457556,
-    "ast_hash": "6b25d8036aecfc471f8e106fafbbc251",
-    "semantic_hash": ""
-  },
-  "apps/perpos/src/app/api/account/claim/route.ts": {
-    "mtime": 1781585562.3731077,
-    "ast_hash": "ad28221ffbe82ea92d2322ddfa41ac9f",
+    "mtime": 1781626870.825227,
+    "ast_hash": "dfcbe39ee393d75db8645ca9276b2f55",
     "semantic_hash": ""
   },
   "apps/perpos/src/app/api/admin/stt-jobs/route.ts": {
-    "mtime": 1781589468.2870696,
-    "ast_hash": "85e0f1d4a6992ebdf84c29c4e7d6fea5",
+    "mtime": 1781629286.8368518,
+    "ast_hash": "1c4f93697987d75131cc5dbdf3b475da",
     "semantic_hash": ""
   },
   "apps/perpos/src/app/api/admin/stt-quota/route.ts": {
@@ -6225,58 +6155,28 @@
     "semantic_hash": ""
   },
   "apps/perpos/src/app/api/admin/stt-stats/route.ts": {
-    "mtime": 1781586720.4388607,
-    "ast_hash": "a3d118d035c765587d7f5c13917918c3",
+    "mtime": 1781629286.8371036,
+    "ast_hash": "0ea0f509d533e3cdce76404cee277ec3",
     "semantic_hash": ""
   },
   "apps/perpos/src/app/api/admin/stt-users/route.ts": {
-    "mtime": 1781589480.0539544,
-    "ast_hash": "7877ddb7d95447ea0f06519825e5d7b0",
-    "semantic_hash": ""
-  },
-  "apps/perpos/src/app/api/assistant/transcribe/jobs/process/route.ts": {
-    "mtime": 1781510142.8867664,
-    "ast_hash": "3275b192929579e1bcb888957af3ea24",
-    "semantic_hash": ""
-  },
-  "apps/perpos/src/app/api/assistant/transcribe/jobs/route.ts": {
-    "mtime": 1781591344.1156552,
-    "ast_hash": "bacc7686ad196572f359edf50eb42752",
-    "semantic_hash": ""
-  },
-  "apps/perpos/src/app/api/assistant/transcribe/mom-deliver/route.ts": {
-    "mtime": 1781591069.1122975,
-    "ast_hash": "6bf45ef092d1ea9284599822960adad8",
-    "semantic_hash": ""
-  },
-  "apps/perpos/src/app/api/assistant/transcribe/mom-pdf/route.ts": {
-    "mtime": 1781574909.6131175,
-    "ast_hash": "a5eba6c3c10096ea37dda8cb383925e8",
-    "semantic_hash": ""
-  },
-  "apps/perpos/src/app/api/assistant/transcribe/quota/route.ts": {
-    "mtime": 1781582137.1264107,
-    "ast_hash": "ea13f3eea12098af3f7b0426082ae8e1",
-    "semantic_hash": ""
-  },
-  "apps/perpos/src/app/api/assistant/transcribe/stats/route.ts": {
-    "mtime": 1781586549.0266767,
-    "ast_hash": "940709183d919cda1f486ef7e022fa1c",
+    "mtime": 1781601929.7115612,
+    "ast_hash": "138217dc3478b613d59ce4b7089e720f",
     "semantic_hash": ""
   },
   "apps/perpos/src/app/api/line/_provision.ts": {
-    "mtime": 1781591929.3268032,
-    "ast_hash": "086d1d2d74afbd4b02ce31f232d73a18",
+    "mtime": 1781628426.450825,
+    "ast_hash": "02d216692129c4e82cea2e8cc77b0f19",
     "semantic_hash": ""
   },
   "apps/perpos/src/lib/assistant/mom-html.ts": {
-    "mtime": 1781574869.4170465,
-    "ast_hash": "b9f2d4296fe132c6b8953f5d52abc89b",
+    "mtime": 1781630521.1876485,
+    "ast_hash": "e6533eed0464ddf55692555b4685278e",
     "semantic_hash": ""
   },
   "apps/perpos/src/lib/assistant/stt-trigger.ts": {
-    "mtime": 1781575046.2245889,
-    "ast_hash": "7ab8eb41e925b6f193dbd34ef6d7ea81",
+    "mtime": 1781629286.838308,
+    "ast_hash": "39f2389a16af1f950f315bdf086a2e68",
     "semantic_hash": ""
   },
   "services/stt-worker/package.json": {
@@ -6285,8 +6185,8 @@
     "semantic_hash": ""
   },
   "services/stt-worker/src/lib/supabase.ts": {
-    "mtime": 1781506715.7305706,
-    "ast_hash": "c8a640306ac28d8ef2f07d2ff2e5e3a4",
+    "mtime": 1781629286.8385468,
+    "ast_hash": "dbaf7fb55082f784dae917a028e12840",
     "semantic_hash": ""
   },
   "services/stt-worker/src/main.ts": {
@@ -6295,8 +6195,8 @@
     "semantic_hash": ""
   },
   "services/stt-worker/src/stt/stt.service.ts": {
-    "mtime": 1781591272.8293452,
-    "ast_hash": "7397ef1d55e08c8cff50e1a31fd02fe4",
+    "mtime": 1781655967.0274162,
+    "ast_hash": "559aee662dfc7b23c619f0c772f5c6bc",
     "semantic_hash": ""
   },
   "services/stt-worker/tsconfig.json": {
@@ -6340,8 +6240,8 @@
     "semantic_hash": ""
   },
   "apps/perpos/src/app/(hydrogen)/admin/admin-audit/page.tsx": {
-    "mtime": 1781589558.5792346,
-    "ast_hash": "f811f463eabb389c1f826fa0e56ccbdf",
+    "mtime": 1781664815.5222285,
+    "ast_hash": "ac83d3c6b617bfdfe6bded28fdb5831a",
     "semantic_hash": ""
   },
   "apps/perpos/src/app/api/_lib/admin-audit.ts": {
@@ -6362,6 +6262,281 @@
   "supabase/migrations/20260616200000_assistant_module_members_backfill.sql": {
     "mtime": 1781590383.7597122,
     "ast_hash": "d60af57503641b039420ff195128e8d2",
+    "semantic_hash": ""
+  },
+  "apps/perpos/src/app/(auth)/line/callback/route.ts": {
+    "mtime": 1781619709.4257777,
+    "ast_hash": "d2cbef236f2a95c7019d88469e368527",
+    "semantic_hash": ""
+  },
+  "apps/perpos/src/app/(auth)/line/login/route.ts": {
+    "mtime": 1781613064.8122983,
+    "ast_hash": "4e7f55bc8e8247deb4dc6d75d0def4ec",
+    "semantic_hash": ""
+  },
+  "apps/perpos/src/app/(hydrogen)/admin/_components/admin-page.tsx": {
+    "mtime": 1781661447.3108835,
+    "ast_hash": "c5467729d949ab2957e7856b7515be6f",
+    "semantic_hash": ""
+  },
+  "apps/perpos/src/app/(hydrogen)/admin/announcements/page.tsx": {
+    "mtime": 1781666258.1994216,
+    "ast_hash": "89eabe115078685613057e904af80807",
+    "semantic_hash": ""
+  },
+  "apps/perpos/src/app/(hydrogen)/admin/scheduler/page.tsx": {
+    "mtime": 1781664710.922534,
+    "ast_hash": "9dd3135467319c6c29c48923daaa1ef1",
+    "semantic_hash": ""
+  },
+  "apps/perpos/src/app/(hydrogen)/admin/settings/page.tsx": {
+    "mtime": 1781660763.133927,
+    "ast_hash": "70353838248429c403334b724e11049a",
+    "semantic_hash": ""
+  },
+  "apps/perpos/src/app/(hydrogen)/admin/stt-billing/page.tsx": {
+    "mtime": 1781664759.8491008,
+    "ast_hash": "8c07515d1df36359a690fcbecb070a3d",
+    "semantic_hash": ""
+  },
+  "apps/perpos/src/app/(hydrogen)/admin/stt-cost/page.tsx": {
+    "mtime": 1781659858.2129157,
+    "ast_hash": "b1406a99d77b356dcab13702a0d6784c",
+    "semantic_hash": ""
+  },
+  "apps/perpos/src/app/(hydrogen)/admin/system/page.tsx": {
+    "mtime": 1781661808.5402794,
+    "ast_hash": "97daf02a956357eb4cc128609852c378",
+    "semantic_hash": ""
+  },
+  "apps/perpos/src/app/(hydrogen)/assistant/billing/page.tsx": {
+    "mtime": 1781660918.090873,
+    "ast_hash": "e3c7fc3e77c028605598158fc23952d7",
+    "semantic_hash": ""
+  },
+  "apps/perpos/src/app/(hydrogen)/assistant/layout.tsx": {
+    "mtime": 1781661473.2647867,
+    "ast_hash": "1f266492bddcaf46a4d9d7e5df563572",
+    "semantic_hash": ""
+  },
+  "apps/perpos/src/app/(hydrogen)/assistant/page.tsx": {
+    "mtime": 1781667151.9505837,
+    "ast_hash": "4e0ea1caf3e6939cd6cd1cc989430c96",
+    "semantic_hash": ""
+  },
+  "apps/perpos/src/app/(hydrogen)/assistant/usage/page.tsx": {
+    "mtime": 1781660891.4346192,
+    "ast_hash": "734fb04e884868be3d87a849e148928a",
+    "semantic_hash": ""
+  },
+  "apps/perpos/src/app/api/_lib/assistant-auth.ts": {
+    "mtime": 1781628570.5345068,
+    "ast_hash": "db042431d6f6ac6eb6ef72606a0d2302",
+    "semantic_hash": ""
+  },
+  "apps/perpos/src/app/api/admin/announcements/route.ts": {
+    "mtime": 1781660615.8239381,
+    "ast_hash": "02f3f15bb2fc9cf03a84749e11ea4937",
+    "semantic_hash": ""
+  },
+  "apps/perpos/src/app/api/admin/scheduler/runs/route.ts": {
+    "mtime": 1781660597.506889,
+    "ast_hash": "4305e566eecb95f58c97eab41ac96c50",
+    "semantic_hash": ""
+  },
+  "apps/perpos/src/app/api/admin/settings/route.ts": {
+    "mtime": 1781660580.2793431,
+    "ast_hash": "8c77cdd50979216fb257fcb26650f573",
+    "semantic_hash": ""
+  },
+  "apps/perpos/src/app/api/admin/stt-billing/route.ts": {
+    "mtime": 1781606144.751736,
+    "ast_hash": "f4ea025ceb5cf9f3955327342dfdbc0f",
+    "semantic_hash": ""
+  },
+  "apps/perpos/src/app/api/admin/stt-cost/route.ts": {
+    "mtime": 1781629286.8363268,
+    "ast_hash": "f7313386226177280bde6d22a2f768fc",
+    "semantic_hash": ""
+  },
+  "apps/perpos/src/app/api/admin/system/services/route.ts": {
+    "mtime": 1781661770.6800892,
+    "ast_hash": "63d6bcfbbb3ca9e4e1b4ad3d80ffb1dc",
+    "semantic_hash": ""
+  },
+  "apps/perpos/src/app/api/announcements/active/route.ts": {
+    "mtime": 1781660626.225162,
+    "ast_hash": "d27dff8864ab3af1e134466e8219eb15",
+    "semantic_hash": ""
+  },
+  "apps/perpos/src/app/api/assistant/jobs/process/route.ts": {
+    "mtime": 1781629353.3856719,
+    "ast_hash": "9f9eb0a7ae8b593c428a2f8ba855cfdc",
+    "semantic_hash": ""
+  },
+  "apps/perpos/src/app/api/assistant/jobs/route.ts": {
+    "mtime": 1781629353.3787122,
+    "ast_hash": "521a9c3327dae03afe845ec9e438d3a5",
+    "semantic_hash": ""
+  },
+  "apps/perpos/src/app/api/assistant/quota/route.ts": {
+    "mtime": 1781629353.3791387,
+    "ast_hash": "b5e3ce03d2e870bea4d8d443a8be3de7",
+    "semantic_hash": ""
+  },
+  "apps/perpos/src/app/api/assistant/stats/route.ts": {
+    "mtime": 1781629353.3795125,
+    "ast_hash": "18eebea587f24f1feeb52db8d31489a9",
+    "semantic_hash": ""
+  },
+  "apps/perpos/src/app/api/assistant/stt/checkout/route.ts": {
+    "mtime": 1781629260.7468553,
+    "ast_hash": "fa67d6250118d5aa93c8742028ec9e98",
+    "semantic_hash": ""
+  },
+  "apps/perpos/src/app/api/assistant/stt/mom-deliver/route.ts": {
+    "mtime": 1781629286.8358402,
+    "ast_hash": "baa7064ab4ed8c8e4e609bc7ec8fd272",
+    "semantic_hash": ""
+  },
+  "apps/perpos/src/app/api/assistant/stt/mom-pdf/route.ts": {
+    "mtime": 1781629286.8343513,
+    "ast_hash": "874fd87941c71bd0bff9b537379cc4a3",
+    "semantic_hash": ""
+  },
+  "apps/perpos/src/app/api/assistant/stt/portal/route.ts": {
+    "mtime": 1781629260.7463953,
+    "ast_hash": "6cf6b99f57531b0006b9b43c7b7043e8",
+    "semantic_hash": ""
+  },
+  "apps/perpos/src/components/announcement-banner.tsx": {
+    "mtime": 1781660941.692643,
+    "ast_hash": "eb6a5b9d83081e340858b2ebb1cc026a",
+    "semantic_hash": ""
+  },
+  "apps/perpos/src/components/ui/page-shell.tsx": {
+    "mtime": 1781665017.5012798,
+    "ast_hash": "628c6f068f4fb2fb6fe12155e2ca3635",
+    "semantic_hash": ""
+  },
+  "apps/perpos/src/layouts/hydrogen/sidebar-footer.tsx": {
+    "mtime": 1781667970.814612,
+    "ast_hash": "d21a610619034901966d914ea1994fd7",
+    "semantic_hash": ""
+  },
+  "apps/perpos/src/lib/assistant/kinds.ts": {
+    "mtime": 1781628526.9576154,
+    "ast_hash": "abe7dd2e71bba46973b0d792a59cbcfe",
+    "semantic_hash": ""
+  },
+  "apps/perpos/src/lib/assistant/stt-cost.ts": {
+    "mtime": 1781601152.834864,
+    "ast_hash": "2095ef27e952d8c6ef3c8a25b2394620",
+    "semantic_hash": ""
+  },
+  "scripts/stt-cost-report.mjs": {
+    "mtime": 1781600181.7300441,
+    "ast_hash": "d599db14c2556e77bf30b825b71c64cb",
+    "semantic_hash": ""
+  },
+  "scripts/stt-stripe-test.sh": {
+    "mtime": 1781606279.3863978,
+    "ast_hash": "02a3c2063e6f4c2c1aef6bf27bda505c",
+    "semantic_hash": ""
+  },
+  "supabase/migrations/20260616190000_profiles_line_picture_url.sql": {
+    "mtime": 1781601825.2350292,
+    "ast_hash": "f353d6e69b4fba8b563bd58741c23085",
+    "semantic_hash": ""
+  },
+  "supabase/migrations/20260616190000_stt_billing.sql": {
+    "mtime": 1781604851.370058,
+    "ast_hash": "de895b54f4ab887f77d382a7a42073dc",
+    "semantic_hash": ""
+  },
+  "supabase/migrations/20260616195000_stt_quota_rpc_lockdown.sql": {
+    "mtime": 1781603087.292846,
+    "ast_hash": "8d108aacfc6998bf20886316693c59f6",
+    "semantic_hash": ""
+  },
+  "supabase/migrations/20260616196000_stt_billing_fix_renewal_carryover.sql": {
+    "mtime": 1781603461.4882083,
+    "ast_hash": "78bfe1f7859c3ff19cbb7b185e291551",
+    "semantic_hash": ""
+  },
+  "supabase/migrations/20260616200000_fix_security_definer_views.sql": {
+    "mtime": 1781604544.513964,
+    "ast_hash": "3aed2f15b5472bfe1b441fdf95fd5802",
+    "semantic_hash": ""
+  },
+  "supabase/migrations/20260616201000_lockdown_secdef_functions_anon.sql": {
+    "mtime": 1781604834.0211039,
+    "ast_hash": "134635bc7b6ca5371cb6846206f216bf",
+    "semantic_hash": ""
+  },
+  "supabase/migrations/20260616210000_stt_subscription_only.sql": {
+    "mtime": 1781608554.8432813,
+    "ast_hash": "57c76a2f3773a5922d72bcc233924134",
+    "semantic_hash": ""
+  },
+  "supabase/migrations/20260617000000_split_stt_module.sql": {
+    "mtime": 1781610226.2781487,
+    "ast_hash": "b3a8fa77b4e113be3d0109f3b0ced860",
+    "semantic_hash": ""
+  },
+  "supabase/migrations/20260617010000_strip_assistant_from_personal_orgs.sql": {
+    "mtime": 1781611771.3202164,
+    "ast_hash": "3369bccc0a8cabaecc8ed4631c83f228",
+    "semantic_hash": ""
+  },
+  "supabase/migrations/20260617020000_assistant_v2_phase1.sql": {
+    "mtime": 1781620662.1101851,
+    "ast_hash": "87c01fc4140e365ad78a0a1500d85804",
+    "semantic_hash": ""
+  },
+  "supabase/migrations/20260617030000_assistant_audio_self_folder_policies.sql": {
+    "mtime": 1781621113.536351,
+    "ast_hash": "c6b12de5cac712208646629234f8762d",
+    "semantic_hash": ""
+  },
+  "supabase/migrations/20260617040000_assistant_v2_drop_stt_org_rows.sql": {
+    "mtime": 1781622363.7208138,
+    "ast_hash": "2138cbef8cd55d5983d6efbd1d35250a",
+    "semantic_hash": ""
+  },
+  "supabase/migrations/20260617050000_transcription_jobs_rls_profile_only.sql": {
+    "mtime": 1781625960.009602,
+    "ast_hash": "ff4a3a80c3b6f789737733366607da1c",
+    "semantic_hash": ""
+  },
+  "supabase/migrations/20260617060000_assistant_audio_drop_org_policies.sql": {
+    "mtime": 1781626599.3788052,
+    "ast_hash": "732b921f98a9e6cd5c73ede383613a85",
+    "semantic_hash": ""
+  },
+  "supabase/migrations/20260617070000_profiles_personal_org_id.sql": {
+    "mtime": 1781628369.128542,
+    "ast_hash": "3f652252ebd32c68fa27f5868e187b2a",
+    "semantic_hash": ""
+  },
+  "supabase/migrations/20260617080000_transcription_jobs_kind.sql": {
+    "mtime": 1781628598.059243,
+    "ast_hash": "5f2b02e68886a8269c8b2e5bb54c1da9",
+    "semantic_hash": ""
+  },
+  "supabase/migrations/20260617090000_rename_transcription_jobs_to_assistant_jobs.sql": {
+    "mtime": 1781629377.9684424,
+    "ast_hash": "28bcd59a6d7df1d1dd2c2652e6bf0f5f",
+    "semantic_hash": ""
+  },
+  "supabase/migrations/20260617091000_drop_transcription_jobs_compat_view.sql": {
+    "mtime": 1781629385.114376,
+    "ast_hash": "d6c91ed6c9a632719c71e13ce480fa2e",
+    "semantic_hash": ""
+  },
+  "supabase/migrations/admin_console_settings_scheduler_announcements.sql": {
+    "mtime": 1781660559.0537653,
+    "ast_hash": "2f6f19ecf509525e7f36a45c782a40bb",
     "semantic_hash": ""
   }
 }

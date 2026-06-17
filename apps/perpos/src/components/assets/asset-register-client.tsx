@@ -1,8 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import cn from "@core/utils/class-names";
-import { MoreVertical, PencilLine, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,6 +11,7 @@ import { CustomSelect } from "@/components/ui/custom-select";
 import {
   Dialog,
   DialogContent,
+  DialogBody,
   DialogHeader,
   DialogTitle,
   DialogFooter,
@@ -24,6 +24,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { StatusBadge, type BadgeTone } from "@/components/ui/badge";
 
 import { upsertAssetAction, type AssetRow } from "@/lib/assets/actions";
 
@@ -33,10 +34,10 @@ const STATUS_LABELS: Record<string, string> = {
   idle:     "ไม่ได้ใช้งาน",
 };
 
-const STATUS_COLORS: Record<string, string> = {
-  active:   "bg-teal-50 text-teal-700",
-  disposed: "bg-red-50 text-red-600",
-  idle:     "bg-slate-100 text-slate-600",
+const STATUS_TONE: Record<string, BadgeTone> = {
+  active:   "success",
+  disposed: "danger",
+  idle:     "neutral",
 };
 
 const ASSET_TYPES = [
@@ -89,35 +90,6 @@ const emptyForm: FormState = {
   status:                  "active",
 };
 
-function ActionMenu({ onEdit }: { onEdit: () => void }) {
-  const [open, setOpen] = useState(false);
-  return (
-    <div className="relative inline-block">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
-      >
-        <MoreVertical className="h-4 w-4" />
-      </button>
-      {open && (
-        <>
-          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 z-20 mt-1 w-28 overflow-hidden rounded-md border border-slate-200 bg-white shadow-md">
-            <button
-              type="button"
-              onClick={() => { setOpen(false); onEdit(); }}
-              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
-            >
-              <PencilLine className="h-3.5 w-3.5" />
-              แก้ไข
-            </button>
-          </div>
-        </>
-      )}
-    </div>
-  );
-}
 
 export function AssetRegisterClient({
   organizationId,
@@ -236,23 +208,22 @@ export function AssetRegisterClient({
             <TableHead>ชื่อสินทรัพย์</TableHead>
             <TableHead>ประเภท</TableHead>
             <TableHead>วันที่ซื้อ</TableHead>
-            <TableHead className="text-right">ราคาทุน</TableHead>
-            <TableHead className="text-right">ค่าเสื่อมราคาสะสม</TableHead>
-            <TableHead className="text-right">มูลค่าสุทธิ</TableHead>
-            <TableHead className="w-32 text-center">สถานะ</TableHead>
-            <TableHead className="w-12" />
+            <TableHead align="right">ราคาทุน</TableHead>
+            <TableHead align="right">ค่าเสื่อมราคาสะสม</TableHead>
+            <TableHead align="right">มูลค่าสุทธิ</TableHead>
+            <TableHead align="center">สถานะ</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {rows.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={9} className="py-10 text-center text-sm text-slate-400">
+              <TableCell colSpan={8} className="py-10 text-center text-sm text-slate-400">
                 ยังไม่มีข้อมูลสินทรัพย์ — กดปุ่ม &ldquo;เพิ่มสินทรัพย์&rdquo; เพื่อเริ่มต้น
               </TableCell>
             </TableRow>
           ) : (
             rows.map((row) => (
-              <TableRow key={row.id} className="hover:bg-slate-50">
+              <TableRow key={row.id} clickable onClick={() => openEdit(row)}>
                 <TableCell className="font-mono text-sm">{row.asset_code}</TableCell>
                 <TableCell className="text-sm font-medium text-slate-900">{row.name}</TableCell>
                 <TableCell className="text-sm text-slate-600">{assetTypeLabel(row.asset_type)}</TableCell>
@@ -270,13 +241,8 @@ export function AssetRegisterClient({
                 <TableCell className="text-right text-sm font-semibold text-slate-900">
                   {netValue(row).toLocaleString("th-TH", { minimumFractionDigits: 2 })}
                 </TableCell>
-                <TableCell className="text-center">
-                  <span className={cn("rounded-full px-2.5 py-0.5 text-xs font-medium", STATUS_COLORS[row.status] ?? "bg-slate-100 text-slate-600")}>
-                    {STATUS_LABELS[row.status] ?? row.status}
-                  </span>
-                </TableCell>
-                <TableCell>
-                  <ActionMenu onEdit={() => openEdit(row)} />
+                <TableCell align="center">
+                  <StatusBadge tone={STATUS_TONE[row.status] ?? "neutral"}>{STATUS_LABELS[row.status] ?? row.status}</StatusBadge>
                 </TableCell>
               </TableRow>
             ))
@@ -285,11 +251,12 @@ export function AssetRegisterClient({
       </Table>
 
       <Dialog open={dialogOpen} onOpenChange={(v) => { if (!v) setDialogOpen(false); }}>
-        <DialogContent className="max-w-xl">
+        <DialogContent size="xl">
           <DialogHeader>
             <DialogTitle>{editing ? "แก้ไขข้อมูลสินทรัพย์" : "เพิ่มสินทรัพย์ใหม่"}</DialogTitle>
           </DialogHeader>
-          <div className="grid gap-4 py-2">
+          <DialogBody>
+          <div className="grid gap-4">
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label>รหัสสินทรัพย์ <span className="text-red-500">*</span></Label>
@@ -346,6 +313,7 @@ export function AssetRegisterClient({
             </div>
             {err && <p className="text-sm text-red-500">{err}</p>}
           </div>
+          </DialogBody>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)} disabled={saving}>ยกเลิก</Button>
             <Button onClick={handleSave} disabled={saving}>{saving ? "กำลังบันทึก..." : "บันทึก"}</Button>

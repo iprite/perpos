@@ -1,8 +1,7 @@
 "use client";
 
-import React, { useState, useTransition, useOptimistic } from "react";
+import React, { useState, useTransition } from "react";
 import cn from "@core/utils/class-names";
-import { MoreVertical, PencilLine } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,6 +10,7 @@ import { CustomSelect } from "@/components/ui/custom-select";
 import {
   Dialog,
   DialogContent,
+  DialogBody,
   DialogHeader,
   DialogTitle,
   DialogFooter,
@@ -55,38 +55,6 @@ function ToggleSwitch({
         )}
       />
     </button>
-  );
-}
-
-// ─── Action Menu ──────────────────────────────────────────────────────────────
-
-function ActionMenu({ onEdit }: { onEdit: () => void }) {
-  const [open, setOpen] = useState(false);
-  return (
-    <div className="relative inline-block">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
-      >
-        <MoreVertical className="h-4 w-4" />
-      </button>
-      {open && (
-        <>
-          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 z-20 mt-1 w-28 overflow-hidden rounded-md border border-slate-200 bg-white shadow-md">
-            <button
-              type="button"
-              onClick={() => { setOpen(false); onEdit(); }}
-              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
-            >
-              <PencilLine className="h-3.5 w-3.5" />
-              แก้ไข
-            </button>
-          </div>
-        </>
-      )}
-    </div>
   );
 }
 
@@ -191,14 +159,15 @@ function PayItemDialog({
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
-      <DialogContent className="max-w-lg">
+      <DialogContent size="lg">
         <DialogHeader>
           <DialogTitle>
             {editing ? "แก้ไขรายการ" : form.item_type === "earning" ? "เพิ่มรายการเงินเพิ่มใหม่" : "เพิ่มรายการเงินหักใหม่"}
           </DialogTitle>
         </DialogHeader>
 
-        <div className="grid gap-4 py-2">
+        <DialogBody>
+        <div className="grid gap-4">
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label>รหัส <span className="text-red-500">*</span></Label>
@@ -254,6 +223,7 @@ function PayItemDialog({
 
           {err && <p className="text-sm text-red-500">{err}</p>}
         </div>
+        </DialogBody>
 
         <DialogFooter>
           <Button variant="outline" onClick={onClose} disabled={saving}>ยกเลิก</Button>
@@ -373,28 +343,27 @@ export function PayItemsClient({
       <div>
         <Table>
           <TableHeader>
-            <TableRow className="bg-slate-50">
-              <TableHead className="w-14 text-center">ลำดับ</TableHead>
-              <TableHead className="w-24">เลขที่</TableHead>
+            <TableRow>
+              <TableHead align="center">ลำดับ</TableHead>
+              <TableHead>เลขที่</TableHead>
               <TableHead>ชื่อรายการ</TableHead>
               <TableHead>บันทึกที่บัญชี</TableHead>
-              <TableHead className="w-28">ประเภท</TableHead>
-              <TableHead className="w-52">คำนวณเงินได้ทั้งปี</TableHead>
-              <TableHead className="w-28 text-center">เปิดใช้งาน</TableHead>
-              <TableHead className="w-12" />
+              <TableHead>ประเภท</TableHead>
+              <TableHead>คำนวณเงินได้ทั้งปี</TableHead>
+              <TableHead align="center">เปิดใช้งาน</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {rows.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} className="py-10 text-center text-sm text-slate-400">
+                <TableCell colSpan={7} className="py-10 text-center text-sm text-slate-400">
                   ไม่มีรายการ
                 </TableCell>
               </TableRow>
             ) : (
               rows.map((row, idx) => (
-                <TableRow key={row.id} className="hover:bg-slate-50">
-                  <TableCell className="text-center text-sm text-slate-500">{idx + 1}</TableCell>
+                <TableRow key={row.id} clickable={!row.is_system} onClick={row.is_system ? undefined : () => openEdit(row)}>
+                  <TableCell align="center" className="text-sm text-slate-500">{idx + 1}</TableCell>
                   <TableCell className="font-mono text-sm text-slate-700">{row.code}</TableCell>
                   <TableCell className="text-sm text-slate-900">{row.name}</TableCell>
                   <TableCell className="text-sm text-slate-500">{row.account_label ?? "—"}</TableCell>
@@ -404,7 +373,7 @@ export function PayItemsClient({
                   <TableCell className="text-sm text-slate-700">
                     {row.ytd_type === "income40_1" ? "รวมคำนวณเป็นเงินได้ 40(1)" : "ไม่รวมรายการนี้"}
                   </TableCell>
-                  <TableCell>
+                  <TableCell align="center" onClick={(e) => e.stopPropagation()}>
                     <div className="flex items-center justify-center gap-2">
                       <ToggleSwitch
                         active={row.active}
@@ -415,11 +384,6 @@ export function PayItemsClient({
                         {row.active ? "เปิด" : "ไม่เปิด"}
                       </span>
                     </div>
-                  </TableCell>
-                  <TableCell>
-                    {!row.is_system && (
-                      <ActionMenu onEdit={() => openEdit(row)} />
-                    )}
                   </TableCell>
                 </TableRow>
               ))

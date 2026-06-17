@@ -9,6 +9,10 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { backendUrl } from "@/lib/backend";
 import { Button } from "@/components/ui/button";
 import { CustomSelect } from "@/components/ui/custom-select";
+import { StatusBadge } from "@/components/ui/badge";
+import {
+  Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableEmpty, TableLoading,
+} from "@/components/ui/table";
 import { AdminPage } from "../_components/admin-page";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -48,11 +52,9 @@ const WINDOW_OPTIONS = [
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function HealthBadge({ errorRate }: { errorRate: number }) {
-  if (errorRate >= 5)
-    return <span className="rounded-full bg-red-50 border border-red-200 px-2.5 py-0.5 text-xs font-semibold text-red-700">🔴 Critical</span>;
-  if (errorRate >= 1)
-    return <span className="rounded-full bg-amber-50 border border-amber-200 px-2.5 py-0.5 text-xs font-semibold text-amber-700">🟡 Warning</span>;
-  return <span className="rounded-full bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 text-xs font-semibold text-emerald-700">🟢 Good</span>;
+  if (errorRate >= 5) return <StatusBadge tone="danger">🔴 Critical</StatusBadge>;
+  if (errorRate >= 1) return <StatusBadge tone="warning">🟡 Warning</StatusBadge>;
+  return <StatusBadge tone="success">🟢 Good</StatusBadge>;
 }
 
 function LatencyBar({ value, max }: { value: number; max: number }) {
@@ -235,100 +237,79 @@ export default function ResourcesPage() {
       )}
 
       {/* Per-org table */}
-      <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white">
-        <div className="grid grid-cols-[1fr_160px_200px_160px_80px] gap-0 border-b border-gray-200 bg-gray-50 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500">
-          <div>Organization</div>
-          <div>Requests</div>
-          <div>Latency (avg / p95)</div>
-          <div>Error Rate</div>
-          <div>Health</div>
-        </div>
-
-        {loading && !data ? (
-          <div className="px-4 py-10 text-center text-sm text-gray-400">กำลังโหลด…</div>
-        ) : orgs.length === 0 ? (
-          <div className="px-4 py-12 text-center">
-            <p className="text-sm text-gray-400">ยังไม่มีข้อมูล metrics</p>
-            <p className="mt-1 text-xs text-gray-400">
-              เพิ่ม <code className="rounded bg-gray-100 px-1">recordMetric()</code> ใน API routes เพื่อเริ่มเก็บข้อมูล
-            </p>
-          </div>
-        ) : (
-          <div className="divide-y divide-gray-100">
-            {orgs.map((org) => {
-              const isExpanded = expandedOrg === org.org_id;
-              return (
-                <div key={org.org_id}>
-                  {/* Org row */}
-                  <button
-                    type="button"
-                    onClick={() => setExpandedOrg(isExpanded ? null : org.org_id)}
-                    className="grid w-full grid-cols-[1fr_160px_200px_160px_80px] items-center gap-0 px-4 py-3 text-left text-sm hover:bg-gray-50/60"
-                  >
-                    <div>
-                      <span className="font-medium text-gray-900">{org.org_name}</span>
-                      {isExpanded && (
-                        <span className="ml-2 text-xs text-indigo-500">▲ ซ่อน routes</span>
-                      )}
-                      {!isExpanded && org.routes.length > 0 && (
-                        <span className="ml-2 text-xs text-gray-400">▼ {org.routes.length} routes</span>
-                      )}
-                    </div>
-                    <div>
-                      <RequestBar value={org.request_count} max={maxRequests} />
-                    </div>
-                    <div className="space-y-0.5">
-                      <LatencyBar value={org.avg_latency_ms} max={maxLatency} />
-                      <div className="flex items-center gap-2">
-                        <div className="h-2 w-24" />
-                        <span className="text-xs text-gray-400">p95: {org.p95_latency_ms} ms</span>
-                      </div>
-                    </div>
-                    <div>
-                      {org.error_count > 0 ? (
-                        <span className="text-sm font-medium text-red-600">
-                          {org.error_count} ({org.error_rate_pct}%)
-                        </span>
-                      ) : (
-                        <span className="text-sm text-gray-400">0</span>
-                      )}
-                    </div>
-                    <div>
-                      <HealthBadge errorRate={org.error_rate_pct} />
-                    </div>
-                  </button>
-
-                  {/* Route breakdown */}
-                  {isExpanded && org.routes.length > 0 && (
-                    <div className="border-t border-indigo-50 bg-indigo-50/20 px-4 py-3">
-                      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-indigo-700">
-                        Top Routes
-                      </p>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Organization</TableHead>
+            <TableHead>Requests</TableHead>
+            <TableHead>Latency (avg / p95)</TableHead>
+            <TableHead>Error Rate</TableHead>
+            <TableHead align="center">Health</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {loading && !data ? (
+            <TableLoading colSpan={5} />
+          ) : orgs.length === 0 ? (
+            <TableEmpty colSpan={5}>
+              ยังไม่มีข้อมูล metrics — เพิ่ม <code className="rounded bg-gray-100 px-1">recordMetric()</code> ใน API routes เพื่อเริ่มเก็บข้อมูล
+            </TableEmpty>
+          ) : orgs.map((org) => {
+            const isExpanded = expandedOrg === org.org_id;
+            return (
+              <React.Fragment key={org.org_id}>
+                <TableRow clickable selected={isExpanded} onClick={() => setExpandedOrg(isExpanded ? null : org.org_id)}>
+                  <TableCell>
+                    <span className="font-medium text-gray-900">{org.org_name}</span>
+                    {isExpanded ? (
+                      <span className="ml-2 text-xs text-indigo-500">▲ ซ่อน routes</span>
+                    ) : org.routes.length > 0 ? (
+                      <span className="ml-2 text-xs text-gray-400">▼ {org.routes.length} routes</span>
+                    ) : null}
+                  </TableCell>
+                  <TableCell><RequestBar value={org.request_count} max={maxRequests} /></TableCell>
+                  <TableCell>
+                    <LatencyBar value={org.avg_latency_ms} max={maxLatency} />
+                    <span className="mt-0.5 block text-xs text-gray-400">p95: {org.p95_latency_ms} ms</span>
+                  </TableCell>
+                  <TableCell>
+                    {org.error_count > 0 ? (
+                      <span className="font-medium text-red-600">{org.error_count} ({org.error_rate_pct}%)</span>
+                    ) : (
+                      <span className="text-gray-400">0</span>
+                    )}
+                  </TableCell>
+                  <TableCell align="center"><HealthBadge errorRate={org.error_rate_pct} /></TableCell>
+                </TableRow>
+                {isExpanded && org.routes.length > 0 && (
+                  <tr className="bg-indigo-50/20">
+                    <td colSpan={5} className="px-4 py-3">
+                      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-indigo-700">Top Routes</p>
                       <div className="space-y-1.5">
                         {org.routes.map((r) => (
                           <div
                             key={r.route}
-                            className="grid grid-cols-[1fr_80px_120px_60px] items-center gap-2 rounded-lg border border-indigo-100 bg-white px-3 py-2 text-xs"
+                            className="flex items-center gap-4 rounded-lg border border-indigo-100 bg-white px-3 py-2 text-xs"
                           >
-                            <span className="truncate font-mono text-gray-700">{r.route}</span>
-                            <span className="text-gray-600">{r.request_count.toLocaleString()} req</span>
-                            <span className="text-gray-500">{r.avg_latency_ms} ms avg</span>
+                            <span className="min-w-[200px] flex-1 font-mono text-gray-700">{r.route}</span>
+                            <span className="whitespace-nowrap text-gray-600">{r.request_count.toLocaleString()} req</span>
+                            <span className="whitespace-nowrap text-gray-500">{r.avg_latency_ms} ms avg</span>
                             {r.error_count > 0 ? (
-                              <span className="font-medium text-red-600">{r.error_count} err</span>
+                              <span className="whitespace-nowrap font-medium text-red-600">{r.error_count} err</span>
                             ) : (
                               <span className="text-gray-300">—</span>
                             )}
                           </div>
                         ))}
                       </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
+                    </td>
+                  </tr>
+                )}
+              </React.Fragment>
+            );
+          })}
+        </TableBody>
+      </Table>
 
       {/* Integration guide */}
       <div className="rounded-2xl border border-dashed border-gray-300 bg-gray-50/40 p-5">

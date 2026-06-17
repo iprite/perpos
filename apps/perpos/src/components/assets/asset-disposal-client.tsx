@@ -10,6 +10,7 @@ import { ThaiDatePicker } from "@/components/ui/thai-date-picker";
 import {
   Dialog,
   DialogContent,
+  DialogBody,
   DialogHeader,
   DialogTitle,
   DialogFooter,
@@ -131,12 +132,13 @@ export function AssetDisposalClient({
       </Table>
 
       <Dialog open={!!selected} onOpenChange={(v) => { if (!v) setSelected(null); }}>
-        <DialogContent className="max-w-sm">
+        <DialogContent size="sm">
           <DialogHeader>
             <DialogTitle>บันทึกจำหน่ายสินทรัพย์</DialogTitle>
           </DialogHeader>
+          <DialogBody>
           {selected && (
-            <div className="grid gap-4 py-2">
+            <div className="grid gap-4">
               <p className="text-sm text-slate-600">
                 สินทรัพย์: <span className="font-medium text-slate-900">{selected.name}</span>
               </p>
@@ -155,6 +157,7 @@ export function AssetDisposalClient({
               {err && <p className="text-sm text-red-500">{err}</p>}
             </div>
           )}
+          </DialogBody>
           <DialogFooter>
             <Button variant="outline" onClick={() => setSelected(null)} disabled={saving}>ยกเลิก</Button>
             <Button onClick={handleSave} disabled={saving}>{saving ? "กำลังบันทึก..." : "บันทึกจำหน่าย"}</Button>

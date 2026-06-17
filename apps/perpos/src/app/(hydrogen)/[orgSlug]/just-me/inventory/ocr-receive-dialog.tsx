@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { CustomSelect } from '@/components/ui/custom-select';
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+  Dialog, DialogContent, DialogHeader, DialogBody, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog';
 import { Plus, Trash2, Upload, Loader2, Camera, Pencil } from 'lucide-react';
 
@@ -184,11 +184,12 @@ export function OcrReceiveDialog({
   // ── Render ────────────────────────────────────────────────────────────────────
   return (
     <Dialog open={open} onOpenChange={v => { if (!v) onClose(); }}>
-      <DialogContent className="max-w-2xl max-h-[92vh] overflow-y-auto">
+      <DialogContent size="xl">
         <DialogHeader>
           <DialogTitle>เพิ่มของลงคลัง — สแกนบิล / กรอกเอง</DialogTitle>
         </DialogHeader>
 
+        <DialogBody>
         {/* Mode toggle */}
         <div className="flex gap-1 bg-slate-100 rounded-lg p-1 w-fit">
           {(['manual', 'ocr'] as const).map(m => (
@@ -356,8 +357,9 @@ export function OcrReceiveDialog({
         )}
 
         {error && <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
+        </DialogBody>
 
-        <DialogFooter className="gap-2 sm:gap-2">
+        <DialogFooter>
           <Button variant="outline" onClick={onClose}>ยกเลิก</Button>
           <Button onClick={() => void handleSave()} disabled={saving || totalQty === 0}>
             {saving

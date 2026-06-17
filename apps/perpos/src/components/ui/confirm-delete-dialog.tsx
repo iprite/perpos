@@ -4,6 +4,7 @@ import { AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -32,7 +33,7 @@ export function ConfirmDeleteDialog({
 }: ConfirmDeleteDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-sm">
+      <DialogContent size="sm">
         <DialogHeader>
           <div className="flex items-center gap-3">
             <div className="flex-shrink-0 w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
@@ -41,10 +42,12 @@ export function ConfirmDeleteDialog({
             <DialogTitle>{title}</DialogTitle>
           </div>
         </DialogHeader>
-        {description && (
-          <DialogDescription>{description}</DialogDescription>
-        )}
-        <DialogFooter className="gap-2 sm:gap-2">
+        <DialogBody>
+          {description && (
+            <DialogDescription>{description}</DialogDescription>
+          )}
+        </DialogBody>
+        <DialogFooter>
           <Button
             variant="outline"
             onClick={() => onOpenChange(false)}

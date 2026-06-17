@@ -3,7 +3,7 @@
 import { LogOut, Ban, BedDouble, User, Calendar, CreditCard } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+  Dialog, DialogContent, DialogHeader, DialogBody, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog';
 import { useLang } from './_lang-context';
 import { getPayLabel } from './_i18n';
@@ -66,7 +66,7 @@ export default function BookingDetailDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-sm">
+      <DialogContent size="sm">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <span className={`text-xs font-semibold px-2 py-0.5 rounded border ${TYPE_COLOR[room.room_type]}`}>
@@ -79,7 +79,8 @@ export default function BookingDetailDialog({
           </DialogTitle>
         </DialogHeader>
 
-        <div className="divide-y divide-slate-100 py-1">
+        <DialogBody>
+        <div className="divide-y divide-slate-100">
           {row(<User className="h-4 w-4" />, t.detail_guest,
             <span>{booking.guest_name}{booking.nationality ? ` · ${booking.nationality}` : ''}</span>
           )}
@@ -119,8 +120,9 @@ export default function BookingDetailDialog({
           )}
           {booking.notes && row(<span className="text-base">📝</span>, t.field_notes, booking.notes)}
         </div>
+        </DialogBody>
 
-        <DialogFooter className="gap-2 flex-wrap">
+        <DialogFooter className="flex-wrap">
           <Button variant="outline" onClick={() => onOpenChange(false)} className="flex-1">{t.btn_close}</Button>
           {booking.status === 'checked_in' && (
             <>

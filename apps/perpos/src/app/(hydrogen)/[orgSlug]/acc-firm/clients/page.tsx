@@ -10,13 +10,16 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { CustomSelect } from '@/components/ui/custom-select';
 import { ThaiDatePicker } from '@/components/ui/thai-date-picker';
+import { StatusBadge, type BadgeTone } from '@/components/ui/badge';
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+  Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableEmpty,
+} from '@/components/ui/table';
+import {
+  Dialog, DialogContent, DialogHeader, DialogBody, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog';
 import {
   Building2, Plus, BookOpenText, Users, ArrowUpRight,
-  Calculator, MoreHorizontal, UserCog, CheckCircle2,
-  Circle, ShieldCheck, ShieldOff, BookOpen,
+  Calculator, UserCog, ShieldCheck, ShieldOff, BookOpen,
 } from 'lucide-react';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -55,10 +58,10 @@ const STATUS_OPTIONS = [
   { value: 'ended',    label: 'Ended' },
 ];
 
-const STATUS_CLS: Record<string, string> = {
-  active:   'bg-green-100 text-green-700',
-  inactive: 'bg-gray-100 text-gray-500',
-  ended:    'bg-red-100 text-red-500',
+const STATUS_TONE: Record<string, BadgeTone> = {
+  active:   'success',
+  inactive: 'neutral',
+  ended:    'danger',
 };
 
 const MODULE_OPTIONS = [
@@ -288,89 +291,59 @@ export default function AccFirmClientsPage() {
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-xl border">
-        {loading ? (
-          <div className="p-8 text-center text-slate-400 text-sm">กำลังโหลด…</div>
-        ) : filtered.length === 0 ? (
-          <div className="p-8 text-center text-slate-300 text-sm space-y-2">
-            <Building2 className="w-8 h-8 mx-auto text-slate-200" />
-            <p>{filterStatus ? 'ไม่มี client ในสถานะนี้' : 'ยังไม่มี client org'}</p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-slate-50 border-b text-xs text-slate-500">
-                <tr>
-                  <th className="text-left px-4 py-2.5 font-medium">องค์กร</th>
-                  <th className="text-left px-4 py-2.5 font-medium">Modules</th>
-                  <th className="text-left px-4 py-2.5 font-medium">เริ่มดูแล</th>
-                  <th className="text-left px-4 py-2.5 font-medium">สถานะ</th>
-                  <th className="text-left px-4 py-2.5 font-medium">หมายเหตุ</th>
-                  <th className="px-4 py-2.5" />
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-50">
-                {filtered.map(c => (
-                  <tr key={c.id} className="hover:bg-slate-50">
-                    <td className="px-4 py-3">
-                      <p className="font-semibold text-slate-800">{c.client_org.name}</p>
-                      <p className="text-xs text-slate-400">{c.client_org.slug}</p>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex gap-1 flex-wrap">
-                        {c.modules_managed.map(m => (
-                          <span key={m} className="flex items-center gap-1 text-xs bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded">
-                            {MODULE_ICON[m]} {m}
-                          </span>
-                        ))}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-slate-500 text-xs">{c.started_at ?? '—'}</td>
-                    <td className="px-4 py-3">
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_CLS[c.status] ?? ''}`}>
-                        {STATUS_OPTIONS.find(s => s.value === c.status)?.label ?? c.status}
+      {!loading && filtered.length === 0 ? (
+        <div className="rounded-xl border bg-white p-8 text-center text-sm text-slate-300 space-y-2">
+          <Building2 className="mx-auto h-8 w-8 text-slate-200" />
+          <p>{filterStatus ? 'ไม่มี client ในสถานะนี้' : 'ยังไม่มี client org'}</p>
+        </div>
+      ) : (
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>องค์กร</TableHead>
+              <TableHead>Modules</TableHead>
+              <TableHead>เริ่มดูแล</TableHead>
+              <TableHead>สถานะ</TableHead>
+              <TableHead>หมายเหตุ</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {loading ? (
+              <TableEmpty colSpan={5}>กำลังโหลด…</TableEmpty>
+            ) : filtered.map(c => (
+              <TableRow key={c.id} clickable onClick={() => openEdit(c)}>
+                <TableCell>
+                  <p className="font-semibold text-slate-800">{c.client_org.name}</p>
+                  <p className="text-xs text-slate-400">{c.client_org.slug}</p>
+                </TableCell>
+                <TableCell>
+                  <div className="flex gap-1">
+                    {c.modules_managed.map(m => (
+                      <span key={m} className="flex items-center gap-1 whitespace-nowrap rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600">
+                        {MODULE_ICON[m]} {m}
                       </span>
-                    </td>
-                    <td className="px-4 py-3 text-slate-400 text-xs max-w-[160px] truncate">
-                      {c.note ?? '—'}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex gap-1 justify-end">
-                        {c.status === 'active' && c.modules_managed.includes('accounting') && (
-                          <Link href={`/${c.client_org.slug}/accounting`} target="_blank">
-                            <Button size="sm" variant="ghost" className="gap-1 text-xs h-7 px-2">
-                              <BookOpenText className="w-3.5 h-3.5" />
-                              <ArrowUpRight className="w-3 h-3" />
-                            </Button>
-                          </Link>
-                        )}
-                        {c.status === 'active' && (
-                          <Button
-                            size="sm" variant="outline"
-                            className="gap-1 text-xs h-7 px-2 text-teal-700 border-teal-200 hover:bg-teal-50"
-                            onClick={() => openProvision(c)}
-                          >
-                            <UserCog className="w-3.5 h-3.5" /> Accountants
-                          </Button>
-                        )}
-                        <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => openEdit(c)}>
-                          <MoreHorizontal className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+                    ))}
+                  </div>
+                </TableCell>
+                <TableCell className="text-xs text-slate-500">{c.started_at ?? '—'}</TableCell>
+                <TableCell>
+                  <StatusBadge tone={STATUS_TONE[c.status] ?? 'neutral'}>
+                    {STATUS_OPTIONS.find(s => s.value === c.status)?.label ?? c.status}
+                  </StatusBadge>
+                </TableCell>
+                <TableCell className="max-w-[160px] truncate text-xs text-slate-400">{c.note ?? '—'}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      )}
 
       {/* ── Add Dialog ──────────────────────────────────────────────────────── */}
       <Dialog open={showAdd} onOpenChange={setShowAdd}>
-        <DialogContent>
+        <DialogContent size="md">
           <DialogHeader><DialogTitle>เพิ่ม Client Org</DialogTitle></DialogHeader>
-          <div className="space-y-4 py-2">
+          <DialogBody>
+          <div className="space-y-4">
             <div className="space-y-1.5">
               <Label>องค์กรลูกค้า *</Label>
               <CustomSelect
@@ -403,7 +376,8 @@ export default function AccFirmClientsPage() {
               <Input value={form.note} onChange={e => setForm(f => ({ ...f, note: e.target.value }))} placeholder="เช่น รับดูแลบัญชีรายเดือน" />
             </div>
           </div>
-          <DialogFooter className="gap-2 sm:gap-2">
+          </DialogBody>
+          <DialogFooter>
             <Button variant="outline" onClick={() => setShowAdd(false)} disabled={saving}>ยกเลิก</Button>
             <Button onClick={handleAdd} disabled={saving || !form.clientOrgId || form.modulesManaged.length === 0}>
               {saving ? 'กำลังบันทึก…' : 'เพิ่ม'}
@@ -414,9 +388,10 @@ export default function AccFirmClientsPage() {
 
       {/* ── Edit Dialog ─────────────────────────────────────────────────────── */}
       <Dialog open={!!editRow} onOpenChange={v => { if (!v) setEditRow(null); }}>
-        <DialogContent>
+        <DialogContent size="md">
           <DialogHeader><DialogTitle>แก้ไข — {editRow?.client_org.name}</DialogTitle></DialogHeader>
-          <div className="space-y-4 py-2">
+          <DialogBody>
+          <div className="space-y-4">
             <div className="space-y-1.5">
               <Label>Modules ที่ดูแล *</Label>
               <div className="flex gap-2 flex-wrap">
@@ -444,8 +419,28 @@ export default function AccFirmClientsPage() {
               <Label>หมายเหตุ</Label>
               <Input value={form.note} onChange={e => setForm(f => ({ ...f, note: e.target.value }))} placeholder="หมายเหตุ" />
             </div>
+            {/* Quick actions */}
+            {editRow?.status === 'active' && (
+              <div className="flex flex-wrap gap-2 border-t pt-3">
+                {editRow.modules_managed.includes('accounting') && (
+                  <Link href={`/${editRow.client_org.slug}/accounting`} target="_blank">
+                    <Button size="sm" variant="outline" className="gap-1.5 text-xs">
+                      <BookOpenText className="h-3.5 w-3.5" /> เปิด Accounting <ArrowUpRight className="h-3 w-3" />
+                    </Button>
+                  </Link>
+                )}
+                <Button
+                  size="sm" variant="outline"
+                  className="gap-1.5 text-xs text-teal-700 border-teal-200 hover:bg-teal-50"
+                  onClick={() => { const c = editRow; setEditRow(null); openProvision(c); }}
+                >
+                  <UserCog className="h-3.5 w-3.5" /> จัดการ Accountants
+                </Button>
+              </div>
+            )}
           </div>
-          <DialogFooter className="gap-2 sm:gap-2">
+          </DialogBody>
+          <DialogFooter>
             <Button variant="outline" onClick={() => setEditRow(null)} disabled={saving}>ยกเลิก</Button>
             <Button onClick={handleEdit} disabled={saving || form.modulesManaged.length === 0}>
               {saving ? 'กำลังบันทึก…' : 'บันทึก'}
@@ -456,13 +451,14 @@ export default function AccFirmClientsPage() {
 
       {/* ── Provision Dialog ─────────────────────────────────────────────────── */}
       <Dialog open={!!provClient} onOpenChange={v => { if (!v) setProvClient(null); }}>
-        <DialogContent className="max-w-lg">
+        <DialogContent size="lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <UserCog className="w-5 h-5 text-teal-500" />
               จัดการ Accountants — {provClient?.client_org.name}
             </DialogTitle>
           </DialogHeader>
+          <DialogBody>
 
           {/* Engagement modules info */}
           {engagement && (
@@ -533,6 +529,7 @@ export default function AccFirmClientsPage() {
               })
             )}
           </div>
+          </DialogBody>
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setProvClient(null)}>ปิด</Button>

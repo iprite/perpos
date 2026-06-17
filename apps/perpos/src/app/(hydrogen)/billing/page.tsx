@@ -5,7 +5,12 @@ import { Button } from '@/components/ui/button';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { PLAN_LABELS, PLAN_COLORS, type PlanTier, type PlanLimits } from '@/lib/billing';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { StatusBadge, type BadgeTone } from '@/components/ui/badge';
 import { CreditCard, CheckCircle, AlertTriangle, XCircle, Clock, Wrench } from 'lucide-react';
+
+const INVOICE_TONE: Record<string, BadgeTone> = {
+  paid: 'success', open: 'info', draft: 'neutral', uncollectible: 'danger', void: 'neutral',
+};
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -352,17 +357,17 @@ export default function BillingPage() {
                       <TableRow>
                         <TableHead>วันที่</TableHead>
                         <TableHead>สถานะ</TableHead>
-                        <TableHead className="text-right">ยอด</TableHead>
-                        <TableHead className="text-right">เอกสาร</TableHead>
+                        <TableHead align="right">ยอด</TableHead>
+                        <TableHead align="right">เอกสาร</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {stripeInfo.invoices.map((inv) => (
                         <TableRow key={inv.id}>
                           <TableCell>{fmtDate(inv.created_at)}</TableCell>
-                          <TableCell>{inv.status ?? '—'}</TableCell>
-                          <TableCell className="text-right">{fmtMoneyMinor(inv.amount_paid ?? inv.amount_due, inv.currency)}</TableCell>
-                          <TableCell className="text-right">
+                          <TableCell>{inv.status ? <StatusBadge tone={INVOICE_TONE[inv.status] ?? 'neutral'}>{inv.status}</StatusBadge> : '—'}</TableCell>
+                          <TableCell align="right" tabular>{fmtMoneyMinor(inv.amount_paid ?? inv.amount_due, inv.currency)}</TableCell>
+                          <TableCell align="right">
                             <div className="inline-flex items-center gap-1">
                               {inv.hosted_invoice_url ? (
                                 <Button asChild variant="ghost" size="sm">

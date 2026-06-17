@@ -22,6 +22,7 @@ import {
   Dialog,
   DialogContent,
   DialogHeader,
+  DialogBody,
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog';
@@ -30,7 +31,6 @@ import {
   Plus,
   RefreshCw,
   FileSpreadsheet,
-  Edit2,
   Trash2,
   PlusCircle,
   MinusCircle,
@@ -568,132 +568,79 @@ export default function JaquarStockPage() {
         </div>
       ) : (
         <div className="space-y-4">
-          <div className="overflow-x-auto bg-white border rounded-xl shadow-sm">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-44">รหัสสินค้า</TableHead>
-                  <TableHead>รายละเอียดสินค้า</TableHead>
-                  <TableHead className="w-36">ตำแหน่งจัดเก็บ</TableHead>
-                  <TableHead className="text-right w-24">สต๊อกเริ่มต้น</TableHead>
-                  <TableHead className="text-right w-20">ยอดนำเข้า</TableHead>
-                  <TableHead className="text-right w-20">ยอดรับคืน</TableHead>
-                  <TableHead className="text-right w-32">ยอดคงเหลือพร้อมขาย</TableHead>
-                  <TableHead className="text-center w-36">การกระทำ</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {items.map((item) => {
-                  const qty = Number(item.total_saleable);
-                  let statusBadge = (
-                    <Badge variant="success" className="bg-emerald-50 text-emerald-700">
-                      {qty.toLocaleString()} พร้อมขาย
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>รหัสสินค้า</TableHead>
+                <TableHead>รายละเอียดสินค้า</TableHead>
+                <TableHead>ตำแหน่งจัดเก็บ</TableHead>
+                <TableHead align="right">สต๊อกเริ่มต้น</TableHead>
+                <TableHead align="right">ยอดนำเข้า</TableHead>
+                <TableHead align="right">ยอดรับคืน</TableHead>
+                <TableHead align="right">ยอดคงเหลือพร้อมขาย</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {items.map((item) => {
+                const qty = Number(item.total_saleable);
+                let statusBadge = (
+                  <Badge variant="success" className="bg-emerald-50 text-emerald-700">
+                    {qty.toLocaleString()} พร้อมขาย
+                  </Badge>
+                );
+                if (qty === 0) {
+                  statusBadge = (
+                    <Badge variant="danger" className="bg-red-50 text-red-700 font-semibold">
+                      หมดสต๊อก
                     </Badge>
                   );
-                  if (qty === 0) {
-                    statusBadge = (
-                      <Badge variant="danger" className="bg-red-50 text-red-700 font-semibold">
-                        หมดสต๊อก
-                      </Badge>
-                    );
-                  } else if (qty < 5) {
-                    statusBadge = (
-                      <Badge variant="secondary" className="bg-amber-50 text-amber-700 font-medium">
-                        {qty.toLocaleString()} ชิ้น (ต่ำ)
-                      </Badge>
-                    );
-                  }
-
-                  return (
-                    <TableRow key={item.id}>
-                      <TableCell className="font-mono font-bold text-slate-800">{item.item_code}</TableCell>
-                      <TableCell className="text-slate-600 max-w-sm truncate" title={item.description}>
-                        {item.description || <span className="text-slate-300 italic">ไม่ได้ระบุ</span>}
-                      </TableCell>
-                      <TableCell>
-                        {item.location ? (
-                          <div className="flex flex-wrap gap-1">
-                            {item.location.split(',').map((l: string, idx: number) => (
-                              <Badge key={idx} className="bg-slate-100 text-slate-700 rounded text-[10px]">
-                                {l.trim()}
-                              </Badge>
-                            ))}
-                          </div>
-                        ) : (
-                          <span className="text-slate-300 italic">-</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right">{Number(item.amount_starting).toLocaleString()}</TableCell>
-                      <TableCell className="text-right text-indigo-600">{Number(item.import_jaquar).toLocaleString()}</TableCell>
-                      <TableCell className="text-right text-emerald-600">{Number(item.return_borrowed).toLocaleString()}</TableCell>
-                      <TableCell className="text-right font-semibold">{statusBadge}</TableCell>
-                      <TableCell className="text-center">
-                        <div className="flex items-center justify-center gap-1">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            title="ประวัติประมวลผลสต๊อก"
-                            onClick={() => loadHistory(item)}
-                            className="text-slate-600 hover:text-indigo-600"
-                          >
-                            <History className="w-4 h-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            title="ปรับปรุงสต๊อก"
-                            onClick={() => {
-                              setAdjustForm({
-                                itemId: item.id,
-                                qty: '',
-                                movement_type: 'out',
-                                movement_date: new Date().toISOString().split('T')[0],
-                                reference: '',
-                              });
-                              setSelectedItem(item);
-                              setIsAdjustOpen(true);
-                            }}
-                            className="text-slate-600 hover:text-amber-600"
-                          >
-                            <PlusCircle className="w-4 h-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            title="แก้ไขสินค้า"
-                            onClick={() => {
-                              setEditItemForm({
-                                id: item.id,
-                                item_code: item.item_code,
-                                description: item.description || '',
-                                location: item.location || '',
-                                amount_starting: item.amount_starting,
-                                import_jaquar: item.import_jaquar,
-                                return_borrowed: item.return_borrowed,
-                              });
-                              setIsEditOpen(true);
-                            }}
-                            className="text-slate-600 hover:text-blue-600"
-                          >
-                            <Edit2 className="w-4 h-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            title="ลบ"
-                            onClick={() => handleDeleteItem(item.id)}
-                            className="text-slate-600 hover:text-red-600"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
+                } else if (qty < 5) {
+                  statusBadge = (
+                    <Badge variant="secondary" className="bg-amber-50 text-amber-700 font-medium">
+                      {qty.toLocaleString()} ชิ้น (ต่ำ)
+                    </Badge>
                   );
-                })}
-              </TableBody>
-            </Table>
-          </div>
+                }
+                const openEdit = () => {
+                  setEditItemForm({
+                    id: item.id,
+                    item_code: item.item_code,
+                    description: item.description || '',
+                    location: item.location || '',
+                    amount_starting: item.amount_starting,
+                    import_jaquar: item.import_jaquar,
+                    return_borrowed: item.return_borrowed,
+                  });
+                  setSelectedItem(item);
+                  setIsEditOpen(true);
+                };
+
+                return (
+                  <TableRow key={item.id} clickable onClick={openEdit}>
+                    <TableCell className="font-mono font-bold text-slate-800">{item.item_code}</TableCell>
+                    <TableCell className="max-w-sm truncate text-slate-600" title={item.description}>
+                      {item.description || <span className="text-slate-300 italic">ไม่ได้ระบุ</span>}
+                    </TableCell>
+                    <TableCell>
+                      {item.location ? (
+                        <div className="flex gap-1">
+                          {item.location.split(',').map((l: string, idx: number) => (
+                            <Badge key={idx} className="rounded bg-slate-100 text-[10px] text-slate-700">{l.trim()}</Badge>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-slate-300 italic">-</span>
+                      )}
+                    </TableCell>
+                    <TableCell align="right" tabular>{Number(item.amount_starting).toLocaleString()}</TableCell>
+                    <TableCell align="right" tabular className="text-indigo-600">{Number(item.import_jaquar).toLocaleString()}</TableCell>
+                    <TableCell align="right" tabular className="text-emerald-600">{Number(item.return_borrowed).toLocaleString()}</TableCell>
+                    <TableCell align="right" className="font-semibold">{statusBadge}</TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
 
           {/* Pagination */}
           {totalPages > 1 && (
@@ -726,11 +673,12 @@ export default function JaquarStockPage() {
 
       {/* Modal Add Item */}
       <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent size="md">
           <DialogHeader>
             <DialogTitle>เพิ่มสินค้าสต๊อกใหม่</DialogTitle>
           </DialogHeader>
-          <form onSubmit={handleAddItem} className="space-y-4">
+          <form onSubmit={handleAddItem} className="flex min-h-0 flex-1 flex-col">
+            <DialogBody className="space-y-4">
             <div>
               <Label htmlFor="item_code">รหัสสินค้า (Item Code) *</Label>
               <Input
@@ -786,7 +734,8 @@ export default function JaquarStockPage() {
                 />
               </div>
             </div>
-            <DialogFooter className="pt-2">
+            </DialogBody>
+            <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setIsAddOpen(false)}>
                 ยกเลิก
               </Button>
@@ -800,11 +749,30 @@ export default function JaquarStockPage() {
 
       {/* Modal Edit Item */}
       <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent size="md">
           <DialogHeader>
             <DialogTitle>แก้ไขข้อมูลสินค้า</DialogTitle>
           </DialogHeader>
-          <form onSubmit={handleEditItem} className="space-y-4">
+          <form onSubmit={handleEditItem} className="flex min-h-0 flex-1 flex-col">
+            <DialogBody className="space-y-4">
+            <div className="flex flex-wrap gap-2 border-b pb-3">
+              <Button type="button" size="sm" variant="outline" className="gap-1.5 text-xs"
+                onClick={() => { if (selectedItem) loadHistory(selectedItem); }}>
+                <History className="h-3.5 w-3.5" /> ประวัติ
+              </Button>
+              <Button type="button" size="sm" variant="outline" className="gap-1.5 text-xs text-amber-700 border-amber-200 hover:bg-amber-50"
+                onClick={() => {
+                  if (!selectedItem) return;
+                  setAdjustForm({ itemId: selectedItem.id, qty: '', movement_type: 'out', movement_date: new Date().toISOString().split('T')[0], reference: '' });
+                  setIsEditOpen(false); setIsAdjustOpen(true);
+                }}>
+                <PlusCircle className="h-3.5 w-3.5" /> ปรับปรุงสต๊อก
+              </Button>
+              <Button type="button" size="sm" variant="ghost" className="gap-1.5 text-xs text-red-600 hover:bg-red-50 hover:text-red-700"
+                onClick={() => { setIsEditOpen(false); handleDeleteItem(editItemForm.id); }}>
+                <Trash2 className="h-3.5 w-3.5" /> ลบ
+              </Button>
+            </div>
             <div>
               <Label>รหัสสินค้า: <span className="font-bold font-mono">{editItemForm.item_code}</span></Label>
             </div>
@@ -853,7 +821,8 @@ export default function JaquarStockPage() {
                 />
               </div>
             </div>
-            <DialogFooter className="pt-2">
+            </DialogBody>
+            <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setIsEditOpen(false)}>
                 ยกเลิก
               </Button>
@@ -867,12 +836,13 @@ export default function JaquarStockPage() {
 
       {/* Modal Adjust Stock */}
       <Dialog open={isAdjustOpen} onOpenChange={setIsAdjustOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent size="md">
           <DialogHeader>
             <DialogTitle>ปรับปรุงสต๊อกสินค้า</DialogTitle>
           </DialogHeader>
           {selectedItem && (
-            <form onSubmit={handleAdjustStock} className="space-y-4">
+            <form onSubmit={handleAdjustStock} className="flex min-h-0 flex-1 flex-col">
+              <DialogBody className="space-y-4">
               <div className="bg-slate-50 p-3 rounded-lg border text-sm space-y-1">
                 <p>สินค้า: <span className="font-mono font-bold text-slate-800">{selectedItem.item_code}</span></p>
                 <p>ชื่อ: <span className="text-slate-600">{selectedItem.description || '-'}</span></p>
@@ -936,7 +906,8 @@ export default function JaquarStockPage() {
                   onChange={(e) => setAdjustForm({ ...adjustForm, reference: e.target.value })}
                 />
               </div>
-              <DialogFooter className="pt-2">
+              </DialogBody>
+              <DialogFooter>
                 <Button type="button" variant="outline" onClick={() => setIsAdjustOpen(false)}>
                   ยกเลิก
                 </Button>
@@ -951,10 +922,11 @@ export default function JaquarStockPage() {
 
       {/* Modal CSV Import */}
       <Dialog open={isImportOpen} onOpenChange={setIsImportOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent size="lg">
           <DialogHeader>
             <DialogTitle>นำเข้าข้อมูลสต๊อกผ่าน CSV</DialogTitle>
           </DialogHeader>
+          <DialogBody>
           <div className="space-y-4">
             <div className="p-3 border border-dashed border-slate-300 rounded-xl bg-slate-50 flex flex-col items-center justify-center py-6 text-center space-y-2">
               <FileSpreadsheet className="w-10 h-10 text-slate-400" />
@@ -991,37 +963,39 @@ export default function JaquarStockPage() {
                 </div>
               </div>
             )}
-
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setIsImportOpen(false)} disabled={importing}>
-                ยกเลิก
-              </Button>
-              <Button
-                type="button"
-                onClick={handleImportCSV}
-                disabled={!parsedSummary || importing}
-                className="bg-indigo-600 hover:bg-indigo-700 flex items-center gap-1.5"
-              >
-                {importing ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    กำลังนำเข้าข้อมูล...
-                  </>
-                ) : (
-                  'เริ่มนำเข้าข้อมูลสต๊อก'
-                )}
-              </Button>
-            </DialogFooter>
           </div>
+          </DialogBody>
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setIsImportOpen(false)} disabled={importing}>
+              ยกเลิก
+            </Button>
+            <Button
+              type="button"
+              onClick={handleImportCSV}
+              disabled={!parsedSummary || importing}
+              className="bg-indigo-600 hover:bg-indigo-700 flex items-center gap-1.5"
+            >
+              {importing ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  กำลังนำเข้าข้อมูล...
+                </>
+              ) : (
+                'เริ่มนำเข้าข้อมูลสต๊อก'
+              )}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
       {/* Modal History Ledger */}
       <Dialog open={isHistoryOpen} onOpenChange={setIsHistoryOpen}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+        <DialogContent size="xl">
           <DialogHeader>
             <DialogTitle>ประวัติการเดินคลังสินค้า (Stock Ledger)</DialogTitle>
           </DialogHeader>
+          <DialogBody>
           {selectedItem && (
             <div className="space-y-4">
               <div className="bg-slate-50 p-3.5 border rounded-xl text-xs space-y-1">
@@ -1082,6 +1056,7 @@ export default function JaquarStockPage() {
               )}
             </div>
           )}
+          </DialogBody>
         </DialogContent>
       </Dialog>
     </PageShell>

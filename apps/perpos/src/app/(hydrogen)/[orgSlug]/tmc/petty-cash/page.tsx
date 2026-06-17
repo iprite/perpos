@@ -9,8 +9,12 @@ import { Label } from '@/components/ui/label';
 import { CustomSelect } from '@/components/ui/custom-select';
 import { MultiSelect } from '@/components/ui/multi-select';
 import { ThaiDatePicker } from '@/components/ui/thai-date-picker';
+import { StatusBadge } from '@/components/ui/badge';
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+  Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableEmpty, TableLoading,
+} from '@/components/ui/table';
+import {
+  Dialog, DialogContent, DialogHeader, DialogBody, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog';
 import {
   Plus, Filter, Wallet, ArrowDownCircle, ArrowUpCircle,
@@ -400,67 +404,47 @@ export default function TmcPettyCashPage() {
       </div>
 
       {/* Table */}
-      <div className="overflow-hidden rounded-xl border bg-white">
-        {loading ? (
-          <div className="p-10 text-center text-sm text-slate-400">กำลังโหลด...</div>
-        ) : txns.length === 0 ? (
-          <div className="p-10 text-center text-sm text-slate-400">ยังไม่มีรายการเงินสดย่อย</div>
-        ) : (
-          <table className="w-full text-sm">
-            <thead className="border-b bg-slate-50">
-              <tr>
-                <th className="px-4 py-3 text-left font-medium text-slate-500">วันที่</th>
-                <th className="px-4 py-3 text-left font-medium text-slate-500">รายการ</th>
-                <th className="px-4 py-3 text-left font-medium text-slate-500">กระเป๋า</th>
-                <th className="px-4 py-3 text-left font-medium text-slate-500">หมวด</th>
-                <th className="px-4 py-3 text-left font-medium text-slate-500">แปลง</th>
-                <th className="px-4 py-3 text-right font-medium text-green-600">เติมเงิน</th>
-                <th className="px-4 py-3 text-right font-medium text-red-600">ใช้เงิน</th>
-                <th className="px-4 py-3 w-20"></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-50">
-              {pagedTxns.map(t => (
-                <tr key={t.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="whitespace-nowrap px-4 py-3 text-slate-500">{fmtDate(t.txn_date)}</td>
-                  <td className="max-w-[200px] truncate px-4 py-3 text-slate-800" title={t.description}>
-                    {t.description}
-                    {t.note && <span className="ml-1 text-xs text-slate-400">({t.note})</span>}
-                  </td>
-                  <td className="px-4 py-3 text-xs text-slate-500">{t.tmc_petty_cash_funds?.name ?? '—'}</td>
-                  <td className="px-4 py-3">
-                    {t.category && <span className="inline-block rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">{t.category}</span>}
-                  </td>
-                  <td className="px-4 py-3">
-                    {t.property_code && <span className="inline-block rounded-full bg-blue-50 px-2 py-0.5 text-xs text-blue-600">{t.property_code}</span>}
-                  </td>
-                  <td className="px-4 py-3 text-right font-medium text-green-600">
-                    {t.txn_type === 'top_up' ? fmt(t.amount) : ''}
-                  </td>
-                  <td className="px-4 py-3 text-right font-medium text-red-600">
-                    {t.txn_type === 'expense' ? fmt(t.amount) : ''}
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center justify-center gap-1">
-                      <button type="button" onClick={() => openEdit(t)}
-                        className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700">
-                        <Pencil className="h-3.5 w-3.5" />
-                      </button>
-                      <button type="button" onClick={() => setDeleteId(t.id)}
-                        className="rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-600">
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>วันที่</TableHead>
+            <TableHead>รายการ</TableHead>
+            <TableHead>กระเป๋า</TableHead>
+            <TableHead>หมวด</TableHead>
+            <TableHead>แปลง</TableHead>
+            <TableHead align="right">เติมเงิน</TableHead>
+            <TableHead align="right">ใช้เงิน</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {loading ? (
+            <TableLoading colSpan={7} />
+          ) : txns.length === 0 ? (
+            <TableEmpty colSpan={7}>ยังไม่มีรายการเงินสดย่อย</TableEmpty>
+          ) : pagedTxns.map(t => (
+            <TableRow key={t.id} clickable onClick={() => openEdit(t)}>
+              <TableCell className="text-slate-500">{fmtDate(t.txn_date)}</TableCell>
+              <TableCell className="text-slate-800">
+                {t.description}
+                {t.note && <span className="ml-1 text-xs text-slate-400">({t.note})</span>}
+              </TableCell>
+              <TableCell className="text-xs text-slate-500">{t.tmc_petty_cash_funds?.name ?? '—'}</TableCell>
+              <TableCell>{t.category && <StatusBadge tone="neutral">{t.category}</StatusBadge>}</TableCell>
+              <TableCell>{t.property_code && <StatusBadge tone="info">{t.property_code}</StatusBadge>}</TableCell>
+              <TableCell align="right" tabular className="font-medium text-green-600">
+                {t.txn_type === 'top_up' ? fmt(t.amount) : ''}
+              </TableCell>
+              <TableCell align="right" tabular className="font-medium text-red-600">
+                {t.txn_type === 'expense' ? fmt(t.amount) : ''}
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
 
-        {/* Pagination Footer */}
-        {!loading && txns.length > 0 && (
-          <div className="flex items-center justify-between border-t bg-slate-50 px-4 py-3">
+      {/* Pagination Footer */}
+      {!loading && txns.length > 0 && (
+        <div className="flex items-center justify-between px-1">
             <p className="text-xs text-slate-500">
               แสดง {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, txns.length)} จาก {txns.length} รายการ
             </p>
@@ -508,14 +492,14 @@ export default function TmcPettyCashPage() {
             </div>
           </div>
         )}
-      </div>
 
       {/* ── Add/Edit Txn Dialog ── */}
       <Dialog open={showForm} onOpenChange={v => { setShowForm(v); if (!v) { setEditId(null); setForm({ ...EMPTY_FORM }); } }}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogContent size="lg">
           <DialogHeader>
             <DialogTitle>{editId ? 'แก้ไขรายการ' : 'เพิ่มรายการเงินสดย่อย'}</DialogTitle>
           </DialogHeader>
+          <DialogBody>
           <div className="grid grid-cols-2 gap-3">
             {/* Type toggle */}
             <div className="col-span-2 space-y-1.5">
@@ -570,8 +554,15 @@ export default function TmcPettyCashPage() {
               <Input value={form.note} onChange={e => setForm(f => ({ ...f, note: e.target.value }))} />
             </div>
           </div>
-          {formErr && <p className="text-sm text-red-600">{formErr}</p>}
-          <DialogFooter className="gap-2 sm:gap-2">
+          {formErr && <p className="mt-3 text-sm text-red-600">{formErr}</p>}
+          </DialogBody>
+          <DialogFooter>
+            {editId && (
+              <Button variant="ghost" className="mr-auto text-red-600 hover:bg-red-50 hover:text-red-700"
+                onClick={() => { const id = editId; setShowForm(false); setDeleteId(id); }}>
+                <Trash2 className="mr-1.5 h-4 w-4" /> ลบ
+              </Button>
+            )}
             <Button variant="outline" onClick={() => setShowForm(false)}>ยกเลิก</Button>
             <Button onClick={handleSave} disabled={saving || !form.fundId || !form.description || !form.amount}>
               {saving ? 'กำลังบันทึก…' : editId ? 'บันทึกการแก้ไข' : 'บันทึก'}
@@ -582,10 +573,12 @@ export default function TmcPettyCashPage() {
 
       {/* ── Delete Confirm ── */}
       <Dialog open={!!deleteId} onOpenChange={v => { if (!v) setDeleteId(null); }}>
-        <DialogContent className="max-w-sm">
+        <DialogContent size="sm">
           <DialogHeader><DialogTitle>ยืนยันการลบ</DialogTitle></DialogHeader>
+          <DialogBody>
           <p className="text-sm text-slate-600">ต้องการลบรายการนี้ใช่หรือไม่? ไม่สามารถกู้คืนได้</p>
-          <DialogFooter className="gap-2 sm:gap-2">
+          </DialogBody>
+          <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteId(null)}>ยกเลิก</Button>
             <Button variant="destructive" onClick={handleDelete}>ลบ</Button>
           </DialogFooter>
@@ -594,8 +587,9 @@ export default function TmcPettyCashPage() {
 
       {/* ── Manage Funds Dialog ── */}
       <Dialog open={showFunds} onOpenChange={setShowFunds}>
-        <DialogContent className="max-w-md">
+        <DialogContent size="md">
           <DialogHeader><DialogTitle>จัดการกระเป๋าเงินสดย่อย</DialogTitle></DialogHeader>
+          <DialogBody>
           {funds.length > 0 && (
             <div className="space-y-2 mb-4">
               {funds.map(f => (
@@ -622,15 +616,17 @@ export default function TmcPettyCashPage() {
               {fundSaving ? 'กำลังสร้าง…' : 'สร้างกระเป๋า'}
             </Button>
           </div>
+          </DialogBody>
           <DialogFooter><Button variant="outline" onClick={() => setShowFunds(false)}>ปิด</Button></DialogFooter>
         </DialogContent>
       </Dialog>
 
       {/* ── Master Data Dialog (หมวด / แปลง) ── */}
       <Dialog open={showMaster} onOpenChange={setShowMaster}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogContent size="lg">
           <DialogHeader><DialogTitle>จัดการหมวดและแปลง</DialogTitle></DialogHeader>
 
+          <DialogBody>
           {/* Tabs */}
           <div className="flex rounded-lg border border-slate-200 overflow-hidden">
             <button type="button"
@@ -720,6 +716,7 @@ export default function TmcPettyCashPage() {
               </div>
             </div>
           )}
+          </DialogBody>
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowMaster(false)}>ปิด</Button>
