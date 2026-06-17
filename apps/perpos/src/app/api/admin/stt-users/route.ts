@@ -52,15 +52,23 @@ export async function GET(req: NextRequest) {
 
   const ids = (profiles ?? []).map((p) => p.id as string);
   const quotaById = new Map<string, { limit_seconds: number; used_seconds: number }>();
+  const botQuotaById = new Map<string, { limit_seconds: number; used_seconds: number }>();
   if (ids.length) {
-    const { data: quotas } = await admin.from('stt_quota').select('profile_id, limit_seconds, used_seconds').in('profile_id', ids);
+    const [{ data: quotas }, { data: botQuotas }] = await Promise.all([
+      admin.from('stt_quota').select('profile_id, limit_seconds, used_seconds').in('profile_id', ids),
+      admin.from('bot_quota').select('profile_id, limit_seconds, used_seconds').in('profile_id', ids),
+    ]);
     for (const q of quotas ?? []) quotaById.set(q.profile_id as string, { limit_seconds: q.limit_seconds as number, used_seconds: q.used_seconds as number });
+    for (const q of botQuotas ?? []) botQuotaById.set(q.profile_id as string, { limit_seconds: q.limit_seconds as number, used_seconds: q.used_seconds as number });
   }
 
   const items = (profiles ?? []).map((p) => {
     const q = quotaById.get(p.id as string);
     const limit = q?.limit_seconds ?? 18000;
     const used = q?.used_seconds ?? 0;
+    const bq = botQuotaById.get(p.id as string);
+    const botLimit = bq?.limit_seconds ?? 7200;
+    const botUsed = bq?.used_seconds ?? 0;
     const email = String(p.email ?? '');
     return {
       profile_id: p.id,
@@ -73,6 +81,9 @@ export async function GET(req: NextRequest) {
       limit_seconds: limit,
       used_seconds: used,
       remaining_seconds: Math.max(0, limit - used),
+      bot_limit_seconds: botLimit,
+      bot_used_seconds: botUsed,
+      bot_remaining_seconds: Math.max(0, botLimit - botUsed),
     };
   });
   return ok({ items });
@@ -83,7 +94,7 @@ export async function PUT(req: NextRequest) {
   if (!auth.ok) return auth.res;
 
   const body = await req.json().catch(() => null);
-  const { profileId, limitSeconds, isActive } = body ?? {};
+  const { profileId, limitSeconds, botLimitSeconds, isActive } = body ?? {};
   if (!profileId) return Err.missingField('profileId');
 
   const admin = createAdminClient();
@@ -93,6 +104,14 @@ export async function PUT(req: NextRequest) {
     const { error } = await admin
       .from('stt_quota')
       .upsert({ profile_id: profileId, limit_seconds: Math.round(limitSeconds), updated_at: new Date().toISOString() }, { onConflict: 'profile_id' });
+    if (error) return Err.dbError(error);
+  }
+
+  if (typeof botLimitSeconds === 'number' && Number.isFinite(botLimitSeconds)) {
+    if (botLimitSeconds < 0 || botLimitSeconds > MAX_LIMIT) return Err.outOfRange('botLimitSeconds', 0, MAX_LIMIT);
+    const { error } = await admin
+      .from('bot_quota')
+      .upsert({ profile_id: profileId, limit_seconds: Math.round(botLimitSeconds), updated_at: new Date().toISOString() }, { onConflict: 'profile_id' });
     if (error) return Err.dbError(error);
   }
 
@@ -107,6 +126,7 @@ export async function PUT(req: NextRequest) {
     targetId: profileId,
     metadata: {
       ...(typeof limitSeconds === 'number' ? { limit_seconds: Math.round(limitSeconds) } : {}),
+      ...(typeof botLimitSeconds === 'number' ? { bot_limit_seconds: Math.round(botLimitSeconds) } : {}),
       ...(typeof isActive === 'boolean' ? { is_active: isActive } : {}),
     },
   });
