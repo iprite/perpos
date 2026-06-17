@@ -108,6 +108,7 @@ export async function GET(req: NextRequest) {
       role: p.role,
       is_active: p.is_active !== false,
       line_linked: !!p.line_user_id,
+      line_user_id: (p.line_user_id as string | null) ?? null,
       created_at: p.created_at,
       last_seen_at: (p.last_seen_at as string | null) ?? null,
       orgs: orgsByUser.get(p.id as string) ?? [],

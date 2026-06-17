@@ -6,13 +6,14 @@ import React, {
 import { Text, Title } from "rizzui/typography";
 import {
   Settings2, Building2, KeyRound, Eye, UserX, UserCheck, Trash2,
-  Gauge, Search, RefreshCw, ChevronDown, Users as UsersIcon,
+  Gauge, Search, RefreshCw, ChevronDown, Users as UsersIcon, Copy, Check,
 } from "lucide-react";
 
 import { useAuth } from "@/app/shared/auth-provider";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { Role } from "@/lib/supabase/types";
 import { withBasePath } from "@/utils/base-path";
+import { copyText } from "@/utils/clipboard";
 import { backendUrl } from "@/lib/backend";
 import { AdminPage } from "../_components/admin-page";
 import { Button } from "@/components/ui/button";
@@ -38,6 +39,7 @@ type ListedUser = {
   role:         Role;
   is_active:    boolean;
   line_linked:  boolean;
+  line_user_id: string | null;
   created_at:   string;
   last_seen_at: string | null;
   orgs:         UserOrg[];
@@ -90,6 +92,32 @@ function Avatar({ src, name }: { src: string | null; name: string }) {
     <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-indigo-50 text-base font-semibold text-indigo-600">
       {letter}
     </div>
+  );
+}
+
+// ── LineIdLine ─────────────────────────────────────────────────────────────────
+
+function LineIdLine({ lineUserId }: { lineUserId: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <button
+      type="button"
+      title="คัดลอก LINE User ID"
+      onClick={async (e) => {
+        e.stopPropagation();
+        if (await copyText(lineUserId)) {
+          setCopied(true);
+          setTimeout(() => setCopied(false), 2000);
+        }
+      }}
+      className="mt-0.5 flex max-w-full items-center gap-1 text-xs text-gray-400 transition-colors hover:text-gray-600"
+    >
+      <span className="shrink-0 font-medium text-gray-400">LINE ID:</span>
+      <span className="truncate font-mono">{lineUserId}</span>
+      {copied
+        ? <Check className="h-3 w-3 shrink-0 text-green-500" />
+        : <Copy className="h-3 w-3 shrink-0 opacity-50" />}
+    </button>
   );
 }
 
@@ -577,6 +605,7 @@ export default function AdminUsersPage() {
                         )}
                       </div>
                       <div className="truncate text-xs text-gray-400">{u.email ?? "เข้าสู่ระบบผ่าน LINE"}</div>
+                      {u.line_user_id && <LineIdLine lineUserId={u.line_user_id} />}
                       <div className={`truncate text-xs ${online ? "font-medium text-green-600" : "text-gray-400"}`}>
                         {online && <span className="mr-1 inline-block h-1.5 w-1.5 rounded-full bg-green-500 align-middle" />}
                         {seenLabel}
