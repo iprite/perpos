@@ -9,7 +9,7 @@ import {
   Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableEmpty, TableLoading,
 } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogBody, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { FileAudio, RefreshCw, AlertTriangle } from 'lucide-react';
+import { FileAudio, AlertTriangle } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { AdminPage } from '../_components/admin-page';
@@ -105,7 +105,6 @@ export default function SttJobsPage() {
       actions={
         <>
           <Link href="/admin/stt-stats"><Button variant="outline" size="sm">📊 สถิติ</Button></Link>
-          <Button variant="outline" size="sm" onClick={load} disabled={loading}><RefreshCw className="mr-2 h-4 w-4" /> รีเฟรช</Button>
         </>
       }
     >

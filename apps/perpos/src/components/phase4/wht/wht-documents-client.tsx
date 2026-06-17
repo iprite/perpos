@@ -2,7 +2,7 @@
 
 import React, { useMemo, useState, useTransition } from "react";
 import { pdf } from "@react-pdf/renderer";
-import { Download, FilePlus2, RefreshCw } from "lucide-react";
+import { Download, FilePlus2 } from "lucide-react";
 import { toast } from "react-hot-toast";
 
 import { Button } from "@/components/ui/button";
@@ -146,10 +146,6 @@ export function WhtDocumentsClient(props: {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="text-sm text-slate-600">เอกสาร WHT (50 ทวิ)</div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" className="gap-2" onClick={refresh} disabled={pending}>
-            <RefreshCw className={cn("h-4 w-4", pending ? "animate-spin" : undefined)} />
-            Refresh
-          </Button>
           <Button className="gap-2" onClick={() => setOpen(true)}>
             <FilePlus2 className="h-4 w-4" />
             สร้าง WHT

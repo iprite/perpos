@@ -2,12 +2,11 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Title } from "@/components/ui/typography";
-import { RefreshCw, AlertTriangle, TrendingUp, Clock, Zap, Activity } from "lucide-react";
+import { AlertTriangle, TrendingUp, Clock, Zap, Activity } from "lucide-react";
 
 import { useAuth } from "@/app/shared/auth-provider";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { backendUrl } from "@/lib/backend";
-import { Button } from "@/components/ui/button";
 import { CustomSelect } from "@/components/ui/custom-select";
 import { StatusBadge } from "@/components/ui/badge";
 import {
@@ -175,9 +174,6 @@ export default function ResourcesPage() {
             options={WINDOW_OPTIONS}
             className="w-44"
           />
-          <Button variant="outline" onClick={loadData} disabled={loading}>
-            <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-          </Button>
         </>
       }
     >

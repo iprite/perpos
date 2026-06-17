@@ -9,7 +9,7 @@ import { PageShell } from '@/components/ui/page-shell';
 import { Input } from '@/components/ui/input';
 import { Loader } from '@googlemaps/js-api-loader';
 import {
-  LayoutGrid, Loader2, AlertCircle, RefreshCw, Users, Clock, LogIn, MapPin, Search, Navigation
+  LayoutGrid, Loader2, AlertCircle, Users, Clock, LogIn, MapPin, Search, Navigation
 } from 'lucide-react';
 import cn from '@core/utils/class-names';
 
@@ -367,12 +367,6 @@ export default function JustMeDashboardPage() {
       icon={<LayoutGrid className="h-6 w-6" />}
       title="Just Me Dashboard"
       description="รายงานสรุปการเข้า-ออกงาน และแผนที่พิกัดพนักงานทุกคน"
-      actions={
-        <Button variant="outline" size="sm" onClick={loadData} disabled={loading} className="gap-1.5 shadow-sm">
-          <RefreshCw className={cn('h-4 w-4', loading && 'animate-spin')} />
-          รีเฟรชข้อมูล
-        </Button>
-      }
     >
 
       {error && (

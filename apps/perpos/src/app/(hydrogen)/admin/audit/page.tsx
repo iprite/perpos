@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Title, Text } from "@/components/ui/typography";
 import {
-  ShieldCheck, ShieldAlert, Download, RefreshCw, ChevronDown, ChevronUp,
+  ShieldCheck, ShieldAlert, Download, ChevronDown, ChevronUp,
   Clock, Database, Truck, AlertCircle, CheckCircle2
 } from "lucide-react";
 
@@ -321,10 +321,6 @@ export default function AuditLogPage() {
                 : `ส่งแล้ว ${s.total_shipped.toLocaleString()}`}
             </button>
           ))}
-          <Button variant="outline" size="sm" onClick={() => { load(1); loadShipping(); }} disabled={loading}>
-            <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
-            รีเฟรช
-          </Button>
         </>
       }
     >

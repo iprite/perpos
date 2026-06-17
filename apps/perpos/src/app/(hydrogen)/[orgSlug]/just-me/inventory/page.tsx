@@ -15,7 +15,7 @@ import {
 import { OcrReceiveDialog } from './ocr-receive-dialog';
 import {
   Package, Warehouse, ArrowLeftRight, History, AlertTriangle, Plus, Search,
-  FileText, CheckCircle, TrendingUp, AlertCircle, Loader2, Scissors, Info, RefreshCw,
+  FileText, CheckCircle, TrendingUp, AlertCircle, Loader2, Scissors, Info,
   ScanLine,
 } from 'lucide-react';
 import cn from '@core/utils/class-names';
@@ -433,9 +433,6 @@ export default function JustMeInventoryPage() {
           >
             <ScanLine className="h-4 w-4" />
             สแกนบิลรับของ
-          </Button>
-          <Button variant="ghost" size="icon" onClick={loadData} disabled={loading}>
-            <RefreshCw className={cn('h-4 w-4', loading && 'animate-spin')} />
           </Button>
         </>
       }

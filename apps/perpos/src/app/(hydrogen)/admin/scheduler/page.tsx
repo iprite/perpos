@@ -1,8 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Clock, RefreshCw, Loader2, CheckCircle2, AlertTriangle, XCircle } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Clock, Loader2, CheckCircle2, AlertTriangle, XCircle } from 'lucide-react';
 import { StatusBadge } from '@/components/ui/badge';
 import {
   Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableEmpty,
@@ -87,11 +86,6 @@ export default function SchedulerMonitorPage() {
       title="Scheduler Monitor"
       icon={<Clock className="h-6 w-6" />}
       description="สถานะ cron scheduler (รันทุก 1 นาที) — stuck jobs, requeue, PDPA cleanup"
-      actions={
-        <Button variant="outline" size="sm" onClick={load} disabled={loading}>
-          <RefreshCw className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} /> รีเฟรช
-        </Button>
-      }
     >
       {loading && !data ? (
         <div className="flex min-h-[40vh] items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-gray-400" /></div>

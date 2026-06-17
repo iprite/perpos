@@ -1,8 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { ChevronLeft, ChevronRight, Loader2, AlertCircle, RefreshCw, FileBarChart } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { ChevronLeft, ChevronRight, Loader2, AlertCircle, FileBarChart } from 'lucide-react';
 import { PageShell } from '@/components/ui/page-shell';
 import { ThaiDatePicker } from '@/components/ui/thai-date-picker';
 import Dashboard, { type DashboardData } from '../dashboard';
@@ -40,11 +39,6 @@ export default function ReportPage() {
       icon={<FileBarChart className="h-6 w-6" />}
       title={t.title_report}
       description={t.subtitle_report}
-      actions={
-        <Button variant="ghost" size="icon" onClick={load} disabled={loading}>
-          <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-        </Button>
-      }
     >
       {errMsg && (
         <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">

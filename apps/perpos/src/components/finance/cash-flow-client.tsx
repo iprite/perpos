@@ -1,9 +1,6 @@
 "use client";
 
-import React, { useState, useTransition } from "react";
-import { RefreshCw } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import React, { useEffect, useRef, useState, useTransition } from "react";
 import { ThaiDatePicker } from "@/components/ui/thai-date-picker";
 import { getCashFlowAction, type CashFlowRow } from "@/lib/finance/report-actions";
 import cn from "@core/utils/class-names";
@@ -30,14 +27,19 @@ export function CashFlowClient(props: {
   const [error, setError]         = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
-  const refresh = () => {
+  const orgId = props.organizationId;
+
+  // โหลดรายงานใหม่อัตโนมัติเมื่อเปลี่ยนช่วงวันที่ (ข้ามรอบแรกเพราะมีข้อมูลจาก server แล้ว)
+  const didMount = useRef(false);
+  useEffect(() => {
+    if (!didMount.current) { didMount.current = true; return; }
     setError(null);
     startTransition(async () => {
-      const res = await getCashFlowAction(props.organizationId, startDate, endDate);
+      const res = await getCashFlowAction(orgId, startDate, endDate);
       if (!res.error) setRows(res.rows);
       else setError(res.error);
     });
-  };
+  }, [orgId, startDate, endDate]);
 
   const bySection = (key: string) =>
     rows.filter((r) => r.section === key).sort((a, b) => a.sortOrder - b.sortOrder);
@@ -59,10 +61,7 @@ export function CashFlowClient(props: {
           <div className="text-xs text-slate-500">ถึงวันที่</div>
           <ThaiDatePicker value={endDate} onChange={(v) => setEndDate(v)} className="h-9 w-40" />
         </div>
-        <Button variant="secondary" className="gap-2 h-9" onClick={refresh} disabled={pending}>
-          <RefreshCw className={cn("h-4 w-4", pending && "animate-spin")} />
-          แสดงรายงาน
-        </Button>
+        {pending && <span className="text-xs text-slate-400">กำลังโหลด…</span>}
       </div>
 
       {error && (

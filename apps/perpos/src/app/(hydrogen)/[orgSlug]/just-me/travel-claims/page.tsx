@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { CustomSelect } from '@/components/ui/custom-select';
 import { Label } from '@/components/ui/label';
 import {
-  Navigation, Clock, User, Check, X, AlertCircle, Loader2, RefreshCw,
+  Navigation, Clock, User, Check, X, AlertCircle, Loader2,
   Sliders, DollarSign, CheckCircle2, XCircle, Settings, Fuel, ChevronRight,
   TrendingUp, Calendar
 } from 'lucide-react';
@@ -323,12 +323,6 @@ export default function TravelClaimsPage() {
       icon={<Navigation className="h-6 w-6" />}
       title="จัดการค่าเดินทางและเวลาทำงานพนักงาน"
       description="อนุมัติคำขอเบิกค่าเดินทาง ค่าน้ำมัน และตรวจเช็คเวลางานถอดจาก GPS"
-      actions={
-        <Button variant="outline" size="sm" onClick={loadData} disabled={loading} className="gap-1.5 shadow-sm">
-          <RefreshCw className={cn('h-4 w-4', loading && 'animate-spin')} />
-          รีเฟรช
-        </Button>
-      }
     >
 
       {error && (

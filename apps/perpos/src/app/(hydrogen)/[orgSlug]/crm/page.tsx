@@ -4,7 +4,6 @@ import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
-import { Button } from '@/components/ui/button';
 import { PageShell } from '@/components/ui/page-shell';
 import { StatusBadge, type BadgeTone } from '@/components/ui/badge';
 import {
@@ -111,11 +110,6 @@ export default function CrmDashboardPage() {
       icon={<LayoutDashboard className="h-6 w-6" />}
       title="Dashboard"
       description="CRM & Solution Tracking — P2P Solutions"
-      actions={
-        <Button variant="outline" size="sm" onClick={load} disabled={loading}>
-          {loading ? 'กำลังโหลด…' : 'รีเฟรช'}
-        </Button>
-      }
     >
       {/* Stat cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">

@@ -6,7 +6,7 @@ import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { PageShell } from '@/components/ui/page-shell';
 import {
-  Clock, MapPin, RefreshCw, Loader2, AlertCircle,
+  Clock, MapPin, Loader2, AlertCircle,
   MessageSquare, Navigation, Fuel, ChevronRight,
   ChevronDown, ChevronUp
 } from 'lucide-react';
@@ -204,16 +204,6 @@ export default function ClockInOutPage() {
             </div>
             <p className="text-sm text-indigo-200 pl-11">บันทึก GPS ทุกจุดแวะ — ระบบคำนวณค่าน้ำมันให้อัตโนมัติ</p>
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={loadData}
-            disabled={loading}
-            className="gap-1.5 border-white/30 bg-white/10 text-white hover:bg-white/20 backdrop-blur-sm shrink-0"
-          >
-            <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
-            รีเฟรช
-          </Button>
         </div>
 
         {/* Command pills */}

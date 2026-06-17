@@ -248,9 +248,6 @@ export default function TmcCostsPage() {
       actions={
         <>
           <CustomSelect value={range} onChange={setRange} options={RANGE_OPTS} className="w-44" />
-          <Button variant="outline" size="sm" onClick={load} disabled={loading}>
-            {loading ? 'กำลังโหลด…' : 'รีเฟรช'}
-          </Button>
         </>
       }
     >

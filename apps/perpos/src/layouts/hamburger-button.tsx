@@ -28,7 +28,7 @@ export default function HamburgerButton({ view, placement = "left", className }:
         })
       }
     >
-      <PanelLeftClose className="h-6 w-6" strokeWidth={1.5} />
+      <PanelLeftClose className="h-5 w-5" strokeWidth={1.5} />
     </Button>
   );
 }

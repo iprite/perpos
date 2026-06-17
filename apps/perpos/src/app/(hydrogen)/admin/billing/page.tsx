@@ -10,7 +10,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogBody, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog';
 import { ConfirmDeleteDialog } from '@/components/ui/confirm-delete-dialog';
-import { RefreshCw, ChevronDown, ChevronRight, Pencil, CreditCard } from 'lucide-react';
+import { ChevronDown, ChevronRight, Pencil, CreditCard } from 'lucide-react';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { AdminPage } from '../_components/admin-page';
 
@@ -389,12 +389,6 @@ export default function AdminBillingPage() {
       title="Payments & Subscriptions"
       icon={<CreditCard className="h-6 w-6" />}
       description="จัดการราคา, สถานะการชำระ และ subscription ของแต่ละ org"
-      actions={
-        <Button variant="outline" onClick={load} disabled={loading}>
-          <RefreshCw className={`w-4 h-4 mr-1.5 ${loading ? 'animate-spin' : ''}`} />
-          รีเฟรช
-        </Button>
-      }
     >
       {error && (
         <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-red-700 text-sm">{error}</div>

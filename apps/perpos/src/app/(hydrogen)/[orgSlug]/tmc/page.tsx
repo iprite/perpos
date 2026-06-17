@@ -3,7 +3,6 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { backendUrl } from '@/lib/backend';
-import { Button } from '@/components/ui/button';
 import { CustomSelect } from '@/components/ui/custom-select';
 import { PageShell } from '@/components/ui/page-shell';
 import { StatCard } from '@/components/ui/stat-card';
@@ -139,9 +138,6 @@ export default function TmcDashboardPage() {
             options={RANGE_OPTS}
             className="w-44"
           />
-          <Button variant="outline" size="sm" onClick={load} disabled={loading}>
-            {loading ? 'กำลังโหลด…' : 'รีเฟรช'}
-          </Button>
         </>
       }
     >

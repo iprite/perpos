@@ -2,7 +2,7 @@
 
 import React, { useMemo, useState, useTransition } from "react";
 import { toast } from "react-hot-toast";
-import { CheckCircle2, RefreshCw, UploadCloud, XCircle } from "lucide-react";
+import { CheckCircle2, UploadCloud, XCircle } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { CustomSelect } from "@/components/ui/custom-select";
@@ -197,10 +197,6 @@ export function BankReconciliationClient(props: {
             <div className="text-sm font-semibold text-slate-900">อัปโหลด Bank Statement (CSV)</div>
             <div className="mt-0.5 text-xs text-slate-600">นำเข้ารายการธนาคารเพื่อทำการจับคู่กับรายการในระบบ</div>
           </div>
-          <Button variant="outline" className="gap-2" onClick={refreshImports} disabled={pending}>
-            <RefreshCw className={cn("h-4 w-4", pending ? "animate-spin" : undefined)} />
-            Refresh
-          </Button>
         </div>
 
         <div className="mt-4 grid gap-3 md:grid-cols-5">

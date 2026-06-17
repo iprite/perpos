@@ -7,11 +7,10 @@
  */
 
 import { useEffect, useState, useCallback, useMemo } from 'react';
-import { Button } from '@/components/ui/button';
 import { StatCard } from '@/components/ui/stat-card';
 import { PageShell, PageCard } from '@/components/ui/page-shell';
 import {
-  RefreshCw, TrendingUp, CalendarClock, Wallet, UserMinus, Bot, Building2,
+  TrendingUp, CalendarClock, Wallet, UserMinus, Bot, Building2,
 } from 'lucide-react';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { PaymentsTabs } from './_tabs';
@@ -90,12 +89,6 @@ export default function PaymentsConsolePage() {
       title="Payments & Subscriptions"
       icon={<Wallet className="h-6 w-6" />}
       description={data ? `อัปเดต ${new Date(data.computed_at).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}` : 'รายได้รวมทั้งระบบ'}
-      actions={
-        <Button variant="outline" onClick={load} disabled={loading}>
-          <RefreshCw className={`mr-1.5 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-          รีเฟรช
-        </Button>
-      }
       tabs={<PaymentsTabs />}
     >
       {error && <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}

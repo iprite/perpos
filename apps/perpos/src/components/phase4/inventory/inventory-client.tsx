@@ -2,7 +2,7 @@
 
 import React, { useMemo, useState, useTransition } from "react";
 import { toast } from "react-hot-toast";
-import { Plus, RefreshCw } from "lucide-react";
+import { Plus } from "lucide-react";
 
 import cn from "@core/utils/class-names";
 import { CustomSelect } from "@/components/ui/custom-select";
@@ -156,10 +156,6 @@ export function InventoryClient(props: { organizationId: string; initialItems: I
           </button>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" className="gap-2" onClick={refresh} disabled={pending}>
-            <RefreshCw className={cn("h-4 w-4", pending ? "animate-spin" : undefined)} />
-            Refresh
-          </Button>
           <Button variant="outline" className="gap-2" onClick={() => setMoveOpen(true)}>
             เคลื่อนไหวสต๊อก
           </Button>

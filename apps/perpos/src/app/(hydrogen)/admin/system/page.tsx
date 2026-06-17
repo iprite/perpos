@@ -2,8 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { Server, RefreshCw, Loader2, Cpu, Clock, Plug, CheckCircle2, XCircle, AlertTriangle, Circle } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Server, Loader2, Cpu, Clock, Plug, CheckCircle2, XCircle, AlertTriangle, Circle } from 'lucide-react';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { AdminPage, AdminCard } from '../_components/admin-page';
 
@@ -78,11 +77,6 @@ export default function SystemPage() {
       title="System / Infrastructure"
       icon={<Server className="h-6 w-6" />}
       description="backend ทั้งหมดที่ระบบต่อใช้งาน — workers, scheduler, integrations พร้อมสถานะสด"
-      actions={
-        <Button variant="outline" size="sm" onClick={load} disabled={loading}>
-          <RefreshCw className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} /> ตรวจสอบใหม่
-        </Button>
-      }
     >
       {loading && services.length === 0 ? (
         <div className="flex min-h-[40vh] items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-gray-400" /></div>

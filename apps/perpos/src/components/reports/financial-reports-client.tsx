@@ -1,10 +1,9 @@
 "use client";
 
-import React, { useMemo, useState, useTransition } from "react";
-import { Download, Printer, RefreshCw } from "lucide-react";
+import React, { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { Download, Printer } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { ThaiDatePicker } from "@/components/ui/thai-date-picker";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
@@ -53,24 +52,17 @@ export function FinancialReportsClient(props: {
     return { revenue, expense, net: revenue - expense };
   }, [pnl]);
 
-  const refresh = () => {
+  const orgId = props.organizationId;
+
+  // โหลดรายงานใหม่อัตโนมัติเมื่อเปลี่ยน filter (ข้ามรอบแรกเพราะมีข้อมูลจาก server แล้ว)
+  const didMount = useRef(false);
+  useEffect(() => {
+    if (!didMount.current) { didMount.current = true; return; }
     setError(null);
     startTransition(async () => {
       const [tb, pl] = await Promise.all([
-        getTrialBalanceAction({
-          organizationId: props.organizationId,
-          startDate,
-          endDate,
-          postedOnly,
-          includeClosing,
-        }),
-        getPnlAction({
-          organizationId: props.organizationId,
-          startDate,
-          endDate,
-          postedOnly,
-          includeClosing,
-        }),
+        getTrialBalanceAction({ organizationId: orgId, startDate, endDate, postedOnly, includeClosing }),
+        getPnlAction({ organizationId: orgId, startDate, endDate, postedOnly, includeClosing }),
       ]);
       if (!tb.ok) {
         setError(tb.error);
@@ -83,7 +75,7 @@ export function FinancialReportsClient(props: {
       setTrialBalance(tb.rows);
       setPnl(pl.rows);
     });
-  };
+  }, [orgId, startDate, endDate, postedOnly, includeClosing]);
 
   const [drillOpen, setDrillOpen] = useState(false);
   const [drillTitle, setDrillTitle] = useState<string>("");
@@ -120,10 +112,7 @@ export function FinancialReportsClient(props: {
         </div>
 
         <div className="flex items-center gap-2">
-          <Button variant="outline" className="gap-2" disabled={pending} onClick={refresh}>
-            <RefreshCw className={cn("h-4 w-4", pending ? "animate-spin" : undefined)} />
-            Refresh
-          </Button>
+          {pending && <span className="text-xs text-slate-400">กำลังโหลด…</span>}
           <Button
             variant="outline"
             className="gap-2"

@@ -1,9 +1,8 @@
 'use client';
 
 import { useEffect, useState, useCallback, useMemo } from 'react';
-import { Button } from '@/components/ui/button';
 import {
-  RefreshCw, Users, Building2, Activity, Webhook,
+  Users, Building2, Activity, Webhook,
   AlertTriangle, CheckCircle, TrendingUp, CreditCard,
   Wrench, Clock, LayoutDashboard,
 } from 'lucide-react';
@@ -117,12 +116,6 @@ export default function AdminDashboardPage() {
       title="Super Admin Dashboard"
       icon={<LayoutDashboard className="h-6 w-6" />}
       description={`อัปเดต ${new Date(data.computed_at).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}`}
-      actions={
-        <Button variant="outline" onClick={load} disabled={loading}>
-          <RefreshCw className={`w-4 h-4 mr-1.5 ${loading ? 'animate-spin' : ''}`} />
-          รีเฟรช
-        </Button>
-      }
     >
       {/* Attention banner */}
       {(billing.expired > 0 || billing.overdue > 0 || orgs.maintenance > 0) && (

@@ -4,7 +4,6 @@ import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
-import { Button } from '@/components/ui/button';
 import { CustomSelect } from '@/components/ui/custom-select';
 import { PageShell } from '@/components/ui/page-shell';
 import { StatusBadge, type BadgeTone } from '@/components/ui/badge';
@@ -13,7 +12,7 @@ import {
 } from '@/components/ui/table';
 import {
   BarChart3, AlertTriangle, Clock, FileText,
-  Building2, RefreshCw, CalendarDays,
+  Building2, CalendarDays,
   CheckSquare, BookOpenText,
 } from 'lucide-react';
 import type { ActionableInvoice, ClientSummaryRow } from '@/app/api/acc-firm/reports/route';
@@ -183,12 +182,6 @@ export default function AccFirmReportsPage() {
       icon={<BarChart3 className="h-6 w-6" />}
       title="รายงานรวม"
       description={`ภาพรวมงานค้างและ deadline ภาษีข้าม client orgs${thMonth ? ` · ${thMonth}` : ''}`}
-      actions={
-        <Button variant="outline" size="sm" onClick={load} disabled={loading} className="gap-1.5">
-          <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-          {loading ? 'กำลังโหลด…' : 'รีเฟรช'}
-        </Button>
-      }
     >
 
       {/* KPI strip */}

@@ -1,10 +1,8 @@
 "use client";
 
-import React, { useState, useTransition } from "react";
-import { RefreshCw } from "lucide-react";
+import React, { useEffect, useRef, useState, useTransition } from "react";
 import { toast } from "react-hot-toast";
 
-import cn from "@core/utils/class-names";
 import { Button } from "@/components/ui/button";
 import { CustomSelect } from "@/components/ui/custom-select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -19,16 +17,21 @@ export function AuditLogsClient(props: { organizationId: string; initialRows: Au
   const [open, setOpen] = useState(false);
   const [detail, setDetail] = useState<AuditLogRow | null>(null);
 
-  const refresh = () => {
+  const orgId = props.organizationId;
+
+  // โหลดข้อมูลใหม่อัตโนมัติเมื่อเปลี่ยน filter (ข้ามรอบแรกเพราะมีข้อมูลจาก server แล้ว)
+  const didMount = useRef(false);
+  useEffect(() => {
+    if (!didMount.current) { didMount.current = true; return; }
     startTransition(async () => {
-      const res = await listAuditLogsAction({ organizationId: props.organizationId, limit: 200, tableName: tableName || undefined, action: action || undefined });
+      const res = await listAuditLogsAction({ organizationId: orgId, limit: 200, tableName: tableName || undefined, action: action || undefined });
       if (!res.ok) {
         toast.error(res.error);
         return;
       }
       setRows(res.rows);
     });
-  };
+  }, [orgId, tableName, action]);
 
   return (
     <div className="grid gap-4">
@@ -68,10 +71,7 @@ export function AuditLogsClient(props: { organizationId: string; initialRows: Au
             />
           </div>
         </div>
-        <Button variant="outline" className="gap-2" onClick={refresh} disabled={pending}>
-          <RefreshCw className={cn("h-4 w-4", pending ? "animate-spin" : undefined)} />
-          Refresh
-        </Button>
+        {pending && <span className="text-xs text-slate-400">กำลังโหลด…</span>}
       </div>
 
       <div className="rounded-xl border border-slate-200 bg-white">

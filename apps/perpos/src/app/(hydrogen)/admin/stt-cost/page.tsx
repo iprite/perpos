@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { CustomSelect } from '@/components/ui/custom-select';
-import { Coins, Clock, FileAudio, TrendingUp, RefreshCw, Loader2, Calculator } from 'lucide-react';
+import { Coins, Clock, FileAudio, TrendingUp, Loader2, Calculator } from 'lucide-react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { AdminPage } from '../_components/admin-page';
@@ -91,7 +91,6 @@ export default function AdminSttCostPage() {
             ]}
           />
           <Link href="/admin/stt-stats"><Button variant="outline" size="sm">สถิติ</Button></Link>
-          <Button variant="outline" size="sm" onClick={load} disabled={loading}><RefreshCw className="mr-2 h-4 w-4" /> รีเฟรช</Button>
         </>
       }
     >

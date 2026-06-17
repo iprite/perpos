@@ -14,7 +14,6 @@ import {
   AlertTriangle,
   ArrowUpRight,
   ArrowDownRight,
-  RefreshCw,
   Sliders,
   ChevronRight,
   Loader2,
@@ -155,10 +154,6 @@ export default function JaquarDashboardPage() {
       description="ภาพรวมสถิติคลังสินค้าและดัชนีชี้วัดข้อมูลสต๊อก"
       actions={
         <>
-          <Button variant="outline" size="sm" onClick={loadDashboard} disabled={loading} className="flex items-center gap-1">
-            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-            รีเฟรช
-          </Button>
           <Button onClick={navigateToStock} size="sm" className="bg-indigo-600 hover:bg-indigo-700 flex items-center gap-1">
             จัดการคลังสินค้า
             <ChevronRight className="w-4 h-4" />

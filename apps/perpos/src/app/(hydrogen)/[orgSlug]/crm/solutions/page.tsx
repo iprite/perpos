@@ -12,7 +12,7 @@ import { StatusBadge, type BadgeTone } from '@/components/ui/badge';
 import {
   Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableEmpty,
 } from '@/components/ui/table';
-import { Plus, Briefcase, RefreshCw, Search, Trash2, ExternalLink } from 'lucide-react';
+import { Plus, Briefcase, Search, Trash2, ExternalLink } from 'lucide-react';
 import { ConfirmDeleteDialog } from '@/components/ui/confirm-delete-dialog';
 
 type Solution = {
@@ -151,9 +151,6 @@ export default function CrmSolutionsPage() {
             ))}
           </div>
           <CustomSelect value={statusFilter} onChange={v => { setStatusFilter(v); }} options={STATUS_FILTER_OPTS} className="w-36" />
-          <Button variant="outline" size="icon" onClick={load} disabled={loading}>
-            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-          </Button>
         </>
       }
     >

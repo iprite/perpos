@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import {
-  BedDouble, LogIn, RefreshCw,
+  BedDouble, LogIn,
   ChevronLeft, ChevronRight, AlertCircle, Loader2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -215,9 +215,6 @@ export default function UsvillaPage() {
       description={t.subtitle_daily}
       actions={
         <>
-          <Button variant="ghost" size="icon" onClick={refresh} disabled={loading}>
-            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-          </Button>
           <Button onClick={() => setNewOpen(true)}>
             <LogIn className="h-4 w-4 mr-2" />{t.btn_checkin}
           </Button>

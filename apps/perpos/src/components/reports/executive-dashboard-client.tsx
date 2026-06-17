@@ -2,10 +2,7 @@
 
 import React, { useMemo, useTransition } from "react";
 import { Bar, BarChart, CartesianGrid, Cell, Legend, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { RefreshCw } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { ThaiDatePicker } from "@/components/ui/thai-date-picker";
 import cn from "@core/utils/class-names";
 import {
@@ -38,10 +35,15 @@ export function ExecutiveDashboardClient(props: {
   const [aging, setAging] = React.useState(props.initialReceivableAging);
   const [error, setError] = React.useState<string | null>(null);
 
-  const refresh = () => {
+  const orgId = props.organizationId;
+
+  // โหลดข้อมูลใหม่อัตโนมัติเมื่อเปลี่ยนงวด (ข้ามรอบแรกเพราะมีข้อมูลจาก server แล้ว)
+  const didMount = React.useRef(false);
+  React.useEffect(() => {
+    if (!didMount.current) { didMount.current = true; return; }
     setError(null);
     startTransition(async () => {
-      const res = await getExecutiveDashboardAction({ organizationId: props.organizationId, endMonth });
+      const res = await getExecutiveDashboardAction({ organizationId: orgId, endMonth });
       if (!res.ok) {
         setError(res.error);
         return;
@@ -51,7 +53,7 @@ export function ExecutiveDashboardClient(props: {
       setTopExpenses(res.topExpenses);
       setAging(res.receivableAging);
     });
-  };
+  }, [orgId, endMonth]);
 
   const pieData = useMemo(() => {
     return topExpenses.map((x) => ({ name: x.label, value: x.amount }));
@@ -66,10 +68,7 @@ export function ExecutiveDashboardClient(props: {
             <ThaiDatePicker value={endMonth} onChange={(v) => setEndMonth(v)} className="w-[180px]" />
           </div>
         </div>
-        <Button variant="outline" className="gap-2" onClick={refresh} disabled={pending}>
-          <RefreshCw className={cn("h-4 w-4", pending ? "animate-spin" : undefined)} />
-          Refresh
-        </Button>
+        {pending && <span className="text-xs text-slate-400">กำลังโหลด…</span>}
       </div>
 
       {error ? <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div> : null}

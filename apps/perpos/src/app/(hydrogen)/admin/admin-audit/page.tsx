@@ -7,7 +7,7 @@ import { StatusBadge, type BadgeTone } from '@/components/ui/badge';
 import {
   Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableEmpty, TableLoading,
 } from '@/components/ui/table';
-import { RefreshCw, ScrollText } from 'lucide-react';
+import { ScrollText } from 'lucide-react';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { AdminPage } from '../_components/admin-page';
 
@@ -83,7 +83,6 @@ export default function AdminAuditPage() {
             options={[{ value: '', label: 'ทุก action' }, ...actions.map((a) => ({ value: a, label: a }))]}
             className="w-52"
           />
-          <Button variant="outline" size="sm" onClick={load} disabled={loading}><RefreshCw className="mr-2 h-4 w-4" /> รีเฟรช</Button>
         </>
       }
     >

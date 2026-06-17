@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { BarChart3, Users, Clock, FileAudio, RefreshCw, Loader2, Settings } from 'lucide-react';
+import { BarChart3, Users, Clock, FileAudio, Loader2, Settings } from 'lucide-react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 import { toast } from 'react-hot-toast';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
@@ -88,7 +88,6 @@ export default function AdminSttStatsPage() {
           <Link href="/admin/stt-jobs"><Button variant="outline" size="sm">งานแกะเสียง</Button></Link>
           <Link href="/admin/users"><Button variant="outline" size="sm">จัดการผู้ใช้</Button></Link>
           <Link href="/admin/stt-cost"><Button variant="outline" size="sm">ต้นทุน</Button></Link>
-          <Button variant="outline" size="sm" onClick={load} disabled={loading}><RefreshCw className="mr-2 h-4 w-4" /> รีเฟรช</Button>
         </>
       }
     >

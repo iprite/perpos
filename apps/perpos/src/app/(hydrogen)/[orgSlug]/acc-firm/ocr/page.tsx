@@ -16,7 +16,7 @@ import {
   Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableEmpty,
 } from '@/components/ui/table';
 import {
-  Calculator, RefreshCw, AlertTriangle, FileText, CheckCircle2,
+  Calculator, AlertTriangle, FileText, CheckCircle2,
   Trash2, Plus, ArrowLeft, Loader2, BookOpen, AlertCircle,
   UploadCloud, Sparkles, X, FileUp, Lock,
 } from 'lucide-react';
@@ -529,9 +529,6 @@ export default function AccFirmOcrPage() {
               วิเคราะห์ทั้งหมด ({pendingCount})
             </Button>
           )}
-          <Button onClick={() => fetchJobs(orgId, token)} disabled={loading} variant="outline" size="icon" title="รีเฟรช">
-            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-          </Button>
           <Button onClick={() => setUploadOpen(true)} className="gap-2">
             <UploadCloud className="w-4 h-4" /> อัปโหลดเอกสาร
           </Button>

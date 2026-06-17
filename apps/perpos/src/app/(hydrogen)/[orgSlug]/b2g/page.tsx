@@ -19,7 +19,7 @@ import {
 } from '@/components/ui/table';
 import {
   Building2, TrendingUp, Loader2, AlertCircle, Plus,
-  Trash2, RefreshCw, ClipboardList, BadgeCheck, Clock,
+  Trash2, ClipboardList, BadgeCheck, Clock,
 } from 'lucide-react';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -298,10 +298,6 @@ export default function B2gOrdersPage() {
       description="ติดตามคำสั่งซื้อและผลกำไร Business-to-Government"
       actions={
         <>
-          <Button variant="outline" size="sm" onClick={load} disabled={loading}>
-            <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${loading ? 'animate-spin' : ''}`} />
-            รีเฟรช
-          </Button>
           <Button size="sm" onClick={openAdd}>
             <Plus className="w-3.5 h-3.5 mr-1.5" />
             เพิ่มรายการ

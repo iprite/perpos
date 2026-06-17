@@ -7,7 +7,7 @@ import { StatusBadge, type BadgeTone } from '@/components/ui/badge';
 import {
   Table, TableHeader, TableBody, TableRow, TableHead, TableCell,
 } from '@/components/ui/table';
-import { Coins, TrendingUp, Users, Receipt, RefreshCw, Loader2 } from 'lucide-react';
+import { Coins, TrendingUp, Users, Receipt, Loader2 } from 'lucide-react';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { AdminPage } from '../_components/admin-page';
 
@@ -67,7 +67,6 @@ export default function AdminSttBillingPage() {
         <>
           <Link href="/admin/stt-stats"><Button variant="outline" size="sm">สถิติ</Button></Link>
           <Link href="/admin/stt-cost"><Button variant="outline" size="sm">ต้นทุน</Button></Link>
-          <Button variant="outline" size="sm" onClick={load} disabled={loading}><RefreshCw className="mr-2 h-4 w-4" /> รีเฟรช</Button>
         </>
       }
     >

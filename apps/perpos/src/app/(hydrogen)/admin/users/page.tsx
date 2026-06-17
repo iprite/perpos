@@ -6,7 +6,7 @@ import React, {
 import { Text, Title } from "@/components/ui/typography";
 import {
   Settings2, Building2, KeyRound, Eye, UserX, UserCheck, Trash2,
-  Gauge, Search, RefreshCw, ChevronDown, Users as UsersIcon, Copy, Check,
+  Gauge, Search, ChevronDown, Users as UsersIcon, Copy, Check,
 } from "lucide-react";
 
 import { useAuth } from "@/app/shared/auth-provider";
@@ -513,11 +513,6 @@ export default function AdminUsersPage() {
       title="จัดการผู้ใช้"
       icon={<UsersIcon className="h-6 w-6" />}
       description="ผู้ใช้ทุกคนสมัครผ่าน LINE — กำหนดองค์กร (ERP) และโควต้าผู้ช่วย AI ได้จากที่นี่"
-      actions={
-        <Button variant="outline" onClick={() => refreshUsers()} disabled={loading}>
-          <RefreshCw className={`mr-2 h-4 w-4 ${loading ? "animate-spin" : ""}`} /> รีเฟรช
-        </Button>
-      }
     >
       {/* Filter bar */}
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center">

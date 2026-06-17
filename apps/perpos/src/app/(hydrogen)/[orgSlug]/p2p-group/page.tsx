@@ -3,7 +3,6 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useParams } from 'next/navigation';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
-import { Button } from '@/components/ui/button';
 import { PageShell } from '@/components/ui/page-shell';
 import { LayoutGrid, Loader2, AlertCircle } from 'lucide-react';
 
@@ -61,11 +60,6 @@ export default function P2pGroupPage() {
       icon={<LayoutGrid className="h-6 w-6" />}
       title="P2P Group"
       description="โมดูลการทำงานเฉพาะองค์กร (P2P Group)"
-      actions={
-        <Button variant="outline" size="sm" onClick={loadData} disabled={loading}>
-          {loading ? 'กำลังโหลด…' : 'รีเฟรช'}
-        </Button>
-      }
     >
       {/* Content */}
       {loading ? (

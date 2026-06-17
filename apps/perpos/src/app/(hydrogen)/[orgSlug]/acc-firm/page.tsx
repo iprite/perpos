@@ -10,7 +10,6 @@ import {
   LayoutDashboard, Calculator, ArrowRight, ArrowUpRight,
   Building2, BookOpenText, Users, CheckCircle2, Clock,
   AlertTriangle, TrendingUp, TrendingDown, FileText,
-  RefreshCw,
 } from 'lucide-react';
 
 type InvoiceBucket = { count: number; amount: number };
@@ -122,10 +121,6 @@ export default function AccFirmDashboardPage() {
       description={`สำนักงานบัญชี — ภาพรวม client orgs${thMonth ? ` · ${thMonth}` : ''}`}
       actions={
         <>
-          <Button variant="outline" size="sm" onClick={load} disabled={loading} className="gap-1.5">
-            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-            {loading ? 'กำลังโหลด…' : 'รีเฟรช'}
-          </Button>
           <Link href={`/${orgSlug}/acc-firm/ocr`}>
             <Button size="sm" variant="outline" className="gap-1.5 text-teal-700 border-teal-200 hover:bg-teal-50">
               <FileText className="w-3.5 h-3.5" /> ตรวจทานบิล AI (OCR)

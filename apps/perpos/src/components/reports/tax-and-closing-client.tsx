@@ -1,15 +1,13 @@
 "use client";
 
-import React, { useMemo, useState, useTransition } from "react";
-import { Download, RefreshCw } from "lucide-react";
+import React, { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { Download } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { ThaiDatePicker } from "@/components/ui/thai-date-picker";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { downloadCsv, toCsv } from "@/components/reports/csv";
 import { getOutputVatReportAction, getWhtSummaryAction, type OutputVatRow } from "@/lib/reports/actions";
-import cn from "@core/utils/class-names";
 
 function fmt(n: number) {
   return n.toLocaleString("th-TH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -35,12 +33,17 @@ export function TaxAndClosingClient(props: {
     return { amount, vat };
   }, [rows]);
 
-  const refresh = () => {
+  const orgId = props.organizationId;
+
+  // โหลดรายงานใหม่อัตโนมัติเมื่อเปลี่ยนช่วงวันที่ (ข้ามรอบแรกเพราะมีข้อมูลจาก server แล้ว)
+  const didMount = useRef(false);
+  useEffect(() => {
+    if (!didMount.current) { didMount.current = true; return; }
     setError(null);
     startTransition(async () => {
       const [vatRes, whtRes] = await Promise.all([
-        getOutputVatReportAction({ organizationId: props.organizationId, startDate, endDate }),
-        getWhtSummaryAction({ organizationId: props.organizationId, startDate, endDate }),
+        getOutputVatReportAction({ organizationId: orgId, startDate, endDate }),
+        getWhtSummaryAction({ organizationId: orgId, startDate, endDate }),
       ]);
       if (!vatRes.ok) {
         setError(vatRes.error);
@@ -53,7 +56,7 @@ export function TaxAndClosingClient(props: {
       setRows(vatRes.rows);
       setWht({ count: whtRes.count, totalWithholding: whtRes.totalWithholding });
     });
-  };
+  }, [orgId, startDate, endDate]);
 
   return (
     <div className="grid gap-6">
@@ -70,10 +73,7 @@ export function TaxAndClosingClient(props: {
         </div>
 
         <div className="flex items-center gap-2">
-          <Button variant="outline" className="gap-2" onClick={refresh} disabled={pending}>
-            <RefreshCw className={cn("h-4 w-4", pending ? "animate-spin" : undefined)} />
-            Refresh
-          </Button>
+          {pending && <span className="text-xs text-slate-400">กำลังโหลด…</span>}
           <Button
             variant="outline"
             className="gap-2"

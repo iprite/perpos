@@ -1,10 +1,9 @@
 'use client';
 
 import { useEffect, useState, useCallback, useMemo } from 'react';
-import { Button }       from '@/components/ui/button';
 import { CustomSelect } from '@/components/ui/custom-select';
 import {
-  RefreshCw, ChevronDown, ChevronRight,
+  ChevronDown, ChevronRight,
   Wifi, WebhookIcon, Clock, CreditCard, Wrench, HeartPulse,
 } from 'lucide-react';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
@@ -198,12 +197,6 @@ export default function HealthPage() {
             </span>
           )}
         </>
-      }
-      actions={
-        <Button variant="outline" onClick={load} disabled={loading}>
-          <RefreshCw className={`w-4 h-4 mr-1.5 ${loading ? 'animate-spin' : ''}`} />
-          รีเฟรช
-        </Button>
       }
     >
       {/* Summary */}
