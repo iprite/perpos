@@ -62,7 +62,7 @@ export function PageShell({
   return (
     <div className={`mx-auto w-full ${WIDTH_CLASS[width]} space-y-6 px-1 py-2 sm:px-2 lg:px-3`}>
       {hasHeader && (
-        <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <header className="sticky top-0 z-10 -mx-1 -mt-2 mb-0 flex flex-col gap-3 bg-white px-1 pb-3 pt-4 sm:-mx-2 sm:flex-row sm:items-end sm:justify-between sm:px-2 lg:-mx-3 lg:px-3">
           <div className="min-w-0">
             {title && <h1 className="text-2xl font-semibold leading-tight text-gray-900">{title}</h1>}
             {description && <p className="mt-1 text-sm text-gray-500">{description}</p>}

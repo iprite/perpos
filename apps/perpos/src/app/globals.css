@@ -196,7 +196,7 @@
   }
 
   body {
-    @apply flex min-h-full flex-col overflow-x-hidden text-sm text-gray-600 dark:bg-gray-50;
+    @apply flex min-h-full flex-col text-sm text-gray-600 dark:bg-gray-50;
   }
 
   input::-ms-clear,
