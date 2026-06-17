@@ -18,7 +18,7 @@ import { PaymentsTabs } from './_tabs';
 
 type StreamMetrics = {
   mrr: number; arr: number; revenue_total: number; revenue_month: number;
-  active_subscribers: number; arpu: number; churned_30d: number;
+  paying_subscribers: number; trialing: number; arpu: number; churned_30d: number;
 };
 type Metrics = {
   computed_at: string;
@@ -47,8 +47,8 @@ function StreamCard({
       </div>
       <div className="mt-4 grid grid-cols-3 gap-3 border-t border-gray-100 pt-4 text-center">
         <div>
-          <div className="text-lg font-semibold tabular-nums text-gray-900">{m.active_subscribers.toLocaleString()}</div>
-          <div className="text-xs text-gray-500">สมาชิก active</div>
+          <div className="text-lg font-semibold tabular-nums text-gray-900">{m.paying_subscribers.toLocaleString()}</div>
+          <div className="text-xs text-gray-500">สมาชิกจ่ายเงิน{m.trialing > 0 ? ` · ทดลอง ${m.trialing}` : ''}</div>
         </div>
         <div>
           <div className="text-lg font-semibold tabular-nums text-gray-900">{baht(m.arpu, 0)}</div>
@@ -110,7 +110,7 @@ export default function PaymentsConsolePage() {
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <StatCard icon={<TrendingUp className="h-4 w-4" />}   label="MRR รวม"        value={baht(data.combined.mrr)}  sub={`ARR ${baht(data.combined.arr)}`} tone="info" valueColored />
             <StatCard icon={<Wallet className="h-4 w-4" />}       label="รายได้เดือนนี้"  value={baht(data.combined.revenue_month)} sub={`รวมสะสม ${baht(data.combined.revenue_total)}`} tone="positive" valueColored />
-            <StatCard icon={<CalendarClock className="h-4 w-4" />} label="สมาชิก active"  value={data.combined.active_subscribers.toLocaleString()} sub={`ARPU ${baht(data.combined.arpu)}`} tone="primary" />
+            <StatCard icon={<CalendarClock className="h-4 w-4" />} label="สมาชิกจ่ายเงิน"  value={data.combined.paying_subscribers.toLocaleString()} sub={`ARPU ${baht(data.combined.arpu)} · ทดลอง ${data.combined.trialing}`} tone="primary" />
             <StatCard icon={<UserMinus className="h-4 w-4" />}    label="ยกเลิก 30 วัน"   value={data.combined.churned_30d.toLocaleString()} sub="churn (ประมาณ)" tone="warning" />
           </div>
 

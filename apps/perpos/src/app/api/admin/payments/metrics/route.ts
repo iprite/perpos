@@ -15,7 +15,10 @@ import { ok } from '../../../_lib/response';
 
 const BKK = 'Asia/Bangkok';
 const monthKey = (d: Date) => new Intl.DateTimeFormat('en-CA', { timeZone: BKK, year: 'numeric', month: '2-digit' }).format(d);
-const ACTIVE = ['trialing', 'active', 'past_due'];
+// MRR/ARPU = เฉพาะ subscription ที่ "จ่ายเงินจริง" — ไม่รวม trialing (ยังไม่จ่าย)
+// trialing นับแยกเป็น metric ของตัวเอง (pipeline) ไม่ปนเข้า recurring revenue
+const PAYING = ['active', 'past_due'];
+const TRIAL = ['trialing'];
 const ENDED = ['canceled', 'cancelled', 'unpaid', 'incomplete_expired'];
 const r2 = (n: number) => Math.round(n * 100) / 100;
 
@@ -41,7 +44,8 @@ export async function GET(req: NextRequest) {
   const priceByPlan = new Map((plans ?? []).map((p) => [String(p.id), Number(p.price ?? 0)]));
 
   // ── per-stream aggregation ──────────────────────────────────────────────────
-  function build(stream: Stream, mrr: number, activeSubs: number, churned30d: number) {
+  // payingSubs = ฐานของ MRR/ARPU (active+past_due) · trialing = pipeline แยก
+  function build(stream: Stream, mrr: number, payingSubs: number, trialing: number, churned30d: number) {
     const succeeded = payRows.filter((p) => p.stream === stream && p.status === 'succeeded');
     const revenueTotal = succeeded.reduce((s, p) => s + Number(p.amount || 0), 0);
     const revenueMonth = succeeded.filter((p) => monthKey(new Date(p.created_at)) === thisMonth).reduce((s, p) => s + Number(p.amount || 0), 0);
@@ -50,34 +54,38 @@ export async function GET(req: NextRequest) {
       arr: r2(mrr * 12),
       revenue_total: r2(revenueTotal),
       revenue_month: r2(revenueMonth),
-      active_subscribers: activeSubs,
-      arpu: activeSubs > 0 ? r2(mrr / activeSubs) : 0,
+      paying_subscribers: payingSubs,
+      trialing,
+      arpu: payingSubs > 0 ? r2(mrr / payingSubs) : 0,
       churned_30d: churned30d,
     };
   }
 
-  // assistant (B2C)
-  const sttActive = (sttSubs ?? []).filter((s) => s.status && ACTIVE.includes(String(s.status)));
-  const sttMrr = sttActive.reduce((s, sub) => s + (priceByPlan.get(String(sub.plan_id)) ?? 0), 0);
+  // assistant (B2C) — MRR เฉพาะ paying, trial นับแยก
+  const sttPaying = (sttSubs ?? []).filter((s) => s.status && PAYING.includes(String(s.status)));
+  const sttTrial = (sttSubs ?? []).filter((s) => s.status && TRIAL.includes(String(s.status))).length;
+  const sttMrr = sttPaying.reduce((s, sub) => s + (priceByPlan.get(String(sub.plan_id)) ?? 0), 0);
   const sttChurn = (sttSubs ?? []).filter((s) => ENDED.includes(String(s.status)) && s.updated_at && String(s.updated_at) >= since30d).length;
-  const assistant = build('assistant', sttMrr, sttActive.length, sttChurn);
+  const assistant = build('assistant', sttMrr, sttPaying.length, sttTrial, sttChurn);
 
   // erp (B2B)
-  const orgActive = (orgSubs ?? []).filter((s) => s.subscription_status && ACTIVE.includes(String(s.subscription_status)));
-  const orgMrr = orgActive.reduce((s, sub) => s + Number(sub.mrr_amount ?? 0), 0);
+  const orgPaying = (orgSubs ?? []).filter((s) => s.subscription_status && PAYING.includes(String(s.subscription_status)));
+  const orgTrial = (orgSubs ?? []).filter((s) => s.subscription_status && TRIAL.includes(String(s.subscription_status))).length;
+  const orgMrr = orgPaying.reduce((s, sub) => s + Number(sub.mrr_amount ?? 0), 0);
   const orgChurn = (orgSubs ?? []).filter((s) => ENDED.includes(String(s.subscription_status)) && s.updated_at && String(s.updated_at) >= since30d).length;
-  const erp = build('erp', orgMrr, orgActive.length, orgChurn);
+  const erp = build('erp', orgMrr, orgPaying.length, orgTrial, orgChurn);
 
   // ── combined ─────────────────────────────────────────────────────────────────
   const mrr = assistant.mrr + erp.mrr;
-  const subs = assistant.active_subscribers + erp.active_subscribers;
+  const paying = assistant.paying_subscribers + erp.paying_subscribers;
   const combined = {
     mrr: r2(mrr),
     arr: r2(mrr * 12),
     revenue_total: r2(assistant.revenue_total + erp.revenue_total),
     revenue_month: r2(assistant.revenue_month + erp.revenue_month),
-    active_subscribers: subs,
-    arpu: subs > 0 ? r2(mrr / subs) : 0,
+    paying_subscribers: paying,
+    trialing: assistant.trialing + erp.trialing,
+    arpu: paying > 0 ? r2(mrr / paying) : 0,
     churned_30d: assistant.churned_30d + erp.churned_30d,
   };
 
