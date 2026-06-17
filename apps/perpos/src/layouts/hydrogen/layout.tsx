@@ -91,7 +91,7 @@ export default async function HydrogenLayout({ children }: { children: React.Rea
           <ImpersonationBanner />
           <AnnouncementBanner />
           {/* Mobile header — สูงแค่พอดีปุ่ม hamburger, sticky ติดบนเมื่อ scroll (เฉพาะจอเล็ก) */}
-          <header className="sticky top-[var(--impersonation-banner-height,0px)] z-40 flex items-center border-b border-gray-100 bg-white/95 px-3 py-2 backdrop-blur supports-[backdrop-filter]:bg-white/80 xl:hidden dark:border-gray-200/10 dark:bg-gray-50/95">
+          <header className="sticky top-[var(--impersonation-banner-height,0px)] z-40 flex h-12 items-center border-b border-gray-100 bg-white/95 px-3 backdrop-blur supports-[backdrop-filter]:bg-white/80 xl:hidden dark:border-gray-200/10 dark:bg-gray-50/95">
             <HamburgerButton
               className="me-0 sm:me-0"
               view={
