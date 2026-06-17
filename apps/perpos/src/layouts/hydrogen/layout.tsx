@@ -5,6 +5,7 @@ import Header from "./header";
 import Sidebar from "./sidebar";
 import Link from "next/link";
 import { ImpersonationBanner } from "@/components/impersonation-banner";
+import { AnnouncementBanner } from "@/components/announcement-banner";
 import { Breadcrumb } from "@/components/ui/breadcrumb";
 import StickyFooter from "@/layouts/sticky-footer";
 import { ModuleProvider } from "@/app/shared/module-provider";
@@ -87,6 +88,7 @@ export default async function HydrogenLayout({ children }: { children: React.Rea
         <div className="flex w-full flex-col xl:ms-[270px] xl:w-[calc(100%-270px)] 2xl:ms-72 2xl:w-[calc(100%-288px)] pt-[var(--impersonation-banner-height,0px)]">
           <Header enabledModuleKeys={enabledKeys} />
           <ImpersonationBanner />
+          <AnnouncementBanner />
           <div className="flex flex-grow flex-col px-4 pb-6 pt-2 md:px-5 lg:px-6 lg:pb-8 3xl:px-8 3xl:pt-4 4xl:px-10 4xl:pb-9">
             <Breadcrumb />
             {children}

@@ -15,6 +15,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Mic, BarChart3, CreditCard } from 'lucide-react';
+import { PageShell } from '@/components/ui/page-shell';
 
 type Tab = {
   href: string;
@@ -59,39 +60,33 @@ export default function AssistantLayout({ children }: { children: React.ReactNod
   const current = activeTab(pathname);
 
   return (
-    <div className="w-full px-4 py-6 lg:px-8">
-      {/* Header — ตามแท็บที่ active */}
-      <div className="mb-4">
-        <h1 className="flex items-center gap-2.5 text-2xl font-semibold text-gray-900">
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
-            {current.icon}
-          </span>
-          {current.title}
-        </h1>
-        <p className="mt-1 text-sm text-gray-500">{current.subtitle}</p>
-      </div>
-
-      {/* Tab nav — สลับระหว่างหน้าในร่ม */}
-      <div className="mb-6 flex gap-1 border-b border-gray-100">
-        {TABS.map((t) => {
-          const isActive = t.href === current.href;
-          return (
-            <Link
-              key={t.href}
-              href={t.href}
-              className={`-mb-px flex items-center gap-1.5 border-b-2 px-3 py-2.5 text-sm font-medium transition-colors ${
-                isActive
-                  ? 'border-indigo-600 text-indigo-600'
-                  : 'border-transparent text-gray-500 hover:border-gray-200 hover:text-gray-700'
-              }`}
-            >
-              {t.label}
-            </Link>
-          );
-        })}
-      </div>
-
+    <PageShell
+      width="full"
+      icon={current.icon}
+      title={current.title}
+      description={current.subtitle}
+      tabs={
+        <div className="flex gap-1 border-b border-gray-100">
+          {TABS.map((t) => {
+            const isActive = t.href === current.href;
+            return (
+              <Link
+                key={t.href}
+                href={t.href}
+                className={`-mb-px flex items-center gap-1.5 border-b-2 px-3 py-2.5 text-sm font-medium transition-colors ${
+                  isActive
+                    ? 'border-indigo-600 text-indigo-600'
+                    : 'border-transparent text-gray-500 hover:border-gray-200 hover:text-gray-700'
+                }`}
+              >
+                {t.label}
+              </Link>
+            );
+          })}
+        </div>
+      }
+    >
       {children}
-    </div>
+    </PageShell>
   );
 }

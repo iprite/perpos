@@ -14,6 +14,7 @@ import {
   Loader2, Sparkles, AlertCircle, Lock,
 } from 'lucide-react';
 import cn from '@core/utils/class-names';
+import { AdminPage } from '../_components/admin-page';
 
 // ─── Registry module type ───────────────────────────────────────────────────────
 interface RegistryModule {
@@ -369,12 +370,12 @@ export default function OnboardingPage() {
 
   // ── Wizard ────────────────────────────────────────────────────────────────────
   return (
-    <div className="mx-auto max-w-2xl">
-      <div className="mb-6">
-        <h1 className="text-xl font-semibold text-gray-900">Tenant Onboarding</h1>
-        <p className="mt-1 text-sm text-gray-500">สร้างองค์กรใหม่พร้อม module และเจ้าของ</p>
-      </div>
-
+    <AdminPage
+      width="narrow"
+      title="Tenant Onboarding"
+      icon={<UserPlus className="h-6 w-6" />}
+      description="สร้างองค์กรใหม่พร้อม module และเจ้าของ"
+    >
       <StepBar current={step} hasSpecific={hasSpecific} />
 
       <div className="mt-6 rounded-2xl border bg-white p-6 shadow-sm">
@@ -737,6 +738,6 @@ export default function OnboardingPage() {
           </Button>
         )}
       </div>
-    </div>
+    </AdminPage>
   );
 }

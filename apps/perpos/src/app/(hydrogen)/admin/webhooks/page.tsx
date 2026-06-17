@@ -1,8 +1,8 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Title, Text } from "rizzui/typography";
-import { Plus, Pencil, Trash2, Play, ChevronDown, ChevronUp, CheckCircle2, XCircle, Clock } from "lucide-react";
+import { Title } from "rizzui/typography";
+import { Plus, Pencil, Trash2, Play, ChevronDown, ChevronUp, CheckCircle2, XCircle, Clock, Webhook as WebhookIcon } from "lucide-react";
 
 import { useAuth } from "@/app/shared/auth-provider";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { CustomSelect } from "@/components/ui/custom-select";
+import { AdminPage } from "../_components/admin-page";
 import {
   Dialog,
   DialogContent,
@@ -257,22 +258,19 @@ export default function WebhooksPage() {
   const orgOptions = [{ value: "", label: "— เลือก Org —" }, ...orgs.map((o) => ({ value: o.id, label: o.name }))];
 
   return (
-    <div className="space-y-4">
-      {/* Header */}
-      <div className="flex flex-col justify-between gap-3 md:flex-row md:items-end">
-        <div>
-          <Title as="h1" className="text-lg font-semibold text-gray-900">Webhook Gateway</Title>
-          <Text className="mt-1 text-sm text-gray-500">
-            ส่งข้อมูลไปยังระบบภายนอกเมื่อมี event เกิดขึ้น • HMAC-SHA256 signing
-          </Text>
-        </div>
-        {orgId && (
+    <AdminPage
+      width="full"
+      title="Webhook Gateway"
+      icon={<WebhookIcon className="h-6 w-6" />}
+      description="ส่งข้อมูลไปยังระบบภายนอกเมื่อมี event เกิดขึ้น • HMAC-SHA256 signing"
+      actions={
+        orgId && (
           <Button onClick={openAdd}>
             <Plus className="mr-1.5 h-4 w-4" />เพิ่ม Webhook
           </Button>
-        )}
-      </div>
-
+        )
+      }
+    >
       {/* Org selector */}
       <div className="rounded-2xl border border-gray-200 bg-white p-4">
         <div className="max-w-xs space-y-1.5">
@@ -585,6 +583,6 @@ export default function WebhooksPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </AdminPage>
   );
 }

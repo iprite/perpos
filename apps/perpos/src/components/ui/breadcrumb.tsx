@@ -30,8 +30,6 @@ const GROUP_MAP: Record<string, string> = {
   "/settings":               "ตั้งค่า",
   // Payroll
   "/payroll":                "Payroll",
-  // Admin
-  "/admin":                  "แอดมินคอนโซล",
 };
 
 const PAGE_MAP: Record<string, string> = {
@@ -143,10 +141,6 @@ const PAGE_MAP: Record<string, string> = {
   "/payroll/settings/funds":              "ข้อมูลกองทุน",
   "/payroll/settings/accounting":         "ตั้งค่าการบันทึกบัญชี",
 
-  // Admin
-  "/admin":                               "Dashboard",
-  "/admin/users":                         "User Management",
-  "/admin/billing":                       "Billing & Plans",
   "/billing":                             "Billing & Plan",
 };
 
@@ -214,6 +208,10 @@ function getCrumbs(pathname: string): Crumb[] {
 
 export function Breadcrumb() {
   const pathname = usePathname() ?? "/";
+
+  // แอดมินคอนโซลไม่ใช้ breadcrumb — sidebar เป็นตัวนำทางพอแล้ว
+  if (pathname === "/admin" || pathname.startsWith("/admin/")) return null;
+
   const crumbs = getCrumbs(pathname);
 
   if (crumbs.length < 2) return null;

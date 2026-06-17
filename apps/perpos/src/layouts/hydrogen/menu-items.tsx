@@ -34,6 +34,10 @@ import {
   Mic,
   ScrollText,
   Sparkles,
+  Megaphone,
+  Settings2,
+  TimerReset,
+  Server,
 } from "lucide-react";
 
 import type { Role } from "@/lib/supabase/types";
@@ -255,6 +259,18 @@ function buildAdminMenuItems(): MenuItem[] {
       icon: <Activity className="h-5 w-5" />,
       roles: ["super_admin"],
     },
+    {
+      name: "Scheduler Monitor",
+      href: "/admin/scheduler",
+      icon: <TimerReset className="h-5 w-5" />,
+      roles: ["super_admin"],
+    },
+    {
+      name: "System / Infra",
+      href: "/admin/system",
+      icon: <Server className="h-5 w-5" />,
+      roles: ["super_admin"],
+    },
 
     // ── องค์กร & ผู้ใช้ ─────────────────────────────────────────────────────────
     { name: "องค์กร & ผู้ใช้", roles: ["super_admin"] },
@@ -280,6 +296,12 @@ function buildAdminMenuItems(): MenuItem[] {
       name: "Module Registry",
       href: "/admin/module-registry",
       icon: <Briefcase className="h-5 w-5" />,
+      roles: ["super_admin"],
+    },
+    {
+      name: "ประกาศถึงผู้ใช้",
+      href: "/admin/announcements",
+      icon: <Megaphone className="h-5 w-5" />,
       roles: ["super_admin"],
     },
 
@@ -328,6 +350,12 @@ function buildAdminMenuItems(): MenuItem[] {
       name: "บันทึกการจัดการ",
       href: "/admin/admin-audit",
       icon: <ScrollText className="h-5 w-5" />,
+      roles: ["super_admin"],
+    },
+    {
+      name: "System Settings",
+      href: "/admin/settings",
+      icon: <Settings2 className="h-5 w-5" />,
       roles: ["super_admin"],
     },
   ];

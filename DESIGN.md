@@ -120,6 +120,30 @@ export function formatAmount(
 
 ## 4. Layout — โครงสร้างหน้า
 
+### PageShell — เปลือกหน้ามาตรฐาน (บังคับใช้ทุกหน้าใหม่)
+
+> **กฎ**: ทุกหน้าใน `(hydrogen)/*` (admin · ผู้ช่วย AI · ERP/biz) ต้องห่อด้วย `<PageShell>` จาก `@/components/ui/page-shell` — ห้ามเขียน container width / header / padding เอง
+
+`HydrogenLayout` ใส่ padding รอบนอกให้แล้ว (`px-4 md:px-5 lg:px-6`) — หน้าลูก **ห้าม** ใส่ `px-6 py-6` / `p-4 md:p-6` ซ้ำ (double padding) ให้ `<PageShell>` คุม container + header + spacing แทน
+
+```tsx
+import { PageShell, PageCard } from '@/components/ui/page-shell';
+
+<PageShell
+  title="เงินเดือน"
+  description="จัดการรอบจ่ายและสลิปพนักงาน"
+  icon={<Wallet className="h-6 w-6" />}
+  actions={<Button>เพิ่มรอบจ่าย</Button>}   // optional, ชิดขวา
+  width="default"                            // narrow | default | wide | full
+  tabs={<TabNav/>}                           // optional, แถบแท็บใต้ header
+>
+  <PageCard title="รายการ">...</PageCard>
+</PageShell>
+```
+
+- หัวข้อหน้า = `<h1>` ใน PageShell อยู่แล้ว (`text-2xl font-semibold text-gray-900`) — **อย่าเขียน `<h1>`/`text-xl font-bold` เอง** และอย่าใช้ `text-slate-900`
+- `admin` import `AdminPage`/`AdminCard` ได้เหมือนเดิม (เป็น alias ของ `PageShell`/`PageCard`)
+
 ### Dashboard Page Template
 
 ```
