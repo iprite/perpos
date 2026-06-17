@@ -87,21 +87,23 @@ export default async function HydrogenLayout({ children }: { children: React.Rea
           organizations={orgs}
           activeOrganizationId={activeOrg?.id ?? null}
         />
-        <div className="fixed top-[calc(var(--impersonation-banner-height,0px)+1rem)] left-4 z-[9999] xl:hidden">
-          <HamburgerButton
-            view={
-              <Sidebar
-                className="static h-full w-full 2xl:w-full"
-                organizations={orgs}
-                activeOrganizationId={activeOrg?.id ?? null}
-              />
-            }
-          />
-        </div>
         <div className="flex w-full flex-col xl:ms-[270px] xl:w-[calc(100%-270px)] 2xl:ms-72 2xl:w-[calc(100%-288px)] pt-[var(--impersonation-banner-height,0px)]">
           <ImpersonationBanner />
           <AnnouncementBanner />
-          <div className="flex flex-grow flex-col px-4 pb-6 pt-14 md:px-5 lg:px-6 lg:pb-8 xl:pt-2 3xl:px-8 3xl:pt-4 4xl:px-10 4xl:pb-9">
+          {/* Mobile header — สูงแค่พอดีปุ่ม hamburger, sticky ติดบนเมื่อ scroll (เฉพาะจอเล็ก) */}
+          <header className="sticky top-[var(--impersonation-banner-height,0px)] z-40 flex items-center border-b border-gray-100 bg-white/95 px-3 py-2 backdrop-blur supports-[backdrop-filter]:bg-white/80 xl:hidden dark:border-gray-200/10 dark:bg-gray-50/95">
+            <HamburgerButton
+              className="me-0 sm:me-0"
+              view={
+                <Sidebar
+                  className="static h-full w-full 2xl:w-full"
+                  organizations={orgs}
+                  activeOrganizationId={activeOrg?.id ?? null}
+                />
+              }
+            />
+          </header>
+          <div className="flex flex-grow flex-col px-4 pb-6 pt-3 md:px-5 lg:px-6 lg:pb-8 xl:pt-2 3xl:px-8 3xl:pt-4 4xl:px-10 4xl:pb-9">
             <Breadcrumb />
             {children}
           </div>
