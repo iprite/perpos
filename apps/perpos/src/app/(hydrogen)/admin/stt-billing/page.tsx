@@ -3,6 +3,10 @@
 import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
+import { StatusBadge, type BadgeTone } from '@/components/ui/badge';
+import {
+  Table, TableHeader, TableBody, TableRow, TableHead, TableCell,
+} from '@/components/ui/table';
 import { Coins, TrendingUp, Users, Receipt, RefreshCw, Loader2 } from 'lucide-react';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { AdminPage } from '../_components/admin-page';
@@ -22,11 +26,11 @@ async function authToken(): Promise<string> {
 const baht = (n: number, d = 0) => '฿' + new Intl.NumberFormat('th-TH', { minimumFractionDigits: d, maximumFractionDigits: d }).format(n);
 const dt = (s: string) => new Date(s).toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' });
 
-const STATUS: Record<string, string> = {
-  succeeded: 'bg-green-50 text-green-700 border-green-200',
-  pending: 'bg-amber-50 text-amber-700 border-amber-200',
-  failed: 'bg-red-50 text-red-700 border-red-200',
-  refunded: 'bg-gray-50 text-gray-500 border-gray-200',
+const STATUS_TONE: Record<string, BadgeTone> = {
+  succeeded: 'success',
+  pending: 'warning',
+  failed: 'danger',
+  refunded: 'neutral',
 };
 
 function Card({ icon, label, value, sub, accent }: { icon: React.ReactNode; label: string; value: string; sub?: string; accent: string }) {
@@ -101,32 +105,30 @@ export default function AdminSttBillingPage() {
             {s.recent.length === 0 ? (
               <p className="py-6 text-center text-sm text-gray-400">ยังไม่มีรายการ</p>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-gray-100 text-left text-xs font-medium uppercase tracking-wide text-gray-400">
-                      <th className="px-2 py-2">ผู้ใช้</th>
-                      <th className="px-2 py-2">แพ็ก</th>
-                      <th className="px-2 py-2 text-right">จำนวนเงิน</th>
-                      <th className="px-2 py-2 text-center">สถานะ</th>
-                      <th className="px-2 py-2 text-right">เวลา</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-50">
-                    {s.recent.map((p) => (
-                      <tr key={p.id} className="hover:bg-gray-50">
-                        <td className="px-2 py-2.5 text-gray-800">{p.name}</td>
-                        <td className="px-2 py-2.5 text-gray-500">{p.plan ?? (p.kind === 'topup' ? 'เติมนาที' : '—')}</td>
-                        <td className="px-2 py-2.5 text-right font-mono tabular-nums text-gray-800">{baht(p.amount, 2)}</td>
-                        <td className="px-2 py-2.5 text-center">
-                          <span className={`inline-flex rounded-full border px-2 py-0.5 text-xs font-medium ${STATUS[p.status] ?? STATUS.refunded}`}>{p.status}</span>
-                        </td>
-                        <td className="px-2 py-2.5 text-right text-xs text-gray-400">{dt(p.created_at)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>ผู้ใช้</TableHead>
+                    <TableHead>แพ็ก</TableHead>
+                    <TableHead align="right">จำนวนเงิน</TableHead>
+                    <TableHead align="center">สถานะ</TableHead>
+                    <TableHead align="right">เวลา</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {s.recent.map((p) => (
+                    <TableRow key={p.id}>
+                      <TableCell className="text-gray-800">{p.name}</TableCell>
+                      <TableCell className="text-gray-500">{p.plan ?? (p.kind === 'topup' ? 'เติมนาที' : '—')}</TableCell>
+                      <TableCell align="right" tabular className="text-gray-800">{baht(p.amount, 2)}</TableCell>
+                      <TableCell align="center">
+                        <StatusBadge tone={STATUS_TONE[p.status] ?? 'neutral'}>{p.status}</StatusBadge>
+                      </TableCell>
+                      <TableCell align="right" className="text-xs text-gray-400">{dt(p.created_at)}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
             )}
           </div>
 

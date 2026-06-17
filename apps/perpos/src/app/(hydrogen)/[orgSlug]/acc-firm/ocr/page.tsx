@@ -5,14 +5,19 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
+import { PageShell } from '@/components/ui/page-shell';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { CustomSelect } from '@/components/ui/custom-select';
 import { ThaiDatePicker } from '@/components/ui/thai-date-picker';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogBody, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { StatusBadge, type BadgeTone } from '@/components/ui/badge';
+import {
+  Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableEmpty,
+} from '@/components/ui/table';
 import {
   Calculator, RefreshCw, AlertTriangle, FileText, CheckCircle2,
-  Trash2, Plus, ArrowLeft, Loader2, Play, BookOpen, AlertCircle,
+  Trash2, Plus, ArrowLeft, Loader2, BookOpen, AlertCircle,
   UploadCloud, Sparkles, X, FileUp, Lock,
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
@@ -51,11 +56,11 @@ type ClientContext = {
 };
 
 // ── UI Helpers ─────────────────────────────────────────────────────────────────
-const STATUS_BADGE: Record<string, string> = {
-  pending: 'bg-blue-50 text-blue-700 border-blue-100',
-  processing: 'bg-amber-50 text-amber-700 border-amber-100 animate-pulse',
-  completed: 'bg-green-50 text-green-700 border-green-100',
-  failed: 'bg-red-50 text-red-700 border-red-100',
+const STATUS_TONE: Record<string, BadgeTone> = {
+  pending: 'info',
+  processing: 'warning',
+  completed: 'success',
+  failed: 'danger',
 };
 
 const STATUS_TEXT: Record<string, string> = {
@@ -500,7 +505,7 @@ export default function AccFirmOcrPage() {
     || activeJob?.document_url.split('?')[0].toLowerCase().endsWith('.pdf');
 
   return (
-    <div className="p-4 md:p-6 space-y-6">
+    <PageShell width="full">
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-3">
@@ -576,109 +581,81 @@ export default function AccFirmOcrPage() {
             </Button>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-slate-50 border-b text-xs text-slate-500">
-                <tr>
-                  <th className="text-left px-5 py-3 font-medium">บริษัทลูกค้า</th>
-                  <th className="text-left px-5 py-3 font-medium">ชื่อไฟล์เอกสาร</th>
-                  <th className="text-left px-5 py-3 font-medium">วิเคราะห์โดย AI</th>
-                  <th className="text-left px-5 py-3 font-medium">สถานะ</th>
-                  <th className="text-left px-5 py-3 font-medium">วันที่อัปโหลด</th>
-                  <th className="px-5 py-3 text-right" />
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {filteredJobs.map(job => {
-                  const fileName = job.document_url.split('/').pop()?.split('?')[0] || 'document';
-                  const isProcessing = processingJobId === job.id || job.status === 'processing';
-                  const amount = job.extracted_json?.amounts?.grand_total;
-                  const conf = confidenceChip(job.extracted_json?.confidence?.overall);
-                  const isPosted = job.journal_status === 'posted';
+          <Table wrapperClassName="rounded-none border-0">
+            <TableHeader>
+              <TableRow>
+                <TableHead>บริษัทลูกค้า</TableHead>
+                <TableHead>ชื่อไฟล์เอกสาร</TableHead>
+                <TableHead>วิเคราะห์โดย AI</TableHead>
+                <TableHead>สถานะ</TableHead>
+                <TableHead>วันที่อัปโหลด</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filteredJobs.map(job => {
+                const fileName = job.document_url.split('/').pop()?.split('?')[0] || 'document';
+                const isProcessing = processingJobId === job.id || job.status === 'processing';
+                const amount = job.extracted_json?.amounts?.grand_total;
+                const conf = confidenceChip(job.extracted_json?.confidence?.overall);
+                const isPosted = job.journal_status === 'posted';
+                const onRow = () => {
+                  if (job.status === 'completed') openReviewWorkspace(job);
+                  else if ((job.status === 'pending' || job.status === 'failed') && !isProcessing) handleProcess(job.id);
+                };
 
-                  return (
-                    <tr key={job.id} className="hover:bg-slate-50/80 transition-colors">
-                      <td className="px-5 py-4">
-                        <p className="font-semibold text-slate-800">{job.client_name}</p>
-                      </td>
-                      <td className="px-5 py-4 max-w-[200px]">
-                        <span className="text-slate-600 font-medium block truncate" title={fileName}>{fileName}</span>
-                      </td>
-                      <td className="px-5 py-4">
-                        {amount !== undefined && amount !== null ? (
-                          <div className="flex items-center gap-2">
-                            <span className="font-bold text-slate-800">฿{Number(amount).toLocaleString('th-TH', { minimumFractionDigits: 2 })}</span>
-                            {conf && (
-                              <span className={`text-[10px] px-1.5 py-0.5 rounded-full border font-semibold ${conf.cls}`}>
-                                {conf.pct}%
-                              </span>
-                            )}
-                          </div>
-                        ) : job.status === 'failed' ? (
-                          <span className="text-red-500 text-xs flex items-center gap-1" title={job.error_message || undefined}>
-                            <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-                            <span className="truncate max-w-[180px]">{job.error_message || 'เกิดข้อผิดพลาด'}</span>
-                          </span>
-                        ) : (
-                          <span className="text-slate-400 italic text-xs">รอการประมวลผล</span>
-                        )}
-                      </td>
-                      <td className="px-5 py-4">
-                        {isPosted ? (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold border bg-emerald-50 text-emerald-700 border-emerald-100">
-                            <Lock className="w-3 h-3" /> ผ่านบัญชีแล้ว
-                          </span>
-                        ) : (
-                          <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold border ${STATUS_BADGE[job.status]}`}>
-                            {job.status === 'processing' && <Loader2 className="w-3 h-3 animate-spin" />}
-                            {STATUS_TEXT[job.status]}
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-5 py-4 text-xs text-slate-400">
-                        {new Date(job.created_at).toLocaleString('th-TH')}
-                      </td>
-                      <td className="px-5 py-4 text-right">
-                        <div className="flex justify-end gap-2">
-                          {(job.status === 'pending' || job.status === 'failed') && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => handleProcess(job.id)}
-                              disabled={isProcessing}
-                              className="gap-1.5 text-xs text-teal-700 hover:bg-teal-50 border-teal-200"
-                            >
-                              {isProcessing ? <Loader2 className="w-3 h-3 animate-spin" /> : <Play className="w-3 h-3 fill-current" />}
-                              {job.status === 'failed' ? 'ลองวิเคราะห์ใหม่' : 'เริ่มวิเคราะห์ AI'}
-                            </Button>
-                          )}
-                          {job.status === 'completed' && (
-                            <Button size="sm" variant={isPosted ? 'outline' : 'default'} onClick={() => openReviewWorkspace(job)} className="gap-1.5 text-xs">
-                              <BookOpen className="w-3 h-3" />
-                              {isPosted ? 'ดูบัญชี' : 'ตรวจทาน & บันทึก'}
-                            </Button>
+                return (
+                  <TableRow key={job.id} clickable onClick={onRow}>
+                    <TableCell className="font-semibold text-slate-800">{job.client_name}</TableCell>
+                    <TableCell className="max-w-[200px] truncate font-medium text-slate-600" title={fileName}>{fileName}</TableCell>
+                    <TableCell>
+                      {amount !== undefined && amount !== null ? (
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-slate-800">฿{Number(amount).toLocaleString('th-TH', { minimumFractionDigits: 2 })}</span>
+                          {conf && (
+                            <span className={`whitespace-nowrap rounded-full border px-1.5 py-0.5 text-[10px] font-semibold ${conf.cls}`}>{conf.pct}%</span>
                           )}
                         </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                      ) : job.status === 'failed' ? (
+                        <span className="flex items-center gap-1 text-xs text-red-500" title={job.error_message || undefined}>
+                          <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                          <span className="max-w-[180px] truncate">{job.error_message || 'เกิดข้อผิดพลาด'}</span>
+                        </span>
+                      ) : isProcessing ? (
+                        <span className="flex items-center gap-1 text-xs italic text-slate-400"><Loader2 className="h-3 w-3 animate-spin" /> กำลังวิเคราะห์…</span>
+                      ) : (
+                        <span className="text-xs italic text-slate-400">คลิกเพื่อเริ่มวิเคราะห์ AI</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {isPosted ? (
+                        <StatusBadge tone="success"><Lock className="mr-1 h-3 w-3" /> ผ่านบัญชีแล้ว</StatusBadge>
+                      ) : (
+                        <StatusBadge tone={STATUS_TONE[job.status]}>
+                          {job.status === 'processing' && <Loader2 className="mr-1 h-3 w-3 animate-spin" />}
+                          {STATUS_TEXT[job.status]}
+                        </StatusBadge>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-xs text-slate-400">{new Date(job.created_at).toLocaleString('th-TH')}</TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
         )}
       </div>
 
       {/* ── Upload Dialog ─────────────────────────────────────────────────────── */}
       <Dialog open={uploadOpen} onOpenChange={v => { if (!uploading) { setUploadOpen(v); if (!v) { setUploadFiles([]); } } }}>
-        <DialogContent className="max-w-lg">
+        <DialogContent size="lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <UploadCloud className="w-5 h-5 text-teal-500" /> อัปโหลดเอกสารเข้าระบบ AI
             </DialogTitle>
           </DialogHeader>
 
-          <div className="space-y-4 py-1">
+          <DialogBody>
+          <div className="space-y-4">
             <div className="space-y-1">
               <Label className="text-xs text-slate-500">บริษัทลูกค้า *</Label>
               <CustomSelect
@@ -729,8 +706,9 @@ export default function AccFirmOcrPage() {
               </div>
             )}
           </div>
+          </DialogBody>
 
-          <DialogFooter className="gap-2 sm:gap-2">
+          <DialogFooter>
             <Button variant="outline" onClick={() => setUploadOpen(false)} disabled={uploading}>ยกเลิก</Button>
             <Button onClick={handleUpload} disabled={uploading || !uploadClient || uploadFiles.length === 0} className="gap-2">
               {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <UploadCloud className="w-4 h-4" />}
@@ -742,7 +720,7 @@ export default function AccFirmOcrPage() {
 
       {/* ── Side-by-Side Review Dialog Workspace ───────────────────────────────── */}
       <Dialog open={!!activeJob} onOpenChange={v => { if (!v && !busy) setActiveJob(null); }}>
-        <DialogContent className="max-w-[95vw] w-[95vw] h-[92vh] max-h-[92vh] flex flex-col p-0 overflow-hidden bg-slate-900 border-none rounded-xl">
+        <DialogContent size="full" className="h-[92vh] max-h-[92vh] bg-slate-900 border-slate-700">
           {/* Header */}
           <div className="bg-slate-800 border-b border-slate-700 px-6 py-4 flex items-center justify-between shrink-0">
             <div className="min-w-0">
@@ -1004,6 +982,6 @@ export default function AccFirmOcrPage() {
           )}
         </DialogContent>
       </Dialog>
-    </div>
+    </PageShell>
   );
 }

@@ -298,7 +298,7 @@ Endpoint: `POST /api/assistant/scheduler`
 | **Dropdown / Select** | `<CustomSelect>` | `@/components/ui/custom-select` |
 | **Date picker** | `<ThaiDatePicker>` | `@/components/ui/thai-date-picker` |
 | Label | `<Label>` | `@/components/ui/label` |
-| Modal / Dialog | `<Dialog>`, `<DialogContent>`, `<DialogHeader>`, `<DialogTitle>`, `<DialogFooter>` | `@/components/ui/dialog` |
+| Modal / Dialog | `<Dialog>`, `<DialogContent>`, `<DialogBody>`, `<DialogHeader>`, `<DialogTitle>`, `<DialogFooter>` | `@/components/ui/dialog` |
 | Native select (เฉพาะ `type="month"` หรือกรณีพิเศษ) | `<NativeSelect>` | `@/components/ui/native-select` |
 | Time input | `<Input type="time">` | `@/components/ui/input` |
 
@@ -356,26 +356,32 @@ import { Label } from '@/components/ui/label';
 
 ### Dialog
 
+> **กฎเด็ดขาด**: ทุก Dialog ต้องมี `DialogBody` — header/footer sticky อัตโนมัติ, body เท่านั้นที่ scroll. ดูมาตรฐานเต็มใน [DESIGN.md §13](DESIGN.md)
+
 ```tsx
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+  Dialog, DialogContent, DialogBody, DialogHeader, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog';
 
 <Dialog open={open} onOpenChange={setOpen}>
-  <DialogContent>                       {/* max-w-lg by default */}
+  <DialogContent size="lg">          {/* sm|md|lg|xl|2xl|3xl|full */}
     <DialogHeader>
       <DialogTitle>หัวข้อ</DialogTitle>
     </DialogHeader>
-    {/* content */}
-    <DialogFooter className="gap-2 sm:gap-2">
+    <DialogBody>
+      {/* เนื้อหา/ฟอร์ม — ส่วนเดียวที่ scroll */}
+    </DialogBody>
+    <DialogFooter>
       <Button variant="outline" onClick={() => setOpen(false)}>ยกเลิก</Button>
       <Button onClick={handleSave}>บันทึก</Button>
     </DialogFooter>
   </DialogContent>
 </Dialog>
 
-// Dialog ขนาดใหญ่ / scrollable
+// ❌ ห้าม — เลิกใช้รูปแบบนี้ทั้งหมด
 <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+// ✅ แทนด้วย
+<DialogContent size="xl">
 ```
 
 ### CustomSelect

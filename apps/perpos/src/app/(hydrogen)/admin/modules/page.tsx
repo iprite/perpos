@@ -6,6 +6,7 @@ import { ChevronDown, ChevronRight, Monitor, History, LayoutGrid, Sparkles } fro
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { backendUrl } from "@/lib/backend";
 import { Button } from "@/components/ui/button";
+import { StatusBadge, type BadgeTone } from "@/components/ui/badge";
 import { ALL_MODULES, MODULE_LABELS, MODULE_MENUS, ORG_ROLES, type OrgRole } from "@/lib/modules";
 import { AdminPage } from "../_components/admin-page";
 
@@ -32,11 +33,11 @@ const ROLE_LABEL: Record<OrgRole, string> = {
 const ROLE_FULL: Record<OrgRole, string> = {
   owner: "Owner", admin: "Admin", team_lead: "Team lead", team_member: "Team member",
 };
-const ACTION_LABEL: Record<ChangeLogEntry['action'], { text: string; cls: string }> = {
-  enabled:              { text: "เปิดใช้งาน",       cls: "bg-emerald-50 border border-emerald-200 text-emerald-700" },
-  disabled:             { text: "ปิดใช้งาน",        cls: "bg-red-50 border border-red-200 text-red-700"            },
-  roles_updated:        { text: "แก้ไข Role",        cls: "bg-blue-50 border border-blue-200 text-blue-700"         },
-  menu_roles_updated:   { text: "แก้ไข Menu Role",   cls: "bg-purple-50 border border-purple-200 text-purple-700"   },
+const ACTION_LABEL: Record<ChangeLogEntry['action'], { text: string; tone: BadgeTone }> = {
+  enabled:              { text: "เปิดใช้งาน",       tone: "success" },
+  disabled:             { text: "ปิดใช้งาน",        tone: "danger"  },
+  roles_updated:        { text: "แก้ไข Role",        tone: "info"    },
+  menu_roles_updated:   { text: "แก้ไข Menu Role",   tone: "info"    },
 };
 
 // ─── Toggle switch ────────────────────────────────────────────────────────────
@@ -139,9 +140,7 @@ function ChangeHistory({ entries }: { entries: ChangeLogEntry[] }) {
             return (
               <div key={entry.id} className="px-4 py-3">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${badge.cls}`}>
-                    {badge.text}
-                  </span>
+                  <StatusBadge tone={badge.tone}>{badge.text}</StatusBadge>
                   <span className="text-xs font-medium text-gray-700">
                     {MODULE_LABELS[entry.module_key] ?? entry.module_key}
                   </span>

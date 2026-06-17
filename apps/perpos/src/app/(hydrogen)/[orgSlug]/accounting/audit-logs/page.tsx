@@ -4,6 +4,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getActiveOrganizationId } from "@/lib/accounting/queries";
 import { AuditLogsClient } from "@/components/phase4/security/audit-logs-client";
 import type { AuditLogRow } from "@/lib/phase4/security/actions";
+import { PageShell } from "@/components/ui/page-shell";
 
 export const dynamic = "force-dynamic";
 
@@ -35,14 +36,11 @@ export default async function AuditLogsPage() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-6xl px-4 py-6">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <div className="text-xl font-semibold text-slate-900">Audit Logs</div>
-          <div className="mt-1 text-sm text-slate-600">ติดตามว่าใครแก้ไขอะไร และเมื่อไหร่</div>
-        </div>
-      </div>
-
+    <PageShell
+      width="default"
+      title="Audit Logs"
+      description={<>ติดตามว่าใครแก้ไขอะไร และเมื่อไหร่</>}
+    >
       {error ? <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div> : null}
 
       {activeOrganizationId ? (
@@ -52,7 +50,7 @@ export default async function AuditLogsPage() {
       ) : (
         <div className="mt-6 rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-700">กรุณาเลือกองค์กรก่อน</div>
       )}
-    </div>
+    </PageShell>
   );
 }
 

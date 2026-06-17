@@ -11,6 +11,7 @@ import { CustomSelect } from "@/components/ui/custom-select";
 import {
   Dialog,
   DialogContent,
+  DialogBody,
   DialogHeader,
   DialogTitle,
   DialogFooter,
@@ -144,11 +145,12 @@ function MemberMenu({
       </div>
 
       <Dialog open={editOpen} onOpenChange={(v) => { if (!v) setEditOpen(false); }}>
-        <DialogContent className="max-w-sm">
+        <DialogContent size="sm">
           <DialogHeader>
             <DialogTitle>เปลี่ยนสิทธิ์ผู้ใช้งาน</DialogTitle>
           </DialogHeader>
-          <div className="py-2 space-y-3">
+          <DialogBody>
+          <div className="space-y-3">
             <p className="text-sm text-slate-600">{member.display_name ?? member.email}</p>
             <div className="space-y-1.5">
               <Label>สิทธิ์การใช้งาน</Label>
@@ -159,6 +161,7 @@ function MemberMenu({
               />
             </div>
           </div>
+          </DialogBody>
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditOpen(false)} disabled={saving}>ยกเลิก</Button>
             <Button onClick={handleRoleChange} disabled={saving}>{saving ? "กำลังบันทึก..." : "บันทึก"}</Button>
@@ -330,7 +333,7 @@ export function OrgUsersClient({
                     </TableCell>
                     <TableCell className="text-sm text-slate-500">{m.email ?? "—"}</TableCell>
                     <TableCell>
-                      <span className={cn("rounded-full px-2.5 py-0.5 text-xs font-medium", ROLE_COLORS[m.role] ?? "bg-slate-100 text-slate-600")}>
+                      <span className={cn("inline-flex whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-medium", ROLE_COLORS[m.role] ?? "bg-slate-100 text-slate-600")}>
                         {ROLE_LABELS[m.role] ?? m.role}
                       </span>
                     </TableCell>
@@ -393,7 +396,7 @@ export function OrgUsersClient({
                       </div>
                     </TableCell>
                     <TableCell>
-                      <span className={cn("rounded-full px-2.5 py-0.5 text-xs font-medium", ROLE_COLORS[inv.org_role] ?? "bg-slate-100 text-slate-600")}>
+                      <span className={cn("inline-flex whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-medium", ROLE_COLORS[inv.org_role] ?? "bg-slate-100 text-slate-600")}>
                         {ROLE_LABELS[inv.org_role] ?? inv.org_role}
                       </span>
                     </TableCell>
@@ -419,11 +422,12 @@ export function OrgUsersClient({
 
       {/* Invite Dialog */}
       <Dialog open={inviteOpen} onOpenChange={(v) => { if (!v) setInviteOpen(false); }}>
-        <DialogContent className="max-w-sm">
+        <DialogContent size="sm">
           <DialogHeader>
             <DialogTitle>เพิ่มผู้ใช้งานใหม่</DialogTitle>
           </DialogHeader>
-          <div className="grid gap-4 py-2">
+          <DialogBody>
+          <div className="grid gap-4">
             <div className="space-y-1.5">
               <Label>อีเมล <span className="text-red-500">*</span></Label>
               <Input
@@ -447,6 +451,7 @@ export function OrgUsersClient({
               <p className="rounded-md bg-teal-50 px-3 py-2 text-sm text-teal-700">{inviteSuccess}</p>
             )}
           </div>
+          </DialogBody>
           <DialogFooter>
             <Button variant="outline" onClick={() => setInviteOpen(false)} disabled={inviting}>ปิด</Button>
             <Button onClick={handleInvite} disabled={inviting}>

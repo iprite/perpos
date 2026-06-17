@@ -1,6 +1,9 @@
 'use client';
 
 import { TrendingUp, BedDouble, Percent, DollarSign } from 'lucide-react';
+import {
+  Table, TableHeader, TableBody, TableRow, TableHead, TableCell,
+} from '@/components/ui/table';
 import { useLang } from './_lang-context';
 import { getPayLabel } from './_i18n';
 
@@ -113,32 +116,32 @@ export default function Dashboard({ data }: { data: DashboardData }) {
         <div className="px-4 py-3 border-b bg-slate-50">
           <h3 className="text-sm font-semibold text-slate-700">{t.dash_revenue_type}</h3>
         </div>
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b bg-slate-50 text-xs text-slate-500">
-              <th className="px-4 py-2 text-left font-medium">{t.col_type}</th>
-              <th className="px-4 py-2 text-right font-medium">{t.dash_col_opened}</th>
-              <th className="px-4 py-2 text-right font-medium">{t.dash_col_rev_day}</th>
-              <th className="px-4 py-2 text-right font-medium">{t.dash_col_rev_month}</th>
-            </tr>
-          </thead>
-          <tbody>
+        <Table wrapperClassName="rounded-none border-0">
+          <TableHeader>
+            <TableRow>
+              <TableHead>{t.col_type}</TableHead>
+              <TableHead align="right">{t.dash_col_opened}</TableHead>
+              <TableHead align="right">{t.dash_col_rev_day}</TableHead>
+              <TableHead align="right">{t.dash_col_rev_month}</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {ROOM_TYPES.map((type) => (
-              <tr key={type} className={`border-b ${TYPE_BG[type]}`}>
-                <td className={`px-4 py-2.5 font-semibold ${TYPE_COLOR[type]}`}>{typeLabel[type]}</td>
-                <td className="px-4 py-2.5 text-right text-slate-700">{daily.by_type[type] ?? 0}</td>
-                <td className="px-4 py-2.5 text-right font-medium text-slate-800">{fmt(daily.rev_by_type[type] ?? 0)}</td>
-                <td className="px-4 py-2.5 text-right text-slate-500">{fmt(monthly.rev_by_type[type] ?? 0)}</td>
-              </tr>
+              <TableRow key={type} className={`${TYPE_BG[type]} hover:${TYPE_BG[type]}`}>
+                <TableCell className={`font-semibold ${TYPE_COLOR[type]}`}>{typeLabel[type]}</TableCell>
+                <TableCell align="right" tabular className="text-slate-700">{daily.by_type[type] ?? 0}</TableCell>
+                <TableCell align="right" tabular className="font-medium text-slate-800">{fmt(daily.rev_by_type[type] ?? 0)}</TableCell>
+                <TableCell align="right" tabular className="text-slate-500">{fmt(monthly.rev_by_type[type] ?? 0)}</TableCell>
+              </TableRow>
             ))}
-            <tr className="bg-slate-700 text-white font-bold text-sm">
-              <td className="px-4 py-2.5">{t.dash_total_row}</td>
-              <td className="px-4 py-2.5 text-right">{daily.total_count}</td>
-              <td className="px-4 py-2.5 text-right text-yellow-300">{fmt(daily.total_revenue)}</td>
-              <td className="px-4 py-2.5 text-right text-yellow-200">{fmt(monthly.total_revenue)}</td>
-            </tr>
-          </tbody>
-        </table>
+            <TableRow className="bg-slate-700 font-bold text-white hover:bg-slate-700">
+              <TableCell>{t.dash_total_row}</TableCell>
+              <TableCell align="right" tabular>{daily.total_count}</TableCell>
+              <TableCell align="right" tabular className="text-yellow-300">{fmt(daily.total_revenue)}</TableCell>
+              <TableCell align="right" tabular className="text-yellow-200">{fmt(monthly.total_revenue)}</TableCell>
+            </TableRow>
+          </TableBody>
+        </Table>
       </div>
 
       {/* Occupancy + Sources */}
@@ -147,15 +150,15 @@ export default function Dashboard({ data }: { data: DashboardData }) {
           <div className="px-4 py-3 border-b bg-slate-50">
             <h3 className="text-sm font-semibold text-slate-700">{t.dash_occupancy}</h3>
           </div>
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b text-xs text-slate-400">
-                <th className="px-4 py-2 text-left font-medium"></th>
-                <th className="px-4 py-2 text-right font-medium">{t.dash_daily_label}</th>
-                <th className="px-4 py-2 text-right font-medium">{t.dash_monthly_label}</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 text-xs">
+          <Table wrapperClassName="rounded-none border-0">
+            <TableHeader>
+              <TableRow>
+                <TableHead></TableHead>
+                <TableHead align="right">{t.dash_daily_label}</TableHead>
+                <TableHead align="right">{t.dash_monthly_label}</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {[
                 { label: t.dash_stat_opened,    d: daily.total_count,         m: monthly.room_nights },
                 { label: t.dash_stat_available, d: total_rooms,               m: total_rooms * days_elapsed },
@@ -163,14 +166,14 @@ export default function Dashboard({ data }: { data: DashboardData }) {
                 { label: t.dash_stat_adr,       d: fmt(daily.adr),            m: fmt(monthly.adr) },
                 { label: t.dash_stat_revpar,    d: fmt(daily.revpar),         m: fmt(monthly.revpar) },
               ].map((row) => (
-                <tr key={row.label} className="hover:bg-slate-50">
-                  <td className="px-4 py-2 text-slate-500">{row.label}</td>
-                  <td className="px-4 py-2 text-right font-medium text-slate-800">{row.d}</td>
-                  <td className="px-4 py-2 text-right text-slate-500">{row.m}</td>
-                </tr>
+                <TableRow key={row.label}>
+                  <TableCell className="text-xs text-slate-500">{row.label}</TableCell>
+                  <TableCell align="right" tabular className="text-xs font-medium text-slate-800">{row.d}</TableCell>
+                  <TableCell align="right" tabular className="text-xs text-slate-500">{row.m}</TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </div>
 
         <div className="bg-white rounded-xl border overflow-hidden">
@@ -207,43 +210,39 @@ export default function Dashboard({ data }: { data: DashboardData }) {
         <div className="px-4 py-3 border-b bg-slate-50">
           <h3 className="text-sm font-semibold text-slate-700">{t.dash_payment}</h3>
         </div>
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b bg-slate-50 text-xs text-slate-500">
-              <th className="px-4 py-2 text-left font-medium">{t.field_method}</th>
-              <th className="px-4 py-2 text-right font-medium">{t.dash_daily_label} (฿)</th>
-              <th className="px-4 py-2 text-right font-medium">{t.dash_monthly_label} (฿)</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
+        <Table wrapperClassName="rounded-none border-0">
+          <TableHeader>
+            <TableRow>
+              <TableHead>{t.field_method}</TableHead>
+              <TableHead align="right">{t.dash_daily_label} (฿)</TableHead>
+              <TableHead align="right">{t.dash_monthly_label} (฿)</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {METHODS.map((m) => {
               const d  = daily.rev_by_method[m] ?? 0;
               const mo = monthly.rev_by_method[m] ?? 0;
               if (d === 0 && mo === 0) return null;
               return (
-                <tr key={m} className="hover:bg-slate-50">
-                  <td className="px-4 py-2.5 text-slate-600">{getPayLabel(m, t)}</td>
-                  <td className="px-4 py-2.5 text-right font-medium text-slate-800">
-                    {d > 0 ? fmt(d) : <span className="text-slate-300">—</span>}
-                  </td>
-                  <td className="px-4 py-2.5 text-right text-slate-500">
-                    {mo > 0 ? fmt(mo) : <span className="text-slate-300">—</span>}
-                  </td>
-                </tr>
+                <TableRow key={m}>
+                  <TableCell className="text-slate-600">{getPayLabel(m, t)}</TableCell>
+                  <TableCell align="right" tabular className="font-medium text-slate-800">{d > 0 ? fmt(d) : <span className="text-slate-300">—</span>}</TableCell>
+                  <TableCell align="right" tabular className="text-slate-500">{mo > 0 ? fmt(mo) : <span className="text-slate-300">—</span>}</TableCell>
+                </TableRow>
               );
             })}
-            <tr className="bg-slate-700 text-white font-bold">
-              <td className="px-4 py-2.5">{t.dash_pay_total}</td>
-              <td className="px-4 py-2.5 text-right text-yellow-300">{fmt(daily.total_revenue)}</td>
-              <td className="px-4 py-2.5 text-right text-yellow-200">{fmt(monthly.total_revenue)}</td>
-            </tr>
-            <tr className="bg-slate-50 text-xs text-slate-400">
-              <td className="px-4 py-2">{t.dash_balance}</td>
-              <td className="px-4 py-2 text-right font-semibold text-green-600">0</td>
-              <td className="px-4 py-2 text-right font-semibold text-green-600">0</td>
-            </tr>
-          </tbody>
-        </table>
+            <TableRow className="bg-slate-700 font-bold text-white hover:bg-slate-700">
+              <TableCell>{t.dash_pay_total}</TableCell>
+              <TableCell align="right" tabular className="text-yellow-300">{fmt(daily.total_revenue)}</TableCell>
+              <TableCell align="right" tabular className="text-yellow-200">{fmt(monthly.total_revenue)}</TableCell>
+            </TableRow>
+            <TableRow className="bg-slate-50">
+              <TableCell className="text-xs text-slate-400">{t.dash_balance}</TableCell>
+              <TableCell align="right" tabular className="text-xs font-semibold text-green-600">0</TableCell>
+              <TableCell align="right" tabular className="text-xs font-semibold text-green-600">0</TableCell>
+            </TableRow>
+          </TableBody>
+        </Table>
       </div>
     </div>
   );

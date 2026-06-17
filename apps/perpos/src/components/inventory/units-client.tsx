@@ -8,8 +8,9 @@ import { Button } from "@/components/ui/button";
 import { CustomSelect } from "@/components/ui/custom-select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogBody, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { StatusBadge } from "@/components/ui/badge";
 import {
   listProductUnitsAction,
   upsertProductUnitAction,
@@ -70,17 +71,6 @@ export function UnitsClient(props: { organizationId: string; initialUnits: Produ
     });
   };
 
-  const deleteUnit = (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (!confirm("ยืนยันการลบหน่วยนี้?")) return;
-    startTransition(async () => {
-      const res = await deleteProductUnitAction({ id });
-      if (!res.ok) { toast.error(res.error); return; }
-      toast.success("ลบหน่วยแล้ว");
-      refresh();
-    });
-  };
-
   return (
     <div className="grid gap-4">
       <div className="flex items-center justify-end">
@@ -94,37 +84,24 @@ export function UnitsClient(props: { organizationId: string; initialUnits: Produ
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-[160px]">รหัส</TableHead>
+              <TableHead>รหัส</TableHead>
               <TableHead>ชื่อหน่วย</TableHead>
-              <TableHead className="w-[100px]">สถานะ</TableHead>
-              <TableHead className="w-[100px]"></TableHead>
+              <TableHead>สถานะ</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {units.map((u) => (
-              <TableRow key={u.id} className="cursor-pointer hover:bg-slate-50" onClick={() => openEdit(u)}>
+              <TableRow key={u.id} clickable onClick={() => openEdit(u)}>
                 <TableCell className="font-mono text-sm">{u.code}</TableCell>
                 <TableCell className="text-sm text-slate-900">{u.name}</TableCell>
                 <TableCell>
-                  <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${u.active ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-500"}`}>
-                    {u.active ? "ใช้งาน" : "ไม่ใช้งาน"}
-                  </span>
-                </TableCell>
-                <TableCell>
-                  <div className="flex justify-end gap-1">
-                    <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); openEdit(u); }}>
-                      แก้ไข
-                    </Button>
-                    <Button variant="ghost" size="sm" className="text-red-500 hover:text-red-700" onClick={(e) => deleteUnit(u.id, e)} disabled={pending}>
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
+                  <StatusBadge tone={u.active ? "success" : "neutral"}>{u.active ? "ใช้งาน" : "ไม่ใช้งาน"}</StatusBadge>
                 </TableCell>
               </TableRow>
             ))}
             {!units.length ? (
               <TableRow>
-                <TableCell colSpan={4} className="py-10 text-center text-sm text-slate-500">
+                <TableCell colSpan={3} className="py-10 text-center text-sm text-slate-500">
                   ยังไม่มีหน่วยนับ
                 </TableCell>
               </TableRow>
@@ -134,10 +111,11 @@ export function UnitsClient(props: { organizationId: string; initialUnits: Produ
       </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent>
+        <DialogContent size="sm">
           <DialogHeader>
             <DialogTitle>{edit.id ? "แก้ไขหน่วยนับ" : "เพิ่มหน่วยนับ"}</DialogTitle>
           </DialogHeader>
+          <DialogBody>
           <div className="grid gap-3">
             <div className="grid gap-1.5">
               <Label>รหัสหน่วย</Label>
@@ -158,11 +136,28 @@ export function UnitsClient(props: { organizationId: string; initialUnits: Produ
                 ]}
               />
             </div>
-            <div className="flex justify-end gap-2 pt-1">
+          </div>
+          </DialogBody>
+          <DialogFooter className="sm:justify-between">
+            {edit.id ? (
+              <Button variant="ghost" className="text-red-600 hover:bg-red-50 hover:text-red-700" disabled={pending}
+                onClick={() => {
+                  if (!edit.id || !confirm("ยืนยันการลบหน่วยนี้?")) return;
+                  const id = edit.id;
+                  startTransition(async () => {
+                    const res = await deleteProductUnitAction({ id });
+                    if (!res.ok) { toast.error(res.error); return; }
+                    toast.success("ลบหน่วยแล้ว"); setOpen(false); refresh();
+                  });
+                }}>
+                <Trash2 className="mr-1.5 h-4 w-4" /> ลบ
+              </Button>
+            ) : <span />}
+            <div className="flex gap-2">
               <Button variant="outline" onClick={() => setOpen(false)}>ยกเลิก</Button>
               <Button onClick={save} disabled={pending}>บันทึก</Button>
             </div>
-          </div>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

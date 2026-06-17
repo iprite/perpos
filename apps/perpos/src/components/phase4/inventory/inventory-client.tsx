@@ -8,7 +8,7 @@ import cn from "@core/utils/class-names";
 import { CustomSelect } from "@/components/ui/custom-select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogBody, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
@@ -221,10 +221,11 @@ export function InventoryClient(props: { organizationId: string; initialItems: I
       </div>
 
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
-        <DialogContent>
+        <DialogContent size="md">
           <DialogHeader>
             <DialogTitle>{edit.id ? "แก้ไขสินค้า" : "เพิ่มสินค้า"}</DialogTitle>
           </DialogHeader>
+          <DialogBody>
           <div className="grid gap-3">
             <div className="grid gap-2">
               <Label>SKU</Label>
@@ -255,18 +256,20 @@ export function InventoryClient(props: { organizationId: string; initialItems: I
                 ]}
               />
             </div>
-            <div className="flex justify-end">
-              <Button onClick={saveItem} disabled={pending}>บันทึก</Button>
-            </div>
           </div>
+          </DialogBody>
+          <DialogFooter>
+            <Button onClick={saveItem} disabled={pending}>บันทึก</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
       <Dialog open={moveOpen} onOpenChange={setMoveOpen}>
-        <DialogContent>
+        <DialogContent size="md">
           <DialogHeader>
             <DialogTitle>เคลื่อนไหวสต๊อก</DialogTitle>
           </DialogHeader>
+          <DialogBody>
           <div className="grid gap-3">
             <div className="grid gap-2">
               <Label>สินค้า</Label>
@@ -302,18 +305,20 @@ export function InventoryClient(props: { organizationId: string; initialItems: I
                 <Input inputMode="decimal" value={move.unitCost} onChange={(e) => setMove((s) => ({ ...s, unitCost: e.target.value }))} />
               </div>
             ) : null}
-            <div className="flex justify-end">
-              <Button onClick={submitMovement} disabled={pending}>บันทึก</Button>
-            </div>
           </div>
+          </DialogBody>
+          <DialogFooter>
+            <Button onClick={submitMovement} disabled={pending}>บันทึก</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
       <Dialog open={layersOpen} onOpenChange={setLayersOpen}>
-        <DialogContent>
+        <DialogContent size="xl">
           <DialogHeader>
             <DialogTitle>FIFO Layers: {layersTitle}</DialogTitle>
           </DialogHeader>
+          <DialogBody>
           <div className="rounded-lg border border-slate-200">
             <Table>
               <TableHeader>
@@ -341,6 +346,7 @@ export function InventoryClient(props: { organizationId: string; initialItems: I
               </TableBody>
             </Table>
           </div>
+          </DialogBody>
         </DialogContent>
       </Dialog>
     </div>

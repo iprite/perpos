@@ -1,11 +1,12 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { ChevronLeft, ChevronRight, Loader2, AlertCircle, LogOut } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Loader2, AlertCircle, LogOut, ClipboardList } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { PageShell } from '@/components/ui/page-shell';
 import { ThaiDatePicker } from '@/components/ui/thai-date-picker';
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+  Dialog, DialogContent, DialogHeader, DialogBody, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog';
 import DailySheet, { type SheetBooking } from '../daily-sheet';
 import type { CalBooking } from '../calendar-view';
@@ -62,13 +63,12 @@ export default function SheetPage() {
   const errMsg = bootError || error;
 
   return (
-    <div className="p-4 md:p-6 space-y-4">
-      {/* Header */}
-      <div>
-        <h1 className="text-lg font-bold text-slate-900">{t.title_sheet}</h1>
-        <p className="text-sm text-slate-500">{t.subtitle_sheet}</p>
-      </div>
-
+    <PageShell
+      width="wide"
+      icon={<ClipboardList className="h-6 w-6" />}
+      title={t.title_sheet}
+      description={t.subtitle_sheet}
+    >
       {errMsg && (
         <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
           <AlertCircle className="h-4 w-4 shrink-0" />{errMsg}
@@ -108,14 +108,16 @@ export default function SheetPage() {
 
       {/* Checkout dialog */}
       <Dialog open={!!checkoutBooking} onOpenChange={(v) => !v && setCheckoutBooking(null)}>
-        <DialogContent className="max-w-sm">
+        <DialogContent size="sm">
           <DialogHeader><DialogTitle>ยืนยัน Check-out</DialogTitle></DialogHeader>
-          <div className="text-sm py-2 space-y-1">
+          <DialogBody>
+          <div className="text-sm space-y-1">
             <p>ห้อง <strong>{checkoutBooking?.pms_rooms.room_number}</strong></p>
             <p>แขก <strong>{checkoutBooking?.guest_name}</strong></p>
             <p className="text-slate-400">เวลา {new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}</p>
           </div>
-          <DialogFooter className="gap-2">
+          </DialogBody>
+          <DialogFooter>
             <Button variant="outline" onClick={() => setCheckoutBooking(null)} disabled={checkoutSaving}>ยกเลิก</Button>
             <Button onClick={handleCheckout} disabled={checkoutSaving}>
               <LogOut className="h-4 w-4 mr-1" />{checkoutSaving ? 'กำลังบันทึก…' : 'ยืนยัน Check-out'}
@@ -123,6 +125,6 @@ export default function SheetPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </PageShell>
   );
 }

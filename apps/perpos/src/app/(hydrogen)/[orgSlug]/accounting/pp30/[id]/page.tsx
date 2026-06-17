@@ -5,6 +5,7 @@ import { getActiveOrganizationId } from "@/lib/accounting/queries";
 import { getPP30, getVatSales, getVatPurchases } from "@/lib/tax/actions";
 import { PP30DetailClient } from "@/components/tax/pp30-detail-client";
 import type { VatDocRow } from "@/lib/tax/actions";
+import { PageShell } from "@/components/ui/page-shell";
 
 export const dynamic = "force-dynamic";
 
@@ -18,11 +19,11 @@ export default async function PP30DetailPage({ params }: Props) {
 
   if (!activeOrganizationId) {
     return (
-      <div className="mx-auto w-full max-w-7xl px-4 py-6">
+      <PageShell width="default">
         <div className="rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-700">
           กรุณาเลือกองค์กรก่อน
         </div>
-      </div>
+      </PageShell>
     );
   }
 
@@ -71,14 +72,11 @@ export default async function PP30DetailPage({ params }: Props) {
   const beYear = row.period_year + 543;
 
   return (
-    <div className="mx-auto w-full max-w-7xl px-4 py-6">
-      <div className="mb-4">
-        <div className="text-xl font-semibold text-slate-900">
-          ภ.พ.30 {monthTh} {beYear}
-        </div>
-        <div className="mt-1 text-sm text-slate-600">{row.filing_number}</div>
-      </div>
-
+    <PageShell
+      width="default"
+      title={<>ภ.พ.30 {monthTh} {beYear}</>}
+      description={row.filing_number}
+    >
       <PP30DetailClient
         organizationId={activeOrganizationId}
         row={row}
@@ -88,6 +86,6 @@ export default async function PP30DetailPage({ params }: Props) {
         orgTaxId={orgTaxId}
         orgAddress={orgAddress}
       />
-    </div>
+    </PageShell>
   );
 }

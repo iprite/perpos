@@ -2,9 +2,10 @@
 
 import { Title, Text, Avatar, Button, Popover } from "rizzui";
 import cn from "@core/utils/class-names";
+import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Settings, Shield, LogOut, LayoutGrid, Building2, CreditCard } from "lucide-react";
+import { Settings, LogOut, LayoutGrid, Building2, CreditCard, ChevronsUpDown } from "lucide-react";
 
 import { useAtomValue } from "jotai";
 import { useAuth } from "@/app/shared/auth-provider";
@@ -16,14 +17,10 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 export default function ProfileMenu({
   buttonClassName,
-  avatarClassName,
-  username = false,
 }: {
   buttonClassName?: string;
-  avatarClassName?: string;
-  username?: boolean;
-}) {
-  const { email, role, profile } = useAuth();
+} = {}) {
+  const { email, profile } = useAuth();
   const name = String(profile?.display_name ?? email ?? "U");
 
   return (
@@ -31,7 +28,7 @@ export default function ProfileMenu({
       <Popover.Trigger>
         <button
           className={cn(
-            "w-9 shrink-0 rounded-full outline-none focus-visible:ring-[1.5px] focus-visible:ring-gray-400 focus-visible:ring-offset-2 active:translate-y-px sm:w-10",
+            "flex w-full items-center gap-3 rounded-xl bg-gray-50 p-2 text-left outline-none transition-colors hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-gray-300 active:translate-y-px",
             buttonClassName
           )}
         >
@@ -39,17 +36,18 @@ export default function ProfileMenu({
             src={profile?.avatar_url ?? undefined}
             name={name}
             color="secondary"
-            className={cn(
-              "bg-gray-100 ring-1 ring-gray-300 text-sm font-semibold text-gray-700",
-              "!h-9 !w-9 sm:!h-10 sm:!w-10",
-              avatarClassName
-            )}
+            className="!h-10 !w-10 !rounded-lg bg-gray-100 text-sm font-semibold text-gray-700"
           />
-          {!!username && (
-            <span className="username hidden text-gray-200 dark:text-gray-700 md:inline-flex">
-              {role ? role.toUpperCase() : ""}
-            </span>
-          )}
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-1.5">
+              <span className="truncate text-sm font-semibold text-gray-900">{name}</span>
+              {/* TODO: ผูกกับแพ็กเกจจริงเมื่อมีข้อมูล plan */}
+              <span className="shrink-0 rounded bg-indigo-50 px-1.5 py-0.5 text-[11px] font-medium leading-none text-indigo-600">
+                Free
+              </span>
+            </div>
+          </div>
+          <ChevronsUpDown className="h-4 w-4 shrink-0 text-gray-400" />
         </button>
       </Popover.Trigger>
 
@@ -73,7 +71,7 @@ function ProfileMenuPopover({ children }: React.PropsWithChildren<{}>) {
       isOpen={isOpen}
       setIsOpen={setIsOpen}
       shadow="sm"
-      placement="bottom-end"
+      placement="top-start"
     >
       {children}
     </Popover>
@@ -94,7 +92,6 @@ function DropdownMenu() {
   const [signingOut, setSigningOut] = useState(false);
   const [isOrgManager, setIsOrgManager] = useState(false);
   const [isOrgOwner,   setIsOrgOwner]   = useState(false);
-  const isAdmin = role === "super_admin";
 
   // Check if user is owner/admin of the active org
   useEffect(() => {
@@ -144,12 +141,6 @@ function DropdownMenu() {
       icon: <Settings className="h-4 w-4 text-gray-500" />,
       show: true,
     },
-    {
-      label: "Super Admin",
-      href: "/admin",
-      icon: <Shield className="h-4 w-4 text-gray-500" />,
-      show: isAdmin,
-    },
   ];
 
   return (
@@ -161,18 +152,27 @@ function DropdownMenu() {
           color="secondary"
           className="bg-gray-100 ring-1 ring-gray-300 text-sm font-semibold text-gray-700 !h-10 !w-10"
         />
-        <div className="ms-3">
-          <Title
-            as="h6"
-            className="font-semibold"
-          >
-            {String(profile?.display_name ?? (role ? role.toUpperCase() : "")).trim()}
-          </Title>
+        <div className="ms-3 min-w-0">
+          <div className="flex items-center gap-1.5">
+            <Title as="h6" className="truncate font-semibold">
+              {String(profile?.display_name ?? (role ? role.toUpperCase() : "")).trim()}
+            </Title>
+            <span className="shrink-0 rounded bg-indigo-50 px-1.5 py-0.5 text-[11px] font-medium leading-none text-indigo-600">
+              Free
+            </span>
+          </div>
           {/* ซ่อน shadow email ของ LINE user (id ยาว) — แสดง "บัญชี LINE" แทน */}
           <Text className="truncate text-gray-600">
             {email && !email.endsWith("@stt-line.perpos.io") ? email : "บัญชี LINE"}
           </Text>
         </div>
+      </div>
+
+      {/* แถวลิงก์ข้อกำหนด/ความเป็นส่วนตัว */}
+      <div className="flex items-center gap-2 border-b border-gray-300 px-6 py-2.5 text-xs text-gray-500">
+        <Link href="/terms" className="hover:text-gray-800">ข้อตกลง</Link>
+        <span className="text-gray-300">•</span>
+        <Link href="/privacy" className="hover:text-gray-800">ความเป็นส่วนตัว</Link>
       </div>
       <div className="border-t border-gray-300 px-6 pb-6 pt-5">
         <div className="grid gap-3">

@@ -4,6 +4,7 @@ import { getActiveOrganizationId } from "@/lib/accounting/queries";
 import { fetchCheckTransactions, fetchFinancePageData } from "@/lib/finance/queries";
 import { CheckTransactionsTable } from "@/components/finance/check-transactions-table";
 import { CheckTransactionForm } from "@/components/finance/check-transaction-form";
+import { PageShell } from "@/components/ui/page-shell";
 
 export const dynamic = "force-dynamic";
 
@@ -13,13 +14,11 @@ export default async function CheckDepositsPage() {
   const { contacts, financeAccounts } = await fetchFinancePageData();
 
   return (
-    <div className="mx-auto w-full max-w-5xl px-4 py-6">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <div className="text-xl font-semibold text-slate-900">เช็ครับ</div>
-          <div className="mt-1 text-sm text-slate-600">รายการเช็ครับขององค์กร</div>
-        </div>
-      </div>
+    <PageShell
+      width="default"
+      title="เช็ครับ"
+      description={<>รายการเช็ครับขององค์กร</>}
+    >
       {error ? <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div> : null}
       {activeOrganizationId && (
         <div className="mt-6 rounded-lg border border-slate-200 bg-slate-50 p-4">
@@ -35,6 +34,6 @@ export default async function CheckDepositsPage() {
       <div className="mt-6">
         <CheckTransactionsTable rows={rows} organizationId={activeOrganizationId ?? ""} />
       </div>
-    </div>
+    </PageShell>
   );
 }

@@ -8,7 +8,7 @@ import { toast } from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogBody, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { upsertContactAction, type BranchType } from "@/lib/contacts/actions";
 import cn from "@core/utils/class-names";
 
@@ -201,11 +201,12 @@ export function ContactQuickAddSelect({
       </div>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent size="md">
           <DialogHeader>
             <DialogTitle>เพิ่ม{typeLabel}ใหม่</DialogTitle>
           </DialogHeader>
-          <div className="grid gap-3 py-2">
+          <DialogBody>
+          <div className="grid gap-3">
             <div className="grid gap-1.5">
               <Label>
                 ชื่อ{typeLabel} <span className="text-red-500">*</span>
@@ -293,6 +294,7 @@ export function ContactQuickAddSelect({
               />
             </div>
           </div>
+          </DialogBody>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)} disabled={pending}>
               ยกเลิก

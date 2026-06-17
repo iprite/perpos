@@ -2,14 +2,19 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import {
-  BedDouble, LogIn, LogOut, Ban, RefreshCw,
+  BedDouble, LogIn, RefreshCw,
   ChevronLeft, ChevronRight, AlertCircle, Loader2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { PageShell } from '@/components/ui/page-shell';
 import { ThaiDatePicker } from '@/components/ui/thai-date-picker';
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+  Dialog, DialogContent, DialogHeader, DialogBody, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog';
+import { StatusBadge, type BadgeTone } from '@/components/ui/badge';
+import {
+  Table, TableHeader, TableBody, TableRow, TableHead, TableCell,
+} from '@/components/ui/table';
 import BookingDialog, { METHOD_LABEL } from './booking-dialog';
 import BookingDetailDialog from './booking-detail-dialog';
 import type { CalBooking, CalRoom } from './calendar-view';
@@ -38,9 +43,9 @@ const TYPE_COLOR: Record<string, string> = {
   V: 'bg-purple-100 text-purple-800 border-purple-200',
   C: 'bg-emerald-100 text-emerald-800 border-emerald-200',
 };
-const STATUS_BADGE: Record<string, string> = {
-  checked_in: 'bg-green-100 text-green-700', checked_out: 'bg-slate-100 text-slate-500',
-  reserved: 'bg-yellow-100 text-yellow-700', cancelled: 'bg-red-100 text-red-500',
+const STATUS_TONE: Record<string, BadgeTone> = {
+  checked_in: 'success', checked_out: 'neutral',
+  reserved: 'warning', cancelled: 'danger',
 };
 const STATUS_TH: Record<string, string> = {
   checked_in: 'เข้าพักอยู่', checked_out: 'เช็คเอาท์แล้ว', reserved: 'จอง', cancelled: 'ยกเลิก',
@@ -89,8 +94,8 @@ function RoomGrid({ rooms, onRoomClick }: { rooms: Room[]; onRoomClick: (r: Room
 
 // ── Booking Row ───────────────────────────────────────────────────────────────
 
-function BookingRow({ booking, onCheckout, onCancel }: {
-  booking: Booking; onCheckout: (b: Booking) => void; onCancel: (b: Booking) => void;
+function BookingRow({ booking, onOpen }: {
+  booking: Booking; onOpen: (b: Booking) => void;
 }) {
   const { t } = useLang();
   const room  = booking.pms_rooms;
@@ -102,48 +107,34 @@ function BookingRow({ booking, onCheckout, onCancel }: {
     reserved: t.status_reserved, cancelled: t.status_cancelled,
   };
   return (
-    <tr className="border-b hover:bg-slate-50 text-sm">
-      <td className="py-2.5 px-3">
-        <span className={`text-xs font-semibold px-2 py-0.5 rounded border ${TYPE_COLOR[room.room_type]}`}>{room.room_number}</span>
-      </td>
-      <td className="py-2.5 px-3 font-medium">{booking.guest_name}</td>
-      <td className="py-2.5 px-3 text-slate-500">{booking.nationality || '—'}</td>
-      <td className="py-2.5 px-3">
-        <span className="text-xs bg-slate-100 px-1.5 py-0.5 rounded">
+    <TableRow clickable onClick={() => onOpen(booking)}>
+      <TableCell>
+        <span className={`whitespace-nowrap rounded border px-2 py-0.5 text-xs font-semibold ${TYPE_COLOR[room.room_type]}`}>{room.room_number}</span>
+      </TableCell>
+      <TableCell className="font-medium">{booking.guest_name}</TableCell>
+      <TableCell className="text-slate-500">{booking.nationality || '—'}</TableCell>
+      <TableCell>
+        <span className="whitespace-nowrap rounded bg-slate-100 px-1.5 py-0.5 text-xs">
           {booking.stay_type === 'daily' ? t.stay_daily : t.stay_hourly}
         </span>
-      </td>
-      <td className="py-2.5 px-3 text-slate-600">
+      </TableCell>
+      <TableCell className="text-slate-600">
         {formatThaiDate(booking.check_in_date)}
         {booking.check_in_time && <span className="ml-1 text-slate-400">{booking.check_in_time}</span>}
-      </td>
-      <td className="py-2.5 px-3 text-slate-600">
+      </TableCell>
+      <TableCell className="text-slate-600">
         {booking.check_out_date ? formatThaiDate(booking.check_out_date) : '—'}
         {booking.nights && <span className="ml-1 text-slate-400">({booking.nights} {t.unit_night})</span>}
-      </td>
-      <td className="py-2.5 px-3">
+      </TableCell>
+      <TableCell align="right" tabular>
         {total > 0
           ? <span title={payMethods} className="font-medium text-slate-800">{total.toLocaleString('th-TH', { minimumFractionDigits: 2 })}</span>
           : <span className="text-slate-400">—</span>}
-      </td>
-      <td className="py-2.5 px-3">
-        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_BADGE[booking.status]}`}>
-          {statusLabel[booking.status] ?? booking.status}
-        </span>
-      </td>
-      <td className="py-2.5 px-3">
-        {booking.status === 'checked_in' && (
-          <div className="flex gap-1">
-            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => onCheckout(booking)}>
-              <LogOut className="h-3 w-3 mr-1" />{t.btn_checkout}
-            </Button>
-            <Button size="sm" variant="ghost" className="h-7 text-xs text-red-500 hover:text-red-700" onClick={() => onCancel(booking)}>
-              <Ban className="h-3 w-3" />
-            </Button>
-          </div>
-        )}
-      </td>
-    </tr>
+      </TableCell>
+      <TableCell>
+        <StatusBadge tone={STATUS_TONE[booking.status] ?? 'neutral'}>{statusLabel[booking.status] ?? booking.status}</StatusBadge>
+      </TableCell>
+    </TableRow>
   );
 }
 
@@ -217,25 +208,22 @@ export default function UsvillaPage() {
   const errMsg = bootError || error;
 
   return (
-    <div className="p-4 md:p-6 space-y-5">
-      {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-3 border-b pb-4">
-        <div>
-          <h1 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-            <BedDouble className="w-5 h-5 text-indigo-500" />{t.title_daily}
-          </h1>
-          <p className="text-sm text-slate-500">{t.subtitle_daily}</p>
-        </div>
-        <div className="flex gap-2 items-center">
+    <PageShell
+      width="wide"
+      icon={<BedDouble className="h-6 w-6" />}
+      title={t.title_daily}
+      description={t.subtitle_daily}
+      actions={
+        <>
           <Button variant="ghost" size="icon" onClick={refresh} disabled={loading}>
             <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
           </Button>
           <Button onClick={() => setNewOpen(true)}>
             <LogIn className="h-4 w-4 mr-2" />{t.btn_checkin}
           </Button>
-        </div>
-      </div>
-
+        </>
+      }
+    >
       {errMsg && (
         <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
           <AlertCircle className="h-4 w-4 shrink-0" />{errMsg}
@@ -289,22 +277,25 @@ export default function UsvillaPage() {
         ) : bookings.length === 0 ? (
           <div className="flex h-32 items-center justify-center text-sm text-slate-400">{t.no_bookings}</div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-slate-50 border-b text-xs text-slate-500">
-                  {[t.col_room,t.col_guest,t.col_nationality,t.col_type,t.col_checkin,t.col_checkout,t.col_amount,t.col_status,''].map((h) => (
-                    <th key={h} className="py-2 px-3 text-left font-medium">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {bookings.map((b) => (
-                  <BookingRow key={b.id} booking={b} onCheckout={setCheckoutBooking} onCancel={setCancelBooking} />
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <Table wrapperClassName="rounded-none border-0">
+            <TableHeader>
+              <TableRow>
+                <TableHead>{t.col_room}</TableHead>
+                <TableHead>{t.col_guest}</TableHead>
+                <TableHead>{t.col_nationality}</TableHead>
+                <TableHead>{t.col_type}</TableHead>
+                <TableHead>{t.col_checkin}</TableHead>
+                <TableHead>{t.col_checkout}</TableHead>
+                <TableHead align="right">{t.col_amount}</TableHead>
+                <TableHead>{t.col_status}</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {bookings.map((b) => (
+                <BookingRow key={b.id} booking={b} onOpen={(bk) => setDetailBooking(bk as unknown as CalBooking)} />
+              ))}
+            </TableBody>
+          </Table>
         )}
       </div>
 
@@ -320,13 +311,15 @@ export default function UsvillaPage() {
 
       {/* Checkout */}
       <Dialog open={!!checkoutBooking} onOpenChange={(v) => !v && setCheckoutBooking(null)}>
-        <DialogContent className="max-w-sm">
+        <DialogContent size="sm">
           <DialogHeader><DialogTitle>{t.dlg_checkout_title}</DialogTitle></DialogHeader>
-          <div className="text-sm py-2 space-y-1">
+          <DialogBody>
+          <div className="text-sm space-y-1">
             <p>{t.room_label} <strong>{checkoutBooking?.pms_rooms.room_number}</strong></p>
             <p>{t.col_guest} <strong>{checkoutBooking?.guest_name}</strong></p>
           </div>
-          <DialogFooter className="gap-2">
+          </DialogBody>
+          <DialogFooter>
             <Button variant="outline" onClick={() => setCheckoutBooking(null)}>{t.btn_cancel}</Button>
             <Button onClick={async () => {
               if (!checkoutBooking) return;
@@ -342,12 +335,14 @@ export default function UsvillaPage() {
 
       {/* Cancel */}
       <Dialog open={!!cancelBooking} onOpenChange={(v) => !v && setCancelBooking(null)}>
-        <DialogContent className="max-w-sm">
+        <DialogContent size="sm">
           <DialogHeader><DialogTitle>{t.dlg_cancel_title}</DialogTitle></DialogHeader>
-          <p className="text-sm py-2">
+          <DialogBody>
+          <p className="text-sm">
             {cancelBooking && t.dlg_cancel_confirm(cancelBooking.guest_name, cancelBooking.pms_rooms.room_number)}
           </p>
-          <DialogFooter className="gap-2">
+          </DialogBody>
+          <DialogFooter>
             <Button variant="outline" onClick={() => setCancelBooking(null)} disabled={cancelSaving}>{t.btn_close}</Button>
             <Button variant="destructive" onClick={handleCancelConfirm} disabled={cancelSaving}>
               {cancelSaving ? t.btn_saving : t.dlg_cancel_btn}
@@ -355,6 +350,6 @@ export default function UsvillaPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </PageShell>
   );
 }

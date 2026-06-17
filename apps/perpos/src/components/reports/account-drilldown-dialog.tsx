@@ -2,7 +2,7 @@
 
 import React, { useTransition } from "react";
 
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogBody, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { getAccountLedgerAction, type LedgerLine } from "@/lib/reports/actions";
 
@@ -50,11 +50,11 @@ export function AccountDrilldownDialog(props: {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent size="xl">
         <DialogHeader>
           <DialogTitle>รายละเอียดบัญชี: {title}</DialogTitle>
         </DialogHeader>
-
+        <DialogBody>
         <div className="text-sm text-slate-600">แสดง {rows.length} รายการ จากทั้งหมด {count}</div>
         {pending ? <div className="mt-2 text-sm text-slate-500">กำลังโหลด…</div> : null}
 
@@ -80,6 +80,7 @@ export function AccountDrilldownDialog(props: {
             </TableBody>
           </Table>
         </div>
+        </DialogBody>
       </DialogContent>
     </Dialog>
   );

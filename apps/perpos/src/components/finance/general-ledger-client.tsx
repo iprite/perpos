@@ -5,6 +5,9 @@ import { CustomSelect } from "@/components/ui/custom-select";
 import { Label } from "@/components/ui/label";
 import { getGeneralLedgerAction, type LedgerRow } from "@/lib/finance/report-actions";
 import { ThaiDatePicker } from "@/components/ui/thai-date-picker";
+import {
+  Table, TableHeader, TableBody, TableFooter, TableRow, TableHead, TableCell,
+} from "@/components/ui/table";
 
 type AccountOption = { id: string; label: string };
 
@@ -83,50 +86,44 @@ export function GeneralLedgerClient({
       )}
 
       {accountId && rows.length > 0 && (
-        <div className="overflow-x-auto rounded-lg border border-slate-200">
-          <table className="min-w-full text-sm">
-            <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
-              <tr>
-                <th className="px-4 py-3">วันที่</th>
-                <th className="px-4 py-3">เลขที่</th>
-                <th className="px-4 py-3">คำอธิบาย</th>
-                <th className="px-4 py-3 text-right">เดบิต</th>
-                <th className="px-4 py-3 text-right">เครดิต</th>
-                <th className="px-4 py-3 text-right">ยอดคงเหลือ</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 bg-white">
-              {rows.map((row, i) => (
-                <tr key={`${row.journal_entry_id}-${i}`} className="hover:bg-slate-50">
-                  <td className="px-4 py-2 text-slate-600">{row.entry_date}</td>
-                  <td className="px-4 py-2 font-mono text-xs text-slate-600">{row.reference_number ?? "-"}</td>
-                  <td className="px-4 py-2 text-slate-700">{row.description ?? row.memo ?? "-"}</td>
-                  <td className="px-4 py-2 text-right font-mono text-slate-700">
-                    {row.debit > 0 ? row.debit.toLocaleString("th-TH", { minimumFractionDigits: 2 }) : ""}
-                  </td>
-                  <td className="px-4 py-2 text-right font-mono text-slate-700">
-                    {row.credit > 0 ? row.credit.toLocaleString("th-TH", { minimumFractionDigits: 2 }) : ""}
-                  </td>
-                  <td className={`px-4 py-2 text-right font-mono font-medium ${row.running_balance >= 0 ? "text-slate-800" : "text-red-600"}`}>
-                    {row.running_balance.toLocaleString("th-TH", { minimumFractionDigits: 2 })}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-            <tfoot>
-              <tr className="bg-slate-50 font-semibold">
-                <td colSpan={3} className="px-4 py-2.5 text-slate-700">รวม</td>
-                <td className="px-4 py-2.5 text-right font-mono text-slate-800">
-                  {totalDebit.toLocaleString("th-TH", { minimumFractionDigits: 2 })}
-                </td>
-                <td className="px-4 py-2.5 text-right font-mono text-slate-800">
-                  {totalCredit.toLocaleString("th-TH", { minimumFractionDigits: 2 })}
-                </td>
-                <td className="px-4 py-2.5"></td>
-              </tr>
-            </tfoot>
-          </table>
-        </div>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>วันที่</TableHead>
+              <TableHead>เลขที่</TableHead>
+              <TableHead>คำอธิบาย</TableHead>
+              <TableHead align="right">เดบิต</TableHead>
+              <TableHead align="right">เครดิต</TableHead>
+              <TableHead align="right">ยอดคงเหลือ</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {rows.map((row, i) => (
+              <TableRow key={`${row.journal_entry_id}-${i}`}>
+                <TableCell className="text-slate-600">{row.entry_date}</TableCell>
+                <TableCell className="font-mono text-xs text-slate-600">{row.reference_number ?? "-"}</TableCell>
+                <TableCell className="text-slate-700">{row.description ?? row.memo ?? "-"}</TableCell>
+                <TableCell align="right" tabular className="text-slate-700">
+                  {row.debit > 0 ? row.debit.toLocaleString("th-TH", { minimumFractionDigits: 2 }) : ""}
+                </TableCell>
+                <TableCell align="right" tabular className="text-slate-700">
+                  {row.credit > 0 ? row.credit.toLocaleString("th-TH", { minimumFractionDigits: 2 }) : ""}
+                </TableCell>
+                <TableCell align="right" tabular className={`font-medium ${row.running_balance >= 0 ? "text-slate-800" : "text-red-600"}`}>
+                  {row.running_balance.toLocaleString("th-TH", { minimumFractionDigits: 2 })}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+          <TableFooter>
+            <TableRow>
+              <TableCell colSpan={3} className="text-slate-700">รวม</TableCell>
+              <TableCell align="right" tabular className="text-slate-800">{totalDebit.toLocaleString("th-TH", { minimumFractionDigits: 2 })}</TableCell>
+              <TableCell align="right" tabular className="text-slate-800">{totalCredit.toLocaleString("th-TH", { minimumFractionDigits: 2 })}</TableCell>
+              <TableCell></TableCell>
+            </TableRow>
+          </TableFooter>
+        </Table>
       )}
     </div>
   );

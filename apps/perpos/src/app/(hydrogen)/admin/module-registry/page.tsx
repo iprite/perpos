@@ -9,7 +9,7 @@ import { Label }        from '@/components/ui/label';
 import { CustomSelect } from '@/components/ui/custom-select';
 import { AdminPage } from '../_components/admin-page';
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+  Dialog, DialogContent, DialogHeader, DialogBody, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog';
 import {
   Puzzle, Plus, Pencil, Trash2, Loader2, CheckCircle2,
@@ -486,14 +486,15 @@ export default function ModuleRegistryPage() {
 
       {/* ── Create / Edit Dialog ── */}
       <Dialog open={dialog === 'create' || dialog === 'edit'} onOpenChange={o => !o && setDialog(null)}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogContent size="lg">
           <DialogHeader>
             <DialogTitle>
               {dialog === 'create' ? 'สร้าง Module ใหม่' : `แก้ไข Module — ${selected?.label}`}
             </DialogTitle>
           </DialogHeader>
 
-          <div className="space-y-4 py-2">
+          <DialogBody>
+          <div className="space-y-4">
 
             {/* Module type picker (create only) */}
             {dialog === 'create' && (
@@ -779,8 +780,9 @@ export default function ModuleRegistryPage() {
               </div>
             )}
           </div>
+          </DialogBody>
 
-          <DialogFooter className="gap-2 sm:gap-2">
+          <DialogFooter>
             <Button variant="outline" onClick={() => setDialog(null)}>ยกเลิก</Button>
             <Button
               onClick={() => void (dialog === 'create' ? handleCreate() : handleUpdate())}
@@ -796,23 +798,25 @@ export default function ModuleRegistryPage() {
 
       {/* ── Delete Dialog ── */}
       <Dialog open={dialog === 'delete'} onOpenChange={o => !o && setDialog(null)}>
-        <DialogContent className="max-w-sm">
+        <DialogContent size="sm">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-red-600">
               <ShieldAlert className="h-5 w-5" /> ลบ Module
             </DialogTitle>
           </DialogHeader>
-          <p className="text-sm text-slate-600 py-2">
+          <DialogBody>
+          <p className="text-sm text-slate-600">
             ยืนยันลบ <strong>{selected?.label}</strong>{' '}
             (<code className="font-mono text-xs">{selected?.key}</code>)?
           </p>
           {selected?.organizations && (
-            <div className="flex items-center gap-2 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-700">
+            <div className="mt-3 flex items-center gap-2 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-700">
               <Building2 className="h-3.5 w-3.5 shrink-0" />
               Module นี้ผูกกับ <strong>{selected.organizations.name}</strong>
             </div>
           )}
-          <DialogFooter className="gap-2 sm:gap-2">
+          </DialogBody>
+          <DialogFooter>
             <Button variant="outline" onClick={() => setDialog(null)}>ยกเลิก</Button>
             <Button variant="destructive" onClick={() => void handleDelete()} disabled={saving}>
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : 'ลบ Module'}
@@ -823,13 +827,14 @@ export default function ModuleRegistryPage() {
 
       {/* ── Success CLI Command Dialog ── */}
       <Dialog open={!!createdCommand} onOpenChange={o => { if (!o) { setCreatedCommand(null); setCopied(false); } }}>
-        <DialogContent className="max-w-md">
+        <DialogContent size="md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-emerald-600">
               <CheckCircle2 className="h-5 w-5" /> ลงทะเบียนสำเร็จ
             </DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 py-2 text-sm text-slate-600">
+          <DialogBody>
+          <div className="space-y-4 text-sm text-slate-600">
             <p>
               โมดูลได้ถูกบันทึกลงฐานข้อมูลเรียบร้อยแล้ว! เพื่อสร้างไฟล์โค้ดของโมดูลในโปรเจกต์ของคุณ กรุณารันคำสั่งนี้ใน **Terminal ของเครื่องโลคอล (Local Development)**:
             </p>
@@ -854,6 +859,7 @@ export default function ModuleRegistryPage() {
               💡 สคริปต์นี้จะสร้างโฟลเดอร์สำหรับหน้าจอ, API, Helper และไฟล์ SQL Migration พื้นฐานให้โดยอัตโนมัติ
             </p>
           </div>
+          </DialogBody>
           <DialogFooter>
             <Button onClick={() => { setCreatedCommand(null); setCopied(false); }}>ปิดหน้าต่าง</Button>
           </DialogFooter>

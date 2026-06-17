@@ -1,13 +1,18 @@
 'use client';
 
 import { useEffect, useState, useCallback, useMemo } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
+import { PageShell } from '@/components/ui/page-shell';
+import { StatusBadge, type BadgeTone } from '@/components/ui/badge';
+import {
+  Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableEmpty,
+} from '@/components/ui/table';
 import {
   BarChart3, AlertTriangle, Clock, FileText,
-  Building2, ArrowUpRight, RefreshCw, CalendarDays,
+  Building2, RefreshCw, CalendarDays,
   CheckSquare, BookOpenText,
 } from 'lucide-react';
 import type { ActionableInvoice, ClientSummaryRow } from '@/app/api/acc-firm/reports/route';
@@ -26,11 +31,11 @@ function fmtDate(d: string | null) {
   return `${day} ${TH[m]} ${y + 543}`;
 }
 
-const BUCKET_CONFIG = {
-  overdue:  { label: 'เกินกำหนด',     cls: 'bg-red-100 text-red-700',   icon: <AlertTriangle className="w-3 h-3" /> },
-  due_soon: { label: 'ใกล้ครบกำหนด', cls: 'bg-amber-100 text-amber-700', icon: <Clock className="w-3 h-3" /> },
-  draft:    { label: 'Draft',          cls: 'bg-gray-100 text-gray-600',  icon: <FileText className="w-3 h-3" /> },
-  open:     { label: 'Open',           cls: 'bg-blue-100 text-blue-700',  icon: <CheckSquare className="w-3 h-3" /> },
+const BUCKET_CONFIG: Record<string, { label: string; tone: BadgeTone; icon: React.ReactNode }> = {
+  overdue:  { label: 'เกินกำหนด',     tone: 'danger',  icon: <AlertTriangle className="w-3 h-3" /> },
+  due_soon: { label: 'ใกล้ครบกำหนด', tone: 'warning', icon: <Clock className="w-3 h-3" /> },
+  draft:    { label: 'Draft',          tone: 'neutral', icon: <FileText className="w-3 h-3" /> },
+  open:     { label: 'Open',           tone: 'info',    icon: <CheckSquare className="w-3 h-3" /> },
 };
 
 // ── Tax calendar helpers ───────────────────────────────────────────────────────
@@ -102,6 +107,7 @@ function deadlineColor(daysLeft: number) {
 // ── Main page ──────────────────────────────────────────────────────────────────
 export default function AccFirmReportsPage() {
   const { orgSlug } = useParams<{ orgSlug: string }>();
+  const router = useRouter();
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
 
   const [orgId, setOrgId]                   = useState('');
@@ -171,21 +177,18 @@ export default function AccFirmReportsPage() {
   [clientSummary]);
 
   return (
-    <div className="p-4 md:p-6 space-y-5">
-
-      {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-2">
-        <div>
-          <h1 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-            <BarChart3 className="w-5 h-5 text-teal-500" /> รายงานรวม
-          </h1>
-          <p className="text-sm text-slate-500">ภาพรวมงานค้างและ deadline ภาษีข้าม client orgs{thMonth ? ` · ${thMonth}` : ''}</p>
-        </div>
+    <PageShell
+      width="full"
+      icon={<BarChart3 className="h-6 w-6" />}
+      title="รายงานรวม"
+      description={`ภาพรวมงานค้างและ deadline ภาษีข้าม client orgs${thMonth ? ` · ${thMonth}` : ''}`}
+      actions={
         <Button variant="outline" size="sm" onClick={load} disabled={loading} className="gap-1.5">
           <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
           {loading ? 'กำลังโหลด…' : 'รีเฟรช'}
         </Button>
-      </div>
+      }
+    >
 
       {/* KPI strip */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -256,66 +259,48 @@ export default function AccFirmReportsPage() {
             </select>
           </div>
 
-          <div className="bg-white rounded-xl border overflow-hidden">
-            {loading ? (
-              <div className="p-8 text-center text-slate-400 text-sm">กำลังโหลด…</div>
-            ) : filteredActionable.length === 0 ? (
-              <div className="p-8 text-center space-y-1">
-                <CheckSquare className="w-8 h-8 mx-auto text-green-200" />
-                <p className="text-slate-300 text-sm">ไม่มีงานค้างในขณะนี้ 🎉</p>
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="bg-slate-50 border-b text-xs text-slate-500">
-                    <tr>
-                      <th className="text-left px-4 py-2.5 font-medium">สถานะ</th>
-                      <th className="text-left px-4 py-2.5 font-medium">Client</th>
-                      <th className="text-left px-4 py-2.5 font-medium">เลขที่</th>
-                      <th className="text-left px-4 py-2.5 font-medium">ลูกค้า</th>
-                      <th className="text-left px-4 py-2.5 font-medium">วันที่ออก</th>
-                      <th className="text-left px-4 py-2.5 font-medium">ครบกำหนด</th>
-                      <th className="text-right px-4 py-2.5 font-medium">จำนวนเงิน</th>
-                      <th className="px-4 py-2.5" />
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-50">
-                    {filteredActionable.map(inv => {
-                      const bCfg = BUCKET_CONFIG[inv.bucket];
-                      return (
-                        <tr key={inv.id} className="hover:bg-slate-50">
-                          <td className="px-4 py-2.5">
-                            <span className={`flex items-center gap-1 w-fit text-xs px-2 py-0.5 rounded-full font-medium ${bCfg.cls}`}>
-                              {bCfg.icon} {bCfg.label}
-                            </span>
-                          </td>
-                          <td className="px-4 py-2.5">
-                            <p className="font-medium text-slate-700 text-xs">{inv.orgName}</p>
-                          </td>
-                          <td className="px-4 py-2.5 text-slate-500 text-xs font-mono">{inv.invoiceNo ?? '—'}</td>
-                          <td className="px-4 py-2.5 text-slate-700 text-xs max-w-[140px] truncate">{inv.contactName}</td>
-                          <td className="px-4 py-2.5 text-slate-400 text-xs">{fmtDate(inv.issueDate)}</td>
-                          <td className={`px-4 py-2.5 text-xs font-medium ${inv.bucket === 'overdue' ? 'text-red-600' : inv.bucket === 'due_soon' ? 'text-amber-600' : 'text-slate-400'}`}>
-                            {fmtDate(inv.dueDate)}
-                          </td>
-                          <td className="px-4 py-2.5 text-right font-semibold text-slate-800 text-xs">
-                            ฿{inv.totalAmount.toLocaleString('th-TH', { minimumFractionDigits: 2 })}
-                          </td>
-                          <td className="px-4 py-2.5">
-                            <Link href={`/${inv.orgSlug}/accounting/invoices`} target="_blank">
-                              <Button size="sm" variant="ghost" className="h-6 w-6 p-0">
-                                <ArrowUpRight className="w-3.5 h-3.5 text-slate-400" />
-                              </Button>
-                            </Link>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
+          {!loading && filteredActionable.length === 0 ? (
+            <div className="space-y-1 rounded-xl border bg-white p-8 text-center">
+              <CheckSquare className="mx-auto h-8 w-8 text-green-200" />
+              <p className="text-sm text-slate-300">ไม่มีงานค้างในขณะนี้ 🎉</p>
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>สถานะ</TableHead>
+                  <TableHead>Client</TableHead>
+                  <TableHead>เลขที่</TableHead>
+                  <TableHead>ลูกค้า</TableHead>
+                  <TableHead>วันที่ออก</TableHead>
+                  <TableHead>ครบกำหนด</TableHead>
+                  <TableHead align="right">จำนวนเงิน</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {loading ? (
+                  <TableEmpty colSpan={7}>กำลังโหลด…</TableEmpty>
+                ) : filteredActionable.map(inv => {
+                  const bCfg = BUCKET_CONFIG[inv.bucket];
+                  return (
+                    <TableRow key={inv.id} clickable onClick={() => router.push(`/${inv.orgSlug}/accounting/invoices`)}>
+                      <TableCell><StatusBadge tone={bCfg.tone}>{bCfg.icon} {bCfg.label}</StatusBadge></TableCell>
+                      <TableCell className="text-xs font-medium text-slate-700">{inv.orgName}</TableCell>
+                      <TableCell className="font-mono text-xs text-slate-500">{inv.invoiceNo ?? '—'}</TableCell>
+                      <TableCell className="max-w-[140px] truncate text-xs text-slate-700">{inv.contactName}</TableCell>
+                      <TableCell className="text-xs text-slate-400">{fmtDate(inv.issueDate)}</TableCell>
+                      <TableCell className={`text-xs font-medium ${inv.bucket === 'overdue' ? 'text-red-600' : inv.bucket === 'due_soon' ? 'text-amber-600' : 'text-slate-400'}`}>
+                        {fmtDate(inv.dueDate)}
+                      </TableCell>
+                      <TableCell align="right" tabular className="text-xs font-semibold text-slate-800">
+                        ฿{inv.totalAmount.toLocaleString('th-TH', { minimumFractionDigits: 2 })}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          )}
         </div>
       )}
 
@@ -356,72 +341,40 @@ export default function AccFirmReportsPage() {
 
       {/* ── Tab: สรุปต่อ Client ───────────────────────────────────────────────── */}
       {tab === 'summary' && (
-        <div className="bg-white rounded-xl border overflow-hidden">
-          {loading ? (
-            <div className="p-8 text-center text-slate-400 text-sm">กำลังโหลด…</div>
-          ) : clientSummary.length === 0 ? (
-            <div className="p-8 text-center text-slate-300 text-sm">ไม่มี client orgs</div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-slate-50 border-b text-xs text-slate-500">
-                  <tr>
-                    <th className="text-left px-4 py-2.5 font-medium">Client</th>
-                    <th className="text-center px-3 py-2.5 font-medium text-red-500">เกินกำหนด</th>
-                    <th className="text-center px-3 py-2.5 font-medium text-amber-500">ใกล้ครบ</th>
-                    <th className="text-center px-3 py-2.5 font-medium text-gray-500">Draft</th>
-                    <th className="text-center px-3 py-2.5 font-medium text-blue-500">Open</th>
-                    <th className="text-right px-4 py-2.5 font-medium text-red-500">ยอดค้างชำระ</th>
-                    <th className="px-4 py-2.5" />
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-50">
-                  {clientSummary.map(c => (
-                    <tr key={c.orgId} className={`hover:bg-slate-50 ${c.overdue > 0 ? 'bg-red-50/30' : ''}`}>
-                      <td className="px-4 py-3">
-                        <p className="font-semibold text-slate-800">{c.orgName}</p>
-                        <p className="text-xs text-slate-400">{c.orgSlug}</p>
-                      </td>
-                      <td className="px-3 py-3 text-center">
-                        {c.overdue > 0
-                          ? <span className="text-sm font-bold text-red-600">{c.overdue}</span>
-                          : <span className="text-slate-200">—</span>}
-                      </td>
-                      <td className="px-3 py-3 text-center">
-                        {c.due_soon > 0
-                          ? <span className="text-sm font-bold text-amber-600">{c.due_soon}</span>
-                          : <span className="text-slate-200">—</span>}
-                      </td>
-                      <td className="px-3 py-3 text-center">
-                        {c.draft > 0
-                          ? <span className="text-sm text-gray-500">{c.draft}</span>
-                          : <span className="text-slate-200">—</span>}
-                      </td>
-                      <td className="px-3 py-3 text-center">
-                        {c.open > 0
-                          ? <span className="text-sm text-blue-600">{c.open}</span>
-                          : <span className="text-slate-200">—</span>}
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        {c.totalOverdue > 0
-                          ? <span className="text-sm font-bold text-red-600">฿{fmtK(c.totalOverdue)}</span>
-                          : <span className="text-slate-200">—</span>}
-                      </td>
-                      <td className="px-4 py-3">
-                        <Link href={`/${c.orgSlug}/accounting`} target="_blank">
-                          <Button size="sm" variant="ghost" className="h-7 w-7 p-0">
-                            <ArrowUpRight className="w-3.5 h-3.5 text-slate-400" />
-                          </Button>
-                        </Link>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
+        !loading && clientSummary.length === 0 ? (
+          <div className="rounded-xl border bg-white p-8 text-center text-sm text-slate-300">ไม่มี client orgs</div>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Client</TableHead>
+                <TableHead align="center">เกินกำหนด</TableHead>
+                <TableHead align="center">ใกล้ครบ</TableHead>
+                <TableHead align="center">Draft</TableHead>
+                <TableHead align="center">Open</TableHead>
+                <TableHead align="right">ยอดค้างชำระ</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {loading ? (
+                <TableEmpty colSpan={6}>กำลังโหลด…</TableEmpty>
+              ) : clientSummary.map(c => (
+                <TableRow key={c.orgId} clickable onClick={() => router.push(`/${c.orgSlug}/accounting`)} className={c.overdue > 0 ? 'bg-red-50/30' : ''}>
+                  <TableCell>
+                    <p className="font-semibold text-slate-800">{c.orgName}</p>
+                    <p className="text-xs text-slate-400">{c.orgSlug}</p>
+                  </TableCell>
+                  <TableCell align="center" tabular>{c.overdue > 0 ? <span className="font-bold text-red-600">{c.overdue}</span> : <span className="text-slate-200">—</span>}</TableCell>
+                  <TableCell align="center" tabular>{c.due_soon > 0 ? <span className="font-bold text-amber-600">{c.due_soon}</span> : <span className="text-slate-200">—</span>}</TableCell>
+                  <TableCell align="center" tabular>{c.draft > 0 ? <span className="text-gray-500">{c.draft}</span> : <span className="text-slate-200">—</span>}</TableCell>
+                  <TableCell align="center" tabular>{c.open > 0 ? <span className="text-blue-600">{c.open}</span> : <span className="text-slate-200">—</span>}</TableCell>
+                  <TableCell align="right" tabular>{c.totalOverdue > 0 ? <span className="font-bold text-red-600">฿{fmtK(c.totalOverdue)}</span> : <span className="text-slate-200">—</span>}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )
       )}
-    </div>
+    </PageShell>
   );
 }

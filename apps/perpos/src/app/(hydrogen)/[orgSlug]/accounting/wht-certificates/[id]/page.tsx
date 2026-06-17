@@ -4,6 +4,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getActiveOrganizationId } from "@/lib/accounting/queries";
 import { getWHTCert } from "@/lib/tax/actions";
 import { WhtCertDetailClient } from "@/components/tax/wht-cert-detail-client";
+import { PageShell } from "@/components/ui/page-shell";
 
 export const dynamic = "force-dynamic";
 
@@ -17,11 +18,11 @@ export default async function WhtCertDetailPage({ params }: Props) {
 
   if (!activeOrganizationId) {
     return (
-      <div className="mx-auto w-full max-w-7xl px-4 py-6">
+      <PageShell width="default">
         <div className="rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-700">
           กรุณาเลือกองค์กรก่อน
         </div>
-      </div>
+      </PageShell>
     );
   }
 
@@ -53,21 +54,16 @@ export default async function WhtCertDetailPage({ params }: Props) {
   }
 
   return (
-    <div className="mx-auto w-full max-w-7xl px-4 py-6">
-      <div className="mb-4">
-        <div className="text-xl font-semibold text-slate-900">
-          หนังสือรับรองหัก ณ ที่จ่าย
-        </div>
-        <div className="mt-1 text-sm text-slate-600">
-          {row.certificate_no ?? "(ยังไม่มีเลขที่)"} — {row.receiver_name}
-        </div>
-      </div>
-
+    <PageShell
+      width="default"
+      title="หนังสือรับรองหัก ณ ที่จ่าย"
+      description={<>{row.certificate_no ?? "(ยังไม่มีเลขที่)"} — {row.receiver_name}</>}
+    >
       <WhtCertDetailClient
         row={row}
         payerAddress={payerAddress}
         receiverAddress={receiverAddress}
       />
-    </div>
+    </PageShell>
   );
 }

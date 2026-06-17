@@ -4,9 +4,14 @@ import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useParams } from 'next/navigation';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
+import { PageShell } from '@/components/ui/page-shell';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { CustomSelect } from '@/components/ui/custom-select';
+import { StatusBadge } from '@/components/ui/badge';
+import {
+  Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableEmpty,
+} from '@/components/ui/table';
 import { OcrReceiveDialog } from './ocr-receive-dialog';
 import {
   Package, Warehouse, ArrowLeftRight, History, AlertTriangle, Plus, Search,
@@ -413,17 +418,13 @@ export default function JustMeInventoryPage() {
   }, [warehouses]);
 
   return (
-    <div className="p-4 md:p-6 space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-3 border-b pb-4">
-        <div>
-          <h1 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-            <Warehouse className="w-5 h-5 text-indigo-500" />
-            ระบบคลังสินค้า & สต๊อกวัสดุ
-          </h1>
-          <p className="text-sm text-slate-500">จัดการคลังสินค้ากลาง ไซต์งาน และสายไฟเหลือใช้</p>
-        </div>
-        <div className="flex items-center gap-2">
+    <PageShell
+      width="full"
+      icon={<Warehouse className="h-6 w-6" />}
+      title="ระบบคลังสินค้า & สต๊อกวัสดุ"
+      description="จัดการคลังสินค้ากลาง ไซต์งาน และสายไฟเหลือใช้"
+      actions={
+        <>
           <Button
             size="sm"
             onClick={() => setOcrDialogOpen(true)}
@@ -436,8 +437,9 @@ export default function JustMeInventoryPage() {
           <Button variant="ghost" size="icon" onClick={loadData} disabled={loading}>
             <RefreshCw className={cn('h-4 w-4', loading && 'animate-spin')} />
           </Button>
-        </div>
-      </div>
+        </>
+      }
+    >
 
       {error && (
         <div className="flex items-center gap-2.5 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 leading-normal">
@@ -649,40 +651,35 @@ export default function JustMeInventoryPage() {
                   <h2 className="text-sm font-semibold text-slate-700">คลังสินค้าและไซต์งานปัจจุบัน</h2>
                 </div>
 
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm text-left">
-                    <thead className="bg-slate-50 border-b text-xs text-slate-500 font-medium">
-                      <tr>
-                        <th className="px-5 py-3">ชื่อคลัง / ไซต์งาน</th>
-                        <th className="px-4 py-3">ประเภท</th>
-                        <th className="px-4 py-3">ที่อยู่</th>
-                        <th className="px-4 py-3">สถานะ</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {warehouses.map((wh) => (
-                        <tr key={wh.id} className="hover:bg-slate-50/50">
-                          <td className="px-5 py-3.5 font-bold text-slate-800">{wh.name}</td>
-                          <td className="px-4 py-3.5">
-                            <span className={cn(
-                              "text-xs px-2 py-0.5 rounded-full font-semibold border",
-                              wh.type === 'central' ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-blue-50 text-blue-700 border-blue-200"
-                            )}>
-                              {wh.type === 'central' ? 'คลังกลาง (Central)' : 'ไซต์งาน (Site)'}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3.5 text-xs text-slate-500 leading-normal max-w-xs">{wh.location_address || '—'}</td>
-                          <td className="px-4 py-3.5">
-                            <span className="inline-flex items-center gap-1 text-emerald-700 font-semibold text-xs">
-                              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                              ใช้งานอยู่
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                <Table wrapperClassName="rounded-none border-0">
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>ชื่อคลัง / ไซต์งาน</TableHead>
+                      <TableHead>ประเภท</TableHead>
+                      <TableHead>ที่อยู่</TableHead>
+                      <TableHead>สถานะ</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {warehouses.map((wh) => (
+                      <TableRow key={wh.id}>
+                        <TableCell className="font-bold text-slate-800">{wh.name}</TableCell>
+                        <TableCell>
+                          <StatusBadge tone={wh.type === 'central' ? 'success' : 'info'}>
+                            {wh.type === 'central' ? 'คลังกลาง (Central)' : 'ไซต์งาน (Site)'}
+                          </StatusBadge>
+                        </TableCell>
+                        <TableCell className="max-w-xs text-xs text-slate-500">{wh.location_address || '—'}</TableCell>
+                        <TableCell>
+                          <span className="inline-flex items-center gap-1 whitespace-nowrap text-xs font-semibold text-emerald-700">
+                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                            ใช้งานอยู่
+                          </span>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
               </div>
 
             </div>
@@ -818,47 +815,35 @@ export default function JustMeInventoryPage() {
                   <h2 className="text-sm font-semibold text-slate-700">ข้อมูลวัสดุทั้งหมด</h2>
                 </div>
 
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm text-left">
-                    <thead className="bg-slate-50 border-b text-xs text-slate-500 font-medium">
-                      <tr>
-                        <th className="px-5 py-3">รหัสวัสดุ</th>
-                        <th className="px-4 py-3">ชื่อ</th>
-                        <th className="px-4 py-3">หน่วย</th>
-                        <th className="px-4 py-3">การติดตาม</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {items.map((item) => (
-                        <tr key={item.id} className="hover:bg-slate-50/50">
-                          <td className="px-5 py-3.5 font-mono text-xs text-indigo-600 font-bold">{item.code}</td>
-                          <td className="px-4 py-3.5 font-bold text-slate-800">
-                            <div>
-                              <p>{item.name}</p>
-                              {item.description && <p className="text-[11px] font-normal text-slate-400">{item.description}</p>}
-                            </div>
-                          </td>
-                          <td className="px-4 py-3.5 text-slate-600">{item.unit}</td>
-                          <td className="px-4 py-3.5 text-xs space-y-1">
-                            {item.has_serial && (
-                              <span className="block w-fit bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded border border-emerald-100 font-medium">
-                                Serial Number
-                              </span>
-                            )}
-                            {item.has_cable_measurement && (
-                              <span className="block w-fit bg-blue-50 text-blue-700 px-2 py-0.5 rounded border border-blue-100 font-medium">
-                                ตัดเมตร (เศษ {item.conversion_rate})
-                              </span>
-                            )}
-                            {!item.has_serial && !item.has_cable_measurement && (
-                              <span className="text-slate-400 italic">นับชิ้นปกติ</span>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                <Table wrapperClassName="rounded-none border-0">
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>รหัสวัสดุ</TableHead>
+                      <TableHead>ชื่อ</TableHead>
+                      <TableHead>หน่วย</TableHead>
+                      <TableHead>การติดตาม</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {items.map((item) => (
+                      <TableRow key={item.id}>
+                        <TableCell className="font-mono text-xs font-bold text-indigo-600">{item.code}</TableCell>
+                        <TableCell className="font-bold text-slate-800">
+                          <p>{item.name}</p>
+                          {item.description && <p className="text-[11px] font-normal text-slate-400">{item.description}</p>}
+                        </TableCell>
+                        <TableCell className="text-slate-600">{item.unit}</TableCell>
+                        <TableCell className="text-xs">
+                          <div className="flex gap-1">
+                            {item.has_serial && <StatusBadge tone="success">Serial Number</StatusBadge>}
+                            {item.has_cable_measurement && <StatusBadge tone="info">ตัดเมตร (เศษ {item.conversion_rate})</StatusBadge>}
+                            {!item.has_serial && !item.has_cable_measurement && <span className="italic text-slate-400">นับชิ้นปกติ</span>}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
               </div>
 
             </div>
@@ -1037,53 +1022,40 @@ export default function JustMeInventoryPage() {
               </div>
 
               <div className="overflow-x-auto">
-                <table className="w-full text-sm text-left">
-                  <thead className="bg-slate-50 border-b text-xs text-slate-500 font-medium">
-                    <tr>
-                      <th className="px-5 py-3">รหัสสายไฟ (Tag)</th>
-                      <th className="px-4 py-3">ชนิดสินค้า</th>
-                      <th className="px-4 py-3">คลังปัจจุบัน</th>
-                      <th className="px-4 py-3 text-right">ความยาวเหลือ (เมตร)</th>
-                      <th className="px-4 py-3">สถานะ</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
+                <Table wrapperClassName="rounded-none border-0">
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>รหัสสายไฟ (Tag)</TableHead>
+                      <TableHead>ชนิดสินค้า</TableHead>
+                      <TableHead>คลังปัจจุบัน</TableHead>
+                      <TableHead align="right">ความยาวเหลือ (เมตร)</TableHead>
+                      <TableHead>สถานะ</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
                     {leftoverCables.length === 0 ? (
-                      <tr>
-                        <td colSpan={5} className="py-8 text-center text-slate-400 text-sm">ไม่มีข้อมูลเศษสายไฟในระบบ</td>
-                      </tr>
-                    ) : (
-                      leftoverCables.map((s) => {
-                        const item = items.find((i) => i.id === s.item_id);
-                        const wh = warehouses.find((w) => w.id === s.warehouse_id);
-
-                        return (
-                          <tr key={s.id} className="hover:bg-slate-50/50">
-                            <td className="px-5 py-3.5 font-mono text-xs font-bold text-slate-800">{s.serial_number}</td>
-                            <td className="px-4 py-3.5">
-                              <span className="font-bold text-slate-800">{item ? item.name : '—'}</span>
-                            </td>
-                            <td className="px-4 py-3.5 text-slate-600">{wh ? wh.name : 'ไม่พบชื่อคลัง'}</td>
-                            <td className="px-4 py-3.5 text-right font-black text-slate-800">
-                              {s.length_remaining !== null ? `${s.length_remaining} เมตร` : '—'}
-                            </td>
-                            <td className="px-4 py-3.5">
-                              {s.is_scrap ? (
-                                <span className="bg-red-50 text-red-600 border border-red-200 px-2 py-0.5 rounded text-xs font-semibold">
-                                  เศษสั้น (Scrap &lt; 5m)
-                                </span>
-                              ) : (
-                                <span className="bg-emerald-50 text-emerald-600 border border-emerald-200 px-2 py-0.5 rounded text-xs font-semibold">
-                                  ม้วนตัดแบ่งใช้ (In Stock)
-                                </span>
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })
-                    )}
-                  </tbody>
-                </table>
+                      <TableEmpty colSpan={5}>ไม่มีข้อมูลเศษสายไฟในระบบ</TableEmpty>
+                    ) : leftoverCables.map((s) => {
+                      const item = items.find((i) => i.id === s.item_id);
+                      const wh = warehouses.find((w) => w.id === s.warehouse_id);
+                      return (
+                        <TableRow key={s.id}>
+                          <TableCell className="font-mono text-xs font-bold text-slate-800">{s.serial_number}</TableCell>
+                          <TableCell className="font-bold text-slate-800">{item ? item.name : '—'}</TableCell>
+                          <TableCell className="text-slate-600">{wh ? wh.name : 'ไม่พบชื่อคลัง'}</TableCell>
+                          <TableCell align="right" tabular className="font-black text-slate-800">
+                            {s.length_remaining !== null ? `${s.length_remaining} เมตร` : '—'}
+                          </TableCell>
+                          <TableCell>
+                            {s.is_scrap
+                              ? <StatusBadge tone="danger">เศษสั้น (Scrap &lt; 5m)</StatusBadge>
+                              : <StatusBadge tone="success">ม้วนตัดแบ่งใช้ (In Stock)</StatusBadge>}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
               </div>
             </div>
           )}
@@ -1095,61 +1067,47 @@ export default function JustMeInventoryPage() {
                 <h2 className="text-sm font-semibold text-slate-700">ประวัติการทำรายการเดินคลังทั้งหมด</h2>
               </div>
 
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm text-left">
-                  <thead className="bg-slate-50 border-b text-xs text-slate-500 font-medium">
-                    <tr>
-                      <th className="px-5 py-3">วันที่ / เวลา</th>
-                      <th className="px-4 py-3">ประเภทรายการ</th>
-                      <th className="px-4 py-3">สินค้า</th>
-                      <th className="px-4 py-3 text-right">จำนวน</th>
-                      <th className="px-4 py-3">จากคลัง</th>
-                      <th className="px-4 py-3">ไปยังคลัง</th>
-                      <th className="px-4 py-3">เอกสารอ้างอิง / ผู้ทำรายการ</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {movements.length === 0 ? (
-                      <tr>
-                        <td colSpan={7} className="py-8 text-center text-slate-400 text-sm">ยังไม่มีรายการบันทึก</td>
-                      </tr>
-                    ) : (
-                      movements.map((mov) => {
-                        const item = items.find((i) => i.id === mov.item_id);
-                        const src = warehouses.find((w) => w.id === mov.source_warehouse_id);
-                        const dest = warehouses.find((w) => w.id === mov.destination_warehouse_id);
-
-                        return (
-                          <tr key={mov.id} className="hover:bg-slate-50/50">
-                            <td className="px-5 py-3.5 text-xs text-slate-500 whitespace-nowrap">{fmtDateTime(mov.created_at)}</td>
-                            <td className="px-4 py-3.5">
-                              <span className={cn(
-                                "text-xs px-2.5 py-0.5 rounded-full font-bold",
-                                getMovementBadgeClass(mov.movement_type)
-                              )}>
-                                {getMovementLabel(mov.movement_type)}
-                              </span>
-                            </td>
-                            <td className="px-4 py-3.5 font-bold text-slate-800">
-                              {item ? item.name : 'ไม่พบชื่อสินค้า'}
-                            </td>
-                            <td className="px-4 py-3.5 text-right font-black text-slate-800">
-                              {mov.quantity} {item ? item.unit : 'ชิ้น'}
-                            </td>
-                            <td className="px-4 py-3.5 text-xs text-slate-500">{src ? src.name : '—'}</td>
-                            <td className="px-4 py-3.5 text-xs text-slate-500">{dest ? dest.name : '—'}</td>
-                            <td className="px-4 py-3.5 text-xs space-y-0.5">
-                              {mov.reference_no && <p className="font-bold text-slate-700">อ้างอิง: {mov.reference_no}</p>}
-                              <p className="text-slate-400">โดย: {mov.creator?.display_name || 'ไม่ระบุชื่อ'}</p>
-                              {mov.note && <p className="italic text-slate-500">โน้ต: {mov.note}</p>}
-                            </td>
-                          </tr>
-                        );
-                      })
-                    )}
-                  </tbody>
-                </table>
-              </div>
+              <Table wrapperClassName="rounded-none border-0">
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>วันที่ / เวลา</TableHead>
+                    <TableHead>ประเภทรายการ</TableHead>
+                    <TableHead>สินค้า</TableHead>
+                    <TableHead align="right">จำนวน</TableHead>
+                    <TableHead>จากคลัง</TableHead>
+                    <TableHead>ไปยังคลัง</TableHead>
+                    <TableHead>เอกสารอ้างอิง / ผู้ทำรายการ</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {movements.length === 0 ? (
+                    <TableEmpty colSpan={7}>ยังไม่มีรายการบันทึก</TableEmpty>
+                  ) : movements.map((mov) => {
+                    const item = items.find((i) => i.id === mov.item_id);
+                    const src = warehouses.find((w) => w.id === mov.source_warehouse_id);
+                    const dest = warehouses.find((w) => w.id === mov.destination_warehouse_id);
+                    return (
+                      <TableRow key={mov.id}>
+                        <TableCell className="text-xs text-slate-500">{fmtDateTime(mov.created_at)}</TableCell>
+                        <TableCell>
+                          <span className={cn("whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-bold", getMovementBadgeClass(mov.movement_type))}>
+                            {getMovementLabel(mov.movement_type)}
+                          </span>
+                        </TableCell>
+                        <TableCell className="font-bold text-slate-800">{item ? item.name : 'ไม่พบชื่อสินค้า'}</TableCell>
+                        <TableCell align="right" tabular className="font-black text-slate-800">{mov.quantity} {item ? item.unit : 'ชิ้น'}</TableCell>
+                        <TableCell className="text-xs text-slate-500">{src ? src.name : '—'}</TableCell>
+                        <TableCell className="text-xs text-slate-500">{dest ? dest.name : '—'}</TableCell>
+                        <TableCell className="text-xs">
+                          {mov.reference_no && <p className="font-bold text-slate-700">อ้างอิง: {mov.reference_no}</p>}
+                          <p className="text-slate-400">โดย: {mov.creator?.display_name || 'ไม่ระบุชื่อ'}</p>
+                          {mov.note && <p className="italic text-slate-500">โน้ต: {mov.note}</p>}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
             </div>
           )}
 
@@ -1170,6 +1128,6 @@ export default function JustMeInventoryPage() {
           warehouseOptions={warehouseOptions}
         />
       )}
-    </div>
+    </PageShell>
   );
 }

@@ -3,6 +3,7 @@ import React from "react";
 import { getActiveOrganizationId } from "@/lib/accounting/queries";
 import { listAssetsAction, type AssetRow } from "@/lib/assets/actions";
 import { AssetDisposalClient } from "@/components/assets/asset-disposal-client";
+import { PageShell } from "@/components/ui/page-shell";
 
 export const dynamic = "force-dynamic";
 
@@ -17,12 +18,11 @@ export default async function AssetDisposalsPage() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-5xl px-4 py-6">
-      <div className="mb-6">
-        <div className="text-xl font-semibold text-slate-900">ขายสินทรัพย์</div>
-        <div className="mt-1 text-sm text-slate-600">บันทึกการจำหน่ายสินทรัพย์ถาวรขององค์กร</div>
-      </div>
-
+    <PageShell
+      width="default"
+      title="ขายสินทรัพย์"
+      description={<>บันทึกการจำหน่ายสินทรัพย์ถาวรขององค์กร</>}
+    >
       {activeOrganizationId ? (
         <AssetDisposalClient
           organizationId={activeOrganizationId}
@@ -33,6 +33,6 @@ export default async function AssetDisposalsPage() {
           กรุณาเลือกองค์กร
         </div>
       )}
-    </div>
+    </PageShell>
   );
 }

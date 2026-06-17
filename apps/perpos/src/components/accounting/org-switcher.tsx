@@ -12,6 +12,9 @@ import { useAuth } from "@/app/shared/auth-provider";
 type OrgSwitcherProps = {
   organizations: OrganizationSummary[];
   activeOrganizationId: string | null;
+  /** ทิศที่ dropdown เปิด — "up" สำหรับวางไว้ล่างสุด (เช่น ใน sidebar) */
+  placement?: "down" | "up";
+  className?: string;
 };
 
 const ROLE_LABEL: Record<string, string> = {
@@ -20,7 +23,7 @@ const ROLE_LABEL: Record<string, string> = {
   user:  "USER",
 };
 
-export function OrgSwitcher({ organizations, activeOrganizationId }: OrgSwitcherProps) {
+export function OrgSwitcher({ organizations, activeOrganizationId, placement = "down", className }: OrgSwitcherProps) {
   const router = useRouter();
   const { role } = useAuth();
   const isSystemAdmin = role === "super_admin";
@@ -69,14 +72,14 @@ export function OrgSwitcher({ organizations, activeOrganizationId }: OrgSwitcher
   }
 
   return (
-    <div className="relative">
+    <div className={`relative ${className ?? ""}`}>
       {/* Trigger */}
       <button
         ref={triggerRef}
         type="button"
         onClick={() => { setOpen((v) => !v); }}
         disabled={pending}
-        className="inline-flex h-9 items-center gap-2 rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-800 hover:bg-slate-50 focus:outline-none disabled:opacity-60"
+        className="inline-flex h-9 w-full items-center gap-2 rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-800 hover:bg-slate-50 focus:outline-none disabled:opacity-60"
       >
         <Building2 className="h-4 w-4 shrink-0 text-slate-500" />
         <span className="max-w-[160px] truncate font-medium">{selectedOrg?.name ?? "เลือกองค์กร"}</span>
@@ -85,14 +88,22 @@ export function OrgSwitcher({ organizations, activeOrganizationId }: OrgSwitcher
             {ROLE_LABEL[selectedOrg.role] ?? selectedOrg.role}
           </span>
         ) : null}
-        <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+        <ChevronsUpDown className="ml-auto h-3.5 w-3.5 shrink-0 text-slate-400" />
       </button>
 
       {/* Dropdown panel — portal so overflow-x-auto doesn't clip it */}
       {open && rect && createPortal(
         <div
           ref={dropdownRef}
-          style={{ position: "fixed", top: rect.bottom + 6, left: rect.left, width: rect.width, zIndex: 9999 }}
+          style={{
+            position: "fixed",
+            ...(placement === "up"
+              ? { bottom: window.innerHeight - rect.top + 6 }
+              : { top: rect.bottom + 6 }),
+            left: rect.left,
+            width: rect.width,
+            zIndex: 9999,
+          }}
           className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg"
         >
           {/* Org list */}

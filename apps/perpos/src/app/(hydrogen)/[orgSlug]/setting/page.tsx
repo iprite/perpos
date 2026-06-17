@@ -1,8 +1,10 @@
 import React from "react";
+import { Settings } from "lucide-react";
 
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getActiveOrganizationId } from "@/lib/accounting/queries";
 import { OrgSettingsClient } from "@/components/phase4/settings/org-settings-client";
+import { PageShell } from "@/components/ui/page-shell";
 import type { DocSequence, OrgSettings } from "@/lib/phase4/settings/actions";
 
 export const dynamic = "force-dynamic";
@@ -74,30 +76,26 @@ export default async function OrganizationSettingsPage() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-6xl px-4 py-6">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <div className="text-xl font-semibold text-slate-900">ตั้งค่าองค์กร</div>
-          <div className="mt-1 text-sm text-slate-600">โลโก้ ลายเซ็น และรูปแบบเลขที่เอกสาร</div>
-        </div>
-      </div>
-
-      {error ? <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div> : null}
+    <PageShell
+      width="default"
+      icon={<Settings className="h-6 w-6" />}
+      title="ตั้งค่าองค์กร"
+      description="โลโก้ ลายเซ็น และรูปแบบเลขที่เอกสาร"
+    >
+      {error ? <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div> : null}
 
       {activeOrganizationId ? (
-        <div className="mt-6">
-          <OrgSettingsClient
+        <OrgSettingsClient
           organizationId={activeOrganizationId}
           initialOrgName={orgName}
           initialBaseCurrency={baseCurrency}
           initialSettings={settings}
           initialSequences={sequences}
         />
-        </div>
       ) : (
-        <div className="mt-6 rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-700">กรุณาเลือกองค์กรก่อน</div>
+        <div className="rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-700">กรุณาเลือกองค์กรก่อน</div>
       )}
-    </div>
+    </PageShell>
   );
 }
 

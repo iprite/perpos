@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { useOrgRole } from '@/app/shared/module-provider';
 import { Button } from '@/components/ui/button';
+import { PageShell } from '@/components/ui/page-shell';
 import { Input } from '@/components/ui/input';
 import { Loader } from '@googlemaps/js-api-loader';
 import {
@@ -361,23 +362,18 @@ export default function JustMeDashboardPage() {
   }
 
   return (
-    <div className="p-4 md:p-6 space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-4 border-b pb-5">
-        <div className="flex items-center gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-md">
-            <LayoutGrid className="h-6 w-6" />
-          </div>
-          <div>
-            <h1 className="text-xl font-bold text-slate-900">Just Me Dashboard</h1>
-            <p className="text-sm text-slate-500">รายงานสรุปการเข้า-ออกงาน และแผนที่พิกัดพนักงานทุกคน</p>
-          </div>
-        </div>
+    <PageShell
+      width="full"
+      icon={<LayoutGrid className="h-6 w-6" />}
+      title="Just Me Dashboard"
+      description="รายงานสรุปการเข้า-ออกงาน และแผนที่พิกัดพนักงานทุกคน"
+      actions={
         <Button variant="outline" size="sm" onClick={loadData} disabled={loading} className="gap-1.5 shadow-sm">
           <RefreshCw className={cn('h-4 w-4', loading && 'animate-spin')} />
           รีเฟรชข้อมูล
         </Button>
-      </div>
+      }
+    >
 
       {error && (
         <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
@@ -543,6 +539,6 @@ export default function JustMeDashboardPage() {
 
         </div>
       )}
-    </div>
+    </PageShell>
   );
 }

@@ -11,11 +11,16 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { CustomSelect } from "@/components/ui/custom-select";
+import { StatusBadge } from "@/components/ui/badge";
+import {
+  Table, TableHeader, TableBody, TableRow, TableHead, TableCell,
+} from "@/components/ui/table";
 import { AdminPage } from "../_components/admin-page";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
+  DialogBody,
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
@@ -405,46 +410,43 @@ export default function WebhooksPage() {
                       ) : logs.length === 0 ? (
                         <div className="py-4 text-center text-sm text-gray-400">ยังไม่มี log</div>
                       ) : (
-                        <div className="max-h-72 overflow-y-auto rounded-lg border border-gray-200 bg-white">
-                          <div className="grid grid-cols-[80px_160px_60px_60px_1fr] gap-0 border-b bg-gray-50 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-gray-400">
-                            <div>สถานะ</div>
-                            <div>เวลา</div>
-                            <div>HTTP</div>
-                            <div>Latency</div>
-                            <div>Event</div>
-                          </div>
-                          <div className="divide-y divide-gray-50">
+                        <Table stickyHeader maxHeight="18rem">
+                          <TableHeader sticky>
+                            <TableRow>
+                              <TableHead>สถานะ</TableHead>
+                              <TableHead>เวลา</TableHead>
+                              <TableHead>HTTP</TableHead>
+                              <TableHead>Latency</TableHead>
+                              <TableHead>Event</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
                             {logs.map((log) => (
-                              <div key={log.id} className="grid grid-cols-[80px_160px_60px_60px_1fr] items-center gap-0 px-3 py-2 text-xs">
-                                <div>
+                              <TableRow key={log.id}>
+                                <TableCell>
                                   {log.success ? (
-                                    <span className="flex items-center gap-1 text-emerald-600">
-                                      <CheckCircle2 className="h-3.5 w-3.5" />สำเร็จ
-                                    </span>
+                                    <StatusBadge tone="success"><CheckCircle2 className="mr-1 h-3 w-3" />สำเร็จ</StatusBadge>
                                   ) : (
-                                    <span className="flex items-center gap-1 text-red-500">
-                                      <XCircle className="h-3.5 w-3.5" />ล้มเหลว
-                                    </span>
+                                    <StatusBadge tone="danger"><XCircle className="mr-1 h-3 w-3" />ล้มเหลว</StatusBadge>
                                   )}
-                                </div>
-                                <div className="text-gray-500">
+                                </TableCell>
+                                <TableCell className="text-xs text-gray-500">
                                   {new Date(log.delivered_at).toLocaleString("th-TH", {
                                     day: "2-digit", month: "2-digit",
                                     hour: "2-digit", minute: "2-digit", second: "2-digit",
                                   })}
-                                </div>
-                                <div className={log.response_status && log.response_status >= 500 ? "font-medium text-red-600" : "text-gray-600"}>
+                                </TableCell>
+                                <TableCell className={log.response_status && log.response_status >= 500 ? "font-medium text-red-600" : "text-gray-600"}>
                                   {log.response_status ?? "—"}
-                                </div>
-                                <div className="flex items-center gap-1 text-gray-500">
-                                  <Clock className="h-3 w-3" />
-                                  {log.latency_ms ?? "—"} ms
-                                </div>
-                                <div className="truncate font-mono text-gray-600">{log.event_type}</div>
-                              </div>
+                                </TableCell>
+                                <TableCell className="text-gray-500">
+                                  <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{log.latency_ms ?? "—"} ms</span>
+                                </TableCell>
+                                <TableCell className="font-mono text-xs text-gray-600">{log.event_type}</TableCell>
+                              </TableRow>
                             ))}
-                          </div>
-                        </div>
+                          </TableBody>
+                        </Table>
                       )}
                     </div>
                   )}
@@ -469,14 +471,15 @@ export default function WebhooksPage() {
 
       {/* ── Add / Edit Modal ── */}
       <Dialog open={!!modalMode} onOpenChange={(o) => !o && setModalMode(null)}>
-        <DialogContent className="max-w-lg">
+        <DialogContent size="lg">
           <DialogHeader>
             <DialogTitle>
               {modalMode === "add" ? "เพิ่ม Webhook ใหม่" : `แก้ไข "${form.name}"`}
             </DialogTitle>
           </DialogHeader>
 
-          <div className="space-y-4 py-1">
+          <DialogBody>
+          <div className="space-y-4">
             <div className="space-y-1.5">
               <Label>ชื่อ <span className="text-red-500">*</span></Label>
               <Input
@@ -572,8 +575,9 @@ export default function WebhooksPage() {
               </div>
             )}
           </div>
+          </DialogBody>
 
-          <DialogFooter className="gap-2 sm:gap-2">
+          <DialogFooter>
             <Button variant="outline" onClick={() => setModalMode(null)} disabled={saving}>
               ยกเลิก
             </Button>

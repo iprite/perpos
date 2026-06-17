@@ -183,6 +183,50 @@ gap-8  = 32px  — page section separation
 
 ตารางคือหัวใจของ ERP ต้องอ่านเร็ว อ่านถูก:
 
+### กฎบังคับ — Standard DataTable
+
+> **ห้ามเขียน raw `<table>` หรือ CSS-grid ปลอมเป็นตารางเด็ดขาด** — ทุกตารางต้องใช้ primitives จาก `@/components/ui/table`
+
+```tsx
+import {
+  Table, TableHeader, TableBody, TableFooter, TableRow, TableHead, TableCell,
+  TableEmpty, TableLoading,
+} from '@/components/ui/table';
+import { StatusBadge } from '@/components/ui/badge';
+
+<Table stickyHeader maxHeight="70vh">
+  <TableHeader sticky>
+    <TableRow>
+      <TableHead>รายการ</TableHead>
+      <TableHead align="center">สถานะ</TableHead>
+      <TableHead align="right">จำนวนเงิน</TableHead>
+    </TableRow>
+  </TableHeader>
+  <TableBody>
+    {loading ? (
+      <TableLoading colSpan={3} />
+    ) : rows.length === 0 ? (
+      <TableEmpty colSpan={3}>ยังไม่มีข้อมูล</TableEmpty>
+    ) : rows.map((r) => (
+      <TableRow key={r.id} clickable onClick={() => openDetail(r)}>
+        <TableCell>{r.name}</TableCell>
+        <TableCell align="center"><StatusBadge tone="success">สำเร็จ</StatusBadge></TableCell>
+        <TableCell align="right" tabular>{fmt(r.amount)}</TableCell>
+      </TableRow>
+    ))}
+  </TableBody>
+</Table>
+```
+
+**กฎเหล็ก:**
+1. **เลื่อนซ้าย-ขวาได้ ไม่บีบคอลัมน์** — cell default `whitespace-nowrap` แล้ว wrapper scroll เอง · ห้ามตั้ง fixed `grid-cols-[px]` · cell ข้อความยาว (JSON/note) ใช้ `<TableCell wrap>` เป็น escape hatch
+2. **Badge ไม่ wrap** — ใช้ `<StatusBadge tone=…>` เท่านั้น (มี `whitespace-nowrap` ในตัว) ห้ามเขียน `<span className="…rounded-full…">` มือ
+3. **คลิกที่ row เพื่อดู/แก้ไข** — `<TableRow clickable onClick>` เปิด detail/edit dialog · **ไม่มีคอลัมน์ปุ่ม action ในแถว** · ปุ่มลบ/แก้ย้ายไปไว้ใน footer ของ dialog
+4. คอลัมน์เงิน/จำนวน → `align="right" tabular` เสมอ
+5. empty/loading → `<TableEmpty>` / `<TableLoading>` (ห้าม spinner กลางจอ)
+
+ตัวอย่าง structure ดิบ (อ้างอิงเท่านั้น — โค้ดจริงใช้ primitives ด้านบน):
+
 ```tsx
 // Structure
 <table className="w-full text-sm">
@@ -474,7 +518,94 @@ setTimeout(() => setCopied(false), 2000);
 
 ---
 
-## 13. Anti-patterns — ห้ามทำ
+## 13. Dialog / Popup Standard — มาตรฐาน Popup บังคับใช้ทั้งระบบ
+
+> **กฎเด็ดขาด**: ทุก Dialog ใน PERPOS ต้องใช้โครงสร้างนี้เท่านั้น — ห้ามเขียน `max-h`, `overflow-y-auto`, หรือ padding บน `DialogContent` โดยตรง
+
+### โครงสร้างบังคับ
+
+```tsx
+import {
+  Dialog, DialogContent, DialogBody, DialogHeader, DialogTitle, DialogFooter,
+} from '@/components/ui/dialog';
+
+<Dialog open={open} onOpenChange={setOpen}>
+  <DialogContent size="lg">
+    <DialogHeader>
+      <DialogTitle>หัวข้อ</DialogTitle>
+    </DialogHeader>
+    <DialogBody>
+      {/* เนื้อหา/ฟอร์ม — ส่วนเดียวที่ scroll */}
+    </DialogBody>
+    <DialogFooter>
+      <Button variant="outline" onClick={() => setOpen(false)}>ยกเลิก</Button>
+      <Button onClick={handleSave}>บันทึก</Button>
+    </DialogFooter>
+  </DialogContent>
+</Dialog>
+```
+
+### กลไก Sticky Header/Footer
+`DialogContent` = `flex flex-col max-h-[85vh] overflow-hidden` → header/footer `shrink-0` จึง pinned อัตโนมัติ มีเฉพาะ `DialogBody` ที่ `flex-1 overflow-y-auto` — ไม่ต้องใช้ `position:sticky`
+
+### Width Scale (prop `size`, default `lg`)
+
+| size | max-w | ใช้กับ |
+|------|-------|--------|
+| `sm` | `max-w-sm` | ยืนยันลบ / ข้อความสั้น |
+| `md` | `max-w-md` | ฟอร์มสั้น 1 คอลัมน์ |
+| `lg` | `max-w-lg` | ฟอร์มมาตรฐาน (default) |
+| `xl` | `max-w-2xl` | ฟอร์ม 2 คอลัมน์ / detail |
+| `2xl` | `max-w-3xl` | ตาราง/เนื้อหากว้าง |
+| `3xl` | `max-w-4xl` | กว้างพิเศษ |
+| `full` | `max-w-[95vw]` | viewer (OCR ฯลฯ) |
+
+ทุก size บนมือถือ = `w-[calc(100vw-2rem)]` อัตโนมัติ
+
+### Dialog ที่มีปุ่ม Destructive (ลบ/อันตราย)
+
+```tsx
+// ปุ่ม destructive ชิดซ้าย — ใช้ className="mr-auto" ภายใน DialogFooter
+<DialogFooter>
+  <Button variant="destructive" className="mr-auto" onClick={handleDelete}>
+    ลบ
+  </Button>
+  <Button variant="outline" onClick={() => setOpen(false)}>ยกเลิก</Button>
+  <Button onClick={handleSave}>บันทึก</Button>
+</DialogFooter>
+```
+
+### Dialog ที่มี Form (form ต้องครอบ body+footer)
+
+```tsx
+<DialogContent size="lg">
+  <DialogHeader>
+    <DialogTitle>หัวข้อ</DialogTitle>
+  </DialogHeader>
+  <form className="flex min-h-0 flex-1 flex-col" onSubmit={handleSubmit}>
+    <DialogBody>
+      {/* form fields */}
+    </DialogBody>
+    <DialogFooter>
+      <Button type="submit">บันทึก</Button>
+    </DialogFooter>
+  </form>
+</DialogContent>
+```
+
+### Anti-patterns — ห้ามทำกับ Dialog
+
+| Anti-pattern | ทำไม | ทำแทนด้วย |
+|---|---|---|
+| `<DialogContent className="max-h-[90vh] overflow-y-auto">` | scroll อยู่ใน `DialogBody` แล้ว | ลบ max-h/overflow ออก ใช้ `size` แทน |
+| `<DialogContent className="p-6">` | padding อยู่ใน Header/Body/Footer แล้ว | ลบ p ออก ใช้ `size` แทน |
+| ไม่มี `<DialogBody>` | dialog จะไม่มี padding และ scroll ไม่ทำงาน | ห่อเนื้อหาด้วย `<DialogBody>` เสมอ |
+| Footer แบบ `<div className="flex justify-end gap-2 pt-2">` | ไม่ sticky, style ไม่สม่ำเสมอ | ใช้ `<DialogFooter>` เสมอ |
+| Nested `<div>` เพื่อ justify-between สำหรับปุ่ม destructive | ซับซ้อนเกินจำเป็น | ใช้ `className="mr-auto"` บนปุ่ม destructive |
+
+---
+
+## 14. Anti-patterns — ห้ามทำ
 
 | Anti-pattern | ทำไม | ทำแทนด้วย |
 |---|---|---|
@@ -507,3 +638,4 @@ setTimeout(() => setCopied(false), 2000);
 | วันที่ | การเปลี่ยนแปลง |
 |--------|--------------|
 | 2026-06-06 | สร้าง DESIGN.md จาก Stripe + Linear + Emil Kowalski |
+| 2026-06-17 | เพิ่ม §13 Dialog / Popup Standard — sticky header/footer, size prop, DialogBody บังคับทั้งระบบ |

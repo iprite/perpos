@@ -3,6 +3,7 @@ import { getActiveOrganizationId } from "@/lib/accounting/queries";
 import { getVatSales } from "@/lib/tax/actions";
 import { VatDocsClient } from "@/components/tax/vat-docs-client";
 import type { VatDocRow } from "@/lib/tax/actions";
+import { PageShell } from "@/components/ui/page-shell";
 
 export const dynamic = "force-dynamic";
 
@@ -31,16 +32,11 @@ export default async function VatSalesPage() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-6xl px-4 py-6">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <div className="text-xl font-semibold text-slate-900">รายงานภาษีขาย</div>
-          <div className="mt-1 text-sm text-slate-600">
-            ใบกำกับภาษีขายที่มี VAT (สำหรับคำนวณ ภ.พ.30)
-          </div>
-        </div>
-      </div>
-
+    <PageShell
+      width="default"
+      title="รายงานภาษีขาย"
+      description={<>ใบกำกับภาษีขายที่มี VAT (สำหรับคำนวณ ภ.พ.30)</>}
+    >
       {error ? (
         <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
           {error}
@@ -56,6 +52,6 @@ export default async function VatSalesPage() {
           กรุณาเลือกองค์กรก่อน
         </div>
       )}
-    </div>
+    </PageShell>
   );
 }

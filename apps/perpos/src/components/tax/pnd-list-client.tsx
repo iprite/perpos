@@ -3,9 +3,9 @@
 import React, { useState } from "react";
 import { PlusCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogBody, DialogFooter, DialogTitle } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import cn from "@core/utils/class-names";
+import { StatusBadge, type BadgeTone } from "@/components/ui/badge";
 import type { PNDRow } from "@/lib/tax/actions";
 
 const THAI_MONTHS_SHORT = [
@@ -17,19 +17,15 @@ function fmt(n: number) {
   return n.toLocaleString("th-TH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-const STATUS_CONFIG: Record<string, { label: string; cls: string }> = {
-  draft:     { label: "ร่าง",      cls: "bg-slate-100 text-slate-600" },
-  submitted: { label: "ยื่นแล้ว",  cls: "bg-blue-100 text-blue-700" },
-  paid:      { label: "ชำระแล้ว", cls: "bg-amber-100 text-amber-700" },
+const STATUS_CONFIG: Record<string, { label: string; tone: BadgeTone }> = {
+  draft:     { label: "ร่าง",      tone: "neutral" },
+  submitted: { label: "ยื่นแล้ว",  tone: "info" },
+  paid:      { label: "ชำระแล้ว", tone: "warning" },
 };
 
-function StatusBadge({ status }: { status: string }) {
-  const cfg = STATUS_CONFIG[status] ?? { label: status, cls: "bg-slate-100 text-slate-600" };
-  return (
-    <span className={cn("inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium", cfg.cls)}>
-      {cfg.label}
-    </span>
-  );
+function PNDStatusBadge({ status }: { status: string }) {
+  const cfg = STATUS_CONFIG[status] ?? { label: status, tone: "neutral" as BadgeTone };
+  return <StatusBadge tone={cfg.tone}>{cfg.label}</StatusBadge>;
 }
 
 type Props = {
@@ -65,11 +61,11 @@ export function PNDListClient({ pndType, rows }: Props) {
         <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
           <Table>
             <TableHeader>
-              <TableRow className="bg-slate-50">
+              <TableRow>
                 <TableHead>เลขที่แบบ</TableHead>
                 <TableHead>งวดภาษี</TableHead>
-                <TableHead className="text-right">ยอดรวม (ฐาน)</TableHead>
-                <TableHead className="text-right">ภาษีที่หัก</TableHead>
+                <TableHead align="right">ยอดรวม (ฐาน)</TableHead>
+                <TableHead align="right">ภาษีที่หัก</TableHead>
                 <TableHead>สถานะ</TableHead>
               </TableRow>
             </TableHeader>
@@ -80,10 +76,10 @@ export function PNDListClient({ pndType, rows }: Props) {
                   <TableCell>
                     {THAI_MONTHS_SHORT[row.period_month - 1]} {row.period_year + 543}
                   </TableCell>
-                  <TableCell className="text-right tabular-nums">{fmt(row.total_base_amount)}</TableCell>
-                  <TableCell className="text-right tabular-nums font-medium">{fmt(row.total_wht_amount)}</TableCell>
+                  <TableCell align="right" tabular>{fmt(row.total_base_amount)}</TableCell>
+                  <TableCell align="right" tabular className="font-medium">{fmt(row.total_wht_amount)}</TableCell>
                   <TableCell>
-                    <StatusBadge status={row.status} />
+                    <PNDStatusBadge status={row.status} />
                   </TableCell>
                 </TableRow>
               ))}
@@ -94,11 +90,12 @@ export function PNDListClient({ pndType, rows }: Props) {
 
       {/* Stub dialog */}
       <Dialog open={stubOpen} onOpenChange={setStubOpen}>
-        <DialogContent className="max-w-sm">
+        <DialogContent size="sm">
           <DialogHeader>
             <DialogTitle>สร้างแบบ {title}</DialogTitle>
           </DialogHeader>
-          <div className="py-6 text-center space-y-3">
+          <DialogBody>
+          <div className="py-2 text-center space-y-3">
             <div className="text-4xl">🚧</div>
             <div className="text-slate-700 font-medium">อยู่ระหว่างพัฒนา</div>
             <div className="text-sm text-slate-500 leading-relaxed">
@@ -106,11 +103,12 @@ export function PNDListClient({ pndType, rows }: Props) {
               โปรดติดตามการอัปเดตในเร็วๆ นี้
             </div>
           </div>
-          <div className="flex justify-center pt-2">
+          </DialogBody>
+          <DialogFooter className="justify-center">
             <Button variant="outline" onClick={() => setStubOpen(false)}>
               ปิด
             </Button>
-          </div>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

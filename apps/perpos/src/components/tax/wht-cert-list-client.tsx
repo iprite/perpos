@@ -3,7 +3,7 @@
 import React from "react";
 import { useRouter } from "next/navigation";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import cn from "@core/utils/class-names";
+import { StatusBadge, type BadgeTone } from "@/components/ui/badge";
 import { withBasePath } from "@/utils/base-path";
 import type { WHTCertRow } from "@/lib/tax/actions";
 
@@ -11,19 +11,15 @@ function fmt(n: number) {
   return n.toLocaleString("th-TH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-const STATUS_MAP: Record<string, { label: string; cls: string }> = {
-  draft:  { label: "ร่าง",     cls: "bg-slate-100 text-slate-600" },
-  issued: { label: "ออกแล้ว", cls: "bg-teal-100 text-teal-700" },
-  void:   { label: "ยกเลิก",  cls: "bg-red-100 text-red-700" },
+const STATUS_MAP: Record<string, { label: string; tone: BadgeTone }> = {
+  draft:  { label: "ร่าง",     tone: "neutral" },
+  issued: { label: "ออกแล้ว", tone: "success" },
+  void:   { label: "ยกเลิก",  tone: "danger" },
 };
 
-function StatusBadge({ status }: { status: string }) {
-  const cfg = STATUS_MAP[status] ?? { label: status, cls: "bg-slate-100 text-slate-600" };
-  return (
-    <span className={cn("inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium", cfg.cls)}>
-      {cfg.label}
-    </span>
-  );
+function WhtStatusBadge({ status }: { status: string }) {
+  const cfg = STATUS_MAP[status] ?? { label: status, tone: "neutral" as BadgeTone };
+  return <StatusBadge tone={cfg.tone}>{cfg.label}</StatusBadge>;
 }
 
 type Props = {
@@ -47,13 +43,13 @@ export function WhtCertListClient({ rows }: Props) {
     <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
       <Table>
         <TableHeader>
-          <TableRow className="bg-slate-50">
+          <TableRow>
             <TableHead>เลขที่ใบรับรอง</TableHead>
             <TableHead>วันที่</TableHead>
             <TableHead>ผู้ถูกหักภาษี</TableHead>
             <TableHead>ประเภท</TableHead>
-            <TableHead className="text-right">ฐานภาษี</TableHead>
-            <TableHead className="text-right">ภาษีที่หัก</TableHead>
+            <TableHead align="right">ฐานภาษี</TableHead>
+            <TableHead align="right">ภาษีที่หัก</TableHead>
             <TableHead>สถานะ</TableHead>
           </TableRow>
         </TableHeader>
@@ -61,7 +57,7 @@ export function WhtCertListClient({ rows }: Props) {
           {rows.map((row) => (
             <TableRow
               key={row.id}
-              className="cursor-pointer hover:bg-slate-50"
+              clickable
               onClick={() => router.push(withBasePath(`/tax/wht-certificates/${row.id}`))}
             >
               <TableCell className="font-mono text-sm">{row.certificate_no ?? "-"}</TableCell>
@@ -72,10 +68,10 @@ export function WhtCertListClient({ rows }: Props) {
               </TableCell>
               <TableCell className="text-sm">{row.receiver_name}</TableCell>
               <TableCell className="text-sm text-slate-600">{row.wht_category}</TableCell>
-              <TableCell className="text-right tabular-nums text-sm">{fmt(row.base_amount)}</TableCell>
-              <TableCell className="text-right tabular-nums text-sm font-medium">{fmt(row.wht_amount)}</TableCell>
+              <TableCell align="right" tabular className="text-sm">{fmt(row.base_amount)}</TableCell>
+              <TableCell align="right" tabular className="text-sm font-medium">{fmt(row.wht_amount)}</TableCell>
               <TableCell>
-                <StatusBadge status={row.status} />
+                <WhtStatusBadge status={row.status} />
               </TableCell>
             </TableRow>
           ))}

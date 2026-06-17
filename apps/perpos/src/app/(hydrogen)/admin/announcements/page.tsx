@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { CustomSelect } from '@/components/ui/custom-select';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogBody, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { ConfirmDeleteDialog } from '@/components/ui/confirm-delete-dialog';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { AdminPage, AdminCard } from '../_components/admin-page';
@@ -159,8 +159,9 @@ export default function AnnouncementsPage() {
 
       {/* Create/Edit dialog */}
       <Dialog open={!!form} onOpenChange={(o) => !o && setForm(null)}>
-        <DialogContent className="max-w-lg">
+        <DialogContent size="lg">
           <DialogHeader><DialogTitle>{form?.id ? 'แก้ไขประกาศ' : 'สร้างประกาศ'}</DialogTitle></DialogHeader>
+          <DialogBody>
           {form && (
             <div className="space-y-4">
               <div>
@@ -206,7 +207,8 @@ export default function AnnouncementsPage() {
               </div>
             </div>
           )}
-          <DialogFooter className="gap-2 sm:gap-2">
+          </DialogBody>
+          <DialogFooter>
             <Button variant="outline" onClick={() => setForm(null)}>ยกเลิก</Button>
             <Button onClick={save} disabled={saving}>{saving ? 'กำลังบันทึก…' : 'บันทึก'}</Button>
           </DialogFooter>

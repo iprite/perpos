@@ -3,6 +3,7 @@ import React from "react";
 import { getActiveOrganizationId } from "@/lib/accounting/queries";
 import { listOrgMembers, type OrgMemberRow } from "@/lib/settings/user-actions";
 import { OrgRolesClient } from "@/components/settings/org-roles-client";
+import { PageShell } from "@/components/ui/page-shell";
 
 export const dynamic = "force-dynamic";
 
@@ -17,7 +18,9 @@ export default async function OrgRolesPage() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-5xl px-4 py-6">
+    <PageShell
+      width="default"
+    >
       {activeOrganizationId ? (
         <OrgRolesClient members={members} />
       ) : (
@@ -25,6 +28,6 @@ export default async function OrgRolesPage() {
           กรุณาเลือกองค์กร
         </div>
       )}
-    </div>
+    </PageShell>
   );
 }

@@ -1,8 +1,9 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { ChevronLeft, ChevronRight, Loader2, AlertCircle, LogIn } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Loader2, AlertCircle, LogIn, CalendarDays } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { PageShell } from '@/components/ui/page-shell';
 import CalendarView, { type CalBooking, type CalRoom } from '../calendar-view';
 import BookingDetailDialog from '../booking-detail-dialog';
 import BookingDialog from '../booking-dialog';
@@ -92,20 +93,17 @@ export default function CalendarPage() {
   const calRooms = rooms as unknown as CalRoom[];
 
   return (
-    <div className="p-4 md:p-6 space-y-4">
-      {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <h1 className="text-lg font-bold text-slate-900">{t.title_calendar}</h1>
-          <p className="text-sm text-slate-500">{t.subtitle_calendar}</p>
-        </div>
-        <div className="flex gap-2 items-center">
-          <Button onClick={() => { setNewPreset(null); setNewOpen(true); }}>
-            <LogIn className="h-4 w-4 mr-2" />{t.btn_checkin}
-          </Button>
-        </div>
-      </div>
-
+    <PageShell
+      width="wide"
+      icon={<CalendarDays className="h-6 w-6" />}
+      title={t.title_calendar}
+      description={t.subtitle_calendar}
+      actions={
+        <Button onClick={() => { setNewPreset(null); setNewOpen(true); }}>
+          <LogIn className="h-4 w-4 mr-2" />{t.btn_checkin}
+        </Button>
+      }
+    >
       {errMsg && (
         <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
           <AlertCircle className="h-4 w-4 shrink-0" />{errMsg}
@@ -182,6 +180,6 @@ export default function CalendarPage() {
         presetRoomId={newPreset?.room_id}
         presetDate={newPreset?.date}
       />
-    </div>
+    </PageShell>
   );
 }

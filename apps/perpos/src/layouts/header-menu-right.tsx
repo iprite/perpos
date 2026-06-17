@@ -1,6 +1,5 @@
 "use client";
 
-import ProfileMenu from "@/layouts/profile-menu";
 import { Button } from "rizzui";
 import { LogIn } from "lucide-react";
 
@@ -12,29 +11,24 @@ export default function HeaderMenuRight() {
   const { userId, loading } = useAuth();
   const { openModal, closeModal } = useModal();
 
+  // โปรไฟล์/เมนูผู้ใช้ ย้ายไปอยู่ที่ sidebar ด้านล่างแล้ว — header เหลือเฉพาะปุ่ม login ตอนยังไม่ล็อกอิน
+  if (loading || userId) return null;
+
   return (
     <div className="ms-auto grid shrink-0 items-center gap-2 text-gray-700 xs:gap-3 xl:gap-4">
-      {loading ? (
-        <div className="h-9 w-28 animate-pulse rounded-lg bg-gray-200" />
-      ) : userId ? (
-        <div className="grid grid-cols-1 items-center gap-2 xs:gap-3 xl:gap-4">
-          <ProfileMenu />
-        </div>
-      ) : (
-        <Button
-          className="h-9 gap-2 bg-indigo-600 text-white hover:bg-indigo-500"
-          onClick={() => {
-            openModal({
-              view: <GoogleAuthView mode="modal" onClose={closeModal} />,
-              customSize: 520,
-              size: "sm",
-            });
-          }}
-        >
-          <LogIn className="h-4 w-4" />
-          เข้าสู่ระบบ
-        </Button>
-      )}
+      <Button
+        className="h-9 gap-2 bg-indigo-600 text-white hover:bg-indigo-500"
+        onClick={() => {
+          openModal({
+            view: <GoogleAuthView mode="modal" onClose={closeModal} />,
+            customSize: 520,
+            size: "sm",
+          });
+        }}
+      >
+        <LogIn className="h-4 w-4" />
+        เข้าสู่ระบบ
+      </Button>
     </div>
   );
 }

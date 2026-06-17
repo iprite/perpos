@@ -5,16 +5,21 @@ import { useParams } from 'next/navigation';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { backendUrl } from '@/lib/backend';
 import { Button } from '@/components/ui/button';
+import { PageShell } from '@/components/ui/page-shell';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { CustomSelect } from '@/components/ui/custom-select';
 import { ThaiDatePicker } from '@/components/ui/thai-date-picker';
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+  Dialog, DialogContent, DialogHeader, DialogBody, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog';
+import { StatusBadge, type BadgeTone } from '@/components/ui/badge';
 import {
-  Building2, TrendingUp, Loader2, AlertCircle, Plus, Pencil,
-  Trash2, RefreshCw, ClipboardList, BadgeCheck, Clock, PackageCheck,
+  Table, TableHeader, TableBody, TableFooter, TableRow, TableHead, TableCell, TableEmpty,
+} from '@/components/ui/table';
+import {
+  Building2, TrendingUp, Loader2, AlertCircle, Plus,
+  Trash2, RefreshCw, ClipboardList, BadgeCheck, Clock,
 } from 'lucide-react';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -121,18 +126,14 @@ function fmtDate(s: string | null | undefined) {
 }
 function n(v: number | null) { return v ?? 0; }
 
-function StatusBadge({ status }: { status: string | null }) {
+function JobStatusBadge({ status }: { status: string | null }) {
   if (!status) return <span className="text-slate-300 text-xs">ยังไม่ระบุ</span>;
-  const map: Record<string, string> = {
-    'รับเช็คแล้ว': 'bg-green-100 text-green-700',
-    'ส่งสินค้าแล้ว รอรับเช็ค': 'bg-yellow-100 text-yellow-700',
-    'เซ็นสัญญาแล้ว รอส่งของ': 'bg-blue-100 text-blue-700',
+  const map: Record<string, BadgeTone> = {
+    'รับเช็คแล้ว': 'success',
+    'ส่งสินค้าแล้ว รอรับเช็ค': 'warning',
+    'เซ็นสัญญาแล้ว รอส่งของ': 'info',
   };
-  return (
-    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${map[status] ?? 'bg-slate-100 text-slate-600'}`}>
-      {status}
-    </span>
-  );
+  return <StatusBadge tone={map[status] ?? 'neutral'}>{status}</StatusBadge>;
 }
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
@@ -290,18 +291,13 @@ export default function B2gOrdersPage() {
 
   // ─── Render ────────────────────────────────────────────────────────────────
   return (
-    <div className="p-4 md:p-6 space-y-5">
-
-      {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-3 border-b pb-4">
-        <div>
-          <h1 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-            <Building2 className="w-5 h-5 text-indigo-500" />
-            B2G — คำสั่งซื้อภาครัฐ
-          </h1>
-          <p className="text-sm text-slate-500">ติดตามคำสั่งซื้อและผลกำไร Business-to-Government</p>
-        </div>
-        <div className="flex gap-2">
+    <PageShell
+      width="wide"
+      icon={<Building2 className="h-6 w-6" />}
+      title="B2G — คำสั่งซื้อภาครัฐ"
+      description="ติดตามคำสั่งซื้อและผลกำไร Business-to-Government"
+      actions={
+        <>
           <Button variant="outline" size="sm" onClick={load} disabled={loading}>
             <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${loading ? 'animate-spin' : ''}`} />
             รีเฟรช
@@ -310,8 +306,9 @@ export default function B2gOrdersPage() {
             <Plus className="w-3.5 h-3.5 mr-1.5" />
             เพิ่มรายการ
           </Button>
-        </div>
-      </div>
+        </>
+      }
+    >
 
       {loading ? (
         <div className="flex h-48 items-center justify-center">
@@ -382,126 +379,82 @@ export default function B2gOrdersPage() {
           </div>
 
           {/* Table */}
-          <div className="overflow-x-auto rounded-xl border bg-white">
-            <table className="min-w-full text-sm">
-              <thead>
-                <tr className="bg-slate-50 border-b text-xs text-slate-500 uppercase tracking-wide">
-                  <th className="px-3 py-2.5 text-center w-8">#</th>
-                  <th className="px-3 py-2.5 text-left min-w-[140px]">QT / สินค้า</th>
-                  <th className="px-3 py-2.5 text-left min-w-[120px]">แผนก</th>
-                  <th className="px-3 py-2.5 text-left w-28">บริษัท</th>
-                  <th className="px-3 py-2.5 text-right w-28">ยอดเสนอ</th>
-                  <th className="px-3 py-2.5 text-right w-24">ทุน</th>
-                  <th className="px-3 py-2.5 text-right w-24">กำไร 89</th>
-                  <th className="px-3 py-2.5 text-right w-16">%</th>
-                  <th className="px-3 py-2.5 text-center w-28">สัญญา</th>
-                  <th className="px-3 py-2.5 text-center w-28">รับเงิน</th>
-                  <th className="px-3 py-2.5 text-center w-36">สถานะ</th>
-                  <th className="px-3 py-2.5 text-center w-16">จัดการ</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {filtered.length === 0 ? (
-                  <tr>
-                    <td colSpan={12} className="py-12 text-center text-slate-400">
-                      ไม่มีรายการ
-                    </td>
-                  </tr>
-                ) : filtered.map((o) => (
-                  <tr key={o.id} className="hover:bg-slate-50 transition-colors">
-                    <td className="px-3 py-2.5 text-center text-slate-400 text-xs">{o.seq_no ?? '—'}</td>
-                    <td className="px-3 py-2.5">
-                      <div className="font-medium text-slate-800 text-xs">{o.qt_reference ?? '—'}</div>
-                      <div className="text-slate-500 text-xs line-clamp-1 mt-0.5">{o.product_description ?? '—'}</div>
-                    </td>
-                    <td className="px-3 py-2.5 text-slate-600 text-xs">{o.department ?? '—'}</td>
-                    <td className="px-3 py-2.5">
-                      <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${
-                        o.company === '89 Global Work'
-                          ? 'bg-indigo-100 text-indigo-700'
-                          : 'bg-orange-100 text-orange-700'
-                      }`}>
-                        {o.company ?? '—'}
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead align="center">#</TableHead>
+                <TableHead>QT / สินค้า</TableHead>
+                <TableHead>แผนก</TableHead>
+                <TableHead>บริษัท</TableHead>
+                <TableHead align="right">ยอดเสนอ</TableHead>
+                <TableHead align="right">ทุน</TableHead>
+                <TableHead align="right">กำไร 89</TableHead>
+                <TableHead align="right">%</TableHead>
+                <TableHead align="center">สัญญา</TableHead>
+                <TableHead align="center">รับเงิน</TableHead>
+                <TableHead align="center">สถานะ</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filtered.length === 0 ? (
+                <TableEmpty colSpan={11}>ไม่มีรายการ</TableEmpty>
+              ) : filtered.map((o) => (
+                <TableRow key={o.id} clickable onClick={() => openEdit(o)}>
+                  <TableCell align="center" tabular className="text-xs text-slate-400">{o.seq_no ?? '—'}</TableCell>
+                  <TableCell>
+                    <div className="text-xs font-medium text-slate-800">{o.qt_reference ?? '—'}</div>
+                    <div className="mt-0.5 line-clamp-1 text-xs text-slate-500">{o.product_description ?? '—'}</div>
+                  </TableCell>
+                  <TableCell className="text-xs text-slate-600">{o.department ?? '—'}</TableCell>
+                  <TableCell>
+                    <span className={`whitespace-nowrap rounded px-1.5 py-0.5 text-xs font-medium ${
+                      o.company === '89 Global Work' ? 'bg-indigo-100 text-indigo-700' : 'bg-orange-100 text-orange-700'
+                    }`}>{o.company ?? '—'}</span>
+                  </TableCell>
+                  <TableCell align="right" tabular className="text-xs text-slate-700">{o.price_incl_vat ? `฿${fmt(o.price_incl_vat, 0)}` : '—'}</TableCell>
+                  <TableCell align="right" tabular className="text-xs text-slate-600">{o.total_cost_89 ? `฿${fmt(o.total_cost_89, 0)}` : '—'}</TableCell>
+                  <TableCell align="right" tabular className="text-xs">
+                    {o.net_profit_89 != null ? (
+                      <span className={o.net_profit_89 < 0 ? 'text-red-600' : 'text-emerald-600'}>
+                        {o.net_profit_89 < 0 ? '' : '+'}฿{fmt(o.net_profit_89, 0)}
                       </span>
-                    </td>
-                    <td className="px-3 py-2.5 text-right font-mono text-xs text-slate-700">
-                      {o.price_incl_vat ? `฿${fmt(o.price_incl_vat, 0)}` : '—'}
-                    </td>
-                    <td className="px-3 py-2.5 text-right font-mono text-xs text-slate-600">
-                      {o.total_cost_89 ? `฿${fmt(o.total_cost_89, 0)}` : '—'}
-                    </td>
-                    <td className="px-3 py-2.5 text-right font-mono text-xs">
-                      {o.net_profit_89 != null ? (
-                        <span className={o.net_profit_89 < 0 ? 'text-red-600' : 'text-emerald-600'}>
-                          {o.net_profit_89 < 0 ? '' : '+'}฿{fmt(o.net_profit_89, 0)}
-                        </span>
-                      ) : '—'}
-                    </td>
-                    <td className="px-3 py-2.5 text-right font-mono text-xs">
-                      {o.profit_pct != null ? (
-                        <span className={o.profit_pct < 0 ? 'text-red-500' : 'text-slate-600'}>
-                          {o.profit_pct.toFixed(1)}%
-                        </span>
-                      ) : '—'}
-                    </td>
-                    <td className="px-3 py-2.5 text-center text-xs text-slate-500">{fmtDate(o.contract_date)}</td>
-                    <td className="px-3 py-2.5 text-center text-xs text-slate-500">{fmtDate(o.receipt_date)}</td>
-                    <td className="px-3 py-2.5 text-center"><StatusBadge status={o.job_status} /></td>
-                    <td className="px-3 py-2.5">
-                      <div className="flex items-center justify-center gap-1">
-                        <button
-                          onClick={() => openEdit(o)}
-                          className="rounded p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
-                        >
-                          <Pencil className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          onClick={() => void handleDelete(o.id)}
-                          disabled={deleting === o.id}
-                          className="rounded p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors disabled:opacity-40"
-                        >
-                          {deleting === o.id
-                            ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                            : <Trash2 className="w-3.5 h-3.5" />
-                          }
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-
-              {/* Footer total row */}
-              {filtered.length > 0 && (
-                <tfoot>
-                  <tr className="bg-slate-50 border-t text-xs font-semibold text-slate-700">
-                    <td colSpan={4} className="px-3 py-2.5 text-right text-slate-500">รวม {filtered.length} รายการ</td>
-                    <td className="px-3 py-2.5 text-right font-mono">฿{fmt(stats.total, 0)}</td>
-                    <td className="px-3 py-2.5 text-right font-mono">
-                      ฿{fmt(filtered.reduce((s, o) => s + n(o.total_cost_89), 0), 0)}
-                    </td>
-                    <td className="px-3 py-2.5 text-right font-mono text-emerald-700">
-                      ฿{fmt(stats.profit, 0)}
-                    </td>
-                    <td className="px-3 py-2.5 text-right font-mono text-slate-500">
-                      {stats.total > 0 ? ((stats.profit / stats.total) * 100).toFixed(1) : '0.0'}%
-                    </td>
-                    <td colSpan={4} />
-                  </tr>
-                </tfoot>
-              )}
-            </table>
-          </div>
+                    ) : '—'}
+                  </TableCell>
+                  <TableCell align="right" tabular className="text-xs">
+                    {o.profit_pct != null ? (
+                      <span className={o.profit_pct < 0 ? 'text-red-500' : 'text-slate-600'}>{o.profit_pct.toFixed(1)}%</span>
+                    ) : '—'}
+                  </TableCell>
+                  <TableCell align="center" className="text-xs text-slate-500">{fmtDate(o.contract_date)}</TableCell>
+                  <TableCell align="center" className="text-xs text-slate-500">{fmtDate(o.receipt_date)}</TableCell>
+                  <TableCell align="center"><JobStatusBadge status={o.job_status} /></TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+            {filtered.length > 0 && (
+              <TableFooter>
+                <TableRow>
+                  <TableCell colSpan={4} align="right" className="text-xs text-slate-500">รวม {filtered.length} รายการ</TableCell>
+                  <TableCell align="right" tabular className="text-xs">฿{fmt(stats.total, 0)}</TableCell>
+                  <TableCell align="right" tabular className="text-xs">฿{fmt(filtered.reduce((s, o) => s + n(o.total_cost_89), 0), 0)}</TableCell>
+                  <TableCell align="right" tabular className="text-xs text-emerald-700">฿{fmt(stats.profit, 0)}</TableCell>
+                  <TableCell align="right" tabular className="text-xs text-slate-500">{stats.total > 0 ? ((stats.profit / stats.total) * 100).toFixed(1) : '0.0'}%</TableCell>
+                  <TableCell colSpan={3} />
+                </TableRow>
+              </TableFooter>
+            )}
+          </Table>
         </>
       )}
 
       {/* ─── Add / Edit Dialog ─────────────────────────────────────────────────── */}
       <Dialog open={dlgOpen} onOpenChange={setDlgOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent size="xl">
           <DialogHeader>
             <DialogTitle>{editing ? 'แก้ไขรายการ B2G' : 'เพิ่มรายการ B2G'}</DialogTitle>
           </DialogHeader>
 
+          <DialogBody>
           {/* Tab bar */}
           <div className="flex gap-1 border-b mb-4 -mx-1 px-1">
             {([
@@ -788,8 +741,18 @@ export default function B2gOrdersPage() {
               </>
             )}
           </div>
+          </DialogBody>
 
-          <DialogFooter className="gap-2 sm:gap-2 mt-4">
+          <DialogFooter>
+            {editing && (
+              <Button
+                variant="ghost" className="mr-auto text-red-600 hover:bg-red-50 hover:text-red-700"
+                disabled={deleting === editing.id}
+                onClick={async () => { const id = editing.id; await handleDelete(id); setDlgOpen(false); }}
+              >
+                {deleting === editing.id ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Trash2 className="mr-1.5 h-4 w-4" />} ลบ
+              </Button>
+            )}
             <Button variant="outline" onClick={() => setDlgOpen(false)}>ยกเลิก</Button>
             <Button onClick={() => void handleSave()} disabled={saving}>
               {saving ? 'กำลังบันทึก…' : editing ? 'อัปเดต' : 'บันทึก'}
@@ -797,7 +760,7 @@ export default function B2gOrdersPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </PageShell>
   );
 }
 

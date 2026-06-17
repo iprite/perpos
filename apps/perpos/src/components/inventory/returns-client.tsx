@@ -9,8 +9,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ThaiDatePicker } from "@/components/ui/thai-date-picker";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogBody, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { StatusBadge, type BadgeTone } from "@/components/ui/badge";
 import {
   listStockReturnsAction,
   createStockReturnAction,
@@ -28,10 +29,10 @@ type ItemLine = {
 
 const EMPTY_LINE: ItemLine = { inventoryItemId: "", productName: "", qty: "1", unit: "EA" };
 
-const STATUS_BADGE: Record<string, string> = {
-  draft: "bg-slate-100 text-slate-600",
-  completed: "bg-green-100 text-green-700",
-  cancelled: "bg-red-100 text-red-600",
+const STATUS_TONE: Record<string, BadgeTone> = {
+  draft: "neutral",
+  completed: "success",
+  cancelled: "danger",
 };
 
 const STATUS_TH: Record<string, string> = {
@@ -143,9 +144,7 @@ export function ReturnsClient(props: {
                 <TableCell className="font-mono text-xs text-slate-500">{r.requisitionId ? r.requisitionId.slice(0, 8) + "…" : "-"}</TableCell>
                 <TableCell className="text-sm">{r.notes ?? "-"}</TableCell>
                 <TableCell>
-                  <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_BADGE[r.status] ?? "bg-slate-100 text-slate-600"}`}>
-                    {STATUS_TH[r.status] ?? r.status}
-                  </span>
+                  <StatusBadge tone={STATUS_TONE[r.status] ?? "neutral"}>{STATUS_TH[r.status] ?? r.status}</StatusBadge>
                 </TableCell>
               </TableRow>
             ))}
@@ -161,10 +160,11 @@ export function ReturnsClient(props: {
       </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent size="xl">
           <DialogHeader>
             <DialogTitle>สร้างใบส่งคืนสินค้า</DialogTitle>
           </DialogHeader>
+          <DialogBody>
           <div className="grid gap-3">
             <div className="grid grid-cols-2 gap-3">
               <div className="grid gap-1.5">
@@ -246,11 +246,12 @@ export function ReturnsClient(props: {
               </div>
             </div>
 
-            <div className="flex justify-end gap-2 pt-1">
-              <Button variant="outline" onClick={() => setOpen(false)}>ยกเลิก</Button>
-              <Button onClick={save} disabled={pending}>บันทึก</Button>
-            </div>
           </div>
+          </DialogBody>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpen(false)}>ยกเลิก</Button>
+            <Button onClick={save} disabled={pending}>บันทึก</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

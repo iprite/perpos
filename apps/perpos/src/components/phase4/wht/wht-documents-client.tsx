@@ -10,7 +10,7 @@ import { CustomSelect } from "@/components/ui/custom-select";
 import { Input } from "@/components/ui/input";
 import { ThaiDatePicker } from "@/components/ui/thai-date-picker";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogBody, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import cn from "@core/utils/class-names";
 import { createWhtCertificateAction, postWhtLiabilityAutoAction, uploadWhtPdfAction } from "@/lib/phase4/wht/actions";
@@ -193,11 +193,11 @@ export function WhtDocumentsClient(props: {
       </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent>
+        <DialogContent size="xl">
           <DialogHeader>
             <DialogTitle>สร้างใบรับรองหัก ณ ที่จ่าย (50 ทวิ)</DialogTitle>
           </DialogHeader>
-
+          <DialogBody>
           <div className="grid gap-4">
             <div className="grid gap-2">
               <Label>วันที่</Label>
@@ -253,13 +253,14 @@ export function WhtDocumentsClient(props: {
               </div>
             </div>
 
-            <div className="flex justify-end">
-              <Button className="gap-2" onClick={createAndDownload} disabled={pending}>
-                <Download className="h-4 w-4" />
-                ออกเอกสาร + ดาวน์โหลด PDF
-              </Button>
-            </div>
           </div>
+          </DialogBody>
+          <DialogFooter>
+            <Button className="gap-2" onClick={createAndDownload} disabled={pending}>
+              <Download className="h-4 w-4" />
+              ออกเอกสาร + ดาวน์โหลด PDF
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

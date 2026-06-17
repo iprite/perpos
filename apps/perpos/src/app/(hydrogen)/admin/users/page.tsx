@@ -20,7 +20,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { CustomSelect } from "@/components/ui/custom-select";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+  Dialog, DialogContent, DialogHeader, DialogBody, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog";
 import { startImpersonationSession } from "@/components/impersonation-banner";
@@ -631,18 +631,20 @@ export default function AdminUsersPage() {
 
       {/* Quota dialog */}
       <Dialog open={!!quotaTarget} onOpenChange={(o) => { if (!o) setQuotaTarget(null); }}>
-        <DialogContent>
+        <DialogContent size="md">
           <DialogHeader><DialogTitle>ปรับโควต้าผู้ช่วย AI — {quotaTarget?.display_name}</DialogTitle></DialogHeader>
-          <div className="space-y-3">
-            <div>
-              <Label htmlFor="quota-limit">โควต้า (นาที)</Label>
-              <Input id="quota-limit" type="number" value={quotaMin} onChange={(e) => setQuotaMin(e.target.value)} className="mt-1" />
-              <p className="mt-1 text-xs text-gray-500">
-                ใช้ไปแล้ว {quotaTarget ? minutes(quotaTarget.quota.used_seconds) : 0} นาที — ตั้ง limit ใหม่เพื่อปรับ/เติม
-              </p>
+          <DialogBody>
+            <div className="space-y-3">
+              <div>
+                <Label htmlFor="quota-limit">โควต้า (นาที)</Label>
+                <Input id="quota-limit" type="number" value={quotaMin} onChange={(e) => setQuotaMin(e.target.value)} className="mt-1" />
+                <p className="mt-1 text-xs text-gray-500">
+                  ใช้ไปแล้ว {quotaTarget ? minutes(quotaTarget.quota.used_seconds) : 0} นาที — ตั้ง limit ใหม่เพื่อปรับ/เติม
+                </p>
+              </div>
             </div>
-          </div>
-          <DialogFooter className="gap-2 sm:gap-2">
+          </DialogBody>
+          <DialogFooter>
             <Button variant="outline" onClick={() => setQuotaTarget(null)}>ยกเลิก</Button>
             <Button onClick={handleSaveQuota} disabled={quotaSaving}>{quotaSaving ? "กำลังบันทึก…" : "บันทึก"}</Button>
           </DialogFooter>
@@ -651,11 +653,12 @@ export default function AdminUsersPage() {
 
       {/* Impersonation modal */}
       <Dialog open={!!impersonateTarget} onOpenChange={(open) => { if (!open) { setImpersonateTarget(null); setImpersonateReason(""); setImpersonateOrgId(""); setImpersonateError(null); } }}>
-        <DialogContent className="max-w-md">
+        <DialogContent size="md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-red-700"><span>⚠️</span><span>เข้าดูแทนผู้ใช้</span></DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 py-1">
+          <DialogBody>
+          <div className="space-y-4">
             <div className="flex items-center gap-3 rounded-lg border border-red-100 bg-red-50 px-4 py-3">
               <Avatar src={impersonateTarget?.picture_url ?? null} name={impersonateTarget?.display_name ?? ""} />
               <div className="min-w-0">
@@ -681,7 +684,8 @@ export default function AdminUsersPage() {
             {impersonateError && <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{impersonateError}</div>}
             <p className="text-xs text-gray-500">Session จะหมดอายุอัตโนมัติใน <strong>30 นาที</strong> และถูกบันทึกใน audit log ทุกครั้ง</p>
           </div>
-          <DialogFooter className="gap-2 sm:gap-2">
+          </DialogBody>
+          <DialogFooter>
             <Button variant="outline" onClick={() => setImpersonateTarget(null)} disabled={impersonateLoading}>ยกเลิก</Button>
             <Button variant="destructive" onClick={handleStartImpersonation} disabled={impersonateLoading || !impersonateOrgId || !impersonateReason.trim()}>
               {impersonateLoading ? "กำลังเริ่ม…" : "เริ่มเข้าดูแทน"}

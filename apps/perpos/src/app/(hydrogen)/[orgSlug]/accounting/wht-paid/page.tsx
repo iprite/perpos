@@ -3,6 +3,7 @@ import React from "react";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getActiveOrganizationId } from "@/lib/accounting/queries";
 import { WhtDocumentsClient, type WhtRow } from "@/components/phase4/wht/wht-documents-client";
+import { PageShell } from "@/components/ui/page-shell";
 
 export const dynamic = "force-dynamic";
 
@@ -46,12 +47,11 @@ export default async function WhtPaidPage() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-5xl px-4 py-6">
-      <div className="mb-6">
-        <div className="text-xl font-semibold text-slate-900">ภาษีหัก ณ ที่จ่าย</div>
-        <div className="mt-1 text-sm text-slate-600">หนังสือรับรองการหักภาษี ณ ที่จ่ายที่ออกให้ผู้ขาย</div>
-      </div>
-
+    <PageShell
+      width="default"
+      title="ภาษีหัก ณ ที่จ่าย"
+      description={<>หนังสือรับรองการหักภาษี ณ ที่จ่ายที่ออกให้ผู้ขาย</>}
+    >
       {activeOrganizationId ? (
         <WhtDocumentsClient
           organizationId={activeOrganizationId}
@@ -61,6 +61,6 @@ export default async function WhtPaidPage() {
       ) : (
         <div className="rounded-lg border border-dashed border-slate-200 py-12 text-center text-sm text-slate-500">กรุณาเลือกองค์กร</div>
       )}
-    </div>
+    </PageShell>
   );
 }

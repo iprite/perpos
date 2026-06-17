@@ -5,12 +5,13 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
+import { PageShell } from '@/components/ui/page-shell';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { CustomSelect } from '@/components/ui/custom-select';
 import { ThaiDatePicker } from '@/components/ui/thai-date-picker';
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+  Dialog, DialogContent, DialogHeader, DialogBody, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog';
 import { ConfirmDeleteDialog } from '@/components/ui/confirm-delete-dialog';
 import {
@@ -217,7 +218,7 @@ export default function ClientDetailPage() {
   if (!client) return <div className="p-6 text-red-500 text-sm">ไม่พบลูกค้า</div>;
 
   return (
-    <div className="p-4 md:p-6 space-y-5">
+    <PageShell width="wide">
       {/* Back */}
       <Link href={`/${orgSlug}/crm/clients`} className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-indigo-600">
         <ArrowLeft className="w-4 h-4" /> กลับรายชื่อลูกค้า
@@ -362,9 +363,10 @@ export default function ClientDetailPage() {
 
       {/* ── Client Edit Dialog ── */}
       <Dialog open={editClientOpen} onOpenChange={setEditClientOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent size="lg">
           <DialogHeader><DialogTitle>แก้ไขข้อมูลลูกค้า</DialogTitle></DialogHeader>
-          <div className="space-y-3 py-2">
+          <DialogBody>
+          <div className="space-y-3">
             <div>
               <Label htmlFor="ce-name">ชื่อบริษัท *</Label>
               <Input id="ce-name" value={clientForm.name} onChange={e => setClientForm(f => ({ ...f, name: e.target.value }))} />
@@ -400,7 +402,8 @@ export default function ClientDetailPage() {
               <CustomSelect value={clientForm.status} onChange={v => setClientForm(f => ({ ...f, status: v }))} options={CLIENT_STATUS_OPTS} />
             </div>
           </div>
-          <DialogFooter className="gap-2 sm:gap-2">
+          </DialogBody>
+          <DialogFooter>
             <Button variant="outline" onClick={() => setEditClientOpen(false)}>ยกเลิก</Button>
             <Button onClick={saveClient} disabled={savingClient || !clientForm.name.trim()}>
               {savingClient ? 'กำลังบันทึก…' : 'บันทึก'}
@@ -411,9 +414,10 @@ export default function ClientDetailPage() {
 
       {/* ── Contact Dialog ── */}
       <Dialog open={contactOpen} onOpenChange={setContactOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent size="md">
           <DialogHeader><DialogTitle>{editContactId ? 'แก้ไขผู้ติดต่อ' : 'เพิ่มผู้ติดต่อ'}</DialogTitle></DialogHeader>
-          <div className="space-y-3 py-2">
+          <DialogBody>
+          <div className="space-y-3">
             <div>
               <Label htmlFor="ct-name">ชื่อ *</Label>
               <Input id="ct-name" value={contactForm.name} onChange={e => setContactForm(f => ({ ...f, name: e.target.value }))} />
@@ -446,7 +450,8 @@ export default function ClientDetailPage() {
               ตั้งเป็นผู้ติดต่อหลัก
             </label>
           </div>
-          <DialogFooter className="gap-2 sm:gap-2">
+          </DialogBody>
+          <DialogFooter>
             <Button variant="outline" onClick={() => setContactOpen(false)}>ยกเลิก</Button>
             <Button onClick={saveContact} disabled={savingContact || !contactForm.name.trim()}>
               {savingContact ? 'กำลังบันทึก…' : 'บันทึก'}
@@ -457,9 +462,10 @@ export default function ClientDetailPage() {
 
       {/* ── Solution Dialog ── */}
       <Dialog open={solOpen} onOpenChange={setSolOpen}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogContent size="lg">
           <DialogHeader><DialogTitle>{editSolId ? 'แก้ไข Solution' : 'เพิ่ม Solution'}</DialogTitle></DialogHeader>
-          <div className="space-y-3 py-2">
+          <DialogBody>
+          <div className="space-y-3">
             <div>
               <Label htmlFor="sol-title">ชื่อ *</Label>
               <Input id="sol-title" value={solForm.title} onChange={e => setSolForm(f => ({ ...f, title: e.target.value }))} placeholder="ระบบ ERP, Website…" />
@@ -497,7 +503,8 @@ export default function ClientDetailPage() {
               <Input id="sol-tags" value={solForm.tags} onChange={e => setSolForm(f => ({ ...f, tags: e.target.value }))} placeholder="ERP, Cloud, Network…" />
             </div>
           </div>
-          <DialogFooter className="gap-2 sm:gap-2">
+          </DialogBody>
+          <DialogFooter>
             <Button variant="outline" onClick={() => setSolOpen(false)}>ยกเลิก</Button>
             <Button onClick={saveSol} disabled={savingSol || !solForm.title.trim()}>
               {savingSol ? 'กำลังบันทึก…' : 'บันทึก'}
@@ -513,6 +520,6 @@ export default function ClientDetailPage() {
         description="การกระทำนี้ไม่สามารถย้อนกลับได้"
         onConfirm={doDelete}
       />
-    </div>
+    </PageShell>
   );
 }

@@ -9,10 +9,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { CustomSelect } from '@/components/ui/custom-select';
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+  Dialog, DialogContent, DialogHeader, DialogBody, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog';
 import { ConfirmDeleteDialog } from '@/components/ui/confirm-delete-dialog';
-import { Plus, Search, ChevronRight, Building2, Phone, Mail } from 'lucide-react';
+import { PageShell } from '@/components/ui/page-shell';
+import { Plus, Search, ChevronRight, Building2, Phone, Mail, Users } from 'lucide-react';
 
 type Client = {
   id: string;
@@ -100,14 +101,16 @@ export default function CrmClientsPage() {
   };
 
   return (
-    <div className="p-4 md:p-6 space-y-4">
-      <div className="flex items-center justify-between flex-wrap gap-2">
-        <h1 className="text-xl font-bold text-slate-900">ลูกค้า</h1>
+    <PageShell
+      width="wide"
+      icon={<Users className="h-6 w-6" />}
+      title="ลูกค้า"
+      actions={
         <Button size="sm" onClick={openAdd}>
           <Plus className="w-4 h-4 mr-1" /> เพิ่มลูกค้า
         </Button>
-      </div>
-
+      }
+    >
       {/* Filters */}
       <div className="flex flex-wrap gap-2">
         <div className="relative flex-1 min-w-48">
@@ -177,11 +180,12 @@ export default function CrmClientsPage() {
 
       {/* Add/Edit Dialog */}
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent size="lg">
           <DialogHeader>
             <DialogTitle>{editId ? 'แก้ไขลูกค้า' : 'เพิ่มลูกค้าใหม่'}</DialogTitle>
           </DialogHeader>
-          <div className="space-y-3 py-2">
+          <DialogBody>
+          <div className="space-y-3">
             <div>
               <Label htmlFor="c-name">ชื่อบริษัท / ลูกค้า *</Label>
               <Input id="c-name" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="บริษัท ABC จำกัด" />
@@ -217,7 +221,8 @@ export default function CrmClientsPage() {
               />
             </div>
           </div>
-          <DialogFooter className="gap-2 sm:gap-2">
+          </DialogBody>
+          <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>ยกเลิก</Button>
             <Button onClick={save} disabled={saving || !form.name.trim()}>
               {saving ? 'กำลังบันทึก…' : 'บันทึก'}
@@ -233,6 +238,6 @@ export default function CrmClientsPage() {
         description="การกระทำนี้ไม่สามารถย้อนกลับได้"
         onConfirm={doDeleteClient}
       />
-    </div>
+    </PageShell>
   );
 }

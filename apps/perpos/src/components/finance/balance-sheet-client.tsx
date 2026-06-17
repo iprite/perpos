@@ -4,6 +4,9 @@ import React, { useState, useTransition } from "react";
 import { Label } from "@/components/ui/label";
 import { getBalanceSheetAction, type BalanceSheetRow } from "@/lib/finance/report-actions";
 import { ThaiDatePicker } from "@/components/ui/thai-date-picker";
+import {
+  Table, TableBody, TableFooter, TableRow, TableCell,
+} from "@/components/ui/table";
 
 type Props = {
   organizationId: string;
@@ -67,32 +70,29 @@ export function BalanceSheetClient({ organizationId, initialDate, initialRows }:
         return (
           <div key={section} className="overflow-hidden rounded-lg border border-slate-200">
             <div className="bg-slate-50 px-4 py-2.5 font-semibold text-slate-700">{SECTION_TH[section] ?? section}</div>
-            <table className="min-w-full text-sm">
-              <tbody className="divide-y divide-slate-100 bg-white">
+            <Table wrapperClassName="rounded-none border-0">
+              <TableBody>
                 {sectionRows.map((row) => (
-                  <tr key={row.account_id} className="hover:bg-slate-50">
-                    <td
-                      className="px-4 py-2 text-slate-700"
-                      style={{ paddingLeft: `${(row.level + 1) * 16}px` }}
-                    >
+                  <TableRow key={row.account_id}>
+                    <TableCell className="text-slate-700" style={{ paddingLeft: `${(row.level + 1) * 16}px` }}>
                       <span className="mr-2 font-mono text-xs text-slate-400">{row.account_code}</span>
                       {row.account_name}
-                    </td>
-                    <td className={`px-4 py-2 text-right font-mono ${row.balance === 0 ? "text-slate-400" : "text-slate-800"}`}>
+                    </TableCell>
+                    <TableCell align="right" tabular className={row.balance === 0 ? "text-slate-400" : "text-slate-800"}>
                       {row.balance.toLocaleString("th-TH", { minimumFractionDigits: 2 })}
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-              <tfoot>
-                <tr className="bg-slate-50 font-semibold">
-                  <td className="px-4 py-2.5 text-slate-700">รวม{SECTION_TH[section] ?? section}</td>
-                  <td className="px-4 py-2.5 text-right font-mono text-slate-800">
+              </TableBody>
+              <TableFooter>
+                <TableRow>
+                  <TableCell className="text-slate-700">รวม{SECTION_TH[section] ?? section}</TableCell>
+                  <TableCell align="right" tabular className="text-slate-800">
                     {(sectionTotals[section] ?? 0).toLocaleString("th-TH", { minimumFractionDigits: 2 })}
-                  </td>
-                </tr>
-              </tfoot>
-            </table>
+                  </TableCell>
+                </TableRow>
+              </TableFooter>
+            </Table>
           </div>
         );
       })}

@@ -4,6 +4,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getActiveOrganizationId } from "@/lib/accounting/queries";
 import { FinancialReportsClient } from "@/components/reports/financial-reports-client";
 import type { PnlRow, TrialBalanceRow } from "@/lib/reports/actions";
+import { PageShell } from "@/components/ui/page-shell";
 
 export const dynamic = "force-dynamic";
 
@@ -72,14 +73,11 @@ export default async function FinancialReportsPage() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-6xl px-4 py-6">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <div className="text-xl font-semibold text-slate-900">รายงานการเงิน</div>
-          <div className="mt-1 text-sm text-slate-600">Trial Balance และกำไรขาดทุน (P&L)</div>
-        </div>
-      </div>
-
+    <PageShell
+      width="default"
+      title="รายงานการเงิน"
+      description={<>Trial Balance และกำไรขาดทุน (P&L)</>}
+    >
       {error ? <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div> : null}
 
       {activeOrganizationId ? (
@@ -95,7 +93,7 @@ export default async function FinancialReportsPage() {
       ) : (
         <div className="mt-6 rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-700">กรุณาเลือกองค์กรก่อน</div>
       )}
-    </div>
+    </PageShell>
   );
 }
 

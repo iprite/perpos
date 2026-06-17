@@ -7,9 +7,14 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+  Dialog, DialogContent, DialogHeader, DialogBody, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog';
-import { Plus, Pencil, Check } from 'lucide-react';
+import { StatusBadge } from '@/components/ui/badge';
+import {
+  Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableEmpty,
+} from '@/components/ui/table';
+import { Plus, Check, Users } from 'lucide-react';
+import { PageShell } from '@/components/ui/page-shell';
 import type { ServiceClient } from '@/app/api/acc-firm/service-clients/route';
 
 const SERVICE_FLAGS: { key: keyof ServiceClient; label: string }[] = [
@@ -159,18 +164,17 @@ export default function ServiceClientsPage() {
   const totalRevenue = filtered.reduce((s, c) => s + Number(c[feeKey] ?? 0), 0);
 
   return (
-    <div className="p-6 space-y-5">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold text-gray-900">ลูกค้าบริการ</h1>
-          <p className="text-sm text-gray-500 mt-0.5">รายชื่อลูกค้าที่ใช้บริการสำนักงานบัญชี</p>
-        </div>
+    <PageShell
+      width="wide"
+      icon={<Users className="h-6 w-6" />}
+      title="ลูกค้าบริการ"
+      description="รายชื่อลูกค้าที่ใช้บริการสำนักงานบัญชี"
+      actions={
         <Button onClick={openAdd}>
           <Plus className="h-4 w-4 mr-1" /> เพิ่มลูกค้า
         </Button>
-      </div>
-
+      }
+    >
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
         <StatCard label="ลูกค้าทั้งหมด" value={filtered.length} unit="ราย" />
@@ -198,74 +202,57 @@ export default function ServiceClientsPage() {
       </div>
 
       {/* Table */}
-      <div className="rounded-xl border overflow-hidden bg-white">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-gray-50 border-b text-left text-gray-600">
-                <th className="px-4 py-3 font-medium">รหัส</th>
-                <th className="px-4 py-3 font-medium">บริษัท</th>
-                <th className="px-4 py-3 font-medium text-right">2566</th>
-                <th className="px-4 py-3 font-medium text-right">2567</th>
-                <th className="px-4 py-3 font-medium text-right">2568</th>
-                <th className="px-4 py-3 font-medium text-right">2569</th>
-                <th className="px-4 py-3 font-medium">บริการ</th>
-                <th className="px-4 py-3 font-medium">หมายเหตุ</th>
-                <th className="px-4 py-3 font-medium">สถานะ</th>
-                <th className="px-4 py-3"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr><td colSpan={10} className="text-center py-10 text-gray-400">กำลังโหลด…</td></tr>
-              ) : filtered.length === 0 ? (
-                <tr><td colSpan={10} className="text-center py-10 text-gray-400">ไม่พบรายการ</td></tr>
-              ) : filtered.map(c => (
-                <tr key={c.id} className={`border-b hover:bg-gray-50 transition-colors ${!c.is_active ? 'opacity-50' : ''}`}>
-                  <td className="px-4 py-2.5">
-                    <span className="font-mono text-xs bg-gray-100 px-1.5 py-0.5 rounded">{c.client_code}</span>
-                  </td>
-                  <td className="px-4 py-2.5 font-medium text-gray-800 max-w-[240px]">
-                    <div className="truncate" title={c.company_name}>{c.company_name}</div>
-                    {c.billing_note && (
-                      <div className="text-xs text-gray-400 truncate">{c.billing_note}</div>
-                    )}
-                  </td>
-                  <td className="px-4 py-2.5 text-right font-mono text-gray-500 text-xs">{fmtFee(c.fee_2023)}</td>
-                  <td className="px-4 py-2.5 text-right font-mono text-gray-500 text-xs">{fmtFee(c.fee_2024)}</td>
-                  <td className="px-4 py-2.5 text-right font-mono text-gray-700 text-xs font-medium">{fmtFee(c.fee_2025)}</td>
-                  <td className="px-4 py-2.5 text-right font-mono text-blue-700 text-xs font-semibold">{fmtFee(c.fee_2026)}</td>
-                  <td className="px-4 py-2.5">
-                    <ServiceFlags client={c} />
-                  </td>
-                  <td className="px-4 py-2.5 text-gray-500 text-xs max-w-[160px] truncate" title={c.note ?? ''}>{c.note || '—'}</td>
-                  <td className="px-4 py-2.5">
-                    <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
-                      c.is_active ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-500'
-                    }`}>
-                      {c.is_active ? 'ใช้งาน' : 'ยกเลิก'}
-                    </span>
-                  </td>
-                  <td className="px-4 py-2.5">
-                    <button onClick={() => openEdit(c)} className="p-1 hover:bg-gray-100 rounded text-gray-500">
-                      <Pencil className="h-3.5 w-3.5" />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>รหัส</TableHead>
+            <TableHead>บริษัท</TableHead>
+            <TableHead align="right">2566</TableHead>
+            <TableHead align="right">2567</TableHead>
+            <TableHead align="right">2568</TableHead>
+            <TableHead align="right">2569</TableHead>
+            <TableHead>บริการ</TableHead>
+            <TableHead>หมายเหตุ</TableHead>
+            <TableHead>สถานะ</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {loading ? (
+            <TableEmpty colSpan={9}>กำลังโหลด…</TableEmpty>
+          ) : filtered.length === 0 ? (
+            <TableEmpty colSpan={9}>ไม่พบรายการ</TableEmpty>
+          ) : filtered.map(c => (
+            <TableRow key={c.id} clickable onClick={() => openEdit(c)} className={!c.is_active ? 'opacity-50' : ''}>
+              <TableCell>
+                <span className="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-xs">{c.client_code}</span>
+              </TableCell>
+              <TableCell className="max-w-[240px] font-medium text-gray-800">
+                <div className="truncate" title={c.company_name}>{c.company_name}</div>
+                {c.billing_note && <div className="truncate text-xs text-gray-400">{c.billing_note}</div>}
+              </TableCell>
+              <TableCell align="right" tabular className="text-xs text-gray-500">{fmtFee(c.fee_2023)}</TableCell>
+              <TableCell align="right" tabular className="text-xs text-gray-500">{fmtFee(c.fee_2024)}</TableCell>
+              <TableCell align="right" tabular className="text-xs font-medium text-gray-700">{fmtFee(c.fee_2025)}</TableCell>
+              <TableCell align="right" tabular className="text-xs font-semibold text-blue-700">{fmtFee(c.fee_2026)}</TableCell>
+              <TableCell><ServiceFlags client={c} /></TableCell>
+              <TableCell className="max-w-[160px] truncate text-xs text-gray-500" title={c.note ?? ''}>{c.note || '—'}</TableCell>
+              <TableCell>
+                <StatusBadge tone={c.is_active ? 'success' : 'neutral'}>{c.is_active ? 'ใช้งาน' : 'ยกเลิก'}</StatusBadge>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
 
       {/* Add/Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent size="xl">
           <DialogHeader>
             <DialogTitle>{editing ? 'แก้ไขลูกค้า' : 'เพิ่มลูกค้าบริการ'}</DialogTitle>
           </DialogHeader>
 
-          <div className="space-y-4 py-2">
+          <DialogBody>
+          <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label>รหัสลูกค้า *</Label>
@@ -341,8 +328,9 @@ export default function ServiceClientsPage() {
               </label>
             )}
           </div>
+          </DialogBody>
 
-          <DialogFooter className="gap-2">
+          <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>ยกเลิก</Button>
             <Button onClick={save} disabled={saving || !form.client_code || !form.company_name}>
               {saving ? 'กำลังบันทึก…' : 'บันทึก'}
@@ -350,7 +338,7 @@ export default function ServiceClientsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </PageShell>
   );
 }
 
@@ -358,9 +346,9 @@ function ServiceFlags({ client }: { client: ServiceClient }) {
   const active = SERVICE_FLAGS.filter(({ key }) => client[key] as boolean);
   if (active.length === 0) return <span className="text-gray-300 text-xs">—</span>;
   return (
-    <div className="flex flex-wrap gap-1">
+    <div className="flex gap-1">
       {active.map(({ key, label }) => (
-        <span key={key} className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-green-50 text-green-700 text-xs">
+        <span key={key} className="inline-flex items-center gap-0.5 whitespace-nowrap rounded bg-green-50 px-1.5 py-0.5 text-xs text-green-700">
           <Check className="h-2.5 w-2.5" /> {label}
         </span>
       ))}
