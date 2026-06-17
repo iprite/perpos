@@ -49,7 +49,7 @@ export function PageShell({
   children,
 }: {
   /** เว้นว่างได้ — สำหรับหน้า detail ที่มี header การ์ดของตัวเอง (จะได้แค่ container/padding มาตรฐาน) */
-  title?: string;
+  title?: React.ReactNode;
   description?: React.ReactNode;
   icon?: React.ReactNode;
   actions?: React.ReactNode;

@@ -4,6 +4,7 @@ import { getActiveOrganizationId } from "@/lib/accounting/queries";
 import { listPNDFilings } from "@/lib/tax/actions";
 import { PNDListClient } from "@/components/tax/pnd-list-client";
 import type { PNDRow } from "@/lib/tax/actions";
+import { PageShell } from "@/components/ui/page-shell";
 
 export const dynamic = "force-dynamic";
 
@@ -44,14 +45,11 @@ export default async function PNDFilingsPage({ params }: Props) {
   };
 
   return (
-    <div className="mx-auto w-full max-w-6xl px-4 py-6">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <div className="text-xl font-semibold text-slate-900">แบบ ภ.ง.ด.{type}</div>
-          <div className="mt-1 text-sm text-slate-600">{titleMap[type]}</div>
-        </div>
-      </div>
-
+    <PageShell
+      width="default"
+      title={<>แบบ ภ.ง.ด.{type}</>}
+      description={<>{titleMap[type]}</>}
+    >
       {error ? (
         <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
           {error}
@@ -67,6 +65,6 @@ export default async function PNDFilingsPage({ params }: Props) {
           กรุณาเลือกองค์กรก่อน
         </div>
       )}
-    </div>
+    </PageShell>
   );
 }

@@ -3,6 +3,7 @@ import React from "react";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrganizationsForCurrentUser, getActiveOrganizationId } from "@/lib/accounting/queries";
 import { AccountsManager, type AccountRow } from "@/components/accounting/accounts-manager";
+import { PageShell } from "@/components/ui/page-shell";
 
 export const dynamic = "force-dynamic";
 
@@ -39,19 +40,16 @@ export default async function AccountsPage() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-6xl px-4 py-6">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <div className="text-xl font-semibold text-slate-900">ผังบัญชี</div>
-          <div className="mt-1 text-sm text-slate-600">จัดการรหัสบัญชีและโครงสร้างบัญชีขององค์กร</div>
-        </div>
-      </div>
-
+    <PageShell
+      width="default"
+      title="ผังบัญชี"
+      description={<>จัดการรหัสบัญชีและโครงสร้างบัญชีขององค์กร</>}
+    >
       {error ? <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div> : null}
 
       <div className="mt-6">
         <AccountsManager organizations={organizations} activeOrganizationId={activeOrganizationId} accounts={accounts} />
       </div>
-    </div>
+    </PageShell>
   );
 }

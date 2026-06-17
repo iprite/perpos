@@ -3,6 +3,7 @@ import React from "react";
 import { getActiveOrganizationId } from "@/lib/accounting/queries";
 import { getCashFlowAction, type CashFlowRow } from "@/lib/finance/report-actions";
 import { CashFlowClient } from "@/components/finance/cash-flow-client";
+import { PageShell } from "@/components/ui/page-shell";
 
 export const dynamic = "force-dynamic";
 
@@ -25,12 +26,11 @@ export default async function CashFlowPage() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-4xl px-4 py-6">
-      <div className="mb-6">
-        <div className="text-xl font-semibold text-slate-900">งบกระแสเงินสด</div>
-        <div className="mt-1 text-sm text-slate-600">Cash Flow Statement (Indirect Method)</div>
-      </div>
-
+    <PageShell
+      width="narrow"
+      title="งบกระแสเงินสด"
+      description={<>Cash Flow Statement (Indirect Method)</>}
+    >
       {activeOrganizationId ? (
         <CashFlowClient
           organizationId={activeOrganizationId}
@@ -41,6 +41,6 @@ export default async function CashFlowPage() {
       ) : (
         <div className="rounded-lg border border-dashed border-slate-200 py-12 text-center text-sm text-slate-500">กรุณาเลือกองค์กร</div>
       )}
-    </div>
+    </PageShell>
   );
 }

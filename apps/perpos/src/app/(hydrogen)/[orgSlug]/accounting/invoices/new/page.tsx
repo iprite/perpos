@@ -3,6 +3,7 @@ import React from "react";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrganizationsForCurrentUser, getActiveOrganizationId } from "@/lib/accounting/queries";
 import { InvoiceCreateForm, type CustomerOption, type InventoryOption } from "@/components/sales/invoices/invoice-create-form";
+import { PageShell } from "@/components/ui/page-shell";
 
 export const dynamic = "force-dynamic";
 
@@ -35,14 +36,11 @@ export default async function NewInvoicePage() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-6xl px-4 py-6">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <div className="text-xl font-semibold text-slate-900">สร้างใบแจ้งหนี้</div>
-          <div className="mt-1 text-sm text-slate-600">คำนวณ VAT แบบเรียลไทม์ และโพสต์เข้าบัญชีอัตโนมัติ</div>
-        </div>
-      </div>
-
+    <PageShell
+      width="default"
+      title="สร้างใบแจ้งหนี้"
+      description={<>คำนวณ VAT แบบเรียลไทม์ และโพสต์เข้าบัญชีอัตโนมัติ</>}
+    >
       <div className="mt-6">
         <InvoiceCreateForm
           organizations={organizations}
@@ -51,6 +49,6 @@ export default async function NewInvoicePage() {
           inventoryOptions={inventoryOptions}
         />
       </div>
-    </div>
+    </PageShell>
   );
 }

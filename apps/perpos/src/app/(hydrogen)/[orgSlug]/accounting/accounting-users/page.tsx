@@ -4,6 +4,7 @@ import { getActiveOrganizationId } from "@/lib/accounting/queries";
 import { listOrgMembers, listOrgInvites, type OrgMemberRow, type OrgInviteRow } from "@/lib/settings/user-actions";
 import { OrgUsersClient } from "@/components/settings/org-users-client";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { PageShell } from "@/components/ui/page-shell";
 
 export const dynamic = "force-dynamic";
 
@@ -28,7 +29,9 @@ export default async function OrgUsersPage() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-5xl px-4 py-6">
+    <PageShell
+      width="default"
+    >
       {activeOrganizationId ? (
         <OrgUsersClient
           organizationId={activeOrganizationId}
@@ -41,6 +44,6 @@ export default async function OrgUsersPage() {
           กรุณาเลือกองค์กร
         </div>
       )}
-    </div>
+    </PageShell>
   );
 }

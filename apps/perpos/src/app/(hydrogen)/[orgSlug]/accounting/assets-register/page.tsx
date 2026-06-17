@@ -3,6 +3,7 @@ import React from "react";
 import { getActiveOrganizationId } from "@/lib/accounting/queries";
 import { listAssetsAction, type AssetRow } from "@/lib/assets/actions";
 import { AssetRegisterClient } from "@/components/assets/asset-register-client";
+import { PageShell } from "@/components/ui/page-shell";
 
 export const dynamic = "force-dynamic";
 
@@ -17,12 +18,11 @@ export default async function AssetRegisterPage() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-6xl px-4 py-6">
-      <div className="mb-6">
-        <div className="text-xl font-semibold text-slate-900">ทะเบียนสินทรัพย์</div>
-        <div className="mt-1 text-sm text-slate-600">จัดการข้อมูลสินทรัพย์ถาวรขององค์กร</div>
-      </div>
-
+    <PageShell
+      width="default"
+      title="ทะเบียนสินทรัพย์"
+      description={<>จัดการข้อมูลสินทรัพย์ถาวรขององค์กร</>}
+    >
       {activeOrganizationId ? (
         <AssetRegisterClient
           organizationId={activeOrganizationId}
@@ -33,6 +33,6 @@ export default async function AssetRegisterPage() {
           กรุณาเลือกองค์กร
         </div>
       )}
-    </div>
+    </PageShell>
   );
 }
