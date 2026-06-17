@@ -2,7 +2,8 @@
 
 คู่มือสำหรับ AI agents ที่ทำงานกับ codebase นี้
 
-> 📘 **ฟีเจอร์แกะเสียง→รายงานการประชุม (STT/MoM/LINE/quota/onboarding):** อ่านคัมภีร์ฉบับเต็มที่ [`docs/STT_MOM_FEATURE.md`](docs/STT_MOM_FEATURE.md) — สถาปัตยกรรม, deploy, DB schema, code map, กับดักที่แก้แล้ว ก่อนทำงานต่อกับส่วนนี้
+> 📘 **ผู้ช่วย AI (assistant umbrella — per-profile, B2C, kind-based):** อ่านคัมภีร์ร่มที่ [`docs/ASSISTANT.md`](docs/ASSISTANT.md) — สถาปัตยกรรม per-kind, guard, home org, onboarding, billing, วิธีเพิ่มผู้ช่วยตัวใหม่ ก่อนแตะส่วน `/assistant`
+> 📘 **STT/MoM เฉพาะทาง (worker, Gemini, PDF, duration, quota):** อ่าน [`docs/STT_MOM_FEATURE.md`](docs/STT_MOM_FEATURE.md) — deploy, DB schema, code map, กับดักที่แก้แล้ว
 
 ---
 
