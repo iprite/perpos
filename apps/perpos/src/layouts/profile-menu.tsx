@@ -16,11 +16,38 @@ import { Popover } from "@/components/ui/popover";
 
 export default function ProfileMenu({
   buttonClassName,
+  variant = "sidebar",
 }: {
   buttonClassName?: string;
+  /** "sidebar" = การ์ดเต็มก้น sidebar · "icon" = ปุ่ม avatar กลม (header) */
+  variant?: "sidebar" | "icon";
 } = {}) {
   const { email, profile } = useAuth();
   const name = String(profile?.display_name ?? email ?? "U");
+
+  // ── ปุ่มไอคอนรูปคนเล็ก ๆ สำหรับ header — เปิด panel ลงด้านล่าง ───────────
+  if (variant === "icon") {
+    return (
+      <Popover
+        placement="bottom-end"
+        trigger={(open) => (
+          <button
+            type="button"
+            aria-label="เมนูผู้ใช้"
+            className={cn(
+              "flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-gray-600 outline-none transition-colors hover:bg-gray-100 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-300 active:translate-y-px",
+              open && "bg-gray-100 text-gray-900",
+              buttonClassName
+            )}
+          >
+            <User className="h-[18px] w-[18px]" />
+          </button>
+        )}
+      >
+        <DropdownMenu />
+      </Popover>
+    );
+  }
 
   return (
     <Popover

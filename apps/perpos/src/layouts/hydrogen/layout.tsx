@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import Sidebar from "./sidebar";
 import { ContextToggle } from "./sidebar-footer";
 import HamburgerButton from "@/layouts/hamburger-button";
+import ProfileMenu from "@/layouts/profile-menu";
 import { ImpersonationBanner } from "@/components/impersonation-banner";
 import { AnnouncementBanner } from "@/components/announcement-banner";
 import { Breadcrumb } from "@/components/ui/breadcrumb";
@@ -103,12 +104,15 @@ export default async function HydrogenLayout({ children }: { children: React.Rea
                 />
               }
             />
-            {/* toggle สลับ Ai ERP / ผู้ช่วย AI — เข้าถึงได้ตรง ๆ บนมือถือ ไม่ต้องเปิด drawer */}
-            <ContextToggle
-              organizations={orgs}
-              activeOrganizationId={activeOrg?.id ?? null}
-              className="ms-auto"
-            />
+            {/* toggle สลับ Ai ERP / ผู้ช่วย AI + ปุ่ม avatar ผู้ใช้ — ชิดขวา */}
+            <div className="ms-auto flex items-center gap-2">
+              <ContextToggle
+                organizations={orgs}
+                activeOrganizationId={activeOrg?.id ?? null}
+              />
+              {/* ปุ่ม avatar — เปิด profile menu ลงด้านล่าง */}
+              <ProfileMenu variant="icon" />
+            </div>
           </header>
           <div className="flex flex-grow flex-col px-4 pb-6 pt-3 md:px-5 lg:px-6 lg:pb-8 xl:pt-2 3xl:px-8 3xl:pt-4 4xl:px-10 4xl:pb-9">
             <Breadcrumb />
