@@ -1,7 +1,8 @@
 "use client";
 
-import { Button } from "rizzui";
 import { LogIn } from "lucide-react";
+
+import { Button } from "@/components/ui/button";
 
 import { useAuth } from "@/app/shared/auth-provider";
 import { useModal } from "@/app/shared/modal-views/use-modal";
@@ -17,7 +18,7 @@ export default function HeaderMenuRight() {
   return (
     <div className="ms-auto grid shrink-0 items-center gap-2 text-gray-700 xs:gap-3 xl:gap-4">
       <Button
-        className="h-9 gap-2 bg-indigo-600 text-white hover:bg-indigo-500"
+        className="gap-2"
         onClick={() => {
           openModal({
             view: <GoogleAuthView mode="modal" onClose={closeModal} />,

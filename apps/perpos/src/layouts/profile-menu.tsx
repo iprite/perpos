@@ -1,7 +1,8 @@
 "use client";
 
-import { Title, Avatar, Button } from "rizzui";
+import { Title, Avatar } from "rizzui";
 import cn from "@core/utils/class-names";
+import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -131,7 +132,7 @@ function DropdownMenu() {
             <Button
               key={it.label}
               className="h-auto w-full items-center justify-start gap-3 rounded-lg px-3 py-1.5 text-sm font-medium text-gray-700 outline-none hover:bg-gray-50 hover:text-gray-900 focus-visible:ring-0"
-              variant="text"
+              variant="ghost"
               disabled={signingOut}
               onClick={() => {
                 router.push(withBasePath(it.href));
@@ -147,7 +148,7 @@ function DropdownMenu() {
 
         <Button
           className="h-auto w-full items-center justify-start gap-3 rounded-lg px-3 py-1.5 text-sm font-medium text-gray-700 outline-none hover:bg-gray-50 hover:text-gray-900 focus-visible:ring-0"
-          variant="text"
+          variant="ghost"
           disabled={signingOut}
           onClick={async () => {
             setSigningOut(true);

@@ -1,10 +1,13 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import { Avatar, Badge, Button, Input, Title, Text } from "rizzui";
+import { Avatar, Badge, Title, Text } from "rizzui";
 import { QRCodeSVG } from "qrcode.react";
 import { Image as ImageIcon, Link2, Save, X } from "lucide-react";
 
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { useAuth } from "@/app/shared/auth-provider";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { backendUrl } from "@/lib/backend";
@@ -168,14 +171,18 @@ export default function UserSettingsPage() {
           <div className="rounded-2xl border border-gray-200 bg-white p-5">
             <div className="text-sm font-semibold text-gray-900">ชื่อเล่น</div>
             <div className="mt-4 grid gap-3">
-              <Input
-                label="ชื่อเล่น"
-                value={nickname}
-                onChange={(e) => {
-                  setNicknameError(null);
-                  setNickname(e.target.value);
-                }}
-              />
+              <div>
+                <Label htmlFor="nickname">ชื่อเล่น</Label>
+                <Input
+                  id="nickname"
+                  className="mt-1"
+                  value={nickname}
+                  onChange={(e) => {
+                    setNicknameError(null);
+                    setNickname(e.target.value);
+                  }}
+                />
+              </div>
               {nicknameError ? (
                 <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{nicknameError}</div>
               ) : null}

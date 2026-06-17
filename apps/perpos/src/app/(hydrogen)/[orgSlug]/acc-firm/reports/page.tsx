@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
+import { CustomSelect } from '@/components/ui/custom-select';
 import { PageShell } from '@/components/ui/page-shell';
 import { StatusBadge, type BadgeTone } from '@/components/ui/badge';
 import {
@@ -249,14 +250,12 @@ export default function AccFirmReportsPage() {
               </button>
             ))}
             <span className="w-px h-4 bg-slate-200" />
-            <select
+            <CustomSelect
               value={filterOrg}
-              onChange={e => setFilterOrg(e.target.value)}
-              className="text-xs border border-slate-200 rounded-lg px-2 py-1 text-slate-600 focus:outline-none focus:border-teal-400"
-            >
-              <option value="">ทุก Client</option>
-              {orgOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-            </select>
+              onChange={setFilterOrg}
+              options={[{ value: '', label: 'ทุก Client' }, ...orgOptions]}
+              className="w-44"
+            />
           </div>
 
           {!loading && filteredActionable.length === 0 ? (

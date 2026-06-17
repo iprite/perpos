@@ -1,7 +1,7 @@
 "use client";
 
 import React, { createContext, useCallback, useContext, useMemo, useRef, useState } from "react";
-import { Button } from "rizzui";
+import { Button } from "@/components/ui/button";
 
 import { Modal } from "@core/modal-views/modal";
 
@@ -71,7 +71,7 @@ export function ConfirmDialogProvider({ children }: { children: React.ReactNode 
             <Button variant="outline" onClick={() => close(false)}>
               {cancelText}
             </Button>
-            <Button color={tone === "danger" ? "danger" : undefined} onClick={() => close(true)}>
+            <Button variant={tone === "danger" ? "destructive" : "default"} onClick={() => close(true)}>
               {confirmText}
             </Button>
           </div>
