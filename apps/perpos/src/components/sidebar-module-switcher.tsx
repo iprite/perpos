@@ -20,15 +20,23 @@ const MODULE_ICONS: Record<string, React.ReactNode> = {
   jaquar:     <Boxes        className="h-4 w-4" />,
 };
 
+// Segments ที่ไม่ใช่ context ขององค์กร (ERP) — module switcher ไม่เกี่ยวข้อง
+const SYSTEM_SEGMENTS = new Set(["admin", "assistant", "user", "no-org", "no-module", "signin"]);
+
 export function SidebarModuleSwitcher() {
   const pathname    = usePathname() ?? "/";
   const orgSlug     = useAtomValue(orgSlugAtom);
   const enabledKeys = useAtomValue(enabledModuleKeysAtom);
   const router      = useRouter();
 
-  const visibleModules = ALL_MODULES.filter((m) => enabledKeys.includes(m.key) && !m.personal);
-  const activeModule   = ALL_MODULES.find((m) => enabledKeys.includes(m.key) && m.match(pathname)) ?? visibleModules[0];
+  const firstSegment = pathname.split("/").filter(Boolean)[0] ?? "";
 
+  // module switcher = สลับโมดูล ERP ภายใน org เท่านั้น
+  // บน /assistant, /admin ฯลฯ ต้องไม่โผล่ (การสลับ Ai ERP ↔ ผู้ช่วย AI เป็นหน้าที่ของ toggle ที่ footer)
+  const visibleModules = ALL_MODULES.filter((m) => enabledKeys.includes(m.key) && !m.personal);
+  const activeModule   = visibleModules.find((m) => m.match(pathname)) ?? visibleModules[0];
+
+  if (SYSTEM_SEGMENTS.has(firstSegment)) return null;
   if (visibleModules.length <= 1) return null;
 
   const items: DropdownItem[] = visibleModules.map((m) => ({

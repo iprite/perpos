@@ -70,7 +70,10 @@ export function ModuleProvider({
 }
 
 export function useEnabledModules(): string[] {
-  return useContext(ModuleContext).enabledKeys;
+  // Read from atom so this works inside GlobalDrawer (outside ModuleProvider
+  // context tree) — เช่น ContextToggle/SidebarMenu ใน drawer มือถือ.
+  // มิฉะนั้น context จะคืน [] ใน drawer → toggle "Ai Assistant" หาย, เมนูไม่ครบ
+  return useAtomValue(enabledModuleKeysAtom);
 }
 
 export function useOrgSlug(): string {

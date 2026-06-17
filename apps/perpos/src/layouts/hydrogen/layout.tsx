@@ -91,7 +91,7 @@ export default async function HydrogenLayout({ children }: { children: React.Rea
           <HamburgerButton
             view={
               <Sidebar
-                className="static w-full 2xl:w-full"
+                className="static h-full w-full 2xl:w-full"
                 organizations={orgs}
                 activeOrganizationId={activeOrg?.id ?? null}
               />
