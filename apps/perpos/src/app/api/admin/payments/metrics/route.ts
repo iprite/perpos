@@ -1,0 +1,85 @@
+/**
+ * GET /api/admin/payments/metrics — ภาพรวมรายได้รวม แยก 2 สาย (super admin)
+ *   assistant (B2C, per-profile) + erp (B2B, per-org)
+ *
+ * MRR    = Σ recurring ของ subscription ที่ active
+ *          assistant → plan.price · erp → org_stripe.mrr_amount (normalize/เดือน จาก Stripe)
+ * revenue = ยอดจ่ายสำเร็จจาก v_billing_payments (เดือนนี้ / total) แยก stream
+ * ARPU    = MRR ÷ active subscribers · churn = subscription ที่จบใน 30 วัน (proxy)
+ */
+
+import { NextRequest } from 'next/server';
+import { requireAdmin } from '../../../_lib/auth';
+import { createAdminClient } from '../../../_lib/supabase';
+import { ok } from '../../../_lib/response';
+
+const BKK = 'Asia/Bangkok';
+const monthKey = (d: Date) => new Intl.DateTimeFormat('en-CA', { timeZone: BKK, year: 'numeric', month: '2-digit' }).format(d);
+const ACTIVE = ['trialing', 'active', 'past_due'];
+const ENDED = ['canceled', 'cancelled', 'unpaid', 'incomplete_expired'];
+const r2 = (n: number) => Math.round(n * 100) / 100;
+
+type Stream = 'assistant' | 'erp';
+type LedgerRow = { stream: Stream; amount: number; status: string; created_at: string };
+
+export async function GET(req: NextRequest) {
+  const auth = await requireAdmin(req);
+  if (!auth.ok) return auth.res;
+
+  const admin = createAdminClient();
+  const thisMonth = monthKey(new Date());
+  const since30d = new Date(Date.now() - 30 * 86400_000).toISOString();
+
+  const [{ data: payments }, { data: sttSubs }, { data: plans }, { data: orgSubs }] = await Promise.all([
+    admin.from('v_billing_payments').select('stream, amount, status, created_at').limit(50000),
+    admin.from('stt_subscriptions').select('plan_id, status, updated_at').limit(20000),
+    admin.from('stt_plans').select('id, price').limit(500),
+    admin.from('org_stripe').select('mrr_amount, subscription_status, updated_at').limit(20000),
+  ]);
+
+  const payRows = (payments ?? []) as LedgerRow[];
+  const priceByPlan = new Map((plans ?? []).map((p) => [String(p.id), Number(p.price ?? 0)]));
+
+  // ── per-stream aggregation ──────────────────────────────────────────────────
+  function build(stream: Stream, mrr: number, activeSubs: number, churned30d: number) {
+    const succeeded = payRows.filter((p) => p.stream === stream && p.status === 'succeeded');
+    const revenueTotal = succeeded.reduce((s, p) => s + Number(p.amount || 0), 0);
+    const revenueMonth = succeeded.filter((p) => monthKey(new Date(p.created_at)) === thisMonth).reduce((s, p) => s + Number(p.amount || 0), 0);
+    return {
+      mrr: r2(mrr),
+      arr: r2(mrr * 12),
+      revenue_total: r2(revenueTotal),
+      revenue_month: r2(revenueMonth),
+      active_subscribers: activeSubs,
+      arpu: activeSubs > 0 ? r2(mrr / activeSubs) : 0,
+      churned_30d: churned30d,
+    };
+  }
+
+  // assistant (B2C)
+  const sttActive = (sttSubs ?? []).filter((s) => s.status && ACTIVE.includes(String(s.status)));
+  const sttMrr = sttActive.reduce((s, sub) => s + (priceByPlan.get(String(sub.plan_id)) ?? 0), 0);
+  const sttChurn = (sttSubs ?? []).filter((s) => ENDED.includes(String(s.status)) && s.updated_at && String(s.updated_at) >= since30d).length;
+  const assistant = build('assistant', sttMrr, sttActive.length, sttChurn);
+
+  // erp (B2B)
+  const orgActive = (orgSubs ?? []).filter((s) => s.subscription_status && ACTIVE.includes(String(s.subscription_status)));
+  const orgMrr = orgActive.reduce((s, sub) => s + Number(sub.mrr_amount ?? 0), 0);
+  const orgChurn = (orgSubs ?? []).filter((s) => ENDED.includes(String(s.subscription_status)) && s.updated_at && String(s.updated_at) >= since30d).length;
+  const erp = build('erp', orgMrr, orgActive.length, orgChurn);
+
+  // ── combined ─────────────────────────────────────────────────────────────────
+  const mrr = assistant.mrr + erp.mrr;
+  const subs = assistant.active_subscribers + erp.active_subscribers;
+  const combined = {
+    mrr: r2(mrr),
+    arr: r2(mrr * 12),
+    revenue_total: r2(assistant.revenue_total + erp.revenue_total),
+    revenue_month: r2(assistant.revenue_month + erp.revenue_month),
+    active_subscribers: subs,
+    arpu: subs > 0 ? r2(mrr / subs) : 0,
+    churned_30d: assistant.churned_30d + erp.churned_30d,
+  };
+
+  return ok({ computed_at: new Date().toISOString(), combined, streams: { assistant, erp } });
+}

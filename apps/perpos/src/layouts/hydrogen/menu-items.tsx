@@ -308,6 +308,12 @@ function buildAdminMenuItems(): MenuItem[] {
     // ── การเงิน & บริการ ───────────────────────────────────────────────────────
     { name: "การเงิน & บริการ", roles: ["super_admin"] },
     {
+      name: "Payments & Subscriptions",
+      href: "/admin/payments",
+      icon: <Wallet className="h-5 w-5" />,
+      roles: ["super_admin"],
+    },
+    {
       name: "Billing & Plans",
       href: "/admin/billing",
       icon: <CreditCard className="h-5 w-5" />,

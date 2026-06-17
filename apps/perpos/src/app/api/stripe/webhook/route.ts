@@ -97,6 +97,27 @@ async function markOverdueCycle(admin: ReturnType<typeof createAdminClient>, org
   });
 }
 
+// normalize recurring → ต่อเดือน (annual ÷ 12) จาก Stripe subscription item
+// คืน { mrr_amount, interval } สำหรับเก็บลง org_stripe — sub ที่จบแล้ว (canceled/unpaid) → 0
+function mrrFields(sub: Stripe.Subscription): { mrr_amount: number; interval: string | null } {
+  if (['canceled', 'unpaid', 'incomplete_expired'].includes(String(sub.status))) {
+    return { mrr_amount: 0, interval: null };
+  }
+  const item = sub.items?.data?.[0];
+  const price = item?.price;
+  const unit = (price?.unit_amount ?? 0) / 100;
+  const qty = item?.quantity ?? 1;
+  const interval = price?.recurring?.interval ?? null;
+  const count = price?.recurring?.interval_count ?? 1;
+  const gross = unit * qty;
+  let monthly = gross;
+  if (interval === 'year')  monthly = gross / (12 * count);
+  else if (interval === 'month') monthly = gross / count;
+  else if (interval === 'week')  monthly = (gross * 52) / 12 / count;
+  else if (interval === 'day')   monthly = (gross * 365) / 12 / count;
+  return { mrr_amount: Math.round(monthly * 100) / 100, interval };
+}
+
 async function upsertOrgStripe(admin: ReturnType<typeof createAdminClient>, orgId: string, patch: Record<string, unknown>) {
   await admin
     .from('org_stripe')
@@ -133,13 +154,29 @@ async function handleCheckoutSessionCompleted(admin: ReturnType<typeof createAdm
     current_period_start: subscription?.current_period_start ? new Date(subscription.current_period_start * 1000).toISOString() : null,
     current_period_end: subscription?.current_period_end ? new Date(subscription.current_period_end * 1000).toISOString() : null,
     cancel_at_period_end: subscription?.cancel_at_period_end ?? false,
+    ...(subscription ? mrrFields(subscription) : {}),
   });
 
   await resetOverdue(admin, orgId, 'pending');
   return orgId;
 }
 
-async function handleInvoicePaymentSucceeded(admin: ReturnType<typeof createAdminClient>, stripe: ReturnType<typeof getStripe>, invoice: Stripe.Invoice) {
+// บันทึกเงินเข้า ledger ฝั่ง ERP (idempotent ด้วย invoice/payment_intent) — service role
+async function recordOrgPayment(admin: ReturnType<typeof createAdminClient>, orgId: string, invoice: Stripe.Invoice, status: 'succeeded' | 'failed', eventId: string) {
+  const amount = status === 'succeeded' ? (invoice.amount_paid ?? 0) / 100 : (invoice.amount_due ?? 0) / 100;
+  await admin.rpc('apply_org_payment', {
+    p_org_id: orgId,
+    p_kind: 'subscription',
+    p_amount: amount,
+    p_currency: (invoice.currency ?? 'thb').toUpperCase(),
+    p_status: status,
+    p_payment_intent: asString((invoice as unknown as { payment_intent?: string }).payment_intent) || null,
+    p_invoice: asString(invoice.id) || null,
+    p_event_id: eventId,
+  });
+}
+
+async function handleInvoicePaymentSucceeded(admin: ReturnType<typeof createAdminClient>, stripe: ReturnType<typeof getStripe>, invoice: Stripe.Invoice, eventId: string) {
   const subscriptionId = asString(invoice.subscription);
   const customerId = asString(invoice.customer);
 
@@ -163,14 +200,16 @@ async function handleInvoicePaymentSucceeded(admin: ReturnType<typeof createAdmi
       current_period_start: sub.current_period_start ? new Date(sub.current_period_start * 1000).toISOString() : null,
       current_period_end: sub.current_period_end ? new Date(sub.current_period_end * 1000).toISOString() : null,
       cancel_at_period_end: sub.cancel_at_period_end,
+      ...mrrFields(sub),
     });
   }
 
+  await recordOrgPayment(admin, orgId, invoice, 'succeeded', eventId);
   await resetOverdue(admin, orgId, 'active');
   return orgId;
 }
 
-async function handleInvoicePaymentFailed(admin: ReturnType<typeof createAdminClient>, stripe: ReturnType<typeof getStripe>, invoice: Stripe.Invoice) {
+async function handleInvoicePaymentFailed(admin: ReturnType<typeof createAdminClient>, stripe: ReturnType<typeof getStripe>, invoice: Stripe.Invoice, eventId: string) {
   const subscriptionId = asString(invoice.subscription);
   const customerId = asString(invoice.customer);
 
@@ -183,6 +222,8 @@ async function handleInvoicePaymentFailed(admin: ReturnType<typeof createAdminCl
 
   if (!orgId) return null;
 
+  await recordOrgPayment(admin, orgId, invoice, 'failed', eventId);
+
   if (subscriptionId) {
     const sub = await stripe.subscriptions.retrieve(subscriptionId);
     await upsertOrgStripe(admin, orgId, {
@@ -192,6 +233,7 @@ async function handleInvoicePaymentFailed(admin: ReturnType<typeof createAdminCl
       current_period_start: sub.current_period_start ? new Date(sub.current_period_start * 1000).toISOString() : null,
       current_period_end: sub.current_period_end ? new Date(sub.current_period_end * 1000).toISOString() : null,
       cancel_at_period_end: sub.cancel_at_period_end,
+      ...mrrFields(sub),
     });
   }
 
@@ -420,9 +462,9 @@ export async function POST(req: NextRequest) {
       // ลอง STT ก่อน — ถ้า invoice นี้เป็นของ stt_subscription จะจัดการ + return true
       const invoice = event.data.object as Stripe.Invoice;
       const handledStt = await handleSttInvoicePaid(admin, stripe, invoice, event.id);
-      if (!handledStt) resolvedOrgId = await handleInvoicePaymentSucceeded(admin, stripe, invoice);
+      if (!handledStt) resolvedOrgId = await handleInvoicePaymentSucceeded(admin, stripe, invoice, event.id);
     } else if (event.type === 'invoice.payment_failed') {
-      resolvedOrgId = await handleInvoicePaymentFailed(admin, stripe, event.data.object as Stripe.Invoice);
+      resolvedOrgId = await handleInvoicePaymentFailed(admin, stripe, event.data.object as Stripe.Invoice, event.id);
     } else if (event.type === 'customer.subscription.updated') {
       const sub = event.data.object as Stripe.Subscription;
       const handledStt = await handleSttSubscriptionEvent(admin, sub);
