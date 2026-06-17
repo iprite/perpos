@@ -295,12 +295,83 @@ Endpoint: `POST /api/assistant/scheduler`
 |---------|-----|-----------|
 | ปุ่ม | `<Button>` | `@/components/ui/button` |
 | Text input / number | `<Input>` | `@/components/ui/input` |
-| **Dropdown / Select** | `<CustomSelect>` | `@/components/ui/custom-select` |
+| **Form Select (value-based)** | `<CustomSelect>` | `@/components/ui/custom-select` |
+| **Navigation Dropdown (icon+list)** | `<Dropdown>` | `@/components/ui/dropdown` |
+| **Rich Panel Popover** | `<Popover>` | `@/components/ui/popover` |
 | **Date picker** | `<ThaiDatePicker>` | `@/components/ui/thai-date-picker` |
 | Label | `<Label>` | `@/components/ui/label` |
 | Modal / Dialog | `<Dialog>`, `<DialogContent>`, `<DialogBody>`, `<DialogHeader>`, `<DialogTitle>`, `<DialogFooter>` | `@/components/ui/dialog` |
 | Native select (เฉพาะ `type="month"` หรือกรณีพิเศษ) | `<NativeSelect>` | `@/components/ui/native-select` |
 | Time input | `<Input type="time">` | `@/components/ui/input` |
+
+### Dropdown vs Popover — เลือกใช้อะไร?
+
+| กรณี | ใช้ |
+|------|-----|
+| เลือกรายการจาก list (switcher, action menu) + มี icon + check mark | `<Dropdown>` |
+| Form select (value → label) — ไม่มี icon | `<CustomSelect>` |
+| Panel เนื้อหาเสรี (profile, card, multi-section) | `<Popover>` |
+| ห้ามใช้ | `rizzui Popover`, inline dropdown `<div>` ที่ทำเอง |
+
+### Dropdown
+
+```tsx
+import { Dropdown } from '@/components/ui/dropdown';
+import type { DropdownItem } from '@/components/ui/dropdown';
+
+// Standard: OrgSwitcher pattern — trigger button + portal item list
+<Dropdown
+  label={selectedOrg.name}
+  leadingIcon={<Building2 className="h-4 w-4" />}
+  badge="OWNER"                  // optional pill after label
+  selectedKey={selectedOrg.id}   // renders check on matching item
+  placement="bottom-start"       // or "bottom-end"
+  className="w-full"             // trigger button width
+  items={orgs.map((o) => ({
+    key:   o.id,
+    label: o.name,
+    icon:  <Building2 className="h-4 w-4" />,
+    badge: o.role,               // optional per-item pill
+    onClick: () => switchOrg(o.id),
+  }))}
+/>
+```
+
+- **ChevronsUpDown icon หมุน 180° เมื่อ open** — ห้ามใช้ ChevronDown
+- ต้นแบบจริง: [`org-switcher.tsx`](apps/perpos/src/components/accounting/org-switcher.tsx) (ใน sidebar) ห่อ `<Dropdown>` ทั้งตัว
+- `placement` รองรับ `"bottom-start" | "bottom-end" | "top-start" | "top-end"` (flip อัตโนมัติถ้าพื้นที่ไม่พอ) · panel กว้าง = ความกว้าง trigger (ใส่ `className="w-full"` เพื่อเต็มแนว)
+
+### Popover
+
+```tsx
+import { Popover } from '@/components/ui/popover';
+
+// Standard: profile menu (sidebar footer) pattern
+// trigger เป็น render-prop รับ open → หมุน ChevronsUpDown ได้
+<Popover
+  placement="right-end"        // เปิดด้านข้างเมื่อ trigger ชิดขอบ (เช่น ก้น sidebar)
+  triggerClassName="w-full"
+  trigger={(open) => (
+    <button className="...">
+      <Avatar ... />
+      <span>iprite</span>
+      <ChevronsUpDown className={cn("h-4 w-4 transition-transform", open && "rotate-180")} />
+    </button>
+  )}
+>
+  <div className="min-w-[200px]">
+    {/* panel content — header, items, divider, etc. */}
+  </div>
+</Popover>
+
+// Controlled (optional)
+<Popover trigger={...} open={isOpen} onOpenChange={setIsOpen}>...</Popover>
+```
+
+- ต้นแบบจริง: [`profile-menu.tsx`](apps/perpos/src/layouts/profile-menu.tsx) (การ์ดที่ก้น sidebar) ห่อ `<Popover>`
+- `placement` รองรับ 8 ทิศ: `"bottom-start|end"`, `"top-start|end"`, `"right-start|end"`, `"left-start|end"` — `right-*`/`left-*` ใช้เมื่อ trigger ชิดขอบ (เปิดด้านข้าง) · `-end` = ชิด/align ด้านล่าง, `-start` = ด้านบน
+- `trigger` รับได้ทั้ง node ตรง ๆ หรือ render-prop `(open) => node` (ใช้ render-prop เมื่ออยากให้ chevron หมุนตาม state)
+- ปิดเองเมื่อเปลี่ยนหน้า (route change) + คลิกนอก panel
 
 ### Button variants
 

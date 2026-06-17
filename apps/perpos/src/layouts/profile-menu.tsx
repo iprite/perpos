@@ -1,15 +1,16 @@
 "use client";
 
-import { Title, Avatar, Button, Popover } from "rizzui";
+import { Title, Avatar, Button } from "rizzui";
 import cn from "@core/utils/class-names";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
-import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
 import { LogOut, ChevronsUpDown, User, PenLine, Zap, Triangle, MessageCircle } from "lucide-react";
 
 import { useAuth } from "@/app/shared/auth-provider";
 import { useOrgSlug } from "@/app/shared/module-provider";
 import { withBasePath } from "@/utils/base-path";
+import { Popover } from "@/components/ui/popover";
 
 export default function ProfileMenu({
   buttonClassName,
@@ -20,8 +21,10 @@ export default function ProfileMenu({
   const name = String(profile?.display_name ?? email ?? "U");
 
   return (
-    <ProfileMenuPopover>
-      <Popover.Trigger>
+    <Popover
+      placement="right-end"
+      triggerClassName="w-full"
+      trigger={(open) => (
         <button
           className={cn(
             "flex w-full items-center gap-3 rounded-xl bg-gray-50 p-2 text-left outline-none transition-colors hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-gray-300 active:translate-y-px",
@@ -43,34 +46,13 @@ export default function ProfileMenu({
               </span>
             </div>
           </div>
-          <ChevronsUpDown className="h-4 w-4 shrink-0 text-gray-400" />
+          <ChevronsUpDown
+            className={cn("h-4 w-4 shrink-0 text-gray-400 transition-transform duration-150", open && "rotate-180")}
+          />
         </button>
-      </Popover.Trigger>
-
-      <Popover.Content className="z-[9999] p-0 dark:bg-gray-100 [&>svg]:dark:fill-gray-100">
-        <DropdownMenu />
-      </Popover.Content>
-    </ProfileMenuPopover>
-  );
-}
-
-function ProfileMenuPopover({ children }: React.PropsWithChildren<{}>) {
-  const pathname = usePathname();
-  const [isOpen, setIsOpen] = useState(false);
-
-  // ปิด popup เมื่อเปลี่ยนหน้า
-  useEffect(() => {
-    setIsOpen(false);
-  }, [pathname]);
-
-  return (
-    <Popover
-      isOpen={isOpen}
-      setIsOpen={setIsOpen}
-      shadow="sm"
-      placement="right-end"
+      )}
     >
-      {children}
+      <DropdownMenu />
     </Popover>
   );
 }
