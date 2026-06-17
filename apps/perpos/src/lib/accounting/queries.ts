@@ -32,12 +32,24 @@ export async function getOrganizationsForCurrentUser(): Promise<OrganizationSumm
     .maybeSingle();
 
   if (profile?.role === "super_admin") {
+    // ตัด personal "home org" (ที่ provisionLineUser สร้างให้ผู้ใช้ทุกคนตอนแอด LINE)
+    // ออกจาก switcher — super_admin ควรเห็นเฉพาะองค์กรธุรกิจจริง (B2B) ไม่ใช่พื้นที่ส่วนตัวของทุกคน
+    const { data: personalRows } = await adminClient
+      .from("profiles")
+      .select("personal_org_id")
+      .not("personal_org_id", "is", null);
+    const personalOrgIds = new Set(
+      (personalRows ?? []).map((r: any) => String(r.personal_org_id)),
+    );
+
     const { data: allOrgs, error: orgsErr } = await adminClient
       .from("organizations")
       .select("id,name,slug")
       .order("name");
     if (orgsErr || !allOrgs?.length) return [];
-    return (allOrgs as any[]).map((o) => ({
+    return (allOrgs as any[])
+      .filter((o) => !personalOrgIds.has(String(o.id)))
+      .map((o) => ({
       id:   String(o.id),
       name: String(o.name),
       slug: String(o.slug ?? o.id),
