@@ -5,6 +5,7 @@ import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { backendUrl } from '@/lib/backend';
 import { Button } from '@/components/ui/button';
 import { CustomSelect } from '@/components/ui/custom-select';
+import { PageShell } from '@/components/ui/page-shell';
 import {
   BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid,
   Tooltip, Legend, ResponsiveContainer, Cell,
@@ -137,15 +138,13 @@ export default function TmcDashboardPage() {
   }));
 
   return (
-    <div className="p-4 md:p-6 space-y-5">
-
-      {/* ── Header ── */}
-      <div className="flex items-center justify-between flex-wrap gap-2">
-        <div>
-          <h1 className="text-xl font-bold text-slate-900">Dashboard</h1>
-          <p className="text-sm text-slate-500">TMC Management — ภาพรวมธุรกิจ</p>
-        </div>
-        <div className="flex items-center gap-2">
+    <PageShell
+      width="full"
+      icon={<Building2 className="h-6 w-6" />}
+      title="Dashboard"
+      description="TMC Management — ภาพรวมธุรกิจ"
+      actions={
+        <>
           <CustomSelect
             value={range}
             onChange={setRange}
@@ -155,8 +154,9 @@ export default function TmcDashboardPage() {
           <Button variant="outline" size="sm" onClick={load} disabled={loading}>
             {loading ? 'กำลังโหลด…' : 'รีเฟรช'}
           </Button>
-        </div>
-      </div>
+        </>
+      }
+    >
 
       {/* ── Summary Cards ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -395,7 +395,7 @@ export default function TmcDashboardPage() {
           </div>
         </div>
       )}
-    </div>
+    </PageShell>
   );
 }
 

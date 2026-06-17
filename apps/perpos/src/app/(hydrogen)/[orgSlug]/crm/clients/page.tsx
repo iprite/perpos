@@ -12,7 +12,8 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog';
 import { ConfirmDeleteDialog } from '@/components/ui/confirm-delete-dialog';
-import { Plus, Search, ChevronRight, Building2, Phone, Mail } from 'lucide-react';
+import { PageShell } from '@/components/ui/page-shell';
+import { Plus, Search, ChevronRight, Building2, Phone, Mail, Users } from 'lucide-react';
 
 type Client = {
   id: string;
@@ -100,14 +101,16 @@ export default function CrmClientsPage() {
   };
 
   return (
-    <div className="p-4 md:p-6 space-y-4">
-      <div className="flex items-center justify-between flex-wrap gap-2">
-        <h1 className="text-xl font-bold text-slate-900">ลูกค้า</h1>
+    <PageShell
+      width="wide"
+      icon={<Users className="h-6 w-6" />}
+      title="ลูกค้า"
+      actions={
         <Button size="sm" onClick={openAdd}>
           <Plus className="w-4 h-4 mr-1" /> เพิ่มลูกค้า
         </Button>
-      </div>
-
+      }
+    >
       {/* Filters */}
       <div className="flex flex-wrap gap-2">
         <div className="relative flex-1 min-w-48">
@@ -233,6 +236,6 @@ export default function CrmClientsPage() {
         description="การกระทำนี้ไม่สามารถย้อนกลับได้"
         onConfirm={doDeleteClient}
       />
-    </div>
+    </PageShell>
   );
 }

@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
+import { PageShell } from '@/components/ui/page-shell';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { CustomSelect } from '@/components/ui/custom-select';
@@ -500,7 +501,7 @@ export default function AccFirmOcrPage() {
     || activeJob?.document_url.split('?')[0].toLowerCase().endsWith('.pdf');
 
   return (
-    <div className="p-4 md:p-6 space-y-6">
+    <PageShell width="full">
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-3">
@@ -1004,6 +1005,6 @@ export default function AccFirmOcrPage() {
           )}
         </DialogContent>
       </Dialog>
-    </div>
+    </PageShell>
   );
 }

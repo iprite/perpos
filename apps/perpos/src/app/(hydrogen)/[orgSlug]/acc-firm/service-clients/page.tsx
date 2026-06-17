@@ -9,7 +9,8 @@ import { Label } from '@/components/ui/label';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog';
-import { Plus, Pencil, Check } from 'lucide-react';
+import { Plus, Pencil, Check, Users } from 'lucide-react';
+import { PageShell } from '@/components/ui/page-shell';
 import type { ServiceClient } from '@/app/api/acc-firm/service-clients/route';
 
 const SERVICE_FLAGS: { key: keyof ServiceClient; label: string }[] = [
@@ -159,18 +160,17 @@ export default function ServiceClientsPage() {
   const totalRevenue = filtered.reduce((s, c) => s + Number(c[feeKey] ?? 0), 0);
 
   return (
-    <div className="p-6 space-y-5">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold text-gray-900">ลูกค้าบริการ</h1>
-          <p className="text-sm text-gray-500 mt-0.5">รายชื่อลูกค้าที่ใช้บริการสำนักงานบัญชี</p>
-        </div>
+    <PageShell
+      width="wide"
+      icon={<Users className="h-6 w-6" />}
+      title="ลูกค้าบริการ"
+      description="รายชื่อลูกค้าที่ใช้บริการสำนักงานบัญชี"
+      actions={
         <Button onClick={openAdd}>
           <Plus className="h-4 w-4 mr-1" /> เพิ่มลูกค้า
         </Button>
-      </div>
-
+      }
+    >
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
         <StatCard label="ลูกค้าทั้งหมด" value={filtered.length} unit="ราย" />
@@ -350,7 +350,7 @@ export default function ServiceClientsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </PageShell>
   );
 }
 

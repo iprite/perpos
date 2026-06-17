@@ -5,6 +5,7 @@ import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { backendUrl } from '@/lib/backend';
 import { Button } from '@/components/ui/button';
 import { CustomSelect } from '@/components/ui/custom-select';
+import { PageShell } from '@/components/ui/page-shell';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ThaiDatePicker } from '@/components/ui/thai-date-picker';
@@ -234,21 +235,20 @@ export default function TmcCostsPage() {
   }));
 
   return (
-    <div className="p-4 md:p-6 space-y-5">
-      {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-2">
-        <div>
-          <h1 className="text-xl font-bold text-slate-900">ต้นทุน & กำไรสุทธิ</h1>
-          <p className="text-sm text-slate-500">TMC — ต้นทุนนักลงทุน 8%/ปี + ค่าใช้จ่ายส่วนกลาง</p>
-        </div>
-        <div className="flex items-center gap-2">
+    <PageShell
+      width="full"
+      icon={<TrendingUp className="h-6 w-6" />}
+      title="ต้นทุน & กำไรสุทธิ"
+      description="TMC — ต้นทุนนักลงทุน 8%/ปี + ค่าใช้จ่ายส่วนกลาง"
+      actions={
+        <>
           <CustomSelect value={range} onChange={setRange} options={RANGE_OPTS} className="w-44" />
           <Button variant="outline" size="sm" onClick={load} disabled={loading}>
             {loading ? 'กำลังโหลด…' : 'รีเฟรช'}
           </Button>
-        </div>
-      </div>
-
+        </>
+      }
+    >
       {/* Summary Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
         <SummaryCard
@@ -524,6 +524,6 @@ export default function TmcCostsPage() {
           saving={saving}
         />
       )}
-    </div>
+    </PageShell>
   );
 }

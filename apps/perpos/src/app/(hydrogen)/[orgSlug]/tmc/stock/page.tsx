@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback, useMemo } from 'react';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { backendUrl } from '@/lib/backend';
 import { Button } from '@/components/ui/button';
+import { PageShell } from '@/components/ui/page-shell';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { CustomSelect } from '@/components/ui/custom-select';
@@ -11,7 +12,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog';
 import {
-  Plus, ArrowUp, ArrowDown, Settings, Tag, Ruler,
+  Plus, ArrowUp, ArrowDown, Settings, Tag, Ruler, Package,
   Check, X, Pencil, Trash2, ShoppingCart,
 } from 'lucide-react';
 import { PurchaseDialog } from './purchase-dialog';
@@ -283,15 +284,13 @@ export default function TmcStockPage() {
   const lowStock = items.filter(i => i.current_qty <= i.min_quantity && i.min_quantity > 0);
 
   return (
-    <div className="p-4 md:p-6 space-y-4">
-
-      {/* Header */}
-      <div className="flex items-center justify-between gap-2 flex-wrap">
-        <div>
-          <h1 className="text-xl font-bold text-slate-900">Stock คลังสินค้า</h1>
-          <p className="text-sm text-slate-500">TMC Management</p>
-        </div>
-        <div className="flex gap-2 flex-wrap">
+    <PageShell
+      width="full"
+      icon={<Package className="h-6 w-6" />}
+      title="Stock คลังสินค้า"
+      description="TMC Management"
+      actions={
+        <>
           <Button variant="outline" size="sm" onClick={() => setShowMaster(true)}>
             <Settings className="w-4 h-4" /> จัดการหมวด/หน่วย
           </Button>
@@ -307,8 +306,9 @@ export default function TmcStockPage() {
           <Button onClick={() => setShowAddItem(true)}>
             <Plus className="w-4 h-4" /> เพิ่มรายการ
           </Button>
-        </div>
-      </div>
+        </>
+      }
+    >
 
       {/* Low stock alert */}
       {lowStock.length > 0 && (
@@ -601,6 +601,6 @@ export default function TmcStockPage() {
         </DialogContent>
       </Dialog>
 
-    </div>
+    </PageShell>
   );
 }

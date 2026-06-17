@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { backendUrl } from '@/lib/backend';
 import { Button } from '@/components/ui/button';
+import { PageShell } from '@/components/ui/page-shell';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { CustomSelect } from '@/components/ui/custom-select';
@@ -290,18 +291,13 @@ export default function B2gOrdersPage() {
 
   // ─── Render ────────────────────────────────────────────────────────────────
   return (
-    <div className="p-4 md:p-6 space-y-5">
-
-      {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-3 border-b pb-4">
-        <div>
-          <h1 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-            <Building2 className="w-5 h-5 text-indigo-500" />
-            B2G — คำสั่งซื้อภาครัฐ
-          </h1>
-          <p className="text-sm text-slate-500">ติดตามคำสั่งซื้อและผลกำไร Business-to-Government</p>
-        </div>
-        <div className="flex gap-2">
+    <PageShell
+      width="wide"
+      icon={<Building2 className="h-6 w-6" />}
+      title="B2G — คำสั่งซื้อภาครัฐ"
+      description="ติดตามคำสั่งซื้อและผลกำไร Business-to-Government"
+      actions={
+        <>
           <Button variant="outline" size="sm" onClick={load} disabled={loading}>
             <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${loading ? 'animate-spin' : ''}`} />
             รีเฟรช
@@ -310,8 +306,9 @@ export default function B2gOrdersPage() {
             <Plus className="w-3.5 h-3.5 mr-1.5" />
             เพิ่มรายการ
           </Button>
-        </div>
-      </div>
+        </>
+      }
+    >
 
       {loading ? (
         <div className="flex h-48 items-center justify-center">
@@ -797,7 +794,7 @@ export default function B2gOrdersPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </PageShell>
   );
 }
 

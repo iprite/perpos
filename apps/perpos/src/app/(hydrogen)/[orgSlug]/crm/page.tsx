@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
+import { PageShell } from '@/components/ui/page-shell';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, LineChart, Line, Cell,
@@ -101,20 +102,17 @@ export default function CrmDashboardPage() {
   const activeSolutions = (data?.byStatus['in_progress']?.count ?? 0) + (data?.byStatus['proposal']?.count ?? 0);
 
   return (
-    <div className="p-4 md:p-6 space-y-5">
-      {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-2">
-        <div>
-          <h1 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-            <LayoutDashboard className="w-5 h-5 text-indigo-500" /> Dashboard
-          </h1>
-          <p className="text-sm text-slate-500">CRM & Solution Tracking — P2P Solutions</p>
-        </div>
+    <PageShell
+      width="full"
+      icon={<LayoutDashboard className="h-6 w-6" />}
+      title="Dashboard"
+      description="CRM & Solution Tracking — P2P Solutions"
+      actions={
         <Button variant="outline" size="sm" onClick={load} disabled={loading}>
           {loading ? 'กำลังโหลด…' : 'รีเฟรช'}
         </Button>
-      </div>
-
+      }
+    >
       {/* Stat cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <StatCard
@@ -254,6 +252,6 @@ export default function CrmDashboardPage() {
           </Link>
         ))}
       </div>
-    </div>
+    </PageShell>
   );
 }

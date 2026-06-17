@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
+import { PageShell } from '@/components/ui/page-shell';
 import {
   BarChart3, AlertTriangle, Clock, FileText,
   Building2, ArrowUpRight, RefreshCw, CalendarDays,
@@ -171,21 +172,18 @@ export default function AccFirmReportsPage() {
   [clientSummary]);
 
   return (
-    <div className="p-4 md:p-6 space-y-5">
-
-      {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-2">
-        <div>
-          <h1 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-            <BarChart3 className="w-5 h-5 text-teal-500" /> รายงานรวม
-          </h1>
-          <p className="text-sm text-slate-500">ภาพรวมงานค้างและ deadline ภาษีข้าม client orgs{thMonth ? ` · ${thMonth}` : ''}</p>
-        </div>
+    <PageShell
+      width="full"
+      icon={<BarChart3 className="h-6 w-6" />}
+      title="รายงานรวม"
+      description={`ภาพรวมงานค้างและ deadline ภาษีข้าม client orgs${thMonth ? ` · ${thMonth}` : ''}`}
+      actions={
         <Button variant="outline" size="sm" onClick={load} disabled={loading} className="gap-1.5">
           <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
           {loading ? 'กำลังโหลด…' : 'รีเฟรช'}
         </Button>
-      </div>
+      }
+    >
 
       {/* KPI strip */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -422,6 +420,6 @@ export default function AccFirmReportsPage() {
           )}
         </div>
       )}
-    </div>
+    </PageShell>
   );
 }

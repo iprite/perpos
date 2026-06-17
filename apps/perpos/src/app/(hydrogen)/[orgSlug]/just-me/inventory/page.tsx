@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useParams } from 'next/navigation';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
+import { PageShell } from '@/components/ui/page-shell';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { CustomSelect } from '@/components/ui/custom-select';
@@ -413,17 +414,13 @@ export default function JustMeInventoryPage() {
   }, [warehouses]);
 
   return (
-    <div className="p-4 md:p-6 space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-3 border-b pb-4">
-        <div>
-          <h1 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-            <Warehouse className="w-5 h-5 text-indigo-500" />
-            ระบบคลังสินค้า & สต๊อกวัสดุ
-          </h1>
-          <p className="text-sm text-slate-500">จัดการคลังสินค้ากลาง ไซต์งาน และสายไฟเหลือใช้</p>
-        </div>
-        <div className="flex items-center gap-2">
+    <PageShell
+      width="full"
+      icon={<Warehouse className="h-6 w-6" />}
+      title="ระบบคลังสินค้า & สต๊อกวัสดุ"
+      description="จัดการคลังสินค้ากลาง ไซต์งาน และสายไฟเหลือใช้"
+      actions={
+        <>
           <Button
             size="sm"
             onClick={() => setOcrDialogOpen(true)}
@@ -436,8 +433,9 @@ export default function JustMeInventoryPage() {
           <Button variant="ghost" size="icon" onClick={loadData} disabled={loading}>
             <RefreshCw className={cn('h-4 w-4', loading && 'animate-spin')} />
           </Button>
-        </div>
-      </div>
+        </>
+      }
+    >
 
       {error && (
         <div className="flex items-center gap-2.5 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 leading-normal">
@@ -1170,6 +1168,6 @@ export default function JustMeInventoryPage() {
           warehouseOptions={warehouseOptions}
         />
       )}
-    </div>
+    </PageShell>
   );
 }

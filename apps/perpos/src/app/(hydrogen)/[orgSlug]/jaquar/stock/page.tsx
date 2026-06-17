@@ -4,6 +4,7 @@ import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useParams } from 'next/navigation';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
+import { PageShell } from '@/components/ui/page-shell';
 import { Input } from '@/components/ui/input';
 import { CustomSelect } from '@/components/ui/custom-select';
 import { ThaiDatePicker } from '@/components/ui/thai-date-picker';
@@ -480,19 +481,13 @@ export default function JaquarStockPage() {
   const totalPages = Math.ceil(totalItems / limit);
 
   return (
-    <div className="p-4 md:p-6 space-y-5">
-      <Toaster position="top-right" />
-
-      {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-4 border-b pb-4">
-        <div>
-          <h1 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-            <PackageCheck className="w-6 h-6 text-indigo-600" />
-            ระบบคลังสินค้า Jaquar
-          </h1>
-          <p className="text-sm text-slate-500">จัดการข้อมูลรายการสินค้า และบันทึกประวัติการเคลื่อนไหวสต๊อกสินค้า</p>
-        </div>
-        <div className="flex gap-2">
+    <PageShell
+      width="wide"
+      icon={<PackageCheck className="h-6 w-6" />}
+      title="ระบบคลังสินค้า Jaquar"
+      description="จัดการข้อมูลรายการสินค้า และบันทึกประวัติการเคลื่อนไหวสต๊อกสินค้า"
+      actions={
+        <>
           <Button variant="outline" onClick={() => setIsImportOpen(true)} className="flex items-center gap-2 border-indigo-200 text-indigo-700 hover:bg-indigo-50">
             <FileSpreadsheet className="w-4 h-4" />
             นำเข้า CSV
@@ -501,8 +496,10 @@ export default function JaquarStockPage() {
             <Plus className="w-4 h-4" />
             เพิ่มสินค้าใหม่
           </Button>
-        </div>
-      </div>
+        </>
+      }
+    >
+      <Toaster position="top-right" />
 
       {/* Search & Filters */}
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 bg-slate-50 p-4 rounded-xl border border-slate-200">
@@ -1087,6 +1084,6 @@ export default function JaquarStockPage() {
           )}
         </DialogContent>
       </Dialog>
-    </div>
+    </PageShell>
   );
 }

@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
+import { PageShell } from '@/components/ui/page-shell';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { CustomSelect } from '@/components/ui/custom-select';
@@ -263,20 +264,17 @@ export default function AccFirmClientsPage() {
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <div className="p-4 md:p-6 space-y-5">
-
-      {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-2">
-        <div>
-          <h1 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-            <Calculator className="w-5 h-5 text-teal-500" /> Client Orgs
-          </h1>
-          <p className="text-sm text-slate-500">องค์กรที่อยู่ในการกำกับดูแลของสำนักงานบัญชี</p>
-        </div>
+    <PageShell
+      width="wide"
+      icon={<Calculator className="h-6 w-6" />}
+      title="Client Orgs"
+      description="องค์กรที่อยู่ในการกำกับดูแลของสำนักงานบัญชี"
+      actions={
         <Button onClick={() => { setForm(EMPTY_FORM); setShowAdd(true); }} className="gap-1.5">
           <Plus className="w-4 h-4" /> เพิ่ม Client Org
         </Button>
-      </div>
+      }
+    >
 
       {/* Filter */}
       <div className="flex gap-2 items-center">
@@ -541,6 +539,6 @@ export default function AccFirmClientsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </PageShell>
   );
 }

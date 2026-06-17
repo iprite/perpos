@@ -11,7 +11,8 @@ import { ThaiDatePicker } from '@/components/ui/thai-date-picker';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog';
-import { Plus, Pencil, Trash2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Plus, Pencil, Trash2, ChevronLeft, ChevronRight, Wallet } from 'lucide-react';
+import { PageShell } from '@/components/ui/page-shell';
 import type { PettyCashEntry } from '@/app/api/acc-firm/petty-cash/route';
 
 const PAGE_SIZE = 50;
@@ -169,18 +170,17 @@ export default function PettyCashPage() {
   ];
 
   return (
-    <div className="p-6 space-y-5">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold text-gray-900">เงินสดย่อย</h1>
-          <p className="text-sm text-gray-500 mt-0.5">บัญชีเงินสดย่อยสำนักงานบัญชี</p>
-        </div>
+    <PageShell
+      width="default"
+      icon={<Wallet className="h-6 w-6" />}
+      title="เงินสดย่อย"
+      description="บัญชีเงินสดย่อยสำนักงานบัญชี"
+      actions={
         <Button onClick={openAdd}>
           <Plus className="h-4 w-4 mr-1" /> เพิ่มรายการ
         </Button>
-      </div>
-
+      }
+    >
       {/* Summary cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <SummaryCard label="เงินออก (รวม)" value={totals.total_out} color="text-red-600" />
@@ -376,7 +376,7 @@ export default function PettyCashPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </PageShell>
   );
 }
 

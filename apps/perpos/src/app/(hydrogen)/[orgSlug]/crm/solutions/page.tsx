@@ -7,6 +7,7 @@ import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { CustomSelect } from '@/components/ui/custom-select';
+import { PageShell } from '@/components/ui/page-shell';
 import { Plus, Briefcase, RefreshCw, Search, Trash2, ExternalLink } from 'lucide-react';
 import { ConfirmDeleteDialog } from '@/components/ui/confirm-delete-dialog';
 
@@ -116,11 +117,12 @@ export default function CrmSolutionsPage() {
   }, [filtered]);
 
   return (
-    <div className="p-4 md:p-6 space-y-4">
-      {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-2">
-        <h1 className="text-xl font-bold text-slate-900">Solution Tracking</h1>
-        <div className="flex items-center gap-2 flex-wrap">
+    <PageShell
+      width="full"
+      icon={<Briefcase className="h-6 w-6" />}
+      title="Solution Tracking"
+      actions={
+        <>
           {/* Search */}
           <div className="relative">
             <Search className="absolute left-2.5 top-2 w-3.5 h-3.5 text-slate-400" />
@@ -147,9 +149,9 @@ export default function CrmSolutionsPage() {
           <Button variant="outline" size="icon" onClick={load} disabled={loading}>
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           </Button>
-        </div>
-      </div>
-
+        </>
+      }
+    >
       {loading ? (
         <div className="text-center py-10 text-slate-400 text-sm">กำลังโหลด…</div>
       ) : viewMode === 'kanban' ? (
@@ -327,6 +329,6 @@ export default function CrmSolutionsPage() {
         description="การกระทำนี้ไม่สามารถย้อนกลับได้"
         onConfirm={doDeleteSolution}
       />
-    </div>
+    </PageShell>
   );
 }

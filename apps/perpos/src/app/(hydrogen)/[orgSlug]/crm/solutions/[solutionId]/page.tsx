@@ -7,6 +7,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
+import { PageShell } from '@/components/ui/page-shell';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { CustomSelect } from '@/components/ui/custom-select';
@@ -386,7 +387,7 @@ export default function SolutionDetailPage() {
   const sc = STATUS_COLOR[sol.status] ?? 'bg-slate-100 text-slate-600';
 
   return (
-    <div className="p-4 md:p-6 space-y-5 max-w-4xl mx-auto">
+    <PageShell width="narrow">
 
       {/* Breadcrumb */}
       <div className="flex items-center gap-2 text-sm text-slate-500 flex-wrap">
@@ -860,6 +861,6 @@ export default function SolutionDetailPage() {
           : 'การกระทำนี้ไม่สามารถย้อนกลับได้'}
         onConfirm={doDeleteNote}
       />
-    </div>
+    </PageShell>
   );
 }

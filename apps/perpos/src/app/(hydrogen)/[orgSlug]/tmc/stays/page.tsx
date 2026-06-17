@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback, useMemo } from 'react';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { backendUrl } from '@/lib/backend';
 import { Button }       from '@/components/ui/button';
+import { PageShell } from '@/components/ui/page-shell';
 import { Input }        from '@/components/ui/input';
 import { Label }        from '@/components/ui/label';
 import { CustomSelect } from '@/components/ui/custom-select';
@@ -11,7 +12,7 @@ import { ThaiDatePicker } from '@/components/ui/thai-date-picker';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog';
-import { Plus, X, Pencil, Trash2, AlertTriangle } from 'lucide-react';
+import { Plus, X, Pencil, Trash2, AlertTriangle, BedDouble } from 'lucide-react';
 
 const TMC_ORG_ID      = '1f52618c-09c4-49c5-a929-ea5060f26e7d';
 const SAV_ACCOUNT_ID  = 'a4ee27ea-6568-4097-abd7-a91fbf4805d0'; // กสิกร ออมทรัพย์
@@ -502,18 +503,17 @@ export default function TmcStaysPage() {
   );
 
   return (
-    <div className="p-4 md:p-6 space-y-4">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold text-slate-900">การเข้าพัก</h1>
-          <p className="text-sm text-slate-500">TMC Management</p>
-        </div>
+    <PageShell
+      width="full"
+      icon={<BedDouble className="h-6 w-6" />}
+      title="การเข้าพัก"
+      description="TMC Management"
+      actions={
         <Button onClick={openAdd}>
           <Plus className="w-4 h-4" /> บันทึกเข้าพัก
         </Button>
-      </div>
-
+      }
+    >
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <div className="bg-white rounded-xl border p-4">
@@ -710,6 +710,6 @@ export default function TmcStaysPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </PageShell>
   );
 }

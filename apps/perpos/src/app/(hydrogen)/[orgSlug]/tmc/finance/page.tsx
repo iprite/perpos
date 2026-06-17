@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback, useMemo } from 'react';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { backendUrl } from '@/lib/backend';
 import { Button } from '@/components/ui/button';
+import { PageShell } from '@/components/ui/page-shell';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { CustomSelect } from '@/components/ui/custom-select';
@@ -466,15 +467,13 @@ export default function TmcFinancePage() {
   const canSave = !saving && !!form.accountId && !!form.description && !!form.category && !!form.entryType && !!form.amount;
 
   return (
-    <div className="p-4 md:p-6 space-y-4">
-
-      {/* ── Header ── */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold text-slate-900">บัญชีและการเงิน</h1>
-          <p className="text-sm text-slate-500">TMC Management</p>
-        </div>
-        <div className="flex items-center gap-2">
+    <PageShell
+      width="full"
+      icon={<Landmark className="h-6 w-6" />}
+      title="บัญชีและการเงิน"
+      description="TMC Management"
+      actions={
+        <>
           <Button variant="outline" size="sm" onClick={() => { void loadLogs(); setShowLogs(true); }}>
             <History className="w-4 h-4" /> ประวัติ
           </Button>
@@ -487,8 +486,9 @@ export default function TmcFinancePage() {
           <Button onClick={openCreate}>
             <Plus className="w-4 h-4" /> เพิ่มรายการ
           </Button>
-        </div>
-      </div>
+        </>
+      }
+    >
 
       {/* ── Summary Cards ── */}
       <div className="grid grid-cols-3 gap-3">
@@ -931,6 +931,6 @@ export default function TmcFinancePage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </PageShell>
   );
 }

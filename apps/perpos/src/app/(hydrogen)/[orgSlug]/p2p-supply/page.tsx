@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useParams } from 'next/navigation';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
+import { PageShell } from '@/components/ui/page-shell';
 import { LayoutGrid, Loader2, AlertCircle } from 'lucide-react';
 
 export default function P2pSupplyPage() {
@@ -55,20 +56,17 @@ export default function P2pSupplyPage() {
   }, [loadData]);
 
   return (
-    <div className="p-4 md:p-6 space-y-5">
-      {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-2 border-b pb-4">
-        <div>
-          <h1 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-            <LayoutGrid className="w-5 h-5 text-indigo-500" />
-            P2P Supply
-          </h1>
-          <p className="text-sm text-slate-500">โมดูลการทำงานเฉพาะองค์กร (P2P Supply)</p>
-        </div>
+    <PageShell
+      width="wide"
+      icon={<LayoutGrid className="h-6 w-6" />}
+      title="P2P Supply"
+      description="โมดูลการทำงานเฉพาะองค์กร (P2P Supply)"
+      actions={
         <Button variant="outline" size="sm" onClick={loadData} disabled={loading}>
           {loading ? 'กำลังโหลด…' : 'รีเฟรช'}
         </Button>
-      </div>
+      }
+    >
 
       {/* Content */}
       {loading ? (
@@ -91,6 +89,6 @@ export default function P2pSupplyPage() {
           </div>
         </div>
       )}
-    </div>
+    </PageShell>
   );
 }

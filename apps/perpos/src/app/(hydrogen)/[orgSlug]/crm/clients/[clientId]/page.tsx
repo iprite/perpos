@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
+import { PageShell } from '@/components/ui/page-shell';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { CustomSelect } from '@/components/ui/custom-select';
@@ -217,7 +218,7 @@ export default function ClientDetailPage() {
   if (!client) return <div className="p-6 text-red-500 text-sm">ไม่พบลูกค้า</div>;
 
   return (
-    <div className="p-4 md:p-6 space-y-5">
+    <PageShell width="wide">
       {/* Back */}
       <Link href={`/${orgSlug}/crm/clients`} className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-indigo-600">
         <ArrowLeft className="w-4 h-4" /> กลับรายชื่อลูกค้า
@@ -513,6 +514,6 @@ export default function ClientDetailPage() {
         description="การกระทำนี้ไม่สามารถย้อนกลับได้"
         onConfirm={doDelete}
       />
-    </div>
+    </PageShell>
   );
 }

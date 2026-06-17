@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useParams } from 'next/navigation';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
+import { PageShell } from '@/components/ui/page-shell';
 import {
   Clock, MapPin, RefreshCw, Loader2, AlertCircle,
   MessageSquare, Navigation, Fuel, ChevronRight,
@@ -189,8 +190,8 @@ export default function ClockInOutPage() {
   };
 
   return (
-    <div className="p-4 md:p-6 space-y-6">
-      
+    <PageShell width="full">
+
       {/* Header */}
       <div className="rounded-2xl bg-gradient-to-br from-indigo-600 to-violet-600 p-5 md:p-6 text-white shadow-lg">
         <div className="flex items-start justify-between gap-4 flex-wrap">
@@ -600,6 +601,6 @@ export default function ClockInOutPage() {
 
         </div>
       )}
-    </div>
+    </PageShell>
   );
 }

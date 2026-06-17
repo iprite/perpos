@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { PageShell } from '@/components/ui/page-shell';
 import {
   LayoutDashboard,
   Package,
@@ -147,19 +148,13 @@ export default function JaquarDashboardPage() {
   const trends = dashboardData?.trends || [];
 
   return (
-    <div className="p-4 md:p-6 space-y-6 bg-slate-50/50 min-h-screen">
-      <Toaster position="top-right" />
-
-      {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-4 border-b pb-4 bg-white p-4 rounded-xl border">
-        <div>
-          <h1 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-            <LayoutDashboard className="w-5 h-5 text-indigo-600" />
-            แผงควบคุมสต๊อก Jaquar (Dashboard)
-          </h1>
-          <p className="text-sm text-slate-500">ภาพรวมสถิติคลังสินค้าและดัชนีชี้วัดข้อมูลสต๊อก</p>
-        </div>
-        <div className="flex gap-2">
+    <PageShell
+      width="full"
+      icon={<LayoutDashboard className="h-6 w-6" />}
+      title="แผงควบคุมสต๊อก Jaquar (Dashboard)"
+      description="ภาพรวมสถิติคลังสินค้าและดัชนีชี้วัดข้อมูลสต๊อก"
+      actions={
+        <>
           <Button variant="outline" size="sm" onClick={loadDashboard} disabled={loading} className="flex items-center gap-1">
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
             รีเฟรช
@@ -168,8 +163,10 @@ export default function JaquarDashboardPage() {
             จัดการคลังสินค้า
             <ChevronRight className="w-4 h-4" />
           </Button>
-        </div>
-      </div>
+        </>
+      }
+    >
+      <Toaster position="top-right" />
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -352,6 +349,6 @@ export default function JaquarDashboardPage() {
         </Button>
         <div className="absolute -bottom-10 -right-10 w-44 h-44 rounded-full bg-indigo-800 opacity-20 pointer-events-none" />
       </div>
-    </div>
+    </PageShell>
   );
 }

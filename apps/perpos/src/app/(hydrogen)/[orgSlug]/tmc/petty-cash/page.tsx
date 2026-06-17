@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
+import { PageShell } from '@/components/ui/page-shell';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { CustomSelect } from '@/components/ui/custom-select';
@@ -326,20 +327,13 @@ export default function TmcPettyCashPage() {
   const pagedTxns   = txns.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   return (
-    <div className="p-4 md:p-6 space-y-4">
-
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-100">
-            <Wallet className="h-5 w-5 text-amber-600" />
-          </div>
-          <div>
-            <h1 className="text-xl font-bold text-slate-900">เงินสดย่อย</h1>
-            <p className="text-sm text-slate-500">กระเป๋าเงินสดแยกจากบัญชีหลัก</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
+    <PageShell
+      width="full"
+      icon={<Wallet className="h-6 w-6" />}
+      title="เงินสดย่อย"
+      description="กระเป๋าเงินสดแยกจากบัญชีหลัก"
+      actions={
+        <>
           <Button variant="outline" size="sm" onClick={() => { setMasterTab('category'); setShowMaster(true); }}>
             <Settings className="w-4 h-4" /> จัดการหมวด/แปลง
           </Button>
@@ -349,8 +343,9 @@ export default function TmcPettyCashPage() {
           <Button onClick={() => { setEditId(null); setForm({ ...EMPTY_FORM }); setFormErr(''); setShowForm(true); }}>
             <Plus className="w-4 h-4" /> เพิ่มรายการ
           </Button>
-        </div>
-      </div>
+        </>
+      }
+    >
 
       {/* Fund chips */}
       {funds.length > 0 && (
@@ -731,6 +726,6 @@ export default function TmcPettyCashPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </PageShell>
   );
 }

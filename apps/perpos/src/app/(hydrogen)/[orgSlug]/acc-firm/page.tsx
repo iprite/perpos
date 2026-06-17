@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
+import { PageShell } from '@/components/ui/page-shell';
 import {
   LayoutDashboard, Calculator, ArrowRight, ArrowUpRight,
   Building2, BookOpenText, Users, CheckCircle2, Clock,
@@ -114,19 +115,13 @@ export default function AccFirmDashboardPage() {
   }, [asOf]);
 
   return (
-    <div className="p-4 md:p-6 space-y-5">
-
-      {/* ── Header ───────────────────────────────────────────────────────── */}
-      <div className="flex items-center justify-between flex-wrap gap-2">
-        <div>
-          <h1 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-            <LayoutDashboard className="w-5 h-5 text-teal-500" /> Dashboard
-          </h1>
-          <p className="text-sm text-slate-500">
-            สำนักงานบัญชี — ภาพรวม client orgs{thMonth ? ` · ${thMonth}` : ''}
-          </p>
-        </div>
-        <div className="flex gap-2">
+    <PageShell
+      width="full"
+      icon={<LayoutDashboard className="h-6 w-6" />}
+      title="Dashboard"
+      description={`สำนักงานบัญชี — ภาพรวม client orgs${thMonth ? ` · ${thMonth}` : ''}`}
+      actions={
+        <>
           <Button variant="outline" size="sm" onClick={load} disabled={loading} className="gap-1.5">
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
             {loading ? 'กำลังโหลด…' : 'รีเฟรช'}
@@ -141,8 +136,9 @@ export default function AccFirmDashboardPage() {
               <Calculator className="w-3.5 h-3.5" /> จัดการ Clients
             </Button>
           </Link>
-        </div>
-      </div>
+        </>
+      }
+    >
 
       {/* ── Summary stat cards ────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -356,6 +352,6 @@ export default function AccFirmDashboardPage() {
           <ArrowRight className="w-4 h-4 text-slate-300 group-hover:text-teal-400 transition-colors" />
         </Link>
       </div>
-    </div>
+    </PageShell>
   );
 }
