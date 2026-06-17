@@ -3,11 +3,14 @@
 import Logo from "@core/components/logo";
 import cn from "@core/utils/class-names";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { SidebarMenu } from "./sidebar-menu";
 import { SidebarFooter } from "./sidebar-footer";
 import { SidebarModuleSwitcher } from "@/components/sidebar-module-switcher";
 import { OrgSwitcher } from "@/components/accounting/org-switcher";
 import type { OrganizationSummary } from "@/lib/accounting/queries";
+
+const HIDE_ORG_SWITCHER_SEGMENTS = new Set(["admin", "assistant"]);
 
 const isPersonalOrg = (o: OrganizationSummary) =>
   o.name.startsWith("พื้นที่ส่วนตัว") || /^u[a-z0-9]{10}$/.test(o.slug);
@@ -19,7 +22,10 @@ interface SidebarProps {
 }
 
 export default function Sidebar({ className, organizations = [], activeOrganizationId = null }: SidebarProps) {
+  const pathname = usePathname();
+  const firstSegment = pathname.split("/").filter(Boolean)[0] ?? "";
   const bizOrgs = organizations.filter((o) => !isPersonalOrg(o));
+  const showOrgSwitcher = bizOrgs.length > 1 && !HIDE_ORG_SWITCHER_SEGMENTS.has(firstSegment);
 
   return (
     <aside
@@ -37,8 +43,8 @@ export default function Sidebar({ className, organizations = [], activeOrganizat
           <Logo className="max-w-[155px]" />
         </Link>
 
-        {/* org switcher — บนสุด แล้วตามด้วย module switcher */}
-        {bizOrgs.length > 1 && (
+        {/* org switcher — ซ่อนเมื่ออยู่ใน assistant / admin context */}
+        {showOrgSwitcher && (
           <div className="px-4 pb-3 2xl:px-6">
             <OrgSwitcher organizations={organizations} activeOrganizationId={activeOrganizationId} />
           </div>

@@ -63,16 +63,9 @@ export function PageShell({
     <div className={`mx-auto w-full ${WIDTH_CLASS[width]} space-y-6 px-1 py-2 sm:px-2 lg:px-3`}>
       {hasHeader && (
         <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-          <div className="flex items-start gap-3">
-            {icon && (
-              <span className="mt-0.5 flex-shrink-0 rounded-lg bg-indigo-50 p-2 text-indigo-600">
-                {icon}
-              </span>
-            )}
-            <div className="min-w-0">
-              {title && <h1 className="text-2xl font-semibold leading-tight text-gray-900">{title}</h1>}
-              {description && <p className="mt-1 text-sm text-gray-500">{description}</p>}
-            </div>
+          <div className="min-w-0">
+            {title && <h1 className="text-2xl font-semibold leading-tight text-gray-900">{title}</h1>}
+            {description && <p className="mt-1 text-sm text-gray-500">{description}</p>}
           </div>
           {actions && <div className="flex flex-shrink-0 flex-wrap items-center gap-2">{actions}</div>}
         </header>
