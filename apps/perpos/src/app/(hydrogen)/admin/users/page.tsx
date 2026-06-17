@@ -6,7 +6,7 @@ import React, {
 import { Text, Title } from "rizzui/typography";
 import {
   Settings2, Building2, KeyRound, Eye, UserX, UserCheck, Trash2,
-  Gauge, Search, RefreshCw, ChevronDown,
+  Gauge, Search, RefreshCw, ChevronDown, Users as UsersIcon,
 } from "lucide-react";
 
 import { useAuth } from "@/app/shared/auth-provider";
@@ -14,6 +14,7 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { Role } from "@/lib/supabase/types";
 import { withBasePath } from "@/utils/base-path";
 import { backendUrl } from "@/lib/backend";
+import { AdminPage } from "../_components/admin-page";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -451,20 +452,16 @@ export default function AdminUsersPage() {
   );
 
   return (
-    <div className="space-y-4">
-      {/* Header */}
-      <div className="flex flex-col justify-between gap-3 md:flex-row md:items-end">
-        <div>
-          <Title as="h1" className="text-xl font-semibold text-gray-900">จัดการผู้ใช้</Title>
-          <Text className="mt-1 text-sm text-gray-600">
-            ผู้ใช้ทุกคนสมัครผ่าน LINE — กำหนดองค์กร (ERP) และโควต้าผู้ช่วย AI ได้จากที่นี่
-          </Text>
-        </div>
+    <AdminPage
+      title="จัดการผู้ใช้"
+      icon={<UsersIcon className="h-6 w-6" />}
+      description="ผู้ใช้ทุกคนสมัครผ่าน LINE — กำหนดองค์กร (ERP) และโควต้าผู้ช่วย AI ได้จากที่นี่"
+      actions={
         <Button variant="outline" onClick={() => refreshUsers()} disabled={loading}>
           <RefreshCw className={`mr-2 h-4 w-4 ${loading ? "animate-spin" : ""}`} /> รีเฟรช
         </Button>
-      </div>
-
+      }
+    >
       {/* Filter bar */}
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
         <div className="relative flex-1">
@@ -701,6 +698,6 @@ export default function AdminUsersPage() {
         onConfirm={doDeleteUser}
         loading={!!deletingUserId}
       />
-    </div>
+    </AdminPage>
   );
 }

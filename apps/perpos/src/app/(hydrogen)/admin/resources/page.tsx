@@ -1,14 +1,15 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Title, Text } from "rizzui/typography";
-import { RefreshCw, AlertTriangle, TrendingUp, Clock, Zap } from "lucide-react";
+import { Title } from "rizzui/typography";
+import { RefreshCw, AlertTriangle, TrendingUp, Clock, Zap, Activity } from "lucide-react";
 
 import { useAuth } from "@/app/shared/auth-provider";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { backendUrl } from "@/lib/backend";
 import { Button } from "@/components/ui/button";
 import { CustomSelect } from "@/components/ui/custom-select";
+import { AdminPage } from "../_components/admin-page";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -150,23 +151,22 @@ export default function ResourcesPage() {
   const alertOrgs     = orgs.filter((o) => o.error_rate_pct >= 1);
 
   return (
-    <div className="space-y-4">
-      {/* Header */}
-      <div className="flex flex-col justify-between gap-3 md:flex-row md:items-end">
-        <div>
-          <Title as="h1" className="text-lg font-semibold text-gray-900">
-            Tenant Resource Monitor
-          </Title>
-          <Text className="mt-1 text-sm text-gray-500">
-            API performance per org • auto-refresh ทุก 60 วินาที
-            {lastRefreshed && (
-              <span className="ml-2 text-xs text-gray-400">
-                อัปเดตล่าสุด {lastRefreshed.toLocaleTimeString("th-TH")}
-              </span>
-            )}
-          </Text>
-        </div>
-        <div className="flex items-center gap-2">
+    <AdminPage
+      width="full"
+      title="Tenant Resource Monitor"
+      icon={<Activity className="h-6 w-6" />}
+      description={
+        <>
+          API performance per org • auto-refresh ทุก 60 วินาที
+          {lastRefreshed && (
+            <span className="ml-2 text-xs text-gray-400">
+              อัปเดตล่าสุด {lastRefreshed.toLocaleTimeString("th-TH")}
+            </span>
+          )}
+        </>
+      }
+      actions={
+        <>
           <CustomSelect
             value={window}
             onChange={setWindow}
@@ -176,9 +176,9 @@ export default function ResourcesPage() {
           <Button variant="outline" onClick={loadData} disabled={loading}>
             <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
           </Button>
-        </div>
-      </div>
-
+        </>
+      }
+    >
       {error && (
         <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
           {error}
@@ -348,7 +348,7 @@ export async function POST(req: NextRequest) {
 }`}
         </pre>
       </div>
-    </div>
+    </AdminPage>
   );
 }
 

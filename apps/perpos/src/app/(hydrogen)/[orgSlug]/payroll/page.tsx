@@ -1,8 +1,10 @@
 import React from "react";
+import { Wallet } from "lucide-react";
 
 import { getActiveOrganizationId } from "@/lib/accounting/queries";
 import { listPayrollRunsAction, type RunRow } from "@/lib/payroll/actions";
 import { PayrollSalaryClient } from "@/components/payroll/payroll-salary-client";
+import { PageShell } from "@/components/ui/page-shell";
 
 export const dynamic = "force-dynamic";
 
@@ -17,12 +19,12 @@ export default async function PayrollSalaryPage() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-5xl px-4 py-6">
-      <div className="mb-6">
-        <div className="text-xl font-semibold text-slate-900">เงินเดือน</div>
-        <div className="mt-1 text-sm text-slate-600">รอบการจ่ายเงินเดือนประจำเดือน</div>
-      </div>
-
+    <PageShell
+      width="default"
+      icon={<Wallet className="h-6 w-6" />}
+      title="เงินเดือน"
+      description="รอบการจ่ายเงินเดือนประจำเดือน"
+    >
       {activeOrganizationId ? (
         <PayrollSalaryClient
           organizationId={activeOrganizationId}
@@ -33,6 +35,6 @@ export default async function PayrollSalaryPage() {
           กรุณาเลือกองค์กร
         </div>
       )}
-    </div>
+    </PageShell>
   );
 }

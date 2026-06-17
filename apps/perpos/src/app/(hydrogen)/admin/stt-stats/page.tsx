@@ -9,6 +9,7 @@ import { BarChart3, Users, Clock, FileAudio, RefreshCw, Loader2, Settings } from
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 import { toast } from 'react-hot-toast';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
+import { AdminPage } from '../_components/admin-page';
 
 type AdminStats = {
   users: { total: number; active: number; claimed: number };
@@ -79,19 +80,18 @@ export default function AdminSttStatsPage() {
   };
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6">
-      <div className="mb-6 flex items-center justify-between gap-3">
-        <h1 className="flex items-center gap-2 text-2xl font-semibold text-gray-900">
-          <BarChart3 className="h-6 w-6 text-indigo-600" /> สถิติแกะเสียง (ภาพรวม)
-        </h1>
-        <div className="flex gap-2">
+    <AdminPage
+      title="สถิติแกะเสียง (ภาพรวม)"
+      icon={<BarChart3 className="h-6 w-6" />}
+      actions={
+        <>
           <Link href="/admin/stt-jobs"><Button variant="outline" size="sm">งานแกะเสียง</Button></Link>
           <Link href="/admin/users"><Button variant="outline" size="sm">จัดการผู้ใช้</Button></Link>
           <Link href="/admin/stt-cost"><Button variant="outline" size="sm">ต้นทุน</Button></Link>
           <Button variant="outline" size="sm" onClick={load} disabled={loading}><RefreshCw className="mr-2 h-4 w-4" /> รีเฟรช</Button>
-        </div>
-      </div>
-
+        </>
+      }
+    >
       {loading ? (
         <div className="flex min-h-[40vh] items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-gray-400" /></div>
       ) : !s ? (
@@ -150,6 +150,6 @@ export default function AdminSttStatsPage() {
           </div>
         </div>
       )}
-    </div>
+    </AdminPage>
   );
 }

@@ -10,7 +10,8 @@ import {
 } from '@/components/ui/dialog';
 import { ConfirmDeleteDialog } from '@/components/ui/confirm-delete-dialog';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
-import { Plus, Pencil, Trash2, ShieldAlert, ShieldCheck, ToggleLeft, ToggleRight } from 'lucide-react';
+import { Plus, Pencil, Trash2, ShieldAlert, ShieldCheck, ToggleLeft, ToggleRight, ShieldBan } from 'lucide-react';
+import { AdminPage } from '../_components/admin-page';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -171,18 +172,16 @@ export default function RateLimitsPage() {
   const totalViolations = Object.values(violations).reduce((s, arr) => s + arr.length, 0);
 
   return (
-    <div className="p-6 max-w-5xl mx-auto space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Rate Limits</h1>
-          <p className="text-sm text-gray-500 mt-0.5">กำหนด API request limits ต่อ org</p>
-        </div>
+    <AdminPage
+      title="Rate Limits"
+      icon={<ShieldBan className="h-6 w-6" />}
+      description="กำหนด API request limits ต่อ org"
+      actions={
         <Button onClick={openAdd} disabled={!orgId}>
           <Plus className="w-4 h-4 mr-1.5" /> เพิ่ม Limit
         </Button>
-      </div>
-
+      }
+    >
       {/* Org selector */}
       <div className="flex items-center gap-3">
         <Label className="shrink-0">Organization</Label>
@@ -338,6 +337,6 @@ export default function RateLimitsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </AdminPage>
   );
 }

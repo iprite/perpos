@@ -5,11 +5,12 @@ import { Button } from '@/components/ui/button';
 import {
   RefreshCw, Users, Building2, Activity, Webhook,
   AlertTriangle, CheckCircle, TrendingUp, CreditCard,
-  Wrench, Clock,
+  Wrench, Clock, LayoutDashboard,
 } from 'lucide-react';
 import Link from 'next/link';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { PLAN_LABELS, PLAN_COLORS, type PlanTier } from '@/lib/billing';
+import { AdminPage } from './_components/admin-page';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -112,21 +113,17 @@ export default function AdminDashboardPage() {
   const statusColor = { ok: 'bg-green-50 border border-green-200 text-green-700', warning: 'bg-amber-50 border border-amber-200 text-amber-700', critical: 'bg-red-50 border border-red-200 text-red-700' } as const;
 
   return (
-    <div className="p-6 max-w-6xl mx-auto space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Super Admin Dashboard</h1>
-          <p className="text-sm text-gray-400 mt-0.5">
-            อัปเดต {new Date(data.computed_at).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}
-          </p>
-        </div>
+    <AdminPage
+      title="Super Admin Dashboard"
+      icon={<LayoutDashboard className="h-6 w-6" />}
+      description={`อัปเดต ${new Date(data.computed_at).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}`}
+      actions={
         <Button variant="outline" onClick={load} disabled={loading}>
           <RefreshCw className={`w-4 h-4 mr-1.5 ${loading ? 'animate-spin' : ''}`} />
           รีเฟรช
         </Button>
-      </div>
-
+      }
+    >
       {/* Attention banner */}
       {(billing.expired > 0 || billing.overdue > 0 || orgs.maintenance > 0) && (
         <div className="flex flex-wrap gap-3">
@@ -265,6 +262,6 @@ export default function AdminDashboardPage() {
           )}
         </Section>
       </div>
-    </div>
+    </AdminPage>
   );
 }

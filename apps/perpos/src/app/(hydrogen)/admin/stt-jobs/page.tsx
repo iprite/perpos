@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { FileAudio, RefreshCw, Loader2, AlertTriangle } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
+import { AdminPage } from '../_components/admin-page';
 
 type Job = {
   id: string;
@@ -96,17 +97,17 @@ export default function SttJobsPage() {
   };
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
-      <div className="mb-6 flex items-center justify-between gap-3">
-        <h1 className="flex items-center gap-2 text-2xl font-semibold text-gray-900">
-          <FileAudio className="h-6 w-6 text-indigo-600" /> งานแกะเสียง (Job Monitor)
-        </h1>
-        <div className="flex gap-2">
+    <AdminPage
+      width="wide"
+      title="งานแกะเสียง (Job Monitor)"
+      icon={<FileAudio className="h-6 w-6" />}
+      actions={
+        <>
           <Link href="/admin/stt-stats"><Button variant="outline" size="sm">📊 สถิติ</Button></Link>
           <Button variant="outline" size="sm" onClick={load} disabled={loading}><RefreshCw className="mr-2 h-4 w-4" /> รีเฟรช</Button>
-        </div>
-      </div>
-
+        </>
+      }
+    >
       {/* summary counts */}
       <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
         {(['pending', 'processing', 'completed', 'failed'] as const).map((k) => (
@@ -203,6 +204,6 @@ export default function SttJobsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </AdminPage>
   );
 }

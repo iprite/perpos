@@ -7,6 +7,7 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { backendUrl } from "@/lib/backend";
 import { Button } from "@/components/ui/button";
 import { ALL_MODULES, MODULE_LABELS, MODULE_MENUS, ORG_ROLES, type OrgRole } from "@/lib/modules";
+import { AdminPage } from "../_components/admin-page";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -329,20 +330,14 @@ export default function AdminModulesPage() {
 
   // ── Render ────────────────────────────────────────────────────────────────────
   return (
-    <div>
-      {/* Page title */}
-      <div className="flex items-center gap-2">
-        <LayoutGrid className="h-5 w-5 text-blue-500" />
-        <div>
-          <h1 className="text-lg font-semibold text-gray-900">Module Provisioning</h1>
-          <p className="text-sm text-gray-500">
-            เปิด/ปิด module ต่อองค์กร · กำหนด role · ดู Sidebar Preview และประวัติการเปลี่ยนแปลง
-          </p>
-        </div>
-      </div>
-
+    <AdminPage
+      width="wide"
+      title="Module Provisioning"
+      icon={<LayoutGrid className="h-6 w-6" />}
+      description="เปิด/ปิด module ต่อองค์กร · กำหนด role · ดู Sidebar Preview และประวัติการเปลี่ยนแปลง"
+    >
       {/* Org selector + save */}
-      <div className="mt-5 flex flex-wrap items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         <div className="relative">
           <button
             type="button"
@@ -522,6 +517,6 @@ export default function AdminModulesPage() {
           </div>
         </div>
       )}
-    </div>
+    </AdminPage>
   );
 }

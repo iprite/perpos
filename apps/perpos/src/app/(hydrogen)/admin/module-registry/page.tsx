@@ -7,6 +7,7 @@ import { Button }       from '@/components/ui/button';
 import { Input }        from '@/components/ui/input';
 import { Label }        from '@/components/ui/label';
 import { CustomSelect } from '@/components/ui/custom-select';
+import { AdminPage } from '../_components/admin-page';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog';
@@ -392,24 +393,16 @@ export default function ModuleRegistryPage() {
 
   // ── Render ────────────────────────────────────────────────────────────────────
   return (
-    <div className="mx-auto max-w-4xl p-4 md:p-8 space-y-6">
-
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-600">
-            <Puzzle className="h-5 w-5 text-white" />
-          </div>
-          <div>
-            <h1 className="text-xl font-bold text-slate-900">Module Registry</h1>
-            <p className="text-sm text-slate-500">จัดการ module ทั้งหมดในระบบ</p>
-          </div>
-        </div>
+    <AdminPage
+      title="Module Registry"
+      icon={<Puzzle className="h-6 w-6" />}
+      description="จัดการ module ทั้งหมดในระบบ"
+      actions={
         <Button onClick={openCreate} className="gap-2">
           <Plus className="h-4 w-4" /> สร้าง Module ใหม่
         </Button>
-      </div>
-
+      }
+    >
       {/* Toast */}
       {toast && (
         <div className={cn(
@@ -867,6 +860,6 @@ export default function ModuleRegistryPage() {
         </DialogContent>
       </Dialog>
 
-    </div>
+    </AdminPage>
   );
 }

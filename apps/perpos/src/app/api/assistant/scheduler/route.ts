@@ -20,8 +20,26 @@ async function run(req: NextRequest) {
 
   const admin = createAdminClient();
   const now = new Date();
+  const startedMs = Date.now();
+  // ตัวนับสรุปผลการรัน → เก็บลง scheduler_runs ให้หน้า Scheduler Monitor อ่าน
+  const counts = { stuck_failed: 0, requeued: 0, requeue_gaveup: 0, cleaned_jobs: 0 };
+  const logRun = async (okFlag: boolean, errorMessage?: string) => {
+    await admin.from('scheduler_runs').insert({
+      ran_at: now.toISOString(),
+      duration_ms: Date.now() - startedMs,
+      ok: okFlag,
+      ...counts,
+      error_message: errorMessage ?? null,
+    }).then(() => undefined, () => undefined); // log ต้องไม่ทำให้ scheduler ล้ม
+  };
+
   const accessToken = process.env.LINE_MESSAGING_CHANNEL_ACCESS_TOKEN ?? '';
-  if (!accessToken) return NextResponse.json({ ok: false, error: 'LINE token not configured' });
+  if (!accessToken) {
+    await logRun(false, 'LINE token not configured');
+    return NextResponse.json({ ok: false, error: 'LINE token not configured' });
+  }
+
+  try {
 
   // 4. Stuck STT jobs — งานถอดเสียงค้าง 'processing' (worker สะดุด/ตาย) → mark failed +
   //    แจ้ง LINE user (ไม่งั้นเงียบหายไม่รู้ว่าพัง). threshold แบบ adaptive + เพดาน 60 นาที
@@ -61,6 +79,7 @@ async function run(req: NextRequest) {
       .select('id, source, profile_id');
     const job = (failed ?? [])[0] as Record<string, unknown> | undefined;
     if (!job) continue; // worker เพิ่งเสร็จ/อัปเดตทัน → ข้าม
+    counts.stuck_failed++;
 
     // คืนโควต้าที่จองไว้ (idempotent) — กรณี worker crash กลางคันก่อน refund เอง
     await admin.rpc('refund_stt_job', { p_job_id: job.id as string }).then(() => undefined, () => undefined);
@@ -101,14 +120,18 @@ async function run(req: NextRequest) {
         .eq('id', pj.id as string)
         .eq('status', 'pending')
         .select('id');
-      if ((gv ?? []).length && pj.source === 'line') {
-        const { data: prof } = await admin.from('profiles').select('line_user_id').eq('id', pj.profile_id as string).maybeSingle();
-        const lineId = (prof as { line_user_id?: string } | null)?.line_user_id;
-        if (lineId) await pushLine(accessToken, lineId, '❌ ขออภัย ระบบไม่ว่างเป็นเวลานาน งานถอดเสียงถูกยกเลิก\nกรุณาพิมพ์ /mom แล้วส่งไฟล์อีกครั้งครับ');
+      if ((gv ?? []).length) {
+        counts.requeue_gaveup++;
+        if (pj.source === 'line') {
+          const { data: prof } = await admin.from('profiles').select('line_user_id').eq('id', pj.profile_id as string).maybeSingle();
+          const lineId = (prof as { line_user_id?: string } | null)?.line_user_id;
+          if (lineId) await pushLine(accessToken, lineId, '❌ ขออภัย ระบบไม่ว่างเป็นเวลานาน งานถอดเสียงถูกยกเลิก\nกรุณาพิมพ์ /mom แล้วส่งไฟล์อีกครั้งครับ');
+        }
       }
       continue;
     }
     await triggerSttWorker(admin, pj.id as string, pj.org_id as string); // overload อีก → คืน pending เอง รอรอบหน้า
+    counts.requeued++;
   }
 
   const STT_BUCKET = 'assistant_audio';
@@ -176,7 +199,13 @@ async function run(req: NextRequest) {
       .from('assistant_jobs')
       .update({ transcript_json: null, transcript_text: null, audio_url: null })
       .in('id', ids);
+    counts.cleaned_jobs += ids.length;
   }
 
-  return NextResponse.json({ ok: true });
+    await logRun(true);
+    return NextResponse.json({ ok: true, ...counts });
+  } catch (e) {
+    await logRun(false, e instanceof Error ? e.message : String(e));
+    return NextResponse.json({ ok: false, error: 'scheduler_failed' }, { status: 500 });
+  }
 }

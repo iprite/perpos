@@ -5,9 +5,10 @@ import { Button }       from '@/components/ui/button';
 import { CustomSelect } from '@/components/ui/custom-select';
 import {
   RefreshCw, ChevronDown, ChevronRight,
-  Wifi, WebhookIcon, Clock, CreditCard, Wrench,
+  Wifi, WebhookIcon, Clock, CreditCard, Wrench, HeartPulse,
 } from 'lucide-react';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
+import { AdminPage } from '../_components/admin-page';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -185,26 +186,26 @@ export default function HealthPage() {
     : 0;
 
   return (
-    <div className="p-6 max-w-5xl mx-auto space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Tenant Health</h1>
-          <p className="text-sm text-gray-500 mt-0.5">
-            คะแนนสุขภาพของแต่ละ org
-            {lastRefresh && (
-              <span className="ml-2 text-gray-400">
-                อัปเดตล่าสุด {lastRefresh.toLocaleTimeString('th-TH')}
-              </span>
-            )}
-          </p>
-        </div>
+    <AdminPage
+      title="Tenant Health"
+      icon={<HeartPulse className="h-6 w-6" />}
+      description={
+        <>
+          คะแนนสุขภาพของแต่ละ org
+          {lastRefresh && (
+            <span className="ml-2 text-gray-400">
+              อัปเดตล่าสุด {lastRefresh.toLocaleTimeString('th-TH')}
+            </span>
+          )}
+        </>
+      }
+      actions={
         <Button variant="outline" onClick={load} disabled={loading}>
           <RefreshCw className={`w-4 h-4 mr-1.5 ${loading ? 'animate-spin' : ''}`} />
           รีเฟรช
         </Button>
-      </div>
-
+      }
+    >
       {/* Summary */}
       <div className="grid grid-cols-6 gap-3">
         <div className="col-span-2 rounded-xl border border-gray-200 bg-gray-50 p-4 flex items-center gap-3">
@@ -337,6 +338,6 @@ export default function HealthPage() {
           })}
         </div>
       )}
-    </div>
+    </AdminPage>
   );
 }

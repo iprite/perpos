@@ -10,6 +10,7 @@ import {
 import { useAuth } from "@/app/shared/auth-provider";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { backendUrl } from "@/lib/backend";
+import { AdminPage } from "../_components/admin-page";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CustomSelect } from "@/components/ui/custom-select";
@@ -288,19 +289,13 @@ export default function AuditLogPage() {
   const totalPages = Math.max(1, Math.ceil(total / LIMIT));
 
   return (
-    <div className="space-y-5">
-
-      {/* ── Header ──────────────────────────────────────────────────── */}
-      <div className="flex flex-col justify-between gap-3 md:flex-row md:items-center">
-        <div>
-          <Title as="h1" className="text-lg font-semibold text-gray-900">
-            Audit Log
-          </Title>
-          <Text className="mt-0.5 text-sm text-gray-500">
-            ประวัติทุกการเปลี่ยนแปลงในระบบ — tamper-evident hash chain
-          </Text>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
+    <AdminPage
+      width="wide"
+      title="Audit Log"
+      icon={<ShieldCheck className="h-6 w-6" />}
+      description="ประวัติทุกการเปลี่ยนแปลงในระบบ — tamper-evident hash chain"
+      actions={
+        <>
           {/* Shipping status pill */}
           {shipping.map((s) => (
             <button
@@ -327,8 +322,9 @@ export default function AuditLogPage() {
             <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
             รีเฟรช
           </Button>
-        </div>
-      </div>
+        </>
+      }
+    >
 
       {/* ── Shipping detail (expandable) ────────────────────────────── */}
       {shippingOpen && shipping.length > 0 && (
@@ -636,6 +632,6 @@ export default function AuditLogPage() {
         </DialogContent>
       </Dialog>
 
-    </div>
+    </AdminPage>
   );
 }

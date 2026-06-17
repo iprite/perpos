@@ -3,8 +3,9 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { CustomSelect } from '@/components/ui/custom-select';
-import { ShieldCheck, RefreshCw, Loader2 } from 'lucide-react';
+import { ShieldCheck, RefreshCw, Loader2, ScrollText } from 'lucide-react';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
+import { AdminPage } from '../_components/admin-page';
 
 type Entry = {
   id: string;
@@ -67,12 +68,12 @@ export default function AdminAuditPage() {
   const totalPages = Math.max(1, Math.ceil(total / limit));
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <h1 className="flex items-center gap-2 text-2xl font-semibold text-gray-900">
-          <ShieldCheck className="h-6 w-6 text-indigo-600" /> บันทึกการจัดการ (Admin Audit)
-        </h1>
-        <div className="flex items-center gap-2">
+    <AdminPage
+      width="wide"
+      title="บันทึกการจัดการ (Admin Audit)"
+      icon={<ScrollText className="h-6 w-6" />}
+      actions={
+        <>
           <CustomSelect
             value={action}
             onChange={(v) => { setPage(1); setAction(v); }}
@@ -80,9 +81,9 @@ export default function AdminAuditPage() {
             className="w-52"
           />
           <Button variant="outline" size="sm" onClick={load} disabled={loading}><RefreshCw className="mr-2 h-4 w-4" /> รีเฟรช</Button>
-        </div>
-      </div>
-
+        </>
+      }
+    >
       <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -139,6 +140,6 @@ export default function AdminAuditPage() {
           <Button variant="outline" size="sm" disabled={page >= totalPages || loading} onClick={() => setPage((p) => p + 1)}>ถัดไป</Button>
         </div>
       </div>
-    </div>
+    </AdminPage>
   );
 }

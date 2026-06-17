@@ -9,6 +9,7 @@ import { CustomSelect } from '@/components/ui/custom-select';
 import { Coins, Clock, FileAudio, TrendingUp, RefreshCw, Loader2, Calculator } from 'lucide-react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
+import { AdminPage } from '../_components/admin-page';
 
 type CostStats = {
   window_days: number;
@@ -73,12 +74,11 @@ export default function AdminSttCostPage() {
   }, [s, markup]);
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6">
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <h1 className="flex items-center gap-2 text-2xl font-semibold text-gray-900">
-          <Coins className="h-6 w-6 text-indigo-600" /> ต้นทุน Gemini (แกะเสียง)
-        </h1>
-        <div className="flex items-center gap-2">
+    <AdminPage
+      title="ต้นทุน Gemini (แกะเสียง)"
+      icon={<Coins className="h-6 w-6" />}
+      actions={
+        <>
           <CustomSelect
             value={days}
             onChange={setDays}
@@ -92,9 +92,9 @@ export default function AdminSttCostPage() {
           />
           <Link href="/admin/stt-stats"><Button variant="outline" size="sm">สถิติ</Button></Link>
           <Button variant="outline" size="sm" onClick={load} disabled={loading}><RefreshCw className="mr-2 h-4 w-4" /> รีเฟรช</Button>
-        </div>
-      </div>
-
+        </>
+      }
+    >
       {loading ? (
         <div className="flex min-h-[40vh] items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-gray-400" /></div>
       ) : !s ? (
@@ -185,6 +185,6 @@ export default function AdminSttCostPage() {
           </div>
         </div>
       )}
-    </div>
+    </AdminPage>
   );
 }

@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Coins, TrendingUp, Users, Receipt, RefreshCw, Loader2 } from 'lucide-react';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
+import { AdminPage } from '../_components/admin-page';
 
 type Billing = {
   totals: { revenue_total: number; revenue_month: number; mrr: number; active_subscribers: number; payments_count: number };
@@ -55,18 +56,17 @@ export default function AdminSttBillingPage() {
   useEffect(() => { load(); }, [load]);
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6">
-      <div className="mb-6 flex items-center justify-between gap-3">
-        <h1 className="flex items-center gap-2 text-2xl font-semibold text-gray-900">
-          <Coins className="h-6 w-6 text-indigo-600" /> รายได้แกะเสียง (Billing)
-        </h1>
-        <div className="flex gap-2">
+    <AdminPage
+      title="รายได้แกะเสียง (Billing)"
+      icon={<Coins className="h-6 w-6" />}
+      actions={
+        <>
           <Link href="/admin/stt-stats"><Button variant="outline" size="sm">สถิติ</Button></Link>
           <Link href="/admin/stt-cost"><Button variant="outline" size="sm">ต้นทุน</Button></Link>
           <Button variant="outline" size="sm" onClick={load} disabled={loading}><RefreshCw className="mr-2 h-4 w-4" /> รีเฟรช</Button>
-        </div>
-      </div>
-
+        </>
+      }
+    >
       {loading ? (
         <div className="flex min-h-[40vh] items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-gray-400" /></div>
       ) : !s ? (
@@ -133,6 +133,6 @@ export default function AdminSttBillingPage() {
           <p className="text-xs text-gray-400">* refund / dispute / log ดิบ ดูที่ Stripe Dashboard โดยตรง — หน้านี้สรุปจากฐานข้อมูลของเรา</p>
         </div>
       )}
-    </div>
+    </AdminPage>
   );
 }
