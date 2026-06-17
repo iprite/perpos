@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
-import { BarChart3, Clock, CheckCircle2, FileAudio, Loader2, Globe, MessageCircle, Sparkles } from 'lucide-react';
+import { Clock, CheckCircle2, FileAudio, Loader2, Globe, MessageCircle, Sparkles } from 'lucide-react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 
 type Stats = {
@@ -50,17 +50,7 @@ export default function MyStatsPage() {
     ? Math.min(100, (stats.quota.used_seconds / stats.quota.limit_seconds) * 100) : 0;
 
   return (
-    <div className="w-full px-4 py-6 lg:px-8">
-      <div className="mb-6">
-        <h1 className="flex items-center gap-2.5 text-2xl font-semibold text-gray-900">
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
-            <BarChart3 className="h-5 w-5" />
-          </span>
-          การใช้งาน
-        </h1>
-        <p className="mt-1 text-sm text-gray-500">ภาพรวมการใช้โควต้าและสถิติการถอดเสียงของคุณ</p>
-      </div>
-
+    <>
       {loading ? (
         <div className="flex min-h-[40vh] items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-gray-400" /></div>
       ) : !stats ? (
@@ -125,6 +115,6 @@ export default function MyStatsPage() {
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 }

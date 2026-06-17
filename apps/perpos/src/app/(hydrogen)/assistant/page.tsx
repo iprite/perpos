@@ -328,17 +328,7 @@ export default function AssistantTranscribePage() {
 
   // ── Render ──────────────────────────────────────────────────────────────────────
   return (
-    <div className="w-full px-4 py-6 lg:px-8">
-      {/* Header */}
-      <div className="mb-6">
-        <h1 className="flex items-center gap-2.5 text-2xl font-semibold text-gray-900">
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
-            <Mic className="h-5 w-5" />
-          </span>
-          ถอดเสียงเป็นข้อความ
-        </h1>
-        <p className="mt-1 text-sm text-gray-500">อัปโหลดไฟล์เสียง/วิดีโอ ระบบจะถอดเป็นรายงานการประชุม (MoM) พร้อมแยกผู้พูด</p>
-      </div>
+    <>
 
       {/* KPI dashboard */}
       <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -681,7 +671,7 @@ export default function AssistantTranscribePage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </>
   );
 }
 

@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
-import { Loader2, Check, Clock, Sparkles, Plus, CreditCard, ShieldCheck } from 'lucide-react';
+import { Loader2, Check, Clock, Sparkles, Plus, ShieldCheck } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 
 type Plan = {
@@ -105,17 +105,7 @@ export default function TranscribeBillingPage() {
   const remainMin = quota ? Math.max(0, Math.floor((quota.limit - quota.used) / 60)) : null;
 
   return (
-    <div className="w-full px-4 py-6 lg:px-8">
-      <div className="mb-6">
-        <h1 className="flex items-center gap-2.5 text-2xl font-semibold text-gray-900">
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
-            <CreditCard className="h-5 w-5" />
-          </span>
-          การชำระเงิน
-        </h1>
-        <p className="mt-1 text-sm text-gray-500">จัดการแพ็กเกจรายเดือนและโควต้าการถอดเสียงของคุณ</p>
-      </div>
-
+    <>
       {loading ? (
         <div className="flex min-h-[40vh] items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-gray-400" /></div>
       ) : (
@@ -204,6 +194,6 @@ export default function TranscribeBillingPage() {
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 }

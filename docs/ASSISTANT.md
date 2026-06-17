@@ -125,7 +125,8 @@ STT เริ่มเป็นฟีเจอร์ org-scoped แล้ว ref
 > generic route = kind-agnostic (อนาคต reuse ได้) · `stt/*` = STT เฉพาะ
 
 ### Pages (`apps/perpos/src/app/(hydrogen)/assistant/`)
-`page.tsx` (อัป+poll+Dialog MoM+ดาวน์โหลด+quota banner) · `usage/` (กราฟ personal) · `billing/` (ซื้อแพ็ก) — **top-level ไม่มี `[orgSlug]`**
+- **`layout.tsx`** — shared shell ของทุกหน้าในร่ม (ดู §UI Shell ด้านล่าง)
+- `page.tsx` (อัป+poll+Dialog MoM+ดาวน์โหลด+quota banner) · `usage/` (กราฟ personal) · `billing/` (ซื้อแพ็ก) — **top-level ไม่มี `[orgSlug]`**
 
 ### Admin (super_admin)
 `admin/stt-users`, `admin/stt-stats`, `admin/stt-billing`, `admin/stt-cost` + API คู่กัน
@@ -150,6 +151,24 @@ STT เริ่มเป็นฟีเจอร์ org-scoped แล้ว ref
   - checkout สร้าง Stripe price อัตโนมัติถ้ายังไม่มี + reuse customer ต่อ profile + กันสมัครซ้ำ
   - webhook (`api/stripe/webhook`) เติมโควต้า idempotent (reuse `stripe_events`)
 - รายละเอียด RPC/migration → [STT doc §4](STT_MOM_FEATURE.md)
+
+---
+
+## 7.5 UI Shell & Layout convention
+
+ทุกหน้าใต้ `/assistant/*` ใช้ **shared shell เดียว** = [`(hydrogen)/assistant/layout.tsx`](../apps/perpos/src/app/(hydrogen)/assistant/layout.tsx) — Next.js App Router layout ที่ render ครั้งเดียว คงอยู่ข้ามการสลับหน้า:
+
+- ให้ **container + spacing** มาตรฐาน (`w-full px-4 py-6 lg:px-8`)
+- ให้ **header** (ไอคอน chip + ชื่อ + คำอธิบาย) ตามแท็บที่ active
+- ให้ **แท็บนำทาง** สลับ ถอดเสียง / การใช้งาน / การชำระเงิน (ก่อน refactor นี้ไม่มี — ต้องพึ่ง sidebar)
+
+**กฎ:**
+1. **หน้าลูกไม่มี container/header ของตัวเอง** — `return (<>...เนื้อหา...</>)` เท่านั้น (KPI/เนื้อหาเฉพาะหน้าวางใน fragment ตรง ๆ)
+2. **เพิ่มหน้าใหม่ใต้ร่ม = เติม 1 entry ใน `TABS`** ใน `layout.tsx` (href/label/title/subtitle/icon) — header + แท็บอัปเดตเอง
+3. header/แท็บ active ตัดสินจาก `usePathname()` (exact สำหรับ `/assistant`, prefix สำหรับ subpath)
+4. สไตล์อิง DESIGN.md (indigo primary, แท็บ underline)
+
+> เหตุผลเชิงสถาปัตยกรรม: layout = "เปลือกของร่ม" — ถ้ามี kind ที่ 2 ในอนาคต แท็บ/shell ขยายได้ที่จุดเดียว
 
 ---
 
