@@ -7,6 +7,7 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { backendUrl } from "@/lib/backend";
 import { Button } from "@/components/ui/button";
 import { StatusBadge, type BadgeTone } from "@/components/ui/badge";
+import { Dropdown, type DropdownItem } from "@/components/ui/dropdown";
 import { ALL_MODULES, MODULE_LABELS, MODULE_MENUS, ORG_ROLES, type OrgRole } from "@/lib/modules";
 import { AdminPage } from "../_components/admin-page";
 
@@ -198,7 +199,6 @@ export default function AdminModulesPage() {
 
   const [orgs, setOrgs]                       = useState<OrgItem[]>([]);
   const [selectedOrgId, setSelectedOrgId]     = useState("");
-  const [orgOpen, setOrgOpen]                 = useState(false);
   const [settings, setSettings]               = useState<ModuleSetting[]>([]);
   const [menuSettings, setMenuSettings]       = useState<MenuSetting[]>([]);
   const [changeLog, setChangeLog]             = useState<ChangeLogEntry[]>([]);
@@ -337,32 +337,17 @@ export default function AdminModulesPage() {
     >
       {/* Org selector + save */}
       <div className="flex flex-wrap items-center gap-3">
-        <div className="relative">
-          <button
-            type="button"
-            onClick={() => setOrgOpen((v) => !v)}
-            className="inline-flex h-9 min-w-[220px] items-center justify-between gap-2 rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-800 hover:bg-slate-50"
-          >
-            <span className="truncate font-medium">{selectedOrg?.name ?? "เลือกองค์กร"}</span>
-            <ChevronDown className="h-4 w-4 shrink-0 text-slate-400" />
-          </button>
-          {orgOpen && (
-            <div className="absolute left-0 top-full z-50 mt-1 w-64 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg">
-              <div className="max-h-60 overflow-y-auto py-1">
-                {orgs.map((org) => (
-                  <button
-                    key={org.id} type="button"
-                    onClick={() => { setSelectedOrgId(org.id); setOrgOpen(false); }}
-                    className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm text-slate-700 hover:bg-slate-50"
-                  >
-                    <span className="flex-1 truncate">{org.name}</span>
-                    {org.id === selectedOrgId && <span className="h-2 w-2 shrink-0 rounded-full bg-slate-600" />}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
+        <Dropdown
+          label={selectedOrg?.name ?? "เลือกองค์กร"}
+          selectedKey={selectedOrgId}
+          items={(orgs as OrgItem[]).map((org): DropdownItem => ({
+            key: org.id,
+            label: org.name,
+            onClick: () => setSelectedOrgId(org.id),
+          }))}
+          className="min-w-[220px]"
+          placement="bottom-start"
+        />
 
         <Button disabled={!selectedOrgId || saving || loading} onClick={() => void save()}>
           {saving ? "กำลังบันทึก…" : "บันทึก"}

@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import cn from "@core/utils/class-names";
 import { MoreVertical, Plus, Mail, UserMinus } from "lucide-react";
+import { Popover } from "@/components/ui/popover";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -85,7 +86,7 @@ function MemberMenu({
   organizationId: string;
   onUpdated: (updated: OrgMemberRow) => void;
 }) {
-  const [open, setOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [role, setRole] = useState(member.role);
   const [saving, setSaving] = useState(false);
@@ -111,38 +112,38 @@ function MemberMenu({
 
   return (
     <>
-      <div className="relative inline-block">
-        <button
-          type="button"
-          onClick={() => setOpen((v) => !v)}
-          className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
-        >
-          <MoreVertical className="h-4 w-4" />
-        </button>
-        {open && (
-          <>
-            <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-            <div className="absolute right-0 z-20 mt-1 w-36 overflow-hidden rounded-md border border-slate-200 bg-white shadow-md">
-              <button
-                type="button"
-                onClick={() => { setOpen(false); setEditOpen(true); }}
-                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
-              >
-                เปลี่ยนสิทธิ์
-              </button>
-              <button
-                type="button"
-                onClick={() => { setOpen(false); handleRemove(); }}
-                disabled={removing}
-                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50"
-              >
-                <UserMinus className="h-3.5 w-3.5" />
-                นำออก
-              </button>
-            </div>
-          </>
-        )}
-      </div>
+      <Popover
+        open={menuOpen}
+        onOpenChange={setMenuOpen}
+        placement="bottom-end"
+        trigger={
+          <button
+            type="button"
+            className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+          >
+            <MoreVertical className="h-4 w-4" />
+          </button>
+        }
+      >
+        <div className="w-36 py-1">
+          <button
+            type="button"
+            onClick={() => { setMenuOpen(false); setEditOpen(true); }}
+            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
+          >
+            เปลี่ยนสิทธิ์
+          </button>
+          <button
+            type="button"
+            onClick={() => { setMenuOpen(false); void handleRemove(); }}
+            disabled={removing}
+            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 disabled:opacity-50"
+          >
+            <UserMinus className="h-3.5 w-3.5" />
+            นำออก
+          </button>
+        </div>
+      </Popover>
 
       <Dialog open={editOpen} onOpenChange={(v) => { if (!v) setEditOpen(false); }}>
         <DialogContent size="sm">

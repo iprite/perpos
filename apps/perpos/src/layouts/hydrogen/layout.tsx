@@ -1,13 +1,11 @@
 import React from "react";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import Header from "./header";
 import Sidebar from "./sidebar";
-import Link from "next/link";
+import HamburgerButton from "@/layouts/hamburger-button";
 import { ImpersonationBanner } from "@/components/impersonation-banner";
 import { AnnouncementBanner } from "@/components/announcement-banner";
 import { Breadcrumb } from "@/components/ui/breadcrumb";
-import StickyFooter from "@/layouts/sticky-footer";
 import { ModuleProvider } from "@/app/shared/module-provider";
 import { ALL_MODULES } from "@/lib/modules";
 import {
@@ -89,27 +87,24 @@ export default async function HydrogenLayout({ children }: { children: React.Rea
           organizations={orgs}
           activeOrganizationId={activeOrg?.id ?? null}
         />
+        <div className="fixed top-[calc(var(--impersonation-banner-height,0px)+1rem)] left-4 z-[9999] xl:hidden">
+          <HamburgerButton
+            view={
+              <Sidebar
+                className="static w-full 2xl:w-full"
+                organizations={orgs}
+                activeOrganizationId={activeOrg?.id ?? null}
+              />
+            }
+          />
+        </div>
         <div className="flex w-full flex-col xl:ms-[270px] xl:w-[calc(100%-270px)] 2xl:ms-72 2xl:w-[calc(100%-288px)] pt-[var(--impersonation-banner-height,0px)]">
-          <Header enabledModuleKeys={enabledKeys} />
           <ImpersonationBanner />
           <AnnouncementBanner />
           <div className="flex flex-grow flex-col px-4 pb-6 pt-2 md:px-5 lg:px-6 lg:pb-8 3xl:px-8 3xl:pt-4 4xl:px-10 4xl:pb-9">
             <Breadcrumb />
             {children}
           </div>
-          <StickyFooter className="px-4 py-5 text-sm text-gray-600 md:px-5 lg:px-6 3xl:px-8 4xl:px-10">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="text-center sm:text-left">© 2026 P2P Solutions. All Rights Reserved.</div>
-              <div className="hidden sm:flex flex-wrap gap-x-4 gap-y-2">
-                <Link href="/privacy" className="hover:text-gray-900">
-                  นโยบายความเป็นส่วนตัว
-                </Link>
-                <Link href="/terms" className="hover:text-gray-900">
-                  ข้อกำหนดการให้บริการ
-                </Link>
-              </div>
-            </div>
-          </StickyFooter>
         </div>
       </main>
     </ModuleProvider>
