@@ -270,7 +270,7 @@ async function runJob(jobId: string, orgId: string): Promise<void> {
 
 // ส่งงานให้ฝั่ง Next.js สร้าง PDF MoM แล้ว push กลับ LINE (secret-gated)
 async function deliverMomToLine(jobId: string, orgId: string): Promise<void> {
-  const baseUrl = (process.env.APP_BASE_URL ?? 'https://perpos.io').replace(/\/$/, '');
+  const baseUrl = (process.env.APP_BASE_URL ?? 'https://app.perpos.io').replace(/\/$/, '');
   const secret = (process.env.WORKER_SECRET ?? '').trim();
   const resp = await fetch(`${baseUrl}/api/assistant/stt/mom-deliver`, {
     method: 'POST',
@@ -642,15 +642,9 @@ async function notifyLine(job: Record<string, unknown>): Promise<void> {
   const lineUserId = (profile as { line_user_id?: string } | null)?.line_user_id;
   if (!lineUserId) return;
 
-  // Deep-link ไปหน้า transcribe ขององค์กรนั้น (ใช้ org slug)
-  const { data: org } = await admin
-    .from('organizations')
-    .select('slug')
-    .eq('id', job.org_id as string)
-    .maybeSingle();
-  const slug = (org as { slug?: string } | null)?.slug;
-  const baseUrl = (process.env.APP_BASE_URL ?? 'https://perpos.io').replace(/\/$/, '');
-  const link = slug ? `\n🔗 ${baseUrl}/${slug}/assistant/transcribe` : '';
+  // Deep-link ไปหน้าผู้ช่วย AI (per-profile, top-level — ไม่มี org slug หลัง umbrella v2)
+  const baseUrl = (process.env.APP_BASE_URL ?? 'https://app.perpos.io').replace(/\/$/, '');
+  const link = `\n🔗 ${baseUrl}/assistant`;
 
   const fileName = String(job.file_name ?? 'ไฟล์เสียง');
   const message = `✅ ถอดเสียงเสร็จแล้ว\n📄 ${fileName}${link}`;
