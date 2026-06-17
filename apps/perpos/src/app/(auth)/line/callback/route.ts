@@ -1,21 +1,17 @@
 /**
  * GET /line/callback?code=...&state=...
  *   — LINE Login OAuth callback: แลก code → access token → LINE userId →
- *     หา/สร้าง profile (provisionLineUser) → ตั้ง Supabase session → redirect เข้าแอป
+ *     เช็คว่าแอด OA แล้วหรือยัง (เพื่อให้ระบบ track + push ได้)
+ *       · ยังไม่แอด → onboard ให้แอดก่อน (redirect /line/add-friend) — ยังไม่ provision/login
+ *       · แอดแล้ว → หา/สร้าง profile (provisionLineUser) → ตั้ง Supabase session → เข้าแอป
  *
  * userId ที่ได้จาก Login channel = line_user_id เดียวกับ Messaging channel
  * ต่อเมื่อทั้งสอง channel อยู่ provider เดียวกัน (เงื่อนไขการตั้งค่า)
  */
 
-import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
-import { createSupabaseAdminClient } from '@/lib/supabase/admin';
-import { provisionLineUser } from '@/app/api/line/_provision';
 import { withBasePath } from '@/utils/base-path';
-
-function appBaseUrl(): string {
-  return (process.env.APP_BASE_URL ?? 'https://app.perpos.io').replace(/\/$/, '');
-}
+import { appBaseUrl, completeLineLogin, isLineFriend, PENDING_UID_COOKIE } from '../_session';
 
 export async function GET(request: NextRequest) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -47,7 +43,7 @@ export async function GET(request: NextRequest) {
 
   const redirectUri = `${appBaseUrl()}${withBasePath('/line/callback')}`;
 
-  // 2. แลก code → access token
+  // 2. แลก code → access token → ดึง LINE profile → userId
   let lineUserId: string;
   try {
     const tokenRes = await fetch('https://api.line.me/oauth2/v2.1/token', {
@@ -65,7 +61,6 @@ export async function GET(request: NextRequest) {
     const tok = (await tokenRes.json()) as { access_token?: string };
     if (!tok.access_token) return signin('line_login_token');
 
-    // 3. ดึง LINE profile → userId
     const profRes = await fetch('https://api.line.me/v2/profile', {
       headers: { Authorization: `Bearer ${tok.access_token}` },
     });
@@ -77,49 +72,22 @@ export async function GET(request: NextRequest) {
     return signin('line_login_failed');
   }
 
-  const admin = createSupabaseAdminClient();
-
-  // 4. หา profile by line_user_id — ไม่มี → provision (idempotent, สร้างบัญชี + STT trial)
-  let email: string | null = null;
-  let role: string | null = null;
-  const { data: prof } = await admin.from('profiles').select('id, email, is_active, role').eq('line_user_id', lineUserId).maybeSingle();
-  if (prof) {
-    if ((prof as { is_active?: boolean }).is_active === false) return signin('account_inactive');
-    email = (prof as { email?: string }).email ?? null;
-    role = (prof as { role?: string }).role ?? null;
-  } else {
-    try {
-      const result = await provisionLineUser(admin, lineUserId);
-      const { data: p2 } = await admin.from('profiles').select('email').eq('id', result.profileId).maybeSingle();
-      email = (p2 as { email?: string } | null)?.email ?? null;
-    } catch {
-      return signin('line_login_provision');
-    }
+  // 3. ด่านสำคัญ: ต้องแอด OA ก่อน ระบบถึงจะ track + push ได้ → ยังไม่แอด = onboard ก่อน login
+  //    (fail-open: null = ไม่ทราบสถานะ ปล่อยผ่าน กันล็อกเอาต์ทั้งระบบเวลา LINE API ล่ม)
+  const friend = await isLineFriend(lineUserId);
+  if (friend === false) {
+    const dest = new URL(withBasePath('/line/add-friend'), request.url);
+    const response = NextResponse.redirect(dest);
+    const cookieOpts = { httpOnly: true, secure: true, sameSite: 'lax' as const, path: '/', maxAge: 900 };
+    // เก็บ uid + returnTo ไว้ verify ซ้ำหลังผู้ใช้แอด OA (ไม่ต้อง re-OAuth)
+    response.cookies.set(PENDING_UID_COOKIE, lineUserId, cookieOpts);
+    response.cookies.set('line_oauth_return', returnTo, cookieOpts);
+    response.cookies.set('line_oauth_state', '', { path: '/', maxAge: 0 });
+    return response;
   }
-  if (!email) return signin('account_missing');
 
-  // 5. magic link → token_hash → verifyOtp → ตั้ง session cookies
-  const { data: gl, error: ge } = await admin.auth.admin.generateLink({ type: 'magiclink', email });
-  const tokenHash = gl?.properties?.hashed_token;
-  if (ge || !tokenHash) return signin('login_failed');
-
-  // login เป็น LINE-only → เข้าแอปได้เลย (ไม่ต้องตั้ง email/password)
-  // super_admin → admin console เสมอ (ข้าม returnTo ที่อาจเป็น deep link เก่า เช่น stt)
-  const landing = role === 'super_admin' ? '/admin' : returnTo;
-  const dest = new URL(withBasePath(landing), request.url);
-  const response = NextResponse.redirect(dest);
-  // ล้าง oauth cookies
-  response.cookies.set('line_oauth_state', '', { path: '/', maxAge: 0 });
-  response.cookies.set('line_oauth_return', '', { path: '/', maxAge: 0 });
-
-  const supabase = createServerClient(url, anonKey, {
-    cookies: {
-      getAll() { return request.cookies.getAll(); },
-      setAll(cookiesToSet) { for (const c of cookiesToSet) response.cookies.set(c.name, c.value, c.options); },
-    },
-  });
-  const { error: ve } = await supabase.auth.verifyOtp({ type: 'email', token_hash: tokenHash });
-  if (ve) return signin('login_failed');
-
-  return response;
+  // 4. แอดแล้ว (หรือไม่ทราบสถานะ) → provision + ตั้ง session + เข้าแอป
+  const result = await completeLineLogin(request, lineUserId, returnTo);
+  if ('error' in result) return signin(result.error);
+  return result.response;
 }
