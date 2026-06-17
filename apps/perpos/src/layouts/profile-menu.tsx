@@ -7,7 +7,7 @@ import { Avatar } from "@/components/ui/avatar";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { LogOut, ChevronsUpDown, User, PenLine, Zap, Triangle, MessageCircle } from "lucide-react";
+import { LogOut, ChevronsUpDown, User, Zap, Building2, MessageCircle } from "lucide-react";
 
 import { useAuth } from "@/app/shared/auth-provider";
 import { useOrgSlug } from "@/app/shared/module-provider";
@@ -99,20 +99,20 @@ function DropdownMenu() {
       icon: <User className="h-[18px] w-[18px] shrink-0 text-gray-500" />,
     },
     {
-      label: "ลายเซ็นรับรองใบเสร็จ",
-      href: "/user",
-      icon: <PenLine className="h-[18px] w-[18px] shrink-0 text-gray-500" />,
-    },
-    {
       label: "แพ็กเกจสมาชิก",
       href: "/assistant/billing",
       icon: <Zap className="h-[18px] w-[18px] shrink-0 text-gray-500" />,
     },
-    {
-      label: "การเข้าถึง Google",
-      href: orgSlug ? `/${orgSlug}/setting` : "/user",
-      icon: <Triangle className="h-[18px] w-[18px] shrink-0 text-gray-500" />,
-    },
+    // แสดงเฉพาะ user ที่มี active org
+    ...(orgSlug
+      ? [
+          {
+            label: "การตั้งค่าองค์กร",
+            href: `/${orgSlug}/setting`,
+            icon: <Building2 className="h-[18px] w-[18px] shrink-0 text-gray-500" />,
+          },
+        ]
+      : []),
   ];
 
   return (
