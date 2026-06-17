@@ -74,18 +74,18 @@ export async function handleJustMeClock(
     const toLabel = note || (isArriveHome ? 'บ้าน 🏠' : 'หน้างาน');
 
     // Green gradient for site arrive (CLOCK IN), purple for home arrive
-    const startColor = isArriveHome ? '#7C3AED' : '#059669';
-    const endColor = isArriveHome ? '#A78BFA' : '#34D399';
+    const startColor = isArriveHome ? '#7761A7' : '#46BC9E';
+    const endColor = isArriveHome ? '#A290CA' : '#79DCC3';
     const headerTitle = isArriveHome ? '🏠 ถึงบ้านแล้ว' : '⏰ CLOCK IN REQUEST';
     const headerSub = isArriveHome ? 'สิ้นสุดการเดินทางวันนี้' : `ถึงหน้างาน: ${toLabel}`;
     const descText = isArriveHome 
       ? '🚗 ระบบจะคำนวณระยะทาง hop สุดท้ายและสรุปค่าเดินทางทั้งหมดของวันนี้'
       : '🔒 ระบบความปลอดภัยจะดึงพิกัด GPS จริงของคุณโดยตรงจากอุปกรณ์ และเริ่มนับเวลาทำงาน';
     const btnLabel = isArriveHome ? '📍 บันทึกถึงบ้าน (บันทึก GPS)' : '📍 บันทึกเข้างาน ณ ตำแหน่งนี้';
-    const btnColor = isArriveHome ? '#7C3AED' : '#059669';
-    const boxBgColor = isArriveHome ? '#F5F3FF' : '#F0FDF4';
-    const boxBorderColor = isArriveHome ? '#DDD6FE' : '#BBF7D0';
-    const tagColor = isArriveHome ? '#5B21B6' : '#15803D';
+    const btnColor = isArriveHome ? '#7761A7' : '#46BC9E';
+    const boxBgColor = isArriveHome ? '#F6F4FA' : '#F2FCF9';
+    const boxBorderColor = isArriveHome ? '#D9D1E9' : '#C8F1E6';
+    const tagColor = isArriveHome ? '#61537F' : '#44A38B';
 
     return replyLine(replyToken, [{
       type: 'flex',
@@ -110,7 +110,7 @@ export async function handleJustMeClock(
               borderWidth: '1px', borderColor: boxBorderColor,
               contents: [
                 { type: 'text', text: `🚗 จาก: ${fromLabel}`, color: tagColor, size: 'sm', weight: 'bold' },
-                { type: 'text', text: descText, color: '#475569', size: 'xs', wrap: true, margin: 'sm' },
+                { type: 'text', text: descText, color: '#525866', size: 'xs', wrap: true, margin: 'sm' },
               ],
             },
             {
@@ -133,18 +133,18 @@ export async function handleJustMeClock(
   const currentPlace = isLeavingSite ? (session?.last_in_address || 'หน้างาน') : 'บ้าน';
   
   // Blue gradient for departing home, Amber/orange for departing site
-  const startColor = isDepartingHome ? '#2563EB' : '#D97706';
-  const endColor = isDepartingHome ? '#60A5FA' : '#FCD34D';
+  const startColor = isDepartingHome ? '#4DB0D3' : '#E6BB51';
+  const endColor = isDepartingHome ? '#7FD2EF' : '#FFE7AD';
   const headerTitle = isDepartingHome ? '🏠 ออกจากบ้าน' : '⏰ CLOCK OUT REQUEST';
   const headerSub = note || (isDepartingHome ? 'เริ่มการเดินทางจากบ้านเพื่อไปหน้างาน' : `ออกจากหน้างาน: ${currentPlace}`);
   const descText = isDepartingHome
     ? '📍 GPS ณ ตำแหน่งนี้จะเป็นจุดเริ่มต้นของการคำนวณระยะทาง hop แรก'
     : '📍 ระบบจะบันทึกพิกัดเพื่อคำนวณระยะทาง hop ถัดไป และหยุดจับเวลาทำงานของ site นี้';
   const btnLabel = isDepartingHome ? '📍 บันทึกออกจากบ้าน (บันทึก GPS)' : '📍 บันทึกออกจากหน้างาน (บันทึก GPS)';
-  const btnColor = isDepartingHome ? '#2563EB' : '#D97706';
-  const boxBgColor = isDepartingHome ? '#EFF6FF' : '#FFFBEB';
-  const boxBorderColor = isDepartingHome ? '#BFDBFE' : '#FDE68A';
-  const tagColor = isDepartingHome ? '#1E40AF' : '#92400E';
+  const btnColor = isDepartingHome ? '#4DB0D3' : '#E6BB51';
+  const boxBgColor = isDepartingHome ? '#F3FBFD' : '#FFFCF3';
+  const boxBorderColor = isDepartingHome ? '#CAECF8' : '#FFF0CC';
+  const tagColor = isDepartingHome ? '#46839A' : '#A58A49';
 
   return replyLine(replyToken, [{
     type: 'flex',
@@ -169,7 +169,7 @@ export async function handleJustMeClock(
             borderWidth: '1px', borderColor: boxBorderColor,
             contents: [
               { type: 'text', text: `📍 กำลังออกจาก: ${currentPlace}`, color: tagColor, size: 'xs', wrap: true },
-              { type: 'text', text: descText, color: '#64748B', size: 'xs', wrap: true, margin: 'sm' },
+              { type: 'text', text: descText, color: '#656D78', size: 'xs', wrap: true, margin: 'sm' },
             ],
           },
           {

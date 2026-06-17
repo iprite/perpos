@@ -20,7 +20,7 @@ function fmt(n: number) {
   return n.toLocaleString("th-TH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-const pieColors = ["#10B981", "#34D399", "#6EE7B7", "#A7F3D0", "#D1FAE5"];
+const pieColors = ["#48CFAD", "#79DCC3", "#A7E8D8", "#C8F1E6", "#E4F8F3"];
 
 export function ExecutiveDashboardClient(props: {
   organizationId: string;
@@ -102,8 +102,8 @@ export function ExecutiveDashboardClient(props: {
                 <YAxis />
                 <Tooltip formatter={(v: any) => fmt(Number(v))} />
                 <Legend />
-                <Bar dataKey="revenue" name="Revenue" fill="#10B981" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="expense" name="Expense" fill="#64748B" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="revenue" name="Revenue" fill="#48CFAD" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="expense" name="Expense" fill="#656D78" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -116,7 +116,7 @@ export function ExecutiveDashboardClient(props: {
                   <XAxis dataKey="month" />
                   <YAxis />
                   <Tooltip formatter={(v: any) => fmt(Number(v))} />
-                  <Line type="monotone" dataKey="netProfit" name="Net Profit" stroke="#2563EB" strokeWidth={2} dot={false} />
+                  <Line type="monotone" dataKey="netProfit" name="Net Profit" stroke="#4DB0D3" strokeWidth={2} dot={false} />
                 </LineChart>
               </ResponsiveContainer>
             </div>

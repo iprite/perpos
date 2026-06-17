@@ -48,26 +48,88 @@ const config: Omit<Config, "content"> = {
           dark: "rgb(var(--secondary-dark) / <alpha-value>)",
           foreground: "rgb(var(--secondary-foreground) / <alpha-value>)",
         },
+        // ─────────────────────────────────────────────────────────────
+        // PERPOS STANDARD PALETTE (flat-UI). ทุกสีในแอปต้องมาจากชุดนี้เท่านั้น
+        // ทุก Tailwind color family ถูก map กลับเข้าสีพาเลตต์มาตรฐาน
+        // (จับเฉดหลักที่ 500 แล้วไล่ tint/shade) — ดู DESIGN.md §2
+        //   blue/sky/cyan      → AQUA #4FC1E9 (primary/brand + info)
+        //   indigo/violet/purple → PLUM #8067B7
+        //   pink/rose/fuchsia  → PINK ROSE #EC87C0
+        //   red                → RUBY #D8334A (negative/destructive)
+        //   orange             → BITTERSWEET #FC6E51
+        //   amber/yellow       → SUNFLOWER #FFCE54 (warning)
+        //   green/emerald      → MINT #48CFAD (positive)
+        //   lime               → GRASS #A0D468
+        //   teal               → TEAL #A0CECB
+        //   slate/zinc/neutral/stone → neutral gray ramp (= gray)
+        // ─────────────────────────────────────────────────────────────
         red: {
           lighter: "rgb(var(--red-lighter) / <alpha-value>)",
           DEFAULT: "rgb(var(--red-default) / <alpha-value>)",
           dark: "rgb(var(--red-dark) / <alpha-value>)",
+          50: "#FCF1F2", 100: "#F9E0E4", 200: "#F3C2C9", 300: "#EC9DA8", 400: "#E36A7B", 500: "#D8334A", 600: "#C43448", 700: "#A93546", 800: "#903744", 900: "#773842",
         },
         orange: {
           lighter: "rgb(var(--orange-lighter) / <alpha-value>)",
           DEFAULT: "rgb(var(--orange-default) / <alpha-value>)",
           dark: "rgb(var(--orange-dark) / <alpha-value>)",
+          50: "#FFF5F3", 100: "#FFE9E5", 200: "#FED4CB", 300: "#FEB9AB", 400: "#FD9580", 500: "#FC6E51", 600: "#E3674E", 700: "#C25F4B", 800: "#A45748", 900: "#854E45",
         },
         blue: {
           lighter: "rgb(var(--blue-lighter) / <alpha-value>)",
           DEFAULT: "rgb(var(--blue-default) / <alpha-value>)",
           dark: "rgb(var(--blue-dark) / <alpha-value>)",
+          50: "#F3FBFD", 100: "#E5F6FC", 200: "#CAECF8", 300: "#ABE1F4", 400: "#7FD2EF", 500: "#4FC1E9", 600: "#4DB0D3", 700: "#4999B5", 800: "#46839A", 900: "#436E7E",
         },
         green: {
           lighter: "rgb(var(--green-lighter) / <alpha-value>)",
           DEFAULT: "rgb(var(--green-default) / <alpha-value>)",
           dark: "rgb(var(--green-dark) / <alpha-value>)",
+          50: "#F2FCF9", 100: "#E4F8F3", 200: "#C8F1E6", 300: "#A7E8D8", 400: "#79DCC3", 500: "#48CFAD", 600: "#46BC9E", 700: "#44A38B", 800: "#428B79", 900: "#417368",
         },
+        sky: {
+          50: "#F3FBFD", 100: "#E5F6FC", 200: "#CAECF8", 300: "#ABE1F4", 400: "#7FD2EF", 500: "#4FC1E9", 600: "#4DB0D3", 700: "#4999B5", 800: "#46839A", 900: "#436E7E",
+        },
+        cyan: {
+          50: "#F3FBFD", 100: "#E5F6FC", 200: "#CAECF8", 300: "#ABE1F4", 400: "#7FD2EF", 500: "#4FC1E9", 600: "#4DB0D3", 700: "#4999B5", 800: "#46839A", 900: "#436E7E",
+        },
+        indigo: {
+          50: "#F6F4FA", 100: "#ECE8F4", 200: "#D9D1E9", 300: "#C2B6DC", 400: "#A290CA", 500: "#8067B7", 600: "#7761A7", 700: "#6C5A92", 800: "#61537F", 900: "#564C6B",
+        },
+        violet: {
+          50: "#F6F4FA", 100: "#ECE8F4", 200: "#D9D1E9", 300: "#C2B6DC", 400: "#A290CA", 500: "#8067B7", 600: "#7761A7", 700: "#6C5A92", 800: "#61537F", 900: "#564C6B",
+        },
+        purple: {
+          50: "#F6F4FA", 100: "#ECE8F4", 200: "#D9D1E9", 300: "#C2B6DC", 400: "#A290CA", 500: "#8067B7", 600: "#7761A7", 700: "#6C5A92", 800: "#61537F", 900: "#564C6B",
+        },
+        fuchsia: {
+          50: "#FEF7FB", 100: "#FCEDF6", 200: "#F9DBEC", 300: "#F6C5E1", 400: "#F1A7D1", 500: "#EC87C0", 600: "#D57DAF", 700: "#B77099", 800: "#9B6484", 900: "#7F586F",
+        },
+        pink: {
+          50: "#FEF7FB", 100: "#FCEDF6", 200: "#F9DBEC", 300: "#F6C5E1", 400: "#F1A7D1", 500: "#EC87C0", 600: "#D57DAF", 700: "#B77099", 800: "#9B6484", 900: "#7F586F",
+        },
+        rose: {
+          50: "#FEF7FB", 100: "#FCEDF6", 200: "#F9DBEC", 300: "#F6C5E1", 400: "#F1A7D1", 500: "#EC87C0", 600: "#D57DAF", 700: "#B77099", 800: "#9B6484", 900: "#7F586F",
+        },
+        amber: {
+          50: "#FFFCF3", 100: "#FFF8E5", 200: "#FFF0CC", 300: "#FFE7AD", 400: "#FFDB82", 500: "#FFCE54", 600: "#E6BB51", 700: "#C4A24D", 800: "#A58A49", 900: "#867346",
+        },
+        yellow: {
+          50: "#FFFCF3", 100: "#FFF8E5", 200: "#FFF0CC", 300: "#FFE7AD", 400: "#FFDB82", 500: "#FFCE54", 600: "#E6BB51", 700: "#C4A24D", 800: "#A58A49", 900: "#867346",
+        },
+        lime: {
+          50: "#F8FCF4", 100: "#F1F9E8", 200: "#E2F2D2", 300: "#D1EAB7", 400: "#BAE091", 500: "#A0D468", 600: "#93C062", 700: "#82A65B", 800: "#728E54", 900: "#62754D",
+        },
+        emerald: {
+          50: "#F2FCF9", 100: "#E4F8F3", 200: "#C8F1E6", 300: "#A7E8D8", 400: "#79DCC3", 500: "#48CFAD", 600: "#46BC9E", 700: "#44A38B", 800: "#428B79", 900: "#417368",
+        },
+        teal: {
+          50: "#F8FCFB", 100: "#F1F8F7", 200: "#E2F0EF", 300: "#D1E7E6", 400: "#BADBD9", 500: "#A0CECB", 600: "#93BBB9", 700: "#82A2A0", 800: "#728A8A", 900: "#627373",
+        },
+        slate: { 0: "#FFFFFF", 50: "#F8FAFC", 100: "#F5F7FA", 200: "#E6E9EE", 300: "#CCD1D9", 400: "#9CA3AF", 500: "#656D78", 600: "#525866", 700: "#3C3B3D", 800: "#2A2A2C", 900: "#1A1A1B", 950: "#0F0F10" },
+        zinc: { 0: "#FFFFFF", 50: "#F8FAFC", 100: "#F5F7FA", 200: "#E6E9EE", 300: "#CCD1D9", 400: "#9CA3AF", 500: "#656D78", 600: "#525866", 700: "#3C3B3D", 800: "#2A2A2C", 900: "#1A1A1B", 950: "#0F0F10" },
+        neutral: { 0: "#FFFFFF", 50: "#F8FAFC", 100: "#F5F7FA", 200: "#E6E9EE", 300: "#CCD1D9", 400: "#9CA3AF", 500: "#656D78", 600: "#525866", 700: "#3C3B3D", 800: "#2A2A2C", 900: "#1A1A1B", 950: "#0F0F10" },
+        stone: { 0: "#FFFFFF", 50: "#F8FAFC", 100: "#F5F7FA", 200: "#E6E9EE", 300: "#CCD1D9", 400: "#9CA3AF", 500: "#656D78", 600: "#525866", 700: "#3C3B3D", 800: "#2A2A2C", 900: "#1A1A1B", 950: "#0F0F10" },
       },
       fontFamily: {
         inter: ["var(--font-inter)"],

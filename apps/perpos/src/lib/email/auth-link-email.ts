@@ -13,17 +13,17 @@ export function buildAuthLinkEmail(opts: { title: string; actionLabel: string; a
   </head>
   <body style="margin:0;padding:0;background:#f8fafc;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;">
     <div style="max-width:560px;margin:0 auto;padding:24px;">
-      <div style="background:#ffffff;border:1px solid #e5e7eb;border-radius:12px;padding:20px;">
-        <div style="font-size:18px;font-weight:700;color:#111827;">${title}</div>
-        <div style="margin-top:10px;font-size:14px;line-height:20px;color:#374151;">
+      <div style="background:#ffffff;border:1px solid #E6E9EE;border-radius:12px;padding:20px;">
+        <div style="font-size:18px;font-weight:700;color:#1A1A1B;">${title}</div>
+        <div style="margin-top:10px;font-size:14px;line-height:20px;color:#3C3B3D;">
           กดปุ่มด้านล่างเพื่อดำเนินการต่อ
         </div>
         <div style="margin-top:16px;">
-          <a href="${actionLinkEscaped}" style="display:inline-block;background:#2563eb;color:#ffffff;text-decoration:none;padding:10px 14px;border-radius:10px;font-size:14px;">
+          <a href="${actionLinkEscaped}" style="display:inline-block;background:#4DB0D3;color:#ffffff;text-decoration:none;padding:10px 14px;border-radius:10px;font-size:14px;">
             ${actionLabel}
           </a>
         </div>
-        <div style="margin-top:16px;font-size:12px;line-height:18px;color:#6b7280;">
+        <div style="margin-top:16px;font-size:12px;line-height:18px;color:#656D78;">
           หากปุ่มใช้งานไม่ได้ ให้คัดลอกลิงก์นี้ไปวางในเบราว์เซอร์:<br />
           <span style="word-break:break-all;">${actionLinkVisible}</span>
         </div>

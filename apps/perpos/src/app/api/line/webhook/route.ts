@@ -909,13 +909,13 @@ async function handleJaquarStock(
     const item = items[0];
     const qty = Number(item.total_saleable || 0);
 
-    let qtyColor = '#059669'; // เขียว (in_stock)
+    let qtyColor = '#46BC9E'; // เขียว (in_stock)
     let qtyStatusText = '🟢 สต๊อกพร้อมขาย';
     if (qty === 0) {
-      qtyColor = '#DC2626'; // แดง (out_of_stock)
+      qtyColor = '#C43448'; // แดง (out_of_stock)
       qtyStatusText = '🔴 สินค้าหมด';
     } else if (qty < 5) {
-      qtyColor = '#D97706'; // ส้ม (low_stock)
+      qtyColor = '#E6BB51'; // ส้ม (low_stock)
       qtyStatusText = '⚠️ สต๊อกใกล้หมด';
     }
 
@@ -931,15 +931,15 @@ async function handleJaquarStock(
           background: {
             type: 'linearGradient',
             angle: '135deg',
-            startColor: '#1E293B',
-            endColor: '#334155'
+            startColor: '#2A2A2C',
+            endColor: '#3C3B3D'
           },
           contents: [
             {
               type: 'text',
               text: '📦 ข้อมูลสินค้า / STOCK',
               weight: 'bold',
-              color: '#94A3B8',
+              color: '#9CA3AF',
               size: 'xs'
             },
             {
@@ -968,13 +968,13 @@ async function handleJaquarStock(
                   type: 'text',
                   text: 'รายละเอียด',
                   size: 'xs',
-                  color: '#64748B'
+                  color: '#656D78'
                 },
                 {
                   type: 'text',
                   text: item.description || 'ไม่มีรายละเอียด',
                   size: 'sm',
-                  color: '#1E293B',
+                  color: '#2A2A2C',
                   wrap: true
                 }
               ]
@@ -990,14 +990,14 @@ async function handleJaquarStock(
                   type: 'text',
                   text: '📍 ที่เก็บสินค้า',
                   size: 'sm',
-                  color: '#64748B',
+                  color: '#656D78',
                   flex: 2
                 },
                 {
                   type: 'text',
                   text: item.location || 'ไม่ระบุ',
                   size: 'sm',
-                  color: '#1E293B',
+                  color: '#2A2A2C',
                   weight: 'bold',
                   flex: 3,
                   align: 'end',
@@ -1017,7 +1017,7 @@ async function handleJaquarStock(
                   type: 'text',
                   text: qtyStatusText,
                   size: 'sm',
-                  color: '#64748B',
+                  color: '#656D78',
                   flex: 2
                 },
                 {
@@ -1116,7 +1116,7 @@ async function handleOrgCmd(
         type: 'bubble',
         header: {
           type: 'box', layout: 'vertical', paddingAll: '16px',
-          background: { type: 'linearGradient', angle: '135deg', startColor: '#1E40AF', endColor: '#3B82F6' },
+          background: { type: 'linearGradient', angle: '135deg', startColor: '#46839A', endColor: '#4FC1E9' },
           contents: [
             { type: 'text', text: '🏢 ORGANIZATIONS', weight: 'bold', color: '#FFFFFF', size: 'sm' },
             { type: 'text', text: 'ยังไม่ได้เข้าร่วม Org', weight: 'bold', size: 'md', color: '#FFFFFF', margin: 'xs', wrap: true },
@@ -1125,9 +1125,9 @@ async function handleOrgCmd(
         body: {
           type: 'box', layout: 'vertical', paddingAll: '16px', spacing: 'md',
           contents: [{
-            type: 'box', layout: 'vertical', backgroundColor: '#FEF2F2', cornerRadius: 'md',
-            paddingAll: '12px', borderWidth: '1px', borderColor: '#FECACA',
-            contents: [{ type: 'text', text: 'ติดต่อผู้ดูแลระบบเพื่อเชิญเข้า Organization', color: '#DC2626', size: 'sm', wrap: true }],
+            type: 'box', layout: 'vertical', backgroundColor: '#FCF1F2', cornerRadius: 'md',
+            paddingAll: '12px', borderWidth: '1px', borderColor: '#F3C2C9',
+            contents: [{ type: 'text', text: 'ติดต่อผู้ดูแลระบบเพื่อเชิญเข้า Organization', color: '#C43448', size: 'sm', wrap: true }],
           }],
         },
       },
@@ -1137,7 +1137,7 @@ async function handleOrgCmd(
   if (!args[0]) {
     const orgRows = orgs.map((m, i) => ({
       type: 'box', layout: 'horizontal', contents: [
-        { type: 'text', text: `${i + 1}. ${m.organizations.name}`, size: 'sm', color: '#1F2937', flex: 1, wrap: true },
+        { type: 'text', text: `${i + 1}. ${m.organizations.name}`, size: 'sm', color: '#2A2A2C', flex: 1, wrap: true },
       ],
     }));
     return replyLine(replyToken, [{
@@ -1147,7 +1147,7 @@ async function handleOrgCmd(
         type: 'bubble',
         header: {
           type: 'box', layout: 'vertical', paddingAll: '16px',
-          background: { type: 'linearGradient', angle: '135deg', startColor: '#1E40AF', endColor: '#3B82F6' },
+          background: { type: 'linearGradient', angle: '135deg', startColor: '#46839A', endColor: '#4FC1E9' },
           contents: [
             { type: 'text', text: '🏢 ORGANIZATIONS', weight: 'bold', color: '#FFFFFF', size: 'sm' },
             { type: 'text', text: `เลือก Org ที่ต้องการ`, weight: 'bold', size: 'md', color: '#FFFFFF', margin: 'xs', wrap: true },
@@ -1158,7 +1158,7 @@ async function handleOrgCmd(
           contents: [
             ...orgRows,
             { type: 'separator' },
-            { type: 'text', text: 'พิมพ์ /org <N> เพื่อเปลี่ยน', size: 'xs', color: '#6B7280', wrap: true },
+            { type: 'text', text: 'พิมพ์ /org <N> เพื่อเปลี่ยน', size: 'xs', color: '#656D78', wrap: true },
           ],
         },
       },
@@ -1179,7 +1179,7 @@ async function handleOrgCmd(
       type: 'bubble',
       header: {
         type: 'box', layout: 'vertical', paddingAll: '16px',
-        background: { type: 'linearGradient', angle: '135deg', startColor: '#059669', endColor: '#34D399' },
+        background: { type: 'linearGradient', angle: '135deg', startColor: '#46BC9E', endColor: '#79DCC3' },
         contents: [
           { type: 'text', text: '✅ เปลี่ยน ORG แล้ว', weight: 'bold', color: '#FFFFFF', size: 'sm' },
           { type: 'text', text: selected.organizations.name, weight: 'bold', size: 'md', color: '#FFFFFF', margin: 'xs', wrap: true },
@@ -1188,9 +1188,9 @@ async function handleOrgCmd(
       body: {
         type: 'box', layout: 'vertical', paddingAll: '16px', spacing: 'md',
         contents: [{
-          type: 'box', layout: 'vertical', backgroundColor: '#F0FDF4', cornerRadius: 'md',
-          paddingAll: '12px', borderWidth: '1px', borderColor: '#BBF7D0',
-          contents: [{ type: 'text', text: `Org ที่ใช้งานอยู่ตอนนี้: ${selected.organizations.name}`, color: '#15803D', size: 'sm', wrap: true }],
+          type: 'box', layout: 'vertical', backgroundColor: '#F2FCF9', cornerRadius: 'md',
+          paddingAll: '12px', borderWidth: '1px', borderColor: '#C8F1E6',
+          contents: [{ type: 'text', text: `Org ที่ใช้งานอยู่ตอนนี้: ${selected.organizations.name}`, color: '#44A38B', size: 'sm', wrap: true }],
         }],
       },
     },
@@ -1311,12 +1311,12 @@ async function handleMomAudio(
             type: 'box', layout: 'horizontal', spacing: 'sm', alignItems: 'center',
             contents: [
               { type: 'text', text: '✅', size: 'lg', flex: 0 },
-              { type: 'text', text: 'รับไฟล์เรียบร้อย', weight: 'bold', size: 'md', color: '#0284c7', gravity: 'center' },
+              { type: 'text', text: 'รับไฟล์เรียบร้อย', weight: 'bold', size: 'md', color: '#4DB0D3', gravity: 'center' },
             ],
           },
           { type: 'separator', margin: 'md' },
-          { type: 'text', text: 'ระบบกำลังถอดเสียงและจัดทำรายงานการประชุม (Minutes of Meeting)', size: 'sm', wrap: true, color: '#374151', margin: 'md' },
-          { type: 'text', text: 'เสร็จแล้วจะส่งไฟล์ PDF กลับมาให้อัตโนมัติ ไม่ต้องส่งซ้ำ', size: 'xs', wrap: true, color: '#94a3b8' },
+          { type: 'text', text: 'ระบบกำลังถอดเสียงและจัดทำรายงานการประชุม (Minutes of Meeting)', size: 'sm', wrap: true, color: '#3C3B3D', margin: 'md' },
+          { type: 'text', text: 'เสร็จแล้วจะส่งไฟล์ PDF กลับมาให้อัตโนมัติ ไม่ต้องส่งซ้ำ', size: 'xs', wrap: true, color: '#9CA3AF' },
         ],
       },
     },
@@ -1382,11 +1382,11 @@ async function handleFollow(admin: ReturnType<typeof createAdminClient>, lineUse
     type: 'box', layout: 'horizontal', spacing: 'md', alignItems: 'center', margin: 'md',
     contents: [
       {
-        type: 'box', layout: 'vertical', width: '26px', height: '26px', backgroundColor: '#ede9fe',
+        type: 'box', layout: 'vertical', width: '26px', height: '26px', backgroundColor: '#ECE8F4',
         cornerRadius: '13px', justifyContent: 'center', flex: 0,
-        contents: [{ type: 'text', text: n, size: 'sm', weight: 'bold', color: '#533afd', align: 'center' }],
+        contents: [{ type: 'text', text: n, size: 'sm', weight: 'bold', color: '#4FC1E9', align: 'center' }],
       },
-      { type: 'text', text: txt, size: 'sm', color: '#4b5563', wrap: true, gravity: 'center' },
+      { type: 'text', text: txt, size: 'sm', color: '#525866', wrap: true, gravity: 'center' },
     ],
   }));
 
@@ -1398,38 +1398,38 @@ async function handleFollow(admin: ReturnType<typeof createAdminClient>, lineUse
       contents: {
         type: 'bubble', size: 'mega',
         header: {
-          type: 'box', layout: 'vertical', backgroundColor: '#533afd', paddingAll: '20px', paddingBottom: '16px', spacing: 'sm',
+          type: 'box', layout: 'vertical', backgroundColor: '#4FC1E9', paddingAll: '20px', paddingBottom: '16px', spacing: 'sm',
           contents: [
             { type: 'text', text: 'PERPOS Assistant', color: '#ffffff', weight: 'bold', size: 'xl' },
-            { type: 'text', text: '🎙️ ถอดเสียงประชุม → รายงานการประชุม (PDF)', color: '#dfe3ff', size: 'xs', wrap: true },
+            { type: 'text', text: '🎙️ ถอดเสียงประชุม → รายงานการประชุม (PDF)', color: '#E5F6FC', size: 'xs', wrap: true },
           ],
         },
         body: {
           type: 'box', layout: 'vertical', spacing: 'md', paddingAll: '20px',
           contents: [
-            { type: 'text', text: greeting, weight: 'bold', size: 'md', color: '#1f2937', wrap: true },
+            { type: 'text', text: greeting, weight: 'bold', size: 'md', color: '#2A2A2C', wrap: true },
             {
-              type: 'box', layout: 'horizontal', backgroundColor: '#ecfdf5', cornerRadius: '12px', paddingAll: '14px', spacing: 'md', alignItems: 'center',
+              type: 'box', layout: 'horizontal', backgroundColor: '#F2FCF9', cornerRadius: '12px', paddingAll: '14px', spacing: 'md', alignItems: 'center',
               contents: [
                 { type: 'text', text: '🎁', size: 'xxl', flex: 0, gravity: 'center' },
                 {
                   type: 'box', layout: 'vertical', spacing: 'none',
                   contents: [
-                    { type: 'text', text: giftLabel, size: 'xs', color: '#047857' },
-                    { type: 'text', text: `${remainMin} นาที`, weight: 'bold', size: 'xxl', color: '#065f46' },
+                    { type: 'text', text: giftLabel, size: 'xs', color: '#44A38B' },
+                    { type: 'text', text: `${remainMin} นาที`, weight: 'bold', size: 'xxl', color: '#428B79' },
                   ],
                 },
               ],
             },
             { type: 'separator', margin: 'lg' },
-            { type: 'text', text: 'ใช้งานง่าย 3 ขั้นตอน', weight: 'bold', size: 'sm', color: '#374151', margin: 'lg' },
+            { type: 'text', text: 'ใช้งานง่าย 3 ขั้นตอน', weight: 'bold', size: 'sm', color: '#3C3B3D', margin: 'lg' },
             ...stepBoxes,
           ],
         },
         footer: {
           type: 'box', layout: 'vertical', spacing: 'sm', paddingAll: '16px', paddingTop: '8px',
           contents: [
-            { type: 'button', style: 'primary', color: '#533afd', height: 'md',
+            { type: 'button', style: 'primary', color: '#4FC1E9', height: 'md',
               action: { type: 'message', label: '🎙️ เริ่มถอดเสียงเลย', text: '/mom' } },
             { type: 'text', text: 'รองรับไฟล์เสียง/วิดีโอ ไม่เกิน 200MB', size: 'xxs', color: '#9ca3af', align: 'center' },
           ],
@@ -1543,18 +1543,18 @@ export async function POST(req: NextRequest) {
                 type: 'box', layout: 'horizontal', spacing: 'sm', alignItems: 'center',
                 contents: [
                   { type: 'text', text: '🎧', size: 'lg', flex: 0 },
-                  { type: 'text', text: 'ได้รับไฟล์เสียงแล้ว', weight: 'bold', size: 'md', color: '#0284c7', gravity: 'center' },
+                  { type: 'text', text: 'ได้รับไฟล์เสียงแล้ว', weight: 'bold', size: 'md', color: '#4DB0D3', gravity: 'center' },
                 ],
               },
               { type: 'separator', margin: 'md' },
-              { type: 'text', text: 'ต้องการให้ช่วยถอดเป็นรายงานการประชุม (MoM) จากไฟล์นี้ไหมครับ?', size: 'sm', wrap: true, color: '#374151', margin: 'md' },
-              ...(fileName ? [{ type: 'text', text: `📄 ${fileName}`, size: 'xs', wrap: true, color: '#94a3b8' } as const] : []),
+              { type: 'text', text: 'ต้องการให้ช่วยถอดเป็นรายงานการประชุม (MoM) จากไฟล์นี้ไหมครับ?', size: 'sm', wrap: true, color: '#3C3B3D', margin: 'md' },
+              ...(fileName ? [{ type: 'text', text: `📄 ${fileName}`, size: 'xs', wrap: true, color: '#9CA3AF' } as const] : []),
             ],
           },
           footer: {
             type: 'box', layout: 'vertical', spacing: 'sm', paddingAll: '14px', paddingTop: '4px',
             contents: [
-              { type: 'button', style: 'primary', color: '#0284c7', height: 'sm',
+              { type: 'button', style: 'primary', color: '#4DB0D3', height: 'sm',
                 action: { type: 'postback', label: 'ถอดเสียงเลย', data: `momfile:${messageId}`, displayText: 'ถอดเสียงไฟล์นี้' } },
               { type: 'button', style: 'secondary', height: 'sm',
                 action: { type: 'postback', label: 'ไม่เป็นไร', data: 'momcancel', displayText: 'ไม่เป็นไร' } },
@@ -1630,16 +1630,16 @@ export async function POST(req: NextRequest) {
         const cmdRow = (code: string, desc: string) => ({
           type: 'box', layout: 'horizontal', spacing: 'sm',
           contents: [
-            { type: 'text', text: code, size: 'xs', color: '#6D28D9', flex: 2, weight: 'bold' },
-            { type: 'text', text: desc, size: 'xs', color: '#374151', flex: 4, wrap: true },
+            { type: 'text', text: code, size: 'xs', color: '#6C5A92', flex: 2, weight: 'bold' },
+            { type: 'text', text: desc, size: 'xs', color: '#3C3B3D', flex: 4, wrap: true },
           ],
         });
 
         const bodyContents: unknown[] = [
           {
-            type: 'box', layout: 'vertical', backgroundColor: '#F3F4F6', cornerRadius: 'md',
-            paddingAll: '10px', borderWidth: '1px', borderColor: '#E5E7EB',
-            contents: [{ type: 'text', text: `🏢 ${activeOrg?.name ?? 'ไม่มี Org'}`, size: 'sm', color: '#1F2937', weight: 'bold', wrap: true }],
+            type: 'box', layout: 'vertical', backgroundColor: '#F5F7FA', cornerRadius: 'md',
+            paddingAll: '10px', borderWidth: '1px', borderColor: '#E6E9EE',
+            contents: [{ type: 'text', text: `🏢 ${activeOrg?.name ?? 'ไม่มี Org'}`, size: 'sm', color: '#2A2A2C', weight: 'bold', wrap: true }],
           },
           { type: 'separator', margin: 'md' },
           { type: 'text', text: 'คำสั่งหลัก', size: 'xs', color: '#9CA3AF', margin: 'md' },
@@ -1687,7 +1687,7 @@ export async function POST(req: NextRequest) {
             type: 'bubble',
             header: {
               type: 'box', layout: 'vertical', paddingAll: '16px',
-              background: { type: 'linearGradient', angle: '135deg', startColor: '#1E293B', endColor: '#475569' },
+              background: { type: 'linearGradient', angle: '135deg', startColor: '#2A2A2C', endColor: '#525866' },
               contents: [
                 { type: 'text', text: '💡 PERPOS BOT', weight: 'bold', color: '#FFFFFF', size: 'sm' },
                 { type: 'text', text: 'คำสั่งทั้งหมด', weight: 'bold', size: 'md', color: '#FFFFFF', margin: 'xs', wrap: true },
@@ -1743,14 +1743,14 @@ export async function POST(req: NextRequest) {
           contents: {
             type: 'bubble',
             header: {
-              type: 'box', layout: 'vertical', backgroundColor: '#dc2626', paddingAll: '16px',
+              type: 'box', layout: 'vertical', backgroundColor: '#C43448', paddingAll: '16px',
               contents: [{ type: 'text', text: '⏱️ โควต้าหมดแล้ว', color: '#ffffff', weight: 'bold', size: 'md' }],
             },
             body: {
               type: 'box', layout: 'vertical', spacing: 'sm', paddingAll: '20px',
               contents: [
-                { type: 'text', text: 'โควต้าถอดเสียงของคุณคงเหลือ 0 นาที', weight: 'bold', size: 'sm', color: '#111827', wrap: true },
-                { type: 'text', text: 'กรุณาติดต่อแอดมินเพื่อขอเพิ่มโควต้า แล้วจึงส่งไฟล์ได้อีกครั้ง 🙏', size: 'xs', color: '#6b7280', wrap: true, margin: 'sm' },
+                { type: 'text', text: 'โควต้าถอดเสียงของคุณคงเหลือ 0 นาที', weight: 'bold', size: 'sm', color: '#1A1A1B', wrap: true },
+                { type: 'text', text: 'กรุณาติดต่อแอดมินเพื่อขอเพิ่มโควต้า แล้วจึงส่งไฟล์ได้อีกครั้ง 🙏', size: 'xs', color: '#656D78', wrap: true, margin: 'sm' },
               ],
             },
           },
@@ -1768,16 +1768,16 @@ export async function POST(req: NextRequest) {
         contents: {
           type: 'bubble',
           header: {
-            type: 'box', layout: 'vertical', backgroundColor: '#0284c7', paddingAll: '18px', paddingBottom: '14px', spacing: 'xs',
+            type: 'box', layout: 'vertical', backgroundColor: '#4DB0D3', paddingAll: '18px', paddingBottom: '14px', spacing: 'xs',
             contents: [
               { type: 'text', text: '🎙️ ถอดเสียงเป็นรายงานการประชุม', color: '#ffffff', weight: 'bold', size: 'md', wrap: true },
-              { type: 'text', text: 'Minutes of Meeting', color: '#cdeafd', size: 'xxs' },
+              { type: 'text', text: 'Minutes of Meeting', color: '#E5F6FC', size: 'xxs' },
             ],
           },
           body: {
             type: 'box', layout: 'vertical', spacing: 'md', paddingAll: '20px',
             contents: [
-              { type: 'text', text: 'ส่งไฟล์เสียงการประชุมเข้ามาได้เลยครับ', weight: 'bold', size: 'sm', color: '#1f2937', wrap: true },
+              { type: 'text', text: 'ส่งไฟล์เสียงการประชุมเข้ามาได้เลยครับ', weight: 'bold', size: 'sm', color: '#2A2A2C', wrap: true },
               {
                 type: 'box', layout: 'vertical', spacing: 'sm',
                 contents: [
@@ -1785,21 +1785,21 @@ export async function POST(req: NextRequest) {
                     type: 'box', layout: 'horizontal', spacing: 'sm', alignItems: 'center',
                     contents: [
                       { type: 'text', text: '🎧', size: 'sm', flex: 0 },
-                      { type: 'text', text: 'รองรับไฟล์เสียง / วิดีโอ ขนาดไม่เกิน 200MB', size: 'xs', color: '#6b7280', wrap: true, gravity: 'center' },
+                      { type: 'text', text: 'รองรับไฟล์เสียง / วิดีโอ ขนาดไม่เกิน 200MB', size: 'xs', color: '#656D78', wrap: true, gravity: 'center' },
                     ],
                   },
                   {
                     type: 'box', layout: 'horizontal', spacing: 'sm', alignItems: 'center',
                     contents: [
                       { type: 'text', text: '⏱️', size: 'sm', flex: 0 },
-                      { type: 'text', text: `โควต้าคงเหลือ ${Math.floor(qRemain / 60)} นาที`, size: 'xs', color: '#6b7280', wrap: true, gravity: 'center' },
+                      { type: 'text', text: `โควต้าคงเหลือ ${Math.floor(qRemain / 60)} นาที`, size: 'xs', color: '#656D78', wrap: true, gravity: 'center' },
                     ],
                   },
                   {
                     type: 'box', layout: 'horizontal', spacing: 'sm', alignItems: 'center',
                     contents: [
                       { type: 'text', text: '📄', size: 'sm', flex: 0 },
-                      { type: 'text', text: 'ได้รับไฟล์ PDF รายงานการประชุมกลับอัตโนมัติ', size: 'xs', color: '#6b7280', wrap: true, gravity: 'center' },
+                      { type: 'text', text: 'ได้รับไฟล์ PDF รายงานการประชุมกลับอัตโนมัติ', size: 'xs', color: '#656D78', wrap: true, gravity: 'center' },
                     ],
                   },
                 ],
@@ -1836,7 +1836,7 @@ export async function POST(req: NextRequest) {
             type: 'bubble',
             header: {
               type: 'box', layout: 'vertical', paddingAll: '16px',
-              background: { type: 'linearGradient', angle: '135deg', startColor: '#DC2626', endColor: '#F87171' },
+              background: { type: 'linearGradient', angle: '135deg', startColor: '#C43448', endColor: '#E36A7B' },
               contents: [
                 { type: 'text', text: '❌ ORG ไม่รองรับ', weight: 'bold', color: '#FFFFFF', size: 'sm' },
                 { type: 'text', text: `${activeOrg?.name ?? 'ไม่มี Org'}`, weight: 'bold', size: 'md', color: '#FFFFFF', margin: 'xs', wrap: true },
@@ -1845,9 +1845,9 @@ export async function POST(req: NextRequest) {
             body: {
               type: 'box', layout: 'vertical', paddingAll: '16px', spacing: 'md',
               contents: [{
-                type: 'box', layout: 'vertical', backgroundColor: '#FEF2F2', cornerRadius: 'md',
-                paddingAll: '12px', borderWidth: '1px', borderColor: '#FECACA',
-                contents: [{ type: 'text', text: 'พิมพ์ /org เพื่อดูและเปลี่ยน Org', color: '#DC2626', size: 'sm', wrap: true }],
+                type: 'box', layout: 'vertical', backgroundColor: '#FCF1F2', cornerRadius: 'md',
+                paddingAll: '12px', borderWidth: '1px', borderColor: '#F3C2C9',
+                contents: [{ type: 'text', text: 'พิมพ์ /org เพื่อดูและเปลี่ยน Org', color: '#C43448', size: 'sm', wrap: true }],
               }],
             },
           },
@@ -1902,7 +1902,7 @@ export async function POST(req: NextRequest) {
             type: 'bubble',
             header: {
               type: 'box', layout: 'vertical', paddingAll: '16px',
-              background: { type: 'linearGradient', angle: '135deg', startColor: '#DC2626', endColor: '#F87171' },
+              background: { type: 'linearGradient', angle: '135deg', startColor: '#C43448', endColor: '#E36A7B' },
               contents: [
                 { type: 'text', text: '❌ ไม่มี Organization', weight: 'bold', color: '#FFFFFF', size: 'sm' },
                 { type: 'text', text: 'กรุณาตั้งค่า Org ก่อน', weight: 'bold', size: 'md', color: '#FFFFFF', margin: 'xs', wrap: true },
@@ -1911,9 +1911,9 @@ export async function POST(req: NextRequest) {
             body: {
               type: 'box', layout: 'vertical', paddingAll: '16px', spacing: 'md',
               contents: [{
-                type: 'box', layout: 'vertical', backgroundColor: '#FEF2F2', cornerRadius: 'md',
-                paddingAll: '12px', borderWidth: '1px', borderColor: '#FECACA',
-                contents: [{ type: 'text', text: 'พิมพ์ /org เพื่อตั้งค่า', color: '#DC2626', size: 'sm', wrap: true }],
+                type: 'box', layout: 'vertical', backgroundColor: '#FCF1F2', cornerRadius: 'md',
+                paddingAll: '12px', borderWidth: '1px', borderColor: '#F3C2C9',
+                contents: [{ type: 'text', text: 'พิมพ์ /org เพื่อตั้งค่า', color: '#C43448', size: 'sm', wrap: true }],
               }],
             },
           },

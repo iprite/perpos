@@ -263,28 +263,28 @@ export default function JaquarDashboardPage() {
                 <AreaChart data={trends} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                   <defs>
                     <linearGradient id="colorIn" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#10b981" stopOpacity={0.2}/>
-                      <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                      <stop offset="5%" stopColor="#48CFAD" stopOpacity={0.2}/>
+                      <stop offset="95%" stopColor="#48CFAD" stopOpacity={0}/>
                     </linearGradient>
                     <linearGradient id="colorOut" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#ef4444" stopOpacity={0.2}/>
-                      <stop offset="95%" stopColor="#ef4444" stopOpacity={0}/>
+                      <stop offset="5%" stopColor="#D8334A" stopOpacity={0.2}/>
+                      <stop offset="95%" stopColor="#D8334A" stopOpacity={0}/>
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                  <XAxis dataKey="date" stroke="#94a3b8" fontSize={10} />
-                  <YAxis stroke="#94a3b8" fontSize={10} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#F5F7FA" />
+                  <XAxis dataKey="date" stroke="#9CA3AF" fontSize={10} />
+                  <YAxis stroke="#9CA3AF" fontSize={10} />
                   <Tooltip
                     contentStyle={{
                       backgroundColor: '#fff',
-                      border: '1px solid #e2e8f0',
+                      border: '1px solid #E6E9EE',
                       borderRadius: '8px',
                       fontSize: '11px',
                     }}
                   />
                   <Legend verticalAlign="top" height={36} iconSize={8} iconType="circle" />
-                  <Area name="รับสินค้าเข้า (IN)" type="monotone" dataKey="inQty" stroke="#10b981" fillOpacity={1} fill="url(#colorIn)" strokeWidth={2} />
-                  <Area name="จ่ายสินค้าออก (OUT)" type="monotone" dataKey="outQty" stroke="#ef4444" fillOpacity={1} fill="url(#colorOut)" strokeWidth={2} />
+                  <Area name="รับสินค้าเข้า (IN)" type="monotone" dataKey="inQty" stroke="#48CFAD" fillOpacity={1} fill="url(#colorIn)" strokeWidth={2} />
+                  <Area name="จ่ายสินค้าออก (OUT)" type="monotone" dataKey="outQty" stroke="#D8334A" fillOpacity={1} fill="url(#colorOut)" strokeWidth={2} />
                 </AreaChart>
               </ResponsiveContainer>
             </div>

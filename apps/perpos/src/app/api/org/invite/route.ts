@@ -88,14 +88,14 @@ export async function POST(req: NextRequest) {
         subject: 'คำเชิญเข้าร่วมองค์กรใน PERPOS',
         html: `
           <div style="font-family:sans-serif;max-width:500px;margin:0 auto">
-            <h2 style="color:#1e3a5f">คำเชิญเข้าร่วมองค์กรใน PERPOS</h2>
+            <h2 style="color:#436E7E">คำเชิญเข้าร่วมองค์กรใน PERPOS</h2>
             <p>คุณได้รับคำเชิญเข้าร่วมองค์กรในระบบ PERPOS</p>
             <p>กดปุ่มด้านล่างเพื่อตั้งรหัสผ่านและเริ่มใช้งาน:</p>
             <a href="${actionLink}"
-               style="display:inline-block;padding:12px 24px;background:#2563eb;color:#fff;border-radius:8px;text-decoration:none;font-weight:bold;margin:16px 0">
+               style="display:inline-block;padding:12px 24px;background:#4DB0D3;color:#fff;border-radius:8px;text-decoration:none;font-weight:bold;margin:16px 0">
               ยืนยันและตั้งรหัสผ่าน
             </a>
-            <p style="color:#6b7280;font-size:13px">
+            <p style="color:#656D78;font-size:13px">
               หากไม่ได้กดปุ่มข้างต้น ให้คัดลอกลิงก์นี้ไปวางในเบราว์เซอร์:<br/>
               <a href="${actionLink}">${actionLink}</a>
             </p>

@@ -42,7 +42,7 @@ const PRIORITY_DOT: Record<string, string> = {
 };
 
 const PRIORITY_COLOR: Record<string, string> = {
-  low: '#94a3b8', medium: '#3b82f6', high: '#f97316', urgent: '#ef4444',
+  low: '#9CA3AF', medium: '#4FC1E9', high: '#FC6E51', urgent: '#D8334A',
 };
 
 const STATUS_FILTER_OPTS = [
@@ -278,7 +278,7 @@ export default function CrmSolutionsPage() {
                   </TableCell>
                   <TableCell><StatusBadge tone={sc?.tone ?? 'neutral'}>{sc?.label ?? s.status}</StatusBadge></TableCell>
                   <TableCell>
-                    <span className="text-xs font-medium" style={{ color: PRIORITY_COLOR[s.priority] ?? '#94a3b8' }}>{s.priority}</span>
+                    <span className="text-xs font-medium" style={{ color: PRIORITY_COLOR[s.priority] ?? '#9CA3AF' }}>{s.priority}</span>
                   </TableCell>
                   <TableCell align="right" tabular className="text-slate-600">
                     {s.value != null ? `฿${s.value.toLocaleString('th-TH')}` : <span className="text-slate-300">—</span>}

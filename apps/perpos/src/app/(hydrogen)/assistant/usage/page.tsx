@@ -88,11 +88,11 @@ export default function MyStatsPage() {
               <h3 className="mb-4 text-sm font-semibold text-gray-700">นาทีที่ใช้ — 30 วันล่าสุด</h3>
               <ResponsiveContainer width="100%" height={280}>
                 <BarChart data={stats.daily} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#F5F7FA" vertical={false} />
                   <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#9ca3af' }} tickFormatter={(d) => String(d).slice(5)} interval={4} />
                   <YAxis tick={{ fontSize: 10, fill: '#9ca3af' }} allowDecimals={false} />
                   <Tooltip labelFormatter={(d) => `วันที่ ${d}`} formatter={(v: number) => [`${v} นาที`, 'ใช้ไป']} />
-                  <Bar dataKey="minutes" fill="#533afd" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="minutes" fill="#4FC1E9" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>

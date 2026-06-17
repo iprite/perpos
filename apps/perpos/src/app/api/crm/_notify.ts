@@ -93,8 +93,8 @@ function issueFlexBubble(opts: {
       background: {
         type: 'linearGradient',
         angle: '135deg',
-        startColor: '#E11D48',
-        endColor: '#FB7185',
+        startColor: '#D57DAF',
+        endColor: '#F1A7D1',
       },
       contents: [{
         type: 'box',
@@ -113,7 +113,7 @@ function issueFlexBubble(opts: {
       spacing: 'md',
       paddingAll: '16px',
       contents: [
-        { type: 'text', text: opts.solutionTitle, weight: 'bold', size: 'md', wrap: true, color: '#0F172A' },
+        { type: 'text', text: opts.solutionTitle, weight: 'bold', size: 'md', wrap: true, color: '#1A1A1B' },
         {
           type: 'box',
           layout: 'vertical',
@@ -121,9 +121,9 @@ function issueFlexBubble(opts: {
           cornerRadius: 'md',
           paddingAll: '10px',
           borderWidth: '1px',
-          borderColor: '#E2E8F0',
+          borderColor: '#E6E9EE',
           contents: [
-            { type: 'text', text: opts.contentPreview, size: 'sm', color: '#475569', wrap: true, maxLines: 4, style: 'italic' },
+            { type: 'text', text: opts.contentPreview, size: 'sm', color: '#525866', wrap: true, maxLines: 4, style: 'italic' },
           ],
         },
         {
@@ -133,7 +133,7 @@ function issueFlexBubble(opts: {
           alignItems: 'center',
           contents: [
             { type: 'text', text: '👤', size: 'xs', flex: 0 },
-            { type: 'text', text: `รายงานโดย: ${opts.authorName}`, size: 'xs', color: '#64748B', weight: 'bold' },
+            { type: 'text', text: `รายงานโดย: ${opts.authorName}`, size: 'xs', color: '#656D78', weight: 'bold' },
           ],
         },
       ],
@@ -147,7 +147,7 @@ function issueFlexBubble(opts: {
         action: { type: 'uri', label: 'ดูรายละเอียด', uri: opts.deepLink },
         style: 'primary',
         height: 'sm',
-        color: '#E11D48',
+        color: '#D57DAF',
         cornerRadius: 'md',
       }],
     },
@@ -176,27 +176,27 @@ function statusFlexBubble(opts: {
   const toEmoji = STATUS_EMOJI[toKey] ?? '⚪';
 
   // Determine badge colors for visual quality
-  let badgeBg = '#F1F5F9';
-  let badgeTextColor = '#475569';
+  let badgeBg = '#F5F7FA';
+  let badgeTextColor = '#525866';
 
   if (toKey === 'completed') {
-    badgeBg = '#D1FAE5';
-    badgeTextColor = '#065F46';
+    badgeBg = '#E4F8F3';
+    badgeTextColor = '#428B79';
   } else if (toKey === 'cancelled') {
-    badgeBg = '#FEE2E2';
-    badgeTextColor = '#991B1B';
+    badgeBg = '#F9E0E4';
+    badgeTextColor = '#903744';
   } else if (toKey === 'on_hold') {
-    badgeBg = '#FEF3C7';
-    badgeTextColor = '#92400E';
+    badgeBg = '#FFF8E5';
+    badgeTextColor = '#A58A49';
   } else if (toKey === 'in_progress') {
-    badgeBg = '#FEF9C3';
-    badgeTextColor = '#854D0E';
+    badgeBg = '#FFF8E5';
+    badgeTextColor = '#A58A49';
   } else if (toKey === 'proposal') {
-    badgeBg = '#F3E8FF';
-    badgeTextColor = '#6B21A8';
+    badgeBg = '#ECE8F4';
+    badgeTextColor = '#61537F';
   } else if (toKey === 'lead') {
-    badgeBg = '#DBEAFE';
-    badgeTextColor = '#1D4ED8';
+    badgeBg = '#E5F6FC';
+    badgeTextColor = '#4999B5';
   }
 
   return {
@@ -209,8 +209,8 @@ function statusFlexBubble(opts: {
       background: {
         type: 'linearGradient',
         angle: '135deg',
-        startColor: '#2563EB',
-        endColor: '#3B82F6',
+        startColor: '#4DB0D3',
+        endColor: '#4FC1E9',
       },
       contents: [{
         type: 'box',
@@ -229,7 +229,7 @@ function statusFlexBubble(opts: {
       spacing: 'md',
       paddingAll: '16px',
       contents: [
-        { type: 'text', text: opts.solutionTitle, weight: 'bold', size: 'md', wrap: true, color: '#0F172A' },
+        { type: 'text', text: opts.solutionTitle, weight: 'bold', size: 'md', wrap: true, color: '#1A1A1B' },
         {
           type: 'box',
           layout: 'horizontal',
@@ -239,25 +239,25 @@ function statusFlexBubble(opts: {
           paddingAll: '10px',
           cornerRadius: 'md',
           borderWidth: '1px',
-          borderColor: '#E2E8F0',
+          borderColor: '#E6E9EE',
           contents: [
             {
               type: 'box',
               layout: 'vertical',
-              backgroundColor: '#E2E8F0',
+              backgroundColor: '#E6E9EE',
               cornerRadius: 'sm',
               paddingAll: '4px',
               paddingStart: '8px',
               paddingEnd: '8px',
               contents: [
-                { type: 'text', text: opts.fromStatus, size: 'xs', color: '#475569', weight: 'bold', align: 'center' },
+                { type: 'text', text: opts.fromStatus, size: 'xs', color: '#525866', weight: 'bold', align: 'center' },
               ],
             },
             {
               type: 'text',
               text: '➡️',
               size: 'xs',
-              color: '#94A3B8',
+              color: '#9CA3AF',
               flex: 0,
             },
             {
@@ -288,7 +288,7 @@ function statusFlexBubble(opts: {
           alignItems: 'center',
           contents: [
             { type: 'text', text: '👤', size: 'xs', flex: 0 },
-            { type: 'text', text: `ปรับปรุงโดย: ${opts.changerName}`, size: 'xs', color: '#64748B', weight: 'bold' },
+            { type: 'text', text: `ปรับปรุงโดย: ${opts.changerName}`, size: 'xs', color: '#656D78', weight: 'bold' },
           ],
         },
       ],
@@ -302,7 +302,7 @@ function statusFlexBubble(opts: {
         action: { type: 'uri', label: 'เปิด Solution', uri: opts.deepLink },
         style: 'primary',
         height: 'sm',
-        color: '#2563EB',
+        color: '#4DB0D3',
         cornerRadius: 'md',
       }],
     },

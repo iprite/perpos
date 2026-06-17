@@ -25,15 +25,15 @@ function buildFailFlex(reason: string) {
     contents: {
       type: 'bubble',
       header: {
-        type: 'box', layout: 'vertical', backgroundColor: '#dc2626', paddingAll: '14px',
+        type: 'box', layout: 'vertical', backgroundColor: '#C43448', paddingAll: '14px',
         contents: [{ type: 'text', text: '❌ ถอดเสียงไม่สำเร็จ', color: '#ffffff', weight: 'bold', size: 'md' }],
       },
       body: {
         type: 'box', layout: 'vertical', spacing: 'sm', paddingAll: '18px',
         contents: [
-          { type: 'text', text: detail, size: 'sm', wrap: true, color: '#374151' },
+          { type: 'text', text: detail, size: 'sm', wrap: true, color: '#3C3B3D' },
           { type: 'separator', margin: 'md' },
-          { type: 'text', text: 'พิมพ์ /mom แล้วส่งไฟล์ใหม่อีกครั้งได้เลยครับ 🙏', size: 'xs', wrap: true, color: '#94a3b8', margin: 'md' },
+          { type: 'text', text: 'พิมพ์ /mom แล้วส่งไฟล์ใหม่อีกครั้งได้เลยครับ 🙏', size: 'xs', wrap: true, color: '#9CA3AF', margin: 'md' },
         ],
       },
     },
@@ -141,17 +141,17 @@ export async function POST(req: NextRequest) {
         body: {
           type: 'box', layout: 'vertical', spacing: 'sm',
           contents: [
-            { type: 'text', text: '📋 รายงานการประชุม (MoM)', weight: 'bold', size: 'md', color: '#0284c7' },
-            { type: 'text', text: meetingTitle, size: 'sm', wrap: true, color: '#111827' },
-            { type: 'text', text: 'ถอดเสียงเสร็จแล้ว กดปุ่มด้านล่างเพื่อดาวน์โหลดไฟล์ PDF', size: 'xs', wrap: true, color: '#6b7280' },
-            { type: 'text', text: quotaLine, size: 'xs', color: '#94a3b8', margin: 'sm' },
+            { type: 'text', text: '📋 รายงานการประชุม (MoM)', weight: 'bold', size: 'md', color: '#4DB0D3' },
+            { type: 'text', text: meetingTitle, size: 'sm', wrap: true, color: '#1A1A1B' },
+            { type: 'text', text: 'ถอดเสียงเสร็จแล้ว กดปุ่มด้านล่างเพื่อดาวน์โหลดไฟล์ PDF', size: 'xs', wrap: true, color: '#656D78' },
+            { type: 'text', text: quotaLine, size: 'xs', color: '#9CA3AF', margin: 'sm' },
             { type: 'separator', margin: 'md' },
             {
               type: 'box', layout: 'vertical', spacing: 'xs', margin: 'md',
               contents: [
-                { type: 'text', text: '🔒 ความเป็นส่วนตัวของข้อมูล', size: 'xs', weight: 'bold', color: '#6b7280' },
-                { type: 'text', text: 'ไฟล์เสียงถูกลบออกจากระบบทันทีหลังประมวลผลเสร็จ · รายงาน PDF นี้จะถูกลบอัตโนมัติภายใน 48 ชั่วโมง กรุณาดาวน์โหลดเก็บไว้', size: 'xxs', wrap: true, color: '#94a3b8' },
-                { type: 'text', text: 'เราไม่นำข้อมูลของคุณไปใช้ฝึกหรือพัฒนาโมเดล AI ใด ๆ ทั้งสิ้น', size: 'xxs', wrap: true, color: '#94a3b8' },
+                { type: 'text', text: '🔒 ความเป็นส่วนตัวของข้อมูล', size: 'xs', weight: 'bold', color: '#656D78' },
+                { type: 'text', text: 'ไฟล์เสียงถูกลบออกจากระบบทันทีหลังประมวลผลเสร็จ · รายงาน PDF นี้จะถูกลบอัตโนมัติภายใน 48 ชั่วโมง กรุณาดาวน์โหลดเก็บไว้', size: 'xxs', wrap: true, color: '#9CA3AF' },
+                { type: 'text', text: 'เราไม่นำข้อมูลของคุณไปใช้ฝึกหรือพัฒนาโมเดล AI ใด ๆ ทั้งสิ้น', size: 'xxs', wrap: true, color: '#9CA3AF' },
               ],
             },
           ],
@@ -159,7 +159,7 @@ export async function POST(req: NextRequest) {
         footer: {
           type: 'box', layout: 'vertical',
           contents: [
-            { type: 'button', style: 'primary', color: '#0284c7', height: 'sm',
+            { type: 'button', style: 'primary', color: '#4DB0D3', height: 'sm',
               action: { type: 'uri', label: 'ดาวน์โหลด MoM (PDF)', uri: signed.signedUrl } },
           ],
         },

@@ -45,7 +45,7 @@ export async function POST(req: NextRequest) {
         subject: 'ตั้งรหัสผ่านใหม่ — PERPOS',
         html: `
           <p>มีการร้องขอให้ตั้งรหัสผ่านใหม่สำหรับบัญชี PERPOS ของคุณ</p>
-          <p><a href="${actionLink}" style="display:inline-block;padding:10px 20px;background:#4f46e5;color:#fff;border-radius:6px;text-decoration:none;">ตั้งรหัสผ่านใหม่</a></p>
+          <p><a href="${actionLink}" style="display:inline-block;padding:10px 20px;background:#7761A7;color:#fff;border-radius:6px;text-decoration:none;">ตั้งรหัสผ่านใหม่</a></p>
           <p style="color:#888;font-size:12px;">ลิงก์นี้จะหมดอายุใน 1 ชั่วโมง หากคุณไม่ได้ร้องขอ กรุณาเพิกเฉยต่ออีเมลนี้</p>
         `,
         text: `ตั้งรหัสผ่านใหม่ PERPOS\n\n${actionLink}\n\nลิงก์นี้จะหมดอายุใน 1 ชั่วโมง`,

@@ -40,10 +40,10 @@ function fmtK(n: number) {
 }
 
 const PROPERTY_COLORS: Record<string, string> = {
-  TMC1: '#3b82f6', TMC2: '#8b5cf6', 'TMC3-4': '#ec4899',
-  TMC5: '#f59e0b', TMC6: '#14b8a6', TMC7: '#10b981',
+  TMC1: '#4FC1E9', TMC2: '#8067B7', 'TMC3-4': '#EC87C0',
+  TMC5: '#FFCE54', TMC6: '#A0CECB', TMC7: '#48CFAD',
 };
-function propColor(p: string) { return PROPERTY_COLORS[p] ?? '#6366f1'; }
+function propColor(p: string) { return PROPERTY_COLORS[p] ?? '#8067B7'; }
 
 const RANGE_OPTS = [
   { value: '6',  label: '6 เดือนล่าสุด' },
@@ -97,7 +97,7 @@ function SummaryCard({ icon, label, value, sub, color }: {
   );
 }
 
-const TT = { contentStyle: { fontSize: 12, borderRadius: 8, border: '1px solid #e2e8f0' } };
+const TT = { contentStyle: { fontSize: 12, borderRadius: 8, border: '1px solid #E6E9EE' } };
 
 // ── Edit Investment Dialog ────────────────────────────────────────────
 function EditInvestmentDialog({
@@ -303,17 +303,17 @@ export default function TmcCostsPage() {
             : (
               <ResponsiveContainer width="100%" height={280}>
                 <BarChart data={netChartData} barGap={2}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#F5F7FA" />
                   <XAxis dataKey="name" tick={{ fontSize: 11 }} />
                   <YAxis tick={{ fontSize: 11 }} tickFormatter={v => fmtK(v)} />
                   <Tooltip {...TT} formatter={(v: number) => `฿${fmt(v)}`} />
                   <Legend wrapperStyle={{ fontSize: 12 }} />
-                  <ReferenceLine y={0} stroke="#94a3b8" strokeDasharray="4 2" />
-                  <Bar dataKey="รายรับ"          fill="#22c55e" radius={[3,3,0,0]} maxBarSize={36} />
-                  <Bar dataKey="ต้นทุนดำเนินการ"  fill="#f87171" radius={[3,3,0,0]} maxBarSize={36} />
-                  <Bar dataKey="ต้นทุนนักลงทุน"  fill="#a78bfa" radius={[3,3,0,0]} maxBarSize={36} />
-                  <Bar dataKey="ส่วนกลาง"         fill="#fbbf24" radius={[3,3,0,0]} maxBarSize={36} />
-                  <Bar dataKey="กำไรสุทธิ"        fill="#3b82f6" radius={[3,3,0,0]} maxBarSize={36} />
+                  <ReferenceLine y={0} stroke="#9CA3AF" strokeDasharray="4 2" />
+                  <Bar dataKey="รายรับ"          fill="#48CFAD" radius={[3,3,0,0]} maxBarSize={36} />
+                  <Bar dataKey="ต้นทุนดำเนินการ"  fill="#E36A7B" radius={[3,3,0,0]} maxBarSize={36} />
+                  <Bar dataKey="ต้นทุนนักลงทุน"  fill="#A290CA" radius={[3,3,0,0]} maxBarSize={36} />
+                  <Bar dataKey="ส่วนกลาง"         fill="#FFDB82" radius={[3,3,0,0]} maxBarSize={36} />
+                  <Bar dataKey="กำไรสุทธิ"        fill="#4FC1E9" radius={[3,3,0,0]} maxBarSize={36} />
                 </BarChart>
               </ResponsiveContainer>
             )}
@@ -371,16 +371,16 @@ export default function TmcCostsPage() {
             <p className="text-xs text-slate-500 mb-3">เปรียบเทียบแต่ละแปลง</p>
             <ResponsiveContainer width="100%" height={220}>
               <BarChart data={propChartData} layout="vertical" margin={{ left: 8, right: 16 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" horizontal={false} />
+                <CartesianGrid strokeDasharray="3 3" stroke="#F5F7FA" horizontal={false} />
                 <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={v => fmtK(v)} />
                 <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={56} />
                 <Tooltip {...TT} formatter={(v: number) => `฿${fmt(v)}`} />
                 <Legend wrapperStyle={{ fontSize: 12 }} />
-                <ReferenceLine x={0} stroke="#94a3b8" strokeDasharray="4 2" />
-                <Bar dataKey="รายรับ"          fill="#22c55e" radius={[0,3,3,0]} maxBarSize={20} />
-                <Bar dataKey="ต้นทุนดำเนินการ"  fill="#f87171" radius={[0,3,3,0]} maxBarSize={20} />
-                <Bar dataKey="ต้นทุนนักลงทุน"  fill="#a78bfa" radius={[0,3,3,0]} maxBarSize={20} />
-                <Bar dataKey="กำไรสุทธิ"        fill="#3b82f6" radius={[0,3,3,0]} maxBarSize={20} />
+                <ReferenceLine x={0} stroke="#9CA3AF" strokeDasharray="4 2" />
+                <Bar dataKey="รายรับ"          fill="#48CFAD" radius={[0,3,3,0]} maxBarSize={20} />
+                <Bar dataKey="ต้นทุนดำเนินการ"  fill="#E36A7B" radius={[0,3,3,0]} maxBarSize={20} />
+                <Bar dataKey="ต้นทุนนักลงทุน"  fill="#A290CA" radius={[0,3,3,0]} maxBarSize={20} />
+                <Bar dataKey="กำไรสุทธิ"        fill="#4FC1E9" radius={[0,3,3,0]} maxBarSize={20} />
               </BarChart>
             </ResponsiveContainer>
           </div>

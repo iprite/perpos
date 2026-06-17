@@ -31,7 +31,7 @@ function AddFriendContent() {
           <span className="text-xl font-bold tracking-tight text-slate-900">PERPOS</span>
         </div>
 
-        <div className="mt-8 flex h-14 w-14 items-center justify-center rounded-2xl bg-[#06C755]/10 text-[#06C755]">
+        <div className="mt-8 flex h-14 w-14 items-center justify-center rounded-2xl bg-[#48CFAD]/10 text-[#48CFAD]">
           <UserPlus className="h-7 w-7" />
         </div>
 
@@ -54,7 +54,7 @@ function AddFriendContent() {
               href={ADD_FRIEND_URL}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex w-full items-center justify-center gap-2.5 rounded-xl bg-[#06C755] px-4 py-3.5 text-base font-semibold text-white shadow-sm transition-all hover:bg-[#05b34c] hover:shadow-md active:scale-[0.99]"
+              className="flex w-full items-center justify-center gap-2.5 rounded-xl bg-[#48CFAD] px-4 py-3.5 text-base font-semibold text-white shadow-sm transition-all hover:bg-[#46BC9E] hover:shadow-md active:scale-[0.99]"
             >
               <LineLogo className="h-5 w-5" />
               เพิ่มเพื่อนใน LINE

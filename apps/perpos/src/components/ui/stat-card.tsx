@@ -35,7 +35,7 @@ export type StatTone =
 
 const TONE: Record<StatTone, { chip: string; value: string }> = {
   neutral:  { chip: "bg-gray-100 text-gray-500",    value: "text-gray-900" },
-  primary:  { chip: "bg-indigo-50 text-indigo-600", value: "text-indigo-700" },
+  primary:  { chip: "bg-blue-50 text-blue-600",     value: "text-blue-700" },
   positive: { chip: "bg-green-50 text-green-600",   value: "text-green-700" },
   negative: { chip: "bg-red-50 text-red-600",       value: "text-red-700" },
   warning:  { chip: "bg-amber-50 text-amber-600",   value: "text-amber-700" },

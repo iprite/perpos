@@ -139,11 +139,11 @@ export default function AdminSttCostPage() {
             <h3 className="mb-4 text-sm font-semibold text-gray-700">ต้นทุนรายวัน (฿) — {s.window_days} วันล่าสุด</h3>
             <ResponsiveContainer width="100%" height={240}>
               <BarChart data={s.daily} margin={{ top: 4, right: 4, left: -10, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                <CartesianGrid strokeDasharray="3 3" stroke="#F5F7FA" vertical={false} />
                 <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#9ca3af' }} tickFormatter={(d) => String(d).slice(5)} interval={Math.max(0, Math.floor(s.daily.length / 8))} />
                 <YAxis tick={{ fontSize: 10, fill: '#9ca3af' }} />
                 <Tooltip labelFormatter={(d) => `วันที่ ${d}`} formatter={(v: number) => [`฿${thb(Number(v))}`, 'ต้นทุน']} />
-                <Bar dataKey="cost_thb" fill="#dc2626" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="cost_thb" fill="#C43448" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>

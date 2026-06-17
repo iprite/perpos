@@ -134,16 +134,16 @@ function ClockMap({ logs, sessions, focusLocation }: ClockMapProps) {
           marker.addListener('click', () => {
             infoWindow.setContent(`
               <div style="padding: 8px; font-family: sans-serif; font-size: 13px; line-height: 1.4;">
-                <div style="font-weight: bold; font-size: 14px; color: #059669; margin-bottom: 4px;">
+                <div style="font-weight: bold; font-size: 14px; color: #46BC9E; margin-bottom: 4px;">
                   🟢 ${s.profile?.display_name || 'ไม่ระบุชื่อ'}
                 </div>
-                <div style="color: #64748b; margin-bottom: 2px;">
+                <div style="color: #656D78; margin-bottom: 2px;">
                   <strong>บทบาท:</strong> กำลังเข้างาน (Clocked In)
                 </div>
-                <div style="color: #64748b; margin-bottom: 2px;">
+                <div style="color: #656D78; margin-bottom: 2px;">
                   <strong>เวลาเข้างาน:</strong> ${fmtDateTime(s.last_in_time || s.updated_at)}
                 </div>
-                <div style="color: #64748b; max-w-xs;">
+                <div style="color: #656D78; max-w-xs;">
                   <strong>สถานที่:</strong> ${s.last_in_address || 'ไม่ระบุที่อยู่'}
                 </div>
               </div>
@@ -185,16 +185,16 @@ function ClockMap({ logs, sessions, focusLocation }: ClockMapProps) {
           marker.addListener('click', () => {
             infoWindow.setContent(`
               <div style="padding: 8px; font-family: sans-serif; font-size: 13px; line-height: 1.4;">
-                <div style="font-weight: bold; font-size: 14px; color: ${isIn ? '#2563eb' : '#dc2626'}; margin-bottom: 4px;">
+                <div style="font-weight: bold; font-size: 14px; color: ${isIn ? '#4DB0D3' : '#C43448'}; margin-bottom: 4px;">
                   ${isIn ? '🔵' : '🔴'} ${l.profile?.display_name || 'ไม่ระบุชื่อ'}
                 </div>
-                <div style="color: #64748b; margin-bottom: 2px;">
+                <div style="color: #656D78; margin-bottom: 2px;">
                   <strong>รายการ:</strong> ${isIn ? 'เข้างาน (Clock In)' : 'ออกงาน (Clock Out)'}
                 </div>
-                <div style="color: #64748b; margin-bottom: 2px;">
+                <div style="color: #656D78; margin-bottom: 2px;">
                   <strong>เวลา:</strong> ${fmtDateTime(l.timestamp)}
                 </div>
-                <div style="color: #64748b; max-w-xs;">
+                <div style="color: #656D78; max-w-xs;">
                   <strong>สถานที่:</strong> ${l.address || 'ไม่ระบุที่อยู่'}
                 </div>
               </div>

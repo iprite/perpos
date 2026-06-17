@@ -31,12 +31,12 @@ type DashData = {
 };
 
 const STATUS_CONFIG: Record<string, { label: string; tone: BadgeTone; bar: string }> = {
-  lead:        { label: 'Lead',        tone: 'neutral', bar: '#94a3b8' },
-  proposal:    { label: 'Proposal',    tone: 'info',    bar: '#3b82f6' },
-  in_progress: { label: 'In Progress', tone: 'warning', bar: '#f59e0b' },
-  on_hold:     { label: 'On Hold',     tone: 'warning', bar: '#f97316' },
-  completed:   { label: 'Completed',   tone: 'success', bar: '#22c55e' },
-  cancelled:   { label: 'Cancelled',   tone: 'danger',  bar: '#f87171' },
+  lead:        { label: 'Lead',        tone: 'neutral', bar: '#9CA3AF' },
+  proposal:    { label: 'Proposal',    tone: 'info',    bar: '#4FC1E9' },
+  in_progress: { label: 'In Progress', tone: 'warning', bar: '#FFCE54' },
+  on_hold:     { label: 'On Hold',     tone: 'warning', bar: '#FC6E51' },
+  completed:   { label: 'Completed',   tone: 'success', bar: '#48CFAD' },
+  cancelled:   { label: 'Cancelled',   tone: 'danger',  bar: '#E36A7B' },
 };
 
 const TH_MONTHS = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
@@ -65,7 +65,7 @@ function StatCard({ icon, label, value, sub, color }: {
   );
 }
 
-const TT = { contentStyle: { fontSize: 12, borderRadius: 8, border: '1px solid #e2e8f0' } };
+const TT = { contentStyle: { fontSize: 12, borderRadius: 8, border: '1px solid #E6E9EE' } };
 
 export default function CrmDashboardPage() {
   const { orgSlug } = useParams<{ orgSlug: string }>();
@@ -161,7 +161,7 @@ export default function CrmDashboardPage() {
           ) : (
             <ResponsiveContainer width="100%" height={200}>
               <BarChart data={statusChartData} barSize={32}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                <CartesianGrid strokeDasharray="3 3" stroke="#F5F7FA" />
                 <XAxis dataKey="name" tick={{ fontSize: 11 }} />
                 <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
                 <Tooltip {...TT} formatter={(v: number) => [v, 'จำนวน']} />
@@ -183,11 +183,11 @@ export default function CrmDashboardPage() {
           ) : (
             <ResponsiveContainer width="100%" height={200}>
               <LineChart data={monthlyChart}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                <CartesianGrid strokeDasharray="3 3" stroke="#F5F7FA" />
                 <XAxis dataKey="name" tick={{ fontSize: 11 }} />
                 <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
                 <Tooltip {...TT} formatter={(v: number) => [v, 'solutions']} />
-                <Line dataKey="solutions" stroke="#6366f1" strokeWidth={2} dot={{ r: 4, fill: '#6366f1' }} />
+                <Line dataKey="solutions" stroke="#8067B7" strokeWidth={2} dot={{ r: 4, fill: '#8067B7' }} />
               </LineChart>
             </ResponsiveContainer>
           )}

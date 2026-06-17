@@ -130,7 +130,7 @@ function SignInContent() {
 
           <a
             href={lineLoginHref}
-            className="group mt-7 flex w-full items-center justify-center gap-2.5 rounded-xl bg-[#06C755] px-4 py-3.5 text-base font-semibold text-white shadow-sm transition-all hover:bg-[#05b34c] hover:shadow-md active:scale-[0.99]"
+            className="group mt-7 flex w-full items-center justify-center gap-2.5 rounded-xl bg-[#48CFAD] px-4 py-3.5 text-base font-semibold text-white shadow-sm transition-all hover:bg-[#46BC9E] hover:shadow-md active:scale-[0.99]"
           >
             <LineLogo className="h-5 w-5" />
             เข้าสู่ระบบด้วย LINE

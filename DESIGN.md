@@ -19,37 +19,66 @@
 
 ## 2. Color — สี
 
-### Core Palette
+> **กฎเหล็ก (บังคับทั้งแอป)**: ทุกสีต้องมาจาก **PERPOS Standard Palette** ด้านล่างเท่านั้น
+> ห้ามใส่ค่า hex นอกพาเลตต์ และห้ามแตะสีนอกชุดนี้ — สีถูกล็อกที่ระดับ Tailwind token
+> (`packages/config-tailwind/tailwind.config.ts` + `apps/perpos/src/app/globals.css`)
+> ดังนั้น `bg-blue-600`, `text-green-700`, `bg-amber-50` ฯลฯ จะ resolve เป็นสีพาเลตต์ให้อัตโนมัติ
+> **ห้ามฮาร์ดโค้ด hex ใน className/style** (`#3b82f6`, `style={{color:'#10b981'}}`) — ใช้ utility class เสมอ
+
+### Standard Palette (flat-UI) — สีมาตรฐานชุดเดียวของระบบ
+
+| ชื่อ | Hex | บทบาท | ใช้ผ่าน Tailwind family |
+|------|-----|-------|------------------------|
+| **AQUA** | `#4FC1E9` | **primary / brand / info** | `blue-*`, `sky-*`, `cyan-*`, token `primary` |
+| BLUE JEANS | `#5D9CEC` | accent น้ำเงิน (chart) | — |
+| PLUM | `#8067B7` | สีม่วง (accent/หมวดหมู่) | `indigo-*`, `violet-*`, `purple-*` |
+| LAVENDER | `#AC92EC` | ม่วงอ่อน | (เฉด 300–400 ของ `indigo`/`violet`) |
+| PINK ROSE | `#EC87C0` | ชมพู (accent/หมวดหมู่) | `pink-*`, `rose-*`, `fuchsia-*` |
+| **RUBY** | `#D8334A` | **negative / error / destructive** | `red-*`, token `red` |
+| GRAPEFRUIT | `#ED5565` | แดงอ่อน (chart) | (เฉด 400 ของ `red`) |
+| BITTERSWEET | `#FC6E51` | ส้ม (เตือน/รอง) | `orange-*`, token `orange` |
+| **SUNFLOWER** | `#FFCE54` | **warning** | `amber-*`, `yellow-*` |
+| STRAW | `#E8CE4D` | เหลืองหม่น (chart) | — |
+| GRASS | `#A0D468` | เขียวสด (chart/lime) | `lime-*` |
+| **MINT** | `#48CFAD` | **positive / success** | `green-*`, `emerald-*`, token `green` |
+| TEAL | `#A0CECB` | เขียวอมฟ้าหม่น | `teal-*` |
+| **AQUA** | `#4FC1E9` | (ดูบรรทัดบน) | — |
+| **Gray ramp** | `#F5F7FA` LIGHT · `#CCD1D9` MEDIUM · `#656D78` DARK · `#3C3B3D` CHARCOAL | พื้น/เส้น/ตัวอักษร | `gray-*`, `slate-*`, `zinc-*`, `neutral-*`, `stone-*` |
+
+### Neutral / Surface (จาก gray ramp)
 
 | Token | Value | ใช้ที่ไหน |
 |-------|-------|---------|
-| `primary` | `#533afd` (indigo) | ปุ่ม primary, link, active state |
-| `primary-hover` | `#4429e0` | hover ของ primary |
-| `canvas` | `#ffffff` | พื้นหลังหน้า |
-| `surface` | `#f9fafb` (gray-50) | card, panel |
-| `surface-2` | `#f3f4f6` (gray-100) | hover row, nested container |
-| `surface-3` | `#e5e7eb` (gray-200) | border, divider |
-| `ink` | `#111827` (gray-900) | text หลัก |
-| `ink-secondary` | `#6b7280` (gray-500) | label, placeholder, secondary text |
-| `ink-muted` | `#9ca3af` (gray-400) | disabled text, empty state |
+| `canvas` / `bg-white` | `#ffffff` | พื้นหลังหน้า, card |
+| `surface` (gray-50) | `#f8fafc` | hover row อ่อน |
+| `surface` (gray-100) | `#f5f7fa` LIGHT GRAY | card/panel, hover |
+| border (gray-200) | `#e6e9ee` | เส้นบาง |
+| border-strong (gray-300) | `#ccd1d9` MEDIUM GRAY | divider, border เข้ม |
+| `ink-muted` (gray-400) | `#9ca3af` | disabled, empty state |
+| `ink-secondary` (gray-500) | `#656d78` DARK GRAY | label, secondary text |
+| body text (gray-600) | `#525866` | ตัวอักษรเนื้อหา |
+| `ink` (gray-700/900) | `#3c3b3d` / `#1a1a1b` | หัวข้อ, text หลัก |
 
 ### Semantic — Financial Status
 
-| Token | Value | ใช้กับ |
-|-------|-------|-------|
-| `positive` | `#16a34a` (green-600) | รายรับ, กำไร, ยอดบวก |
-| `positive-bg` | `#f0fdf4` (green-50) | badge พื้นหลัง รายรับ |
-| `negative` | `#dc2626` (red-600) | รายจ่าย, ขาดทุน, ยอดลบ |
-| `negative-bg` | `#fef2f2` (red-50) | badge พื้นหลัง รายจ่าย |
-| `warning` | `#d97706` (amber-600) | รอดำเนินการ, ใกล้ครบกำหนด |
-| `warning-bg` | `#fffbeb` (amber-50) | badge warning |
-| `neutral` | `#6b7280` (gray-500) | สถานะ neutral, ยกเลิก |
+| Token | Tailwind | Hex | ใช้กับ |
+|-------|----------|-----|-------|
+| `positive` | `green-600` | `#46BC9E` (MINT) | รายรับ, กำไร, ยอดบวก |
+| `positive-bg` | `green-50` | `#F2FCF9` | badge พื้นหลัง รายรับ |
+| `negative` | `red-600` | `#C43448` (RUBY) | รายจ่าย, ขาดทุน, ยอดลบ |
+| `negative-bg` | `red-50` | `#FCF1F2` | badge พื้นหลัง รายจ่าย |
+| `warning` | `amber-600` | `#E6BB51` (SUNFLOWER) | รอดำเนินการ, ใกล้ครบกำหนด |
+| `warning-bg` | `amber-50` | `#FFFCF3` | badge warning |
+| `info` | `blue-600` | `#4DB0D3` (AQUA) | ข้อมูล, สถานะกำลังทำ |
+| `neutral` | `gray-500` | `#656D78` | สถานะ neutral, ยกเลิก |
 
 ### กฎการใช้สี
-- **ห้ามใช้สีแดง** กับอะไรที่ไม่ใช่ "ผิดพลาด" หรือ "ยอดลบ" — ผู้ใช้จะตกใจ
+- **ใช้ Tailwind utility class เท่านั้น** (`bg-*`, `text-*`, `border-*`) — token ถูก map เข้าพาเลตต์แล้ว ห้ามฮาร์ดโค้ด hex
+- **ห้ามใช้สีแดง (RUBY)** กับอะไรที่ไม่ใช่ "ผิดพลาด" หรือ "ยอดลบ" — ผู้ใช้จะตกใจ
 - ยอดเงินลบให้แสดง `text-red-600` + ขึ้นต้นด้วย `−` (U+2212 minus sign) ไม่ใช่ hyphen
-- ยอดเงินบวกที่สำคัญ (เช่น กำไรสุทธิ) ให้ใช้ `text-green-600`
+- ยอดเงินบวกที่สำคัญ (เช่น กำไรสุทธิ) ให้ใช้ `text-green-600` (= MINT)
 - Badge สถานะ: ใช้ `bg-{color}-50 text-{color}-700 border border-{color}-200`
+- primary/brand = AQUA → ใช้ `bg-blue-600` / `text-blue-600` / token `primary` (อย่าใช้ indigo เป็นแบรนด์ — indigo = PLUM ม่วง)
 
 ---
 
@@ -643,3 +672,4 @@ import {
 |--------|--------------|
 | 2026-06-06 | สร้าง DESIGN.md จาก Stripe + Linear + Emil Kowalski |
 | 2026-06-17 | เพิ่ม §13 Dialog / Popup Standard — sticky header/footer, size prop, DialogBody บังคับทั้งระบบ |
+| 2026-06-17 | §2 ล็อก PERPOS Standard Palette (flat-UI) ทั้งแอป — override Tailwind token (AQUA=primary) + migrate ฮาร์ดโค้ด hex (รวม LINE flex cards) · ยกเว้นเอกสารพิมพ์ (wht-pdf, pp30/wht-cert preview, mom-html) คงสีเดิม |

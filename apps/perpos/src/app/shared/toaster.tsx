@@ -8,7 +8,7 @@ export default function AppToaster() {
       position="top-right"
       toastOptions={{
         duration: 2500,
-        style: { background: "#111827", color: "#fff" },
+        style: { background: "#1A1A1B", color: "#fff" },
       }}
     />
   );

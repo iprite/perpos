@@ -11,80 +11,70 @@
       - gray/natural colors for texts, borders and disabled elements.
       - If required we can use as background too.
     */
-    /* For rgb(255 255 255 / <alpha-value>) = #ffffff */
-    --gray-0: 255 255 255;
-    /* For rgb(250 250 250 / <alpha-value>) = #fafafa */
-    --gray-50: 250 250 250;
-    /* For rgb(241 241 241 / <alpha-value>) = #f1f1f1 */
-    --gray-100: 241 241 241;
-    /* For rgb(227 227 227 / <alpha-value>) = #e3e3e3 */
-    --gray-200: 227 227 227;
-    /* For rgb(223 223 223 / <alpha-value>) = #dfdfdf */
-    --gray-300: 223 223 223;
-    /* For rgb(146 146 146 / <alpha-value>) = #929292 */
-    --gray-400: 146 146 146;
-    /* For rgb(102 102 102 / <alpha-value>) = #666666 */
-    --gray-500: 102 102 102;
-    /* For rgb(72 72 72 / <alpha-value>) = #484848 */
-    --gray-600: 72 72 72;
-    /* For rgb(51 51 51 / <alpha-value>) = #333333 */
-    --gray-700: 51 51 51;
-    /* For rgb(34 34 34 / <alpha-value>) = #222222 */
-    --gray-800: 34 34 34;
-    /* For rgb(17 17 17 / <alpha-value>) = #111111 */
-    --gray-900: 17 17 17;
-    /* For rgb(0 0 0 / <alpha-value>) = #000000 */
-    --gray-1000: 0 0 0;
+    /* PERPOS STANDARD PALETTE — neutral gray ramp (ดู DESIGN.md §2)
+       LIGHT GRAY #F5F7FA · MEDIUM GRAY #CCD1D9 · DARK GRAY #656D78 · CHARCOAL #3C3B3D */
+    --gray-0: 255 255 255; /* #ffffff */
+    --gray-50: 248 250 252; /* #f8fafc */
+    --gray-100: 245 247 250; /* #f5f7fa LIGHT GRAY */
+    --gray-200: 230 233 238; /* #e6e9ee */
+    --gray-300: 204 209 217; /* #ccd1d9 MEDIUM GRAY */
+    --gray-400: 156 163 175; /* #9ca3af */
+    --gray-500: 101 109 120; /* #656d78 DARK GRAY */
+    --gray-600: 82 88 102; /* #525866 */
+    --gray-700: 60 59 61; /* #3c3b3d CHARCOAL */
+    --gray-800: 42 42 44; /* #2a2a2c */
+    --gray-900: 26 26 27; /* #1a1a1b */
+    --gray-1000: 0 0 0; /* #000000 */
 
     /* body style */
     --background: 255 255 255; /* #ffffff */
-    --foreground: 72 72 72; /* #484848 */
-    --muted: 227 227 227; /* #e3e3e3 */
-    --muted-foreground: 146 146 146; /* #929292 */
+    --foreground: 82 88 102; /* #525866 */
+    --muted: 230 233 238; /* #e6e9ee */
+    --muted-foreground: 156 163 175; /* #9ca3af */
 
     /* ----------------------------------- */
-    /* primary/brand colors */
+    /* primary/brand colors — AQUA #4FC1E9 */
     /* ----------------------------------- */
-    --primary-lighter: 227 227 227; /* #e3e3e3 */
-    --primary-default: 17 17 17; /* #111111 */
-    --primary-dark: 0 0 0; /* #000000 */
+    --primary-lighter: 229 246 252; /* #e5f6fc */
+    --primary-default: 79 193 233; /* #4fc1e9 AQUA */
+    --primary-dark: 73 153 181; /* #4999b5 */
     --primary-foreground: 255 255 255; /* #ffffff */
 
     /* ----------------------------------- */
-    /* secondary colors */
+    /* secondary colors — CHARCOAL #3C3B3D */
     /* ----------------------------------- */
-    --secondary-lighter: 227 227 227; /* #e3e3e3 */
-    --secondary-default: 17 17 17; /* #111111 */
-    --secondary-dark: 0 0 0; /* #000000 */
+    --secondary-lighter: 230 233 238; /* #e6e9ee */
+    --secondary-default: 60 59 61; /* #3c3b3d CHARCOAL */
+    --secondary-dark: 42 42 44; /* #2a2a2c */
     --secondary-foreground: 255 255 255; /* #ffffff */
 
     /* ----------------------------------- */
-    /* red/error colors */
+    /* red/error colors — RUBY #D8334A */
     /* ----------------------------------- */
-    --red-lighter: 227 227 227; /* #e3e3e3 */
-    --red-default: 17 17 17; /* #111111 */
-    --red-dark: 0 0 0; /* #000000 */
+    --red-lighter: 249 224 228; /* #f9e0e4 */
+    --red-default: 216 51 74; /* #d8334a RUBY */
+    --red-dark: 169 53 70; /* #a93546 */
 
     /* ----------------------------------- */
-    /* orange/warning colors */
+    /* orange/warning colors — BITTERSWEET #FC6E51 */
     /* ----------------------------------- */
-    --orange-lighter: 227 227 227; /* #e3e3e3 */
-    --orange-default: 17 17 17; /* #111111 */
-    --orange-dark: 0 0 0; /* #000000 */
+    --orange-lighter: 255 233 229; /* #ffe9e5 */
+    --orange-default: 252 110 81; /* #fc6e51 BITTERSWEET */
+    --orange-dark: 194 95 75; /* #c25f4b */
 
     /* ----------------------------------- */
-    /* blue/info colors */
+    /* blue/info colors — AQUA #4FC1E9 */
     /* ----------------------------------- */
-    --blue-lighter: 227 227 227; /* #e3e3e3 */
-    --blue-default: 17 17 17; /* #111111 */
-    --blue-dark: 0 0 0; /* #000000 */
+    --blue-lighter: 229 246 252; /* #e5f6fc */
+    --blue-default: 79 193 233; /* #4fc1e9 AQUA */
+    --blue-dark: 73 153 181; /* #4999b5 */
 
     /* ----------------------------------- */
-    /* green/success colors */
+    /* green/success colors — MINT #48CFAD */
     /* ----------------------------------- */
-    --green-lighter: 227 227 227; /* #e3e3e3 */
-    --green-default: 17 17 17; /* #111111 */
-    --green-dark: 0 0 0; /* #000000 */
+    --green-lighter: 228 248 243; /* #e4f8f3 */
+    --green-default: 72 207 173; /* #48cfad MINT */
+    --green-dark: 68 163 139; /* #44a38b */
 
     --upl-bg: rgb(var(--background));
     --upl-surface: rgb(var(--gray-0));
@@ -136,48 +126,48 @@
     --muted-foreground: 102 102 102; /* #666666 */
 
     /* ----------------------------------- */
-    /* primary/brand colors */
+    /* primary/brand colors — AQUA #4FC1E9 (palette-consistent in dark) */
     /* ----------------------------------- */
-    --primary-lighter: 34 34 34; /* #222222 */
-    --primary-default: 241 241 241; /* #f1f1f1 */
-    --primary-dark: 255 255 255; /* #ffffff */
-    --primary-foreground: 0 0 0; /* #000000 */
+    --primary-lighter: 70 131 154; /* #46839a */
+    --primary-default: 79 193 233; /* #4fc1e9 AQUA */
+    --primary-dark: 127 210 239; /* #7fd2ef */
+    --primary-foreground: 26 26 27; /* #1a1a1b */
 
     /* ----------------------------------- */
     /* secondary colors */
     /* ----------------------------------- */
-    --secondary-lighter: 34 34 34; /* #222222 */
-    --secondary-default: 241 241 241; /* #f1f1f1 */
-    --secondary-dark: 223 223 223; /* #dfdfdf */
-    --secondary-foreground: 0 0 0; /* #000000 */
+    --secondary-lighter: 42 42 44; /* #2a2a2c */
+    --secondary-default: 230 233 238; /* #e6e9ee */
+    --secondary-dark: 204 209 217; /* #ccd1d9 */
+    --secondary-foreground: 26 26 27; /* #1a1a1b */
 
     /* ----------------------------------- */
-    /* red/error colors */
+    /* red/error colors — RUBY #D8334A */
     /* ----------------------------------- */
-    --red-lighter: 34 34 34; /* #222222 */
-    --red-default: 241 241 241; /* #f1f1f1 */
-    --red-dark: 223 223 223; /* #dfdfdf */
+    --red-lighter: 144 55 68; /* #903744 */
+    --red-default: 216 51 74; /* #d8334a RUBY */
+    --red-dark: 227 106 123; /* #e36a7b */
 
     /* ----------------------------------- */
-    /* orange/warning colors */
+    /* orange/warning colors — BITTERSWEET #FC6E51 */
     /* ----------------------------------- */
-    --orange-lighter: 34 34 34; /* #222222 */
-    --orange-default: 241 241 241; /* #f1f1f1 */
-    --orange-dark: 223 223 223; /* #dfdfdf */
+    --orange-lighter: 164 87 72; /* #a45748 */
+    --orange-default: 252 110 81; /* #fc6e51 BITTERSWEET */
+    --orange-dark: 253 149 128; /* #fd9580 */
 
     /* ----------------------------------- */
-    /* blue/info colors */
+    /* blue/info colors — AQUA #4FC1E9 */
     /* ----------------------------------- */
-    --blue-lighter: 34 34 34; /* #222222 */
-    --blue-default: 241 241 241; /* #f1f1f1 */
-    --blue-dark: 223 223 223; /* #dfdfdf */
+    --blue-lighter: 70 131 154; /* #46839a */
+    --blue-default: 79 193 233; /* #4fc1e9 AQUA */
+    --blue-dark: 127 210 239; /* #7fd2ef */
 
     /* ----------------------------------- */
-    /* green/success colors */
+    /* green/success colors — MINT #48CFAD */
     /* ----------------------------------- */
-    --green-lighter: 34 34 34; /* #222222 */
-    --green-default: 241 241 241; /* #f1f1f1 */
-    --green-dark: 223 223 223; /* #dfdfdf */
+    --green-lighter: 66 139 121; /* #428b79 */
+    --green-default: 72 207 173; /* #48cfad MINT */
+    --green-dark: 121 220 195; /* #79dcc3 */
 
     /* here you can customize other colors for dark theme if design required */
   }

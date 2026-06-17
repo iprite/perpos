@@ -69,7 +69,7 @@ const STATUS_COLOR: Record<string, string> = {
 };
 
 const PRIORITY_COLOR: Record<string, string> = {
-  low: '#94a3b8', medium: '#3b82f6', high: '#f97316', urgent: '#ef4444',
+  low: '#9CA3AF', medium: '#4FC1E9', high: '#FC6E51', urgent: '#D8334A',
 };
 
 const EMPTY_SOL = { title: '', description: '', status: 'lead', priority: 'medium', value: '', start_date: '', end_date: '', tags: '' };
@@ -329,7 +329,7 @@ export default function ClientDetailPage() {
                       <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${sc}`}>
                         {SOL_STATUS_OPTS.find(x => x.value === s.status)?.label ?? s.status}
                       </span>
-                      <span className="text-xs font-medium" style={{ color: PRIORITY_COLOR[s.priority] ?? '#94a3b8' }}>
+                      <span className="text-xs font-medium" style={{ color: PRIORITY_COLOR[s.priority] ?? '#9CA3AF' }}>
                         {s.priority}
                       </span>
                     </div>
