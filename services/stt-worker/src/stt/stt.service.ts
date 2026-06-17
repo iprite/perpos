@@ -141,7 +141,9 @@ async function runJob(jobId: string, orgId: string): Promise<void> {
     //    - งานเว็บ → โหลดจาก storage ตามปกติ
     let bytes: Buffer;
     let mimeType: string;
-    if (job.source === 'line' && !job.audio_url && job.line_message_id) {
+    if (job.source === 'recall' && !job.audio_url) {
+      ({ bytes, mimeType } = await ingestRecallAudio(admin, job, orgId));
+    } else if (job.source === 'line' && !job.audio_url && job.line_message_id) {
       ({ bytes, mimeType } = await ingestLineAudio(admin, job, orgId));
     } else {
       const storagePath = extractStoragePath(job.audio_url as string);
@@ -155,10 +157,12 @@ async function runJob(jobId: string, orgId: string): Promise<void> {
     const durationSec = await measureDuration(bytes, mimeType);
     await admin.from('assistant_jobs').update({ duration_seconds: durationSec }).eq('id', jobId);
 
-    const { data: reserveData } = await admin.rpc('consume_stt_quota', {
-      p_profile_id: profileId, p_seconds: durationSec, p_job_id: jobId, p_source: String(job.source ?? 'web'),
-    });
-    const reserve = reserveData as { ok?: boolean; remaining_seconds?: number } | null;
+    // source='recall' หักที่ bot_quota แล้ว (ตอน settle) → ข้าม consume_stt_quota กันหักซ้ำ
+    const reserve = job.source === 'recall'
+      ? { ok: true as const }
+      : ((await admin.rpc('consume_stt_quota', {
+          p_profile_id: profileId, p_seconds: durationSec, p_job_id: jobId, p_source: String(job.source ?? 'web'),
+        })).data as { ok?: boolean; remaining_seconds?: number } | null);
     if (!reserve?.ok) {
       const remainMin = Math.max(0, Math.floor((reserve?.remaining_seconds ?? 0) / 60));
       const fileMin = Math.max(1, Math.ceil(durationSec / 60));
@@ -191,7 +195,7 @@ async function runJob(jobId: string, orgId: string): Promise<void> {
       }
       return; // ไม่เรียก Gemini เลย
     }
-    reservedSeconds = durationSec;
+    reservedSeconds = job.source === 'recall' ? 0 : durationSec; // recall ไม่ได้จอง stt_quota → ไม่ refund stt
 
     // 2. upload ไฟล์ทั้งก้อนเข้า Gemini Files API → ถอด+สรุปในครั้งเดียว
 
@@ -236,8 +240,8 @@ async function runJob(jobId: string, orgId: string): Promise<void> {
     console.log(`[stt-worker] Job ${jobId} completed (${transcript.key_topics.length} topics, ${transcript.action_items.length} actions).`);
 
     // 4. Best-effort delivery (failure must not fail the job).
-    if (job.source === 'line') {
-      // งานจาก LINE → ให้ฝั่ง Next.js สร้าง PDF แล้วส่ง Flex (ปุ่มดาวน์โหลด) กลับ LINE
+    if (job.source === 'line' || job.source === 'recall') {
+      // งานจาก LINE/บอท → ให้ฝั่ง Next.js สร้าง PDF แล้วส่ง Flex (ปุ่มดาวน์โหลด) กลับ LINE
       await deliverMomToLine(jobId, orgId).catch((e) =>
         console.warn(`[stt-worker] mom-deliver failed for ${jobId}: ${String(e)}`),
       );
@@ -261,8 +265,8 @@ async function runJob(jobId: string, orgId: string): Promise<void> {
       .from('assistant_jobs')
       .update({ status: 'failed', error_message: errorMsg, updated_at: new Date().toISOString() })
       .eq('id', jobId);
-    // งานจาก LINE ที่ fail → แจ้งผู้ใช้ผ่าน deliver route (push text error)
-    if (job.source === 'line') {
+    // งานจาก LINE/บอท ที่ fail → แจ้งผู้ใช้ผ่าน deliver route (push error)
+    if (job.source === 'line' || job.source === 'recall') {
       await deliverMomToLine(jobId, orgId).catch(() => undefined);
     }
   }
@@ -298,6 +302,54 @@ async function downloadAudio(storagePath: string): Promise<{ bytes: Buffer; mime
   const bytes = Buffer.from(arrayBuffer);
   const mimeType = data.type || 'audio/mpeg';
   return { bytes, mimeType };
+}
+
+// ── Recall: ดึง mixed mp3 จากบอท → อัป storage → อัปเดต job (สำหรับงาน source='recall') ──
+//    bot.done แล้ว: GET bot → recordings[0].id → GET /audio_mixed → results[0].data.download_url → download
+async function ingestRecallAudio(
+  admin: ReturnType<typeof getAdminClient>,
+  job: Record<string, unknown>,
+  orgId: string,
+): Promise<{ bytes: Buffer; mimeType: string }> {
+  const region = process.env.RECALL_REGION ?? 'us-east-1';
+  const base = `https://${region}.recall.ai`;
+  const key = process.env.RECALL_API_KEY;
+  const botId = String(job.recall_bot_id ?? '');
+  if (!key) throw new Error('ยังไม่ได้ตั้งค่า RECALL_API_KEY');
+  if (!botId) throw new Error('recall job ไม่มี recall_bot_id');
+  const headers = { Authorization: `Token ${key}`, accept: 'application/json' };
+
+  // 1. bot → recording id
+  const botRes = await fetch(`${base}/api/v1/bot/${botId}/`, { headers, signal: AbortSignal.timeout(20_000) });
+  if (!botRes.ok) throw new Error(`Recall retrieve bot ${botRes.status}`);
+  const bot = (await botRes.json()) as { recordings?: { id: string }[] };
+  const recordingId = bot.recordings?.[0]?.id;
+  if (!recordingId) throw new Error('Recall bot ยังไม่มี recording');
+
+  // 2. audio_mixed → download_url (อาจยังประมวลผลไม่เสร็จทันทีหลัง done → retry สั้น ๆ)
+  let downloadUrl = '';
+  for (let i = 0; i < 6 && !downloadUrl; i++) {
+    const amRes = await fetch(`${base}/api/v1/audio_mixed?recording_id=${recordingId}`, { headers, signal: AbortSignal.timeout(20_000) });
+    if (amRes.ok) {
+      const am = (await amRes.json()) as { results?: { status?: { code?: string }; data?: { download_url?: string } }[] };
+      const part = am.results?.[0];
+      if (part?.status?.code === 'done' && part.data?.download_url) downloadUrl = part.data.download_url;
+    }
+    if (!downloadUrl) await new Promise((r) => setTimeout(r, 5000));
+  }
+  if (!downloadUrl) throw new Error('Recall mixed audio ยังไม่พร้อม (timeout)');
+
+  // 3. download mp3 (presigned URL — ไม่ต้องใส่ auth)
+  const mediaRes = await fetch(downloadUrl, { signal: AbortSignal.timeout(120_000) });
+  if (!mediaRes.ok) throw new Error(`download recall media ${mediaRes.status}`);
+  const bytes = Buffer.from(await mediaRes.arrayBuffer());
+
+  // 4. อัปเข้า bucket (ให้ PDPA cleanup เดิมลบได้) + set audio_url
+  const storagePath = `${orgId}/recall/${String(job.id)}.mp3`;
+  await admin.storage.from(BUCKET).upload(storagePath, bytes, { contentType: 'audio/mpeg', upsert: true });
+  await admin.from('assistant_jobs').update({ audio_url: storagePath, updated_at: new Date().toISOString() }).eq('id', String(job.id));
+
+  return { bytes, mimeType: 'audio/mpeg' };
 }
 
 // ── LINE: โหลดไฟล์เสียงจาก content API → อัป storage → อัปเดต job (สำหรับงาน source='line') ──

@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
   const admin = createAdminClient();
   const { data: job, error } = await admin
     .from('assistant_jobs')
-    .select('file_name, status, transcript_json, created_at, profile_id, error_message')
+    .select('file_name, status, transcript_json, created_at, profile_id, error_message, source')
     .eq('id', jobId)
     .eq('org_id', orgId)
     .maybeSingle();
@@ -119,17 +119,40 @@ export async function POST(req: NextRequest) {
     .createSignedUrl(path, 48 * 60 * 60, { download: `MoM-${jobId}.pdf` });
   if (signErr || !signed?.signedUrl) return failToLine(`signed url: ${signErr?.message ?? 'failed'}`);
 
-  // 3. โควต้าคงเหลือ (แสดงใน Flex)
+  const isRecall = job.source === 'recall';
+
+  // 3. โควต้าคงเหลือ (แสดงใน Flex) — recall → bot_quota, อื่น ๆ → stt_quota
   const { data: quota } = await admin
-    .from('stt_quota')
+    .from(isRecall ? 'bot_quota' : 'stt_quota')
     .select('limit_seconds, used_seconds')
     .eq('profile_id', job.profile_id as string)
     .maybeSingle();
-  const qLimit = (quota as { limit_seconds?: number } | null)?.limit_seconds ?? 18000;
+  const qLimit = (quota as { limit_seconds?: number } | null)?.limit_seconds ?? (isRecall ? 7200 : 18000);
   const qUsed = (quota as { used_seconds?: number } | null)?.used_seconds ?? 0;
-  const quotaLine = `⏱️ โควต้าคงเหลือ ${Math.max(0, Math.floor((qLimit - qUsed) / 60))} / ${Math.floor(qLimit / 60)} นาที`;
+  const quotaLine = `${isRecall ? '🤖 โควต้าบอท' : '⏱️ โควต้า'}คงเหลือ ${Math.max(0, Math.floor((qLimit - qUsed) / 60))} / ${Math.floor(qLimit / 60)} นาที`;
+
+  // 3.5 (recall) signed URL ของไฟล์เสียง mp3 — เก็บ 48 ชม. ให้ผู้ใช้ดาวน์โหลด (best-effort)
+  let audioUrl = '';
+  if (isRecall) {
+    const { data: aSigned } = await admin.storage
+      .from(BUCKET)
+      .createSignedUrl(`${orgId}/recall/${jobId}.mp3`, 48 * 60 * 60, { download: `recording-${jobId}.mp3` });
+    audioUrl = aSigned?.signedUrl ?? '';
+  }
 
   // 4. push Flex (ปุ่มดาวน์โหลด) กลับ LINE
+  const privacyAudio = isRecall
+    ? 'ไฟล์เสียง + รายงาน PDF จะถูกลบอัตโนมัติภายใน 48 ชั่วโมง กรุณาดาวน์โหลดเก็บไว้'
+    : 'ไฟล์เสียงถูกลบออกจากระบบทันทีหลังประมวลผลเสร็จ · รายงาน PDF นี้จะถูกลบอัตโนมัติภายใน 48 ชั่วโมง กรุณาดาวน์โหลดเก็บไว้';
+  const footerButtons: Record<string, unknown>[] = [
+    { type: 'button', style: 'primary', color: '#4DB0D3', height: 'sm',
+      action: { type: 'uri', label: 'ดาวน์โหลด MoM (PDF)', uri: signed.signedUrl } },
+  ];
+  if (audioUrl) {
+    footerButtons.push({ type: 'button', style: 'secondary', height: 'sm', margin: 'sm',
+      action: { type: 'uri', label: 'ดาวน์โหลดไฟล์เสียง (MP3)', uri: audioUrl } });
+  }
+
   const meetingTitle = String(tj.meeting_title || job.file_name || 'รายงานการประชุม');
   const sent = await sendLineMessages({
     to: lineUserId,
@@ -143,26 +166,20 @@ export async function POST(req: NextRequest) {
           contents: [
             { type: 'text', text: '📋 รายงานการประชุม (MoM)', weight: 'bold', size: 'md', color: '#4DB0D3' },
             { type: 'text', text: meetingTitle, size: 'sm', wrap: true, color: '#1A1A1B' },
-            { type: 'text', text: 'ถอดเสียงเสร็จแล้ว กดปุ่มด้านล่างเพื่อดาวน์โหลดไฟล์ PDF', size: 'xs', wrap: true, color: '#656D78' },
+            { type: 'text', text: 'ถอดเสียงเสร็จแล้ว กดปุ่มด้านล่างเพื่อดาวน์โหลด', size: 'xs', wrap: true, color: '#656D78' },
             { type: 'text', text: quotaLine, size: 'xs', color: '#9CA3AF', margin: 'sm' },
             { type: 'separator', margin: 'md' },
             {
               type: 'box', layout: 'vertical', spacing: 'xs', margin: 'md',
               contents: [
                 { type: 'text', text: '🔒 ความเป็นส่วนตัวของข้อมูล', size: 'xs', weight: 'bold', color: '#656D78' },
-                { type: 'text', text: 'ไฟล์เสียงถูกลบออกจากระบบทันทีหลังประมวลผลเสร็จ · รายงาน PDF นี้จะถูกลบอัตโนมัติภายใน 48 ชั่วโมง กรุณาดาวน์โหลดเก็บไว้', size: 'xxs', wrap: true, color: '#9CA3AF' },
+                { type: 'text', text: privacyAudio, size: 'xxs', wrap: true, color: '#9CA3AF' },
                 { type: 'text', text: 'เราไม่นำข้อมูลของคุณไปใช้ฝึกหรือพัฒนาโมเดล AI ใด ๆ ทั้งสิ้น', size: 'xxs', wrap: true, color: '#9CA3AF' },
               ],
             },
           ],
         },
-        footer: {
-          type: 'box', layout: 'vertical',
-          contents: [
-            { type: 'button', style: 'primary', color: '#4DB0D3', height: 'sm',
-              action: { type: 'uri', label: 'ดาวน์โหลด MoM (PDF)', uri: signed.signedUrl } },
-          ],
-        },
+        footer: { type: 'box', layout: 'vertical', contents: footerButtons },
       },
     }],
   });
