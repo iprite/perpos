@@ -351,7 +351,7 @@ export default function AssistantTranscribePage() {
       {/* Two-column workspace */}
       <div className="grid gap-6 lg:grid-cols-12">
         {/* Left — upload + quota */}
-        <div className="lg:col-span-5 xl:col-span-4">
+        <div className="min-w-0 lg:col-span-5 xl:col-span-4">
           <div className="space-y-4 lg:sticky lg:top-6">
             {/* Upload card */}
             <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
@@ -436,7 +436,7 @@ export default function AssistantTranscribePage() {
         </div>
 
         {/* Right — jobs */}
-        <div className="lg:col-span-7 xl:col-span-8">
+        <div className="min-w-0 lg:col-span-7 xl:col-span-8">
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-lg font-semibold text-gray-900">รายการงาน</h2>
             <span className="text-xs text-gray-400">ผลลัพธ์เก็บไว้ {RETENTION_HOURS} ชม. แล้วลบอัตโนมัติ</span>
