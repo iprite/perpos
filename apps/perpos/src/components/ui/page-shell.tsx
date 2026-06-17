@@ -64,7 +64,7 @@ export function PageShell({
       {hasHeader && (
         <header className="sticky top-[calc(var(--impersonation-banner-height,0px)+3rem)] z-10 -mx-1 -mt-2 mb-0 flex flex-col gap-3 bg-white px-1 pb-3 pt-4 sm:-mx-2 sm:flex-row sm:items-end sm:justify-between sm:px-2 lg:-mx-3 lg:px-3 xl:top-0">
           <div className="min-w-0">
-            {title && <h1 className="text-2xl font-semibold leading-tight text-gray-900">{title}</h1>}
+            {title && <h1 className="text-2xl font-semibold leading-tight text-primary">{title}</h1>}
             {description && <p className="mt-1 text-sm text-gray-500">{description}</p>}
           </div>
           {actions && <div className="flex flex-shrink-0 flex-wrap items-center gap-2">{actions}</div>}

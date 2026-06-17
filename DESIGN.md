@@ -29,7 +29,8 @@
 
 | ชื่อ | Hex | บทบาท | ใช้ผ่าน Tailwind family |
 |------|-----|-------|------------------------|
-| **AQUA** | `#4FC1E9` | **primary / brand / info** | `blue-*`, `sky-*`, `cyan-*`, token `primary` |
+| **CHARCOAL** | `#3C3B3D` | **primary / brand / info / title** | `blue-*`, `sky-*`, `cyan-*`, token `primary` · = gray-700 |
+| ~~AQUA~~ | ~~`#4FC1E9`~~ | **เลิกใช้** — แบรนด์เปลี่ยนเป็น CHARCOAL (โทน mono ไม่มีฟ้า) | — |
 | BLUE JEANS | `#5D9CEC` | accent น้ำเงิน (chart) | — |
 | PLUM | `#8067B7` | สีม่วง (accent/หมวดหมู่) | `indigo-*`, `violet-*`, `purple-*` |
 | LAVENDER | `#AC92EC` | ม่วงอ่อน | (เฉด 300–400 ของ `indigo`/`violet`) |
@@ -42,7 +43,6 @@
 | GRASS | `#A0D468` | เขียวสด (chart/lime) | `lime-*` |
 | **MINT** | `#48CFAD` | **positive / success** | `green-*`, `emerald-*`, token `green` |
 | TEAL | `#A0CECB` | เขียวอมฟ้าหม่น | `teal-*` |
-| **AQUA** | `#4FC1E9` | (ดูบรรทัดบน) | — |
 | **Gray ramp** | `#F5F7FA` LIGHT · `#CCD1D9` MEDIUM · `#656D78` DARK · `#3C3B3D` CHARCOAL | พื้น/เส้น/ตัวอักษร | `gray-*`, `slate-*`, `zinc-*`, `neutral-*`, `stone-*` |
 
 ### Neutral / Surface (จาก gray ramp)
@@ -69,7 +69,7 @@
 | `negative-bg` | `red-50` | `#FCF1F2` | badge พื้นหลัง รายจ่าย |
 | `warning` | `amber-600` | `#E6BB51` (SUNFLOWER) | รอดำเนินการ, ใกล้ครบกำหนด |
 | `warning-bg` | `amber-50` | `#FFFCF3` | badge warning |
-| `info` | `blue-600` | `#4DB0D3` (AQUA) | ข้อมูล, สถานะกำลังทำ |
+| `info` | `blue-600` | `#3C3B3D` (CHARCOAL) | ข้อมูล, สถานะกำลังทำ (โทน mono) |
 | `neutral` | `gray-500` | `#656D78` | สถานะ neutral, ยกเลิก |
 
 ### กฎการใช้สี
@@ -78,7 +78,7 @@
 - ยอดเงินลบให้แสดง `text-red-600` + ขึ้นต้นด้วย `−` (U+2212 minus sign) ไม่ใช่ hyphen
 - ยอดเงินบวกที่สำคัญ (เช่น กำไรสุทธิ) ให้ใช้ `text-green-600` (= MINT)
 - Badge สถานะ: ใช้ `bg-{color}-50 text-{color}-700 border border-{color}-200`
-- primary/brand = AQUA → ใช้ `bg-blue-600` / `text-blue-600` / token `primary` (อย่าใช้ indigo เป็นแบรนด์ — indigo = PLUM ม่วง)
+- **primary/brand = CHARCOAL `#3C3B3D`** (โทน mono — เลิกใช้ AQUA/ฟ้า) → ใช้ `bg-primary` / `text-primary` หรือ `bg-blue-600` / `text-blue-600` (blue/sky/cyan ถูก map เป็น charcoal แล้ว) · ปุ่ม primary, sidebar active, **title (h1/หัวข้อ ใช้ `text-primary`)** = charcoal · อย่าใช้ indigo เป็นแบรนด์ (indigo = PLUM ม่วง)
 
 ---
 
@@ -673,3 +673,4 @@ import {
 | 2026-06-06 | สร้าง DESIGN.md จาก Stripe + Linear + Emil Kowalski |
 | 2026-06-17 | เพิ่ม §13 Dialog / Popup Standard — sticky header/footer, size prop, DialogBody บังคับทั้งระบบ |
 | 2026-06-17 | §2 ล็อก PERPOS Standard Palette (flat-UI) ทั้งแอป — override Tailwind token (AQUA=primary) + migrate ฮาร์ดโค้ด hex (รวม LINE flex cards) · ยกเว้นเอกสารพิมพ์ (wht-pdf, pp30/wht-cert preview, mom-html) คงสีเดิม |
+| 2026-06-17 | เปลี่ยน **primary/brand = CHARCOAL `#3C3B3D`** (โทน mono เลิก AQUA) — blue/sky/cyan → charcoal scale, token primary/blue → charcoal, title (h1/PageShell/Title) ใช้ `text-primary` · สี accent อื่น (PLUM/PINK/MINT/RUBY/SUNFLOWER) คงเดิม |

@@ -657,7 +657,7 @@ export default function SolutionDetailPage() {
           <div className="flex items-center gap-1.5 flex-wrap">
             <button type="button" onClick={() => setFilterType('')}
               className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-all ${
-                filterType === '' ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300'
+                filterType === '' ? 'bg-primary text-primary-foreground border-primary' : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300'
               }`}>
               ทั้งหมด {filterType === '' && notes.length > 0 ? `(${notes.length})` : ''}
             </button>

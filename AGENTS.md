@@ -308,7 +308,11 @@ Endpoint: `POST /api/assistant/scheduler`
 | ป้ายสถานะ | `<StatusBadge tone=…>` | `@/components/ui/badge` |
 | KPI/การ์ดสรุป | `<StatCard>` | `@/components/ui/stat-card` |
 
-> **rizzui**: เลิกใช้แล้วเกือบทั้งหมด — ห้าม import `Button/Input/Select/Title/Text/Avatar/Badge` จาก `rizzui`/`rizzui/typography` (ใช้ `@/components/ui/*` แทน) · ยังคงเหลือเฉพาะ `Collapse` (sidebar nav) + `Drawer` (mobile drawer) ที่ยังไม่มีตัวแทน — สองตัวนี้ใช้ rizzui ได้ชั่วคราว
+> **rizzui**: โค้ด/หน้าจอ**ใหม่**ห้าม import จาก `rizzui`/`rizzui/typography` ตรง ๆ — ใช้ `@/components/ui/*` เสมอ (`Button/Input/Select/Title/Text/Avatar/Badge` ฯลฯ มีครบแล้ว)
+>
+> **ข้อยกเว้นที่ยอมรับถาวร (ไม่ใช่ของค้างรอแก้ — อย่ารื้อโดยไม่จำเป็น):** `Collapse` ([sidebar-menu.tsx](apps/perpos/src/layouts/hydrogen/sidebar-menu.tsx)) + `Drawer` ([drawer-views/container.tsx](apps/perpos/src/app/shared/drawer-views/container.tsx)) ยังใช้ rizzui ได้ · เหตุผล: เป็น infra ที่แยกตัวชัด **ไม่หลุดพาเลตต์** (Collapse ไม่มีสีของตัวเอง — header เป็น JSX เราเอง; Drawer ใช้ `containerClassName` ของเรา) และ **ไม่ทำ UI เพี้ยน** · การถอดออกมี cost/risk สูง (กระทบ navigation หลัก) แต่ benefit ต่ำ → ถือเป็นการ coexist ที่ตั้งใจ ไม่ใช่ tech debt · จะ migrate ก็ต่อเมื่อ: ต้องแก้ดีไซน์ตัวนั้นจริง, มันเริ่มหลุดพาเลตต์, หรือ migrate `@core` (isomorphic-core ใช้ rizzui ~69 ไฟล์) ทั้งก้อน
+>
+> หมายเหตุ: rizzui ยังอยู่ใน `package.json` เพราะ `@core` ใช้ภายใน — **การคง dependency ไว้ไม่ถือว่าผิด standard** ตราบใดที่โค้ดแอปไม่ import ตรง
 
 ### Dropdown vs Popover — เลือกใช้อะไร?
 

@@ -142,14 +142,14 @@ export function InventoryClient(props: { organizationId: string; initialItems: I
         <div className="flex items-center gap-2">
           <button
             type="button"
-            className={cn("rounded-md px-3 py-1.5 text-sm", tab === "items" ? "bg-slate-900 text-white" : "bg-slate-100 hover:bg-slate-200")}
+            className={cn("rounded-md px-3 py-1.5 text-sm", tab === "items" ? "bg-primary text-primary-foreground" : "bg-slate-100 hover:bg-slate-200")}
             onClick={() => setTab("items")}
           >
             สินค้า
           </button>
           <button
             type="button"
-            className={cn("rounded-md px-3 py-1.5 text-sm", tab === "layers" ? "bg-slate-900 text-white" : "bg-slate-100 hover:bg-slate-200")}
+            className={cn("rounded-md px-3 py-1.5 text-sm", tab === "layers" ? "bg-primary text-primary-foreground" : "bg-slate-100 hover:bg-slate-200")}
             onClick={() => setTab("layers")}
           >
             FIFO Layers

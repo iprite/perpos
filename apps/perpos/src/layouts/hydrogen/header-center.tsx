@@ -90,7 +90,7 @@ export function HeaderCenter({ enabledModuleKeys, organizations, activeOrganizat
               className={cn(
                 'inline-flex h-6 items-center gap-1 rounded-full px-2 text-[11px] font-medium transition-colors',
                 it.active
-                  ? 'bg-slate-900 text-white'
+                  ? 'bg-primary text-primary-foreground'
                   : 'text-slate-600 hover:bg-slate-100',
               )}
             >

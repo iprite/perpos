@@ -52,7 +52,7 @@ const config: Omit<Config, "content"> = {
         // PERPOS STANDARD PALETTE (flat-UI). ทุกสีในแอปต้องมาจากชุดนี้เท่านั้น
         // ทุก Tailwind color family ถูก map กลับเข้าสีพาเลตต์มาตรฐาน
         // (จับเฉดหลักที่ 500 แล้วไล่ tint/shade) — ดู DESIGN.md §2
-        //   blue/sky/cyan      → AQUA #4FC1E9 (primary/brand + info)
+        //   blue/sky/cyan      → CHARCOAL #3C3B3D (primary/brand — โทน mono, เลิก AQUA)
         //   indigo/violet/purple → PLUM #8067B7
         //   pink/rose/fuchsia  → PINK ROSE #EC87C0
         //   red                → RUBY #D8334A (negative/destructive)
@@ -79,7 +79,7 @@ const config: Omit<Config, "content"> = {
           lighter: "rgb(var(--blue-lighter) / <alpha-value>)",
           DEFAULT: "rgb(var(--blue-default) / <alpha-value>)",
           dark: "rgb(var(--blue-dark) / <alpha-value>)",
-          50: "#F3FBFD", 100: "#E5F6FC", 200: "#CAECF8", 300: "#ABE1F4", 400: "#7FD2EF", 500: "#4FC1E9", 600: "#4DB0D3", 700: "#4999B5", 800: "#46839A", 900: "#436E7E",
+          50: "#F5F5F5", 100: "#ECEBEC", 200: "#D8D8D8", 300: "#B5B5B5", 400: "#868587", 500: "#5F5E60", 600: "#3C3B3D", 700: "#2E2E30", 800: "#232324", 900: "#19191A",
         },
         green: {
           lighter: "rgb(var(--green-lighter) / <alpha-value>)",
@@ -88,10 +88,10 @@ const config: Omit<Config, "content"> = {
           50: "#F2FCF9", 100: "#E4F8F3", 200: "#C8F1E6", 300: "#A7E8D8", 400: "#79DCC3", 500: "#48CFAD", 600: "#46BC9E", 700: "#44A38B", 800: "#428B79", 900: "#417368",
         },
         sky: {
-          50: "#F3FBFD", 100: "#E5F6FC", 200: "#CAECF8", 300: "#ABE1F4", 400: "#7FD2EF", 500: "#4FC1E9", 600: "#4DB0D3", 700: "#4999B5", 800: "#46839A", 900: "#436E7E",
+          50: "#F5F5F5", 100: "#ECEBEC", 200: "#D8D8D8", 300: "#B5B5B5", 400: "#868587", 500: "#5F5E60", 600: "#3C3B3D", 700: "#2E2E30", 800: "#232324", 900: "#19191A",
         },
         cyan: {
-          50: "#F3FBFD", 100: "#E5F6FC", 200: "#CAECF8", 300: "#ABE1F4", 400: "#7FD2EF", 500: "#4FC1E9", 600: "#4DB0D3", 700: "#4999B5", 800: "#46839A", 900: "#436E7E",
+          50: "#F5F5F5", 100: "#ECEBEC", 200: "#D8D8D8", 300: "#B5B5B5", 400: "#868587", 500: "#5F5E60", 600: "#3C3B3D", 700: "#2E2E30", 800: "#232324", 900: "#19191A",
         },
         indigo: {
           50: "#F6F4FA", 100: "#ECE8F4", 200: "#D9D1E9", 300: "#C2B6DC", 400: "#A290CA", 500: "#8067B7", 600: "#7761A7", 700: "#6C5A92", 800: "#61537F", 900: "#564C6B",

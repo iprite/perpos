@@ -33,11 +33,11 @@
     --muted-foreground: 156 163 175; /* #9ca3af */
 
     /* ----------------------------------- */
-    /* primary/brand colors — AQUA #4FC1E9 */
+    /* primary/brand colors — CHARCOAL #3C3B3D (โทน mono, เลิก AQUA) */
     /* ----------------------------------- */
-    --primary-lighter: 229 246 252; /* #e5f6fc */
-    --primary-default: 79 193 233; /* #4fc1e9 AQUA */
-    --primary-dark: 73 153 181; /* #4999b5 */
+    --primary-lighter: 232 232 233; /* #e8e8e9 */
+    --primary-default: 60 59 61; /* #3c3b3d CHARCOAL */
+    --primary-dark: 38 37 39; /* #262527 */
     --primary-foreground: 255 255 255; /* #ffffff */
 
     /* ----------------------------------- */
@@ -63,11 +63,11 @@
     --orange-dark: 194 95 75; /* #c25f4b */
 
     /* ----------------------------------- */
-    /* blue/info colors — AQUA #4FC1E9 */
+    /* blue/info colors — CHARCOAL #3C3B3D (โทน mono, เลิก AQUA) */
     /* ----------------------------------- */
-    --blue-lighter: 229 246 252; /* #e5f6fc */
-    --blue-default: 79 193 233; /* #4fc1e9 AQUA */
-    --blue-dark: 73 153 181; /* #4999b5 */
+    --blue-lighter: 236 235 236; /* #ecebec */
+    --blue-default: 60 59 61; /* #3c3b3d CHARCOAL */
+    --blue-dark: 46 46 48; /* #2e2e30 */
 
     /* ----------------------------------- */
     /* green/success colors — MINT #48CFAD */
@@ -126,11 +126,11 @@
     --muted-foreground: 102 102 102; /* #666666 */
 
     /* ----------------------------------- */
-    /* primary/brand colors — AQUA #4FC1E9 (palette-consistent in dark) */
+    /* primary/brand colors — CHARCOAL brand → ใช้ light neutral ในธีมมืด (charcoal มองไม่เห็นบนพื้นมืด) */
     /* ----------------------------------- */
-    --primary-lighter: 70 131 154; /* #46839a */
-    --primary-default: 79 193 233; /* #4fc1e9 AQUA */
-    --primary-dark: 127 210 239; /* #7fd2ef */
+    --primary-lighter: 60 59 61; /* #3c3b3d */
+    --primary-default: 230 233 238; /* #e6e9ee */
+    --primary-dark: 245 247 250; /* #f5f7fa */
     --primary-foreground: 26 26 27; /* #1a1a1b */
 
     /* ----------------------------------- */
@@ -156,11 +156,11 @@
     --orange-dark: 253 149 128; /* #fd9580 */
 
     /* ----------------------------------- */
-    /* blue/info colors — AQUA #4FC1E9 */
+    /* blue/info colors — CHARCOAL brand → light neutral ในธีมมืด */
     /* ----------------------------------- */
-    --blue-lighter: 70 131 154; /* #46839a */
-    --blue-default: 79 193 233; /* #4fc1e9 AQUA */
-    --blue-dark: 127 210 239; /* #7fd2ef */
+    --blue-lighter: 60 59 61; /* #3c3b3d */
+    --blue-default: 230 233 238; /* #e6e9ee */
+    --blue-dark: 245 247 250; /* #f5f7fa */
 
     /* ----------------------------------- */
     /* green/success colors — MINT #48CFAD */
@@ -263,7 +263,7 @@
   h4,
   h5,
   h6 {
-    @apply font-lexend font-bold text-gray-900 dark:text-gray-700;
+    @apply font-lexend font-bold text-primary dark:text-gray-700;
   }
 
   h1 {

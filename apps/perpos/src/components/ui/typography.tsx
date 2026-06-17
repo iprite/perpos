@@ -13,7 +13,7 @@ type TitleProps = React.HTMLAttributes<HTMLHeadingElement> & {
 
 export function Title({ as = "h2", className, ...props }: TitleProps) {
   const Tag = as as React.ElementType;
-  return <Tag className={cn("font-semibold text-gray-900", className)} {...props} />;
+  return <Tag className={cn("font-semibold text-primary", className)} {...props} />;
 }
 
 type TextProps = React.HTMLAttributes<HTMLElement> & {

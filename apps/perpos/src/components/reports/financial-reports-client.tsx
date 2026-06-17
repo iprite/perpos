@@ -147,7 +147,7 @@ export function FinancialReportsClient(props: {
         <button
           className={cn(
             "rounded-md px-3 py-1.5 text-sm",
-            tab === "trial" ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-800 hover:bg-slate-200",
+            tab === "trial" ? "bg-primary text-primary-foreground" : "bg-slate-100 text-slate-800 hover:bg-slate-200",
           )}
           onClick={() => setTab("trial")}
           type="button"
@@ -157,7 +157,7 @@ export function FinancialReportsClient(props: {
         <button
           className={cn(
             "rounded-md px-3 py-1.5 text-sm",
-            tab === "pnl" ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-800 hover:bg-slate-200",
+            tab === "pnl" ? "bg-primary text-primary-foreground" : "bg-slate-100 text-slate-800 hover:bg-slate-200",
           )}
           onClick={() => setTab("pnl")}
           type="button"

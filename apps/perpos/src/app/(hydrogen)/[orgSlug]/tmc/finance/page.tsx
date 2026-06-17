@@ -865,12 +865,12 @@ export default function TmcFinancePage() {
           <div className="flex overflow-hidden rounded-lg border border-slate-200">
             <button type="button" onClick={() => setMasterTab('category')}
               className={`flex flex-1 items-center justify-center gap-2 py-2 text-sm font-medium transition-colors ${
-                masterTab === 'category' ? 'bg-slate-800 text-white' : 'bg-white text-slate-500 hover:bg-slate-50'}`}>
+                masterTab === 'category' ? 'bg-primary text-primary-foreground' : 'bg-white text-slate-500 hover:bg-slate-50'}`}>
               <Tag className="h-4 w-4" /> หมวดหมู่
             </button>
             <button type="button" onClick={() => setMasterTab('property')}
               className={`flex flex-1 items-center justify-center gap-2 py-2 text-sm font-medium transition-colors ${
-                masterTab === 'property' ? 'bg-slate-800 text-white' : 'bg-white text-slate-500 hover:bg-slate-50'}`}>
+                masterTab === 'property' ? 'bg-primary text-primary-foreground' : 'bg-white text-slate-500 hover:bg-slate-50'}`}>
               <MapPin className="h-4 w-4" /> แปลง
             </button>
           </div>
