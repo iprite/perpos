@@ -410,9 +410,17 @@ export default function AdminBillingPage() {
             const payCls  = PAYMENT_CLS[o.payment_status] ?? 'bg-gray-100 text-gray-500';
             return (
               <div key={o.org_id} className={`rounded-xl border overflow-hidden ${o.is_expired ? 'border-red-200' : 'border-gray-200'}`}>
-                <button
+                <div
+                  role="button"
+                  tabIndex={0}
                   onClick={() => toggleExpand(o.org_id)}
-                  className="w-full flex items-center gap-4 px-5 py-3.5 hover:bg-gray-50 text-left"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      toggleExpand(o.org_id);
+                    }
+                  }}
+                  className="w-full flex items-center gap-4 px-5 py-3.5 hover:bg-gray-50 text-left cursor-pointer"
                 >
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
@@ -436,7 +444,7 @@ export default function AdminBillingPage() {
                     <Pencil className="w-3.5 h-3.5" />
                   </Button>
                   {isOpen ? <ChevronDown className="w-4 h-4 text-gray-400 flex-shrink-0" /> : <ChevronRight className="w-4 h-4 text-gray-400 flex-shrink-0" />}
-                </button>
+                </div>
 
                 {isOpen && (
                   <div className="border-t border-gray-100 bg-gray-50 px-5 py-4 grid grid-cols-2 gap-x-8 gap-y-3 text-sm">
