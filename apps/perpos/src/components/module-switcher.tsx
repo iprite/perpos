@@ -54,7 +54,7 @@ export function ModuleSwitcher({ enabledModuleKeys }: ModuleSwitcherProps) {
       >
         <LayoutGrid className="h-4 w-4 shrink-0 text-slate-500" />
         <span className="font-medium">{activeModule?.label ?? "Module"}</span>
-        <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+        <ChevronsUpDown className={`h-3.5 w-3.5 shrink-0 text-slate-400 transition-transform duration-200${open ? " rotate-180" : ""}`} />
       </button>
 
       {open && rect && createPortal(

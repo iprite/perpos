@@ -152,7 +152,7 @@ export function MultiSelect({ value, onChange, options, placeholder = "เลื
               ))
           }
         </span>
-        <ChevronsUpDown className="ml-2 h-3.5 w-3.5 shrink-0 text-slate-400" />
+        <ChevronsUpDown className={cn("ml-2 h-3.5 w-3.5 shrink-0 text-slate-400 transition-transform duration-200", open && "rotate-180")} />
       </button>
       {panel}
     </div>
