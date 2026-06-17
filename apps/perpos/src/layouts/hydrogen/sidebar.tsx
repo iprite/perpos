@@ -51,7 +51,7 @@ export default function Sidebar({ className, organizations = [], activeOrganizat
         <SidebarMenu />
       </div>
 
-      <SidebarFooter />
+      <SidebarFooter organizations={organizations} activeOrganizationId={activeOrganizationId} />
     </aside>
   );
 }
