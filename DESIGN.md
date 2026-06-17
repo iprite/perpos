@@ -224,6 +224,7 @@ import { StatusBadge } from '@/components/ui/badge';
 3. **คลิกที่ row เพื่อดู/แก้ไข** — `<TableRow clickable onClick>` เปิด detail/edit dialog · **ไม่มีคอลัมน์ปุ่ม action ในแถว** · ปุ่มลบ/แก้ย้ายไปไว้ใน footer ของ dialog
 4. คอลัมน์เงิน/จำนวน → `align="right" tabular` เสมอ
 5. empty/loading → `<TableEmpty>` / `<TableLoading>` (ห้าม spinner กลางจอ)
+6. **`<Table>` ใน grid/flex column ต้องให้คอลัมน์ยุบได้** — ถ้าวาง `<Table>` (หรือของกว้างอื่น) ไว้ใน grid/flex item (เช่น 2-column workspace `lg:grid-cols-12` + `col-span-*`) คอลัมน์นั้น **ต้องมี `min-w-0` หรือ `overflow-hidden/auto`** ไม่งั้นบนมือถือ (ยุบเหลือคอลัมน์เดียว) ความกว้างตารางจะดัน track ให้กว้างเกิน viewport → ทั้งหน้า scroll แนวนอน. สาเหตุ: grid/flex item ค่า default `min-width: auto` ยุบต่ำกว่า content ไม่ได้ — การตั้ง `min-w-0` (หรือ `overflow≠visible` ที่ทำให้ auto min-size = 0) แก้ได้. **ข้อยกเว้น**: table ที่วางตรงใน `PageShell`/`PageCard` (block เต็มแถว) ไม่ต้องทำอะไร — block ไม่มีปัญหานี้
 
 ตัวอย่าง structure ดิบ (อ้างอิงเท่านั้น — โค้ดจริงใช้ primitives ด้านบน):
 
