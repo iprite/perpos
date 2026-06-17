@@ -104,8 +104,11 @@ export default async function HydrogenLayout({ children }: { children: React.Rea
                 />
               }
             />
-            {/* toggle สลับ Ai ERP / ผู้ช่วย AI + ปุ่ม avatar ผู้ใช้ — ชิดขวา */}
+            {/* โลโก้ตัวอักษร PERPOS + toggle สลับ Ai ERP / ผู้ช่วย AI + ปุ่ม avatar ผู้ใช้ — ชิดขวา */}
             <div className="ms-auto flex items-center gap-2">
+              <span className="font-neo-tech select-none text-sm font-bold tracking-wide text-primary">
+                PERPOS
+              </span>
               <ContextToggle
                 organizations={orgs}
                 activeOrganizationId={activeOrg?.id ?? null}

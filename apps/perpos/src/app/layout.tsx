@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { inter, lexendDeca } from "@/app/fonts";
+import { inter, lexendDeca, neoTech } from "@/app/fonts";
 import cn from "@core/utils/class-names";
 import NextProgress from "@core/components/next-progress";
 import { ThemeProvider, JotaiProvider } from "@/app/shared/theme-provider";
@@ -32,7 +32,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body
         // to prevent any warning that is caused by third party extensions like Grammarly
         suppressHydrationWarning
-        className={cn(inter.variable, lexendDeca.variable, "font-inter")}
+        className={cn(inter.variable, lexendDeca.variable, neoTech.variable, "font-inter")}
       >
         <ThemeProvider>
           <NextProgress />

@@ -296,6 +296,11 @@
 }
 
 @layer components {
+  /* โลโก้ตัวอักษร PERPOS — neo-tech (Orbitron) */
+  .font-neo-tech {
+    font-family: var(--font-neo-tech), ui-sans-serif, system-ui, sans-serif;
+  }
+
   .uploader {
     color: var(--upl-text);
     font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
