@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
 
   const { data: profiles, error } = await admin
     .from('profiles')
-    .select('id, display_name, email, role, is_active, line_user_id, line_picture_url, personal_org_id, created_at')
+    .select('id, display_name, email, role, is_active, line_user_id, line_picture_url, personal_org_id, created_at, last_seen_at')
     .order('created_at', { ascending: false })
     .limit(1000);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -109,6 +109,7 @@ export async function GET(req: NextRequest) {
       is_active: p.is_active !== false,
       line_linked: !!p.line_user_id,
       created_at: p.created_at,
+      last_seen_at: (p.last_seen_at as string | null) ?? null,
       orgs: orgsByUser.get(p.id as string) ?? [],
       quota: { limit_seconds: limit, used_seconds: used, remaining_seconds: Math.max(0, limit - used) },
     };

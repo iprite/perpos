@@ -39,9 +39,24 @@ type ListedUser = {
   is_active:    boolean;
   line_linked:  boolean;
   created_at:   string;
+  last_seen_at: string | null;
   orgs:         UserOrg[];
   quota:        Quota;
 };
+
+const ONLINE_WINDOW_MS = 2 * 60_000; // ออนไลน์ = ใช้งานภายใน 2 นาที
+
+function relativeSeen(iso: string | null, now: number): string {
+  if (!iso) return "ยังไม่เคยเข้าใช้งาน";
+  const diff = now - new Date(iso).getTime();
+  if (diff < ONLINE_WINDOW_MS) return "ออนไลน์";
+  const min = Math.floor(diff / 60_000);
+  if (min < 60) return `ใช้งานล่าสุด ${min} นาทีที่แล้ว`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `ใช้งานล่าสุด ${hr} ชม.ที่แล้ว`;
+  const day = Math.floor(hr / 24);
+  return `ใช้งานล่าสุด ${day} วันที่แล้ว`;
+}
 
 type OrgItem = { id: string; name: string };
 
@@ -266,6 +281,19 @@ export default function AdminUsersPage() {
 
   useEffect(() => { refreshUsers(); }, [refreshUsers]);
 
+  // ── presence: re-render relative time ทุก 30 วิ + รีเฟรชรายการเงียบ ๆ ทุก 60 วิ ──
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const tick = window.setInterval(() => setNow(Date.now()), 30_000);
+    const reload = window.setInterval(() => refreshUsers(), 60_000);
+    return () => { window.clearInterval(tick); window.clearInterval(reload); };
+  }, [refreshUsers]);
+
+  const onlineCount = useMemo(
+    () => items.filter((u) => u.last_seen_at && now - new Date(u.last_seen_at).getTime() < ONLINE_WINDOW_MS).length,
+    [items, now],
+  );
+
   // ── org membership mutations (operate on embedded data, update locally) ──────────
   const patchOrgs = useCallback((userId: string, fn: (orgs: UserOrg[]) => UserOrg[]) => {
     setItems((prev) => prev.map((u) => u.id === userId ? { ...u, orgs: fn(u.orgs) } : u));
@@ -428,10 +456,11 @@ export default function AdminUsersPage() {
       if (statusFilter === "active"    && !u.is_active) return false;
       if (statusFilter === "suspended" && u.is_active)  return false;
       if (statusFilter === "admin"     && u.role !== "super_admin") return false;
+      if (statusFilter === "online"    && !(u.last_seen_at && now - new Date(u.last_seen_at).getTime() < ONLINE_WINDOW_MS)) return false;
       if (!q) return true;
       return (u.display_name?.toLowerCase().includes(q) ?? false) || (u.email?.toLowerCase().includes(q) ?? false);
     });
-  }, [items, query, statusFilter]);
+  }, [items, query, statusFilter, now]);
 
   const allOrgOptions = useMemo(
     () => [{ value: "", label: "— เลือกองค์กร —" }, ...allOrgs.map((o) => ({ value: o.id, label: o.name }))],
@@ -474,12 +503,19 @@ export default function AdminUsersPage() {
           className="sm:w-48"
           options={[
             { value: "all",       label: "ทุกสถานะ" },
+            { value: "online",    label: "กำลังออนไลน์" },
             { value: "active",    label: "ใช้งานได้" },
             { value: "suspended", label: "ถูกระงับ" },
             { value: "admin",     label: "ผู้ดูแลระบบ" },
           ]}
         />
-        <div className="hidden text-sm text-gray-500 sm:block sm:whitespace-nowrap">{filtered.length} คน</div>
+        <div className="hidden items-center gap-2 text-sm text-gray-500 sm:flex sm:whitespace-nowrap">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-green-50 px-2 py-0.5 font-medium text-green-700">
+            <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
+            ออนไลน์ {onlineCount}
+          </span>
+          <span>{filtered.length} คน</span>
+        </div>
       </div>
 
       {/* Feedback */}
@@ -512,6 +548,8 @@ export default function AdminUsersPage() {
             const pct = u.quota.limit_seconds ? Math.min(100, (u.quota.used_seconds / u.quota.limit_seconds) * 100) : 0;
             const low = u.quota.remaining_seconds <= 0;
             const availableOrgs = allOrgs.filter((o) => !u.orgs.some((m) => m.orgId === o.id));
+            const seenLabel = relativeSeen(u.last_seen_at, now);
+            const online = seenLabel === "ออนไลน์";
 
             return (
               <div key={u.id} className={`overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm transition-colors ${!u.is_active ? "opacity-70" : ""}`}>
@@ -519,7 +557,15 @@ export default function AdminUsersPage() {
                 <div className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between">
                   {/* identity */}
                   <div className="flex min-w-0 items-center gap-3">
-                    <Avatar src={u.picture_url} name={u.display_name} />
+                    <div className="relative shrink-0">
+                      <Avatar src={u.picture_url} name={u.display_name} />
+                      {online && (
+                        <span
+                          title="ออนไลน์"
+                          className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-white bg-green-500"
+                        />
+                      )}
+                    </div>
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="truncate font-medium text-gray-900">{u.display_name}</span>
@@ -531,6 +577,10 @@ export default function AdminUsersPage() {
                         )}
                       </div>
                       <div className="truncate text-xs text-gray-400">{u.email ?? "เข้าสู่ระบบผ่าน LINE"}</div>
+                      <div className={`truncate text-xs ${online ? "font-medium text-green-600" : "text-gray-400"}`}>
+                        {online && <span className="mr-1 inline-block h-1.5 w-1.5 rounded-full bg-green-500 align-middle" />}
+                        {seenLabel}
+                      </div>
                     </div>
                   </div>
 
