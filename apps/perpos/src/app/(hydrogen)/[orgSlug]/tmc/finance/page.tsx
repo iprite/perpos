@@ -19,8 +19,9 @@ import {
 } from '@/components/ui/dialog';
 import {
   Plus, Filter, Settings, Tag, MapPin, Check, X, Pencil, Trash2,
-  ChevronLeft, ChevronRight, Landmark, History,
+  ChevronLeft, ChevronRight, Landmark, History, TrendingUp, TrendingDown, Wallet,
 } from 'lucide-react';
+import { StatCard } from '@/components/ui/stat-card';
 
 const TMC_ORG_ID = '1f52618c-09c4-49c5-a929-ea5060f26e7d';
 
@@ -495,21 +496,28 @@ export default function TmcFinancePage() {
     >
 
       {/* ── Summary Cards ── */}
-      <div className="grid grid-cols-3 gap-3">
-        <div className="bg-green-50 rounded-xl p-4 border border-green-100">
-          <p className="text-xs text-green-600 font-medium">รายรับรวม</p>
-          <p className="text-lg font-bold text-green-700">{fmt(totalIncome)}</p>
-        </div>
-        <div className="bg-red-50 rounded-xl p-4 border border-red-100">
-          <p className="text-xs text-red-600 font-medium">รายจ่ายรวม</p>
-          <p className="text-lg font-bold text-red-700">{fmt(totalExpense)}</p>
-        </div>
-        <div className={`rounded-xl p-4 border ${totalIncome - totalExpense >= 0 ? 'bg-blue-50 border-blue-100' : 'bg-orange-50 border-orange-100'}`}>
-          <p className="text-xs text-blue-600 font-medium">คงเหลือ</p>
-          <p className={`text-lg font-bold ${totalIncome - totalExpense >= 0 ? 'text-blue-700' : 'text-orange-700'}`}>
-            {fmt(totalIncome - totalExpense)}
-          </p>
-        </div>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <StatCard
+          icon={<TrendingUp className="h-4 w-4" />}
+          label="รายรับรวม"
+          value={fmt(totalIncome)}
+          tone="positive"
+          valueColored
+        />
+        <StatCard
+          icon={<TrendingDown className="h-4 w-4" />}
+          label="รายจ่ายรวม"
+          value={fmt(totalExpense)}
+          tone="negative"
+          valueColored
+        />
+        <StatCard
+          icon={<Wallet className="h-4 w-4" />}
+          label="คงเหลือ"
+          value={fmt(totalIncome - totalExpense)}
+          tone={totalIncome - totalExpense >= 0 ? 'info' : 'negative'}
+          valueColored
+        />
       </div>
 
       {/* ── Filters ── */}

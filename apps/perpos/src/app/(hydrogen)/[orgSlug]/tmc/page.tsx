@@ -6,6 +6,7 @@ import { backendUrl } from '@/lib/backend';
 import { Button } from '@/components/ui/button';
 import { CustomSelect } from '@/components/ui/custom-select';
 import { PageShell } from '@/components/ui/page-shell';
+import { StatCard } from '@/components/ui/stat-card';
 import {
   Table, TableHeader, TableBody, TableRow, TableHead, TableCell,
 } from '@/components/ui/table';
@@ -79,22 +80,6 @@ type DashData = {
   stockLow: { name: string; qty: number }[];
 };
 
-// ── Small components ─────────────────────────────────────────────────
-function SummaryCard({ icon, label, value, sub, color }: {
-  icon: React.ReactNode; label: string; value: string; sub?: string; color: string;
-}) {
-  return (
-    <div className={`rounded-xl border p-4 flex gap-3 items-start ${color}`}>
-      <div className="mt-0.5 shrink-0">{icon}</div>
-      <div className="min-w-0">
-        <p className="text-xs text-slate-500 font-medium">{label}</p>
-        <p className="text-base font-bold text-slate-800 truncate">{value}</p>
-        {sub && <p className="text-xs text-slate-400 mt-0.5">{sub}</p>}
-      </div>
-    </div>
-  );
-}
-
 const TT = { contentStyle: { fontSize: 12, borderRadius: 8, border: '1px solid #e2e8f0' } };
 
 // ── Page ─────────────────────────────────────────────────────────────
@@ -163,59 +148,60 @@ export default function TmcDashboardPage() {
 
       {/* ── Summary Cards ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <SummaryCard
-          icon={<Landmark className="w-5 h-5 text-blue-500" />}
+        <StatCard
+          icon={<Landmark className="h-4 w-4" />}
           label="รายรับสุทธิ (บัญชี)"
           value={t ? `฿${fmtK(t.finance.income - t.finance.expense)}` : '—'}
           sub={t ? `รับ ${fmtK(t.finance.income)} / จ่าย ${fmtK(t.finance.expense)}` : undefined}
-          color="bg-blue-50 border-blue-100"
+          tone="info"
         />
-        <SummaryCard
-          icon={<Wallet className="w-5 h-5 text-violet-500" />}
+        <StatCard
+          icon={<Wallet className="h-4 w-4" />}
           label="เงินสดย่อยคงเหลือ"
           value={t ? `฿${fmtK(t.petty.top_up - t.petty.expense)}` : '—'}
           sub={t ? `รับ ${fmtK(t.petty.top_up)} / จ่าย ${fmtK(t.petty.expense)}` : undefined}
-          color="bg-violet-50 border-violet-100"
+          tone="primary"
         />
-        <SummaryCard
-          icon={<Building2 className="w-5 h-5 text-emerald-500" />}
+        <StatCard
+          icon={<Building2 className="h-4 w-4" />}
           label="การเข้าพัก (ทั้งหมด)"
           value={t ? `${t.staysAllTime} ครั้ง` : '—'}
           sub={t ? `ช่วงนี้ ${t.stays.count} ครั้ง · ${t.stays.nights} คืน · ฿${fmtK(t.stays.revenue)}` : undefined}
-          color="bg-emerald-50 border-emerald-100"
+          tone="positive"
         />
-        <SummaryCard
-          icon={t && t.stock.low > 0
-            ? <AlertTriangle className="w-5 h-5 text-amber-500" />
-            : <Package className="w-5 h-5 text-slate-400" />}
+        <StatCard
+          icon={t && t.stock.low > 0 ? <AlertTriangle className="h-4 w-4" /> : <Package className="h-4 w-4" />}
           label="Stock คลัง"
           value={t ? `${t.stock.items} รายการ` : '—'}
           sub={t && t.stock.low > 0 ? `ใกล้หมด ${t.stock.low} รายการ` : 'ปกติ'}
-          color={t && t.stock.low > 0 ? 'bg-amber-50 border-amber-100' : 'bg-slate-50 border-slate-100'}
+          tone={t && t.stock.low > 0 ? 'warning' : 'neutral'}
         />
       </div>
 
       {/* ── Quick totals row ── */}
       {t && (
-        <div className="grid grid-cols-3 gap-3">
-          <div className="rounded-xl border bg-green-50 border-green-100 p-3 text-center">
-            <p className="text-xs text-green-600 font-medium flex items-center justify-center gap-1">
-              <TrendingUp className="w-3 h-3" /> รายรับรวม
-            </p>
-            <p className="text-sm font-bold text-green-700 mt-0.5">฿{fmt(t.finance.income)}</p>
-          </div>
-          <div className="rounded-xl border bg-red-50 border-red-100 p-3 text-center">
-            <p className="text-xs text-red-600 font-medium flex items-center justify-center gap-1">
-              <TrendingDown className="w-3 h-3" /> รายจ่ายรวม
-            </p>
-            <p className="text-sm font-bold text-red-700 mt-0.5">฿{fmt(t.finance.expense)}</p>
-          </div>
-          <div className="rounded-xl border bg-orange-50 border-orange-100 p-3 text-center">
-            <p className="text-xs text-orange-600 font-medium flex items-center justify-center gap-1">
-              <Wallet className="w-3 h-3" /> เงินสดย่อย รายจ่าย
-            </p>
-            <p className="text-sm font-bold text-orange-700 mt-0.5">฿{fmt(t.petty.expense)}</p>
-          </div>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <StatCard
+            icon={<TrendingUp className="h-4 w-4" />}
+            label="รายรับรวม"
+            value={`฿${fmt(t.finance.income)}`}
+            tone="positive"
+            valueColored
+          />
+          <StatCard
+            icon={<TrendingDown className="h-4 w-4" />}
+            label="รายจ่ายรวม"
+            value={`฿${fmt(t.finance.expense)}`}
+            tone="negative"
+            valueColored
+          />
+          <StatCard
+            icon={<Wallet className="h-4 w-4" />}
+            label="เงินสดย่อย รายจ่าย"
+            value={`฿${fmt(t.petty.expense)}`}
+            tone="warning"
+            valueColored
+          />
         </div>
       )}
 

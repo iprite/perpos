@@ -449,29 +449,32 @@ const statusBadge = {
 
 ## 11. Financial Dashboard Patterns — จาก Stripe
 
-### KPI Cards (Metric tiles)
+### KPI / Summary Cards — ใช้ `<StatCard>` เท่านั้น
+
+> **กฎบังคับ**: การ์ดตัวเลขสรุป (รายรับรวม, คงเหลือ, จำนวนรายการ, KPI tile ฯลฯ) ทุกใบต้องใช้ `<StatCard>` จาก `@/components/ui/stat-card` — **ห้ามเขียนการ์ดพื้นพาสเทลเต็มใบเอง** (`bg-green-50 ... border-green-100` ครอบทั้งใบ ทำให้ dashboard ดูรก/"AI" และตัวเลขมักล้น)
 
 ```tsx
-<div className="rounded-lg border border-surface-3 bg-white p-6">
-  <div className="flex items-center justify-between">
-    <p className="text-sm font-medium text-ink-secondary">รายรับเดือนนี้</p>
-    <TrendingUpIcon className="h-4 w-4 text-green-500" />
-  </div>
-  {/* ตัวเลขใหญ่ — tabular, right-aligned ถ้ามีหลายตัว */}
-  <p className="mt-2 text-3xl font-semibold tabular-nums text-ink">
-    ฿1,234,567
-  </p>
-  {/* Delta */}
-  <p className="mt-1 text-xs text-green-600">
-    +12.5% จากเดือนที่แล้ว
-  </p>
+import { StatCard } from '@/components/ui/stat-card';
+
+// แถวสรุปการเงิน — มือถือ stack เต็มแถว (ตัวเลขเต็มไม่ล้น), จอใหญ่ 3 คอลัมน์
+<div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+  <StatCard icon={<TrendingUp className="h-4 w-4" />}   label="รายรับรวม"  value="2,971,327.90 ฿" tone="positive" valueColored />
+  <StatCard icon={<TrendingDown className="h-4 w-4" />} label="รายจ่ายรวม" value="1,895,599.43 ฿" tone="negative" valueColored />
+  <StatCard icon={<Wallet className="h-4 w-4" />}       label="คงเหลือ"    value="1,075,728.47 ฿" tone={bal>=0?'info':'negative'} valueColored />
 </div>
+
+// KPI tile (เมตริกผสม) — สีอยู่ที่ชิปไอคอน, ตัวเลขสีเข้ม (ไม่ใส่ valueColored)
+<StatCard icon={<Landmark className="h-4 w-4" />} label="รายรับสุทธิ" value="฿1.1M" sub="รับ 3.0M / จ่าย 1.9M" tone="info" />
 ```
 
-**กฎ KPI:**
-- ตัวเลข KPI ใช้ `text-2xl` หรือ `text-3xl` — ใหญ่พอเห็นจากมุมห้อง
-- Delta สีเขียวถ้าบวก, สีแดงถ้าลบ — ใช้ U+2212 สำหรับ minus
-- Icon ควร reflect ความหมาย (trending up/down, wallet, receipt)
+`tone`: `neutral | primary | positive | negative | warning | info` (สีของชิปไอคอน + ตัวเลขเมื่อ `valueColored`)
+
+**กฎ StatCard:**
+- ดีไซน์: การ์ดขาว เส้นบาง เงาจาง — สีบอกสถานะอยู่ที่ **ชิปไอคอน + ตัวเลข** ไม่ใช่พื้นทั้งใบ
+- ตัวเลข `tabular-nums` + responsive `text-xl sm:text-2xl` (มีในตัว) — **ห้าม truncate ตัวเลขเงิน**
+- กันล้น: ใส่ค่าเต็มหลักล้านในกริด `grid-cols-1 sm:grid-cols-3` (มือถือเต็มแถว) · ถ้าเป็น KPI tile แน่น ๆ ให้ย่อค่าเป็น `฿1.1M` แล้วเก็บค่าเต็มไว้ใน `sub`
+- Delta/ค่ารอง → ใส่ใน `sub` · ยอดลบใช้ U+2212 (`−`) ไม่ใช่ hyphen
+- StatCard มี `min-w-0` ในตัว → วางใน grid/flex column ได้ปลอดภัย (ดู §5 ข้อ 6)
 
 ### Chart Colors (sequential)
 
