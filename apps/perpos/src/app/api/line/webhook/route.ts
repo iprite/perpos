@@ -3,6 +3,10 @@ import crypto from 'crypto';
 import { createAdminClient } from '../../_lib/supabase';
 import { triggerSttWorker } from '@/lib/assistant/stt-trigger';
 import { sendLineMessages } from '@/lib/line/send-messages';
+import {
+  extractMeetingUrl, makeDedupKey, createBot, AdhocPoolDepletedError, leaveBot, deleteScheduledBot,
+} from '@/lib/assistant/recall';
+import { buildBotFlex } from '@/lib/assistant/recall-events';
 import { provisionLineUser } from '../_provision';
 import { upsertMobileToken } from '../../tmc/mobile/_lib';
 import {
@@ -1444,6 +1448,179 @@ async function handleFollow(admin: ReturnType<typeof createAdminClient>, lineUse
 const TMC_CMDS = ['รับ', 'จ่าย', 'บัญชี', 'stock', 'stkin', 'stkout', 'stk', 'เช็คอิน', 'pcin', 'pcout', 'pcbal', 'pcfunds', 'tmc'];
 const CRM_CMDS = ['n', 'survey', 'issue', 'mtg', 'log', 'sol', 'status', 'notes', 'issues', 'hours'];
 
+// ─── Meeting bot (Recall.ai) — วางลิงก์ประชุมใน LINE → บอทเข้าห้องอัด → MoM ────────
+const BOT_MIN_START = 300;  // โควต้าบอทขั้นต่ำที่ส่งบอทแล้วคุ้ม (5 นาที)
+const BOT_HOLD_CAP = 3600;  // เพดานจองต่อประชุม (60 นาที) — settle ปรับเป็นจริงทีหลัง
+const BOT_TRIAL_LIMIT = 7200;
+
+const PLATFORM_LABEL: Record<string, string> = {
+  google_meet: 'Google Meet', zoom: 'Zoom', teams: 'Microsoft Teams',
+};
+
+function buildLinkConfirmFlex(platformLabel: string, remainMin: number, jobId: string) {
+  return {
+    type: 'flex' as const,
+    altText: '🤖 ได้รับลิงก์ประชุมแล้ว — บอทกำลังเข้าห้อง',
+    contents: {
+      type: 'bubble',
+      header: { type: 'box', layout: 'horizontal', backgroundColor: '#3C3B3D', paddingAll: '14px',
+        contents: [{ type: 'text', text: '🤖 ได้รับลิงก์ประชุมแล้ว', color: '#ffffff', weight: 'bold', size: 'md' }] },
+      body: { type: 'box', layout: 'vertical', spacing: 'sm', paddingAll: '18px', contents: [
+        { type: 'text', text: `📹 ${platformLabel}`, size: 'sm', color: '#1A1A1B' },
+        { type: 'box', layout: 'horizontal', backgroundColor: '#E6F1FB', cornerRadius: '8px', paddingAll: '10px', margin: 'sm',
+          contents: [{ type: 'text', text: '⏳ บอทกำลังเข้าห้องประชุม…', size: 'sm', color: '#0C447C', wrap: true }] },
+        { type: 'text', text: 'บอทจะปรากฏในห้องชื่อ "PERPOS Assistant (AI Note-taker)" · เมื่อประชุมจบจะส่งรายงานการประชุม (MoM) กลับมาที่นี่', size: 'xs', wrap: true, color: '#656D78', margin: 'md' },
+        { type: 'text', text: `⏱️ โควต้าบอทคงเหลือ ${remainMin} นาที`, size: 'xs', color: '#9CA3AF', margin: 'md' },
+        { type: 'separator', margin: 'md' },
+        { type: 'text', text: '🔒 ผู้ส่งลิงก์รับผิดชอบการขอความยินยอมบันทึกในห้อง · ไฟล์เสียงถูกลบทันทีหลังสรุปเสร็จ', size: 'xxs', wrap: true, color: '#9CA3AF', margin: 'md' },
+      ] },
+      footer: { type: 'box', layout: 'vertical', paddingAll: '14px',
+        contents: [{ type: 'button', style: 'secondary', height: 'sm',
+          action: { type: 'postback', label: '✕ ยกเลิก ให้บอทออกจากห้อง', data: `botcancel:${jobId}`, displayText: 'ยกเลิกบอท' } }] },
+    },
+  };
+}
+
+/** คืนนาทีคงเหลือของ bot_quota (ไม่มี row = trial เต็ม) */
+async function getBotRemaining(admin: ReturnType<typeof createAdminClient>, profileId: string): Promise<{ remainSec: number; remainMin: number }> {
+  const { data } = await admin.from('bot_quota').select('limit_seconds, used_seconds').eq('profile_id', profileId).maybeSingle();
+  const limit = (data as { limit_seconds?: number } | null)?.limit_seconds ?? BOT_TRIAL_LIMIT;
+  const used = (data as { used_seconds?: number } | null)?.used_seconds ?? 0;
+  const remainSec = Math.max(0, limit - used);
+  return { remainSec, remainMin: Math.floor(remainSec / 60) };
+}
+
+/** วางลิงก์ประชุม → gate + hold + createBot → reply การ์ดยืนยัน. คืน true ถ้าจัดการแล้ว */
+async function handleMeetingLink(admin: ReturnType<typeof createAdminClient>, lineUserId: string, text: string, replyToken: string): Promise<boolean> {
+  const found = extractMeetingUrl(text);
+  if (!found) return false;
+
+  const profile = await getProfileByLineId(admin, lineUserId);
+  if (!profile) {
+    await replyText(replyToken, '❌ ยังไม่ได้ผูกบัญชี — แอด LINE OA นี้ใหม่อีกครั้งเพื่อเริ่มใช้งานครับ');
+    return true;
+  }
+  if (!await checkSttAccess(admin, profile.id, profile.role)) {
+    await replyText(replyToken, '❌ บัญชีนี้ยังไม่มีสิทธิ์ใช้ผู้ช่วย AI ครับ');
+    return true;
+  }
+  const activeOrg = await getOrSetActiveOrg(admin, profile.id, profile.line_active_org_id);
+  if (!activeOrg) {
+    await replyText(replyToken, '❌ ไม่พบพื้นที่ทำงานของคุณ กรุณาลองใหม่ภายหลังครับ');
+    return true;
+  }
+
+  const { remainSec, remainMin } = await getBotRemaining(admin, profile.id);
+  if (remainSec < BOT_MIN_START) {
+    await replyText(replyToken, `⏱️ โควต้าบอทเหลือ ${remainMin} นาที ไม่พอเริ่มประชุมครับ — เติมโควต้าก่อนนะครับ 🙏`);
+    return true;
+  }
+
+  const dedupKey = makeDedupKey(found.url);
+  const { data: dup } = await admin
+    .from('assistant_jobs').select('bot_state')
+    .eq('dedup_key', dedupKey)
+    .maybeSingle();
+  // dedup_key unique → มีได้แถวเดียว; ถ้ายัง active (ไม่ใช่ terminal) = กำลังทำอยู่
+  const dupState = (dup as { bot_state?: string } | null)?.bot_state;
+  if (dup && !['cancelled', 'fatal', 'create_failed', 'recording_ready', 'done'].includes(dupState ?? '')) {
+    await replyText(replyToken, '🤖 บอทกำลังเข้าห้องประชุมนี้อยู่แล้วครับ');
+    return true;
+  }
+
+  // dup เก่าที่จบแล้ว (terminal) ใน slot เดียวกัน → ลบทิ้งเพื่อปล่อย dedup_key ให้ paste ใหม่ได้
+  if (dup) await admin.from('assistant_jobs').delete().eq('dedup_key', dedupKey);
+
+  const EST = Math.min(remainSec, BOT_HOLD_CAP);
+  const platformLabel = PLATFORM_LABEL[found.platform] ?? 'ห้องประชุม';
+
+  // insert job ก่อน (dedup guard ระดับ DB) — ถ้าชน (race) ถือว่าซ้ำ
+  const { data: jobRow, error: insErr } = await admin
+    .from('assistant_jobs')
+    .insert({
+      org_id: activeOrg.id, profile_id: profile.id, source: 'recall', kind: 'stt',
+      audio_url: null, file_name: `${platformLabel} recording`, mime_type: 'audio/mp4',
+      meeting_url: found.url, dedup_key: dedupKey, hold_seconds: EST,
+      bot_state: 'creating', triggered_by: profile.id,
+    })
+    .select('id').single();
+  if (insErr || !jobRow) {
+    await replyText(replyToken, '🤖 บอทกำลังเข้าห้องประชุมนี้อยู่แล้วครับ'); // unique violation = ซ้ำ
+    return true;
+  }
+  const jobId = (jobRow as { id: string }).id;
+
+  // hold โควต้า (atomic) — ถ้าไม่พอ (race) ลบ job + แจ้ง
+  const { data: held } = await admin.rpc('hold_bot_quota', { p_profile_id: profile.id, p_seconds: EST, p_job_id: jobId });
+  if (!held || (held as { ok?: boolean }).ok !== true) {
+    await admin.from('assistant_jobs').delete().eq('id', jobId);
+    await replyText(replyToken, '⏱️ โควต้าบอทไม่พอเริ่มประชุมครับ 🙏');
+    return true;
+  }
+
+  // สั่งบอท — ครั้งเดียว (ห้าม retry 30 วิ inline: reply token หมดอายุ/LINE timeout)
+  try {
+    const bot = await createBot({
+      meetingUrl: found.url, holdSeconds: EST,
+      metadata: { profile_id: profile.id, job_id: jobId, org_id: activeOrg.id },
+    });
+    // บันทึก recall_bot_id "เสมอ" (กัน orphan — leave/cancel/scheduler ต้องใช้) + อ่าน state ปัจจุบัน
+    // (webhook joining_call อาจมาถึงก่อน หรือผู้ใช้กดยกเลิกระหว่าง createBot)
+    const { data: upd } = await admin.from('assistant_jobs')
+      .update({ recall_bot_id: bot.id, updated_at: new Date().toISOString() })
+      .eq('id', jobId).select('bot_state').single();
+    const curState = (upd as { bot_state?: string } | null)?.bot_state;
+
+    if (curState === 'cancelled') {
+      // ผู้ใช้ยกเลิกระหว่าง createBot → สั่งบอทออกทันที กัน orphan (cancel handler ตอนนั้น recall_bot_id ยัง null)
+      await leaveBot(bot.id).catch(() => false);
+      return true; // การ์ดยกเลิกถูกส่งโดย cancel handler แล้ว
+    }
+    if (curState === 'creating') {
+      await admin.from('assistant_jobs').update({ bot_state: 'scheduled' }).eq('id', jobId).eq('bot_state', 'creating');
+    }
+    // curState อื่น (joining/recording…) = webhook นำหน้าแล้ว → คงไว้
+    await replyLine(replyToken, [buildLinkConfirmFlex(platformLabel, Math.floor(EST / 60), jobId)]);
+  } catch (e) {
+    // คืนโควต้าก่อน (ขณะ job ยังอยู่) แล้วลบ job เพื่อปล่อย dedup_key ให้ลองใหม่ได้
+    await admin.rpc('refund_bot_quota', { p_job_id: jobId }).then(() => undefined, () => undefined);
+    await admin.from('assistant_jobs').delete().eq('id', jobId);
+    if (e instanceof AdhocPoolDepletedError) {
+      await replyText(replyToken, '⏳ ระบบกำลังหนาแน่น ส่งลิงก์ประชุมอีกครั้งใน 1–2 นาทีได้เลยครับ 🙏');
+    } else {
+      await replyLine(replyToken, [buildBotFlex('fatal', { reason: 'เข้าห้องประชุมไม่สำเร็จ ลองใหม่อีกครั้งได้เลยครับ' })]);
+    }
+  }
+  return true;
+}
+
+/** ปุ่มยกเลิกบอท (postback botcancel:<jobId>) → leave/delete + refund */
+async function handleRecallCancel(admin: ReturnType<typeof createAdminClient>, lineUserId: string, jobId: string, replyToken: string): Promise<void> {
+  const { data: jobData } = await admin
+    .from('assistant_jobs')
+    .select('id, profile_id, recall_bot_id, bot_state')
+    .eq('id', jobId).maybeSingle();
+  const job = jobData as { id: string; profile_id: string | null; recall_bot_id: string | null; bot_state: string | null } | null;
+  if (!job) return;
+
+  // ตรวจเจ้าของ (กันคนอื่นยกเลิกบอทเรา)
+  const { data: prof } = await admin.from('profiles').select('line_user_id').eq('id', job.profile_id ?? '').maybeSingle();
+  if ((prof as { line_user_id?: string } | null)?.line_user_id !== lineUserId) return;
+
+  if (['cancelled', 'fatal', 'recording_ready', 'done'].includes(job.bot_state ?? '')) {
+    await replyText(replyToken, 'งานนี้จบหรือถูกยกเลิกไปแล้วครับ');
+    return;
+  }
+
+  if (job.recall_bot_id) {
+    if (job.bot_state === 'scheduled') await deleteScheduledBot(job.recall_bot_id).catch(() => false);
+    else await leaveBot(job.recall_bot_id).catch(() => false);
+  }
+  await admin.rpc('refund_bot_quota', { p_job_id: jobId }).then(() => undefined, () => undefined);
+  await admin.from('assistant_jobs').update({ status: 'failed', bot_state: 'cancelled', updated_at: new Date().toISOString() }).eq('id', jobId);
+  await replyText(replyToken, '✅ ยกเลิกบอทแล้ว คืนโควต้าให้เรียบร้อยครับ');
+}
+
 export async function POST(req: NextRequest) {
   const rawBody = await req.text();
   const signature = req.headers.get('x-line-signature');
@@ -1474,6 +1651,8 @@ export async function POST(req: NextRequest) {
         await handleMomConfirm(admin, pbUserId, pbData.slice('momfile:'.length), pbReplyToken);
       } else if (pbData === 'momcancel') {
         await replyText(pbReplyToken, 'รับทราบครับ — หากต้องการถอดเสียงภายหลัง พิมพ์ /mom แล้วส่งไฟล์ได้เลย 🙏');
+      } else if (pbUserId && pbData.startsWith('botcancel:')) {
+        await handleRecallCancel(admin, pbUserId, pbData.slice('botcancel:'.length), pbReplyToken);
       }
       continue;
     }
@@ -1568,6 +1747,12 @@ export async function POST(req: NextRequest) {
     if (msg.type !== 'text') continue;
 
     const text = String(msg.text ?? '').trim();
+
+    // วางลิงก์ประชุม (ไม่ขึ้นต้นด้วย /) → ส่งบอท Recall เข้าห้อง
+    if (lineUserId && extractMeetingUrl(text)) {
+      await handleMeetingLink(admin, lineUserId, text, replyToken);
+      continue;
+    }
 
     if (!text.startsWith('/')) continue;
 

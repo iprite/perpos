@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogBody, DialogTitle, DialogFoo
 import {
   Mic, UploadCloud, FileAudio, Loader2, X,
   Copy, Check, Download, AlertCircle, Play, Sparkles,
-  Clock, Eye, CheckCircle2, Hourglass, Timer,
+  Clock, Eye, CheckCircle2, Hourglass, Timer, Bot,
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 
@@ -130,6 +130,7 @@ export default function AssistantTranscribePage() {
   const [pdfBusyId, setPdfBusyId] = useState<string | null>(null);
 
   const [quota, setQuota] = useState<{ limit: number; used: number; remaining: number } | null>(null);
+  const [botQuota, setBotQuota] = useState<{ limit: number; used: number; remaining: number } | null>(null);
   const [fileDuration, setFileDuration] = useState<number | null>(null);
 
   // ── Data (per-profile — ไม่ผูก org) ─────────────────────────────────────────────
@@ -149,6 +150,7 @@ export default function AssistantTranscribePage() {
     if (!res.ok) return;
     const d = (await res.json()).data;
     if (d) setQuota({ limit: d.limit_seconds, used: d.used_seconds, remaining: d.remaining_seconds });
+    if (d?.bot) setBotQuota({ limit: d.bot.limit_seconds, used: d.bot.used_seconds, remaining: d.bot.remaining_seconds });
   }, []);
 
   const init = useCallback(async () => {
@@ -329,19 +331,28 @@ export default function AssistantTranscribePage() {
   const remainMin = quota ? Math.floor(quota.remaining / 60) : null;
   const limitMin = quota ? Math.floor(quota.limit / 60) : null;
   const usedPct = quota && quota.limit ? Math.min(100, (quota.used / quota.limit) * 100) : 0;
+  const botRemainMin = botQuota ? Math.floor(botQuota.remaining / 60) : null;
+  const botLimitMin = botQuota ? Math.floor(botQuota.limit / 60) : null;
 
   // ── Render ──────────────────────────────────────────────────────────────────────
   return (
     <>
 
       {/* KPI dashboard */}
-      <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-5">
         <KpiCard
           icon={<Timer className="h-4 w-4" />}
           label="นาทีคงเหลือ"
           value={remainMin != null ? remainMin.toLocaleString('th-TH') : '—'}
           sub={limitMin != null ? `จาก ${limitMin.toLocaleString('th-TH')} นาที` : ''}
           tone={quota && quota.remaining <= 0 ? 'danger' : 'primary'}
+        />
+        <KpiCard
+          icon={<Bot className="h-4 w-4" />}
+          label="นาทีบอทประชุม"
+          value={botRemainMin != null ? botRemainMin.toLocaleString('th-TH') : '—'}
+          sub={botLimitMin != null ? `จาก ${botLimitMin.toLocaleString('th-TH')} นาที` : ''}
+          tone={botQuota && botQuota.remaining <= 0 ? 'danger' : 'primary'}
         />
         <KpiCard icon={<FileAudio className="h-4 w-4" />} label="งานทั้งหมด" value={stats.total.toLocaleString('th-TH')} sub="ไฟล์" tone="neutral" />
         <KpiCard icon={<CheckCircle2 className="h-4 w-4" />} label="เสร็จสมบูรณ์" value={stats.completed.toLocaleString('th-TH')} sub="รายงาน" tone="success" />

@@ -12,7 +12,8 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 
-const DEFAULT_QUOTA_SECONDS = 18000; // 300 นาที
+const DEFAULT_QUOTA_SECONDS = 18000; // 300 นาที (stt — อัปไฟล์เอง)
+const DEFAULT_BOT_QUOTA_SECONDS = 7200; // 120 นาที (bot — ประชุมผ่าน Recall)
 
 export type ProvisionResult = { profileId: string; orgId: string; displayName: string; isNew: boolean };
 
@@ -121,6 +122,17 @@ async function ensureQuota(admin: SupabaseClient, profileId: string): Promise<vo
   await admin.from('stt_quota').insert({ profile_id: profileId, limit_seconds: quotaSeconds, used_seconds: 0 });
 }
 
+/** สร้าง bot_quota row เริ่มต้น ถ้ายังไม่มี (มิเตอร์ที่ 2 — ประชุมผ่านบอท Recall) */
+async function ensureBotQuota(admin: SupabaseClient, profileId: string): Promise<void> {
+  const { data: existing } = await admin
+    .from('bot_quota')
+    .select('profile_id')
+    .eq('profile_id', profileId)
+    .maybeSingle();
+  if (existing) return;
+  await admin.from('bot_quota').insert({ profile_id: profileId, limit_seconds: DEFAULT_BOT_QUOTA_SECONDS, used_seconds: 0 });
+}
+
 export async function provisionLineUser(admin: SupabaseClient, lineUserId: string): Promise<ProvisionResult> {
   // 1. profile — find or create (shadow auth user)
   const { data: existing } = await admin
@@ -177,6 +189,7 @@ export async function provisionLineUser(admin: SupabaseClient, lineUserId: strin
     await admin.from('profiles').update({ line_active_org_id: orgId }).eq('id', profileId);
   }
   await ensureQuota(admin, profileId);
+  await ensureBotQuota(admin, profileId);
 
   return { profileId, orgId, displayName, isNew };
 }
