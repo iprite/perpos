@@ -12,6 +12,7 @@ type Plan = {
   code: string;
   name: string;
   kind: 'subscription' | 'topup';
+  meter: 'stt' | 'bot';
   minutes: number;
   price: number;
   currency: string;
@@ -41,7 +42,7 @@ export default function TranscribeBillingPage() {
       setToken(accessToken);
 
       const [{ data: planRows }, { data: subRow }, quotaRes] = await Promise.all([
-        supabase.from('stt_plans').select('id, code, name, kind, minutes, price, currency').eq('is_active', true).order('sort_order'),
+        supabase.from('stt_plans').select('id, code, name, kind, meter, minutes, price, currency').eq('is_active', true).order('sort_order'),
         supabase.from('stt_subscriptions').select('plan_id, status, current_period_end, cancel_at_period_end').maybeSingle(),
         accessToken ? fetch(`/api/assistant/quota`, { headers: { Authorization: `Bearer ${accessToken}` } }) : Promise.resolve(null),
       ]);
@@ -101,8 +102,9 @@ export default function TranscribeBillingPage() {
     }
   };
 
-  const subscriptions = plans.filter((p) => p.kind === 'subscription');
-  const topups = plans.filter((p) => p.kind === 'topup');
+  const subscriptions = plans.filter((p) => p.kind === 'subscription' && p.meter !== 'bot');
+  const topups = plans.filter((p) => p.kind === 'topup' && p.meter !== 'bot');
+  const botTopups = plans.filter((p) => p.meter === 'bot');
   const hasActiveSub = !!sub && !!sub.status && ACTIVE_SUB.includes(sub.status);
   const remainMin = quota ? Math.max(0, Math.floor((quota.limit - quota.used) / 60)) : null;
   const botRemainMin = botQuota ? Math.max(0, Math.floor((botQuota.limit - botQuota.used) / 60)) : null;
@@ -190,6 +192,27 @@ export default function TranscribeBillingPage() {
                 <p className="mb-3 text-sm text-gray-500">นาทีที่เติมไม่หมดอายุ สะสมข้ามรอบได้</p>
                 <div className="grid gap-4 sm:grid-cols-2">
                   {topups.map((p) => (
+                    <div key={p.id} className="flex items-center justify-between rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
+                      <div>
+                        <div className="text-base font-medium text-gray-900">{thb(p.minutes)} นาที</div>
+                        <div className="text-sm text-gray-500">฿{thb(p.price)}</div>
+                      </div>
+                      <Button variant="outline" disabled={!!buying} onClick={() => buy(p.code)}>
+                        {buying === p.code ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Plus className="mr-1 h-4 w-4" /> เติม</>}
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* แพ็กบอทประชุม (เติมนาที bot) */}
+            {botTopups.length > 0 && (
+              <div className="mt-8">
+                <h2 className="mb-1 text-lg font-semibold text-gray-900">🤖 แพ็กบอทเข้าประชุม</h2>
+                <p className="mb-3 text-sm text-gray-500">เติมนาทีให้บอท Recall เข้าห้องอัด + สรุป MoM · นาทีไม่หมดอายุ สะสมได้</p>
+                <div className="grid gap-4 sm:grid-cols-3">
+                  {botTopups.map((p) => (
                     <div key={p.id} className="flex items-center justify-between rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
                       <div>
                         <div className="text-base font-medium text-gray-900">{thb(p.minutes)} นาที</div>

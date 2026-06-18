@@ -319,12 +319,12 @@ async function sttSubByStripe(admin: ReturnType<typeof createAdminClient>, ids: 
 // resolve แผน → { id, minutes } จาก plan_id (เรา) หรือ stripe_price_id
 async function resolveSttPlan(admin: ReturnType<typeof createAdminClient>, by: { planId?: string | null; priceId?: string | null }) {
   if (by.planId) {
-    const { data } = await admin.from('stt_plans').select('id, minutes').eq('id', by.planId).maybeSingle();
-    if (data) return data as { id: string; minutes: number };
+    const { data } = await admin.from('stt_plans').select('id, minutes, meter').eq('id', by.planId).maybeSingle();
+    if (data) return data as { id: string; minutes: number; meter: string };
   }
   if (by.priceId) {
-    const { data } = await admin.from('stt_plans').select('id, minutes').eq('stripe_price_id', by.priceId).maybeSingle();
-    if (data) return data as { id: string; minutes: number };
+    const { data } = await admin.from('stt_plans').select('id, minutes, meter').eq('stripe_price_id', by.priceId).maybeSingle();
+    if (data) return data as { id: string; minutes: number; meter: string };
   }
   return null;
 }
@@ -360,7 +360,7 @@ async function handleSttCheckout(admin: ReturnType<typeof createAdminClient>, st
       p_profile_id: profileId, p_plan_id: plan.id, p_kind: 'topup',
       p_amount: (session.amount_total ?? 0) / 100, p_currency: currency, p_minutes: plan.minutes,
       p_status: 'succeeded', p_payment_intent: asString(session.payment_intent) || null,
-      p_invoice: null, p_event_id: eventId,
+      p_invoice: null, p_event_id: eventId, p_meter: plan.meter ?? 'stt',
     });
   } else if (session.mode === 'subscription') {
     // subscription — บันทึก sub (เติมนาทีรอ invoice.payment_succeeded)
