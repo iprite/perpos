@@ -1624,8 +1624,17 @@ async function handleRecallCancel(admin: ReturnType<typeof createAdminClient>, l
   const { data: prof } = await admin.from('profiles').select('line_user_id').eq('id', job.profile_id ?? '').maybeSingle();
   if ((prof as { line_user_id?: string } | null)?.line_user_id !== lineUserId) return;
 
-  if (['cancelled', 'fatal', 'recording_ready', 'done'].includes(job.bot_state ?? '')) {
+  if (['cancelled', 'fatal', 'recording_ready', 'done', 'failed_permanent', 'stuck'].includes(job.bot_state ?? '')) {
     await replyText(replyToken, 'งานนี้จบหรือถูกยกเลิกไปแล้วครับ');
+    return;
+  }
+
+  // ถ้า settle เกิดแล้ว (บอทออกเพราะครบโควต้า — scheduler หักโควต้า + แจ้งไปแล้ว) → ยกเลิกไม่ได้
+  // ห้ามอ้างคืนโควต้า (เป็น usage จริง) + กันข้อความขัดกับ "ครบโควต้า" ที่ส่งไปแล้ว
+  const { data: settled } = await admin
+    .from('bot_usage_transactions').select('id').eq('job_id', jobId).eq('kind', 'settle').maybeSingle();
+  if (settled || job.bot_state === 'leaving') {
+    await replyText(replyToken, '🤖 บอทออกจากห้องประชุมแล้ว กำลังสรุปรายงานการประชุมให้อยู่ครับ 🙏');
     return;
   }
 
