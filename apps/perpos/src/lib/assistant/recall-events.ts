@@ -14,6 +14,7 @@ import { sendLineMessages } from '@/lib/line/send-messages';
 type JobRow = {
   id: string; org_id: string; profile_id: string | null;
   bot_state: string | null; joined_at: string | null; hold_seconds: number | null;
+  recording_started_at: string | null;
 };
 
 /** sub_code → ข้อความไทยที่เป็นมิตร (ไม่ครบทุกตัว — default กลาง ๆ) */
@@ -99,7 +100,7 @@ export async function processBotEvent(admin: SupabaseClient, evt: RecallWebhookE
 
   const { data: jobData } = await admin
     .from('assistant_jobs')
-    .select('id, org_id, profile_id, bot_state, joined_at, hold_seconds')
+    .select('id, org_id, profile_id, bot_state, joined_at, hold_seconds, recording_started_at')
     .eq('id', jobId)
     .maybeSingle();
   const job = jobData as JobRow | null;
@@ -146,15 +147,23 @@ export async function processBotEvent(admin: SupabaseClient, evt: RecallWebhookE
 
     case 'done': {
       if (job.bot_state === 'fatal' || job.bot_state === 'cancelled') break; // จบด้วย refund แล้ว
-      // กัน race: fatal/cancel อาจมาก่อน done (Svix ไม่การันตีลำดับ) → ถ้าเคย refund แล้ว ห้าม settle ซ้ำ
       const { data: refunded } = await admin
         .from('bot_usage_transactions').select('id').eq('job_id', job.id).eq('kind', 'refund').maybeSingle();
       if (refunded) break;
-      // settle ตามเวลาจริง = done − joined (Recall คิดจาก joining → terminal)
+
+      // ไม่เคยเริ่มอัดเลย = ประชุมไม่เริ่ม/ไม่มีเสียงให้ถอด → ยอมไม่คิด (คืน hold เต็ม แม้ Recall คิดเรา)
+      if (!job.recording_started_at) {
+        await admin.rpc('refund_bot_quota', { p_job_id: job.id }).then(() => undefined, () => undefined);
+        await touch({ bot_state: 'no_recording', status: 'failed', error_message: 'no_recording' });
+        await pushToProfile(admin, job.profile_id, buildBotFlex('ended', { reason: 'ไม่พบการประชุม/เสียงในห้อง จึงไม่คิดโควต้าครับ' }));
+        break;
+      }
+
+      // มีการอัด → คิดตามเวลาที่บอทอยู่ในห้อง (presence: done − joined) = ตาม Recall cost
       const joined = job.joined_at ? new Date(job.joined_at).getTime() : null;
       const actualSec = joined ? Math.max(0, Math.round((new Date(updatedAt).getTime() - joined) / 1000)) : (job.hold_seconds ?? 0);
       await admin.rpc('settle_bot_quota', { p_job_id: job.id, p_actual_seconds: actualSec }).then(() => undefined, () => undefined);
-      // เข้าราง stt เดิม: worker จะดึง recording จาก Recall (ผ่าน recall_bot_id) แล้วถอด → MoM/PDF/LINE
+      // เข้าราง stt เดิม: worker ดึง recording จาก Recall → ถอด → MoM/PDF/LINE
       await touch({ bot_state: 'recording_ready', recording_url: botId ? `recall:${botId}` : null, ready_at: new Date().toISOString() });
       await triggerSttWorker(admin, job.id, job.org_id);
       break;

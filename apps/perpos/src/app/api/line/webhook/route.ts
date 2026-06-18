@@ -1615,9 +1615,9 @@ async function handleMeetingLink(admin: ReturnType<typeof createAdminClient>, li
 async function handleRecallCancel(admin: ReturnType<typeof createAdminClient>, lineUserId: string, jobId: string, replyToken: string): Promise<void> {
   const { data: jobData } = await admin
     .from('assistant_jobs')
-    .select('id, profile_id, recall_bot_id, bot_state')
+    .select('id, profile_id, recall_bot_id, bot_state, recording_started_at')
     .eq('id', jobId).maybeSingle();
-  const job = jobData as { id: string; profile_id: string | null; recall_bot_id: string | null; bot_state: string | null } | null;
+  const job = jobData as { id: string; profile_id: string | null; recall_bot_id: string | null; bot_state: string | null; recording_started_at: string | null } | null;
   if (!job) return;
 
   // ตรวจเจ้าของ (กันคนอื่นยกเลิกบอทเรา)
@@ -1638,6 +1638,15 @@ async function handleRecallCancel(admin: ReturnType<typeof createAdminClient>, l
     return;
   }
 
+  // บอท "เริ่มอัดแล้ว" (มีเสียงประชุม) → นำออก แล้วปล่อยให้ bot.done คิดตามเวลาบอทในห้อง + ถอดเท่าที่บันทึก
+  //   ไม่ refund, ไม่ mark cancelled (ให้ pipeline done→worker ทำต่อ: settle presence + ส่ง MoM)
+  if (job.recording_started_at) {
+    if (job.recall_bot_id) await leaveBot(job.recall_bot_id).catch(() => false);
+    await replyText(replyToken, '🤖 นำบอทออกจากห้องแล้ว — จะส่งสรุปการประชุมเท่าที่บันทึกได้ และคิดโควต้าตามเวลาที่บอทอยู่ในห้องครับ');
+    return;
+  }
+
+  // ยังไม่เริ่มอัดเลย (รอหน้าห้อง/ยังไม่เริ่มประชุม) → คืนโควต้าเต็ม (ไม่คิด แม้ Recall อาจคิดเรา)
   if (job.recall_bot_id) {
     if (job.bot_state === 'scheduled') await deleteScheduledBot(job.recall_bot_id).catch(() => false);
     else await leaveBot(job.recall_bot_id).catch(() => false);
