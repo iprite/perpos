@@ -342,7 +342,7 @@ export default function AssistantTranscribePage() {
       <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-5">
         <KpiCard
           icon={<Timer className="h-4 w-4" />}
-          label="นาทีคงเหลือ"
+          label="นาทีถอดเสียง"
           value={remainMin != null ? remainMin.toLocaleString('th-TH') : '—'}
           sub={limitMin != null ? `จาก ${limitMin.toLocaleString('th-TH')} นาที` : ''}
           tone={quota && quota.remaining <= 0 ? 'danger' : 'primary'}

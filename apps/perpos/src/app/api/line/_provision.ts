@@ -130,7 +130,13 @@ async function ensureBotQuota(admin: SupabaseClient, profileId: string): Promise
     .eq('profile_id', profileId)
     .maybeSingle();
   if (existing) return;
-  await admin.from('bot_quota').insert({ profile_id: profileId, limit_seconds: DEFAULT_BOT_QUOTA_SECONDS, used_seconds: 0 });
+  const { data: sttSettings } = await admin
+    .from('stt_settings')
+    .select('default_bot_quota_seconds')
+    .eq('id', true)
+    .maybeSingle();
+  const botSeconds = (sttSettings?.default_bot_quota_seconds as number | undefined) ?? DEFAULT_BOT_QUOTA_SECONDS;
+  await admin.from('bot_quota').insert({ profile_id: profileId, limit_seconds: botSeconds, used_seconds: 0 });
 }
 
 export async function provisionLineUser(admin: SupabaseClient, lineUserId: string): Promise<ProvisionResult> {

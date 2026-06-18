@@ -40,6 +40,7 @@ export default function AdminSttStatsPage() {
   const [s, setS] = useState<AdminStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [defaultMin, setDefaultMin] = useState('');
+  const [defaultBotMin, setDefaultBotMin] = useState('');
   const [savingDefault, setSavingDefault] = useState(false);
 
   const load = useCallback(async () => {
@@ -51,8 +52,9 @@ export default function AdminSttStatsPage() {
       ]);
       if (statsRes.ok) setS((await statsRes.json()).data as AdminStats);
       if (settingsRes.ok) {
-        const sec = (await settingsRes.json()).data?.default_quota_seconds ?? 18000;
-        setDefaultMin(String(Math.floor(sec / 60)));
+        const d = (await settingsRes.json()).data;
+        setDefaultMin(String(Math.floor((d?.default_quota_seconds ?? 18000) / 60)));
+        setDefaultBotMin(String(Math.floor((d?.default_bot_quota_seconds ?? 7200) / 60)));
       }
     } finally {
       setLoading(false);
@@ -62,13 +64,14 @@ export default function AdminSttStatsPage() {
 
   const saveDefault = async () => {
     const m = parseInt(defaultMin, 10);
-    if (isNaN(m) || m < 0) { toast.error('ระบุจำนวนนาทีให้ถูกต้อง'); return; }
+    const bm = parseInt(defaultBotMin, 10);
+    if (isNaN(m) || m < 0 || isNaN(bm) || bm < 0) { toast.error('ระบุจำนวนนาทีให้ถูกต้อง'); return; }
     setSavingDefault(true);
     try {
       const res = await fetch('/api/admin/stt-settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await authToken()}` },
-        body: JSON.stringify({ defaultQuotaSeconds: m * 60 }),
+        body: JSON.stringify({ defaultQuotaSeconds: m * 60, defaultBotQuotaSeconds: bm * 60 }),
       });
       if (!res.ok) throw new Error();
       toast.success('บันทึกโควต้าเริ่มต้นแล้ว');
@@ -106,11 +109,15 @@ export default function AdminSttStatsPage() {
 
           <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
             <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-gray-700"><Settings className="h-4 w-4 text-gray-400" /> โควต้าเริ่มต้นผู้ใช้ใหม่</h3>
-            <p className="mb-3 text-xs text-gray-500">ผู้ใช้ LINE ที่แอด OA ใหม่จะได้รับโควต้าแกะเสียงเท่านี้โดยอัตโนมัติ</p>
-            <div className="flex items-end gap-3">
+            <p className="mb-3 text-xs text-gray-500">ผู้ใช้ LINE ที่แอด OA ใหม่จะได้รับโควต้าเหล่านี้โดยอัตโนมัติ</p>
+            <div className="flex flex-wrap items-end gap-3">
               <div>
-                <Label htmlFor="default-quota">โควต้า (นาที)</Label>
-                <Input id="default-quota" type="number" value={defaultMin} onChange={(e) => setDefaultMin(e.target.value)} className="mt-1 w-40" />
+                <Label htmlFor="default-quota">ถอดเสียง (นาที)</Label>
+                <Input id="default-quota" type="number" value={defaultMin} onChange={(e) => setDefaultMin(e.target.value)} className="mt-1 w-36" />
+              </div>
+              <div>
+                <Label htmlFor="default-bot-quota">บอทประชุม (นาที)</Label>
+                <Input id="default-bot-quota" type="number" value={defaultBotMin} onChange={(e) => setDefaultBotMin(e.target.value)} className="mt-1 w-36" />
               </div>
               <Button onClick={saveDefault} disabled={savingDefault}>{savingDefault ? 'กำลังบันทึก…' : 'บันทึก'}</Button>
             </div>
