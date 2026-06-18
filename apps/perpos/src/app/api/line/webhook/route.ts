@@ -1456,8 +1456,9 @@ const TMC_CMDS = ['รับ', 'จ่าย', 'บัญชี', 'stock', 'stki
 const CRM_CMDS = ['n', 'survey', 'issue', 'mtg', 'log', 'sol', 'status', 'notes', 'issues', 'hours'];
 
 // ─── Meeting bot (Recall.ai) — วางลิงก์ประชุมใน LINE → บอทเข้าห้องอัด → MoM ────────
-const BOT_MIN_START = 300;  // โควต้าบอทขั้นต่ำที่ส่งบอทแล้วคุ้ม (5 นาที)
-const BOT_HOLD_CAP = 3600;  // เพดานจองต่อประชุม (60 นาที) — settle ปรับเป็นจริงทีหลัง
+const BOT_MIN_START = 300;     // โควต้าบอทขั้นต่ำที่ส่งบอทแล้วคุ้ม (5 นาที)
+const BOT_HOLD_CAP = 6 * 3600; // เพดานเวลาอัด/ประชุม = โควต้าที่เหลือ (cap 6 ชม. กันค่าเพี้ยนเท่านั้น)
+                               //   → บอทอยู่ได้จนหมดโควต้าจริง (ไม่ตัดที่ 60 นาที) · settle ปรับเป็นจริงทีหลัง
 const BOT_TRIAL_LIMIT = 7200;
 
 const PLATFORM_LABEL: Record<string, string> = {
