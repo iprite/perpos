@@ -3,8 +3,8 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useParams } from 'next/navigation';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
-import { Button } from '@/components/ui/button';
-import { LayoutGrid, Loader2, AlertCircle } from 'lucide-react';
+import { PageShell, PageCard } from '@/components/ui/page-shell';
+import { Loader2, AlertCircle } from 'lucide-react';
 
 export default function HrmPage() {
   const { orgSlug } = useParams<{ orgSlug: string }>();
@@ -18,7 +18,6 @@ export default function HrmPage() {
       setLoading(true);
       setError(null);
 
-      // 1. ดึงข้อมูล ID ขององค์กรจาก Slug URL
       const { data: org, error: orgErr } = await supabase
         .from('organizations')
         .select('id')
@@ -31,7 +30,6 @@ export default function HrmPage() {
       const token = sess.session?.access_token;
       if (!token) throw new Error('กรุณาเข้าสู่ระบบใหม่');
 
-      // 2. ดึงข้อมูลจาก API Route ของโมดูล
       const res = await fetch(`/api/hrm?orgId=${org.id}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -55,25 +53,10 @@ export default function HrmPage() {
   }, [loadData]);
 
   return (
-    <div className="p-4 md:p-6 space-y-5">
-      {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-2 border-b pb-4">
-        <div>
-          <h1 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-            <LayoutGrid className="w-5 h-5 text-indigo-500" />
-            HR
-          </h1>
-          <p className="text-sm text-slate-500">โมดูลการทำงานเฉพาะองค์กร (HR)</p>
-        </div>
-        <Button variant="outline" size="sm" onClick={loadData} disabled={loading}>
-          {loading ? 'กำลังโหลด…' : 'รีเฟรช'}
-        </Button>
-      </div>
-
-      {/* Content */}
+    <PageShell title="HR" description="โมดูลการจัดการทรัพยากรบุคคล">
       {loading ? (
         <div className="flex h-48 items-center justify-center">
-          <Loader2 className="h-6 w-6 animate-spin text-slate-400" />
+          <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
         </div>
       ) : error ? (
         <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
@@ -81,16 +64,16 @@ export default function HrmPage() {
           <span>{error}</span>
         </div>
       ) : (
-        <div className="bg-white rounded-xl border p-6 text-center space-y-4">
-          <p className="text-slate-600 font-medium">เชื่อมต่อระบบโมดูล HR สำเร็จเรียบร้อยแล้ว!</p>
-          <div className="max-w-md mx-auto p-4 bg-slate-50 border rounded-lg text-left text-xs font-mono text-slate-500 space-y-1">
+        <PageCard>
+          <p className="text-center font-medium text-gray-600">เชื่อมต่อระบบโมดูล HR สำเร็จเรียบร้อยแล้ว!</p>
+          <div className="mx-auto mt-4 max-w-md rounded-lg border bg-gray-50 p-4 text-left font-mono text-xs text-gray-500 space-y-1">
             <p>• Module Key: hrm</p>
             <p>• URL Path: /{orgSlug}/hrm</p>
             <p>• API Route: /api/hrm</p>
             <p>• Records loaded: {data.length} records</p>
           </div>
-        </div>
+        </PageCard>
       )}
-    </div>
+    </PageShell>
   );
 }
