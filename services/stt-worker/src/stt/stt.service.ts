@@ -240,6 +240,7 @@ async function runJob(jobId: string, orgId: string): Promise<void> {
     console.log(`[stt-worker] Job ${jobId} completed (${transcript.key_topics.length} topics, ${transcript.action_items.length} actions).`);
 
     // 4. Best-effort delivery (failure must not fail the job).
+    //    (recall: bot_quota ถูก settle ตามเวลาบอทในห้องที่ bot.done แล้ว — worker ไม่ settle/หัก stt)
     if (job.source === 'line' || job.source === 'recall') {
       // งานจาก LINE/บอท → ให้ฝั่ง Next.js สร้าง PDF แล้วส่ง Flex (ปุ่มดาวน์โหลด) กลับ LINE
       await deliverMomToLine(jobId, orgId).catch((e) =>
