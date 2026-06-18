@@ -5,6 +5,7 @@ import { triggerSttWorker } from '@/lib/assistant/stt-trigger';
 import { sendLineMessages } from '@/lib/line/send-messages';
 import {
   extractMeetingUrl, makeDedupKey, createBot, AdhocPoolDepletedError, leaveBot, deleteScheduledBot,
+  parseMeetingDateTime,
 } from '@/lib/assistant/recall';
 import { buildBotFlex } from '@/lib/assistant/recall-events';
 import { provisionLineUser } from '../_provision';
@@ -1457,18 +1458,19 @@ const PLATFORM_LABEL: Record<string, string> = {
   google_meet: 'Google Meet', zoom: 'Zoom', teams: 'Microsoft Teams',
 };
 
-function buildLinkConfirmFlex(platformLabel: string, remainMin: number, jobId: string) {
+function buildLinkConfirmFlex(platformLabel: string, remainMin: number, jobId: string, joinAtText?: string) {
+  const statusText = joinAtText ? `📅 นัดเข้าห้อง ${joinAtText} น.` : '⏳ บอทกำลังเข้าห้องประชุม…';
   return {
     type: 'flex' as const,
-    altText: '🤖 ได้รับลิงก์ประชุมแล้ว — บอทกำลังเข้าห้อง',
+    altText: joinAtText ? `🤖 นัดบอทเข้าประชุม ${joinAtText}` : '🤖 ได้รับลิงก์ประชุมแล้ว — บอทกำลังเข้าห้อง',
     contents: {
       type: 'bubble',
       header: { type: 'box', layout: 'horizontal', backgroundColor: '#3C3B3D', paddingAll: '14px',
-        contents: [{ type: 'text', text: '🤖 ได้รับลิงก์ประชุมแล้ว', color: '#ffffff', weight: 'bold', size: 'md' }] },
+        contents: [{ type: 'text', text: joinAtText ? '🤖 นัดบอทเข้าประชุมแล้ว' : '🤖 ได้รับลิงก์ประชุมแล้ว', color: '#ffffff', weight: 'bold', size: 'md' }] },
       body: { type: 'box', layout: 'vertical', spacing: 'sm', paddingAll: '18px', contents: [
         { type: 'text', text: `📹 ${platformLabel}`, size: 'sm', color: '#1A1A1B' },
         { type: 'box', layout: 'horizontal', backgroundColor: '#E6F1FB', cornerRadius: '8px', paddingAll: '10px', margin: 'sm',
-          contents: [{ type: 'text', text: '⏳ บอทกำลังเข้าห้องประชุม…', size: 'sm', color: '#0C447C', wrap: true }] },
+          contents: [{ type: 'text', text: statusText, size: 'sm', color: '#0C447C', wrap: true }] },
         { type: 'text', text: 'บอทจะปรากฏในห้องชื่อ "PERPOS Assistant (AI Note-taker)" · เมื่อประชุมจบจะส่งรายงานการประชุม (MoM) กลับมาที่นี่', size: 'xs', wrap: true, color: '#656D78', margin: 'md' },
         { type: 'text', text: `⏱️ โควต้าบอทคงเหลือ ${remainMin} นาที`, size: 'xs', color: '#9CA3AF', margin: 'md' },
         { type: 'separator', margin: 'md' },
@@ -1516,7 +1518,12 @@ async function handleMeetingLink(admin: ReturnType<typeof createAdminClient>, li
     return true;
   }
 
-  const dedupKey = makeDedupKey(found.url);
+  // นัดเวลาล่วงหน้าไหม — ถ้าข้อความระบุวัน-เวลา + อีก >10 นาที → scheduled bot (เข้าตรงเวลา)
+  const joinAt = parseMeetingDateTime(text);
+  const isScheduled = !!joinAt && joinAt.getTime() - Date.now() > 10 * 60 * 1000;
+  const scheduledIso = isScheduled ? joinAt!.toISOString() : null;
+  // dedup ตามเวลานัด (กันวางลิงก์เดิมหลายครั้ง = บอทตัวเดียว) ถ้าไม่นัด = เวลาปัจจุบัน
+  const dedupKey = makeDedupKey(found.url, isScheduled ? joinAt! : new Date());
   const { data: dup } = await admin
     .from('assistant_jobs').select('bot_state')
     .eq('dedup_key', dedupKey)
@@ -1541,7 +1548,7 @@ async function handleMeetingLink(admin: ReturnType<typeof createAdminClient>, li
       org_id: activeOrg.id, profile_id: profile.id, source: 'recall', kind: 'stt',
       audio_url: null, file_name: `${platformLabel} recording`, mime_type: 'audio/mp4',
       meeting_url: found.url, dedup_key: dedupKey, hold_seconds: EST,
-      bot_state: 'creating', triggered_by: profile.id,
+      join_at: scheduledIso, bot_state: 'creating', triggered_by: profile.id,
     })
     .select('id').single();
   if (insErr || !jobRow) {
@@ -1562,6 +1569,7 @@ async function handleMeetingLink(admin: ReturnType<typeof createAdminClient>, li
   try {
     const bot = await createBot({
       meetingUrl: found.url, holdSeconds: EST,
+      ...(scheduledIso ? { joinAt: scheduledIso } : {}),
       metadata: { profile_id: profile.id, job_id: jobId, org_id: activeOrg.id },
     });
     // บันทึก recall_bot_id "เสมอ" (กัน orphan — leave/cancel/scheduler ต้องใช้) + อ่าน state ปัจจุบัน
@@ -1580,7 +1588,10 @@ async function handleMeetingLink(admin: ReturnType<typeof createAdminClient>, li
       await admin.from('assistant_jobs').update({ bot_state: 'scheduled' }).eq('id', jobId).eq('bot_state', 'creating');
     }
     // curState อื่น (joining/recording…) = webhook นำหน้าแล้ว → คงไว้
-    await replyLine(replyToken, [buildLinkConfirmFlex(platformLabel, Math.floor(EST / 60), jobId)]);
+    const joinAtText = isScheduled
+      ? new Intl.DateTimeFormat('th-TH', { timeZone: 'Asia/Bangkok', dateStyle: 'long', timeStyle: 'short' }).format(joinAt!)
+      : undefined;
+    await replyLine(replyToken, [buildLinkConfirmFlex(platformLabel, Math.floor(EST / 60), jobId, joinAtText)]);
   } catch (e) {
     // คืนโควต้าก่อน (ขณะ job ยังอยู่) แล้วลบ job เพื่อปล่อย dedup_key ให้ลองใหม่ได้
     await admin.rpc('refund_bot_quota', { p_job_id: jobId }).then(() => undefined, () => undefined);
@@ -1618,7 +1629,23 @@ async function handleRecallCancel(admin: ReturnType<typeof createAdminClient>, l
   }
   await admin.rpc('refund_bot_quota', { p_job_id: jobId }).then(() => undefined, () => undefined);
   await admin.from('assistant_jobs').update({ status: 'failed', bot_state: 'cancelled', updated_at: new Date().toISOString() }).eq('id', jobId);
-  await replyText(replyToken, '✅ ยกเลิกบอทแล้ว คืนโควต้าให้เรียบร้อยครับ');
+
+  const { remainMin } = await getBotRemaining(admin, job.profile_id ?? '');
+  await replyLine(replyToken, [{
+    type: 'flex',
+    altText: '✅ ยกเลิกบอทแล้ว คืนโควต้าให้เรียบร้อย',
+    contents: {
+      type: 'bubble',
+      header: { type: 'box', layout: 'horizontal', backgroundColor: '#3C3B3D', paddingAll: '14px',
+        contents: [{ type: 'text', text: '✅ ยกเลิกบอทแล้ว', color: '#ffffff', weight: 'bold', size: 'md' }] },
+      body: { type: 'box', layout: 'vertical', spacing: 'sm', paddingAll: '18px', contents: [
+        { type: 'text', text: 'นำบอทออกจากห้องประชุมแล้ว และคืนโควต้าให้เรียบร้อยครับ', size: 'sm', wrap: true, color: '#3C3B3D' },
+        { type: 'text', text: `🤖 โควต้าบอทคงเหลือ ${remainMin} นาที`, size: 'xs', color: '#9CA3AF', margin: 'md' },
+        { type: 'separator', margin: 'md' },
+        { type: 'text', text: 'ส่งลิงก์ประชุมใหม่ได้ทุกเมื่อเพื่อเริ่มบันทึกอีกครั้งครับ', size: 'xs', wrap: true, color: '#656D78', margin: 'md' },
+      ] },
+    },
+  }]);
 }
 
 export async function POST(req: NextRequest) {

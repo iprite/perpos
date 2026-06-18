@@ -159,6 +159,46 @@ export function extractMeetingUrl(text: string): { platform: string; url: string
   return null;
 }
 
+/** เดือนไทย (เต็ม + ย่อ) → เลขเดือน */
+const TH_MONTHS: [RegExp, number][] = [
+  [/มกราคม|ม\.?ค\.?/, 1], [/กุมภาพันธ์|ก\.?พ\.?/, 2], [/มีนาคม|มี\.?ค\.?/, 3],
+  [/เมษายน|เม\.?ย\.?/, 4], [/พฤษภาคม|พ\.?ค\.?/, 5], [/มิถุนายน|มิ\.?ย\.?/, 6],
+  [/กรกฎาคม|ก\.?ค\.?/, 7], [/สิงหาคม|ส\.?ค\.?/, 8], [/กันยายน|ก\.?ย\.?/, 9],
+  [/ตุลาคม|ต\.?ค\.?/, 10], [/พฤศจิกายน|พ\.?ย\.?/, 11], [/ธันวาคม|ธ\.?ค\.?/, 12],
+];
+
+/**
+ * อ่านวัน-เวลานัดประชุมจากข้อความไทย → Date (Asia/Bangkok) หรือ null ถ้าระบุไม่ชัด
+ * รองรับ: "18 มิถุนายน 2569 เวลา 14.30 น." · เดือนย่อ · พ.ศ.(>2400→ค.ศ.) · "14:30"
+ * ถ้าไม่มีเวลาชัด ("น." / "เวลา") → null (ไม่เดา กัน schedule ผิด → caller fallback ad-hoc)
+ */
+export function parseMeetingDateTime(text: string, now: Date = new Date()): Date | null {
+  const tm = text.match(/(?:เวลา\s*)?(\d{1,2})[.:](\d{2})\s*น\.?/) ?? text.match(/เวลา\s*(\d{1,2})[.:](\d{2})/);
+  if (!tm) return null;
+  const hh = Number(tm[1]); const mm = Number(tm[2]);
+  if (hh > 23 || mm > 59) return null;
+
+  let month = 0; let monIdx = -1; let monLen = 0;
+  for (const [re, n] of TH_MONTHS) {
+    const m = text.match(re);
+    if (m && m.index !== undefined) { month = n; monIdx = m.index; monLen = m[0].length; break; }
+  }
+  if (!month) return null;
+
+  const before = text.slice(Math.max(0, monIdx - 12), monIdx);
+  const after = text.slice(monIdx + monLen, monIdx + monLen + 16);
+  const dayM = before.match(/(\d{1,2})\s*$/);
+  if (!dayM) return null;
+  const day = Number(dayM[1]);
+  const yearM = after.match(/(\d{4})/);
+  let year = yearM ? Number(yearM[1]) : now.getFullYear();
+  if (year > 2400) year -= 543; // พ.ศ. → ค.ศ.
+
+  const iso = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}T${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:00+07:00`;
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
 /** dedup: 1 บอท ต่อ 1 meeting instance — ปัดเวลาเป็นครึ่งชั่วโมง กันยิงรัว */
 export function makeDedupKey(meetingUrl: string, at: Date = new Date()): string {
   const slot = Math.round(at.getTime() / (30 * 60_000));
