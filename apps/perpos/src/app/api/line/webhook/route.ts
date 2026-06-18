@@ -1456,9 +1456,7 @@ const TMC_CMDS = ['รับ', 'จ่าย', 'บัญชี', 'stock', 'stki
 const CRM_CMDS = ['n', 'survey', 'issue', 'mtg', 'log', 'sol', 'status', 'notes', 'issues', 'hours'];
 
 // ─── Meeting bot (Recall.ai) — วางลิงก์ประชุมใน LINE → บอทเข้าห้องอัด → MoM ────────
-const BOT_MIN_START = 300;     // โควต้าบอทขั้นต่ำที่ส่งบอทแล้วคุ้ม (5 นาที)
-const BOT_HOLD_CAP = 6 * 3600; // เพดานเวลาอัด/ประชุม = โควต้าที่เหลือ (cap 6 ชม. กันค่าเพี้ยนเท่านั้น)
-                               //   → บอทอยู่ได้จนหมดโควต้าจริง (ไม่ตัดที่ 60 นาที) · settle ปรับเป็นจริงทีหลัง
+const BOT_MIN_START = 300; // โควต้าบอทขั้นต่ำที่ส่งบอทแล้วคุ้ม (5 นาที)
 const BOT_TRIAL_LIMIT = 7200;
 
 const PLATFORM_LABEL: Record<string, string> = {
@@ -1545,7 +1543,7 @@ async function handleMeetingLink(admin: ReturnType<typeof createAdminClient>, li
   // dup เก่าที่จบแล้ว (terminal) ใน slot เดียวกัน → ลบทิ้งเพื่อปล่อย dedup_key ให้ paste ใหม่ได้
   if (dup) await admin.from('assistant_jobs').delete().eq('dedup_key', dedupKey);
 
-  const EST = Math.min(remainSec, BOT_HOLD_CAP);
+  const EST = remainSec; // จองตามโควต้าที่เหลือจริง — บอทอยู่ได้จนหมดโควต้า (automatic_leave คุมเคสห้องว่าง/เงียบ)
   const platformLabel = PLATFORM_LABEL[found.platform] ?? 'ห้องประชุม';
 
   // insert job ก่อน (dedup guard ระดับ DB) — ถ้าชน (race) ถือว่าซ้ำ
