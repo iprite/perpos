@@ -1067,8 +1067,8 @@ async function handleJaquarStock(
 }
 
 async function getProfileByLineId(admin: ReturnType<typeof createAdminClient>, lineUserId: string) {
-  const { data } = await admin.from('profiles').select('id, role, line_active_org_id').eq('line_user_id', lineUserId).maybeSingle();
-  return data as { id: string; role: string; line_active_org_id: string | null } | null;
+  const { data } = await admin.from('profiles').select('id, role, line_active_org_id, bot_consent_at').eq('line_user_id', lineUserId).maybeSingle();
+  return data as { id: string; role: string; line_active_org_id: string | null; bot_consent_at: string | null } | null;
 }
 
 type OrgInfo = { id: string; name: string; slug: string };
@@ -1463,6 +1463,41 @@ const PLATFORM_LABEL: Record<string, string> = {
   google_meet: 'Google Meet', zoom: 'Zoom', teams: 'Microsoft Teams',
 };
 
+/** PDPA §8 — การ์ดยินยอมครั้งแรกก่อนใช้บอทประชุม (เด้งเมื่อ profile.bot_consent_at = null) */
+function buildBotConsentFlex() {
+  return {
+    type: 'flex' as const,
+    altText: '🔒 ก่อนเริ่มใช้บอทประชุม — โปรดอ่านและยอมรับเงื่อนไข',
+    contents: {
+      type: 'bubble',
+      header: { type: 'box', layout: 'horizontal', backgroundColor: '#3C3B3D', paddingAll: '14px',
+        contents: [{ type: 'text', text: '🔒 ก่อนเริ่มใช้บอทประชุม', color: '#ffffff', weight: 'bold', size: 'md' }] },
+      body: { type: 'box', layout: 'vertical', spacing: 'sm', paddingAll: '18px', contents: [
+        { type: 'text', text: 'บอท "PERPOS Assistant (AI Note-taker)" จะเข้าร่วมประชุมและบันทึกเสียงของผู้เข้าร่วมทุกคนเพื่อสรุปรายงานการประชุม', size: 'sm', wrap: true, color: '#1A1A1B' },
+        { type: 'box', layout: 'vertical', backgroundColor: '#E6F1FB', cornerRadius: '8px', paddingAll: '10px', margin: 'sm', contents: [
+          { type: 'text', text: 'เมื่อกดยอมรับ ถือว่าคุณยืนยันว่า:', size: 'xs', color: '#0C447C', weight: 'bold', wrap: true },
+          { type: 'text', text: '• คุณรับผิดชอบการแจ้งและขอความยินยอมจากผู้เข้าร่วมในห้องตาม PDPA', size: 'xs', color: '#0C447C', wrap: true, margin: 'sm' },
+          { type: 'text', text: '• ไฟล์เสียงจะถูกลบทันทีหลังสรุปเสร็จ และเก็บเฉพาะรายงานชั่วคราว', size: 'xs', color: '#0C447C', wrap: true, margin: 'sm' },
+        ] },
+        { type: 'text', text: 'หากไม่ต้องการให้บอทบันทึก เพียงไม่วางลิงก์ประชุมก็พอครับ', size: 'xxs', wrap: true, color: '#9CA3AF', margin: 'md' },
+      ] },
+      footer: { type: 'box', layout: 'vertical', paddingAll: '14px',
+        contents: [{ type: 'button', style: 'primary', height: 'sm', color: '#3C3B3D',
+          action: { type: 'postback', label: '✓ ยอมรับและเริ่มใช้งาน', data: 'botconsent', displayText: 'ยอมรับเงื่อนไขบอทประชุม' } }] },
+    },
+  };
+}
+
+/** ผู้ใช้กดยอมรับเงื่อนไข (postback botconsent) → บันทึก bot_consent_at + ชวนวางลิงก์ */
+async function handleRecallConsent(admin: ReturnType<typeof createAdminClient>, lineUserId: string, replyToken: string): Promise<void> {
+  const profile = await getProfileByLineId(admin, lineUserId);
+  if (!profile) return;
+  if (!profile.bot_consent_at) {
+    await admin.from('profiles').update({ bot_consent_at: new Date().toISOString() }).eq('id', profile.id);
+  }
+  await replyText(replyToken, '✅ บันทึกการยอมรับแล้ว — วางลิงก์ประชุม (Google Meet / Zoom / Teams) อีกครั้งเพื่อให้บอทเข้าห้องได้เลยครับ');
+}
+
 function buildLinkConfirmFlex(platformLabel: string, remainMin: number, jobId: string, joinAtText?: string) {
   const statusText = joinAtText ? `📅 นัดเข้าห้อง ${joinAtText} น.` : '⏳ บอทกำลังเข้าห้องประชุม…';
   return {
@@ -1511,6 +1546,14 @@ async function handleMeetingLink(admin: ReturnType<typeof createAdminClient>, li
     await replyText(replyToken, '❌ บัญชีนี้ยังไม่มีสิทธิ์ใช้ผู้ช่วย AI ครับ');
     return true;
   }
+
+  // PDPA §8 — first-use consent gate: บอทจะเข้าไปบันทึก "ผู้ร่วมประชุมคนอื่น"
+  // ครั้งแรกต้องกดยอมรับก่อน (footer disclaimer ไม่พอ) แล้ววางลิงก์อีกครั้ง
+  if (!profile.bot_consent_at) {
+    await replyLine(replyToken, [buildBotConsentFlex()]);
+    return true;
+  }
+
   const activeOrg = await getOrSetActiveOrg(admin, profile.id, profile.line_active_org_id);
   if (!activeOrg) {
     await replyText(replyToken, '❌ ไม่พบพื้นที่ทำงานของคุณ กรุณาลองใหม่ภายหลังครับ');
@@ -1701,6 +1744,8 @@ export async function POST(req: NextRequest) {
         await handleMomConfirm(admin, pbUserId, pbData.slice('momfile:'.length), pbReplyToken);
       } else if (pbData === 'momcancel') {
         await replyText(pbReplyToken, 'รับทราบครับ — หากต้องการถอดเสียงภายหลัง พิมพ์ /mom แล้วส่งไฟล์ได้เลย 🙏');
+      } else if (pbUserId && pbData === 'botconsent') {
+        await handleRecallConsent(admin, pbUserId, pbReplyToken);
       } else if (pbUserId && pbData.startsWith('botcancel:')) {
         await handleRecallCancel(admin, pbUserId, pbData.slice('botcancel:'.length), pbReplyToken);
       }
