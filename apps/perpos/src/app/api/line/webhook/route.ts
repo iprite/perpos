@@ -1372,16 +1372,21 @@ async function handleFollow(admin: ReturnType<typeof createAdminClient>, lineUse
   const name = result.displayName;
   const greeting = result.isNew ? `ยินดีต้อนรับ คุณ${name} 🎉` : `ยินดีต้อนรับกลับมา คุณ${name} 🙌`;
 
-  // โควต้าคงเหลือ (ใหม่ = 300, กลับมา = ที่เหลือจริง)
-  const { data: q } = await admin.from('stt_quota').select('limit_seconds, used_seconds').eq('profile_id', result.profileId).maybeSingle();
+  // โควต้าคงเหลือ 2 มิเตอร์ (ใหม่ = ถอดเสียง 300 + บอทประชุม 120, กลับมา = ที่เหลือจริง)
+  const [{ data: q }, { data: bq }] = await Promise.all([
+    admin.from('stt_quota').select('limit_seconds, used_seconds').eq('profile_id', result.profileId).maybeSingle(),
+    admin.from('bot_quota').select('limit_seconds, used_seconds').eq('profile_id', result.profileId).maybeSingle(),
+  ]);
   const qq = q as { limit_seconds?: number; used_seconds?: number } | null;
+  const bb = bq as { limit_seconds?: number; used_seconds?: number } | null;
   const remainMin = qq ? Math.max(0, Math.floor(((qq.limit_seconds ?? 18000) - (qq.used_seconds ?? 0)) / 60)) : 300;
+  const botRemainMin = bb ? Math.max(0, Math.floor(((bb.limit_seconds ?? 7200) - (bb.used_seconds ?? 0)) / 60)) : 120;
   const giftLabel = result.isNew ? 'โควต้าฟรีสำหรับคุณ' : 'โควต้าคงเหลือ';
 
   const steps: Array<[string, string]> = [
-    ['1', 'พิมพ์ /mom ในแชท'],
-    ['2', 'ส่งไฟล์เสียงการประชุม'],
-    ['3', 'รับรายงาน PDF อัตโนมัติ'],
+    ['1', 'ส่งไฟล์เสียง (พิมพ์ /mom) — หรือวางลิงก์ประชุม Zoom/Meet'],
+    ['2', 'บอทเข้าห้องอัด หรือถอดไฟล์ให้อัตโนมัติ'],
+    ['3', 'รับรายงานการประชุม (MoM) PDF กลับทาง LINE'],
   ];
   const stepBoxes = steps.map(([n, txt]) => ({
     type: 'box', layout: 'horizontal', spacing: 'md', alignItems: 'center', margin: 'md',
@@ -1399,7 +1404,7 @@ async function handleFollow(admin: ReturnType<typeof createAdminClient>, lineUse
     to: lineUserId,
     messages: [{
       type: 'flex',
-      altText: `ยินดีต้อนรับสู่ PERPOS Assistant — โควต้า ${remainMin} นาที`,
+      altText: `ยินดีต้อนรับสู่ PERPOS Assistant — ถอดเสียง ${remainMin} นาที · บอทประชุม ${botRemainMin} นาที`,
       contents: {
         type: 'bubble', size: 'mega',
         header: {
@@ -1418,10 +1423,11 @@ async function handleFollow(admin: ReturnType<typeof createAdminClient>, lineUse
               contents: [
                 { type: 'text', text: '🎁', size: 'xxl', flex: 0, gravity: 'center' },
                 {
-                  type: 'box', layout: 'vertical', spacing: 'none',
+                  type: 'box', layout: 'vertical', spacing: 'xs',
                   contents: [
                     { type: 'text', text: giftLabel, size: 'xs', color: '#44A38B' },
-                    { type: 'text', text: `${remainMin} นาที`, weight: 'bold', size: 'xxl', color: '#428B79' },
+                    { type: 'text', text: `🎙️ ถอดเสียง ${remainMin} นาที`, weight: 'bold', size: 'md', color: '#428B79' },
+                    { type: 'text', text: `🤖 บอทเข้าประชุม ${botRemainMin} นาที`, weight: 'bold', size: 'md', color: '#428B79' },
                   ],
                 },
               ],
