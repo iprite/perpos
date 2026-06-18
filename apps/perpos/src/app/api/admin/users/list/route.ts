@@ -58,7 +58,7 @@ export async function GET(req: NextRequest) {
   }
 
   // ── org memberships (Biz) + รายชื่อ org ทั้งหมด + โควต้า (STT) ────────────────
-  const [membersRes, orgsRes, quotaRes] = await Promise.all([
+  const [membersRes, orgsRes, quotaRes, botQuotaRes] = await Promise.all([
     ids.length
       ? admin
           .from('organization_members')
@@ -68,6 +68,9 @@ export async function GET(req: NextRequest) {
     admin.from('organizations').select('id, name').order('name'),
     ids.length
       ? admin.from('stt_quota').select('profile_id, limit_seconds, used_seconds').in('profile_id', ids)
+      : Promise.resolve({ data: [] as Record<string, unknown>[] }),
+    ids.length
+      ? admin.from('bot_quota').select('profile_id, limit_seconds, used_seconds').in('profile_id', ids)
       : Promise.resolve({ data: [] as Record<string, unknown>[] }),
   ]);
 
@@ -92,6 +95,14 @@ export async function GET(req: NextRequest) {
       used_seconds: Number(q.used_seconds),
     });
   }
+  const BOT_DEFAULT_SECONDS = 7200;
+  const botQuotaById = new Map<string, { limit_seconds: number; used_seconds: number }>();
+  for (const q of (botQuotaRes.data ?? []) as Record<string, unknown>[]) {
+    botQuotaById.set(String(q.profile_id), {
+      limit_seconds: Number(q.limit_seconds),
+      used_seconds: Number(q.used_seconds),
+    });
+  }
 
   const items = rows.map((p) => {
     const email = String(p.email ?? '');
@@ -100,6 +111,9 @@ export async function GET(req: NextRequest) {
     const q = quotaById.get(p.id as string);
     const limit = q?.limit_seconds ?? DEFAULT_LIMIT_SECONDS;
     const used = q?.used_seconds ?? 0;
+    const bq = botQuotaById.get(p.id as string);
+    const botLimit = bq?.limit_seconds ?? BOT_DEFAULT_SECONDS;
+    const botUsed = bq?.used_seconds ?? 0;
     return {
       id: p.id,
       display_name: (p.display_name as string | null) ?? 'ผู้ใช้ LINE',
@@ -113,6 +127,7 @@ export async function GET(req: NextRequest) {
       last_seen_at: (p.last_seen_at as string | null) ?? null,
       orgs: orgsByUser.get(p.id as string) ?? [],
       quota: { limit_seconds: limit, used_seconds: used, remaining_seconds: Math.max(0, limit - used) },
+      botQuota: { limit_seconds: botLimit, used_seconds: botUsed, remaining_seconds: Math.max(0, botLimit - botUsed) },
     };
   });
 

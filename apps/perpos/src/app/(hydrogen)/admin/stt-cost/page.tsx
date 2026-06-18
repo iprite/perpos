@@ -25,7 +25,13 @@ type CostStats = {
   accuracy: { exact_jobs: number; estimated_jobs: number; exact_ratio: number };
   tokens: { prompt: number; output: number; thoughts: number };
   totals: { minutes: number; jobs: number; cost_usd: number; cost_thb: number; cost_per_minute_thb: number };
-  by_source: { web: { minutes: number; jobs: number; cost_thb: number }; line: { minutes: number; jobs: number; cost_thb: number } };
+  by_source: {
+    web: { minutes: number; jobs: number; cost_thb: number };
+    line: { minutes: number; jobs: number; cost_thb: number };
+    recall: { minutes: number; jobs: number; cost_thb: number };
+  };
+  recall_platform: { usd_per_hour: number; recording_minutes: number; cost_usd: number; cost_thb: number; bot_cost_per_minute_thb: number };
+  grand_total: { cost_thb: number };
   daily: { date: string; minutes: number; cost_thb: number }[];
 };
 
@@ -101,10 +107,34 @@ export default function AdminSttCostPage() {
       ) : (
         <div className="space-y-6">
           <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-            <Card icon={<Coins className="h-5 w-5" />} label={`ต้นทุนรวม (${s.window_days} วัน)`} value={`฿${thb(s.totals.cost_thb)}`} sub={`≈ $${thb(s.totals.cost_usd, 4)} · ${s.accuracy.exact_jobs}/${s.totals.jobs} งานเป๊ะ`} accent="bg-red-50 text-red-600" />
+            <Card icon={<Coins className="h-5 w-5" />} label={`ต้นทุนรวมจริง (${s.window_days} วัน)`} value={`฿${thb(s.grand_total.cost_thb)}`} sub={`Gemini ฿${thb(s.totals.cost_thb)} + Recall ฿${thb(s.recall_platform.cost_thb)}`} accent="bg-red-50 text-red-600" />
             <Card icon={<TrendingUp className="h-5 w-5" />} label="ต้นทุนต่อนาที" value={`฿${thb(s.totals.cost_per_minute_thb, 3)}`} sub="ฐานตั้งราคาขาย" accent="bg-amber-50 text-amber-600" />
             <Card icon={<Clock className="h-5 w-5" />} label="นาทีที่ประมวลผล" value={thb(s.totals.minutes, 0)} accent="bg-blue-50 text-blue-600" />
             <Card icon={<FileAudio className="h-5 w-5" />} label="จำนวนงาน" value={thb(s.totals.jobs, 0)} sub={`เว็บ ${s.by_source.web.jobs} · LINE ${s.by_source.line.jobs}`} accent="bg-purple-50 text-purple-600" />
+          </div>
+
+          {/* ต้นทุนจริงรวม = Gemini + Recall แพลตฟอร์มบอท */}
+          <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
+            <h3 className="mb-3 text-sm font-semibold text-gray-700">ต้นทุนจริงรวม (Gemini + Recall)</h3>
+            <div className="grid grid-cols-3 gap-4 text-sm">
+              <div>
+                <div className="text-gray-500">Gemini (ถอดเสียงทุกช่องทาง)</div>
+                <div className="text-lg font-semibold tabular-nums text-gray-900">฿{thb(s.totals.cost_thb)}</div>
+              </div>
+              <div>
+                <div className="text-gray-500">Recall แพลตฟอร์มบอท</div>
+                <div className="text-lg font-semibold tabular-nums text-gray-900">฿{thb(s.recall_platform.cost_thb)}</div>
+                <div className="text-xs text-gray-400">{thb(s.recall_platform.recording_minutes, 0)} นาทีอัด · ${s.recall_platform.usd_per_hour}/ชม.</div>
+              </div>
+              <div>
+                <div className="text-gray-500">รวมจริง</div>
+                <div className="text-lg font-semibold tabular-nums text-red-600">฿{thb(s.grand_total.cost_thb)}</div>
+              </div>
+            </div>
+            <p className="mt-3 border-t border-gray-100 pt-3 text-sm">
+              <span className="text-gray-500">ต้นทุนบอท/นาที (Gemini+Recall) — ใช้ตั้งราคา bot_quota: </span>
+              <span className="font-semibold tabular-nums text-gray-900">฿{thb(s.recall_platform.bot_cost_per_minute_thb, 3)}</span>
+            </p>
           </div>
 
           {/* ตัวช่วยตั้งราคาขาย */}
@@ -151,9 +181,9 @@ export default function AdminSttCostPage() {
             <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
               <h3 className="mb-3 text-sm font-semibold text-gray-700">แยกตามช่องทาง</h3>
               <div className="divide-y divide-gray-100 text-sm">
-                {(['web', 'line'] as const).map((k) => (
+                {(['web', 'line', 'recall'] as const).map((k) => (
                   <div key={k} className="flex items-center justify-between py-2.5">
-                    <span className="text-gray-800">{k === 'web' ? 'เว็บ' : 'LINE'}</span>
+                    <span className="text-gray-800">{k === 'web' ? 'เว็บ' : k === 'line' ? 'LINE' : 'บอทประชุม (Gemini)'}</span>
                     <span className="tabular-nums text-gray-500">{thb(s.by_source[k].minutes, 0)} นาที · ฿{thb(s.by_source[k].cost_thb)}</span>
                   </div>
                 ))}

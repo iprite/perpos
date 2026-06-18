@@ -13,6 +13,7 @@ import { requireAdmin } from '../../_lib/auth';
 import { createAdminClient } from '../../_lib/supabase';
 import { ok } from '../../_lib/response';
 import { getSttPricing, estimateGeminiCostUsd, exactCostUsdFromTokens, usdToThb } from '@/lib/assistant/stt-cost';
+import { getRecallBotUsdPerHour, recallCostUsd } from '@/lib/assistant/recall-cost';
 
 const BKK = 'Asia/Bangkok';
 const dayStr = (d: Date) => new Intl.DateTimeFormat('en-CA', { timeZone: BKK }).format(d);
@@ -71,9 +72,10 @@ export async function GET(req: NextRequest) {
   let outputTok = 0;
   let thoughtsTok = 0;
 
-  const bySource: Record<'web' | 'line', { minutes: number; jobs: number; usd: number }> = {
+  const bySource: Record<'web' | 'line' | 'recall', { minutes: number; jobs: number; usd: number }> = {
     web: { minutes: 0, jobs: 0, usd: 0 },
     line: { minutes: 0, jobs: 0, usd: 0 },
+    recall: { minutes: 0, jobs: 0, usd: 0 },
   };
   const daily: Record<string, { minutes: number; usd: number }> = {};
   for (let i = days - 1; i >= 0; i--) daily[dayStr(new Date(Date.now() - i * 86400000))] = { minutes: 0, usd: 0 };
@@ -86,7 +88,7 @@ export async function GET(req: NextRequest) {
     if (exact) { exactJobs += 1; promptTok += r.prompt_tokens ?? 0; outputTok += r.output_tokens ?? 0; thoughtsTok += r.thoughts_tokens ?? 0; }
     else estimatedJobs += 1;
 
-    const k: 'web' | 'line' = r.source === 'line' ? 'line' : 'web';
+    const k: 'web' | 'line' | 'recall' = r.source === 'line' ? 'line' : r.source === 'recall' ? 'recall' : 'web';
     bySource[k].minutes += mins; bySource[k].jobs += 1; bySource[k].usd += usd;
 
     const d = dayStr(new Date(r.created_at));
@@ -95,6 +97,18 @@ export async function GET(req: NextRequest) {
 
   const costThb = usdToThb(costUsd, p);
   const r2 = (n: number) => Math.round(n * 100) / 100;
+
+  // ต้นทุน Recall (แพลตฟอร์มบอท) — แยกจาก Gemini · ฐาน = นาทีที่อัดของงาน source='recall'
+  const recallRecordingMinutes = bySource.recall.minutes;
+  const recallPlatformUsd = recallCostUsd(recallRecordingMinutes * 60);
+  const recallPlatformThb = usdToThb(recallPlatformUsd, p);
+  // ต้นทุนรวมจริง = Gemini (ทุก source รวม recall) + Recall platform
+  const grandTotalThb = costThb + recallPlatformThb;
+  // ต้นทุนบอท/นาที (Gemini ของ recall + Recall platform) — ใช้ตั้งราคา bot_quota โดยเฉพาะ
+  const recallGeminiThb = usdToThb(bySource.recall.usd, p);
+  const botCostPerMinuteThb = recallRecordingMinutes > 0
+    ? Math.round(((recallGeminiThb + recallPlatformThb) / recallRecordingMinutes) * 10000) / 10000
+    : 0;
 
   return ok({
     window_days: days,
@@ -124,7 +138,18 @@ export async function GET(req: NextRequest) {
     by_source: {
       web: { minutes: Math.round(bySource.web.minutes), jobs: bySource.web.jobs, cost_thb: r2(usdToThb(bySource.web.usd, p)) },
       line: { minutes: Math.round(bySource.line.minutes), jobs: bySource.line.jobs, cost_thb: r2(usdToThb(bySource.line.usd, p)) },
+      recall: { minutes: Math.round(bySource.recall.minutes), jobs: bySource.recall.jobs, cost_thb: r2(usdToThb(bySource.recall.usd, p)) },
     },
+    // ต้นทุน Recall (แพลตฟอร์มบอท) — Gemini cost ของ recall อยู่ใน totals/by_source.recall แล้ว
+    recall_platform: {
+      usd_per_hour: getRecallBotUsdPerHour(),
+      recording_minutes: Math.round(recallRecordingMinutes),
+      cost_usd: Math.round(recallPlatformUsd * 10000) / 10000,
+      cost_thb: r2(recallPlatformThb),
+      bot_cost_per_minute_thb: botCostPerMinuteThb,
+    },
+    // ต้นทุนรวมจริง (Gemini ทุก source + Recall platform)
+    grand_total: { cost_thb: r2(grandTotalThb) },
     daily: Object.entries(daily).map(([date, v]) => ({ date, minutes: Math.round(v.minutes), cost_thb: r2(usdToThb(v.usd, p)) })),
   });
 }

@@ -44,6 +44,7 @@ type ListedUser = {
   last_seen_at: string | null;
   orgs:         UserOrg[];
   quota:        Quota;
+  botQuota:     Quota;
 };
 
 const ONLINE_WINDOW_MS = 2 * 60_000; // ออนไลน์ = ใช้งานภายใน 2 นาที
@@ -273,6 +274,7 @@ export default function AdminUsersPage() {
   // quota dialog
   const [quotaTarget, setQuotaTarget] = useState<ListedUser | null>(null);
   const [quotaMin,    setQuotaMin]    = useState("");
+  const [quotaBotMin, setQuotaBotMin] = useState("");
   const [quotaSaving, setQuotaSaving] = useState(false);
 
   // impersonation modal
@@ -394,25 +396,28 @@ export default function AdminUsersPage() {
   const handleSaveQuota = useCallback(async () => {
     if (!quotaTarget) return;
     const m = parseInt(quotaMin, 10);
-    if (isNaN(m) || m < 0) { setError("ระบุจำนวนนาทีให้ถูกต้อง"); return; }
+    const bm = parseInt(quotaBotMin, 10);
+    if (isNaN(m) || m < 0 || isNaN(bm) || bm < 0) { setError("ระบุจำนวนนาทีให้ถูกต้อง"); return; }
     setQuotaSaving(true);
     try {
       const headers = await authHeader();
       const res = await fetch(backendUrl("/admin/stt-users"), {
         method: "PUT",
         headers: { ...headers, "content-type": "application/json" },
-        body: JSON.stringify({ profileId: quotaTarget.id, limitSeconds: m * 60 }),
+        body: JSON.stringify({ profileId: quotaTarget.id, limitSeconds: m * 60, botLimitSeconds: bm * 60 }),
       });
       if (!res.ok) { const j = await res.json().catch(() => null); setError(j?.error ?? "ปรับโควต้าไม่สำเร็จ"); return; }
-      const limit = m * 60;
+      const limit = m * 60, botLimit = bm * 60;
       setItems((prev) => prev.map((u) => u.id === quotaTarget.id
-        ? { ...u, quota: { ...u.quota, limit_seconds: limit, remaining_seconds: Math.max(0, limit - u.quota.used_seconds) } }
+        ? { ...u,
+            quota: { ...u.quota, limit_seconds: limit, remaining_seconds: Math.max(0, limit - u.quota.used_seconds) },
+            botQuota: { ...u.botQuota, limit_seconds: botLimit, remaining_seconds: Math.max(0, botLimit - u.botQuota.used_seconds) } }
         : u));
-      setMessage(`ปรับโควต้า ${quotaTarget.display_name} เป็น ${m} นาทีแล้ว`);
+      setMessage(`ปรับโควต้า ${quotaTarget.display_name} แล้ว (ถอดเสียง ${m} · บอท ${bm} นาที)`);
       setQuotaTarget(null);
     } catch (e: unknown) { setError((e as Error)?.message ?? "ปรับโควต้าไม่สำเร็จ"); }
     finally { setQuotaSaving(false); }
-  }, [authHeader, quotaTarget, quotaMin]);
+  }, [authHeader, quotaTarget, quotaMin, quotaBotMin]);
 
   // ── delete ─────────────────────────────────────────────────────────────────────
   const doDeleteUser = useCallback(async () => {
@@ -570,6 +575,8 @@ export default function AdminUsersPage() {
             const isExpanded = expandedUserId === u.id;
             const pct = u.quota.limit_seconds ? Math.min(100, (u.quota.used_seconds / u.quota.limit_seconds) * 100) : 0;
             const low = u.quota.remaining_seconds <= 0;
+            const botPct = u.botQuota.limit_seconds ? Math.min(100, (u.botQuota.used_seconds / u.botQuota.limit_seconds) * 100) : 0;
+            const botLow = u.botQuota.remaining_seconds <= 0;
             const availableOrgs = allOrgs.filter((o) => !u.orgs.some((m) => m.orgId === o.id));
             const seenLabel = relativeSeen(u.last_seen_at, now);
             const online = seenLabel === "ออนไลน์";
@@ -620,17 +627,31 @@ export default function AdminUsersPage() {
                       <ChevronDown className={`h-3.5 w-3.5 opacity-50 transition-transform ${isExpanded ? "rotate-180" : ""}`} />
                     </button>
 
-                    {/* quota */}
-                    <div className="min-w-[150px]">
-                      <div className="mb-1 flex items-baseline justify-between gap-2 text-xs">
-                        <span className="text-gray-400">ผู้ช่วย AI</span>
-                        <span className="whitespace-nowrap tabular-nums">
-                          <span className={low ? "font-semibold text-red-600" : "font-semibold text-gray-900"}>{minutes(u.quota.remaining_seconds)}</span>
-                          <span className="text-gray-400"> / {minutes(u.quota.limit_seconds)} นาที</span>
-                        </span>
+                    {/* quota — ถอดเสียง (stt) + บอทประชุม (bot) */}
+                    <div className="min-w-[150px] space-y-2">
+                      <div>
+                        <div className="mb-1 flex items-baseline justify-between gap-2 text-xs">
+                          <span className="text-gray-400">ถอดเสียง</span>
+                          <span className="whitespace-nowrap tabular-nums">
+                            <span className={low ? "font-semibold text-red-600" : "font-semibold text-gray-900"}>{minutes(u.quota.remaining_seconds)}</span>
+                            <span className="text-gray-400"> / {minutes(u.quota.limit_seconds)} นาที</span>
+                          </span>
+                        </div>
+                        <div className="h-1.5 w-full overflow-hidden rounded-full bg-gray-100">
+                          <div className={`h-full rounded-full ${low ? "bg-red-500" : "bg-indigo-500"}`} style={{ width: `${pct}%` }} />
+                        </div>
                       </div>
-                      <div className="h-1.5 w-full overflow-hidden rounded-full bg-gray-100">
-                        <div className={`h-full rounded-full ${low ? "bg-red-500" : "bg-indigo-500"}`} style={{ width: `${pct}%` }} />
+                      <div>
+                        <div className="mb-1 flex items-baseline justify-between gap-2 text-xs">
+                          <span className="text-gray-400">บอทประชุม</span>
+                          <span className="whitespace-nowrap tabular-nums">
+                            <span className={botLow ? "font-semibold text-red-600" : "font-semibold text-gray-900"}>{minutes(u.botQuota.remaining_seconds)}</span>
+                            <span className="text-gray-400"> / {minutes(u.botQuota.limit_seconds)} นาที</span>
+                          </span>
+                        </div>
+                        <div className="h-1.5 w-full overflow-hidden rounded-full bg-gray-100">
+                          <div className={`h-full rounded-full ${botLow ? "bg-red-500" : "bg-teal-500"}`} style={{ width: `${botPct}%` }} />
+                        </div>
                       </div>
                     </div>
 
@@ -640,7 +661,7 @@ export default function AdminUsersPage() {
                       isDeleting={deletingUserId === u.id}
                       isResetting={resettingUserId === u.id}
                       onManageOrgs={() => setExpandedUserId(isExpanded ? null : u.id)}
-                      onEditQuota={() => { setQuotaTarget(u); setQuotaMin(String(minutes(u.quota.limit_seconds))); }}
+                      onEditQuota={() => { setQuotaTarget(u); setQuotaMin(String(minutes(u.quota.limit_seconds))); setQuotaBotMin(String(minutes(u.botQuota.limit_seconds))); }}
                       onToggleStatus={() => handleToggleStatus(u.id, u.is_active)}
                       onResetPassword={() => handleResetPassword(u)}
                       onImpersonate={() => {
@@ -708,12 +729,19 @@ export default function AdminUsersPage() {
         <DialogContent size="md">
           <DialogHeader><DialogTitle>ปรับโควต้าผู้ช่วย AI — {quotaTarget?.display_name}</DialogTitle></DialogHeader>
           <DialogBody>
-            <div className="space-y-3">
+            <div className="space-y-4">
               <div>
-                <Label htmlFor="quota-limit">โควต้า (นาที)</Label>
+                <Label htmlFor="quota-limit">โควต้าถอดเสียง — อัปไฟล์เอง (นาที)</Label>
                 <Input id="quota-limit" type="number" value={quotaMin} onChange={(e) => setQuotaMin(e.target.value)} className="mt-1" />
                 <p className="mt-1 text-xs text-gray-500">
                   ใช้ไปแล้ว {quotaTarget ? minutes(quotaTarget.quota.used_seconds) : 0} นาที — ตั้ง limit ใหม่เพื่อปรับ/เติม
+                </p>
+              </div>
+              <div>
+                <Label htmlFor="quota-bot-limit">โควต้าบอทประชุม — Recall (นาที)</Label>
+                <Input id="quota-bot-limit" type="number" value={quotaBotMin} onChange={(e) => setQuotaBotMin(e.target.value)} className="mt-1" />
+                <p className="mt-1 text-xs text-gray-500">
+                  ใช้ไปแล้ว {quotaTarget ? minutes(quotaTarget.botQuota.used_seconds) : 0} นาที — นับตามเวลาที่บอทอยู่ในห้อง
                 </p>
               </div>
             </div>
