@@ -530,6 +530,15 @@ function buildP2pGroupMenuItems(org: string, labels: Record<string, string> = {}
 }
 
 
+function buildHrmMenuItems(org: string, labels: Record<string, string> = {}): MenuItem[] {
+  const l = (key: string, fallback: string) => labels[key] || fallback;
+  return [
+    { name: "HR" },
+    { name: l("dashboard", "Dashboard"), href: `/${org}/hrm`, icon: <LayoutDashboard className="h-5 w-5" /> },
+  ];
+}
+
+
 // ─── Context picker ─────────────────────────────────────────────────────────
 
 function pickMenuContext(pathname: string, role: Role | null, enabledKeys: string[]): string {
@@ -554,6 +563,7 @@ function pickMenuContext(pathname: string, role: Role | null, enabledKeys: strin
     if (mod === "b2g") return "b2g";
     if (mod === "p2p-supply") return "p2p_supply";
     if (mod === "p2p-group") return "p2p_group";
+    if (mod === "hrm") return "hrm";
     if (mod === "accounting") return "user";
   }
 
@@ -595,6 +605,7 @@ export function getMenuItems(
     context === "b2g" ? buildB2gMenuItems(org, menuLabels.b2g ?? {}) :
     context === "p2p_supply" ? buildP2pSupplyMenuItems(org, menuLabels.p2p_supply ?? {}) :
     context === "p2p_group" ? buildP2pGroupMenuItems(org, menuLabels.p2p_group ?? {}) :
+    context === "hrm" ? buildHrmMenuItems(org, menuLabels.hrm ?? {}) :
     buildUserMenuItems(org, menuLabels.accounting ?? {});
 
   return items.filter((item) => {

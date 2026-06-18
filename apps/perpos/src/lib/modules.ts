@@ -220,6 +220,22 @@ export const ALL_MODULES: ModuleDef[] = [
       { key: "viewer",  label: "Viewer",  canWrite: false },
     ],
   },
+  {
+    key: "hrm",
+    label: "HR",
+    href: "/hrm",
+    specific: true,
+    
+    match: (p) => {
+      const seg = p.split("/").filter(Boolean);
+      return seg.length >= 2 && seg[1] === "hrm";
+    },
+    roles: [
+      { key: "owner",   label: "Owner",   canWrite: true  },
+      { key: "manager", label: "Manager", canWrite: true  },
+      { key: "viewer",  label: "Viewer",  canWrite: false },
+    ],
+  },
 ];
 
 export const ALL_MODULE_KEYS = ALL_MODULES.map((m) => m.key);
@@ -367,6 +383,9 @@ export const MODULE_MENUS: Record<string, MenuDef[]> = {
     { key: "dashboard", label: "Dashboard" },
   ],
   p2p_group: [
+    { key: "dashboard", label: "Dashboard" },
+  ],
+  hrm: [
     { key: "dashboard", label: "Dashboard" },
   ],
 };
