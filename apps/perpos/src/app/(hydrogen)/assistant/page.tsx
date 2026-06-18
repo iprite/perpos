@@ -38,6 +38,8 @@ type Job = {
   file_size: number | null;
   model: string;
   status: 'pending' | 'processing' | 'completed' | 'failed';
+  source?: string | null;
+  bot_state?: string | null;
   transcript_json: TranscriptJson | null;
   transcript_text: string | null;
   error_message: string | null;
@@ -128,6 +130,7 @@ export default function AssistantTranscribePage() {
   const [copied, setCopied] = useState(false);
   const [pdfBusy, setPdfBusy] = useState(false);
   const [pdfBusyId, setPdfBusyId] = useState<string | null>(null);
+  const [audioBusyId, setAudioBusyId] = useState<string | null>(null);
 
   const [quota, setQuota] = useState<{ limit: number; used: number; remaining: number } | null>(null);
   const [botQuota, setBotQuota] = useState<{ limit: number; used: number; remaining: number } | null>(null);
@@ -321,6 +324,21 @@ export default function AssistantTranscribePage() {
     }
   };
 
+  /** ดาวน์โหลดไฟล์เสียง (เฉพาะงานบอท source='recall') — ขอ signed URL จาก server */
+  const downloadAudio = async (job: Job) => {
+    setAudioBusyId(job.id);
+    try {
+      const res = await fetch(`/api/assistant/stt/audio-url?jobId=${job.id}`, { headers: { Authorization: `Bearer ${token}` } });
+      const j = await res.json().catch(() => null);
+      if (!res.ok || !j?.data?.url) throw new Error(j?.error?.message ?? 'ดาวน์โหลดไฟล์เสียงไม่สำเร็จ');
+      window.open(j.data.url as string, '_blank');
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'ดาวน์โหลดไฟล์เสียงไม่สำเร็จ');
+    } finally {
+      setAudioBusyId(null);
+    }
+  };
+
   // ── Derived stats (dashboard) ────────────────────────────────────────────────────
   const stats = useMemo(() => ({
     total: jobs.length,
@@ -485,6 +503,14 @@ export default function AssistantTranscribePage() {
                 {jobs.map((job) => {
                   const exp = job.status === 'completed' ? expiryInfo(job.created_at) : null;
                   const isDone = job.status === 'completed';
+                  const isRecall = job.source === 'recall';
+                  // งานบอทที่ยกเลิก/ไม่มีเสียง = ไม่ใช่ "ล้มเหลว" จริง → แสดงสถานะให้ตรง + ไม่ต้องลองใหม่
+                  const cancelledLike = job.status === 'failed' && (job.bot_state === 'cancelled' || job.bot_state === 'no_recording' || job.bot_state === 'stuck');
+                  const statusText = job.bot_state === 'cancelled' ? 'ยกเลิก'
+                    : job.bot_state === 'no_recording' ? 'ไม่มีการประชุม'
+                    : job.bot_state === 'stuck' ? 'บอทเข้าห้องไม่สำเร็จ'
+                    : STATUS_TEXT[job.status];
+                  const statusTone: BadgeTone = cancelledLike ? 'neutral' : STATUS_TONE[job.status];
                   return (
                     <TableRow key={job.id} clickable={isDone} onClick={isDone ? () => { setActiveJob(job); setCopied(false); } : undefined}>
                       <TableCell>
@@ -497,8 +523,8 @@ export default function AssistantTranscribePage() {
                         </div>
                       </TableCell>
                       <TableCell align="center">
-                        <StatusBadge tone={STATUS_TONE[job.status]}>{STATUS_TEXT[job.status]}</StatusBadge>
-                        {job.status === 'failed' && job.error_message ? (
+                        <StatusBadge tone={statusTone}>{statusText}</StatusBadge>
+                        {job.status === 'failed' && !cancelledLike && job.error_message ? (
                           <div className="mt-1 max-w-[200px] truncate text-xs text-red-600" title={job.error_message}>{job.error_message}</div>
                         ) : null}
                       </TableCell>
@@ -513,12 +539,24 @@ export default function AssistantTranscribePage() {
                       <TableCell align="right" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-end gap-1.5">
                           {job.status === 'completed' ? (
-                            <Button size="sm" disabled={pdfBusyId === job.id || exp?.expired}
-                              onClick={() => downloadPdf(job, { rowId: job.id })}>
-                              {pdfBusyId === job.id
-                                ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                : <><Download className="mr-1 h-3.5 w-3.5" /> ดาวน์โหลด</>}
-                            </Button>
+                            <>
+                              <Button size="sm" disabled={pdfBusyId === job.id || exp?.expired}
+                                onClick={() => downloadPdf(job, { rowId: job.id })}>
+                                {pdfBusyId === job.id
+                                  ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                  : <><Download className="mr-1 h-3.5 w-3.5" /> MoM</>}
+                              </Button>
+                              {isRecall ? (
+                                <Button variant="outline" size="sm" disabled={audioBusyId === job.id || exp?.expired}
+                                  onClick={() => downloadAudio(job)}>
+                                  {audioBusyId === job.id
+                                    ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                    : <><Download className="mr-1 h-3.5 w-3.5" /> เสียง</>}
+                                </Button>
+                              ) : null}
+                            </>
+                          ) : cancelledLike ? (
+                            <span className="text-xs text-gray-300">—</span>
                           ) : job.status === 'failed' || job.status === 'pending' ? (
                             <Button variant="outline" size="sm" onClick={() => retry(job.id)}>
                               <Play className="mr-1 h-3.5 w-3.5" /> {job.status === 'pending' ? 'เริ่มถอดเสียง' : 'ลองใหม่'}
