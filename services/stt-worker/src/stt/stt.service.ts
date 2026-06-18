@@ -387,15 +387,21 @@ async function ingestLineAudio(
   const ext = MIME_TO_EXT[mimeType] ?? 'm4a';
   const storagePath = `${orgId}/line/${Date.now()}-${messageId}.${ext}`;
 
+  // อัปขึ้น storage แบบ best-effort — ถ้าล้ม (เช่นเกิน global upload limit) ก็ยังถอดต่อจาก bytes ในมือได้
+  //   (ไฟล์ /mom ถูกลบทันทีหลังถอดอยู่แล้ว → ไม่ต้องคาบัคเก็ต) · set audio_url เฉพาะเมื่ออัปสำเร็จ (ไว้ retry)
   const { error: upErr } = await admin.storage
     .from(BUCKET)
     .upload(storagePath, bytes, { contentType: mimeType, upsert: true });
-  if (upErr) throw new Error(`อัปโหลดไฟล์เสียงไม่สำเร็จ: ${upErr.message}`);
-
-  await admin
-    .from('assistant_jobs')
-    .update({ audio_url: storagePath, mime_type: mimeType, file_size: bytes.length, updated_at: new Date().toISOString() })
-    .eq('id', job.id as string);
+  if (upErr) {
+    console.warn(`[stt-worker] bucket upload failed (continue in-memory): ${upErr.message}`);
+    await admin.from('assistant_jobs')
+      .update({ mime_type: mimeType, file_size: bytes.length, updated_at: new Date().toISOString() })
+      .eq('id', job.id as string);
+  } else {
+    await admin.from('assistant_jobs')
+      .update({ audio_url: storagePath, mime_type: mimeType, file_size: bytes.length, updated_at: new Date().toISOString() })
+      .eq('id', job.id as string);
+  }
 
   return { bytes, mimeType };
 }
