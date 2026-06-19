@@ -334,7 +334,8 @@ export async function notifyIssueNote(opts: {
 
     if (lineUserIds.length === 0) return;
 
-    const deepLink = `https://perpos.ai/${orgSlug}/crm/solutions/${solutionId}`;
+    const base = (process.env.APP_BASE_URL ?? 'https://app.perpos.ai').replace(/\/$/, '');
+    const deepLink = `${base}/${orgSlug}/crm/solutions/${solutionId}`;
 
     await sendLineMessages({
       to: lineUserIds,
@@ -383,7 +384,8 @@ export async function notifyStatusChange(opts: {
       on_hold: 'On Hold', completed: 'Completed', cancelled: 'Cancelled',
     };
 
-    const deepLink = `https://perpos.ai/${orgSlug}/crm/solutions/${solutionId}`;
+    const base = (process.env.APP_BASE_URL ?? 'https://app.perpos.ai').replace(/\/$/, '');
+    const deepLink = `${base}/${orgSlug}/crm/solutions/${solutionId}`;
 
     await sendLineMessages({
       to: lineUserIds,
