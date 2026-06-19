@@ -15,26 +15,30 @@ import { saveToDrive } from '@/lib/google/drive';
 
 const BUCKET = 'assistant_audio';
 
-// Flex card แจ้งงานล้มเหลว (แทน text เดิม) — reason = ข้อความที่เป็นมิตรจาก worker ถ้ามี
-function buildFailFlex(reason: string) {
-  const detail = reason && !reason.startsWith('quota_exceeded')
-    ? reason
-    : 'ขออภัย ไม่สามารถถอดเสียงไฟล์นี้ได้';
+// Flex card แจ้งงานล้มเหลว — แยกข้อความตาม source (บอทประชุม vs อัปไฟล์เอง)
+function buildFailFlex(reason: string, isRecall: boolean) {
+  const title = isRecall ? '❌ สรุปการประชุมไม่สำเร็จ' : '❌ ถอดเสียงไม่สำเร็จ';
+  const detail = isRecall
+    ? 'ขออภัย ระบบสรุปการประชุมไม่สำเร็จ'
+    : (reason && !reason.startsWith('quota_exceeded') ? reason : 'ขออภัย ไม่สามารถถอดเสียงไฟล์นี้ได้');
+  const hint = isRecall
+    ? 'เปิดดู/ดาวน์โหลดรายงานได้ที่หน้าผู้ช่วย AI › ประชุม ครับ 🙏'
+    : 'พิมพ์ /mom แล้วส่งไฟล์ใหม่อีกครั้งได้เลยครับ 🙏';
   return {
     type: 'flex' as const,
-    altText: `ถอดเสียงไม่สำเร็จ — ${detail}`.slice(0, 380),
+    altText: `${title.replace('❌ ', '')} — ${detail}`.slice(0, 380),
     contents: {
       type: 'bubble',
       header: {
         type: 'box', layout: 'vertical', backgroundColor: '#C43448', paddingAll: '14px',
-        contents: [{ type: 'text', text: '❌ ถอดเสียงไม่สำเร็จ', color: '#ffffff', weight: 'bold', size: 'md' }],
+        contents: [{ type: 'text', text: title, color: '#ffffff', weight: 'bold', size: 'md' }],
       },
       body: {
         type: 'box', layout: 'vertical', spacing: 'sm', paddingAll: '18px',
         contents: [
           { type: 'text', text: detail, size: 'sm', wrap: true, color: '#3C3B3D' },
           { type: 'separator', margin: 'md' },
-          { type: 'text', text: 'พิมพ์ /mom แล้วส่งไฟล์ใหม่อีกครั้งได้เลยครับ 🙏', size: 'xs', wrap: true, color: '#9CA3AF', margin: 'md' },
+          { type: 'text', text: hint, size: 'xs', wrap: true, color: '#9CA3AF', margin: 'md' },
         ],
       },
     },
@@ -69,11 +73,17 @@ export async function POST(req: NextRequest) {
   const lineUserId = (profile as { line_user_id?: string } | null)?.line_user_id;
   if (!lineUserId) return ok({ skipped: 'no line_user_id' });
 
+  const isRecall = job.source === 'recall';
+
   // งานล้มเหลว → แจ้งด้วย Flex card (ใช้ error_message ที่เป็นมิตรจาก worker ถ้ามี)
+  //   recall: ข้ามการ์ดที่นี่ — งานบอทมี scheduler retry หลายรอบ (จะ spam การ์ด fail ทุกรอบ)
+  //   ปล่อยให้ scheduler giveup (failed_permanent) แจ้ง + คืนโควต้า ครั้งเดียวพอ
   if (job.status !== 'completed' || !job.transcript_json) {
-    const reason = String(job.error_message ?? '').trim();
-    await sendLineMessages({ to: lineUserId, messages: [buildFailFlex(reason)] });
-    return ok({ delivered: 'error_notice' });
+    if (!isRecall) {
+      const reason = String(job.error_message ?? '').trim();
+      await sendLineMessages({ to: lineUserId, messages: [buildFailFlex(reason, false)] });
+    }
+    return ok({ delivered: isRecall ? 'recall_fail_silent' : 'error_notice' });
   }
 
   const renderUrl = process.env.PDF_RENDER_URL;
@@ -83,7 +93,7 @@ export async function POST(req: NextRequest) {
   const failToLine = async (reason: string) => {
     await sendLineMessages({
       to: lineUserId,
-      messages: [buildFailFlex('สร้างไฟล์ PDF รายงานการประชุมไม่สำเร็จ กรุณาลองใหม่ภายหลัง')],
+      messages: [buildFailFlex('สร้างไฟล์ PDF รายงานการประชุมไม่สำเร็จ กรุณาลองใหม่ภายหลัง', isRecall)],
     }).catch(() => undefined);
     return Err.externalService('mom-pdf', reason);
   };
@@ -119,8 +129,6 @@ export async function POST(req: NextRequest) {
     .from(BUCKET)
     .createSignedUrl(path, 48 * 60 * 60, { download: `MoM-${jobId}.pdf` });
   if (signErr || !signed?.signedUrl) return failToLine(`signed url: ${signErr?.message ?? 'failed'}`);
-
-  const isRecall = job.source === 'recall';
 
   // 3. โควต้าคงเหลือ (แสดงใน Flex) — recall → bot_quota, อื่น ๆ → stt_quota
   const { data: quota } = await admin

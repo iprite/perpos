@@ -29,6 +29,7 @@ import {
   Clock,
   CalendarDays,
   Link2,
+  Video,
   ClipboardList,
   BedDouble,
   Navigation,
@@ -378,6 +379,12 @@ function buildSttMenuItems(_org: string, labels: Record<string, string> = {}): M
       name: l("transcribe", "ถอดเสียง"),
       href: `/assistant`,
       icon: <Mic className="h-5 w-5" />,
+      roles: allRoles,
+    },
+    {
+      name: l("meetings", "ประชุม"),
+      href: `/assistant/meetings`,
+      icon: <Video className="h-5 w-5" />,
       roles: allRoles,
     },
     {

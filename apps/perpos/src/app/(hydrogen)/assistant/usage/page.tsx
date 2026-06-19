@@ -24,9 +24,36 @@ function Card({ icon, label, value, sub, accent }: { icon: React.ReactNode; labe
   );
 }
 
+type BotQuota = { limit_seconds: number; used_seconds: number };
+
+function QuotaBar({ title, used, limit, buyLabel }: { title: string; used: number; limit: number; buyLabel: string }) {
+  const usedMin = Math.floor(used / 60);
+  const limMin = Math.floor(limit / 60);
+  const remMin = Math.max(0, Math.floor((limit - used) / 60));
+  const pct = limit ? Math.min(100, (used / limit) * 100) : 0;
+  return (
+    <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h3 className="text-sm font-semibold text-gray-700">{title}</h3>
+        <Link href="/assistant/billing" className="inline-flex items-center gap-1 text-xs font-medium text-indigo-600 hover:text-indigo-700">
+          <Sparkles className="h-3.5 w-3.5" /> {buyLabel}
+        </Link>
+      </div>
+      <div className="mt-3 flex items-end justify-between text-sm">
+        <span className="text-gray-500">ใช้ไป <span className="font-semibold tabular-nums text-gray-900">{usedMin}</span> นาที</span>
+        <span className={remMin <= 0 ? 'font-semibold text-red-600' : 'font-semibold text-gray-900'}>เหลือ {remMin} / {limMin} นาที</span>
+      </div>
+      <div className="mt-2 h-2.5 w-full overflow-hidden rounded-full bg-gray-100">
+        <div className={`h-full rounded-full ${remMin <= 0 ? 'bg-red-500' : 'bg-indigo-500'}`} style={{ width: `${pct}%` }} />
+      </div>
+    </div>
+  );
+}
+
 export default function MyStatsPage() {
   const supabase = createSupabaseBrowserClient();
   const [stats, setStats] = useState<Stats | null>(null);
+  const [bot, setBot] = useState<BotQuota | null>(null);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
@@ -35,8 +62,12 @@ export default function MyStatsPage() {
       const { data: sess } = await supabase.auth.getSession();
       const token = sess.session?.access_token;
       if (!token) return;
-      const res = await fetch(`/api/assistant/stats`, { headers: { Authorization: `Bearer ${token}` } });
-      if (res.ok) setStats((await res.json()).data as Stats);
+      const [statsRes, quotaRes] = await Promise.all([
+        fetch(`/api/assistant/stats`, { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(`/api/assistant/quota`, { headers: { Authorization: `Bearer ${token}` } }),
+      ]);
+      if (statsRes.ok) setStats((await statsRes.json()).data as Stats);
+      if (quotaRes.ok) { const d = (await quotaRes.json()).data; if (d?.bot) setBot({ limit_seconds: d.bot.limit_seconds, used_seconds: d.bot.used_seconds }); }
     } finally {
       setLoading(false);
     }
@@ -46,8 +77,6 @@ export default function MyStatsPage() {
 
   const remMin = stats ? Math.floor(stats.quota.remaining_seconds / 60) : 0;
   const limMin = stats ? Math.floor(stats.quota.limit_seconds / 60) : 0;
-  const usedPct = stats && stats.quota.limit_seconds
-    ? Math.min(100, (stats.quota.used_seconds / stats.quota.limit_seconds) * 100) : 0;
 
   return (
     <>
@@ -65,21 +94,10 @@ export default function MyStatsPage() {
             <Card icon={<FileAudio className="h-5 w-5" />} label="งานทั้งหมด" value={String(stats.totals.jobs)} sub={`ล้มเหลว ${stats.totals.failed}`} accent="bg-purple-50 text-purple-600" />
           </div>
 
-          {/* โควต้า progress */}
-          <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <h3 className="text-sm font-semibold text-gray-700">โควต้าเดือนนี้</h3>
-              <Link href="/assistant/billing" className="inline-flex items-center gap-1 text-xs font-medium text-indigo-600 hover:text-indigo-700">
-                <Sparkles className="h-3.5 w-3.5" /> ซื้อนาทีเพิ่ม
-              </Link>
-            </div>
-            <div className="mt-3 flex items-end justify-between text-sm">
-              <span className="text-gray-500">ใช้ไป <span className="font-semibold tabular-nums text-gray-900">{Math.floor(stats.quota.used_seconds / 60)}</span> นาที</span>
-              <span className={remMin <= 0 ? 'font-semibold text-red-600' : 'font-semibold text-gray-900'}>เหลือ {remMin} / {limMin} นาที</span>
-            </div>
-            <div className="mt-2 h-2.5 w-full overflow-hidden rounded-full bg-gray-100">
-              <div className={`h-full rounded-full ${remMin <= 0 ? 'bg-red-500' : 'bg-indigo-500'}`} style={{ width: `${usedPct}%` }} />
-            </div>
+          {/* โควต้า — ถอดเสียง + บอทประชุม (มิเตอร์แยกกัน) */}
+          <div className="grid gap-3 lg:grid-cols-2">
+            <QuotaBar title="โควต้าถอดเสียง (อัปไฟล์เอง)" used={stats.quota.used_seconds} limit={stats.quota.limit_seconds} buyLabel="ซื้อนาทีเพิ่ม" />
+            {bot && <QuotaBar title="โควต้าบอทประชุม (Recall)" used={bot.used_seconds} limit={bot.limit_seconds} buyLabel="ซื้อแพ็กบอท" />}
           </div>
 
           {/* Chart + ช่องทาง (desktop side-by-side) */}

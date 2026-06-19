@@ -14,7 +14,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Mic, BarChart3, CreditCard, Link2 } from 'lucide-react';
+import { Mic, BarChart3, CreditCard, Link2, Video } from 'lucide-react';
 import { PageShell } from '@/components/ui/page-shell';
 
 type Tab = {
@@ -32,6 +32,13 @@ const TABS: Tab[] = [
     title: 'ถอดเสียงเป็นข้อความ',
     subtitle: 'อัปโหลดไฟล์เสียง/วิดีโอ ระบบจะถอดเป็นรายงานการประชุม (MoM) พร้อมแยกผู้พูด',
     icon: <Mic className="h-5 w-5" />,
+  },
+  {
+    href: '/assistant/meetings',
+    label: 'ประชุม',
+    title: 'ประชุม',
+    subtitle: 'ประวัติบอทเข้าประชุม สถานะ และดาวน์โหลดรายงาน (MoM) / ไฟล์เสียง',
+    icon: <Video className="h-5 w-5" />,
   },
   {
     href: '/assistant/calendar',

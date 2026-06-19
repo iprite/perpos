@@ -4,9 +4,13 @@ import { createAdminClient } from '../../_lib/supabase';
 import { triggerSttWorker } from '@/lib/assistant/stt-trigger';
 import { sendLineMessages } from '@/lib/line/send-messages';
 import {
-  extractMeetingUrl, makeDedupKey, normalizeMeetingUrl, createBot, AdhocPoolDepletedError, leaveBot, deleteScheduledBot,
+  extractMeetingUrl, makeDedupKey, normalizeMeetingUrl, leaveBot, deleteScheduledBot,
   parseMeetingDateTime,
 } from '@/lib/assistant/recall';
+import {
+  BOT_MIN_START, BOT_LOW_QUOTA, getBotRemaining, hasActiveBotForMeeting,
+  createBotForHeldJob, type HeldJob,
+} from '@/lib/assistant/recall-bot';
 import { buildBotFlex } from '@/lib/assistant/recall-events';
 import {
   buildBotConfirmFlex, buildQuotaTopupFlex, buildConnectCalendarFlex, buildCalendarSavedFlex,
@@ -1460,9 +1464,7 @@ const TMC_CMDS = ['รับ', 'จ่าย', 'บัญชี', 'stock', 'stki
 const CRM_CMDS = ['n', 'survey', 'issue', 'mtg', 'log', 'sol', 'status', 'notes', 'issues', 'hours'];
 
 // ─── Meeting bot (Recall.ai) — วางลิงก์ประชุมใน LINE → บอทเข้าห้องอัด → MoM ────────
-const BOT_MIN_START = 300; // โควต้าบอทขั้นต่ำที่ส่งบอทแล้วคุ้ม (5 นาที)
-const BOT_TRIAL_LIMIT = 7200;
-
+// constants/helpers ส่วนกลาง (getBotRemaining, reconcile, dispatch) อยู่ที่ lib/assistant/recall-bot.ts
 const PLATFORM_LABEL: Record<string, string> = {
   google_meet: 'Google Meet', zoom: 'Zoom', teams: 'Microsoft Teams',
 };
@@ -1527,17 +1529,6 @@ function buildLinkConfirmFlex(platformLabel: string, maxMin: number, jobId: stri
   };
 }
 
-/** เกณฑ์โควต้าใกล้หมด (เตือนสีแดง + ชวนเติมในการ์ดยืนยัน) */
-const BOT_LOW_QUOTA = 900; // 15 นาที
-
-/** คืนนาทีคงเหลือของ bot_quota (ไม่มี row = trial เต็ม) */
-async function getBotRemaining(admin: ReturnType<typeof createAdminClient>, profileId: string): Promise<{ remainSec: number; remainMin: number }> {
-  const { data } = await admin.from('bot_quota').select('limit_seconds, used_seconds').eq('profile_id', profileId).maybeSingle();
-  const limit = (data as { limit_seconds?: number } | null)?.limit_seconds ?? BOT_TRIAL_LIMIT;
-  const used = (data as { used_seconds?: number } | null)?.used_seconds ?? 0;
-  const remainSec = Math.max(0, limit - used);
-  return { remainSec, remainMin: Math.floor(remainSec / 60) };
-}
 
 /** วางลิงก์ประชุม → gate + hold + createBot → reply การ์ดยืนยัน. คืน true ถ้าจัดการแล้ว */
 async function handleMeetingLink(admin: ReturnType<typeof createAdminClient>, lineUserId: string, text: string, replyToken: string): Promise<boolean> {
@@ -1750,50 +1741,27 @@ async function handleRecallSend(admin: ReturnType<typeof createAdminClient>, lin
   }, EST, replyToken, 'awaiting_confirm');
 }
 
-type HeldJob = { id: string; profile_id: string; org_id: string; meeting_url: string; join_at: string | null };
-
 /**
- * job ถูก claim เป็น 'creating' + hold สำเร็จแล้ว → createBot → reply การ์ด "บอทกำลังเข้าห้อง"
- * ใช้ร่วม botsend (LINE) + calsend (ปฏิทิน) · adhocFail: revert เป็น awaiting_confirm (กดซ้ำได้) หรือ delete
+ * LINE wrapper รอบ createBotForHeldJob (lib) — job 'creating' + hold แล้ว → createBot → reply การ์ดตาม outcome
+ * ใช้ร่วม botsend + calsend · core (createBot/refund/state) อยู่ที่ lib/assistant/recall-bot.ts
  */
 async function dispatchHeldBotJob(
   admin: ReturnType<typeof createAdminClient>, job: HeldJob, EST: number, replyToken: string,
   adhocFail: 'awaiting_confirm' | 'delete',
 ): Promise<void> {
-  const platform = extractMeetingUrl(job.meeting_url);
-  const platformLabel = platform ? (PLATFORM_LABEL[platform.platform] ?? 'ห้องประชุม') : 'ห้องประชุม';
-  const scheduledIso = job.join_at;
-  try {
-    const bot = await createBot({
-      meetingUrl: job.meeting_url, holdSeconds: EST,
-      ...(scheduledIso ? { joinAt: scheduledIso } : {}),
-      metadata: { profile_id: job.profile_id, job_id: job.id, org_id: job.org_id },
-    });
-    const { data: upd } = await admin.from('assistant_jobs')
-      .update({ recall_bot_id: bot.id, updated_at: new Date().toISOString() })
-      .eq('id', job.id).select('bot_state').single();
-    const curState = (upd as { bot_state?: string } | null)?.bot_state;
-
-    if (curState === 'cancelled') {
-      await leaveBot(bot.id).catch(() => false);
-      return; // การ์ดยกเลิกถูกส่งโดย cancel handler แล้ว
-    }
-    if (curState === 'creating') {
-      await admin.from('assistant_jobs').update({ bot_state: 'scheduled' }).eq('id', job.id).eq('bot_state', 'creating');
-    }
-    const joinAtText = scheduledIso
-      ? new Intl.DateTimeFormat('th-TH', { timeZone: 'Asia/Bangkok', dateStyle: 'long', timeStyle: 'short' }).format(new Date(scheduledIso))
-      : undefined;
-    await replyLine(replyToken, [buildLinkConfirmFlex(platformLabel, Math.floor(EST / 60), job.id, joinAtText)]);
-  } catch (e) {
-    await admin.rpc('refund_bot_quota', { p_job_id: job.id }).then(() => undefined, () => undefined);
-    if (e instanceof AdhocPoolDepletedError && adhocFail === 'awaiting_confirm') {
-      await admin.from('assistant_jobs').update({ bot_state: 'awaiting_confirm' }).eq('id', job.id);
+  const outcome = await createBotForHeldJob(admin, job, EST, adhocFail);
+  switch (outcome.kind) {
+    case 'sent':
+      await replyLine(replyToken, [buildLinkConfirmFlex(outcome.platformLabel, outcome.estMin, job.id, outcome.joinAtText)]);
+      break;
+    case 'cancelled':
+      break; // การ์ดยกเลิกถูกส่งโดย cancel handler แล้ว
+    case 'busy':
       await replyText(replyToken, '⏳ ระบบกำลังหนาแน่น กดยืนยันอีกครั้งใน 1–2 นาทีได้เลยครับ 🙏');
-    } else {
-      await admin.from('assistant_jobs').delete().eq('id', job.id);
+      break;
+    case 'fatal':
       await replyLine(replyToken, [buildBotFlex('fatal', { reason: 'เข้าห้องประชุมไม่สำเร็จ ลองใหม่อีกครั้งได้เลยครับ' })]);
-    }
+      break;
   }
 }
 
@@ -1864,26 +1832,6 @@ async function handleCalendarSend(admin: ReturnType<typeof createAdminClient>, l
   await dispatchHeldBotJob(admin, {
     id: jobId, profile_id: ev.profile_id, org_id: orgId, meeting_url: ev.meeting_url, join_at: ev.starts_at,
   }, EST, replyToken, 'delete');
-}
-
-/**
- * มี bot job ห้องเดียวกัน (meeting_key) + เวลาใกล้กัน (±30 นาที) ที่ยัง active อยู่ไหม — reconcile กันบอทซ้ำ (M2)
- * เช็คเวลาด้วยเพื่อกัน false-match กับลิงก์ recurring (ลิงก์เดิม คนละรอบเวลา)
- */
-async function hasActiveBotForMeeting(admin: ReturnType<typeof createAdminClient>, profileId: string, meetingKey: string, startsAtMs: number): Promise<boolean> {
-  const { data } = await admin
-    .from('assistant_jobs')
-    .select('meeting_url, join_at, created_at')
-    .eq('profile_id', profileId).eq('source', 'recall')
-    .in('bot_state', ['awaiting_confirm', 'creating', 'scheduled', 'joining', 'in_waiting_room', 'recording'])
-    .limit(50);
-  const WINDOW = 30 * 60 * 1000;
-  return ((data ?? []) as { meeting_url: string | null; join_at: string | null; created_at: string }[])
-    .some((j) => {
-      if (!j.meeting_url || normalizeMeetingUrl(j.meeting_url) !== meetingKey) return false;
-      const t = new Date(j.join_at ?? j.created_at).getTime();
-      return Math.abs(t - startsAtMs) <= WINDOW;
-    });
 }
 
 /** ปุ่มยกเลิกบอท (postback botcancel:<jobId>) → leave/delete + refund */

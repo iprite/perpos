@@ -75,8 +75,9 @@ cd services/stt-worker && gcloud run deploy perpos-stt-worker --source . \
   --region asia-southeast1 --project perpos \
   --memory 2Gi --cpu 1 --min-instances 0 --max-instances 5 --timeout 3600 --concurrency 3 \
   --no-cpu-throttling --allow-unauthenticated \
-  --set-secrets "WORKER_SECRET=WORKER_SECRET:latest,GEMINI_API_KEY=GEMINI_API_KEY:latest,LINE_MESSAGING_CHANNEL_ACCESS_TOKEN=LINE_MESSAGING_CHANNEL_ACCESS_TOKEN:latest,SUPABASE_URL=SUPABASE_URL:latest,SUPABASE_SERVICE_ROLE_KEY=SUPABASE_SERVICE_ROLE_KEY:latest"
+  --set-secrets "WORKER_SECRET=WORKER_SECRET:latest,GEMINI_API_KEY=GEMINI_API_KEY:latest,RECALL_API_KEY=RECALL_API_KEY:latest,LINE_MESSAGING_CHANNEL_ACCESS_TOKEN=LINE_MESSAGING_CHANNEL_ACCESS_TOKEN:latest,SUPABASE_URL=SUPABASE_URL:latest,SUPABASE_SERVICE_ROLE_KEY=SUPABASE_SERVICE_ROLE_KEY:latest"
 ```
+> ⚠️ **`--set-secrets` แทนที่ secret ทั้งชุด** — ต้องใส่ `RECALL_API_KEY` ด้วยทุกครั้ง (worker ใช้ดึง recording จาก Recall สำหรับงานบอทประชุม) · ถ้าตกหล่น → งานบอทจะ fail "ยังไม่ได้ตั้งค่า RECALL_API_KEY" · `RECALL_REGION` เป็น env (persist ผ่าน `--update-env-vars`)
 - **env `APP_BASE_URL=https://app.perpos.io`** ต้องตั้ง (ตั้งครั้งเดียวด้วย `--update-env-vars`, persist ข้าม deploy ที่ใช้ `--set-secrets`)
 - **`--no-cpu-throttling` บังคับ** — งาน background หลังตอบ 202 ใช้เวลา 1-3 นาที ถ้า CPU throttle จะค้าง
 
