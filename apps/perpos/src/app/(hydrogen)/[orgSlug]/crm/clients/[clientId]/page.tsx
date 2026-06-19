@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
+import { toast } from '@/lib/toast';
 import { Button } from '@/components/ui/button';
 import { PageShell } from '@/components/ui/page-shell';
 import { Input } from '@/components/ui/input';
@@ -133,13 +134,15 @@ export default function ClientDetailPage() {
 
   const saveClient = async () => {
     setSavingClient(true);
-    await fetch(`/api/crm/clients/${clientId}?orgId=${orgId}`, {
+    const res = await fetch(`/api/crm/clients/${clientId}?orgId=${orgId}`, {
       method: 'PUT',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify(clientForm),
     });
     setSavingClient(false);
+    if (!res.ok) { toast.error('บันทึกไม่สำเร็จ'); return; }
     setEditClientOpen(false);
+    toast.success('บันทึกข้อมูลลูกค้าแล้ว');
     loadAll(orgId, token);
   };
 
@@ -168,25 +171,31 @@ export default function ClientDetailPage() {
     const res = await fetch(url, { method, headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      alert(`บันทึกไม่สำเร็จ: ${err.error ?? res.status}`);
+      toast.error(`บันทึกไม่สำเร็จ: ${err.error ?? res.status}`);
       setSavingSol(false);
       return;
     }
     setSavingSol(false);
     setSolOpen(false);
+    toast.success(editSolId ? 'แก้ไขโซลูชันแล้ว' : 'เพิ่มโซลูชันแล้ว');
     await loadAll(orgId, token);
   };
 
   const doDelete = async () => {
     const { type, id } = deleteConfirm;
+    let ok = false;
     if (type === 'solution') {
-      await fetch(`/api/crm/solutions/${id}?orgId=${orgId}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
-      setSolutions(prev => prev.filter(s => s.id !== id));
+      const res = await fetch(`/api/crm/solutions/${id}?orgId=${orgId}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
+      ok = res.ok;
+      if (ok) setSolutions(prev => prev.filter(s => s.id !== id));
     } else if (type === 'contact') {
-      await fetch(`/api/crm/clients/${clientId}/contacts?orgId=${orgId}&contactId=${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
-      setContacts(prev => prev.filter(c => c.id !== id));
+      const res = await fetch(`/api/crm/clients/${clientId}/contacts?orgId=${orgId}&contactId=${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
+      ok = res.ok;
+      if (ok) setContacts(prev => prev.filter(c => c.id !== id));
     }
     setDeleteConfirm({ open: false, type: null, id: '' });
+    if (ok) toast.success(type === 'solution' ? 'ลบโซลูชันแล้ว' : 'ลบผู้ติดต่อแล้ว');
+    else toast.error('ลบไม่สำเร็จ');
   };
 
   // ── Contact CRUD ───────────────────────────────────────────────────────────
@@ -204,9 +213,11 @@ export default function ClientDetailPage() {
       ? `/api/crm/clients/${clientId}/contacts?orgId=${orgId}&contactId=${editContactId}`
       : `/api/crm/clients/${clientId}/contacts?orgId=${orgId}`;
     const method = editContactId ? 'PUT' : 'POST';
-    await fetch(url, { method, headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(contactForm) });
+    const saveRes = await fetch(url, { method, headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(contactForm) });
     setSavingContact(false);
+    if (!saveRes.ok) { toast.error('บันทึกผู้ติดต่อไม่สำเร็จ'); return; }
     setContactOpen(false);
+    toast.success(editContactId ? 'แก้ไขผู้ติดต่อแล้ว' : 'เพิ่มผู้ติดต่อแล้ว');
     const res = await fetch(`/api/crm/clients/${clientId}/contacts?orgId=${orgId}`, { headers: { Authorization: `Bearer ${token}` } });
     if (res.ok) setContacts(await res.json());
   };

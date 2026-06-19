@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { backendUrl } from '@/lib/backend';
+import { toast } from '@/lib/toast';
 import { Button }       from '@/components/ui/button';
 import { PageShell } from '@/components/ui/page-shell';
 import { Input }        from '@/components/ui/input';
@@ -270,11 +271,12 @@ export default function TmcStaysPage() {
           setFormError(d.error ?? 'เกิดข้อผิดพลาด'); return;
         }
       }
+      toast.success(editingStay ? 'แก้ไขการเข้าพักแล้ว' : 'เพิ่มการเข้าพักแล้ว');
       setShowForm(false);
       setForm(emptyForm);
       setEditingStay(null);
       load();
-    } catch { setFormError('Network error'); }
+    } catch { setFormError('Network error'); toast.error('เกิดข้อผิดพลาดในการเชื่อมต่อ'); }
     finally  { setSaving(false); }
   }
 
@@ -289,12 +291,13 @@ export default function TmcStaysPage() {
       const res  = await fetch(backendUrl(`/tmc/stays?${p}`), { method: 'DELETE', headers: h });
       if (!res.ok) {
         const d = await res.json() as { error?: string };
-        alert(d.error ?? 'ลบไม่สำเร็จ'); return;
+        toast.error(d.error ?? 'ลบไม่สำเร็จ'); return;
       }
       setDeleteTarget(null);
       setDeleteReason('');
+      toast.success('ลบการเข้าพักแล้ว');
       load();
-    } catch { alert('Network error'); }
+    } catch { toast.error('เกิดข้อผิดพลาดในการเชื่อมต่อ'); }
     finally  { setDeleting(false); }
   }
 

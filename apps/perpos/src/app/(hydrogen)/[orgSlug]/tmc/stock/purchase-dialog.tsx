@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { CustomSelect } from '@/components/ui/custom-select';
 import { NativeSelect } from '@/components/ui/native-select';
 import { ThaiDatePicker } from '@/components/ui/thai-date-picker';
+import { toast } from '@/lib/toast';
 import {
   Dialog, DialogContent, DialogHeader, DialogBody, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog';
@@ -205,12 +206,13 @@ export function PurchaseDialog({
 
     const data = await res.json() as { error?: string };
     setSaving(false);
-    if (!res.ok) { setError(data.error ?? 'เกิดข้อผิดพลาด'); return; }
+    if (!res.ok) { const m = data.error ?? 'เกิดข้อผิดพลาด'; setError(m); toast.error(m); return; }
 
     // reset
     setLines([newLine()]);
     setFinDate(today); setFinNote(''); setOcrError(''); setPreviewUrl('');
     setMode('manual');
+    toast.success('บันทึกการรับเข้าสต๊อกแล้ว');
     onSaved();
   }
 

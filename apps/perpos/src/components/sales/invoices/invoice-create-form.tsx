@@ -5,7 +5,7 @@ import { useFieldArray, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
 import { AlertTriangle, FileText, Save } from "lucide-react";
-import { toast } from "react-hot-toast";
+import { toast } from '@/lib/toast';
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

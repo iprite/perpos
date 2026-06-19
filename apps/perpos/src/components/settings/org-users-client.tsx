@@ -34,6 +34,7 @@ import {
   type OrgInviteRow,
 } from "@/lib/settings/user-actions";
 import { backendUrl } from "@/lib/backend";
+import { toast } from "@/lib/toast";
 
 const ROLE_LABELS: Record<string, string> = {
   owner:       "เจ้าของ",
@@ -99,15 +100,20 @@ function MemberMenu({
     if (res.ok) {
       onUpdated({ ...member, role });
       setEditOpen(false);
+      toast.success("เปลี่ยนสิทธิ์ผู้ใช้งานแล้ว");
+    } else {
+      toast.error("เปลี่ยนสิทธิ์ไม่สำเร็จ");
     }
   }
 
   async function handleRemove() {
     if (!confirm(`ต้องการลบ ${member.display_name ?? member.email} ออกจากองค์กรหรือไม่?`)) return;
     setRemoving(true);
-    await removeMemberAction({ organizationId, memberId: member.id });
+    const res = await removeMemberAction({ organizationId, memberId: member.id });
     setRemoving(false);
+    if (res?.ok === false) { toast.error("นำผู้ใช้ออกไม่สำเร็จ"); return; }
     onUpdated({ ...member, role: "team_member" }); // signal removal via parent
+    toast.success(`นำ ${member.display_name ?? member.email} ออกแล้ว`);
   }
 
   return (
@@ -222,11 +228,14 @@ export function OrgUsersClient({
     setInviting(false);
 
     if (!res.ok) {
-      setInviteErr(json?.error ?? "ส่งคำเชิญไม่สำเร็จ");
+      const msg = json?.error ?? "ส่งคำเชิญไม่สำเร็จ";
+      setInviteErr(msg);
+      toast.error(msg);
       return;
     }
 
     setInviteSuccess(`ส่งคำเชิญไปที่ ${email} เรียบร้อยแล้ว`);
+    toast.success(`ส่งคำเชิญไปที่ ${email} แล้ว`);
     setInviteEmail("");
     setInviteRole("team_member");
 
@@ -255,8 +264,10 @@ export function OrgUsersClient({
   }
 
   async function handleCancelInvite(invite: OrgInviteRow) {
-    await cancelInviteAction({ organizationId, inviteId: invite.id });
+    const res = await cancelInviteAction({ organizationId, inviteId: invite.id });
+    if (res?.ok === false) { toast.error("ยกเลิกคำเชิญไม่สำเร็จ"); return; }
     setInvites((prev) => prev.filter((i) => i.id !== invite.id));
+    toast.success("ยกเลิกคำเชิญแล้ว");
   }
 
   const formatDate = (s: string) =>

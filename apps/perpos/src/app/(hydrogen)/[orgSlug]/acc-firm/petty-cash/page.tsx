@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
+import { toast } from '@/lib/toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -153,7 +154,8 @@ export default function PettyCashPage() {
       body: JSON.stringify(body),
     });
     setSaving(false);
-    if (res.ok) { setDialogOpen(false); load(page); }
+    if (res.ok) { setDialogOpen(false); load(page); toast.success(editing ? 'แก้ไขรายการแล้ว' : 'บันทึกรายการแล้ว'); }
+    else { toast.error('บันทึกไม่สำเร็จ'); }
   }
 
   async function confirmDelete(id: string) {
@@ -163,7 +165,8 @@ export default function PettyCashPage() {
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify({ orgId, id }),
     });
-    if (res.ok) { setDeleteId(null); load(page); }
+    if (res.ok) { setDeleteId(null); load(page); toast.success('ลบรายการแล้ว'); }
+    else { toast.error('ลบไม่สำเร็จ'); }
   }
 
   const totalPages = Math.ceil(total / PAGE_SIZE);

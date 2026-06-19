@@ -4,7 +4,7 @@ import React, { useMemo, useState, useTransition } from "react";
 import { CustomSelect } from "@/components/ui/custom-select";
 import { useRouter } from "next/navigation";
 import { FileDown, Search, XCircle } from "lucide-react";
-import { toast } from "react-hot-toast";
+import { toast } from '@/lib/toast';
 
 import { Button } from "@/components/ui/button";
 import { Input }  from "@/components/ui/input";

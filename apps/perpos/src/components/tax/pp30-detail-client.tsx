@@ -2,7 +2,7 @@
 
 import React, { useState, useTransition } from "react";
 import { CheckCircle2, Circle, ChevronDown, Printer } from "lucide-react";
-import { toast } from "react-hot-toast";
+import { toast } from '@/lib/toast';
 
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogBody, DialogFooter, DialogTitle } from "@/components/ui/dialog";

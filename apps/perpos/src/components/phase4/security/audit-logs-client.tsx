@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef, useState, useTransition } from "react";
-import { toast } from "react-hot-toast";
+import { toast } from '@/lib/toast';
 
 import { Button } from "@/components/ui/button";
 import { CustomSelect } from "@/components/ui/custom-select";

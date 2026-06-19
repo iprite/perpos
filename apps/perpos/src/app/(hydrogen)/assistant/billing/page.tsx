@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Loader2, Check, Clock, Sparkles, Plus, ShieldCheck } from 'lucide-react';
-import { toast } from 'react-hot-toast';
+import { toast } from '@/lib/toast';
 
 type Plan = {
   id: string;

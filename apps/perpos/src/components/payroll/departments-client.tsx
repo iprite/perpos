@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/table";
 
 import { upsertDepartmentAction, type DepartmentRow } from "@/lib/payroll/actions";
+import { toast } from "@/lib/toast";
 
 export function DepartmentsClient({
   organizationId,
@@ -68,7 +69,7 @@ export function DepartmentsClient({
       name: name.trim(),
     });
     setSaving(false);
-    if (!res.ok) { setErr((res as any).error ?? "บันทึกไม่สำเร็จ"); return; }
+    if (!res.ok) { const msg = (res as any).error ?? "บันทึกไม่สำเร็จ"; setErr(msg); toast.error(msg); return; }
 
     const updated: DepartmentRow = {
       id:              editing?.id ?? String(Date.now()),
@@ -83,6 +84,7 @@ export function DepartmentsClient({
       return [...prev, updated];
     });
     setDialogOpen(false);
+    toast.success(editing ? "แก้ไขแผนกแล้ว" : "เพิ่มแผนกแล้ว");
   }
 
   return (

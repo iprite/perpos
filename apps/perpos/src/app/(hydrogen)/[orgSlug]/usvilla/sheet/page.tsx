@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { ChevronLeft, ChevronRight, Loader2, AlertCircle, LogOut, ClipboardList } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { toast } from '@/lib/toast';
 import { PageShell } from '@/components/ui/page-shell';
 import { ThaiDatePicker } from '@/components/ui/thai-date-picker';
 import {
@@ -57,7 +58,8 @@ export default function SheetPage() {
       body: JSON.stringify({ action: 'checkout' }),
     });
     setCheckoutSaving(false);
-    if (res.ok) { setCheckoutBooking(null); refresh(); }
+    if (res.ok) { setCheckoutBooking(null); refresh(); toast.success('เช็คเอาท์แล้ว'); }
+    else toast.error('เช็คเอาท์ไม่สำเร็จ');
   };
 
   const errMsg = bootError || error;

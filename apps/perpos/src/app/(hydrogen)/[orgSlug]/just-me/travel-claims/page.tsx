@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
+import { toast } from '@/lib/toast';
 import { useOrgRole } from '@/app/shared/module-provider';
 import { Button } from '@/components/ui/button';
 import { PageShell } from '@/components/ui/page-shell';
@@ -181,9 +182,11 @@ export default function TravelClaimsPage() {
       }
 
       setSuccess('บันทึกอัตราค่าเดินทางต่อกิโลเมตรสำเร็จ');
+      toast.success('บันทึกอัตราค่าเดินทางแล้ว');
       await loadData();
     } catch (err: any) {
       setError(err.message);
+      toast.error(err.message || 'บันทึกไม่สำเร็จ');
     } finally {
       setSavingSettings(false);
     }
@@ -225,9 +228,11 @@ export default function TravelClaimsPage() {
       }
 
       setSuccess(`อัปเดตสถานะรายการเป็น ${getStatusLabel(newStatus)} เรียบร้อยแล้ว`);
+      toast.success(`อัปเดตสถานะเป็น ${getStatusLabel(newStatus)} แล้ว`);
       await loadData();
     } catch (err: any) {
       setError(err.message);
+      toast.error(err.message || 'อัปเดตไม่สำเร็จ');
     } finally {
       setActionLoadingId(null);
     }

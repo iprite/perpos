@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 import { upsertAccountSettingAction } from "@/lib/payroll/actions";
+import { toast } from "@/lib/toast";
 
 const SETTING_KEYS: { key: string; label: string; placeholder: string }[] = [
   { key: "salary_account",      label: "บัญชีเงินเดือนค้างจ่าย",           placeholder: "เช่น 215101 เงินเดือนค้างจ่าย" },
@@ -40,7 +41,9 @@ export function PayrollAccountSettingsClient({
         account_label: values[key] ?? "",
       });
       if (!res.ok) {
-        setErr((res as any).error ?? "บันทึกไม่สำเร็จ");
+        const msg = (res as any).error ?? "บันทึกไม่สำเร็จ";
+        setErr(msg);
+        toast.error(msg);
         setSaving(false);
         return;
       }
@@ -48,6 +51,7 @@ export function PayrollAccountSettingsClient({
 
     setSaving(false);
     setSaved(true);
+    toast.success("บันทึกการตั้งค่าบัญชีแล้ว");
     setTimeout(() => setSaved(false), 3000);
   }
 

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/app/shared/auth-provider';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
+import { toast } from '@/lib/toast';
 import { Button }  from '@/components/ui/button';
 import { Input }   from '@/components/ui/input';
 import { Label }   from '@/components/ui/label';
@@ -288,8 +289,10 @@ export default function OnboardingPage() {
         modulesEnabled: d.modulesEnabled ?? [],
         seededSummary:  d.seededSummary ?? {},
       });
+      toast.success(`สร้างองค์กร ${d.org?.name ?? ''} แล้ว`);
     } catch (e) {
       setError(String(e));
+      toast.error(e instanceof Error ? e.message : 'สร้างองค์กรไม่สำเร็จ');
     } finally {
       setSubmitting(false);
     }

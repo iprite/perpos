@@ -16,6 +16,7 @@ import {
   Table, TableHeader, TableBody, TableRow, TableHead, TableCell,
 } from '@/components/ui/table';
 import BookingDialog, { METHOD_LABEL } from './booking-dialog';
+import { toast } from '@/lib/toast';
 import BookingDetailDialog from './booking-detail-dialog';
 import type { CalBooking, CalRoom } from './calendar-view';
 import { useUsvillaBootstrap, todayStr, addDays, formatThaiDate } from './_use-usvilla';
@@ -196,7 +197,8 @@ export default function UsvillaPage() {
       });
       if (!res.ok) throw new Error((await res.json()).error);
       setCancelBooking(null); refresh();
-    } catch (e: any) { setError(e.message); }
+      toast.success('ยกเลิกการจองแล้ว');
+    } catch (e: any) { setError(e.message); toast.error(e.message || 'ยกเลิกไม่สำเร็จ'); }
     finally { setCancelSaving(false); }
   };
 
@@ -320,11 +322,13 @@ export default function UsvillaPage() {
             <Button variant="outline" onClick={() => setCheckoutBooking(null)}>{t.btn_cancel}</Button>
             <Button onClick={async () => {
               if (!checkoutBooking) return;
-              await fetch(`/api/usvilla/bookings/${checkoutBooking.id}?orgId=${orgId}`, {
+              const res = await fetch(`/api/usvilla/bookings/${checkoutBooking.id}?orgId=${orgId}`, {
                 method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
                 body: JSON.stringify({ action: 'checkout' }),
               });
               setCheckoutBooking(null); refresh();
+              if (res.ok) toast.success('เช็คเอาท์แล้ว');
+              else toast.error('เช็คเอาท์ไม่สำเร็จ');
             }}>{t.btn_confirm} {t.btn_checkout}</Button>
           </DialogFooter>
         </DialogContent>

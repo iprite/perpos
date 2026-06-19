@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/table";
 
 import { disposeAssetAction, type AssetRow } from "@/lib/assets/actions";
+import { toast } from "@/lib/toast";
 
 type FormState = {
   disposal_date:   string;
@@ -76,9 +77,10 @@ export function AssetDisposalClient({
       notes:           form.notes.trim() || null,
     });
     setSaving(false);
-    if (!res.ok) { setErr((res as any).error ?? "บันทึกไม่สำเร็จ"); return; }
+    if (!res.ok) { const msg = (res as any).error ?? "บันทึกไม่สำเร็จ"; setErr(msg); toast.error(msg); return; }
 
     setRows((prev) => prev.filter((r) => r.id !== selected.id));
+    toast.success(`จำหน่ายสินทรัพย์ ${selected.name} แล้ว`);
     setSelected(null);
   }
 

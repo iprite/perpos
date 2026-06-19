@@ -7,6 +7,7 @@ import { Plus, Pencil, Trash2, Play, ChevronDown, ChevronUp, CheckCircle2, XCirc
 import { useAuth } from "@/app/shared/auth-provider";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { backendUrl } from "@/lib/backend";
+import { toast } from "@/lib/toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -197,12 +198,14 @@ export default function WebhooksPage() {
         body:    JSON.stringify(payload),
       });
       const json = await res.json().catch(() => null);
-      if (!res.ok) { setFormError(json?.error ?? "บันทึกไม่สำเร็จ"); return; }
-      setMessage(modalMode === "add" ? "เพิ่ม webhook แล้ว" : "อัปเดต webhook แล้ว");
+      if (!res.ok) { const m = json?.error ?? "บันทึกไม่สำเร็จ"; setFormError(m); toast.error(m); return; }
+      const okMsg = modalMode === "add" ? "เพิ่ม webhook แล้ว" : "อัปเดต webhook แล้ว";
+      setMessage(okMsg); toast.success(okMsg);
       setModalMode(null);
       loadWebhooks();
     } catch (e: unknown) {
-      setFormError((e as Error)?.message ?? "บันทึกไม่สำเร็จ");
+      const m = (e as Error)?.message ?? "บันทึกไม่สำเร็จ";
+      setFormError(m); toast.error(m);
     } finally {
       setSaving(false);
     }
@@ -213,12 +216,14 @@ export default function WebhooksPage() {
     if (!w) return;
     try {
       const h = await authHeader();
-      await fetch(backendUrl(`/admin/webhooks?id=${w.id}`), { method: "DELETE", headers: h });
-      setMessage(`ลบ "${w.name}" แล้ว`);
+      const res = await fetch(backendUrl(`/admin/webhooks?id=${w.id}`), { method: "DELETE", headers: h });
+      if (!res.ok) { const j = await res.json().catch(() => null); const m = j?.error ?? "ลบไม่สำเร็จ"; setError(m); toast.error(m); return; }
+      setMessage(`ลบ "${w.name}" แล้ว`); toast.success(`ลบ "${w.name}" แล้ว`);
       if (logsWebhookId === w.id) setLogsWebhookId(null);
       loadWebhooks();
     } catch (e: unknown) {
-      setError((e as Error)?.message ?? "ลบไม่สำเร็จ");
+      const m = (e as Error)?.message ?? "ลบไม่สำเร็จ";
+      setError(m); toast.error(m);
     } finally {
       setDeleteConfirm({ open: false, webhook: null });
     }

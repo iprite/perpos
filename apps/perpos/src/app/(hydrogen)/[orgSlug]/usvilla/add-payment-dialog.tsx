@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { CustomSelect } from '@/components/ui/custom-select';
 import { Dialog, DialogContent, DialogHeader, DialogBody, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { toast } from '@/lib/toast';
 import { useLang } from './_lang-context';
 import { getPaymentMethods } from './_i18n';
 
@@ -42,7 +43,8 @@ export default function AddPaymentDialog({
       if (!res.ok) throw new Error(json.error || t.err_load_fail);
       onSuccess(); onOpenChange(false);
       setAmount(''); setMethod('cash');
-    } catch (e: any) { setError(e.message); }
+      toast.success('บันทึกการชำระเงินแล้ว');
+    } catch (e: any) { setError(e.message); toast.error(e.message || 'บันทึกไม่สำเร็จ'); }
     finally { setSaving(false); }
   };
 

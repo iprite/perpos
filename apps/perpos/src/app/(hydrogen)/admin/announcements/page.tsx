@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Megaphone, Plus, Pencil, Trash2, Loader2 } from 'lucide-react';
-import { toast } from 'react-hot-toast';
+import { toast } from '@/lib/toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -90,11 +90,13 @@ export default function AnnouncementsPage() {
 
   const toggleActive = async (a: Announcement) => {
     try {
-      await fetch('/api/admin/announcements', {
+      const res = await fetch('/api/admin/announcements', {
         method: 'PUT',
         headers: { Authorization: `Bearer ${await token()}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: a.id, is_active: !a.is_active }),
       });
+      if (!res.ok) throw new Error();
+      toast.success(!a.is_active ? 'เปิดใช้งานประกาศแล้ว' : 'ปิดใช้งานประกาศแล้ว');
       await load();
     } catch { toast.error('อัปเดตไม่สำเร็จ'); }
   };
@@ -102,7 +104,8 @@ export default function AnnouncementsPage() {
   const doDelete = async () => {
     if (!deleteId) return;
     try {
-      await fetch(`/api/admin/announcements?id=${deleteId}`, { method: 'DELETE', headers: { Authorization: `Bearer ${await token()}` } });
+      const res = await fetch(`/api/admin/announcements?id=${deleteId}`, { method: 'DELETE', headers: { Authorization: `Bearer ${await token()}` } });
+      if (!res.ok) throw new Error();
       toast.success('ลบแล้ว');
       setDeleteId(null);
       await load();

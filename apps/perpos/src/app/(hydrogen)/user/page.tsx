@@ -13,6 +13,7 @@ import { PageShell } from "@/components/ui/page-shell";
 import { useAuth } from "@/app/shared/auth-provider";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { backendUrl } from "@/lib/backend";
+import { toast } from "@/lib/toast";
 
 type LinkTokenResponse =
   | { ok: true; token: string; expiresAt: string; linkUrl: string }
@@ -140,8 +141,10 @@ export default function UserSettingsPage() {
 
                         await refreshProfile();
                         setFile(null);
+                        toast.success("บันทึกรูปโปรไฟล์แล้ว");
                       } catch (e: any) {
-                        setAvatarError(String(e?.message ?? "อัปโหลดไม่สำเร็จ"));
+                        const m = String(e?.message ?? "อัปโหลดไม่สำเร็จ");
+                        setAvatarError(m); toast.error(m);
                       } finally {
                         setSavingAvatar(false);
                       }
@@ -205,8 +208,10 @@ export default function UserSettingsPage() {
                         .eq("id", userId);
                       if (error) throw new Error(error.message);
                       await refreshProfile();
+                      toast.success("บันทึกชื่อเล่นแล้ว");
                     } catch (e: any) {
-                      setNicknameError(String(e?.message ?? "บันทึกไม่สำเร็จ"));
+                      const m = String(e?.message ?? "บันทึกไม่สำเร็จ");
+                      setNicknameError(m); toast.error(m);
                     } finally {
                       setSavingNickname(false);
                     }

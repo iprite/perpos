@@ -27,6 +27,7 @@ import {
 import { StatusBadge, type BadgeTone } from "@/components/ui/badge";
 
 import { upsertAssetAction, type AssetRow } from "@/lib/assets/actions";
+import { toast } from "@/lib/toast";
 
 const STATUS_LABELS: Record<string, string> = {
   active:   "ใช้งานอยู่",
@@ -158,7 +159,7 @@ export function AssetRegisterClient({
       status:                  form.status as AssetRow["status"],
     });
     setSaving(false);
-    if (!res.ok) { setErr((res as any).error ?? "บันทึกไม่สำเร็จ"); return; }
+    if (!res.ok) { const msg = (res as any).error ?? "บันทึกไม่สำเร็จ"; setErr(msg); toast.error(msg); return; }
 
     const updated: AssetRow = {
       id:                      editing?.id ?? String(Date.now()),
@@ -186,6 +187,7 @@ export function AssetRegisterClient({
       return [...prev, updated];
     });
     setDialogOpen(false);
+    toast.success(editing ? "แก้ไขสินทรัพย์แล้ว" : "เพิ่มสินทรัพย์แล้ว");
   }
 
   const netValue = (row: AssetRow) => row.cost - row.accumulated_depreciation;

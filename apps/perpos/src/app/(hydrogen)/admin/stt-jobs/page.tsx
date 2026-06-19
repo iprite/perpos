@@ -10,7 +10,7 @@ import {
 } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogBody, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { FileAudio, AlertTriangle } from 'lucide-react';
-import { toast } from 'react-hot-toast';
+import { toast } from '@/lib/toast';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { AdminPage } from '../_components/admin-page';
 

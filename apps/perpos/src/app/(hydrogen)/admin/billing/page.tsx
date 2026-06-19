@@ -12,6 +12,7 @@ import {
 import { ConfirmDeleteDialog } from '@/components/ui/confirm-delete-dialog';
 import { ChevronDown, ChevronRight, Pencil, CreditCard } from 'lucide-react';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
+import { toast } from '@/lib/toast';
 import { AdminPage } from '../_components/admin-page';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -127,10 +128,11 @@ function EditDialog({
       });
       if (!res.ok) {
         const d = await res.json() as { error?: string };
-        setErr(d.error ?? 'Error'); return;
+        setErr(d.error ?? 'Error'); toast.error(d.error ?? 'บันทึกไม่สำเร็จ'); return;
       }
+      toast.success('บันทึก Billing แล้ว');
       onSaved();
-    } catch { setErr('Network error'); }
+    } catch { setErr('Network error'); toast.error('เกิดข้อผิดพลาดในการเชื่อมต่อ'); }
     finally { setSaving(false); }
   }
 
@@ -148,13 +150,14 @@ function EditDialog({
       });
       const d = await res.json() as { error?: string; current_period_end?: string | null };
       if (!res.ok) {
-        setErr(d.error ?? 'Error');
+        setErr(d.error ?? 'Error'); toast.error(d.error ?? 'ยกเลิกไม่สำเร็จ');
         return;
       }
       const end = d.current_period_end ? fmtDate(d.current_period_end) : '—';
       setCancelInfo(`ตั้งค่าแล้ว: ยกเลิกเมื่อครบงวด (${end})`);
+      toast.success(`ตั้งค่ายกเลิกเมื่อครบงวด (${end}) แล้ว`);
     } catch {
-      setErr('Network error');
+      setErr('Network error'); toast.error('เกิดข้อผิดพลาดในการเชื่อมต่อ');
     } finally {
       setCanceling(false);
     }
@@ -321,6 +324,7 @@ export default function AdminBillingPage() {
       if (!res.ok) {
         const d = await res.json() as { error?: string };
         setSyncErr((m) => ({ ...m, [orgId]: d.error ?? 'Error' }));
+        toast.error(d.error ?? 'Sync Stripe ไม่สำเร็จ');
         return;
       }
       const d = await res.json() as {
@@ -332,11 +336,14 @@ export default function AdminBillingPage() {
         const prev = d.previous_price_id ? `เดิม ${d.previous_price_id}` : 'เดิม —';
         const next = d.price_id ? `ใหม่ ${d.price_id}` : 'ใหม่ —';
         setSyncInfo((m) => ({ ...m, [orgId]: `${prev} → ${next}` }));
+        toast.success('ตรวจสอบ (dry-run) เสร็จแล้ว');
       } else {
         await load();
+        toast.success('Sync Stripe แล้ว');
       }
     } catch {
       setSyncErr((m) => ({ ...m, [orgId]: 'Network error' }));
+      toast.error('เกิดข้อผิดพลาดในการเชื่อมต่อ');
     } finally {
       setSyncing(null);
     }
@@ -364,12 +371,15 @@ export default function AdminBillingPage() {
       const d = await res.json() as { error?: string; current_period_end?: string | null };
       if (!res.ok) {
         setCancelErr((m) => ({ ...m, [orgId]: d.error ?? 'Error' }));
+        toast.error(d.error ?? 'ยกเลิกไม่สำเร็จ');
         return;
       }
       const end = d.current_period_end ? fmtDate(d.current_period_end) : '—';
       setCancelInfo((m) => ({ ...m, [orgId]: `ยกเลิกเมื่อครบงวด: ${end}` }));
+      toast.success(`ตั้งค่ายกเลิกเมื่อครบงวด (${end}) แล้ว`);
     } catch {
       setCancelErr((m) => ({ ...m, [orgId]: 'Network error' }));
+      toast.error('เกิดข้อผิดพลาดในการเชื่อมต่อ');
     } finally {
       setCanceling(null);
     }

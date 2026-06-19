@@ -3,7 +3,7 @@
 import React, { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { PlusCircle } from "lucide-react";
-import { toast } from "react-hot-toast";
+import { toast } from '@/lib/toast';
 
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogBody, DialogFooter, DialogTitle } from "@/components/ui/dialog";

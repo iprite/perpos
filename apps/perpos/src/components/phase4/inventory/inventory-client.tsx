@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useMemo, useState, useTransition } from "react";
-import { toast } from "react-hot-toast";
+import { toast } from '@/lib/toast';
 import { Plus } from "lucide-react";
 
 import cn from "@core/utils/class-names";

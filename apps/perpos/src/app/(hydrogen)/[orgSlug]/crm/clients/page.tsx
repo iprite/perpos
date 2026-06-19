@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
+import { toast } from '@/lib/toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -88,15 +89,19 @@ export default function CrmClientsPage() {
     setSaving(true);
     const url = editId ? `/api/crm/clients/${editId}?orgId=${orgId}` : `/api/crm/clients?orgId=${orgId}`;
     const method = editId ? 'PUT' : 'POST';
-    await fetch(url, { method, headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(form) });
+    const res = await fetch(url, { method, headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(form) });
     setSaving(false);
+    if (!res.ok) { toast.error('บันทึกไม่สำเร็จ'); return; }
     setOpen(false);
+    toast.success(editId ? 'แก้ไขลูกค้าแล้ว' : 'เพิ่มลูกค้าแล้ว');
     load();
   };
 
   const doDeleteClient = async () => {
-    await fetch(`/api/crm/clients/${deleteConfirm.id}?orgId=${orgId}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
+    const res = await fetch(`/api/crm/clients/${deleteConfirm.id}?orgId=${orgId}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
     setDeleteConfirm({ open: false, id: '' });
+    if (res.ok) toast.success('ลบลูกค้าแล้ว');
+    else toast.error('ลบไม่สำเร็จ');
     load();
   };
 

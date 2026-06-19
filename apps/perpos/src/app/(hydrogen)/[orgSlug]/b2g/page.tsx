@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useParams } from 'next/navigation';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { backendUrl } from '@/lib/backend';
+import { toast } from '@/lib/toast';
 import { Button } from '@/components/ui/button';
 import { PageShell } from '@/components/ui/page-shell';
 import { Input } from '@/components/ui/input';
@@ -265,8 +266,9 @@ export default function B2gOrdersPage() {
       }
       setDlgOpen(false);
       await load();
+      toast.success(editing ? 'แก้ไขรายการแล้ว' : 'บันทึกรายการแล้ว');
     } catch (e: unknown) {
-      alert((e as Error).message);
+      toast.error((e as Error).message || 'บันทึกไม่สำเร็จ');
     } finally {
       setSaving(false);
     }
@@ -282,8 +284,9 @@ export default function B2gOrdersPage() {
       });
       if (!res.ok) { const j = await res.json().catch(() => ({})); throw new Error(j.error || 'ลบไม่สำเร็จ'); }
       await load();
+      toast.success('ลบรายการแล้ว');
     } catch (e: unknown) {
-      alert((e as Error).message);
+      toast.error((e as Error).message || 'ลบไม่สำเร็จ');
     } finally {
       setDeleting(null);
     }

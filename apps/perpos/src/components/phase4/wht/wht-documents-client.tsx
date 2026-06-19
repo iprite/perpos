@@ -3,7 +3,7 @@
 import React, { useMemo, useState, useTransition } from "react";
 import { pdf } from "@react-pdf/renderer";
 import { Download, FilePlus2 } from "lucide-react";
-import { toast } from "react-hot-toast";
+import { toast } from '@/lib/toast';
 
 import { Button } from "@/components/ui/button";
 import { CustomSelect } from "@/components/ui/custom-select";

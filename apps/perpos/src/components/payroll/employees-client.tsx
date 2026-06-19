@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/table";
 
 import { upsertEmployeeAction, type EmployeeRow, type DepartmentRow } from "@/lib/payroll/actions";
+import { toast } from "@/lib/toast";
 
 const STATUS_LABELS: Record<string, string> = {
   active:     "ทำงานอยู่",
@@ -152,7 +153,7 @@ export function EmployeesClient({
       status:        form.status as EmployeeRow["status"],
     });
     setSaving(false);
-    if (!res.ok) { setErr((res as any).error ?? "บันทึกไม่สำเร็จ"); return; }
+    if (!res.ok) { const msg = (res as any).error ?? "บันทึกไม่สำเร็จ"; setErr(msg); toast.error(msg); return; }
 
     const dept = departments.find((d) => d.id === form.department_id);
     const updated: EmployeeRow = {
@@ -178,6 +179,7 @@ export function EmployeesClient({
       return [...prev, updated];
     });
     setDialogOpen(false);
+    toast.success(editing ? "แก้ไขข้อมูลพนักงานแล้ว" : "เพิ่มพนักงานแล้ว");
   }
 
   return (

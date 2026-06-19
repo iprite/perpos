@@ -6,6 +6,7 @@ import Link from 'next/link';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
+import { toast } from '@/lib/toast';
 import { Button } from '@/components/ui/button';
 import { PageShell } from '@/components/ui/page-shell';
 import { Input } from '@/components/ui/input';
@@ -232,9 +233,10 @@ export default function SolutionDetailPage() {
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ ...editForm, value: editForm.value ? Number(editForm.value) : null, start_date: editForm.start_date || null, end_date: editForm.end_date || null }),
     });
-    if (!res.ok) { alert(`บันทึกไม่สำเร็จ`); setSaving(false); return; }
+    if (!res.ok) { toast.error('บันทึกไม่สำเร็จ'); setSaving(false); return; }
     setSaving(false);
     setEditOpen(false);
+    toast.success('บันทึกโซลูชันแล้ว');
     loadSol(orgId, token);
   };
 
@@ -292,6 +294,7 @@ export default function SolutionDetailPage() {
     setInternal(false);
     setSelectedFiles([]);
     setAddingNote(false);
+    toast.success('เพิ่มบันทึกแล้ว');
     loadNotes(orgId, token);
   };
 
@@ -302,22 +305,26 @@ export default function SolutionDetailPage() {
       const paths = n.attachments.map(a => a.storage_path);
       await supabase.storage.from('crm-attachments').remove(paths);
     }
-    await fetch(`/api/crm/solutions/${solutionId}/notes?orgId=${orgId}&noteId=${deleteNoteConfirm.noteId}`, {
+    const res = await fetch(`/api/crm/solutions/${solutionId}/notes?orgId=${orgId}&noteId=${deleteNoteConfirm.noteId}`, {
       method: 'DELETE', headers: { Authorization: `Bearer ${token}` },
     });
+    if (!res.ok) { toast.error('ลบบันทึกไม่สำเร็จ'); return; }
     setNotes(prev => prev.filter(n => n.id !== deleteNoteConfirm.noteId));
     setDeleteNoteConfirm({ open: false, noteId: '' });
+    toast.success('ลบบันทึกแล้ว');
   };
 
   const deleteAttachment = async (noteId: string, attachmentId: string, storagePath: string) => {
-    await fetch(`/api/crm/solutions/${solutionId}/attachments?orgId=${orgId}&attachmentId=${attachmentId}`, {
+    const res = await fetch(`/api/crm/solutions/${solutionId}/attachments?orgId=${orgId}&attachmentId=${attachmentId}`, {
       method: 'DELETE', headers: { Authorization: `Bearer ${token}` },
     });
+    if (!res.ok) { toast.error('ลบไฟล์แนบไม่สำเร็จ'); return; }
     setNotes(prev => prev.map(n => n.id === noteId
       ? { ...n, attachments: n.attachments.filter(a => a.id !== attachmentId) }
       : n,
     ));
     setSignedUrls(prev => { const next = { ...prev }; delete next[storagePath]; return next; });
+    toast.success('ลบไฟล์แนบแล้ว');
   };
 
   const filteredMembers = useMemo(() =>
