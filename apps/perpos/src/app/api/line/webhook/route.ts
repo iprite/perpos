@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { createAdminClient } from '../../_lib/supabase';
 import { triggerSttWorker } from '@/lib/assistant/stt-trigger';
+import { triggerPdfWorker } from '@/lib/assistant/pdf-trigger';
 import { sendLineMessages } from '@/lib/line/send-messages';
 import {
   extractMeetingUrl, makeDedupKey, normalizeMeetingUrl, leaveBot, deleteScheduledBot,
@@ -1242,6 +1243,14 @@ async function checkSttAccess(admin: ReturnType<typeof createAdminClient>, profi
   return perm || grant;
 }
 
+// สิทธิ์บีบ PDF (/pdf) — per-profile kind 'pdf_compress' (grant ให้ตั้งแต่ onboarding + trial 20 หน้า)
+async function checkPdfAccess(admin: ReturnType<typeof createAdminClient>, profileId: string, role: string): Promise<boolean> {
+  const { data: prof } = await admin.from('profiles').select('is_active').eq('id', profileId).maybeSingle();
+  if ((prof as { is_active?: boolean } | null)?.is_active === false) return false;
+  if (role === 'super_admin') return true;
+  return checkPersonalGrant(admin, profileId, 'pdf_compress');
+}
+
 // ─── /mom — รับไฟล์เสียงจาก LINE → STT → ส่ง PDF MoM กลับ ──────────────────────
 const STT_ALLOWED_MIME = new Set([
   'audio/mpeg', 'audio/mp3', 'audio/ogg', 'audio/wav', 'audio/x-wav', 'audio/aac',
@@ -1350,6 +1359,74 @@ async function handleMomAudio(
   }
 }
 
+// ─── /pdf — รับไฟล์ PDF จาก LINE → บีบ → ส่งไฟล์เล็กกลับ (P1c: auto, ยังไม่มี confirm/quota) ──
+// webhook ไม่โหลดไฟล์เอง (กัน timeout) — INSERT job เก็บ line_message_id แล้วให้ pdf-worker โหลดเอง
+async function handlePdfFile(
+  admin: ReturnType<typeof createAdminClient>,
+  lineUserId: string,
+  messageId: string,
+  profileId: string,
+  orgId: string,
+  fileNameHint: string,
+  replyToken: string,
+) {
+  const { data: prof } = await admin.from('profiles').select('is_active').eq('id', profileId).maybeSingle();
+  if ((prof as { is_active?: boolean } | null)?.is_active === false) {
+    await admin.from('assistant_line_sessions').delete().eq('line_user_id', lineUserId).then(() => undefined, () => undefined);
+    await replyText(replyToken, '❌ บัญชีของคุณถูกระงับการใช้งาน กรุณาติดต่อผู้ดูแลระบบ');
+    return;
+  }
+
+  const fileName = fileNameHint || `document-${Date.now()}.pdf`;
+  const { data: job, error: jobErr } = await admin
+    .from('assistant_jobs')
+    .insert({
+      org_id: orgId, profile_id: profileId, kind: 'pdf_compress', source: 'line',
+      line_message_id: messageId, file_name: fileName, mime_type: 'application/pdf',
+      triggered_by: profileId,
+    })
+    .select('id')
+    .single();
+  if (jobErr || !job) {
+    if ((jobErr as { code?: string } | null)?.code === '23505') return; // LINE ส่ง event ซ้ำ
+    await replyText(replyToken, `❌ สร้างงานบีบ PDF ไม่สำเร็จ: ${jobErr?.message ?? ''}`);
+    return;
+  }
+
+  await admin.from('assistant_line_sessions').delete().eq('line_user_id', lineUserId);
+
+  await replyLine(replyToken, [{
+    type: 'flex',
+    altText: 'ได้รับไฟล์ PDF แล้ว — กำลังบีบขนาด',
+    contents: {
+      type: 'bubble',
+      body: {
+        type: 'box', layout: 'vertical', spacing: 'md', paddingAll: '20px',
+        contents: [
+          {
+            type: 'box', layout: 'horizontal', spacing: 'sm', alignItems: 'center',
+            contents: [
+              { type: 'text', text: '✅', size: 'lg', flex: 0 },
+              { type: 'text', text: 'รับไฟล์เรียบร้อย', weight: 'bold', size: 'md', color: '#3C3B3D', gravity: 'center' },
+            ],
+          },
+          { type: 'separator', margin: 'md' },
+          { type: 'text', text: 'ระบบกำลังบีบขนาดไฟล์ PDF โดยคงความชัด', size: 'sm', wrap: true, color: '#3C3B3D', margin: 'md' },
+          { type: 'text', text: 'เสร็จแล้วจะส่งไฟล์กลับมาให้อัตโนมัติ ไม่ต้องส่งซ้ำ', size: 'xs', wrap: true, color: '#9CA3AF' },
+        ],
+      },
+    },
+  }]);
+
+  const trig = await triggerPdfWorker(admin, job.id as string, orgId);
+  if (!trig.ok) {
+    const text = trig.queued
+      ? '⏳ ขณะนี้มีงานเข้ามาจำนวนมาก งานของคุณเข้าคิวแล้ว ระบบจะบีบให้อัตโนมัติเมื่อถึงคิว รอสักครู่นะครับ 🙏'
+      : '❌ ขออภัย เริ่มบีบไฟล์ไม่สำเร็จ กรุณาพิมพ์ /pdf แล้วส่งไฟล์อีกครั้ง';
+    await sendLineMessages({ to: lineUserId, messages: [{ type: 'text', text }] }).catch(() => undefined);
+  }
+}
+
 // ผู้ใช้กดปุ่ม "ถอดเสียงเลย" จาก Flex (กรณีส่งไฟล์มาก่อนพิมพ์ /mom) → ตรวจสิทธิ์+org+โควต้า
 // แล้วเริ่มถอดเสียงจาก messageId นั้น (handleMomAudio idempotent ต่อ line_message_id → กดซ้ำไม่สร้างงานซ้ำ)
 async function handleMomConfirm(
@@ -1374,6 +1451,25 @@ async function handleMomConfirm(
   await handleMomAudio(admin, lineUserId, messageId, profile.id, activeOrg.id, '', replyToken);
 }
 
+// ผู้ใช้กดปุ่ม "บีบขนาดเลย" จาก Flex (โยน PDF มาแล้วยืนยัน) → ตรวจสิทธิ์+org แล้วเริ่มบีบ
+// handlePdfFile idempotent ต่อ line_message_id → กดซ้ำไม่สร้างงานซ้ำ
+async function handlePdfConfirm(
+  admin: ReturnType<typeof createAdminClient>,
+  lineUserId: string,
+  messageId: string,
+  replyToken: string,
+) {
+  if (!messageId) return;
+  const profile = await getProfileByLineId(admin, lineUserId);
+  if (!profile) { await replyText(replyToken, '❌ กรุณาแอด LINE และเริ่มต้นใช้งานก่อนครับ'); return; }
+  if (!await checkPdfAccess(admin, profile.id, profile.role)) {
+    await replyText(replyToken, '❌ ไม่มีสิทธิ์ใช้ฟีเจอร์บีบ PDF'); return;
+  }
+  const activeOrg = await getOrSetActiveOrg(admin, profile.id, profile.line_active_org_id);
+  if (!activeOrg) { await replyText(replyToken, '❌ ยังไม่ได้เลือกองค์กร พิมพ์ /org เพื่อเลือกองค์กรก่อน'); return; }
+  await handlePdfFile(admin, lineUserId, messageId, profile.id, activeOrg.id, '', replyToken);
+}
+
 // auto-onboarding เมื่อมี follow event → provision + welcome Flex (การ์ดต้อนรับสวย ๆ)
 async function handleFollow(admin: ReturnType<typeof createAdminClient>, lineUserId: string) {
   const result = await provisionLineUser(admin, lineUserId);
@@ -1392,9 +1488,9 @@ async function handleFollow(admin: ReturnType<typeof createAdminClient>, lineUse
   const giftLabel = result.isNew ? 'โควต้าฟรีสำหรับคุณ' : 'โควต้าคงเหลือ';
 
   const steps: Array<[string, string]> = [
-    ['1', 'ส่งไฟล์เสียง (พิมพ์ /mom) — หรือวางลิงก์ประชุม Zoom/Meet'],
-    ['2', 'บอทเข้าห้องอัด หรือถอดไฟล์ให้อัตโนมัติ'],
-    ['3', 'รับรายงานการประชุม (MoM) PDF กลับทาง LINE'],
+    ['1', 'ส่งไฟล์เสียง หรือ PDF เข้ามาได้เลย — หรือวางลิงก์ประชุม Zoom/Meet'],
+    ['2', 'ระบบถามยืนยัน แล้วถอดเสียง/บีบไฟล์ให้อัตโนมัติ'],
+    ['3', 'รับรายงานการประชุม (PDF) หรือไฟล์ที่บีบแล้ว กลับทาง LINE'],
   ];
   const stepBoxes = steps.map(([n, txt]) => ({
     type: 'box', layout: 'horizontal', spacing: 'md', alignItems: 'center', margin: 'md',
@@ -1924,7 +2020,11 @@ export async function POST(req: NextRequest) {
       if (pbUserId && pbData.startsWith('momfile:')) {
         await handleMomConfirm(admin, pbUserId, pbData.slice('momfile:'.length), pbReplyToken);
       } else if (pbData === 'momcancel') {
-        await replyText(pbReplyToken, 'รับทราบครับ — หากต้องการถอดเสียงภายหลัง พิมพ์ /mom แล้วส่งไฟล์ได้เลย 🙏');
+        await replyText(pbReplyToken, 'รับทราบครับ — หากต้องการถอดเสียงภายหลัง ส่งไฟล์เสียงเข้ามาใหม่ได้เลย 🙏');
+      } else if (pbUserId && pbData.startsWith('pdffile:')) {
+        await handlePdfConfirm(admin, pbUserId, pbData.slice('pdffile:'.length), pbReplyToken);
+      } else if (pbData === 'pdfcancel') {
+        await replyText(pbReplyToken, 'รับทราบครับ — หากต้องการบีบ PDF ภายหลัง ส่งไฟล์เข้ามาใหม่ได้เลย 🙏');
       } else if (pbUserId && pbData === 'botconsent') {
         await handleRecallConsent(admin, pbUserId, pbReplyToken);
       } else if (pbUserId && pbData.startsWith('botsend:')) {
@@ -1959,37 +2059,75 @@ export async function POST(req: NextRequest) {
     // Location messages not handled (GPS captured via web link instead)
     if (msg.type === 'location') continue;
 
-    // ─── Audio / file messages — STT MoM (เฉพาะเมื่อมี session /mom ค้างอยู่) ──────
+    // ─── ไฟล์ที่ผู้ใช้ส่งมา — โยนมาเลยไม่ต้องพิมพ์คำสั่ง: ระบบดูชนิด + ถาม Flex ยืนยันก่อนทำ ──
+    //   เสียง/วิดีโอ → ถอดเสียง (MoM) · PDF → บีบขนาด
     if (msg.type === 'audio' || msg.type === 'file') {
       const messageId = String(msg.id ?? '');
       if (!lineUserId || !messageId) continue;
 
       const fileName = String(msg.fileName ?? '');
       const isAudioFile = msg.type === 'audio' || /\.(ogg|mp3|m4a|wav|mp4|aac|flac|webm|opus)$/i.test(fileName);
+      const isPdfFile = msg.type === 'file' && /\.pdf$/i.test(fileName);
 
-      // เช็ค session ก่อน (ถูกกว่า) — session เก็บ profile_id/org_id ไว้แล้ว ไม่ต้อง lookup profile ซ้ำ
+      // legacy: ถ้ายังมี session /mom ค้าง (ผู้ใช้พิมพ์ /mom) → ถอดเสียงทันที (ข้ามการถาม)
       const { data: sess } = await admin
         .from('assistant_line_sessions')
         .select('org_id, profile_id, expires_at')
         .eq('line_user_id', lineUserId)
         .maybeSingle();
-      const hasSession = sess && new Date(sess.expires_at as string).getTime() >= Date.now();
-
-      // มี session /mom ค้างอยู่ → ถอดเสียงทันที (พฤติกรรมเดิม)
-      if (hasSession) {
+      if (sess && new Date(sess.expires_at as string).getTime() >= Date.now()) {
         if (msg.type === 'file' && !isAudioFile) {
           await replyText(replyToken, '❌ ไฟล์นี้ไม่ใช่ไฟล์เสียง/วิดีโอ กรุณาส่งไฟล์เสียง (mp3, ogg, m4a, wav, mp4)');
           continue;
         }
-        await handleMomAudio(admin, lineUserId, messageId, String(sess!.profile_id), String(sess!.org_id), fileName, replyToken);
+        await handleMomAudio(admin, lineUserId, messageId, String(sess.profile_id), String(sess.org_id), fileName, replyToken);
         continue;
       }
 
-      // ไม่มี session — ถ้าเป็นไฟล์เสียง/วิดีโอ และผู้ใช้มีสิทธิ์ → ถามด้วย Flex ว่าจะถอดเสียงไหม
-      if (!isAudioFile) continue; // ไฟล์เอกสาร/อื่น ๆ ไม่ยุ่ง
-      const audioProfile = await getProfileByLineId(admin, lineUserId);
-      if (!audioProfile) continue;
-      if (!await checkSttAccess(admin, audioProfile.id, audioProfile.role)) continue;
+      // ไม่มี session → auto-detect ชนิดไฟล์ แล้วถาม Flex ยืนยัน
+      if (!isPdfFile && !isAudioFile) continue; // ชนิดอื่น ไม่ยุ่ง
+      const fileProfile = await getProfileByLineId(admin, lineUserId);
+      if (!fileProfile) continue;
+
+      // PDF → ถามว่าจะบีบขนาดไหม
+      if (isPdfFile) {
+        if (!await checkPdfAccess(admin, fileProfile.id, fileProfile.role)) continue;
+        await replyLine(replyToken, [{
+          type: 'flex',
+          altText: 'ได้รับไฟล์ PDF แล้ว — ต้องการบีบขนาดไหม?',
+          contents: {
+            type: 'bubble',
+            body: {
+              type: 'box', layout: 'vertical', spacing: 'sm', paddingAll: '18px',
+              contents: [
+                {
+                  type: 'box', layout: 'horizontal', spacing: 'sm', alignItems: 'center',
+                  contents: [
+                    { type: 'text', text: '📄', size: 'lg', flex: 0 },
+                    { type: 'text', text: 'ได้รับไฟล์ PDF แล้ว', weight: 'bold', size: 'md', color: '#3C3B3D', gravity: 'center' },
+                  ],
+                },
+                { type: 'separator', margin: 'md' },
+                { type: 'text', text: 'ต้องการให้ช่วยบีบขนาดไฟล์นี้ให้เล็กลง (คงความชัด) ไหมครับ?', size: 'sm', wrap: true, color: '#3C3B3D', margin: 'md' },
+                ...(fileName ? [{ type: 'text', text: `📎 ${fileName}`, size: 'xs', wrap: true, color: '#9CA3AF' } as const] : []),
+              ],
+            },
+            footer: {
+              type: 'box', layout: 'vertical', spacing: 'sm', paddingAll: '14px', paddingTop: '4px',
+              contents: [
+                { type: 'button', style: 'primary', color: '#3C3B3D', height: 'sm',
+                  action: { type: 'postback', label: 'บีบขนาดเลย', data: `pdffile:${messageId}`, displayText: 'บีบไฟล์นี้' } },
+                { type: 'button', style: 'secondary', height: 'sm',
+                  action: { type: 'postback', label: 'ไม่เป็นไร', data: 'pdfcancel', displayText: 'ไม่เป็นไร' } },
+              ],
+            },
+          },
+        }]);
+        continue;
+      }
+
+      // เสียง/วิดีโอ → ถามว่าจะถอดเป็นรายงานการประชุมไหม
+      if (!await checkSttAccess(admin, fileProfile.id, fileProfile.role)) continue;
       await replyLine(replyToken, [{
         type: 'flex',
         altText: 'ได้รับไฟล์เสียงแล้ว — ต้องการให้ถอดเป็นรายงานการประชุมไหม?',
@@ -2068,7 +2206,10 @@ export async function POST(req: NextRequest) {
       if (activeOrg?.id === TMC_ORG_ID) {
         await handleTmcHelp(replyToken);
       } else {
-        const hasStt = await checkSttAccess(admin, profile.id, profile.role);
+        const [hasStt, hasPdf] = await Promise.all([
+          checkSttAccess(admin, profile.id, profile.role),
+          checkPdfAccess(admin, profile.id, profile.role),
+        ]);
         // Check just_me module
         let hasJustMe = false;
         // Check jaquar module
@@ -2112,13 +2253,14 @@ export async function POST(req: NextRequest) {
           cmdRow('/help', 'แสดงคำสั่งทั้งหมด'),
         ];
 
-        if (hasStt) {
+        if (hasStt || hasPdf) {
           bodyContents.push(
             { type: 'separator', margin: 'md' },
-            { type: 'text', text: 'ผู้ช่วย AI', size: 'xs', color: '#9CA3AF', margin: 'md' },
-            cmdRow('/mom', 'ส่งไฟล์เสียง → ได้รายงานประชุม (PDF)'),
-            cmdRow('/web', 'เปิดหน้าเว็บผู้ช่วย AI'),
+            { type: 'text', text: 'ผู้ช่วย AI — ส่งไฟล์เข้ามาได้เลย ไม่ต้องพิมพ์คำสั่ง', size: 'xs', color: '#9CA3AF', margin: 'md', wrap: true },
           );
+          if (hasStt) bodyContents.push(cmdRow('🎙️ ไฟล์เสียง', '→ ถอดเป็นรายงานประชุม (MoM)'));
+          if (hasPdf) bodyContents.push(cmdRow('📄 ไฟล์ PDF', '→ บีบขนาดให้เล็กลง'));
+          if (hasStt) bodyContents.push(cmdRow('/web', 'เปิดหน้าเว็บผู้ช่วย AI'));
         }
 
         if (hasJustMe) {
