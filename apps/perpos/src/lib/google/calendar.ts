@@ -1,4 +1,37 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { getDriveAccessTokenForRow } from "./drive";
+
 const CALENDAR_API = "https://www.googleapis.com/calendar/v3/calendars/primary/events";
+
+type GoogleTokenRow = {
+  profile_id: string;
+  refresh_token: string;
+  access_token: string | null;
+  expires_at: string | null;
+  scope: string | null;
+  token_type: string | null;
+  drive_root_folder_id: string | null;
+};
+
+/**
+ * คืน access token ของ Google สำหรับ profile (refresh + persist อัตโนมัติ) — reuse google_drive_tokens
+ * คืน null ถ้ายังไม่เชื่อม Google (ไม่มี row) → ฝั่งเรียกต้องชวนผู้ใช้เชื่อมก่อน
+ */
+export async function getCalendarAccessTokenForProfile(
+  admin: SupabaseClient,
+  profileId: string,
+): Promise<string | null> {
+  const { data } = await admin
+    .from("google_drive_tokens")
+    .select("profile_id, refresh_token, access_token, expires_at, scope, token_type, drive_root_folder_id")
+    .eq("profile_id", profileId)
+    .maybeSingle();
+  const row = data as GoogleTokenRow | null;
+  if (!row?.refresh_token) return null;
+  return getDriveAccessTokenForRow(row, async (patch) => {
+    await admin.from("google_drive_tokens").update({ ...patch, updated_at: new Date().toISOString() }).eq("profile_id", profileId);
+  });
+}
 
 export type CalendarEventResult = {
   id: string;
@@ -58,4 +91,37 @@ export async function deleteCalendarEvent(args: {
     method:  "DELETE",
     headers: { Authorization: `Bearer ${args.accessToken}` },
   }).catch(() => null);
+}
+
+export type GoogleCalendarEvent = {
+  id: string;
+  status?: string;                    // 'confirmed' | 'cancelled' | …
+  summary?: string;
+  location?: string;
+  description?: string;
+  hangoutLink?: string;
+  start?: { dateTime?: string; date?: string };
+  end?: { dateTime?: string; date?: string };
+  conferenceData?: { entryPoints?: { entryPointType?: string; uri?: string }[] };
+  attendees?: { self?: boolean; responseStatus?: string }[];
+};
+
+/**
+ * ดึง event ปฏิทินหลัก (primary) ในหน้าต่างเวลา (singleEvents → กาง recurring เป็นครั้ง ๆ)
+ * throw ถ้า token ใช้ไม่ได้ — ฝั่งเรียก (sync) ต้อง catch ไม่ให้ล้มทั้ง loop
+ */
+export async function listUpcomingEvents(accessToken: string, timeMinIso: string, timeMaxIso: string): Promise<GoogleCalendarEvent[]> {
+  const url = new URL(CALENDAR_API);
+  url.searchParams.set("timeMin", timeMinIso);
+  url.searchParams.set("timeMax", timeMaxIso);
+  url.searchParams.set("singleEvents", "true");
+  url.searchParams.set("orderBy", "startTime");
+  url.searchParams.set("maxResults", "50");
+  const res = await fetch(url.toString(), { headers: { Authorization: `Bearer ${accessToken}` } });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`Calendar list failed: ${res.status} ${text.slice(0, 200)}`);
+  }
+  const json = (await res.json()) as { items?: GoogleCalendarEvent[] };
+  return json.items ?? [];
 }

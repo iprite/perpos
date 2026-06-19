@@ -4,10 +4,14 @@ import { createAdminClient } from '../../_lib/supabase';
 import { triggerSttWorker } from '@/lib/assistant/stt-trigger';
 import { sendLineMessages } from '@/lib/line/send-messages';
 import {
-  extractMeetingUrl, makeDedupKey, createBot, AdhocPoolDepletedError, leaveBot, deleteScheduledBot,
+  extractMeetingUrl, makeDedupKey, normalizeMeetingUrl, createBot, AdhocPoolDepletedError, leaveBot, deleteScheduledBot,
   parseMeetingDateTime,
 } from '@/lib/assistant/recall';
 import { buildBotFlex } from '@/lib/assistant/recall-events';
+import {
+  buildBotConfirmFlex, buildQuotaTopupFlex, buildConnectCalendarFlex, buildCalendarSavedFlex,
+} from '@/lib/assistant/bot-flex';
+import { getCalendarAccessTokenForProfile, createCalendarEvent } from '@/lib/google/calendar';
 import { provisionLineUser } from '../_provision';
 import { upsertMobileToken } from '../../tmc/mobile/_lib';
 import {
@@ -1498,7 +1502,7 @@ async function handleRecallConsent(admin: ReturnType<typeof createAdminClient>, 
   await replyText(replyToken, '✅ บันทึกการยอมรับแล้ว — วางลิงก์ประชุม (Google Meet / Zoom / Teams) อีกครั้งเพื่อให้บอทเข้าห้องได้เลยครับ');
 }
 
-function buildLinkConfirmFlex(platformLabel: string, remainMin: number, jobId: string, joinAtText?: string) {
+function buildLinkConfirmFlex(platformLabel: string, maxMin: number, jobId: string, joinAtText?: string) {
   const statusText = joinAtText ? `📅 นัดเข้าห้อง ${joinAtText} น.` : '⏳ บอทกำลังเข้าห้องประชุม…';
   return {
     type: 'flex' as const,
@@ -1512,7 +1516,7 @@ function buildLinkConfirmFlex(platformLabel: string, remainMin: number, jobId: s
         { type: 'box', layout: 'horizontal', backgroundColor: '#E6F1FB', cornerRadius: '8px', paddingAll: '10px', margin: 'sm',
           contents: [{ type: 'text', text: statusText, size: 'sm', color: '#0C447C', wrap: true }] },
         { type: 'text', text: 'บอทจะปรากฏในห้องชื่อ "PERPOS Assistant (AI Note-taker)" · เมื่อประชุมจบจะส่งรายงานการประชุม (MoM) กลับมาที่นี่', size: 'xs', wrap: true, color: '#656D78', margin: 'md' },
-        { type: 'text', text: `⏱️ โควต้าบอทคงเหลือ ${remainMin} นาที`, size: 'xs', color: '#9CA3AF', margin: 'md' },
+        { type: 'text', text: `⏱️ บอทอยู่ได้สูงสุด ${maxMin} นาที (ตามโควต้าที่จองไว้)`, size: 'xs', color: '#9CA3AF', margin: 'md' },
         { type: 'separator', margin: 'md' },
         { type: 'text', text: '🔒 ผู้ส่งลิงก์รับผิดชอบการขอความยินยอมบันทึกในห้อง · ไฟล์เสียงถูกลบทันทีหลังสรุปเสร็จ', size: 'xxs', wrap: true, color: '#9CA3AF', margin: 'md' },
       ] },
@@ -1522,6 +1526,9 @@ function buildLinkConfirmFlex(platformLabel: string, remainMin: number, jobId: s
     },
   };
 }
+
+/** เกณฑ์โควต้าใกล้หมด (เตือนสีแดง + ชวนเติมในการ์ดยืนยัน) */
+const BOT_LOW_QUOTA = 900; // 15 นาที
 
 /** คืนนาทีคงเหลือของ bot_quota (ไม่มี row = trial เต็ม) */
 async function getBotRemaining(admin: ReturnType<typeof createAdminClient>, profileId: string): Promise<{ remainSec: number; remainMin: number }> {
@@ -1560,43 +1567,46 @@ async function handleMeetingLink(admin: ReturnType<typeof createAdminClient>, li
     return true;
   }
 
+  // นัดเวลาล่วงหน้า (ระบุวัน-เวลา + อีก >10 นาที) → เขียนลงปฏิทิน + เตือน/ยืนยันส่งบอท 5 นาทีก่อนเริ่ม (Phase 1c)
+  const joinAt = parseMeetingDateTime(text);
+  if (joinAt && joinAt.getTime() - Date.now() > 10 * 60 * 1000) {
+    return await handleFutureMeetingLink(admin, profile.id, activeOrg.id, found, joinAt, text, replyToken);
+  }
+
+  // ประชุมตอนนี้ (ลิงก์ไม่มีเวลา) → confirm-before-send (Phase 1-pre)
   const { remainSec, remainMin } = await getBotRemaining(admin, profile.id);
   if (remainSec < BOT_MIN_START) {
-    await replyText(replyToken, `⏱️ โควต้าบอทเหลือ ${remainMin} นาที ไม่พอเริ่มประชุมครับ — เติมโควต้าก่อนนะครับ 🙏`);
+    await replyLine(replyToken, [buildQuotaTopupFlex(remainMin, BOT_MIN_START / 60)]);
     return true;
   }
 
-  // นัดเวลาล่วงหน้าไหม — ถ้าข้อความระบุวัน-เวลา + อีก >10 นาที → scheduled bot (เข้าตรงเวลา)
-  const joinAt = parseMeetingDateTime(text);
-  const isScheduled = !!joinAt && joinAt.getTime() - Date.now() > 10 * 60 * 1000;
-  const scheduledIso = isScheduled ? joinAt!.toISOString() : null;
-  // dedup ตามเวลานัด (กันวางลิงก์เดิมหลายครั้ง = บอทตัวเดียว) ถ้าไม่นัด = เวลาปัจจุบัน
-  const dedupKey = makeDedupKey(found.url, isScheduled ? joinAt! : new Date());
+  const dedupKey = makeDedupKey(found.url, new Date()); // bucket 30 นาที กันวางซ้ำ
   const { data: dup } = await admin
     .from('assistant_jobs').select('bot_state')
     .eq('dedup_key', dedupKey)
     .maybeSingle();
-  // dedup_key unique → มีได้แถวเดียว; ถ้ายัง active (ไม่ใช่ terminal) = กำลังทำอยู่
+  // dedup_key unique → มีได้แถวเดียว; ถ้ายัง active (รวม awaiting_confirm) = มีอยู่แล้ว
   const dupState = (dup as { bot_state?: string } | null)?.bot_state;
   if (dup && !['cancelled', 'fatal', 'create_failed', 'recording_ready', 'done'].includes(dupState ?? '')) {
-    await replyText(replyToken, '🤖 บอทกำลังเข้าห้องประชุมนี้อยู่แล้วครับ');
+    await replyText(replyToken, dupState === 'awaiting_confirm'
+      ? '🤖 มีการ์ดยืนยันส่งบอทห้องนี้ค้างอยู่แล้ว กดยืนยันในการ์ดก่อนหน้าได้เลยครับ'
+      : '🤖 บอทกำลังเข้าห้องประชุมนี้อยู่แล้วครับ');
     return true;
   }
 
   // dup เก่าที่จบแล้ว (terminal) ใน slot เดียวกัน → ลบทิ้งเพื่อปล่อย dedup_key ให้ paste ใหม่ได้
   if (dup) await admin.from('assistant_jobs').delete().eq('dedup_key', dedupKey);
 
-  const EST = remainSec; // จองตามโควต้าที่เหลือจริง — บอทอยู่ได้จนหมดโควต้า (automatic_leave คุมเคสห้องว่าง/เงียบ)
   const platformLabel = PLATFORM_LABEL[found.platform] ?? 'ห้องประชุม';
 
-  // insert job ก่อน (dedup guard ระดับ DB) — ถ้าชน (race) ถือว่าซ้ำ
+  // สร้าง job "รอยืนยัน" (ยังไม่ hold / ยังไม่ createBot) — ผู้ใช้ต้องกดยืนยันในการ์ดก่อน (confirm-before-send)
   const { data: jobRow, error: insErr } = await admin
     .from('assistant_jobs')
     .insert({
       org_id: activeOrg.id, profile_id: profile.id, source: 'recall', kind: 'stt',
       audio_url: null, file_name: `${platformLabel} recording`, mime_type: 'audio/mp4',
-      meeting_url: found.url, dedup_key: dedupKey, hold_seconds: EST,
-      join_at: scheduledIso, bot_state: 'creating', triggered_by: profile.id,
+      meeting_url: found.url, dedup_key: dedupKey,
+      join_at: null, bot_state: 'awaiting_confirm', triggered_by: profile.id,
     })
     .select('id').single();
   if (insErr || !jobRow) {
@@ -1605,52 +1615,275 @@ async function handleMeetingLink(admin: ReturnType<typeof createAdminClient>, li
   }
   const jobId = (jobRow as { id: string }).id;
 
-  // hold โควต้า (atomic) — ถ้าไม่พอ (race) ลบ job + แจ้ง
-  const { data: held } = await admin.rpc('hold_bot_quota', { p_profile_id: profile.id, p_seconds: EST, p_job_id: jobId });
-  if (!held || (held as { ok?: boolean }).ok !== true) {
-    await admin.from('assistant_jobs').delete().eq('id', jobId);
-    await replyText(replyToken, '⏱️ โควต้าบอทไม่พอเริ่มประชุมครับ 🙏');
+  await replyLine(replyToken, [buildBotConfirmFlex({
+    platformLabel, remainMin, lowQuota: remainSec < BOT_LOW_QUOTA, confirmData: `botsend:${jobId}`,
+  })]);
+  return true;
+}
+
+/** ดึงชื่อ event จากข้อความผู้ใช้ (ตัด URL ออก) → fallback "ประชุม (<platform>)" */
+function deriveEventTitle(text: string, meetingUrl: string, platformLabel: string): string {
+  // ตัด url + query/slug ที่ติดกันท้าย url ด้วย (GMeet regex หยุดก่อน `?` → เหลือ ?authuser=0 ค้าง)
+  const escaped = meetingUrl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const cleaned = text
+    .replace(new RegExp(escaped + '\\S*', 'g'), '')
+    .replace(/https?:\/\/\S+/g, '')
+    .replace(/\s+/g, ' ').trim();
+  return cleaned.length > 0 ? cleaned.slice(0, 200) : `ประชุม (${platformLabel})`;
+}
+
+/** ลิงก์ประชุมมีเวลานัดอนาคต → เขียนลง Google Calendar (ถ้าเชื่อมแล้ว) + cache · บอทส่งทีหลังผ่านการเตือน 5 นาทีก่อน */
+async function handleFutureMeetingLink(
+  admin: ReturnType<typeof createAdminClient>,
+  profileId: string, orgId: string,
+  found: { platform: string; url: string }, joinAt: Date, text: string, replyToken: string,
+): Promise<boolean> {
+  const platformLabel = PLATFORM_LABEL[found.platform] ?? 'ห้องประชุม';
+  const joinAtText = new Intl.DateTimeFormat('th-TH', { timeZone: 'Asia/Bangkok', dateStyle: 'long', timeStyle: 'short' }).format(joinAt);
+
+  // ชวนเชื่อม Google ผ่าน LINE (magic link → /line/connect-calendar) — ใช้ทั้งตอนยังไม่เชื่อม + token เพิกถอน
+  const sendConnectCard = async () => {
+    const token = crypto.randomBytes(24).toString('base64url');
+    await admin.from('web_login_tokens').insert({ token, profile_id: profileId, expires_at: new Date(Date.now() + 5 * 60 * 1000).toISOString() });
+    const base = (process.env.APP_BASE_URL ?? 'https://app.perpos.io').replace(/\/$/, '');
+    await replyLine(replyToken, [buildConnectCalendarFlex(`${base}/line/claim?t=${token}&next=${encodeURIComponent('/line/connect-calendar')}`)]);
+  };
+
+  // ต้องเชื่อม Google ก่อน — refresh ล้ม/เพิกถอน (throw) ถือว่ายังไม่เชื่อม → ชวนเชื่อม (ไม่ปล่อย error หลุด → กัน webhook 500/retry)
+  let accessToken: string | null = null;
+  try {
+    accessToken = await getCalendarAccessTokenForProfile(admin, profileId);
+  } catch {
+    accessToken = null;
+  }
+  if (!accessToken) {
+    await sendConnectCard();
     return true;
   }
 
-  // สั่งบอท — ครั้งเดียว (ห้าม retry 30 วิ inline: reply token หมดอายุ/LINE timeout)
+  // dedup ห้องเดียวกัน (เทียบด้วย meeting_key ที่ normalize — Zoom/Teams ลิงก์ต่างฟอร์แมตก็จับได้)
+  // ในหน้าต่างเวลา ±30 นาที ที่ยังไม่ถูกลบ → ไม่เขียนซ้ำ
+  const meetingKey = normalizeMeetingUrl(found.url);
+  const lo = new Date(joinAt.getTime() - 30 * 60 * 1000).toISOString();
+  const hi = new Date(joinAt.getTime() + 30 * 60 * 1000).toISOString();
+  const { data: existing } = await admin
+    .from('recall_calendar_events').select('id')
+    .eq('profile_id', profileId).eq('meeting_key', meetingKey).eq('is_deleted', false)
+    .gte('starts_at', lo).lte('starts_at', hi).limit(1).maybeSingle();
+  if (existing) {
+    await replyText(replyToken, `📅 มีนัดประชุมนี้ในปฏิทินอยู่แล้ว (${joinAtText} น.) ครับ`);
+    return true;
+  }
+
+  const title = deriveEventTitle(text, found.url, platformLabel);
+  let googleEventId: string | null = null;
+  try {
+    const ev = await createCalendarEvent({ accessToken, title, startsAt: joinAt.toISOString() });
+    googleEventId = ev?.id ?? null;
+  } catch {
+    await sendConnectCard(); // token เพิกถอน/หมดสิทธิ์ → ชวนเชื่อมใหม่
+    return true;
+  }
+
+  await admin.from('recall_calendar_events').insert({
+    profile_id: profileId, org_id: orgId, google_event_id: googleEventId, source: 'line',
+    title, meeting_url: found.url, meeting_key: meetingKey, starts_at: joinAt.toISOString(), confirm_state: 'pending',
+  });
+  // เชื่อม + ใช้ปฏิทินแล้ว = opt-in sync ปฏิทินอัตโนมัติ (scheduler step 1b จะกวาด event อื่นมาเตือนให้ด้วย)
+  await admin.from('meeting_calendar_settings')
+    .upsert({ profile_id: profileId }, { onConflict: 'profile_id', ignoreDuplicates: true });
+  await replyLine(replyToken, [buildCalendarSavedFlex(title, joinAtText, platformLabel)]);
+  return true;
+}
+
+
+/** ปุ่มยืนยันส่งบอท (postback botsend:<jobId>) → hold + createBot → การ์ด "บอทกำลังเข้าห้อง" */
+async function handleRecallSend(admin: ReturnType<typeof createAdminClient>, lineUserId: string, jobId: string, replyToken: string): Promise<void> {
+  const { data: jobData } = await admin
+    .from('assistant_jobs')
+    .select('id, profile_id, org_id, meeting_url, join_at, bot_state')
+    .eq('id', jobId).maybeSingle();
+  const job = jobData as { id: string; profile_id: string | null; org_id: string | null; meeting_url: string | null; join_at: string | null; bot_state: string | null } | null;
+  if (!job) { await replyText(replyToken, 'ไม่พบรายการนี้แล้วครับ'); return; }
+
+  // ตรวจเจ้าของ (กันคนอื่นกดส่งบอทแทน)
+  const { data: prof } = await admin.from('profiles').select('line_user_id').eq('id', job.profile_id ?? '').maybeSingle();
+  if ((prof as { line_user_id?: string } | null)?.line_user_id !== lineUserId) return;
+
+  if (job.bot_state !== 'awaiting_confirm') {
+    await replyText(replyToken, '🤖 รายการนี้ส่งบอทหรือยกเลิกไปแล้วครับ');
+    return;
+  }
+  if (!job.meeting_url || !job.org_id || !job.profile_id) {
+    await admin.from('assistant_jobs').delete().eq('id', jobId);
+    await replyText(replyToken, 'ข้อมูลรายการไม่ครบ ลองวางลิงก์ใหม่อีกครั้งครับ');
+    return;
+  }
+
+  const { remainSec, remainMin } = await getBotRemaining(admin, job.profile_id);
+  if (remainSec < BOT_MIN_START) {
+    await admin.from('assistant_jobs').delete().eq('id', jobId);
+    await replyLine(replyToken, [buildQuotaTopupFlex(remainMin, BOT_MIN_START / 60)]);
+    return;
+  }
+
+  const EST = remainSec; // จองตามโควต้าที่เหลือจริง — บอทอยู่ได้จนหมดโควต้า (scheduler สั่งออกเมื่อครบ)
+
+  // กัน double-send: claim job (awaiting_confirm → creating) แบบ atomic — กดปุ่มซ้ำเร็ว ๆ จะ claim ได้คนเดียว
+  // เซ็ต hold_seconds = EST ด้วย (scheduler step 7 ใช้เป็นเพดานเวลาสั่งบอทออกเมื่อครบโควต้า)
+  const { data: claim } = await admin.from('assistant_jobs')
+    .update({ bot_state: 'creating', hold_seconds: EST, updated_at: new Date().toISOString() })
+    .eq('id', jobId).eq('bot_state', 'awaiting_confirm').select('id');
+  if (!claim || (claim as unknown[]).length === 0) {
+    await replyText(replyToken, '🤖 กำลังดำเนินการอยู่แล้วครับ');
+    return;
+  }
+  const { data: held } = await admin.rpc('hold_bot_quota', { p_profile_id: job.profile_id, p_seconds: EST, p_job_id: jobId });
+  if (!held || (held as { ok?: boolean }).ok !== true) {
+    await admin.from('assistant_jobs').delete().eq('id', jobId);
+    await replyLine(replyToken, [buildQuotaTopupFlex(remainMin, BOT_MIN_START / 60)]);
+    return;
+  }
+
+  await dispatchHeldBotJob(admin, {
+    id: jobId, profile_id: job.profile_id, org_id: job.org_id, meeting_url: job.meeting_url, join_at: job.join_at,
+  }, EST, replyToken, 'awaiting_confirm');
+}
+
+type HeldJob = { id: string; profile_id: string; org_id: string; meeting_url: string; join_at: string | null };
+
+/**
+ * job ถูก claim เป็น 'creating' + hold สำเร็จแล้ว → createBot → reply การ์ด "บอทกำลังเข้าห้อง"
+ * ใช้ร่วม botsend (LINE) + calsend (ปฏิทิน) · adhocFail: revert เป็น awaiting_confirm (กดซ้ำได้) หรือ delete
+ */
+async function dispatchHeldBotJob(
+  admin: ReturnType<typeof createAdminClient>, job: HeldJob, EST: number, replyToken: string,
+  adhocFail: 'awaiting_confirm' | 'delete',
+): Promise<void> {
+  const platform = extractMeetingUrl(job.meeting_url);
+  const platformLabel = platform ? (PLATFORM_LABEL[platform.platform] ?? 'ห้องประชุม') : 'ห้องประชุม';
+  const scheduledIso = job.join_at;
   try {
     const bot = await createBot({
-      meetingUrl: found.url, holdSeconds: EST,
+      meetingUrl: job.meeting_url, holdSeconds: EST,
       ...(scheduledIso ? { joinAt: scheduledIso } : {}),
-      metadata: { profile_id: profile.id, job_id: jobId, org_id: activeOrg.id },
+      metadata: { profile_id: job.profile_id, job_id: job.id, org_id: job.org_id },
     });
-    // บันทึก recall_bot_id "เสมอ" (กัน orphan — leave/cancel/scheduler ต้องใช้) + อ่าน state ปัจจุบัน
-    // (webhook joining_call อาจมาถึงก่อน หรือผู้ใช้กดยกเลิกระหว่าง createBot)
     const { data: upd } = await admin.from('assistant_jobs')
       .update({ recall_bot_id: bot.id, updated_at: new Date().toISOString() })
-      .eq('id', jobId).select('bot_state').single();
+      .eq('id', job.id).select('bot_state').single();
     const curState = (upd as { bot_state?: string } | null)?.bot_state;
 
     if (curState === 'cancelled') {
-      // ผู้ใช้ยกเลิกระหว่าง createBot → สั่งบอทออกทันที กัน orphan (cancel handler ตอนนั้น recall_bot_id ยัง null)
       await leaveBot(bot.id).catch(() => false);
-      return true; // การ์ดยกเลิกถูกส่งโดย cancel handler แล้ว
+      return; // การ์ดยกเลิกถูกส่งโดย cancel handler แล้ว
     }
     if (curState === 'creating') {
-      await admin.from('assistant_jobs').update({ bot_state: 'scheduled' }).eq('id', jobId).eq('bot_state', 'creating');
+      await admin.from('assistant_jobs').update({ bot_state: 'scheduled' }).eq('id', job.id).eq('bot_state', 'creating');
     }
-    // curState อื่น (joining/recording…) = webhook นำหน้าแล้ว → คงไว้
-    const joinAtText = isScheduled
-      ? new Intl.DateTimeFormat('th-TH', { timeZone: 'Asia/Bangkok', dateStyle: 'long', timeStyle: 'short' }).format(joinAt!)
+    const joinAtText = scheduledIso
+      ? new Intl.DateTimeFormat('th-TH', { timeZone: 'Asia/Bangkok', dateStyle: 'long', timeStyle: 'short' }).format(new Date(scheduledIso))
       : undefined;
-    await replyLine(replyToken, [buildLinkConfirmFlex(platformLabel, Math.floor(EST / 60), jobId, joinAtText)]);
+    await replyLine(replyToken, [buildLinkConfirmFlex(platformLabel, Math.floor(EST / 60), job.id, joinAtText)]);
   } catch (e) {
-    // คืนโควต้าก่อน (ขณะ job ยังอยู่) แล้วลบ job เพื่อปล่อย dedup_key ให้ลองใหม่ได้
-    await admin.rpc('refund_bot_quota', { p_job_id: jobId }).then(() => undefined, () => undefined);
-    await admin.from('assistant_jobs').delete().eq('id', jobId);
-    if (e instanceof AdhocPoolDepletedError) {
-      await replyText(replyToken, '⏳ ระบบกำลังหนาแน่น ส่งลิงก์ประชุมอีกครั้งใน 1–2 นาทีได้เลยครับ 🙏');
+    await admin.rpc('refund_bot_quota', { p_job_id: job.id }).then(() => undefined, () => undefined);
+    if (e instanceof AdhocPoolDepletedError && adhocFail === 'awaiting_confirm') {
+      await admin.from('assistant_jobs').update({ bot_state: 'awaiting_confirm' }).eq('id', job.id);
+      await replyText(replyToken, '⏳ ระบบกำลังหนาแน่น กดยืนยันอีกครั้งใน 1–2 นาทีได้เลยครับ 🙏');
     } else {
+      await admin.from('assistant_jobs').delete().eq('id', job.id);
       await replyLine(replyToken, [buildBotFlex('fatal', { reason: 'เข้าห้องประชุมไม่สำเร็จ ลองใหม่อีกครั้งได้เลยครับ' })]);
     }
   }
-  return true;
+}
+
+/** ปุ่มยืนยันส่งบอทจากปฏิทิน (postback calsend:<eventId>) → reconcile + สร้าง job + hold + createBot */
+async function handleCalendarSend(admin: ReturnType<typeof createAdminClient>, lineUserId: string, eventId: string, replyToken: string): Promise<void> {
+  const { data: evData } = await admin
+    .from('recall_calendar_events')
+    .select('id, profile_id, org_id, meeting_url, meeting_key, starts_at, confirm_state, bot_job_id, is_deleted')
+    .eq('id', eventId).maybeSingle();
+  const ev = evData as {
+    id: string; profile_id: string; org_id: string | null; meeting_url: string; meeting_key: string | null;
+    starts_at: string; confirm_state: string; bot_job_id: string | null; is_deleted: boolean;
+  } | null;
+  if (!ev) { await replyText(replyToken, 'ไม่พบนัดประชุมนี้แล้วครับ'); return; }
+
+  const { data: prof } = await admin.from('profiles').select('line_user_id, line_active_org_id').eq('id', ev.profile_id).maybeSingle();
+  const profRow = prof as { line_user_id?: string; line_active_org_id?: string } | null;
+  if (profRow?.line_user_id !== lineUserId) return;
+
+  if (ev.is_deleted || ev.bot_job_id || ev.confirm_state === 'confirmed') {
+    await replyText(replyToken, '🤖 ส่งบอทเข้าประชุมนี้แล้ว หรือถูกยกเลิกไปครับ');
+    return;
+  }
+
+  const orgId = ev.org_id ?? profRow?.line_active_org_id ?? null;
+  if (!orgId) { await replyText(replyToken, '❌ ไม่พบพื้นที่ทำงานของคุณ ลองใหม่ภายหลังครับ'); return; }
+
+  // M2 reconcile: มี bot job ห้องเดียวกัน (meeting_key) + เวลาใกล้กัน active อยู่แล้ว → ไม่ส่งซ้ำ
+  const meetingKey = ev.meeting_key ?? normalizeMeetingUrl(ev.meeting_url);
+  if (await hasActiveBotForMeeting(admin, ev.profile_id, meetingKey, new Date(ev.starts_at).getTime())) {
+    await admin.from('recall_calendar_events').update({ confirm_state: 'confirmed', updated_at: new Date().toISOString() }).eq('id', ev.id);
+    await replyText(replyToken, '🤖 บอทสำหรับประชุมนี้กำลังดำเนินการอยู่แล้วครับ');
+    return;
+  }
+
+  const { remainSec, remainMin } = await getBotRemaining(admin, ev.profile_id);
+  if (remainSec < BOT_MIN_START) {
+    await replyLine(replyToken, [buildQuotaTopupFlex(remainMin, BOT_MIN_START / 60)]);
+    return;
+  }
+  const EST = remainSec;
+
+  // สร้าง job เป็น 'creating' ตรง ๆ (การ์ดเตือน = ขั้นยืนยันแล้ว) — dedup ตามเวลานัด
+  const dedupKey = makeDedupKey(ev.meeting_url, new Date(ev.starts_at));
+  const { data: jobRow, error: insErr } = await admin
+    .from('assistant_jobs')
+    .insert({
+      org_id: orgId, profile_id: ev.profile_id, source: 'recall', kind: 'stt',
+      audio_url: null, file_name: 'meeting recording', mime_type: 'audio/mp4',
+      meeting_url: ev.meeting_url, dedup_key: dedupKey, hold_seconds: EST,
+      join_at: ev.starts_at, bot_state: 'creating', triggered_by: ev.profile_id,
+    })
+    .select('id').single();
+  if (insErr || !jobRow) {
+    await replyText(replyToken, '🤖 บอทกำลังเข้าห้องประชุมนี้อยู่แล้วครับ'); // dedup ชน
+    return;
+  }
+  const jobId = (jobRow as { id: string }).id;
+
+  const { data: held } = await admin.rpc('hold_bot_quota', { p_profile_id: ev.profile_id, p_seconds: EST, p_job_id: jobId });
+  if (!held || (held as { ok?: boolean }).ok !== true) {
+    await admin.from('assistant_jobs').delete().eq('id', jobId);
+    await replyLine(replyToken, [buildQuotaTopupFlex(remainMin, BOT_MIN_START / 60)]);
+    return;
+  }
+  await admin.from('recall_calendar_events').update({ bot_job_id: jobId, confirm_state: 'confirmed', updated_at: new Date().toISOString() }).eq('id', ev.id);
+
+  await dispatchHeldBotJob(admin, {
+    id: jobId, profile_id: ev.profile_id, org_id: orgId, meeting_url: ev.meeting_url, join_at: ev.starts_at,
+  }, EST, replyToken, 'delete');
+}
+
+/**
+ * มี bot job ห้องเดียวกัน (meeting_key) + เวลาใกล้กัน (±30 นาที) ที่ยัง active อยู่ไหม — reconcile กันบอทซ้ำ (M2)
+ * เช็คเวลาด้วยเพื่อกัน false-match กับลิงก์ recurring (ลิงก์เดิม คนละรอบเวลา)
+ */
+async function hasActiveBotForMeeting(admin: ReturnType<typeof createAdminClient>, profileId: string, meetingKey: string, startsAtMs: number): Promise<boolean> {
+  const { data } = await admin
+    .from('assistant_jobs')
+    .select('meeting_url, join_at, created_at')
+    .eq('profile_id', profileId).eq('source', 'recall')
+    .in('bot_state', ['awaiting_confirm', 'creating', 'scheduled', 'joining', 'in_waiting_room', 'recording'])
+    .limit(50);
+  const WINDOW = 30 * 60 * 1000;
+  return ((data ?? []) as { meeting_url: string | null; join_at: string | null; created_at: string }[])
+    .some((j) => {
+      if (!j.meeting_url || normalizeMeetingUrl(j.meeting_url) !== meetingKey) return false;
+      const t = new Date(j.join_at ?? j.created_at).getTime();
+      return Math.abs(t - startsAtMs) <= WINDOW;
+    });
 }
 
 /** ปุ่มยกเลิกบอท (postback botcancel:<jobId>) → leave/delete + refund */
@@ -1746,6 +1979,10 @@ export async function POST(req: NextRequest) {
         await replyText(pbReplyToken, 'รับทราบครับ — หากต้องการถอดเสียงภายหลัง พิมพ์ /mom แล้วส่งไฟล์ได้เลย 🙏');
       } else if (pbUserId && pbData === 'botconsent') {
         await handleRecallConsent(admin, pbUserId, pbReplyToken);
+      } else if (pbUserId && pbData.startsWith('botsend:')) {
+        await handleRecallSend(admin, pbUserId, pbData.slice('botsend:'.length), pbReplyToken);
+      } else if (pbUserId && pbData.startsWith('calsend:')) {
+        await handleCalendarSend(admin, pbUserId, pbData.slice('calsend:'.length), pbReplyToken);
       } else if (pbUserId && pbData.startsWith('botcancel:')) {
         await handleRecallCancel(admin, pbUserId, pbData.slice('botcancel:'.length), pbReplyToken);
       }

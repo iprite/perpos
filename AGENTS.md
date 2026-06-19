@@ -280,6 +280,7 @@ Endpoint: `POST /api/assistant/scheduler`
 - **Permission check**: เช็คผ่าน `user_permissions` table, admin role bypass ทั้งหมด
 - **LINE reply**: ใช้ `replyText()` / `replyFlex()` ใน webhook — ใช้ token ได้ครั้งเดียว
 - **LINE push**: ใช้ `sendLineMessages()` จาก `lib/line/send-messages.ts`
+- **LINE Flex Card**: ทุกการ์ดต้องตามคัมภีร์ [`docs/line-flex-card-guide.md`](docs/line-flex-card-guide.md) — header CHARCOAL `#3C3B3D` พื้นเรียบ (ห้าม gradient), token สีจาก DESIGN.md §2, ต้นแบบ = `buildLinkConfirmFlex` / `buildBotFlex`
 - **Commit**: ไม่ push จนกว่าจะสั่ง
 
 ---

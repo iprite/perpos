@@ -199,10 +199,24 @@ export function parseMeetingDateTime(text: string, now: Date = new Date()): Date
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
-/** dedup: 1 บอท ต่อ 1 meeting instance — ปัดเวลาเป็นครึ่งชั่วโมง กันยิงรัว */
+/**
+ * normalize ลิงก์ประชุมเพื่อใช้เทียบ "ห้องเดียวกัน" (dedup/reconcile ข้ามกลไก LINE↔Calendar)
+ * ตัด query string (`?pwd`, `?hs`, `?authuser`, `?context`…) + hash + trailing slash + lowercase host
+ * ⚠️ ใช้สำหรับ "เทียบ" เท่านั้น — เก็บ meeting_url เต็มไว้ส่งบอท (Zoom ต้องมี ?pwd ถึงเข้าห้องได้)
+ */
+export function normalizeMeetingUrl(rawUrl: string): string {
+  try {
+    const u = new URL(rawUrl.trim());
+    return `${u.protocol}//${u.host.toLowerCase()}${u.pathname}`.replace(/\/+$/, '');
+  } catch {
+    return rawUrl.trim().split(/[?#]/)[0].replace(/\/+$/, '').toLowerCase();
+  }
+}
+
+/** dedup: 1 บอท ต่อ 1 meeting instance — ปัดเวลาเป็นครึ่งชั่วโมง กันยิงรัว (เทียบด้วย key ที่ normalize แล้ว) */
 export function makeDedupKey(meetingUrl: string, at: Date = new Date()): string {
   const slot = Math.round(at.getTime() / (30 * 60_000));
-  return `${meetingUrl}::${slot}`;
+  return `${normalizeMeetingUrl(meetingUrl)}::${slot}`;
 }
 
 /**

@@ -2,7 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireCron } from '../../_lib/auth';
 import { createAdminClient } from '../../_lib/supabase';
 import { triggerSttWorker } from '@/lib/assistant/stt-trigger';
-import { leaveBot, deleteScheduledBot, deleteBotMedia } from '@/lib/assistant/recall';
+import { leaveBot, deleteScheduledBot, deleteBotMedia, extractMeetingUrl, normalizeMeetingUrl } from '@/lib/assistant/recall';
+import { syncProfileCalendar } from '@/lib/assistant/calendar-sync';
+import { buildBotConfirmFlex, buildQuotaWarningFlex } from '@/lib/assistant/bot-flex';
+
+const QUOTA_WARN_LEAD_S = 600; // เตือนโควต้าบอทใกล้หมด ≥10 นาทีก่อน kick
+const SCHED_PLATFORM_LABEL: Record<string, string> = { google_meet: 'Google Meet', zoom: 'Zoom', teams: 'Microsoft Teams' };
 
 async function pushLine(accessToken: string, to: string, text: string) {
   await fetch('https://api.line.me/v2/bot/message/push', {
@@ -10,6 +15,14 @@ async function pushLine(accessToken: string, to: string, text: string) {
     headers: { authorization: `Bearer ${accessToken}`, 'content-type': 'application/json' },
     body: JSON.stringify({ to, messages: [{ type: 'text', text }] }),
   });
+}
+
+async function pushLineFlex(accessToken: string, to: string, message: unknown) {
+  await fetch('https://api.line.me/v2/bot/message/push', {
+    method: 'POST',
+    headers: { authorization: `Bearer ${accessToken}`, 'content-type': 'application/json' },
+    body: JSON.stringify({ to, messages: [message] }),
+  }).then(() => undefined, () => undefined);
 }
 
 export async function GET(req: NextRequest) { return run(req); }
@@ -205,6 +218,20 @@ async function run(req: NextRequest) {
     counts.cleaned_jobs += ids.length;
   }
 
+  // 6b. ลบ recall job ที่ "รอยืนยัน" (awaiting_confirm) ค้างเกิน 30 นาที — ผู้ใช้ไม่กดยืนยัน
+  //     ยังไม่ได้ hold โควต้า → แค่ลบเพื่อปล่อย dedup_key ให้วางลิงก์ใหม่ได้
+  {
+    const cutoff = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+    const { data: stale } = await admin
+      .from('assistant_jobs')
+      .delete()
+      .eq('source', 'recall')
+      .eq('bot_state', 'awaiting_confirm')
+      .lt('created_at', cutoff)
+      .select('id');
+    if (stale) counts.cleaned_jobs += (stale as unknown[]).length;
+  }
+
   // 7. Recall meeting-bot lifecycle — สั่งออกเมื่อครบโควต้า / ยอมแพ้บอทค้าง / retry งานถอดที่พร้อม
   const RECALL_STUCK_JOIN_MS = 15 * 60 * 1000;   // ไม่เข้าห้องภายใน 15 นาที → ยอมแพ้
   const RECALL_READY_GIVEUP_MS = 15 * 60 * 1000; // recording_ready แต่ถอดไม่จบใน 15 นาที → goodwill refund
@@ -217,7 +244,7 @@ async function run(req: NextRequest) {
 
   const { data: recallJobs } = await admin
     .from('assistant_jobs')
-    .select('id, org_id, profile_id, recall_bot_id, bot_state, joined_at, join_at, hold_seconds, status, created_at, updated_at, ready_at')
+    .select('id, org_id, profile_id, recall_bot_id, bot_state, joined_at, join_at, hold_seconds, status, created_at, updated_at, ready_at, quota_warned_at')
     .eq('source', 'recall')
     .neq('status', 'completed')   // completed → ไม่ต้องแตะ (worker ไม่เปลี่ยน bot_state) กัน starvation limit
     .in('bot_state', ['creating', 'scheduled', 'joining', 'in_waiting_room', 'recording', 'permission_denied', 'call_ended', 'leaving', 'recording_ready'])
@@ -265,7 +292,7 @@ async function run(req: NextRequest) {
 
     // ยังอยู่ในห้อง (active)
     const joinedMs = rj.joined_at ? new Date(rj.joined_at as string).getTime() : null;
-    const holdS = Number(rj.hold_seconds ?? 0);
+    let holdS = Number(rj.hold_seconds ?? 0);
 
     // สั่งออกแล้วแต่ done ไม่มา (ค้าง 'leaving' > giveup) → กู้: settle + ตั้ง recording_ready + retry ถอด
     if (state === 'leaving') {
@@ -282,6 +309,32 @@ async function run(req: NextRequest) {
     // สำหรับ scheduled อนาคต (Phase 1 calendar) — ยังไม่ถึงเวลา join → ยังไม่ถือว่าค้าง
     const joinAtMs = rj.join_at ? new Date(rj.join_at as string).getTime() : null;
     const notYetScheduled = joinAtMs != null && joinAtMs > now.getTime();
+
+    // ── Phase 1c: เติมโควต้าระหว่างประชุม → ขยาย hold ให้บอทอยู่ต่ออัตโนมัติ (absorb top-up) ──
+    if (joinedMs && botId && holdS > 0) {
+      const { data: bq } = await admin.from('bot_quota').select('limit_seconds, used_seconds').eq('profile_id', rj.profile_id as string).maybeSingle();
+      const bqRow = bq as { limit_seconds?: number; used_seconds?: number } | null;
+      const spare = bqRow ? Math.max(0, Number(bqRow.limit_seconds ?? 0) - Number(bqRow.used_seconds ?? 0)) : 0;
+      if (spare > 0) {
+        const ok = await admin.rpc('extend_bot_hold', { p_job_id: rj.id as string, p_extra_seconds: spare }).then((r) => r.data === true, () => false);
+        if (ok) {
+          holdS += spare;
+          await admin.from('assistant_jobs').update({ hold_seconds: holdS, quota_warned_at: null, updated_at: now.toISOString() }).eq('id', rj.id as string);
+        }
+      }
+    }
+
+    // ── Phase 1c: เตือนโควต้าใกล้หมด ≥10 นาทีก่อนบอทดีดตัว (ครั้งเดียว ผ่าน quota_warned_at) ──
+    if (joinedMs && botId && holdS > 0 && !rj.quota_warned_at) {
+      const elapsedS = (now.getTime() - joinedMs) / 1000;
+      if (elapsedS >= holdS - QUOTA_WARN_LEAD_S && elapsedS < holdS) {
+        const minsLeft = Math.max(1, Math.ceil((holdS - elapsedS) / 60));
+        const { data: prof } = await admin.from('profiles').select('line_user_id').eq('id', rj.profile_id as string).maybeSingle();
+        const lineId = (prof as { line_user_id?: string } | null)?.line_user_id;
+        if (lineId) await pushLineFlex(accessToken, lineId, buildQuotaWarningFlex(minsLeft));
+        await admin.from('assistant_jobs').update({ quota_warned_at: now.toISOString() }).eq('id', rj.id as string);
+      }
+    }
 
     if (joinedMs && botId && holdS > 0 && (now.getTime() - joinedMs) / 1000 >= holdS) {
       // ครบโควต้า → settle ทันที (กัน quota ค้างถ้า done ช้า) + สั่งบอทออก · done จะถอดต่อ
@@ -321,6 +374,94 @@ async function run(req: NextRequest) {
     .delete()
     .lt('created_at', new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString())
     .then(() => undefined, () => undefined);
+
+  // 10. Phase 1b — sync ปฏิทิน Google ของผู้ใช้ที่เปิด auto_remind (throttle 10 นาที/คน, batch 15)
+  //     poll upcoming 36 ชม. → upsert recall_calendar_events (event ที่จะส่งบอท reminder ใน Phase 1c)
+  {
+    const throttleMs = 10 * 60 * 1000;
+    // เอา 15 คนที่ค้าง sync นานสุดก่อน (null = ไม่เคย sync มาก่อน) แล้วค่อยกรอง throttle ใน JS
+    // (เลี่ยง .or() กับ timestamp ที่มีจุด ms → PostgREST parse เพี้ยน · เลี่ยง embed FK ที่ไม่แน่นอน)
+    const { data: toSync } = await admin
+      .from('meeting_calendar_settings')
+      .select('profile_id, last_synced_at')
+      .eq('auto_remind_enabled', true)
+      .order('last_synced_at', { ascending: true, nullsFirst: true })
+      .limit(15);
+    for (const row of (toSync ?? []) as { profile_id: string; last_synced_at: string | null }[]) {
+      if (row.last_synced_at && now.getTime() - new Date(row.last_synced_at).getTime() < throttleMs) continue;
+      const profileId = row.profile_id;
+      const { data: prof } = await admin.from('profiles').select('line_active_org_id').eq('id', profileId).maybeSingle();
+      const orgId = (prof as { line_active_org_id?: string } | null)?.line_active_org_id ?? null;
+      try {
+        await syncProfileCalendar(admin, profileId, orgId);
+      } catch { /* รายคนพลาดไม่ล้มทั้ง loop */ }
+      await admin.from('meeting_calendar_settings')
+        .update({ last_synced_at: now.toISOString(), updated_at: now.toISOString() })
+        .eq('profile_id', profileId);
+    }
+  }
+
+  // 11. Phase 1c — เตือน+ยืนยันส่งบอท 5 นาทีก่อนเริ่ม (จาก recall_calendar_events ที่ confirm_state='pending')
+  {
+    const remindHi = new Date(now.getTime() + 5 * 60 * 1000).toISOString();       // ≤5 นาทีก่อนเริ่ม
+    const remindLo = new Date(now.getTime() - 15 * 60 * 1000).toISOString();      // grace นัดที่เพิ่งเริ่ม
+    const { data: dueEvents } = await admin
+      .from('recall_calendar_events')
+      .select('id, profile_id, source, meeting_url, meeting_key, title, starts_at')
+      .eq('confirm_state', 'pending').eq('is_deleted', false)
+      .gte('starts_at', remindLo).lte('starts_at', remindHi)
+      .limit(30);
+    // เคารพ toggle: event จากปฏิทิน (source='google') เตือนเฉพาะคนที่เปิด auto_remind · event ที่วางลิงก์เอง (source='line') เตือนเสมอ
+    const remindEnabled = new Map<string, boolean>();
+    const isRemindEnabled = async (pid: string): Promise<boolean> => {
+      if (remindEnabled.has(pid)) return remindEnabled.get(pid)!;
+      const { data: s } = await admin.from('meeting_calendar_settings').select('auto_remind_enabled').eq('profile_id', pid).maybeSingle();
+      const on = Boolean((s as { auto_remind_enabled?: boolean } | null)?.auto_remind_enabled);
+      remindEnabled.set(pid, on);
+      return on;
+    };
+    for (const evRow of (dueEvents ?? []) as Record<string, unknown>[]) {
+      const evId = String(evRow.id);
+      const profileId = String(evRow.profile_id);
+      if (String(evRow.source) === 'google' && !(await isRemindEnabled(profileId))) continue; // ปิด toggle → ไม่เตือน event ปฏิทิน
+      const meetingUrl = String(evRow.meeting_url ?? '');
+      if (!meetingUrl) continue;
+      const key = evRow.meeting_key ? String(evRow.meeting_key) : normalizeMeetingUrl(meetingUrl);
+
+      // reconcile (M2): มี bot job ห้องเดียวกัน + เวลาใกล้กัน active แล้ว (ผู้ใช้วางลิงก์สดไปแล้ว) → ไม่เตือนซ้ำ
+      const startsMs = new Date(String(evRow.starts_at)).getTime();
+      const { data: activeJobs } = await admin.from('assistant_jobs')
+        .select('meeting_url, join_at, created_at')
+        .eq('profile_id', profileId).eq('source', 'recall')
+        .in('bot_state', ['awaiting_confirm', 'creating', 'scheduled', 'joining', 'in_waiting_room', 'recording'])
+        .limit(50);
+      const dup = ((activeJobs ?? []) as { meeting_url: string | null; join_at: string | null; created_at: string }[])
+        .some((j) => j.meeting_url && normalizeMeetingUrl(j.meeting_url) === key
+          && Math.abs(new Date(j.join_at ?? j.created_at).getTime() - startsMs) <= 30 * 60 * 1000);
+      if (dup) {
+        await admin.from('recall_calendar_events').update({ confirm_state: 'confirmed', updated_at: now.toISOString() }).eq('id', evId);
+        continue;
+      }
+
+      const { data: prof } = await admin.from('profiles').select('line_user_id').eq('id', profileId).maybeSingle();
+      const lineId = (prof as { line_user_id?: string } | null)?.line_user_id;
+      if (!lineId) continue;
+
+      const { data: bq } = await admin.from('bot_quota').select('limit_seconds, used_seconds').eq('profile_id', profileId).maybeSingle();
+      const limit = (bq as { limit_seconds?: number } | null)?.limit_seconds ?? 7200;
+      const used = (bq as { used_seconds?: number } | null)?.used_seconds ?? 0;
+      const remainSec = Math.max(0, limit - used);
+
+      const platform = extractMeetingUrl(meetingUrl);
+      const platformLabel = platform ? (SCHED_PLATFORM_LABEL[platform.platform] ?? 'ห้องประชุม') : 'ห้องประชุม';
+      const joinAtText = new Intl.DateTimeFormat('th-TH', { timeZone: 'Asia/Bangkok', dateStyle: 'long', timeStyle: 'short' }).format(new Date(String(evRow.starts_at)));
+      await pushLineFlex(accessToken, lineId, buildBotConfirmFlex({
+        platformLabel, remainMin: Math.floor(remainSec / 60), lowQuota: remainSec < 900,
+        confirmData: `calsend:${evId}`, title: evRow.title ? String(evRow.title) : undefined, joinAtText,
+      }));
+      await admin.from('recall_calendar_events').update({ confirm_state: 'reminded', confirm_sent_at: now.toISOString(), updated_at: now.toISOString() }).eq('id', evId);
+    }
+  }
 
     await logRun(true);
     return NextResponse.json({ ok: true, ...counts });

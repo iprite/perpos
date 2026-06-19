@@ -11,6 +11,7 @@ import { createAdminClient } from '../../../_lib/supabase';
 import { ok, Err } from '../../../_lib/response';
 import { buildMomHtml, MOM_FOOTER_TEMPLATE, type MomJson } from '@/lib/assistant/mom-html';
 import { sendLineMessages } from '@/lib/line/send-messages';
+import { saveToDrive } from '@/lib/google/drive';
 
 const BUCKET = 'assistant_audio';
 
@@ -52,7 +53,7 @@ export async function POST(req: NextRequest) {
   const admin = createAdminClient();
   const { data: job, error } = await admin
     .from('assistant_jobs')
-    .select('file_name, status, transcript_json, created_at, profile_id, error_message, source')
+    .select('file_name, status, transcript_json, created_at, profile_id, error_message, source, mom_drive_url')
     .eq('id', jobId)
     .eq('org_id', orgId)
     .maybeSingle();
@@ -140,6 +141,30 @@ export async function POST(req: NextRequest) {
     audioUrl = aSigned?.signedUrl ?? '';
   }
 
+  // 3.6 เก็บ MoM ลง Google Drive (ถ้าเปิด save_mom_to_drive + เชื่อม) — best-effort ไม่กระทบการส่ง LINE
+  let momDriveUrl = String(job.mom_drive_url ?? ''); // เคยอัปแล้ว → ใช้ลิงก์เดิม (ปุ่มยังโชว์ตอน re-deliver)
+  const { data: gset } = await admin
+    .from('meeting_calendar_settings')
+    .select('save_mom_to_drive')
+    .eq('profile_id', job.profile_id as string)
+    .maybeSingle();
+  // idempotent: เคยอัปแล้ว (mom_drive_url มีค่า) → ไม่อัปซ้ำ (กันไฟล์ซ้ำถ้า mom-deliver ถูกเรียกซ้ำ)
+  if (!job.mom_drive_url && (gset as { save_mom_to_drive?: boolean } | null)?.save_mom_to_drive) {
+    const safeTitle = String(tj.meeting_title || 'รายงานการประชุม').replace(/[\\/:*?"<>|]/g, ' ').trim().slice(0, 80);
+    // timeout race — กัน Drive API ค้างทำให้ LINE delivery ค้าง (best-effort: เกิน 15 วิ → ข้าม)
+    const link = await Promise.race([
+      saveToDrive(admin, job.profile_id as string, {
+        categoryKey: 'mom', categoryName: 'รายงานการประชุม',
+        fileName: `MoM ${safeTitle} ${dateText}.pdf`, mimeType: 'application/pdf', bytes: pdfBytes,
+      }),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), 15_000)),
+    ]);
+    if (link) {
+      momDriveUrl = link;
+      await admin.from('assistant_jobs').update({ mom_drive_url: link }).eq('id', jobId);
+    }
+  }
+
   // 4. push Flex (ปุ่มดาวน์โหลด) กลับ LINE
   const privacyAudio = isRecall
     ? 'ไฟล์เสียง + รายงาน PDF จะถูกลบอัตโนมัติภายใน 48 ชั่วโมง กรุณาดาวน์โหลดเก็บไว้'
@@ -151,6 +176,10 @@ export async function POST(req: NextRequest) {
   if (audioUrl) {
     footerButtons.push({ type: 'button', style: 'secondary', height: 'sm', margin: 'sm',
       action: { type: 'uri', label: 'ดาวน์โหลดไฟล์เสียง (MP3)', uri: audioUrl } });
+  }
+  if (momDriveUrl) {
+    footerButtons.push({ type: 'button', style: 'secondary', height: 'sm', margin: 'sm',
+      action: { type: 'uri', label: '📁 เปิดใน Google Drive', uri: momDriveUrl } });
   }
 
   const meetingTitle = String(tj.meeting_title || job.file_name || 'รายงานการประชุม');

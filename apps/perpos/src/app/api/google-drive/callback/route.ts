@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
   const state = searchParams.get('state');
   const error = searchParams.get('error');
   const origin = req.headers.get('origin') ?? req.nextUrl.origin;
-  const settingsUrl = `${origin}/settings`;
+  const settingsUrl = `${origin}/assistant/calendar`;
 
   if (error) return NextResponse.redirect(`${settingsUrl}?gdrive=error`);
   if (!code || !state) return NextResponse.redirect(`${settingsUrl}?gdrive=missing`);
@@ -55,6 +55,14 @@ export async function GET(req: NextRequest) {
       token_type: tokens.token_type ?? null,
       updated_at: new Date().toISOString(),
     }, { onConflict: 'profile_id' });
+
+    // เชื่อม Google = เปิดเตือน/ส่งบอทจากปฏิทินอัตโนมัติทันที + บันทึกความยินยอม PDPA
+    //   (บอทจะเข้าบันทึกผู้ร่วมประชุม — ปุ่ม/การ์ดเชื่อมแสดงข้อกำหนดไว้แล้ว) · ผู้ใช้ปิด toggle เองได้ภายหลัง
+    await admin.from('meeting_calendar_settings').upsert(
+      { profile_id: pid, auto_remind_enabled: true, save_mom_to_drive: true, updated_at: new Date().toISOString() },
+      { onConflict: 'profile_id' },
+    );
+    await admin.from('profiles').update({ bot_consent_at: new Date().toISOString() }).eq('id', pid).is('bot_consent_at', null);
 
     return NextResponse.redirect(`${settingsUrl}?gdrive=connected`);
   } catch {

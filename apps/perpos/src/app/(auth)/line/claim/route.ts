@@ -49,7 +49,10 @@ export async function GET(request: NextRequest) {
   if (ge || !tokenHash) return signin('login_failed');
 
   // 4. verifyOtp ผ่าน SSR client → ตั้ง session cookies → เข้าแอป (LINE-only, ไม่ต้องตั้ง password)
-  const dest = new URL(withBasePath('/'), request.url);
+  //    next = path ภายในเท่านั้น (ขึ้นต้น / ไม่ใช่ // = กัน open-redirect) เช่น เชื่อม Google Calendar
+  const nextParam = new URL(request.url).searchParams.get('next');
+  const safeNext = nextParam && /^\/(?!\/)/.test(nextParam) ? nextParam : '/';
+  const dest = new URL(withBasePath(safeNext), request.url);
   const response = NextResponse.redirect(dest);
   const supabase = createServerClient(url, anonKey, {
     cookies: {

@@ -28,6 +28,7 @@ import {
   Calculator,
   Clock,
   CalendarDays,
+  CalendarCheck,
   ClipboardList,
   BedDouble,
   Navigation,
@@ -377,6 +378,12 @@ function buildSttMenuItems(_org: string, labels: Record<string, string> = {}): M
       name: l("transcribe", "ถอดเสียง"),
       href: `/assistant`,
       icon: <Mic className="h-5 w-5" />,
+      roles: allRoles,
+    },
+    {
+      name: l("calendar", "ปฏิทิน"),
+      href: `/assistant/calendar`,
+      icon: <CalendarCheck className="h-5 w-5" />,
       roles: allRoles,
     },
     {

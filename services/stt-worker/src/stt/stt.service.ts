@@ -251,6 +251,11 @@ async function runJob(jobId: string, orgId: string): Promise<void> {
         console.warn(`[stt-worker] LINE notify failed for ${jobId}: ${String(e)}`),
       );
     }
+
+    // 5. Best-effort เก็บไฟล์เสียงต้นฉบับลง Google Drive (opt-in save_audio_to_drive) — ไม่กระทบงาน/ส่ง MoM
+    await saveAudioToDrive(profileId, bytes, mimeType, transcript, job).catch((e) =>
+      console.warn(`[stt-worker] audio→Drive failed for ${jobId}: ${String(e)}`),
+    );
   } catch (err) {
     const rawMsg = err instanceof Error ? err.message : String(err);
     console.error(`[stt-worker] Job ${jobId} failed:`, rawMsg);
@@ -284,6 +289,75 @@ async function deliverMomToLine(jobId: string, orgId: string): Promise<void> {
     signal: AbortSignal.timeout(180_000),
   });
   if (!resp.ok) throw new Error(`mom-deliver responded ${resp.status}`);
+}
+
+// ── Audio → Google Drive (opt-in) ────────────────────────────────────────────
+function mimeToExt(m: string): string {
+  if (m.includes('mpeg') || m.includes('mp3')) return 'mp3';
+  if (m.includes('mp4') || m.includes('m4a') || m.includes('aac')) return 'm4a';
+  if (m.includes('ogg') || m.includes('opus')) return 'ogg';
+  if (m.includes('wav')) return 'wav';
+  if (m.includes('webm')) return 'webm';
+  return 'audio';
+}
+
+// ขอ {accessToken, folderId} จาก Next (เช็ก save_audio_to_drive ให้) → upload bytes ไป Google ตรง
+async function prepareDriveUpload(baseUrl: string, secret: string, profileId: string, refresh: boolean) {
+  const res = await fetch(`${baseUrl}/api/assistant/drive-prepare-upload`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-worker-secret': secret },
+    body: JSON.stringify({ profileId, refresh }),
+    signal: AbortSignal.timeout(30_000),
+  });
+  if (!res.ok) return null;
+  const j = (await res.json().catch(() => null)) as { ok?: boolean; accessToken?: string; folderId?: string } | null;
+  return j?.ok && j.accessToken && j.folderId ? { accessToken: j.accessToken, folderId: j.folderId } : null;
+}
+
+async function uploadAudioBytes(accessToken: string, folderId: string, fileName: string, mimeType: string, bytes: Buffer): Promise<boolean> {
+  const boundary = `perpos_${Math.random().toString(16).slice(2)}`;
+  const meta = JSON.stringify({ name: fileName, parents: [folderId] });
+  const body = Buffer.concat([
+    Buffer.from(`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${meta}\r\n`, 'utf8'),
+    Buffer.from(`--${boundary}\r\nContent-Type: ${mimeType}\r\n\r\n`, 'utf8'),
+    bytes,
+    Buffer.from(`\r\n--${boundary}--\r\n`, 'utf8'),
+  ]);
+  const res = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id', {
+    method: 'POST',
+    headers: {
+      authorization: `Bearer ${accessToken}`,
+      'content-type': `multipart/related; boundary=${boundary}`,
+      'content-length': String(body.length),
+    },
+    body,
+    signal: AbortSignal.timeout(180_000),
+  });
+  return res.ok;
+}
+
+// ขอ {accessToken, folderId} จาก Next (เช็ก save_audio_to_drive ให้) → upload bytes ไป Google ตรง
+async function saveAudioToDrive(
+  profileId: string, bytes: Buffer, mimeType: string,
+  transcript: TranscriptResult, job: Record<string, unknown>,
+): Promise<void> {
+  if (!profileId) return;
+  const baseUrl = (process.env.APP_BASE_URL ?? 'https://app.perpos.io').replace(/\/$/, '');
+  const secret = (process.env.WORKER_SECRET ?? '').trim();
+
+  const prep = await prepareDriveUpload(baseUrl, secret, profileId, false);
+  if (!prep) return; // ปิด/ไม่เชื่อม
+
+  const title = String((transcript as { meeting_title?: string })?.meeting_title || job.file_name || 'recording')
+    .replace(/[\\/:*?"<>|]/g, ' ').trim().slice(0, 80);
+  const dateText = new Intl.DateTimeFormat('th-TH', { timeZone: 'Asia/Bangkok', day: 'numeric', month: 'short', year: 'numeric' }).format(new Date());
+  const fileName = `${title} ${dateText}.${mimeToExt(mimeType)}`;
+
+  if (await uploadAudioBytes(prep.accessToken, prep.folderId, fileName, mimeType, bytes)) return;
+
+  // อาจเพราะโฟลเดอร์ถูกลบ → ขอ folder ใหม่ (refresh) แล้วลองครั้งเดียว
+  const prep2 = await prepareDriveUpload(baseUrl, secret, profileId, true);
+  if (prep2) await uploadAudioBytes(prep2.accessToken, prep2.folderId, fileName, mimeType, bytes);
 }
 
 // ── Storage ──────────────────────────────────────────────────────────────────

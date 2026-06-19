@@ -1,3 +1,5 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
+
 type DriveTokenRow = {
   profile_id: string;
   refresh_token: string;
@@ -98,10 +100,13 @@ async function driveApiJson(accessToken: string, url: string, init?: RequestInit
   });
 }
 
-export async function ensureDriveFolder(accessToken: string, folderName: string, existingFolderId?: string | null) {
+/** หา/สร้างโฟลเดอร์ใน parentId ('root' หรือ id โฟลเดอร์อื่น) — รองรับ nested */
+export async function ensureDriveFolder(
+  accessToken: string, folderName: string, existingFolderId?: string | null, parentId: string = "root",
+) {
   if (existingFolderId) return existingFolderId;
 
-  const q = `name='${folderName.replace(/'/g, "\\'")}' and mimeType='application/vnd.google-apps.folder' and 'root' in parents and trashed=false`;
+  const q = `name='${folderName.replace(/'/g, "\\'")}' and mimeType='application/vnd.google-apps.folder' and '${parentId}' in parents and trashed=false`;
   const listUrl = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=${encodeURIComponent(
     "files(id,name)"
   )}&pageSize=1`;
@@ -112,7 +117,7 @@ export async function ensureDriveFolder(accessToken: string, folderName: string,
   const created = (await driveApiJson(accessToken, "https://www.googleapis.com/drive/v3/files?fields=id", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ name: folderName, mimeType: "application/vnd.google-apps.folder", parents: ["root"] }),
+    body: JSON.stringify({ name: folderName, mimeType: "application/vnd.google-apps.folder", parents: [parentId] }),
   })) as { id: string };
   return created.id;
 }
@@ -181,4 +186,80 @@ export async function getDriveAccessTokenForRow(
     token_type: refreshed.token_type ?? row.token_type,
   });
   return refreshed.access_token;
+}
+
+const DRIVE_ROOT_FOLDER = "Perpos Assistant";
+
+/**
+ * เก็บไฟล์ลง Google Drive ผู้ใช้: โฟลเดอร์ "Perpos Assistant" / <หมวด> → คืน webViewLink
+ * best-effort: คืน null ถ้าไม่เชื่อม/พลาด (ห้าม throw — ห้าม block MoM/LINE delivery)
+ * cache: root → google_drive_tokens.drive_root_folder_id · subfolder → drive_subfolders (category→id)
+ */
+/**
+ * โหลด token + ensure root "Perpos Assistant" + subfolder ตามหมวด (cache id) → คืน {accessToken, folderId}
+ * คืน null ถ้าไม่เชื่อม/พลาด · ใช้ร่วม saveToDrive (Next.js) + endpoint drive-prepare-upload (worker)
+ */
+export async function resolveDriveFolder(
+  admin: SupabaseClient,
+  profileId: string,
+  categoryKey: string,
+  categoryName: string,
+  forceRefresh = false,   // ละเลย id ที่ cache ไว้ → ค้นหา/สร้างใหม่ (กรณีโฟลเดอร์ถูกลบใน Drive)
+): Promise<{ accessToken: string; folderId: string } | null> {
+  try {
+    const { data } = await admin
+      .from("google_drive_tokens")
+      .select("profile_id, refresh_token, access_token, expires_at, scope, token_type, drive_root_folder_id, drive_subfolders")
+      .eq("profile_id", profileId)
+      .maybeSingle();
+    const row = data as (DriveTokenRow & { drive_subfolders: Record<string, string> | null }) | null;
+    if (!row?.refresh_token) return null;
+
+    const accessToken = await getDriveAccessTokenForRow(row, async (patch) => {
+      await admin.from("google_drive_tokens").update({ ...patch, updated_at: new Date().toISOString() }).eq("profile_id", profileId);
+    });
+
+    // ensureDriveFolder ค้นหา-ตามชื่อก่อนสร้าง → forceRefresh ปลอดภัย (เจอของจริง = ใช้, หาย = สร้าง) ไม่ duplicate
+    let rootId = forceRefresh ? null : row.drive_root_folder_id;
+    if (!rootId) {
+      rootId = await ensureDriveFolder(accessToken, DRIVE_ROOT_FOLDER);
+      await admin.from("google_drive_tokens").update({ drive_root_folder_id: rootId, updated_at: new Date().toISOString() }).eq("profile_id", profileId);
+    }
+
+    const subs: Record<string, string> = { ...(row.drive_subfolders ?? {}) };
+    let folderId = forceRefresh ? undefined : subs[categoryKey];
+    if (!folderId) {
+      folderId = await ensureDriveFolder(accessToken, categoryName, null, rootId);
+      subs[categoryKey] = folderId;
+      await admin.from("google_drive_tokens").update({ drive_subfolders: subs, updated_at: new Date().toISOString() }).eq("profile_id", profileId);
+    }
+    return { accessToken, folderId };
+  } catch {
+    return null;
+  }
+}
+
+export async function saveToDrive(
+  admin: SupabaseClient,
+  profileId: string,
+  file: { categoryKey: string; categoryName: string; fileName: string; mimeType: string; bytes: Uint8Array },
+): Promise<string | null> {
+  const attempt = async (forceRefresh: boolean): Promise<string | null> => {
+    const resolved = await resolveDriveFolder(admin, profileId, file.categoryKey, file.categoryName, forceRefresh);
+    if (!resolved) return null;
+    const uploaded = await uploadFileToDrive({
+      accessToken: resolved.accessToken, fileName: file.fileName, mimeType: file.mimeType, bytes: file.bytes, folderId: resolved.folderId,
+    });
+    return uploaded.webViewLink ?? null;
+  };
+  try {
+    return await attempt(false);
+  } catch {
+    // อาจเพราะโฟลเดอร์ที่ cache ไว้ถูกลบ → ล้าง cache แล้วลองใหม่ครั้งเดียว
+    try {
+      return await attempt(true);
+    } catch {
+      return null;
+    }
+  }
 }

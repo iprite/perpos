@@ -39,6 +39,30 @@ export function createSignedOAuthState(profileId: string) {
   return `${encoded}.${sig}`;
 }
 
+const GOOGLE_SCOPES = [
+  "https://www.googleapis.com/auth/drive.file",
+  "https://www.googleapis.com/auth/calendar.events",
+].join(" ");
+
+/** สร้าง Google OAuth consent URL (offline + consent → ได้ refresh_token) — Drive + Calendar */
+export function buildGoogleConnectUrl(profileId: string, origin: string): string {
+  const clientId = String(process.env.GOOGLE_OAUTH_CLIENT_ID ?? "").trim();
+  if (!clientId) throw new Error("Google OAuth not configured");
+  const explicit = String(process.env.GOOGLE_OAUTH_DRIVE_REDIRECT_URI ?? "").trim();
+  const redirectUri = explicit || `${origin}/api/google-drive/callback`;
+
+  const url = new URL("https://accounts.google.com/o/oauth2/v2/auth");
+  url.searchParams.set("client_id", clientId);
+  url.searchParams.set("redirect_uri", redirectUri);
+  url.searchParams.set("response_type", "code");
+  url.searchParams.set("scope", GOOGLE_SCOPES);
+  url.searchParams.set("access_type", "offline");
+  url.searchParams.set("prompt", "consent");
+  url.searchParams.set("include_granted_scopes", "true");
+  url.searchParams.set("state", createSignedOAuthState(profileId));
+  return url.toString();
+}
+
 export function verifySignedOAuthState(state: string) {
   const secret = String(process.env.GOOGLE_OAUTH_STATE_SECRET ?? "").trim();
   if (!secret) throw new Error("Missing GOOGLE_OAUTH_STATE_SECRET");

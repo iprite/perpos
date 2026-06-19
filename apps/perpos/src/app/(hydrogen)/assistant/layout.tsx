@@ -14,7 +14,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Mic, BarChart3, CreditCard } from 'lucide-react';
+import { Mic, BarChart3, CreditCard, CalendarCheck } from 'lucide-react';
 import { PageShell } from '@/components/ui/page-shell';
 
 type Tab = {
@@ -32,6 +32,13 @@ const TABS: Tab[] = [
     title: 'ถอดเสียงเป็นข้อความ',
     subtitle: 'อัปโหลดไฟล์เสียง/วิดีโอ ระบบจะถอดเป็นรายงานการประชุม (MoM) พร้อมแยกผู้พูด',
     icon: <Mic className="h-5 w-5" />,
+  },
+  {
+    href: '/assistant/calendar',
+    label: 'ปฏิทิน',
+    title: 'ปฏิทินประชุม',
+    subtitle: 'เชื่อม Google Calendar เพื่อเตือนและส่งบอทเข้าประชุมอัตโนมัติก่อนเริ่ม',
+    icon: <CalendarCheck className="h-5 w-5" />,
   },
   {
     href: '/assistant/usage',
