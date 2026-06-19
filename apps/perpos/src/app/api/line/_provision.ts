@@ -14,6 +14,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 
 const DEFAULT_QUOTA_SECONDS = 18000; // 300 นาที (stt — อัปไฟล์เอง)
 const DEFAULT_BOT_QUOTA_SECONDS = 7200; // 120 นาที (bot — ประชุมผ่าน Recall)
+const DEFAULT_PDF_QUOTA_PAGES = 20; // 20 หน้า (pdf_compress — trial บีบ PDF)
 
 export type ProvisionResult = { profileId: string; orgId: string; displayName: string; isNew: boolean };
 
@@ -139,6 +140,23 @@ async function ensureBotQuota(admin: SupabaseClient, profileId: string): Promise
   await admin.from('bot_quota').insert({ profile_id: profileId, limit_seconds: botSeconds, used_seconds: 0 });
 }
 
+/** สร้าง pdf_quota row เริ่มต้น ถ้ายังไม่มี (อ่าน default จาก pdf_settings) — kind pdf_compress */
+async function ensurePdfQuota(admin: SupabaseClient, profileId: string): Promise<void> {
+  const { data: existing } = await admin
+    .from('pdf_quota')
+    .select('profile_id')
+    .eq('profile_id', profileId)
+    .maybeSingle();
+  if (existing) return;
+  const { data: pdfSettings } = await admin
+    .from('pdf_settings')
+    .select('default_quota_pages')
+    .eq('id', true)
+    .maybeSingle();
+  const quotaPages = (pdfSettings?.default_quota_pages as number | undefined) ?? DEFAULT_PDF_QUOTA_PAGES;
+  await admin.from('pdf_quota').insert({ profile_id: profileId, limit_pages: quotaPages, used_pages: 0 });
+}
+
 export async function provisionLineUser(admin: SupabaseClient, lineUserId: string): Promise<ProvisionResult> {
   // 1. profile — find or create (shadow auth user)
   const { data: existing } = await admin
@@ -187,6 +205,11 @@ export async function provisionLineUser(admin: SupabaseClient, lineUserId: strin
     { user_id: profileId, module_key: 'stt' },
     { module_key: 'stt', user_id: profileId, granted_by: profileId, is_enabled: true });
 
+  // kind ที่ 2: บีบ PDF (pdf_compress) — แจก trial อัตโนมัติเหมือน stt (ดู docs/PDF_COMPRESS_FEATURE.md)
+  await ensureRow(admin, 'personal_module_grants',
+    { user_id: profileId, module_key: 'pdf_compress' },
+    { module_key: 'pdf_compress', user_id: profileId, granted_by: profileId, is_enabled: true });
+
   // 4. home org pointers + quota
   //    personal_org_id = แหล่งความจริงของ home org (assistant-auth.resolveHomeOrg อ่านตรงนี้)
   //    line_active_org_id = org ที่ active สำหรับ ERP context (อาจถูกสลับด้วย org switcher)
@@ -196,6 +219,7 @@ export async function provisionLineUser(admin: SupabaseClient, lineUserId: strin
   }
   await ensureQuota(admin, profileId);
   await ensureBotQuota(admin, profileId);
+  await ensurePdfQuota(admin, profileId);
 
   return { profileId, orgId, displayName, isNew };
 }

@@ -15,7 +15,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 /** module_key ของผู้ช่วยแต่ละตัวใต้ร่ม assistant — เพิ่ม kind ใหม่ตรงนี้ */
-export const ASSISTANT_KINDS = ['stt'] as const;
+export const ASSISTANT_KINDS = ['stt', 'pdf_compress'] as const;
 export type AssistantKind = (typeof ASSISTANT_KINDS)[number];
 
 /**
