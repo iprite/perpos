@@ -47,9 +47,11 @@ async function runJob(jobId: string, orgId: string): Promise<void> {
     const profileId = String(job.profile_id ?? '');
 
     // 3. หักโควต้าตามจำนวนหน้า (atomic reserve) — บีบ deterministic ราคาถูก จึงบีบก่อนแล้วค่อยหัก
-    //    ⚠️ บีบไม่ลง (noGain) = ไม่คิดหน้า (ส่งไฟล์เดิมคืนฟรี) — หักเฉพาะตอนบีบได้จริง
+    //    ⚠️ การันตี: คิดโควต้าเฉพาะเมื่อบีบได้ถึงเกณฑ์ (default 30%) — ต่ำกว่านั้น = ส่งไฟล์ให้ฟรี
+    const minGain = Number(process.env.PDF_MIN_GAIN_RATIO) >= 0 ? Number(process.env.PDF_MIN_GAIN_RATIO) : 0.30;
+    const billable = !result.noGain && result.ratio >= minGain;
     let reserved = false;
-    if (!result.noGain) {
+    if (billable) {
       const reserve = (await admin.rpc('consume_pdf_quota', {
         p_profile_id: profileId, p_pages: result.pages, p_job_id: jobId, p_source: 'line',
       })).data as { ok?: boolean; remaining_pages?: number } | null;
@@ -90,6 +92,7 @@ async function runJob(jobId: string, orgId: string): Promise<void> {
             size_after: result.sizeAfter,
             ratio: result.ratio,
             no_gain: result.noGain,
+            charged: reserved,   // คิดโควต้าครั้งนี้ไหม (false ถ้าบีบ < เกณฑ์ → ฟรี)
           },
           updated_at: new Date().toISOString(),
         })
