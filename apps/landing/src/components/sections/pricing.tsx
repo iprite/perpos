@@ -120,7 +120,7 @@ export function PricingSection() {
                 <Button
                   variant={isPopular ? "white" : "secondary"}
                   className="w-full"
-                  href="mailto:contact@perpos.io"
+                  href="mailto:contact@perpos.ai"
                 >
                   {plan.cta}
                 </Button>

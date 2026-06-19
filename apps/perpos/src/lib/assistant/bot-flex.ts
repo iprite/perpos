@@ -5,7 +5,7 @@
 
 /** ลิงก์หน้าเติมโควต้า (เปิดในเบราว์เซอร์ — user login ผ่าน LINE อยู่แล้ว) */
 export function billingUrl(): string {
-  const base = (process.env.APP_BASE_URL ?? 'https://app.perpos.io').replace(/\/$/, '');
+  const base = (process.env.APP_BASE_URL ?? 'https://app.perpos.ai').replace(/\/$/, '');
   return `${base}/assistant/billing`;
 }
 

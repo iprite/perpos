@@ -18,7 +18,7 @@
 ```
 
 **สิ่งที่ลูกค้าได้:**
-- URL path เฉพาะของตัวเอง: `perpos.io/<org-slug>/...`
+- URL path เฉพาะของตัวเอง: `perpos.ai/<org-slug>/...`
 - Data isolation — ไม่เห็นข้อมูลองค์กรอื่น
 - Module เฉพาะที่ออกแบบตามธุรกิจของเขา
 - Shared modules (accounting, payroll, assistant) ที่เปิด/ปิดได้

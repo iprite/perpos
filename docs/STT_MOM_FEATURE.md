@@ -40,7 +40,7 @@
 
 ## 1. ภาพรวม
 อัปไฟล์เสียง/วิดีโอ → AI (Gemini) ถอด+สรุปเป็น **รายงานการประชุม (Minutes of Meeting)** → ได้ **PDF**
-- **2 ช่องทาง:** เว็บ (app.perpos.io) + **LINE Bot** (`/mom`) ใช้ pipeline เดียวกัน
+- **2 ช่องทาง:** เว็บ (app.perpos.ai) + **LINE Bot** (`/mom`) ใช้ pipeline เดียวกัน
 - **Quota:** จำกัดเป็น "นาที" ต่อคน (default 300 นาที, admin ปรับได้)
 - **Auto-onboarding:** แอด LINE → สร้าง account อัตโนมัติ (ไม่ต้องสมัครเว็บ) + magic-link เคลมบัญชีภายหลัง
 - **MoM JSON:** `meeting_title, executive_summary, key_topics[], decisions[], action_items[], recommendations[] (ข้อเสนอแนะจาก AI), speakers[]` — **ไม่มี transcript คำต่อคำ/timestamp** (เน้นสรุป → output เล็ก เร็ว ไม่ชน 64k token cap)
@@ -78,7 +78,7 @@ cd services/stt-worker && gcloud run deploy perpos-stt-worker --source . \
   --set-secrets "WORKER_SECRET=WORKER_SECRET:latest,GEMINI_API_KEY=GEMINI_API_KEY:latest,RECALL_API_KEY=RECALL_API_KEY:latest,LINE_MESSAGING_CHANNEL_ACCESS_TOKEN=LINE_MESSAGING_CHANNEL_ACCESS_TOKEN:latest,SUPABASE_URL=SUPABASE_URL:latest,SUPABASE_SERVICE_ROLE_KEY=SUPABASE_SERVICE_ROLE_KEY:latest"
 ```
 > ⚠️ **`--set-secrets` แทนที่ secret ทั้งชุด** — ต้องใส่ `RECALL_API_KEY` ด้วยทุกครั้ง (worker ใช้ดึง recording จาก Recall สำหรับงานบอทประชุม) · ถ้าตกหล่น → งานบอทจะ fail "ยังไม่ได้ตั้งค่า RECALL_API_KEY" · `RECALL_REGION` เป็น env (persist ผ่าน `--update-env-vars`)
-- **env `APP_BASE_URL=https://app.perpos.io`** ต้องตั้ง (ตั้งครั้งเดียวด้วย `--update-env-vars`, persist ข้าม deploy ที่ใช้ `--set-secrets`)
+- **env `APP_BASE_URL=https://app.perpos.ai`** ต้องตั้ง (ตั้งครั้งเดียวด้วย `--update-env-vars`, persist ข้าม deploy ที่ใช้ `--set-secrets`)
 - **`--no-cpu-throttling` บังคับ** — งาน background หลังตอบ 202 ใช้เวลา 1-3 นาที ถ้า CPU throttle จะค้าง
 
 ### pdf-renderer (Cloud Run `perpos-pdf-renderer`, asia-southeast1)
@@ -90,8 +90,8 @@ cd services/stt-worker && gcloud run deploy perpos-stt-worker --source . \
 - Deploy: `cd services/pdf-renderer && gcloud run deploy perpos-pdf-renderer --source . --region asia-southeast1 --project perpos --allow-unauthenticated`
 
 ### App (Vercel)
-- โดเมน **`app.perpos.io`** (⚠️ `perpos.io` เป็น 301 redirect — อย่าใช้)
-- **Vercel env ที่ต้องมี:** `STT_WORKER_URL`, `WORKER_SECRET`, `PDF_RENDER_URL`, `PDF_SERVICE_SECRET`, `APP_BASE_URL=https://app.perpos.io`, + LINE/Supabase keys เดิม
+- โดเมน **`app.perpos.ai`** (⚠️ `perpos.ai` เป็น 301 redirect — อย่าใช้)
+- **Vercel env ที่ต้องมี:** `STT_WORKER_URL`, `WORKER_SECRET`, `PDF_RENDER_URL`, `PDF_SERVICE_SECRET`, `APP_BASE_URL=https://app.perpos.ai`, + LINE/Supabase keys เดิม
 - `GEMINI_API_KEY` ต้องเป็น **paid tier** (free tier: pro quota=0, flash โดน 503)
 - Cron `/api/assistant/scheduler` (Google Cloud Scheduler ทุก 1 นาที) ทำ stuck-job sweep ด้วย
 
@@ -147,7 +147,7 @@ migrations: `2026061512..._assistant_transcription`, `..0616120000_line_mom`, `.
 
 ## 7. ⚠️ บทเรียน/กับดักที่แก้ไปแล้ว (อย่าทำซ้ำ)
 1. **LINE ส่งไฟล์ PDF แนบตรงไม่ได้** → ส่ง signed-URL link (Flex button) เท่านั้น
-2. **APP_BASE_URL ต้อง app.perpos.io** — perpos.io 301 redirect ทำให้ callback mom-deliver ได้ 404
+2. **APP_BASE_URL ต้อง app.perpos.ai** — perpos.ai 301 redirect ทำให้ callback mom-deliver ได้ 404
 3. **WORKER_SECRET ใน Secret Manager มี trailing newline** → ต้อง `.trim()` ทั้งสองฝั่ง
 4. **Cloud Run CPU throttling** ฆ่างาน background หลังตอบ 202 → stt-worker ต้อง `--no-cpu-throttling`
 5. **Gemini output cap = 65,536 tokens** (ขยายไม่ได้) → MoM เป็นสรุป ไม่ถอด verbatim

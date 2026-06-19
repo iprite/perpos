@@ -1,4 +1,4 @@
-export const APP_URL = "https://app.perpos.io/signin";
+export const APP_URL = "https://app.perpos.ai/signin";
 
 export const navigationItems = [
   { label: "ฟีเจอร์", href: "#features" },
@@ -18,7 +18,7 @@ export const heroContent = {
     "PERPOS รวมงานขาย งานซื้อ บัญชี ภาษี และเงินเดือน พร้อมผู้ช่วย AI ผ่าน LINE — แพลตฟอร์มเดียวที่ออกแบบมาเพื่อ SME ไทยโดยเฉพาะ",
   primaryCta: {
     label: "ติดต่อทีมงาน",
-    href: "mailto:contact@perpos.io",
+    href: "mailto:contact@perpos.ai",
   },
   secondaryCta: {
     label: "ดูฟีเจอร์ทั้งหมด",
@@ -235,7 +235,7 @@ export const footerContent = {
       title: "บริษัท",
       links: [
         { label: "คำถามที่พบบ่อย", href: "#faq" },
-        { label: "ติดต่อเรา", href: "mailto:contact@perpos.io" },
+        { label: "ติดต่อเรา", href: "mailto:contact@perpos.ai" },
         { label: "เข้าสู่ระบบ", href: APP_URL },
       ],
     },

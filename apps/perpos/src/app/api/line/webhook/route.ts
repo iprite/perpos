@@ -1636,7 +1636,7 @@ async function handleFutureMeetingLink(
   const sendConnectCard = async () => {
     const token = crypto.randomBytes(24).toString('base64url');
     await admin.from('web_login_tokens').insert({ token, profile_id: profileId, expires_at: new Date(Date.now() + 5 * 60 * 1000).toISOString() });
-    const base = (process.env.APP_BASE_URL ?? 'https://app.perpos.io').replace(/\/$/, '');
+    const base = (process.env.APP_BASE_URL ?? 'https://app.perpos.ai').replace(/\/$/, '');
     await replyLine(replyToken, [buildConnectCalendarFlex(`${base}/line/claim?t=${token}&next=${encodeURIComponent('/line/connect-calendar')}`)]);
   };
 
@@ -2281,7 +2281,7 @@ export async function POST(req: NextRequest) {
       const token = crypto.randomBytes(24).toString('base64url');
       const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
       await admin.from('web_login_tokens').insert({ token, profile_id: profile.id, expires_at: expiresAt });
-      const baseUrl = (process.env.APP_BASE_URL ?? 'https://app.perpos.io').replace(/\/$/, '');
+      const baseUrl = (process.env.APP_BASE_URL ?? 'https://app.perpos.ai').replace(/\/$/, '');
       await replyText(replyToken,
         '🔗 เปิดลิงก์นี้เพื่อเข้าเว็บผู้ช่วย AI (เข้าระบบอัตโนมัติ ดูประวัติ/ดาวน์โหลดรายงาน)\n' +
         `${baseUrl}/line/claim?t=${token}\n\n` +
@@ -2324,7 +2324,7 @@ export async function POST(req: NextRequest) {
 
       if (cmd === 'tmc' && !args[0]) {
         const token = await upsertMobileToken(profile.id, TMC_ORG_ID);
-        const baseUrl = process.env.NEXT_PUBLIC_BASE_URL ?? 'https://app.perpos.io';
+        const baseUrl = process.env.NEXT_PUBLIC_BASE_URL ?? 'https://app.perpos.ai';
         await replyText(replyToken,
           `🏠 บันทึกการเข้าพัก TMC\n\n` +
           `${baseUrl}/tmc/checkin?t=${token}\n\n` +

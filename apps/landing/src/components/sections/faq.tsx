@@ -11,7 +11,7 @@ export function FaqSection() {
           <SectionHeading
             eyebrow="FAQ"
             title="คำถามที่พบบ่อย"
-            description="ยังมีคำถามอื่น? ติดต่อเราได้ที่ contact@perpos.io"
+            description="ยังมีคำถามอื่น? ติดต่อเราได้ที่ contact@perpos.ai"
           />
           <Accordion items={faqContent} />
         </div>

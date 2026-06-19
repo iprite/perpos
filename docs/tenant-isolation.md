@@ -332,8 +332,8 @@ describe('Tenant Isolation', () => {
 
   beforeAll(async () => {
     // Sign in test users (ใช้ Supabase test accounts)
-    const resA = await supabase.auth.signInWithPassword({ email: 'test-a@perpos.io', password: '...' });
-    const resB = await supabase.auth.signInWithPassword({ email: 'test-b@perpos.io', password: '...' });
+    const resA = await supabase.auth.signInWithPassword({ email: 'test-a@perpos.ai', password: '...' });
+    const resB = await supabase.auth.signInWithPassword({ email: 'test-b@perpos.ai', password: '...' });
     tokenA = resA.data.session!.access_token;
     tokenB = resB.data.session!.access_token;
   });

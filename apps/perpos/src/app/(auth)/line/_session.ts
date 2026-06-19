@@ -16,7 +16,7 @@ import { withBasePath } from '@/utils/base-path';
 export const PENDING_UID_COOKIE = 'line_pending_uid';
 
 export function appBaseUrl(): string {
-  return (process.env.APP_BASE_URL ?? 'https://app.perpos.io').replace(/\/$/, '');
+  return (process.env.APP_BASE_URL ?? 'https://app.perpos.ai').replace(/\/$/, '');
 }
 
 /**

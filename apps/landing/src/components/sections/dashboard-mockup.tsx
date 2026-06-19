@@ -67,7 +67,7 @@ export function DashboardMockup() {
         </div>
         <div className="mx-auto flex items-center gap-2 rounded-md bg-white px-3 py-1 text-xs text-foreground-muted ring-1 ring-border">
           <span className="h-2.5 w-2.5 rounded-full bg-secondary/70" />
-          app.perpos.io/p2p/accounting
+          app.perpos.ai/p2p/accounting
         </div>
       </div>
 

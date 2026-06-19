@@ -102,7 +102,7 @@ export default function TermsPage() {
         <section className="rounded-xl border border-gray-200 bg-gray-50 p-4">
           <h2 className="text-base font-semibold text-gray-900">ติดต่อเรา</h2>
           <p className="mt-2">
-            หากมีคำถามเกี่ยวกับข้อกำหนดการให้บริการ กรุณาติดต่อ <a className="font-medium text-gray-900 underline hover:text-gray-700" href="mailto:support@perpos.io">support@perpos.io</a>
+            หากมีคำถามเกี่ยวกับข้อกำหนดการให้บริการ กรุณาติดต่อ <a className="font-medium text-gray-900 underline hover:text-gray-700" href="mailto:support@perpos.ai">support@perpos.ai</a>
           </p>
           <p className="mt-2">
             ต้องการดูนโยบายความเป็นส่วนตัว? <Link className="font-medium text-gray-900 underline hover:text-gray-700" href="/privacy">ไปที่ /privacy</Link>

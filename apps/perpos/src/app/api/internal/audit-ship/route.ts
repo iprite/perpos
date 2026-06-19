@@ -7,7 +7,7 @@
  * Authentication: same CRON_SECRET used by the assistant scheduler.
  *
  * Trigger: call from Google Cloud Scheduler every 5 minutes:
- *   POST https://perpos.io/api/internal/audit-ship
+ *   POST https://perpos.ai/api/internal/audit-ship
  *   Authorization: Bearer <CRON_SECRET>
  *
  * Env vars:

@@ -13,7 +13,7 @@ import { randomBytes } from 'crypto';
 import { withBasePath } from '@/utils/base-path';
 
 function appBaseUrl(): string {
-  return (process.env.APP_BASE_URL ?? 'https://app.perpos.io').replace(/\/$/, '');
+  return (process.env.APP_BASE_URL ?? 'https://app.perpos.ai').replace(/\/$/, '');
 }
 
 function sanitizeReturnTo(raw: string | null): string {

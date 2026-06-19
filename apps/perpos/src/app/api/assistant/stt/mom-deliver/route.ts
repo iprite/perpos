@@ -178,8 +178,8 @@ export async function POST(req: NextRequest) {
   const privacyAudio = isRecall
     ? 'ไฟล์เสียง + รายงาน PDF จะถูกลบอัตโนมัติภายใน 48 ชั่วโมง กรุณาดาวน์โหลดเก็บไว้'
     : 'ไฟล์เสียงถูกลบออกจากระบบทันทีหลังประมวลผลเสร็จ · รายงาน PDF นี้จะถูกลบอัตโนมัติภายใน 48 ชั่วโมง กรุณาดาวน์โหลดเก็บไว้';
-  // ลิงก์ดาวน์โหลดสั้น perpos domain (app.perpos.io/f/<code>) → proxy สร้าง signed URL สด · ไฟล์หมดอายุ → หน้า "ไฟล์หมดอายุ"
-  const fileBase = (process.env.APP_BASE_URL ?? 'https://app.perpos.io').replace(/\/$/, '');
+  // ลิงก์ดาวน์โหลดสั้น perpos domain (app.perpos.ai/f/<code>) → proxy สร้าง signed URL สด · ไฟล์หมดอายุ → หน้า "ไฟล์หมดอายุ"
+  const fileBase = (process.env.APP_BASE_URL ?? 'https://app.perpos.ai').replace(/\/$/, '');
   const shortLink = async (kind: 'mom' | 'audio') => {
     const code = crypto.randomBytes(6).toString('base64url'); // 8 ตัวอักษร unguessable
     await admin.from('file_links').insert({ code, job_id: jobId, kind });
