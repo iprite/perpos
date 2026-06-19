@@ -47,22 +47,27 @@ async function runJob(jobId: string, orgId: string): Promise<void> {
     const profileId = String(job.profile_id ?? '');
 
     // 3. หักโควต้าตามจำนวนหน้า (atomic reserve) — บีบ deterministic ราคาถูก จึงบีบก่อนแล้วค่อยหัก
-    const reserve = (await admin.rpc('consume_pdf_quota', {
-      p_profile_id: profileId, p_pages: result.pages, p_job_id: jobId, p_source: 'line',
-    })).data as { ok?: boolean; remaining_pages?: number } | null;
-    if (!reserve?.ok) {
-      const remain = Math.max(0, reserve?.remaining_pages ?? 0);
-      console.log(`[pdf-worker] job ${jobId} quota exceeded (file ${result.pages}p, remain ${remain}p)`);
-      await admin.from('assistant_jobs').update({
-        status: 'failed',
-        error_message: `โควต้าไม่พอ — ไฟล์นี้ ${result.pages} หน้า แต่โควต้าคงเหลือ ${remain} หน้า`,
-        updated_at: new Date().toISOString(),
-      }).eq('id', jobId);
-      await deliverToLine(jobId, orgId).catch(() => undefined);
-      return;
+    //    ⚠️ บีบไม่ลง (noGain) = ไม่คิดหน้า (ส่งไฟล์เดิมคืนฟรี) — หักเฉพาะตอนบีบได้จริง
+    let reserved = false;
+    if (!result.noGain) {
+      const reserve = (await admin.rpc('consume_pdf_quota', {
+        p_profile_id: profileId, p_pages: result.pages, p_job_id: jobId, p_source: 'line',
+      })).data as { ok?: boolean; remaining_pages?: number } | null;
+      if (!reserve?.ok) {
+        const remain = Math.max(0, reserve?.remaining_pages ?? 0);
+        console.log(`[pdf-worker] job ${jobId} quota exceeded (file ${result.pages}p, remain ${remain}p)`);
+        await admin.from('assistant_jobs').update({
+          status: 'failed',
+          error_message: `โควต้าไม่พอ — ไฟล์นี้ ${result.pages} หน้า แต่โควต้าคงเหลือ ${remain} หน้า`,
+          updated_at: new Date().toISOString(),
+        }).eq('id', jobId);
+        await deliverToLine(jobId, orgId).catch(() => undefined);
+        return;
+      }
+      reserved = true;
     }
 
-    // จองโควต้าสำเร็จ → งานหลังจากนี้ล้ม ต้องคืน (refund_pdf_job idempotent)
+    // จองโควต้าแล้ว → งานหลังจากนี้ล้ม ต้องคืน (refund_pdf_job idempotent)
     try {
       // 4. อัปผลลัพธ์เข้า bucket (ถ้า noGain = คืนไฟล์เดิม ก็อัปไว้ให้ดาวน์โหลดได้)
       const outputPath = `${orgId}/${jobId}-compressed.pdf`;
@@ -101,7 +106,7 @@ async function runJob(jobId: string, orgId: string): Promise<void> {
       await deliverToLine(jobId, orgId);
     } catch (postErr) {
       // ล้มหลังจองโควต้า → คืนโควต้า (idempotent) แล้วโยนต่อให้ outer catch จัดการ
-      await admin.rpc('refund_pdf_job', { p_job_id: jobId }).then(() => undefined, () => undefined);
+      if (reserved) await admin.rpc('refund_pdf_job', { p_job_id: jobId }).then(() => undefined, () => undefined);
       throw postErr;
     }
   } catch (err) {
