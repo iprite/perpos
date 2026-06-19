@@ -372,7 +372,7 @@ const doc = new Document({
         ]),
         spacer(200),
         h2('1.2 การเข้าสู่ระบบ'),
-        para('TMC Management เป็นส่วนหนึ่งของ PERPOS เข้าใช้งานผ่าน https://perpos.io และเลือกเมนู TMC จาก Sidebar ด้านซ้าย'),
+        para('TMC Management เป็นส่วนหนึ่งของ PERPOS เข้าใช้งานผ่าน https://perpos.ai และเลือกเมนู TMC จาก Sidebar ด้านซ้าย'),
         note('ต้องล็อกอินด้วยบัญชี Google หรือ LINE ก่อนใช้งาน'),
         pageBreak(),
 
@@ -653,7 +653,7 @@ const doc = new Document({
 
         h2('7.1 การผูกบัญชี LINE'),
         flowBox([
-          'เข้าสู่ระบบที่ https://perpos.io',
+          'เข้าสู่ระบบที่ https://perpos.ai',
           'ไปที่การตั้งค่าบัญชี → เชื่อมต่อ LINE',
           'คัดลอก Token ที่ได้รับ',
           'ส่งคำสั่ง /link <token> ใน LINE Bot',
@@ -752,7 +752,7 @@ const doc = new Document({
         }),
         new Paragraph({
           alignment: AlignmentType.CENTER,
-          children: [new TextRun({ text: 'https://perpos.io', size: 22, font: 'Sarabun', color: '2563EB' })],
+          children: [new TextRun({ text: 'https://perpos.ai', size: 22, font: 'Sarabun', color: '2563EB' })],
         }),
       ],
     },

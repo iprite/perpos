@@ -34,7 +34,7 @@ import CostSimulator from "./cost-simulator";
 import { translations, MENU_AGENTS_TRANSLATED } from "./locales";
 import { useLanguage } from "./language-context";
 
-const APP_SIGNIN_URL = "https://app.perpos.io/signin";
+const APP_SIGNIN_URL = "https://app.perpos.ai/signin";
 
 const MENU_AGENTS = [
   { name: "Sales Agent", slug: "sales", desc: "เสนอราคาทาง LINE ใน 3 วินาที", icon: MessageSquare, color: "text-blue-600 bg-blue-50 border-blue-100" },
@@ -102,7 +102,7 @@ export default function LandingPage() {
     setTimeout(() => {
       setSubmitStatus("success");
 
-      const emailTo = "admin@perpos.io";
+      const emailTo = "admin@perpos.ai";
       const isTh = lang === "th";
       const subject = `Request Demo PERPOS - ${formState.company}`;
       const body = isTh

@@ -38,7 +38,7 @@ import AdminWidget from "./agent-widgets/admin-widget";
 import ExecutiveWidget from "./agent-widgets/executive-widget";
 import SimulatorWidget from "./agent-widgets/simulator-widget";
 
-const APP_SIGNIN_URL = "https://app.perpos.io/signin";
+const APP_SIGNIN_URL = "https://app.perpos.ai/signin";
 
 const MENU_AGENTS = [
   { name: "Sales Agent", slug: "sales", desc: "เสนอราคาทาง LINE ใน 3 วินาที", icon: MessageSquare, color: "text-blue-600 bg-blue-50 border-blue-100" },
@@ -98,7 +98,7 @@ export default function AgentDetailsView({ slug }: AgentDetailsViewProps) {
     setTimeout(() => {
       setSubmitStatus("success");
 
-      const emailTo = "admin@perpos.io";
+      const emailTo = "admin@perpos.ai";
       const subject = lang === "th"
         ? `ขอสาธิตการใช้งาน PERPOS - ${formState.company} (ผ่าน ${agent?.title || slug})`
         : `Request Demo PERPOS - ${formState.company} (via ${agent?.title || slug})`;

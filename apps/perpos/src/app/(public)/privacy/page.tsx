@@ -108,7 +108,7 @@ export default function PrivacyPage() {
         <section className="rounded-xl border border-gray-200 bg-gray-50 p-4">
           <h2 className="text-base font-semibold text-gray-900">ติดต่อเรา</h2>
           <p className="mt-2">
-            หากมีคำถามเกี่ยวกับนโยบายความเป็นส่วนตัว กรุณาติดต่อ <a className="font-medium text-gray-900 underline hover:text-gray-700" href="mailto:support@perpos.io">support@perpos.io</a>
+            หากมีคำถามเกี่ยวกับนโยบายความเป็นส่วนตัว กรุณาติดต่อ <a className="font-medium text-gray-900 underline hover:text-gray-700" href="mailto:support@perpos.ai">support@perpos.ai</a>
           </p>
           <p className="mt-2">
             ต้องการกลับไปดูข้อกำหนดการให้บริการ? <Link className="font-medium text-gray-900 underline hover:text-gray-700" href="/terms">ไปที่ /terms</Link>

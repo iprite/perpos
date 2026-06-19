@@ -24,7 +24,7 @@ export function CtaSection() {
             </p>
 
             <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
-              <Button size="lg" variant="white" href="mailto:contact@perpos.io">
+              <Button size="lg" variant="white" href="mailto:contact@perpos.ai">
                 ติดต่อทีมงาน
                 <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover/btn:translate-x-0.5" />
               </Button>

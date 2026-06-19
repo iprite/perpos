@@ -263,7 +263,7 @@ ORDER BY seq_no;
 
 ```bash
 # ตรวจทุกตารางสำคัญทุกวันอาทิตย์ 02:00 BKK
-curl -X POST https://perpos.io/api/internal/audit-verify \
+curl -X POST https://perpos.ai/api/internal/audit-verify \
   -H "Authorization: Bearer $CRON_SECRET"
 ```
 

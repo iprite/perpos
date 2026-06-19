@@ -195,7 +195,7 @@ STT เริ่มเป็นฟีเจอร์ org-scoped แล้ว ref
 2. **home org ต้องอ่านจาก `personal_org_id`** — ห้ามเดาจาก regex/prefix slug/email
 3. **scope ด้วย `profile_id` เสมอ** ทุก route assistant (ไม่ใช่ org). RLS `assistant_jobs` = `profile_id = auth.uid()`
 4. **path ไฟล์เว็บต้องอยู่ใต้ `<profileId>/`** — `jobs` POST ตรวจกันอ้างอิงไฟล์ข้ามคน; worker ก็ตรวจ `<orgId>/` ของ home org
-5. **`APP_BASE_URL` ต้อง `https://app.perpos.io`** (ไม่ใช่ `perpos.io` ที่ 301 redirect) — ใช้ทั้ง deep-link ในแจ้งเตือน LINE และ worker callback. default ใน code ตั้งเป็น `app.perpos.io` แล้ว (commit `1354ca8` — แก้ลิงก์ตาย `/{slug}/assistant/transcribe` เก่าเป็น top-level `/assistant`)
+5. **`APP_BASE_URL` ต้อง `https://app.perpos.ai`** (ไม่ใช่ `perpos.ai` ที่ 301 redirect) — ใช้ทั้ง deep-link ในแจ้งเตือน LINE และ worker callback. default ใน code ตั้งเป็น `app.perpos.ai` แล้ว (commit `1354ca8` — แก้ลิงก์ตาย `/{slug}/assistant/transcribe` เก่าเป็น top-level `/assistant`)
 6. **LINE Login channel ต้อง provider เดียวกับ Messaging channel** — `userId` ถึงตรง `line_user_id` (ไม่งั้น provision เป็นคนละคน)
 
 ---

@@ -46,7 +46,7 @@ export async function handleJustMeClock(
     .eq('profile_id', profileId)
     .maybeSingle();
 
-  const baseUrl = process.env.APP_BASE_URL || 'https://app.perpos.io';
+  const baseUrl = process.env.APP_BASE_URL || 'https://app.perpos.ai';
   const status = (session?.status ?? 'idle') as string;
 
   // Determine if this is a DEPART or ARRIVE action

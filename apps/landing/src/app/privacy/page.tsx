@@ -42,14 +42,14 @@ export default function PrivacyPage() {
               <h2>{p.section6Title}</h2>
               <p>
                 {p.section6Desc}{" "}
-                <a href="mailto:contact@perpos.io" className="text-primary hover:underline">
-                  contact@perpos.io
+                <a href="mailto:contact@perpos.ai" className="text-primary hover:underline">
+                  contact@perpos.ai
                 </a>
               </p>
             </div>
 
             <div className="mt-12">
-              <Button href="https://app.perpos.io/signup">
+              <Button href="https://app.perpos.ai/signup">
                 {p.signupCta}
               </Button>
             </div>

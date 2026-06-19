@@ -280,7 +280,7 @@ async function runJob(jobId: string, orgId: string): Promise<void> {
 
 // ส่งงานให้ฝั่ง Next.js สร้าง PDF MoM แล้ว push กลับ LINE (secret-gated)
 async function deliverMomToLine(jobId: string, orgId: string): Promise<void> {
-  const baseUrl = (process.env.APP_BASE_URL ?? 'https://app.perpos.io').replace(/\/$/, '');
+  const baseUrl = (process.env.APP_BASE_URL ?? 'https://app.perpos.ai').replace(/\/$/, '');
   const secret = (process.env.WORKER_SECRET ?? '').trim();
   const resp = await fetch(`${baseUrl}/api/assistant/stt/mom-deliver`, {
     method: 'POST',
@@ -342,7 +342,7 @@ async function saveAudioToDrive(
   transcript: TranscriptResult, job: Record<string, unknown>,
 ): Promise<void> {
   if (!profileId) return;
-  const baseUrl = (process.env.APP_BASE_URL ?? 'https://app.perpos.io').replace(/\/$/, '');
+  const baseUrl = (process.env.APP_BASE_URL ?? 'https://app.perpos.ai').replace(/\/$/, '');
   const secret = (process.env.WORKER_SECRET ?? '').trim();
 
   const prep = await prepareDriveUpload(baseUrl, secret, profileId, false);
@@ -776,7 +776,7 @@ async function notifyLine(job: Record<string, unknown>): Promise<void> {
   if (!lineUserId) return;
 
   // Deep-link ไปหน้าผู้ช่วย AI (per-profile, top-level — ไม่มี org slug หลัง umbrella v2)
-  const baseUrl = (process.env.APP_BASE_URL ?? 'https://app.perpos.io').replace(/\/$/, '');
+  const baseUrl = (process.env.APP_BASE_URL ?? 'https://app.perpos.ai').replace(/\/$/, '');
   const link = `\n🔗 ${baseUrl}/assistant`;
 
   const fileName = String(job.file_name ?? 'ไฟล์เสียง');

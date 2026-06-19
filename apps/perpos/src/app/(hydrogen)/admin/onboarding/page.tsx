@@ -405,7 +405,7 @@ export default function OnboardingPage() {
             <div>
               <Label htmlFor="org-slug">URL Slug *</Label>
               <div className="mt-1 flex items-center gap-2">
-                <span className="text-sm text-gray-400">perpos.io/</span>
+                <span className="text-sm text-gray-400">perpos.ai/</span>
                 <Input
                   id="org-slug"
                   placeholder="my-company"
@@ -585,7 +585,7 @@ export default function OnboardingPage() {
                   <div>
                     <Label htmlFor={`slug-${sm.key}`}>URL Slug ของ Module *</Label>
                     <div className="mt-1 flex items-center gap-2">
-                      <span className="text-sm text-gray-400">perpos.io/{form.slug}/</span>
+                      <span className="text-sm text-gray-400">perpos.ai/{form.slug}/</span>
                       <Input
                         id={`slug-${sm.key}`}
                         placeholder={regMod?.href_slug ?? sm.key}
@@ -598,7 +598,7 @@ export default function OnboardingPage() {
                     <p className="mt-1 text-xs text-gray-500">
                       URL เต็ม:{' '}
                       <code className="rounded bg-white px-1 py-0.5 text-xs border">
-                        perpos.io/{form.slug}/{sm.moduleSlug || '(กรุณาใส่ slug)'}
+                        perpos.ai/{form.slug}/{sm.moduleSlug || '(กรุณาใส่ slug)'}
                       </code>
                     </p>
                   </div>

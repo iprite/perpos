@@ -225,7 +225,7 @@ Admin Console → **Module Members** → เลือกองค์กร + mod
 
 หรือ API:
 ```bash
-curl -X POST https://perpos.io/api/admin/module-members \
+curl -X POST https://perpos.ai/api/admin/module-members \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"orgId":"<org_id>","moduleKey":"my_module","userId":"<user_id>","moduleRole":"manager"}'

@@ -137,7 +137,7 @@ RLS:
 - ถ้า `monthly_price` เป็น null/0 ให้ถือว่า org อยู่ในโหมด `trial` (ใช้ฟรี) จนกว่า super admin จะ set ราคา
 
 ### 5.2 ขั้นตอน Setup การชำระเงินครั้งแรก
-1) Owner ไปหน้า Billing ในแอป (บน `app.perpos.io`)
+1) Owner ไปหน้า Billing ในแอป (บน `app.perpos.ai`)
 2) กด “เริ่มชำระเงิน/เพิ่มบัตร”
 3) Server สร้าง Stripe Customer (ถ้ายังไม่มี) แล้วสร้าง Checkout Session แบบ `mode=subscription`
 4) Redirect ไป Stripe Checkout
@@ -241,7 +241,7 @@ API ที่ใช้งานจริง:
 - `STRIPE_WEBHOOK_SECRET`
 - `STRIPE_PRODUCT_ID` (optional แต่แนะนำเพื่อจัดกลุ่ม price)
 - `STRIPE_PORTAL_CONFIGURATION_ID` (บังคับสำหรับปิดการยกเลิก subscription ใน portal)
-- `APP_BASE_URL` (เช่น https://app.perpos.io) สำหรับ return URL
+- `APP_BASE_URL` (เช่น https://app.perpos.ai) สำหรับ return URL
 
 หมายเหตุ:
 - Stripe API version ถูก pin ไว้ที่ฝั่ง server ใน [stripe.ts](file:///Users/iprite/perpos/apps/perpos/src/app/api/_lib/stripe.ts)
@@ -265,7 +265,7 @@ API ที่ใช้งานจริง:
 ### 10.2 ตั้งค่า Webhook (Live mode)
 1) Stripe Dashboard → Developers → Webhooks → Add endpoint
 2) Endpoint URL:
-   - `https://app.perpos.io/api/stripe/webhook` (โปรดักชัน)
+   - `https://app.perpos.ai/api/stripe/webhook` (โปรดักชัน)
    - หรือ URL ของ environment นั้น ๆ (staging/dev)
 3) เลือก events อย่างน้อย:
    - `checkout.session.completed`

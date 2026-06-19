@@ -121,7 +121,7 @@ INSERT INTO org_module_settings (organization_id, module_key, is_enabled) VALUES
 │       (render จาก MODULE_MENUS ที่เลือก)
 │
 └── [Bottom] Change History (ใหม่)
-    └── "เปิด Payroll โดย admin@perpos.io เมื่อ 3 ม.ค. 2026"
+    └── "เปิด Payroll โดย admin@perpos.ai เมื่อ 3 ม.ค. 2026"
 ```
 
 **DB ใหม่: `org_module_change_log`**
