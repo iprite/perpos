@@ -70,7 +70,7 @@ export async function POST(req: NextRequest) {
 
   // งานล้มเหลว → แจ้งด้วย Flex (ใช้ error_message ที่เป็นมิตรจาก worker)
   const meta = (job.pdf_meta ?? null) as
-    | { output_path?: string; pages?: number; size_before?: number; size_after?: number; ratio?: number; no_gain?: boolean }
+    | { output_path?: string; pages?: number; size_before?: number; size_after?: number; ratio?: number; no_gain?: boolean; charged?: boolean }
     | null;
   if (job.status !== 'completed' || !meta?.output_path) {
     await sendLineMessages({ to: lineUserId, messages: [buildFailFlex(String(job.error_message ?? ''))] });
@@ -92,6 +92,9 @@ export async function POST(req: NextRequest) {
   const pct = Math.round(Number(meta.ratio ?? 0) * 100);
   const pages = Number(meta.pages ?? 0);
   const noGain = Boolean(meta.no_gain);
+  const charged = Boolean(meta.charged);
+  // บีบได้แต่ไม่ถึงเกณฑ์ (ไม่คิดโควต้า) — ส่งไฟล์ให้ฟรี
+  const freeBelowThreshold = !noGain && !charged;
 
   // ข้อความผลลัพธ์ — กรณีบีบไม่ลง (ไฟล์เล็กที่สุดแล้ว) บอกตรง ๆ
   const resultLine = noGain
@@ -148,6 +151,7 @@ export async function POST(req: NextRequest) {
             { type: 'text', text: fileName, size: 'sm', wrap: true, color: '#1A1A1B' },
             { type: 'text', text: resultLine, size: 'sm', wrap: true, color: noGain ? '#656D78' : '#46BC9E', weight: 'bold' },
             ...(pages ? [{ type: 'text', text: `${pages} หน้า`, size: 'xs', color: '#9CA3AF' } as const] : []),
+            ...(freeBelowThreshold ? [{ type: 'text', text: 'ℹ️ บีบได้ไม่ถึงเกณฑ์ — ครั้งนี้ไม่คิดโควต้า', size: 'xs', wrap: true, color: '#46BC9E' } as const] : []),
             { type: 'text', text: quotaLine, size: 'xs', color: '#9CA3AF' },
             { type: 'separator', margin: 'md' },
             {
