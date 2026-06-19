@@ -10,6 +10,7 @@ import { NextRequest } from 'next/server';
 import { createAdminClient } from '../../../_lib/supabase';
 import { ok, Err } from '../../../_lib/response';
 import { sendLineMessages } from '@/lib/line/send-messages';
+import { saveToDrive } from '@/lib/google/drive';
 
 const BUCKET = 'assistant_pdf';
 
@@ -97,13 +98,40 @@ export async function POST(req: NextRequest) {
     ? 'ไฟล์นี้บีบให้เล็กลงอีกไม่ได้แล้ว (เหมาะสมที่สุดแล้ว)'
     : `${fmtMB(before)} → ${fmtMB(after)}  (ลด ${pct}%)`;
 
+  // โควต้าคงเหลือ (แสดงใน Flex)
+  const { data: quota } = await admin.from('pdf_quota').select('limit_pages, used_pages').eq('profile_id', job.profile_id as string).maybeSingle();
+  const qLimit = (quota as { limit_pages?: number } | null)?.limit_pages ?? 20;
+  const qUsed = (quota as { used_pages?: number } | null)?.used_pages ?? 0;
+  const quotaLine = `📊 โควต้าคงเหลือ ${Math.max(0, qLimit - qUsed)} / ${qLimit} หน้า`;
+
+  // เก็บไฟล์ที่บีบลง Google Drive ของผู้ใช้ (auto ถ้าเชื่อม Google) — best-effort ไม่กระทบการส่ง LINE
+  //   idempotent: เคยอัปแล้ว (pdf_drive_url มีค่า) → ไม่อัปซ้ำ
+  let pdfDriveUrl = String(job.pdf_drive_url ?? '');
+  if (!pdfDriveUrl) {
+    const { data: outFile } = await admin.storage.from(BUCKET).download(meta.output_path);
+    if (outFile) {
+      const bytes = new Uint8Array(await outFile.arrayBuffer());
+      const link = await Promise.race([
+        saveToDrive(admin, job.profile_id as string, {
+          categoryKey: 'pdf', categoryName: 'เอกสาร PDF',
+          fileName: dlName, mimeType: 'application/pdf', bytes,
+        }),
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), 15_000)),
+      ]);
+      if (link) {
+        pdfDriveUrl = link;
+        await admin.from('assistant_jobs').update({ pdf_drive_url: link }).eq('id', jobId);
+      }
+    }
+  }
+
   const footerButtons: Record<string, unknown>[] = [
     { type: 'button', style: 'primary', color: '#3C3B3D', height: 'sm',
       action: { type: 'uri', label: 'ดาวน์โหลด PDF', uri: signed.signedUrl } },
   ];
-  if (job.pdf_drive_url) {
+  if (pdfDriveUrl) {
     footerButtons.push({ type: 'button', style: 'secondary', height: 'sm', margin: 'sm',
-      action: { type: 'uri', label: '📁 เปิดใน Google Drive', uri: String(job.pdf_drive_url) } });
+      action: { type: 'uri', label: '📁 เปิดใน Google Drive', uri: pdfDriveUrl } });
   }
 
   const sent = await sendLineMessages({
@@ -120,6 +148,7 @@ export async function POST(req: NextRequest) {
             { type: 'text', text: fileName, size: 'sm', wrap: true, color: '#1A1A1B' },
             { type: 'text', text: resultLine, size: 'sm', wrap: true, color: noGain ? '#656D78' : '#46BC9E', weight: 'bold' },
             ...(pages ? [{ type: 'text', text: `${pages} หน้า`, size: 'xs', color: '#9CA3AF' } as const] : []),
+            { type: 'text', text: quotaLine, size: 'xs', color: '#9CA3AF' },
             { type: 'separator', margin: 'md' },
             {
               type: 'box', layout: 'vertical', spacing: 'xs', margin: 'md',

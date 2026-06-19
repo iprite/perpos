@@ -2089,9 +2089,36 @@ export async function POST(req: NextRequest) {
       const fileProfile = await getProfileByLineId(admin, lineUserId);
       if (!fileProfile) continue;
 
-      // PDF → ถามว่าจะบีบขนาดไหม
+      // PDF → ถามว่าจะบีบขนาดไหม (โชว์โควต้าคงเหลือ · หมด=บล็อก)
       if (isPdfFile) {
         if (!await checkPdfAccess(admin, fileProfile.id, fileProfile.role)) continue;
+        const { data: pq } = await admin.from('pdf_quota').select('limit_pages, used_pages').eq('profile_id', fileProfile.id).maybeSingle();
+        const pqLimit = (pq as { limit_pages?: number } | null)?.limit_pages ?? 20;
+        const pqUsed = (pq as { used_pages?: number } | null)?.used_pages ?? 0;
+        const pqRemain = Math.max(0, pqLimit - pqUsed);
+
+        if (pqRemain <= 0) {
+          await replyLine(replyToken, [{
+            type: 'flex',
+            altText: 'โควต้าบีบ PDF หมดแล้ว',
+            contents: {
+              type: 'bubble',
+              header: {
+                type: 'box', layout: 'vertical', backgroundColor: '#C43448', paddingAll: '16px',
+                contents: [{ type: 'text', text: '📄 โควต้าบีบ PDF หมดแล้ว', color: '#ffffff', weight: 'bold', size: 'md' }],
+              },
+              body: {
+                type: 'box', layout: 'vertical', spacing: 'sm', paddingAll: '20px',
+                contents: [
+                  { type: 'text', text: `โควต้าบีบ PDF คงเหลือ 0 / ${pqLimit} หน้า`, weight: 'bold', size: 'sm', color: '#1A1A1B', wrap: true },
+                  { type: 'text', text: 'กรุณาติดต่อแอดมินเพื่อขอเพิ่มโควต้า แล้วส่งไฟล์อีกครั้ง 🙏', size: 'xs', color: '#656D78', wrap: true, margin: 'sm' },
+                ],
+              },
+            },
+          }]);
+          continue;
+        }
+
         await replyLine(replyToken, [{
           type: 'flex',
           altText: 'ได้รับไฟล์ PDF แล้ว — ต้องการบีบขนาดไหม?',
@@ -2110,6 +2137,7 @@ export async function POST(req: NextRequest) {
                 { type: 'separator', margin: 'md' },
                 { type: 'text', text: 'ต้องการให้ช่วยบีบขนาดไฟล์นี้ให้เล็กลง (คงความชัด) ไหมครับ?', size: 'sm', wrap: true, color: '#3C3B3D', margin: 'md' },
                 ...(fileName ? [{ type: 'text', text: `📎 ${fileName}`, size: 'xs', wrap: true, color: '#9CA3AF' } as const] : []),
+                { type: 'text', text: `📊 โควต้าคงเหลือ ${pqRemain} / ${pqLimit} หน้า`, size: 'xs', color: '#9CA3AF' },
               ],
             },
             footer: {
