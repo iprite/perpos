@@ -2,7 +2,7 @@
 
 import React, { useState, useTransition } from "react";
 import { CustomSelect } from "@/components/ui/custom-select";
-import { toast } from "react-hot-toast";
+import { toast } from '@/lib/toast';
 import { Plus, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";

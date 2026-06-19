@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { backendUrl } from '@/lib/backend';
+import { toast } from '@/lib/toast';
 import { Button } from '@/components/ui/button';
 import { CustomSelect } from '@/components/ui/custom-select';
 import { PageShell } from '@/components/ui/page-shell';
@@ -209,13 +210,14 @@ export default function TmcCostsPage() {
     setSaving(true);
     const { data: sess } = await supabase.auth.getSession();
     const token = sess.session?.access_token ?? '';
-    await fetch(backendUrl('/tmc/investments'), {
+    const res = await fetch(backendUrl('/tmc/investments'), {
       method: 'PATCH',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ orgId: TMC_ORG_ID, id: editing.id, ...patch }),
     });
     setSaving(false);
     setEditing(null);
+    res.ok ? toast.success('บันทึกการตั้งค่าต้นทุนแล้ว') : toast.error('บันทึกไม่สำเร็จ');
     load();
   };
 

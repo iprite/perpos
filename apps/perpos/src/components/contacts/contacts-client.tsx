@@ -2,7 +2,7 @@
 
 import React, { useCallback, useRef, useState, useTransition } from "react";
 import { Plus, ToggleLeft, ToggleRight } from "lucide-react";
-import { toast } from "react-hot-toast";
+import { toast } from '@/lib/toast';
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

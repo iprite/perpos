@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { CustomSelect } from '@/components/ui/custom-select';
 import { ThaiDatePicker } from '@/components/ui/thai-date-picker';
+import { toast } from '@/lib/toast';
 import {
   Dialog, DialogContent, DialogHeader, DialogBody, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog';
@@ -124,7 +125,8 @@ export default function BookingDialog({
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || t.err_load_fail);
       onSuccess(); onOpenChange(false); resetForm();
-    } catch (e: any) { setError(e.message); }
+      toast.success('บันทึกการจองแล้ว');
+    } catch (e: any) { setError(e.message); toast.error(e.message || 'บันทึกไม่สำเร็จ'); }
     finally { setSaving(false); }
   };
 

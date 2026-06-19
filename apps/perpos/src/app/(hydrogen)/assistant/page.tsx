@@ -14,7 +14,7 @@ import {
   Copy, Check, Download, AlertCircle, Play, Sparkles,
   Clock, Eye, CheckCircle2, Hourglass, Timer, Bot,
 } from 'lucide-react';
-import { toast } from 'react-hot-toast';
+import { toast } from '@/lib/toast';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 type KeyTopic = { topic: string; details: string };

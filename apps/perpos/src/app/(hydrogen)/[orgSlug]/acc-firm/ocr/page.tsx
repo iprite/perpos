@@ -20,7 +20,7 @@ import {
   Trash2, Plus, ArrowLeft, Loader2, BookOpen, AlertCircle,
   UploadCloud, Sparkles, X, FileUp, Lock,
 } from 'lucide-react';
-import { toast } from 'react-hot-toast';
+import { toast } from '@/lib/toast';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 type OcrJob = {

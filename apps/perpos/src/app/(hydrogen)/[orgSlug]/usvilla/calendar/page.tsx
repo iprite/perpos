@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { ChevronLeft, ChevronRight, Loader2, AlertCircle, LogIn, CalendarDays } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { toast } from '@/lib/toast';
 import { PageShell } from '@/components/ui/page-shell';
 import CalendarView, { type CalBooking, type CalRoom } from '../calendar-view';
 import BookingDetailDialog from '../booking-detail-dialog';
@@ -27,7 +28,8 @@ function CheckoutConfirmDialog({ booking, open, onOpenChange, orgId, token, onSu
       body: JSON.stringify({ action: 'checkout' }),
     });
     setSaving(false);
-    if (res.ok) { onSuccess(); onOpenChange(false); }
+    if (res.ok) { onSuccess(); onOpenChange(false); toast.success('เช็คเอาท์แล้ว'); }
+    else toast.error('เช็คเอาท์ไม่สำเร็จ');
   };
   return (
     <div className={`fixed inset-0 z-50 flex items-center justify-center bg-black/40 ${open ? '' : 'hidden'}`}>
@@ -82,11 +84,12 @@ export default function CalendarPage() {
   const refresh = () => { loadRooms(); loadCalBookings(); };
 
   const handleCancel = async (b: CalBooking) => {
-    await fetch(`/api/usvilla/bookings/${b.id}?orgId=${orgId}`, {
+    const res = await fetch(`/api/usvilla/bookings/${b.id}?orgId=${orgId}`, {
       method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify({ action: 'cancel' }),
     });
     setCancelBooking(null); refresh();
+    res.ok ? toast.success('ยกเลิกการจองแล้ว') : toast.error('ยกเลิกไม่สำเร็จ');
   };
 
   const errMsg = bootError || error;

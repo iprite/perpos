@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/table";
 
 import { upsertPayItemAction, togglePayItemActiveAction, type PayItemRow } from "@/lib/payroll/actions";
+import { toast } from "@/lib/toast";
 
 // ─── Toggle Switch ────────────────────────────────────────────────────────────
 
@@ -138,7 +139,8 @@ function PayItemDialog({
       ytd_type:      form.ytd_type as "none" | "income40_1",
     });
     setSaving(false);
-    if (!res.ok) { setErr((res as any).error ?? "บันทึกไม่สำเร็จ"); return; }
+    if (!res.ok) { const msg = (res as any).error ?? "บันทึกไม่สำเร็จ"; setErr(msg); toast.error(msg); return; }
+    toast.success(editing ? "แก้ไขรายการเงินแล้ว" : "เพิ่มรายการเงินแล้ว");
 
     onSaved({
       id:                editing?.id ?? "__new__",
@@ -290,6 +292,9 @@ export function PayItemsClient({
           list.map((r) => (r.id === row.id ? { ...r, active: row.active } : r));
         setEarnings((e) => revert(e));
         setDeductions((d) => revert(d));
+        toast.error("เปลี่ยนสถานะไม่สำเร็จ");
+      } else {
+        toast.success(next ? "เปิดใช้งานรายการแล้ว" : "ปิดใช้งานรายการแล้ว");
       }
     });
   }

@@ -10,6 +10,7 @@ import {
 } from '@/components/ui/dialog';
 import { ConfirmDeleteDialog } from '@/components/ui/confirm-delete-dialog';
 import { StatusBadge } from '@/components/ui/badge';
+import { toast } from '@/lib/toast';
 import {
   Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableEmpty, TableLoading,
 } from '@/components/ui/table';
@@ -142,28 +143,33 @@ export default function RateLimitsPage() {
         body: JSON.stringify(body),
       });
       const d = await res.json() as { error?: string };
-      if (!res.ok) { setSaveError(d.error ?? 'Error'); return; }
+      if (!res.ok) { setSaveError(d.error ?? 'Error'); toast.error(d.error ?? 'บันทึกไม่สำเร็จ'); return; }
       setModalOpen(false);
+      toast.success(editing ? 'แก้ไข rate limit แล้ว' : 'เพิ่ม rate limit แล้ว');
       void loadLimits(orgId);
-    } catch { setSaveError('Network error'); }
+    } catch { setSaveError('Network error'); toast.error('เกิดข้อผิดพลาดในการเชื่อมต่อ'); }
     finally  { setSaving(false); }
   }
 
   async function doDelete() {
-    await fetch(`/api/admin/rate-limits?id=${deleteConfirm.id}`, {
+    const res = await fetch(`/api/admin/rate-limits?id=${deleteConfirm.id}`, {
       method: 'DELETE',
       headers: { Authorization: `Bearer ${await authToken()}` },
     });
     setDeleteConfirm({ open: false, id: '' });
+    if (res.ok) toast.success('ลบ rate limit แล้ว');
+    else toast.error('ลบไม่สำเร็จ');
     void loadLimits(orgId);
   }
 
   async function toggleActive(l: RateLimit) {
-    await fetch('/api/admin/rate-limits', {
+    const res = await fetch('/api/admin/rate-limits', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await authToken()}` },
       body: JSON.stringify({ id: l.id, isActive: !l.is_active }),
     });
+    if (res.ok) toast.success(!l.is_active ? 'เปิดใช้งานแล้ว' : 'ปิดใช้งานแล้ว');
+    else toast.error('เปลี่ยนสถานะไม่สำเร็จ');
     void loadLimits(orgId);
   }
 

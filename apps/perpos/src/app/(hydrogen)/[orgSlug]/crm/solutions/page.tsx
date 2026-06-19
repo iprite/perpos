@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
+import { toast } from '@/lib/toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { CustomSelect } from '@/components/ui/custom-select';
@@ -83,21 +84,25 @@ export default function CrmSolutionsPage() {
   useEffect(() => { if (orgId && token) load(); }, [load, orgId, token]);
 
   const updateStatus = async (id: string, status: string) => {
-    await fetch(`/api/crm/solutions/${id}?orgId=${orgId}`, {
+    const res = await fetch(`/api/crm/solutions/${id}?orgId=${orgId}`, {
       method: 'PUT',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ status }),
     });
+    if (!res.ok) { toast.error('อัปเดตสถานะไม่สำเร็จ'); return; }
     setSolutions(prev => prev.map(s => s.id === id ? { ...s, status } : s));
+    toast.success('อัปเดตสถานะแล้ว');
   };
 
   const doDeleteSolution = async () => {
-    await fetch(`/api/crm/solutions/${deleteConfirm.id}?orgId=${orgId}`, {
+    const res = await fetch(`/api/crm/solutions/${deleteConfirm.id}?orgId=${orgId}`, {
       method: 'DELETE',
       headers: { Authorization: `Bearer ${token}` },
     });
+    if (!res.ok) { toast.error('ลบไม่สำเร็จ'); return; }
     setSolutions(prev => prev.filter(s => s.id !== deleteConfirm.id));
     setDeleteConfirm({ open: false, id: '', title: '' });
+    toast.success('ลบโซลูชันแล้ว');
   };
 
   // Client-side text filter

@@ -3,7 +3,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, useTransition, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { Check, ChevronsUpDown, Plus, Search } from "lucide-react";
-import { toast } from "react-hot-toast";
+import { toast } from '@/lib/toast';
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

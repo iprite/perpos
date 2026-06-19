@@ -32,7 +32,7 @@ import {
   BarChart,
   Bar,
 } from 'recharts';
-import toast, { Toaster } from 'react-hot-toast';
+import { toast } from '@/lib/toast';
 
 export default function JaquarDashboardPage() {
   const { orgSlug } = useParams<{ orgSlug: string }>();
@@ -161,8 +161,6 @@ export default function JaquarDashboardPage() {
         </>
       }
     >
-      <Toaster position="top-right" />
-
       {/* Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Card 1: Total SKUs */}

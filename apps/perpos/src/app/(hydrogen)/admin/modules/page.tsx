@@ -5,6 +5,7 @@ import { ChevronDown, ChevronRight, Monitor, History, LayoutGrid, Sparkles } fro
 
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { backendUrl } from "@/lib/backend";
+import { toast } from "@/lib/toast";
 import { Button } from "@/components/ui/button";
 import { StatusBadge, type BadgeTone } from "@/components/ui/badge";
 import { Dropdown, type DropdownItem } from "@/components/ui/dropdown";
@@ -308,9 +309,13 @@ export default function AdminModulesPage() {
         body: JSON.stringify({ orgId: selectedOrgId, settings, menuSettings }),
       });
       const json = await res.json().catch(() => null);
-      if (!res.ok) { setError(json?.error ?? "บันทึกไม่สำเร็จ"); setSaving(false); return; }
+      if (!res.ok) {
+        const msg = json?.error ?? "บันทึกไม่สำเร็จ";
+        setError(msg); toast.error(msg); setSaving(false); return;
+      }
       setSaved(true);
       setSaving(false);
+      toast.success("บันทึกการตั้งค่า module แล้ว");
       // Refresh history after save
       const hRes  = await fetch(
         backendUrl(`/admin/modules?orgId=${encodeURIComponent(selectedOrgId)}&history=1`),
@@ -319,7 +324,7 @@ export default function AdminModulesPage() {
       const hJson = await hRes.json().catch(() => null);
       if (hJson?.changeLog) setChangeLog(hJson.changeLog as ChangeLogEntry[]);
     } catch (e) {
-      setError(String(e)); setSaving(false);
+      setError(String(e)); toast.error("บันทึกไม่สำเร็จ"); setSaving(false);
     }
   };
 

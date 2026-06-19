@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { backendUrl } from '@/lib/backend';
+import { toast } from '@/lib/toast';
 import { Button } from '@/components/ui/button';
 import { PageShell } from '@/components/ui/page-shell';
 import { Input } from '@/components/ui/input';
@@ -194,13 +195,14 @@ export default function TmcStockPage() {
     if (!itemForm.name || !itemForm.unit) return;
     setSaving(true);
     const h = await authHeader();
-    await fetch(backendUrl('/tmc/stock'), {
+    const res = await fetch(backendUrl('/tmc/stock'), {
       method: 'POST', headers: h,
       body: JSON.stringify({ orgId: TMC_ORG_ID, action: 'add_item', ...itemForm }),
     });
     setSaving(false);
     setShowAddItem(false);
     setItemForm({ name: '', unit: activeUnits[0]?.name ?? '', minQuantity: '0', category: '' });
+    res.ok ? toast.success('เพิ่มสินค้าแล้ว') : toast.error('เพิ่มสินค้าไม่สำเร็จ');
     load();
   }
 
@@ -208,13 +210,14 @@ export default function TmcStockPage() {
     if (!movForm.itemId || !movForm.quantity || !showMovement) return;
     setSaving(true);
     const h = await authHeader();
-    await fetch(backendUrl('/tmc/stock'), {
+    const res = await fetch(backendUrl('/tmc/stock'), {
       method: 'POST', headers: h,
       body: JSON.stringify({ orgId: TMC_ORG_ID, movementType: showMovement, ...movForm }),
     });
     setSaving(false);
     setShowMovement(null);
     setMovForm({ itemId: '', quantity: '', propertyCode: '', note: '' });
+    res.ok ? toast.success('บันทึกการเคลื่อนไหวสต๊อกแล้ว') : toast.error('บันทึกไม่สำเร็จ');
     load();
   }
 
@@ -223,28 +226,31 @@ export default function TmcStockPage() {
     if (!newCatName.trim()) return;
     setAddingCat(true);
     const h = await authHeader();
-    await fetch('/api/tmc/stock/categories', {
+    const res = await fetch('/api/tmc/stock/categories', {
       method: 'POST', headers: h,
       body: JSON.stringify({ orgId: TMC_ORG_ID, name: newCatName }),
     });
     setNewCatName(''); setAddingCat(false);
+    res.ok ? toast.success('เพิ่มหมวดหมู่แล้ว') : toast.error('เพิ่มไม่สำเร็จ');
     loadMaster();
   }
 
   async function saveCategory(id: string, name: string) {
     const h = await authHeader();
-    await fetch('/api/tmc/stock/categories', {
+    const res = await fetch('/api/tmc/stock/categories', {
       method: 'PATCH', headers: h,
       body: JSON.stringify({ orgId: TMC_ORG_ID, id, name }),
     });
+    res.ok ? toast.success('แก้ไขหมวดหมู่แล้ว') : toast.error('แก้ไขไม่สำเร็จ');
     loadMaster();
   }
 
   async function deleteCategory(id: string) {
     const h = await authHeader();
-    await fetch(`/api/tmc/stock/categories?id=${id}&orgId=${TMC_ORG_ID}`, {
+    const res = await fetch(`/api/tmc/stock/categories?id=${id}&orgId=${TMC_ORG_ID}`, {
       method: 'DELETE', headers: h,
     });
+    res.ok ? toast.success('ลบหมวดหมู่แล้ว') : toast.error('ลบไม่สำเร็จ');
     loadMaster();
   }
 
@@ -253,28 +259,31 @@ export default function TmcStockPage() {
     if (!newUnitName.trim()) return;
     setAddingUnit(true);
     const h = await authHeader();
-    await fetch('/api/tmc/stock/units', {
+    const res = await fetch('/api/tmc/stock/units', {
       method: 'POST', headers: h,
       body: JSON.stringify({ orgId: TMC_ORG_ID, name: newUnitName }),
     });
     setNewUnitName(''); setAddingUnit(false);
+    res.ok ? toast.success('เพิ่มหน่วยนับแล้ว') : toast.error('เพิ่มไม่สำเร็จ');
     loadMaster();
   }
 
   async function saveUnit(id: string, name: string) {
     const h = await authHeader();
-    await fetch('/api/tmc/stock/units', {
+    const res = await fetch('/api/tmc/stock/units', {
       method: 'PATCH', headers: h,
       body: JSON.stringify({ orgId: TMC_ORG_ID, id, name }),
     });
+    res.ok ? toast.success('แก้ไขหน่วยนับแล้ว') : toast.error('แก้ไขไม่สำเร็จ');
     loadMaster();
   }
 
   async function deleteUnit(id: string) {
     const h = await authHeader();
-    await fetch(`/api/tmc/stock/units?id=${id}&orgId=${TMC_ORG_ID}`, {
+    const res = await fetch(`/api/tmc/stock/units?id=${id}&orgId=${TMC_ORG_ID}`, {
       method: 'DELETE', headers: h,
     });
+    res.ok ? toast.success('ลบหน่วยนับแล้ว') : toast.error('ลบไม่สำเร็จ');
     loadMaster();
   }
 

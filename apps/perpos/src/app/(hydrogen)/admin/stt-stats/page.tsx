@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { BarChart3, Users, Clock, FileAudio, Loader2, Settings } from 'lucide-react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
-import { toast } from 'react-hot-toast';
+import { toast } from '@/lib/toast';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { AdminPage } from '../_components/admin-page';
 

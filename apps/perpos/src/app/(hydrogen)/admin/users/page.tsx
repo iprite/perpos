@@ -15,6 +15,7 @@ import type { Role } from "@/lib/supabase/types";
 import { withBasePath } from "@/utils/base-path";
 import { copyText } from "@/utils/clipboard";
 import { backendUrl } from "@/lib/backend";
+import { toast } from "@/lib/toast";
 import { AdminPage } from "../_components/admin-page";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -341,12 +342,13 @@ export default function AdminUsersPage() {
         body: JSON.stringify({ userId, orgId, role: r }),
       });
       const json = await res.json().catch(() => null);
-      if (!res.ok) { setError(json?.error ?? "เพิ่มองค์กรไม่สำเร็จ"); return; }
+      if (!res.ok) { const m = json?.error ?? "เพิ่มองค์กรไม่สำเร็จ"; setError(m); toast.error(m); return; }
       const orgName = allOrgs.find((o) => o.id === orgId)?.name ?? "";
       patchOrgs(userId, (orgs) => [...orgs.filter((o) => o.orgId !== orgId), { orgId, orgName, role: r }]);
       setAddOrgId((p)   => ({ ...p, [userId]: "" }));
       setAddOrgRole((p) => ({ ...p, [userId]: "team_member" }));
-    } catch (e: unknown) { setError((e as Error)?.message ?? "เพิ่มองค์กรไม่สำเร็จ"); }
+      toast.success(`เพิ่มเข้าองค์กร ${orgName} แล้ว`);
+    } catch (e: unknown) { const m = (e as Error)?.message ?? "เพิ่มองค์กรไม่สำเร็จ"; setError(m); toast.error(m); }
   }, [authHeader, addOrgId, addOrgRole, allOrgs, patchOrgs]);
 
   const handleRoleChange = useCallback(async (userId: string, orgId: string, newRole: OrgRole) => {
@@ -357,9 +359,10 @@ export default function AdminUsersPage() {
         headers: { ...headers, "content-type": "application/json" },
         body: JSON.stringify({ userId, orgId, role: newRole }),
       });
-      if (!res.ok) { const j = await res.json().catch(() => null); setError(j?.error ?? "อัปเดตสิทธิ์ไม่สำเร็จ"); return; }
+      if (!res.ok) { const j = await res.json().catch(() => null); const m = j?.error ?? "อัปเดตสิทธิ์ไม่สำเร็จ"; setError(m); toast.error(m); return; }
       patchOrgs(userId, (orgs) => orgs.map((o) => o.orgId === orgId ? { ...o, role: newRole } : o));
-    } catch (e: unknown) { setError((e as Error)?.message ?? "อัปเดตสิทธิ์ไม่สำเร็จ"); }
+      toast.success("อัปเดตสิทธิ์แล้ว");
+    } catch (e: unknown) { const m = (e as Error)?.message ?? "อัปเดตสิทธิ์ไม่สำเร็จ"; setError(m); toast.error(m); }
   }, [authHeader, patchOrgs]);
 
   const handleRemoveOrg = useCallback(async (userId: string, orgId: string) => {
@@ -370,9 +373,10 @@ export default function AdminUsersPage() {
         headers: { ...headers, "content-type": "application/json" },
         body: JSON.stringify({ userId, orgId }),
       });
-      if (!res.ok) { const j = await res.json().catch(() => null); setError(j?.error ?? "ลบองค์กรไม่สำเร็จ"); return; }
+      if (!res.ok) { const j = await res.json().catch(() => null); const m = j?.error ?? "ลบองค์กรไม่สำเร็จ"; setError(m); toast.error(m); return; }
       patchOrgs(userId, (orgs) => orgs.filter((o) => o.orgId !== orgId));
-    } catch (e: unknown) { setError((e as Error)?.message ?? "ลบองค์กรไม่สำเร็จ"); }
+      toast.success("นำออกจากองค์กรแล้ว");
+    } catch (e: unknown) { const m = (e as Error)?.message ?? "ลบองค์กรไม่สำเร็จ"; setError(m); toast.error(m); }
   }, [authHeader, patchOrgs]);
 
   // ── status toggle ──────────────────────────────────────────────────────────────
@@ -386,9 +390,9 @@ export default function AdminUsersPage() {
         body: JSON.stringify({ userId, isActive: !currentActive }),
       });
       const json = await res.json().catch(() => null);
-      if (!res.ok) { setError(json?.error ?? "อัปเดตสถานะไม่สำเร็จ"); }
-      else setItems((prev) => prev.map((u) => u.id === userId ? { ...u, is_active: !currentActive } : u));
-    } catch (e: unknown) { setError((e as Error)?.message ?? "อัปเดตสถานะไม่สำเร็จ"); }
+      if (!res.ok) { const m = json?.error ?? "อัปเดตสถานะไม่สำเร็จ"; setError(m); toast.error(m); }
+      else { setItems((prev) => prev.map((u) => u.id === userId ? { ...u, is_active: !currentActive } : u)); toast.success(!currentActive ? "เปิดใช้งานผู้ใช้แล้ว" : "ระงับผู้ใช้แล้ว"); }
+    } catch (e: unknown) { const m = (e as Error)?.message ?? "อัปเดตสถานะไม่สำเร็จ"; setError(m); toast.error(m); }
     finally { setTogglingUserId(null); }
   }, [authHeader]);
 
@@ -406,16 +410,17 @@ export default function AdminUsersPage() {
         headers: { ...headers, "content-type": "application/json" },
         body: JSON.stringify({ profileId: quotaTarget.id, limitSeconds: m * 60, botLimitSeconds: bm * 60 }),
       });
-      if (!res.ok) { const j = await res.json().catch(() => null); setError(j?.error ?? "ปรับโควต้าไม่สำเร็จ"); return; }
+      if (!res.ok) { const j = await res.json().catch(() => null); const em = j?.error ?? "ปรับโควต้าไม่สำเร็จ"; setError(em); toast.error(em); return; }
       const limit = m * 60, botLimit = bm * 60;
       setItems((prev) => prev.map((u) => u.id === quotaTarget.id
         ? { ...u,
             quota: { ...u.quota, limit_seconds: limit, remaining_seconds: Math.max(0, limit - u.quota.used_seconds) },
             botQuota: { ...u.botQuota, limit_seconds: botLimit, remaining_seconds: Math.max(0, botLimit - u.botQuota.used_seconds) } }
         : u));
-      setMessage(`ปรับโควต้า ${quotaTarget.display_name} แล้ว (ถอดเสียง ${m} · บอท ${bm} นาที)`);
+      const okMsg = `ปรับโควต้า ${quotaTarget.display_name} แล้ว (ถอดเสียง ${m} · บอท ${bm} นาที)`;
+      setMessage(okMsg); toast.success(okMsg);
       setQuotaTarget(null);
-    } catch (e: unknown) { setError((e as Error)?.message ?? "ปรับโควต้าไม่สำเร็จ"); }
+    } catch (e: unknown) { const em = (e as Error)?.message ?? "ปรับโควต้าไม่สำเร็จ"; setError(em); toast.error(em); }
     finally { setQuotaSaving(false); }
   }, [authHeader, quotaTarget, quotaMin, quotaBotMin]);
 
@@ -432,9 +437,9 @@ export default function AdminUsersPage() {
         body: JSON.stringify({ userId }),
       });
       const json = await res.json().catch(() => null);
-      if (!res.ok) { setError(json?.error ?? "ลบผู้ใช้ไม่สำเร็จ"); }
-      else { setMessage(`ลบ ${name} แล้ว`); setItems((prev) => prev.filter((u) => u.id !== userId)); }
-    } catch (e: unknown) { setError((e as Error)?.message ?? "ลบผู้ใช้ไม่สำเร็จ"); }
+      if (!res.ok) { const m = json?.error ?? "ลบผู้ใช้ไม่สำเร็จ"; setError(m); toast.error(m); }
+      else { setMessage(`ลบ ${name} แล้ว`); toast.success(`ลบ ${name} แล้ว`); setItems((prev) => prev.filter((u) => u.id !== userId)); }
+    } catch (e: unknown) { const m = (e as Error)?.message ?? "ลบผู้ใช้ไม่สำเร็จ"; setError(m); toast.error(m); }
     finally { setDeletingUserId(null); }
   }, [authHeader, deleteConfirm]);
 
@@ -451,15 +456,16 @@ export default function AdminUsersPage() {
         body: JSON.stringify({ email: user.email, redirectTo }),
       });
       const json = await res.json().catch(() => null);
-      if (!res.ok) { setError(json?.error ?? "สร้างลิงก์รีเซ็ตรหัสผ่านไม่สำเร็จ"); }
+      if (!res.ok) { const m = json?.error ?? "สร้างลิงก์รีเซ็ตรหัสผ่านไม่สำเร็จ"; setError(m); toast.error(m); }
       else {
         const link = json?.actionLink as string | null;
         if (link) { setActionLink(link); await navigator.clipboard.writeText(link).catch(() => undefined); }
-        setMessage(json?.emailSent
+        const okMsg = json?.emailSent
           ? `ส่งอีเมลรีเซ็ตรหัสผ่านไปที่ ${user.email} แล้ว`
-          : "สร้างลิงก์รีเซ็ตรหัสผ่านแล้ว (คัดลอกไว้ในคลิปบอร์ด)");
+          : "สร้างลิงก์รีเซ็ตรหัสผ่านแล้ว (คัดลอกไว้ในคลิปบอร์ด)";
+        setMessage(okMsg); toast.success(okMsg);
       }
-    } catch (e: unknown) { setError((e as Error)?.message ?? "สร้างลิงก์รีเซ็ตรหัสผ่านไม่สำเร็จ"); }
+    } catch (e: unknown) { const m = (e as Error)?.message ?? "สร้างลิงก์รีเซ็ตรหัสผ่านไม่สำเร็จ"; setError(m); toast.error(m); }
     finally { setResettingUserId(null); }
   }, [authHeader]);
 

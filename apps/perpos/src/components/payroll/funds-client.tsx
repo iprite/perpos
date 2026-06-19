@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/table";
 
 import { upsertFundAction, type FundRow } from "@/lib/payroll/actions";
+import { toast } from "@/lib/toast";
 
 const FUND_TYPE_LABELS: Record<string, string> = {
   ssf:   "ประกันสังคม (SSF)",
@@ -117,7 +118,7 @@ export function FundsClient({
       notes:         form.notes.trim() || null,
     });
     setSaving(false);
-    if (!res.ok) { setErr((res as any).error ?? "บันทึกไม่สำเร็จ"); return; }
+    if (!res.ok) { const msg = (res as any).error ?? "บันทึกไม่สำเร็จ"; setErr(msg); toast.error(msg); return; }
 
     const updated: FundRow = {
       id:              editing?.id ?? String(Date.now()),
@@ -136,6 +137,7 @@ export function FundsClient({
       return [...prev, updated];
     });
     setDialogOpen(false);
+    toast.success(editing ? "แก้ไขกองทุนแล้ว" : "เพิ่มกองทุนแล้ว");
   }
 
   return (

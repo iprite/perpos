@@ -3,6 +3,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
+import { toast } from '@/lib/toast';
 import { PLAN_LABELS, PLAN_COLORS, type PlanTier, type PlanLimits } from '@/lib/billing';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { StatusBadge, type BadgeTone } from '@/components/ui/badge';
@@ -170,10 +171,11 @@ export default function BillingPage() {
         body: JSON.stringify({ orgId }),
       });
       const d = await res.json() as { url?: string; error?: string };
-      if (!res.ok || !d.url) { setActionErr(d.error ?? 'เกิดข้อผิดพลาด'); return; }
+      if (!res.ok || !d.url) { const m = d.error ?? 'เกิดข้อผิดพลาด'; setActionErr(m); toast.error(m); return; }
       window.location.href = d.url;
     } catch {
       setActionErr('Network error');
+      toast.error('เกิดข้อผิดพลาดในการเชื่อมต่อ');
     } finally {
       setPaying(false);
     }
@@ -189,10 +191,11 @@ export default function BillingPage() {
         body: JSON.stringify({ orgId }),
       });
       const d = await res.json() as { url?: string; error?: string };
-      if (!res.ok || !d.url) { setActionErr(d.error ?? 'เกิดข้อผิดพลาด'); return; }
+      if (!res.ok || !d.url) { const m = d.error ?? 'เกิดข้อผิดพลาด'; setActionErr(m); toast.error(m); return; }
       window.location.href = d.url;
     } catch {
       setActionErr('Network error');
+      toast.error('เกิดข้อผิดพลาดในการเชื่อมต่อ');
     } finally {
       setOpeningPortal(false);
     }

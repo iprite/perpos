@@ -43,7 +43,7 @@ import {
   PackageX,
   Loader2,
 } from 'lucide-react';
-import toast, { Toaster } from 'react-hot-toast';
+import { toast } from '@/lib/toast';
 
 export default function JaquarStockPage() {
   const { orgSlug } = useParams<{ orgSlug: string }>();
@@ -498,8 +498,6 @@ export default function JaquarStockPage() {
         </>
       }
     >
-      <Toaster position="top-right" />
-
       {/* Search & Filters */}
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 bg-slate-50 p-4 rounded-xl border border-slate-200">
         <div className="relative">

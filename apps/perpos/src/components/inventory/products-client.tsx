@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useTransition } from "react";
-import { toast } from "react-hot-toast";
+import { toast } from '@/lib/toast';
 import { Plus } from "lucide-react";
 
 import { Button } from "@/components/ui/button";

@@ -6,7 +6,7 @@ import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { CalendarCheck, HardDrive, Link2, Loader2, ShieldCheck, Unlink } from 'lucide-react';
-import { toast } from 'react-hot-toast';
+import { toast } from '@/lib/toast';
 
 export default function AssistantCalendarPage() {
   const supabase = createSupabaseBrowserClient();

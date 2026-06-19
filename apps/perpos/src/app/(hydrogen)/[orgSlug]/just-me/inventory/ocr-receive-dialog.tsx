@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { CustomSelect } from '@/components/ui/custom-select';
+import { toast } from '@/lib/toast';
 import {
   Dialog, DialogContent, DialogHeader, DialogBody, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog';
@@ -166,10 +167,13 @@ export function OcrReceiveDialog({
 
     setSaving(false);
 
-    if (!res.ok && data.error) { setError(data.error); return; }
+    if (!res.ok && data.error) { setError(data.error); toast.error(data.error); return; }
 
     if (data.errors && data.errors.length > 0) {
       setError(`บันทึกบางรายการไม่สำเร็จ: ${data.errors.join(', ')}`);
+      toast.error(`บันทึกบางรายการไม่สำเร็จ: ${data.errors.join(', ')}`);
+    } else {
+      toast.success('รับเข้าสินค้าแล้ว');
     }
 
     // reset

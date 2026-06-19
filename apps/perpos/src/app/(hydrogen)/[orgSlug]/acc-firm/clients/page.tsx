@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
+import { toast } from '@/lib/toast';
 import { Button } from '@/components/ui/button';
 import { PageShell } from '@/components/ui/page-shell';
 import { Input } from '@/components/ui/input';
@@ -167,34 +168,32 @@ export default function AccFirmClientsPage() {
     if (!provClient) return;
     setProvSaving(member.userId);
 
-    if (member.hasAccess) {
-      // Revoke
-      await fetch('/api/acc-firm/provision', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({
-          firmOrgId:   orgId,
-          clientOrgId: provClient.client_org.id,
-          userId:      member.userId,
-        }),
-      });
-    } else {
-      // Provision
-      await fetch('/api/acc-firm/provision', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({
-          firmOrgId:   orgId,
-          clientOrgId: provClient.client_org.id,
-          userId:      member.userId,
-          modules:     engagement?.modulesManaged ?? provClient.modules_managed,
-        }),
-      });
-    }
+    const res = member.hasAccess
+      ? await fetch('/api/acc-firm/provision', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({
+            firmOrgId:   orgId,
+            clientOrgId: provClient.client_org.id,
+            userId:      member.userId,
+          }),
+        })
+      : await fetch('/api/acc-firm/provision', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({
+            firmOrgId:   orgId,
+            clientOrgId: provClient.client_org.id,
+            userId:      member.userId,
+            modules:     engagement?.modulesManaged ?? provClient.modules_managed,
+          }),
+        });
 
     // Refresh members list
     await openProvision(provClient);
     setProvSaving(null);
+    if (!res.ok) { toast.error('ปรับสิทธิ์เข้าถึงไม่สำเร็จ'); return; }
+    toast.success(member.hasAccess ? 'ยกเลิกสิทธิ์เข้าถึงแล้ว' : 'ให้สิทธิ์เข้าถึงแล้ว');
   }, [provClient, orgId, token, engagement, openProvision]);
 
   // ── Available orgs (exclude already-added + self) ─────────────────────────
@@ -233,8 +232,8 @@ export default function AccFirmClientsPage() {
       }),
     });
     setSaving(false);
-    if (res.ok) { setShowAdd(false); load(); }
-    else { const e = await res.json(); alert(e.error); }
+    if (res.ok) { setShowAdd(false); load(); toast.success('เพิ่มลูกค้าแล้ว'); }
+    else { const e = await res.json(); toast.error(e.error ?? 'เพิ่มลูกค้าไม่สำเร็จ'); }
   };
 
   // ── Save edit ─────────────────────────────────────────────────────────────
@@ -253,8 +252,8 @@ export default function AccFirmClientsPage() {
       }),
     });
     setSaving(false);
-    if (res.ok) { setEditRow(null); load(); }
-    else { const e = await res.json(); alert(e.error); }
+    if (res.ok) { setEditRow(null); load(); toast.success('บันทึกการแก้ไขแล้ว'); }
+    else { const e = await res.json(); toast.error(e.error ?? 'บันทึกไม่สำเร็จ'); }
   };
 
   const openEdit = (row: ClientRow) => {

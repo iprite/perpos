@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { backendUrl } from '@/lib/backend';
+import { toast } from '@/lib/toast';
 import { Button } from '@/components/ui/button';
 import { PageShell } from '@/components/ui/page-shell';
 import { Input } from '@/components/ui/input';
@@ -326,28 +327,29 @@ export default function TmcFinancePage() {
     const expense = form.entryType === 'expense' ? form.amount : '';
 
     const propertyCode = form.propertyCodes.length > 0 ? form.propertyCodes.join(',') : '';
-    if (editEntry) {
-      await fetch(backendUrl('/tmc/finance'), {
-        method: 'PUT', headers: h,
-        body: JSON.stringify({
-          id: editEntry.id, orgId: TMC_ORG_ID,
-          accountId: form.accountId, entryDate: form.entryDate,
-          description: form.description, category: form.category,
-          propertyCode, income, expense, note: form.note,
-        }),
-      });
-    } else {
-      await fetch(backendUrl('/tmc/finance'), {
-        method: 'POST', headers: h,
-        body: JSON.stringify({
-          orgId: TMC_ORG_ID,
-          accountId: form.accountId, entryDate: form.entryDate,
-          description: form.description, category: form.category,
-          propertyCode, income, expense, note: form.note,
-        }),
-      });
-    }
+    const res = editEntry
+      ? await fetch(backendUrl('/tmc/finance'), {
+          method: 'PUT', headers: h,
+          body: JSON.stringify({
+            id: editEntry.id, orgId: TMC_ORG_ID,
+            accountId: form.accountId, entryDate: form.entryDate,
+            description: form.description, category: form.category,
+            propertyCode, income, expense, note: form.note,
+          }),
+        })
+      : await fetch(backendUrl('/tmc/finance'), {
+          method: 'POST', headers: h,
+          body: JSON.stringify({
+            orgId: TMC_ORG_ID,
+            accountId: form.accountId, entryDate: form.entryDate,
+            description: form.description, category: form.category,
+            propertyCode, income, expense, note: form.note,
+          }),
+        });
     setSaving(false);
+    res.ok
+      ? toast.success(editEntry ? 'แก้ไขรายการแล้ว' : 'บันทึกรายการแล้ว')
+      : toast.error('บันทึกไม่สำเร็จ');
     closeForm();
     void load();
   }
@@ -356,10 +358,11 @@ export default function TmcFinancePage() {
     if (!editEntry) return;
     setDeleting(true);
     const h = await authHeader();
-    await fetch(backendUrl(`/tmc/finance?id=${editEntry.id}&orgId=${TMC_ORG_ID}`), {
+    const res = await fetch(backendUrl(`/tmc/finance?id=${editEntry.id}&orgId=${TMC_ORG_ID}`), {
       method: 'DELETE', headers: h,
     });
     setDeleting(false);
+    res.ok ? toast.success('ลบรายการแล้ว') : toast.error('ลบไม่สำเร็จ');
     closeForm();
     void load();
   }
@@ -369,30 +372,32 @@ export default function TmcFinancePage() {
     if (!accountForm.name.trim()) return;
     setAccountSaving(true);
     const h = await authHeader();
-    if (editAccount) {
-      await fetch(backendUrl('/tmc/accounts'), {
-        method: 'PATCH', headers: h,
-        body: JSON.stringify({ orgId: TMC_ORG_ID, id: editAccount.id, ...accountForm }),
-      });
-    } else {
-      await fetch(backendUrl('/tmc/accounts'), {
-        method: 'POST', headers: h,
-        body: JSON.stringify({ orgId: TMC_ORG_ID, ...accountForm }),
-      });
-    }
+    const res = editAccount
+      ? await fetch(backendUrl('/tmc/accounts'), {
+          method: 'PATCH', headers: h,
+          body: JSON.stringify({ orgId: TMC_ORG_ID, id: editAccount.id, ...accountForm }),
+        })
+      : await fetch(backendUrl('/tmc/accounts'), {
+          method: 'POST', headers: h,
+          body: JSON.stringify({ orgId: TMC_ORG_ID, ...accountForm }),
+        });
     setAccountSaving(false);
     setShowAccountForm(false);
     setEditAccount(null);
     setAccountForm({ ...EMPTY_ACCOUNT });
+    res.ok
+      ? toast.success(editAccount ? 'แก้ไขบัญชีแล้ว' : 'เพิ่มบัญชีแล้ว')
+      : toast.error('บันทึกบัญชีไม่สำเร็จ');
     void loadAccounts();
     void load();
   }
 
   async function handleDeleteAccount(id: string) {
     const h = await authHeader();
-    await fetch(backendUrl(`/tmc/accounts?id=${id}&orgId=${TMC_ORG_ID}`), {
+    const res = await fetch(backendUrl(`/tmc/accounts?id=${id}&orgId=${TMC_ORG_ID}`), {
       method: 'DELETE', headers: h,
     });
+    res.ok ? toast.success('ลบบัญชีแล้ว') : toast.error('ลบบัญชีไม่สำเร็จ');
     void loadAccounts();
     void load();
   }
@@ -402,26 +407,27 @@ export default function TmcFinancePage() {
     if (!newCatName.trim()) return;
     setMasterSaving(true);
     const h = await authHeader();
-    await fetch(backendUrl('/tmc/finance/categories'), {
+    const res = await fetch(backendUrl('/tmc/finance/categories'), {
       method: 'POST', headers: h,
       body: JSON.stringify({ orgId: TMC_ORG_ID, name: newCatName }),
     });
-    setNewCatName(''); setMasterSaving(false); void loadMaster();
+    setNewCatName(''); setMasterSaving(false);
+    res.ok ? toast.success('เพิ่มหมวดหมู่แล้ว') : toast.error('เพิ่มไม่สำเร็จ'); void loadMaster();
   }
   async function updateCategory(id: string, name: string) {
     const h = await authHeader();
-    await fetch(backendUrl('/tmc/finance/categories'), {
+    const res = await fetch(backendUrl('/tmc/finance/categories'), {
       method: 'PATCH', headers: h,
       body: JSON.stringify({ orgId: TMC_ORG_ID, id, name }),
     });
-    void loadMaster();
+    res.ok ? toast.success('แก้ไขหมวดหมู่แล้ว') : toast.error('แก้ไขไม่สำเร็จ'); void loadMaster();
   }
   async function deleteCategory(id: string) {
     const h = await authHeader();
-    await fetch(backendUrl(`/tmc/finance/categories?id=${id}&orgId=${TMC_ORG_ID}`), {
+    const res = await fetch(backendUrl(`/tmc/finance/categories?id=${id}&orgId=${TMC_ORG_ID}`), {
       method: 'DELETE', headers: h,
     });
-    void loadMaster();
+    res.ok ? toast.success('ลบหมวดหมู่แล้ว') : toast.error('ลบไม่สำเร็จ'); void loadMaster();
   }
 
   // ── Property CRUD ────────────────────────────────────────────────────────────
@@ -429,25 +435,27 @@ export default function TmcFinancePage() {
     if (!newPropCode.trim() || !newPropName.trim()) return;
     setMasterSaving(true);
     const h = await authHeader();
-    await fetch(backendUrl('/tmc/properties'), {
+    const res = await fetch(backendUrl('/tmc/properties'), {
       method: 'POST', headers: h,
       body: JSON.stringify({ orgId: TMC_ORG_ID, code: newPropCode, name: newPropName }),
     });
-    setNewPropCode(''); setNewPropName(''); setMasterSaving(false); void loadMaster();
+    setNewPropCode(''); setNewPropName(''); setMasterSaving(false);
+    res.ok ? toast.success('เพิ่มแปลง/ทรัพย์สินแล้ว') : toast.error('เพิ่มไม่สำเร็จ'); void loadMaster();
   }
   async function updateProperty(id: string, name: string, code?: string) {
     const h = await authHeader();
-    await fetch(backendUrl('/tmc/properties'), {
+    const res = await fetch(backendUrl('/tmc/properties'), {
       method: 'PATCH', headers: h,
       body: JSON.stringify({ orgId: TMC_ORG_ID, id, name, ...(code ? { code } : {}) }),
     });
-    void loadMaster();
+    res.ok ? toast.success('แก้ไขแปลง/ทรัพย์สินแล้ว') : toast.error('แก้ไขไม่สำเร็จ'); void loadMaster();
   }
   async function deleteProperty(id: string) {
     const h = await authHeader();
-    await fetch(backendUrl(`/tmc/properties?id=${id}&orgId=${TMC_ORG_ID}`), {
+    const res = await fetch(backendUrl(`/tmc/properties?id=${id}&orgId=${TMC_ORG_ID}`), {
       method: 'DELETE', headers: h,
     });
+    res.ok ? toast.success('ลบแปลง/ทรัพย์สินแล้ว') : toast.error('ลบไม่สำเร็จ');
     void loadMaster();
   }
 

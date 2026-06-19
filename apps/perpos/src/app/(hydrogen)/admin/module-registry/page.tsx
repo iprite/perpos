@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/app/shared/auth-provider';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
+import { toast } from '@/lib/toast';
 import { Button }       from '@/components/ui/button';
 import { Input }        from '@/components/ui/input';
 import { Label }        from '@/components/ui/label';
@@ -13,7 +14,7 @@ import {
 } from '@/components/ui/dialog';
 import {
   Puzzle, Plus, Pencil, Trash2, Loader2, CheckCircle2,
-  AlertCircle, ToggleLeft, ToggleRight, ShieldAlert,
+  ToggleLeft, ToggleRight, ShieldAlert,
   Building2, Globe, Menu, ChevronDown, ChevronRight,
   User, Link2, Link2Off, Users,
 } from 'lucide-react';
@@ -168,7 +169,6 @@ export default function ModuleRegistryPage() {
   const [modules,   setModules]   = useState<ModuleRec[]>([]);
   const [orgs,      setOrgs]      = useState<Org[]>([]);
   const [loading,   setLoading]   = useState(true);
-  const [toast,     setToast]     = useState<{ ok: boolean; msg: string } | null>(null);
   const [dialog,    setDialog]    = useState<'create' | 'edit' | 'delete' | null>(null);
   const [selected,  setSelected]  = useState<ModuleRec | null>(null);
   const [form,      setForm]      = useState<FormState>(EMPTY_FORM);
@@ -202,8 +202,8 @@ export default function ModuleRegistryPage() {
   }, [getHeaders]);
 
   function showToast(ok: boolean, msg: string) {
-    setToast({ ok, msg });
-    setTimeout(() => setToast(null), 4000);
+    if (ok) toast.success(msg);
+    else toast.error(msg);
   }
 
   // ── Grouped data ──────────────────────────────────────────────────────────────
@@ -248,25 +248,31 @@ export default function ModuleRegistryPage() {
 
   async function toggleGrant(moduleKey: string, userId: string, currentEnabled: boolean | null) {
     const h = await getHeaders();
+    let res: Response;
+    let okMsg: string;
     if (currentEnabled === null) {
       // Grant doesn't exist yet — create enabled
-      await fetch('/api/admin/module-registry/grants', {
+      res = await fetch('/api/admin/module-registry/grants', {
         method: 'POST', headers: h,
         body: JSON.stringify({ module_key: moduleKey, user_id: userId, is_enabled: true }),
       });
+      okMsg = 'เปิดสิทธิ์ให้ผู้ใช้แล้ว';
     } else if (currentEnabled) {
       // Disable
-      await fetch('/api/admin/module-registry/grants', {
+      res = await fetch('/api/admin/module-registry/grants', {
         method: 'POST', headers: h,
         body: JSON.stringify({ module_key: moduleKey, user_id: userId, is_enabled: false }),
       });
+      okMsg = 'ปิดสิทธิ์ผู้ใช้แล้ว';
     } else {
       // Remove grant entirely
-      await fetch('/api/admin/module-registry/grants', {
+      res = await fetch('/api/admin/module-registry/grants', {
         method: 'DELETE', headers: h,
         body: JSON.stringify({ module_key: moduleKey, user_id: userId }),
       });
+      okMsg = 'นำสิทธิ์ผู้ใช้ออกแล้ว';
     }
+    showToast(res.ok, res.ok ? okMsg : 'ปรับสิทธิ์ไม่สำเร็จ');
     void loadGrants(moduleKey);
   }
 
@@ -403,16 +409,6 @@ export default function ModuleRegistryPage() {
         </Button>
       }
     >
-      {/* Toast */}
-      {toast && (
-        <div className={cn(
-          'flex items-center gap-2 rounded-xl border px-4 py-3 text-sm',
-          toast.ok ? 'border-green-200 bg-green-50 text-green-800' : 'border-red-200 bg-red-50 text-red-700',
-        )}>
-          {toast.ok ? <CheckCircle2 className="h-4 w-4 text-green-500" /> : <AlertCircle className="h-4 w-4 text-red-500" />}
-          {toast.msg}
-        </div>
-      )}
 
       {loading ? (
         <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-slate-400" /></div>

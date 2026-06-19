@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useParams } from 'next/navigation';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
+import { toast } from '@/lib/toast';
 import { Button } from '@/components/ui/button';
 import { PageShell } from '@/components/ui/page-shell';
 import { Input } from '@/components/ui/input';
@@ -207,10 +208,12 @@ export default function JustMeInventoryPage() {
       if (!res.ok) throw new Error(json.error || 'สร้างคลังสินค้าไม่สำเร็จ');
 
       setSuccess(`เพิ่มคลังสินค้า "${formWarehouse.name}" สำเร็จ`);
+      toast.success(`เพิ่มคลังสินค้า "${formWarehouse.name}" แล้ว`);
       setFormWarehouse({ name: '', type: 'site', location_address: '' });
       await loadData();
     } catch (err: any) {
       setError(err.message);
+      toast.error(err.message || 'สร้างคลังสินค้าไม่สำเร็จ');
     } finally {
       setFormLoading(false);
     }
@@ -243,6 +246,7 @@ export default function JustMeInventoryPage() {
       if (!res.ok) throw new Error(json.error || 'เพิ่มข้อมูลวัสดุ/สินค้าไม่สำเร็จ');
 
       setSuccess(`เพิ่มข้อมูลวัสดุ "${formItem.name}" สำเร็จ`);
+      toast.success(`เพิ่มวัสดุ/สินค้า "${formItem.name}" แล้ว`);
       setFormItem({
         name: '', code: '', description: '', unit: 'ชิ้น',
         has_serial: false, has_cable_measurement: false, conversion_rate: '1', min_stock: '0'
@@ -252,6 +256,7 @@ export default function JustMeInventoryPage() {
       await loadData();
     } catch (err: any) {
       setError(err.message);
+      toast.error(err.message || 'เพิ่มข้อมูลไม่สำเร็จ');
     } finally {
       setFormLoading(false);
     }
@@ -305,6 +310,7 @@ export default function JustMeInventoryPage() {
       if (!res.ok) throw new Error(json.error || 'บันทึกรายการเคลื่อนไหวไม่สำเร็จ');
 
       setSuccess('บันทึกรายการเคลื่อนไหวสต็อกสำเร็จ');
+      toast.success('บันทึกรายการเคลื่อนไหวสต็อกแล้ว');
       setFormMovement({
         movement_type: 'receive', item_id: '', source_warehouse_id: '', destination_warehouse_id: '',
         quantity: '1', reference_no: '', note: '', serialsText: '', length_remaining: ''
@@ -312,6 +318,7 @@ export default function JustMeInventoryPage() {
       await loadData();
     } catch (err: any) {
       setError(err.message);
+      toast.error(err.message || 'บันทึกไม่สำเร็จ');
     } finally {
       setFormLoading(false);
     }

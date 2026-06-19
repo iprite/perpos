@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
+import { toast } from '@/lib/toast';
 import { Button } from '@/components/ui/button';
 import { PageShell } from '@/components/ui/page-shell';
 import { Input } from '@/components/ui/input';
@@ -224,8 +225,8 @@ export default function TmcPettyCashPage() {
       ? await fetch('/api/tmc/petty-cash', { method: 'PUT',  headers: { ...h, 'Content-Type': 'application/json' }, body: JSON.stringify({ ...body, id: editId }) })
       : await fetch('/api/tmc/petty-cash', { method: 'POST', headers: { ...h, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
 
-    if (!res.ok) { const e = await res.json().catch(() => ({})); setFormErr(e.error ?? 'บันทึกไม่สำเร็จ'); }
-    else { setShowForm(false); setEditId(null); setForm({ ...EMPTY_FORM }); void load(); }
+    if (!res.ok) { const e = await res.json().catch(() => ({})); const m = e.error ?? 'บันทึกไม่สำเร็จ'; setFormErr(m); toast.error(m); }
+    else { setShowForm(false); setEditId(null); setForm({ ...EMPTY_FORM }); toast.success(editId ? 'แก้ไขรายการแล้ว' : 'บันทึกรายการแล้ว'); void load(); }
     setSaving(false);
   }
 
@@ -242,8 +243,8 @@ export default function TmcPettyCashPage() {
   async function handleDelete() {
     if (!deleteId) return;
     const h = await authHeader();
-    await fetch(`/api/tmc/petty-cash?id=${deleteId}&orgId=${TMC_ORG_ID}`, { method: 'DELETE', headers: h });
-    setDeleteId(null); void load();
+    const res = await fetch(`/api/tmc/petty-cash?id=${deleteId}&orgId=${TMC_ORG_ID}`, { method: 'DELETE', headers: h });
+    setDeleteId(null); res.ok ? toast.success('ลบรายการแล้ว') : toast.error('ลบไม่สำเร็จ'); void load();
   }
 
   // ── Fund ───────────────────────────────────────────────────────────────────
@@ -251,11 +252,12 @@ export default function TmcPettyCashPage() {
     if (!newFundName.trim()) return;
     setFundSaving(true);
     const h = await authHeader();
-    await fetch('/api/tmc/petty-cash/funds', { method: 'POST',
+    const res = await fetch('/api/tmc/petty-cash/funds', { method: 'POST',
       headers: { ...h, 'Content-Type': 'application/json' },
       body: JSON.stringify({ orgId: TMC_ORG_ID, name: newFundName, note: newFundNote }),
     });
-    setNewFundName(''); setNewFundNote(''); setFundSaving(false); void loadMaster();
+    setNewFundName(''); setNewFundNote(''); setFundSaving(false);
+    res.ok ? toast.success('เพิ่มกระเป๋าเงินแล้ว') : toast.error('เพิ่มไม่สำเร็จ'); void loadMaster();
   }
 
   // ── Category CRUD ──────────────────────────────────────────────────────────
@@ -263,26 +265,27 @@ export default function TmcPettyCashPage() {
     if (!newCatName.trim()) return;
     setMasterSaving(true);
     const h = await authHeader();
-    await fetch('/api/tmc/petty-cash/categories', { method: 'POST',
+    const res = await fetch('/api/tmc/petty-cash/categories', { method: 'POST',
       headers: { ...h, 'Content-Type': 'application/json' },
       body: JSON.stringify({ orgId: TMC_ORG_ID, name: newCatName }),
     });
-    setNewCatName(''); setMasterSaving(false); void loadMaster();
+    setNewCatName(''); setMasterSaving(false);
+    res.ok ? toast.success('เพิ่มหมวดหมู่แล้ว') : toast.error('เพิ่มไม่สำเร็จ'); void loadMaster();
   }
 
   async function updateCategory(id: string, name: string) {
     const h = await authHeader();
-    await fetch('/api/tmc/petty-cash/categories', { method: 'PATCH',
+    const res = await fetch('/api/tmc/petty-cash/categories', { method: 'PATCH',
       headers: { ...h, 'Content-Type': 'application/json' },
       body: JSON.stringify({ orgId: TMC_ORG_ID, id, name }),
     });
-    void loadMaster();
+    res.ok ? toast.success('แก้ไขหมวดหมู่แล้ว') : toast.error('แก้ไขไม่สำเร็จ'); void loadMaster();
   }
 
   async function deleteCategory(id: string) {
     const h = await authHeader();
-    await fetch(`/api/tmc/petty-cash/categories?id=${id}&orgId=${TMC_ORG_ID}`, { method: 'DELETE', headers: h });
-    void loadMaster();
+    const res = await fetch(`/api/tmc/petty-cash/categories?id=${id}&orgId=${TMC_ORG_ID}`, { method: 'DELETE', headers: h });
+    res.ok ? toast.success('ลบหมวดหมู่แล้ว') : toast.error('ลบไม่สำเร็จ'); void loadMaster();
   }
 
   // ── Property CRUD ──────────────────────────────────────────────────────────
@@ -290,26 +293,27 @@ export default function TmcPettyCashPage() {
     if (!newPropCode.trim() || !newPropName.trim()) return;
     setMasterSaving(true);
     const h = await authHeader();
-    await fetch('/api/tmc/properties', { method: 'POST',
+    const res = await fetch('/api/tmc/properties', { method: 'POST',
       headers: { ...h, 'Content-Type': 'application/json' },
       body: JSON.stringify({ orgId: TMC_ORG_ID, code: newPropCode, name: newPropName }),
     });
-    setNewPropCode(''); setNewPropName(''); setMasterSaving(false); void loadMaster();
+    setNewPropCode(''); setNewPropName(''); setMasterSaving(false);
+    res.ok ? toast.success('เพิ่มแปลง/ทรัพย์สินแล้ว') : toast.error('เพิ่มไม่สำเร็จ'); void loadMaster();
   }
 
   async function updateProperty(id: string, name: string, code?: string) {
     const h = await authHeader();
-    await fetch('/api/tmc/properties', { method: 'PATCH',
+    const res = await fetch('/api/tmc/properties', { method: 'PATCH',
       headers: { ...h, 'Content-Type': 'application/json' },
       body: JSON.stringify({ orgId: TMC_ORG_ID, id, name, ...(code ? { code } : {}) }),
     });
-    void loadMaster();
+    res.ok ? toast.success('แก้ไขแปลง/ทรัพย์สินแล้ว') : toast.error('แก้ไขไม่สำเร็จ'); void loadMaster();
   }
 
   async function deleteProperty(id: string) {
     const h = await authHeader();
-    await fetch(`/api/tmc/properties?id=${id}&orgId=${TMC_ORG_ID}`, { method: 'DELETE', headers: h });
-    void loadMaster();
+    const res = await fetch(`/api/tmc/properties?id=${id}&orgId=${TMC_ORG_ID}`, { method: 'DELETE', headers: h });
+    res.ok ? toast.success('ลบแปลง/ทรัพย์สินแล้ว') : toast.error('ลบไม่สำเร็จ'); void loadMaster();
   }
 
   // ── Options ────────────────────────────────────────────────────────────────
