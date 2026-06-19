@@ -12,6 +12,7 @@ import { ok, Err } from '../../../_lib/response';
 import { buildMomHtml, MOM_FOOTER_TEMPLATE, type MomJson } from '@/lib/assistant/mom-html';
 import { sendLineMessages } from '@/lib/line/send-messages';
 import { saveToDrive } from '@/lib/google/drive';
+import crypto from 'crypto';
 
 const BUCKET = 'assistant_audio';
 
@@ -177,13 +178,23 @@ export async function POST(req: NextRequest) {
   const privacyAudio = isRecall
     ? 'ไฟล์เสียง + รายงาน PDF จะถูกลบอัตโนมัติภายใน 48 ชั่วโมง กรุณาดาวน์โหลดเก็บไว้'
     : 'ไฟล์เสียงถูกลบออกจากระบบทันทีหลังประมวลผลเสร็จ · รายงาน PDF นี้จะถูกลบอัตโนมัติภายใน 48 ชั่วโมง กรุณาดาวน์โหลดเก็บไว้';
+  // ลิงก์ดาวน์โหลดสั้น perpos domain (app.perpos.io/f/<code>) → proxy สร้าง signed URL สด · ไฟล์หมดอายุ → หน้า "ไฟล์หมดอายุ"
+  const fileBase = (process.env.APP_BASE_URL ?? 'https://app.perpos.io').replace(/\/$/, '');
+  const shortLink = async (kind: 'mom' | 'audio') => {
+    const code = crypto.randomBytes(6).toString('base64url'); // 8 ตัวอักษร unguessable
+    await admin.from('file_links').insert({ code, job_id: jobId, kind });
+    return `${fileBase}/f/${code}`;
+  };
+  const momFileUrl = await shortLink('mom');
+  const audioFileUrl = audioUrl ? await shortLink('audio') : '';
+
   const footerButtons: Record<string, unknown>[] = [
     { type: 'button', style: 'primary', color: '#4DB0D3', height: 'sm',
-      action: { type: 'uri', label: 'ดาวน์โหลด MoM (PDF)', uri: signed.signedUrl } },
+      action: { type: 'uri', label: 'ดาวน์โหลด MoM (PDF)', uri: momFileUrl } },
   ];
   if (audioUrl) {
     footerButtons.push({ type: 'button', style: 'secondary', height: 'sm', margin: 'sm',
-      action: { type: 'uri', label: 'ดาวน์โหลดไฟล์เสียง (MP3)', uri: audioUrl } });
+      action: { type: 'uri', label: 'ดาวน์โหลดไฟล์เสียง (MP3)', uri: audioFileUrl } });
   }
   if (momDriveUrl) {
     footerButtons.push({ type: 'button', style: 'secondary', height: 'sm', margin: 'sm',

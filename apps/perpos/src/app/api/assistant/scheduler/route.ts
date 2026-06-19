@@ -375,6 +375,12 @@ async function run(req: NextRequest) {
     .lt('created_at', new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString())
     .then(() => undefined, () => undefined);
 
+  // 9b. cleanup file_links เก่า > 48 ชม. (ลิงก์ดาวน์โหลดสั้น — ไฟล์ถูกลบที่ 48 ชม.แล้ว)
+  await admin.from('file_links')
+    .delete()
+    .lt('created_at', new Date(now.getTime() - 48 * 60 * 60 * 1000).toISOString())
+    .then(() => undefined, () => undefined);
+
   // 10. Phase 1b — sync ปฏิทิน Google ของผู้ใช้ที่เปิด auto_remind (throttle 10 นาที/คน, batch 15)
   //     poll upcoming 36 ชม. → upsert recall_calendar_events (event ที่จะส่งบอท reminder ใน Phase 1c)
   {
