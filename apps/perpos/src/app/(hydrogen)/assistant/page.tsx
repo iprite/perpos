@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
+import { StatCard } from '@/components/ui/stat-card';
 import { StatusBadge, type BadgeTone } from '@/components/ui/badge';
 import {
   Table, TableHeader, TableBody, TableRow, TableHead, TableCell,
@@ -391,7 +392,7 @@ export default function AssistantTranscribePage() {
                 onDrop={(e) => { e.preventDefault(); setDragOver(false); pickFile(e.dataTransfer.files?.[0] ?? null); }}
                 onClick={() => fileInputRef.current?.click()}
                 className={`flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed px-6 py-10 text-center transition-colors ${
-                  dragOver ? 'border-indigo-400 bg-indigo-50' : 'border-gray-200 hover:border-indigo-300 hover:bg-gray-50'
+                  dragOver ? 'border-primary bg-gray-50' : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
                 }`}
               >
                 <input
@@ -400,7 +401,7 @@ export default function AssistantTranscribePage() {
                 />
                 {file ? (
                   <div className="flex items-center gap-3">
-                    <FileAudio className="h-8 w-8 shrink-0 text-indigo-600" />
+                    <FileAudio className="h-8 w-8 shrink-0 text-primary" />
                     <div className="min-w-0 text-left">
                       <div className="truncate font-medium text-gray-900">{file.name}</div>
                       <div className="text-xs text-gray-500">{fmtSize(file.size)}</div>
@@ -452,11 +453,11 @@ export default function AssistantTranscribePage() {
                 </div>
                 <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-gray-100">
                   <div
-                    className={`h-full rounded-full ${quota.remaining <= 0 ? 'bg-red-500' : 'bg-indigo-500'}`}
+                    className={`h-full rounded-full ${quota.remaining <= 0 ? 'bg-red-600' : 'bg-primary'}`}
                     style={{ width: `${usedPct}%` }}
                   />
                 </div>
-                <Link href="/assistant/billing" className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-indigo-600 hover:text-indigo-700">
+                <Link href="/assistant/billing" className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-primary hover:text-primary/80">
                   <Sparkles className="h-3.5 w-3.5" /> ซื้อนาทีเพิ่ม
                 </Link>
               </div>
@@ -580,7 +581,7 @@ export default function AssistantTranscribePage() {
         <DialogContent size="xl">
           <DialogHeader>
             <DialogTitle className="flex items-start gap-2">
-              <FileAudio className="mt-0.5 h-5 w-5 shrink-0 text-indigo-600" />
+              <FileAudio className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
               <span className="min-w-0">
                 <span className="block truncate text-base">{activeJob?.transcript_json?.meeting_title || activeJob?.file_name}</span>
                 {activeJob?.transcript_json?.meeting_title ? (
@@ -602,7 +603,7 @@ export default function AssistantTranscribePage() {
               {activeJob.transcript_json.executive_summary ? (
                 <section>
                   <h4 className="mb-1.5 text-sm font-semibold text-gray-900">สรุปภาพรวม</h4>
-                  <p className="rounded-xl border border-indigo-100 bg-indigo-50/60 p-3 text-sm leading-relaxed text-gray-800">
+                  <p className="rounded-xl border border-gray-200 bg-gray-50 p-3 text-sm leading-relaxed text-gray-800">
                     {activeJob.transcript_json.executive_summary}
                   </p>
                 </section>
@@ -709,7 +710,8 @@ export default function AssistantTranscribePage() {
   );
 }
 
-// ── KPI card ─────────────────────────────────────────────────────────────────────
+// ── KPI card — delegate ไป StatCard มาตรฐาน (§11) ────────────────────────────────
+const KPI_TONE = { primary: 'primary', success: 'positive', warning: 'warning', danger: 'negative', neutral: 'neutral' } as const;
 function KpiCard({
   icon, label, value, sub, tone,
 }: {
@@ -719,21 +721,5 @@ function KpiCard({
   sub?: string;
   tone: 'primary' | 'success' | 'warning' | 'danger' | 'neutral';
 }) {
-  const toneCls: Record<string, string> = {
-    primary: 'bg-indigo-50 text-indigo-600',
-    success: 'bg-green-50 text-green-600',
-    warning: 'bg-amber-50 text-amber-600',
-    danger:  'bg-red-50 text-red-600',
-    neutral: 'bg-gray-100 text-gray-500',
-  };
-  return (
-    <div className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
-      <div className="flex items-center gap-2">
-        <span className={`flex h-7 w-7 items-center justify-center rounded-lg ${toneCls[tone]}`}>{icon}</span>
-        <span className="text-xs font-medium text-gray-500">{label}</span>
-      </div>
-      <div className="mt-2 text-2xl font-semibold tabular-nums text-gray-900">{value}</div>
-      {sub ? <div className="text-xs text-gray-400">{sub}</div> : null}
-    </div>
-  );
+  return <StatCard icon={icon} label={label} value={value} sub={sub} tone={KPI_TONE[tone]} />;
 }

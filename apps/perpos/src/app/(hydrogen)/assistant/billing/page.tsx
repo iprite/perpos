@@ -167,15 +167,15 @@ export default function TranscribeBillingPage() {
             <p className="mb-4 text-sm text-gray-500">ตัดบัตรอัตโนมัติทุก 30 วัน · นาทีรีเซ็ตทุกรอบ (ใช้ไม่หมดไม่สะสม) · ยกเลิกได้ทุกเมื่อ ไม่มีคืนเงิน</p>
             <div className="grid gap-4 sm:grid-cols-2">
               {subscriptions.map((p, i) => (
-                <div key={p.id} className={`relative rounded-2xl border bg-white p-6 shadow-sm ${i === 0 ? 'border-indigo-300 ring-1 ring-indigo-100' : 'border-gray-100'}`}>
-                  {i === 0 ? <div className="absolute right-4 top-4 rounded-full bg-indigo-50 px-2.5 py-0.5 text-xs font-medium text-indigo-600">แนะนำ</div> : null}
+                <div key={p.id} className={`relative rounded-2xl border bg-white p-6 shadow-sm ${i === 0 ? 'border-primary ring-1 ring-gray-200' : 'border-gray-100'}`}>
+                  {i === 0 ? <div className="absolute right-4 top-4 rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-medium text-blue-600">แนะนำ</div> : null}
                   <div className="text-base font-medium text-gray-900">{p.name}</div>
                   <div className="mt-2 flex items-baseline gap-1">
                     <span className="text-4xl font-bold tabular-nums text-gray-900">฿{thb(p.price)}</span>
                     <span className="text-sm text-gray-500">/เดือน</span>
                   </div>
                   <div className="mt-3 flex items-center gap-1.5 text-sm text-gray-600">
-                    <Clock className="h-4 w-4 text-indigo-500" /> {thb(p.minutes)} นาที/เดือน
+                    <Clock className="h-4 w-4 text-primary" /> {thb(p.minutes)} นาที/เดือน
                   </div>
                   <Button className="mt-5 w-full" disabled={!!buying || hasActiveSub} onClick={() => buy(p.code)}>
                     {buying === p.code ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}

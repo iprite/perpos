@@ -13,7 +13,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { CalendarClock, ClipboardPaste, FileAudio, FileText, FolderOpen, Loader2, SendHorizontal, Video } from 'lucide-react';
-import { toast } from 'react-hot-toast';
+import { toast } from '@/lib/toast';
 
 type BadgeTone = 'neutral' | 'info' | 'success' | 'warning' | 'danger';
 
