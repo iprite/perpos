@@ -44,42 +44,66 @@ async function runJob(jobId: string, orgId: string): Promise<void> {
 
     // 2. บีบ (python pikepdf+pillow) — โยน UserFacingError ถ้าเกินเพดาน/ไฟล์เสีย
     const result = await compressPdf(bytes);
+    const profileId = String(job.profile_id ?? '');
 
-    // 3. อัปผลลัพธ์เข้า bucket (ถ้า noGain = คืนไฟล์เดิม ก็อัปไว้ให้ดาวน์โหลดได้)
-    const outputPath = `${orgId}/${jobId}-compressed.pdf`;
-    const { error: upErr } = await admin.storage
-      .from(PDF_BUCKET)
-      .upload(outputPath, result.bytes, { contentType: 'application/pdf', upsert: true });
-    if (upErr) throw new Error(`upload output failed: ${upErr.message}`);
-
-    // 4. mark completed + เก็บผลใน pdf_meta — guard บน status≠completed กัน race กับ stuck-sweep
-    const { data: finalized, error: updErr } = await admin
-      .from('assistant_jobs')
-      .update({
-        status: 'completed',
-        error_message: null,
-        file_size: result.sizeBefore,
-        pdf_meta: {
-          output_path: outputPath,
-          pages: result.pages,
-          size_before: result.sizeBefore,
-          size_after: result.sizeAfter,
-          ratio: result.ratio,
-          no_gain: result.noGain,
-        },
+    // 3. หักโควต้าตามจำนวนหน้า (atomic reserve) — บีบ deterministic ราคาถูก จึงบีบก่อนแล้วค่อยหัก
+    const reserve = (await admin.rpc('consume_pdf_quota', {
+      p_profile_id: profileId, p_pages: result.pages, p_job_id: jobId, p_source: 'line',
+    })).data as { ok?: boolean; remaining_pages?: number } | null;
+    if (!reserve?.ok) {
+      const remain = Math.max(0, reserve?.remaining_pages ?? 0);
+      console.log(`[pdf-worker] job ${jobId} quota exceeded (file ${result.pages}p, remain ${remain}p)`);
+      await admin.from('assistant_jobs').update({
+        status: 'failed',
+        error_message: `โควต้าไม่พอ — ไฟล์นี้ ${result.pages} หน้า แต่โควต้าคงเหลือ ${remain} หน้า`,
         updated_at: new Date().toISOString(),
-      })
-      .eq('id', jobId)
-      .neq('status', 'completed')
-      .select('id');
-    if (updErr) throw new Error(updErr.message);
-    if (!finalized || finalized.length === 0) {
-      console.warn(`[pdf-worker] job ${jobId} no longer pending — skip delivery.`);
+      }).eq('id', jobId);
+      await deliverToLine(jobId, orgId).catch(() => undefined);
       return;
     }
 
-    console.log(`[pdf-worker] job ${jobId} done (${result.pages}p, ${result.sizeBefore}→${result.sizeAfter}, ${Math.round(result.ratio * 100)}%).`);
-    await deliverToLine(jobId, orgId);
+    // จองโควต้าสำเร็จ → งานหลังจากนี้ล้ม ต้องคืน (refund_pdf_job idempotent)
+    try {
+      // 4. อัปผลลัพธ์เข้า bucket (ถ้า noGain = คืนไฟล์เดิม ก็อัปไว้ให้ดาวน์โหลดได้)
+      const outputPath = `${orgId}/${jobId}-compressed.pdf`;
+      const { error: upErr } = await admin.storage
+        .from(PDF_BUCKET)
+        .upload(outputPath, result.bytes, { contentType: 'application/pdf', upsert: true });
+      if (upErr) throw new Error(`upload output failed: ${upErr.message}`);
+
+      // 5. mark completed + เก็บผลใน pdf_meta — guard บน status≠completed กัน race กับ stuck-sweep
+      const { data: finalized, error: updErr } = await admin
+        .from('assistant_jobs')
+        .update({
+          status: 'completed',
+          error_message: null,
+          file_size: result.sizeBefore,
+          pdf_meta: {
+            output_path: outputPath,
+            pages: result.pages,
+            size_before: result.sizeBefore,
+            size_after: result.sizeAfter,
+            ratio: result.ratio,
+            no_gain: result.noGain,
+          },
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', jobId)
+        .neq('status', 'completed')
+        .select('id');
+      if (updErr) throw new Error(updErr.message);
+      if (!finalized || finalized.length === 0) {
+        console.warn(`[pdf-worker] job ${jobId} no longer pending — skip delivery.`);
+        return;
+      }
+
+      console.log(`[pdf-worker] job ${jobId} done (${result.pages}p, ${result.sizeBefore}→${result.sizeAfter}, ${Math.round(result.ratio * 100)}%).`);
+      await deliverToLine(jobId, orgId);
+    } catch (postErr) {
+      // ล้มหลังจองโควต้า → คืนโควต้า (idempotent) แล้วโยนต่อให้ outer catch จัดการ
+      await admin.rpc('refund_pdf_job', { p_job_id: jobId }).then(() => undefined, () => undefined);
+      throw postErr;
+    }
   } catch (err) {
     const raw = err instanceof Error ? err.message : String(err);
     console.error(`[pdf-worker] job ${jobId} failed:`, raw);
