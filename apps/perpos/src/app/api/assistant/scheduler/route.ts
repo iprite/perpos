@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireCron } from '../../_lib/auth';
 import { createAdminClient } from '../../_lib/supabase';
 import { triggerSttWorker } from '@/lib/assistant/stt-trigger';
+import { triggerPdfWorker } from '@/lib/assistant/pdf-trigger';
 import { leaveBot, deleteScheduledBot, deleteBotMedia, extractMeetingUrl, normalizeMeetingUrl } from '@/lib/assistant/recall';
 import { syncProfileCalendar } from '@/lib/assistant/calendar-sync';
 import { buildBotConfirmFlex, buildQuotaWarningFlex } from '@/lib/assistant/bot-flex';
@@ -69,6 +70,7 @@ async function run(req: NextRequest) {
     .from('assistant_jobs')
     .select('id, source, profile_id, duration_seconds, updated_at')
     .eq('status', 'processing')
+    .neq('kind', 'pdf_compress')   // pdf มี sweep แยก (ขั้น 4.7) — refund/worker/ข้อความคนละตัว
     .lt('updated_at', tenMinAgo);
 
   for (const j of (processingJobs ?? []) as Record<string, unknown>[]) {
@@ -122,6 +124,7 @@ async function run(req: NextRequest) {
     .select('id, org_id, source, profile_id, created_at')
     .eq('status', 'pending')
     .neq('source', 'recall')   // recall มี lifecycle sweep แยก (ขั้น 7) — กันยิง worker ก่อนบอทอัดเสร็จ (C3)
+    .neq('kind', 'pdf_compress')   // pdf requeue แยก (ขั้น 4.7) — ใช้ triggerPdfWorker
     .lt('updated_at', new Date(now.getTime() - REQUEUE_AFTER_MS).toISOString())
     .order('created_at', { ascending: true })
     .limit(10); // จำกัดต่อรอบ กัน burst กระแทก worker ซ้ำ
@@ -147,6 +150,84 @@ async function run(req: NextRequest) {
     }
     await triggerSttWorker(admin, pj.id as string, pj.org_id as string); // overload อีก → คืน pending เอง รอรอบหน้า
     counts.requeued++;
+  }
+
+  // 4.7 PDF (pdf_compress) — stuck-sweep + requeue + PDPA (แยกจาก STT: refund/worker/bucket คนละตัว)
+  {
+    const PDF_BUCKET = 'assistant_pdf';
+    const PDF_STUCK_MS = 15 * 60 * 1000; // worker timeout 9 นาที → เกิน 15 นาที = ตายแน่
+
+    // stuck 'processing' → fail + refund_pdf_job (idempotent) + แจ้ง LINE
+    const { data: pdfStuck } = await admin
+      .from('assistant_jobs')
+      .select('id, source, profile_id')
+      .eq('kind', 'pdf_compress').eq('status', 'processing')
+      .lt('updated_at', new Date(now.getTime() - PDF_STUCK_MS).toISOString())
+      .limit(50);
+    for (const j of (pdfStuck ?? []) as Record<string, unknown>[]) {
+      const cutoff = new Date(now.getTime() - PDF_STUCK_MS).toISOString();
+      const { data: failed } = await admin
+        .from('assistant_jobs')
+        .update({ status: 'failed', error_message: 'บีบไฟล์นานเกินกำหนด (timeout) — กรุณาส่งไฟล์ใหม่', updated_at: now.toISOString() })
+        .eq('id', j.id as string).eq('status', 'processing').lt('updated_at', cutoff).select('id');
+      if (!(failed ?? []).length) continue; // worker เพิ่งเสร็จทัน → ข้าม
+      counts.stuck_failed++;
+      await admin.rpc('refund_pdf_job', { p_job_id: j.id as string }).then(() => undefined, () => undefined);
+      if (j.source === 'line') {
+        const { data: prof } = await admin.from('profiles').select('line_user_id').eq('id', j.profile_id as string).maybeSingle();
+        const lineId = (prof as { line_user_id?: string } | null)?.line_user_id;
+        if (lineId) await pushLine(accessToken, lineId, '❌ ขออภัย การบีบ PDF ใช้เวลานานผิดปกติและถูกยกเลิก\nส่งไฟล์เข้ามาใหม่ได้เลยครับ');
+      }
+    }
+
+    // requeue 'pending' → triggerPdfWorker · เกิน GIVEUP → ยอมแพ้ (ยังไม่ reserve → ไม่ต้อง refund)
+    const { data: pdfPending } = await admin
+      .from('assistant_jobs')
+      .select('id, org_id, source, profile_id, created_at')
+      .eq('kind', 'pdf_compress').eq('status', 'pending')
+      .lt('updated_at', new Date(now.getTime() - REQUEUE_AFTER_MS).toISOString())
+      .order('created_at', { ascending: true }).limit(10);
+    for (const pj of (pdfPending ?? []) as Record<string, unknown>[]) {
+      const ageMs = now.getTime() - new Date(pj.created_at as string).getTime();
+      if (ageMs > GIVEUP_AFTER_MS) {
+        const { data: gv } = await admin
+          .from('assistant_jobs')
+          .update({ status: 'failed', error_message: 'ระบบไม่ว่างนานเกินไป — กรุณาลองใหม่อีกครั้ง', updated_at: now.toISOString() })
+          .eq('id', pj.id as string).eq('status', 'pending').select('id');
+        if ((gv ?? []).length) {
+          counts.requeue_gaveup++;
+          if (pj.source === 'line') {
+            const { data: prof } = await admin.from('profiles').select('line_user_id').eq('id', pj.profile_id as string).maybeSingle();
+            const lineId = (prof as { line_user_id?: string } | null)?.line_user_id;
+            if (lineId) await pushLine(accessToken, lineId, '❌ ขออภัย ระบบไม่ว่างเป็นเวลานาน งานบีบ PDF ถูกยกเลิก\nส่งไฟล์เข้ามาใหม่ได้เลยครับ');
+          }
+        }
+        continue;
+      }
+      await triggerPdfWorker(admin, pj.id as string, pj.org_id as string);
+      counts.requeued++;
+    }
+
+    // PDPA — ลบไฟล์ผลลัพธ์ใน assistant_pdf เมื่อ job เก่ากว่า 48 ชม. (signed URL หมดอายุแล้ว)
+    //   ledger pdf_usage_transactions เก็บสถิติ/บิลแทน → set pdf_meta=null = idempotent
+    const pdfCleanupBefore = new Date(now.getTime() - 48 * 60 * 60 * 1000).toISOString();
+    const { data: oldPdf } = await admin
+      .from('assistant_jobs')
+      .select('id, pdf_meta')
+      .eq('kind', 'pdf_compress')
+      .lt('created_at', pdfCleanupBefore)
+      .not('pdf_meta', 'is', null)
+      .limit(200);
+    if (oldPdf && oldPdf.length) {
+      const paths: string[] = [];
+      for (const j of oldPdf as Record<string, unknown>[]) {
+        const op = (j.pdf_meta as { output_path?: string } | null)?.output_path;
+        if (op) paths.push(op);
+      }
+      if (paths.length) await admin.storage.from(PDF_BUCKET).remove(paths).then(() => undefined, () => undefined);
+      await admin.from('assistant_jobs').update({ pdf_meta: null }).in('id', (oldPdf as Record<string, unknown>[]).map((j) => j.id as string));
+      counts.cleaned_jobs += oldPdf.length;
+    }
   }
 
   const STT_BUCKET = 'assistant_audio';
