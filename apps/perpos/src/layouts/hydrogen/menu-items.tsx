@@ -28,7 +28,7 @@ import {
   Calculator,
   Clock,
   CalendarDays,
-  CalendarCheck,
+  Link2,
   ClipboardList,
   BedDouble,
   Navigation,
@@ -381,9 +381,9 @@ function buildSttMenuItems(_org: string, labels: Record<string, string> = {}): M
       roles: allRoles,
     },
     {
-      name: l("calendar", "ปฏิทิน"),
+      name: l("calendar", "เชื่อมต่อ Google"),
       href: `/assistant/calendar`,
-      icon: <CalendarCheck className="h-5 w-5" />,
+      icon: <Link2 className="h-5 w-5" />,
       roles: allRoles,
     },
     {

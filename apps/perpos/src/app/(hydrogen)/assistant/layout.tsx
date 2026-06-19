@@ -14,7 +14,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Mic, BarChart3, CreditCard, CalendarCheck } from 'lucide-react';
+import { Mic, BarChart3, CreditCard, Link2 } from 'lucide-react';
 import { PageShell } from '@/components/ui/page-shell';
 
 type Tab = {
@@ -35,10 +35,10 @@ const TABS: Tab[] = [
   },
   {
     href: '/assistant/calendar',
-    label: 'ปฏิทิน',
-    title: 'ปฏิทินประชุม',
-    subtitle: 'เชื่อม Google Calendar เพื่อเตือนและส่งบอทเข้าประชุมอัตโนมัติก่อนเริ่ม',
-    icon: <CalendarCheck className="h-5 w-5" />,
+    label: 'เชื่อมต่อ Google',
+    title: 'เชื่อมต่อ Google',
+    subtitle: 'เชื่อม Google ครั้งเดียว — เตือนประชุมจากปฏิทิน + เก็บไฟล์ MoM/เสียงลง Drive อัตโนมัติ',
+    icon: <Link2 className="h-5 w-5" />,
   },
   {
     href: '/assistant/usage',
