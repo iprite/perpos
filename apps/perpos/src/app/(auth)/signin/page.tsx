@@ -1,9 +1,9 @@
 "use client";
 
-import React, { useEffect, useMemo, Suspense } from "react";
+import { useEffect, useMemo, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Mic, FileText, Clock, ShieldCheck } from "lucide-react";
 
+import cn from "@core/utils/class-names";
 import { useAuth } from "@/app/shared/auth-provider";
 import GoogleAuthView from "@/components/auth/google-auth-view";
 import { APP_BASE_PATH, withBasePath } from "@/utils/base-path";
@@ -37,11 +37,58 @@ function sanitizeReturnTo(raw: string | null) {
   return v;
 }
 
-const FEATURES: { icon: React.ReactNode; title: string; desc: string }[] = [
-  { icon: <Mic className="h-4 w-4" />, title: "ถอดเสียงภาษาไทยแม่นยำ", desc: "อัปโหลดไฟล์เสียง/วิดีโอ ประชุมยาวหลายชั่วโมงก็ได้" },
-  { icon: <FileText className="h-4 w-4" />, title: "รายงานการประชุม (MoM)", desc: "สรุป มติ และสิ่งที่ต้องทำต่อ ดาวน์โหลดเป็น PDF" },
-  { icon: <Clock className="h-4 w-4" />, title: "เริ่มฟรี 300 นาที", desc: "ทดลองใช้ได้ทันทีหลังเข้าสู่ระบบด้วย LINE" },
+// เนื้อหา Flow & Suite — ดึงมาจากหน้า landing (apps/landing) ให้ตรงกัน
+const PRODUCTS = [
+  {
+    product: "flow" as const,
+    lockup: "PERPOS | FLOW",
+    eyebrow: "ผู้ช่วย AI ส่วนตัวบน LINE",
+    title: "งานเอกสารและเสียงประชุม จบใน LINE",
+    points: ["ถอดเสียง + สรุปประชุม", "บีบ PDF", "Meeting bot"],
+  },
+  {
+    product: "suite" as const,
+    lockup: "PERPOS | SUITE",
+    eyebrow: "AI ERP สำหรับองค์กร",
+    title: "ระบบ ERP ที่ปรับตาม workflow จริง",
+    points: ["บัญชี / HR / การเงิน", "Tailor-made module"],
+  },
 ];
+
+const PRODUCT_STYLES = {
+  flow: {
+    chip: "bg-green-500/15 ring-1 ring-green-400/25",
+    lockup: "text-green-400",
+    pointChip: "bg-green-500/10 text-green-200 ring-1 ring-inset ring-green-400/25",
+  },
+  suite: {
+    chip: "bg-orange-500/15 ring-1 ring-orange-400/25",
+    lockup: "text-orange-400",
+    pointChip: "bg-orange-500/10 text-orange-200 ring-1 ring-inset ring-orange-400/25",
+  },
+} as const;
+
+// Brand glyph (Flow/Suite) — PNG mask recoloured to product accent (mint = Flow, bittersweet = Suite)
+function BrandIcon({ product, className }: { product: "flow" | "suite"; className?: string }) {
+  const src = withBasePath(product === "flow" ? "/brand/flow_icon.png" : "/brand/suite_icon.png");
+  const fill = product === "flow" ? "bg-green-400" : "bg-orange-400";
+  return (
+    <span
+      aria-hidden
+      className={cn("inline-block", fill, className)}
+      style={{
+        WebkitMaskImage: `url(${src})`,
+        maskImage: `url(${src})`,
+        WebkitMaskSize: "contain",
+        maskSize: "contain",
+        WebkitMaskRepeat: "no-repeat",
+        maskRepeat: "no-repeat",
+        WebkitMaskPosition: "center",
+        maskPosition: "center",
+      }}
+    />
+  );
+}
 
 function LineLogo({ className }: { className?: string }) {
   return (
@@ -54,10 +101,7 @@ function LineLogo({ className }: { className?: string }) {
 function BrandMark({ className }: { className?: string }) {
   return (
     <span className={className}>
-      <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/15 text-white ring-1 ring-white/25">
-        <Mic className="h-5 w-5" />
-      </span>
-      <span className="text-xl font-bold tracking-tight">PERPOS</span>
+      <span className="font-neo-tech text-2xl font-bold tracking-wide">PERPOS</span>
     </span>
   );
 }
@@ -77,7 +121,9 @@ function SignInContent() {
     router.replace(withBasePath(dest));
   }, [authLoading, blocked, profile, returnTo, router, userId]);
 
-  const lineLoginHref = withBasePath(`/line/login${returnTo ? `?returnTo=${encodeURIComponent(returnTo)}` : ""}`);
+  const lineLoginHref = withBasePath(
+    `/line/login${returnTo ? `?returnTo=${encodeURIComponent(returnTo)}` : ""}`,
+  );
   // ทางเข้าสำรองสำหรับผู้ดูแล (Google) — ซ่อนไว้ ใช้ /signin?admin=1 เท่านั้น
   const adminFallback = searchParams.get("admin") != null;
 
@@ -85,61 +131,99 @@ function SignInContent() {
     <div className="w-full max-w-4xl">
       <div className="grid overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-xl shadow-slate-200/60 lg:grid-cols-2">
         {/* Left — brand / value panel (desktop) */}
-        <div className="relative hidden flex-col justify-between overflow-hidden bg-gradient-to-br from-indigo-600 via-indigo-600 to-violet-700 p-10 text-white lg:flex">
+        <div className="relative hidden flex-col justify-between overflow-hidden bg-gradient-to-br from-blue-600 via-blue-600 to-blue-700 p-10 text-white lg:flex">
+          {/* subtle grid */}
+          <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.05)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.05)_1px,transparent_1px)] bg-[size:48px_48px]" />
           {/* decorative glow */}
           <div className="pointer-events-none absolute -right-16 -top-16 h-56 w-56 rounded-full bg-white/10 blur-2xl" />
-          <div className="pointer-events-none absolute -bottom-20 -left-10 h-56 w-56 rounded-full bg-violet-400/20 blur-2xl" />
+          <div className="pointer-events-none absolute -bottom-20 -left-10 h-56 w-56 rounded-full bg-green-400/15 blur-2xl" />
 
           <div className="relative">
             <BrandMark className="flex items-center gap-2.5" />
-            <h2 className="mt-12 text-3xl font-bold leading-snug">
-              ถอดเสียงประชุม<br />เป็นรายงาน อัตโนมัติ
+            <h2 className="mt-8 text-2xl font-bold leading-snug text-white">
+              เครื่องมือ AI และระบบ ERP
+              <br />
+              สำหรับธุรกิจไทย
             </h2>
-            <p className="mt-3 max-w-xs text-sm leading-relaxed text-indigo-100">
-              ผู้ช่วย AI บน LINE สำหรับธุรกิจไทย — อัปโหลดไฟล์เสียง รับรายงานการประชุมเป็น PDF พร้อมสรุปครบ
+            <p className="mt-3 max-w-xs text-sm leading-relaxed text-white/80">
+              เลือกวิธีทำงานที่เหมาะกับคุณ —{" "}
+              <span className="font-neo-tech tracking-[0.06em] text-green-400">Flow</span>{" "}
+              ผู้ช่วยส่วนตัวบน LINE หรือ{" "}
+              <span className="font-neo-tech tracking-[0.06em] text-orange-400">Suite</span>{" "}
+              ระบบองค์กรที่ต่อกับ workflow จริง
             </p>
           </div>
 
-          <ul className="relative mt-10 space-y-4">
-            {FEATURES.map((f) => (
-              <li key={f.title} className="flex items-start gap-3">
-                <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/15 ring-1 ring-white/20">
-                  {f.icon}
-                </span>
-                <span>
-                  <span className="block text-sm font-semibold">{f.title}</span>
-                  <span className="block text-xs text-indigo-100/90">{f.desc}</span>
-                </span>
-              </li>
-            ))}
-          </ul>
+          <div className="relative mt-8 space-y-4">
+            {PRODUCTS.map((p) => {
+              const s = PRODUCT_STYLES[p.product];
+              return (
+                <div
+                  key={p.lockup}
+                  className="rounded-2xl border border-white/10 bg-white/[0.04] p-5"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <span
+                      className={cn(
+                        "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl",
+                        s.chip,
+                      )}
+                    >
+                      <BrandIcon product={p.product} className="h-5 w-5" />
+                    </span>
+                    <div>
+                      <p
+                        className={cn(
+                          "font-neo-tech text-[11px] uppercase tracking-[0.16em]",
+                          s.lockup,
+                        )}
+                      >
+                        {p.lockup}
+                      </p>
+                      <p className="text-xs text-white/70">{p.eyebrow}</p>
+                    </div>
+                  </div>
+                  <p className="mt-3 text-sm font-semibold leading-snug">{p.title}</p>
+                  <div className="mt-3 flex flex-wrap gap-1.5">
+                    {p.points.map((pt) => (
+                      <span
+                        key={pt}
+                        className={cn(
+                          "rounded-full px-2.5 py-0.5 text-[11px] font-medium",
+                          s.pointChip,
+                        )}
+                      >
+                        {pt}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
 
         {/* Right — login */}
         <div className="flex flex-col justify-center p-8 sm:p-10">
           {/* brand (mobile only) */}
-          <div className="mb-8 flex items-center gap-2.5 lg:hidden">
-            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
-              <Mic className="h-5 w-5" />
+          <div className="mb-8 flex items-center justify-center gap-2.5 lg:hidden">
+            <span className="font-neo-tech text-xl font-bold tracking-wide text-slate-900">
+              PERPOS
             </span>
-            <span className="text-xl font-bold tracking-tight text-slate-900">PERPOS</span>
           </div>
 
-          <h1 className="text-2xl font-semibold text-slate-900">เข้าสู่ระบบ</h1>
-          <p className="mt-1.5 text-sm text-slate-500">ใช้บัญชี LINE ของคุณ เข้าใช้งานได้ทันที ไม่ต้องตั้งรหัสผ่าน</p>
+          <h1 className="text-center text-2xl font-semibold text-slate-900">เข้าสู่ระบบ</h1>
+          <p className="mt-1.5 text-center text-sm text-slate-500">
+            ใช้บัญชี LINE ของคุณ เข้าใช้งานได้ทันที ไม่ต้องตั้งรหัสผ่าน
+          </p>
 
           <a
             href={lineLoginHref}
-            className="group mt-7 flex w-full items-center justify-center gap-2.5 rounded-xl bg-[#48CFAD] px-4 py-3.5 text-base font-semibold text-white shadow-sm transition-all hover:bg-[#46BC9E] hover:shadow-md active:scale-[0.99]"
+            className="group mt-7 flex w-full items-center justify-center gap-2.5 rounded-xl bg-[#06C755] px-4 py-3.5 text-base font-semibold text-white shadow-sm transition-all hover:bg-[#05b34c] hover:shadow-md active:scale-[0.99]"
           >
             <LineLogo className="h-5 w-5" />
             เข้าสู่ระบบด้วย LINE
           </a>
-
-          <div className="mt-5 flex items-center justify-center gap-1.5 text-xs text-slate-400">
-            <ShieldCheck className="h-3.5 w-3.5 text-emerald-500" />
-            ปลอดภัยตามมาตรฐาน · เราไม่นำข้อมูลเสียงไปฝึกโมเดล AI
-          </div>
 
           {/* Admin fallback (ซ่อน) — /signin?admin=1 */}
           {adminFallback && (
@@ -153,12 +237,24 @@ function SignInContent() {
             </>
           )}
 
-          <p className="mt-8 text-center text-xs leading-relaxed text-slate-400">
-            การเข้าสู่ระบบถือว่าคุณยอมรับ{" "}
-            <a href={withBasePath("/terms")} className="text-slate-500 underline-offset-2 hover:underline">ข้อกำหนดการให้บริการ</a>{" "}
-            และ{" "}
-            <a href={withBasePath("/privacy")} className="text-slate-500 underline-offset-2 hover:underline">นโยบายความเป็นส่วนตัว</a>
-          </p>
+          <div className="mt-8 text-center text-xs leading-relaxed text-slate-400">
+            <p>การเข้าสู่ระบบถือว่าคุณยอมรับ</p>
+            <p className="mt-2 flex items-center justify-center gap-2">
+              <a
+                href={withBasePath("/terms")}
+                className="text-slate-500 underline-offset-2 hover:underline"
+              >
+                ข้อกำหนดการให้บริการ
+              </a>
+              <span className="text-slate-300">|</span>
+              <a
+                href={withBasePath("/privacy")}
+                className="text-slate-500 underline-offset-2 hover:underline"
+              >
+                นโยบายความเป็นส่วนตัว
+              </a>
+            </p>
+          </div>
         </div>
       </div>
     </div>
@@ -167,11 +263,13 @@ function SignInContent() {
 
 export default function SignInPage() {
   return (
-    <Suspense fallback={
-      <div className="flex min-h-[40vh] items-center justify-center">
-        <div className="h-6 w-6 animate-spin rounded-full border-2 border-gray-300 border-t-gray-700" />
-      </div>
-    }>
+    <Suspense
+      fallback={
+        <div className="flex min-h-[40vh] items-center justify-center">
+          <div className="h-6 w-6 animate-spin rounded-full border-2 border-gray-300 border-t-gray-700" />
+        </div>
+      }
+    >
       <SignInContent />
     </Suspense>
   );
