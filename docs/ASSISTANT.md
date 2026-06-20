@@ -23,6 +23,7 @@
 ## 1. ทำไมต้องเป็น "ร่ม" (umbrella) ไม่ใช่ฟีเจอร์เดี่ยว
 
 STT เริ่มเป็นฟีเจอร์ org-scoped แล้ว refactor (v2/v3) เป็น **บริการ per-profile ใต้ร่ม assistant** เพราะ:
+
 - **โมเดลธุรกิจ B2C** — ขายรายคน (subscription ฿99/เดือน) ไม่ใช่รายองค์กร → สิทธิ์/quota/บิล ต้องผูกกับ `profile` ไม่ใช่ `org`
 - **future-proof** — วางแผนเพิ่มผู้ช่วยตัวอื่น (เช่น สรุปเอกสาร, ตอบอีเมล) ที่ใช้ onboarding/billing/quota pattern เดียวกัน → ทำเป็น "kind" ใต้ร่มเดียว ไม่ใช่สร้างระบบใหม่ทุกครั้ง
 
@@ -32,15 +33,15 @@ STT เริ่มเป็นฟีเจอร์ org-scoped แล้ว ref
 
 ## 2. B2C (ผู้ช่วย AI) vs B2B (ERP) — เส้นแบ่ง
 
-| มิติ | ผู้ช่วย AI (B2C) | ERP (B2B) |
-|---|---|---|
-| Scope | **per-profile** (`profile_id`) | per-org (`org_id`) |
-| URL | top-level `/assistant/*` (ไม่มี slug) | `/[orgSlug]/...` |
-| สิทธิ์ | `personal_module_grants` (kind) | org module (`admin/modules`) |
-| Guard เว็บ | `requireAssistantUser` | `requireModuleMember` |
-| Guard LINE | `checkSttAccess` | `checkPermission` |
-| ใครเปิดให้ | **อัตโนมัติตอนแอด LINE** (auto-onboard) | super_admin เปิดต่อ org |
-| บิล | Stripe per-profile (`stt_*`) | `org_billing`/`org_stripe` |
+| มิติ       | ผู้ช่วย AI (B2C)                        | ERP (B2B)                    |
+| ---------- | --------------------------------------- | ---------------------------- |
+| Scope      | **per-profile** (`profile_id`)          | per-org (`org_id`)           |
+| URL        | top-level `/assistant/*` (ไม่มี slug)   | `/[orgSlug]/...`             |
+| สิทธิ์     | `personal_module_grants` (kind)         | org module (`admin/modules`) |
+| Guard เว็บ | `requireAssistantUser`                  | `requireModuleMember`        |
+| Guard LINE | `checkSttAccess`                        | `checkPermission`            |
+| ใครเปิดให้ | **อัตโนมัติตอนแอด LINE** (auto-onboard) | super_admin เปิดต่อ org      |
+| บิล        | Stripe per-profile (`stt_*`)            | `org_billing`/`org_stripe`   |
 
 - **สลับกัน:** header มีปุ่ม "ผู้ช่วย AI" (→ `/assistant`) + org switcher (ERP). B2C เห็นแค่ผู้ช่วย · B2B เห็นทั้งคู่ · super_admin → `/admin`
 - **redirect หลัง login:** ERP (B2B) > ผู้ช่วย AI (B2C) > no-org · super_admin → `/admin`
@@ -67,6 +68,7 @@ STT เริ่มเป็นฟีเจอร์ org-scoped แล้ว ref
 ```
 
 **Seam หลัก** = [`lib/assistant/kinds.ts`](../apps/perpos/src/lib/assistant/kinds.ts):
+
 - `ASSISTANT_KINDS = ['stt']` — registry ของ kind ทั้งหมด (module_key)
 - `enabledAssistantKinds(admin, userId)` → คืน kind ที่ผู้ใช้มี grant (`personal_module_grants.is_enabled`)
 - **umbrella access** = `kinds.length > 0` หรือ super_admin (ไม่ใช้ DB key `'assistant'` เป็น grant — key นั้นชนกับ Task Manager เดิมที่ลบไปแล้ว + FK `module_registry`)
@@ -75,18 +77,23 @@ STT เริ่มเป็นฟีเจอร์ org-scoped แล้ว ref
 
 ## 4. Guard & Home Org
 
-### `requireAssistantUser(req)` — guard เว็บ ([api/_lib/assistant-auth.ts](../apps/perpos/src/app/api/_lib/assistant-auth.ts))
+### `requireAssistantUser(req)` — guard เว็บ ([api/\_lib/assistant-auth.ts](../apps/perpos/src/app/api/_lib/assistant-auth.ts))
+
 คืน `{ ok, userId, orgId, isSuperAdmin, kinds[], rls }`. ลำดับ:
+
 1. `requireUser` (Bearer token + active)
 2. หา role → super_admin เห็นทุก kind, คนอื่น = `enabledAssistantKinds`
 3. ถ้า `kinds.length === 0` และไม่ใช่ super_admin → fallback legacy perm `bot.assistant.transcribe`; ไม่มี → **403**
 4. `resolveHomeOrg` → ถ้าไม่มี → **409**
 
 ### `checkSttAccess(admin, profileId, role)` — guard LINE ([line/webhook/route.ts](../apps/perpos/src/app/api/line/webhook/route.ts))
+
 `is_active=false` → false · super_admin → true · ไม่งั้น = `bot.assistant.transcribe` **หรือ** `personal_module_grants('stt')`
 
 ### Home Org — "พื้นที่เก็บงาน" ที่ไม่โผล่ใน URL
+
 `resolveHomeOrg`:
+
 1. **`profiles.personal_org_id`** — แหล่งความจริง deterministic (เขียนโดย `provisionLineUser`)
 2. fallback (โปรไฟล์เก่า backfill ไม่ถึง): membership จริง — `line_active_org_id` ถ้ายังเป็นสมาชิก ไม่งั้น org แรกตาม `created_at`
 
@@ -110,36 +117,40 @@ STT เริ่มเป็นฟีเจอร์ org-scoped แล้ว ref
 ## 6. Map: Routes / Pages / Tables (ทั้งร่ม)
 
 ### API (`apps/perpos/src/app/api/assistant/`)
-| Route | Method | Scope | หน้าที่ |
-|---|---|---|---|
-| `jobs` | GET/POST | generic | สร้าง/ลิสต์งาน (POST set `kind:'stt'`, ตรวจ path ไฟล์ใต้ `<profileId>/`) |
-| `jobs/process` | POST | generic | claim + ยิง stt-worker (ผ่าน `triggerSttWorker`) |
-| `quota` | GET | generic | โควต้าตัวเอง (`limit/used/remaining` วินาที) |
-| `stats` | GET | generic | สถิติงานตัวเอง (แยก web/line, นาที) |
-| `scheduler` | POST | cron | stuck-sweep + requeue + PDPA cleanup ([STT doc §scheduler]) |
-| `stt/mom-pdf` | — | STT | เว็บดาวน์โหลด PDF |
-| `stt/mom-deliver` | POST | STT | worker callback → PDF → LINE Flex (`x-worker-secret`) |
-| `stt/checkout` | POST | STT | Stripe Checkout (สร้าง price อัตโนมัติ, metadata `kind='stt'`) |
-| `stt/portal` | POST | STT | Stripe Customer Portal (ยกเลิก/เปลี่ยนบัตรเอง) |
+
+| Route             | Method   | Scope   | หน้าที่                                                                  |
+| ----------------- | -------- | ------- | ------------------------------------------------------------------------ |
+| `jobs`            | GET/POST | generic | สร้าง/ลิสต์งาน (POST set `kind:'stt'`, ตรวจ path ไฟล์ใต้ `<profileId>/`) |
+| `jobs/process`    | POST     | generic | claim + ยิง stt-worker (ผ่าน `triggerSttWorker`)                         |
+| `quota`           | GET      | generic | โควต้าตัวเอง (`limit/used/remaining` วินาที)                             |
+| `stats`           | GET      | generic | สถิติงานตัวเอง (แยก web/line, นาที)                                      |
+| `scheduler`       | POST     | cron    | stuck-sweep + requeue + PDPA cleanup ([STT doc §scheduler])              |
+| `stt/mom-pdf`     | —        | STT     | เว็บดาวน์โหลด PDF                                                        |
+| `stt/mom-deliver` | POST     | STT     | worker callback → PDF → LINE Flex (`x-worker-secret`)                    |
+| `stt/checkout`    | POST     | STT     | Stripe Checkout (สร้าง price อัตโนมัติ, metadata `kind='stt'`)           |
+| `stt/portal`      | POST     | STT     | Stripe Customer Portal (ยกเลิก/เปลี่ยนบัตรเอง)                           |
 
 > generic route = kind-agnostic (อนาคต reuse ได้) · `stt/*` = STT เฉพาะ
 
 ### Pages (`apps/perpos/src/app/(hydrogen)/assistant/`)
+
 - **`layout.tsx`** — shared shell ของทุกหน้าในร่ม (ดู §UI Shell ด้านล่าง)
 - `page.tsx` (อัป+poll+Dialog MoM+ดาวน์โหลด+quota banner) · `usage/` (กราฟ personal) · `billing/` (ซื้อแพ็ก) — **top-level ไม่มี `[orgSlug]`**
 
 ### Admin (super_admin)
+
 `admin/stt-users`, `admin/stt-stats`, `admin/stt-billing`, `admin/stt-cost` + API คู่กัน
 
 ### Tables
-| ตาราง | generic? | หน้าที่ |
-|---|---|---|
-| `assistant_jobs` | ✅ generic | job hub — `kind`, `profile_id`, `source` (web/line), `status`, `transcript_json`, `duration_seconds`, token usage |
-| `assistant_line_sessions` | ✅ generic | state "รอไฟล์หลัง /mom" |
-| `personal_module_grants` | ✅ generic | สิทธิ์ per-profile ต่อ kind (`module_key`, `is_enabled`) |
-| `stt_quota` / `stt_usage_transactions` | STT | โควต้า "วินาทีเสียง" + ledger |
-| `stt_plans` / `stt_subscriptions` / `stt_payments` | STT | บิล Stripe per-profile |
-| `stt_settings` | STT | default quota (trial) |
+
+| ตาราง                                              | generic?   | หน้าที่                                                                                                           |
+| -------------------------------------------------- | ---------- | ----------------------------------------------------------------------------------------------------------------- |
+| `assistant_jobs`                                   | ✅ generic | job hub — `kind`, `profile_id`, `source` (web/line), `status`, `transcript_json`, `duration_seconds`, token usage |
+| `assistant_line_sessions`                          | ✅ generic | state "รอไฟล์หลัง /mom"                                                                                           |
+| `personal_module_grants`                           | ✅ generic | สิทธิ์ per-profile ต่อ kind (`module_key`, `is_enabled`)                                                          |
+| `stt_quota` / `stt_usage_transactions`             | STT        | โควต้า "วินาทีเสียง" + ledger                                                                                     |
+| `stt_plans` / `stt_subscriptions` / `stt_payments` | STT        | บิล Stripe per-profile                                                                                            |
+| `stt_settings`                                     | STT        | default quota (trial)                                                                                             |
 
 ---
 
@@ -156,13 +167,14 @@ STT เริ่มเป็นฟีเจอร์ org-scoped แล้ว ref
 
 ## 7.5 UI Shell & Layout convention
 
-ทุกหน้าใต้ `/assistant/*` ใช้ **shared shell เดียว** = [`(hydrogen)/assistant/layout.tsx`](../apps/perpos/src/app/(hydrogen)/assistant/layout.tsx) — Next.js App Router layout ที่ render ครั้งเดียว คงอยู่ข้ามการสลับหน้า:
+ทุกหน้าใต้ `/assistant/*` ใช้ **shared shell เดียว** = [`(hydrogen)/assistant/layout.tsx`](<../apps/perpos/src/app/(hydrogen)/assistant/layout.tsx>) — Next.js App Router layout ที่ render ครั้งเดียว คงอยู่ข้ามการสลับหน้า:
 
 - ให้ **container + spacing** มาตรฐาน (`w-full px-4 py-6 lg:px-8`)
 - ให้ **header** (ไอคอน chip + ชื่อ + คำอธิบาย) ตามแท็บที่ active
 - ให้ **แท็บนำทาง** สลับ ถอดเสียง / การใช้งาน / การชำระเงิน (ก่อน refactor นี้ไม่มี — ต้องพึ่ง sidebar)
 
 **กฎ:**
+
 1. **หน้าลูกไม่มี container/header ของตัวเอง** — `return (<>...เนื้อหา...</>)` เท่านั้น (KPI/เนื้อหาเฉพาะหน้าวางใน fragment ตรง ๆ)
 2. **เพิ่มหน้าใหม่ใต้ร่ม = เติม 1 entry ใน `TABS`** ใน `layout.tsx` (href/label/title/subtitle/icon) — header + แท็บอัปเดตเอง
 3. header/แท็บ active ตัดสินจาก `usePathname()` (exact สำหรับ `/assistant`, prefix สำหรับ subpath)
@@ -180,7 +192,7 @@ STT เริ่มเป็นฟีเจอร์ org-scoped แล้ว ref
 2. **เติม `ASSISTANT_KINDS`** ใน [`lib/assistant/kinds.ts`](../apps/perpos/src/lib/assistant/kinds.ts) — guard เว็บ+LINE จะรับรู้ทันที
 3. **onboarding** — ตัดสินใจว่า kind ใหม่แจกอัตโนมัติด้วยไหม (เติม `ensureRow('personal_module_grants', ...)` ใน `provisionLineUser`) หรือต้องซื้อก่อน
 4. **job** — reuse `assistant_jobs` ด้วย `kind=<ใหม่>` (มี column generic พอ; ถ้าต้อง field เฉพาะ ใส่ jsonb)
-5. **worker** (ถ้ามีงานหนัก) — service ใหม่ใน `services/` ตามกฎ Cloud Run (plain Express, `.gcloudignore`, `x-worker-secret`)
+5. **worker** (ถ้ามีงานหนัก) — service ใหม่ใน `services/` ตามกฎ Cloud Run (plain Express, `.gcloudignore`, `x-worker-secret`) · **ลงทะเบียนใน `REGISTRY`** ของ [`api/admin/system/services/route.ts`](../apps/perpos/src/app/api/admin/system/services/route.ts) ด้วย (1 entry: `urlEnv`+`healthPath`+`secretEnv`) → จะโผล่ในหน้า admin **System / Infrastructure** พร้อม health สดอัตโนมัติ (REGISTRY เป็น source of truth — ไม่มี auto-discover เพราะ route handler บน Vercel มองไม่เห็น Cloud Run)
 6. **quota/billing** — ถ้าใช้มิเตอร์คนละหน่วยกับ STT ให้ทำตาราง `<kind>_quota` ของตัวเอง (อย่าปน `stt_quota`)
 7. **routes** — generic อันไหน reuse ได้ reuse (`jobs/*`, `quota`, `stats`); อันเฉพาะ kind วางใต้ `assistant/<kind>/*`
 8. **UI** — เพิ่ม sub-page ใต้ `/assistant`; **ต้องเพิ่มลิงก์ใน menu-items ด้วยเสมอ**
