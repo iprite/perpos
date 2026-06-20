@@ -1,0 +1,19 @@
+version: 2
+updates:
+  # npm dependencies (monorepo root — ครอบ workspace ทั้งหมด)
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      # รวม minor/patch เป็น PR เดียว กัน spam — security/major แยก PR เอง
+      minor-and-patch:
+        update-types: ["minor", "patch"]
+
+  # GitHub Actions ที่ใช้ใน workflow (checkout, setup-node, gcloud ฯลฯ)
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
