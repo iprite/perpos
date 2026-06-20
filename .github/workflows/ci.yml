@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ─────────────────────────────────────────────────────────────────────────────
+  # App — lint + typecheck (build/staging คุมโดย Vercel Preview, ไม่ build ซ้ำใน CI)
+  # ─────────────────────────────────────────────────────────────────────────────
+  app:
+    name: App (lint · types)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.1.4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm type:check
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Cloud Run workers — typecheck + build (tsc) ทั้ง 3 ตัว
+  # ─────────────────────────────────────────────────────────────────────────────
+  workers:
+    name: Workers (types · build)
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [pdf-renderer, ocr-worker, stt-worker, pdf-compress-worker]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.1.4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter ${{ matrix.service }} type-check
+      - run: pnpm --filter ${{ matrix.service }} build

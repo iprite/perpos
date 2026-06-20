@@ -1,0 +1,8 @@
+**/.next/**
+**/dist/**
+**/node_modules/**
+**/.turbo/**
+pnpm-lock.yaml
+supabase/migrations/**
+graphify-out/**
+*.min.js
