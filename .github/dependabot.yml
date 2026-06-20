@@ -1,0 +1,25 @@
+version: 2
+updates:
+  # npm dependencies (monorepo root — ครอบ workspace ทั้งหมด)
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    # ไม่เสนอ major bump อัตโนมัติ — major (tailwind/next/rizzui/zod ฯลฯ) เป็น breaking
+    # ต้องทำ migration มือเมื่อพร้อม (Vercel build เคยพังจาก tailwind v4 auto-bump)
+    # security updates ยัง bump ข้าม ignore ได้เมื่อมีช่องโหว่
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+    groups:
+      # รวม minor/patch เป็น PR เดียว กัน spam
+      minor-and-patch:
+        update-types: ["minor", "patch"]
+
+  # GitHub Actions ที่ใช้ใน workflow (checkout, setup-node, gcloud ฯลฯ)
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5

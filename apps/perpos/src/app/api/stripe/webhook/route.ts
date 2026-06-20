@@ -3,6 +3,7 @@ import type Stripe from "stripe";
 import { createAdminClient } from "../../_lib/supabase";
 import { getStripe } from "../../_lib/stripe";
 import { sendLineMessages } from "@/lib/line/send-messages";
+import { alertAdminLine } from "@/lib/admin/alert";
 
 export const runtime = "nodejs";
 
@@ -721,6 +722,10 @@ export async function POST(req: NextRequest) {
 
   const inserted = await upsertStripeEvent(admin, event, orgIdHint);
   if ("error" in inserted && inserted.error) {
+    await alertAdminLine(
+      admin,
+      `🔴 Stripe webhook: บันทึก event ลง DB ล้มเหลว\nevent: ${event.type} (${event.id})\nStripe จะ retry — ตรวจ DB ด่วน`,
+    );
     return NextResponse.json({ error: "db_error" }, { status: 500 });
   }
   if (!inserted.inserted) return NextResponse.json({ ok: true });
@@ -771,7 +776,11 @@ export async function POST(req: NextRequest) {
       const handledStt = await handleSttSubscriptionEvent(admin, sub);
       if (!handledStt) resolvedOrgId = await handleSubscriptionDeleted(admin, sub);
     }
-  } catch {
+  } catch (e) {
+    await alertAdminLine(
+      admin,
+      `🔴 Stripe webhook ประมวลผลล้มเหลว (เงินอาจไม่ถูกบันทึก)\nevent: ${event.type} (${event.id})\n${e instanceof Error ? e.message : String(e)}`,
+    );
     return NextResponse.json({ error: "processing_error" }, { status: 500 });
   }
 

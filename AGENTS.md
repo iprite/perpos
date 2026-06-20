@@ -580,6 +580,11 @@ dist/
 README.md
 ```
 
+**Deploy = `gcloud` มือเท่านั้น — ไม่มี CI auto-deploy สำหรับ workers** (workflow `deploy-workers.yml` ถูกลบแล้ว เพราะ `GCP_SA_KEY` ไม่เคยตั้ง + เงื่อนไขไม่ match squash merge → ใช้ไม่ได้จริง) · deploy ทุกครั้งรัน `gcloud run deploy --source` จาก `services/<worker>/` เอง
+
+- เครื่อง dev ถ้า gcloud ฟ้อง _"Python 3.9 no longer supported"_ → `export CLOUDSDK_PYTHON=$(command -v python3.14 || command -v python3.13)` ก่อน
+- 4 services: `perpos-pdf-renderer` (2Gi, timeout 120, concurrency 5) · `perpos-ocr-worker` (1Gi) · `perpos-stt-worker` (2Gi, concurrency 3, `--no-cpu-throttling`, `APP_BASE_URL`) · `perpos-pdf-compress-worker` (4Gi, cpu 2, concurrency 2, `--no-cpu-throttling`, `APP_BASE_URL`,`PDF_MAX_MB`,`PDF_MAX_PAGES`) · ทุกตัวมี secret `SENTRY_DSN` ด้วย
+
 **Deploy command มาตรฐาน** (ห้ามใส่ `--set-env-vars PORT=8080` — Cloud Run inject ให้อัตโนมัติ):
 
 ```bash

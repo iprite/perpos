@@ -14,6 +14,7 @@ import { syncProfileCalendar } from "@/lib/assistant/calendar-sync";
 import { buildBotConfirmFlex, buildQuotaWarningFlex } from "@/lib/assistant/bot-flex";
 import { getServiceRemaining } from "@/lib/assistant/token-balance";
 import { getStripe } from "../../_lib/stripe";
+import { alertAdminLine } from "@/lib/admin/alert";
 
 const QUOTA_WARN_LEAD_S = 600; // เตือนโควต้าบอทใกล้หมด ≥10 นาทีก่อน kick
 const SCHED_PLATFORM_LABEL: Record<string, string> = {
@@ -71,6 +72,17 @@ async function run(req: NextRequest) {
         () => undefined,
         () => undefined,
       ); // log ต้องไม่ทำให้ scheduler ล้ม
+    // แจ้ง admin ทาง LINE เฉพาะตอนมีปัญหาจริง — digest 1 ครั้ง/run (กัน spam)
+    if (!okFlag || counts.stuck_failed > 0 || counts.requeue_gaveup > 0) {
+      await alertAdminLine(
+        admin,
+        [
+          "⚠️ PERPOS scheduler",
+          errorMessage ? `error: ${errorMessage}` : "พบงานมีปัญหา (stuck/ยอมแพ้)",
+          `stuck_failed=${counts.stuck_failed} · requeue_gaveup=${counts.requeue_gaveup} · requeued=${counts.requeued}`,
+        ].join("\n"),
+      );
+    }
   };
 
   const accessToken = process.env.LINE_MESSAGING_CHANNEL_ACCESS_TOKEN ?? "";
