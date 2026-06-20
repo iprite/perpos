@@ -2,7 +2,7 @@
 
 import React, { useEffect, useMemo, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Zap, FileText, Clock, ShieldCheck } from "lucide-react";
+import { Zap, FileText, Clock } from "lucide-react";
 
 import { useAuth } from "@/app/shared/auth-provider";
 import GoogleAuthView from "@/components/auth/google-auth-view";
@@ -66,12 +66,7 @@ function LineLogo({ className }: { className?: string }) {
 function BrandMark({ className }: { className?: string }) {
   return (
     <span className={className}>
-      <span
-        className="text-2xl font-bold tracking-tight"
-        style={{ fontFamily: "ui-monospace, 'SF Mono', 'Monaco', monospace" }}
-      >
-        PERPOS
-      </span>
+      <span className="font-neo-tech text-2xl font-bold tracking-wide">PERPOS</span>
     </span>
   );
 }
@@ -113,7 +108,7 @@ function SignInContent() {
               <br />
               เว็บบัญชี ERP สำหรับไทย
             </h2>
-            <p className="mt-3 max-w-xs text-sm leading-relaxed text-blue-100">
+            <p className="mt-3 max-w-xs text-sm leading-relaxed text-white">
               ผู้ช่วย AI บน LINE (Flow) + ระบบบัญชีและ ERP (Suite) สำหรับธุรกิจไทย —
               อัปโหลดไฟล์เสียง รับรายงานการประชุมเป็น PDF พร้อมสรุปครบ
             </p>
@@ -138,10 +133,7 @@ function SignInContent() {
         <div className="flex flex-col justify-center p-8 sm:p-10">
           {/* brand (mobile only) */}
           <div className="mb-8 flex items-center gap-2.5 lg:hidden">
-            <span
-              className="text-xl font-bold tracking-tight text-slate-900"
-              style={{ fontFamily: "ui-monospace, 'SF Mono', 'Monaco', monospace" }}
-            >
+            <span className="font-neo-tech text-xl font-bold tracking-wide text-slate-900">
               PERPOS
             </span>
           </div>
@@ -159,11 +151,6 @@ function SignInContent() {
             เข้าสู่ระบบด้วย LINE
           </a>
 
-          <div className="mt-5 flex items-center justify-center gap-1.5 text-xs text-slate-400">
-            <ShieldCheck className="h-3.5 w-3.5 text-blue-500" />
-            ปลอดภัยตามมาตรฐาน
-          </div>
-
           {/* Admin fallback (ซ่อน) — /signin?admin=1 */}
           {adminFallback && (
             <>
@@ -177,8 +164,8 @@ function SignInContent() {
           )}
 
           <div className="mt-8 text-center text-xs leading-relaxed text-slate-400">
-            <p>
-              การเข้าสู่ระบบถือว่าคุณยอมรับ{" "}
+            <p>การเข้าสู่ระบบถือว่าคุณยอมรับ</p>
+            <p className="mt-2">
               <a
                 href={withBasePath("/terms")}
                 className="text-slate-500 underline-offset-2 hover:underline"
