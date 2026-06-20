@@ -7,6 +7,8 @@
     "lint": "next lint",
     "build": "next build",
     "type:check": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "start": "next start -p 3002",
     "clean": "rm -rf node_modules .next .cache .turbo",
     "cache:clean": "rm -rf .next .cache .turbo"
@@ -132,6 +134,7 @@
     "rimraf": "^6.1.3",
     "tailwind-config": "workspace:*",
     "tailwindcss": "^3.4.17",
-    "typescript-config": "workspace:*"
+    "typescript-config": "workspace:*",
+    "vitest": "^4.1.9"
   }
 }
