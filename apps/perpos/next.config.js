@@ -1,5 +1,7 @@
+const { withSentryConfig } = require("@sentry/nextjs");
+
 /** @type {import('next').NextConfig} */
-module.exports = {
+const nextConfig = {
   reactStrictMode: true,
   images: {
     remotePatterns: [
@@ -20,3 +22,12 @@ module.exports = {
   },
   transpilePackages: ["core"],
 };
+
+// Sentry wrap — upload source maps เฉพาะเมื่อมี SENTRY_AUTH_TOKEN (CI/local ไม่มี = ข้าม ไม่ fail)
+module.exports = withSentryConfig(nextConfig, {
+  org: process.env.SENTRY_ORG,
+  project: process.env.SENTRY_PROJECT,
+  silent: !process.env.CI,
+  widenClientFileUpload: true,
+  disableLogger: true,
+});
