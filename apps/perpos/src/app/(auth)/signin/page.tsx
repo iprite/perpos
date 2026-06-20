@@ -206,7 +206,7 @@ function SignInContent() {
         {/* Right — login */}
         <div className="flex flex-col justify-center p-8 sm:p-10">
           {/* brand (mobile only) */}
-          <div className="mb-8 flex items-center gap-2.5 lg:hidden">
+          <div className="mb-8 flex items-center justify-center gap-2.5 lg:hidden">
             <span className="font-neo-tech text-xl font-bold tracking-wide text-slate-900">
               PERPOS
             </span>
