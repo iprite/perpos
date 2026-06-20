@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import type Stripe from "stripe";
 import { createAdminClient } from "../../_lib/supabase";
 import { getStripe } from "../../_lib/stripe";
+import { sendLineMessages } from "@/lib/line/send-messages";
 import { alertAdminLine } from "@/lib/admin/alert";
 
 export const runtime = "nodejs";
@@ -557,6 +558,141 @@ async function handleSttSubscriptionEvent(
   return true;
 }
 
+// ─── Token top-up (prepaid + auto top-up, per-profile) ───────────────────────
+// ระบุด้วย metadata.kind ('token_topup' = ซื้อแพ็ก/auto-charge, 'token_setup' = บันทึกบัตร)
+
+// เก็บ payment_method ที่บันทึกไว้ (มาจาก save_card / setup / off-session) ลง token_autotopup
+async function captureTokenCard(
+  admin: ReturnType<typeof createAdminClient>,
+  stripe: ReturnType<typeof getStripe>,
+  profileId: string,
+  pmId: string,
+) {
+  if (!profileId || !pmId) return;
+  const pm = await stripe.paymentMethods.retrieve(pmId).catch(() => null);
+  await admin.from("token_autotopup").upsert(
+    {
+      profile_id: profileId,
+      stripe_payment_method_id: pmId,
+      card_brand: pm?.card?.brand ?? null,
+      card_last4: pm?.card?.last4 ?? null,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "profile_id" },
+  );
+}
+
+// PaymentIntent สำเร็จ (ทั้ง manual pack + auto-charge) → เติม token + เก็บบัตร(ถ้ามี)
+async function handleTokenPaymentSucceeded(
+  admin: ReturnType<typeof createAdminClient>,
+  stripe: ReturnType<typeof getStripe>,
+  pi: Stripe.PaymentIntent,
+  eventId: string,
+) {
+  if (asString(pi.metadata?.kind) !== "token_topup") return;
+  const profileId = asString(pi.metadata?.profile_id);
+  const packCode = asString(pi.metadata?.pack_code);
+  if (!profileId || !packCode) return;
+
+  // ตรึงจำนวน token จาก metadata ตอนชาร์จ (กัน pack ถูกแก้ระหว่างทาง) · fallback อ่าน pack
+  let tokens = Number(asString(pi.metadata?.tokens));
+  if (!Number.isFinite(tokens) || tokens <= 0) {
+    const { data: pack } = await admin
+      .from("token_packs")
+      .select("tokens")
+      .eq("code", packCode)
+      .maybeSingle();
+    tokens = Number((pack as { tokens?: number } | null)?.tokens ?? 0);
+  }
+  if (tokens <= 0) return;
+
+  await admin.rpc("apply_token_payment", {
+    p_profile_id: profileId,
+    p_pack_code: packCode,
+    p_tokens: tokens,
+    p_amount: (pi.amount_received ?? pi.amount ?? 0) / 100,
+    p_currency: (pi.currency ?? "thb").toUpperCase(),
+    p_payment_intent: pi.id,
+    p_event_id: eventId,
+  });
+
+  const pmId = asString(pi.payment_method);
+  if (pmId) await captureTokenCard(admin, stripe, profileId, pmId);
+
+  // auto-charge สำเร็จ → ปลดล็อก runtime + บันทึกเวลา
+  if (asString(pi.metadata?.auto) === "1") {
+    await admin
+      .from("token_autotopup")
+      .update({
+        status: "idle",
+        charging_at: null,
+        last_charged_at: new Date().toISOString(),
+        last_error: null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("profile_id", profileId);
+  }
+}
+
+// PaymentIntent ล้มเหลว — เฉพาะ auto-charge: ปิด auto ทันที + แจ้ง LINE
+async function handleTokenPaymentFailed(
+  admin: ReturnType<typeof createAdminClient>,
+  pi: Stripe.PaymentIntent,
+) {
+  if (asString(pi.metadata?.kind) !== "token_topup" || asString(pi.metadata?.auto) !== "1") return;
+  const profileId = asString(pi.metadata?.profile_id);
+  if (!profileId) return;
+  // dedupe: scheduler ปิด+แจ้งทันทีตอน off-session decline แล้ว → ถ้าปิดไปแล้วไม่ต้องทำซ้ำ
+  const { data: row } = await admin
+    .from("token_autotopup")
+    .select("enabled")
+    .eq("profile_id", profileId)
+    .maybeSingle();
+  if (!row || (row as { enabled: boolean }).enabled === false) return;
+  await admin
+    .from("token_autotopup")
+    .update({
+      enabled: false,
+      status: "idle",
+      charging_at: null,
+      last_error: asString(pi.last_payment_error?.message) || "card_declined",
+      updated_at: new Date().toISOString(),
+    })
+    .eq("profile_id", profileId);
+
+  const { data: prof } = await admin
+    .from("profiles")
+    .select("line_user_id")
+    .eq("id", profileId)
+    .maybeSingle();
+  const lineId = (prof as { line_user_id?: string } | null)?.line_user_id;
+  if (lineId) {
+    await sendLineMessages({
+      to: lineId,
+      messages: [
+        {
+          type: "text",
+          text: "⚠️ เติมเครดิตอัตโนมัติไม่สำเร็จ (บัตรถูกปฏิเสธ) — ปิดระบบเติมอัตโนมัติแล้ว\nกรุณาอัปเดตบัตรหรือเติมเครดิตเองที่หน้าผู้ช่วย AI ครับ",
+        },
+      ],
+    }).catch(() => undefined);
+  }
+}
+
+// Checkout mode='setup' (บันทึกบัตรอย่างเดียว) สำเร็จ → เก็บ payment_method
+async function handleTokenSetupCompleted(
+  admin: ReturnType<typeof createAdminClient>,
+  stripe: ReturnType<typeof getStripe>,
+  session: Stripe.Checkout.Session,
+) {
+  const profileId = asString(session.metadata?.profile_id);
+  const siId = asString(session.setup_intent);
+  if (!profileId || !siId) return;
+  const si = await stripe.setupIntents.retrieve(siId);
+  const pmId = asString(si.payment_method);
+  if (pmId) await captureTokenCard(admin, stripe, profileId, pmId);
+}
+
 export async function POST(req: NextRequest) {
   const secret = process.env.STRIPE_WEBHOOK_SECRET ?? "";
   if (!secret)
@@ -599,11 +735,25 @@ export async function POST(req: NextRequest) {
   try {
     if (event.type === "checkout.session.completed") {
       const session = event.data.object as Stripe.Checkout.Session;
-      if (isSttSession(session)) {
+      const k = asString(session.metadata?.kind);
+      if (k === "token_setup") {
+        await handleTokenSetupCompleted(admin, stripe, session); // บันทึกบัตร
+      } else if (k === "token_topup") {
+        // เติม token จัดการที่ payment_intent.succeeded (มีทั้ง manual + auto)
+      } else if (isSttSession(session)) {
         await handleSttCheckout(admin, stripe, session, event.id);
       } else {
         resolvedOrgId = await handleCheckoutSessionCompleted(admin, stripe, session);
       }
+    } else if (event.type === "payment_intent.succeeded") {
+      await handleTokenPaymentSucceeded(
+        admin,
+        stripe,
+        event.data.object as Stripe.PaymentIntent,
+        event.id,
+      );
+    } else if (event.type === "payment_intent.payment_failed") {
+      await handleTokenPaymentFailed(admin, event.data.object as Stripe.PaymentIntent);
     } else if (event.type === "invoice.payment_succeeded") {
       // ลอง STT ก่อน — ถ้า invoice นี้เป็นของ stt_subscription จะจัดการ + return true
       const invoice = event.data.object as Stripe.Invoice;
