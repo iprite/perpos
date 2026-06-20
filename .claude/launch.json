@@ -13,7 +13,8 @@
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["run", "dev"],
       "port": 3000,
-      "cwd": "apps/landing"
+      "cwd": "apps/landing",
+      "autoPort": false
     }
   ]
 }

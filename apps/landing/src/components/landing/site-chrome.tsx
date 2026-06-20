@@ -226,24 +226,13 @@ export function SiteHeader() {
           <span className="md:hidden" aria-hidden />
 
           <div className="flex items-center gap-2">
-            <Link
-              href={APP_URL}
-              className="hidden text-sm font-medium text-foreground-secondary transition hover:text-foreground sm:inline"
-            >
+            <Button href={APP_URL} variant="secondary" size="sm" className="hidden sm:inline-flex">
+              <UserRound className="h-4 w-4" strokeWidth={1.8} />
               เข้าสู่ระบบ
-            </Link>
-            {cta ? (
+            </Button>
+            {cta && (
               <Button href={cta.href} size="sm" className="hidden sm:inline-flex">
                 {cta.label}
-              </Button>
-            ) : (
-              <Button
-                href={APP_URL}
-                variant="secondary"
-                size="sm"
-                className="hidden sm:inline-flex"
-              >
-                เข้าสู่ระบบ
               </Button>
             )}
             <Link

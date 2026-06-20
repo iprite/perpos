@@ -171,7 +171,7 @@ export function PerposHome() {
                   <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-[#06C755] text-white shadow-sm">
                     <MessageCircle className="h-4 w-4" strokeWidth={2.2} />
                   </span>
-                  เพิ่ม <span className="font-neo-tech tracking-[0.06em]">PERPOS</span> บน LINE
+                  เริ่มใช้ <span className="font-neo-tech tracking-[0.06em]">Flow</span> ฟรี!
                   <ArrowRight className="h-4 w-4 transition-transform group-hover/cta:translate-x-0.5" />
                 </Link>
                 <span className="text-center text-sm text-foreground-muted sm:text-left">
