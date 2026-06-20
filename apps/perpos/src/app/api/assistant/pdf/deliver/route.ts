@@ -6,35 +6,57 @@
  *     (LINE bot แนบไฟล์ตรง ๆ ไม่ได้ จึงส่งเป็นลิงก์)
  */
 
-import { NextRequest } from 'next/server';
-import { createAdminClient } from '../../../_lib/supabase';
-import { ok, Err } from '../../../_lib/response';
-import { sendLineMessages } from '@/lib/line/send-messages';
-import { saveToDrive } from '@/lib/google/drive';
+import { NextRequest } from "next/server";
+import { createAdminClient } from "../../../_lib/supabase";
+import { ok, Err } from "../../../_lib/response";
+import { sendLineMessages } from "@/lib/line/send-messages";
+import { saveToDrive } from "@/lib/google/drive";
+import { getServiceRemaining } from "@/lib/assistant/token-balance";
 
-const BUCKET = 'assistant_pdf';
+const BUCKET = "assistant_pdf";
 
 function fmtMB(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 function buildFailFlex(reason: string) {
-  const detail = reason && reason.trim() ? reason : 'ขออภัย ไม่สามารถบีบไฟล์ PDF นี้ได้';
+  const detail = reason && reason.trim() ? reason : "ขออภัย ไม่สามารถบีบไฟล์ PDF นี้ได้";
   return {
-    type: 'flex' as const,
+    type: "flex" as const,
     altText: `บีบ PDF ไม่สำเร็จ — ${detail}`.slice(0, 380),
     contents: {
-      type: 'bubble',
+      type: "bubble",
       header: {
-        type: 'box', layout: 'vertical', backgroundColor: '#C43448', paddingAll: '14px',
-        contents: [{ type: 'text', text: '❌ บีบ PDF ไม่สำเร็จ', color: '#ffffff', weight: 'bold', size: 'md' }],
+        type: "box",
+        layout: "vertical",
+        backgroundColor: "#C43448",
+        paddingAll: "14px",
+        contents: [
+          {
+            type: "text",
+            text: "❌ บีบ PDF ไม่สำเร็จ",
+            color: "#ffffff",
+            weight: "bold",
+            size: "md",
+          },
+        ],
       },
       body: {
-        type: 'box', layout: 'vertical', spacing: 'sm', paddingAll: '18px',
+        type: "box",
+        layout: "vertical",
+        spacing: "sm",
+        paddingAll: "18px",
         contents: [
-          { type: 'text', text: detail, size: 'sm', wrap: true, color: '#3C3B3D' },
-          { type: 'separator', margin: 'md' },
-          { type: 'text', text: 'พิมพ์ /pdf แล้วส่งไฟล์ใหม่อีกครั้งได้เลยครับ 🙏', size: 'xs', wrap: true, color: '#9CA3AF', margin: 'md' },
+          { type: "text", text: detail, size: "sm", wrap: true, color: "#3C3B3D" },
+          { type: "separator", margin: "md" },
+          {
+            type: "text",
+            text: "พิมพ์ /pdf แล้วส่งไฟล์ใหม่อีกครั้งได้เลยครับ 🙏",
+            size: "xs",
+            wrap: true,
+            color: "#9CA3AF",
+            margin: "md",
+          },
         ],
       },
     },
@@ -42,49 +64,61 @@ function buildFailFlex(reason: string) {
 }
 
 export async function POST(req: NextRequest) {
-  const required = (process.env.WORKER_SECRET ?? '').trim();
-  const got = (req.headers.get('x-worker-secret') ?? '').trim();
+  const required = (process.env.WORKER_SECRET ?? "").trim();
+  const got = (req.headers.get("x-worker-secret") ?? "").trim();
   if (!required || got !== required) return Err.unauthorized();
 
   const body = await req.json().catch(() => null);
   const { jobId, orgId } = body ?? {};
-  if (!jobId || !orgId) return Err.missingField('jobId/orgId');
+  if (!jobId || !orgId) return Err.missingField("jobId/orgId");
 
   const admin = createAdminClient();
   const { data: job, error } = await admin
-    .from('assistant_jobs')
-    .select('file_name, status, error_message, profile_id, pdf_meta, pdf_drive_url')
-    .eq('id', jobId)
-    .eq('org_id', orgId)
+    .from("assistant_jobs")
+    .select("file_name, status, error_message, profile_id, pdf_meta, pdf_drive_url")
+    .eq("id", jobId)
+    .eq("org_id", orgId)
     .maybeSingle();
   if (error) return Err.dbError(error);
   if (!job) return Err.notFound(`PDF job ${jobId}`);
 
   const { data: profile } = await admin
-    .from('profiles')
-    .select('line_user_id')
-    .eq('id', job.profile_id as string)
+    .from("profiles")
+    .select("line_user_id")
+    .eq("id", job.profile_id as string)
     .maybeSingle();
   const lineUserId = (profile as { line_user_id?: string } | null)?.line_user_id;
-  if (!lineUserId) return ok({ skipped: 'no line_user_id' });
+  if (!lineUserId) return ok({ skipped: "no line_user_id" });
 
   // งานล้มเหลว → แจ้งด้วย Flex (ใช้ error_message ที่เป็นมิตรจาก worker)
-  const meta = (job.pdf_meta ?? null) as
-    | { output_path?: string; pages?: number; size_before?: number; size_after?: number; ratio?: number; no_gain?: boolean; charged?: boolean }
-    | null;
-  if (job.status !== 'completed' || !meta?.output_path) {
-    await sendLineMessages({ to: lineUserId, messages: [buildFailFlex(String(job.error_message ?? ''))] });
-    return ok({ delivered: 'error_notice' });
+  const meta = (job.pdf_meta ?? null) as {
+    output_path?: string;
+    pages?: number;
+    size_before?: number;
+    size_after?: number;
+    ratio?: number;
+    no_gain?: boolean;
+    charged?: boolean;
+  } | null;
+  if (job.status !== "completed" || !meta?.output_path) {
+    await sendLineMessages({
+      to: lineUserId,
+      messages: [buildFailFlex(String(job.error_message ?? ""))],
+    });
+    return ok({ delivered: "error_notice" });
   }
 
-  const fileName = String(job.file_name ?? 'document.pdf');
-  const dlName = fileName.replace(/\.pdf$/i, '') + '-compressed.pdf';
+  const fileName = String(job.file_name ?? "document.pdf");
+  const dlName = fileName.replace(/\.pdf$/i, "") + "-compressed.pdf";
   const { data: signed, error: signErr } = await admin.storage
     .from(BUCKET)
     .createSignedUrl(meta.output_path, 48 * 60 * 60, { download: dlName });
   if (signErr || !signed?.signedUrl) {
-    await sendLineMessages({ to: lineUserId, messages: [buildFailFlex('สร้างลิงก์ดาวน์โหลดไม่สำเร็จ ลองใหม่ภายหลัง')] });
-    return Err.externalService('pdf-deliver', signErr?.message ?? 'signed url failed');
+    await sendLineMessages({
+      to: lineUserId,
+      messages: [buildFailFlex("สร้างลิงก์ดาวน์โหลดไม่สำเร็จ ลองใหม่ภายหลัง")],
+    });
+    return Err.externalService("pdf-deliver", signErr?.message ?? "signed url failed");
   }
 
   const before = Number(meta.size_before ?? 0);
@@ -98,77 +132,142 @@ export async function POST(req: NextRequest) {
 
   // ข้อความผลลัพธ์ — กรณีบีบไม่ลง (ไฟล์เล็กที่สุดแล้ว) บอกตรง ๆ
   const resultLine = noGain
-    ? 'ไฟล์นี้บีบให้เล็กลงอีกไม่ได้แล้ว (เหมาะสมที่สุดแล้ว)'
+    ? "ไฟล์นี้บีบให้เล็กลงอีกไม่ได้แล้ว (เหมาะสมที่สุดแล้ว)"
     : `${fmtMB(before)} → ${fmtMB(after)}  (ลด ${pct}%)`;
 
-  // โควต้าคงเหลือ (แสดงใน Flex)
-  const { data: quota } = await admin.from('pdf_quota').select('limit_pages, used_pages').eq('profile_id', job.profile_id as string).maybeSingle();
-  const qLimit = (quota as { limit_pages?: number } | null)?.limit_pages ?? 20;
-  const qUsed = (quota as { used_pages?: number } | null)?.used_pages ?? 0;
-  const quotaLine = `📊 โควต้าคงเหลือ ${Math.max(0, qLimit - qUsed)} / ${qLimit} หน้า`;
+  // เครดิตคงเหลือ (แสดงใน Flex) — unified pool: พอบีบได้อีกกี่หน้า = token ÷ rate(pdf)
+  const { remainUnits: pdfRemain } = await getServiceRemaining(
+    admin,
+    job.profile_id as string,
+    "pdf",
+  );
+  const quotaLine = `📊 เครดิตคงเหลือ พอบีบได้อีก ~${pdfRemain} หน้า`;
 
   // เก็บไฟล์ที่บีบลง Google Drive ของผู้ใช้ (auto ถ้าเชื่อม Google) — best-effort ไม่กระทบการส่ง LINE
   //   idempotent: เคยอัปแล้ว (pdf_drive_url มีค่า) → ไม่อัปซ้ำ
-  let pdfDriveUrl = String(job.pdf_drive_url ?? '');
+  let pdfDriveUrl = String(job.pdf_drive_url ?? "");
   if (!pdfDriveUrl) {
     const { data: outFile } = await admin.storage.from(BUCKET).download(meta.output_path);
     if (outFile) {
       const bytes = new Uint8Array(await outFile.arrayBuffer());
       const link = await Promise.race([
         saveToDrive(admin, job.profile_id as string, {
-          categoryKey: 'pdf', categoryName: 'เอกสาร PDF',
-          fileName: dlName, mimeType: 'application/pdf', bytes,
+          categoryKey: "pdf",
+          categoryName: "เอกสาร PDF",
+          fileName: dlName,
+          mimeType: "application/pdf",
+          bytes,
         }),
         new Promise<null>((resolve) => setTimeout(() => resolve(null), 15_000)),
       ]);
       if (link) {
         pdfDriveUrl = link;
-        await admin.from('assistant_jobs').update({ pdf_drive_url: link }).eq('id', jobId);
+        await admin.from("assistant_jobs").update({ pdf_drive_url: link }).eq("id", jobId);
       }
     }
   }
 
   const footerButtons: Record<string, unknown>[] = [
-    { type: 'button', style: 'primary', color: '#3C3B3D', height: 'sm',
-      action: { type: 'uri', label: 'ดาวน์โหลด PDF', uri: signed.signedUrl } },
+    {
+      type: "button",
+      style: "primary",
+      color: "#3C3B3D",
+      height: "sm",
+      action: { type: "uri", label: "ดาวน์โหลด PDF", uri: signed.signedUrl },
+    },
   ];
   if (pdfDriveUrl) {
-    footerButtons.push({ type: 'button', style: 'secondary', height: 'sm', margin: 'sm',
-      action: { type: 'uri', label: '📁 เปิดใน Google Drive', uri: pdfDriveUrl } });
+    footerButtons.push({
+      type: "button",
+      style: "secondary",
+      height: "sm",
+      margin: "sm",
+      action: { type: "uri", label: "📁 เปิดใน Google Drive", uri: pdfDriveUrl },
+    });
   }
 
   const sent = await sendLineMessages({
     to: lineUserId,
-    messages: [{
-      type: 'flex',
-      altText: `บีบ PDF เสร็จแล้ว: ${dlName}`,
-      contents: {
-        type: 'bubble',
-        body: {
-          type: 'box', layout: 'vertical', spacing: 'sm',
-          contents: [
-            { type: 'text', text: '📄 บีบ PDF เสร็จแล้ว', weight: 'bold', size: 'md', color: '#3C3B3D' },
-            { type: 'text', text: fileName, size: 'sm', wrap: true, color: '#1A1A1B' },
-            { type: 'text', text: resultLine, size: 'sm', wrap: true, color: noGain ? '#656D78' : '#46BC9E', weight: 'bold' },
-            ...(pages ? [{ type: 'text', text: `${pages} หน้า`, size: 'xs', color: '#9CA3AF' } as const] : []),
-            ...(freeBelowThreshold ? [{ type: 'text', text: 'ℹ️ บีบได้ไม่ถึงเกณฑ์ — ครั้งนี้ไม่คิดโควต้า', size: 'xs', wrap: true, color: '#46BC9E' } as const] : []),
-            { type: 'text', text: quotaLine, size: 'xs', color: '#9CA3AF' },
-            { type: 'separator', margin: 'md' },
-            {
-              type: 'box', layout: 'vertical', spacing: 'xs', margin: 'md',
-              contents: [
-                { type: 'text', text: '🔒 ความเป็นส่วนตัว', size: 'xs', weight: 'bold', color: '#656D78' },
-                { type: 'text', text: 'ไฟล์จะถูกลบอัตโนมัติภายใน 48 ชั่วโมง กรุณาดาวน์โหลดเก็บไว้', size: 'xxs', wrap: true, color: '#9CA3AF' },
-                { type: 'text', text: 'เราไม่นำข้อมูลของคุณไปใช้ฝึกหรือพัฒนาโมเดล AI ใด ๆ', size: 'xxs', wrap: true, color: '#9CA3AF' },
-              ],
-            },
-          ],
+    messages: [
+      {
+        type: "flex",
+        altText: `บีบ PDF เสร็จแล้ว: ${dlName}`,
+        contents: {
+          type: "bubble",
+          body: {
+            type: "box",
+            layout: "vertical",
+            spacing: "sm",
+            contents: [
+              {
+                type: "text",
+                text: "📄 บีบ PDF เสร็จแล้ว",
+                weight: "bold",
+                size: "md",
+                color: "#3C3B3D",
+              },
+              { type: "text", text: fileName, size: "sm", wrap: true, color: "#1A1A1B" },
+              {
+                type: "text",
+                text: resultLine,
+                size: "sm",
+                wrap: true,
+                color: noGain ? "#656D78" : "#46BC9E",
+                weight: "bold",
+              },
+              ...(pages
+                ? [{ type: "text", text: `${pages} หน้า`, size: "xs", color: "#9CA3AF" } as const]
+                : []),
+              ...(freeBelowThreshold
+                ? [
+                    {
+                      type: "text",
+                      text: "ℹ️ บีบได้ไม่ถึงเกณฑ์ — ครั้งนี้ไม่คิดโควต้า",
+                      size: "xs",
+                      wrap: true,
+                      color: "#46BC9E",
+                    } as const,
+                  ]
+                : []),
+              { type: "text", text: quotaLine, size: "xs", color: "#9CA3AF" },
+              { type: "separator", margin: "md" },
+              {
+                type: "box",
+                layout: "vertical",
+                spacing: "xs",
+                margin: "md",
+                contents: [
+                  {
+                    type: "text",
+                    text: "🔒 ความเป็นส่วนตัว",
+                    size: "xs",
+                    weight: "bold",
+                    color: "#656D78",
+                  },
+                  {
+                    type: "text",
+                    text: "ไฟล์จะถูกลบอัตโนมัติภายใน 48 ชั่วโมง กรุณาดาวน์โหลดเก็บไว้",
+                    size: "xxs",
+                    wrap: true,
+                    color: "#9CA3AF",
+                  },
+                  {
+                    type: "text",
+                    text: "เราไม่นำข้อมูลของคุณไปใช้ฝึกหรือพัฒนาโมเดล AI ใด ๆ",
+                    size: "xxs",
+                    wrap: true,
+                    color: "#9CA3AF",
+                  },
+                ],
+              },
+            ],
+          },
+          footer: { type: "box", layout: "vertical", contents: footerButtons },
         },
-        footer: { type: 'box', layout: 'vertical', contents: footerButtons },
       },
-    }],
+    ],
   });
 
-  if (!sent.ok) return Err.externalService('LINE', sent.error);
+  if (!sent.ok) return Err.externalService("LINE", sent.error);
   return ok({ delivered: true });
 }

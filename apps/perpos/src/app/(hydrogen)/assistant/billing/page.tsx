@@ -1,234 +1,363 @@
-'use client';
+"use client";
 
-import { useEffect, useState, useCallback } from 'react';
-import { useSearchParams } from 'next/navigation';
-import { createSupabaseBrowserClient } from '@/lib/supabase/client';
-import { Button } from '@/components/ui/button';
-import { Loader2, Check, Clock, Sparkles, Plus, ShieldCheck } from 'lucide-react';
-import { toast } from '@/lib/toast';
+import { useEffect, useState, useCallback } from "react";
+import { useSearchParams } from "next/navigation";
+import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { CustomSelect } from "@/components/ui/custom-select";
+import {
+  Loader2,
+  Check,
+  Wallet,
+  Sparkles,
+  CreditCard,
+  RefreshCw,
+  CalendarClock,
+  Gift,
+} from "lucide-react";
+import { toast } from "@/lib/toast";
 
-type Plan = {
-  id: string;
+type Pack = {
   code: string;
   name: string;
-  kind: 'subscription' | 'topup';
-  meter: 'stt' | 'bot';
-  minutes: number;
   price: number;
-  currency: string;
+  tokens: number;
+  bonus_tokens: number;
+  sort_order: number;
 };
-type Sub = { plan_id: string | null; status: string | null; current_period_end: string | null; cancel_at_period_end: boolean };
+type Quota = { balance_tokens: number; balance_thb: number; earliest_expiry: string | null };
+type Auto = {
+  enabled: boolean;
+  thresholdTokens: number;
+  packCode: string | null;
+  hasCard: boolean;
+  card: { brand: string | null; last4: string | null } | null;
+  status: string;
+  lastError: string | null;
+  packs: Pack[];
+};
 
-const thb = (n: number) => new Intl.NumberFormat('th-TH').format(n);
-const ACTIVE_SUB = ['trialing', 'active', 'past_due'];
+const nf = (n: number) => new Intl.NumberFormat("th-TH").format(n);
+const fmtDate = (iso: string) =>
+  new Date(iso).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" });
 
-export default function TranscribeBillingPage() {
+export default function TokenBillingPage() {
   const search = useSearchParams();
   const supabase = createSupabaseBrowserClient();
 
-  const [token, setToken] = useState('');
-  const [plans, setPlans] = useState<Plan[]>([]);
-  const [sub, setSub] = useState<Sub | null>(null);
-  const [quota, setQuota] = useState<{ limit: number; used: number } | null>(null);
-  const [botQuota, setBotQuota] = useState<{ limit: number; used: number } | null>(null);
+  const [token, setToken] = useState("");
+  const [quota, setQuota] = useState<Quota | null>(null);
+  const [auto, setAuto] = useState<Auto | null>(null);
   const [loading, setLoading] = useState(true);
-  const [buying, setBuying] = useState('');
+  const [buying, setBuying] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  // auto-topup form state
+  const [threshold, setThreshold] = useState("500");
+  const [packCode, setPackCode] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const { data: sess } = await supabase.auth.getSession();
-      const accessToken = sess.session?.access_token ?? '';
+      const accessToken = sess.session?.access_token ?? "";
       setToken(accessToken);
-
-      const [{ data: planRows }, { data: subRow }, quotaRes] = await Promise.all([
-        supabase.from('stt_plans').select('id, code, name, kind, meter, minutes, price, currency').eq('is_active', true).order('sort_order'),
-        supabase.from('stt_subscriptions').select('plan_id, status, current_period_end, cancel_at_period_end').maybeSingle(),
-        accessToken ? fetch(`/api/assistant/quota`, { headers: { Authorization: `Bearer ${accessToken}` } }) : Promise.resolve(null),
+      if (!accessToken) return;
+      const [quotaRes, autoRes] = await Promise.all([
+        fetch(`/api/assistant/quota`, { headers: { Authorization: `Bearer ${accessToken}` } }),
+        fetch(`/api/assistant/tokens/autotopup`, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        }),
       ]);
-      setPlans((planRows ?? []).map((p) => ({ ...p, price: Number(p.price) })) as Plan[]);
-      setSub((subRow as Sub) ?? null);
-      if (quotaRes && quotaRes.ok) {
-        const d = (await quotaRes.json()).data;
-        setQuota({ limit: d.limit_seconds, used: d.used_seconds });
-        if (d.bot) setBotQuota({ limit: d.bot.limit_seconds, used: d.bot.used_seconds });
+      if (quotaRes.ok) setQuota((await quotaRes.json()).data as Quota);
+      if (autoRes.ok) {
+        const a = (await autoRes.json()) as Auto;
+        setAuto(a);
+        setThreshold(String(a.thresholdTokens ?? 500));
+        setPackCode(a.packCode ?? a.packs[0]?.code ?? "");
       }
     } finally {
       setLoading(false);
     }
   }, [supabase]);
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+  }, [load]);
 
   useEffect(() => {
-    if (search.get('billing') === 'success') toast.success('ชำระเงินสำเร็จ — โควต้าจะอัปเดตภายในไม่กี่วินาที');
-    if (search.get('billing') === 'canceled') toast('ยกเลิกการชำระเงิน', { icon: 'ℹ️' });
+    if (search.get("billing") === "success")
+      toast.success("ชำระเงินสำเร็จ — เครดิตจะเข้าภายในไม่กี่วินาที");
+    if (search.get("billing") === "canceled") toast("ยกเลิกการชำระเงิน", { icon: "ℹ️" });
+    if (search.get("setup") === "success")
+      toast.success("บันทึกบัตรสำเร็จ — เปิดเติมอัตโนมัติได้แล้ว");
   }, [search]);
 
-  const [portalLoading, setPortalLoading] = useState(false);
-  const openPortal = async () => {
+  const buy = async (code: string, saveCard: boolean) => {
     if (!token) return;
-    setPortalLoading(true);
+    setBuying(code);
     try {
-      const res = await fetch('/api/assistant/stt/portal', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({}),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok || !data.url) { toast.error('เปิดหน้าจัดการไม่สำเร็จ'); return; }
-      window.location.href = data.url as string;
-    } finally {
-      setPortalLoading(false);
-    }
-  };
-
-  const buy = async (planCode: string) => {
-    if (!token) return;
-    setBuying(planCode);
-    try {
-      const res = await fetch('/api/assistant/stt/checkout', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ planCode }),
+      const res = await fetch("/api/assistant/tokens/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ packCode: code, saveCard }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.url) {
-        toast.error(data.error === 'already_subscribed' ? 'คุณมีแพ็กเกจรายเดือนอยู่แล้ว' : 'เริ่มชำระเงินไม่สำเร็จ');
+        toast.error("เริ่มชำระเงินไม่สำเร็จ");
         return;
       }
       window.location.href = data.url as string;
     } finally {
-      setBuying('');
+      setBuying("");
     }
   };
 
-  const subscriptions = plans.filter((p) => p.kind === 'subscription' && p.meter !== 'bot');
-  const topups = plans.filter((p) => p.kind === 'topup' && p.meter !== 'bot');
-  const botTopups = plans.filter((p) => p.meter === 'bot');
-  const hasActiveSub = !!sub && !!sub.status && ACTIVE_SUB.includes(sub.status);
-  const remainMin = quota ? Math.max(0, Math.floor((quota.limit - quota.used) / 60)) : null;
-  const botRemainMin = botQuota ? Math.max(0, Math.floor((botQuota.limit - botQuota.used) / 60)) : null;
+  const saveCard = async () => {
+    if (!token) return;
+    setSaving(true);
+    try {
+      const res = await fetch("/api/assistant/tokens/setup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({}),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.url) {
+        toast.error("เปิดหน้าบันทึกบัตรไม่สำเร็จ");
+        return;
+      }
+      window.location.href = data.url as string;
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const saveAuto = async (patch: Record<string, unknown>) => {
+    if (!token) return;
+    setSaving(true);
+    try {
+      const res = await fetch("/api/assistant/tokens/autotopup", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify(patch),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(
+          data.error === "threshold_too_high"
+            ? "จุดเตือนต้องน้อยกว่าเครดิตของแพ็ก"
+            : data.error === "no_card"
+              ? "กรุณาบันทึกบัตรก่อน"
+              : data.error === "no_pack"
+                ? "กรุณาเลือกแพ็ก"
+                : "บันทึกไม่สำเร็จ",
+        );
+        return;
+      }
+      toast.success("บันทึกแล้ว");
+      await load();
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const packs = auto?.packs ?? [];
+
+  if (loading) {
+    return (
+      <div className="flex min-h-[40vh] items-center justify-center">
+        <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+      </div>
+    );
+  }
 
   return (
-    <>
-      {loading ? (
-        <div className="flex min-h-[40vh] items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-gray-400" /></div>
-      ) : (
-        <div className="grid gap-6 lg:grid-cols-12">
-          {/* Left — สถานะ/โควต้า */}
-          <div className="lg:col-span-4 xl:col-span-3">
-            <div className="space-y-4 lg:sticky lg:top-6">
-              <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
-                <div className="flex items-center gap-2 text-sm text-gray-500"><Clock className="h-4 w-4" /> โควต้าคงเหลือ</div>
-                <div className="mt-2 space-y-2">
-                  <div>
-                    <div className="text-xs text-gray-400">🎙️ ถอดเสียง (อัปไฟล์เอง)</div>
-                    <div className="text-2xl font-bold tabular-nums text-gray-900">{remainMin != null ? thb(remainMin) : '—'}<span className="ml-1 text-sm font-medium text-gray-400">นาที</span></div>
-                  </div>
-                  <div className="border-t border-gray-100 pt-2">
-                    <div className="text-xs text-gray-400">🤖 บอทเข้าประชุม</div>
-                    <div className="text-2xl font-bold tabular-nums text-gray-900">{botRemainMin != null ? thb(botRemainMin) : '—'}<span className="ml-1 text-sm font-medium text-gray-400">นาที</span></div>
-                  </div>
-                </div>
-                <div className="mt-4 rounded-xl border border-gray-100 bg-gray-50 p-3">
-                  <div className="flex items-center gap-2 text-sm">
-                    <span className={`flex h-7 w-7 items-center justify-center rounded-lg ${hasActiveSub ? 'bg-green-50 text-green-600' : 'bg-gray-100 text-gray-400'}`}>
-                      <ShieldCheck className="h-4 w-4" />
-                    </span>
-                    <span className="font-medium text-gray-900">{hasActiveSub ? 'แพ็กเกจทำงานอยู่' : 'ยังไม่มีแพ็กเกจ'}</span>
-                  </div>
-                  {hasActiveSub ? (
-                    <p className="mt-2 text-xs text-gray-500">
-                      {sub?.current_period_end ? `ต่ออายุ ${new Date(sub.current_period_end).toLocaleDateString('th-TH')}` : ''}
-                      {sub?.cancel_at_period_end ? ' · จะยกเลิกเมื่อสิ้นรอบ' : ''}
-                    </p>
-                  ) : (
-                    <p className="mt-2 text-xs text-gray-500">สมัครแพ็กเกจรายเดือนเพื่อรับนาทีถอดเสียง</p>
-                  )}
-                </div>
-                {hasActiveSub ? (
-                  <Button variant="outline" size="sm" className="mt-3 w-full" onClick={openPortal} disabled={portalLoading}>
-                    {portalLoading ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : null} จัดการการเรียกเก็บเงิน
-                  </Button>
-                ) : null}
-              </div>
-
-              <p className="flex items-start gap-1.5 px-1 text-xs text-gray-400">
-                <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-green-500" /> ชำระผ่าน Stripe ปลอดภัย · เราไม่นำข้อมูลเสียงไปฝึกโมเดล AI
+    <div className="grid gap-6 lg:grid-cols-12">
+      {/* Left — wallet + auto top-up */}
+      <div className="lg:col-span-4 xl:col-span-3">
+        <div className="space-y-4 lg:sticky lg:top-6">
+          {/* wallet */}
+          <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
+            <div className="flex items-center gap-2 text-sm text-gray-500">
+              <Wallet className="h-4 w-4" /> เครดิตคงเหลือ
+            </div>
+            <div className="mt-2 flex items-baseline gap-2">
+              <span className="text-3xl font-bold tabular-nums text-gray-900">
+                {quota ? nf(quota.balance_tokens) : "—"}
+              </span>
+              <span className="text-sm text-gray-400">
+                ≈ ฿{quota ? nf(Math.floor(quota.balance_thb)) : "—"}
+              </span>
+            </div>
+            {quota?.earliest_expiry ? (
+              <p className="mt-2 flex items-center gap-1.5 text-xs text-gray-500">
+                <CalendarClock className="h-3.5 w-3.5" /> หมดอายุ {fmtDate(quota.earliest_expiry)}
               </p>
+            ) : null}
+          </div>
+
+          {/* auto top-up */}
+          <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
+            <div className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+              <RefreshCw className="text-primary h-4 w-4" /> เติมอัตโนมัติ
+            </div>
+            <p className="mt-1 text-xs text-gray-500">
+              เมื่อเครดิตต่ำกว่าจุดที่ตั้ง ระบบจะตัดบัตรเติมแพ็กที่เลือกให้อัตโนมัติ
+            </p>
+
+            {/* card status */}
+            <div className="mt-3 flex items-center gap-2 rounded-xl border border-gray-100 bg-gray-50 p-3 text-sm">
+              <CreditCard className="h-4 w-4 text-gray-400" />
+              {auto?.hasCard ? (
+                <span className="text-gray-700">
+                  {(auto.card?.brand ?? "บัตร").toUpperCase()} •••• {auto.card?.last4 ?? "????"}
+                </span>
+              ) : (
+                <span className="text-gray-500">ยังไม่ได้บันทึกบัตร</span>
+              )}
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              className="mt-2 w-full"
+              onClick={saveCard}
+              disabled={saving}
+            >
+              {auto?.hasCard ? "เปลี่ยนบัตร" : "บันทึกบัตร"}
+            </Button>
+
+            {/* settings */}
+            <div className="mt-4 space-y-3">
+              <div>
+                <Label htmlFor="threshold">เติมเมื่อเครดิตต่ำกว่า</Label>
+                <Input
+                  id="threshold"
+                  type="number"
+                  min={0}
+                  value={threshold}
+                  onChange={(e) => setThreshold(e.target.value)}
+                  className="mt-1"
+                />
+              </div>
+              <div>
+                <Label htmlFor="pack">แพ็กที่จะเติมอัตโนมัติ</Label>
+                <CustomSelect
+                  value={packCode}
+                  onChange={setPackCode}
+                  options={packs.map((p) => ({
+                    value: p.code,
+                    label: `${p.name} — ${nf(p.tokens)} เครดิต`,
+                  }))}
+                  className="mt-1 w-full"
+                />
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full"
+                disabled={saving}
+                onClick={() => saveAuto({ thresholdTokens: Number(threshold), packCode })}
+              >
+                บันทึกการตั้งค่า
+              </Button>
+
+              {auto?.enabled ? (
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  className="w-full"
+                  disabled={saving}
+                  onClick={() => saveAuto({ enabled: false })}
+                >
+                  ปิดเติมอัตโนมัติ
+                </Button>
+              ) : (
+                <Button
+                  size="sm"
+                  className="w-full"
+                  disabled={saving || !auto?.hasCard}
+                  onClick={() =>
+                    saveAuto({ enabled: true, thresholdTokens: Number(threshold), packCode })
+                  }
+                >
+                  เปิดเติมอัตโนมัติ
+                </Button>
+              )}
+              {auto?.enabled ? (
+                <p className="text-center text-xs font-medium text-green-600">✓ เปิดใช้งานอยู่</p>
+              ) : null}
+              {auto?.lastError ? (
+                <p className="text-center text-xs text-red-600">
+                  ครั้งล่าสุดล้มเหลว — กรุณาเปลี่ยนบัตร
+                </p>
+              ) : null}
             </div>
           </div>
 
-          {/* Right — แพ็กเกจ */}
-          <div className="lg:col-span-8 xl:col-span-9">
-            <div className="mb-1 flex items-baseline justify-between">
-              <h2 className="text-lg font-semibold text-gray-900">แพ็กเกจรายเดือน</h2>
-            </div>
-            <p className="mb-4 text-sm text-gray-500">ตัดบัตรอัตโนมัติทุก 30 วัน · นาทีรีเซ็ตทุกรอบ (ใช้ไม่หมดไม่สะสม) · ยกเลิกได้ทุกเมื่อ ไม่มีคืนเงิน</p>
-            <div className="grid gap-4 sm:grid-cols-2">
-              {subscriptions.map((p, i) => (
-                <div key={p.id} className={`relative rounded-2xl border bg-white p-6 shadow-sm ${i === 0 ? 'border-primary ring-1 ring-gray-200' : 'border-gray-100'}`}>
-                  {i === 0 ? <div className="absolute right-4 top-4 rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-medium text-blue-600">แนะนำ</div> : null}
-                  <div className="text-base font-medium text-gray-900">{p.name}</div>
-                  <div className="mt-2 flex items-baseline gap-1">
-                    <span className="text-4xl font-bold tabular-nums text-gray-900">฿{thb(p.price)}</span>
-                    <span className="text-sm text-gray-500">/เดือน</span>
-                  </div>
-                  <div className="mt-3 flex items-center gap-1.5 text-sm text-gray-600">
-                    <Clock className="h-4 w-4 text-primary" /> {thb(p.minutes)} นาที/เดือน
-                  </div>
-                  <Button className="mt-5 w-full" disabled={!!buying || hasActiveSub} onClick={() => buy(p.code)}>
-                    {buying === p.code ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                    {hasActiveSub ? 'มีแพ็กเกจอยู่แล้ว' : 'สมัคร'}
-                  </Button>
-                </div>
-              ))}
-            </div>
-
-            {/* Top-ups — แสดงเฉพาะเมื่อมีแพ็ก topup ที่เปิดขาย (ปัจจุบันปิด) */}
-            {topups.length > 0 && (
-              <div className="mt-8">
-                <h2 className="mb-1 text-lg font-semibold text-gray-900">เติมนาที (จ่ายครั้งเดียว)</h2>
-                <p className="mb-3 text-sm text-gray-500">นาทีที่เติมไม่หมดอายุ สะสมข้ามรอบได้</p>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  {topups.map((p) => (
-                    <div key={p.id} className="flex items-center justify-between rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
-                      <div>
-                        <div className="text-base font-medium text-gray-900">{thb(p.minutes)} นาที</div>
-                        <div className="text-sm text-gray-500">฿{thb(p.price)}</div>
-                      </div>
-                      <Button variant="outline" disabled={!!buying} onClick={() => buy(p.code)}>
-                        {buying === p.code ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Plus className="mr-1 h-4 w-4" /> เติม</>}
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* แพ็กบอทประชุม (เติมนาที bot) */}
-            {botTopups.length > 0 && (
-              <div className="mt-8">
-                <h2 className="mb-1 text-lg font-semibold text-gray-900">🤖 แพ็กบอทเข้าประชุม</h2>
-                <p className="mb-3 text-sm text-gray-500">เติมนาทีให้บอท Recall เข้าห้องอัด + สรุป MoM · นาทีไม่หมดอายุ สะสมได้</p>
-                <div className="grid gap-4 sm:grid-cols-3">
-                  {botTopups.map((p) => (
-                    <div key={p.id} className="flex items-center justify-between rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
-                      <div>
-                        <div className="text-base font-medium text-gray-900">{thb(p.minutes)} นาที</div>
-                        <div className="text-sm text-gray-500">฿{thb(p.price)}</div>
-                      </div>
-                      <Button variant="outline" disabled={!!buying} onClick={() => buy(p.code)}>
-                        {buying === p.code ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Plus className="mr-1 h-4 w-4" /> เติม</>}
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
+          <p className="flex items-start gap-1.5 px-1 text-xs text-gray-400">
+            <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-green-500" /> ชำระผ่าน Stripe ปลอดภัย
+            · เราไม่เก็บเลขบัตร
+          </p>
         </div>
-      )}
-    </>
+      </div>
+
+      {/* Right — packs */}
+      <div className="lg:col-span-8 xl:col-span-9">
+        <h2 className="mb-1 text-lg font-semibold text-gray-900">เติมเครดิต</h2>
+        <p className="mb-4 text-sm text-gray-500">
+          1 บาท = 100 เครดิต · เครดิตมีอายุ 1 ปี · เติมก่อนหมดอายุ เครดิตเก่าจะถูกต่ออายุอีก 1
+          ปีอัตโนมัติ
+        </p>
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          {packs.map((p, i) => (
+            <div
+              key={p.code}
+              className={`relative rounded-2xl border bg-white p-6 shadow-sm ${i === 1 ? "border-primary ring-1 ring-gray-200" : "border-gray-100"}`}
+            >
+              {i === 1 ? (
+                <div className="absolute right-4 top-4 rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-medium text-blue-600">
+                  แนะนำ
+                </div>
+              ) : null}
+              <div className="text-base font-medium text-gray-900">{p.name}</div>
+              <div className="mt-2 flex items-baseline gap-1">
+                <span className="text-3xl font-bold tabular-nums text-gray-900">
+                  {nf(p.tokens)}
+                </span>
+                <span className="text-sm text-gray-500">เครดิต</span>
+              </div>
+              {p.bonus_tokens > 0 ? (
+                <div className="mt-2 inline-flex items-center gap-1 rounded-full bg-green-50 px-2 py-0.5 text-xs font-medium text-green-600">
+                  <Gift className="h-3 w-3" /> โบนัส +{nf(p.bonus_tokens)}
+                </div>
+              ) : null}
+              <Button
+                className="mt-5 w-full"
+                disabled={!!buying}
+                onClick={() => buy(p.code, false)}
+              >
+                {buying === p.code ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Sparkles className="mr-1 h-4 w-4" />
+                )}{" "}
+                เติม ฿{nf(p.price)}
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="mt-1 w-full text-xs"
+                disabled={!!buying}
+                onClick={() => buy(p.code, true)}
+              >
+                เติม + บันทึกบัตรไว้เติมอัตโนมัติ
+              </Button>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
   );
 }
