@@ -12,6 +12,7 @@ on:
           - pdf-renderer
           - ocr-worker
           - stt-worker
+          - pdf-compress-worker
           - all
 
   # Auto-trigger เมื่อ push ถึง main และมีการเปลี่ยนแปลง source
@@ -21,6 +22,7 @@ on:
       - "services/pdf-renderer/**"
       - "services/ocr-worker/**"
       - "services/stt-worker/**"
+      - "services/pdf-compress-worker/**"
 
 env:
   PROJECT_ID: perpos
@@ -171,6 +173,57 @@ jobs:
       - name: Print service URL
         run: |
           gcloud run services describe perpos-stt-worker \
+            --region ${{ env.REGION }} \
+            --project ${{ env.PROJECT_ID }} \
+            --format="value(status.url)"
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # PDF Compress Worker — บีบ PDF (pikepdf + Pillow surgical, spawn python3)
+  # ⚠️ บังคับ: --memory 4Gi --cpu 2 --concurrency 2 --no-cpu-throttling (req ถือ buffer)
+  # ─────────────────────────────────────────────────────────────────────────────
+  deploy-pdf-compress-worker:
+    name: Deploy pdf-compress-worker
+    runs-on: ubuntu-latest
+    if: |
+      (github.event_name == 'workflow_dispatch' &&
+       (github.event.inputs.service == 'pdf-compress-worker' || github.event.inputs.service == 'all'))
+      ||
+      (github.event_name == 'push' &&
+       contains(join(github.event.commits.*.modified, ','), 'services/pdf-compress-worker'))
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Deploy pdf-compress-worker to Cloud Run
+        working-directory: services/pdf-compress-worker
+        run: |
+          gcloud run deploy perpos-pdf-compress-worker \
+            --source . \
+            --region ${{ env.REGION }} \
+            --project ${{ env.PROJECT_ID }} \
+            --memory 4Gi \
+            --cpu 2 \
+            --min-instances 0 \
+            --max-instances 5 \
+            --timeout 540 \
+            --concurrency 2 \
+            --no-cpu-throttling \
+            --allow-unauthenticated \
+            --set-env-vars "APP_BASE_URL=https://app.perpos.ai,PDF_MAX_MB=100,PDF_MAX_PAGES=500" \
+            --set-secrets "WORKER_SECRET=WORKER_SECRET:latest,LINE_MESSAGING_CHANNEL_ACCESS_TOKEN=LINE_MESSAGING_CHANNEL_ACCESS_TOKEN:latest,SUPABASE_URL=SUPABASE_URL:latest,SUPABASE_SERVICE_ROLE_KEY=SUPABASE_SERVICE_ROLE_KEY:latest" \
+            --quiet
+
+      - name: Print service URL
+        run: |
+          gcloud run services describe perpos-pdf-compress-worker \
             --region ${{ env.REGION }} \
             --project ${{ env.PROJECT_ID }} \
             --format="value(status.url)"

@@ -39,7 +39,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        service: [pdf-renderer, ocr-worker, stt-worker]
+        service: [pdf-renderer, ocr-worker, stt-worker, pdf-compress-worker]
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
