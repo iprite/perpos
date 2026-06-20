@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Noto_Sans_Thai } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 import { LanguageProvider } from "@/components/landing/language-context";
 
@@ -10,28 +11,40 @@ const notoSansThai = Noto_Sans_Thai({
   display: "swap",
 });
 
+const neoTech = localFont({
+  src: "./_fonts/NeoTech.ttf",
+  variable: "--font-neo-tech",
+  display: "swap",
+});
+
 const BASE_URL = "https://www.perpos.ai";
 
 export const metadata: Metadata = {
-  title: "PERPOS - Next-Gen Agentic AI ERP",
+  title: "PERPOS - Flow & Suite",
   description:
-    "Next-Gen Agentic AI ERP: Tailored to Empower Your Business Flow. ระบบบัญชีและ ERP สำหรับธุรกิจ SME ยุคใหม่ ปฏิบัติงานเชิงรุกด้วย AI Agents แบบ Real-time",
+    "PERPOS Flow ผู้ช่วย AI บน LINE สำหรับ PDF และเสียงประชุม และ PERPOS Suite ระบบ AI ERP สำหรับองค์กรและ workflow เฉพาะธุรกิจ",
   keywords: [
+    "PERPOS Flow",
+    "PERPOS Suite",
     "ระบบบัญชี",
     "ERP",
     "SME",
     "ไทย",
     "LINE Bot",
+    "บีบ PDF",
+    "ถอดเสียงประชุม",
     "บริหารธุรกิจ",
     "บัญชี",
-    "Agentic AI",
-    "AI ERP"
+    "AI ERP",
   ],
   authors: [{ name: "PERPOS" }],
+  icons: {
+    icon: "/logo-short.svg",
+  },
   openGraph: {
-    title: "PERPOS - Next-Gen Agentic AI ERP",
+    title: "PERPOS - Flow & Suite",
     description:
-      "Next-Gen Agentic AI ERP: Tailored to Empower Your Business Flow. ระบบบัญชีและ ERP สำหรับธุรกิจ SME ยุคใหม่ ปฏิบัติงานเชิงรุกด้วย AI Agents แบบ Real-time",
+      "AI tools and ERP systems for modern Thai work. ใช้ PERPOS Flow บน LINE หรือวางระบบ PERPOS Suite สำหรับองค์กร",
     url: BASE_URL,
     siteName: "PERPOS",
     locale: "th_TH",
@@ -41,15 +54,14 @@ export const metadata: Metadata = {
         url: `${BASE_URL}/og-image.png`,
         width: 1200,
         height: 630,
-        alt: "PERPOS - Next-Gen Agentic AI ERP",
+        alt: "PERPOS Flow and PERPOS Suite",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "PERPOS - Next-Gen Agentic AI ERP",
-    description:
-      "Next-Gen Agentic AI ERP: Tailored to Empower Your Business Flow. ระบบบัญชีและ ERP สำหรับธุรกิจ SME ยุคใหม่ ปฏิบัติงานเชิงรุกด้วย AI Agents แบบ Real-time",
+    title: "PERPOS - Flow & Suite",
+    description: "PERPOS Flow ผู้ช่วย AI บน LINE และ PERPOS Suite ระบบ AI ERP สำหรับองค์กร",
     images: [`${BASE_URL}/og-image.png`],
   },
   robots: {
@@ -58,17 +70,12 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="th" className={notoSansThai.variable}>
-      <body className="font-sans antialiased bg-white text-slate-900">
+    <html lang="th" className={`${notoSansThai.variable} ${neoTech.variable}`}>
+      <body className="bg-white font-sans text-foreground antialiased">
         <LanguageProvider>{children}</LanguageProvider>
       </body>
     </html>
   );
 }
-
