@@ -29,6 +29,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
       - run: pnpm type:check
+      - run: pnpm --filter starter test
 
   # ─────────────────────────────────────────────────────────────────────────────
   # Cloud Run workers — typecheck + build (tsc) ทั้ง 3 ตัว
