@@ -212,8 +212,8 @@ function SignInContent() {
             </span>
           </div>
 
-          <h1 className="text-2xl font-semibold text-slate-900">เข้าสู่ระบบ</h1>
-          <p className="mt-1.5 text-sm text-slate-500">
+          <h1 className="text-center text-2xl font-semibold text-slate-900">เข้าสู่ระบบ</h1>
+          <p className="mt-1.5 text-center text-sm text-slate-500">
             ใช้บัญชี LINE ของคุณ เข้าใช้งานได้ทันที ไม่ต้องตั้งรหัสผ่าน
           </p>
 
