@@ -107,7 +107,7 @@
     "tailwind-merge": "^3.0.2",
     "typescript": "5.8.2",
     "uploadthing": "^7.6.0",
-    "zod": "^3.24.2"
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@hookform/devtools": "^4.3.3",
