@@ -35,6 +35,7 @@
     "*.{ts,tsx,js,jsx,json,md,yml,yaml,css}": "prettier --write"
   },
   "devDependencies": {
+    "@playwright/test": "^1.61.0",
     "eslint": "9.23.0",
     "husky": "^9.1.7",
     "lint-staged": "^17.0.7",

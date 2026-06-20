@@ -68,3 +68,9 @@ web_legacy/
 # codex CLI local config
 .codex/
 
+
+# playwright e2e
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
