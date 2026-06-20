@@ -239,15 +239,14 @@ function SignInContent() {
 
           <div className="mt-8 text-center text-xs leading-relaxed text-slate-400">
             <p>การเข้าสู่ระบบถือว่าคุณยอมรับ</p>
-            <p className="mt-2">
+            <p className="mt-2 flex items-center justify-center gap-2">
               <a
                 href={withBasePath("/terms")}
                 className="text-slate-500 underline-offset-2 hover:underline"
               >
                 ข้อกำหนดการให้บริการ
               </a>
-            </p>
-            <p className="mt-2">
+              <span className="text-slate-300">|</span>
               <a
                 href={withBasePath("/privacy")}
                 className="text-slate-500 underline-offset-2 hover:underline"
