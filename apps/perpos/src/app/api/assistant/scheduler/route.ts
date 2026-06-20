@@ -12,6 +12,8 @@ import {
 } from "@/lib/assistant/recall";
 import { syncProfileCalendar } from "@/lib/assistant/calendar-sync";
 import { buildBotConfirmFlex, buildQuotaWarningFlex } from "@/lib/assistant/bot-flex";
+import { getServiceRemaining } from "@/lib/assistant/token-balance";
+import { getStripe } from "../../_lib/stripe";
 import { alertAdminLine } from "@/lib/admin/alert";
 
 const QUOTA_WARN_LEAD_S = 600; // เตือนโควต้าบอทใกล้หมด ≥10 นาทีก่อน kick
@@ -567,15 +569,11 @@ async function run(req: NextRequest) {
 
       // ── Phase 1c: เติมโควต้าระหว่างประชุม → ขยาย hold ให้บอทอยู่ต่ออัตโนมัติ (absorb top-up) ──
       if (joinedMs && botId && holdS > 0) {
-        const { data: bq } = await admin
-          .from("bot_quota")
-          .select("limit_seconds, used_seconds")
-          .eq("profile_id", rj.profile_id as string)
-          .maybeSingle();
-        const bqRow = bq as { limit_seconds?: number; used_seconds?: number } | null;
-        const spare = bqRow
-          ? Math.max(0, Number(bqRow.limit_seconds ?? 0) - Number(bqRow.used_seconds ?? 0))
-          : 0;
+        const { remainUnits: spare } = await getServiceRemaining(
+          admin,
+          rj.profile_id as string,
+          "bot",
+        );
         if (spare > 0) {
           const ok = await admin
             .rpc("extend_bot_hold", { p_job_id: rj.id as string, p_extra_seconds: spare })
@@ -804,14 +802,7 @@ async function run(req: NextRequest) {
         const lineId = (prof as { line_user_id?: string } | null)?.line_user_id;
         if (!lineId) continue;
 
-        const { data: bq } = await admin
-          .from("bot_quota")
-          .select("limit_seconds, used_seconds")
-          .eq("profile_id", profileId)
-          .maybeSingle();
-        const limit = (bq as { limit_seconds?: number } | null)?.limit_seconds ?? 7200;
-        const used = (bq as { used_seconds?: number } | null)?.used_seconds ?? 0;
-        const remainSec = Math.max(0, limit - used);
+        const { remainUnits: remainSec } = await getServiceRemaining(admin, profileId, "bot");
 
         const platform = extractMeetingUrl(meetingUrl);
         const platformLabel = platform
@@ -843,6 +834,190 @@ async function run(req: NextRequest) {
           })
           .eq("id", evId);
       }
+    }
+
+    // ── Token expiry: เก็บกวาด lot หมดอายุ + เตือนล่วงหน้า 30/7 วัน (LINE) ──
+    try {
+      await admin.rpc("token_expire_sweep");
+
+      const in7Iso = new Date(now.getTime() + 7 * 86400000).toISOString();
+      const in30Iso = new Date(now.getTime() + 30 * 86400000).toISOString();
+      // แบ่ง bucket ไม่ให้ทับกัน: 7วัน = (now, +7], 30วัน = (+7, +30] → lot นึงเข้า bucket เดียวต่อรอบ
+      // skipShortLived (30วัน): ข้าม lot อายุรวม ≤31วัน (เช่น trial 30วัน) — ไม่งั้นจะเตือน 30วันทันทีตอนได้ trial
+      const buckets: Array<{
+        col: "reminded_7_at" | "reminded_30_at";
+        loIso: string;
+        hiIso: string;
+        skipShortLived?: boolean;
+      }> = [
+        { col: "reminded_7_at", loIso: now.toISOString(), hiIso: in7Iso },
+        { col: "reminded_30_at", loIso: in7Iso, hiIso: in30Iso, skipShortLived: true },
+      ];
+      for (const b of buckets) {
+        const { data: lots } = await admin
+          .from("token_lots")
+          .select("id, profile_id, remaining_tokens, expires_at, granted_at")
+          .eq("status", "active")
+          .gt("remaining_tokens", 0)
+          .gt("expires_at", b.loIso)
+          .lte("expires_at", b.hiIso)
+          .is(b.col, null)
+          .limit(2000);
+        const byProfile = new Map<string, { tokens: number; earliest: string; ids: string[] }>();
+        for (const l of (lots ?? []) as Array<{
+          id: string;
+          profile_id: string;
+          remaining_tokens: number;
+          expires_at: string;
+          granted_at: string;
+        }>) {
+          if (
+            b.skipShortLived &&
+            new Date(l.expires_at).getTime() - new Date(l.granted_at).getTime() <= 31 * 86400000
+          )
+            continue;
+          const g = byProfile.get(l.profile_id) ?? { tokens: 0, earliest: l.expires_at, ids: [] };
+          g.tokens += Number(l.remaining_tokens);
+          if (l.expires_at < g.earliest) g.earliest = l.expires_at;
+          g.ids.push(l.id);
+          byProfile.set(l.profile_id, g);
+        }
+        for (const [profileId, g] of Array.from(byProfile.entries())) {
+          const { data: prof } = await admin
+            .from("profiles")
+            .select("line_user_id")
+            .eq("id", profileId)
+            .maybeSingle();
+          const lineId = (prof as { line_user_id?: string } | null)?.line_user_id;
+          if (lineId) {
+            const dateStr = new Intl.DateTimeFormat("th-TH", {
+              timeZone: "Asia/Bangkok",
+              day: "numeric",
+              month: "long",
+              year: "numeric",
+            }).format(new Date(g.earliest));
+            await pushLine(
+              accessToken,
+              lineId,
+              `⏳ เครดิต ${g.tokens.toLocaleString("th-TH")} ของคุณจะหมดอายุ ${dateStr}\nเติมเครดิตก่อนหมดอายุ เครดิตเก่าทั้งหมดจะถูกต่ออายุอีก 1 ปีให้อัตโนมัติ — พิมพ์ /web เพื่อเติมครับ`,
+            ).catch(() => undefined); // push คนนึงล้ม (เช่นบล็อก OA) ต้องไม่ทำให้คนอื่นไม่ได้เตือน
+          }
+          // mark กันเตือนซ้ำ (rollover ตอนเติมจะ reset flag ให้เอง)
+          await admin
+            .from("token_lots")
+            .update({ [b.col]: now.toISOString() })
+            .in("id", g.ids);
+        }
+      }
+    } catch {
+      /* token expiry best-effort — ไม่ทำให้ scheduler ล้ม */
+    }
+
+    // ── Token auto top-up: เติมเครดิตอัตโนมัติเมื่อ balance < buffer (off-session charge) ──
+    try {
+      const STALE_LOCK_MS = 15 * 60 * 1000; // ปลดล็อก 'charging' ที่ค้างเกิน 15 นาที
+      const COOLDOWN_MS = 10 * 60 * 1000; // กันชาร์จซ้ำถี่หลังเพิ่งเติม
+      const stripe = getStripe();
+      const { data: autos } = await admin
+        .from("token_autotopup")
+        .select(
+          "profile_id, threshold_tokens, pack_code, stripe_customer_id, stripe_payment_method_id, status, charging_at, last_charged_at",
+        )
+        .eq("enabled", true)
+        .not("stripe_payment_method_id", "is", null)
+        .not("pack_code", "is", null);
+      for (const a of (autos ?? []) as Array<{
+        profile_id: string;
+        threshold_tokens: number;
+        pack_code: string;
+        stripe_customer_id: string | null;
+        stripe_payment_method_id: string;
+        status: string;
+        charging_at: string | null;
+        last_charged_at: string | null;
+      }>) {
+        if (
+          a.status === "charging" &&
+          a.charging_at &&
+          now.getTime() - new Date(a.charging_at).getTime() < STALE_LOCK_MS
+        )
+          continue;
+        if (
+          a.last_charged_at &&
+          now.getTime() - new Date(a.last_charged_at).getTime() < COOLDOWN_MS
+        )
+          continue;
+        const { data: acc } = await admin
+          .from("token_accounts")
+          .select("balance_tokens")
+          .eq("profile_id", a.profile_id)
+          .maybeSingle();
+        const balance = Number((acc as { balance_tokens?: number } | null)?.balance_tokens ?? 0);
+        if (balance >= Number(a.threshold_tokens)) continue;
+        const { data: pack } = await admin
+          .from("token_packs")
+          .select("price, currency, tokens")
+          .eq("code", a.pack_code)
+          .eq("is_active", true)
+          .maybeSingle();
+        const customerId = a.stripe_customer_id;
+        if (!pack || !customerId) continue;
+        // กัน loop: ถ้าชาร์จแล้วยอดยังไม่พ้น buffer → ข้าม (PUT กันไว้แล้ว แต่ pack อาจถูกแก้ภายหลัง)
+        if (Number((pack as { tokens: number }).tokens) <= Number(a.threshold_tokens)) continue;
+        // lock กัน scheduler รอบถัดไปยิงซ้ำระหว่าง PI ค้าง
+        await admin
+          .from("token_autotopup")
+          .update({
+            status: "charging",
+            charging_at: now.toISOString(),
+            updated_at: now.toISOString(),
+          })
+          .eq("profile_id", a.profile_id);
+        try {
+          // off-session charge → สำเร็จ: webhook payment_intent.succeeded เติม token + reset status
+          await stripe.paymentIntents.create({
+            amount: Math.round(Number((pack as { price: number }).price) * 100),
+            currency: String((pack as { currency?: string }).currency ?? "THB").toLowerCase(),
+            customer: customerId,
+            payment_method: a.stripe_payment_method_id,
+            off_session: true,
+            confirm: true,
+            metadata: {
+              kind: "token_topup",
+              profile_id: a.profile_id,
+              pack_code: a.pack_code,
+              tokens: String(Number((pack as { tokens: number }).tokens)),
+              auto: "1",
+            },
+          });
+        } catch (chErr) {
+          // บัตรถูกปฏิเสธ (off-session) → ปิด auto ทันที + แจ้ง LINE (ตามนโยบาย: ล้มครั้งแรกปิดเลย)
+          await admin
+            .from("token_autotopup")
+            .update({
+              enabled: false,
+              status: "idle",
+              charging_at: null,
+              last_error: chErr instanceof Error ? chErr.message : "charge_failed",
+              updated_at: now.toISOString(),
+            })
+            .eq("profile_id", a.profile_id);
+          const { data: prof } = await admin
+            .from("profiles")
+            .select("line_user_id")
+            .eq("id", a.profile_id)
+            .maybeSingle();
+          const lineId = (prof as { line_user_id?: string } | null)?.line_user_id;
+          if (lineId)
+            await pushLine(
+              accessToken,
+              lineId,
+              "⚠️ เติมเครดิตอัตโนมัติไม่สำเร็จ (บัตรถูกปฏิเสธ) — ปิดระบบเติมอัตโนมัติแล้ว\nกรุณาอัปเดตบัตรหรือเติมเครดิตเองที่หน้าผู้ช่วย AI ครับ",
+            );
+        }
+      }
+    } catch {
+      /* auto top-up best-effort — ไม่ทำให้ scheduler ล้ม */
     }
 
     await logRun(true);

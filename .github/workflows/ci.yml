@@ -30,6 +30,12 @@ jobs:
       - run: pnpm lint
       - run: pnpm type:check
       - run: pnpm --filter starter test
+      # build gate ย้ายมา CI (Vercel ไม่ใช่ required check แล้ว — กัน rate-limit บล็อก merge)
+      - run: pnpm build
+        env:
+          NODE_OPTIONS: "--max-old-space-size=4096"
+          NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder
 
   # ─────────────────────────────────────────────────────────────────────────────
   # Cloud Run workers — typecheck + build (tsc) ทั้ง 3 ตัว
