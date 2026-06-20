@@ -150,7 +150,7 @@ pnpm build
 
 ## LINE Bot Commands
 
-ทุกคำสั่ง **ต้องขึ้นต้นด้วย `/`** ข้อความที่ไม่มี `/` จะถูก ignore
+ทุกคำสั่ง **ต้องขึ้นต้นด้วย `/`** · ข้อความอิสระ (ไม่ขึ้นต้น `/`) ที่ "ดูเป็นคำถาม" → **ผู้ช่วยโฟล์ (Flow RAG)** ตอบ (ดูหัวข้อด้านล่าง) · ข้อความที่ไม่เข้าเงื่อนไขถูก ignore
 
 | คำสั่ง                    | หน้าที่                                                  | Permission Key                                       |
 | ------------------------- | -------------------------------------------------------- | ---------------------------------------------------- |
@@ -164,6 +164,19 @@ pnpm build
 | `/web`                    | รับ magic link เข้าเว็บผู้ช่วย AI                        | —                                                    |
 
 **หมายเหตุ:** Admin role ข้ามการเช็ค permission ทั้งหมด · คำสั่ง Task Manager เดิม (`/t /tk /d /a /ap`) + ปฏิทิน (`/นัด /วันนี้`) **ยกเลิก/ลบโค้ดแล้ว** (module assistant เดิม + ตาราง `tasks`/`calendar_events` ไม่มีช่องทางสร้างแล้ว)
+
+### ผู้ช่วยโฟล์ (Flow RAG) — บอทตอบคำถามสินค้าด้วย RAG
+
+บอทตอบคำถามเกี่ยวกับ **PERPOS / Flow / Suite** แบบสนทนาบน LINE — ดึงความรู้จาก vector DB (pgvector) + ตอบด้วย Gemini
+
+- **ใครใช้ได้:** ทุกคนที่แอด OA — **ไม่ต้องผูกบัญชี** (pre-sales/ถามก่อนซื้อ) · branch วางก่อนด่าน profile ใน webhook
+- **ทริกเกอร์:** free text ที่ผ่าน `isProductQuestion()` (heuristic: มีเครื่องหมาย/คำถาม หรือคำโดเมน PERPOS) เท่านั้น → กันทักทาย/สแปม + คุมต้นทุน
+- **flow:** `isProductQuestion` → `incr_flow_chat_usage` (rate-limit 30/คน/วัน) → `answerFlowQuestion()` (embed query → `match_kb_chunks` → Gemini) → `replyText` **inline** (webhook `maxDuration=30`, latency ~3–5 วิ)
+- **embedding:** `gemini-embedding-001` (768 มิติ, `RETRIEVAL_QUERY`/`RETRIEVAL_DOCUMENT`) · **answer:** `gemini-2.5-flash` (`thinkingBudget:0` → เร็วขึ้น ~4 เท่า) · guardrail: ตอบจาก context เท่านั้น ไม่มี→ปฏิเสธสุภาพ + ชวนติดต่อ
+- **Knowledge base:** เขียนเองที่ [`docs/knowledge/*.md`](docs/knowledge/) (about/flow/suite/pricing/privacy/pdpa/security) — แก้แล้ว **ต้อง re-embed:** `pnpm kb:embed` ([scripts/kb-embed.mjs](scripts/kb-embed.mjs), อ่าน key จาก `apps/perpos/.env.local`)
+- **DB:** `kb_chunks` (vector(768) + hnsw) · `flow_chat_usage` (rate-limit) · RPC `match_kb_chunks` / `upsert_kb_chunk` / `incr_flow_chat_usage` (SECURITY DEFINER, service role เท่านั้น) — migration [`flow_rag_kb.sql`](supabase/migrations/flow_rag_kb.sql)
+- **code:** [`lib/assistant/flow-rag.ts`](apps/perpos/src/lib/assistant/flow-rag.ts) (`isProductQuestion`/`retrieveContext`/`answerFlowQuestion`) + `handleFlowChat()` ใน [webhook](apps/perpos/src/app/api/line/webhook/route.ts)
+- **หมายเหตุ:** free-text path ยัง**ไม่มี dedup ต่อ `line_message_id`** (ต่างจาก mom/pdf) — เสี่ยง LINE redeliver → ตอบซ้ำ (ความเสี่ยงต่ำเพราะ redelivery default ปิด) ถ้าจะเปิด redelivery ให้เพิ่ม dedup ก่อน · **GEMINI_API_KEY ต้องรองรับ `gemini-embedding-001`** (text-embedding-004 ใช้ไม่ได้กับ key ปัจจุบัน)
 
 **Auto-onboarding (LINE-first / B2C):** เมื่อมี `follow` event (แอด OA) → `provisionLineUser` ([api/line/\_provision.ts](apps/perpos/src/app/api/line/_provision.ts)) สร้าง shadow auth user (email `line.<id>@stt-line.perpos.io`) → trigger สร้าง profile → personal org (= "home org" เก็บไฟล์) + member(owner) + **`personal_module_grants('stt')` (ผู้ช่วย AI, per-profile)** + stt_quota(300นาที = trial) + line_active_org_id → push welcome Flex. idempotent. พิมพ์ `/mom` ได้ทันที — **ไม่แจกโมดูล B2B ใด ๆ**
 
@@ -192,6 +205,8 @@ pnpm build
 | `assistant_jobs` (เดิม `transcription_jobs`) | job hub ใต้ร่ม assistant (kind, profile_id, source web/line, status, transcript_json, duration_seconds) — kind=`stt` ปัจจุบัน                                                                                                                |
 | `stt_quota`                                  | โควต้าแกะเสียงต่อคน (profile_id, limit_seconds default 18000=300นาที, used_seconds) — admin ปรับ limit ได้                                                                                                                                   |
 | `stt_usage_transactions`                     | ledger การใช้โควต้า (debit/refund) — RPC `consume_stt_quota`/`refund_stt_quota` (service role) atomic reserve+refund; quota บังคับใช้ที่ stt-worker (วัดความยาวด้วย music-metadata ก่อนเรียก Gemini) · API: `GET /api/assistant/quota`, `GET | PUT /api/admin/stt-quota` |
+| `kb_chunks`                                  | Knowledge base ผู้ช่วยโฟล์ (RAG) — source/heading/content + embedding vector(768) + hnsw · embed ด้วย `pnpm kb:embed`                                                                                                                        |
+| `flow_chat_usage`                            | rate-limit ผู้ช่วยโฟล์ (line_user_id, day, count) — RPC `incr_flow_chat_usage`                                                                                                                                                               |
 | `news_agent_configs`                         | ตั้งค่า News Agent (topics, sources, summary_style)                                                                                                                                                                                          |
 | `delivery_schedules`                         | cron schedule ส่งข่าว                                                                                                                                                                                                                        |
 | `delivery_logs`                              | log การส่งข่าว                                                                                                                                                                                                                               |
@@ -230,15 +245,16 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 ## Library (`apps/perpos/src/lib/`)
 
-| Path                                    | หน้าที่                                                          |
-| --------------------------------------- | ---------------------------------------------------------------- |
-| `lib/assistant/stt-trigger.ts`          | triggerSttWorker — atomic claim job + ยิงไป stt-worker           |
-| `lib/assistant/mom-html.ts`             | buildMomHtml + MOM_FOOTER_TEMPLATE (ใช้ร่วม mom-pdf/mom-deliver) |
-| `lib/assistant/stt-cost.ts`             | โมเดลราคา Gemini สำหรับคิดต้นทุนต่อ job                          |
-| `lib/line/send-messages.ts`             | Push/multicast LINE messages                                     |
-| `lib/news/news-agent.ts`                | Fetch RSS + summarize ด้วย OpenAI                                |
-| `lib/google/drive.ts`                   | Google Drive OAuth + upload                                      |
-| `lib/supabase/{client,server,admin}.ts` | Supabase clients                                                 |
+| Path                                    | หน้าที่                                                                      |
+| --------------------------------------- | ---------------------------------------------------------------------------- |
+| `lib/assistant/stt-trigger.ts`          | triggerSttWorker — atomic claim job + ยิงไป stt-worker                       |
+| `lib/assistant/mom-html.ts`             | buildMomHtml + MOM_FOOTER_TEMPLATE (ใช้ร่วม mom-pdf/mom-deliver)             |
+| `lib/assistant/stt-cost.ts`             | โมเดลราคา Gemini สำหรับคิดต้นทุนต่อ job                                      |
+| `lib/assistant/flow-rag.ts`             | ผู้ช่วยโฟล์ (RAG) — isProductQuestion + retrieveContext + answerFlowQuestion |
+| `lib/line/send-messages.ts`             | Push/multicast LINE messages                                                 |
+| `lib/news/news-agent.ts`                | Fetch RSS + summarize ด้วย OpenAI                                            |
+| `lib/google/drive.ts`                   | Google Drive OAuth + upload                                                  |
+| `lib/supabase/{client,server,admin}.ts` | Supabase clients                                                             |
 
 ---
 
