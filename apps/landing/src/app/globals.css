@@ -3,17 +3,20 @@
 @tailwind utilities;
 
 :root {
-  --color-primary: #292e91;
-  --color-primary-dark: #1e2270;
-  --color-secondary: #4ca9df;
-  --color-accent: #f59e0b;
-  --color-ink: #0b1120;
+  --color-primary: #3c3b3d;
+  --color-primary-dark: #262527;
+  --color-secondary: #48cfad;
+  --color-secondary-dark: #2bae8e;
+  --color-accent: #fc6e51;
+  --color-accent-dark: #e0532f;
+  --color-ink: #1a1a1b;
   --color-background: #ffffff;
-  --color-background-secondary: #f8fafc;
-  --color-foreground: #0f172a;
-  --color-foreground-secondary: #475569;
-  --color-foreground-muted: #94a3b8;
-  --color-border: #e2e8f0;
+  --color-background-secondary: #f5f7fa;
+  --color-foreground: #1a1a1b;
+  --color-foreground-secondary: #656d78;
+  --color-foreground-muted: #9ca3af;
+  --color-border: #e6e9ee;
+  --color-border-strong: #ccd1d9;
 }
 
 * {
@@ -45,7 +48,7 @@ h6 {
   font-family: var(--font-noto-thai), sans-serif;
   font-weight: 600;
   line-height: 1.18;
-  letter-spacing: -0.01em;
+  letter-spacing: 0;
 }
 
 @layer utilities {
@@ -77,16 +80,15 @@ h6 {
     animation-delay: 440ms;
   }
 
-  /* Brand gradient text */
   .gradient-text {
-    background: linear-gradient(135deg, #292e91 0%, #3a68b8 50%, #4ca9df 100%);
+    background: linear-gradient(135deg, #1a1a1b 0%, #3c3b3d 60%, #656d78 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
   }
 
   .bg-brand-gradient {
-    background: linear-gradient(135deg, #292e91 0%, #4ca9df 100%);
+    background: linear-gradient(135deg, #262527 0%, #3c3b3d 100%);
   }
 
   /* Subtle grid background */
@@ -106,16 +108,8 @@ h6 {
 
   /* Fade a layer toward the edges */
   .mask-fade {
-    -webkit-mask-image: radial-gradient(
-      ellipse 70% 60% at 50% 40%,
-      #000 55%,
-      transparent 100%
-    );
-    mask-image: radial-gradient(
-      ellipse 70% 60% at 50% 40%,
-      #000 55%,
-      transparent 100%
-    );
+    -webkit-mask-image: radial-gradient(ellipse 70% 60% at 50% 40%, #000 55%, transparent 100%);
+    mask-image: radial-gradient(ellipse 70% 60% at 50% 40%, #000 55%, transparent 100%);
   }
 
   .mask-fade-b {
@@ -127,6 +121,111 @@ h6 {
     background: rgba(255, 255, 255, 0.72);
     backdrop-filter: saturate(180%) blur(16px);
     -webkit-backdrop-filter: saturate(180%) blur(16px);
+  }
+
+  .font-neo-tech {
+    font-family: var(--font-neo-tech), var(--font-noto-thai), sans-serif;
+    letter-spacing: 0.08em;
+  }
+
+  .bar-grow {
+    animation: growWidth 1.6s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  }
+
+  /* light streak that runs along a horizontal connector line */
+  .timeline-run {
+    animation: timelineRun 3.2s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+  }
+
+  .flow-path {
+    stroke-dasharray: 14 12;
+    animation: flowPath 1.8s linear infinite;
+  }
+
+  .flow-chip {
+    animation: flowChip 4.8s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+  }
+
+  .flow-card-1 {
+    animation: flowLift 4.8s ease-in-out infinite;
+  }
+
+  .flow-card-2 {
+    animation: flowLift 4.8s ease-in-out infinite 1.2s;
+  }
+
+  .flow-card-3 {
+    animation: flowLift 4.8s ease-in-out infinite 2.4s;
+  }
+
+  .flow-card-4 {
+    animation: flowLift 4.8s ease-in-out infinite 3.6s;
+  }
+}
+
+@keyframes growWidth {
+  from {
+    width: 0;
+  }
+  to {
+    width: 100%;
+  }
+}
+
+@keyframes timelineRun {
+  0% {
+    left: -4%;
+    opacity: 0;
+  }
+  12% {
+    opacity: 1;
+  }
+  88% {
+    opacity: 1;
+  }
+  100% {
+    left: 104%;
+    opacity: 0;
+  }
+}
+
+@keyframes flowPath {
+  to {
+    stroke-dashoffset: -52;
+  }
+}
+
+@keyframes flowChip {
+  0%,
+  12% {
+    transform: translateX(0);
+  }
+  26%,
+  38% {
+    transform: translateX(25%);
+  }
+  52%,
+  64% {
+    transform: translateX(50%);
+  }
+  78%,
+  90% {
+    transform: translateX(75%);
+  }
+  100% {
+    transform: translateX(0);
+  }
+}
+
+@keyframes flowLift {
+  0%,
+  100% {
+    transform: translateY(0);
+    border-color: rgba(230, 233, 238, 1);
+  }
+  16% {
+    transform: translateY(-5px);
+    border-color: rgba(72, 207, 173, 0.65);
   }
 }
 
