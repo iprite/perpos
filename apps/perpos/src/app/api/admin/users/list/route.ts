@@ -1,9 +1,8 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { requireAdmin } from '../../../_lib/auth';
-import { createAdminClient } from '../../../_lib/supabase';
+import { NextRequest, NextResponse } from "next/server";
+import { requireAdmin } from "../../../_lib/auth";
+import { createAdminClient } from "../../../_lib/supabase";
 
-const SHADOW_DOMAIN = '@stt-line.perpos.io';
-const DEFAULT_LIMIT_SECONDS = 18000; // 300 นาที (trial)
+const SHADOW_DOMAIN = "@stt-line.perpos.io";
 
 /**
  * Super admin — รายชื่อผู้ใช้ทั้งหมด (LINE-first) แบบรวมศูนย์
@@ -17,9 +16,11 @@ export async function GET(req: NextRequest) {
   const admin = createAdminClient();
 
   const { data: profiles, error } = await admin
-    .from('profiles')
-    .select('id, display_name, email, role, is_active, line_user_id, line_picture_url, personal_org_id, created_at, last_seen_at')
-    .order('created_at', { ascending: false })
+    .from("profiles")
+    .select(
+      "id, display_name, email, role, is_active, line_user_id, line_picture_url, personal_org_id, created_at, last_seen_at",
+    )
+    .order("created_at", { ascending: false })
     .limit(1000);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
@@ -33,10 +34,11 @@ export async function GET(req: NextRequest) {
 
   // ── รูปโปรไฟล์ LINE — backfill ที่ยังไม่มี (ผู้ใช้เก่าก่อนเก็บรูป) ────────────
   const pictureById = new Map<string, string | null>();
-  for (const p of rows) pictureById.set(p.id as string, (p.line_picture_url as string | null) ?? null);
+  for (const p of rows)
+    pictureById.set(p.id as string, (p.line_picture_url as string | null) ?? null);
   const missing = rows.filter((p) => !p.line_picture_url && p.line_user_id).slice(0, 50);
   if (missing.length) {
-    const token = process.env.LINE_MESSAGING_CHANNEL_ACCESS_TOKEN ?? '';
+    const token = process.env.LINE_MESSAGING_CHANNEL_ACCESS_TOKEN ?? "";
     await Promise.all(
       missing.map(async (p) => {
         try {
@@ -48,7 +50,10 @@ export async function GET(req: NextRequest) {
           const url = j.pictureUrl ?? null;
           if (url) {
             pictureById.set(p.id as string, url);
-            await admin.from('profiles').update({ line_picture_url: url }).eq('id', p.id as string);
+            await admin
+              .from("profiles")
+              .update({ line_picture_url: url })
+              .eq("id", p.id as string);
           }
         } catch {
           /* ignore — รูปไม่ใช่ของสำคัญ */
@@ -57,20 +62,17 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  // ── org memberships (Biz) + รายชื่อ org ทั้งหมด + โควต้า (STT) ────────────────
-  const [membersRes, orgsRes, quotaRes, botQuotaRes] = await Promise.all([
+  // ── org memberships (Biz) + รายชื่อ org ทั้งหมด + เครดิต token (unified pool) ──
+  const [membersRes, orgsRes, tokenRes] = await Promise.all([
     ids.length
       ? admin
-          .from('organization_members')
-          .select('user_id, organization_id, role, organizations(name)')
-          .in('user_id', ids)
+          .from("organization_members")
+          .select("user_id, organization_id, role, organizations(name)")
+          .in("user_id", ids)
       : Promise.resolve({ data: [] as Record<string, unknown>[] }),
-    admin.from('organizations').select('id, name').order('name'),
+    admin.from("organizations").select("id, name").order("name"),
     ids.length
-      ? admin.from('stt_quota').select('profile_id, limit_seconds, used_seconds').in('profile_id', ids)
-      : Promise.resolve({ data: [] as Record<string, unknown>[] }),
-    ids.length
-      ? admin.from('bot_quota').select('profile_id, limit_seconds, used_seconds').in('profile_id', ids)
+      ? admin.from("token_accounts").select("profile_id, balance_tokens").in("profile_id", ids)
       : Promise.resolve({ data: [] as Record<string, unknown>[] }),
   ]);
 
@@ -82,41 +84,24 @@ export async function GET(req: NextRequest) {
     const list = orgsByUser.get(uid) ?? [];
     list.push({
       orgId,
-      orgName: String((m.organizations as Record<string, unknown>)?.name ?? ''),
+      orgName: String((m.organizations as Record<string, unknown>)?.name ?? ""),
       role: String(m.role),
     });
     orgsByUser.set(uid, list);
   }
 
-  const quotaById = new Map<string, { limit_seconds: number; used_seconds: number }>();
-  for (const q of (quotaRes.data ?? []) as Record<string, unknown>[]) {
-    quotaById.set(String(q.profile_id), {
-      limit_seconds: Number(q.limit_seconds),
-      used_seconds: Number(q.used_seconds),
-    });
-  }
-  const BOT_DEFAULT_SECONDS = 7200;
-  const botQuotaById = new Map<string, { limit_seconds: number; used_seconds: number }>();
-  for (const q of (botQuotaRes.data ?? []) as Record<string, unknown>[]) {
-    botQuotaById.set(String(q.profile_id), {
-      limit_seconds: Number(q.limit_seconds),
-      used_seconds: Number(q.used_seconds),
-    });
+  const balanceById = new Map<string, number>();
+  for (const t of (tokenRes.data ?? []) as Record<string, unknown>[]) {
+    balanceById.set(String(t.profile_id), Number(t.balance_tokens));
   }
 
   const items = rows.map((p) => {
-    const email = String(p.email ?? '');
+    const email = String(p.email ?? "");
     // shadow email (line.<id>@stt-line.perpos.io) = ไม่มีอีเมลจริง — login ผ่าน LINE เท่านั้น
-    const realEmail = email !== '' && !email.endsWith(SHADOW_DOMAIN) ? email : null;
-    const q = quotaById.get(p.id as string);
-    const limit = q?.limit_seconds ?? DEFAULT_LIMIT_SECONDS;
-    const used = q?.used_seconds ?? 0;
-    const bq = botQuotaById.get(p.id as string);
-    const botLimit = bq?.limit_seconds ?? BOT_DEFAULT_SECONDS;
-    const botUsed = bq?.used_seconds ?? 0;
+    const realEmail = email !== "" && !email.endsWith(SHADOW_DOMAIN) ? email : null;
     return {
       id: p.id,
-      display_name: (p.display_name as string | null) ?? 'ผู้ใช้ LINE',
+      display_name: (p.display_name as string | null) ?? "ผู้ใช้ LINE",
       picture_url: pictureById.get(p.id as string) ?? null,
       email: realEmail,
       role: p.role,
@@ -126,13 +111,14 @@ export async function GET(req: NextRequest) {
       created_at: p.created_at,
       last_seen_at: (p.last_seen_at as string | null) ?? null,
       orgs: orgsByUser.get(p.id as string) ?? [],
-      quota: { limit_seconds: limit, used_seconds: used, remaining_seconds: Math.max(0, limit - used) },
-      botQuota: { limit_seconds: botLimit, used_seconds: botUsed, remaining_seconds: Math.max(0, botLimit - botUsed) },
+      tokens: { balance: balanceById.get(p.id as string) ?? 0 },
     };
   });
 
   // ตัด personal/home org ออกจากตัวเลือก "เพิ่มองค์กร" — เหลือเฉพาะองค์กร Biz จริง
-  const allOrgs = (orgsRes.data ?? []).filter((o) => !personalOrgIds.has(String((o as { id: string }).id)));
+  const allOrgs = (orgsRes.data ?? []).filter(
+    (o) => !personalOrgIds.has(String((o as { id: string }).id)),
+  );
 
   return NextResponse.json({ ok: true, items, allOrgs });
 }
