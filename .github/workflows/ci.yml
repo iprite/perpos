@@ -40,15 +40,18 @@ jobs:
       fail-fast: false
       matrix:
         service: [pdf-renderer, ocr-worker, stt-worker, pdf-compress-worker]
+    # workers ใช้ npm (มี package-lock.json ของตัวเอง — ไม่อยู่ใน pnpm workspace)
+    # ⚠️ ห้ามใช้ `pnpm --filter <service>` — services ไม่อยู่ใน workspace → pnpm exit 0 เงียบ ๆ (ผ่านปลอม ไม่ได้ build จริง)
+    defaults:
+      run:
+        working-directory: services/${{ matrix.service }}
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 9.1.4
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm --filter ${{ matrix.service }} type-check
-      - run: pnpm --filter ${{ matrix.service }} build
+          cache: npm
+          cache-dependency-path: services/${{ matrix.service }}/package-lock.json
+      - run: npm ci
+      - run: npm run type-check
+      - run: npm run build

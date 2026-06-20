@@ -68,7 +68,7 @@ jobs:
             --timeout 120 \
             --concurrency 5 \
             --allow-unauthenticated \
-            --set-secrets "PDF_SERVICE_SECRET=PDF_SERVICE_SECRET:latest" \
+            --set-secrets "PDF_SERVICE_SECRET=PDF_SERVICE_SECRET:latest,SENTRY_DSN=SENTRY_DSN:latest" \
             --quiet
 
       - name: Print service URL
@@ -116,7 +116,7 @@ jobs:
             --timeout 540 \
             --concurrency 10 \
             --allow-unauthenticated \
-            --set-secrets "WORKER_SECRET=WORKER_SECRET:latest,GEMINI_API_KEY=GEMINI_API_KEY:latest,SUPABASE_URL=SUPABASE_URL:latest,SUPABASE_SERVICE_ROLE_KEY=SUPABASE_SERVICE_ROLE_KEY:latest" \
+            --set-secrets "WORKER_SECRET=WORKER_SECRET:latest,GEMINI_API_KEY=GEMINI_API_KEY:latest,SUPABASE_URL=SUPABASE_URL:latest,SUPABASE_SERVICE_ROLE_KEY=SUPABASE_SERVICE_ROLE_KEY:latest,SENTRY_DSN=SENTRY_DSN:latest" \
             --quiet
 
       - name: Print service URL
@@ -167,7 +167,7 @@ jobs:
             --no-cpu-throttling \
             --allow-unauthenticated \
             --set-env-vars "APP_BASE_URL=https://app.perpos.ai" \
-            --set-secrets "WORKER_SECRET=WORKER_SECRET:latest,GEMINI_API_KEY=GEMINI_API_KEY:latest,LINE_MESSAGING_CHANNEL_ACCESS_TOKEN=LINE_MESSAGING_CHANNEL_ACCESS_TOKEN:latest,SUPABASE_URL=SUPABASE_URL:latest,SUPABASE_SERVICE_ROLE_KEY=SUPABASE_SERVICE_ROLE_KEY:latest" \
+            --set-secrets "WORKER_SECRET=WORKER_SECRET:latest,GEMINI_API_KEY=GEMINI_API_KEY:latest,LINE_MESSAGING_CHANNEL_ACCESS_TOKEN=LINE_MESSAGING_CHANNEL_ACCESS_TOKEN:latest,SUPABASE_URL=SUPABASE_URL:latest,SUPABASE_SERVICE_ROLE_KEY=SUPABASE_SERVICE_ROLE_KEY:latest,SENTRY_DSN=SENTRY_DSN:latest" \
             --quiet
 
       - name: Print service URL
@@ -218,7 +218,7 @@ jobs:
             --no-cpu-throttling \
             --allow-unauthenticated \
             --set-env-vars "APP_BASE_URL=https://app.perpos.ai,PDF_MAX_MB=100,PDF_MAX_PAGES=500" \
-            --set-secrets "WORKER_SECRET=WORKER_SECRET:latest,LINE_MESSAGING_CHANNEL_ACCESS_TOKEN=LINE_MESSAGING_CHANNEL_ACCESS_TOKEN:latest,SUPABASE_URL=SUPABASE_URL:latest,SUPABASE_SERVICE_ROLE_KEY=SUPABASE_SERVICE_ROLE_KEY:latest" \
+            --set-secrets "WORKER_SECRET=WORKER_SECRET:latest,LINE_MESSAGING_CHANNEL_ACCESS_TOKEN=LINE_MESSAGING_CHANNEL_ACCESS_TOKEN:latest,SUPABASE_URL=SUPABASE_URL:latest,SUPABASE_SERVICE_ROLE_KEY=SUPABASE_SERVICE_ROLE_KEY:latest,SENTRY_DSN=SENTRY_DSN:latest" \
             --quiet
 
       - name: Print service URL
