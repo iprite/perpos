@@ -5,20 +5,22 @@ on:
   workflow_dispatch:
     inputs:
       service:
-        description: 'Service to deploy'
+        description: "Service to deploy"
         required: true
         type: choice
         options:
           - pdf-renderer
           - ocr-worker
-          - both
+          - stt-worker
+          - all
 
   # Auto-trigger เมื่อ push ถึง main และมีการเปลี่ยนแปลง source
   push:
     branches: [main]
     paths:
-      - 'services/pdf-renderer/**'
-      - 'services/ocr-worker/**'
+      - "services/pdf-renderer/**"
+      - "services/ocr-worker/**"
+      - "services/stt-worker/**"
 
 env:
   PROJECT_ID: perpos
@@ -34,7 +36,7 @@ jobs:
     # รันเมื่อ: manual (both/pdf-renderer) หรือ push ที่แตะไฟล์ pdf-renderer
     if: |
       (github.event_name == 'workflow_dispatch' &&
-       (github.event.inputs.service == 'pdf-renderer' || github.event.inputs.service == 'both'))
+       (github.event.inputs.service == 'pdf-renderer' || github.event.inputs.service == 'all'))
       ||
       (github.event_name == 'push' &&
        contains(join(github.event.commits.*.modified, ','), 'services/pdf-renderer'))
@@ -82,7 +84,7 @@ jobs:
     runs-on: ubuntu-latest
     if: |
       (github.event_name == 'workflow_dispatch' &&
-       (github.event.inputs.service == 'ocr-worker' || github.event.inputs.service == 'both'))
+       (github.event.inputs.service == 'ocr-worker' || github.event.inputs.service == 'all'))
       ||
       (github.event_name == 'push' &&
        contains(join(github.event.commits.*.modified, ','), 'services/ocr-worker'))
@@ -118,6 +120,57 @@ jobs:
       - name: Print service URL
         run: |
           gcloud run services describe perpos-ocr-worker \
+            --region ${{ env.REGION }} \
+            --project ${{ env.PROJECT_ID }} \
+            --format="value(status.url)"
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # STT Worker — แกะเสียง→MoM (Gemini Files API)
+  # ⚠️ บังคับ: --memory 2Gi --concurrency 3 --no-cpu-throttling + APP_BASE_URL
+  # ─────────────────────────────────────────────────────────────────────────────
+  deploy-stt-worker:
+    name: Deploy stt-worker
+    runs-on: ubuntu-latest
+    if: |
+      (github.event_name == 'workflow_dispatch' &&
+       (github.event.inputs.service == 'stt-worker' || github.event.inputs.service == 'all'))
+      ||
+      (github.event_name == 'push' &&
+       contains(join(github.event.commits.*.modified, ','), 'services/stt-worker'))
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Deploy stt-worker to Cloud Run
+        working-directory: services/stt-worker
+        run: |
+          gcloud run deploy perpos-stt-worker \
+            --source . \
+            --region ${{ env.REGION }} \
+            --project ${{ env.PROJECT_ID }} \
+            --memory 2Gi \
+            --cpu 1 \
+            --min-instances 0 \
+            --max-instances 5 \
+            --timeout 540 \
+            --concurrency 3 \
+            --no-cpu-throttling \
+            --allow-unauthenticated \
+            --set-env-vars "APP_BASE_URL=https://app.perpos.ai" \
+            --set-secrets "WORKER_SECRET=WORKER_SECRET:latest,GEMINI_API_KEY=GEMINI_API_KEY:latest,LINE_MESSAGING_CHANNEL_ACCESS_TOKEN=LINE_MESSAGING_CHANNEL_ACCESS_TOKEN:latest,SUPABASE_URL=SUPABASE_URL:latest,SUPABASE_SERVICE_ROLE_KEY=SUPABASE_SERVICE_ROLE_KEY:latest" \
+            --quiet
+
+      - name: Print service URL
+        run: |
+          gcloud run services describe perpos-stt-worker \
             --region ${{ env.REGION }} \
             --project ${{ env.PROJECT_ID }} \
             --format="value(status.url)"

@@ -9,6 +9,8 @@
     "skills:install": "node scripts/manage-skills.mjs",
     "lint": "turbo lint --filter=starter",
     "type:check": "turbo type:check --filter=starter",
+    "format": "prettier --write \"apps/**/*.{ts,tsx}\" \"services/**/src/**/*.ts\"",
+    "format:check": "prettier --check \"apps/**/*.{ts,tsx}\" \"services/**/src/**/*.ts\"",
     "build": "turbo build --filter=starter",
     "start": "turbo start --filter=starter",
     "clean": "turbo clean && rm -rf node_modules .turbo",
@@ -29,9 +31,13 @@
     "gen-icons": "turbo gen-icons --filter=core",
     "prepare": "husky"
   },
+  "lint-staged": {
+    "*.{ts,tsx,js,jsx,json,md,yml,yaml,css}": "prettier --write"
+  },
   "devDependencies": {
     "eslint": "9.23.0",
     "husky": "^9.1.7",
+    "lint-staged": "^17.0.7",
     "prettier": "^3.5.3",
     "prettier-plugin-tailwindcss": "^0.6.11",
     "turbo": "2.4.4",

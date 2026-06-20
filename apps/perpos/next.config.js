@@ -13,7 +13,7 @@ module.exports = {
       },
       {
         protocol: "https",
-        hostname: "oswwcmcdbetvaunzmyff.supabase.co",
+        hostname: "zftnyipifpaiqzukiyzi.supabase.co",
         pathname: "/storage/v1/object/public/**",
       },
     ],
