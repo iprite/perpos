@@ -45,6 +45,10 @@ import {
   crmHelpText,
 } from "../../crm/_line";
 import { handleJustMeClock } from "../../just-me/_line";
+import { answerFlowQuestion, isProductQuestion } from "@/lib/assistant/flow-rag";
+
+// ผู้ช่วยโฟล์ (RAG) เรียก Gemini แบบ inline ก่อน reply — เผื่อเวลาให้พอ (Hobby default 10 วิ สั้นไป)
+export const maxDuration = 30;
 
 // ─── TMC Org ID (TMC Management) ─────────────────────────────────────────────
 const TMC_ORG_ID = "1f52618c-09c4-49c5-a929-ea5060f26e7d";
@@ -985,6 +989,31 @@ async function replyLine(replyToken: string, messages: unknown[]) {
 
 function replyText(replyToken: string, text: string) {
   return replyLine(replyToken, [{ type: "text", text }]);
+}
+
+/**
+ * ผู้ช่วยโฟล์ — ตอบคำถามสินค้า PERPOS/Flow/Suite (RAG) สำหรับ free text ที่เป็นคำถาม
+ * ทุกคนที่แอด OA ใช้ได้ ไม่ต้องผูกบัญชี · rate-limit ต่อคน/วัน กัน abuse + คุมต้นทุน Gemini
+ */
+async function handleFlowChat(
+  admin: ReturnType<typeof createAdminClient>,
+  lineUserId: string,
+  text: string,
+  replyToken: string,
+): Promise<void> {
+  const { data: allowed } = await admin.rpc("incr_flow_chat_usage", {
+    p_line_user_id: lineUserId,
+    p_daily_limit: 30,
+  });
+  if (allowed === false) {
+    await replyText(
+      replyToken,
+      "ขออภัยครับ วันนี้คุณถามผู้ช่วยโฟล์ครบจำนวนแล้ว 🙏 พรุ่งนี้ถามใหม่ได้เลย\nหรือสอบถามทีมงานที่ hello@perpos.ai",
+    );
+    return;
+  }
+  const answer = await answerFlowQuestion(admin, text);
+  await replyText(replyToken, answer);
 }
 
 // ─── Command handlers ─────────────────────────────────────────────────────────
@@ -2034,6 +2063,15 @@ async function handleFollow(admin: ReturnType<typeof createAdminClient>, lineUse
                 margin: "lg",
               },
               ...stepBoxes,
+              { type: "separator", margin: "lg" },
+              {
+                type: "text",
+                text: "💬 หรือพิมพ์ถามผู้ช่วยโฟล์ได้เลย เช่น “Flow คืออะไร” · “ราคาเท่าไหร่”",
+                size: "xs",
+                color: "#656D78",
+                wrap: true,
+                margin: "lg",
+              },
             ],
           },
           footer: {
@@ -2471,13 +2509,11 @@ async function handleFutureMeetingLink(
   // ชวนเชื่อม Google ผ่าน LINE (magic link → /line/connect-calendar) — ใช้ทั้งตอนยังไม่เชื่อม + token เพิกถอน
   const sendConnectCard = async () => {
     const token = crypto.randomBytes(24).toString("base64url");
-    await admin
-      .from("web_login_tokens")
-      .insert({
-        token,
-        profile_id: profileId,
-        expires_at: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
-      });
+    await admin.from("web_login_tokens").insert({
+      token,
+      profile_id: profileId,
+      expires_at: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
+    });
     const base = (process.env.APP_BASE_URL ?? "https://app.perpos.ai").replace(/\/$/, "");
     await replyLine(replyToken, [
       buildConnectCalendarFlex(
@@ -3305,7 +3341,13 @@ export async function POST(req: NextRequest) {
       continue;
     }
 
-    if (!text.startsWith("/")) continue;
+    // ข้อความอิสระ (ไม่ใช่คำสั่ง /) ที่ "ดูเป็นคำถาม" → ผู้ช่วยโฟล์ตอบด้วย RAG
+    if (!text.startsWith("/")) {
+      if (lineUserId && isProductQuestion(text)) {
+        await handleFlowChat(admin, lineUserId, text, replyToken);
+      }
+      continue;
+    }
 
     const [cmd, ...args] = text.slice(1).split(" ");
 
@@ -3396,6 +3438,15 @@ export async function POST(req: NextRequest) {
                 wrap: true,
               },
             ],
+          },
+          { type: "separator", margin: "md" },
+          {
+            type: "text",
+            text: "💬 พิมพ์ถามผู้ช่วยโฟล์ได้เลย เช่น “Flow คืออะไร” · “ราคาเท่าไหร่”",
+            size: "xs",
+            color: "#656D78",
+            margin: "md",
+            wrap: true,
           },
           { type: "separator", margin: "md" },
           { type: "text", text: "คำสั่งหลัก", size: "xs", color: "#9CA3AF", margin: "md" },
@@ -3516,14 +3567,12 @@ export async function POST(req: NextRequest) {
         continue;
       }
       const note = args.slice(1).join(" ") || "";
-      await admin
-        .from("finance_entries")
-        .insert({
-          profile_id: profile.id,
-          entry_type: cmd === "รายรับ" ? "income" : "expense",
-          amount,
-          note,
-        });
+      await admin.from("finance_entries").insert({
+        profile_id: profile.id,
+        entry_type: cmd === "รายรับ" ? "income" : "expense",
+        amount,
+        note,
+      });
       await replyText(
         replyToken,
         `✅ บันทึก${cmd} ${amount.toLocaleString("th-TH")} บาท${note ? ` (${note})` : ""}`,

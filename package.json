@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "turbo dev --filter=starter",
     "gen-module": "node scripts/gen-module.mjs",
+    "kb:embed": "node --env-file=apps/perpos/.env.local scripts/kb-embed.mjs",
     "skills:install": "node scripts/manage-skills.mjs",
     "lint": "turbo lint --filter=starter",
     "type:check": "turbo type:check --filter=starter",
