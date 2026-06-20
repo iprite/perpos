@@ -2,7 +2,7 @@
 
 import React, { useEffect, useMemo, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Mic, FileText, Clock, ShieldCheck } from "lucide-react";
+import { Zap, FileText, Clock, ShieldCheck } from "lucide-react";
 
 import { useAuth } from "@/app/shared/auth-provider";
 import GoogleAuthView from "@/components/auth/google-auth-view";
@@ -38,9 +38,21 @@ function sanitizeReturnTo(raw: string | null) {
 }
 
 const FEATURES: { icon: React.ReactNode; title: string; desc: string }[] = [
-  { icon: <Mic className="h-4 w-4" />, title: "ถอดเสียงภาษาไทยแม่นยำ", desc: "อัปโหลดไฟล์เสียง/วิดีโอ ประชุมยาวหลายชั่วโมงก็ได้" },
-  { icon: <FileText className="h-4 w-4" />, title: "รายงานการประชุม (MoM)", desc: "สรุป มติ และสิ่งที่ต้องทำต่อ ดาวน์โหลดเป็น PDF" },
-  { icon: <Clock className="h-4 w-4" />, title: "เริ่มฟรี 300 นาที", desc: "ทดลองใช้ได้ทันทีหลังเข้าสู่ระบบด้วย LINE" },
+  {
+    icon: <Zap className="h-4 w-4" />,
+    title: "ถอดเสียงภาษาไทยแม่นยำ",
+    desc: "อัปโหลดไฟล์เสียง/วิดีโอ ประชุมยาวหลายชั่วโมงก็ได้",
+  },
+  {
+    icon: <FileText className="h-4 w-4" />,
+    title: "รายงานการประชุม (MoM)",
+    desc: "สรุป มติ และสิ่งที่ต้องทำต่อ ดาวน์โหลดเป็น PDF",
+  },
+  {
+    icon: <Clock className="h-4 w-4" />,
+    title: "เริ่มฟรี 300 นาที",
+    desc: "ทดลองใช้ได้ทันทีหลังเข้าสู่ระบบด้วย LINE",
+  },
 ];
 
 function LineLogo({ className }: { className?: string }) {
@@ -54,10 +66,12 @@ function LineLogo({ className }: { className?: string }) {
 function BrandMark({ className }: { className?: string }) {
   return (
     <span className={className}>
-      <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/15 text-white ring-1 ring-white/25">
-        <Mic className="h-5 w-5" />
+      <span
+        className="text-2xl font-bold tracking-tight"
+        style={{ fontFamily: "ui-monospace, 'SF Mono', 'Monaco', monospace" }}
+      >
+        PERPOS
       </span>
-      <span className="text-xl font-bold tracking-tight">PERPOS</span>
     </span>
   );
 }
@@ -77,7 +91,9 @@ function SignInContent() {
     router.replace(withBasePath(dest));
   }, [authLoading, blocked, profile, returnTo, router, userId]);
 
-  const lineLoginHref = withBasePath(`/line/login${returnTo ? `?returnTo=${encodeURIComponent(returnTo)}` : ""}`);
+  const lineLoginHref = withBasePath(
+    `/line/login${returnTo ? `?returnTo=${encodeURIComponent(returnTo)}` : ""}`,
+  );
   // ทางเข้าสำรองสำหรับผู้ดูแล (Google) — ซ่อนไว้ ใช้ /signin?admin=1 เท่านั้น
   const adminFallback = searchParams.get("admin") != null;
 
@@ -85,18 +101,21 @@ function SignInContent() {
     <div className="w-full max-w-4xl">
       <div className="grid overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-xl shadow-slate-200/60 lg:grid-cols-2">
         {/* Left — brand / value panel (desktop) */}
-        <div className="relative hidden flex-col justify-between overflow-hidden bg-gradient-to-br from-indigo-600 via-indigo-600 to-violet-700 p-10 text-white lg:flex">
+        <div className="relative hidden flex-col justify-between overflow-hidden bg-gradient-to-br from-blue-600 via-blue-600 to-blue-700 p-10 text-white lg:flex">
           {/* decorative glow */}
           <div className="pointer-events-none absolute -right-16 -top-16 h-56 w-56 rounded-full bg-white/10 blur-2xl" />
-          <div className="pointer-events-none absolute -bottom-20 -left-10 h-56 w-56 rounded-full bg-violet-400/20 blur-2xl" />
+          <div className="pointer-events-none absolute -bottom-20 -left-10 h-56 w-56 rounded-full bg-blue-400/20 blur-2xl" />
 
           <div className="relative">
             <BrandMark className="flex items-center gap-2.5" />
             <h2 className="mt-12 text-3xl font-bold leading-snug">
-              ถอดเสียงประชุม<br />เป็นรายงาน อัตโนมัติ
+              PERPOS Flow & Suite
+              <br />
+              เว็บบัญชี ERP สำหรับไทย
             </h2>
-            <p className="mt-3 max-w-xs text-sm leading-relaxed text-indigo-100">
-              ผู้ช่วย AI บน LINE สำหรับธุรกิจไทย — อัปโหลดไฟล์เสียง รับรายงานการประชุมเป็น PDF พร้อมสรุปครบ
+            <p className="mt-3 max-w-xs text-sm leading-relaxed text-blue-100">
+              ผู้ช่วย AI บน LINE (Flow) + ระบบบัญชีและ ERP (Suite) สำหรับธุรกิจไทย —
+              อัปโหลดไฟล์เสียง รับรายงานการประชุมเป็น PDF พร้อมสรุปครบ
             </p>
           </div>
 
@@ -119,26 +138,30 @@ function SignInContent() {
         <div className="flex flex-col justify-center p-8 sm:p-10">
           {/* brand (mobile only) */}
           <div className="mb-8 flex items-center gap-2.5 lg:hidden">
-            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
-              <Mic className="h-5 w-5" />
+            <span
+              className="text-xl font-bold tracking-tight text-slate-900"
+              style={{ fontFamily: "ui-monospace, 'SF Mono', 'Monaco', monospace" }}
+            >
+              PERPOS
             </span>
-            <span className="text-xl font-bold tracking-tight text-slate-900">PERPOS</span>
           </div>
 
           <h1 className="text-2xl font-semibold text-slate-900">เข้าสู่ระบบ</h1>
-          <p className="mt-1.5 text-sm text-slate-500">ใช้บัญชี LINE ของคุณ เข้าใช้งานได้ทันที ไม่ต้องตั้งรหัสผ่าน</p>
+          <p className="mt-1.5 text-sm text-slate-500">
+            ใช้บัญชี LINE ของคุณ เข้าใช้งานได้ทันที ไม่ต้องตั้งรหัสผ่าน
+          </p>
 
           <a
             href={lineLoginHref}
-            className="group mt-7 flex w-full items-center justify-center gap-2.5 rounded-xl bg-[#48CFAD] px-4 py-3.5 text-base font-semibold text-white shadow-sm transition-all hover:bg-[#46BC9E] hover:shadow-md active:scale-[0.99]"
+            className="group mt-7 flex w-full items-center justify-center gap-2.5 rounded-xl bg-blue-600 px-4 py-3.5 text-base font-semibold text-white shadow-sm transition-all hover:bg-blue-700 hover:shadow-md active:scale-[0.99]"
           >
             <LineLogo className="h-5 w-5" />
             เข้าสู่ระบบด้วย LINE
           </a>
 
           <div className="mt-5 flex items-center justify-center gap-1.5 text-xs text-slate-400">
-            <ShieldCheck className="h-3.5 w-3.5 text-emerald-500" />
-            ปลอดภัยตามมาตรฐาน · เราไม่นำข้อมูลเสียงไปฝึกโมเดล AI
+            <ShieldCheck className="h-3.5 w-3.5 text-blue-500" />
+            ปลอดภัยตามมาตรฐาน
           </div>
 
           {/* Admin fallback (ซ่อน) — /signin?admin=1 */}
@@ -153,12 +176,25 @@ function SignInContent() {
             </>
           )}
 
-          <p className="mt-8 text-center text-xs leading-relaxed text-slate-400">
-            การเข้าสู่ระบบถือว่าคุณยอมรับ{" "}
-            <a href={withBasePath("/terms")} className="text-slate-500 underline-offset-2 hover:underline">ข้อกำหนดการให้บริการ</a>{" "}
-            และ{" "}
-            <a href={withBasePath("/privacy")} className="text-slate-500 underline-offset-2 hover:underline">นโยบายความเป็นส่วนตัว</a>
-          </p>
+          <div className="mt-8 text-center text-xs leading-relaxed text-slate-400">
+            <p>
+              การเข้าสู่ระบบถือว่าคุณยอมรับ{" "}
+              <a
+                href={withBasePath("/terms")}
+                className="text-slate-500 underline-offset-2 hover:underline"
+              >
+                ข้อกำหนดการให้บริการ
+              </a>
+            </p>
+            <p className="mt-2">
+              <a
+                href={withBasePath("/privacy")}
+                className="text-slate-500 underline-offset-2 hover:underline"
+              >
+                นโยบายความเป็นส่วนตัว
+              </a>
+            </p>
+          </div>
         </div>
       </div>
     </div>
@@ -167,11 +203,13 @@ function SignInContent() {
 
 export default function SignInPage() {
   return (
-    <Suspense fallback={
-      <div className="flex min-h-[40vh] items-center justify-center">
-        <div className="h-6 w-6 animate-spin rounded-full border-2 border-gray-300 border-t-gray-700" />
-      </div>
-    }>
+    <Suspense
+      fallback={
+        <div className="flex min-h-[40vh] items-center justify-center">
+          <div className="h-6 w-6 animate-spin rounded-full border-2 border-gray-300 border-t-gray-700" />
+        </div>
+      }
+    >
       <SignInContent />
     </Suspense>
   );
