@@ -1,9 +1,9 @@
 "use client";
 
-import React, { useEffect, useMemo, Suspense } from "react";
+import { useEffect, useMemo, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Zap, FileText, Clock } from "lucide-react";
 
+import cn from "@core/utils/class-names";
 import { useAuth } from "@/app/shared/auth-provider";
 import GoogleAuthView from "@/components/auth/google-auth-view";
 import { APP_BASE_PATH, withBasePath } from "@/utils/base-path";
@@ -37,23 +37,58 @@ function sanitizeReturnTo(raw: string | null) {
   return v;
 }
 
-const FEATURES: { icon: React.ReactNode; title: string; desc: string }[] = [
+// เนื้อหา Flow & Suite — ดึงมาจากหน้า landing (apps/landing) ให้ตรงกัน
+const PRODUCTS = [
   {
-    icon: <Zap className="h-4 w-4" />,
-    title: "ถอดเสียงภาษาไทยแม่นยำ",
-    desc: "อัปโหลดไฟล์เสียง/วิดีโอ ประชุมยาวหลายชั่วโมงก็ได้",
+    product: "flow" as const,
+    lockup: "PERPOS | FLOW",
+    eyebrow: "ผู้ช่วย AI ส่วนตัวบน LINE",
+    title: "งานเอกสารและเสียงประชุม จบใน LINE",
+    points: ["ถอดเสียง + สรุปประชุม", "บีบ PDF", "Meeting bot"],
   },
   {
-    icon: <FileText className="h-4 w-4" />,
-    title: "รายงานการประชุม (MoM)",
-    desc: "สรุป มติ และสิ่งที่ต้องทำต่อ ดาวน์โหลดเป็น PDF",
-  },
-  {
-    icon: <Clock className="h-4 w-4" />,
-    title: "เริ่มฟรี 300 นาที",
-    desc: "ทดลองใช้ได้ทันทีหลังเข้าสู่ระบบด้วย LINE",
+    product: "suite" as const,
+    lockup: "PERPOS | SUITE",
+    eyebrow: "AI ERP สำหรับองค์กร",
+    title: "ระบบ ERP ที่ปรับตาม workflow จริง",
+    points: ["บัญชี / HR / การเงิน", "Tailor-made module"],
   },
 ];
+
+const PRODUCT_STYLES = {
+  flow: {
+    chip: "bg-green-500/15 ring-1 ring-green-400/25",
+    lockup: "text-green-400",
+    pointChip: "bg-green-500/10 text-green-200 ring-1 ring-inset ring-green-400/25",
+  },
+  suite: {
+    chip: "bg-orange-500/15 ring-1 ring-orange-400/25",
+    lockup: "text-orange-400",
+    pointChip: "bg-orange-500/10 text-orange-200 ring-1 ring-inset ring-orange-400/25",
+  },
+} as const;
+
+// Brand glyph (Flow/Suite) — PNG mask recoloured to product accent (mint = Flow, bittersweet = Suite)
+function BrandIcon({ product, className }: { product: "flow" | "suite"; className?: string }) {
+  const src = withBasePath(product === "flow" ? "/brand/flow_icon.png" : "/brand/suite_icon.png");
+  const fill = product === "flow" ? "bg-green-400" : "bg-orange-400";
+  return (
+    <span
+      aria-hidden
+      className={cn("inline-block", fill, className)}
+      style={{
+        WebkitMaskImage: `url(${src})`,
+        maskImage: `url(${src})`,
+        WebkitMaskSize: "contain",
+        maskSize: "contain",
+        WebkitMaskRepeat: "no-repeat",
+        maskRepeat: "no-repeat",
+        WebkitMaskPosition: "center",
+        maskPosition: "center",
+      }}
+    />
+  );
+}
 
 function LineLogo({ className }: { className?: string }) {
   return (
@@ -99,34 +134,71 @@ function SignInContent() {
         <div className="relative hidden flex-col justify-between overflow-hidden bg-gradient-to-br from-blue-600 via-blue-600 to-blue-700 p-10 text-white lg:flex">
           {/* decorative glow */}
           <div className="pointer-events-none absolute -right-16 -top-16 h-56 w-56 rounded-full bg-white/10 blur-2xl" />
-          <div className="pointer-events-none absolute -bottom-20 -left-10 h-56 w-56 rounded-full bg-blue-400/20 blur-2xl" />
+          <div className="pointer-events-none absolute -bottom-20 -left-10 h-56 w-56 rounded-full bg-green-400/15 blur-2xl" />
 
           <div className="relative">
             <BrandMark className="flex items-center gap-2.5" />
-            <h2 className="mt-12 text-3xl font-bold leading-snug">
-              PERPOS Flow & Suite
+            <h2 className="mt-8 text-2xl font-bold leading-snug text-white">
+              เครื่องมือ AI และระบบ ERP
               <br />
-              เว็บบัญชี ERP สำหรับไทย
+              สำหรับธุรกิจไทย
             </h2>
-            <p className="mt-3 max-w-xs text-sm leading-relaxed text-white">
-              ผู้ช่วย AI บน LINE (Flow) + ระบบบัญชีและ ERP (Suite) สำหรับธุรกิจไทย —
-              อัปโหลดไฟล์เสียง รับรายงานการประชุมเป็น PDF พร้อมสรุปครบ
+            <p className="mt-3 max-w-xs text-sm leading-relaxed text-white/80">
+              เลือกวิธีทำงานที่เหมาะกับคุณ —{" "}
+              <span className="font-neo-tech tracking-[0.06em] text-green-400">Flow</span>{" "}
+              ผู้ช่วยส่วนตัวบน LINE หรือ{" "}
+              <span className="font-neo-tech tracking-[0.06em] text-orange-400">Suite</span>{" "}
+              ระบบองค์กรที่ต่อกับ workflow จริง
             </p>
           </div>
 
-          <ul className="relative mt-10 space-y-4">
-            {FEATURES.map((f) => (
-              <li key={f.title} className="flex items-start gap-3">
-                <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/15 ring-1 ring-white/20">
-                  {f.icon}
-                </span>
-                <span>
-                  <span className="block text-sm font-semibold">{f.title}</span>
-                  <span className="block text-xs text-indigo-100/90">{f.desc}</span>
-                </span>
-              </li>
-            ))}
-          </ul>
+          <div className="relative mt-8 space-y-4">
+            {PRODUCTS.map((p) => {
+              const s = PRODUCT_STYLES[p.product];
+              return (
+                <div
+                  key={p.lockup}
+                  className="rounded-2xl border border-white/10 bg-white/[0.04] p-5"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <span
+                      className={cn(
+                        "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl",
+                        s.chip,
+                      )}
+                    >
+                      <BrandIcon product={p.product} className="h-5 w-5" />
+                    </span>
+                    <div>
+                      <p
+                        className={cn(
+                          "font-neo-tech text-[11px] uppercase tracking-[0.16em]",
+                          s.lockup,
+                        )}
+                      >
+                        {p.lockup}
+                      </p>
+                      <p className="text-xs text-white/70">{p.eyebrow}</p>
+                    </div>
+                  </div>
+                  <p className="mt-3 text-sm font-semibold leading-snug">{p.title}</p>
+                  <div className="mt-3 flex flex-wrap gap-1.5">
+                    {p.points.map((pt) => (
+                      <span
+                        key={pt}
+                        className={cn(
+                          "rounded-full px-2.5 py-0.5 text-[11px] font-medium",
+                          s.pointChip,
+                        )}
+                      >
+                        {pt}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
 
         {/* Right — login */}
