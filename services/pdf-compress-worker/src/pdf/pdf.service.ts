@@ -1,22 +1,22 @@
-import { spawn } from 'child_process';
-import { randomBytes } from 'crypto';
-import { mkdtemp, readFile, writeFile, rm } from 'fs/promises';
-import { tmpdir } from 'os';
-import { join } from 'path';
-import { getAdminClient } from '../lib/supabase';
+import { spawn } from "child_process";
+import { randomBytes } from "crypto";
+import { mkdtemp, readFile, writeFile, rm } from "fs/promises";
+import { tmpdir } from "os";
+import { join } from "path";
+import { getAdminClient } from "../lib/supabase";
 
 // error ที่ "ผู้ใช้แก้เองได้" (ไฟล์เสีย/ใหญ่เกิน/หน้าเกิน) → แสดงข้อความนี้ตรง ๆ ได้
 // ส่วน error เทคนิค (python ล้ม, fs) แปลงเป็นข้อความ generic ฝั่งเรียก
 export class UserFacingError extends Error {}
 
 /** bucket เก็บไฟล์ PDF (ต้นฉบับ + ผลลัพธ์) — ตรงกับ migration P1a */
-export const PDF_BUCKET = 'assistant_pdf';
+export const PDF_BUCKET = "assistant_pdf";
 
 // engine = python (pikepdf + Pillow) — surgical: บีบเฉพาะรูปถ่ายใหญ่ คง transparency/โลโก้
 //   ต่างจาก ghostscript ที่ flatten transparency → กล่องดำใน Apple Preview (ดู docs §บทเรียน)
-const PYTHON_BIN = (process.env.PYTHON_BIN ?? 'python3').trim();
+const PYTHON_BIN = (process.env.PYTHON_BIN ?? "python3").trim();
 // compress.py ถูก copy ไปไว้ข้าง main.js (dist/) ตอน build — pdf.service.js อยู่ dist/pdf/
-const SCRIPT_PATH = join(__dirname, '..', 'compress.py');
+const SCRIPT_PATH = join(__dirname, "..", "compress.py");
 
 export interface CompressResult {
   /** ไฟล์ผลลัพธ์ (ถ้า noGain = ไฟล์ต้นฉบับเดิม) */
@@ -28,6 +28,10 @@ export interface CompressResult {
   noGain: boolean;
   /** สัดส่วนที่ลดได้ 0..1 (0 ถ้า noGain) */
   ratio: number;
+  /** น้ำหนักไฟล์อยู่ที่ vector (content stream) ไม่ใช่รูป → surgical ช่วยไม่ได้ เสนอ rasterize ต่อ */
+  vectorHeavy: boolean;
+  /** โหมดที่ใช้บีบ */
+  mode: "surgical" | "rasterize";
 }
 
 interface PyStats {
@@ -36,21 +40,24 @@ interface PyStats {
   size_after: number;
   no_gain: boolean;
   ratio: number;
+  vector_heavy?: boolean;
+  mode?: "surgical" | "rasterize";
   error?: string;
 }
 
-/** เรียก compress.py: in.pdf → out.pdf · คืน stats (parse JSON จาก stdout) */
-function runPython(inPath: string, outPath: string): Promise<PyStats> {
+/** เรียก compress.py: in.pdf → out.pdf · คืน stats (parse JSON จาก stdout) · raster=โหมดเข้ม */
+function runPython(inPath: string, outPath: string, raster = false): Promise<PyStats> {
   return new Promise((resolve, reject) => {
-    const py = spawn(PYTHON_BIN, [SCRIPT_PATH, inPath, outPath], {
-      stdio: ['ignore', 'pipe', 'pipe'],
+    const argv = raster ? ["--rasterize", inPath, outPath] : [inPath, outPath];
+    const py = spawn(PYTHON_BIN, [SCRIPT_PATH, ...argv], {
+      stdio: ["ignore", "pipe", "pipe"],
     });
-    let stdout = '';
-    let stderr = '';
-    py.stdout.on('data', (d) => (stdout += String(d)));
-    py.stderr.on('data', (d) => (stderr += String(d)));
-    py.on('error', (e) => reject(new Error(`python spawn failed: ${e.message}`)));
-    py.on('close', (code) => {
+    let stdout = "";
+    let stderr = "";
+    py.stdout.on("data", (d) => (stdout += String(d)));
+    py.stderr.on("data", (d) => (stderr += String(d)));
+    py.on("error", (e) => reject(new Error(`python spawn failed: ${e.message}`)));
+    py.on("close", (code) => {
       let parsed: PyStats | null = null;
       try {
         parsed = JSON.parse(stdout.trim()) as PyStats;
@@ -75,13 +82,13 @@ function runPython(inPath: string, outPath: string): Promise<PyStats> {
  * บีบ PDF แบบ surgical (pure function: รับ bytes คืน bytes) — เขียน temp → spawn python → อ่านผล
  * cleanup temp เสมอ (finally)
  */
-export async function compressPdf(input: Buffer): Promise<CompressResult> {
-  const dir = await mkdtemp(join(tmpdir(), 'pdfc-'));
-  const inPath = join(dir, `in-${randomBytes(4).toString('hex')}.pdf`);
-  const outPath = join(dir, `out-${randomBytes(4).toString('hex')}.pdf`);
+async function runCompress(input: Buffer, raster: boolean): Promise<CompressResult> {
+  const dir = await mkdtemp(join(tmpdir(), "pdfc-"));
+  const inPath = join(dir, `in-${randomBytes(4).toString("hex")}.pdf`);
+  const outPath = join(dir, `out-${randomBytes(4).toString("hex")}.pdf`);
   try {
     await writeFile(inPath, input);
-    const stats = await runPython(inPath, outPath);
+    const stats = await runPython(inPath, outPath, raster);
     const bytes = await readFile(outPath);
     return {
       bytes,
@@ -90,6 +97,8 @@ export async function compressPdf(input: Buffer): Promise<CompressResult> {
       sizeAfter: stats.size_after,
       noGain: stats.no_gain,
       ratio: stats.ratio,
+      vectorHeavy: Boolean(stats.vector_heavy),
+      mode: stats.mode ?? (raster ? "rasterize" : "surgical"),
     };
   } catch (e) {
     if (e instanceof UserFacingError) throw e;
@@ -99,14 +108,24 @@ export async function compressPdf(input: Buffer): Promise<CompressResult> {
   }
 }
 
-export interface BucketCompressResult extends Omit<CompressResult, 'bytes'> {
+/** surgical (default) — บีบรูปใหญ่ คงเวกเตอร์/โครงสร้าง · มี vectorHeavy บอกว่าควรเสนอ rasterize ต่อ */
+export async function compressPdf(input: Buffer): Promise<CompressResult> {
+  return runCompress(input, false);
+}
+
+/** rasterize (โหมดเข้ม) — render ทุกหน้าเป็นภาพ → ยุบ vector-heavy ได้มาก (เสีย selectable text) */
+export async function rasterizePdf(input: Buffer): Promise<CompressResult> {
+  return runCompress(input, true);
+}
+
+export interface BucketCompressResult extends Omit<CompressResult, "bytes"> {
   /** path ผลลัพธ์ใน bucket (ถ้า noGain = path ต้นฉบับเดิม ไม่ได้อัปไฟล์ใหม่) */
   outputPath: string;
 }
 
 /** derive output path: <dir>/<name>.pdf → <dir>/<name>-compressed.pdf */
 function toOutputPath(inputPath: string): string {
-  return inputPath.replace(/\.pdf$/i, '') + '-compressed.pdf';
+  return inputPath.replace(/\.pdf$/i, "") + "-compressed.pdf";
 }
 
 /**
@@ -119,20 +138,40 @@ export async function compressBucketObject(inputPath: string): Promise<BucketCom
 
   const { data, error } = await admin.storage.from(PDF_BUCKET).download(inputPath);
   if (error || !data) {
-    throw new Error(`download from ${PDF_BUCKET}/${inputPath} failed: ${error?.message ?? 'no data'}`);
+    throw new Error(
+      `download from ${PDF_BUCKET}/${inputPath} failed: ${error?.message ?? "no data"}`,
+    );
   }
   const input = Buffer.from(await data.arrayBuffer());
 
   const result = await compressPdf(input);
   if (result.noGain) {
-    return { outputPath: inputPath, pages: result.pages, sizeBefore: result.sizeBefore, sizeAfter: result.sizeAfter, noGain: true, ratio: 0 };
+    return {
+      outputPath: inputPath,
+      pages: result.pages,
+      sizeBefore: result.sizeBefore,
+      sizeAfter: result.sizeAfter,
+      noGain: true,
+      ratio: 0,
+      vectorHeavy: result.vectorHeavy,
+      mode: result.mode,
+    };
   }
 
   const outputPath = toOutputPath(inputPath);
   const { error: upErr } = await admin.storage
     .from(PDF_BUCKET)
-    .upload(outputPath, result.bytes, { contentType: 'application/pdf', upsert: true });
+    .upload(outputPath, result.bytes, { contentType: "application/pdf", upsert: true });
   if (upErr) throw new Error(`upload to ${PDF_BUCKET}/${outputPath} failed: ${upErr.message}`);
 
-  return { outputPath, pages: result.pages, sizeBefore: result.sizeBefore, sizeAfter: result.sizeAfter, noGain: false, ratio: result.ratio };
+  return {
+    outputPath,
+    pages: result.pages,
+    sizeBefore: result.sizeBefore,
+    sizeAfter: result.sizeAfter,
+    noGain: false,
+    ratio: result.ratio,
+    vectorHeavy: result.vectorHeavy,
+    mode: result.mode,
+  };
 }

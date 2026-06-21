@@ -1928,6 +1928,108 @@ async function handlePdfConfirm(
   await handlePdfFile(admin, lineUserId, messageId, profile.id, activeOrg.id, "", replyToken);
 }
 
+// ผู้ใช้กดปุ่ม "บีบแบบเข้ม" จาก Flex ผลลัพธ์ pass 1 (vector-heavy, บีบปกติได้น้อย)
+//   → สร้าง job rasterize (pass 2) อ้างไฟล์ pass 1 ใน bucket เป็น source แล้ว trigger worker
+async function handlePdfRasterConfirm(
+  admin: ReturnType<typeof createAdminClient>,
+  lineUserId: string,
+  parentJobId: string,
+  replyToken: string,
+) {
+  if (!parentJobId) return;
+  const profile = await getProfileByLineId(admin, lineUserId);
+  if (!profile) {
+    await replyText(replyToken, "❌ กรุณาแอด LINE และเริ่มต้นใช้งานก่อนครับ");
+    return;
+  }
+  if (!(await checkPdfAccess(admin, profile.id, profile.role))) {
+    await replyText(replyToken, "❌ ไม่มีสิทธิ์ใช้ฟีเจอร์บีบ PDF");
+    return;
+  }
+
+  // โหลด job ต้นทาง (pass 1) — ต้องเป็นของผู้ใช้คนนี้ + completed + มีไฟล์ผลลัพธ์ใน bucket
+  const { data: parent } = await admin
+    .from("assistant_jobs")
+    .select("id, org_id, profile_id, file_name, status, pdf_meta")
+    .eq("id", parentJobId)
+    .eq("profile_id", profile.id)
+    .eq("kind", "pdf_compress")
+    .maybeSingle();
+  const pmeta = (parent?.pdf_meta ?? {}) as {
+    output_path?: string;
+    mode?: string;
+    raster_child_id?: string;
+  };
+  if (!parent || parent.status !== "completed" || !pmeta.output_path) {
+    await replyText(
+      replyToken,
+      "❌ ไม่พบไฟล์ต้นทาง อาจถูกลบแล้ว (เก็บไว้ 48 ชม.) กรุณาส่งไฟล์ใหม่อีกครั้ง",
+    );
+    return;
+  }
+  if (pmeta.mode === "rasterize") {
+    await replyText(replyToken, "ไฟล์นี้บีบแบบเข้มไปแล้วครับ 🙏");
+    return;
+  }
+  // กดซ้ำ → มี job rasterize ค้างอยู่แล้ว
+  if (pmeta.raster_child_id) {
+    await replyText(replyToken, "⚡ กำลังบีบแบบเข้มให้อยู่แล้ว รอสักครู่นะครับ");
+    return;
+  }
+
+  // เครดิตต้องพอ (โหมดเข้มคิดตามจำนวนหน้าเสมอ)
+  const { remainUnits } = await getServiceRemaining(admin, profile.id, "pdf");
+  if (remainUnits <= 0) {
+    await replyText(replyToken, "❌ เครดิตของคุณหมดแล้ว\nพิมพ์ /web เพื่อเติมเครดิตครับ");
+    return;
+  }
+
+  const orgId = String(parent.org_id);
+  const { data: child, error: childErr } = await admin
+    .from("assistant_jobs")
+    .insert({
+      org_id: orgId,
+      profile_id: profile.id,
+      kind: "pdf_compress",
+      source: "line",
+      file_name: String(parent.file_name ?? "document.pdf"),
+      mime_type: "application/pdf",
+      triggered_by: profile.id,
+      pdf_meta: { mode: "rasterize", src_path: pmeta.output_path, parent_job_id: parentJobId },
+    })
+    .select("id")
+    .single();
+  if (childErr || !child) {
+    await replyText(replyToken, `❌ เริ่มบีบแบบเข้มไม่สำเร็จ: ${childErr?.message ?? ""}`);
+    return;
+  }
+
+  // ผูก child id กลับ parent → กันกดซ้ำสร้างงานซ้ำ
+  await admin
+    .from("assistant_jobs")
+    .update({ pdf_meta: { ...pmeta, raster_child_id: child.id } })
+    .eq("id", parentJobId)
+    .then(
+      () => undefined,
+      () => undefined,
+    );
+
+  await replyText(
+    replyToken,
+    "⚡ กำลังบีบแบบเข้ม (แปลงหน้าเป็นรูปภาพ) — เสร็จแล้วจะส่งไฟล์กลับมาให้อัตโนมัติครับ",
+  );
+
+  const trig = await triggerPdfWorker(admin, child.id as string, orgId);
+  if (!trig.ok) {
+    const text = trig.queued
+      ? "⏳ ขณะนี้มีงานเข้ามาจำนวนมาก งานของคุณเข้าคิวแล้ว ระบบจะบีบให้อัตโนมัติเมื่อถึงคิว รอสักครู่นะครับ 🙏"
+      : "❌ ขออภัย เริ่มบีบแบบเข้มไม่สำเร็จ กรุณาลองใหม่อีกครั้ง";
+    await sendLineMessages({ to: lineUserId, messages: [{ type: "text", text }] }).catch(
+      () => undefined,
+    );
+  }
+}
+
 // auto-onboarding เมื่อมี follow event → provision + welcome Flex (การ์ดต้อนรับสวย ๆ)
 async function handleFollow(admin: ReturnType<typeof createAdminClient>, lineUserId: string) {
   const result = await provisionLineUser(admin, lineUserId);
@@ -3007,6 +3109,13 @@ export async function POST(req: NextRequest) {
         );
       } else if (pbUserId && pbData.startsWith("pdffile:")) {
         await handlePdfConfirm(admin, pbUserId, pbData.slice("pdffile:".length), pbReplyToken);
+      } else if (pbUserId && pbData.startsWith("pdfraster:")) {
+        await handlePdfRasterConfirm(
+          admin,
+          pbUserId,
+          pbData.slice("pdfraster:".length),
+          pbReplyToken,
+        );
       } else if (pbData === "pdfcancel") {
         await replyText(
           pbReplyToken,
