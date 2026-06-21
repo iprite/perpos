@@ -1,4 +1,4 @@
 {
   "framework": "nextjs",
-  "ignoreCommand": "npx turbo-ignore landing"
+  "ignoreCommand": "if [ \"$VERCEL_ENV\" = \"production\" ]; then npx turbo-ignore landing; else exit 0; fi"
 }
