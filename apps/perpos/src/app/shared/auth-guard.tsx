@@ -22,7 +22,15 @@ function stripBasePath(pathname: string) {
   return pathname;
 }
 
-export default function AuthGuard({ children }: { children: React.ReactNode }) {
+export default function AuthGuard({
+  children,
+  fallback,
+}: {
+  children: React.ReactNode;
+  /** สิ่งที่แสดงระหว่างรอ auth resolve — default = spinner เต็มพื้นที่ (ใช้ใน (no-access)) ·
+   *  (hydrogen) ส่ง <PageSkeleton /> เพื่อให้ skeleton อยู่ในกรอบ content ไม่บัง shell */
+  fallback?: React.ReactNode;
+}) {
   const router = useRouter();
   const pathname = usePathname();
   const { loading, blocked, userId } = useAuth();
@@ -40,6 +48,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   }, [blocked, loading, pathname, router, userId]);
 
   if (loading) {
+    if (fallback !== undefined) return <>{fallback}</>;
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
         <div className="h-6 w-6 animate-spin rounded-full border-2 border-gray-300 border-t-gray-700" />

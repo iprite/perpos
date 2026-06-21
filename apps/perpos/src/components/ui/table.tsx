@@ -62,22 +62,28 @@ const TableHeader = React.forwardRef<HTMLTableSectionElement, TableHeaderProps>(
 );
 TableHeader.displayName = "TableHeader";
 
-const TableBody = React.forwardRef<HTMLTableSectionElement, React.HTMLAttributes<HTMLTableSectionElement>>(
-  ({ className, ...props }, ref) => (
-    <tbody ref={ref} className={cn("divide-y divide-gray-100 [&_tr:last-child]:border-0", className)} {...props} />
-  ),
-);
+const TableBody = React.forwardRef<
+  HTMLTableSectionElement,
+  React.HTMLAttributes<HTMLTableSectionElement>
+>(({ className, ...props }, ref) => (
+  <tbody
+    ref={ref}
+    className={cn("divide-y divide-gray-100 [&_tr:last-child]:border-0", className)}
+    {...props}
+  />
+));
 TableBody.displayName = "TableBody";
 
-const TableFooter = React.forwardRef<HTMLTableSectionElement, React.HTMLAttributes<HTMLTableSectionElement>>(
-  ({ className, ...props }, ref) => (
-    <tfoot
-      ref={ref}
-      className={cn("border-t-2 border-gray-200 bg-gray-50 font-semibold", className)}
-      {...props}
-    />
-  ),
-);
+const TableFooter = React.forwardRef<
+  HTMLTableSectionElement,
+  React.HTMLAttributes<HTMLTableSectionElement>
+>(({ className, ...props }, ref) => (
+  <tfoot
+    ref={ref}
+    className={cn("border-t-2 border-gray-200 bg-gray-50 font-semibold", className)}
+    {...props}
+  />
+));
 TableFooter.displayName = "TableFooter";
 
 type TableRowProps = React.HTMLAttributes<HTMLTableRowElement> & {
@@ -88,30 +94,39 @@ type TableRowProps = React.HTMLAttributes<HTMLTableRowElement> & {
 };
 
 const TableRow = React.forwardRef<HTMLTableRowElement, TableRowProps>(
-  ({ className, clickable, selected, onClick, onKeyDown, ...props }, ref) => (
-    <tr
-      ref={ref}
-      onClick={onClick}
-      onKeyDown={(e) => {
-        if (clickable && (e.key === "Enter" || e.key === " ")) {
-          e.preventDefault();
-          (e.currentTarget as HTMLTableRowElement).click();
+  ({ className, clickable, selected, onClick, onKeyDown, ...props }, ref) => {
+    // แนบ event handler เฉพาะแถวที่ interactive จริง — ไม่งั้น inline onKeyDown ที่ติดอยู่
+    // เสมอจะทำให้ render TableRow ใน Server Component ไม่ได้ (RSC serialize event handler ไม่ได้)
+    const interactive = clickable || !!onClick || !!onKeyDown;
+    return (
+      <tr
+        ref={ref}
+        onClick={onClick}
+        onKeyDown={
+          interactive
+            ? (e) => {
+                if (clickable && (e.key === "Enter" || e.key === " ")) {
+                  e.preventDefault();
+                  (e.currentTarget as HTMLTableRowElement).click();
+                }
+                onKeyDown?.(e);
+              }
+            : undefined
         }
-        onKeyDown?.(e);
-      }}
-      role={clickable ? "button" : undefined}
-      tabIndex={clickable ? 0 : undefined}
-      className={cn(
-        "border-b border-gray-100 transition-colors",
-        clickable
-          ? "cursor-pointer hover:bg-gray-100 focus-visible:bg-gray-100 focus-visible:outline-none"
-          : "hover:bg-gray-50",
-        selected && "bg-indigo-50/60",
-        className,
-      )}
-      {...props}
-    />
-  ),
+        role={clickable ? "button" : undefined}
+        tabIndex={clickable ? 0 : undefined}
+        className={cn(
+          "border-b border-gray-100 transition-colors",
+          clickable
+            ? "cursor-pointer hover:bg-gray-100 focus-visible:bg-gray-100 focus-visible:outline-none"
+            : "hover:bg-gray-50",
+          selected && "bg-indigo-50/60",
+          className,
+        )}
+        {...props}
+      />
+    );
+  },
 );
 TableRow.displayName = "TableRow";
 
@@ -175,7 +190,10 @@ function TableEmpty({
 }) {
   return (
     <tr>
-      <td colSpan={colSpan} className={cn("px-4 py-12 text-center text-sm text-gray-400", className)}>
+      <td
+        colSpan={colSpan}
+        className={cn("px-4 py-12 text-center text-sm text-gray-400", className)}
+      >
         {children}
       </td>
     </tr>
