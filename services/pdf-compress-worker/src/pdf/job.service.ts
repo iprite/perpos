@@ -105,6 +105,19 @@ async function runJob(jobId: string, orgId: string): Promise<void> {
         .upload(outputPath, result.bytes, { contentType: "application/pdf", upsert: true });
       if (upErr) throw new Error(`upload output failed: ${upErr.message}`);
 
+      // 4.5 surgical + vector_heavy → เก็บ "ไฟล์ต้นฉบับ" ไว้ให้ pass 2 (rasterize) ใช้บีบ
+      //     ⚠️ rasterize ต้องใช้ต้นฉบับ ไม่ใช่ output pass 1 (กัน double JPEG รูปในไฟล์)
+      //     best-effort: ล้มก็ไม่พังงาน pass 1 (pass 2 จะ fallback ไป output_path)
+      let origPath: string | null = null;
+      if (!isRaster && result.vectorHeavy) {
+        const op = `${orgId}/${jobId}-original.pdf`;
+        const { error: oErr } = await admin.storage
+          .from(PDF_BUCKET)
+          .upload(op, bytes, { contentType: "application/pdf", upsert: true });
+        if (oErr) console.warn(`[pdf-worker] job ${jobId} keep-original failed: ${oErr.message}`);
+        else origPath = op;
+      }
+
       // 5. mark completed + เก็บผลใน pdf_meta — guard บน status≠completed กัน race กับ stuck-sweep
       const { data: finalized, error: updErr } = await admin
         .from("assistant_jobs")
@@ -122,6 +135,7 @@ async function runJob(jobId: string, orgId: string): Promise<void> {
             charged: reserved, // คิดโควต้าครั้งนี้ไหม (false ถ้าบีบ < เกณฑ์ → ฟรี)
             mode: result.mode, // 'surgical' | 'rasterize'
             vector_heavy: result.vectorHeavy, // surgical: บอกว่าควรเสนอ rasterize ต่อ
+            orig_path: origPath, // ไฟล์ต้นฉบับเก็บไว้ (มีเฉพาะ surgical+vector_heavy) → pass 2 ใช้บีบ
           },
           updated_at: new Date().toISOString(),
         })
