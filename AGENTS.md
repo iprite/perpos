@@ -308,6 +308,36 @@ Endpoint: `POST /api/assistant/scheduler`
 
 ---
 
+## Page Load Performance — มาตรฐานบังคับ (binding)
+
+> **กฎบังคับทั้งแอป** (ปัจจุบัน + โค้ดใหม่ทุกชิ้น): หน้าต้องไม่ "หน่วงก่อนข้อมูลขึ้น"
+> คัมภีร์เต็ม + ตัวอย่าง + กับดัก: [`docs/SERVER_COMPONENT_PATTERN.md`](docs/SERVER_COMPONENT_PATTERN.md) — **อ่านก่อนสร้าง/แก้หน้าใด ๆ**
+> มี guard test ([`page-load-standard.test.ts`](apps/perpos/src/app/page-load-standard.test.ts)) บังคับ invariant ใน CI
+
+**MUST (ต้องทำ):**
+
+1. **ทุก route group ต้องมี `loading.tsx`** — baseline `(hydrogen)/loading.tsx` + รายโซน (admin/assistant/[orgSlug]) มีอยู่แล้ว · **ห้ามลบ** · section ใหม่ที่ layout ต่างจากเดิม → เพิ่ม `loading.tsx` ของตัวเอง (skeleton ตาม DESIGN.md §9 — ห้าม spinner กลางจอ)
+2. **หน้า display ใหม่ = Server Component** — ดึงข้อมูลตอน SSR (ห้าม `'use client'` + `getSession()` + `fetch('/api/...')` ตอน mount ถ้าหน้านั้นแค่แสดงผล) · เลือกท่าตามชนิดหน้า:
+   - display ล้วน → full server component
+   - list + filter/pagination → **searchParams-driven** (filter/page อยู่ใน URL)
+   - display + poll/chart/interactive → **hybrid** (server ดึง initial → client view)
+3. **เลือก auth guard ให้ตรงโมเดล** (ผิด = data leak):
+   - หน้า `/admin/*` (ข้ามทั้งระบบ) → `requireSuperAdminPage()` ([lib/admin/guard.ts](apps/perpos/src/lib/admin/guard.ts)) = service-role
+   - หน้าโมดูล per-org (tmc/crm/acc_firm/…) → **member + RLS** (`getModuleRoleForCurrentUser` + `createSupabaseServerClient`) · **ห้ามใช้ admin service-role client กับข้อมูล per-org**
+4. **แยก fetch logic** ไป `lib/<area>/<x>.ts` (reuse กับ route เดิม) · route ที่ไม่มี caller เหลือ → ลบ · ที่ client view ยัง poll → คงไว้
+5. **AuthGuard ต้องไม่บล็อก shell** — gate เฉพาะ content area (โครงปัจจุบันใน [(hydrogen)/layout.tsx](<apps/perpos/src/app/(hydrogen)/layout.tsx>) — อย่าย้าย AuthGuard ออกมาครอบทั้ง shell)
+
+**MUST NOT / ข้อยกเว้นที่ตั้งใจ (ห้ามแปลงเป็น server โดยไม่จำเป็น):**
+
+- หน้า **ping/health สด** (เช่น `/admin/system`) → คง client (SSR จะ block รอ network)
+- หน้า **CRUD หนัก** (มี mutation/dialog เยอะ เช่น tmc/finance, crm) → คง client, แปลง **opportunistic** ตอน touch เท่านั้น (ROI ต่ำ, risk สูง)
+
+**สถานะปัจจุบัน (compliance):** loading.tsx + AuthGuard-shell ครอบทุกหน้าแล้ว · SSR แล้ว: accounting (เดิม), admin dashboard/payments/stt-billing/scheduler/admin-audit/health/stt-cost, tmc dashboard · exempt: system, หน้า CRUD
+
+**Verify ก่อน merge:** `tsc --noEmit`=0 · `pnpm lint` clean · `pnpm --filter starter test` ผ่าน · หน้า render เหมือนเดิม (screenshot) · ไม่มี client fetch เดิมหลัง SSR (network) — checklist เต็มใน [คัมภีร์](docs/SERVER_COMPONENT_PATTERN.md)
+
+---
+
 ## Design System — UI Components
 
 > **กฎบังคับ**: ทุก UI ใน `apps/perpos/` ต้องใช้ components จาก `@/components/ui/` เท่านั้น  

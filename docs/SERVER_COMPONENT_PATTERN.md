@@ -1,5 +1,7 @@
-# คัมภีร์: แปลงหน้าเป็น Server Component (ลดอาการหน้าโหลดหน่วง)
+# คัมภีร์: Page Load Performance — Server Component (ลดอาการหน้าโหลดหน่วง)
 
+> **มาตรฐานบังคับทั้งแอป** — กฎย่ออยู่ใน [`AGENTS.md` §Page Load Performance](../AGENTS.md) (binding) · ไฟล์นี้ = รายละเอียด+ตัวอย่าง+กับดัก · **อ่านก่อนสร้าง/แก้หน้าใด ๆ** · มี guard test ([page-load-standard.test.ts](../apps/perpos/src/app/page-load-standard.test.ts)) บังคับ invariant ใน CI
+>
 > เป้าหมาย: ตัด client-fetch waterfall (`getSession` → `fetch /api` → render) ออก ให้ข้อมูลมากับ
 > SSR HTML เลย · ทำเฉพาะหน้าที่**คุ้ม** — ไม่ sweep ทั้งแอป
 
@@ -42,14 +44,18 @@ const data = await computeX(admin);
 โมดูล B2B (tmc/crm/acc_firm/…) ใช้ **member + RLS** ไม่ใช่ super_admin:
 
 ```ts
-// lib/<module>/guard.ts (server version ของ requireModuleMember)
-const { rls, role } = await requireModuleMemberPage(orgId, "tmc"); // คืน server client (RLS ตาม session)
-const data = await computeTmcDashboard(rls, range);
+// server component หน้าโมดูล — guard ด้วย getModuleRoleForCurrentUser + RLS client
+const role = await getModuleRoleForCurrentUser(orgId, "tmc"); // null = ไม่ใช่สมาชิก
+if (!role) redirect("/");
+const db = await createSupabaseServerClient(); // RLS-scoped ตาม session (ไม่ใช่ service-role)
+const data = await computeTmcDashboard(db, orgId, range);
 ```
 
+- `getModuleRoleForCurrentUser(orgId, moduleKey)` ([lib/accounting/queries.ts](../apps/perpos/src/lib/accounting/queries.ts)) = server version ของ `requireModuleMember` (super_admin bypass, return module role หรือ null)
 - `createSupabaseServerClient()` (cookie session) = RLS-scoped เทียบเท่า `createAuthedClient(token)` ฝั่ง API
 - **ห้ามใช้ admin client (service role) กับข้อมูล per-org** — RLS จะถูก bypass → เห็นข้าม org
-- ต้นแบบ: [`lib/tmc/guard.ts`](../apps/perpos/src/lib/tmc/guard.ts) + [`(hydrogen)/[orgSlug]/tmc/page.tsx`](<../apps/perpos/src/app/(hydrogen)/[orgSlug]/tmc/page.tsx>)
+- `is_enabled` ของโมดูลถูกบังคับที่ [HydrogenLayout](../apps/perpos/src/layouts/hydrogen/layout.tsx) (redirect ก่อนถึง page) แล้ว
+- ต้นแบบจริง: [`(hydrogen)/[orgSlug]/tmc/page.tsx`](<../apps/perpos/src/app/(hydrogen)/[orgSlug]/tmc/page.tsx>) + [`lib/tmc/dashboard.ts`](../apps/perpos/src/lib/tmc/dashboard.ts)
 
 ## ท่า searchParams (filter/pagination)
 
