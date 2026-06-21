@@ -315,8 +315,9 @@ async function run(req: NextRequest) {
       if (oldPdf && oldPdf.length) {
         const paths: string[] = [];
         for (const j of oldPdf as Record<string, unknown>[]) {
-          const op = (j.pdf_meta as { output_path?: string } | null)?.output_path;
-          if (op) paths.push(op);
+          const m = j.pdf_meta as { output_path?: string; orig_path?: string } | null;
+          if (m?.output_path) paths.push(m.output_path);
+          if (m?.orig_path) paths.push(m.orig_path); // ต้นฉบับที่เก็บไว้สำหรับ rasterize (vector-heavy)
         }
         if (paths.length)
           await admin.storage

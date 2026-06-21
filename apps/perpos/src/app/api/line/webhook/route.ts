@@ -1957,6 +1957,7 @@ async function handlePdfRasterConfirm(
     .maybeSingle();
   const pmeta = (parent?.pdf_meta ?? {}) as {
     output_path?: string;
+    orig_path?: string;
     mode?: string;
     raster_child_id?: string;
   };
@@ -1967,6 +1968,9 @@ async function handlePdfRasterConfirm(
     );
     return;
   }
+  // rasterize ต้องบีบจาก "ต้นฉบับเดิม" (orig_path เก็บไว้ตอน pass 1) ไม่ใช่ output pass 1
+  //   กัน double JPEG รูปในไฟล์ · fallback output_path ถ้าไม่มี (งานเก่า/persist ล้ม)
+  const rasterSrcPath = pmeta.orig_path || pmeta.output_path;
   if (pmeta.mode === "rasterize") {
     await replyText(replyToken, "ไฟล์นี้บีบแบบเข้มไปแล้วครับ 🙏");
     return;
@@ -1995,7 +1999,7 @@ async function handlePdfRasterConfirm(
       file_name: String(parent.file_name ?? "document.pdf"),
       mime_type: "application/pdf",
       triggered_by: profile.id,
-      pdf_meta: { mode: "rasterize", src_path: pmeta.output_path, parent_job_id: parentJobId },
+      pdf_meta: { mode: "rasterize", src_path: rasterSrcPath, parent_job_id: parentJobId },
     })
     .select("id")
     .single();
