@@ -164,10 +164,30 @@ function buildUserContent(query: string, ctx: KbMatch[]): string {
   return `<context>\n${contextBlock}\n</context>\n\nคำถามของผู้ใช้: ${query}`;
 }
 
+/** ชื่อผู้ใช้จาก LINE อาจเป็น default/ว่าง — กรองออกเพื่อไม่ทักด้วยชื่อ generic */
+function usableName(displayName?: string | null): string | null {
+  const n = displayName?.trim();
+  if (!n || n === "ผู้ใช้ LINE") return null;
+  return n;
+}
+
+/** system part เสริมต่อ request — บอกชื่อผู้ใช้ให้บอททักได้อย่างเป็นธรรมชาติ */
+function nameInstruction(name: string): string {
+  return (
+    `ชื่อผู้ใช้ที่กำลังคุยกับคุณตอนนี้คือ "${name}" ` +
+    `เรียก "คุณ${name}" อย่างเป็นธรรมชาติเมื่อเหมาะสม (เช่น เปิดประโยคทักทาย หรือชวนลงมือทำ) ` +
+    `ไม่ต้องใส่ชื่อทุกประโยค และอย่าแต่งชื่ออื่นนอกจากนี้`
+  );
+}
+
 const LINE_TEXT_LIMIT = 4900; // LINE จำกัด 5000 ตัวอักษร/ข้อความ — เผื่อ buffer (กัน replyLine โดน 400 เงียบ)
 
 /** ตอบคำถามลูกค้าด้วย RAG — คืนข้อความพร้อมส่งกลับ LINE (plain text) */
-export async function answerFlowQuestion(admin: Admin, query: string): Promise<string> {
+export async function answerFlowQuestion(
+  admin: Admin,
+  query: string,
+  displayName?: string | null,
+): Promise<string> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     console.error("[flow-rag] ขาด GEMINI_API_KEY");
@@ -177,8 +197,12 @@ export async function answerFlowQuestion(admin: Admin, query: string): Promise<s
     const ctx = await retrieveContext(admin, query, apiKey);
     if (ctx.length === 0) return FALLBACK_NO_CONTEXT;
 
+    const name = usableName(displayName);
+    const systemParts = [{ text: SYSTEM_INSTRUCTION }];
+    if (name) systemParts.push({ text: nameInstruction(name) });
+
     const res = await geminiFetch(`${GEMINI_BASE}/${ANSWER_MODEL}:generateContent?key=${apiKey}`, {
-      systemInstruction: { parts: [{ text: SYSTEM_INSTRUCTION }] },
+      systemInstruction: { parts: systemParts },
       contents: [{ parts: [{ text: buildUserContent(query, ctx) }] }],
       // ปิด thinking — งาน RAG จาก context ไม่ต้องใช้ reasoning · เร็วขึ้น ~4 เท่า (905ms vs 3.7s) สำคัญต่อ webhook inline
       // maxOutputTokens 1024 ≈ ~3,400 ตัวอักษรไทย — เผื่อไม่ตัดกลาง แต่ยังกระชับ + ใต้ LINE 5000

@@ -1012,7 +1012,13 @@ async function handleFlowChat(
     );
     return;
   }
-  const answer = await answerFlowQuestion(admin, text);
+  // ดึงชื่อจาก profile (set ตอน provision) เพื่อให้บอททักด้วยชื่อจริง — ไม่ยิง LINE API เพิ่ม (กัน latency inline)
+  const { data: prof } = await admin
+    .from("profiles")
+    .select("display_name")
+    .eq("line_user_id", lineUserId)
+    .maybeSingle();
+  const answer = await answerFlowQuestion(admin, text, prof?.display_name ?? null);
   await replyText(replyToken, answer);
 }
 
