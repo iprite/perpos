@@ -89,11 +89,11 @@ export function PerposFlowPage() {
             </span>
             <Lockup tone="mint">PERPOS | FLOW</Lockup>
             <h1 className="mt-5 max-w-2xl text-balance text-4xl font-semibold leading-[1.12] tracking-tight text-foreground sm:text-5xl lg:text-6xl">
-              ผู้ช่วย AI ส่วนตัวบน LINE ที่ทำให้งานไฟล์แทบไม่มีแรงเสียดทาน
+              ผู้ช่วย AI ส่วนตัวบน LINE จัดการงานเอกสารให้จบในแชทเดียว
             </h1>
             <p className="mt-6 max-w-xl text-lg leading-8 text-foreground-secondary">
-              โยนเสียงประชุมหรือ PDF เข้า LINE ระบบขอยืนยัน ประมวลผล แล้วส่งผลลัพธ์กลับมา ใช้ token
-              แบบจ่ายเท่าที่ใช้ เริ่มต้นใช้งานฟรี
+              แค่โยนไฟล์เสียงประชุมหรือ PDF เข้า LINE ยืนยันครั้งเดียว ระบบประมวลผลแล้วส่งผลลัพธ์
+              กลับมาให้ทันที จ่ายด้วย token เท่าที่ใช้จริง เริ่มใช้ฟรี
             </p>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
               <Link
