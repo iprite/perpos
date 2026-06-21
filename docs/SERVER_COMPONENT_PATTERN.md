@@ -1,7 +1,9 @@
-# คัมภีร์: แปลงหน้าเป็น Server Component (ลดอาการหน้าโหลดหน่วง)
+# คัมภีร์: Page Load Performance — Server Component (ลดอาการหน้าโหลดหน่วง)
 
+> **มาตรฐานบังคับทั้งแอป** — กฎย่ออยู่ใน [`AGENTS.md` §Page Load Performance](../AGENTS.md) (binding) · ไฟล์นี้ = รายละเอียด+ตัวอย่าง+กับดัก · **อ่านก่อนสร้าง/แก้หน้าใด ๆ**
+>
 > เป้าหมาย: ตัด client-fetch waterfall (`getSession` → `fetch /api` → render) ออก ให้ข้อมูลมากับ
-> SSR HTML เลย · ทำเฉพาะหน้าที่**คุ้ม** — ไม่ sweep ทั้งแอป
+> SSR HTML เลย · ทำเฉพาะหน้าที่**คุ้ม** — ไม่ sweep ทั้งแอป (ดู MUST NOT ใน AGENTS.md)
 
 ## เมื่อไหร่ควรแปลง (และเมื่อไหร่ไม่)
 

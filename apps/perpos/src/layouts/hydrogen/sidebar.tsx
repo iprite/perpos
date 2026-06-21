@@ -1,6 +1,5 @@
 "use client";
 
-import Logo from "@core/components/logo";
 import cn from "@core/utils/class-names";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -21,7 +20,11 @@ interface SidebarProps {
   activeOrganizationId?: string | null;
 }
 
-export default function Sidebar({ className, organizations = [], activeOrganizationId = null }: SidebarProps) {
+export default function Sidebar({
+  className,
+  organizations = [],
+  activeOrganizationId = null,
+}: SidebarProps) {
   const pathname = usePathname();
   const firstSegment = pathname.split("/").filter(Boolean)[0] ?? "";
   const bizOrgs = organizations.filter((o) => !isPersonalOrg(o));
@@ -30,23 +33,33 @@ export default function Sidebar({ className, organizations = [], activeOrganizat
   return (
     <aside
       className={cn(
-        "fixed top-[var(--impersonation-banner-height,0px)] bottom-0 start-0 z-50 flex w-[270px] flex-col border-e-2 border-gray-100 bg-white dark:bg-gray-100/50 2xl:w-72",
-        className
+        "fixed bottom-0 start-0 top-[var(--impersonation-banner-height,0px)] z-50 flex w-[270px] flex-col border-e-2 border-gray-100 bg-white dark:bg-gray-100/50 2xl:w-72",
+        className,
       )}
     >
-      <div className="shrink-0 bg-gray-0/10 pb-2 pt-5 dark:bg-gray-100/5">
+      <div className="shrink-0 bg-gray-0/10 pb-2 pt-8 dark:bg-gray-100/5">
         <Link
           href={"/"}
-          aria-label="Site Logo"
-          className="flex justify-center px-6 pb-4 text-gray-800 hover:text-gray-900 2xl:px-8"
+          aria-label="PERPOS"
+          className="flex justify-center px-6 pb-2 text-gray-900 hover:text-gray-700 2xl:px-8"
         >
-          <Logo className="max-w-[155px]" />
+          <span className="font-neo-tech flex items-center gap-2 text-2xl font-bold leading-none tracking-[0.18em]">
+            <span>PERPOS</span>
+            <span
+              className="h-[1.05em] w-0.5 -translate-y-[0.08em] rounded-full bg-gray-300"
+              aria-hidden="true"
+            />
+            <span className="text-orange-600">SUITE</span>
+          </span>
         </Link>
 
         {/* org switcher — ซ่อนเมื่ออยู่ใน assistant / admin context */}
         {showOrgSwitcher && (
           <div className="px-4 pb-3 2xl:px-6">
-            <OrgSwitcher organizations={organizations} activeOrganizationId={activeOrganizationId} />
+            <OrgSwitcher
+              organizations={organizations}
+              activeOrganizationId={activeOrganizationId}
+            />
           </div>
         )}
 
