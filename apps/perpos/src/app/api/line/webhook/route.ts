@@ -3300,6 +3300,19 @@ export async function POST(req: NextRequest) {
     const source = event.source as Record<string, string>;
     const lineUserId = source?.userId ?? "";
 
+    // ─── Auto-provision (self-heal) — ผู้ใช้ที่ยังไม่มี profile ส่งข้อความอะไรมาก็สร้างให้ทันที ──
+    //   กันเคส follow event หลุด (เช่น webhook ตายช่วงย้ายโดเมน / deploy) → ผู้ใช้ไม่ถูก provision
+    //   handleFollow = provision (idempotent) + แจกเครดิต + push welcome card ถ้าเป็นคนใหม่
+    //   จากนั้นไหลเข้า logic เดิม (downstream getProfileByLineId จะเจอ profile แล้ว)
+    if (lineUserId) {
+      const known = await getProfileByLineId(admin, lineUserId);
+      if (!known) {
+        await handleFollow(admin, lineUserId).catch((e) =>
+          console.error("[line] message-path provision failed:", String(e)),
+        );
+      }
+    }
+
     // ─── Image messages — CRM photo attachment ──────────────────────────────
     if (msg.type === "image") {
       const messageId = String(msg.id ?? "");
