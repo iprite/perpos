@@ -21,7 +21,7 @@ import {
   type HeldJob,
 } from "@/lib/assistant/recall-bot";
 import { buildBotFlex } from "@/lib/assistant/recall-events";
-import { getServiceRemaining } from "@/lib/assistant/token-balance";
+import { getServiceRemaining, getTokenBalance } from "@/lib/assistant/token-balance";
 import {
   buildBotConfirmFlex,
   buildQuotaTopupFlex,
@@ -2036,19 +2036,137 @@ async function handlePdfRasterConfirm(
   }
 }
 
+// การ์ดอธิบาย 1 ฟีเจอร์ (ใช้ใน carousel ต่อท้าย welcome) — header charcoal flat + accent Flow green
+function buildFeatureBubble(opts: {
+  icon: string;
+  title: string;
+  tagline: string;
+  points: string[];
+  hint: string;
+}) {
+  return {
+    type: "bubble" as const,
+    size: "kilo" as const,
+    header: {
+      type: "box",
+      layout: "vertical",
+      backgroundColor: "#3C3B3D",
+      paddingAll: "16px",
+      contents: [
+        {
+          type: "text",
+          text: `${opts.icon} ${opts.title}`,
+          color: "#ffffff",
+          weight: "bold",
+          size: "md",
+          wrap: true,
+        },
+      ],
+    },
+    body: {
+      type: "box",
+      layout: "vertical",
+      paddingAll: "16px",
+      spacing: "md",
+      contents: [
+        { type: "text", text: opts.tagline, size: "sm", color: "#525866", wrap: true },
+        { type: "separator", margin: "md" },
+        {
+          type: "box",
+          layout: "vertical",
+          spacing: "sm",
+          margin: "md",
+          contents: opts.points.map((p) => ({
+            type: "box",
+            layout: "horizontal",
+            spacing: "sm",
+            contents: [
+              { type: "text", text: "•", size: "sm", color: "#48CFAD", flex: 0 },
+              { type: "text", text: p, size: "sm", color: "#656D78", wrap: true },
+            ],
+          })),
+        },
+        // filler ดูดช่องว่าง → ดันกรอบ hint ลงไปชิดด้านล่าง (carousel ยืด body ทุกใบสูงเท่าใบสูงสุด)
+        { type: "filler" },
+        {
+          type: "box",
+          layout: "vertical",
+          backgroundColor: "#E4F8F3",
+          cornerRadius: "10px",
+          paddingAll: "12px",
+          margin: "md",
+          contents: [
+            {
+              type: "text",
+              text: opts.hint,
+              size: "xs",
+              weight: "bold",
+              color: "#44A38B",
+              align: "center",
+              wrap: true,
+            },
+          ],
+        },
+      ],
+    },
+  };
+}
+
+// carousel 3 ฟีเจอร์ (ถอดเสียง · บอทประชุม · บีบ PDF) — เลื่อนทางขวา ส่งต่อท้าย welcome
+function buildFeaturesCarousel() {
+  return {
+    type: "flex" as const,
+    altText: "ฟีเจอร์ผู้ช่วย Flow — 🎙️ ถอดเสียงประชุม · 🤖 บอทเข้าประชุม · 📑 บีบ PDF",
+    contents: {
+      type: "carousel" as const,
+      contents: [
+        buildFeatureBubble({
+          icon: "🎙️",
+          title: "ถอดเสียงประชุม",
+          tagline: "อัปไฟล์เสียง/วิดีโอ แล้วได้รายงานการประชุม (MoM) เป็น PDF",
+          points: [
+            "สรุปหัวข้อ · มติที่ประชุม · งานที่ต้องทำ · ผู้เข้าร่วม",
+            "รองรับไทย/อังกฤษ และไฟล์ยาวหลายชั่วโมง",
+            "ไฟล์เสียงถูกลบทันทีหลังสรุปเสร็จ (PDPA)",
+          ],
+          hint: "📎 ส่งไฟล์เสียง/วิดีโอ หรือพิมพ์ /mom",
+        }),
+        buildFeatureBubble({
+          icon: "🤖",
+          title: "บอทเข้าประชุม",
+          tagline: "วางลิงก์ Zoom / Google Meet / Teams แล้วบอทเข้าไปอัดและสรุปให้",
+          points: [
+            "บอทเข้าห้องแทนคุณ ไม่ต้องนั่งอัดเอง",
+            "จบประชุม → ส่ง MoM PDF กลับทาง LINE",
+            "เหมาะกับประชุมที่เข้าร่วมไม่ได้/อยากโฟกัสคุย",
+          ],
+          hint: "🔗 วางลิงก์ห้องประชุมในแชตนี้ได้เลย",
+        }),
+        buildFeatureBubble({
+          icon: "📑",
+          title: "บีบขนาด PDF",
+          tagline: "ส่งไฟล์ PDF แล้วบีบให้เล็กลง ส่งต่อง่าย อัปโหลดไว",
+          points: [
+            "ลดขนาดให้อัตโนมัติ คงความคมชัดของเอกสาร",
+            "ถ้าบีบปกติไม่ลง มีโหมดบีบแบบเข้ม (rasterize)",
+            "คงชื่อไฟล์เดิม ส่งกลับทาง LINE",
+          ],
+          hint: "📎 โยนไฟล์ PDF เข้ามาได้เลย",
+        }),
+      ],
+    },
+  };
+}
+
 // auto-onboarding เมื่อมี follow event → provision + welcome Flex (การ์ดต้อนรับสวย ๆ)
 async function handleFollow(admin: ReturnType<typeof createAdminClient>, lineUserId: string) {
   const result = await provisionLineUser(admin, lineUserId);
   const name = result.displayName;
   const greeting = result.isNew ? `ยินดีต้อนรับ คุณ${name} 🎉` : `ยินดีต้อนรับกลับมา คุณ${name} 🙌`;
 
-  // คงเหลือ 2 มิเตอร์ (unified pool) — ถอดเสียง/บอทประชุม คิดจากยอด token เดียวกัน ÷ rate
-  const [stt, bot] = await Promise.all([
-    getServiceRemaining(admin, result.profileId, "stt"),
-    getServiceRemaining(admin, result.profileId, "bot"),
-  ]);
-  const remainMin = stt.remainMin;
-  const botRemainMin = bot.remainMin;
+  // เครดิต = ยอด token คงเหลือ (unified pool) — แสดงเป็น token ตรง ๆ
+  const balance = await getTokenBalance(admin, result.profileId);
+  const tokenText = `${balance.toLocaleString("th-TH")} token`;
   const giftLabel = result.isNew ? "เครดิตฟรีสำหรับคุณ" : "เครดิตคงเหลือ";
 
   const steps: Array<[string, string]> = [
@@ -2068,12 +2186,12 @@ async function handleFollow(admin: ReturnType<typeof createAdminClient>, lineUse
         layout: "vertical",
         width: "26px",
         height: "26px",
-        backgroundColor: "#ECE8F4",
+        backgroundColor: "#E4F8F3",
         cornerRadius: "13px",
         justifyContent: "center",
         flex: 0,
         contents: [
-          { type: "text", text: n, size: "sm", weight: "bold", color: "#4FC1E9", align: "center" },
+          { type: "text", text: n, size: "sm", weight: "bold", color: "#44A38B", align: "center" },
         ],
       },
       { type: "text", text: txt, size: "sm", color: "#525866", wrap: true, gravity: "center" },
@@ -2085,29 +2203,46 @@ async function handleFollow(admin: ReturnType<typeof createAdminClient>, lineUse
     messages: [
       {
         type: "flex",
-        altText: `ยินดีต้อนรับสู่ PERPOS Assistant — ถอดเสียง ${remainMin} นาที · บอทประชุม ${botRemainMin} นาที`,
+        altText: `ยินดีต้อนรับสู่ PERPOS Assistant — เครดิตฟรี ${tokenText}`,
         contents: {
           type: "bubble",
           size: "mega",
           header: {
             type: "box",
             layout: "vertical",
-            backgroundColor: "#4FC1E9",
+            backgroundColor: "#3C3B3D",
             paddingAll: "20px",
             paddingBottom: "16px",
             spacing: "sm",
             contents: [
               {
-                type: "text",
-                text: "PERPOS Assistant",
-                color: "#ffffff",
-                weight: "bold",
-                size: "xl",
+                type: "box",
+                layout: "baseline",
+                spacing: "sm",
+                contents: [
+                  {
+                    type: "text",
+                    text: "PERPOS",
+                    color: "#ffffff",
+                    weight: "bold",
+                    size: "xl",
+                    flex: 0,
+                  },
+                  { type: "text", text: "|", color: "#9CA3AF", size: "xl", flex: 0 },
+                  {
+                    type: "text",
+                    text: "Flow",
+                    color: "#79DCC3",
+                    weight: "bold",
+                    size: "xl",
+                    flex: 0,
+                  },
+                ],
               },
               {
                 type: "text",
-                text: "🎙️ ถอดเสียงประชุม → รายงานการประชุม (PDF)",
-                color: "#E5F6FC",
+                text: "ผู้ช่วย AI ส่วนตัวบน LINE",
+                color: "#CCD1D9",
                 size: "xs",
                 wrap: true,
               },
@@ -2145,16 +2280,9 @@ async function handleFollow(admin: ReturnType<typeof createAdminClient>, lineUse
                       { type: "text", text: giftLabel, size: "xs", color: "#44A38B" },
                       {
                         type: "text",
-                        text: `🎙️ ถอดเสียง ${remainMin} นาที`,
+                        text: tokenText,
                         weight: "bold",
-                        size: "md",
-                        color: "#428B79",
-                      },
-                      {
-                        type: "text",
-                        text: `🤖 บอทเข้าประชุม ${botRemainMin} นาที`,
-                        weight: "bold",
-                        size: "md",
+                        size: "xl",
                         color: "#428B79",
                       },
                     ],
@@ -2190,15 +2318,35 @@ async function handleFollow(admin: ReturnType<typeof createAdminClient>, lineUse
             paddingTop: "8px",
             contents: [
               {
-                type: "button",
-                style: "primary",
-                color: "#4FC1E9",
-                height: "md",
-                action: { type: "message", label: "🎙️ เริ่มถอดเสียงเลย", text: "/mom" },
+                type: "box",
+                layout: "vertical",
+                backgroundColor: "#F5F7FA",
+                cornerRadius: "10px",
+                paddingAll: "14px",
+                contents: [
+                  {
+                    type: "text",
+                    text: "📎 โยนไฟล์เข้ามาในแชตนี้ได้เลย",
+                    size: "sm",
+                    weight: "bold",
+                    color: "#3C3B3D",
+                    align: "center",
+                    wrap: true,
+                  },
+                  {
+                    type: "text",
+                    text: "ไฟล์เสียง · วิดีโอ · PDF หรือวางลิงก์ประชุม",
+                    size: "xs",
+                    color: "#656D78",
+                    align: "center",
+                    wrap: true,
+                    margin: "xs",
+                  },
+                ],
               },
               {
                 type: "text",
-                text: "รองรับไฟล์เสียง/วิดีโอ ไม่เกิน 200MB",
+                text: "รองรับไฟล์เสียง/วิดีโอ ได้สูงสุด 500MB",
                 size: "xxs",
                 color: "#9ca3af",
                 align: "center",
@@ -2207,6 +2355,7 @@ async function handleFollow(admin: ReturnType<typeof createAdminClient>, lineUse
           },
         },
       },
+      buildFeaturesCarousel(),
     ],
   }).catch(() => undefined);
 }
