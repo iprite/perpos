@@ -111,7 +111,7 @@ export async function POST(req: NextRequest) {
   }
 
   const fileName = String(job.file_name ?? "document.pdf");
-  const dlName = fileName.replace(/\.pdf$/i, "") + "-compressed.pdf";
+  const dlName = fileName.replace(/\.pdf$/i, "") + "-CompressedbyFlow.pdf";
   const { data: signed, error: signErr } = await admin.storage
     .from(BUCKET)
     .createSignedUrl(meta.output_path, 48 * 60 * 60, { download: dlName });
