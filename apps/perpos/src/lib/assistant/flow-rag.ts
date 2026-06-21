@@ -180,13 +180,30 @@ function nameInstruction(name: string): string {
   );
 }
 
+/** system part เสริมต่อ request — บอกยอด token คงเหลือ (ทุก user ได้เครดิตฟรีตอนแอด) */
+function tokenInstruction(balance: number): string {
+  const text = `${balance.toLocaleString("th-TH")} token`;
+  return (
+    `ตอนนี้ผู้ใช้มีเครดิตคงเหลือ ${text} (1 บาท = 100 token; ทุกคนได้เครดิตฟรีตั้งแต่เริ่มใช้งาน) ` +
+    `เมื่อผู้ใช้ถามเรื่องราคา/ค่าบริการ/การเริ่มใช้ฟรี หรือชวนให้ลองใช้งาน ให้บอกยอดคงเหลือนี้ด้วยอย่างเป็นธรรมชาติ ` +
+    `(เช่น "ตอนนี้คุณมีเครดิตอยู่ ${text} ลองส่งไฟล์เข้ามาได้เลย") · ` +
+    `ห้ามแต่งตัวเลขเอง ใช้ยอดนี้เท่านั้น และไม่ต้องพูดถึงทุกข้อความถ้าไม่เกี่ยวกับการเริ่มใช้/ราคา`
+  );
+}
+
 const LINE_TEXT_LIMIT = 4900; // LINE จำกัด 5000 ตัวอักษร/ข้อความ — เผื่อ buffer (กัน replyLine โดน 400 เงียบ)
+
+type FlowAnswerOpts = {
+  displayName?: string | null;
+  /** ยอด token คงเหลือ (null = ยังไม่มีบัญชี/ไม่ทราบ → ไม่บอกยอด) */
+  tokenBalance?: number | null;
+};
 
 /** ตอบคำถามลูกค้าด้วย RAG — คืนข้อความพร้อมส่งกลับ LINE (plain text) */
 export async function answerFlowQuestion(
   admin: Admin,
   query: string,
-  displayName?: string | null,
+  opts: FlowAnswerOpts = {},
 ): Promise<string> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
@@ -197,9 +214,11 @@ export async function answerFlowQuestion(
     const ctx = await retrieveContext(admin, query, apiKey);
     if (ctx.length === 0) return FALLBACK_NO_CONTEXT;
 
-    const name = usableName(displayName);
+    const name = usableName(opts.displayName);
     const systemParts = [{ text: SYSTEM_INSTRUCTION }];
     if (name) systemParts.push({ text: nameInstruction(name) });
+    if (typeof opts.tokenBalance === "number")
+      systemParts.push({ text: tokenInstruction(opts.tokenBalance) });
 
     const res = await geminiFetch(`${GEMINI_BASE}/${ANSWER_MODEL}:generateContent?key=${apiKey}`, {
       systemInstruction: { parts: systemParts },
