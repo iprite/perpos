@@ -331,7 +331,9 @@ Endpoint: `POST /api/assistant/scheduler`
 - หน้า **ping/health สด** (เช่น `/admin/system`) → คง client (SSR จะ block รอ network)
 - หน้า **CRUD หนัก** (มี mutation/dialog เยอะ เช่น tmc/finance, crm) → คง client, แปลง **opportunistic** ตอน touch เท่านั้น (ROI ต่ำ, risk สูง)
 
-**สถานะปัจจุบัน (compliance):** loading.tsx + AuthGuard-shell ครอบทุกหน้าแล้ว · SSR แล้ว: accounting (เดิม), admin dashboard/payments/stt-billing/scheduler/admin-audit/health/stt-cost, tmc dashboard · exempt: system, หน้า CRUD
+**สถานะปัจจุบัน (compliance):** loading.tsx + AuthGuard-shell ครอบทุกหน้าแล้ว · SSR แล้ว: accounting (เดิม), admin dashboard/payments/stt-billing/scheduler/admin-audit/health/stt-cost, tmc dashboard, **ผู้ช่วย AI (Flow) ทั้งร่ม `/assistant/*` — usage (full SSR), billing/meetings/transcribe-หน้าแรก (hybrid: SSR initial → client poll/mutation)** · exempt: system, หน้า CRUD
+
+> หมายเหตุ assistant SSR: guard ฝั่งหน้า = `requireAssistantPage()` ([lib/assistant/page-guard.ts](apps/perpos/src/lib/assistant/page-guard.ts), cookies) คู่กับ API guard `requireAssistantUser` — ทั้งคู่เรียก `resolveAssistantAccess`/`resolveHomeOrg` ตัวเดียวกันใน [lib/assistant/access.ts](apps/perpos/src/lib/assistant/access.ts) · fetch logic แยกไป `lib/assistant/{stats,jobs,meetings,autotopup}.ts` (reuse กับ API route เดิม)
 
 **Verify ก่อน merge:** `tsc --noEmit`=0 · `pnpm lint` clean · หน้า render เหมือนเดิม (screenshot) · ไม่มี client fetch เดิมหลัง SSR (network) — checklist เต็มใน [คัมภีร์](docs/SERVER_COMPONENT_PATTERN.md)
 
