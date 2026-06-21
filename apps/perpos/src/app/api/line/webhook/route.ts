@@ -1908,6 +1908,7 @@ async function handlePdfConfirm(
   admin: ReturnType<typeof createAdminClient>,
   lineUserId: string,
   messageId: string,
+  fileName: string,
   replyToken: string,
 ) {
   if (!messageId) return;
@@ -1925,7 +1926,8 @@ async function handlePdfConfirm(
     await replyText(replyToken, "❌ ยังไม่ได้เลือกองค์กร พิมพ์ /org เพื่อเลือกองค์กรก่อน");
     return;
   }
-  await handlePdfFile(admin, lineUserId, messageId, profile.id, activeOrg.id, "", replyToken);
+  // ส่งชื่อไฟล์เดิม (จาก postback) → ใช้เป็นชื่อ output แทน document-<ts>
+  await handlePdfFile(admin, lineUserId, messageId, profile.id, activeOrg.id, fileName, replyToken);
 }
 
 // ผู้ใช้กดปุ่ม "บีบแบบเข้ม" จาก Flex ผลลัพธ์ pass 1 (vector-heavy, บีบปกติได้น้อย)
@@ -3112,7 +3114,12 @@ export async function POST(req: NextRequest) {
           "รับทราบครับ — หากต้องการถอดเสียงภายหลัง ส่งไฟล์เสียงเข้ามาใหม่ได้เลย 🙏",
         );
       } else if (pbUserId && pbData.startsWith("pdffile:")) {
-        await handlePdfConfirm(admin, pbUserId, pbData.slice("pdffile:".length), pbReplyToken);
+        // data = "pdffile:<messageId>[:<fileName>]" — messageId เป็นตัวเลข (ไม่มี :) แยกที่ : ตัวแรก
+        const rest = pbData.slice("pdffile:".length);
+        const sep = rest.indexOf(":");
+        const pdfMsgId = sep >= 0 ? rest.slice(0, sep) : rest;
+        const pdfFileName = sep >= 0 ? rest.slice(sep + 1) : "";
+        await handlePdfConfirm(admin, pbUserId, pdfMsgId, pdfFileName, pbReplyToken);
       } else if (pbUserId && pbData.startsWith("pdfraster:")) {
         await handlePdfRasterConfirm(
           admin,
@@ -3330,7 +3337,12 @@ export async function POST(req: NextRequest) {
                     action: {
                       type: "postback",
                       label: "บีบขนาดเลย",
-                      data: `pdffile:${messageId}`,
+                      // ฝากชื่อไฟล์เดิมไปด้วย (กดยืนยันแล้วจะได้ใช้ชื่อจริง ไม่ใช่ document-<ts>)
+                      //   LINE จำกัด data 300 ตัวอักษร — ยาวเกินค่อย fallback เป็น messageId อย่างเดียว
+                      data:
+                        `pdffile:${messageId}:${fileName}`.length <= 300
+                          ? `pdffile:${messageId}:${fileName}`
+                          : `pdffile:${messageId}`,
                       displayText: "บีบไฟล์นี้",
                     },
                   },
