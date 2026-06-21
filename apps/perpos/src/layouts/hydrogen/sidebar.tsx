@@ -32,6 +32,7 @@ export default function Sidebar({
   const bizOrgs = organizations.filter((o) => !isPersonalOrg(o));
   const showOrgSwitcher = bizOrgs.length > 1 && !HIDE_ORG_SWITCHER_SEGMENTS.has(firstSegment);
   const inBizContext = !!firstSegment && !NON_BIZ_SEGMENTS.has(firstSegment);
+  const activeBiz = bizOrgs.find((o) => o.id === activeOrganizationId) ?? bizOrgs[0];
 
   // wordmark suffix ตามบริบท — Admin / Flow (assistant) / Suite (biz default)
   const brand =
@@ -64,6 +65,13 @@ export default function Sidebar({
           </span>
         </Link>
 
+        {/* ชื่อองค์กรที่ใช้งานอยู่ — เฉพาะบริบท Suite (ERP) */}
+        {inBizContext && activeBiz && (
+          <p className="truncate px-6 pb-3 text-center text-sm font-medium text-gray-700 2xl:px-8">
+            {activeBiz.name}
+          </p>
+        )}
+
         {/* context toggle (Admin / Suite / Flow) — บนสุดใต้โลโก้ */}
         <div className="flex items-center justify-center px-4 2xl:px-6">
           <ContextToggle
@@ -80,7 +88,10 @@ export default function Sidebar({
       {/* org + module switcher — ย้ายลงมาด้านล่าง (ที่เดิมของ pill) */}
       {inBizContext && (
         <div className="shrink-0 border-t border-gray-100 pt-3 dark:border-gray-200/10">
-          {/* org switcher — ซ่อนเมื่ออยู่ใน assistant / admin context */}
+          {/* module switcher — บน */}
+          <SidebarModuleSwitcher />
+
+          {/* org switcher — ล่าง · ซ่อนเมื่ออยู่ใน assistant / admin context */}
           {showOrgSwitcher && (
             <div className="px-4 pb-3 2xl:px-6">
               <OrgSwitcher
@@ -89,8 +100,6 @@ export default function Sidebar({
               />
             </div>
           )}
-
-          <SidebarModuleSwitcher />
         </div>
       )}
 
