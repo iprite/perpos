@@ -31,7 +31,6 @@ import {
   Copy,
   Check,
   Download,
-  AlertCircle,
   Play,
   Sparkles,
   Clock,
@@ -165,7 +164,6 @@ export default function TranscribeView({
 
   const [profileId, setProfileId] = useState("");
   const [token, setToken] = useState("");
-  const [error, setError] = useState<string | null>(null);
 
   const [jobs, setJobs] = useState<Job[]>(initialJobs);
 
@@ -221,17 +219,16 @@ export default function TranscribeView({
   // + refresh เงียบ ๆ (ไม่ตั้ง loading → ไม่ flash skeleton ทับข้อมูล SSR)
   const init = useCallback(async () => {
     try {
-      setError(null);
       const { data: sess } = await supabase.auth.getSession();
       const accessToken = sess.session?.access_token;
       const uid = sess.session?.user?.id;
-      if (!accessToken || !uid) throw new Error("กรุณาเข้าสู่ระบบใหม่");
-
+      if (!accessToken || !uid) return; // guard ฝั่ง server การันตี auth แล้ว — เงียบไว้ ไม่ทับข้อมูล SSR
       setProfileId(uid);
       setToken(accessToken);
       await Promise.all([fetchJobs(accessToken), fetchQuota(accessToken)]);
-    } catch (e: any) {
-      setError(e?.message ?? "โหลดข้อมูลไม่สำเร็จ");
+    } catch (e) {
+      // background refresh ล้มเหลว — คงข้อมูล SSR ไว้ ไม่ขึ้น error ทับ
+      console.error(e);
     }
   }, [supabase, fetchJobs, fetchQuota]);
 
@@ -619,11 +616,7 @@ export default function TranscribeView({
             </span>
           </div>
 
-          {error ? (
-            <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-              <AlertCircle className="h-4 w-4" /> {error}
-            </div>
-          ) : jobs.length === 0 ? (
+          {jobs.length === 0 ? (
             <div className="flex flex-col items-center justify-center rounded-2xl border border-gray-100 bg-white py-16 text-center">
               <div className="mb-4 rounded-full bg-gray-100 p-4">
                 <Mic className="h-8 w-8 text-gray-400" />
