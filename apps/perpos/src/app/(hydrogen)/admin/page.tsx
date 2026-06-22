@@ -3,21 +3,20 @@ import {
   Building2,
   Activity,
   Webhook,
-  AlertTriangle,
   CheckCircle,
   TrendingUp,
-  CreditCard,
-  Wrench,
   Clock,
   LayoutDashboard,
 } from "lucide-react";
 import Link from "next/link";
 import { requireSuperAdminPage } from "@/lib/admin/guard";
 import { computeAdminDashboard } from "@/lib/admin/dashboard";
+import { computeAdminInbox } from "@/lib/admin/inbox";
 import { PLAN_LABELS, PLAN_COLORS, type PlanTier } from "@/lib/billing";
 import { StatCard, type StatTone } from "@/components/ui/stat-card";
 import { PageCard } from "@/components/ui/page-shell";
 import { OrgLink } from "@/components/admin/org-link";
+import { InboxCard } from "@/components/admin/inbox-card";
 import { AdminPage } from "./_components/admin-page";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -46,8 +45,8 @@ function fmtDate(s: string) {
 
 export default async function AdminDashboardPage() {
   const admin = await requireSuperAdminPage();
-  const data = await computeAdminDashboard(admin);
-  const { users, orgs, billing, api, webhooks, health_grades, attention_orgs, recent_orgs } = data;
+  const [data, inbox] = await Promise.all([computeAdminDashboard(admin), computeAdminInbox(admin)]);
+  const { users, orgs, billing, api, webhooks, health_grades, recent_orgs } = data;
 
   const apiTone: StatTone =
     api.error_rate_pct > 5 ? "negative" : api.error_rate_pct > 1 ? "warning" : "info";
@@ -60,30 +59,6 @@ export default async function AdminDashboardPage() {
       icon={<LayoutDashboard className="h-6 w-6" />}
       description={`อัปเดต ${new Date(data.computed_at).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" })}`}
     >
-      {/* Attention banner */}
-      {(billing.expired > 0 || billing.overdue > 0 || orgs.maintenance > 0) && (
-        <div className="flex flex-wrap gap-3">
-          {billing.expired > 0 && (
-            <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-700">
-              <AlertTriangle className="h-4 w-4 flex-shrink-0" />
-              {billing.expired} org plan หมดอายุ
-            </div>
-          )}
-          {billing.overdue > 0 && (
-            <div className="flex items-center gap-2 rounded-lg border border-orange-200 bg-orange-50 px-4 py-2.5 text-sm text-orange-700">
-              <CreditCard className="h-4 w-4 flex-shrink-0" />
-              {billing.overdue} org ค้างชำระ
-            </div>
-          )}
-          {orgs.maintenance > 0 && (
-            <div className="flex items-center gap-2 rounded-lg border border-yellow-200 bg-yellow-50 px-4 py-2.5 text-sm text-yellow-700">
-              <Wrench className="h-4 w-4 flex-shrink-0" />
-              {orgs.maintenance} org อยู่ใน Maintenance Mode
-            </div>
-          )}
-        </div>
-      )}
-
       {/* Top stat cards */}
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
         <StatCard
@@ -226,41 +201,10 @@ export default async function AdminDashboardPage() {
         </PageCard>
       </div>
 
-      {/* Bottom row: Attention orgs + Recent orgs */}
+      {/* Bottom row: Action Inbox + Recent orgs */}
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        {/* Needs attention */}
-        <PageCard title={"ต้องดูแล"}>
-          {attention_orgs.length === 0 ? (
-            <div className="flex items-center gap-2 text-sm text-green-600">
-              <CheckCircle className="h-4 w-4" /> ทุก org ปกติดี
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {attention_orgs.map((o) => (
-                <div
-                  key={o.org_id}
-                  className="flex items-center justify-between border-b border-gray-100 py-1.5 last:border-0"
-                >
-                  <OrgLink orgId={o.org_id} className="text-sm text-gray-800">
-                    {o.org_name}
-                  </OrgLink>
-                  <div className="flex gap-1.5">
-                    {o.expired && (
-                      <span className="rounded-full border border-red-200 bg-red-50 px-2.5 py-0.5 text-xs font-medium text-red-700">
-                        หมดอายุ
-                      </span>
-                    )}
-                    {o.overdue && (
-                      <span className="rounded-full border border-orange-200 bg-orange-50 px-2.5 py-0.5 text-xs font-medium text-orange-700">
-                        ค้างชำระ
-                      </span>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </PageCard>
+        {/* Action Inbox — งานที่ต้องลงมือ (แทน banner เดิม) */}
+        <InboxCard items={inbox} />
 
         {/* Recent orgs */}
         <PageCard title={"Org ใหม่ล่าสุด"}>

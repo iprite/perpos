@@ -23,7 +23,6 @@ export interface DashboardData {
   api: { requests_24h: number; errors_24h: number; error_rate_pct: number };
   webhooks: { deliveries_7d: number; failed_7d: number; fail_rate_pct: number };
   health_grades: Record<string, number>;
-  attention_orgs: { org_id: string; org_name: string; expired: boolean; overdue: boolean }[];
   recent_orgs: { id: string; name: string; created_at: string }[];
 }
 
@@ -155,23 +154,7 @@ export async function computeAdminDashboard(admin: SupabaseClient): Promise<Dash
     gradeCounts[grade(Math.max(0, score))]++;
   }
 
-  // ── Orgs needing attention (expired or overdue) ───────────────────────────
-  const attentionOrgs = (orgs ?? [])
-    .map((org) => {
-      const o = org as { id: string; name: string };
-      const b = billByOrg[o.id];
-      const tier: PlanTier = (b?.plan_tier as PlanTier) ?? "free";
-      const row: OrgBillingRow = {
-        plan_tier: tier,
-        plan_ends_at: b?.plan_ends_at as string,
-        trial_ends_at: b?.trial_ends_at as string,
-      };
-      const expired = isPlanExpired(row);
-      const overdue = b?.payment_status === "overdue";
-      return { org_id: o.id, org_name: o.name, expired, overdue };
-    })
-    .filter((o) => o.expired || o.overdue)
-    .slice(0, 10);
+  // หมายเหตุ: รายการ "ต้องลงมือ" ย้ายไป Action Inbox (lib/admin/inbox.ts) แล้ว
 
   return {
     computed_at: new Date().toISOString(),
@@ -190,7 +173,6 @@ export async function computeAdminDashboard(admin: SupabaseClient): Promise<Dash
       fail_rate_pct: webhookFailRate,
     },
     health_grades: gradeCounts,
-    attention_orgs: attentionOrgs,
     recent_orgs: (recentOrgs ?? [])
       .filter((o) => !personalOrgIds.has((o as { id: string }).id))
       .slice(0, 5)
