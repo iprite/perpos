@@ -19,6 +19,8 @@ import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog";
 import { ChevronDown, ChevronRight, Pencil, CreditCard } from "lucide-react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { toast } from "@/lib/toast";
+import { useRowSelection } from "@/lib/use-row-selection";
+import { BulkActionBar } from "@/components/ui/bulk-action-bar";
 import { AdminPage } from "../_components/admin-page";
 import { PaymentsTabs } from "../payments/_tabs";
 
@@ -398,6 +400,38 @@ export default function AdminBillingPage() {
   const [cancelErr, setCancelErr] = useState<Record<string, string>>({});
   const [cancelInfo, setCancelInfo] = useState<Record<string, string>>({});
 
+  // เลือกหลายองค์กร (bulk actions)
+  const sel = useRowSelection();
+  const [bulkBusy, setBulkBusy] = useState(false);
+
+  async function bulkExtendTrial() {
+    setBulkBusy(true);
+    let ok = 0;
+    let fail = 0;
+    for (const orgId of sel.ids) {
+      const org = orgs.find((o) => o.org_id === orgId);
+      const base = org?.trial_ends_at ? new Date(org.trial_ends_at) : new Date();
+      const start = base.getTime() > Date.now() ? base : new Date();
+      const trialEndsAt = new Date(start.getTime() + 30 * 86_400_000).toISOString().slice(0, 10);
+      try {
+        const res = await fetch("/api/admin/billing", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ orgId, trialEndsAt }),
+        });
+        if (res.ok) ok++;
+        else fail++;
+      } catch {
+        fail++;
+      }
+    }
+    setBulkBusy(false);
+    sel.clear();
+    await load();
+    if (fail === 0) toast.success(`ต่อทดลอง +30 วัน ${ok} องค์กรแล้ว`);
+    else toast.error(`สำเร็จ ${ok} · ล้มเหลว ${fail}`);
+  }
+
   const load = useCallback(async () => {
     setLoading(true);
     setError("");
@@ -543,7 +577,13 @@ export default function AdminBillingPage() {
             return (
               <div
                 key={o.org_id}
-                className={`overflow-hidden rounded-xl border ${o.is_expired ? "border-red-200" : "border-gray-200"}`}
+                className={`overflow-hidden rounded-xl border ${
+                  sel.isSelected(o.org_id)
+                    ? "border-primary ring-1 ring-primary"
+                    : o.is_expired
+                      ? "border-red-200"
+                      : "border-gray-200"
+                }`}
               >
                 <div
                   role="button"
@@ -557,6 +597,14 @@ export default function AdminBillingPage() {
                   }}
                   className="flex w-full cursor-pointer items-center gap-4 px-5 py-3.5 text-left hover:bg-gray-50"
                 >
+                  <input
+                    type="checkbox"
+                    checked={sel.isSelected(o.org_id)}
+                    onClick={(e) => e.stopPropagation()}
+                    onChange={() => sel.toggle(o.org_id)}
+                    title="เลือกองค์กร"
+                    className="h-4 w-4 shrink-0 cursor-pointer rounded border-gray-300 accent-blue-600"
+                  />
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="text-sm font-semibold text-gray-900">{o.org_name}</span>
@@ -703,6 +751,14 @@ export default function AdminBillingPage() {
           }}
           onClose={() => setEditing(null)}
         />
+      )}
+
+      {sel.count > 0 && (
+        <BulkActionBar count={sel.count} onClear={sel.clear}>
+          <Button size="sm" disabled={bulkBusy} onClick={() => void bulkExtendTrial()}>
+            {bulkBusy ? "กำลังต่อ…" : "ต่อทดลอง +30 วัน"}
+          </Button>
+        </BulkActionBar>
       )}
     </AdminPage>
   );
