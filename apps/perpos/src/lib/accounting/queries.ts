@@ -1,6 +1,8 @@
+import { cache } from "react";
 import { cookies } from "next/headers";
 
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getAuthUser } from "@/lib/supabase/auth-user";
 
 export type OrganizationSummary = {
   id: string;
@@ -9,16 +11,14 @@ export type OrganizationSummary = {
   role: "owner" | "admin" | "team_lead" | "team_member";
 };
 
-// NOTE: ไม่ใช้ React cache() เพื่อป้องกัน cross-request cache pollution
-// เมื่อ test หลาย account — Next.js จะ deduplicate ได้เองภายใน render tree
-// เดียวกันผ่าน concurrent request coalescing
-export async function getOrganizationsForCurrentUser(): Promise<OrganizationSummary[]> {
-  // Use user-level client only for auth (to get the current user's UID)
-  const supabase = await createSupabaseServerClient();
-  const { data: userRes, error: userErr } = await supabase.auth.getUser();
-  if (userErr || !userRes.user) return [];
+// cache() = dedupe ต่อ request (scope ต่อ render pass, ไม่ leak ข้าม request) —
+// HydrogenLayout เรียกฟังก์ชันนี้ 2 รอบ (ตรง ๆ + ผ่าน getActiveOrganizationId) → query ซ้ำ
+export const getOrganizationsForCurrentUser = cache(async (): Promise<OrganizationSummary[]> => {
+  // getAuthUser() = getUser() ที่ dedupe ต่อ request เช่นกัน
+  const user = await getAuthUser();
+  if (!user) return [];
 
-  const uid = userRes.user.id;
+  const uid = user.id;
 
   // Use admin client to bypass RLS
   const { createSupabaseAdminClient } = await import("@/lib/supabase/admin");
@@ -38,9 +38,7 @@ export async function getOrganizationsForCurrentUser(): Promise<OrganizationSumm
       .from("profiles")
       .select("personal_org_id")
       .not("personal_org_id", "is", null);
-    const personalOrgIds = new Set(
-      (personalRows ?? []).map((r: any) => String(r.personal_org_id)),
-    );
+    const personalOrgIds = new Set((personalRows ?? []).map((r: any) => String(r.personal_org_id)));
 
     const { data: allOrgs, error: orgsErr } = await adminClient
       .from("organizations")
@@ -50,11 +48,11 @@ export async function getOrganizationsForCurrentUser(): Promise<OrganizationSumm
     return (allOrgs as any[])
       .filter((o) => !personalOrgIds.has(String(o.id)))
       .map((o) => ({
-      id:   String(o.id),
-      name: String(o.name),
-      slug: String(o.slug ?? o.id),
-      role: "admin" as OrganizationSummary["role"],
-    }));
+        id: String(o.id),
+        name: String(o.name),
+        slug: String(o.slug ?? o.id),
+        role: "admin" as OrganizationSummary["role"],
+      }));
   }
 
   // Regular users — only orgs they are a member of
@@ -65,7 +63,10 @@ export async function getOrganizationsForCurrentUser(): Promise<OrganizationSumm
   if (memErr || !memberships?.length) return [];
 
   const orgIds = Array.from(new Set(memberships.map((m: any) => String(m.organization_id))));
-  const { data: orgs, error: orgErr } = await adminClient.from("organizations").select("id,name,slug").in("id", orgIds);
+  const { data: orgs, error: orgErr } = await adminClient
+    .from("organizations")
+    .select("id,name,slug")
+    .in("id", orgIds);
   if (orgErr || !orgs?.length) return [];
 
   const roleByOrg = new Map<string, OrganizationSummary["role"]>();
@@ -75,13 +76,13 @@ export async function getOrganizationsForCurrentUser(): Promise<OrganizationSumm
 
   return (orgs as any[])
     .map((o) => ({
-      id:   String(o.id),
+      id: String(o.id),
       name: String(o.name),
       slug: String(o.slug ?? o.id),
       role: roleByOrg.get(String(o.id)) ?? "team_member",
     }))
     .sort((a, b) => a.name.localeCompare(b.name, "th"));
-}
+});
 
 export async function getActiveOrganizationId(): Promise<string | null> {
   const cookieStore = await cookies();
@@ -113,9 +114,8 @@ export async function getModuleRoleForCurrentUser(
   orgId: string,
   moduleKey: string,
 ): Promise<string | null> {
-  const supabase = await createSupabaseServerClient();
-  const { data: userRes } = await supabase.auth.getUser();
-  if (!userRes.user) return null;
+  const user = await getAuthUser();
+  if (!user) return null;
 
   const { createSupabaseAdminClient } = await import("@/lib/supabase/admin");
   const admin = createSupabaseAdminClient();
@@ -124,7 +124,7 @@ export async function getModuleRoleForCurrentUser(
   const { data: profile } = await admin
     .from("profiles")
     .select("role")
-    .eq("id", userRes.user.id)
+    .eq("id", user.id)
     .maybeSingle();
   if ((profile as any)?.role === "super_admin") return "owner";
 
@@ -133,7 +133,7 @@ export async function getModuleRoleForCurrentUser(
     .select("module_role")
     .eq("org_id", orgId)
     .eq("module_key", moduleKey)
-    .eq("user_id", userRes.user.id)
+    .eq("user_id", user.id)
     .eq("is_active", true)
     .maybeSingle();
 
@@ -165,9 +165,7 @@ export async function getModuleMenuLabels(
 
 /** Returns the current authenticated user's ID, or null if not signed in. Server-only. */
 export async function getCurrentUserId(): Promise<string | null> {
-  const supabase = await createSupabaseServerClient();
-  const { data } = await supabase.auth.getUser();
-  return data.user?.id ?? null;
+  return (await getAuthUser())?.id ?? null;
 }
 
 /** Returns personal module keys for a user — only if grant is_enabled AND user has LINE connected. */
