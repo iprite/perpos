@@ -8,11 +8,7 @@ type OAuthStatePayload = {
 
 function base64UrlEncode(input: Buffer | string) {
   const buf = Buffer.isBuffer(input) ? input : Buffer.from(input, "utf8");
-  return buf
-    .toString("base64")
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=+$/g, "");
+  return buf.toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
 }
 
 function base64UrlDecodeToString(input: string) {
@@ -44,12 +40,29 @@ const GOOGLE_SCOPES = [
   "https://www.googleapis.com/auth/calendar.events",
 ].join(" ");
 
+/**
+ * redirect_uri ต้อง **ตรงกันเป๊ะ** ระหว่างตอนขอ consent (connect) กับตอนแลก token (callback)
+ * มิฉะนั้น Google ตอบ redirect_uri_mismatch (400). ตอน callback Google เด้งกลับแบบ top-level
+ * navigation ซึ่งไม่มี Origin header → ห้ามพึ่ง request origin. จึง pin จาก env canonical:
+ *   1) GOOGLE_OAUTH_DRIVE_REDIRECT_URI (explicit, ชนะทุกอย่าง)
+ *   2) APP_BASE_URL (= https://app.perpos.ai) — ค่าหลักที่ใช้ทั้งแอป
+ *   3) request origin (fallback สุดท้าย สำหรับ dev/local)
+ */
+export function resolveDriveRedirectUri(origin: string): string {
+  const explicit = String(process.env.GOOGLE_OAUTH_DRIVE_REDIRECT_URI ?? "").trim();
+  if (explicit) return explicit;
+  const base = String(process.env.APP_BASE_URL ?? "")
+    .trim()
+    .replace(/\/$/, "");
+  if (base) return `${base}/api/google-drive/callback`;
+  return `${origin}/api/google-drive/callback`;
+}
+
 /** สร้าง Google OAuth consent URL (offline + consent → ได้ refresh_token) — Drive + Calendar */
 export function buildGoogleConnectUrl(profileId: string, origin: string): string {
   const clientId = String(process.env.GOOGLE_OAUTH_CLIENT_ID ?? "").trim();
   if (!clientId) throw new Error("Google OAuth not configured");
-  const explicit = String(process.env.GOOGLE_OAUTH_DRIVE_REDIRECT_URI ?? "").trim();
-  const redirectUri = explicit || `${origin}/api/google-drive/callback`;
+  const redirectUri = resolveDriveRedirectUri(origin);
 
   const url = new URL("https://accounts.google.com/o/oauth2/v2/auth");
   url.searchParams.set("client_id", clientId);
@@ -81,4 +94,3 @@ export function verifySignedOAuthState(state: string) {
   if (ageMs < 0 || ageMs > 10 * 60 * 1000) throw new Error("State expired");
   return payload;
 }
-
