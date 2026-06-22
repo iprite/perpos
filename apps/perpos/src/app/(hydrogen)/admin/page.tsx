@@ -79,6 +79,19 @@ export default async function AdminDashboardPage() {
           value={fmtNum(api.requests_24h)}
           sub={`${api.error_rate_pct}% error rate`}
           tone={apiTone}
+          delta={
+            api.requests_delta_pct === null
+              ? undefined
+              : {
+                  label: `${api.requests_delta_pct >= 0 ? "+" : "−"}${Math.abs(api.requests_delta_pct)}%`,
+                  direction:
+                    api.requests_delta_pct > 0
+                      ? "up"
+                      : api.requests_delta_pct < 0
+                        ? "down"
+                        : "flat",
+                }
+          }
         />
         <StatCard
           icon={<Webhook className="h-4 w-4" />}

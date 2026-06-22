@@ -21,7 +21,13 @@ export interface DashboardData {
   users: { total: number; active: number; line_linked: number; super_admins: number };
   orgs: { total: number; maintenance: number };
   billing: { tier_counts: Record<string, number>; expired: number; overdue: number };
-  api: { requests_24h: number; errors_24h: number; error_rate_pct: number };
+  api: {
+    requests_24h: number;
+    errors_24h: number;
+    error_rate_pct: number;
+    /** Δ% เทียบ 24 ชม.ก่อนหน้า (null = ไม่มีข้อมูลงวดก่อน) */
+    requests_delta_pct: number | null;
+  };
   webhooks: { deliveries_7d: number; failed_7d: number; fail_rate_pct: number };
   health_grades: Record<string, number>;
   recent_orgs: { id: string; name: string; created_at: string }[];
@@ -39,6 +45,7 @@ function grade(score: number): "A" | "B" | "C" | "D" | "F" {
 export async function computeAdminDashboard(admin: SupabaseClient): Promise<DashboardData> {
   const since24h = new Date(Date.now() - 24 * 3_600_000).toISOString();
   const since7d = new Date(Date.now() - 7 * 86_400_000).toISOString();
+  const prev24hStart = new Date(Date.now() - 48 * 3_600_000).toISOString();
   const sttStuckBefore = new Date(Date.now() - STT_STUCK_MINUTES * 60_000).toISOString();
 
   const [
@@ -49,6 +56,7 @@ export async function computeAdminDashboard(admin: SupabaseClient): Promise<Dash
     { data: webhooks7d },
     { data: recentOrgs },
     { count: stuckSttCount },
+    { count: prevDayRequests },
   ] = await Promise.all([
     admin.from("organizations").select("id, name, maintenance_mode, created_at"),
     admin.from("profiles").select("id, role, is_active, line_user_id, created_at, personal_org_id"),
@@ -75,6 +83,12 @@ export async function computeAdminDashboard(admin: SupabaseClient): Promise<Dash
       .select("id", { count: "exact", head: true })
       .eq("status", "processing")
       .lt("created_at", sttStuckBefore),
+    // จำนวน request ของ "24 ชม.ก่อนหน้า" (48–24 ชม.ที่แล้ว) — count head เบา ไว้คิด Δ
+    admin
+      .from("api_request_metrics")
+      .select("id", { count: "exact", head: true })
+      .gte("logged_at", prev24hStart)
+      .lt("logged_at", since24h),
   ]);
 
   // เซ็ต org "พื้นที่ส่วนตัว" (home org ของแต่ละคน) — แหล่งความจริง = profiles.personal_org_id
@@ -124,6 +138,9 @@ export async function computeAdminDashboard(admin: SupabaseClient): Promise<Dash
   const errorRequests = (metrics24h ?? []).filter((m) => Number(m.status_code) >= 500).length;
   const errorRatePct =
     totalRequests > 0 ? Math.round((errorRequests / totalRequests) * 100 * 10) / 10 : 0;
+  const prevReq = prevDayRequests ?? 0;
+  const requestsDeltaPct =
+    prevReq > 0 ? Math.round(((totalRequests - prevReq) / prevReq) * 100) : null;
 
   // Requests by org
   const reqByOrg: Record<string, number> = {};
@@ -187,7 +204,12 @@ export async function computeAdminDashboard(admin: SupabaseClient): Promise<Dash
     },
     orgs: { total: totalOrgs, maintenance: maintenanceOrgs },
     billing: { tier_counts: tierCounts, expired: expiredCount, overdue: overdueCount },
-    api: { requests_24h: totalRequests, errors_24h: errorRequests, error_rate_pct: errorRatePct },
+    api: {
+      requests_24h: totalRequests,
+      errors_24h: errorRequests,
+      error_rate_pct: errorRatePct,
+      requests_delta_pct: requestsDeltaPct,
+    },
     webhooks: {
       deliveries_7d: totalWebhooks,
       failed_7d: failedWebhooks,

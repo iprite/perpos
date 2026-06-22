@@ -136,6 +136,7 @@ export default function AdminSttStatsPage() {
               label="นาทีที่ประมวลผล"
               value={String(s.totals.minutes)}
               tone="warning"
+              spark={s.daily.map((d) => d.minutes)}
             />
             <StatCard
               icon={<BarChart3 className="h-4 w-4" />}
