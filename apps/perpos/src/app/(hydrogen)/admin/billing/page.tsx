@@ -403,6 +403,7 @@ export default function AdminBillingPage() {
   // เลือกหลายองค์กร (bulk actions)
   const sel = useRowSelection();
   const [bulkBusy, setBulkBusy] = useState(false);
+  const [bulkConfirm, setBulkConfirm] = useState(false);
 
   async function bulkExtendTrial() {
     setBulkBusy(true);
@@ -426,6 +427,7 @@ export default function AdminBillingPage() {
       }
     }
     setBulkBusy(false);
+    setBulkConfirm(false);
     sel.clear();
     await load();
     if (fail === 0) toast.success(`ต่อทดลอง +30 วัน ${ok} องค์กรแล้ว`);
@@ -755,11 +757,34 @@ export default function AdminBillingPage() {
 
       {sel.count > 0 && (
         <BulkActionBar count={sel.count} onClear={sel.clear}>
-          <Button size="sm" disabled={bulkBusy} onClick={() => void bulkExtendTrial()}>
-            {bulkBusy ? "กำลังต่อ…" : "ต่อทดลอง +30 วัน"}
+          <Button size="sm" disabled={bulkBusy} onClick={() => setBulkConfirm(true)}>
+            ต่อทดลอง +30 วัน
           </Button>
         </BulkActionBar>
       )}
+
+      <Dialog open={bulkConfirm} onOpenChange={(o) => !bulkBusy && setBulkConfirm(o)}>
+        <DialogContent size="sm">
+          <DialogHeader>
+            <DialogTitle>ต่อทดลอง +30 วัน</DialogTitle>
+          </DialogHeader>
+          <DialogBody>
+            <p className="text-sm text-gray-600">
+              ต่ออายุทดลองอีก 30 วันให้{" "}
+              <span className="font-semibold text-gray-900">{sel.count}</span> องค์กรที่เลือก?
+              (นับต่อจากวันหมดอายุเดิม หรือจากวันนี้ถ้าหมดอายุแล้ว)
+            </p>
+          </DialogBody>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBulkConfirm(false)} disabled={bulkBusy}>
+              ยกเลิก
+            </Button>
+            <Button onClick={() => void bulkExtendTrial()} disabled={bulkBusy}>
+              {bulkBusy ? "กำลังต่อ…" : `ยืนยัน (${sel.count})`}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AdminPage>
   );
 }
