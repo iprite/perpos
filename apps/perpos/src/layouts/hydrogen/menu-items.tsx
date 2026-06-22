@@ -21,7 +21,6 @@ import {
   Webhook,
   ShieldBan,
   CreditCard,
-  HeartPulse,
   TrendingUp,
   Briefcase,
   Kanban,
@@ -38,7 +37,6 @@ import {
   Sparkles,
   Megaphone,
   Settings2,
-  TimerReset,
   Server,
 } from "lucide-react";
 
@@ -52,6 +50,8 @@ export type LinkMenuItem = {
   icon?: React.ReactNode;
   badge?: string;
   roles?: Role[];
+  /** route เพิ่มเติมที่ถือว่าเมนูนี้ active ด้วย (ใช้กับกลุ่มที่ยุบเป็นแท็บ เช่น การเงิน/ระบบ) */
+  activeMatch?: string[];
   dropdownItems?: {
     name: string;
     href: string;
@@ -418,28 +418,11 @@ function buildAdminMenuItems(): MenuItem[] {
       roles: ["super_admin"],
     },
     {
-      name: "Tenant Health",
-      href: "/admin/health",
-      icon: <HeartPulse className="h-5 w-5" />,
-      roles: ["super_admin"],
-    },
-    {
-      name: "Resource Monitor",
-      href: "/admin/resources",
-      icon: <Activity className="h-5 w-5" />,
-      roles: ["super_admin"],
-    },
-    {
-      name: "Scheduler Monitor",
-      href: "/admin/scheduler",
-      icon: <TimerReset className="h-5 w-5" />,
-      roles: ["super_admin"],
-    },
-    {
-      name: "System / Infra",
+      name: "ระบบ & โครงสร้าง",
       href: "/admin/system",
       icon: <Server className="h-5 w-5" />,
       roles: ["super_admin"],
+      activeMatch: ["/admin/health", "/admin/resources", "/admin/scheduler"],
     },
 
     // ── องค์กร & ผู้ใช้ ─────────────────────────────────────────────────────────
@@ -478,16 +461,11 @@ function buildAdminMenuItems(): MenuItem[] {
     // ── การเงิน & บริการ ───────────────────────────────────────────────────────
     { name: "การเงิน & บริการ", roles: ["super_admin"] },
     {
-      name: "Payments & Subscriptions",
-      href: "/admin/payments",
+      name: "การเงิน & บริการ",
+      href: "/admin/finance",
       icon: <Wallet className="h-5 w-5" />,
       roles: ["super_admin"],
-    },
-    {
-      name: "Billing & Plans",
-      href: "/admin/billing",
-      icon: <CreditCard className="h-5 w-5" />,
-      roles: ["super_admin"],
+      activeMatch: ["/admin/payments", "/admin/billing", "/admin/stt-billing", "/admin/tokens"],
     },
     {
       name: "แกะเสียง / MoM",
@@ -496,8 +474,6 @@ function buildAdminMenuItems(): MenuItem[] {
       roles: ["super_admin"],
       dropdownItems: [
         { name: "ภาพรวม & สถิติ", href: "/admin/stt-stats", roles: ["super_admin"] },
-        { name: "เครดิต & แพ็ก (Token)", href: "/admin/tokens", roles: ["super_admin"] },
-        { name: "รายได้ (Billing)", href: "/admin/stt-billing", roles: ["super_admin"] },
         { name: "ต้นทุน Gemini", href: "/admin/stt-cost", roles: ["super_admin"] },
         { name: "งานแกะเสียง (Jobs)", href: "/admin/stt-jobs", roles: ["super_admin"] },
       ],

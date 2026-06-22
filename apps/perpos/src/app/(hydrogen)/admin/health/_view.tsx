@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { AdminPage } from "../_components/admin-page";
+import { AdminTabs, SYSTEM_TABS } from "../_components/admin-tabs";
 import type { OrgHealth, FactorStatus, Grade } from "@/lib/admin/health";
 
 const GRADE_COLOR: Record<Grade, string> = {
@@ -174,8 +175,9 @@ export function HealthView({ initialOrgs }: { initialOrgs: OrgHealth[] }) {
 
   return (
     <AdminPage
-      title="Tenant Health"
+      title="ระบบ & โครงสร้าง"
       icon={<HeartPulse className="h-6 w-6" />}
+      tabs={<AdminTabs items={SYSTEM_TABS} />}
       description={
         <>
           คะแนนสุขภาพของแต่ละ org

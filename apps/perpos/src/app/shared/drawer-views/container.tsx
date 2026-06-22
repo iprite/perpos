@@ -7,7 +7,7 @@ import { usePathname } from "next/navigation";
 import { useDrawer } from "@/app/shared/drawer-views/use-drawer";
 
 export default function GlobalDrawer() {
-  const { isOpen, view, placement, closeDrawer, containerClassName } = useDrawer();
+  const { isOpen, view, placement, closeDrawer, containerClassName, customSize } = useDrawer();
   const pathname = usePathname();
   useEffect(() => {
     closeDrawer();
@@ -19,8 +19,14 @@ export default function GlobalDrawer() {
       isOpen={isOpen}
       onClose={closeDrawer}
       placement={placement}
+      customSize={customSize}
       overlayClassName="dark:bg-opacity-40 dark:backdrop-blur-md"
-      containerClassName={cn("dark:bg-gray-100 min-w-min max-w-[320px]", containerClassName)}
+      containerClassName={cn(
+        "dark:bg-gray-100",
+        // คุมความกว้างด้วย max-w เฉพาะตอนไม่ได้ส่ง customSize (rizzui customSize คุมเอง)
+        customSize ? "" : "min-w-min max-w-[320px]",
+        containerClassName,
+      )}
       className="z-[9999] h-screen"
     >
       {view}

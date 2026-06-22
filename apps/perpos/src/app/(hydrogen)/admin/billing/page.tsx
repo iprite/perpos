@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { CustomSelect } from "@/components/ui/custom-select";
 import { ThaiDatePicker } from "@/components/ui/thai-date-picker";
@@ -19,6 +20,7 @@ import { ChevronDown, ChevronRight, Pencil, CreditCard } from "lucide-react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { toast } from "@/lib/toast";
 import { AdminPage } from "../_components/admin-page";
+import { PaymentsTabs } from "../payments/_tabs";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -326,12 +328,12 @@ function EditDialog({
             {/* Notes */}
             <div>
               <Label>หมายเหตุ (internal)</Label>
-              <textarea
+              <Textarea
                 rows={3}
                 value={form.notes}
                 onChange={(e) => set("notes", e.target.value)}
                 placeholder="ราคาต่อรอง, เงื่อนไขพิเศษ, ประวัติการชำระ…"
-                className="mt-1 w-full resize-none rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="mt-1"
               />
             </div>
 
@@ -519,9 +521,10 @@ export default function AdminBillingPage() {
   return (
     <AdminPage
       width="wide"
-      title="Payments & Subscriptions"
+      title="การเงิน & บริการ"
       icon={<CreditCard className="h-6 w-6" />}
-      description="จัดการราคา, สถานะการชำระ และ subscription ของแต่ละ org"
+      description="ราคา, สถานะการชำระ และ subscription ของแต่ละองค์กร (B2B)"
+      tabs={<PaymentsTabs />}
     >
       {error && (
         <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">

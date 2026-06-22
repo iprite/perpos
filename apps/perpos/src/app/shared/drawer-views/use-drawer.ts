@@ -9,6 +9,8 @@ type DrawerTypes = {
   isOpen: boolean;
   placement?: DrawerPlacements;
   containerClassName?: string;
+  /** ความกว้าง panel (px) — ใช้ rizzui customSize เพื่อกำหนดความกว้างจริง (ไม่ใช่แค่ max-w cap) */
+  customSize?: number;
 };
 
 const drawerAtom = atom<DrawerTypes>({
@@ -16,6 +18,7 @@ const drawerAtom = atom<DrawerTypes>({
   view: null,
   placement: "right",
   containerClassName: "",
+  customSize: undefined,
 });
 
 export function useDrawer() {
@@ -25,10 +28,12 @@ export function useDrawer() {
     view,
     placement,
     containerClassName,
+    customSize,
   }: {
     view: React.ReactNode;
     placement: DrawerPlacements;
     containerClassName?: string;
+    customSize?: number;
   }) => {
     setState({
       ...state,
@@ -36,6 +41,7 @@ export function useDrawer() {
       view,
       placement,
       containerClassName,
+      customSize,
     });
   };
 

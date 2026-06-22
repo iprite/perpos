@@ -160,7 +160,7 @@ export default function AdminSettingsPage() {
                       <button
                         type="button"
                         onClick={() => setVal(f.key, !values[f.key])}
-                        className={`relative h-6 w-11 rounded-full transition-colors ${values[f.key] ? "bg-indigo-600" : "bg-gray-300"}`}
+                        className={`relative h-6 w-11 rounded-full transition-colors ${values[f.key] ? "bg-primary" : "bg-gray-300"}`}
                         aria-pressed={!!values[f.key]}
                       >
                         <span

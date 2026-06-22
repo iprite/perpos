@@ -30,6 +30,7 @@ import { toast } from "@/lib/toast";
 import { AdminPage } from "../_components/admin-page";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { CustomSelect } from "@/components/ui/custom-select";
 import {
@@ -234,7 +235,7 @@ function UserActionMenu({
         title="การจัดการ"
         className={`flex h-8 w-8 items-center justify-center rounded-lg border transition-colors ${
           open
-            ? "border-indigo-300 bg-indigo-50 text-indigo-600"
+            ? "border-primary bg-gray-100 text-primary"
             : "border-gray-200 bg-white text-gray-500 hover:border-gray-300 hover:bg-gray-50 hover:text-gray-700"
         }`}
       >
@@ -1200,13 +1201,12 @@ export default function AdminUsersPage() {
                 <Label>
                   เหตุผล <span className="text-red-500">*</span>
                 </Label>
-                <textarea
+                <Textarea
                   value={impersonateReason}
                   onChange={(e) => setImpersonateReason(e.target.value)}
                   placeholder="ระบุเหตุผล เช่น 'ช่วย debug ปัญหา invoice #123'"
                   rows={3}
                   disabled={impersonateLoading}
-                  className="w-full resize-none rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100 disabled:opacity-50"
                 />
               </div>
               {impersonateError && (

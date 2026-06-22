@@ -64,7 +64,9 @@ export function SidebarMenu() {
   return (
     <div className="mt-4 pb-3 3xl:mt-6">
       {menuItems.map((item, index) => {
-        const isActive = isLinkMenuItem(item) ? pathname === item.href : false;
+        const isActive = isLinkMenuItem(item)
+          ? pathname === item.href || (item.activeMatch?.includes(pathname ?? "") ?? false)
+          : false;
         const pathnameExistInDropdowns =
           isLinkMenuItem(item) && item.dropdownItems?.length
             ? item.dropdownItems.filter((dropdownItem) => dropdownItem.href === pathname)

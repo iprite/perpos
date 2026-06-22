@@ -5,6 +5,7 @@ import { Megaphone, Plus, Pencil, Trash2, Loader2 } from "lucide-react";
 import { toast } from "@/lib/toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { CustomSelect } from "@/components/ui/custom-select";
 import {
@@ -251,12 +252,12 @@ export default function AnnouncementsPage() {
                 </div>
                 <div>
                   <Label htmlFor="ann-body">รายละเอียด</Label>
-                  <textarea
+                  <Textarea
                     id="ann-body"
                     value={form.body}
                     onChange={(e) => setForm({ ...form, body: e.target.value })}
                     rows={3}
-                    className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                    className="mt-1"
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-3">

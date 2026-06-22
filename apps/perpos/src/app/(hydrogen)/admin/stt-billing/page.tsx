@@ -12,7 +12,9 @@ import {
 import { Coins, TrendingUp, Users, Receipt } from "lucide-react";
 import { requireSuperAdminPage } from "@/lib/admin/guard";
 import { computeSttBilling } from "@/lib/admin/stt-billing";
+import { StatCard } from "@/components/ui/stat-card";
 import { AdminPage } from "../_components/admin-page";
+import { PaymentsTabs } from "../payments/_tabs";
 
 const baht = (n: number, d = 0) =>
   "฿" +
@@ -27,41 +29,16 @@ const STATUS_TONE: Record<string, BadgeTone> = {
   refunded: "neutral",
 };
 
-function Card({
-  icon,
-  label,
-  value,
-  sub,
-  accent,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-  sub?: string;
-  accent: string;
-}) {
-  return (
-    <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
-      <div
-        className={`mb-3 inline-flex h-10 w-10 items-center justify-center rounded-xl ${accent}`}
-      >
-        {icon}
-      </div>
-      <div className="text-2xl font-bold tabular-nums text-gray-900">{value}</div>
-      <div className="text-sm text-gray-500">{label}</div>
-      {sub ? <div className="mt-0.5 text-xs text-gray-400">{sub}</div> : null}
-    </div>
-  );
-}
-
 export default async function AdminSttBillingPage() {
   const admin = await requireSuperAdminPage();
   const s = await computeSttBilling(admin);
 
   return (
     <AdminPage
-      title="รายได้แกะเสียง (Billing)"
+      title="การเงิน & บริการ"
+      description="รายได้จากบริการผู้ช่วย AI / แกะเสียง รายบุคคล (B2C)"
       icon={<Coins className="h-6 w-6" />}
+      tabs={<PaymentsTabs />}
       actions={
         <>
           <Link href="/admin/stt-stats">
@@ -79,31 +56,32 @@ export default async function AdminSttBillingPage() {
     >
       <div className="space-y-6">
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-          <Card
-            icon={<TrendingUp className="h-5 w-5" />}
+          <StatCard
+            icon={<TrendingUp className="h-4 w-4" />}
             label="MRR (รายเดือนประจำ)"
             value={baht(s.totals.mrr)}
             sub={`${s.totals.active_subscribers} สมาชิก active`}
-            accent="bg-indigo-50 text-indigo-600"
+            tone="primary"
           />
-          <Card
-            icon={<Coins className="h-5 w-5" />}
+          <StatCard
+            icon={<Coins className="h-4 w-4" />}
             label="รายได้เดือนนี้"
             value={baht(s.totals.revenue_month)}
-            accent="bg-green-50 text-green-600"
+            tone="positive"
+            valueColored
           />
-          <Card
-            icon={<Coins className="h-5 w-5" />}
+          <StatCard
+            icon={<Coins className="h-4 w-4" />}
             label="รายได้รวมทั้งหมด"
             value={baht(s.totals.revenue_total)}
             sub={`${s.totals.payments_count} รายการ`}
-            accent="bg-blue-50 text-blue-600"
+            tone="info"
           />
-          <Card
-            icon={<Users className="h-5 w-5" />}
+          <StatCard
+            icon={<Users className="h-4 w-4" />}
             label="สมาชิกรายเดือน"
             value={String(s.totals.active_subscribers)}
-            accent="bg-purple-50 text-purple-600"
+            tone="neutral"
           />
         </div>
 

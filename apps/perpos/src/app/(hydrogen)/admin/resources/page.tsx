@@ -9,6 +9,8 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { backendUrl } from "@/lib/backend";
 import { CustomSelect } from "@/components/ui/custom-select";
 import { StatusBadge } from "@/components/ui/badge";
+import { StatCard } from "@/components/ui/stat-card";
+import { AdminTabs, SYSTEM_TABS } from "../_components/admin-tabs";
 import {
   Table,
   TableHeader,
@@ -165,8 +167,9 @@ export default function ResourcesPage() {
   return (
     <AdminPage
       width="full"
-      title="Tenant Resource Monitor"
+      title="ระบบ & โครงสร้าง"
       icon={<Activity className="h-6 w-6" />}
+      tabs={<AdminTabs items={SYSTEM_TABS} />}
       description={
         <>
           API performance per org • auto-refresh ทุก 60 วินาที
@@ -197,20 +200,22 @@ export default function ResourcesPage() {
       {/* Summary cards */}
       {data && (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <SummaryCard
-            icon={<Zap className="h-4 w-4 text-indigo-500" />}
+          <StatCard
+            icon={<Zap className="h-4 w-4" />}
             label="Total Requests"
             value={totalRequests.toLocaleString()}
             sub={`ใน ${WINDOW_OPTIONS.find((w) => w.value === window)?.label}`}
+            tone="primary"
           />
-          <SummaryCard
-            icon={<Clock className="h-4 w-4 text-emerald-500" />}
+          <StatCard
+            icon={<Clock className="h-4 w-4" />}
             label="Avg Latency"
             value={`${avgLatency} ms`}
             sub="เฉลี่ยทุก org"
+            tone="positive"
           />
-          <SummaryCard
-            icon={<AlertTriangle className="h-4 w-4 text-red-500" />}
+          <StatCard
+            icon={<AlertTriangle className="h-4 w-4" />}
             label="5xx Errors"
             value={totalErrors.toLocaleString()}
             sub={
@@ -218,14 +223,16 @@ export default function ResourcesPage() {
                 ? `${((totalErrors / Math.max(totalRequests, 1)) * 100).toFixed(1)}% error rate`
                 : "ไม่มี error"
             }
-            alert={totalErrors > 0}
+            tone="negative"
+            valueColored={totalErrors > 0}
           />
-          <SummaryCard
-            icon={<TrendingUp className="h-4 w-4 text-amber-500" />}
+          <StatCard
+            icon={<TrendingUp className="h-4 w-4" />}
             label="Orgs Active"
             value={String(orgs.length)}
             sub={alertOrgs.length > 0 ? `${alertOrgs.length} org มี warning` : "ทุก org ปกติ"}
-            alert={alertOrgs.length > 0}
+            tone={alertOrgs.length > 0 ? "warning" : "info"}
+            valueColored={alertOrgs.length > 0}
           />
         </div>
       )}
@@ -373,32 +380,3 @@ export async function POST(req: NextRequest) {
 }
 
 // ── Summary Card ──────────────────────────────────────────────────────────────
-
-function SummaryCard({
-  icon,
-  label,
-  value,
-  sub,
-  alert = false,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-  sub: string;
-  alert?: boolean;
-}) {
-  return (
-    <div
-      className={`rounded-2xl border p-4 ${alert ? "border-amber-200 bg-amber-50/30" : "border-gray-200 bg-white"}`}
-    >
-      <div className="flex items-center gap-2">
-        {icon}
-        <span className="text-xs font-medium text-gray-500">{label}</span>
-      </div>
-      <p className={`mt-2 text-2xl font-bold ${alert ? "text-amber-700" : "text-gray-900"}`}>
-        {value}
-      </p>
-      <p className="mt-0.5 text-xs text-gray-400">{sub}</p>
-    </div>
-  );
-}

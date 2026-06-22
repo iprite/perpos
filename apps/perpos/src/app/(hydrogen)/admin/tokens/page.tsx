@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { Coins, Loader2 } from "lucide-react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { AdminPage, AdminCard } from "../_components/admin-page";
+import { PaymentsTabs } from "../payments/_tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -169,9 +170,10 @@ export default function AdminTokensPage() {
 
   return (
     <AdminPage
-      title="เครดิต & แพ็ก (Token)"
+      title="การเงิน & บริการ"
       description="ตั้งอัตราแปลงหน่วย, แคตตาล็อกแพ็กเติม และเติมเครดิตให้ผู้ใช้"
       icon={<Coins className="h-6 w-6" />}
+      tabs={<PaymentsTabs />}
     >
       {loading ? (
         <div className="flex min-h-[30vh] items-center justify-center">

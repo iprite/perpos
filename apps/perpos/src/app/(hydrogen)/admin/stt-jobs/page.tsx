@@ -160,7 +160,7 @@ export default function SttJobsPage() {
           <button
             key={k}
             onClick={() => setStatus(status === k ? "" : k)}
-            className={`rounded-xl border p-4 text-left transition-colors ${status === k ? "border-indigo-300 bg-indigo-50" : "border-gray-100 bg-white hover:bg-gray-50"}`}
+            className={`rounded-xl border p-4 text-left transition-colors ${status === k ? "border-primary bg-gray-100" : "border-gray-100 bg-white hover:bg-gray-50"}`}
           >
             <div className="text-2xl font-bold tabular-nums text-gray-900">{counts[k]}</div>
             <div className="text-xs text-gray-500">{STATUS_LABEL[k]}</div>

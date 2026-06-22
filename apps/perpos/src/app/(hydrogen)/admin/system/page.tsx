@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { AdminPage, AdminCard } from "../_components/admin-page";
+import { AdminTabs, SYSTEM_TABS } from "../_components/admin-tabs";
 
 type EnvCheck = { key: string; present: boolean };
 type Service = {
@@ -135,9 +136,10 @@ export default function SystemPage() {
   return (
     <AdminPage
       width="wide"
-      title="System / Infrastructure"
+      title="ระบบ & โครงสร้าง"
       icon={<Server className="h-6 w-6" />}
       description="backend ทั้งหมดที่ระบบต่อใช้งาน — workers, scheduler, integrations พร้อมสถานะสด"
+      tabs={<AdminTabs items={SYSTEM_TABS} />}
     >
       {loading && services.length === 0 ? (
         <div className="flex min-h-[40vh] items-center justify-center">

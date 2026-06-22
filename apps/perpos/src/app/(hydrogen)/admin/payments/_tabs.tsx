@@ -7,10 +7,9 @@ import cn from "@core/utils/class-names";
 
 const TABS = [
   { href: "/admin/payments", label: "ภาพรวม" },
-  { href: "/admin/stt-billing", label: "บุคคล (B2C)" },
   { href: "/admin/billing", label: "องค์กร (B2B)" },
-  { href: "/admin/stt-cost", label: "ต้นทุน" },
-  { href: "/admin/stt-jobs", label: "งานแกะเสียง" },
+  { href: "/admin/stt-billing", label: "บุคคล (B2C)" },
+  { href: "/admin/tokens", label: "เครดิต & Token" },
 ];
 
 export function PaymentsTabs() {

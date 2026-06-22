@@ -9,6 +9,7 @@ import { BarChart3, Users, Clock, FileAudio, Loader2, Settings } from "lucide-re
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
 import { toast } from "@/lib/toast";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { StatCard } from "@/components/ui/stat-card";
 import { AdminPage } from "../_components/admin-page";
 
 type AdminStats = {
@@ -23,33 +24,6 @@ async function authToken(): Promise<string> {
   const supabase = createSupabaseBrowserClient();
   const { data } = await supabase.auth.getSession();
   return data.session?.access_token ?? "";
-}
-
-function Card({
-  icon,
-  label,
-  value,
-  sub,
-  accent,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-  sub?: string;
-  accent: string;
-}) {
-  return (
-    <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
-      <div
-        className={`mb-3 inline-flex h-10 w-10 items-center justify-center rounded-xl ${accent}`}
-      >
-        {icon}
-      </div>
-      <div className="text-2xl font-bold tabular-nums text-gray-900">{value}</div>
-      <div className="text-sm text-gray-500">{label}</div>
-      {sub ? <div className="mt-0.5 text-xs text-gray-400">{sub}</div> : null}
-    </div>
-  );
 }
 
 export default function AdminSttStatsPage() {
@@ -143,31 +117,31 @@ export default function AdminSttStatsPage() {
       ) : (
         <div className="space-y-6">
           <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-            <Card
-              icon={<Users className="h-5 w-5" />}
+            <StatCard
+              icon={<Users className="h-4 w-4" />}
               label="ผู้ใช้ LINE"
               value={String(s.users.total)}
               sub={`${s.users.active} ใช้งาน · ${s.users.claimed} เคลมแล้ว`}
-              accent="bg-blue-50 text-blue-600"
+              tone="info"
             />
-            <Card
-              icon={<FileAudio className="h-5 w-5" />}
+            <StatCard
+              icon={<FileAudio className="h-4 w-4" />}
               label="งานทั้งหมด (30 วัน)"
               value={String(s.totals.jobs)}
               sub={`สำเร็จ ${s.totals.completed} · ล้ม ${s.totals.failed}`}
-              accent="bg-purple-50 text-purple-600"
+              tone="primary"
             />
-            <Card
-              icon={<Clock className="h-5 w-5" />}
+            <StatCard
+              icon={<Clock className="h-4 w-4" />}
               label="นาทีที่ประมวลผล"
               value={String(s.totals.minutes)}
-              accent="bg-amber-50 text-amber-600"
+              tone="warning"
             />
-            <Card
-              icon={<BarChart3 className="h-5 w-5" />}
+            <StatCard
+              icon={<BarChart3 className="h-4 w-4" />}
               label="เว็บ / LINE (นาที)"
               value={`${s.by_source.web.minutes} / ${s.by_source.line.minutes}`}
-              accent="bg-green-50 text-green-600"
+              tone="positive"
             />
           </div>
 

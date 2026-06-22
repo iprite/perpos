@@ -71,9 +71,9 @@ export default async function PaymentsConsolePage() {
 
   return (
     <PageShell
-      title="Payments & Subscriptions"
+      title="การเงิน & บริการ"
       icon={<Wallet className="h-6 w-6" />}
-      description={`อัปเดต ${new Date(data.computed_at).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" })}`}
+      description={`ภาพรวมรายได้ทั้งระบบ · อัปเดต ${new Date(data.computed_at).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" })}`}
       tabs={<PaymentsTabs />}
     >
       {/* รายได้รวมทั้งระบบ */}

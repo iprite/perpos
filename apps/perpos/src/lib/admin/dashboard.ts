@@ -48,7 +48,7 @@ export async function computeAdminDashboard(admin: SupabaseClient): Promise<Dash
     { data: recentOrgs },
   ] = await Promise.all([
     admin.from("organizations").select("id, name, maintenance_mode, created_at"),
-    admin.from("profiles").select("id, role, is_active, line_user_id, created_at"),
+    admin.from("profiles").select("id, role, is_active, line_user_id, created_at, personal_org_id"),
     admin
       .from("org_billing")
       .select("org_id, plan_tier, plan_ends_at, trial_ends_at, payment_status"),
@@ -66,8 +66,15 @@ export async function computeAdminDashboard(admin: SupabaseClient): Promise<Dash
       .from("organizations")
       .select("id, name, created_at")
       .order("created_at", { ascending: false })
-      .limit(5),
+      .limit(50),
   ]);
+
+  // เซ็ต org "พื้นที่ส่วนตัว" (home org ของแต่ละคน) — แหล่งความจริง = profiles.personal_org_id
+  const personalOrgIds = new Set(
+    (profiles ?? [])
+      .map((p) => (p as { personal_org_id?: string | null }).personal_org_id)
+      .filter((id): id is string => !!id),
+  );
 
   // ── Users ─────────────────────────────────────────────────────────────────
   const totalUsers = (profiles ?? []).length;
@@ -184,10 +191,13 @@ export async function computeAdminDashboard(admin: SupabaseClient): Promise<Dash
     },
     health_grades: gradeCounts,
     attention_orgs: attentionOrgs,
-    recent_orgs: (recentOrgs ?? []).map((o) => ({
-      id: (o as { id: string }).id,
-      name: (o as { name: string }).name,
-      created_at: (o as { created_at: string }).created_at,
-    })),
+    recent_orgs: (recentOrgs ?? [])
+      .filter((o) => !personalOrgIds.has((o as { id: string }).id))
+      .slice(0, 5)
+      .map((o) => ({
+        id: (o as { id: string }).id,
+        name: (o as { name: string }).name,
+        created_at: (o as { created_at: string }).created_at,
+      })),
   };
 }
