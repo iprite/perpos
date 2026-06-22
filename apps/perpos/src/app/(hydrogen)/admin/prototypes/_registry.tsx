@@ -1,0 +1,31 @@
+/**
+ * Prototype Registry — ทะเบียน prototype ทั้งหมดของ Module Factory
+ *
+ * โซน mock (ไม่ต่อ DB/API จริง) สำหรับ super_admin พรีเซน module ใหม่ก่อน build production.
+ * เพิ่ม entry ใหม่ = append เข้า array นี้ (ตัวเดียวที่ index page อ่าน) — ดูหมายเหตุท้ายไฟล์.
+ *
+ * - key  = snake_case (ตรงกับ module key ใน specs/<module>.md)
+ * - href = kebab-case route segment ใต้ /admin/prototypes/
+ * - icon = lucide React node (ไฟล์เป็น .tsx เพราะมี JSX)
+ */
+
+import type { ReactNode } from "react";
+import { HeartPulse } from "lucide-react";
+
+export type PrototypeEntry = {
+  key: string;
+  label: string;
+  href: string;
+  description: string;
+  icon: ReactNode;
+};
+
+export const PROTOTYPE_REGISTRY: PrototypeEntry[] = [
+  {
+    key: "nursing_home",
+    label: "ศูนย์ดูแลผู้สูงอายุ",
+    href: "/admin/prototypes/nursing-home",
+    description: "ระบบจัดการ nursing home ครบวงจร — ผู้พักอาศัย สุขภาพ/ยา เวร บิล + AI",
+    icon: <HeartPulse className="h-5 w-5" />,
+  },
+];

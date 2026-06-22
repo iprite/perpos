@@ -38,6 +38,7 @@ import {
   Megaphone,
   Settings2,
   Server,
+  FlaskConical,
 } from "lucide-react";
 
 import type { Role } from "@/lib/supabase/types";
@@ -509,6 +510,15 @@ export function buildAdminMenuItems(): MenuItem[] {
       name: "System Settings",
       href: "/admin/settings",
       icon: <Settings2 className="h-5 w-5" />,
+      roles: ["super_admin"],
+    },
+
+    // ── เครื่องมือ ─────────────────────────────────────────────────────────────
+    { name: "เครื่องมือ", roles: ["super_admin"] },
+    {
+      name: "Prototypes (preview)",
+      href: "/admin/prototypes",
+      icon: <FlaskConical className="h-5 w-5" />,
       roles: ["super_admin"],
     },
   ];
