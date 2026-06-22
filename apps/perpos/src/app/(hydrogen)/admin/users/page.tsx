@@ -22,6 +22,7 @@ import {
 
 import { useAuth } from "@/app/shared/auth-provider";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { useUrlState } from "@/lib/use-url-state";
 import type { Role } from "@/lib/supabase/types";
 import { withBasePath } from "@/utils/base-path";
 import { copyText } from "@/utils/clipboard";
@@ -371,9 +372,18 @@ export default function AdminUsersPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [actionLink, setActionLink] = useState<string | null>(null);
 
-  // filters
-  const [query, setQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
+  // filters — เริ่มจาก URL + sync กลับ (saved view: bookmark/แชร์ลิงก์ได้)
+  const { get: getUrlParam, commit: commitUrl } = useUrlState();
+  const [query, setQuery] = useState(() => getUrlParam("q"));
+  const [statusFilter, setStatusFilter] = useState(() => getUrlParam("status", "all"));
+
+  // sync filter → URL (debounce กันเขียนถี่ตอนพิมพ์) · "all"/"" ถูกตัดออกจาก URL
+  useEffect(() => {
+    const t = setTimeout(() => {
+      commitUrl({ q: query, status: statusFilter === "all" ? "" : statusFilter });
+    }, 300);
+    return () => clearTimeout(t);
+  }, [query, statusFilter, commitUrl]);
 
   // expanded org panel
   const [expandedUserId, setExpandedUserId] = useState<string | null>(null);
