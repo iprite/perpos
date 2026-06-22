@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { cookies } from "next/headers";
 
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -10,8 +11,10 @@ export type OrganizationSummary = {
   role: "owner" | "admin" | "team_lead" | "team_member";
 };
 
-export async function getOrganizationsForCurrentUser(): Promise<OrganizationSummary[]> {
-  // getAuthUser() = getUser() ที่ dedupe ต่อ request (React cache) — กันยิงซ้ำกับ layout/guard
+// cache() = dedupe ต่อ request (scope ต่อ render pass, ไม่ leak ข้าม request) —
+// HydrogenLayout เรียกฟังก์ชันนี้ 2 รอบ (ตรง ๆ + ผ่าน getActiveOrganizationId) → query ซ้ำ
+export const getOrganizationsForCurrentUser = cache(async (): Promise<OrganizationSummary[]> => {
+  // getAuthUser() = getUser() ที่ dedupe ต่อ request เช่นกัน
   const user = await getAuthUser();
   if (!user) return [];
 
@@ -79,7 +82,7 @@ export async function getOrganizationsForCurrentUser(): Promise<OrganizationSumm
       role: roleByOrg.get(String(o.id)) ?? "team_member",
     }))
     .sort((a, b) => a.name.localeCompare(b.name, "th"));
-}
+});
 
 export async function getActiveOrganizationId(): Promise<string | null> {
   const cookieStore = await cookies();
