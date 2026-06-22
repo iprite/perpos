@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getAuthUser } from "@/lib/supabase/auth-user";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 /**
@@ -14,10 +14,7 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
  * defense-in-depth: gate ระดับ SSR ก่อน client RouteRoleGuard — กันคนปิด JS / ดึง RSC ตรง
  */
 export async function requireSuperAdminPage(): Promise<SupabaseClient> {
-  const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getAuthUser(); // dedupe ต่อ request (ใช้ร่วมกับ HydrogenLayout)
   if (!user) redirect("/signin");
 
   const admin = createSupabaseAdminClient();
