@@ -23,6 +23,7 @@ import {
 import { useAuth } from "@/app/shared/auth-provider";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { useUrlState } from "@/lib/use-url-state";
+import { OrgLink } from "@/components/admin/org-link";
 import type { Role } from "@/lib/supabase/types";
 import { withBasePath } from "@/utils/base-path";
 import { copyText } from "@/utils/clipboard";
@@ -1009,9 +1010,12 @@ export default function AdminUsersPage() {
                             key={m.orgId}
                             className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2"
                           >
-                            <span className="flex-1 truncate text-sm font-medium text-gray-800">
+                            <OrgLink
+                              orgId={m.orgId}
+                              className="flex-1 truncate text-sm font-medium text-gray-800"
+                            >
                               {m.orgName}
-                            </span>
+                            </OrgLink>
                             <div className="w-36">
                               <CustomSelect
                                 value={m.role}

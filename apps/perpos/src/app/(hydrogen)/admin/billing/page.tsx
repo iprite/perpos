@@ -21,6 +21,7 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { toast } from "@/lib/toast";
 import { useRowSelection } from "@/lib/use-row-selection";
 import { BulkActionBar } from "@/components/ui/bulk-action-bar";
+import { OrgLink } from "@/components/admin/org-link";
 import { AdminPage } from "../_components/admin-page";
 import { PaymentsTabs } from "../payments/_tabs";
 
@@ -609,7 +610,9 @@ export default function AdminBillingPage() {
                   />
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-sm font-semibold text-gray-900">{o.org_name}</span>
+                      <OrgLink orgId={o.org_id} className="text-sm font-semibold text-gray-900">
+                        {o.org_name}
+                      </OrgLink>
                       <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${payCls}`}>
                         {PAYMENT_OPTIONS.find((p) => p.value === o.payment_status)?.label ??
                           o.payment_status}

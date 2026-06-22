@@ -40,7 +40,11 @@ export function OrgLink({
   return (
     <button
       type="button"
-      onClick={() => openOrg(orgId)}
+      // stopPropagation → ปลอดภัยเมื่อวางในแถวที่คลิกได้ (เช่น billing/health row)
+      onClick={(e) => {
+        e.stopPropagation();
+        openOrg(orgId);
+      }}
       className={cn(
         "rounded text-left underline-offset-2 transition-colors hover:text-primary hover:underline",
         className,
