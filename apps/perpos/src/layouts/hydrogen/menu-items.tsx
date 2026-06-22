@@ -407,7 +407,7 @@ function buildUserMenuItems(org: string, labels: Record<string, string> = {}): M
 // ─── Admin module ───────────────────────────────────────────────────────────
 // จัดเป็น 4 หมวดด้วย section header (label ไม่มี href) — ทุกเมนูคลิกเดียวถึง
 // ยกเว้น "แกะเสียง / MoM" ที่เป็น dropdown เพราะมี 3 หน้าย่อย
-function buildAdminMenuItems(): MenuItem[] {
+export function buildAdminMenuItems(): MenuItem[] {
   return [
     // ── ภาพรวม ────────────────────────────────────────────────────────────────
     { name: "ภาพรวม", roles: ["super_admin"] },
