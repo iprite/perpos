@@ -144,7 +144,7 @@ export default function AdminSettingsPage() {
       ) : (
         <div className="space-y-6">
           {GROUPS.map((group) => (
-            <AdminCard key={group} title={group} bodyClassName="divide-y divide-gray-100">
+            <AdminCard key={group} title={group} bodyClassName="p-5 divide-y divide-gray-100">
               {FIELDS.filter((f) => f.group === group).map((f) => (
                 <div
                   key={f.key}
