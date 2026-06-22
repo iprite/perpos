@@ -11,7 +11,6 @@ import {
 import Link from "next/link";
 import { requireSuperAdminPage } from "@/lib/admin/guard";
 import { computeAdminDashboard } from "@/lib/admin/dashboard";
-import { computeAdminInbox } from "@/lib/admin/inbox";
 import { PLAN_LABELS, PLAN_COLORS, type PlanTier } from "@/lib/billing";
 import { StatCard, type StatTone } from "@/components/ui/stat-card";
 import { PageCard } from "@/components/ui/page-shell";
@@ -45,8 +44,8 @@ function fmtDate(s: string) {
 
 export default async function AdminDashboardPage() {
   const admin = await requireSuperAdminPage();
-  const [data, inbox] = await Promise.all([computeAdminDashboard(admin), computeAdminInbox(admin)]);
-  const { users, orgs, billing, api, webhooks, health_grades, recent_orgs } = data;
+  const data = await computeAdminDashboard(admin);
+  const { users, orgs, billing, api, webhooks, health_grades, recent_orgs, inbox } = data;
 
   const apiTone: StatTone =
     api.error_rate_pct > 5 ? "negative" : api.error_rate_pct > 1 ? "warning" : "info";

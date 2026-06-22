@@ -13,6 +13,7 @@ import {
   type PlanTier,
   type OrgBillingRow,
 } from "@/lib/billing";
+import { buildInboxItems, STT_STUCK_MINUTES, type InboxItem } from "@/lib/admin/inbox";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 export interface DashboardData {
@@ -24,6 +25,7 @@ export interface DashboardData {
   webhooks: { deliveries_7d: number; failed_7d: number; fail_rate_pct: number };
   health_grades: Record<string, number>;
   recent_orgs: { id: string; name: string; created_at: string }[];
+  inbox: InboxItem[];
 }
 
 function grade(score: number): "A" | "B" | "C" | "D" | "F" {
@@ -37,6 +39,7 @@ function grade(score: number): "A" | "B" | "C" | "D" | "F" {
 export async function computeAdminDashboard(admin: SupabaseClient): Promise<DashboardData> {
   const since24h = new Date(Date.now() - 24 * 3_600_000).toISOString();
   const since7d = new Date(Date.now() - 7 * 86_400_000).toISOString();
+  const sttStuckBefore = new Date(Date.now() - STT_STUCK_MINUTES * 60_000).toISOString();
 
   const [
     { data: orgs },
@@ -45,6 +48,7 @@ export async function computeAdminDashboard(admin: SupabaseClient): Promise<Dash
     { data: metrics24h },
     { data: webhooks7d },
     { data: recentOrgs },
+    { count: stuckSttCount },
   ] = await Promise.all([
     admin.from("organizations").select("id, name, maintenance_mode, created_at"),
     admin.from("profiles").select("id, role, is_active, line_user_id, created_at, personal_org_id"),
@@ -66,6 +70,11 @@ export async function computeAdminDashboard(admin: SupabaseClient): Promise<Dash
       .select("id, name, created_at")
       .order("created_at", { ascending: false })
       .limit(50),
+    admin
+      .from("assistant_jobs")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "processing")
+      .lt("created_at", sttStuckBefore),
   ]);
 
   // เซ็ต org "พื้นที่ส่วนตัว" (home org ของแต่ละคน) — แหล่งความจริง = profiles.personal_org_id
@@ -154,7 +163,19 @@ export async function computeAdminDashboard(admin: SupabaseClient): Promise<Dash
     gradeCounts[grade(Math.max(0, score))]++;
   }
 
-  // หมายเหตุ: รายการ "ต้องลงมือ" ย้ายไป Action Inbox (lib/admin/inbox.ts) แล้ว
+  // Action Inbox — สร้างจากข้อมูลที่ fetch ไว้แล้ว (ไม่ query ซ้ำ)
+  const inbox = buildInboxItems({
+    orgs: (orgs ?? []) as { id: string; name: string; maintenance_mode: boolean }[],
+    billing: (billing ?? []) as {
+      org_id: string;
+      plan_tier?: string | null;
+      plan_ends_at?: string | null;
+      trial_ends_at?: string | null;
+      payment_status?: string | null;
+    }[],
+    personalOrgIds,
+    stuckSttCount: stuckSttCount ?? 0,
+  });
 
   return {
     computed_at: new Date().toISOString(),
@@ -181,5 +202,6 @@ export async function computeAdminDashboard(admin: SupabaseClient): Promise<Dash
         name: (o as { name: string }).name,
         created_at: (o as { created_at: string }).created_at,
       })),
+    inbox,
   };
 }

@@ -1,15 +1,27 @@
 /**
- * computeAdminInbox — "Action Inbox" ของ super admin
+ * buildInboxItems — "Action Inbox" ของ super admin (pure — ไม่ fetch เอง)
  *
  * รวมงานที่ต้อง "ลงมือ" จากทั้งระบบเป็นรายการเดียว จัดลำดับความสำคัญ + ผูก action
  * (เปิด Org 360 ผ่าน org_id หรือ นำทางผ่าน href) แทน banner เตือนนิ่ง ๆ บน dashboard
  *
- * แหล่งข้อมูล: organizations + org_billing (reuse isPlanExpired) + assistant_jobs (stuck STT)
- * ตัด org "พื้นที่ส่วนตัว" (personal_org_id) ออกจาก item การเงิน/maintenance — เน้นองค์กรธุรกิจ
+ * รับข้อมูลดิบที่ computeAdminDashboard fetch อยู่แล้ว (organizations/org_billing/profiles)
+ * + จำนวน STT job ค้าง → ไม่ query ซ้ำ · ตัด org "พื้นที่ส่วนตัว" ออกจาก item ธุรกิจ
  */
 
-import type { SupabaseClient } from "@supabase/supabase-js";
 import { isPlanExpired, type OrgBillingRow, type PlanTier } from "@/lib/billing";
+
+export interface InboxOrgRow {
+  id: string;
+  name: string;
+  maintenance_mode: boolean;
+}
+export interface InboxBillingRow {
+  org_id: string;
+  plan_tier?: string | null;
+  plan_ends_at?: string | null;
+  trial_ends_at?: string | null;
+  payment_status?: string | null;
+}
 
 export type InboxSeverity = "critical" | "warning" | "info";
 export type InboxKind = "billing" | "maintenance" | "stt" | "api";
@@ -29,46 +41,29 @@ export interface InboxItem {
 const SEVERITY_RANK: Record<InboxSeverity, number> = { critical: 0, warning: 1, info: 2 };
 
 /** เกณฑ์ "งานค้าง" ของ STT (processing นานเกินไป = น่าจะค้าง) */
-const STT_STUCK_MINUTES = 10;
+export const STT_STUCK_MINUTES = 10;
 
-export async function computeAdminInbox(admin: SupabaseClient): Promise<InboxItem[]> {
-  const stuckBefore = new Date(Date.now() - STT_STUCK_MINUTES * 60_000).toISOString();
-
-  const [orgsRes, billingRes, profilesRes, stuckRes] = await Promise.all([
-    admin.from("organizations").select("id, name, maintenance_mode"),
-    admin
-      .from("org_billing")
-      .select("org_id, plan_tier, plan_ends_at, trial_ends_at, payment_status"),
-    admin.from("profiles").select("personal_org_id").not("personal_org_id", "is", null),
-    admin
-      .from("assistant_jobs")
-      .select("id", { count: "exact", head: true })
-      .eq("status", "processing")
-      .lt("created_at", stuckBefore),
-  ]);
-
-  const orgs = (orgsRes.data ?? []) as { id: string; name: string; maintenance_mode: boolean }[];
+export function buildInboxItems(input: {
+  orgs: InboxOrgRow[];
+  billing: InboxBillingRow[];
+  personalOrgIds: Set<string>;
+  stuckSttCount: number;
+}): InboxItem[] {
+  const { orgs, billing, personalOrgIds, stuckSttCount } = input;
   const orgName = new Map(orgs.map((o) => [o.id, o.name]));
-
-  // org พื้นที่ส่วนตัว — ตัดออกจาก item ธุรกิจ
-  const personalOrgIds = new Set(
-    (profilesRes.data ?? [])
-      .map((p) => (p as { personal_org_id?: string | null }).personal_org_id)
-      .filter((id): id is string => !!id),
-  );
   const isBusiness = (orgId: string) => !personalOrgIds.has(orgId);
 
   const items: InboxItem[] = [];
 
   // ── Billing: หมดอายุ / ค้างชำระ (เฉพาะองค์กรธุรกิจ) ──
-  for (const b of billingRes.data ?? []) {
-    const orgId = String((b as { org_id: string }).org_id);
+  for (const b of billing) {
+    const orgId = String(b.org_id);
     if (!isBusiness(orgId)) continue;
     const name = orgName.get(orgId) ?? orgId;
     const row: OrgBillingRow = {
-      plan_tier: ((b as { plan_tier?: PlanTier }).plan_tier ?? "free") as PlanTier,
-      plan_ends_at: (b as { plan_ends_at?: string }).plan_ends_at as string,
-      trial_ends_at: (b as { trial_ends_at?: string }).trial_ends_at as string,
+      plan_tier: (b.plan_tier ?? "free") as PlanTier,
+      plan_ends_at: b.plan_ends_at as string,
+      trial_ends_at: b.trial_ends_at as string,
     };
     if (isPlanExpired(row)) {
       items.push({
@@ -80,7 +75,7 @@ export async function computeAdminInbox(admin: SupabaseClient): Promise<InboxIte
         org_id: orgId,
       });
     }
-    if ((b as { payment_status?: string }).payment_status === "overdue") {
+    if (b.payment_status === "overdue") {
       items.push({
         id: `billing-overdue-${orgId}`,
         severity: "warning",
@@ -107,13 +102,12 @@ export async function computeAdminInbox(admin: SupabaseClient): Promise<InboxIte
   }
 
   // ── STT jobs ค้าง (processing นานเกินเกณฑ์) ──
-  const stuckCount = stuckRes.count ?? 0;
-  if (stuckCount > 0) {
+  if (stuckSttCount > 0) {
     items.push({
       id: "stt-stuck",
       severity: "warning",
       kind: "stt",
-      title: `งานแกะเสียงค้าง ${stuckCount} งาน`,
+      title: `งานแกะเสียงค้าง ${stuckSttCount} งาน`,
       detail: `processing เกิน ${STT_STUCK_MINUTES} นาที — ตรวจ worker / requeue`,
       href: "/admin/stt-jobs",
     });
