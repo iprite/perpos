@@ -16,6 +16,7 @@ import { StatCard, type StatTone } from "@/components/ui/stat-card";
 import { PageCard } from "@/components/ui/page-shell";
 import { OrgLink } from "@/components/admin/org-link";
 import { InboxCard } from "@/components/admin/inbox-card";
+import { LiveRelativeTime } from "@/components/ui/live-relative-time";
 import { AdminPage } from "./_components/admin-page";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -56,7 +57,11 @@ export default async function AdminDashboardPage() {
     <AdminPage
       title="Super Admin Dashboard"
       icon={<LayoutDashboard className="h-6 w-6" />}
-      description={`อัปเดต ${new Date(data.computed_at).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" })}`}
+      description={
+        <>
+          อัปเดต <LiveRelativeTime iso={data.computed_at} />
+        </>
+      }
     >
       {/* Top stat cards */}
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
