@@ -17,6 +17,7 @@ import {
 
 import { useAuth } from "@/app/shared/auth-provider";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { useUrlState } from "@/lib/use-url-state";
 import { backendUrl } from "@/lib/backend";
 import { AdminPage } from "../_components/admin-page";
 import { Button } from "@/components/ui/button";
@@ -219,11 +220,19 @@ export default function AuditLogPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Filters
-  const [fTable, setFTable] = useState("");
-  const [fAction, setFAction] = useState("");
-  const [fFrom, setFFrom] = useState("");
-  const [fTo, setFTo] = useState("");
+  // Filters — เริ่มจาก URL (saved view: bookmark/แชร์ลิงก์ได้)
+  const url = useUrlState();
+  const [fTable, setFTable] = useState(() => url.get("table"));
+  const [fAction, setFAction] = useState(() => url.get("action"));
+  const [fFrom, setFFrom] = useState(() => url.get("from"));
+  const [fTo, setFTo] = useState(() => url.get("to"));
+
+  const applyFilters = useCallback(() => {
+    url.commit({ table: fTable, action: fAction, from: fFrom, to: fTo });
+    load(1);
+    // load อ่าน filter ปัจจุบันผ่าน closure (useCallback dep) — เรียกหลัง commit ได้
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [url, fTable, fAction, fFrom, fTo]);
 
   // Detail dialog
   const [detail, setDetail] = useState<AuditDetail | null>(null);
@@ -486,7 +495,7 @@ export default function AuditLogPage() {
           <ThaiDatePicker value={fTo} onChange={setFTo} placeholder="สิ้นสุด" />
         </div>
         <div className="flex items-center gap-2 pt-5">
-          <Button onClick={() => load(1)} disabled={loading} size="sm">
+          <Button onClick={applyFilters} disabled={loading} size="sm">
             {loading ? "กำลังโหลด…" : "ค้นหา"}
           </Button>
           <Button
@@ -497,6 +506,7 @@ export default function AuditLogPage() {
               setFAction("");
               setFFrom("");
               setFTo("");
+              url.commit({});
             }}
           >
             ล้าง
