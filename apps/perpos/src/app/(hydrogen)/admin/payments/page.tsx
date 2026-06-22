@@ -5,6 +5,7 @@
  */
 
 import { StatCard } from "@/components/ui/stat-card";
+import { LiveRelativeTime } from "@/components/ui/live-relative-time";
 import { PageShell, PageCard } from "@/components/ui/page-shell";
 import { TrendingUp, CalendarClock, Wallet, UserMinus, Bot, Building2 } from "lucide-react";
 import { requireSuperAdminPage } from "@/lib/admin/guard";
@@ -71,9 +72,13 @@ export default async function PaymentsConsolePage() {
 
   return (
     <PageShell
-      title="Payments & Subscriptions"
+      title="การเงิน & บริการ"
       icon={<Wallet className="h-6 w-6" />}
-      description={`อัปเดต ${new Date(data.computed_at).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" })}`}
+      description={
+        <>
+          ภาพรวมรายได้ทั้งระบบ · อัปเดต <LiveRelativeTime iso={data.computed_at} />
+        </>
+      }
       tabs={<PaymentsTabs />}
     >
       {/* รายได้รวมทั้งระบบ */}

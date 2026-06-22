@@ -65,6 +65,11 @@ web_legacy/
 # agent skills cache
 .skills/
 
+# Module Factory — local AI tooling (เครื่องมือ ไม่ใช่ผลงาน; ผลงาน module เป็นโค้ดแอปจริง)
+.claude/agents/
+.claude/skills/build-module.md
+.claude/module-factory/
+
 # codex CLI local config
 .codex/
 

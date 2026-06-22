@@ -22,6 +22,8 @@ import {
 
 import { useAuth } from "@/app/shared/auth-provider";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { useUrlState } from "@/lib/use-url-state";
+import { OrgLink } from "@/components/admin/org-link";
 import type { Role } from "@/lib/supabase/types";
 import { withBasePath } from "@/utils/base-path";
 import { copyText } from "@/utils/clipboard";
@@ -30,6 +32,7 @@ import { toast } from "@/lib/toast";
 import { AdminPage } from "../_components/admin-page";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { CustomSelect } from "@/components/ui/custom-select";
 import {
@@ -234,7 +237,7 @@ function UserActionMenu({
         title="การจัดการ"
         className={`flex h-8 w-8 items-center justify-center rounded-lg border transition-colors ${
           open
-            ? "border-indigo-300 bg-indigo-50 text-indigo-600"
+            ? "border-primary bg-gray-100 text-primary"
             : "border-gray-200 bg-white text-gray-500 hover:border-gray-300 hover:bg-gray-50 hover:text-gray-700"
         }`}
       >
@@ -370,9 +373,18 @@ export default function AdminUsersPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [actionLink, setActionLink] = useState<string | null>(null);
 
-  // filters
-  const [query, setQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
+  // filters — เริ่มจาก URL + sync กลับ (saved view: bookmark/แชร์ลิงก์ได้)
+  const { get: getUrlParam, commit: commitUrl } = useUrlState();
+  const [query, setQuery] = useState(() => getUrlParam("q"));
+  const [statusFilter, setStatusFilter] = useState(() => getUrlParam("status", "all"));
+
+  // sync filter → URL (debounce กันเขียนถี่ตอนพิมพ์) · "all"/"" ถูกตัดออกจาก URL
+  useEffect(() => {
+    const t = setTimeout(() => {
+      commitUrl({ q: query, status: statusFilter === "all" ? "" : statusFilter });
+    }, 300);
+    return () => clearTimeout(t);
+  }, [query, statusFilter, commitUrl]);
 
   // expanded org panel
   const [expandedUserId, setExpandedUserId] = useState<string | null>(null);
@@ -998,9 +1010,12 @@ export default function AdminUsersPage() {
                             key={m.orgId}
                             className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2"
                           >
-                            <span className="flex-1 truncate text-sm font-medium text-gray-800">
+                            <OrgLink
+                              orgId={m.orgId}
+                              className="flex-1 truncate text-sm font-medium text-gray-800"
+                            >
                               {m.orgName}
-                            </span>
+                            </OrgLink>
                             <div className="w-36">
                               <CustomSelect
                                 value={m.role}
@@ -1200,13 +1215,12 @@ export default function AdminUsersPage() {
                 <Label>
                   เหตุผล <span className="text-red-500">*</span>
                 </Label>
-                <textarea
+                <Textarea
                   value={impersonateReason}
                   onChange={(e) => setImpersonateReason(e.target.value)}
                   placeholder="ระบุเหตุผล เช่น 'ช่วย debug ปัญหา invoice #123'"
                   rows={3}
                   disabled={impersonateLoading}
-                  className="w-full resize-none rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100 disabled:opacity-50"
                 />
               </div>
               {impersonateError && (

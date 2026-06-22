@@ -20,6 +20,8 @@ import {
 } from "lucide-react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { AdminPage } from "../_components/admin-page";
+import { AdminTabs, SYSTEM_TABS } from "../_components/admin-tabs";
+import { OrgLink } from "@/components/admin/org-link";
 import type { OrgHealth, FactorStatus, Grade } from "@/lib/admin/health";
 
 const GRADE_COLOR: Record<Grade, string> = {
@@ -174,8 +176,9 @@ export function HealthView({ initialOrgs }: { initialOrgs: OrgHealth[] }) {
 
   return (
     <AdminPage
-      title="Tenant Health"
+      title="ระบบ & โครงสร้าง"
       icon={<HeartPulse className="h-6 w-6" />}
+      tabs={<AdminTabs items={SYSTEM_TABS} />}
       description={
         <>
           คะแนนสุขภาพของแต่ละ org
@@ -244,14 +247,24 @@ export function HealthView({ initialOrgs }: { initialOrgs: OrgHealth[] }) {
                         : "border-gray-200"
                 }`}
               >
-                <button
+                <div
+                  role="button"
+                  tabIndex={0}
                   onClick={() => toggleExpand(o.org_id)}
-                  className="flex w-full items-center gap-4 px-5 py-4 text-left hover:bg-gray-50"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      toggleExpand(o.org_id);
+                    }
+                  }}
+                  className="flex w-full cursor-pointer items-center gap-4 px-5 py-4 text-left hover:bg-gray-50"
                 >
                   <ScoreCircle score={o.health_score} grade={o.grade} />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
-                      <span className="font-semibold text-gray-900">{o.org_name}</span>
+                      <OrgLink orgId={o.org_id} className="font-semibold text-gray-900">
+                        {o.org_name}
+                      </OrgLink>
                       {o.maintenance_mode && (
                         <span className="inline-flex items-center gap-1 rounded-full border border-orange-200 bg-orange-50 px-2.5 py-0.5 text-xs text-orange-700">
                           <Wrench className="h-3 w-3" />
@@ -280,7 +293,7 @@ export function HealthView({ initialOrgs }: { initialOrgs: OrgHealth[] }) {
                   ) : (
                     <ChevronRight className="h-4 w-4 flex-shrink-0 text-gray-400" />
                   )}
-                </button>
+                </div>
 
                 {isOpen && (
                   <div className="space-y-0 border-t border-gray-100 bg-gray-50 px-5 py-4">
