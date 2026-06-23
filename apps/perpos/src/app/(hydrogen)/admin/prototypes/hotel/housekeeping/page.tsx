@@ -28,6 +28,7 @@ import {
   NoAccess,
 } from "../_components";
 import { HousekeepingDetailDialog } from "./detail-dialog";
+import { assigneeLabel } from "./helpers";
 import type { HousekeepingTask, HousekeepingStatus } from "../_fixtures/types";
 
 const STATUS_OPTIONS = [
@@ -224,13 +225,4 @@ export default function HousekeepingPage() {
       />
     </HotelShell>
   );
-}
-
-/** map staff id → label ไทย (mock) */
-export function assigneeLabel(id: string): string {
-  const map: Record<string, string> = {
-    "staff-hk-001": "พี่นวล (แม่บ้าน)",
-    "staff-hk-002": "พี่แดง (แม่บ้าน)",
-  };
-  return map[id] ?? id;
 }
