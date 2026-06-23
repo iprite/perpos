@@ -528,6 +528,12 @@ export function buildAdminMenuItems(): MenuItem[] {
       icon: <Presentation className="h-5 w-5" />,
       roles: ["super_admin"],
     },
+    {
+      name: "เอกสารผลิตภัณฑ์ (Docs)",
+      href: "/admin/product-docs",
+      icon: <FileText className="h-5 w-5" />,
+      roles: ["super_admin"],
+    },
   ];
 }
 
