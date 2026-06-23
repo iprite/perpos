@@ -213,7 +213,7 @@ export default function VitalsPage() {
         />
         <StatCard
           icon={<TrendingUp className="h-4 w-4" />}
-          label="ความดัน คุณสมจิตร (3 วัน)"
+          label={`ความดัน ${residentName("res-001")} (3 วัน)`}
           value={bpTrend.length ? `${bpTrend[bpTrend.length - 1]} mmHg` : "—"}
           sub="แนวโน้มไต่ขึ้น — ดู AI ด้านล่าง"
           tone="negative"

@@ -123,6 +123,15 @@ export function MedAdminStatusBadge({ status }: { status: MedAdminStatus }) {
   return <StatusBadge tone={m.tone}>{m.label}</StatusBadge>;
 }
 
+// ─── medication_order.is_active (สถานะคำสั่งยา ใช้งาน/หยุดแล้ว) ───
+export function MedActiveBadge({ active }: { active: boolean }) {
+  return (
+    <StatusBadge tone={active ? "success" : "neutral"}>
+      {active ? "ใช้งาน" : "หยุดแล้ว"}
+    </StatusBadge>
+  );
+}
+
 // ─── shift_status ───
 const SHIFT_STATUS: Record<ShiftStatus, Meta> = {
   scheduled: { tone: "neutral", label: "จัดเวรแล้ว" },

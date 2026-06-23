@@ -185,17 +185,18 @@ export default function RoomsPage() {
                           <div className="flex items-center justify-between gap-2">
                             <span className="truncate text-xs text-gray-600">{occupant}</span>
                             {canWrite && availableBeds.length > 0 && (
-                              <button
-                                type="button"
+                              <Button
+                                variant="ghost"
+                                size="sm"
                                 onClick={() => {
                                   const rid =
                                     RESIDENTS.find((r) => residentBed[r.id] === bed.id)?.id ?? "";
                                   setMoveDlg({ open: true, residentId: rid, fromBed: bed.id });
                                 }}
-                                className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-primary hover:underline"
+                                className="h-auto shrink-0 px-1.5 py-0.5 text-xs text-primary"
                               >
-                                <ArrowRightLeft className="h-3 w-3" /> ย้าย
-                              </button>
+                                <ArrowRightLeft className="mr-1 h-3 w-3" /> ย้าย
+                              </Button>
                             )}
                           </div>
                         ) : (

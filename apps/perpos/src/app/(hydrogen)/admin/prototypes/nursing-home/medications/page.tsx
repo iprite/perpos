@@ -7,6 +7,7 @@ import {
   NursingShell,
   useNursingRole,
   MedAdminStatusBadge,
+  MedActiveBadge,
   fmtTimeTH,
   fmtDateTH,
   fullName,
@@ -217,18 +218,22 @@ export default function MedicationsPage() {
 
       {/* tab */}
       <div className="flex gap-1 rounded-lg border border-gray-200 bg-gray-50 p-1">
-        <button
+        <Button
+          variant={tab === "emar" ? "secondary" : "ghost"}
+          size="sm"
           onClick={() => setTab("emar")}
-          className={`flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${tab === "emar" ? "bg-white text-primary shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
+          className={`flex-1 ${tab === "emar" ? "bg-white text-primary shadow-sm hover:bg-white" : "text-gray-500"}`}
         >
-          <Pill className="h-4 w-4" /> รอบยาวันนี้
-        </button>
-        <button
+          <Pill className="mr-1.5 h-4 w-4" /> รอบยาวันนี้
+        </Button>
+        <Button
+          variant={tab === "orders" ? "secondary" : "ghost"}
+          size="sm"
           onClick={() => setTab("orders")}
-          className={`flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${tab === "orders" ? "bg-white text-primary shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
+          className={`flex-1 ${tab === "orders" ? "bg-white text-primary shadow-sm hover:bg-white" : "text-gray-500"}`}
         >
-          <ListChecks className="h-4 w-4" /> รายการสั่งยา
-        </button>
+          <ListChecks className="mr-1.5 h-4 w-4" /> รายการสั่งยา
+        </Button>
       </div>
 
       {tab === "emar" ? (
@@ -321,7 +326,7 @@ export default function MedicationsPage() {
                             {a.administered_at
                               ? fmtTimeTH(a.administered_at)
                               : a.status === "pending"
-                                ? "ไม่มีสิทธิ์"
+                                ? "เฉพาะเวรตน"
                                 : "—"}
                           </span>
                         )}
@@ -362,11 +367,7 @@ export default function MedicationsPage() {
                   <TableCell className="uppercase">{o.frequency}</TableCell>
                   <TableCell tabular>{o.schedule_times.join(", ") || "PRN"}</TableCell>
                   <TableCell align="center">
-                    <span
-                      className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${o.is_active ? "bg-green-50 text-green-700" : "bg-gray-100 text-gray-500"}`}
-                    >
-                      {o.is_active ? "ใช้งาน" : "หยุดแล้ว"}
-                    </span>
+                    <MedActiveBadge active={o.is_active} />
                   </TableCell>
                   <TableCell>{fmtDateTH(o.start_date)}</TableCell>
                 </TableRow>
