@@ -15,7 +15,7 @@ export default async function PresentationDeskPage() {
     <AdminPage
       title="สื่อนำเสนอ (Desk)"
       icon={<Presentation className="h-6 w-6" />}
-      description="คลังสื่อนำเสนอ HTML ที่ Presentation Factory ผลิต — พรีวิว แก้เล็กน้อยด้วย AI และดูประวัติเวอร์ชัน · เห็นเฉพาะ super_admin"
+      description="คลังสื่อนำเสนอ HTML ที่ Presentation Factory ผลิต — พรีวิว แก้ HTML ได้โดยตรง และดูประวัติเวอร์ชัน · เห็นเฉพาะ super_admin"
     >
       {decks.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-xl border border-gray-200 bg-white py-16 text-center shadow-sm">

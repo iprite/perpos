@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  Sparkles,
+  Code2,
   History,
   ExternalLink,
   Trash2,
@@ -45,12 +45,13 @@ const SOURCE_LABEL: Record<ProductDocVersion["source"], string> = {
 export function DocWorkspace({ initialDoc }: { initialDoc: ProductDocDetail }) {
   const router = useRouter();
   const [doc, setDoc] = useState<ProductDocDetail>(initialDoc);
-  const [prompt, setPrompt] = useState("");
-  const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [metaOpen, setMetaOpen] = useState(false);
   const [confirmDel, setConfirmDel] = useState(false);
+  const [htmlOpen, setHtmlOpen] = useState(false);
+  const [htmlDraft, setHtmlDraft] = useState("");
+  const [savingHtml, setSavingHtml] = useState(false);
   const [meta, setMeta] = useState({
     title: doc.title,
     description: doc.description ?? "",
@@ -76,24 +77,6 @@ export function DocWorkspace({ initialDoc }: { initialDoc: ProductDocDetail }) {
     return json;
   }
 
-  async function handleEdit() {
-    if (!prompt.trim()) return notify.error("พิมพ์คำสั่งแก้ไขก่อน");
-    setEditing(true);
-    try {
-      const { doc: updated } = await api(`/api/admin/product-docs/${doc.id}/edit`, {
-        method: "POST",
-        body: JSON.stringify({ prompt }),
-      });
-      setDoc(updated);
-      setPrompt("");
-      notify.success(`แก้แล้ว — เวอร์ชัน ${updated.version}`);
-    } catch (e) {
-      notify.error(e);
-    } finally {
-      setEditing(false);
-    }
-  }
-
   async function patch(body: Record<string, unknown>, okMsg: string) {
     setBusy(true);
     try {
@@ -109,6 +92,33 @@ export function DocWorkspace({ initialDoc }: { initialDoc: ProductDocDetail }) {
       return false;
     } finally {
       setBusy(false);
+    }
+  }
+
+  // แก้ HTML ดิบ — เปิด editor พร้อมเนื้อหาปัจจุบัน
+  function openHtmlEditor() {
+    setHtmlDraft(doc.html);
+    setHtmlOpen(true);
+  }
+
+  async function saveHtml() {
+    if (htmlDraft === doc.html) {
+      setHtmlOpen(false);
+      return;
+    }
+    setSavingHtml(true);
+    try {
+      const { doc: updated } = await api(`/api/admin/product-docs/${doc.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ html: htmlDraft }),
+      });
+      setDoc(updated);
+      notify.success(`บันทึกแล้ว — เวอร์ชัน ${updated.version}`);
+      setHtmlOpen(false);
+    } catch (e) {
+      notify.error(e);
+    } finally {
+      setSavingHtml(false);
     }
   }
 
@@ -180,6 +190,10 @@ export function DocWorkspace({ initialDoc }: { initialDoc: ProductDocDetail }) {
           <StatusBadge tone={doc.status === "published" ? "success" : "neutral"}>
             {doc.status === "published" ? "เผยแพร่" : "ฉบับร่าง"}
           </StatusBadge>
+          <Button size="sm" onClick={openHtmlEditor}>
+            <Code2 className="mr-1.5 h-4 w-4" />
+            แก้ HTML
+          </Button>
           <Button variant="outline" size="sm" onClick={handleExportPdf} disabled={exporting}>
             <FileDown className="mr-1.5 h-4 w-4" />
             {exporting ? "กำลัง export…" : "Export PDF"}
@@ -204,7 +218,7 @@ export function DocWorkspace({ initialDoc }: { initialDoc: ProductDocDetail }) {
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
         {/* พรีวิว */}
-        <div className="min-w-0 lg:col-span-8">
+        <div className="min-w-0 lg:col-span-9">
           <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
             <div className="flex items-center justify-between border-b border-gray-200 px-4 py-2">
               <span className="text-xs font-medium uppercase tracking-wide text-gray-500">
@@ -221,35 +235,15 @@ export function DocWorkspace({ initialDoc }: { initialDoc: ProductDocDetail }) {
               />
             ) : (
               <div className="flex h-[72vh] flex-col items-center justify-center text-center text-sm text-gray-500">
-                <Sparkles className="mb-2 h-6 w-6 text-gray-400" />
-                เอกสารยังไม่มีเนื้อหา — ใช้ AI แก้จากคำสั่งด้านขวา
+                <Code2 className="mb-2 h-6 w-6 text-gray-400" />
+                เอกสารยังไม่มีเนื้อหา — กดปุ่ม “แก้ HTML” เพื่อเพิ่มเนื้อหา
               </div>
             )}
           </div>
         </div>
 
-        {/* แผง AI + ประวัติ */}
-        <div className="min-w-0 space-y-4 lg:col-span-4">
-          <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-            <div className="mb-2 flex items-center gap-2 text-sm font-medium text-gray-900">
-              <Sparkles className="h-4 w-4 text-primary" />
-              แก้ด้วย AI
-            </div>
-            <p className="mb-2 text-xs text-gray-500">
-              พิมพ์สิ่งที่อยากเปลี่ยน — AI จะแก้ทั้งเอกสารแล้วบันทึกเป็นเวอร์ชันใหม่
-            </p>
-            <textarea
-              className="h-32 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-              placeholder="เช่น เพิ่มหัวข้อ FAQ ท้ายเล่ม, ปรับขั้นตอนข้อ 3 ให้ละเอียดขึ้น, แก้คำผิด…"
-              value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
-              disabled={editing}
-            />
-            <Button className="mt-2 w-full" onClick={handleEdit} disabled={editing}>
-              {editing ? "AI กำลังแก้…" : "ส่งให้ AI แก้"}
-            </Button>
-          </div>
-
+        {/* ประวัติเวอร์ชัน */}
+        <div className="min-w-0 lg:col-span-3">
           <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
             <div className="mb-3 flex items-center gap-2 text-sm font-medium text-gray-900">
               <History className="h-4 w-4 text-gray-500" />
@@ -293,6 +287,34 @@ export function DocWorkspace({ initialDoc }: { initialDoc: ProductDocDetail }) {
           </div>
         </div>
       </div>
+
+      {/* แก้ HTML ดิบ */}
+      <Dialog open={htmlOpen} onOpenChange={setHtmlOpen}>
+        <DialogContent size="full">
+          <DialogHeader>
+            <DialogTitle>แก้ HTML — {doc.title}</DialogTitle>
+          </DialogHeader>
+          <DialogBody>
+            <p className="mb-2 text-xs text-gray-500">
+              แก้โค้ด HTML ของเอกสารได้โดยตรง — บันทึกแล้วจะเก็บเป็นเวอร์ชันใหม่ (ย้อนกลับได้)
+            </p>
+            <textarea
+              spellCheck={false}
+              className="h-[64vh] w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 font-mono text-xs leading-relaxed text-gray-900 focus:border-primary focus:bg-white focus:outline-none focus:ring-1 focus:ring-primary"
+              value={htmlDraft}
+              onChange={(e) => setHtmlDraft(e.target.value)}
+            />
+          </DialogBody>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setHtmlOpen(false)} disabled={savingHtml}>
+              ยกเลิก
+            </Button>
+            <Button onClick={saveHtml} disabled={savingHtml}>
+              {savingHtml ? "กำลังบันทึก…" : "บันทึก"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* ตั้งค่า / meta + status + delete */}
       <Dialog open={metaOpen} onOpenChange={setMetaOpen}>

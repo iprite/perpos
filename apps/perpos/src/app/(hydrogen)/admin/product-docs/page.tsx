@@ -15,7 +15,7 @@ export default async function ProductDocsPage() {
     <AdminPage
       title="เอกสารผลิตภัณฑ์ (Docs)"
       icon={<FileText className="h-6 w-6" />}
-      description="คลังเอกสาร/คู่มือผู้ใช้ที่ Documentation Factory ผลิต — พรีวิว แก้เล็กน้อยด้วย AI export PDF และดูประวัติเวอร์ชัน · เห็นเฉพาะ super_admin"
+      description="คลังเอกสาร/คู่มือผู้ใช้ที่ Documentation Factory ผลิต — พรีวิว แก้ HTML ได้โดยตรง export PDF และดูประวัติเวอร์ชัน · เห็นเฉพาะ super_admin"
     >
       {docs.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-xl border border-gray-200 bg-white py-16 text-center shadow-sm">
