@@ -10,7 +10,7 @@
  */
 
 import type { ReactNode } from "react";
-import { HeartPulse } from "lucide-react";
+import { HeartPulse, Hotel } from "lucide-react";
 
 export type PrototypeEntry = {
   key: string;
@@ -27,5 +27,13 @@ export const PROTOTYPE_REGISTRY: PrototypeEntry[] = [
     href: "/admin/prototypes/nursing-home",
     description: "ระบบจัดการ nursing home ครบวงจร — ผู้พักอาศัย สุขภาพ/ยา เวร บิล + AI",
     icon: <HeartPulse className="h-5 w-5" />,
+  },
+  {
+    key: "hotel",
+    label: "โรงแรม",
+    href: "/admin/prototypes/hotel",
+    description:
+      "ระบบจัดการโรงแรมเล็ก (PMS) — ปฏิทินจอง เช็คอิน-เอาท์ รับชำระ แม่บ้าน รายงานรายได้ + AI/LINE",
+    icon: <Hotel className="h-5 w-5" />,
   },
 ];
