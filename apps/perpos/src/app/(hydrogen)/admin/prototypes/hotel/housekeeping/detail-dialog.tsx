@@ -26,7 +26,7 @@ import {
   RoomTypeBadge,
   hkStatusMeta,
 } from "../_components";
-import { assigneeLabel } from "./page";
+import { assigneeLabel } from "./helpers";
 import type { HousekeepingTask, HousekeepingStatus } from "../_fixtures/types";
 
 const STATUS_FLOW: { value: HousekeepingStatus; label: string }[] = [

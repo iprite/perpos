@@ -69,6 +69,17 @@ web_legacy/
 .claude/agents/
 .claude/skills/build-module.md
 .claude/module-factory/
+.claude/skills/build-feature.md
+.claude/feature-factory/
+.claude/skills/fix-issue.md
+.claude/fix-factory/
+.claude/skills/improve-product.md
+.claude/product-factory/
+.claude/skills/build-presentation.md
+.claude/presentation-factory/
+.claude/skills/build-training-doc.md
+.claude/docs-factory/
+.claude/shared/
 
 # codex CLI local config
 .codex/

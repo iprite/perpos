@@ -39,6 +39,7 @@ import {
   Settings2,
   Server,
   FlaskConical,
+  Presentation,
 } from "lucide-react";
 
 import type { Role } from "@/lib/supabase/types";
@@ -519,6 +520,18 @@ export function buildAdminMenuItems(): MenuItem[] {
       name: "Prototypes (preview)",
       href: "/admin/prototypes",
       icon: <FlaskConical className="h-5 w-5" />,
+      roles: ["super_admin"],
+    },
+    {
+      name: "สื่อนำเสนอ (Desk)",
+      href: "/admin/presentations",
+      icon: <Presentation className="h-5 w-5" />,
+      roles: ["super_admin"],
+    },
+    {
+      name: "เอกสารผลิตภัณฑ์ (Docs)",
+      href: "/admin/product-docs",
+      icon: <FileText className="h-5 w-5" />,
       roles: ["super_admin"],
     },
   ];
