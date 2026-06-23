@@ -17,6 +17,14 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  Table,
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableCell,
+} from "@/components/ui/table";
 import { toast } from "@/lib/toast";
 
 import { SHIFTS, STAFF, MOCK_SHIFT_HANDOVER_A6 } from "../_fixtures";
@@ -139,83 +147,81 @@ export default function ShiftsPage() {
       </div>
 
       {/* กริดเวร */}
-      <div className="overflow-auto rounded-xl border border-gray-200 bg-white">
-        <table className="w-full min-w-[760px] text-sm">
-          <thead>
-            <tr className="border-b border-gray-200 bg-gray-50">
-              <th className="w-28 px-3 py-2.5 text-left text-xs font-medium uppercase tracking-wide text-gray-500">
-                กะ
-              </th>
-              {WEEK.map((d, i) => (
-                <th key={d} className="px-2 py-2.5 text-center text-xs font-medium text-gray-500">
-                  <div>{DOW[i]}</div>
-                  <div className={d === TODAY ? "font-semibold text-primary" : "text-gray-400"}>
-                    {Number(d.slice(8))}
-                  </div>
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100">
-            {SHIFT_TYPES.map((st) => (
-              <tr key={st.type}>
-                <td className="px-3 py-2 align-top">
-                  <div className="text-sm font-medium text-gray-900">{st.label}</div>
-                  <div className="text-[11px] text-gray-400">{st.time}</div>
-                </td>
-                {WEEK.map((d) => {
-                  const cell = grid[`${d}|${st.type}`] ?? [];
-                  return (
-                    <td key={d} className="px-1.5 py-2 align-top">
-                      {cell.length === 0 ? (
-                        canWrite ? (
-                          <button
-                            type="button"
-                            onClick={() => setAssignDlg({ open: true, date: d, type: st.type })}
-                            className="flex w-full items-center justify-center rounded-md border border-dashed border-amber-300 bg-amber-50/60 py-2 text-[11px] text-amber-600 transition-colors hover:bg-amber-100"
-                          >
-                            + จัด
-                          </button>
-                        ) : (
-                          <div className="rounded-md border border-dashed border-gray-200 py-2 text-center text-[11px] text-gray-300">
-                            —
-                          </div>
-                        )
-                      ) : (
-                        <div className="space-y-1">
-                          {cell.map((s) => (
-                            <div
-                              key={s.id}
-                              className="rounded-md border border-gray-100 bg-gray-50 px-2 py-1"
-                            >
-                              <div className="truncate text-[12px] font-medium text-gray-800">
-                                {staffName(s.staff_id)}
-                              </div>
-                              <div className="mt-0.5 flex items-center justify-between gap-1">
-                                <ShiftStatusBadge status={s.status} />
-                                {canApprove && s.status === "scheduled" && (
-                                  <button
-                                    type="button"
-                                    onClick={() => confirmShift(s.id)}
-                                    title="ยืนยันเวร"
-                                    className="inline-flex items-center text-primary hover:opacity-70"
-                                  >
-                                    <Check className="h-3.5 w-3.5" />
-                                  </button>
-                                )}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </td>
-                  );
-                })}
-              </tr>
+      <Table className="min-w-[760px]">
+        <TableHeader>
+          <TableRow>
+            <TableHead className="w-28">กะ</TableHead>
+            {WEEK.map((d, i) => (
+              <TableHead key={d} align="center">
+                <div className="font-medium normal-case tracking-normal">{DOW[i]}</div>
+                <div className={d === TODAY ? "font-semibold text-primary" : "text-gray-400"}>
+                  {Number(d.slice(8))}
+                </div>
+              </TableHead>
             ))}
-          </tbody>
-        </table>
-      </div>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {SHIFT_TYPES.map((st) => (
+            <TableRow key={st.type}>
+              <TableCell className="align-top">
+                <div className="text-sm font-medium text-gray-900">{st.label}</div>
+                <div className="text-[11px] text-gray-400">{st.time}</div>
+              </TableCell>
+              {WEEK.map((d) => {
+                const cell = grid[`${d}|${st.type}`] ?? [];
+                return (
+                  <TableCell key={d} className="px-1.5 align-top">
+                    {cell.length === 0 ? (
+                      canWrite ? (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setAssignDlg({ open: true, date: d, type: st.type })}
+                          className="w-full justify-center border border-dashed border-amber-300 bg-amber-50/60 py-2 text-[11px] text-amber-600 hover:bg-amber-100"
+                        >
+                          + จัด
+                        </Button>
+                      ) : (
+                        <div className="rounded-md border border-dashed border-gray-200 py-2 text-center text-[11px] text-gray-300">
+                          —
+                        </div>
+                      )
+                    ) : (
+                      <div className="space-y-1">
+                        {cell.map((s) => (
+                          <div
+                            key={s.id}
+                            className="rounded-md border border-gray-100 bg-gray-50 px-2 py-1"
+                          >
+                            <div className="truncate text-[12px] font-medium text-gray-800">
+                              {staffName(s.staff_id)}
+                            </div>
+                            <div className="mt-0.5 flex items-center justify-between gap-1">
+                              <ShiftStatusBadge status={s.status} />
+                              {canApprove && s.status === "scheduled" && (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => confirmShift(s.id)}
+                                  title="ยืนยันเวร"
+                                  className="h-6 w-6 text-primary"
+                                >
+                                  <Check className="h-3.5 w-3.5" />
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </TableCell>
+                );
+              })}
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
 
       <AssignShiftDialog
         state={assignDlg}

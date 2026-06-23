@@ -285,10 +285,11 @@ export default function CarePlansPage() {
                     <ul className="space-y-1.5">
                       {detailItems.map((it) => (
                         <li key={it.id}>
-                          <button
+                          <Button
+                            variant="ghost"
                             onClick={() => toggleItem(it.id)}
                             disabled={!canWrite}
-                            className="flex w-full items-start gap-2.5 rounded-lg border border-gray-200 p-2.5 text-left transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
+                            className="h-auto w-full items-start justify-start gap-2.5 whitespace-normal rounded-lg border border-gray-200 p-2.5 text-left font-normal hover:bg-gray-50"
                           >
                             {it.is_done ? (
                               <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-green-600" />
@@ -303,7 +304,7 @@ export default function CarePlansPage() {
                               </span>
                               <span className="ml-2 text-xs text-gray-400">{it.frequency}</span>
                             </span>
-                          </button>
+                          </Button>
                         </li>
                       ))}
                     </ul>

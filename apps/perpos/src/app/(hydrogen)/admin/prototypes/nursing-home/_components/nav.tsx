@@ -161,16 +161,27 @@ export function NursingShell({
   children: React.ReactNode;
 }) {
   return (
-    <PageShell width="full">
-      {/* แถบ prototype + role switcher */}
-      <div className="-mt-2 flex flex-col gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-2 text-xs font-medium text-amber-700">
-          <FlaskConical className="h-4 w-4" />
-          PROTOTYPE — ข้อมูลตัวอย่าง (mock) ไม่เชื่อมต่อฐานข้อมูลจริง
+    <PageShell
+      width="full"
+      title={
+        <span className="flex items-center gap-2">
+          {icon}
+          {title}
+        </span>
+      }
+      description={description}
+      actions={actions}
+      tabs={
+        // แถบ prototype + role switcher (ใต้ header)
+        <div className="flex flex-col gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-2 text-xs font-medium text-amber-700">
+            <FlaskConical className="h-4 w-4" />
+            PROTOTYPE — ข้อมูลตัวอย่าง (mock) ไม่เชื่อมต่อฐานข้อมูลจริง
+          </div>
+          <RoleSwitcher className="sm:w-auto" />
         </div>
-        <RoleSwitcher className="sm:w-auto" />
-      </div>
-
+      }
+    >
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-12">
         {/* sidebar — desktop sticky, mobile แนวนอนเลื่อนได้ */}
         <aside className="lg:col-span-3 xl:col-span-2">
@@ -183,18 +194,6 @@ export function NursingShell({
 
         {/* content */}
         <main className="min-w-0 lg:col-span-9 xl:col-span-10">
-          <header className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-            <div className="min-w-0">
-              <h1 className="flex items-center gap-2 text-2xl font-semibold leading-tight text-primary">
-                {icon}
-                {title}
-              </h1>
-              {description && <p className="mt-1 text-sm text-gray-500">{description}</p>}
-            </div>
-            {actions && (
-              <div className="flex flex-shrink-0 flex-wrap items-center gap-2">{actions}</div>
-            )}
-          </header>
           <div className="space-y-5">{children}</div>
         </main>
       </div>

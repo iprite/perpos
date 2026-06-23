@@ -8,6 +8,7 @@ import { UserPlus, Plus, LogIn, LogOut, CalendarDays } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ThaiDatePicker } from "@/components/ui/thai-date-picker";
 import { Label } from "@/components/ui/label";
 import { CustomSelect } from "@/components/ui/custom-select";
 import { StatCard } from "@/components/ui/stat-card";
@@ -321,12 +322,11 @@ function CreateVisitDialog({
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label htmlFor="vs-date">วันที่นัด</Label>
-                <Input
-                  id="vs-date"
-                  type="date"
+                <ThaiDatePicker
                   className="mt-1"
                   value={date}
-                  onChange={(e) => setDate(e.target.value)}
+                  onChange={setDate}
+                  placeholder="เลือกวันที่"
                 />
               </div>
               <div>

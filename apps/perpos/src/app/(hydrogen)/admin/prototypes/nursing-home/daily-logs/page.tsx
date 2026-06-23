@@ -340,9 +340,10 @@ export default function DailyLogsPage() {
                   <div className="h-4 w-full rounded bg-gray-100" />
                 </div>
               )}
-              <p className="text-xs text-gray-400">
-                ในตัวอย่างนี้ ระบบจะจำลองการแปลงเสียงเป็นบันทึก (ติดป้าย AI)
-              </p>
+              <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-left text-xs text-amber-700">
+                ตัวอย่างการทำงาน — ในระบบจริงต้องเปิดใช้ฟีเจอร์แปลงเสียง (STT) เพิ่ม
+                ตอนนี้เป็นการจำลองแปลงเสียงเป็นบันทึก (ติดป้าย AI)
+              </div>
             </div>
           </DialogBody>
           <DialogFooter>

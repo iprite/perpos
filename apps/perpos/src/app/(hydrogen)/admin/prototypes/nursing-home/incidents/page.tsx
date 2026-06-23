@@ -21,6 +21,7 @@ import type {
 import { Button } from "@/components/ui/button";
 import { CustomSelect } from "@/components/ui/custom-select";
 import { Input } from "@/components/ui/input";
+import { ThaiDatePicker } from "@/components/ui/thai-date-picker";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { StatCard } from "@/components/ui/stat-card";
@@ -423,12 +424,11 @@ export default function IncidentsPage() {
                 </div>
                 <div>
                   <Label htmlFor="i-when">วันที่เกิดเหตุ</Label>
-                  <Input
-                    id="i-when"
-                    type="date"
+                  <ThaiDatePicker
                     className="mt-1"
                     value={form.occurred_at}
-                    onChange={(e) => setForm((f) => ({ ...f, occurred_at: e.target.value }))}
+                    onChange={(iso) => setForm((f) => ({ ...f, occurred_at: iso }))}
+                    placeholder="เลือกวันที่"
                   />
                 </div>
               </div>

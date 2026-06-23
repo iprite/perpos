@@ -259,20 +259,21 @@ export default function ResidentProfilePage() {
           {/* Tab nav */}
           <div className="flex gap-1 overflow-x-auto rounded-xl border border-gray-200 bg-white p-1.5 shadow-sm">
             {TABS.map((t) => (
-              <button
+              <Button
                 key={t.key}
-                type="button"
+                variant="ghost"
+                size="sm"
                 onClick={() => setTab(t.key)}
                 className={cn(
-                  "flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-2 text-sm transition-colors duration-150",
+                  "shrink-0 gap-1.5",
                   tab === t.key
-                    ? "bg-primary/10 font-medium text-primary"
+                    ? "bg-primary/10 font-medium text-primary hover:bg-primary/10"
                     : "text-gray-600 hover:bg-gray-50 hover:text-gray-900",
                 )}
               >
                 {t.icon}
                 {t.label}
-              </button>
+              </Button>
             ))}
           </div>
 
@@ -432,18 +433,18 @@ function OverviewTab({
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {quick.map((q) => (
-          <button
+          <Button
             key={q.key}
-            type="button"
+            variant="outline"
             onClick={() => setTab(q.key)}
-            className="flex items-start gap-3 rounded-xl border border-gray-200 bg-white p-4 text-left shadow-sm transition-colors duration-150 hover:border-primary/40 hover:bg-gray-50"
+            className="h-auto items-start justify-start gap-3 whitespace-normal rounded-xl border-gray-200 bg-white p-4 text-left font-normal shadow-sm hover:border-primary/40 hover:bg-gray-50"
           >
             <span className="rounded-lg bg-gray-100 p-2 text-gray-500">{q.icon}</span>
             <span className="min-w-0">
               <span className="block font-medium text-gray-900">{q.label}</span>
               <span className="block text-xs text-gray-500">{q.desc}</span>
             </span>
-          </button>
+          </Button>
         ))}
       </div>
     </div>
