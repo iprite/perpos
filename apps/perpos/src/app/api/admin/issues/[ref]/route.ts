@@ -15,6 +15,42 @@ import { createAdminClient } from "../../../_lib/supabase";
 import { ok, Err } from "../../../_lib/response";
 import { logAdminAction } from "../../../_lib/admin-audit";
 import { TYPE_TO_PREFIX, ISSUE_AREAS, RESOLVED_STATUSES } from "@/lib/admin/issues";
+import { sendLineMessages } from "@/lib/line/send-messages";
+import type { SupabaseClient } from "@supabase/supabase-js";
+
+const NOTIFY_STATUSES = ["deployed", "closed"]; // ปิดจริงสำหรับผู้ใช้ → แจ้งผู้รายงาน
+
+/** แจ้งผู้รายงาน (LINE) ว่าเรื่องถูกแก้/ปิดแล้ว — ครั้งเดียว (close-the-loop) */
+async function notifyReporterIfLine(admin: SupabaseClient, issueId: string) {
+  const { data: iss } = await admin
+    .from("system_issues")
+    .select("ref, title, source, reported_by, reporter_notified_at")
+    .eq("id", issueId)
+    .maybeSingle();
+  if (!iss || iss.source !== "line" || iss.reported_by == null || iss.reporter_notified_at) return;
+
+  const { data: prof } = await admin
+    .from("profiles")
+    .select("line_user_id")
+    .eq("id", iss.reported_by)
+    .maybeSingle();
+  if (!prof?.line_user_id) return;
+
+  await sendLineMessages({
+    to: prof.line_user_id as string,
+    messages: [
+      {
+        type: "text",
+        text: `✅ ปัญหาที่คุณแจ้ง (${iss.ref}) ได้รับการแก้ไขแล้ว\n"${iss.title}"\nขอบคุณที่ช่วยรายงานครับ 🙏`,
+      },
+    ],
+  }).catch(() => {});
+
+  await admin
+    .from("system_issues")
+    .update({ reporter_notified_at: new Date().toISOString() })
+    .eq("id", issueId);
+}
 
 const STATUSES = [
   "open",
@@ -128,6 +164,11 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ ref: stri
       to_status: e.to_status ?? null,
       note: e.note,
     });
+  }
+
+  // close-the-loop: แจ้งผู้รายงาน LINE เมื่อปิดเรื่อง (deployed/closed) — ครั้งเดียว
+  if (newStatus && NOTIFY_STATUSES.includes(newStatus)) {
+    await notifyReporterIfLine(admin, issueId).catch(() => {});
   }
 
   await logAdminAction(req, auth.userId, {
