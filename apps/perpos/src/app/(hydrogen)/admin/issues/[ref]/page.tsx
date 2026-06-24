@@ -8,6 +8,7 @@ import { getIssueByRef } from "@/lib/admin/issues";
 import { AdminPage } from "../../_components/admin-page";
 import { CopyCommand } from "./_copy-command";
 import { StatusControl } from "./_status-control";
+import { EditIssueButton } from "./_edit-button";
 import {
   STATUS_LABEL,
   STATUS_TONE,
@@ -15,8 +16,12 @@ import {
   SEVERITY_LABEL,
   SEVERITY_TONE,
   SOURCE_LABEL,
+  areaLabel,
+  actionLabel,
   fmtTime,
 } from "../_meta";
+
+const GITHUB_REPO = "https://github.com/iprite/perpos";
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -32,7 +37,9 @@ export default async function IssueDetailPage({ params }: { params: Promise<{ re
   const { ref } = await params;
   const data = await getIssueByRef(admin, decodeURIComponent(ref));
   if (!data) notFound();
-  const { issue, events } = data;
+  const { issue, events, reporter } = data;
+  const reporterName =
+    reporter?.display_name || reporter?.email || (reporter?.line_user_id ? "ผู้ใช้ LINE" : null);
 
   return (
     <AdminPage
@@ -62,11 +69,30 @@ export default async function IssueDetailPage({ params }: { params: Promise<{ re
         <div className="flex flex-wrap items-center gap-2 pt-1">
           <span className="text-xs text-gray-500">สั่ง agent แก้:</span>
           <CopyCommand command={`/fix-issue ${issue.ref}`} />
+          <span className="text-xs text-gray-400">
+            คัดลอกไปวางใน Claude Code เพื่อให้ agent รับเคสนี้
+          </span>
         </div>
       </div>
 
-      {/* อัปเดตสถานะ */}
-      <div className="mb-5">
+      {/* อัปเดตสถานะ + แก้ไขรายละเอียด */}
+      <div className="mb-5 space-y-3">
+        <div className="flex justify-end">
+          <EditIssueButton
+            issueRef={issue.ref}
+            initial={{
+              title: issue.title,
+              type: issue.type,
+              severity: issue.severity,
+              area: issue.area,
+              symptom: issue.symptom ?? "",
+              reproduce: issue.reproduce ?? "",
+              root_cause: issue.root_cause ?? "",
+              fix_summary: issue.fix_summary ?? "",
+              branch: issue.branch ?? "",
+            }}
+          />
+        </div>
         <StatusControl issueRef={issue.ref} current={issue.status} />
       </div>
 
@@ -76,13 +102,20 @@ export default async function IssueDetailPage({ params }: { params: Promise<{ re
         {issue.reproduce && <Field label="ขั้นตอนทำซ้ำ">{issue.reproduce}</Field>}
         {issue.root_cause && <Field label="ต้นเหตุ (root cause)">{issue.root_cause}</Field>}
         {issue.fix_summary && <Field label="วิธีแก้">{issue.fix_summary}</Field>}
-        {issue.area.length > 0 && <Field label="ชั้นที่เกี่ยว">{issue.area.join(", ")}</Field>}
+        {issue.area.length > 0 && (
+          <Field label="ชั้นที่เกี่ยว">{issue.area.map(areaLabel).join(", ")}</Field>
+        )}
         {issue.branch && (
           <Field label="Branch">
-            <span className="inline-flex items-center gap-1 font-mono text-xs">
+            <a
+              href={`${GITHUB_REPO}/tree/${issue.branch}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 font-mono text-xs text-primary hover:underline"
+            >
               <GitBranch className="h-3.5 w-3.5 text-gray-400" />
               {issue.branch}
-            </span>
+            </a>
           </Field>
         )}
         {issue.files_touched.length > 0 && (
@@ -96,6 +129,7 @@ export default async function IssueDetailPage({ params }: { params: Promise<{ re
             </Field>
           </div>
         )}
+        {reporterName && <Field label="ผู้รายงาน">{reporterName}</Field>}
         {issue.reporter_note && <Field label="หมายเหตุผู้รายงาน">{issue.reporter_note}</Field>}
         <Field label="สร้างเมื่อ">{fmtTime(issue.created_at)}</Field>
         <Field label="อัปเดตล่าสุด">{fmtTime(issue.updated_at)}</Field>
@@ -125,11 +159,13 @@ export default async function IssueDetailPage({ params }: { params: Promise<{ re
                   {fmtTime(e.at)}
                 </span>
                 <div>
-                  <span className="text-gray-700">{e.action}</span>
+                  <span className="text-gray-700">{actionLabel(e.action)}</span>
                   {e.from_status && e.to_status && (
                     <span className="text-gray-500">
                       {" "}
-                      · {e.from_status ?? "—"} → {e.to_status}
+                      · {STATUS_LABEL[e.from_status as keyof typeof STATUS_LABEL] ??
+                        e.from_status}{" "}
+                      → {STATUS_LABEL[e.to_status as keyof typeof STATUS_LABEL] ?? e.to_status}
                     </span>
                   )}
                   {e.actor && <span className="text-xs text-gray-400"> · {e.actor}</span>}
