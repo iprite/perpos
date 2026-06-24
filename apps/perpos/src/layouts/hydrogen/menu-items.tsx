@@ -40,6 +40,7 @@ import {
   Server,
   FlaskConical,
   Presentation,
+  Bug,
 } from "lucide-react";
 
 import type { Role } from "@/lib/supabase/types";
@@ -483,6 +484,12 @@ export function buildAdminMenuItems(): MenuItem[] {
 
     // ── ระบบ & ความปลอดภัย ─────────────────────────────────────────────────────
     { name: "ระบบ & ความปลอดภัย", roles: ["super_admin"] },
+    {
+      name: "ติดตามปัญหา (Issues)",
+      href: "/admin/issues",
+      icon: <Bug className="h-5 w-5" />,
+      roles: ["super_admin"],
+    },
     {
       name: "Webhooks",
       href: "/admin/webhooks",

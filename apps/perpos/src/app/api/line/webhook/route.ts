@@ -992,6 +992,100 @@ function replyText(replyToken: string, text: string) {
 }
 
 /**
+ * แจ้งปัญหาเข้า Issue Tracker (system_issues) — คำสั่ง /แจ้งปัญหา · /bug · /report
+ * ผู้ใช้ LINE ทุกคนเป็น Flow user (provisioned) → reported_by ผูก profile เสมอ ·
+ * กันสแปม: dedup ต่อ line_message_id + rate-limit 5/คน/วัน · สร้าง status='open' (รอ admin triage)
+ */
+async function handleReportIssue(
+  admin: ReturnType<typeof createAdminClient>,
+  profileId: string,
+  lineUserId: string,
+  reportText: string,
+  messageId: string,
+  replyToken: string,
+) {
+  const text = reportText.trim();
+  if (!text) {
+    return replyText(
+      replyToken,
+      "📝 วิธีแจ้งปัญหา\nพิมพ์ /แจ้งปัญหา ตามด้วยรายละเอียด\nเช่น: /แจ้งปัญหา กดบันทึกใบเสนอราคาแล้วขึ้น error",
+    );
+  }
+
+  // dedup ต่อ line message id (กัน LINE redeliver → สร้างซ้ำ)
+  const dedupKey = messageId ? `line:${messageId}` : null;
+  if (dedupKey) {
+    const { data: existing } = await admin
+      .from("system_issues")
+      .select("ref")
+      .eq("dedup_key", dedupKey)
+      .maybeSingle();
+    if (existing) return replyText(replyToken, `รับเรื่องนี้ไว้แล้วครับ — ${existing.ref}`);
+  }
+
+  // rate-limit 5/คน/วัน
+  const { data: allowed } = await admin.rpc("incr_issue_report_usage", {
+    p_line_user_id: lineUserId,
+    p_daily_limit: 5,
+  });
+  if (allowed === false) {
+    return replyText(
+      replyToken,
+      "⚠️ วันนี้แจ้งปัญหาครบ 5 เรื่องแล้ว\nลองใหม่พรุ่งนี้ หรือทักทีมงานโดยตรงได้เลยครับ",
+    );
+  }
+
+  const title = text.length > 80 ? text.slice(0, 77) + "…" : text;
+  // ส่ง param ครบทั้ง 11 (รวม default) — ตัดความกำกวมของ PostgREST default-resolution
+  const { data: ref, error } = await admin.rpc("agent_create_issue", {
+    p_type: "bug",
+    p_title: title,
+    p_severity: "sev2",
+    p_symptom: text,
+    p_reproduce: null,
+    p_area: [],
+    p_status: "open",
+    p_actor: `line:${lineUserId}`,
+    p_reported_by: profileId,
+    p_reporter_note: "แจ้งผ่าน LINE",
+    p_dedup_key: dedupKey,
+  });
+  if (error || !ref) {
+    return replyText(replyToken, "ขออภัย ระบบขัดข้องชั่วคราว ลองแจ้งใหม่อีกครั้งนะครับ 🙏");
+  }
+
+  await replyText(
+    replyToken,
+    `✅ รับเรื่องแล้ว — ${ref}\nทีมงานจะตรวจสอบและดำเนินการครับ ขอบคุณที่แจ้ง 🙏`,
+  );
+  await notifySuperAdminsOfIssue(admin, String(ref), title).catch(() => {});
+}
+
+/** push แจ้ง super_admin (ที่ผูก LINE) เมื่อมี issue ใหม่จาก LINE */
+async function notifySuperAdminsOfIssue(
+  admin: ReturnType<typeof createAdminClient>,
+  ref: string,
+  title: string,
+) {
+  const { data: admins } = await admin
+    .from("profiles")
+    .select("line_user_id")
+    .eq("role", "super_admin")
+    .not("line_user_id", "is", null);
+  if (!admins?.length) return;
+  const base = process.env.APP_BASE_URL ?? "https://app.perpos.ai";
+  const msg = `🐞 ปัญหาใหม่จาก LINE\n${ref} — ${title}\n${base}/admin/issues/${ref}`;
+  await Promise.all(
+    admins.map((a) =>
+      sendLineMessages({
+        to: a.line_user_id as string,
+        messages: [{ type: "text", text: msg }],
+      }).catch(() => {}),
+    ),
+  );
+}
+
+/**
  * ผู้ช่วยโฟล์ — ตอบคำถามสินค้า PERPOS/Flow/Suite (RAG) สำหรับ free text ที่เป็นคำถาม
  * ทุกคนที่แอด OA ใช้ได้ ไม่ต้องผูกบัญชี · rate-limit ต่อคน/วัน กัน abuse + คุมต้นทุน Gemini
  */
@@ -3667,6 +3761,19 @@ export async function POST(req: NextRequest) {
       continue;
     }
 
+    // /แจ้งปัญหา · /bug · /report <ข้อความ> — แจ้งปัญหาเข้า Issue Tracker (ไม่ต้องใช้ org)
+    if (cmd === "แจ้งปัญหา" || cmd === "bug" || cmd === "report") {
+      await handleReportIssue(
+        admin,
+        profile.id,
+        lineUserId,
+        args.join(" "),
+        String(msg.id ?? ""),
+        replyToken,
+      );
+      continue;
+    }
+
     // /org [N] — list or switch active organization
     if (cmd === "org") {
       await handleOrgCmd(admin, profile.id, args, replyToken);
@@ -3750,6 +3857,7 @@ export async function POST(req: NextRequest) {
           { type: "separator", margin: "md" },
           { type: "text", text: "คำสั่งหลัก", size: "xs", color: "#9CA3AF", margin: "md" },
           cmdRow("/org", "ดู/เปลี่ยน Organization"),
+          cmdRow("/แจ้งปัญหา <ข้อความ>", "แจ้งปัญหา/บั๊กให้ทีมงาน"),
           cmdRow("/help", "แสดงคำสั่งทั้งหมด"),
         ];
 

@@ -152,16 +152,17 @@ pnpm build
 
 ทุกคำสั่ง **ต้องขึ้นต้นด้วย `/`** · ข้อความอิสระ (ไม่ขึ้นต้น `/`) ที่ "ดูเป็นคำถาม" → **ผู้ช่วยโฟล์ (Flow RAG)** ตอบ (ดูหัวข้อด้านล่าง) · ข้อความที่ไม่เข้าเงื่อนไขถูก ignore
 
-| คำสั่ง                    | หน้าที่                                                  | Permission Key                                       |
-| ------------------------- | -------------------------------------------------------- | ---------------------------------------------------- |
-| `/help`                   | แสดงคำสั่งทั้งหมด                                        | —                                                    |
-| `/link <token>`           | ผูกบัญชี LINE                                            | —                                                    |
-| `/ข่าว`                   | สรุปข่าว                                                 | `bot.news.request`                                   |
-| `/สรุปล่าสุด`             | ข่าวล่าสุด                                               | `bot.news.latest`                                    |
-| `/รายรับ <จำนวน> <โน้ต>`  | บันทึกรายรับ                                             | `bot.finance.income_add`                             |
-| `/รายจ่าย <จำนวน> <โน้ต>` | บันทึกรายจ่าย                                            | `bot.finance.expense_add`                            |
-| `/mom`                    | ส่งไฟล์เสียง → ได้รายงานการประชุม (MoM) PDF กลับทาง LINE | `bot.assistant.transcribe` (ผู้ช่วย AI, per-profile) |
-| `/web`                    | รับ magic link เข้าเว็บผู้ช่วย AI                        | —                                                    |
+| คำสั่ง                                    | หน้าที่                                                                                                                                                                          | Permission Key                                       |
+| ----------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| `/help`                                   | แสดงคำสั่งทั้งหมด                                                                                                                                                                | —                                                    |
+| `/link <token>`                           | ผูกบัญชี LINE                                                                                                                                                                    | —                                                    |
+| `/ข่าว`                                   | สรุปข่าว                                                                                                                                                                         | `bot.news.request`                                   |
+| `/สรุปล่าสุด`                             | ข่าวล่าสุด                                                                                                                                                                       | `bot.news.latest`                                    |
+| `/รายรับ <จำนวน> <โน้ต>`                  | บันทึกรายรับ                                                                                                                                                                     | `bot.finance.income_add`                             |
+| `/รายจ่าย <จำนวน> <โน้ต>`                 | บันทึกรายจ่าย                                                                                                                                                                    | `bot.finance.expense_add`                            |
+| `/mom`                                    | ส่งไฟล์เสียง → ได้รายงานการประชุม (MoM) PDF กลับทาง LINE                                                                                                                         | `bot.assistant.transcribe` (ผู้ช่วย AI, per-profile) |
+| `/web`                                    | รับ magic link เข้าเว็บผู้ช่วย AI                                                                                                                                                | —                                                    |
+| `/แจ้งปัญหา` `/bug` `/report` `<ข้อความ>` | แจ้งปัญหา/บั๊กเข้า Issue Tracker (`system_issues`, source=line, status=open) → push แจ้ง super_admin · ทุก LINE user ใช้ได้ (provisioned) · dedup ต่อ message + rate-limit 5/วัน | —                                                    |
 
 **หมายเหตุ:** Admin role ข้ามการเช็ค permission ทั้งหมด · คำสั่ง Task Manager เดิม (`/t /tk /d /a /ap`) + ปฏิทิน (`/นัด /วันนี้`) **ยกเลิก/ลบโค้ดแล้ว** (module assistant เดิม + ตาราง `tasks`/`calendar_events` ไม่มีช่องทางสร้างแล้ว)
 
@@ -191,6 +192,20 @@ pnpm build
 
 ---
 
+## Issue Tracker — ติดตามปัญหาทั้งระบบ (admin + LINE + agent ใช้ฐานเดียวกัน)
+
+ระบบ tracking ปัญหา (bug/user-error/config-infra/feature-gap) ที่ **คนและ AI agent ใช้ร่วมกัน** — single source of truth = ตาราง `system_issues`.
+
+- **เลขอ้างอิง** type-prefix นับแยกต่อ prefix (RPC `next_issue_ref`): `BUG-`(bug) `OPS-`(config_infra) `UX-`(user_error) `FEAT-`(feature_gap) · **immutable** (freeze ตอนสร้าง, type เปลี่ยนได้แต่ ref คงเดิม)
+- **3 ช่องทางแจ้ง:** (1) **LINE** — `/แจ้งปัญหา`·`/bug`·`/report <ข้อความ>` ([webhook](apps/perpos/src/app/api/line/webhook/route.ts) `handleReportIssue`: ทุก LINE user แจ้งได้, dedup ต่อ `line_message_id` + rate-limit 5/วัน, `status=open`) · (2) **admin** กรอกเองที่ `/admin/issues` · (3) **agent** (Fix Factory) ตอนรับเคส
+- **status lifecycle:** `open → triaging → diagnosing → fixing → verifying → fixed → deployed → closed` (+ `blocked/wontfix/duplicate/handoff_feature`) · **`fixed` = แก้เสร็จใน branch ยังไม่ deploy** ≠ `deployed` (ขึ้น prod) — agent หยุดที่ `fixed`, คนปิด (deployed/closed) เอง
+- **หน้า admin** `(hydrogen)/admin/issues/*` (super_admin, SSR) — dashboard (MTTR/เปิดค้าง/by source) + list/filter + detail/timeline + ปุ่มคัดลอกคำสั่ง `/fix-issue <ref>`
+- **API** (`requireAdmin`): `POST /api/admin/issues` (สร้าง) · `PATCH /api/admin/issues/[ref]` (เปลี่ยนสถานะ/แก้/โน้ต → timeline event + เมื่อ deployed/closed & source=line → push แจ้งผู้รายงาน กลับ LINE = close-the-loop)
+- **agent เขียนผ่าน RPC เท่านั้น** (parameterized, ห้ามต่อ raw SQL): `agent_create_issue(...)` / `agent_log_issue(ref, status?, root_cause?, …)` — SECURITY DEFINER, service-role · fix-issue skill ขยับสถานะทุก phase สด + commit อ้าง ref `(BUG-12)`
+- **fetch logic** = [lib/admin/issues.ts](apps/perpos/src/lib/admin/issues.ts) (`listIssues`/`getIssueByRef`/`getIssueStats`) · ตาราง: `system_issues` · `system_issue_events` · `issue_counters` · `issue_report_usage` (RLS deny-all, super_admin/agent ผ่าน service-role)
+
+---
+
 ## Database Schema (Supabase)
 
 ### ตารางหลัก
@@ -207,6 +222,8 @@ pnpm build
 | `stt_usage_transactions`                     | ledger การใช้โควต้า (debit/refund) — RPC `consume_stt_quota`/`refund_stt_quota` (service role) atomic reserve+refund; quota บังคับใช้ที่ stt-worker (วัดความยาวด้วย music-metadata ก่อนเรียก Gemini) · API: `GET /api/assistant/quota`, `GET | PUT /api/admin/stt-quota` |
 | `kb_chunks`                                  | Knowledge base ผู้ช่วยโฟล์ (RAG) — source/heading/content + embedding vector(768) + hnsw · embed ด้วย `pnpm kb:embed`                                                                                                                        |
 | `flow_chat_usage`                            | rate-limit ผู้ช่วยโฟล์ (line_user_id, day, count) — RPC `incr_flow_chat_usage`                                                                                                                                                               |
+| `system_issues`                              | **Issue Tracker** — ปัญหาทั้งระบบ (ref BUG-/OPS-/UX-/FEAT- immutable, type/severity/status/area[]/root_cause/fix_summary/branch/source admin\|agent\|line\|signal/reported_by/dedup_key) · ดูหัวข้อ "Issue Tracker" ด้านล่าง                 |
+| `system_issue_events`                        | timeline ของแต่ละ issue (status_change/edited/note) · `issue_counters` (เลขต่อ prefix) · `issue_report_usage` (rate-limit แจ้งผ่าน LINE)                                                                                                     |
 | `news_agent_configs`                         | ตั้งค่า News Agent (topics, sources, summary_style)                                                                                                                                                                                          |
 | `delivery_schedules`                         | cron schedule ส่งข่าว                                                                                                                                                                                                                        |
 | `delivery_logs`                              | log การส่งข่าว                                                                                                                                                                                                                               |
