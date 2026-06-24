@@ -50,7 +50,28 @@ export async function middleware(request: NextRequest) {
   });
 
   // Touch the session — triggers a token refresh + setAll() when needed.
-  await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  // DEV-ONLY auto-login: ยังไม่มี session + เปิด flag → พาไป /dev-login
+  // (มินต์ session ของ super_admin อัตโนมัติ — ดู src/app/(auth)/dev-login/route.ts)
+  // ปิดสนิทบน production (NODE_ENV) + ต้องตั้ง DEV_AUTOLOGIN=1 อย่างชัดเจน
+  if (!user && process.env.NODE_ENV !== "production" && process.env.DEV_AUTOLOGIN === "1") {
+    const { pathname } = request.nextUrl;
+    const accept = request.headers.get("accept") ?? "";
+    const isHtmlNav =
+      request.method === "GET" &&
+      accept.includes("text/html") &&
+      !pathname.startsWith("/api") &&
+      !pathname.startsWith("/dev-login") &&
+      !pathname.startsWith("/line"); // อย่าขวาง LINE OAuth bridge
+    if (isHtmlNav) {
+      const dest = new URL("/dev-login", request.url);
+      dest.searchParams.set("returnTo", pathname + request.nextUrl.search);
+      return NextResponse.redirect(dest);
+    }
+  }
 
   return response;
 }
