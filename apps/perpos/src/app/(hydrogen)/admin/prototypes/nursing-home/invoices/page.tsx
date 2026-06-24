@@ -46,6 +46,8 @@ import {
   RESIDENT_SUBSCRIPTIONS,
   SERVICE_PACKAGES,
   MEDICATION_ORDERS,
+  arOutstandingTotal,
+  computeArAging,
 } from "../_fixtures";
 import type { Invoice, InvoiceItem, InvoiceItemKind } from "../_fixtures/types";
 
@@ -89,11 +91,11 @@ export default function InvoicesPage() {
     (i) => (!fStatus || i.status === fStatus) && (!fMonth || i.period_month === fMonth),
   );
 
-  // KPI — เดือนที่เลือก
+  // KPI — รายได้ผูกกับเดือนที่เลือก, แต่ "ยอดค้างชำระ (AR)" = สูตรเดียวทั้งโมดูล (snapshot ทุกเดือน)
   const monthInv = invoices.filter((i) => i.period_month === fMonth && i.status !== "void");
   const revenue = monthInv.reduce((s, i) => s + i.paid_amount, 0);
-  const outstanding = monthInv.reduce((s, i) => s + (i.total - i.paid_amount), 0);
-  const overdueCount = monthInv.filter((i) => i.status === "overdue").length;
+  const outstanding = arOutstandingTotal(invoices);
+  const overdueCount = computeArAging(invoices).overdueCount;
 
   const detailItems = detail ? items.filter((it) => it.invoice_id === detail.id) : [];
 

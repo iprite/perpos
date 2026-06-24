@@ -31,7 +31,7 @@ import {
 } from "@/components/ui/table";
 import { toast } from "@/lib/toast";
 import { NursingShell, useNursingRole, fmtMoney, fmtDateTH, fullName } from "../_components";
-import { INVOICES, PAYMENTS, RESIDENTS } from "../_fixtures";
+import { INVOICES, PAYMENTS, RESIDENTS, computeArAging } from "../_fixtures";
 import type { Invoice, Payment, PaymentMethod } from "../_fixtures/types";
 
 const METHOD_LABEL: Record<PaymentMethod, string> = {
@@ -48,11 +48,6 @@ const residentName = (id: string) => {
     ? fullName({ first_name: r.first_name, last_name: r.last_name, nickname: r.nickname })
     : id;
 };
-
-// วันนี้อ้างอิง prototype = 22 มิ.ย. 2026
-const TODAY = new Date("2026-06-22");
-const daysOverdue = (due: string) =>
-  Math.floor((TODAY.getTime() - new Date(due).getTime()) / 86400000);
 
 type PayForm = { invoice_id: string; amount: string; method: PaymentMethod };
 
@@ -73,26 +68,13 @@ export default function PaymentsPage() {
 
   const selectedInv = invoices.find((i) => i.id === form.invoice_id) ?? null;
 
-  // ─── AR aging — คำนวณจาก due_date ของบิลที่ยังค้าง ───
-  const aging = useMemo(() => {
-    const b = { current: 0, d30: 0, d60: 0, d60p: 0 };
-    for (const i of invoices) {
-      if (i.status === "void" || i.status === "paid") continue;
-      const remaining = i.total - i.paid_amount;
-      if (remaining <= 0) continue;
-      const od = daysOverdue(i.due_date);
-      if (od <= 0) b.current += remaining;
-      else if (od <= 30) b.d30 += remaining;
-      else if (od <= 60) b.d60 += remaining;
-      else b.d60p += remaining;
-    }
-    return b;
-  }, [invoices]);
+  // ─── AR aging — สูตรเดียวทั้งโมดูล (issued/partially_paid/overdue ที่ยังเก็บไม่ครบ) ───
+  const aging = useMemo(() => computeArAging(invoices), [invoices]);
 
   if (!canView) return <NoAccess />;
 
-  const totalAR = aging.current + aging.d30 + aging.d60 + aging.d60p;
-  const overdueAR = aging.d30 + aging.d60 + aging.d60p;
+  const totalAR = aging.total;
+  const overdueAR = aging.overdueTotal;
   const receivedTotal = payments.reduce((s, p) => s + p.amount, 0);
 
   const sortedPayments = [...payments].sort((a, b) => b.paid_at.localeCompare(a.paid_at));
@@ -203,9 +185,9 @@ export default function PaymentsPage() {
         <h3 className="mb-3 text-base font-medium text-gray-900">อายุหนี้คงค้าง (AR Aging)</h3>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <AgingCell label="ยังไม่ถึงกำหนด" value={aging.current} tone="text-gray-900" />
-          <AgingCell label="1–30 วัน" value={aging.d30} tone="text-amber-600" />
-          <AgingCell label="31–60 วัน" value={aging.d60} tone="text-orange-600" />
-          <AgingCell label="60+ วัน" value={aging.d60p} tone="text-red-600" />
+          <AgingCell label="1–30 วัน" value={aging.d1_30} tone="text-amber-600" />
+          <AgingCell label="31–60 วัน" value={aging.d31_60} tone="text-orange-600" />
+          <AgingCell label="60+ วัน" value={aging.d60plus} tone="text-red-600" />
         </div>
       </div>
 

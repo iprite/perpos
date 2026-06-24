@@ -107,7 +107,8 @@ export default function NursingDashboardPage() {
       vitalsAbnormal,
       monthRevenue,
       monthCollected,
-      arOutstanding: AR_AGING_SUMMARY.total_outstanding,
+      arOutstanding: AR_AGING_SUMMARY.total,
+      arOverdueCount: AR_AGING_SUMMARY.overdueCount,
     };
   }, []);
 
@@ -191,7 +192,7 @@ export default function NursingDashboardPage() {
               icon={<ReceiptText className="h-4 w-4" />}
               label="ยอดค้างชำระ (AR)"
               value={fmtMoneyShort(kpi.arOutstanding)}
-              sub={`เกินกำหนด ${AR_AGING_SUMMARY.overdue_30.count + AR_AGING_SUMMARY.overdue_60.count} ราย`}
+              sub={`เกินกำหนด ${kpi.arOverdueCount} ราย`}
               tone="negative"
               valueColored
             />

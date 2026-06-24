@@ -1,5 +1,12 @@
 // billing.ts — service_packages, resident_subscriptions, invoices, invoice_items, payments
-import type { ServicePackage, ResidentSubscription, Invoice, InvoiceItem, Payment } from "./types";
+import type {
+  ServicePackage,
+  ResidentSubscription,
+  Invoice,
+  InvoiceItem,
+  InvoiceStatus,
+  Payment,
+} from "./types";
 
 // ---- SERVICE_PACKAGES (4 แบบ ครบ care_level) ----
 export const SERVICE_PACKAGES: ServicePackage[] = [
@@ -740,11 +747,85 @@ export const PAYMENTS: Payment[] = [
   },
 ];
 
-// ---- AR aging helper (ใช้ใน dashboard/reports) ----
-export const AR_AGING_SUMMARY = {
-  current: { count: 2, total: 46000 }, // issued ยังไม่ถึงกำหนด (inv-007, inv-008)
-  overdue_30: { count: 1, total: 39500 }, // overdue มิ.ย. (inv-005)
-  overdue_60: { count: 1, total: 39500 }, // overdue พ.ค. (inv-014)
-  partial: { count: 1, total: 14600 }, // ค้างอีก 14,600 (inv-004)
-  total_outstanding: 139600,
-} as const;
+// ════════════════════════════════════════════════════════════════════════
+// ยอดค้างชำระ (Accounts Receivable) — สูตรเดียวของทั้งโมดูล (single source of truth)
+// ════════════════════════════════════════════════════════════════════════
+// นิยาม AR = ผลรวมยอดคงเหลือ (total − paid_amount) ของบิลที่ "ออกแล้วและยังเก็บไม่ครบ"
+// = สถานะ issued / partially_paid / overdue เท่านั้น
+//   • draft = ยังไม่ออกบิล → ไม่นับ
+//   • paid  = เก็บครบ → คงเหลือ 0
+//   • void  = ยกเลิก → ไม่นับ
+// ทุกหน้า (dashboard / invoices / payments / reports) ต้อง derive จาก helper ชุดนี้
+// ห้าม hardcode ยอด AR หรือคำนวณสูตรเองซ้ำในหน้า
+
+/** วันอ้างอิง "วันนี้" ของ prototype — ใช้คิดอายุหนี้ (aging) */
+export const AR_AS_OF = "2026-06-22";
+
+/** สถานะบิลที่ถือเป็นลูกหนี้ค้างชำระ (ออกบิลแล้ว ยังเก็บไม่ครบ) */
+export const AR_OPEN_STATUSES: InvoiceStatus[] = ["issued", "partially_paid", "overdue"];
+
+/** ยอดคงเหลือต้องชำระของบิล 1 ใบ (ไม่ติดลบ) */
+export function invoiceBalance(inv: Invoice): number {
+  return Math.max(0, inv.total - inv.paid_amount);
+}
+
+/** บิลที่เข้าข่ายลูกหนี้ค้างชำระ (มียอดคงเหลือ > 0) */
+export function arOutstandingInvoices(invoices: Invoice[] = INVOICES): Invoice[] {
+  return invoices.filter((i) => AR_OPEN_STATUSES.includes(i.status) && invoiceBalance(i) > 0);
+}
+
+/** ยอด AR รวม = ผลรวมยอดคงเหลือของบิลค้างชำระทั้งหมด */
+export function arOutstandingTotal(invoices: Invoice[] = INVOICES): number {
+  return arOutstandingInvoices(invoices).reduce((s, i) => s + invoiceBalance(i), 0);
+}
+
+function daysOverdue(due: string, asOf: string = AR_AS_OF): number {
+  return Math.floor((new Date(asOf).getTime() - new Date(due).getTime()) / 86400000);
+}
+
+export type ArAging = {
+  current: number; // ยังไม่ถึงกำหนด (od ≤ 0)
+  d1_30: number; // เกินกำหนด 1–30 วัน
+  d31_60: number; // เกินกำหนด 31–60 วัน
+  d60plus: number; // เกินกำหนด > 60 วัน
+  total: number; // = current + d1_30 + d31_60 + d60plus
+  overdueTotal: number; // = d1_30 + d31_60 + d60plus
+  overdueCount: number; // จำนวนบิลที่เกินกำหนด
+  count: number; // จำนวนบิลค้างชำระทั้งหมด
+};
+
+/**
+ * คิดอายุหนี้คงค้าง (AR aging) จากบิลค้างชำระ — bucket รวมแล้ว = total เสมอ
+ * ใช้สูตร/ชุดบิลเดียวกับ arOutstandingTotal()
+ */
+export function computeArAging(invoices: Invoice[] = INVOICES, asOf: string = AR_AS_OF): ArAging {
+  const a: ArAging = {
+    current: 0,
+    d1_30: 0,
+    d31_60: 0,
+    d60plus: 0,
+    total: 0,
+    overdueTotal: 0,
+    overdueCount: 0,
+    count: 0,
+  };
+  for (const inv of arOutstandingInvoices(invoices)) {
+    const bal = invoiceBalance(inv);
+    const od = daysOverdue(inv.due_date, asOf);
+    a.total += bal;
+    a.count += 1;
+    if (od <= 0) {
+      a.current += bal;
+    } else {
+      a.overdueTotal += bal;
+      a.overdueCount += 1;
+      if (od <= 30) a.d1_30 += bal;
+      else if (od <= 60) a.d31_60 += bal;
+      else a.d60plus += bal;
+    }
+  }
+  return a;
+}
+
+/** สรุป AR aging ของชุดบิลเริ่มต้น (derived — ไม่ hardcode) — ใช้ใน dashboard */
+export const AR_AGING_SUMMARY: ArAging = computeArAging();

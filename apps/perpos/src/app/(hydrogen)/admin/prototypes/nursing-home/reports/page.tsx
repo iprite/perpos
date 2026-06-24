@@ -26,6 +26,7 @@ import {
   INCIDENT_REPORTS,
   CARE_PLANS,
   DAILY_CARE_LOGS,
+  arOutstandingTotal,
 } from "../_fixtures";
 import type { CareLevel, IncidentType, IncidentSeverity } from "../_fixtures/types";
 
@@ -87,11 +88,15 @@ export default function NursingReportsPage() {
     for (const r of activeResidents) byCare[r.care_level] += 1;
 
     // ── 2) รายได้ (period_month อยู่ในช่วง, ไม่นับ void/draft) ──
+    // "ค้างเก็บ" = ยอดค้างชำระ (AR) ของบิลในช่วง → ใช้ arOutstandingTotal สูตรเดียวกับทุกหน้า
+    // หมายเหตุ: นี่คือ AR เฉพาะช่วงที่เลือก (period-scoped) — เลือก "ปีนี้" จะได้ยอดเท่ากับ
+    //   AR snapshot ของ dashboard/invoices/payments
     const inRange = INVOICES.filter(
       (i) => months.includes(i.period_month) && i.status !== "void" && i.status !== "draft",
     );
     const billed = inRange.reduce((s, i) => s + i.total, 0);
     const collected = inRange.reduce((s, i) => s + i.paid_amount, 0);
+    const outstanding = arOutstandingTotal(inRange);
     const collectRate = billed ? Math.round((collected / billed) * 100) : 0;
     // แนวโน้มรายเดือน (เก่า→ใหม่) สำหรับ sparkline + ตาราง
     const byMonth = months.map((m) => {
@@ -102,6 +107,7 @@ export default function NursingReportsPage() {
         month: m,
         billed: ms.reduce((s, i) => s + i.total, 0),
         collected: ms.reduce((s, i) => s + i.paid_amount, 0),
+        outstanding: arOutstandingTotal(ms),
         count: ms.length,
       };
     });
@@ -159,6 +165,7 @@ export default function NursingReportsPage() {
       activeCount: activeResidents.length,
       billed,
       collected,
+      outstanding,
       collectRate,
       byMonth,
       cpCompletionPct,
@@ -269,7 +276,7 @@ export default function NursingReportsPage() {
                 icon={<Banknote className="h-4 w-4" />}
                 label="อัตราการเก็บเงิน"
                 value={`${report.collectRate}%`}
-                sub={`ค้างเก็บ ${fmtMoney(report.billed - report.collected)}`}
+                sub={`ค้างเก็บ ${fmtMoney(report.outstanding)}`}
                 tone={report.collectRate >= 80 ? "positive" : "warning"}
                 valueColored
               />
@@ -304,7 +311,7 @@ export default function NursingReportsPage() {
                           {fmtMoney(m.collected)}
                         </TableCell>
                         <TableCell align="right" tabular className="text-amber-600">
-                          {fmtMoney(m.billed - m.collected)}
+                          {fmtMoney(m.outstanding)}
                         </TableCell>
                       </TableRow>
                     ))
@@ -322,7 +329,7 @@ export default function NursingReportsPage() {
                       {fmtMoney(report.collected)}
                     </TableCell>
                     <TableCell align="right" tabular>
-                      {fmtMoney(report.billed - report.collected)}
+                      {fmtMoney(report.outstanding)}
                     </TableCell>
                   </TableRow>
                 </TableFooter>
