@@ -11,6 +11,7 @@ import {
   normalizeMeetingUrl,
 } from "@/lib/assistant/recall";
 import { syncProfileCalendar } from "@/lib/assistant/calendar-sync";
+import { getCalendarAccessTokenForProfile, getCalendarEvent } from "@/lib/google/calendar";
 import { buildBotConfirmFlex, buildQuotaWarningFlex } from "@/lib/assistant/bot-flex";
 import { getServiceRemaining } from "@/lib/assistant/token-balance";
 import { getStripe } from "../../_lib/stripe";
@@ -732,7 +733,9 @@ async function run(req: NextRequest) {
       const remindLo = new Date(now.getTime() - 15 * 60 * 1000).toISOString(); // grace นัดที่เพิ่งเริ่ม
       const { data: dueEvents } = await admin
         .from("recall_calendar_events")
-        .select("id, profile_id, source, meeting_url, meeting_key, title, starts_at")
+        .select(
+          "id, profile_id, source, google_event_id, meeting_url, meeting_key, title, starts_at",
+        )
         .eq("confirm_state", "pending")
         .eq("is_deleted", false)
         .gte("starts_at", remindLo)
@@ -740,6 +743,19 @@ async function run(req: NextRequest) {
         .limit(30);
       // เคารพ toggle: event จากปฏิทิน (source='google') เตือนเฉพาะคนที่เปิด auto_remind · event ที่วางลิงก์เอง (source='line') เตือนเสมอ
       const remindEnabled = new Map<string, boolean>();
+      // cache Google access token ต่อ profile (re-check สถานะ event ก่อนส่งบอท) — undefined = ยังไม่เคยขอ
+      const calTokenCache = new Map<string, string | null>();
+      const getCalToken = async (pid: string): Promise<string | null> => {
+        if (calTokenCache.has(pid)) return calTokenCache.get(pid)!;
+        let t: string | null = null;
+        try {
+          t = await getCalendarAccessTokenForProfile(admin, pid);
+        } catch {
+          t = null;
+        }
+        calTokenCache.set(pid, t);
+        return t;
+      };
       const isRemindEnabled = async (pid: string): Promise<boolean> => {
         if (remindEnabled.has(pid)) return remindEnabled.get(pid)!;
         const { data: s } = await admin
@@ -755,6 +771,23 @@ async function run(req: NextRequest) {
         const evId = String(evRow.id);
         const profileId = String(evRow.profile_id);
         if (String(evRow.source) === "google" && !(await isRemindEnabled(profileId))) continue; // ปิด toggle → ไม่เตือน event ปฏิทิน
+
+        // defense-in-depth: re-check สถานะจริงกับ Google ก่อนส่งบอท — กัน cancel ที่ sweep ยังไม่ทัน
+        // + recurring instance ที่ถูกยกเลิกเดี่ยว ๆ · ตรวจไม่ได้ (token พลาด/เครือข่าย) → ปล่อยผ่านตามเดิม (ไม่ block)
+        if (String(evRow.source) === "google" && evRow.google_event_id) {
+          const calToken = await getCalToken(profileId);
+          if (calToken) {
+            const live = await getCalendarEvent(calToken, String(evRow.google_event_id));
+            if (live?.status === "cancelled") {
+              await admin
+                .from("recall_calendar_events")
+                .update({ is_deleted: true, updated_at: now.toISOString() })
+                .eq("id", evId);
+              continue; // ยกเลิกแล้ว → ไม่ส่งบอท
+            }
+          }
+        }
+
         const meetingUrl = String(evRow.meeting_url ?? "");
         if (!meetingUrl) continue;
         const key = evRow.meeting_key ? String(evRow.meeting_key) : normalizeMeetingUrl(meetingUrl);
