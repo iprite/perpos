@@ -15,6 +15,7 @@ import { requireSuperAdminPage } from "@/lib/admin/guard";
 import { listIssues } from "@/lib/admin/issues";
 import { AdminPage } from "../_components/admin-page";
 import { IssueFilters } from "./_filter";
+import { CreateIssueButton } from "./_create-button";
 import {
   STATUS_LABEL,
   STATUS_TONE,
@@ -62,7 +63,12 @@ export default async function AdminIssuesPage({
   ];
 
   return (
-    <AdminPage width="wide" title="ติดตามปัญหา (Issue Tracker)" icon={<Bug className="h-6 w-6" />}>
+    <AdminPage
+      width="wide"
+      title="ติดตามปัญหา (Issue Tracker)"
+      icon={<Bug className="h-6 w-6" />}
+      actions={<CreateIssueButton />}
+    >
       {/* summary */}
       <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
         {tiles.map((t) => (

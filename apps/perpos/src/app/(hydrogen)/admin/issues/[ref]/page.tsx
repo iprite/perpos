@@ -7,6 +7,7 @@ import { requireSuperAdminPage } from "@/lib/admin/guard";
 import { getIssueByRef } from "@/lib/admin/issues";
 import { AdminPage } from "../../_components/admin-page";
 import { CopyCommand } from "./_copy-command";
+import { StatusControl } from "./_status-control";
 import {
   STATUS_LABEL,
   STATUS_TONE,
@@ -62,6 +63,11 @@ export default async function IssueDetailPage({ params }: { params: Promise<{ re
           <span className="text-xs text-gray-500">สั่ง agent แก้:</span>
           <CopyCommand command={`/fix-issue ${issue.ref}`} />
         </div>
+      </div>
+
+      {/* อัปเดตสถานะ */}
+      <div className="mb-5">
+        <StatusControl issueRef={issue.ref} current={issue.status} />
       </div>
 
       {/* รายละเอียด */}

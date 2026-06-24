@@ -72,6 +72,19 @@ const ISSUE_COLUMNS =
 // สถานะที่ถือว่า "ปิดงานแล้ว" (ใช้แยกการ์ดเปิด/ปิด)
 export const CLOSED_STATUSES: IssueStatus[] = ["closed", "wontfix", "duplicate"];
 
+// สถานะที่ถือว่าแก้เสร็จแล้ว → ตั้ง resolved_at (เข้าครั้งแรก)
+export const RESOLVED_STATUSES: IssueStatus[] = ["fixed", "deployed", "closed"];
+
+// map ประเภท → prefix ของเลขอ้างอิง (freeze ตอนสร้าง — ดู migration)
+export const TYPE_TO_PREFIX: Record<IssueType, string> = {
+  bug: "BUG",
+  config_infra: "OPS",
+  user_error: "UX",
+  feature_gap: "FEAT",
+};
+
+export const ISSUE_AREAS = ["ui", "api", "lib", "db", "line", "worker", "external"] as const;
+
 export type ListIssuesResult = {
   items: IssueRow[];
   total: number;
