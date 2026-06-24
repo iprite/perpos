@@ -10,9 +10,10 @@ import {
   TableCell,
   TableEmpty,
 } from "@/components/ui/table";
-import { Bug } from "lucide-react";
+import { Bug, Clock, CheckCircle2, AlertTriangle } from "lucide-react";
 import { requireSuperAdminPage } from "@/lib/admin/guard";
-import { listIssues } from "@/lib/admin/issues";
+import { listIssues, getIssueStats } from "@/lib/admin/issues";
+import { StatCard } from "@/components/ui/stat-card";
 import { AdminPage } from "../_components/admin-page";
 import { IssueFilters } from "./_filter";
 import { CreateIssueButton } from "./_create-button";
@@ -46,14 +47,15 @@ export default async function AdminIssuesPage({
   const severity = sp.severity ?? "";
   const reqPage = Math.max(1, Number(sp.page ?? 1));
 
-  const { items, total, page, limit, counts } = await listIssues(admin, {
-    status,
-    type,
-    severity,
-    page: reqPage,
-  });
+  const [{ items, total, page, limit, counts }, stats] = await Promise.all([
+    listIssues(admin, { status, type, severity, page: reqPage }),
+    getIssueStats(admin),
+  ]);
   const totalPages = Math.max(1, Math.ceil(total / limit));
   const baseSp = { status, type, severity };
+
+  const fmtMttr = (h: number | null) =>
+    h == null ? "—" : h < 24 ? `${h.toFixed(1)} ชม.` : `${(h / 24).toFixed(1)} วัน`;
 
   const tiles = [
     { key: "open", label: "เปิดอยู่", value: counts.open },
@@ -69,7 +71,32 @@ export default async function AdminIssuesPage({
       icon={<Bug className="h-6 w-6" />}
       actions={<CreateIssueButton />}
     >
-      {/* summary */}
+      {/* dashboard — สถิติภาพรวม */}
+      <div className="mb-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <StatCard
+          icon={<AlertTriangle className="h-4 w-4" />}
+          label="เปิดค้างทั้งหมด"
+          value={String(stats.activeTotal)}
+          sub={`วิกฤต ${stats.activeBySeverity.sev1} · สำคัญ ${stats.activeBySeverity.sev2} · เล็ก ${stats.activeBySeverity.sev3}`}
+          tone={stats.activeBySeverity.sev1 > 0 ? "negative" : "warning"}
+        />
+        <StatCard
+          icon={<Clock className="h-4 w-4" />}
+          label="เวลาเฉลี่ยจนแก้ (MTTR)"
+          value={fmtMttr(stats.mttrHours)}
+          sub={`จาก ${stats.bySource.line} LINE · ${stats.bySource.admin} แอดมิน · ${stats.bySource.agent} agent`}
+          tone="info"
+        />
+        <StatCard
+          icon={<CheckCircle2 className="h-4 w-4" />}
+          label="ปิด/แก้ใน 7 วัน"
+          value={String(stats.resolved7d)}
+          tone="positive"
+          valueColored
+        />
+      </div>
+
+      {/* summary — นับตามกลุ่มสถานะ */}
       <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
         {tiles.map((t) => (
           <div key={t.key} className="rounded-xl border border-gray-100 bg-white p-4">

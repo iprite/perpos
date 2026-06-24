@@ -140,6 +140,57 @@ export async function listIssues(
   };
 }
 
+export type IssueStats = {
+  activeTotal: number; // ยังไม่ปิด (ไม่ใช่ closed/wontfix/duplicate)
+  activeBySeverity: { sev1: number; sev2: number; sev3: number };
+  bySource: { admin: number; agent: number; line: number; signal: number };
+  mttrHours: number | null; // เวลาเฉลี่ยจากแจ้ง → resolved_at
+  resolved7d: number; // ปิด/แก้ใน 7 วันล่าสุด
+};
+
+/** สถิติภาพรวมสำหรับ dashboard ของ Issue Tracker (1 query, คำนวณใน JS — ปริมาณ issue ต่ำ) */
+export async function getIssueStats(admin: SupabaseClient): Promise<IssueStats> {
+  const { data } = await admin
+    .from("system_issues")
+    .select("severity, source, status, created_at, resolved_at")
+    .limit(5000);
+  const rows = (data ?? []) as unknown as Pick<
+    IssueRow,
+    "severity" | "source" | "status" | "created_at" | "resolved_at"
+  >[];
+
+  const stats: IssueStats = {
+    activeTotal: 0,
+    activeBySeverity: { sev1: 0, sev2: 0, sev3: 0 },
+    bySource: { admin: 0, agent: 0, line: 0, signal: 0 },
+    mttrHours: null,
+    resolved7d: 0,
+  };
+
+  const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+  let resolveSumMs = 0;
+  let resolveCount = 0;
+
+  for (const r of rows) {
+    stats.bySource[r.source] = (stats.bySource[r.source] ?? 0) + 1;
+    if (!CLOSED_STATUSES.includes(r.status)) {
+      stats.activeTotal++;
+      stats.activeBySeverity[r.severity]++;
+    }
+    if (r.resolved_at) {
+      const ms = new Date(r.resolved_at).getTime() - new Date(r.created_at).getTime();
+      if (ms >= 0) {
+        resolveSumMs += ms;
+        resolveCount++;
+      }
+      if (new Date(r.resolved_at).getTime() >= sevenDaysAgo) stats.resolved7d++;
+    }
+  }
+
+  stats.mttrHours = resolveCount > 0 ? resolveSumMs / resolveCount / 3_600_000 : null;
+  return stats;
+}
+
 export async function getIssueByRef(
   admin: SupabaseClient,
   ref: string,
