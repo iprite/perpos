@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/table";
 import { Bug, Clock, CheckCircle2, AlertTriangle } from "lucide-react";
 import { requireSuperAdminPage } from "@/lib/admin/guard";
-import { listIssues, getIssueStats } from "@/lib/admin/issues";
+import { listIssues, getIssueStats, isActiveStatus, daysSince } from "@/lib/admin/issues";
 import { StatCard } from "@/components/ui/stat-card";
 import { AdminPage } from "../_components/admin-page";
 import { IssueFilters } from "./_filter";
@@ -24,8 +24,10 @@ import {
   SEVERITY_LABEL,
   SEVERITY_TONE,
   SOURCE_LABEL,
+  areaLabel,
   fmtTime,
 } from "./_meta";
+import cn from "@core/utils/class-names";
 
 function pageHref(page: number, sp: Record<string, string>) {
   const qs = new URLSearchParams();
@@ -47,22 +49,16 @@ export default async function AdminIssuesPage({
   const severity = sp.severity ?? "";
   const reqPage = Math.max(1, Number(sp.page ?? 1));
 
-  const [{ items, total, page, limit, counts }, stats] = await Promise.all([
+  const [{ items, total, page, limit }, stats] = await Promise.all([
     listIssues(admin, { status, type, severity, page: reqPage }),
     getIssueStats(admin),
   ]);
   const totalPages = Math.max(1, Math.ceil(total / limit));
   const baseSp = { status, type, severity };
+  const hasFilter = Boolean(status || type || severity);
 
   const fmtMttr = (h: number | null) =>
     h == null ? "—" : h < 24 ? `${h.toFixed(1)} ชม.` : `${(h / 24).toFixed(1)} วัน`;
-
-  const tiles = [
-    { key: "open", label: "เปิดอยู่", value: counts.open },
-    { key: "in_progress", label: "กำลังดำเนินการ", value: counts.in_progress },
-    { key: "fixed", label: "แก้แล้ว/ขึ้น prod", value: counts.fixed },
-    { key: "closed", label: "ปิดแล้ว", value: counts.closed },
-  ];
 
   return (
     <AdminPage
@@ -96,16 +92,6 @@ export default async function AdminIssuesPage({
         />
       </div>
 
-      {/* summary — นับตามกลุ่มสถานะ */}
-      <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        {tiles.map((t) => (
-          <div key={t.key} className="rounded-xl border border-gray-100 bg-white p-4">
-            <div className="text-2xl font-bold tabular-nums text-gray-900">{t.value}</div>
-            <div className="text-xs text-gray-500">{t.label}</div>
-          </div>
-        ))}
-      </div>
-
       <IssueFilters status={status} type={type} severity={severity} />
 
       <Table>
@@ -122,43 +108,90 @@ export default async function AdminIssuesPage({
         </TableHeader>
         <TableBody>
           {items.length === 0 ? (
-            <TableEmpty colSpan={7}>ยังไม่มีรายการในเงื่อนไขนี้</TableEmpty>
+            <TableEmpty colSpan={7}>
+              {hasFilter ? (
+                <div className="flex flex-col items-center gap-2 py-6">
+                  <p className="text-sm text-gray-500">ไม่พบปัญหาในเงื่อนไขที่กรอง</p>
+                  <Link href="/admin/issues" className="text-sm text-primary hover:underline">
+                    ล้างตัวกรอง
+                  </Link>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-12 text-center">
+                  <div className="mb-4 rounded-full bg-gray-100 p-4">
+                    <Bug className="h-8 w-8 text-gray-400" />
+                  </div>
+                  <h3 className="text-sm font-medium text-gray-900">ยังไม่มีปัญหาในระบบ</h3>
+                  <p className="mt-1 text-sm text-gray-500">
+                    เริ่มบันทึกปัญหาเพื่อติดตามตั้งแต่แจ้งจนปิดเรื่อง
+                  </p>
+                  <div className="mt-4">
+                    <CreateIssueButton label="เพิ่มปัญหาแรก" />
+                  </div>
+                </div>
+              )}
+            </TableEmpty>
           ) : (
-            items.map((i) => (
-              <TableRow key={i.id} className="hover:bg-gray-50">
-                <TableCell>
-                  <Link
-                    href={`/admin/issues/${i.ref}`}
-                    className="font-mono text-sm font-semibold text-primary hover:underline"
-                  >
-                    {i.ref}
-                  </Link>
-                </TableCell>
-                <TableCell>
-                  <Link href={`/admin/issues/${i.ref}`} className="block">
-                    <span className="font-medium text-gray-900">{i.title}</span>
-                    {i.area.length > 0 && (
-                      <span className="ml-1 text-xs text-gray-400">· {i.area.join(", ")}</span>
+            items.map((i) => {
+              const active = isActiveStatus(i.status);
+              const ageDays = active ? daysSince(i.created_at) : null;
+              const stale = ageDays != null && ageDays > 7;
+              return (
+                <TableRow
+                  key={i.id}
+                  className={cn(
+                    "hover:bg-gray-50",
+                    active && i.severity === "sev1" && "bg-red-50/40",
+                  )}
+                >
+                  <TableCell>
+                    <Link
+                      href={`/admin/issues/${i.ref}`}
+                      className="font-mono text-sm font-semibold text-primary hover:underline"
+                    >
+                      {i.ref}
+                    </Link>
+                  </TableCell>
+                  <TableCell>
+                    <Link href={`/admin/issues/${i.ref}`} className="block">
+                      <span className="font-medium text-gray-900">{i.title}</span>
+                      {i.area.length > 0 && (
+                        <span className="ml-1 text-xs text-gray-400">
+                          · {i.area.map(areaLabel).join(", ")}
+                        </span>
+                      )}
+                    </Link>
+                  </TableCell>
+                  <TableCell align="center" className="text-xs text-gray-600">
+                    {TYPE_LABEL[i.type]}
+                  </TableCell>
+                  <TableCell align="center">
+                    <StatusBadge tone={SEVERITY_TONE[i.severity]}>
+                      {SEVERITY_LABEL[i.severity]}
+                    </StatusBadge>
+                  </TableCell>
+                  <TableCell align="center">
+                    <StatusBadge tone={STATUS_TONE[i.status]}>{STATUS_LABEL[i.status]}</StatusBadge>
+                  </TableCell>
+                  <TableCell align="center">
+                    <StatusBadge tone="neutral">{SOURCE_LABEL[i.source]}</StatusBadge>
+                  </TableCell>
+                  <TableCell className="text-xs text-gray-500">
+                    {fmtTime(i.updated_at)}
+                    {ageDays != null && (
+                      <span
+                        className={cn(
+                          "mt-0.5 block",
+                          stale ? "font-medium text-amber-600" : "text-gray-400",
+                        )}
+                      >
+                        ค้าง {ageDays} วัน
+                      </span>
                     )}
-                  </Link>
-                </TableCell>
-                <TableCell align="center" className="text-xs text-gray-600">
-                  {TYPE_LABEL[i.type]}
-                </TableCell>
-                <TableCell align="center">
-                  <StatusBadge tone={SEVERITY_TONE[i.severity]}>
-                    {SEVERITY_LABEL[i.severity]}
-                  </StatusBadge>
-                </TableCell>
-                <TableCell align="center">
-                  <StatusBadge tone={STATUS_TONE[i.status]}>{STATUS_LABEL[i.status]}</StatusBadge>
-                </TableCell>
-                <TableCell align="center">
-                  <StatusBadge tone="neutral">{SOURCE_LABEL[i.source]}</StatusBadge>
-                </TableCell>
-                <TableCell className="text-xs text-gray-500">{fmtTime(i.updated_at)}</TableCell>
-              </TableRow>
-            ))
+                  </TableCell>
+                </TableRow>
+              );
+            })
           )}
         </TableBody>
       </Table>

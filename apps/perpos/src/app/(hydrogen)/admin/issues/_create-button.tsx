@@ -18,6 +18,7 @@ import {
 import { toast } from "@/lib/toast";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { ISSUE_AREAS } from "@/lib/admin/issues";
+import { areaLabel } from "./_meta";
 
 async function authToken(): Promise<string> {
   const supabase = createSupabaseBrowserClient();
@@ -33,7 +34,7 @@ const emptyForm = {
   reproduce: "",
 };
 
-export function CreateIssueButton() {
+export function CreateIssueButton({ label = "เพิ่มปัญหา" }: { label?: string } = {}) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(emptyForm);
@@ -76,7 +77,7 @@ export function CreateIssueButton() {
     <>
       <Button size="sm" onClick={() => setOpen(true)}>
         <Plus className="mr-1 h-4 w-4" />
-        เพิ่มปัญหา
+        {label}
       </Button>
 
       <Dialog open={open} onOpenChange={setOpen}>
@@ -131,18 +132,16 @@ export function CreateIssueButton() {
                 <Label>ชั้นที่เกี่ยว</Label>
                 <div className="mt-1 flex flex-wrap gap-1.5">
                   {ISSUE_AREAS.map((a) => (
-                    <button
+                    <Button
                       key={a}
                       type="button"
+                      size="sm"
+                      variant={area.includes(a) ? "default" : "outline"}
+                      className="h-7 rounded-full px-3 text-xs"
                       onClick={() => toggleArea(a)}
-                      className={`rounded-full border px-3 py-1 text-xs transition-colors ${
-                        area.includes(a)
-                          ? "border-primary bg-gray-100 text-gray-900"
-                          : "border-gray-200 bg-white text-gray-500 hover:bg-gray-50"
-                      }`}
                     >
-                      {a}
-                    </button>
+                      {areaLabel(a)}
+                    </Button>
                   ))}
                 </div>
               </div>
