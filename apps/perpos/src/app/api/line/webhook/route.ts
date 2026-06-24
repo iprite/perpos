@@ -1036,11 +1036,14 @@ async function handleReportIssue(
   }
 
   const title = text.length > 80 ? text.slice(0, 77) + "…" : text;
+  // ส่ง param ครบทั้ง 11 (รวม default) — ตัดความกำกวมของ PostgREST default-resolution
   const { data: ref, error } = await admin.rpc("agent_create_issue", {
     p_type: "bug",
     p_title: title,
     p_severity: "sev2",
     p_symptom: text,
+    p_reproduce: null,
+    p_area: [],
     p_status: "open",
     p_actor: `line:${lineUserId}`,
     p_reported_by: profileId,
