@@ -68,6 +68,14 @@ const fmtDateTime = (iso: string) =>
     dateStyle: "medium",
     timeStyle: "short",
   }).format(new Date(iso));
+function relTime(d: Date): string {
+  const s = Math.max(0, Math.floor((Date.now() - d.getTime()) / 1000));
+  if (s < 10) return "เมื่อสักครู่";
+  if (s < 60) return `${s} วินาทีที่แล้ว`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m} นาทีที่แล้ว`;
+  return `${Math.floor(m / 60)} ชม.ที่แล้ว`;
+}
 const jobTitle = (j: Job) =>
   j.transcript_json?.meeting_title || j.file_name || `${platformLabel(j.meeting_url)} recording`;
 // เวลาบอท = ความยาวที่บันทึกจริง (duration_seconds) เท่านั้น · hold_seconds = ค่าจอง/เพดาน ไม่ใช่เวลาจริง
@@ -97,6 +105,8 @@ export default function MeetingsView({
   const [downloading, setDownloading] = useState("");
   const [meetingUrl, setMeetingUrl] = useState("");
   const [sending, setSending] = useState(false);
+  const [lastSync, setLastSync] = useState<Date | null>(null);
+  const [, setTick] = useState(0); // เดินนาฬิกาให้ป้าย "ซิงค์ล่าสุด" อัปเดตเอง
 
   // refresh สด (silent) — initial มาจาก SSR แล้ว
   const load = useCallback(async () => {
@@ -131,14 +141,26 @@ export default function MeetingsView({
     }
     if (jobsRes.data) setJobs(jobsRes.data as Job[]);
     if (upRes.data) setUpcoming(upRes.data as CalEvent[]);
+    setLastSync(new Date());
   }, [supabase]);
 
-  // ดึง token ทันที (สำหรับ mutation) + poll สถานะสดทุก 30 วิ
+  // ดึง token ทันที (สำหรับ mutation) + poll สถานะสดทุก 30 วิ + ดึงใหม่เมื่อกลับมาที่แท็บ (กันเห็นข้อมูลค้าง)
   useEffect(() => {
     load();
     const t = setInterval(() => load(), 30_000);
-    return () => clearInterval(t);
+    const onFocus = () => load();
+    window.addEventListener("focus", onFocus);
+    return () => {
+      clearInterval(t);
+      window.removeEventListener("focus", onFocus);
+    };
   }, [load]);
+
+  // อัปเดตป้าย "ซิงค์ล่าสุด" ทุก 10 วิ
+  useEffect(() => {
+    const t = setInterval(() => setTick((n) => n + 1), 10_000);
+    return () => clearInterval(t);
+  }, []);
 
   const downloadMom = async (jobId: string) => {
     if (!token) return;
@@ -287,9 +309,14 @@ export default function MeetingsView({
 
       {/* Upcoming */}
       <div>
-        <h2 className="mb-2 flex items-center gap-2 text-sm font-semibold text-gray-700">
-          <CalendarClock className="h-4 w-4" /> ประชุมที่นัดไว้
-        </h2>
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <h2 className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+            <CalendarClock className="h-4 w-4" /> ประชุมที่นัดไว้
+          </h2>
+          {lastSync && (
+            <span className="text-xs text-gray-400">ซิงค์ล่าสุด {relTime(lastSync)}</span>
+          )}
+        </div>
         {upcoming.length === 0 ? (
           <div className="rounded-xl border border-dashed border-gray-200 px-4 py-6 text-center text-sm text-gray-400">
             ยังไม่มีนัดประชุม — วางลิงก์ประชุมที่มีเวลาใน LINE หรือเชื่อม Google Calendar
