@@ -57,6 +57,29 @@ export const SOURCE_LABEL: Record<IssueSource, string> = {
   signal: "สัญญาณระบบ",
 };
 
+// ชั้นที่เกี่ยว (area) — key ดิบ → ป้ายไทย (มี fallback เป็น key เดิมถ้าไม่รู้จัก)
+export const AREA_LABEL: Record<string, string> = {
+  ui: "หน้าจอ",
+  api: "API",
+  lib: "ไลบรารี",
+  db: "ฐานข้อมูล",
+  line: "LINE",
+  worker: "Worker",
+  external: "ภายนอก",
+};
+export const areaLabel = (a: string) => AREA_LABEL[a] ?? a;
+
+// เหตุการณ์ใน timeline (action) — key ดิบ → ป้ายไทย
+export const ACTION_LABEL: Record<string, string> = {
+  created: "สร้างเรื่อง",
+  status_change: "เปลี่ยนสถานะ",
+  edited: "แก้ไขรายละเอียด",
+  note: "บันทึกโน้ต",
+  reopened: "เปิดเรื่องใหม่",
+  linked_branch: "ผูก branch",
+};
+export const actionLabel = (a: string) => ACTION_LABEL[a] ?? a;
+
 export const fmtTime = (iso: string) =>
   new Date(iso).toLocaleString("th-TH", {
     day: "2-digit",

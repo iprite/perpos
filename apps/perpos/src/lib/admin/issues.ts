@@ -75,6 +75,22 @@ export const CLOSED_STATUSES: IssueStatus[] = ["closed", "wontfix", "duplicate"]
 // สถานะที่ถือว่าแก้เสร็จแล้ว → ตั้ง resolved_at (เข้าครั้งแรก)
 export const RESOLVED_STATUSES: IssueStatus[] = ["fixed", "deployed", "closed"];
 
+// สถานะที่ยัง "ค้าง/ต้องจัดการ" — ใช้นับ "เปิดค้าง" + ไฮไลต์แถวด่วน
+// (ไม่รวม fixed/deployed = แก้แล้ว, closed/wontfix/duplicate = ปิด, handoff_feature = ส่งต่อแล้ว)
+export const ACTIVE_STATUSES: IssueStatus[] = [
+  "open",
+  "triaging",
+  "diagnosing",
+  "fixing",
+  "verifying",
+  "blocked",
+];
+export const isActiveStatus = (s: IssueStatus) => ACTIVE_STATUSES.includes(s);
+
+/** จำนวนวันที่ผ่านมาตั้งแต่ ISO timestamp (ปัดลง) — ใช้แสดง "ค้าง N วัน" */
+export const daysSince = (iso: string) =>
+  Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000);
+
 // map ประเภท → prefix ของเลขอ้างอิง (freeze ตอนสร้าง — ดู migration)
 export const TYPE_TO_PREFIX: Record<IssueType, string> = {
   bug: "BUG",
@@ -90,7 +106,6 @@ export type ListIssuesResult = {
   total: number;
   page: number;
   limit: number;
-  counts: { open: number; in_progress: number; fixed: number; closed: number };
 };
 
 export async function listIssues(
@@ -120,23 +135,11 @@ export async function listIssues(
 
   const { data, count } = await q;
 
-  // นับรวมตามกลุ่มสถานะ (สำหรับการ์ดสรุปด้านบน) — ปริมาณ issue ต่ำ ดึง status ทั้งหมดมา tally
-  const { data: statusRaw } = await admin.from("system_issues").select("status").limit(5000);
-  const counts = { open: 0, in_progress: 0, fixed: 0, closed: 0 };
-  for (const r of statusRaw ?? []) {
-    const s = (r as { status: IssueStatus }).status;
-    if (s === "open") counts.open++;
-    else if (s === "fixed" || s === "deployed") counts.fixed++;
-    else if (CLOSED_STATUSES.includes(s)) counts.closed++;
-    else counts.in_progress++; // triaging/diagnosing/fixing/verifying/blocked/handoff_feature
-  }
-
   return {
     items: (data ?? []) as unknown as IssueRow[],
     total: count ?? 0,
     page,
     limit,
-    counts,
   };
 }
 
@@ -173,7 +176,7 @@ export async function getIssueStats(admin: SupabaseClient): Promise<IssueStats> 
 
   for (const r of rows) {
     stats.bySource[r.source] = (stats.bySource[r.source] ?? 0) + 1;
-    if (!CLOSED_STATUSES.includes(r.status)) {
+    if (isActiveStatus(r.status)) {
       stats.activeTotal++;
       stats.activeBySeverity[r.severity]++;
     }
@@ -191,25 +194,44 @@ export async function getIssueStats(admin: SupabaseClient): Promise<IssueStats> 
   return stats;
 }
 
+export type IssueReporter = {
+  display_name: string | null;
+  email: string | null;
+  line_user_id: string | null;
+};
+
 export async function getIssueByRef(
   admin: SupabaseClient,
   ref: string,
-): Promise<{ issue: IssueRow; events: IssueEvent[] } | null> {
+): Promise<{ issue: IssueRow; events: IssueEvent[]; reporter: IssueReporter | null } | null> {
   const { data: issue } = await admin
     .from("system_issues")
     .select(ISSUE_COLUMNS)
     .eq("ref", ref)
     .maybeSingle();
   if (!issue) return null;
+  const issueRow = issue as unknown as IssueRow;
 
   const { data: events } = await admin
     .from("system_issue_events")
     .select("id, issue_id, at, actor, action, from_status, to_status, note")
-    .eq("issue_id", (issue as unknown as IssueRow).id)
+    .eq("issue_id", issueRow.id)
     .order("at", { ascending: false });
 
+  // ผู้รายงาน (ถ้าผูก profile ไว้ — เช่น แจ้งผ่าน LINE) — ให้ admin ติดต่อกลับ/ถามเพิ่มได้
+  let reporter: IssueReporter | null = null;
+  if (issueRow.reported_by) {
+    const { data: prof } = await admin
+      .from("profiles")
+      .select("display_name, email, line_user_id")
+      .eq("id", issueRow.reported_by)
+      .maybeSingle();
+    if (prof) reporter = prof as unknown as IssueReporter;
+  }
+
   return {
-    issue: issue as unknown as IssueRow,
+    issue: issueRow,
     events: (events ?? []) as unknown as IssueEvent[],
+    reporter,
   };
 }
