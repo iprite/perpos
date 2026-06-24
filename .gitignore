@@ -67,17 +67,17 @@ web_legacy/
 
 # Module Factory — local AI tooling (เครื่องมือ ไม่ใช่ผลงาน; ผลงาน module เป็นโค้ดแอปจริง)
 .claude/agents/
-.claude/skills/build-module.md
+.claude/skills/build-module/
 .claude/module-factory/
-.claude/skills/build-feature.md
+.claude/skills/build-feature/
 .claude/feature-factory/
-.claude/skills/fix-issue.md
+.claude/skills/fix-issue/
 .claude/fix-factory/
-.claude/skills/improve-product.md
+.claude/skills/improve-product/
 .claude/product-factory/
-.claude/skills/build-presentation.md
+.claude/skills/build-presentation/
 .claude/presentation-factory/
-.claude/skills/build-training-doc.md
+.claude/skills/build-training-doc/
 .claude/docs-factory/
 .claude/shared/
 
