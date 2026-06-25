@@ -583,60 +583,6 @@ function buildSttMenuItems(_org: string, labels: Record<string, string> = {}): M
   ];
 }
 
-// ─── Payroll module ─────────────────────────────────────────────────────────
-function buildPayrollMenuItems(org: string, labels: Record<string, string> = {}): MenuItem[] {
-  const p = (path: string) => `/${org}/payroll/${path}`;
-  const l = (key: string, fallback: string) => labels[key] || fallback;
-  const ls = (menu: string, key: string, fallback: string) => labels[`${menu}.${key}`] || fallback;
-  return [
-    { name: "Payroll", roles: allRoles },
-    {
-      name: l("reports", "รายงาน"),
-      href: p("reports"),
-      icon: <BarChart3 className="h-5 w-5" />,
-      roles: allRoles,
-    },
-    {
-      name: l("salary", "เงินเดือน"),
-      href: `/${org}/payroll`,
-      icon: <ReceiptText className="h-5 w-5" />,
-      roles: allRoles,
-    },
-    {
-      name: l("employees", "พนักงาน"),
-      href: p("employees"),
-      icon: <Users className="h-5 w-5" />,
-      roles: allRoles,
-    },
-    {
-      name: l("departments", "แผนก"),
-      href: p("departments"),
-      icon: <Building2 className="h-5 w-5" />,
-      roles: allRoles,
-    },
-    {
-      name: l("pay-items", "เงินเพิ่ม/เงินหัก"),
-      href: p("pay-items"),
-      icon: <DollarSign className="h-5 w-5" />,
-      roles: allRoles,
-    },
-    {
-      name: l("settings", "ตั้งค่า"),
-      href: p("funds"),
-      icon: <ShieldCheck className="h-5 w-5" />,
-      roles: allRoles,
-      dropdownItems: [
-        { name: ls("settings", "funds", "ข้อมูลกองทุน"), href: p("funds"), roles: allRoles },
-        {
-          name: ls("settings", "accounting-settings", "ตั้งค่าการบันทึกบัญชี"),
-          href: p("accounting-settings"),
-          roles: allRoles,
-        },
-      ],
-    },
-  ];
-}
-
 // ─── CRM module ─────────────────────────────────────────────────────────────
 function buildCrmMenuItems(org: string, labels: Record<string, string> = {}): MenuItem[] {
   const c = (path: string) => `/${org}/crm/${path}`;
@@ -828,13 +774,27 @@ function buildP2pGroupMenuItems(org: string, labels: Record<string, string> = {}
 }
 
 function buildHrmMenuItems(org: string, labels: Record<string, string> = {}): MenuItem[] {
+  const h = (path: string) => `/${org}/hrm/${path}`;
   const l = (key: string, fallback: string) => labels[key] || fallback;
   return [
     { name: "HR" },
     {
-      name: l("dashboard", "Dashboard"),
+      name: l("dashboard", "ภาพรวม"),
       href: `/${org}/hrm`,
       icon: <LayoutDashboard className="h-5 w-5" />,
+    },
+    { name: l("employees", "พนักงาน"), href: h("employees"), icon: <Users className="h-5 w-5" /> },
+    {
+      name: l("payroll", "เงินเดือน"),
+      href: h("payroll"),
+      icon: <ReceiptText className="h-5 w-5" />,
+    },
+    { name: l("leave", "การลา"), href: h("leave"), icon: <CalendarDays className="h-5 w-5" /> },
+    { name: l("time", "เวลาทำงาน"), href: h("time"), icon: <Clock className="h-5 w-5" /> },
+    {
+      name: l("settings", "ตั้งค่า"),
+      href: h("settings"),
+      icon: <Settings2 className="h-5 w-5" />,
     },
   ];
 }
@@ -853,7 +813,6 @@ function pickMenuContext(pathname: string, role: Role | null, enabledKeys: strin
   // For org routes: /:orgSlug/:module/*  →  segments[1] is the module key
   if (segments.length >= 2) {
     const mod = segments[1];
-    if (mod === "payroll") return "payroll";
     if (mod === "tmc") return "tmc";
     if (mod === "crm") return "crm";
     if (mod === "acc-firm") return "acc_firm";
@@ -872,7 +831,7 @@ function pickMenuContext(pathname: string, role: Role | null, enabledKeys: strin
   if (enabledKeys.includes("tmc")) return "tmc";
   if (enabledKeys.includes("crm")) return "crm";
   if (enabledKeys.includes("acc_firm")) return "acc_firm";
-  if (enabledKeys.includes("payroll")) return "payroll";
+  if (enabledKeys.includes("hrm")) return "hrm";
   if (enabledKeys.includes("stt")) return "stt";
   return "user";
 }
@@ -897,29 +856,27 @@ export function getMenuItems(
       ? buildAdminMenuItems()
       : context === "stt"
         ? buildSttMenuItems(org, menuLabels.stt ?? {})
-        : context === "payroll"
-          ? buildPayrollMenuItems(org, menuLabels.payroll ?? {})
-          : context === "tmc"
-            ? buildTmcMenuItems(org, menuLabels.tmc ?? {})
-            : context === "crm"
-              ? buildCrmMenuItems(org, menuLabels.crm ?? {})
-              : context === "acc_firm"
-                ? buildAccFirmMenuItems(org, menuLabels.acc_firm ?? {})
-                : context === "just_me"
-                  ? buildJustMeMenuItems(org, orgRole, menuLabels.just_me ?? {})
-                  : context === "usvilla"
-                    ? buildUsvillaMenuItems(org, menuLabels.usvilla ?? {})
-                    : context === "jaquar"
-                      ? buildJaquarMenuItems(org, menuLabels.jaquar ?? {})
-                      : context === "b2g"
-                        ? buildB2gMenuItems(org, menuLabels.b2g ?? {})
-                        : context === "p2p_supply"
-                          ? buildP2pSupplyMenuItems(org, menuLabels.p2p_supply ?? {})
-                          : context === "p2p_group"
-                            ? buildP2pGroupMenuItems(org, menuLabels.p2p_group ?? {})
-                            : context === "hrm"
-                              ? buildHrmMenuItems(org, menuLabels.hrm ?? {})
-                              : buildUserMenuItems(org, menuLabels.accounting ?? {});
+        : context === "tmc"
+          ? buildTmcMenuItems(org, menuLabels.tmc ?? {})
+          : context === "crm"
+            ? buildCrmMenuItems(org, menuLabels.crm ?? {})
+            : context === "acc_firm"
+              ? buildAccFirmMenuItems(org, menuLabels.acc_firm ?? {})
+              : context === "just_me"
+                ? buildJustMeMenuItems(org, orgRole, menuLabels.just_me ?? {})
+                : context === "usvilla"
+                  ? buildUsvillaMenuItems(org, menuLabels.usvilla ?? {})
+                  : context === "jaquar"
+                    ? buildJaquarMenuItems(org, menuLabels.jaquar ?? {})
+                    : context === "b2g"
+                      ? buildB2gMenuItems(org, menuLabels.b2g ?? {})
+                      : context === "p2p_supply"
+                        ? buildP2pSupplyMenuItems(org, menuLabels.p2p_supply ?? {})
+                        : context === "p2p_group"
+                          ? buildP2pGroupMenuItems(org, menuLabels.p2p_group ?? {})
+                          : context === "hrm"
+                            ? buildHrmMenuItems(org, menuLabels.hrm ?? {})
+                            : buildUserMenuItems(org, menuLabels.accounting ?? {});
 
   return items.filter((item) => {
     if (!("href" in item)) return hasRole(item.roles, role);
