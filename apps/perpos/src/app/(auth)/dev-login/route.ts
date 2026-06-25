@@ -21,7 +21,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { withBasePath } from "@/utils/base-path";
 
-export function devAutoLoginEnabled(): boolean {
+// ใช้ภายในไฟล์นี้เท่านั้น — ห้าม export non-handler จาก route.ts (Next 15 route-types จะ error)
+function devAutoLoginEnabled(): boolean {
   return process.env.NODE_ENV !== "production" && process.env.DEV_AUTOLOGIN === "1";
 }
 
