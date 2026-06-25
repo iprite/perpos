@@ -258,12 +258,10 @@ export default function PayrollPage() {
         />
       </div>
 
-      {/* ตารางรอบจ่าย */}
-      <div className="rounded-xl border border-gray-200 bg-white shadow-sm">
-        <div className="border-b border-gray-100 px-5 py-3 text-sm font-semibold text-gray-900">
-          รอบจ่ายเงินเดือน
-        </div>
-        <Table stickyHeader maxHeight="58vh">
+      {/* ตารางรอบจ่าย — title เหนือตาราง, Table เป็นการ์ดในตัว */}
+      <div>
+        <div className="mb-2.5 px-1 text-sm font-semibold text-gray-900">รอบจ่ายเงินเดือน</div>
+        <Table stickyHeader maxHeight="58vh" className="shadow-sm">
           <TableHeader sticky>
             <TableRow>
               <TableHead>เลขรอบ</TableHead>
@@ -492,8 +490,8 @@ function RunDetail({
                 เพื่อสร้างสลิปรายคน
               </div>
             ) : (
-              <div className="overflow-hidden rounded-lg border border-gray-200">
-                <Table>
+              <div>
+                <Table className="shadow-sm">
                   <TableHeader>
                     <TableRow>
                       <TableHead>พนักงาน</TableHead>

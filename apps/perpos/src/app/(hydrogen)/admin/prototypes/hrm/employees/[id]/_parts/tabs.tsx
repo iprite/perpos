@@ -193,8 +193,8 @@ export function PayrollTab({ employeeId }: { employeeId: string }) {
         />
       </div>
 
-      <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-        <Table stickyHeader maxHeight="48vh">
+      <div>
+        <Table stickyHeader maxHeight="48vh" className="shadow-sm">
           <TableHeader sticky>
             <TableRow>
               <TableHead>รอบจ่าย</TableHead>
@@ -279,8 +279,8 @@ export function LeaveTab({ employeeId }: { employeeId: string }) {
       {requests.length === 0 ? (
         <EmptyTab icon={<CalendarOff className="h-7 w-7" />} text="ยังไม่มีประวัติการลา" />
       ) : (
-        <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-          <Table>
+        <div>
+          <Table className="shadow-sm">
             <TableHeader>
               <TableRow>
                 <TableHead>ประเภท</TableHead>
@@ -366,8 +366,8 @@ export function TimeTab({ employeeId }: { employeeId: string }) {
         />
       </div>
 
-      <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-        <Table stickyHeader maxHeight="48vh">
+      <div>
+        <Table stickyHeader maxHeight="48vh" className="shadow-sm">
           <TableHeader sticky>
             <TableRow>
               <TableHead>วันที่</TableHead>

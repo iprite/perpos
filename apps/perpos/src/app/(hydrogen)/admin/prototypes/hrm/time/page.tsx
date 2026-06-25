@@ -451,8 +451,8 @@ export default function TimePage() {
           จะถูกป้อนเข้ารอบเงินเดือนอัตโนมัติ (หักขาด/คิด OT) — ลดการกรอกซ้ำและความผิดพลาด
         </Text>
 
-        <div className="overflow-hidden rounded-lg border border-gray-200">
-          <Table stickyHeader maxHeight="52vh">
+        <div>
+          <Table stickyHeader maxHeight="52vh" className="shadow-sm">
             <TableHeader sticky>
               <TableRow>
                 <TableHead>วันที่</TableHead>

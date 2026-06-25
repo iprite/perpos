@@ -237,9 +237,9 @@ export default function EmployeesPage() {
         <CustomSelect value={type} onChange={setType} options={TYPE_OPTS} className="sm:w-44" />
       </div>
 
-      {/* Table */}
-      <div className="rounded-xl border border-gray-200 bg-white shadow-sm">
-        <Table stickyHeader maxHeight="62vh">
+      {/* Table — เป็นการ์ดในตัว ไม่ห่อใน card อีกชั้น */}
+      <div>
+        <Table stickyHeader maxHeight="62vh" className="shadow-sm">
           <TableHeader sticky>
             <TableRow>
               <TableHead>รหัส</TableHead>

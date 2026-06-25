@@ -310,12 +310,10 @@ export default function LeavePage() {
         />
       </div>
 
-      {/* (a) ตารางใบลา */}
-      <div className="rounded-xl border border-gray-200 bg-white shadow-sm">
-        <div className="border-b border-gray-100 px-5 py-3 text-sm font-semibold text-gray-900">
-          ใบลาทั้งหมด
-        </div>
-        <Table stickyHeader maxHeight="50vh">
+      {/* (a) ตารางใบลา — title อยู่เหนือตาราง, Table เป็นการ์ดในตัว (ไม่ซ้อน card) */}
+      <div>
+        <div className="mb-2.5 px-1 text-sm font-semibold text-gray-900">ใบลาทั้งหมด</div>
+        <Table stickyHeader maxHeight="50vh" className="shadow-sm">
           <TableHeader sticky>
             <TableRow>
               <TableHead>พนักงาน</TableHead>
@@ -366,7 +364,7 @@ export default function LeavePage() {
                         ? fmtDateTH(r.start_date)
                         : `${fmtDateTH(r.start_date)} – ${fmtDateTH(r.end_date)}`}
                     </TableCell>
-                    <TableCell align="right" tabular>
+                    <TableCell align="right" className="tabular-nums">
                       {fmtNum(r.days)} วัน
                     </TableCell>
                     <TableCell align="center">
@@ -380,12 +378,12 @@ export default function LeavePage() {
         </Table>
       </div>
 
-      {/* (b) ตารางวันลาคงเหลือต่อคน */}
-      <div className="rounded-xl border border-gray-200 bg-white shadow-sm">
-        <div className="border-b border-gray-100 px-5 py-3 text-sm font-semibold text-gray-900">
+      {/* (b) ตารางวันลาคงเหลือต่อคน — title เหนือตาราง, ไม่ซ้อน card */}
+      <div>
+        <div className="mb-2.5 px-1 text-sm font-semibold text-gray-900">
           วันลาคงเหลือต่อคน (ปี 2569)
         </div>
-        <Table>
+        <Table className="shadow-sm">
           <TableHeader>
             <TableRow>
               <TableHead>พนักงาน</TableHead>

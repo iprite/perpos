@@ -223,7 +223,7 @@ function LeaveTab({ canWrite }: { canWrite: boolean }) {
         ) : null
       }
     >
-      <Table>
+      <Table className="rounded-none border-0 shadow-none">
         <TableHeader>
           <TableRow>
             <TableHead>ชื่อประเภท</TableHead>
@@ -242,7 +242,7 @@ function LeaveTab({ canWrite }: { canWrite: boolean }) {
             >
               <TableCell className="font-medium text-gray-900">{lt.name}</TableCell>
               <TableCell className="font-mono text-xs text-gray-500">{lt.code}</TableCell>
-              <TableCell align="right" tabular>
+              <TableCell align="right" className="tabular-nums">
                 {lt.quota_days_per_year === 0 ? "ไม่จำกัด" : lt.quota_days_per_year}
               </TableCell>
               <TableCell align="center">
@@ -452,7 +452,7 @@ function PayItemTab({ canWrite }: { canWrite: boolean }) {
         ) : null
       }
     >
-      <Table stickyHeader maxHeight="58vh">
+      <Table stickyHeader maxHeight="58vh" className="rounded-none border-0 shadow-none">
         <TableHeader sticky>
           <TableRow>
             <TableHead>ชื่อรายการ</TableHead>
@@ -647,7 +647,7 @@ function FundTab({ canWrite }: { canWrite: boolean }) {
       title="กองทุน & ประกันสังคม"
       description="อัตราเงินสมทบของลูกจ้าง/นายจ้าง และเพดานฐานคำนวณ — ใช้คำนวณยอดหักในรอบเงินเดือน"
     >
-      <Table>
+      <Table className="rounded-none border-0 shadow-none">
         <TableHeader>
           <TableRow>
             <TableHead>ชื่อกองทุน</TableHead>
@@ -674,7 +674,7 @@ function FundTab({ canWrite }: { canWrite: boolean }) {
               <TableCell align="right" tabular>
                 {fund.employer_rate}%
               </TableCell>
-              <TableCell align="right" tabular>
+              <TableCell align="right" className="tabular-nums">
                 {fund.ceiling_wage != null ? fmtMoney(fund.ceiling_wage) : "ไม่มีเพดาน"}
               </TableCell>
             </TableRow>
@@ -789,7 +789,7 @@ function AccountTab({ canWrite }: { canWrite: boolean }) {
       title="การบันทึกบัญชี"
       description="ผูกบัญชีในผังบัญชีกับแต่ละรายการเงินเดือน — ใช้ตอนระบบลงบัญชีอัตโนมัติเมื่อปิดรอบ"
     >
-      <Table>
+      <Table className="rounded-none border-0 shadow-none">
         <TableHeader>
           <TableRow>
             <TableHead>รายการ</TableHead>
