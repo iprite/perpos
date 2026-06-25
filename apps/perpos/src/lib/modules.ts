@@ -40,24 +40,9 @@ export const ALL_MODULES: ModuleDef[] = [
       return seg.length >= 2 && seg[1] === "accounting";
     },
     roles: [
-      { key: "owner",       label: "Owner",      canWrite: true  },
-      { key: "accountant",  label: "Accountant", canWrite: true  },
-      { key: "viewer",      label: "Viewer",     canWrite: false },
-    ],
-  },
-  {
-    key: "payroll",
-    label: "Payroll",
-    href: "/payroll",
-    match: (p) => {
-      const seg = p.split("/").filter(Boolean);
-      return seg.length >= 2 && seg[1] === "payroll";
-    },
-    roles: [
-      { key: "owner",      label: "Owner",      canWrite: true  },
-      { key: "hr_manager", label: "HR Manager", canWrite: true  },
-      { key: "hr_staff",   label: "HR Staff",   canWrite: true  },
-      { key: "viewer",     label: "Viewer",     canWrite: false },
+      { key: "owner", label: "Owner", canWrite: true },
+      { key: "accountant", label: "Accountant", canWrite: true },
+      { key: "viewer", label: "Viewer", canWrite: false },
     ],
   },
   {
@@ -72,7 +57,7 @@ export const ALL_MODULES: ModuleDef[] = [
       return seg[0] === "assistant";
     },
     roles: [
-      { key: "owner",  label: "Owner",  canWrite: true },
+      { key: "owner", label: "Owner", canWrite: true },
       { key: "member", label: "Member", canWrite: true },
     ],
   },
@@ -86,10 +71,10 @@ export const ALL_MODULES: ModuleDef[] = [
       return seg.length >= 2 && seg[1] === "tmc";
     },
     roles: [
-      { key: "owner",       label: "Owner",       canWrite: true  },
-      { key: "admin",       label: "Admin",        canWrite: true  },
-      { key: "team_lead",   label: "Team Lead",    canWrite: true  },
-      { key: "team_member", label: "Team Member",  canWrite: false },
+      { key: "owner", label: "Owner", canWrite: true },
+      { key: "admin", label: "Admin", canWrite: true },
+      { key: "team_lead", label: "Team Lead", canWrite: true },
+      { key: "team_member", label: "Team Member", canWrite: false },
     ],
   },
   {
@@ -102,10 +87,10 @@ export const ALL_MODULES: ModuleDef[] = [
       return seg.length >= 2 && seg[1] === "crm";
     },
     roles: [
-      { key: "owner",       label: "Owner",       canWrite: true  },
-      { key: "manager",     label: "Manager",     canWrite: true  },
-      { key: "member",      label: "Member",      canWrite: true  },
-      { key: "viewer",      label: "Viewer",      canWrite: false },
+      { key: "owner", label: "Owner", canWrite: true },
+      { key: "manager", label: "Manager", canWrite: true },
+      { key: "member", label: "Member", canWrite: true },
+      { key: "viewer", label: "Viewer", canWrite: false },
     ],
   },
   {
@@ -119,9 +104,9 @@ export const ALL_MODULES: ModuleDef[] = [
       return seg.length >= 2 && seg[1] === "acc-firm";
     },
     roles: [
-      { key: "owner",       label: "Owner",       canWrite: true  },
-      { key: "accountant",  label: "Accountant",  canWrite: true  },
-      { key: "viewer",      label: "Viewer",      canWrite: false },
+      { key: "owner", label: "Owner", canWrite: true },
+      { key: "accountant", label: "Accountant", canWrite: true },
+      { key: "viewer", label: "Viewer", canWrite: false },
     ],
   },
   {
@@ -135,9 +120,9 @@ export const ALL_MODULES: ModuleDef[] = [
       return seg.length >= 2 && seg[1] === "just-me";
     },
     roles: [
-      { key: "owner",   label: "Owner",   canWrite: true  },
-      { key: "manager", label: "Manager", canWrite: true  },
-      { key: "viewer",  label: "Viewer",  canWrite: false },
+      { key: "owner", label: "Owner", canWrite: true },
+      { key: "manager", label: "Manager", canWrite: true },
+      { key: "viewer", label: "Viewer", canWrite: false },
     ],
   },
   {
@@ -151,9 +136,9 @@ export const ALL_MODULES: ModuleDef[] = [
       return seg.length >= 2 && seg[1] === "usvilla";
     },
     roles: [
-      { key: "owner",   label: "Owner",   canWrite: true  },
-      { key: "manager", label: "Manager", canWrite: true  },
-      { key: "viewer",  label: "Viewer",  canWrite: false },
+      { key: "owner", label: "Owner", canWrite: true },
+      { key: "manager", label: "Manager", canWrite: true },
+      { key: "viewer", label: "Viewer", canWrite: false },
     ],
   },
   {
@@ -167,9 +152,9 @@ export const ALL_MODULES: ModuleDef[] = [
       return seg.length >= 2 && seg[1] === "jaquar";
     },
     roles: [
-      { key: "owner",   label: "Owner",   canWrite: true  },
-      { key: "manager", label: "Manager", canWrite: true  },
-      { key: "viewer",  label: "Viewer",  canWrite: false },
+      { key: "owner", label: "Owner", canWrite: true },
+      { key: "manager", label: "Manager", canWrite: true },
+      { key: "viewer", label: "Viewer", canWrite: false },
     ],
   },
   {
@@ -183,9 +168,9 @@ export const ALL_MODULES: ModuleDef[] = [
       return seg.length >= 2 && seg[1] === "b2g";
     },
     roles: [
-      { key: "owner",   label: "Owner",   canWrite: true  },
-      { key: "manager", label: "Manager", canWrite: true  },
-      { key: "viewer",  label: "Viewer",  canWrite: false },
+      { key: "owner", label: "Owner", canWrite: true },
+      { key: "manager", label: "Manager", canWrite: true },
+      { key: "viewer", label: "Viewer", canWrite: false },
     ],
   },
   {
@@ -199,9 +184,9 @@ export const ALL_MODULES: ModuleDef[] = [
       return seg.length >= 2 && seg[1] === "p2p-supply";
     },
     roles: [
-      { key: "owner",   label: "Owner",   canWrite: true  },
-      { key: "manager", label: "Manager", canWrite: true  },
-      { key: "viewer",  label: "Viewer",  canWrite: false },
+      { key: "owner", label: "Owner", canWrite: true },
+      { key: "manager", label: "Manager", canWrite: true },
+      { key: "viewer", label: "Viewer", canWrite: false },
     ],
   },
   {
@@ -215,9 +200,9 @@ export const ALL_MODULES: ModuleDef[] = [
       return seg.length >= 2 && seg[1] === "p2p-group";
     },
     roles: [
-      { key: "owner",   label: "Owner",   canWrite: true  },
-      { key: "manager", label: "Manager", canWrite: true  },
-      { key: "viewer",  label: "Viewer",  canWrite: false },
+      { key: "owner", label: "Owner", canWrite: true },
+      { key: "manager", label: "Manager", canWrite: true },
+      { key: "viewer", label: "Viewer", canWrite: false },
     ],
   },
   {
@@ -225,15 +210,16 @@ export const ALL_MODULES: ModuleDef[] = [
     label: "HR",
     href: "/hrm",
     specific: true,
-    
     match: (p) => {
       const seg = p.split("/").filter(Boolean);
       return seg.length >= 2 && seg[1] === "hrm";
     },
+    // owner = เจ้าของ/ผู้ดูแล (อนุมัติจ่ายเงินเดือน), hr = ฝ่ายบุคคล (จัดการ/อนุมัติลา),
+    // viewer = ดูอย่างเดียว · ยุบจาก payroll 4 ระดับ (owner/hr_manager/hr_staff/viewer)
     roles: [
-      { key: "owner",   label: "Owner",   canWrite: true  },
-      { key: "manager", label: "Manager", canWrite: true  },
-      { key: "viewer",  label: "Viewer",  canWrite: false },
+      { key: "owner", label: "เจ้าของ/ผู้ดูแล", canWrite: true },
+      { key: "hr", label: "ฝ่ายบุคคล", canWrite: true },
+      { key: "viewer", label: "ผู้ดูข้อมูล", canWrite: false },
     ],
   },
 ];
@@ -245,148 +231,178 @@ export type MenuDef = { key: string; label: string; items?: MenuSubItemDef[] };
 
 export const MODULE_MENUS: Record<string, MenuDef[]> = {
   accounting: [
-    { key: "reports", label: "รายงาน", items: [
-      { key: "dashboard",       label: "แดชบอร์ดผู้บริหาร" },
-      { key: "reports",         label: "รายงานการเงิน" },
-      { key: "tax-and-closing", label: "ภาษี & ปิดงบ" },
-    ]},
-    { key: "sales", label: "ขาย", items: [
-      { key: "quotations",        label: "ใบเสนอราคา" },
-      { key: "received-deposits", label: "ใบรับมัดจำ" },
-      { key: "invoices",          label: "ใบแจ้งหนี้" },
-      { key: "receipts",          label: "ใบเสร็จรับเงิน" },
-      { key: "tax-invoices",      label: "ใบกำกับภาษีขาย" },
-      { key: "etax-invoices",     label: "e-Tax Invoice" },
-      { key: "credit-notes",      label: "ใบลดหนี้" },
-      { key: "debit-notes",       label: "ใบเพิ่มหนี้" },
-      { key: "billing-notes",     label: "ใบวางบิล" },
-    ]},
-    { key: "purchase", label: "ซื้อ", items: [
-      { key: "purchase-orders",       label: "ใบสั่งซื้อ" },
-      { key: "paid-deposits",         label: "ใบจ่ายมัดจำ" },
-      { key: "expenses",              label: "บันทึกค่าใช้จ่าย" },
-      { key: "wht-expenses",          label: "บันทึกรายจ่ายที่มีภาษีหัก ณ ที่จ่าย" },
-      { key: "purchase-tax-invoices", label: "ใบกำกับภาษีซื้อ" },
-      { key: "payment-summaries",     label: "ใบรวมจ่าย" },
-      { key: "received-credit-notes", label: "รับใบลดหนี้" },
-      { key: "received-debit-notes",  label: "รับใบเพิ่มหนี้" },
-      { key: "goods-receipts",        label: "รับสินค้า" },
-    ]},
-    { key: "finance", label: "การเงิน", items: [
-      { key: "petty-cash-accounts", label: "เงินสดย่อย" },
-      { key: "bank-accounts",       label: "บัญชีธนาคาร" },
-      { key: "payment-channels",    label: "ช่องทางรับเงิน" },
-      { key: "reserve-accounts",    label: "บัญชีสำรอง" },
-      { key: "check-deposits",      label: "เช็ครับ" },
-      { key: "check-payments",      label: "เช็คจ่าย" },
-      { key: "wht-received",        label: "ภาษีถูกหัก ณ ที่จ่าย" },
-      { key: "wht-paid",            label: "ภาษีหัก ณ ที่จ่าย" },
-    ]},
-    { key: "bookkeeping", label: "บัญชี", items: [
-      { key: "journal",           label: "สมุดรายวัน" },
-      { key: "accounts",          label: "ผังบัญชี" },
-      { key: "ledger",            label: "บัญชีแยกประเภท" },
-      { key: "balance-sheet",     label: "งบดุล" },
-      { key: "trial-balance",     label: "งบทดลอง" },
-      { key: "financial-position",label: "งบฐานะการเงิน" },
-      { key: "income-statement",  label: "งบกำไรขาดทุน" },
-      { key: "cash-flow",         label: "งบกระแสเงินสด" },
-    ]},
-    { key: "assets", label: "สินทรัพย์", items: [
-      { key: "assets-register",  label: "ทะเบียนสินทรัพย์" },
-      { key: "goods-receipts",   label: "ซื้อสินทรัพย์" },
-      { key: "assets-disposals", label: "ขายสินทรัพย์" },
-    ]},
-    { key: "vat", label: "ภาษีมูลค่าเพิ่ม", items: [
-      { key: "vat-sales",     label: "รายการภาษีขาย" },
-      { key: "vat-purchases", label: "รายการภาษีซื้อ" },
-      { key: "pp30",          label: "แบบ ภ.พ.30" },
-    ]},
-    { key: "wht", label: "ภาษีหัก ณ ที่จ่าย", items: [
-      { key: "wht-certificates", label: "ใบหัก ณ ที่จ่าย" },
-      { key: "pnd1",             label: "แบบ ภ.ง.ด.1" },
-      { key: "pnd2",             label: "แบบ ภ.ง.ด.2" },
-      { key: "pnd3",             label: "แบบ ภ.ง.ด.3" },
-      { key: "pnd53",            label: "แบบ ภ.ง.ด.53" },
-    ]},
-    { key: "contacts", label: "ผู้ติดต่อ", items: [
-      { key: "customers", label: "ลูกค้า" },
-      { key: "vendors",   label: "ผู้ขาย" },
-    ]},
-    { key: "inventory", label: "สินค้า", items: [
-      { key: "products",     label: "สินค้า/บริการ" },
-      { key: "units",        label: "หน่วย" },
-      { key: "inventory",    label: "สินค้า/สต๊อก" },
-      { key: "requisitions", label: "ใบเบิกสินค้า" },
-      { key: "returns",      label: "ใบส่งคืนเบิกสินค้า" },
-    ]},
-    { key: "settings", label: "ตั้งค่า", items: [
-      { key: "accounting-users", label: "ผู้ใช้งาน" },
-      { key: "roles",            label: "สิทธิ์การใช้งาน" },
-      { key: "wht-documents",    label: "WHT + เอกสาร" },
-      { key: "reconciliation",   label: "กระทบยอดธนาคาร" },
-      { key: "audit-logs",       label: "Audit Logs" },
-      { key: "setting",          label: "ตั้งค่าองค์กร" },
-    ]},
-  ],
-  payroll: [
-    { key: "reports",     label: "รายงาน" },
-    { key: "salary",      label: "เงินเดือน" },
-    { key: "employees",   label: "พนักงาน" },
-    { key: "departments", label: "แผนก" },
-    { key: "pay-items",   label: "เงินเพิ่ม/เงินหัก" },
-    { key: "settings", label: "ตั้งค่า", items: [
-      { key: "funds",               label: "ข้อมูลกองทุน" },
-      { key: "accounting-settings", label: "ตั้งค่าการบันทึกบัญชี" },
-    ]},
+    {
+      key: "reports",
+      label: "รายงาน",
+      items: [
+        { key: "dashboard", label: "แดชบอร์ดผู้บริหาร" },
+        { key: "reports", label: "รายงานการเงิน" },
+        { key: "tax-and-closing", label: "ภาษี & ปิดงบ" },
+      ],
+    },
+    {
+      key: "sales",
+      label: "ขาย",
+      items: [
+        { key: "quotations", label: "ใบเสนอราคา" },
+        { key: "received-deposits", label: "ใบรับมัดจำ" },
+        { key: "invoices", label: "ใบแจ้งหนี้" },
+        { key: "receipts", label: "ใบเสร็จรับเงิน" },
+        { key: "tax-invoices", label: "ใบกำกับภาษีขาย" },
+        { key: "etax-invoices", label: "e-Tax Invoice" },
+        { key: "credit-notes", label: "ใบลดหนี้" },
+        { key: "debit-notes", label: "ใบเพิ่มหนี้" },
+        { key: "billing-notes", label: "ใบวางบิล" },
+      ],
+    },
+    {
+      key: "purchase",
+      label: "ซื้อ",
+      items: [
+        { key: "purchase-orders", label: "ใบสั่งซื้อ" },
+        { key: "paid-deposits", label: "ใบจ่ายมัดจำ" },
+        { key: "expenses", label: "บันทึกค่าใช้จ่าย" },
+        { key: "wht-expenses", label: "บันทึกรายจ่ายที่มีภาษีหัก ณ ที่จ่าย" },
+        { key: "purchase-tax-invoices", label: "ใบกำกับภาษีซื้อ" },
+        { key: "payment-summaries", label: "ใบรวมจ่าย" },
+        { key: "received-credit-notes", label: "รับใบลดหนี้" },
+        { key: "received-debit-notes", label: "รับใบเพิ่มหนี้" },
+        { key: "goods-receipts", label: "รับสินค้า" },
+      ],
+    },
+    {
+      key: "finance",
+      label: "การเงิน",
+      items: [
+        { key: "petty-cash-accounts", label: "เงินสดย่อย" },
+        { key: "bank-accounts", label: "บัญชีธนาคาร" },
+        { key: "payment-channels", label: "ช่องทางรับเงิน" },
+        { key: "reserve-accounts", label: "บัญชีสำรอง" },
+        { key: "check-deposits", label: "เช็ครับ" },
+        { key: "check-payments", label: "เช็คจ่าย" },
+        { key: "wht-received", label: "ภาษีถูกหัก ณ ที่จ่าย" },
+        { key: "wht-paid", label: "ภาษีหัก ณ ที่จ่าย" },
+      ],
+    },
+    {
+      key: "bookkeeping",
+      label: "บัญชี",
+      items: [
+        { key: "journal", label: "สมุดรายวัน" },
+        { key: "accounts", label: "ผังบัญชี" },
+        { key: "ledger", label: "บัญชีแยกประเภท" },
+        { key: "balance-sheet", label: "งบดุล" },
+        { key: "trial-balance", label: "งบทดลอง" },
+        { key: "financial-position", label: "งบฐานะการเงิน" },
+        { key: "income-statement", label: "งบกำไรขาดทุน" },
+        { key: "cash-flow", label: "งบกระแสเงินสด" },
+      ],
+    },
+    {
+      key: "assets",
+      label: "สินทรัพย์",
+      items: [
+        { key: "assets-register", label: "ทะเบียนสินทรัพย์" },
+        { key: "goods-receipts", label: "ซื้อสินทรัพย์" },
+        { key: "assets-disposals", label: "ขายสินทรัพย์" },
+      ],
+    },
+    {
+      key: "vat",
+      label: "ภาษีมูลค่าเพิ่ม",
+      items: [
+        { key: "vat-sales", label: "รายการภาษีขาย" },
+        { key: "vat-purchases", label: "รายการภาษีซื้อ" },
+        { key: "pp30", label: "แบบ ภ.พ.30" },
+      ],
+    },
+    {
+      key: "wht",
+      label: "ภาษีหัก ณ ที่จ่าย",
+      items: [
+        { key: "wht-certificates", label: "ใบหัก ณ ที่จ่าย" },
+        { key: "pnd1", label: "แบบ ภ.ง.ด.1" },
+        { key: "pnd2", label: "แบบ ภ.ง.ด.2" },
+        { key: "pnd3", label: "แบบ ภ.ง.ด.3" },
+        { key: "pnd53", label: "แบบ ภ.ง.ด.53" },
+      ],
+    },
+    {
+      key: "contacts",
+      label: "ผู้ติดต่อ",
+      items: [
+        { key: "customers", label: "ลูกค้า" },
+        { key: "vendors", label: "ผู้ขาย" },
+      ],
+    },
+    {
+      key: "inventory",
+      label: "สินค้า",
+      items: [
+        { key: "products", label: "สินค้า/บริการ" },
+        { key: "units", label: "หน่วย" },
+        { key: "inventory", label: "สินค้า/สต๊อก" },
+        { key: "requisitions", label: "ใบเบิกสินค้า" },
+        { key: "returns", label: "ใบส่งคืนเบิกสินค้า" },
+      ],
+    },
+    {
+      key: "settings",
+      label: "ตั้งค่า",
+      items: [
+        { key: "accounting-users", label: "ผู้ใช้งาน" },
+        { key: "roles", label: "สิทธิ์การใช้งาน" },
+        { key: "wht-documents", label: "WHT + เอกสาร" },
+        { key: "reconciliation", label: "กระทบยอดธนาคาร" },
+        { key: "audit-logs", label: "Audit Logs" },
+        { key: "setting", label: "ตั้งค่าองค์กร" },
+      ],
+    },
   ],
   stt: [
     { key: "transcribe", label: "ถอดเสียง" },
-    { key: "usage",      label: "การใช้งาน" },
-    { key: "billing",    label: "การชำระเงิน" },
+    { key: "usage", label: "การใช้งาน" },
+    { key: "billing", label: "การชำระเงิน" },
   ],
   tmc: [
-    { key: "dashboard",  label: "Dashboard" },
-    { key: "finance",    label: "บัญชีและการเงิน" },
+    { key: "dashboard", label: "Dashboard" },
+    { key: "finance", label: "บัญชีและการเงิน" },
     { key: "petty-cash", label: "เงินสดย่อย" },
-    { key: "stock",      label: "Stock คลัง" },
-    { key: "stays",      label: "การเข้าพัก" },
+    { key: "stock", label: "Stock คลัง" },
+    { key: "stays", label: "การเข้าพัก" },
   ],
   crm: [
-    { key: "dashboard",  label: "Dashboard" },
-    { key: "clients",    label: "ลูกค้า" },
-    { key: "solutions",  label: "Solutions" },
+    { key: "dashboard", label: "Dashboard" },
+    { key: "clients", label: "ลูกค้า" },
+    { key: "solutions", label: "Solutions" },
   ],
   acc_firm: [
-    { key: "dashboard",       label: "Dashboard" },
-    { key: "clients",         label: "ลูกค้า (Client Orgs)" },
-    { key: "reports",         label: "รายงานรวม" },
-    { key: "petty-cash",      label: "เงินสดย่อย" },
+    { key: "dashboard", label: "Dashboard" },
+    { key: "clients", label: "ลูกค้า (Client Orgs)" },
+    { key: "reports", label: "รายงานรวม" },
+    { key: "petty-cash", label: "เงินสดย่อย" },
     { key: "service-clients", label: "ลูกค้าบริการ" },
   ],
   just_me: [
-    { key: "dashboard",    label: "Dashboard" },
-    { key: "clock_in_out", label: "Clock In/Out" },
-    { key: "inventory",    label: "Inventory" },
-  ],
-  usvilla: [
     { key: "dashboard", label: "Dashboard" },
+    { key: "clock_in_out", label: "Clock In/Out" },
+    { key: "inventory", label: "Inventory" },
   ],
+  usvilla: [{ key: "dashboard", label: "Dashboard" }],
   jaquar: [
     { key: "dashboard", label: "Dashboard" },
     { key: "stock", label: "คลังสินค้า (Stock)" },
   ],
-  b2g: [
-    { key: "dashboard", label: "Dashboard" },
-  ],
-  p2p_supply: [
-    { key: "dashboard", label: "Dashboard" },
-  ],
-  p2p_group: [
-    { key: "dashboard", label: "Dashboard" },
-  ],
+  b2g: [{ key: "dashboard", label: "Dashboard" }],
+  p2p_supply: [{ key: "dashboard", label: "Dashboard" }],
+  p2p_group: [{ key: "dashboard", label: "Dashboard" }],
   hrm: [
-    { key: "dashboard", label: "Dashboard" },
+    { key: "dashboard", label: "ภาพรวม" },
+    { key: "employees", label: "พนักงาน" },
+    { key: "payroll", label: "เงินเดือน" },
+    { key: "leave", label: "การลา" },
+    { key: "time", label: "เวลาทำงาน" },
+    { key: "settings", label: "ตั้งค่า" },
   ],
 };
 
