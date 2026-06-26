@@ -10,7 +10,7 @@
  */
 
 import type { ReactNode } from "react";
-import { HeartPulse, Hotel } from "lucide-react";
+import { HeartPulse, Hotel, Calculator } from "lucide-react";
 
 export type PrototypeEntry = {
   key: string;
@@ -35,5 +35,13 @@ export const PROTOTYPE_REGISTRY: PrototypeEntry[] = [
     description:
       "ระบบจัดการโรงแรมเล็ก (PMS) — ปฏิทินจอง เช็คอิน-เอาท์ รับชำระ แม่บ้าน รายงานรายได้ + AI/LINE",
     icon: <Hotel className="h-5 w-5" />,
+  },
+  {
+    key: "accounting",
+    label: "บัญชี & การเงิน",
+    href: "/admin/prototypes/accounting",
+    description:
+      "ระบบบัญชี SME ไทย 2 ชั้น — หน้าบ้าน (เจ้าของ): รายรับ-รายจ่าย เอกสารขาย ภาษีของฉัน · หลังบ้าน (นักบัญชี): สมุดรายวัน ผังบัญชี งบการเงิน ปิดงวด + AI/LINE",
+    icon: <Calculator className="h-5 w-5" />,
   },
 ];

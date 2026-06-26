@@ -379,6 +379,8 @@ Endpoint: `POST /api/assistant/scheduler`
 | **รูปโปรไฟล์ + fallback อักษรย่อ**                 | `<Avatar>`                                                                                         | `@/components/ui/avatar`           |
 | ป้ายสถานะ                                          | `<StatusBadge tone=…>`                                                                             | `@/components/ui/badge`            |
 | KPI/การ์ดสรุป                                      | `<StatCard>`                                                                                       | `@/components/ui/stat-card`        |
+| **ตัวเลือก 2–3 อย่าง (สลับ/mutually exclusive)**   | `<SegmentedControl>`                                                                               | `@/components/ui/segmented`        |
+| **อัปโหลดรูป PNG (โลโก้/ลายเซน) → data URL**       | `<ImageUpload>`                                                                                    | `@/components/ui/image-upload`     |
 
 > **rizzui**: โค้ด/หน้าจอ**ใหม่**ห้าม import จาก `rizzui`/`rizzui/typography` ตรง ๆ — ใช้ `@/components/ui/*` เสมอ (`Button/Input/Select/Title/Text/Avatar/Badge` ฯลฯ มีครบแล้ว)
 >

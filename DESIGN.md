@@ -414,6 +414,41 @@ const statusBadge = {
 - ยอด Dr ทั้งหมด = ยอด Cr ทั้งหมด → show balance indicator
 - ถ้า unbalanced → ปุ่ม submit disabled + banner แดง "ยอดไม่สมดุล"
 
+### SegmentedControl (Pill) — ตัวเลือก 2–3 อย่าง (บังคับ)
+
+> **กฎ**: ทุกที่ที่มีตัวเลือก **2–3 อย่างที่ต้องเลือกอันใดอันหนึ่ง** (mutually exclusive) — เช่น ฿/% (ส่วนลด),
+> รายรับ/รายจ่าย, สินค้า/บริการ, ชนิดเอกสาร — **ต้องใช้ `<SegmentedControl>`** จาก `@/components/ui/segmented`
+> (pill แบบ workspace switcher Admin/Suite/Flow) — **ห้ามทำกลุ่มปุ่ม toggle เอง** (`grid grid-cols-2` + `<Button>` คู่สลับ variant)
+
+```tsx
+import { SegmentedControl } from "@/components/ui/segmented";
+
+<SegmentedControl
+  value={kind}
+  onChange={setKind}
+  fullWidth // optional: กระจายเต็มแถว (เท่ากันทุกตัว)
+  options={[
+    {
+      value: "income",
+      label: "รายรับ",
+      icon: <ArrowDownLeft className="h-4 w-4" />,
+      activeClassName: "bg-green-600",
+    },
+    {
+      value: "expense",
+      label: "รายจ่าย",
+      icon: <ArrowUpRight className="h-4 w-4" />,
+      activeClassName: "bg-red-600",
+    },
+  ]}
+/>;
+```
+
+- pill: container `rounded-full border bg-gray-50 p-0.5` · active = `bg-primary text-white` (charcoal) ·
+  inactive = `text-gray-600 hover:bg-gray-100` · `size="sm"|"md"` · `activeClassName` override สีตาม semantic
+- ใช้กับ **2–3 ตัวเลือก** เท่านั้น · ค่าจาก list ยาว → `<CustomSelect>` · boolean on/off ล้วน → toggle/switch ·
+  filter ในหน้า list / >3 ตัวเลือก → Tab (§4) หรือ `CustomSelect`
+
 ---
 
 ## 8. Empty States

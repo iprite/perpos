@@ -1,0 +1,989 @@
+"use client";
+
+// document-dialog.tsx — เอกสารขาย (A3)
+//  • DocumentDialog       = รายละเอียด/แก้ไขเอกสารที่มีอยู่ + convert chain + ส่งทาง LINE (L4 mock)
+//  • DocumentCreateDialog = สร้างเอกสารใหม่ (เลือกชนิด/ลูกค้า/วันที่ + line items + ยอดรวม auto)
+// consume mutator: addDocument / updateDocument / deleteDocument / convertDocument (data-context)
+
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { ArrowRight, Eye, Plus, Search, Send, Trash2, X } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { CustomSelect } from "@/components/ui/custom-select";
+import { SegmentedControl } from "@/components/ui/segmented";
+import { ThaiDatePicker } from "@/components/ui/thai-date-picker";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Text } from "@/components/ui/typography";
+import {
+  Dialog,
+  DialogContent,
+  DialogBody,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
+  Table,
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableCell,
+} from "@/components/ui/table";
+import { toast } from "@/lib/toast";
+import { useAccountingData } from "./data-context";
+import { DocStatusBadge, DOC_TYPE_LABEL } from "./badges";
+import { fmtMoney, fmtDateTH } from "./format";
+import { FlexPreview } from "./flex-preview";
+import { DocumentPreview } from "./document-preview";
+import { ProductDialog } from "./product-dialog";
+import { lineFlexL4, MOCK_ORG_ID } from "../_fixtures";
+import type {
+  AccDiscountType,
+  AccDocument,
+  AccDocumentLine,
+  AccDocStatus,
+  AccDocType,
+  AccProduct,
+} from "../_fixtures/types";
+
+const STATUS_OPTIONS: { value: AccDocStatus; label: string }[] = [
+  { value: "draft", label: "ฉบับร่าง" },
+  { value: "sent", label: "ส่งแล้ว" },
+  { value: "accepted", label: "ตอบรับ" },
+  { value: "paid", label: "รับชำระแล้ว" },
+  { value: "overdue", label: "เกินกำหนด" },
+  { value: "void", label: "ยกเลิก" },
+];
+
+const TYPE_PREFIX: Record<AccDocType, string> = {
+  quotation: "QT",
+  invoice: "INV",
+  receipt: "RC",
+};
+
+// quotation → invoice → receipt (convertDocument รับเฉพาะปลายทาง invoice/receipt)
+const NEXT_TYPE: Partial<Record<AccDocType, "invoice" | "receipt">> = {
+  quotation: "invoice",
+  invoice: "receipt",
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DocumentDialog — รายละเอียด/แก้ไขเอกสารที่มีอยู่
+// ─────────────────────────────────────────────────────────────────────────────
+export function DocumentDialog({
+  open,
+  onOpenChange,
+  document,
+  canWrite,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  document: AccDocument | null;
+  canWrite: boolean;
+}) {
+  const { orgSettings, updateDocument, deleteDocument, convertDocument } = useAccountingData();
+
+  const [status, setStatus] = useState<AccDocStatus>("draft");
+  const [dueDate, setDueDate] = useState("");
+  const [note, setNote] = useState("");
+  const [lineOpen, setLineOpen] = useState(false); // dialog preview ส่ง LINE (L4)
+  const [previewOpen, setPreviewOpen] = useState(false); // dialog พรีวิวเอกสารพร้อมพิมพ์
+
+  const key = `${open}-${document?.id ?? "none"}`;
+  const [lastKey, setLastKey] = useState("");
+  useEffect(() => {
+    if (!open || key === lastKey || !document) return;
+    setLastKey(key);
+    setStatus(document.status);
+    setDueDate(document.due_date ?? "");
+    setNote(document.note ?? "");
+  }, [open, key, lastKey, document]);
+
+  const nextType = document ? NEXT_TYPE[document.doc_type] : undefined;
+  const lines = useMemo(() => document?.lines ?? [], [document]);
+
+  if (!document) return null;
+
+  function handleSave() {
+    if (!document) return;
+    updateDocument({
+      ...document,
+      status,
+      due_date: dueDate || null,
+      note: note.trim() || null,
+    });
+    toast.success(`บันทึก ${document.doc_number} สำเร็จ`);
+    onOpenChange(false);
+  }
+
+  function handleConvert() {
+    if (!document || !nextType) return;
+    convertDocument(document.id, nextType);
+    toast.success(
+      `แปลง ${document.doc_number} เป็น${DOC_TYPE_LABEL[nextType]}แล้ว — ดูในแท็บ${DOC_TYPE_LABEL[nextType]}`,
+    );
+    onOpenChange(false);
+  }
+
+  function handleDelete() {
+    if (!document) return;
+    deleteDocument(document.id);
+    toast.success(`ลบ ${document.doc_number} แล้ว`);
+    onOpenChange(false);
+  }
+
+  return (
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent size="2xl">
+          <DialogHeader>
+            <DialogTitle>
+              <span className="flex flex-wrap items-center gap-2">
+                {DOC_TYPE_LABEL[document.doc_type]} · {document.doc_number}
+                <DocStatusBadge status={document.status} />
+              </span>
+            </DialogTitle>
+          </DialogHeader>
+          <DialogBody>
+            <div className="space-y-5">
+              {/* หัวเอกสาร */}
+              <div className="grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2">
+                <Field label="ลูกค้า" value={document.contact_name ?? "—"} />
+                <Field label="ออกวันที่" value={fmtDateTH(document.issue_date)} />
+              </div>
+
+              {/* แก้ไข: สถานะ + กำหนดชำระ */}
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div>
+                  <Label>สถานะ</Label>
+                  <CustomSelect
+                    className="mt-1"
+                    value={status}
+                    onChange={(v) => setStatus(v as AccDocStatus)}
+                    options={STATUS_OPTIONS}
+                  />
+                </div>
+                <div>
+                  <Label>กำหนดชำระ</Label>
+                  <ThaiDatePicker value={dueDate} onChange={setDueDate} placeholder="ไม่ระบุ" />
+                </div>
+              </div>
+
+              {/* รายการในเอกสาร */}
+              <div>
+                <div className="mb-2.5 px-1 text-sm font-semibold text-gray-900">รายการ</div>
+                <Table className="shadow-sm">
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>รายละเอียด</TableHead>
+                      <TableHead align="right">จำนวน</TableHead>
+                      <TableHead align="right">ราคา/หน่วย</TableHead>
+                      <TableHead align="right">ส่วนลด</TableHead>
+                      <TableHead align="right">รวม</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {lines.map((l) => (
+                      <TableRow key={l.id}>
+                        <TableCell wrap>
+                          <div className="font-medium text-gray-900">{l.item_name}</div>
+                          {l.description && (
+                            <div className="mt-0.5 whitespace-pre-line text-xs text-gray-500">
+                              {l.description}
+                            </div>
+                          )}
+                        </TableCell>
+                        <TableCell align="right" className="tabular-nums text-gray-600">
+                          {l.qty}
+                        </TableCell>
+                        <TableCell align="right" tabular className="text-gray-600">
+                          {fmtMoney(l.unit_price, { currency: false })}
+                        </TableCell>
+                        <TableCell align="right" className="tabular-nums text-gray-600">
+                          {fmtDiscount(l.discount, l.discount_type)}
+                        </TableCell>
+                        <TableCell align="right" tabular className="text-gray-900">
+                          {fmtMoney(l.amount, { currency: false })}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+
+              {/* ยอดรวม */}
+              <div className="ml-auto w-full max-w-xs space-y-1.5 text-sm">
+                <SummaryRow label="ยอดก่อนภาษี" value={fmtMoney(document.subtotal)} />
+                {document.vat_amount > 0 && (
+                  <SummaryRow
+                    label={`ภาษีมูลค่าเพิ่ม ${orgSettings.vat_rate}%`}
+                    value={fmtMoney(document.vat_amount)}
+                  />
+                )}
+                <div className="flex items-center justify-between border-t border-gray-200 pt-1.5">
+                  <span className="font-semibold text-gray-900">ยอดรวมทั้งสิ้น</span>
+                  <span className="font-mono font-semibold tabular-nums text-gray-900">
+                    {fmtMoney(document.total)}
+                  </span>
+                </div>
+                {(document.wht_amount ?? 0) > 0 && (
+                  <>
+                    <div className="flex items-center justify-between">
+                      <span className="text-gray-500">
+                        {`หัก ณ ที่จ่าย ${document.wht_rate ?? 0}%`}
+                      </span>
+                      <span className="font-mono tabular-nums text-red-600">
+                        {`−${fmtMoney(document.wht_amount ?? 0)}`}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between border-t border-gray-200 pt-1.5">
+                      <span className="font-semibold text-gray-900">ยอดชำระสุทธิ</span>
+                      <span className="font-mono font-semibold tabular-nums text-gray-900">
+                        {fmtMoney(document.total - (document.wht_amount ?? 0))}
+                      </span>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* โน้ต */}
+              <div>
+                <Label htmlFor="doc-note">หมายเหตุ</Label>
+                <Input
+                  id="doc-note"
+                  className="mt-1"
+                  placeholder="ข้อความเพิ่มเติมในเอกสาร"
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                  disabled={!canWrite}
+                />
+              </div>
+
+              {/* action: ดูตัวอย่าง (ทุก role) + convert + ส่ง LINE (canWrite) */}
+              <div className="flex flex-wrap gap-2 rounded-lg border border-gray-200 bg-gray-50 p-3">
+                <Button type="button" variant="outline" onClick={() => setPreviewOpen(true)}>
+                  <Eye className="mr-1.5 h-4 w-4" /> ดูตัวอย่าง / พิมพ์
+                </Button>
+                {canWrite && nextType && (
+                  <Button type="button" variant="outline" onClick={handleConvert}>
+                    แปลงเป็น{DOC_TYPE_LABEL[nextType]}
+                    <ArrowRight className="ml-1.5 h-4 w-4" />
+                  </Button>
+                )}
+                {canWrite && document.doc_type === "invoice" && (
+                  <Button type="button" variant="outline" onClick={() => setLineOpen(true)}>
+                    <Send className="mr-1.5 h-4 w-4" /> ส่งให้ลูกค้าทาง LINE
+                  </Button>
+                )}
+              </div>
+            </div>
+          </DialogBody>
+          <DialogFooter>
+            {canWrite && (
+              <Button
+                type="button"
+                variant="destructive"
+                className="mr-auto"
+                onClick={handleDelete}
+              >
+                <Trash2 className="mr-1.5 h-4 w-4" /> ลบ
+              </Button>
+            )}
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+              {canWrite ? "ยกเลิก" : "ปิด"}
+            </Button>
+            {canWrite && <Button onClick={handleSave}>บันทึก</Button>}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* L4 — preview การ์ด LINE ที่จะส่งให้ลูกค้า (mock) */}
+      <Dialog open={lineOpen} onOpenChange={setLineOpen}>
+        <DialogContent size="md">
+          <DialogHeader>
+            <DialogTitle>ตัวอย่างการ์ด LINE ที่จะส่ง</DialogTitle>
+          </DialogHeader>
+          <DialogBody>
+            <Text className="mb-3 text-xs text-gray-500">
+              นี่คือตัวอย่าง (mock) การ์ดที่ลูกค้าจะได้รับทาง LINE — ในระบบจริงจะส่งผ่าน LINE
+              Official Account พร้อมลิงก์ PDF ใบแจ้งหนี้
+            </Text>
+            <FlexPreview flex={lineFlexL4} />
+          </DialogBody>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setLineOpen(false)}>
+              ปิด
+            </Button>
+            <Button
+              onClick={() => {
+                setLineOpen(false);
+                toast.success(`ส่ง ${document.doc_number} ทาง LINE แล้ว (จำลอง)`);
+              }}
+            >
+              <Send className="mr-1.5 h-4 w-4" /> ส่งทาง LINE
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* พรีวิวเอกสารพร้อมพิมพ์/ดาวน์โหลด PDF */}
+      <DocumentPreview open={previewOpen} onOpenChange={setPreviewOpen} document={document} />
+    </>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DocumentCreateDialog — สร้างเอกสารใหม่
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface DraftLine {
+  key: string;
+  productId: string | null; // null = พิมพ์เอง
+  itemName: string; // ชื่อสินค้า/บริการ (typeahead)
+  description: string; // คำอธิบายรายการ (เพิ่มเติม, อาจว่าง)
+  qty: string;
+  unitPrice: string;
+  discount: string;
+  discountType: AccDiscountType; // 'amount' (฿) | 'percent' (%) default 'amount'
+}
+
+function emptyLine(): DraftLine {
+  return {
+    key: `dl-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    productId: null,
+    itemName: "",
+    description: "",
+    qty: "1",
+    unitPrice: "",
+    discount: "0",
+    discountType: "amount",
+  };
+}
+
+const DOC_TYPE_SEG: SegmentedOptionLite<AccDocType>[] = [
+  { value: "quotation", label: "ใบเสนอราคา" },
+  { value: "invoice", label: "ใบแจ้งหนี้" },
+  { value: "receipt", label: "ใบเสร็จ" },
+];
+
+const DISCOUNT_TYPE_SEG: SegmentedOptionLite<AccDiscountType>[] = [
+  { value: "amount", label: "฿" },
+  { value: "percent", label: "%" },
+];
+
+// อัตราหัก ณ ที่จ่ายไทย (>3 ตัวเลือก → ใช้ CustomSelect ไม่ใช่ pill)
+const WHT_RATE_OPTIONS: { value: string; label: string }[] = [
+  { value: "1", label: "1%" },
+  { value: "2", label: "2%" },
+  { value: "3", label: "3%" },
+  { value: "5", label: "5%" },
+  { value: "10", label: "10%" },
+  { value: "15", label: "15%" },
+];
+
+type SegmentedOptionLite<T extends string> = { value: T; label: string };
+
+// amount ต่อบรรทัด
+//   percent → max(0, round2(qty*unit_price*(1 − discount/100)))  [clamp discount 0–100]
+//   amount  → max(0, qty*unit_price − discount)
+function lineAmount(l: {
+  qty: string;
+  unitPrice: string;
+  discount: string;
+  discountType: AccDiscountType;
+}): number {
+  const gross = (Number(l.qty) || 0) * (Number(l.unitPrice) || 0);
+  let net: number;
+  if (l.discountType === "percent") {
+    const pct = Math.min(100, Math.max(0, Number(l.discount) || 0));
+    net = gross * (1 - pct / 100);
+  } else {
+    net = gross - (Number(l.discount) || 0);
+  }
+  return Math.round(Math.max(0, net) * 100) / 100;
+}
+
+export function DocumentCreateDialog({
+  open,
+  onOpenChange,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+}) {
+  const { contacts, orgSettings, documents, products, addDocument } = useAccountingData();
+
+  const [docType, setDocType] = useState<AccDocType>("quotation");
+  const [contactId, setContactId] = useState("");
+  const [issueDate, setIssueDate] = useState("");
+  const [dueDate, setDueDate] = useState("");
+  const [note, setNote] = useState("");
+  const [draftLines, setDraftLines] = useState<DraftLine[]>([emptyLine()]);
+
+  // VAT (default = org จด VAT) + WHT หัก ณ ที่จ่าย (default ไม่หัก)
+  const [vatEnabled, setVatEnabled] = useState(orgSettings.is_vat_registered);
+  const [whtOn, setWhtOn] = useState(false);
+  const [whtRate, setWhtRate] = useState("3");
+
+  // typeahead: บรรทัดที่กำลังเปิด popover (key) + dialog เพิ่มสินค้าใหม่ (prefill ชื่อ + บรรทัดที่จะ fill)
+  const [openSuggestKey, setOpenSuggestKey] = useState<string | null>(null);
+  const [productDialog, setProductDialog] = useState<{ name: string; lineKey: string } | null>(
+    null,
+  );
+
+  // reset ทุกครั้งที่เปิดใหม่
+  const [lastOpen, setLastOpen] = useState(false);
+  useEffect(() => {
+    if (open === lastOpen) return;
+    setLastOpen(open);
+    if (open) {
+      setDocType("quotation");
+      setContactId("");
+      setIssueDate("2026-06-26");
+      setDueDate("");
+      setNote("");
+      setDraftLines([emptyLine()]);
+      setVatEnabled(orgSettings.is_vat_registered);
+      setWhtOn(false);
+      setWhtRate("3");
+      setOpenSuggestKey(null);
+      setProductDialog(null);
+    }
+  }, [open, lastOpen, orgSettings.is_vat_registered]);
+
+  const contactOptions = useMemo(
+    () => [
+      { value: "", label: "— เลือกลูกค้า —" },
+      ...contacts
+        .filter((c) => c.kind === "customer" || c.kind === "both")
+        .map((c) => ({ value: c.id, label: c.name })),
+    ],
+    [contacts],
+  );
+
+  const activeProducts = useMemo(() => products.filter((p) => p.is_active), [products]);
+
+  const subtotal = useMemo(() => draftLines.reduce((s, l) => s + lineAmount(l), 0), [draftLines]);
+  const vatAmount = vatEnabled
+    ? Math.round(subtotal * (orgSettings.vat_rate / 100) * 100) / 100
+    : 0;
+  const total = subtotal + vatAmount;
+  // WHT คิดจาก subtotal (ฐานก่อน VAT) — มาตรฐานหัก ณ ที่จ่ายไทย
+  const whtRateNum = whtOn ? Number(whtRate) || 0 : 0;
+  const whtAmount = whtOn ? Math.round(subtotal * (whtRateNum / 100) * 100) / 100 : 0;
+  const netPayable = total - whtAmount;
+
+  function updateLine(key: string, patch: Partial<DraftLine>) {
+    setDraftLines((prev) => prev.map((l) => (l.key === key ? { ...l, ...patch } : l)));
+  }
+  // เลือกสินค้าจาก typeahead → auto-fill ชื่อ + ราคา + คำอธิบาย + product_id
+  function applyProduct(key: string, p: AccProduct) {
+    setDraftLines((prev) =>
+      prev.map((l) =>
+        l.key === key
+          ? {
+              ...l,
+              productId: p.id,
+              itemName: p.name,
+              unitPrice: String(p.unit_price),
+              description: p.description ?? l.description,
+            }
+          : l,
+      ),
+    );
+    setOpenSuggestKey(null);
+  }
+  // พิมพ์ชื่อสินค้าเอง → ล้าง product_id (free text)
+  function typeItemName(key: string, value: string) {
+    updateLine(key, { itemName: value, productId: null });
+    setOpenSuggestKey(value.trim() ? key : null);
+  }
+  function addLine() {
+    setDraftLines((prev) => [...prev, emptyLine()]);
+  }
+  function removeLine(key: string) {
+    setDraftLines((prev) => (prev.length <= 1 ? prev : prev.filter((l) => l.key !== key)));
+  }
+
+  function nextDocNumber(): string {
+    const prefix = TYPE_PREFIX[docType];
+    const sameType = documents.filter((d) => d.doc_type === docType).length;
+    return `${prefix}-2026-${String(sameType + 1).padStart(4, "0")}`;
+  }
+
+  function handleSubmit() {
+    if (!contactId) {
+      toast.error("กรุณาเลือกลูกค้า");
+      return;
+    }
+    if (!issueDate) {
+      toast.error("กรุณาเลือกวันที่ออกเอกสาร");
+      return;
+    }
+    const cleanLines = draftLines.filter((l) => l.itemName.trim() && Number(l.unitPrice) > 0);
+    if (cleanLines.length === 0) {
+      toast.error("กรุณากรอกรายการอย่างน้อย 1 บรรทัด (มีชื่อสินค้าและราคา)");
+      return;
+    }
+
+    const docId = `doc-new-${Date.now()}`;
+    const lines: AccDocumentLine[] = cleanLines.map((l, i) => {
+      const qty = Number(l.qty) || 0;
+      const unit = Number(l.unitPrice) || 0;
+      // clamp: percent 0–100, amount ≥0
+      const discount =
+        l.discountType === "percent"
+          ? Math.min(100, Math.max(0, Number(l.discount) || 0))
+          : Math.max(0, Number(l.discount) || 0);
+      return {
+        id: `${docId}-l${i + 1}`,
+        org_id: MOCK_ORG_ID,
+        document_id: docId,
+        item_name: l.itemName.trim(), // ชื่อสินค้า/บริการ
+        description: l.description.trim(), // คำอธิบายรายการ (อาจว่าง)
+        qty,
+        unit_price: unit,
+        discount, // ค่าที่กรอก: ฿ (amount) หรือ % (percent)
+        discount_type: l.discountType, // 'amount' | 'percent'
+        amount: lineAmount(l), // หลังหักส่วนลดตาม type (กันติดลบ)
+        sort_order: i + 1,
+        product_id: l.productId, // เลือกจาก catalog หรือ null = พิมพ์เอง
+      };
+    });
+
+    const contactName = contacts.find((c) => c.id === contactId)?.name;
+    const doc: AccDocument = {
+      id: docId,
+      org_id: MOCK_ORG_ID,
+      doc_type: docType,
+      doc_number: nextDocNumber(),
+      contact_id: contactId,
+      issue_date: issueDate,
+      due_date: docType === "invoice" ? dueDate || null : null,
+      status: "draft",
+      vat_enabled: vatEnabled,
+      subtotal,
+      vat_amount: vatAmount,
+      total,
+      wht_rate: whtOn ? whtRateNum : 0,
+      wht_amount: whtAmount,
+      converted_from_id: null,
+      note: note.trim() || null,
+      created_at: new Date().toISOString(),
+      lines,
+      contact_name: contactName,
+    };
+
+    addDocument(doc);
+    toast.success(`สร้าง ${DOC_TYPE_LABEL[docType]} ${doc.doc_number} สำเร็จ`);
+    onOpenChange(false);
+  }
+
+  return (
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent size="2xl">
+          <DialogHeader>
+            <DialogTitle>สร้างเอกสารใหม่</DialogTitle>
+          </DialogHeader>
+          <form
+            className="flex min-h-0 flex-1 flex-col"
+            onSubmit={(e) => {
+              e.preventDefault();
+              handleSubmit();
+            }}
+          >
+            <DialogBody>
+              <div className="space-y-4">
+                <div>
+                  <Label>ชนิดเอกสาร *</Label>
+                  <div className="mt-1">
+                    <SegmentedControl
+                      value={docType}
+                      onChange={setDocType}
+                      options={DOC_TYPE_SEG}
+                      fullWidth
+                      ariaLabel="ชนิดเอกสาร"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <Label>ลูกค้า *</Label>
+                  <CustomSelect
+                    className="mt-1"
+                    value={contactId}
+                    onChange={setContactId}
+                    options={contactOptions}
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div>
+                    <Label>วันที่ออกเอกสาร *</Label>
+                    <ThaiDatePicker
+                      value={issueDate}
+                      onChange={setIssueDate}
+                      placeholder="เลือกวันที่"
+                    />
+                  </div>
+                  {docType === "invoice" && (
+                    <div>
+                      <Label>กำหนดชำระ</Label>
+                      <ThaiDatePicker value={dueDate} onChange={setDueDate} placeholder="ไม่ระบุ" />
+                    </div>
+                  )}
+                </div>
+
+                {/* line items — card ต่อบรรทัด (อ่านง่าย มือถือไม่ล้น) */}
+                <div>
+                  <div className="mb-2 flex items-center justify-between px-1">
+                    <span className="text-sm font-semibold text-gray-900">รายการ</span>
+                    <Button type="button" variant="outline" size="sm" onClick={addLine}>
+                      <Plus className="mr-1 h-3.5 w-3.5" /> เพิ่มบรรทัด
+                    </Button>
+                  </div>
+                  <div className="space-y-3">
+                    {draftLines.map((l, idx) => {
+                      const amount = lineAmount(l);
+                      return (
+                        <div
+                          key={l.key}
+                          className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm"
+                        >
+                          <div className="mb-2 flex items-center justify-between">
+                            <span className="text-xs font-medium text-gray-500">
+                              บรรทัดที่ {idx + 1}
+                            </span>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => removeLine(l.key)}
+                              disabled={draftLines.length <= 1}
+                              aria-label="ลบบรรทัด"
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </div>
+
+                          {/* ชื่อสินค้า/บริการ — typeahead (พิมพ์ค้นหา + เลือกจากรายการ) */}
+                          <ItemNameField
+                            line={l}
+                            products={activeProducts}
+                            open={openSuggestKey === l.key}
+                            onType={(v) => typeItemName(l.key, v)}
+                            onPick={(p) => applyProduct(l.key, p)}
+                            onClose={() => setOpenSuggestKey(null)}
+                            onAddNew={(name) => {
+                              setOpenSuggestKey(null);
+                              setProductDialog({ name, lineKey: l.key });
+                            }}
+                          />
+
+                          {/* คำอธิบายรายการ (เพิ่มเติม, อาจว่าง) */}
+                          <div className="mt-2">
+                            <Label>คำอธิบายรายการ</Label>
+                            <Textarea
+                              className="mt-1"
+                              rows={2}
+                              placeholder="รายละเอียดเพิ่มเติม (ไม่บังคับ) — กด Enter ขึ้นบรรทัดใหม่ได้"
+                              value={l.description}
+                              onChange={(e) => updateLine(l.key, { description: e.target.value })}
+                            />
+                          </div>
+
+                          {/* จำนวน · ราคา/หน่วย · ส่วนลด */}
+                          <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
+                            <div>
+                              <Label>จำนวน</Label>
+                              <Input
+                                type="number"
+                                min="0"
+                                className="mt-1 text-right"
+                                value={l.qty}
+                                onChange={(e) => updateLine(l.key, { qty: e.target.value })}
+                              />
+                            </div>
+                            <div>
+                              <Label>ราคา/หน่วย (฿)</Label>
+                              <Input
+                                type="number"
+                                min="0"
+                                className="mt-1 text-right"
+                                placeholder="0.00"
+                                value={l.unitPrice}
+                                onChange={(e) => updateLine(l.key, { unitPrice: e.target.value })}
+                              />
+                            </div>
+                            <div>
+                              <Label>ส่วนลด</Label>
+                              {/* pill ฿/% ฝังในช่อง input ด้านหน้า (leading) */}
+                              <div className="mt-1 flex h-9 items-center gap-1.5 rounded-md border border-gray-200 bg-white pl-1 pr-2 ring-offset-white focus-within:ring-2 focus-within:ring-blue-500 focus-within:ring-offset-2">
+                                <SegmentedControl
+                                  size="xs"
+                                  value={l.discountType}
+                                  onChange={(v) => updateLine(l.key, { discountType: v })}
+                                  options={DISCOUNT_TYPE_SEG}
+                                  ariaLabel="หน่วยส่วนลด"
+                                  className="shrink-0"
+                                />
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  max={l.discountType === "percent" ? "100" : undefined}
+                                  className="h-7 flex-1 border-0 bg-transparent px-0 text-right shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
+                                  placeholder={l.discountType === "percent" ? "0–100" : "0.00"}
+                                  value={l.discount}
+                                  onChange={(e) => updateLine(l.key, { discount: e.target.value })}
+                                />
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* รวมต่อบรรทัด (หลังหักส่วนลด) */}
+                          <div className="mt-2 flex items-center justify-end gap-2 border-t border-gray-100 pt-2 text-sm">
+                            <span className="text-gray-500">รวม</span>
+                            <span className="font-mono font-medium tabular-nums text-gray-900">
+                              {fmtMoney(amount, { currency: false })}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* ภาษี: VAT (เฉพาะ org จด VAT) + หัก ณ ที่จ่าย */}
+                <div className="ml-auto w-full max-w-xs space-y-3">
+                  {orgSettings.is_vat_registered && (
+                    <div className="flex items-center justify-between gap-2">
+                      <Label className="shrink-0">ภาษีมูลค่าเพิ่ม</Label>
+                      <SegmentedControl
+                        size="sm"
+                        value={vatEnabled ? "vat" : "novat"}
+                        onChange={(v) => setVatEnabled(v === "vat")}
+                        options={[
+                          { value: "vat", label: `มี VAT ${orgSettings.vat_rate}%` },
+                          { value: "novat", label: "ไม่มี VAT" },
+                        ]}
+                        ariaLabel="ภาษีมูลค่าเพิ่ม"
+                      />
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between gap-2">
+                    <Label className="shrink-0">หัก ณ ที่จ่าย</Label>
+                    <SegmentedControl
+                      size="sm"
+                      value={whtOn ? "wht" : "nowht"}
+                      onChange={(v) => setWhtOn(v === "wht")}
+                      options={[
+                        { value: "wht", label: "หัก ณ ที่จ่าย" },
+                        { value: "nowht", label: "ไม่หัก" },
+                      ]}
+                      ariaLabel="หัก ณ ที่จ่าย"
+                    />
+                  </div>
+                  {whtOn && (
+                    <div className="flex items-center justify-between gap-2">
+                      <Label className="shrink-0">อัตราหัก ณ ที่จ่าย</Label>
+                      <CustomSelect
+                        className="w-28"
+                        value={whtRate}
+                        onChange={setWhtRate}
+                        options={WHT_RATE_OPTIONS}
+                      />
+                    </div>
+                  )}
+                </div>
+
+                {/* สรุปยอด */}
+                <div className="ml-auto w-full max-w-xs space-y-1.5 text-sm">
+                  <SummaryRow label="ยอดก่อนภาษี" value={fmtMoney(subtotal)} />
+                  {vatEnabled && (
+                    <SummaryRow
+                      label={`ภาษีมูลค่าเพิ่ม ${orgSettings.vat_rate}%`}
+                      value={fmtMoney(vatAmount)}
+                    />
+                  )}
+                  <div className="flex items-center justify-between border-t border-gray-200 pt-1.5">
+                    <span className="font-semibold text-gray-900">ยอดรวมทั้งสิ้น</span>
+                    <span className="font-mono font-semibold tabular-nums text-gray-900">
+                      {fmtMoney(total)}
+                    </span>
+                  </div>
+                  {whtOn && whtAmount > 0 && (
+                    <>
+                      <div className="flex items-center justify-between">
+                        <span className="text-gray-500">{`หัก ณ ที่จ่าย ${whtRateNum}%`}</span>
+                        <span className="font-mono tabular-nums text-red-600">
+                          {`−${fmtMoney(whtAmount)}`}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between border-t border-gray-200 pt-1.5">
+                        <span className="font-semibold text-gray-900">ยอดชำระสุทธิ</span>
+                        <span className="font-mono font-semibold tabular-nums text-gray-900">
+                          {fmtMoney(netPayable)}
+                        </span>
+                      </div>
+                    </>
+                  )}
+                </div>
+
+                <div>
+                  <Label htmlFor="doc-create-note">หมายเหตุ</Label>
+                  <Input
+                    id="doc-create-note"
+                    className="mt-1"
+                    placeholder="ข้อความเพิ่มเติมในเอกสาร"
+                    value={note}
+                    onChange={(e) => setNote(e.target.value)}
+                  />
+                </div>
+              </div>
+            </DialogBody>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+                ยกเลิก
+              </Button>
+              <Button type="submit">สร้างเอกสาร</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* เพิ่มสินค้าใหม่จาก typeahead (prefill ชื่อ) → onCreated auto-fill บรรทัดนั้น */}
+      <ProductDialog
+        open={productDialog !== null}
+        onOpenChange={(v) => {
+          if (!v) setProductDialog(null);
+        }}
+        product={null}
+        canWrite
+        defaultName={productDialog?.name}
+        onCreated={(p) => {
+          if (productDialog) applyProduct(productDialog.lineKey, p);
+          setProductDialog(null);
+        }}
+      />
+    </>
+  );
+}
+
+// ── ItemNameField — typeahead ชื่อสินค้า/บริการ (พิมพ์ค้นหา + เลือก/เพิ่มใหม่) ──
+function ItemNameField({
+  line,
+  products,
+  open,
+  onType,
+  onPick,
+  onClose,
+  onAddNew,
+}: {
+  line: DraftLine;
+  products: AccProduct[];
+  open: boolean;
+  onType: (value: string) => void;
+  onPick: (p: AccProduct) => void;
+  onClose: () => void;
+  onAddNew: (name: string) => void;
+}) {
+  const wrapRef = useRef<HTMLDivElement>(null);
+
+  // ปิด popover เมื่อคลิกนอกบริเวณ
+  useEffect(() => {
+    if (!open) return;
+    function onDocClick(e: MouseEvent) {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) onClose();
+    }
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, [open, onClose]);
+
+  const q = line.itemName.trim().toLowerCase();
+  const matches = useMemo(() => {
+    if (!q) return [];
+    return products
+      .filter((p) => p.name.toLowerCase().includes(q) || (p.code ?? "").toLowerCase().includes(q))
+      .slice(0, 6);
+  }, [products, q]);
+  const showAddNew = q.length > 0 && matches.length === 0;
+
+  return (
+    <div ref={wrapRef} className="relative">
+      <Label>ชื่อสินค้า/บริการ *</Label>
+      <div className="relative mt-1">
+        <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+        <Input
+          className="pl-8"
+          placeholder="พิมพ์เพื่อค้นหา หรือพิมพ์ชื่อใหม่"
+          value={line.itemName}
+          onChange={(e) => onType(e.target.value)}
+          onFocus={() => line.itemName.trim() && onType(line.itemName)}
+          autoComplete="off"
+        />
+      </div>
+
+      {open && (matches.length > 0 || showAddNew) && (
+        <div className="absolute z-20 mt-1 w-full overflow-hidden rounded-lg border border-gray-200 bg-white py-1 shadow-lg">
+          {matches.map((p) => (
+            <Button
+              key={p.id}
+              type="button"
+              variant="ghost"
+              className="flex h-auto w-full items-center justify-between gap-3 rounded-none px-3 py-2 text-left font-normal"
+              onClick={() => onPick(p)}
+            >
+              <span className="min-w-0">
+                <span className="block truncate text-sm font-medium text-gray-900">{p.name}</span>
+                {p.code && <span className="block text-xs text-gray-400">{p.code}</span>}
+              </span>
+              <span className="shrink-0 font-mono text-xs tabular-nums text-gray-500">
+                {fmtMoney(p.unit_price, { currency: false })} ฿ / {p.unit}
+              </span>
+            </Button>
+          ))}
+          {showAddNew && (
+            <Button
+              type="button"
+              variant="ghost"
+              className="mt-1 flex h-auto w-full items-center justify-start gap-2 rounded-none border-t border-gray-100 px-3 py-2 text-left text-sm font-medium text-primary"
+              onClick={() => onAddNew(line.itemName.trim())}
+            >
+              <Plus className="h-4 w-4 shrink-0" />
+              <span className="truncate">
+                เพิ่ม «{line.itemName.trim()}» เข้ารายการสินค้าและบริการ
+              </span>
+            </Button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// แสดงส่วนลดตาม type: percent → "10%" · amount → "−500" (U+2212) · 0 → "—"
+function fmtDiscount(discount: number, type: AccDiscountType): string {
+  if (!discount || discount <= 0) return "—";
+  if (type === "percent") return `${fmtMoney(discount, { currency: false, decimals: 0 })}%`;
+  return `−${fmtMoney(discount, { currency: false })}`;
+}
+
+function Field({ label, value }: { label: string; value: ReactNode }) {
+  return (
+    <div>
+      <div className="text-xs text-gray-400">{label}</div>
+      <div className="mt-0.5 text-sm text-gray-900">{value}</div>
+    </div>
+  );
+}
+
+function SummaryRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between">
+      <span className="text-gray-500">{label}</span>
+      <span className="font-mono tabular-nums text-gray-700">{value}</span>
+    </div>
+  );
+}
