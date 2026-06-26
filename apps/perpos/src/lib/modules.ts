@@ -33,16 +33,19 @@ export type ModuleDef = {
 export const ALL_MODULES: ModuleDef[] = [
   {
     key: "accounting",
-    label: "Accounting",
+    label: "บัญชี & การเงิน",
     href: "/accounting",
     match: (p) => {
       const seg = p.split("/").filter(Boolean);
       return seg.length >= 2 && seg[1] === "accounting";
     },
+    // owner = เจ้าของ (ดู+คุมระบบ/settings), accountant = นักบัญชี (เครื่องมือหลังบ้านเต็ม+ปิดงวด),
+    // staff = พนักงาน (เขียนได้เฉพาะหน้าบ้าน), viewer = ดูอย่างเดียว (role matrix §4 contract)
     roles: [
-      { key: "owner", label: "Owner", canWrite: true },
-      { key: "accountant", label: "Accountant", canWrite: true },
-      { key: "viewer", label: "Viewer", canWrite: false },
+      { key: "owner", label: "เจ้าของ", canWrite: true },
+      { key: "accountant", label: "นักบัญชี", canWrite: true },
+      { key: "staff", label: "พนักงาน", canWrite: true },
+      { key: "viewer", label: "ผู้ดูข้อมูล", canWrite: false },
     ],
   },
   {
@@ -230,132 +233,32 @@ export type MenuSubItemDef = { key: string; label: string };
 export type MenuDef = { key: string; label: string; items?: MenuSubItemDef[] };
 
 export const MODULE_MENUS: Record<string, MenuDef[]> = {
+  // รื้อใหม่ (contract v4) — 2 กลุ่มกระชับ (แทน 11 กลุ่มยักษ์เดิม, R4 anti-over-scope).
+  // menu key = route segment ใต้ /[orgSlug]/accounting/ (dashboard = หน้า index "/").
+  // nav lens (owner เห็นหน้าบ้าน, opt-in หลังบ้าน) = enforce ที่ menu-builder/page guard ไม่ใช่ใน MODULE_MENUS.
   accounting: [
     {
-      key: "reports",
-      label: "รายงาน",
+      key: "frontstage",
+      label: "หน้าบ้าน",
       items: [
-        { key: "dashboard", label: "แดชบอร์ดผู้บริหาร" },
-        { key: "reports", label: "รายงานการเงิน" },
-        { key: "tax-and-closing", label: "ภาษี & ปิดงบ" },
+        { key: "dashboard", label: "ภาพรวม" },
+        { key: "entries", label: "รายรับ-รายจ่าย" },
+        { key: "documents", label: "เอกสารขาย" },
+        { key: "contacts", label: "ลูกค้า/ผู้ขาย" },
+        { key: "products", label: "สินค้าและบริการ" },
+        { key: "tax", label: "ภาษีของฉัน" },
       ],
     },
     {
-      key: "sales",
-      label: "ขาย",
-      items: [
-        { key: "quotations", label: "ใบเสนอราคา" },
-        { key: "received-deposits", label: "ใบรับมัดจำ" },
-        { key: "invoices", label: "ใบแจ้งหนี้" },
-        { key: "receipts", label: "ใบเสร็จรับเงิน" },
-        { key: "tax-invoices", label: "ใบกำกับภาษีขาย" },
-        { key: "etax-invoices", label: "e-Tax Invoice" },
-        { key: "credit-notes", label: "ใบลดหนี้" },
-        { key: "debit-notes", label: "ใบเพิ่มหนี้" },
-        { key: "billing-notes", label: "ใบวางบิล" },
-      ],
-    },
-    {
-      key: "purchase",
-      label: "ซื้อ",
-      items: [
-        { key: "purchase-orders", label: "ใบสั่งซื้อ" },
-        { key: "paid-deposits", label: "ใบจ่ายมัดจำ" },
-        { key: "expenses", label: "บันทึกค่าใช้จ่าย" },
-        { key: "wht-expenses", label: "บันทึกรายจ่ายที่มีภาษีหัก ณ ที่จ่าย" },
-        { key: "purchase-tax-invoices", label: "ใบกำกับภาษีซื้อ" },
-        { key: "payment-summaries", label: "ใบรวมจ่าย" },
-        { key: "received-credit-notes", label: "รับใบลดหนี้" },
-        { key: "received-debit-notes", label: "รับใบเพิ่มหนี้" },
-        { key: "goods-receipts", label: "รับสินค้า" },
-      ],
-    },
-    {
-      key: "finance",
-      label: "การเงิน",
-      items: [
-        { key: "petty-cash-accounts", label: "เงินสดย่อย" },
-        { key: "bank-accounts", label: "บัญชีธนาคาร" },
-        { key: "payment-channels", label: "ช่องทางรับเงิน" },
-        { key: "reserve-accounts", label: "บัญชีสำรอง" },
-        { key: "check-deposits", label: "เช็ครับ" },
-        { key: "check-payments", label: "เช็คจ่าย" },
-        { key: "wht-received", label: "ภาษีถูกหัก ณ ที่จ่าย" },
-        { key: "wht-paid", label: "ภาษีหัก ณ ที่จ่าย" },
-      ],
-    },
-    {
-      key: "bookkeeping",
-      label: "บัญชี",
+      key: "backstage",
+      label: "หลังบ้าน",
       items: [
         { key: "journal", label: "สมุดรายวัน" },
         { key: "accounts", label: "ผังบัญชี" },
-        { key: "ledger", label: "บัญชีแยกประเภท" },
-        { key: "balance-sheet", label: "งบดุล" },
-        { key: "trial-balance", label: "งบทดลอง" },
-        { key: "financial-position", label: "งบฐานะการเงิน" },
-        { key: "income-statement", label: "งบกำไรขาดทุน" },
-        { key: "cash-flow", label: "งบกระแสเงินสด" },
-      ],
-    },
-    {
-      key: "assets",
-      label: "สินทรัพย์",
-      items: [
-        { key: "assets-register", label: "ทะเบียนสินทรัพย์" },
-        { key: "goods-receipts", label: "ซื้อสินทรัพย์" },
-        { key: "assets-disposals", label: "ขายสินทรัพย์" },
-      ],
-    },
-    {
-      key: "vat",
-      label: "ภาษีมูลค่าเพิ่ม",
-      items: [
-        { key: "vat-sales", label: "รายการภาษีขาย" },
-        { key: "vat-purchases", label: "รายการภาษีซื้อ" },
-        { key: "pp30", label: "แบบ ภ.พ.30" },
-      ],
-    },
-    {
-      key: "wht",
-      label: "ภาษีหัก ณ ที่จ่าย",
-      items: [
-        { key: "wht-certificates", label: "ใบหัก ณ ที่จ่าย" },
-        { key: "pnd1", label: "แบบ ภ.ง.ด.1" },
-        { key: "pnd2", label: "แบบ ภ.ง.ด.2" },
-        { key: "pnd3", label: "แบบ ภ.ง.ด.3" },
-        { key: "pnd53", label: "แบบ ภ.ง.ด.53" },
-      ],
-    },
-    {
-      key: "contacts",
-      label: "ผู้ติดต่อ",
-      items: [
-        { key: "customers", label: "ลูกค้า" },
-        { key: "vendors", label: "ผู้ขาย" },
-      ],
-    },
-    {
-      key: "inventory",
-      label: "สินค้า",
-      items: [
-        { key: "products", label: "สินค้า/บริการ" },
-        { key: "units", label: "หน่วย" },
-        { key: "inventory", label: "สินค้า/สต๊อก" },
-        { key: "requisitions", label: "ใบเบิกสินค้า" },
-        { key: "returns", label: "ใบส่งคืนเบิกสินค้า" },
-      ],
-    },
-    {
-      key: "settings",
-      label: "ตั้งค่า",
-      items: [
-        { key: "accounting-users", label: "ผู้ใช้งาน" },
-        { key: "roles", label: "สิทธิ์การใช้งาน" },
-        { key: "wht-documents", label: "WHT + เอกสาร" },
-        { key: "reconciliation", label: "กระทบยอดธนาคาร" },
-        { key: "audit-logs", label: "Audit Logs" },
-        { key: "setting", label: "ตั้งค่าองค์กร" },
+        { key: "reports", label: "รายงานการเงิน" },
+        { key: "tax-closing", label: "ภาษี & ปิดงวด" },
+        { key: "assets", label: "สินทรัพย์ & ค่าเสื่อม" },
+        { key: "settings", label: "ตั้งค่า" },
       ],
     },
   ],

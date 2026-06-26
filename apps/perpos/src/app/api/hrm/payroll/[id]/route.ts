@@ -11,6 +11,7 @@ import {
 } from "../../_lib";
 import { getRun } from "@/lib/hrm/payroll";
 import type { RunStatus } from "@/lib/hrm/types";
+import { runPayrollBridge } from "@/lib/accounting/payroll-bridge";
 
 const ROUTE = "/api/hrm/payroll/[id]";
 
@@ -102,6 +103,26 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
     void recordMetric({ orgId, route: ROUTE, method: req.method, status: 500, t0 });
     return hrmError(error.message, 500);
   }
+
+  // สะพาน hrm → accounting: เมื่อ mark-paid สำเร็จ → auto-post เงินเดือนเข้าบัญชี (in-process).
+  // no-op เงียบถ้า org ไม่เปิด module accounting · wrap try/catch — bridge fail ไม่ทำ hrm 500
+  // (log + ปล่อยให้ retry ภายหลังผ่าน fallback endpoint /api/accounting/payroll-bridge).
+  if (nextStatus === "paid") {
+    try {
+      const result = await runPayrollBridge(orgId, id, auth.userId);
+      if (!result.ok && result.reason !== "module_disabled" && result.reason !== "already_posted") {
+        console.error("[payroll-bridge] failed", {
+          orgId,
+          runId: id,
+          reason: result.reason,
+          message: result.message,
+        });
+      }
+    } catch (e) {
+      console.error("[payroll-bridge] threw", { orgId, runId: id, error: (e as Error).message });
+    }
+  }
+
   void recordMetric({ orgId, route: ROUTE, method: req.method, status: 200, t0 });
   return NextResponse.json(data);
 }
