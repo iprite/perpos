@@ -20,6 +20,7 @@ import {
   TableHead,
   TableCell,
   TableEmpty,
+  TableLoading,
 } from "@/components/ui/table";
 import {
   Dialog,
@@ -127,6 +128,7 @@ export default function AccFirmClientsPage() {
   const [token, setToken] = useState("");
   const [clients, setClients] = useState<ClientRow[]>([]);
   const [allOrgs, setAllOrgs] = useState<OrgOption[]>([]);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
@@ -156,11 +158,23 @@ export default function AccFirmClientsPage() {
     setOrgId(org.id);
     setToken(tok);
 
+    // SEC-1: เพิ่ม/แก้ engagement = super_admin เท่านั้น → enumerate ทุก org เฉพาะ admin
+    // (firm member ไม่ควรเห็นรายชื่อทุก org ในระบบ)
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", sess.session.user.id)
+      .maybeSingle();
+    const admin = profile?.role === "super_admin";
+    setIsAdmin(admin);
+
     const [clientsRes, orgsRes] = await Promise.all([
       fetch(`/api/acc-firm/clients?orgId=${org.id}`, {
         headers: { Authorization: `Bearer ${tok}` },
       }),
-      supabase.from("organizations").select("id, name").order("name"),
+      admin
+        ? supabase.from("organizations").select("id, name").order("name")
+        : Promise.resolve({ data: [] as { id: string; name: string }[] }),
     ]);
 
     if (clientsRes.ok) {
@@ -330,15 +344,18 @@ export default function AccFirmClientsPage() {
       title="Client Orgs"
       description="องค์กรที่อยู่ในการกำกับดูแลของสำนักงานบัญชี"
       actions={
-        <Button
-          onClick={() => {
-            setForm(EMPTY_FORM);
-            setShowAdd(true);
-          }}
-          className="gap-1.5"
-        >
-          <Plus className="h-4 w-4" /> เพิ่ม Client Org
-        </Button>
+        // SEC-1: เพิ่ม engagement = super_admin เท่านั้น
+        isAdmin ? (
+          <Button
+            onClick={() => {
+              setForm(EMPTY_FORM);
+              setShowAdd(true);
+            }}
+            className="gap-1.5"
+          >
+            <Plus className="h-4 w-4" /> เพิ่ม Client Org
+          </Button>
+        ) : undefined
       }
     >
       {/* Filter */}
@@ -371,10 +388,15 @@ export default function AccFirmClientsPage() {
           </TableHeader>
           <TableBody>
             {loading ? (
-              <TableEmpty colSpan={5}>กำลังโหลด…</TableEmpty>
+              <TableLoading colSpan={5} />
             ) : (
               filtered.map((c) => (
-                <TableRow key={c.id} clickable onClick={() => openEdit(c)}>
+                // super_admin → แก้ engagement · firm member → จัดสิทธิ์ทีม (provision) ภายใน engagement
+                <TableRow
+                  key={c.id}
+                  clickable
+                  onClick={() => (isAdmin ? openEdit(c) : openProvision(c))}
+                >
                   <TableCell>
                     <p className="font-semibold text-slate-800">{c.client_org.name}</p>
                     <p className="text-xs text-slate-400">{c.client_org.slug}</p>

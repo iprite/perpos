@@ -1,38 +1,45 @@
 /**
  * GET  /api/acc-firm/clients?orgId=<firmOrgId>
- *   — รายการ client orgs ที่ firm นี้ดูแลอยู่
+ *   — รายการ client orgs ที่ firm นี้ดูแลอยู่ (firm member อ่านได้)
  *
  * POST /api/acc-firm/clients
- *   — เพิ่ม engagement ใหม่
+ *   — เพิ่ม engagement ใหม่ — **super_admin เท่านั้น** (SEC-1: B2B provision model)
  *   body: { firmOrgId, clientOrgId, modulesManaged?, note?, startedAt? }
  *
  * PATCH /api/acc-firm/clients/:id
- *   — อัปเดต status / note / modulesManaged
+ *   — อัปเดต status / note / modulesManaged — **super_admin เท่านั้น**
+ *
+ * เหตุผล: engagement = "firm X ดูแลบัญชี org Y" → ให้ firm member self-serve เพิ่ม org
+ * ใดก็ได้ = cross-tenant data leak (อ่านงบ org ที่ไม่ใช่ลูกค้าจริง). super_admin คุม
+ * เหมือน admin/modules (B2B). firm member ใช้ engagement ที่มี + provision ทีมตัวเอง.
  */
 
-import { NextRequest, NextResponse } from 'next/server';
-import { requireModuleMember } from '../../_lib/module-auth';
-import { createAdminClient } from '../../_lib/supabase';
+import { NextRequest, NextResponse } from "next/server";
+import { requireModuleMember } from "../../_lib/module-auth";
+import { requireAdmin } from "../../_lib/auth";
+import { createAdminClient } from "../../_lib/supabase";
 
 // ── GET ───────────────────────────────────────────────────────────────────────
 export async function GET(req: NextRequest) {
-  const firmOrgId = req.nextUrl.searchParams.get('orgId');
-  if (!firmOrgId) return NextResponse.json({ error: 'missing orgId' }, { status: 400 });
+  const firmOrgId = req.nextUrl.searchParams.get("orgId");
+  if (!firmOrgId) return NextResponse.json({ error: "missing orgId" }, { status: 400 });
 
-  const auth = await requireModuleMember(req, firmOrgId, 'acc_firm');
+  const auth = await requireModuleMember(req, firmOrgId, "acc_firm");
   if (!auth.ok) return auth.res;
 
   const admin = createAdminClient();
   const { data, error } = await admin
-    .from('acc_firm_clients')
-    .select(`
+    .from("acc_firm_clients")
+    .select(
+      `
       id, status, modules_managed, note, started_at, created_at,
       client_org:organizations!acc_firm_clients_client_org_id_fkey (
         id, name, slug
       )
-    `)
-    .eq('firm_org_id', firmOrgId)
-    .order('created_at', { ascending: false });
+    `,
+    )
+    .eq("firm_org_id", firmOrgId)
+    .order("created_at", { ascending: false });
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ clients: data });
@@ -40,53 +47,52 @@ export async function GET(req: NextRequest) {
 
 // ── POST ──────────────────────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
-  const body = await req.json().catch(() => null) as Record<string, unknown> | null;
+  const body = (await req.json().catch(() => null)) as Record<string, unknown> | null;
   const { firmOrgId, clientOrgId, modulesManaged, note, startedAt } = body ?? {};
 
-  if (!firmOrgId || typeof firmOrgId !== 'string')
-    return NextResponse.json({ error: 'missing firmOrgId' }, { status: 400 });
-  if (!clientOrgId || typeof clientOrgId !== 'string')
-    return NextResponse.json({ error: 'missing clientOrgId' }, { status: 400 });
+  if (!firmOrgId || typeof firmOrgId !== "string")
+    return NextResponse.json({ error: "missing firmOrgId" }, { status: 400 });
+  if (!clientOrgId || typeof clientOrgId !== "string")
+    return NextResponse.json({ error: "missing clientOrgId" }, { status: 400 });
 
-  const auth = await requireModuleMember(req, firmOrgId, 'acc_firm');
+  // SEC-1: สร้าง engagement = super_admin เท่านั้น
+  const auth = await requireAdmin(req);
   if (!auth.ok) return auth.res;
-
-  if (auth.moduleRole === 'viewer')
-    return NextResponse.json({ error: 'ไม่มีสิทธิ์เพิ่ม client' }, { status: 403 });
 
   const admin = createAdminClient();
 
   // ตรวจ client org มีจริงไหม
   const { data: clientOrg } = await admin
-    .from('organizations')
-    .select('id, name')
-    .eq('id', clientOrgId)
+    .from("organizations")
+    .select("id, name")
+    .eq("id", clientOrgId)
     .maybeSingle();
-  if (!clientOrg)
-    return NextResponse.json({ error: 'ไม่พบ client org' }, { status: 404 });
+  if (!clientOrg) return NextResponse.json({ error: "ไม่พบ client org" }, { status: 404 });
 
-  const modules = Array.isArray(modulesManaged) ? modulesManaged : ['accounting'];
+  const modules = Array.isArray(modulesManaged) ? modulesManaged : ["accounting"];
 
   const { data, error } = await admin
-    .from('acc_firm_clients')
+    .from("acc_firm_clients")
     .insert({
-      firm_org_id:     firmOrgId,
-      client_org_id:   clientOrgId,
+      firm_org_id: firmOrgId,
+      client_org_id: clientOrgId,
       modules_managed: modules,
-      note:            typeof note === 'string' ? note : null,
-      started_at:      typeof startedAt === 'string' ? startedAt : null,
+      note: typeof note === "string" ? note : null,
+      started_at: typeof startedAt === "string" ? startedAt : null,
     })
-    .select(`
+    .select(
+      `
       id, status, modules_managed, note, started_at, created_at,
       client_org:organizations!acc_firm_clients_client_org_id_fkey (
         id, name, slug
       )
-    `)
+    `,
+    )
     .single();
 
   if (error) {
-    if (error.code === '23505')
-      return NextResponse.json({ error: 'org นี้เป็น client อยู่แล้ว' }, { status: 409 });
+    if (error.code === "23505")
+      return NextResponse.json({ error: "org นี้เป็น client อยู่แล้ว" }, { status: 409 });
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
@@ -95,39 +101,38 @@ export async function POST(req: NextRequest) {
 
 // ── PATCH ─────────────────────────────────────────────────────────────────────
 export async function PATCH(req: NextRequest) {
-  const body = await req.json().catch(() => null) as Record<string, unknown> | null;
+  const body = (await req.json().catch(() => null)) as Record<string, unknown> | null;
   const { id, firmOrgId, status, note, modulesManaged } = body ?? {};
 
-  if (!id || typeof id !== 'string' || !firmOrgId || typeof firmOrgId !== 'string')
-    return NextResponse.json({ error: 'missing id or firmOrgId' }, { status: 400 });
+  if (!id || typeof id !== "string" || !firmOrgId || typeof firmOrgId !== "string")
+    return NextResponse.json({ error: "missing id or firmOrgId" }, { status: 400 });
 
-  const auth = await requireModuleMember(req, firmOrgId, 'acc_firm');
+  // SEC-1: แก้ไข engagement = super_admin เท่านั้น
+  const auth = await requireAdmin(req);
   if (!auth.ok) return auth.res;
 
-  if (auth.moduleRole === 'viewer')
-    return NextResponse.json({ error: 'ไม่มีสิทธิ์แก้ไข' }, { status: 403 });
-
   const updates: Record<string, unknown> = {};
-  if (status && ['active', 'inactive', 'ended'].includes(status as string))
-    updates.status = status;
-  if (typeof note === 'string') updates.note = note;
+  if (status && ["active", "inactive", "ended"].includes(status as string)) updates.status = status;
+  if (typeof note === "string") updates.note = note;
   if (Array.isArray(modulesManaged)) updates.modules_managed = modulesManaged;
 
   if (Object.keys(updates).length === 0)
-    return NextResponse.json({ error: 'nothing to update' }, { status: 400 });
+    return NextResponse.json({ error: "nothing to update" }, { status: 400 });
 
   const admin = createAdminClient();
   const { data, error } = await admin
-    .from('acc_firm_clients')
+    .from("acc_firm_clients")
     .update(updates)
-    .eq('id', id)
-    .eq('firm_org_id', firmOrgId)
-    .select(`
+    .eq("id", id)
+    .eq("firm_org_id", firmOrgId)
+    .select(
+      `
       id, status, modules_managed, note, started_at, created_at,
       client_org:organizations!acc_firm_clients_client_org_id_fkey (
         id, name, slug
       )
-    `)
+    `,
+    )
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
