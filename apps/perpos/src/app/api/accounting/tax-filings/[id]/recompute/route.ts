@@ -34,7 +34,7 @@ export async function POST(req: NextRequest, ctx: Ctx) {
   const admin = createAdminClient();
   const { data: filing } = await admin
     .from("acc_tax_filings")
-    .select("tax_kind, period_year, period_month, status")
+    .select("tax_kind, period_year, period_month, status, purchase_vat")
     .eq("id", id)
     .eq("org_id", orgId)
     .maybeSingle();
@@ -44,6 +44,7 @@ export async function POST(req: NextRequest, ctx: Ctx) {
     period_year: number;
     period_month: number;
     status: string;
+    purchase_vat: number | null;
   };
   if (f.status === "filed") return accError("แบบภาษีที่ยื่นแล้ว คำนวณใหม่ไม่ได้", 409);
 
@@ -62,9 +63,11 @@ export async function POST(req: NextRequest, ctx: Ctx) {
     const salesVat = round2(
       (docs ?? []).reduce((s, d) => s + (Number((d as { vat_amount: number }).vat_amount) || 0), 0),
     );
+    // sales_vat = auto (จากเอกสารขาย VAT งวดนั้น) · purchase_vat = คงค่าที่นักบัญชีกรอกเอง
+    // (โมเดลนี้ไม่ได้เก็บภาษีซื้อจากค่าใช้จ่าย → derive อัตโนมัติไม่ได้, ไม่ทับค่าที่กรอกไว้)
+    const purchaseVat = round2(Number(f.purchase_vat) || 0);
     patch.sales_vat = salesVat;
-    patch.purchase_vat = patch.purchase_vat ?? 0;
-    patch.net_payable = round2(salesVat - 0);
+    patch.net_payable = round2(salesVat - purchaseVat);
   } else {
     // pnd1/3/53 — wht_total จาก entries (expense, wht_amount>0) งวดนั้น
     const { data: entries } = await admin
