@@ -27,6 +27,7 @@ import {
   TableHead,
   TableCell,
   TableEmpty,
+  TableLoading,
 } from "@/components/ui/table";
 import { Plus, Trash2, ChevronLeft, ChevronRight, Wallet } from "lucide-react";
 import { PageShell } from "@/components/ui/page-shell";
@@ -285,7 +286,7 @@ export default function PettyCashPage() {
         </TableHeader>
         <TableBody>
           {loading ? (
-            <TableEmpty colSpan={9}>กำลังโหลด…</TableEmpty>
+            <TableLoading colSpan={9} />
           ) : entries.length === 0 ? (
             <TableEmpty colSpan={9}>ไม่พบรายการ</TableEmpty>
           ) : (
