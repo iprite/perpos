@@ -410,6 +410,11 @@ function buildAccFirmMenuItems(org: string, labels: Record<string, string> = {})
       icon: <BarChart3 className="h-5 w-5" />,
     },
     {
+      name: l("close-check", "ตรวจปิดงวด"),
+      href: f("close-check"),
+      icon: <ShieldCheck className="h-5 w-5" />,
+    },
+    {
       name: l("petty-cash", "เงินสดย่อย"),
       href: f("petty-cash"),
       icon: <Wallet className="h-5 w-5" />,
