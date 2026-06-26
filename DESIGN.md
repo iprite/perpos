@@ -175,6 +175,30 @@ import { PageShell, PageCard } from "@/components/ui/page-shell";
 - หัวข้อหน้า = `<h1>` ใน PageShell อยู่แล้ว (`text-2xl font-semibold text-gray-900`) — **อย่าเขียน `<h1>`/`text-xl font-bold` เอง** และอย่าใช้ `text-slate-900`
 - `admin` import `AdminPage`/`AdminCard` ได้เหมือนเดิม (เป็น alias ของ `PageShell`/`PageCard`)
 
+### Tab navigation (แถบแท็บในหน้า) — บังคับ "row เดียว ล้นแล้วเลื่อน"
+
+> แถบแท็บที่มีหลายแท็บ (เช่นหน้า ตั้งค่า) **ห้ามตกบรรทัด (wrap)** — ต้องเป็น **row เดียว ล้นแล้วเลื่อนซ้าย-ขวา**
+> (บนมือถือ/จอแคบ wrap แล้วดูรก + สูงไม่คงที่). ใช้ `overflow-x-auto` + ซ่อน scrollbar + แท็บ `shrink-0 whitespace-nowrap`.
+
+```tsx
+// ✅ ถูก — row เดียว, ล้น → scroll, scrollbar ซ่อน
+<div className="flex gap-1.5 overflow-x-auto rounded-xl border border-gray-200 bg-white p-1.5 shadow-sm [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+  {tabs.map((t) => (
+    <Button key={t.key} size="sm" variant={active===t.key ? "secondary" : "ghost"}
+      className={cn("shrink-0 whitespace-nowrap", active===t.key && "bg-gray-100 text-gray-900")}
+      onClick={() => setTab(t.key)}>
+      <span className="mr-1.5">{t.icon}</span>{t.label}
+    </Button>
+  ))}
+</div>
+
+// ❌ ห้าม — flex-wrap (ตก 2 บรรทัด)
+<div className="flex flex-wrap gap-1.5 ...">
+```
+
+- **`flex` + `overflow-x-auto`** (ไม่ใช่ `flex-wrap`) · ซ่อน scrollbar ด้วย `[scrollbar-width:none] [&::-webkit-scrollbar]:hidden`
+- แท็บแต่ละอัน **`shrink-0 whitespace-nowrap`** (ไม่ถูกบีบ/ตัดคำ) · ใช้ `<Button size="sm" variant="ghost|secondary">` (active = secondary + `bg-gray-100`)
+
 ### Dashboard Page Template
 
 ```
