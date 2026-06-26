@@ -4,7 +4,6 @@ import {
   Users,
   BookOpenText,
   ReceiptText,
-  ShoppingCart,
   BarChart3,
   ShieldCheck,
   Wallet,
@@ -82,327 +81,86 @@ function hasRole(itemRoles: Role[] | undefined, role: Role | null) {
 // ─── Accounting module ──────────────────────────────────────────────────────
 function buildUserMenuItems(org: string, labels: Record<string, string> = {}): MenuItem[] {
   const l = (key: string, fallback: string) => labels[key] || fallback;
-  const ls = (menu: string, key: string, fallback: string) => labels[`${menu}.${key}`] || fallback;
   const a = (path: string) => `/${org}/accounting/${path}`;
   const base = `/${org}/accounting`;
+  // เมนู 2 กลุ่มตรงกับหน้า production จริง (หน้าบ้าน owner cockpit / หลังบ้าน นักบัญชี)
+  // role lens ที่เมนู: ไม่กรอง — page guard + NoAccess คุมสิทธิ์ที่หน้า (staff เปิดหลังบ้าน → NoAccess)
   return [
-    { name: "Accounting", roles: allRoles },
+    // ── หน้าบ้าน (owner cockpit) ─────────────────────────────────────────────
+    { name: l("frontstage", "หน้าบ้าน"), roles: allRoles },
     {
-      name: l("reports", "รายงาน"),
+      name: l("dashboard", "ภาพรวม"),
       href: base,
-      icon: <BarChart3 className="h-5 w-5" />,
+      icon: <LayoutDashboard className="h-5 w-5" />,
       roles: allRoles,
-      dropdownItems: [
-        { name: ls("reports", "dashboard", "แดชบอร์ดผู้บริหาร"), href: base, roles: allRoles },
-        { name: ls("reports", "reports", "รายงานการเงิน"), href: a("reports"), roles: allRoles },
-        {
-          name: ls("reports", "tax-and-closing", "ภาษี & ปิดงบ"),
-          href: a("tax-and-closing"),
-          roles: allRoles,
-        },
-      ],
     },
     {
-      name: l("sales", "ขาย"),
-      href: a("quotations"),
+      name: l("entries", "รายรับ-รายจ่าย"),
+      href: a("entries"),
+      icon: <DollarSign className="h-5 w-5" />,
+      roles: allRoles,
+    },
+    {
+      name: l("documents", "เอกสารขาย"),
+      href: a("documents"),
       icon: <ReceiptText className="h-5 w-5" />,
       roles: allRoles,
-      dropdownItems: [
-        { name: ls("sales", "quotations", "ใบเสนอราคา"), href: a("quotations"), roles: allRoles },
-        {
-          name: ls("sales", "received-deposits", "ใบรับมัดจำ"),
-          href: a("received-deposits"),
-          roles: allRoles,
-        },
-        { name: ls("sales", "invoices", "ใบแจ้งหนี้"), href: a("invoices"), roles: allRoles },
-        { name: ls("sales", "receipts", "ใบเสร็จรับเงิน"), href: a("receipts"), roles: allRoles },
-        {
-          name: ls("sales", "tax-invoices", "ใบกำกับภาษีขาย"),
-          href: a("tax-invoices"),
-          roles: allRoles,
-        },
-        {
-          name: ls("sales", "etax-invoices", "e-Tax Invoice"),
-          href: a("etax-invoices"),
-          roles: allRoles,
-        },
-        { name: ls("sales", "credit-notes", "ใบลดหนี้"), href: a("credit-notes"), roles: allRoles },
-        {
-          name: ls("sales", "debit-notes", "ใบเพิ่มหนี้"),
-          href: a("debit-notes"),
-          roles: allRoles,
-        },
-        {
-          name: ls("sales", "billing-notes", "ใบวางบิล"),
-          href: a("billing-notes"),
-          roles: allRoles,
-        },
-      ],
     },
     {
-      name: l("purchase", "ซื้อ"),
-      href: a("purchase-orders"),
-      icon: <ShoppingCart className="h-5 w-5" />,
-      roles: allRoles,
-      dropdownItems: [
-        {
-          name: ls("purchase", "purchase-orders", "ใบสั่งซื้อ"),
-          href: a("purchase-orders"),
-          roles: allRoles,
-        },
-        {
-          name: ls("purchase", "paid-deposits", "ใบจ่ายมัดจำ"),
-          href: a("paid-deposits"),
-          roles: allRoles,
-        },
-        {
-          name: ls("purchase", "expenses", "บันทึกค่าใช้จ่าย"),
-          href: a("expenses"),
-          roles: allRoles,
-        },
-        {
-          name: ls("purchase", "wht-expenses", "บันทึกรายจ่ายที่มีภาษีหัก ณ ที่จ่าย"),
-          href: a("wht-expenses"),
-          roles: allRoles,
-        },
-        {
-          name: ls("purchase", "purchase-tax-invoices", "ใบกำกับภาษีซื้อ"),
-          href: a("purchase-tax-invoices"),
-          roles: allRoles,
-        },
-        {
-          name: ls("purchase", "payment-summaries", "ใบรวมจ่าย"),
-          href: a("payment-summaries"),
-          roles: allRoles,
-        },
-        {
-          name: ls("purchase", "received-credit-notes", "รับใบลดหนี้"),
-          href: a("received-credit-notes"),
-          roles: allRoles,
-        },
-        {
-          name: ls("purchase", "received-debit-notes", "รับใบเพิ่มหนี้"),
-          href: a("received-debit-notes"),
-          roles: allRoles,
-        },
-        {
-          name: ls("purchase", "goods-receipts", "รับสินค้า"),
-          href: a("goods-receipts"),
-          roles: allRoles,
-        },
-      ],
-    },
-    {
-      name: l("finance", "การเงิน"),
-      href: a("bank-accounts"),
-      icon: <Wallet className="h-5 w-5" />,
-      roles: allRoles,
-      dropdownItems: [
-        {
-          name: ls("finance", "petty-cash-accounts", "เงินสดย่อย"),
-          href: a("petty-cash-accounts"),
-          roles: allRoles,
-        },
-        {
-          name: ls("finance", "bank-accounts", "บัญชีธนาคาร"),
-          href: a("bank-accounts"),
-          roles: allRoles,
-        },
-        {
-          name: ls("finance", "payment-channels", "ช่องทางรับเงิน"),
-          href: a("payment-channels"),
-          roles: allRoles,
-        },
-        {
-          name: ls("finance", "reserve-accounts", "บัญชีสำรอง"),
-          href: a("reserve-accounts"),
-          roles: allRoles,
-        },
-        {
-          name: ls("finance", "check-deposits", "เช็ครับ"),
-          href: a("check-deposits"),
-          roles: allRoles,
-        },
-        {
-          name: ls("finance", "check-payments", "เช็คจ่าย"),
-          href: a("check-payments"),
-          roles: allRoles,
-        },
-        {
-          name: ls("finance", "wht-received", "ภาษีถูกหัก ณ ที่จ่าย"),
-          href: a("wht-received"),
-          roles: allRoles,
-        },
-        {
-          name: ls("finance", "wht-paid", "ภาษีหัก ณ ที่จ่าย"),
-          href: a("wht-paid"),
-          roles: allRoles,
-        },
-      ],
-    },
-    {
-      name: l("bookkeeping", "บัญชี"),
-      href: a("journal"),
-      icon: <BookOpenText className="h-5 w-5" />,
-      roles: allRoles,
-      dropdownItems: [
-        { name: ls("bookkeeping", "journal", "สมุดรายวัน"), href: a("journal"), roles: allRoles },
-        { name: ls("bookkeeping", "accounts", "ผังบัญชี"), href: a("accounts"), roles: allRoles },
-        { name: ls("bookkeeping", "ledger", "บัญชีแยกประเภท"), href: a("ledger"), roles: allRoles },
-        {
-          name: ls("bookkeeping", "balance-sheet", "งบดุล"),
-          href: a("balance-sheet"),
-          roles: allRoles,
-        },
-        {
-          name: ls("bookkeeping", "trial-balance", "งบทดลอง"),
-          href: a("trial-balance"),
-          roles: allRoles,
-        },
-        {
-          name: ls("bookkeeping", "financial-position", "งบฐานะการเงิน"),
-          href: a("financial-position"),
-          roles: allRoles,
-        },
-        {
-          name: ls("bookkeeping", "income-statement", "งบกำไรขาดทุน"),
-          href: a("income-statement"),
-          roles: allRoles,
-        },
-        {
-          name: ls("bookkeeping", "cash-flow", "งบกระแสเงินสด"),
-          href: a("cash-flow"),
-          roles: allRoles,
-        },
-      ],
-    },
-    {
-      name: l("assets", "สินทรัพย์"),
-      href: a("assets-register"),
-      icon: <Landmark className="h-5 w-5" />,
-      roles: allRoles,
-      dropdownItems: [
-        {
-          name: ls("assets", "assets-register", "ทะเบียนสินทรัพย์"),
-          href: a("assets-register"),
-          roles: allRoles,
-        },
-        {
-          name: ls("assets", "goods-receipts", "ซื้อสินทรัพย์"),
-          href: a("goods-receipts"),
-          roles: allRoles,
-        },
-        {
-          name: ls("assets", "assets-disposals", "ขายสินทรัพย์"),
-          href: a("assets-disposals"),
-          roles: allRoles,
-        },
-      ],
-    },
-    {
-      name: l("vat", "ภาษีมูลค่าเพิ่ม"),
-      href: a("pp30"),
-      icon: <Percent className="h-5 w-5" />,
-      roles: allRoles,
-      dropdownItems: [
-        { name: ls("vat", "vat-sales", "รายการภาษีขาย"), href: a("vat-sales"), roles: allRoles },
-        {
-          name: ls("vat", "vat-purchases", "รายการภาษีซื้อ"),
-          href: a("vat-purchases"),
-          roles: allRoles,
-        },
-        { name: ls("vat", "pp30", "แบบ ภ.พ.30"), href: a("pp30"), roles: allRoles },
-      ],
-    },
-    {
-      name: l("wht", "ภาษีหัก ณ ที่จ่าย"),
-      href: a("wht-certificates"),
-      icon: <FileText className="h-5 w-5" />,
-      roles: allRoles,
-      dropdownItems: [
-        {
-          name: ls("wht", "wht-certificates", "ใบหัก ณ ที่จ่าย"),
-          href: a("wht-certificates"),
-          roles: allRoles,
-        },
-        { name: ls("wht", "pnd1", "แบบ ภ.ง.ด.1"), href: a("pnd/1"), roles: allRoles },
-        { name: ls("wht", "pnd2", "แบบ ภ.ง.ด.2"), href: a("pnd/2"), roles: allRoles },
-        { name: ls("wht", "pnd3", "แบบ ภ.ง.ด.3"), href: a("pnd/3"), roles: allRoles },
-        { name: ls("wht", "pnd53", "แบบ ภ.ง.ด.53"), href: a("pnd/53"), roles: allRoles },
-      ],
-    },
-    {
-      name: l("contacts", "ผู้ติดต่อ"),
-      href: a("customers"),
+      name: l("contacts", "ลูกค้า/ผู้ขาย"),
+      href: a("contacts"),
       icon: <Contact className="h-5 w-5" />,
       roles: allRoles,
-      dropdownItems: [
-        { name: ls("contacts", "customers", "ลูกค้า"), href: a("customers"), roles: allRoles },
-        { name: ls("contacts", "vendors", "ผู้ขาย"), href: a("vendors"), roles: allRoles },
-      ],
     },
     {
-      name: l("inventory", "สินค้า"),
+      name: l("products", "สินค้าและบริการ"),
       href: a("products"),
       icon: <Package className="h-5 w-5" />,
       roles: allRoles,
-      dropdownItems: [
-        {
-          name: ls("inventory", "products", "สินค้า/บริการ"),
-          href: a("products"),
-          roles: allRoles,
-        },
-        { name: ls("inventory", "units", "หน่วย"), href: a("units"), roles: allRoles },
-        {
-          name: ls("inventory", "inventory", "สินค้า/สต๊อก"),
-          href: a("inventory"),
-          roles: allRoles,
-        },
-        {
-          name: ls("inventory", "requisitions", "ใบเบิกสินค้า"),
-          href: a("requisitions"),
-          roles: allRoles,
-        },
-        {
-          name: ls("inventory", "returns", "ใบส่งคืนเบิกสินค้า"),
-          href: a("returns"),
-          roles: allRoles,
-        },
-      ],
+    },
+    {
+      name: l("tax", "ภาษีของฉัน"),
+      href: a("tax"),
+      icon: <Percent className="h-5 w-5" />,
+      roles: allRoles,
+    },
+    // ── หลังบ้าน (นักบัญชี) ───────────────────────────────────────────────────
+    { name: l("backstage", "หลังบ้าน (นักบัญชี)"), roles: allRoles },
+    {
+      name: l("journal", "สมุดรายวัน"),
+      href: a("journal"),
+      icon: <BookOpenText className="h-5 w-5" />,
+      roles: allRoles,
+    },
+    {
+      name: l("accounts", "ผังบัญชี"),
+      href: a("accounts"),
+      icon: <ScrollText className="h-5 w-5" />,
+      roles: allRoles,
+    },
+    {
+      name: l("reports", "รายงานการเงิน"),
+      href: a("reports"),
+      icon: <BarChart3 className="h-5 w-5" />,
+      roles: allRoles,
+    },
+    {
+      name: l("tax-closing", "ภาษี & ปิดงวด"),
+      href: a("tax-closing"),
+      icon: <Landmark className="h-5 w-5" />,
+      roles: allRoles,
+    },
+    {
+      name: l("assets", "สินทรัพย์ & ค่าเสื่อม"),
+      href: a("assets"),
+      icon: <Package className="h-5 w-5" />,
+      roles: allRoles,
     },
     {
       name: l("settings", "ตั้งค่า"),
-      href: a("wht-documents"),
-      icon: <ShieldCheck className="h-5 w-5" />,
+      href: a("settings"),
+      icon: <Settings2 className="h-5 w-5" />,
       roles: allRoles,
-      dropdownItems: [
-        {
-          name: ls("settings", "accounting-users", "ผู้ใช้งาน"),
-          href: a("accounting-users"),
-          roles: allRoles,
-        },
-        { name: ls("settings", "roles", "สิทธิ์การใช้งาน"), href: a("roles"), roles: allRoles },
-        {
-          name: ls("settings", "wht-documents", "WHT + เอกสาร"),
-          href: a("wht-documents"),
-          roles: allRoles,
-        },
-        {
-          name: ls("settings", "reconciliation", "กระทบยอดธนาคาร"),
-          href: a("reconciliation"),
-          roles: allRoles,
-        },
-        {
-          name: ls("settings", "audit-logs", "Audit Logs"),
-          href: a("audit-logs"),
-          roles: allRoles,
-        },
-        {
-          name: ls("settings", "setting", "ตั้งค่าองค์กร"),
-          href: `/${org}/setting`,
-          roles: allRoles,
-        },
-      ],
     },
   ];
 }
