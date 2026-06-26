@@ -83,6 +83,7 @@ begin
 end;
 $$;
 
--- service-role only: revoke from anon + authenticated (ไม่ใช่แค่ PUBLIC)
+-- service-role only: ต้อง revoke จาก PUBLIC ด้วย — ไม่งั้น anon/authenticated ยัง execute ได้
+-- ผ่าน grant ที่ตกทอดจาก PUBLIC (SECURITY DEFINER + รับ p_org_id เป็น param = cross-tenant write)
 revoke all on function public.tmc_purchase_stock(uuid, uuid, date, text, text, text, uuid, jsonb)
-  from anon, authenticated;
+  from public, anon, authenticated;
