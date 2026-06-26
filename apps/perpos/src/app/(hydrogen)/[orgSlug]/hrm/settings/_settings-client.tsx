@@ -41,14 +41,17 @@ export function SettingsClient({
 
   return (
     <div className="space-y-5">
-      {/* Tab navigation */}
-      <div className="flex flex-wrap gap-1.5 rounded-xl border border-gray-200 bg-white p-1.5 shadow-sm">
+      {/* Tab navigation — row เดียว, ล้นแล้วเลื่อนซ้าย-ขวา (ไม่ตกบรรทัด) */}
+      <div className="flex gap-1.5 overflow-x-auto rounded-xl border border-gray-200 bg-white p-1.5 shadow-sm [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {TABS.map((t) => (
           <Button
             key={t.key}
             variant={tab === t.key ? "secondary" : "ghost"}
             size="sm"
-            className={cn(tab === t.key && "bg-gray-100 text-gray-900")}
+            className={cn(
+              "shrink-0 whitespace-nowrap",
+              tab === t.key && "bg-gray-100 text-gray-900",
+            )}
             onClick={() => setTab(t.key)}
           >
             <span className="mr-1.5">{t.icon}</span>
