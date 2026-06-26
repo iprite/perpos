@@ -1,20 +1,20 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { requireTmcMember } from '../../_lib';
+import { NextRequest, NextResponse } from "next/server";
+import { requireTmcMember } from "../../_lib";
 
 type OcrItem = { name: string; unit: string; qty: number; unitCost: number };
 type OcrResult = {
   items: OcrItem[];
   note: string | null;
-  date: string | null;          // ISO YYYY-MM-DD (CE) แปลงจาก พ.ศ. แล้ว
+  date: string | null; // ISO YYYY-MM-DD (CE) แปลงจาก พ.ศ. แล้ว
   expense_category: string | null;
 };
 
 export async function POST(req: NextRequest) {
-  const body = await req.json().catch(() => ({})) as Record<string, string>;
+  const body = (await req.json().catch(() => ({}))) as Record<string, string>;
   const { orgId, imageBase64, mimeType } = body;
 
   if (!orgId || !imageBase64) {
-    return NextResponse.json({ error: 'missing orgId or imageBase64' }, { status: 400 });
+    return NextResponse.json({ error: "missing orgId or imageBase64" }, { status: 400 });
   }
 
   const auth = await requireTmcMember(req, orgId);
@@ -22,10 +22,13 @@ export async function POST(req: NextRequest) {
 
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
-    return NextResponse.json({ error: 'OCR ไม่พร้อมใช้งาน (ไม่มี GEMINI_API_KEY)' }, { status: 503 });
+    return NextResponse.json(
+      { error: "OCR ไม่พร้อมใช้งาน (ไม่มี GEMINI_API_KEY)" },
+      { status: 503 },
+    );
   }
 
-  const imgMime = mimeType ?? 'image/jpeg';
+  const imgMime = mimeType ?? "image/jpeg";
 
   const prompt = `You are a Thai receipt OCR expert integrated into an ERP system.
 Extract structured data from this receipt/bill image.
@@ -49,10 +52,11 @@ CRITICAL RULES — follow exactly:
    Both qty and unitCost must be positive numbers. Omit lines where either is 0 or unreadable.
 
 5. EXPENSE CATEGORY: Suggest one category from this exact list based on vendor name and items:
-   ["ซื้อวัตถุดิบ", "ค่าน้ำมัน/เดินทาง", "ค่าสาธารณูปโภค", "ค่าซ่อมแซม",
-    "ค่าอาหาร/เครื่องดื่ม", "ค่าใช้จ่ายสำนักงาน", "ค่าวัสดุ/อุปกรณ์", "อื่นๆ"]
-   Examples: ปั๊มน้ำมัน/ปตท. → "ค่าน้ำมัน/เดินทาง", แม็คโคร/Lotus/BigC → "ซื้อวัตถุดิบ",
-   ร้านอาหาร/คาเฟ่ → "ค่าอาหาร/เครื่องดื่ม", ช่างซ่อม → "ค่าซ่อมแซม".
+   ["แมคโค", "ค่าของใช้ทั่วไป", "ซักผ้า", "ล้างแอร์", "เงินสดย่อย", "ส่วนกลาง", "ค่าใช้จ่ายอื่นๆ"]
+   Examples: แม็คโคร/แมคโคร/Makro → "แมคโค", ของใช้ทั่วไป/ซุปเปอร์มาร์เก็ต → "ค่าของใช้ทั่วไป",
+   ร้านซักรีด/ซักอบรีด → "ซักผ้า", ล้างแอร์/ซ่อมแอร์ → "ล้างแอร์",
+   จิปาถะเล็กน้อยจ่ายเงินสด → "เงินสดย่อย", ค่าใช้จ่ายส่วนกลางอาคาร → "ส่วนกลาง",
+   อื่นๆ ที่ไม่ตรงหมวดข้างต้น → "ค่าใช้จ่ายอื่นๆ".
    If uncertain, return null.
 
 Return ONLY valid JSON — no markdown fences, no explanation, nothing else:
@@ -66,17 +70,16 @@ Return ONLY valid JSON — no markdown fences, no explanation, nothing else:
 }`;
 
   const ocrRes = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
     {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        contents: [{
-          parts: [
-            { text: prompt },
-            { inline_data: { mime_type: imgMime, data: imageBase64 } },
-          ],
-        }],
+        contents: [
+          {
+            parts: [{ text: prompt }, { inline_data: { mime_type: imgMime, data: imageBase64 } }],
+          },
+        ],
         generationConfig: { maxOutputTokens: 2000, temperature: 0 },
       }),
     },
@@ -87,25 +90,31 @@ Return ONLY valid JSON — no markdown fences, no explanation, nothing else:
     return NextResponse.json({ error: `Gemini error: ${err.slice(0, 200)}` }, { status: 502 });
   }
 
-  const ocrJson = await ocrRes.json() as {
+  const ocrJson = (await ocrRes.json()) as {
     candidates: { content: { parts: { text: string }[] } }[];
   };
-  const content = ocrJson.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+  const content = ocrJson.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
 
   // Strip markdown code fences if Gemini adds them despite instructions
-  const cleaned = content.replace(/^```[a-z]*\n?/i, '').replace(/\n?```$/i, '').trim();
+  const cleaned = content
+    .replace(/^```[a-z]*\n?/i, "")
+    .replace(/\n?```$/i, "")
+    .trim();
 
   let parsed: OcrResult;
   try {
     parsed = JSON.parse(cleaned) as OcrResult;
   } catch {
-    return NextResponse.json({ error: 'ไม่สามารถอ่านบิลได้ กรุณาลองใหม่หรือกรอกเอง', raw: content }, { status: 422 });
+    return NextResponse.json(
+      { error: "ไม่สามารถอ่านบิลได้ กรุณาลองใหม่หรือกรอกเอง", raw: content },
+      { status: 422 },
+    );
   }
 
   return NextResponse.json({
-    items:            parsed.items            ?? [],
-    note:             parsed.note             ?? null,
-    date:             parsed.date             ?? null,
+    items: parsed.items ?? [],
+    note: parsed.note ?? null,
+    date: parsed.date ?? null,
     expense_category: parsed.expense_category ?? null,
   });
 }

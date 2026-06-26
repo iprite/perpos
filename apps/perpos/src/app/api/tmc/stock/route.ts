@@ -1,50 +1,46 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { createAdminClient } from '../../_lib/supabase';
-import { requireTmcMember } from '../_lib';
-import { recordMetric } from '@/lib/metrics';
+import { NextRequest, NextResponse } from "next/server";
+import { createAdminClient } from "../../_lib/supabase";
+import { requireTmcMember } from "../_lib";
+import { recordMetric } from "@/lib/metrics";
 
 // GET /api/tmc/stock?orgId=&lowStock=true
 export async function GET(req: NextRequest) {
   const t0 = Date.now();
   const p = req.nextUrl.searchParams;
-  const orgId = p.get('orgId') ?? '';
-  if (!orgId) return NextResponse.json({ error: 'missing orgId' }, { status: 400 });
+  const orgId = p.get("orgId") ?? "";
+  if (!orgId) return NextResponse.json({ error: "missing orgId" }, { status: 400 });
 
   const auth = await requireTmcMember(req, orgId);
   if (!auth.ok) return auth.res;
 
   let q = auth.rls
-    .from('tmc_stock_items')
-    .select('*')
-    .eq('org_id', orgId)
-    .eq('is_active', true)
-    .order('category')
-    .order('name');
-
-  if (p.get('lowStock') === 'true') {
-    q = q.lt('current_qty', auth.rls.from('tmc_stock_items').select('min_quantity'));
-  }
+    .from("tmc_stock_items")
+    .select("*")
+    .eq("org_id", orgId)
+    .eq("is_active", true)
+    .order("category")
+    .order("name");
 
   const { data: items } = await q;
 
   // Recent movements
   const { data: movements } = await auth.rls
-    .from('tmc_stock_movements')
-    .select('*, tmc_stock_items(name, unit), tmc_properties(code)')
-    .eq('org_id', orgId)
-    .order('created_at', { ascending: false })
+    .from("tmc_stock_movements")
+    .select("*, tmc_stock_items(name, unit), tmc_properties(code)")
+    .eq("org_id", orgId)
+    .order("created_at", { ascending: false })
     .limit(50);
 
-  void recordMetric({ orgId, route: '/api/tmc/stock', method: req.method, status: 200, t0 });
+  void recordMetric({ orgId, route: "/api/tmc/stock", method: req.method, status: 200, t0 });
   return NextResponse.json({ items: items ?? [], movements: movements ?? [] });
 }
 
 // POST /api/tmc/stock — add item or record movement
 export async function POST(req: NextRequest) {
   const t0 = Date.now();
-  const body = await req.json().catch(() => ({})) as Record<string, unknown>;
-  const orgId = String(body.orgId ?? '');
-  if (!orgId) return NextResponse.json({ error: 'missing orgId' }, { status: 400 });
+  const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
+  const orgId = String(body.orgId ?? "");
+  if (!orgId) return NextResponse.json({ error: "missing orgId" }, { status: 400 });
 
   const auth = await requireTmcMember(req, orgId);
   if (!auth.ok) return auth.res;
@@ -52,41 +48,77 @@ export async function POST(req: NextRequest) {
   const admin = createAdminClient();
 
   // action: 'add_item' | 'movement'
-  if (body.action === 'add_item') {
-    if (!['owner', 'admin', 'team_lead'].includes(auth.role)) {
-      return NextResponse.json({ error: 'ต้องการสิทธิ์ team_lead ขึ้นไป' }, { status: 403 });
+  if (body.action === "add_item") {
+    if (!["owner", "admin", "team_lead"].includes(auth.role)) {
+      return NextResponse.json({ error: "ต้องการสิทธิ์ team_lead ขึ้นไป" }, { status: 403 });
     }
     const { data, error } = await admin
-      .from('tmc_stock_items')
+      .from("tmc_stock_items")
       .insert({
         org_id: orgId,
         name: body.name,
-        unit: body.unit ?? 'ชิ้น',
+        unit: body.unit ?? "ชิ้น",
         min_quantity: Number(body.minQuantity ?? 0),
         category: body.category ?? null,
       })
       .select()
       .single();
     if (error) {
-      void recordMetric({ orgId, route: '/api/tmc/stock', method: req.method, status: 500, t0 });
+      void recordMetric({ orgId, route: "/api/tmc/stock", method: req.method, status: 500, t0 });
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
-    void recordMetric({ orgId, route: '/api/tmc/stock', method: req.method, status: 201, t0 });
+    void recordMetric({ orgId, route: "/api/tmc/stock", method: req.method, status: 201, t0 });
     return NextResponse.json(data, { status: 201 });
   }
 
   // Record movement (in/out/adjust)
-  const { itemId, movementType, quantity, propertyCode, note, unitCost } = body as Record<string, string>;
+  const { itemId, movementType, quantity, propertyCode, note, unitCost } = body as Record<
+    string,
+    string
+  >;
   if (!itemId || !movementType || !quantity) {
-    return NextResponse.json({ error: 'missing itemId, movementType, or quantity' }, { status: 400 });
+    return NextResponse.json(
+      { error: "missing itemId, movementType, or quantity" },
+      { status: 400 },
+    );
+  }
+
+  // B5: guard NaN / non-positive quantity
+  const qNum = Number(quantity);
+  if (Number.isNaN(qNum) || qNum <= 0) {
+    return NextResponse.json({ error: "จำนวนไม่ถูกต้อง" }, { status: 400 });
+  }
+
+  // B2: guard out-exceeds-stock
+  if (movementType === "out") {
+    const { data: stockItem, error: stockErr } = await admin
+      .from("tmc_stock_items")
+      .select("current_qty, name, unit")
+      .eq("id", itemId)
+      .eq("org_id", orgId)
+      .maybeSingle();
+    if (stockErr || !stockItem) {
+      return NextResponse.json({ error: "ไม่พบรายการสินค้า" }, { status: 404 });
+    }
+    if (qNum > stockItem.current_qty) {
+      return NextResponse.json(
+        { error: `เบิกเกินยอดคงเหลือ (คงเหลือ ${stockItem.current_qty} ${stockItem.unit})` },
+        { status: 400 },
+      );
+    }
   }
 
   const { data: prop } = propertyCode
-    ? await admin.from('tmc_properties').select('id').eq('org_id', orgId).eq('code', propertyCode).maybeSingle()
+    ? await admin
+        .from("tmc_properties")
+        .select("id")
+        .eq("org_id", orgId)
+        .eq("code", propertyCode)
+        .maybeSingle()
     : { data: null };
 
   const { data, error } = await admin
-    .from('tmc_stock_movements')
+    .from("tmc_stock_movements")
     .insert({
       org_id: orgId,
       item_id: itemId,
@@ -102,9 +134,9 @@ export async function POST(req: NextRequest) {
     .single();
 
   if (error) {
-    void recordMetric({ orgId, route: '/api/tmc/stock', method: req.method, status: 500, t0 });
+    void recordMetric({ orgId, route: "/api/tmc/stock", method: req.method, status: 500, t0 });
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
-  void recordMetric({ orgId, route: '/api/tmc/stock', method: req.method, status: 201, t0 });
+  void recordMetric({ orgId, route: "/api/tmc/stock", method: req.method, status: 201, t0 });
   return NextResponse.json(data, { status: 201 });
 }
