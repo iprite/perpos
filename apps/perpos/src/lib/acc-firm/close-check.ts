@@ -275,7 +275,14 @@ export async function narrateAnomalies(result: CloseCheckResult): Promise<Narrat
       { role: "system", content: systemPrompt },
       { role: "user", content: JSON.stringify({ signals: result.signals }) },
     ],
-    { model: "gpt-4o-mini", jsonMode: true, temperature: 0, maxTokens: 800 },
+    // ใช้ Gemini (GEMINI_API_KEY ที่ระบบมีอยู่แล้ว — ไม่ต้องตั้ง OPENAI_API_KEY)
+    {
+      provider: "gemini",
+      model: "gemini-2.5-flash",
+      jsonMode: true,
+      temperature: 0,
+      maxTokens: 800,
+    },
   );
   if (!ai) return null; // AI fail → rule-only
 

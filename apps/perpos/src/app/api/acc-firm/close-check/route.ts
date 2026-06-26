@@ -28,15 +28,19 @@ export type CloseCheckResponse = {
   isClean: boolean;
 };
 
-// gpt-4o-mini pricing (USD ต่อ 1M tokens) — คำนวณ cost_usd ของ log
-const COST_PER_M = { input: 0.15, output: 0.6 };
+// pricing (USD ต่อ 1M tokens) — คำนวณ cost_usd ของ log
+// gemini-2.5-flash = provider ปัจจุบันของ feature นี้ (ใช้ GEMINI_API_KEY ที่ระบบมี)
+const RATE_PER_M: Record<string, { input: number; output: number }> = {
+  "gemini-2.5-flash": { input: 0.3, output: 2.5 },
+  "gpt-4o-mini": { input: 0.15, output: 0.6 },
+};
 
 function estimateCostUsd(model: string, inputTokens: number, outputTokens: number): number {
-  // ใช้เรต gpt-4o-mini เป็น default (model ปัจจุบันของ feature นี้)
-  if (model.includes("gpt-4o-mini") || model.includes("gpt-4o")) {
-    return (inputTokens * COST_PER_M.input + outputTokens * COST_PER_M.output) / 1_000_000;
-  }
-  return 0; // model อื่น → ไม่มี cost model ในเฟสนี้
+  const rate =
+    Object.entries(RATE_PER_M).find(([k]) => model.includes(k))?.[1] ??
+    (model.includes("gpt-4o") ? RATE_PER_M["gpt-4o-mini"] : null);
+  if (!rate) return 0; // model อื่น → ไม่มี cost model ในเฟสนี้
+  return (inputTokens * rate.input + outputTokens * rate.output) / 1_000_000;
 }
 
 export async function GET(req: NextRequest) {
