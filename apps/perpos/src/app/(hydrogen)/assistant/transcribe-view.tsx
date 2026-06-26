@@ -45,15 +45,19 @@ import { toast } from "@/lib/toast";
 // ── Types ──────────────────────────────────────────────────────────────────────
 type KeyTopic = { topic: string; details: string };
 type ActionItem = { task: string; assignee: string; deadline: string };
-type TranscriptJson = {
+type MomBody = {
   meeting_title?: string;
   executive_summary?: string;
-  language: string;
-  speakers: string[];
   key_topics?: KeyTopic[];
   decisions?: string[];
   action_items?: ActionItem[];
   recommendations?: string[];
+};
+type TranscriptJson = MomBody & {
+  language: string;
+  speakers: string[];
+  // ฉบับภาษาต้นทาง — มีเฉพาะเมื่อเสียงไม่ใช่ไทย (อยู่ใน PDF เป็นหน้าถัดไป)
+  source?: (MomBody & { language?: string }) | null;
 };
 
 type Job = {
@@ -796,6 +800,14 @@ export default function TranscribeView({
                   <span>ภาษา: {activeJob.transcript_json.language || "th"}</span>
                   <span>·</span>
                   <span>ผู้เข้าร่วม {(activeJob.transcript_json.speakers ?? []).length} คน</span>
+                  {activeJob.transcript_json.source ? (
+                    <>
+                      <span>·</span>
+                      <span className="inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 font-medium text-blue-700">
+                        + ฉบับภาษาต้นทางใน PDF
+                      </span>
+                    </>
+                  ) : null}
                 </div>
 
                 {activeJob.transcript_json.executive_summary ? (
