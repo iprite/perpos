@@ -172,17 +172,21 @@ export default function AccFirmClientsPage() {
       fetch(`/api/acc-firm/clients?orgId=${org.id}`, {
         headers: { Authorization: `Bearer ${tok}` },
       }),
+      // เพิ่ม client ได้เฉพาะ org ที่เปิด module accounting (candidate ของสำนักงานบัญชี)
       admin
-        ? supabase.from("organizations").select("id, name").order("name")
-        : Promise.resolve({ data: [] as { id: string; name: string }[] }),
+        ? fetch(`/api/acc-firm/eligible-clients?orgId=${org.id}`, {
+            headers: { Authorization: `Bearer ${tok}` },
+          })
+        : null,
     ]);
 
     if (clientsRes.ok) {
       const json = await clientsRes.json();
       setClients(json.clients ?? []);
     }
-    if (orgsRes.data) {
-      setAllOrgs(orgsRes.data.map((o) => ({ value: o.id, label: o.name })));
+    if (orgsRes && orgsRes.ok) {
+      const j = (await orgsRes.json()) as { orgs?: { id: string; name: string }[] };
+      setAllOrgs((j.orgs ?? []).map((o) => ({ value: o.id, label: o.name })));
     }
     setLoading(false);
   }, [supabase, orgSlug]);
