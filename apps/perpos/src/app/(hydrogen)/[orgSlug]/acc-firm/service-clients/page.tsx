@@ -25,9 +25,20 @@ import {
   TableEmpty,
   TableLoading,
 } from "@/components/ui/table";
-import { Plus, Check, Users } from "lucide-react";
+import { Plus, Check, Users, Wallet, TrendingUp, AlertCircle } from "lucide-react";
 import { PageShell } from "@/components/ui/page-shell";
+import { StatCard as UiStatCard } from "@/components/ui/stat-card";
 import type { ServiceClient } from "@/app/api/acc-firm/service-clients/route";
+import { summarizeServiceFees } from "@/lib/acc-firm/billing";
+
+/** เงินเต็ม "1,234.56 ฿" — ยอดลบ U+2212 */
+function fmtMoney(v: number): string {
+  const sign = v < 0 ? "−" : "";
+  return `${sign}${Math.abs(v).toLocaleString("th-TH", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })} ฿`;
+}
 
 const SERVICE_FLAGS: { key: keyof ServiceClient; label: string }[] = [
   { key: "svc_invoice", label: "Inv." },
@@ -178,6 +189,17 @@ export default function ServiceClientsPage() {
   const feeKey = `fee_${year}` as keyof ServiceClient;
   const totalRevenue = filtered.reduce((s, c) => s + Number(c[feeKey] ?? 0), 0);
 
+  // F2: สรุปรายได้ค่าบริการของ firm (จาก client ทั้งหมดที่โหลดมา)
+  const feeSummary = useMemo(() => summarizeServiceFees(clients, year), [clients, year]);
+  const yoyDirection: "up" | "down" | "flat" =
+    feeSummary.yoyPct == null
+      ? "flat"
+      : feeSummary.yoyPct > 0
+        ? "up"
+        : feeSummary.yoyPct < 0
+          ? "down"
+          : "flat";
+
   return (
     <PageShell
       width="wide"
@@ -190,6 +212,57 @@ export default function ServiceClientsPage() {
         </Button>
       }
     >
+      {/* F2: สรุปรายได้ค่าบริการของสำนักงานบัญชี */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <UiStatCard
+          icon={<Wallet className="h-4 w-4" />}
+          label={`รายได้ค่าบริการปี ${feeSummary.feeYear + 543}`}
+          value={fmtMoney(feeSummary.totalThisYear)}
+          sub={`เทียบปีก่อน ${fmtMoney(feeSummary.totalLastYear)}`}
+          tone="positive"
+          valueColored
+        />
+        <UiStatCard
+          icon={<TrendingUp className="h-4 w-4" />}
+          label="เทียบปีก่อน (YoY)"
+          value={
+            feeSummary.yoyPct == null
+              ? "—"
+              : `${feeSummary.yoyPct >= 0 ? "+" : "−"}${Math.abs(feeSummary.yoyPct).toLocaleString(
+                  "th-TH",
+                  { minimumFractionDigits: 1, maximumFractionDigits: 1 },
+                )}%`
+          }
+          sub={feeSummary.yoyPct == null ? "ยังไม่มีฐานปีก่อน" : "การเปลี่ยนแปลงรายได้รวม"}
+          tone={
+            feeSummary.yoyPct == null ? "neutral" : feeSummary.yoyPct >= 0 ? "positive" : "negative"
+          }
+          valueColored={feeSummary.yoyPct != null}
+          delta={
+            feeSummary.yoyPct == null
+              ? undefined
+              : {
+                  label: `${Math.abs(feeSummary.yoyPct).toFixed(1)}%`,
+                  direction: yoyDirection,
+                }
+          }
+        />
+        <UiStatCard
+          icon={<AlertCircle className="h-4 w-4" />}
+          label="ยังไม่ตั้งค่าบริการปีนี้"
+          value={`${feeSummary.unbilledClients.length} ราย`}
+          sub={
+            feeSummary.unbilledClients.length > 0
+              ? "ลูกค้าที่ยังไม่ระบุค่าบริการ (รายได้รั่ว)"
+              : "ตั้งค่าบริการครบทุกราย"
+          }
+          tone={feeSummary.unbilledClients.length > 0 ? "warning" : "neutral"}
+        />
+      </div>
+      {feeSummary.yearWarning && (
+        <p className="-mt-1 text-xs text-amber-600">{feeSummary.yearWarning}</p>
+      )}
+
       {/* Stats */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         <StatCard label="ลูกค้าทั้งหมด" value={filtered.length} unit="ราย" />

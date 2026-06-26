@@ -2,11 +2,14 @@
 
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
-import Link from "next/link";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import cn from "@core/utils/class-names";
+import { Button } from "@/components/ui/button";
 import { CustomSelect } from "@/components/ui/custom-select";
 import { PageShell } from "@/components/ui/page-shell";
+import { StatCard } from "@/components/ui/stat-card";
 import { StatusBadge, type BadgeTone } from "@/components/ui/badge";
+import { Text } from "@/components/ui/typography";
 import {
   Table,
   TableHeader,
@@ -14,7 +17,6 @@ import {
   TableRow,
   TableHead,
   TableCell,
-  TableEmpty,
   TableLoading,
 } from "@/components/ui/table";
 import {
@@ -25,9 +27,15 @@ import {
   Building2,
   CalendarDays,
   CheckSquare,
-  BookOpenText,
+  CheckCircle2,
 } from "lucide-react";
 import type { ActionableInvoice, ClientSummaryRow } from "@/app/api/acc-firm/reports/route";
+import type {
+  TaxCalendarResponse,
+  TaxFilingRow,
+  TaxKind,
+  FilingState,
+} from "@/lib/acc-firm/tax-calendar";
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 function fmtK(n: number) {
@@ -64,84 +72,48 @@ const BUCKET_CONFIG: Record<string, { label: string; tone: BadgeTone; icon: Reac
   open: { label: "Open", tone: "info", icon: <CheckSquare className="h-3 w-3" /> },
 };
 
-// ── Tax calendar helpers ───────────────────────────────────────────────────────
-type TaxDeadline = {
-  orgName: string;
-  orgSlug: string;
-  type: string;
-  label: string;
-  dueDate: string; // YYYY-MM-DD
-  daysLeft: number;
+// ── Tax calendar helpers (F1 — สถานะการยื่นจริงจาก acc_tax_filings) ──────────────
+const TAX_KIND_LABEL: Record<TaxKind, string> = {
+  pp30: "ภ.พ.30",
+  pnd1: "ภ.ง.ด.1",
+  pnd3: "ภ.ง.ด.3",
+  pnd53: "ภ.ง.ด.53",
 };
 
-function calcTaxDeadlines(orgs: ClientSummaryRow[], today: string): TaxDeadline[] {
-  const result: TaxDeadline[] = [];
-  const todayDate = new Date(today);
+const FILING_STATE_BADGE: Record<FilingState, { tone: BadgeTone; label: string }> = {
+  done: { tone: "success", label: "ยื่นแล้ว" },
+  ready: { tone: "warning", label: "พร้อมยื่น" },
+  overdue: { tone: "danger", label: "เกินกำหนด" },
+  pending: { tone: "neutral", label: "รอดำเนินการ" },
+};
 
-  // Generate deadlines for current + next 2 months
-  for (let monthOffset = 0; monthOffset <= 2; monthOffset++) {
-    const ref = new Date(todayDate);
-    ref.setDate(1);
-    ref.setMonth(ref.getMonth() + monthOffset);
-
-    // PP30 (VAT) due: 23rd of month following the tax month
-    // PND1 (WHT payroll) due: 7th of following month
-    // PND3/53 (WHT service) due: 7th of following month
-    const pp30Due = new Date(ref);
-    pp30Due.setMonth(pp30Due.getMonth() + 1);
-    pp30Due.setDate(23);
-
-    const whtDue = new Date(ref);
-    whtDue.setMonth(whtDue.getMonth() + 1);
-    whtDue.setDate(7);
-
-    const pp30Str = pp30Due.toISOString().slice(0, 10);
-    const whtStr = whtDue.toISOString().slice(0, 10);
-    const taxMonth = ref.toLocaleDateString("th-TH", { month: "long", year: "numeric" });
-
-    for (const org of orgs) {
-      const pp30Days = Math.ceil((pp30Due.getTime() - todayDate.getTime()) / 86400_000);
-      const whtDays = Math.ceil((whtDue.getTime() - todayDate.getTime()) / 86400_000);
-
-      if (pp30Days >= -3) {
-        result.push({
-          orgName: org.orgName,
-          orgSlug: org.orgSlug,
-          type: "pp30",
-          label: `ภ.พ.30 (${taxMonth})`,
-          dueDate: pp30Str,
-          daysLeft: pp30Days,
-        });
-      }
-      if (whtDays >= -3) {
-        result.push({
-          orgName: org.orgName,
-          orgSlug: org.orgSlug,
-          type: "pnd",
-          label: `ภ.ง.ด. (${taxMonth})`,
-          dueDate: whtStr,
-          daysLeft: whtDays,
-        });
-      }
-    }
-  }
-
-  // Sort by due date
-  result.sort((a, b) => a.dueDate.localeCompare(b.dueDate));
-  // Deduplicate (same org + type + month)
-  const seen = new Set<string>();
-  return result.filter((d) => {
-    const key = `${d.orgSlug}|${d.type}|${d.dueDate}`;
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
+/** งวด (เดือน/ปี พ.ศ.) แบบสั้น */
+function fmtPeriod(year: number, month: number) {
+  const TH = [
+    "",
+    "ม.ค.",
+    "ก.พ.",
+    "มี.ค.",
+    "เม.ย.",
+    "พ.ค.",
+    "มิ.ย.",
+    "ก.ค.",
+    "ส.ค.",
+    "ก.ย.",
+    "ต.ค.",
+    "พ.ย.",
+    "ธ.ค.",
+  ];
+  return `${TH[month]} ${year + 543}`;
 }
 
-function deadlineColor(daysLeft: number) {
-  if (daysLeft < 0) return "border-red-200 bg-red-50 text-red-700";
-  if (daysLeft <= 7) return "border-amber-200 bg-amber-50 text-amber-700";
-  return "border-slate-100 bg-white text-slate-600";
+/** เงินเต็ม "1,234.56 ฿" — ยอดลบ U+2212 */
+function fmtMoney(v: number) {
+  const sign = v < 0 ? "−" : "";
+  return `${sign}${Math.abs(v).toLocaleString("th-TH", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })} ฿`;
 }
 
 // ── Main page ──────────────────────────────────────────────────────────────────
@@ -158,6 +130,8 @@ export default function AccFirmReportsPage() {
   const [tab, setTab] = useState<"pending" | "calendar" | "summary">("pending");
   const [filterBucket, setFilterBucket] = useState<string>("");
   const [filterOrg, setFilterOrg] = useState<string>("");
+  // F1: ปฏิทินภาษีจาก acc_tax_filings (สถานะจริง)
+  const [taxCalendar, setTaxCalendar] = useState<TaxCalendarResponse | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -171,15 +145,20 @@ export default function AccFirmReportsPage() {
     }
     setOrgId(org.id);
     const tok = sess.session.access_token;
+    const headers = { Authorization: `Bearer ${tok}` };
 
-    const res = await fetch(`/api/acc-firm/reports?orgId=${org.id}`, {
-      headers: { Authorization: `Bearer ${tok}` },
-    });
+    const [res, taxRes] = await Promise.all([
+      fetch(`/api/acc-firm/reports?orgId=${org.id}`, { headers }),
+      fetch(`/api/acc-firm/tax-calendar?orgId=${org.id}`, { headers }),
+    ]);
     if (res.ok) {
       const json = await res.json();
       setActionable(json.actionableInvoices ?? []);
       setClientSummary(json.clientSummary ?? []);
       setAsOf(json.asOf ?? "");
+    }
+    if (taxRes.ok) {
+      setTaxCalendar((await taxRes.json()) as TaxCalendarResponse);
     }
     setLoading(false);
   }, [supabase, orgSlug]);
@@ -187,12 +166,6 @@ export default function AccFirmReportsPage() {
   useEffect(() => {
     load();
   }, [load]);
-
-  // Tax deadlines (calculated client-side)
-  const taxDeadlines = useMemo(
-    () => (asOf ? calcTaxDeadlines(clientSummary, asOf) : []),
-    [clientSummary, asOf],
-  );
 
   // Filtered actionable invoices
   const filteredActionable = useMemo(() => {
@@ -211,9 +184,11 @@ export default function AccFirmReportsPage() {
         .reduce((s, i) => s + i.totalAmount, 0),
       due_soon: actionable.filter((i) => i.bucket === "due_soon").length,
       draft: actionable.filter((i) => i.bucket === "draft").length,
-      upcoming: taxDeadlines.filter((d) => d.daysLeft >= 0 && d.daysLeft <= 14).length,
+      // ภาษีเกินกำหนด (สถานะจริง) — แทน "Tax deadline 14 วัน" ลม ๆ เดิม
+      taxOverdue: taxCalendar?.summary.overdue ?? 0,
+      taxPending: taxCalendar?.summary.pending ?? 0,
     }),
-    [actionable, taxDeadlines],
+    [actionable, taxCalendar],
   );
 
   const thMonth = useMemo(() => {
@@ -251,44 +226,38 @@ export default function AccFirmReportsPage() {
     >
       {/* KPI strip */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {[
-          {
-            icon: <AlertTriangle className="h-4 w-4 text-red-500" />,
-            bg: "bg-red-50 border-red-100",
-            label: "Invoice เกินกำหนด",
-            val: loading ? "…" : `${totals.overdue} (฿${fmtK(totals.overdueAmount)})`,
-          },
-          {
-            icon: <Clock className="h-4 w-4 text-amber-500" />,
-            bg: "bg-amber-50 border-amber-100",
-            label: "ใกล้ครบกำหนด",
-            val: loading ? "…" : String(totals.due_soon),
-          },
-          {
-            icon: <FileText className="h-4 w-4 text-gray-400" />,
-            bg: "bg-gray-50 border-gray-100",
-            label: "Draft invoices",
-            val: loading ? "…" : String(totals.draft),
-          },
-          {
-            icon: <CalendarDays className="h-4 w-4 text-teal-500" />,
-            bg: "bg-teal-50 border-teal-100",
-            label: "Tax deadline 14 วัน",
-            val: loading ? "…" : String(totals.upcoming),
-          },
-        ].map((c, i) => (
-          <div key={i} className={`flex items-start gap-2.5 rounded-xl border p-3 ${c.bg}`}>
-            <div className="mt-0.5 shrink-0">{c.icon}</div>
-            <div>
-              <p className="text-xs font-medium text-slate-500">{c.label}</p>
-              <p className="text-base font-bold text-slate-800">{c.val}</p>
-            </div>
-          </div>
-        ))}
+        <StatCard
+          icon={<AlertTriangle className="h-4 w-4" />}
+          label="Invoice เกินกำหนด"
+          value={loading ? "…" : String(totals.overdue)}
+          sub={loading ? undefined : `ยอดค้าง ${fmtMoney(totals.overdueAmount)}`}
+          tone="negative"
+          valueColored
+        />
+        <StatCard
+          icon={<Clock className="h-4 w-4" />}
+          label="ใกล้ครบกำหนด"
+          value={loading ? "…" : String(totals.due_soon)}
+          tone="warning"
+        />
+        <StatCard
+          icon={<FileText className="h-4 w-4" />}
+          label="Draft invoices"
+          value={loading ? "…" : String(totals.draft)}
+          tone="neutral"
+        />
+        <StatCard
+          icon={<CalendarDays className="h-4 w-4" />}
+          label="ภาษีเกินกำหนด"
+          value={loading ? "…" : String(totals.taxOverdue)}
+          sub={loading ? undefined : `รอยื่นอีก ${totals.taxPending} รายการ`}
+          tone={totals.taxOverdue > 0 ? "negative" : "info"}
+          valueColored
+        />
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-1 border-b">
+      {/* Tabs (§4 — row เดียว ล้นแล้วเลื่อน) */}
+      <div className="flex gap-1.5 overflow-x-auto rounded-xl border border-gray-200 bg-white p-1.5 shadow-sm [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {(
           [
             { key: "pending", label: "งานค้าง", icon: <AlertTriangle className="h-4 w-4" /> },
@@ -296,17 +265,19 @@ export default function AccFirmReportsPage() {
             { key: "summary", label: "สรุปต่อ Client", icon: <Building2 className="h-4 w-4" /> },
           ] as const
         ).map((t) => (
-          <button
+          <Button
             key={t.key}
+            size="sm"
+            variant={tab === t.key ? "secondary" : "ghost"}
+            className={cn(
+              "shrink-0 whitespace-nowrap",
+              tab === t.key && "bg-gray-100 text-gray-900",
+            )}
             onClick={() => setTab(t.key)}
-            className={`flex items-center gap-1.5 border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
-              tab === t.key
-                ? "border-teal-500 text-teal-700"
-                : "border-transparent text-slate-500 hover:text-slate-700"
-            }`}
           >
-            {t.icon} {t.label}
-          </button>
+            <span className="mr-1.5">{t.icon}</span>
+            {t.label}
+          </Button>
         ))}
       </div>
 
@@ -407,44 +378,78 @@ export default function AccFirmReportsPage() {
         </div>
       )}
 
-      {/* ── Tab: ปฏิทินภาษี ──────────────────────────────────────────────────── */}
+      {/* ── Tab: ปฏิทินภาษี (สถานะการยื่นจริงจาก acc_tax_filings) ────────────────── */}
       {tab === "calendar" && (
-        <div className="space-y-2">
-          <p className="text-xs text-slate-400">
-            แสดง deadline ภ.พ.30 และ ภ.ง.ด. ของทุก client org ในช่วง 3 เดือนข้างหน้า
-          </p>
-          {loading ? (
-            <div className="p-8 text-center text-sm text-slate-400">กำลังโหลด…</div>
-          ) : taxDeadlines.length === 0 ? (
-            <div className="p-8 text-center text-sm text-slate-300">ไม่มี client orgs</div>
-          ) : (
-            <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-              {taxDeadlines.map((d, i) => (
-                <div
-                  key={i}
-                  className={`flex items-center gap-3 rounded-xl border px-4 py-3 ${deadlineColor(d.daysLeft)}`}
-                >
-                  <CalendarDays className="h-5 w-5 shrink-0 opacity-60" />
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-xs font-semibold">{d.orgName}</p>
-                    <p className="truncate text-xs opacity-80">{d.label}</p>
-                  </div>
-                  <div className="shrink-0 text-right">
-                    <p className="text-xs font-bold">{fmtDate(d.dueDate)}</p>
-                    <p className="text-xs opacity-70">
-                      {d.daysLeft < 0
-                        ? `เกินแล้ว ${Math.abs(d.daysLeft)} วัน`
-                        : d.daysLeft === 0
-                          ? "วันนี้!"
-                          : `อีก ${d.daysLeft} วัน`}
-                    </p>
-                  </div>
-                  <Link href={`/${d.orgSlug}/accounting`} target="_blank">
-                    <BookOpenText className="h-4 w-4 opacity-40 transition-opacity hover:opacity-80" />
-                  </Link>
-                </div>
-              ))}
+        <div className="space-y-3">
+          {/* สรุปสถานะการยื่น */}
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <StatCard
+              icon={<CheckCircle2 className="h-4 w-4" />}
+              label="ยื่นแล้ว"
+              value={loading ? "…" : String(taxCalendar?.summary.done ?? 0)}
+              tone="positive"
+            />
+            <StatCard
+              icon={<Clock className="h-4 w-4" />}
+              label="พร้อมยื่น"
+              value={loading ? "…" : String(taxCalendar?.summary.ready ?? 0)}
+              tone="warning"
+            />
+            <StatCard
+              icon={<AlertTriangle className="h-4 w-4" />}
+              label="เกินกำหนด"
+              value={loading ? "…" : String(taxCalendar?.summary.overdue ?? 0)}
+              tone="negative"
+              valueColored
+            />
+            <StatCard
+              icon={<CalendarDays className="h-4 w-4" />}
+              label="รอดำเนินการ"
+              value={loading ? "…" : String(taxCalendar?.summary.pending ?? 0)}
+              tone="neutral"
+            />
+          </div>
+
+          {!loading && (taxCalendar?.rows.length ?? 0) === 0 ? (
+            <div className="flex flex-col items-center justify-center rounded-xl border border-gray-200 bg-white py-16 text-center shadow-sm">
+              <div className="mb-4 rounded-full bg-gray-100 p-4">
+                <CalendarDays className="h-8 w-8 text-gray-400" />
+              </div>
+              <Text className="text-sm font-medium text-gray-900">ยังไม่มีรายการยื่นภาษี</Text>
+              <Text className="mt-1 max-w-sm text-sm text-gray-500">
+                เมื่อ client org บันทึกแบบภาษี (ภ.พ.30 / ภ.ง.ด.) ในงวดนี้ สถานะจะแสดงที่นี่
+              </Text>
+              <Button
+                size="sm"
+                variant="outline"
+                className="mt-4"
+                onClick={() => router.push(`/${orgSlug}/acc-firm/clients`)}
+              >
+                จัดการ Client Orgs
+              </Button>
             </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Client</TableHead>
+                  <TableHead>ประเภทภาษี</TableHead>
+                  <TableHead>งวด</TableHead>
+                  <TableHead>กำหนดยื่น</TableHead>
+                  <TableHead align="center">สถานะ</TableHead>
+                  <TableHead align="right">จำนวนเงิน</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {loading ? (
+                  <TableLoading colSpan={6} />
+                ) : (
+                  (taxCalendar?.rows ?? []).map((r, i) => (
+                    <TaxCalendarRow key={`${r.orgId}-${r.taxKind}-${r.periodMonth}-${i}`} row={r} />
+                  ))
+                )}
+              </TableBody>
+            </Table>
           )}
         </div>
       )}
@@ -524,5 +529,31 @@ export default function AccFirmReportsPage() {
           </Table>
         ))}
     </PageShell>
+  );
+}
+
+// ── แถวปฏิทินภาษี (F1) ───────────────────────────────────────────────────────────
+function TaxCalendarRow({ row }: { row: TaxFilingRow }) {
+  const router = useRouter();
+  const badge = FILING_STATE_BADGE[row.state];
+  const amount = row.taxKind === "pp30" ? row.netPayable : row.whtTotal;
+  return (
+    <TableRow clickable onClick={() => router.push(`/${row.orgSlug}/accounting`)}>
+      <TableCell>
+        <p className="font-medium text-gray-800">{row.orgName}</p>
+        <p className="text-xs text-gray-400">{row.orgSlug}</p>
+      </TableCell>
+      <TableCell className="text-sm text-gray-700">{TAX_KIND_LABEL[row.taxKind]}</TableCell>
+      <TableCell className="text-sm tabular-nums text-gray-600">
+        {fmtPeriod(row.periodYear, row.periodMonth)}
+      </TableCell>
+      <TableCell className="text-sm tabular-nums text-gray-600">{fmtDate(row.dueDate)}</TableCell>
+      <TableCell align="center">
+        <StatusBadge tone={badge.tone}>{badge.label}</StatusBadge>
+      </TableCell>
+      <TableCell align="right" tabular>
+        {amount != null ? fmtMoney(amount) : "—"}
+      </TableCell>
+    </TableRow>
   );
 }
