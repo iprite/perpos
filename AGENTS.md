@@ -114,31 +114,32 @@ pnpm build
 
 ## API Endpoints — Next.js Route Handlers (`apps/perpos/src/app/api/`)
 
-| Endpoint                         | Method         | File                                 | หน้าที่                                                               |
-| -------------------------------- | -------------- | ------------------------------------ | --------------------------------------------------------------------- |
-| `/api/line/webhook`              | POST           | `line/webhook/route.ts`              | LINE Bot webhook หลัก                                                 |
-| `/api/line/link-token`           | POST           | `line/link-token/route.ts`           | สร้าง token ผูกบัญชี LINE                                             |
-| `/api/line/unlink`               | POST           | `line/unlink/route.ts`               | ยกเลิกผูกบัญชี LINE                                                   |
-| `/api/assistant/scheduler`       | POST           | `assistant/scheduler/route.ts`       | Cron trigger สำหรับแจ้งเตือน task                                     |
-| `/api/admin/delivery/logs`       | GET            | `admin/delivery/logs/route.ts`       | ดู logs การส่ง                                                        |
-| `/api/admin/delivery/schedule`   | PUT            | `admin/delivery/schedule/route.ts`   | ตั้ง cron schedule                                                    |
-| `/api/admin/delivery/send-now`   | POST           | `admin/delivery/send-now/route.ts`   | ส่งข่าวทันที                                                          |
-| `/api/admin/news-agent/preview`  | POST           | `admin/news-agent/preview/route.ts`  | Preview ข่าว                                                          |
-| `/api/admin/users/list`          | GET            | `admin/users/list/route.ts`          | รายชื่อ users                                                         |
-| `/api/admin/users/invite`        | POST           | `admin/users/invite/route.ts`        | เชิญ user                                                             |
-| `/api/admin/users/delete`        | POST           | `admin/users/delete/route.ts`        | ลบ user                                                               |
-| `/api/admin/users/permissions`   | GET/PUT        | `admin/users/permissions/route.ts`   | จัดการสิทธิ์                                                          |
-| `/api/admin/users/orgs`          | GET/PUT/DELETE | `admin/users/orgs/route.ts`          | จัดการ org memberships                                                |
-| `/api/admin/modules`             | GET/PUT        | `admin/modules/route.ts`             | ตั้งค่า module ต่อ org                                                |
-| `/api/google-drive/connect`      | POST           | `google-drive/connect/route.ts`      | เชื่อม Google Drive+Calendar                                          |
-| `/api/google-drive/callback`     | GET            | `google-drive/callback/route.ts`     | OAuth callback                                                        |
-| `/api/google-drive/disconnect`   | POST           | `google-drive/disconnect/route.ts`   | ยกเลิกการเชื่อม                                                       |
-| `/api/google-drive/status`       | GET            | `google-drive/status/route.ts`       | ตรวจสถานะการเชื่อม                                                    |
-| `/api/org/invite`                | POST           | `org/invite/route.ts`                | เชิญเข้า organization                                                 |
-| `/api/assistant/jobs`            | GET/POST       | `assistant/jobs/route.ts`            | สร้าง/ดึงงาน (generic, kind=stt)                                      |
-| `/api/assistant/jobs/process`    | POST           | `assistant/jobs/process/route.ts`    | claim job + ยิงไป stt-worker                                          |
-| `/api/assistant/stt/mom-deliver` | POST           | `assistant/stt/mom-deliver/route.ts` | worker callback → PDF → LINE (มี alias เดิม `transcribe/mom-deliver`) |
-| `/api/tmc/*`                     | various        | `tmc/*/route.ts`                     | TMC Management endpoints                                              |
+| Endpoint                         | Method         | File                                 | หน้าที่                                                                                                     |
+| -------------------------------- | -------------- | ------------------------------------ | ----------------------------------------------------------------------------------------------------------- |
+| `/api/line/webhook`              | POST           | `line/webhook/route.ts`              | LINE Bot webhook หลัก                                                                                       |
+| `/api/line/link-token`           | POST           | `line/link-token/route.ts`           | สร้าง token ผูกบัญชี LINE                                                                                   |
+| `/api/line/unlink`               | POST           | `line/unlink/route.ts`               | ยกเลิกผูกบัญชี LINE                                                                                         |
+| `/api/assistant/scheduler`       | POST           | `assistant/scheduler/route.ts`       | Cron trigger สำหรับแจ้งเตือน task                                                                           |
+| `/api/admin/delivery/logs`       | GET            | `admin/delivery/logs/route.ts`       | ดู logs การส่ง                                                                                              |
+| `/api/admin/delivery/schedule`   | PUT            | `admin/delivery/schedule/route.ts`   | ตั้ง cron schedule                                                                                          |
+| `/api/admin/delivery/send-now`   | POST           | `admin/delivery/send-now/route.ts`   | ส่งข่าวทันที                                                                                                |
+| `/api/admin/news-agent/preview`  | POST           | `admin/news-agent/preview/route.ts`  | Preview ข่าว                                                                                                |
+| `/api/admin/users/list`          | GET            | `admin/users/list/route.ts`          | รายชื่อ users                                                                                               |
+| `/api/admin/users/invite`        | POST           | `admin/users/invite/route.ts`        | เชิญ user                                                                                                   |
+| `/api/admin/users/delete`        | POST           | `admin/users/delete/route.ts`        | ลบ user                                                                                                     |
+| `/api/admin/users/permissions`   | GET/PUT        | `admin/users/permissions/route.ts`   | จัดการสิทธิ์                                                                                                |
+| `/api/admin/users/orgs`          | GET/PUT/DELETE | `admin/users/orgs/route.ts`          | จัดการ org memberships                                                                                      |
+| `/api/admin/modules`             | GET/PUT        | `admin/modules/route.ts`             | ตั้งค่า module ต่อ org                                                                                      |
+| `/api/google-drive/connect`      | POST           | `google-drive/connect/route.ts`      | เชื่อม Google Drive+Calendar                                                                                |
+| `/api/google-drive/callback`     | GET            | `google-drive/callback/route.ts`     | OAuth callback                                                                                              |
+| `/api/google-drive/disconnect`   | POST           | `google-drive/disconnect/route.ts`   | ยกเลิกการเชื่อม                                                                                             |
+| `/api/google-drive/status`       | GET            | `google-drive/status/route.ts`       | ตรวจสถานะการเชื่อม                                                                                          |
+| `/api/org/invite`                | POST           | `org/invite/route.ts`                | เชิญเข้า organization                                                                                       |
+| `/api/public/demo-request`       | POST/OPTIONS   | `public/demo-request/route.ts`       | รับฟอร์ม "ขอเดโม" จาก landing (public+CORS, honeypot) → insert `demo_requests` + push LINE แจ้ง super_admin |
+| `/api/assistant/jobs`            | GET/POST       | `assistant/jobs/route.ts`            | สร้าง/ดึงงาน (generic, kind=stt)                                                                            |
+| `/api/assistant/jobs/process`    | POST           | `assistant/jobs/process/route.ts`    | claim job + ยิงไป stt-worker                                                                                |
+| `/api/assistant/stt/mom-deliver` | POST           | `assistant/stt/mom-deliver/route.ts` | worker callback → PDF → LINE (มี alias เดิม `transcribe/mom-deliver`)                                       |
+| `/api/tmc/*`                     | various        | `tmc/*/route.ts`                     | TMC Management endpoints                                                                                    |
 
 **Auth helpers** (`app/api/_lib/`):
 
@@ -234,6 +235,7 @@ pnpm build
 | `orders` / `order_items`                     | ออเดอร์ขาย                                                                                                                                                                                                                                   |
 | `sales_quotes` / `sales_invoices`            | ใบเสนอราคา / ใบแจ้งหนี้                                                                                                                                                                                                                      |
 | `customers` / `workers`                      | ลูกค้า / พนักงาน                                                                                                                                                                                                                             |
+| `demo_requests`                              | Lead "ขอเดโม" จากหน้า landing (name, phone, product, source, status new→contacted→…) — เขียนผ่าน `/api/public/demo-request`, ดูที่ `/admin/leads` (RLS deny-all, service role)                                                               |
 
 ### tasks table (status values)
 

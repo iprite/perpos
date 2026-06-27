@@ -40,6 +40,7 @@ import {
   FlaskConical,
   Presentation,
   Bug,
+  Inbox,
 } from "lucide-react";
 
 import type { Role } from "@/lib/supabase/types";
@@ -227,6 +228,12 @@ export function buildAdminMenuItems(): MenuItem[] {
       icon: <Wallet className="h-5 w-5" />,
       roles: ["super_admin"],
       activeMatch: ["/admin/payments", "/admin/billing", "/admin/stt-billing", "/admin/tokens"],
+    },
+    {
+      name: "ลูกค้าขอเดโม (Leads)",
+      href: "/admin/leads",
+      icon: <Inbox className="h-5 w-5" />,
+      roles: ["super_admin"],
     },
     {
       name: "แกะเสียง / MoM",
