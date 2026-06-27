@@ -59,6 +59,7 @@ const EMPTY_FORM = {
   fee_2024: "",
   fee_2025: "",
   fee_2026: "",
+  fee_yearly: "",
   billing_note: "",
   svc_invoice: false,
   svc_billing: false,
@@ -75,9 +76,21 @@ const EMPTY_FORM = {
 
 type FormState = typeof EMPTY_FORM;
 
-function fmtFee(v: number | null) {
+/** ค่าบริการ: "12,000 ฿" หรือ null/0 → "—" */
+function fmtFeeMonthly(v: number | null) {
   if (v == null || v === 0) return "—";
-  return v.toLocaleString("th-TH", { minimumFractionDigits: 0 });
+  return `${v.toLocaleString("th-TH", { minimumFractionDigits: 0 })} ฿`;
+}
+
+/**
+ * ค่าบริการ/ปี ของลูกค้า:
+ * - ถ้าตั้งค่ารายปีไว้ (fee_yearly) → ใช้ค่านั้น (ลูกค้าที่ชำระเป็นรายปี)
+ * - ไม่งั้น ถ้าจ่ายรายเดือน (fee ปีนี้ > 0) → รายเดือน × 12
+ */
+function annualFee(monthly: number, feeYearly: number | null): number | null {
+  if (feeYearly && feeYearly > 0) return feeYearly;
+  if (monthly > 0) return monthly * 12;
+  return null;
 }
 
 export default function ServiceClientsPage() {
@@ -137,6 +150,7 @@ export default function ServiceClientsPage() {
       fee_2024: c.fee_2024 != null ? String(c.fee_2024) : "",
       fee_2025: c.fee_2025 != null ? String(c.fee_2025) : "",
       fee_2026: c.fee_2026 != null ? String(c.fee_2026) : "",
+      fee_yearly: c.fee_yearly != null ? String(c.fee_yearly) : "",
       billing_note: c.billing_note ?? "",
       svc_invoice: c.svc_invoice,
       svc_billing: c.svc_billing,
@@ -302,65 +316,62 @@ export default function ServiceClientsPage() {
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>รหัส</TableHead>
-            <TableHead>บริษัท</TableHead>
-            <TableHead align="right">2566</TableHead>
-            <TableHead align="right">2567</TableHead>
-            <TableHead align="right">2568</TableHead>
-            <TableHead align="right">2569</TableHead>
+            <TableHead>ลูกค้า</TableHead>
+            <TableHead align="right">ค่าบริการ/เดือน</TableHead>
+            <TableHead align="right">ค่าบริการ/ปี</TableHead>
             <TableHead>บริการ</TableHead>
-            <TableHead>หมายเหตุ</TableHead>
-            <TableHead>สถานะ</TableHead>
+            <TableHead align="center">สถานะ</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {loading ? (
-            <TableLoading colSpan={9} />
+            <TableLoading colSpan={5} />
           ) : filtered.length === 0 ? (
-            <TableEmpty colSpan={9}>ไม่พบรายการ</TableEmpty>
+            <TableEmpty colSpan={5}>ไม่พบรายการ</TableEmpty>
           ) : (
             filtered.map((c) => (
               <TableRow
                 key={c.id}
                 clickable
                 onClick={() => openEdit(c)}
-                className={!c.is_active ? "opacity-50" : ""}
+                className={!c.is_active ? "opacity-60" : ""}
               >
-                <TableCell>
-                  <span className="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-xs">
-                    {c.client_code}
-                  </span>
-                </TableCell>
-                <TableCell className="max-w-[240px] font-medium text-gray-800">
-                  <div className="truncate" title={c.company_name}>
-                    {c.company_name}
+                <TableCell className="max-w-[320px]">
+                  <div className="flex items-center gap-2.5">
+                    <span className="shrink-0 rounded bg-gray-100 px-1.5 py-0.5 font-mono text-xs text-gray-600">
+                      {c.client_code}
+                    </span>
+                    <div className="min-w-0">
+                      <div className="truncate font-medium text-gray-800" title={c.company_name}>
+                        {c.company_name}
+                      </div>
+                      {c.billing_note && (
+                        <div className="truncate text-xs text-gray-400">{c.billing_note}</div>
+                      )}
+                    </div>
                   </div>
-                  {c.billing_note && (
-                    <div className="truncate text-xs text-gray-400">{c.billing_note}</div>
+                </TableCell>
+                <TableCell align="right" className="font-medium tabular-nums text-gray-800">
+                  {Number(c[feeKey] ?? 0) > 0 ? (
+                    fmtFeeMonthly(Number(c[feeKey]))
+                  ) : (
+                    <span className="text-xs font-normal text-gray-300">—</span>
                   )}
                 </TableCell>
-                <TableCell align="right" tabular className="text-xs text-gray-500">
-                  {fmtFee(c.fee_2023)}
-                </TableCell>
-                <TableCell align="right" tabular className="text-xs text-gray-500">
-                  {fmtFee(c.fee_2024)}
-                </TableCell>
-                <TableCell align="right" tabular className="text-xs font-medium text-gray-700">
-                  {fmtFee(c.fee_2025)}
-                </TableCell>
-                <TableCell align="right" tabular className="text-xs font-semibold text-blue-700">
-                  {fmtFee(c.fee_2026)}
+                <TableCell align="right" className="tabular-nums text-gray-500">
+                  {(() => {
+                    const yearly = annualFee(Number(c[feeKey] ?? 0), c.fee_yearly);
+                    return yearly ? (
+                      fmtFeeMonthly(yearly)
+                    ) : (
+                      <span className="text-xs text-gray-300">—</span>
+                    );
+                  })()}
                 </TableCell>
                 <TableCell>
                   <ServiceFlags client={c} />
                 </TableCell>
-                <TableCell
-                  className="max-w-[160px] truncate text-xs text-gray-500"
-                  title={c.note ?? ""}
-                >
-                  {c.note || "—"}
-                </TableCell>
-                <TableCell>
+                <TableCell align="center">
                   <StatusBadge tone={c.is_active ? "success" : "neutral"}>
                     {c.is_active ? "ใช้งาน" : "ยกเลิก"}
                   </StatusBadge>
@@ -418,11 +429,24 @@ export default function ServiceClientsPage() {
               </div>
 
               <div>
+                <Label>ค่าบริการรายปี (บาท)</Label>
+                <Input
+                  type="number"
+                  value={form.fee_yearly}
+                  onChange={(e) => setForm((f) => ({ ...f, fee_yearly: e.target.value }))}
+                  placeholder="0"
+                />
+                <p className="mt-1 text-xs text-gray-400">
+                  สำหรับลูกค้าที่ชำระเป็นรายปี (ไม่ได้คิดรายเดือน) — ปล่อยว่างถ้าคิดรายเดือน
+                </p>
+              </div>
+
+              <div>
                 <Label>หมายเหตุค่าบริการ</Label>
                 <Input
                   value={form.billing_note}
                   onChange={(e) => setForm((f) => ({ ...f, billing_note: e.target.value }))}
-                  placeholder="เช่น รายปี 15000"
+                  placeholder="เช่น ชำระล่วงหน้าทั้งปี"
                 />
               </div>
 
@@ -487,19 +511,31 @@ export default function ServiceClientsPage() {
   );
 }
 
+const MAX_FLAGS_SHOWN = 3;
+
 function ServiceFlags({ client }: { client: ServiceClient }) {
   const active = SERVICE_FLAGS.filter(({ key }) => client[key] as boolean);
   if (active.length === 0) return <span className="text-xs text-gray-300">—</span>;
+  const shown = active.slice(0, MAX_FLAGS_SHOWN);
+  const rest = active.length - shown.length;
   return (
-    <div className="flex gap-1">
-      {active.map(({ key, label }) => (
+    <div
+      className="flex items-center gap-1 whitespace-nowrap"
+      title={active.map((f) => f.label).join(" · ")}
+    >
+      {shown.map(({ key, label }) => (
         <span
           key={key}
-          className="inline-flex items-center gap-0.5 whitespace-nowrap rounded bg-green-50 px-1.5 py-0.5 text-xs text-green-700"
+          className="inline-flex items-center gap-0.5 whitespace-nowrap rounded-md bg-green-50 px-1.5 py-0.5 text-xs font-medium text-green-700"
         >
           <Check className="h-2.5 w-2.5" /> {label}
         </span>
       ))}
+      {rest > 0 && (
+        <span className="inline-flex items-center whitespace-nowrap rounded-md bg-gray-100 px-1.5 py-0.5 text-xs font-medium text-gray-500">
+          +{rest}
+        </span>
+      )}
     </div>
   );
 }
