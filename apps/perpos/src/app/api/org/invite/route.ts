@@ -1,79 +1,99 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { extractBearer, requireUser } from '../../_lib/auth';
-import { createAdminClient, createAuthedClient } from '../../_lib/supabase';
-import nodemailer from 'nodemailer';
+import { NextRequest, NextResponse } from "next/server";
+import { extractBearer, requireUser } from "../../_lib/auth";
+import { createAdminClient, createAuthedClient } from "../../_lib/supabase";
+import { syncModuleMembersForOrgRole } from "../../_lib/module-membership";
+import nodemailer from "nodemailer";
 
 function getRedirectTo(clientRedirectTo?: string): string {
-  const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL ?? '').replace(/\/$/, '');
+  const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL ?? "").replace(/\/$/, "");
   if (siteUrl) return `${siteUrl}/auth/password`;
   if (clientRedirectTo) return clientRedirectTo;
-  return 'https://app.perpos.ai/auth/password';
+  return "https://app.perpos.ai/auth/password";
 }
 
 export async function POST(req: NextRequest) {
   const auth = await requireUser(req);
   if (!auth.ok) return auth.res;
 
-  const body = await req.json().catch(() => ({})) as {
+  const body = (await req.json().catch(() => ({}))) as {
     email?: string;
     organizationId?: string;
     orgRole?: string;
     redirectTo?: string;
   };
-  const { email, organizationId, orgRole = 'team_member', redirectTo: clientRedirectTo } = body;
-  if (!email || !organizationId) return NextResponse.json({ error: 'missing email or organizationId' }, { status: 400 });
+  const { email, organizationId, orgRole = "team_member", redirectTo: clientRedirectTo } = body;
+  if (!email || !organizationId)
+    return NextResponse.json({ error: "missing email or organizationId" }, { status: 400 });
 
   // Verify caller is owner or admin of this org
   const token = extractBearer(req)!;
   const rls = createAuthedClient(token);
   const { data: membership } = await rls
-    .from('organization_members')
-    .select('role')
-    .eq('user_id', auth.userId)
-    .eq('organization_id', organizationId)
+    .from("organization_members")
+    .select("role")
+    .eq("user_id", auth.userId)
+    .eq("organization_id", organizationId)
     .maybeSingle();
-  if (!membership || !['owner', 'admin'].includes((membership as Record<string, string>).role)) {
-    return NextResponse.json({ error: 'forbidden — must be org owner or admin' }, { status: 403 });
+  if (!membership || !["owner", "admin"].includes((membership as Record<string, string>).role)) {
+    return NextResponse.json({ error: "forbidden — must be org owner or admin" }, { status: 403 });
   }
 
   const admin = createAdminClient();
   const { data: billing } = await admin
-    .from('org_billing')
-    .select('payment_status, overdue_count')
-    .eq('org_id', organizationId)
+    .from("org_billing")
+    .select("payment_status, overdue_count")
+    .eq("org_id", organizationId)
     .maybeSingle();
   const b = billing as Record<string, unknown> | null;
-  const isOverdue = String(b?.payment_status ?? '') === 'overdue';
+  const isOverdue = String(b?.payment_status ?? "") === "overdue";
   const overdueCount = Number(b?.overdue_count ?? 0);
   if (isOverdue && overdueCount >= 2) {
-    return NextResponse.json({ error: 'billing_overdue_readonly' }, { status: 402 });
+    return NextResponse.json({ error: "billing_overdue_readonly" }, { status: 402 });
   }
   const redirectTo = getRedirectTo(clientRedirectTo);
 
   // Generate invite link
-  const linkRes = await admin.auth.admin.generateLink({ type: 'invite', email, options: { redirectTo } });
+  const linkRes = await admin.auth.admin.generateLink({
+    type: "invite",
+    email,
+    options: { redirectTo },
+  });
   const actionLink = linkRes.data?.properties?.action_link ?? null;
-  if (linkRes.error && !actionLink) return NextResponse.json({ error: linkRes.error.message }, { status: 500 });
+  if (linkRes.error && !actionLink)
+    return NextResponse.json({ error: linkRes.error.message }, { status: 500 });
 
   // Upsert profile
-  const { data: existingProfile } = await admin.from('profiles').select('id').eq('email', email).maybeSingle();
+  const { data: existingProfile } = await admin
+    .from("profiles")
+    .select("id")
+    .eq("email", email)
+    .maybeSingle();
   const profileId = existingProfile?.id ?? null;
   if (profileId) {
-    await admin.from('organization_members').upsert(
-      { user_id: profileId, organization_id: organizationId, role: orgRole, updated_at: new Date().toISOString() },
-      { onConflict: 'user_id,organization_id' },
-    );
+    await admin
+      .from("organization_members")
+      .upsert(
+        {
+          user_id: profileId,
+          organization_id: organizationId,
+          role: orgRole,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "user_id,organization_id" },
+      );
+    // Sync module access so the invited member isn't bounced from module pages
+    await syncModuleMembersForOrgRole(admin, profileId, organizationId, orgRole);
   }
 
   // Send email invite
   let emailSent = false;
   let smtpError: string | null = null;
-  const smtpHost = process.env.SMTP_HOST ?? '';
+  const smtpHost = process.env.SMTP_HOST ?? "";
 
   if (!smtpHost) {
-    smtpError = 'SMTP_HOST ไม่ได้ตั้งค่า';
+    smtpError = "SMTP_HOST ไม่ได้ตั้งค่า";
   } else if (!actionLink) {
-    smtpError = 'ไม่มี action link สำหรับส่งในอีเมล';
+    smtpError = "ไม่มี action link สำหรับส่งในอีเมล";
   } else {
     try {
       const transporter = nodemailer.createTransport({
@@ -85,7 +105,7 @@ export async function POST(req: NextRequest) {
       await transporter.sendMail({
         from: process.env.SMTP_FROM_EMAIL ?? process.env.SMTP_USER,
         to: email,
-        subject: 'คำเชิญเข้าร่วมองค์กรใน PERPOS',
+        subject: "คำเชิญเข้าร่วมองค์กรใน PERPOS",
         html: `
           <div style="font-family:sans-serif;max-width:500px;margin:0 auto">
             <h2 style="color:#436E7E">คำเชิญเข้าร่วมองค์กรใน PERPOS</h2>
@@ -106,8 +126,8 @@ export async function POST(req: NextRequest) {
       });
       emailSent = true;
     } catch (e: unknown) {
-      smtpError = (e as Error)?.message ?? 'ส่งอีเมลไม่สำเร็จ';
-      console.error('[org/invite] SMTP error:', smtpError);
+      smtpError = (e as Error)?.message ?? "ส่งอีเมลไม่สำเร็จ";
+      console.error("[org/invite] SMTP error:", smtpError);
     }
   }
 
