@@ -2,9 +2,8 @@
 
 import { useState } from "react";
 import { ArrowRight, CalendarCheck, Check, X } from "lucide-react";
-import { cn } from "@/lib/utils";
 
-const ADMIN_EMAIL = "iprite@gmail.com";
+const API_BASE = process.env.NEXT_PUBLIC_APP_URL ?? "https://app.perpos.ai";
 
 /** "ขอเดโม Suite" button that opens a callback-request popup and emails the admin.
  *  Pass `className` + `children` to fully restyle the trigger (e.g. ghost on dark). */
@@ -18,7 +17,10 @@ export function SuiteDemoButton({
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
+  const [website, setWebsite] = useState(""); // honeypot — ผู้ใช้จริงไม่เห็น/ไม่กรอก
   const [sent, setSent] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
 
   function close() {
     setOpen(false);
@@ -26,17 +28,36 @@ export function SuiteDemoButton({
       setSent(false);
       setName("");
       setPhone("");
+      setWebsite("");
+      setError("");
     }, 200);
   }
 
-  function submit(e: React.FormEvent) {
+  async function submit(e: React.FormEvent) {
     e.preventDefault();
-    const subject = `ขอเดโม PERPOS Suite — ${name}`;
-    const body = `มีผู้สนใจขอเดโม PERPOS Suite\n\nชื่อ: ${name}\nเบอร์โทร: ${phone}\n\n(ส่งจากหน้าเว็บ perpos.ai/suite)`;
-    window.location.href = `mailto:${ADMIN_EMAIL}?subject=${encodeURIComponent(
-      subject,
-    )}&body=${encodeURIComponent(body)}`;
-    setSent(true);
+    if (submitting) return;
+    setError("");
+    setSubmitting(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/public/demo-request`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          name,
+          phone,
+          product: "suite",
+          source: "landing/suite",
+          company_website: website,
+        }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.ok) throw new Error(data?.error ?? "failed");
+      setSent(true);
+    } catch {
+      setError("ส่งไม่สำเร็จ กรุณาลองใหม่อีกครั้ง หรือทักผ่าน LINE @perpos");
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -139,12 +160,27 @@ export function SuiteDemoButton({
                   </div>
                 </div>
 
+                {/* honeypot — ซ่อนจากผู้ใช้จริง, ดักบอท */}
+                <input
+                  type="text"
+                  name="company_website"
+                  tabIndex={-1}
+                  autoComplete="off"
+                  value={website}
+                  onChange={(e) => setWebsite(e.target.value)}
+                  aria-hidden
+                  className="absolute left-[-9999px] h-0 w-0 opacity-0"
+                />
+
+                {error && <p className="mt-4 text-sm text-red-600">{error}</p>}
+
                 <button
                   type="submit"
-                  className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-accent px-5 py-3 text-sm font-semibold text-white transition hover:bg-accent-dark active:scale-[0.98]"
+                  disabled={submitting}
+                  className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-accent px-5 py-3 text-sm font-semibold text-white transition hover:bg-accent-dark active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  ส่งข้อมูลให้ติดต่อกลับ
-                  <ArrowRight className="h-4 w-4" />
+                  {submitting ? "กำลังส่ง…" : "ส่งข้อมูลให้ติดต่อกลับ"}
+                  {!submitting && <ArrowRight className="h-4 w-4" />}
                 </button>
                 <p className="mt-3 text-center text-xs text-foreground-muted">
                   ข้อมูลจะถูกส่งให้ทีมงาน PERPOS เพื่อติดต่อกลับ
