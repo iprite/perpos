@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "../../_lib/auth";
 import { createAdminClient } from "../../_lib/supabase";
 import { ALL_MODULES, MODULE_MENUS, ORG_ROLES } from "@/lib/modules";
+import { seedModule } from "../_lib/module-seed";
 
 /** Returns true if this module is allowed to be enabled for the given org slug */
 function isModuleAllowedForOrg(moduleKey: string, orgSlug: string): boolean {
@@ -225,6 +226,19 @@ export async function PUT(req: NextRequest) {
     .from("org_module_settings")
     .upsert(moduleRows, { onConflict: "organization_id,module_key" });
   if (modErr) return NextResponse.json({ error: modErr.message }, { status: 500 });
+
+  // Seed default data ให้ module ที่เพิ่งเปิด (disabled→enabled) — เช่น accounting = ผังบัญชีมาตรฐาน
+  // best-effort + idempotent (seedAccounting ข้ามถ้ามีผังแล้ว) — ไม่ block response
+  for (const row of moduleRows) {
+    const wasEnabled = prevMap[row.module_key]?.is_enabled ?? false;
+    if (row.is_enabled && !wasEnabled) {
+      try {
+        await seedModule(row.module_key, orgId, admin);
+      } catch (e) {
+        console.error(`[modules/PUT] seed ${row.module_key} failed`, String(e));
+      }
+    }
+  }
 
   // Upsert menu-level settings (if provided)
   if (Array.isArray(menuSettings) && menuSettings.length > 0) {
