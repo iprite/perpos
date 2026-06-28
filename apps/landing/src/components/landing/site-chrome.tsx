@@ -7,6 +7,7 @@ import { Building2, Home, MessageCircle, UserRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { BrandIcon } from "./brand-icon";
+import { SuiteDemoDialog } from "./suite-demo";
 
 export const LINE_URL = "https://line.me/R/ti/p/@perpos";
 export const APP_URL = "https://app.perpos.ai/signin";
@@ -98,8 +99,10 @@ export function SectionHeading({
 }
 
 function contextualCta(pathname: string) {
-  if (pathname.startsWith("/suite")) return { href: CONTACT_URL, label: "ขอเดโม Suite" };
-  if (pathname.startsWith("/flow")) return { href: LINE_URL, label: "เพิ่มเพื่อนใน LINE" };
+  // suite → เปิด popup ขอเดโม (demo:true) แทนลิงก์ออก
+  if (pathname.startsWith("/suite")) return { href: null, label: "ขอเดโม Suite", demo: true };
+  if (pathname.startsWith("/flow"))
+    return { href: LINE_URL, label: "เพิ่มเพื่อนใน LINE", demo: false };
   return null;
 }
 
@@ -181,6 +184,7 @@ function MobileNav() {
 export function SiteHeader() {
   const pathname = usePathname();
   const cta = contextualCta(pathname);
+  const [demoOpen, setDemoOpen] = useState(false);
 
   return (
     <>
@@ -230,21 +234,43 @@ export function SiteHeader() {
               <UserRound className="h-4 w-4" strokeWidth={1.8} />
               เข้าสู่ระบบ
             </Button>
-            {cta && (
-              <Button href={cta.href} size="sm" className="hidden sm:inline-flex">
-                {cta.label}
-              </Button>
+            {cta &&
+              (cta.demo ? (
+                <Button
+                  size="sm"
+                  className="hidden sm:inline-flex"
+                  onClick={() => setDemoOpen(true)}
+                >
+                  {cta.label}
+                </Button>
+              ) : (
+                <Button href={cta.href ?? undefined} size="sm" className="hidden sm:inline-flex">
+                  {cta.label}
+                </Button>
+              ))}
+            {/* mobile: ไอคอนขวาบน — suite เปิด popup, อื่น ๆ ลิงก์ออก/เข้าสู่ระบบ */}
+            {cta?.demo ? (
+              <button
+                type="button"
+                onClick={() => setDemoOpen(true)}
+                aria-label={cta.label}
+                className="inline-flex h-9 w-9 items-center justify-center text-primary transition hover:text-foreground-secondary sm:hidden"
+              >
+                <UserRound className="h-[20px] w-[20px]" strokeWidth={1.8} />
+              </button>
+            ) : (
+              <Link
+                href={cta?.href ?? APP_URL}
+                aria-label={cta?.label ?? "เข้าสู่ระบบ"}
+                className="inline-flex h-9 w-9 items-center justify-center text-primary transition hover:text-foreground-secondary sm:hidden"
+              >
+                <UserRound className="h-[20px] w-[20px]" strokeWidth={1.8} />
+              </Link>
             )}
-            <Link
-              href={cta?.href ?? APP_URL}
-              aria-label={cta?.label ?? "เข้าสู่ระบบ"}
-              className="inline-flex h-9 w-9 items-center justify-center text-primary transition hover:text-foreground-secondary sm:hidden"
-            >
-              <UserRound className="h-[20px] w-[20px]" strokeWidth={1.8} />
-            </Link>
           </div>
         </div>
       </header>
+      <SuiteDemoDialog open={demoOpen} onOpenChange={setDemoOpen} />
       <MobileNav />
     </>
   );
