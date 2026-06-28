@@ -23,6 +23,7 @@ const neoTech = localFont({
 const BASE_URL = "https://www.perpos.ai";
 
 export const metadata: Metadata = {
+  metadataBase: new URL(BASE_URL),
   title: "PERPOS - Flow & Suite",
   description:
     "PERPOS Flow ผู้ช่วย AI บน LINE สำหรับ PDF และเสียงประชุม และ PERPOS Suite ระบบ AI ERP สำหรับองค์กรและ workflow เฉพาะธุรกิจ",
