@@ -5,14 +5,17 @@
 
 ---
 
-## 1. มี 2 Vercel projects ผูก repo เดียวกัน
+## 1. Vercel project ที่ผูก repo
 
-| Vercel project     | Root Directory | package name | คือ                      |
-| ------------------ | -------------- | ------------ | ------------------------ |
-| **perpos**         | `apps/perpos`  | `starter`    | แอปหลัก (app.perpos.ai)  |
-| **perpos-landing** | `apps/landing` | `landing`    | หน้า landing (perpos.ai) |
+| Vercel project | Root Directory | package name | คือ                     |
+| -------------- | -------------- | ------------ | ----------------------- |
+| **perpos**     | `apps/perpos`  | `starter`    | แอปหลัก (app.perpos.ai) |
 
-ทั้งคู่ auto-deploy เมื่อ push → main (production) และสร้าง Preview ทุก PR
+auto-deploy เมื่อ push → main (production) และสร้าง Preview ทุก PR
+
+> **landing ย้ายออกจาก Vercel แล้ว** — หน้า marketing (`www.perpos.ai`/perpos.ai) ตอนนี้คือ
+> `apps/landing-astro` (Astro) บน **Cloudflare** (auto-deploy ผ่าน Cloudflare Git integration)
+> ไม่ใช่ Vercel project แล้ว · ดู [`project-landing-astro-cloudflare`] / AGENTS.md
 
 ---
 
@@ -25,10 +28,9 @@
 
 ตั้งที่ **Vercel Dashboard → [project] → Settings → Git → Ignored Build Step → "Run my command"**
 
-| project          | คำสั่ง                     |
-| ---------------- | -------------------------- |
-| `perpos`         | `npx turbo-ignore starter` |
-| `perpos-landing` | `npx turbo-ignore landing` |
+| project  | คำสั่ง                     |
+| -------- | -------------------------- |
+| `perpos` | `npx turbo-ignore starter` |
 
 `turbo-ignore` เช็ค git diff ตั้งแต่ deploy ล่าสุด ว่า workspace นั้น **+ dependency** เปลี่ยนไหม
 
@@ -39,12 +41,11 @@
 
 ## 4. ผลลัพธ์
 
-| เปลี่ยนอะไร                                   | perpos   | perpos-landing |
-| --------------------------------------------- | -------- | -------------- |
-| `apps/perpos/**`                              | ✅ build | skip           |
-| `apps/landing/**`                             | skip     | ✅ build       |
-| `packages/*` (shared)                         | ✅ build | ✅ build       |
-| `.github/`, `services/`, `docs/`, root config | skip     | skip           |
+| เปลี่ยนอะไร                                   | perpos   |
+| --------------------------------------------- | -------- |
+| `apps/perpos/**`                              | ✅ build |
+| `packages/*` (shared)                         | ✅ build |
+| `.github/`, `services/`, `docs/`, root config | skip     |
 
 ## 5. ตรวจว่าได้ผล
 
