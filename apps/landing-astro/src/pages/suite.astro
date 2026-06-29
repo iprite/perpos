@@ -1,0 +1,249 @@
+---
+import { cn } from "@/lib/utils";
+import Layout from "@/layouts/Layout.astro";
+import SiteHeader from "@/components/SiteHeader.astro";
+import SiteFooter from "@/components/SiteFooter.astro";
+import Lockup from "@/components/Lockup.astro";
+import SectionHeading from "@/components/SectionHeading.astro";
+import Icon from "@/components/Icon.astro";
+import BrandIcon from "@/components/BrandIcon.astro";
+import { SuiteVisual } from "@/components/islands/SuiteVisual";
+import { SuiteDemoButton } from "@/components/islands/SuiteDemo";
+
+const modules = [
+  {
+    title: "บัญชี",
+    body: "เอกสารบัญชี ภาษี และสมุดรายวันใน workflow เดียว",
+    chips: ["Invoice", "ภาษี", "Journal"],
+    icon: "calculator",
+  },
+  {
+    title: "บุคคล / HR",
+    body: "ข้อมูลพนักงาน payroll และ approval ที่ต่อกับโครงสร้างองค์กร",
+    chips: ["พนักงาน", "Payroll", "สิทธิ์"],
+    icon: "users-round",
+  },
+  {
+    title: "ขาย – ซื้อ",
+    body: "คุมเอกสารขาย-ซื้อ ตั้งแต่ใบเสนอราคา PO ไปจนถึง invoice",
+    chips: ["Quote", "PO", "Billing"],
+    icon: "receipt-text",
+  },
+  {
+    title: "คลังสินค้า",
+    body: "ติดตามสินค้า stock movement และต้นทุนที่เกี่ยวกับคลัง",
+    chips: ["Stock", "Movement", "ต้นทุน"],
+    icon: "boxes",
+  },
+  {
+    title: "การเงิน",
+    body: "จัดการธนาคาร เช็ค payment และกระแสเงินสดขององค์กร",
+    chips: ["ธนาคาร", "เช็ค", "Cashflow"],
+    icon: "banknote",
+  },
+  {
+    title: "Tailor-made ERP",
+    body: "ออกแบบ workflow เฉพาะองค์กร ใช้งานจริงแล้วในหลายทีม",
+    chips: ["Production-ready", "Custom flow", "Integration"],
+    icon: "workflow",
+    featured: true,
+  },
+];
+
+const automations = [
+  { title: "OCR เอกสารบัญชี", body: "อ่านบิลและใบเสร็จ เข้าสู่ระบบอัตโนมัติ", icon: "file-scan" },
+  { title: "สรุปข้อมูลผู้บริหาร", body: "สรุปยอดและสถานะงานให้อ่านได้เร็ว", icon: "layout-dashboard" },
+  { title: "แจ้งเตือนผ่าน LINE", body: "ส่ง noti และคำสั่งงานเข้า LINE ของทีม", icon: "bell" },
+];
+
+const path = [
+  { icon: "search", title: "Discover", desc: "เข้าใจ workflow และข้อมูลที่องค์กรใช้จริง" },
+  { icon: "wrench", title: "Build", desc: "ออกแบบ module และ automation ให้เข้ากับทีม" },
+  { icon: "rocket", title: "Run", desc: "deploy ใช้งานจริง พร้อมดูแล subscription ต่อเนื่อง" },
+];
+---
+
+<Layout>
+  <main class="min-h-screen bg-white">
+    <SiteHeader />
+
+    {/* hero (dark) */}
+    <section class="relative overflow-hidden bg-primary-dark text-white">
+      <div class="bg-grid-dark mask-fade-b absolute inset-0 opacity-70" aria-hidden></div>
+      <div
+        class="relative mx-auto grid max-w-7xl items-center gap-12 px-5 py-16 sm:px-6 md:grid-cols-[0.95fr_1.05fr] md:py-24 lg:px-8"
+      >
+        <div>
+          <span class="mb-5 inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-accent/15">
+            <BrandIcon product="suite" class="h-7 w-7" />
+          </span>
+          <Lockup tone="light">PERPOS | SUITE</Lockup>
+          <h1
+            class="mt-5 max-w-2xl text-balance text-4xl font-semibold leading-[1.12] tracking-tight sm:text-5xl lg:text-6xl"
+          >
+            AI ERP สำหรับองค์กรที่ต้องการระบบตาม workflow จริง
+          </h1>
+          <p class="mt-6 max-w-xl text-lg leading-8 text-white/65">
+            เริ่มจาก module พื้นฐานอย่างบัญชีและ HR แล้วต่อยอดด้วย tailor-made ERP
+            ที่ออกแบบให้เข้ากับกระบวนการของแต่ละองค์กร
+          </p>
+          <div class="mt-8 flex justify-center sm:justify-start">
+            <SuiteDemoButton client:visible />
+          </div>
+          <p class="mt-5 text-center text-sm text-white/55 sm:text-left">
+            นัดเดโมฟรี · ทีมช่วยออกแบบ workflow ให้องค์กรคุณ
+          </p>
+        </div>
+        <SuiteVisual client:visible />
+      </div>
+    </section>
+
+    {/* modules */}
+    <section class="section-padding">
+      <div class="container-custom">
+        <SectionHeading
+          eyebrow="Production-ready where it matters"
+          tone="accent"
+          title="Tailor-made ERP ใช้งานจริงแล้วในหลายองค์กร"
+          description="Suite ไม่ได้เป็นแค่ catalog module แต่เป็นระบบที่ปรับตามหน้าที่งาน approval, document, operation และรายงานขององค์กรนั้น ๆ"
+        />
+        <div class="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {
+            modules.map((m) => (
+              <div
+                class={cn(
+                  "group flex flex-col rounded-2xl border p-6 shadow-card transition hover:-translate-y-1 hover:shadow-card-hover",
+                  m.featured
+                    ? "border-accent/30 bg-primary text-white"
+                    : "border-border bg-white hover:border-accent/40",
+                )}
+              >
+                <span
+                  class={cn(
+                    "flex h-11 w-11 items-center justify-center rounded-xl transition",
+                    m.featured
+                      ? "bg-white/12 text-white"
+                      : "bg-accent/12 text-accent-dark group-hover:bg-accent/20",
+                  )}
+                >
+                  <Icon name={m.icon} class="h-5 w-5" strokeWidth={1.9} />
+                </span>
+                <h3 class={cn("mt-5 text-xl font-semibold", m.featured ? "text-white" : "text-foreground")}>
+                  {m.title}
+                </h3>
+                <p
+                  class={cn(
+                    "mt-3 flex-1 text-sm leading-7",
+                    m.featured ? "text-white/65" : "text-foreground-secondary",
+                  )}
+                >
+                  {m.body}
+                </p>
+                <div class="mt-5 flex flex-wrap gap-2">
+                  {m.chips.map((chip) => (
+                    <span
+                      class={cn(
+                        "rounded-full px-3 py-1 text-xs font-semibold",
+                        m.featured
+                          ? "bg-white/12 text-white ring-1 ring-inset ring-white/15"
+                          : "bg-accent/10 text-accent-dark ring-1 ring-inset ring-accent/25",
+                      )}
+                    >
+                      {chip}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ))
+          }
+        </div>
+      </div>
+    </section>
+
+    {/* ai automation */}
+    <section class="border-y border-border bg-background-secondary py-20 md:py-24">
+      <div class="container-custom">
+        <SectionHeading
+          eyebrow="AI + Workflow"
+          tone="accent"
+          title="AI ใน Suite ไม่ใช่แค่ chatbot แต่ช่วยทำงานในระบบ"
+          description="อ่านเอกสาร สรุปข้อมูล ตรวจงาน และเชื่อมขั้นตอนระหว่างทีม ให้งานซ้ำ ๆ เดินเองได้"
+        />
+        <div class="mt-10 grid gap-3 md:grid-cols-3">
+          {
+            automations.map((a) => (
+              <div class="group flex min-h-[88px] items-center gap-3.5 rounded-2xl border border-border bg-white p-4 shadow-card transition hover:border-accent/40 hover:shadow-card-hover sm:p-5">
+                <span class="bg-accent/12 flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-accent-dark transition group-hover:bg-accent/20">
+                  <Icon name={a.icon} class="h-5 w-5" strokeWidth={1.9} />
+                </span>
+                <div class="min-w-0">
+                  <h3 class="font-semibold text-foreground">{a.title}</h3>
+                  <p class="mt-1 line-clamp-2 text-sm leading-6 text-foreground-secondary">{a.body}</p>
+                </div>
+              </div>
+            ))
+          }
+        </div>
+      </div>
+    </section>
+
+    {/* implementation path */}
+    <section class="section-padding">
+      <div class="container-custom">
+        <SectionHeading
+          eyebrow="Implementation"
+          tone="accent"
+          title="เริ่มต้นเป็นขั้น ไม่ต้องรื้อทั้งระบบ"
+        />
+        <div class="relative mt-12 grid gap-10 md:grid-cols-3">
+          <div
+            class="pointer-events-none absolute left-[16.66%] right-[16.66%] top-7 hidden h-[2px] overflow-visible bg-accent/25 md:block"
+          >
+            <span
+              class="timeline-run absolute top-1/2 h-[3px] w-16 -translate-x-1/2 -translate-y-1/2 rounded-full bg-gradient-to-r from-transparent via-accent to-transparent"
+            ></span>
+          </div>
+          {
+            path.map((p, i) => (
+              <div class="relative flex flex-col items-center text-center">
+                <span class="relative z-10 flex h-14 w-14 items-center justify-center rounded-2xl border border-accent/30 text-accent-dark">
+                  <span class="absolute inset-0 rounded-2xl bg-white" aria-hidden />
+                  <span class="bg-accent/12 absolute inset-0 rounded-2xl" aria-hidden />
+                  <Icon name={p.icon} class="relative h-6 w-6" strokeWidth={1.9} />
+                  <span class="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-accent text-[11px] font-bold tabular-nums text-white shadow-sm">
+                    {i + 1}
+                  </span>
+                </span>
+                <h3 class="mt-5 text-xl font-semibold text-foreground">{p.title}</h3>
+                <p class="mt-2 max-w-xs text-sm leading-7 text-foreground-secondary">{p.desc}</p>
+              </div>
+            ))
+          }
+        </div>
+      </div>
+    </section>
+
+    {/* final cta */}
+    <section class="relative overflow-hidden bg-primary-dark py-20 text-center text-white md:py-24">
+      <div class="bg-grid-dark mask-fade-b absolute inset-0 opacity-50" aria-hidden></div>
+      <div
+        class="pointer-events-none absolute left-1/2 top-0 h-72 w-72 -translate-x-1/2 rounded-full bg-accent/20 blur-[120px]"
+        aria-hidden
+      >
+      </div>
+      <div class="container-custom relative">
+        <h2 class="mx-auto max-w-2xl text-balance text-3xl font-semibold tracking-tight sm:text-4xl">
+          อยากให้ ERP เข้ากับ workflow จริงขององค์กรคุณไหม?
+        </h2>
+        <p class="mx-auto mt-4 max-w-md text-base leading-7 text-white/60">
+          นัดเดโมฟรี ทีมงานจะช่วยออกแบบ workflow ให้เข้ากับองค์กรคุณ
+        </p>
+        <div class="mt-8 flex justify-center">
+          <SuiteDemoButton client:visible />
+        </div>
+      </div>
+    </section>
+
+    <SiteFooter />
+  </main>
+</Layout>

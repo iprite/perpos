@@ -1,0 +1,52 @@
+---
+import { cn } from "@/lib/utils";
+
+/** Section heading block — eyebrow + title (+ optional description). */
+interface Props {
+  eyebrow?: string;
+  title: string;
+  description?: string;
+  align?: "left" | "center";
+  dark?: boolean;
+  tone?: "mint" | "accent";
+  class?: string;
+}
+
+const {
+  eyebrow,
+  title,
+  description,
+  align = "left",
+  dark = false,
+  tone = "mint",
+  class: className,
+} = Astro.props;
+
+const eyebrowColor =
+  tone === "accent"
+    ? dark
+      ? "text-accent"
+      : "text-accent-dark"
+    : dark
+      ? "text-secondary"
+      : "text-secondary-dark";
+---
+
+<div class={cn(align === "center" ? "mx-auto max-w-2xl text-center" : "max-w-2xl", className)}>
+  {eyebrow && <p class={cn("text-sm font-semibold", eyebrowColor)}>{eyebrow}</p>}
+  <h2
+    class={cn(
+      "mt-3 text-balance text-3xl font-semibold tracking-tight sm:text-4xl",
+      dark ? "text-white" : "text-foreground",
+    )}
+  >
+    {title}
+  </h2>
+  {
+    description && (
+      <p class={cn("mt-4 text-base leading-7", dark ? "text-white/65" : "text-foreground-secondary")}>
+        {description}
+      </p>
+    )
+  }
+</div>
