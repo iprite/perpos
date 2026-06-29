@@ -15,7 +15,7 @@
     "@fontsource-variable/noto-sans-thai": "^5.2.8",
     "astro": "^7.0.3",
     "clsx": "^2.1.1",
-    "lucide-react": "^0.469.0",
+    "lucide-react": "^0.577.0",
     "react": "19.2.7",
     "react-dom": "19.2.7",
     "tailwind-merge": "^3.6.0"
@@ -26,10 +26,10 @@
     "@astrojs/react": "^4.4.0",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
-    "autoprefixer": "^10.5.0",
-    "postcss": "^8.5.15",
-    "tailwindcss": "^3.4.17",
-    "typescript": "5.8.2",
+    "autoprefixer": "^10.5.2",
+    "postcss": "^8.5.16",
+    "tailwindcss": "^3.4.19",
+    "typescript": "5.9.3",
     "wrangler": "^4.105.0"
   }
 }
