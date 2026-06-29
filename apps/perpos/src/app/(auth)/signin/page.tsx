@@ -37,7 +37,7 @@ function sanitizeReturnTo(raw: string | null) {
   return v;
 }
 
-// เนื้อหา Flow & Suite — ดึงมาจากหน้า landing (apps/landing) ให้ตรงกัน
+// เนื้อหา Flow & Suite — ดึงมาจากหน้า landing (apps/landing-astro) ให้ตรงกัน
 const PRODUCTS = [
   {
     product: "flow" as const,
