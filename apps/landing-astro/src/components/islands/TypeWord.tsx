@@ -59,7 +59,7 @@ export function TypeWord({
       <span aria-hidden className="absolute inset-0">
         {text.slice(0, n)}
         {typing && (
-          <span className="ml-[2px] inline-block h-[0.9em] w-[3px] translate-y-[1px] animate-pulse rounded-full bg-current align-middle" />
+          <span className="ml-[2px] inline-block h-[0.9em] w-[3px] translate-y-px animate-pulse rounded-full bg-current align-middle" />
         )}
       </span>
     </span>

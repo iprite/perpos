@@ -2,6 +2,7 @@
 import { defineConfig } from "astro/config";
 import cloudflare from "@astrojs/cloudflare";
 import react from "@astrojs/react";
+import tailwindcss from "@tailwindcss/vite";
 
 const site = process.env.PUBLIC_SITE_URL || "https://www.perpos.ai";
 
@@ -18,5 +19,8 @@ export default defineConfig({
   // a Cloudflare KV "SESSION" binding (no namespace id → breaks first deploy).
   session: {
     driver: { entrypoint: "unstorage/drivers/memory" },
+  },
+  vite: {
+    plugins: [tailwindcss()],
   },
 });

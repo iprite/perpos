@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { legal, type Lang } from "@/lib/legal";
 
 const BTN_PRIMARY =
-  "group/btn inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl px-5 py-2.5 text-sm font-medium bg-primary text-white shadow-sm shadow-primary/25 transition-all duration-200 hover:bg-primary-dark hover:shadow-lg hover:shadow-primary/30 active:scale-[0.98]";
+  "group/btn inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl px-5 py-2.5 text-sm font-medium bg-primary text-white shadow-xs shadow-primary/25 transition-all duration-200 hover:bg-primary-dark hover:shadow-lg hover:shadow-primary/30 active:scale-[0.98]";
 
 /** Legal page body (privacy/terms) — picks language from localStorage / system,
  *  mirroring the old client LanguageProvider (default Thai, no toggle in the UI). */
@@ -47,21 +47,21 @@ export function LegalArticle({ doc }: { doc: "privacy" | "terms" }) {
 
   return (
     <article className="mx-auto max-w-3xl px-5 py-16 sm:px-6 md:py-20 lg:px-8">
-      <h1 className="text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
+      <h1 className="text-foreground text-3xl font-semibold tracking-tight sm:text-4xl">
         {t.title}
       </h1>
-      <p className="mt-3 text-sm text-foreground-muted">{t.lastUpdated}</p>
+      <p className="text-foreground-muted mt-3 text-sm">{t.lastUpdated}</p>
 
       <div className="mt-10 space-y-8">
         {bodySections.map(([titleKey, descKey]) => (
           <section key={titleKey}>
-            <h2 className="text-lg font-semibold text-foreground">{t[titleKey]}</h2>
-            <p className="mt-2 leading-7 text-foreground-secondary">{t[descKey]}</p>
+            <h2 className="text-foreground text-lg font-semibold">{t[titleKey]}</h2>
+            <p className="text-foreground-secondary mt-2 leading-7">{t[descKey]}</p>
           </section>
         ))}
         <section>
-          <h2 className="text-lg font-semibold text-foreground">{t[contactTitleKey]}</h2>
-          <p className="mt-2 leading-7 text-foreground-secondary">
+          <h2 className="text-foreground text-lg font-semibold">{t[contactTitleKey]}</h2>
+          <p className="text-foreground-secondary mt-2 leading-7">
             {t[contactDescKey]}{" "}
             <a href="mailto:contact@perpos.ai" className="text-primary underline">
               contact@perpos.ai

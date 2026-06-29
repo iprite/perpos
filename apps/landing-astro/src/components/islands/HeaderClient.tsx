@@ -12,10 +12,10 @@ const NAV = [
 ];
 
 const BTN_BASE =
-  "group/btn inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl font-medium transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2";
+  "group/btn inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl font-medium transition-all duration-200 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2";
 const BTN_SM = "px-4 py-2 text-sm";
 const BTN_PRIMARY =
-  "bg-primary text-white shadow-sm shadow-primary/25 hover:bg-primary-dark hover:shadow-lg hover:shadow-primary/30 active:scale-[0.98]";
+  "bg-primary text-white shadow-xs shadow-primary/25 hover:bg-primary-dark hover:shadow-lg hover:shadow-primary/30 active:scale-[0.98]";
 const BTN_SECONDARY =
   "border border-border bg-white text-foreground shadow-soft hover:border-primary/40 hover:bg-primary-50/60 active:scale-[0.98]";
 
@@ -69,7 +69,7 @@ function MobileNav({ pathname }: { pathname: string }) {
     <nav className="pointer-events-none fixed inset-x-0 bottom-0 z-50 flex h-24 items-center justify-center px-4 md:hidden">
       <div
         className={cn(
-          "pointer-events-auto flex items-center gap-1 rounded-full border border-white/50 bg-white/55 shadow-elevated backdrop-blur-xl backdrop-saturate-150 transition-all duration-300 ease-out",
+          "shadow-elevated pointer-events-auto flex items-center gap-1 rounded-full border border-white/50 bg-white/55 backdrop-blur-xl backdrop-saturate-150 transition-all duration-300 ease-out",
           collapsed ? "p-0.5" : "p-1.5",
         )}
       >
@@ -88,7 +88,7 @@ function MobileNav({ pathname }: { pathname: string }) {
                 collapsed ? "h-9" : "h-11",
                 showLabel ? "px-4" : "px-2.5",
                 active
-                  ? "bg-primary text-white shadow-sm"
+                  ? "bg-primary text-white shadow-xs"
                   : "text-foreground-secondary hover:text-foreground",
               )}
             >
@@ -105,7 +105,7 @@ function MobileNav({ pathname }: { pathname: string }) {
               )}
               <span
                 className={cn(
-                  "font-neo-tech translate-y-[1.5px] overflow-hidden whitespace-nowrap text-[13px] leading-none tracking-[0.06em] transition-all duration-300 ease-out",
+                  "font-neo-tech translate-y-[1.5px] overflow-hidden text-[13px] leading-none tracking-[0.06em] whitespace-nowrap transition-all duration-300 ease-out",
                   showLabel ? "ms-1.5 max-w-[90px] opacity-100" : "ms-0 max-w-0 opacity-0",
                 )}
               >
@@ -123,7 +123,7 @@ function MobileNav({ pathname }: { pathname: string }) {
 export function HeaderClient({ pathname }: { pathname: string }) {
   const cta = contextualCta(pathname);
   const [demoOpen, setDemoOpen] = useState(false);
-  // The header has `backdrop-blur` → it is a containing block for fixed/`position`
+  // The header has `backdrop-blur-sm` → it is a containing block for fixed/`position`
   // descendants. Portal the full-screen overlays to <body> so they anchor to the
   // viewport (mobile nav at the bottom, dialog centered) instead of the header.
   const [mounted, setMounted] = useState(false);
@@ -159,7 +159,7 @@ export function HeaderClient({ pathname }: { pathname: string }) {
             type="button"
             onClick={() => setDemoOpen(true)}
             aria-label={cta.label}
-            className="inline-flex h-9 w-9 items-center justify-center text-primary transition hover:text-foreground-secondary sm:hidden"
+            className="text-primary hover:text-foreground-secondary inline-flex h-9 w-9 items-center justify-center transition sm:hidden"
           >
             <UserRound className="h-[20px] w-[20px]" strokeWidth={1.8} />
           </button>
@@ -167,7 +167,7 @@ export function HeaderClient({ pathname }: { pathname: string }) {
           <a
             href={cta?.href ?? APP_URL}
             aria-label={cta?.label ?? "เข้าสู่ระบบ"}
-            className="inline-flex h-9 w-9 items-center justify-center text-primary transition hover:text-foreground-secondary sm:hidden"
+            className="text-primary hover:text-foreground-secondary inline-flex h-9 w-9 items-center justify-center transition sm:hidden"
           >
             <UserRound className="h-[20px] w-[20px]" strokeWidth={1.8} />
           </a>

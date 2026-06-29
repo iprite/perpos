@@ -59,45 +59,45 @@ export function SuiteDemoDialog({
 
   return (
     <div
-      className="fixed inset-0 z-[60] flex items-center justify-center p-4"
+      className="fixed inset-0 z-60 flex items-center justify-center p-4"
       role="dialog"
       aria-modal="true"
     >
-      <div className="absolute inset-0 bg-ink/60 backdrop-blur-sm" onClick={close} aria-hidden />
-      <div className="relative w-full max-w-md rounded-2xl border border-border bg-white p-6 text-left text-foreground shadow-elevated sm:p-7">
+      <div className="bg-ink/60 absolute inset-0 backdrop-blur-xs" onClick={close} aria-hidden />
+      <div className="border-border text-foreground shadow-elevated relative w-full max-w-md rounded-2xl border bg-white p-6 text-left sm:p-7">
         <button
           type="button"
           onClick={close}
           aria-label="ปิด"
-          className="absolute right-4 top-4 text-foreground-muted transition hover:text-foreground"
+          className="text-foreground-muted hover:text-foreground absolute top-4 right-4 transition"
         >
           <X className="h-5 w-5" />
         </button>
 
         {sent ? (
           <div className="py-3 text-center">
-            <div className="bg-accent/12 mx-auto flex h-12 w-12 items-center justify-center rounded-full text-accent-dark">
+            <div className="bg-accent/12 text-accent-dark mx-auto flex h-12 w-12 items-center justify-center rounded-full">
               <Check className="h-6 w-6" strokeWidth={2.4} />
             </div>
             <h3 className="mt-4 text-xl font-semibold">ส่งข้อมูลแล้ว</h3>
-            <p className="mt-2 text-sm leading-7 text-foreground-secondary">
+            <p className="text-foreground-secondary mt-2 text-sm leading-7">
               ทีมงาน PERPOS จะติดต่อกลับโดยเร็ว ขอบคุณครับ
             </p>
             <button
               type="button"
               onClick={close}
-              className="mt-6 w-full rounded-xl bg-primary px-5 py-3 text-sm font-semibold text-white transition hover:bg-primary-dark active:scale-[0.98]"
+              className="bg-primary hover:bg-primary-dark mt-6 w-full rounded-xl px-5 py-3 text-sm font-semibold text-white transition active:scale-[0.98]"
             >
               ปิด
             </button>
           </div>
         ) : (
           <form onSubmit={submit}>
-            <p className="font-neo-tech text-xs uppercase tracking-[0.18em] text-accent-dark">
+            <p className="font-neo-tech text-accent-dark text-xs tracking-[0.18em] uppercase">
               PERPOS | SUITE
             </p>
             <h3 className="mt-2 text-xl font-semibold tracking-tight">ขอเดโม Suite</h3>
-            <p className="mt-1.5 text-sm leading-7 text-foreground-secondary">
+            <p className="text-foreground-secondary mt-1.5 text-sm leading-7">
               กรอกชื่อและเบอร์โทร ทีมงานจะติดต่อกลับเพื่อนัดเดโม
             </p>
 
@@ -112,7 +112,7 @@ export function SuiteDemoDialog({
                   onChange={(e) => setName(e.target.value)}
                   required
                   placeholder="ชื่อ-นามสกุล"
-                  className="mt-1.5 w-full rounded-xl border border-border bg-background-secondary px-3.5 py-2.5 text-sm outline-none transition focus:border-accent focus:bg-white"
+                  className="border-border bg-background-secondary focus:border-accent mt-1.5 w-full rounded-xl border px-3.5 py-2.5 text-sm outline-hidden transition focus:bg-white"
                 />
               </div>
               <div>
@@ -127,7 +127,7 @@ export function SuiteDemoDialog({
                   type="tel"
                   inputMode="tel"
                   placeholder="08x-xxx-xxxx"
-                  className="mt-1.5 w-full rounded-xl border border-border bg-background-secondary px-3.5 py-2.5 text-sm outline-none transition focus:border-accent focus:bg-white"
+                  className="border-border bg-background-secondary focus:border-accent mt-1.5 w-full rounded-xl border px-3.5 py-2.5 text-sm outline-hidden transition focus:bg-white"
                 />
               </div>
             </div>
@@ -149,12 +149,12 @@ export function SuiteDemoDialog({
             <button
               type="submit"
               disabled={submitting}
-              className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-accent px-5 py-3 text-sm font-semibold text-white transition hover:bg-accent-dark active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
+              className="bg-accent hover:bg-accent-dark mt-6 inline-flex w-full items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold text-white transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
             >
               {submitting ? "กำลังส่ง…" : "ส่งข้อมูลให้ติดต่อกลับ"}
               {!submitting && <ArrowRight className="h-4 w-4" />}
             </button>
-            <p className="mt-3 text-center text-xs text-foreground-muted">
+            <p className="text-foreground-muted mt-3 text-center text-xs">
               ข้อมูลจะถูกส่งให้ทีมงาน PERPOS เพื่อติดต่อกลับ
             </p>
           </form>
@@ -187,9 +187,9 @@ export function SuiteDemoButton({
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className="group/cta inline-flex items-center justify-center gap-2.5 rounded-2xl bg-white px-7 py-4 text-base font-semibold text-primary shadow-lg shadow-black/25 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl active:translate-y-0 active:scale-[0.98]"
+          className="group/cta text-primary inline-flex items-center justify-center gap-2.5 rounded-2xl bg-white px-7 py-4 text-base font-semibold shadow-lg shadow-black/25 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl active:translate-y-0 active:scale-[0.98]"
         >
-          <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-accent text-white shadow-sm">
+          <span className="bg-accent flex h-6 w-6 items-center justify-center rounded-lg text-white shadow-xs">
             <CalendarCheck className="h-4 w-4" strokeWidth={2.2} />
           </span>
           {label}
