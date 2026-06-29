@@ -93,6 +93,39 @@ async function run(req: NextRequest) {
   }
 
   try {
+    // ── Tier gating: ลด Active CPU — งานกู้คืน/เตือน (time-sensitive) รัน "ทุกรอบ" ·
+    //    cleanup/sweep ที่ไม่เร่งด่วน gate ให้รันห่างขึ้น (t5/t15/t60) เก็บ last-run ใน
+    //    scheduler_tier_runs → robust กับทุก cron cadence (1/2/5 นาที), self-correcting,
+    //    idempotent (ถ้า run crash ก่อน mark → tier ยัง due รอบหน้า รันซ้ำได้ปลอดภัย)
+    const T5 = 5 * 60 * 1000,
+      T15 = 15 * 60 * 1000,
+      T60 = 60 * 60 * 1000;
+    const nowMs = now.getTime();
+    const { data: tierRows } = await admin.from("scheduler_tier_runs").select("tier, last_run_at");
+    const lastRun = new Map(
+      ((tierRows ?? []) as { tier: string; last_run_at: string }[]).map((r) => [
+        r.tier,
+        new Date(r.last_run_at).getTime(),
+      ]),
+    );
+    const run5 = nowMs - (lastRun.get("t5") ?? 0) >= T5; // calendar sync, auto top-up
+    const run15 = nowMs - (lastRun.get("t15") ?? 0) >= T15; // PDPA/privacy cleanups, purge media
+    const run60 = nowMs - (lastRun.get("t60") ?? 0) >= T60; // webhook/file_links cleanup, token expiry
+    const markTiers = async () => {
+      const fired: { tier: string; last_run_at: string }[] = [];
+      if (run5) fired.push({ tier: "t5", last_run_at: now.toISOString() });
+      if (run15) fired.push({ tier: "t15", last_run_at: now.toISOString() });
+      if (run60) fired.push({ tier: "t60", last_run_at: now.toISOString() });
+      if (fired.length)
+        await admin
+          .from("scheduler_tier_runs")
+          .upsert(fired, { onConflict: "tier" })
+          .then(
+            () => undefined,
+            () => undefined,
+          );
+    };
+
     // 4. Stuck STT jobs — งานถอดเสียงค้าง 'processing' (worker สะดุด/ตาย) → mark failed +
     //    แจ้ง LINE user (ไม่งั้นเงียบหายไม่รู้ว่าพัง). threshold แบบ adaptive + เพดาน 60 นาที
     //    (= Cloud Run timeout — เกินนี้ instance ตายแน่ ไม่ต้องรอ):
@@ -305,38 +338,40 @@ async function run(req: NextRequest) {
 
       // PDPA — ลบไฟล์ผลลัพธ์ใน assistant_pdf เมื่อ job เก่ากว่า 48 ชม. (signed URL หมดอายุแล้ว)
       //   ledger pdf_usage_transactions เก็บสถิติ/บิลแทน → set pdf_meta=null = idempotent
-      const pdfCleanupBefore = new Date(now.getTime() - 48 * 60 * 60 * 1000).toISOString();
-      const { data: oldPdf } = await admin
-        .from("assistant_jobs")
-        .select("id, pdf_meta")
-        .eq("kind", "pdf_compress")
-        .lt("created_at", pdfCleanupBefore)
-        .not("pdf_meta", "is", null)
-        .limit(200);
-      if (oldPdf && oldPdf.length) {
-        const paths: string[] = [];
-        for (const j of oldPdf as Record<string, unknown>[]) {
-          const m = j.pdf_meta as { output_path?: string; orig_path?: string } | null;
-          if (m?.output_path) paths.push(m.output_path);
-          if (m?.orig_path) paths.push(m.orig_path); // ต้นฉบับที่เก็บไว้สำหรับ rasterize (vector-heavy)
-        }
-        if (paths.length)
-          await admin.storage
-            .from(PDF_BUCKET)
-            .remove(paths)
-            .then(
-              () => undefined,
-              () => undefined,
-            );
-        await admin
+      if (run15) {
+        const pdfCleanupBefore = new Date(now.getTime() - 48 * 60 * 60 * 1000).toISOString();
+        const { data: oldPdf } = await admin
           .from("assistant_jobs")
-          .update({ pdf_meta: null })
-          .in(
-            "id",
-            (oldPdf as Record<string, unknown>[]).map((j) => j.id as string),
-          );
-        counts.cleaned_jobs += oldPdf.length;
-      }
+          .select("id, pdf_meta")
+          .eq("kind", "pdf_compress")
+          .lt("created_at", pdfCleanupBefore)
+          .not("pdf_meta", "is", null)
+          .limit(200);
+        if (oldPdf && oldPdf.length) {
+          const paths: string[] = [];
+          for (const j of oldPdf as Record<string, unknown>[]) {
+            const m = j.pdf_meta as { output_path?: string; orig_path?: string } | null;
+            if (m?.output_path) paths.push(m.output_path);
+            if (m?.orig_path) paths.push(m.orig_path); // ต้นฉบับที่เก็บไว้สำหรับ rasterize (vector-heavy)
+          }
+          if (paths.length)
+            await admin.storage
+              .from(PDF_BUCKET)
+              .remove(paths)
+              .then(
+                () => undefined,
+                () => undefined,
+              );
+          await admin
+            .from("assistant_jobs")
+            .update({ pdf_meta: null })
+            .in(
+              "id",
+              (oldPdf as Record<string, unknown>[]).map((j) => j.id as string),
+            );
+          counts.cleaned_jobs += oldPdf.length;
+        }
+      } // end if (run15) — PDF PDPA cleanup
     }
 
     const STT_BUCKET = "assistant_audio";
@@ -345,87 +380,91 @@ async function run(req: NextRequest) {
     //    ไฟล์เสียง = ข้อมูลส่วนบุคคลที่อ่อนไหวสุด · ใช้เสร็จตั้งแต่ตอนถอด → ไม่ต้องเก็บต่อ
     //    (PDF/transcript ยังอยู่ถึง 48 ชม. ในขั้น 6 ให้ผู้ใช้ดาวน์โหลด · การส่ง PDF/แจ้งผล
     //     ใช้ transcript_json ไม่ใช้เสียง → ลบได้ปลอดภัย) · idempotent ด้วย audio_url=null
-    const { data: doneJobs } = await admin
-      .from("assistant_jobs")
-      .select("id, audio_url")
-      .in("status", ["completed", "failed"])
-      .neq("source", "recall") // recall: เก็บเสียง 48 ชม. ให้ดาวน์โหลด → ลบในขั้น 6 (อายุ >48 ชม.) แทน
-      .not("audio_url", "is", null)
-      .limit(200);
-
-    if (doneJobs && doneJobs.length) {
-      const paths: string[] = [];
-      for (const j of doneJobs as Record<string, unknown>[]) {
-        const audioUrl = String(j.audio_url ?? "");
-        if (!audioUrl) continue;
-        const p = audioUrl.includes(`/${STT_BUCKET}/`)
-          ? audioUrl.split(`/${STT_BUCKET}/`)[1].split("?")[0]
-          : audioUrl.split("?")[0];
-        if (p) paths.push(p);
-      }
-      if (paths.length) {
-        await admin.storage
-          .from(STT_BUCKET)
-          .remove(paths)
-          .then(
-            () => undefined,
-            () => undefined,
-          );
-      }
-      await admin
+    if (run15) {
+      const { data: doneJobs } = await admin
         .from("assistant_jobs")
-        .update({ audio_url: null })
-        .in(
-          "id",
-          (doneJobs as Record<string, unknown>[]).map((j) => j.id as string),
-        );
-    }
+        .select("id, audio_url")
+        .in("status", ["completed", "failed"])
+        .neq("source", "recall") // recall: เก็บเสียง 48 ชม. ให้ดาวน์โหลด → ลบในขั้น 6 (อายุ >48 ชม.) แทน
+        .not("audio_url", "is", null)
+        .limit(200);
 
-    // 6. Privacy cleanup — ลบ PDF ผลลัพธ์ + ล้าง transcript ของงานที่เก่ากว่า 48 ชม.
-    //    (ตรงกับหมายเหตุ privacy ในการ์ด MoM: ลบใน 48 ชม. ให้ดาวน์โหลดเก็บไว้)
-    //    คง row + duration_seconds ไว้เพื่อ ledger โควต้า/สถิติไม่เพี้ยน · idempotent:
-    //    เมื่อล้างแล้ว audio_url+transcript เป็น null → ไม่ถูกเลือกซ้ำในรอบถัดไป
-    const cleanupBefore = new Date(now.getTime() - 48 * 60 * 60 * 1000).toISOString();
-    const { data: oldJobs } = await admin
-      .from("assistant_jobs")
-      .select("id, org_id, audio_url")
-      .lt("created_at", cleanupBefore)
-      .or("transcript_json.not.is.null,audio_url.not.is.null")
-      .limit(200);
-
-    if (oldJobs && oldJobs.length) {
-      const paths: string[] = [];
-      for (const j of oldJobs as Record<string, unknown>[]) {
-        const orgId = String(j.org_id ?? "");
-        const audioUrl = j.audio_url ? String(j.audio_url) : "";
-        if (audioUrl) {
+      if (doneJobs && doneJobs.length) {
+        const paths: string[] = [];
+        for (const j of doneJobs as Record<string, unknown>[]) {
+          const audioUrl = String(j.audio_url ?? "");
+          if (!audioUrl) continue;
           const p = audioUrl.includes(`/${STT_BUCKET}/`)
             ? audioUrl.split(`/${STT_BUCKET}/`)[1].split("?")[0]
             : audioUrl.split("?")[0];
           if (p) paths.push(p);
         }
-        if (orgId) paths.push(`${orgId}/mom/${String(j.id)}.pdf`); // PDF ผลลัพธ์ (อาจไม่มีถ้างาน fail)
-      }
-      if (paths.length) {
-        await admin.storage
-          .from(STT_BUCKET)
-          .remove(paths)
-          .then(
-            () => undefined,
-            () => undefined,
+        if (paths.length) {
+          await admin.storage
+            .from(STT_BUCKET)
+            .remove(paths)
+            .then(
+              () => undefined,
+              () => undefined,
+            );
+        }
+        await admin
+          .from("assistant_jobs")
+          .update({ audio_url: null })
+          .in(
+            "id",
+            (doneJobs as Record<string, unknown>[]).map((j) => j.id as string),
           );
       }
-      const ids = (oldJobs as Record<string, unknown>[]).map((j) => j.id as string);
-      await admin
+    } // end if (run15) — PDPA audio cleanup
+
+    // 6. Privacy cleanup — ลบ PDF ผลลัพธ์ + ล้าง transcript ของงานที่เก่ากว่า 48 ชม.
+    //    (ตรงกับหมายเหตุ privacy ในการ์ด MoM: ลบใน 48 ชม. ให้ดาวน์โหลดเก็บไว้)
+    //    คง row + duration_seconds ไว้เพื่อ ledger โควต้า/สถิติไม่เพี้ยน · idempotent:
+    //    เมื่อล้างแล้ว audio_url+transcript เป็น null → ไม่ถูกเลือกซ้ำในรอบถัดไป
+    if (run15) {
+      const cleanupBefore = new Date(now.getTime() - 48 * 60 * 60 * 1000).toISOString();
+      const { data: oldJobs } = await admin
         .from("assistant_jobs")
-        .update({ transcript_json: null, transcript_text: null, audio_url: null })
-        .in("id", ids);
-      counts.cleaned_jobs += ids.length;
-    }
+        .select("id, org_id, audio_url")
+        .lt("created_at", cleanupBefore)
+        .or("transcript_json.not.is.null,audio_url.not.is.null")
+        .limit(200);
+
+      if (oldJobs && oldJobs.length) {
+        const paths: string[] = [];
+        for (const j of oldJobs as Record<string, unknown>[]) {
+          const orgId = String(j.org_id ?? "");
+          const audioUrl = j.audio_url ? String(j.audio_url) : "";
+          if (audioUrl) {
+            const p = audioUrl.includes(`/${STT_BUCKET}/`)
+              ? audioUrl.split(`/${STT_BUCKET}/`)[1].split("?")[0]
+              : audioUrl.split("?")[0];
+            if (p) paths.push(p);
+          }
+          if (orgId) paths.push(`${orgId}/mom/${String(j.id)}.pdf`); // PDF ผลลัพธ์ (อาจไม่มีถ้างาน fail)
+        }
+        if (paths.length) {
+          await admin.storage
+            .from(STT_BUCKET)
+            .remove(paths)
+            .then(
+              () => undefined,
+              () => undefined,
+            );
+        }
+        const ids = (oldJobs as Record<string, unknown>[]).map((j) => j.id as string);
+        await admin
+          .from("assistant_jobs")
+          .update({ transcript_json: null, transcript_text: null, audio_url: null })
+          .in("id", ids);
+        counts.cleaned_jobs += ids.length;
+      }
+    } // end if (run15) — privacy cleanup 48h
 
     // 6b. ลบ recall job ที่ "รอยืนยัน" (awaiting_confirm) ค้างเกิน 30 นาที — ผู้ใช้ไม่กดยืนยัน
     //     ยังไม่ได้ hold โควต้า → แค่ลบเพื่อปล่อย dedup_key ให้วางลิงก์ใหม่ได้
-    {
+    if (run15) {
       const cutoff = new Date(Date.now() - 30 * 60 * 1000).toISOString();
       const { data: stale } = await admin
         .from("assistant_jobs")
@@ -654,45 +693,49 @@ async function run(req: NextRequest) {
 
     // 8. PDPA — ลบ recording media ฝั่ง Recall หลังถอดเสร็จ (เรามี copy ใน bucket 48 ชม. แล้ว)
     //    marker: recording_url ยัง not-null = ยังไม่ได้ลบฝั่ง Recall
-    const { data: purgeJobs } = await admin
-      .from("assistant_jobs")
-      .select("id, recall_bot_id")
-      .eq("source", "recall")
-      .eq("status", "completed")
-      .not("recall_bot_id", "is", null)
-      .not("recording_url", "is", null)
-      .limit(50);
-    for (const pj of (purgeJobs ?? []) as Record<string, unknown>[]) {
-      await deleteBotMedia(String(pj.recall_bot_id)).catch(() => false);
-      await admin
+    if (run15) {
+      const { data: purgeJobs } = await admin
         .from("assistant_jobs")
-        .update({ recording_url: null })
-        .eq("id", pj.id as string);
-    }
+        .select("id, recall_bot_id")
+        .eq("source", "recall")
+        .eq("status", "completed")
+        .not("recall_bot_id", "is", null)
+        .not("recording_url", "is", null)
+        .limit(50);
+      for (const pj of (purgeJobs ?? []) as Record<string, unknown>[]) {
+        await deleteBotMedia(String(pj.recall_bot_id)).catch(() => false);
+        await admin
+          .from("assistant_jobs")
+          .update({ recording_url: null })
+          .eq("id", pj.id as string);
+      }
+    } // end if (run15) — purge recall media
 
     // 9. cleanup webhook_event เก่า > 7 วัน (payload มี media URL/ผู้เข้าร่วม)
-    await admin
-      .from("webhook_event")
-      .delete()
-      .lt("created_at", new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString())
-      .then(
-        () => undefined,
-        () => undefined,
-      );
+    if (run60)
+      await admin
+        .from("webhook_event")
+        .delete()
+        .lt("created_at", new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString())
+        .then(
+          () => undefined,
+          () => undefined,
+        );
 
     // 9b. cleanup file_links เก่า > 48 ชม. (ลิงก์ดาวน์โหลดสั้น — ไฟล์ถูกลบที่ 48 ชม.แล้ว)
-    await admin
-      .from("file_links")
-      .delete()
-      .lt("created_at", new Date(now.getTime() - 48 * 60 * 60 * 1000).toISOString())
-      .then(
-        () => undefined,
-        () => undefined,
-      );
+    if (run60)
+      await admin
+        .from("file_links")
+        .delete()
+        .lt("created_at", new Date(now.getTime() - 48 * 60 * 60 * 1000).toISOString())
+        .then(
+          () => undefined,
+          () => undefined,
+        );
 
     // 10. Phase 1b — sync ปฏิทิน Google ของผู้ใช้ที่เปิด auto_remind (throttle 10 นาที/คน, batch 15)
     //     poll upcoming 36 ชม. → upsert recall_calendar_events (event ที่จะส่งบอท reminder ใน Phase 1c)
-    {
+    if (run5) {
       const throttleMs = 10 * 60 * 1000;
       // เอา 15 คนที่ค้าง sync นานสุดก่อน (null = ไม่เคย sync มาก่อน) แล้วค่อยกรอง throttle ใน JS
       // (เลี่ยง .or() กับ timestamp ที่มีจุด ms → PostgREST parse เพี้ยน · เลี่ยง embed FK ที่ไม่แน่นอน)
@@ -871,189 +914,192 @@ async function run(req: NextRequest) {
     }
 
     // ── Token expiry: เก็บกวาด lot หมดอายุ + เตือนล่วงหน้า 30/7 วัน (LINE) ──
-    try {
-      await admin.rpc("token_expire_sweep");
+    if (run60)
+      try {
+        await admin.rpc("token_expire_sweep");
 
-      const in7Iso = new Date(now.getTime() + 7 * 86400000).toISOString();
-      const in30Iso = new Date(now.getTime() + 30 * 86400000).toISOString();
-      // แบ่ง bucket ไม่ให้ทับกัน: 7วัน = (now, +7], 30วัน = (+7, +30] → lot นึงเข้า bucket เดียวต่อรอบ
-      // skipShortLived (30วัน): ข้าม lot อายุรวม ≤31วัน (เช่น trial 30วัน) — ไม่งั้นจะเตือน 30วันทันทีตอนได้ trial
-      const buckets: Array<{
-        col: "reminded_7_at" | "reminded_30_at";
-        loIso: string;
-        hiIso: string;
-        skipShortLived?: boolean;
-      }> = [
-        { col: "reminded_7_at", loIso: now.toISOString(), hiIso: in7Iso },
-        { col: "reminded_30_at", loIso: in7Iso, hiIso: in30Iso, skipShortLived: true },
-      ];
-      for (const b of buckets) {
-        const { data: lots } = await admin
-          .from("token_lots")
-          .select("id, profile_id, remaining_tokens, expires_at, granted_at")
-          .eq("status", "active")
-          .gt("remaining_tokens", 0)
-          .gt("expires_at", b.loIso)
-          .lte("expires_at", b.hiIso)
-          .is(b.col, null)
-          .limit(2000);
-        const byProfile = new Map<string, { tokens: number; earliest: string; ids: string[] }>();
-        for (const l of (lots ?? []) as Array<{
-          id: string;
-          profile_id: string;
-          remaining_tokens: number;
-          expires_at: string;
-          granted_at: string;
-        }>) {
-          if (
-            b.skipShortLived &&
-            new Date(l.expires_at).getTime() - new Date(l.granted_at).getTime() <= 31 * 86400000
-          )
-            continue;
-          const g = byProfile.get(l.profile_id) ?? { tokens: 0, earliest: l.expires_at, ids: [] };
-          g.tokens += Number(l.remaining_tokens);
-          if (l.expires_at < g.earliest) g.earliest = l.expires_at;
-          g.ids.push(l.id);
-          byProfile.set(l.profile_id, g);
-        }
-        for (const [profileId, g] of Array.from(byProfile.entries())) {
-          const { data: prof } = await admin
-            .from("profiles")
-            .select("line_user_id")
-            .eq("id", profileId)
-            .maybeSingle();
-          const lineId = (prof as { line_user_id?: string } | null)?.line_user_id;
-          if (lineId) {
-            const dateStr = new Intl.DateTimeFormat("th-TH", {
-              timeZone: "Asia/Bangkok",
-              day: "numeric",
-              month: "long",
-              year: "numeric",
-            }).format(new Date(g.earliest));
-            await pushLine(
-              accessToken,
-              lineId,
-              `⏳ เครดิต ${g.tokens.toLocaleString("th-TH")} ของคุณจะหมดอายุ ${dateStr}\nเติมเครดิตก่อนหมดอายุ เครดิตเก่าทั้งหมดจะถูกต่ออายุอีก 1 ปีให้อัตโนมัติ — พิมพ์ /web เพื่อเติมครับ`,
-            ).catch(() => undefined); // push คนนึงล้ม (เช่นบล็อก OA) ต้องไม่ทำให้คนอื่นไม่ได้เตือน
-          }
-          // mark กันเตือนซ้ำ (rollover ตอนเติมจะ reset flag ให้เอง)
-          await admin
+        const in7Iso = new Date(now.getTime() + 7 * 86400000).toISOString();
+        const in30Iso = new Date(now.getTime() + 30 * 86400000).toISOString();
+        // แบ่ง bucket ไม่ให้ทับกัน: 7วัน = (now, +7], 30วัน = (+7, +30] → lot นึงเข้า bucket เดียวต่อรอบ
+        // skipShortLived (30วัน): ข้าม lot อายุรวม ≤31วัน (เช่น trial 30วัน) — ไม่งั้นจะเตือน 30วันทันทีตอนได้ trial
+        const buckets: Array<{
+          col: "reminded_7_at" | "reminded_30_at";
+          loIso: string;
+          hiIso: string;
+          skipShortLived?: boolean;
+        }> = [
+          { col: "reminded_7_at", loIso: now.toISOString(), hiIso: in7Iso },
+          { col: "reminded_30_at", loIso: in7Iso, hiIso: in30Iso, skipShortLived: true },
+        ];
+        for (const b of buckets) {
+          const { data: lots } = await admin
             .from("token_lots")
-            .update({ [b.col]: now.toISOString() })
-            .in("id", g.ids);
+            .select("id, profile_id, remaining_tokens, expires_at, granted_at")
+            .eq("status", "active")
+            .gt("remaining_tokens", 0)
+            .gt("expires_at", b.loIso)
+            .lte("expires_at", b.hiIso)
+            .is(b.col, null)
+            .limit(2000);
+          const byProfile = new Map<string, { tokens: number; earliest: string; ids: string[] }>();
+          for (const l of (lots ?? []) as Array<{
+            id: string;
+            profile_id: string;
+            remaining_tokens: number;
+            expires_at: string;
+            granted_at: string;
+          }>) {
+            if (
+              b.skipShortLived &&
+              new Date(l.expires_at).getTime() - new Date(l.granted_at).getTime() <= 31 * 86400000
+            )
+              continue;
+            const g = byProfile.get(l.profile_id) ?? { tokens: 0, earliest: l.expires_at, ids: [] };
+            g.tokens += Number(l.remaining_tokens);
+            if (l.expires_at < g.earliest) g.earliest = l.expires_at;
+            g.ids.push(l.id);
+            byProfile.set(l.profile_id, g);
+          }
+          for (const [profileId, g] of Array.from(byProfile.entries())) {
+            const { data: prof } = await admin
+              .from("profiles")
+              .select("line_user_id")
+              .eq("id", profileId)
+              .maybeSingle();
+            const lineId = (prof as { line_user_id?: string } | null)?.line_user_id;
+            if (lineId) {
+              const dateStr = new Intl.DateTimeFormat("th-TH", {
+                timeZone: "Asia/Bangkok",
+                day: "numeric",
+                month: "long",
+                year: "numeric",
+              }).format(new Date(g.earliest));
+              await pushLine(
+                accessToken,
+                lineId,
+                `⏳ เครดิต ${g.tokens.toLocaleString("th-TH")} ของคุณจะหมดอายุ ${dateStr}\nเติมเครดิตก่อนหมดอายุ เครดิตเก่าทั้งหมดจะถูกต่ออายุอีก 1 ปีให้อัตโนมัติ — พิมพ์ /web เพื่อเติมครับ`,
+              ).catch(() => undefined); // push คนนึงล้ม (เช่นบล็อก OA) ต้องไม่ทำให้คนอื่นไม่ได้เตือน
+            }
+            // mark กันเตือนซ้ำ (rollover ตอนเติมจะ reset flag ให้เอง)
+            await admin
+              .from("token_lots")
+              .update({ [b.col]: now.toISOString() })
+              .in("id", g.ids);
+          }
         }
+      } catch {
+        /* token expiry best-effort — ไม่ทำให้ scheduler ล้ม */
       }
-    } catch {
-      /* token expiry best-effort — ไม่ทำให้ scheduler ล้ม */
-    }
 
     // ── Token auto top-up: เติมเครดิตอัตโนมัติเมื่อ balance < buffer (off-session charge) ──
-    try {
-      const STALE_LOCK_MS = 15 * 60 * 1000; // ปลดล็อก 'charging' ที่ค้างเกิน 15 นาที
-      const COOLDOWN_MS = 10 * 60 * 1000; // กันชาร์จซ้ำถี่หลังเพิ่งเติม
-      const stripe = getStripe();
-      const { data: autos } = await admin
-        .from("token_autotopup")
-        .select(
-          "profile_id, threshold_tokens, pack_code, stripe_customer_id, stripe_payment_method_id, status, charging_at, last_charged_at",
-        )
-        .eq("enabled", true)
-        .not("stripe_payment_method_id", "is", null)
-        .not("pack_code", "is", null);
-      for (const a of (autos ?? []) as Array<{
-        profile_id: string;
-        threshold_tokens: number;
-        pack_code: string;
-        stripe_customer_id: string | null;
-        stripe_payment_method_id: string;
-        status: string;
-        charging_at: string | null;
-        last_charged_at: string | null;
-      }>) {
-        if (
-          a.status === "charging" &&
-          a.charging_at &&
-          now.getTime() - new Date(a.charging_at).getTime() < STALE_LOCK_MS
-        )
-          continue;
-        if (
-          a.last_charged_at &&
-          now.getTime() - new Date(a.last_charged_at).getTime() < COOLDOWN_MS
-        )
-          continue;
-        const { data: acc } = await admin
-          .from("token_accounts")
-          .select("balance_tokens")
-          .eq("profile_id", a.profile_id)
-          .maybeSingle();
-        const balance = Number((acc as { balance_tokens?: number } | null)?.balance_tokens ?? 0);
-        if (balance >= Number(a.threshold_tokens)) continue;
-        const { data: pack } = await admin
-          .from("token_packs")
-          .select("price, currency, tokens")
-          .eq("code", a.pack_code)
-          .eq("is_active", true)
-          .maybeSingle();
-        const customerId = a.stripe_customer_id;
-        if (!pack || !customerId) continue;
-        // กัน loop: ถ้าชาร์จแล้วยอดยังไม่พ้น buffer → ข้าม (PUT กันไว้แล้ว แต่ pack อาจถูกแก้ภายหลัง)
-        if (Number((pack as { tokens: number }).tokens) <= Number(a.threshold_tokens)) continue;
-        // lock กัน scheduler รอบถัดไปยิงซ้ำระหว่าง PI ค้าง
-        await admin
+    if (run5)
+      try {
+        const STALE_LOCK_MS = 15 * 60 * 1000; // ปลดล็อก 'charging' ที่ค้างเกิน 15 นาที
+        const COOLDOWN_MS = 10 * 60 * 1000; // กันชาร์จซ้ำถี่หลังเพิ่งเติม
+        const stripe = getStripe();
+        const { data: autos } = await admin
           .from("token_autotopup")
-          .update({
-            status: "charging",
-            charging_at: now.toISOString(),
-            updated_at: now.toISOString(),
-          })
-          .eq("profile_id", a.profile_id);
-        try {
-          // off-session charge → สำเร็จ: webhook payment_intent.succeeded เติม token + reset status
-          await stripe.paymentIntents.create({
-            amount: Math.round(Number((pack as { price: number }).price) * 100),
-            currency: String((pack as { currency?: string }).currency ?? "THB").toLowerCase(),
-            customer: customerId,
-            payment_method: a.stripe_payment_method_id,
-            off_session: true,
-            confirm: true,
-            metadata: {
-              kind: "token_topup",
-              profile_id: a.profile_id,
-              pack_code: a.pack_code,
-              tokens: String(Number((pack as { tokens: number }).tokens)),
-              auto: "1",
-            },
-          });
-        } catch (chErr) {
-          // บัตรถูกปฏิเสธ (off-session) → ปิด auto ทันที + แจ้ง LINE (ตามนโยบาย: ล้มครั้งแรกปิดเลย)
+          .select(
+            "profile_id, threshold_tokens, pack_code, stripe_customer_id, stripe_payment_method_id, status, charging_at, last_charged_at",
+          )
+          .eq("enabled", true)
+          .not("stripe_payment_method_id", "is", null)
+          .not("pack_code", "is", null);
+        for (const a of (autos ?? []) as Array<{
+          profile_id: string;
+          threshold_tokens: number;
+          pack_code: string;
+          stripe_customer_id: string | null;
+          stripe_payment_method_id: string;
+          status: string;
+          charging_at: string | null;
+          last_charged_at: string | null;
+        }>) {
+          if (
+            a.status === "charging" &&
+            a.charging_at &&
+            now.getTime() - new Date(a.charging_at).getTime() < STALE_LOCK_MS
+          )
+            continue;
+          if (
+            a.last_charged_at &&
+            now.getTime() - new Date(a.last_charged_at).getTime() < COOLDOWN_MS
+          )
+            continue;
+          const { data: acc } = await admin
+            .from("token_accounts")
+            .select("balance_tokens")
+            .eq("profile_id", a.profile_id)
+            .maybeSingle();
+          const balance = Number((acc as { balance_tokens?: number } | null)?.balance_tokens ?? 0);
+          if (balance >= Number(a.threshold_tokens)) continue;
+          const { data: pack } = await admin
+            .from("token_packs")
+            .select("price, currency, tokens")
+            .eq("code", a.pack_code)
+            .eq("is_active", true)
+            .maybeSingle();
+          const customerId = a.stripe_customer_id;
+          if (!pack || !customerId) continue;
+          // กัน loop: ถ้าชาร์จแล้วยอดยังไม่พ้น buffer → ข้าม (PUT กันไว้แล้ว แต่ pack อาจถูกแก้ภายหลัง)
+          if (Number((pack as { tokens: number }).tokens) <= Number(a.threshold_tokens)) continue;
+          // lock กัน scheduler รอบถัดไปยิงซ้ำระหว่าง PI ค้าง
           await admin
             .from("token_autotopup")
             .update({
-              enabled: false,
-              status: "idle",
-              charging_at: null,
-              last_error: chErr instanceof Error ? chErr.message : "charge_failed",
+              status: "charging",
+              charging_at: now.toISOString(),
               updated_at: now.toISOString(),
             })
             .eq("profile_id", a.profile_id);
-          const { data: prof } = await admin
-            .from("profiles")
-            .select("line_user_id")
-            .eq("id", a.profile_id)
-            .maybeSingle();
-          const lineId = (prof as { line_user_id?: string } | null)?.line_user_id;
-          if (lineId)
-            await pushLine(
-              accessToken,
-              lineId,
-              "⚠️ เติมเครดิตอัตโนมัติไม่สำเร็จ (บัตรถูกปฏิเสธ) — ปิดระบบเติมอัตโนมัติแล้ว\nกรุณาอัปเดตบัตรหรือเติมเครดิตเองที่หน้าผู้ช่วย AI ครับ",
-            );
+          try {
+            // off-session charge → สำเร็จ: webhook payment_intent.succeeded เติม token + reset status
+            await stripe.paymentIntents.create({
+              amount: Math.round(Number((pack as { price: number }).price) * 100),
+              currency: String((pack as { currency?: string }).currency ?? "THB").toLowerCase(),
+              customer: customerId,
+              payment_method: a.stripe_payment_method_id,
+              off_session: true,
+              confirm: true,
+              metadata: {
+                kind: "token_topup",
+                profile_id: a.profile_id,
+                pack_code: a.pack_code,
+                tokens: String(Number((pack as { tokens: number }).tokens)),
+                auto: "1",
+              },
+            });
+          } catch (chErr) {
+            // บัตรถูกปฏิเสธ (off-session) → ปิด auto ทันที + แจ้ง LINE (ตามนโยบาย: ล้มครั้งแรกปิดเลย)
+            await admin
+              .from("token_autotopup")
+              .update({
+                enabled: false,
+                status: "idle",
+                charging_at: null,
+                last_error: chErr instanceof Error ? chErr.message : "charge_failed",
+                updated_at: now.toISOString(),
+              })
+              .eq("profile_id", a.profile_id);
+            const { data: prof } = await admin
+              .from("profiles")
+              .select("line_user_id")
+              .eq("id", a.profile_id)
+              .maybeSingle();
+            const lineId = (prof as { line_user_id?: string } | null)?.line_user_id;
+            if (lineId)
+              await pushLine(
+                accessToken,
+                lineId,
+                "⚠️ เติมเครดิตอัตโนมัติไม่สำเร็จ (บัตรถูกปฏิเสธ) — ปิดระบบเติมอัตโนมัติแล้ว\nกรุณาอัปเดตบัตรหรือเติมเครดิตเองที่หน้าผู้ช่วย AI ครับ",
+              );
+          }
         }
+      } catch {
+        /* auto top-up best-effort — ไม่ทำให้ scheduler ล้ม */
       }
-    } catch {
-      /* auto top-up best-effort — ไม่ทำให้ scheduler ล้ม */
-    }
 
+    await markTiers(); // อัปเดต last-run ของ tier ที่รันรอบนี้ (หลังงานสำเร็จ → crash ก่อนหน้านี้ = retry รอบหน้า)
     await logRun(true);
     return NextResponse.json({ ok: true, ...counts });
   } catch (e) {

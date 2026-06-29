@@ -311,6 +311,7 @@ Endpoint: `POST /api/assistant/scheduler`
   - Stuck STT jobs (`processing` ค้าง) → mark failed + refund quota + แจ้ง LINE
   - Requeue pending STT jobs (worker ไม่ว่าง/trigger พลาด) → ยิงซ้ำ, เกิน 30 นาที = ยอมแพ้
   - PDPA cleanup → ลบไฟล์เสียงดิบเมื่อ job ถึงสถานะสุดท้าย + ลบ PDF/transcript เมื่อเก่า >48 ชม.
+- **Tier gating (ลด Active CPU บน Vercel Fluid)**: งานกู้คืน/เตือนที่ time-sensitive (stuck/requeue STT+PDF, recall lifecycle, calendar reminder 5 นาที) รัน **ทุกรอบ** · งาน cleanup/sweep ที่ไม่เร่งด่วน gate ให้รันห่างขึ้นด้วยตาราง `scheduler_tier_runs` (เก็บ last-run ต่อ tier, gate ด้วย elapsed time จึง robust กับทุก cron cadence): **t5** (calendar sync, auto top-up) · **t15** (PDPA/privacy cleanups, purge recall media) · **t60** (`webhook_event`/`file_links` cleanup, token expiry sweep) · idempotent — mark tier หลังงานสำเร็จ, crash ก่อน mark = retry รอบหน้า
 
 ---
 
