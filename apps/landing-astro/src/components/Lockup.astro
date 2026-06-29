@@ -1,0 +1,23 @@
+---
+import { cn } from "@/lib/utils";
+
+/** PERPOS | FLOW style lockup using the NeoTech display font. */
+interface Props {
+  tone?: "ink" | "muted" | "mint" | "suite" | "light";
+  class?: string;
+}
+
+const { tone = "ink", class: className } = Astro.props;
+
+const tones = {
+  ink: "text-primary",
+  muted: "text-foreground-muted",
+  mint: "text-secondary-dark",
+  suite: "text-accent-dark",
+  light: "text-white/70",
+} as const;
+---
+
+<p class={cn("font-neo-tech text-xs uppercase tracking-[0.18em]", tones[tone], className)}>
+  <slot />
+</p>
