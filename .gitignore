@@ -80,6 +80,7 @@ web_legacy/
 .claude/skills/build-training-doc/
 .claude/docs-factory/
 .claude/shared/
+.claude/worktrees/
 
 # codex CLI local config
 .codex/
