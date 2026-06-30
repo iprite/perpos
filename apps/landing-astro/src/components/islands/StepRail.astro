@@ -1,0 +1,114 @@
+---
+/** Connected pipeline that auto-cycles the active step — light, no heavy cards.
+ *  Vanilla replacement for the former React island. */
+import Icon from "@/components/Icon.astro";
+
+const STEPS = [
+  { label: "โยนเข้า", icon: "upload" },
+  { label: "ยืนยัน", icon: "mouse-pointer-click" },
+  { label: "จัดการ", icon: "sparkles" },
+  { label: "ส่งไฟล์", icon: "send" },
+];
+---
+
+<div class="relative px-2 py-2" data-steprail data-count={STEPS.length}>
+  {/* connector track */}
+  <div
+    class="bg-border absolute top-7 right-[12.5%] left-[12.5%] h-[3px] -translate-y-1/2 rounded-full"
+  >
+  </div>
+  <div
+    class="bg-secondary absolute top-7 left-[12.5%] h-[3px] -translate-y-1/2 rounded-full transition-[width] duration-700 ease-out"
+    style="width:0%"
+    data-steprail-progress
+  >
+  </div>
+  <div class="relative grid grid-cols-4">
+    {
+      STEPS.map((step, i) => (
+        <div class="flex flex-col items-center gap-2">
+          <span
+            class="flex h-10 w-10 items-center justify-center rounded-full border-2 transition-all duration-300"
+            data-steprail-circle
+            data-index={i}
+          >
+            <span data-steprail-icon>
+              <Icon name={step.icon} class="h-[18px] w-[18px]" strokeWidth={1.9} />
+            </span>
+            <span class="hidden" data-steprail-check>
+              <Icon name="check" class="h-4 w-4" strokeWidth={3} />
+            </span>
+          </span>
+          <span
+            class="text-xs font-semibold transition-colors duration-300"
+            data-steprail-label
+            data-index={i}
+          >
+            {step.label}
+          </span>
+        </div>
+      ))
+    }
+  </div>
+</div>
+
+<script>
+  function initStepRail(root: HTMLElement) {
+    const count = Number(root.dataset.count ?? 4);
+    const progress = root.querySelector<HTMLElement>(
+      "[data-steprail-progress]",
+    );
+    const circles = root.querySelectorAll<HTMLElement>("[data-steprail-circle]");
+    const labels = root.querySelectorAll<HTMLElement>("[data-steprail-label]");
+
+    const CIRCLE_BASE =
+      "flex h-10 w-10 items-center justify-center rounded-full border-2 transition-all duration-300";
+    const LABEL_BASE = "text-xs font-semibold transition-colors duration-300";
+
+    function render(active: number) {
+      const idx = Math.min(active, count - 1);
+      if (progress)
+        progress.style.width = `${(idx / (count - 1)) * 75}%`;
+
+      circles.forEach((circle, i) => {
+        const reached = active >= i;
+        const current = idx === i && active < count;
+        circle.className =
+          CIRCLE_BASE +
+          (reached
+            ? " border-secondary bg-secondary text-white"
+            : " border-border bg-white text-foreground-muted") +
+          (current ? " scale-110 ring-4 ring-secondary/20" : "");
+
+        const icon = circle.querySelector<HTMLElement>("[data-steprail-icon]");
+        const check = circle.querySelector<HTMLElement>("[data-steprail-check]");
+        const done = active > i;
+        if (icon) icon.classList.toggle("hidden", done);
+        if (check) check.classList.toggle("hidden", !done);
+      });
+
+      labels.forEach((label, i) => {
+        const reached = active >= i;
+        label.className =
+          LABEL_BASE +
+          (reached ? " text-secondary-dark" : " text-foreground-muted");
+      });
+    }
+
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      render(count - 1);
+      return;
+    }
+
+    let active = 0;
+    render(active);
+    window.setInterval(() => {
+      active = (active + 1) % (count + 1);
+      render(active);
+    }, 1200);
+  }
+
+  document
+    .querySelectorAll<HTMLElement>("[data-steprail]")
+    .forEach(initStepRail);
+</script>

@@ -8,9 +8,10 @@ import Lockup from "@/components/Lockup.astro";
 import SectionHeading from "@/components/SectionHeading.astro";
 import Icon from "@/components/Icon.astro";
 import BrandIcon from "@/components/BrandIcon.astro";
-import { TypeWord } from "@/components/islands/TypeWord";
-import { FlowChat } from "@/components/islands/FlowChat";
-import { SuiteDemoButton } from "@/components/islands/SuiteDemo";
+import TypeWord from "@/components/islands/TypeWord.astro";
+import FlowChat from "@/components/islands/FlowChat.astro";
+import SuiteDemoButton from "@/components/islands/SuiteDemoButton.astro";
+import SuiteDemoDialog from "@/components/islands/SuiteDemoDialog.astro";
 
 const products = [
   {
@@ -119,10 +120,10 @@ const ctaStyles = {
                 href={LINE_URL}
                 target="_blank"
                 rel="noopener noreferrer"
-                class="group/cta inline-flex items-center justify-center gap-2.5 rounded-2xl bg-gradient-to-b from-primary to-primary-dark px-7 py-4 text-base font-semibold text-white shadow-lg shadow-primary/25 ring-1 ring-white/10 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-primary/30 active:translate-y-0 active:scale-[0.98]"
+                class="group/cta inline-flex items-center justify-center gap-2.5 rounded-2xl bg-linear-to-b from-primary to-primary-dark px-7 py-4 text-base font-semibold text-white shadow-lg shadow-primary/25 ring-1 ring-white/10 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-primary/30 active:translate-y-0 active:scale-[0.98]"
               >
                 <span
-                  class="flex h-6 w-6 items-center justify-center rounded-lg bg-[#06C755] text-white shadow-sm"
+                  class="flex h-6 w-6 items-center justify-center rounded-lg bg-[#06C755] text-white shadow-xs"
                 >
                   <Icon name="message-circle" class="h-4 w-4" strokeWidth={2.2} />
                 </span>
@@ -138,7 +139,7 @@ const ctaStyles = {
             </div>
           </div>
           <div class="mx-auto w-full max-w-md md:mx-0">
-            <FlowChat client:visible />
+            <FlowChat />
           </div>
         </div>
         <div class="mt-14 grid gap-5 md:grid-cols-2">
@@ -235,13 +236,12 @@ const ctaStyles = {
         <div class="mx-auto max-w-2xl text-center">
           <Lockup tone="light">เริ่มจากแบบที่เหมาะกับงานของคุณ</Lockup>
           <h2 class="mt-4 text-3xl font-semibold tracking-tight sm:text-4xl">
-            <TypeWord client:visible text="Flow" className="font-neo-tech tracking-[0.04em] text-secondary" />{" "}
+            <TypeWord text="Flow" class="font-neo-tech tracking-[0.04em] text-secondary" />{" "}
             ลดขั้นตอนให้เหลือแค่ยืนยัน{" "}
             <TypeWord
-              client:visible
               text="Suite"
               startDelay={650}
-              className="font-neo-tech tracking-[0.04em] text-accent"
+              class="font-neo-tech tracking-[0.04em] text-accent"
             />{" "}
             วางระบบให้ทั้งองค์กรทำงานเป็นระบบเดียวกัน
           </h2>
@@ -252,7 +252,7 @@ const ctaStyles = {
             finalCtas.map((item) => {
               const c = ctaStyles[item.tone];
               return (
-                <div class="group flex flex-col rounded-3xl border border-white/10 bg-white/[0.04] p-7 transition hover:border-white/20 sm:p-8">
+                <div class="group flex flex-col rounded-3xl border border-white/10 bg-white/4 p-7 transition hover:border-white/20 sm:p-8">
                   <div class="flex items-center gap-3">
                     <span
                       class={cn(
@@ -278,9 +278,8 @@ const ctaStyles = {
                   {
                     item.tone === "suite" ? (
                       <SuiteDemoButton
-                        client:visible
                         label={item.cta}
-                        className={cn(
+                        class={cn(
                           "mt-7 inline-flex items-center justify-center gap-2 rounded-xl px-6 py-3 text-sm font-semibold transition active:scale-[0.98]",
                           c.button,
                         )}
@@ -310,4 +309,5 @@ const ctaStyles = {
 
     <SiteFooter />
   </main>
+  <SuiteDemoDialog />
 </Layout>

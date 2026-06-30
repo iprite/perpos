@@ -2,7 +2,9 @@
 import { cn } from "@/lib/utils";
 import Icon from "@/components/Icon.astro";
 import BrandIcon from "@/components/BrandIcon.astro";
-import HeaderClient from "@/components/islands/HeaderClient.tsx";
+import MobileNav from "@/components/islands/MobileNav.astro";
+import SuiteDemoDialog from "@/components/islands/SuiteDemoDialog.astro";
+import { APP_URL, LINE_URL } from "@/lib/site";
 
 const NAV = [
   { href: "/", label: "PERPOS", icon: "home", exact: true, brand: null },
@@ -11,6 +13,21 @@ const NAV = [
 ];
 
 const pathname = Astro.url.pathname;
+
+// Contextual CTA — resolved server-side (pathname is known at render time).
+const cta = pathname.startsWith("/suite")
+  ? { href: null as string | null, label: "ขอเดโม Suite", demo: true }
+  : pathname.startsWith("/flow")
+    ? { href: LINE_URL, label: "เพิ่มเพื่อนใน LINE", demo: false }
+    : null;
+
+const BTN_BASE =
+  "group/btn inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl font-medium transition-all duration-200 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2";
+const BTN_SM = "px-4 py-2 text-sm";
+const BTN_PRIMARY =
+  "bg-primary text-white shadow-xs shadow-primary/25 hover:bg-primary-dark hover:shadow-lg hover:shadow-primary/30 active:scale-[0.98]";
+const BTN_SECONDARY =
+  "border border-border bg-white text-foreground shadow-soft hover:border-primary/40 hover:bg-primary-50/60 active:scale-[0.98]";
 ---
 
 <header class="sticky top-0 z-50 border-b border-border bg-white/85 backdrop-blur-xl">
@@ -40,7 +57,7 @@ const pathname = Astro.url.pathname;
                 class={cn(
                   "inline-flex h-9 items-center gap-1.5 rounded-full px-3.5 text-sm transition sm:px-4",
                   active
-                    ? "bg-primary text-white shadow-sm"
+                    ? "bg-primary text-white shadow-xs"
                     : "text-foreground-secondary hover:text-foreground",
                 )}
               >
@@ -58,8 +75,58 @@ const pathname = Astro.url.pathname;
         }
       </div>
     </nav>
-    <span class="md:hidden" aria-hidden></span>
+    <span class="md:hidden" aria-hidden="true"></span>
 
-    <HeaderClient client:load pathname={pathname} />
+    {/* right-side actions */}
+    <div class="flex items-center gap-2">
+      <a href={APP_URL} class={cn(BTN_BASE, BTN_SECONDARY, BTN_SM, "hidden sm:inline-flex")}>
+        <Icon name="user-round" class="h-4 w-4" strokeWidth={1.8} />
+        เข้าสู่ระบบ
+      </a>
+      {
+        cta &&
+          (cta.demo ? (
+            <button
+              type="button"
+              data-suitedemo-open
+              class={cn(BTN_BASE, BTN_PRIMARY, BTN_SM, "hidden sm:inline-flex")}
+            >
+              {cta.label}
+            </button>
+          ) : (
+            <a
+              href={cta.href ?? undefined}
+              class={cn(BTN_BASE, BTN_PRIMARY, BTN_SM, "hidden sm:inline-flex")}
+            >
+              {cta.label}
+            </a>
+          ))
+      }
+      {/* mobile: ไอคอนขวาบน — suite เปิด popup, อื่น ๆ ลิงก์ออก/เข้าสู่ระบบ */}
+      {
+        cta?.demo ? (
+          <button
+            type="button"
+            data-suitedemo-open
+            aria-label={cta.label}
+            class="text-primary hover:text-foreground-secondary inline-flex h-9 w-9 items-center justify-center transition sm:hidden"
+          >
+            <Icon name="user-round" class="h-[20px] w-[20px]" strokeWidth={1.8} />
+          </button>
+        ) : (
+          <a
+            href={cta?.href ?? APP_URL}
+            aria-label={cta?.label ?? "เข้าสู่ระบบ"}
+            class="text-primary hover:text-foreground-secondary inline-flex h-9 w-9 items-center justify-center transition sm:hidden"
+          >
+            <Icon name="user-round" class="h-[20px] w-[20px]" strokeWidth={1.8} />
+          </a>
+        )
+      }
+    </div>
   </div>
 </header>
+
+{/* fixed overlays live outside <header> (its backdrop-blur is a containing block) */}
+<MobileNav />
+{cta?.demo && <SuiteDemoDialog />}

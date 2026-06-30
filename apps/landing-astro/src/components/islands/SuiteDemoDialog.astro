@@ -1,0 +1,203 @@
+---
+/** "ขอเดโม Suite" popup — singleton modal. Triggers open it by dispatching
+ *  `window.dispatchEvent(new CustomEvent("suitedemo:open"))`.
+ *  Vanilla replacement for the former React island (kept POST → /api/public/demo-request). */
+import Icon from "@/components/Icon.astro";
+import { API_BASE } from "@/lib/site";
+---
+
+<div
+  class="fixed inset-0 z-60 hidden items-center justify-center p-4"
+  role="dialog"
+  aria-modal="true"
+  aria-label="ขอเดโม Suite"
+  data-suitedemo
+  data-api-base={API_BASE}
+>
+  <div class="bg-ink/60 absolute inset-0 backdrop-blur-xs" data-suitedemo-close aria-hidden="true">
+  </div>
+  <div
+    class="border-border text-foreground shadow-elevated relative w-full max-w-md rounded-2xl border bg-white p-6 text-left sm:p-7"
+  >
+    <button
+      type="button"
+      data-suitedemo-close
+      aria-label="ปิด"
+      class="text-foreground-muted hover:text-foreground absolute top-4 right-4 transition"
+    >
+      <Icon name="x" class="h-5 w-5" />
+    </button>
+
+    {/* success state */}
+    <div class="hidden py-3 text-center" data-suitedemo-success>
+      <div
+        class="bg-accent/12 text-accent-dark mx-auto flex h-12 w-12 items-center justify-center rounded-full"
+      >
+        <Icon name="check" class="h-6 w-6" strokeWidth={2.4} />
+      </div>
+      <h3 class="mt-4 text-xl font-semibold">ส่งข้อมูลแล้ว</h3>
+      <p class="text-foreground-secondary mt-2 text-sm leading-7">
+        ทีมงาน PERPOS จะติดต่อกลับโดยเร็ว ขอบคุณครับ
+      </p>
+      <button
+        type="button"
+        data-suitedemo-close
+        class="bg-primary hover:bg-primary-dark mt-6 w-full rounded-xl px-5 py-3 text-sm font-semibold text-white transition active:scale-[0.98]"
+      >
+        ปิด
+      </button>
+    </div>
+
+    {/* form state */}
+    <form data-suitedemo-form>
+      <p class="font-neo-tech text-accent-dark text-xs tracking-[0.18em] uppercase">
+        PERPOS | SUITE
+      </p>
+      <h3 class="mt-2 text-xl font-semibold tracking-tight">ขอเดโม Suite</h3>
+      <p class="text-foreground-secondary mt-1.5 text-sm leading-7">
+        กรอกชื่อและเบอร์โทร ทีมงานจะติดต่อกลับเพื่อนัดเดโม
+      </p>
+
+      <div class="mt-5 space-y-4">
+        <div>
+          <label for="demo-name" class="text-sm font-medium">ชื่อ</label>
+          <input
+            id="demo-name"
+            name="name"
+            required
+            placeholder="ชื่อ-นามสกุล"
+            class="border-border bg-background-secondary focus:border-accent mt-1.5 w-full rounded-xl border px-3.5 py-2.5 text-sm outline-hidden transition focus:bg-white"
+          />
+        </div>
+        <div>
+          <label for="demo-phone" class="text-sm font-medium">เบอร์โทร</label>
+          <input
+            id="demo-phone"
+            name="phone"
+            required
+            type="tel"
+            inputmode="tel"
+            placeholder="08x-xxx-xxxx"
+            class="border-border bg-background-secondary focus:border-accent mt-1.5 w-full rounded-xl border px-3.5 py-2.5 text-sm outline-hidden transition focus:bg-white"
+          />
+        </div>
+      </div>
+
+      {/* honeypot — ซ่อนจากผู้ใช้จริง, ดักบอท */}
+      <input
+        type="text"
+        name="company_website"
+        tabindex="-1"
+        autocomplete="off"
+        aria-hidden="true"
+        class="absolute left-[-9999px] h-0 w-0 opacity-0"
+      />
+
+      <p class="mt-4 hidden text-sm text-red-600" data-suitedemo-error></p>
+
+      <button
+        type="submit"
+        data-suitedemo-submit
+        class="bg-accent hover:bg-accent-dark mt-6 inline-flex w-full items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold text-white transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
+      >
+        <span data-suitedemo-submit-label>ส่งข้อมูลให้ติดต่อกลับ</span>
+        <Icon name="arrow-right" class="h-4 w-4" data-suitedemo-submit-arrow />
+      </button>
+      <p class="text-foreground-muted mt-3 text-center text-xs">
+        ข้อมูลจะถูกส่งให้ทีมงาน PERPOS เพื่อติดต่อกลับ
+      </p>
+    </form>
+  </div>
+</div>
+
+<script>
+  function initSuiteDemo(root: HTMLElement) {
+    const form = root.querySelector<HTMLFormElement>("[data-suitedemo-form]");
+    const success = root.querySelector<HTMLElement>("[data-suitedemo-success]");
+    const errorEl = root.querySelector<HTMLElement>("[data-suitedemo-error]");
+    const submitBtn = root.querySelector<HTMLButtonElement>(
+      "[data-suitedemo-submit]",
+    );
+    const submitLabel = root.querySelector<HTMLElement>(
+      "[data-suitedemo-submit-label]",
+    );
+    const submitArrow = root.querySelector<HTMLElement>(
+      "[data-suitedemo-submit-arrow]",
+    );
+    const apiBase = root.dataset.apiBase ?? "";
+    if (!form || !success || !submitBtn) return;
+    // narrowed for use inside the closures below
+    const formEl = form;
+    const successEl = success;
+    const submitBtnEl = submitBtn;
+
+    let submitting = false;
+
+    function open() {
+      root.classList.remove("hidden");
+      root.classList.add("flex");
+    }
+    function close() {
+      root.classList.add("hidden");
+      root.classList.remove("flex");
+      window.setTimeout(() => {
+        formEl.reset();
+        formEl.classList.remove("hidden");
+        successEl.classList.add("hidden");
+        errorEl?.classList.add("hidden");
+      }, 200);
+    }
+
+    window.addEventListener("suitedemo:open", open);
+    root
+      .querySelectorAll<HTMLElement>("[data-suitedemo-close]")
+      .forEach((el) => el.addEventListener("click", close));
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && !root.classList.contains("hidden")) close();
+    });
+
+    formEl.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      if (submitting) return;
+      submitting = true;
+      errorEl?.classList.add("hidden");
+      submitBtnEl.disabled = true;
+      if (submitLabel) submitLabel.textContent = "กำลังส่ง…";
+      submitArrow?.classList.add("hidden");
+
+      const data = new FormData(formEl);
+      try {
+        const res = await fetch(`${apiBase}/api/public/demo-request`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            name: data.get("name"),
+            phone: data.get("phone"),
+            product: "suite",
+            source: "landing/suite",
+            company_website: data.get("company_website"),
+          }),
+        });
+        const json = await res.json().catch(() => null);
+        if (!res.ok || !json?.ok) throw new Error(json?.error ?? "failed");
+        formEl.classList.add("hidden");
+        successEl.classList.remove("hidden");
+      } catch {
+        if (errorEl) {
+          errorEl.textContent =
+            "ส่งไม่สำเร็จ กรุณาลองใหม่อีกครั้ง หรือทักผ่าน LINE @perpos";
+          errorEl.classList.remove("hidden");
+        }
+      } finally {
+        submitting = false;
+        submitBtnEl.disabled = false;
+        if (submitLabel) submitLabel.textContent = "ส่งข้อมูลให้ติดต่อกลับ";
+        submitArrow?.classList.remove("hidden");
+      }
+    });
+  }
+
+  document
+    .querySelectorAll<HTMLElement>("[data-suitedemo]")
+    .forEach(initSuiteDemo);
+</script>

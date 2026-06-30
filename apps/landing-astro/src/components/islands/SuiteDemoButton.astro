@@ -1,0 +1,50 @@
+---
+/** "ขอเดโม Suite" trigger — opens the shared <SuiteDemoDialog/> via a global event.
+ *  Vanilla replacement for the former React island.
+ *  - default look: white pill with calendar icon.
+ *  - pass `class` for a custom trigger (label + arrow), e.g. the home final CTA. */
+import Icon from "@/components/Icon.astro";
+
+interface Props {
+  class?: string;
+  label?: string;
+}
+const { class: className, label = "ขอเดโม Suite" } = Astro.props;
+---
+
+{
+  className ? (
+    <button type="button" data-suitedemo-open class={className}>
+      {label}
+      <Icon
+        name="arrow-right"
+        class="h-4 w-4 transition group-hover:translate-x-0.5"
+      />
+    </button>
+  ) : (
+    <button
+      type="button"
+      data-suitedemo-open
+      class="group/cta text-primary inline-flex items-center justify-center gap-2.5 rounded-2xl bg-white px-7 py-4 text-base font-semibold shadow-lg shadow-black/25 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl active:translate-y-0 active:scale-[0.98]"
+    >
+      <span class="bg-accent flex h-6 w-6 items-center justify-center rounded-lg text-white shadow-xs">
+        <Icon name="calendar-check" class="h-4 w-4" strokeWidth={2.2} />
+      </span>
+      {label}
+      <Icon
+        name="arrow-right"
+        class="h-4 w-4 transition-transform group-hover/cta:translate-x-0.5"
+      />
+    </button>
+  )
+}
+
+<script>
+  document
+    .querySelectorAll<HTMLElement>("[data-suitedemo-open]")
+    .forEach((btn) =>
+      btn.addEventListener("click", () =>
+        window.dispatchEvent(new CustomEvent("suitedemo:open")),
+      ),
+    );
+</script>
