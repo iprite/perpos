@@ -8,7 +8,7 @@ import Lockup from "@/components/Lockup.astro";
 import SectionHeading from "@/components/SectionHeading.astro";
 import Icon from "@/components/Icon.astro";
 import BrandIcon from "@/components/BrandIcon.astro";
-import { TypeWord } from "@/components/islands/TypeWord";
+import TypeWord from "@/components/islands/TypeWord.astro";
 import { FlowChat } from "@/components/islands/FlowChat";
 import { SuiteDemoButton } from "@/components/islands/SuiteDemo";
 
@@ -235,13 +235,12 @@ const ctaStyles = {
         <div class="mx-auto max-w-2xl text-center">
           <Lockup tone="light">เริ่มจากแบบที่เหมาะกับงานของคุณ</Lockup>
           <h2 class="mt-4 text-3xl font-semibold tracking-tight sm:text-4xl">
-            <TypeWord client:visible text="Flow" className="font-neo-tech tracking-[0.04em] text-secondary" />{" "}
+            <TypeWord text="Flow" class="font-neo-tech tracking-[0.04em] text-secondary" />{" "}
             ลดขั้นตอนให้เหลือแค่ยืนยัน{" "}
             <TypeWord
-              client:visible
               text="Suite"
               startDelay={650}
-              className="font-neo-tech tracking-[0.04em] text-accent"
+              class="font-neo-tech tracking-[0.04em] text-accent"
             />{" "}
             วางระบบให้ทั้งองค์กรทำงานเป็นระบบเดียวกัน
           </h2>

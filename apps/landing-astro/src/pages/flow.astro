@@ -9,7 +9,7 @@ import Icon from "@/components/Icon.astro";
 import BrandIcon from "@/components/BrandIcon.astro";
 import Button from "@/components/Button.astro";
 import { FlowChat } from "@/components/islands/FlowChat";
-import { StepRail } from "@/components/islands/StepRail";
+import StepRail from "@/components/islands/StepRail.astro";
 
 const features = [
   {
@@ -115,7 +115,7 @@ const trust = [
             description="ทุกฟีเจอร์ของ Flow ทำงานบนจังหวะเดียว โยนไฟล์เข้าไป ยืนยัน รอระบบจัดการ แล้วรับผลลัพธ์กลับในแชต"
           />
           <div class="rounded-2xl border border-border bg-background-secondary px-4 py-9 sm:px-8">
-            <StepRail client:visible />
+            <StepRail />
           </div>
         </div>
 

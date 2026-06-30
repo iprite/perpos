@@ -1,0 +1,105 @@
+---
+/** Suite hero visual — highlight cycles through the workspace modules for life.
+ *  Vanilla replacement for the former React island. */
+import { Bot, LayoutDashboard, Workflow } from "@lucide/astro";
+
+const MODULES = ["บัญชี", "HR", "Approval", "Reporting"];
+---
+
+<div class="shadow-elevated rounded-2xl border border-white/10 bg-white/4 p-5" data-suitevisual>
+  <div class="grid gap-3">
+    <div class="text-primary rounded-xl bg-white p-4">
+      <div class="flex items-center justify-between">
+        <p class="text-sm font-semibold">Organization Workspace</p>
+        <LayoutDashboard class="text-accent h-5 w-5" />
+      </div>
+      <div class="mt-4 grid gap-2.5 sm:grid-cols-2">
+        {
+          MODULES.map((item, i) => (
+            <div
+              class="bg-background-secondary text-foreground flex items-center justify-between rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-300"
+              data-suitevisual-module
+              data-index={i}
+            >
+              {item}
+              <span
+                class="bg-accent h-1.5 w-1.5 rounded-full opacity-0 transition-opacity duration-300"
+                data-suitevisual-dot
+              />
+            </div>
+          ))
+        }
+      </div>
+    </div>
+    <div class="grid gap-3 sm:grid-cols-[1fr_0.8fr]">
+      <div class="border-accent/25 bg-accent/8 rounded-xl border p-4">
+        <Workflow class="text-accent h-5 w-5" />
+        <p class="mt-3 text-sm font-semibold">Tailor-made workflow</p>
+        <p class="mt-1.5 text-sm text-white/55">
+          เชื่อมเอกสาร ทีม และ approval เฉพาะองค์กร
+        </p>
+      </div>
+      <div class="rounded-xl border border-white/10 bg-white/6 p-4">
+        <div class="flex items-center justify-between">
+          <span
+            class="bg-accent/15 text-accent flex h-8 w-8 items-center justify-center rounded-lg"
+          >
+            <Bot class="h-4 w-4" strokeWidth={1.9} />
+          </span>
+          <span
+            class="text-accent inline-flex items-center gap-1 text-[10px] font-bold tracking-wide"
+          >
+            <span class="relative flex h-1.5 w-1.5">
+              <span
+                class="bg-accent absolute inline-flex h-full w-full animate-ping rounded-full opacity-75"
+              ></span>
+              <span class="bg-accent relative inline-flex h-1.5 w-1.5 rounded-full"></span>
+            </span>
+            LIVE
+          </span>
+        </div>
+        <p class="mt-3 text-sm font-semibold">AI Agent</p>
+        <p class="mt-1.5 text-sm text-white/55">ทำงานแทนคุณ ลดงานซ้ำในระบบ</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  function initSuiteVisual(root: HTMLElement) {
+    const modules = root.querySelectorAll<HTMLElement>(
+      "[data-suitevisual-module]",
+    );
+    if (!modules.length) return;
+
+    const BASE =
+      "flex items-center justify-between rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-300";
+    const ACTIVE = " bg-accent/12 text-accent-dark ring-accent/30 ring-1 ring-inset";
+    const INACTIVE = " bg-background-secondary text-foreground";
+
+    function render(active: number) {
+      modules.forEach((mod, i) => {
+        const on = i === active;
+        mod.className = BASE + (on ? ACTIVE : INACTIVE);
+        const dot = mod.querySelector<HTMLElement>("[data-suitevisual-dot]");
+        if (dot) {
+          dot.classList.toggle("opacity-100", on);
+          dot.classList.toggle("opacity-0", !on);
+        }
+      });
+    }
+
+    render(0);
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+
+    let active = 0;
+    window.setInterval(() => {
+      active = (active + 1) % modules.length;
+      render(active);
+    }, 1400);
+  }
+
+  document
+    .querySelectorAll<HTMLElement>("[data-suitevisual]")
+    .forEach(initSuiteVisual);
+</script>
