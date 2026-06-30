@@ -9,8 +9,9 @@ import SectionHeading from "@/components/SectionHeading.astro";
 import Icon from "@/components/Icon.astro";
 import BrandIcon from "@/components/BrandIcon.astro";
 import TypeWord from "@/components/islands/TypeWord.astro";
-import { FlowChat } from "@/components/islands/FlowChat";
-import { SuiteDemoButton } from "@/components/islands/SuiteDemo";
+import FlowChat from "@/components/islands/FlowChat.astro";
+import SuiteDemoButton from "@/components/islands/SuiteDemoButton.astro";
+import SuiteDemoDialog from "@/components/islands/SuiteDemoDialog.astro";
 
 const products = [
   {
@@ -138,7 +139,7 @@ const ctaStyles = {
             </div>
           </div>
           <div class="mx-auto w-full max-w-md md:mx-0">
-            <FlowChat client:visible />
+            <FlowChat />
           </div>
         </div>
         <div class="mt-14 grid gap-5 md:grid-cols-2">
@@ -277,9 +278,8 @@ const ctaStyles = {
                   {
                     item.tone === "suite" ? (
                       <SuiteDemoButton
-                        client:visible
                         label={item.cta}
-                        className={cn(
+                        class={cn(
                           "mt-7 inline-flex items-center justify-center gap-2 rounded-xl px-6 py-3 text-sm font-semibold transition active:scale-[0.98]",
                           c.button,
                         )}
@@ -309,4 +309,5 @@ const ctaStyles = {
 
     <SiteFooter />
   </main>
+  <SuiteDemoDialog />
 </Layout>

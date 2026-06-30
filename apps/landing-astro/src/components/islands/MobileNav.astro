@@ -1,0 +1,123 @@
+---
+/** Floating glassmorphism nav — mobile only, sits at the bottom of the screen.
+ *  Collapses on scroll-down, expands on scroll-up / near top.
+ *  Vanilla replacement for the former React island. */
+import Icon from "@/components/Icon.astro";
+import BrandIcon from "@/components/BrandIcon.astro";
+
+const NAV = [
+  { href: "/", label: "PERPOS", icon: "home", exact: true, brand: null },
+  { href: "/flow", label: "Flow", icon: "message-circle", exact: false, brand: "flow" as const },
+  { href: "/suite", label: "Suite", icon: "building-2", exact: false, brand: "suite" as const },
+];
+
+const pathname = Astro.url.pathname;
+---
+
+<nav
+  class="pointer-events-none fixed inset-x-0 bottom-0 z-50 flex h-24 items-center justify-center px-4 md:hidden"
+  data-mobilenav
+>
+  <div
+    class="shadow-elevated pointer-events-auto flex items-center gap-1 rounded-full border border-white/50 bg-white/55 p-1.5 backdrop-blur-xl backdrop-saturate-150 transition-all duration-300 ease-out"
+    data-mobilenav-pill
+  >
+    {
+      NAV.map((item) => {
+        const active = item.exact
+          ? pathname === item.href
+          : pathname.startsWith(item.href);
+        return (
+          <a
+            href={item.href}
+            aria-current={active ? "page" : undefined}
+            aria-label={item.label}
+            data-mobilenav-link
+            data-active={active ? "true" : "false"}
+            class:list={[
+              "inline-flex h-11 items-center rounded-full px-4 transition-all duration-300 ease-out",
+              active
+                ? "bg-primary text-white shadow-xs"
+                : "text-foreground-secondary hover:text-foreground",
+            ]}
+          >
+            {item.brand ? (
+              <BrandIcon product={item.brand} class="h-[18px] w-[18px]" />
+            ) : (
+              <Icon name={item.icon} class="h-[18px] w-[18px]" strokeWidth={1.9} />
+            )}
+            <span
+              class="font-neo-tech ms-1.5 max-w-[90px] translate-y-[1.5px] overflow-hidden text-[13px] leading-none tracking-[0.06em] whitespace-nowrap opacity-100 transition-all duration-300 ease-out"
+              data-mobilenav-label
+            >
+              {item.label}
+            </span>
+          </a>
+        );
+      })
+    }
+  </div>
+</nav>
+
+<script>
+  function initMobileNav(root: HTMLElement) {
+    const pill = root.querySelector<HTMLElement>("[data-mobilenav-pill]");
+    const links = root.querySelectorAll<HTMLElement>("[data-mobilenav-link]");
+    if (!pill) return;
+    const pillEl = pill; // narrowed for the closure below
+
+    function setCollapsed(collapsed: boolean) {
+      pillEl.classList.toggle("p-1.5", !collapsed);
+      pillEl.classList.toggle("p-0.5", collapsed);
+
+      links.forEach((link) => {
+        const active = link.dataset.active === "true";
+        const showLabel = !collapsed || active;
+        link.classList.toggle("h-11", !collapsed);
+        link.classList.toggle("h-9", collapsed);
+        link.classList.toggle("px-4", showLabel);
+        link.classList.toggle("px-2.5", !showLabel);
+
+        // first child is the icon (svg) or brand glyph (span); label span follows
+        const icon = link.firstElementChild as HTMLElement | null;
+        // icon size: 18px expanded, 20px collapsed
+        icon?.classList.toggle("h-[18px]", !collapsed);
+        icon?.classList.toggle("w-[18px]", !collapsed);
+        icon?.classList.toggle("h-5", collapsed);
+        icon?.classList.toggle("w-5", collapsed);
+
+        const label = link.querySelector<HTMLElement>("[data-mobilenav-label]");
+        if (label) {
+          label.classList.toggle("ms-1.5", showLabel);
+          label.classList.toggle("max-w-[90px]", showLabel);
+          label.classList.toggle("opacity-100", showLabel);
+          label.classList.toggle("ms-0", !showLabel);
+          label.classList.toggle("max-w-0", !showLabel);
+          label.classList.toggle("opacity-0", !showLabel);
+        }
+      });
+    }
+
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      // keep expanded, skip scroll listener
+      return;
+    }
+
+    let last = window.scrollY;
+    window.addEventListener(
+      "scroll",
+      () => {
+        const y = window.scrollY;
+        if (y < 48) setCollapsed(false);
+        else if (y > last + 6) setCollapsed(true);
+        else if (y < last - 6) setCollapsed(false);
+        last = y;
+      },
+      { passive: true },
+    );
+  }
+
+  document
+    .querySelectorAll<HTMLElement>("[data-mobilenav]")
+    .forEach(initMobileNav);
+</script>

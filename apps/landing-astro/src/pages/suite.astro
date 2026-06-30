@@ -8,7 +8,7 @@ import SectionHeading from "@/components/SectionHeading.astro";
 import Icon from "@/components/Icon.astro";
 import BrandIcon from "@/components/BrandIcon.astro";
 import SuiteVisual from "@/components/islands/SuiteVisual.astro";
-import { SuiteDemoButton } from "@/components/islands/SuiteDemo";
+import SuiteDemoButton from "@/components/islands/SuiteDemoButton.astro";
 
 const modules = [
   {
@@ -88,7 +88,7 @@ const path = [
             ที่ออกแบบให้เข้ากับกระบวนการของแต่ละองค์กร
           </p>
           <div class="mt-8 flex justify-center sm:justify-start">
-            <SuiteDemoButton client:visible />
+            <SuiteDemoButton />
           </div>
           <p class="mt-5 text-center text-sm text-white/55 sm:text-left">
             นัดเดโมฟรี · ทีมช่วยออกแบบ workflow ให้องค์กรคุณ
@@ -239,7 +239,7 @@ const path = [
           นัดเดโมฟรี ทีมงานจะช่วยออกแบบ workflow ให้เข้ากับองค์กรคุณ
         </p>
         <div class="mt-8 flex justify-center">
-          <SuiteDemoButton client:visible />
+          <SuiteDemoButton />
         </div>
       </div>
     </section>

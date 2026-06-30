@@ -1,19 +1,13 @@
 ---
 /** Connected pipeline that auto-cycles the active step — light, no heavy cards.
  *  Vanilla replacement for the former React island. */
-import {
-  Check,
-  MousePointerClick,
-  Send,
-  Sparkles,
-  Upload,
-} from "@lucide/astro";
+import Icon from "@/components/Icon.astro";
 
 const STEPS = [
-  { label: "โยนเข้า", Icon: Upload },
-  { label: "ยืนยัน", Icon: MousePointerClick },
-  { label: "จัดการ", Icon: Sparkles },
-  { label: "ส่งไฟล์", Icon: Send },
+  { label: "โยนเข้า", icon: "upload" },
+  { label: "ยืนยัน", icon: "mouse-pointer-click" },
+  { label: "จัดการ", icon: "sparkles" },
+  { label: "ส่งไฟล์", icon: "send" },
 ];
 ---
 
@@ -39,10 +33,10 @@ const STEPS = [
             data-index={i}
           >
             <span data-steprail-icon>
-              <step.Icon class="h-[18px] w-[18px]" strokeWidth={1.9} />
+              <Icon name={step.icon} class="h-[18px] w-[18px]" strokeWidth={1.9} />
             </span>
             <span class="hidden" data-steprail-check>
-              <Check class="h-4 w-4" strokeWidth={3} />
+              <Icon name="check" class="h-4 w-4" strokeWidth={3} />
             </span>
           </span>
           <span
