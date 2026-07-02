@@ -172,7 +172,12 @@ async function runJob(jobId: string, orgId: string): Promise<void> {
       ({ bytes, mimeType } = await ingestLineAudio(admin, job, orgId));
     } else {
       const storagePath = extractStoragePath(job.audio_url as string);
-      if (!storagePath.startsWith(`${orgId}/`)) {
+      // กัน cross-tenant reference: ไฟล์ต้องอยู่ใต้โฟลเดอร์ของผู้ใช้ (`${profileId}/`) หรือ
+      // ขององค์กร (`${orgId}/`)
+      //   - งานเว็บ (source='web') อัปโหลดฝั่ง client ใต้ `${profileId}/…` (per-profile convention
+      //     ตรงกับ guard ตอนสร้าง job = startsWith(`${userId}/`))
+      //   - งาน recall/line ที่ worker อัปเองใช้ `${orgId}/recall|line/…`
+      if (!storagePath.startsWith(`${profileId}/`) && !storagePath.startsWith(`${orgId}/`)) {
         throw new Error("เส้นทางไฟล์เสียงไม่ตรงกับองค์กร");
       }
       ({ bytes, mimeType } = await downloadAudio(storagePath));
