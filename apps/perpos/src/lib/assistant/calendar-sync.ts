@@ -5,12 +5,13 @@ import { extractMeetingUrl, normalizeMeetingUrl } from './recall';
 /** หน้าต่าง sync ปฏิทินล่วงหน้า (poll) */
 const SYNC_WINDOW_MS = 36 * 60 * 60 * 1000;
 
-/** ดึงลิงก์ประชุมจาก event: conferenceData(video) → hangoutLink → location/description */
+/** ดึงลิงก์ประชุมจาก event: conferenceData(video) → hangoutLink → summary/location/description */
 function eventMeetingUrl(ev: GoogleCalendarEvent): { platform: string; url: string } | null {
   const video = ev.conferenceData?.entryPoints?.find((e) => e.entryPointType === 'video' && e.uri);
   if (video?.uri) { const m = extractMeetingUrl(video.uri); if (m) return m; }
   if (ev.hangoutLink) { const m = extractMeetingUrl(ev.hangoutLink); if (m) return m; }
-  return extractMeetingUrl(`${ev.location ?? ''} ${ev.description ?? ''}`);
+  // รวม summary (ชื่อ event) ด้วย — ผู้ใช้มักวางลิงก์ในชื่อ event เอง (เช่น "meeting https://…")
+  return extractMeetingUrl(`${ev.summary ?? ''} ${ev.location ?? ''} ${ev.description ?? ''}`);
 }
 
 /** ผู้ใช้ตอบ "ไม่เข้าร่วม" → ไม่ต้องส่งบอท */
