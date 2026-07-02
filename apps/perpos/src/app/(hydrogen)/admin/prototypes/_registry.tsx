@@ -10,7 +10,7 @@
  */
 
 import type { ReactNode } from "react";
-import { HeartPulse, Hotel } from "lucide-react";
+import { HeartPulse, Hotel, Landmark } from "lucide-react";
 
 export type PrototypeEntry = {
   key: string;
@@ -35,5 +35,13 @@ export const PROTOTYPE_REGISTRY: PrototypeEntry[] = [
     description:
       "ระบบจัดการโรงแรมเล็ก (PMS) — ปฏิทินจอง เช็คอิน-เอาท์ รับชำระ แม่บ้าน รายงานรายได้ + AI/LINE",
     icon: <Hotel className="h-5 w-5" />,
+  },
+  {
+    key: "gov_procure",
+    label: "จัดซื้อครุภัณฑ์ภาครัฐ",
+    href: "/admin/prototypes/gov-procure",
+    description:
+      "บริหารงานจัดซื้อครุภัณฑ์ภาครัฐ (อปท) แบบ pipeline 6 stage — เสนอราคา→รับเช็ค เงินค้างรับ/SLA กำไร split 89/P2P + AI/LINE",
+    icon: <Landmark className="h-5 w-5" />,
   },
 ];
