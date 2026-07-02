@@ -333,6 +333,10 @@ async function runJob(jobId: string, orgId: string): Promise<void> {
       await notifyLine(job).catch((e) =>
         console.warn(`[stt-worker] LINE notify failed for ${jobId}: ${String(e)}`),
       );
+      // งานเว็บ → ให้ฝั่ง Next สร้าง PDF แล้วเซฟ MoM ลง Google Drive (ถ้าเปิด save_mom_to_drive)
+      await saveMomToDrive(jobId, orgId).catch((e) =>
+        console.warn(`[stt-worker] mom→Drive failed for ${jobId}: ${String(e)}`),
+      );
     }
 
     // 5. Best-effort เก็บไฟล์เสียงต้นฉบับลง Google Drive (opt-in save_audio_to_drive) — ไม่กระทบงาน/ส่ง MoM
@@ -376,6 +380,19 @@ async function deliverMomToLine(jobId: string, orgId: string): Promise<void> {
     signal: AbortSignal.timeout(180_000),
   });
   if (!resp.ok) throw new Error(`mom-deliver responded ${resp.status}`);
+}
+
+// งานเว็บ → ให้ฝั่ง Next สร้าง PDF แล้วเซฟ MoM ลง Google Drive (secret-gated, best-effort)
+async function saveMomToDrive(jobId: string, orgId: string): Promise<void> {
+  const baseUrl = (process.env.APP_BASE_URL ?? "https://app.perpos.ai").replace(/\/$/, "");
+  const secret = (process.env.WORKER_SECRET ?? "").trim();
+  const resp = await fetch(`${baseUrl}/api/assistant/stt/mom-save-drive`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-worker-secret": secret },
+    body: JSON.stringify({ jobId, orgId }),
+    signal: AbortSignal.timeout(180_000),
+  });
+  if (!resp.ok) throw new Error(`mom-save-drive responded ${resp.status}`);
 }
 
 // ── Audio → Google Drive (opt-in) ────────────────────────────────────────────

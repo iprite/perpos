@@ -9,9 +9,9 @@
 import { NextRequest } from "next/server";
 import { createAdminClient } from "../../../_lib/supabase";
 import { ok, Err } from "../../../_lib/response";
-import { buildMomHtml, MOM_FOOTER_TEMPLATE, type MomJson } from "@/lib/assistant/mom-html";
+import { type MomJson } from "@/lib/assistant/mom-html";
+import { renderMomPdf, saveMomToDriveIfEnabled, momDateText } from "@/lib/assistant/mom-drive";
 import { sendLineMessages } from "@/lib/line/send-messages";
-import { saveToDrive } from "@/lib/google/drive";
 import { getServiceRemaining } from "@/lib/assistant/token-balance";
 import crypto from "crypto";
 
@@ -98,9 +98,6 @@ export async function POST(req: NextRequest) {
     return ok({ delivered: isRecall ? "recall_fail_silent" : "error_notice" });
   }
 
-  const renderUrl = process.env.PDF_RENDER_URL;
-  const renderSecret = process.env.PDF_SERVICE_SECRET;
-
   // ถ้าสร้าง PDF ไม่สำเร็จด้วยเหตุใด ๆ → แจ้งผู้ใช้ทาง LINE (Flex) แล้วค่อย return error
   const failToLine = async (reason: string) => {
     await sendLineMessages({
@@ -112,37 +109,16 @@ export async function POST(req: NextRequest) {
     return Err.externalService("mom-pdf", reason);
   };
 
-  if (!renderUrl) return failToLine("ยังไม่ได้ตั้งค่า PDF_RENDER_URL");
-
   const tj = job.transcript_json as MomJson;
-  const dateText = new Intl.DateTimeFormat("th-TH", {
-    timeZone: "Asia/Bangkok",
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  }).format(new Date(job.created_at as string));
+  const dateText = momDateText(job.created_at as string);
 
   // 1. HTML → PDF
-  const resp = await fetch(`${renderUrl.replace(/\/$/, "")}/render`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...(renderSecret ? { "x-pdf-secret": renderSecret } : {}),
-    },
-    body: JSON.stringify({
-      html: buildMomHtml(tj, dateText),
-      filename: "minutes-of-meeting",
-      footerHtml: MOM_FOOTER_TEMPLATE,
-    }),
-    signal: AbortSignal.timeout(120_000),
-  }).catch((e) => {
-    throw e;
-  });
-  if (!resp.ok) {
-    const detail = await resp.text().catch(() => "");
-    return failToLine(`PDF renderer ${resp.status} ${detail}`.slice(0, 200));
+  let pdfBytes: Buffer;
+  try {
+    pdfBytes = await renderMomPdf(tj, dateText);
+  } catch (e) {
+    return failToLine(e instanceof Error ? e.message : String(e));
   }
-  const pdfBytes = Buffer.from(await resp.arrayBuffer());
 
   // 2. upload + signed URL (48 ชม. — MoM อาจมีข้อมูลละเอียดอ่อน)
   const path = `${orgId}/mom/${jobId}.pdf`;
@@ -177,34 +153,15 @@ export async function POST(req: NextRequest) {
   }
 
   // 3.6 เก็บ MoM ลง Google Drive (ถ้าเปิด save_mom_to_drive + เชื่อม) — best-effort ไม่กระทบการส่ง LINE
-  let momDriveUrl = String(job.mom_drive_url ?? ""); // เคยอัปแล้ว → ใช้ลิงก์เดิม (ปุ่มยังโชว์ตอน re-deliver)
-  const { data: gset } = await admin
-    .from("meeting_calendar_settings")
-    .select("save_mom_to_drive")
-    .eq("profile_id", job.profile_id as string)
-    .maybeSingle();
-  // idempotent: เคยอัปแล้ว (mom_drive_url มีค่า) → ไม่อัปซ้ำ (กันไฟล์ซ้ำถ้า mom-deliver ถูกเรียกซ้ำ)
-  if (!job.mom_drive_url && (gset as { save_mom_to_drive?: boolean } | null)?.save_mom_to_drive) {
-    const safeTitle = String(tj.meeting_title || "รายงานการประชุม")
-      .replace(/[\\/:*?"<>|]/g, " ")
-      .trim()
-      .slice(0, 80);
-    // timeout race — กัน Drive API ค้างทำให้ LINE delivery ค้าง (best-effort: เกิน 15 วิ → ข้าม)
-    const link = await Promise.race([
-      saveToDrive(admin, job.profile_id as string, {
-        categoryKey: "mom",
-        categoryName: "รายงานการประชุม",
-        fileName: `MoM ${safeTitle} ${dateText}.pdf`,
-        mimeType: "application/pdf",
-        bytes: pdfBytes,
-      }),
-      new Promise<null>((resolve) => setTimeout(() => resolve(null), 15_000)),
-    ]);
-    if (link) {
-      momDriveUrl = link;
-      await admin.from("assistant_jobs").update({ mom_drive_url: link }).eq("id", jobId);
-    }
-  }
+  const momDriveUrl =
+    (await saveMomToDriveIfEnabled(admin, {
+      jobId,
+      profileId: job.profile_id as string,
+      tj,
+      dateText,
+      pdfBytes,
+      existingUrl: job.mom_drive_url as string | null,
+    }).catch(() => null)) ?? "";
 
   // 4. push Flex (ปุ่มดาวน์โหลด) กลับ LINE
   const privacyAudio = isRecall
