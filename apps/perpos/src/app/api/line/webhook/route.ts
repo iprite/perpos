@@ -28,7 +28,7 @@ import {
   buildConnectCalendarFlex,
   buildCalendarSavedFlex,
 } from "@/lib/assistant/bot-flex";
-import { getCalendarAccessTokenForProfile, createCalendarEvent } from "@/lib/google/calendar";
+import { scheduleFutureMeeting } from "@/lib/assistant/schedule-meeting";
 import { provisionLineUser } from "../_provision";
 import { upsertMobileToken } from "../../tmc/mobile/_lib";
 import {
@@ -2840,18 +2840,6 @@ async function handleMeetingLink(
   return true;
 }
 
-/** ดึงชื่อ event จากข้อความผู้ใช้ (ตัด URL ออก) → fallback "ประชุม (<platform>)" */
-function deriveEventTitle(text: string, meetingUrl: string, platformLabel: string): string {
-  // ตัด url + query/slug ที่ติดกันท้าย url ด้วย (GMeet regex หยุดก่อน `?` → เหลือ ?authuser=0 ค้าง)
-  const escaped = meetingUrl.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const cleaned = text
-    .replace(new RegExp(escaped + "\\S*", "g"), "")
-    .replace(/https?:\/\/\S+/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
-  return cleaned.length > 0 ? cleaned.slice(0, 200) : `ประชุม (${platformLabel})`;
-}
-
 /** ลิงก์ประชุมมีเวลานัดอนาคต → เขียนลง Google Calendar (ถ้าเชื่อมแล้ว) + cache · บอทส่งทีหลังผ่านการเตือน 5 นาทีก่อน */
 async function handleFutureMeetingLink(
   admin: ReturnType<typeof createAdminClient>,
@@ -2862,13 +2850,6 @@ async function handleFutureMeetingLink(
   text: string,
   replyToken: string,
 ): Promise<boolean> {
-  const platformLabel = PLATFORM_LABEL[found.platform] ?? "ห้องประชุม";
-  const joinAtText = new Intl.DateTimeFormat("th-TH", {
-    timeZone: "Asia/Bangkok",
-    dateStyle: "long",
-    timeStyle: "short",
-  }).format(joinAt);
-
   // ชวนเชื่อม Google ผ่าน LINE (magic link → /line/connect-calendar) — ใช้ทั้งตอนยังไม่เชื่อม + token เพิกถอน
   const sendConnectCard = async () => {
     const token = crypto.randomBytes(24).toString("base64url");
@@ -2885,64 +2866,29 @@ async function handleFutureMeetingLink(
     ]);
   };
 
-  // ต้องเชื่อม Google ก่อน — refresh ล้ม/เพิกถอน (throw) ถือว่ายังไม่เชื่อม → ชวนเชื่อม (ไม่ปล่อย error หลุด → กัน webhook 500/retry)
-  let accessToken: string | null = null;
-  try {
-    accessToken = await getCalendarAccessTokenForProfile(admin, profileId);
-  } catch {
-    accessToken = null;
-  }
-  if (!accessToken) {
+  // logic เดียวกับเว็บ (shared lib) — throw ถูก swallow ภายใน → ไม่ปล่อย error หลุด (กัน webhook 500/retry)
+  const result = await scheduleFutureMeeting(admin, {
+    profileId,
+    orgId,
+    found,
+    joinAt,
+    text,
+    source: "line",
+  });
+  if (result.kind === "not_connected") {
     await sendConnectCard();
     return true;
   }
-
-  // dedup ห้องเดียวกัน (เทียบด้วย meeting_key ที่ normalize — Zoom/Teams ลิงก์ต่างฟอร์แมตก็จับได้)
-  // ในหน้าต่างเวลา ±30 นาที ที่ยังไม่ถูกลบ → ไม่เขียนซ้ำ
-  const meetingKey = normalizeMeetingUrl(found.url);
-  const lo = new Date(joinAt.getTime() - 30 * 60 * 1000).toISOString();
-  const hi = new Date(joinAt.getTime() + 30 * 60 * 1000).toISOString();
-  const { data: existing } = await admin
-    .from("recall_calendar_events")
-    .select("id")
-    .eq("profile_id", profileId)
-    .eq("meeting_key", meetingKey)
-    .eq("is_deleted", false)
-    .gte("starts_at", lo)
-    .lte("starts_at", hi)
-    .limit(1)
-    .maybeSingle();
-  if (existing) {
-    await replyText(replyToken, `📅 มีนัดประชุมนี้ในปฏิทินอยู่แล้ว (${joinAtText} น.) ครับ`);
+  if (result.kind === "exists") {
+    await replyText(
+      replyToken,
+      `📅 มีนัดประชุมนี้ในปฏิทินอยู่แล้ว (${result.joinAtText} น.) ครับ`,
+    );
     return true;
   }
-
-  const title = deriveEventTitle(text, found.url, platformLabel);
-  let googleEventId: string | null = null;
-  try {
-    const ev = await createCalendarEvent({ accessToken, title, startsAt: joinAt.toISOString() });
-    googleEventId = ev?.id ?? null;
-  } catch {
-    await sendConnectCard(); // token เพิกถอน/หมดสิทธิ์ → ชวนเชื่อมใหม่
-    return true;
-  }
-
-  await admin.from("recall_calendar_events").insert({
-    profile_id: profileId,
-    org_id: orgId,
-    google_event_id: googleEventId,
-    source: "line",
-    title,
-    meeting_url: found.url,
-    meeting_key: meetingKey,
-    starts_at: joinAt.toISOString(),
-    confirm_state: "pending",
-  });
-  // เชื่อม + ใช้ปฏิทินแล้ว = opt-in sync ปฏิทินอัตโนมัติ (scheduler step 1b จะกวาด event อื่นมาเตือนให้ด้วย)
-  await admin
-    .from("meeting_calendar_settings")
-    .upsert({ profile_id: profileId }, { onConflict: "profile_id", ignoreDuplicates: true });
-  await replyLine(replyToken, [buildCalendarSavedFlex(title, joinAtText, platformLabel)]);
+  await replyLine(replyToken, [
+    buildCalendarSavedFlex(result.title, result.joinAtText, result.platformLabel),
+  ]);
   return true;
 }
 
