@@ -3,7 +3,7 @@
  *
  * ใช้ร่วมกัน:
  *   - API   GET /api/assistant/stats (client poll/refresh)
- *   - Page  /assistant/usage (SSR initial)
+ *   - Page  /assistant (หน้าการใช้งาน, SSR initial)
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";

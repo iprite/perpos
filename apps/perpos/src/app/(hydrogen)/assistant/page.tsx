@@ -1,32 +1,22 @@
 /**
- * /assistant — ถอดเสียงเป็นข้อความ (MoM) — หน้าแรกผู้ช่วย AI (hybrid)
+ * /assistant — ภาพรวมการใช้งาน (การใช้งาน) — หน้าแรกผู้ช่วย AI (SSR)
  *
- * SSR: guard + ดึง jobs + quota ตอน SSR → ส่ง initial ให้ TranscribeView
- * client (อัปโหลด + poll ขณะมีงานค้าง + dialog) — ไม่มีช่วงขาวรอ fetch แรก
+ * display ล้วน → Server Component: guard + ดึง stats/quota ตอน SSR
+ * แล้วส่ง initial ให้ UsageView (client, recharts) วาดผล — ไม่มี client fetch ตอน mount
+ * (ถอดเสียงย้ายไป /assistant/stt)
  */
 
-import type { ComponentProps } from "react";
 import { requireAssistantPage } from "@/lib/assistant/page-guard";
-import { getAssistantJobs } from "@/lib/assistant/jobs";
+import { getAssistantStats } from "@/lib/assistant/stats";
 import { getTokenSummary } from "@/lib/assistant/token-balance";
-import TranscribeView from "./transcribe-view";
+import UsageView from "./usage-view";
 
-type ViewProps = ComponentProps<typeof TranscribeView>;
-
-export default async function AssistantTranscribePage() {
+export default async function AssistantUsagePage() {
   const { admin, userId } = await requireAssistantPage();
-  const [jobs, summary] = await Promise.all([
-    getAssistantJobs(admin, userId),
+  const [stats, quota] = await Promise.all([
+    getAssistantStats(admin, userId),
     getTokenSummary(admin, userId),
   ]);
 
-  return (
-    <TranscribeView
-      initialJobs={jobs as ViewProps["initialJobs"]}
-      initialQuota={{
-        stt_seconds: summary.remaining.stt_seconds,
-        bot_seconds: summary.remaining.bot_seconds,
-      }}
-    />
-  );
+  return <UsageView stats={stats} quota={quota} />;
 }

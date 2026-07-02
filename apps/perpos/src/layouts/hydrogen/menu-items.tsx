@@ -316,8 +316,14 @@ function buildSttMenuItems(_org: string, labels: Record<string, string> = {}): M
   return [
     { name: "ผู้ช่วย AI", roles: allRoles },
     {
-      name: l("transcribe", "ถอดเสียง"),
+      name: l("usage", "การใช้งาน"),
       href: `/assistant`,
+      icon: <BarChart3 className="h-5 w-5" />,
+      roles: allRoles,
+    },
+    {
+      name: l("transcribe", "ถอดเสียง"),
+      href: `/assistant/stt`,
       icon: <Mic className="h-5 w-5" />,
       roles: allRoles,
     },
@@ -331,12 +337,6 @@ function buildSttMenuItems(_org: string, labels: Record<string, string> = {}): M
       name: l("calendar", "เชื่อมต่อ Google"),
       href: `/assistant/calendar`,
       icon: <Link2 className="h-5 w-5" />,
-      roles: allRoles,
-    },
-    {
-      name: l("usage", "การใช้งาน"),
-      href: `/assistant/usage`,
-      icon: <BarChart3 className="h-5 w-5" />,
       roles: allRoles,
     },
     {

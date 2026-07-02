@@ -66,7 +66,12 @@ export default async function HydrogenLayout({ children }: { children: React.Rea
   if (isOrgRoute && segments.length >= 2) {
     const currentModule = ALL_MODULES.find((m) => m.match(pathname));
     if (currentModule && !enabledKeys.includes(currentModule.key)) {
-      const firstEnabled = ALL_MODULES.find((m) => enabledKeys.includes(m.key));
+      // fallback ไปโมดูล ERP (per-org) ตัวแรก — ตัด personal module (stt/ผู้ช่วย AI)
+      // ออก เพราะ href=/assistant เป็น top-level (prefix orgSlug แล้ว 404) ·
+      // ถ้าไม่มี ERP module เหลือ → "/" ให้ root resolve (จะพาไป /assistant สำหรับ B2C)
+      const firstEnabled = ALL_MODULES.find(
+        (m) => enabledKeys.includes(m.key) && !m.personal,
+      );
       const orgSlug      = activeOrg?.slug ?? orgSlugFromUrl ?? "";
       redirect(orgSlug && firstEnabled ? `/${orgSlug}${firstEnabled.href}` : "/");
     }

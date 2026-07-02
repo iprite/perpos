@@ -184,10 +184,10 @@ pnpm build
 
 **โมเดล B2B vs B2C (LINE login เท่านั้น):**
 
-- **B2C = ผู้ช่วย AI (key ภายใน `stt`)** — บริการ per-profile (umbrella, ตอนนี้ = ถอดเสียง→MoM, อนาคตเพิ่มตัวช่วยอื่น). subscription แยก (฿99/เดือน, trial 300 นาที), per-profile quota. **URL top-level `/assistant`, `/assistant/usage`, `/assistant/billing` — ไม่มี [org]**. gate = `requireAssistantUser` (เว็บ) / `checkSttAccess` (LINE) = grant `stt` หรือ `bot.assistant.transcribe` หรือ super_admin · ด่านเก็บเงิน = `stt_quota` ที่ stt-worker · **ทุกคนที่แอด LINE ได้อัตโนมัติ** · guard resolve "home org" ภายในไว้เก็บไฟล์/เรียก worker (ไม่โผล่ใน URL)
+- **B2C = ผู้ช่วย AI (key ภายใน `stt`)** — บริการ per-profile (umbrella, ตอนนี้ = ถอดเสียง→MoM, อนาคตเพิ่มตัวช่วยอื่น). subscription แยก (฿99/เดือน, trial 300 นาที), per-profile quota. **URL top-level `/assistant` (= หน้าการใช้งาน, default), `/assistant/stt` (ถอดเสียง), `/assistant/billing` — ไม่มี [org]**. gate = `requireAssistantUser` (เว็บ) / `checkSttAccess` (LINE) = grant `stt` หรือ `bot.assistant.transcribe` หรือ super_admin · ด่านเก็บเงิน = `stt_quota` ที่ stt-worker · **ทุกคนที่แอด LINE ได้อัตโนมัติ** · guard resolve "home org" ภายในไว้เก็บไฟล์/เรียก worker (ไม่โผล่ใน URL)
 - **B2B = ERP**: shared (accounting/payroll) + tailor-made (tmc/crm/acc_firm/…) — ระดับ org, **superadmin เปิดให้ต่อ org เท่านั้น** (`admin/modules` = `requireAdmin` = super_admin) · **module `assistant` เดิม (Task Manager) ถูกยกเลิกทิ้งหมดแล้ว**
 - **สลับ STT ↔ ERP**: header มีปุ่ม **"ผู้ช่วย AI"** (→ `/assistant`) + org switcher (ERP) · B2C เห็นแค่ผู้ช่วย · B2B เห็นทั้งคู่ · super_admin → `/admin` (เลือกเข้า org/assistant)
-- **redirect หลัง login**: ERP (B2B) > ผู้ช่วย AI (B2C) > no-org · super_admin → /admin
+- **redirect หลัง login**: ผู้ช่วย AI / Perpos Flow (B2C) เป็น default หลักของทุกคน > ERP (B2B, เฉพาะ org-only ที่ไม่มีผู้ช่วย) > no-org · super_admin → /admin
 - **`assistant` ใน path/route group** = ผู้ช่วย AI per-profile (`(hydrogen)/assistant/*`, อยู่ใน SYSTEM_SEGMENTS — ไม่ใช่ org slug). API: generic `/api/assistant/{jobs,jobs/process,quota,stats}` + STT-เฉพาะ `/api/assistant/stt/{mom-pdf,mom-deliver,checkout,portal}` · guard per-profile (`requireAssistantUser` → kind-aware ผ่าน `ASSISTANT_KINDS` ใน [lib/assistant/kinds.ts](apps/perpos/src/lib/assistant/kinds.ts))
 - หมายเหตุ: job hub = **`assistant_jobs`** (generic, มีคอลัมน์ `kind`) · ของที่เป็น STT แท้คงชื่อ `stt_*` (`stt_quota/stt_subscriptions/stt_plans`) + `stt-worker` + bucket `assistant_audio` + `kind='stt'` — user-facing = "ผู้ช่วย AI" ทั้งหมด
 
