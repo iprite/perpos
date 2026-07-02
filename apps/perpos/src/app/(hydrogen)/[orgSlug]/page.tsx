@@ -19,7 +19,11 @@ export default async function OrgSlugPage({
   if (!org) notFound();
 
   const enabledKeys = await getEnabledModulesForOrg(org.id, org.role);
-  const firstModule = ALL_MODULES.find((m) => enabledKeys.includes(m.key));
+  // เลือกเฉพาะโมดูล ERP (per-org) — ตัด personal module (เช่น stt/ผู้ช่วย AI href=/assistant)
+  // ออก เพราะเป็น route top-level ไม่มี org prefix (prefix แล้ว 404)
+  const firstModule = ALL_MODULES.find(
+    (m) => enabledKeys.includes(m.key) && !m.personal,
+  );
 
   if (!firstModule) redirect("/no-org");
 

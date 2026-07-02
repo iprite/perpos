@@ -28,6 +28,13 @@ type Tab = {
 const TABS: Tab[] = [
   {
     href: '/assistant',
+    label: 'การใช้งาน',
+    title: 'การใช้งาน',
+    subtitle: 'ภาพรวมการใช้โควต้าและสถิติการถอดเสียงของคุณ',
+    icon: <BarChart3 className="h-5 w-5" />,
+  },
+  {
+    href: '/assistant/stt',
     label: 'ถอดเสียง',
     title: 'ถอดเสียงเป็นข้อความ',
     subtitle: 'อัปโหลดไฟล์เสียง/วิดีโอ ระบบจะถอดเป็นรายงานการประชุม (MoM) พร้อมแยกผู้พูด',
@@ -46,13 +53,6 @@ const TABS: Tab[] = [
     title: 'เชื่อมต่อ Google',
     subtitle: 'เชื่อม Google ครั้งเดียว — เตือนประชุมจากปฏิทิน + เก็บไฟล์ MoM/เสียงลง Drive อัตโนมัติ',
     icon: <Link2 className="h-5 w-5" />,
-  },
-  {
-    href: '/assistant/usage',
-    label: 'การใช้งาน',
-    title: 'การใช้งาน',
-    subtitle: 'ภาพรวมการใช้โควต้าและสถิติการถอดเสียงของคุณ',
-    icon: <BarChart3 className="h-5 w-5" />,
   },
   {
     href: '/assistant/billing',

@@ -37,8 +37,13 @@ export default async function DashboardPage() {
   ]);
   const hasAssistant = personalKeys.includes("stt"); // ผู้ช่วย AI (per-profile)
 
+  // ลำดับ (non-super_admin): Perpos Flow / ผู้ช่วย AI (B2C) เป็น default หลัก >
+  // ERP (B2B, ถ้าไม่มีผู้ช่วย) > no-org
+  // ทุกคนที่แอด LINE จะมี grant 'stt' → default ไป /assistant · ผู้ใช้ org-only
+  // ที่ไม่มีผู้ช่วย ค่อย fallback เข้า ERP
+  if (hasAssistant) redirect("/assistant");
+
   // หา org module (ERP, non-personal) ของ active org
-  let erpTargetHref: string | null = null;
   if (orgs.length > 0) {
     const activeOrg = orgs.find((o) => o.id === activeOrgId) ?? orgs[0];
     const orgSlug = activeOrg.slug ?? activeOrg.id;
@@ -48,11 +53,8 @@ export default async function DashboardPage() {
       ? ALL_MODULES.find((m) => m.key === savedModuleKey && enabledKeys.includes(m.key) && !m.personal)
       : null;
     const erpModule = savedDef ?? ALL_MODULES.find((m) => enabledKeys.includes(m.key) && !m.personal);
-    if (erpModule) erpTargetHref = `/${orgSlug}${erpModule.href}`;
+    if (erpModule) redirect(`/${orgSlug}${erpModule.href}`);
   }
 
-  // ลำดับ: ERP (B2B) > ผู้ช่วย AI (B2C) > no-org
-  if (erpTargetHref) redirect(erpTargetHref);
-  if (hasAssistant) redirect("/assistant");
   redirect("/no-org");
 }
