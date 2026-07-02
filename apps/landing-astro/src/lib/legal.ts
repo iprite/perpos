@@ -5,7 +5,7 @@ export const legal = {
   th: {
     privacyPage: {
       title: "นโยบายความเป็นส่วนตัว",
-      lastUpdated: "อัปเดตล่าสุด: มกราคม 2568",
+      lastUpdated: "อัปเดตล่าสุด: กรกฎาคม 2569",
       section1Title: "1. ข้อมูลที่เราเก็บรวบรวม",
       section1Desc:
         "PERPOS เก็บรวบรวมข้อมูลที่จำเป็นสำหรับการให้บริการ ทั้ง Flow (ผู้ช่วย AI บน LINE) และ Suite (ระบบ ERP องค์กร) รวมถึงข้อมูลผู้ใช้ ข้อมูลองค์กร และไฟล์ที่คุณส่งเข้าสู่ระบบ",
@@ -21,8 +21,11 @@ export const legal = {
       section5Title: "5. สิทธิ์ของคุณ",
       section5Desc:
         "คุณมีสิทธิ์เข้าถึง แก้ไข หรือลบข้อมูลส่วนบุคคลของคุณได้ตลอดเวลา ผ่านการตั้งค่าบัญชีหรือติดต่อทีมงานของเรา",
-      section6Title: "6. ติดต่อเรา",
-      section6Desc: "หากมีคำถามเกี่ยวกับนโยบายความเป็นส่วนตัวนี้ ติดต่อเราได้ที่",
+      section6Title: "6. การเข้าถึงข้อมูลจาก Google (Google API)",
+      section6Desc:
+        "เมื่อคุณเลือกเชื่อมต่อบัญชี Google กับ PERPOS เราจะขอสิทธิ์เข้าถึงข้อมูล Google ของคุณเฉพาะเท่าที่จำเป็นต่อฟังก์ชันที่คุณใช้ ดังนี้ — (1) Google Drive (ขอบเขต drive.file): เราสร้างโฟลเดอร์ชื่อ “Perpos Assistant” ในไดรฟ์ของคุณ และอัปโหลดเฉพาะไฟล์ที่ระบบ PERPOS สร้างขึ้นเอง เช่น รายงานสรุปการประชุม (PDF) และไฟล์เอกสารที่คุณสั่งให้บันทึก เราเข้าถึงได้เฉพาะไฟล์ที่ PERPOS สร้างหรือเปิดผ่านแอปเท่านั้น ไม่สามารถอ่าน แก้ไข หรือลบไฟล์อื่นในไดรฟ์ของคุณ (2) Google Calendar (ขอบเขต calendar.events): เราอ่านรายการนัดหมายในปฏิทินหลัก (primary) ของคุณ เช่น หัวข้อ เวลาเริ่ม-สิ้นสุด สถานที่ คำอธิบาย และลิงก์ประชุมออนไลน์ เพื่อแจ้งเตือนและนัดหมายให้ระบบเข้าร่วม/ถอดเสียงการประชุม และสร้าง แก้ไข หรือลบเฉพาะรายการนัดหมายที่เกี่ยวข้องกับงานที่คุณสั่งเท่านั้น. เราจัดเก็บ access token และ refresh token ของ Google แบบเข้ารหัสบนเซิร์ฟเวอร์ เพื่อเรียกใช้ API ตามคำสั่งของคุณเท่านั้น ข้อมูล Google ของคุณจะไม่ถูกขาย ไม่ถูกแชร์กับบุคคลที่สาม และไม่ถูกนำไปฝึกหรือปรับปรุงโมเดล AI ใด ๆ คุณสามารถยกเลิกการเชื่อมต่อได้ทุกเมื่อผ่านการตั้งค่าในแอป PERPOS หรือที่ https://myaccount.google.com/permissions ซึ่งจะลบ token ที่เราจัดเก็บไว้ทันที. การใช้งานและการถ่ายโอนข้อมูลที่ได้รับจาก Google API ของ PERPOS เป็นไปตาม Google API Services User Data Policy รวมถึงข้อกำหนด Limited Use",
+      section7Title: "7. ติดต่อเรา",
+      section7Desc: "หากมีคำถามเกี่ยวกับนโยบายความเป็นส่วนตัวนี้ ติดต่อเราได้ที่",
       signupCta: "เริ่มใช้งาน PERPOS",
     },
     termsPage: {
@@ -54,7 +57,7 @@ export const legal = {
   en: {
     privacyPage: {
       title: "Privacy Policy",
-      lastUpdated: "Last updated: January 2025",
+      lastUpdated: "Last updated: July 2026",
       section1Title: "1. Information We Collect",
       section1Desc:
         "PERPOS collects information necessary to deliver both Flow (the LINE AI assistant) and Suite (organization ERP), including user data, organization details, and files you send into the system.",
@@ -70,8 +73,11 @@ export const legal = {
       section5Title: "5. Your Rights",
       section5Desc:
         "You have the right to access, edit, or delete your personal data at any time through account settings or by contacting our team.",
-      section6Title: "6. Contact Us",
-      section6Desc: "If you have any questions about this Privacy Policy, contact us at",
+      section6Title: "6. Google User Data (Google API Access)",
+      section6Desc:
+        "When you choose to connect your Google account to PERPOS, we request access only to the specific Google data required for the features you use: (1) Google Drive (drive.file scope): we create a folder named “Perpos Assistant” in your Drive and upload only files that PERPOS itself generates, such as meeting-summary reports (PDF) and documents you ask us to save. We can access only the files PERPOS created or opened through the app — we cannot read, modify, or delete any other files in your Drive. (2) Google Calendar (calendar.events scope): we read events on your primary calendar (such as title, start/end time, location, description, and online-meeting links) to send reminders and to schedule the assistant to join or transcribe meetings, and we create, update, or delete only the calendar events related to tasks you request. We store your Google access and refresh tokens in encrypted form on our servers solely to call these APIs on your behalf. Your Google data is never sold, never shared with third parties, and never used to train or improve any AI models. You can disconnect at any time from your PERPOS app settings or at https://myaccount.google.com/permissions, which immediately deletes the tokens we hold. PERPOS's use and transfer of information received from Google APIs adheres to the Google API Services User Data Policy, including the Limited Use requirements.",
+      section7Title: "7. Contact Us",
+      section7Desc: "If you have any questions about this Privacy Policy, contact us at",
       signupCta: "Get started with PERPOS",
     },
     termsPage: {
