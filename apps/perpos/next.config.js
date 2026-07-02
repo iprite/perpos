@@ -3,6 +3,11 @@ const { withSentryConfig } = require("@sentry/nextjs");
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  // Skip in-build type-check + lint — เรา gate `tsc --noEmit`=0 และ `pnpm lint` clean แยกก่อน merge
+  // (AGENTS.md §Verify) อยู่แล้ว. in-build type-check กิน RAM สูงจน OOM (exit 137) บนเครื่อง build
+  // Vercel Hobby (8GB) เมื่อ codebase โต — ข้ามได้ปลอดภัยเพราะ redundant กับ gate ภายนอก + build เร็ว/เบา
+  typescript: { ignoreBuildErrors: true },
+  eslint: { ignoreDuringBuilds: true },
   images: {
     remotePatterns: [
       {
