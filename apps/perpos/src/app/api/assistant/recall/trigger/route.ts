@@ -6,10 +6,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAssistantUser } from '../../../_lib/assistant-auth';
 import { createAdminClient } from '../../../_lib/supabase';
-import { extractMeetingUrl, makeDedupKey, normalizeMeetingUrl } from '@/lib/assistant/recall';
+import { extractMeetingUrl, makeDedupKey, normalizeMeetingUrl, parseMeetingDateTime } from '@/lib/assistant/recall';
 import {
   BOT_MIN_START, PLATFORM_LABEL, getBotRemaining, hasActiveBotForMeeting, createBotForHeldJob,
 } from '@/lib/assistant/recall-bot';
+import { scheduleFutureMeeting } from '@/lib/assistant/schedule-meeting';
 
 export async function POST(req: NextRequest) {
   const auth = await requireAssistantUser(req);
@@ -18,13 +19,30 @@ export async function POST(req: NextRequest) {
   const orgId = auth.orgId;
 
   const body = (await req.json().catch(() => ({}))) as { meetingUrl?: string };
-  const found = extractMeetingUrl(String(body.meetingUrl ?? ''));
+  const text = String(body.meetingUrl ?? '');
+  const found = extractMeetingUrl(text);
   if (!found) return NextResponse.json({ ok: false, reason: 'invalid_url' });
 
   const admin = createAdminClient();
 
   // PDPA §8 — กดส่งบอทบนเว็บ (เห็นข้อความความรับผิดชอบในหน้า) = บันทึกความยินยอมครั้งแรก
   await admin.from('profiles').update({ bot_consent_at: new Date().toISOString() }).eq('id', profileId).is('bot_consent_at', null);
+
+  // มีวัน-เวลานัดล่วงหน้า (>10 นาที) → ลงนัดในปฏิทิน + ให้ scheduler เตือน/ส่งบอทตามเวลา (เหมือน LINE)
+  const joinAt = parseMeetingDateTime(text);
+  if (joinAt && joinAt.getTime() - Date.now() > 10 * 60 * 1000) {
+    const result = await scheduleFutureMeeting(admin, { profileId, orgId, found, joinAt, text, source: 'web' });
+    if (result.kind === 'not_connected')
+      return NextResponse.json({ ok: false, reason: 'calendar_not_connected' });
+    return NextResponse.json({
+      ok: true,
+      scheduled: true,
+      exists: result.kind === 'exists',
+      title: result.title,
+      joinAtText: result.joinAtText,
+      platformLabel: result.platformLabel,
+    });
+  }
 
   const { remainSec, remainMin } = await getBotRemaining(admin, profileId);
   if (remainSec < BOT_MIN_START) return NextResponse.json({ ok: false, reason: 'low_quota', remainMin });

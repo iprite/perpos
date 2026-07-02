@@ -228,12 +228,23 @@ export default function MeetingsView({
         body: JSON.stringify({ meetingUrl: meetingUrl.trim() }),
       });
       const d = await res.json().catch(() => ({}));
-      if (d.ok) {
+      if (d.ok && d.scheduled) {
+        // มีวัน-เวลานัด → ลงปฏิทิน + scheduler เตือน/ส่งบอทตามเวลา
+        toast.success(
+          d.exists
+            ? `📅 มีนัดนี้ในปฏิทินอยู่แล้ว (${d.joinAtText ?? ""})`
+            : `📅 ลงนัดในปฏิทินแล้ว — บอทจะเข้าห้องตามเวลานัด (${d.joinAtText ?? ""})`,
+        );
+        setMeetingUrl("");
+        load();
+      } else if (d.ok) {
         toast.success("ส่งบอทเข้าห้องประชุมแล้ว");
         setMeetingUrl("");
         load();
       } else if (d.reason === "invalid_url")
         toast.error("ไม่พบลิงก์ประชุม (รองรับ Google Meet / Zoom / Teams)");
+      else if (d.reason === "calendar_not_connected")
+        toast.error("ต้องเชื่อม Google Calendar ก่อนจึงจะลงนัดล่วงหน้าได้ — ไปที่แท็บ “เชื่อมต่อ Google”");
       else if (d.reason === "low_quota")
         toast.error(`โควต้าบอทไม่พอ (เหลือ ${d.remainMin ?? 0} นาที) — เติมที่หน้าการชำระเงิน`);
       else if (d.reason === "already_active") toast("บอทเข้าห้องประชุมนี้อยู่แล้ว");
@@ -256,13 +267,14 @@ export default function MeetingsView({
           <SendHorizontal className="h-4 w-4" /> ส่งบอทเข้าประชุม
         </h2>
         <p className="mb-3 text-sm text-gray-500">
-          วางลิงก์ห้องประชุม (Google Meet / Zoom / Teams) แล้วบอทจะเข้าห้องบันทึกให้ทันที
+          วางลิงก์ห้องประชุม (Google Meet / Zoom / Teams) แล้วบอทจะเข้าห้องบันทึกให้ทันที ·
+          ถ้าใส่วัน-เวลานัดมาด้วย ระบบจะลงนัดใน Google Calendar แล้วส่งบอทให้ตามเวลา
         </p>
         <div className="flex flex-col gap-2 sm:flex-row">
           <Input
             value={meetingUrl}
             onChange={(e) => setMeetingUrl(e.target.value)}
-            placeholder="วางลิงก์ประชุมที่นี่…"
+            placeholder="วางลิงก์ประชุม (ใส่วัน-เวลาด้วยเพื่อลงนัดล่วงหน้า)…"
             className="flex-1"
             onKeyDown={(e) => {
               if (e.key === "Enter") sendBot();
@@ -319,8 +331,8 @@ export default function MeetingsView({
         </div>
         {upcoming.length === 0 ? (
           <div className="rounded-xl border border-dashed border-gray-200 px-4 py-6 text-center text-sm text-gray-400">
-            ยังไม่มีนัดประชุม — วางลิงก์ประชุมที่มีเวลาใน LINE หรือเชื่อม Google Calendar
-            เพื่อให้เตือนอัตโนมัติ
+            ยังไม่มีนัดประชุม — วางลิงก์ประชุมที่มีวัน-เวลา (ในหน้านี้หรือ LINE) หรือเชื่อม Google
+            Calendar เพื่อให้ระบบดึงนัดมาเตือน/ส่งบอทอัตโนมัติ
           </div>
         ) : (
           <div className="space-y-2">
