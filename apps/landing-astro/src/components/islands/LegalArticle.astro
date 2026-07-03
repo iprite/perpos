@@ -62,6 +62,26 @@ const langs: Lang[] = ["th", "en"];
         ]}
         data-legal-lang={lang}
       >
+        <div
+          class="mb-8 inline-flex gap-1 rounded-xl border border-black/10 bg-black/[0.03] p-1"
+          role="group"
+          aria-label="Language"
+        >
+          <button
+            type="button"
+            data-lang-btn="th"
+            class="rounded-lg px-3 py-1.5 text-sm font-medium transition-colors"
+          >
+            ไทย
+          </button>
+          <button
+            type="button"
+            data-lang-btn="en"
+            class="rounded-lg px-3 py-1.5 text-sm font-medium transition-colors"
+          >
+            English
+          </button>
+        </div>
         <h1 class="text-foreground text-3xl font-semibold tracking-tight sm:text-4xl">
           {d.t.title}
         </h1>
@@ -98,18 +118,40 @@ const langs: Lang[] = ["th", "en"];
 }
 
 <script>
-  // Default Thai (rendered visible). Switch to English only when the visitor
-  // explicitly saved "en" or their browser language is English.
-  const saved = localStorage.getItem("lang");
-  const useEn =
-    saved === "en" ||
-    (saved !== "th" && navigator.language.toLowerCase().startsWith("en"));
-  if (useEn) {
-    document
-      .querySelector('[data-legal-lang="th"]')
-      ?.classList.add("hidden");
-    document
-      .querySelector('[data-legal-lang="en"]')
-      ?.classList.remove("hidden");
+  // Both languages render server-side (Thai visible by default). Pick the initial
+  // language from the saved choice, else the browser language; the pill toggle
+  // lets the visitor switch and persists the choice to localStorage.
+  const ACTIVE = ["bg-white", "text-foreground", "shadow-sm"];
+  const INACTIVE = ["text-foreground-muted"];
+
+  function applyLang(lang: string) {
+    (["th", "en"] as const).forEach((l) => {
+      document
+        .querySelector(`[data-legal-lang="${l}"]`)
+        ?.classList.toggle("hidden", l !== lang);
+    });
+    document.querySelectorAll("[data-lang-btn]").forEach((btn) => {
+      const on = btn.getAttribute("data-lang-btn") === lang;
+      btn.classList.remove(...ACTIVE, ...INACTIVE);
+      btn.classList.add(...(on ? ACTIVE : INACTIVE));
+      btn.setAttribute("aria-pressed", String(on));
+    });
   }
+
+  const saved = localStorage.getItem("lang");
+  const initial =
+    saved === "en" || saved === "th"
+      ? saved
+      : navigator.language.toLowerCase().startsWith("en")
+        ? "en"
+        : "th";
+  applyLang(initial);
+
+  document.querySelectorAll("[data-lang-btn]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const lang = btn.getAttribute("data-lang-btn") || "th";
+      localStorage.setItem("lang", lang);
+      applyLang(lang);
+    });
+  });
 </script>
