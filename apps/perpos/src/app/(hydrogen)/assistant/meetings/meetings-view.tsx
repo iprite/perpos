@@ -32,6 +32,7 @@ import {
   Loader2,
   SendHorizontal,
   Video,
+  X,
 } from "lucide-react";
 import { toast } from "@/lib/toast";
 import type { MeetingJob, MeetingCalEvent } from "@/lib/assistant/meetings";
@@ -83,6 +84,20 @@ const jobMinutes = (j: Job) => {
   const s = j.duration_seconds ?? 0;
   return s > 0 ? `${Math.round(s / 60)} นาที` : "—";
 };
+// บอทที่ยัง active → ยกเลิกได้ (นัดไว้/กำลังเข้าห้อง/กำลังบันทึก) · จบ/ล้มเหลว/สรุปแล้ว = ยกเลิกไม่ได้
+const CANCELLABLE_BOT_STATES = [
+  "awaiting_confirm",
+  "creating",
+  "scheduled",
+  "joining",
+  "in_waiting_room",
+  "recording",
+];
+const canCancelBot = (j: Job) =>
+  j.source === "recall" &&
+  j.status !== "completed" &&
+  j.status !== "failed" &&
+  CANCELLABLE_BOT_STATES.includes(j.bot_state ?? "");
 
 export default function MeetingsView({
   initialBotSeconds,
@@ -105,6 +120,8 @@ export default function MeetingsView({
   const [downloading, setDownloading] = useState("");
   const [meetingUrl, setMeetingUrl] = useState("");
   const [sending, setSending] = useState(false);
+  const [cancelling, setCancelling] = useState(""); // id ที่กำลังยกเลิก (job หรือ event)
+  const [confirmCancel, setConfirmCancel] = useState(""); // eventId ที่รอยืนยันยกเลิกนัด (two-step)
   const [lastSync, setLastSync] = useState<Date | null>(null);
   const [, setTick] = useState(0); // เดินนาฬิกาให้ป้าย "ซิงค์ล่าสุด" อัปเดตเอง
 
@@ -255,6 +272,56 @@ export default function MeetingsView({
     }
   };
 
+  // ยกเลิกบอทที่กำลังทำงาน/นัดไว้ (จาก dialog รายละเอียด)
+  const cancelBot = async (jobId: string) => {
+    if (!token) return;
+    setCancelling(jobId);
+    try {
+      const res = await fetch("/api/assistant/recall/cancel", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ jobId }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (d.ok) {
+        toast.success(
+          d.outcome === "recording_left"
+            ? "นำบอทออกจากห้องแล้ว — จะสรุปเท่าที่บันทึกได้"
+            : d.outcome === "settling"
+              ? "บอทออกจากห้องแล้ว กำลังสรุปรายงานให้"
+              : d.outcome === "already_done"
+                ? "งานนี้จบหรือถูกยกเลิกไปแล้ว"
+                : "ยกเลิกบอทแล้ว คืนโควต้าให้เรียบร้อย",
+        );
+        setSelected(null);
+        load();
+      } else toast.error("ยกเลิกบอทไม่สำเร็จ ลองใหม่อีกครั้ง");
+    } finally {
+      setCancelling("");
+    }
+  };
+
+  // ยกเลิกนัดประชุม (recall_calendar_events) — หยุดเตือน/ส่งบอทตามนัด
+  const cancelMeeting = async (eventId: string) => {
+    if (!token) return;
+    setCancelling(eventId);
+    try {
+      const res = await fetch("/api/assistant/recall/calendar-cancel", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ eventId }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (d.ok) {
+        toast.success("ยกเลิกนัดประชุมแล้ว");
+        setConfirmCancel("");
+        load();
+      } else toast.error("ยกเลิกนัดไม่สำเร็จ ลองใหม่อีกครั้ง");
+    } finally {
+      setCancelling("");
+    }
+  };
+
   const completedCount = jobs.filter((j) => j.status === "completed").length;
   const botRemainMin = Math.max(0, Math.floor((bot.limit - bot.used) / 60));
   const botLimitMin = Math.floor(bot.limit / 60);
@@ -349,9 +416,35 @@ export default function MeetingsView({
                     {fmtDateTime(e.starts_at)} · {platformLabel(e.meeting_url)}
                   </div>
                 </div>
-                <StatusBadge tone={e.confirm_state === "reminded" ? "info" : "neutral"}>
-                  {e.confirm_state === "reminded" ? "เตือนแล้ว" : "รอเตือน"}
-                </StatusBadge>
+                <div className="flex shrink-0 items-center gap-2">
+                  <StatusBadge tone={e.confirm_state === "reminded" ? "info" : "neutral"}>
+                    {e.confirm_state === "reminded" ? "เตือนแล้ว" : "รอเตือน"}
+                  </StatusBadge>
+                  {/* ยกเลิกนัด — two-step: คลิกแรกยืนยัน, คลิกสองลบจริง */}
+                  {confirmCancel === e.id ? (
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      disabled={cancelling === e.id}
+                      onClick={() => cancelMeeting(e.id)}
+                    >
+                      {cancelling === e.id ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        "ยืนยันยกเลิก"
+                      )}
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-gray-400 hover:text-red-600"
+                      onClick={() => setConfirmCancel(e.id)}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
               </div>
             ))}
           </div>
@@ -434,6 +527,21 @@ export default function MeetingsView({
             </DialogBody>
           )}
           <DialogFooter>
+            {selected && canCancelBot(selected) && (
+              <Button
+                variant="destructive"
+                className="mr-auto"
+                disabled={cancelling === selected.id}
+                onClick={() => cancelBot(selected.id)}
+              >
+                {cancelling === selected.id ? (
+                  <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                ) : (
+                  <X className="mr-1.5 h-4 w-4" />
+                )}{" "}
+                ยกเลิกบอท
+              </Button>
+            )}
             {selected?.mom_drive_url && (
               <Button
                 variant="outline"

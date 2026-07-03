@@ -8,8 +8,6 @@ import {
   extractMeetingUrl,
   makeDedupKey,
   normalizeMeetingUrl,
-  leaveBot,
-  deleteScheduledBot,
   parseMeetingDateTime,
 } from "@/lib/assistant/recall";
 import {
@@ -18,7 +16,9 @@ import {
   getBotRemaining,
   hasActiveBotForMeeting,
   createBotForHeldJob,
+  cancelBotJob,
   type HeldJob,
+  type CancelBotJobRow,
 } from "@/lib/assistant/recall-bot";
 import { buildBotFlex } from "@/lib/assistant/recall-events";
 import { getServiceRemaining, getTokenBalance } from "@/lib/assistant/token-balance";
@@ -3151,13 +3151,7 @@ async function handleRecallCancel(
     .select("id, profile_id, recall_bot_id, bot_state, recording_started_at")
     .eq("id", jobId)
     .maybeSingle();
-  const job = jobData as {
-    id: string;
-    profile_id: string | null;
-    recall_bot_id: string | null;
-    bot_state: string | null;
-    recording_started_at: string | null;
-  } | null;
+  const job = jobData as CancelBotJobRow | null;
   if (!job) return;
 
   // ตรวจเจ้าของ (กันคนอื่นยกเลิกบอทเรา)
@@ -3168,37 +3162,19 @@ async function handleRecallCancel(
     .maybeSingle();
   if ((prof as { line_user_id?: string } | null)?.line_user_id !== lineUserId) return;
 
-  if (
-    ["cancelled", "fatal", "recording_ready", "done", "failed_permanent", "stuck"].includes(
-      job.bot_state ?? "",
-    )
-  ) {
+  const outcome = await cancelBotJob(admin, job);
+  if (outcome.kind === "already_done") {
     await replyText(replyToken, "งานนี้จบหรือถูกยกเลิกไปแล้วครับ");
     return;
   }
-
-  // ถ้า settle เกิดแล้ว (บอทออกเพราะครบโควต้า — scheduler หักโควต้า + แจ้งไปแล้ว) → ยกเลิกไม่ได้
-  // ห้ามอ้างคืนโควต้า (เป็น usage จริง) + กันข้อความขัดกับ "ครบโควต้า" ที่ส่งไปแล้ว
-  const { data: settled } = await admin
-    .from("token_ledger")
-    .select("id")
-    .eq("job_id", jobId)
-    .eq("kind", "adjust")
-    .eq("reason", "bot-settled")
-    .limit(1)
-    .maybeSingle();
-  if (settled || job.bot_state === "leaving") {
+  if (outcome.kind === "settling") {
     await replyText(
       replyToken,
       "🤖 บอทออกจากห้องประชุมแล้ว กำลังสรุปรายงานการประชุมให้อยู่ครับ 🙏",
     );
     return;
   }
-
-  // บอท "เริ่มอัดแล้ว" (มีเสียงประชุม) → นำออก แล้วปล่อยให้ bot.done คิดตามเวลาบอทในห้อง + ถอดเท่าที่บันทึก
-  //   ไม่ refund, ไม่ mark cancelled (ให้ pipeline done→worker ทำต่อ: settle presence + ส่ง MoM)
-  if (job.recording_started_at) {
-    if (job.recall_bot_id) await leaveBot(job.recall_bot_id).catch(() => false);
+  if (outcome.kind === "recording_left") {
     await replyText(
       replyToken,
       "🤖 นำบอทออกจากห้องแล้ว — จะส่งสรุปการประชุมเท่าที่บันทึกได้ และคิดโควต้าตามเวลาที่บอทอยู่ในห้องครับ",
@@ -3206,22 +3182,7 @@ async function handleRecallCancel(
     return;
   }
 
-  // ยังไม่เริ่มอัดเลย (รอหน้าห้อง/ยังไม่เริ่มประชุม) → คืนโควต้าเต็ม (ไม่คิด แม้ Recall อาจคิดเรา)
-  if (job.recall_bot_id) {
-    if (job.bot_state === "scheduled")
-      await deleteScheduledBot(job.recall_bot_id).catch(() => false);
-    else await leaveBot(job.recall_bot_id).catch(() => false);
-  }
-  await admin.rpc("refund_bot_quota", { p_job_id: jobId }).then(
-    () => undefined,
-    () => undefined,
-  );
-  await admin
-    .from("assistant_jobs")
-    .update({ status: "failed", bot_state: "cancelled", updated_at: new Date().toISOString() })
-    .eq("id", jobId);
-
-  const { remainMin } = await getBotRemaining(admin, job.profile_id ?? "");
+  const remainMin = outcome.remainMin;
   await replyLine(replyToken, [
     {
       type: "flex",
