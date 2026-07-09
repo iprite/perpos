@@ -161,10 +161,14 @@ export default function MeetingsView({
     setLastSync(new Date());
   }, [supabase]);
 
-  // ดึง token ทันที (สำหรับ mutation) + poll สถานะสดทุก 30 วิ + ดึงใหม่เมื่อกลับมาที่แท็บ (กันเห็นข้อมูลค้าง)
+  // ดึง token ทันที (สำหรับ mutation) + poll สถานะสดทุก 60 วิ (ข้ามรอบเมื่อแท็บถูกซ่อน —
+  // ลด Fluid Active CPU: ไม่ยิง API เปล่าเมื่อไม่มีคนดู) + ดึงใหม่เมื่อกลับมาที่แท็บ (กันเห็นข้อมูลค้าง)
   useEffect(() => {
     load();
-    const t = setInterval(() => load(), 30_000);
+    const t = setInterval(() => {
+      if (document.visibilityState === "hidden") return;
+      load();
+    }, 60_000);
     const onFocus = () => load();
     window.addEventListener("focus", onFocus);
     return () => {

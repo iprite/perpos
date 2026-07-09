@@ -5,7 +5,7 @@ import { useEffect } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { backendUrl } from "@/lib/backend";
 
-const PING_INTERVAL_MS = 60_000; // ทุก 1 นาที
+const PING_INTERVAL_MS = 300_000; // ทุก 5 นาที (ลด Fluid Active CPU — 1 invocation/ping/แท็บ)
 
 /**
  * Heartbeat — ยิง /presence/ping เป็นระยะเพื่ออัปเดต profiles.last_seen_at
