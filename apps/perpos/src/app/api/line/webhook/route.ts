@@ -46,6 +46,10 @@ import {
 } from "../../crm/_line";
 import { handleJustMeClock } from "../../just-me/_line";
 import { answerFlowQuestion, isProductQuestion } from "@/lib/assistant/flow-rag";
+import { listOrders as listGovProcureOrders } from "@/lib/gov-procure/orders";
+import { getSettings as getGovProcureSettings } from "@/lib/gov-procure/settings";
+import { computeSummary as computeGovProcureSummary } from "@/lib/gov-procure/summary";
+import { buildReceivableAlertFlex, buildWeeklyPortfolioFlex } from "@/lib/gov-procure/line-cards";
 
 // ผู้ช่วยโฟล์ (RAG) เรียก Gemini แบบ inline ก่อน reply — เผื่อเวลาให้พอ (Hobby default 10 วิ สั้นไป)
 export const maxDuration = 30;
@@ -1386,6 +1390,89 @@ async function getOrSetActiveOrg(
     .update({ line_active_org_id: first.organization_id })
     .eq("id", profileId);
   return first.organizations;
+}
+
+/**
+ * T4 — คำสั่ง /พอร์ต, /ค้างรับ (gov_procure) — reuse การ์ด T2/T1 ตอบกลับ (replyFlex).
+ * org-context: ผูก active org ของผู้สั่ง + เช็ค module เปิด + สิทธิ์ (role ขั้นต่ำ viewer — N5).
+ * super_admin ผ่านการเช็คสมาชิก. ถ้าไม่มีสิทธิ์ → reply ข้อความสุภาพ.
+ */
+async function handleGovProcureCmd(
+  admin: ReturnType<typeof createAdminClient>,
+  profile: { id: string; role: string },
+  activeOrg: OrgInfo | null,
+  cmd: string,
+  replyToken: string,
+) {
+  if (!activeOrg) {
+    return replyText(replyToken, "❌ ยังไม่ได้เลือกองค์กร พิมพ์ /org เพื่อเลือกองค์กรก่อนครับ");
+  }
+
+  // เช็ค module เปิด + membership (role ขั้นต่ำ viewer) — super_admin ข้ามการเช็ค
+  if (profile.role !== "super_admin") {
+    const { data: enabled } = await admin
+      .from("org_module_settings")
+      .select("is_enabled")
+      .eq("organization_id", activeOrg.id)
+      .eq("module_key", "gov_procure")
+      .maybeSingle();
+    if (!enabled?.is_enabled) {
+      return replyText(
+        replyToken,
+        `องค์กร "${activeOrg.name}" ยังไม่ได้เปิดใช้งานโมดูลจัดซื้อครุภัณฑ์ภาครัฐครับ`,
+      );
+    }
+    const { data: member } = await admin
+      .from("module_members")
+      .select("module_role")
+      .eq("org_id", activeOrg.id)
+      .eq("module_key", "gov_procure")
+      .eq("user_id", profile.id)
+      .eq("is_active", true)
+      .maybeSingle();
+    if (!member) {
+      return replyText(
+        replyToken,
+        `คุณยังไม่มีสิทธิ์เข้าถึงพอร์ตจัดซื้อขององค์กร "${activeOrg.name}" ครับ`,
+      );
+    }
+  }
+
+  const settings = await getGovProcureSettings(admin, activeOrg.id);
+  const orders = await listGovProcureOrders(admin, activeOrg.id);
+  const summary = computeGovProcureSummary(orders, settings.sla_threshold);
+
+  if (cmd === "ค้างรับ") {
+    const overdue = summary.receivables.filter((r) => r.overdue);
+    if (!overdue.length) {
+      return replyText(replyToken, "🎉 ไม่มีเงินค้างรับเกินกำหนดครับ — พอร์ตสุขภาพดี");
+    }
+    return replyLine(replyToken, [
+      buildReceivableAlertFlex(overdue, settings.sla_threshold, activeOrg.slug),
+    ]);
+  }
+
+  // /พอร์ต — สรุปพอร์ตปัจจุบัน (reuse การ์ด T2)
+  if (!orders.length) {
+    return replyText(replyToken, "ยังไม่มีงานในพอร์ตขององค์กรนี้ครับ");
+  }
+  const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+  const closedThisWeek = orders.filter(
+    (o) => o.stage === "closed" && new Date(o.updated_at).getTime() >= weekAgo,
+  ).length;
+  const dateLabel = new Date().toLocaleDateString("th-TH", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+  return replyLine(replyToken, [
+    buildWeeklyPortfolioFlex({
+      summary,
+      closedThisWeek,
+      weekLabel: `พอร์ตวันนี้ · ${dateLabel}`,
+      orgSlug: activeOrg.slug,
+    }),
+  ]);
 }
 
 async function handleOrgCmd(
@@ -2880,10 +2967,7 @@ async function handleFutureMeetingLink(
     return true;
   }
   if (result.kind === "exists") {
-    await replyText(
-      replyToken,
-      `📅 มีนัดประชุมนี้ในปฏิทินอยู่แล้ว (${result.joinAtText} น.) ครับ`,
-    );
+    await replyText(replyToken, `📅 มีนัดประชุมนี้ในปฏิทินอยู่แล้ว (${result.joinAtText} น.) ครับ`);
     return true;
   }
   await replyLine(replyToken, [
@@ -3689,6 +3773,12 @@ export async function POST(req: NextRequest) {
 
     // Resolve active org (auto-sets on first use)
     const activeOrg = await getOrSetActiveOrg(admin, profile.id, profile.line_active_org_id);
+
+    // /พอร์ต · /ค้างรับ — gov_procure (T4) — reuse การ์ด T2/T1, ผูก active org + module access
+    if (cmd === "พอร์ต" || cmd === "ค้างรับ") {
+      await handleGovProcureCmd(admin, profile, activeOrg, cmd, replyToken);
+      continue;
+    }
 
     // /help — org-aware Flex Card
     if (cmd === "help") {
