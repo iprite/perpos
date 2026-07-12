@@ -66,7 +66,7 @@ type ListedUser = {
   usage: { sttSeconds: number; botSeconds: number; pdfPages: number; lastUsed: string | null };
 };
 
-const ONLINE_WINDOW_MS = 2 * 60_000; // ออนไลน์ = ใช้งานภายใน 2 นาที
+const ONLINE_WINDOW_MS = 6 * 60_000; // ออนไลน์ = ใช้งานภายใน 6 นาที (heartbeat ยิงทุก 5 นาที — เผื่อ margin)
 
 // จำนวนวันนับจากวันที่สมัคร (provisioning) ถึงวันนี้
 function membershipDays(iso: string | null, now: number): number {

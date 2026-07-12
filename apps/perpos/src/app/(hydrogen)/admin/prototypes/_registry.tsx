@@ -10,7 +10,7 @@
  */
 
 import type { ReactNode } from "react";
-import { HeartPulse, Hotel, Landmark } from "lucide-react";
+import { HeartPulse, Hotel, Landmark, LandPlot } from "lucide-react";
 
 export type PrototypeEntry = {
   key: string;
@@ -43,5 +43,13 @@ export const PROTOTYPE_REGISTRY: PrototypeEntry[] = [
     description:
       "บริหารงานจัดซื้อครุภัณฑ์ภาครัฐ (อปท) แบบ pipeline 6 stage — เสนอราคา→รับเช็ค เงินค้างรับ/SLA กำไร split 89/P2P + AI/LINE",
     icon: <Landmark className="h-5 w-5" />,
+  },
+  {
+    key: "golf_club",
+    label: "สนามกอล์ฟ & ไดร์ฟกอล์ฟ",
+    href: "/admin/prototypes/golf-club",
+    description:
+      "ระบบจัดการสนามกอล์ฟ/ไดร์ฟ — ตารางจอง tee-time/bay เช็คอิน สมาชิก/แต้ม ราคา รายงาน + AI/LINE จองผ่าน LINE",
+    icon: <LandPlot className="h-5 w-5" />,
   },
 ];
