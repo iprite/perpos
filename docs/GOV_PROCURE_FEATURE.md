@@ -1,7 +1,7 @@
 # คัมภีร์: จัดซื้อครุภัณฑ์ภาครัฐ (gov_procure)
 
 > เอกสารอ้างอิงฉบับเต็มสำหรับ AI agents / devs ที่ทำงานต่อกับโมดูล `gov_procure`
-> อัปเดตล่าสุด: 2026-07-10 · production แล้ว (Supabase + Vercel) — **ยกระดับแทน `b2g` เดิม** (เปิดคู่กันอยู่ รอ cutover)
+> อัปเดตล่าสุด: 2026-07-14 · production แล้ว (Supabase + Vercel) — **ยกระดับแทน `b2g` เดิม** (cutover เสร็จแล้ว — b2g ปิดแล้ว, cron 2 ตัวตั้งแล้ว)
 > contract + Review Log เต็ม (ทุกการตัดสิน/บทเรียนของ run นี้): [`.claude/module-factory/specs/gov_procure.md`](../.claude/module-factory/specs/gov_procure.md)
 
 ---
@@ -129,15 +129,15 @@
 
 ## 5. การเปิดใช้ (provisioning ที่ทำแล้วใน prod)
 
-| รายการ                                  | สถานะ                                                                                                                                                                                             |
-| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| migration 3 ไฟล์                        | ✅ applied prod (schema + data-migrate + notify-state)                                                                                                                                            |
-| storage bucket `gov-procure`            | ✅ สร้างแล้ว (private, **ไม่มี storage policy** — access ผ่าน API ที่เช็ค membership เท่านั้น ตาม security review)                                                                                |
-| `org_module_settings`                   | ✅ เปิด `gov_procure` ให้ org `p2p-x-89` — **`is_enabled=true`, `allowed_roles=['owner','admin','team_lead','team_member']`** ⚠️ **นี่คือ org-level role ไม่ใช่ module role** (ดู §6 กับดักข้อ 1) |
-| `module_members`                        | ✅ migrate จาก `b2g`: สมาชิก 1 คน `module_role='admin'`(drift ใน b2g เดิม) → **`'manager'`** (ตาม decision B0) — production เพิ่มสมาชิกใหม่ (staff role) ต้อง seed มือ                            |
-| RPC grants                              | ไม่มี RPC ใหม่ในโมดูลนี้                                                                                                                                                                          |
-| env/secrets                             | **ไม่มีใหม่** — ใช้ Supabase/LINE/GEMINI/CRON_SECRET ที่มีอยู่แล้ว                                                                                                                                |
-| **cron 2 ตัว — ยังไม่ตั้ง (ต้องทำมือ)** | Cloud Scheduler → `POST https://app.perpos.ai/api/gov-procure/notify/aging` (รายวัน 09:00) + `POST .../notify/weekly` (จันทร์ 08:00) พร้อม header `Authorization: Bearer $CRON_SECRET`            |
+| รายการ                       | สถานะ                                                                                                                                                                                                                                                                                               |
+| ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| migration 3 ไฟล์             | ✅ applied prod (schema + data-migrate + notify-state)                                                                                                                                                                                                                                              |
+| storage bucket `gov-procure` | ✅ สร้างแล้ว (private, **ไม่มี storage policy** — access ผ่าน API ที่เช็ค membership เท่านั้น ตาม security review)                                                                                                                                                                                  |
+| `org_module_settings`        | ✅ เปิด `gov_procure` ให้ org `p2p-x-89` — **`is_enabled=true`, `allowed_roles=['owner','admin','team_lead','team_member']`** ⚠️ **นี่คือ org-level role ไม่ใช่ module role** (ดู §6 กับดักข้อ 1)                                                                                                   |
+| `module_members`             | ✅ migrate จาก `b2g`: สมาชิก 1 คน `module_role='admin'`(drift ใน b2g เดิม) → **`'manager'`** (ตาม decision B0) — production เพิ่มสมาชิกใหม่ (staff role) ต้อง seed มือ                                                                                                                              |
+| RPC grants                   | ไม่มี RPC ใหม่ในโมดูลนี้                                                                                                                                                                                                                                                                            |
+| env/secrets                  | **ไม่มีใหม่** — ใช้ Supabase/LINE/GEMINI/CRON_SECRET ที่มีอยู่แล้ว                                                                                                                                                                                                                                  |
+| cron 2 ตัว                   | ✅ ตั้งแล้ว (Cloud Scheduler, `asia-southeast1`) — `gov-procure-notify-aging` (`0 9 * * *` Asia/Bangkok → `POST /api/gov-procure/notify/aging`) + `gov-procure-notify-weekly` (`0 8 * * 1` Asia/Bangkok → `POST /api/gov-procure/notify/weekly`) ใช้ `CRON_SECRET` เดียวกับ `perpos-task-scheduler` |
 
 ### Rollback
 
@@ -145,7 +145,7 @@
 
 ### สถานะ b2g cutover
 
-`gov_procure` เปิดคู่กับ `b2g` เดิมอยู่ (ทั้งคู่ `is_enabled=true`) — **b2g cutover (`is_enabled=false`) ยังไม่ทำ** รอ user ยืนยันว่าย้ายมาใช้ `gov_procure` แล้วจริง (เห็นข้อมูลครบ 21 orders ตรงกับที่ migrate) ก่อนปิด b2g
+✅ **cutover เสร็จแล้ว (2026-07-14)** — `b2g` ถูกปิด (`is_enabled=false`) ที่ org `p2p-x-89`, เหลือ `gov_procure` เปิดตัวเดียว · ข้อมูลตรวจก่อนปิดแล้วว่า migrate ครบ (21 orders เท่ากันทั้งสองตาราง) · `b2g_orders` ยังไม่ DROP (เก็บไว้ rollback) — ถ้าต้อง rollback: เปิด `b2g` กลับ (`is_enabled=true`) ได้ทันที
 
 ---
 
