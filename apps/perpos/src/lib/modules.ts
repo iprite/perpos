@@ -225,6 +225,25 @@ export const ALL_MODULES: ModuleDef[] = [
       { key: "viewer", label: "ผู้ดูข้อมูล", canWrite: false },
     ],
   },
+  {
+    key: "gov_procure",
+    label: "จัดซื้อครุภัณฑ์ภาครัฐ",
+    href: "/gov-procure",
+    specific: true,
+    forOrgSlugs: ["p2p-x-89"],
+    match: (p) => {
+      const seg = p.split("/").filter(Boolean);
+      return seg.length >= 2 && seg[1] === "gov-procure";
+    },
+    // owner/manager แก้ได้ทุก field · staff เขียนได้เฉพาะ milestone/stage/attachment (field การเงิน
+    // ล็อกที่ API allowlist ต่อ role ตาม Q4 — ไม่ใช่แค่ canWrite ระดับ module) · viewer read-only
+    roles: [
+      { key: "owner", label: "Owner", canWrite: true },
+      { key: "manager", label: "Manager", canWrite: true },
+      { key: "staff", label: "Staff", canWrite: true },
+      { key: "viewer", label: "Viewer", canWrite: false },
+    ],
+  },
 ];
 
 export const ALL_MODULE_KEYS = ALL_MODULES.map((m) => m.key);
@@ -307,6 +326,14 @@ export const MODULE_MENUS: Record<string, MenuDef[]> = {
     { key: "leave", label: "การลา" },
     { key: "time", label: "เวลาทำงาน" },
     { key: "settings", label: "ตั้งค่า" },
+  ],
+  gov_procure: [
+    { key: "dashboard", label: "แดชบอร์ด" },
+    { key: "pipeline", label: "ไปป์ไลน์" },
+    { key: "orders", label: "รายการงาน" },
+    { key: "receivables", label: "เงินค้างรับ" },
+    { key: "reports", label: "รายงาน" },
+    { key: "settings", label: "ตั้งค่า/แจ้งเตือน" },
   ],
 };
 

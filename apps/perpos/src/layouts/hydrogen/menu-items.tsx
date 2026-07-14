@@ -569,6 +569,36 @@ function buildHrmMenuItems(org: string, labels: Record<string, string> = {}): Me
   ];
 }
 
+function buildGovProcureMenuItems(org: string, labels: Record<string, string> = {}): MenuItem[] {
+  const p = (path: string) => `/${org}/gov-procure/${path}`;
+  const l = (key: string, fallback: string) => labels[key] || fallback;
+  return [
+    { name: "จัดซื้อครุภัณฑ์ภาครัฐ" },
+    {
+      name: l("dashboard", "แดชบอร์ด"),
+      href: `/${org}/gov-procure`,
+      icon: <LayoutDashboard className="h-5 w-5" />,
+    },
+    { name: l("pipeline", "ไปป์ไลน์"), href: p("pipeline"), icon: <Kanban className="h-5 w-5" /> },
+    {
+      name: l("orders", "รายการงาน"),
+      href: p("orders"),
+      icon: <ClipboardList className="h-5 w-5" />,
+    },
+    {
+      name: l("receivables", "เงินค้างรับ"),
+      href: p("receivables"),
+      icon: <Wallet className="h-5 w-5" />,
+    },
+    { name: l("reports", "รายงาน"), href: p("reports"), icon: <BarChart3 className="h-5 w-5" /> },
+    {
+      name: l("settings", "ตั้งค่า/แจ้งเตือน"),
+      href: p("settings"),
+      icon: <Settings2 className="h-5 w-5" />,
+    },
+  ];
+}
+
 // ─── Context picker ─────────────────────────────────────────────────────────
 
 function pickMenuContext(pathname: string, role: Role | null, enabledKeys: string[]): string {
@@ -593,6 +623,7 @@ function pickMenuContext(pathname: string, role: Role | null, enabledKeys: strin
     if (mod === "p2p-supply") return "p2p_supply";
     if (mod === "p2p-group") return "p2p_group";
     if (mod === "hrm") return "hrm";
+    if (mod === "gov-procure") return "gov_procure";
     if (mod === "accounting") return "user";
   }
 
@@ -646,7 +677,9 @@ export function getMenuItems(
                           ? buildP2pGroupMenuItems(org, menuLabels.p2p_group ?? {})
                           : context === "hrm"
                             ? buildHrmMenuItems(org, menuLabels.hrm ?? {})
-                            : buildUserMenuItems(org, menuLabels.accounting ?? {});
+                            : context === "gov_procure"
+                              ? buildGovProcureMenuItems(org, menuLabels.gov_procure ?? {})
+                              : buildUserMenuItems(org, menuLabels.accounting ?? {});
 
   return items.filter((item) => {
     if (!("href" in item)) return hasRole(item.roles, role);

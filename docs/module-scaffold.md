@@ -46,7 +46,7 @@ organizations
 // เพิ่ม menus ใน MODULE_MENUS
 MODULE_MENUS["my_module"] = [
   { key: "dashboard", label: "Dashboard" },
-  { key: "reports",   label: "รายงาน"   },
+  { key: "reports", label: "รายงาน" },
 ];
 ```
 
@@ -57,6 +57,7 @@ MODULE_MENUS["my_module"] = [
 เปิด Admin Console → จัดการ Modules → เลือกองค์กร → เปิด module
 
 หรือ SQL:
+
 ```sql
 INSERT INTO org_module_settings (organization_id, module_key, is_enabled, allowed_roles)
 VALUES ('<org_id>', 'my_module', true, ARRAY['owner','admin'])
@@ -103,36 +104,36 @@ CREATE POLICY "my_module_records_write"
 ไฟล์: `src/app/api/my-module/[resource]/route.ts`
 
 ```typescript
-import { NextRequest, NextResponse } from 'next/server';
-import { requireModuleMember } from '../../_lib/module-auth';
-import { createAdminClient } from '../../_lib/supabase';
-import { canModuleWrite } from '@/lib/modules';
-import { setAuditContext } from '../../_lib/audit';
+import { NextRequest, NextResponse } from "next/server";
+import { requireModuleMember } from "../../_lib/module-auth";
+import { createAdminClient } from "../../_lib/supabase";
+import { canModuleWrite } from "@/lib/modules";
+import { setAuditContext } from "../../_lib/audit";
 
 const MY_MODULE_ORG_ID = process.env.MY_MODULE_ORG_ID!; // หรือ hardcode org id
 
 export async function GET(req: NextRequest) {
-  const auth = await requireModuleMember(req, MY_MODULE_ORG_ID, 'my_module');
+  const auth = await requireModuleMember(req, MY_MODULE_ORG_ID, "my_module");
   if (!auth.ok) return auth.res;
 
   const admin = createAdminClient();
   const { data, error } = await admin
-    .from('my_module_records')
-    .select('*')
-    .eq('org_id', auth.orgId)
-    .order('created_at', { ascending: false });
+    .from("my_module_records")
+    .select("*")
+    .eq("org_id", auth.orgId)
+    .order("created_at", { ascending: false });
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ records: data });
 }
 
 export async function POST(req: NextRequest) {
-  const auth = await requireModuleMember(req, MY_MODULE_ORG_ID, 'my_module');
+  const auth = await requireModuleMember(req, MY_MODULE_ORG_ID, "my_module");
   if (!auth.ok) return auth.res;
 
   // Check write permission using module role
-  if (!canModuleWrite('my_module', auth.moduleRole)) {
-    return NextResponse.json({ error: 'ไม่มีสิทธิ์แก้ไขข้อมูล' }, { status: 403 });
+  if (!canModuleWrite("my_module", auth.moduleRole)) {
+    return NextResponse.json({ error: "ไม่มีสิทธิ์แก้ไขข้อมูล" }, { status: 403 });
   }
 
   const body = await req.json();
@@ -142,7 +143,7 @@ export async function POST(req: NextRequest) {
   await setAuditContext(req, auth.userId, auth.orgId);
 
   const { data, error } = await admin
-    .from('my_module_records')
+    .from("my_module_records")
     .insert({ org_id: auth.orgId, created_by: auth.userId, title: body.title })
     .select()
     .single();
@@ -159,28 +160,28 @@ export async function POST(req: NextRequest) {
 ถ้า module มี type และ helper เยอะ ให้สร้าง `src/app/api/my-module/_lib.ts`:
 
 ```typescript
-import { NextRequest, NextResponse } from 'next/server';
-import { createAuthedClient } from '../_lib/supabase';
-import { requireModuleMember, ModuleAuth } from '../_lib/module-auth';
+import { NextRequest, NextResponse } from "next/server";
+import { createAuthedClient } from "../_lib/supabase";
+import { requireModuleMember, ModuleAuth } from "../_lib/module-auth";
 
-export const MY_MODULE_ORG_ID = '...uuid...';
+export const MY_MODULE_ORG_ID = "...uuid...";
 
-export type MyModuleRole = 'owner' | 'manager' | 'viewer';
+export type MyModuleRole = "owner" | "manager" | "viewer";
 
-export interface MyModuleAuth extends Omit<ModuleAuth, 'moduleRole'> {
+export interface MyModuleAuth extends Omit<ModuleAuth, "moduleRole"> {
   role: MyModuleRole;
 }
 
 export async function requireMyModuleMember(
   req: NextRequest,
 ): Promise<MyModuleAuth | { ok: false; res: NextResponse }> {
-  const result = await requireModuleMember(req, MY_MODULE_ORG_ID, 'my_module');
+  const result = await requireModuleMember(req, MY_MODULE_ORG_ID, "my_module");
   if (!result.ok) return result;
   return { ...result, role: result.moduleRole as MyModuleRole };
 }
 
 export function canWrite(role: MyModuleRole) {
-  return ['owner', 'manager'].includes(role);
+  return ["owner", "manager"].includes(role);
 }
 ```
 
@@ -213,6 +214,7 @@ function buildMyModuleMenuItems(org: string): MenuItem[] {
 ```
 
 แล้วเพิ่มใน `buildMenuItems()`:
+
 ```typescript
 case "my-module": return buildMyModuleMenuItems(org ?? "");
 ```
@@ -224,6 +226,7 @@ case "my-module": return buildMyModuleMenuItems(org ?? "");
 Admin Console → **Module Members** → เลือกองค์กร + module → เพิ่มสมาชิก
 
 หรือ API:
+
 ```bash
 curl -X POST https://perpos.ai/api/admin/module-members \
   -H "Authorization: Bearer $TOKEN" \
@@ -236,6 +239,7 @@ curl -X POST https://perpos.ai/api/admin/module-members \
 ### 9. เพิ่ม Audit Trigger (ถ้าต้องการ)
 
 ใน migration:
+
 ```sql
 CREATE TRIGGER my_module_records_audit
   AFTER INSERT OR UPDATE OR DELETE ON my_module_records
@@ -248,18 +252,18 @@ CREATE TRIGGER my_module_records_audit
 
 ## Checklist สรุป
 
-| ขั้นตอน | ไฟล์ | สถานะ |
-|---------|------|-------|
-| ลงทะเบียนใน `ALL_MODULES` | `src/lib/modules.ts` | |
-| เพิ่ม `MODULE_MENUS` | `src/lib/modules.ts` | |
-| สร้าง migration | `supabase/migrations/` | |
-| เพิ่ม audit trigger | migration | optional |
-| สร้าง API routes | `src/app/api/<module>/` | |
-| สร้าง `_lib.ts` | `src/app/api/<module>/_lib.ts` | optional |
-| สร้าง frontend pages | `src/app/(hydrogen)/[org]/<module>/` | |
-| เพิ่ม menu items | `src/layouts/hydrogen/menu-items.tsx` | |
-| เปิดใช้งานใน Admin Console | org_module_settings | |
-| เพิ่มสมาชิก | module_members | |
+| ขั้นตอน                    | ไฟล์                                  | สถานะ    |
+| -------------------------- | ------------------------------------- | -------- |
+| ลงทะเบียนใน `ALL_MODULES`  | `src/lib/modules.ts`                  |          |
+| เพิ่ม `MODULE_MENUS`       | `src/lib/modules.ts`                  |          |
+| สร้าง migration            | `supabase/migrations/`                |          |
+| เพิ่ม audit trigger        | migration                             | optional |
+| สร้าง API routes           | `src/app/api/<module>/`               |          |
+| สร้าง `_lib.ts`            | `src/app/api/<module>/_lib.ts`        | optional |
+| สร้าง frontend pages       | `src/app/(hydrogen)/[org]/<module>/`  |          |
+| เพิ่ม menu items           | `src/layouts/hydrogen/menu-items.tsx` |          |
+| เปิดใช้งานใน Admin Console | org_module_settings                   |          |
+| เพิ่มสมาชิก                | module_members                        |          |
 
 ---
 
@@ -274,6 +278,7 @@ MY_MODULE_ORG_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
 
 ## ตัวอย่าง Module ที่มีอยู่แล้ว
 
-| Module | org ID | specific | _lib.ts |
-|--------|--------|---------|---------|
-| TMC Management | `1f52618c-09c4-49c5-a929-ea5060f26e7d` | ✅ | `src/app/api/tmc/_lib.ts` |
+| Module                                | org ID                                 | specific           | \_lib.ts                                                                                                                                                     |
+| ------------------------------------- | -------------------------------------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| TMC Management                        | `1f52618c-09c4-49c5-a929-ea5060f26e7d` | ✅                 | `src/app/api/tmc/_lib.ts`                                                                                                                                    |
+| จัดซื้อครุภัณฑ์ภาครัฐ (`gov_procure`) | org slug `p2p-x-89`                    | ✅ (`forOrgSlugs`) | `src/app/api/gov-procure/_lib.ts` — 6-stage pipeline + field-level finance-lock + AI + LINE cron, ดู [`docs/GOV_PROCURE_FEATURE.md`](GOV_PROCURE_FEATURE.md) |
