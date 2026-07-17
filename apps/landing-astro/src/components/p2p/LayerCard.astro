@@ -1,0 +1,60 @@
+---
+import { cn } from "@/lib/utils";
+
+interface Props {
+  num: number;
+  color: "primary" | "secondary" | "neutral";
+  title: string;
+  companies: string;
+  desc: string;
+  stagger?: number;
+  class?: string;
+}
+
+const { num, color, title, companies, desc, stagger, class: className } = Astro.props;
+
+const borderColor =
+  color === "primary"
+    ? "border-l-[var(--p2p-primary)]"
+    : color === "secondary"
+      ? "border-l-[var(--p2p-secondary)]"
+      : "border-l-[var(--p2p-neutral-tag)]";
+
+const badgeColor =
+  color === "primary"
+    ? "bg-[var(--p2p-primary)]"
+    : color === "secondary"
+      ? "bg-[var(--p2p-secondary)]"
+      : "bg-[var(--p2p-neutral-tag)]";
+
+const companyColor =
+  color === "primary"
+    ? "text-[var(--p2p-primary)]"
+    : color === "secondary"
+      ? "text-[var(--p2p-secondary)]"
+      : "text-[var(--p2p-muted)]";
+---
+
+<div
+  class={cn(
+    "flex items-center gap-4 rounded-2xl border border-[var(--p2p-border)] bg-[var(--p2p-card)] p-5 shadow-[var(--p2p-shadow-card)] border-l-[6px] sm:p-6",
+    borderColor,
+    className,
+  )}
+  data-reveal
+  data-reveal-stagger={stagger}
+>
+  <div
+    class={cn(
+      "flex h-[38px] w-[38px] min-w-[38px] items-center justify-center rounded-full text-[.95rem] font-extrabold text-white",
+      badgeColor,
+    )}
+  >
+    {num}
+  </div>
+  <div class="min-w-0">
+    <div class="text-[1.05rem] font-extrabold">{title}</div>
+    <div class={cn("mt-0.5 text-[.85rem] font-semibold", companyColor)}>{companies}</div>
+    <div class="mt-1 text-[.9rem] text-[var(--p2p-muted)]">{desc}</div>
+  </div>
+</div>

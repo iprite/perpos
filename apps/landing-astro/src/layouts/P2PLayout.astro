@@ -1,0 +1,99 @@
+---
+import "@fontsource-variable/noto-sans-thai";
+import "@/styles/globals.css";
+import "@/styles/p2p-holding.css";
+
+const SITE = import.meta.env.PUBLIC_SITE_URL || "https://www.perpos.ai";
+const GTM_ID = import.meta.env.PUBLIC_GTM_ID || "GTM-T96WG437";
+const GA_ID = import.meta.env.PUBLIC_GA_ID || "G-W5SRQP82KZ";
+
+interface Props {
+  title?: string;
+  description?: string;
+}
+
+const {
+  title = "P2P Holding Group — Full-Stack AI Delivery",
+  description = "P2P Holding Group ส่งมอบครบทั้ง AI Stack 3 ชั้น — Titanicom (AI Infrastructure), Perpos AI ERP (Platform), P2P Solutions (Integration & Delivery) คุยที่เดียวจบ",
+} = Astro.props;
+
+const canonical = new URL("/p2p-holding", SITE).toString();
+const ogDescription =
+  "P2P Holding Group — Infrastructure · Platform · Integration ครบใน AI Stack เดียว โดยกลุ่มบริษัท 6 แห่ง นำโดย Titanicom และ P2P Solutions (เจ้าของ Perpos AI ERP)";
+---
+
+<!doctype html>
+<html lang="th">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="generator" content={Astro.generator} />
+
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <meta name="author" content="P2P Holding Group" />
+    <meta name="robots" content="index, follow" />
+    <link rel="canonical" href={canonical} />
+    <link rel="icon" href="/logo-short.svg" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+
+    {/* Open Graph */}
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={ogDescription} />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:site_name" content="P2P Holding Group" />
+    <meta property="og:locale" content="th_TH" />
+
+    {/* Twitter */}
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={ogDescription} />
+
+    {/* Google Tag Manager */}
+    <script is:inline define:vars={{ GTM_ID }}>
+      (function (w, d, s, l, i) {
+        w[l] = w[l] || [];
+        w[l].push({ "gtm.start": new Date().getTime(), event: "gtm.js" });
+        var f = d.getElementsByTagName(s)[0],
+          j = d.createElement(s),
+          dl = l != "dataLayer" ? "&l=" + l : "";
+        j.async = true;
+        j.src = "https://www.googletagmanager.com/gtm.js?id=" + i + dl;
+        f.parentNode.insertBefore(j, f);
+      })(window, document, "script", "dataLayer", GTM_ID);
+    </script>
+    {/* End Google Tag Manager */}
+
+    {/* Google tag (gtag.js) */}
+    <script is:inline async src={`https://www.googletagmanager.com/gtag/js?id=${GA_ID}`}></script>
+    <script is:inline define:vars={{ GA_ID }}>
+      window.dataLayer = window.dataLayer || [];
+      function gtag() {
+        dataLayer.push(arguments);
+      }
+      gtag("js", new Date());
+      gtag("config", GA_ID);
+    </script>
+  </head>
+  <body class="antialiased">
+    {/* Google Tag Manager (noscript) */}
+    <noscript>
+      <iframe
+        src={`https://www.googletagmanager.com/ns.html?id=${GTM_ID}`}
+        height="0"
+        width="0"
+        style="display:none;visibility:hidden"></iframe>
+    </noscript>
+    {/* End Google Tag Manager (noscript) */}
+    <div class="p2p">
+      <slot />
+    </div>
+  </body>
+</html>

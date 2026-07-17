@@ -1,0 +1,34 @@
+---
+import { cn } from "@/lib/utils";
+
+interface Props {
+  value: string;
+  label: string;
+  /** genuine numeric stat → animates via count-up on scroll into view */
+  numeric?: boolean;
+  /** target integer for count-up (numeric stats only) */
+  countTo?: number;
+  /** suffix preserved after count-up, e.g. "+", "x", "%" */
+  suffix?: string;
+  class?: string;
+}
+
+const { value, label, numeric = false, countTo, suffix = "", class: className } = Astro.props;
+---
+
+<div class={cn("rounded-2xl border border-[var(--p2p-border)] bg-[var(--p2p-card)] p-4", className)} data-reveal>
+  {
+    numeric && countTo !== undefined ? (
+      <div
+        class="text-[1.4rem] font-extrabold tabular-nums text-[var(--p2p-primary)] sm:text-[1.7rem]"
+        data-count-to={countTo}
+        data-suffix={suffix}
+      >
+        {value}
+      </div>
+    ) : (
+      <div class="text-[1.4rem] font-extrabold text-[var(--p2p-primary)] sm:text-[1.7rem]">{value}</div>
+    )
+  }
+  <div class="mt-1 text-[.82rem] text-[var(--p2p-muted)]">{label}</div>
+</div>

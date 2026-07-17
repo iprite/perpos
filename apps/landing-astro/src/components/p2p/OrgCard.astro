@@ -1,0 +1,45 @@
+---
+import { cn } from "@/lib/utils";
+import Card from "@/components/p2p/Card.astro";
+
+interface Props {
+  name: string;
+  desc: string;
+  tag: "infra" | "platform" | "delivery";
+  flagship?: boolean;
+  stagger?: number;
+  class?: string;
+}
+
+const { name, desc, tag, flagship = false, stagger, class: className } = Astro.props;
+
+const tagLabel = tag === "infra" ? "INFRASTRUCTURE" : tag === "platform" ? "PLATFORM" : "DELIVERY";
+const tagClass =
+  tag === "infra"
+    ? "bg-[var(--p2p-hi)] text-[var(--p2p-primary)]"
+    : tag === "platform"
+      ? "bg-[#ecfeff] text-[var(--p2p-secondary)]"
+      : "bg-[#f1f5f9] text-[var(--p2p-muted)]";
+---
+
+<Card
+  hover
+  class={cn("relative", flagship && "border-2 border-[var(--p2p-primary)]", className)}
+  data-reveal
+  data-reveal-stagger={stagger}
+>
+  <div class="flex items-start justify-between gap-2">
+    <div class="text-[.98rem] font-extrabold">{name}</div>
+    {
+      flagship && (
+        <span class="inline-block shrink-0 rounded-md bg-[var(--p2p-primary)] px-2 py-0.5 text-[.62rem] font-bold uppercase tracking-wide text-white">
+          Flagship
+        </span>
+      )
+    }
+  </div>
+  <p class="mt-1.5 text-[.85rem] leading-6 text-[var(--p2p-muted)]">{desc}</p>
+  <span class={cn("mt-2.5 inline-block rounded-md px-2.5 py-0.5 text-[.62rem] font-bold uppercase tracking-wide", tagClass)}>
+    {tagLabel}
+  </span>
+</Card>

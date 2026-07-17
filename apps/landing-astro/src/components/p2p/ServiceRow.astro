@@ -1,0 +1,29 @@
+---
+import { cn } from "@/lib/utils";
+import IconCircle from "@/components/p2p/IconCircle.astro";
+
+interface Props {
+  icon?: string;
+  num?: number | string;
+  title: string;
+  desc?: string;
+  stagger?: number;
+  class?: string;
+}
+
+const { icon, num, title, desc, stagger, class: className } = Astro.props;
+---
+
+<div
+  class={cn("flex items-start gap-3", className)}
+  data-reveal
+  data-reveal-stagger={stagger}
+>
+  <IconCircle size={num !== undefined ? 34 : 44}>
+    {num !== undefined ? num : icon}
+  </IconCircle>
+  <div class="min-w-0">
+    <div class="text-[15px] font-bold text-[var(--p2p-text)]">{title}</div>
+    {desc && <div class="mt-0.5 text-[13px] text-[var(--p2p-muted)]">{desc}</div>}
+  </div>
+</div>

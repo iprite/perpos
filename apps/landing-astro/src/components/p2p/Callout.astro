@@ -1,0 +1,19 @@
+---
+import { cn } from "@/lib/utils";
+
+interface Props {
+  class?: string;
+}
+
+const { class: className } = Astro.props;
+---
+
+<div
+  class={cn(
+    "rounded-xl border-l-4 border-[var(--p2p-primary)] bg-[var(--p2p-hi)] px-5 py-4 text-[15px] font-medium leading-relaxed",
+    className,
+  )}
+  data-reveal
+>
+  <slot />
+</div>

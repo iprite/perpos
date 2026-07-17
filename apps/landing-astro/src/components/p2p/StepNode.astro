@@ -1,0 +1,23 @@
+---
+import { cn } from "@/lib/utils";
+
+interface Props {
+  num: string;
+  title: string;
+  desc: string;
+  stagger?: number;
+  class?: string;
+}
+
+const { num, title, desc, stagger, class: className } = Astro.props;
+---
+
+<div class={cn("flex flex-col", className)} data-reveal data-reveal-stagger={stagger}>
+  <div
+    class="flex h-[38px] w-[38px] min-w-[38px] items-center justify-center rounded-full bg-[var(--p2p-primary)] text-[.95rem] font-extrabold text-white"
+  >
+    {num}
+  </div>
+  <div class="mt-2.5 text-[.9rem] font-extrabold">{title}</div>
+  <p class="mt-1 text-[.78rem] leading-6 text-[var(--p2p-muted)]">{desc}</p>
+</div>

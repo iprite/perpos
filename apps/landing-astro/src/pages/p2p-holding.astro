@@ -1,0 +1,532 @@
+---
+import P2PLayout from "@/layouts/P2PLayout.astro";
+import P2PHeader from "@/components/p2p/P2PHeader.astro";
+import P2PFooter from "@/components/p2p/P2PFooter.astro";
+import Section from "@/components/p2p/Section.astro";
+import Eyebrow from "@/components/p2p/Eyebrow.astro";
+import Pill from "@/components/p2p/Pill.astro";
+import Button from "@/components/p2p/Button.astro";
+import Card from "@/components/p2p/Card.astro";
+import StatCard from "@/components/p2p/StatCard.astro";
+import IconCircle from "@/components/p2p/IconCircle.astro";
+import ServiceRow from "@/components/p2p/ServiceRow.astro";
+import LayerCard from "@/components/p2p/LayerCard.astro";
+import OrgCard from "@/components/p2p/OrgCard.astro";
+import ModuleCard from "@/components/p2p/ModuleCard.astro";
+import StepNode from "@/components/p2p/StepNode.astro";
+import Callout from "@/components/p2p/Callout.astro";
+import HeroStack from "@/components/p2p/HeroStack.astro";
+import DashboardMockup from "@/components/p2p/DashboardMockup.astro";
+import FlowLine from "@/components/p2p/FlowLine.astro";
+
+const pills = [
+  "Network Evolution Consulting",
+  "Titanicom Tech (Thailand)",
+  "P2P Supply",
+  "P2P Solutions",
+  "ExWorker",
+  "ExCon",
+];
+
+const orgs = [
+  {
+    name: "Titanicom Tech (Thailand)",
+    desc: "AI Infrastructure & Data Center Solutions",
+    tag: "infra" as const,
+    flagship: true,
+  },
+  {
+    name: "P2P Solutions",
+    desc: "System Integrator — เจ้าของ Perpos AI ERP",
+    tag: "platform" as const,
+    flagship: true,
+  },
+  {
+    name: "Network Evolution Consulting",
+    desc: "IT Infrastructure, Network & Security",
+    tag: "infra" as const,
+  },
+  {
+    name: "P2P Supply",
+    desc: "Procurement & Supply Chain",
+    tag: "delivery" as const,
+  },
+  {
+    name: "ExWorker",
+    desc: "Workforce Management Platform",
+    tag: "platform" as const,
+  },
+  {
+    name: "ExCon",
+    desc: "Construction & Project Management",
+    tag: "delivery" as const,
+  },
+];
+
+const titanicomServices = [
+  {
+    icon: "🖥️",
+    title: "GPU Cluster Design",
+    desc: "ออกแบบ GPU Infrastructure สำหรับ AI Training และ Inference ตาม Workload จริง",
+  },
+  {
+    icon: "🏗️",
+    title: "AI Data Center Build",
+    desc: "ออกแบบและติดตั้ง Data Center รองรับ High-Density AI Rack",
+  },
+  {
+    icon: "⚡",
+    title: "Power & Cooling Engineering",
+    desc: "วางระบบไฟฟ้าและระบายความร้อนสำหรับ AI Workload",
+  },
+  {
+    icon: "🔧",
+    title: "Deploy & Handover",
+    desc: "ติดตั้ง ทดสอบ และส่งมอบระบบพร้อมเอกสารครบ",
+  },
+];
+
+const titanicomStats = [
+  { value: "On-Premise", label: "Client-Owned Deployment" },
+  { value: "High-Density", label: "AI Rack Ready" },
+  { value: "End-to-End", label: "Design to Handover" },
+  { value: "Vendor-Neutral", label: "Hardware Agnostic" },
+];
+
+const perposBullets = [
+  "AI ฝังในทุก Module ไม่ใช่ Add-on",
+  "Customize ตาม Workflow จริงของธุรกิจ",
+  "Deploy ได้ทั้งบน Cloud หรือ On-Premise ของลูกค้า",
+  "รองรับ PDPA และมาตรฐานภาครัฐ",
+];
+
+const modules = [
+  { emoji: "🏢", title: "HR & Payroll", desc: "จัดการพนักงาน, เงินเดือน และสวัสดิการ" },
+  { emoji: "📦", title: "Procurement & SCM", desc: "จัดซื้อ, คลังสินค้า และ Supply Chain" },
+  { emoji: "💰", title: "Finance & Accounting", desc: "บัญชี, งบการเงิน และภาษี" },
+  { emoji: "📊", title: "CRM & Sales", desc: "ติดตามลูกค้า, Pipeline และ Sales Report" },
+  { emoji: "🔧", title: "Project Management", desc: "บริหารโปรเจกต์และ Resource Planning" },
+  { emoji: "📱", title: "Mobile-First Portal", desc: "ใช้งานได้ทุกอุปกรณ์, Real-time Dashboard" },
+];
+
+const siCapabilities = [
+  {
+    icon: "🔌",
+    title: "System Integration",
+    desc: "เชื่อมระบบเดิมกับ Perpos และ Third-party API",
+  },
+  {
+    icon: "🗄️",
+    title: "Data Migration",
+    desc: "ย้ายข้อมูลจากระบบเก่าอย่างปลอดภัย ไม่สะดุด",
+  },
+  {
+    icon: "⚙️",
+    title: "Custom Development",
+    desc: "พัฒนา Module เฉพาะตาม Requirement",
+  },
+  {
+    icon: "🛡️",
+    title: "Managed Service",
+    desc: "ดูแลระบบต่อเนื่อง SLA ชัดเจน",
+  },
+];
+
+const aiServices = [
+  { num: 1, title: "AI Chatbot & Virtual Assistant", desc: "LINE / Web / Internal" },
+  { num: 2, title: "Computer Vision & OCR", desc: "Document Scanning, Face Recognition" },
+  { num: 3, title: "Predictive Analytics", desc: "Sales Forecasting, Demand Planning" },
+  { num: 4, title: "RAG Knowledge Base", desc: "HR, Legal, Finance AI Search" },
+  { num: 5, title: "Process Automation (RPA + AI)", desc: "Form, Data Entry, Workflow Auto" },
+];
+
+const journeySteps = [
+  { num: "01", title: "Consult & Analyze", desc: "วิเคราะห์ธุรกิจและความต้องการ" },
+  { num: "02", title: "Design & Architect", desc: "ออกแบบสถาปัตยกรรมและระบบ" },
+  { num: "03", title: "Build Infrastructure", desc: "สร้าง AI Infrastructure และแพลตฟอร์ม" },
+  { num: "04", title: "Deploy & Integrate", desc: "ติดตั้งและเชื่อมระบบเข้าด้วยกัน" },
+  { num: "05", title: "Support & Scale", desc: "ดูแลต่อเนื่องและขยายระบบ" },
+];
+
+const contactInfo = [
+  { icon: "✉️", label: "Email", value: "info@p2pholding.co.th" },
+  { icon: "💬", label: "LINE OA", value: "@p2pholding" },
+  { icon: "🌐", label: "Website", value: "www.p2pholding.co.th" },
+  { icon: "📞", label: "Phone", value: "02-XXX-XXXX" },
+];
+---
+
+<P2PLayout>
+  <P2PHeader />
+
+  <main id="main">
+    {/* S1 HERO */}
+    <Section id="top" bg="white" class="pt-10 lg:pt-6">
+      <div class="flex min-h-[calc(100vh-4rem)] flex-col items-center gap-10 lg:min-h-[calc(100vh-72px)] lg:flex-row lg:items-center lg:gap-14">
+        <div class="w-full flex-1">
+          <div class="text-[1rem] font-extrabold tracking-[.06em] text-[var(--p2p-dark)]" data-reveal data-reveal-stagger="1">
+            P2P HOLDING
+          </div>
+          <h1 class="p2p-h1 mt-5" data-reveal data-reveal-stagger="2">
+            เราสร้าง AI Stack ให้ธุรกิจคุณ<br />ตั้งแต่ Infrastructure จนถึง ERP
+          </h1>
+          <div class="p2p-subtitle mt-3.5" data-reveal data-reveal-stagger="3">
+            Full-Stack AI Delivery — Infrastructure · Platform · Integration
+          </div>
+          <p class="p2p-body mt-4 max-w-xl" data-reveal data-reveal-stagger="4">
+            ออกแบบ AI Infrastructure, พัฒนา AI ERP, และ Integrate ทั้งระบบ — ครบในกลุ่มเดียว ไม่ต้องประสานหลายเจ้า
+          </p>
+          <div class="mt-6 flex max-w-[560px] flex-wrap gap-2" data-reveal data-reveal-stagger="5">
+            {pills.map((p) => <Pill>{p}</Pill>)}
+          </div>
+          <div class="mt-8" data-reveal data-reveal-stagger="6">
+            <Button href="#contact" class="w-full sm:w-auto">เริ่มต้นปรึกษาฟรี →</Button>
+          </div>
+        </div>
+        <div class="w-full flex-shrink-0 lg:w-[420px]">
+          <HeroStack />
+        </div>
+      </div>
+    </Section>
+
+    {/* S2 THE FULL AI STACK */}
+    <Section id="stack" bg="alt">
+      <Eyebrow>What Makes Us Different</Eyebrow>
+      <h2 class="p2p-h2" data-reveal data-reveal-stagger="1">รับงานได้ครบทั้ง 3 ชั้นของ AI Stack</h2>
+      <p class="p2p-subtitle mt-2" data-reveal data-reveal-stagger="2">
+        Vendor ส่วนใหญ่ทำได้ชั้นเดียว — เราทำได้ทั้งหมด
+      </p>
+
+      <div class="mt-8 flex flex-col gap-3">
+        <LayerCard
+          num={3}
+          color="primary"
+          title="LAYER 3 — INTEGRATION & DELIVERY"
+          companies="P2P Solutions · P2P Supply · ExCon"
+          desc="เชื่อมระบบ ติดตั้ง ส่งมอบถึงมือลูกค้า"
+          stagger={3}
+        />
+        <FlowLine orientation="vertical" class="my-[-8px]" />
+        <LayerCard
+          num={2}
+          color="secondary"
+          title="LAYER 2 — AI PLATFORM & PRODUCT"
+          companies="Perpos AI ERP (by P2P Solutions) · ExWorker"
+          desc="ซอฟต์แวร์ AI ERP ที่เราพัฒนาเอง"
+          stagger={4}
+        />
+        <FlowLine orientation="vertical" class="my-[-8px]" />
+        <LayerCard
+          num={1}
+          color="neutral"
+          title="LAYER 1 — AI INFRASTRUCTURE"
+          companies="Titanicom Tech (Thailand) · Network Evolution Consulting"
+          desc="ออกแบบและสร้าง AI Infrastructure ให้ลูกค้า"
+          stagger={5}
+        />
+      </div>
+
+      <Callout class="mt-6">
+        ✦ ลูกค้าเจ้าอื่นต้องประสาน 3 vendor — กับ P2P คุณคุยที่เดียวจบ ความรับผิดชอบชัดเจน
+      </Callout>
+    </Section>
+
+    {/* S3 GROUP STRUCTURE */}
+    <Section id="structure" bg="white">
+      <Eyebrow>Our Structure</Eyebrow>
+      <h2 class="p2p-h2-tight" data-reveal data-reveal-stagger="1">โครงสร้างกลุ่มบริษัท P2P Holding</h2>
+
+      <div class="mt-5 flex justify-center" data-reveal data-reveal-stagger="2">
+        <div class="rounded-xl bg-[var(--p2p-primary)] px-7 py-2.5 text-base font-extrabold text-white shadow-[var(--p2p-shadow-btn)]">
+          P2P HOLDING
+        </div>
+      </div>
+
+      <div class="mt-8 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+        {orgs.map((org, i) => <OrgCard {...org} stagger={(i % 6) + 1} />)}
+      </div>
+    </Section>
+
+    {/* S4 TITANICOM */}
+    <Section id="infra" bg="alt">
+      <Eyebrow>AI Infrastructure</Eyebrow>
+      <h2 class="p2p-h2-tight" data-reveal data-reveal-stagger="1">
+        Titanicom Tech — รับออกแบบและสร้าง AI Infrastructure
+      </h2>
+      <p class="p2p-subtitle mt-2" data-reveal data-reveal-stagger="2">
+        ตั้งแต่วางแผน GPU Cluster จนถึงส่งมอบระบบพร้อมใช้งาน — บน Site ของลูกค้าเอง
+      </p>
+
+      <div class="mt-8 flex flex-col gap-8 md:flex-row md:items-start md:gap-8">
+        <div class="flex min-w-0 flex-[1.3_1_0] flex-col gap-4">
+          {titanicomServices.map((s, i) => <ServiceRow icon={s.icon} title={s.title} desc={s.desc} stagger={(i % 6) + 1} />)}
+        </div>
+        <div class="grid min-w-0 flex-1 grid-cols-2 gap-3">
+          {titanicomStats.map((s) => <StatCard value={s.value} label={s.label} />)}
+        </div>
+      </div>
+
+      <Callout class="mt-6">
+        ทำไมสำคัญ: องค์กรที่ต้องการ AI แต่ข้อมูลออกนอกประเทศไม่ได้ — Titanicom ช่วยสร้าง AI Infrastructure ไว้ในองค์กรของคุณเอง
+      </Callout>
+    </Section>
+
+    {/* S5 PERPOS (intro + modules merged) */}
+    <Section id="perpos" bg="white">
+      <div
+        class="mb-3 inline-block rounded-lg bg-[var(--p2p-primary)] px-3.5 py-1.5 text-[.85rem] font-extrabold tracking-wide text-white"
+        data-reveal
+        data-reveal-stagger="1"
+      >
+        PERPOS
+      </div>
+      <Eyebrow>Our Product</Eyebrow>
+      <h2 class="p2p-h2-tight" data-reveal data-reveal-stagger="2">Perpos — AI ERP ที่คิดมาเพื่อธุรกิจไทย</h2>
+      <p class="p2p-subtitle mt-2" data-reveal data-reveal-stagger="2">
+        พัฒนาโดย P2P Solutions — System Integrator ในเครือ P2P Holding
+      </p>
+
+      <div class="mt-8 flex flex-col gap-8 lg:flex-row lg:items-center lg:gap-10">
+        <div class="min-w-0 flex-1">
+          <p class="p2p-body" data-reveal data-reveal-stagger="3">
+            AI ฝังอยู่ในทุก Module ของระบบ ออกแบบให้ปรับตาม Workflow ธุรกิจจริง
+          </p>
+          <div class="mt-4 flex flex-col gap-2.5">
+            {
+              perposBullets.map((b, i) => (
+                <div class="flex items-start gap-2.5" data-reveal data-reveal-stagger={(i % 6) + 1}>
+                  <IconCircle size={30}>✓</IconCircle>
+                  <div class="text-[.92rem] pt-1">{b}</div>
+                </div>
+              ))
+            }
+          </div>
+        </div>
+        <div class="min-w-0 flex-1">
+          <DashboardMockup />
+        </div>
+      </div>
+
+      <div class="mt-14">
+        <Eyebrow>Modules</Eyebrow>
+        <h3 class="p2p-h2-tight" data-reveal data-reveal-stagger="1">6 Module ครบธุรกิจ</h3>
+        <div class="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-3">
+          {modules.map((m, i) => <ModuleCard emoji={m.emoji} title={m.title} desc={m.desc} stagger={(i % 6) + 1} />)}
+        </div>
+      </div>
+    </Section>
+
+    {/* S7 SI CAPABILITIES */}
+    <Section id="si" bg="alt">
+      <Eyebrow>System Integration</Eyebrow>
+      <h2 class="p2p-h2-tight" data-reveal data-reveal-stagger="1">
+        ไม่ใช่แค่ขายซอฟต์แวร์ — เรา Integrate ทั้งระบบให้คุณ
+      </h2>
+      <div class="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 lg:gap-5">
+        {
+          siCapabilities.map((c, i) => (
+            <Card hover data-reveal data-reveal-stagger={(i % 6) + 1}>
+              <IconCircle>{c.icon}</IconCircle>
+              <div class="mt-3 text-[.95rem] font-extrabold">{c.title}</div>
+              <p class="mt-1.5 text-[.82rem] leading-6 text-[var(--p2p-muted)]">{c.desc}</p>
+            </Card>
+          ))
+        }
+      </div>
+    </Section>
+
+    {/* S8 AI SOLUTIONS */}
+    <Section id="ai" bg="white">
+      <Eyebrow>AI Solutions</Eyebrow>
+      <h2 class="p2p-h2-tight" data-reveal data-reveal-stagger="1">AI Application ครบวงจร</h2>
+      <p class="p2p-subtitle mt-2" data-reveal data-reveal-stagger="2">
+        Deploy ได้ทั้งบน Cloud หรือ Infrastructure ที่เราสร้างให้คุณ
+      </p>
+
+      <div class="mt-8 flex flex-col gap-8 md:flex-row md:items-start md:gap-8">
+        <div class="flex min-w-0 flex-[1.3_1_0] flex-col gap-3">
+          {aiServices.map((s, i) => <ServiceRow num={s.num} title={s.title} desc={s.desc} stagger={(i % 6) + 1} />)}
+        </div>
+        <div class="grid min-w-0 flex-1 grid-cols-2 gap-3">
+          <StatCard value="5+" label="AI Projects Delivered" numeric countTo={5} suffix="+" />
+          <StatCard value="3x" label="Faster Process With AI" numeric countTo={3} suffix="x" />
+          <StatCard value="24/7" label="Support Coverage" />
+          <StatCard value="100%" label="On-Premise or Cloud" numeric countTo={100} suffix="%" />
+        </div>
+      </div>
+    </Section>
+
+    {/* S9 END-TO-END JOURNEY */}
+    <Section id="journey" bg="alt">
+      <Eyebrow>How We Work</Eyebrow>
+      <h2 class="p2p-h2-tight" data-reveal data-reveal-stagger="1">จาก Consult ถึง Deploy — เราดูแลทุกขั้นตอน</h2>
+
+      <div class="mt-10">
+        <FlowLine orientation="horizontal" />
+        <div class="mt-4 grid grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-3 lg:mt-[-8px] lg:grid-cols-5 lg:gap-5">
+          {journeySteps.map((s, i) => <StepNode num={s.num} title={s.title} desc={s.desc} stagger={i + 1} />)}
+        </div>
+      </div>
+
+      <Callout class="mt-8">
+        ✦ ตั้งแต่วาง Infrastructure จนถึง Go-Live — ทีมเดียวจบ ไม่ต้องประสานหลายเจ้า
+      </Callout>
+    </Section>
+
+    {/* S10 CONTACT / CTA */}
+    <Section id="contact" bg="gradient" class="text-center">
+      <div class="mx-auto max-w-[760px]">
+        <h2 class="p2p-h1" data-reveal data-reveal-stagger="1">พร้อมเริ่มต้นแล้วหรือยัง?</h2>
+        <div class="p2p-subtitle mt-3" data-reveal data-reveal-stagger="2">
+          ให้ P2P Holding ดูแลตั้งแต่ Infrastructure จนถึง ERP
+        </div>
+        <p class="p2p-body mx-auto mt-4 max-w-[520px]" data-reveal data-reveal-stagger="3">
+          ปรึกษาฟรี ไม่มีข้อผูกมัด — ทีมผู้เชี่ยวชาญพร้อมวิเคราะห์ธุรกิจของคุณ
+        </p>
+        <div class="mt-7" data-reveal data-reveal-stagger="4">
+          <Button href="mailto:info@p2pholding.co.th">📩 ติดต่อเราวันนี้</Button>
+        </div>
+
+        <div class="mx-auto mt-10 grid max-w-[540px] grid-cols-1 gap-4 text-left sm:grid-cols-2" data-reveal data-reveal-stagger="5">
+          {
+            contactInfo.map((c) => (
+              <div class="flex items-center gap-2.5">
+                <IconCircle size={36}>{c.icon}</IconCircle>
+                <div class="min-w-0">
+                  <div class="text-[.72rem] text-[var(--p2p-muted)]">{c.label}</div>
+                  <div class="truncate text-[.88rem] font-bold">{c.value}</div>
+                </div>
+              </div>
+            ))
+          }
+        </div>
+      </div>
+    </Section>
+  </main>
+
+  <P2PFooter />
+
+  <script>
+    // Respect prefers-reduced-motion for JS-driven effects (CSS already handles [data-reveal]).
+    const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    // --- Scroll reveal (one-shot) ---
+    const revealEls = document.querySelectorAll<HTMLElement>("[data-reveal]");
+    if (prefersReducedMotion) {
+      revealEls.forEach((el) => el.classList.add("is-visible"));
+    } else {
+      const revealObserver = new IntersectionObserver(
+        (entries, obs) => {
+          for (const entry of entries) {
+            if (entry.isIntersecting) {
+              entry.target.classList.add("is-visible");
+              obs.unobserve(entry.target);
+            }
+          }
+        },
+        { threshold: 0.15, rootMargin: "0px 0px -60px 0px" },
+      );
+      revealEls.forEach((el) => revealObserver.observe(el));
+    }
+
+    // --- Count-up stats ---
+    // SSR renders the real value (so no-JS / crawlers / social previews see "5+", not "0+").
+    // When JS runs with motion enabled, reset to 0 first so the count-up still animates up on scroll.
+    const countEls = document.querySelectorAll<HTMLElement>("[data-count-to]");
+    if (!prefersReducedMotion) {
+      countEls.forEach((el) => {
+        el.textContent = `0${el.dataset.suffix || ""}`;
+      });
+    }
+    function runCountUp(el: HTMLElement) {
+      const target = Number(el.dataset.countTo || "0");
+      const suffix = el.dataset.suffix || "";
+      if (prefersReducedMotion) {
+        el.textContent = `${target}${suffix}`;
+        return;
+      }
+      const duration = 900;
+      const start = performance.now();
+      function tick(now: number) {
+        const progress = Math.min((now - start) / duration, 1);
+        const eased = 1 - Math.pow(1 - progress, 3); // ease-out cubic
+        const value = Math.round(target * eased);
+        el.textContent = `${value}${suffix}`;
+        if (progress < 1) requestAnimationFrame(tick);
+      }
+      requestAnimationFrame(tick);
+    }
+    const countObserver = new IntersectionObserver(
+      (entries, obs) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            runCountUp(entry.target as HTMLElement);
+            obs.unobserve(entry.target);
+          }
+        }
+      },
+      { threshold: 0.4 },
+    );
+    countEls.forEach((el) => countObserver.observe(el));
+
+    // --- Scroll-spy nav ---
+    const navLinks = document.querySelectorAll<HTMLAnchorElement>("[data-nav-link]");
+    const sections = Array.from(navLinks)
+      .map((link) => document.querySelector(link.getAttribute("href") || ""))
+      .filter((el): el is Element => !!el);
+
+    function setActive(id: string) {
+      navLinks.forEach((link) => {
+        const match = link.getAttribute("href") === `#${id}`;
+        if (match) link.setAttribute("data-active", "true");
+        else link.removeAttribute("data-active");
+      });
+    }
+
+    if (sections.length) {
+      const spyObserver = new IntersectionObserver(
+        (entries) => {
+          for (const entry of entries) {
+            if (entry.isIntersecting) {
+              setActive(entry.target.id);
+            }
+          }
+        },
+        { rootMargin: "-40% 0px -55% 0px" },
+      );
+      sections.forEach((section) => spyObserver.observe(section));
+    }
+
+    // --- Mobile hamburger nav ---
+    const toggle = document.getElementById("p2p-nav-toggle");
+    const panel = document.getElementById("p2p-mobile-nav");
+    const iconOpen = document.getElementById("p2p-nav-icon-open");
+    const iconClose = document.getElementById("p2p-nav-icon-close");
+
+    function closeMobileNav() {
+      if (!panel || !toggle) return;
+      panel.style.maxHeight = "0px";
+      toggle.setAttribute("aria-expanded", "false");
+      iconOpen?.classList.remove("hidden");
+      iconClose?.classList.add("hidden");
+    }
+
+    function openMobileNav() {
+      if (!panel || !toggle) return;
+      panel.style.maxHeight = `${panel.scrollHeight}px`;
+      toggle.setAttribute("aria-expanded", "true");
+      iconOpen?.classList.add("hidden");
+      iconClose?.classList.remove("hidden");
+    }
+
+    toggle?.addEventListener("click", () => {
+      const isOpen = toggle.getAttribute("aria-expanded") === "true";
+      if (isOpen) closeMobileNav();
+      else openMobileNav();
+    });
+
+    document.querySelectorAll<HTMLAnchorElement>("[data-mobile-link]").forEach((link) => {
+      link.addEventListener("click", () => closeMobileNav());
+    });
+  </script>
+</P2PLayout>

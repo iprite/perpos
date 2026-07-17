@@ -1,0 +1,25 @@
+---
+import { cn } from "@/lib/utils";
+import Card from "@/components/p2p/Card.astro";
+
+interface Props {
+  emoji: string;
+  title: string;
+  desc: string;
+  stagger?: number;
+  class?: string;
+}
+
+const { emoji, title, desc, stagger, class: className } = Astro.props;
+---
+
+<Card
+  hover
+  class={cn("border-t-[5px] border-t-[var(--p2p-primary)]", className)}
+  data-reveal
+  data-reveal-stagger={stagger}
+>
+  <div class="text-2xl" aria-hidden="true">{emoji}</div>
+  <div class="mt-2 text-[.95rem] font-extrabold">{title}</div>
+  <p class="mt-1.5 text-[.83rem] leading-6 text-[var(--p2p-muted)]">{desc}</p>
+</Card>
