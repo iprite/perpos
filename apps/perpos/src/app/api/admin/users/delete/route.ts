@@ -17,13 +17,18 @@ export async function POST(req: NextRequest) {
 
   const admin = createAdminClient();
 
-  // กันลบ super admin คนอื่น (insider/บัญชีหลุดลบ admin ทิ้งทั้งหมด)
+  // shared auth pool: ลบได้เฉพาะ user ของ perpos (มีแถวใน public.profiles) —
+  // auth.users ใช้ร่วมกับ app อื่น (tagged user_metadata.app) ห้ามแตะข้าม app
   const { data: target } = await admin
     .from('profiles')
     .select('id, email, display_name, role')
     .eq('id', body.userId)
     .maybeSingle();
-  if (target?.role === 'super_admin') {
+  if (!target) {
+    return NextResponse.json({ error: 'user not found' }, { status: 404 });
+  }
+  // กันลบ super admin คนอื่น (insider/บัญชีหลุดลบ admin ทิ้งทั้งหมด)
+  if (target.role === 'super_admin') {
     return NextResponse.json({ error: 'cannot delete another super admin' }, { status: 403 });
   }
 

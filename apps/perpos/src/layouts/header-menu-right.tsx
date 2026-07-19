@@ -1,16 +1,17 @@
 "use client";
 
 import { LogIn } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 
 import { useAuth } from "@/app/shared/auth-provider";
-import { useModal } from "@/app/shared/modal-views/use-modal";
-import GoogleAuthView from "@/components/auth/google-auth-view";
+import { withBasePath } from "@/utils/base-path";
 
 export default function HeaderMenuRight() {
   const { userId, loading } = useAuth();
-  const { openModal, closeModal } = useModal();
+  const router = useRouter();
+  const pathname = usePathname();
 
   // โปรไฟล์/เมนูผู้ใช้ ย้ายไปอยู่ที่ sidebar ด้านล่างแล้ว — header เหลือเฉพาะปุ่ม login ตอนยังไม่ล็อกอิน
   if (loading || userId) return null;
@@ -20,11 +21,8 @@ export default function HeaderMenuRight() {
       <Button
         className="gap-2"
         onClick={() => {
-          openModal({
-            view: <GoogleAuthView mode="modal" onClose={closeModal} />,
-            customSize: 520,
-            size: "sm",
-          });
+          const returnTo = pathname && pathname !== "/" ? `?returnTo=${encodeURIComponent(pathname)}` : "";
+          router.push(withBasePath(`/signin${returnTo}`));
         }}
       >
         <LogIn className="h-4 w-4" />
