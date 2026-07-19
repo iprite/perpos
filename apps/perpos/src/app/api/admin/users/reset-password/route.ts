@@ -14,6 +14,18 @@ export async function POST(req: NextRequest) {
   if (!email) return NextResponse.json({ error: 'missing email' }, { status: 400 });
 
   const admin = createAdminClient();
+
+  // shared auth pool: ออก recovery link ได้เฉพาะ user ของ perpos (มีแถวใน public.profiles) —
+  // auth.users ใช้ร่วมกับ app อื่น (tagged user_metadata.app) ห้ามมิ้นต์ลิงก์ข้าม app
+  const { data: target } = await admin
+    .from('profiles')
+    .select('id')
+    .eq('email', email)
+    .maybeSingle();
+  if (!target) {
+    return NextResponse.json({ error: 'user not found' }, { status: 404 });
+  }
+
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://app.perpos.ai';
   const finalRedirect = redirectTo ?? `${baseUrl}${withBasePath('/auth/password')}`;
 
