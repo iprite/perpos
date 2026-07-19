@@ -1,6 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "perpos-landing",
+  "name": "perpos",
   "compatibility_date": "2026-06-28",
   // nodejs_compat: Astro's runtime references `process`; required on workerd.
   // @astrojs/cloudflare@14 builds a Worker (not Pages) and injects `main`/`assets`
