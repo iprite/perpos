@@ -10,7 +10,7 @@ import {
 } from "../../../_lib";
 import { buildPartySnapshot } from "@/lib/accounting/documents";
 import { validateTaxDocumentParties } from "@/lib/accounting/tax-identity";
-import { isTaxDocument } from "@/lib/accounting/types";
+import { isTaxDocument, type AccDocType } from "@/lib/accounting/types";
 
 const ROUTE = "/api/accounting/documents/[id]/convert";
 type Ctx = { params: Promise<{ id: string }> };
@@ -19,7 +19,7 @@ type Ctx = { params: Promise<{ id: string }> };
 // ใบกำกับภาษีของดีลหนึ่งออกได้ใบเดียว (จุดความรับผิด VAT เกิดแล้ว) การแปลง
 // tax_invoice → receipt_tax_invoice จะกลายเป็นใบกำกับ 2 ใบของดีลเดียว = VAT เบิ้ลใน ภ.พ.30
 // ท่าที่ถูกของขายเชื่อ: ใบกำกับภาษีตอนส่งมอบ → "ใบเสร็จรับเงินธรรมดา" ตอนรับเงิน
-const NEXT_TYPE: Record<string, { type: string; prefix: string }> = {
+const NEXT_TYPE: Record<string, { type: AccDocType; prefix: string }> = {
   quotation: { type: "invoice", prefix: "INV" },
   invoice: { type: "receipt", prefix: "RC" },
   tax_invoice: { type: "receipt", prefix: "RC" },
