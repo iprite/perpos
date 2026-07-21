@@ -10,11 +10,33 @@ import {
   num,
   nextDocNumber,
 } from "../_lib";
-import { listDocuments, computeDocument } from "@/lib/accounting/documents";
+import { listDocuments, computeDocument, buildPartySnapshot } from "@/lib/accounting/documents";
+import { isTaxDocument, requiresRefDocument, type AccDocType } from "@/lib/accounting/types";
 
 const ROUTE = "/api/accounting/documents";
-const VALID_DOC_TYPES = ["quotation", "invoice", "receipt"];
-const DOC_PREFIX: Record<string, string> = { quotation: "QT", invoice: "INV", receipt: "RC" };
+// ชนิดเอกสารที่ออกได้ (ตรงกับ CHECK ของ acc_documents.doc_type)
+const VALID_DOC_TYPES: AccDocType[] = [
+  "quotation",
+  "invoice",
+  "receipt",
+  "tax_invoice",
+  "receipt_tax_invoice",
+  "credit_note",
+  "debit_note",
+  "billing_note",
+  "delivery_note",
+];
+const DOC_PREFIX: Record<AccDocType, string> = {
+  quotation: "QT",
+  invoice: "INV",
+  receipt: "RC",
+  tax_invoice: "TIV",
+  receipt_tax_invoice: "RTV",
+  credit_note: "CN",
+  debit_note: "DN",
+  billing_note: "BN",
+  delivery_note: "DO",
+};
 const VALID_WHT = [0, 1, 2, 3, 5, 10, 15];
 
 /** GET ?orgId=&docType=&status=&from=&to= → เอกสารขาย (list) */
@@ -54,7 +76,7 @@ export async function POST(req: NextRequest) {
   if (!auth.ok) return auth.res;
   if (!canWriteFrontstage(auth.role)) return accError("ไม่มีสิทธิ์บันทึกข้อมูล", 403);
 
-  const docType = String(body.doc_type ?? "");
+  const docType = String(body.doc_type ?? "") as AccDocType;
   if (!VALID_DOC_TYPES.includes(docType)) return accError("ชนิดเอกสารไม่ถูกต้อง");
   const issueDate = String(body.issue_date ?? "");
   if (!issueDate) return accError("กรุณาเลือกวันที่เอกสาร");
@@ -78,6 +100,29 @@ export async function POST(req: NextRequest) {
 
   const computed = computeDocument(body.lines, vatEnabled, vatRate, whtRate);
 
+  // ใบลดหนี้/ใบเพิ่มหนี้ ต้องอ้างใบกำกับภาษีเดิม (ม.86/10 (3), ม.86/9 (3))
+  // เอกสารชนิดอื่นไม่มีการอ้างอิงแบบนี้ → ทิ้งค่าที่ client ส่งมา (กันข้อมูลขยะ/อ้างมั่ว)
+  const contactId = (body.contact_id as string) || null;
+  let refDocumentId: string | null = null;
+  if (requiresRefDocument(docType)) {
+    refDocumentId = (body.ref_document_id as string) || null;
+    if (!refDocumentId) return accError("ใบลดหนี้/ใบเพิ่มหนี้ ต้องอ้างอิงใบกำกับภาษีเดิม");
+    const { data: refDoc } = await admin
+      .from("acc_documents")
+      .select("id, doc_type")
+      .eq("org_id", orgId)
+      .eq("id", refDocumentId)
+      .maybeSingle();
+    if (!refDoc) return accError("ไม่พบใบกำกับภาษีที่อ้างอิง", 404);
+    // ต้องอ้าง "ใบกำกับภาษี" เท่านั้น — อ้างใบเสนอราคา/ใบแจ้งหนี้ไม่ได้ตามกฎหมาย
+    const refType = (refDoc as { doc_type: string }).doc_type;
+    if (refType !== "tax_invoice" && refType !== "receipt_tax_invoice")
+      return accError("เอกสารที่อ้างอิงต้องเป็นใบกำกับภาษีเท่านั้น");
+  }
+
+  // snapshot ม.86/4 — freeze ผู้ขาย/ผู้ซื้อ ณ วันที่ออก (ห้าม join สดตอนพิมพ์)
+  const party = await buildPartySnapshot(admin, orgId, contactId);
+
   await setAuditContext(req, auth.userId, orgId);
   const year = Number(issueDate.slice(0, 4));
   const docNumber = await nextDocNumber(admin, "acc_documents", orgId, DOC_PREFIX[docType], year, {
@@ -91,7 +136,7 @@ export async function POST(req: NextRequest) {
       org_id: orgId,
       doc_type: docType,
       doc_number: docNumber,
-      contact_id: (body.contact_id as string) || null,
+      contact_id: contactId,
       issue_date: issueDate,
       due_date: (body.due_date as string) || null,
       status: (body.status as string) || "draft",
@@ -103,6 +148,14 @@ export async function POST(req: NextRequest) {
       wht_amount: computed.wht_amount,
       note: (body.note as string) || null,
       created_by: auth.userId,
+      // ── ม.86/4 ──
+      ...party,
+      book_number: isTaxDocument(docType)
+        ? ((body.book_number as string) || "").trim() || null
+        : null,
+      vat_rate: vatEnabled ? vatRate : 0,
+      ref_document_id: refDocumentId,
+      issued_at: new Date().toISOString(),
     })
     .select("id")
     .single();
@@ -124,6 +177,7 @@ export async function POST(req: NextRequest) {
     amount: l.amount,
     sort_order: i,
     product_id: l.product_id,
+    unit: l.unit,
     created_by: auth.userId,
   }));
   const { error: lErr } = await admin.from("acc_document_lines").insert(lineRows);

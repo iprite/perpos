@@ -219,7 +219,7 @@ interface AccountingData {
   addDocument: (body: Record<string, unknown>) => Promise<MutResult>;
   updateDocument: (id: string, body: Record<string, unknown>) => Promise<MutResult>;
   deleteDocument: (id: string) => Promise<MutResult>;
-  convertDocument: (id: string, toType: Exclude<AccDocType, "quotation">) => Promise<MutResult>;
+  convertDocument: (id: string, toType: AccDocType) => Promise<MutResult>;
 }
 
 /** ผลรวมการรันค่าเสื่อมทั้งงวด (สรุปจากการเรียก depreciate ต่อ asset) */
@@ -761,7 +761,7 @@ export function AccountingDataProvider({
     [apiSend, reloadDocuments],
   );
   const convertDocument = useCallback(
-    async (id: string, toType: Exclude<AccDocType, "quotation">): Promise<MutResult> => {
+    async (id: string, toType: AccDocType): Promise<MutResult> => {
       const r = await apiSend("POST", `documents/${id}/convert`, { toType });
       if (r.ok) await reloadDocuments();
       return r;

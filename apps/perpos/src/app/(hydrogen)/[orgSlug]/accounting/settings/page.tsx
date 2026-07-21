@@ -135,6 +135,7 @@ export default function SettingsPage() {
   // org form (local state synced จาก orgSettings)
   const [orgName, setOrgName] = useState("");
   const [taxId, setTaxId] = useState("");
+  const [branch, setBranch] = useState("");
   const [fiscal, setFiscal] = useState("1");
   const [address, setAddress] = useState("");
   const [logo, setLogo] = useState<string | null>(null);
@@ -153,6 +154,7 @@ export default function SettingsPage() {
     if (!orgSettings) return;
     setOrgName(orgSettings.org_name ?? "");
     setTaxId(orgSettings.tax_id ?? "");
+    setBranch(orgSettings.branch ?? "");
     setFiscal(String(orgSettings.fiscal_start_month ?? 1));
     setAddress(orgSettings.address ?? "");
     setLogo(orgSettings.logo_data_url ?? null);
@@ -176,6 +178,7 @@ export default function SettingsPage() {
     const r = await updateOrgSettings({
       org_name: orgName.trim() || null,
       tax_id: taxId.trim() || null,
+      branch: branch.trim() || null,
       fiscal_start_month: fm,
       address: address.trim() || null,
       logo_data_url: logo,
@@ -289,6 +292,20 @@ export default function SettingsPage() {
                 onChange={(e) => setTaxId(e.target.value)}
                 disabled={!canManage}
               />
+            </div>
+            <div>
+              <Label htmlFor="org-branch">สาขา</Label>
+              <Input
+                id="org-branch"
+                className="mt-1"
+                placeholder="สำนักงานใหญ่"
+                value={branch}
+                onChange={(e) => setBranch(e.target.value)}
+                disabled={!canManage}
+              />
+              <Text className="mt-1 text-xs text-gray-400">
+                ต้องระบุบนใบกำกับภาษี (มาตรา 86/4) เช่น “สำนักงานใหญ่” หรือ “สาขาที่ 00001”
+              </Text>
             </div>
             <div>
               <Label htmlFor="org-fiscal">เดือนเริ่มรอบบัญชี (1–12)</Label>

@@ -50,8 +50,14 @@ type DocTab = "all" | AccDocType;
 const DOC_TABS: { key: DocTab; label: string }[] = [
   { key: "all", label: "ทั้งหมด" },
   { key: "quotation", label: "ใบเสนอราคา" },
+  { key: "billing_note", label: "ใบวางบิล" },
   { key: "invoice", label: "ใบแจ้งหนี้" },
+  { key: "delivery_note", label: "ใบส่งของ" },
+  { key: "tax_invoice", label: "ใบกำกับภาษี" },
+  { key: "receipt_tax_invoice", label: "ใบเสร็จ/ใบกำกับภาษี" },
   { key: "receipt", label: "ใบเสร็จรับเงิน" },
+  { key: "credit_note", label: "ใบลดหนี้" },
+  { key: "debit_note", label: "ใบเพิ่มหนี้" },
 ];
 
 const STATUS_FILTER = [
@@ -151,7 +157,7 @@ export default function DocumentsPage() {
   return (
     <AccountingShell
       title="เอกสารขาย"
-      description="ออกใบเสนอราคา → ใบแจ้งหนี้ → ใบเสร็จ และตามเก็บเงินจบในที่เดียว"
+      description="ใบเสนอราคา · ใบแจ้งหนี้ · ใบกำกับภาษี · ใบเสร็จ · ใบลด/เพิ่มหนี้ — ออกและตามเก็บเงินจบในที่เดียว"
       icon={<FileText className="h-6 w-6" />}
       actions={
         canWrite ? (

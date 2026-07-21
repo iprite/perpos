@@ -23,6 +23,7 @@ interface LineInput {
   discount?: unknown;
   discount_type?: string;
   product_id?: string;
+  unit?: string;
 }
 
 export interface ComputedDocument {
@@ -35,6 +36,7 @@ export interface ComputedDocument {
     discount_type: string;
     amount: number;
     product_id: string | null;
+    unit: string | null;
   }[];
   subtotal: number;
   vat_amount: number;
@@ -74,6 +76,7 @@ export function computeDocument(
       discount_type: discountType,
       amount,
       product_id: (l.product_id as string) || null,
+      unit: ((l.unit as string) || "").trim() || null,
     };
   });
   const subtotal = round2(lines.reduce((s, l) => s + l.amount, 0));
@@ -81,6 +84,67 @@ export function computeDocument(
   const total = round2(subtotal + vat_amount);
   const wht_amount = whtRate > 0 ? round2((subtotal * whtRate) / 100) : 0;
   return { lines, subtotal, vat_amount, total, wht_amount };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// snapshot ม.86/4 — freeze ชื่อ/ที่อยู่/เลขผู้เสียภาษี/สาขา ของทั้งสองฝ่ายไว้กับใบ
+// เอกสารภาษีที่ออกไปแล้วต้องไม่เปลี่ยนย้อนหลังเมื่อมีคนแก้ acc_contacts/acc_org_settings
+// ─────────────────────────────────────────────────────────────────────────────
+export interface PartySnapshot {
+  seller_name: string | null;
+  seller_address: string | null;
+  seller_tax_id: string | null;
+  seller_branch: string | null;
+  buyer_name: string | null;
+  buyer_address: string | null;
+  buyer_tax_id: string | null;
+  buyer_branch: string | null;
+}
+
+/** อ่านค่าปัจจุบันของกิจการ + คู่ค้า แล้วแช่แข็งเป็น snapshot สำหรับเอกสารใบใหม่ */
+export async function buildPartySnapshot(
+  db: SupabaseClient,
+  orgId: string,
+  contactId: string | null,
+): Promise<PartySnapshot> {
+  const { data: s } = await db
+    .from("acc_org_settings")
+    .select("org_name, address, tax_id, branch")
+    .eq("org_id", orgId)
+    .maybeSingle();
+  const seller = (s ?? {}) as {
+    org_name?: string | null;
+    address?: string | null;
+    tax_id?: string | null;
+    branch?: string | null;
+  };
+
+  let buyer: {
+    name?: string | null;
+    address?: string | null;
+    tax_id?: string | null;
+    branch?: string | null;
+  } = {};
+  if (contactId) {
+    const { data: c } = await db
+      .from("acc_contacts")
+      .select("name, address, tax_id, branch")
+      .eq("org_id", orgId)
+      .eq("id", contactId)
+      .maybeSingle();
+    buyer = (c ?? {}) as typeof buyer;
+  }
+
+  return {
+    seller_name: seller.org_name ?? null,
+    seller_address: seller.address ?? null,
+    seller_tax_id: seller.tax_id ?? null,
+    seller_branch: seller.branch ?? null,
+    buyer_name: buyer.name ?? null,
+    buyer_address: buyer.address ?? null,
+    buyer_tax_id: buyer.tax_id ?? null,
+    buyer_branch: buyer.branch ?? null,
+  };
 }
 
 export interface ListDocumentsOpts {
@@ -119,7 +183,7 @@ export async function getDocument(
 ): Promise<AccDocument | null> {
   const { data: doc, error } = await db
     .from("acc_documents")
-    .select("*, acc_contacts(name)")
+    .select("*, acc_contacts(name), ref_document:ref_document_id(doc_number)")
     .eq("org_id", orgId)
     .eq("id", id)
     .maybeSingle();
@@ -138,6 +202,7 @@ export async function getDocument(
   return {
     ...(row as unknown as AccDocument),
     contact_name: (row.acc_contacts as { name?: string } | null)?.name ?? undefined,
+    ref_doc_number: (row.ref_document as { doc_number?: string } | null)?.doc_number ?? undefined,
     lines: (lines ?? []) as AccDocumentLine[],
   };
 }

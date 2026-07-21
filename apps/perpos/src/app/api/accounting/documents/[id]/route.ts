@@ -9,7 +9,7 @@ import {
   orgIdFromQuery,
   num,
 } from "../../_lib";
-import { getDocument, computeDocument } from "@/lib/accounting/documents";
+import { getDocument, computeDocument, buildPartySnapshot } from "@/lib/accounting/documents";
 
 const ROUTE = "/api/accounting/documents/[id]";
 const VALID_WHT = [0, 1, 2, 3, 5, 10, 15];
@@ -51,18 +51,35 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
   const admin = createAdminClient();
   const { data: existing } = await admin
     .from("acc_documents")
-    .select("status, vat_enabled, wht_rate")
+    .select("status, vat_enabled, wht_rate, contact_id")
     .eq("id", id)
     .eq("org_id", orgId)
     .maybeSingle();
   if (!existing) return accError("ไม่พบเอกสาร", 404);
-  const ex = existing as { status: string; vat_enabled: boolean; wht_rate: number };
+  const ex = existing as {
+    status: string;
+    vat_enabled: boolean;
+    wht_rate: number;
+    contact_id: string | null;
+  };
   if (ex.status === "void") return accError("เอกสารที่ยกเลิกแล้ว แก้ไม่ได้", 409);
 
   await setAuditContext(req, auth.userId, orgId);
 
   const headerPatch: Record<string, unknown> = {};
-  if (body.contact_id !== undefined) headerPatch.contact_id = (body.contact_id as string) || null;
+  if (body.contact_id !== undefined) {
+    const newContactId = (body.contact_id as string) || null;
+    headerPatch.contact_id = newContactId;
+    // เปลี่ยนคู่ค้า = เปลี่ยน "ผู้ซื้อ" ของเอกสาร → ต้อง re-snapshot ม.86/4 ให้ตรงกัน
+    // (ถ้าไม่ทำ เอกสารจะพิมพ์ชื่อ/ที่อยู่ผู้ซื้อรายเก่า ทั้งที่ผูกกับคู่ค้ารายใหม่)
+    if (newContactId !== (ex.contact_id ?? null)) {
+      const party = await buildPartySnapshot(admin, orgId, newContactId);
+      headerPatch.buyer_name = party.buyer_name;
+      headerPatch.buyer_address = party.buyer_address;
+      headerPatch.buyer_tax_id = party.buyer_tax_id;
+      headerPatch.buyer_branch = party.buyer_branch;
+    }
+  }
   if (body.issue_date !== undefined) {
     if (!String(body.issue_date)) return accError("กรุณาเลือกวันที่เอกสาร");
     headerPatch.issue_date = body.issue_date;
@@ -103,6 +120,7 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
       amount: l.amount,
       sort_order: i,
       product_id: l.product_id,
+      unit: l.unit, // ม.86/4 (5) — ถ้าไม่ carry มาด้วย การแก้เอกสารจะลบหน่วยนับทิ้งเงียบ ๆ
       created_by: auth.userId,
     }));
     const { error: lErr } = await admin.from("acc_document_lines").insert(lineRows);

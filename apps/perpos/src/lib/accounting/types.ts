@@ -3,7 +3,33 @@
 // ใช้ร่วม lib fetch + API routes + page (SSR). integration-reviewer เทียบกับ migration + fixtures.
 
 // ---- Enums (canonical §4.0) ----
-export type AccDocType = "quotation" | "invoice" | "receipt";
+export type AccDocType =
+  | "quotation" // ใบเสนอราคา
+  | "invoice" // ใบแจ้งหนี้
+  | "receipt" // ใบเสร็จรับเงิน
+  | "tax_invoice" // ใบกำกับภาษี (ม.86/4)
+  | "receipt_tax_invoice" // ใบเสร็จรับเงิน/ใบกำกับภาษี
+  | "credit_note" // ใบลดหนี้ (ม.86/10)
+  | "debit_note" // ใบเพิ่มหนี้ (ม.86/9)
+  | "billing_note" // ใบวางบิล
+  | "delivery_note"; // ใบส่งของ
+
+/** เอกสารที่เป็น "ใบกำกับภาษี" ตามกฎหมาย → ต้องพิมพ์ครบตาม ม.86/4 + เป็นฐานภาษีขาย */
+export const TAX_DOC_TYPES = [
+  "tax_invoice",
+  "receipt_tax_invoice",
+  "credit_note",
+  "debit_note",
+] as const satisfies readonly AccDocType[];
+
+export function isTaxDocument(t: AccDocType): boolean {
+  return (TAX_DOC_TYPES as readonly string[]).includes(t);
+}
+
+/** ใบลดหนี้/ใบเพิ่มหนี้ — ต้องอ้างใบกำกับภาษีเดิม (ม.86/10 (3), ม.86/9 (3)) */
+export function requiresRefDocument(t: AccDocType): boolean {
+  return t === "credit_note" || t === "debit_note";
+}
 export type AccDocStatus = "draft" | "sent" | "accepted" | "paid" | "void" | "overdue";
 export type AccEntryKind = "income" | "expense";
 export type AccEntrySource = "manual" | "document" | "payroll" | "line" | "ai";
@@ -31,6 +57,8 @@ export interface AccOrgSettings {
   doc_number_prefix: Record<string, string> | null;
   address: string | null;
   tax_id: string | null;
+  /** สาขาของกิจการผู้ขาย เช่น "สำนักงานใหญ่" / "สาขาที่ 00001" (ม.86/4) */
+  branch: string | null;
   org_name: string | null;
   logo_data_url: string | null;
   signature_data_url: string | null;
@@ -79,6 +107,8 @@ export interface AccDocumentLine {
   amount: number;
   sort_order: number;
   product_id: string | null;
+  /** หน่วยนับ (ม.86/4 (5)) — snapshot จาก acc_products.unit ตอนออกเอกสาร */
+  unit: string | null;
 }
 
 // ---- 4.2 acc_documents ----
@@ -101,9 +131,28 @@ export interface AccDocument {
   note: string | null;
   created_by: string | null;
   created_at: string;
+  // ── ฟิลด์ ม.86/4 (snapshot ตอนออกเอกสาร — ห้าม join สดตอนพิมพ์) ──
+  seller_name: string | null;
+  seller_address: string | null;
+  seller_tax_id: string | null;
+  seller_branch: string | null;
+  buyer_name: string | null;
+  buyer_address: string | null;
+  buyer_tax_id: string | null;
+  buyer_branch: string | null;
+  /** เล่มที่ (ม.86/4 (4)) */
+  book_number: string | null;
+  /** อัตรา VAT ที่ใช้กับใบนี้ (7 / 0) · null = ไม่เกี่ยวกับ VAT */
+  vat_rate: number | null;
+  /** ใบกำกับภาษีเดิมที่ใบลดหนี้/ใบเพิ่มหนี้อ้างถึง */
+  ref_document_id: string | null;
+  /** วัน-เวลาที่ออกเอกสารจริง (ม.86/4 (7)) */
+  issued_at: string | null;
   // computed for UI / join
   lines?: AccDocumentLine[];
   contact_name?: string;
+  /** เลขที่ของเอกสารที่อ้างถึง (join สำหรับแสดงผลเท่านั้น) */
+  ref_doc_number?: string;
 }
 
 // ---- 4.4 acc_entries ----

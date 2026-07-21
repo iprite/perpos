@@ -51,6 +51,7 @@ export async function PUT(req: NextRequest) {
     patch.doc_number_prefix = body.doc_number_prefix ?? null;
   if (body.address !== undefined) patch.address = (body.address as string) || null;
   if (body.tax_id !== undefined) patch.tax_id = (body.tax_id as string) || null;
+  if (body.branch !== undefined) patch.branch = (body.branch as string) || null;
   if (body.org_name !== undefined) patch.org_name = (body.org_name as string) || null;
   if (body.logo_data_url !== undefined)
     patch.logo_data_url = (body.logo_data_url as string) || null;

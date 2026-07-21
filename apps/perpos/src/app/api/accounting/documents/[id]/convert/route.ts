@@ -8,14 +8,18 @@ import {
   accError,
   nextDocNumber,
 } from "../../../_lib";
+import { buildPartySnapshot } from "@/lib/accounting/documents";
 
 const ROUTE = "/api/accounting/documents/[id]/convert";
 type Ctx = { params: Promise<{ id: string }> };
 
-// chain ที่อนุญาต: quotation → invoice → receipt
+// chain ที่อนุญาต: quotation → invoice → receipt/ใบเสร็จรับเงิน+ใบกำกับภาษี
 const NEXT_TYPE: Record<string, { type: string; prefix: string }> = {
   quotation: { type: "invoice", prefix: "INV" },
   invoice: { type: "receipt", prefix: "RC" },
+  tax_invoice: { type: "receipt_tax_invoice", prefix: "RTV" },
+  billing_note: { type: "invoice", prefix: "INV" },
+  delivery_note: { type: "invoice", prefix: "INV" },
 };
 
 /**
@@ -56,6 +60,9 @@ export async function POST(req: NextRequest, ctx: Ctx) {
     value: target.type,
   });
 
+  // snapshot ม.86/4 ใหม่ ณ วันที่แปลง (ไม่ copy ของใบต้นทาง — ใบใหม่คือเอกสารคนละฉบับ คนละวัน)
+  const party = await buildPartySnapshot(admin, orgId, (doc.contact_id as string | null) ?? null);
+
   const { data: newDoc, error: nErr } = await admin
     .from("acc_documents")
     .insert({
@@ -75,6 +82,11 @@ export async function POST(req: NextRequest, ctx: Ctx) {
       converted_from_id: id,
       note: doc.note ?? null,
       created_by: auth.userId,
+      // ── ม.86/4 ──
+      ...party,
+      book_number: doc.book_number ?? null,
+      vat_rate: doc.vat_rate ?? null,
+      issued_at: new Date().toISOString(),
     })
     .select("id")
     .single();
@@ -103,6 +115,7 @@ export async function POST(req: NextRequest, ctx: Ctx) {
     amount: l.amount,
     sort_order: i,
     product_id: l.product_id ?? null,
+    unit: l.unit ?? null,
     created_by: auth.userId,
   }));
   if (lineRows.length > 0) {
@@ -114,8 +127,15 @@ export async function POST(req: NextRequest, ctx: Ctx) {
     }
   }
 
-  // mark ต้นทาง: quotation→accepted, invoice→paid
-  const srcNewStatus = srcType === "quotation" ? "accepted" : "paid";
+  // mark ต้นทาง: ใบเสนอราคา→ตอบรับ · ใบแจ้งหนี้/ใบกำกับ→รับชำระแล้ว · ใบวางบิล/ใบส่งของ→ส่งแล้ว
+  const SRC_NEW_STATUS: Record<string, string> = {
+    quotation: "accepted",
+    invoice: "paid",
+    tax_invoice: "paid",
+    billing_note: "sent",
+    delivery_note: "sent",
+  };
+  const srcNewStatus = SRC_NEW_STATUS[srcType] ?? "paid";
   await admin
     .from("acc_documents")
     .update({ status: srcNewStatus })
