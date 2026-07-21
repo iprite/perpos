@@ -342,6 +342,8 @@ Endpoint: `POST /api/assistant/scheduler`
 - **Unit test (vitest)**: กฎที่ "ผิดแล้วเสียเงิน/ผิดกฎหมาย" มีเทสคุมที่ [`lib/accounting/accounting-rules.test.ts`](apps/perpos/src/lib/accounting/accounting-rules.test.ts) — แตะ logic บัญชี/ภาษีแล้วต้อง `pnpm exec vitest run` ผ่านก่อน commit
 - **List ที่ดึงจาก Supabase**: PostgREST ตัดที่ 1,000 แถว **เงียบ ๆ** → ใช้ `normalizePage`/`toPaged` ([lib/accounting/paging.ts](apps/perpos/src/lib/accounting/paging.ts)) คืน `total`+`truncated` และ UI ต้องเตือน + มีปุ่ม "โหลดเพิ่ม" · **ห้ามคิดยอดรวม/KPI จาก array ที่อาจถูกตัด**
 - **Commit**: ไม่ push จนกว่าจะสั่ง
+- **Merge policy (2026-07-21)**: `main` **ไม่มี required status check / ไม่บังคับ up-to-date / ไม่บังคับ review** แล้ว → สั่ง push เมื่อไร ให้ `gh pr create` + `gh pr merge --squash --delete-branch` **ต่อได้ทันทีในเทิร์นเดียว ห้ามนั่งรอ CI** · GitHub Actions ยังรันอยู่เป็นสัญญาณย้อนหลัง (แดงแล้วค่อยแก้เป็นคอมมิตใหม่)
+- **ด่านคุณภาพย้ายมาอยู่ก่อน push** — ต้องรัน `pnpm exec tsc --noEmit` + `pnpm lint` + `pnpm exec vitest run` **ในโฟลเดอร์ worktree ที่แก้โค้ดจริง** (กับดักที่เคยเจอ: ไปรันใน worktree หลักที่ยังเป็น main → ผ่านหมดแต่ CI แดง)
 
 ---
 
