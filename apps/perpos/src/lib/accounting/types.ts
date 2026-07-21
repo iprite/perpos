@@ -298,3 +298,95 @@ export interface AccEntrySummary {
   income_count: number;
   expense_count: number;
 }
+
+// ---- acc_purchase_documents — ทะเบียนใบกำกับภาษีซื้อ (ฝั่งซื้อ) ----
+export type AccPurchaseDocType =
+  | "tax_invoice" // ใบกำกับภาษี (เต็มรูป)
+  | "receipt_tax_invoice" // ใบเสร็จรับเงิน/ใบกำกับภาษี
+  | "credit_note" // ใบลดหนี้จากผู้ขาย → ลดภาษีซื้อ
+  | "debit_note" // ใบเพิ่มหนี้จากผู้ขาย → เพิ่มภาษีซื้อ
+  | "receipt" // ใบเสร็จ/บิลเงินสด (เครดิตภาษีซื้อไม่ได้)
+  | "abbreviated_tax_invoice"; // ใบกำกับภาษีอย่างย่อ ม.86/6 (เครดิตไม่ได้)
+
+export type AccPurchaseDocStatus = "draft" | "recorded" | "void";
+
+/** ชนิดเอกสารที่กฎหมายให้เครดิตภาษีซื้อได้ (ตรงกับ CHECK ใน migration) */
+export const PURCHASE_VAT_CLAIMABLE_TYPES = [
+  "tax_invoice",
+  "receipt_tax_invoice",
+  "credit_note",
+  "debit_note",
+] as const satisfies readonly AccPurchaseDocType[];
+
+export function canClaimPurchaseVat(t: AccPurchaseDocType): boolean {
+  return (PURCHASE_VAT_CLAIMABLE_TYPES as readonly string[]).includes(t);
+}
+
+/** ใบลดหนี้จากผู้ขาย = ลดภาษีซื้อ → เข้า ภ.พ.30 ด้วยเครื่องหมายลบ */
+export function isPurchaseCreditNote(t: AccPurchaseDocType): boolean {
+  return t === "credit_note";
+}
+
+export interface AccPurchaseDocumentLine {
+  id: string;
+  org_id: string;
+  document_id: string;
+  item_name: string;
+  description: string;
+  qty: number;
+  unit: string | null;
+  unit_price: number;
+  amount: number;
+  /** บัญชีปลายทาง (Dr) ของบรรทัดนี้ — ใช้ตอน auto journal */
+  account_id: string | null;
+  sort_order: number;
+  account_code?: string;
+  account_name?: string;
+}
+
+export interface AccPurchaseDocument {
+  id: string;
+  org_id: string;
+  doc_type: AccPurchaseDocType;
+  /** เลขที่บนใบกำกับ "ของผู้ขาย" — ไม่ได้ generate เอง */
+  doc_number: string;
+  contact_id: string | null;
+  issue_date: string;
+  /** งวดภาษีที่นำภาษีซื้อไปใช้ (แยกจาก issue_date — ม.82/3 เลื่อนได้ภายใน 6 เดือน) */
+  tax_year: number;
+  tax_month: number;
+  seller_name: string | null;
+  seller_address: string | null;
+  seller_tax_id: string | null;
+  seller_branch: string | null;
+  buyer_name: string | null;
+  buyer_address: string | null;
+  buyer_tax_id: string | null;
+  buyer_branch: string | null;
+  vat_rate: number | null;
+  subtotal: number;
+  vat_amount: number;
+  total: number;
+  wht_rate: number;
+  wht_amount: number;
+  /**
+   * แบบ ภ.ง.ด. ที่ต้องยื่นสำหรับ WHT ของบิลนี้ — ตัดสินบัญชีปลายทางตอน auto journal
+   * pnd53 = ผู้ขายนิติบุคคล (2212, default) · pnd3 = บุคคลธรรมดา (2211)
+   */
+  wht_form: "pnd3" | "pnd53";
+  /** เครดิตภาษีซื้อได้หรือไม่ — false = ภาษีซื้อต้องห้าม ม.82/5 หรือเอกสารที่เครดิตไม่ได้ */
+  is_vat_claimable: boolean;
+  non_claimable_note: string | null;
+  status: AccPurchaseDocStatus;
+  ref_document_id: string | null;
+  journal_entry_id: string | null;
+  ocr_job_id: string | null;
+  note: string | null;
+  created_by: string | null;
+  created_at: string;
+  // computed for UI / join
+  lines?: AccPurchaseDocumentLine[];
+  contact_name?: string;
+  ref_doc_number?: string;
+  journal_entry_number?: string;
+}

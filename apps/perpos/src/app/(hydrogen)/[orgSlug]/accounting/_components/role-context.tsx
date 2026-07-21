@@ -118,16 +118,23 @@ const Ctx = createContext<RoleCtx | null>(null);
 export function AccountingRoleProvider({
   children,
   role,
+  isSuperAdmin = false,
 }: {
   children: React.ReactNode;
   /** role จริงของ user ใน module (จาก getModuleRoleForCurrentUser) */
   role: AccRole;
+  /**
+   * super_admin ข้ามทุกด่านตาม AGENTS.md — ต้องส่งมาแยก เพราะ getModuleRoleForCurrentUser
+   * map super_admin เป็น "owner" ซึ่งในเมทริกซ์เป็น view-only ฝั่งหลังบ้าน
+   * (journal/accounts/tax_closing/assets) → ปุ่มถูกซ่อนทั้งที่ API อนุญาตแล้ว
+   */
+  isSuperAdmin?: boolean;
 }) {
   const value = useMemo<RoleCtx>(() => {
-    const access = (entity: Entity): Access => MATRIX[role][entity];
+    const access = (entity: Entity): Access => (isSuperAdmin ? "approve" : MATRIX[role][entity]);
     const can = (action: Action, entity: Entity): boolean => RANK[access(entity)] >= RANK[action];
     return { role, access, can };
-  }, [role]);
+  }, [role, isSuperAdmin]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

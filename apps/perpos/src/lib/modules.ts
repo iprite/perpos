@@ -272,6 +272,7 @@ export const MODULE_MENUS: Record<string, MenuDef[]> = {
       key: "backstage",
       label: "หลังบ้าน",
       items: [
+        { key: "purchase_documents", label: "ใบกำกับภาษีซื้อ" },
         { key: "journal", label: "สมุดรายวัน" },
         { key: "accounts", label: "ผังบัญชี" },
         { key: "reports", label: "รายงานการเงิน" },

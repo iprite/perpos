@@ -41,8 +41,7 @@ gcloud run deploy exapp-pdf-renderer \
 
 ตั้งค่า Environment Variables ใน Vercel (โปรเจกต์ที่เป็นเว็บ):
 
-- `PDF_RENDER_URL` = Cloud Run URL (เช่น `https://exapp-pdf-renderer-xxxxx-as.a.run.app`)
+- `PDF_RENDER_URL` = Cloud Run URL ของ **perpos-pdf-renderer** (`https://perpos-pdf-renderer-120863058985.asia-southeast1.run.app`) — อย่าชี้ไป `exapp-pdf-renderer` (คนละแอป)
 - `PDF_SERVICE_SECRET` = ค่าเดียวกับที่ตั้งใน Cloud Run
 
 แล้ว redeploy อีกครั้ง
-

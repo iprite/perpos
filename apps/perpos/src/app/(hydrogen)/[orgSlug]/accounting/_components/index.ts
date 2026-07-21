@@ -15,6 +15,7 @@ export { ContactDialog } from "./contact-dialog";
 export { ProductDialog } from "./product-dialog";
 export { DocumentDialog, DocumentCreateDialog } from "./document-dialog";
 export { DocumentPreview } from "./document-preview";
+export { PurchaseDocumentCreateDialog } from "./purchase-document-dialog";
 export { JournalDialog } from "./journal-dialog";
 export { AccountDialog } from "./account-dialog";
 export { TaxFilingDialog } from "./tax-filing-dialog";
