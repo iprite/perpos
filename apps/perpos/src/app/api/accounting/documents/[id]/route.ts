@@ -46,7 +46,7 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
 
   const auth = await requireAccountingMember(req, orgId);
   if (!auth.ok) return auth.res;
-  if (!canWriteFrontstage(auth.role)) return accError("ไม่มีสิทธิ์แก้ไขข้อมูล", 403);
+  if (!canWriteFrontstage(auth)) return accError("ไม่มีสิทธิ์แก้ไขข้อมูล", 403);
 
   const admin = createAdminClient();
   const { data: existing } = await admin
@@ -142,7 +142,7 @@ export async function DELETE(req: NextRequest, ctx: Ctx) {
 
   const auth = await requireAccountingMember(req, orgId);
   if (!auth.ok) return auth.res;
-  if (!canWriteFrontstage(auth.role)) return accError("ไม่มีสิทธิ์ลบข้อมูล", 403);
+  if (!canWriteFrontstage(auth)) return accError("ไม่มีสิทธิ์ลบข้อมูล", 403);
 
   await setAuditContext(req, auth.userId, orgId);
   const admin = createAdminClient();

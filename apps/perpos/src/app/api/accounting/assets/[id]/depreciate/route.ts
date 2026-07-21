@@ -48,8 +48,7 @@ export async function POST(req: NextRequest, ctx: Ctx) {
 
   const auth = await requireAccountingMember(req, orgId);
   if (!auth.ok) return auth.res;
-  if (!canWriteBackstage(auth.role))
-    return accError("เฉพาะนักบัญชีเท่านั้นที่ตั้งค่าเสื่อมได้", 403);
+  if (!canWriteBackstage(auth)) return accError("เฉพาะนักบัญชีเท่านั้นที่ตั้งค่าเสื่อมได้", 403);
 
   const periodYear = num(body.period_year);
   const periodMonth = num(body.period_month);

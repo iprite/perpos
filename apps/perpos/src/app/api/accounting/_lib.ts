@@ -45,26 +45,38 @@ export async function requireAccountingMember(
 //   หน้าบ้าน (contacts/documents/entries/products): owner/accountant/staff = W · viewer = V
 //   หลังบ้าน (accounts/journal/periods/tax/assets): owner = V · accountant = W · staff/viewer = –/V
 //   periods close: accountant (A) · settings PUT: owner (A)
+//
+// รับ auth object ทั้งก้อน (ไม่ใช่ role เดี่ยว) เพราะต้องดู isSuperAdmin ด้วย —
+// requireModuleMember map super_admin เป็น moduleRole "owner" เสมอ ซึ่ง "owner" ไม่ผ่าน
+// ด่านหลังบ้าน (ต้องเป็น accountant) → super_admin จะลงบัญชี/ปิดงวด/จัดการภาษีไม่ได้เลย
+// ขัดกับกฎ "admin ข้ามการเช็ค permission ทั้งหมด" ใน AGENTS.md
 // ───────────────────────────────────────────────────────────────────────────
 
+/** สิ่งที่ helper สิทธิ์ต้องใช้ตัดสิน — ส่ง `auth` จาก requireAccountingMember ได้ตรง ๆ */
+export type AccountingRoleCheck = { role: AccountingRole; isSuperAdmin?: boolean };
+
 /** เขียนหน้าบ้านได้: owner / accountant / staff (viewer = อ่าน) */
-export function canWriteFrontstage(role: AccountingRole): boolean {
-  return role === "owner" || role === "accountant" || role === "staff";
+export function canWriteFrontstage(a: AccountingRoleCheck): boolean {
+  if (a.isSuperAdmin) return true;
+  return a.role === "owner" || a.role === "accountant" || a.role === "staff";
 }
 
 /** เขียนหลังบ้านได้ (journal/accounts/tax/assets): owner เห็นเป็น view, เขียนจริง = accountant */
-export function canWriteBackstage(role: AccountingRole): boolean {
-  return role === "accountant";
+export function canWriteBackstage(a: AccountingRoleCheck): boolean {
+  if (a.isSuperAdmin) return true;
+  return a.role === "accountant";
 }
 
 /** ปิด/เปิดงวด = accountant เท่านั้น (role matrix periods = A) */
-export function canClosePeriod(role: AccountingRole): boolean {
-  return role === "accountant";
+export function canClosePeriod(a: AccountingRoleCheck): boolean {
+  if (a.isSuperAdmin) return true;
+  return a.role === "accountant";
 }
 
 /** แก้ตั้งค่าองค์กร (settings PUT, VAT toggle) = owner เท่านั้น */
-export function canEditSettings(role: AccountingRole): boolean {
-  return role === "owner";
+export function canEditSettings(a: AccountingRoleCheck): boolean {
+  if (a.isSuperAdmin) return true;
+  return a.role === "owner";
 }
 
 /** error ไทย + status (helper ตอบกลาง — ผู้ใช้เห็นได้) */

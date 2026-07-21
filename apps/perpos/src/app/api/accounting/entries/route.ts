@@ -50,7 +50,7 @@ export async function POST(req: NextRequest) {
 
   const auth = await requireAccountingMember(req, orgId);
   if (!auth.ok) return auth.res;
-  if (!canWriteFrontstage(auth.role)) return accError("ไม่มีสิทธิ์บันทึกข้อมูล", 403);
+  if (!canWriteFrontstage(auth)) return accError("ไม่มีสิทธิ์บันทึกข้อมูล", 403);
 
   const kind = String(body.kind ?? "");
   if (!["income", "expense"].includes(kind)) return accError("กรุณาเลือกประเภท รายรับ/รายจ่าย");
