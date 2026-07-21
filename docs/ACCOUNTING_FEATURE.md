@@ -41,6 +41,8 @@
 
 **สายแปลงเอกสาร** (`documents/[id]/convert`): `quotation → invoice → tax_invoice → receipt` · **ห้ามแปลง `tax_invoice → receipt_tax_invoice`** (จะกลายเป็นใบกำกับ 2 ใบต่อดีล = VAT เบิ้ล) · กันซ้ำอีกชั้นด้วย `converted_from_id` + unique index
 
+**สถานะ `overdue`** ตั้งให้อัตโนมัติโดย scheduler (tier t60, วันละหลายรอบ): เอกสารที่มี `due_date` เลยวันนี้ + สถานะยัง `sent`/`accepted` → `overdue` · `paid`/`void`/`draft` ไม่แตะ (ตรงกับ state machine)
+
 **KPI/ยอดขายหน้าเว็บ** ต้องใช้ `selectBillingDocuments()` + `billingSign()` จาก [`sales-journal.ts`](../apps/perpos/src/lib/accounting/sales-journal.ts) — กฎเดียวกับ auto journal (ตัด draft/void, ตัดสายที่แปลงต่อกันเหลือใบต้นทางใบเดียว, ใบลดหนี้ติดลบ) **ห้ามคำนวณ KPI เองจาก `doc_type` ตรง ๆ** ไม่งั้นการ์ดกับสมุดรายวันจะไม่ตรงกัน
 
 ---
