@@ -57,6 +57,9 @@ export type ClassificationResult = {
   };
   needs_review: boolean;
   review_reasons: string[];
+  // Set by the worker (not the LLM) from the learning loop — surfaced in the UI.
+  matched_from_memory?: boolean;
+  learned_account_code?: string | null;
 };
 
 export type JournalEntryResult = {
@@ -78,6 +81,14 @@ export type JournalEntryResult = {
   approval_reason: string;
 };
 
+export type LearnedMapping = {
+  vendor_name: string;
+  vendor_tax_id: string | null;
+  account_code: string;
+  account_name: string;
+  use_count: number;
+};
+
 export type ClientContext = {
   client_id: string;
   client_name: string;
@@ -88,6 +99,9 @@ export type ClientContext = {
   chart_of_accounts: Array<{ id: string; code: string; name: string; type: string }>;
   posting_rules: unknown[];
   contacts: Array<{ name: string; tax_id: string | null; contact_type: string }>;
+  // Self-improvement loop: vendor→account pairs learned from past human approvals.
+  // Empty on first contact with a vendor; grows as accountants approve/correct drafts.
+  learned_mappings: LearnedMapping[];
 };
 
 // ─── Prompts ─────────────────────────────────────────────────────────────────
@@ -157,6 +171,15 @@ Thai Tax & Accounting Rules to Follow:
    - If payment method is cash, bank_transfer, or credit_card, select Cash/Bank equivalents as the credit counterparty.
 4. ONLY USE ACCOUNT CODES PRESENT IN THE PROVIDED CHART OF ACCOUNTS. DO NOT CREATE NEW CODES.
 5. If no suitable accounts exist, set "needs_review" = true.
+6. LEARNED VENDOR MAPPINGS (highest priority — this is how the firm teaches the system):
+   - The client context includes "learned_mappings": vendor→account pairs that a human accountant
+     previously approved for THIS client. Each has vendor_name, vendor_tax_id, account_code, use_count.
+   - Match the document's vendor to a learned mapping — by "vendor_tax_id" FIRST (exact 13-digit match),
+     then by "vendor_name" (close match). If a mapping is found, you MUST use its "account_code" as the
+     primary debit account (the main expense/asset line), UNLESS the document clearly describes a
+     different kind of transaction than the mapped account. The learned account overrides your own guess.
+   - Higher "use_count" = stronger evidence; prefer it. Still obey rules 1–4 (VAT/WHT/AP-vs-cash and
+     chart-of-accounts validity always apply on top of the mapping).
 
 Output JSON Schema:
 {
@@ -278,6 +301,8 @@ async function runJob(jobId: string, firmOrgId: string): Promise<void> {
     const extractedData = await extractOcrWithGemini(base64, mimeType);
     const clientContext = await getClientContext(firmOrgId, job.client_org_id);
     const classification = await classifyTransaction(extractedData, clientContext);
+    // Learning loop (verification side): tag memory matches + flag divergence for the human.
+    reconcileWithLearnedMemory(extractedData, classification, clientContext);
     const journalData = await generateJournalEntry(extractedData, classification, clientContext);
 
     // 4. Persist draft journal (idempotent: clear stale draft first).
@@ -528,6 +553,61 @@ async function classifyTransaction(
   return parseJson<ClassificationResult>(text, "classification");
 }
 
+// ── Learning loop: reconcile classification against learned vendor memory ─────
+// Human-in-the-loop by design — this never auto-posts. It (a) marks whether the
+// draft came from remembered vendor→account memory (for the UI badge) and (b) if
+// the AI picked a different primary account than what the firm previously taught,
+// forces needs_review so the accountant notices before approving.
+function findLearnedMapping(
+  vendor: OcrExtractionResult["vendor"],
+  learned: LearnedMapping[],
+): LearnedMapping | null {
+  if (!learned || learned.length === 0) return null;
+  const taxId = vendor?.tax_id ? String(vendor.tax_id).trim() : "";
+  if (taxId) {
+    const byTax = learned.find((m) => m.vendor_tax_id && m.vendor_tax_id.trim() === taxId);
+    if (byTax) return byTax;
+  }
+  const name = vendor?.name ? String(vendor.name).trim().toLowerCase() : "";
+  if (name) {
+    const byName = learned.find((m) => m.vendor_name.trim().toLowerCase() === name);
+    if (byName) return byName;
+  }
+  return null;
+}
+
+function reconcileWithLearnedMemory(
+  ocrData: OcrExtractionResult,
+  classification: ClassificationResult,
+  clientContext: ClientContext,
+): void {
+  const mapping = findLearnedMapping(ocrData.vendor, clientContext.learned_mappings);
+  if (!mapping) {
+    classification.matched_from_memory = false;
+    classification.learned_account_code = null;
+    return;
+  }
+
+  classification.matched_from_memory = true;
+  classification.learned_account_code = mapping.account_code;
+
+  // Primary debit = expense/asset account with the largest allocation.
+  const debitCandidates = (classification.recommended_accounts || []).filter(
+    (a) => a.account_type === "expense" || a.account_type === "asset",
+  );
+  const primary = debitCandidates.sort(
+    (a, b) => Number(b.allocation_amount || 0) - Number(a.allocation_amount || 0),
+  )[0];
+
+  if (primary && primary.account_code !== mapping.account_code) {
+    classification.needs_review = true;
+    classification.review_reasons = [
+      ...(classification.review_reasons || []),
+      `AI เลือกบัญชี ${primary.account_code} ต่างจากที่เคยจำสำหรับผู้ขายรายนี้ (เคย=${mapping.account_code} ${mapping.account_name})`,
+    ];
+  }
+}
+
 async function generateJournalEntry(
   ocrData: OcrExtractionResult,
   classification: ClassificationResult,
@@ -638,6 +718,11 @@ export async function getClientContext(
     }),
   );
 
+  // Self-improvement loop (read side): vendor→account pairs the firm has taught the
+  // system by approving/correcting past drafts. Joined to acc_accounts for code/name.
+  // Ordered by use_count so the AI weighs the strongest evidence first.
+  const learnedMappings = await getLearnedMappings(admin, clientOrgId);
+
   return {
     client_id: clientOrgId,
     client_name: org.name,
@@ -648,5 +733,39 @@ export async function getClientContext(
     chart_of_accounts: chartOfAccounts,
     posting_rules: config?.custom_posting_rules || [],
     contacts: contactList,
+    learned_mappings: learnedMappings,
   };
+}
+
+// ── Learned vendor→account mappings (self-improvement loop) ───────────────────
+async function getLearnedMappings(
+  admin: ReturnType<typeof getAdminClient>,
+  clientOrgId: string,
+): Promise<LearnedMapping[]> {
+  const { data, error } = await admin
+    .from("ocr_vendor_mappings")
+    .select("vendor_name, vendor_tax_id, use_count, debit_account_id, acc_accounts(code, name)")
+    .eq("org_id", clientOrgId)
+    .order("use_count", { ascending: false })
+    .limit(50);
+
+  if (error) {
+    console.warn(`[ocr-worker] Failed to load learned mappings: ${error.message}`);
+    return [];
+  }
+
+  return (data || [])
+    .map((row) => {
+      // Supabase returns the embedded relation as an object (single FK).
+      const acc = row.acc_accounts as { code?: string; name?: string } | null;
+      if (!acc?.code) return null;
+      return {
+        vendor_name: row.vendor_name as string,
+        vendor_tax_id: (row.vendor_tax_id as string | null) ?? null,
+        account_code: acc.code,
+        account_name: acc.name ?? "",
+        use_count: (row.use_count as number) ?? 1,
+      };
+    })
+    .filter((m): m is LearnedMapping => m !== null);
 }

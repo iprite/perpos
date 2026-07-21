@@ -158,10 +158,6 @@ export default function ResidentProfilePage() {
       icon={<Users className="h-6 w-6" />}
       actions={
         <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={() => router.push(`${BASE}/residents`)}>
-            <ArrowLeft className="mr-1.5 h-4 w-4" />
-            ทะเบียน
-          </Button>
           <Button onClick={runAi}>
             <Sparkles className="mr-1.5 h-4 w-4" />
             สรุปสถานะให้ญาติ

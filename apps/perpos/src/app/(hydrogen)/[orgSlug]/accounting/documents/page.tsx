@@ -43,14 +43,22 @@ import {
 } from "../_components";
 import { DocumentDialog, DocumentCreateDialog } from "../_components/document-dialog";
 import type { AccDocument, AccDocType } from "@/lib/accounting/types";
+import { toast } from "@/lib/toast";
+import { selectBillingDocuments, billingSign } from "@/lib/accounting/sales-journal";
 
 type DocTab = "all" | AccDocType;
 
 const DOC_TABS: { key: DocTab; label: string }[] = [
   { key: "all", label: "ทั้งหมด" },
   { key: "quotation", label: "ใบเสนอราคา" },
+  { key: "billing_note", label: "ใบวางบิล" },
   { key: "invoice", label: "ใบแจ้งหนี้" },
+  { key: "delivery_note", label: "ใบส่งของ" },
+  { key: "tax_invoice", label: "ใบกำกับภาษี" },
+  { key: "receipt_tax_invoice", label: "ใบเสร็จ/ใบกำกับภาษี" },
   { key: "receipt", label: "ใบเสร็จรับเงิน" },
+  { key: "credit_note", label: "ใบลดหนี้" },
+  { key: "debit_note", label: "ใบเพิ่มหนี้" },
 ];
 
 const STATUS_FILTER = [
@@ -68,7 +76,9 @@ export default function DocumentsPage() {
   const canView = can("view", "documents");
   const canWrite = can("write", "documents");
 
-  const { documents, loading } = useAccountingData();
+  const { documents, loading, apiGetRaw, documentsTruncated, orgSettings, loadMoreDocuments } =
+    useAccountingData();
+  const [loadingMore, setLoadingMore] = useState(false);
 
   const [tab, setTab] = useState<DocTab>("all");
   const [search, setSearch] = useState("");
@@ -93,26 +103,38 @@ export default function DocumentsPage() {
       .sort((a, b) => b.issue_date.localeCompare(a.issue_date));
   }, [documents, tab, search, statusF]);
 
-  // KPI สรุป (จากเอกสารทั้งหมด)
+  // KPI สรุป — ใช้ "เอกสารที่ออกบิลแล้ว" ชุดเดียวกับที่ auto journal ใช้รับรู้รายได้
+  // (เดิมนับเฉพาะ doc_type='invoice' → org ที่ออกใบกำกับภาษีเห็นยอดเป็น 0
+  //  และการ์ดเกินกำหนด/รับชำระนับทุกชนิดรวมใบเสนอราคา + นับซ้ำทั้งสาย QT→INV→RC)
   const stats = useMemo(() => {
-    const invoices = documents.filter((d) => d.doc_type === "invoice");
-    const billedTotal = invoices.reduce((s, d) => s + d.total, 0);
-    const awaiting = invoices.filter((d) => d.status === "sent" || d.status === "accepted");
-    const overdue = documents.filter((d) => d.status === "overdue");
-    const paid = documents.filter((d) => d.status === "paid");
+    const billing = selectBillingDocuments(documents, orgSettings?.is_vat_registered ?? false);
+    const sum = (arr: AccDocument[]) =>
+      arr.reduce((s, d) => s + billingSign(d.doc_type) * d.total, 0);
+    const awaiting = billing.filter((d) => d.status === "sent" || d.status === "accepted");
+    const overdue = billing.filter((d) => d.status === "overdue");
+    const paid = billing.filter((d) => d.status === "paid");
     return {
-      billedCount: invoices.length,
-      billedTotal,
-      awaitingTotal: awaiting.reduce((s, d) => s + d.total, 0),
-      overdueTotal: overdue.reduce((s, d) => s + d.total, 0),
+      billedCount: billing.length,
+      billedTotal: sum(billing),
+      awaitingTotal: sum(awaiting),
+      overdueTotal: sum(overdue),
       overdueCount: overdue.length,
-      paidTotal: paid.reduce((s, d) => s + d.total, 0),
+      paidTotal: sum(paid),
     };
-  }, [documents]);
+  }, [documents, orgSettings?.is_vat_registered]);
 
-  function openDoc(d: AccDocument) {
-    setSelected(d);
+  // list endpoint ไม่ได้ join บรรทัดรายการมาด้วย (listDocuments select "*, acc_contacts(name)")
+  // ถ้าเปิด dialog ด้วย object จาก list ตรง ๆ ตารางรายการ + เอกสารที่พิมพ์จะว่าง ("— ไม่มีรายการ —")
+  // ทั้งที่ยอดรวมมีค่า → ต้องดึง detail (ซึ่งแนบ lines) ก่อนเสมอ
+  async function openDoc(d: AccDocument) {
+    setSelected(d); // แสดงหัวเอกสารทันที ไม่ต้องรอ network
     setDialogOpen(true);
+    try {
+      const full = await apiGetRaw<AccDocument>(`documents/${d.id}`);
+      setSelected(full);
+    } catch {
+      toast.error("โหลดรายการในเอกสารไม่สำเร็จ");
+    }
   }
 
   if (!canView)
@@ -141,7 +163,7 @@ export default function DocumentsPage() {
   return (
     <AccountingShell
       title="เอกสารขาย"
-      description="ออกใบเสนอราคา → ใบแจ้งหนี้ → ใบเสร็จ และตามเก็บเงินจบในที่เดียว"
+      description="ใบเสนอราคา · ใบแจ้งหนี้ · ใบกำกับภาษี · ใบเสร็จ · ใบลด/เพิ่มหนี้ — ออกและตามเก็บเงินจบในที่เดียว"
       icon={<FileText className="h-6 w-6" />}
       actions={
         canWrite ? (
@@ -152,10 +174,33 @@ export default function DocumentsPage() {
       }
       tabs={tabs}
     >
+      {documentsTruncated && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+          <div>
+            แสดง {documentsTruncated.loaded.toLocaleString("th-TH")} จากทั้งหมด{" "}
+            {documentsTruncated.total.toLocaleString("th-TH")} รายการ —
+            ยอดรวมในการ์ดด้านล่างคิดจากชุดที่โหลดมาเท่านั้น
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            className="mt-2"
+            disabled={loadingMore}
+            onClick={async () => {
+              setLoadingMore(true);
+              await loadMoreDocuments();
+              setLoadingMore(false);
+            }}
+          >
+            {loadingMore ? "กำลังโหลด…" : "โหลดเพิ่ม"}
+          </Button>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
           icon={<FileSignature className="h-4 w-4" />}
-          label="ออกใบแจ้งหนี้"
+          label="ออกบิลแล้ว"
           value={fmtMoney(stats.billedTotal)}
           sub={`${stats.billedCount} ใบ`}
           tone="info"

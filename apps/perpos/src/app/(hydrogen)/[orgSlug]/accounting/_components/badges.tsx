@@ -62,6 +62,12 @@ export const DOC_TYPE_LABEL: Record<AccDocType, string> = {
   quotation: "ใบเสนอราคา",
   invoice: "ใบแจ้งหนี้",
   receipt: "ใบเสร็จรับเงิน",
+  tax_invoice: "ใบกำกับภาษี",
+  receipt_tax_invoice: "ใบเสร็จรับเงิน/ใบกำกับภาษี",
+  credit_note: "ใบลดหนี้",
+  debit_note: "ใบเพิ่มหนี้",
+  billing_note: "ใบวางบิล",
+  delivery_note: "ใบส่งของ",
 };
 
 // ─── journal_status (สมุดรายวัน) ───

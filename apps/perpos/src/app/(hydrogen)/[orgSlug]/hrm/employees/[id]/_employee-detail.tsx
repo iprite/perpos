@@ -9,7 +9,6 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  ArrowLeft,
   Users,
   Pencil,
   Wallet,
@@ -307,10 +306,6 @@ export function EmployeeDetail({
     <div className="space-y-5">
       {/* action bar */}
       <div className="flex items-center justify-between gap-2">
-        <Button variant="outline" onClick={() => router.push(`${base}/employees`)}>
-          <ArrowLeft className="mr-1.5 h-4 w-4" />
-          รายชื่อ
-        </Button>
         {canWrite && (
           <Button variant="secondary" onClick={openEdit}>
             <Pencil className="mr-1.5 h-4 w-4" />

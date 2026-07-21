@@ -7,10 +7,10 @@
 
 // document-preview.tsx (production) — พรีวิวเอกสารขายแบบไทยพร้อมพิมพ์/ดาวน์โหลด (A3)
 // แสดงเอกสาร (หัวบริษัท/ลูกค้า/ตารางรายการ/สรุปยอด/ช่องเซ็น) → พิมพ์เฉพาะตัวเอกสาร (print CSS)
-// prototype: ดาวน์โหลด PDF = toast จำลอง · production phase 2 = ต่อ pdf-renderer (services/pdf-renderer)
+// ดาวน์โหลด PDF = ยิงไป services/pdf-renderer จริง (Phase 1.7) · รองรับต้นฉบับ/สำเนา
 
-import { useMemo } from "react";
-import { Printer, Download } from "lucide-react";
+import { useMemo, useState } from "react";
+import { Printer, Download, Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -24,12 +24,25 @@ import { toast } from "@/lib/toast";
 import { useAccountingData } from "./data-provider";
 import { DOC_TYPE_LABEL } from "./badges";
 import { fmtMoney, fmtDateTH } from "./format";
-import type { AccDiscountType, AccDocument, AccDocType } from "@/lib/accounting/types";
+// ใช้ตัวเดียวกับที่ใช้สร้าง PDF — เดิม copy ไว้ 2 ที่ ทำให้แก้บั๊กที่เดียวแล้วอีกที่ยังผิด
+import { bahtText } from "@/lib/accounting/document-html";
+import {
+  isTaxDocument,
+  type AccDiscountType,
+  type AccDocument,
+  type AccDocType,
+} from "@/lib/accounting/types";
 
 const DOC_TITLE_EN: Record<AccDocType, string> = {
   quotation: "QUOTATION",
   invoice: "INVOICE",
   receipt: "RECEIPT",
+  tax_invoice: "TAX INVOICE",
+  receipt_tax_invoice: "RECEIPT / TAX INVOICE",
+  credit_note: "CREDIT NOTE",
+  debit_note: "DEBIT NOTE",
+  billing_note: "BILLING NOTE",
+  delivery_note: "DELIVERY NOTE",
 };
 
 // แสดงส่วนลดตาม type: percent → "10%" · amount → "−500" (U+2212) · 0 → "—"
@@ -37,41 +50,6 @@ function fmtDiscount(discount: number, type: AccDiscountType): string {
   if (!discount || discount <= 0) return "—";
   if (type === "percent") return `${fmtMoney(discount, { currency: false, decimals: 0 })}%`;
   return `−${fmtMoney(discount, { currency: false })}`;
-}
-
-// ── จำนวนเงินเป็นตัวอักษรไทย (บาท/สตางค์) ───────────────────────────────────
-const TH_NUM = ["ศูนย์", "หนึ่ง", "สอง", "สาม", "สี่", "ห้า", "หก", "เจ็ด", "แปด", "เก้า"];
-const TH_POS = ["", "สิบ", "ร้อย", "พัน", "หมื่น", "แสน", "ล้าน"];
-
-function readThaiInteger(numStr: string): string {
-  const n = numStr.replace(/^0+/, "");
-  if (n === "" || n === "0") return "ศูนย์";
-  let result = "";
-  const len = n.length;
-  for (let i = 0; i < len; i++) {
-    const digit = Number(n[i]);
-    const pos = (len - i - 1) % 6;
-    const isMillionBoundary = len - i - 1 === 6 || len - i - 1 === 12;
-    if (digit !== 0) {
-      let d = TH_NUM[digit];
-      if (pos === 1 && digit === 1)
-        d = ""; // สิบ
-      else if (pos === 1 && digit === 2) d = "ยี่"; // ยี่สิบ
-      if (pos === 0 && digit === 1 && len > 1 && (len - i) % 6 !== 1) d = "เอ็ด";
-      result += d + TH_POS[pos];
-    }
-    if (isMillionBoundary) result += "ล้าน";
-  }
-  return result;
-}
-
-function bahtText(amount: number): string {
-  const rounded = Math.round(amount * 100) / 100;
-  const baht = Math.floor(rounded);
-  const satang = Math.round((rounded - baht) * 100);
-  const bahtPart = readThaiInteger(String(baht)) + "บาท";
-  if (satang === 0) return bahtPart + "ถ้วน";
-  return bahtPart + readThaiInteger(String(satang)) + "สตางค์";
 }
 
 export function DocumentPreview({
@@ -83,9 +61,12 @@ export function DocumentPreview({
   onOpenChange: (v: boolean) => void;
   document: AccDocument | null;
 }) {
-  const { orgSettings, contacts } = useAccountingData();
-  const vatRate = orgSettings?.vat_rate ?? 7;
+  const { orgSettings, contacts, apiGetBlob } = useAccountingData();
+  const [downloading, setDownloading] = useState(false);
+  // อัตรา VAT = snapshot ของใบนี้ (ม.86/4 (6)) — ไม่ใช่ค่าปัจจุบันของกิจการ
+  const vatRate = document?.vat_rate ?? orgSettings?.vat_rate ?? 7;
 
+  // fallback สำหรับใบเก่าที่ออกก่อนมี snapshot เท่านั้น — ใบใหม่ใช้ค่าที่แช่แข็งไว้กับเอกสาร
   const contact = useMemo(
     () => (document?.contact_id ? contacts.find((c) => c.id === document.contact_id) : undefined),
     [contacts, document],
@@ -93,6 +74,17 @@ export function DocumentPreview({
   const lines = document?.lines ?? [];
 
   if (!document) return null;
+
+  const isTaxDoc = isTaxDocument(document.doc_type);
+  // ม.86/4 — ทุกค่าอ่านจาก snapshot ของเอกสารก่อนเสมอ
+  const sellerName = document.seller_name ?? orgSettings?.org_name?.trim() ?? "—";
+  const sellerAddress = document.seller_address ?? orgSettings?.address ?? "—";
+  const sellerTaxId = document.seller_tax_id ?? orgSettings?.tax_id ?? "—";
+  const sellerBranch = document.seller_branch ?? orgSettings?.branch ?? "—";
+  const buyerName = document.buyer_name ?? document.contact_name ?? contact?.name ?? "—";
+  const buyerAddress = document.buyer_address ?? contact?.address ?? null;
+  const buyerTaxId = document.buyer_tax_id ?? contact?.tax_id ?? null;
+  const buyerBranch = document.buyer_branch ?? contact?.branch ?? null;
 
   // หัก ณ ที่จ่าย: ยอดชำระสุทธิ = total − wht_amount
   const whtAmount = document.wht_amount ?? 0;
@@ -102,13 +94,28 @@ export function DocumentPreview({
     if (typeof window !== "undefined") window.print();
   }
 
-  function handleDownload() {
-    // phase 1: จำลอง — phase 2 = ยิงไป services/pdf-renderer สร้าง PDF จริง
-    toast.success("กำลังสร้าง PDF… (จำลอง)");
+  /** ดาวน์โหลด PDF จริงจาก services/pdf-renderer (Phase 1.7) · copy = สำเนา */
+  async function handleDownload(copy = false) {
+    if (!document || downloading) return;
+    setDownloading(true);
+    try {
+      const path = `documents/${document.id}/pdf${copy ? "?copy=1" : ""}`;
+      const blob = await apiGetBlob(path);
+      const url = URL.createObjectURL(blob);
+      const a = window.document.createElement("a");
+      a.href = url;
+      a.download = `${document.doc_number}${copy ? "-copy" : ""}.pdf`;
+      window.document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      toast.success(`ดาวน์โหลด ${document.doc_number}${copy ? " (สำเนา)" : ""} แล้ว`);
+    } catch (e) {
+      toast.error((e as Error).message || "สร้าง PDF ไม่สำเร็จ");
+    } finally {
+      setDownloading(false);
+    }
   }
-
-  // ชื่อบริษัทบนเอกสาร — ใช้ org_name ที่ตั้งค่าไว้ ถ้าไม่มีใช้ placeholder
-  const orgName = orgSettings?.org_name?.trim() || "บริษัท ตัวอย่าง จำกัด";
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -147,61 +154,78 @@ export function DocumentPreview({
                   </div>
                 )}
                 <div>
-                  <div className="text-base font-bold text-gray-900">{orgName}</div>
+                  <div className="text-base font-bold text-gray-900">{sellerName}</div>
                   <div className="mt-1 max-w-xs text-xs leading-relaxed text-gray-600">
-                    {orgSettings?.address ?? "—"}
+                    {sellerAddress}
                   </div>
                   <div className="mt-0.5 text-xs text-gray-600">
-                    เลขประจำตัวผู้เสียภาษี: {orgSettings?.tax_id ?? "—"}
+                    เลขประจำตัวผู้เสียภาษี: {sellerTaxId}
                   </div>
+                  <div className="mt-0.5 text-xs text-gray-600">สาขา: {sellerBranch}</div>
                 </div>
               </div>
               <div className="text-right">
+                {/* ม.86/4 (1) ต้องมีคำว่า "ใบกำกับภาษี" ในที่ที่เห็นได้เด่นชัด */}
                 <div className="text-lg font-bold text-gray-900">
                   {DOC_TYPE_LABEL[document.doc_type]}
                 </div>
                 <div className="text-xs font-medium uppercase tracking-wide text-gray-500">
                   {DOC_TITLE_EN[document.doc_type]}
                 </div>
+                {isTaxDoc && (
+                  <div className="mt-1 inline-block rounded border border-gray-400 px-2 py-0.5 text-[10px] font-semibold text-gray-700">
+                    ต้นฉบับ / ORIGINAL
+                  </div>
+                )}
               </div>
             </div>
 
             {/* meta: เลขเอกสาร / วันที่ */}
             <div className="mt-4 flex flex-wrap justify-between gap-4">
-              {/* กล่องลูกค้า */}
+              {/* กล่องผู้ซื้อ — ม.86/4 (3) ชื่อ + ที่อยู่ (+ เลขผู้เสียภาษี/สาขา ตามประกาศอธิบดีฯ) */}
               <div className="min-w-[240px]">
-                <div className="text-xs font-semibold text-gray-500">ลูกค้า</div>
-                <div className="mt-1 font-medium text-gray-900">
-                  {document.contact_name ?? contact?.name ?? "—"}
+                <div className="text-xs font-semibold text-gray-500">
+                  {isTaxDoc ? "ผู้ซื้อ" : "ลูกค้า"}
                 </div>
-                {contact?.address && (
+                <div className="mt-1 font-medium text-gray-900">{buyerName}</div>
+                {buyerAddress && (
                   <div className="mt-0.5 max-w-xs text-xs leading-relaxed text-gray-600">
-                    {contact.address}
+                    {buyerAddress}
                   </div>
                 )}
-                {contact?.tax_id && (
+                {buyerTaxId && (
                   <div className="mt-0.5 text-xs text-gray-600">
-                    เลขผู้เสียภาษี: {contact.tax_id}
+                    เลขประจำตัวผู้เสียภาษี: {buyerTaxId}
                   </div>
+                )}
+                {buyerBranch && (
+                  <div className="mt-0.5 text-xs text-gray-600">สาขา: {buyerBranch}</div>
                 )}
               </div>
 
-              {/* meta ขวา */}
+              {/* meta ขวา — ม.86/4 (4) เลขที่ + เล่มที่ · (7) วันเดือนปีที่ออก */}
               <div className="text-sm">
                 <MetaRow label="เลขที่เอกสาร" value={document.doc_number} mono />
+                {document.book_number && (
+                  <MetaRow label="เล่มที่" value={document.book_number} mono />
+                )}
                 <MetaRow label="วันที่ออก" value={fmtDateTH(document.issue_date)} />
                 {document.doc_type === "invoice" && document.due_date && (
                   <MetaRow label="กำหนดชำระ" value={fmtDateTH(document.due_date)} />
+                )}
+                {document.ref_doc_number && (
+                  <MetaRow label="อ้างถึงใบกำกับภาษีเลขที่" value={document.ref_doc_number} mono />
                 )}
               </div>
             </div>
 
             {/* ตารางรายการ (เอกสารพิมพ์ — ตารางจัดเอง ไม่ใช้ Table primitive) */}
             <div className="mt-5 overflow-hidden rounded border border-gray-300">
-              <div className="grid grid-cols-[36px_1fr_60px_100px_100px_110px] bg-gray-100 text-xs font-semibold text-gray-600">
+              <div className="grid grid-cols-[32px_1fr_54px_64px_92px_88px_104px] bg-gray-100 text-xs font-semibold text-gray-600">
                 <div className="px-2 py-2 text-center">#</div>
                 <div className="px-2 py-2">รายละเอียด</div>
                 <div className="px-2 py-2 text-right">จำนวน</div>
+                <div className="px-2 py-2">หน่วย</div>
                 <div className="px-2 py-2 text-right">ราคา/หน่วย</div>
                 <div className="px-2 py-2 text-right">ส่วนลด</div>
                 <div className="px-2 py-2 text-right">จำนวนเงิน</div>
@@ -212,7 +236,7 @@ export function DocumentPreview({
                 lines.map((l, i) => (
                   <div
                     key={l.id}
-                    className="grid grid-cols-[36px_1fr_60px_100px_100px_110px] border-t border-gray-200 text-sm"
+                    className="grid grid-cols-[32px_1fr_54px_64px_92px_88px_104px] border-t border-gray-200 text-sm"
                   >
                     <div className="px-2 py-2 text-center text-gray-500">{i + 1}</div>
                     <div className="px-2 py-2">
@@ -224,6 +248,7 @@ export function DocumentPreview({
                       )}
                     </div>
                     <div className="px-2 py-2 text-right tabular-nums text-gray-600">{l.qty}</div>
+                    <div className="px-2 py-2 text-gray-600">{l.unit ?? "—"}</div>
                     <div className="px-2 py-2 text-right font-mono tabular-nums text-gray-600">
                       {fmtMoney(l.unit_price, { currency: false })}
                     </div>
@@ -245,8 +270,9 @@ export function DocumentPreview({
                 {bahtText(netPayable)}
               </div>
               <div className="w-full max-w-[260px] space-y-1.5 text-sm">
-                <SummaryRow label="ยอดก่อนภาษี" value={fmtMoney(document.subtotal)} />
-                {document.vat_amount > 0 && (
+                <SummaryRow label="มูลค่าสินค้า/บริการ" value={fmtMoney(document.subtotal)} />
+                {/* ม.86/4 (6) — จำนวน VAT ต้องแยกออกจากมูลค่าสินค้าชัดเจน (แสดงแม้เป็น 0) */}
+                {(isTaxDoc || document.vat_amount > 0) && (
                   <SummaryRow
                     label={`ภาษีมูลค่าเพิ่ม ${vatRate}%`}
                     value={fmtMoney(document.vat_amount)}
@@ -296,8 +322,22 @@ export function DocumentPreview({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             ปิด
           </Button>
-          <Button variant="outline" onClick={handleDownload}>
-            <Download className="mr-1.5 h-4 w-4" /> ดาวน์โหลด PDF
+          {isTaxDoc && (
+            <Button
+              variant="outline"
+              disabled={downloading}
+              onClick={() => void handleDownload(true)}
+            >
+              <Copy className="mr-1.5 h-4 w-4" /> สำเนา (PDF)
+            </Button>
+          )}
+          <Button
+            variant="outline"
+            disabled={downloading}
+            onClick={() => void handleDownload(false)}
+          >
+            <Download className="mr-1.5 h-4 w-4" />
+            {downloading ? "กำลังสร้าง…" : isTaxDoc ? "ต้นฉบับ (PDF)" : "ดาวน์โหลด PDF"}
           </Button>
           <Button onClick={handlePrint}>
             <Printer className="mr-1.5 h-4 w-4" /> พิมพ์

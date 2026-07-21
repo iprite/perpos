@@ -12,6 +12,10 @@ updates:
     ignore:
       - dependency-name: "*"
         update-types: ["version-update:semver-major"]
+      # tailwindcss มี 2 สายในโมโนรีโป (v3 = apps/perpos+packages, v4 = apps/landing-astro)
+      # grouped update ของ dependabot เขียนทับ landing-astro กลับเป็น ^3.x (downgrade)
+      # → Cloudflare build พัง (เกิดแล้วใน PR #92, #104) — bump tailwindcss มือเท่านั้น
+      - dependency-name: "tailwindcss"
     groups:
       # รวม minor/patch เป็น PR เดียว กัน spam
       minor-and-patch:
