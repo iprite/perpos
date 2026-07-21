@@ -135,6 +135,8 @@ const STANDARD_THAI_CHART: { code: string; name: string; account_type: AccType }
   { code: "1100", name: "ลูกหนี้การค้า", account_type: "asset" },
   { code: "1130", name: "สินค้าคงเหลือ", account_type: "asset" },
   { code: "1150", name: "ภาษีซื้อ", account_type: "asset" },
+  // ลูกค้าหักภาษี ณ ที่จ่ายจากเรา = ภาษีจ่ายล่วงหน้า (สินทรัพย์) ใช้เครดิตภาษีเงินได้ตอนสิ้นปี
+  { code: "1160", name: "ภาษีเงินได้ถูกหัก ณ ที่จ่าย", account_type: "asset" },
   { code: "1510", name: "อุปกรณ์", account_type: "asset" },
   { code: "1520", name: "ยานพาหนะ", account_type: "asset" },
   { code: "1590", name: "ค่าเสื่อมราคาสะสม", account_type: "asset" },
@@ -143,6 +145,9 @@ const STANDARD_THAI_CHART: { code: string; name: string; account_type: AccType }
   { code: "2100", name: "เจ้าหนี้การค้า", account_type: "liability" },
   { code: "2150", name: "ภาษีขาย", account_type: "liability" },
   { code: "2210", name: "ภาษีหัก ณ ที่จ่ายค้างจ่าย (ภงด.1)", account_type: "liability" },
+  // เราหักภาษี ณ ที่จ่ายจากผู้รับเงิน แล้วค้างนำส่งสรรพากร — แยกตามแบบที่ต้องยื่น
+  { code: "2211", name: "ภาษีหัก ณ ที่จ่ายค้างจ่าย (ภงด.3)", account_type: "liability" },
+  { code: "2212", name: "ภาษีหัก ณ ที่จ่ายค้างจ่าย (ภงด.53)", account_type: "liability" },
   { code: "2220", name: "ประกันสังคมค้างจ่าย", account_type: "liability" },
   { code: "2230", name: "กองทุนสำรองเลี้ยงชีพค้างจ่าย", account_type: "liability" },
   { code: "2240", name: "เงินหักอื่นค้างจ่าย", account_type: "liability" },
@@ -183,8 +188,16 @@ export async function seedAccounting(
     .from("acc_accounts")
     .select("id", { count: "exact", head: true })
     .eq("org_id", orgId);
+  // มีผังแล้ว = seed รอบก่อน → ข้ามผังบัญชี แต่ **ยังต้องเติมงวด/settings**
+  // (org ที่ seed ไปก่อนฟีเจอร์งวดจะไม่มี acc_periods เลย → ต้อง backfill ตอนเรียกซ้ำ)
   if ((count ?? 0) > 0) {
     seeded.accounts = 0;
+    await admin
+      .from("acc_org_settings")
+      .upsert({ org_id: orgId }, { onConflict: "org_id", ignoreDuplicates: true });
+    seeded.periods =
+      (await seedAccountingPeriods(orgId, admin, new Date().getFullYear())) +
+      (await seedAccountingPeriods(orgId, admin, new Date().getFullYear() + 1));
     return seeded;
   }
 
@@ -228,7 +241,41 @@ export async function seedAccounting(
     .from("acc_org_settings")
     .upsert({ org_id: orgId }, { onConflict: "org_id", ignoreDuplicates: true });
 
+  // 4. งวดบัญชีของปีปัจจุบัน 12 งวด (เปิดทั้งหมด)
+  //    ถ้าไม่มีงวด: journal ที่ลงจะได้ period_id = null → ปิดงวดไม่คุม, รายงานรายงวดเพี้ยน
+  //    และ auto journal ของเอกสารซื้อ/ขายจะผูกงวดไม่ได้ → ต้อง seed มาพร้อมโมดูล
+  // ปีปัจจุบัน + ปีถัดไป — ลูกค้าที่ migrate ต้นปีต้องมีงวดปีใหม่รอตั้งแต่ก่อนปีเปลี่ยน
+  seeded.periods =
+    (await seedAccountingPeriods(orgId, admin, new Date().getFullYear())) +
+    (await seedAccountingPeriods(orgId, admin, new Date().getFullYear() + 1));
+
   return seeded;
+}
+
+/**
+ * สร้างงวดบัญชี 12 เดือนของปีที่ระบุ (idempotent — ข้ามงวดที่มีแล้ว)
+ * แยกเป็นฟังก์ชันเพื่อ backfill org เดิมที่ seed ไปก่อนหน้าได้ด้วย
+ */
+export async function seedAccountingPeriods(
+  orgId: string,
+  admin: SupabaseClient,
+  year: number,
+): Promise<number> {
+  const { data: existing } = await admin
+    .from("acc_periods")
+    .select("month")
+    .eq("org_id", orgId)
+    .eq("year", year);
+  const have = new Set((existing ?? []).map((r) => Number((r as { month: number }).month)));
+
+  const rows = Array.from({ length: 12 }, (_, i) => i + 1)
+    .filter((m) => !have.has(m))
+    .map((m) => ({ org_id: orgId, year, month: m, status: "open" }));
+  if (rows.length === 0) return 0;
+
+  const { error } = await admin.from("acc_periods").insert(rows);
+  if (error) throw new Error(`seedAccountingPeriods: ${error.message}`);
+  return rows.length;
 }
 
 /** Call the right seed function for a module. Returns null if no seeding needed. */

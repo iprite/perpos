@@ -9,6 +9,7 @@ import {
   orgIdFromQuery,
   num,
   round2,
+  assertPeriodOpen,
 } from "../_lib";
 import { listEntries } from "@/lib/accounting/entries";
 
@@ -50,7 +51,7 @@ export async function POST(req: NextRequest) {
 
   const auth = await requireAccountingMember(req, orgId);
   if (!auth.ok) return auth.res;
-  if (!canWriteFrontstage(auth.role)) return accError("ไม่มีสิทธิ์บันทึกข้อมูล", 403);
+  if (!canWriteFrontstage(auth)) return accError("ไม่มีสิทธิ์บันทึกข้อมูล", 403);
 
   const kind = String(body.kind ?? "");
   if (!["income", "expense"].includes(kind)) return accError("กรุณาเลือกประเภท รายรับ/รายจ่าย");
@@ -58,6 +59,17 @@ export async function POST(req: NextRequest) {
   if (!entryDate) return accError("กรุณาเลือกวันที่");
   const amount = round2(num(body.amount, { nonNeg: true }));
   if (amount <= 0) return accError("จำนวนเงินต้องมากกว่า 0");
+
+  // งวดปิดแล้วห้ามบันทึกลงงวดนั้น (Phase 1.4 — เดิมเส้นนี้ไม่เคยเช็ค)
+  const periodClient = createAdminClient();
+  const entryYear = Number(entryDate.slice(0, 4));
+  const entryMonth = Number(entryDate.slice(5, 7));
+  const periodOk = await assertPeriodOpen(periodClient, orgId, entryYear, entryMonth);
+  if (!periodOk.ok)
+    return accError(
+      `งวดบัญชี ${entryYear}/${String(entryMonth).padStart(2, "0")} ปิดแล้ว บันทึกรายการไม่ได้`,
+      409,
+    );
 
   // WHT (โซนขั้นสูง) — optional
   let whtRate: number | null = null;

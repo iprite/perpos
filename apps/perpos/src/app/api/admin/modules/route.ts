@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "../../_lib/auth";
 import { createAdminClient } from "../../_lib/supabase";
 import { ALL_MODULES, MODULE_MENUS, ORG_ROLES } from "@/lib/modules";
-import { seedModule } from "../_lib/module-seed";
+import { seedModule, seedAccountingPeriods } from "../_lib/module-seed";
 
 /** Returns true if this module is allowed to be enabled for the given org slug */
 function isModuleAllowedForOrg(moduleKey: string, orgSlug: string): boolean {
@@ -236,6 +236,17 @@ export async function PUT(req: NextRequest) {
         await seedModule(row.module_key, orgId, admin);
       } catch (e) {
         console.error(`[modules/PUT] seed ${row.module_key} failed`, String(e));
+      }
+    } else if (row.is_enabled && row.module_key === "accounting") {
+      // repair งวดบัญชีของปีปัจจุบันทุกครั้งที่กดบันทึก (idempotent — เติมเฉพาะงวดที่ขาด)
+      // จำเป็นเพราะ org ที่เปิด accounting ไปก่อนมีฟีเจอร์งวด จะไม่มี acc_periods เลย
+      // → ลงบัญชีได้แต่ period_id = null (ปิดงวดไม่คุม, รายงานรายงวดเพี้ยน)
+      // ⚠️ เรียกเฉพาะ seedAccountingPeriods ไม่ใช่ seedModule ทั้งก้อน — seedTmc ไม่ idempotent
+      try {
+        await seedAccountingPeriods(orgId, admin, new Date().getFullYear());
+        await seedAccountingPeriods(orgId, admin, new Date().getFullYear() + 1);
+      } catch (e) {
+        console.error("[modules/PUT] repair accounting periods failed", String(e));
       }
     }
   }

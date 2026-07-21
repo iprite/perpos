@@ -39,12 +39,14 @@ import { DocStatusBadge, DOC_TYPE_LABEL } from "./badges";
 import { fmtMoney, fmtDateTH } from "./format";
 import { DocumentPreview } from "./document-preview";
 import { ProductDialog } from "./product-dialog";
-import type {
-  AccDiscountType,
-  AccDocument,
-  AccDocStatus,
-  AccDocType,
-  AccProduct,
+import {
+  isTaxDocument,
+  requiresRefDocument,
+  type AccDiscountType,
+  type AccDocument,
+  type AccDocStatus,
+  type AccDocType,
+  type AccProduct,
 } from "@/lib/accounting/types";
 
 // ── input shapes (call-site contract → ส่งเป็น body ของ mutator addDocument/updateDocument) ──
@@ -58,6 +60,7 @@ type DocumentLineBody = {
   discount: number;
   discount_type: AccDiscountType;
   product_id: string | null;
+  unit: string | null;
 };
 type CreateDocumentBody = {
   doc_type: AccDocType;
@@ -67,6 +70,8 @@ type CreateDocumentBody = {
   vat_enabled: boolean;
   wht_rate: number;
   note: string | null;
+  book_number: string | null;
+  ref_document_id: string | null;
   lines: DocumentLineBody[];
 };
 type UpdateDocumentBody = {
@@ -84,10 +89,15 @@ const STATUS_OPTIONS: { value: AccDocStatus; label: string }[] = [
   { value: "void", label: "ยกเลิก" },
 ];
 
-// quotation → invoice → receipt (convertDocument รับเฉพาะปลายทาง invoice/receipt)
-const NEXT_TYPE: Partial<Record<AccDocType, "invoice" | "receipt">> = {
+// chain การแปลงเอกสาร (ต้องตรงกับ NEXT_TYPE ฝั่ง api/accounting/documents/[id]/convert)
+// ⚠️ ปลายทางห้ามเป็นใบกำกับภาษี — ใบกำกับของดีลหนึ่งออกได้ใบเดียว (VAT เกิดแล้ว)
+//    ขายเชื่อ: ใบกำกับภาษีตอนส่งมอบ → "ใบเสร็จรับเงินธรรมดา" ตอนรับเงิน
+const NEXT_TYPE: Partial<Record<AccDocType, AccDocType>> = {
   quotation: "invoice",
   invoice: "receipt",
+  tax_invoice: "receipt",
+  billing_note: "invoice",
+  delivery_note: "invoice",
 };
 
 /** วันที่วันนี้ (ISO YYYY-MM-DD, CE) สำหรับ default ของฟอร์มสร้างใหม่ */
@@ -110,7 +120,8 @@ export function DocumentDialog({
   canWrite: boolean;
 }) {
   const { orgSettings, updateDocument, deleteDocument, convertDocument } = useAccountingData();
-  const vatRate = orgSettings?.vat_rate ?? 7;
+  // อัตรา VAT = snapshot ที่แช่แข็งไว้กับใบ (ไม่ใช่ค่าปัจจุบันของกิจการ) — ใบเก่าต้องไม่เปลี่ยนตาม
+  const vatRate = document?.vat_rate ?? orgSettings?.vat_rate ?? 7;
 
   const [status, setStatus] = useState<AccDocStatus>("draft");
   const [dueDate, setDueDate] = useState("");
@@ -196,8 +207,21 @@ export function DocumentDialog({
             <div className="space-y-5">
               {/* หัวเอกสาร */}
               <div className="grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2">
-                <Field label="ลูกค้า" value={document.contact_name ?? "—"} />
+                <Field label="ลูกค้า" value={document.buyer_name ?? document.contact_name ?? "—"} />
                 <Field label="ออกวันที่" value={fmtDateTH(document.issue_date)} />
+                {isTaxDocument(document.doc_type) && (
+                  <>
+                    <Field
+                      label="เลขประจำตัวผู้เสียภาษี (ผู้ซื้อ)"
+                      value={document.buyer_tax_id ?? "—"}
+                    />
+                    <Field label="สาขา (ผู้ซื้อ)" value={document.buyer_branch ?? "—"} />
+                    {document.book_number && <Field label="เล่มที่" value={document.book_number} />}
+                    {document.ref_doc_number && (
+                      <Field label="อ้างถึงใบกำกับภาษี" value={document.ref_doc_number} />
+                    )}
+                  </>
+                )}
               </div>
 
               {/* แก้ไข: สถานะ + กำหนดชำระ */}
@@ -225,6 +249,7 @@ export function DocumentDialog({
                     <TableRow>
                       <TableHead>รายละเอียด</TableHead>
                       <TableHead align="right">จำนวน</TableHead>
+                      <TableHead>หน่วย</TableHead>
                       <TableHead align="right">ราคา/หน่วย</TableHead>
                       <TableHead align="right">ส่วนลด</TableHead>
                       <TableHead align="right">รวม</TableHead>
@@ -244,6 +269,7 @@ export function DocumentDialog({
                         <TableCell align="right" className="tabular-nums text-gray-600">
                           {l.qty}
                         </TableCell>
+                        <TableCell className="text-gray-600">{l.unit ?? "—"}</TableCell>
                         <TableCell align="right" tabular className="text-gray-600">
                           {fmtMoney(l.unit_price, { currency: false })}
                         </TableCell>
@@ -364,6 +390,7 @@ interface DraftLine {
   itemName: string; // ชื่อสินค้า/บริการ (typeahead)
   description: string; // คำอธิบายรายการ (เพิ่มเติม, อาจว่าง)
   qty: string;
+  unit: string; // หน่วยนับ (ม.86/4 (5)) — auto-fill จากสินค้า, แก้เองได้
   unitPrice: string;
   discount: string;
   discountType: AccDiscountType; // 'amount' (฿) | 'percent' (%) default 'amount'
@@ -376,17 +403,27 @@ function emptyLine(): DraftLine {
     itemName: "",
     description: "",
     qty: "1",
+    unit: "",
     unitPrice: "",
     discount: "0",
     discountType: "amount",
   };
 }
 
-const DOC_TYPE_SEG: SegmentedOptionLite<AccDocType>[] = [
-  { value: "quotation", label: "ใบเสนอราคา" },
-  { value: "invoice", label: "ใบแจ้งหนี้" },
-  { value: "receipt", label: "ใบเสร็จ" },
-];
+// ชนิดเอกสาร 9 แบบ (>3 ตัวเลือก → CustomSelect ไม่ใช่ SegmentedControl ตาม DESIGN §7)
+const DOC_TYPE_OPTIONS: { value: string; label: string }[] = (
+  [
+    "quotation",
+    "billing_note",
+    "invoice",
+    "delivery_note",
+    "tax_invoice",
+    "receipt_tax_invoice",
+    "receipt",
+    "credit_note",
+    "debit_note",
+  ] as AccDocType[]
+).map((v) => ({ value: v, label: DOC_TYPE_LABEL[v] }));
 
 const DISCOUNT_TYPE_SEG: SegmentedOptionLite<AccDiscountType>[] = [
   { value: "amount", label: "฿" },
@@ -432,7 +469,7 @@ export function DocumentCreateDialog({
   open: boolean;
   onOpenChange: (v: boolean) => void;
 }) {
-  const { contacts, orgSettings, products, addDocument } = useAccountingData();
+  const { contacts, orgSettings, products, documents, addDocument } = useAccountingData();
   const vatRegistered = orgSettings?.is_vat_registered ?? false;
   const vatRate = orgSettings?.vat_rate ?? 7;
 
@@ -441,6 +478,8 @@ export function DocumentCreateDialog({
   const [issueDate, setIssueDate] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [note, setNote] = useState("");
+  const [bookNumber, setBookNumber] = useState("");
+  const [refDocumentId, setRefDocumentId] = useState("");
   const [draftLines, setDraftLines] = useState<DraftLine[]>([emptyLine()]);
   const [saving, setSaving] = useState(false);
 
@@ -466,6 +505,8 @@ export function DocumentCreateDialog({
       setIssueDate(todayISO());
       setDueDate("");
       setNote("");
+      setBookNumber("");
+      setRefDocumentId("");
       setDraftLines([emptyLine()]);
       setVatEnabled(vatRegistered);
       setWhtOn(false);
@@ -488,6 +529,30 @@ export function DocumentCreateDialog({
 
   const activeProducts = useMemo(() => products.filter((p) => p.is_active), [products]);
 
+  // เอกสารภาษี → ต้องแสดงฟิลด์ ม.86/4 · ใบลด/เพิ่มหนี้ → ต้องอ้างใบกำกับภาษีเดิม
+  const isTaxDoc = isTaxDocument(docType);
+  const needsRef = requiresRefDocument(docType);
+
+  // ตัวเลือกใบกำกับภาษีเดิมสำหรับใบลดหนี้/ใบเพิ่มหนี้ (กรองตามลูกค้าที่เลือก ถ้าเลือกแล้ว)
+  const refDocOptions = useMemo(() => {
+    const eligible = documents
+      .filter(
+        (d) =>
+          (d.doc_type === "tax_invoice" || d.doc_type === "receipt_tax_invoice") &&
+          d.status !== "void" &&
+          (!contactId || d.contact_id === contactId),
+      )
+      .sort((a, b) => b.issue_date.localeCompare(a.issue_date))
+      .slice(0, 100);
+    return [
+      { value: "", label: "— เลือกใบกำกับภาษีที่อ้างถึง —" },
+      ...eligible.map((d) => ({
+        value: d.id,
+        label: `${d.doc_number} · ${fmtDateTH(d.issue_date)} · ${fmtMoney(d.total)}`,
+      })),
+    ];
+  }, [documents, contactId]);
+
   const subtotal = useMemo(() => draftLines.reduce((s, l) => s + lineAmount(l), 0), [draftLines]);
   const vatAmount = vatEnabled ? Math.round(subtotal * (vatRate / 100) * 100) / 100 : 0;
   const total = subtotal + vatAmount;
@@ -509,6 +574,7 @@ export function DocumentCreateDialog({
               productId: p.id,
               itemName: p.name,
               unitPrice: String(p.unit_price),
+              unit: p.unit ?? l.unit,
               description: p.description ?? l.description,
             }
           : l,
@@ -526,6 +592,7 @@ export function DocumentCreateDialog({
               productId: null,
               itemName: input.name,
               unitPrice: String(input.unit_price),
+              unit: input.unit ?? l.unit,
               description: input.description ?? l.description,
             }
           : l,
@@ -553,6 +620,10 @@ export function DocumentCreateDialog({
       toast.error("กรุณาเลือกวันที่ออกเอกสาร");
       return;
     }
+    if (needsRef && !refDocumentId) {
+      toast.error("กรุณาเลือกใบกำกับภาษีที่อ้างถึง");
+      return;
+    }
     const cleanLines = draftLines.filter((l) => l.itemName.trim() && Number(l.unitPrice) > 0);
     if (cleanLines.length === 0) {
       toast.error("กรุณากรอกรายการอย่างน้อย 1 บรรทัด (มีชื่อสินค้าและราคา)");
@@ -575,6 +646,7 @@ export function DocumentCreateDialog({
         discount,
         discount_type: l.discountType,
         product_id: l.productId,
+        unit: l.unit.trim() || null,
       };
     });
 
@@ -586,6 +658,8 @@ export function DocumentCreateDialog({
       vat_enabled: vatEnabled,
       wht_rate: whtOn ? whtRateNum : 0,
       note: note.trim() || null,
+      book_number: isTaxDoc ? bookNumber.trim() || null : null,
+      ref_document_id: needsRef ? refDocumentId || null : null,
       lines,
     };
 
@@ -618,15 +692,18 @@ export function DocumentCreateDialog({
               <div className="space-y-4">
                 <div>
                   <Label>ชนิดเอกสาร *</Label>
-                  <div className="mt-1">
-                    <SegmentedControl
-                      value={docType}
-                      onChange={setDocType}
-                      options={DOC_TYPE_SEG}
-                      fullWidth
-                      ariaLabel="ชนิดเอกสาร"
-                    />
-                  </div>
+                  <CustomSelect
+                    className="mt-1"
+                    value={docType}
+                    onChange={(v) => setDocType(v as AccDocType)}
+                    options={DOC_TYPE_OPTIONS}
+                  />
+                  {isTaxDoc && (
+                    <p className="mt-1 text-xs text-gray-500">
+                      เอกสารภาษี — จะบันทึกชื่อ/ที่อยู่/เลขประจำตัวผู้เสียภาษี/สาขา ของทั้งสองฝ่าย
+                      ไว้กับใบนี้ ณ วันที่ออก ตามมาตรา 86/4
+                    </p>
+                  )}
                 </div>
 
                 <div>
@@ -638,6 +715,22 @@ export function DocumentCreateDialog({
                     options={contactOptions}
                   />
                 </div>
+
+                {needsRef && (
+                  <div>
+                    <Label>ใบกำกับภาษีที่อ้างถึง *</Label>
+                    <CustomSelect
+                      className="mt-1"
+                      value={refDocumentId}
+                      onChange={setRefDocumentId}
+                      options={refDocOptions}
+                    />
+                    <p className="mt-1 text-xs text-gray-500">
+                      ใบลดหนี้/ใบเพิ่มหนี้ ต้องอ้างเลขที่และวันที่ของใบกำกับภาษีเดิม (มาตรา 86/10
+                      และ 86/9)
+                    </p>
+                  </div>
+                )}
 
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div>
@@ -652,6 +745,18 @@ export function DocumentCreateDialog({
                     <div>
                       <Label>กำหนดชำระ</Label>
                       <ThaiDatePicker value={dueDate} onChange={setDueDate} placeholder="ไม่ระบุ" />
+                    </div>
+                  )}
+                  {isTaxDoc && (
+                    <div>
+                      <Label htmlFor="doc-book-number">เล่มที่</Label>
+                      <Input
+                        id="doc-book-number"
+                        className="mt-1"
+                        placeholder="ไม่บังคับ — ใส่เมื่อออกเป็นเล่ม"
+                        value={bookNumber}
+                        onChange={(e) => setBookNumber(e.target.value)}
+                      />
                     </div>
                   )}
                 </div>
@@ -714,8 +819,8 @@ export function DocumentCreateDialog({
                             />
                           </div>
 
-                          {/* จำนวน · ราคา/หน่วย · ส่วนลด */}
-                          <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
+                          {/* จำนวน · หน่วย · ราคา/หน่วย · ส่วนลด */}
+                          <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-4">
                             <div>
                               <Label>จำนวน</Label>
                               <Input
@@ -724,6 +829,15 @@ export function DocumentCreateDialog({
                                 className="mt-1 text-right"
                                 value={l.qty}
                                 onChange={(e) => updateLine(l.key, { qty: e.target.value })}
+                              />
+                            </div>
+                            <div>
+                              <Label>หน่วย</Label>
+                              <Input
+                                className="mt-1"
+                                placeholder="ชิ้น / ชุด / งาน"
+                                value={l.unit}
+                                onChange={(e) => updateLine(l.key, { unit: e.target.value })}
                               />
                             </div>
                             <div>

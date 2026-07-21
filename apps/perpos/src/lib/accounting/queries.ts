@@ -245,3 +245,13 @@ export async function getEnabledModulesForOrg(
     })
     .map((row) => row.module_key as string);
 }
+
+/** true ถ้าผู้ใช้ปัจจุบันเป็น super_admin (profiles.role) — ใช้ปลดด่านสิทธิ์ตาม AGENTS.md */
+export async function isSuperAdminUser(): Promise<boolean> {
+  const user = await getAuthUser();
+  if (!user) return false;
+  const { createSupabaseAdminClient } = await import("@/lib/supabase/admin");
+  const admin = createSupabaseAdminClient();
+  const { data } = await admin.from("profiles").select("role").eq("id", user.id).maybeSingle();
+  return (data as { role?: string } | null)?.role === "super_admin";
+}

@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
 
   const auth = await requireAccountingMember(req, orgId);
   if (!auth.ok) return auth.res;
-  if (!canClosePeriod(auth.role)) return accError("เฉพาะนักบัญชีเท่านั้นที่จัดการงวดบัญชีได้", 403);
+  if (!canClosePeriod(auth)) return accError("เฉพาะนักบัญชีเท่านั้นที่จัดการงวดบัญชีได้", 403);
 
   const year = num(body.year);
   const month = num(body.month);

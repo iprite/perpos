@@ -3,7 +3,7 @@
   "version": "7.6.2",
   "private": true,
   "scripts": {
-    "dev": "next dev --port 3002",
+    "dev": "next dev --port ${PORT:-3002}",
     "lint": "next lint",
     "build": "NODE_OPTIONS=--max-old-space-size=6144 next build",
     "type:check": "tsc --noEmit",
