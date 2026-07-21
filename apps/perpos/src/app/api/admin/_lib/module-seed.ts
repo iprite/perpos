@@ -195,7 +195,9 @@ export async function seedAccounting(
     await admin
       .from("acc_org_settings")
       .upsert({ org_id: orgId }, { onConflict: "org_id", ignoreDuplicates: true });
-    seeded.periods = await seedAccountingPeriods(orgId, admin, new Date().getFullYear());
+    seeded.periods =
+      (await seedAccountingPeriods(orgId, admin, new Date().getFullYear())) +
+      (await seedAccountingPeriods(orgId, admin, new Date().getFullYear() + 1));
     return seeded;
   }
 
@@ -242,7 +244,10 @@ export async function seedAccounting(
   // 4. งวดบัญชีของปีปัจจุบัน 12 งวด (เปิดทั้งหมด)
   //    ถ้าไม่มีงวด: journal ที่ลงจะได้ period_id = null → ปิดงวดไม่คุม, รายงานรายงวดเพี้ยน
   //    และ auto journal ของเอกสารซื้อ/ขายจะผูกงวดไม่ได้ → ต้อง seed มาพร้อมโมดูล
-  seeded.periods = await seedAccountingPeriods(orgId, admin, new Date().getFullYear());
+  // ปีปัจจุบัน + ปีถัดไป — ลูกค้าที่ migrate ต้นปีต้องมีงวดปีใหม่รอตั้งแต่ก่อนปีเปลี่ยน
+  seeded.periods =
+    (await seedAccountingPeriods(orgId, admin, new Date().getFullYear())) +
+    (await seedAccountingPeriods(orgId, admin, new Date().getFullYear() + 1));
 
   return seeded;
 }

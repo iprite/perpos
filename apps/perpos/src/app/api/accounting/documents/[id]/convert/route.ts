@@ -13,11 +13,14 @@ import { buildPartySnapshot } from "@/lib/accounting/documents";
 const ROUTE = "/api/accounting/documents/[id]/convert";
 type Ctx = { params: Promise<{ id: string }> };
 
-// chain ที่อนุญาต: quotation → invoice → receipt/ใบเสร็จรับเงิน+ใบกำกับภาษี
+// chain ที่อนุญาต — ปลายทางต้อง "ไม่ใช่ใบกำกับภาษี" เสมอ:
+// ใบกำกับภาษีของดีลหนึ่งออกได้ใบเดียว (จุดความรับผิด VAT เกิดแล้ว) การแปลง
+// tax_invoice → receipt_tax_invoice จะกลายเป็นใบกำกับ 2 ใบของดีลเดียว = VAT เบิ้ลใน ภ.พ.30
+// ท่าที่ถูกของขายเชื่อ: ใบกำกับภาษีตอนส่งมอบ → "ใบเสร็จรับเงินธรรมดา" ตอนรับเงิน
 const NEXT_TYPE: Record<string, { type: string; prefix: string }> = {
   quotation: { type: "invoice", prefix: "INV" },
   invoice: { type: "receipt", prefix: "RC" },
-  tax_invoice: { type: "receipt_tax_invoice", prefix: "RTV" },
+  tax_invoice: { type: "receipt", prefix: "RC" },
   billing_note: { type: "invoice", prefix: "INV" },
   delivery_note: { type: "invoice", prefix: "INV" },
 };

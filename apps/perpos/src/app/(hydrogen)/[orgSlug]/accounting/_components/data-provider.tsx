@@ -117,6 +117,8 @@ export interface MutResult {
   error?: string;
   /** id ของ row ที่สร้าง (เฉพาะ POST ที่ API คืน id — ใช้ chain เช่น สร้างร่าง→post) */
   id?: string;
+  /** response body ทั้งก้อน (สำหรับ mutator ที่ API แนบข้อมูลเสริม เช่น draft_notice ของ recompute) */
+  data?: Record<string, unknown>;
 }
 
 interface AccountingData {
@@ -326,8 +328,10 @@ export function AccountingDataProvider({
         const errBody = (await res.json().catch(() => ({}))) as { error?: string };
         return { ok: false, error: errBody.error ?? "บันทึกไม่สำเร็จ" };
       }
-      const okBody = (await res.json().catch(() => ({}))) as { id?: string };
-      return { ok: true, id: okBody.id };
+      const okBody = (await res.json().catch(() => ({}))) as Record<string, unknown> & {
+        id?: string;
+      };
+      return { ok: true, id: okBody.id, data: okBody };
     },
     [getToken, orgId],
   );

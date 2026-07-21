@@ -244,6 +244,7 @@ export async function PUT(req: NextRequest) {
       // ⚠️ เรียกเฉพาะ seedAccountingPeriods ไม่ใช่ seedModule ทั้งก้อน — seedTmc ไม่ idempotent
       try {
         await seedAccountingPeriods(orgId, admin, new Date().getFullYear());
+        await seedAccountingPeriods(orgId, admin, new Date().getFullYear() + 1);
       } catch (e) {
         console.error("[modules/PUT] repair accounting periods failed", String(e));
       }

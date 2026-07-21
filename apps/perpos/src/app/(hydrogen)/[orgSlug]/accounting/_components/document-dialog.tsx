@@ -90,10 +90,12 @@ const STATUS_OPTIONS: { value: AccDocStatus; label: string }[] = [
 ];
 
 // chain การแปลงเอกสาร (ต้องตรงกับ NEXT_TYPE ฝั่ง api/accounting/documents/[id]/convert)
+// ⚠️ ปลายทางห้ามเป็นใบกำกับภาษี — ใบกำกับของดีลหนึ่งออกได้ใบเดียว (VAT เกิดแล้ว)
+//    ขายเชื่อ: ใบกำกับภาษีตอนส่งมอบ → "ใบเสร็จรับเงินธรรมดา" ตอนรับเงิน
 const NEXT_TYPE: Partial<Record<AccDocType, AccDocType>> = {
   quotation: "invoice",
   invoice: "receipt",
-  tax_invoice: "receipt_tax_invoice",
+  tax_invoice: "receipt",
   billing_note: "invoice",
   delivery_note: "invoice",
 };
