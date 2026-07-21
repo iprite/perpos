@@ -25,16 +25,16 @@ const SYSTEM_SEGMENTS = new Set(["admin", "user", "signin", "no-org", "assistant
 
 export default async function HydrogenLayout({ children }: { children: React.ReactNode }) {
   const headersList = await headers();
-  const pathname    = headersList.get("x-pathname") ?? "/";
-  const segments    = pathname.split("/").filter(Boolean);
+  const pathname = headersList.get("x-pathname") ?? "/";
+  const segments = pathname.split("/").filter(Boolean);
 
   // Determine the active org:
   // - If path is /:orgSlug/... → use slug lookup
   // - For /admin, /user, etc.  → fall back to cookie-based active org
-  const orgs            = await getOrganizationsForCurrentUser();
-  const firstSegment    = segments[0] ?? "";
-  const isOrgRoute      = firstSegment.length > 0 && !SYSTEM_SEGMENTS.has(firstSegment);
-  const orgSlugFromUrl  = isOrgRoute ? firstSegment : null;
+  const orgs = await getOrganizationsForCurrentUser();
+  const firstSegment = segments[0] ?? "";
+  const isOrgRoute = firstSegment.length > 0 && !SYSTEM_SEGMENTS.has(firstSegment);
+  const orgSlugFromUrl = isOrgRoute ? firstSegment : null;
 
   let activeOrg = orgSlugFromUrl
     ? orgs.find((o) => o.slug === orgSlugFromUrl)
@@ -58,8 +58,8 @@ export default async function HydrogenLayout({ children }: { children: React.Rea
   ]);
   const personalKeys = await getPersonalModulesForUser(currentUserId);
   // Merge: personal modules are always visible regardless of org context
-  const enabledKeys  = Array.from(new Set([...orgModuleKeys, ...personalKeys]));
-  const menuLabels   = await getModuleMenuLabels(enabledKeys);
+  const enabledKeys = Array.from(new Set([...orgModuleKeys, ...personalKeys]));
+  const menuLabels = await getModuleMenuLabels(enabledKeys);
 
   // ── Server-side module access guard ─────────────────────────────────────────
   // Only enforce for org routes where a module segment is present.
@@ -69,10 +69,8 @@ export default async function HydrogenLayout({ children }: { children: React.Rea
       // fallback ไปโมดูล ERP (per-org) ตัวแรก — ตัด personal module (stt/ผู้ช่วย AI)
       // ออก เพราะ href=/assistant เป็น top-level (prefix orgSlug แล้ว 404) ·
       // ถ้าไม่มี ERP module เหลือ → "/" ให้ root resolve (จะพาไป /assistant สำหรับ B2C)
-      const firstEnabled = ALL_MODULES.find(
-        (m) => enabledKeys.includes(m.key) && !m.personal,
-      );
-      const orgSlug      = activeOrg?.slug ?? orgSlugFromUrl ?? "";
+      const firstEnabled = ALL_MODULES.find((m) => enabledKeys.includes(m.key) && !m.personal);
+      const orgSlug = activeOrg?.slug ?? orgSlugFromUrl ?? "";
       redirect(orgSlug && firstEnabled ? `/${orgSlug}${firstEnabled.href}` : "/");
     }
   }
@@ -85,20 +83,31 @@ export default async function HydrogenLayout({ children }: { children: React.Rea
     const moduleRole = await getModuleRoleForCurrentUser(activeOrg.id, "just_me");
     if (moduleRole) effectiveOrgRole = moduleRole;
   }
+  // accounting ก็ใช้ per-module role (module_members) — sidebar ต้องรู้เพื่อซ่อนกลุ่ม
+  // "หลังบ้าน (นักบัญชี)" จาก staff ที่ไม่มีสิทธิ์เข้าเลย (role matrix §4)
+  if (isOrgRoute && segments[1] === "accounting" && activeOrg?.id) {
+    const moduleRole = await getModuleRoleForCurrentUser(activeOrg.id, "accounting");
+    if (moduleRole) effectiveOrgRole = moduleRole;
+  }
 
   return (
-    <ModuleProvider enabledKeys={enabledKeys} orgSlug={activeOrg?.slug ?? orgSlugFromUrl ?? ""} orgRole={effectiveOrgRole} menuLabels={menuLabels}>
+    <ModuleProvider
+      enabledKeys={enabledKeys}
+      orgSlug={activeOrg?.slug ?? orgSlugFromUrl ?? ""}
+      orgRole={effectiveOrgRole}
+      menuLabels={menuLabels}
+    >
       <main className="flex min-h-screen flex-grow">
         <Sidebar
-          className="fixed hidden xl:flex dark:bg-gray-50"
+          className="fixed hidden dark:bg-gray-50 xl:flex"
           organizations={orgs}
           activeOrganizationId={activeOrg?.id ?? null}
         />
-        <div className="flex w-full flex-col xl:ms-[270px] xl:w-[calc(100%-270px)] 2xl:ms-72 2xl:w-[calc(100%-288px)] pt-[var(--impersonation-banner-height,0px)]">
+        <div className="flex w-full flex-col pt-[var(--impersonation-banner-height,0px)] xl:ms-[270px] xl:w-[calc(100%-270px)] 2xl:ms-72 2xl:w-[calc(100%-288px)]">
           <ImpersonationBanner />
           <AnnouncementBanner />
           {/* Mobile header — สูงแค่พอดีปุ่ม hamburger, sticky ติดบนเมื่อ scroll (เฉพาะจอเล็ก) */}
-          <header className="sticky top-[var(--impersonation-banner-height,0px)] z-40 flex h-12 items-center border-b border-gray-100 bg-white/95 px-3 backdrop-blur supports-[backdrop-filter]:bg-white/80 xl:hidden dark:border-gray-200/10 dark:bg-gray-50/95">
+          <header className="sticky top-[var(--impersonation-banner-height,0px)] z-40 flex h-12 items-center border-b border-gray-100 bg-white/95 px-3 backdrop-blur supports-[backdrop-filter]:bg-white/80 dark:border-gray-200/10 dark:bg-gray-50/95 xl:hidden">
             <HamburgerButton
               className="me-0 sm:me-0"
               view={
@@ -114,10 +123,7 @@ export default async function HydrogenLayout({ children }: { children: React.Rea
               <span className="font-neo-tech select-none text-sm font-bold tracking-wide text-primary">
                 PERPOS
               </span>
-              <ContextToggle
-                organizations={orgs}
-                activeOrganizationId={activeOrg?.id ?? null}
-              />
+              <ContextToggle organizations={orgs} activeOrganizationId={activeOrg?.id ?? null} />
               {/* ปุ่ม avatar — เปิด profile menu ลงด้านล่าง */}
               <ProfileMenu variant="icon" />
             </div>
