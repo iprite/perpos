@@ -59,6 +59,7 @@ async function run(req: NextRequest) {
   const startedMs = Date.now();
   // ตัวนับสรุปผลการรัน → เก็บลง scheduler_runs ให้หน้า Scheduler Monitor อ่าน
   const counts = { stuck_failed: 0, requeued: 0, requeue_gaveup: 0, cleaned_jobs: 0 };
+  let overdueMarked = 0; // เอกสารขายที่เลยกำหนดชำระ (ไม่เก็บลง scheduler_runs — คนละโดเมน)
   const logRun = async (okFlag: boolean, errorMessage?: string) => {
     await admin
       .from("scheduler_runs")
@@ -1099,9 +1100,30 @@ async function run(req: NextRequest) {
         /* auto top-up best-effort — ไม่ทำให้ scheduler ล้ม */
       }
 
+    // ── เอกสารขายเลยกำหนดชำระ → overdue อัตโนมัติ (Phase 2 self-service) ──
+    // เดิมต้องให้คนกดเปลี่ยนสถานะเอง → เจ้าของกิจการไม่รู้ว่ามีบิลค้าง การ์ด "เกินกำหนด"
+    // ในหน้าเอกสารขายเลยเป็น 0 ตลอด. กำหนดชำระเปลี่ยนวันละครั้ง → t60 พอ (ไม่ต้องทุกนาที)
+    // เงื่อนไข: มี due_date, เลยวันนี้แล้ว, สถานะยังเป็น sent/accepted (ตาม state machine
+    // ที่อนุญาต sent→overdue, accepted→overdue) · paid/void/draft ไม่แตะ
+    if (run60)
+      try {
+        const today = now.toISOString().slice(0, 10);
+        const { data: od } = await admin
+          .from("acc_documents")
+          .update({ status: "overdue" })
+          .in("status", ["sent", "accepted"])
+          .not("due_date", "is", null)
+          .lt("due_date", today)
+          .is("deleted_at", null)
+          .select("id");
+        overdueMarked = (od ?? []).length;
+      } catch {
+        /* best-effort — ไม่ทำให้ scheduler ล้ม */
+      }
+
     await markTiers(); // อัปเดต last-run ของ tier ที่รันรอบนี้ (หลังงานสำเร็จ → crash ก่อนหน้านี้ = retry รอบหน้า)
     await logRun(true);
-    return NextResponse.json({ ok: true, ...counts });
+    return NextResponse.json({ ok: true, ...counts, overdue_marked: overdueMarked });
   } catch (e) {
     await logRun(false, e instanceof Error ? e.message : String(e));
     return NextResponse.json({ ok: false, error: "scheduler_failed" }, { status: 500 });

@@ -244,6 +244,7 @@ pnpm build
 | `customers` / `workers`                      | ลูกค้า / พนักงาน                                                                                                                                                                                                                             |
 | `acc_documents` / `acc_document_lines`       | เอกสารขาย 9 ชนิด + snapshot ผู้ขาย/ผู้ซื้อ (ม.86/4) + `ref_document_id` (ใบลด/เพิ่มหนี้) — ดู [`docs/ACCOUNTING_FEATURE.md`](docs/ACCOUNTING_FEATURE.md)                                                                                     |
 | `acc_purchase_documents` / `_lines`          | ใบกำกับภาษีซื้อที่ได้รับจากผู้ขาย + `is_vat_claimable` (ม.82/5) + `wht_form` (ภ.ง.ด.3/53) + `ocr_job_id`                                                                                                                                     |
+| `acc_document_shares`                        | ลิงก์สาธารณะส่งเอกสารให้ลูกค้า (`/d/<token>`) — token 192-bit, เพิกถอน/หมดอายุได้, RLS deny-all (service role เท่านั้น)                                                                                                                      |
 | `acc_doc_sequences`                          | เลขรันเอกสารต่อ (org, ชนิด, ปี) — RLS deny-all, จ่ายเลขผ่าน RPC `next_acc_doc_number()` แบบ atomic เท่านั้น                                                                                                                                  |
 | `demo_requests`                              | Lead "ขอเดโม" จากหน้า landing (name, phone, product, source, status new→contacted→…) — เขียนผ่าน `/api/public/demo-request`, ดูที่ `/admin/leads` (RLS deny-all, service role)                                                               |
 
@@ -325,7 +326,7 @@ Endpoint: `POST /api/assistant/scheduler`
   - Stuck STT jobs (`processing` ค้าง) → mark failed + refund quota + แจ้ง LINE
   - Requeue pending STT jobs (worker ไม่ว่าง/trigger พลาด) → ยิงซ้ำ, เกิน 30 นาที = ยอมแพ้
   - PDPA cleanup → ลบไฟล์เสียงดิบเมื่อ job ถึงสถานะสุดท้าย + ลบ PDF/transcript เมื่อเก่า >48 ชม.
-- **Tier gating (ลด Active CPU บน Vercel Fluid)**: งานกู้คืน/เตือนที่ time-sensitive (stuck/requeue STT+PDF, recall lifecycle, calendar reminder 5 นาที) รัน **ทุกรอบ** · งาน cleanup/sweep ที่ไม่เร่งด่วน gate ให้รันห่างขึ้นด้วยตาราง `scheduler_tier_runs` (เก็บ last-run ต่อ tier, gate ด้วย elapsed time จึง robust กับทุก cron cadence): **t5** (calendar sync, auto top-up) · **t15** (PDPA/privacy cleanups, purge recall media) · **t60** (`webhook_event`/`file_links` cleanup, token expiry sweep) · idempotent — mark tier หลังงานสำเร็จ, crash ก่อน mark = retry รอบหน้า
+- **Tier gating (ลด Active CPU บน Vercel Fluid)**: งานกู้คืน/เตือนที่ time-sensitive (stuck/requeue STT+PDF, recall lifecycle, calendar reminder 5 นาที) รัน **ทุกรอบ** · งาน cleanup/sweep ที่ไม่เร่งด่วน gate ให้รันห่างขึ้นด้วยตาราง `scheduler_tier_runs` (เก็บ last-run ต่อ tier, gate ด้วย elapsed time จึง robust กับทุก cron cadence): **t5** (calendar sync, auto top-up) · **t15** (PDPA/privacy cleanups, purge recall media) · **t60** (`webhook_event`/`file_links` cleanup, token expiry sweep, **เอกสารขายเลยกำหนดชำระ → `overdue` อัตโนมัติ**) · idempotent — mark tier หลังงานสำเร็จ, crash ก่อน mark = retry รอบหน้า
 
 ---
 

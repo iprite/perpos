@@ -41,6 +41,8 @@
 
 **สายแปลงเอกสาร** (`documents/[id]/convert`): `quotation → invoice → tax_invoice → receipt` · **ห้ามแปลง `tax_invoice → receipt_tax_invoice`** (จะกลายเป็นใบกำกับ 2 ใบต่อดีล = VAT เบิ้ล) · กันซ้ำอีกชั้นด้วย `converted_from_id` + unique index
 
+**สถานะ `overdue`** ตั้งให้อัตโนมัติโดย scheduler (tier t60, วันละหลายรอบ): เอกสารที่มี `due_date` เลยวันนี้ + สถานะยัง `sent`/`accepted` → `overdue` · `paid`/`void`/`draft` ไม่แตะ (ตรงกับ state machine)
+
 **KPI/ยอดขายหน้าเว็บ** ต้องใช้ `selectBillingDocuments()` + `billingSign()` จาก [`sales-journal.ts`](../apps/perpos/src/lib/accounting/sales-journal.ts) — กฎเดียวกับ auto journal (ตัด draft/void, ตัดสายที่แปลงต่อกันเหลือใบต้นทางใบเดียว, ใบลดหนี้ติดลบ) **ห้ามคำนวณ KPI เองจาก `doc_type` ตรง ๆ** ไม่งั้นการ์ดกับสมุดรายวันจะไม่ตรงกัน
 
 ---
@@ -68,6 +70,22 @@
 - `tax_year`/`tax_month` แยกจาก `issue_date` → เลื่อนงวดได้ตาม ม.82/3
 - ลบได้เฉพาะที่ยังไม่ลงบัญชี · ลงแล้วให้ `status='void'`
 - **จาก OCR:** [`purchase-from-ocr.ts`](../apps/perpos/src/lib/accounting/purchase-from-ocr.ts) — idempotent ต่อ `ocr_job_id`, resolve ผู้ขายจาก tax_id → ชื่อ, **ผูก journal เดิมที่ ocr-worker สร้างไว้ ไม่สร้างใบใหม่**, บิลที่ไม่สมดุลปฏิเสธ
+
+---
+
+## 4.5 ส่งเอกสารให้ลูกค้าปลายทาง — ลิงก์สาธารณะ (Phase 2)
+
+ลูกค้าของ SME ไม่มีบัญชีในระบบและไม่ควรต้องมี → ผู้ขายกด **"แชร์ลิงก์ให้ลูกค้า"** ในหน้าพรีวิวเอกสาร
+ได้ **capability URL** (`/d/<token>`) ที่เปิดดูเอกสารจริง + โหลด PDF ได้โดยไม่ต้อง login
+
+- ความปลอดภัยอยู่ที่ **token เดาไม่ได้ (192-bit) + เพิกถอนได้ + ผูกกับเอกสารใบเดียว** (หลุด 1 ลิงก์ = หลุด 1 ใบ)
+- ตาราง `acc_document_shares` **RLS deny-all** — เข้าถึงผ่าน service role ใน route handler เท่านั้น ·
+  1 เอกสาร = 1 ลิงก์ที่ยังใช้ได้ (partial unique index) · ออกใหม่ = เพิกถอนใบเดิมอัตโนมัติ
+- ตรรกะ "ลิงก์ยังใช้ได้ไหม" อยู่ที่ [`document-share.ts`](../apps/perpos/src/lib/accounting/document-share.ts) ที่เดียว
+  (`lookupShare` แยกเหตุผล not_found/revoked/expired → หน้าลูกค้าบอกตรง ๆ ว่าเกิดอะไร)
+- หน้า `/d/<token>` = Server Component + `robots: noindex` · PDF ผ่าน `/api/public/document/<token>/pdf`
+  (`Cache-Control: private, no-store` — ลิงก์เป็นความลับ ห้าม CDN แจกต่อ) · ลูกค้าได้ **ต้นฉบับ** เสมอ
+- **ฉบับร่างแชร์ไม่ได้** (409) — ต้องเปลี่ยนเป็น "ส่งแล้ว" ก่อน
 
 ---
 
