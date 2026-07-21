@@ -75,7 +75,7 @@ export default function DocumentsPage() {
   const canView = can("view", "documents");
   const canWrite = can("write", "documents");
 
-  const { documents, loading, apiGetRaw } = useAccountingData();
+  const { documents, loading, apiGetRaw, documentsTruncated } = useAccountingData();
 
   const [tab, setTab] = useState<DocTab>("all");
   const [search, setSearch] = useState("");
@@ -168,6 +168,15 @@ export default function DocumentsPage() {
       }
       tabs={tabs}
     >
+      {documentsTruncated && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+          แสดง {documentsTruncated.loaded.toLocaleString("th-TH")} จากทั้งหมด{" "}
+          {documentsTruncated.total.toLocaleString("th-TH")} รายการ —
+          ยอดรวมในการ์ดด้านล่างคิดจากชุดที่โหลดมาเท่านั้น ใช้ตัวกรอง (ชนิด/สถานะ/ช่วงวันที่)
+          เพื่อดูให้ครบ
+        </div>
+      )}
+
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
           icon={<FileSignature className="h-4 w-4" />}

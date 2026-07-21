@@ -4,6 +4,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { AccDocument, AccDocumentLine } from "./types";
+import { normalizePage, toPaged, type PageOpts, type Paged } from "./paging";
 
 function round2(n: number): number {
   if (!Number.isFinite(n)) return 0;
@@ -147,7 +148,7 @@ export async function buildPartySnapshot(
   };
 }
 
-export interface ListDocumentsOpts {
+export interface ListDocumentsOpts extends PageOpts {
   docType?: string;
   status?: string;
   contactId?: string;
@@ -159,10 +160,11 @@ export async function listDocuments(
   db: SupabaseClient,
   orgId: string,
   opts?: ListDocumentsOpts,
-): Promise<AccDocument[]> {
+): Promise<Paged<AccDocument>> {
+  const { limit, offset } = normalizePage(opts);
   let q = db
     .from("acc_documents")
-    .select("*, acc_contacts(name)")
+    .select("*, acc_contacts(name)", { count: "exact" })
     .eq("org_id", orgId)
     .is("deleted_at", null);
   if (opts?.docType) q = q.eq("doc_type", opts.docType);
@@ -170,13 +172,14 @@ export async function listDocuments(
   if (opts?.contactId) q = q.eq("contact_id", opts.contactId);
   if (opts?.from) q = q.gte("issue_date", opts.from);
   if (opts?.to) q = q.lte("issue_date", opts.to);
-  q = q.order("issue_date", { ascending: false });
-  const { data, error } = await q;
+  q = q.order("issue_date", { ascending: false }).range(offset, offset + limit - 1);
+  const { data, error, count } = await q;
   if (error) throw new Error(error.message);
-  return (data ?? []).map((r: Record<string, unknown>) => ({
+  const rows = (data ?? []).map((r: Record<string, unknown>) => ({
     ...(r as unknown as AccDocument),
     contact_name: (r.acc_contacts as { name?: string } | null)?.name ?? undefined,
   }));
+  return toPaged(rows, count, limit, offset);
 }
 
 /** เอกสาร 1 ใบ + lines (เรียง sort_order) + ชื่อ contact. */

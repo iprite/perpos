@@ -74,6 +74,7 @@ export default function PurchaseDocumentsPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
+  const [truncated, setTruncated] = useState<{ loaded: number; total: number } | null>(null);
 
   const now = new Date();
   const [year, setYear] = useState(String(now.getFullYear()));
@@ -84,8 +85,15 @@ export default function PurchaseDocumentsPage() {
   const reload = useCallback(async () => {
     setLoading(true);
     try {
-      const r = await apiGetRaw<{ documents: AccPurchaseDocument[] }>("purchase-documents");
+      const r = await apiGetRaw<{
+        documents: AccPurchaseDocument[];
+        total?: number;
+        truncated?: boolean;
+      }>("purchase-documents");
       setDocs(r.documents ?? []);
+      setTruncated(
+        r.truncated ? { loaded: (r.documents ?? []).length, total: r.total ?? 0 } : null,
+      );
     } catch {
       toast.error("โหลดทะเบียนใบกำกับภาษีซื้อไม่สำเร็จ");
     } finally {
@@ -181,6 +189,15 @@ export default function PurchaseDocumentsPage() {
     >
       {tab === "register" ? (
         <>
+          {truncated && (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+              แสดง {truncated.loaded.toLocaleString("th-TH")} จากทั้งหมด{" "}
+              {truncated.total.toLocaleString("th-TH")} รายการ —
+              ยอดรวมด้านล่างคิดจากชุดที่โหลดมาเท่านั้น
+              (รายงานภาษีซื้อในแท็บถัดไปคิดจากงวดภาษีเต็มเสมอ)
+            </div>
+          )}
+
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <StatCard
               icon={<FileInput className="h-4 w-4" />}

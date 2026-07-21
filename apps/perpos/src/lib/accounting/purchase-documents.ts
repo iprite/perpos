@@ -11,6 +11,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { AccPurchaseDocument, AccPurchaseDocumentLine } from "./types";
+import { normalizePage, toPaged, type PageOpts, type Paged } from "./paging";
 
 function round2(n: number): number {
   if (!Number.isFinite(n)) return 0;
@@ -136,7 +137,7 @@ export async function buildPurchasePartySnapshot(
   };
 }
 
-export interface ListPurchaseDocumentsOpts {
+export interface ListPurchaseDocumentsOpts extends PageOpts {
   docType?: string;
   status?: string;
   contactId?: string;
@@ -152,10 +153,11 @@ export async function listPurchaseDocuments(
   db: SupabaseClient,
   orgId: string,
   opts?: ListPurchaseDocumentsOpts,
-): Promise<AccPurchaseDocument[]> {
+): Promise<Paged<AccPurchaseDocument>> {
+  const { limit, offset } = normalizePage(opts);
   let q = db
     .from("acc_purchase_documents")
-    .select("*, acc_contacts(name)")
+    .select("*, acc_contacts(name)", { count: "exact" })
     .eq("org_id", orgId)
     .is("deleted_at", null);
   if (opts?.docType) q = q.eq("doc_type", opts.docType);
@@ -166,13 +168,14 @@ export async function listPurchaseDocuments(
   if (opts?.from) q = q.gte("issue_date", opts.from);
   if (opts?.to) q = q.lte("issue_date", opts.to);
   if (opts?.claimableOnly) q = q.eq("is_vat_claimable", true);
-  q = q.order("issue_date", { ascending: false });
-  const { data, error } = await q;
+  q = q.order("issue_date", { ascending: false }).range(offset, offset + limit - 1);
+  const { data, error, count } = await q;
   if (error) throw new Error(error.message);
-  return (data ?? []).map((r: Record<string, unknown>) => ({
+  const rows = (data ?? []).map((r: Record<string, unknown>) => ({
     ...(r as unknown as AccPurchaseDocument),
     contact_name: (r.acc_contacts as { name?: string } | null)?.name ?? undefined,
   }));
+  return toPaged(rows, count, limit, offset);
 }
 
 /** เอกสารซื้อ 1 ใบ + lines (พร้อมรหัส/ชื่อบัญชีของแต่ละบรรทัด) */

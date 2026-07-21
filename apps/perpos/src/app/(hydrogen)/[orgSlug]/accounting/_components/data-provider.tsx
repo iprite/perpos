@@ -161,10 +161,15 @@ interface AccountingData {
   reloadContacts: () => Promise<void>;
   reloadProducts: () => Promise<void>;
   reloadDocuments: () => Promise<void>;
+  /** ไม่ null = รายการเอกสารถูกตัด (เกิน limit) — ห้ามใช้ยอดรวมจาก documents ตรง ๆ */
+  documentsTruncated: { loaded: number; total: number } | null;
   reloadSettings: () => Promise<void>;
 
   /** GET ใด ๆ ใต้ /accounting (สำหรับรายงาน on-demand) — คืน JSON หรือ throw */
   apiGetRaw: <T = unknown>(path: string) => Promise<T>;
+
+  /** GET ที่คืนไฟล์ (PDF ฯลฯ) — คืน Blob หรือ throw */
+  apiGetBlob: (path: string) => Promise<Blob>;
 
   /** mutate ใด ๆ ใต้ /accounting — แนบ orgId+token ให้เอง (สำหรับ resource ที่ยังไม่มี mutator เฉพาะ) */
   apiSend: (
@@ -267,6 +272,10 @@ export function AccountingDataProvider({
   const [contacts, setContacts] = useState<AccContact[]>([]);
   const [products, setProducts] = useState<AccProduct[]>([]);
   const [documents, setDocuments] = useState<AccDocument[]>([]);
+  const [documentsTruncated, setDocumentsTruncated] = useState<{
+    loaded: number;
+    total: number;
+  } | null>(null);
   const [orgSettings, setOrgSettings] = useState<AccOrgSettings | null>(null);
 
   const [loading, setLoading] = useState({
@@ -427,8 +436,14 @@ export function AccountingDataProvider({
 
   const reloadDocuments = useCallback(async () => {
     try {
-      const { documents: rows } = await apiGet<{ documents: AccDocument[] }>("documents");
-      setDocuments(rows);
+      const res = await apiGet<{ documents: AccDocument[]; total?: number; truncated?: boolean }>(
+        "documents",
+      );
+      setDocuments(res.documents);
+      // ชุดข้อมูลถูกตัด → KPI/ยอดรวมที่คิดจาก array นี้จะต่ำกว่าจริง ต้องบอกผู้ใช้
+      setDocumentsTruncated(
+        res.truncated ? { loaded: res.documents.length, total: res.total ?? 0 } : null,
+      );
     } catch {
       /* noop */
     } finally {
@@ -448,6 +463,23 @@ export function AccountingDataProvider({
   }, [apiGet]);
 
   const apiGetRaw = useCallback(<T = unknown,>(path: string) => apiGet<T>(path), [apiGet]);
+
+  /** GET ที่คืนไฟล์ (PDF) — แนบ token+orgId เหมือน apiGet แต่ไม่ parse JSON */
+  const apiGetBlob = useCallback(
+    async (path: string): Promise<Blob> => {
+      const token = await getToken();
+      const sep = path.includes("?") ? "&" : "?";
+      const res = await fetch(backendUrl(`/accounting/${path}${sep}orgId=${orgId}`), {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(body.error ?? "ดาวน์โหลดไฟล์ไม่สำเร็จ");
+      }
+      return await res.blob();
+    },
+    [getToken, orgId],
+  );
 
   // โหลดครั้งแรกเมื่อ orgId เปลี่ยน (auto-load) — loaders เป็น useCallback stable (dep = apiGet ← orgId)
   useEffect(() => {
@@ -803,8 +835,10 @@ export function AccountingDataProvider({
       reloadContacts,
       reloadProducts,
       reloadDocuments,
+      documentsTruncated,
       reloadSettings,
       apiGetRaw,
+      apiGetBlob,
       apiSend,
       addEntry,
       updateEntry,
@@ -861,8 +895,10 @@ export function AccountingDataProvider({
       reloadContacts,
       reloadProducts,
       reloadDocuments,
+      documentsTruncated,
       reloadSettings,
       apiGetRaw,
+      apiGetBlob,
       apiSend,
       addEntry,
       updateEntry,

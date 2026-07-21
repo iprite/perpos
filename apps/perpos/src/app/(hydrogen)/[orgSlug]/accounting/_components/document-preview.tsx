@@ -7,10 +7,10 @@
 
 // document-preview.tsx (production) — พรีวิวเอกสารขายแบบไทยพร้อมพิมพ์/ดาวน์โหลด (A3)
 // แสดงเอกสาร (หัวบริษัท/ลูกค้า/ตารางรายการ/สรุปยอด/ช่องเซ็น) → พิมพ์เฉพาะตัวเอกสาร (print CSS)
-// prototype: ดาวน์โหลด PDF = toast จำลอง · production phase 2 = ต่อ pdf-renderer (services/pdf-renderer)
+// ดาวน์โหลด PDF = ยิงไป services/pdf-renderer จริง (Phase 1.7) · รองรับต้นฉบับ/สำเนา
 
-import { useMemo } from "react";
-import { Printer, Download } from "lucide-react";
+import { useMemo, useState } from "react";
+import { Printer, Download, Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -24,6 +24,8 @@ import { toast } from "@/lib/toast";
 import { useAccountingData } from "./data-provider";
 import { DOC_TYPE_LABEL } from "./badges";
 import { fmtMoney, fmtDateTH } from "./format";
+// ใช้ตัวเดียวกับที่ใช้สร้าง PDF — เดิม copy ไว้ 2 ที่ ทำให้แก้บั๊กที่เดียวแล้วอีกที่ยังผิด
+import { bahtText } from "@/lib/accounting/document-html";
 import {
   isTaxDocument,
   type AccDiscountType,
@@ -50,41 +52,6 @@ function fmtDiscount(discount: number, type: AccDiscountType): string {
   return `−${fmtMoney(discount, { currency: false })}`;
 }
 
-// ── จำนวนเงินเป็นตัวอักษรไทย (บาท/สตางค์) ───────────────────────────────────
-const TH_NUM = ["ศูนย์", "หนึ่ง", "สอง", "สาม", "สี่", "ห้า", "หก", "เจ็ด", "แปด", "เก้า"];
-const TH_POS = ["", "สิบ", "ร้อย", "พัน", "หมื่น", "แสน", "ล้าน"];
-
-function readThaiInteger(numStr: string): string {
-  const n = numStr.replace(/^0+/, "");
-  if (n === "" || n === "0") return "ศูนย์";
-  let result = "";
-  const len = n.length;
-  for (let i = 0; i < len; i++) {
-    const digit = Number(n[i]);
-    const pos = (len - i - 1) % 6;
-    const isMillionBoundary = len - i - 1 === 6 || len - i - 1 === 12;
-    if (digit !== 0) {
-      let d = TH_NUM[digit];
-      if (pos === 1 && digit === 1)
-        d = ""; // สิบ
-      else if (pos === 1 && digit === 2) d = "ยี่"; // ยี่สิบ
-      if (pos === 0 && digit === 1 && len > 1 && (len - i) % 6 !== 1) d = "เอ็ด";
-      result += d + TH_POS[pos];
-    }
-    if (isMillionBoundary) result += "ล้าน";
-  }
-  return result;
-}
-
-function bahtText(amount: number): string {
-  const rounded = Math.round(amount * 100) / 100;
-  const baht = Math.floor(rounded);
-  const satang = Math.round((rounded - baht) * 100);
-  const bahtPart = readThaiInteger(String(baht)) + "บาท";
-  if (satang === 0) return bahtPart + "ถ้วน";
-  return bahtPart + readThaiInteger(String(satang)) + "สตางค์";
-}
-
 export function DocumentPreview({
   open,
   onOpenChange,
@@ -94,7 +61,8 @@ export function DocumentPreview({
   onOpenChange: (v: boolean) => void;
   document: AccDocument | null;
 }) {
-  const { orgSettings, contacts } = useAccountingData();
+  const { orgSettings, contacts, apiGetBlob } = useAccountingData();
+  const [downloading, setDownloading] = useState(false);
   // อัตรา VAT = snapshot ของใบนี้ (ม.86/4 (6)) — ไม่ใช่ค่าปัจจุบันของกิจการ
   const vatRate = document?.vat_rate ?? orgSettings?.vat_rate ?? 7;
 
@@ -126,9 +94,27 @@ export function DocumentPreview({
     if (typeof window !== "undefined") window.print();
   }
 
-  function handleDownload() {
-    // phase 1: จำลอง — phase 2 = ยิงไป services/pdf-renderer สร้าง PDF จริง
-    toast.success("กำลังสร้าง PDF… (จำลอง)");
+  /** ดาวน์โหลด PDF จริงจาก services/pdf-renderer (Phase 1.7) · copy = สำเนา */
+  async function handleDownload(copy = false) {
+    if (!document || downloading) return;
+    setDownloading(true);
+    try {
+      const path = `documents/${document.id}/pdf${copy ? "?copy=1" : ""}`;
+      const blob = await apiGetBlob(path);
+      const url = URL.createObjectURL(blob);
+      const a = window.document.createElement("a");
+      a.href = url;
+      a.download = `${document.doc_number}${copy ? "-copy" : ""}.pdf`;
+      window.document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      toast.success(`ดาวน์โหลด ${document.doc_number}${copy ? " (สำเนา)" : ""} แล้ว`);
+    } catch (e) {
+      toast.error((e as Error).message || "สร้าง PDF ไม่สำเร็จ");
+    } finally {
+      setDownloading(false);
+    }
   }
 
   return (
@@ -336,8 +322,22 @@ export function DocumentPreview({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             ปิด
           </Button>
-          <Button variant="outline" onClick={handleDownload}>
-            <Download className="mr-1.5 h-4 w-4" /> ดาวน์โหลด PDF
+          {isTaxDoc && (
+            <Button
+              variant="outline"
+              disabled={downloading}
+              onClick={() => void handleDownload(true)}
+            >
+              <Copy className="mr-1.5 h-4 w-4" /> สำเนา (PDF)
+            </Button>
+          )}
+          <Button
+            variant="outline"
+            disabled={downloading}
+            onClick={() => void handleDownload(false)}
+          >
+            <Download className="mr-1.5 h-4 w-4" />
+            {downloading ? "กำลังสร้าง…" : isTaxDoc ? "ต้นฉบับ (PDF)" : "ดาวน์โหลด PDF"}
           </Button>
           <Button onClick={handlePrint}>
             <Printer className="mr-1.5 h-4 w-4" /> พิมพ์

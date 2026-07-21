@@ -43,9 +43,17 @@ export async function GET(req: NextRequest) {
       from: p.get("from") ?? undefined,
       to: p.get("to") ?? undefined,
       claimableOnly: p.get("claimableOnly") === "1",
+      limit: p.get("limit") ? Number(p.get("limit")) : undefined,
+      offset: p.get("offset") ? Number(p.get("offset")) : undefined,
     });
     void recordMetric({ orgId, route: ROUTE, method: req.method, status: 200, t0 });
-    return NextResponse.json({ documents: data });
+    return NextResponse.json({
+      documents: data.rows,
+      total: data.total,
+      limit: data.limit,
+      offset: data.offset,
+      truncated: data.truncated,
+    });
   } catch (e) {
     void recordMetric({ orgId, route: ROUTE, method: req.method, status: 500, t0 });
     return accError((e as Error).message, 500);
