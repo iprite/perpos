@@ -7,6 +7,19 @@ import { requireAccountingMember, canWriteBackstage, accError, round2 } from "..
 const ROUTE = "/api/accounting/tax-filings/[id]/recompute";
 type Ctx = { params: Promise<{ id: string }> };
 
+// ─────────────────────────────────────────────────────────────────────────────
+// ฐานภาษีขายของ ภ.พ.30 = "ใบกำกับภาษี" เท่านั้น
+//
+// ใบเสนอราคา / ใบแจ้งหนี้ / ใบเสร็จรับเงิน / ใบวางบิล / ใบส่งของ ไม่ใช่ใบกำกับภาษี
+// จึงไม่ใช่ฐานภาษีขาย — เดิมโค้ดนี้ไม่กรอง doc_type เลย ดีลเดียวที่ออก
+// ใบเสนอราคา → ใบแจ้งหนี้ → ใบเสร็จ จึงถูกนับ VAT ซ้ำ 3 รอบ (ยอดภาษีขายเกินจริง)
+//
+// ใบเพิ่มหนี้ (ม.86/9) = เพิ่มภาษีขาย · ใบลดหนี้ (ม.86/10) = ลดภาษีขาย → ต้องหักออก
+// ─────────────────────────────────────────────────────────────────────────────
+const PP30_OUTPUT_VAT_ADD = ["tax_invoice", "receipt_tax_invoice", "debit_note"] as const;
+const PP30_OUTPUT_VAT_SUBTRACT = ["credit_note"] as const;
+const PP30_OUTPUT_VAT_DOC_TYPES: string[] = [...PP30_OUTPUT_VAT_ADD, ...PP30_OUTPUT_VAT_SUBTRACT];
+
 function monthRange(year: number, month: number): { from: string; to: string } {
   const from = `${year}-${String(month).padStart(2, "0")}-01`;
   const lastDay = new Date(year, month, 0).getDate();
@@ -16,7 +29,8 @@ function monthRange(year: number, month: number): { from: string; to: string } {
 
 /**
  * POST → คำนวณยอดภาษีของแบบใหม่จากข้อมูลจริง (accountant).
- *   pp30: sales_vat = Σ documents.vat_amount (vat_enabled, งวดนั้น) · purchase_vat = Σ entries(expense).wht? (จาก vat ซื้อ — เก็บใน entries ไม่มี → 0 ตอนนี้)
+ *   pp30: sales_vat = Σ vat_amount ของ "ใบกำกับภาษี" ในงวด (ใบกำกับ/ใบเสร็จ-ใบกำกับ/ใบเพิ่มหนี้ บวก · ใบลดหนี้ ลบ)
+ *         purchase_vat = คงค่าที่นักบัญชีกรอกเอง (โมเดลนี้ยังไม่เก็บใบกำกับภาษีซื้อ → derive ไม่ได้)
  *   pnd*: wht_total = Σ entries.wht_amount ของงวด (expense, wht_amount>0).
  * filed แล้ว recompute ไม่ได้.
  */
@@ -54,14 +68,21 @@ export async function POST(req: NextRequest, ctx: Ctx) {
   if (f.tax_kind === "pp30") {
     const { data: docs } = await admin
       .from("acc_documents")
-      .select("vat_amount")
+      .select("doc_type, vat_amount")
       .eq("org_id", orgId)
       .eq("vat_enabled", true)
+      .in("doc_type", PP30_OUTPUT_VAT_DOC_TYPES)
       .neq("status", "void")
       .gte("issue_date", from)
       .lte("issue_date", to);
     const salesVat = round2(
-      (docs ?? []).reduce((s, d) => s + (Number((d as { vat_amount: number }).vat_amount) || 0), 0),
+      (docs ?? []).reduce((s, row) => {
+        const d = row as { doc_type: string; vat_amount: number };
+        const vat = Number(d.vat_amount) || 0;
+        // ใบลดหนี้หักออกจากภาษีขาย (ม.86/10) · ที่เหลือบวกเข้า
+        const sign = (PP30_OUTPUT_VAT_SUBTRACT as readonly string[]).includes(d.doc_type) ? -1 : 1;
+        return s + sign * vat;
+      }, 0),
     );
     // sales_vat = auto (จากเอกสารขาย VAT งวดนั้น) · purchase_vat = คงค่าที่นักบัญชีกรอกเอง
     // (โมเดลนี้ไม่ได้เก็บภาษีซื้อจากค่าใช้จ่าย → derive อัตโนมัติไม่ได้, ไม่ทับค่าที่กรอกไว้)
