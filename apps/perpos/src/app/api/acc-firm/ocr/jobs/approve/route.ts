@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireModuleMember } from "../../../../_lib/module-auth";
 import { createAdminClient } from "../../../../_lib/supabase";
 import { ok, Err } from "../../../../_lib/response";
+import { upsertPurchaseDocumentFromOcr } from "@/lib/accounting/purchase-from-ocr";
 
 // Generate entry_number (D1): OCR-YYYYMMDD-<6-char rand> — unique ต่อ org
 function generateEntryNumber(entryDate: string): string {
@@ -281,6 +282,26 @@ export async function POST(req: NextRequest) {
 
   if (updateJobErr) return Err.dbError(updateJobErr);
 
+  // ─── 6.5 ทะเบียนใบกำกับภาษีซื้อ — ผูกกับ journal ที่เพิ่งสร้าง ───
+  // ทำเมื่อผ่านบัญชีจริงเท่านั้น (draft ยังไม่ใช่หลักฐานภาษี) · ผูก journal เดิม ไม่สร้างใหม่
+  // ล้มเหลว = ไม่บล็อกการอนุมัติ แต่ต้องบอกผู้ใช้ว่าทะเบียนซื้อไม่ได้บันทึก (ภ.พ.30 จะขาด)
+  let purchaseDocWarning: string | null = null;
+  if (postToLedger) {
+    try {
+      const r = await upsertPurchaseDocumentFromOcr(
+        admin,
+        job.client_org_id as string,
+        { id: jobId as string, extracted_json: job.extracted_json },
+        journalId,
+        auth.userId,
+      );
+      if (!r.ok) purchaseDocWarning = r.error;
+    } catch (e) {
+      purchaseDocWarning = (e as Error).message;
+      console.error("[ocr-api] upsertPurchaseDocumentFromOcr failed:", e);
+    }
+  }
+
   // ─── 7. Learning Loop Feedback & Vendor Mapping Updates ───
   try {
     const ext = job.extracted_json as { vendor?: { name?: string; tax_id?: string } } | null;
@@ -417,5 +438,7 @@ export async function POST(req: NextRequest) {
   return ok({
     message: postToLedger ? "ผ่านรายการสมุดรายวันเสร็จสมบูรณ์" : "บันทึกสมุดรายวันร่างเรียบร้อย",
     journalEntryId: journalId,
+    // ถ้ามีค่า = ลงบัญชีสำเร็จแต่ทะเบียนใบกำกับภาษีซื้อไม่ได้บันทึก → ภ.พ.30 จะขาดใบนี้
+    purchaseDocWarning,
   });
 }

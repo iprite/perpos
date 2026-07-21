@@ -2,7 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "../../../_lib/supabase";
 import { setAuditContext } from "../../../_lib/audit";
 import { recordMetric } from "@/lib/metrics";
-import { requireAccountingMember, canWriteFrontstage, accError, num, round2 } from "../../_lib";
+import {
+  requireAccountingMember,
+  canWriteFrontstage,
+  accError,
+  num,
+  round2,
+  assertPeriodOpen,
+} from "../../_lib";
 
 const ROUTE = "/api/accounting/entries/[id]";
 const VALID_WHT = [1, 2, 3, 5, 10, 15];
@@ -18,12 +25,12 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
 
   const auth = await requireAccountingMember(req, orgId);
   if (!auth.ok) return auth.res;
-  if (!canWriteFrontstage(auth.role)) return accError("ไม่มีสิทธิ์แก้ไขข้อมูล", 403);
+  if (!canWriteFrontstage(auth)) return accError("ไม่มีสิทธิ์แก้ไขข้อมูล", 403);
 
   const admin = createAdminClient();
   const { data: existing } = await admin
     .from("acc_entries")
-    .select("source, amount")
+    .select("source, amount, entry_date")
     .eq("id", id)
     .eq("org_id", orgId)
     .maybeSingle();
@@ -31,6 +38,16 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
   if ((existing as { source: string }).source !== "manual") {
     return accError("รายการที่สร้างจากระบบอัตโนมัติ (เงินเดือน/เอกสาร) แก้ไขที่นี่ไม่ได้", 409);
   }
+
+  // งวดปิดแล้วห้ามแก้รายการในงวดนั้น (Phase 1.4 — เดิมเส้นนี้ไม่เคยเช็ค)
+  const exDate = String((existing as { entry_date: string }).entry_date);
+  const pOk = await assertPeriodOpen(
+    admin,
+    orgId,
+    Number(exDate.slice(0, 4)),
+    Number(exDate.slice(5, 7)),
+  );
+  if (!pOk.ok) return accError(`งวดบัญชี ${exDate.slice(0, 7)} ปิดแล้ว แก้รายการไม่ได้`, 409);
 
   const patch: Record<string, unknown> = {};
   if (body.kind !== undefined) {
@@ -88,12 +105,12 @@ export async function DELETE(req: NextRequest, ctx: Ctx) {
 
   const auth = await requireAccountingMember(req, orgId);
   if (!auth.ok) return auth.res;
-  if (!canWriteFrontstage(auth.role)) return accError("ไม่มีสิทธิ์ลบข้อมูล", 403);
+  if (!canWriteFrontstage(auth)) return accError("ไม่มีสิทธิ์ลบข้อมูล", 403);
 
   const admin = createAdminClient();
   const { data: existing } = await admin
     .from("acc_entries")
-    .select("source")
+    .select("source, entry_date")
     .eq("id", id)
     .eq("org_id", orgId)
     .maybeSingle();
@@ -101,6 +118,16 @@ export async function DELETE(req: NextRequest, ctx: Ctx) {
   if ((existing as { source: string }).source !== "manual") {
     return accError("รายการที่สร้างจากระบบอัตโนมัติ ลบที่นี่ไม่ได้", 409);
   }
+
+  // งวดปิดแล้วห้ามลบรายการในงวดนั้น (Phase 1.4 — เดิมเส้นนี้ไม่เคยเช็ค)
+  const delDate = String((existing as { entry_date: string }).entry_date);
+  const pOkDel = await assertPeriodOpen(
+    admin,
+    orgId,
+    Number(delDate.slice(0, 4)),
+    Number(delDate.slice(5, 7)),
+  );
+  if (!pOkDel.ok) return accError(`งวดบัญชี ${delDate.slice(0, 7)} ปิดแล้ว ลบรายการไม่ได้`, 409);
 
   await setAuditContext(req, auth.userId, orgId);
   const { error } = await admin.from("acc_entries").delete().eq("id", id).eq("org_id", orgId);

@@ -542,6 +542,12 @@ export default function AccFirmOcrPage() {
         toast.success(
           post ? "อนุมัติลงสมุดรายวันแยกประเภทเสร็จสิ้น" : "บันทึกสมุดรายวันร่างเรียบร้อย",
         );
+        // ลงบัญชีสำเร็จแต่ทะเบียนใบกำกับภาษีซื้อไม่ได้บันทึก → ภ.พ.30 ของลูกค้าจะขาดใบนี้
+        // ต้องบอกนักบัญชีให้ไปบันทึกมือ ไม่ปล่อยผ่านเงียบ ๆ
+        const pdw = json?.data?.purchaseDocWarning as string | null | undefined;
+        if (post && pdw) {
+          toast.error(`⚠️ ทะเบียนใบกำกับภาษีซื้อไม่ถูกบันทึก: ${pdw}`);
+        }
         setActiveJob(null);
         await fetchJobs(orgId, token);
       } else {

@@ -4,6 +4,7 @@ import {
   Users,
   BookOpenText,
   ReceiptText,
+  FileInput,
   BarChart3,
   ShieldCheck,
   Wallet,
@@ -127,6 +128,12 @@ function buildUserMenuItems(org: string, labels: Record<string, string> = {}): M
     },
     // ── หลังบ้าน (นักบัญชี) ───────────────────────────────────────────────────
     { name: l("backstage", "หลังบ้าน (นักบัญชี)"), roles: allRoles },
+    {
+      name: l("purchase_documents", "ใบกำกับภาษีซื้อ"),
+      href: a("purchase-documents"),
+      icon: <FileInput className="h-5 w-5" />,
+      roles: allRoles,
+    },
     {
       name: l("journal", "สมุดรายวัน"),
       href: a("journal"),
