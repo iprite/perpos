@@ -43,7 +43,7 @@ export async function POST(req: NextRequest, ctx: Ctx) {
 
   const auth = await requireAccountingMember(req, orgId);
   if (!auth.ok) return auth.res;
-  if (!canWriteBackstage(auth.role)) return accError("เฉพาะนักบัญชีเท่านั้นที่จัดการภาษีได้", 403);
+  if (!canWriteBackstage(auth)) return accError("เฉพาะนักบัญชีเท่านั้นที่จัดการภาษีได้", 403);
 
   const admin = createAdminClient();
   const { data: filing } = await admin

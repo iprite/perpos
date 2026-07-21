@@ -17,7 +17,7 @@ export async function POST(req: NextRequest, ctx: Ctx) {
 
   const auth = await requireAccountingMember(req, orgId);
   if (!auth.ok) return auth.res;
-  if (!canClosePeriod(auth.role)) return accError("เฉพาะนักบัญชีเท่านั้นที่เปิดงวดได้", 403);
+  if (!canClosePeriod(auth)) return accError("เฉพาะนักบัญชีเท่านั้นที่เปิดงวดได้", 403);
 
   const admin = createAdminClient();
   const { data: period } = await admin

@@ -35,8 +35,7 @@ export async function PUT(req: NextRequest) {
 
   const auth = await requireAccountingMember(req, orgId);
   if (!auth.ok) return auth.res;
-  if (!canEditSettings(auth.role))
-    return accError("เฉพาะเจ้าของเท่านั้นที่แก้ตั้งค่าองค์กรได้", 403);
+  if (!canEditSettings(auth)) return accError("เฉพาะเจ้าของเท่านั้นที่แก้ตั้งค่าองค์กรได้", 403);
 
   const patch: Record<string, unknown> = { org_id: orgId };
   if (body.is_vat_registered !== undefined)

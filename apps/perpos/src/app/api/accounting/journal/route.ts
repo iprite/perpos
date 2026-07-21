@@ -27,9 +27,7 @@ interface LineInput {
  *   - แต่ละบรรทัด debit หรือ credit อย่างใดอย่างหนึ่ง > 0 (XOR), ≥ 0, NaN guard
  *   - คืน { lines, totalDebit, totalCredit }
  */
-function normalizeLines(
-  raw: unknown,
-):
+function normalizeLines(raw: unknown):
   | {
       ok: true;
       lines: { account_id: string; debit: number; credit: number; line_note: string | null }[];
@@ -92,7 +90,7 @@ export async function POST(req: NextRequest) {
 
   const auth = await requireAccountingMember(req, orgId);
   if (!auth.ok) return auth.res;
-  if (!canWriteBackstage(auth.role)) return accError("เฉพาะนักบัญชีเท่านั้นที่ลงบัญชีได้", 403);
+  if (!canWriteBackstage(auth)) return accError("เฉพาะนักบัญชีเท่านั้นที่ลงบัญชีได้", 403);
 
   const entryDate = String(body.entry_date ?? "");
   if (!entryDate) return accError("กรุณาเลือกวันที่");
