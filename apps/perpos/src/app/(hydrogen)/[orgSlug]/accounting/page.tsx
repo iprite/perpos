@@ -282,7 +282,10 @@ export default function AccountingOverviewPage() {
                       {fmtMoney(doc.total)}
                     </span>
                     {doc.status === "overdue" ? (
-                      <StatusBadge tone="danger">เลย {Math.abs(daysLeft)} วัน</StatusBadge>
+                      // ไม่มีวันครบกำหนด (ตั้งสถานะเอง) → บอกแค่ "เลยกำหนด" ห้ามโชว์ 9999 วัน
+                      <StatusBadge tone="danger">
+                        {doc.due_date ? `เลย ${Math.abs(daysLeft)} วัน` : "เลยกำหนด"}
+                      </StatusBadge>
                     ) : (
                       <StatusBadge tone="warning">อีก {daysLeft} วัน</StatusBadge>
                     )}

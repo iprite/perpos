@@ -86,6 +86,7 @@
 - หน้า `/d/<token>` = Server Component + `robots: noindex` · PDF ผ่าน `/api/public/document/<token>/pdf`
   (`Cache-Control: private, no-store` — ลิงก์เป็นความลับ ห้าม CDN แจกต่อ) · ลูกค้าได้ **ต้นฉบับ** เสมอ
 - **ฉบับร่างแชร์ไม่ได้** (409) — ต้องเปลี่ยนเป็น "ส่งแล้ว" ก่อน
+- ยอดเปิดดูนับผ่าน RPC `bump_document_share_view` (atomic) — **ห้ามอ่านค่ามาบวกฝั่ง app** (เคยพลาด: caller ส่ง 0 เสมอ → ยอดค้างที่ 1)
 
 ---
 

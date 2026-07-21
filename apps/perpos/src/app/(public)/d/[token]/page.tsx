@@ -65,7 +65,7 @@ export default async function PublicDocumentPage({
     } | null,
   });
 
-  void touchShare(admin, token, 0); // นับยอดเปิด (best-effort, ไม่ block การแสดงผล)
+  void touchShare(admin, token); // นับยอดเปิด (best-effort, ไม่ block การแสดงผล)
 
   const label = DOC_TYPE_LABEL[doc.doc_type] ?? "เอกสาร";
 

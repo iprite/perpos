@@ -44,14 +44,14 @@ export async function lookupShare(db: SupabaseClient, token: string): Promise<Sh
   return { ok: true, share: row };
 }
 
-/** นับยอดเปิดดู (best-effort — ห้ามทำให้หน้าลูกค้าพัง) */
-export async function touchShare(db: SupabaseClient, token: string, current: number) {
-  await db
-    .from("acc_document_shares")
-    .update({ view_count: current + 1, last_viewed_at: new Date().toISOString() })
-    .eq("token", token)
-    .then(
-      () => undefined,
-      () => undefined,
-    );
+/**
+ * นับยอดเปิดดู (best-effort — ห้ามทำให้หน้าลูกค้าพัง)
+ * ต้องเพิ่มจากค่าปัจจุบัน "ในฐาน" ไม่ใช่ค่าที่ caller เดามา — ไม่งั้นเปิดกี่ครั้งก็ค้างที่ 1
+ * (RPC atomic ทำให้เปิดพร้อมกันหลายคนก็ไม่ทับกัน)
+ */
+export async function touchShare(db: SupabaseClient, token: string) {
+  await db.rpc("bump_document_share_view", { p_token: token }).then(
+    () => undefined,
+    () => undefined,
+  );
 }

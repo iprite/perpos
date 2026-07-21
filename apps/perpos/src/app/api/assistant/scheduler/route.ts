@@ -1107,7 +1107,12 @@ async function run(req: NextRequest) {
     // ที่อนุญาต sent→overdue, accepted→overdue) · paid/void/draft ไม่แตะ
     if (run60)
       try {
-        const today = now.toISOString().slice(0, 10);
+        // ต้องใช้วันที่ "ตามเวลาไทย" — ถ้าใช้ UTC ช่วง 00:00–07:00 ตามเวลาไทยจะยังเป็นวันวาน
+        // ทำให้บิลที่เพิ่งเลยกำหนดถูก mark ช้าไปถึง 7 ชั่วโมง
+        const today = new Intl.DateTimeFormat("en-CA", {
+          timeZone: "Asia/Bangkok",
+          dateStyle: "short",
+        }).format(now); // en-CA = YYYY-MM-DD
         const { data: od } = await admin
           .from("acc_documents")
           .update({ status: "overdue" })
