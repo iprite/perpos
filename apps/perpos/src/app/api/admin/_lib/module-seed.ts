@@ -188,8 +188,14 @@ export async function seedAccounting(
     .from("acc_accounts")
     .select("id", { count: "exact", head: true })
     .eq("org_id", orgId);
+  // มีผังแล้ว = seed รอบก่อน → ข้ามผังบัญชี แต่ **ยังต้องเติมงวด/settings**
+  // (org ที่ seed ไปก่อนฟีเจอร์งวดจะไม่มี acc_periods เลย → ต้อง backfill ตอนเรียกซ้ำ)
   if ((count ?? 0) > 0) {
     seeded.accounts = 0;
+    await admin
+      .from("acc_org_settings")
+      .upsert({ org_id: orgId }, { onConflict: "org_id", ignoreDuplicates: true });
+    seeded.periods = await seedAccountingPeriods(orgId, admin, new Date().getFullYear());
     return seeded;
   }
 
@@ -233,7 +239,38 @@ export async function seedAccounting(
     .from("acc_org_settings")
     .upsert({ org_id: orgId }, { onConflict: "org_id", ignoreDuplicates: true });
 
+  // 4. งวดบัญชีของปีปัจจุบัน 12 งวด (เปิดทั้งหมด)
+  //    ถ้าไม่มีงวด: journal ที่ลงจะได้ period_id = null → ปิดงวดไม่คุม, รายงานรายงวดเพี้ยน
+  //    และ auto journal ของเอกสารซื้อ/ขายจะผูกงวดไม่ได้ → ต้อง seed มาพร้อมโมดูล
+  seeded.periods = await seedAccountingPeriods(orgId, admin, new Date().getFullYear());
+
   return seeded;
+}
+
+/**
+ * สร้างงวดบัญชี 12 เดือนของปีที่ระบุ (idempotent — ข้ามงวดที่มีแล้ว)
+ * แยกเป็นฟังก์ชันเพื่อ backfill org เดิมที่ seed ไปก่อนหน้าได้ด้วย
+ */
+export async function seedAccountingPeriods(
+  orgId: string,
+  admin: SupabaseClient,
+  year: number,
+): Promise<number> {
+  const { data: existing } = await admin
+    .from("acc_periods")
+    .select("month")
+    .eq("org_id", orgId)
+    .eq("year", year);
+  const have = new Set((existing ?? []).map((r) => Number((r as { month: number }).month)));
+
+  const rows = Array.from({ length: 12 }, (_, i) => i + 1)
+    .filter((m) => !have.has(m))
+    .map((m) => ({ org_id: orgId, year, month: m, status: "open" }));
+  if (rows.length === 0) return 0;
+
+  const { error } = await admin.from("acc_periods").insert(rows);
+  if (error) throw new Error(`seedAccountingPeriods: ${error.message}`);
+  return rows.length;
 }
 
 /** Call the right seed function for a module. Returns null if no seeding needed. */

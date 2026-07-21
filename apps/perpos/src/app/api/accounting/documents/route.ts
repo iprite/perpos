@@ -139,7 +139,10 @@ export async function POST(req: NextRequest) {
       contact_id: contactId,
       issue_date: issueDate,
       due_date: (body.due_date as string) || null,
-      status: (body.status as string) || "draft",
+      // ใบกำกับภาษี/ใบเสร็จ-ใบกำกับ/ใบลด-เพิ่มหนี้ = "ออก" ตั้งแต่ตอนสร้าง (ส่งให้ผู้ซื้อแล้ว)
+      // จึงตั้งต้นเป็น sent ไม่ใช่ draft — ถ้าค้าง draft จะไม่ถูกนับใน ภ.พ.30
+      // ทำให้ยื่นภาษีขาย "ขาด" (โดนเบี้ยปรับ) · ใบเสนอราคา/ใบวางบิล ฯลฯ ยังเป็น draft ตามเดิม
+      status: (body.status as string) || (isTaxDocument(docType) ? "sent" : "draft"),
       vat_enabled: vatEnabled,
       subtotal: computed.subtotal,
       vat_amount: computed.vat_amount,
