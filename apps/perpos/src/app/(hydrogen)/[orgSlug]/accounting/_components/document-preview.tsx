@@ -10,7 +10,7 @@
 // ดาวน์โหลด PDF = ยิงไป services/pdf-renderer จริง (Phase 1.7) · รองรับต้นฉบับ/สำเนา
 
 import { useMemo, useState } from "react";
-import { Printer, Download, Copy } from "lucide-react";
+import { Printer, Download, Copy, Link2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -61,8 +61,9 @@ export function DocumentPreview({
   onOpenChange: (v: boolean) => void;
   document: AccDocument | null;
 }) {
-  const { orgSettings, contacts, apiGetBlob } = useAccountingData();
+  const { orgSettings, contacts, apiGetBlob, apiSend } = useAccountingData();
   const [downloading, setDownloading] = useState(false);
+  const [sharing, setSharing] = useState(false);
   // อัตรา VAT = snapshot ของใบนี้ (ม.86/4 (6)) — ไม่ใช่ค่าปัจจุบันของกิจการ
   const vatRate = document?.vat_rate ?? orgSettings?.vat_rate ?? 7;
 
@@ -92,6 +93,26 @@ export function DocumentPreview({
 
   function handlePrint() {
     if (typeof window !== "undefined") window.print();
+  }
+
+  /**
+   * แชร์ให้ลูกค้าปลายทาง (Phase 2) — สร้างลิงก์ที่เปิดได้โดยไม่ต้อง login แล้วคัดลอกให้เลย
+   * ลูกค้าของ SME ไม่มีบัญชีในระบบ การบังคับให้สมัครก่อนดูบิล = ไม่มีใครดู
+   * ลิงก์เป็นความลับ (เดาไม่ได้) และเจ้าของเพิกถอนได้ทีหลังที่ปุ่มเดิม
+   */
+  async function handleShare() {
+    if (!document || sharing) return;
+    setSharing(true);
+    const r = await apiSend("POST", `documents/${document.id}/share`);
+    setSharing(false);
+    if (!r.ok) return toast.error(r.error ?? "สร้างลิงก์ไม่สำเร็จ");
+    const url = String((r.data as { url?: string } | undefined)?.url ?? "");
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.success("คัดลอกลิงก์สำหรับส่งให้ลูกค้าแล้ว");
+    } catch {
+      toast.success(`ลิงก์สำหรับลูกค้า: ${url}`); // clipboard ถูกบล็อก → โชว์ให้ก๊อปเอง
+    }
   }
 
   /** ดาวน์โหลด PDF จริงจาก services/pdf-renderer (Phase 1.7) · copy = สำเนา */
@@ -338,6 +359,10 @@ export function DocumentPreview({
           >
             <Download className="mr-1.5 h-4 w-4" />
             {downloading ? "กำลังสร้าง…" : isTaxDoc ? "ต้นฉบับ (PDF)" : "ดาวน์โหลด PDF"}
+          </Button>
+          <Button variant="outline" disabled={sharing} onClick={() => void handleShare()}>
+            <Link2 className="mr-1.5 h-4 w-4" />
+            {sharing ? "กำลังสร้าง…" : "แชร์ลิงก์ให้ลูกค้า"}
           </Button>
           <Button onClick={handlePrint}>
             <Printer className="mr-1.5 h-4 w-4" /> พิมพ์

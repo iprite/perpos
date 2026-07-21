@@ -390,3 +390,16 @@ export interface AccPurchaseDocument {
   ref_doc_number?: string;
   journal_entry_number?: string;
 }
+
+/** ชื่อไทยของชนิดเอกสารขาย — แหล่งเดียว (ใช้ทั้งหน้าเว็บ, หน้าลูกค้าปลายทาง, PDF) */
+export const DOC_TYPE_LABEL: Record<AccDocType, string> = {
+  quotation: "ใบเสนอราคา",
+  invoice: "ใบแจ้งหนี้",
+  receipt: "ใบเสร็จรับเงิน",
+  tax_invoice: "ใบกำกับภาษี",
+  receipt_tax_invoice: "ใบเสร็จรับเงิน/ใบกำกับภาษี",
+  credit_note: "ใบลดหนี้",
+  debit_note: "ใบเพิ่มหนี้",
+  billing_note: "ใบวางบิล",
+  delivery_note: "ใบส่งของ",
+};
