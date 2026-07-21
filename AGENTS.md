@@ -5,6 +5,7 @@
 > 📘 **ผู้ช่วย AI (assistant umbrella — per-profile, B2C, kind-based):** อ่านคัมภีร์ร่มที่ [`docs/ASSISTANT.md`](docs/ASSISTANT.md) — สถาปัตยกรรม per-kind, guard, home org, onboarding, billing, วิธีเพิ่มผู้ช่วยตัวใหม่ ก่อนแตะส่วน `/assistant`
 > 📘 **STT/MoM เฉพาะทาง (worker, Gemini, PDF, duration, quota):** อ่าน [`docs/STT_MOM_FEATURE.md`](docs/STT_MOM_FEATURE.md) — deploy, DB schema, code map, กับดักที่แก้แล้ว
 > 📘 **จัดซื้อครุภัณฑ์ภาครัฐ (gov_procure — pipeline 6 stage, per-org p2p-x-89):** อ่าน [`docs/GOV_PROCURE_FEATURE.md`](docs/GOV_PROCURE_FEATURE.md) — state machine, field-level finance-lock, AI/LINE, provisioning + cutover status, กับดักที่แก้แล้ว
+> 📘 **บัญชี/ภาษี (accounting — เอกสารขาย 9 ชนิด, ใบกำกับซื้อ, auto journal, ภ.พ.30):** อ่าน [`docs/ACCOUNTING_FEATURE.md`](docs/ACCOUNTING_FEATURE.md) — invariant ที่ห้ามพัง (snapshot/จุดรับรู้รายได้/เลขเอกสาร), ผังบัญชีที่ auto journal ใช้, สิทธิ์หลังบ้าน, กับดักที่แก้แล้ว — **อ่านก่อนแตะ `/accounting` ทุกครั้ง**
 > 📘 **OCR ถอดบิล→บันทึกบัญชี (acc_firm, self-improvement loop):** อ่าน [`docs/ACC_FIRM_OCR_FEATURE.md`](docs/ACC_FIRM_OCR_FEATURE.md) — pipeline 3 สเต็ป Gemini, loop จำผู้ขาย→บัญชีจากการอนุมัติของคน (human-in-the-loop เสมอ), bucket/secret/FK กับดักที่แก้แล้ว
 
 ---
@@ -117,32 +118,35 @@ pnpm build
 
 ## API Endpoints — Next.js Route Handlers (`apps/perpos/src/app/api/`)
 
-| Endpoint                         | Method         | File                                 | หน้าที่                                                                                                     |
-| -------------------------------- | -------------- | ------------------------------------ | ----------------------------------------------------------------------------------------------------------- |
-| `/api/line/webhook`              | POST           | `line/webhook/route.ts`              | LINE Bot webhook หลัก                                                                                       |
-| `/api/line/link-token`           | POST           | `line/link-token/route.ts`           | สร้าง token ผูกบัญชี LINE                                                                                   |
-| `/api/line/unlink`               | POST           | `line/unlink/route.ts`               | ยกเลิกผูกบัญชี LINE                                                                                         |
-| `/api/assistant/scheduler`       | POST           | `assistant/scheduler/route.ts`       | Cron trigger สำหรับแจ้งเตือน task                                                                           |
-| `/api/admin/delivery/logs`       | GET            | `admin/delivery/logs/route.ts`       | ดู logs การส่ง                                                                                              |
-| `/api/admin/delivery/schedule`   | PUT            | `admin/delivery/schedule/route.ts`   | ตั้ง cron schedule                                                                                          |
-| `/api/admin/delivery/send-now`   | POST           | `admin/delivery/send-now/route.ts`   | ส่งข่าวทันที                                                                                                |
-| `/api/admin/news-agent/preview`  | POST           | `admin/news-agent/preview/route.ts`  | Preview ข่าว                                                                                                |
-| `/api/admin/users/list`          | GET            | `admin/users/list/route.ts`          | รายชื่อ users                                                                                               |
-| `/api/admin/users/invite`        | POST           | `admin/users/invite/route.ts`        | เชิญ user                                                                                                   |
-| `/api/admin/users/delete`        | POST           | `admin/users/delete/route.ts`        | ลบ user                                                                                                     |
-| `/api/admin/users/permissions`   | GET/PUT        | `admin/users/permissions/route.ts`   | จัดการสิทธิ์                                                                                                |
-| `/api/admin/users/orgs`          | GET/PUT/DELETE | `admin/users/orgs/route.ts`          | จัดการ org memberships                                                                                      |
-| `/api/admin/modules`             | GET/PUT        | `admin/modules/route.ts`             | ตั้งค่า module ต่อ org                                                                                      |
-| `/api/google-drive/connect`      | POST           | `google-drive/connect/route.ts`      | เชื่อม Google Drive+Calendar                                                                                |
-| `/api/google-drive/callback`     | GET            | `google-drive/callback/route.ts`     | OAuth callback                                                                                              |
-| `/api/google-drive/disconnect`   | POST           | `google-drive/disconnect/route.ts`   | ยกเลิกการเชื่อม                                                                                             |
-| `/api/google-drive/status`       | GET            | `google-drive/status/route.ts`       | ตรวจสถานะการเชื่อม                                                                                          |
-| `/api/org/invite`                | POST           | `org/invite/route.ts`                | เชิญเข้า organization                                                                                       |
-| `/api/public/demo-request`       | POST/OPTIONS   | `public/demo-request/route.ts`       | รับฟอร์ม "ขอเดโม" จาก landing (public+CORS, honeypot) → insert `demo_requests` + push LINE แจ้ง super_admin |
-| `/api/assistant/jobs`            | GET/POST       | `assistant/jobs/route.ts`            | สร้าง/ดึงงาน (generic, kind=stt)                                                                            |
-| `/api/assistant/jobs/process`    | POST           | `assistant/jobs/process/route.ts`    | claim job + ยิงไป stt-worker                                                                                |
-| `/api/assistant/stt/mom-deliver` | POST           | `assistant/stt/mom-deliver/route.ts` | worker callback → PDF → LINE (มี alias เดิม `transcribe/mom-deliver`)                                       |
-| `/api/tmc/*`                     | various        | `tmc/*/route.ts`                     | TMC Management endpoints                                                                                    |
+| Endpoint                              | Method         | File                                      | หน้าที่                                                                                                     |
+| ------------------------------------- | -------------- | ----------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `/api/line/webhook`                   | POST           | `line/webhook/route.ts`                   | LINE Bot webhook หลัก                                                                                       |
+| `/api/line/link-token`                | POST           | `line/link-token/route.ts`                | สร้าง token ผูกบัญชี LINE                                                                                   |
+| `/api/line/unlink`                    | POST           | `line/unlink/route.ts`                    | ยกเลิกผูกบัญชี LINE                                                                                         |
+| `/api/assistant/scheduler`            | POST           | `assistant/scheduler/route.ts`            | Cron trigger สำหรับแจ้งเตือน task                                                                           |
+| `/api/admin/delivery/logs`            | GET            | `admin/delivery/logs/route.ts`            | ดู logs การส่ง                                                                                              |
+| `/api/admin/delivery/schedule`        | PUT            | `admin/delivery/schedule/route.ts`        | ตั้ง cron schedule                                                                                          |
+| `/api/admin/delivery/send-now`        | POST           | `admin/delivery/send-now/route.ts`        | ส่งข่าวทันที                                                                                                |
+| `/api/admin/news-agent/preview`       | POST           | `admin/news-agent/preview/route.ts`       | Preview ข่าว                                                                                                |
+| `/api/admin/users/list`               | GET            | `admin/users/list/route.ts`               | รายชื่อ users                                                                                               |
+| `/api/admin/users/invite`             | POST           | `admin/users/invite/route.ts`             | เชิญ user                                                                                                   |
+| `/api/admin/users/delete`             | POST           | `admin/users/delete/route.ts`             | ลบ user                                                                                                     |
+| `/api/admin/users/permissions`        | GET/PUT        | `admin/users/permissions/route.ts`        | จัดการสิทธิ์                                                                                                |
+| `/api/admin/users/orgs`               | GET/PUT/DELETE | `admin/users/orgs/route.ts`               | จัดการ org memberships                                                                                      |
+| `/api/admin/modules`                  | GET/PUT        | `admin/modules/route.ts`                  | ตั้งค่า module ต่อ org                                                                                      |
+| `/api/google-drive/connect`           | POST           | `google-drive/connect/route.ts`           | เชื่อม Google Drive+Calendar                                                                                |
+| `/api/google-drive/callback`          | GET            | `google-drive/callback/route.ts`          | OAuth callback                                                                                              |
+| `/api/google-drive/disconnect`        | POST           | `google-drive/disconnect/route.ts`        | ยกเลิกการเชื่อม                                                                                             |
+| `/api/google-drive/status`            | GET            | `google-drive/status/route.ts`            | ตรวจสถานะการเชื่อม                                                                                          |
+| `/api/org/invite`                     | POST           | `org/invite/route.ts`                     | เชิญเข้า organization                                                                                       |
+| `/api/public/demo-request`            | POST/OPTIONS   | `public/demo-request/route.ts`            | รับฟอร์ม "ขอเดโม" จาก landing (public+CORS, honeypot) → insert `demo_requests` + push LINE แจ้ง super_admin |
+| `/api/assistant/jobs`                 | GET/POST       | `assistant/jobs/route.ts`                 | สร้าง/ดึงงาน (generic, kind=stt)                                                                            |
+| `/api/assistant/jobs/process`         | POST           | `assistant/jobs/process/route.ts`         | claim job + ยิงไป stt-worker                                                                                |
+| `/api/assistant/stt/mom-deliver`      | POST           | `assistant/stt/mom-deliver/route.ts`      | worker callback → PDF → LINE (มี alias เดิม `transcribe/mom-deliver`)                                       |
+| `/api/tmc/*`                          | various        | `tmc/*/route.ts`                          | TMC Management endpoints                                                                                    |
+| `/api/accounting/documents`           | GET/POST       | `accounting/documents/route.ts`           | เอกสารขาย 9 ชนิด (+`[id]`, `[id]/convert`, `[id]/pdf`) — เลขที่ผ่าน RPC, snapshot ม.86/4                    |
+| `/api/accounting/purchase-documents`  | GET/POST       | `accounting/purchase-documents/route.ts`  | ทะเบียนใบกำกับซื้อ (+`[id]` PATCH `action:"post"` = ลงบัญชี) → ฐานภาษีซื้อ ภ.พ.30                           |
+| `/api/accounting/purchase-tax-report` | GET            | `accounting/purchase-tax-report/route.ts` | รายงานภาษีซื้อ (ประกาศอธิบดีฯ ฉบับ 89) ตามงวดภาษี                                                           |
 
 **Auth helpers** (`app/api/_lib/`):
 
@@ -238,6 +242,9 @@ pnpm build
 | `orders` / `order_items`                     | ออเดอร์ขาย                                                                                                                                                                                                                                   |
 | `sales_quotes` / `sales_invoices`            | ใบเสนอราคา / ใบแจ้งหนี้                                                                                                                                                                                                                      |
 | `customers` / `workers`                      | ลูกค้า / พนักงาน                                                                                                                                                                                                                             |
+| `acc_documents` / `acc_document_lines`       | เอกสารขาย 9 ชนิด + snapshot ผู้ขาย/ผู้ซื้อ (ม.86/4) + `ref_document_id` (ใบลด/เพิ่มหนี้) — ดู [`docs/ACCOUNTING_FEATURE.md`](docs/ACCOUNTING_FEATURE.md)                                                                                     |
+| `acc_purchase_documents` / `_lines`          | ใบกำกับภาษีซื้อที่ได้รับจากผู้ขาย + `is_vat_claimable` (ม.82/5) + `wht_form` (ภ.ง.ด.3/53) + `ocr_job_id`                                                                                                                                     |
+| `acc_doc_sequences`                          | เลขรันเอกสารต่อ (org, ชนิด, ปี) — RLS deny-all, จ่ายเลขผ่าน RPC `next_acc_doc_number()` แบบ atomic เท่านั้น                                                                                                                                  |
 | `demo_requests`                              | Lead "ขอเดโม" จากหน้า landing (name, phone, product, source, status new→contacted→…) — เขียนผ่าน `/api/public/demo-request`, ดูที่ `/admin/leads` (RLS deny-all, service role)                                                               |
 
 ### tasks table (status values)
@@ -267,40 +274,44 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 ## Library (`apps/perpos/src/lib/`)
 
-| Path                                    | หน้าที่                                                                      |
-| --------------------------------------- | ---------------------------------------------------------------------------- |
-| `lib/assistant/stt-trigger.ts`          | triggerSttWorker — atomic claim job + ยิงไป stt-worker                       |
-| `lib/assistant/mom-html.ts`             | buildMomHtml + MOM_FOOTER_TEMPLATE (ใช้ร่วม mom-pdf/mom-deliver)             |
-| `lib/assistant/stt-cost.ts`             | โมเดลราคา Gemini สำหรับคิดต้นทุนต่อ job                                      |
-| `lib/assistant/flow-rag.ts`             | ผู้ช่วยโฟล์ (RAG) — isProductQuestion + retrieveContext + answerFlowQuestion |
-| `lib/line/send-messages.ts`             | Push/multicast LINE messages                                                 |
-| `lib/news/news-agent.ts`                | Fetch RSS + summarize ด้วย OpenAI                                            |
-| `lib/google/drive.ts`                   | Google Drive OAuth + upload                                                  |
-| `lib/supabase/{client,server,admin}.ts` | Supabase clients                                                             |
+| Path                                    | หน้าที่                                                                          |
+| --------------------------------------- | -------------------------------------------------------------------------------- |
+| `lib/assistant/stt-trigger.ts`          | triggerSttWorker — atomic claim job + ยิงไป stt-worker                           |
+| `lib/assistant/mom-html.ts`             | buildMomHtml + MOM_FOOTER_TEMPLATE (ใช้ร่วม mom-pdf/mom-deliver)                 |
+| `lib/assistant/stt-cost.ts`             | โมเดลราคา Gemini สำหรับคิดต้นทุนต่อ job                                          |
+| `lib/assistant/flow-rag.ts`             | ผู้ช่วยโฟล์ (RAG) — isProductQuestion + retrieveContext + answerFlowQuestion     |
+| `lib/accounting/sales-journal.ts`       | จุดรับรู้รายได้ฝั่งขาย + `selectBillingDocuments`/`billingSign` (กฎเดียวกับ KPI) |
+| `lib/accounting/purchase-journal.ts`    | ลงบัญชีฝั่งซื้อ (Dr ค่าใช้จ่าย+ภาษีซื้อ / Cr เจ้าหนี้+WHT) idempotent            |
+| `lib/accounting/document-html.ts`       | HTML A4 ของเอกสารภาษี (ส่งเข้า pdf-renderer) + `bahtText` แหล่งเดียว             |
+| `lib/accounting/paging.ts`              | กัน PostgREST ตัด 1,000 แถวเงียบ — คืน `total` + `truncated`                     |
+| `lib/line/send-messages.ts`             | Push/multicast LINE messages                                                     |
+| `lib/news/news-agent.ts`                | Fetch RSS + summarize ด้วย OpenAI                                                |
+| `lib/google/drive.ts`                   | Google Drive OAuth + upload                                                      |
+| `lib/supabase/{client,server,admin}.ts` | Supabase clients                                                                 |
 
 ---
 
 ## Environment Variables
 
-| Variable                              | หน้าที่                                                                        | จำเป็น             |
-| ------------------------------------- | ------------------------------------------------------------------------------ | ------------------ |
-| `NEXT_PUBLIC_SUPABASE_URL`            | Supabase project URL                                                           | ✅                 |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY`       | Supabase anon key                                                              | ✅                 |
-| `SUPABASE_SERVICE_ROLE_KEY`           | Supabase service role (server only)                                            | ✅                 |
-| `LINE_MESSAGING_CHANNEL_SECRET`       | LINE webhook signature verify                                                  | ✅                 |
-| `LINE_MESSAGING_CHANNEL_ACCESS_TOKEN` | ส่งข้อความ LINE                                                                | ✅                 |
-| `LINE_LOGIN_CHANNEL_ID`               | LINE Login (เข้าเว็บด้วย LINE) — channel ID                                    | LINE login         |
-| `LINE_LOGIN_CHANNEL_SECRET`           | LINE Login — channel secret                                                    | LINE login         |
-| `CRON_SECRET`                         | ป้องกัน scheduler endpoint                                                     | ✅                 |
-| `OPENAI_API_KEY`                      | NLP task parse + news summary                                                  | optional           |
-| `OPENAI_MODEL`                        | โมเดล OpenAI (default: gpt-4o-mini)                                            | optional           |
-| `PDF_RENDER_URL`                      | PDF microservice URL                                                           | optional           |
-| `PDF_SERVICE_SECRET`                  | PDF service auth                                                               | optional           |
-| `OCR_WORKER_URL`                      | URL ของ ocr-worker (Cloud Run) สำหรับ AI bookkeeping                           | acc_firm           |
-| `STT_WORKER_URL`                      | URL ของ stt-worker (Cloud Run) สำหรับแกะเสียงเป็นข้อความ                       | assistant          |
-| `WORKER_SECRET`                       | shared secret เรียก ocr-worker/stt-worker (`x-worker-secret`)                  | acc_firm/assistant |
-| `GEMINI_API_KEY`                      | Gemini OCR/classify/journal + speech-to-text (ตั้งที่ ocr-worker + stt-worker) | acc_firm/assistant |
-| `SMTP_*`                              | Email invite                                                                   | optional           |
+| Variable                              | หน้าที่                                                                                        | จำเป็น             |
+| ------------------------------------- | ---------------------------------------------------------------------------------------------- | ------------------ |
+| `NEXT_PUBLIC_SUPABASE_URL`            | Supabase project URL                                                                           | ✅                 |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY`       | Supabase anon key                                                                              | ✅                 |
+| `SUPABASE_SERVICE_ROLE_KEY`           | Supabase service role (server only)                                                            | ✅                 |
+| `LINE_MESSAGING_CHANNEL_SECRET`       | LINE webhook signature verify                                                                  | ✅                 |
+| `LINE_MESSAGING_CHANNEL_ACCESS_TOKEN` | ส่งข้อความ LINE                                                                                | ✅                 |
+| `LINE_LOGIN_CHANNEL_ID`               | LINE Login (เข้าเว็บด้วย LINE) — channel ID                                                    | LINE login         |
+| `LINE_LOGIN_CHANNEL_SECRET`           | LINE Login — channel secret                                                                    | LINE login         |
+| `CRON_SECRET`                         | ป้องกัน scheduler endpoint                                                                     | ✅                 |
+| `OPENAI_API_KEY`                      | NLP task parse + news summary                                                                  | optional           |
+| `OPENAI_MODEL`                        | โมเดล OpenAI (default: gpt-4o-mini)                                                            | optional           |
+| `PDF_RENDER_URL`                      | PDF microservice URL — ต้องเป็น **perpos-pdf-renderer** (อย่าชี้ `exapp-pdf-renderer` คนละแอป) | optional           |
+| `PDF_SERVICE_SECRET`                  | PDF service auth                                                                               | optional           |
+| `OCR_WORKER_URL`                      | URL ของ ocr-worker (Cloud Run) สำหรับ AI bookkeeping                                           | acc_firm           |
+| `STT_WORKER_URL`                      | URL ของ stt-worker (Cloud Run) สำหรับแกะเสียงเป็นข้อความ                                       | assistant          |
+| `WORKER_SECRET`                       | shared secret เรียก ocr-worker/stt-worker (`x-worker-secret`)                                  | acc_firm/assistant |
+| `GEMINI_API_KEY`                      | Gemini OCR/classify/journal + speech-to-text (ตั้งที่ ocr-worker + stt-worker)                 | acc_firm/assistant |
+| `SMTP_*`                              | Email invite                                                                                   | optional           |
 
 ---
 
@@ -327,6 +338,8 @@ Endpoint: `POST /api/assistant/scheduler`
 - **LINE reply**: ใช้ `replyText()` / `replyFlex()` ใน webhook — ใช้ token ได้ครั้งเดียว
 - **LINE push**: ใช้ `sendLineMessages()` จาก `lib/line/send-messages.ts`
 - **LINE Flex Card**: ทุกการ์ดต้องตามคัมภีร์ [`docs/line-flex-card-guide.md`](docs/line-flex-card-guide.md) — header CHARCOAL `#3C3B3D` พื้นเรียบ (ห้าม gradient), token สีจาก DESIGN.md §2, ต้นแบบ = `buildLinkConfirmFlex` / `buildBotFlex`
+- **Unit test (vitest)**: กฎที่ "ผิดแล้วเสียเงิน/ผิดกฎหมาย" มีเทสคุมที่ [`lib/accounting/accounting-rules.test.ts`](apps/perpos/src/lib/accounting/accounting-rules.test.ts) — แตะ logic บัญชี/ภาษีแล้วต้อง `pnpm exec vitest run` ผ่านก่อน commit
+- **List ที่ดึงจาก Supabase**: PostgREST ตัดที่ 1,000 แถว **เงียบ ๆ** → ใช้ `normalizePage`/`toPaged` ([lib/accounting/paging.ts](apps/perpos/src/lib/accounting/paging.ts)) คืน `total`+`truncated` และ UI ต้องเตือน + มีปุ่ม "โหลดเพิ่ม" · **ห้ามคิดยอดรวม/KPI จาก array ที่อาจถูกตัด**
 - **Commit**: ไม่ push จนกว่าจะสั่ง
 
 ---

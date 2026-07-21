@@ -305,10 +305,10 @@ import { StatusBadge } from "@/components/ui/badge";
 <table className="w-full text-sm">
   <thead>
     <tr className="border-surface-3 bg-surface border-b">
-      <th className="text-ink-secondary px-4 py-3 text-left text-xs font-medium tracking-wide uppercase">
+      <th className="text-ink-secondary px-4 py-3 text-left text-xs font-medium uppercase tracking-wide">
         รายการ
       </th>
-      <th className="text-ink-secondary px-4 py-3 text-right text-xs font-medium tracking-wide uppercase">
+      <th className="text-ink-secondary px-4 py-3 text-right text-xs font-medium uppercase tracking-wide">
         จำนวนเงิน
       </th>
     </tr>
@@ -757,22 +757,36 @@ import {
 
 ---
 
+## 13.5 เอกสารภาษีที่พิมพ์ (A4) — กฎเฉพาะ
+
+เอกสารที่ **ออกให้ลูกค้า/ใช้เป็นหลักฐานภาษี** (ใบกำกับภาษี ใบเสร็จ ใบลด/เพิ่มหนี้ ฯลฯ) ไม่ใช่หน้าจอ — เป็นกระดาษ A4
+ต้นแบบเดียวของทั้งระบบ = [`lib/accounting/document-html.ts`](apps/perpos/src/lib/accounting/document-html.ts) (HTML → pdf-renderer)
+
+- **พาเลตต์หน้าจอไม่บังคับกับเอกสารพิมพ์** — เอกสารพิมพ์ใช้ขาว/ดำ/เส้นเทาเป็นหลัก (พิมพ์ขาวดำต้องอ่านออก) เหมือน wht-pdf / pp30 / mom-html
+- **ต้องมีครบตาม ม.86/4**: คำว่า "ใบกำกับภาษี", ชื่อ-ที่อยู่-เลขประจำตัวผู้เสียภาษี + **สาขา** ของทั้งผู้ขายและผู้ซื้อ, เลขที่/เล่มที่, วันที่ออก, รายการ+หน่วยนับ, มูลค่า, VAT แยกบรรทัด
+- **ต้นฉบับ / สำเนา** ต้องพิมพ์กำกับบนหน้าเอกสาร (ORIGINAL / COPY) — สลับด้วย query ไม่ใช่สร้างไฟล์คนละแบบ
+- **จำนวนเงินเป็นตัวอักษร** ใช้ `bahtText()` จากไฟล์เดียวกัน — ห้าม copy ไปไว้ที่ component (เคยเพี้ยน "ยี่สิบหนึ่ง")
+- ตัวเลขในเอกสารใช้ tabular figures + ชิดขวาเหมือนบนหน้าจอ (§3)
+- ค่าที่มาจากผู้ใช้ต้อง escape ก่อนต่อเป็น HTML เสมอ
+
 ## 14. Anti-patterns — ห้ามทำ
 
-| Anti-pattern                    | ทำไม                            | ทำแทนด้วย                     |
-| ------------------------------- | ------------------------------- | ----------------------------- |
-| `transition: all`               | Animate ทุก property รวม layout | ระบุ property ที่ต้องการ      |
-| ตัวเลขไม่ใช้ `tabular-nums`     | คอลัมน์ตัวเลขขยับ อ่านยาก       | `font-mono tabular-nums` เสมอ |
-| ยอดลบใช้ `-` (hyphen)           | ไม่ใช่ minus sign จริง          | ใช้ `−` (U+2212)              |
-| Badge สีแดงสำหรับ "ฉบับร่าง"    | ทำให้ตกใจ                       | `gray` สำหรับ neutral status  |
-| Spinner บน initial load         | UX แย่กว่า skeleton             | Skeleton ทุกครั้ง             |
-| ปุ่มไม่ disabled ระหว่าง submit | Double submit, data corruption  | `disabled={loading}` เสมอ     |
-| Empty state ไม่มี CTA           | User ไม่รู้จะทำอะไร             | มี CTA ทุก empty state        |
-| Modal เปิดเร็วเกิน (< 150ms)    | ตาตาม content ไม่ทัน            | `250ms` minimum               |
-| `ease-in` บน dropdown           | รู้สึกช้าตั้งแต่ต้น             | `ease-out` เสมอ               |
-| ตัวหนังสือซ้ายบนยอดเงิน         | อ่านเปรียบเทียบยาก              | Right-align เสมอ              |
-| สีในตารางมากกว่า 3 สี           | สับสน, chaos                    | ≤ 3 สีต่อ component           |
-| Label สั้นเกิน (เช่น "จำนวน")   | กำกวมสำหรับ ERP                 | ระบุให้ชัด "จำนวนเงิน (฿)"    |
+| Anti-pattern                    | ทำไม                                            | ทำแทนด้วย                                                 |
+| ------------------------------- | ----------------------------------------------- | --------------------------------------------------------- |
+| `transition: all`               | Animate ทุก property รวม layout                 | ระบุ property ที่ต้องการ                                  |
+| ตัวเลขไม่ใช้ `tabular-nums`     | คอลัมน์ตัวเลขขยับ อ่านยาก                       | `font-mono tabular-nums` เสมอ                             |
+| ยอดลบใช้ `-` (hyphen)           | ไม่ใช่ minus sign จริง                          | ใช้ `−` (U+2212)                                          |
+| Badge สีแดงสำหรับ "ฉบับร่าง"    | ทำให้ตกใจ                                       | `gray` สำหรับ neutral status                              |
+| Spinner บน initial load         | UX แย่กว่า skeleton                             | Skeleton ทุกครั้ง                                         |
+| ปุ่มไม่ disabled ระหว่าง submit | Double submit, data corruption                  | `disabled={loading}` เสมอ                                 |
+| Empty state ไม่มี CTA           | User ไม่รู้จะทำอะไร                             | มี CTA ทุก empty state                                    |
+| Modal เปิดเร็วเกิน (< 150ms)    | ตาตาม content ไม่ทัน                            | `250ms` minimum                                           |
+| `ease-in` บน dropdown           | รู้สึกช้าตั้งแต่ต้น                             | `ease-out` เสมอ                                           |
+| ตัวหนังสือซ้ายบนยอดเงิน         | อ่านเปรียบเทียบยาก                              | Right-align เสมอ                                          |
+| สีในตารางมากกว่า 3 สี           | สับสน, chaos                                    | ≤ 3 สีต่อ component                                       |
+| Label สั้นเกิน (เช่น "จำนวน")   | กำกวมสำหรับ ERP                                 | ระบุให้ชัด "จำนวนเงิน (฿)"                                |
+| KPI/การ์ดยอดรวมคิดกฎเอง         | ตัวเลขบนการ์ดขัดกับสมุดรายวัน                   | ใช้ตัวช่วยกลางของโดเมน (บัญชี = `selectBillingDocuments`) |
+| ยอดรวมจาก list ที่อาจถูกตัดแถว  | PostgREST ตัด 1,000 แถวเงียบ ๆ → ยอดต่ำกว่าจริง | เตือน `truncated` + ปุ่ม "โหลดเพิ่ม"                      |
 
 ---
 
@@ -792,4 +806,5 @@ import {
 | 2026-06-06 | สร้าง DESIGN.md จาก Stripe + Linear + Emil Kowalski                                                                                                                                                                                        |
 | 2026-06-17 | เพิ่ม §13 Dialog / Popup Standard — sticky header/footer, size prop, DialogBody บังคับทั้งระบบ                                                                                                                                             |
 | 2026-06-17 | §2 ล็อก PERPOS Standard Palette (flat-UI) ทั้งแอป — override Tailwind token (AQUA=primary) + migrate ฮาร์ดโค้ด hex (รวม LINE flex cards) · ยกเว้นเอกสารพิมพ์ (wht-pdf, pp30/wht-cert preview, mom-html) คงสีเดิม                           |
+| 2026-07-21 | เพิ่ม §13.5 เอกสารภาษีที่พิมพ์ (A4) — ม.86/4, ต้นฉบับ/สำเนา, `bahtText` แหล่งเดียว · เพิ่ม anti-pattern: KPI คิดกฎเอง + ยอดรวมจาก list ที่ถูกตัดแถว                                                                                        |
 | 2026-06-17 | เปลี่ยน **primary/brand = CHARCOAL `#3C3B3D`** (โทน mono เลิก AQUA) — blue/sky/cyan → charcoal scale, token primary/blue → charcoal, title (h1/PageShell/Title) ใช้ `text-primary` · สี accent อื่น (PLUM/PINK/MINT/RUBY/SUNFLOWER) คงเดิม |
