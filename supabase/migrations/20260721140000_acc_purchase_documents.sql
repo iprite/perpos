@@ -159,3 +159,9 @@ COMMENT ON COLUMN public.acc_purchase_documents.tax_year IS
   'ปีของงวดภาษีที่นำภาษีซื้อไปใช้ — แยกจาก issue_date เพราะ ม.82/3 ให้เลื่อนใช้ได้ภายใน 6 เดือน';
 COMMENT ON COLUMN public.acc_purchase_documents.is_vat_claimable IS
   'เครดิตภาษีซื้อได้หรือไม่ — false สำหรับภาษีซื้อต้องห้าม (ม.82/5) / ใบกำกับอย่างย่อ / ใบเสร็จ';
+-- ชนิดแบบ ภ.ง.ด. ที่ต้องยื่นสำหรับภาษีหัก ณ ที่จ่ายของบิลนี้
+-- pnd53 = ผู้ขายเป็นนิติบุคคล (ค่าตั้งต้น) · pnd3 = บุคคลธรรมดา
+-- ตัดสินบัญชีปลายทางตอน auto journal (2212 vs 2211) — ลงผิดบัญชี = ยื่นแบบผิด
+ALTER TABLE public.acc_purchase_documents
+  ADD COLUMN IF NOT EXISTS wht_form text NOT NULL DEFAULT 'pnd53'
+    CHECK (wht_form IN ('pnd3','pnd53'));

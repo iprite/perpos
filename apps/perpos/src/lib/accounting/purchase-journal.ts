@@ -22,8 +22,15 @@ import type { AccPurchaseDocument, AccPurchaseDocumentLine } from "./types";
 /** รหัสบัญชีมาตรฐานจากผังบัญชีไทยที่ seed ให้ทุก org */
 const ACC_CODE_INPUT_VAT = "1150"; // ภาษีซื้อ
 const ACC_CODE_TRADE_PAYABLE = "2100"; // เจ้าหนี้การค้า
-/** ภาษีหัก ณ ที่จ่ายรอนำส่ง — 2210 = ภ.ง.ด.1 · 2220 = ภ.ง.ด.3/53 (ถ้ามีในผัง) */
-const ACC_CODE_WHT_PAYABLE_CANDIDATES = ["2220", "2210"];
+/**
+ * ภาษีหัก ณ ที่จ่ายที่เราหักผู้ขายแล้วค้างนำส่ง — เลือกตามชนิดผู้รับเงิน:
+ *   2212 = ภ.ง.ด.53 (ผู้ขายเป็นนิติบุคคล — กรณีปกติของบิลซื้อ)
+ *   2211 = ภ.ง.ด.3  (ผู้ขายเป็นบุคคลธรรมดา)
+ * ⚠️ ห้ามใช้ 2210 (ภ.ง.ด.1 = หักเงินเดือนพนักงาน) และ 2220 (ประกันสังคมค้างจ่าย)
+ *    — คนละภาระหนี้กันคนละแบบยื่น ลงผิดบัญชี = งบผิด + ยื่นแบบผิด
+ */
+const ACC_CODE_WHT_PND53 = "2212";
+const ACC_CODE_WHT_PND3 = "2211";
 
 function round2(n: number): number {
   if (!Number.isFinite(n)) return 0;
@@ -93,7 +100,12 @@ export async function postPurchaseDocumentToJournal(
   }
 
   // 3) resolve บัญชีที่ต้องใช้จากผังบัญชีของ org
-  const wanted = [ACC_CODE_INPUT_VAT, ACC_CODE_TRADE_PAYABLE, ...ACC_CODE_WHT_PAYABLE_CANDIDATES];
+  const wanted = [
+    ACC_CODE_INPUT_VAT,
+    ACC_CODE_TRADE_PAYABLE,
+    ACC_CODE_WHT_PND53,
+    ACC_CODE_WHT_PND3,
+  ];
   const { data: accs } = await admin
     .from("acc_accounts")
     .select("id, code")
@@ -116,11 +128,17 @@ export async function postPurchaseDocumentToJournal(
   if (claimVat && !inputVatId) {
     return { ok: false, error: `ผังบัญชีไม่มีรหัส ${ACC_CODE_INPUT_VAT} (ภาษีซื้อ)` };
   }
-  const whtPayableId = ACC_CODE_WHT_PAYABLE_CANDIDATES.map((c) => byCode.get(c)).find(Boolean);
+  // ผู้ขายนิติบุคคล → ภ.ง.ด.53 · บุคคลธรรมดา → ภ.ง.ด.3
+  // เดาจากเลขผู้เสียภาษี 13 หลักไม่ได้ (ใช้ร่วมกันทั้งสองแบบ) → ใช้ ภ.ง.ด.53 เป็นค่าตั้งต้น
+  // (บิลซื้อของกิจการส่วนใหญ่มาจากนิติบุคคล) แล้วให้ระบุ wht_form มา override ได้
+  const whtPayableId =
+    doc.wht_form === "pnd3"
+      ? (byCode.get(ACC_CODE_WHT_PND3) ?? byCode.get(ACC_CODE_WHT_PND53))
+      : (byCode.get(ACC_CODE_WHT_PND53) ?? byCode.get(ACC_CODE_WHT_PND3));
   if (whtAmount > 0 && !whtPayableId) {
     return {
       ok: false,
-      error: "ผังบัญชีไม่มีบัญชีภาษีหัก ณ ที่จ่ายรอนำส่ง (2220/2210) — เพิ่มก่อนจึงลงบัญชีได้",
+      error: `ผังบัญชีไม่มีบัญชีภาษีหัก ณ ที่จ่ายค้างจ่าย (${ACC_CODE_WHT_PND53}/${ACC_CODE_WHT_PND3}) — เพิ่มก่อนจึงลงบัญชีได้`,
     };
   }
 

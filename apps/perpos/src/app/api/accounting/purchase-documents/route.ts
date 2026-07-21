@@ -150,6 +150,7 @@ export async function POST(req: NextRequest) {
       total,
       wht_rate: whtRate,
       wht_amount: num(body.wht_amount),
+      wht_form: body.wht_form === "pnd3" ? "pnd3" : "pnd53",
       is_vat_claimable: isVatClaimable,
       non_claimable_note: (body.non_claimable_note as string) || null,
       status: (body.status as string) || "recorded",

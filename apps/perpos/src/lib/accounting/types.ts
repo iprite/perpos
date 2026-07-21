@@ -369,6 +369,11 @@ export interface AccPurchaseDocument {
   total: number;
   wht_rate: number;
   wht_amount: number;
+  /**
+   * แบบ ภ.ง.ด. ที่ต้องยื่นสำหรับ WHT ของบิลนี้ — ตัดสินบัญชีปลายทางตอน auto journal
+   * pnd53 = ผู้ขายนิติบุคคล (2212, default) · pnd3 = บุคคลธรรมดา (2211)
+   */
+  wht_form: "pnd3" | "pnd53";
   /** เครดิตภาษีซื้อได้หรือไม่ — false = ภาษีซื้อต้องห้าม ม.82/5 หรือเอกสารที่เครดิตไม่ได้ */
   is_vat_claimable: boolean;
   non_claimable_note: string | null;
