@@ -84,10 +84,36 @@ export async function POST(req: NextRequest, ctx: Ctx) {
         return s + sign * vat;
       }, 0),
     );
-    // sales_vat = auto (จากเอกสารขาย VAT งวดนั้น) · purchase_vat = คงค่าที่นักบัญชีกรอกเอง
-    // (โมเดลนี้ไม่ได้เก็บภาษีซื้อจากค่าใช้จ่าย → derive อัตโนมัติไม่ได้, ไม่ทับค่าที่กรอกไว้)
-    const purchaseVat = round2(Number(f.purchase_vat) || 0);
+    // ── ภาษีซื้อ: จากทะเบียนใบกำกับภาษีซื้อ (acc_purchase_documents) ──
+    // กรองด้วย "งวดภาษี" (tax_year/tax_month) ไม่ใช่ issue_date เพราะ ม.82/3 ให้เลื่อน
+    // ใช้ภาษีซื้อได้ภายใน 6 เดือน · นับเฉพาะใบที่เครดิตได้ (is_vat_claimable)
+    // ใบลดหนี้จากผู้ขาย = ลดภาษีซื้อ → หักออก
+    const { data: purchases } = await admin
+      .from("acc_purchase_documents")
+      .select("doc_type, vat_amount")
+      .eq("org_id", orgId)
+      .eq("is_vat_claimable", true)
+      .neq("status", "void")
+      .eq("tax_year", f.period_year)
+      .eq("tax_month", f.period_month);
+
+    const hasPurchaseRegistry = (purchases ?? []).length > 0;
+    const derivedPurchaseVat = round2(
+      (purchases ?? []).reduce((s, row) => {
+        const d = row as { doc_type: string; vat_amount: number };
+        const vat = Number(d.vat_amount) || 0;
+        return s + (d.doc_type === "credit_note" ? -vat : vat);
+      }, 0),
+    );
+
+    // ถ้ายังไม่มีใบกำกับซื้อในงวดเลย = org นั้นยังไม่ได้ใช้ทะเบียนซื้อ
+    // → คงค่าที่นักบัญชีกรอกมือไว้ (ไม่ทับเป็น 0 ซึ่งจะทำให้ยอดที่กรอกไว้หาย)
+    const purchaseVat = hasPurchaseRegistry
+      ? derivedPurchaseVat
+      : round2(Number(f.purchase_vat) || 0);
+
     patch.sales_vat = salesVat;
+    patch.purchase_vat = purchaseVat;
     patch.net_payable = round2(salesVat - purchaseVat);
   } else {
     // pnd1/3/53 — wht_total จาก entries (expense, wht_amount>0) งวดนั้น
