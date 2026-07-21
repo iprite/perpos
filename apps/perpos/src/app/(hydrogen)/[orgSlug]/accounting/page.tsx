@@ -18,6 +18,10 @@ import {
   Wallet,
   ArrowRight,
   Receipt,
+  ReceiptText,
+  Clock,
+  AlertTriangle,
+  CheckCircle2,
 } from "lucide-react";
 import cn from "@core/utils/class-names";
 import { Button } from "@/components/ui/button";
@@ -47,6 +51,8 @@ import {
   EntrySourceBadge,
 } from "./_components";
 import type { AccTaxKind } from "@/lib/accounting/types";
+import { DOC_TYPE_LABEL } from "@/lib/accounting/types";
+import { selectBillingDocuments, billingSign } from "@/lib/accounting/sales-journal";
 
 // เงินสดยกมาต้นปี — production: ตั้ง 0 (ยังไม่มี opening-balance setting ในเฟสนี้ → เงินในมือ = สะสมในระบบ)
 const OPENING_CASH = 0;
@@ -150,6 +156,44 @@ export default function AccountingOverviewPage() {
     [documents],
   );
 
+  // ── มุมเจ้าของกิจการ: "เงินที่ยังไม่เข้ากระเป๋า" (Phase 2) ────────────────────
+  // KPI ด้านบนเป็นเงินสดจริง (entries) → ออกใบกำกับแล้วแต่ยังไม่เก็บเงิน ตัวเลขจะเป็น 0
+  // เจ้าของกิจการจึงงงว่า "ขายได้แล้วเงินอยู่ไหน" · บล็อกนี้ตอบจากเอกสารขายแทน
+  // ใช้ selectBillingDocuments = กฎเดียวกับ auto journal (ไม่นับซ้ำทั้งสายเอกสาร)
+  const sales = useMemo(() => {
+    const billing = selectBillingDocuments(documents, isVatRegistered);
+    const amount = (arr: typeof billing) =>
+      arr.reduce((s, d) => s + billingSign(d.doc_type) * d.total, 0);
+    const thisMonth = billing.filter((d) => {
+      const dt = new Date(d.issue_date);
+      return dt.getFullYear() === CUR_YEAR && dt.getMonth() + 1 === CUR_MONTH;
+    });
+    const unpaid = billing.filter((d) => d.status !== "paid");
+    const overdue = billing.filter((d) => d.status === "overdue");
+    return {
+      month: amount(thisMonth),
+      monthCount: thisMonth.length,
+      unpaid: amount(unpaid),
+      unpaidCount: unpaid.length,
+      overdue: amount(overdue),
+      overdueCount: overdue.length,
+    };
+  }, [documents, isVatRegistered, CUR_YEAR, CUR_MONTH]);
+
+  // งานที่ต้องตามต่อ — เรียงตามความเร่งด่วน (เกินกำหนดก่อน แล้วค่อยใกล้ครบกำหนด)
+  // ตอบคำถามเดียวที่เจ้าของกิจการถามทุกเช้า: "วันนี้ต้องตามใคร"
+  const todo = useMemo(() => {
+    const rows = documents
+      .filter((d) => d.status === "overdue" || d.status === "sent" || d.status === "accepted")
+      .map((d) => {
+        const info = d.due_date ? dueInfo(d.due_date) : null;
+        return { doc: d, daysLeft: info?.daysLeft ?? 9999, dueLabel: info?.label ?? "—" };
+      })
+      .filter((r) => r.doc.status === "overdue" || r.daysLeft <= 7)
+      .sort((a, b) => a.daysLeft - b.daysLeft);
+    return rows.slice(0, 5);
+  }, [documents]);
+
   const recent = useMemo(
     () => [...entries].sort((a, b) => b.entry_date.localeCompare(a.entry_date)).slice(0, 8),
     [entries],
@@ -168,6 +212,88 @@ export default function AccountingOverviewPage() {
         </Link>
       }
     >
+      {/* ── เงินที่ยังไม่เข้ากระเป๋า + งานที่ต้องตามต่อ (มุมเจ้าของกิจการ) ───────── */}
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
+        <div className="space-y-3 lg:col-span-1">
+          <StatCard
+            icon={<ReceiptText className="h-4 w-4" />}
+            label="ยอดขายเดือนนี้ (ตามเอกสาร)"
+            value={fmtMoney(sales.month)}
+            sub={`${sales.monthCount} ใบ — รวมที่ยังไม่เก็บเงิน`}
+            tone="info"
+            valueColored
+          />
+          <StatCard
+            icon={<Clock className="h-4 w-4" />}
+            label="รอเก็บเงิน"
+            value={fmtMoney(sales.unpaid)}
+            sub={sales.unpaidCount > 0 ? `${sales.unpaidCount} ใบ` : "เก็บครบแล้ว"}
+            tone="warning"
+            valueColored
+          />
+          <StatCard
+            icon={<AlertTriangle className="h-4 w-4" />}
+            label="เลยกำหนดชำระ"
+            value={fmtMoney(sales.overdue)}
+            sub={sales.overdueCount > 0 ? `${sales.overdueCount} ใบ — ควรโทรตาม` : "ไม่มี"}
+            tone={sales.overdueCount > 0 ? "negative" : "positive"}
+            valueColored
+          />
+        </div>
+
+        <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm lg:col-span-2">
+          <div className="flex items-center justify-between">
+            <div className="text-sm font-semibold text-gray-900">ต้องตามต่อ</div>
+            <Link
+              href={`${base}/documents`}
+              className="text-xs text-gray-500 underline-offset-2 hover:underline"
+            >
+              ดูเอกสารขายทั้งหมด
+            </Link>
+          </div>
+
+          {todo.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-10 text-center">
+              <div className="mb-3 rounded-full bg-gray-100 p-3">
+                <CheckCircle2 className="h-6 w-6 text-gray-400" />
+              </div>
+              <div className="text-sm font-medium text-gray-900">ไม่มีบิลที่ต้องตามใน 7 วันนี้</div>
+              <div className="mt-1 text-sm text-gray-500">
+                ออกใบเสนอราคาหรือใบกำกับใบใหม่ได้ที่หน้าเอกสารขาย
+              </div>
+              <Link href={`${base}/documents`} className="mt-4">
+                <Button size="sm" variant="outline">
+                  ไปหน้าเอกสารขาย
+                </Button>
+              </Link>
+            </div>
+          ) : (
+            <ul className="mt-3 divide-y divide-gray-100">
+              {todo.map(({ doc, daysLeft, dueLabel }) => (
+                <li key={doc.id} className="flex items-center justify-between gap-3 py-2.5">
+                  <div className="min-w-0">
+                    <div className="truncate text-sm text-gray-900">{doc.contact_name ?? "—"}</div>
+                    <div className="text-xs text-gray-500">
+                      {DOC_TYPE_LABEL[doc.doc_type]} {doc.doc_number} · ครบกำหนด {dueLabel}
+                    </div>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-3">
+                    <span className="font-mono text-sm tabular-nums text-gray-900">
+                      {fmtMoney(doc.total)}
+                    </span>
+                    {doc.status === "overdue" ? (
+                      <StatusBadge tone="danger">เลย {Math.abs(daysLeft)} วัน</StatusBadge>
+                    ) : (
+                      <StatusBadge tone="warning">อีก {daysLeft} วัน</StatusBadge>
+                    )}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+
       {/* KPI — รายรับ/รายจ่าย/กำไรเดือนนี้/เงินสด */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
