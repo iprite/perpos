@@ -1,8 +1,6 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/badge";
-import { ArrowLeft, GitBranch } from "lucide-react";
+import { GitBranch } from "lucide-react";
 import { requireSuperAdminPage } from "@/lib/admin/guard";
 import { getIssueByRef } from "@/lib/admin/issues";
 import { AdminPage } from "../../_components/admin-page";
@@ -46,14 +44,6 @@ export default async function IssueDetailPage({ params }: { params: Promise<{ re
       width="default"
       title={issue.ref}
       icon={<span className="font-mono text-base">{issue.prefix}</span>}
-      actions={
-        <Link href="/admin/issues">
-          <Button variant="outline" size="sm">
-            <ArrowLeft className="mr-1 h-4 w-4" />
-            กลับรายการ
-          </Button>
-        </Link>
-      }
     >
       {/* หัวเรื่อง + สถานะ */}
       <div className="mb-5 space-y-3">

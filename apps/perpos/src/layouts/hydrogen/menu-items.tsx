@@ -407,7 +407,12 @@ function buildAccFirmMenuItems(org: string, labels: Record<string, string> = {})
       icon: <LayoutDashboard className="h-5 w-5" />,
     },
     {
-      name: l("clients", "Client Orgs"),
+      name: l("ocr", "บันทึกบัญชีด้วย AI"),
+      href: f("ocr"),
+      icon: <Sparkles className="h-5 w-5" />,
+    },
+    {
+      name: l("clients", "บริษัทลูกค้า"),
       href: f("clients"),
       icon: <Building2 className="h-5 w-5" />,
     },

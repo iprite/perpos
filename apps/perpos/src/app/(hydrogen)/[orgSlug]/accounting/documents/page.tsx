@@ -43,6 +43,7 @@ import {
 } from "../_components";
 import { DocumentDialog, DocumentCreateDialog } from "../_components/document-dialog";
 import type { AccDocument, AccDocType } from "@/lib/accounting/types";
+import { toast } from "@/lib/toast";
 
 type DocTab = "all" | AccDocType;
 
@@ -68,7 +69,7 @@ export default function DocumentsPage() {
   const canView = can("view", "documents");
   const canWrite = can("write", "documents");
 
-  const { documents, loading } = useAccountingData();
+  const { documents, loading, apiGetRaw } = useAccountingData();
 
   const [tab, setTab] = useState<DocTab>("all");
   const [search, setSearch] = useState("");
@@ -110,9 +111,18 @@ export default function DocumentsPage() {
     };
   }, [documents]);
 
-  function openDoc(d: AccDocument) {
-    setSelected(d);
+  // list endpoint ไม่ได้ join บรรทัดรายการมาด้วย (listDocuments select "*, acc_contacts(name)")
+  // ถ้าเปิด dialog ด้วย object จาก list ตรง ๆ ตารางรายการ + เอกสารที่พิมพ์จะว่าง ("— ไม่มีรายการ —")
+  // ทั้งที่ยอดรวมมีค่า → ต้องดึง detail (ซึ่งแนบ lines) ก่อนเสมอ
+  async function openDoc(d: AccDocument) {
+    setSelected(d); // แสดงหัวเอกสารทันที ไม่ต้องรอ network
     setDialogOpen(true);
+    try {
+      const full = await apiGetRaw<AccDocument>(`documents/${d.id}`);
+      setSelected(full);
+    } catch {
+      toast.error("โหลดรายการในเอกสารไม่สำเร็จ");
+    }
   }
 
   if (!canView)

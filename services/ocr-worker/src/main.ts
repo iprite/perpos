@@ -18,8 +18,11 @@ app.get("/healthz", (_req, res) => {
 
 // ── OCR process trigger ───────────────────────────────────────────────────────
 app.post("/process", (req, res) => {
-  const secret = req.headers["x-worker-secret"];
-  const required = process.env.WORKER_SECRET ?? "";
+  // .trim() both sides — the WORKER_SECRET stored in Secret Manager carries a
+  // trailing newline, and an HTTP header can never reproduce it, so an untrimmed
+  // comparison rejects every legitimate call (401). Same guard as stt-worker.
+  const secret = String(req.headers["x-worker-secret"] ?? "").trim();
+  const required = (process.env.WORKER_SECRET ?? "").trim();
   if (!required || secret !== required) {
     res.status(401).json({ error: "Unauthorized" });
     return;

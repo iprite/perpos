@@ -135,6 +135,8 @@ const STANDARD_THAI_CHART: { code: string; name: string; account_type: AccType }
   { code: "1100", name: "ลูกหนี้การค้า", account_type: "asset" },
   { code: "1130", name: "สินค้าคงเหลือ", account_type: "asset" },
   { code: "1150", name: "ภาษีซื้อ", account_type: "asset" },
+  // ลูกค้าหักภาษี ณ ที่จ่ายจากเรา = ภาษีจ่ายล่วงหน้า (สินทรัพย์) ใช้เครดิตภาษีเงินได้ตอนสิ้นปี
+  { code: "1160", name: "ภาษีเงินได้ถูกหัก ณ ที่จ่าย", account_type: "asset" },
   { code: "1510", name: "อุปกรณ์", account_type: "asset" },
   { code: "1520", name: "ยานพาหนะ", account_type: "asset" },
   { code: "1590", name: "ค่าเสื่อมราคาสะสม", account_type: "asset" },
@@ -143,6 +145,9 @@ const STANDARD_THAI_CHART: { code: string; name: string; account_type: AccType }
   { code: "2100", name: "เจ้าหนี้การค้า", account_type: "liability" },
   { code: "2150", name: "ภาษีขาย", account_type: "liability" },
   { code: "2210", name: "ภาษีหัก ณ ที่จ่ายค้างจ่าย (ภงด.1)", account_type: "liability" },
+  // เราหักภาษี ณ ที่จ่ายจากผู้รับเงิน แล้วค้างนำส่งสรรพากร — แยกตามแบบที่ต้องยื่น
+  { code: "2211", name: "ภาษีหัก ณ ที่จ่ายค้างจ่าย (ภงด.3)", account_type: "liability" },
+  { code: "2212", name: "ภาษีหัก ณ ที่จ่ายค้างจ่าย (ภงด.53)", account_type: "liability" },
   { code: "2220", name: "ประกันสังคมค้างจ่าย", account_type: "liability" },
   { code: "2230", name: "กองทุนสำรองเลี้ยงชีพค้างจ่าย", account_type: "liability" },
   { code: "2240", name: "เงินหักอื่นค้างจ่าย", account_type: "liability" },
