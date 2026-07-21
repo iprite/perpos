@@ -9,6 +9,8 @@ import {
   nextDocNumber,
 } from "../../../_lib";
 import { buildPartySnapshot } from "@/lib/accounting/documents";
+import { validateTaxDocumentParties } from "@/lib/accounting/tax-identity";
+import { isTaxDocument } from "@/lib/accounting/types";
 
 const ROUTE = "/api/accounting/documents/[id]/convert";
 type Ctx = { params: Promise<{ id: string }> };
@@ -58,10 +60,15 @@ export async function POST(req: NextRequest, ctx: Ctx) {
 
   const issueDate = new Date().toISOString().slice(0, 10);
   const year = Number(issueDate.slice(0, 4));
-  const newNumber = await nextDocNumber(admin, orgId, target.type, year);
 
   // snapshot ม.86/4 ใหม่ ณ วันที่แปลง (ไม่ copy ของใบต้นทาง — ใบใหม่คือเอกสารคนละฉบับ คนละวัน)
   const party = await buildPartySnapshot(admin, orgId, (doc.contact_id as string | null) ?? null);
+  if (isTaxDocument(target.type)) {
+    const invalid = validateTaxDocumentParties(party);
+    if (invalid) return accError(invalid, 422); // เช็คก่อนจองเลข — จองแล้วเลขไม่คืน
+  }
+
+  const newNumber = await nextDocNumber(admin, orgId, target.type, year);
 
   const { data: newDoc, error: nErr } = await admin
     .from("acc_documents")

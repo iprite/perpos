@@ -19,6 +19,7 @@ import {
 } from "@/lib/accounting/documents";
 import { postSalesDocumentToJournal } from "@/lib/accounting/sales-journal";
 import { isTaxDocument, requiresRefDocument, type AccDocType } from "@/lib/accounting/types";
+import { validateTaxDocumentParties } from "@/lib/accounting/tax-identity";
 
 const ROUTE = "/api/accounting/documents";
 // ชนิดเอกสารที่ออกได้ (ตรงกับ CHECK ของ acc_documents.doc_type)
@@ -127,6 +128,13 @@ export async function POST(req: NextRequest) {
 
   // snapshot ม.86/4 — freeze ผู้ขาย/ผู้ซื้อ ณ วันที่ออก (ห้าม join สดตอนพิมพ์)
   const party = await buildPartySnapshot(admin, orgId, contactId);
+
+  // ข้อมูลไม่ครบ = ใบกำกับใช้ไม่ได้ตามกฎหมาย และ snapshot ถูก freeze แก้ทีหลังไม่ได้
+  // → ต้องกันตั้งแต่ก่อนจองเลข (จองแล้วเลขไม่คืน)
+  if (isTaxDocument(docType)) {
+    const invalid = validateTaxDocumentParties(party);
+    if (invalid) return accError(invalid, 422);
+  }
 
   // งวดปิดแล้วห้ามออกเอกสารลงงวดนั้น — เช็คก่อนจองเลข (จองแล้วเลขไม่คืน)
   const year = Number(issueDate.slice(0, 4));
