@@ -7,6 +7,19 @@ import { requireAccountingMember, canWriteBackstage, accError, round2 } from "..
 const ROUTE = "/api/accounting/tax-filings/[id]/recompute";
 type Ctx = { params: Promise<{ id: string }> };
 
+// ─────────────────────────────────────────────────────────────────────────────
+// ฐานภาษีขายของ ภ.พ.30 = "ใบกำกับภาษี" เท่านั้น
+//
+// ใบเสนอราคา / ใบแจ้งหนี้ / ใบเสร็จรับเงิน / ใบวางบิล / ใบส่งของ ไม่ใช่ใบกำกับภาษี
+// จึงไม่ใช่ฐานภาษีขาย — เดิมโค้ดนี้ไม่กรอง doc_type เลย ดีลเดียวที่ออก
+// ใบเสนอราคา → ใบแจ้งหนี้ → ใบเสร็จ จึงถูกนับ VAT ซ้ำ 3 รอบ (ยอดภาษีขายเกินจริง)
+//
+// ใบเพิ่มหนี้ (ม.86/9) = เพิ่มภาษีขาย · ใบลดหนี้ (ม.86/10) = ลดภาษีขาย → ต้องหักออก
+// ─────────────────────────────────────────────────────────────────────────────
+const PP30_OUTPUT_VAT_ADD = ["tax_invoice", "receipt_tax_invoice", "debit_note"] as const;
+const PP30_OUTPUT_VAT_SUBTRACT = ["credit_note"] as const;
+const PP30_OUTPUT_VAT_DOC_TYPES: string[] = [...PP30_OUTPUT_VAT_ADD, ...PP30_OUTPUT_VAT_SUBTRACT];
+
 function monthRange(year: number, month: number): { from: string; to: string } {
   const from = `${year}-${String(month).padStart(2, "0")}-01`;
   const lastDay = new Date(year, month, 0).getDate();
@@ -16,7 +29,8 @@ function monthRange(year: number, month: number): { from: string; to: string } {
 
 /**
  * POST → คำนวณยอดภาษีของแบบใหม่จากข้อมูลจริง (accountant).
- *   pp30: sales_vat = Σ documents.vat_amount (vat_enabled, งวดนั้น) · purchase_vat = Σ entries(expense).wht? (จาก vat ซื้อ — เก็บใน entries ไม่มี → 0 ตอนนี้)
+ *   pp30: sales_vat = Σ vat_amount ของ "ใบกำกับภาษี" ในงวด (ใบกำกับ/ใบเสร็จ-ใบกำกับ/ใบเพิ่มหนี้ บวก · ใบลดหนี้ ลบ)
+ *         purchase_vat = คงค่าที่นักบัญชีกรอกเอง (โมเดลนี้ยังไม่เก็บใบกำกับภาษีซื้อ → derive ไม่ได้)
  *   pnd*: wht_total = Σ entries.wht_amount ของงวด (expense, wht_amount>0).
  * filed แล้ว recompute ไม่ได้.
  */
@@ -29,7 +43,7 @@ export async function POST(req: NextRequest, ctx: Ctx) {
 
   const auth = await requireAccountingMember(req, orgId);
   if (!auth.ok) return auth.res;
-  if (!canWriteBackstage(auth.role)) return accError("เฉพาะนักบัญชีเท่านั้นที่จัดการภาษีได้", 403);
+  if (!canWriteBackstage(auth)) return accError("เฉพาะนักบัญชีเท่านั้นที่จัดการภาษีได้", 403);
 
   const admin = createAdminClient();
   const { data: filing } = await admin
@@ -50,24 +64,92 @@ export async function POST(req: NextRequest, ctx: Ctx) {
 
   const { from, to } = monthRange(f.period_year, f.period_month);
   const patch: Record<string, unknown> = {};
+  /** เอกสารฉบับร่างที่ไม่ถูกนับเข้างวดนี้ (เฉพาะ pp30) — UI เอาไปเตือนผู้ใช้ */
+  let draftNotice: {
+    sales_count: number;
+    sales_vat: number;
+    purchase_count: number;
+    purchase_vat: number;
+  } | null = null;
 
   if (f.tax_kind === "pp30") {
+    // ฉบับร่างยังไม่ได้ออกให้ผู้ซื้อ → ยังไม่เป็นฐานภาษี · void ก็ไม่นับ
+    // ⚠️ ต้องนับ "ใบร่างที่ค้าง" แยกไว้เตือนด้วย — ใบที่ออกจริงแล้วแต่ลืมเปลี่ยนสถานะ
+    //    จะทำให้ยอดภาษีขาย "ขาด" = ยื่นต่ำกว่าจริง โดนเบี้ยปรับ (อันตรายกว่ายอดเกิน)
     const { data: docs } = await admin
       .from("acc_documents")
-      .select("vat_amount")
+      .select("doc_type, vat_amount, status")
       .eq("org_id", orgId)
       .eq("vat_enabled", true)
+      .in("doc_type", PP30_OUTPUT_VAT_DOC_TYPES)
       .neq("status", "void")
       .gte("issue_date", from)
       .lte("issue_date", to);
+
+    const salesRows = (docs ?? []) as { doc_type: string; vat_amount: number; status: string }[];
+    const issuedSales = salesRows.filter((d) => d.status !== "draft");
+    const draftSales = salesRows.filter((d) => d.status === "draft");
+
     const salesVat = round2(
-      (docs ?? []).reduce((s, d) => s + (Number((d as { vat_amount: number }).vat_amount) || 0), 0),
+      issuedSales.reduce((s, d) => {
+        const vat = Number(d.vat_amount) || 0;
+        // ใบลดหนี้หักออกจากภาษีขาย (ม.86/10) · ที่เหลือบวกเข้า
+        const sign = (PP30_OUTPUT_VAT_SUBTRACT as readonly string[]).includes(d.doc_type) ? -1 : 1;
+        return s + sign * vat;
+      }, 0),
     );
-    // sales_vat = auto (จากเอกสารขาย VAT งวดนั้น) · purchase_vat = คงค่าที่นักบัญชีกรอกเอง
-    // (โมเดลนี้ไม่ได้เก็บภาษีซื้อจากค่าใช้จ่าย → derive อัตโนมัติไม่ได้, ไม่ทับค่าที่กรอกไว้)
-    const purchaseVat = round2(Number(f.purchase_vat) || 0);
+    const draftSalesVat = round2(draftSales.reduce((s, d) => s + (Number(d.vat_amount) || 0), 0));
+    // ── ภาษีซื้อ: จากทะเบียนใบกำกับภาษีซื้อ (acc_purchase_documents) ──
+    // กรองด้วย "งวดภาษี" (tax_year/tax_month) ไม่ใช่ issue_date เพราะ ม.82/3 ให้เลื่อน
+    // ใช้ภาษีซื้อได้ภายใน 6 เดือน · นับเฉพาะใบที่เครดิตได้ (is_vat_claimable)
+    // ใบลดหนี้จากผู้ขาย = ลดภาษีซื้อ → หักออก
+    const { data: purchases } = await admin
+      .from("acc_purchase_documents")
+      .select("doc_type, vat_amount, status")
+      .eq("org_id", orgId)
+      .eq("is_vat_claimable", true)
+      .neq("status", "void")
+      .eq("tax_year", f.period_year)
+      .eq("tax_month", f.period_month);
+
+    const purchaseRows = (purchases ?? []) as {
+      doc_type: string;
+      vat_amount: number;
+      status: string;
+    }[];
+    // ฉบับร่าง = ยังตรวจไม่เสร็จ ยังไม่ควรเครดิตภาษีซื้อ
+    const recordedPurchases = purchaseRows.filter((d) => d.status !== "draft");
+    const draftPurchases = purchaseRows.filter((d) => d.status === "draft");
+
+    const hasPurchaseRegistry = purchaseRows.length > 0;
+    const derivedPurchaseVat = round2(
+      recordedPurchases.reduce((s, d) => {
+        const vat = Number(d.vat_amount) || 0;
+        return s + (d.doc_type === "credit_note" ? -vat : vat);
+      }, 0),
+    );
+    const draftPurchaseVat = round2(
+      draftPurchases.reduce((s, d) => s + (Number(d.vat_amount) || 0), 0),
+    );
+
+    // ถ้ายังไม่มีใบกำกับซื้อในงวดเลย = org นั้นยังไม่ได้ใช้ทะเบียนซื้อ
+    // → คงค่าที่นักบัญชีกรอกมือไว้ (ไม่ทับเป็น 0 ซึ่งจะทำให้ยอดที่กรอกไว้หาย)
+    const purchaseVat = hasPurchaseRegistry
+      ? derivedPurchaseVat
+      : round2(Number(f.purchase_vat) || 0);
+
     patch.sales_vat = salesVat;
+    patch.purchase_vat = purchaseVat;
     patch.net_payable = round2(salesVat - purchaseVat);
+
+    // เอกสารฉบับร่างที่ถูกตัดออกจากงวดนี้ — ส่งกลับให้ UI เตือน
+    // ถ้าใบถูกออกให้คู่ค้าไปแล้วแต่ยังค้างสถานะร่าง ยอดที่ยื่นจะ "ขาด" → ต้องให้คนเห็น
+    draftNotice = {
+      sales_count: draftSales.length,
+      sales_vat: draftSalesVat,
+      purchase_count: draftPurchases.length,
+      purchase_vat: draftPurchaseVat,
+    };
   } else {
     // pnd1/3/53 — wht_total จาก entries (expense, wht_amount>0) งวดนั้น
     const { data: entries } = await admin
@@ -100,5 +182,5 @@ export async function POST(req: NextRequest, ctx: Ctx) {
     return accError(error.message, 500);
   }
   void recordMetric({ orgId, route: ROUTE, method: req.method, status: 200, t0 });
-  return NextResponse.json(data);
+  return NextResponse.json({ ...(data as Record<string, unknown>), draft_notice: draftNotice });
 }

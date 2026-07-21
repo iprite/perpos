@@ -2,16 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import {
-  Code2,
-  History,
-  ExternalLink,
-  Trash2,
-  RotateCcw,
-  ArrowLeft,
-  Settings2,
-  FileDown,
-} from "lucide-react";
+import { Code2, History, ExternalLink, Trash2, RotateCcw, Settings2, FileDown } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -209,13 +200,6 @@ export function DocWorkspace({ initialDoc }: { initialDoc: ProductDocDetail }) {
         </div>
       }
     >
-      <div className="mb-4">
-        <Button variant="ghost" size="sm" onClick={() => router.push("/admin/product-docs")}>
-          <ArrowLeft className="mr-1.5 h-4 w-4" />
-          กลับคลังเอกสาร
-        </Button>
-      </div>
-
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
         {/* พรีวิว */}
         <div className="min-w-0 lg:col-span-9">

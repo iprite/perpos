@@ -17,6 +17,7 @@ import {
 import type { AccountingRole } from "@/lib/accounting/types";
 
 import { AccountingRoleProvider } from "./_components/role-context";
+import { isSuperAdminUser } from "@/lib/accounting/queries";
 import { AccountingDataProvider } from "./_components/data-provider";
 
 const VALID_ROLES: AccountingRole[] = ["owner", "accountant", "staff", "viewer"];
@@ -42,8 +43,12 @@ export default async function AccountingLayout({
     ? (roleRaw as AccountingRole)
     : "viewer";
 
+  // super_admin: getModuleRoleForCurrentUser คืน "owner" ซึ่งเป็น view-only ฝั่งหลังบ้าน
+  // → ส่งธงแยกให้ role lens ปลดล็อกปุ่ม ให้ตรงกับที่ API อนุญาตแล้ว
+  const isSuperAdmin = await isSuperAdminUser();
+
   return (
-    <AccountingRoleProvider role={role}>
+    <AccountingRoleProvider role={role} isSuperAdmin={isSuperAdmin}>
       {/* client provider fetch ทุก resource ผ่าน API (token + super_admin bypass) — loading skeleton ครอบ */}
       <AccountingDataProvider orgId={org.id}>{children}</AccountingDataProvider>
     </AccountingRoleProvider>

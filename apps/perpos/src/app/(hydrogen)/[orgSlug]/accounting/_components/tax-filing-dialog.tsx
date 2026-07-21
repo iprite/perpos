@@ -146,6 +146,24 @@ export function TaxFilingDialog({
       return;
     }
     toast.success("คำนวณยอดภาษีใหม่แล้ว — สถานะ: พร้อมยื่น");
+    // ใบฉบับร่างถูก "ตัดออก" จากยอดงวดนี้ — ต้องเตือน ไม่ใช่เงียบ:
+    // ถ้าใบถูกออกให้คู่ค้าจริงแล้วแต่ค้างสถานะร่าง ยอดที่ยื่นจะขาด (เบี้ยปรับ)
+    const dn = r.data?.draft_notice as {
+      sales_count?: number;
+      sales_vat?: number;
+      purchase_count?: number;
+      purchase_vat?: number;
+    } | null;
+    if (dn && ((dn.sales_count ?? 0) > 0 || (dn.purchase_count ?? 0) > 0)) {
+      const parts: string[] = [];
+      if ((dn.sales_count ?? 0) > 0)
+        parts.push(`ใบกำกับขายฉบับร่าง ${dn.sales_count} ฉบับ (VAT ${dn.sales_vat})`);
+      if ((dn.purchase_count ?? 0) > 0)
+        parts.push(`ใบกำกับซื้อฉบับร่าง ${dn.purchase_count} ฉบับ (VAT ${dn.purchase_vat})`);
+      toast.error(
+        `⚠️ ไม่ได้นับ: ${parts.join(" · ")} — ถ้าออกให้คู่ค้าแล้วให้เปลี่ยนสถานะก่อนยื่น`,
+      );
+    }
     onOpenChange(false);
   }
 

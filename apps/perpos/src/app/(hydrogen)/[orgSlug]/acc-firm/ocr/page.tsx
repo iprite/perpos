@@ -35,7 +35,6 @@ import {
   CheckCircle2,
   Trash2,
   Plus,
-  ArrowLeft,
   Loader2,
   BookOpen,
   AlertCircle,
@@ -44,6 +43,7 @@ import {
   X,
   FileUp,
   Lock,
+  Brain,
 } from "lucide-react";
 import { toast } from "@/lib/toast";
 
@@ -79,6 +79,8 @@ type ClientContext = {
   chart_of_accounts: Array<{ id: string; code: string; name: string; type: string }>;
   // contacts ยังมีเพื่อแสดงข้อมูล vendor ใน context แต่ไม่ bind ต่อบรรทัด
   contacts: Array<{ id: string; name: string; contact_type: string }>;
+  // Self-improvement loop: number of vendors learned for this client
+  learned_vendor_count?: number;
 };
 
 // ── UI Helpers ─────────────────────────────────────────────────────────────────
@@ -540,6 +542,12 @@ export default function AccFirmOcrPage() {
         toast.success(
           post ? "อนุมัติลงสมุดรายวันแยกประเภทเสร็จสิ้น" : "บันทึกสมุดรายวันร่างเรียบร้อย",
         );
+        // ลงบัญชีสำเร็จแต่ทะเบียนใบกำกับภาษีซื้อไม่ได้บันทึก → ภ.พ.30 ของลูกค้าจะขาดใบนี้
+        // ต้องบอกนักบัญชีให้ไปบันทึกมือ ไม่ปล่อยผ่านเงียบ ๆ
+        const pdw = json?.data?.purchaseDocWarning as string | null | undefined;
+        if (post && pdw) {
+          toast.error(`⚠️ ทะเบียนใบกำกับภาษีซื้อไม่ถูกบันทึก: ${pdw}`);
+        }
         setActiveJob(null);
         await fetchJobs(orgId, token);
       } else {
@@ -602,26 +610,13 @@ export default function AccFirmOcrPage() {
     activeJob?.document_url.split("?")[0].toLowerCase().endsWith(".pdf");
 
   return (
-    <PageShell width="full">
-      {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <Link href={`/${orgSlug}/acc-firm`}>
-            <Button variant="ghost" size="icon" className="rounded-full">
-              <ArrowLeft className="h-5 w-5 text-slate-600" />
-            </Button>
-          </Link>
-          <div>
-            <h1 className="flex items-center gap-2 text-xl font-bold text-slate-900">
-              <Calculator className="h-5 w-5 text-teal-500" /> AI Bookkeeping Review
-            </h1>
-            <p className="text-sm text-slate-500">
-              ตรวจรับเอกสารและตรวจสอบคู่บัญชีที่จัดสรรโดย AI OCR
-            </p>
-          </div>
-        </div>
-
-        <div className="flex shrink-0 items-center gap-2">
+    <PageShell
+      width="full"
+      icon={<Calculator className="h-6 w-6" />}
+      title="บันทึกบัญชีด้วย AI"
+      description="ตรวจรับเอกสารและตรวจสอบคู่บัญชีที่จัดสรรโดย AI OCR"
+      actions={
+        <div className="flex flex-wrap items-center gap-2">
           {pendingCount > 0 && (
             <Button
               onClick={handleBatchProcess}
@@ -637,12 +632,17 @@ export default function AccFirmOcrPage() {
               วิเคราะห์ทั้งหมด ({pendingCount})
             </Button>
           )}
+          <Link href={`/${orgSlug}/acc-firm/ocr/memory`}>
+            <Button variant="outline" className="gap-2">
+              <Brain className="h-4 w-4" /> ความจำของระบบ
+            </Button>
+          </Link>
           <Button onClick={() => setUploadOpen(true)} className="gap-2">
             <UploadCloud className="h-4 w-4" /> อัปโหลดเอกสาร
           </Button>
         </div>
-      </div>
-
+      }
+    >
       {/* Filters Bar */}
       <div className="flex flex-wrap items-center gap-4 rounded-xl border bg-slate-50 p-4">
         <div className="w-full space-y-1 sm:w-64">
@@ -733,6 +733,14 @@ export default function AccFirmOcrPage() {
                               className={`whitespace-nowrap rounded-full border px-1.5 py-0.5 text-[10px] font-semibold ${conf.cls}`}
                             >
                               {conf.pct}%
+                            </span>
+                          )}
+                          {job.classified_json?.classification?.matched_from_memory && (
+                            <span
+                              className="whitespace-nowrap rounded-full border border-primary bg-gray-50 px-1.5 py-0.5 text-[10px] font-semibold text-primary"
+                              title="ระบบจัดประเภทจากผู้ขายที่เคยจำได้"
+                            >
+                              🧠 จำได้
                             </span>
                           )}
                         </div>
@@ -1000,6 +1008,31 @@ export default function AccFirmOcrPage() {
                       </div>
                     );
                   })()}
+
+                  {/* Learning loop: memory match + review divergence */}
+                  {(activeJob?.classified_json?.classification?.matched_from_memory ||
+                    (clientContext?.learned_vendor_count ?? 0) > 0) && (
+                    <div className="flex items-start gap-2 rounded-xl border border-gray-200 bg-gray-50 p-3.5 text-xs">
+                      <span className="text-base leading-none">🧠</span>
+                      <div className="space-y-1">
+                        <span className="font-bold text-primary">
+                          {activeJob?.classified_json?.classification?.matched_from_memory
+                            ? "จัดประเภทจากผู้ขายที่ระบบเคยจำได้"
+                            : `ระบบจดจำผู้ขายของลูกค้ารายนี้แล้ว ${clientContext?.learned_vendor_count} ราย`}
+                        </span>
+                        {(activeJob?.classified_json?.classification?.review_reasons?.length ?? 0) >
+                          0 && (
+                          <ul className="list-disc space-y-0.5 pl-4 font-medium text-amber-700">
+                            {activeJob?.classified_json?.classification?.review_reasons?.map(
+                              (r: string, idx: number) => (
+                                <li key={idx}>{r}</li>
+                              ),
+                            )}
+                          </ul>
+                        )}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Warnings */}
                   {(activeJob?.extracted_json?.warnings?.length ?? 0) > 0 && (

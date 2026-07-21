@@ -4,6 +4,7 @@ import {
   Users,
   BookOpenText,
   ReceiptText,
+  FileInput,
   BarChart3,
   ShieldCheck,
   Wallet,
@@ -127,6 +128,12 @@ function buildUserMenuItems(org: string, labels: Record<string, string> = {}): M
     },
     // ── หลังบ้าน (นักบัญชี) ───────────────────────────────────────────────────
     { name: l("backstage", "หลังบ้าน (นักบัญชี)"), roles: allRoles },
+    {
+      name: l("purchase_documents", "ใบกำกับภาษีซื้อ"),
+      href: a("purchase-documents"),
+      icon: <FileInput className="h-5 w-5" />,
+      roles: allRoles,
+    },
     {
       name: l("journal", "สมุดรายวัน"),
       href: a("journal"),
@@ -407,7 +414,12 @@ function buildAccFirmMenuItems(org: string, labels: Record<string, string> = {})
       icon: <LayoutDashboard className="h-5 w-5" />,
     },
     {
-      name: l("clients", "Client Orgs"),
+      name: l("ocr", "บันทึกบัญชีด้วย AI"),
+      href: f("ocr"),
+      icon: <Sparkles className="h-5 w-5" />,
+    },
+    {
+      name: l("clients", "บริษัทลูกค้า"),
       href: f("clients"),
       icon: <Building2 className="h-5 w-5" />,
     },

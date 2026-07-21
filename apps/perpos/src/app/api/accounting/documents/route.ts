@@ -9,12 +9,30 @@ import {
   orgIdFromQuery,
   num,
   nextDocNumber,
+  assertPeriodOpen,
 } from "../_lib";
-import { listDocuments, computeDocument } from "@/lib/accounting/documents";
+import {
+  listDocuments,
+  computeDocument,
+  buildPartySnapshot,
+  getDocument,
+} from "@/lib/accounting/documents";
+import { postSalesDocumentToJournal } from "@/lib/accounting/sales-journal";
+import { isTaxDocument, requiresRefDocument, type AccDocType } from "@/lib/accounting/types";
 
 const ROUTE = "/api/accounting/documents";
-const VALID_DOC_TYPES = ["quotation", "invoice", "receipt"];
-const DOC_PREFIX: Record<string, string> = { quotation: "QT", invoice: "INV", receipt: "RC" };
+// ชนิดเอกสารที่ออกได้ (ตรงกับ CHECK ของ acc_documents.doc_type)
+const VALID_DOC_TYPES: AccDocType[] = [
+  "quotation",
+  "invoice",
+  "receipt",
+  "tax_invoice",
+  "receipt_tax_invoice",
+  "credit_note",
+  "debit_note",
+  "billing_note",
+  "delivery_note",
+];
 const VALID_WHT = [0, 1, 2, 3, 5, 10, 15];
 
 /** GET ?orgId=&docType=&status=&from=&to= → เอกสารขาย (list) */
@@ -34,9 +52,18 @@ export async function GET(req: NextRequest) {
       contactId: p.get("contactId") ?? undefined,
       from: p.get("from") ?? undefined,
       to: p.get("to") ?? undefined,
+      limit: p.get("limit") ? Number(p.get("limit")) : undefined,
+      offset: p.get("offset") ? Number(p.get("offset")) : undefined,
     });
     void recordMetric({ orgId, route: ROUTE, method: req.method, status: 200, t0 });
-    return NextResponse.json({ documents: data });
+    // total/truncated = กัน UI คิดยอดรวมจากชุดที่ถูกตัด (PostgREST cap 1,000 แถว)
+    return NextResponse.json({
+      documents: data.rows,
+      total: data.total,
+      limit: data.limit,
+      offset: data.offset,
+      truncated: data.truncated,
+    });
   } catch (e) {
     void recordMetric({ orgId, route: ROUTE, method: req.method, status: 500, t0 });
     return accError((e as Error).message, 500);
@@ -52,9 +79,9 @@ export async function POST(req: NextRequest) {
 
   const auth = await requireAccountingMember(req, orgId);
   if (!auth.ok) return auth.res;
-  if (!canWriteFrontstage(auth.role)) return accError("ไม่มีสิทธิ์บันทึกข้อมูล", 403);
+  if (!canWriteFrontstage(auth)) return accError("ไม่มีสิทธิ์บันทึกข้อมูล", 403);
 
-  const docType = String(body.doc_type ?? "");
+  const docType = String(body.doc_type ?? "") as AccDocType;
   if (!VALID_DOC_TYPES.includes(docType)) return accError("ชนิดเอกสารไม่ถูกต้อง");
   const issueDate = String(body.issue_date ?? "");
   if (!issueDate) return accError("กรุณาเลือกวันที่เอกสาร");
@@ -78,12 +105,42 @@ export async function POST(req: NextRequest) {
 
   const computed = computeDocument(body.lines, vatEnabled, vatRate, whtRate);
 
-  await setAuditContext(req, auth.userId, orgId);
+  // ใบลดหนี้/ใบเพิ่มหนี้ ต้องอ้างใบกำกับภาษีเดิม (ม.86/10 (3), ม.86/9 (3))
+  // เอกสารชนิดอื่นไม่มีการอ้างอิงแบบนี้ → ทิ้งค่าที่ client ส่งมา (กันข้อมูลขยะ/อ้างมั่ว)
+  const contactId = (body.contact_id as string) || null;
+  let refDocumentId: string | null = null;
+  if (requiresRefDocument(docType)) {
+    refDocumentId = (body.ref_document_id as string) || null;
+    if (!refDocumentId) return accError("ใบลดหนี้/ใบเพิ่มหนี้ ต้องอ้างอิงใบกำกับภาษีเดิม");
+    const { data: refDoc } = await admin
+      .from("acc_documents")
+      .select("id, doc_type")
+      .eq("org_id", orgId)
+      .eq("id", refDocumentId)
+      .maybeSingle();
+    if (!refDoc) return accError("ไม่พบใบกำกับภาษีที่อ้างอิง", 404);
+    // ต้องอ้าง "ใบกำกับภาษี" เท่านั้น — อ้างใบเสนอราคา/ใบแจ้งหนี้ไม่ได้ตามกฎหมาย
+    const refType = (refDoc as { doc_type: string }).doc_type;
+    if (refType !== "tax_invoice" && refType !== "receipt_tax_invoice")
+      return accError("เอกสารที่อ้างอิงต้องเป็นใบกำกับภาษีเท่านั้น");
+  }
+
+  // snapshot ม.86/4 — freeze ผู้ขาย/ผู้ซื้อ ณ วันที่ออก (ห้าม join สดตอนพิมพ์)
+  const party = await buildPartySnapshot(admin, orgId, contactId);
+
+  // งวดปิดแล้วห้ามออกเอกสารลงงวดนั้น — เช็คก่อนจองเลข (จองแล้วเลขไม่คืน)
   const year = Number(issueDate.slice(0, 4));
-  const docNumber = await nextDocNumber(admin, "acc_documents", orgId, DOC_PREFIX[docType], year, {
-    column: "doc_type",
-    value: docType,
-  });
+  const month = Number(issueDate.slice(5, 7));
+  const periodOk = await assertPeriodOpen(admin, orgId, year, month);
+  if (!periodOk.ok)
+    return accError(
+      `งวดบัญชี ${year}/${String(month).padStart(2, "0")} ปิดแล้ว ออกเอกสารลงงวดนี้ไม่ได้`,
+      409,
+    );
+
+  await setAuditContext(req, auth.userId, orgId);
+  // เลขจาก sequence atomic + รหัสนำหน้าที่ org ตั้งไว้จริง (ไม่ hard-code แล้ว)
+  const docNumber = await nextDocNumber(admin, orgId, docType, year);
 
   const { data: header, error: hErr } = await admin
     .from("acc_documents")
@@ -91,10 +148,13 @@ export async function POST(req: NextRequest) {
       org_id: orgId,
       doc_type: docType,
       doc_number: docNumber,
-      contact_id: (body.contact_id as string) || null,
+      contact_id: contactId,
       issue_date: issueDate,
       due_date: (body.due_date as string) || null,
-      status: (body.status as string) || "draft",
+      // ใบกำกับภาษี/ใบเสร็จ-ใบกำกับ/ใบลด-เพิ่มหนี้ = "ออก" ตั้งแต่ตอนสร้าง (ส่งให้ผู้ซื้อแล้ว)
+      // จึงตั้งต้นเป็น sent ไม่ใช่ draft — ถ้าค้าง draft จะไม่ถูกนับใน ภ.พ.30
+      // ทำให้ยื่นภาษีขาย "ขาด" (โดนเบี้ยปรับ) · ใบเสนอราคา/ใบวางบิล ฯลฯ ยังเป็น draft ตามเดิม
+      status: (body.status as string) || (isTaxDocument(docType) ? "sent" : "draft"),
       vat_enabled: vatEnabled,
       subtotal: computed.subtotal,
       vat_amount: computed.vat_amount,
@@ -103,6 +163,14 @@ export async function POST(req: NextRequest) {
       wht_amount: computed.wht_amount,
       note: (body.note as string) || null,
       created_by: auth.userId,
+      // ── ม.86/4 ──
+      ...party,
+      book_number: isTaxDocument(docType)
+        ? ((body.book_number as string) || "").trim() || null
+        : null,
+      vat_rate: vatEnabled ? vatRate : 0,
+      ref_document_id: refDocumentId,
+      issued_at: new Date().toISOString(),
     })
     .select("id")
     .single();
@@ -124,6 +192,7 @@ export async function POST(req: NextRequest) {
     amount: l.amount,
     sort_order: i,
     product_id: l.product_id,
+    unit: l.unit,
     created_by: auth.userId,
   }));
   const { error: lErr } = await admin.from("acc_document_lines").insert(lineRows);
@@ -132,6 +201,26 @@ export async function POST(req: NextRequest) {
     void recordMetric({ orgId, route: ROUTE, method: req.method, status: 500, t0 });
     return accError(lErr.message, 500);
   }
+  // Phase 1.5 — auto journal ฝั่งขาย (idempotent · skip เอกสารที่ไม่ใช่จุดรับรู้รายได้)
+  // ล้มเหลวไม่ล้มการออกเอกสาร แต่ต้องบอกให้รู้ว่ายอดยังไม่เข้างบ
+  let journalEntryId: string | null = null;
+  let journalWarning: string | null = null;
+  const full = await getDocument(admin, orgId, docId);
+  if (full) {
+    const jr = await postSalesDocumentToJournal(admin, orgId, full, full.lines ?? [], auth.userId);
+    if ("skipped" in jr) journalEntryId = null;
+    else if (jr.ok) journalEntryId = jr.journalEntryId;
+    else journalWarning = jr.error;
+  }
+
   void recordMetric({ orgId, route: ROUTE, method: req.method, status: 201, t0 });
-  return NextResponse.json({ id: docId, doc_number: docNumber }, { status: 201 });
+  return NextResponse.json(
+    {
+      id: docId,
+      doc_number: docNumber,
+      journal_entry_id: journalEntryId,
+      journal_warning: journalWarning,
+    },
+    { status: 201 },
+  );
 }

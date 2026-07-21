@@ -91,6 +91,29 @@ const MATRIX_ROWS: { entity: string; label: string; access: Record<string, strin
 
 const ROLES = ["owner", "accountant", "staff", "viewer"] as const;
 
+// รหัสนำหน้าเลขเอกสาร — ระบบเติม "-ปี-ลำดับ4หลัก" ต่อท้ายให้เอง (เช่น TIV → TIV-2026-0001)
+const DOC_PREFIX_FIELDS: { key: string; label: string; fallback: string }[] = [
+  { key: "quotation", label: "ใบเสนอราคา", fallback: "QT" },
+  { key: "billing_note", label: "ใบวางบิล", fallback: "BN" },
+  { key: "invoice", label: "ใบแจ้งหนี้", fallback: "INV" },
+  { key: "delivery_note", label: "ใบส่งของ", fallback: "DO" },
+  { key: "tax_invoice", label: "ใบกำกับภาษี", fallback: "TIV" },
+  { key: "receipt_tax_invoice", label: "ใบเสร็จ/ใบกำกับภาษี", fallback: "RTV" },
+  { key: "receipt", label: "ใบเสร็จรับเงิน", fallback: "RC" },
+  { key: "credit_note", label: "ใบลดหนี้", fallback: "CN" },
+  { key: "debit_note", label: "ใบเพิ่มหนี้", fallback: "DN" },
+];
+
+/** ตัดตัวคั่น/ปีท้าย + เหลือ A-Z0-9 — ต้องตรงกับ normalizeDocPrefix ฝั่ง API */
+function normalizePrefix(raw: unknown, fallback: string): string {
+  let v = String(raw ?? "").trim();
+  if (!v) return fallback;
+  v = v.replace(/[-_\s]+$/, "");
+  v = v.replace(/[-_\s]*\d{4}$/, "");
+  v = v.replace(/[^A-Za-z0-9]/g, "").toUpperCase();
+  return v || fallback;
+}
+
 function Toggle({
   on,
   onClick,
@@ -135,16 +158,15 @@ export default function SettingsPage() {
   // org form (local state synced จาก orgSettings)
   const [orgName, setOrgName] = useState("");
   const [taxId, setTaxId] = useState("");
+  const [branch, setBranch] = useState("");
   const [fiscal, setFiscal] = useState("1");
   const [address, setAddress] = useState("");
   const [logo, setLogo] = useState<string | null>(null);
   const [signature, setSignature] = useState<string | null>(null);
   const [savingOrg, setSavingOrg] = useState(false);
 
-  // docnum prefix
-  const [qtPrefix, setQtPrefix] = useState("QT-2026-");
-  const [invPrefix, setInvPrefix] = useState("INV-2026-");
-  const [rcPrefix, setRcPrefix] = useState("RC-2026-");
+  // docnum prefix — รหัสนำหน้าต่อชนิดเอกสาร (ระบบเติม "-ปี-ลำดับ" ให้เอง)
+  const [prefixes, setPrefixes] = useState<Record<string, string>>({});
   const [savingDoc, setSavingDoc] = useState(false);
   const [savingVat, setSavingVat] = useState(false);
 
@@ -153,14 +175,17 @@ export default function SettingsPage() {
     if (!orgSettings) return;
     setOrgName(orgSettings.org_name ?? "");
     setTaxId(orgSettings.tax_id ?? "");
+    setBranch(orgSettings.branch ?? "");
     setFiscal(String(orgSettings.fiscal_start_month ?? 1));
     setAddress(orgSettings.address ?? "");
     setLogo(orgSettings.logo_data_url ?? null);
     setSignature(orgSettings.signature_data_url ?? null);
     const px = orgSettings.doc_number_prefix ?? {};
-    setQtPrefix(px.quotation ?? "QT-2026-");
-    setInvPrefix(px.invoice ?? "INV-2026-");
-    setRcPrefix(px.receipt ?? "RC-2026-");
+    setPrefixes(
+      Object.fromEntries(
+        DOC_PREFIX_FIELDS.map((f) => [f.key, normalizePrefix(px[f.key], f.fallback)]),
+      ),
+    );
   }, [orgSettings]);
 
   const vatRegistered = orgSettings?.is_vat_registered ?? false;
@@ -176,6 +201,7 @@ export default function SettingsPage() {
     const r = await updateOrgSettings({
       org_name: orgName.trim() || null,
       tax_id: taxId.trim() || null,
+      branch: branch.trim() || null,
       fiscal_start_month: fm,
       address: address.trim() || null,
       logo_data_url: logo,
@@ -210,11 +236,9 @@ export default function SettingsPage() {
   async function handleSaveDocnum() {
     setSavingDoc(true);
     const r = await updateOrgSettings({
-      doc_number_prefix: {
-        quotation: qtPrefix.trim(),
-        invoice: invPrefix.trim(),
-        receipt: rcPrefix.trim(),
-      },
+      doc_number_prefix: Object.fromEntries(
+        DOC_PREFIX_FIELDS.map((f) => [f.key, normalizePrefix(prefixes[f.key], f.fallback)]),
+      ),
     });
     setSavingDoc(false);
     if (!r.ok) {
@@ -289,6 +313,20 @@ export default function SettingsPage() {
                 onChange={(e) => setTaxId(e.target.value)}
                 disabled={!canManage}
               />
+            </div>
+            <div>
+              <Label htmlFor="org-branch">สาขา</Label>
+              <Input
+                id="org-branch"
+                className="mt-1"
+                placeholder="สำนักงานใหญ่"
+                value={branch}
+                onChange={(e) => setBranch(e.target.value)}
+                disabled={!canManage}
+              />
+              <Text className="mt-1 text-xs text-gray-400">
+                ต้องระบุบนใบกำกับภาษี (มาตรา 86/4) เช่น “สำนักงานใหญ่” หรือ “สาขาที่ 00001”
+              </Text>
             </div>
             <div>
               <Label htmlFor="org-fiscal">เดือนเริ่มรอบบัญชี (1–12)</Label>
@@ -385,38 +423,32 @@ export default function SettingsPage() {
       {tab === "docnum" && (
         <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
           <div className="text-sm font-semibold text-gray-900">รูปแบบเลขเอกสาร</div>
-          <Text className="mt-1 text-sm text-gray-500">กำหนด prefix เลขรันต่อชนิดเอกสาร</Text>
+          <Text className="mt-1 text-sm text-gray-500">
+            กรอกเฉพาะ “รหัสนำหน้า” — ระบบเติมปีและลำดับให้เอง เช่น TIV → TIV-2026-0001 ·
+            ลำดับเดินหน้าอย่างเดียว ไม่ย้อนกลับแม้ลบหรือยกเลิกเอกสาร (เลขที่ใบกำกับภาษีห้ามซ้ำ)
+          </Text>
           <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
-            <div>
-              <Label htmlFor="px-qt">ใบเสนอราคา</Label>
-              <Input
-                id="px-qt"
-                className="mt-1"
-                value={qtPrefix}
-                onChange={(e) => setQtPrefix(e.target.value)}
-                disabled={!canManage}
-              />
-            </div>
-            <div>
-              <Label htmlFor="px-inv">ใบแจ้งหนี้</Label>
-              <Input
-                id="px-inv"
-                className="mt-1"
-                value={invPrefix}
-                onChange={(e) => setInvPrefix(e.target.value)}
-                disabled={!canManage}
-              />
-            </div>
-            <div>
-              <Label htmlFor="px-rc">ใบเสร็จรับเงิน</Label>
-              <Input
-                id="px-rc"
-                className="mt-1"
-                value={rcPrefix}
-                onChange={(e) => setRcPrefix(e.target.value)}
-                disabled={!canManage}
-              />
-            </div>
+            {DOC_PREFIX_FIELDS.map((f) => {
+              const val = prefixes[f.key] ?? f.fallback;
+              return (
+                <div key={f.key}>
+                  <Label htmlFor={`px-${f.key}`}>{f.label}</Label>
+                  <Input
+                    id={`px-${f.key}`}
+                    className="mt-1"
+                    value={val}
+                    placeholder={f.fallback}
+                    onChange={(e) =>
+                      setPrefixes((prev) => ({ ...prev, [f.key]: e.target.value.toUpperCase() }))
+                    }
+                    disabled={!canManage}
+                  />
+                  <Text className="mt-1 text-xs text-gray-400">
+                    {normalizePrefix(val, f.fallback)}-{new Date().getFullYear()}-0001
+                  </Text>
+                </div>
+              );
+            })}
           </div>
           <div className="mt-5 flex justify-end">
             <Button disabled={!canManage || savingDoc} onClick={() => void handleSaveDocnum()}>
@@ -426,7 +458,6 @@ export default function SettingsPage() {
         </div>
       )}
 
-      {/* ผู้ใช้ & สิทธิ์ (matrix read-only) */}
       {tab === "users" && (
         <div>
           <div className="mb-2.5 px-1 text-sm font-semibold text-gray-900">

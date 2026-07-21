@@ -40,8 +40,7 @@ export async function POST(req: NextRequest) {
 
   const auth = await requireAccountingMember(req, orgId);
   if (!auth.ok) return auth.res;
-  if (!canWriteBackstage(auth.role))
-    return accError("เฉพาะนักบัญชีเท่านั้นที่จัดการผังบัญชีได้", 403);
+  if (!canWriteBackstage(auth)) return accError("เฉพาะนักบัญชีเท่านั้นที่จัดการผังบัญชีได้", 403);
 
   const code = String(body.code ?? "").trim();
   const name = String(body.name ?? "").trim();
