@@ -202,6 +202,23 @@ export async function getEnabledModulesForOrg(
   const { ALL_MODULES } = await import("@/lib/modules");
   const supabase = createSupabaseAdminClient();
 
+  // super_admin ข้ามการกรองด้วย role (ตาม convention "admin bypass ทุก permission")
+  //
+  // จำเป็น เพราะ getOrganizationsForCurrentUser สังเคราะห์ role ให้ super_admin เป็น "admin"
+  // เสมอ (ทิ้ง membership จริง) แต่ allowed_roles ของแต่ละโมดูลมาจาก role matrix ของโมดูลนั้น
+  // ซึ่งบางโมดูล **ไม่มี role ชื่อ "admin" อยู่เลย** (accounting = owner/accountant/staff/viewer)
+  // → super_admin จะมองไม่เห็นโมดูลนั้นตลอดกาล แม้ is_enabled = true
+  const user = await getAuthUser();
+  let isSuperAdmin = false;
+  if (user) {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .maybeSingle();
+    isSuperAdmin = (profile as { role?: string } | null)?.role === "super_admin";
+  }
+
   // Fetch org slug alongside module settings — needed to enforce forOrgSlugs
   const [{ data: orgData }, { data }] = await Promise.all([
     supabase.from("organizations").select("slug").eq("id", orgId).single(),
@@ -218,7 +235,8 @@ export async function getEnabledModulesForOrg(
   return (data as any[])
     .filter((row) => {
       if (!row.is_enabled) return false;
-      if (memberRole && !(row.allowed_roles as string[]).includes(memberRole)) return false;
+      if (!isSuperAdmin && memberRole && !(row.allowed_roles as string[]).includes(memberRole))
+        return false;
       // Guard: specific modules with forOrgSlugs must match this org's slug.
       // This prevents a module from being served to a wrong org even if DB has stale data.
       const def = ALL_MODULES.find((m) => m.key === row.module_key);
