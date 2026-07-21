@@ -11,7 +11,13 @@ import {
   nextDocNumber,
   assertPeriodOpen,
 } from "../_lib";
-import { listDocuments, computeDocument, buildPartySnapshot } from "@/lib/accounting/documents";
+import {
+  listDocuments,
+  computeDocument,
+  buildPartySnapshot,
+  getDocument,
+} from "@/lib/accounting/documents";
+import { postSalesDocumentToJournal } from "@/lib/accounting/sales-journal";
 import { isTaxDocument, requiresRefDocument, type AccDocType } from "@/lib/accounting/types";
 
 const ROUTE = "/api/accounting/documents";
@@ -186,6 +192,26 @@ export async function POST(req: NextRequest) {
     void recordMetric({ orgId, route: ROUTE, method: req.method, status: 500, t0 });
     return accError(lErr.message, 500);
   }
+  // Phase 1.5 — auto journal ฝั่งขาย (idempotent · skip เอกสารที่ไม่ใช่จุดรับรู้รายได้)
+  // ล้มเหลวไม่ล้มการออกเอกสาร แต่ต้องบอกให้รู้ว่ายอดยังไม่เข้างบ
+  let journalEntryId: string | null = null;
+  let journalWarning: string | null = null;
+  const full = await getDocument(admin, orgId, docId);
+  if (full) {
+    const jr = await postSalesDocumentToJournal(admin, orgId, full, full.lines ?? [], auth.userId);
+    if ("skipped" in jr) journalEntryId = null;
+    else if (jr.ok) journalEntryId = jr.journalEntryId;
+    else journalWarning = jr.error;
+  }
+
   void recordMetric({ orgId, route: ROUTE, method: req.method, status: 201, t0 });
-  return NextResponse.json({ id: docId, doc_number: docNumber }, { status: 201 });
+  return NextResponse.json(
+    {
+      id: docId,
+      doc_number: docNumber,
+      journal_entry_id: journalEntryId,
+      journal_warning: journalWarning,
+    },
+    { status: 201 },
+  );
 }

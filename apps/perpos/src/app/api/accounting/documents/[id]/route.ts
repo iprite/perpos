@@ -14,6 +14,7 @@ import {
 } from "../../_lib";
 import { getDocument, computeDocument, buildPartySnapshot } from "@/lib/accounting/documents";
 import { isTaxDocument, type AccDocType } from "@/lib/accounting/types";
+import { postSalesDocumentToJournal } from "@/lib/accounting/sales-journal";
 
 const ROUTE = "/api/accounting/documents/[id]";
 const VALID_WHT = [0, 1, 2, 3, 5, 10, 15];
@@ -186,8 +187,23 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
   }
 
   const updated = await getDocument(admin, orgId, id);
+
+  // Phase 1.5 — เอกสารที่เพิ่งพ้นฉบับร่าง (draft → sent) = จุดรับรู้รายได้ → ลงบัญชีให้
+  // idempotent: ใบที่ลงแล้วจะไม่ซ้ำ · ใบที่ไม่ใช่จุดรับรู้จะถูก skip
+  let journalWarning: string | null = null;
+  if (updated && ex.status === "draft" && headerPatch.status && headerPatch.status !== "draft") {
+    const jr = await postSalesDocumentToJournal(
+      admin,
+      orgId,
+      updated,
+      updated.lines ?? [],
+      auth.userId,
+    );
+    if (!("skipped" in jr) && !jr.ok) journalWarning = jr.error;
+  }
+
   void recordMetric({ orgId, route: ROUTE, method: req.method, status: 200, t0 });
-  return NextResponse.json(updated);
+  return NextResponse.json({ ...updated, journal_warning: journalWarning });
 }
 
 /** DELETE ?orgId= → ลบเอกสาร (lines CASCADE) */
