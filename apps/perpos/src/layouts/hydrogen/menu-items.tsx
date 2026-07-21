@@ -1,4 +1,5 @@
 import React from "react";
+import { showAccountingBackstage } from "@/lib/accounting/menu-lens";
 import {
   LayoutDashboard,
   Users,
@@ -81,13 +82,23 @@ function hasRole(itemRoles: Role[] | undefined, role: Role | null) {
 }
 
 // ─── Accounting module ──────────────────────────────────────────────────────
-function buildUserMenuItems(org: string, labels: Record<string, string> = {}): MenuItem[] {
+function buildUserMenuItems(
+  org: string,
+  labels: Record<string, string> = {},
+  moduleRole?: string | null,
+  isSuperAdmin = false,
+): MenuItem[] {
   const l = (key: string, fallback: string) => labels[key] || fallback;
   const a = (path: string) => `/${org}/accounting/${path}`;
   const base = `/${org}/accounting`;
   // เมนู 2 กลุ่มตรงกับหน้า production จริง (หน้าบ้าน owner cockpit / หลังบ้าน นักบัญชี)
-  // role lens ที่เมนู: ไม่กรอง — page guard + NoAccess คุมสิทธิ์ที่หน้า (staff เปิดหลังบ้าน → NoAccess)
-  return [
+  //
+  // role lens ที่เมนู (Phase 2): ตาม role matrix §4 ฝั่งหลังบ้าน owner/viewer = ดูได้,
+  // accountant = เขียนได้, **staff = ไม่มีสิทธิ์เลย** → ซ่อนทั้งกลุ่มสำหรับ staff
+  // แทนที่จะโชว์ 7 เมนูที่กดเข้าไปเจอ NoAccess (เจ้าของกิจการ/พนักงานขายไม่ใช่นักบัญชี
+  // เมนูที่กดไม่ได้คือ noise) · สิทธิ์จริงยังบังคับที่ page guard + API เหมือนเดิม
+  const showBackstage = showAccountingBackstage(moduleRole, isSuperAdmin);
+  const frontstage: MenuItem[] = [
     // ── หน้าบ้าน (owner cockpit) ─────────────────────────────────────────────
     { name: l("frontstage", "หน้าบ้าน"), roles: allRoles },
     {
@@ -126,6 +137,9 @@ function buildUserMenuItems(org: string, labels: Record<string, string> = {}): M
       icon: <Percent className="h-5 w-5" />,
       roles: allRoles,
     },
+  ];
+
+  const backstage: MenuItem[] = [
     // ── หลังบ้าน (นักบัญชี) ───────────────────────────────────────────────────
     { name: l("backstage", "หลังบ้าน (นักบัญชี)"), roles: allRoles },
     {
@@ -171,6 +185,8 @@ function buildUserMenuItems(org: string, labels: Record<string, string> = {}): M
       roles: allRoles,
     },
   ];
+
+  return showBackstage ? [...frontstage, ...backstage] : frontstage;
 }
 
 // ─── Admin module ───────────────────────────────────────────────────────────
@@ -691,7 +707,12 @@ export function getMenuItems(
                             ? buildHrmMenuItems(org, menuLabels.hrm ?? {})
                             : context === "gov_procure"
                               ? buildGovProcureMenuItems(org, menuLabels.gov_procure ?? {})
-                              : buildUserMenuItems(org, menuLabels.accounting ?? {});
+                              : buildUserMenuItems(
+                                  org,
+                                  menuLabels.accounting ?? {},
+                                  orgRole,
+                                  role === "super_admin",
+                                );
 
   return items.filter((item) => {
     if (!("href" in item)) return hasRole(item.roles, role);

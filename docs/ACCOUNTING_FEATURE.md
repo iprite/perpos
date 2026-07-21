@@ -103,6 +103,7 @@
 
 - ฝั่ง **หลังบ้าน** (ลงบัญชี/ปิดงวด/ภาษี/เอกสารซื้อ) = `accountant` เท่านั้น — **super_admin bypass ได้** (`canWriteBackstage(auth)` รับ auth object ไม่ใช่ role string)
 - ฝั่ง **หน้าร้าน** (เอกสารขาย/ลูกค้า/สินค้า) = owner/accountant/staff เขียน · viewer อ่าน
+- **เมนู sidebar ก็เป็น role lens** — `showAccountingBackstage()` ([menu-lens.ts](../apps/perpos/src/lib/accounting/menu-lens.ts)): `staff` ไม่เห็นกลุ่ม "หลังบ้าน (นักบัญชี)" เลย (matrix = ไม่มีสิทธิ์) · owner/viewer/accountant เห็น · super_admin เห็นเสมอ · ไม่รู้ role = ไม่ซ่อน (กันเมนูวูบตอนโหลด) · module role มาจาก `getModuleRoleForCurrentUser(orgId,"accounting")` ใน [(hydrogen) layout](../apps/perpos/src/layouts/hydrogen/layout.tsx) ท่าเดียวกับ just_me
 - client-side ต้องสะท้อนกฎเดียวกันที่ [`role-context.tsx`](<../apps/perpos/src/app/(hydrogen)/[orgSlug]/accounting/_components/role-context.tsx>) ไม่งั้นปุ่มหายทั้งที่ API ยอม
 
 ---
