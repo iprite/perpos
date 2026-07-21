@@ -54,6 +54,40 @@ export function shouldPostSalesJournal(docType: string, orgIsVatRegistered: bool
   return ["invoice", "receipt"].includes(docType);
 }
 
+/**
+ * คัดเฉพาะ "เอกสารที่ถือว่าออกบิลแล้ว" สำหรับสรุปยอด/KPI บนหน้าเว็บ
+ *
+ * ใช้กฎเดียวกับ auto journal โดยตั้งใจ — ถ้าใช้คนละกฎ ตัวเลขบนการ์ดกับยอดในงบจะไม่ตรงกัน
+ * และผู้ใช้จะไม่รู้ว่าอันไหนถูก
+ *
+ * กันนับซ้ำ 2 ชั้นเหมือนกัน:
+ *   • เอาเฉพาะจุดรับรู้รายได้ (ใบเสนอราคา/ใบวางบิล/ใบส่งของ ไม่นับ)
+ *   • ตัดใบที่ convert มาจากใบที่นับไปแล้ว (ใบกำกับ → ใบเสร็จ ของดีลเดียวกัน)
+ * ฉบับร่าง/ยกเลิก ไม่นับ (ยังไม่ออก / ไม่มีผล)
+ */
+export function selectBillingDocuments<
+  T extends {
+    id: string;
+    doc_type: string;
+    status: string;
+    converted_from_id?: string | null;
+  },
+>(documents: T[], orgIsVatRegistered: boolean): T[] {
+  const eligible = documents.filter(
+    (d) =>
+      d.status !== "void" &&
+      d.status !== "draft" &&
+      shouldPostSalesJournal(d.doc_type, orgIsVatRegistered),
+  );
+  const ids = new Set(eligible.map((d) => d.id));
+  return eligible.filter((d) => !(d.converted_from_id && ids.has(d.converted_from_id)));
+}
+
+/** ใบลดหนี้ = ยอดติดลบเมื่อรวมยอดขาย */
+export function billingSign(docType: string): 1 | -1 {
+  return docType === "credit_note" ? -1 : 1;
+}
+
 /** ใบเสร็จ-ใบกำกับ = รับเงินทันที → เดบิตเงินสดแทนลูกหนี้ */
 function debitAccountCode(docType: string): string {
   return docType === "receipt_tax_invoice" || docType === "receipt" ? ACC_CASH : ACC_RECEIVABLE;

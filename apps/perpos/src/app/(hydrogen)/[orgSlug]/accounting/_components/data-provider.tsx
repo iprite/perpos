@@ -163,6 +163,8 @@ interface AccountingData {
   reloadDocuments: () => Promise<void>;
   /** ไม่ null = รายการเอกสารถูกตัด (เกิน limit) — ห้ามใช้ยอดรวมจาก documents ตรง ๆ */
   documentsTruncated: { loaded: number; total: number } | null;
+  /** โหลดเอกสารหน้าถัดไปต่อท้าย (ปุ่ม "โหลดเพิ่ม") */
+  loadMoreDocuments: () => Promise<void>;
   reloadSettings: () => Promise<void>;
 
   /** GET ใด ๆ ใต้ /accounting (สำหรับรายงาน on-demand) — คืน JSON หรือ throw */
@@ -450,6 +452,26 @@ export function AccountingDataProvider({
       setLoading((s) => ({ ...s, documents: false }));
     }
   }, [apiGet]);
+
+  /**
+   * โหลดเอกสารหน้าถัดไปต่อท้าย (ปุ่ม "โหลดเพิ่ม")
+   * ใช้ offset = จำนวนที่โหลดมาแล้ว → เมื่อโหลดครบ truncated จะกลายเป็น null เอง
+   * และ KPI ที่คิดจาก documents ก็จะครบตามไปด้วย
+   */
+  const loadMoreDocuments = useCallback(async () => {
+    try {
+      const res = await apiGet<{ documents: AccDocument[]; total?: number; truncated?: boolean }>(
+        `documents?offset=${documents.length}`,
+      );
+      const merged = [...documents, ...res.documents];
+      setDocuments(merged);
+      setDocumentsTruncated(
+        res.truncated ? { loaded: merged.length, total: res.total ?? merged.length } : null,
+      );
+    } catch {
+      /* noop */
+    }
+  }, [apiGet, documents]);
 
   const reloadSettings = useCallback(async () => {
     try {
@@ -836,6 +858,7 @@ export function AccountingDataProvider({
       reloadProducts,
       reloadDocuments,
       documentsTruncated,
+      loadMoreDocuments,
       reloadSettings,
       apiGetRaw,
       apiGetBlob,
@@ -896,6 +919,7 @@ export function AccountingDataProvider({
       reloadProducts,
       reloadDocuments,
       documentsTruncated,
+      loadMoreDocuments,
       reloadSettings,
       apiGetRaw,
       apiGetBlob,

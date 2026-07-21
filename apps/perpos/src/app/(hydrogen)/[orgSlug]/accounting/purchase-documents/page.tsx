@@ -31,7 +31,10 @@ import {
   fmtDateTH,
   NoAccess,
 } from "../_components";
-import { PurchaseDocumentCreateDialog } from "../_components/purchase-document-dialog";
+import {
+  PurchaseDocumentCreateDialog,
+  PurchaseDocumentDetailDialog,
+} from "../_components/purchase-document-dialog";
 import { toast } from "@/lib/toast";
 import type { AccPurchaseDocument, AccPurchaseDocType } from "@/lib/accounting/types";
 import type { PurchaseTaxReport } from "@/lib/accounting/purchase-tax-report";
@@ -74,7 +77,10 @@ export default function PurchaseDocumentsPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
+  const [selected, setSelected] = useState<AccPurchaseDocument | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
   const [truncated, setTruncated] = useState<{ loaded: number; total: number } | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
 
   const now = new Date();
   const [year, setYear] = useState(String(now.getFullYear()));
@@ -82,14 +88,18 @@ export default function PurchaseDocumentsPage() {
   const [report, setReport] = useState<PurchaseTaxReport | null>(null);
   const [reportLoading, setReportLoading] = useState(false);
 
+  const fetchPage = useCallback(
+    async (offset: number) =>
+      apiGetRaw<{ documents: AccPurchaseDocument[]; total?: number; truncated?: boolean }>(
+        `purchase-documents?offset=${offset}`,
+      ),
+    [apiGetRaw],
+  );
+
   const reload = useCallback(async () => {
     setLoading(true);
     try {
-      const r = await apiGetRaw<{
-        documents: AccPurchaseDocument[];
-        total?: number;
-        truncated?: boolean;
-      }>("purchase-documents");
+      const r = await fetchPage(0);
       setDocs(r.documents ?? []);
       setTruncated(
         r.truncated ? { loaded: (r.documents ?? []).length, total: r.total ?? 0 } : null,
@@ -99,11 +109,40 @@ export default function PurchaseDocumentsPage() {
     } finally {
       setLoading(false);
     }
-  }, [apiGetRaw]);
+  }, [fetchPage]);
+
+  // โหลดหน้าถัดไปต่อท้าย — โหลดครบแล้วแบนเนอร์เตือนจะหายเอง (ยอดในการ์ดครบตาม)
+  const loadMore = useCallback(async () => {
+    setLoadingMore(true);
+    try {
+      const r = await fetchPage(docs.length);
+      const merged = [...docs, ...(r.documents ?? [])];
+      setDocs(merged);
+      setTruncated(r.truncated ? { loaded: merged.length, total: r.total ?? merged.length } : null);
+    } catch {
+      toast.error("โหลดเพิ่มไม่สำเร็จ");
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [fetchPage, docs]);
 
   useEffect(() => {
     if (canView) void reload();
   }, [canView, reload]);
+
+  // list ไม่ได้ join บรรทัดรายการมาด้วย → ต้องดึง detail ก่อน ไม่งั้นตารางในกล่องจะว่าง
+  const openDoc = useCallback(
+    async (d: AccPurchaseDocument) => {
+      setSelected(d);
+      setDetailOpen(true);
+      try {
+        setSelected(await apiGetRaw<AccPurchaseDocument>(`purchase-documents/${d.id}`));
+      } catch {
+        toast.error("โหลดรายการในเอกสารไม่สำเร็จ");
+      }
+    },
+    [apiGetRaw],
+  );
 
   const loadReport = useCallback(async () => {
     setReportLoading(true);
@@ -191,10 +230,21 @@ export default function PurchaseDocumentsPage() {
         <>
           {truncated && (
             <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-              แสดง {truncated.loaded.toLocaleString("th-TH")} จากทั้งหมด{" "}
-              {truncated.total.toLocaleString("th-TH")} รายการ —
-              ยอดรวมด้านล่างคิดจากชุดที่โหลดมาเท่านั้น
-              (รายงานภาษีซื้อในแท็บถัดไปคิดจากงวดภาษีเต็มเสมอ)
+              <div>
+                แสดง {truncated.loaded.toLocaleString("th-TH")} จากทั้งหมด{" "}
+                {truncated.total.toLocaleString("th-TH")} รายการ —
+                ยอดรวมด้านล่างคิดจากชุดที่โหลดมาเท่านั้น
+                (รายงานภาษีซื้อในแท็บถัดไปคิดจากงวดภาษีเต็มเสมอ)
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                className="mt-2"
+                disabled={loadingMore}
+                onClick={() => void loadMore()}
+              >
+                {loadingMore ? "กำลังโหลด…" : "โหลดเพิ่ม"}
+              </Button>
             </div>
           )}
 
@@ -280,7 +330,7 @@ export default function PurchaseDocumentsPage() {
                 </TableEmpty>
               ) : (
                 filtered.map((d) => (
-                  <TableRow key={d.id}>
+                  <TableRow key={d.id} clickable onClick={() => void openDoc(d)}>
                     <TableCell className="whitespace-nowrap text-gray-500">
                       {fmtDateTH(d.issue_date)}
                     </TableCell>
@@ -335,6 +385,21 @@ export default function PurchaseDocumentsPage() {
           loading={reportLoading}
         />
       )}
+
+      <PurchaseDocumentDetailDialog
+        open={detailOpen}
+        onOpenChange={setDetailOpen}
+        doc={selected}
+        orgId={orgId}
+        canWrite={canWrite}
+        onChanged={() => {
+          void reload();
+          if (selected)
+            void apiGetRaw<AccPurchaseDocument>(`purchase-documents/${selected.id}`)
+              .then(setSelected)
+              .catch(() => {});
+        }}
+      />
 
       <PurchaseDocumentCreateDialog
         open={createOpen}

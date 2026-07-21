@@ -13,7 +13,7 @@ import { describe, it, expect } from "vitest";
 
 import { computeDocument } from "./documents";
 import { computePurchaseLines } from "./purchase-documents";
-import { shouldPostSalesJournal } from "./sales-journal";
+import { shouldPostSalesJournal, selectBillingDocuments, billingSign } from "./sales-journal";
 import { bahtText } from "./document-html";
 import {
   isTaxDocument,
@@ -141,6 +141,62 @@ describe("shouldPostSalesJournal — กันรายได้เบิ้ล"
     expect(shouldPostSalesJournal("receipt", false)).toBe(true);
     expect(shouldPostSalesJournal("tax_invoice", false)).toBe(false);
     expect(shouldPostSalesJournal("quotation", false)).toBe(false);
+  });
+});
+
+describe("selectBillingDocuments — ชุดเอกสารที่ใช้คิด KPI/ยอดขาย", () => {
+  const doc = (
+    o: Partial<{ id: string; doc_type: string; status: string; converted_from_id: string | null }>,
+  ) => ({
+    id: o.id ?? "x",
+    doc_type: o.doc_type ?? "tax_invoice",
+    status: o.status ?? "sent",
+    converted_from_id: o.converted_from_id ?? null,
+  });
+
+  it("org จด VAT: นับใบกำกับ ไม่นับใบเสนอราคา/ใบแจ้งหนี้ประกอบ", () => {
+    const r = selectBillingDocuments(
+      [
+        doc({ id: "a" }),
+        doc({ id: "b", doc_type: "quotation" }),
+        doc({ id: "c", doc_type: "invoice" }),
+      ],
+      true,
+    );
+    expect(r.map((d) => d.id)).toEqual(["a"]);
+  });
+
+  it("ฉบับร่าง/ยกเลิก ไม่เข้ายอด", () => {
+    const r = selectBillingDocuments(
+      [
+        doc({ id: "a", status: "draft" }),
+        doc({ id: "b", status: "void" }),
+        doc({ id: "c", status: "paid" }),
+      ],
+      true,
+    );
+    expect(r.map((d) => d.id)).toEqual(["c"]);
+  });
+
+  // สายที่แปลงต่อกัน = ดีลเดียว ต้องนับใบเดียว — ยึด "ใบต้นทาง" ให้ตรงกับจุดที่ auto journal
+  // รับรู้รายได้ (เอกสารภาษีใบแรกของสาย) ไม่งั้นการ์ดกับสมุดรายวันจะไม่ตรงกัน
+  it("สายที่แปลงต่อกัน นับใบต้นทางใบเดียว (กันนับซ้ำ)", () => {
+    const r = selectBillingDocuments(
+      [doc({ id: "inv" }), doc({ id: "rc", converted_from_id: "inv" })],
+      true,
+    );
+    expect(r.map((d) => d.id)).toEqual(["inv"]);
+  });
+
+  it("ต้นทางที่ไม่ได้อยู่ในชุด (ถูกกรอง/หน้าอื่น) ไม่ทำให้ปลายทางหาย", () => {
+    const r = selectBillingDocuments([doc({ id: "rc", converted_from_id: "ไม่อยู่ในชุด" })], true);
+    expect(r.map((d) => d.id)).toEqual(["rc"]);
+  });
+
+  it("billingSign: ใบลดหนี้หักออกจากยอด", () => {
+    expect(billingSign("credit_note")).toBe(-1);
+    expect(billingSign("tax_invoice")).toBe(1);
+    expect(billingSign("debit_note")).toBe(1);
   });
 });
 
