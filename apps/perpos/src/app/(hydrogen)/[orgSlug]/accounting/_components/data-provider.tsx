@@ -164,6 +164,13 @@ interface AccountingData {
   /** GET ใด ๆ ใต้ /accounting (สำหรับรายงาน on-demand) — คืน JSON หรือ throw */
   apiGetRaw: <T = unknown>(path: string) => Promise<T>;
 
+  /** mutate ใด ๆ ใต้ /accounting — แนบ orgId+token ให้เอง (สำหรับ resource ที่ยังไม่มี mutator เฉพาะ) */
+  apiSend: (
+    method: "POST" | "PATCH" | "PUT" | "DELETE",
+    path: string,
+    body?: unknown,
+  ) => Promise<MutResult>;
+
   // ── entries (A2) ──
   addEntry: (input: NewEntryInput) => Promise<MutResult>;
   updateEntry: (id: string, input: NewEntryInput) => Promise<MutResult>;
@@ -794,6 +801,7 @@ export function AccountingDataProvider({
       reloadDocuments,
       reloadSettings,
       apiGetRaw,
+      apiSend,
       addEntry,
       updateEntry,
       deleteEntry,
@@ -851,6 +859,7 @@ export function AccountingDataProvider({
       reloadDocuments,
       reloadSettings,
       apiGetRaw,
+      apiSend,
       addEntry,
       updateEntry,
       deleteEntry,
