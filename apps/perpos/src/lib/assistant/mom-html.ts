@@ -11,22 +11,68 @@
 
 export type MomKeyTopic = { topic?: string; details?: string };
 export type MomActionItem = { task?: string; assignee?: string };
-export type MomJson = {
+// เนื้อรายงาน 1 ภาษา
+export type MomBody = {
   meeting_title?: string;
   executive_summary?: string;
-  speakers?: string[];
   key_topics?: MomKeyTopic[];
   decisions?: string[];
   action_items?: MomActionItem[];
   recommendations?: string[];
 };
+export type MomJson = MomBody & {
+  speakers?: string[];
+  language?: string;
+  // ฉบับภาษาต้นทาง — มีเฉพาะเมื่อเสียงไม่ใช่ไทย (ฟิลด์หลักด้านบนเป็นไทยเสมอ)
+  source?: (MomBody & { language?: string }) | null;
+};
+
+// ป้ายหัวข้อ/ป้ายกำกับตามภาษา (ฉบับไทย vs ฉบับภาษาต้นทาง)
+type MomLabels = {
+  defaultTitle: string;
+  summary: string;
+  topics: string;
+  decisions: string;
+  actionTitle: string;
+  colNo: string;
+  colTask: string;
+  colOwner: string;
+  actionEmpty: string;
+  recommendations: string;
+};
+
+const TH_LABELS: MomLabels = {
+  defaultTitle: "รายงานการประชุม",
+  summary: "บทสรุปการประชุม",
+  topics: "ประเด็นในที่ประชุม",
+  decisions: "มติ / ข้อสรุปที่ประชุม",
+  actionTitle: "ตารางสรุปสิ่งที่ต้องดำเนินการ (Action Items)",
+  colNo: "#",
+  colTask: "สิ่งที่ต้องดำเนินการ",
+  colOwner: "ผู้รับผิดชอบ",
+  actionEmpty: "— ไม่มีรายการที่ต้องดำเนินการ —",
+  recommendations: "ข้อเสนอแนะ",
+};
+
+const EN_LABELS: MomLabels = {
+  defaultTitle: "Minutes of Meeting",
+  summary: "Executive Summary",
+  topics: "Discussion Topics",
+  decisions: "Decisions",
+  actionTitle: "Action Items",
+  colNo: "#",
+  colTask: "Action Item",
+  colOwner: "Owner",
+  actionEmpty: "— No action items —",
+  recommendations: "Recommendations",
+};
 
 const esc = (s: unknown): string =>
-  String(s ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
+  String(s ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
 
 /**
  * Running footer — ส่งให้ pdf-renderer (Playwright displayHeaderFooter) เพื่อพิมพ์
@@ -44,33 +90,73 @@ const section = (heading: string, inner: string): string =>
   `<table class="sec"><thead><tr><th>${esc(heading)}</th></tr></thead>` +
   `<tbody><tr><td>${inner}</td></tr></tbody></table>`;
 
-export function buildMomHtml(tj: MomJson, dateText: string): string {
-  const title = esc(tj.meeting_title || 'รายงานการประชุม');
-  const speakers = (tj.speakers ?? []).map(esc);
-  const summary = esc(tj.executive_summary || '');
+// สร้าง "เนื้อรายงาน 1 ภาษา" (title + meta + ทุก section) — ใช้ซ้ำกับฉบับไทยและฉบับภาษาต้นทาง
+// metaHtml = กล่องวันที่/ผู้เข้าร่วม แทรกใต้ title (เฉพาะฉบับหลัก — ฉบับภาษาต้นทางไม่ทำซ้ำ)
+function renderReportBody(body: MomBody, L: MomLabels, metaHtml = ""): string {
+  const title = esc(body.meeting_title || L.defaultTitle);
+  const summary = esc(body.executive_summary || "");
 
-  const topics = (tj.key_topics ?? [])
-    .map((k) => `<li><span class="t">${esc(k.topic)}</span>${k.details ? `<div class="d">${esc(k.details)}</div>` : ''}</li>`)
-    .join('');
+  const topics = (body.key_topics ?? [])
+    .map(
+      (k) =>
+        `<li><span class="t">${esc(k.topic)}</span>${k.details ? `<div class="d">${esc(k.details)}</div>` : ""}</li>`,
+    )
+    .join("");
 
-  const decisions = (tj.decisions ?? []).map((d) => `<li>${esc(d)}</li>`).join('');
-  const recommendations = (tj.recommendations ?? []).map((r) => `<li>${esc(r)}</li>`).join('');
+  const decisions = (body.decisions ?? []).map((d) => `<li>${esc(d)}</li>`).join("");
+  const recommendations = (body.recommendations ?? []).map((r) => `<li>${esc(r)}</li>`).join("");
 
-  const actions = (tj.action_items ?? []).length
-    ? (tj.action_items ?? [])
+  const actions = (body.action_items ?? []).length
+    ? (body.action_items ?? [])
         .map(
           (a, i) =>
-            `<tr><td class="cno">${i + 1}</td><td>${esc(a.task)}</td><td class="cwho">${esc(a.assignee && a.assignee !== 'ไม่ระบุ' ? a.assignee : '—')}</td></tr>`,
+            `<tr><td class="cno">${i + 1}</td><td>${esc(a.task)}</td><td class="cwho">${esc(a.assignee && a.assignee !== "ไม่ระบุ" && a.assignee !== "Unassigned" ? a.assignee : "—")}</td></tr>`,
         )
-        .join('')
-    : `<tr><td class="empty" colspan="3">— ไม่มีรายการที่ต้องดำเนินการ —</td></tr>`;
+        .join("")
+    : `<tr><td class="empty" colspan="3">${esc(L.actionEmpty)}</td></tr>`;
 
   // ตาราง Action Items — thead 2 แถว (ชื่อหัวข้อ + หัวคอลัมน์) ซ้ำทุกหน้าเมื่อตารางยาวข้ามหน้า
   const actionTable =
     `<table class="ai"><thead>` +
-    `<tr><th class="aih" colspan="3">ตารางสรุปสิ่งที่ต้องดำเนินการ (Action Items)</th></tr>` +
-    `<tr><th class="cno">#</th><th>สิ่งที่ต้องดำเนินการ</th><th class="cwho">ผู้รับผิดชอบ</th></tr>` +
+    `<tr><th class="aih" colspan="3">${esc(L.actionTitle)}</th></tr>` +
+    `<tr><th class="cno">${esc(L.colNo)}</th><th>${esc(L.colTask)}</th><th class="cwho">${esc(L.colOwner)}</th></tr>` +
     `</thead><tbody>${actions}</tbody></table>`;
+
+  return (
+    `<div class="title">${title}</div>` +
+    metaHtml +
+    (summary ? section(L.summary, `<div class="summary">${summary}</div>`) : "") +
+    (topics ? section(L.topics, `<ol class="topics">${topics}</ol>`) : "") +
+    (decisions ? section(L.decisions, `<ul class="dec">${decisions}</ul>`) : "") +
+    actionTable +
+    (recommendations
+      ? section(
+          L.recommendations,
+          `<div class="rec"><ul class="rec-list">${recommendations}</ul></div>`,
+        )
+      : "")
+  );
+}
+
+export function buildMomHtml(tj: MomJson, dateText: string): string {
+  const speakers = (tj.speakers ?? []).map(esc);
+
+  // กล่องวันที่/ผู้เข้าร่วม — แสดงครั้งเดียวใต้ title ของฉบับหลัก
+  const metaHtml =
+    `<div class="meta">` +
+    `<div class="r"><span class="l">วันที่จัดทำ</span><span>${esc(dateText)}</span></div>` +
+    `<div class="r"><span class="l">ผู้เข้าร่วม</span><span>${speakers.length ? `${speakers.length} คน — ${speakers.join(", ")}` : "—"}</span></div>` +
+    `</div>`;
+
+  // ฉบับหลัก = ไทยเสมอ (ฟิลด์ระดับบน) · ถ้ามี source (เสียงไม่ใช่ไทย) → ต่อฉบับภาษาต้นทางในหน้าใหม่
+  const thaiBody = renderReportBody(tj, TH_LABELS, metaHtml);
+  const src = tj.source;
+  const sourceLangTag = src?.language ? src.language.toUpperCase() : "";
+  const sourceSection = src
+    ? `<div class="pagebreak"></div>` +
+      `<div class="langbanner">Original-language version${sourceLangTag ? ` · ${esc(sourceLangTag)}` : ""}</div>` +
+      renderReportBody(src, EN_LABELS)
+    : "";
 
   return `<!doctype html><html lang="th"><head><meta charset="utf-8">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -127,25 +213,15 @@ export function buildMomHtml(tj: MomJson, dateText: string): string {
   .cno { width: 34px; text-align: center; }
   .cwho { width: 130px; }
   .empty { text-align: center; color: #6b7280; }
+  /* ขึ้นหน้าใหม่ก่อนฉบับภาษาต้นทาง */
+  .pagebreak { break-before: page; }
+  /* ป้ายคั่นฉบับภาษาต้นทาง */
+  .langbanner { margin: 0 0 4px; font-size: 9px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: #0284c7; }
 </style></head><body>
   <div class="brandrow"><span class="brand">PERPOS</span><span>รายงานการประชุม · Minutes of Meeting</span></div>
   <div class="accent"></div>
 
-  <div class="title">${title}</div>
-
-  <div class="meta">
-    <div class="r"><span class="l">วันที่จัดทำ</span><span>${esc(dateText)}</span></div>
-    <div class="r"><span class="l">ผู้เข้าร่วม</span><span>${speakers.length ? `${speakers.length} คน — ${speakers.join(', ')}` : '—'}</span></div>
-  </div>
-
-  ${summary ? section('บทสรุปการประชุม', `<div class="summary">${summary}</div>`) : ''}
-
-  ${topics ? section('ประเด็นในที่ประชุม', `<ol class="topics">${topics}</ol>`) : ''}
-
-  ${decisions ? section('มติ / ข้อสรุปที่ประชุม', `<ul class="dec">${decisions}</ul>`) : ''}
-
-  ${actionTable}
-
-  ${recommendations ? section('ข้อเสนอแนะ', `<div class="rec"><ul class="rec-list">${recommendations}</ul></div>`) : ''}
+  ${thaiBody}
+  ${sourceSection}
 </body></html>`;
 }

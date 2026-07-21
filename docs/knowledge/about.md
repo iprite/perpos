@@ -27,7 +27,7 @@ PERPOS ดำเนินการโดยบริษัท P2P Solutions Co.,
 
 ## ช่องทางติดต่อและเริ่มใช้งาน
 
-- **LINE OA:** @perpos — เพิ่มเพื่อนที่ https://line.me/R/ti/p/@perpos แล้วเริ่มใช้ Flow ได้ทันที (ฟรี ไม่ต้องสมัคร)
+- **LINE OA:** @perpos — ใช้ Flow ได้ทันทีในแชต LINE (ฟรี ไม่ต้องสมัคร) แค่ส่งไฟล์เสียงหรือ PDF เข้ามา
 - **เข้าสู่ระบบเว็บ:** https://app.perpos.ai/signin
 - **อีเมลติดต่อ / ขอเดโม Suite:** hello@perpos.ai
 - **เว็บไซต์:** perpos.ai

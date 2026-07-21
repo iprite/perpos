@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 /**
  * PageShell — เปลือกหน้า (page shell) มาตรฐานของ "ทุกหน้า" ในแอป
@@ -28,15 +28,15 @@
  *   "full"    (max-w-none)       — แดชบอร์ด/ตารางที่กินพื้นที่เต็มจอ
  */
 
-import React from 'react';
+import React from "react";
 
-export type PageShellWidth = 'narrow' | 'default' | 'wide' | 'full';
+export type PageShellWidth = "narrow" | "default" | "wide" | "full";
 
-const WIDTH_CLASS: Record<PageShellWidth, string> = {
-  narrow:  'max-w-3xl',
-  default: 'max-w-7xl',
-  wide:    'max-w-screen-2xl',
-  full:    'max-w-none',
+export const WIDTH_CLASS: Record<PageShellWidth, string> = {
+  narrow: "max-w-3xl",
+  default: "max-w-7xl",
+  wide: "max-w-screen-2xl",
+  full: "max-w-none",
 };
 
 export function PageShell({
@@ -45,7 +45,7 @@ export function PageShell({
   icon,
   actions,
   tabs,
-  width = 'default',
+  width = "default",
   children,
 }: {
   /** เว้นว่างได้ — สำหรับหน้า detail ที่มี header การ์ดของตัวเอง (จะได้แค่ container/padding มาตรฐาน) */
@@ -64,10 +64,14 @@ export function PageShell({
       {hasHeader && (
         <header className="sticky top-[calc(var(--impersonation-banner-height,0px)+3rem)] z-10 -mx-1 -mt-2 mb-0 flex flex-col gap-3 bg-white px-1 pb-3 pt-4 sm:-mx-2 sm:flex-row sm:items-end sm:justify-between sm:px-2 lg:-mx-3 lg:px-3 xl:top-0">
           <div className="min-w-0">
-            {title && <h1 className="text-2xl font-semibold leading-tight text-primary">{title}</h1>}
+            {title && (
+              <h1 className="text-2xl font-semibold leading-tight text-primary">{title}</h1>
+            )}
             {description && <p className="mt-1 text-sm text-gray-500">{description}</p>}
           </div>
-          {actions && <div className="flex flex-shrink-0 flex-wrap items-center gap-2">{actions}</div>}
+          {actions && (
+            <div className="flex flex-shrink-0 flex-wrap items-center gap-2">{actions}</div>
+          )}
         </header>
       )}
 
@@ -84,8 +88,8 @@ export function PageShell({
 export function PageCard({
   title,
   actions,
-  className = '',
-  bodyClassName = 'p-5',
+  className = "",
+  bodyClassName = "p-5",
   children,
 }: {
   title?: React.ReactNode;
@@ -95,7 +99,9 @@ export function PageCard({
   children: React.ReactNode;
 }) {
   return (
-    <div className={`overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm ${className}`}>
+    <div
+      className={`overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm ${className}`}
+    >
       {(title || actions) && (
         <div className="flex items-center justify-between gap-3 border-b border-gray-100 px-5 py-3">
           {title && <div className="text-sm font-semibold text-gray-700">{title}</div>}

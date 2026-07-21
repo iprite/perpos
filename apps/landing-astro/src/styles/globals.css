@@ -1,0 +1,399 @@
+@import "tailwindcss";
+
+@theme {
+  --color-primary-50: #f7f5f1;
+  --color-primary-100: #eeeae2;
+  --color-primary-200: #ddd6c8;
+  --color-primary-300: #c6b9a4;
+  --color-primary-400: #9b907f;
+  --color-primary-500: #6e665b;
+  --color-primary-600: #555052;
+  --color-primary-700: #3c3b3d;
+  --color-primary-800: #2f2e30;
+  --color-primary-900: #201f21;
+  --color-primary: #3c3b3d;
+  --color-primary-dark: #262527;
+  --color-primary-light: #59575a;
+
+  --color-secondary: #48cfad;
+  --color-secondary-dark: #2bae8e;
+
+  --color-accent: #fc6e51;
+  --color-accent-dark: #e0532f;
+
+  --color-ink: #1a1a1b;
+  --color-ink-soft: #262527;
+  --color-ink-line: #3c3b3d;
+
+  --color-background: #ffffff;
+  --color-background-secondary: #f5f7fa;
+
+  --color-foreground: #1a1a1b;
+  --color-foreground-secondary: #656d78;
+  --color-foreground-muted: #9ca3af;
+
+  --color-border: #e6e9ee;
+  --color-border-strong: #ccd1d9;
+
+  --font-heading: var(--font-noto-thai), sans-serif;
+  --font-sans: var(--font-noto-thai), sans-serif;
+  --font-inter: var(--font-noto-thai), sans-serif;
+  --font-lexend: var(--font-noto-thai), sans-serif;
+
+  --radius: 8px;
+  --radius-card: 16px;
+
+  --shadow-card: 0 1px 2px 0 rgb(15 23 42 / 0.04), 0 1px 3px 0 rgb(15 23 42 / 0.06);
+  --shadow-card-hover: 0 12px 32px -8px rgb(15 23 42 / 0.12), 0 4px 8px -4px rgb(15 23 42 / 0.06);
+  --shadow-soft: 0 2px 8px -2px rgb(15 23 42 / 0.06);
+  --shadow-elevated: 0 24px 60px -16px rgb(15 23 42 / 0.18), 0 8px 24px -12px rgb(15 23 42 / 0.1);
+
+  --animate-fade-up: fadeUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  --animate-fade-in: fadeIn 0.6s ease-out forwards;
+  --animate-float: float 7s ease-in-out infinite;
+  --animate-float-slow: float 10s ease-in-out infinite;
+  --animate-marquee: marquee 28s linear infinite;
+
+  @keyframes fadeUp {
+    0% {
+      opacity: 0;
+      transform: translateY(24px);
+    }
+    100% {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  @keyframes fadeIn {
+    0% {
+      opacity: 0;
+    }
+    100% {
+      opacity: 1;
+    }
+  }
+  @keyframes float {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-14px);
+    }
+  }
+  @keyframes marquee {
+    0% {
+      transform: translateX(0);
+    }
+    100% {
+      transform: translateX(-50%);
+    }
+  }
+}
+
+/*
+  The default border color has changed to `currentcolor` in Tailwind CSS v4,
+  so we've added these compatibility styles to make sure everything still
+  looks the same as it did with Tailwind CSS v3.
+
+  If we ever want to remove these styles, we need to add an explicit border
+  color utility to any element that depends on these defaults.
+*/
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-gray-200, currentcolor);
+  }
+}
+
+@utility text-balance {
+  text-wrap: balance;
+}
+
+@utility text-pretty {
+  text-wrap: pretty;
+}
+
+@utility animate-stagger {
+  /* Staggered entrance animation */
+  animation-fill-mode: both;
+}
+
+@utility animate-stagger-1 {
+  animation-delay: 80ms;
+}
+
+@utility animate-stagger-2 {
+  animation-delay: 160ms;
+}
+
+@utility animate-stagger-3 {
+  animation-delay: 240ms;
+}
+
+@utility animate-stagger-4 {
+  animation-delay: 340ms;
+}
+
+@utility animate-stagger-5 {
+  animation-delay: 440ms;
+}
+
+@utility gradient-text {
+  background: linear-gradient(135deg, #1a1a1b 0%, #3c3b3d 60%, #656d78 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+@utility bg-brand-gradient {
+  background: linear-gradient(135deg, #262527 0%, #3c3b3d 100%);
+}
+
+@utility bg-grid {
+  /* Subtle grid background */
+  background-image:
+    linear-gradient(to right, rgba(15, 23, 42, 0.045) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(15, 23, 42, 0.045) 1px, transparent 1px);
+  background-size: 56px 56px;
+}
+
+@utility bg-grid-dark {
+  background-image:
+    linear-gradient(to right, rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+  background-size: 56px 56px;
+}
+
+@utility mask-fade {
+  /* Fade a layer toward the edges */
+  -webkit-mask-image: radial-gradient(ellipse 70% 60% at 50% 40%, #000 55%, transparent 100%);
+  mask-image: radial-gradient(ellipse 70% 60% at 50% 40%, #000 55%, transparent 100%);
+}
+
+@utility mask-fade-b {
+  -webkit-mask-image: linear-gradient(to bottom, #000 60%, transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 60%, transparent 100%);
+}
+
+@utility glass {
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: saturate(180%) blur(16px);
+  -webkit-backdrop-filter: saturate(180%) blur(16px);
+}
+
+@utility font-neo-tech {
+  font-family: var(--font-neo-tech), var(--font-noto-thai), sans-serif;
+  letter-spacing: 0.08em;
+}
+
+@utility bar-grow {
+  animation: growWidth 1.6s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+@utility timeline-run {
+  /* light streak that runs along a horizontal connector line */
+  animation: timelineRun 3.2s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+}
+
+@utility flow-path {
+  stroke-dasharray: 14 12;
+  animation: flowPath 1.8s linear infinite;
+}
+
+@utility flow-chip {
+  animation: flowChip 4.8s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+}
+
+@utility flow-card-1 {
+  animation: flowLift 4.8s ease-in-out infinite;
+}
+
+@utility flow-card-2 {
+  animation: flowLift 4.8s ease-in-out infinite 1.2s;
+}
+
+@utility flow-card-3 {
+  animation: flowLift 4.8s ease-in-out infinite 2.4s;
+}
+
+@utility flow-card-4 {
+  animation: flowLift 4.8s ease-in-out infinite 3.6s;
+}
+
+@utility section-padding {
+  @apply py-20 md:py-28;
+}
+
+@utility container-custom {
+  @apply mx-auto max-w-7xl px-5 sm:px-6 lg:px-8;
+}
+
+@layer utilities {
+  /* NeoTech display font (local) — used by the .font-neo-tech utility / PERPOS lockups */
+  @font-face {
+    font-family: "NeoTech";
+    src: url("/fonts/NeoTech.ttf") format("truetype");
+    font-weight: 100 900;
+    font-style: normal;
+    font-display: swap;
+  }
+
+  :root {
+    /* Font stacks (Noto Sans Thai Variable is imported in Layout.astro) */
+    --font-noto-thai:
+      "Noto Sans Thai Variable", "Noto Sans Thai", ui-sans-serif, system-ui, sans-serif;
+    --font-neo-tech: "NeoTech";
+
+    --color-primary: #3c3b3d;
+    --color-primary-dark: #262527;
+    --color-secondary: #48cfad;
+    --color-secondary-dark: #2bae8e;
+    --color-accent: #fc6e51;
+    --color-accent-dark: #e0532f;
+    --color-ink: #1a1a1b;
+    --color-background: #ffffff;
+    --color-background-secondary: #f5f7fa;
+    --color-foreground: #1a1a1b;
+    --color-foreground-secondary: #656d78;
+    --color-foreground-muted: #9ca3af;
+    --color-border: #e6e9ee;
+    --color-border-strong: #ccd1d9;
+  }
+
+  * {
+    box-sizing: border-box;
+    padding: 0;
+    margin: 0;
+  }
+
+  html {
+    scroll-behavior: smooth;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    font-family: var(--font-noto-thai), sans-serif;
+    color: var(--color-foreground);
+    background: var(--color-background);
+    line-height: 1.6;
+    overflow-x: hidden;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: var(--font-noto-thai), sans-serif;
+    font-weight: 600;
+    line-height: 1.18;
+    letter-spacing: 0;
+  }
+}
+
+@layer utilities {
+  @keyframes growWidth {
+    from {
+      width: 0;
+    }
+    to {
+      width: 100%;
+    }
+  }
+
+  @keyframes timelineRun {
+    0% {
+      left: -4%;
+      opacity: 0;
+    }
+    12% {
+      opacity: 1;
+    }
+    88% {
+      opacity: 1;
+    }
+    100% {
+      left: 104%;
+      opacity: 0;
+    }
+  }
+
+  @keyframes flowPath {
+    to {
+      stroke-dashoffset: -52;
+    }
+  }
+
+  @keyframes flowChip {
+    0%,
+    12% {
+      transform: translateX(0);
+    }
+    26%,
+    38% {
+      transform: translateX(25%);
+    }
+    52%,
+    64% {
+      transform: translateX(50%);
+    }
+    78%,
+    90% {
+      transform: translateX(75%);
+    }
+    100% {
+      transform: translateX(0);
+    }
+  }
+
+  @keyframes flowLift {
+    0%,
+    100% {
+      transform: translateY(0);
+      border-color: rgba(230, 233, 238, 1);
+    }
+    16% {
+      transform: translateY(-5px);
+      border-color: rgba(72, 207, 173, 0.65);
+    }
+  }
+}
+
+@layer base {
+  ::selection {
+    background-color: var(--color-primary);
+    color: white;
+  }
+
+  ::-webkit-scrollbar {
+    width: 9px;
+  }
+  ::-webkit-scrollbar-track {
+    background: var(--color-background-secondary);
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 999px;
+    border: 2px solid var(--color-background-secondary);
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--color-foreground-muted);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

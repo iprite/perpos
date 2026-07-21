@@ -4,6 +4,8 @@
 
 > 📘 **ผู้ช่วย AI (assistant umbrella — per-profile, B2C, kind-based):** อ่านคัมภีร์ร่มที่ [`docs/ASSISTANT.md`](docs/ASSISTANT.md) — สถาปัตยกรรม per-kind, guard, home org, onboarding, billing, วิธีเพิ่มผู้ช่วยตัวใหม่ ก่อนแตะส่วน `/assistant`
 > 📘 **STT/MoM เฉพาะทาง (worker, Gemini, PDF, duration, quota):** อ่าน [`docs/STT_MOM_FEATURE.md`](docs/STT_MOM_FEATURE.md) — deploy, DB schema, code map, กับดักที่แก้แล้ว
+> 📘 **จัดซื้อครุภัณฑ์ภาครัฐ (gov_procure — pipeline 6 stage, per-org p2p-x-89):** อ่าน [`docs/GOV_PROCURE_FEATURE.md`](docs/GOV_PROCURE_FEATURE.md) — state machine, field-level finance-lock, AI/LINE, provisioning + cutover status, กับดักที่แก้แล้ว
+> 📘 **OCR ถอดบิล→บันทึกบัญชี (acc_firm, self-improvement loop):** อ่าน [`docs/ACC_FIRM_OCR_FEATURE.md`](docs/ACC_FIRM_OCR_FEATURE.md) — pipeline 3 สเต็ป Gemini, loop จำผู้ขาย→บัญชีจากการอนุมัติของคน (human-in-the-loop เสมอ), bucket/secret/FK กับดักที่แก้แล้ว
 
 ---
 
@@ -14,7 +16,8 @@
 - Frontend + Backend: Next.js 15 (App Router), React 19, TypeScript
 - **API routes อยู่ใน `apps/perpos/src/app/api/` (Next.js Route Handlers)**
 - Database: Supabase (PostgreSQL) พร้อม Row Level Security
-- Auth: Supabase Auth — **LINE Login เท่านั้น** (signin มีปุ่ม LINE ปุ่มเดียว · `/line/login` → `/line/callback` bridge เข้า session ด้วย magic-link · Supabase ไม่มี LINE provider จึงทำ OAuth เอง · login แล้วเข้าแอปเลย ไม่ต้องตั้ง password). Google เป็น **admin fallback ซ่อนไว้** เปิดด้วย `/signin?admin=1` กันล็อกเอาต์ (super_admin ก็มี LINE linked จึง login ผ่าน LINE ได้). magic-link claim (`/web`) + email/password ยังมีอยู่แต่ไม่ใช่ช่องทางหลัก
+- Auth: Supabase Auth — **LINE Login เท่านั้น** (signin มีปุ่ม LINE ปุ่มเดียว · `/line/login` → `/line/callback` bridge เข้า session ด้วย magic-link · Supabase ไม่มี LINE provider จึงทำ OAuth เอง · login แล้วเข้าแอปเลย ไม่ต้องตั้ง password). **Google ถูกถอดแล้ว** (2026-07 — GoogleAuthView + `/signin?admin=1` ลบทิ้ง, google identity ของ iprite ลบแล้วสลับเป็น email identity, ปิด provider ใน dashboard ได้เลย) — ทุกคนรวม super_admin login ผ่าน LINE. magic-link claim (`/web`) ยังมีอยู่ · email/password เหลือเป็นกลไกเบื้องหลัง (ไม่มี UI) ตามดีไซน์ shared auth pool
+  - **shared auth pool (Supabase consolidation):** `auth.users` ใช้ร่วมกับ exapp/riekchang (tag `user_metadata.app`; perpos = untagged) — admin surface ที่แตะ auth admin API (delete/reset-password) ต้อง guard "target มีแถวใน `public.profiles`" เสมอ กัน mutate ข้าม app · ทุก createUser ของ perpos สร้าง untagged
   - **LINE Login channel ต้องอยู่ provider เดียวกับ Messaging channel** — `userId` ถึงตรงกับ `line_user_id` ที่เก็บไว้ (ถ้าคนละ provider จะ provision เป็นคนละคน) · callback URL ที่ต้องลงทะเบียนใน LINE console = `${APP_BASE_URL}/line/callback`
 - UI: Rizzui, Tailwind CSS, Radix UI
 - Monorepo: pnpm workspaces + Turbo
@@ -114,31 +117,32 @@ pnpm build
 
 ## API Endpoints — Next.js Route Handlers (`apps/perpos/src/app/api/`)
 
-| Endpoint                         | Method         | File                                 | หน้าที่                                                               |
-| -------------------------------- | -------------- | ------------------------------------ | --------------------------------------------------------------------- |
-| `/api/line/webhook`              | POST           | `line/webhook/route.ts`              | LINE Bot webhook หลัก                                                 |
-| `/api/line/link-token`           | POST           | `line/link-token/route.ts`           | สร้าง token ผูกบัญชี LINE                                             |
-| `/api/line/unlink`               | POST           | `line/unlink/route.ts`               | ยกเลิกผูกบัญชี LINE                                                   |
-| `/api/assistant/scheduler`       | POST           | `assistant/scheduler/route.ts`       | Cron trigger สำหรับแจ้งเตือน task                                     |
-| `/api/admin/delivery/logs`       | GET            | `admin/delivery/logs/route.ts`       | ดู logs การส่ง                                                        |
-| `/api/admin/delivery/schedule`   | PUT            | `admin/delivery/schedule/route.ts`   | ตั้ง cron schedule                                                    |
-| `/api/admin/delivery/send-now`   | POST           | `admin/delivery/send-now/route.ts`   | ส่งข่าวทันที                                                          |
-| `/api/admin/news-agent/preview`  | POST           | `admin/news-agent/preview/route.ts`  | Preview ข่าว                                                          |
-| `/api/admin/users/list`          | GET            | `admin/users/list/route.ts`          | รายชื่อ users                                                         |
-| `/api/admin/users/invite`        | POST           | `admin/users/invite/route.ts`        | เชิญ user                                                             |
-| `/api/admin/users/delete`        | POST           | `admin/users/delete/route.ts`        | ลบ user                                                               |
-| `/api/admin/users/permissions`   | GET/PUT        | `admin/users/permissions/route.ts`   | จัดการสิทธิ์                                                          |
-| `/api/admin/users/orgs`          | GET/PUT/DELETE | `admin/users/orgs/route.ts`          | จัดการ org memberships                                                |
-| `/api/admin/modules`             | GET/PUT        | `admin/modules/route.ts`             | ตั้งค่า module ต่อ org                                                |
-| `/api/google-drive/connect`      | POST           | `google-drive/connect/route.ts`      | เชื่อม Google Drive+Calendar                                          |
-| `/api/google-drive/callback`     | GET            | `google-drive/callback/route.ts`     | OAuth callback                                                        |
-| `/api/google-drive/disconnect`   | POST           | `google-drive/disconnect/route.ts`   | ยกเลิกการเชื่อม                                                       |
-| `/api/google-drive/status`       | GET            | `google-drive/status/route.ts`       | ตรวจสถานะการเชื่อม                                                    |
-| `/api/org/invite`                | POST           | `org/invite/route.ts`                | เชิญเข้า organization                                                 |
-| `/api/assistant/jobs`            | GET/POST       | `assistant/jobs/route.ts`            | สร้าง/ดึงงาน (generic, kind=stt)                                      |
-| `/api/assistant/jobs/process`    | POST           | `assistant/jobs/process/route.ts`    | claim job + ยิงไป stt-worker                                          |
-| `/api/assistant/stt/mom-deliver` | POST           | `assistant/stt/mom-deliver/route.ts` | worker callback → PDF → LINE (มี alias เดิม `transcribe/mom-deliver`) |
-| `/api/tmc/*`                     | various        | `tmc/*/route.ts`                     | TMC Management endpoints                                              |
+| Endpoint                         | Method         | File                                 | หน้าที่                                                                                                     |
+| -------------------------------- | -------------- | ------------------------------------ | ----------------------------------------------------------------------------------------------------------- |
+| `/api/line/webhook`              | POST           | `line/webhook/route.ts`              | LINE Bot webhook หลัก                                                                                       |
+| `/api/line/link-token`           | POST           | `line/link-token/route.ts`           | สร้าง token ผูกบัญชี LINE                                                                                   |
+| `/api/line/unlink`               | POST           | `line/unlink/route.ts`               | ยกเลิกผูกบัญชี LINE                                                                                         |
+| `/api/assistant/scheduler`       | POST           | `assistant/scheduler/route.ts`       | Cron trigger สำหรับแจ้งเตือน task                                                                           |
+| `/api/admin/delivery/logs`       | GET            | `admin/delivery/logs/route.ts`       | ดู logs การส่ง                                                                                              |
+| `/api/admin/delivery/schedule`   | PUT            | `admin/delivery/schedule/route.ts`   | ตั้ง cron schedule                                                                                          |
+| `/api/admin/delivery/send-now`   | POST           | `admin/delivery/send-now/route.ts`   | ส่งข่าวทันที                                                                                                |
+| `/api/admin/news-agent/preview`  | POST           | `admin/news-agent/preview/route.ts`  | Preview ข่าว                                                                                                |
+| `/api/admin/users/list`          | GET            | `admin/users/list/route.ts`          | รายชื่อ users                                                                                               |
+| `/api/admin/users/invite`        | POST           | `admin/users/invite/route.ts`        | เชิญ user                                                                                                   |
+| `/api/admin/users/delete`        | POST           | `admin/users/delete/route.ts`        | ลบ user                                                                                                     |
+| `/api/admin/users/permissions`   | GET/PUT        | `admin/users/permissions/route.ts`   | จัดการสิทธิ์                                                                                                |
+| `/api/admin/users/orgs`          | GET/PUT/DELETE | `admin/users/orgs/route.ts`          | จัดการ org memberships                                                                                      |
+| `/api/admin/modules`             | GET/PUT        | `admin/modules/route.ts`             | ตั้งค่า module ต่อ org                                                                                      |
+| `/api/google-drive/connect`      | POST           | `google-drive/connect/route.ts`      | เชื่อม Google Drive+Calendar                                                                                |
+| `/api/google-drive/callback`     | GET            | `google-drive/callback/route.ts`     | OAuth callback                                                                                              |
+| `/api/google-drive/disconnect`   | POST           | `google-drive/disconnect/route.ts`   | ยกเลิกการเชื่อม                                                                                             |
+| `/api/google-drive/status`       | GET            | `google-drive/status/route.ts`       | ตรวจสถานะการเชื่อม                                                                                          |
+| `/api/org/invite`                | POST           | `org/invite/route.ts`                | เชิญเข้า organization                                                                                       |
+| `/api/public/demo-request`       | POST/OPTIONS   | `public/demo-request/route.ts`       | รับฟอร์ม "ขอเดโม" จาก landing (public+CORS, honeypot) → insert `demo_requests` + push LINE แจ้ง super_admin |
+| `/api/assistant/jobs`            | GET/POST       | `assistant/jobs/route.ts`            | สร้าง/ดึงงาน (generic, kind=stt)                                                                            |
+| `/api/assistant/jobs/process`    | POST           | `assistant/jobs/process/route.ts`    | claim job + ยิงไป stt-worker                                                                                |
+| `/api/assistant/stt/mom-deliver` | POST           | `assistant/stt/mom-deliver/route.ts` | worker callback → PDF → LINE (มี alias เดิม `transcribe/mom-deliver`)                                       |
+| `/api/tmc/*`                     | various        | `tmc/*/route.ts`                     | TMC Management endpoints                                                                                    |
 
 **Auth helpers** (`app/api/_lib/`):
 
@@ -152,16 +156,17 @@ pnpm build
 
 ทุกคำสั่ง **ต้องขึ้นต้นด้วย `/`** · ข้อความอิสระ (ไม่ขึ้นต้น `/`) ที่ "ดูเป็นคำถาม" → **ผู้ช่วยโฟล์ (Flow RAG)** ตอบ (ดูหัวข้อด้านล่าง) · ข้อความที่ไม่เข้าเงื่อนไขถูก ignore
 
-| คำสั่ง                    | หน้าที่                                                  | Permission Key                                       |
-| ------------------------- | -------------------------------------------------------- | ---------------------------------------------------- |
-| `/help`                   | แสดงคำสั่งทั้งหมด                                        | —                                                    |
-| `/link <token>`           | ผูกบัญชี LINE                                            | —                                                    |
-| `/ข่าว`                   | สรุปข่าว                                                 | `bot.news.request`                                   |
-| `/สรุปล่าสุด`             | ข่าวล่าสุด                                               | `bot.news.latest`                                    |
-| `/รายรับ <จำนวน> <โน้ต>`  | บันทึกรายรับ                                             | `bot.finance.income_add`                             |
-| `/รายจ่าย <จำนวน> <โน้ต>` | บันทึกรายจ่าย                                            | `bot.finance.expense_add`                            |
-| `/mom`                    | ส่งไฟล์เสียง → ได้รายงานการประชุม (MoM) PDF กลับทาง LINE | `bot.assistant.transcribe` (ผู้ช่วย AI, per-profile) |
-| `/web`                    | รับ magic link เข้าเว็บผู้ช่วย AI                        | —                                                    |
+| คำสั่ง                                    | หน้าที่                                                                                                                                                                          | Permission Key                                       |
+| ----------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| `/help`                                   | แสดงคำสั่งทั้งหมด                                                                                                                                                                | —                                                    |
+| `/link <token>`                           | ผูกบัญชี LINE                                                                                                                                                                    | —                                                    |
+| `/ข่าว`                                   | สรุปข่าว                                                                                                                                                                         | `bot.news.request`                                   |
+| `/สรุปล่าสุด`                             | ข่าวล่าสุด                                                                                                                                                                       | `bot.news.latest`                                    |
+| `/รายรับ <จำนวน> <โน้ต>`                  | บันทึกรายรับ                                                                                                                                                                     | `bot.finance.income_add`                             |
+| `/รายจ่าย <จำนวน> <โน้ต>`                 | บันทึกรายจ่าย                                                                                                                                                                    | `bot.finance.expense_add`                            |
+| `/mom`                                    | ส่งไฟล์เสียง → ได้รายงานการประชุม (MoM) PDF กลับทาง LINE                                                                                                                         | `bot.assistant.transcribe` (ผู้ช่วย AI, per-profile) |
+| `/web`                                    | รับ magic link เข้าเว็บผู้ช่วย AI                                                                                                                                                | —                                                    |
+| `/แจ้งปัญหา` `/bug` `/report` `<ข้อความ>` | แจ้งปัญหา/บั๊กเข้า Issue Tracker (`system_issues`, source=line, status=open) → push แจ้ง super_admin · ทุก LINE user ใช้ได้ (provisioned) · dedup ต่อ message + rate-limit 5/วัน | —                                                    |
 
 **หมายเหตุ:** Admin role ข้ามการเช็ค permission ทั้งหมด · คำสั่ง Task Manager เดิม (`/t /tk /d /a /ap`) + ปฏิทิน (`/นัด /วันนี้`) **ยกเลิก/ลบโค้ดแล้ว** (module assistant เดิม + ตาราง `tasks`/`calendar_events` ไม่มีช่องทางสร้างแล้ว)
 
@@ -182,12 +187,26 @@ pnpm build
 
 **โมเดล B2B vs B2C (LINE login เท่านั้น):**
 
-- **B2C = ผู้ช่วย AI (key ภายใน `stt`)** — บริการ per-profile (umbrella, ตอนนี้ = ถอดเสียง→MoM, อนาคตเพิ่มตัวช่วยอื่น). subscription แยก (฿99/เดือน, trial 300 นาที), per-profile quota. **URL top-level `/assistant`, `/assistant/usage`, `/assistant/billing` — ไม่มี [org]**. gate = `requireAssistantUser` (เว็บ) / `checkSttAccess` (LINE) = grant `stt` หรือ `bot.assistant.transcribe` หรือ super_admin · ด่านเก็บเงิน = `stt_quota` ที่ stt-worker · **ทุกคนที่แอด LINE ได้อัตโนมัติ** · guard resolve "home org" ภายในไว้เก็บไฟล์/เรียก worker (ไม่โผล่ใน URL)
+- **B2C = ผู้ช่วย AI (key ภายใน `stt`)** — บริการ per-profile (umbrella, ตอนนี้ = ถอดเสียง→MoM, อนาคตเพิ่มตัวช่วยอื่น). subscription แยก (฿99/เดือน, trial 300 นาที), per-profile quota. **URL top-level `/assistant` (= หน้าการใช้งาน, default), `/assistant/stt` (ถอดเสียง), `/assistant/billing` — ไม่มี [org]**. gate = `requireAssistantUser` (เว็บ) / `checkSttAccess` (LINE) = grant `stt` หรือ `bot.assistant.transcribe` หรือ super_admin · ด่านเก็บเงิน = `stt_quota` ที่ stt-worker · **ทุกคนที่แอด LINE ได้อัตโนมัติ** · guard resolve "home org" ภายในไว้เก็บไฟล์/เรียก worker (ไม่โผล่ใน URL)
 - **B2B = ERP**: shared (accounting/payroll) + tailor-made (tmc/crm/acc_firm/…) — ระดับ org, **superadmin เปิดให้ต่อ org เท่านั้น** (`admin/modules` = `requireAdmin` = super_admin) · **module `assistant` เดิม (Task Manager) ถูกยกเลิกทิ้งหมดแล้ว**
 - **สลับ STT ↔ ERP**: header มีปุ่ม **"ผู้ช่วย AI"** (→ `/assistant`) + org switcher (ERP) · B2C เห็นแค่ผู้ช่วย · B2B เห็นทั้งคู่ · super_admin → `/admin` (เลือกเข้า org/assistant)
-- **redirect หลัง login**: ERP (B2B) > ผู้ช่วย AI (B2C) > no-org · super_admin → /admin
+- **redirect หลัง login**: ผู้ช่วย AI / Perpos Flow (B2C) เป็น default หลักของทุกคน > ERP (B2B, เฉพาะ org-only ที่ไม่มีผู้ช่วย) > no-org · super_admin → /admin
 - **`assistant` ใน path/route group** = ผู้ช่วย AI per-profile (`(hydrogen)/assistant/*`, อยู่ใน SYSTEM_SEGMENTS — ไม่ใช่ org slug). API: generic `/api/assistant/{jobs,jobs/process,quota,stats}` + STT-เฉพาะ `/api/assistant/stt/{mom-pdf,mom-deliver,checkout,portal}` · guard per-profile (`requireAssistantUser` → kind-aware ผ่าน `ASSISTANT_KINDS` ใน [lib/assistant/kinds.ts](apps/perpos/src/lib/assistant/kinds.ts))
 - หมายเหตุ: job hub = **`assistant_jobs`** (generic, มีคอลัมน์ `kind`) · ของที่เป็น STT แท้คงชื่อ `stt_*` (`stt_quota/stt_subscriptions/stt_plans`) + `stt-worker` + bucket `assistant_audio` + `kind='stt'` — user-facing = "ผู้ช่วย AI" ทั้งหมด
+
+---
+
+## Issue Tracker — ติดตามปัญหาทั้งระบบ (admin + LINE + agent ใช้ฐานเดียวกัน)
+
+ระบบ tracking ปัญหา (bug/user-error/config-infra/feature-gap) ที่ **คนและ AI agent ใช้ร่วมกัน** — single source of truth = ตาราง `system_issues`.
+
+- **เลขอ้างอิง** type-prefix นับแยกต่อ prefix (RPC `next_issue_ref`): `BUG-`(bug) `OPS-`(config_infra) `UX-`(user_error) `FEAT-`(feature_gap) · **immutable** (freeze ตอนสร้าง, type เปลี่ยนได้แต่ ref คงเดิม)
+- **3 ช่องทางแจ้ง:** (1) **LINE** — `/แจ้งปัญหา`·`/bug`·`/report <ข้อความ>` ([webhook](apps/perpos/src/app/api/line/webhook/route.ts) `handleReportIssue`: ทุก LINE user แจ้งได้, dedup ต่อ `line_message_id` + rate-limit 5/วัน, `status=open`) · (2) **admin** กรอกเองที่ `/admin/issues` · (3) **agent** (Fix Factory) ตอนรับเคส
+- **status lifecycle:** `open → triaging → diagnosing → fixing → verifying → fixed → deployed → closed` (+ `blocked/wontfix/duplicate/handoff_feature`) · **`fixed` = แก้เสร็จใน branch ยังไม่ deploy** ≠ `deployed` (ขึ้น prod) — agent หยุดที่ `fixed`, คนปิด (deployed/closed) เอง
+- **หน้า admin** `(hydrogen)/admin/issues/*` (super_admin, SSR) — dashboard (MTTR/เปิดค้าง/by source) + list/filter + detail/timeline + ปุ่มคัดลอกคำสั่ง `/fix-issue <ref>`
+- **API** (`requireAdmin`): `POST /api/admin/issues` (สร้าง) · `PATCH /api/admin/issues/[ref]` (เปลี่ยนสถานะ/แก้/โน้ต → timeline event + เมื่อ deployed/closed & source=line → push แจ้งผู้รายงาน กลับ LINE = close-the-loop)
+- **agent เขียนผ่าน RPC เท่านั้น** (parameterized, ห้ามต่อ raw SQL): `agent_create_issue(...)` / `agent_log_issue(ref, status?, root_cause?, …)` — SECURITY DEFINER, service-role · fix-issue skill ขยับสถานะทุก phase สด + commit อ้าง ref `(BUG-12)`
+- **fetch logic** = [lib/admin/issues.ts](apps/perpos/src/lib/admin/issues.ts) (`listIssues`/`getIssueByRef`/`getIssueStats`) · ตาราง: `system_issues` · `system_issue_events` · `issue_counters` · `issue_report_usage` (RLS deny-all, super_admin/agent ผ่าน service-role)
 
 ---
 
@@ -207,6 +226,8 @@ pnpm build
 | `stt_usage_transactions`                     | ledger การใช้โควต้า (debit/refund) — RPC `consume_stt_quota`/`refund_stt_quota` (service role) atomic reserve+refund; quota บังคับใช้ที่ stt-worker (วัดความยาวด้วย music-metadata ก่อนเรียก Gemini) · API: `GET /api/assistant/quota`, `GET | PUT /api/admin/stt-quota` |
 | `kb_chunks`                                  | Knowledge base ผู้ช่วยโฟล์ (RAG) — source/heading/content + embedding vector(768) + hnsw · embed ด้วย `pnpm kb:embed`                                                                                                                        |
 | `flow_chat_usage`                            | rate-limit ผู้ช่วยโฟล์ (line_user_id, day, count) — RPC `incr_flow_chat_usage`                                                                                                                                                               |
+| `system_issues`                              | **Issue Tracker** — ปัญหาทั้งระบบ (ref BUG-/OPS-/UX-/FEAT- immutable, type/severity/status/area[]/root_cause/fix_summary/branch/source admin\|agent\|line\|signal/reported_by/dedup_key) · ดูหัวข้อ "Issue Tracker" ด้านล่าง                 |
+| `system_issue_events`                        | timeline ของแต่ละ issue (status_change/edited/note) · `issue_counters` (เลขต่อ prefix) · `issue_report_usage` (rate-limit แจ้งผ่าน LINE)                                                                                                     |
 | `news_agent_configs`                         | ตั้งค่า News Agent (topics, sources, summary_style)                                                                                                                                                                                          |
 | `delivery_schedules`                         | cron schedule ส่งข่าว                                                                                                                                                                                                                        |
 | `delivery_logs`                              | log การส่งข่าว                                                                                                                                                                                                                               |
@@ -217,6 +238,7 @@ pnpm build
 | `orders` / `order_items`                     | ออเดอร์ขาย                                                                                                                                                                                                                                   |
 | `sales_quotes` / `sales_invoices`            | ใบเสนอราคา / ใบแจ้งหนี้                                                                                                                                                                                                                      |
 | `customers` / `workers`                      | ลูกค้า / พนักงาน                                                                                                                                                                                                                             |
+| `demo_requests`                              | Lead "ขอเดโม" จากหน้า landing (name, phone, product, source, status new→contacted→…) — เขียนผ่าน `/api/public/demo-request`, ดูที่ `/admin/leads` (RLS deny-all, service role)                                                               |
 
 ### tasks table (status values)
 
@@ -292,6 +314,7 @@ Endpoint: `POST /api/assistant/scheduler`
   - Stuck STT jobs (`processing` ค้าง) → mark failed + refund quota + แจ้ง LINE
   - Requeue pending STT jobs (worker ไม่ว่าง/trigger พลาด) → ยิงซ้ำ, เกิน 30 นาที = ยอมแพ้
   - PDPA cleanup → ลบไฟล์เสียงดิบเมื่อ job ถึงสถานะสุดท้าย + ลบ PDF/transcript เมื่อเก่า >48 ชม.
+- **Tier gating (ลด Active CPU บน Vercel Fluid)**: งานกู้คืน/เตือนที่ time-sensitive (stuck/requeue STT+PDF, recall lifecycle, calendar reminder 5 นาที) รัน **ทุกรอบ** · งาน cleanup/sweep ที่ไม่เร่งด่วน gate ให้รันห่างขึ้นด้วยตาราง `scheduler_tier_runs` (เก็บ last-run ต่อ tier, gate ด้วย elapsed time จึง robust กับทุก cron cadence): **t5** (calendar sync, auto top-up) · **t15** (PDPA/privacy cleanups, purge recall media) · **t60** (`webhook_event`/`file_links` cleanup, token expiry sweep) · idempotent — mark tier หลังงานสำเร็จ, crash ก่อน mark = retry รอบหน้า
 
 ---
 
@@ -305,6 +328,37 @@ Endpoint: `POST /api/assistant/scheduler`
 - **LINE push**: ใช้ `sendLineMessages()` จาก `lib/line/send-messages.ts`
 - **LINE Flex Card**: ทุกการ์ดต้องตามคัมภีร์ [`docs/line-flex-card-guide.md`](docs/line-flex-card-guide.md) — header CHARCOAL `#3C3B3D` พื้นเรียบ (ห้าม gradient), token สีจาก DESIGN.md §2, ต้นแบบ = `buildLinkConfirmFlex` / `buildBotFlex`
 - **Commit**: ไม่ push จนกว่าจะสั่ง
+
+---
+
+## Page Load Performance — มาตรฐานบังคับ (binding)
+
+> **กฎบังคับทั้งแอป** (ปัจจุบัน + โค้ดใหม่ทุกชิ้น): หน้าต้องไม่ "หน่วงก่อนข้อมูลขึ้น"
+> คัมภีร์เต็ม + ตัวอย่าง + กับดัก: [`docs/SERVER_COMPONENT_PATTERN.md`](docs/SERVER_COMPONENT_PATTERN.md) — **อ่านก่อนสร้าง/แก้หน้าใด ๆ**
+
+**MUST (ต้องทำ):**
+
+1. **ทุก route group ต้องมี `loading.tsx`** — baseline `(hydrogen)/loading.tsx` + รายโซน (admin/assistant/[orgSlug]) มีอยู่แล้ว · **ห้ามลบ** · section ใหม่ที่ layout ต่างจากเดิม → เพิ่ม `loading.tsx` ของตัวเอง (skeleton ตาม DESIGN.md §9 — ห้าม spinner กลางจอ)
+2. **หน้า display ใหม่ = Server Component** — ดึงข้อมูลตอน SSR (ห้าม `'use client'` + `getSession()` + `fetch('/api/...')` ตอน mount ถ้าหน้านั้นแค่แสดงผล) · เลือกท่าตามชนิดหน้า:
+   - display ล้วน → full server component
+   - list + filter/pagination → **searchParams-driven** (filter/page อยู่ใน URL)
+   - display + poll/chart/interactive → **hybrid** (server ดึง initial → client view)
+3. **เลือก auth guard ให้ตรงโมเดล** (ผิด = data leak):
+   - หน้า `/admin/*` (ข้ามทั้งระบบ) → `requireSuperAdminPage()` ([lib/admin/guard.ts](apps/perpos/src/lib/admin/guard.ts)) = service-role
+   - หน้าโมดูล per-org (tmc/crm/acc_firm/…) → **member + RLS** (`getModuleRoleForCurrentUser` + `createSupabaseServerClient`) · **ห้ามใช้ admin service-role client กับข้อมูล per-org**
+4. **แยก fetch logic** ไป `lib/<area>/<x>.ts` (reuse กับ route เดิม) · route ที่ไม่มี caller เหลือ → ลบ · ที่ client view ยัง poll → คงไว้
+5. **AuthGuard ต้องไม่บล็อก shell** — gate เฉพาะ content area (โครงปัจจุบันใน [(hydrogen)/layout.tsx](<apps/perpos/src/app/(hydrogen)/layout.tsx>) — อย่าย้าย AuthGuard ออกมาครอบทั้ง shell)
+
+**MUST NOT / ข้อยกเว้นที่ตั้งใจ (ห้ามแปลงเป็น server โดยไม่จำเป็น):**
+
+- หน้า **ping/health สด** (เช่น `/admin/system`) → คง client (SSR จะ block รอ network)
+- หน้า **CRUD หนัก** (มี mutation/dialog เยอะ เช่น tmc/finance, crm) → คง client, แปลง **opportunistic** ตอน touch เท่านั้น (ROI ต่ำ, risk สูง)
+
+**สถานะปัจจุบัน (compliance):** loading.tsx + AuthGuard-shell ครอบทุกหน้าแล้ว · SSR แล้ว: accounting (เดิม), admin dashboard/payments/stt-billing/scheduler/admin-audit/health/stt-cost, tmc dashboard, **ผู้ช่วย AI (Flow) ทั้งร่ม `/assistant/*` — usage (full SSR), billing/meetings/transcribe-หน้าแรก (hybrid: SSR initial → client poll/mutation)** · exempt: system, หน้า CRUD
+
+> หมายเหตุ assistant SSR: guard ฝั่งหน้า = `requireAssistantPage()` ([lib/assistant/page-guard.ts](apps/perpos/src/lib/assistant/page-guard.ts), cookies) คู่กับ API guard `requireAssistantUser` — ทั้งคู่เรียก `resolveAssistantAccess`/`resolveHomeOrg` ตัวเดียวกันใน [lib/assistant/access.ts](apps/perpos/src/lib/assistant/access.ts) · fetch logic แยกไป `lib/assistant/{stats,jobs,meetings,autotopup}.ts` (reuse กับ API route เดิม)
+
+**Verify ก่อน merge:** `tsc --noEmit`=0 · `pnpm lint` clean · หน้า render เหมือนเดิม (screenshot) · ไม่มี client fetch เดิมหลัง SSR (network) — checklist เต็มใน [คัมภีร์](docs/SERVER_COMPONENT_PATTERN.md)
 
 ---
 
@@ -331,6 +385,8 @@ Endpoint: `POST /api/assistant/scheduler`
 | **รูปโปรไฟล์ + fallback อักษรย่อ**                 | `<Avatar>`                                                                                         | `@/components/ui/avatar`           |
 | ป้ายสถานะ                                          | `<StatusBadge tone=…>`                                                                             | `@/components/ui/badge`            |
 | KPI/การ์ดสรุป                                      | `<StatCard>`                                                                                       | `@/components/ui/stat-card`        |
+| **ตัวเลือก 2–3 อย่าง (สลับ/mutually exclusive)**   | `<SegmentedControl>`                                                                               | `@/components/ui/segmented`        |
+| **อัปโหลดรูป PNG (โลโก้/ลายเซน) → data URL**       | `<ImageUpload>`                                                                                    | `@/components/ui/image-upload`     |
 
 > **rizzui**: โค้ด/หน้าจอ**ใหม่**ห้าม import จาก `rizzui`/`rizzui/typography` ตรง ๆ — ใช้ `@/components/ui/*` เสมอ (`Button/Input/Select/Title/Text/Avatar/Badge` ฯลฯ มีครบแล้ว)
 >
@@ -556,7 +612,7 @@ import { Label } from '@/components/ui/label';
 - **Domain**: perpos.ai
 - **PDF Service**: Google Cloud Run (`asia-southeast1`) — `perpos-pdf-renderer`
 - **OCR Worker**: Google Cloud Run (`asia-southeast1`) — `perpos-ocr-worker`
-- **STT Worker**: Google Cloud Run (`asia-southeast1`) — `perpos-stt-worker` · deploy ด้วย `--memory 2Gi --concurrency 3 --no-cpu-throttling` · secrets: `WORKER_SECRET`, `GEMINI_API_KEY`, `LINE_MESSAGING_CHANNEL_ACCESS_TOKEN`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` · env: `APP_BASE_URL=https://app.perpos.ai` (**ต้องตั้ง** — แอปอยู่ที่ app.perpos.ai ไม่ใช่ perpos.ai ที่ default; ถ้าไม่ตั้ง callback mom-deliver จะ 404 → LINE ไม่ได้ PDF)
+- **STT Worker**: Google Cloud Run (`asia-southeast1`) — `perpos-stt-worker` · deploy ด้วย `--memory 2Gi --concurrency 3 --no-cpu-throttling` · secrets: `WORKER_SECRET`, `GEMINI_API_KEY`, `RECALL_API_KEY`, `LINE_MESSAGING_CHANNEL_ACCESS_TOKEN`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` · env: `APP_BASE_URL=https://app.perpos.ai`, `RECALL_REGION=ap-northeast-1` (**ทั้งสองต้องตั้ง** — `APP_BASE_URL`: แอปอยู่ที่ app.perpos.ai ไม่ใช่ perpos.ai ที่ default; ถ้าไม่ตั้ง callback mom-deliver จะ 404 → LINE ไม่ได้ PDF · `RECALL_API_KEY`+`RECALL_REGION`: worker ใช้ดึง recording ของฟีเจอร์ meeting-bot (Recall.ai) จาก `recall_bot_id` โดยตรง; ถ้า `RECALL_API_KEY` ตกหล่นเวลา redeploy → recall job fail "ยังไม่ได้ตั้งค่า RECALL_API_KEY", ถ้าไม่ตั้ง `RECALL_REGION` จะ default เป็น us-east-1 ผิด → fetch audio_mixed fail เพราะ workspace อยู่ ap-northeast-1) · ⚠️ `--set-secrets` แทนที่ secret ทั้งชุด → ต้องใส่ `RECALL_API_KEY` ทุกครั้ง
   - **ไฟล์ยาว = อัปไฟล์ทั้งก้อนเข้า Gemini Files API ตรง ๆ** (รองรับถึง 2GB / หลายชั่วโมง) — **ไม่ตัด/ไม่ใช้ ffmpeg** เพราะ Gemini เห็น global context ทั้งไฟล์ → สรุปคมกว่า. ผลลัพธ์เป็น **รายงานการประชุม (Minutes of Meeting)** JSON: meeting_title, executive_summary, key_topics, decisions (มติ), action_items, speakers (ผู้เข้าร่วม) — **ไม่มี transcript คำต่อคำ/timestamp** (เน้นสรุป → output เล็ก เร็ว ไม่ชน 64k output cap แม้ไฟล์ยาวหลายชั่วโมง) — ถ้าจะลดขนาด/เวลาอัปโหลด ให้บีบไฟล์เป็น .ogg/Opus จาก client
   - **`--no-cpu-throttling` บังคับ**: STT เป็นงาน async fire-and-forget ที่ใช้เวลา 30–90 วิหลังตอบ 202 — ถ้า CPU ถูก throttle หลังส่ง response (ค่า default ของ Cloud Run) background job จะค้างไม่จบ (job ค้าง `pending`/`processing`). ต่างจาก ocr-worker ที่งานสั้นจึงรอดด้วย default throttling
   - **GEMINI_API_KEY ต้องเป็น paid tier**: free tier — `gemini-2.5-pro` quota = 0 (ใช้ไม่ได้), `gemini-2.5-flash` มักโดน 503 high-demand. ต้องเปิด billing บน Google AI Studio / ใช้ Vertex AI
@@ -599,7 +655,7 @@ README.md
 **Deploy = `gcloud` มือเท่านั้น — ไม่มี CI auto-deploy สำหรับ workers** (workflow `deploy-workers.yml` ถูกลบแล้ว เพราะ `GCP_SA_KEY` ไม่เคยตั้ง + เงื่อนไขไม่ match squash merge → ใช้ไม่ได้จริง) · deploy ทุกครั้งรัน `gcloud run deploy --source` จาก `services/<worker>/` เอง
 
 - เครื่อง dev ถ้า gcloud ฟ้อง _"Python 3.9 no longer supported"_ → `export CLOUDSDK_PYTHON=$(command -v python3.14 || command -v python3.13)` ก่อน
-- 4 services: `perpos-pdf-renderer` (2Gi, timeout 120, concurrency 5) · `perpos-ocr-worker` (1Gi) · `perpos-stt-worker` (2Gi, concurrency 3, `--no-cpu-throttling`, `APP_BASE_URL`) · `perpos-pdf-compress-worker` (4Gi, cpu 2, concurrency 2, `--no-cpu-throttling`, `APP_BASE_URL`,`PDF_MAX_MB`,`PDF_MAX_PAGES`) · ทุกตัวมี secret `SENTRY_DSN` ด้วย
+- 4 services: `perpos-pdf-renderer` (2Gi, timeout 120, concurrency 5) · `perpos-ocr-worker` (1Gi) · `perpos-stt-worker` (2Gi, concurrency 3, `--no-cpu-throttling`, `APP_BASE_URL`, `RECALL_API_KEY` secret, `RECALL_REGION=ap-northeast-1` env) · `perpos-pdf-compress-worker` (4Gi, cpu 2, concurrency 2, `--no-cpu-throttling`, `APP_BASE_URL`,`PDF_MAX_MB`,`PDF_MAX_PAGES`) · ทุกตัวมี secret `SENTRY_DSN` ด้วย
 
 **Deploy command มาตรฐาน** (ห้ามใส่ `--set-env-vars PORT=8080` — Cloud Run inject ให้อัตโนมัติ):
 

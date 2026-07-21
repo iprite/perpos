@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   createBot,
   leaveBot,
+  deleteScheduledBot,
   extractMeetingUrl,
   normalizeMeetingUrl,
   AdhocPoolDepletedError,
@@ -137,4 +138,72 @@ export async function createBotForHeldJob(
     await admin.from("assistant_jobs").delete().eq("id", job.id);
     return e instanceof AdhocPoolDepletedError ? { kind: "busy" } : { kind: "fatal" };
   }
+}
+
+export type CancelBotJobRow = {
+  id: string;
+  profile_id: string | null;
+  recall_bot_id: string | null;
+  bot_state: string | null;
+  recording_started_at: string | null;
+};
+
+export type CancelBotOutcome =
+  | { kind: "already_done" } // จบ/ถูกยกเลิกไปแล้ว
+  | { kind: "settling" } // บอทออกเพราะครบโควต้า/กำลังออก → คิดแล้ว ยกเลิกไม่ได้
+  | { kind: "recording_left" } // เริ่มอัดแล้ว → นำออก คิดตามจริง + ส่ง MoM เท่าที่ได้
+  | { kind: "cancelled"; remainMin: number }; // ยังไม่อัด → คืนโควต้าเต็ม
+
+/**
+ * ยกเลิกบอทของ job — channel-agnostic (LINE/web). caller เช็คเจ้าของก่อนเรียก
+ * กติกาคิดเงินตรงกับ handleRecallCancel เดิม:
+ *   - terminal → already_done · settled/leaving → settling (ห้ามคืน)
+ *   - เริ่มอัดแล้ว → leave แล้วปล่อย bot.done settle presence + MoM (ไม่ refund/ไม่ mark cancelled)
+ *   - ยังไม่อัด → delete(scheduled)/leave + refund เต็ม + mark cancelled
+ */
+export async function cancelBotJob(
+  admin: SupabaseClient,
+  job: CancelBotJobRow,
+): Promise<CancelBotOutcome> {
+  if (
+    ["cancelled", "fatal", "recording_ready", "done", "failed_permanent", "stuck"].includes(
+      job.bot_state ?? "",
+    )
+  ) {
+    return { kind: "already_done" };
+  }
+
+  // settle เกิดแล้ว (บอทออกเพราะครบโควต้า) → เป็น usage จริง ห้ามอ้างคืน
+  const { data: settled } = await admin
+    .from("token_ledger")
+    .select("id")
+    .eq("job_id", job.id)
+    .eq("kind", "adjust")
+    .eq("reason", "bot-settled")
+    .limit(1)
+    .maybeSingle();
+  if (settled || job.bot_state === "leaving") return { kind: "settling" };
+
+  // เริ่มอัดแล้ว (มีเสียง) → นำออก แล้วปล่อย bot.done คิด presence + ถอดเท่าที่ได้ (ไม่ refund/ไม่ mark)
+  if (job.recording_started_at) {
+    if (job.recall_bot_id) await leaveBot(job.recall_bot_id).catch(() => false);
+    return { kind: "recording_left" };
+  }
+
+  // ยังไม่เริ่มอัด (รอหน้าห้อง/ยังไม่เริ่ม) → คืนโควต้าเต็ม
+  if (job.recall_bot_id) {
+    if (job.bot_state === "scheduled")
+      await deleteScheduledBot(job.recall_bot_id).catch(() => false);
+    else await leaveBot(job.recall_bot_id).catch(() => false);
+  }
+  await admin.rpc("refund_bot_quota", { p_job_id: job.id }).then(
+    () => undefined,
+    () => undefined,
+  );
+  await admin
+    .from("assistant_jobs")
+    .update({ status: "failed", bot_state: "cancelled", updated_at: new Date().toISOString() })
+    .eq("id", job.id);
+  const { remainMin } = await getBotRemaining(admin, job.profile_id ?? "");
+  return { kind: "cancelled", remainMin };
 }

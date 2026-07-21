@@ -1,7 +1,8 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { requireAdmin } from '../../_lib/auth';
-import { createAdminClient } from '../../_lib/supabase';
-import { ALL_MODULES, MODULE_MENUS, ORG_ROLES } from '@/lib/modules';
+import { NextRequest, NextResponse } from "next/server";
+import { requireAdmin } from "../../_lib/auth";
+import { createAdminClient } from "../../_lib/supabase";
+import { ALL_MODULES, MODULE_MENUS, ORG_ROLES } from "@/lib/modules";
+import { seedModule, seedAccountingPeriods } from "../_lib/module-seed";
 
 /** Returns true if this module is allowed to be enabled for the given org slug */
 function isModuleAllowedForOrg(moduleKey: string, orgSlug: string): boolean {
@@ -10,7 +11,7 @@ function isModuleAllowedForOrg(moduleKey: string, orgSlug: string): boolean {
   return def.forOrgSlugs.includes(orgSlug);
 }
 
-const DEFAULT_MODULE_ROLES = ['owner', 'admin'];
+const DEFAULT_MODULE_ROLES = ["owner", "admin"];
 const ALL_ROLES = [...ORG_ROLES];
 
 // ── Change log helper ─────────────────────────────────────────────────────────
@@ -22,8 +23,12 @@ async function writeChangeLogs(
   next: { module_key: string; is_enabled: boolean; allowed_roles: string[] }[],
 ) {
   const entries: {
-    org_id: string; module_key: string; action: string;
-    changed_by: string; old_value: unknown; new_value: unknown;
+    org_id: string;
+    module_key: string;
+    action: string;
+    changed_by: string;
+    old_value: unknown;
+    new_value: unknown;
   }[] = [];
 
   for (const s of next) {
@@ -32,19 +37,21 @@ async function writeChangeLogs(
 
     if (old.is_enabled !== s.is_enabled) {
       entries.push({
-        org_id: orgId, module_key: s.module_key,
-        action: s.is_enabled ? 'enabled' : 'disabled',
+        org_id: orgId,
+        module_key: s.module_key,
+        action: s.is_enabled ? "enabled" : "disabled",
         changed_by: changedBy,
         old_value: { is_enabled: old.is_enabled },
         new_value: { is_enabled: s.is_enabled },
       });
     } else {
-      const oldR = [...old.allowed_roles].sort().join(',');
-      const newR = [...s.allowed_roles].sort().join(',');
+      const oldR = [...old.allowed_roles].sort().join(",");
+      const newR = [...s.allowed_roles].sort().join(",");
       if (oldR !== newR) {
         entries.push({
-          org_id: orgId, module_key: s.module_key,
-          action: 'roles_updated',
+          org_id: orgId,
+          module_key: s.module_key,
+          action: "roles_updated",
           changed_by: changedBy,
           old_value: { allowed_roles: old.allowed_roles },
           new_value: { allowed_roles: s.allowed_roles },
@@ -54,7 +61,7 @@ async function writeChangeLogs(
   }
 
   if (entries.length) {
-    await admin.from('org_module_change_log').insert(entries);
+    await admin.from("org_module_change_log").insert(entries);
   }
 }
 
@@ -64,51 +71,61 @@ export async function GET(req: NextRequest) {
 
   const admin = createAdminClient();
   const { data: orgs, error: orgErr } = await admin
-    .from('organizations')
-    .select('id, name, slug')
-    .order('name');
+    .from("organizations")
+    .select("id, name, slug")
+    .order("name");
   if (orgErr) return NextResponse.json({ error: orgErr.message }, { status: 500 });
 
-  const orgId = req.nextUrl.searchParams.get('orgId');
+  const orgId = req.nextUrl.searchParams.get("orgId");
   if (!orgId) return NextResponse.json({ orgs: orgs ?? [] });
 
   // Get slug of selected org (needed to match forOrgSlugs on specific modules)
   const selectedOrg = (orgs ?? []).find((o: Record<string, unknown>) => o.id === orgId) as
     | { id: string; name: string; slug: string }
     | undefined;
-  const orgSlug = selectedOrg?.slug ?? '';
+  const orgSlug = selectedOrg?.slug ?? "";
 
   // Module-level settings
   const { data: moduleRows } = await admin
-    .from('org_module_settings')
-    .select('module_key, is_enabled, allowed_roles')
-    .eq('organization_id', orgId);
+    .from("org_module_settings")
+    .select("module_key, is_enabled, allowed_roles")
+    .eq("organization_id", orgId);
 
-  const moduleMap = new Map((moduleRows ?? []).map((r: Record<string, unknown>) => [r.module_key, r]));
+  const moduleMap = new Map(
+    (moduleRows ?? []).map((r: Record<string, unknown>) => [r.module_key, r]),
+  );
 
-  const enabledModuleKeys = new Set((moduleRows ?? []).map((r: Record<string, unknown>) => String(r.module_key)));
+  const enabledModuleKeys = new Set(
+    (moduleRows ?? []).map((r: Record<string, unknown>) => String(r.module_key)),
+  );
 
   // Specific module visibility rules:
   //   • forOrgSlugs defined → show only when org slug matches (even if not yet enabled)
   //   • forOrgSlugs not defined → show only when already enabled (legacy tmc behaviour)
   const visibleModules = ALL_MODULES.filter((m) => {
+    // ผู้ช่วย AI/Flow (personal, B2C) = per-profile grant — ไม่ provision ต่อ org ที่หน้านี้
+    if (m.personal) return false;
     if (!m.specific) return true;
     if (m.forOrgSlugs) return m.forOrgSlugs.includes(orgSlug);
     return enabledModuleKeys.has(m.key);
   });
 
   const settings = visibleModules.map((m) => ({
-    module_key:    m.key,
-    is_enabled:    Boolean((moduleMap.get(m.key) as Record<string, unknown> | undefined)?.is_enabled ?? false),
-    allowed_roles: ((moduleMap.get(m.key) as Record<string, unknown> | undefined)?.allowed_roles as string[]) ?? DEFAULT_MODULE_ROLES,
-    specific:      m.specific ?? false,
+    module_key: m.key,
+    is_enabled: Boolean(
+      (moduleMap.get(m.key) as Record<string, unknown> | undefined)?.is_enabled ?? false,
+    ),
+    allowed_roles:
+      ((moduleMap.get(m.key) as Record<string, unknown> | undefined)?.allowed_roles as string[]) ??
+      DEFAULT_MODULE_ROLES,
+    specific: m.specific ?? false,
   }));
 
   // Menu-level settings
   const { data: menuRows } = await admin
-    .from('org_menu_settings')
-    .select('module_key, menu_key, allowed_roles')
-    .eq('organization_id', orgId);
+    .from("org_menu_settings")
+    .select("module_key, menu_key, allowed_roles")
+    .eq("organization_id", orgId);
 
   const menuMap = new Map(
     (menuRows ?? []).map((r: Record<string, unknown>) => [`${r.module_key}:${r.menu_key}`, r]),
@@ -118,23 +135,25 @@ export async function GET(req: NextRequest) {
     (MODULE_MENUS[m.key] ?? []).map((menu) => {
       const stored = menuMap.get(`${m.key}:${menu.key}`) as Record<string, unknown> | undefined;
       return {
-        module_key:    m.key,
-        menu_key:      menu.key,
+        module_key: m.key,
+        menu_key: menu.key,
         allowed_roles: (stored?.allowed_roles as string[]) ?? ALL_ROLES,
       };
     }),
   );
 
   // Optional: include recent change history
-  const withHistory = req.nextUrl.searchParams.get('history') === '1';
+  const withHistory = req.nextUrl.searchParams.get("history") === "1";
   let changeLog: unknown[] = [];
   if (withHistory) {
     const { data: logRows } = await admin
-      .from('org_module_change_log')
-      .select(`id, module_key, action, old_value, new_value, changed_at,
-               changer:profiles!org_module_change_log_changed_by_fkey(display_name, email)`)
-      .eq('org_id', orgId)
-      .order('changed_at', { ascending: false })
+      .from("org_module_change_log")
+      .select(
+        `id, module_key, action, old_value, new_value, changed_at,
+               changer:profiles!org_module_change_log_changed_by_fkey(display_name, email)`,
+      )
+      .eq("org_id", orgId)
+      .order("changed_at", { ascending: false })
       .limit(50);
     changeLog = logRows ?? [];
   }
@@ -153,7 +172,7 @@ export async function PUT(req: NextRequest) {
     menuSettings?: unknown[];
   };
   if (!orgId || !Array.isArray(settings)) {
-    return NextResponse.json({ error: 'missing orgId or settings' }, { status: 400 });
+    return NextResponse.json({ error: "missing orgId or settings" }, { status: 400 });
   }
 
   const admin = createAdminClient();
@@ -161,9 +180,9 @@ export async function PUT(req: NextRequest) {
 
   // Snapshot previous state before overwriting (for change log)
   const { data: prevRows } = await admin
-    .from('org_module_settings')
-    .select('module_key, is_enabled, allowed_roles')
-    .eq('organization_id', orgId);
+    .from("org_module_settings")
+    .select("module_key, is_enabled, allowed_roles")
+    .eq("organization_id", orgId);
   const prevMap: Record<string, { is_enabled: boolean; allowed_roles: string[] }> =
     Object.fromEntries(
       (prevRows ?? []).map((r: Record<string, unknown>) => [
@@ -174,11 +193,11 @@ export async function PUT(req: NextRequest) {
 
   // Fetch org slug to validate forOrgSlugs restrictions
   const { data: orgData } = await admin
-    .from('organizations')
-    .select('slug')
-    .eq('id', orgId)
+    .from("organizations")
+    .select("slug")
+    .eq("id", orgId)
     .single();
-  const orgSlug = (orgData as { slug: string } | null)?.slug ?? '';
+  const orgSlug = (orgData as { slug: string } | null)?.slug ?? "";
 
   // Upsert module-level settings — skip any module that is not allowed for this org
   // (i.e. specific modules with forOrgSlugs that don't include this org's slug)
@@ -187,24 +206,50 @@ export async function PUT(req: NextRequest) {
       const setting = s as Record<string, unknown>;
       return {
         organization_id: orgId,
-        module_key:      String(setting.module_key),
-        is_enabled:      Boolean(setting.is_enabled),
-        allowed_roles:   Array.isArray(setting.allowed_roles) ? setting.allowed_roles : [],
-        updated_at:      now,
+        module_key: String(setting.module_key),
+        is_enabled: Boolean(setting.is_enabled),
+        allowed_roles: Array.isArray(setting.allowed_roles) ? setting.allowed_roles : [],
+        updated_at: now,
       };
     })
     .filter((row) => {
       if (!isModuleAllowedForOrg(row.module_key, orgSlug)) {
-        console.warn(`[modules/PUT] Rejected: module "${row.module_key}" is not allowed for org "${orgSlug}"`);
+        console.warn(
+          `[modules/PUT] Rejected: module "${row.module_key}" is not allowed for org "${orgSlug}"`,
+        );
         return false;
       }
       return true;
     });
 
   const { error: modErr } = await admin
-    .from('org_module_settings')
-    .upsert(moduleRows, { onConflict: 'organization_id,module_key' });
+    .from("org_module_settings")
+    .upsert(moduleRows, { onConflict: "organization_id,module_key" });
   if (modErr) return NextResponse.json({ error: modErr.message }, { status: 500 });
+
+  // Seed default data ให้ module ที่เพิ่งเปิด (disabled→enabled) — เช่น accounting = ผังบัญชีมาตรฐาน
+  // best-effort + idempotent (seedAccounting ข้ามถ้ามีผังแล้ว) — ไม่ block response
+  for (const row of moduleRows) {
+    const wasEnabled = prevMap[row.module_key]?.is_enabled ?? false;
+    if (row.is_enabled && !wasEnabled) {
+      try {
+        await seedModule(row.module_key, orgId, admin);
+      } catch (e) {
+        console.error(`[modules/PUT] seed ${row.module_key} failed`, String(e));
+      }
+    } else if (row.is_enabled && row.module_key === "accounting") {
+      // repair งวดบัญชีของปีปัจจุบันทุกครั้งที่กดบันทึก (idempotent — เติมเฉพาะงวดที่ขาด)
+      // จำเป็นเพราะ org ที่เปิด accounting ไปก่อนมีฟีเจอร์งวด จะไม่มี acc_periods เลย
+      // → ลงบัญชีได้แต่ period_id = null (ปิดงวดไม่คุม, รายงานรายงวดเพี้ยน)
+      // ⚠️ เรียกเฉพาะ seedAccountingPeriods ไม่ใช่ seedModule ทั้งก้อน — seedTmc ไม่ idempotent
+      try {
+        await seedAccountingPeriods(orgId, admin, new Date().getFullYear());
+        await seedAccountingPeriods(orgId, admin, new Date().getFullYear() + 1);
+      } catch (e) {
+        console.error("[modules/PUT] repair accounting periods failed", String(e));
+      }
+    }
+  }
 
   // Upsert menu-level settings (if provided)
   if (Array.isArray(menuSettings) && menuSettings.length > 0) {
@@ -212,16 +257,16 @@ export async function PUT(req: NextRequest) {
       const ms = m as Record<string, unknown>;
       return {
         organization_id: orgId,
-        module_key:      String(ms.module_key),
-        menu_key:        String(ms.menu_key),
-        allowed_roles:   Array.isArray(ms.allowed_roles) ? ms.allowed_roles : [],
-        updated_at:      now,
+        module_key: String(ms.module_key),
+        menu_key: String(ms.menu_key),
+        allowed_roles: Array.isArray(ms.allowed_roles) ? ms.allowed_roles : [],
+        updated_at: now,
       };
     });
 
     const { error: menuErr } = await admin
-      .from('org_menu_settings')
-      .upsert(menuRows, { onConflict: 'organization_id,module_key,menu_key' });
+      .from("org_menu_settings")
+      .upsert(menuRows, { onConflict: "organization_id,module_key,menu_key" });
     if (menuErr) return NextResponse.json({ error: menuErr.message }, { status: 500 });
   }
 
@@ -229,9 +274,11 @@ export async function PUT(req: NextRequest) {
   const nextSettings = settings.map((s: unknown) => {
     const setting = s as Record<string, unknown>;
     return {
-      module_key:    String(setting.module_key),
-      is_enabled:    Boolean(setting.is_enabled),
-      allowed_roles: Array.isArray(setting.allowed_roles) ? setting.allowed_roles as string[] : [],
+      module_key: String(setting.module_key),
+      is_enabled: Boolean(setting.is_enabled),
+      allowed_roles: Array.isArray(setting.allowed_roles)
+        ? (setting.allowed_roles as string[])
+        : [],
     };
   });
   void writeChangeLogs(admin, orgId, auth.userId, prevMap, nextSettings);

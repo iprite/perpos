@@ -1,0 +1,261 @@
+"use client";
+
+/**
+ * SttCostView — body หน้า ต้นทุน Gemini (รับ data จาก server component)
+ * markup calculator + recharts เป็น client · days filter อยู่ใน header (searchParams)
+ */
+
+import { useMemo, useState } from "react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Coins, Clock, FileAudio, TrendingUp, Calculator } from "lucide-react";
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
+import type { CostStats } from "@/lib/admin/stt-cost";
+
+const thb = (n: number, d = 2) =>
+  new Intl.NumberFormat("th-TH", { minimumFractionDigits: d, maximumFractionDigits: d }).format(n);
+const intFmt = (n: number) => new Intl.NumberFormat("th-TH").format(Math.round(n));
+
+function Card({
+  icon,
+  label,
+  value,
+  sub,
+  accent,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  sub?: string;
+  accent: string;
+}) {
+  return (
+    <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
+      <div
+        className={`mb-3 inline-flex h-10 w-10 items-center justify-center rounded-xl ${accent}`}
+      >
+        {icon}
+      </div>
+      <div className="text-2xl font-bold tabular-nums text-gray-900">{value}</div>
+      <div className="text-sm text-gray-500">{label}</div>
+      {sub ? <div className="mt-0.5 text-xs text-gray-400">{sub}</div> : null}
+    </div>
+  );
+}
+
+export function SttCostView({ s }: { s: CostStats }) {
+  const [markup, setMarkup] = useState("4");
+
+  const suggested = useMemo(() => {
+    const m = parseFloat(markup);
+    if (isNaN(m) || m <= 0) return null;
+    return s.totals.cost_per_minute_thb * m;
+  }, [s, markup]);
+
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <Card
+          icon={<Coins className="h-5 w-5" />}
+          label={`ต้นทุนรวมจริง (${s.window_days} วัน)`}
+          value={`฿${thb(s.grand_total.cost_thb)}`}
+          sub={`Gemini ฿${thb(s.totals.cost_thb)} + Recall ฿${thb(s.recall_platform.cost_thb)}`}
+          accent="bg-red-50 text-red-600"
+        />
+        <Card
+          icon={<TrendingUp className="h-5 w-5" />}
+          label="ต้นทุนต่อนาที"
+          value={`฿${thb(s.totals.cost_per_minute_thb, 3)}`}
+          sub="ฐานตั้งราคาขาย"
+          accent="bg-amber-50 text-amber-600"
+        />
+        <Card
+          icon={<Clock className="h-5 w-5" />}
+          label="นาทีที่ประมวลผล"
+          value={thb(s.totals.minutes, 0)}
+          accent="bg-blue-50 text-blue-600"
+        />
+        <Card
+          icon={<FileAudio className="h-5 w-5" />}
+          label="จำนวนงาน"
+          value={thb(s.totals.jobs, 0)}
+          sub={`เว็บ ${s.by_source.web.jobs} · LINE ${s.by_source.line.jobs}`}
+          accent="bg-purple-50 text-purple-600"
+        />
+      </div>
+
+      <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
+        <h3 className="mb-3 text-sm font-semibold text-gray-700">
+          ต้นทุนจริงรวม (Gemini + Recall)
+        </h3>
+        <div className="grid grid-cols-3 gap-4 text-sm">
+          <div>
+            <div className="text-gray-500">Gemini (ถอดเสียงทุกช่องทาง)</div>
+            <div className="text-lg font-semibold tabular-nums text-gray-900">
+              ฿{thb(s.totals.cost_thb)}
+            </div>
+          </div>
+          <div>
+            <div className="text-gray-500">Recall แพลตฟอร์มบอท</div>
+            <div className="text-lg font-semibold tabular-nums text-gray-900">
+              ฿{thb(s.recall_platform.cost_thb)}
+            </div>
+            <div className="text-xs text-gray-400">
+              {thb(s.recall_platform.recording_minutes, 0)} นาทีอัด · $
+              {s.recall_platform.usd_per_hour}/ชม.
+            </div>
+          </div>
+          <div>
+            <div className="text-gray-500">รวมจริง</div>
+            <div className="text-lg font-semibold tabular-nums text-red-600">
+              ฿{thb(s.grand_total.cost_thb)}
+            </div>
+          </div>
+        </div>
+        <p className="mt-3 border-t border-gray-100 pt-3 text-sm">
+          <span className="text-gray-500">
+            ต้นทุนบอท/นาที (Gemini+Recall) — ใช้ตั้งราคา bot_quota:{" "}
+          </span>
+          <span className="font-semibold tabular-nums text-gray-900">
+            ฿{thb(s.recall_platform.bot_cost_per_minute_thb, 3)}
+          </span>
+        </p>
+      </div>
+
+      <div className="rounded-2xl border border-indigo-100 bg-indigo-50/40 p-5 shadow-sm">
+        <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-gray-700">
+          <Calculator className="h-4 w-4 text-indigo-500" /> ตัวช่วยตั้งราคาขาย
+        </h3>
+        <div className="flex flex-wrap items-end gap-4">
+          <div>
+            <Label htmlFor="markup">ตัวคูณกำไร (เท่า)</Label>
+            <Input
+              id="markup"
+              type="number"
+              value={markup}
+              onChange={(e) => setMarkup(e.target.value)}
+              className="mt-1 w-28"
+            />
+          </div>
+          <div className="text-sm">
+            <div className="text-gray-500">ต้นทุน/นาที</div>
+            <div className="text-lg font-semibold tabular-nums text-gray-900">
+              ฿{thb(s.totals.cost_per_minute_thb, 3)}
+            </div>
+          </div>
+          <div className="text-2xl text-gray-300">→</div>
+          <div className="text-sm">
+            <div className="text-gray-500">ราคาขายแนะนำ/นาที</div>
+            <div className="text-lg font-semibold tabular-nums text-green-600">
+              {suggested != null ? `฿${thb(suggested, 2)}` : "—"}
+            </div>
+          </div>
+          <div className="text-sm">
+            <div className="text-gray-500">เช่น แพ็ก 300 นาที ขายที่</div>
+            <div className="text-lg font-semibold tabular-nums text-green-600">
+              {suggested != null ? `฿${thb(suggested * 300, 0)}` : "—"}
+            </div>
+          </div>
+        </div>
+        <p className="mt-3 text-xs text-gray-500">
+          * ราคาขายแนะนำคือ <b>ต้นทุน × ตัวคูณ</b> ยังไม่รวมค่า infra (Cloud Run, Supabase,
+          แบนด์วิดท์), ค่าธรรมเนียม payment gateway, ภาษี และของฟรีที่แจก
+        </p>
+      </div>
+
+      <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
+        <h3 className="mb-4 text-sm font-semibold text-gray-700">
+          ต้นทุนรายวัน (฿) — {s.window_days} วันล่าสุด
+        </h3>
+        <ResponsiveContainer width="100%" height={240}>
+          <BarChart data={s.daily} margin={{ top: 4, right: 4, left: -10, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#F5F7FA" vertical={false} />
+            <XAxis
+              dataKey="date"
+              tick={{ fontSize: 10, fill: "#9ca3af" }}
+              tickFormatter={(d) => String(d).slice(5)}
+              interval={Math.max(0, Math.floor(s.daily.length / 8))}
+            />
+            <YAxis tick={{ fontSize: 10, fill: "#9ca3af" }} />
+            <Tooltip
+              labelFormatter={(d) => `วันที่ ${d}`}
+              formatter={(v: number) => [`฿${thb(Number(v))}`, "ต้นทุน"]}
+            />
+            <Bar dataKey="cost_thb" fill="#C43448" radius={[4, 4, 0, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
+          <h3 className="mb-3 text-sm font-semibold text-gray-700">แยกตามช่องทาง</h3>
+          <div className="divide-y divide-gray-100 text-sm">
+            {(["web", "line", "recall"] as const).map((k) => (
+              <div key={k} className="flex items-center justify-between py-2.5">
+                <span className="text-gray-800">
+                  {k === "web" ? "เว็บ" : k === "line" ? "LINE" : "บอทประชุม (Gemini)"}
+                </span>
+                <span className="tabular-nums text-gray-500">
+                  {thb(s.by_source[k].minutes, 0)} นาที · ฿{thb(s.by_source[k].cost_thb)}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
+          <h3 className="mb-3 text-sm font-semibold text-gray-700">สมมติฐานราคา (Gemini)</h3>
+          <dl className="space-y-1.5 text-xs text-gray-600">
+            <div className="flex justify-between">
+              <dt>โมเดล</dt>
+              <dd className="font-medium text-gray-800">{s.pricing.model}</dd>
+            </div>
+            <div className="flex justify-between">
+              <dt>Audio input</dt>
+              <dd className="tabular-nums">${thb(s.pricing.audio_input_usd_per_m, 2)} / 1M tok</dd>
+            </div>
+            <div className="flex justify-between">
+              <dt>Text input</dt>
+              <dd className="tabular-nums">${thb(s.pricing.text_input_usd_per_m, 2)} / 1M tok</dd>
+            </div>
+            <div className="flex justify-between">
+              <dt>Output</dt>
+              <dd className="tabular-nums">${thb(s.pricing.output_usd_per_m, 2)} / 1M tok</dd>
+            </div>
+            <div className="flex justify-between">
+              <dt>อัตราแลก USD→THB</dt>
+              <dd className="tabular-nums">{s.pricing.usd_thb_rate}</dd>
+            </div>
+            <div className="my-1.5 border-t border-gray-100" />
+            <div className="flex justify-between">
+              <dt>Input tokens จริง</dt>
+              <dd className="tabular-nums">{intFmt(s.tokens.prompt)}</dd>
+            </div>
+            <div className="flex justify-between">
+              <dt>Output tokens จริง</dt>
+              <dd className="tabular-nums">{intFmt(s.tokens.output)}</dd>
+            </div>
+            <div className="flex justify-between">
+              <dt>— thinking tokens</dt>
+              <dd className="tabular-nums">{intFmt(s.tokens.thoughts)}</dd>
+            </div>
+            <div className="flex justify-between">
+              <dt>งานที่คิดเป๊ะ</dt>
+              <dd className="tabular-nums">
+                {s.accuracy.exact_jobs} / {s.totals.jobs} (
+                {Math.round(s.accuracy.exact_ratio * 100)}%)
+              </dd>
+            </div>
+          </dl>
+          <p className="mt-3 text-[11px] leading-relaxed text-gray-400">
+            {s.accuracy.estimated_jobs > 0
+              ? `${s.accuracy.estimated_jobs} งานเก่ายังไม่มี token (ประมาณจากความยาว) — งานใหม่จะคิดจาก token จริง · `
+              : "ทุกงานคิดจาก token จริงของ Gemini · "}
+            fallback tokens/งาน: {s.pricing.output_tokens_per_job} ·{" "}
+            {s.pricing.audio_tokens_per_sec} tok/วินาที. ปรับราคาผ่าน env (STT_GEMINI_*)
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}

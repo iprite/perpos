@@ -5,7 +5,6 @@ import { useRouter, useSearchParams } from "next/navigation";
 
 import cn from "@core/utils/class-names";
 import { useAuth } from "@/app/shared/auth-provider";
-import GoogleAuthView from "@/components/auth/google-auth-view";
 import { APP_BASE_PATH, withBasePath } from "@/utils/base-path";
 
 function normalizeBasePath(basePath: string) {
@@ -37,7 +36,7 @@ function sanitizeReturnTo(raw: string | null) {
   return v;
 }
 
-// เนื้อหา Flow & Suite — ดึงมาจากหน้า landing (apps/landing) ให้ตรงกัน
+// เนื้อหา Flow & Suite — ดึงมาจากหน้า landing (apps/landing-astro) ให้ตรงกัน
 const PRODUCTS = [
   {
     product: "flow" as const,
@@ -124,8 +123,6 @@ function SignInContent() {
   const lineLoginHref = withBasePath(
     `/line/login${returnTo ? `?returnTo=${encodeURIComponent(returnTo)}` : ""}`,
   );
-  // ทางเข้าสำรองสำหรับผู้ดูแล (Google) — ซ่อนไว้ ใช้ /signin?admin=1 เท่านั้น
-  const adminFallback = searchParams.get("admin") != null;
 
   return (
     <div className="w-full max-w-4xl">
@@ -224,18 +221,6 @@ function SignInContent() {
             <LineLogo className="h-5 w-5" />
             เข้าสู่ระบบด้วย LINE
           </a>
-
-          {/* Admin fallback (ซ่อน) — /signin?admin=1 */}
-          {adminFallback && (
-            <>
-              <div className="my-6 flex items-center gap-3">
-                <div className="h-px flex-1 bg-slate-200" />
-                <span className="text-xs text-slate-400">สำหรับผู้ดูแล</span>
-                <div className="h-px flex-1 bg-slate-200" />
-              </div>
-              <GoogleAuthView mode="page" returnTo={returnTo} />
-            </>
-          )}
 
           <div className="mt-8 text-center text-xs leading-relaxed text-slate-400">
             <p>การเข้าสู่ระบบถือว่าคุณยอมรับ</p>

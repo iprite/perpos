@@ -11,6 +11,7 @@
 ผู้ใช้งานระบบบัญชีเปิดหน้านี้วันละ 5–8 ชั่วโมง ทุกมิลลิวินาทีที่รู้สึก "ฝืด" สะสมเป็นความเครียด ทุกตัวเลขที่อ่านยากสะสมเป็นความผิดพลาด
 
 **กฎ 3 ข้อ:**
+
 1. **ตัวเลขต้องอ่านได้ในวิสายตาเดียว** — tabular figures, alignment, สีบ่งบอกสถานะ
 2. **Interface ต้องรู้สึกเร็ว** — animation ไม่ได้ทำให้ดูดี มันทำให้รู้สึกว่า software ตอบสนอง
 3. **สิ่งที่ไม่สำคัญต้องหายไป** — negative space คือ feature ไม่ใช่ waste
@@ -27,52 +28,53 @@
 
 ### Standard Palette (flat-UI) — สีมาตรฐานชุดเดียวของระบบ
 
-| ชื่อ | Hex | บทบาท | ใช้ผ่าน Tailwind family |
-|------|-----|-------|------------------------|
-| **CHARCOAL** | `#3C3B3D` | **primary / brand / info / title** | `blue-*`, `sky-*`, `cyan-*`, token `primary` · = gray-700 |
-| ~~AQUA~~ | ~~`#4FC1E9`~~ | **เลิกใช้** — แบรนด์เปลี่ยนเป็น CHARCOAL (โทน mono ไม่มีฟ้า) | — |
-| BLUE JEANS | `#5D9CEC` | accent น้ำเงิน (chart) | — |
-| PLUM | `#8067B7` | สีม่วง (accent/หมวดหมู่) | `indigo-*`, `violet-*`, `purple-*` |
-| LAVENDER | `#AC92EC` | ม่วงอ่อน | (เฉด 300–400 ของ `indigo`/`violet`) |
-| PINK ROSE | `#EC87C0` | ชมพู (accent/หมวดหมู่) | `pink-*`, `rose-*`, `fuchsia-*` |
-| **RUBY** | `#D8334A` | **negative / error / destructive** | `red-*`, token `red` |
-| GRAPEFRUIT | `#ED5565` | แดงอ่อน (chart) | (เฉด 400 ของ `red`) |
-| BITTERSWEET | `#FC6E51` | ส้ม (เตือน/รอง) | `orange-*`, token `orange` |
-| **SUNFLOWER** | `#FFCE54` | **warning** | `amber-*`, `yellow-*` |
-| STRAW | `#E8CE4D` | เหลืองหม่น (chart) | — |
-| GRASS | `#A0D468` | เขียวสด (chart/lime) | `lime-*` |
-| **MINT** | `#48CFAD` | **positive / success** | `green-*`, `emerald-*`, token `green` |
-| TEAL | `#A0CECB` | เขียวอมฟ้าหม่น | `teal-*` |
-| **Gray ramp** | `#F5F7FA` LIGHT · `#CCD1D9` MEDIUM · `#656D78` DARK · `#3C3B3D` CHARCOAL | พื้น/เส้น/ตัวอักษร | `gray-*`, `slate-*`, `zinc-*`, `neutral-*`, `stone-*` |
+| ชื่อ          | Hex                                                                      | บทบาท                                                        | ใช้ผ่าน Tailwind family                                   |
+| ------------- | ------------------------------------------------------------------------ | ------------------------------------------------------------ | --------------------------------------------------------- |
+| **CHARCOAL**  | `#3C3B3D`                                                                | **primary / brand / info / title**                           | `blue-*`, `sky-*`, `cyan-*`, token `primary` · = gray-700 |
+| ~~AQUA~~      | ~~`#4FC1E9`~~                                                            | **เลิกใช้** — แบรนด์เปลี่ยนเป็น CHARCOAL (โทน mono ไม่มีฟ้า) | —                                                         |
+| BLUE JEANS    | `#5D9CEC`                                                                | accent น้ำเงิน (chart)                                       | —                                                         |
+| PLUM          | `#8067B7`                                                                | สีม่วง (accent/หมวดหมู่)                                     | `indigo-*`, `violet-*`, `purple-*`                        |
+| LAVENDER      | `#AC92EC`                                                                | ม่วงอ่อน                                                     | (เฉด 300–400 ของ `indigo`/`violet`)                       |
+| PINK ROSE     | `#EC87C0`                                                                | ชมพู (accent/หมวดหมู่)                                       | `pink-*`, `rose-*`, `fuchsia-*`                           |
+| **RUBY**      | `#D8334A`                                                                | **negative / error / destructive**                           | `red-*`, token `red`                                      |
+| GRAPEFRUIT    | `#ED5565`                                                                | แดงอ่อน (chart)                                              | (เฉด 400 ของ `red`)                                       |
+| BITTERSWEET   | `#FC6E51`                                                                | ส้ม (เตือน/รอง)                                              | `orange-*`, token `orange`                                |
+| **SUNFLOWER** | `#FFCE54`                                                                | **warning**                                                  | `amber-*`, `yellow-*`                                     |
+| STRAW         | `#E8CE4D`                                                                | เหลืองหม่น (chart)                                           | —                                                         |
+| GRASS         | `#A0D468`                                                                | เขียวสด (chart/lime)                                         | `lime-*`                                                  |
+| **MINT**      | `#48CFAD`                                                                | **positive / success**                                       | `green-*`, `emerald-*`, token `green`                     |
+| TEAL          | `#A0CECB`                                                                | เขียวอมฟ้าหม่น                                               | `teal-*`                                                  |
+| **Gray ramp** | `#F5F7FA` LIGHT · `#CCD1D9` MEDIUM · `#656D78` DARK · `#3C3B3D` CHARCOAL | พื้น/เส้น/ตัวอักษร                                           | `gray-*`, `slate-*`, `zinc-*`, `neutral-*`, `stone-*`     |
 
 ### Neutral / Surface (จาก gray ramp)
 
-| Token | Value | ใช้ที่ไหน |
-|-------|-------|---------|
-| `canvas` / `bg-white` | `#ffffff` | พื้นหลังหน้า, card |
-| `surface` (gray-50) | `#f8fafc` | hover row อ่อน |
-| `surface` (gray-100) | `#f5f7fa` LIGHT GRAY | card/panel, hover |
-| border (gray-200) | `#e6e9ee` | เส้นบาง |
-| border-strong (gray-300) | `#ccd1d9` MEDIUM GRAY | divider, border เข้ม |
-| `ink-muted` (gray-400) | `#9ca3af` | disabled, empty state |
-| `ink-secondary` (gray-500) | `#656d78` DARK GRAY | label, secondary text |
-| body text (gray-600) | `#525866` | ตัวอักษรเนื้อหา |
-| `ink` (gray-700/900) | `#3c3b3d` / `#1a1a1b` | หัวข้อ, text หลัก |
+| Token                      | Value                 | ใช้ที่ไหน             |
+| -------------------------- | --------------------- | --------------------- |
+| `canvas` / `bg-white`      | `#ffffff`             | พื้นหลังหน้า, card    |
+| `surface` (gray-50)        | `#f8fafc`             | hover row อ่อน        |
+| `surface` (gray-100)       | `#f5f7fa` LIGHT GRAY  | card/panel, hover     |
+| border (gray-200)          | `#e6e9ee`             | เส้นบาง               |
+| border-strong (gray-300)   | `#ccd1d9` MEDIUM GRAY | divider, border เข้ม  |
+| `ink-muted` (gray-400)     | `#9ca3af`             | disabled, empty state |
+| `ink-secondary` (gray-500) | `#656d78` DARK GRAY   | label, secondary text |
+| body text (gray-600)       | `#525866`             | ตัวอักษรเนื้อหา       |
+| `ink` (gray-700/900)       | `#3c3b3d` / `#1a1a1b` | หัวข้อ, text หลัก     |
 
 ### Semantic — Financial Status
 
-| Token | Tailwind | Hex | ใช้กับ |
-|-------|----------|-----|-------|
-| `positive` | `green-600` | `#46BC9E` (MINT) | รายรับ, กำไร, ยอดบวก |
-| `positive-bg` | `green-50` | `#F2FCF9` | badge พื้นหลัง รายรับ |
-| `negative` | `red-600` | `#C43448` (RUBY) | รายจ่าย, ขาดทุน, ยอดลบ |
-| `negative-bg` | `red-50` | `#FCF1F2` | badge พื้นหลัง รายจ่าย |
-| `warning` | `amber-600` | `#E6BB51` (SUNFLOWER) | รอดำเนินการ, ใกล้ครบกำหนด |
-| `warning-bg` | `amber-50` | `#FFFCF3` | badge warning |
-| `info` | `blue-600` | `#3C3B3D` (CHARCOAL) | ข้อมูล, สถานะกำลังทำ (โทน mono) |
-| `neutral` | `gray-500` | `#656D78` | สถานะ neutral, ยกเลิก |
+| Token         | Tailwind    | Hex                   | ใช้กับ                          |
+| ------------- | ----------- | --------------------- | ------------------------------- |
+| `positive`    | `green-600` | `#46BC9E` (MINT)      | รายรับ, กำไร, ยอดบวก            |
+| `positive-bg` | `green-50`  | `#F2FCF9`             | badge พื้นหลัง รายรับ           |
+| `negative`    | `red-600`   | `#C43448` (RUBY)      | รายจ่าย, ขาดทุน, ยอดลบ          |
+| `negative-bg` | `red-50`    | `#FCF1F2`             | badge พื้นหลัง รายจ่าย          |
+| `warning`     | `amber-600` | `#E6BB51` (SUNFLOWER) | รอดำเนินการ, ใกล้ครบกำหนด       |
+| `warning-bg`  | `amber-50`  | `#FFFCF3`             | badge warning                   |
+| `info`        | `blue-600`  | `#3C3B3D` (CHARCOAL)  | ข้อมูล, สถานะกำลังทำ (โทน mono) |
+| `neutral`     | `gray-500`  | `#656D78`             | สถานะ neutral, ยกเลิก           |
 
 ### กฎการใช้สี
+
 - **ใช้ Tailwind utility class เท่านั้น** (`bg-*`, `text-*`, `border-*`) — token ถูก map เข้าพาเลตต์แล้ว ห้ามฮาร์ดโค้ด hex
 - **ห้ามใช้สีแดง (RUBY)** กับอะไรที่ไม่ใช่ "ผิดพลาด" หรือ "ยอดลบ" — ผู้ใช้จะตกใจ
 - ยอดเงินลบให้แสดง `text-red-600` + ขึ้นต้นด้วย `−` (U+2212 minus sign) ไม่ใช่ hyphen
@@ -88,17 +90,17 @@
 
 ```css
 /* Thai + system font stack */
-font-family: 'Sarabun', 'Noto Sans Thai', ui-sans-serif, system-ui, sans-serif;
+font-family: "Sarabun", "Noto Sans Thai", ui-sans-serif, system-ui, sans-serif;
 ```
 
-| Use case | Class | Size | Weight |
-|----------|-------|------|--------|
-| Page title | `text-2xl font-semibold` | 24px | 600 |
-| Section header | `text-lg font-semibold` | 18px | 600 |
-| Card title | `text-base font-medium` | 16px | 500 |
-| Body | `text-sm` | 14px | 400 |
-| Label / caption | `text-xs` | 12px | 400–500 |
-| Table header | `text-xs font-medium uppercase tracking-wide` | 12px | 500 |
+| Use case        | Class                                         | Size | Weight  |
+| --------------- | --------------------------------------------- | ---- | ------- |
+| Page title      | `text-2xl font-semibold`                      | 24px | 600     |
+| Section header  | `text-lg font-semibold`                       | 18px | 600     |
+| Card title      | `text-base font-medium`                       | 16px | 500     |
+| Body            | `text-sm`                                     | 14px | 400     |
+| Label / caption | `text-xs`                                     | 12px | 400–500 |
+| Table header    | `text-xs font-medium uppercase tracking-wide` | 12px | 500     |
 
 ### Financial Figures — กฎสำคัญที่สุด
 
@@ -127,16 +129,16 @@ font-family: 'Sarabun', 'Noto Sans Thai', ui-sans-serif, system-ui, sans-serif;
 // formatter มาตรฐาน PERPOS
 export function formatAmount(
   value: number,
-  opts?: { currency?: boolean; decimals?: number }
+  opts?: { currency?: boolean; decimals?: number },
 ): string {
   const decimals = opts?.decimals ?? 2;
-  const formatted = new Intl.NumberFormat('th-TH', {
+  const formatted = new Intl.NumberFormat("th-TH", {
     minimumFractionDigits: decimals,
     maximumFractionDigits: decimals,
   }).format(Math.abs(value));
 
-  const prefix = value < 0 ? '−' : ''; // U+2212 not hyphen
-  const suffix = opts?.currency ? ' ฿' : '';
+  const prefix = value < 0 ? "−" : ""; // U+2212 not hyphen
+  const suffix = opts?.currency ? " ฿" : "";
   return `${prefix}${formatted}${suffix}`;
 }
 
@@ -156,22 +158,46 @@ export function formatAmount(
 `HydrogenLayout` ใส่ padding รอบนอกให้แล้ว (`px-4 md:px-5 lg:px-6`) — หน้าลูก **ห้าม** ใส่ `px-6 py-6` / `p-4 md:p-6` ซ้ำ (double padding) ให้ `<PageShell>` คุม container + header + spacing แทน
 
 ```tsx
-import { PageShell, PageCard } from '@/components/ui/page-shell';
+import { PageShell, PageCard } from "@/components/ui/page-shell";
 
 <PageShell
   title="เงินเดือน"
   description="จัดการรอบจ่ายและสลิปพนักงาน"
   icon={<Wallet className="h-6 w-6" />}
-  actions={<Button>เพิ่มรอบจ่าย</Button>}   // optional, ชิดขวา
-  width="default"                            // narrow | default | wide | full
-  tabs={<TabNav/>}                           // optional, แถบแท็บใต้ header
+  actions={<Button>เพิ่มรอบจ่าย</Button>} // optional, ชิดขวา
+  width="default" // narrow | default | wide | full
+  tabs={<TabNav />} // optional, แถบแท็บใต้ header
 >
   <PageCard title="รายการ">...</PageCard>
-</PageShell>
+</PageShell>;
 ```
 
 - หัวข้อหน้า = `<h1>` ใน PageShell อยู่แล้ว (`text-2xl font-semibold text-gray-900`) — **อย่าเขียน `<h1>`/`text-xl font-bold` เอง** และอย่าใช้ `text-slate-900`
 - `admin` import `AdminPage`/`AdminCard` ได้เหมือนเดิม (เป็น alias ของ `PageShell`/`PageCard`)
+
+### Tab navigation (แถบแท็บในหน้า) — บังคับ "row เดียว ล้นแล้วเลื่อน"
+
+> แถบแท็บที่มีหลายแท็บ (เช่นหน้า ตั้งค่า) **ห้ามตกบรรทัด (wrap)** — ต้องเป็น **row เดียว ล้นแล้วเลื่อนซ้าย-ขวา**
+> (บนมือถือ/จอแคบ wrap แล้วดูรก + สูงไม่คงที่). ใช้ `overflow-x-auto` + ซ่อน scrollbar + แท็บ `shrink-0 whitespace-nowrap`.
+
+```tsx
+// ✅ ถูก — row เดียว, ล้น → scroll, scrollbar ซ่อน
+<div className="flex gap-1.5 overflow-x-auto rounded-xl border border-gray-200 bg-white p-1.5 shadow-sm [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+  {tabs.map((t) => (
+    <Button key={t.key} size="sm" variant={active===t.key ? "secondary" : "ghost"}
+      className={cn("shrink-0 whitespace-nowrap", active===t.key && "bg-gray-100 text-gray-900")}
+      onClick={() => setTab(t.key)}>
+      <span className="mr-1.5">{t.icon}</span>{t.label}
+    </Button>
+  ))}
+</div>
+
+// ❌ ห้าม — flex-wrap (ตก 2 บรรทัด)
+<div className="flex flex-wrap gap-1.5 ...">
+```
+
+- **`flex` + `overflow-x-auto`** (ไม่ใช่ `flex-wrap`) · ซ่อน scrollbar ด้วย `[scrollbar-width:none] [&::-webkit-scrollbar]:hidden`
+- แท็บแต่ละอัน **`shrink-0 whitespace-nowrap`** (ไม่ถูกบีบ/ตัดคำ) · ใช้ `<Button size="sm" variant="ghost|secondary">` (active = secondary + `bg-gray-100`)
 
 ### Dashboard Page Template
 
@@ -201,6 +227,7 @@ gap-8  = 32px  — page section separation
 ```
 
 **กฎ:**
+
 - Page padding: `px-6 py-4` (desktop), `px-4 py-3` (mobile)
 - Card padding: `p-6`
 - Table cell: `px-4 py-3`
@@ -218,10 +245,17 @@ gap-8  = 32px  — page section separation
 
 ```tsx
 import {
-  Table, TableHeader, TableBody, TableFooter, TableRow, TableHead, TableCell,
-  TableEmpty, TableLoading,
-} from '@/components/ui/table';
-import { StatusBadge } from '@/components/ui/badge';
+  Table,
+  TableHeader,
+  TableBody,
+  TableFooter,
+  TableRow,
+  TableHead,
+  TableCell,
+  TableEmpty,
+  TableLoading,
+} from "@/components/ui/table";
+import { StatusBadge } from "@/components/ui/badge";
 
 <Table stickyHeader maxHeight="70vh">
   <TableHeader sticky>
@@ -236,24 +270,33 @@ import { StatusBadge } from '@/components/ui/badge';
       <TableLoading colSpan={3} />
     ) : rows.length === 0 ? (
       <TableEmpty colSpan={3}>ยังไม่มีข้อมูล</TableEmpty>
-    ) : rows.map((r) => (
-      <TableRow key={r.id} clickable onClick={() => openDetail(r)}>
-        <TableCell>{r.name}</TableCell>
-        <TableCell align="center"><StatusBadge tone="success">สำเร็จ</StatusBadge></TableCell>
-        <TableCell align="right" tabular>{fmt(r.amount)}</TableCell>
-      </TableRow>
-    ))}
+    ) : (
+      rows.map((r) => (
+        <TableRow key={r.id} clickable onClick={() => openDetail(r)}>
+          <TableCell>{r.name}</TableCell>
+          <TableCell align="center">
+            <StatusBadge tone="success">สำเร็จ</StatusBadge>
+          </TableCell>
+          <TableCell align="right" tabular>
+            {fmt(r.amount)}
+          </TableCell>
+        </TableRow>
+      ))
+    )}
   </TableBody>
-</Table>
+</Table>;
 ```
 
 **กฎเหล็ก:**
+
 1. **เลื่อนซ้าย-ขวาได้ ไม่บีบคอลัมน์** — cell default `whitespace-nowrap` แล้ว wrapper scroll เอง · ห้ามตั้ง fixed `grid-cols-[px]` · cell ข้อความยาว (JSON/note) ใช้ `<TableCell wrap>` เป็น escape hatch
 2. **Badge ไม่ wrap** — ใช้ `<StatusBadge tone=…>` เท่านั้น (มี `whitespace-nowrap` ในตัว) ห้ามเขียน `<span className="…rounded-full…">` มือ
 3. **คลิกที่ row เพื่อดู/แก้ไข** — `<TableRow clickable onClick>` เปิด detail/edit dialog · **ไม่มีคอลัมน์ปุ่ม action ในแถว** · ปุ่มลบ/แก้ย้ายไปไว้ใน footer ของ dialog
-4. คอลัมน์เงิน/จำนวน → `align="right" tabular` เสมอ
+4. คอลัมน์เงิน/ตัวเลขล้วน → `align="right" tabular` เสมอ (= `font-mono`+`tabular-nums`) · **แต่เซลล์ที่ผสมเลข+คำไทย** (เช่น "2 วัน", "ไม่จำกัด") **ห้ามใช้ `tabular`** → ดูกฎข้อ 8
 5. empty/loading → `<TableEmpty>` / `<TableLoading>` (ห้าม spinner กลางจอ)
 6. **`<Table>` ใน grid/flex column ต้องให้คอลัมน์ยุบได้** — ถ้าวาง `<Table>` (หรือของกว้างอื่น) ไว้ใน grid/flex item (เช่น 2-column workspace `lg:grid-cols-12` + `col-span-*`) คอลัมน์นั้น **ต้องมี `min-w-0` หรือ `overflow-hidden/auto`** ไม่งั้นบนมือถือ (ยุบเหลือคอลัมน์เดียว) ความกว้างตารางจะดัน track ให้กว้างเกิน viewport → ทั้งหน้า scroll แนวนอน. สาเหตุ: grid/flex item ค่า default `min-width: auto` ยุบต่ำกว่า content ไม่ได้ — การตั้ง `min-w-0` (หรือ `overflow≠visible` ที่ทำให้ auto min-size = 0) แก้ได้. **ข้อยกเว้น**: table ที่วางตรงใน `PageShell`/`PageCard` (block เต็มแถว) ไม่ต้องทำอะไร — block ไม่มีปัญหานี้
+7. **ห้าม card ซ้อน card — `<Table>` เป็น "การ์ด" ในตัวอยู่แล้ว** (`rounded-xl border border-gray-200 bg-white`). **ห้ามห่อ `<Table>` ในกล่อง bordered card อีกชั้น** (`<div className="rounded-xl border … bg-white shadow-sm">`) — จะเห็นเส้นขอบ/การ์ดซ้อนกัน (ชัดเป็นพิเศษเมื่อมี title header ในกล่อง). **pattern ถูก**: ถ้าต้องมีหัวข้อ → ทำเป็น **heading เหนือตาราง** (`<div className="mb-2.5 px-1 text-sm font-semibold text-gray-900">หัวข้อ</div>`) แล้ววาง `<Table className="shadow-sm">` ยืนเดี่ยว (Table = การ์ด, `shadow-sm` ให้เงา) · ถ้าจำเป็นต้องวางตารางในการ์ดจริง ๆ (เช่น `SectionCard`/`PageCard` ที่มี title+ปุ่ม action) → ทำตาราง **flush**: `<Table className="rounded-none border-0 shadow-none">` (ตารางไม่มีขอบของตัวเอง, การ์ดด้านนอกเป็นขอบเดียว)
+8. **`tabular` prop = `font-mono` → ตัวอักษรไทยเพี้ยน** (monospace stack ไม่มี glyph ไทย → "วัน"/"ไม่จำกัด"/"ไม่มีเพดาน" หลุดไป fallback ไม่ตรง body font). ดังนั้นใช้ `tabular` เฉพาะ **เงิน + ตัวเลข/รหัสล้วน** (`1,234.56 ฿`, `PAY-2026-04`) · เซลล์ที่ **ผสมเลข+คำไทย** ใช้ `align="right" className="tabular-nums"` แทน (เลขยังเรียงตรงด้วย tabular figures แต่ฟอนต์ทั้งเซลล์ = body ตรงกับ Thai) — **ห้ามใส่ `tabular`**
 
 ตัวอย่าง structure ดิบ (อ้างอิงเท่านั้น — โค้ดจริงใช้ primitives ด้านบน):
 
@@ -261,24 +304,24 @@ import { StatusBadge } from '@/components/ui/badge';
 // Structure
 <table className="w-full text-sm">
   <thead>
-    <tr className="border-b border-surface-3 bg-surface">
-      <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-ink-secondary">
+    <tr className="border-surface-3 bg-surface border-b">
+      <th className="text-ink-secondary px-4 py-3 text-left text-xs font-medium tracking-wide uppercase">
         รายการ
       </th>
-      <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wide text-ink-secondary">
+      <th className="text-ink-secondary px-4 py-3 text-right text-xs font-medium tracking-wide uppercase">
         จำนวนเงิน
       </th>
     </tr>
   </thead>
-  <tbody className="divide-y divide-surface-3">
+  <tbody className="divide-surface-3 divide-y">
     <tr className="hover:bg-surface-2 transition-colors duration-150">
-      <td className="px-4 py-3 text-ink">ชื่อรายการ</td>
+      <td className="text-ink px-4 py-3">ชื่อรายการ</td>
       <td className="px-4 py-3 text-right font-mono tabular-nums">1,234.56</td>
     </tr>
   </tbody>
   <tfoot>
     {/* ยอดรวมล่างสุด — border-t-2 เพื่อแยกชัด */}
-    <tr className="border-t-2 border-surface-3 bg-surface font-semibold">
+    <tr className="border-surface-3 bg-surface border-t-2 font-semibold">
       <td className="px-4 py-3">รวม</td>
       <td className="px-4 py-3 text-right font-mono tabular-nums">10,000.00</td>
     </tr>
@@ -288,18 +331,21 @@ import { StatusBadge } from '@/components/ui/badge';
 
 ### Column Alignment Rules
 
-| Column type | Alignment | Class |
-|-------------|-----------|-------|
-| Text (ชื่อ, รายการ) | Left | `text-left` |
-| Number (ยอดเงิน, จำนวน) | **Right** | `text-right tabular-nums` |
-| Date | Center หรือ Left | `text-center` |
-| Status badge | Center | `text-center` |
-| Actions | Right | `text-right` |
+| Column type             | Alignment        | Class                     |
+| ----------------------- | ---------------- | ------------------------- |
+| Text (ชื่อ, รายการ)     | Left             | `text-left`               |
+| Number (ยอดเงิน, จำนวน) | **Right**        | `text-right tabular-nums` |
+| Date                    | Center หรือ Left | `text-center`             |
+| Status badge            | Center           | `text-center`             |
+| Actions                 | Right            | `text-right`              |
 
 ### Row Hover
+
 ```css
 /* ✅ เสมอ — ผู้ใช้ต้องรู้ว่า row ไหนกำลัง hover */
-.row { @apply hover:bg-gray-50 transition-colors duration-150; }
+.row {
+  @apply transition-colors duration-150 hover:bg-gray-50;
+}
 ```
 
 ---
@@ -308,22 +354,21 @@ import { StatusBadge } from '@/components/ui/badge';
 
 ```tsx
 // Base pattern
-<span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium
-  border border-{color}-200 bg-{color}-50 text-{color}-700">
+<span className="border-{color}-200 bg-{color}-50 text-{color}-700 inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium">
   สถานะ
-</span>
+</span>;
 
 // Presets
 const statusBadge = {
-  draft:       'bg-gray-50 text-gray-700 border-gray-200',
-  pending:     'bg-amber-50 text-amber-700 border-amber-200',
-  processing:  'bg-blue-50 text-blue-700 border-blue-200',
-  completed:   'bg-green-50 text-green-700 border-green-200',
-  posted:      'bg-emerald-50 text-emerald-700 border-emerald-200',
-  failed:      'bg-red-50 text-red-700 border-red-200',
-  cancelled:   'bg-gray-50 text-gray-500 border-gray-200',
-  void:        'bg-gray-50 text-gray-400 border-gray-100',
-  overdue:     'bg-red-50 text-red-700 border-red-200',
+  draft: "bg-gray-50 text-gray-700 border-gray-200",
+  pending: "bg-amber-50 text-amber-700 border-amber-200",
+  processing: "bg-blue-50 text-blue-700 border-blue-200",
+  completed: "bg-green-50 text-green-700 border-green-200",
+  posted: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  failed: "bg-red-50 text-red-700 border-red-200",
+  cancelled: "bg-gray-50 text-gray-500 border-gray-200",
+  void: "bg-gray-50 text-gray-400 border-gray-100",
+  overdue: "bg-red-50 text-red-700 border-red-200",
 };
 ```
 
@@ -332,6 +377,7 @@ const statusBadge = {
 ## 7. Forms — แบบฟอร์ม
 
 ### Layout Pattern
+
 ```tsx
 // Single column (modal/drawer)
 <div className="space-y-4">
@@ -352,6 +398,7 @@ const statusBadge = {
 ```
 
 ### Validation State
+
 ```tsx
 // Error
 <Input className="border-red-500 focus:ring-red-500" />
@@ -362,9 +409,45 @@ const statusBadge = {
 ```
 
 ### Journal Entry Form (เฉพาะบัญชี)
+
 - แสดง Dr/Cr เป็น 2 คอลัมน์ separate — อย่า merge เป็น ±
 - ยอด Dr ทั้งหมด = ยอด Cr ทั้งหมด → show balance indicator
 - ถ้า unbalanced → ปุ่ม submit disabled + banner แดง "ยอดไม่สมดุล"
+
+### SegmentedControl (Pill) — ตัวเลือก 2–3 อย่าง (บังคับ)
+
+> **กฎ**: ทุกที่ที่มีตัวเลือก **2–3 อย่างที่ต้องเลือกอันใดอันหนึ่ง** (mutually exclusive) — เช่น ฿/% (ส่วนลด),
+> รายรับ/รายจ่าย, สินค้า/บริการ, ชนิดเอกสาร — **ต้องใช้ `<SegmentedControl>`** จาก `@/components/ui/segmented`
+> (pill แบบ workspace switcher Admin/Suite/Flow) — **ห้ามทำกลุ่มปุ่ม toggle เอง** (`grid grid-cols-2` + `<Button>` คู่สลับ variant)
+
+```tsx
+import { SegmentedControl } from "@/components/ui/segmented";
+
+<SegmentedControl
+  value={kind}
+  onChange={setKind}
+  fullWidth // optional: กระจายเต็มแถว (เท่ากันทุกตัว)
+  options={[
+    {
+      value: "income",
+      label: "รายรับ",
+      icon: <ArrowDownLeft className="h-4 w-4" />,
+      activeClassName: "bg-green-600",
+    },
+    {
+      value: "expense",
+      label: "รายจ่าย",
+      icon: <ArrowUpRight className="h-4 w-4" />,
+      activeClassName: "bg-red-600",
+    },
+  ]}
+/>;
+```
+
+- pill: container `rounded-full border bg-gray-50 p-0.5` · active = `bg-primary text-white` (charcoal) ·
+  inactive = `text-gray-600 hover:bg-gray-100` · `size="sm"|"md"` · `activeClassName` override สีตาม semantic
+- ใช้กับ **2–3 ตัวเลือก** เท่านั้น · ค่าจาก list ยาว → `<CustomSelect>` · boolean on/off ล้วน → toggle/switch ·
+  filter ในหน้า list / >3 ตัวเลือก → Tab (§4) หรือ `CustomSelect`
 
 ---
 
@@ -373,13 +456,11 @@ const statusBadge = {
 ```tsx
 // Pattern มาตรฐาน
 <div className="flex flex-col items-center justify-center py-16 text-center">
-  <div className="mb-4 rounded-full bg-surface-2 p-4">
-    <IconName className="h-8 w-8 text-ink-muted" />
+  <div className="bg-surface-2 mb-4 rounded-full p-4">
+    <IconName className="text-ink-muted h-8 w-8" />
   </div>
-  <h3 className="text-sm font-medium text-ink">ยังไม่มีข้อมูล</h3>
-  <p className="mt-1 text-sm text-ink-secondary">
-    คำอธิบายสั้นๆ ว่าต้องทำอะไร
-  </p>
+  <h3 className="text-ink text-sm font-medium">ยังไม่มีข้อมูล</h3>
+  <p className="text-ink-secondary mt-1 text-sm">คำอธิบายสั้นๆ ว่าต้องทำอะไร</p>
   <Button className="mt-4" size="sm">
     + เพิ่มรายการแรก
   </Button>
@@ -387,6 +468,7 @@ const statusBadge = {
 ```
 
 **กฎ:**
+
 - ต้องมี icon ที่ relate กับ content
 - ต้องมี CTA (Call to Action) ชัดเจน — อย่าปล่อยให้ user ไม่รู้จะทำอะไร
 - ข้อความอธิบายต้องบอกว่า "ต้องทำอะไร" ไม่ใช่แค่ "ไม่มีข้อมูล"
@@ -396,16 +478,18 @@ const statusBadge = {
 ## 9. Loading States
 
 ### Skeleton (ดีที่สุดสำหรับ table/list)
+
 ```tsx
 // ใช้ Skeleton component แทน spinner สำหรับ content areas
 <div className="animate-pulse space-y-3">
   {[...Array(5)].map((_, i) => (
-    <div key={i} className="h-12 rounded bg-surface-2" />
+    <div key={i} className="bg-surface-2 h-12 rounded" />
   ))}
 </div>
 ```
 
 ### Spinner (เฉพาะ action/mutation)
+
 ```tsx
 // ปุ่มกำลังโหลด — ไม่มี isLoading prop ใน Button, ใช้ text แทน
 <Button disabled={loading}>
@@ -420,6 +504,7 @@ const statusBadge = {
 ```
 
 **กฎ:**
+
 - **Skeleton** — ใช้กับ initial page load / list / table
 - **Spinner** — ใช้กับ user-triggered action (save, submit, delete)
 - ห้ามแสดง blank ขาวๆ ระหว่าง load
@@ -444,8 +529,14 @@ const statusBadge = {
   animation: dialogEnter 250ms var(--ease-out);
 }
 @keyframes dialogEnter {
-  from { opacity: 0; transform: scale(0.96) translateY(-8px); }
-  to   { opacity: 1; transform: scale(1) translateY(0); }
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
 }
 
 /* Dropdown / Select */
@@ -454,8 +545,14 @@ const statusBadge = {
   transform-origin: var(--radix-popover-content-transform-origin);
 }
 @keyframes dropdownEnter {
-  from { opacity: 0; transform: scale(0.96); }
-  to   { opacity: 1; transform: scale(1); }
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
 /* Row เพิ่มใหม่ */
@@ -463,12 +560,19 @@ const statusBadge = {
   animation: rowEnter 200ms var(--ease-out);
 }
 @keyframes rowEnter {
-  from { opacity: 0; transform: translateX(-8px); }
-  to   { opacity: 1; transform: translateX(0); }
+  from {
+    opacity: 0;
+    transform: translateX(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
 }
 ```
 
 **กฎ PERPOS-specific:**
+
 - ตาราง: hover transition `150ms` เท่านั้น — เร็วที่สุด ใช้ทั้งวัน
 - Modal: `250ms` — ไม่ต่ำกว่า (user ต้อง read context)
 - Toast: enter `300ms ease-out`, exit `200ms ease-in`
@@ -499,6 +603,7 @@ import { StatCard } from '@/components/ui/stat-card';
 `tone`: `neutral | primary | positive | negative | warning | info` (สีของชิปไอคอน + ตัวเลขเมื่อ `valueColored`)
 
 **กฎ StatCard:**
+
 - ดีไซน์: การ์ดขาว เส้นบาง เงาจาง — สีบอกสถานะอยู่ที่ **ชิปไอคอน + ตัวเลข** ไม่ใช่พื้นทั้งใบ
 - ตัวเลข `tabular-nums` + responsive `text-xl sm:text-2xl` (มีในตัว) — **ห้าม truncate ตัวเลขเงิน**
 - กันล้น: ใส่ค่าเต็มหลักล้านในกริด `grid-cols-1 sm:grid-cols-3` (มือถือเต็มแถว) · ถ้าเป็น KPI tile แน่น ๆ ให้ย่อค่าเป็น `฿1.1M` แล้วเก็บค่าเต็มไว้ใน `sub`
@@ -508,6 +613,7 @@ import { StatCard } from '@/components/ui/stat-card';
 ### Chart Colors (sequential)
 
 ถ้าต้องใช้ chart ใน PERPOS ใช้ sequential palette นี้:
+
 ```
 primary series:  #533afd
 series 2:        #818cf8 (indigo-400)
@@ -522,6 +628,7 @@ neutral:         #9ca3af
 ## 12. Micro-interactions — สิ่งที่มองไม่เห็น แต่รู้สึกได้
 
 ### Copy to clipboard
+
 ```tsx
 const [copied, setCopied] = useState(false);
 // ... copy logic ...
@@ -529,22 +636,28 @@ setCopied(true);
 setTimeout(() => setCopied(false), 2000);
 
 // UI: icon เปลี่ยนจาก Copy → Check เป็นเวลา 2 วิ
-{copied ? <CheckIcon className="h-4 w-4 text-green-500" /> : <CopyIcon className="h-4 w-4" />}
+{
+  copied ? <CheckIcon className="h-4 w-4 text-green-500" /> : <CopyIcon className="h-4 w-4" />;
+}
 ```
 
 ### Row delete confirmation
+
 ```tsx
 // สองขั้นตอน: คลิกครั้งแรก → ยืนยัน (สีเปลี่ยนเป็นแดง); คลิกอีกครั้ง → ลบ
 // หรือใช้ AlertDialog สำหรับข้อมูลสำคัญ
 ```
 
 ### Form auto-save indicator
+
 ```tsx
 // แสดง "บันทึกอัตโนมัติแล้ว" เล็กๆ ตรงมุม — ไม่ใช่ toast เพราะ noisy เกินไป
-<span className={cn(
-  "text-xs transition-opacity duration-300",
-  saved ? "opacity-100 text-green-600" : "opacity-0"
-)}>
+<span
+  className={cn(
+    "text-xs transition-opacity duration-300",
+    saved ? "text-green-600 opacity-100" : "opacity-0",
+  )}
+>
   ✓ บันทึกแล้ว
 </span>
 ```
@@ -559,39 +672,45 @@ setTimeout(() => setCopied(false), 2000);
 
 ```tsx
 import {
-  Dialog, DialogContent, DialogBody, DialogHeader, DialogTitle, DialogFooter,
-} from '@/components/ui/dialog';
+  Dialog,
+  DialogContent,
+  DialogBody,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 
 <Dialog open={open} onOpenChange={setOpen}>
   <DialogContent size="lg">
     <DialogHeader>
       <DialogTitle>หัวข้อ</DialogTitle>
     </DialogHeader>
-    <DialogBody>
-      {/* เนื้อหา/ฟอร์ม — ส่วนเดียวที่ scroll */}
-    </DialogBody>
+    <DialogBody>{/* เนื้อหา/ฟอร์ม — ส่วนเดียวที่ scroll */}</DialogBody>
     <DialogFooter>
-      <Button variant="outline" onClick={() => setOpen(false)}>ยกเลิก</Button>
+      <Button variant="outline" onClick={() => setOpen(false)}>
+        ยกเลิก
+      </Button>
       <Button onClick={handleSave}>บันทึก</Button>
     </DialogFooter>
   </DialogContent>
-</Dialog>
+</Dialog>;
 ```
 
 ### กลไก Sticky Header/Footer
+
 `DialogContent` = `flex flex-col max-h-[85vh] overflow-hidden` → header/footer `shrink-0` จึง pinned อัตโนมัติ มีเฉพาะ `DialogBody` ที่ `flex-1 overflow-y-auto` — ไม่ต้องใช้ `position:sticky`
 
 ### Width Scale (prop `size`, default `lg`)
 
-| size | max-w | ใช้กับ |
-|------|-------|--------|
-| `sm` | `max-w-sm` | ยืนยันลบ / ข้อความสั้น |
-| `md` | `max-w-md` | ฟอร์มสั้น 1 คอลัมน์ |
-| `lg` | `max-w-lg` | ฟอร์มมาตรฐาน (default) |
-| `xl` | `max-w-2xl` | ฟอร์ม 2 คอลัมน์ / detail |
-| `2xl` | `max-w-3xl` | ตาราง/เนื้อหากว้าง |
-| `3xl` | `max-w-4xl` | กว้างพิเศษ |
-| `full` | `max-w-[95vw]` | viewer (OCR ฯลฯ) |
+| size   | max-w          | ใช้กับ                   |
+| ------ | -------------- | ------------------------ |
+| `sm`   | `max-w-sm`     | ยืนยันลบ / ข้อความสั้น   |
+| `md`   | `max-w-md`     | ฟอร์มสั้น 1 คอลัมน์      |
+| `lg`   | `max-w-lg`     | ฟอร์มมาตรฐาน (default)   |
+| `xl`   | `max-w-2xl`    | ฟอร์ม 2 คอลัมน์ / detail |
+| `2xl`  | `max-w-3xl`    | ตาราง/เนื้อหากว้าง       |
+| `3xl`  | `max-w-4xl`    | กว้างพิเศษ               |
+| `full` | `max-w-[95vw]` | viewer (OCR ฯลฯ)         |
 
 ทุก size บนมือถือ = `w-[calc(100vw-2rem)]` อัตโนมัติ
 
@@ -603,7 +722,9 @@ import {
   <Button variant="destructive" className="mr-auto" onClick={handleDelete}>
     ลบ
   </Button>
-  <Button variant="outline" onClick={() => setOpen(false)}>ยกเลิก</Button>
+  <Button variant="outline" onClick={() => setOpen(false)}>
+    ยกเลิก
+  </Button>
   <Button onClick={handleSave}>บันทึก</Button>
 </DialogFooter>
 ```
@@ -616,9 +737,7 @@ import {
     <DialogTitle>หัวข้อ</DialogTitle>
   </DialogHeader>
   <form className="flex min-h-0 flex-1 flex-col" onSubmit={handleSubmit}>
-    <DialogBody>
-      {/* form fields */}
-    </DialogBody>
+    <DialogBody>{/* form fields */}</DialogBody>
     <DialogFooter>
       <Button type="submit">บันทึก</Button>
     </DialogFooter>
@@ -628,32 +747,32 @@ import {
 
 ### Anti-patterns — ห้ามทำกับ Dialog
 
-| Anti-pattern | ทำไม | ทำแทนด้วย |
-|---|---|---|
-| `<DialogContent className="max-h-[90vh] overflow-y-auto">` | scroll อยู่ใน `DialogBody` แล้ว | ลบ max-h/overflow ออก ใช้ `size` แทน |
-| `<DialogContent className="p-6">` | padding อยู่ใน Header/Body/Footer แล้ว | ลบ p ออก ใช้ `size` แทน |
-| ไม่มี `<DialogBody>` | dialog จะไม่มี padding และ scroll ไม่ทำงาน | ห่อเนื้อหาด้วย `<DialogBody>` เสมอ |
-| Footer แบบ `<div className="flex justify-end gap-2 pt-2">` | ไม่ sticky, style ไม่สม่ำเสมอ | ใช้ `<DialogFooter>` เสมอ |
-| Nested `<div>` เพื่อ justify-between สำหรับปุ่ม destructive | ซับซ้อนเกินจำเป็น | ใช้ `className="mr-auto"` บนปุ่ม destructive |
+| Anti-pattern                                                | ทำไม                                       | ทำแทนด้วย                                    |
+| ----------------------------------------------------------- | ------------------------------------------ | -------------------------------------------- |
+| `<DialogContent className="max-h-[90vh] overflow-y-auto">`  | scroll อยู่ใน `DialogBody` แล้ว            | ลบ max-h/overflow ออก ใช้ `size` แทน         |
+| `<DialogContent className="p-6">`                           | padding อยู่ใน Header/Body/Footer แล้ว     | ลบ p ออก ใช้ `size` แทน                      |
+| ไม่มี `<DialogBody>`                                        | dialog จะไม่มี padding และ scroll ไม่ทำงาน | ห่อเนื้อหาด้วย `<DialogBody>` เสมอ           |
+| Footer แบบ `<div className="flex justify-end gap-2 pt-2">`  | ไม่ sticky, style ไม่สม่ำเสมอ              | ใช้ `<DialogFooter>` เสมอ                    |
+| Nested `<div>` เพื่อ justify-between สำหรับปุ่ม destructive | ซับซ้อนเกินจำเป็น                          | ใช้ `className="mr-auto"` บนปุ่ม destructive |
 
 ---
 
 ## 14. Anti-patterns — ห้ามทำ
 
-| Anti-pattern | ทำไม | ทำแทนด้วย |
-|---|---|---|
-| `transition: all` | Animate ทุก property รวม layout | ระบุ property ที่ต้องการ |
-| ตัวเลขไม่ใช้ `tabular-nums` | คอลัมน์ตัวเลขขยับ อ่านยาก | `font-mono tabular-nums` เสมอ |
-| ยอดลบใช้ `-` (hyphen) | ไม่ใช่ minus sign จริง | ใช้ `−` (U+2212) |
-| Badge สีแดงสำหรับ "ฉบับร่าง" | ทำให้ตกใจ | `gray` สำหรับ neutral status |
-| Spinner บน initial load | UX แย่กว่า skeleton | Skeleton ทุกครั้ง |
-| ปุ่มไม่ disabled ระหว่าง submit | Double submit, data corruption | `disabled={loading}` เสมอ |
-| Empty state ไม่มี CTA | User ไม่รู้จะทำอะไร | มี CTA ทุก empty state |
-| Modal เปิดเร็วเกิน (< 150ms) | ตาตาม content ไม่ทัน | `250ms` minimum |
-| `ease-in` บน dropdown | รู้สึกช้าตั้งแต่ต้น | `ease-out` เสมอ |
-| ตัวหนังสือซ้ายบนยอดเงิน | อ่านเปรียบเทียบยาก | Right-align เสมอ |
-| สีในตารางมากกว่า 3 สี | สับสน, chaos | ≤ 3 สีต่อ component |
-| Label สั้นเกิน (เช่น "จำนวน") | กำกวมสำหรับ ERP | ระบุให้ชัด "จำนวนเงิน (฿)" |
+| Anti-pattern                    | ทำไม                            | ทำแทนด้วย                     |
+| ------------------------------- | ------------------------------- | ----------------------------- |
+| `transition: all`               | Animate ทุก property รวม layout | ระบุ property ที่ต้องการ      |
+| ตัวเลขไม่ใช้ `tabular-nums`     | คอลัมน์ตัวเลขขยับ อ่านยาก       | `font-mono tabular-nums` เสมอ |
+| ยอดลบใช้ `-` (hyphen)           | ไม่ใช่ minus sign จริง          | ใช้ `−` (U+2212)              |
+| Badge สีแดงสำหรับ "ฉบับร่าง"    | ทำให้ตกใจ                       | `gray` สำหรับ neutral status  |
+| Spinner บน initial load         | UX แย่กว่า skeleton             | Skeleton ทุกครั้ง             |
+| ปุ่มไม่ disabled ระหว่าง submit | Double submit, data corruption  | `disabled={loading}` เสมอ     |
+| Empty state ไม่มี CTA           | User ไม่รู้จะทำอะไร             | มี CTA ทุก empty state        |
+| Modal เปิดเร็วเกิน (< 150ms)    | ตาตาม content ไม่ทัน            | `250ms` minimum               |
+| `ease-in` บน dropdown           | รู้สึกช้าตั้งแต่ต้น             | `ease-out` เสมอ               |
+| ตัวหนังสือซ้ายบนยอดเงิน         | อ่านเปรียบเทียบยาก              | Right-align เสมอ              |
+| สีในตารางมากกว่า 3 สี           | สับสน, chaos                    | ≤ 3 สีต่อ component           |
+| Label สั้นเกิน (เช่น "จำนวน")   | กำกวมสำหรับ ERP                 | ระบุให้ชัด "จำนวนเงิน (฿)"    |
 
 ---
 
@@ -668,9 +787,9 @@ import {
 
 ## Changelog
 
-| วันที่ | การเปลี่ยนแปลง |
-|--------|--------------|
-| 2026-06-06 | สร้าง DESIGN.md จาก Stripe + Linear + Emil Kowalski |
-| 2026-06-17 | เพิ่ม §13 Dialog / Popup Standard — sticky header/footer, size prop, DialogBody บังคับทั้งระบบ |
-| 2026-06-17 | §2 ล็อก PERPOS Standard Palette (flat-UI) ทั้งแอป — override Tailwind token (AQUA=primary) + migrate ฮาร์ดโค้ด hex (รวม LINE flex cards) · ยกเว้นเอกสารพิมพ์ (wht-pdf, pp30/wht-cert preview, mom-html) คงสีเดิม |
+| วันที่     | การเปลี่ยนแปลง                                                                                                                                                                                                                             |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 2026-06-06 | สร้าง DESIGN.md จาก Stripe + Linear + Emil Kowalski                                                                                                                                                                                        |
+| 2026-06-17 | เพิ่ม §13 Dialog / Popup Standard — sticky header/footer, size prop, DialogBody บังคับทั้งระบบ                                                                                                                                             |
+| 2026-06-17 | §2 ล็อก PERPOS Standard Palette (flat-UI) ทั้งแอป — override Tailwind token (AQUA=primary) + migrate ฮาร์ดโค้ด hex (รวม LINE flex cards) · ยกเว้นเอกสารพิมพ์ (wht-pdf, pp30/wht-cert preview, mom-html) คงสีเดิม                           |
 | 2026-06-17 | เปลี่ยน **primary/brand = CHARCOAL `#3C3B3D`** (โทน mono เลิก AQUA) — blue/sky/cyan → charcoal scale, token primary/blue → charcoal, title (h1/PageShell/Title) ใช้ `text-primary` · สี accent อื่น (PLUM/PINK/MINT/RUBY/SUNFLOWER) คงเดิม |

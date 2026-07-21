@@ -1,0 +1,24 @@
+---
+import { cn } from "@/lib/utils";
+
+interface Props {
+  id?: string;
+  bg?: "white" | "alt" | "gradient";
+  class?: string;
+}
+
+const { id, bg = "white", class: className } = Astro.props;
+
+const bgClass =
+  bg === "alt"
+    ? "bg-[var(--p2p-alt)]"
+    : bg === "gradient"
+      ? "bg-[linear-gradient(180deg,var(--p2p-hi)_0%,#fff_60%)]"
+      : "bg-[var(--p2p-bg)]";
+---
+
+<section id={id} class={cn("section-padding", bgClass, className)}>
+  <div class="container-custom">
+    <slot />
+  </div>
+</section>

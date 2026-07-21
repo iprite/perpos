@@ -1,0 +1,21 @@
+---
+import { cn } from "@/lib/utils";
+
+interface Props {
+  href: string;
+  variant?: "primary" | "small";
+  class?: string;
+  [key: `data-${string}`]: string | number | boolean | undefined;
+}
+
+const { href, variant = "primary", class: className, ...rest } = Astro.props;
+
+const base =
+  "inline-flex items-center justify-center gap-2 rounded-xl bg-[var(--p2p-primary)] font-bold text-white shadow-[var(--p2p-shadow-btn)] transition-[background-color,box-shadow,transform] duration-[180ms] hover:-translate-y-0.5 hover:bg-[#1e6fe0] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--p2p-primary)] focus-visible:ring-offset-2 active:scale-[0.97] active:duration-[120ms]";
+
+const sizeClass = variant === "small" ? "px-4 py-2 text-sm" : "px-7 py-3.5 text-base";
+---
+
+<a href={href} class={cn(base, sizeClass, className)} {...rest}>
+  <slot />
+</a>

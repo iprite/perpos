@@ -1,39 +1,44 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { requireAdmin } from '../../../_lib/auth';
-import { createAdminClient } from '../../../_lib/supabase';
-import { logAdminAction } from '../../../_lib/admin-audit';
+import { NextRequest, NextResponse } from "next/server";
+import { requireAdmin } from "../../../_lib/auth";
+import { createAdminClient } from "../../../_lib/supabase";
+import { logAdminAction } from "../../../_lib/admin-audit";
+import {
+  syncModuleMembersForOrgRole,
+  deactivateModuleMembersForOrg,
+} from "../../../_lib/module-membership";
 
-const VALID_ORG_ROLES = ['owner', 'admin', 'team_lead', 'team_member'] as const;
+const VALID_ORG_ROLES = ["owner", "admin", "team_lead", "team_member"] as const;
 
 export async function GET(req: NextRequest) {
   const auth = await requireAdmin(req);
   if (!auth.ok) return auth.res;
 
-  const userId = req.nextUrl.searchParams.get('userId');
+  const userId = req.nextUrl.searchParams.get("userId");
 
   const admin = createAdminClient();
 
   // No userId — return only allOrgs (used by invite form)
   if (!userId) {
-    const { data, error } = await admin.from('organizations').select('id, name').order('name');
+    const { data, error } = await admin.from("organizations").select("id, name").order("name");
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json({ ok: true, memberships: [], allOrgs: data ?? [] });
   }
 
   const [memberRes, orgsRes] = await Promise.all([
     admin
-      .from('organization_members')
-      .select('id, organization_id, role, organizations(name)')
-      .eq('user_id', userId),
-    admin.from('organizations').select('id, name').order('name'),
+      .from("organization_members")
+      .select("id, organization_id, role, organizations(name)")
+      .eq("user_id", userId),
+    admin.from("organizations").select("id, name").order("name"),
   ]);
 
-  if (memberRes.error) return NextResponse.json({ error: memberRes.error.message }, { status: 500 });
+  if (memberRes.error)
+    return NextResponse.json({ error: memberRes.error.message }, { status: 500 });
 
   const memberships = (memberRes.data ?? []).map((m: Record<string, unknown>) => ({
     id: String(m.id),
     orgId: String(m.organization_id),
-    orgName: String((m.organizations as Record<string, unknown>)?.name ?? ''),
+    orgName: String((m.organizations as Record<string, unknown>)?.name ?? ""),
     role: String(m.role),
   }));
 
@@ -44,25 +49,38 @@ export async function PUT(req: NextRequest) {
   const auth = await requireAdmin(req);
   if (!auth.ok) return auth.res;
 
-  const body = await req.json().catch(() => ({})) as { userId?: string; orgId?: string; role?: string };
-  const { userId, orgId, role = 'team_member' } = body;
-  if (!userId || !orgId) return NextResponse.json({ error: 'missing userId or orgId' }, { status: 400 });
+  const body = (await req.json().catch(() => ({}))) as {
+    userId?: string;
+    orgId?: string;
+    role?: string;
+  };
+  const { userId, orgId, role = "team_member" } = body;
+  if (!userId || !orgId)
+    return NextResponse.json({ error: "missing userId or orgId" }, { status: 400 });
   if (!(VALID_ORG_ROLES as readonly string[]).includes(role)) {
-    return NextResponse.json({ error: `invalid role — ต้องเป็น ${VALID_ORG_ROLES.join(' | ')}` }, { status: 400 });
+    return NextResponse.json(
+      { error: `invalid role — ต้องเป็น ${VALID_ORG_ROLES.join(" | ")}` },
+      { status: 400 },
+    );
   }
 
   const admin = createAdminClient();
   const { error } = await admin
-    .from('organization_members')
+    .from("organization_members")
     .upsert(
       { user_id: userId, organization_id: orgId, role, updated_at: new Date().toISOString() },
-      { onConflict: 'user_id,organization_id' },
+      { onConflict: "user_id,organization_id" },
     );
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
+  // Keep module_members in sync so the user can actually access the org's
+  // enabled modules (org membership alone passes the layout but module pages
+  // gate on module_members → otherwise: enter org, click module, get bounced).
+  await syncModuleMembersForOrgRole(admin, userId, orgId, role);
+
   await logAdminAction(req, auth.userId, {
-    action: 'org.member_set_role',
-    targetType: 'user',
+    action: "org.member_set_role",
+    targetType: "user",
     targetId: userId,
     metadata: { org_id: orgId, role },
   });
@@ -74,21 +92,25 @@ export async function DELETE(req: NextRequest) {
   const auth = await requireAdmin(req);
   if (!auth.ok) return auth.res;
 
-  const body = await req.json().catch(() => ({})) as { userId?: string; orgId?: string };
+  const body = (await req.json().catch(() => ({}))) as { userId?: string; orgId?: string };
   const { userId, orgId } = body;
-  if (!userId || !orgId) return NextResponse.json({ error: 'missing userId or orgId' }, { status: 400 });
+  if (!userId || !orgId)
+    return NextResponse.json({ error: "missing userId or orgId" }, { status: 400 });
 
   const admin = createAdminClient();
   const { error } = await admin
-    .from('organization_members')
+    .from("organization_members")
     .delete()
-    .eq('user_id', userId)
-    .eq('organization_id', orgId);
+    .eq("user_id", userId)
+    .eq("organization_id", orgId);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
+  // Revoke module access alongside org removal
+  await deactivateModuleMembersForOrg(admin, userId, orgId);
+
   await logAdminAction(req, auth.userId, {
-    action: 'org.member_remove',
-    targetType: 'user',
+    action: "org.member_remove",
+    targetType: "user",
     targetId: userId,
     metadata: { org_id: orgId },
   });

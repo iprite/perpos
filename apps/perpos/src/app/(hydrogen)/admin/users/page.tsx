@@ -16,10 +16,14 @@ import {
   Users as UsersIcon,
   Copy,
   Check,
+  CalendarDays,
+  MessagesSquare,
 } from "lucide-react";
 
 import { useAuth } from "@/app/shared/auth-provider";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { useUrlState } from "@/lib/use-url-state";
+import { OrgLink } from "@/components/admin/org-link";
 import type { Role } from "@/lib/supabase/types";
 import { withBasePath } from "@/utils/base-path";
 import { copyText } from "@/utils/clipboard";
@@ -28,6 +32,7 @@ import { toast } from "@/lib/toast";
 import { AdminPage } from "../_components/admin-page";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { CustomSelect } from "@/components/ui/custom-select";
 import {
@@ -58,9 +63,33 @@ type ListedUser = {
   last_seen_at: string | null;
   orgs: UserOrg[];
   tokens: { balance: number };
+  usage: { sttSeconds: number; botSeconds: number; pdfPages: number; lastUsed: string | null };
 };
 
-const ONLINE_WINDOW_MS = 2 * 60_000; // ออนไลน์ = ใช้งานภายใน 2 นาที
+const ONLINE_WINDOW_MS = 6 * 60_000; // ออนไลน์ = ใช้งานภายใน 6 นาที (heartbeat ยิงทุก 5 นาที — เผื่อ margin)
+
+// จำนวนวันนับจากวันที่สมัคร (provisioning) ถึงวันนี้
+function membershipDays(iso: string | null, now: number): number {
+  if (!iso) return 0;
+  return Math.max(0, Math.floor((now - new Date(iso).getTime()) / 86_400_000));
+}
+
+// วินาที → นาที (ปัดขึ้น) แบบมีหลักพัน — เช่น 130 วิ → "3"
+function secondsToMinutes(sec: number): number {
+  return Math.round(sec / 60);
+}
+
+// วันที่แบบไทย (พ.ศ.) — เช่น "21 มิ.ย. 2569"
+function formatThaiDate(iso: string | null): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "—";
+  return new Intl.DateTimeFormat("th-TH", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  }).format(d);
+}
 
 function relativeSeen(iso: string | null, now: number): string {
   if (!iso) return "ยังไม่เคยเข้าใช้งาน";
@@ -208,7 +237,7 @@ function UserActionMenu({
         title="การจัดการ"
         className={`flex h-8 w-8 items-center justify-center rounded-lg border transition-colors ${
           open
-            ? "border-indigo-300 bg-indigo-50 text-indigo-600"
+            ? "border-primary bg-gray-100 text-primary"
             : "border-gray-200 bg-white text-gray-500 hover:border-gray-300 hover:bg-gray-50 hover:text-gray-700"
         }`}
       >
@@ -344,9 +373,18 @@ export default function AdminUsersPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [actionLink, setActionLink] = useState<string | null>(null);
 
-  // filters
-  const [query, setQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
+  // filters — เริ่มจาก URL + sync กลับ (saved view: bookmark/แชร์ลิงก์ได้)
+  const { get: getUrlParam, commit: commitUrl } = useUrlState();
+  const [query, setQuery] = useState(() => getUrlParam("q"));
+  const [statusFilter, setStatusFilter] = useState(() => getUrlParam("status", "all"));
+
+  // sync filter → URL (debounce กันเขียนถี่ตอนพิมพ์) · "all"/"" ถูกตัดออกจาก URL
+  useEffect(() => {
+    const t = setTimeout(() => {
+      commitUrl({ q: query, status: statusFilter === "all" ? "" : statusFilter });
+    }, 300);
+    return () => clearTimeout(t);
+  }, [query, statusFilter, commitUrl]);
 
   // expanded org panel
   const [expandedUserId, setExpandedUserId] = useState<string | null>(null);
@@ -895,6 +933,13 @@ export default function AdminUsersPage() {
                         )}
                         {seenLabel}
                       </div>
+                      <div className="mt-0.5 flex items-center gap-1 truncate text-xs text-gray-400">
+                        <CalendarDays className="h-3 w-3 shrink-0" />
+                        <span>
+                          สมัคร {formatThaiDate(u.created_at)} · เป็นสมาชิกมาแล้ว{" "}
+                          {membershipDays(u.created_at, now).toLocaleString("th-TH")} วัน
+                        </span>
+                      </div>
                     </div>
                   </div>
 
@@ -965,9 +1010,12 @@ export default function AdminUsersPage() {
                             key={m.orgId}
                             className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2"
                           >
-                            <span className="flex-1 truncate text-sm font-medium text-gray-800">
+                            <OrgLink
+                              orgId={m.orgId}
+                              className="flex-1 truncate text-sm font-medium text-gray-800"
+                            >
                               {m.orgName}
-                            </span>
+                            </OrgLink>
                             <div className="w-36">
                               <CustomSelect
                                 value={m.role}
@@ -1014,6 +1062,48 @@ export default function AdminUsersPage() {
                       >
                         เพิ่ม
                       </Button>
+                    </div>
+
+                    {/* การใช้งานผู้ช่วย (Flow) — มิเตอร์จริงตามบริการ */}
+                    <div className="mt-4 border-t border-gray-200 pt-4">
+                      <div className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                        <MessagesSquare className="h-3.5 w-3.5" />
+                        การใช้งานผู้ช่วย (Flow)
+                      </div>
+                      {u.usage.sttSeconds === 0 &&
+                      u.usage.botSeconds === 0 &&
+                      u.usage.pdfPages === 0 ? (
+                        <div className="text-sm text-gray-500">ยังไม่เคยใช้บริการ</div>
+                      ) : (
+                        <>
+                          <div className="grid grid-cols-3 gap-2">
+                            <div className="rounded-lg border border-gray-200 bg-white px-3 py-2">
+                              <div className="text-xs text-gray-400">แกะเสียง (STT)</div>
+                              <div className="font-semibold tabular-nums text-gray-900">
+                                {secondsToMinutes(u.usage.sttSeconds).toLocaleString("th-TH")}
+                                <span className="ml-1 text-xs font-normal text-gray-400">นาที</span>
+                              </div>
+                            </div>
+                            <div className="rounded-lg border border-gray-200 bg-white px-3 py-2">
+                              <div className="text-xs text-gray-400">บอทประชุม (Bot)</div>
+                              <div className="font-semibold tabular-nums text-gray-900">
+                                {secondsToMinutes(u.usage.botSeconds).toLocaleString("th-TH")}
+                                <span className="ml-1 text-xs font-normal text-gray-400">นาที</span>
+                              </div>
+                            </div>
+                            <div className="rounded-lg border border-gray-200 bg-white px-3 py-2">
+                              <div className="text-xs text-gray-400">บีบ PDF</div>
+                              <div className="font-semibold tabular-nums text-gray-900">
+                                {Math.round(u.usage.pdfPages).toLocaleString("th-TH")}
+                                <span className="ml-1 text-xs font-normal text-gray-400">หน้า</span>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="mt-2 text-xs text-gray-400">
+                            ใช้งานล่าสุด {formatThaiDate(u.usage.lastUsed)}
+                          </div>
+                        </>
+                      )}
                     </div>
                   </div>
                 )}
@@ -1125,13 +1215,12 @@ export default function AdminUsersPage() {
                 <Label>
                   เหตุผล <span className="text-red-500">*</span>
                 </Label>
-                <textarea
+                <Textarea
                   value={impersonateReason}
                   onChange={(e) => setImpersonateReason(e.target.value)}
                   placeholder="ระบุเหตุผล เช่น 'ช่วย debug ปัญหา invoice #123'"
                   rows={3}
                   disabled={impersonateLoading}
-                  className="w-full resize-none rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100 disabled:opacity-50"
                 />
               </div>
               {impersonateError && (

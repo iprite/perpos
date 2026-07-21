@@ -1,0 +1,27 @@
+---
+import { cn } from "@/lib/utils";
+
+interface Props {
+  size?: 30 | 34 | 36 | 44;
+  class?: string;
+}
+
+const { size = 44, class: className } = Astro.props;
+
+const sizeMap: Record<number, string> = {
+  30: "h-[30px] w-[30px] min-w-[30px] text-[.85rem]",
+  34: "h-[34px] w-[34px] min-w-[34px] text-[.9rem]",
+  36: "h-9 w-9 min-w-9 text-base",
+  44: "h-11 w-11 min-w-11 text-[1.15rem]",
+};
+---
+
+<div
+  class={cn(
+    "flex items-center justify-center rounded-full border border-[#DBEAFE] bg-[var(--p2p-hi)] text-[var(--p2p-primary)]",
+    sizeMap[size],
+    className,
+  )}
+>
+  <slot />
+</div>

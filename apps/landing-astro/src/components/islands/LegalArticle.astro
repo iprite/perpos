@@ -1,0 +1,157 @@
+---
+/** Legal page body (privacy/terms) — picks language from localStorage / system,
+ *  mirroring the old client LanguageProvider (default Thai, no toggle in the UI).
+ *  Vanilla replacement: both languages are rendered server-side; a tiny script
+ *  reveals English when the visitor's saved/again system language is English. */
+import { legal, type Lang } from "@/lib/legal";
+
+interface Props {
+  doc: "privacy" | "terms";
+}
+const { doc } = Astro.props;
+
+const BTN_PRIMARY =
+  "group/btn inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl px-5 py-2.5 text-sm font-medium bg-primary text-white shadow-xs shadow-primary/25 transition-all duration-200 hover:bg-primary-dark hover:shadow-lg hover:shadow-primary/30 active:scale-[0.98]";
+
+const isPrivacy = doc === "privacy";
+const sectionKeys = isPrivacy
+  ? [
+      ["section1Title", "section1Desc"],
+      ["section2Title", "section2Desc"],
+      ["section3Title", "section3Desc"],
+      ["section4Title", "section4Desc"],
+      ["section5Title", "section5Desc"],
+      ["section6Title", "section6Desc"],
+    ]
+  : [
+      ["section1Title", "section1Desc"],
+      ["section2Title", "section2Desc"],
+      ["section3Title", "section3Desc"],
+      ["section4Title", "section4Desc"],
+      ["section5Title", "section5Desc"],
+      ["section6Title", "section6Desc"],
+    ];
+const contactTitleKey = "section7Title";
+const contactDescKey = "section7Desc";
+
+function build(lang: Lang) {
+  const dict = legal[lang];
+  const p = (isPrivacy ? dict.privacyPage : dict.termsPage) as Record<
+    string,
+    string
+  >;
+  return {
+    t: p,
+    sections: sectionKeys.map(([tk, dk]) => ({ title: p[tk], desc: p[dk] })),
+    contactTitle: p[contactTitleKey],
+    contactDesc: p[contactDescKey],
+  };
+}
+
+const langs: Lang[] = ["th", "en"];
+---
+
+{
+  langs.map((lang) => {
+    const d = build(lang);
+    return (
+      <article
+        class:list={[
+          "mx-auto max-w-3xl px-5 py-16 sm:px-6 md:py-20 lg:px-8",
+          lang === "en" && "hidden",
+        ]}
+        data-legal-lang={lang}
+      >
+        <div
+          class="mb-8 inline-flex gap-1 rounded-xl border border-black/10 bg-black/[0.03] p-1"
+          role="group"
+          aria-label="Language"
+        >
+          <button
+            type="button"
+            data-lang-btn="th"
+            class="rounded-lg px-3 py-1.5 text-sm font-medium transition-colors"
+          >
+            ไทย
+          </button>
+          <button
+            type="button"
+            data-lang-btn="en"
+            class="rounded-lg px-3 py-1.5 text-sm font-medium transition-colors"
+          >
+            English
+          </button>
+        </div>
+        <h1 class="text-foreground text-3xl font-semibold tracking-tight sm:text-4xl">
+          {d.t.title}
+        </h1>
+        <p class="text-foreground-muted mt-3 text-sm">{d.t.lastUpdated}</p>
+
+        <div class="mt-10 space-y-8">
+          {d.sections.map((s) => (
+            <section>
+              <h2 class="text-foreground text-lg font-semibold">{s.title}</h2>
+              <p class="text-foreground-secondary mt-2 leading-7">{s.desc}</p>
+            </section>
+          ))}
+          <section>
+            <h2 class="text-foreground text-lg font-semibold">
+              {d.contactTitle}
+            </h2>
+            <p class="text-foreground-secondary mt-2 leading-7">
+              {d.contactDesc}{" "}
+              <a href="mailto:contact@perpos.ai" class="text-primary underline">
+                contact@perpos.ai
+              </a>
+            </p>
+          </section>
+        </div>
+
+        <div class="mt-12">
+          <a href="https://app.perpos.ai/signin" class={BTN_PRIMARY}>
+            {d.t.signupCta}
+          </a>
+        </div>
+      </article>
+    );
+  })
+}
+
+<script>
+  // Both languages render server-side (Thai visible by default). Pick the initial
+  // language from the saved choice, else the browser language; the pill toggle
+  // lets the visitor switch and persists the choice to localStorage.
+  const ACTIVE = ["bg-white", "text-foreground", "shadow-sm"];
+  const INACTIVE = ["text-foreground-muted"];
+
+  function applyLang(lang: string) {
+    (["th", "en"] as const).forEach((l) => {
+      document
+        .querySelector(`[data-legal-lang="${l}"]`)
+        ?.classList.toggle("hidden", l !== lang);
+    });
+    document.querySelectorAll("[data-lang-btn]").forEach((btn) => {
+      const on = btn.getAttribute("data-lang-btn") === lang;
+      btn.classList.remove(...ACTIVE, ...INACTIVE);
+      btn.classList.add(...(on ? ACTIVE : INACTIVE));
+      btn.setAttribute("aria-pressed", String(on));
+    });
+  }
+
+  const saved = localStorage.getItem("lang");
+  const initial =
+    saved === "en" || saved === "th"
+      ? saved
+      : navigator.language.toLowerCase().startsWith("en")
+        ? "en"
+        : "th";
+  applyLang(initial);
+
+  document.querySelectorAll("[data-lang-btn]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const lang = btn.getAttribute("data-lang-btn") || "th";
+      localStorage.setItem("lang", lang);
+      applyLang(lang);
+    });
+  });
+</script>

@@ -1,0 +1,14 @@
+---
+import Layout from "@/layouts/Layout.astro";
+import SiteHeader from "@/components/SiteHeader.astro";
+import SiteFooter from "@/components/SiteFooter.astro";
+import LegalArticle from "@/components/islands/LegalArticle.astro";
+---
+
+<Layout title="เงื่อนไขการใช้งาน · PERPOS">
+  <main class="min-h-screen bg-white">
+    <SiteHeader />
+    <LegalArticle doc="terms" />
+    <SiteFooter />
+  </main>
+</Layout>

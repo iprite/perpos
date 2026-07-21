@@ -1,5 +1,5 @@
 /**
- * GET /api/assistant/stats?orgId=<orgId>
+ * GET /api/assistant/stats
  *   — สถิติการใช้แกะเสียงของผู้ใช้ที่ล็อกอิน (ตัวเอง)
  */
 
@@ -7,58 +7,13 @@ import { NextRequest } from "next/server";
 import { requireAssistantUser } from "../../_lib/assistant-auth";
 import { createAdminClient } from "../../_lib/supabase";
 import { ok } from "../../_lib/response";
-
-const BKK = "Asia/Bangkok";
-const dayStr = (d: Date) => new Intl.DateTimeFormat("en-CA", { timeZone: BKK }).format(d);
+import { getAssistantStats } from "@/lib/assistant/stats";
 
 export async function GET(req: NextRequest) {
   const auth = await requireAssistantUser(req);
   if (!auth.ok) return auth.res;
 
   const admin = createAdminClient();
-  const { data: jobs } = await admin
-    .from("assistant_jobs")
-    .select("status, source, duration_seconds, created_at")
-    .eq("profile_id", auth.userId)
-    .order("created_at", { ascending: false })
-    .limit(2000);
-
-  const rows = (jobs ?? []) as {
-    status: string;
-    source: string;
-    duration_seconds: number | null;
-    created_at: string;
-  }[];
-  const completed = rows.filter((r) => r.status === "completed");
-
-  const bySource = { web: { jobs: 0, minutes: 0 }, line: { jobs: 0, minutes: 0 } };
-  for (const r of completed) {
-    const k = r.source === "line" ? "line" : "web";
-    bySource[k].jobs += 1;
-    bySource[k].minutes += Math.round((r.duration_seconds ?? 0) / 60);
-  }
-
-  // daily 30 วันล่าสุด
-  const days: Record<string, { jobs: number; minutes: number }> = {};
-  for (let i = 29; i >= 0; i--)
-    days[dayStr(new Date(Date.now() - i * 86400000))] = { jobs: 0, minutes: 0 };
-  for (const r of completed) {
-    const d = dayStr(new Date(r.created_at));
-    if (days[d]) {
-      days[d].jobs += 1;
-      days[d].minutes += Math.round((r.duration_seconds ?? 0) / 60);
-    }
-  }
-  const daily = Object.entries(days).map(([date, v]) => ({ date, ...v }));
-
-  return ok({
-    totals: {
-      jobs: rows.length,
-      completed: completed.length,
-      failed: rows.filter((r) => r.status === "failed").length,
-      minutes: Math.round(completed.reduce((s, r) => s + (r.duration_seconds ?? 0), 0) / 60),
-    },
-    by_source: bySource,
-    daily,
-  });
+  const stats = await getAssistantStats(admin, auth.userId);
+  return ok(stats);
 }

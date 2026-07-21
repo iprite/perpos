@@ -18,11 +18,15 @@ WORKDIR /app
 
 ENV NODE_ENV=production
 
-# engine บีบ PDF = python (pikepdf + Pillow) — surgical compression
-#   ลงผ่าน apt ของ trixie (python3-pikepdf, python3-pil) เลี่ยง pip/venv + PEP668
+# engine บีบ PDF = python:
+#   - surgical (pass 1): pikepdf + Pillow — ลงผ่าน apt ของ trixie เลี่ยง pip/venv + PEP668
+#   - rasterize (pass 2, โหมดเข้ม): PyMuPDF (fitz) — wheel self-contained (bundle MuPDF
+#     ไม่ต้องการ system lib) จึงลงผ่าน pip ด้วย --break-system-packages (apt ไม่มี wheel ใหม่พอ)
 #   ⚠️ ไม่ใช้ ghostscript แล้ว — gs flatten transparency → กล่องดำใน Apple Preview
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends python3 python3-pikepdf python3-pil \
+  && apt-get install -y --no-install-recommends python3 python3-pip python3-pikepdf python3-pil \
+  && pip3 install --no-cache-dir --break-system-packages pymupdf \
+  && apt-get purge -y python3-pip && apt-get autoremove -y \
   && rm -rf /var/lib/apt/lists/*
 
 COPY package.json package-lock.json* ./

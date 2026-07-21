@@ -4,5 +4,6 @@
   "tabWidth": 2,
   "printWidth": 100,
   "trailingComma": "all",
-  "plugins": ["prettier-plugin-tailwindcss"]
+  "plugins": ["prettier-plugin-tailwindcss"],
+  "tailwindConfig": "./apps/perpos/tailwind.config.ts"
 }

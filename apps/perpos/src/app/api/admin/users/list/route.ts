@@ -62,8 +62,10 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  // ── org memberships (Biz) + รายชื่อ org ทั้งหมด + เครดิต token (unified pool) ──
-  const [membersRes, orgsRes, tokenRes] = await Promise.all([
+  // ── org memberships (Biz) + รายชื่อ org + เครดิต token + การใช้บริการผู้ช่วย ──
+  // การใช้งานผู้ช่วย (Flow) = มิเตอร์จาก token_ledger (debit) แยกตาม service:
+  //   stt (วินาที→นาที), bot=บอทเข้าประชุม (วินาที→นาที), pdf (หน้า)
+  const [membersRes, orgsRes, tokenRes, ledgerRes, ratesRes] = await Promise.all([
     ids.length
       ? admin
           .from("organization_members")
@@ -74,7 +76,45 @@ export async function GET(req: NextRequest) {
     ids.length
       ? admin.from("token_accounts").select("profile_id, balance_tokens").in("profile_id", ids)
       : Promise.resolve({ data: [] as Record<string, unknown>[] }),
+    ids.length
+      ? admin
+          .from("token_ledger")
+          .select("profile_id, service, tokens, created_at")
+          .eq("kind", "debit")
+          .in("profile_id", ids)
+      : Promise.resolve({ data: [] as Record<string, unknown>[] }),
+    admin.from("token_rates").select("service, tokens_per_unit"),
   ]);
+
+  // อัตราแปลง token → หน่วยจริง (ปัจจุบัน) — stt/bot คิดเป็นวินาที, pdf คิดเป็นหน้า
+  const ratePerUnit: Record<string, number> = { stt: 0, bot: 0, pdf: 0 };
+  for (const r of (ratesRes.data ?? []) as Record<string, unknown>[]) {
+    ratePerUnit[String(r.service)] = Number(r.tokens_per_unit) || 0;
+  }
+
+  // รวมการใช้บริการต่อผู้ใช้ (จาก token ที่ใช้ไป ÷ อัตรา → หน่วยจริง) + วันล่าสุด
+  type UsageAgg = {
+    sttSeconds: number;
+    botSeconds: number;
+    pdfPages: number;
+    lastUsed: string | null;
+  };
+  const usageById = new Map<string, UsageAgg>();
+  for (const l of (ledgerRes.data ?? []) as Record<string, unknown>[]) {
+    const pid = String(l.profile_id);
+    const service = String(l.service ?? "");
+    const usedTokens = Math.abs(Number(l.tokens) || 0); // debit เก็บเป็นค่าลบ
+    const rate = ratePerUnit[service] || 0;
+    if (rate <= 0) continue;
+    const units = usedTokens / rate;
+    const cur = usageById.get(pid) ?? { sttSeconds: 0, botSeconds: 0, pdfPages: 0, lastUsed: null };
+    if (service === "stt") cur.sttSeconds += units;
+    else if (service === "bot") cur.botSeconds += units;
+    else if (service === "pdf") cur.pdfPages += units;
+    const ts = l.created_at ? String(l.created_at) : null;
+    if (ts && (!cur.lastUsed || ts > cur.lastUsed)) cur.lastUsed = ts;
+    usageById.set(pid, cur);
+  }
 
   const orgsByUser = new Map<string, { orgId: string; orgName: string; role: string }[]>();
   for (const m of (membersRes.data ?? []) as Record<string, unknown>[]) {
@@ -112,6 +152,12 @@ export async function GET(req: NextRequest) {
       last_seen_at: (p.last_seen_at as string | null) ?? null,
       orgs: orgsByUser.get(p.id as string) ?? [],
       tokens: { balance: balanceById.get(p.id as string) ?? 0 },
+      usage: usageById.get(p.id as string) ?? {
+        sttSeconds: 0,
+        botSeconds: 0,
+        pdfPages: 0,
+        lastUsed: null,
+      },
     };
   });
 

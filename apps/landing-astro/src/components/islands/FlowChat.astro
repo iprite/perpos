@@ -1,0 +1,302 @@
+---
+/** Animated LINE-chat demo — cycles file → ask → confirm → processing → result,
+ *  with two scenarios (เสียงประชุม / บีบ PDF) and a connected step rail.
+ *  Vanilla replacement for the former React island. */
+import Icon from "@/components/Icon.astro";
+
+interface Props {
+  compact?: boolean;
+}
+const { compact = false } = Astro.props;
+
+const TABS = [
+  { key: "stt", tab: "เสียงประชุม", icon: "file-audio" },
+  { key: "pdf", tab: "บีบ PDF", icon: "file-text" },
+];
+const RAIL = ["โยนเข้า", "ยืนยัน", "จัดการ", "ส่งไฟล์"];
+---
+
+<div
+  class="border-border shadow-elevated relative overflow-hidden rounded-2xl border bg-white p-4 sm:p-5"
+  data-flowchat
+>
+  {/* header */}
+  <div class="mb-4 flex items-center justify-between">
+    <div class="flex items-center gap-2.5">
+      <span class="flex h-8 w-8 items-center justify-center rounded-full bg-[#06C755] text-white">
+        {
+          TABS.map((t, i) => (
+            <span data-fc-headericon={i} class={i === 0 ? "" : "hidden"}>
+              <Icon name={t.icon} class="h-4 w-4" strokeWidth={1.9} />
+            </span>
+          ))
+        }
+      </span>
+      <div>
+        <p class="text-foreground-muted text-[11px] font-medium">LINE OA</p>
+        <p class="font-neo-tech text-foreground text-sm tracking-[0.08em]">PERPOS Flow</p>
+      </div>
+    </div>
+    <div class="border-border bg-background-secondary inline-flex rounded-full border p-0.5">
+      {
+        TABS.map((t, i) => (
+          <button
+            type="button"
+            data-fc-tab={i}
+            class:list={[
+              "rounded-full px-3 py-1 text-[11px] font-semibold transition",
+              i === 0
+                ? "text-primary bg-white shadow-xs"
+                : "text-foreground-muted hover:text-foreground",
+            ]}
+          >
+            {t.tab}
+          </button>
+        ))
+      }
+    </div>
+  </div>
+
+  {/* conversation */}
+  <div class:list={["flex flex-col gap-2.5", compact ? "min-h-[260px]" : "min-h-[280px]"]}>
+    {/* user: dropped file */}
+    <div class="animate-fade-up flex justify-end" data-fc-file>
+      <div class="w-[82%] rounded-2xl rounded-tr-sm bg-[#06C755] px-4 py-3 text-sm font-medium text-white shadow-xs">
+        <span data-fc-file-name>meeting-audio.m4a</span>
+        <span class="mt-0.5 block text-xs text-white/80" data-fc-file-meta>38 นาที · 82 MB</span>
+      </div>
+    </div>
+
+    {/* bot: confirm ask */}
+    <div
+      class="animate-fade-up bg-background-secondary text-foreground w-[86%] rounded-2xl rounded-tl-sm px-4 py-3 text-sm"
+      data-fc-ask
+    >
+      <span data-fc-ask-text>ถอดเสียงและสรุปประชุมใช่ไหม?</span>
+      <span
+        class="text-primary ring-border mt-2 ml-2 inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1 text-xs font-semibold ring-1 transition"
+        data-fc-confirm
+      >
+        <span class="hidden" data-fc-confirm-check>
+          <Icon name="check" class="h-3 w-3" strokeWidth={2.4} />
+        </span>
+        <span data-fc-confirm-label>ยืนยัน</span>
+      </span>
+    </div>
+
+    {/* bot: processing */}
+    <div
+      class="animate-fade-up bg-primary hidden w-[76%] rounded-2xl rounded-tl-sm px-4 py-3 text-sm text-white"
+      data-fc-processing
+    >
+      <span data-fc-processing-text>กำลังสรุปประชุม…</span>
+      <span class="mt-2 block h-1.5 overflow-hidden rounded-full bg-white/20">
+        <span class="bar-grow bg-secondary block h-full rounded-full"></span>
+      </span>
+    </div>
+
+    {/* bot: result */}
+    <div
+      class="animate-fade-up bg-background-secondary text-foreground hidden w-[88%] rounded-2xl rounded-tl-sm px-4 py-3 text-sm"
+      data-fc-result
+    >
+      <span class="flex items-center gap-1.5 font-medium">
+        <Icon name="check" class="text-secondary-dark h-4 w-4" strokeWidth={2.2} />
+        <span data-fc-result-title>สรุปประชุมพร้อมแล้ว</span>
+      </span>
+      <span class="mt-2 flex flex-wrap gap-2" data-fc-chips></span>
+    </div>
+  </div>
+
+  {/* step rail */}
+  <div class="relative mt-5">
+    <div class="bg-border absolute top-3 right-[12.5%] left-[12.5%] h-[3px] -translate-y-1/2 rounded-full">
+    </div>
+    <div
+      class="bg-secondary absolute top-3 left-[12.5%] h-[3px] -translate-y-1/2 rounded-full transition-[width] duration-500 ease-out"
+      style="width:0%"
+      data-fc-progress
+    >
+    </div>
+    <div class="relative grid grid-cols-4">
+      {
+        RAIL.map((label, i) => (
+          <div class="flex flex-col items-center gap-1.5">
+            <span
+              class="border-border text-foreground-muted flex h-6 w-6 items-center justify-center rounded-full border-2 bg-white text-[10px] font-bold transition-all duration-300"
+              data-fc-node={i}
+            >
+              <span data-fc-node-num>{i + 1}</span>
+              <span class="hidden" data-fc-node-check>
+                <Icon name="check" class="h-3 w-3" strokeWidth={3} />
+              </span>
+            </span>
+            <span
+              class="text-foreground-muted text-[11px] font-semibold transition-colors duration-300"
+              data-fc-label={i}
+            >
+              {label}
+            </span>
+          </div>
+        ))
+      }
+    </div>
+  </div>
+</div>
+
+<script>
+  type Scenario = {
+    icon: number;
+    file: { name: string; meta: string };
+    ask: string;
+    processing: string;
+    result: { title: string; chips: string[]; cost: string };
+  };
+
+  const SCENARIOS: Scenario[] = [
+    {
+      icon: 0,
+      file: { name: "meeting-audio.m4a", meta: "38 นาที · 82 MB" },
+      ask: "ถอดเสียงและสรุปประชุมใช่ไหม?",
+      processing: "กำลังสรุปประชุม…",
+      result: { title: "สรุปประชุมพร้อมแล้ว", chips: ["Transcript", "MoM PDF"], cost: "−3,800 token" },
+    },
+    {
+      icon: 1,
+      file: { name: "quarter-report.pdf", meta: "24 หน้า · 48 MB" },
+      ask: "บีบไฟล์นี้ให้เล็กลงใช่ไหม?",
+      processing: "กำลังบีบไฟล์…",
+      result: { title: "document-min.pdf", chips: ["เล็กลง 62%", "18 MB"], cost: "−2,400 token" },
+    },
+  ];
+  const TIMINGS = [1100, 1300, 1800, 2400];
+
+  function initFlowChat(root: HTMLElement) {
+    const q = <T extends Element = HTMLElement>(sel: string) =>
+      root.querySelector<T>(sel);
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    let tab = 0;
+    let step = reduced ? 3 : 0;
+    let timer: number | undefined;
+
+    function show(el: Element | null, on: boolean) {
+      if (!el) return;
+      el.classList.toggle("hidden", !on);
+    }
+
+    function render() {
+      const s = SCENARIOS[tab];
+      const confirmed = step >= 2;
+
+      // header icon + tab buttons
+      root.querySelectorAll<HTMLElement>("[data-fc-headericon]").forEach((el) => {
+        el.classList.toggle("hidden", Number(el.dataset.fcHeadericon) !== s.icon);
+      });
+      root.querySelectorAll<HTMLElement>("[data-fc-tab]").forEach((el) => {
+        const on = Number(el.dataset.fcTab) === tab;
+        el.className =
+          "rounded-full px-3 py-1 text-[11px] font-semibold transition" +
+          (on
+            ? " text-primary bg-white shadow-xs"
+            : " text-foreground-muted hover:text-foreground");
+      });
+
+      // file bubble
+      const nameEl = q("[data-fc-file-name]");
+      const metaEl = q("[data-fc-file-meta]");
+      if (nameEl) nameEl.textContent = s.file.name;
+      if (metaEl) metaEl.textContent = s.file.meta;
+
+      // ask + confirm chip
+      const askText = q("[data-fc-ask-text]");
+      if (askText) askText.textContent = s.ask;
+      const confirm = q("[data-fc-confirm]");
+      const confirmLabel = q("[data-fc-confirm-label]");
+      show(q("[data-fc-confirm-check]"), confirmed);
+      if (confirmLabel) confirmLabel.textContent = confirmed ? "ยืนยันแล้ว" : "ยืนยัน";
+      if (confirm)
+        confirm.className =
+          "mt-2 ml-2 inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ring-1 transition" +
+          (confirmed
+            ? " bg-secondary/15 text-secondary-dark ring-secondary/30"
+            : " text-primary ring-border bg-white");
+
+      // processing text
+      const procText = q("[data-fc-processing-text]");
+      if (procText) procText.textContent = s.processing;
+
+      // result
+      const resultTitle = q("[data-fc-result-title]");
+      if (resultTitle) resultTitle.textContent = s.result.title;
+      const chips = q("[data-fc-chips]");
+      if (chips) {
+        chips.innerHTML =
+          s.result.chips
+            .map(
+              (c) =>
+                `<span class="text-primary ring-border rounded-full bg-white px-3 py-1 text-xs font-semibold ring-1">${c}</span>`,
+            )
+            .join("") +
+          `<span class="bg-secondary/12 text-secondary-dark ring-secondary/25 rounded-full px-3 py-1 text-xs font-semibold tabular-nums ring-1">${s.result.cost}</span>`;
+      }
+
+      // bubble visibility
+      show(q("[data-fc-file]"), step >= 0);
+      show(q("[data-fc-ask]"), step >= 1);
+      show(q("[data-fc-processing]"), step === 2);
+      show(q("[data-fc-result]"), step >= 3);
+
+      // step rail
+      const progress = q<HTMLElement>("[data-fc-progress]");
+      if (progress) progress.style.width = `${(Math.min(step, 3) / 3) * 75}%`;
+      root.querySelectorAll<HTMLElement>("[data-fc-node]").forEach((node) => {
+        const i = Number(node.dataset.fcNode);
+        const reached = step >= i;
+        const current = Math.min(step, 3) === i;
+        node.className =
+          "flex h-6 w-6 items-center justify-center rounded-full border-2 text-[10px] font-bold transition-all duration-300" +
+          (reached
+            ? " border-secondary bg-secondary text-white"
+            : " border-border text-foreground-muted bg-white") +
+          (current ? " ring-secondary/20 scale-110 ring-4" : "");
+        show(node.querySelector("[data-fc-node-num]"), step <= i);
+        show(node.querySelector("[data-fc-node-check]"), step > i);
+      });
+      root.querySelectorAll<HTMLElement>("[data-fc-label]").forEach((el) => {
+        const i = Number(el.dataset.fcLabel);
+        el.className =
+          "text-[11px] font-semibold transition-colors duration-300" +
+          (step >= i ? " text-secondary-dark" : " text-foreground-muted");
+      });
+    }
+
+    function loop() {
+      if (reduced) return;
+      window.clearTimeout(timer);
+      const next = step >= 4 ? 0 : step + 1;
+      const delay = step >= 4 ? 600 : (TIMINGS[step] ?? 2200);
+      timer = window.setTimeout(() => {
+        step = next;
+        render();
+        loop();
+      }, delay);
+    }
+
+    root.querySelectorAll<HTMLElement>("[data-fc-tab]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        tab = Number(btn.dataset.fcTab);
+        step = reduced ? 3 : 0;
+        render();
+        loop();
+      });
+    });
+
+    render();
+    loop();
+  }
+
+  document
+    .querySelectorAll<HTMLElement>("[data-flowchat]")
+    .forEach(initFlowChat);
+</script>

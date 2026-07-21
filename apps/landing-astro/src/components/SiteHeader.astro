@@ -1,0 +1,132 @@
+---
+import { cn } from "@/lib/utils";
+import Icon from "@/components/Icon.astro";
+import BrandIcon from "@/components/BrandIcon.astro";
+import MobileNav from "@/components/islands/MobileNav.astro";
+import SuiteDemoDialog from "@/components/islands/SuiteDemoDialog.astro";
+import { APP_URL, LINE_URL } from "@/lib/site";
+
+const NAV = [
+  { href: "/", label: "PERPOS", icon: "home", exact: true, brand: null },
+  { href: "/flow", label: "Flow", icon: "message-circle", exact: false, brand: "flow" as const },
+  { href: "/suite", label: "Suite", icon: "building-2", exact: false, brand: "suite" as const },
+];
+
+const pathname = Astro.url.pathname;
+
+// Contextual CTA — resolved server-side (pathname is known at render time).
+const cta = pathname.startsWith("/suite")
+  ? { href: null as string | null, label: "ขอเดโม Suite", demo: true }
+  : pathname.startsWith("/flow")
+    ? { href: LINE_URL, label: "เพิ่มเพื่อนใน LINE", demo: false }
+    : null;
+
+const BTN_BASE =
+  "group/btn inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl font-medium transition-all duration-200 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2";
+const BTN_SM = "px-4 py-2 text-sm";
+const BTN_PRIMARY =
+  "bg-primary text-white shadow-xs shadow-primary/25 hover:bg-primary-dark hover:shadow-lg hover:shadow-primary/30 active:scale-[0.98]";
+const BTN_SECONDARY =
+  "border border-border bg-white text-foreground shadow-soft hover:border-primary/40 hover:bg-primary-50/60 active:scale-[0.98]";
+---
+
+<header class="sticky top-0 z-50 border-b border-border bg-white/85 backdrop-blur-xl">
+  <div
+    class="mx-auto grid h-16 max-w-7xl grid-cols-[auto_1fr_auto] items-center gap-2 px-4 sm:gap-4 sm:px-6 lg:px-8"
+  >
+    <a
+      href="/"
+      class="font-neo-tech inline-flex translate-y-[3px] items-center text-base leading-none tracking-[0.14em] text-primary sm:text-lg"
+    >
+      PERPOS
+    </a>
+
+    {/* desktop nav */}
+    <nav class="hidden min-w-0 justify-center md:flex">
+      <div
+        class="inline-flex items-center gap-1 rounded-full border border-border bg-background-secondary p-1"
+      >
+        {
+          NAV.map((item) => {
+            const active = item.exact
+              ? pathname === item.href
+              : pathname.startsWith(item.href);
+            return (
+              <a
+                href={item.href}
+                class={cn(
+                  "inline-flex h-9 items-center gap-1.5 rounded-full px-3.5 text-sm transition sm:px-4",
+                  active
+                    ? "bg-primary text-white shadow-xs"
+                    : "text-foreground-secondary hover:text-foreground",
+                )}
+              >
+                {item.brand ? (
+                  <BrandIcon product={item.brand} class="h-4 w-4" />
+                ) : (
+                  <Icon name={item.icon} class="h-4 w-4" strokeWidth={1.8} />
+                )}
+                <span class="font-neo-tech translate-y-[1.5px] text-[13px] leading-none tracking-[0.06em]">
+                  {item.label}
+                </span>
+              </a>
+            );
+          })
+        }
+      </div>
+    </nav>
+    <span class="md:hidden" aria-hidden="true"></span>
+
+    {/* right-side actions */}
+    <div class="flex items-center gap-2">
+      <a href={APP_URL} class={cn(BTN_BASE, BTN_SECONDARY, BTN_SM, "hidden sm:inline-flex")}>
+        <Icon name="user-round" class="h-4 w-4" strokeWidth={1.8} />
+        เข้าสู่ระบบ
+      </a>
+      {
+        cta &&
+          (cta.demo ? (
+            <button
+              type="button"
+              data-suitedemo-open
+              class={cn(BTN_BASE, BTN_PRIMARY, BTN_SM, "hidden sm:inline-flex")}
+            >
+              {cta.label}
+            </button>
+          ) : (
+            <a
+              href={cta.href ?? undefined}
+              class={cn(BTN_BASE, BTN_PRIMARY, BTN_SM, "hidden sm:inline-flex")}
+            >
+              {cta.label}
+            </a>
+          ))
+      }
+      {/* mobile: ไอคอนขวาบน — suite เปิด popup, อื่น ๆ ลิงก์ออก/เข้าสู่ระบบ */}
+      {
+        cta?.demo ? (
+          <button
+            type="button"
+            data-suitedemo-open
+            aria-label={cta.label}
+            class="text-primary hover:text-foreground-secondary inline-flex h-9 w-9 items-center justify-center transition sm:hidden"
+          >
+            <Icon name="user-round" class="h-[20px] w-[20px]" strokeWidth={1.8} />
+          </button>
+        ) : (
+          <a
+            href={cta?.href ?? APP_URL}
+            aria-label={cta?.label ?? "เข้าสู่ระบบ"}
+            class="text-primary hover:text-foreground-secondary inline-flex h-9 w-9 items-center justify-center transition sm:hidden"
+          >
+            <Icon name="user-round" class="h-[20px] w-[20px]" strokeWidth={1.8} />
+          </a>
+        )
+      }
+    </div>
+  </div>
+</header>
+
+{/* fixed overlays live outside <header> (its backdrop-blur is a containing block) */}
+<MobileNav />
+{cta?.demo && <SuiteDemoDialog />}

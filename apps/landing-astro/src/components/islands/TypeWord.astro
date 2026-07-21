@@ -1,0 +1,65 @@
+---
+/** Types a short word out letter-by-letter when it scrolls into view.
+ *  Vanilla replacement for the former React island (no framework runtime). */
+interface Props {
+  text: string;
+  class?: string;
+  startDelay?: number;
+  speed?: number;
+}
+const { text, class: className, startDelay = 0, speed = 110 } = Astro.props;
+---
+
+<span
+  class:list={["relative inline-block whitespace-pre", className]}
+  data-typeword
+  data-text={text}
+  data-speed={speed}
+  data-start-delay={startDelay}
+  aria-label={text}
+>
+  {/* invisible spacer reserves the final width so the line never reflows */}
+  <span aria-hidden="true" class="invisible">{text}</span>
+  <span aria-hidden="true" class="absolute inset-0" data-typeword-out></span>
+</span>
+
+<script>
+  const CURSOR =
+    '<span class="ml-[2px] inline-block h-[0.9em] w-[3px] translate-y-px animate-pulse rounded-full bg-current align-middle"></span>';
+
+  function initTypeWord(el: HTMLElement) {
+    const out = el.querySelector<HTMLElement>("[data-typeword-out]");
+    if (!out) return;
+    const text = el.dataset.text ?? "";
+    const speed = Number(el.dataset.speed ?? 110);
+    const startDelay = Number(el.dataset.startDelay ?? 0);
+
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      out.textContent = text;
+      return;
+    }
+
+    let n = 0;
+    const tick = () => {
+      n += 1;
+      const typing = n < text.length;
+      out.innerHTML = text.slice(0, n) + (typing ? CURSOR : "");
+      if (typing) window.setTimeout(tick, speed);
+    };
+
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          io.disconnect();
+          window.setTimeout(tick, startDelay + speed);
+        }
+      },
+      { threshold: 0.6 },
+    );
+    io.observe(el);
+  }
+
+  document
+    .querySelectorAll<HTMLElement>("[data-typeword]")
+    .forEach(initTypeWord);
+</script>

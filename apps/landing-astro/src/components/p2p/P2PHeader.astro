@@ -1,0 +1,87 @@
+---
+import Button from "@/components/p2p/Button.astro";
+
+const NAV = [
+  { href: "#stack", label: "จุดต่าง" },
+  { href: "#structure", label: "โครงสร้าง" },
+  { href: "#infra", label: "Titanicom" },
+  { href: "#perpos", label: "Perpos" },
+  { href: "#ai", label: "โซลูชัน" },
+  { href: "#contact", label: "ติดต่อ" },
+];
+---
+
+<a
+  href="#main"
+  class="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[60] focus:rounded-lg focus:bg-[var(--p2p-primary)] focus:px-4 focus:py-2 focus:text-white"
+>
+  ข้ามไปเนื้อหาหลัก
+</a>
+
+<header class="glass sticky top-0 z-50 border-b border-[var(--p2p-border)]">
+  <div class="container-custom flex h-16 items-center justify-between sm:h-[72px]">
+    <a href="#top" class="text-[1rem] font-extrabold tracking-[.06em] text-[var(--p2p-dark)]">
+      P2P HOLDING
+    </a>
+
+    <nav aria-label="เมนูหลัก" class="hidden lg:block">
+      <ul class="flex items-center gap-6" id="p2p-nav-list">
+        {
+          NAV.map((item) => (
+            <li>
+              <a
+                href={item.href}
+                data-nav-link
+                class="relative py-1 text-sm font-medium text-[var(--p2p-muted)] transition-colors duration-150 after:absolute after:-bottom-1 after:left-0 after:h-[2px] after:w-0 after:bg-[var(--p2p-primary)] after:transition-[width] after:duration-200 hover:text-[var(--p2p-text)] data-[active=true]:text-[var(--p2p-primary)] data-[active=true]:after:w-full"
+              >
+                {item.label}
+              </a>
+            </li>
+          ))
+        }
+      </ul>
+    </nav>
+
+    <div class="flex items-center gap-3">
+      <Button href="#contact" variant="small" class="hidden sm:inline-flex">เริ่มต้นปรึกษาฟรี</Button>
+      <button
+        type="button"
+        id="p2p-nav-toggle"
+        aria-expanded="false"
+        aria-controls="p2p-mobile-nav"
+        aria-label="เปิดเมนู"
+        class="inline-flex h-10 w-10 items-center justify-center rounded-lg text-[var(--p2p-text)] transition-colors hover:bg-[var(--p2p-hi)] lg:hidden"
+      >
+        <svg id="p2p-nav-icon-open" xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" x2="20" y1="7" y2="7"/><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="17" y2="17"/></svg>
+        <svg id="p2p-nav-icon-close" xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="hidden"><line x1="18" x2="6" y1="6" y2="18"/><line x1="6" x2="18" y1="6" y2="18"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <div
+    id="p2p-mobile-nav"
+    class="max-h-0 overflow-hidden transition-[max-height] duration-[250ms] ease-out lg:hidden"
+  >
+    <nav aria-label="เมนูมือถือ" class="glass border-t border-[var(--p2p-border)]">
+      <ul class="container-custom flex flex-col gap-1 py-3">
+        {
+          NAV.map((item) => (
+            <li>
+              <a
+                href={item.href}
+                data-nav-link
+                data-mobile-link
+                class="block rounded-lg px-3 py-2.5 text-sm font-medium text-[var(--p2p-muted)] transition-colors hover:bg-[var(--p2p-hi)] hover:text-[var(--p2p-text)] data-[active=true]:text-[var(--p2p-primary)]"
+              >
+                {item.label}
+              </a>
+            </li>
+          ))
+        }
+        <li class="pt-1">
+          <Button href="#contact" variant="small" data-mobile-link class="w-full">เริ่มต้นปรึกษาฟรี</Button>
+        </li>
+      </ul>
+    </nav>
+  </div>
+</header>

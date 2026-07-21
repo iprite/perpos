@@ -1,0 +1,12 @@
+# build output
+dist/
+# generated types
+.astro/
+# cloudflare
+.wrangler/
+# env (root .gitignore ignores .env.* — keep the example template tracked)
+.env
+.env.production
+!.env.example
+# deps
+node_modules/

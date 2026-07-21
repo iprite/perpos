@@ -8,53 +8,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "../../../_lib/auth";
 import { createAdminClient } from "../../../_lib/supabase";
+import { getAutotopupConfig } from "@/lib/assistant/autotopup";
 
 export const runtime = "nodejs";
-
-type AutoRow = {
-  enabled: boolean;
-  threshold_tokens: number;
-  pack_code: string | null;
-  stripe_payment_method_id: string | null;
-  card_brand: string | null;
-  card_last4: string | null;
-  status: string;
-  last_charged_at: string | null;
-  last_error: string | null;
-};
 
 export async function GET(req: NextRequest) {
   const auth = await requireUser(req);
   if (!auth.ok) return auth.res;
   const admin = createAdminClient();
-
-  const [{ data: row }, { data: packs }] = await Promise.all([
-    admin
-      .from("token_autotopup")
-      .select(
-        "enabled, threshold_tokens, pack_code, stripe_payment_method_id, card_brand, card_last4, status, last_charged_at, last_error",
-      )
-      .eq("profile_id", auth.userId)
-      .maybeSingle(),
-    admin
-      .from("token_packs")
-      .select("code, name, price, tokens, bonus_tokens, sort_order")
-      .eq("is_active", true)
-      .order("sort_order"),
-  ]);
-  const r = row as AutoRow | null;
-
-  return NextResponse.json({
-    enabled: r?.enabled ?? false,
-    thresholdTokens: r?.threshold_tokens ?? 500,
-    packCode: r?.pack_code ?? null,
-    hasCard: !!r?.stripe_payment_method_id,
-    card: r?.stripe_payment_method_id ? { brand: r.card_brand, last4: r.card_last4 } : null,
-    status: r?.status ?? "idle",
-    lastChargedAt: r?.last_charged_at ?? null,
-    lastError: r?.last_error ?? null,
-    packs: packs ?? [],
-  });
+  return NextResponse.json(await getAutotopupConfig(admin, auth.userId));
 }
 
 export async function PUT(req: NextRequest) {

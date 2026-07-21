@@ -9,18 +9,31 @@ import { toast } from "@/lib/toast";
 import { Button } from "@/components/ui/button";
 import { StatusBadge, type BadgeTone } from "@/components/ui/badge";
 import { Dropdown, type DropdownItem } from "@/components/ui/dropdown";
+import {
+  Table,
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableCell,
+} from "@/components/ui/table";
 import { ALL_MODULES, MODULE_LABELS, MODULE_MENUS, ORG_ROLES, type OrgRole } from "@/lib/modules";
 import { AdminPage } from "../_components/admin-page";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type OrgItem       = { id: string; name: string };
-type ModuleSetting = { module_key: string; is_enabled: boolean; allowed_roles: OrgRole[]; specific?: boolean };
-type MenuSetting   = { module_key: string; menu_key: string; allowed_roles: OrgRole[] };
+type OrgItem = { id: string; name: string };
+type ModuleSetting = {
+  module_key: string;
+  is_enabled: boolean;
+  allowed_roles: OrgRole[];
+  specific?: boolean;
+};
+type MenuSetting = { module_key: string; menu_key: string; allowed_roles: OrgRole[] };
 type ChangeLogEntry = {
   id: string;
   module_key: string;
-  action: 'enabled' | 'disabled' | 'roles_updated' | 'menu_roles_updated';
+  action: "enabled" | "disabled" | "roles_updated" | "menu_roles_updated";
   old_value: Record<string, unknown> | null;
   new_value: Record<string, unknown> | null;
   changed_at: string;
@@ -30,34 +43,52 @@ type ChangeLogEntry = {
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const ROLE_LABEL: Record<OrgRole, string> = {
-  owner: "Owner", admin: "Admin", team_lead: "TL", team_member: "TM",
+  owner: "Owner",
+  admin: "Admin",
+  team_lead: "TL",
+  team_member: "TM",
 };
 const ROLE_FULL: Record<OrgRole, string> = {
-  owner: "Owner", admin: "Admin", team_lead: "Team lead", team_member: "Team member",
+  owner: "Owner",
+  admin: "Admin",
+  team_lead: "Team lead",
+  team_member: "Team member",
 };
-const ACTION_LABEL: Record<ChangeLogEntry['action'], { text: string; tone: BadgeTone }> = {
-  enabled:              { text: "เปิดใช้งาน",       tone: "success" },
-  disabled:             { text: "ปิดใช้งาน",        tone: "danger"  },
-  roles_updated:        { text: "แก้ไข Role",        tone: "info"    },
-  menu_roles_updated:   { text: "แก้ไข Menu Role",   tone: "info"    },
+const ACTION_LABEL: Record<ChangeLogEntry["action"], { text: string; tone: BadgeTone }> = {
+  enabled: { text: "เปิดใช้งาน", tone: "success" },
+  disabled: { text: "ปิดใช้งาน", tone: "danger" },
+  roles_updated: { text: "แก้ไข Role", tone: "info" },
+  menu_roles_updated: { text: "แก้ไข Menu Role", tone: "info" },
 };
 
 // ─── Toggle switch ────────────────────────────────────────────────────────────
 
-function Toggle({ checked, onChange, disabled }: { checked: boolean; onChange: () => void; disabled?: boolean }) {
+function Toggle({
+  checked,
+  onChange,
+  disabled,
+}: {
+  checked: boolean;
+  onChange: () => void;
+  disabled?: boolean;
+}) {
   return (
     <button
-      type="button" disabled={disabled} onClick={onChange}
+      type="button"
+      disabled={disabled}
+      onClick={onChange}
       className={[
         "relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full transition-colors focus:outline-none",
         checked ? "bg-blue-600" : "bg-gray-200",
         disabled ? "cursor-not-allowed opacity-50" : "",
       ].join(" ")}
     >
-      <span className={[
-        "inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform",
-        checked ? "translate-x-4" : "translate-x-0.5",
-      ].join(" ")} />
+      <span
+        className={[
+          "inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform",
+          checked ? "translate-x-4" : "translate-x-0.5",
+        ].join(" ")}
+      />
     </button>
   );
 }
@@ -80,16 +111,14 @@ function SidebarPreview({ settings }: { settings: ModuleSetting[] }) {
         ) : (
           <nav className="space-y-1">
             {enabledModules.map((s) => {
-              const mod   = ALL_MODULES.find((m) => m.key === s.module_key);
+              const mod = ALL_MODULES.find((m) => m.key === s.module_key);
               const menus = MODULE_MENUS[s.module_key] ?? [];
               if (!mod) return null;
               return (
                 <div key={s.module_key}>
                   {/* Module section header */}
                   <div className="flex items-center gap-2 px-2 py-1.5">
-                    {s.specific && (
-                      <Sparkles className="h-3 w-3 shrink-0 text-amber-500" />
-                    )}
+                    {s.specific && <Sparkles className="h-3 w-3 shrink-0 text-amber-500" />}
                     <span className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">
                       {MODULE_LABELS[s.module_key]}
                     </span>
@@ -111,7 +140,8 @@ function SidebarPreview({ settings }: { settings: ModuleSetting[] }) {
         )}
       </div>
       <div className="border-t px-4 py-2 text-xs text-gray-400">
-        {enabledModules.length} module · {enabledModules.reduce((n, s) => n + (MODULE_MENUS[s.module_key]?.length ?? 0), 0)} เมนู
+        {enabledModules.length} module ·{" "}
+        {enabledModules.reduce((n, s) => n + (MODULE_MENUS[s.module_key]?.length ?? 0), 0)} เมนู
       </div>
     </div>
   );
@@ -148,27 +178,28 @@ function ChangeHistory({ entries }: { entries: ChangeLogEntry[] }) {
                   </span>
                 </div>
                 <div className="mt-1 flex items-center gap-1 text-xs text-gray-400">
-                  <span>
-                    {entry.changer?.display_name ?? entry.changer?.email ?? 'unknown'}
-                  </span>
+                  <span>{entry.changer?.display_name ?? entry.changer?.email ?? "unknown"}</span>
                   <span>·</span>
                   <span>
-                    {new Intl.DateTimeFormat('th-TH', {
-                      day: 'numeric', month: 'short', year: 'numeric',
-                      hour: '2-digit', minute: '2-digit',
-                      timeZone: 'Asia/Bangkok',
+                    {new Intl.DateTimeFormat("th-TH", {
+                      day: "numeric",
+                      month: "short",
+                      year: "numeric",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                      timeZone: "Asia/Bangkok",
                     }).format(new Date(entry.changed_at))}
                   </span>
                 </div>
                 {/* Show diff for roles_updated */}
-                {entry.action === 'roles_updated' && entry.old_value && entry.new_value && (
+                {entry.action === "roles_updated" && entry.old_value && entry.new_value && (
                   <div className="mt-1.5 flex items-center gap-2 text-xs">
                     <span className="rounded bg-red-50 px-1.5 py-0.5 text-red-600 line-through">
-                      {(entry.old_value.allowed_roles as string[])?.join(', ')}
+                      {(entry.old_value.allowed_roles as string[])?.join(", ")}
                     </span>
                     <span className="text-gray-300">→</span>
                     <span className="rounded bg-green-50 px-1.5 py-0.5 text-green-600">
-                      {(entry.new_value.allowed_roles as string[])?.join(', ')}
+                      {(entry.new_value.allowed_roles as string[])?.join(", ")}
                     </span>
                   </div>
                 )}
@@ -185,7 +216,7 @@ function ChangeHistory({ entries }: { entries: ChangeLogEntry[] }) {
             onClick={() => setExpanded((v) => !v)}
             className="text-xs text-blue-600 hover:underline"
           >
-            {expanded ? 'ย่อ' : `ดูทั้งหมด ${entries.length} รายการ`}
+            {expanded ? "ย่อ" : `ดูทั้งหมด ${entries.length} รายการ`}
           </button>
         </div>
       )}
@@ -198,16 +229,16 @@ function ChangeHistory({ entries }: { entries: ChangeLogEntry[] }) {
 export default function AdminModulesPage() {
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
 
-  const [orgs, setOrgs]                       = useState<OrgItem[]>([]);
-  const [selectedOrgId, setSelectedOrgId]     = useState("");
-  const [settings, setSettings]               = useState<ModuleSetting[]>([]);
-  const [menuSettings, setMenuSettings]       = useState<MenuSetting[]>([]);
-  const [changeLog, setChangeLog]             = useState<ChangeLogEntry[]>([]);
+  const [orgs, setOrgs] = useState<OrgItem[]>([]);
+  const [selectedOrgId, setSelectedOrgId] = useState("");
+  const [settings, setSettings] = useState<ModuleSetting[]>([]);
+  const [menuSettings, setMenuSettings] = useState<MenuSetting[]>([]);
+  const [changeLog, setChangeLog] = useState<ChangeLogEntry[]>([]);
   const [expandedModules, setExpandedModules] = useState<Set<string>>(new Set());
-  const [loading, setLoading]                 = useState(false);
-  const [saving, setSaving]                   = useState(false);
-  const [error, setError]                     = useState<string | null>(null);
-  const [saved, setSaved]                     = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
 
   const authHeader = useCallback(async () => {
     const { data } = await supabase.auth.getSession();
@@ -221,9 +252,12 @@ export default function AdminModulesPage() {
     void (async () => {
       try {
         const headers = await authHeader();
-        const res  = await fetch(backendUrl("/admin/modules"), { headers });
+        const res = await fetch(backendUrl("/admin/modules"), { headers });
         const json = await res.json().catch(() => null);
-        if (!res.ok) { setError(json?.error ?? "โหลดองค์กรไม่สำเร็จ"); return; }
+        if (!res.ok) {
+          setError(json?.error ?? "โหลดองค์กรไม่สำเร็จ");
+          return;
+        }
         const list = (json?.orgs ?? []) as OrgItem[];
         setOrgs(list);
         if (list.length) setSelectedOrgId(list[0].id);
@@ -242,12 +276,16 @@ export default function AdminModulesPage() {
     void (async () => {
       try {
         const headers = await authHeader();
-        const res  = await fetch(
+        const res = await fetch(
           backendUrl(`/admin/modules?orgId=${encodeURIComponent(selectedOrgId)}&history=1`),
           { headers },
         );
         const json = await res.json().catch(() => null);
-        if (!res.ok) { setError(json?.error ?? "โหลดไม่สำเร็จ"); setLoading(false); return; }
+        if (!res.ok) {
+          setError(json?.error ?? "โหลดไม่สำเร็จ");
+          setLoading(false);
+          return;
+        }
 
         const loaded = (json?.settings ?? []) as ModuleSetting[];
         setSettings(loaded);
@@ -263,18 +301,29 @@ export default function AdminModulesPage() {
   }, [authHeader, selectedOrgId]);
 
   // ── State helpers ─────────────────────────────────────────────────────────────
-  const toggleExpand    = (key: string) =>
-    setExpandedModules((prev) => { const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n; });
+  const toggleExpand = (key: string) =>
+    setExpandedModules((prev) => {
+      const n = new Set(prev);
+      n.has(key) ? n.delete(key) : n.add(key);
+      return n;
+    });
 
-  const updateEnabled   = (moduleKey: string, val: boolean) =>
-    setSettings((prev) => prev.map((s) => s.module_key === moduleKey ? { ...s, is_enabled: val } : s));
+  const updateEnabled = (moduleKey: string, val: boolean) =>
+    setSettings((prev) =>
+      prev.map((s) => (s.module_key === moduleKey ? { ...s, is_enabled: val } : s)),
+    );
 
   const toggleModuleRole = (moduleKey: string, role: OrgRole) =>
     setSettings((prev) =>
       prev.map((s) => {
         if (s.module_key !== moduleKey) return s;
         const has = s.allowed_roles.includes(role);
-        return { ...s, allowed_roles: has ? s.allowed_roles.filter((r) => r !== role) : [...s.allowed_roles, role] };
+        return {
+          ...s,
+          allowed_roles: has
+            ? s.allowed_roles.filter((r) => r !== role)
+            : [...s.allowed_roles, role],
+        };
       }),
     );
 
@@ -288,19 +337,26 @@ export default function AdminModulesPage() {
       return prev.map((m) => {
         if (m.module_key !== moduleKey || m.menu_key !== menuKey) return m;
         const has = m.allowed_roles.includes(role);
-        return { ...m, allowed_roles: has ? m.allowed_roles.filter((r) => r !== role) : [...m.allowed_roles, role] };
+        return {
+          ...m,
+          allowed_roles: has
+            ? m.allowed_roles.filter((r) => r !== role)
+            : [...m.allowed_roles, role],
+        };
       });
     });
 
   const getMenuRoles = (moduleKey: string, menuKey: string): OrgRole[] => {
     const found = menuSettings.find((m) => m.module_key === moduleKey && m.menu_key === menuKey);
-    return found ? found.allowed_roles as OrgRole[] : [...ORG_ROLES];
+    return found ? (found.allowed_roles as OrgRole[]) : [...ORG_ROLES];
   };
 
   // ── Save ──────────────────────────────────────────────────────────────────────
   const save = async () => {
     if (!selectedOrgId) return;
-    setSaving(true); setError(null); setSaved(false);
+    setSaving(true);
+    setError(null);
+    setSaved(false);
     try {
       const headers = await authHeader();
       const res = await fetch(backendUrl("/admin/modules"), {
@@ -311,25 +367,30 @@ export default function AdminModulesPage() {
       const json = await res.json().catch(() => null);
       if (!res.ok) {
         const msg = json?.error ?? "บันทึกไม่สำเร็จ";
-        setError(msg); toast.error(msg); setSaving(false); return;
+        setError(msg);
+        toast.error(msg);
+        setSaving(false);
+        return;
       }
       setSaved(true);
       setSaving(false);
       toast.success("บันทึกการตั้งค่า module แล้ว");
       // Refresh history after save
-      const hRes  = await fetch(
+      const hRes = await fetch(
         backendUrl(`/admin/modules?orgId=${encodeURIComponent(selectedOrgId)}&history=1`),
         { headers },
       );
       const hJson = await hRes.json().catch(() => null);
       if (hJson?.changeLog) setChangeLog(hJson.changeLog as ChangeLogEntry[]);
     } catch (e) {
-      setError(String(e)); toast.error("บันทึกไม่สำเร็จ"); setSaving(false);
+      setError(String(e));
+      toast.error("บันทึกไม่สำเร็จ");
+      setSaving(false);
     }
   };
 
-  const selectedOrg      = orgs.find((o) => o.id === selectedOrgId);
-  const commonSettings   = settings.filter((s) => !s.specific);
+  const selectedOrg = orgs.find((o) => o.id === selectedOrgId);
+  const commonSettings = settings.filter((s) => !s.specific);
   const specificSettings = settings.filter((s) => s.specific);
 
   // ── Render ────────────────────────────────────────────────────────────────────
@@ -345,11 +406,13 @@ export default function AdminModulesPage() {
         <Dropdown
           label={selectedOrg?.name ?? "เลือกองค์กร"}
           selectedKey={selectedOrgId}
-          items={(orgs as OrgItem[]).map((org): DropdownItem => ({
-            key: org.id,
-            label: org.name,
-            onClick: () => setSelectedOrgId(org.id),
-          }))}
+          items={(orgs as OrgItem[]).map(
+            (org): DropdownItem => ({
+              key: org.id,
+              label: org.name,
+              onClick: () => setSelectedOrgId(org.id),
+            }),
+          )}
           className="min-w-[220px]"
           placement="bottom-start"
         />
@@ -361,7 +424,9 @@ export default function AdminModulesPage() {
       </div>
 
       {error && (
-        <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div>
+        <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+          {error}
+        </div>
       )}
 
       {loading && <div className="mt-8 text-center text-sm text-gray-400">กำลังโหลด…</div>}
@@ -369,132 +434,154 @@ export default function AdminModulesPage() {
       {/* Two-column layout: settings | preview + history */}
       {selectedOrgId && !loading && settings.length > 0 && (
         <div className="mt-5 flex gap-6">
-
           {/* ── Left: Module Settings Table ── */}
           <div className="min-w-0 flex-1">
-            <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white">
-              {/* Column header */}
-              <div className="grid grid-cols-[28px_1fr_72px_repeat(4,60px)] items-center border-b-2 border-gray-100 bg-gray-50 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500">
-                <div />
-                <div>Module / Menu</div>
-                <div className="text-center">เปิด</div>
-                {ORG_ROLES.map((r) => (
-                  <div key={r} className="text-center" title={ROLE_FULL[r]}>{ROLE_LABEL[r]}</div>
-                ))}
-              </div>
-
-              {(
-                [
-                  { label: null,           list: commonSettings   },
-                  { label: "เฉพาะองค์กร", list: specificSettings },
-                ] as { label: string | null; list: ModuleSetting[] }[]
-              ).map(({ label: sectionLabel, list: sectionList }) => {
-                if (sectionList.length === 0) return null;
-                return (
-                  <React.Fragment key={sectionLabel ?? "common"}>
-                    {sectionLabel && (
-                      <div className="flex items-center gap-3 border-b border-gray-100 bg-amber-50 px-4 py-2">
-                        <Sparkles className="h-3.5 w-3.5 text-amber-500" />
-                        <span className="text-xs font-semibold uppercase tracking-wide text-amber-700">{sectionLabel}</span>
-                        <span className="text-xs text-amber-500">module เฉพาะสำหรับองค์กรนี้</span>
-                      </div>
-                    )}
-
-                    {sectionList.map((s) => {
-                      const mod        = ALL_MODULES.find((m) => m.key === s.module_key);
-                      if (!mod) return null;
-                      const menus      = MODULE_MENUS[mod.key] ?? [];
-                      const isExpanded = expandedModules.has(mod.key);
-
-                      return (
-                        <div key={mod.key}>
-                          {/* Module row */}
-                          <div className="grid grid-cols-[28px_1fr_72px_repeat(4,60px)] items-center border-b border-gray-100 px-4 py-3 hover:bg-gray-50/60">
-                            <button
-                              type="button" disabled={menus.length === 0}
-                              onClick={() => toggleExpand(mod.key)}
-                              className="flex items-center justify-center text-gray-400 hover:text-gray-700 disabled:opacity-30"
-                            >
-                              {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                            </button>
-
-                            <div>
-                              <div className="text-sm font-semibold text-gray-900">{MODULE_LABELS[mod.key]}</div>
-                              {menus.length > 0 && (
-                                <div className="text-xs text-gray-400">{menus.length} เมนู</div>
-                              )}
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-7" />
+                  <TableHead className="w-full">Module / Menu</TableHead>
+                  <TableHead align="center" className="w-[72px]">
+                    เปิด
+                  </TableHead>
+                  {ORG_ROLES.map((r) => (
+                    <TableHead key={r} align="center" className="w-[60px]" title={ROLE_FULL[r]}>
+                      {ROLE_LABEL[r]}
+                    </TableHead>
+                  ))}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {(
+                  [
+                    { label: null, list: commonSettings },
+                    { label: "เฉพาะองค์กร", list: specificSettings },
+                  ] as { label: string | null; list: ModuleSetting[] }[]
+                ).map(({ label: sectionLabel, list: sectionList }) => {
+                  if (sectionList.length === 0) return null;
+                  return (
+                    <React.Fragment key={sectionLabel ?? "common"}>
+                      {sectionLabel && (
+                        <TableRow>
+                          <TableCell colSpan={7} className="bg-amber-50 py-2">
+                            <div className="flex items-center gap-3">
+                              <Sparkles className="h-3.5 w-3.5 text-amber-500" />
+                              <span className="text-xs font-semibold uppercase tracking-wide text-amber-700">
+                                {sectionLabel}
+                              </span>
+                              <span className="text-xs text-amber-500">
+                                module เฉพาะสำหรับองค์กรนี้
+                              </span>
                             </div>
+                          </TableCell>
+                        </TableRow>
+                      )}
 
-                            <div className="flex justify-center">
-                              <Toggle
-                                checked={s.is_enabled}
-                                onChange={() => { updateEnabled(mod.key, !s.is_enabled); if (!isExpanded) toggleExpand(mod.key); }}
-                              />
-                            </div>
+                      {sectionList.map((s) => {
+                        const mod = ALL_MODULES.find((m) => m.key === s.module_key);
+                        if (!mod) return null;
+                        const menus = MODULE_MENUS[mod.key] ?? [];
+                        const isExpanded = expandedModules.has(mod.key);
 
-                            {ORG_ROLES.map((role) => (
-                              <div key={role} className="flex justify-center">
-                                <input
-                                  type="checkbox" title={ROLE_FULL[role]}
-                                  className="h-4 w-4 cursor-pointer rounded border-gray-300 accent-blue-600 disabled:cursor-not-allowed"
-                                  checked={s.allowed_roles.includes(role)}
-                                  disabled={!s.is_enabled}
-                                  onChange={() => toggleModuleRole(mod.key, role)}
+                        return (
+                          <React.Fragment key={mod.key}>
+                            {/* Module row */}
+                            <TableRow className="hover:bg-gray-50/60">
+                              <TableCell className="w-7">
+                                <button
+                                  type="button"
+                                  disabled={menus.length === 0}
+                                  onClick={() => toggleExpand(mod.key)}
+                                  className="flex items-center justify-center text-gray-400 hover:text-gray-700 disabled:opacity-30"
+                                >
+                                  {isExpanded ? (
+                                    <ChevronDown className="h-4 w-4" />
+                                  ) : (
+                                    <ChevronRight className="h-4 w-4" />
+                                  )}
+                                </button>
+                              </TableCell>
+
+                              <TableCell wrap>
+                                <div className="text-sm font-semibold text-gray-900">
+                                  {MODULE_LABELS[mod.key]}
+                                </div>
+                                {menus.length > 0 && (
+                                  <div className="text-xs text-gray-400">{menus.length} เมนู</div>
+                                )}
+                              </TableCell>
+
+                              <TableCell align="center">
+                                <Toggle
+                                  checked={s.is_enabled}
+                                  onChange={() => {
+                                    updateEnabled(mod.key, !s.is_enabled);
+                                    if (!isExpanded) toggleExpand(mod.key);
+                                  }}
                                 />
-                              </div>
-                            ))}
-                          </div>
+                              </TableCell>
 
-                          {/* Menu rows */}
-                          {isExpanded && menus.map((menu, idx) => {
-                            const menuRoles = getMenuRoles(mod.key, menu.key);
-                            const isLast    = idx === menus.length - 1;
-                            return (
-                              <div
-                                key={menu.key}
-                                className={[
-                                  "grid grid-cols-[28px_1fr_72px_repeat(4,60px)] items-center bg-slate-50/60 px-4 py-2.5",
-                                  !isLast ? "border-b border-gray-100" : "border-b border-gray-200",
-                                ].join(" ")}
-                              >
-                                <div className="flex justify-center">
-                                  <span className="h-3 w-px bg-gray-200" />
-                                </div>
-                                <div className="flex items-center gap-2 pl-2">
-                                  <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-gray-300" />
-                                  <span className="text-sm text-gray-700">{menu.label}</span>
-                                </div>
-                                <div />
-                                {ORG_ROLES.map((role) => {
-                                  const moduleAllows = s.allowed_roles.includes(role);
-                                  return (
-                                    <div key={role} className="flex justify-center">
-                                      <input
-                                        type="checkbox"
-                                        title={`${ROLE_FULL[role]}${!moduleAllows ? " (ไม่มีสิทธิ์ module)" : ""}`}
-                                        className="h-4 w-4 cursor-pointer rounded border-gray-300 accent-blue-600 disabled:cursor-not-allowed disabled:opacity-40"
-                                        checked={menuRoles.includes(role)}
-                                        disabled={!s.is_enabled || !moduleAllows}
-                                        onChange={() => toggleMenuRole(mod.key, menu.key, role)}
-                                      />
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      );
-                    })}
-                  </React.Fragment>
-                );
-              })}
-            </div>
+                              {ORG_ROLES.map((role) => (
+                                <TableCell key={role} align="center">
+                                  <input
+                                    type="checkbox"
+                                    title={ROLE_FULL[role]}
+                                    className="h-4 w-4 cursor-pointer rounded border-gray-300 accent-blue-600 disabled:cursor-not-allowed"
+                                    checked={s.allowed_roles.includes(role)}
+                                    disabled={!s.is_enabled}
+                                    onChange={() => toggleModuleRole(mod.key, role)}
+                                  />
+                                </TableCell>
+                              ))}
+                            </TableRow>
+
+                            {/* Menu rows */}
+                            {isExpanded &&
+                              menus.map((menu) => {
+                                const menuRoles = getMenuRoles(mod.key, menu.key);
+                                return (
+                                  <TableRow key={menu.key} className="bg-gray-50/60">
+                                    <TableCell />
+                                    <TableCell wrap>
+                                      <div className="flex items-center gap-2 pl-2">
+                                        <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-gray-300" />
+                                        <span className="text-sm text-gray-700">{menu.label}</span>
+                                      </div>
+                                    </TableCell>
+                                    <TableCell />
+                                    {ORG_ROLES.map((role) => {
+                                      const moduleAllows = s.allowed_roles.includes(role);
+                                      return (
+                                        <TableCell key={role} align="center">
+                                          <input
+                                            type="checkbox"
+                                            title={`${ROLE_FULL[role]}${!moduleAllows ? " (ไม่มีสิทธิ์ module)" : ""}`}
+                                            className="h-4 w-4 cursor-pointer rounded border-gray-300 accent-blue-600 disabled:cursor-not-allowed disabled:opacity-40"
+                                            checked={menuRoles.includes(role)}
+                                            disabled={!s.is_enabled || !moduleAllows}
+                                            onChange={() => toggleMenuRole(mod.key, menu.key, role)}
+                                          />
+                                        </TableCell>
+                                      );
+                                    })}
+                                  </TableRow>
+                                );
+                              })}
+                          </React.Fragment>
+                        );
+                      })}
+                    </React.Fragment>
+                  );
+                })}
+              </TableBody>
+            </Table>
 
             {/* Legend */}
             <div className="mt-3 flex flex-wrap items-center gap-x-6 gap-y-1 text-xs text-gray-400">
               {ORG_ROLES.map((r) => (
-                <span key={r}><b className="text-gray-500">{ROLE_LABEL[r]}</b> = {ROLE_FULL[r]}</span>
+                <span key={r}>
+                  <b className="text-gray-500">{ROLE_LABEL[r]}</b> = {ROLE_FULL[r]}
+                </span>
               ))}
             </div>
           </div>

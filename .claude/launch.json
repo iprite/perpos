@@ -6,14 +6,15 @@
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["run", "dev"],
       "port": 3002,
-      "cwd": "apps/perpos"
+      "cwd": "apps/perpos",
+      "autoPort": true
     },
     {
-      "name": "landing",
+      "name": "landing-astro",
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["run", "dev"],
-      "port": 3000,
-      "cwd": "apps/landing",
+      "port": 3100,
+      "cwd": "apps/landing-astro",
       "autoPort": false
     }
   ]

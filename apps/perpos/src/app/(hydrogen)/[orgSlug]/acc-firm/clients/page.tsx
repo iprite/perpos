@@ -1,32 +1,52 @@
-'use client';
+"use client";
 
-import { useEffect, useState, useCallback, useMemo } from 'react';
-import { useParams } from 'next/navigation';
-import Link from 'next/link';
-import { createSupabaseBrowserClient } from '@/lib/supabase/client';
-import { toast } from '@/lib/toast';
-import { Button } from '@/components/ui/button';
-import { PageShell } from '@/components/ui/page-shell';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { CustomSelect } from '@/components/ui/custom-select';
-import { ThaiDatePicker } from '@/components/ui/thai-date-picker';
-import { StatusBadge, type BadgeTone } from '@/components/ui/badge';
+import { useEffect, useState, useCallback, useMemo } from "react";
+import { useParams } from "next/navigation";
+import Link from "next/link";
+import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { toast } from "@/lib/toast";
+import { Button } from "@/components/ui/button";
+import { PageShell } from "@/components/ui/page-shell";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { CustomSelect } from "@/components/ui/custom-select";
+import { ThaiDatePicker } from "@/components/ui/thai-date-picker";
+import { StatusBadge, type BadgeTone } from "@/components/ui/badge";
 import {
-  Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableEmpty,
-} from '@/components/ui/table';
+  Table,
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableCell,
+  TableEmpty,
+  TableLoading,
+} from "@/components/ui/table";
 import {
-  Dialog, DialogContent, DialogHeader, DialogBody, DialogTitle, DialogFooter,
-} from '@/components/ui/dialog';
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogBody,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import {
-  Building2, Plus, BookOpenText, Users, ArrowUpRight,
-  Calculator, UserCog, ShieldCheck, ShieldOff, BookOpen,
-} from 'lucide-react';
+  Building2,
+  Plus,
+  BookOpenText,
+  Users,
+  ArrowUpRight,
+  Calculator,
+  UserCog,
+  ShieldCheck,
+  ShieldOff,
+  BookOpen,
+} from "lucide-react";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 type ClientRow = {
   id: string;
-  status: 'active' | 'inactive' | 'ended';
+  status: "active" | "inactive" | "ended";
   modules_managed: string[];
   note: string | null;
   started_at: string | null;
@@ -54,40 +74,46 @@ type Engagement = {
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 const STATUS_OPTIONS = [
-  { value: 'active',   label: 'Active' },
-  { value: 'inactive', label: 'Inactive' },
-  { value: 'ended',    label: 'Ended' },
+  { value: "active", label: "Active" },
+  { value: "inactive", label: "Inactive" },
+  { value: "ended", label: "Ended" },
 ];
 
 const STATUS_TONE: Record<string, BadgeTone> = {
-  active:   'success',
-  inactive: 'neutral',
-  ended:    'danger',
+  active: "success",
+  inactive: "neutral",
+  ended: "danger",
 };
 
+// module key ต้องตรงกับ ALL_MODULE_KEYS (lib/modules.ts) — payroll ถูกยุบเป็น hrm แล้ว
 const MODULE_OPTIONS = [
-  { value: 'accounting', label: 'Accounting' },
-  { value: 'payroll',    label: 'Payroll' },
+  { value: "accounting", label: "Accounting" },
+  { value: "hrm", label: "HR" },
 ];
 
 const MODULE_ICON: Record<string, React.ReactNode> = {
-  accounting: <BookOpenText className="w-3.5 h-3.5" />,
-  payroll:    <Users className="w-3.5 h-3.5" />,
+  accounting: <BookOpenText className="h-3.5 w-3.5" />,
+  hrm: <Users className="h-3.5 w-3.5" />,
 };
 
 const EMPTY_FORM = {
-  clientOrgId:    '',
-  modulesManaged: ['accounting'] as string[],
-  note:           '',
-  startedAt:      '',
+  clientOrgId: "",
+  modulesManaged: ["accounting"] as string[],
+  note: "",
+  startedAt: "",
 };
 
 // ── Avatar placeholder ─────────────────────────────────────────────────────────
 function Avatar({ name, url }: { name: string; url: string | null }) {
-  const initials = name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
-  if (url) return <img src={url} alt={name} className="w-8 h-8 rounded-full object-cover" />;
+  const initials = name
+    .split(" ")
+    .map((w) => w[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+  if (url) return <img src={url} alt={name} className="h-8 w-8 rounded-full object-cover" />;
   return (
-    <div className="w-8 h-8 rounded-full bg-teal-100 text-teal-700 text-xs font-bold flex items-center justify-center shrink-0">
+    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-teal-100 text-xs font-bold text-teal-700">
       {initials}
     </div>
   );
@@ -98,120 +124,153 @@ export default function AccFirmClientsPage() {
   const { orgSlug } = useParams<{ orgSlug: string }>();
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
 
-  const [orgId, setOrgId]         = useState('');
-  const [token, setToken]         = useState('');
-  const [clients, setClients]     = useState<ClientRow[]>([]);
-  const [allOrgs, setAllOrgs]     = useState<OrgOption[]>([]);
-  const [loading, setLoading]     = useState(true);
-  const [saving, setSaving]       = useState(false);
-  const [showAdd, setShowAdd]     = useState(false);
-  const [editRow, setEditRow]     = useState<ClientRow | null>(null);
-  const [form, setForm]           = useState(EMPTY_FORM);
-  const [filterStatus, setFilterStatus] = useState('');
+  const [orgId, setOrgId] = useState("");
+  const [token, setToken] = useState("");
+  const [clients, setClients] = useState<ClientRow[]>([]);
+  const [allOrgs, setAllOrgs] = useState<OrgOption[]>([]);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [showAdd, setShowAdd] = useState(false);
+  const [editRow, setEditRow] = useState<ClientRow | null>(null);
+  const [form, setForm] = useState(EMPTY_FORM);
+  const [filterStatus, setFilterStatus] = useState("");
 
   // Provision dialog state
-  const [provClient, setProvClient]           = useState<ClientRow | null>(null);
-  const [firmMembers, setFirmMembers]         = useState<FirmMember[]>([]);
-  const [engagement, setEngagement]           = useState<Engagement | null>(null);
-  const [provLoading, setProvLoading]         = useState(false);
-  const [provSaving, setProvSaving]           = useState<string | null>(null); // userId being toggled
+  const [provClient, setProvClient] = useState<ClientRow | null>(null);
+  const [firmMembers, setFirmMembers] = useState<FirmMember[]>([]);
+  const [engagement, setEngagement] = useState<Engagement | null>(null);
+  const [provLoading, setProvLoading] = useState(false);
+  const [provSaving, setProvSaving] = useState<string | null>(null); // userId being toggled
 
   // ── Load clients ──────────────────────────────────────────────────────────
   const load = useCallback(async () => {
     setLoading(true);
     const [{ data: org }, { data: sess }] = await Promise.all([
-      supabase.from('organizations').select('id').eq('slug', orgSlug).single(),
+      supabase.from("organizations").select("id").eq("slug", orgSlug).single(),
       supabase.auth.getSession(),
     ]);
-    if (!org || !sess.session) { setLoading(false); return; }
+    if (!org || !sess.session) {
+      setLoading(false);
+      return;
+    }
     const tok = sess.session.access_token;
     setOrgId(org.id);
     setToken(tok);
 
+    // SEC-1: เพิ่ม/แก้ engagement = super_admin เท่านั้น → enumerate ทุก org เฉพาะ admin
+    // (firm member ไม่ควรเห็นรายชื่อทุก org ในระบบ)
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", sess.session.user.id)
+      .maybeSingle();
+    const admin = profile?.role === "super_admin";
+    setIsAdmin(admin);
+
     const [clientsRes, orgsRes] = await Promise.all([
-      fetch(`/api/acc-firm/clients?orgId=${org.id}`, { headers: { Authorization: `Bearer ${tok}` } }),
-      supabase.from('organizations').select('id, name').order('name'),
+      fetch(`/api/acc-firm/clients?orgId=${org.id}`, {
+        headers: { Authorization: `Bearer ${tok}` },
+      }),
+      // เพิ่ม client ได้เฉพาะ org ที่เปิด module accounting (candidate ของสำนักงานบัญชี)
+      admin
+        ? fetch(`/api/acc-firm/eligible-clients?orgId=${org.id}`, {
+            headers: { Authorization: `Bearer ${tok}` },
+          })
+        : null,
     ]);
 
     if (clientsRes.ok) {
       const json = await clientsRes.json();
       setClients(json.clients ?? []);
     }
-    if (orgsRes.data) {
-      setAllOrgs(orgsRes.data.map(o => ({ value: o.id, label: o.name })));
+    if (orgsRes && orgsRes.ok) {
+      const j = (await orgsRes.json()) as { orgs?: { id: string; name: string }[] };
+      setAllOrgs((j.orgs ?? []).map((o) => ({ value: o.id, label: o.name })));
     }
     setLoading(false);
   }, [supabase, orgSlug]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+  }, [load]);
 
   // ── Load provision data when dialog opens ─────────────────────────────────
-  const openProvision = useCallback(async (client: ClientRow) => {
-    setProvClient(client);
-    setFirmMembers([]);
-    setEngagement(null);
-    setProvLoading(true);
-    const res = await fetch(
-      `/api/acc-firm/provision?firmOrgId=${orgId}&clientOrgId=${client.client_org.id}`,
-      { headers: { Authorization: `Bearer ${token}` } },
-    );
-    if (res.ok) {
-      const json = await res.json();
-      setFirmMembers(json.members ?? []);
-      setEngagement(json.engagement ?? null);
-    }
-    setProvLoading(false);
-  }, [orgId, token]);
+  const openProvision = useCallback(
+    async (client: ClientRow) => {
+      setProvClient(client);
+      setFirmMembers([]);
+      setEngagement(null);
+      setProvLoading(true);
+      const res = await fetch(
+        `/api/acc-firm/provision?firmOrgId=${orgId}&clientOrgId=${client.client_org.id}`,
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+      if (res.ok) {
+        const json = await res.json();
+        setFirmMembers(json.members ?? []);
+        setEngagement(json.engagement ?? null);
+      }
+      setProvLoading(false);
+    },
+    [orgId, token],
+  );
 
   // ── Toggle access for a firm member ──────────────────────────────────────
-  const toggleAccess = useCallback(async (member: FirmMember) => {
-    if (!provClient) return;
-    setProvSaving(member.userId);
+  const toggleAccess = useCallback(
+    async (member: FirmMember) => {
+      if (!provClient) return;
+      setProvSaving(member.userId);
 
-    const res = member.hasAccess
-      ? await fetch('/api/acc-firm/provision', {
-          method: 'DELETE',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-          body: JSON.stringify({
-            firmOrgId:   orgId,
-            clientOrgId: provClient.client_org.id,
-            userId:      member.userId,
-          }),
-        })
-      : await fetch('/api/acc-firm/provision', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-          body: JSON.stringify({
-            firmOrgId:   orgId,
-            clientOrgId: provClient.client_org.id,
-            userId:      member.userId,
-            modules:     engagement?.modulesManaged ?? provClient.modules_managed,
-          }),
-        });
+      const res = member.hasAccess
+        ? await fetch("/api/acc-firm/provision", {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+            body: JSON.stringify({
+              firmOrgId: orgId,
+              clientOrgId: provClient.client_org.id,
+              userId: member.userId,
+            }),
+          })
+        : await fetch("/api/acc-firm/provision", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+            body: JSON.stringify({
+              firmOrgId: orgId,
+              clientOrgId: provClient.client_org.id,
+              userId: member.userId,
+              modules: engagement?.modulesManaged ?? provClient.modules_managed,
+            }),
+          });
 
-    // Refresh members list
-    await openProvision(provClient);
-    setProvSaving(null);
-    if (!res.ok) { toast.error('ปรับสิทธิ์เข้าถึงไม่สำเร็จ'); return; }
-    toast.success(member.hasAccess ? 'ยกเลิกสิทธิ์เข้าถึงแล้ว' : 'ให้สิทธิ์เข้าถึงแล้ว');
-  }, [provClient, orgId, token, engagement, openProvision]);
+      // Refresh members list
+      await openProvision(provClient);
+      setProvSaving(null);
+      if (!res.ok) {
+        toast.error("ปรับสิทธิ์เข้าถึงไม่สำเร็จ");
+        return;
+      }
+      toast.success(member.hasAccess ? "ยกเลิกสิทธิ์เข้าถึงแล้ว" : "ให้สิทธิ์เข้าถึงแล้ว");
+    },
+    [provClient, orgId, token, engagement, openProvision],
+  );
 
   // ── Available orgs (exclude already-added + self) ─────────────────────────
   const usedOrgIds = useMemo(
-    () => new Set([orgId, ...clients.map(c => c.client_org.id)]),
+    () => new Set([orgId, ...clients.map((c) => c.client_org.id)]),
     [orgId, clients],
   );
   const availableOrgs = useMemo(
-    () => allOrgs.filter(o => !usedOrgIds.has(o.value)),
+    () => allOrgs.filter((o) => !usedOrgIds.has(o.value)),
     [allOrgs, usedOrgIds],
   );
 
   // ── Toggle module in add/edit form ────────────────────────────────────────
   const toggleModule = (mod: string) => {
-    setForm(f => ({
+    setForm((f) => ({
       ...f,
       modulesManaged: f.modulesManaged.includes(mod)
-        ? f.modulesManaged.filter(m => m !== mod)
+        ? f.modulesManaged.filter((m) => m !== mod)
         : [...f.modulesManaged, mod],
     }));
   };
@@ -220,49 +279,66 @@ export default function AccFirmClientsPage() {
   const handleAdd = async () => {
     if (!form.clientOrgId) return;
     setSaving(true);
-    const res = await fetch('/api/acc-firm/clients', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    const res = await fetch("/api/acc-firm/clients", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
       body: JSON.stringify({
-        firmOrgId:      orgId,
-        clientOrgId:    form.clientOrgId,
+        firmOrgId: orgId,
+        clientOrgId: form.clientOrgId,
         modulesManaged: form.modulesManaged,
-        note:           form.note || null,
-        startedAt:      form.startedAt || null,
+        note: form.note || null,
+        startedAt: form.startedAt || null,
       }),
     });
     setSaving(false);
-    if (res.ok) { setShowAdd(false); load(); toast.success('เพิ่มลูกค้าแล้ว'); }
-    else { const e = await res.json(); toast.error(e.error ?? 'เพิ่มลูกค้าไม่สำเร็จ'); }
+    if (res.ok) {
+      setShowAdd(false);
+      load();
+      toast.success("เพิ่มลูกค้าแล้ว");
+    } else {
+      const e = await res.json();
+      toast.error(e.error ?? "เพิ่มลูกค้าไม่สำเร็จ");
+    }
   };
 
   // ── Save edit ─────────────────────────────────────────────────────────────
   const handleEdit = async () => {
     if (!editRow) return;
     setSaving(true);
-    const res = await fetch('/api/acc-firm/clients', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    const res = await fetch("/api/acc-firm/clients", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
       body: JSON.stringify({
-        id:             editRow.id,
-        firmOrgId:      orgId,
-        status:         editRow.status,
+        id: editRow.id,
+        firmOrgId: orgId,
+        status: editRow.status,
         modulesManaged: form.modulesManaged,
-        note:           form.note || null,
+        note: form.note || null,
       }),
     });
     setSaving(false);
-    if (res.ok) { setEditRow(null); load(); toast.success('บันทึกการแก้ไขแล้ว'); }
-    else { const e = await res.json(); toast.error(e.error ?? 'บันทึกไม่สำเร็จ'); }
+    if (res.ok) {
+      setEditRow(null);
+      load();
+      toast.success("บันทึกการแก้ไขแล้ว");
+    } else {
+      const e = await res.json();
+      toast.error(e.error ?? "บันทึกไม่สำเร็จ");
+    }
   };
 
   const openEdit = (row: ClientRow) => {
     setEditRow(row);
-    setForm({ clientOrgId: row.client_org.id, modulesManaged: row.modules_managed, note: row.note ?? '', startedAt: row.started_at ?? '' });
+    setForm({
+      clientOrgId: row.client_org.id,
+      modulesManaged: row.modules_managed,
+      note: row.note ?? "",
+      startedAt: row.started_at ?? "",
+    });
   };
 
   // ── Filter ────────────────────────────────────────────────────────────────
-  const filtered = filterStatus ? clients.filter(c => c.status === filterStatus) : clients;
+  const filtered = filterStatus ? clients.filter((c) => c.status === filterStatus) : clients;
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
@@ -272,28 +348,36 @@ export default function AccFirmClientsPage() {
       title="Client Orgs"
       description="องค์กรที่อยู่ในการกำกับดูแลของสำนักงานบัญชี"
       actions={
-        <Button onClick={() => { setForm(EMPTY_FORM); setShowAdd(true); }} className="gap-1.5">
-          <Plus className="w-4 h-4" /> เพิ่ม Client Org
-        </Button>
+        // SEC-1: เพิ่ม engagement = super_admin เท่านั้น
+        isAdmin ? (
+          <Button
+            onClick={() => {
+              setForm(EMPTY_FORM);
+              setShowAdd(true);
+            }}
+            className="gap-1.5"
+          >
+            <Plus className="h-4 w-4" /> เพิ่ม Client Org
+          </Button>
+        ) : undefined
       }
     >
-
       {/* Filter */}
-      <div className="flex gap-2 items-center">
-        <Label className="text-xs text-slate-500 shrink-0">กรอง:</Label>
+      <div className="flex items-center gap-2">
+        <Label className="shrink-0 text-xs text-slate-500">กรอง:</Label>
         <CustomSelect
           value={filterStatus}
           onChange={setFilterStatus}
-          options={[{ value: '', label: 'ทั้งหมด' }, ...STATUS_OPTIONS]}
+          options={[{ value: "", label: "ทั้งหมด" }, ...STATUS_OPTIONS]}
           className="w-36"
         />
       </div>
 
       {/* Table */}
       {!loading && filtered.length === 0 ? (
-        <div className="rounded-xl border bg-white p-8 text-center text-sm text-slate-300 space-y-2">
+        <div className="space-y-2 rounded-xl border bg-white p-8 text-center text-sm text-slate-300">
           <Building2 className="mx-auto h-8 w-8 text-slate-200" />
-          <p>{filterStatus ? 'ไม่มี client ในสถานะนี้' : 'ยังไม่มี client org'}</p>
+          <p>{filterStatus ? "ไม่มี client ในสถานะนี้" : "ยังไม่มี client org"}</p>
         </div>
       ) : (
         <Table>
@@ -308,31 +392,43 @@ export default function AccFirmClientsPage() {
           </TableHeader>
           <TableBody>
             {loading ? (
-              <TableEmpty colSpan={5}>กำลังโหลด…</TableEmpty>
-            ) : filtered.map(c => (
-              <TableRow key={c.id} clickable onClick={() => openEdit(c)}>
-                <TableCell>
-                  <p className="font-semibold text-slate-800">{c.client_org.name}</p>
-                  <p className="text-xs text-slate-400">{c.client_org.slug}</p>
-                </TableCell>
-                <TableCell>
-                  <div className="flex gap-1">
-                    {c.modules_managed.map(m => (
-                      <span key={m} className="flex items-center gap-1 whitespace-nowrap rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600">
-                        {MODULE_ICON[m]} {m}
-                      </span>
-                    ))}
-                  </div>
-                </TableCell>
-                <TableCell className="text-xs text-slate-500">{c.started_at ?? '—'}</TableCell>
-                <TableCell>
-                  <StatusBadge tone={STATUS_TONE[c.status] ?? 'neutral'}>
-                    {STATUS_OPTIONS.find(s => s.value === c.status)?.label ?? c.status}
-                  </StatusBadge>
-                </TableCell>
-                <TableCell className="max-w-[160px] truncate text-xs text-slate-400">{c.note ?? '—'}</TableCell>
-              </TableRow>
-            ))}
+              <TableLoading colSpan={5} />
+            ) : (
+              filtered.map((c) => (
+                // super_admin → แก้ engagement · firm member → จัดสิทธิ์ทีม (provision) ภายใน engagement
+                <TableRow
+                  key={c.id}
+                  clickable
+                  onClick={() => (isAdmin ? openEdit(c) : openProvision(c))}
+                >
+                  <TableCell>
+                    <p className="font-semibold text-slate-800">{c.client_org.name}</p>
+                    <p className="text-xs text-slate-400">{c.client_org.slug}</p>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex gap-1">
+                      {c.modules_managed.map((m) => (
+                        <span
+                          key={m}
+                          className="flex items-center gap-1 whitespace-nowrap rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600"
+                        >
+                          {MODULE_ICON[m]} {m}
+                        </span>
+                      ))}
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-xs text-slate-500">{c.started_at ?? "—"}</TableCell>
+                  <TableCell>
+                    <StatusBadge tone={STATUS_TONE[c.status] ?? "neutral"}>
+                      {STATUS_OPTIONS.find((s) => s.value === c.status)?.label ?? c.status}
+                    </StatusBadge>
+                  </TableCell>
+                  <TableCell className="max-w-[160px] truncate text-xs text-slate-400">
+                    {c.note ?? "—"}
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
           </TableBody>
         </Table>
       )}
@@ -340,198 +436,264 @@ export default function AccFirmClientsPage() {
       {/* ── Add Dialog ──────────────────────────────────────────────────────── */}
       <Dialog open={showAdd} onOpenChange={setShowAdd}>
         <DialogContent size="md">
-          <DialogHeader><DialogTitle>เพิ่ม Client Org</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle>เพิ่ม Client Org</DialogTitle>
+          </DialogHeader>
           <DialogBody>
-          <div className="space-y-4">
-            <div className="space-y-1.5">
-              <Label>องค์กรลูกค้า *</Label>
-              <CustomSelect
-                value={form.clientOrgId}
-                onChange={v => setForm(f => ({ ...f, clientOrgId: v }))}
-                options={[{ value: '', label: '— เลือกองค์กร —' }, ...availableOrgs]}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Modules ที่จะดูแล *</Label>
-              <div className="flex gap-2 flex-wrap">
-                {MODULE_OPTIONS.map(m => (
-                  <button key={m.value} type="button" onClick={() => toggleModule(m.value)}
-                    className={`flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg border transition-colors ${
-                      form.modulesManaged.includes(m.value)
-                        ? 'bg-teal-50 border-teal-300 text-teal-700'
-                        : 'border-slate-200 text-slate-500 hover:border-slate-300'
-                    }`}>
-                    {MODULE_ICON[m.value]} {m.label}
-                  </button>
-                ))}
+            <div className="space-y-4">
+              <div className="space-y-1.5">
+                <Label>องค์กรลูกค้า *</Label>
+                <CustomSelect
+                  value={form.clientOrgId}
+                  onChange={(v) => setForm((f) => ({ ...f, clientOrgId: v }))}
+                  options={[{ value: "", label: "— เลือกองค์กร —" }, ...availableOrgs]}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Modules ที่จะดูแล *</Label>
+                <div className="flex flex-wrap gap-2">
+                  {MODULE_OPTIONS.map((m) => (
+                    <button
+                      key={m.value}
+                      type="button"
+                      onClick={() => toggleModule(m.value)}
+                      className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm transition-colors ${
+                        form.modulesManaged.includes(m.value)
+                          ? "border-teal-300 bg-teal-50 text-teal-700"
+                          : "border-slate-200 text-slate-500 hover:border-slate-300"
+                      }`}
+                    >
+                      {MODULE_ICON[m.value]} {m.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label>วันที่เริ่มดูแล</Label>
+                <ThaiDatePicker
+                  value={form.startedAt}
+                  onChange={(v) => setForm((f) => ({ ...f, startedAt: v }))}
+                  placeholder="เลือกวันที่"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>หมายเหตุ</Label>
+                <Input
+                  value={form.note}
+                  onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))}
+                  placeholder="เช่น รับดูแลบัญชีรายเดือน"
+                />
               </div>
             </div>
-            <div className="space-y-1.5">
-              <Label>วันที่เริ่มดูแล</Label>
-              <ThaiDatePicker value={form.startedAt} onChange={v => setForm(f => ({ ...f, startedAt: v }))} placeholder="เลือกวันที่" />
-            </div>
-            <div className="space-y-1.5">
-              <Label>หมายเหตุ</Label>
-              <Input value={form.note} onChange={e => setForm(f => ({ ...f, note: e.target.value }))} placeholder="เช่น รับดูแลบัญชีรายเดือน" />
-            </div>
-          </div>
           </DialogBody>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowAdd(false)} disabled={saving}>ยกเลิก</Button>
-            <Button onClick={handleAdd} disabled={saving || !form.clientOrgId || form.modulesManaged.length === 0}>
-              {saving ? 'กำลังบันทึก…' : 'เพิ่ม'}
+            <Button variant="outline" onClick={() => setShowAdd(false)} disabled={saving}>
+              ยกเลิก
+            </Button>
+            <Button
+              onClick={handleAdd}
+              disabled={saving || !form.clientOrgId || form.modulesManaged.length === 0}
+            >
+              {saving ? "กำลังบันทึก…" : "เพิ่ม"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       {/* ── Edit Dialog ─────────────────────────────────────────────────────── */}
-      <Dialog open={!!editRow} onOpenChange={v => { if (!v) setEditRow(null); }}>
+      <Dialog
+        open={!!editRow}
+        onOpenChange={(v) => {
+          if (!v) setEditRow(null);
+        }}
+      >
         <DialogContent size="md">
-          <DialogHeader><DialogTitle>แก้ไข — {editRow?.client_org.name}</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle>แก้ไข — {editRow?.client_org.name}</DialogTitle>
+          </DialogHeader>
           <DialogBody>
-          <div className="space-y-4">
-            <div className="space-y-1.5">
-              <Label>Modules ที่ดูแล *</Label>
-              <div className="flex gap-2 flex-wrap">
-                {MODULE_OPTIONS.map(m => (
-                  <button key={m.value} type="button" onClick={() => toggleModule(m.value)}
-                    className={`flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg border transition-colors ${
-                      form.modulesManaged.includes(m.value)
-                        ? 'bg-teal-50 border-teal-300 text-teal-700'
-                        : 'border-slate-200 text-slate-500 hover:border-slate-300'
-                    }`}>
-                    {MODULE_ICON[m.value]} {m.label}
-                  </button>
-                ))}
+            <div className="space-y-4">
+              <div className="space-y-1.5">
+                <Label>Modules ที่ดูแล *</Label>
+                <div className="flex flex-wrap gap-2">
+                  {MODULE_OPTIONS.map((m) => (
+                    <button
+                      key={m.value}
+                      type="button"
+                      onClick={() => toggleModule(m.value)}
+                      className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm transition-colors ${
+                        form.modulesManaged.includes(m.value)
+                          ? "border-teal-300 bg-teal-50 text-teal-700"
+                          : "border-slate-200 text-slate-500 hover:border-slate-300"
+                      }`}
+                    >
+                      {MODULE_ICON[m.value]} {m.label}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
-            <div className="space-y-1.5">
-              <Label>สถานะ</Label>
-              <CustomSelect
-                value={editRow?.status ?? 'active'}
-                onChange={v => setEditRow(r => r ? { ...r, status: v as ClientRow['status'] } : r)}
-                options={STATUS_OPTIONS}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label>หมายเหตุ</Label>
-              <Input value={form.note} onChange={e => setForm(f => ({ ...f, note: e.target.value }))} placeholder="หมายเหตุ" />
-            </div>
-            {/* Quick actions */}
-            {editRow?.status === 'active' && (
-              <div className="flex flex-wrap gap-2 border-t pt-3">
-                {editRow.modules_managed.includes('accounting') && (
-                  <Link href={`/${editRow.client_org.slug}/accounting`} target="_blank">
-                    <Button size="sm" variant="outline" className="gap-1.5 text-xs">
-                      <BookOpenText className="h-3.5 w-3.5" /> เปิด Accounting <ArrowUpRight className="h-3 w-3" />
-                    </Button>
-                  </Link>
-                )}
-                <Button
-                  size="sm" variant="outline"
-                  className="gap-1.5 text-xs text-teal-700 border-teal-200 hover:bg-teal-50"
-                  onClick={() => { const c = editRow; setEditRow(null); openProvision(c); }}
-                >
-                  <UserCog className="h-3.5 w-3.5" /> จัดการ Accountants
-                </Button>
+              <div className="space-y-1.5">
+                <Label>สถานะ</Label>
+                <CustomSelect
+                  value={editRow?.status ?? "active"}
+                  onChange={(v) =>
+                    setEditRow((r) => (r ? { ...r, status: v as ClientRow["status"] } : r))
+                  }
+                  options={STATUS_OPTIONS}
+                />
               </div>
-            )}
-          </div>
+              <div className="space-y-1.5">
+                <Label>หมายเหตุ</Label>
+                <Input
+                  value={form.note}
+                  onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))}
+                  placeholder="หมายเหตุ"
+                />
+              </div>
+              {/* Quick actions */}
+              {editRow?.status === "active" && (
+                <div className="flex flex-wrap gap-2 border-t pt-3">
+                  {editRow.modules_managed.includes("accounting") && (
+                    <Link href={`/${editRow.client_org.slug}/accounting`} target="_blank">
+                      <Button size="sm" variant="outline" className="gap-1.5 text-xs">
+                        <BookOpenText className="h-3.5 w-3.5" /> เปิด Accounting{" "}
+                        <ArrowUpRight className="h-3 w-3" />
+                      </Button>
+                    </Link>
+                  )}
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="gap-1.5 border-teal-200 text-xs text-teal-700 hover:bg-teal-50"
+                    onClick={() => {
+                      const c = editRow;
+                      setEditRow(null);
+                      openProvision(c);
+                    }}
+                  >
+                    <UserCog className="h-3.5 w-3.5" /> จัดการ Accountants
+                  </Button>
+                </div>
+              )}
+            </div>
           </DialogBody>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setEditRow(null)} disabled={saving}>ยกเลิก</Button>
+            <Button variant="outline" onClick={() => setEditRow(null)} disabled={saving}>
+              ยกเลิก
+            </Button>
             <Button onClick={handleEdit} disabled={saving || form.modulesManaged.length === 0}>
-              {saving ? 'กำลังบันทึก…' : 'บันทึก'}
+              {saving ? "กำลังบันทึก…" : "บันทึก"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       {/* ── Provision Dialog ─────────────────────────────────────────────────── */}
-      <Dialog open={!!provClient} onOpenChange={v => { if (!v) setProvClient(null); }}>
+      <Dialog
+        open={!!provClient}
+        onOpenChange={(v) => {
+          if (!v) setProvClient(null);
+        }}
+      >
         <DialogContent size="lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <UserCog className="w-5 h-5 text-teal-500" />
+              <UserCog className="h-5 w-5 text-teal-500" />
               จัดการ Accountants — {provClient?.client_org.name}
             </DialogTitle>
           </DialogHeader>
           <DialogBody>
-
-          {/* Engagement modules info */}
-          {engagement && (
-            <div className="flex gap-1.5 flex-wrap">
-              {engagement.modulesManaged.map(m => (
-                <span key={m} className="flex items-center gap-1 text-xs bg-teal-50 text-teal-700 border border-teal-200 px-2 py-0.5 rounded-full">
-                  {MODULE_ICON[m]} {m}
-                </span>
-              ))}
-              <span className="text-xs text-slate-400 self-center ml-1">modules ที่จะ grant</span>
-            </div>
-          )}
-
-          <div className="space-y-2 py-1 max-h-[380px] overflow-y-auto">
-            {provLoading ? (
-              <div className="p-6 text-center text-slate-400 text-sm">กำลังโหลด…</div>
-            ) : firmMembers.length === 0 ? (
-              <div className="p-6 text-center text-slate-300 text-sm">ไม่พบสมาชิกใน firm org</div>
-            ) : (
-              firmMembers.map(m => {
-                const isSaving = provSaving === m.userId;
-                return (
-                  <div
-                    key={m.userId}
-                    className={`flex items-center gap-3 rounded-xl border px-3 py-2.5 transition-colors ${
-                      m.hasAccess ? 'bg-teal-50 border-teal-200' : 'bg-white border-slate-100'
-                    }`}
+            {/* Engagement modules info */}
+            {engagement && (
+              <div className="flex flex-wrap gap-1.5">
+                {engagement.modulesManaged.map((m) => (
+                  <span
+                    key={m}
+                    className="flex items-center gap-1 rounded-full border border-teal-200 bg-teal-50 px-2 py-0.5 text-xs text-teal-700"
                   >
-                    <Avatar name={m.displayName} url={m.avatarUrl} />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-slate-800 truncate">{m.displayName}</p>
-                      <p className="text-xs text-slate-400 truncate">{m.email}</p>
-                    </div>
-
-                    {/* Access status */}
-                    <div className="flex items-center gap-2 shrink-0">
-                      {m.hasAccess ? (
-                        <div className="flex gap-1">
-                          {m.accessModules.map(mod => (
-                            <span key={mod} className="flex items-center gap-0.5 text-xs text-teal-700 bg-teal-100 px-1.5 py-0.5 rounded">
-                              {mod === 'accounting' ? <BookOpen className="w-3 h-3" /> : <Users className="w-3 h-3" />}
-                            </span>
-                          ))}
-                        </div>
-                      ) : null}
-
-                      <button
-                        type="button"
-                        disabled={isSaving}
-                        onClick={() => toggleAccess(m)}
-                        className={`flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border font-medium transition-colors disabled:opacity-50 ${
-                          m.hasAccess
-                            ? 'border-red-200 text-red-600 hover:bg-red-50'
-                            : 'border-teal-300 text-teal-700 hover:bg-teal-50'
-                        }`}
-                      >
-                        {isSaving ? (
-                          <span className="animate-pulse">…</span>
-                        ) : m.hasAccess ? (
-                          <><ShieldOff className="w-3.5 h-3.5" /> ถอดสิทธิ์</>
-                        ) : (
-                          <><ShieldCheck className="w-3.5 h-3.5" /> Grant</>
-                        )}
-                      </button>
-                    </div>
-                  </div>
-                );
-              })
+                    {MODULE_ICON[m]} {m}
+                  </span>
+                ))}
+                <span className="ml-1 self-center text-xs text-slate-400">modules ที่จะ grant</span>
+              </div>
             )}
-          </div>
+
+            <div className="max-h-[380px] space-y-2 overflow-y-auto py-1">
+              {provLoading ? (
+                <div className="p-6 text-center text-sm text-slate-400">กำลังโหลด…</div>
+              ) : firmMembers.length === 0 ? (
+                <div className="p-6 text-center text-sm text-slate-300">ไม่พบสมาชิกใน firm org</div>
+              ) : (
+                firmMembers.map((m) => {
+                  const isSaving = provSaving === m.userId;
+                  return (
+                    <div
+                      key={m.userId}
+                      className={`flex items-center gap-3 rounded-xl border px-3 py-2.5 transition-colors ${
+                        m.hasAccess ? "border-teal-200 bg-teal-50" : "border-slate-100 bg-white"
+                      }`}
+                    >
+                      <Avatar name={m.displayName} url={m.avatarUrl} />
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium text-slate-800">
+                          {m.displayName}
+                        </p>
+                        <p className="truncate text-xs text-slate-400">{m.email}</p>
+                      </div>
+
+                      {/* Access status */}
+                      <div className="flex shrink-0 items-center gap-2">
+                        {m.hasAccess ? (
+                          <div className="flex gap-1">
+                            {m.accessModules.map((mod) => (
+                              <span
+                                key={mod}
+                                className="flex items-center gap-0.5 rounded bg-teal-100 px-1.5 py-0.5 text-xs text-teal-700"
+                              >
+                                {mod === "accounting" ? (
+                                  <BookOpen className="h-3 w-3" />
+                                ) : (
+                                  <Users className="h-3 w-3" />
+                                )}
+                              </span>
+                            ))}
+                          </div>
+                        ) : null}
+
+                        <button
+                          type="button"
+                          disabled={isSaving}
+                          onClick={() => toggleAccess(m)}
+                          className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors disabled:opacity-50 ${
+                            m.hasAccess
+                              ? "border-red-200 text-red-600 hover:bg-red-50"
+                              : "border-teal-300 text-teal-700 hover:bg-teal-50"
+                          }`}
+                        >
+                          {isSaving ? (
+                            <span className="animate-pulse">…</span>
+                          ) : m.hasAccess ? (
+                            <>
+                              <ShieldOff className="h-3.5 w-3.5" /> ถอดสิทธิ์
+                            </>
+                          ) : (
+                            <>
+                              <ShieldCheck className="h-3.5 w-3.5" /> Grant
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
           </DialogBody>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setProvClient(null)}>ปิด</Button>
+            <Button variant="outline" onClick={() => setProvClient(null)}>
+              ปิด
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -99,6 +99,8 @@ export async function POST(req: NextRequest) {
     ratio?: number;
     no_gain?: boolean;
     charged?: boolean;
+    mode?: string;
+    vector_heavy?: boolean;
   } | null;
   if (job.status !== "completed" || !meta?.output_path) {
     await sendLineMessages({
@@ -109,7 +111,7 @@ export async function POST(req: NextRequest) {
   }
 
   const fileName = String(job.file_name ?? "document.pdf");
-  const dlName = fileName.replace(/\.pdf$/i, "") + "-compressed.pdf";
+  const dlName = fileName.replace(/\.pdf$/i, "") + "-CompressedbyFlow.pdf";
   const { data: signed, error: signErr } = await admin.storage
     .from(BUCKET)
     .createSignedUrl(meta.output_path, 48 * 60 * 60, { download: dlName });
@@ -127,12 +129,18 @@ export async function POST(req: NextRequest) {
   const pages = Number(meta.pages ?? 0);
   const noGain = Boolean(meta.no_gain);
   const charged = Boolean(meta.charged);
+  const isRasterResult = meta.mode === "rasterize";
   // บีบได้แต่ไม่ถึงเกณฑ์ (ไม่คิดโควต้า) — ส่งไฟล์ให้ฟรี
   const freeBelowThreshold = !noGain && !charged;
+  // ไฟล์ vector-heavy ที่ surgical บีบได้น้อย/ไม่ลง → เสนอ "บีบแบบเข้ม" (rasterize) ต่อ
+  //   ไม่เสนอถ้านี่คือผลลัพธ์ rasterize อยู่แล้ว หรือบีบได้ถึงเกณฑ์ (charged)
+  const offerRaster = !isRasterResult && !charged && Boolean(meta.vector_heavy);
 
   // ข้อความผลลัพธ์ — กรณีบีบไม่ลง (ไฟล์เล็กที่สุดแล้ว) บอกตรง ๆ
   const resultLine = noGain
-    ? "ไฟล์นี้บีบให้เล็กลงอีกไม่ได้แล้ว (เหมาะสมที่สุดแล้ว)"
+    ? isRasterResult
+      ? "ไฟล์นี้บีบแบบเข้มแล้วไม่เล็กลงกว่าเดิม"
+      : "บีบแบบปกติได้น้อย (ไฟล์นี้เป็นกราฟิกเวกเตอร์)"
     : `${fmtMB(before)} → ${fmtMB(after)}  (ลด ${pct}%)`;
 
   // เครดิตคงเหลือ (แสดงใน Flex) — unified pool: พอบีบได้อีกกี่หน้า = token ÷ rate(pdf)
@@ -185,6 +193,22 @@ export async function POST(req: NextRequest) {
       action: { type: "uri", label: "📁 เปิดใน Google Drive", uri: pdfDriveUrl },
     });
   }
+  // vector-heavy + บีบปกติได้น้อย → ปุ่มยืนยันบีบแบบเข้ม (rasterize, pass 2)
+  if (offerRaster) {
+    footerButtons.push({
+      type: "button",
+      style: "primary",
+      color: "#46BC9E",
+      height: "sm",
+      margin: "sm",
+      action: {
+        type: "postback",
+        label: "⚡ บีบแบบเข้ม (ลดมากขึ้น)",
+        data: `pdfraster:${jobId}`,
+        displayText: "บีบแบบเข้ม",
+      },
+    });
+  }
 
   const sent = await sendLineMessages({
     to: lineUserId,
@@ -218,7 +242,7 @@ export async function POST(req: NextRequest) {
               ...(pages
                 ? [{ type: "text", text: `${pages} หน้า`, size: "xs", color: "#9CA3AF" } as const]
                 : []),
-              ...(freeBelowThreshold
+              ...(freeBelowThreshold && !offerRaster
                 ? [
                     {
                       type: "text",
@@ -226,6 +250,38 @@ export async function POST(req: NextRequest) {
                       size: "xs",
                       wrap: true,
                       color: "#46BC9E",
+                    } as const,
+                  ]
+                : []),
+              ...(isRasterResult
+                ? [
+                    {
+                      type: "text",
+                      text: "⚡ โหมดเข้ม: หน้าถูกแปลงเป็นรูปภาพ — ค้นหา/คัดลอกข้อความไม่ได้",
+                      size: "xxs",
+                      wrap: true,
+                      color: "#9CA3AF",
+                    } as const,
+                  ]
+                : []),
+              ...(offerRaster
+                ? [
+                    { type: "separator", margin: "md" } as const,
+                    {
+                      type: "text",
+                      text: "ไฟล์นี้เป็นกราฟิกเวกเตอร์ บีบแบบปกติได้น้อย",
+                      size: "xs",
+                      wrap: true,
+                      weight: "bold",
+                      color: "#3C3B3D",
+                      margin: "md",
+                    } as const,
+                    {
+                      type: "text",
+                      text: "ลอง “บีบแบบเข้ม” — แปลงหน้าเป็นรูปภาพ ทำให้เล็กลงมาก (มักลด 70–90%) แต่ข้อความจะค้นหา/คัดลอกไม่ได้ และความคมลดลงเล็กน้อย",
+                      size: "xxs",
+                      wrap: true,
+                      color: "#656D78",
                     } as const,
                   ]
                 : []),

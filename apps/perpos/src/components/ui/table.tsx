@@ -1,6 +1,9 @@
 import * as React from "react";
+import { ChevronUp, ChevronDown, ChevronsUpDown } from "lucide-react";
 
 import cn from "@core/utils/class-names";
+
+export type SortDir = "asc" | "desc" | null;
 
 /**
  * Standard DataTable primitives — PERPOS design system.
@@ -20,10 +23,12 @@ type TableProps = React.TableHTMLAttributes<HTMLTableElement> & {
   maxHeight?: string;
   /** className ของ wrapper ด้านนอก (ตัว scroll container) */
   wrapperClassName?: string;
+  /** โหมดแน่น — ลด padding แถว/หัวคอลัมน์ (ดูข้อมูลได้มากขึ้นต่อจอ) */
+  dense?: boolean;
 };
 
 const Table = React.forwardRef<HTMLTableElement, TableProps>(
-  ({ className, stickyHeader, maxHeight, wrapperClassName, ...props }, ref) => (
+  ({ className, stickyHeader, maxHeight, wrapperClassName, dense, ...props }, ref) => (
     <div
       className={cn(
         "w-full overflow-auto rounded-xl border border-gray-200 bg-white",
@@ -34,7 +39,11 @@ const Table = React.forwardRef<HTMLTableElement, TableProps>(
       <table
         ref={ref}
         data-sticky-header={stickyHeader ? "" : undefined}
-        className={cn("w-full caption-bottom text-sm", className)}
+        className={cn(
+          "w-full caption-bottom text-sm",
+          dense && "[&_td]:py-1.5 [&_th]:h-8",
+          className,
+        )}
         {...props}
       />
     </div>
@@ -62,22 +71,28 @@ const TableHeader = React.forwardRef<HTMLTableSectionElement, TableHeaderProps>(
 );
 TableHeader.displayName = "TableHeader";
 
-const TableBody = React.forwardRef<HTMLTableSectionElement, React.HTMLAttributes<HTMLTableSectionElement>>(
-  ({ className, ...props }, ref) => (
-    <tbody ref={ref} className={cn("divide-y divide-gray-100 [&_tr:last-child]:border-0", className)} {...props} />
-  ),
-);
+const TableBody = React.forwardRef<
+  HTMLTableSectionElement,
+  React.HTMLAttributes<HTMLTableSectionElement>
+>(({ className, ...props }, ref) => (
+  <tbody
+    ref={ref}
+    className={cn("divide-y divide-gray-100 [&_tr:last-child]:border-0", className)}
+    {...props}
+  />
+));
 TableBody.displayName = "TableBody";
 
-const TableFooter = React.forwardRef<HTMLTableSectionElement, React.HTMLAttributes<HTMLTableSectionElement>>(
-  ({ className, ...props }, ref) => (
-    <tfoot
-      ref={ref}
-      className={cn("border-t-2 border-gray-200 bg-gray-50 font-semibold", className)}
-      {...props}
-    />
-  ),
-);
+const TableFooter = React.forwardRef<
+  HTMLTableSectionElement,
+  React.HTMLAttributes<HTMLTableSectionElement>
+>(({ className, ...props }, ref) => (
+  <tfoot
+    ref={ref}
+    className={cn("border-t-2 border-gray-200 bg-gray-50 font-semibold", className)}
+    {...props}
+  />
+));
 TableFooter.displayName = "TableFooter";
 
 type TableRowProps = React.HTMLAttributes<HTMLTableRowElement> & {
@@ -88,30 +103,39 @@ type TableRowProps = React.HTMLAttributes<HTMLTableRowElement> & {
 };
 
 const TableRow = React.forwardRef<HTMLTableRowElement, TableRowProps>(
-  ({ className, clickable, selected, onClick, onKeyDown, ...props }, ref) => (
-    <tr
-      ref={ref}
-      onClick={onClick}
-      onKeyDown={(e) => {
-        if (clickable && (e.key === "Enter" || e.key === " ")) {
-          e.preventDefault();
-          (e.currentTarget as HTMLTableRowElement).click();
+  ({ className, clickable, selected, onClick, onKeyDown, ...props }, ref) => {
+    // แนบ event handler เฉพาะแถวที่ interactive จริง — ไม่งั้น inline onKeyDown ที่ติดอยู่
+    // เสมอจะทำให้ render TableRow ใน Server Component ไม่ได้ (RSC serialize event handler ไม่ได้)
+    const interactive = clickable || !!onClick || !!onKeyDown;
+    return (
+      <tr
+        ref={ref}
+        onClick={onClick}
+        onKeyDown={
+          interactive
+            ? (e) => {
+                if (clickable && (e.key === "Enter" || e.key === " ")) {
+                  e.preventDefault();
+                  (e.currentTarget as HTMLTableRowElement).click();
+                }
+                onKeyDown?.(e);
+              }
+            : undefined
         }
-        onKeyDown?.(e);
-      }}
-      role={clickable ? "button" : undefined}
-      tabIndex={clickable ? 0 : undefined}
-      className={cn(
-        "border-b border-gray-100 transition-colors",
-        clickable
-          ? "cursor-pointer hover:bg-gray-100 focus-visible:bg-gray-100 focus-visible:outline-none"
-          : "hover:bg-gray-50",
-        selected && "bg-indigo-50/60",
-        className,
-      )}
-      {...props}
-    />
-  ),
+        role={clickable ? "button" : undefined}
+        tabIndex={clickable ? 0 : undefined}
+        className={cn(
+          "border-b border-gray-100 transition-colors",
+          clickable
+            ? "cursor-pointer hover:bg-gray-100 focus-visible:bg-gray-100 focus-visible:outline-none"
+            : "hover:bg-gray-50",
+          selected && "bg-indigo-50/60",
+          className,
+        )}
+        {...props}
+      />
+    );
+  },
 );
 TableRow.displayName = "TableRow";
 
@@ -122,20 +146,58 @@ type AlignedCellProps = {
 const alignClass = (align?: "left" | "right" | "center") =>
   align === "right" ? "text-right" : align === "center" ? "text-center" : "text-left";
 
-const TableHead = React.forwardRef<
-  HTMLTableCellElement,
-  React.ThHTMLAttributes<HTMLTableCellElement> & AlignedCellProps
->(({ className, align, ...props }, ref) => (
-  <th
-    ref={ref}
-    className={cn(
-      "h-10 whitespace-nowrap px-3 align-middle text-xs font-semibold uppercase tracking-wide text-gray-500",
-      alignClass(align),
-      className,
-    )}
-    {...props}
-  />
-));
+type TableHeadProps = React.ThHTMLAttributes<HTMLTableCellElement> &
+  AlignedCellProps & {
+    /** หัวคอลัมน์เรียงได้ — แสดงลูกศรตาม sortDir · interactivity ส่งผ่าน onClick (client) */
+    sortable?: boolean;
+    /** ทิศทางเรียงปัจจุบันของคอลัมน์นี้ (null = ยังไม่เรียงด้วยคอลัมน์นี้) */
+    sortDir?: SortDir;
+  };
+
+const TableHead = React.forwardRef<HTMLTableCellElement, TableHeadProps>(
+  ({ className, align, sortable, sortDir, children, ...props }, ref) => (
+    <th
+      ref={ref}
+      aria-sort={
+        sortable
+          ? sortDir === "asc"
+            ? "ascending"
+            : sortDir === "desc"
+              ? "descending"
+              : "none"
+          : undefined
+      }
+      className={cn(
+        "h-10 whitespace-nowrap px-3 align-middle text-xs font-semibold uppercase tracking-wide text-gray-500",
+        sortable && "cursor-pointer select-none transition-colors hover:text-gray-700",
+        alignClass(align),
+        className,
+      )}
+      {...props}
+    >
+      {sortable ? (
+        <span
+          className={cn(
+            "inline-flex items-center gap-1",
+            align === "right" && "flex-row-reverse",
+            align === "center" && "justify-center",
+          )}
+        >
+          {children}
+          {sortDir === "asc" ? (
+            <ChevronUp className="h-3.5 w-3.5" />
+          ) : sortDir === "desc" ? (
+            <ChevronDown className="h-3.5 w-3.5" />
+          ) : (
+            <ChevronsUpDown className="h-3.5 w-3.5 text-gray-300" />
+          )}
+        </span>
+      ) : (
+        children
+      )}
+    </th>
+  ),
+);
 TableHead.displayName = "TableHead";
 
 type TableCellProps = React.TdHTMLAttributes<HTMLTableCellElement> &
@@ -175,7 +237,10 @@ function TableEmpty({
 }) {
   return (
     <tr>
-      <td colSpan={colSpan} className={cn("px-4 py-12 text-center text-sm text-gray-400", className)}>
+      <td
+        colSpan={colSpan}
+        className={cn("px-4 py-12 text-center text-sm text-gray-400", className)}
+      >
         {children}
       </td>
     </tr>

@@ -1,10 +1,10 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { requireModuleMember, ModuleAuth } from '../_lib/module-auth';
+import { NextRequest, NextResponse } from "next/server";
+import { requireModuleMember, ModuleAuth } from "../_lib/module-auth";
 
-export const MODULE_KEY = 'jaquar';
-export type JaquarRole = 'owner' | 'manager' | 'viewer';
+export const MODULE_KEY = "jaquar";
+export type JaquarRole = "owner" | "manager" | "viewer";
 
-export interface JaquarAuth extends Omit<ModuleAuth, 'moduleRole'> {
+export interface JaquarAuth extends Omit<ModuleAuth, "moduleRole"> {
   role: JaquarRole;
 }
 
@@ -15,8 +15,4 @@ export async function requireJaquarMember(
   const result = await requireModuleMember(req, orgId, MODULE_KEY);
   if (!result.ok) return result;
   return { ...result, role: result.moduleRole as JaquarRole };
-}
-
-export function canWrite(role: JaquarRole): boolean {
-  return ['owner', 'manager'].includes(role);
 }

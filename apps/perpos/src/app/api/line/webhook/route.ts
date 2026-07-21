@@ -8,8 +8,6 @@ import {
   extractMeetingUrl,
   makeDedupKey,
   normalizeMeetingUrl,
-  leaveBot,
-  deleteScheduledBot,
   parseMeetingDateTime,
 } from "@/lib/assistant/recall";
 import {
@@ -18,17 +16,19 @@ import {
   getBotRemaining,
   hasActiveBotForMeeting,
   createBotForHeldJob,
+  cancelBotJob,
   type HeldJob,
+  type CancelBotJobRow,
 } from "@/lib/assistant/recall-bot";
 import { buildBotFlex } from "@/lib/assistant/recall-events";
-import { getServiceRemaining } from "@/lib/assistant/token-balance";
+import { getServiceRemaining, getTokenBalance } from "@/lib/assistant/token-balance";
 import {
   buildBotConfirmFlex,
   buildQuotaTopupFlex,
   buildConnectCalendarFlex,
   buildCalendarSavedFlex,
 } from "@/lib/assistant/bot-flex";
-import { getCalendarAccessTokenForProfile, createCalendarEvent } from "@/lib/google/calendar";
+import { scheduleFutureMeeting } from "@/lib/assistant/schedule-meeting";
 import { provisionLineUser } from "../_provision";
 import { upsertMobileToken } from "../../tmc/mobile/_lib";
 import {
@@ -46,6 +46,10 @@ import {
 } from "../../crm/_line";
 import { handleJustMeClock } from "../../just-me/_line";
 import { answerFlowQuestion, isProductQuestion } from "@/lib/assistant/flow-rag";
+import { listOrders as listGovProcureOrders } from "@/lib/gov-procure/orders";
+import { getSettings as getGovProcureSettings } from "@/lib/gov-procure/settings";
+import { computeSummary as computeGovProcureSummary } from "@/lib/gov-procure/summary";
+import { buildReceivableAlertFlex, buildWeeklyPortfolioFlex } from "@/lib/gov-procure/line-cards";
 
 // ผู้ช่วยโฟล์ (RAG) เรียก Gemini แบบ inline ก่อน reply — เผื่อเวลาให้พอ (Hobby default 10 วิ สั้นไป)
 export const maxDuration = 30;
@@ -992,6 +996,100 @@ function replyText(replyToken: string, text: string) {
 }
 
 /**
+ * แจ้งปัญหาเข้า Issue Tracker (system_issues) — คำสั่ง /แจ้งปัญหา · /bug · /report
+ * ผู้ใช้ LINE ทุกคนเป็น Flow user (provisioned) → reported_by ผูก profile เสมอ ·
+ * กันสแปม: dedup ต่อ line_message_id + rate-limit 5/คน/วัน · สร้าง status='open' (รอ admin triage)
+ */
+async function handleReportIssue(
+  admin: ReturnType<typeof createAdminClient>,
+  profileId: string,
+  lineUserId: string,
+  reportText: string,
+  messageId: string,
+  replyToken: string,
+) {
+  const text = reportText.trim();
+  if (!text) {
+    return replyText(
+      replyToken,
+      "📝 วิธีแจ้งปัญหา\nพิมพ์ /แจ้งปัญหา ตามด้วยรายละเอียด\nเช่น: /แจ้งปัญหา กดบันทึกใบเสนอราคาแล้วขึ้น error",
+    );
+  }
+
+  // dedup ต่อ line message id (กัน LINE redeliver → สร้างซ้ำ)
+  const dedupKey = messageId ? `line:${messageId}` : null;
+  if (dedupKey) {
+    const { data: existing } = await admin
+      .from("system_issues")
+      .select("ref")
+      .eq("dedup_key", dedupKey)
+      .maybeSingle();
+    if (existing) return replyText(replyToken, `รับเรื่องนี้ไว้แล้วครับ — ${existing.ref}`);
+  }
+
+  // rate-limit 5/คน/วัน
+  const { data: allowed } = await admin.rpc("incr_issue_report_usage", {
+    p_line_user_id: lineUserId,
+    p_daily_limit: 5,
+  });
+  if (allowed === false) {
+    return replyText(
+      replyToken,
+      "⚠️ วันนี้แจ้งปัญหาครบ 5 เรื่องแล้ว\nลองใหม่พรุ่งนี้ หรือทักทีมงานโดยตรงได้เลยครับ",
+    );
+  }
+
+  const title = text.length > 80 ? text.slice(0, 77) + "…" : text;
+  // ส่ง param ครบทั้ง 11 (รวม default) — ตัดความกำกวมของ PostgREST default-resolution
+  const { data: ref, error } = await admin.rpc("agent_create_issue", {
+    p_type: "bug",
+    p_title: title,
+    p_severity: "sev2",
+    p_symptom: text,
+    p_reproduce: null,
+    p_area: [],
+    p_status: "open",
+    p_actor: `line:${lineUserId}`,
+    p_reported_by: profileId,
+    p_reporter_note: "แจ้งผ่าน LINE",
+    p_dedup_key: dedupKey,
+  });
+  if (error || !ref) {
+    return replyText(replyToken, "ขออภัย ระบบขัดข้องชั่วคราว ลองแจ้งใหม่อีกครั้งนะครับ 🙏");
+  }
+
+  await replyText(
+    replyToken,
+    `✅ รับเรื่องแล้ว — ${ref}\nทีมงานจะตรวจสอบและดำเนินการครับ ขอบคุณที่แจ้ง 🙏`,
+  );
+  await notifySuperAdminsOfIssue(admin, String(ref), title).catch(() => {});
+}
+
+/** push แจ้ง super_admin (ที่ผูก LINE) เมื่อมี issue ใหม่จาก LINE */
+async function notifySuperAdminsOfIssue(
+  admin: ReturnType<typeof createAdminClient>,
+  ref: string,
+  title: string,
+) {
+  const { data: admins } = await admin
+    .from("profiles")
+    .select("line_user_id")
+    .eq("role", "super_admin")
+    .not("line_user_id", "is", null);
+  if (!admins?.length) return;
+  const base = process.env.APP_BASE_URL ?? "https://app.perpos.ai";
+  const msg = `🐞 ปัญหาใหม่จาก LINE\n${ref} — ${title}\n${base}/admin/issues/${ref}`;
+  await Promise.all(
+    admins.map((a) =>
+      sendLineMessages({
+        to: a.line_user_id as string,
+        messages: [{ type: "text", text: msg }],
+      }).catch(() => {}),
+    ),
+  );
+}
+
+/**
  * ผู้ช่วยโฟล์ — ตอบคำถามสินค้า PERPOS/Flow/Suite (RAG) สำหรับ free text ที่เป็นคำถาม
  * ทุกคนที่แอด OA ใช้ได้ ไม่ต้องผูกบัญชี · rate-limit ต่อคน/วัน กัน abuse + คุมต้นทุน Gemini
  */
@@ -1012,7 +1110,19 @@ async function handleFlowChat(
     );
     return;
   }
-  const answer = await answerFlowQuestion(admin, text);
+  // ดึงชื่อ + ยอด token จาก profile (set ตอน provision) เพื่อทักด้วยชื่อจริง + บอกเครดิตคงเหลือ
+  // — ไม่ยิง LINE API เพิ่ม (กัน latency inline)
+  const { data: prof } = await admin
+    .from("profiles")
+    .select("id, display_name")
+    .eq("line_user_id", lineUserId)
+    .maybeSingle();
+  const profileId = (prof as { id?: string } | null)?.id ?? null;
+  const tokenBalance = profileId ? await getTokenBalance(admin, profileId) : null;
+  const answer = await answerFlowQuestion(admin, text, {
+    displayName: prof?.display_name ?? null,
+    tokenBalance,
+  });
   await replyText(replyToken, answer);
 }
 
@@ -1280,6 +1390,89 @@ async function getOrSetActiveOrg(
     .update({ line_active_org_id: first.organization_id })
     .eq("id", profileId);
   return first.organizations;
+}
+
+/**
+ * T4 — คำสั่ง /พอร์ต, /ค้างรับ (gov_procure) — reuse การ์ด T2/T1 ตอบกลับ (replyFlex).
+ * org-context: ผูก active org ของผู้สั่ง + เช็ค module เปิด + สิทธิ์ (role ขั้นต่ำ viewer — N5).
+ * super_admin ผ่านการเช็คสมาชิก. ถ้าไม่มีสิทธิ์ → reply ข้อความสุภาพ.
+ */
+async function handleGovProcureCmd(
+  admin: ReturnType<typeof createAdminClient>,
+  profile: { id: string; role: string },
+  activeOrg: OrgInfo | null,
+  cmd: string,
+  replyToken: string,
+) {
+  if (!activeOrg) {
+    return replyText(replyToken, "❌ ยังไม่ได้เลือกองค์กร พิมพ์ /org เพื่อเลือกองค์กรก่อนครับ");
+  }
+
+  // เช็ค module เปิด + membership (role ขั้นต่ำ viewer) — super_admin ข้ามการเช็ค
+  if (profile.role !== "super_admin") {
+    const { data: enabled } = await admin
+      .from("org_module_settings")
+      .select("is_enabled")
+      .eq("organization_id", activeOrg.id)
+      .eq("module_key", "gov_procure")
+      .maybeSingle();
+    if (!enabled?.is_enabled) {
+      return replyText(
+        replyToken,
+        `องค์กร "${activeOrg.name}" ยังไม่ได้เปิดใช้งานโมดูลจัดซื้อครุภัณฑ์ภาครัฐครับ`,
+      );
+    }
+    const { data: member } = await admin
+      .from("module_members")
+      .select("module_role")
+      .eq("org_id", activeOrg.id)
+      .eq("module_key", "gov_procure")
+      .eq("user_id", profile.id)
+      .eq("is_active", true)
+      .maybeSingle();
+    if (!member) {
+      return replyText(
+        replyToken,
+        `คุณยังไม่มีสิทธิ์เข้าถึงพอร์ตจัดซื้อขององค์กร "${activeOrg.name}" ครับ`,
+      );
+    }
+  }
+
+  const settings = await getGovProcureSettings(admin, activeOrg.id);
+  const orders = await listGovProcureOrders(admin, activeOrg.id);
+  const summary = computeGovProcureSummary(orders, settings.sla_threshold);
+
+  if (cmd === "ค้างรับ") {
+    const overdue = summary.receivables.filter((r) => r.overdue);
+    if (!overdue.length) {
+      return replyText(replyToken, "🎉 ไม่มีเงินค้างรับเกินกำหนดครับ — พอร์ตสุขภาพดี");
+    }
+    return replyLine(replyToken, [
+      buildReceivableAlertFlex(overdue, settings.sla_threshold, activeOrg.slug),
+    ]);
+  }
+
+  // /พอร์ต — สรุปพอร์ตปัจจุบัน (reuse การ์ด T2)
+  if (!orders.length) {
+    return replyText(replyToken, "ยังไม่มีงานในพอร์ตขององค์กรนี้ครับ");
+  }
+  const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+  const closedThisWeek = orders.filter(
+    (o) => o.stage === "closed" && new Date(o.updated_at).getTime() >= weekAgo,
+  ).length;
+  const dateLabel = new Date().toLocaleDateString("th-TH", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+  return replyLine(replyToken, [
+    buildWeeklyPortfolioFlex({
+      summary,
+      closedThisWeek,
+      weekLabel: `พอร์ตวันนี้ · ${dateLabel}`,
+      orgSlug: activeOrg.slug,
+    }),
+  ]);
 }
 
 async function handleOrgCmd(
@@ -1908,6 +2101,7 @@ async function handlePdfConfirm(
   admin: ReturnType<typeof createAdminClient>,
   lineUserId: string,
   messageId: string,
+  fileName: string,
   replyToken: string,
 ) {
   if (!messageId) return;
@@ -1925,7 +2119,236 @@ async function handlePdfConfirm(
     await replyText(replyToken, "❌ ยังไม่ได้เลือกองค์กร พิมพ์ /org เพื่อเลือกองค์กรก่อน");
     return;
   }
-  await handlePdfFile(admin, lineUserId, messageId, profile.id, activeOrg.id, "", replyToken);
+  // ส่งชื่อไฟล์เดิม (จาก postback) → ใช้เป็นชื่อ output แทน document-<ts>
+  await handlePdfFile(admin, lineUserId, messageId, profile.id, activeOrg.id, fileName, replyToken);
+}
+
+// ผู้ใช้กดปุ่ม "บีบแบบเข้ม" จาก Flex ผลลัพธ์ pass 1 (vector-heavy, บีบปกติได้น้อย)
+//   → สร้าง job rasterize (pass 2) อ้างไฟล์ pass 1 ใน bucket เป็น source แล้ว trigger worker
+async function handlePdfRasterConfirm(
+  admin: ReturnType<typeof createAdminClient>,
+  lineUserId: string,
+  parentJobId: string,
+  replyToken: string,
+) {
+  if (!parentJobId) return;
+  const profile = await getProfileByLineId(admin, lineUserId);
+  if (!profile) {
+    await replyText(replyToken, "❌ กรุณาแอด LINE และเริ่มต้นใช้งานก่อนครับ");
+    return;
+  }
+  if (!(await checkPdfAccess(admin, profile.id, profile.role))) {
+    await replyText(replyToken, "❌ ไม่มีสิทธิ์ใช้ฟีเจอร์บีบ PDF");
+    return;
+  }
+
+  // โหลด job ต้นทาง (pass 1) — ต้องเป็นของผู้ใช้คนนี้ + completed + มีไฟล์ผลลัพธ์ใน bucket
+  const { data: parent } = await admin
+    .from("assistant_jobs")
+    .select("id, org_id, profile_id, file_name, status, pdf_meta")
+    .eq("id", parentJobId)
+    .eq("profile_id", profile.id)
+    .eq("kind", "pdf_compress")
+    .maybeSingle();
+  const pmeta = (parent?.pdf_meta ?? {}) as {
+    output_path?: string;
+    orig_path?: string;
+    mode?: string;
+    raster_child_id?: string;
+  };
+  if (!parent || parent.status !== "completed" || !pmeta.output_path) {
+    await replyText(
+      replyToken,
+      "❌ ไม่พบไฟล์ต้นทาง อาจถูกลบแล้ว (เก็บไว้ 48 ชม.) กรุณาส่งไฟล์ใหม่อีกครั้ง",
+    );
+    return;
+  }
+  // rasterize ต้องบีบจาก "ต้นฉบับเดิม" (orig_path เก็บไว้ตอน pass 1) ไม่ใช่ output pass 1
+  //   กัน double JPEG รูปในไฟล์ · fallback output_path ถ้าไม่มี (งานเก่า/persist ล้ม)
+  const rasterSrcPath = pmeta.orig_path || pmeta.output_path;
+  if (pmeta.mode === "rasterize") {
+    await replyText(replyToken, "ไฟล์นี้บีบแบบเข้มไปแล้วครับ 🙏");
+    return;
+  }
+  // กดซ้ำ → มี job rasterize ค้างอยู่แล้ว
+  if (pmeta.raster_child_id) {
+    await replyText(replyToken, "⚡ กำลังบีบแบบเข้มให้อยู่แล้ว รอสักครู่นะครับ");
+    return;
+  }
+
+  // เครดิตต้องพอ (โหมดเข้มคิดตามจำนวนหน้าเสมอ)
+  const { remainUnits } = await getServiceRemaining(admin, profile.id, "pdf");
+  if (remainUnits <= 0) {
+    await replyText(replyToken, "❌ เครดิตของคุณหมดแล้ว\nพิมพ์ /web เพื่อเติมเครดิตครับ");
+    return;
+  }
+
+  const orgId = String(parent.org_id);
+  const { data: child, error: childErr } = await admin
+    .from("assistant_jobs")
+    .insert({
+      org_id: orgId,
+      profile_id: profile.id,
+      kind: "pdf_compress",
+      source: "line",
+      file_name: String(parent.file_name ?? "document.pdf"),
+      mime_type: "application/pdf",
+      triggered_by: profile.id,
+      pdf_meta: { mode: "rasterize", src_path: rasterSrcPath, parent_job_id: parentJobId },
+    })
+    .select("id")
+    .single();
+  if (childErr || !child) {
+    await replyText(replyToken, `❌ เริ่มบีบแบบเข้มไม่สำเร็จ: ${childErr?.message ?? ""}`);
+    return;
+  }
+
+  // ผูก child id กลับ parent → กันกดซ้ำสร้างงานซ้ำ
+  await admin
+    .from("assistant_jobs")
+    .update({ pdf_meta: { ...pmeta, raster_child_id: child.id } })
+    .eq("id", parentJobId)
+    .then(
+      () => undefined,
+      () => undefined,
+    );
+
+  await replyText(
+    replyToken,
+    "⚡ กำลังบีบแบบเข้ม (แปลงหน้าเป็นรูปภาพ) — เสร็จแล้วจะส่งไฟล์กลับมาให้อัตโนมัติครับ",
+  );
+
+  const trig = await triggerPdfWorker(admin, child.id as string, orgId);
+  if (!trig.ok) {
+    const text = trig.queued
+      ? "⏳ ขณะนี้มีงานเข้ามาจำนวนมาก งานของคุณเข้าคิวแล้ว ระบบจะบีบให้อัตโนมัติเมื่อถึงคิว รอสักครู่นะครับ 🙏"
+      : "❌ ขออภัย เริ่มบีบแบบเข้มไม่สำเร็จ กรุณาลองใหม่อีกครั้ง";
+    await sendLineMessages({ to: lineUserId, messages: [{ type: "text", text }] }).catch(
+      () => undefined,
+    );
+  }
+}
+
+// การ์ดอธิบาย 1 ฟีเจอร์ (ใช้ใน carousel ต่อท้าย welcome) — header charcoal flat + accent Flow green
+function buildFeatureBubble(opts: {
+  icon: string;
+  title: string;
+  tagline: string;
+  points: string[];
+  hint: string;
+}) {
+  return {
+    type: "bubble" as const,
+    size: "kilo" as const,
+    header: {
+      type: "box",
+      layout: "vertical",
+      backgroundColor: "#3C3B3D",
+      paddingAll: "16px",
+      contents: [
+        {
+          type: "text",
+          text: `${opts.icon} ${opts.title}`,
+          color: "#ffffff",
+          weight: "bold",
+          size: "md",
+          wrap: true,
+        },
+      ],
+    },
+    body: {
+      type: "box",
+      layout: "vertical",
+      paddingAll: "16px",
+      spacing: "md",
+      contents: [
+        { type: "text", text: opts.tagline, size: "sm", color: "#525866", wrap: true },
+        { type: "separator", margin: "md" },
+        {
+          type: "box",
+          layout: "vertical",
+          spacing: "sm",
+          margin: "md",
+          contents: opts.points.map((p) => ({
+            type: "box",
+            layout: "horizontal",
+            spacing: "sm",
+            contents: [
+              { type: "text", text: "•", size: "sm", color: "#48CFAD", flex: 0 },
+              { type: "text", text: p, size: "sm", color: "#656D78", wrap: true },
+            ],
+          })),
+        },
+        // filler ดูดช่องว่าง → ดันกรอบ hint ลงไปชิดด้านล่าง (carousel ยืด body ทุกใบสูงเท่าใบสูงสุด)
+        { type: "filler" },
+        {
+          type: "box",
+          layout: "vertical",
+          backgroundColor: "#E4F8F3",
+          cornerRadius: "10px",
+          paddingAll: "12px",
+          margin: "md",
+          contents: [
+            {
+              type: "text",
+              text: opts.hint,
+              size: "xs",
+              weight: "bold",
+              color: "#44A38B",
+              align: "center",
+              wrap: true,
+            },
+          ],
+        },
+      ],
+    },
+  };
+}
+
+// carousel 3 ฟีเจอร์ (ถอดเสียง · บอทประชุม · บีบ PDF) — เลื่อนทางขวา ส่งต่อท้าย welcome
+function buildFeaturesCarousel() {
+  return {
+    type: "flex" as const,
+    altText: "ฟีเจอร์ผู้ช่วย Flow — 🎙️ ถอดเสียงประชุม · 🤖 บอทเข้าประชุม · 📑 บีบ PDF",
+    contents: {
+      type: "carousel" as const,
+      contents: [
+        buildFeatureBubble({
+          icon: "🎙️",
+          title: "ถอดเสียงประชุม",
+          tagline: "อัปไฟล์เสียง/วิดีโอ แล้วได้รายงานการประชุม (MoM) เป็น PDF",
+          points: [
+            "สรุปหัวข้อ · มติที่ประชุม · งานที่ต้องทำ · ผู้เข้าร่วม",
+            "รองรับไทย/อังกฤษ และไฟล์ยาวหลายชั่วโมง",
+            "ไฟล์เสียงถูกลบทันทีหลังสรุปเสร็จ (PDPA)",
+          ],
+          hint: "📎 ส่งไฟล์เสียง/วิดีโอ หรือพิมพ์ /mom",
+        }),
+        buildFeatureBubble({
+          icon: "🤖",
+          title: "บอทเข้าประชุม",
+          tagline: "วางลิงก์ Zoom / Google Meet / Teams แล้วบอทเข้าไปอัดและสรุปให้",
+          points: [
+            "บอทเข้าห้องแทนคุณ ไม่ต้องนั่งอัดเอง",
+            "จบประชุม → ส่ง MoM PDF กลับทาง LINE",
+            "เหมาะกับประชุมที่เข้าร่วมไม่ได้/อยากโฟกัสคุย",
+          ],
+          hint: "🔗 วางลิงก์ห้องประชุมในแชตนี้ได้เลย",
+        }),
+        buildFeatureBubble({
+          icon: "📑",
+          title: "บีบขนาด PDF",
+          tagline: "ส่งไฟล์ PDF แล้วบีบให้เล็กลง ส่งต่อง่าย อัปโหลดไว",
+          points: [
+            "ลดขนาดให้อัตโนมัติ คงความคมชัดของเอกสาร",
+            "ถ้าบีบปกติไม่ลง มีโหมดบีบแบบเข้ม (rasterize)",
+            "คงชื่อไฟล์เดิม ส่งกลับทาง LINE",
+          ],
+          hint: "📎 โยนไฟล์ PDF เข้ามาได้เลย",
+        }),
+      ],
+    },
+  };
 }
 
 // auto-onboarding เมื่อมี follow event → provision + welcome Flex (การ์ดต้อนรับสวย ๆ)
@@ -1934,13 +2357,9 @@ async function handleFollow(admin: ReturnType<typeof createAdminClient>, lineUse
   const name = result.displayName;
   const greeting = result.isNew ? `ยินดีต้อนรับ คุณ${name} 🎉` : `ยินดีต้อนรับกลับมา คุณ${name} 🙌`;
 
-  // คงเหลือ 2 มิเตอร์ (unified pool) — ถอดเสียง/บอทประชุม คิดจากยอด token เดียวกัน ÷ rate
-  const [stt, bot] = await Promise.all([
-    getServiceRemaining(admin, result.profileId, "stt"),
-    getServiceRemaining(admin, result.profileId, "bot"),
-  ]);
-  const remainMin = stt.remainMin;
-  const botRemainMin = bot.remainMin;
+  // เครดิต = ยอด token คงเหลือ (unified pool) — แสดงเป็น token ตรง ๆ
+  const balance = await getTokenBalance(admin, result.profileId);
+  const tokenText = `${balance.toLocaleString("th-TH")} token`;
   const giftLabel = result.isNew ? "เครดิตฟรีสำหรับคุณ" : "เครดิตคงเหลือ";
 
   const steps: Array<[string, string]> = [
@@ -1960,12 +2379,12 @@ async function handleFollow(admin: ReturnType<typeof createAdminClient>, lineUse
         layout: "vertical",
         width: "26px",
         height: "26px",
-        backgroundColor: "#ECE8F4",
+        backgroundColor: "#E4F8F3",
         cornerRadius: "13px",
         justifyContent: "center",
         flex: 0,
         contents: [
-          { type: "text", text: n, size: "sm", weight: "bold", color: "#4FC1E9", align: "center" },
+          { type: "text", text: n, size: "sm", weight: "bold", color: "#44A38B", align: "center" },
         ],
       },
       { type: "text", text: txt, size: "sm", color: "#525866", wrap: true, gravity: "center" },
@@ -1977,29 +2396,46 @@ async function handleFollow(admin: ReturnType<typeof createAdminClient>, lineUse
     messages: [
       {
         type: "flex",
-        altText: `ยินดีต้อนรับสู่ PERPOS Assistant — ถอดเสียง ${remainMin} นาที · บอทประชุม ${botRemainMin} นาที`,
+        altText: `ยินดีต้อนรับสู่ PERPOS Assistant — เครดิตฟรี ${tokenText}`,
         contents: {
           type: "bubble",
           size: "mega",
           header: {
             type: "box",
             layout: "vertical",
-            backgroundColor: "#4FC1E9",
+            backgroundColor: "#3C3B3D",
             paddingAll: "20px",
             paddingBottom: "16px",
             spacing: "sm",
             contents: [
               {
-                type: "text",
-                text: "PERPOS Assistant",
-                color: "#ffffff",
-                weight: "bold",
-                size: "xl",
+                type: "box",
+                layout: "baseline",
+                spacing: "sm",
+                contents: [
+                  {
+                    type: "text",
+                    text: "PERPOS",
+                    color: "#ffffff",
+                    weight: "bold",
+                    size: "xl",
+                    flex: 0,
+                  },
+                  { type: "text", text: "|", color: "#9CA3AF", size: "xl", flex: 0 },
+                  {
+                    type: "text",
+                    text: "Flow",
+                    color: "#79DCC3",
+                    weight: "bold",
+                    size: "xl",
+                    flex: 0,
+                  },
+                ],
               },
               {
                 type: "text",
-                text: "🎙️ ถอดเสียงประชุม → รายงานการประชุม (PDF)",
-                color: "#E5F6FC",
+                text: "ผู้ช่วย AI ส่วนตัวบน LINE",
+                color: "#CCD1D9",
                 size: "xs",
                 wrap: true,
               },
@@ -2037,16 +2473,9 @@ async function handleFollow(admin: ReturnType<typeof createAdminClient>, lineUse
                       { type: "text", text: giftLabel, size: "xs", color: "#44A38B" },
                       {
                         type: "text",
-                        text: `🎙️ ถอดเสียง ${remainMin} นาที`,
+                        text: tokenText,
                         weight: "bold",
-                        size: "md",
-                        color: "#428B79",
-                      },
-                      {
-                        type: "text",
-                        text: `🤖 บอทเข้าประชุม ${botRemainMin} นาที`,
-                        weight: "bold",
-                        size: "md",
+                        size: "xl",
                         color: "#428B79",
                       },
                     ],
@@ -2082,15 +2511,35 @@ async function handleFollow(admin: ReturnType<typeof createAdminClient>, lineUse
             paddingTop: "8px",
             contents: [
               {
-                type: "button",
-                style: "primary",
-                color: "#4FC1E9",
-                height: "md",
-                action: { type: "message", label: "🎙️ เริ่มถอดเสียงเลย", text: "/mom" },
+                type: "box",
+                layout: "vertical",
+                backgroundColor: "#F5F7FA",
+                cornerRadius: "10px",
+                paddingAll: "14px",
+                contents: [
+                  {
+                    type: "text",
+                    text: "📎 โยนไฟล์เข้ามาในแชตนี้ได้เลย",
+                    size: "sm",
+                    weight: "bold",
+                    color: "#3C3B3D",
+                    align: "center",
+                    wrap: true,
+                  },
+                  {
+                    type: "text",
+                    text: "ไฟล์เสียง · วิดีโอ · PDF หรือวางลิงก์ประชุม",
+                    size: "xs",
+                    color: "#656D78",
+                    align: "center",
+                    wrap: true,
+                    margin: "xs",
+                  },
+                ],
               },
               {
                 type: "text",
-                text: "รองรับไฟล์เสียง/วิดีโอ ไม่เกิน 200MB",
+                text: "รองรับไฟล์เสียง/วิดีโอ ได้สูงสุด 500MB",
                 size: "xxs",
                 color: "#9ca3af",
                 align: "center",
@@ -2099,6 +2548,7 @@ async function handleFollow(admin: ReturnType<typeof createAdminClient>, lineUse
           },
         },
       },
+      buildFeaturesCarousel(),
     ],
   }).catch(() => undefined);
 }
@@ -2477,18 +2927,6 @@ async function handleMeetingLink(
   return true;
 }
 
-/** ดึงชื่อ event จากข้อความผู้ใช้ (ตัด URL ออก) → fallback "ประชุม (<platform>)" */
-function deriveEventTitle(text: string, meetingUrl: string, platformLabel: string): string {
-  // ตัด url + query/slug ที่ติดกันท้าย url ด้วย (GMeet regex หยุดก่อน `?` → เหลือ ?authuser=0 ค้าง)
-  const escaped = meetingUrl.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const cleaned = text
-    .replace(new RegExp(escaped + "\\S*", "g"), "")
-    .replace(/https?:\/\/\S+/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
-  return cleaned.length > 0 ? cleaned.slice(0, 200) : `ประชุม (${platformLabel})`;
-}
-
 /** ลิงก์ประชุมมีเวลานัดอนาคต → เขียนลง Google Calendar (ถ้าเชื่อมแล้ว) + cache · บอทส่งทีหลังผ่านการเตือน 5 นาทีก่อน */
 async function handleFutureMeetingLink(
   admin: ReturnType<typeof createAdminClient>,
@@ -2499,13 +2937,6 @@ async function handleFutureMeetingLink(
   text: string,
   replyToken: string,
 ): Promise<boolean> {
-  const platformLabel = PLATFORM_LABEL[found.platform] ?? "ห้องประชุม";
-  const joinAtText = new Intl.DateTimeFormat("th-TH", {
-    timeZone: "Asia/Bangkok",
-    dateStyle: "long",
-    timeStyle: "short",
-  }).format(joinAt);
-
   // ชวนเชื่อม Google ผ่าน LINE (magic link → /line/connect-calendar) — ใช้ทั้งตอนยังไม่เชื่อม + token เพิกถอน
   const sendConnectCard = async () => {
     const token = crypto.randomBytes(24).toString("base64url");
@@ -2522,64 +2953,26 @@ async function handleFutureMeetingLink(
     ]);
   };
 
-  // ต้องเชื่อม Google ก่อน — refresh ล้ม/เพิกถอน (throw) ถือว่ายังไม่เชื่อม → ชวนเชื่อม (ไม่ปล่อย error หลุด → กัน webhook 500/retry)
-  let accessToken: string | null = null;
-  try {
-    accessToken = await getCalendarAccessTokenForProfile(admin, profileId);
-  } catch {
-    accessToken = null;
-  }
-  if (!accessToken) {
+  // logic เดียวกับเว็บ (shared lib) — throw ถูก swallow ภายใน → ไม่ปล่อย error หลุด (กัน webhook 500/retry)
+  const result = await scheduleFutureMeeting(admin, {
+    profileId,
+    orgId,
+    found,
+    joinAt,
+    text,
+    source: "line",
+  });
+  if (result.kind === "not_connected") {
     await sendConnectCard();
     return true;
   }
-
-  // dedup ห้องเดียวกัน (เทียบด้วย meeting_key ที่ normalize — Zoom/Teams ลิงก์ต่างฟอร์แมตก็จับได้)
-  // ในหน้าต่างเวลา ±30 นาที ที่ยังไม่ถูกลบ → ไม่เขียนซ้ำ
-  const meetingKey = normalizeMeetingUrl(found.url);
-  const lo = new Date(joinAt.getTime() - 30 * 60 * 1000).toISOString();
-  const hi = new Date(joinAt.getTime() + 30 * 60 * 1000).toISOString();
-  const { data: existing } = await admin
-    .from("recall_calendar_events")
-    .select("id")
-    .eq("profile_id", profileId)
-    .eq("meeting_key", meetingKey)
-    .eq("is_deleted", false)
-    .gte("starts_at", lo)
-    .lte("starts_at", hi)
-    .limit(1)
-    .maybeSingle();
-  if (existing) {
-    await replyText(replyToken, `📅 มีนัดประชุมนี้ในปฏิทินอยู่แล้ว (${joinAtText} น.) ครับ`);
+  if (result.kind === "exists") {
+    await replyText(replyToken, `📅 มีนัดประชุมนี้ในปฏิทินอยู่แล้ว (${result.joinAtText} น.) ครับ`);
     return true;
   }
-
-  const title = deriveEventTitle(text, found.url, platformLabel);
-  let googleEventId: string | null = null;
-  try {
-    const ev = await createCalendarEvent({ accessToken, title, startsAt: joinAt.toISOString() });
-    googleEventId = ev?.id ?? null;
-  } catch {
-    await sendConnectCard(); // token เพิกถอน/หมดสิทธิ์ → ชวนเชื่อมใหม่
-    return true;
-  }
-
-  await admin.from("recall_calendar_events").insert({
-    profile_id: profileId,
-    org_id: orgId,
-    google_event_id: googleEventId,
-    source: "line",
-    title,
-    meeting_url: found.url,
-    meeting_key: meetingKey,
-    starts_at: joinAt.toISOString(),
-    confirm_state: "pending",
-  });
-  // เชื่อม + ใช้ปฏิทินแล้ว = opt-in sync ปฏิทินอัตโนมัติ (scheduler step 1b จะกวาด event อื่นมาเตือนให้ด้วย)
-  await admin
-    .from("meeting_calendar_settings")
-    .upsert({ profile_id: profileId }, { onConflict: "profile_id", ignoreDuplicates: true });
-  await replyLine(replyToken, [buildCalendarSavedFlex(title, joinAtText, platformLabel)]);
+  await replyLine(replyToken, [
+    buildCalendarSavedFlex(result.title, result.joinAtText, result.platformLabel),
+  ]);
   return true;
 }
 
@@ -2842,13 +3235,7 @@ async function handleRecallCancel(
     .select("id, profile_id, recall_bot_id, bot_state, recording_started_at")
     .eq("id", jobId)
     .maybeSingle();
-  const job = jobData as {
-    id: string;
-    profile_id: string | null;
-    recall_bot_id: string | null;
-    bot_state: string | null;
-    recording_started_at: string | null;
-  } | null;
+  const job = jobData as CancelBotJobRow | null;
   if (!job) return;
 
   // ตรวจเจ้าของ (กันคนอื่นยกเลิกบอทเรา)
@@ -2859,37 +3246,19 @@ async function handleRecallCancel(
     .maybeSingle();
   if ((prof as { line_user_id?: string } | null)?.line_user_id !== lineUserId) return;
 
-  if (
-    ["cancelled", "fatal", "recording_ready", "done", "failed_permanent", "stuck"].includes(
-      job.bot_state ?? "",
-    )
-  ) {
+  const outcome = await cancelBotJob(admin, job);
+  if (outcome.kind === "already_done") {
     await replyText(replyToken, "งานนี้จบหรือถูกยกเลิกไปแล้วครับ");
     return;
   }
-
-  // ถ้า settle เกิดแล้ว (บอทออกเพราะครบโควต้า — scheduler หักโควต้า + แจ้งไปแล้ว) → ยกเลิกไม่ได้
-  // ห้ามอ้างคืนโควต้า (เป็น usage จริง) + กันข้อความขัดกับ "ครบโควต้า" ที่ส่งไปแล้ว
-  const { data: settled } = await admin
-    .from("token_ledger")
-    .select("id")
-    .eq("job_id", jobId)
-    .eq("kind", "adjust")
-    .eq("reason", "bot-settled")
-    .limit(1)
-    .maybeSingle();
-  if (settled || job.bot_state === "leaving") {
+  if (outcome.kind === "settling") {
     await replyText(
       replyToken,
       "🤖 บอทออกจากห้องประชุมแล้ว กำลังสรุปรายงานการประชุมให้อยู่ครับ 🙏",
     );
     return;
   }
-
-  // บอท "เริ่มอัดแล้ว" (มีเสียงประชุม) → นำออก แล้วปล่อยให้ bot.done คิดตามเวลาบอทในห้อง + ถอดเท่าที่บันทึก
-  //   ไม่ refund, ไม่ mark cancelled (ให้ pipeline done→worker ทำต่อ: settle presence + ส่ง MoM)
-  if (job.recording_started_at) {
-    if (job.recall_bot_id) await leaveBot(job.recall_bot_id).catch(() => false);
+  if (outcome.kind === "recording_left") {
     await replyText(
       replyToken,
       "🤖 นำบอทออกจากห้องแล้ว — จะส่งสรุปการประชุมเท่าที่บันทึกได้ และคิดโควต้าตามเวลาที่บอทอยู่ในห้องครับ",
@@ -2897,22 +3266,7 @@ async function handleRecallCancel(
     return;
   }
 
-  // ยังไม่เริ่มอัดเลย (รอหน้าห้อง/ยังไม่เริ่มประชุม) → คืนโควต้าเต็ม (ไม่คิด แม้ Recall อาจคิดเรา)
-  if (job.recall_bot_id) {
-    if (job.bot_state === "scheduled")
-      await deleteScheduledBot(job.recall_bot_id).catch(() => false);
-    else await leaveBot(job.recall_bot_id).catch(() => false);
-  }
-  await admin.rpc("refund_bot_quota", { p_job_id: jobId }).then(
-    () => undefined,
-    () => undefined,
-  );
-  await admin
-    .from("assistant_jobs")
-    .update({ status: "failed", bot_state: "cancelled", updated_at: new Date().toISOString() })
-    .eq("id", jobId);
-
-  const { remainMin } = await getBotRemaining(admin, job.profile_id ?? "");
+  const remainMin = outcome.remainMin;
   await replyLine(replyToken, [
     {
       type: "flex",
@@ -3006,7 +3360,19 @@ export async function POST(req: NextRequest) {
           "รับทราบครับ — หากต้องการถอดเสียงภายหลัง ส่งไฟล์เสียงเข้ามาใหม่ได้เลย 🙏",
         );
       } else if (pbUserId && pbData.startsWith("pdffile:")) {
-        await handlePdfConfirm(admin, pbUserId, pbData.slice("pdffile:".length), pbReplyToken);
+        // data = "pdffile:<messageId>[:<fileName>]" — messageId เป็นตัวเลข (ไม่มี :) แยกที่ : ตัวแรก
+        const rest = pbData.slice("pdffile:".length);
+        const sep = rest.indexOf(":");
+        const pdfMsgId = sep >= 0 ? rest.slice(0, sep) : rest;
+        const pdfFileName = sep >= 0 ? rest.slice(sep + 1) : "";
+        await handlePdfConfirm(admin, pbUserId, pdfMsgId, pdfFileName, pbReplyToken);
+      } else if (pbUserId && pbData.startsWith("pdfraster:")) {
+        await handlePdfRasterConfirm(
+          admin,
+          pbUserId,
+          pbData.slice("pdfraster:".length),
+          pbReplyToken,
+        );
       } else if (pbData === "pdfcancel") {
         await replyText(
           pbReplyToken,
@@ -3030,6 +3396,19 @@ export async function POST(req: NextRequest) {
     const replyToken = String(event.replyToken ?? "");
     const source = event.source as Record<string, string>;
     const lineUserId = source?.userId ?? "";
+
+    // ─── Auto-provision (self-heal) — ผู้ใช้ที่ยังไม่มี profile ส่งข้อความอะไรมาก็สร้างให้ทันที ──
+    //   กันเคส follow event หลุด (เช่น webhook ตายช่วงย้ายโดเมน / deploy) → ผู้ใช้ไม่ถูก provision
+    //   handleFollow = provision (idempotent) + แจกเครดิต + push welcome card ถ้าเป็นคนใหม่
+    //   จากนั้นไหลเข้า logic เดิม (downstream getProfileByLineId จะเจอ profile แล้ว)
+    if (lineUserId) {
+      const known = await getProfileByLineId(admin, lineUserId);
+      if (!known) {
+        await handleFollow(admin, lineUserId).catch((e) =>
+          console.error("[line] message-path provision failed:", String(e)),
+        );
+      }
+    }
 
     // ─── Image messages — CRM photo attachment ──────────────────────────────
     if (msg.type === "image") {
@@ -3217,7 +3596,12 @@ export async function POST(req: NextRequest) {
                     action: {
                       type: "postback",
                       label: "บีบขนาดเลย",
-                      data: `pdffile:${messageId}`,
+                      // ฝากชื่อไฟล์เดิมไปด้วย (กดยืนยันแล้วจะได้ใช้ชื่อจริง ไม่ใช่ document-<ts>)
+                      //   LINE จำกัด data 300 ตัวอักษร — ยาวเกินค่อย fallback เป็น messageId อย่างเดียว
+                      data:
+                        `pdffile:${messageId}:${fileName}`.length <= 300
+                          ? `pdffile:${messageId}:${fileName}`
+                          : `pdffile:${messageId}`,
                       displayText: "บีบไฟล์นี้",
                     },
                   },
@@ -3368,6 +3752,19 @@ export async function POST(req: NextRequest) {
       continue;
     }
 
+    // /แจ้งปัญหา · /bug · /report <ข้อความ> — แจ้งปัญหาเข้า Issue Tracker (ไม่ต้องใช้ org)
+    if (cmd === "แจ้งปัญหา" || cmd === "bug" || cmd === "report") {
+      await handleReportIssue(
+        admin,
+        profile.id,
+        lineUserId,
+        args.join(" "),
+        String(msg.id ?? ""),
+        replyToken,
+      );
+      continue;
+    }
+
     // /org [N] — list or switch active organization
     if (cmd === "org") {
       await handleOrgCmd(admin, profile.id, args, replyToken);
@@ -3376,6 +3773,12 @@ export async function POST(req: NextRequest) {
 
     // Resolve active org (auto-sets on first use)
     const activeOrg = await getOrSetActiveOrg(admin, profile.id, profile.line_active_org_id);
+
+    // /พอร์ต · /ค้างรับ — gov_procure (T4) — reuse การ์ด T2/T1, ผูก active org + module access
+    if (cmd === "พอร์ต" || cmd === "ค้างรับ") {
+      await handleGovProcureCmd(admin, profile, activeOrg, cmd, replyToken);
+      continue;
+    }
 
     // /help — org-aware Flex Card
     if (cmd === "help") {
@@ -3451,6 +3854,7 @@ export async function POST(req: NextRequest) {
           { type: "separator", margin: "md" },
           { type: "text", text: "คำสั่งหลัก", size: "xs", color: "#9CA3AF", margin: "md" },
           cmdRow("/org", "ดู/เปลี่ยน Organization"),
+          cmdRow("/แจ้งปัญหา <ข้อความ>", "แจ้งปัญหา/บั๊กให้ทีมงาน"),
           cmdRow("/help", "แสดงคำสั่งทั้งหมด"),
         ];
 
