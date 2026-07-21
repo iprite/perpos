@@ -58,10 +58,7 @@ export async function POST(req: NextRequest, ctx: Ctx) {
 
   const issueDate = new Date().toISOString().slice(0, 10);
   const year = Number(issueDate.slice(0, 4));
-  const newNumber = await nextDocNumber(admin, "acc_documents", orgId, target.prefix, year, {
-    column: "doc_type",
-    value: target.type,
-  });
+  const newNumber = await nextDocNumber(admin, orgId, target.type, year);
 
   // snapshot ม.86/4 ใหม่ ณ วันที่แปลง (ไม่ copy ของใบต้นทาง — ใบใหม่คือเอกสารคนละฉบับ คนละวัน)
   const party = await buildPartySnapshot(admin, orgId, (doc.contact_id as string | null) ?? null);

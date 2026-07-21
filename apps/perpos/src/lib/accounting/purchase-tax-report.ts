@@ -63,6 +63,7 @@ export async function getPurchaseTaxReport(
     .eq("tax_year", year)
     .eq("tax_month", month)
     .neq("status", "void")
+    .is("deleted_at", null)
     .order("issue_date", { ascending: true })
     .order("doc_number", { ascending: true });
   if (error) throw new Error(error.message);

@@ -160,7 +160,11 @@ export async function listDocuments(
   orgId: string,
   opts?: ListDocumentsOpts,
 ): Promise<AccDocument[]> {
-  let q = db.from("acc_documents").select("*, acc_contacts(name)").eq("org_id", orgId);
+  let q = db
+    .from("acc_documents")
+    .select("*, acc_contacts(name)")
+    .eq("org_id", orgId)
+    .is("deleted_at", null);
   if (opts?.docType) q = q.eq("doc_type", opts.docType);
   if (opts?.status) q = q.eq("status", opts.status);
   if (opts?.contactId) q = q.eq("contact_id", opts.contactId);
@@ -186,6 +190,8 @@ export async function getDocument(
     .select("*, acc_contacts(name), ref_document:ref_document_id(doc_number)")
     .eq("org_id", orgId)
     .eq("id", id)
+    // soft delete = มองไม่เห็นจากแอป (แถวยังอยู่ใน DB เพื่อ retention 5 ปี)
+    .is("deleted_at", null)
     .maybeSingle();
   if (error) throw new Error(error.message);
   if (!doc) return null;

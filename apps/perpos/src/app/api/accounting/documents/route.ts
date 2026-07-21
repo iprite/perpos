@@ -9,6 +9,7 @@ import {
   orgIdFromQuery,
   num,
   nextDocNumber,
+  assertPeriodOpen,
 } from "../_lib";
 import { listDocuments, computeDocument, buildPartySnapshot } from "@/lib/accounting/documents";
 import { isTaxDocument, requiresRefDocument, type AccDocType } from "@/lib/accounting/types";
@@ -26,17 +27,6 @@ const VALID_DOC_TYPES: AccDocType[] = [
   "billing_note",
   "delivery_note",
 ];
-const DOC_PREFIX: Record<AccDocType, string> = {
-  quotation: "QT",
-  invoice: "INV",
-  receipt: "RC",
-  tax_invoice: "TIV",
-  receipt_tax_invoice: "RTV",
-  credit_note: "CN",
-  debit_note: "DN",
-  billing_note: "BN",
-  delivery_note: "DO",
-};
 const VALID_WHT = [0, 1, 2, 3, 5, 10, 15];
 
 /** GET ?orgId=&docType=&status=&from=&to= → เอกสารขาย (list) */
@@ -123,12 +113,19 @@ export async function POST(req: NextRequest) {
   // snapshot ม.86/4 — freeze ผู้ขาย/ผู้ซื้อ ณ วันที่ออก (ห้าม join สดตอนพิมพ์)
   const party = await buildPartySnapshot(admin, orgId, contactId);
 
-  await setAuditContext(req, auth.userId, orgId);
+  // งวดปิดแล้วห้ามออกเอกสารลงงวดนั้น — เช็คก่อนจองเลข (จองแล้วเลขไม่คืน)
   const year = Number(issueDate.slice(0, 4));
-  const docNumber = await nextDocNumber(admin, "acc_documents", orgId, DOC_PREFIX[docType], year, {
-    column: "doc_type",
-    value: docType,
-  });
+  const month = Number(issueDate.slice(5, 7));
+  const periodOk = await assertPeriodOpen(admin, orgId, year, month);
+  if (!periodOk.ok)
+    return accError(
+      `งวดบัญชี ${year}/${String(month).padStart(2, "0")} ปิดแล้ว ออกเอกสารลงงวดนี้ไม่ได้`,
+      409,
+    );
+
+  await setAuditContext(req, auth.userId, orgId);
+  // เลขจาก sequence atomic + รหัสนำหน้าที่ org ตั้งไว้จริง (ไม่ hard-code แล้ว)
+  const docNumber = await nextDocNumber(admin, orgId, docType, year);
 
   const { data: header, error: hErr } = await admin
     .from("acc_documents")

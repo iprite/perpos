@@ -110,7 +110,7 @@ export async function POST(req: NextRequest) {
   if ((validAccts ?? []).length !== accIds.length) return accError("มีบัญชีที่ไม่ถูกต้อง", 400);
 
   const year = Number(entryDate.slice(0, 4));
-  const entryNumber = await nextDocNumber(admin, "acc_journal_entries", orgId, "JV", year);
+  const entryNumber = await nextDocNumber(admin, orgId, "journal", year);
 
   const { data: header, error: hErr } = await admin
     .from("acc_journal_entries")

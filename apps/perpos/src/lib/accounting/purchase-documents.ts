@@ -153,7 +153,11 @@ export async function listPurchaseDocuments(
   orgId: string,
   opts?: ListPurchaseDocumentsOpts,
 ): Promise<AccPurchaseDocument[]> {
-  let q = db.from("acc_purchase_documents").select("*, acc_contacts(name)").eq("org_id", orgId);
+  let q = db
+    .from("acc_purchase_documents")
+    .select("*, acc_contacts(name)")
+    .eq("org_id", orgId)
+    .is("deleted_at", null);
   if (opts?.docType) q = q.eq("doc_type", opts.docType);
   if (opts?.status) q = q.eq("status", opts.status);
   if (opts?.contactId) q = q.eq("contact_id", opts.contactId);
@@ -184,6 +188,7 @@ export async function getPurchaseDocument(
     )
     .eq("org_id", orgId)
     .eq("id", id)
+    .is("deleted_at", null)
     .maybeSingle();
   if (error) throw new Error(error.message);
   if (!doc) return null;
