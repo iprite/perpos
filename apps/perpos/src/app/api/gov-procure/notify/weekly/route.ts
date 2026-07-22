@@ -86,7 +86,7 @@ async function run(req: NextRequest) {
       const to = await getRecipientLineUserIds(admin, orgId, roles);
 
       const slug = await getOrgSlug(admin, orgId);
-      const flex = buildWeeklyPortfolioFlex({ summary, closedThisWeek, weekLabel, orgSlug: slug });
+      const flex = buildWeeklyPortfolioFlex({ summary, closedThisWeek, weekLabel });
       const ok = await pushToGovTargets(admin, orgId, to, [flex]);
       if (!ok) {
         skipped++;

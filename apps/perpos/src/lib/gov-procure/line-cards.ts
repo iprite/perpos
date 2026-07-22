@@ -24,16 +24,6 @@ const SUCCESS = "#065F46"; // success chip text
 const SUCCESS_BG = "#F2FCF9"; // success chip bg
 const SEPARATOR = "#E6E9EE";
 
-function appBase(): string {
-  return (process.env.APP_BASE_URL ?? "https://app.perpos.ai").replace(/\/$/, "");
-}
-
-/** URL เข้าหน้าโมดูลต่อ org (production route /[orgSlug]/gov-procure/...) */
-function moduleUrl(orgSlug: string, seg = ""): string {
-  const path = seg ? `/gov-procure/${seg}` : "/gov-procure";
-  return `${appBase()}/${orgSlug}${path}`;
-}
-
 /** เงินบาท — comma group + ยอดลบ U+2212 (−, ไม่ใช่ hyphen) ตาม DESIGN §2 */
 export function fmtBaht(n: number): string {
   const abs = Math.abs(n).toLocaleString("th-TH", {
@@ -67,7 +57,6 @@ function orderTitle(r: {
 export function buildReceivableAlertFlex(
   overdue: ReceivableRow[],
   slaThreshold: number,
-  orgSlug: string,
 ): LineMessage {
   const total = overdue.reduce((s, r) => s + r.amount, 0);
   const top = overdue.slice(0, 5);
@@ -151,24 +140,6 @@ export function buildReceivableAlertFlex(
           ...rows,
         ],
       },
-      footer: {
-        type: "box",
-        layout: "vertical",
-        paddingAll: "14px",
-        contents: [
-          {
-            type: "button",
-            style: "primary",
-            height: "sm",
-            color: CHARCOAL,
-            action: {
-              type: "uri",
-              label: "ดูเงินค้างรับทั้งหมด",
-              uri: moduleUrl(orgSlug, "receivables"),
-            },
-          },
-        ],
-      },
     },
   };
 }
@@ -178,10 +149,9 @@ export function buildWeeklyPortfolioFlex(args: {
   summary: GovProcureSummary;
   closedThisWeek: number;
   weekLabel: string;
-  orgSlug: string;
   aiInsight?: string;
 }): LineMessage {
-  const { summary, closedThisWeek, weekLabel, orgSlug, aiInsight } = args;
+  const { summary, closedThisWeek, weekLabel, aiInsight } = args;
   // แสดงเฉพาะบริษัทที่มีมูลค่าจริง — กันบรรทัดยาวเกินความกว้าง Flex bubble
   const companyLine =
     summary.by_company
@@ -278,20 +248,6 @@ export function buildWeeklyPortfolioFlex(args: {
         paddingAll: "18px",
         contents: bodyContents,
       },
-      footer: {
-        type: "box",
-        layout: "vertical",
-        paddingAll: "14px",
-        contents: [
-          {
-            type: "button",
-            style: "primary",
-            height: "sm",
-            color: CHARCOAL,
-            action: { type: "uri", label: "เปิดรายงานเต็ม", uri: moduleUrl(orgSlug) },
-          },
-        ],
-      },
     },
   };
 }
@@ -301,7 +257,6 @@ export function buildStageEventFlex(
   order: GovProcureOrder,
   stage: "delivered" | "paid",
   slaThreshold: number,
-  orgSlug: string,
 ): LineMessage {
   const isPaid = stage === "paid";
   const amount = order.net_receivable ?? order.price_incl_vat ?? 0;
@@ -381,24 +336,6 @@ export function buildStageEventFlex(
             ],
           },
           { type: "text", text: extraLine, size: "xs", color: FINE, margin: "md", wrap: true },
-        ],
-      },
-      footer: {
-        type: "box",
-        layout: "vertical",
-        paddingAll: "14px",
-        contents: [
-          {
-            type: "button",
-            style: "primary",
-            height: "sm",
-            color: CHARCOAL,
-            action: {
-              type: "uri",
-              label: "ดูรายละเอียดงาน",
-              uri: moduleUrl(orgSlug, `orders/${order.id}`),
-            },
-          },
         ],
       },
     },
