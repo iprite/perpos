@@ -1,11 +1,11 @@
 "use client";
 
 // _catalog-workspace-client.tsx — ห้องทำงานแคตตาล็อก (client view: filter/dialog/mutation)
-// server ส่ง initial (catalog + items + stats) มาแล้ว — ไฟล์นี้ไม่ fetch ตอน mount
+// server ส่ง initial (catalog + items + stats) มาแล้ว — ไฟล์นี้ไม่ fetch ตอน mount (ยกเว้นรูป/สถานะ job)
 //
 // กติกาที่ล็อกไว้ (spec §5.9 B):
 //  B2 — แถบ disclaimer ถาวรใต้ header จนกว่าชุดจะ `approved` (ถ้อยคำเป๊ะ, ≥ text-xs text-gray-600)
-//  B4 — ล็อก "ระดับแถว" ระหว่าง AI ทำงาน (queued/running) ไม่ล็อกทั้งตาราง
+//  B4 — ล็อก "ระดับแถว" ระหว่าง AI ทำงาน (queued/running) ไม่ล็อกทั้งตาราง · ปุ่มระดับชุดถูก disable
 //  P1-1 — โหมด `ตาราง | อ่านเนื้อหา` · P1-2 — ตาราง 7 คอลัมน์ สีเฉพาะคอลัมน์ "ต้องตรวจ"
 //  P1-4 — ป้าย "ประมาณการ" ใต้ราคา AI ทุกใบ + KPI มูลค่า tone neutral (ตัวเลขสีเข้ม ไม่ระบายสี)
 //  P1-5 — สื่อสารความคืบหน้าเป็นช่วงลำดับรายการ ("รายการที่ 33–40 จาก 84") เท่านั้น
@@ -15,11 +15,15 @@ import {
   BookImage,
   CheckCircle2,
   ClipboardCheck,
+  FileDown,
   FilterX,
   ImageOff,
+  Library,
   ListChecks,
+  ListPlus,
   PackageOpen,
   Search,
+  Settings2,
   ShieldAlert,
   Sparkles,
   Wallet,
@@ -45,9 +49,17 @@ import {
 } from "@/components/ui/table";
 import { toast } from "@/lib/toast";
 import type { Catalog, CatalogItem, CatalogItemStats } from "@/lib/gov-procure/catalog";
+import type { GovProcureOrder } from "@/lib/gov-procure/types";
 import { govApi } from "../../_components/api";
 import { CatalogStatusBadge, IssueChips, SourceBadge } from "../_components/badges";
 import { ItemReviewDialog } from "../_components/item-dialog";
+import { AiEnrichPanel } from "../_components/ai-enrich-panel";
+import { PasteItemsDialog } from "../_components/paste-items-dialog";
+import { CatalogSettingsDialog } from "../_components/catalog-settings-dialog";
+import { ExportDialog } from "../_components/export-dialog";
+import { VerifyBulkDialog } from "../_components/verify-bulk-dialog";
+import { SaveToLibraryDialog } from "../_components/save-to-library-dialog";
+import { fetchItemImageUrls } from "../_components/image-api";
 import {
   computeIssues,
   computeStats,
@@ -61,6 +73,7 @@ import {
   sumEstimatedValue,
   TAB_LABELS,
   TAB_ORDER,
+  TEMPLATE_LABEL,
   type WorkspaceTab,
 } from "../_components/format";
 
@@ -74,27 +87,44 @@ const SORT_OPTIONS = [
   { value: "value", label: "มูลค่าสูงสุดก่อน" },
 ];
 
+/** ต่ออายุ signed URL ของรูปก่อนหมดอายุ (server เซ็นไว้ 5 นาที) */
+const IMAGE_REFRESH_MS = 4 * 60 * 1000;
+
 export function CatalogWorkspaceClient({
-  catalog,
+  catalog: initialCatalog,
   initialItems,
   total,
   truncated,
   serverStats,
+  orders,
   orgId,
+  orgSlug,
   canWrite,
+  canDelete,
+  costPerCallThb,
+  chunkSize,
 }: {
   catalog: Catalog;
   initialItems: CatalogItem[];
   total: number;
   truncated: boolean;
   serverStats: CatalogItemStats;
+  orders: GovProcureOrder[];
   orgId: string;
+  orgSlug: string;
   /** owner/manager/staff = true · viewer อ่านอย่างเดียว (มาจาก guard ฝั่ง server) */
   canWrite: boolean;
+  /** owner/manager เท่านั้น (ลบชุด) */
+  canDelete: boolean;
+  /** ค่าใช้จ่ายเฉลี่ยต่อ 1 คำขอ AI (บาท) — คิดฝั่ง server จาก lib/gov-procure/catalog-cost */
+  costPerCallThb: number;
+  chunkSize: number;
 }) {
+  const [catalog, setCatalog] = useState<Catalog>(initialCatalog);
   const catalogId = catalog.id;
 
   const [items, setItems] = useState<CatalogItem[]>(initialItems);
+  const [itemTotal, setItemTotal] = useState(total);
   const [isTruncated, setIsTruncated] = useState(truncated);
   const [loadingMore, setLoadingMore] = useState(false);
 
@@ -108,25 +138,58 @@ export function CatalogWorkspaceClient({
   /** คิว freeze ตอนเปิด dialog — สลับแท็บ/พิมพ์ค้นหาระหว่างเปิดไม่ทำให้คิวหด (B3 ข้อ 3) */
   const [queue, setQueue] = useState<string[]>([]);
 
+  const [pasteOpen, setPasteOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
+  const [verifyOpen, setVerifyOpen] = useState(false);
+  const [libraryOpen, setLibraryOpen] = useState(false);
+  const [aiRunning, setAiRunning] = useState(false);
+
   const [imageUrls, setImageUrls] = useState<Record<string, string>>({});
   const imageReqRef = useRef<Set<string>>(new Set());
 
-  // signed URL ของรูป (อายุ 5 นาที) — ขอเป็นชุดเดียวต่อรอบ
+  // signed URL ของรูป — ขอเป็นชุดเดียวต่อรอบ (id เท่านั้น ไม่มี path ดิบ)
   useEffect(() => {
     const need = items
       .filter((i) => i.image_path && !imageReqRef.current.has(i.id))
       .map((i) => i.id);
     if (need.length === 0) return;
     need.forEach((id) => imageReqRef.current.add(id));
-    govApi<{ urls: Record<string, string> }>(
-      `/api/gov-procure/catalog-images?orgId=${encodeURIComponent(orgId)}&itemIds=${need.join(",")}`,
-      "GET",
-    )
-      .then((res) => setImageUrls((prev) => ({ ...prev, ...res.urls })))
+    fetchItemImageUrls(orgId, need)
+      .then((urls) => setImageUrls((prev) => ({ ...prev, ...urls })))
       .catch(() => {
         /* รูปโหลดไม่ได้ → แสดงกล่องเส้นประแทน (ไม่รบกวนผู้ใช้) */
       });
   }, [items, orgId]);
+
+  // ค้างหน้านานกว่าอายุ URL → ขอใหม่ทั้งชุด (ไม่งั้นรูปหายเงียบ ๆ)
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      const ids = items.filter((i) => i.image_path).map((i) => i.id);
+      if (ids.length === 0) return;
+      fetchItemImageUrls(orgId, ids)
+        .then((urls) => setImageUrls((prev) => ({ ...prev, ...urls })))
+        .catch(() => {
+          /* ต่ออายุไม่สำเร็จ → รอบหน้าลองใหม่ */
+        });
+    }, IMAGE_REFRESH_MS);
+    return () => window.clearInterval(timer);
+  }, [items, orgId]);
+
+  /** โหลดรายการใหม่ทั้งชุด (ใช้หลัง AI ทำเสร็จแต่ละรอบ / bulk / วางรายการ) */
+  const refreshItems = useCallback(async () => {
+    try {
+      const res = await govApi<{ items: CatalogItem[]; total: number; truncated: boolean }>(
+        `/api/gov-procure/catalogs/${catalogId}/items?orgId=${encodeURIComponent(orgId)}&limit=500`,
+        "GET",
+      );
+      setItems(res.items ?? []);
+      setItemTotal(res.total ?? 0);
+      setIsTruncated(res.truncated ?? false);
+    } catch {
+      /* โหลดใหม่ไม่สำเร็จ → คงข้อมูลเดิมไว้ (ผู้ใช้ยังทำงานต่อได้) */
+    }
+  }, [catalogId, orgId]);
 
   const categoryOptions = useMemo(() => {
     const set = new Set<string>();
@@ -140,6 +203,16 @@ export function CatalogWorkspaceClient({
         .map((c) => ({ value: c, label: c })),
     ];
   }, [items]);
+
+  /** ขอบเขตของ bulk — server รับ q + category (ไม่ผูกกับแท็บ) จึงต้องคิดให้ตรงกัน */
+  const scopeItems = useMemo(() => {
+    const needle = q.trim().toLowerCase();
+    return items.filter((i) => {
+      if (category && i.category !== category) return false;
+      if (needle && !i.name.toLowerCase().includes(needle)) return false;
+      return true;
+    });
+  }, [items, q, category]);
 
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
@@ -181,6 +254,12 @@ export function CatalogWorkspaceClient({
 
   const upsertItem = useCallback((next: CatalogItem) => {
     setItems((prev) => prev.map((i) => (i.id === next.id ? next : i)));
+  }, []);
+
+  const removeItem = useCallback((id: string) => {
+    setItems((prev) => prev.filter((i) => i.id !== id));
+    setItemTotal((n) => Math.max(0, n - 1));
+    setOpenId(null);
   }, []);
 
   const openItem = useCallback(
@@ -232,6 +311,9 @@ export function CatalogWorkspaceClient({
   const hasFilter = Boolean(q || category || tab !== "all");
   const filteredValue = sumEstimatedValue(filtered);
   const verifiedPct = stats.total > 0 ? Math.round((stats.verified / stats.total) * 100) : 0;
+  const verifiedAll = stats.total > 0 && stats.verified === stats.total;
+  const maxSeq = items.reduce((max, i) => Math.max(max, i.seq_no), 0);
+  const setLevelDisabled = aiRunning || catalog.status === "enriching";
 
   function clearFilters() {
     setQ("");
@@ -245,11 +327,45 @@ export function CatalogWorkspaceClient({
       icon={<BookImage className="h-6 w-6" />}
       title={catalog.title}
       description={`${fmtNum(stats.total)} รายการ · ${catalog.company ?? "ไม่ระบุบริษัท"} · เทมเพลต${
-        catalog.template === "table" ? "ตาราง" : "บรรยาย"
+        TEMPLATE_LABEL[catalog.template]
       } · แก้ล่าสุด ${fmtDateTime(catalog.updated_at)}`}
-      actions={<CatalogStatusBadge status={catalog.status} />}
+      actions={
+        <>
+          <CatalogStatusBadge status={catalog.status} />
+          <Button variant="ghost" onClick={() => setSettingsOpen(true)}>
+            <Settings2 className="mr-1.5 h-4 w-4" /> ตั้งค่าชุด
+          </Button>
+          <Button variant="outline" disabled={setLevelDisabled} onClick={() => setExportOpen(true)}>
+            <FileDown className="mr-1.5 h-4 w-4" /> ส่งออกเอกสาร
+          </Button>
+          {canWrite && (
+            <>
+              <Button
+                variant="outline"
+                disabled={setLevelDisabled || stats.verified === 0}
+                onClick={() => setLibraryOpen(true)}
+              >
+                <Library className="mr-1.5 h-4 w-4" /> บันทึกเข้าคลัง
+              </Button>
+              <Button
+                disabled={setLevelDisabled || verifiedAll || stats.total === 0}
+                onClick={() => setVerifyOpen(true)}
+              >
+                <ClipboardCheck className="mr-1.5 h-4 w-4" /> ยืนยันทั้งชุด
+              </Button>
+            </>
+          )}
+        </>
+      }
     >
       <div className="space-y-5">
+        {setLevelDisabled && (
+          <Text className="px-1 text-xs text-gray-500">
+            ส่งออก / ยืนยันทั้งชุด / บันทึกเข้าคลัง ทำได้หลัง AI เติมข้อมูลเสร็จ —
+            ระหว่างนี้ยังแก้รายการที่ AI ทำเสร็จแล้วได้ตามปกติ
+          </Text>
+        )}
+
         {/* B2 — แถบ disclaimer ถาวร (ปิดไม่ได้ จนกว่าชุดจะอนุมัติ) */}
         {catalog.status !== "approved" && (
           <div className="flex items-start gap-3 rounded-xl border border-primary/20 bg-primary/[0.03] p-4">
@@ -270,7 +386,7 @@ export function CatalogWorkspaceClient({
             label="ตรวจแล้ว"
             value={`${fmtNum(stats.verified)}/${fmtNum(stats.total)}`}
             sub={`คิดเป็น ${verifiedPct}% · เหลือ ${fmtNum(stats.total - stats.verified)} รายการ`}
-            tone={stats.total > 0 && stats.verified === stats.total ? "positive" : "warning"}
+            tone={verifiedAll ? "positive" : "warning"}
           />
           <StatCard
             icon={<Sparkles className="h-4 w-4" />}
@@ -295,101 +411,130 @@ export function CatalogWorkspaceClient({
           />
         </div>
 
-        {/* แท็บ + ตัวกรอง + โหมดดู — แถวเดียว ล้นแล้วเลื่อน (DESIGN §4) */}
-        <div className="flex items-center gap-2 overflow-x-auto rounded-xl border border-gray-200 bg-white p-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          {TAB_ORDER.map((t) => (
-            <Button
-              key={t}
-              size="sm"
-              variant={tab === t ? "secondary" : "ghost"}
-              className={`shrink-0 whitespace-nowrap ${tab === t ? "bg-gray-100 text-gray-900" : ""}`}
-              onClick={() => setTab(t)}
-            >
-              {TAB_LABELS[t]} ({fmtNum(tabCounts[t])})
-            </Button>
-          ))}
-
-          <div className="relative ml-1 w-56 shrink-0">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-            <Input
-              className="h-8 pl-9"
-              placeholder="ค้นหาชื่อสินค้า / รุ่น"
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-            />
-          </div>
-          <CustomSelect
-            value={category}
-            onChange={setCategory}
-            options={categoryOptions}
-            className="w-40 shrink-0"
+        {items.length > 0 && (
+          <AiEnrichPanel
+            catalog={catalog}
+            items={items}
+            orgId={orgId}
+            canWrite={canWrite}
+            costPerCallThb={costPerCallThb}
+            chunkSize={chunkSize}
+            onRoundFinished={refreshItems}
+            onCatalogStatusChanged={(status) => setCatalog((c) => ({ ...c, status }))}
+            onRunningChange={setAiRunning}
           />
-          <CustomSelect
-            value={sort}
-            onChange={setSort}
-            options={SORT_OPTIONS}
-            className="w-44 shrink-0"
-          />
-          <div className="ml-auto shrink-0 pl-2">
-            <SegmentedControl
-              size="sm"
-              value={view}
-              onChange={(v) => setView(v)}
-              ariaLabel="โหมดการดูรายการ"
-              options={[
-                { value: "table", label: "ตาราง" },
-                { value: "read", label: "อ่านเนื้อหา" },
-              ]}
-            />
-          </div>
-        </div>
-
-        <Text className="px-1 text-xs text-gray-500">
-          {view === "table"
-            ? "โหมดตาราง — กวาดตาหาแถวที่ต้องแตะ แล้วคลิกแถวเพื่อเปิดตรวจทีละรายการ"
-            : "โหมดอ่านเนื้อหา — เห็นรายละเอียดที่ AI เขียนครบทุกบรรทัด ยืนยันได้จากการ์ดเลย"}
-        </Text>
-
-        {/* N6 — เตือนเมื่อโหลดรายการมาไม่ครบ (ห้ามเชื่อยอดสรุปจากชุดที่ถูกตัด) */}
-        {isTruncated && (
-          <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3">
-            <Text className="text-xs text-amber-700">
-              แสดง {fmtNum(items.length)} จาก {fmtNum(total)} รายการ —
-              ตัวเลขสรุปด้านบนมาจากฐานข้อมูล ทั้งชุด แต่ตารางยังโหลดไม่ครบ
-            </Text>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => void loadMore()}
-              disabled={loadingMore}
-            >
-              {loadingMore ? "กำลังโหลด…" : "โหลดเพิ่ม"}
-            </Button>
-          </div>
         )}
 
         {items.length === 0 ? (
-          <EmptyItems canWrite={canWrite} />
-        ) : view === "table" ? (
-          <ItemsTable
-            rows={filtered}
-            loading={loadingMore}
-            total={stats.total}
-            filteredValue={filteredValue}
-            imageUrls={imageUrls}
-            hasFilter={hasFilter}
-            selectedId={openId}
-            onOpen={openItem}
-            onClearFilters={clearFilters}
-          />
+          <EmptyItems canWrite={canWrite} onPaste={() => setPasteOpen(true)} />
         ) : (
-          <ReadingList
-            rows={filtered}
-            imageUrls={imageUrls}
-            hasFilter={hasFilter}
-            onOpen={openItem}
-            onClearFilters={clearFilters}
-          />
+          <>
+            {/* แท็บ + ตัวกรอง + โหมดดู — แถวเดียว ล้นแล้วเลื่อน (DESIGN §4) */}
+            <div className="flex items-center gap-2 overflow-x-auto rounded-xl border border-gray-200 bg-white p-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              {TAB_ORDER.map((t) => (
+                <Button
+                  key={t}
+                  size="sm"
+                  variant={tab === t ? "secondary" : "ghost"}
+                  className={`shrink-0 whitespace-nowrap ${tab === t ? "bg-gray-100 text-gray-900" : ""}`}
+                  onClick={() => setTab(t)}
+                >
+                  {TAB_LABELS[t]} ({fmtNum(tabCounts[t])})
+                </Button>
+              ))}
+
+              <div className="relative ml-1 w-56 shrink-0">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                <Input
+                  className="h-8 pl-9"
+                  placeholder="ค้นหาชื่อสินค้า / รุ่น"
+                  value={q}
+                  onChange={(e) => setQ(e.target.value)}
+                />
+              </div>
+              <CustomSelect
+                value={category}
+                onChange={setCategory}
+                options={categoryOptions}
+                className="w-40 shrink-0"
+              />
+              <CustomSelect
+                value={sort}
+                onChange={setSort}
+                options={SORT_OPTIONS}
+                className="w-44 shrink-0"
+              />
+              {canWrite && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="shrink-0 whitespace-nowrap"
+                  disabled={setLevelDisabled}
+                  onClick={() => setPasteOpen(true)}
+                >
+                  <ListPlus className="mr-1.5 h-4 w-4" /> วางรายการเพิ่ม
+                </Button>
+              )}
+              <div className="ml-auto shrink-0 pl-2">
+                <SegmentedControl
+                  size="sm"
+                  value={view}
+                  onChange={(v) => setView(v)}
+                  ariaLabel="โหมดการดูรายการ"
+                  options={[
+                    { value: "table", label: "ตาราง" },
+                    { value: "read", label: "อ่านเนื้อหา" },
+                  ]}
+                />
+              </div>
+            </div>
+
+            <Text className="px-1 text-xs text-gray-500">
+              {view === "table"
+                ? "โหมดตาราง — กวาดตาหาแถวที่ต้องแตะ แล้วคลิกแถวเพื่อเปิดตรวจทีละรายการ"
+                : "โหมดอ่านเนื้อหา — เห็นรายละเอียดที่ AI เขียนครบทุกบรรทัด ตรวจได้จากการ์ดเลย"}
+            </Text>
+
+            {/* N6 — เตือนเมื่อโหลดรายการมาไม่ครบ (ห้ามเชื่อยอดสรุปจากชุดที่ถูกตัด) */}
+            {isTruncated && (
+              <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3">
+                <Text className="text-xs text-amber-700">
+                  แสดง {fmtNum(items.length)} จาก {fmtNum(itemTotal)} รายการ —
+                  ตัวเลขสรุปด้านบนมาจากฐานข้อมูลทั้งชุด แต่ตารางยังโหลดไม่ครบ
+                </Text>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => void loadMore()}
+                  disabled={loadingMore}
+                >
+                  {loadingMore ? "กำลังโหลด…" : "โหลดเพิ่ม"}
+                </Button>
+              </div>
+            )}
+
+            {view === "table" ? (
+              <ItemsTable
+                rows={filtered}
+                loading={loadingMore}
+                total={stats.total}
+                filteredValue={filteredValue}
+                imageUrls={imageUrls}
+                hasFilter={hasFilter}
+                selectedId={openId}
+                onOpen={openItem}
+                onClearFilters={clearFilters}
+              />
+            ) : (
+              <ReadingList
+                rows={filtered}
+                imageUrls={imageUrls}
+                hasFilter={hasFilter}
+                onOpen={openItem}
+                onClearFilters={clearFilters}
+              />
+            )}
+          </>
         )}
       </div>
 
@@ -404,8 +549,63 @@ export function CatalogWorkspaceClient({
         catalogId={catalogId}
         imageUrl={openId ? imageUrls[openId] : undefined}
         onItemUpdated={upsertItem}
+        onItemDeleted={removeItem}
+        onImageChanged={refreshItems}
         onNavigate={navigate}
         onClose={closeDialog}
+      />
+
+      <PasteItemsDialog
+        open={pasteOpen}
+        onOpenChange={setPasteOpen}
+        orgId={orgId}
+        catalogId={catalogId}
+        startSeq={maxSeq + 1}
+        onAdded={() => void refreshItems()}
+      />
+
+      <CatalogSettingsDialog
+        open={settingsOpen}
+        onOpenChange={setSettingsOpen}
+        catalog={catalog}
+        orders={orders}
+        orgId={orgId}
+        orgSlug={orgSlug}
+        canWrite={canWrite}
+        canDelete={canDelete}
+        verifiedAll={verifiedAll}
+        onSaved={setCatalog}
+      />
+
+      <ExportDialog
+        open={exportOpen}
+        onOpenChange={setExportOpen}
+        catalog={catalog}
+        stats={stats}
+        orgId={orgId}
+        onOpenSettings={() => {
+          setExportOpen(false);
+          setSettingsOpen(true);
+        }}
+      />
+
+      <VerifyBulkDialog
+        open={verifyOpen}
+        onOpenChange={setVerifyOpen}
+        orgId={orgId}
+        catalogId={catalogId}
+        scopeItems={scopeItems}
+        q={q.trim()}
+        category={category}
+        onDone={() => void refreshItems()}
+      />
+
+      <SaveToLibraryDialog
+        open={libraryOpen}
+        onOpenChange={setLibraryOpen}
+        orgId={orgId}
+        items={items}
+        onDone={() => void refreshItems()}
       />
     </PageShell>
   );
@@ -658,7 +858,7 @@ function ReadingList({
 }
 
 /** empty state (DESIGN §8) — ชุดที่ยังไม่มีรายการ */
-function EmptyItems({ canWrite }: { canWrite: boolean }) {
+function EmptyItems({ canWrite, onPaste }: { canWrite: boolean; onPaste: () => void }) {
   return (
     <div className="flex flex-col items-center justify-center rounded-xl border border-gray-200 bg-white py-16 text-center">
       <div className="mb-4 rounded-full bg-gray-100 p-4">
@@ -670,8 +870,8 @@ function EmptyItems({ canWrite }: { canWrite: boolean }) {
         และราคาประมาณการให้ทั้งเล่ม
       </Text>
       {canWrite && (
-        <Button className="mt-4" size="sm" disabled>
-          วางรายการสินค้า (เปิดใช้ในขั้นถัดไป)
+        <Button className="mt-4" size="sm" onClick={onPaste}>
+          <ListPlus className="mr-1.5 h-4 w-4" /> วางรายการสินค้า
         </Button>
       )}
     </div>

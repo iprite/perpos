@@ -2,7 +2,20 @@
 // DESIGN §3 (เงิน tabular + `฿` ตามหลัง · `−` U+2212) · §14 (ไทยทั้งหมด)
 // contract: §5.9 P1-4 (ป้าย "ประมาณการ" คงที่ ไม่ผูก confidence) · C-B4 (KPI นับจาก source จริง)
 
-import type { CatalogItem, CatalogItemStats } from "@/lib/gov-procure/catalog";
+import type { CatalogItem, CatalogItemStats, CatalogTemplate } from "@/lib/gov-procure/catalog";
+
+/** ชื่อไทยของเทมเพลตเอกสาร */
+export const TEMPLATE_LABEL: Record<CatalogTemplate, string> = {
+  table: "ตาราง",
+  narrative: "บรรยาย",
+};
+
+/** อธิบายความต่างของ 2 เทมเพลตแบบ 1 บรรทัด (ใช้ใต้ SegmentedControl ทุกที่) */
+export const TEMPLATE_HINT: Record<CatalogTemplate, string> = {
+  table: "ตาราง — หลายรายการต่อหน้า เหมาะกับของจำนวนมาก ไม่มีหัวจดหมาย",
+  narrative:
+    "บรรยาย — 1 รายการต่อบล็อก มีรายละเอียด/ข้อควรระวัง และหัวจดหมายทุกหน้า (ต้องเลือกบริษัท)",
+};
 
 /** ความเชื่อมั่นต่ำกว่านี้ = ต้องตรวจ (ตรงกับ verify-bulk/route.ts + getCatalogItemStats) */
 export const RISKY_CONFIDENCE = 0.6;
@@ -58,6 +71,17 @@ export function priceEstimateLabel(item: CatalogItem): string | null {
   if (typeof conf !== "number") return null;
   if (conf < SHOW_PRICE_PCT_BELOW) return `ประมาณการ ${Math.round(conf * 100)}%`;
   return "ประมาณการ";
+}
+
+/**
+ * รายการที่ "สั่ง AI เติมได้" — กฎเดียวกับ route `/enrich` (C-3):
+ * source = manual|ai_draft และ enrich_state = idle|failed
+ * (ที่ยืนยันแล้ว/มาจากคลัง จะถูกข้ามเสมอ)
+ */
+export function isEnrichable(item: CatalogItem): boolean {
+  const sourceOk = item.source === "manual" || item.source === "ai_draft";
+  const stateOk = item.enrich_state === "idle" || item.enrich_state === "failed";
+  return sourceOk && stateOk;
 }
 
 /** แถวที่ AI กำลังถืออยู่ → ล็อกเฉพาะแถวนั้น (B4 / A-1) */

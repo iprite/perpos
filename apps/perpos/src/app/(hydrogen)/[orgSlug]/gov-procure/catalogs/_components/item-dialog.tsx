@@ -12,7 +12,7 @@
 //    (ปิด ←/→ ชั่วคราวเมื่อโฟกัสอยู่ในช่องกรอก)
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, CheckCircle2, ImageOff, Sparkles } from "lucide-react";
+import { ChevronLeft, ChevronRight, CheckCircle2, ImageOff, Sparkles, Trash2 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -27,9 +27,11 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Text } from "@/components/ui/typography";
 import { StatusBadge } from "@/components/ui/badge";
+import { ImageUpload } from "@/components/ui/image-upload";
 import { toast } from "@/lib/toast";
 import type { CatalogItem } from "@/lib/gov-procure/catalog";
 import { govApi } from "../../_components/api";
+import { deleteImage, uploadItemImage } from "./image-api";
 import { ConfidenceBadge, SourceBadge } from "./badges";
 import { fmtDateTime, fmtMoney, isItemLocked, priceEstimateLabel } from "./format";
 
@@ -118,6 +120,8 @@ export function ItemReviewDialog({
   catalogId,
   imageUrl,
   onItemUpdated,
+  onItemDeleted,
+  onImageChanged,
   onNavigate,
   onClose,
 }: {
@@ -132,6 +136,9 @@ export function ItemReviewDialog({
   catalogId: string;
   imageUrl?: string;
   onItemUpdated: (item: CatalogItem) => void;
+  onItemDeleted: (itemId: string) => void;
+  /** อัปโหลด/ลบรูปแล้ว → ให้หน้าแม่ดึงรายการ + signed URL ใหม่ */
+  onImageChanged: () => void | Promise<void>;
   onNavigate: (dir: -1 | 1) => void;
   onClose: () => void;
 }) {
@@ -139,6 +146,7 @@ export function ItemReviewDialog({
   const [snapshot, setSnapshot] = useState<Draft | null>(null);
   const [saving, setSaving] = useState(false);
   const [savedAt, setSavedAt] = useState(0);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const busyRef = useRef(false);
   /** รายการที่ฟอร์มโหลดไว้แล้ว — กันรีเซ็ต draft ตอน parent อัปเดต object เดิม */
   const loadedIdRef = useRef<string | null>(null);
@@ -162,6 +170,7 @@ export function ItemReviewDialog({
     setDraft(d);
     setSnapshot(d);
     setSavedAt(0);
+    setConfirmDelete(false);
   }, [item]);
 
   // B-B1 — เปิดอ่านแล้ว (server-set) · ยิงครั้งเดียวต่อรายการ
@@ -274,6 +283,49 @@ export function ItemReviewDialog({
     onNavigate,
   ]);
 
+  const removeItem = useCallback(async () => {
+    if (!item || !editable) return;
+    if (!confirmDelete) {
+      setConfirmDelete(true);
+      return;
+    }
+    setSaving(true);
+    try {
+      await govApi(
+        `/api/gov-procure/catalogs/${catalogId}/items/${item.id}?orgId=${encodeURIComponent(orgId)}`,
+        "DELETE",
+      );
+      onItemDeleted(item.id);
+      toast.success("ลบรายการแล้ว");
+    } catch (e) {
+      toast.error((e as Error).message || "ลบไม่สำเร็จ");
+    } finally {
+      setSaving(false);
+    }
+  }, [item, editable, confirmDelete, catalogId, orgId, onItemDeleted]);
+
+  const changeImage = useCallback(
+    async (dataUrl: string | null) => {
+      if (!item || !editable) return;
+      setSaving(true);
+      try {
+        if (dataUrl) {
+          await uploadItemImage(orgId, catalogId, item.id, dataUrl);
+          toast.success("อัปโหลดรูปแล้ว");
+        } else {
+          await deleteImage(orgId, { itemId: item.id });
+          toast.success("ลบรูปแล้ว");
+        }
+        await onImageChanged();
+      } catch (e) {
+        toast.error((e as Error).message || "จัดการรูปไม่สำเร็จ");
+      } finally {
+        setSaving(false);
+      }
+    },
+    [item, editable, orgId, catalogId, onImageChanged],
+  );
+
   // N7 — คีย์ลัด (ปิด ←/→ เมื่อโฟกัสอยู่ในช่องกรอก)
   useEffect(() => {
     if (!open) return;
@@ -337,6 +389,13 @@ export function ItemReviewDialog({
             </div>
           ) : (
             <div className="grid gap-5 lg:grid-cols-5">
+              {item.source === "human_verified" && editable && (
+                <Text className="text-xs text-gray-500 lg:col-span-5">
+                  รายการนี้ยืนยันแล้ว — ถ้าแก้เนื้อหาช่องใดก็ตาม สถานะจะกลับเป็น &quot;กรอกเอง&quot;
+                  อัตโนมัติ แล้วต้องกดยืนยันอีกครั้ง (แก้เฉพาะราคาไม่เปลี่ยนสถานะ)
+                </Text>
+              )}
+
               {/* ซ้าย — เนื้อหา */}
               <div className="min-w-0 space-y-4 lg:col-span-3">
                 <div className="grid gap-3 sm:grid-cols-2">
@@ -492,7 +551,15 @@ export function ItemReviewDialog({
               <div className="min-w-0 space-y-4 lg:col-span-2">
                 <div>
                   <Text className="mb-1.5 text-xs font-semibold text-gray-700">รูปสินค้า</Text>
-                  {imageUrl ? (
+                  {editable ? (
+                    <ImageUpload
+                      value={imageUrl ?? null}
+                      onChange={(v) => void changeImage(v)}
+                      label="อัปโหลดรูป"
+                      accept="image/png,image/jpeg,image/webp"
+                      previewClassName="h-20 w-20"
+                    />
+                  ) : imageUrl ? (
                     /* signed URL ของ Supabase Storage (อายุ 5 นาที) — ใช้ next/image ไม่ได้
                        (pattern เดียวกับ acc-firm/ocr + ui/image-upload) */
                     <img
@@ -594,7 +661,19 @@ export function ItemReviewDialog({
         </DialogBody>
 
         <DialogFooter className="flex-wrap justify-end gap-2">
-          <div className="mr-auto flex flex-col">
+          {editable && item && (
+            <Button
+              variant="destructive"
+              className="mr-auto"
+              disabled={saving}
+              onClick={() => void removeItem()}
+            >
+              <Trash2 className="mr-1.5 h-4 w-4" />
+              {confirmDelete ? "กดอีกครั้งเพื่อลบถาวร" : "ลบรายการ"}
+            </Button>
+          )}
+
+          <div className={`flex flex-col ${editable && item ? "" : "mr-auto"}`}>
             <Text className="text-[11px] text-gray-500">
               ← → เปลี่ยนรายการ · ⌘+Enter ยืนยันแล้วไปต่อ
             </Text>

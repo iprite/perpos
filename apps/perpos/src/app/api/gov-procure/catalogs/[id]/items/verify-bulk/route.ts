@@ -24,6 +24,8 @@ interface CandidateRow {
   confidence: number | null;
   enrich_state: string;
   viewed_at: string | null;
+  image_path: string | null;
+  unit_price_ref: number | null;
 }
 
 export async function POST(req: NextRequest, ctx: Ctx) {
@@ -51,7 +53,7 @@ export async function POST(req: NextRequest, ctx: Ctx) {
   try {
     let sel = admin
       .from("gov_procure_catalog_items")
-      .select("id, source, confidence, enrich_state, viewed_at")
+      .select("id, source, confidence, enrich_state, viewed_at, image_path, unit_price_ref")
       .eq("org_id", orgId)
       .eq("catalog_id", id);
 
@@ -66,7 +68,14 @@ export async function POST(req: NextRequest, ctx: Ctx) {
 
     const rows = (data ?? []) as CandidateRow[];
 
-    const skipped = { locked: 0, lowConfidence: 0, notViewed: 0, alreadyVerified: 0 };
+    const skipped = {
+      locked: 0,
+      lowConfidence: 0,
+      notViewed: 0,
+      alreadyVerified: 0,
+      noImage: 0,
+      noPrice: 0,
+    };
     const ids: string[] = [];
 
     for (const r of rows) {
@@ -84,6 +93,17 @@ export async function POST(req: NextRequest, ctx: Ctx) {
       }
       if (skipRisky && !r.viewed_at) {
         skipped.notViewed += 1;
+        continue;
+      }
+      // สวิตช์ "ข้ามรายการเสี่ยง" บนหน้าจอบอกผู้ใช้ว่าจะข้ามรายการที่ยังไม่มีรูป/ไม่มีราคาด้วย
+      // → server ต้องข้ามจริง ไม่งั้นผู้ใช้กดโดยเชื่อว่าปลอดภัย แล้วรายการที่ยังไม่ครบ
+      //   ถูกประทับ "ผ่านตาคนแล้ว" และไหลเข้าคลังไปปนงานถัดไป (B-B1)
+      if (skipRisky && !r.image_path) {
+        skipped.noImage += 1;
+        continue;
+      }
+      if (skipRisky && (r.unit_price_ref === null || r.unit_price_ref === undefined)) {
+        skipped.noPrice += 1;
         continue;
       }
       ids.push(r.id);
