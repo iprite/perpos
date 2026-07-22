@@ -16,6 +16,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Text } from "@/components/ui/typography";
 import { CHAT_CHANNEL_LABEL } from "../_fixtures/labels";
 import { salesCostProfitTotals } from "../_fixtures/metrics";
 import type { ChatChannel, MattiiOrder } from "../_fixtures/types";
@@ -44,13 +45,13 @@ export function SalesTab({ orders }: { orders: MattiiOrder[] }) {
           key: ch,
           label: ch === "other" ? "อื่น ๆ / หน้าร้าน" : CHAT_CHANNEL_LABEL[ch],
           count: subset.length,
-          ...salesCostProfitTotals(subset),
+          ...salesCostProfitTotals(subset, orderItems),
         };
       }).filter((row) => row.count > 0),
-    [orders],
+    [orders, orderItems],
   );
 
-  const total = useMemo(() => salesCostProfitTotals(orders), [orders]);
+  const total = useMemo(() => salesCostProfitTotals(orders, orderItems), [orders, orderItems]);
 
   const byProduct = useMemo(() => {
     const ids = new Set(orders.map((o) => o.id));
@@ -111,7 +112,7 @@ export function SalesTab({ orders }: { orders: MattiiOrder[] }) {
                     {fmtMoney(row.totalSales)}
                   </TableCell>
                   <TableCell align="right" tabular>
-                    {fmtMoney(row.count > 0 ? row.totalSales / row.count : 0)}
+                    {fmtMoney(row.countedOrders > 0 ? row.totalSales / row.countedOrders : 0)}
                   </TableCell>
                   {isOwner && (
                     <>
@@ -142,7 +143,7 @@ export function SalesTab({ orders }: { orders: MattiiOrder[] }) {
                   {fmtMoney(total.totalSales)}
                 </TableCell>
                 <TableCell align="right" tabular>
-                  {fmtMoney(orders.length > 0 ? total.totalSales / orders.length : 0)}
+                  {fmtMoney(total.countedOrders > 0 ? total.totalSales / total.countedOrders : 0)}
                 </TableCell>
                 {isOwner && (
                   <>
@@ -158,6 +159,14 @@ export function SalesTab({ orders }: { orders: MattiiOrder[] }) {
             </TableFooter>
           )}
         </Table>
+        {isOwner && (
+          <Text className="mt-2 px-1 text-xs text-gray-500">
+            ต้นทุน/กำไรไม่นับออเดอร์ที่ยกเลิก
+            {total.estimatedOrders > 0
+              ? ` · ${fmtNum(total.estimatedOrders)} ใบยังใช้ต้นทุนประมาณการจากรายการพรม (ต้นทุนจริงเกิดเมื่อเริ่มผลิต)`
+              : ""}
+          </Text>
+        )}
       </div>
 
       <div>

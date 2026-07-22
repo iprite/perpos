@@ -4,8 +4,9 @@
 //   subtotal            = Σ line_total ของ order_items
 //   total_amount        = subtotal − discount_amount + shipping_fee + rush_fee
 //   outstanding_amount  = total_amount − paid_amount
-//   gross_profit        = total_amount − total_cost      (🔒 owner-only)
-//   margin_percent      = gross_profit / total_amount × 100  (🔒 owner-only)
+//   gross_profit        = total_amount − ต้นทุน (🔒 owner-only — คิดที่ metrics.orderEconomics())
+//   margin_percent      = gross_profit / total_amount × 100 (🔒 owner-only — ที่เดียวกัน)
+//   ต้นทุนที่ใช้ = ต้นทุนจริงจาก order_costs · ถ้ายังไม่มี → ประมาณการ Σ(unit_cost × qty) ของรายการพรม
 
 import type { MattiiOrder, MattiiOrderItem } from "../_fixtures/types";
 import { fabricUsage as fabricUsageOf, money as round2 } from "../_fixtures/helpers";
@@ -46,11 +47,6 @@ export function recalcOrderTotals(order: MattiiOrder, items: MattiiOrderItem[]):
   };
 }
 
-/** 🔒 owner-only — กำไรขั้นต้น + %กำไร จากยอดขาย/ต้นทุนของออเดอร์ */
-export function profitOf(order: MattiiOrder): { gross_profit: number; margin_percent: number } {
-  const gross = round2(order.total_amount - order.total_cost);
-  return {
-    gross_profit: gross,
-    margin_percent: order.total_amount > 0 ? round2((gross / order.total_amount) * 100) : 0,
-  };
-}
+// 🔒 owner-only — ต้นทุน/กำไร/%กำไร ของออเดอร์: ใช้ `orderEconomics()` ใน _fixtures/metrics.ts
+// เท่านั้น (รองรับต้นทุนประมาณการเมื่อยังไม่มีต้นทุนจริง) — เดิมมี profitOf() ที่นี่ แต่ทำให้ออเดอร์
+// ก่อนเข้าสายผลิตโชว์ "%กำไร 100%" จึงถอดออก ห้ามเขียนสูตรกำไรซ้ำที่นี่อีก

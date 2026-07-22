@@ -797,30 +797,30 @@ export function MattiiDataProvider({ children }: { children: React.ReactNode }) 
         prev.map((o) => (o.id === orderId ? { ...o, ...patch, updated_at: now() } : o)),
       );
 
-    /** คำนวณยอดออเดอร์ใหม่จากรายการล่าสุด */
+    /**
+     * คำนวณยอดออเดอร์ใหม่จากรายการล่าสุด
+     * หมายเหตุ (QA b7): `total_cost` = ต้นทุน **จริง** (ผลรวม order_costs) เท่านั้น — ห้ามเอาต้นทุน
+     * มาตรฐานของรายการพรมมาเขียนทับ ไม่งั้นออเดอร์ที่ยังไม่ผลิตจะดูเหมือนมีต้นทุนจริงแล้ว
+     * ต้นทุนประมาณการคิดสดผ่าน `orderEconomics()` ใน _fixtures/metrics.ts
+     */
     const syncTotals = (orderId: string, items: MattiiOrderItem[]) => {
       const order = orders.find((o) => o.id === orderId);
       if (!order) return;
       const mine = items.filter((it) => it.order_id === orderId);
       const totals = recalcOrderTotals(order, mine);
-      const totalCost = round2(mine.reduce((s, it) => s + it.unit_cost * it.qty, 0));
-      const gross = round2(totals.total_amount - totalCost);
       setOrders((prev) =>
-        prev.map((o) =>
-          o.id === orderId
-            ? {
-                ...o,
-                ...totals,
-                total_cost: totalCost > 0 ? totalCost : o.total_cost,
-                gross_profit: totalCost > 0 ? gross : o.gross_profit,
-                margin_percent:
-                  totalCost > 0 && totals.total_amount > 0
-                    ? round2((gross / totals.total_amount) * 100)
-                    : o.margin_percent,
-                updated_at: now(),
-              }
-            : o,
-        ),
+        prev.map((o) => {
+          if (o.id !== orderId) return o;
+          const gross = round2(totals.total_amount - o.total_cost);
+          return {
+            ...o,
+            ...totals,
+            gross_profit: gross,
+            margin_percent:
+              totals.total_amount > 0 ? round2((gross / totals.total_amount) * 100) : 0,
+            updated_at: now(),
+          };
+        }),
       );
     };
 

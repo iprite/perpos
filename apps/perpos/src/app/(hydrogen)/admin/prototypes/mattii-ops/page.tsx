@@ -49,12 +49,12 @@ import { RiskBriefingPanel } from "./risk-briefing";
 
 export default function MattiiOverviewPage() {
   const { isOwner } = useMattiiRole();
-  const { orders, materials, shipments, printJobs } = useMattiiData();
+  const { orders, orderItems, materials, shipments, printJobs } = useMattiiData();
 
   // ตัวเลขทุกใบคิดจาก state สดชุดเดียวกับหน้าอื่น (รับเข้าสต๊อก/เก็บ COD แล้วการ์ดนี้ขยับทันที)
   const m = useMemo(
-    () => dashboardMetrics(orders, { materials, shipments, printJobs }),
-    [orders, materials, shipments, printJobs],
+    () => dashboardMetrics(orders, { materials, shipments, printJobs, orderItems }),
+    [orders, materials, shipments, printJobs, orderItems],
   );
   const comparison = useMemo(() => baselineComparison(orders), [orders]);
   const replyTimeRow = comparison.find((r) => r.key === "reply_time_minutes");
@@ -196,7 +196,7 @@ export default function MattiiOverviewPage() {
             icon={<Wallet className="h-4 w-4" />}
             label="ยอดขายรวมในระบบ"
             value={fmtMoney(m.totalSales)}
-            sub={`${fmtNum(orders.length)} ออเดอร์ที่ติดตามอยู่`}
+            sub={`${fmtNum(m.countedOrders)} ออเดอร์ที่ติดตามอยู่ (ไม่รวมที่ยกเลิก)`}
             tone="info"
           />
         </div>
@@ -211,7 +211,11 @@ export default function MattiiOverviewPage() {
               icon={<Coins className="h-4 w-4" />}
               label="ต้นทุนรวม"
               value={fmtMoney(m.totalCost)}
-              sub="รวมค่าวัสดุ ค่าแรง ค่าเครื่อง และค่าขนส่ง"
+              sub={
+                m.estimatedOrders > 0
+                  ? `ต้นทุนจริงจากสายผลิต + ประมาณการอีก ${fmtNum(m.estimatedOrders)} ใบที่ยังไม่เริ่มผลิต`
+                  : "รวมค่าวัสดุ ค่าแรง ค่าเครื่อง และค่าขนส่ง"
+              }
               tone="neutral"
             />
             <StatCard
@@ -225,7 +229,7 @@ export default function MattiiOverviewPage() {
               icon={<TrendingUp className="h-4 w-4" />}
               label="อัตรากำไรเฉลี่ย"
               value={fmtPercent(m.marginPercent)}
-              sub="เทียบยอดขายรวมทั้งหมด"
+              sub={`จาก ${fmtNum(m.countedOrders)} ออเดอร์ (ไม่รวมที่ยกเลิก)`}
               tone={m.marginPercent >= 0 ? "positive" : "negative"}
               valueColored
             />

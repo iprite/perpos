@@ -24,6 +24,7 @@ import {
   PAYMENT_METHOD_LABEL,
   SHIPMENT_CARRIER_LABEL,
 } from "../_fixtures/labels";
+import { ESTIMATED_COST_HINT, orderEconomics } from "../_fixtures/metrics";
 import type { MattiiOrder, MattiiOrderItem } from "../_fixtures/types";
 import {
   CfStatusBadge,
@@ -41,7 +42,6 @@ import {
   fmtMoney,
   fmtNum,
   fmtPercent,
-  profitOf,
   SectionHeading,
   useMattiiData,
 } from "../_components";
@@ -436,10 +436,13 @@ export function FinanceTab({ order }: { order: MattiiOrder }) {
 // ──────────────────── แท็บ 4: ต้นทุน & กำไร (🔒 owner-only) ────────────────────
 
 export function CostProfitTab({ order }: { order: MattiiOrder }) {
-  const { orderCosts } = useMattiiData();
+  const { orderCosts, orderItems } = useMattiiData();
   const rows = orderCosts.filter((c) => c.order_id === order.id);
-  const totalCost = rows.reduce((s, c) => s + c.amount, 0) || order.total_cost;
-  const { gross_profit, margin_percent } = profitOf(order);
+  // ต้นทุน/กำไรมาจาก metrics.ts แหล่งเดียว — ยังไม่เข้าสายผลิต = ประมาณการจากรายการพรม
+  const econ = orderEconomics(order, orderItems);
+  const estimated = econ.basis === "estimated";
+  const unknown = econ.basis === "none";
+  const costText = unknown ? "—" : `${estimated ? "≈ " : ""}${fmtMoney(econ.totalCost)}`;
 
   return (
     <div className="space-y-5">
@@ -447,26 +450,58 @@ export function CostProfitTab({ order }: { order: MattiiOrder }) {
         <Field label="ยอดขาย">
           <span className="font-mono tabular-nums">{fmtMoney(order.total_amount)}</span>
         </Field>
-        <Field label="ต้นทุนรวม">
-          <span className="font-mono tabular-nums">{fmtMoney(totalCost)}</span>
-        </Field>
-        <Field label="กำไรขั้นต้น">
-          <span
-            className={`font-mono tabular-nums ${gross_profit < 0 ? "text-red-600" : "text-green-600"}`}
-          >
-            {fmtMoney(gross_profit)}
+        <Field label={estimated ? "ต้นทุนรวม (ประมาณการ)" : "ต้นทุนรวม"}>
+          <span className={`font-mono tabular-nums ${estimated ? "text-gray-500" : ""}`}>
+            {costText}
           </span>
         </Field>
-        <Field label="%กำไร">
+        <Field label={estimated ? "กำไรขั้นต้น (ประมาณการ)" : "กำไรขั้นต้น"}>
           <span
-            className={`font-mono tabular-nums ${margin_percent < 0 ? "text-red-600" : "text-green-600"}`}
+            className={`font-mono tabular-nums ${
+              unknown
+                ? "text-gray-400"
+                : econ.grossProfit < 0
+                  ? "text-red-600"
+                  : estimated
+                    ? "text-gray-500"
+                    : "text-green-600"
+            }`}
           >
-            {fmtPercent(margin_percent)}
+            {unknown ? "—" : `${estimated ? "≈ " : ""}${fmtMoney(econ.grossProfit)}`}
+          </span>
+        </Field>
+        <Field label={estimated ? "%กำไร (ประมาณการ)" : "%กำไร"}>
+          <span
+            className={`font-mono tabular-nums ${
+              unknown
+                ? "text-gray-400"
+                : econ.marginPercent < 0
+                  ? "text-red-600"
+                  : estimated
+                    ? "text-gray-500"
+                    : "text-green-600"
+            }`}
+          >
+            {unknown ? "—" : `${estimated ? "≈ " : ""}${fmtPercent(econ.marginPercent)}`}
           </span>
         </Field>
       </div>
 
-      {gross_profit < 0 && (
+      {estimated && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+          ตัวเลขชุดนี้เป็น <span className="font-medium">ประมาณการ</span> — {ESTIMATED_COST_HINT}
+        </div>
+      )}
+
+      {unknown && (
+        <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-600">
+          {order.status === "cancelled"
+            ? "ออเดอร์นี้ถูกยกเลิก จึงไม่นำต้นทุน/กำไรไปคิดในรายงาน"
+            : "ยังไม่มีรายการพรมในออเดอร์นี้ จึงยังประเมินต้นทุน/กำไรไม่ได้"}
+        </div>
+      )}
+
+      {!unknown && econ.grossProfit < 0 && (
         <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-700">
           ออเดอร์นี้ขาดทุน — ตรวจสอบต้นทุนพิมพ์ซ้ำ/ของเสียก่อนรับงานลักษณะนี้อีก
         </div>
@@ -486,7 +521,8 @@ export function CostProfitTab({ order }: { order: MattiiOrder }) {
           <TableBody>
             {rows.length === 0 ? (
               <TableEmpty colSpan={4}>
-                ยังไม่มีต้นทุนบันทึกไว้ (ออเดอร์ยังไม่เข้าสายผลิต)
+                ยังไม่มีต้นทุนจริงบันทึกไว้ — ต้นทุนจะเกิดเมื่อเริ่มผลิต (ตัดสต๊อกวัสดุ + ค่าแรง +
+                ค่าเครื่อง + ค่าส่ง)
               </TableEmpty>
             ) : (
               rows.map((c) => (
@@ -506,9 +542,9 @@ export function CostProfitTab({ order }: { order: MattiiOrder }) {
           {rows.length > 0 && (
             <TableFooter>
               <TableRow>
-                <TableCell colSpan={3}>รวมต้นทุน</TableCell>
+                <TableCell colSpan={3}>รวมต้นทุนจริง</TableCell>
                 <TableCell align="right" tabular>
-                  {fmtMoney(totalCost)}
+                  {fmtMoney(rows.reduce((s, c) => s + c.amount, 0))}
                 </TableCell>
               </TableRow>
             </TableFooter>

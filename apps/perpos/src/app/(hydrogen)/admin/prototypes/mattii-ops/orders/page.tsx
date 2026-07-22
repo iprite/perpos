@@ -67,7 +67,7 @@ import { CreateOrderDialog } from "./create-order-dialog";
 
 export default function OrdersPage() {
   const { can, isOwner } = useMattiiRole();
-  const { orders, customers, advanceOrder } = useMattiiData();
+  const { orders, orderItems, customers, advanceOrder } = useMattiiData();
 
   const [view, setView] = useState<"table" | "board">("table");
   const [detailed, setDetailed] = useState<"stage" | "status">("stage");
@@ -98,14 +98,14 @@ export default function OrdersPage() {
 
   // KPI — คิดจาก metrics.ts (แหล่งเดียว) บนข้อมูลสดใน client state
   const kpi = useMemo(() => {
-    const totals = salesCostProfitTotals(orders);
+    const totals = salesCostProfitTotals(orders, orderItems);
     return {
       total: orders.length,
       overdue: overdueOrdersCount(orders),
       staleCf: staleAwaitingCfCount(2, orders),
       ...totals,
     };
-  }, [orders]);
+  }, [orders, orderItems]);
 
   const selected = selectedId ? (orders.find((o) => o.id === selectedId) ?? null) : null;
 
@@ -171,7 +171,7 @@ export default function OrdersPage() {
           icon={<Wallet className="h-4 w-4" />}
           label="ยอดขายรวม"
           value={fmtMoney(kpi.totalSales)}
-          sub="ทุกออเดอร์ในระบบ"
+          sub={`${fmtNum(kpi.countedOrders)} ออเดอร์ (ไม่รวมที่ยกเลิก)`}
           tone="info"
         />
       </div>
@@ -185,6 +185,11 @@ export default function OrdersPage() {
               icon={<Coins className="h-4 w-4" />}
               label="ต้นทุนรวม"
               value={fmtMoney(kpi.totalCost)}
+              sub={
+                kpi.estimatedOrders > 0
+                  ? `${fmtNum(kpi.estimatedOrders)} ใบยังเป็นต้นทุนประมาณการ (ยังไม่เข้าสายผลิต)`
+                  : "ต้นทุนจริงจากสายผลิตทั้งหมด"
+              }
               tone="neutral"
             />
             <StatCard
@@ -198,7 +203,7 @@ export default function OrdersPage() {
               icon={<TrendingUp className="h-4 w-4" />}
               label="อัตรากำไรเฉลี่ย"
               value={fmtPercent(kpi.marginPercent)}
-              sub="เทียบยอดขายรวมทั้งหมด"
+              sub={`จาก ${fmtNum(kpi.countedOrders)} ออเดอร์ (ไม่รวมที่ยกเลิก)`}
               tone={kpi.marginPercent >= 0 ? "positive" : "negative"}
               valueColored
             />

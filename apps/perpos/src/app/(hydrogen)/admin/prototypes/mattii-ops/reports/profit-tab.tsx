@@ -20,7 +20,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Text } from "@/components/ui/typography";
-import { salesCostProfitTotals } from "../_fixtures/metrics";
+import { ESTIMATED_COST_HINT, orderEconomics, salesCostProfitTotals } from "../_fixtures/metrics";
 import type { CostCategory, MattiiOrder, MattiiOrderCost } from "../_fixtures/types";
 import {
   SectionHeading,
@@ -43,7 +43,7 @@ const CATEGORIES: CostCategory[] = ["material", "labor", "machine", "shipping", 
 
 export function ProfitTab({ orders }: { orders: MattiiOrder[] }) {
   const { isOwner } = useMattiiRole();
-  const { orderCosts, customerOf } = useMattiiData();
+  const { orderCosts, orderItems, customerOf } = useMattiiData();
 
   const [extraCosts, setExtraCosts] = useState<MattiiOrderCost[]>([]);
   const [sort, setSort] = useState("profit_asc");
@@ -51,10 +51,13 @@ export function ProfitTab({ orders }: { orders: MattiiOrder[] }) {
 
   const allCosts = useMemo(() => [...orderCosts, ...extraCosts], [orderCosts, extraCosts]);
 
+  // ทุกออเดอร์ที่ประเมินต้นทุนได้ (ต้นทุนจริง หรือประมาณการจากรายการพรม) — ยกเลิก/ไม่มีรายการ = ตัดออก
+  // สูตรต้นทุน/กำไรมาจาก orderEconomics() ใน metrics.ts แหล่งเดียว (ห้ามคิดเองในหน้า)
   const rows = useMemo(() => {
     const built = orders
-      .filter((o) => o.total_cost > 0 || allCosts.some((c) => c.order_id === o.id))
-      .map((o) => {
+      .map((o) => ({ o, econ: orderEconomics(o, orderItems) }))
+      .filter((x) => x.econ.basis !== "none")
+      .map(({ o, econ }) => {
         const mine = allCosts.filter((c) => c.order_id === o.id);
         const extra = extraCosts
           .filter((c) => c.order_id === o.id)
@@ -65,10 +68,13 @@ export function ProfitTab({ orders }: { orders: MattiiOrder[] }) {
             mine.filter((c) => c.cost_category === cat).reduce((s, c) => s + c.amount, 0),
           ]),
         ) as Record<CostCategory, number>;
-        const totalCost = o.total_cost + extra;
+        // ออเดอร์ที่ยังไม่มีต้นทุนจริง → ค่าวัสดุ = ต้นทุนประมาณการ (หมวดอื่นยังเป็น 0)
+        if (econ.basis === "estimated") byCat.material = econ.totalCost;
+        const totalCost = econ.totalCost + extra;
         const profit = o.total_amount - totalCost;
         return {
           order: o,
+          estimated: econ.basis === "estimated",
           byCat,
           totalCost,
           profit,
@@ -82,10 +88,10 @@ export function ProfitTab({ orders }: { orders: MattiiOrder[] }) {
       if (sort === "margin_asc") return a.margin - b.margin;
       return a.profit - b.profit;
     });
-  }, [orders, allCosts, extraCosts, sort]);
+  }, [orders, orderItems, allCosts, extraCosts, sort]);
 
   const totals = useMemo(() => {
-    const base = salesCostProfitTotals(orders);
+    const base = salesCostProfitTotals(orders, orderItems);
     const extra = extraCosts.reduce((s, c) => s + c.amount, 0);
     const totalCost = base.totalCost + extra;
     const grossProfit = base.totalSales - totalCost;
@@ -94,9 +100,11 @@ export function ProfitTab({ orders }: { orders: MattiiOrder[] }) {
       totalCost,
       grossProfit,
       marginPercent: base.totalSales > 0 ? (grossProfit / base.totalSales) * 100 : 0,
+      countedOrders: base.countedOrders,
+      estimatedOrders: base.estimatedOrders,
       lossCount: rows.filter((r) => r.profit < 0).length,
     };
-  }, [orders, extraCosts, rows]);
+  }, [orders, orderItems, extraCosts, rows]);
 
   const opened = openId ? (rows.find((r) => r.order.id === openId) ?? null) : null;
 
@@ -110,14 +118,18 @@ export function ProfitTab({ orders }: { orders: MattiiOrder[] }) {
           icon={<Wallet className="h-4 w-4" />}
           label="ยอดขาย"
           value={fmtMoney(totals.totalSales)}
-          sub={`${fmtNum(orders.length)} ออเดอร์ในช่วงที่เลือก`}
+          sub={`${fmtNum(totals.countedOrders)} ออเดอร์ในช่วงที่เลือก (ไม่รวมที่ยกเลิก)`}
           tone="info"
         />
         <StatCard
           icon={<Coins className="h-4 w-4" />}
           label="ต้นทุนรวม"
           value={fmtMoney(totals.totalCost)}
-          sub="วัสดุ + ค่าแรง + ค่าเครื่อง + ค่าส่ง"
+          sub={
+            totals.estimatedOrders > 0
+              ? `ต้นทุนจริง + ประมาณการอีก ${fmtNum(totals.estimatedOrders)} ใบที่ยังไม่เริ่มผลิต`
+              : "วัสดุ + ค่าแรง + ค่าเครื่อง + ค่าส่ง"
+          }
           tone="neutral"
         />
         <StatCard
@@ -169,10 +181,11 @@ export function ProfitTab({ orders }: { orders: MattiiOrder[] }) {
                     <Coins className="h-7 w-7 text-gray-400" />
                   </div>
                   <div className="text-sm font-medium text-gray-900">
-                    ยังไม่มีออเดอร์ที่บันทึกต้นทุนในช่วงนี้
+                    ยังไม่มีออเดอร์ที่ประเมินต้นทุนได้ในช่วงนี้
                   </div>
                   <div className="text-sm text-gray-500">
-                    ต้นทุนจะถูกบันทึกอัตโนมัติเมื่อออเดอร์เข้าสู่สายผลิต (ตัดสต๊อก/ค่าส่ง)
+                    ออเดอร์ต้องมีรายการพรมอย่างน้อย 1 รายการ จึงจะประมาณการต้นทุนได้
+                    (ต้นทุนจริงบันทึกอัตโนมัติเมื่อเข้าสู่สายผลิต)
                   </div>
                 </div>
               </TableEmpty>
@@ -184,6 +197,7 @@ export function ProfitTab({ orders }: { orders: MattiiOrder[] }) {
                       <span className="font-mono font-medium text-gray-900">
                         {r.order.order_no}
                       </span>
+                      {r.estimated && <StatusBadge tone="neutral">ประมาณการ</StatusBadge>}
                       {r.profit < 0 && <StatusBadge tone="danger">ขาดทุน</StatusBadge>}
                     </div>
                   </TableCell>
@@ -191,8 +205,13 @@ export function ProfitTab({ orders }: { orders: MattiiOrder[] }) {
                   <TableCell align="right" tabular>
                     {fmtMoney(r.order.total_amount)}
                   </TableCell>
-                  <TableCell align="right" tabular>
-                    {fmtMoney(r.byCat.material)}
+                  <TableCell
+                    align="right"
+                    tabular
+                    className={r.estimated ? "text-gray-500" : undefined}
+                    title={r.estimated ? ESTIMATED_COST_HINT : undefined}
+                  >
+                    {`${r.estimated ? "≈ " : ""}${fmtMoney(r.byCat.material)}`}
                   </TableCell>
                   <TableCell align="right" tabular>
                     {fmtMoney(r.byCat.labor)}
@@ -203,22 +222,34 @@ export function ProfitTab({ orders }: { orders: MattiiOrder[] }) {
                   <TableCell align="right" tabular>
                     {fmtMoney(r.byCat.shipping)}
                   </TableCell>
-                  <TableCell align="right" tabular>
-                    {fmtMoney(r.totalCost)}
+                  <TableCell
+                    align="right"
+                    tabular
+                    className={r.estimated ? "text-gray-500" : undefined}
+                  >
+                    {`${r.estimated ? "≈ " : ""}${fmtMoney(r.totalCost)}`}
                   </TableCell>
                   <TableCell
                     align="right"
                     tabular
-                    className={r.profit < 0 ? "font-semibold text-red-600" : "text-green-600"}
+                    className={
+                      r.profit < 0
+                        ? "font-semibold text-red-600"
+                        : r.estimated
+                          ? "text-gray-500"
+                          : "text-green-600"
+                    }
                   >
-                    {fmtMoney(r.profit)}
+                    {`${r.estimated ? "≈ " : ""}${fmtMoney(r.profit)}`}
                   </TableCell>
                   <TableCell
                     align="right"
                     tabular
-                    className={r.margin < 0 ? "text-red-600" : undefined}
+                    className={
+                      r.margin < 0 ? "text-red-600" : r.estimated ? "text-gray-500" : undefined
+                    }
                   >
-                    {fmtPercent(r.margin)}
+                    {`${r.estimated ? "≈ " : ""}${fmtPercent(r.margin)}`}
                   </TableCell>
                 </TableRow>
               ))
@@ -227,7 +258,9 @@ export function ProfitTab({ orders }: { orders: MattiiOrder[] }) {
           {rows.length > 0 && (
             <TableFooter>
               <TableRow>
-                <TableCell colSpan={7}>รวม {fmtNum(rows.length)} ออเดอร์ที่มีต้นทุน</TableCell>
+                <TableCell colSpan={7}>
+                  รวม {fmtNum(rows.length)} ออเดอร์ (ไม่รวมที่ยกเลิก)
+                </TableCell>
                 <TableCell align="right" tabular>
                   {fmtMoney(rows.reduce((s, r) => s + r.totalCost, 0))}
                 </TableCell>
@@ -241,7 +274,8 @@ export function ProfitTab({ orders }: { orders: MattiiOrder[] }) {
             </TableFooter>
           )}
         </Table>
-        <Text className="mt-2 px-1 text-xs text-gray-400">
+        <Text className="mt-2 px-1 text-xs text-gray-500">≈ = {ESTIMATED_COST_HINT}</Text>
+        <Text className="mt-1 px-1 text-xs text-gray-400">
           คลิกที่แถวเพื่อดูต้นทุนแยกหมวดของออเดอร์นั้น และเพิ่มต้นทุนที่กรอกมือ (เช่น ค่าแรง OT)
         </Text>
       </div>
@@ -250,6 +284,7 @@ export function ProfitTab({ orders }: { orders: MattiiOrder[] }) {
         order={opened?.order ?? null}
         costs={opened ? allCosts.filter((c) => c.order_id === opened.order.id) : []}
         totalCost={opened?.totalCost ?? 0}
+        estimated={opened?.estimated ?? false}
         onOpenChange={(v) => !v && setOpenId(null)}
         onAddCost={(cost) => setExtraCosts((prev) => [...prev, cost])}
       />

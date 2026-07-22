@@ -51,7 +51,7 @@ type TabKey = "sales" | "production" | "efficiency" | "profit";
 
 export default function ReportsPage() {
   const { role, isOwner } = useMattiiRole();
-  const { orders, printJobs } = useMattiiData();
+  const { orders, orderItems, printJobs } = useMattiiData();
 
   const [tab, setTab] = useState<TabKey>("sales");
   const [from, setFrom] = useState("");
@@ -72,7 +72,7 @@ export default function ReportsPage() {
 
   // KPI หัวหน้า — ผ่าน metrics.ts ทั้งหมด (ห้ามคิดสูตรซ้ำในหน้า)
   const head = useMemo(() => {
-    const totals = salesCostProfitTotals(scoped);
+    const totals = salesCostProfitTotals(scoped, orderItems);
     return {
       ...totals,
       leadTime: avgLeadTimeDays(scoped),
@@ -81,7 +81,7 @@ export default function ReportsPage() {
       reprintRate: reprintRatePercent(scoped, printJobs),
       count: scoped.length,
     };
-  }, [scoped, printJobs]);
+  }, [scoped, orderItems, printJobs]);
 
   if (!ALLOWED_ROLES.includes(role)) {
     return (
@@ -151,7 +151,7 @@ export default function ReportsPage() {
           icon={<Wallet className="h-4 w-4" />}
           label="ยอดขายในช่วงที่เลือก"
           value={fmtMoney(head.totalSales)}
-          sub={`${fmtNum(head.count)} ออเดอร์`}
+          sub={`${fmtNum(head.countedOrders)} ออเดอร์ (ไม่รวมที่ยกเลิก)`}
           tone="info"
         />
         <StatCard

@@ -3,12 +3,14 @@
 // ห้ามคำนวณ KPI ซ้ำเองในหน้า/component อื่น
 import { ORDER_STAGE_LIST, ORDER_STAGE_OF, money } from "./helpers";
 import { materials as materialsData } from "./materials";
+import { orderItems as orderItemsData } from "./order-items";
 import { orders as ordersData } from "./orders";
 import { printJobs as printJobsData } from "./print-jobs";
 import { shipments as shipmentsData } from "./shipments";
 import type {
   MattiiMaterial,
   MattiiOrder,
+  MattiiOrderItem,
   MattiiPrintJob,
   MattiiShipment,
   OrderStage,
@@ -120,14 +122,111 @@ export function codPendingAmount(src: MattiiShipment[] = shipmentsData): number 
   return money(codPendingShipments(src).reduce((sum, s) => sum + s.cod_amount, 0));
 }
 
-// ---- 6) ยอดขาย/ต้นทุน/กำไรรวม (owner-only surface — UI ต้องซ่อนเองตาม §2.3) ----
+// ---- 6) ต้นทุน/กำไรต่อออเดอร์ + ยอดรวม (owner-only surface — UI ต้องซ่อนเองตาม §2.3) ----
+//
+// ปัญหาที่แก้ (QA b7): ต้นทุนจริง (order_costs) เกิดเฉพาะออเดอร์ที่เข้าสายผลิตแล้ว → ออเดอร์ต้นทาง
+// total_cost = 0 → กำไร = ยอดขายเต็ม → "%กำไร 100.0%" เรียงกันทั้งตาราง (เจ้าของเลิกเชื่อระบบทันที)
+//
+// กติกาเดียวของทั้งโมดูล (ห้ามหน้าไหนคิดเอง):
+//   basis "actual"    — มีต้นทุนจริงแล้ว (Σ order_costs = orders.total_cost > 0)
+//   basis "estimated" — ยังไม่มีต้นทุนจริง → ประมาณการจากรายการพรม Σ(unit_cost × qty)
+//                       (unit_cost = base_cost ของขนาด = ค่าวัสดุมาตรฐาน · ยังไม่รวมค่าแรง/ค่าเครื่อง/
+//                       ค่าส่ง ที่จะบันทึกจริงตอนเริ่มผลิต → ตัวเลขนี้เป็นเพดานบนของกำไร)
+//   basis "none"      — ยกเลิกแล้ว หรือยังไม่มีทั้งต้นทุนจริงและรายการพรม → UI แสดง "—"
+//                       และ **ไม่นับ** เข้ายอดรวม/อัตรากำไรเฉลี่ย (ออเดอร์ยกเลิกไม่ควรดันค่าเฉลี่ย)
 
-export function salesCostProfitTotals(src: MattiiOrder[] = ordersData) {
-  const totalSales = money(src.reduce((s, o) => s + o.total_amount, 0));
-  const totalCost = money(src.reduce((s, o) => s + o.total_cost, 0));
+export type CostBasis = "actual" | "estimated" | "none";
+
+/** ข้อความกำกับความหมายของ "ต้นทุนประมาณการ" — ใช้ร่วมทุกหน้า (เขียนที่เดียว) */
+export const ESTIMATED_COST_HINT =
+  "ต้นทุนประมาณการจากรายการพรม (ค่าวัสดุมาตรฐาน) — ต้นทุนจริงจะบันทึกเมื่อเริ่มผลิต (ตัดสต๊อก + ค่าแรง + ค่าเครื่อง + ค่าส่ง)";
+
+export interface OrderEconomics {
+  totalCost: number;
+  grossProfit: number;
+  marginPercent: number;
+  basis: CostBasis;
+}
+
+/** ต้นทุนประมาณการของออเดอร์ = Σ(unit_cost × qty) ของรายการพรมในออเดอร์นั้น */
+export function estimatedOrderCost(
+  orderId: string,
+  itemsSrc: MattiiOrderItem[] = orderItemsData,
+): number {
+  return money(
+    itemsSrc
+      .filter((it) => it.order_id === orderId)
+      .reduce((s, it) => s + it.unit_cost * it.qty, 0),
+  );
+}
+
+/** 🔒 owner-only — ต้นทุน/กำไร/%กำไร ของออเดอร์ 1 ใบ พร้อมบอกว่าเป็นต้นทุนจริงหรือประมาณการ */
+export function orderEconomics(
+  order: MattiiOrder,
+  itemsSrc: MattiiOrderItem[] = orderItemsData,
+): OrderEconomics {
+  const withCost = (totalCost: number, basis: CostBasis): OrderEconomics => {
+    const grossProfit = money(order.total_amount - totalCost);
+    return {
+      totalCost,
+      grossProfit,
+      marginPercent: order.total_amount > 0 ? money((grossProfit / order.total_amount) * 100) : 0,
+      basis,
+    };
+  };
+  const none: OrderEconomics = {
+    totalCost: 0,
+    grossProfit: 0,
+    marginPercent: 0,
+    basis: "none",
+  };
+  if (order.status === "cancelled") return none;
+  if (order.total_cost > 0) return withCost(money(order.total_cost), "actual");
+  const estimated = estimatedOrderCost(order.id, itemsSrc);
+  return estimated > 0 ? withCost(estimated, "estimated") : none;
+}
+
+export interface SalesCostProfitTotals {
+  totalSales: number;
+  totalCost: number;
+  grossProfit: number;
+  marginPercent: number;
+  /** จำนวนออเดอร์ที่ถูกนับในยอดรวม (ไม่รวมยกเลิก/ไม่มีฐานต้นทุน) */
+  countedOrders: number;
+  /** ในจำนวนที่นับ มีกี่ใบที่ยังใช้ต้นทุนประมาณการ */
+  estimatedOrders: number;
+  /** ถูกตัดออกจากยอดรวม (ยกเลิก หรือยังไม่มีรายการพรม) */
+  excludedOrders: number;
+}
+
+export function salesCostProfitTotals(
+  src: MattiiOrder[] = ordersData,
+  itemsSrc: MattiiOrderItem[] = orderItemsData,
+): SalesCostProfitTotals {
+  let totalSales = 0;
+  let totalCost = 0;
+  let countedOrders = 0;
+  let estimatedOrders = 0;
+  for (const o of src) {
+    const e = orderEconomics(o, itemsSrc);
+    if (e.basis === "none") continue;
+    totalSales += o.total_amount;
+    totalCost += e.totalCost;
+    countedOrders += 1;
+    if (e.basis === "estimated") estimatedOrders += 1;
+  }
+  totalSales = money(totalSales);
+  totalCost = money(totalCost);
   const grossProfit = money(totalSales - totalCost);
-  const marginPercent = totalSales > 0 ? money((grossProfit / totalSales) * 100) : 0;
-  return { totalSales, totalCost, grossProfit, marginPercent };
+  return {
+    totalSales,
+    totalCost,
+    grossProfit,
+    marginPercent: totalSales > 0 ? money((grossProfit / totalSales) * 100) : 0,
+    countedOrders,
+    estimatedOrders,
+    excludedOrders: src.length - countedOrders,
+  };
 }
 
 // ---- 7) lead time เฉลี่ย (รับออเดอร์ → ส่งถึง) — คำนวณจาก orders ที่ delivered_at จริง ----
@@ -212,12 +311,14 @@ export interface DashboardSources {
   materials?: MattiiMaterial[];
   shipments?: MattiiShipment[];
   printJobs?: MattiiPrintJob[];
+  orderItems?: MattiiOrderItem[];
 }
 
 export function dashboardMetrics(src: MattiiOrder[] = ordersData, extra: DashboardSources = {}) {
   const materialsSrc = extra.materials ?? materialsData;
   const shipmentsSrc = extra.shipments ?? shipmentsData;
   const printJobsSrc = extra.printJobs ?? printJobsData;
+  const itemsSrc = extra.orderItems ?? orderItemsData;
   return {
     byStage: countByStage(src),
     byStatus: countByStatus(src),
@@ -227,7 +328,7 @@ export function dashboardMetrics(src: MattiiOrder[] = ordersData, extra: Dashboa
     lowStockMaterialsCount: lowStockMaterialsCount(materialsSrc),
     codPendingCount: codPendingCount(shipmentsSrc),
     codPendingAmount: codPendingAmount(shipmentsSrc),
-    ...salesCostProfitTotals(src),
+    ...salesCostProfitTotals(src, itemsSrc),
     avgLeadTimeDays: avgLeadTimeDays(src),
     reprintRatePercent: reprintRatePercent(src, printJobsSrc),
     lateRatePercent: lateRatePercent(src),

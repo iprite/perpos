@@ -32,6 +32,7 @@ import { Text } from "@/components/ui/typography";
 import { notify } from "@/lib/toast";
 import { MOCK_ORG_ID } from "../_fixtures/helpers";
 import { COST_CATEGORY_LABEL } from "../_fixtures/labels";
+import { ESTIMATED_COST_HINT } from "../_fixtures/metrics";
 import type { CostCategory, MattiiOrder, MattiiOrderCost } from "../_fixtures/types";
 import { Field, SectionHeading, fmtMoney, fmtPercent } from "../_components";
 
@@ -52,6 +53,7 @@ export function CostDetailDialog({
   order,
   costs,
   totalCost,
+  estimated = false,
   onOpenChange,
   onAddCost,
 }: {
@@ -59,6 +61,8 @@ export function CostDetailDialog({
   order: MattiiOrder | null;
   costs: MattiiOrderCost[];
   totalCost: number;
+  /** true = ต้นทุนยังเป็นประมาณการจากรายการพรม (ออเดอร์ยังไม่เข้าสายผลิต) */
+  estimated?: boolean;
   onOpenChange: (v: boolean) => void;
   onAddCost: (cost: MattiiOrderCost) => void;
 }) {
@@ -128,30 +132,45 @@ export function CostDetailDialog({
                 <Field label="ยอดขาย">
                   <span className="font-mono tabular-nums">{fmtMoney(order.total_amount)}</span>
                 </Field>
-                <Field label="ต้นทุนรวม">
-                  <span className="font-mono tabular-nums">{fmtMoney(totalCost)}</span>
+                <Field label={estimated ? "ต้นทุนรวม (ประมาณการ)" : "ต้นทุนรวม"}>
+                  <span
+                    className={`font-mono tabular-nums ${estimated ? "text-gray-500" : ""}`}
+                  >{`${estimated ? "≈ " : ""}${fmtMoney(totalCost)}`}</span>
                 </Field>
-                <Field label="กำไรขั้นต้น">
+                <Field label={estimated ? "กำไรขั้นต้น (ประมาณการ)" : "กำไรขั้นต้น"}>
                   <span
                     className={
                       profit < 0
                         ? "font-mono font-semibold tabular-nums text-red-600"
-                        : "font-mono font-semibold tabular-nums text-green-600"
+                        : estimated
+                          ? "font-mono font-semibold tabular-nums text-gray-500"
+                          : "font-mono font-semibold tabular-nums text-green-600"
                     }
                   >
-                    {fmtMoney(profit)}
+                    {`${estimated ? "≈ " : ""}${fmtMoney(profit)}`}
                   </span>
                 </Field>
-                <Field label="อัตรากำไร">
+                <Field label={estimated ? "อัตรากำไร (ประมาณการ)" : "อัตรากำไร"}>
                   <span
                     className={
-                      margin < 0 ? "font-mono tabular-nums text-red-600" : "font-mono tabular-nums"
+                      margin < 0
+                        ? "font-mono tabular-nums text-red-600"
+                        : estimated
+                          ? "font-mono tabular-nums text-gray-500"
+                          : "font-mono tabular-nums"
                     }
                   >
-                    {fmtPercent(margin)}
+                    {`${estimated ? "≈ " : ""}${fmtPercent(margin)}`}
                   </span>
                 </Field>
               </div>
+
+              {estimated && (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                  ตัวเลขชุดนี้เป็น <span className="font-medium">ประมาณการ</span> —{" "}
+                  {ESTIMATED_COST_HINT}
+                </div>
+              )}
 
               <div>
                 <SectionHeading
