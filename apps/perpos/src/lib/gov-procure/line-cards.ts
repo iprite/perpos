@@ -404,3 +404,225 @@ export function buildStageEventFlex(
     },
   };
 }
+
+// ── การ์ดตอบคำสั่งในกลุ่ม (/สรุป · /กองทุน) ─────────────────────────────────
+
+/** แถวข้อมูล label ซ้าย · ค่าขวา */
+function kvRow(label: string, value: string, color = INK, bold = true) {
+  return {
+    type: "box" as const,
+    layout: "horizontal" as const,
+    margin: "sm" as const,
+    contents: [
+      { type: "text" as const, text: label, size: "sm" as const, color: INK_MUTED, flex: 3 },
+      {
+        type: "text" as const,
+        text: value,
+        size: "sm" as const,
+        weight: bold ? ("bold" as const) : ("regular" as const),
+        color,
+        align: "end" as const,
+        flex: 4,
+        wrap: true,
+      },
+    ],
+  };
+}
+
+function bigNumber(label: string, value: string, color = INK) {
+  return [
+    { type: "text" as const, text: label, size: "xs" as const, color: INK_MUTED },
+    {
+      type: "text" as const,
+      text: value,
+      size: "xl" as const,
+      weight: "bold" as const,
+      color,
+      wrap: true,
+    },
+  ];
+}
+
+/** /สรุป — ภาพรวมงานจัดซื้อ (มูลค่าพอร์ต · แยกตามสถานะ · เงินค้างรับ) */
+export function buildJobSummaryFlex(args: {
+  summary: GovProcureSummary;
+  orderCount: number;
+  stageLabels: Record<string, string>;
+}): LineMessage {
+  const { summary, orderCount, stageLabels } = args;
+  const stageRows = summary.by_stage
+    .filter((s) => s.count > 0)
+    .map((s) => kvRow(stageLabels[s.stage] ?? s.stage, `${s.count} งาน · ${fmtBaht0(s.value)}`));
+
+  const overdue = summary.overdue_count > 0;
+
+  return {
+    type: "flex",
+    altText: `📊 สรุปงานจัดซื้อ — ${fmtBaht0(summary.pipeline_value)}`,
+    contents: {
+      type: "bubble",
+      header: {
+        type: "box",
+        layout: "horizontal",
+        backgroundColor: CHARCOAL,
+        paddingAll: "14px",
+        contents: [
+          { type: "text", text: "📊 สรุปงานจัดซื้อ", color: WHITE, weight: "bold", size: "md" },
+        ],
+      },
+      body: {
+        type: "box",
+        layout: "vertical",
+        paddingAll: "18px",
+        contents: [
+          ...bigNumber(`มูลค่างานรวม · ${orderCount} งาน`, fmtBaht0(summary.pipeline_value)),
+          { type: "separator", margin: "md" },
+          ...(stageRows.length
+            ? stageRows
+            : [
+                {
+                  type: "text",
+                  text: "ยังไม่มีงานในระบบ",
+                  size: "sm",
+                  color: FINE,
+                  margin: "md",
+                },
+              ]),
+          { type: "separator", margin: "md" },
+          {
+            type: "box",
+            layout: "horizontal",
+            backgroundColor: overdue ? RUBY_BG : SUCCESS_BG,
+            cornerRadius: "8px",
+            paddingAll: "10px",
+            margin: "md",
+            contents: [
+              {
+                type: "text",
+                text: overdue
+                  ? `⚠️ เกินกำหนด ${summary.overdue_count} งาน ${fmtBaht0(summary.overdue_amount)}`
+                  : "✅ ไม่มีงานค้างรับเกินกำหนด",
+                size: "sm",
+                weight: "bold",
+                color: overdue ? RUBY : SUCCESS,
+                wrap: true,
+              },
+            ],
+          },
+          {
+            type: "text",
+            text: `เงินค้างรับ ${fmtBaht0(summary.receivable_total)} (${summary.receivable_count} งาน)`,
+            size: "xs",
+            color: FINE,
+            margin: "md",
+            wrap: true,
+          },
+        ],
+      },
+    },
+  };
+}
+
+/** /กองทุน — เงินลงทุน กระจายตัวตามบริษัท และส่วนแบ่งนักลงทุน */
+export function buildCapitalSummaryFlex(args: {
+  totalContributed: number;
+  poolBalance: number;
+  totalProfitRealized: number;
+  totalDistributable: number;
+  companies: {
+    company: string;
+    capitalHeld: number;
+    pipelineValue: number;
+    distributable: number;
+  }[];
+  investors: { name: string; sharePct: number; contributed: number; outstanding: number }[];
+}): LineMessage {
+  const companyRows = args.companies
+    .filter((c) => c.capitalHeld !== 0 || c.pipelineValue !== 0)
+    .map((c) =>
+      kvRow(
+        c.company,
+        `ทุน ${fmtBaht0(c.capitalHeld)}${c.distributable > 0 ? ` · ปันผลได้ ${fmtBaht0(c.distributable)}` : ""}`,
+        INK,
+        false,
+      ),
+    );
+
+  const investorRows = args.investors.map((i) =>
+    kvRow(`${i.name} · ${i.sharePct}%`, `ค้างคืน ${fmtBaht0(i.outstanding)}`, INK, false),
+  );
+
+  return {
+    type: "flex",
+    altText: `💼 กองทุน — ลงขัน ${fmtBaht0(args.totalContributed)}`,
+    contents: {
+      type: "bubble",
+      header: {
+        type: "box",
+        layout: "horizontal",
+        backgroundColor: CHARCOAL,
+        paddingAll: "14px",
+        contents: [
+          { type: "text", text: "💼 กองทุนและนักลงทุน", color: WHITE, weight: "bold", size: "md" },
+        ],
+      },
+      body: {
+        type: "box",
+        layout: "vertical",
+        paddingAll: "18px",
+        contents: [
+          ...bigNumber("เงินลงขันรวม", fmtBaht0(args.totalContributed)),
+          kvRow("คงเหลือในกองกลาง", fmtBaht0(args.poolBalance)),
+          kvRow("กำไรสะสม", fmtBaht0(args.totalProfitRealized), SUCCESS),
+          {
+            type: "box",
+            layout: "horizontal",
+            backgroundColor: args.totalDistributable > 0 ? SUCCESS_BG : INFO_BG,
+            cornerRadius: "8px",
+            paddingAll: "10px",
+            margin: "md",
+            contents: [
+              {
+                type: "text",
+                text:
+                  args.totalDistributable > 0
+                    ? `พร้อมปันผล ${fmtBaht0(args.totalDistributable)}`
+                    : "ยังไม่มีกำไรที่พร้อมปันผล",
+                size: "sm",
+                weight: "bold",
+                color: args.totalDistributable > 0 ? SUCCESS : INFO,
+                wrap: true,
+              },
+            ],
+          },
+          { type: "separator", margin: "md" },
+          { type: "text", text: "🏢 ตามบริษัท", size: "xs", color: INK_MUTED, margin: "md" },
+          ...(companyRows.length
+            ? companyRows
+            : [
+                {
+                  type: "text",
+                  text: "ยังไม่มีการกระจายทุน",
+                  size: "xs",
+                  color: FINE,
+                  margin: "sm",
+                },
+              ]),
+          { type: "separator", margin: "md" },
+          { type: "text", text: "👥 นักลงทุน", size: "xs", color: INK_MUTED, margin: "md" },
+          ...(investorRows.length
+            ? investorRows
+            : [
+                {
+                  type: "text",
+                  text: "ยังไม่มีนักลงทุน",
+                  size: "xs",
+                  color: FINE,
+                  margin: "sm",
+                },
+              ]),
+        ],
+      },
+    },
+  };
+}

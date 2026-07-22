@@ -10,13 +10,8 @@ import { computeSummary } from "./summary";
 import { listInvestors, listCapitalFlows, computeCapital } from "./capital";
 import { MODULE_KEY, getOrgSlug } from "./notify";
 import { cmdContribution, cmdStage, cmdNewOrder, type CmdReply } from "./line-commands";
-
-const BAHT = (n: number) =>
-  `${new Intl.NumberFormat("th-TH", { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(
-    Math.abs(n),
-  )}${n < 0 ? "" : ""} ฿`;
-
-const money = (n: number) => (n < 0 ? `−${BAHT(n)}` : BAHT(n));
+import { buildJobSummaryFlex, buildCapitalSummaryFlex } from "./line-cards";
+import { STAGE_LABELS } from "./stage";
 
 /** org ที่ผูกกับกลุ่มนี้ — null ถ้ากลุ่มยังไม่ถูกผูก */
 export async function orgIdForGroup(
@@ -148,93 +143,57 @@ export async function unbindGroup(
   return { text: "✅ เลิกผูกกลุ่มแล้ว — กลุ่มนี้จะไม่ได้รับแจ้งเตือนอีก" };
 }
 
-/** /สรุป — ภาพรวมงานของ org (pipeline + เงินค้างรับ) */
-export async function buildJobSummaryText(admin: SupabaseClient, orgId: string): Promise<string> {
+/** /สรุป — ภาพรวมงานของ org (Flex) */
+export async function buildJobSummaryCard(admin: SupabaseClient, orgId: string) {
   const [orders, settings] = await Promise.all([
     listOrders(admin, orgId),
     getSettings(admin, orgId),
   ]);
-  const s = computeSummary(orders, settings.sla_threshold);
-  const slug = await getOrgSlug(admin, orgId);
+  const summary = computeSummary(orders, settings.sla_threshold);
 
-  const stageLines = s.by_stage
-    .filter((st) => st.count > 0)
-    .map((st) => `• ${STAGE_TH[st.stage] ?? st.stage}: ${st.count} งาน ${money(st.value)}`)
-    .join("\n");
-
-  return [
-    "📊 สรุปงานจัดซื้อ",
-    "",
-    `มูลค่างานรวม ${money(s.pipeline_value)} (${orders.length} งาน)`,
-    "",
-    stageLines || "• ยังไม่มีงานในระบบ",
-    "",
-    `💰 เงินค้างรับ ${money(s.receivable_total)} (${s.receivable_count} งาน)`,
-    s.overdue_count > 0
-      ? `⚠️ เกินกำหนด ${s.overdue_count} งาน ${money(s.overdue_amount)}`
-      : "✅ ไม่มีงานค้างรับเกินกำหนด",
-    "",
-    `https://app.perpos.ai/${slug}/gov-procure`,
-  ].join("\n");
+  const msg = buildJobSummaryFlex({
+    summary,
+    orderCount: orders.length,
+    stageLabels: STAGE_LABELS,
+  });
+  return {
+    flex: (msg as { contents: unknown }).contents,
+    altText: (msg as { altText: string }).altText,
+  };
 }
 
-/** /กองทุน — เงินลงทุน กระจายตัว และกำไรที่พร้อมปันผล */
-export async function buildCapitalSummaryText(
-  admin: SupabaseClient,
-  orgId: string,
-): Promise<string> {
+/** /กองทุน — เงินลงทุน กระจายตัว และกำไรที่พร้อมปันผล (Flex) */
+export async function buildCapitalSummaryCard(admin: SupabaseClient, orgId: string) {
   const [orders, investors, flows] = await Promise.all([
     listOrders(admin, orgId),
     listInvestors(admin, orgId),
     listCapitalFlows(admin, orgId),
   ]);
   const c = computeCapital(orders, investors, flows);
-  const slug = await getOrgSlug(admin, orgId);
 
-  const companyLines = c.byCompany
-    .filter((x) => x.capitalHeld !== 0 || x.orderCount > 0)
-    .map(
-      (x) =>
-        `• ${x.company}\n   ทุน ${money(x.capitalHeld)} · งาน ${money(x.pipelineValue)}${
-          x.distributable > 0 ? ` · พร้อมปันผล ${money(x.distributable)}` : ""
-        }`,
-    )
-    .join("\n");
-
-  const investorLines = c.byInvestor
-    .map(
-      (b) =>
-        `• ${b.investor.name} (${b.investor.share_pct}%) — ลงขัน ${money(b.contributed)} · ค้างคืน ${money(
-          b.outstanding,
-        )}`,
-    )
-    .join("\n");
-
-  return [
-    "💼 กองทุนและนักลงทุน",
-    "",
-    `เงินลงขันรวม ${money(c.totalContributed)}`,
-    `คงเหลือในกองกลาง ${money(c.poolBalance)}`,
-    `กำไรสะสม ${money(c.totalProfitRealized)} · พร้อมปันผล ${money(c.totalDistributable)}`,
-    "",
-    "🏢 ตามบริษัท",
-    companyLines || "• ยังไม่มีการกระจายทุน",
-    "",
-    "👥 นักลงทุน",
-    investorLines || "• ยังไม่มีนักลงทุน",
-    "",
-    `https://app.perpos.ai/${slug}/gov-procure/capital`,
-  ].join("\n");
+  const msg = buildCapitalSummaryFlex({
+    totalContributed: c.totalContributed,
+    poolBalance: c.poolBalance,
+    totalProfitRealized: c.totalProfitRealized,
+    totalDistributable: c.totalDistributable,
+    companies: c.byCompany.map((x) => ({
+      company: x.company,
+      capitalHeld: x.capitalHeld,
+      pipelineValue: x.pipelineValue,
+      distributable: x.distributable,
+    })),
+    investors: c.byInvestor.map((b) => ({
+      name: b.investor.name,
+      sharePct: b.investor.share_pct,
+      contributed: b.contributed,
+      outstanding: b.outstanding,
+    })),
+  });
+  return {
+    flex: (msg as { contents: unknown }).contents,
+    altText: (msg as { altText: string }).altText,
+  };
 }
-
-const STAGE_TH: Record<string, string> = {
-  quotation: "เสนอราคา",
-  contracted: "เซ็นสัญญาแล้ว รอส่งของ",
-  procuring: "สั่งซื้อ/ชำระซัพพลายเออร์",
-  delivered: "ส่งสินค้าแล้ว รอรับเช็ค",
-  paid: "รับเช็คแล้ว",
-  closed: "ปิดงาน",
-};
 
 const HELP = [
   "🤖 คำสั่งในกลุ่มนี้",
@@ -273,9 +232,8 @@ export async function handleGovGroupCommand(
 
   if (cmd === "/เลิกผูกกลุ่ม" || cmd === "/unbindgroup")
     return unbindGroup(admin, groupId, profileId);
-  if (cmd === "/สรุป" || cmd === "/งาน") return { text: await buildJobSummaryText(admin, orgId) };
-  if (cmd === "/กองทุน" || cmd === "/ทุน")
-    return { text: await buildCapitalSummaryText(admin, orgId) };
+  if (cmd === "/สรุป" || cmd === "/งาน") return buildJobSummaryCard(admin, orgId);
+  if (cmd === "/กองทุน" || cmd === "/ทุน") return buildCapitalSummaryCard(admin, orgId);
   if (cmd === "/help" || cmd === "/ช่วยเหลือ") return { text: HELP };
 
   // ── คำสั่งบันทึกข้อมูล ──
