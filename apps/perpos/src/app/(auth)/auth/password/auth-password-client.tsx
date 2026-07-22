@@ -20,7 +20,9 @@ function cleanupAuthUrl() {
 
 function parseHashParams() {
   if (typeof window === "undefined") return new URLSearchParams();
-  const hash = window.location.hash.startsWith("#") ? window.location.hash.slice(1) : window.location.hash;
+  const hash = window.location.hash.startsWith("#")
+    ? window.location.hash.slice(1)
+    : window.location.hash;
   return new URLSearchParams(hash);
 }
 
@@ -43,7 +45,10 @@ export default function AuthPasswordClient() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
-  const canSubmit = useMemo(() => password.trim().length >= 8 && password === confirm, [confirm, password]);
+  const canSubmit = useMemo(
+    () => password.trim().length >= 8 && password === confirm,
+    [confirm, password],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -165,13 +170,11 @@ export default function AuthPasswordClient() {
           <div className="flex flex-col items-center text-center">
             {/* Logo */}
             <div className="mb-6">
-              <img src="/tmc-logo.svg" alt="PERPOS" className="h-9 w-auto" />
+              <img src="/brand/perpos-icon-192.png" alt="PERPOS" className="h-10 w-auto" />
             </div>
 
-            <div className="text-xl font-bold text-slate-800 font-inter">
-              ตั้งรหัสผ่านใหม่
-            </div>
-            <div className="mt-1.5 text-sm text-slate-500 leading-relaxed max-w-xs">
+            <div className="font-inter text-xl font-bold text-slate-800">ตั้งรหัสผ่านใหม่</div>
+            <div className="mt-1.5 max-w-xs text-sm leading-relaxed text-slate-500">
               ตั้งรหัสผ่านใหม่เพื่อเริ่มใช้งานบัญชีผู้ใช้ของคุณบน PERPOS
             </div>
           </div>
@@ -179,14 +182,14 @@ export default function AuthPasswordClient() {
           {/* Checking status */}
           {checking && (
             <div className="mt-6 flex flex-col items-center justify-center py-6 text-slate-500">
-              <div className="h-6 w-6 animate-spin rounded-full border-2 border-slate-300 border-t-blue-600 mb-2" />
+              <div className="mb-2 h-6 w-6 animate-spin rounded-full border-2 border-slate-300 border-t-blue-600" />
               <div className="text-sm font-medium">กำลังตรวจสอบความถูกต้องของลิงก์...</div>
             </div>
           )}
 
           {/* Error Alert */}
           {error && (
-            <div className="mt-6 rounded-xl border border-red-150 bg-red-50 px-4 py-3 text-sm text-red-700 leading-relaxed">
+            <div className="border-red-150 mt-6 rounded-xl border bg-red-50 px-4 py-3 text-sm leading-relaxed text-red-700">
               {error}
             </div>
           )}
@@ -195,7 +198,9 @@ export default function AuthPasswordClient() {
           {ready && (
             <div className="mt-6 grid gap-4">
               <div>
-                <Label className="mb-1.5 block text-xs font-bold text-slate-700">รหัสผ่านใหม่</Label>
+                <Label className="mb-1.5 block text-xs font-bold text-slate-700">
+                  รหัสผ่านใหม่
+                </Label>
                 <div className="relative">
                   <Input
                     type={showPassword ? "text" : "password"}
@@ -204,7 +209,7 @@ export default function AuthPasswordClient() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="อย่างน้อย 8 ตัวอักษร"
-                    className="h-11 rounded-xl pr-10 bg-slate-50/50 focus:bg-white transition-colors"
+                    className="h-11 rounded-xl bg-slate-50/50 pr-10 transition-colors focus:bg-white"
                     disabled={submitting}
                   />
                   <button
@@ -220,7 +225,9 @@ export default function AuthPasswordClient() {
               </div>
 
               <div>
-                <Label className="mb-1.5 block text-xs font-bold text-slate-700">ยืนยันรหัสผ่าน</Label>
+                <Label className="mb-1.5 block text-xs font-bold text-slate-700">
+                  ยืนยันรหัสผ่าน
+                </Label>
                 <div className="relative">
                   <Input
                     type={showConfirmPassword ? "text" : "password"}
@@ -229,7 +236,7 @@ export default function AuthPasswordClient() {
                     value={confirm}
                     onChange={(e) => setConfirm(e.target.value)}
                     placeholder="พิมพ์ซ้ำอีกครั้งเพื่อยืนยัน"
-                    className="h-11 rounded-xl pr-10 bg-slate-50/50 focus:bg-white transition-colors"
+                    className="h-11 rounded-xl bg-slate-50/50 pr-10 transition-colors focus:bg-white"
                     disabled={submitting}
                   />
                   <button
@@ -238,14 +245,18 @@ export default function AuthPasswordClient() {
                     tabIndex={-1}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none"
                   >
-                    {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    {showConfirmPassword ? (
+                      <EyeOff className="h-4 w-4" />
+                    ) : (
+                      <Eye className="h-4 w-4" />
+                    )}
                   </button>
                 </div>
               </div>
 
               <div className="mt-2 flex flex-col gap-2">
                 <Button
-                  className="h-11 w-full rounded-xl bg-blue-600 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50 transition-colors shadow-md shadow-blue-500/10"
+                  className="h-11 w-full rounded-xl bg-blue-600 text-sm font-semibold text-white shadow-md shadow-blue-500/10 transition-colors hover:bg-blue-700 disabled:opacity-50"
                   disabled={!canSubmit || submitting}
                   onClick={async () => {
                     setSubmitting(true);
@@ -268,11 +279,11 @@ export default function AuthPasswordClient() {
                 >
                   {submitting ? "กำลังบันทึกรหัสผ่าน..." : "บันทึกรหัสผ่าน"}
                 </Button>
-                
-                <Button 
-                  variant="outline" 
-                  className="h-11 w-full rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
-                  onClick={() => router.replace(withBasePath("/signin"))} 
+
+                <Button
+                  variant="outline"
+                  className="h-11 w-full rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50"
+                  onClick={() => router.replace(withBasePath("/signin"))}
                   disabled={submitting}
                 >
                   ไปที่หน้าเข้าสู่ระบบ
@@ -283,10 +294,12 @@ export default function AuthPasswordClient() {
         </div>
 
         <div className="border-t border-slate-100 bg-slate-50/80">
-          <div className="p-4.5 text-center py-4">
-            <div className="inline-flex items-center gap-1.5 text-xs text-slate-400 whitespace-nowrap">
-              <Lock className="h-3.5 w-3.5 text-blue-500 shrink-0" />
-              <span>Secured by <span className="font-semibold text-slate-600">Supabase Security</span></span>
+          <div className="p-4.5 py-4 text-center">
+            <div className="inline-flex items-center gap-1.5 whitespace-nowrap text-xs text-slate-400">
+              <Lock className="h-3.5 w-3.5 shrink-0 text-blue-500" />
+              <span>
+                Secured by <span className="font-semibold text-slate-600">Supabase Security</span>
+              </span>
             </div>
           </div>
         </div>

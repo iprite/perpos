@@ -1,4 +1,4 @@
-import Image from 'next/image';
+import Image from "next/image";
 
 interface IconProps {
   iconOnly?: boolean;
@@ -7,29 +7,14 @@ interface IconProps {
 }
 
 export default function Logo({ iconOnly = false, className, style }: IconProps) {
-  if (iconOnly) {
-    return (
-      <Image
-        src="/tmc-logo-short.svg"
-        alt="TMC"
-        width={40}
-        height={40}
-        className={className}
-        style={{ objectFit: 'contain', ...style }}
-        priority
-        unoptimized
-      />
-    );
-  }
-
   return (
     <Image
-      src="/tmc-logo.svg"
-      alt="TMC"
-      width={155}
-      height={40}
+      src="/brand/perpos-icon-512.png"
+      alt="PERPOS"
+      width={iconOnly ? 40 : 48}
+      height={iconOnly ? 40 : 48}
       className={className}
-      style={{ objectFit: 'contain', ...style }}
+      style={{ objectFit: "contain", ...style }}
       priority
       unoptimized
     />
