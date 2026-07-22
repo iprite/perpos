@@ -1,5 +1,5 @@
 // POST   /api/gov-procure/catalog-images?orgId=  → อัปโหลดรูป (canWrite) — path server สร้างเอง
-// GET    /api/gov-procure/catalog-images?orgId=&itemId=|productId=|itemIds=a,b → signed URL (member)
+// GET    /api/gov-procure/catalog-images?orgId=&itemId=|productId=|itemIds=a,b|productIds=a,b → signed URL (member)
 // DELETE /api/gov-procure/catalog-images?orgId=&itemId=|productId=  → ลบรูป (canWrite)
 //
 // contract: §5.9 A-B1 (**client ห้ามส่ง `path` เข้ามาทุกกรณี** · batch = คิวรีเดียว) ·
@@ -40,18 +40,32 @@ export async function GET(req: NextRequest) {
 
   const itemId = sp.get("itemId");
   const productId = sp.get("productId");
-  const itemIds = (sp.get("itemIds") ?? "")
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean)
-    .slice(0, MAX_BATCH);
+  const csvIds = (key: string) =>
+    (sp.get(key) ?? "")
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .slice(0, MAX_BATCH);
+
+  const itemIds = csvIds("itemIds");
+  // batch ของคลังสินค้า — หน้าคลังต้องโชว์ thumbnail ทั้งตารางในคิวรีเดียว
+  const productIds = csvIds("productIds");
 
   const admin = createAdminClient();
 
   try {
-    const table = productId ? PRODUCT_TABLE : ITEM_TABLE;
-    const ids = productId ? [productId] : itemId ? [itemId] : itemIds;
-    if (ids.length === 0) return govError("กรุณาระบุ itemId / productId / itemIds");
+    const wantsProduct = Boolean(productId) || productIds.length > 0;
+    const table = wantsProduct ? PRODUCT_TABLE : ITEM_TABLE;
+    const ids = productId
+      ? [productId]
+      : productIds.length > 0
+        ? productIds
+        : itemId
+          ? [itemId]
+          : itemIds;
+    if (ids.length === 0) {
+      return govError("กรุณาระบุ itemId / productId / itemIds / productIds");
+    }
 
     // batch = คิวรีเดียว + กรอง org_id ในคิวรีเดียวกัน (security-reviewer flag)
     const { data, error } = await admin

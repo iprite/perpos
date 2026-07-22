@@ -22,7 +22,13 @@ import { SegmentedControl } from "@/components/ui/segmented";
 import { Switch } from "@/components/ui/switch";
 import { Text } from "@/components/ui/typography";
 import { toast } from "@/lib/toast";
-import type { Catalog, CatalogItemStats, CatalogTemplate } from "@/lib/gov-procure/catalog";
+import type {
+  Catalog,
+  CatalogItem,
+  CatalogItemStats,
+  CatalogTemplate,
+} from "@/lib/gov-procure/catalog";
+import { A4Preview } from "./a4-preview";
 import { downloadWithAuth } from "./download";
 import { fmtNum, TEMPLATE_HINT } from "./format";
 
@@ -30,6 +36,7 @@ export function ExportDialog({
   open,
   onOpenChange,
   catalog,
+  items,
   stats,
   orgId,
   onOpenSettings,
@@ -37,6 +44,8 @@ export function ExportDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
   catalog: Catalog;
+  /** รายการของชุด — ใช้ทำตัวอย่างโครงหน้า (ไม่ใช่ไฟล์จริง) */
+  items: CatalogItem[];
   stats: CatalogItemStats;
   orgId: string;
   /** ไปตั้งค่าชุด (ใช้เมื่อยังไม่ได้เลือกบริษัท) */
@@ -128,6 +137,17 @@ export function ExportDialog({
                 </div>
               </div>
             )}
+
+            <div>
+              <Text className="mb-2 text-xs font-semibold text-gray-700">ตัวอย่างโครงหน้าแรก</Text>
+              <A4Preview
+                catalog={catalog}
+                items={items}
+                template={template}
+                showPrices={showPrices}
+                notVerifiedCount={unverified}
+              />
+            </div>
 
             <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
               <Text className="text-xs font-semibold text-gray-700">

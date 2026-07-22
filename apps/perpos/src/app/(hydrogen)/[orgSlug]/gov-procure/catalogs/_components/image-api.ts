@@ -22,6 +22,33 @@ export async function fetchItemImageUrls(
   return res.urls ?? {};
 }
 
+/** เพดานต่อคำขอของ route (`MAX_BATCH`) — เกินกว่านี้ต้องแบ่งยิงเป็นชุด */
+export const IMAGE_BATCH_SIZE = 300;
+
+/** signed URL ของรูปสินค้าในคลังหลายตัว (key = productId) — แบ่งชุดตามเพดาน */
+export async function fetchProductImageUrls(
+  orgId: string,
+  productIds: string[],
+): Promise<Record<string, string>> {
+  const chunks: string[][] = [];
+  for (let i = 0; i < productIds.length; i += IMAGE_BATCH_SIZE) {
+    chunks.push(productIds.slice(i, i + IMAGE_BATCH_SIZE));
+  }
+
+  const results = await Promise.all(
+    chunks.map((chunk) =>
+      govApi<{ urls: Record<string, string> }>(
+        `${BASE}?orgId=${encodeURIComponent(orgId)}&productIds=${chunk.join(",")}`,
+        "GET",
+      ),
+    ),
+  );
+
+  const out: Record<string, string> = {};
+  results.forEach((res) => Object.assign(out, res.urls ?? {}));
+  return out;
+}
+
 /** signed URL ของรูปสินค้าในคลัง (key = productId) */
 export async function fetchProductImageUrl(
   orgId: string,

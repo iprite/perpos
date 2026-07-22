@@ -91,6 +91,162 @@ export async function findProductsByNames(
 }
 
 // ---------------------------------------------------------------------------
+// Fuzzy lookup — "ข้อเสนอแนะ" เท่านั้น (migration 20260722210000, pg_trgm)
+//
+// ⚠️ กฎความปลอดภัยของฟีเจอร์ (ห้ามละเมิด — เอกสารนี้ใช้ยื่นราชการ):
+//    exact match (findProductByName/findProductsByNames) → auto-apply ได้
+//    fuzzy match (ด้านล่าง)                              → **เสนอให้คนเลือกเท่านั้น**
+//    ห้าม caller เอาผลจากที่นี่ไปเรียก applyProductToItem เอง / ตั้ง source='library'
+//    อัตโนมัติทุกกรณี — จับคู่ผิด = สเปก/ราคาของสินค้าคนละตัวไหลเข้าเอกสารที่ยื่น
+//    ราชการ พร้อมป้าย "จากคลัง" ที่ดูเหมือนคนยืนยันแล้ว
+// ---------------------------------------------------------------------------
+
+/** สินค้าในคลังเท่าที่ RPC คืน (พอสำหรับแสดงตัวเลือก — ตอน "ใช้อันนี้" ค่อยอ่านตัวเต็ม) */
+export type CatalogProductSuggestionInfo = Pick<
+  CatalogProduct,
+  "id" | "name" | "brand_model" | "image_path" | "last_unit_price"
+>;
+
+export interface CatalogProductSuggestion {
+  product: CatalogProductSuggestionInfo;
+  /** similarity ของ pg_trgm (0–1) */
+  score: number;
+  /** ชื่อ normalize แล้วตรงกันเป๊ะ (= เคสที่ auto-apply ได้อยู่แล้ว) */
+  exact: boolean;
+}
+
+/**
+ * เกณฑ์คะแนนขั้นต่ำของข้อเสนอแนะ = **0.30**
+ *
+ * ที่มา (unit test `catalog-products.fuzzy.test.ts` — คำนวณ trigram แบบเดียวกับ pg_trgm
+ * บนคู่ชื่อจริงจาก TOR vs คลัง):
+ *   ควรเจอ  : "ปากกาเจล 0.5 น้ำเงิน" ↔ "ปากกาหมึกเจล สีน้ำเงิน ขนาด 0.5 มม."  ≈ 0.44
+ *             "กระดาษ A4 80 แกรม"    ↔ "กระดาษถ่ายเอกสาร A4 80 แกรม Double A"  ≈ 0.45
+ *   ห้ามเจอ : "ปากกาเจล 0.5"         ↔ "ปากกาไวท์บอร์ด สีดำ"                   ≈ 0.18
+ *             "กระดาษ A4 80 แกรม"    ↔ "กระดาษชำระ ม้วนใหญ่"                    ≈ 0.19
+ * → ช่องว่างระหว่างสองกลุ่มกว้าง (≈0.19 vs ≈0.44) เลือกค่าใกล้กลางที่ต่ำสุดเท่าที่
+ *   ยังกันกลุ่มล่างได้ = 0.30 ซึ่งตรงกับ default ของ operator `%` (GUC
+ *   `pg_trgm.similarity_threshold`) พอดี → ค่านี้เป็น "พื้น" ที่ต่ำกว่านี้ไม่ได้ผลจริง
+ *   (RPC clamp ให้เท่ากับ 0.3 อยู่แล้ว)
+ * ⚠️ ตัวเลขข้างบนมาจากการจำลอง pg_trgm ฝั่ง TS — หลัง apply migration ให้รัน
+ *    คิวรี verify ข้อ 4 ในไฟล์ migration เทียบกับ similarity() ของจริงอีกครั้ง
+ */
+export const FUZZY_MIN_SCORE = 0.3;
+
+/** จำนวนข้อเสนอแนะต่อ 1 ชื่อ (คนต้องเลือกเอง — เยอะกว่านี้กลายเป็นภาระ) */
+export const FUZZY_SUGGESTION_LIMIT = 5;
+
+/** แถวดิบจาก RPC — ทุกฟิลด์ optional เพราะมาจากนอกระบบ type (PostgREST) */
+interface MatchProductRow {
+  input_name?: string;
+  product_id?: string;
+  name?: string;
+  brand_model?: string | null;
+  image_path?: string | null;
+  last_unit_price?: number | string | null;
+  score?: number | string;
+}
+
+export interface SuggestProductsOpts {
+  /** ต่ำกว่า 0.3 ไม่มีผล (RPC clamp) */
+  threshold?: number;
+  limit?: number;
+}
+
+/**
+ * หาสินค้าในคลังที่ "ใกล้เคียง" ชื่อที่ให้มา (pg_trgm) — คืน Map: ชื่อที่ส่งเข้าไป → ตัวเลือกเรียงคะแนน
+ *
+ * **ต้องไม่ทำให้อะไรพังถ้ายังไม่ได้ apply migration** (extension/RPC ยังไม่มี):
+ * จับ error ทุกกรณี → คืน Map ว่าง + log (feature degrade ไม่ใช่ crash)
+ * เพราะโค้ดนี้อาจ merge ขึ้น main ก่อนที่ migration จะถูก apply
+ */
+export async function suggestProductsByNames(
+  client: SupabaseClient,
+  orgId: string,
+  names: string[],
+  opts: SuggestProductsOpts = {},
+): Promise<Map<string, CatalogProductSuggestion[]>> {
+  const out = new Map<string, CatalogProductSuggestion[]>();
+
+  // ส่งเฉพาะชื่อที่ normalize แล้วไม่ว่าง + ไม่ซ้ำ (ประหยัดงานฝั่ง DB)
+  const seen = new Set<string>();
+  const queries: string[] = [];
+  for (const raw of names) {
+    const name = String(raw ?? "").trim();
+    if (!name || !normalizeName(name) || seen.has(name)) continue;
+    seen.add(name);
+    queries.push(name);
+  }
+  if (queries.length === 0) return out;
+
+  const threshold = Math.max(opts.threshold ?? FUZZY_MIN_SCORE, FUZZY_MIN_SCORE);
+  const limit = Math.min(Math.max(opts.limit ?? FUZZY_SUGGESTION_LIMIT, 1), 20);
+
+  let rows: MatchProductRow[] = [];
+  try {
+    const { data, error } = await client.rpc("gov_procure_match_products", {
+      p_org_id: orgId,
+      p_names: queries,
+      p_threshold: threshold,
+      p_limit: limit,
+    });
+    if (error) {
+      // ยังไม่ได้ apply migration (42883 undefined_function) หรือสิทธิ์ไม่พอ
+      console.warn("[gov-procure:catalog] fuzzy match ใช้ไม่ได้ —", error.message);
+      return out;
+    }
+    rows = (data ?? []) as MatchProductRow[];
+  } catch (e) {
+    console.warn("[gov-procure:catalog] fuzzy match ล้มเหลว —", (e as Error).message);
+    return out;
+  }
+
+  const keyOf = new Map<string, string>(queries.map((n) => [n, normalizeName(n)] as const));
+
+  for (const r of rows) {
+    if (!r?.input_name || !r.product_id) continue;
+    const list = out.get(r.input_name) ?? [];
+    const score = Number(r.score);
+    list.push({
+      product: {
+        id: r.product_id,
+        name: r.name ?? "",
+        brand_model: r.brand_model ?? null,
+        image_path: r.image_path ?? null,
+        last_unit_price:
+          r.last_unit_price === null || r.last_unit_price === undefined
+            ? null
+            : Number(r.last_unit_price),
+      },
+      score: Number.isFinite(score) ? score : 0,
+      exact: normalizeName(r.name ?? "") === keyOf.get(r.input_name),
+    });
+    out.set(r.input_name, list);
+  }
+
+  // เรียงคะแนนมาก→น้อยเสมอ (ไม่พึ่งลำดับแถวที่ PostgREST คืน) + ตัดตาม limit
+  // ใช้ forEach แทน for…of เพราะ tsconfig ของแอป target ต่ำกว่า es2015 (ไม่มี downlevelIteration)
+  out.forEach((list, k) => {
+    const sorted = [...list].sort(
+      (a: CatalogProductSuggestion, b: CatalogProductSuggestion) => b.score - a.score,
+    );
+    out.set(k, sorted.slice(0, limit));
+  });
+  return out;
+}
+
+/** เวอร์ชันชื่อเดียว — คืน [] เมื่อไม่มีข้อเสนอแนะ/RPC ยังไม่พร้อม */
+export async function suggestProductsByName(
+  client: SupabaseClient,
+  orgId: string,
+  name: string,
+  opts: SuggestProductsOpts = {},
+): Promise<CatalogProductSuggestion[]> {
+  const map = await suggestProductsByNames(client, orgId, [name], opts);
+  return map.get(String(name ?? "").trim()) ?? [];
+}
+
+// ---------------------------------------------------------------------------
 // คลัง → รายการ (library match)
 // ---------------------------------------------------------------------------
 

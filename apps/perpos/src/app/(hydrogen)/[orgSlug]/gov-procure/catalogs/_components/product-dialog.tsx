@@ -72,6 +72,7 @@ export function ProductDialog({
   canDelete,
   onSaved,
   onDeleted,
+  onImageChanged,
 }: {
   product: CatalogProduct | null;
   open: boolean;
@@ -81,6 +82,8 @@ export function ProductDialog({
   canDelete: boolean;
   onSaved: (product: CatalogProduct) => void;
   onDeleted: (productId: string) => void;
+  /** อัปโหลด/ลบรูปแล้ว → ให้ตารางขอ signed URL ใหม่ของสินค้าตัวนี้ */
+  onImageChanged?: (productId: string) => void;
 }) {
   const [form, setForm] = useState<Form | null>(null);
   const [imageUrl, setImageUrl] = useState<string | undefined>(undefined);
@@ -179,6 +182,7 @@ export function ProductDialog({
         setImageUrl(undefined);
         toast.success("ลบรูปแล้ว");
       }
+      onImageChanged?.(product.id);
     } catch (e) {
       toast.error((e as Error).message || "จัดการรูปไม่สำเร็จ");
     } finally {

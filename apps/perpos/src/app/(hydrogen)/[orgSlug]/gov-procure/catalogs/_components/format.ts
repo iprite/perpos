@@ -73,6 +73,35 @@ export function priceEstimateLabel(item: CatalogItem): string | null {
   return "ประมาณการ";
 }
 
+// ---------------------------------------------------------------------------
+// โลโก้หัวจดหมาย (A-6) — server ปฏิเสธถ้าไม่ผ่าน regex/ขนาด
+// ตรวจซ้ำฝั่ง UI เพื่อบอกผู้ใช้ก่อน ไม่ปล่อยให้ error ดิบเด้ง
+// ---------------------------------------------------------------------------
+
+/** ชนิดไฟล์ที่ server ยอมรับ (ต้องตรงกับ `isValidLogoDataUrl`) */
+const LOGO_DATA_URL_RE = /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/;
+/** เพดานขนาดโลโก้ที่ server ยอมรับ */
+export const LOGO_MAX_BYTES = 500 * 1024;
+
+/** ขนาดจริงของ data URL (byte) — base64 4 ตัวอักษร = 3 ไบต์ */
+export function dataUrlBytes(dataUrl: string): number {
+  const base64 = dataUrl.slice(dataUrl.indexOf(",") + 1);
+  const padding = base64.endsWith("==") ? 2 : base64.endsWith("=") ? 1 : 0;
+  return Math.max(0, Math.floor((base64.length * 3) / 4) - padding);
+}
+
+/** คืนข้อความไทยเมื่อโลโก้ใช้ไม่ได้ · null = ผ่าน */
+export function validateLogoDataUrl(dataUrl: string): string | null {
+  if (!LOGO_DATA_URL_RE.test(dataUrl)) {
+    return "ไฟล์โลโก้ต้องเป็นรูป PNG, JPEG หรือ WebP เท่านั้น";
+  }
+  const bytes = dataUrlBytes(dataUrl);
+  if (bytes > LOGO_MAX_BYTES) {
+    return `ไฟล์โลโก้ใหญ่เกินไป (${Math.round(bytes / 1024)} KB) — ต้องไม่เกิน 500 KB`;
+  }
+  return null;
+}
+
 /**
  * รายการที่ "สั่ง AI เติมได้" — กฎเดียวกับ route `/enrich` (C-3):
  * source = manual|ai_draft และ enrich_state = idle|failed

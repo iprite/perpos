@@ -3,7 +3,7 @@
 // _products-client.tsx — คลังสินค้า (client view: ค้นหา/กรอง/แก้ผ่าน dialog)
 // KPI = ทรัพย์สินความรู้ที่สะสม (ยิ่งใช้ ยิ่งเร็ว/ถูกลง)
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, ImageOff, Library, History, Repeat2, Search, FilterX } from "lucide-react";
 import Link from "next/link";
 import { PageShell } from "@/components/ui/page-shell";
@@ -27,7 +27,11 @@ import type { CatalogProduct } from "@/lib/gov-procure/catalog";
 import { computeProductStats, isStalePrice } from "@/lib/gov-procure/catalog-product-list";
 import { govApi } from "../../_components/api";
 import { ProductDialog } from "../_components/product-dialog";
+import { fetchProductImageUrls } from "../_components/image-api";
 import { fmtDateTime, fmtMoney, fmtNum } from "../_components/format";
+
+/** ต่ออายุ signed URL ก่อนหมดอายุ (server เซ็นไว้ 5 นาที) */
+const IMAGE_REFRESH_MS = 4 * 60 * 1000;
 
 const PRICE_FILTERS = [
   { value: "", label: "ทุกสถานะราคา" },
@@ -61,9 +65,36 @@ export function ProductsClient({
   const [category, setCategory] = useState("");
   const [priceFilter, setPriceFilter] = useState("");
   const [editing, setEditing] = useState<CatalogProduct | null>(null);
+  const [thumbs, setThumbs] = useState<Record<string, string>>({});
+  const thumbReqRef = useRef<Set<string>>(new Set());
 
-  // หมายเหตุ: `/catalog-images` เซ็น URL ของสินค้าในคลังได้ทีละ `productId` (ไม่มี batch)
-  // → ตารางแสดงเพียงว่ามีรูปหรือไม่ · รูปจริงโหลดตอนเปิด dialog (1 คำขอ ต่อ 1 รายการ)
+  // thumbnail — signed URL แบบ batch (`productIds`) · อ้างด้วย id เท่านั้น ห้ามส่ง path
+  useEffect(() => {
+    const need = products
+      .filter((p) => p.image_path && !thumbReqRef.current.has(p.id))
+      .map((p) => p.id);
+    if (need.length === 0) return;
+    need.forEach((id) => thumbReqRef.current.add(id));
+    fetchProductImageUrls(orgId, need)
+      .then((urls) => setThumbs((prev) => ({ ...prev, ...urls })))
+      .catch(() => {
+        /* โหลดรูปไม่ได้ → แสดงกล่องเส้นประแทน (ไม่รบกวนผู้ใช้) */
+      });
+  }, [products, orgId]);
+
+  // URL หมดอายุใน 5 นาที → ขอใหม่ทั้งหน้าเมื่อค้างหน้านาน
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      const ids = products.filter((p) => p.image_path).map((p) => p.id);
+      if (ids.length === 0) return;
+      fetchProductImageUrls(orgId, ids)
+        .then((urls) => setThumbs((prev) => ({ ...prev, ...urls })))
+        .catch(() => {
+          /* ต่ออายุไม่สำเร็จ → รอบหน้าลองใหม่ */
+        });
+    }, IMAGE_REFRESH_MS);
+    return () => window.clearInterval(timer);
+  }, [products, orgId]);
 
   const categoryOptions = useMemo(() => {
     const set = new Set<string>();
@@ -237,15 +268,7 @@ export function ProductsClient({
                   filtered.map((p) => (
                     <TableRow key={p.id} clickable onClick={() => setEditing(p)}>
                       <TableCell align="center">
-                        {p.image_path ? (
-                          <span className="mx-auto flex h-9 w-9 items-center justify-center rounded border border-gray-200 text-[11px] text-gray-500">
-                            มีรูป
-                          </span>
-                        ) : (
-                          <span className="mx-auto flex h-9 w-9 items-center justify-center rounded border border-dashed border-gray-300 text-gray-300">
-                            <ImageOff className="h-4 w-4" />
-                          </span>
-                        )}
+                        <ProductThumb name={p.name} url={thumbs[p.id]} />
                       </TableCell>
                       <TableCell>
                         <div className="min-w-0 max-w-[280px]">
@@ -288,9 +311,50 @@ export function ProductsClient({
         canWrite={canWrite}
         canDelete={canDelete}
         onSaved={(next) => setProducts((prev) => prev.map((p) => (p.id === next.id ? next : p)))}
-        onDeleted={(id) => setProducts((prev) => prev.filter((p) => p.id !== id))}
+        onDeleted={(id) => {
+          setProducts((prev) => prev.filter((p) => p.id !== id));
+          setThumbs((prev) => {
+            const next = { ...prev };
+            delete next[id];
+            return next;
+          });
+        }}
+        onImageChanged={(id) => {
+          thumbReqRef.current.delete(id);
+          fetchProductImageUrls(orgId, [id])
+            .then((urls) => {
+              thumbReqRef.current.add(id);
+              setThumbs((prev) => {
+                const next = { ...prev, ...urls };
+                if (!urls[id]) delete next[id];
+                return next;
+              });
+            })
+            .catch(() => {
+              /* ขอ URL ใหม่ไม่สำเร็จ → รอบต่ออายุถัดไปจะลองอีกครั้ง */
+            });
+        }}
       />
     </PageShell>
+  );
+}
+
+/** thumbnail ของสินค้าในคลัง — ท่าเดียวกับ `ItemThumb` ในห้องทำงาน */
+function ProductThumb({ name, url }: { name: string; url?: string }) {
+  if (!url) {
+    return (
+      <span className="mx-auto flex h-9 w-9 items-center justify-center rounded border border-dashed border-gray-300 text-gray-300">
+        <ImageOff className="h-4 w-4" />
+      </span>
+    );
+  }
+  return (
+    /* signed URL ของ Supabase Storage (อายุ 5 นาที) — ใช้ next/image ไม่ได้ */
+    <img
+      src={url}
+      alt={name}
+      className="mx-auto h-9 w-9 rounded border border-gray-200 object-cover"
+    />
   );
 }
 
