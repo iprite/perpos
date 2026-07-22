@@ -1449,9 +1449,7 @@ async function handleGovProcureCmd(
     if (!overdue.length) {
       return replyText(replyToken, "🎉 ไม่มีเงินค้างรับเกินกำหนดครับ — พอร์ตสุขภาพดี");
     }
-    return replyLine(replyToken, [
-      buildReceivableAlertFlex(overdue, settings.sla_threshold, activeOrg.slug),
-    ]);
+    return replyLine(replyToken, [buildReceivableAlertFlex(overdue, settings.sla_threshold)]);
   }
 
   // /พอร์ต — สรุปพอร์ตปัจจุบัน (reuse การ์ด T2)
@@ -1472,7 +1470,6 @@ async function handleGovProcureCmd(
       summary,
       closedThisWeek,
       weekLabel: `พอร์ตวันนี้ · ${dateLabel}`,
-      orgSlug: activeOrg.slug,
     }),
   ]);
 }

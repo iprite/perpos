@@ -163,7 +163,7 @@ async function notifyStageEvent(
     const to = await getRecipientLineUserIds(admin, orgId, roles);
 
     const slug = await getOrgSlug(admin, orgId);
-    const flex = buildStageEventFlex(order, stage, settings.sla_threshold, slug);
+    const flex = buildStageEventFlex(order, stage, settings.sla_threshold);
     // กลุ่มทีมงาน/นักลงทุนที่ผูกไว้ + ผู้รับรายบุคคล
     await pushToGovTargets(admin, orgId, to, [flex]);
   } catch (e) {

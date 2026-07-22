@@ -84,7 +84,7 @@ async function run(req: NextRequest) {
       const to = await getRecipientLineUserIds(admin, orgId, roles);
 
       const slug = await getOrgSlug(admin, orgId);
-      const flex = buildReceivableAlertFlex(overdue, settings.sla_threshold, slug);
+      const flex = buildReceivableAlertFlex(overdue, settings.sla_threshold);
       // ส่งเข้ากลุ่มที่ผูกไว้ + ผู้รับรายบุคคล — ไม่มีปลายทางเลย = ไม่ mark state (retry รอบหน้า)
       const ok = await pushToGovTargets(admin, orgId, to, [flex]);
       if (!ok) {
