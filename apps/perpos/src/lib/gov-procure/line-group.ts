@@ -9,7 +9,13 @@ import { getSettings } from "./settings";
 import { computeSummary } from "./summary";
 import { listInvestors, listCapitalFlows, computeCapital } from "./capital";
 import { MODULE_KEY, getOrgSlug } from "./notify";
-import { cmdContribution, cmdStage, cmdNewOrder, type CmdReply } from "./line-commands";
+import {
+  cmdContribution,
+  cmdMoveCapital,
+  cmdStage,
+  cmdNewOrder,
+  type CmdReply,
+} from "./line-commands";
 import { buildJobSummaryFlex, buildCapitalSummaryFlex } from "./line-cards";
 import { STAGE_LABELS } from "./stage";
 
@@ -204,11 +210,17 @@ const HELP = [
   "",
   "✍️ บันทึกข้อมูล",
   "/ลงขัน <ชื่อ> <จำนวน>",
-  "   เช่น /ลงขัน Bank 60000 (ต้องกดยืนยัน)",
+  "   เช่น /ลงขัน Bank 60000",
+  "/กระจายทุน <บริษัท> <จำนวน>",
+  "   เช่น /กระจายทุน 89 45000",
+  "/คืนทุน <บริษัท> <จำนวน>",
+  "   เช่น /คืนทุน p2p 20000",
   "/สถานะ <เลขที่ QT> <สถานะ>",
   "   เช่น /สถานะ QT2026060001 ส่งของแล้ว",
   "/งานใหม่ <บริษัท> | <กอง> | <รายการ> | <ราคา>",
   "   เช่น /งานใหม่ 89 | กองคลัง | ตู้เอกสาร | 45000",
+  "",
+  "💡 รายการที่เกี่ยวกับเงินต้องกดยืนยันก่อนบันทึกทุกครั้ง",
   "",
   "⚙️ /ผูกกลุ่ม · /เลิกผูกกลุ่ม (เจ้าของ/ผู้จัดการ)",
 ].join("\n");
@@ -239,6 +251,10 @@ export async function handleGovGroupCommand(
   // ── คำสั่งบันทึกข้อมูล ──
   const args = text.trim().split(/\s+/).slice(1);
   if (cmd === "/ลงขัน") return cmdContribution(admin, orgId, groupId, profileId, args);
+  if (cmd === "/กระจายทุน")
+    return cmdMoveCapital(admin, orgId, groupId, profileId, "allocation", args);
+  if (cmd === "/คืนทุน")
+    return cmdMoveCapital(admin, orgId, groupId, profileId, "return_to_pool", args);
   if (cmd === "/สถานะ") return cmdStage(admin, orgId, profileId, args);
   if (cmd === "/งานใหม่") {
     const rest = text.trim().slice(cmd.length).trim();
