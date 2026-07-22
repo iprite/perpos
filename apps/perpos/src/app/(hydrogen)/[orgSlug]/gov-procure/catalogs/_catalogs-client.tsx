@@ -256,6 +256,18 @@ export function CatalogsClient({
               )}
             </div>
 
+            {/* KPI ด้านบนรวมจากรายการที่อ่านได้จริง — ถ้าชนเพดานความปลอดภัยของ
+                การอ่าน (org ที่มีชุดสะสมเยอะมาก) ตัวเลขจะ "ต่ำกว่าจริง" โดยไม่มีอะไรบอก
+                → ต้องเตือนตรง ๆ ห้ามปล่อยให้อ่านเหมือนยอดจริง (DESIGN §14) */}
+            {stats.totals.truncated && (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-3">
+                <Text className="text-xs text-amber-700">
+                  องค์กรนี้มีรายการสะสมมากจนระบบอ่านได้ไม่ครบ — ตัวเลขสรุปด้านบน (รายการที่ AI เดา /
+                  มูลค่าประมาณการ) จึงต่ำกว่าความเป็นจริง ให้ดูตัวเลขรายชุดในห้องทำงานแทน
+                </Text>
+              </div>
+            )}
+
             {isTruncated && (
               <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3">
                 <Text className="text-xs text-amber-700">
