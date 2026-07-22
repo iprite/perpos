@@ -3,13 +3,13 @@
   "version": "7.6.2",
   "private": true,
   "scripts": {
-    "dev": "next dev --port ${PORT:-3002}",
+    "dev": "next dev --port ${PORT:-3005}",
     "lint": "next lint",
     "build": "NODE_OPTIONS=--max-old-space-size=6144 next build",
     "type:check": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "start": "next start -p 3002",
+    "start": "next start -p 3005",
     "clean": "rm -rf node_modules .next .cache .turbo",
     "cache:clean": "rm -rf .next .cache .turbo"
   },

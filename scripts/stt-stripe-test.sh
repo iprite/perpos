@@ -15,7 +15,7 @@
 # ─────────────────────────────────────────────────────────────────────────────
 set -euo pipefail
 
-FORWARD_URL="${FORWARD_URL:-localhost:3002/api/stripe/webhook}"
+FORWARD_URL="${FORWARD_URL:-localhost:3005/api/stripe/webhook}"
 EVENTS="checkout.session.completed,invoice.payment_succeeded,invoice.payment_failed,customer.subscription.updated,customer.subscription.deleted"
 
 cmd="${1:-help}"

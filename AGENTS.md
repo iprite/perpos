@@ -31,7 +31,7 @@
 
 ```
 perpos/
-├── apps/perpos/                    # Next.js app (port 3002) — Frontend + API
+├── apps/perpos/                    # Next.js app (port 3005) — Frontend + API
 │   └── src/
 │       ├── app/
 │       │   ├── (hydrogen)/         # Protected pages (ต้อง login)
@@ -67,7 +67,7 @@ perpos/
 pnpm install
 
 # รัน Next.js app (frontend + API)
-pnpm starter:dev       # port 3002
+pnpm starter:dev       # port 3005
 
 # รัน PDF microservice (services/pdf-renderer)
 pnpm pdf:dev           # port 8080

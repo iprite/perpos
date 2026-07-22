@@ -5,7 +5,7 @@
       "name": "perpos-dev",
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["run", "dev"],
-      "port": 3002,
+      "port": 3005,
       "cwd": "apps/perpos",
       "autoPort": true
     },
