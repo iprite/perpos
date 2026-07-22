@@ -329,9 +329,14 @@ export function CatalogWorkspaceClient({
       description={`${fmtNum(stats.total)} รายการ · ${catalog.company ?? "ไม่ระบุบริษัท"} · เทมเพลต${
         TEMPLATE_LABEL[catalog.template]
       } · แก้ล่าสุด ${fmtDateTime(catalog.updated_at)}`}
-      actions={
-        <>
-          <CatalogStatusBadge status={catalog.status} />
+      actions={<CatalogStatusBadge status={catalog.status} />}
+    >
+      <div className="space-y-5">
+        {/* แถบเครื่องมือระดับชุด — จงใจ "ไม่" ยัดลง PageShell.actions
+            actions เป็น flex-shrink-0 → ปุ่มหลายตัวจะบีบช่องหัวข้อจนชื่อชุด
+            (ยาวได้ตามที่ผู้ใช้ตั้ง) แตกเป็นตัวอักษรละบรรทัด. หน้าอื่นในโมดูลใส่แค่ 1–2 ปุ่ม
+            ที่นี่มี 4 ปุ่ม จึงวางเป็นแถวของตัวเองที่ยุบ/ตัดบรรทัดได้ */}
+        <div className="flex flex-wrap items-center gap-2">
           <Button variant="ghost" onClick={() => setSettingsOpen(true)}>
             <Settings2 className="mr-1.5 h-4 w-4" /> ตั้งค่าชุด
           </Button>
@@ -355,10 +360,8 @@ export function CatalogWorkspaceClient({
               </Button>
             </>
           )}
-        </>
-      }
-    >
-      <div className="space-y-5">
+        </div>
+
         {setLevelDisabled && (
           <Text className="px-1 text-xs text-gray-500">
             ส่งออก / ยืนยันทั้งชุด / บันทึกเข้าคลัง ทำได้หลัง AI เติมข้อมูลเสร็จ —

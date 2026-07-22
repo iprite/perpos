@@ -70,11 +70,15 @@ export function VerifyBulkDialog({
     const noImage = pending.filter((i) => !i.image_path).length;
     const noPrice = pending.filter((i) => i.unit_price_ref === null).length;
 
+    // ⚠️ เงื่อนไขชุดนี้ต้องตรงกับ route `items/verify-bulk` เป๊ะ
+    //    ถ้าพรีวิวนับกว้างกว่า server ผู้ใช้จะเห็น "ยืนยัน 40 รายการ" แล้วได้จริง 22
     const willVerify = pending.filter((i) => {
       if (isItemLocked(i)) return false;
       if (!skipRisky) return true;
       if (typeof i.confidence === "number" && i.confidence < RISKY_CONFIDENCE) return false;
       if (!i.viewed_at) return false;
+      if (!i.image_path) return false;
+      if (i.unit_price_ref === null || i.unit_price_ref === undefined) return false;
       return true;
     }).length;
 
@@ -147,7 +151,8 @@ export function VerifyBulkDialog({
               <div className="min-w-0 pr-3">
                 <Text className="text-sm font-medium text-gray-900">ข้ามรายการเสี่ยง (แนะนำ)</Text>
                 <Text className="text-xs text-gray-500">
-                  ข้ามรายการที่ยังไม่มีใครเปิดอ่าน และรายการที่ความเชื่อมั่นต่ำกว่า 60%
+                  ข้ามรายการที่ยังไม่มีใครเปิดอ่าน ความเชื่อมั่นต่ำกว่า 60% ยังไม่มีรูป
+                  หรือยังไม่มีราคา
                 </Text>
               </div>
               <Switch checked={skipRisky} onChange={setSkipRisky} aria-label="ข้ามรายการเสี่ยง" />

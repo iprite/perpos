@@ -69,15 +69,38 @@ function qtyText(n: unknown): string {
   return new Intl.NumberFormat("th-TH", { maximumFractionDigits: 2 }).format(v);
 }
 
+/**
+ * แตกข้อความหลายบรรทัด + ตัดเครื่องหมายนำหน้าออก (เหตุผลเดียวกับ `strArray`)
+ * — เทมเพลตเป็นคนใส่ "- " เอง ถ้าค่าที่ AI คืนมามีขีดอยู่แล้วจะได้ "- - ข้อความ"
+ */
 function lines(v: string | null | undefined): string[] {
   return String(v ?? "")
     .split(/\r\n|\r|\n/)
-    .map((s) => s.trim())
+    .map((s) =>
+      s
+        .trim()
+        .replace(/^[-–—•●*]+\s*/, "")
+        .trim(),
+    )
     .filter((s) => s.length > 0);
 }
 
+/**
+ * เตรียม array ของบรรทัดข้อความสำหรับพิมพ์
+ *
+ * ตัดเครื่องหมายนำหน้า (-, –, —, •, ●, *) ออกด้วย เพราะเทมเพลตเป็นคนใส่ "- " เอง
+ * ถ้า AI คืนมาพร้อมขีดอยู่แล้วจะกลายเป็น "- - ข้อความ" ในเอกสารที่ยื่นราชการ
+ */
 function strArray(v: unknown): string[] {
-  return Array.isArray(v) ? v.map((x) => String(x ?? "").trim()).filter((s) => s.length > 0) : [];
+  if (!Array.isArray(v)) return [];
+  return v
+    .map((x) =>
+      String(x ?? "")
+        .trim()
+        .replace(/^[-–—•●*]+\s*/, "")
+        .trim(),
+    )
+    .filter((s) => s.length > 0);
 }
 
 // ---------------------------------------------------------------------------
@@ -260,9 +283,10 @@ function descriptionCell(item: CatalogItem): string {
 
 function renderTable(catalog: Catalog, rows: CatalogItem[], ctx: RenderCtx): string {
   const priceCols = ctx.showPrices;
+  // "ลำดับ" ต้องกว้างพอให้หัวคอลัมน์อยู่บรรทัดเดียว (5% ทำให้ตัดเป็น "ลำดั/บ")
   const widths = priceCols
-    ? ["5%", "15%", "32%", "7%", "7%", "8%", "9%", "18%"]
-    : ["5%", "15%", "44%", "7%", "7%", "22%"];
+    ? ["7%", "14%", "31%", "7%", "7%", "8%", "9%", "17%"]
+    : ["7%", "15%", "42%", "7%", "7%", "22%"];
 
   const cols = widths.map((w) => `<col style="width:${w}" />`).join("");
 

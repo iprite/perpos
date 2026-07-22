@@ -237,3 +237,21 @@ describe("เทมเพลต A — ตาราง", () => {
     expect(html).toContain('class="item-row tall"');
   });
 });
+
+describe("normalize bullet ที่ AI ใส่ขีดมาเอง", () => {
+  it("ไม่พิมพ์ขีดซ้ำ '- -' ในเอกสาร", () => {
+    const html = buildCatalogHtml(makeCatalog(), [
+      makeItem({
+        bullets: ["- ใช้สำหรับเน้นข้อความ", "• หมึกสีสดใส", "ปลอดสารพิษ"],
+        size_line: "- บรรจุ 4 ด้าม/แพ็ค\n– ขนาดเส้น 1-5 มม.",
+      }),
+    ]);
+    expect(html).not.toContain("- - ");
+    expect(html).not.toContain("- • ");
+    expect(html).toContain("- ใช้สำหรับเน้นข้อความ");
+    expect(html).toContain("- หมึกสีสดใส");
+    expect(html).toContain("- ปลอดสารพิษ");
+    expect(html).toContain("- บรรจุ 4 ด้าม/แพ็ค");
+    expect(html).toContain("- ขนาดเส้น 1-5 มม.");
+  });
+});
