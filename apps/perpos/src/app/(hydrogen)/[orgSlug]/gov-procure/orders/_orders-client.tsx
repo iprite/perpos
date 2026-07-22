@@ -24,7 +24,12 @@ import {
 } from "@/components/ui/table";
 import { STAGE_ORDER, STAGE_LABELS } from "@/lib/gov-procure/stage";
 import { computeAging, isOverdue } from "@/lib/gov-procure/summary";
-import type { GovProcureOrder, GovProcureSettings, GovProcureRole } from "@/lib/gov-procure/types";
+import {
+  COMPANIES,
+  type GovProcureOrder,
+  type GovProcureSettings,
+  type GovProcureRole,
+} from "@/lib/gov-procure/types";
 import {
   GovProcureProvider,
   useData,
@@ -46,8 +51,7 @@ const STAGE_OPTIONS = [
 
 const COMPANY_OPTIONS = [
   { value: "", label: "ทุกบริษัท" },
-  { value: "89 Global Work", label: "89 Global Work" },
-  { value: "P2P Supply", label: "P2P Supply" },
+  ...COMPANIES.map((c) => ({ value: c, label: c })),
 ];
 
 const DEPT_OPTIONS = [

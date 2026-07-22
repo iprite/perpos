@@ -35,12 +35,14 @@ import {
 } from "@/components/ui/table";
 import { toast } from "@/lib/toast";
 import { STAGE_LABELS, STAGE_ORDER } from "@/lib/gov-procure/stage";
-import type {
-  GovProcureOrder,
-  GovProcureSettings,
-  GovProcureRole,
-  Company,
-  Stage,
+import {
+  COMPANIES,
+  COMPANY_DOT_CLASS,
+  type GovProcureOrder,
+  type GovProcureSettings,
+  type GovProcureRole,
+  type Company,
+  type Stage,
 } from "@/lib/gov-procure/types";
 import {
   GovProcureProvider,
@@ -51,12 +53,11 @@ import {
   profitSplit,
 } from "../_components";
 
-type CompanyFilter = "all" | "89 Global Work" | "P2P Supply";
+type CompanyFilter = "all" | Company;
 
 const COMPANY_OPTIONS: { value: CompanyFilter; label: string }[] = [
   { value: "all", label: "รวมทุกบริษัท" },
-  { value: "89 Global Work", label: "89 Global Work" },
-  { value: "P2P Supply", label: "P2P Supply" },
+  ...COMPANIES.map((c) => ({ value: c, label: c })),
 ];
 
 const TH_MONTHS_SHORT = [
@@ -310,7 +311,7 @@ interface CompanyRow {
 }
 
 function rollupByCompany(orders: GovProcureOrder[]): CompanyRow[] {
-  const keys: (Company | "unassigned")[] = ["89 Global Work", "P2P Supply", "unassigned"];
+  const keys: (Company | "unassigned")[] = [...COMPANIES, "unassigned"];
   const rows = keys.map((key) => {
     const inGroup = orders.filter((o) =>
       key === "unassigned" ? o.company == null : o.company === key,
@@ -341,17 +342,15 @@ function CompanySplitSection({ rows, totalValue }: { rows: CompanyRow[]; totalVa
       <div className="mb-2.5 flex flex-wrap items-center justify-between gap-2 px-1">
         <div className="flex items-center gap-1.5 text-sm font-semibold text-gray-900">
           <Building2 className="h-4 w-4 text-primary" />
-          แบ่งตามบริษัท (89 Global Work / P2P Supply)
+          แบ่งตามบริษัทรับงาน
         </div>
         <div className="flex flex-wrap items-center gap-3 text-xs text-gray-500">
-          <span className="inline-flex items-center gap-1.5">
-            <span className="h-2 w-2 rounded-full bg-blue-400" aria-hidden />
-            89 Global Work
-          </span>
-          <span className="inline-flex items-center gap-1.5">
-            <span className="h-2 w-2 rounded-full bg-violet-400" aria-hidden />
-            P2P Supply
-          </span>
+          {COMPANIES.map((c) => (
+            <span key={c} className="inline-flex items-center gap-1.5">
+              <span className={`h-2 w-2 rounded-full ${COMPANY_DOT_CLASS[c]}`} aria-hidden />
+              {c}
+            </span>
+          ))}
         </div>
       </div>
       <Table className="shadow-sm">
@@ -371,11 +370,7 @@ function CompanySplitSection({ rows, totalValue }: { rows: CompanyRow[]; totalVa
                 <span className="inline-flex items-center gap-2">
                   <span
                     className={`h-2 w-2 rounded-full ${
-                      r.company === "89 Global Work"
-                        ? "bg-blue-400"
-                        : r.company === "P2P Supply"
-                          ? "bg-violet-400"
-                          : "bg-gray-300"
+                      r.company === "unassigned" ? "bg-gray-300" : COMPANY_DOT_CLASS[r.company]
                     }`}
                     aria-hidden
                   />
@@ -400,7 +395,7 @@ function CompanySplitSection({ rows, totalValue }: { rows: CompanyRow[]; totalVa
         <TableFooter>
           <TableRow>
             <TableCell className="font-semibold text-gray-900">รวม</TableCell>
-            <TableCell align="right" className="tabular-nums font-semibold text-gray-900">
+            <TableCell align="right" className="font-semibold tabular-nums text-gray-900">
               {fmtNum(totals.count)} งาน
             </TableCell>
             <TableCell align="right" tabular className="font-semibold text-gray-900">
@@ -484,7 +479,7 @@ function DepartmentSection({
         <TableFooter>
           <TableRow>
             <TableCell className="font-semibold text-gray-900">รวม</TableCell>
-            <TableCell align="right" className="tabular-nums font-semibold text-gray-900">
+            <TableCell align="right" className="font-semibold tabular-nums text-gray-900">
               {fmtNum(totalCount)} งาน
             </TableCell>
             <TableCell align="right" tabular className="font-semibold text-gray-900">
@@ -551,7 +546,7 @@ function StageSection({ rows }: { rows: StageRow[] }) {
         <TableFooter>
           <TableRow>
             <TableCell className="font-semibold text-gray-900">รวม</TableCell>
-            <TableCell align="right" className="tabular-nums font-semibold text-gray-900">
+            <TableCell align="right" className="font-semibold tabular-nums text-gray-900">
               {fmtNum(totalCount)} งาน
             </TableCell>
             <TableCell align="right" tabular className="font-semibold text-gray-900">

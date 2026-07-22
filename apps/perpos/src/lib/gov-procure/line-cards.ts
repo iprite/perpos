@@ -182,8 +182,12 @@ export function buildWeeklyPortfolioFlex(args: {
   aiInsight?: string;
 }): LineMessage {
   const { summary, closedThisWeek, weekLabel, orgSlug, aiInsight } = args;
-  const s89 = summary.by_company.find((c) => c.company === "89 Global Work");
-  const p2p = summary.by_company.find((c) => c.company === "P2P Supply");
+  // แสดงเฉพาะบริษัทที่มีมูลค่าจริง — กันบรรทัดยาวเกินความกว้าง Flex bubble
+  const companyLine =
+    summary.by_company
+      .filter((c) => c.pipeline_value > 0)
+      .map((c) => `${c.company} ${fmtBaht0(c.pipeline_value)}`)
+      .join(" · ") || "ยังไม่มีมูลค่าพอร์ต";
 
   const kpiRow = (label: string, value: string, color: string, bold = false) => ({
     type: "box" as const,
@@ -214,7 +218,7 @@ export function buildWeeklyPortfolioFlex(args: {
     },
     {
       type: "text",
-      text: `89 Global Work ${fmtBaht0(s89?.pipeline_value ?? 0)} · P2P Supply ${fmtBaht0(p2p?.pipeline_value ?? 0)}`,
+      text: companyLine,
       size: "xxs",
       color: FINE,
       margin: "xs",

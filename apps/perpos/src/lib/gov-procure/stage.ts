@@ -17,10 +17,10 @@ export const STAGE_LABELS: Record<Stage, string> = {
 /** tone มาตรฐานต่อ stage (ก่อนพิจารณา overdue) — ใช้กับ <StatusBadge tone=…> */
 export const STAGE_TONE: Record<Stage, "neutral" | "info" | "warning" | "success"> = {
   quotation: "neutral",
-  contracted: "info",
-  procuring: "info",
-  delivered: "warning",
-  paid: "success",
+  contracted: "warning", // ส้ม/เหลือง = เซ็นแล้วแต่ยังไม่ส่งของ (ยังไม่คืบ)
+  procuring: "warning",
+  delivered: "info", // น้ำเงิน = ส่งของแล้ว รอรับเช็ค
+  paid: "success", // เขียว = รับเช็คแล้ว
   closed: "success",
 };
 

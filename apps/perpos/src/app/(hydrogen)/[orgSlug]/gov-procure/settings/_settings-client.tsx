@@ -31,7 +31,13 @@ import { Text } from "@/components/ui/typography";
 import { StatusBadge } from "@/components/ui/badge";
 import { SegmentedControl } from "@/components/ui/segmented";
 import { toast } from "@/lib/toast";
-import type { GovProcureOrder, GovProcureSettings, GovProcureRole } from "@/lib/gov-procure/types";
+import {
+  COMPANIES,
+  type GovProcureOrder,
+  type GovProcureSettings,
+  type GovProcureRole,
+  type Company,
+} from "@/lib/gov-procure/types";
 import {
   GovProcureProvider,
   useData,
@@ -67,16 +73,17 @@ function settingsPatch(d: GovProcureSettings) {
   };
 }
 
-/** สรุปพอร์ตแยกตามบริษัท (ป้อน T2 preview สด) */
-function companySplit(orders: GovProcureOrder[]): { split89: number; splitP2p: number } {
-  let split89 = 0;
-  let splitP2p = 0;
+/** บรรทัด "แยกตามบริษัท" ของ T2 preview — เฉพาะบริษัทที่มีมูลค่าจริง (กันบรรทัดยาวเกิน) */
+function companySplitLine(orders: GovProcureOrder[]): string {
+  const totals = new Map<Company, number>();
   for (const o of orders) {
-    const v = o.price_incl_vat ?? 0;
-    if (o.company === "89 Global Work") split89 += v;
-    else if (o.company === "P2P Supply") splitP2p += v;
+    if (!o.company) continue;
+    totals.set(o.company, (totals.get(o.company) ?? 0) + (o.price_incl_vat ?? 0));
   }
-  return { split89, splitP2p };
+  const parts = COMPANIES.filter((c) => (totals.get(c) ?? 0) > 0).map(
+    (c) => `${c} ${fmtMoney(totals.get(c) ?? 0, { decimals: 0 })}`,
+  );
+  return parts.length ? `แยก ${parts.join(" · ")}` : "ยังไม่มีมูลค่าพอร์ต";
 }
 
 function currentWeekLabel(): string {
@@ -394,9 +401,9 @@ function LineNotifySection({
     const recv = receivableSummary(orders, settings.sla_threshold);
     const pipeline = pipelineValue(orders);
     const profit = profitSplit(orders);
-    const { split89, splitP2p } = companySplit(orders);
+    const companyLine = companySplitLine(orders);
     const closedThisWeek = orders.filter((o) => o.stage === "closed").length;
-    return { recv, pipeline, profit, split89, splitP2p, closedThisWeek };
+    return { recv, pipeline, profit, companyLine, closedThisWeek };
   }, [orders, settings.sla_threshold]);
 
   const recipientsLabel =
@@ -423,6 +430,23 @@ function LineNotifySection({
       title="แจ้งเตือนผ่าน LINE"
       description="เปิด/ปิดแต่ละเหตุการณ์ · เลือกผู้รับ · ดูตัวอย่างการ์ด Flex ที่จะส่ง (จำลอง ไม่ยิงจริง)"
     >
+      <div className="mb-4 rounded-xl border border-gray-200 bg-gray-50 p-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-1.5 text-sm font-medium text-gray-900">
+            <Users className="h-4 w-4 text-primary" />
+            กลุ่มทีมงาน / นักลงทุน
+          </div>
+          <StatusBadge tone={settings.line_group_id ? "success" : "neutral"}>
+            {settings.line_group_id ? "ผูกกลุ่มแล้ว" : "ยังไม่ได้ผูกกลุ่ม"}
+          </StatusBadge>
+        </div>
+        <Text className="mt-1.5 text-xs text-gray-500">
+          {settings.line_group_id
+            ? "ทุกการแจ้งเตือน (เปลี่ยนสถานะ · เงินค้างรับ · รายงานรายสัปดาห์) จะถูกส่งเข้ากลุ่มนี้ด้วย · สั่ง /สรุป หรือ /กองทุน ในกลุ่มเพื่อขอรายงานทันที · เลิกผูกด้วย /เลิกผูกกลุ่ม"
+            : "เชิญบอท Perpos เข้ากลุ่ม LINE ของทีม แล้วให้เจ้าของหรือผู้จัดการพิมพ์ /ผูกกลุ่ม ในกลุ่มนั้น (ผูกได้กลุ่มเดียว)"}
+        </Text>
+      </div>
+
       <ToggleRow
         label="เปิดการแจ้งเตือน LINE"
         hint="สวิตช์รวม — ปิดแล้วทุกเหตุการณ์จะไม่ถูกส่ง"
@@ -558,8 +582,7 @@ function LineNotifySection({
               <T2WeeklyPreview
                 weekLabel={weekLabel}
                 pipelineValue={live.pipeline}
-                split89={live.split89}
-                splitP2p={live.splitP2p}
+                companyLine={live.companyLine}
                 closedThisWeek={live.closedThisWeek}
                 receivableTotal={live.recv.totalAmount}
                 receivableCount={live.recv.list.length}

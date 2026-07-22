@@ -21,6 +21,8 @@ import {
   type CancelBotJobRow,
 } from "@/lib/assistant/recall-bot";
 import { buildBotFlex } from "@/lib/assistant/recall-events";
+import { handleGovGroupCommand } from "@/lib/gov-procure/line-group";
+import { confirmPending } from "@/lib/gov-procure/line-commands";
 import { getServiceRemaining, getTokenBalance } from "@/lib/assistant/token-balance";
 import {
   buildBotConfirmFlex,
@@ -3352,6 +3354,28 @@ export async function POST(req: NextRequest) {
       const pbUserId = (event.source as Record<string, string>)?.userId ?? "";
       const pbReplyToken = String(event.replyToken ?? "");
       const pbData = String((event.postback as Record<string, unknown>)?.data ?? "");
+
+      // ─── ยืนยัน/ยกเลิกคำสั่งจากกลุ่ม gov_procure (เรื่องเงินต้องกดยืนยันก่อนบันทึกเสมอ) ──
+      const pbSource = event.source as Record<string, string>;
+      const pbGroupId = pbSource?.groupId || pbSource?.roomId || "";
+      if (pbGroupId && (pbData.startsWith("gpok:") || pbData === "gpcancel")) {
+        if (pbData === "gpcancel") {
+          await replyText(pbReplyToken, "ยกเลิกแล้ว — ไม่มีการบันทึกข้อมูล");
+        } else {
+          const gpProfile = pbUserId ? await getProfileByLineId(admin, pbUserId) : null;
+          const result = await confirmPending(
+            admin,
+            pbData.slice("gpok:".length),
+            pbGroupId,
+            gpProfile?.id ?? null,
+          ).catch((e) => {
+            console.error("[line] gov group confirm failed:", String(e));
+            return "❌ ระบบขัดข้อง ลองใหม่อีกครั้ง";
+          });
+          await replyText(pbReplyToken, result);
+        }
+        continue;
+      }
       if (pbUserId && pbData.startsWith("momfile:")) {
         await handleMomConfirm(admin, pbUserId, pbData.slice("momfile:".length), pbReplyToken);
       } else if (pbData === "momcancel") {
@@ -3396,6 +3420,33 @@ export async function POST(req: NextRequest) {
     const replyToken = String(event.replyToken ?? "");
     const source = event.source as Record<string, string>;
     const lineUserId = source?.userId ?? "";
+
+    // ─── ข้อความในกลุ่ม/ห้อง — เฉพาะคำสั่ง gov_procure (กลุ่มที่ยังไม่ผูก บอทเงียบ) ──────
+    //   ไม่ provision สมาชิกกลุ่มอัตโนมัติ และไม่ไหลเข้า flow ส่วนตัวด้านล่าง
+    const groupId = source?.groupId || source?.roomId || "";
+    if (groupId) {
+      if (msg.type === "text") {
+        const gText = String(msg.text ?? "");
+        if (gText.trim().startsWith("/")) {
+          const gProfile = lineUserId ? await getProfileByLineId(admin, lineUserId) : null;
+          const reply = await handleGovGroupCommand(
+            admin,
+            groupId,
+            gProfile?.id ?? null,
+            gText,
+          ).catch((e) => {
+            console.error("[line] gov group command failed:", String(e));
+            return { text: "❌ ระบบขัดข้อง ลองใหม่อีกครั้ง" };
+          });
+          if (reply && "text" in reply) await replyText(replyToken, reply.text);
+          else if (reply)
+            await replyLine(replyToken, [
+              { type: "flex", altText: reply.altText, contents: reply.flex },
+            ]);
+        }
+      }
+      continue;
+    }
 
     // ─── Auto-provision (self-heal) — ผู้ใช้ที่ยังไม่มี profile ส่งข้อความอะไรมาก็สร้างให้ทันที ──
     //   กันเคส follow event หลุด (เช่น webhook ตายช่วงย้ายโดเมน / deploy) → ผู้ใช้ไม่ถูก provision

@@ -181,8 +181,7 @@ export function T1OverduePreview({
 export function T2WeeklyPreview({
   weekLabel,
   pipelineValue,
-  split89,
-  splitP2p,
+  companyLine,
   closedThisWeek,
   receivableTotal,
   receivableCount,
@@ -192,8 +191,7 @@ export function T2WeeklyPreview({
 }: {
   weekLabel: string;
   pipelineValue: number;
-  split89: number;
-  splitP2p: number;
+  companyLine: string;
   closedThisWeek: number;
   receivableTotal: number;
   receivableCount: number;
@@ -208,9 +206,7 @@ export function T2WeeklyPreview({
         <div style={{ color: C.ink, fontSize: 13, fontWeight: 700 }}>
           มูลค่าพอร์ตรวม {baht(pipelineValue)}
         </div>
-        <div style={{ color: C.inkMuted, fontSize: 11, marginTop: 2 }}>
-          แยก 89 Global Work {baht0(split89)} · P2P Supply {baht0(splitP2p)}
-        </div>
+        <div style={{ color: C.inkMuted, fontSize: 11, marginTop: 2 }}>{companyLine}</div>
         <div style={{ height: 1, backgroundColor: C.separator, margin: "10px 0" }} />
         <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4 }}>
           <span style={{ color: C.ink, fontSize: 13 }}>ปิดงานใหม่สัปดาห์นี้</span>
