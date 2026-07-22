@@ -2,7 +2,7 @@
 // mirror prototype _components/money.ts + _fixtures/types.ts (deriveAging/isOverdue) ให้ตรงเป๊ะ
 // reuse: route /api/gov-procure/summary + SSR dashboard page
 
-import type { Company, GovProcureOrder, Stage } from "./types";
+import { COMPANIES, type Company, type GovProcureOrder, type Stage } from "./types";
 import { STAGE_ORDER } from "./stage";
 
 // ---- derived (pure — §3.3) ----
@@ -78,11 +78,9 @@ export interface GovProcureSummary {
   overdue_count: number;
   overdue_amount: number;
   receivables: ReceivableRow[]; // เรียง aging มาก→น้อย
-  by_company: CompanySplit[]; // split 89 / P2P
+  by_company: CompanySplit[]; // split ตามบริษัทรับงาน (COMPANIES)
   sla_threshold: number;
 }
-
-const COMPANIES: Company[] = ["89 Global Work", "P2P Supply"];
 
 /** มูลค่าพอร์ตรวม = Σ price_incl_vat (null → 0) */
 export function pipelineValue(orders: GovProcureOrder[]): number {

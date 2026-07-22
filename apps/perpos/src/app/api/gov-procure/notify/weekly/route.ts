@@ -10,6 +10,7 @@ import {
   listGovProcureOrgIds,
   getOrgSlug,
   getRecipientLineUserIds,
+  pushToGovTargets,
   normalizeRecipientRoles,
   thaiDateLabel,
 } from "@/lib/gov-procure/notify";
@@ -83,15 +84,11 @@ async function run(req: NextRequest) {
       if (recipientRoles.includes("manager")) roles.push("manager");
 
       const to = await getRecipientLineUserIds(admin, orgId, roles);
-      if (!to.length) {
-        skipped++;
-        continue;
-      }
 
       const slug = await getOrgSlug(admin, orgId);
       const flex = buildWeeklyPortfolioFlex({ summary, closedThisWeek, weekLabel, orgSlug: slug });
-      const res = await sendLineMessages({ to, messages: [flex] });
-      if (!res.ok) {
+      const ok = await pushToGovTargets(admin, orgId, to, [flex]);
+      if (!ok) {
         skipped++;
         continue;
       }

@@ -24,8 +24,23 @@ export const STAGES: Stage[] = [
   "closed",
 ];
 
-/** บริษัทตัวกลาง 2 บริษัท (ต้องมีช่องว่างตรงเป๊ะ ตาม CHECK constraint) */
-export type Company = "89 Global Work" | "P2P Supply";
+/** บริษัทรับงาน (ต้องสะกด/เว้นวรรคตรงเป๊ะ ตาม CHECK constraint `gov_procure_orders_company_chk`) */
+export const COMPANIES = [
+  "89 Global Work",
+  "P2P Supply",
+  "ALPHA ENGINEERING",
+  "MAGISTATS TRADING",
+] as const;
+
+export type Company = (typeof COMPANIES)[number];
+
+/** สีจุดนำหน้าชื่อบริษัท (รายงาน/legend) — พาเลตต์ DESIGN.md §2 */
+export const COMPANY_DOT_CLASS: Record<Company, string> = {
+  "89 Global Work": "bg-blue-400",
+  "P2P Supply": "bg-violet-400",
+  "ALPHA ENGINEERING": "bg-green-400",
+  "MAGISTATS TRADING": "bg-orange-400",
+};
 
 /** สถานะสลิป (checklist Done/-) */
 export type SlipStatus = "Done" | "-" | null;
@@ -145,6 +160,10 @@ export interface GovProcureSettings {
   last_aging_alert_at?: string | null; // T1 push ล่าสุด (re-alert ทุก 3 วัน/ชุดเปลี่ยน)
   last_aging_alert_key?: string | null; // signature ชุด overdue ล่าสุด (order_id sorted)
   last_weekly_sent_at?: string | null; // T2 push ล่าสุด (idempotency กัน double-run)
+  // LINE group ของทีมงาน/นักลงทุน (1 กลุ่มต่อ org) — ผูกด้วยคำสั่ง /ผูกกลุ่ม ในกลุ่ม
+  line_group_id?: string | null;
+  line_group_bound_at?: string | null;
+  line_group_bound_by?: string | null;
   created_at: string;
   updated_at: string;
 }

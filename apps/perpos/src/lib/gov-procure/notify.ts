@@ -4,6 +4,8 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { GovProcureRole } from "./types";
+import { sendLineMessages, type LineMessage } from "@/lib/line/send-messages";
+import { groupTargetForOrg } from "./line-group";
 
 export const MODULE_KEY = "gov_procure";
 
@@ -75,4 +77,32 @@ export function normalizeRecipientRoles(raw: unknown): GovProcureRole[] {
 /** label วันที่ไทย (พ.ศ.) สั้น ๆ สำหรับหัวการ์ด cron */
 export function thaiDateLabel(d: Date = new Date()): string {
   return d.toLocaleDateString("th-TH", { day: "numeric", month: "long", year: "numeric" });
+}
+
+/**
+ * ส่งการ์ดไปทั้ง "กลุ่มทีมงาน/นักลงทุน" ที่ผูกไว้ และผู้รับรายบุคคล
+ * คืน true ถ้าส่งสำเร็จอย่างน้อย 1 ปลายทาง (cron ใช้ตัดสินว่าจะ mark state ไหม)
+ * — multicast รับได้เฉพาะ userId → กลุ่มต้อง push แยก
+ */
+export async function pushToGovTargets(
+  admin: SupabaseClient,
+  orgId: string,
+  userIds: string[],
+  messages: LineMessage[],
+): Promise<boolean> {
+  let ok = false;
+
+  const groupId = await groupTargetForOrg(admin, orgId).catch(() => null);
+  if (groupId) {
+    const res = await sendLineMessages({ to: groupId, messages });
+    if (res.ok) ok = true;
+    else console.error("[gov-procure] group push failed", orgId, res.error);
+  }
+
+  if (userIds.length) {
+    const res = await sendLineMessages({ to: userIds, messages });
+    if (res.ok) ok = true;
+  }
+
+  return ok;
 }

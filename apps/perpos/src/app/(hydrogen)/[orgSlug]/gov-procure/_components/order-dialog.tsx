@@ -27,12 +27,11 @@ import { toast } from "@/lib/toast";
 import { useData, useRole } from "./gov-provider";
 import { fmtMoney } from "./format";
 import { DEPARTMENT_SUGGESTIONS } from "./constants";
-import type { GovProcureOrder, Company } from "@/lib/gov-procure/types";
+import { COMPANIES, type GovProcureOrder, type Company } from "@/lib/gov-procure/types";
 
 const COMPANY_OPTIONS = [
   { value: "", label: "— เลือกบริษัท —" },
-  { value: "89 Global Work", label: "89 Global Work" },
-  { value: "P2P Supply", label: "P2P Supply" },
+  ...COMPANIES.map((c) => ({ value: c, label: c })),
 ];
 
 interface FormState {

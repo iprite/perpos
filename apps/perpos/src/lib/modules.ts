@@ -334,6 +334,8 @@ export const MODULE_MENUS: Record<string, MenuDef[]> = {
     { key: "orders", label: "รายการงาน" },
     { key: "receivables", label: "เงินค้างรับ" },
     { key: "reports", label: "รายงาน" },
+    { key: "capital", label: "กองทุน" },
+    { key: "investors", label: "นักลงทุน" },
     { key: "settings", label: "ตั้งค่า/แจ้งเตือน" },
   ],
 };

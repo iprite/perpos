@@ -2,16 +2,18 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "../../../../_lib/supabase";
 import { setAuditContext } from "../../../../_lib/audit";
 import { requireGovProcureMember, canWrite, orgIdFromQuery, govError } from "../../../_lib";
-import { STAGE_MILESTONE_FIELD, isValidStage } from "@/lib/gov-procure/stage";
+import { STAGE_MILESTONE_FIELD, STAGE_LABELS, isValidStage } from "@/lib/gov-procure/stage";
+import { groupTargetForOrg } from "@/lib/gov-procure/line-group";
+import { sendLineMessages } from "@/lib/line/send-messages";
 import { getSettings } from "@/lib/gov-procure/settings";
 import { buildStageEventFlex } from "@/lib/gov-procure/line-cards";
 import {
   getOrgSlug,
   getRecipientLineUserIds,
+  pushToGovTargets,
   normalizeRecipientRoles,
 } from "@/lib/gov-procure/notify";
-import { sendLineMessages } from "@/lib/line/send-messages";
-import type { GovProcureOrder } from "@/lib/gov-procure/types";
+import type { GovProcureOrder, Stage } from "@/lib/gov-procure/types";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -97,13 +99,52 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
   // TODO(T3 debounce): spec ระบุ debounce 1 ชม./order — รอบนี้กันซ้ำด้วย "prevStage !== stage"
   //   (fire เฉพาะตอนเปลี่ยน stage จริง) พอสำหรับ use-case ปกติ; ถ้าต้อง debounce เข้ม
   //   ให้เพิ่มคอลัมน์ last_stage_notify_at ต่อ order แล้วเช็คก่อนส่ง.
-  if ((stage === "delivered" || stage === "paid") && prevStage !== stage) {
-    // await เพื่อให้ push เสร็จก่อนตอบ (serverless freeze หลัง response) — notifyStageEvent
-    // จับ error เองครบ ไม่ throw → PATCH สำเร็จเสมอแม้ LINE ล่ม
-    await notifyStageEvent(admin, orgId, data as GovProcureOrder, stage);
+  if (prevStage !== stage) {
+    // await เพื่อให้ push เสร็จก่อนตอบ (serverless freeze หลัง response) — notify* จับ error
+    // เองครบ ไม่ throw → PATCH สำเร็จเสมอแม้ LINE ล่ม
+    if (stage === "delivered" || stage === "paid") {
+      await notifyStageEvent(admin, orgId, data as GovProcureOrder, stage);
+    } else {
+      // stage อื่น ๆ — แจ้งเฉพาะ "กลุ่มทีมงาน/นักลงทุน" ที่ผูกไว้ (ข้อความสั้น ไม่สแปมรายบุคคล)
+      await notifyGroupStageChange(admin, orgId, data as GovProcureOrder, prevStage, stage);
+    }
   }
 
   return NextResponse.json({ order: data });
+}
+
+/** stage ที่ไม่ใช่ delivered/paid → ข้อความสั้นเข้ากลุ่มที่ผูกไว้เท่านั้น */
+async function notifyGroupStageChange(
+  admin: ReturnType<typeof createAdminClient>,
+  orgId: string,
+  order: GovProcureOrder,
+  prevStage: string | null,
+  stage: string,
+) {
+  try {
+    const groupId = await groupTargetForOrg(admin, orgId);
+    if (!groupId) return;
+
+    const slug = await getOrgSlug(admin, orgId);
+    const name = order.qt_reference || order.product_description || "งานจัดซื้อ";
+    const value = order.price_incl_vat
+      ? ` · ${new Intl.NumberFormat("th-TH").format(order.price_incl_vat)} ฿`
+      : "";
+    const text = [
+      `🔄 เปลี่ยนสถานะงาน`,
+      "",
+      `${name}${value}`,
+      `${prevStage ? `${STAGE_LABELS[prevStage as Stage] ?? prevStage} → ` : ""}${
+        STAGE_LABELS[stage as Stage] ?? stage
+      }`,
+      "",
+      `https://app.perpos.ai/${slug}/gov-procure/orders`,
+    ].join("\n");
+
+    await sendLineMessages({ to: groupId, messages: [{ type: "text", text }] });
+  } catch (e) {
+    console.error("[gov-procure] group stage notify failed", orgId, order.id, e);
+  }
 }
 
 /** ส่ง Flex T3 ให้ owner+manager ที่ผูก LINE — เช็ค toggle ต่อ event (paid=on, delivered=off default) */
@@ -120,11 +161,11 @@ async function notifyStageEvent(
 
     const roles = normalizeRecipientRoles(settings.line_recipients);
     const to = await getRecipientLineUserIds(admin, orgId, roles);
-    if (!to.length) return;
 
     const slug = await getOrgSlug(admin, orgId);
     const flex = buildStageEventFlex(order, stage, settings.sla_threshold, slug);
-    await sendLineMessages({ to, messages: [flex] });
+    // กลุ่มทีมงาน/นักลงทุนที่ผูกไว้ + ผู้รับรายบุคคล
+    await pushToGovTargets(admin, orgId, to, [flex]);
   } catch (e) {
     console.error("[gov-procure] T3 stage notify failed", orgId, order.id, e);
   }

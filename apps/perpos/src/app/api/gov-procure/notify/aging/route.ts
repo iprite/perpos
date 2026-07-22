@@ -10,6 +10,7 @@ import {
   listGovProcureOrgIds,
   getOrgSlug,
   getRecipientLineUserIds,
+  pushToGovTargets,
   normalizeRecipientRoles,
 } from "@/lib/gov-procure/notify";
 
@@ -81,16 +82,12 @@ async function run(req: NextRequest) {
 
       const roles = normalizeRecipientRoles(settings.line_recipients);
       const to = await getRecipientLineUserIds(admin, orgId, roles);
-      if (!to.length) {
-        // ไม่มีผู้รับที่ผูก LINE — ไม่อัปเดต state (retry รอบหน้าเมื่อมีคนผูก)
-        skipped++;
-        continue;
-      }
 
       const slug = await getOrgSlug(admin, orgId);
       const flex = buildReceivableAlertFlex(overdue, settings.sla_threshold, slug);
-      const res = await sendLineMessages({ to, messages: [flex] });
-      if (!res.ok) {
+      // ส่งเข้ากลุ่มที่ผูกไว้ + ผู้รับรายบุคคล — ไม่มีปลายทางเลย = ไม่ mark state (retry รอบหน้า)
+      const ok = await pushToGovTargets(admin, orgId, to, [flex]);
+      if (!ok) {
         skipped++;
         continue;
       }

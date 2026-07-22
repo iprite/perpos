@@ -48,11 +48,13 @@
 
 ### ตาราง
 
-| ตาราง                     | หน้าที่                                                                                                                                                                                                                                                                                                                                  |
-| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `gov_procure_orders`      | entity หลัก — 44 field แบ่งกลุ่ม A–G (พื้นฐาน/การเงิน/ทุนหมุนเวียน/แบ่งรายได้ภายใน89/คอมมิชชั่น/milestone/สถานะ) + `stage` (enum 6 ค่า) + `stage_manual_override` (bool) · **`duration_days` = derived เท่านั้น ไม่ใช่ column** (คำนวณจาก `receipt_date − contract_date` ตอนอ่าน)                                                        |
-| `gov_procure_attachments` | สลิป/รูปเช็ค แยกตาราง (order เดียวมีหลายไฟล์) — `kind` enum (`customer_change_slip`/`petty_cash_slip`/`commission_slip`/`cheque_photo`/`other`), `file_path` → bucket `gov-procure`, `org_id`+`order_id` FK                                                                                                                              |
-| `gov_procure_settings`    | ตั้งค่าต่อ org (1 row/org, PK=`org_id`) — `sla_threshold`(default 30), `pct_customer_change/petty/operate`(default 10/5/10), `line_alert_enabled`/`line_weekly_enabled`/`line_event_paid`/`line_event_delivered`, `line_recipients`, **notify-state**: `last_aging_alert_at`/`last_aging_alert_key`/`last_weekly_sent_at` (กันสแปม cron) |
+| ตาราง                       | หน้าที่                                                                                                                                                                                                                                                                                                                                  |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `gov_procure_orders`        | entity หลัก — 44 field แบ่งกลุ่ม A–G (พื้นฐาน/การเงิน/ทุนหมุนเวียน/แบ่งรายได้ภายใน89/คอมมิชชั่น/milestone/สถานะ) + `stage` (enum 6 ค่า) + `stage_manual_override` (bool) · **`duration_days` = derived เท่านั้น ไม่ใช่ column** (คำนวณจาก `receipt_date − contract_date` ตอนอ่าน)                                                        |
+| `gov_procure_attachments`   | สลิป/รูปเช็ค แยกตาราง (order เดียวมีหลายไฟล์) — `kind` enum (`customer_change_slip`/`petty_cash_slip`/`commission_slip`/`cheque_photo`/`other`), `file_path` → bucket `gov-procure`, `org_id`+`order_id` FK                                                                                                                              |
+| `gov_procure_investors`     | นักลงทุน (org_id, `profile_id` nullable, `name`, `share_pct`, is_active) — สัดส่วนใช้คำนวณส่วนแบ่งกำไร (ควรรวม 100%, UI เตือนถ้าไม่ครบ)                                                                                                                                                                                                  |
+| `gov_procure_capital_flows` | ledger เงินทุน — `flow_type` 5 ชนิด (`contribution`/`allocation`/`return_to_pool`/`dividend`/`repayment`) + `amount`/`flow_date`/`investor_id`/`company`/`order_id`(optional) · CHECK `..._shape_chk` บังคับฟิลด์ตามชนิด (API mirror ด้วย `SHAPE`)                                                                                       |
+| `gov_procure_settings`      | ตั้งค่าต่อ org (1 row/org, PK=`org_id`) — `sla_threshold`(default 30), `pct_customer_change/petty/operate`(default 10/5/10), `line_alert_enabled`/`line_weekly_enabled`/`line_event_paid`/`line_event_delivered`, `line_recipients`, **notify-state**: `last_aging_alert_at`/`last_aging_alert_key`/`last_weekly_sent_at` (กันสแปม cron) |
 
 ### RLS
 
@@ -62,11 +64,15 @@
 
 ### Migration (3 ไฟล์, applied prod ทั้งหมด)
 
-| ไฟล์                                          | หน้าที่                                                                                                                                                                                   |
-| --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `20260710120000_gov_procure_schema.sql`       | สร้าง 3 ตาราง + RLS + trigger `updated_at` + index (org_id, org_id+stage, org_id+company, qt_reference) — ตรง contract 100%, ไม่มี `duration_days` column (N1)                            |
-| `20260710120100_gov_procure_data_migrate.sql` | `INSERT...SELECT` จาก `b2g_orders` (21 แถว, org `p2p-x-89` เดียว) พร้อม `CASE` derive `stage` แบบ hybrid จาก `job_status`/milestone dates เดิม — **ไม่ DROP `b2g_orders`** (rollback ได้) |
-| `20260710130000_gov_procure_notify_state.sql` | เพิ่มคอลัมน์ notify-state ใน `gov_procure_settings` (anti-spam ของ cron aging/weekly)                                                                                                     |
+| ไฟล์                                           | หน้าที่                                                                                                                                                                                   |
+| ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `20260710120000_gov_procure_schema.sql`        | สร้าง 3 ตาราง + RLS + trigger `updated_at` + index (org_id, org_id+stage, org_id+company, qt_reference) — ตรง contract 100%, ไม่มี `duration_days` column (N1)                            |
+| `20260710120100_gov_procure_data_migrate.sql`  | `INSERT...SELECT` จาก `b2g_orders` (21 แถว, org `p2p-x-89` เดียว) พร้อม `CASE` derive `stage` แบบ hybrid จาก `job_status`/milestone dates เดิม — **ไม่ DROP `b2g_orders`** (rollback ได้) |
+| `20260710130000_gov_procure_notify_state.sql`  | เพิ่มคอลัมน์ notify-state ใน `gov_procure_settings` (anti-spam ของ cron aging/weekly)                                                                                                     |
+| `20260722090000_gov_procure_add_companies.sql` | ขยาย `gov_procure_orders_company_chk` เป็น 4 บริษัท (เพิ่ม `ALPHA ENGINEERING`, `MAGISTATS TRADING`)                                                                                      |
+| `20260722120000_gov_procure_capital.sql`       | **กองทุน/นักลงทุน** — `gov_procure_investors` + `gov_procure_capital_flows` (ledger 5 ชนิด) + RLS + shape CHECK                                                                           |
+| `20260722160000_gov_procure_line_pending.sql`  | `gov_procure_line_pending` — คำสั่งจากกลุ่มที่รอกดยืนยัน (เงิน) · TTL 15 นาที · RLS deny-all                                                                                              |
+| `20260722140000_gov_procure_line_group.sql`    | ผูก LINE group ทีมงาน/นักลงทุน — `line_group_id`/`line_group_name`/`line_group_bound_at`/`line_group_bound_by` ใน `gov_procure_settings` + unique index (1 กลุ่ม = 1 org)                 |
 
 ---
 
@@ -83,24 +89,29 @@
 | `attachments/route.ts`                            | GET/POST/DELETE สลิป/รูปเช็ค — `orderBelongsToOrg` guard (กัน IDOR) + MIME allowlist (image JPEG/PNG/WebP/HEIC + PDF) + cap 10MB                                                                                                                                                                 |
 | `summary/route.ts`                                | GET KPI aggregate (pipeline value, receivable, profit realized/pending, split 89-P2P) — คำนวณฝั่ง server                                                                                                                                                                                         |
 | `settings/route.ts`                               | GET (member) / PUT (owner/manager เท่านั้น) — SLA/%/LINE toggle                                                                                                                                                                                                                                  |
+| `capital/route.ts`, `capital/[id]/route.ts`       | GET ledger+นักลงทุน+ยอดคำนวณ (member ทุก role) / POST บันทึก / DELETE ลบ (owner/manager) — guard cross-org ทั้ง `investor_id` และ `order_id`                                                                                                                                                     |
+| `investors/route.ts`                              | GET (member) / POST-PUT จัดการนักลงทุน (owner/manager)                                                                                                                                                                                                                                           |
 | `ai/brief/route.ts`                               | Executive Brief (AI-1)                                                                                                                                                                                                                                                                           |
 | `ai/anomaly/route.ts`                             | Anomaly/Margin Guard (AI-2)                                                                                                                                                                                                                                                                      |
 | `notify/aging/route.ts`, `notify/weekly/route.ts` | cron endpoint (CronAuthGuard) → LINE push                                                                                                                                                                                                                                                        |
 
 ### lib (`apps/perpos/src/lib/gov-procure/`)
 
-| ไฟล์             | หน้าที่                                                                                        |
-| ---------------- | ---------------------------------------------------------------------------------------------- |
-| `types.ts`       | shared types (`GovProcureOrder`, enum stage, `ModuleRole` ฯลฯ) — reuse SSR page + API + client |
-| `stage.ts`       | `deriveStage`/`validateTransition` (state machine hybrid, §4 ของ spec)                         |
-| `orders.ts`      | `listOrders`/`getOrder` (fetch logic, reuse SSR+API)                                           |
-| `attachments.ts` | จัดการไฟล์แนบ (storage bucket `gov-procure`)                                                   |
-| `summary.ts`     | `computeSummary` + aging (SLA overdue)                                                         |
-| `settings.ts`    | อ่าน/เขียน `gov_procure_settings`                                                              |
-| `ai.ts`          | เรียก `@/lib/ai/client` (`aiChat`) สำหรับ AI-1/AI-2                                            |
-| `anomaly.ts`     | rule detect (4 เกณฑ์) ก่อนส่งให้ AI narrate                                                    |
-| `line-cards.ts`  | Flex builders (T1–T4)                                                                          |
-| `notify.ts`      | cron logic (anti-spam ผ่าน notify-state ใน settings)                                           |
+| ไฟล์               | หน้าที่                                                                                                                    |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------------- |
+| `types.ts`         | shared types (`GovProcureOrder`, enum stage, `ModuleRole` ฯลฯ) — reuse SSR page + API + client                             |
+| `stage.ts`         | `deriveStage`/`validateTransition` (state machine hybrid, §4 ของ spec)                                                     |
+| `orders.ts`        | `listOrders`/`getOrder` (fetch logic, reuse SSR+API)                                                                       |
+| `attachments.ts`   | จัดการไฟล์แนบ (storage bucket `gov-procure`)                                                                               |
+| `summary.ts`       | `computeSummary` + aging (SLA overdue)                                                                                     |
+| `settings.ts`      | อ่าน/เขียน `gov_procure_settings`                                                                                          |
+| `ai.ts`            | เรียก `@/lib/ai/client` (`aiChat`) สำหรับ AI-1/AI-2                                                                        |
+| `anomaly.ts`       | rule detect (4 เกณฑ์) ก่อนส่งให้ AI narrate                                                                                |
+| `line-group.ts`    | LINE group ทีมงาน/นักลงทุน — `bindGroup`/`unbindGroup`/`handleGovGroupCommand` + `groupTargetForOrg` (ปลายทาง push)        |
+| `line-commands.ts` | คำสั่งบันทึกข้อมูลจากกลุ่ม — `/ลงขัน` `/สถานะ` `/งานใหม่` + `confirmPending` (postback `gpok:<id>`)                        |
+| `capital.ts`       | กองทุน/นักลงทุน — fetch (`listInvestors`/`listCapitalFlows`) + `computeCapital` (pure) คืนยอดต่อบริษัท/ต่อนักลงทุน/กองกลาง |
+| `line-cards.ts`    | Flex builders (T1–T4)                                                                                                      |
+| `notify.ts`        | cron logic (anti-spam ผ่าน notify-state ใน settings)                                                                       |
 
 ### AI prompts (`apps/perpos/src/lib/ai/prompts/`)
 
@@ -117,12 +128,14 @@
 | `orders/[id]` (dialog) | `_components/detail-dialog.tsx`, `order-dialog.tsx`, `stage-move-dialog.tsx`, `ai-summary-box.tsx` | 4-tab detail, CRUD, เลื่อน stage, AI anomaly explain                              |
 | `receivables`          | `receivables/page.tsx` + `_receivables-client.tsx`                                                 | aging list (empty = good-news tone)                                               |
 | `reports`              | `reports/page.tsx` + `_reports-client.tsx`                                                         | กำไร realized/pending, split, export CSV                                          |
+| `capital`              | `capital/page.tsx` + `_capital-client.tsx`                                                         | กองทุน — KPI กองกลาง, เงินอยู่ที่บริษัทไหน, ledger + บันทึกรายการ                 |
+| `investors`            | `investors/page.tsx` + `_investors-client.tsx`                                                     | dashboard นักลงทุน — การ์ดรายคน, เปรียบเทียบ, ไทม์ไลน์เงินเข้า-ออก                |
 | `settings`             | `settings/page.tsx` + `_settings-client.tsx` + `flex-preview.tsx`                                  | SLA/%/LINE toggle + preview Flex                                                  |
 | shared                 | `_components/{guard,api,gov-provider,constants,format,money,badges,index}.ts(x)`                   | page guard, fetch wrapper, context provider, format helper                        |
 
 ### modules.ts entry + menu
 
-- `apps/perpos/src/lib/modules.ts` — `ALL_MODULES` เพิ่ม `gov_procure` (`specific:true`, `forOrgSlugs:["p2p-x-89"]`, roles `owner/manager/staff/viewer` — canWrite = owner/manager/staff) + `MODULE_MENUS.gov_procure` (6 เมนู: dashboard/pipeline/orders/receivables/reports/settings)
+- `apps/perpos/src/lib/modules.ts` — `ALL_MODULES` เพิ่ม `gov_procure` (`specific:true`, `forOrgSlugs:["p2p-x-89"]`, roles `owner/manager/staff/viewer` — canWrite = owner/manager/staff) + `MODULE_MENUS.gov_procure` (8 เมนู: dashboard/pipeline/orders/receivables/reports/**capital/investors**/settings)
 - `apps/perpos/src/layouts/hydrogen/menu-items.tsx` — `buildGovProcureMenuItems` + context picker `gov-procure`
 
 ---
@@ -157,7 +170,16 @@
 4. **`duration_days` = derived เท่านั้น ไม่ stored** — คำนวณจาก `receipt_date − contract_date` ตอนอ่าน/แสดง เท่านั้น ห้ามเพิ่มเป็น column หรือ migrate ค่าจาก `b2g_orders.duration_days` (ของ b2g เดิมเป็น stored column แต่ contract ตัดสินใจเปลี่ยนเป็น derived เพื่อกันข้อมูล 2 แหล่งไม่ตรงกัน)
 5. **`stage`/`stage_manual_override` เขียนได้ทาง `PATCH .../stage` เท่านั้น** — ไม่อยู่ใน `ORDER_WRITABLE_FIELDS` ของ POST/PUT ทั่วไป (เข้มกว่า spec literal โดยตั้งใจ) เพื่อให้ทุกการเปลี่ยน stage ผ่าน audit + T3 LINE hook ที่จุดเดียว
 6. **`closed` = manual close เท่านั้น** — `deriveStage` ต้องไม่ treat `commission_payment_date` เป็นเงื่อนไข closed (คอมมิชชั่นเป็น step แยกตาม Q5 LOCKED) ต่อให้จ่ายคอมแล้ว stage ยังเป็น `paid` จนกว่าผู้ใช้กด "ปิดงาน" เอง
-7. **module key ใหม่ ไม่ rename `b2g`** — สร้าง key `gov_procure` แยกต่างหาก (เลี่ยง FK-rename risk ใน `module_members`/`org_module_settings`) แล้ว migrate สมาชิกข้ามมาเอง
+7. **รายชื่อบริษัทรับงาน = แหล่งเดียวที่ [`lib/gov-procure/types.ts`](../apps/perpos/src/lib/gov-procure/types.ts)** — `COMPANIES` (const array) + `COMPANY_DOT_CLASS` · เพิ่ม/ลดบริษัทต้องแก้ **2 ที่คู่กันเสมอ**: const นี้ + CHECK constraint `gov_procure_orders_company_chk` (migration ใหม่) — ถ้าแก้ข้างเดียว insert จะ 23514 หรือ dropdown จะโชว์ค่าที่ DB ไม่รับ · ห้าม hardcode `"89 Global Work"`/`"P2P Supply"` ใน UI/รายงาน/LINE card อีก (2026-07-22 ถอดออกหมดแล้ว → split/legend/filter iterate จาก `COMPANIES`)
+8. **`module_members.module_role` ต้องเป็น 1 ใน 4 module role** (`owner/manager/staff/viewer`) — ค่าที่ drift มาจาก b2g เช่น `'admin'` **ไม่ throw** แต่ `canWriteGovProcure()`/`canEditFinanceGovProcure()` คืน false เงียบ ๆ → ผู้ใช้กลายเป็น read-only โดยไม่มี error (เจอ 2026-07-22 กับสมาชิกคนที่ 2 ที่ตกค้าง `'admin'` → แก้เป็น `'manager'` แล้ว) · **seed สมาชิกใหม่ต้องตรวจค่านี้เสมอ**
+9. **กำไรของบริษัทเป็น derived เสมอ ห้ามเก็บใน ledger** — `computeCapital` คิดกำไรต่อบริษัทจาก `gov_procure_orders` (stage `paid`/`closed` = สุก, อื่น ๆ = pending) โดยใช้ `net_profit_89 ?? gross_profit` · ledger เก็บเฉพาะ **กระแสเงินสด** (ลงขัน/กระจาย/คืนทุน/ปันผล/คืนเงินต้น) — ถ้าเพิ่ม flow_type `profit_in` เมื่อไร กำไรจะมี 2 แหล่งขัดกันทันที (กับดักเดียวกับ `duration_days`)
+10. **`poolBalance` ไม่หัก dividend/repayment** — เงินสองก้อนนี้จ่ายออกจาก**บริษัท** ไม่ผ่านกองกลาง (`poolBalance = ลงขันรวม − ทุนที่บริษัทถืออยู่สุทธิ`) · ถ้าไปหักซ้ำจะได้ยอดกองกลางติดลบผิด ๆ
+11. **`SHAPE` ต้องตรง 3 ที่**: CHECK `gov_procure_capital_flows_shape_chk` (DB) · `SHAPE` ใน [api/gov-procure/capital/route.ts](../apps/perpos/src/app/api/gov-procure/capital/route.ts) · `SHAPE` ใน `_capital-client.tsx` — ไม่ตรงกัน = ฟอร์มส่งไปแล้ว DB ปฏิเสธ 23514
+12. **LINE group: 1 org = 1 กลุ่ม (unique index)** — ผูกผ่านคำสั่ง `/ผูกกลุ่ม` ในกลุ่มเท่านั้น (คนสั่งต้องเป็น owner/manager ของโมดูล หรือ super_admin) · **กลุ่มที่ยังไม่ผูก บอทต้องเงียบสนิท** (webhook ตอบเฉพาะ `/ผูกกลุ่ม`) กันบอทพูดในกลุ่มที่ไม่เกี่ยว · ข้อความจากกลุ่ม **ไม่เข้า auto-provision** (ไม่สร้าง account ให้สมาชิกกลุ่มอัตโนมัติ) — branch อยู่ก่อนด่าน provision ใน [webhook](../apps/perpos/src/app/api/line/webhook/route.ts)
+13. **push เข้ากลุ่มต้องแยกจาก multicast** — LINE multicast รับเฉพาะ `userId` ส่ง `groupId` ไม่ได้ → ใช้ `pushToGovTargets()` ([notify.ts](../apps/perpos/src/lib/gov-procure/notify.ts)) ที่ push กลุ่มแยก 1 ครั้ง + multicast รายบุคคล 1 ครั้ง · cron ใช้ค่า return (สำเร็จอย่างน้อย 1 ปลายทาง) ตัดสินว่าจะ mark notify-state ไหม — เดิม `if (!to.length) skip` ทำให้ org ที่มีแต่กลุ่ม (ไม่มีคนผูก LINE) ไม่เคยได้รับแจ้งเตือน
+14. **คำสั่งเรื่องเงินจากกลุ่ม LINE ต้อง 2-step เสมอ** — `/ลงขัน` และ `/งานใหม่` เขียนลง `gov_procure_line_pending` ก่อน แล้วบันทึกจริงตอนกด postback `gpok:<id>` เท่านั้น · เช็คสิทธิ์ **2 ครั้ง** (ตอนพิมพ์ + ตอนกด — คนกดอาจไม่ใช่คนพิมพ์) · กันกดซ้ำด้วย `update … .is("consumed_at", null)` แบบ atomic แล้ว rollback `consumed_at` กลับเป็น null ถ้า insert จริงล้มเหลว · เงิน = owner/manager · stage/เปิดงาน = owner/manager/staff
+15. **`/สถานะ` เขียนตรงผ่าน admin client ไม่ผ่าน `PATCH /orders/[id]/stage`** — ตั้งใจ เพื่อไม่ให้ยิง T3 กลับเข้ากลุ่มเดิมซ้ำกับข้อความตอบรับ (echo) · แลกกับการที่คำสั่งนี้ไม่ push แจ้งผู้รับรายบุคคล — ถ้าต้องการให้แจ้งด้วย ให้เรียก `pushToGovTargets` ตรงในคำสั่ง อย่าเปลี่ยนไปเรียก endpoint (จะได้ echo)
+16. **module key ใหม่ ไม่ rename `b2g`** — สร้าง key `gov_procure` แยกต่างหาก (เลี่ยง FK-rename risk ใน `module_members`/`org_module_settings`) แล้ว migrate สมาชิกข้ามมาเอง
 
 ---
 

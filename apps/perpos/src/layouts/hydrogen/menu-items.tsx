@@ -619,6 +619,8 @@ function buildGovProcureMenuItems(org: string, labels: Record<string, string> = 
       icon: <Wallet className="h-5 w-5" />,
     },
     { name: l("reports", "รายงาน"), href: p("reports"), icon: <BarChart3 className="h-5 w-5" /> },
+    { name: l("capital", "กองทุน"), href: p("capital"), icon: <Landmark className="h-5 w-5" /> },
+    { name: l("investors", "นักลงทุน"), href: p("investors"), icon: <Users className="h-5 w-5" /> },
     {
       name: l("settings", "ตั้งค่า/แจ้งเตือน"),
       href: p("settings"),
