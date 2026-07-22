@@ -30,10 +30,30 @@ import { StatusBadge } from "@/components/ui/badge";
 import { ImageUpload } from "@/components/ui/image-upload";
 import { toast } from "@/lib/toast";
 import type { CatalogItem } from "@/lib/gov-procure/catalog";
+import type { CatalogProductSuggestion } from "@/lib/gov-procure/catalog-products";
 import { govApi } from "../../_components/api";
-import { deleteImage, uploadItemImage } from "./image-api";
+import { deleteImage, fetchProductImageUrls, uploadItemImage } from "./image-api";
 import { ConfidenceBadge, SourceBadge } from "./badges";
 import { fmtDateTime, fmtMoney, isItemLocked, priceEstimateLabel } from "./format";
+
+/** thumbnail ของข้อเสนอจากคลัง — signed URL keyed by productId เท่านั้น */
+function SuggestionThumb({ name, url }: { name: string; url?: string }) {
+  if (!url) {
+    return (
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded border border-dashed border-gray-300 text-gray-300">
+        <ImageOff className="h-4 w-4" />
+      </span>
+    );
+  }
+  return (
+    /* signed URL ของ Supabase Storage (อายุ 5 นาที) — ใช้ next/image ไม่ได้ */
+    <img
+      src={url}
+      alt={name}
+      className="h-10 w-10 shrink-0 rounded border border-gray-200 object-cover"
+    />
+  );
+}
 
 interface Draft {
   name: string;
@@ -147,6 +167,11 @@ export function ItemReviewDialog({
   const [saving, setSaving] = useState(false);
   const [savedAt, setSavedAt] = useState(0);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  /** ข้อเสนอแนะจากคลัง (fuzzy) — โหลดแยก ไม่ block dialog · ล้มเหลว = ไม่แสดงบล็อกนี้ */
+  const [suggestions, setSuggestions] = useState<CatalogProductSuggestion[]>([]);
+  const [suggestionImages, setSuggestionImages] = useState<Record<string, string>>({});
+  /** รายการที่ค้นคลังไปแล้ว (กันยิงซ้ำทุกครั้งที่ auto-save อัปเดต object) */
+  const suggestionForRef = useRef<string | null>(null);
   const busyRef = useRef(false);
   /** รายการที่ฟอร์มโหลดไว้แล้ว — กันรีเซ็ต draft ตอน parent อัปเดต object เดิม */
   const loadedIdRef = useRef<string | null>(null);
@@ -190,6 +215,61 @@ export function ItemReviewDialog({
         /* ธง "เปิดอ่าน" พลาดได้ — ไม่รบกวนผู้ใช้ */
       });
   }, [open, item, catalogId, orgId, onItemUpdated]);
+
+  // 4.1 — สินค้าคล้ายกันในคลัง (read-only, degrade เงียบ) · ห้าม auto-apply เด็ดขาด
+  useEffect(() => {
+    if (!open || !item) {
+      suggestionForRef.current = null;
+      setSuggestions([]);
+      setSuggestionImages({});
+      return;
+    }
+    // ดึงครั้งเดียวต่อรายการ — auto-save ทำให้ object เปลี่ยน แต่ไม่ต้องค้นคลังใหม่
+    if (suggestionForRef.current === item.id) return;
+    suggestionForRef.current = item.id;
+
+    let alive = true;
+    setSuggestions([]);
+    setSuggestionImages({});
+
+    govApi<{ suggestions: CatalogProductSuggestion[] }>(
+      `/api/gov-procure/catalogs/${catalogId}/items/${item.id}/suggestions?orgId=${encodeURIComponent(orgId)}`,
+      "GET",
+    )
+      .then(async (res) => {
+        const found = res.suggestions ?? [];
+        if (!alive || found.length === 0) return;
+        setSuggestions(found);
+
+        const withImage = found.filter((s) => s.product.image_path).map((s) => s.product.id);
+        if (withImage.length === 0) return;
+        const urls = await fetchProductImageUrls(orgId, withImage);
+        if (alive) setSuggestionImages(urls);
+      })
+      .catch(() => {
+        /* ไม่มีคลัง/RPC ยังไม่พร้อม → ไม่แสดงบล็อกนี้ (ไม่ใช่ error ของผู้ใช้) */
+      });
+
+    return () => {
+      alive = false;
+    };
+  }, [open, item, catalogId, orgId]);
+
+  /** เติมค่าจากคลังลง "ฟอร์ม" เท่านั้น — ไม่บันทึกเอง ไม่เปลี่ยนที่มาข้อมูลเป็น "จากคลัง" */
+  const applySuggestion = useCallback((s: CatalogProductSuggestion) => {
+    setDraft((d) => {
+      if (!d) return d;
+      const price = s.product.last_unit_price;
+      return {
+        ...d,
+        name: s.product.name || d.name,
+        brand_model: s.product.brand_model ?? d.brand_model,
+        unit_price_ref:
+          typeof price === "number" && Number.isFinite(price) ? String(price) : d.unit_price_ref,
+      };
+    });
+    toast.success("เติมข้อมูลจากคลังลงฟอร์มแล้ว — ตรวจความถูกต้องแล้วกดยืนยัน");
+  }, []);
 
   const dirty = useMemo(() => {
     if (!draft || !snapshot) return false;
@@ -655,6 +735,65 @@ export function ItemReviewDialog({
                     </>
                   )}
                 </div>
+              </div>
+
+              {/* 4.1 — ข้อเสนอแนะจากคลัง (ไม่ auto-apply · คนกดเลือกเอง) */}
+              <div className="lg:col-span-5">
+                {suggestions.length > 0 ? (
+                  <div className="rounded-lg border border-gray-200 p-3">
+                    <Text className="text-xs font-semibold text-gray-700">
+                      สินค้าคล้ายกันในคลัง
+                    </Text>
+                    <Text className="mt-0.5 text-xs text-gray-500">
+                      ระบบเดาให้จากชื่อ — กด &quot;ใช้ข้อมูลนี้&quot;
+                      แล้วค่าจะถูกเติมลงฟอร์มให้ตรวจก่อน ยังไม่บันทึกจนกว่าจะออกจากรายการ
+                      และไม่ถือว่าตรวจแล้วจนกว่าคุณจะกดยืนยัน
+                    </Text>
+                    <ul className="mt-2 space-y-2">
+                      {suggestions.map((s) => (
+                        <li
+                          key={s.product.id}
+                          className="flex flex-wrap items-center gap-3 rounded-md border border-gray-100 bg-gray-50 p-2"
+                        >
+                          <SuggestionThumb
+                            name={s.product.name}
+                            url={suggestionImages[s.product.id]}
+                          />
+                          <div className="min-w-0 flex-1">
+                            <div className="truncate text-sm font-medium text-gray-900">
+                              {s.product.name}
+                            </div>
+                            <div className="truncate text-xs text-gray-500">
+                              {s.product.brand_model ?? "ไม่ระบุยี่ห้อ/รุ่น"} · ราคาที่เคยยืนยัน{" "}
+                              {fmtMoney(s.product.last_unit_price)}
+                            </div>
+                          </div>
+                          <StatusBadge tone={s.exact ? "info" : "neutral"}>
+                            {s.exact
+                              ? "ชื่อตรงกับคลัง"
+                              : s.score >= 0.5
+                                ? "ใกล้เคียงมาก"
+                                : "ใกล้เคียง"}
+                          </StatusBadge>
+                          {editable && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => applySuggestion(s)}
+                              disabled={saving}
+                            >
+                              ใช้ข้อมูลนี้
+                            </Button>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : (
+                  <Text className="text-xs text-gray-500">
+                    ไม่พบสินค้าคล้ายกันในคลังสำหรับรายการนี้
+                  </Text>
+                )}
               </div>
             </div>
           )}

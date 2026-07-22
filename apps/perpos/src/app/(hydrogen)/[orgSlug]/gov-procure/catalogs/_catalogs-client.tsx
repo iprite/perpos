@@ -5,11 +5,11 @@
 
 import { useCallback, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import {
   BookImage,
   CheckCircle2,
   ClipboardCheck,
+  FileSignature,
   FilterX,
   Library,
   Plus,
@@ -20,6 +20,7 @@ import { PageShell } from "@/components/ui/page-shell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CustomSelect } from "@/components/ui/custom-select";
+import { Dropdown } from "@/components/ui/dropdown";
 import { StatCard } from "@/components/ui/stat-card";
 import { StatusBadge } from "@/components/ui/badge";
 import { Text } from "@/components/ui/typography";
@@ -166,11 +167,26 @@ export function CatalogsClient({
       description="รวมชุดเอกสารแคตตาล็อกสำหรับแนบซองเสนอราคา — สร้างจากรายการดิบ ให้ AI เติมรายละเอียด แล้วส่งออกเป็น PDF"
       actions={
         <>
-          <Button variant="outline" asChild>
-            <Link href={`/${orgSlug}/gov-procure/catalogs/products`}>
-              <Library className="mr-1.5 h-4 w-4" /> คลังสินค้า
-            </Link>
-          </Button>
+          {/* 2 ปุ่มพอ — ที่เหลือรวมใน Dropdown (กัน header แตกบนจอแคบ) */}
+          <Dropdown
+            label="ข้อมูลตั้งต้น"
+            leadingIcon={<Library className="h-4 w-4" />}
+            placement="bottom-end"
+            items={[
+              {
+                key: "products",
+                label: "คลังสินค้า",
+                icon: <Library className="h-4 w-4" />,
+                onClick: () => router.push(`/${orgSlug}/gov-procure/catalogs/products`),
+              },
+              {
+                key: "letterheads",
+                label: "หัวจดหมายของบริษัท",
+                icon: <FileSignature className="h-4 w-4" />,
+                onClick: () => router.push(`/${orgSlug}/gov-procure/catalogs/letterheads`),
+              },
+            ]}
+          />
           {canWrite && (
             <Button onClick={() => setCreateOpen(true)}>
               <Plus className="mr-1.5 h-4 w-4" /> สร้างชุดใหม่

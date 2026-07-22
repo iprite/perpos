@@ -1,4 +1,4 @@
-// GET /api/gov-procure/catalogs/[id]/pdf?orgId=&prices=1&template=  → PDF ของชุด (member — C-B3)
+// GET /api/gov-procure/catalogs/[id]/pdf?orgId=&prices=1&template=&format=html  → PDF ของชุด (member — C-B3) · format=html = พรีวิว HTML ตัวเดียวกับที่ส่งเข้า renderer
 //
 // contract: §5.9 A-B1 (signed URL สร้างฝั่ง server ก่อน build HTML · ห้ามใส่ secret ลง HTML)
 //           · C-6 (narrative ต้องมีบริษัท) · B-P1-6 (ลายน้ำ "ฉบับร่าง")
@@ -26,8 +26,11 @@ export async function GET(req: NextRequest, ctx: Ctx) {
   const auth = await requireGovProcureMember(req, orgId);
   if (!auth.ok) return auth.res;
 
+  // `?format=html` = พรีวิวหน้าจอ (ไม่เรียก pdf-renderer) → ไม่ต้องมี PDF_RENDER_URL
+  const wantsHtml = req.nextUrl.searchParams.get("format") === "html";
+
   const renderUrl = process.env.PDF_RENDER_URL;
-  if (!renderUrl) {
+  if (!renderUrl && !wantsHtml) {
     return govError("ยังไม่ได้ตั้งค่า PDF_RENDER_URL — ใช้ปุ่มพิมพ์ผ่านเบราว์เซอร์แทนได้", 503);
   }
 
@@ -70,6 +73,27 @@ export async function GET(req: NextRequest, ctx: Ctx) {
 
     const html = buildCatalogHtml(catalog, items, { imageUrls, showPrices, template });
     const notVerified = items.filter((i) => i.source !== "human_verified").length;
+
+    // พรีวิว: คืน HTML **ตัวเดียวกับที่ส่งเข้า pdf-renderer** (ไม่ใช่ของจำลอง)
+    // → สิ่งที่ผู้ใช้เห็นก่อนกดดาวน์โหลด = เนื้อหาจริงของไฟล์
+    //   (ต่างจากไฟล์จริงแค่การแบ่งหน้า/ฟอนต์ ซึ่งเป็นงานของ Chromium ฝั่ง renderer)
+    // signed URL ของรูปมีอายุสั้น (SIGNED_URL_TTL) → ฝัง iframe ได้ ไม่มี key ใน HTML
+    if (wantsHtml) {
+      return new NextResponse(html, {
+        status: 200,
+        headers: {
+          "Content-Type": "text/html; charset=utf-8",
+          // กัน cache ฝั่ง client — signed URL ในเนื้อ HTML หมดอายุเร็วกว่า
+          "Cache-Control": "no-store",
+          "X-Catalog-Not-Verified": String(notVerified),
+        },
+      });
+    }
+
+    // ถึงตรงนี้ = ไม่ใช่โหมด html → renderUrl ถูกเช็คไปแล้วด้านบน (TS narrow ไม่ข้าม await ให้)
+    if (!renderUrl) {
+      return govError("ยังไม่ได้ตั้งค่า PDF_RENDER_URL — ใช้ปุ่มพิมพ์ผ่านเบราว์เซอร์แทนได้", 503);
+    }
 
     let resp: Response;
     try {

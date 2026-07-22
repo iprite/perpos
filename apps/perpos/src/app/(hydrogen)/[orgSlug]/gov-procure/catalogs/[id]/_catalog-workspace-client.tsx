@@ -584,7 +584,6 @@ export function CatalogWorkspaceClient({
         open={exportOpen}
         onOpenChange={setExportOpen}
         catalog={catalog}
-        items={items}
         stats={stats}
         orgId={orgId}
         onOpenSettings={() => {
