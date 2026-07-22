@@ -3,6 +3,7 @@ import { showAccountingBackstage } from "@/lib/accounting/menu-lens";
 import {
   LayoutDashboard,
   Users,
+  BookImage,
   BookOpenText,
   ReceiptText,
   FileInput,
@@ -612,6 +613,11 @@ function buildGovProcureMenuItems(org: string, labels: Record<string, string> = 
       name: l("orders", "รายการงาน"),
       href: p("orders"),
       icon: <ClipboardList className="h-5 w-5" />,
+    },
+    {
+      name: l("catalogs", "แคตตาล็อกสินค้า"),
+      href: p("catalogs"),
+      icon: <BookImage className="h-5 w-5" />,
     },
     {
       name: l("receivables", "เงินค้างรับ"),
