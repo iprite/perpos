@@ -15,6 +15,9 @@ import { MODULE_KEY } from "./notify";
 
 export type CmdReply = { text: string } | { flex: unknown; altText: string } | null;
 
+/** ชนิดรายการที่รอยืนยัน — ตรงกับ CHECK ของ gov_procure_line_pending */
+type PendingKind = "contribution" | "allocation" | "return_to_pool" | "new_order";
+
 const fmt = (n: number) => `${new Intl.NumberFormat("th-TH").format(n)} ฿`;
 
 // ── สิทธิ์ ───────────────────────────────────────────────────────────────────
@@ -186,7 +189,7 @@ async function createPending(
   orgId: string,
   groupId: string,
   profileId: string | null,
-  kind: "contribution" | "new_order",
+  kind: PendingKind,
   payload: Record<string, unknown>,
 ): Promise<string | null> {
   const { data, error } = await admin
@@ -249,6 +252,59 @@ export async function cmdContribution(
       { label: "วันที่", value: today },
     ],
     warn: "เงินลงขันจะถูกบันทึกเป็นเงินต้นค้างคืนของนักลงทุนคนนี้ · ยังไม่บันทึกจนกว่าจะกดยืนยัน",
+    pendingId,
+  });
+}
+
+// ── /กระจายทุน <บริษัท> <จำนวน> · /คืนทุน <บริษัท> <จำนวน> ───────────────────
+
+const USAGE_MOVE: Record<"allocation" | "return_to_pool", string> = {
+  allocation: "รูปแบบ: /กระจายทุน <บริษัท> <จำนวนเงิน>\nเช่น /กระจายทุน 89 45000",
+  return_to_pool: "รูปแบบ: /คืนทุน <บริษัท> <จำนวนเงิน>\nเช่น /คืนทุน p2p 20000",
+};
+
+/** ย้ายเงินระหว่างกองกลาง ↔ บริษัท (เรื่องเงิน → ต้องกดยืนยัน) */
+export async function cmdMoveCapital(
+  admin: SupabaseClient,
+  orgId: string,
+  groupId: string,
+  profileId: string | null,
+  kind: "allocation" | "return_to_pool",
+  args: string[],
+): Promise<CmdReply> {
+  if (!canMoney(await moduleRoleOf(admin, orgId, profileId))) return { text: DENY_MONEY };
+
+  const usage = USAGE_MOVE[kind];
+  if (args.length < 2) return { text: `❌ ข้อมูลไม่ครบ\n\n${usage}` };
+
+  const amount = parseAmount(args[args.length - 1]);
+  if (amount == null) return { text: `❌ "${args[args.length - 1]}" ไม่ใช่จำนวนเงิน\n\n${usage}` };
+
+  const companyRaw = args.slice(0, -1).join(" ");
+  const company = matchCompany(companyRaw);
+  if (!company)
+    return { text: `❌ ไม่รู้จักบริษัท "${companyRaw}"\n\nบริษัท: ${COMPANIES.join(" · ")}` };
+
+  const today = new Date().toISOString().slice(0, 10);
+  const pendingId = await createPending(admin, orgId, groupId, profileId, kind, {
+    company,
+    amount,
+    flow_date: today,
+  });
+  if (!pendingId) return { text: "❌ ระบบขัดข้อง ลองใหม่อีกครั้ง" };
+
+  const isOut = kind === "allocation";
+  return confirmFlex({
+    title: isOut ? "🏢 ยืนยันกระจายทุนไปบริษัท" : "↩️ ยืนยันคืนทุนเข้ากองกลาง",
+    lines: [
+      { label: "จาก", value: isOut ? "กองกลาง" : company },
+      { label: "ไปยัง", value: isOut ? company : "กองกลาง" },
+      { label: "จำนวนเงิน", value: fmt(amount) },
+      { label: "วันที่", value: today },
+    ],
+    warn: isOut
+      ? "เงินจะถูกย้ายออกจากกองกลางไปเป็นทุนของบริษัทนี้ · ยังไม่บันทึกจนกว่าจะกดยืนยัน"
+      : "เงินจะถูกย้ายจากบริษัทกลับเข้ากองกลาง (ไม่ใช่การปันผล) · ยังไม่บันทึกจนกว่าจะกดยืนยัน",
     pendingId,
   });
 }
@@ -397,7 +453,7 @@ export async function confirmPending(
     id: string;
     org_id: string;
     group_id: string;
-    kind: "contribution" | "new_order";
+    kind: PendingKind;
     payload: Record<string, unknown>;
     expires_at: string;
     consumed_at: string | null;
@@ -411,8 +467,9 @@ export async function confirmPending(
 
   // เช็คสิทธิ์ "คนกดยืนยัน" ซ้ำอีกครั้ง (อาจเป็นคนละคนกับคนพิมพ์)
   const role = await moduleRoleOf(admin, pending.org_id, profileId);
-  const allowed = pending.kind === "contribution" ? canMoney(role) : canWrite(role);
-  if (!allowed) return pending.kind === "contribution" ? DENY_MONEY : DENY_WRITE;
+  const isMoney = pending.kind !== "new_order";
+  const allowed = isMoney ? canMoney(role) : canWrite(role);
+  if (!allowed) return isMoney ? DENY_MONEY : DENY_WRITE;
 
   // กันกดซ้ำแบบ atomic — ใครอัปเดตติดคนแรกได้สิทธิ์บันทึก
   const { data: claimed } = await admin
@@ -426,14 +483,15 @@ export async function confirmPending(
 
   const p = pending.payload;
 
-  if (pending.kind === "contribution") {
+  if (pending.kind !== "new_order") {
     const { error } = await admin.from("gov_procure_capital_flows").insert({
       org_id: pending.org_id,
       created_by: profileId,
-      flow_type: "contribution",
+      flow_type: pending.kind,
       amount: Number(p.amount),
       flow_date: String(p.flow_date),
-      investor_id: String(p.investor_id),
+      investor_id: pending.kind === "contribution" ? String(p.investor_id) : null,
+      company: pending.kind === "contribution" ? null : String(p.company),
       note: "บันทึกผ่าน LINE กลุ่มทีมงาน",
     });
     if (error) {
@@ -443,7 +501,11 @@ export async function confirmPending(
         .eq("id", pendingId);
       return `❌ บันทึกไม่สำเร็จ: ${error.message}`;
     }
-    return `✅ บันทึกเงินลงขันแล้ว\n\n${p.investor_name} · ${fmt(Number(p.amount))}`;
+    if (pending.kind === "contribution")
+      return `✅ บันทึกเงินลงขันแล้ว\n\n${p.investor_name} · ${fmt(Number(p.amount))}`;
+    return pending.kind === "allocation"
+      ? `✅ กระจายทุนแล้ว\n\nกองกลาง → ${p.company} · ${fmt(Number(p.amount))}`
+      : `✅ คืนทุนเข้ากองกลางแล้ว\n\n${p.company} → กองกลาง · ${fmt(Number(p.amount))}`;
   }
 
   // new_order
