@@ -208,3 +208,176 @@ pnpm lint                                     # clean
   ```
 - **get_advisors(security)** — รันหลังแก้ RLS/migration ใด ๆ เพื่อยืนยันไม่มีคำเตือนใหม่
 - **graphify update** หลังเพิ่ม/ย้ายโมดูล: `.venv/bin/python3 -m graphify update .`
+
+---
+
+## 8. แคตตาล็อกสินค้า AI (`gov_procure_catalog*`) — เอกสารเสนอราคาที่ AI ช่วยเติม
+
+> **สถานะ (2026-07-22): โค้ดเสร็จบน branch `feat/gov-procure-catalog` · migration `20260722200000_gov_procure_catalog.sql` applied prod แล้ว · ยังไม่ push/merge/deploy.**
+> contract เต็ม: [`.claude/feature-factory/specs/gov-procure-catalog.md`](../.claude/feature-factory/specs/gov-procure-catalog.md) (§5.9 = คำตัดสินสุดท้าย, override ทุกส่วนก่อนหน้า)
+
+### 8.1 ภาพรวม + คุณค่า
+
+ทุกซองเสนอราคางานราชการต้องแนบ "เอกสารแคตตาล็อกสินค้า" — เดิมทีมทำมือใน Word/Excel (หารูป หาสเปก เขียน bullet เอง) ใช้เวลาหลายวัน/ชุด และคุณภาพไม่สม่ำเสมอ
+
+ฟีเจอร์นี้ให้ผู้ใช้ **paste รายการดิบ (ชื่อ+จำนวน+หน่วย) → AI เติมสเปก/bullet/ราคาอ้างอิงให้ทั้งชุด → คนตรวจ/แก้/ยืนยันทีละรายการ → export PDF 2 รูปแบบ (ตรงเอกสารจริงที่เคยยื่น)** — จากหลายวันเหลือหลักนาที ต่อชุด และมี **provenance ชัด** (AI เดา / คนยืนยัน / จากคลัง) กันข้อมูลมั่วหลุดถึงราชการ
+
+- **ใครใช้:** owner/manager/staff (`canWrite`) เตรียมเอกสาร — staff แก้ราคาได้ด้วย (ต่างจาก order finance-lock, ดู §8.6 ข้อ 1) · viewer อ่าน/ดาวน์โหลดอย่างเดียว
+- **คุณค่า:** ตัดงานคีย์ซ้ำ (paste 84 บรรทัดจบ) · AI enrich ~2–4 นาที/84 รายการ + สไตล์สม่ำเสมอทั้งเล่ม · หน้า review กันข้อมูลมั่วก่อนออกซอง · คลังสินค้าองค์กร (reuse ชื่อซ้ำ = ไม่จ่ายค่า AI ซ้ำ) · PDF 2 เทมเพลต + toggle ราคา ตรงรูปแบบเอกสารจริงที่เคยส่งลูกค้า · แนบเข้า order เดิมได้ (หรือเป็นเอกสารอิสระ)
+
+### 8.2 สถาปัตยกรรม (flow วางรายการ → AI → ตรวจ → PDF)
+
+```
+[หน้า 1] /[orgSlug]/gov-procure/catalogs (list)
+   └─ "+ สร้างชุดใหม่" ──▶ paste รายการดิบ (parse: ชื่อ<tab/2+ช่องว่าง>จำนวน<ช่องว่าง>หน่วย)
+                              │
+[หน้า 2] catalogs/[id] (ห้องทำงาน — pattern page ของ feature นี้)
+   ├─ ตาราง/โหมด "อ่านเนื้อหา" — แก้ inline ทุกฟิลด์ (เนื้อหา+ราคา+รูป+จำนวน/หน่วย)
+   ├─ "ให้ AI ช่วยเติม" ──▶ POST /enrich (สร้าง job, cap 300/job, active ≤2/org, งบ 1.5M token/วัน/org)
+   │                          └─ client วน POST /enrich/run (chunk 8 รายการ, claim item-level
+   │                             FOR UPDATE SKIP LOCKED, maxDuration=60) จนกว่า done/failed ครบ
+   ├─ ยืนยันรายตัว / "ยืนยันทั้งหมดที่กรองอยู่" (bulk, server กันข้าม conf<0.6/queued/ไม่เคยเปิดอ่าน)
+   ├─ อัปรูป (catalog-images, IDOR guard + signed URL ≤300s)
+   ├─ อนุมัติชุด (`approved` — ไม่ต้องยืนยันครบ 100%)
+   └─ export PDF (2 เทมเพลต) / แนบเข้า order / บันทึกเข้าคลัง (เฉพาะ human_verified)
+
+[หน้า 3] catalogs/products (คลังสินค้า, ไม่มีเมนู — เข้าจากปุ่มในหน้า 1)
+```
+
+- **guard เดิมทั้งชุด** — หน้า = `requireGovProcurePage()`, API = `requireGovProcureMember`/`canWrite`/`canDelete`/`canManageSettings` (ไม่มี guard ใหม่)
+- **ท่า async = chunked route ในแอป** (ไม่มี Cloud Run worker ใหม่) — claim ระดับ **item** (ไม่ใช่ job) ด้วย `FOR UPDATE SKIP LOCKED` กัน 2 คนกดพร้อมกันชนกัน · job row เป็น **header ของรอบ** (progress/token cost/`correlation_id`/1-active-per-catalog) ไม่ใช่ตัว claim จริง
+- **self-heal ไม่ใช้ cron:** job ที่ `heartbeat_at` เก่ากว่า 10 นาทีและไม่มี item ค้าง `queued/running` → ปิดเป็น `completed`/`failed` เองตอน `GET /enrich` หรือโหลดหน้า workspace
+
+### 8.3 Database — 5 ตารางใหม่ (applied prod, additive 100%)
+
+| ตาราง                             | หน้าที่                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `gov_procure_catalogs`            | ชุดแคตตาล็อก 1 ชุด/1 ซอง — `order_id` **nullable** (เอกสารอิสระ), `template` (`table`\|`narrative`), `show_prices` (default false), `status` (state machine §8.4), `letterhead_snapshot` jsonb (snapshot ตอนสร้าง/เปลี่ยนบริษัท — export ใช้ snapshot เท่านั้น ไม่ผูกกับค่าปัจจุบันของ default)                                                                                                                                                                                                                                                                                                       |
+| `gov_procure_catalog_items`       | รายการในชุด — `name_raw`(ที่ผู้ใช้ paste)/`name`/`spec_line`/`size_line`/`bullets`/`care_notes`/`caution_notes`(ขึ้น PDF)/`ai_warnings`(**ห้ามขึ้น PDF**)/`sub_items`/`qty`/`unit`/`category`/`image_path`(server-set only)/`unit_price_ref`/`price_min`/`price_max`/`price_basis`/`price_confidence`/`price_history`(jsonb append-only, ≤20 รายการล่าสุด)/`source`(`manual\|ai_draft\|human_verified\|library`)/`confidence`/`ai_note`/`verified_by`/`verified_at`/`viewed_at`/`enrich_state`(`idle\|queued\|running\|done\|failed`)/`enrich_claimed_at`/`enrich_job_id`/`enrich_error`/`product_id` |
+| `gov_procure_products`            | คลังสินค้าองค์กร (reuse ครั้งหน้า) — `name_key` (GENERATED จาก `gov_procure_normalize_name()`, **UNIQUE (org_id, name_key)**), `last_unit_price`/`price_updated_at` (เตือนราคาล้าสมัย), `times_used`                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `gov_procure_catalog_jobs`        | header ของรอบ enrich — `status`, `total_items/done_items/failed_items`, `model`, `input_tokens/output_tokens` (cost log), `chunk_size` (default 8, ไม่รับจาก body), `heartbeat_at`, `correlation_id`, **partial unique `(catalog_id) where status in ('pending','processing')`** (กันสร้าง job ซ้อน)                                                                                                                                                                                                                                                                                                  |
+| `gov_procure_catalog_letterheads` | ค่าตั้งต้นหัวจดหมายต่อบริษัท (**ไม่ใช่คอลัมน์ใน `gov_procure_settings`** — ดู §8.6 ข้อเหตุผล) — `unique (org_id, company)`                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+
+- **RLS ทั้ง 5 ตาราง**: `select = is_org_member(org_id, auth.uid())` / `write = is_org_admin(org_id, auth.uid())` — role/field guard จริงอยู่ที่ API เหมือนตารางเดิมของโมดูล
+- **22 index**, composite FK `(catalog_id|product_id|enrich_job_id, org_id)` — 2 ตัวหลัง (`product_id`, `enrich_job_id`) เป็น `DEFERRABLE INITIALLY DEFERRED` (ดู §8.6 ข้อ 2)
+- function `gov_procure_normalize_name()` — `IMMUTABLE`, ใช้เป็น GENERATED column ของ `products.name_key`, grant `authenticated, service_role`
+- **ไม่มี ALTER ตารางเดิมของ module แม้แต่จุดเดียว** (`gov_procure_orders`/`_attachments`/`_settings`/`_investors`/`_capital_flows`/`_line_pending` ไม่ถูกแตะ — เดิมมีแผน `ALTER gov_procure_settings ADD catalog_letterheads` แต่ยกเลิกเพื่อ ADDITIVE 100%) · **ไม่มี RPC ใหม่** (v1 ไม่ทำ fuzzy search — exact match ผ่าน `name_key` เท่านั้น) · **ไม่มี extension ใหม่**
+
+**invariant สำคัญ:**
+
+- `approved` **≠** ยืนยันครบ 100% — อนุมัติทั้งที่ยังมี `ai_draft` ได้ (ผ่าน dialog เตือน + PDF ติดลายน้ำ "ฉบับร่าง")
+- **คลัง (`gov_procure_products`) รับเฉพาะรายการ `source='human_verified'`** — บังคับที่ API (`POST /products`) + unit test กันไม่ให้ `ai_draft` ไหลเข้าคลังอัตโนมัติ
+
+### 8.4 State machine + `source` + guard matrix
+
+```
+draft ──(paste/import)──▶ draft ──("ให้ AI ช่วยเติม")──▶ enriching ──(job จบ/self-heal)──▶ review ──(อนุมัติทั้งชุด)──▶ approved
+                                                                                 ▲                                    │
+                                                                                 └──────────── (แก้ต่อ) ──────────────┘
+```
+
+- `enriching` ล็อกที่ **ระดับแถว** ไม่ใช่ทั้งหน้า — item ที่ `queued/running` disabled, `done/failed` แก้ได้ทันที (server บังคับจริง: `PATCH items/[itemId]` reject 409 เมื่อ item กำลัง enrich)
+- แก้ฟิลด์เนื้อหาใด ๆ → `source` กลับเป็น `manual` + ล้าง `verified_by/at` เสมอ (ไม่ว่าค่าเดิมคืออะไร) · แก้เฉพาะราคา → **ไม่เปลี่ยน** `source`/`verified_*` (set `price_updated_by/at` + append `price_history`)
+
+**`source` 4 ค่า:** `manual`(คนพิมพ์เอง) · `ai_draft`(AI เดา ยังไม่ตรวจ) · `human_verified`(คนกดยืนยันแล้ว) · `library`(ดึงจากคลัง)
+
+**guard matrix ต่อ role (final, ต่างจาก order เดิม 1 จุด):**
+
+| การกระทำ                                                     | owner | manager |          staff          |     viewer     |
+| ------------------------------------------------------------ | :---: | :-----: | :---------------------: | :------------: |
+| สร้าง/paste/แก้เนื้อหา+รูป+จำนวน/หน่วย                       |   ✓   |    ✓    |            ✓            |       ✗        |
+| **แก้ราคา** (`unit_price_ref/price_min/price_max`)           |   ✓   |    ✓    |          **✓**          |       ✗        |
+| สั่ง AI enrich (cap 300/job)                                 |   ✓   |    ✓    |            ✓            |       ✗        |
+| ยืนยันรายการ/ยืนยันทั้งหมดที่กรอง/อนุมัติชุด                 |   ✓   |    ✓    |            ✓            |       ✗        |
+| `show_prices` + export PDF (มี/ไม่มีราคา)                    |   ✓   |    ✓    |            ✓            | อ่าน/ดาวน์โหลด |
+| แก้หัวจดหมาย**รายชุด** (snapshot)                            |   ✓   |    ✓    |            ✓            |       ✗        |
+| แก้ **ค่าตั้งต้นหัวจดหมายของบริษัท** (`catalog_letterheads`) |   ✓   |    ✓    | ✗ (`canManageSettings`) |       ✗        |
+| ลบชุด / ลบสินค้าคลัง / ลบหลายรายการพร้อมกัน                  |   ✓   |    ✓    |     ✗ (`canDelete`)     |       ✗        |
+
+> **ข้อแตกต่างจาก order เดิมของโมดูล:** ราคาแคตตาล็อก **ไม่ใช่** `FINANCE_FIELDS` — เป็น decision ที่ผู้ใช้เคาะเอง (Q1 ตัวเลือก b: ทุกคนที่ `canWrite` รวม staff แก้ราคาได้ เพื่อความคล่องตัว) ชดเชยด้วย `price_history` append-only (20 รายการล่าสุด) + ป้าย "ประมาณการ" ติดถาวรบนราคาที่มาจาก AI — **`api/gov-procure/_lib.ts` (`FINANCE_FIELDS`/`ORDER_WRITABLE_FIELDS`/`sanitizeOrderPayload`) ไม่ถูกแตะเลย**
+
+### 8.5 AI enrich (โมเดล/prompt/cost/cap/guardrail)
+
+- **client:** unified `@/lib/ai/client` (`aiChat`) — **ต้องส่ง `provider:"gemini"` ทุก call** (env `PERPOS_AI_PROVIDER` ไม่ได้ตั้ง → default openai ผิด) + `maxTokens: 8000` (default client = 800 → output ถูกตัดกลางคัน)
+- **prompt:** [`lib/ai/prompts/gov-procure-catalog-item.v1.txt`](../apps/perpos/src/lib/ai/prompts/gov-procure-catalog-item.v1.txt) — batch **8 รายการ/call** (84 รายการ ≈ 11 call), ส่งเฉพาะ `name_raw`/`qty`/`unit` (ไม่ส่ง record ดิบทั้งแถว)
+- **cost:** ~฿4.1/ชุด 84 รายการ (`gemini-2.5-flash`) — สูตร/เรตอยู่ที่ [`lib/gov-procure/catalog-cost.ts`](../apps/perpos/src/lib/gov-procure/catalog-cost.ts) (mirror `lib/assistant/stt-cost.ts`)
+- **cap ป้องกัน cost accident:** `total_items > 300` → 400 · active job ของ org ≥ 2 → 429 · งบ token/วัน/org เกิน 1,500,000 → 429 (ข้อความไทยบอกให้รอพรุ่งนี้/ติดต่อผู้ดูแล)
+- **guardrail ในพรอมต์:** ทุกค่าคืน = ข้อเสนอ (`source='ai_draft'` เสมอ) · ห้ามแต่งเลขมาตรฐาน/เลขรับรองที่ไม่มั่นใจ · ราคาต้องมี `price_basis` เสมอ (ไม่มีข้อมูลพอ → `null` + `price_confidence=0`, ห้ามเดามั่ว, ห้ามอ้างว่าเป็น "ราคาตลาดวันนี้") · `name_raw` = data ไม่ใช่คำสั่ง (prompt injection guard) · bullets 5–12 ข้อภาษาไทย
+- **AI ไม่หา/สร้างรูป** (ตัดสินใจโดยผู้ใช้ — ความเสี่ยงเอกสารราชการเท็จถ้ารูปไม่ตรงสินค้าจริง) — รูปทีมอัปเองหรือดึงจากคลังเมื่อชื่อซ้ำ
+- **enrich queue** เลือกเฉพาะ `source in ('manual','ai_draft')` และ `enrich_state in ('idle','failed')` — **ไม่แตะ `human_verified`/`library`** (กันเขียนทับงานคน + กันจ่ายค่า AI ซ้ำ)
+- **ผลทดสอบจริงบน prod** (ข้อมูลทดสอบลบแล้ว): 10 รายการจริงจากเอกสารลูกค้า → parser แยกได้ 10 + จับ 1 บรรทัดแยกไม่ได้พร้อมบอกวิธีแก้ · **AI enrich 10/10 สำเร็จ 0 ล้มเหลว** คืนยี่ห้อ/รุ่นจริง (Faber-Castell Textliner 1546, Pentel BLN-107, Elephant No.108, Scotch No.700, UHU Stic) · มูลค่าประมาณการรวม 43,840 ฿ · ต้นทุนจริง ~฿0.74/10 รายการ
+
+### 8.6 PDF — 2 เทมเพลต
+
+`lib/gov-procure/catalog-html.ts` (`buildCatalogHtml`) mirror ท่าของ `lib/accounting/document-html.ts` → route `.../pdf` ยิง `services/pdf-renderer` เดิม (ไม่มี env ใหม่)
+
+| เทมเพลต              | ตรงเอกสารจริง                                                           | หัวจดหมาย                             | ราคา                                        |
+| -------------------- | ----------------------------------------------------------------------- | ------------------------------------- | ------------------------------------------- |
+| `table` (A, default) | ตาราง 6 คอลัมน์ (ลำดับ/ชื่อสินค้า/คำอธิบายสินค้า/จำนวน/หน่วย/รูปสินค้า) | ไม่มี                                 | `prices=1` เพิ่ม 2 คอลัมน์ ราคา/หน่วย + รวม |
+| `narrative` (B)      | หัวข้อเลข + ย่อหน้า/รายการย่อย + วิธีการดูแลรักษา + ข้อควรระวัง         | มีทุกหน้า (จาก `letterhead_snapshot`) | `prices=1` เพิ่มบรรทัด "ราคา … บาท/หน่วย"   |
+
+- ไม่มี ORIGINAL/COPY (ไม่ใช่เอกสารภาษี ม.86/4) · ไม่มีเลขหน้า (v1)
+- รูปที่ยังไม่มี → กล่อง placeholder เส้นประ "รอรูปสินค้า"
+- **ผลทดสอบจริง:** PDF เทมเพลตตาราง ออกได้จริง 60KB — 6 คอลัมน์ตรงต้นฉบับ, หัวตารางซ้ำทุกหน้า, กล่อง "รอรูปสินค้า", **ลายน้ำ "ฉบับร่าง — ยังมี 10 รายการที่ยังไม่ผ่านการตรวจสอบ" ท้ายทุกหน้า** (หายเองเมื่อยืนยันครบ, ไม่บล็อกดาวน์โหลด)
+- `esc()` ครอบทั้ง text และ attribute context (`img src/alt/title`) · `letterhead_snapshot.logo_data_url` validate regex + cap ≤500KB ก่อนพิมพ์โลโก้
+
+### 8.7 Code map
+
+**API** (`apps/perpos/src/app/api/gov-procure/`):
+
+| ไฟล์                                                                   | หน้าที่                                                                                                                                     |
+| ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `_catalog-lib.ts`                                                      | allowlist ของ catalog (`CATALOG_ITEM_WRITABLE_FIELDS`) + helper เฉพาะ feature — **ไม่แตะ `_lib.ts` เดิม**                                   |
+| `catalogs/route.ts`, `catalogs/[id]/route.ts`                          | GET/POST list, GET/PUT/DELETE รายชุด (`PUT` รวม `show_prices`+`status='approved'` = `canWrite`)                                             |
+| `catalogs/[id]/items/route.ts`, `.../items/[itemId]/route.ts`          | GET/POST (bulk paste-parse) / PATCH-DELETE รายรายการ                                                                                        |
+| `.../items/[itemId]/verify/route.ts`, `.../items/verify-bulk/route.ts` | ยืนยันรายตัว / bulk (รับ filter descriptor ไม่ใช่ id ดิบ — resolve เองที่ server, กัน conf<0.6/queued/ไม่เคยเปิดอ่านเมื่อ `skipRisky=true`) |
+| `catalogs/[id]/enrich/route.ts`, `.../enrich/run/route.ts`             | สร้าง/ดูสถานะ/ยกเลิก job · ประมวลผล 1 chunk (8 รายการ) ต่อ call                                                                             |
+| `catalogs/[id]/pdf/route.ts`                                           | export PDF (`template=`, `prices=`)                                                                                                         |
+| `catalog-images/route.ts`                                              | อัปโหลด/อ่านรูป (bucket `gov-procure` เดิม, prefix `catalogs/`/`products/` ใหม่)                                                            |
+| `catalog-letterheads/route.ts`                                         | GET (member) / PUT (`canManageSettings`) ค่าตั้งต้นหัวจดหมายต่อบริษัท                                                                       |
+| `products/route.ts`, `products/[id]/route.ts`                          | คลังสินค้า — GET/POST (upsert จาก item ที่ยืนยันแล้ว) / PATCH-DELETE                                                                        |
+
+**lib** (`apps/perpos/src/lib/gov-procure/`): `catalog.ts` (types+query+`getCatalogItemStats`/`getCatalogListStats`) · `catalog-parse.ts` (paste/CSV→rows, pure) · `catalog-cost.ts` (เรตโมเดล+cap) · `catalog-products.ts` (`normalizeName`+match/upsert) · `catalog-html.ts` (PDF 2 เทมเพลต) · `catalog-ai.ts` (เรียก AI + fallback) · `catalog-product-list.ts` · prompt `lib/ai/prompts/gov-procure-catalog-item.v1.txt`
+
+**หน้า** (`apps/perpos/src/app/(hydrogen)/[orgSlug]/gov-procure/catalogs/`):
+
+| route                       | ไฟล์                                                                                                                                                                                                                                                            | หน้าที่                                                                       |
+| --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| `catalogs` (list)           | `page.tsx` + `_catalogs-client.tsx`                                                                                                                                                                                                                             | StatCard สรุป + filter + "+ สร้างชุดใหม่"                                     |
+| `catalogs/[id]` (ห้องทำงาน) | `[id]/page.tsx` + `[id]/_catalog-workspace-client.tsx`                                                                                                                                                                                                          | pattern page ของ feature — ตาราง/โหมดอ่านเนื้อหา, progress AI, ยืนยัน, export |
+| `catalogs/products` (คลัง)  | `products/page.tsx` + `products/_products-client.tsx`                                                                                                                                                                                                           | ค้น/แก้/ลบสินค้าในคลัง (ไม่มีเมนู — เข้าจากปุ่มในหน้า list)                   |
+| shared                      | `_components/{badges,format,image-api,download}.ts(x)`, dialogs (`create-catalog-dialog`, `catalog-settings-dialog`, `save-to-library-dialog`, `ai-enrich-panel`, `export-dialog`, `item-dialog`, `paste-items-dialog`, `product-dialog`, `verify-bulk-dialog`) | badge/format/signed-image fetch + ทุก dialog ของ workflow                     |
+|                             | `loading.tsx`                                                                                                                                                                                                                                                   | skeleton                                                                      |
+
+**modules.ts entry + menu:** `MODULE_MENUS.gov_procure` แทรก `{ key:"catalogs", label:"แคตตาล็อกสินค้า" }` (`lib/modules.ts:335`, หลัง `orders` ก่อน `receivables`) + `buildGovProcureMenuItems` แทรก 1 รายการ icon `BookImage` (`layouts/hydrogen/menu-items.tsx:618-620`) — **insert 2 บรรทัดเท่านั้น ไม่แตะโครงเดิม**
+
+### 8.8 กับดักที่แก้แล้ว
+
+1. **CHECK แบบสมมาตร `(verified_by is null) = (verified_at is null)` + FK `on delete set null` = ลบ user ไม่ได้ทั้งระบบ** — ลบ user ที่เคย verify ไว้ → RI trigger set null ทั้งคู่ตามลำดับต่างกัน แล้วละเมิด CHECK กลางคัน (`/api/admin/users/delete` ล้ม) → แก้เป็นทิศทางเดียว `verified_by is null or verified_at is not null`
+2. **composite FK หลายคอลัมน์ห้ามใช้ `ON DELETE SET NULL`** (จะ set `org_id` เป็น null ทั้งที่เป็น NOT NULL) → composite FK ใช้ `NO ACTION` + FK เดี่ยวใช้ `SET NULL` + **`DEFERRABLE INITIALLY DEFERRED`** ให้ลำดับ trigger แน่นอน ไม่ผูกกับลำดับ OID โดยบังเอิญ
+3. **คอมเมนต์ SQL ที่มี `verified_*/` ปิดบล็อกคอมเมนต์กลางคัน** (`*/` ใน path) → migration พังแบบไม่ชัดสาเหตุ — ระวังเวลาเขียนคอมเมนต์อธิบายชื่อฟิลด์ที่มี `/`
+4. **`PageShell.actions` เป็น `flex-shrink-0`** — ใส่ปุ่มเกิน 2 ตัวบีบหัวข้อจนตัวอักษรตกบรรทัดละตัว → ปุ่มเยอะ (หน้าห้องทำงาน) ต้องทำแถบเครื่องมือของตัวเองแยกจาก `PageShell.actions`
+5. **AI คืน bullet พร้อมขีดนำหน้ามาเอง** (`"- ..."`) → เทมเพลตใส่ `"- "` ซ้ำเป็น `"- -"` ในเอกสารที่ยื่นราชการ → normalize ตัดเครื่องหมายนำหน้าทั้ง `bullets` และ `size_line` ก่อนเรนเดอร์
+6. **`PERPOS_AI_PROVIDER` ไม่ได้ตั้งใน env → default = openai** และ `maxTokens` default ของ client = 800 → **ทุก call ของ catalog ต้องส่ง `provider:"gemini"`, `model`, `maxTokens:8000`** ชัดเจน ไม่งั้นยิงผิด provider หรือ output ถูกตัดกลางคัน (บั๊กเงียบ ไม่ throw)
+7. **สวิตช์ "ข้ามรายการเสี่ยง" ฝั่ง UI ไม่ตรงกับที่ server ทำจริง** — UI บอกว่าข้ามรายการที่ไม่มีรูป/ราคา แต่ server bulk-verify ไม่ได้กันเงื่อนไขเดียวกัน → ผู้ใช้กดโดยเชื่อว่าปลอดภัย แล้วรายการที่ยังไม่ครบถูกประทับ `human_verified` → sync เงื่อนไข UI↔server ให้ตรงกันเป๊ะ (conf<0.6 / enrich_state queued-running / ไม่เคยเปิดอ่าน) + แสดง "ข้ามไว้ n" นับครบทุกเหตุผล ไม่ใช่แค่เหตุผลเดียว
+
+### 8.9 ของที่ยังไม่ทำ (follow-up)
+
+- ยังไม่ seed `gov_procure_catalog_letterheads` (เทมเพลต B ต้องมีหัวจดหมายก่อนใช้งานจริง — ปัจจุบัน 0 แถว ทั้งที่ API รองรับแล้ว)
+- ยังไม่มี UI แก้หัวจดหมายรายชุด (route `catalog-letterheads` มีแล้ว แต่หน้าจอยังไม่ทำ)
+- ตารางคลังสินค้ายังไม่โชว์ thumbnail (ต้องมี batch signed URL ของรูป product)
+- พรีวิว A4 ในกล่องส่งออก (export dialog) ยังไม่มี
+- fuzzy search ชื่อสินค้า (`pg_trgm` + RPC) เลื่อนเป็น v2 — v1 เป็น exact match ผ่าน `name_key` เท่านั้น
+- **ยังไม่ push/merge branch `feat/gov-procure-catalog` · ยังไม่ deploy**
+
+### 8.10 วิธี verify / test
+
+```bash
+cd apps/perpos && pnpm exec tsc --noEmit     # = 0 errors
+pnpm lint                                     # ไม่มี error ใหม่
+pnpm exec vitest run                          # 116 test ผ่าน (parse/AI/HTML escape/cost)
+```
+
+- **DB (production, applied):** Supabase MCP `list_tables` ยืนยัน 5 ตาราง + RLS 5/5 + 22 index + composite FK (2 ตัว `DEFERRABLE`) + `get_advisors(security)` ไม่มีคำเตือนใหม่
+- **Smoke test end-to-end (ทำจริงบน prod แล้ว, ลบข้อมูลทดสอบแล้ว):** วาง 10 รายการจริง → parse → AI enrich 10/10 สำเร็จ → ตรวจ/ยืนยัน → export PDF เทมเพลตตาราง (60KB, ลายน้ำฉบับร่างถูก) — ดูรายละเอียดเต็มที่ §8.5/§8.6
+- **graphify update** หลัง merge: `.venv/bin/python3 -m graphify update .`

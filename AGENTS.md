@@ -4,7 +4,7 @@
 
 > 📘 **ผู้ช่วย AI (assistant umbrella — per-profile, B2C, kind-based):** อ่านคัมภีร์ร่มที่ [`docs/ASSISTANT.md`](docs/ASSISTANT.md) — สถาปัตยกรรม per-kind, guard, home org, onboarding, billing, วิธีเพิ่มผู้ช่วยตัวใหม่ ก่อนแตะส่วน `/assistant`
 > 📘 **STT/MoM เฉพาะทาง (worker, Gemini, PDF, duration, quota):** อ่าน [`docs/STT_MOM_FEATURE.md`](docs/STT_MOM_FEATURE.md) — deploy, DB schema, code map, กับดักที่แก้แล้ว
-> 📘 **จัดซื้อครุภัณฑ์ภาครัฐ (gov_procure — pipeline 6 stage, per-org p2p-x-89):** อ่าน [`docs/GOV_PROCURE_FEATURE.md`](docs/GOV_PROCURE_FEATURE.md) — state machine, field-level finance-lock, AI/LINE, provisioning + cutover status, กับดักที่แก้แล้ว
+> 📘 **จัดซื้อครุภัณฑ์ภาครัฐ (gov_procure — pipeline 6 stage, per-org p2p-x-89):** อ่าน [`docs/GOV_PROCURE_FEATURE.md`](docs/GOV_PROCURE_FEATURE.md) — state machine, field-level finance-lock, AI/LINE, provisioning + cutover status, กับดักที่แก้แล้ว, **§8 แคตตาล็อกสินค้า AI** (5 ตารางใหม่ `gov_procure_catalog*`/`_products`, 14 API route, AI enrich chunked, PDF 2 เทมเพลต — บน branch `feat/gov-procure-catalog` ยังไม่ merge)
 > 📘 **บัญชี/ภาษี (accounting — เอกสารขาย 9 ชนิด, ใบกำกับซื้อ, auto journal, ภ.พ.30):** อ่าน [`docs/ACCOUNTING_FEATURE.md`](docs/ACCOUNTING_FEATURE.md) — invariant ที่ห้ามพัง (snapshot/จุดรับรู้รายได้/เลขเอกสาร), ผังบัญชีที่ auto journal ใช้, สิทธิ์หลังบ้าน, กับดักที่แก้แล้ว — **อ่านก่อนแตะ `/accounting` ทุกครั้ง**
 > 📘 **OCR ถอดบิล→บันทึกบัญชี (acc_firm, self-improvement loop):** อ่าน [`docs/ACC_FIRM_OCR_FEATURE.md`](docs/ACC_FIRM_OCR_FEATURE.md) — pipeline 3 สเต็ป Gemini, loop จำผู้ขาย→บัญชีจากการอนุมัติของคน (human-in-the-loop เสมอ), bucket/secret/FK กับดักที่แก้แล้ว
 
