@@ -126,8 +126,6 @@ pnpm build
 | `/api/assistant/scheduler`            | POST           | `assistant/scheduler/route.ts`            | Cron trigger สำหรับแจ้งเตือน task                                                                           |
 | `/api/admin/delivery/logs`            | GET            | `admin/delivery/logs/route.ts`            | ดู logs การส่ง                                                                                              |
 | `/api/admin/delivery/schedule`        | PUT            | `admin/delivery/schedule/route.ts`        | ตั้ง cron schedule                                                                                          |
-| `/api/admin/delivery/send-now`        | POST           | `admin/delivery/send-now/route.ts`        | ส่งข่าวทันที                                                                                                |
-| `/api/admin/news-agent/preview`       | POST           | `admin/news-agent/preview/route.ts`       | Preview ข่าว                                                                                                |
 | `/api/admin/users/list`               | GET            | `admin/users/list/route.ts`               | รายชื่อ users                                                                                               |
 | `/api/admin/users/invite`             | POST           | `admin/users/invite/route.ts`             | เชิญ user                                                                                                   |
 | `/api/admin/users/delete`             | POST           | `admin/users/delete/route.ts`             | ลบ user                                                                                                     |
@@ -164,8 +162,7 @@ pnpm build
 | ----------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
 | `/help`                                   | แสดงคำสั่งทั้งหมด                                                                                                                                                                | —                                                    |
 | `/link <token>`                           | ผูกบัญชี LINE                                                                                                                                                                    | —                                                    |
-| `/ข่าว`                                   | สรุปข่าว                                                                                                                                                                         | `bot.news.request`                                   |
-| `/สรุปล่าสุด`                             | ข่าวล่าสุด                                                                                                                                                                       | `bot.news.latest`                                    |
+| `/ข่าว`                                   | ⚠️ stub — ตอบ "กำลังดึงข่าว..." แล้วจบ (news-agent ถูกลบแล้ว)                                                                                                                    | `bot.news.request`                                   |
 | `/รายรับ <จำนวน> <โน้ต>`                  | บันทึกรายรับ                                                                                                                                                                     | `bot.finance.income_add`                             |
 | `/รายจ่าย <จำนวน> <โน้ต>`                 | บันทึกรายจ่าย                                                                                                                                                                    | `bot.finance.expense_add`                            |
 | `/mom`                                    | ส่งไฟล์เสียง → ได้รายงานการประชุม (MoM) PDF กลับทาง LINE                                                                                                                         | `bot.assistant.transcribe` (ผู้ช่วย AI, per-profile) |
@@ -286,7 +283,6 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 | `lib/accounting/document-html.ts`       | HTML A4 ของเอกสารภาษี (ส่งเข้า pdf-renderer) + `bahtText` แหล่งเดียว             |
 | `lib/accounting/paging.ts`              | กัน PostgREST ตัด 1,000 แถวเงียบ — คืน `total` + `truncated`                     |
 | `lib/line/send-messages.ts`             | Push/multicast LINE messages                                                     |
-| `lib/news/news-agent.ts`                | Fetch RSS + summarize ด้วย OpenAI                                                |
 | `lib/google/drive.ts`                   | Google Drive OAuth + upload                                                      |
 | `lib/supabase/{client,server,admin}.ts` | Supabase clients                                                                 |
 
@@ -304,8 +300,6 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 | `LINE_LOGIN_CHANNEL_ID`               | LINE Login (เข้าเว็บด้วย LINE) — channel ID                                                    | LINE login         |
 | `LINE_LOGIN_CHANNEL_SECRET`           | LINE Login — channel secret                                                                    | LINE login         |
 | `CRON_SECRET`                         | ป้องกัน scheduler endpoint                                                                     | ✅                 |
-| `OPENAI_API_KEY`                      | NLP task parse + news summary                                                                  | optional           |
-| `OPENAI_MODEL`                        | โมเดล OpenAI (default: gpt-4o-mini)                                                            | optional           |
 | `PDF_RENDER_URL`                      | PDF microservice URL — ต้องเป็น **perpos-pdf-renderer** (อย่าชี้ `exapp-pdf-renderer` คนละแอป) | optional           |
 | `PDF_SERVICE_SECRET`                  | PDF service auth                                                                               | optional           |
 | `OCR_WORKER_URL`                      | URL ของ ocr-worker (Cloud Run) สำหรับ AI bookkeeping                                           | acc_firm           |
@@ -341,6 +335,7 @@ Endpoint: `POST /api/assistant/scheduler`
 - **LINE Flex Card**: ทุกการ์ดต้องตามคัมภีร์ [`docs/line-flex-card-guide.md`](docs/line-flex-card-guide.md) — header CHARCOAL `#3C3B3D` พื้นเรียบ (ห้าม gradient), token สีจาก DESIGN.md §2, ต้นแบบ = `buildLinkConfirmFlex` / `buildBotFlex`
 - **Unit test (vitest)**: กฎที่ "ผิดแล้วเสียเงิน/ผิดกฎหมาย" มีเทสคุมที่ [`lib/accounting/accounting-rules.test.ts`](apps/perpos/src/lib/accounting/accounting-rules.test.ts) — แตะ logic บัญชี/ภาษีแล้วต้อง `pnpm exec vitest run` ผ่านก่อน commit
 - **List ที่ดึงจาก Supabase**: PostgREST ตัดที่ 1,000 แถว **เงียบ ๆ** → ใช้ `normalizePage`/`toPaged` ([lib/accounting/paging.ts](apps/perpos/src/lib/accounting/paging.ts)) คืน `total`+`truncated` และ UI ต้องเตือน + มีปุ่ม "โหลดเพิ่ม" · **ห้ามคิดยอดรวม/KPI จาก array ที่อาจถูกตัด**
+- **AI provider (ผูกกับ Google API verification — binding)**: ผู้ให้บริการโมเดล AI ของระบบคือ **Gemini เท่านั้น** (paid tier) · **OpenAI ถูกถอดออกแล้ว (2026-07)** พร้อม `lib/news/news-agent.ts` + `admin/news-agent/preview` + `admin/delivery/send-now` · เรารับรองกับ Google ว่าไม่ส่งข้อมูลให้ ผู้ให้บริการ AI บุคคลที่สามรายอื่น และไม่มีข้อมูล Google Workspace ไหลเข้าโมเดลใด ๆ (`drive.file` = เขียนอย่างเดียว · prompt ของ stt-worker เป็น static ห้ามแทรกข้อมูลปฏิทิน) — **ก่อนเพิ่ม provider ใหม่หรือส่งข้อมูล Google เข้า AI ต้องอัปเดต [นโยบาย §7 Limited Use](apps/landing-astro/src/lib/legal.ts) และแจ้ง Google ก่อนเสมอ**
 - **Commit**: ไม่ push จนกว่าจะสั่ง
 - **Merge policy (2026-07-21)**: `main` **ไม่มี required status check / ไม่บังคับ up-to-date / ไม่บังคับ review** แล้ว → สั่ง push เมื่อไร ให้ `gh pr create` + `gh pr merge --squash --delete-branch` **ต่อได้ทันทีในเทิร์นเดียว ห้ามนั่งรอ CI** · GitHub Actions ยังรันอยู่เป็นสัญญาณย้อนหลัง (แดงแล้วค่อยแก้เป็นคอมมิตใหม่)
 - **ด่านคุณภาพย้ายมาอยู่ก่อน push** — ต้องรัน `pnpm exec tsc --noEmit` + `pnpm lint` + `pnpm exec vitest run` **ในโฟลเดอร์ worktree ที่แก้โค้ดจริง** (กับดักที่เคยเจอ: ไปรันใน worktree หลักที่ยังเป็น main → ผ่านหมดแต่ CI แดง)
