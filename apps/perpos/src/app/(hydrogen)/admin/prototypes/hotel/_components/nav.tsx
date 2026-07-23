@@ -159,7 +159,9 @@ export function HotelShell({
     >
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-12">
         <aside className="lg:col-span-3 xl:col-span-2">
-          <div className="lg:sticky lg:top-16">
+          {/* sticky ต้องหยุด "ใต้" header ของ PageShell (sticky bg-white z-10 · สูง ~82px)
+              ไม่มุดเข้าไปใต้มัน — header สติ๊กที่ calc(banner+3rem) ตอน <xl, top-0 ตอน xl (เผื่อ desc 2 บรรทัด) */}
+          <div className="lg:sticky lg:top-[calc(var(--impersonation-banner-height,0px)+9.5rem)] xl:top-[6.5rem]">
             <div className="rounded-xl border border-gray-200 bg-white p-2 shadow-sm">
               <HotelSidebar />
             </div>
