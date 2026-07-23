@@ -10,7 +10,7 @@
  */
 
 import type { ReactNode } from "react";
-import { HeartPulse, Hotel, LandPlot } from "lucide-react";
+import { HeartPulse, Hotel, LandPlot, Palette } from "lucide-react";
 
 export type PrototypeEntry = {
   key: string;
@@ -43,5 +43,13 @@ export const PROTOTYPE_REGISTRY: PrototypeEntry[] = [
     description:
       "ระบบจัดการสนามกอล์ฟ/ไดร์ฟ — ตารางจอง tee-time/bay เช็คอิน สมาชิก/แต้ม ราคา รายงาน + AI/LINE จองผ่าน LINE",
     icon: <LandPlot className="h-5 w-5" />,
+  },
+  {
+    key: "mattii_ops",
+    label: "ร้าน Mattii — พรมพิมพ์ลาย",
+    href: "/admin/prototypes/mattii-ops",
+    description:
+      "ระบบจัดการพรมพิมพ์ลายตามสั่ง — แชทรวม 3 ช่องทาง ออเดอร์/บอร์ดผลิต งานแบบ & CF สต๊อกวัสดุ ต้นทุน-กำไร + AI/LINE",
+    icon: <Palette className="h-5 w-5" />,
   },
 ];
