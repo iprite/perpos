@@ -3998,15 +3998,6 @@ export async function POST(req: NextRequest) {
 
     // ─── Global commands (no active org required) ────────────────────────────
 
-    if (cmd === "ข่าว") {
-      if (!(await checkPermission(admin, profile.id, "bot.news.request", profile.role))) {
-        await replyText(replyToken, "❌ ไม่มีสิทธิ์ใช้คำสั่งนี้");
-        continue;
-      }
-      await replyText(replyToken, "⏳ กำลังดึงข่าว...");
-      continue;
-    }
-
     if (cmd === "รายรับ" || cmd === "รายจ่าย") {
       const permKey = cmd === "รายรับ" ? "bot.finance.income_add" : "bot.finance.expense_add";
       if (!(await checkPermission(admin, profile.id, permKey, profile.role))) {
