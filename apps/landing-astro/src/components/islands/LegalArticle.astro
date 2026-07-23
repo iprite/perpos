@@ -22,6 +22,8 @@ const sectionKeys = isPrivacy
       ["section4Title", "section4Desc"],
       ["section5Title", "section5Desc"],
       ["section6Title", "section6Desc"],
+      ["section7Title", "section7Desc"],
+      ["section8Title", "section8Desc"],
     ]
   : [
       ["section1Title", "section1Desc"],
@@ -31,8 +33,8 @@ const sectionKeys = isPrivacy
       ["section5Title", "section5Desc"],
       ["section6Title", "section6Desc"],
     ];
-const contactTitleKey = "section7Title";
-const contactDescKey = "section7Desc";
+const contactTitleKey = isPrivacy ? "section9Title" : "section7Title";
+const contactDescKey = isPrivacy ? "section9Desc" : "section7Desc";
 
 function build(lang: Lang) {
   const dict = legal[lang];
