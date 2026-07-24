@@ -646,6 +646,11 @@ function buildBiMenuItems(org: string, labels: Record<string, string> = {}): Men
       icon: <Sparkles className="h-5 w-5" />,
     },
     {
+      name: l("dashboards", "แดชบอร์ด"),
+      href: p("dashboards"),
+      icon: <LayoutDashboard className="h-5 w-5" />,
+    },
+    {
       name: l("metrics", "คำถามตัวอย่าง"),
       href: p("metrics"),
       icon: <BarChart3 className="h-5 w-5" />,

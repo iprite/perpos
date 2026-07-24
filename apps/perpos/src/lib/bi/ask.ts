@@ -16,6 +16,7 @@ import type { createAdminClient } from "@/app/api/_lib/supabase";
 import { buildChartSpec } from "./chart";
 import { estimateBiCostUsd, getBiDailyLimit } from "./cost";
 import {
+  buildCompareBullet,
   buildDefinitionLine,
   narrateAnswer as defaultNarrateAnswer,
   type NarrateResult,
@@ -72,6 +73,7 @@ import {
   type AnswerStatus,
   type BiAnswer,
   type BiClarifyOption,
+  type BiCompare,
   type BiMetricParams,
   type BiRole,
 } from "./types";
@@ -151,6 +153,8 @@ export async function askBi(input: AskBiInput, deps: AskBiDeps): Promise<BiAnswe
     definitionLine?: string;
     followUps?: string[];
     work?: BiAnswer["work"];
+    /** ผลของช่วงเทียบ (P3-D4) — ไม่ได้ขอเทียบ/เทียบล้มเหลว = null */
+    compare?: BiCompare | null;
     clarify?: BiAnswer["clarify"];
     matchScore?: number | null;
     sqlMs?: number | null;
@@ -245,6 +249,7 @@ export async function askBi(input: AskBiInput, deps: AskBiDeps): Promise<BiAnswe
       definition_line: args.definitionLine ?? "",
       follow_ups: args.followUps ?? [],
       work: args.work ?? null,
+      compare: args.compare ?? null,
       ...(args.clarify ? { clarify: args.clarify } : {}),
     };
   };
@@ -470,17 +475,45 @@ export async function askBi(input: AskBiInput, deps: AskBiDeps): Promise<BiAnswe
     });
   }
 
+  const runFn = deps.runMetric ?? defaultRunMetric;
+  const comparePeriod = validated.comparePeriod;
+
   let run: RunMetricResult;
+  let compareRun: RunMetricResult | null = null;
   try {
-    run = await (deps.runMetric ?? defaultRunMetric)({
-      admin,
-      orgId: input.orgId,
-      metricKey: metric.key,
-      rpcParams: validated.rpcParams,
-      // RPC เป็นด่านสุดท้ายของ RBAC + verified (metric key มาได้จาก thread history/dashboard ด้วย)
-      role: input.role,
-      allowDraft: false,
-    });
+    /**
+     * P3-D4 — ช่วงเทียบต้องยิง **ขนาน** กับ query หลักเสมอ (ห้ามเรียง)
+     * เรียงจะดัน latency จาก 3–5 วิ เป็น 6–10 วิ ซึ่งเกินเป้า < 8 วิ ของทุกคำถามบนเว็บ
+     * · query เทียบล้มเหลว = **กลืน** (`compare = null`) คำตอบหลักต้องออกเสมอ
+     */
+    [run, compareRun] = await Promise.all([
+      runFn({
+        admin,
+        orgId: input.orgId,
+        metricKey: metric.key,
+        rpcParams: validated.rpcParams,
+        // RPC เป็นด่านสุดท้ายของ RBAC + verified (metric key มาได้จาก thread history/dashboard ด้วย)
+        role: input.role,
+        allowDraft: false,
+      }),
+      comparePeriod
+        ? runFn({
+            admin,
+            orgId: input.orgId,
+            metricKey: metric.key,
+            rpcParams: {
+              ...validated.rpcParams,
+              date_from: comparePeriod.from,
+              date_to: comparePeriod.to,
+            },
+            role: input.role,
+            allowDraft: false,
+          }).catch((e: Error) => {
+            console.error("[bi] compare run failed:", e.message);
+            return null;
+          })
+        : Promise.resolve(null),
+    ]);
   } catch (e) {
     const classified = classifyRunError((e as Error).message);
     return finish({
@@ -536,7 +569,8 @@ export async function askBi(input: AskBiInput, deps: AskBiDeps): Promise<BiAnswe
       candidate: metric,
       rows: run.rows,
       period: validated.period,
-      comparePeriod: validated.comparePeriod,
+      comparePeriod,
+      compareRows: compareRun?.rows ?? null,
       isDetailGrain: shape.isDetailGrain,
       truncated: run.truncated,
       notices: validated.notices,
@@ -556,6 +590,19 @@ export async function askBi(input: AskBiInput, deps: AskBiDeps): Promise<BiAnswe
   if (narration.usage.model) usage.model = narration.usage.model;
 
   const bullets = [...narration.bullets];
+  /**
+   * ตัวเลข "เทียบช่วงก่อน" คำนวณด้วยโค้ดเสมอ — LLM ไม่เคยเห็นแถวของช่วงเทียบ
+   * จึงต้องเติมเองเมื่อคำตอบมาจาก LLM (เส้นทาง rule มี bullet นี้อยู่แล้ว)
+   */
+  if (narration.source === "llm" && compareRun?.rows.length) {
+    const compareBullet = buildCompareBullet({
+      rows: run.rows,
+      compareRows: compareRun.rows,
+      comparePeriod,
+      metric: run.metric,
+    });
+    if (compareBullet && !bullets.includes(compareBullet)) bullets.push(compareBullet);
+  }
   for (const notice of validated.notices) if (!bullets.includes(notice)) bullets.push(notice);
 
   return finish({
@@ -573,7 +620,17 @@ export async function askBi(input: AskBiInput, deps: AskBiDeps): Promise<BiAnswe
     redactWorkParams: run.metric.no_summarize,
     rowCount: run.row_count,
     truncated: run.truncated,
-    definitionLine: buildDefinitionLine(run.metric, validated.period, validated.comparePeriod),
+    definitionLine: buildDefinitionLine(run.metric, validated.period, comparePeriod),
+    compare:
+      compareRun && comparePeriod
+        ? {
+            label_th: comparePeriod.label_th,
+            from: comparePeriod.from,
+            to: comparePeriod.to,
+            rows: compareRun.rows,
+            row_count: compareRun.row_count,
+          }
+        : null,
     followUps: narration.follow_ups,
     work: {
       sql: run.sql,

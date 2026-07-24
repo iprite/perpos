@@ -246,6 +246,67 @@ describe("verifyBulletNumbers — ห้าม LLM ผลิตตัวเล�
   });
 });
 
+describe("guard กับช่วงเทียบ — ห้ามยอมรับ 'ผลรวมข้ามช่วง'", () => {
+  const rows = [{ dimension: null, value: 1200000 }]; // เดือนนี้
+  const compareRows = [{ dimension: null, value: 800000 }]; // เดือนก่อน
+
+  it("ผลรวมข้ามช่วง (1.2M + 0.8M = 2M) ต้องไม่ผ่าน", () => {
+    const res = verifyBulletNumbers(["ยอดเดือนนี้ 2,000,000.00 ฿"], rows, "", compareRows);
+    expect(res.ok).toBe(false);
+    expect(res.offending).toContain(2000000);
+  });
+
+  it("ค่าจริงของทั้งสองช่วง + ส่วนต่าง + % ต้องผ่าน", () => {
+    expect(
+      verifyBulletNumbers(
+        ["เดือนนี้ 1,200,000.00 ฿ ช่วงก่อน 800,000.00 ฿", "เพิ่มขึ้น 400,000.00 ฿ คิดเป็น +50.0%"],
+        rows,
+        "",
+        compareRows,
+      ).ok,
+    ).toBe(true);
+  });
+
+  it("ไม่มีช่วงเทียบ = พฤติกรรมเดิมเป๊ะ (pairwise ในชุดเดียวยังผ่าน)", () => {
+    const grouped = [
+      { dimension: "P2P Supply", value: 600000 },
+      { dimension: "89 Global Work", value: 400000 },
+    ];
+    // ยอดรวม/สัดส่วน/ส่วนต่างภายในชุดเดียวกัน — ต้องผ่านเหมือนก่อนแก้
+    expect(
+      verifyBulletNumbers(["รวม 1,000,000.00 ฿ · ต่างกัน 200,000.00 ฿ (60.0%)"], grouped).ok,
+    ).toBe(true);
+    // ส่งช่วงเทียบเป็น null/ว่าง = เหมือนไม่ส่ง
+    expect(verifyBulletNumbers(["ยอดรวม 1,000,000.00 ฿"], grouped, "", null).ok).toBe(true);
+    expect(verifyBulletNumbers(["ยอดรวม 1,000,000.00 ฿"], grouped, "", []).ok).toBe(true);
+    expect(verifyBulletNumbers(["คาดว่าจะแตะ 2,500,000.00 ฿"], grouped, "", null).ok).toBe(false);
+  });
+
+  it("narrateAnswer: LLM อ้างผลรวมข้ามช่วง → ทิ้งคำตอบ (source=rule)", async () => {
+    const chat = vi.fn(async () => ({
+      text: JSON.stringify({ bullets: ["ยอดสองเดือนรวม 2,000,000.00 ฿"], follow_ups: [] }),
+      inputTokens: 10,
+      outputTokens: 5,
+      model: "gemini-2.5-flash",
+      provider: "gemini" as const,
+      latencyMs: 1,
+    }));
+
+    const res = await narrateAnswer({
+      question: "เดือนนี้เท่าไร",
+      metric: runResult().metric,
+      candidate: metric,
+      rows,
+      compareRows,
+      period: null,
+      chat: chat as never,
+    });
+
+    expect(res.source).toBe("rule");
+    expect(res.fallback_reason).toContain("2000000");
+  });
+});
+
 describe("narrateAnswer — fallback เมื่อ guard ตีตก", () => {
   const meta = runResult().metric;
 
@@ -627,6 +688,192 @@ describe("askBi — ผลของ RPC guard + การเก็บข้อ�
       .find((p) => p.role === "assistant");
     expect(assistantMsg?.result_rows).toBeNull();
     expect(assistantMsg?.result_row_count).toBe(1);
+  });
+});
+
+// ─── Phase 3 · P3-D4 — เทียบช่วงก่อน (R2) ──────────────────────────────────
+
+describe("เทียบช่วงก่อนหน้า — ต้องยิงขนานและห้ามทำคำตอบหลักพัง", () => {
+  const askWithCompare = (runMetric: unknown, admin: never) =>
+    askBi(baseInput, {
+      ...baseDeps(admin),
+      extractIntent: async () => ({
+        metric_key: metric.key,
+        params: {
+          period: { grain: "month" as const, offset: 0 },
+          comparison: "prev_period" as const,
+          vat_basis: "incl_vat" as const,
+        },
+        confidence: 0.9,
+        needs_clarify: false,
+        clarify_reason: "",
+        usage: { tokenIn: 0, tokenOut: 0, model: "gemini-2.5-flash" },
+      }),
+      runMetric: runMetric as never,
+      today: new Date("2026-07-15T00:00:00Z"),
+    });
+
+  it("ยิง query ช่วงเทียบ **ขนาน** กับ query หลัก (ไม่เรียง)", async () => {
+    const { client } = makeAdmin();
+    const started: string[] = [];
+    const releases: Array<() => void> = [];
+
+    const runMetric = async (input: { rpcParams: Record<string, unknown> }) => {
+      started.push(String(input.rpcParams.date_from ?? ""));
+      if (started.length === 1) {
+        await new Promise<void>((r) => releases.push(r));
+      }
+      return runResult();
+    };
+
+    const promise = askWithCompare(runMetric, client);
+    // ถ้าโค้ดเรียง (await ทีละตัว) ตัวที่สองจะไม่ถูกยิงจนกว่าตัวแรกจะจบ → เทสนี้จะหมดเวลา
+    await vi.waitFor(() => expect(started.length).toBe(2));
+    releases[0]?.();
+
+    const res = await promise;
+    expect(res.status).toBe("answered");
+    expect(res.compare?.rows).toHaveLength(1);
+    expect(new Set(started).size).toBe(2); // คนละช่วงเวลา
+  });
+
+  it("query เทียบล้มเหลว = กลืน — คำตอบหลักยังออกและ compare = null", async () => {
+    const { client } = makeAdmin();
+    let call = 0;
+    const runMetric = async () => {
+      if (++call === 2) throw new Error("compare boom");
+      return runResult();
+    };
+
+    const res = await askWithCompare(runMetric, client);
+    expect(res.status).toBe("answered");
+    expect(res.rows).toHaveLength(1);
+    expect(res.compare).toBeNull();
+    expect(res.definition_line).toContain("นิยาม:");
+  });
+
+  it("ไม่ได้ขอเทียบ = ไม่ยิง query รอบสอง", async () => {
+    const { client } = makeAdmin();
+    const runMetric = vi.fn(async () => runResult());
+    const res = await askBi(baseInput, { ...baseDeps(client), runMetric });
+    expect(runMetric).toHaveBeenCalledTimes(1);
+    expect(res.compare).toBeNull();
+  });
+
+  it("verifyBulletNumbers ยอมรับตัวเลขที่มาจากช่วงเทียบ (ไม่งั้นคำตอบที่ถูกถูกทิ้ง)", async () => {
+    const rows = [{ dimension: null, value: 1250000 }];
+    const compareRows = [{ dimension: null, value: 1000000 }];
+
+    // ไม่ส่งช่วงเทียบ: 1,000,000 ไม่อยู่ใน result set หลัก → ถูกตีตก
+    expect(verifyBulletNumbers(["ช่วงก่อนอยู่ที่ 1,000,000.00 ฿"], rows).ok).toBe(false);
+    // ส่งช่วงเทียบเป็น "ชุดแยก" → ผ่าน (รวมถึง % ที่ระบบคำนวณข้ามสองช่วง)
+    expect(
+      verifyBulletNumbers(
+        ["ช่วงก่อนอยู่ที่ 1,000,000.00 ฿", "เพิ่มขึ้น 25.0%"],
+        rows,
+        "",
+        compareRows,
+      ).ok,
+    ).toBe(true);
+  });
+
+  it("คำตอบจาก LLM ได้ bullet เทียบช่วงที่ระบบคำนวณเอง (LLM ไม่เคยเห็นเลขช่วงก่อน)", async () => {
+    const { client } = makeAdmin();
+    let call = 0;
+    const runMetric = async () =>
+      ++call === 1
+        ? runResult()
+        : runResult({ rows: [{ dimension: null, value: 1000000 }], row_count: 1 });
+
+    const res = await askWithCompare(runMetric, client);
+    expect(res.answer.bullets.some((b) => b.includes("เทียบกับ"))).toBe(true);
+  });
+});
+
+// ─── Phase 3 · P3-D5 — ถามต่อเนื่อง (R3) ──────────────────────────────────
+
+describe("ถามต่อเนื่อง — กฎกันสืบทอดผิด (applyPreviousTurn)", () => {
+  const prevParams = {
+    period: { grain: "month" as const, from: "2026-06-01", to: "2026-06-30" },
+    dimension: "company",
+    filters: { company: ["ก"] },
+  };
+
+  it("metric เดียวกัน + เทิร์นนี้ไม่ระบุ → สืบทอดช่วงเวลา/มิติ/ฟิลเตอร์", () => {
+    const intent = sanitizeIntent(
+      { metric_key: metric.key, confidence: 0.9 },
+      [metric],
+      undefined,
+      null,
+      {
+        metric_key: metric.key,
+        params: prevParams,
+      },
+    );
+    expect(intent.params.period).toMatchObject({ from: "2026-06-01", to: "2026-06-30" });
+    expect(intent.params.dimension).toBe("company");
+    expect(intent.params.filters).toEqual({ company: ["ก"] });
+  });
+
+  it("metric ต่างจากเทิร์นก่อน = คำถามใหม่ → ไม่สืบทอดอะไรเลย", () => {
+    const intent = sanitizeIntent(
+      { metric_key: metric.key, confidence: 0.9 },
+      [metric],
+      undefined,
+      null,
+      {
+        metric_key: "gov_procure.order_count",
+        params: prevParams,
+      },
+    );
+    expect(intent.params.period).toBeUndefined();
+    expect(intent.params.dimension).toBeUndefined();
+    expect(intent.params.filters).toBeUndefined();
+  });
+
+  it("ค่าที่ผู้ใช้ระบุในเทิร์นนี้ชนะค่าที่สืบทอดเสมอ", () => {
+    const intent = sanitizeIntent(
+      { metric_key: metric.key, confidence: 0.9, params: { dimension: "stage" } },
+      [metric],
+      undefined,
+      null,
+      { metric_key: metric.key, params: prevParams },
+    );
+    expect(intent.params.dimension).toBe("stage");
+  });
+
+  it("ค่าที่สืบทอดต้องอยู่ใน allowlist ของ metric ปัจจุบัน (นอก allowlist = ตัดทิ้ง)", () => {
+    const intent = sanitizeIntent(
+      { metric_key: metric.key, confidence: 0.9 },
+      [metric],
+      undefined,
+      null,
+      {
+        metric_key: metric.key,
+        params: {
+          dimension: "customer_name",
+          time_grain: "day",
+          filters: { department: ["ฝ่ายจัดซื้อ"] },
+        } as never,
+      },
+    );
+    expect(intent.params.dimension).toBeUndefined();
+    expect(intent.params.time_grain).toBeUndefined();
+    expect(intent.params.filters).toBeUndefined();
+  });
+
+  it("การเปรียบเทียบไม่สืบทอด (เทียบครั้งเดียวไม่ติดไปทุกคำถาม)", () => {
+    const intent = sanitizeIntent(
+      { metric_key: metric.key, confidence: 0.9 },
+      [metric],
+      undefined,
+      null,
+      {
+        metric_key: metric.key,
+        params: { ...prevParams, comparison: "prev_period" },
+      },
+    );
+    expect(intent.params.comparison).toBe("none");
   });
 });
 

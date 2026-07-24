@@ -154,7 +154,15 @@ export async function narrateAnswer(input: NarrateInput): Promise<NarrateResult>
   }
 
   // ─ guard: ตัวเลขทุกตัวใน bullet ต้องมาจาก result set ─
-  const check = verifyBulletNumbers(parsed.bullets, input.rows, allowedContextText(input));
+  // แถวของ **ช่วงเทียบ** ถูกตรวจเป็น "อีกชุดหนึ่ง" (P3-D4) — ไม่ต่อท้ายเป็นชุดเดียว
+  // เพราะการ concat ทำให้ผลรวม **ข้ามช่วง** (เดือนนี้+เดือนก่อน) กลายเป็นเลขที่อนุญาต
+  // ค่าที่ยอมให้อ้างข้ามช่วงมีแค่ delta/% ที่ `buildCompareBullet` คำนวณ deterministic
+  const check = verifyBulletNumbers(
+    parsed.bullets,
+    input.rows,
+    allowedContextText(input),
+    input.compareRows ?? null,
+  );
   if (!check.ok) {
     return {
       bullets: ruleBullets,
@@ -214,16 +222,27 @@ function allowedContextText(input: NarrateInput): string {
 
 // ─── guard: ตัวเลขต้องมาจาก result set ─────────────────────────────────────
 
+/** ใส่ค่าเข้าเซ็ตพร้อมความละเอียดที่ยอมรับ (2 ตำแหน่ง / 1 ตำแหน่ง / จำนวนเต็ม) */
+function addNumber(set: Set<number>, n: number): void {
+  if (!Number.isFinite(n)) return;
+  set.add(round(n, 2));
+  set.add(round(n, 1));
+  set.add(Math.round(n));
+}
+
+function sumBy(rows: Array<Record<string, unknown>>, key: string): number {
+  let sum = 0;
+  for (const row of rows) {
+    const n = Number(row[key]);
+    if (Number.isFinite(n)) sum += n;
+  }
+  return sum;
+}
+
 /** ค่าที่ยอมรับได้ = ค่าในทุกเซลล์ + ผลรวมต่อคอลัมน์ + จำนวนแถว + สัดส่วน/ส่วนต่างที่คำนวณจากชุดนี้ */
 export function collectAllowedNumbers(rows: Array<Record<string, unknown>>): number[] {
   const allowed = new Set<number>();
-  const add = (n: number) => {
-    if (Number.isFinite(n)) {
-      allowed.add(round(n, 2));
-      allowed.add(round(n, 1));
-      allowed.add(Math.round(n));
-    }
-  };
+  const add = (n: number) => addNumber(allowed, n);
 
   add(rows.length);
   const keys = measureKeys(rows);
@@ -257,6 +276,28 @@ export function collectAllowedNumbers(rows: Array<Record<string, unknown>>): num
   return Array.from(allowed);
 }
 
+/**
+ * ตัวเลขที่เกิดจากการ "เทียบสองช่วง" — **เฉพาะ** ส่วนต่างและอัตราเปลี่ยนแปลงของยอดรวม
+ * (สูตรเดียวกับ `buildCompareBullet` ที่ระบบคำนวณเอง) · ตั้งใจ **ไม่รวม** ผลรวมข้ามช่วง
+ * เพราะ "เดือนนี้ + เดือนก่อน" ไม่ใช่ตัวเลขที่มีความหมายและเปิดช่องให้ LLM อ้างผิด
+ */
+export function collectCompareNumbers(
+  rows: Array<Record<string, unknown>>,
+  compareRows: Array<Record<string, unknown>>,
+): number[] {
+  if (rows.length === 0 || compareRows.length === 0) return [];
+  const out = new Set<number>();
+  for (const key of measureKeys(rows)) {
+    const cur = sumBy(rows, key);
+    const prev = sumBy(compareRows, key);
+    const delta = cur - prev;
+    addNumber(out, delta);
+    addNumber(out, Math.abs(delta));
+    if (prev !== 0) addNumber(out, (delta / Math.abs(prev)) * 100);
+  }
+  return Array.from(out);
+}
+
 function round(n: number, digits: number): number {
   const f = 10 ** digits;
   return Math.round(n * f) / f;
@@ -277,13 +318,23 @@ function matchesAllowed(value: number, allowed: number[]): boolean {
 /**
  * ตรวจว่าทุกตัวเลขใน bullet มาจาก result set (หรือจากข้อความบริบทที่อนุญาต เช่น ปี พ.ศ.)
  * ไม่ผ่าน = ทิ้งคำตอบของ LLM ทั้งชุด
+ *
+ * `compareRows` (ถ้ามี) ถูกคิดเป็น **ชุดแยก** — ค่าของช่วงเทียบผ่านได้ แต่ผลรวม/สัดส่วน
+ * **ข้ามช่วง** ผ่านไม่ได้ · ข้ามช่วงยอมเฉพาะ delta/% จาก `collectCompareNumbers`
  */
 export function verifyBulletNumbers(
   bullets: string[],
   rows: Array<Record<string, unknown>>,
   contextText = "",
+  compareRows?: Array<Record<string, unknown>> | null,
 ): { ok: boolean; offending: number[] } {
-  const allowed = [...collectAllowedNumbers(rows), ...extractNumbers(contextText)];
+  const allowed = [
+    ...collectAllowedNumbers(rows),
+    ...(compareRows?.length
+      ? [...collectAllowedNumbers(compareRows), ...collectCompareNumbers(rows, compareRows)]
+      : []),
+    ...extractNumbers(contextText),
+  ];
   const offending: number[] = [];
 
   for (const bullet of bullets) {
@@ -339,16 +390,8 @@ export function buildDeterministicBullets(input: NarrateInput): string[] {
   }
 
   // เทียบช่วงก่อนหน้า (คำนวณเอง ไม่ให้ LLM คิด)
-  if (input.compareRows && input.compareRows.length > 0) {
-    const cur = rows.reduce((s, r) => s + (Number(r[valueKey]) || 0), 0);
-    const prev = input.compareRows.reduce((s, r) => s + (Number(r[valueKey]) || 0), 0);
-    const delta = formatDeltaPercent(cur, prev);
-    if (delta) {
-      bullets.push(
-        `เทียบกับ${input.comparePeriod?.label_th ?? "ช่วงก่อนหน้า"} ${delta} (จาก ${fmt(prev, unit, decimals)})`,
-      );
-    }
-  }
+  const compareBullet = buildCompareBullet(input);
+  if (compareBullet) bullets.push(compareBullet);
 
   if (input.truncated) {
     bullets.push("ผลลัพธ์ถูกตัดจำนวนแถวตามเพดานของระบบ — ยอดรวมด้านบนอาจไม่ครบทุกแถว");
@@ -356,6 +399,26 @@ export function buildDeterministicBullets(input: NarrateInput): string[] {
   for (const notice of input.notices ?? []) bullets.push(notice);
 
   return bullets.slice(0, 4);
+}
+
+/**
+ * bullet "เทียบกับช่วงก่อน …" — **คำนวณด้วยโค้ดเสมอ ไม่ให้ LLM คิดเลขนี้** (P3-D4)
+ * คืน `null` เมื่อไม่มีช่วงเทียบ / เทียบไม่ได้ (ช่วงก่อนเป็นศูนย์)
+ */
+export function buildCompareBullet(
+  input: Pick<NarrateInput, "rows" | "compareRows" | "comparePeriod" | "metric">,
+): string | null {
+  const compareRows = input.compareRows ?? [];
+  if (compareRows.length === 0 || input.rows.length === 0) return null;
+
+  const keys = measureKeys(input.rows);
+  const valueKey = keys.includes(VALUE_KEY) ? VALUE_KEY : (keys[0] ?? VALUE_KEY);
+  const cur = input.rows.reduce((s, r) => s + (Number(r[valueKey]) || 0), 0);
+  const prev = compareRows.reduce((s, r) => s + (Number(r[valueKey]) || 0), 0);
+
+  const delta = formatDeltaPercent(cur, prev);
+  if (!delta) return null;
+  return `เทียบกับ${input.comparePeriod?.label_th ?? "ช่วงก่อนหน้า"} ${delta} (จาก ${fmt(prev, input.metric.unit, input.metric.unit_decimals)})`;
 }
 
 function fmt(v: number, unit: MetricUnit, decimals: number): string {

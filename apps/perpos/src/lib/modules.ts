@@ -299,9 +299,10 @@ export const MODULE_MENUS: Record<string, MenuDef[]> = {
       ],
     },
   ],
-  // Phase 1 = ถาม-ตอบ + คำถามตัวอย่าง เท่านั้น (dashboard ที่ปักหมุดได้ = Phase 3)
+  // Phase 1 = ถาม-ตอบ + คำถามตัวอย่าง · Phase 3 เพิ่ม "แดชบอร์ด" (คำตอบที่ปักหมุดไว้)
   bi: [
     { key: "chat", label: "ถาม-ตอบ" },
+    { key: "dashboards", label: "แดชบอร์ด" },
     { key: "metrics", label: "คำถามตัวอย่าง" },
   ],
   stt: [

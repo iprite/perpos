@@ -18,6 +18,7 @@ import {
   CircleAlert,
   HelpCircle,
   Lightbulb,
+  Pin,
   RotateCcw,
   ShieldAlert,
   SquareTerminal,
@@ -49,6 +50,12 @@ export interface AnswerCardProps {
   /** ให้คะแนนคำตอบ (viewer = undefined → ไม่แสดงปุ่ม) */
   onFeedback?: (value: "up" | "down", note?: string) => void;
   feedback?: "up" | "down" | null;
+  /**
+   * ปักหมุดคำตอบเป็นการ์ดบนแดชบอร์ด (Phase 3) — **optional (R7)**
+   * ไม่ส่ง = ไม่มีปุ่ม (viewer / หน้าประวัติเดิมไม่เปลี่ยนพฤติกรรม)
+   * แสดงเฉพาะสถานะ `answered` ที่มี metric เท่านั้น
+   */
+  onPin?: () => void;
   disabled?: boolean;
 }
 
@@ -75,6 +82,7 @@ function AnsweredCard({
   answer,
   onAsk,
   onFeedback,
+  onPin,
   feedback,
   disabled,
   createdAt,
@@ -94,11 +102,19 @@ function AnsweredCard({
           ) : (
             <span />
           )}
-          {createdAt ? (
-            <Text className="shrink-0 text-xs text-gray-500">
-              ถามเมื่อ {formatThaiDateTime(createdAt)}
-            </Text>
-          ) : null}
+          <div className="flex shrink-0 items-center gap-2">
+            {createdAt ? (
+              <Text className="text-xs text-gray-500">
+                ถามเมื่อ {formatThaiDateTime(createdAt)}
+              </Text>
+            ) : null}
+            {onPin && answer.metric ? (
+              <Button size="sm" variant="outline" disabled={disabled} onClick={onPin}>
+                <Pin className="mr-1.5 h-4 w-4" />
+                ปักหมุด
+              </Button>
+            ) : null}
+          </div>
         </div>
         <ul className="space-y-1.5">
           {answer.answer.bullets.map((b, i) => (
@@ -154,7 +170,7 @@ function AnsweredCard({
 
 // ─── ความครอบคลุมของตัวเลข (นับจากกี่รายการ / กี่รายการที่กรอกราคาแล้ว) ────
 
-interface Coverage {
+export interface Coverage {
   orderCount: number;
   pricedCount: number | null;
 }
@@ -164,7 +180,7 @@ interface Coverage {
  * — กับดัก D1: ยอด "รวม VAT" นับเฉพาะใบที่กรอกราคาแล้ว ขณะที่ "ก่อน VAT" ครบทุกใบ
  *   ถ้าไม่บอกจำนวนใบ ผู้ใช้จะเอาสองยอดมาลบกันแล้วเข้าใจว่าเป็นภาษี ซึ่งผิด
  */
-function coverageOf(rows: Array<Record<string, unknown>>): Coverage | null {
+export function coverageOf(rows: Array<Record<string, unknown>>): Coverage | null {
   if (!rows || rows.length === 0) return null;
   const sum = (key: string): number | null => {
     let total = 0;
@@ -186,7 +202,7 @@ function coverageOf(rows: Array<Record<string, unknown>>): Coverage | null {
 
 const intFmt = new Intl.NumberFormat("en-US");
 
-function CoverageLine({ coverage }: { coverage: Coverage }) {
+export function CoverageLine({ coverage }: { coverage: Coverage }) {
   const { orderCount, pricedCount } = coverage;
   const incomplete = pricedCount !== null && pricedCount < orderCount;
 

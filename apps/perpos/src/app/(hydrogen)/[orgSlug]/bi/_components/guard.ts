@@ -23,7 +23,19 @@ import { canModuleWrite } from "@/lib/modules";
 import { listVisibleMetrics } from "@/lib/bi/metrics";
 import { resolveOrgScopes } from "@/lib/bi/resolver";
 import { getThread, listThreads } from "@/lib/bi/threads";
-import type { BiMessage, BiMetricSummary, BiRole, BiThread } from "@/lib/bi/types";
+import { getDashboard, listDashboards } from "@/lib/bi/dashboards";
+import { incrDashboardUsage, loadRunMetric, runCards } from "@/lib/bi/run";
+import { detailMetricFor } from "@/lib/bi/drill";
+import type {
+  BiCardResult,
+  BiDashboard,
+  BiDashboardItem,
+  BiMessage,
+  BiMetricFilter,
+  BiMetricSummary,
+  BiRole,
+  BiThread,
+} from "@/lib/bi/types";
 
 export interface BiPageContext {
   orgId: string;
@@ -108,6 +120,127 @@ export async function loadChatInitialData(
   }
 
   return { threads, activeThreadId: active, messages, metrics };
+}
+
+// ─── แดชบอร์ด (Phase 3) ────────────────────────────────────────────────────
+
+/**
+ * metric รายละเอียดที่ใช้เจาะจากการ์ดใบหนึ่ง (drill-down)
+ * ⚠️ `column` ถูกล้างเป็นค่าว่างก่อนส่งลง client — ชื่อคอลัมน์จริงเป็นข้อมูลภายใน
+ * (`buildDrillParams` ใช้แค่ `key` + `type`)
+ */
+export interface BiDrillMetricInfo {
+  key: string;
+  filters: BiMetricFilter[];
+}
+
+export interface BiDashboardsPageData {
+  dashboards: BiDashboard[];
+}
+
+export interface BiDashboardPageData {
+  dashboard: BiDashboard;
+  items: BiDashboardItem[];
+  /** ผลรอบแรกของทุกการ์ด (SSR) — ว่างเมื่อชนเพดานของวัน */
+  results: BiCardResult[];
+  /** metric ของการ์ด → metric รายละเอียดที่เจาะต่อได้ (ไม่มี = การ์ดนั้นคลิกเจาะไม่ได้) */
+  drill: Record<string, BiDrillMetricInfo>;
+  /** true = เปิดแดชบอร์ดครบเพดานของวันนี้แล้ว (การ์ดจึงยังไม่ได้คำนวณ) */
+  quotaExceeded: boolean;
+}
+
+/** รายการแดชบอร์ด **ของผู้เรียกเท่านั้น** (service-role → ต้องกรอง `profileId` เอง) */
+export async function loadDashboardsPage(ctx: BiPageContext): Promise<BiDashboardsPageData> {
+  const admin = createAdminClient();
+  const dashboards = await listDashboards(admin, ctx.orgId, ctx.profileId);
+  return { dashboards };
+}
+
+/**
+ * โครงแดชบอร์ด + ผลการ์ดรอบแรก (SSR) — ไม่ใช่เจ้าของ/ไม่มี = `null` → หน้าเรียก `notFound()`
+ * โควตานับ **1 ครั้งต่อการเปิดหน้า** เหมือน `POST /api/bi/dashboards/[id]/run` (P3-D2)
+ */
+export async function loadDashboardPage(
+  ctx: BiPageContext,
+  dashboardId: string,
+): Promise<BiDashboardPageData | null> {
+  const admin = createAdminClient();
+
+  // ownership ก่อนโควตาเสมอ
+  const found = await getDashboard(admin, ctx.orgId, dashboardId, ctx.profileId);
+  if (!found) return null;
+
+  if (found.items.length === 0) {
+    return { ...found, results: [], drill: {}, quotaExceeded: false };
+  }
+
+  const allowed = await incrDashboardUsage(admin, ctx.orgId, ctx.profileId);
+  if (!allowed) {
+    return { ...found, results: [], drill: {}, quotaExceeded: true };
+  }
+
+  const scopes = await resolveOrgScopes(admin, ctx.orgId);
+  const [results, drill] = await Promise.all([
+    runCards({
+      admin,
+      orgId: ctx.orgId,
+      profileId: ctx.profileId,
+      role: ctx.role,
+      items: found.items,
+      scopes,
+    }),
+    loadDrillTargets(ctx, found.items, scopes),
+  ]);
+
+  return { ...found, results, drill, quotaExceeded: false };
+}
+
+/** metric รายละเอียดต่อ metric ของการ์ด — โหลดด้วย role ของ **ผู้ดู** (ไม่มีสิทธิ์ = เจาะไม่ได้) */
+async function loadDrillTargets(
+  ctx: BiPageContext,
+  items: BiDashboardItem[],
+  scopes: Awaited<ReturnType<typeof resolveOrgScopes>>,
+): Promise<Record<string, BiDrillMetricInfo>> {
+  const admin = createAdminClient();
+  const wanted = new Map<string, string>();
+  for (const item of items) {
+    const detail = detailMetricFor(item.metric_key);
+    if (detail) wanted.set(item.metric_key, detail);
+  }
+  if (wanted.size === 0) return {};
+
+  const loaded = new Map<string, BiDrillMetricInfo | null>();
+  const out: Record<string, BiDrillMetricInfo> = {};
+
+  for (const [metricKey, detailKey] of Array.from(wanted.entries())) {
+    if (!loaded.has(detailKey)) {
+      const metric = await loadRunMetric({
+        admin,
+        metricKey: detailKey,
+        role: ctx.role,
+        scopes,
+      });
+      loaded.set(
+        detailKey,
+        metric
+          ? {
+              key: metric.key,
+              // ล้าง `column` — client ต้องไม่เห็นชื่อคอลัมน์จริงของฐานข้อมูล
+              filters: metric.filters.map((f) => ({
+                key: f.key,
+                label_th: f.label_th,
+                column: "",
+                type: f.type,
+              })),
+            }
+          : null,
+      );
+    }
+    const info = loaded.get(detailKey);
+    if (info) out[metricKey] = info;
+  }
+
+  return out;
 }
 
 /** metric ที่ verified + อยู่ใน scope ที่ org เปิด + role นี้เห็นได้ (§5 RBAC ระดับ metric) */

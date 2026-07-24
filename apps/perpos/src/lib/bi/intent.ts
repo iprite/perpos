@@ -146,7 +146,57 @@ export async function extractIntent(
     };
   }
 
-  return sanitizeIntent(raw, candidates, usage, opts.threadPreferences ?? null);
+  return sanitizeIntent(
+    raw,
+    candidates,
+    usage,
+    opts.threadPreferences ?? null,
+    opts.previousTurn ?? null,
+  );
+}
+
+/**
+ * P3-D5 — คำถามต่อเนื่อง ("แล้วเดือนก่อนล่ะ" / "แยกตามบริษัทหน่อย")
+ *
+ * กฎกัน 3 ข้อ (ผิดข้อใดข้อหนึ่ง = ตอบผิดโดยที่ผู้ใช้ไม่รู้ตัว):
+ *  1. **metric ที่ตีความได้ต่างจากเทิร์นก่อน = คำถามใหม่** → ไม่สืบทอดอะไรเลย
+ *  2. สืบทอดได้เฉพาะ `period`/`time_grain`/`dimension`/`filters` ที่อยู่ใน **allowlist ของ
+ *     metric ปัจจุบัน** (ค่าที่สืบทอดยังต้องผ่าน `validateParams` อีกชั้นอยู่ดี)
+ *  3. เติมเฉพาะช่องที่เทิร์นนี้ **ไม่ได้ระบุ** — ค่าที่ผู้ใช้พูดในเทิร์นนี้ชนะเสมอ
+ * (`comparison` ไม่สืบทอด — "เทียบเดือนก่อน" ครั้งเดียวไม่ควรติดไปทุกคำถามถัดไป ·
+ *  `vat_basis` ยึด `bi_threads.preferences` ตาม D1 ไม่เกี่ยวกับที่นี่)
+ */
+export function applyPreviousTurn(
+  params: BiIntentParams,
+  previousTurn: { metric_key: string; params: BiMetricParams } | null | undefined,
+  metric: BiMetricCandidate | null,
+): BiIntentParams {
+  if (!previousTurn || !metric || previousTurn.metric_key !== metric.key) return params;
+
+  const prev = previousTurn.params ?? {};
+  const out: BiIntentParams = { ...params };
+
+  if (out.period === undefined && prev.period) {
+    const period = sanitizePeriod(prev.period);
+    if (period) out.period = period;
+  }
+
+  if (out.time_grain === undefined && prev.time_grain) {
+    if (isTimeGrain(prev.time_grain) && metric.time_grains.includes(prev.time_grain)) {
+      out.time_grain = prev.time_grain;
+    }
+  }
+
+  if (out.dimension === undefined && typeof prev.dimension === "string") {
+    if (metric.dimensions.some((d) => d.key === prev.dimension)) out.dimension = prev.dimension;
+  }
+
+  if (out.filters === undefined && prev.filters) {
+    const filters = sanitizeFilters(prev.filters, metric);
+    if (Object.keys(filters).length > 0) out.filters = filters;
+  }
+
+  return out;
 }
 
 /** JSON mode ยังหลุด markdown fence ได้บางครั้ง — แกะให้ทน */
@@ -178,6 +228,7 @@ export function sanitizeIntent(
   candidates: BiMetricCandidate[],
   usage: BiIntentUsage = EMPTY_USAGE,
   threadPreferences: { vat_basis?: VatBasis | null } | null = null,
+  previousTurn: { metric_key: string; params: BiMetricParams } | null = null,
 ): BiIntent {
   const keyRaw = typeof raw.metric_key === "string" ? raw.metric_key : null;
   const metric = candidates.find((c) => c.key === keyRaw) ?? null;
@@ -206,15 +257,18 @@ export function sanitizeIntent(
     if (Object.keys(filters).length > 0) params.filters = filters;
   }
 
+  // สืบทอดบริบทจากเทิร์นก่อน **เฉพาะเมื่อเป็น metric เดียวกัน** (P3-D5)
+  const inherited = applyPreviousTurn(params, previousTurn, metric);
+
   const vatFromLlm = isVatBasis(paramsRaw.vat_basis) ? paramsRaw.vat_basis : null;
-  params.vat_basis = vatFromLlm ?? threadPreferences?.vat_basis ?? null;
+  inherited.vat_basis = vatFromLlm ?? threadPreferences?.vat_basis ?? null;
 
   const confidence = clamp01(Number(raw.confidence));
   const needsClarify = raw.needs_clarify === true || !metric || confidence < 0.5;
 
   return {
     metric_key: metric?.key ?? null,
-    params,
+    params: inherited,
     confidence,
     needs_clarify: needsClarify,
     clarify_reason:
