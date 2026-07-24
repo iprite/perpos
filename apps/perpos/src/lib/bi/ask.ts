@@ -34,6 +34,8 @@ import {
   listDraftMetrics as defaultListDraftMetrics,
   listVisibleMetrics as defaultListVisibleMetrics,
   matchByKeyword,
+  cosineSimilarity,
+  DRAFT_MIN_SIMILARITY,
   suggestMetrics,
 } from "./metrics";
 import type { BiPeriod } from "./period";
@@ -316,9 +318,11 @@ export async function askBi(input: AskBiInput, deps: AskBiDeps): Promise<BiAnswe
   // ─ 2) embed + match (scope ของ org + role ของผู้ถาม) ─
   const scopes = await (deps.resolveOrgScopes ?? defaultResolveOrgScopes)(admin, input.orgId);
   let candidates: BiMetricCandidate[] = [];
+  let questionEmbedding: number[] | null = null;
   try {
     const embedded = await (deps.embedQuestion ?? defaultEmbedQuestion)(question);
     usage.embedTokens += embedded.estimatedTokens;
+    questionEmbedding = embedded.values;
     candidates = await (deps.matchMetrics ?? defaultMatchMetrics)({
       admin,
       embedding: embedded.values,
@@ -341,6 +345,7 @@ export async function askBi(input: AskBiInput, deps: AskBiDeps): Promise<BiAnswe
         scopes,
         role: input.role,
         question,
+        embedding: questionEmbedding ?? undefined,
       }),
     );
   }
@@ -377,11 +382,18 @@ export async function askBi(input: AskBiInput, deps: AskBiDeps): Promise<BiAnswe
    */
   const leadGap =
     candidates.length < 2 ? 1 : candidates[0].similarity - (candidates[1]?.similarity ?? 0);
+  /**
+   * "สองสัญญาณที่เป็นอิสระต่อกันเห็นตรงกัน" = ไม่ต้องถามกลับ
+   *
+   * retrieval (เวกเตอร์) จัดอันดับ 1 ให้ metric ไหน แล้ว LLM ก็เลือกตัวเดียวกันด้วยความมั่นใจพอ
+   * → การถามกลับไม่เพิ่มความแม่น มีแต่เพิ่มขั้นตอน (QA: "มีงานจัดซื้อกี่ใบ" ต้องกดเลือกก่อน
+   * ทั้งที่ชัดเจน) · **ไม่ผูกกับ `leadGap` อย่างเดียว** เพราะคำถามธรรมชาติมักได้คะแนนใกล้กัน
+   * หลายตัวโดยที่คำตอบที่ถูกยังชัดอยู่ · ด่าน D1 คู่ VAT อยู่ถัดไปและไม่ถูกข้าม
+   */
   const decisive =
     Boolean(intent.metric_key) &&
     intent.metric_key === candidates[0].key &&
-    intent.confidence >= 0.6 &&
-    leadGap > DECISIVE_GAP;
+    (intent.confidence >= 0.6 || leadGap > DECISIVE_GAP);
 
   if (!intent.metric_key || (!decisive && (intent.needs_clarify || ambiguous))) {
     // เสนอเฉพาะตัวที่ "เกี่ยวข้องจริง" — ผ่าน MIN_SIMILARITY อย่างเดียวยังไม่พอที่จะโชว์
@@ -389,7 +401,16 @@ export async function askBi(input: AskBiInput, deps: AskBiDeps): Promise<BiAnswe
 
     if (relevant.length === 0) {
       // ไม่มีอะไรใกล้พอให้เลือก = ตอบไม่ได้ ดีกว่าเสนอมั่ว → เข้าเส้นทางเดียวกับ no_match
-      return finish(await buildNoMatch({ admin, deps, scopes, role: input.role, question }));
+      return finish(
+        await buildNoMatch({
+          admin,
+          deps,
+          scopes,
+          role: input.role,
+          question,
+          embedding: questionEmbedding ?? undefined,
+        }),
+      );
     }
 
     const options = toClarifyOptions(relevant);
@@ -574,6 +595,8 @@ interface NoMatchArgs {
   scopes: Awaited<ReturnType<typeof defaultResolveOrgScopes>>;
   role: BiRole;
   question: string;
+  /** เวกเตอร์ของคำถาม (มีอยู่แล้วจากขั้น retrieval) — ใช้กรอง draft ด้วยความหมาย */
+  embedding?: number[];
 }
 
 interface NoMatchResult {
@@ -622,7 +645,21 @@ async function buildNoMatch(args: NoMatchArgs): Promise<NoMatchResult> {
   }
 
   // 2) มีตัวชี้วัดเรื่องนี้อยู่ แต่ยังเป็นร่าง → เปิดเผยว่ามีอยู่ (ห้ามรัน)
-  const draft = matchByKeyword(question, drafts, 1)[0];
+  //
+  // ต้องผ่าน **ทั้งสองด่าน**: ใกล้กันเชิงความหมาย (embedding) **และ** มีคำตรงกัน (keyword)
+  // — keyword อย่างเดียวไม่พอ เพราะคำหน้าที่สั้น ๆ ในภาษาไทยหลุดง่าย ("ยัง" ใน "วันนี้เป็น
+  // ยังไงบ้าง" ไปตรงกับคำพ้อง "ยังไม่จ่าย" ของคอมมิชชั่นค้างจ่าย — QA รอบ 3)
+  // ถ้าไม่มีเวกเตอร์ให้เทียบ (เช่นในเทสที่ inject rows เอง) → ถอยไปใช้ keyword อย่างเดียว
+  const keywordDrafts = matchByKeyword(question, drafts, 3);
+  const draft = args.embedding
+    ? (keywordDrafts
+        .map((d) => ({
+          d,
+          sim: d.embedding ? cosineSimilarity(args.embedding as number[], d.embedding) : null,
+        }))
+        .filter((x) => x.sim === null || x.sim >= DRAFT_MIN_SIMILARITY)
+        .sort((a, b) => (b.sim ?? 0) - (a.sim ?? 0))[0]?.d ?? null)
+    : (keywordDrafts[0] ?? null);
   if (draft) {
     return {
       status: "refused",

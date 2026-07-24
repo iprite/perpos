@@ -32,11 +32,60 @@ export interface ListVisibleMetricsInput {
 }
 
 const METRIC_SELECT =
-  "key, label_th, definition_th, chart_hint, module_scope, allowed_roles, synonyms, unit, unit_decimals, dimensions, time_grains, time_basis, status";
+  "key, label_th, definition_th, chart_hint, module_scope, allowed_roles, synonyms, unit, unit_decimals, dimensions, time_grains, time_basis, status, embedding";
 
 /** metric + คำพ้อง (ใช้ค้นแบบ rule-based ภายในเซิร์ฟเวอร์ — ไม่ส่งออกทาง API) */
 export interface BiMetricSearchRow extends BiMetricSummary {
   synonyms: string[];
+  /** เวกเตอร์ของ metric (ใช้กรอง draft ด้วยความหมาย ไม่ใช่แค่คำ) — null ถ้ายังไม่ embed */
+  embedding?: number[] | null;
+}
+
+/**
+ * เกณฑ์ความใกล้เชิงความหมายสำหรับ "เปิดเผยว่ามี metric ร่างอยู่"
+ *
+ * QA รอบ 3: "วันนี้เป็นยังไงบ้าง" ไปจับ "คอมมิชชั่นค้างจ่าย" เพราะ token "ยัง" ตรงกับคำพ้อง
+ * "ยังไม่จ่าย" — keyword อย่างเดียวกันคำหน้าที่สั้น ๆ ในภาษาไทยไม่ได้ จึงต้องมีด่านความหมายคู่กัน
+ *
+ * **ค่านี้วัดจากข้อมูลจริง ไม่ได้เดา** (embed คำถามจริงเทียบ metric ร่างบน prod 2026-07-24):
+ *   คำถามที่ควรเจอ  — กำไรเดือนนี้เท่าไร 0.668 · ปีนี้กำไรเท่าไร 0.664 ·
+ *                     กำไรสุทธิเท่าไหร่ 0.707 · กำไรรับรู้เท่าไหร่ 0.753
+ *   คำถามที่ห้ามเจอ — สวัสดีครับ 0.614 · วันนี้เป็นยังไงบ้าง 0.590 · อากาศวันนี้เป็นไง 0.569
+ * ช่องว่างจริงอยู่ที่ 0.614–0.664 → ตั้งกลางที่ **0.64** (ห่างสองฝั่งฝั่งละ ~0.025)
+ *
+ * ⚠️ ตั้ง 0.70 ตามสัญชาตญาณจะ **ตัดคำถามกำไรที่ถูกต้องทิ้ง 2 ใน 4 ประโยค** —
+ * ถ้าจะขยับค่านี้ ให้วัดใหม่ด้วยวิธีเดียวกัน อย่าปรับด้วยความรู้สึก
+ */
+export const DRAFT_MIN_SIMILARITY = 0.64;
+
+/** pgvector ผ่าน PostgREST คืนมาเป็นสตริง `"[0.1,0.2,…]"` — แปลงเป็น number[] */
+export function parseEmbedding(value: unknown): number[] | null {
+  if (Array.isArray(value)) {
+    const nums = value.filter((v): v is number => typeof v === "number" && Number.isFinite(v));
+    return nums.length > 0 ? nums : null;
+  }
+  if (typeof value !== "string" || value.length === 0) return null;
+  try {
+    const parsed: unknown = JSON.parse(value);
+    return Array.isArray(parsed) ? parseEmbedding(parsed) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** cosine similarity — เวกเตอร์ของ Gemini normalize มาแล้ว แต่หารความยาวไว้กันพลาด */
+export function cosineSimilarity(a: number[], b: number[]): number {
+  if (a.length === 0 || a.length !== b.length) return 0;
+  let dot = 0;
+  let na = 0;
+  let nb = 0;
+  for (let i = 0; i < a.length; i += 1) {
+    dot += a[i] * b[i];
+    na += a[i] * a[i];
+    nb += b[i] * b[i];
+  }
+  if (na === 0 || nb === 0) return 0;
+  return dot / (Math.sqrt(na) * Math.sqrt(nb));
 }
 
 /** metric ตามสถานะที่ระบุ + scope ที่ org เปิด + role นี้เห็นได้ (RBAC ระดับ metric เสมอ) */
@@ -74,6 +123,7 @@ async function queryMetrics(
       synonyms: Array.isArray(r.synonyms)
         ? r.synonyms.filter((s): s is string => typeof s === "string")
         : [],
+      embedding: parseEmbedding(r.embedding),
     };
   });
 }
@@ -83,8 +133,8 @@ export async function listVisibleMetrics(
   input: ListVisibleMetricsInput,
 ): Promise<BiMetricSummary[]> {
   const rows = await queryMetrics({ ...input, status: "verified" });
-  // ไม่ส่ง `synonyms` ออก API — เป็นคำค้นภายใน ไม่ใช่ข้อมูลที่ผู้ใช้ต้องเห็น
-  return rows.map(({ synonyms: _s, ...summary }) => summary);
+  // ไม่ส่ง `synonyms`/`embedding` ออก API — เป็นของใช้ค้นภายใน (และเวกเตอร์ 768 ตัวทำ payload บวมฟรี ๆ)
+  return rows.map(({ synonyms: _s, embedding: _e, ...summary }) => summary);
 }
 
 /**
