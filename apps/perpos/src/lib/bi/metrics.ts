@@ -139,53 +139,145 @@ export async function checkIndexHealth(input: ListVisibleMetricsInput): Promise<
 export function matchByKeyword<
   T extends { label_th: string; definition_th: string; synonyms?: string[] },
 >(question: string, metrics: T[], limit = 3): T[] {
-  const q = question.toLowerCase();
-  const words = questionWords(question);
+  const qTokens = contentTokens(question);
+  if (qTokens.size === 0) return [];
 
-  const scored = metrics.map((m) => {
-    const strong = `${m.label_th} ${(m.synonyms ?? []).join(" ")}`.toLowerCase();
-    const weak = m.definition_th.toLowerCase();
+  const docs = metrics.map((m) => ({
+    m,
+    strong: contentTokens(`${m.label_th} ${(m.synonyms ?? []).join(" ")}`),
+    weak: contentTokens(m.definition_th),
+  }));
 
-    // ทิศทางที่ 1: คำในคำถาม → ไปพบในชื่อ/นิยาม (ใช้ได้กับคำที่คั่นด้วยช่องว่าง)
-    let score = words.reduce(
-      (s, w) => s + (strong.includes(w) ? 2 : 0) + (weak.includes(w) ? 1 : 0),
-      0,
-    );
+  // คำที่โผล่ในเกือบทุก metric (เช่น "งาน" "ยอด" "รวม") แทบไม่บอกอะไร → ลดน้ำหนัก
+  const df = new Map<string, number>();
+  for (const d of docs) d.strong.forEach((t) => df.set(t, (df.get(t) ?? 0) + 1));
+  const commonAt = Math.max(2, Math.ceil(docs.length * 0.5));
+  const weightOf = (t: string) => ((df.get(t) ?? 0) >= commonAt ? 0.5 : 2);
 
-    // ทิศทางที่ 2: ชื่อ/คำพ้องของ metric → ไปพบในคำถาม
-    // **จำเป็นสำหรับภาษาไทยที่เขียนติดกัน** ("กำไรเดือนนี้เท่าไร" ต้องจับคำพ้อง "กำไร" ได้)
-    for (const term of termsOf(m)) if (q.includes(term)) score += 2;
-
-    return { m, score };
+  const scored = docs.map((d) => {
+    let score = 0;
+    qTokens.forEach((t) => {
+      if (d.strong.has(t)) score += weightOf(t);
+      else if (d.weak.has(t)) score += 0.5;
+    });
+    return { m: d.m, score };
   });
 
+  // ต้องมีคำที่ "มีน้ำหนักจริง" อย่างน้อยหนึ่งคำตรงกับชื่อ/คำพ้อง (score เต็ม 2)
   return scored
-    .filter((s) => s.score > 0)
+    .filter((s) => s.score >= 2)
     .sort((a, b) => b.score - a.score)
     .slice(0, limit)
     .map((s) => s.m);
 }
 
 /**
- * คำค้นของ metric ที่เอาไปหาในคำถาม — ชื่อเต็ม + คำพ้อง
- * ตัดคำสั้น (< 4 ตัวอักษร) ทิ้ง กัน false positive จากคำโหลอย่าง "งาน"/"ยอด"
+ * ตัดคำไทยจริงด้วย `Intl.Segmenter` (Node 18+ มาพร้อม full ICU)
+ *
+ * **จำเป็น**: ภาษาไทยเขียนติดกันไม่มีช่องว่าง — การตัดด้วย whitespace ทำให้ "กำไรเดือนนี้เท่าไร"
+ * เป็นก้อนเดียว จึงไม่มีวันตรงกับคำพ้อง "กำไร" (QA blocker: คำถามธรรมชาติหลุดเป็น no_match)
+ * ถ้า runtime ไม่มี ICU ไทย → fallback เป็นการตัดด้วยช่องว่างแบบเดิม (ยังทำงานได้ แค่หยาบกว่า)
  */
-function termsOf(m: { label_th: string; synonyms?: string[] }): string[] {
-  return [m.label_th, ...(m.synonyms ?? [])]
-    .flatMap((t) =>
-      String(t)
-        .toLowerCase()
-        .split(/[\s,·|/()"'“”]+/),
-    )
-    .map((t) => t.replace(/[()]/g, "").trim())
-    .filter((t) => t.length >= 4);
+let segmenter: Intl.Segmenter | null | undefined;
+function getSegmenter(): Intl.Segmenter | null {
+  if (segmenter === undefined) {
+    try {
+      segmenter = new Intl.Segmenter("th", { granularity: "word" });
+    } catch {
+      segmenter = null;
+    }
+  }
+  return segmenter;
 }
 
-function questionWords(question: string): string[] {
-  return question
-    .toLowerCase()
-    .split(/[\s,·|/()"'“”?!.]+/)
-    .filter((w) => w.length >= 3);
+/**
+ * คำทั่วไป/คำถาม/คำบอกเวลา ที่ไม่ช่วยแยกแยะ metric — ตัดทิ้งกัน false positive
+ * (ถ้าไม่ตัด "กำไรเดือนนี้" จะไปตรงกับ metric ที่มีคำว่า "เดือน" ในชื่อได้)
+ */
+const STOPWORDS = new Set([
+  // คำถาม/คำขอ
+  "เท่าไร",
+  "เท่าไหร่",
+  "เท่า",
+  "ไหร่",
+  "กี่",
+  "อะไร",
+  "ไหน",
+  "ยังไง",
+  "ไง",
+  "ขอ",
+  "ดู",
+  "ขอดู",
+  "แสดง",
+  "บอก",
+  "หน่อย",
+  "ครับ",
+  "ค่ะ",
+  "คะ",
+  "how",
+  "much",
+  "many",
+  "what",
+  "show",
+  // เวลา
+  "วันนี้",
+  "วัน",
+  "เดือน",
+  "ปี",
+  "ไตรมาส",
+  "สัปดาห์",
+  "นี้",
+  "นั้น",
+  "ล่าสุด",
+  "ที่แล้ว",
+  "ผ่านมา",
+  "ตอนนี้",
+  "ปัจจุบัน",
+  // คำเชื่อม/คำเติม
+  "ของ",
+  "ใน",
+  "และ",
+  "หรือ",
+  "กับ",
+  "ที่",
+  "เป็น",
+  "มี",
+  "ได้",
+  "แล้ว",
+  "ทั้งหมด",
+  "รวมทั้งหมด",
+  "จาก",
+  "ถึง",
+  "ให้",
+  "ต้อง",
+  "ช่วย",
+  "the",
+  "and",
+  "for",
+  "with",
+]);
+
+/** token ที่ "มีความหมาย" ของข้อความหนึ่ง — ตัดคำ + ตัด stopword + ตัดคำสั้นเกิน */
+function contentTokens(text: string): Set<string> {
+  const lower = String(text ?? "").toLowerCase();
+  const seg = getSegmenter();
+
+  const raw = seg
+    ? Array.from(seg.segment(lower))
+        .filter((s) => s.isWordLike)
+        .map((s) => s.segment)
+    : lower.split(/[\s,·|/()"'“”?!.]+/);
+
+  const out = new Set<string>();
+  for (const t of raw) {
+    const w = t.trim();
+    if (w.length < 2 || STOPWORDS.has(w)) continue;
+    // เลขล้วน/อักษรละตินสั้น ๆ ไม่ช่วยแยกแยะ
+    if (/^\d+$/.test(w)) continue;
+    if (/^[a-z]+$/.test(w) && w.length < 3) continue;
+    out.add(w);
+  }
+  return out;
 }
 
 /** หน่วยที่ไม่รู้จัก → `count` (ปลอดภัยกว่าปล่อยค่าดิบไปให้ formatter ฝั่ง UI) */

@@ -42,6 +42,7 @@ import {
   isAmbiguousMatch,
   matchMetrics as defaultMatchMetrics,
   resolveOrgScopes as defaultResolveOrgScopes,
+  DECISIVE_GAP,
   SUGGEST_MIN_SIMILARITY,
   type BiMetricCandidate,
 } from "./resolver";
@@ -370,7 +371,19 @@ export async function askBi(input: AskBiInput, deps: AskBiDeps): Promise<BiAnswe
       vatBaseKey(candidates[0].key) === vatBaseKey(candidates[1]?.key ?? "")
     );
 
-  if (!intent.metric_key || intent.needs_clarify || ambiguous) {
+  /**
+   * อันดับ 1 นำขาด + LLM เลือกตัวเดียวกันด้วยความมั่นใจพอ = ตอบเลย ไม่ต้องถามกลับ
+   * (คำถามง่าย ๆ ไม่ควรต้องกดเลือกเพิ่ม) · ไม่ข้ามด่าน D1 คู่ VAT ที่อยู่ถัดไป
+   */
+  const leadGap =
+    candidates.length < 2 ? 1 : candidates[0].similarity - (candidates[1]?.similarity ?? 0);
+  const decisive =
+    Boolean(intent.metric_key) &&
+    intent.metric_key === candidates[0].key &&
+    intent.confidence >= 0.6 &&
+    leadGap > DECISIVE_GAP;
+
+  if (!intent.metric_key || (!decisive && (intent.needs_clarify || ambiguous))) {
     // เสนอเฉพาะตัวที่ "เกี่ยวข้องจริง" — ผ่าน MIN_SIMILARITY อย่างเดียวยังไม่พอที่จะโชว์
     const relevant = candidates.filter((c) => c.similarity >= SUGGEST_MIN_SIMILARITY).slice(0, 3);
 
