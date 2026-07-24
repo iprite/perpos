@@ -651,15 +651,17 @@ async function buildNoMatch(args: NoMatchArgs): Promise<NoMatchResult> {
   // ยังไงบ้าง" ไปตรงกับคำพ้อง "ยังไม่จ่าย" ของคอมมิชชั่นค้างจ่าย — QA รอบ 3)
   // ถ้าไม่มีเวกเตอร์ให้เทียบ (เช่นในเทสที่ inject rows เอง) → ถอยไปใช้ keyword อย่างเดียว
   const keywordDrafts = matchByKeyword(question, drafts, 3);
-  const draft = args.embedding
-    ? (keywordDrafts
-        .map((d) => ({
-          d,
-          sim: d.embedding ? cosineSimilarity(args.embedding as number[], d.embedding) : null,
-        }))
-        .filter((x) => x.sim === null || x.sim >= DRAFT_MIN_SIMILARITY)
-        .sort((a, b) => (b.sim ?? 0) - (a.sim ?? 0))[0]?.d ?? null)
-    : (keywordDrafts[0] ?? null);
+  const qVec = args.embedding;
+  const draft = qVec
+    ? // มีเวกเตอร์คำถาม → **ต้อง** เทียบความหมายได้ถึงจะเปิดเผย
+      // draft ที่ยังไม่ได้ embed = ข้ามไป (fail-safe) — ปล่อยผ่านด้วย keyword อย่างเดียว
+      // เท่ากับบั๊ก false positive กลับมาเงียบ ๆ ทุกครั้งที่มีคนเพิ่ม metric ร่างแล้วลืม `pnpm bi:embed`
+      (keywordDrafts
+        .flatMap((d) => (d.embedding ? [{ d, sim: cosineSimilarity(qVec, d.embedding) }] : []))
+        .filter((x) => x.sim >= DRAFT_MIN_SIMILARITY)
+        .sort((a, b) => b.sim - a.sim)[0]?.d ?? null)
+    : // ไม่มีเวกเตอร์คำถามเลย (embed ล้ม) → ถอยเป็น keyword อย่างเดียว ดีกว่าไม่บอกอะไรผู้ใช้
+      (keywordDrafts[0] ?? null);
   if (draft) {
     return {
       status: "refused",
