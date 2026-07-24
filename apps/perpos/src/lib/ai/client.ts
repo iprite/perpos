@@ -62,6 +62,57 @@ export async function aiChat(
   }
 }
 
+// ─── Embedding (Gemini เท่านั้น) ──────────────────────────────────────────────
+// ใช้ gemini-embedding-001 (768 มิติ) ให้ตรงกับ kb_chunks / bi_metrics ที่ ingest ไว้
+// ⚠️ ฝั่ง ingestion ต้องใช้ taskType=RETRIEVAL_DOCUMENT · ฝั่งคำถามใช้ RETRIEVAL_QUERY
+// ไม่งั้น vector space ไม่ตรง retrieve เพี้ยน
+
+export const AI_EMBED_MODEL = "gemini-embedding-001";
+export const AI_EMBED_DIM = 768;
+
+export interface AiEmbedResult {
+  values: number[];
+  model: string;
+  /** ประมาณจากความยาวข้อความ — Gemini embedContent ไม่คืน usageMetadata */
+  estimatedTokens: number;
+}
+
+/** embed ข้อความด้วย Gemini (ห้าม fetch provider ตรงนอกไฟล์นี้) */
+export async function aiEmbed(
+  text: string,
+  taskType: "RETRIEVAL_QUERY" | "RETRIEVAL_DOCUMENT" = "RETRIEVAL_QUERY",
+): Promise<AiEmbedResult> {
+  const key = process.env.GEMINI_API_KEY;
+  if (!key) throw new Error("GEMINI_API_KEY not configured");
+
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${AI_EMBED_MODEL}:embedContent?key=${key}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: `models/${AI_EMBED_MODEL}`,
+        content: { parts: [{ text }] },
+        taskType,
+        outputDimensionality: AI_EMBED_DIM,
+      }),
+      signal: AbortSignal.timeout(20_000),
+    },
+  );
+
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new Error(`Gemini embed ${res.status}: ${body.slice(0, 200)}`);
+  }
+
+  const json = (await res.json()) as { embedding?: { values?: number[] } };
+  const values = json.embedding?.values;
+  if (!Array.isArray(values) || values.length !== AI_EMBED_DIM) {
+    throw new Error(`Gemini embed dim ผิด: ${values?.length}`);
+  }
+  return { values, model: AI_EMBED_MODEL, estimatedTokens: Math.ceil(text.length / 4) };
+}
+
 // ─── Anthropic (Claude) ───────────────────────────────────────────────────────
 
 async function callAnthropic(

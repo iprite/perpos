@@ -635,6 +635,24 @@ function buildGovProcureMenuItems(org: string, labels: Record<string, string> = 
   ];
 }
 
+function buildBiMenuItems(org: string, labels: Record<string, string> = {}): MenuItem[] {
+  const p = (path: string) => `/${org}/bi/${path}`;
+  const l = (key: string, fallback: string) => labels[key] || fallback;
+  return [
+    { name: "ผู้ช่วยวิเคราะห์ธุรกิจ" },
+    {
+      name: l("chat", "ถาม-ตอบ"),
+      href: `/${org}/bi`,
+      icon: <Sparkles className="h-5 w-5" />,
+    },
+    {
+      name: l("metrics", "คำถามตัวอย่าง"),
+      href: p("metrics"),
+      icon: <BarChart3 className="h-5 w-5" />,
+    },
+  ];
+}
+
 // ─── Context picker ─────────────────────────────────────────────────────────
 
 function pickMenuContext(pathname: string, role: Role | null, enabledKeys: string[]): string {
@@ -660,6 +678,7 @@ function pickMenuContext(pathname: string, role: Role | null, enabledKeys: strin
     if (mod === "p2p-group") return "p2p_group";
     if (mod === "hrm") return "hrm";
     if (mod === "gov-procure") return "gov_procure";
+    if (mod === "bi") return "bi";
     if (mod === "accounting") return "user";
   }
 
@@ -715,12 +734,14 @@ export function getMenuItems(
                             ? buildHrmMenuItems(org, menuLabels.hrm ?? {})
                             : context === "gov_procure"
                               ? buildGovProcureMenuItems(org, menuLabels.gov_procure ?? {})
-                              : buildUserMenuItems(
-                                  org,
-                                  menuLabels.accounting ?? {},
-                                  orgRole,
-                                  role === "super_admin",
-                                );
+                              : context === "bi"
+                                ? buildBiMenuItems(org, menuLabels.bi ?? {})
+                                : buildUserMenuItems(
+                                    org,
+                                    menuLabels.accounting ?? {},
+                                    orgRole,
+                                    role === "super_admin",
+                                  );
 
   return items.filter((item) => {
     if (!("href" in item)) return hasRole(item.roles, role);
