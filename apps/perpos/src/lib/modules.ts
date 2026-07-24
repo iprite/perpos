@@ -49,6 +49,23 @@ export const ALL_MODULES: ModuleDef[] = [
     ],
   },
   {
+    // BI Chat — ถามข้อมูลธุรกิจด้วย AI (shared module: superadmin เปิดต่อ org ผ่าน /admin/modules)
+    key: "bi",
+    label: "ผู้ช่วยวิเคราะห์ธุรกิจ",
+    href: "/bi",
+    match: (p) => {
+      const seg = p.split("/").filter(Boolean);
+      return seg.length >= 2 && seg[1] === "bi";
+    },
+    // owner = เห็นทุก metric รวมตัวเลขอ่อนไหว (กำไร/ต้นทุน/คอม/กองทุน — D4)
+    // analyst = ถามได้ เห็น metric ทั่วไป · viewer = ถามได้แต่ไม่มีสิทธิ์เขียน (ปักหมุด/แก้ thread)
+    roles: [
+      { key: "owner", label: "เจ้าของ", canWrite: true },
+      { key: "analyst", label: "นักวิเคราะห์", canWrite: true },
+      { key: "viewer", label: "ผู้ดูข้อมูล", canWrite: false },
+    ],
+  },
+  {
     // key ภายในยังเป็น 'stt' (เลี่ยง FK rename) — user-facing = "ผู้ช่วย AI"
     key: "stt",
     label: "ผู้ช่วย AI",
@@ -281,6 +298,11 @@ export const MODULE_MENUS: Record<string, MenuDef[]> = {
         { key: "settings", label: "ตั้งค่า" },
       ],
     },
+  ],
+  // Phase 1 = ถาม-ตอบ + คำถามตัวอย่าง เท่านั้น (dashboard ที่ปักหมุดได้ = Phase 3)
+  bi: [
+    { key: "chat", label: "ถาม-ตอบ" },
+    { key: "metrics", label: "คำถามตัวอย่าง" },
   ],
   stt: [
     { key: "transcribe", label: "ถอดเสียง" },
