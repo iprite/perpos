@@ -42,7 +42,10 @@ import {
 import type { BiPeriod } from "./period";
 import {
   embedQuestion as defaultEmbedQuestion,
+  fetchMetricsByKeys as defaultFetchMetricsByKeys,
   isAmbiguousMatch,
+  normalizeCandidates,
+  vatCounterpartKey,
   matchMetrics as defaultMatchMetrics,
   resolveOrgScopes as defaultResolveOrgScopes,
   DECISIVE_GAP,
@@ -101,6 +104,8 @@ export interface AskBiDeps {
   listVisibleMetrics?: typeof defaultListVisibleMetrics;
   listDraftMetrics?: typeof defaultListDraftMetrics;
   checkIndexHealth?: typeof defaultCheckIndexHealth;
+  /** ดึง metric ตาม key (ด่าน D1 ใช้ประกอบตัวเลือกฐาน VAT เมื่อคู่หลุด top-N) */
+  fetchMetricsByKeys?: typeof defaultFetchMetricsByKeys;
   /** วันอ้างอิง (เทส) */
   today?: Date;
 }
@@ -434,21 +439,69 @@ export async function askBi(input: AskBiInput, deps: AskBiDeps): Promise<BiAnswe
     });
   }
 
-  // ─ D1: ฐานมูลค่า incl/excl VAT — ไม่ระบุและมีทั้งคู่ = ถามกลับ (ห้าม default เงียบ) ─
+  /**
+   * ─ D1: ฐานมูลค่า incl/excl VAT — **การรับประกันแบบไม่มีเงื่อนไข** ─
+   *
+   * metric ตระกูลคู่ VAT + ไม่มีฐานระบุ (คำถาม · `intent.params` · `thread.preferences`)
+   * = **ถามกลับเสมอ** ห้าม default เงียบ ๆ (§3.1 ข้อ 4)
+   *
+   * เดิมด่านนี้ผูกกับ `vatSiblings(candidates, …).length >= 2` → ถ้าคู่ของมันหลุด top-N
+   * และ `withVatCounterparts` ดึงมาไม่ได้ (DB error → log-and-continue) ด่านจะ "เงียบ"
+   * แล้วไปตอบเลขด้วยฐานที่ retrieval สุ่มติดมา (prod 16:24 — `pipeline_value_excl_vat`
+   * ถูกตอบทั้งที่คำถามไม่ระบุฐาน) · ตอนนี้จึงไม่พึ่ง candidates: derive key ของคู่จากชื่อ
+   * แล้วไปดึง label/definition จาก DB เอง — **ดึงไม่ได้ก็ยังถามกลับ** (fail-closed)
+   */
   let metricKey = intent.metric_key;
-  const siblings = vatSiblings(candidates, metricKey);
-  if (vatBasisOfKey(metricKey) && siblings.length >= 2) {
+  let pool = candidates;
+  if (vatBasisOfKey(metricKey)) {
     const basis = detectVatBasis(question) ?? intent.params.vat_basis ?? prefs.vat_basis ?? null;
+
+    // คู่ของ metric ที่จะใช้ — เติมจาก DB ถ้าไม่ได้ติดมากับ retrieval
+    if (vatSiblings(pool, metricKey).length < 2) {
+      const counterpart = vatCounterpartKey(metricKey);
+      const anchor = pool.find((c) => c.key === metricKey)?.similarity ?? 0;
+      const fetched = counterpart
+        ? await safe(
+            () =>
+              fetchVatCandidates({
+                admin,
+                deps,
+                keys: [counterpart],
+                scopes,
+                role: input.role,
+                similarity: anchor,
+              }),
+            [] as BiMetricCandidate[],
+          )
+        : [];
+      if (fetched.length) pool = [...pool, ...fetched];
+    }
+
     if (!basis) {
+      // ดึงคู่ไม่ได้ = เสนอเท่าที่มี แต่ **ยังถามกลับ** ห้ามตอบเป็นตัวเลข (fail-closed)
+      const options = toClarifyOptions(vatSiblings(pool, metricKey));
       return finish({
         status: "clarify",
         bullets: ["ตัวเลขมูลค่ามีสองฐาน — ต้องการแบบรวมภาษีมูลค่าเพิ่ม หรือก่อนภาษี?"],
-        clarify: { question: "ต้องการมูลค่าฐานไหน?", options: toClarifyOptions(siblings) },
-        followUps: siblings.map((s) => `ขอดู${s.label_th}`),
+        clarify: { question: "ต้องการมูลค่าฐานไหน?", options },
+        followUps: options.map((o) => `ขอดู${o.label_th}`),
         matchScore: candidates[0]?.similarity ?? null,
       });
     }
-    metricKey = applyVatBasis(candidates, metricKey, basis);
+
+    metricKey = applyVatBasis(pool, metricKey, basis);
+    // ฐานที่ผู้ใช้ระบุไม่มีในชุด (ดึงคู่ไม่สำเร็จ) → ห้ามตอบด้วยฐานอีกอัน ต้องถามกลับ
+    if (vatBasisOfKey(metricKey) !== basis) {
+      const options = toClarifyOptions(vatSiblings(pool, metricKey));
+      return finish({
+        status: "clarify",
+        bullets: ["ยังดึงตัวชี้วัดฐานที่ขอไม่ได้ในขณะนี้ — กรุณายืนยันฐานมูลค่าที่ต้องการอีกครั้ง"],
+        clarify: { question: "ต้องการมูลค่าฐานไหน?", options },
+        followUps: options.map((o) => `ขอดู${o.label_th}`),
+        matchScore: candidates[0]?.similarity ?? null,
+        errorMessage: `vat counterpart unavailable for basis=${basis}`,
+      });
+    }
     if (threadId)
       await safe(
         () =>
@@ -459,7 +512,7 @@ export async function askBi(input: AskBiInput, deps: AskBiDeps): Promise<BiAnswe
       );
   }
 
-  const metric = candidates.find((c) => c.key === metricKey) ?? candidates[0];
+  const metric = pool.find((c) => c.key === metricKey) ?? candidates[0];
 
   // ─ 4) validate + run ─
   const validated = validateParams(metric, intent.params, { today: deps.today });
@@ -796,6 +849,29 @@ export function effectiveParamsToBiParams(
         : {}),
     ...(Number.isFinite(Number(e.limit)) ? { limit: Number(e.limit) } : {}),
   };
+}
+
+/**
+ * ดึงคู่ VAT จาก DB มาเป็น candidate เต็มรูป (ด่าน D1) — filter เดียวกับ retrieval
+ * (verified + scope + role) · similarity ตั้งต่ำกว่าพี่น้องเล็กน้อยเพื่อไม่แย่งอันดับหนึ่ง
+ */
+async function fetchVatCandidates(args: {
+  admin: Admin;
+  deps: AskBiDeps;
+  keys: string[];
+  scopes: Awaited<ReturnType<typeof defaultResolveOrgScopes>>;
+  role: BiRole;
+  similarity: number;
+}): Promise<BiMetricCandidate[]> {
+  const rows = await (args.deps.fetchMetricsByKeys ?? defaultFetchMetricsByKeys)({
+    admin: args.admin,
+    keys: args.keys,
+    scopes: args.scopes,
+    role: args.role,
+  });
+  return normalizeCandidates(
+    rows.map((r) => ({ ...r, similarity: Math.max(args.similarity - 0.001, 0) })),
+  );
 }
 
 function toClarifyOptions(candidates: BiMetricCandidate[]): BiClarifyOption[] {

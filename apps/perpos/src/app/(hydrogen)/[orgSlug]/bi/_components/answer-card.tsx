@@ -33,6 +33,7 @@ import { StatusBadge } from "@/components/ui/badge";
 import type { BiAnswer, BiMetricSummary } from "@/lib/bi/types";
 import { ChartRenderer } from "./chart-renderer";
 import { RawRows } from "./raw-rows";
+import { type Coverage, coverageNoun, coverageOf } from "./coverage";
 import cn from "@core/utils/class-names";
 
 export interface AnswerCardProps {
@@ -168,43 +169,14 @@ function AnsweredCard({
   );
 }
 
-// ─── ความครอบคลุมของตัวเลข (นับจากกี่รายการ / กี่รายการที่กรอกราคาแล้ว) ────
-
-export interface Coverage {
-  orderCount: number;
-  pricedCount: number | null;
-}
-
-/**
- * รวม `order_count` / `priced_count` จากทุกแถวของผลลัพธ์
- * — กับดัก D1: ยอด "รวม VAT" นับเฉพาะใบที่กรอกราคาแล้ว ขณะที่ "ก่อน VAT" ครบทุกใบ
- *   ถ้าไม่บอกจำนวนใบ ผู้ใช้จะเอาสองยอดมาลบกันแล้วเข้าใจว่าเป็นภาษี ซึ่งผิด
- */
-export function coverageOf(rows: Array<Record<string, unknown>>): Coverage | null {
-  if (!rows || rows.length === 0) return null;
-  const sum = (key: string): number | null => {
-    let total = 0;
-    let found = false;
-    for (const r of rows) {
-      const v = r[key];
-      if (typeof v === "number" && Number.isFinite(v)) {
-        total += v;
-        found = true;
-      }
-    }
-    return found ? total : null;
-  };
-
-  const orderCount = sum("order_count");
-  if (orderCount === null) return null;
-  return { orderCount, pricedCount: sum("priced_count") };
-}
+// ─── ความครอบคลุมของตัวเลข (นับจากกี่รายการ / กี่รายการที่กรอกค่าแล้ว) ────
+// สูตรอยู่ที่ `./coverage` ที่เดียว → หน้าแชทกับการ์ดแดชบอร์ดได้ผลตรงกันเสมอ
 
 const intFmt = new Intl.NumberFormat("en-US");
 
 export function CoverageLine({ coverage }: { coverage: Coverage }) {
-  const { orderCount, pricedCount } = coverage;
-  const incomplete = pricedCount !== null && pricedCount < orderCount;
+  const { orderCount, filledCount, kind } = coverage;
+  const incomplete = filledCount !== null && filledCount < orderCount;
 
   // เซลล์ผสมเลข+คำไทย → tabular-nums เท่านั้น ห้าม font-mono (DESIGN §5 ข้อ 8)
   if (!incomplete) {
@@ -215,14 +187,15 @@ export function CoverageLine({ coverage }: { coverage: Coverage }) {
     );
   }
 
+  const noun = coverageNoun(kind);
   return (
     <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
       <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
       <Text className="text-xs tabular-nums leading-5 text-amber-700">
-        นับจาก {intFmt.format(pricedCount as number)} รายการที่กรอกราคาแล้ว (จากทั้งหมด{" "}
+        นับจาก {intFmt.format(filledCount as number)} รายการที่กรอก{noun}แล้ว (จากทั้งหมด{" "}
         {intFmt.format(orderCount)} รายการ) — อีก{" "}
-        {intFmt.format(orderCount - (pricedCount as number))}{" "}
-        รายการยังไม่กรอกราคาจึงไม่ถูกรวมในยอดนี้
+        {intFmt.format(orderCount - (filledCount as number))} รายการยังไม่กรอก{noun}
+        จึงไม่ถูกรวมในยอดนี้
       </Text>
     </div>
   );

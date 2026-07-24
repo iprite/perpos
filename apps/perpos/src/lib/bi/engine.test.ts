@@ -74,10 +74,22 @@ function runResult(over: Partial<RunMetricResult> = {}): RunMetricResult {
 }
 
 /** mock Supabase client แบบ chainable — คืนผลตามตารางที่กำหนด */
-function makeAdmin(opts: { rateAllowed?: boolean; lists?: Record<string, unknown[]> } = {}) {
+function makeAdmin(
+  opts: {
+    rateAllowed?: boolean;
+    lists?: Record<string, unknown[]>;
+    /** ค่าที่จำไว้ใน thread (D1 "ผ่อนแรง" — ถามฐาน VAT ครั้งเดียวต่อ thread) */
+    threadPreferences?: Record<string, unknown>;
+  } = {},
+) {
   const lists = opts.lists ?? {};
   const singles: Record<string, unknown> = {
-    bi_threads: { id: "thread-1", org_id: "org-1", created_by: "user-1", preferences: {} },
+    bi_threads: {
+      id: "thread-1",
+      org_id: "org-1",
+      created_by: "user-1",
+      preferences: opts.threadPreferences ?? {},
+    },
     bi_messages: { id: "msg-1", org_id: "org-1", thread_id: "thread-1", role: "assistant" },
   };
 
@@ -540,6 +552,151 @@ describe("askBi — สถานะและ payload (§6.4)", () => {
 
     expect(res.status).toBe("answered");
     expect(res.metric?.key).toBe("gov_procure.pipeline_value_incl_vat");
+  });
+
+  /**
+   * D1 ต้องเป็น **การรับประกันแบบไม่มีเงื่อนไข** — บั๊ก prod (16:24) เกิดตอนคู่ VAT
+   * ติดมาแค่ตัวเดียวใน candidates แล้วด่านเงียบ → ตอบเลขด้วยฐานที่ไม่มีใครสั่ง
+   */
+  it("D1: คู่ VAT ติดมาตัวเดียวใน candidates + ไม่ระบุฐาน → ยังต้อง clarify (ดึงคู่จาก DB)", async () => {
+    const { client } = makeAdmin();
+    const runSpy = vi.fn(async () => runResult());
+
+    const res = await askBi(
+      { ...baseInput, question: "มูลค่าพอร์ตทั้งหมดเท่าไร" },
+      {
+        ...baseDeps(client),
+        // retrieval คืนเฉพาะ excl — คู่ incl หลุด top-N
+        matchMetrics: async () => [
+          { ...metric, key: "gov_procure.pipeline_value_excl_vat", similarity: 0.7263 },
+        ],
+        fetchMetricsByKeys: async () => [
+          {
+            key: "gov_procure.pipeline_value_incl_vat",
+            label_th: "มูลค่าพอร์ตรวม (รวม VAT)",
+            definition_th: "ผลรวมยอดเสนอราคารวม VAT",
+          },
+        ],
+        extractIntent: async () => ({
+          metric_key: "gov_procure.pipeline_value_excl_vat",
+          params: { comparison: "none" as const, vat_basis: null },
+          confidence: 0.9,
+          needs_clarify: false,
+          clarify_reason: "",
+          usage: { tokenIn: 100, tokenOut: 20, model: "gemini-2.5-flash" },
+        }),
+        runMetric: runSpy,
+      },
+    );
+
+    expect(res.status).toBe("clarify");
+    expect(runSpy).not.toHaveBeenCalled();
+    expect(res.clarify?.options.map((o) => o.metric_key).sort()).toEqual([
+      "gov_procure.pipeline_value_excl_vat",
+      "gov_procure.pipeline_value_incl_vat",
+    ]);
+  });
+
+  it("D1: ดึงคู่ VAT จาก DB ล้มเหลว + ไม่ระบุฐาน → ยัง clarify (ห้ามตอบเลข)", async () => {
+    const { client } = makeAdmin();
+    const runSpy = vi.fn(async () => runResult());
+
+    const res = await askBi(
+      { ...baseInput, question: "มูลค่าพอร์ตทั้งหมดเท่าไร" },
+      {
+        ...baseDeps(client),
+        matchMetrics: async () => [
+          { ...metric, key: "gov_procure.pipeline_value_excl_vat", similarity: 0.7263 },
+        ],
+        fetchMetricsByKeys: async () => {
+          throw new Error("bi_metrics by key: connection reset");
+        },
+        extractIntent: async () => ({
+          metric_key: "gov_procure.pipeline_value_excl_vat",
+          params: { comparison: "none" as const, vat_basis: null },
+          confidence: 0.9,
+          needs_clarify: false,
+          clarify_reason: "",
+          usage: { tokenIn: 100, tokenOut: 20, model: "gemini-2.5-flash" },
+        }),
+        runMetric: runSpy,
+      },
+    );
+
+    expect(res.status).toBe("clarify");
+    expect(runSpy).not.toHaveBeenCalled();
+    // เสนอเท่าที่มี (ฐานเดียว) แต่ต้องไม่มีตัวเลขคำตอบ
+    expect(res.clarify?.options.map((o) => o.metric_key)).toEqual([
+      "gov_procure.pipeline_value_excl_vat",
+    ]);
+    expect(res.rows).toEqual([]);
+  });
+
+  it("D1 ผ่อนแรง: ฐานที่จำไว้ใน thread → ตอบเลย ไม่ถามซ้ำ", async () => {
+    const { client } = makeAdmin({ threadPreferences: { vat_basis: "excl_vat" } });
+    const exclSibling: BiMetricCandidate = {
+      ...metric,
+      key: "gov_procure.pipeline_value_excl_vat",
+      label_th: "มูลค่าพอร์ตรวม (ก่อน VAT)",
+      similarity: 0.81,
+    };
+
+    const res = await askBi(
+      { ...baseInput, question: "มูลค่าพอร์ตทั้งหมดเท่าไร" },
+      {
+        ...baseDeps(client),
+        matchMetrics: async () => [metric, exclSibling],
+        extractIntent: async () => ({
+          metric_key: metric.key,
+          params: { comparison: "none" as const, vat_basis: null },
+          confidence: 0.9,
+          needs_clarify: false,
+          clarify_reason: "",
+          usage: { tokenIn: 100, tokenOut: 20, model: "gemini-2.5-flash" },
+        }),
+      },
+    );
+
+    expect(res.status).toBe("answered");
+    expect(res.metric?.key).toBe("gov_procure.pipeline_value_excl_vat");
+  });
+
+  it("D1: metric ที่ไม่ใช่ตระกูล VAT → ไม่ถามกลับ ไม่ยิง DB หาคู่", async () => {
+    const { client } = makeAdmin();
+    const countMetric: BiMetricCandidate = {
+      ...metric,
+      key: "gov_procure.pipeline_count",
+      label_th: "จำนวนใบงานจัดซื้อ",
+      unit: "count",
+      similarity: 0.79,
+    };
+    const fetchSpy = vi.fn(async () => []);
+
+    const res = await askBi(
+      { ...baseInput, question: "มีงานจัดซื้อกี่ใบ" },
+      {
+        ...baseDeps(client),
+        matchMetrics: async () => [countMetric],
+        fetchMetricsByKeys: fetchSpy,
+        extractIntent: async () => ({
+          metric_key: countMetric.key,
+          params: { comparison: "none" as const, vat_basis: null },
+          confidence: 0.9,
+          needs_clarify: false,
+          clarify_reason: "",
+          usage: { tokenIn: 100, tokenOut: 20, model: "gemini-2.5-flash" },
+        }),
+        runMetric: async () =>
+          runResult({
+            metric: { ...runResult().metric, key: countMetric.key, label_th: countMetric.label_th },
+          }),
+      },
+    );
+
+    expect(res.status).toBe("answered");
+    expect(res.clarify).toBeUndefined();
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(res.metric?.key).toBe("gov_procure.pipeline_count");
   });
 
   it("retrieval ว่างทั้งที่มี metric verified → no_match พร้อมบอกให้รัน bi:embed", async () => {

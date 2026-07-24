@@ -37,7 +37,8 @@ import type {
 } from "@/lib/bi/types";
 import { ChartRenderer } from "./chart-renderer";
 import { RawRows } from "./raw-rows";
-import { CoverageLine, DefinitionLine, coverageOf } from "./answer-card";
+import { CoverageLine, DefinitionLine } from "./answer-card";
+import { coverageOf } from "./coverage";
 import type { BiDrillMetricInfo } from "./guard";
 import cn from "@core/utils/class-names";
 
@@ -132,7 +133,12 @@ export function DashboardCard(props: DashboardCardProps) {
   return (
     <section className="flex min-w-0 flex-col gap-3 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
       <header className="flex items-start justify-between gap-2">
-        <Title as="h3" className="min-w-0 text-sm font-medium text-gray-900">
+        {/* หัวข้อไทยยาว ๆ บนจอ 375px: ตัดคำตามช่องว่างก่อน (break-words) + ไม่ใส่ยัติภังค์
+            → ไม่ตกบรรทัดกลางคำ และไม่ดันความกว้างการ์ด */}
+        <Title
+          as="h3"
+          className="min-w-0 hyphens-none break-words text-sm font-medium text-gray-900"
+        >
           {heading}
         </Title>
         {canWrite ? (
