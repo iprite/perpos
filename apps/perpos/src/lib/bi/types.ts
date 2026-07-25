@@ -35,7 +35,12 @@ export type Comparison = (typeof COMPARISONS)[number];
 export const MESSAGE_ROLES = ["user", "assistant"] as const;
 export type MessageRole = (typeof MESSAGE_ROLES)[number];
 
-export const ANSWER_SOURCES = ["web", "line"] as const;
+/**
+ * ที่มาของคำตอบ — `dashboard` (Phase 3) = การ์ดบนแดชบอร์ด/drill-down ที่ **ไม่ผ่าน LLM**
+ * ⚠️ ใช้กับ `bi_query_log.source` เท่านั้น · **ห้ามส่ง `dashboard` เข้า `askBi`/`appendMessage`**
+ * (การ์ดไม่เขียน `bi_messages` — `normalizeMessage` จึงยัง normalize เป็น `web|line` ตามเดิม)
+ */
+export const ANSWER_SOURCES = ["web", "line", "dashboard"] as const;
 export type AnswerSource = (typeof ANSWER_SOURCES)[number];
 
 export const ANSWER_STATUSES = ["answered", "clarify", "no_match", "refused", "error"] as const;
@@ -269,6 +274,11 @@ export interface BiAnswer {
   definition_line: string;
   follow_ups: string[];
   work: BiWork | null;
+  /**
+   * ผลของช่วงเทียบ (P3-D4) — `null` เมื่อไม่ได้ขอเทียบ/query เทียบล้มเหลว
+   * **optional โดยตั้งใจ**: คำตอบที่ประกอบจากประวัติเก่า (ก่อนมีฟีเจอร์นี้) ไม่มีฟิลด์นี้
+   */
+  compare?: BiCompare | null;
   clarify?: BiClarify;
 }
 
@@ -308,6 +318,112 @@ export interface BiAnswerMeta {
    * (metadata ของ metric ไม่ใช่ข้อมูลธุรกิจ จึงเก็บได้)
    */
   clarify: BiClarify | null;
+}
+
+// ─── แดชบอร์ด (Phase 3 · `bi_dashboards` / `bi_dashboard_items`) ────────────
+
+/** ชื่อแดชบอร์ดที่ระบบสร้างให้อัตโนมัติเมื่อปักหมุดครั้งแรก (contract §6 Q1) */
+export const DEFAULT_DASHBOARD_NAME = "แดชบอร์ดของฉัน";
+/** เพดานจำนวนแดชบอร์ดต่อคนต่อ org */
+export const MAX_DASHBOARDS_PER_USER = 10;
+/** เพดานจำนวนการ์ดต่อแดชบอร์ด */
+export const MAX_ITEMS_PER_DASHBOARD = 20;
+
+export interface BiDashboard {
+  id: string;
+  org_id: string;
+  name: string;
+  /** เจ้าของ — แดชบอร์ดเป็นของส่วนตัวรายคน (P3-D1) */
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+  /** จำนวนการ์ด (เติมในหน้า list เท่านั้น) */
+  item_count?: number;
+}
+
+export interface BiDashboardItem {
+  id: string;
+  org_id: string;
+  dashboard_id: string;
+  /** ชื่อที่ผู้ใช้ตั้งเอง — ห้ามใช้บอกใบ้ metric ที่ผู้ดูไม่มีสิทธิ์เห็น */
+  title: string | null;
+  metric_key: string;
+  params: BiMetricParams;
+  /** ชนิดกราฟที่ผู้ใช้เลือก = **ข้อเสนอ** ที่กฎ `chooseChart` veto ได้ (R10) */
+  chart_type: ChartType | null;
+  position: number;
+  created_at: string;
+  /** null = ฐานยังไม่มีคอลัมน์นี้ (migration Phase 3 ยังไม่ลง) */
+  updated_at: string | null;
+}
+
+export interface BiDashboardWithItems {
+  dashboard: BiDashboard;
+  items: BiDashboardItem[];
+}
+
+/** ทิศทางการย้ายลำดับการ์ด (ปุ่มขึ้น/ลง — ไม่มี drag/drop ตาม P3-D6) */
+export const MOVE_DIRECTIONS = ["up", "down"] as const;
+export type MoveDirection = (typeof MOVE_DIRECTIONS)[number];
+
+export function isMoveDirection(v: unknown): v is MoveDirection {
+  return typeof v === "string" && (MOVE_DIRECTIONS as readonly string[]).includes(v);
+}
+
+/** สถานะของการ์ดหนึ่งใบ (§2.3 — ข้อความไทยล็อกไว้ที่ `CARD_STATE_MESSAGES`) */
+export const BI_CARD_STATES = ["ok", "metric_unavailable", "forbidden", "error"] as const;
+export type BiCardState = (typeof BI_CARD_STATES)[number];
+
+/** ข้อความไทยมาตรฐานต่อสถานะการ์ด — ห้ามแสดง error ดิบ/ชื่อคอลัมน์ */
+export const CARD_STATE_MESSAGES: Record<Exclude<BiCardState, "ok">, string> = {
+  metric_unavailable: "ตัวชี้วัดนี้ถูกปิดชั่วคราว",
+  forbidden: "คุณไม่มีสิทธิ์ดูการ์ดนี้",
+  error: "แสดงข้อมูลการ์ดนี้ไม่สำเร็จ",
+};
+
+/** ผลของช่วงเปรียบเทียบ (P3-D4) — คำนวณ delta แบบ deterministic ไม่ให้ LLM คิด */
+export interface BiCompare {
+  label_th: string;
+  from: string;
+  to: string;
+  rows: Array<Record<string, unknown>>;
+  row_count: number;
+}
+
+/** ผลของการรัน metric ตรง ๆ (ไม่ผ่าน LLM) — payload ของ `/api/bi/run` และของแต่ละการ์ด */
+export interface BiDirectResult {
+  metric: {
+    key: string;
+    label_th: string;
+    definition_th: string;
+    time_basis: string | null;
+    unit: MetricUnit;
+    unit_decimals: number;
+  };
+  params: BiMetricParams;
+  chart: BiChartSpec | null;
+  rows: Array<Record<string, unknown>>;
+  row_count: number;
+  truncated: boolean;
+  definition_line: string;
+  work: BiWork | null;
+  compare: BiCompare | null;
+}
+
+/** ผลของการ์ดหนึ่งใบบนแดชบอร์ด */
+export interface BiCardResult {
+  itemId: string;
+  state: BiCardState;
+  /** ชื่อการ์ดที่ผู้ใช้ตั้งเอง (ว่างได้) — ไม่รั่ว metadata ของ metric */
+  title: string | null;
+  result: BiDirectResult | null;
+  message: string | null;
+}
+
+/** เป้าหมายของ drill-down (metric รายละเอียด + params ที่กรองตามจุดที่คลิก) */
+export interface BiDrillTarget {
+  metric_key: string;
+  params: BiMetricParams;
 }
 
 export interface BiMessage {

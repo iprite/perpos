@@ -1,8 +1,8 @@
 # คัมภีร์: ผู้ช่วยวิเคราะห์ธุรกิจ (BI Chat, module key `bi`)
 
 > เอกสารนี้เขียนสำหรับ **AI agent + dev ที่จะมาแตะโค้ดต่อ** ไม่ใช่คู่มือผู้ใช้ปลายทาง
-> ที่มา: [`.claude/module-factory/specs/bi.md`](../.claude/module-factory/specs/bi.md) (contract เต็ม §1–§11 + Review Log) — เอกสารนี้สรุปสิ่งที่ **build จริง** บน prod (org `p2p-x-89`)
-> สถานะ ณ วันที่เขียน (2026-07-24): **Phase 1 เสร็จ, apply prod แล้ว, verified 14 / draft 15 metric** — LINE (Phase 2), Dashboard เต็มรูป (Phase 3), Free-form SQL (Phase 5) **ยังไม่ทำ**
+> ที่มา: [`.claude/module-factory/specs/bi.md`](../.claude/module-factory/specs/bi.md) (contract เต็ม §1–§11 + Review Log) + [`.claude/feature-factory/specs/bi-dashboard.md`](../.claude/feature-factory/specs/bi-dashboard.md) (contract Phase 3 ส่วนต่าง) — เอกสารนี้สรุปสิ่งที่ **build จริง** บน prod (org `p2p-x-89`)
+> สถานะ ณ วันที่เขียน (2026-07-25): **Phase 1 (chat) + Phase 3 (interactive dashboard) เสร็จ, apply prod แล้ว, verified 14 / draft 15 metric** — **Phase 2 (LINE `/bi`) ถูกเลื่อนไปทำ "หลัง" Phase 3** (มติผู้ใช้ 2026-07-24, `P2-D6`): ตอนตัดสินใจ 15/29 metric ยังเป็น `draft` เพราะข้อมูลจริงยังว่าง (วันที่หมุด/กำไร/คอมมิชชั่นยังไม่มีค่า) — เอา LINE ไปตอนนั้นผู้ใช้จะเจอ "ยังตอบไม่ได้" บ่อยกว่าตอบได้ ส่วนแดชบอร์ดต่อยอดจากของที่มีอยู่บนเว็บได้ทันทีโดยไม่ต้องแตะ LINE เลย · Free-form SQL (Phase 5) **ยังไม่ทำ**
 
 ---
 
@@ -322,6 +322,31 @@ D4 (gate G4): กำไร/ต้นทุน/คอมมิชชั่น/ก
 - **สาเหตุ:** ข้อมูลจริงบน prod มีใบที่ยังไม่กรอก `price_incl_vat` อยู่ 4 ใบ (แต่กรอก `price_excl_vat` ครบ 17/17) — สอง metric นี้จึงนับคนละจำนวนใบ ไม่ใช่แค่หักภาษีจากฐานเดียวกัน
 - **วิธีแก้:** `definition_th`/`excludes` ของทั้งสอง metric ต้องระบุจำนวนใบที่นับได้ชัดเจน + UI แสดง `priced_count` คู่กับตัวเลขเสมอ (ไม่ใช่แค่ตัวเลขเดี่ยว) — เทสคุมส่วนต่างที่ยอมรับได้ (≤ 1 บาท จากปัดเศษ) ไว้ที่ `PIPELINE_PAIR_NOTE` ใน [`metrics.expected.ts`](../apps/perpos/src/lib/bi/metrics.expected.ts) · **D1 ยังบังคับด้วยว่าคำถามที่ไม่ระบุ incl/excl ต้อง `clarify` ไม่เดา default เงียบ ๆ** (ผ่อนแรง: เลือกครั้งเดียวในเธรดแล้วจำไว้ผ่าน `bi_threads.preferences`)
 
+### D1 (ต่อ) — ด่านหลุดเป็นระยะหลังขึ้น prod จริง เพราะมีเงื่อนไขที่ไม่ควรมี
+
+- **อาการ:** QA บน prod ถามคำถามเดียวกัน ("มูลค่าพอร์ตทั้งหมดเท่าไร") 5 ครั้ง — 4 ครั้งถูกถามกลับฐาน VAT ตามที่ D1 บังคับ (score 0.7306/0.7314) แต่ครั้งที่ score 0.7263 (thread ใหม่, `vat_basis` ยังเป็น `null`) กลับ**ตอบเลขทันทีด้วย `_excl_vat`** โดยไม่ถามกลับ
+- **สาเหตุ (2 ทอด):** (1) ด่าน D1 เดิมมีเงื่อนไข `siblings.length >= 2` — ทำงานเฉพาะเมื่อคู่ VAT ทั้งสองตัวติดมาใน top-N ของ retrieval เท่านั้น (2) `withVatCounterparts()` ที่ควรเติมคู่ที่หลุด top-N เป็น **log-and-continue** (DB error → log แล้วเดินหน้าต่อ) = ด่านทั้งก้อนหลุดแบบ **fail-open** เมื่อ DB สะดุดหรือคู่ไม่ติด top-N
+- **วิธีแก้:** เอาเงื่อนไข `siblings.length >= 2` ออกทั้งหมด — ด่าน D1 เช็คแค่ `vatBasisOfKey(metricKey)` (metric นี้มีคู่ VAT ไหม) เท่านั้น ไม่พึ่ง candidates ที่ retrieval คัดมา · ถ้าคู่ไม่อยู่ใน pool ให้ derive key ของคู่แล้วดึงจาก DB เพิ่ม (`fetchVatCandidates`) · **เพิ่ม fail-closed อีกจุด**: ถ้าผู้ใช้ระบุฐานมาแล้วแต่ดึง metric ของฐานนั้นไม่สำเร็จ → เดิมคืน key เดิมเงียบ ๆ (ตอบด้วยฐานที่ไม่ได้ขอ) ตอนนี้เปลี่ยนเป็น**ถามกลับซ้ำ**แทน · mutation test ยืนยันแล้วว่าใส่เงื่อนไขเดิมกลับไป → เทสแดง 2 ตัว (`lib/bi/ask.ts` + `lib/bi/resolver.ts`, ดู commit `7e48a68`)
+
+### การ์ดต้นทุนบอกจำนวนใบผิด — สูตรความครอบคลุมรู้จักแค่ `priced_count`
+
+- **อาการ:** การ์ด "ต้นทุนซื้อของรวม" แสดง "นับจาก 17 รายการ" ทั้งที่ metric นี้กรอกต้นทุนจริงแค่ 12 ใบ — ใครเอา 618,112.00 บาท ไปหารด้วย 17 จะได้ต้นทุนเฉลี่ยต่ำกว่าจริง **~30%**
+- **สาเหตุ:** ตรรกะ "ความครอบคลุม" (`coverageOf`) เดิมรู้จักเฉพาะคอลัมน์ `priced_count` (สำหรับ metric ฝั่งมูลค่าขาย) — metric ฝั่งต้นทุนคืนคอลัมน์ `costed_count` แทน ซึ่งไม่มีใครอ่าน จึงเงียบไปเป็น `null` และ UI ไปใช้ `order_count` (17) แทนโดยไม่รู้ตัว
+- **วิธีแก้:** ย้ายสูตรไปที่ [`_components/coverage.ts`](<../apps/perpos/src/app/(hydrogen)/[orgSlug]/bi/_components/coverage.ts>) (pure function, มีเทสของตัวเอง) รองรับทั้ง `priced_count`/`costed_count` + เลือกคำเรียก ("ราคา"/"ต้นทุน") ตามฐานที่นับจริง — **หน้าแชท (`AnswerCard`) และการ์ดแดชบอร์ด (`DashboardCard`) ใช้ฟังก์ชันเดียวกัน** กันบทเรียนที่แก้ในหน้าหนึ่งแล้วไม่ตามไปอีกหน้า (ดูหัวข้อถัดไป)
+
+### บทเรียนที่แก้ในหน้าแชทไม่ตามไปหน้าแดชบอร์ดเอง
+
+- **อาการ:** ตอนพัฒนา Phase 3 พบว่ากับดัก D1 (ฐาน VAT) ที่แก้ไว้แล้วในหน้าแชท **ไม่มีผลกับการ์ดที่ปักหมุด** — เพราะการ์ดไม่ได้เดินผ่าน `askBi()` เลย (ตาม P3-D2 การ์ดไม่เรียก AI) ถ้าปล่อยให้แต่ละ path มีสำเนากติกาของตัวเอง กับดักเดิมจะกลับมาแบบเงียบ ๆ ทุกครั้งที่มีทางเข้าใหม่
+- **วิธีแก้:** จุดที่เป็น "ตรรกะการแสดงผล" ล้วน ๆ (ไม่ใช่ AI) — เลือกชนิดกราฟ (`chooseChart`/`buildChartSpec`), รันตัวชี้วัด (`runMetric`/`validateParams`), คำนวณความครอบคลุม (`coverageOf`) — บังคับให้ **ทุก path เรียกฟังก์ชันกลางตัวเดียวกัน** ไม่ fork logic เฉพาะหน้า แม้จะดูเหมือนเขียนซ้ำนิดเดียวก็ตาม
+
+### เปลี่ยนช่วงเวลา/ฟิลเตอร์บนการ์ดแล้วพัง = ตันถาวร + toast โกหก / ชนเพดานแล้ว skeleton ค้าง / บวก = เขียวเสมอ
+
+- **อาการ (3 จุดแยกกัน แต่ root cause เดียวกันคือ UI ไม่แยกสถานะ error ให้ครบ):**
+  1. เปลี่ยนช่วงเวลาบนการ์ดแล้ว `runDirect` throw (เช่น metric ถูกลด role ระหว่างนั้นพอดี) — การ์ดค้างที่ params เก่าที่ผู้ใช้มองไม่เห็นอีกต่อไป (เพราะ UI อัปเดต params ก่อนเรียก แล้วพังตอนแสดงผล) พร้อม toast ที่บอกว่า "บันทึกแล้ว" ทั้งที่ยังไม่สำเร็จจริง
+  2. ช่วงเวลาที่เลือกชนเพดาน `max_period_months` ของ metric นั้น — UI ค้างที่ skeleton ตลอดไป (ผู้ใช้อ่านว่า "กำลังโหลด" ทั้งที่ระบบเลิกคำนวณไปแล้วเงียบ ๆ)
+  3. แถบเทียบช่วงก่อน (`compare.delta`) ทาสี **เขียวเมื่อ `delta > 0` เสมอ** โดยไม่สนว่า metric นั้นเพิ่มขึ้นแล้วดีหรือแย่ — ต้นทุนซื้อของเพิ่มขึ้น/เงินคืนผู้ลงทุนเพิ่มขึ้น กลายเป็นสีเขียว ผู้บริหารอ่านตัวเลขกลับด้านทันที (อันตรายกว่าไม่ใส่สีเลย เพราะดูน่าเชื่อถือ)
+- **วิธีแก้:** สร้าง [`lib/bi/metric-direction.ts`](../apps/perpos/src/lib/bi/metric-direction.ts) — แมป `metric_key → 'higher_better' | 'lower_better'` ที่ **ไม่มีคีย์ = กลาง** (ไม่ทาสี ใช้ลูกศรบอกทิศทางอย่างเดียว ตาม DESIGN.md §2 "เขียว=positive แดง=negative เท่านั้น") ใส่คีย์เฉพาะตัวที่ทิศทางดี/ไม่ดีชัดเจนโดยไม่ต้องดูบริบท (ลูกหนี้คงค้าง/เงินกองทุน/จำนวนงาน ปล่อยเป็นกลางเพราะกำกวม) · จุด (1)/(2) แก้ด้วยแยก error state ของการ์ดออกจาก loading state ให้ชัด — เห็นข้อความ error จริง ไม่ใช่ skeleton ค้างหรือ toast มั่ว
+
 ---
 
 ## 8. Provisioning Runbook + Rollback
@@ -393,11 +418,18 @@ D4 (gate G4): กำไร/ต้นทุน/คอมมิชชั่น/ก
 
 เปิดทีละตัวได้ด้วย `UPDATE bi_metrics SET status='verified', verified_at=now(), verified_by='<uuid>' WHERE key='<key>' AND status='draft'` เมื่อข้อมูลไหลเข้าตามเงื่อนไข — **ไม่ต้องแก้โค้ด**
 
-### 9.2 ที่ยังไม่ทำ
+### 9.2 Phase 3 (แดชบอร์ดปักหมุด) — เสร็จ, apply prod แล้ว
 
-- **Phase 2 — LINE `/bi <คำถาม>`:** ยังไม่มีโค้ดใน webhook เลย — ต้องเพิ่มคำสั่ง `/bi`/`/ถาม` ใน [`api/line/webhook/route.ts`](../apps/perpos/src/app/api/line/webhook/route.ts), ตาราง `bi_line_groups` (mapping กลุ่ม↔org, ยังไม่มีใน migration), Loading Animation API + push Flex KPI card, dedup ต่อ `line_message_id` + rate-limit
-- **Phase 3 — Interactive Dashboard เต็มรูป:** ตาราง `bi_dashboards`/`bi_dashboard_items` **สร้างไว้แล้วใน migration** แต่**ไม่มีหน้า `/:orgSlug/bi/dashboards/[id]` และไม่มี API ปักหมุด** · **`comparison` (prev_period/yoy) คำนวณช่วงเทียบและแสดงในบรรทัดนิยามแล้ว แต่ยังไม่ยิง query รอบสองเพื่อดึงตัวเลขช่วงก่อนจริง** (โครง engine รองรับไว้แล้ว รอวัด latency จริง < 8s ก่อนเปิด) · drill-down คลิก datapoint → รายการ transaction ยังไม่เชื่อมกับ UI (metric `_detail` มีแล้วในระดับ SQL แต่ chart ยังไม่มี onClick)
-- **Phase 4:** ยังไม่รีวิว `bi_query_log` เป็น loop ปรับปรุง semantic layer · org ที่สอง (บัญชี) ยังไม่เปิด (metric accounting = ไม่ทำใน Phase 1 ตามมติ D3) · ยังไม่มีหน้า admin จัดการ `bi_metrics` (แก้ SQL ยังต้องทำผ่าน migration/สคริปต์มือเท่านั้น — **ตั้งใจ**: ดู §6.2 ข้อผูกพันถาวรเรื่องสิทธิ์เขียน)
+- ปักหมุดคำตอบจากหน้าแชทเป็นการ์ด, หน้า list (`/:orgSlug/bi/dashboards`, full SSR) + หน้า detail (`/:orgSlug/bi/dashboards/[id]`, hybrid) + drill-down คลิก datapoint → เปิด dialog ตาราง (`gov_procure.orders_detail`)
+- เทียบช่วงก่อน (`comparison=prev_period`) ยิง query จริงแล้ว (ของค้างจาก Phase 1, `P3-D4`) — ยิงขนานกับ query หลักเสมอ (`Promise.all`)
+- โควตาการ์ด **แยกจาก** โควตาคำถาม AI โดยสมบูรณ์ (ดู §11.2)
+- รายละเอียดเต็ม: ดู **§11 แดชบอร์ดปักหมุด (Phase 3)** ด้านล่าง
+- vitest รวม **885 เทส** ผ่านทั้งหมด (จาก baseline 826 ก่อนเริ่มงาน) · tsc 0 · lint clean
+
+### 9.3 ที่ยังไม่ทำ
+
+- **Phase 2 — LINE `/bi <คำถาม>`:** ยังไม่มีโค้ดใน webhook เลย — **ตั้งใจเลื่อนไปทำหลัง Phase 3** (มติผู้ใช้ 2026-07-24, `P2-D6`: ตอนนั้น 15/29 metric ยังเป็น draft เพราะข้อมูลจริงว่าง เอา LINE ไปก่อนผู้ใช้จะเจอ "ยังตอบไม่ได้" บ่อยกว่าตอบได้) — ต้องเพิ่มคำสั่ง `/bi`/`/ถาม` ใน [`api/line/webhook/route.ts`](../apps/perpos/src/app/api/line/webhook/route.ts), ตาราง `bi_line_groups` (mapping กลุ่ม↔org, ยังไม่มีใน migration), Loading Animation API + push Flex KPI card, dedup ต่อ `line_message_id` + rate-limit
+- **Phase 4:** ยังไม่รีวิว `bi_query_log` เป็น loop ปรับปรุง semantic layer (มี item ค้างเล็ก: เส้นทาง `refused` ยังไม่ log `match_score`) · org ที่สอง (บัญชี) ยังไม่เปิด (metric accounting = ไม่ทำใน Phase 1 ตามมติ D3) · ยังไม่มีหน้า admin จัดการ `bi_metrics` (แก้ SQL ยังต้องทำผ่าน migration/สคริปต์มือเท่านั้น — **ตั้งใจ**: ดู §6.2 ข้อผูกพันถาวรเรื่องสิทธิ์เขียน)
 - **Phase 5 — Free-form SQL fallback + Proactive:** ยังไม่ทำทั้งหมด (validator `node-sql-parser`, anomaly alert, cache)
 - **accounting metric (§7.4 ของ contract):** ยังไม่ทำใน Phase 1 ตามมติ D3 — วางไว้ Phase 4 ข้อ 2 (จุดพิสูจน์ shared module) รอ org ที่สองเปิดจริง
 
@@ -407,60 +439,170 @@ D4 (gate G4): กำไร/ต้นทุน/คอมมิชชั่น/ก
 
 ### Migration (`supabase/migrations/`)
 
-| ไฟล์                                                                                                              | เนื้อหา                                                |
-| ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
-| [`20260724090000_bi_schema.sql`](../supabase/migrations/20260724090000_bi_schema.sql)                             | 7 ตาราง + RLS + index + trigger + 4 RPC + REVOKE/GRANT |
-| [`20260724091000_bi_metrics_seed.sql`](../supabase/migrations/20260724091000_bi_metrics_seed.sql)                 | seed 29 metric (draft ทั้งหมด)                         |
-| [`20260724092000_bi_messages_answer_meta.sql`](../supabase/migrations/20260724092000_bi_messages_answer_meta.sql) | คอลัมน์ `bi_messages.answer_meta`                      |
-| [`20260724093000_bi_revoke_trigger_fn.sql`](../supabase/migrations/20260724093000_bi_revoke_trigger_fn.sql)       | REVOKE trigger fn ที่ตกหล่น                            |
-| [`20260724094000_bi_metrics_seed_fix.sql`](../supabase/migrations/20260724094000_bi_metrics_seed_fix.sql)         | แก้ `default_view.period` (BLOCKER-2)                  |
-| `_bi_metric_check.sql` (ไม่ apply อัตโนมัติ)                                                                      | ตรวจเลขจริงบน prod เทียบทุก metric                     |
-| `_bi_activate_metrics.sql` (ไม่ apply อัตโนมัติ)                                                                  | เปิด draft→verified หลังผ่าน 3 เงื่อนไข + rollback     |
+| ไฟล์                                                                                                                  | เนื้อหา                                                                                                                                                                                                                         |
+| --------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`20260724090000_bi_schema.sql`](../supabase/migrations/20260724090000_bi_schema.sql)                                 | 7 ตาราง + RLS + index + trigger + 4 RPC + REVOKE/GRANT                                                                                                                                                                          |
+| [`20260724091000_bi_metrics_seed.sql`](../supabase/migrations/20260724091000_bi_metrics_seed.sql)                     | seed 29 metric (draft ทั้งหมด)                                                                                                                                                                                                  |
+| [`20260724092000_bi_messages_answer_meta.sql`](../supabase/migrations/20260724092000_bi_messages_answer_meta.sql)     | คอลัมน์ `bi_messages.answer_meta`                                                                                                                                                                                               |
+| [`20260724093000_bi_revoke_trigger_fn.sql`](../supabase/migrations/20260724093000_bi_revoke_trigger_fn.sql)           | REVOKE trigger fn ที่ตกหล่น                                                                                                                                                                                                     |
+| [`20260724094000_bi_metrics_seed_fix.sql`](../supabase/migrations/20260724094000_bi_metrics_seed_fix.sql)             | แก้ `default_view.period` (BLOCKER-2)                                                                                                                                                                                           |
+| `_bi_metric_check.sql` (ไม่ apply อัตโนมัติ)                                                                          | ตรวจเลขจริงบน prod เทียบทุก metric                                                                                                                                                                                              |
+| `_bi_activate_metrics.sql` (ไม่ apply อัตโนมัติ)                                                                      | เปิด draft→verified หลังผ่าน 3 เงื่อนไข + rollback                                                                                                                                                                              |
+| [`20260724100000_bi_dashboard_phase3.sql`](../supabase/migrations/20260724100000_bi_dashboard_phase3.sql)             | **Phase 3** — DB1–DB6: `bi_dashboard_items.updated_at`+trigger, `bi_usage_daily.dashboard_count`, CHECK `source` += `dashboard` (2 ตาราง), index `bi_dashboards_owner_idx`, RPC `incr_bi_dashboard_usage`, รัด RLS ให้ตรง P3-D1 |
+| [`20260724101000_bi_dashboard_write_policy.sql`](../supabase/migrations/20260724101000_bi_dashboard_write_policy.sql) | **Phase 3 residual (security review)** — write policy ของ `bi_dashboards`/`bi_dashboard_items` เดิมผูก `is_org_admin` ไม่สมมาตรกับ SELECT ที่เป็น `created_by` → รัดให้เป็นเจ้าของเท่านั้น + เติม REVOKE PUBLIC ที่ตกหล่น       |
 
 ### lib (`apps/perpos/src/lib/bi/`)
 
-| ไฟล์                                                                                         | export หลัก                                                                                                                                                                                                          |
-| -------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `types.ts`                                                                                   | `BiRole`, `MetricStatus`, `ChartType`, `TimeGrain`, `Comparison`, `AnswerStatus`, `AnswerSource`, `BiMetric`, `BiMetricParams`, `BiAnswer`, `BiChartSpec`, `BiThread`, `BiMessage`, `BiDefaultView`, `BiResultShape` |
-| `resolver.ts`                                                                                | `embedQuestion()`, `matchMetrics()`, `resolveOrgScopes()`                                                                                                                                                            |
-| `intent.ts`                                                                                  | `extractIntent()` (Gemini structured output)                                                                                                                                                                         |
-| `runner.ts`                                                                                  | `validateParams()`, `runMetric()`, `classifyRunError()`                                                                                                                                                              |
-| `chart.ts`                                                                                   | `chooseChart()`, `buildChartSpec()`                                                                                                                                                                                  |
-| `answer.ts`                                                                                  | `narrateAnswer()`, `buildDefinitionLine()`, `verifyBulletNumbers()`                                                                                                                                                  |
-| `ask.ts`                                                                                     | `askBi()` — orchestrator 6 สเต็ป                                                                                                                                                                                     |
-| `threads.ts`                                                                                 | `listThreads()`, `getThread()`, `createThread()`, `appendMessage()`, `getThreadPreferences()`, `setThreadPreferences()`, `isThreadOwnedBy()`, `isMessageOwnedBy()`                                                   |
-| `metrics.ts`                                                                                 | `listVisibleMetrics()`                                                                                                                                                                                               |
-| `cost.ts`                                                                                    | `getBiPricing()`, `estimateBiCostUsd()` (mirror `lib/assistant/stt-cost.ts`)                                                                                                                                         |
-| `format.ts`                                                                                  | `formatMetricValue()`                                                                                                                                                                                                |
-| `period.ts`                                                                                  | ช่วยคำนวณ `default_view.period` → ช่วงวันที่จริง                                                                                                                                                                     |
-| `metrics.golden.test.ts` / `metrics.expected.ts`                                             | golden test + ค่าที่ verify กับ prod แล้ว                                                                                                                                                                            |
-| `chart.test.ts` / `format.test.ts` / `period.test.ts` / `history.test.ts` / `engine.test.ts` | เทสหน่วยย่อยของแต่ละไฟล์                                                                                                                                                                                             |
+| ไฟล์                                                                                         | export หลัก                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `types.ts`                                                                                   | `BiRole`, `MetricStatus`, `ChartType`, `TimeGrain`, `Comparison`, `AnswerStatus`, `AnswerSource`, `BiMetric`, `BiMetricParams`, `BiAnswer`, `BiChartSpec`, `BiThread`, `BiMessage`, `BiDefaultView`, `BiResultShape` · **Phase 3**: `BiDashboard`, `BiDashboardItem`, `BiDashboardWithItems`, `BiCardState`, `BiCardResult`, `BiDirectResult`, `BiCompare`, `BiDrillTarget`, `MoveDirection`, `ANSWER_SOURCES += 'dashboard'`, `DEFAULT_DASHBOARD_NAME`, `MAX_DASHBOARDS_PER_USER=10`, `MAX_ITEMS_PER_DASHBOARD=20` |
+| `resolver.ts`                                                                                | `embedQuestion()`, `matchMetrics()`, `resolveOrgScopes()` · **Phase 3 fix (D1)**: `fetchMetricsByKeys()`, `normalizeCandidates()`, `vatCounterpartKey()`                                                                                                                                                                                                                                                                                                                                                            |
+| `intent.ts`                                                                                  | `extractIntent()` (Gemini structured output) · **Phase 3**: `applyPreviousTurn()` (P3-D5 ถามต่อเนื่อง — สืบทอด params ได้เฉพาะ metric เดิม)                                                                                                                                                                                                                                                                                                                                                                         |
+| `runner.ts`                                                                                  | `validateParams()`, `runMetric()`, `classifyRunError()`                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `chart.ts`                                                                                   | `chooseChart()`, `buildChartSpec()`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `answer.ts`                                                                                  | `narrateAnswer()`, `buildDefinitionLine()`, `verifyBulletNumbers()`                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `ask.ts`                                                                                     | `askBi()` — orchestrator 6 สเต็ป · **Phase 3**: เพิ่มบล็อกยิง query เทียบช่วงก่อน (`Promise.all` กับ query หลัก) → เติม field `compare: BiCompare \| null` ใน `BiAnswer` · D1 แก้เป็นไม่มีเงื่อนไข (ดู §7)                                                                                                                                                                                                                                                                                                          |
+| `threads.ts`                                                                                 | `listThreads()`, `getThread()`, `createThread()`, `appendMessage()`, `getThreadPreferences()`, `setThreadPreferences()`, `isThreadOwnedBy()`, `isMessageOwnedBy()` — **ไม่แตะใน Phase 3** ตามแผน (`profileId` ยังบังคับเหมือนเดิม)                                                                                                                                                                                                                                                                                  |
+| `metrics.ts`                                                                                 | `listVisibleMetrics()`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `cost.ts`                                                                                    | `getBiPricing()`, `estimateBiCostUsd()` (mirror `lib/assistant/stt-cost.ts`)                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `format.ts`                                                                                  | `formatMetricValue()`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `period.ts`                                                                                  | ช่วยคำนวณ `default_view.period` → ช่วงวันที่จริง                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `metric-direction.ts` **(ใหม่ Phase 3)**                                                     | `metricDirectionOf()` + `METRIC_DIRECTION` — ทิศทาง "เพิ่มขึ้นดี/ไม่ดี" ต่อ metric สำหรับทาสีแถบเทียบช่วง (ไม่มีคีย์ = กลาง)                                                                                                                                                                                                                                                                                                                                                                                        |
+| `dashboards.ts` **(ใหม่ Phase 3)**                                                           | `listDashboards()`, `getDashboard()`, `createDashboard()`, `renameDashboard()`, `deleteDashboard()`, `ensureDefaultDashboard()`, `pinItem()`, `updateItem()`, `moveItem()`, `deleteItem()`, `isDashboardOwnedBy()` — ทุกตัวรับ `profileId` บังคับ (ท่าเดียวกับ `threads.ts`), `BiDashboardLimitError`                                                                                                                                                                                                               |
+| `run.ts` **(ใหม่ Phase 3)**                                                                  | `runDirect()` (รันการ์ด/drill-down เดี่ยว ไม่มี AI ไม่เขียน `bi_messages`), `runCards()` (`Promise.all`, `CARD_CONCURRENCY=6`), `incrDashboardUsage()`, `BiRunError`, `cardStateFromError()`, `loadRunMetric()`, `DASHBOARD_DAILY_LIMIT=200`                                                                                                                                                                                                                                                                        |
+| `drill.ts` **(ใหม่ Phase 3)**                                                                | `DETAIL_METRIC_BY_SCOPE` (`{gov_procure: 'gov_procure.orders_detail', accounting: null, core: null}`), `detailMetricFor()`, `buildDrillParams()` — คืน `null` ถ้ามิติที่คลิกไม่มีใน `filters` ของ metric รายละเอียด                                                                                                                                                                                                                                                                                                 |
+| `metrics.golden.test.ts` / `metrics.expected.ts`                                             | golden test + ค่าที่ verify กับ prod แล้ว                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| `chart.test.ts` / `format.test.ts` / `period.test.ts` / `history.test.ts` / `engine.test.ts` | เทสหน่วยย่อยของแต่ละไฟล์ · **Phase 3**: เพิ่มเคส comparison ใน `engine.test.ts` + `dashboards.test.ts` / `run.test.ts` / `drill.test.ts` (ใหม่)                                                                                                                                                                                                                                                                                                                                                                     |
 
 ### API (`apps/perpos/src/app/api/bi/`)
 
-| Route                   | Method   | หน้าที่                                                      |
-| ----------------------- | -------- | ------------------------------------------------------------ |
-| `_lib.ts`               | —        | `requireBiMember(req, orgId)` → `{ok,userId,orgId,role,rls}` |
-| `ask/route.ts`          | POST     | orchestrator เต็ม 6 สเต็ป                                    |
-| `threads/route.ts`      | GET/POST | list/create thread                                           |
-| `threads/[id]/route.ts` | GET      | ดูประวัติ thread เดียว                                       |
-| `feedback/route.ts`     | POST     | 👍/👎 ต่อ message                                            |
-| `metrics/route.ts`      | GET      | metric ที่ role นี้เห็นได้ (verified เท่านั้น)               |
+| Route                                                        | Method           | หน้าที่                                                                                    |
+| ------------------------------------------------------------ | ---------------- | ------------------------------------------------------------------------------------------ |
+| `_lib.ts`                                                    | —                | `requireBiMember(req, orgId)` → `{ok,userId,orgId,role,rls}`                               |
+| `ask/route.ts`                                               | POST             | orchestrator เต็ม 6 สเต็ป                                                                  |
+| `threads/route.ts`                                           | GET/POST         | list/create thread                                                                         |
+| `threads/[id]/route.ts`                                      | GET              | ดูประวัติ thread เดียว                                                                     |
+| `feedback/route.ts`                                          | POST             | 👍/👎 ต่อ message                                                                          |
+| `metrics/route.ts`                                           | GET              | metric ที่ role นี้เห็นได้ (verified เท่านั้น)                                             |
+| `dashboards/route.ts` **(ใหม่ Phase 3)**                     | GET/POST         | list แดชบอร์ดของตัวเอง / สร้างใหม่                                                         |
+| `dashboards/[id]/route.ts` **(ใหม่ Phase 3)**                | GET/PATCH/DELETE | ดู 1 แดชบอร์ด+การ์ด / เปลี่ยนชื่อ / ลบ                                                     |
+| `dashboards/[id]/items/route.ts` **(ใหม่ Phase 3)**          | POST             | ปักหมุดการ์ดใหม่                                                                           |
+| `dashboards/[id]/items/[itemId]/route.ts` **(ใหม่ Phase 3)** | PATCH/DELETE     | แก้ชื่อ/params/ย้ายลำดับ (`direction:'up'\|'down'`) / ลบการ์ด                              |
+| `dashboards/[id]/run/route.ts` **(ใหม่ Phase 3)**            | POST             | รันทุกการ์ดในแดชบอร์ดเดียว 1 คำขอ (`Promise.all`, `CARD_CONCURRENCY=6`) — นับโควตา 1 ครั้ง |
+| `run/route.ts` **(ใหม่ Phase 3)**                            | POST             | รัน metric เดี่ยว (เปลี่ยนช่วงเวลา/ฟิลเตอร์บนการ์ด หรือ drill-down) — ไม่มี AI             |
 
 ### หน้าเว็บ (`apps/perpos/src/app/(hydrogen)/[orgSlug]/bi/`)
 
-| ไฟล์                                       | หน้าที่                                                                                                      |
-| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------ |
-| `page.tsx` / `loading.tsx`                 | หน้าแชทหลัก (hybrid: SSR initial thread + client mutation)                                                   |
-| `metrics/page.tsx` / `metrics/loading.tsx` | สารบัญตัวชี้วัด (full SSR)                                                                                   |
-| `_components/guard.ts`                     | `requireBiPage()`, `loadChatInitialData()`, `loadVisibleMetrics()` — service-role only, กรอง `profileId` เอง |
-| `_components/chat-client.tsx`              | client chat state + mutation                                                                                 |
-| `_components/answer-card.tsx`              | AnswerCard ตามสัญญา §4 (5 ส่วน)                                                                              |
-| `_components/chart-renderer.tsx`           | switch ชนิดกราฟ 6 แบบ (Recharts, สี = CSS token)                                                             |
-| `_components/raw-rows.tsx`                 | ตารางดิบพับเก็บ + CSV export                                                                                 |
+| ไฟล์                                                          | หน้าที่                                                                                                                                                                   |
+| ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `page.tsx` / `loading.tsx`                                    | หน้าแชทหลัก (hybrid: SSR initial thread + client mutation)                                                                                                                |
+| `metrics/page.tsx` / `metrics/loading.tsx`                    | สารบัญตัวชี้วัด (full SSR)                                                                                                                                                |
+| `dashboards/page.tsx` / `loading.tsx` **(ใหม่ Phase 3)**      | รายชื่อแดชบอร์ดของตัวเอง (full SSR)                                                                                                                                       |
+| `dashboards/[id]/page.tsx` / `loading.tsx` **(ใหม่ Phase 3)** | 1 แดชบอร์ด + การ์ด (hybrid: SSR โครง+รายการการ์ด → client รันการ์ด/เปลี่ยนฟิลเตอร์)                                                                                       |
+| `_components/guard.ts`                                        | `requireBiPage()`, `loadChatInitialData()`, `loadVisibleMetrics()` — service-role only, กรอง `profileId` เอง · **Phase 3**: `loadDashboardsPage()`, `loadDashboardPage()` |
+| `_components/chat-client.tsx`                                 | client chat state + mutation                                                                                                                                              |
+| `_components/answer-card.tsx`                                 | AnswerCard ตามสัญญา §4 (5 ส่วน) · **Phase 3**: prop optional `onPin?` (ปุ่มปักหมุด — ไม่ส่ง = ไม่มีปุ่ม, viewer ไม่เห็น)                                                  |
+| `_components/chart-renderer.tsx`                              | switch ชนิดกราฟ 6 แบบ (Recharts, สี = CSS token) · **Phase 3**: prop optional `onPointClick?` (drill-down คลิก datapoint — ไม่ส่ง = พฤติกรรมเดิมเป๊ะ)                     |
+| `_components/raw-rows.tsx`                                    | ตารางดิบพับเก็บ + CSV export                                                                                                                                              |
+| `_components/coverage.ts` **(ใหม่ Phase 3)**                  | `coverageOf()`, `coverageNoun()` — สูตร "นับจากกี่ใบ" กลางที่ทั้งหน้าแชทและการ์ดแดชบอร์ดใช้ร่วมกัน (ดูกับดักใน §7)                                                        |
+| `_components/dashboard-list-client.tsx` **(ใหม่ Phase 3)**    | client state ของหน้า list (สร้าง/เปลี่ยนชื่อ/ลบแดชบอร์ด)                                                                                                                  |
+| `_components/dashboard-client.tsx` **(ใหม่ Phase 3)**         | client state ของหน้า detail (รันการ์ด/ย้ายลำดับ/ลบ/เปลี่ยนฟิลเตอร์)                                                                                                       |
+| `_components/dashboard-card.tsx` **(ใหม่ Phase 3)**           | การ์ดเดี่ยว — 4 state (`ok`/`metric_unavailable`/`forbidden`/`error`)                                                                                                     |
+| `_components/pin-dialog.tsx` **(ใหม่ Phase 3)**               | dialog ปักหมุดคำตอบจากหน้าแชทเข้าแดชบอร์ด                                                                                                                                 |
+| `_components/drill-down-dialog.tsx` **(ใหม่ Phase 3)**        | dialog แสดงตาราง drill-down หลังคลิก datapoint                                                                                                                            |
 
 ### อื่น ๆ
 
-- `lib/modules.ts` — entry `bi` (`ALL_MODULES`) + `MODULE_MENUS.bi` (chat/metrics) + `layouts/hydrogen/menu-items.tsx`
+- `lib/modules.ts` — entry `bi` (`ALL_MODULES`) + `MODULE_MENUS.bi` (chat/**dashboards**/metrics — insert ระหว่าง chat กับ metrics) + `layouts/hydrogen/menu-items.tsx` (`buildBiMenuItems`, icon `LayoutDashboard`)
 - `lib/ai/prompts/bi-intent.v1.txt`, `bi-answer.v1.txt` — prompt versioned
 - [`scripts/bi-embed.mjs`](../scripts/bi-embed.mjs) + `pnpm bi:embed` — re-embed metric (label/synonyms/definition)
+
+---
+
+## 11. แดชบอร์ดปักหมุด (Phase 3)
+
+> contract ส่วนต่างของเฟสนี้: [`.claude/feature-factory/specs/bi-dashboard.md`](../.claude/feature-factory/specs/bi-dashboard.md) — ทุกอย่างที่ไม่ได้เขียนที่นี่ให้ยึด [`.claude/module-factory/specs/bi.md`](../.claude/module-factory/specs/bi.md) §4 Phase 3 + §13 (`P3-D1`…`P3-D6`)
+
+### 11.1 flow — ถามในแชท → ปักหมุด → การ์ด
+
+```
+[หน้าแชท /:orgSlug/bi]  AnswerCard มีปุ่ม "ปักหมุด" (onPin, ไม่มีในหน้าประวัติ/viewer)
+        │
+        ▼  POST /api/bi/dashboards/[id]/items  {metricKey, params, chartType?, title?}
+        │  (ครั้งแรก = ensureDefaultDashboard() สร้าง "แดชบอร์ดของฉัน" ให้อัตโนมัติ — Q1 (ii) ใน bi-dashboard.md §6)
+        ▼
+[หน้าแดชบอร์ด /:orgSlug/bi/dashboards/[id]]  เปิดหน้า → POST .../run รันทุกการ์ดในคำขอเดียว
+        │  (Promise.all, CARD_CONCURRENCY=6) → runDirect()/runCards() → runMetric() ตัวเดิมของ Phase 1
+        ▼
+DashboardCard แสดงผล 4 สถานะ: ok / metric_unavailable / forbidden / error
+        │  คลิก datapoint → drill-down: buildDrillParams() → POST /api/bi/run → dialog ตาราง (no_summarize)
+        ▼
+เปลี่ยนช่วงเวลา/ฟิลเตอร์บนการ์ด → POST /api/bi/run ตัวเดียวรันซ้ำ (ไม่มีปุ่ม refresh — P3-D3)
+```
+
+- **2 หน้า + 6 route** (รายชื่อเต็มอยู่ใน §10 Code Map ด้านบน) — หน้า list = full SSR, หน้า detail = hybrid (SSR โครง+รายการการ์ด → client รันการ์ด)
+- **แดชบอร์ดเป็นของส่วนตัว (`P3-D1`)** — เห็นเฉพาะ `created_by` ของตัวเอง ท่าเดียวกับ thread ใน Phase 1 · แชร์ทั้ง org ยังไม่ทำ (Phase 4+)
+- **ไม่มี drag & drop (`P3-D6`)** — เรียงลำดับด้วยปุ่มย้ายขึ้น/ลง (`direction:'up'|'down'`) เท่านั้น — server คำนวณ `position` ใหม่ทั้งแดชบอร์ด (0..n-1) แล้วสลับคู่ที่ติดกัน · เหตุผล: drag lib ยังไม่มีในรีโป, ผู้ใช้จริงมีคนเดียว (p2p-x-89), ROI ต่ำ — คอลัมน์ `layout jsonb` เผื่อไว้แล้วถ้าจะทำทีหลัง
+- **ไม่มีปุ่ม refresh (`P3-D3`)** — การ์ดคำนวณใหม่เองตอนเปิดหน้าและตอนเปลี่ยนช่วงเวลา/ฟิลเตอร์ ตาม DESIGN.md §9 (skeleton ระหว่างรอ ไม่ใช่ปุ่มให้ผู้ใช้กดเอง)
+- **เทียบช่วงก่อน (`P3-D4`, ของค้างจาก Phase 1)** — `ask.ts` เพิ่มบล็อกเดียว: ถ้า `validated.comparePeriod ≠ null` → ยิง `runMetric` ตัวที่สองใน `Promise.all` เดียวกับตัวหลัก แล้วส่ง `compareRows` เข้า `narrateAnswer` · query เทียบ fail = กลืนเป็น `compare:null` (คำตอบหลักเดินต่อ ไม่พังทั้งคำตอบ) · **`yoy` ยังห้ามใช้** (ไม่มีข้อมูลปีก่อน) — ใช้ได้เฉพาะ `prev_period`
+- **ถามต่อเนื่องในเธรด (`P3-D5`)** — `applyPreviousTurn()` สืบทอด params ได้เฉพาะเมื่อ `metric_key` **เดียวกับเทิร์นก่อน** เท่านั้น (metric ต่างกัน = คำถามใหม่ ห้ามสืบทอดอะไรเลย) · สืบทอดได้เฉพาะ `period`/`time_grain`/`dimension`/`filters` ที่อยู่ใน allowlist ของ metric ปัจจุบัน · ฐาน VAT ยังยึด `bi_threads.preferences` ตาม D1 เดิม (ไม่เปลี่ยน)
+
+### 11.2 โควตาการ์ดแยกจากคำถาม (`P3-D2`)
+
+การ์ดในแดชบอร์ด **ไม่เรียก AI เลย** (รู้ metric+params อยู่แล้ว ไม่ต้อง embed/intent/narrate) — ถ้าใช้โควตาเดียวกับคำถาม AI จะเกิดปัญหาจริง 2 ชั้น:
+
+1. **เผาโควตาโดยไม่จำเป็น** — แดชบอร์ด 8 การ์ด = เท่ากับ 8 คำถามถ้านับรวม → เปิดแค่ **6 รอบ** โควตา 50 คำถาม/วันก็หมดแล้ว ทั้งที่การ์ดไม่ได้เรียก LLM สักครั้ง
+2. **ปน log กับคำถามจริง** — ถ้าการ์ดเขียนลง `bi_query_log` ด้วย `source` เดียวกับคำถามจริง จะทำให้ loop ปรับปรุงนิยาม semantic layer ของ Phase 4 ("คำถามที่หาไม่เจอ/โดน 👎") **อ่านข้อมูลเพี้ยน** เพราะปนคำถามที่ไม่ใช่ของจริง
+
+**กลไกที่ใช้แก้ (2 ชั้น แยกกันเด็ดขาดจากโควตา AI เดิม):**
+
+- คอลัมน์ใหม่ `bi_usage_daily.dashboard_count` — คนละมิเตอร์กับ `count` (โควตาคำถาม AI เดิม) เด็ดขาด · นับผ่าน RPC ใหม่ `incr_bi_dashboard_usage(p_org_id, p_profile_id, p_daily_limit=200)` (SECURITY DEFINER, `service_role` เท่านั้น) — **นับต่อการเปิดหน้า/ต่อคำขอ ไม่ใช่ต่อการ์ด** (เปิดแดชบอร์ด 8 การ์ด = เรียก `.../run` ครั้งเดียว = +1 ครั้งเดียว ไม่ใช่ +8)
+- `bi_query_log.source` และ `bi_messages.source` ขยาย CHECK ให้รับค่า **`'dashboard'`** เพิ่มจาก `'web'|'line'` เดิม — log ของการ์ด: `source='dashboard'`, `question` = `metric_key` (ไม่ใช่ข้อความผู้ใช้), `token_in/out=0`, `cost_usd=0` → Phase 4 กรอง `source='web'` เพื่อดู loop คำถามจริงได้โดยไม่ปนการ์ด
+- **การ์ด/drill-down ห้ามเรียก `incr_bi_usage` เด็ดขาด** และห้ามผ่าน `askBi()` — เดินผ่าน `runDirect()`/`runCards()` เท่านั้น (คนละไฟล์กับ orchestrator ของคำถามจริง) · เทสยืนยันแล้วว่าเปิดแดชบอร์ด 8 การ์ด → `bi_usage_daily.count` ไม่ขยับ, `dashboard_count` +1 เท่านั้น
+- **fail-closed ยกเว้นกรณีฟังก์ชันยังไม่มีจริง** — ถ้า `incr_bi_dashboard_usage` RAISE (เช่น org_id/profile_id เป็น null) ให้ปฏิเสธการรันการ์ด ไม่ใช่ปล่อยผ่านเงียบ ๆ; ข้อยกเว้นเดียวคือช่วงก่อน migration apply (ฟังก์ชันยังไม่มีอยู่จริงในสภาพแวดล้อม) ซึ่งไม่ใช่ path ของ prod หลัง G1
+
+### 11.3 ของค้าง/ข้อจำกัดที่รู้ตัว (เขียนตรง ๆ ไม่กลบ)
+
+- **drill-down ใช้กับการ์ด `by_company_*` ไม่ได้** — metric กลุ่ม `by_company_incl_vat`/`_excl_vat` จัดกลุ่ม (`GROUP BY company`) ไว้ตายตัวใน SQL template ไม่มี "มิติ runtime" ให้ map กลับไปยัง filter ของ `orders_detail` ได้ (`buildDrillParams()` คืน `null` → UI ไม่แสดงปุ่มคลิกสำหรับการ์ดกลุ่มนี้) — ต้องแก้ที่นิยาม metric เอง ไม่ใช่บั๊กของ drill-down layer
+- **`BiAnswer.compare` ยังไม่มีผู้บริโภคฝั่ง UI ครบ** — field มีจริงและคำนวณจริงแล้ว (เผื่อ LINE Phase 2 ที่ต้องโชว์ delta แบบย่อ) แต่หน้าแชท/การ์ดปัจจุบันใช้แค่บางส่วน (แถบสีตาม `metric-direction.ts`) — ยังไม่ใช่การ visualize เต็มรูปแบบ
+- **`bi_dashboards.updated_at` ไม่ขยับเมื่อแก้เฉพาะการ์ด** — trigger `set_updated_at` ผูกกับตาราง `bi_dashboards` เอง ไม่ได้ cascade จาก `bi_dashboard_items` (ที่มี `updated_at` ของตัวเองแยกต่างหาก จาก DB1) — ถ้าจะเรียงหน้า list ตาม "แก้ล่าสุด" รวมการแก้การ์ดด้วย ต้องดึงจากทั้งสองตารางมา coalesce เอง ยังไม่ได้ทำ
+- **เปลี่ยนช่วงเวลา = 2 round trip** — เปลี่ยนช่วง/ฟิลเตอร์บนการ์ด: (1) client อัปเดต params ในสถานะ local (2) เรียก `/api/bi/run` แยกต่างหาก — ไม่ได้ persist params ใหม่ลง `bi_dashboard_items` อัตโนมัติ (ต้องกด "บันทึก" แยกผ่าน PATCH items เพื่อให้ค่าติดถาวร) ผู้ใช้ที่ไม่กดบันทึกแล้ว refresh หน้าจะเห็นค่า params เดิมกลับมา
+- **เพดานจำนวนแดชบอร์ด/การ์ดเป็น read-then-write ไม่ atomic** — `createDashboard()`/`pinItem()` เช็ค `existing.length >= MAX_*` ก่อนแล้วค่อย insert (ไม่ใช่ constraint ระดับ DB) — เปิดพร้อมกันหลายแท็บในเวลาไล่เลี่ยกันอาจแทรกเกิน limit ไปเล็กน้อยได้ในทางทฤษฎี (ผู้ใช้จริงมีคนเดียวต่อ org ตอนนี้ ความเสี่ยงต่ำมาก แต่ไม่ใช่ atomic โดยโครงสร้าง)
+
+### 11.4 Runbook — migration ที่ apply prod แล้ว + rollback
+
+**apply แล้ว (2 ไฟล์ ต่อจาก Phase 1):**
+
+1. [`20260724100000_bi_dashboard_phase3.sql`](../supabase/migrations/20260724100000_bi_dashboard_phase3.sql) — DB1–DB6 (§10 Code Map) idempotent ทั้งหมด
+2. [`20260724101000_bi_dashboard_write_policy.sql`](../supabase/migrations/20260724101000_bi_dashboard_write_policy.sql) — แก้ residual จาก security review: write policy เดิมผูก `is_org_admin` ไม่สมมาตรกับ SELECT ที่เป็น `created_by` (ความเสี่ยงแฝง: ถ้าวันหนึ่ง GRANT กลับคืน `authenticated` org admin คนใดก็แก้แดชบอร์ดส่วนตัวของคนอื่นได้) + เติม `REVOKE ... FROM PUBLIC` ที่ตกหล่นจากไฟล์ Phase 1
+
+**query ตรวจหลัง apply (มือ):**
+
+```sql
+-- CHECK ใหม่ต้องมี 'web','line','dashboard' ครบทั้ง 2 ตาราง
+SELECT conrelid::regclass, conname, pg_get_constraintdef(oid)
+  FROM pg_constraint
+ WHERE conname IN ('bi_query_log_source_chk','bi_messages_source_chk');
+
+-- policy ของ dashboard/item ต้องสมมาตร (ไม่มี is_org_admin เหลืออยู่)
+SELECT tablename, policyname, cmd, qual, with_check FROM pg_policies
+ WHERE tablename IN ('bi_dashboards','bi_dashboard_items') ORDER BY tablename, policyname;
+
+-- ACL ของ RPC ใหม่ต้องเหลือแค่ postgres|service_role
+SELECT proname, proacl FROM pg_proc WHERE proname = 'incr_bi_dashboard_usage';
+
+-- โควตาแยกกันจริง (การ์ดไม่กินโควตาคำถาม)
+SELECT public.incr_bi_dashboard_usage(:org, :profile, 200);
+SELECT count, dashboard_count FROM bi_usage_daily
+ WHERE org_id = :org AND profile_id = :profile AND day = CURRENT_DATE;
+-- คาดหวัง: count เท่าเดิม · dashboard_count +1
+```
+
+**Rollback (ซ่อนเมนู ไม่ต้อง DROP — ท่าเดียวกับ §8.4):**
+
+1. **ซ่อนเมนูเร็วที่สุด (ไม่กระทบ Phase 1):** เอาบรรทัด `{ key: "dashboards", label: "แดชบอร์ด" }` ออกจาก `MODULE_MENUS.bi` ชั่วคราว — ข้อมูลอยู่ครบ, chat/metrics ใช้งานปกติ
+2. **ปิดเฉพาะการปักหมุดใหม่:** ปิด route `POST /api/bi/dashboards/[id]/items` ที่ config level (หรือ feature-flag) — ของเดิมที่ปักหมุดไว้แล้วยังดูได้ แค่ปักเพิ่มไม่ได้
+3. **ถอด column/RPC ใหม่ (ระดับ DB, ทำเมื่อมั่นใจว่าไม่มีใครใช้แล้ว):** `DROP FUNCTION incr_bi_dashboard_usage` · `ALTER TABLE bi_usage_daily DROP COLUMN dashboard_count` · `ALTER TABLE bi_dashboard_items DROP COLUMN updated_at` · CHECK ของ `source` **ห้าม** rollback กลับเหลือ `web|line` ถ้ายังมีแถวเก่าที่เป็น `dashboard` อยู่ (จะ insert ไม่ผ่านทันที — ต้องลบ/migrate แถวก่อน)
+4. **ถอดทั้ง Phase 3:** ตาราง `bi_dashboards`/`bi_dashboard_items` เป็นของเดิมตั้งแต่ Phase 1 (ยังไม่มีใครใช้ตอนนั้น) — จะ `DROP TABLE` ทั้งคู่ได้โดยไม่กระทบ chat/metrics ของ Phase 1 เลย เพราะเป็นตารางคนละชุด (ไม่มี FK ไขว้)
+
+---

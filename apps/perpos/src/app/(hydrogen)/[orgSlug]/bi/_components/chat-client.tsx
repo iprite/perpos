@@ -17,8 +17,15 @@ import { Text, Title } from "@/components/ui/typography";
 import { CustomSelect } from "@/components/ui/custom-select";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { notify } from "@/lib/toast";
-import type { BiAnswer, BiMessage, BiMetricSummary, BiThread } from "@/lib/bi/types";
+import {
+  isChartType,
+  type BiAnswer,
+  type BiMessage,
+  type BiMetricSummary,
+  type BiThread,
+} from "@/lib/bi/types";
 import { AnswerCard } from "./answer-card";
+import { PinDialog, type PinPayload } from "./pin-dialog";
 import cn from "@core/utils/class-names";
 
 export interface ChatTurn {
@@ -143,6 +150,8 @@ export function ChatClient(props: ChatClientProps) {
   const [switching, setSwitching] = React.useState(false);
   const bottomRef = React.useRef<HTMLDivElement | null>(null);
   const askedInitial = React.useRef(false);
+  /** คำตอบที่กำลังจะปักหมุด (Phase 3) — null = กล่องปิดอยู่ */
+  const [pinPayload, setPinPayload] = React.useState<PinPayload | null>(null);
 
   React.useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
@@ -359,6 +368,20 @@ export function ChatClient(props: ChatClientProps) {
                       ? (v, note) => void sendFeedback(turn.answer!.messageId, v, note)
                       : undefined
                   }
+                  // ปักหมุดได้เฉพาะคำตอบที่ตอบสำเร็จจริง และเฉพาะบทบาทที่เขียนได้
+                  onPin={
+                    canWrite && turn.answer.status === "answered" && turn.answer.metric
+                      ? () =>
+                          setPinPayload({
+                            metricKey: turn.answer!.metric!.key,
+                            params: turn.answer!.params ?? {},
+                            chartType: isChartType(turn.answer!.chart?.type)
+                              ? turn.answer!.chart!.type
+                              : null,
+                            defaultTitle: turn.answer!.metric!.label_th,
+                          })
+                      : undefined
+                  }
                   disabled={busy}
                 />
               ) : null}
@@ -400,6 +423,13 @@ export function ChatClient(props: ChatClientProps) {
           </Button>
         </div>
       </div>
+
+      <PinDialog
+        orgId={orgId}
+        orgSlug={props.orgSlug}
+        payload={pinPayload}
+        onClose={() => setPinPayload(null)}
+      />
     </div>
   );
 }

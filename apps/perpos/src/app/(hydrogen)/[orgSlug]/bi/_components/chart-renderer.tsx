@@ -31,6 +31,7 @@ import { collapseToTopN } from "@/lib/bi/chart";
 import { formatMetricValue } from "@/lib/bi/format";
 import type { BiChartSpec } from "@/lib/bi/types";
 import { Text } from "@/components/ui/typography";
+import { Button } from "@/components/ui/button";
 import { StatCard } from "@/components/ui/stat-card";
 import {
   Table,
@@ -87,15 +88,21 @@ function useValueFormatter(spec: BiChartSpec) {
   );
 }
 
+/** คลิกจุดบนกราฟ (drill-down · Phase 3) — ไม่ส่ง prop นี้ = พฤติกรรมเดิมทุกประการ */
+export type ChartPointClick = (point: { value: string }) => void;
+
 export function ChartRenderer({
   spec,
   rows,
   emptyMessage = "ไม่มีข้อมูลในช่วงที่เลือก",
+  onPointClick,
 }: {
   spec: BiChartSpec;
   rows: Row[];
   /** ข้อความเมื่อไม่มีแถว — เคสประวัติที่ไม่เก็บข้อมูลรายแถวต้องสื่อให้ตรง ไม่ใช่ "ไม่มีข้อมูล" */
   emptyMessage?: string;
+  /** optional (R7) — มีเมื่อการ์ดเจาะลงรายการได้เท่านั้น */
+  onPointClick?: ChartPointClick;
 }) {
   const fmt = useValueFormatter(spec);
 
@@ -122,15 +129,15 @@ export function ChartRenderer({
     case "line":
       return <LineChartView spec={spec} rows={data} fmt={fmt} />;
     case "donut":
-      return <DonutChartView spec={spec} rows={data} fmt={fmt} />;
+      return <DonutChartView spec={spec} rows={data} fmt={fmt} onPointClick={onPointClick} />;
     case "funnel":
-      return <FunnelView spec={spec} rows={data} fmt={fmt} />;
+      return <FunnelView spec={spec} rows={data} fmt={fmt} onPointClick={onPointClick} />;
     case "heatmap":
       return <HeatmapView spec={spec} rows={data} fmt={fmt} />;
     case "stacked_bar":
       return <BarChartView spec={spec} rows={data} fmt={fmt} stacked />;
     case "bar":
-      return <BarChartView spec={spec} rows={data} fmt={fmt} />;
+      return <BarChartView spec={spec} rows={data} fmt={fmt} onPointClick={onPointClick} />;
     case "table":
     default:
       return <ChartTableView spec={spec} rows={data} fmt={fmt} />;
@@ -203,7 +210,13 @@ function LineChartView({ spec, rows, fmt }: ViewProps) {
 
 // ─── bar / stacked bar ─────────────────────────────────────────────────────
 
-function BarChartView({ spec, rows, fmt, stacked }: ViewProps & { stacked?: boolean }) {
+function BarChartView({
+  spec,
+  rows,
+  fmt,
+  stacked,
+  onPointClick,
+}: ViewProps & { stacked?: boolean; onPointClick?: ChartPointClick }) {
   // ชื่อหมวดไทยยาว → แนวนอน (§3.3)
   const horizontal = !stacked && rows.some((r) => labelOf(r, spec.x).length > LONG_LABEL_CHARS);
 
@@ -215,6 +228,15 @@ function BarChartView({ spec, rows, fmt, stacked }: ViewProps & { stacked?: bool
         data={rows}
         layout={horizontal ? "vertical" : "horizontal"}
         margin={{ top: 8, right: 16, bottom: 4, left: horizontal ? 8 : 4 }}
+        style={onPointClick ? { cursor: "pointer" } : undefined}
+        onClick={
+          onPointClick
+            ? (state) => {
+                const label = (state as { activeLabel?: string | number } | null)?.activeLabel;
+                if (label !== undefined && label !== null) onPointClick({ value: String(label) });
+              }
+            : undefined
+        }
       >
         <CartesianGrid
           strokeDasharray="3 3"
@@ -277,11 +299,16 @@ function BarChartView({ spec, rows, fmt, stacked }: ViewProps & { stacked?: bool
 
 // ─── donut ─────────────────────────────────────────────────────────────────
 
-function DonutChartView({ spec, rows, fmt }: ViewProps) {
+function DonutChartView({
+  spec,
+  rows,
+  fmt,
+  onPointClick,
+}: ViewProps & { onPointClick?: ChartPointClick }) {
   const key = spec.series[0]?.key ?? "";
   return (
     <ChartFrame height={260}>
-      <PieChart>
+      <PieChart style={onPointClick ? { cursor: "pointer" } : undefined}>
         <Tooltip formatter={(v) => fmt(v as number)} />
         <Legend wrapperStyle={{ fontSize: 12 }} />
         <Pie
@@ -296,6 +323,7 @@ function DonutChartView({ spec, rows, fmt }: ViewProps) {
             <Cell
               key={`${labelOf(r, spec.x)}-${i}`}
               fill={SERIES_COLORS[i % SERIES_COLORS.length]}
+              onClick={onPointClick ? () => onPointClick({ value: labelOf(r, spec.x) }) : undefined}
             />
           ))}
         </Pie>
@@ -306,7 +334,12 @@ function DonutChartView({ spec, rows, fmt }: ViewProps) {
 
 // ─── funnel (แถบลด — pipeline ตามลำดับขั้น) ─────────────────────────────────
 
-function FunnelView({ spec, rows, fmt }: ViewProps) {
+function FunnelView({
+  spec,
+  rows,
+  fmt,
+  onPointClick,
+}: ViewProps & { onPointClick?: ChartPointClick }) {
   const key = spec.series[0]?.key ?? "";
   const max = Math.max(...rows.map((r) => Math.abs(numberOf(r, key))), 1);
 
@@ -315,10 +348,11 @@ function FunnelView({ spec, rows, fmt }: ViewProps) {
       {rows.map((r, i) => {
         const value = numberOf(r, key);
         const pct = Math.max(2, Math.round((Math.abs(value) / max) * 100));
-        return (
-          <div key={`${labelOf(r, spec.x)}-${i}`} className="space-y-1">
-            <div className="flex items-baseline justify-between gap-3">
-              <Text className="truncate text-sm text-gray-700">{labelOf(r, spec.x)}</Text>
+        const label = labelOf(r, spec.x);
+        const body = (
+          <>
+            <div className="flex w-full items-baseline justify-between gap-3">
+              <Text className="truncate text-sm text-gray-700">{label}</Text>
               <Text className={cn("shrink-0 text-sm text-gray-900", numberClass(spec.unit))}>
                 {fmt(value)}
               </Text>
@@ -329,6 +363,22 @@ function FunnelView({ spec, rows, fmt }: ViewProps) {
                 style={{ width: `${pct}%` }}
               />
             </div>
+          </>
+        );
+
+        // ไม่ส่ง `onPointClick` = โครงเดิมเป๊ะ (div ธรรมดา ไม่มี hover/handler)
+        return onPointClick ? (
+          <Button
+            key={`${label}-${i}`}
+            variant="ghost"
+            onClick={() => onPointClick({ value: label })}
+            className="h-auto w-full flex-col items-stretch gap-1 px-2 py-1.5"
+          >
+            {body}
+          </Button>
+        ) : (
+          <div key={`${label}-${i}`} className="space-y-1">
+            {body}
           </div>
         );
       })}

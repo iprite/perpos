@@ -18,6 +18,7 @@ import {
   CircleAlert,
   HelpCircle,
   Lightbulb,
+  Pin,
   RotateCcw,
   ShieldAlert,
   SquareTerminal,
@@ -32,6 +33,7 @@ import { StatusBadge } from "@/components/ui/badge";
 import type { BiAnswer, BiMetricSummary } from "@/lib/bi/types";
 import { ChartRenderer } from "./chart-renderer";
 import { RawRows } from "./raw-rows";
+import { type Coverage, coverageNoun, coverageOf } from "./coverage";
 import cn from "@core/utils/class-names";
 
 export interface AnswerCardProps {
@@ -49,6 +51,12 @@ export interface AnswerCardProps {
   /** ให้คะแนนคำตอบ (viewer = undefined → ไม่แสดงปุ่ม) */
   onFeedback?: (value: "up" | "down", note?: string) => void;
   feedback?: "up" | "down" | null;
+  /**
+   * ปักหมุดคำตอบเป็นการ์ดบนแดชบอร์ด (Phase 3) — **optional (R7)**
+   * ไม่ส่ง = ไม่มีปุ่ม (viewer / หน้าประวัติเดิมไม่เปลี่ยนพฤติกรรม)
+   * แสดงเฉพาะสถานะ `answered` ที่มี metric เท่านั้น
+   */
+  onPin?: () => void;
   disabled?: boolean;
 }
 
@@ -75,6 +83,7 @@ function AnsweredCard({
   answer,
   onAsk,
   onFeedback,
+  onPin,
   feedback,
   disabled,
   createdAt,
@@ -94,11 +103,19 @@ function AnsweredCard({
           ) : (
             <span />
           )}
-          {createdAt ? (
-            <Text className="shrink-0 text-xs text-gray-500">
-              ถามเมื่อ {formatThaiDateTime(createdAt)}
-            </Text>
-          ) : null}
+          <div className="flex shrink-0 items-center gap-2">
+            {createdAt ? (
+              <Text className="text-xs text-gray-500">
+                ถามเมื่อ {formatThaiDateTime(createdAt)}
+              </Text>
+            ) : null}
+            {onPin && answer.metric ? (
+              <Button size="sm" variant="outline" disabled={disabled} onClick={onPin}>
+                <Pin className="mr-1.5 h-4 w-4" />
+                ปักหมุด
+              </Button>
+            ) : null}
+          </div>
         </div>
         <ul className="space-y-1.5">
           {answer.answer.bullets.map((b, i) => (
@@ -152,43 +169,14 @@ function AnsweredCard({
   );
 }
 
-// ─── ความครอบคลุมของตัวเลข (นับจากกี่รายการ / กี่รายการที่กรอกราคาแล้ว) ────
-
-interface Coverage {
-  orderCount: number;
-  pricedCount: number | null;
-}
-
-/**
- * รวม `order_count` / `priced_count` จากทุกแถวของผลลัพธ์
- * — กับดัก D1: ยอด "รวม VAT" นับเฉพาะใบที่กรอกราคาแล้ว ขณะที่ "ก่อน VAT" ครบทุกใบ
- *   ถ้าไม่บอกจำนวนใบ ผู้ใช้จะเอาสองยอดมาลบกันแล้วเข้าใจว่าเป็นภาษี ซึ่งผิด
- */
-function coverageOf(rows: Array<Record<string, unknown>>): Coverage | null {
-  if (!rows || rows.length === 0) return null;
-  const sum = (key: string): number | null => {
-    let total = 0;
-    let found = false;
-    for (const r of rows) {
-      const v = r[key];
-      if (typeof v === "number" && Number.isFinite(v)) {
-        total += v;
-        found = true;
-      }
-    }
-    return found ? total : null;
-  };
-
-  const orderCount = sum("order_count");
-  if (orderCount === null) return null;
-  return { orderCount, pricedCount: sum("priced_count") };
-}
+// ─── ความครอบคลุมของตัวเลข (นับจากกี่รายการ / กี่รายการที่กรอกค่าแล้ว) ────
+// สูตรอยู่ที่ `./coverage` ที่เดียว → หน้าแชทกับการ์ดแดชบอร์ดได้ผลตรงกันเสมอ
 
 const intFmt = new Intl.NumberFormat("en-US");
 
-function CoverageLine({ coverage }: { coverage: Coverage }) {
-  const { orderCount, pricedCount } = coverage;
-  const incomplete = pricedCount !== null && pricedCount < orderCount;
+export function CoverageLine({ coverage }: { coverage: Coverage }) {
+  const { orderCount, filledCount, kind } = coverage;
+  const incomplete = filledCount !== null && filledCount < orderCount;
 
   // เซลล์ผสมเลข+คำไทย → tabular-nums เท่านั้น ห้าม font-mono (DESIGN §5 ข้อ 8)
   if (!incomplete) {
@@ -199,14 +187,15 @@ function CoverageLine({ coverage }: { coverage: Coverage }) {
     );
   }
 
+  const noun = coverageNoun(kind);
   return (
     <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
       <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
       <Text className="text-xs tabular-nums leading-5 text-amber-700">
-        นับจาก {intFmt.format(pricedCount as number)} รายการที่กรอกราคาแล้ว (จากทั้งหมด{" "}
+        นับจาก {intFmt.format(filledCount as number)} รายการที่กรอก{noun}แล้ว (จากทั้งหมด{" "}
         {intFmt.format(orderCount)} รายการ) — อีก{" "}
-        {intFmt.format(orderCount - (pricedCount as number))}{" "}
-        รายการยังไม่กรอกราคาจึงไม่ถูกรวมในยอดนี้
+        {intFmt.format(orderCount - (filledCount as number))} รายการยังไม่กรอก{noun}
+        จึงไม่ถูกรวมในยอดนี้
       </Text>
     </div>
   );

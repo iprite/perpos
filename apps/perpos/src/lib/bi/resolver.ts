@@ -161,31 +161,60 @@ async function withVatCounterparts(
   }
   if (missing.size === 0 || scopes.length === 0) return candidates;
 
-  const { data, error } = await admin
-    .from("bi_metrics")
-    .select(
-      "key, label_th, definition_th, synonyms, dimensions, time_grains, comparisons, filters, default_view, chart_hint, unit, param_schema, max_period_months, no_summarize",
-    )
-    .in("key", Array.from(missing.keys()))
-    .eq("status", "verified")
-    .in("module_scope", scopes)
-    .contains("allowed_roles", [role]);
-
-  if (error) {
+  let rows: Array<Record<string, unknown>>;
+  try {
+    rows = await fetchMetricsByKeys({
+      admin,
+      keys: Array.from(missing.keys()),
+      scopes,
+      role,
+    });
+  } catch (e) {
     // ไม่ใช่เรื่องคอขาดบาดตาย — เสียแค่โอกาสถามกลับ ไม่ควรทำให้ทั้งคำถามล้ม
-    console.error("[bi] withVatCounterparts failed:", error.message);
+    // (ด่าน D1 ใน ask.ts ดึงคู่เองอีกชั้นและ fail-closed อยู่แล้ว)
+    console.error("[bi] withVatCounterparts failed:", (e as Error).message);
     return candidates;
   }
 
   const extra = normalizeCandidates(
-    (data ?? []).map((row) => {
-      const r = row as Record<string, unknown>;
-      // similarity ต่ำกว่าพี่น้องเล็กน้อย: อยู่ในชุดให้ D1 เห็น แต่ไม่แย่งอันดับหนึ่ง
-      return { ...r, similarity: Math.max((missing.get(String(r.key)) ?? 0) - 0.001, 0) };
-    }),
+    // similarity ต่ำกว่าพี่น้องเล็กน้อย: อยู่ในชุดให้ D1 เห็น แต่ไม่แย่งอันดับหนึ่ง
+    rows.map((r) => ({ ...r, similarity: Math.max((missing.get(String(r.key)) ?? 0) - 0.001, 0) })),
   );
 
   return [...candidates, ...extra];
+}
+
+export interface FetchMetricsByKeysInput {
+  admin: Admin;
+  keys: string[];
+  scopes: ModuleScope[];
+  role: BiRole;
+}
+
+/**
+ * ดึง metric ตาม key ตรง ๆ ด้วย **filter ชุดเดียวกับ retrieval** (verified + scope ของ org
+ * + role ของผู้ถาม) → ไม่เปิดช่องให้เห็น metric นอกสิทธิ์
+ *
+ * ใช้สองที่: เติมคู่ VAT ที่หลุด top-N (`withVatCounterparts`) และด่าน D1 ใน `ask.ts`
+ * ที่ต้องประกอบตัวเลือกให้ผู้ใช้เลือกฐานมูลค่า · **throw เมื่อ DB error** — ผู้เรียกตัดสินใจเอง
+ * ว่าจะกลืนหรือ fail-closed (D1 ต้อง fail-closed = ยังถามกลับ ห้ามตอบเลข)
+ */
+export async function fetchMetricsByKeys(
+  input: FetchMetricsByKeysInput,
+): Promise<Array<Record<string, unknown>>> {
+  if (input.keys.length === 0 || input.scopes.length === 0) return [];
+  const { data, error } = await input.admin
+    .from("bi_metrics")
+    .select(
+      "key, label_th, definition_th, synonyms, dimensions, time_grains, comparisons, filters, default_view, chart_hint, unit, param_schema, max_period_months, no_summarize",
+    )
+    .in("key", input.keys)
+    .eq("status", "verified")
+    .in("module_scope", input.scopes)
+    .contains("allowed_roles", [input.role]);
+
+  if (error) throw new Error(`bi_metrics by key: ${error.message}`);
+  return (data ?? []) as Array<Record<string, unknown>>;
 }
 
 /** PostgREST คืน jsonb เป็น unknown — normalize ให้ตรง type ก่อนใช้ */
