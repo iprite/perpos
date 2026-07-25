@@ -732,6 +732,36 @@ describe("askBi — สถานะและ payload (§6.4)", () => {
     expect(text).not.toContain("embedding");
   });
 
+  it("ตอบไม่ได้ → log คะแนนของตัวที่ใกล้ที่สุด แต่ไม่ผูก metric กับข้อความ (Phase 4)", async () => {
+    const { client, inserted } = makeAdmin();
+
+    const res = await askBi(baseInput, {
+      ...baseDeps(client),
+      matchMetrics: async () => [], // ไม่มีตัวไหนผ่าน MIN_SIMILARITY
+      listVisibleMetrics: async () => [],
+      checkIndexHealth: async () => ({ visible: 3, embedded: 3 }),
+      probeNearestMetric: async () => ({ key: metric.key, similarity: 0.57 }),
+    });
+
+    expect(res.status).toBe("no_match");
+
+    // 1) log ต้องมีคะแนนจริง — ไม่งั้นปรับเกณฑ์ (§3.2.1) โดยไม่มีฐานตัวเลข
+    const log = inserted.find((i) => i.table === "bi_query_log")!.payload as Record<
+      string,
+      unknown
+    >;
+    expect(log.match_score).toBe(0.57);
+    expect(log.matched_metric_key).toBe(metric.key);
+    expect(log.answer_status).toBe("no_match");
+
+    // 2) แต่ข้อความต้อง **ไม่** ผูก metric — `lastAssistantTurn()` อ่านช่องนี้เป็นบริบทเทิร์นก่อน
+    //    ถ้าหลุดไป เทิร์นที่ตอบไม่ได้จะกลายเป็น "เทิร์นก่อนหน้าเรื่อง metric นี้" ทั้งที่ไม่เคยรัน
+    const msgs = inserted.filter((i) => i.table === "bi_messages");
+    for (const m of msgs) {
+      expect((m.payload as Record<string, unknown>).metric_key ?? null).toBeNull();
+    }
+  });
+
   it("params นอก allowlist ที่หลุดมาถึง runner → error (ไม่ยิง SQL)", async () => {
     const { client } = makeAdmin();
     const runSpy = vi.fn(async () => runResult());
