@@ -16,6 +16,8 @@ import type { BiDrillTarget, BiMetricParams, ModuleScope } from "./types";
 export const DETAIL_METRIC_BY_SCOPE: Record<ModuleScope, string | null> = {
   gov_procure: "gov_procure.orders_detail",
   accounting: null,
+  // tmc ชุดแรกเป็น metric สรุปล้วน (ยังไม่มี metric ระดับรายการ) → เจาะลึกจากกราฟไม่ได้
+  tmc: null,
   core: null,
 };
 

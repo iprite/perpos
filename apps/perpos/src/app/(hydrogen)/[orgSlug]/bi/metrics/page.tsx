@@ -20,6 +20,7 @@ import { loadVisibleMetrics, requireBiPage } from "../_components/guard";
 const SCOPE_LABEL: Record<ModuleScope, string> = {
   gov_procure: "จัดซื้อครุภัณฑ์ภาครัฐ",
   accounting: "บัญชีและภาษี",
+  tmc: "ที่พัก/บ้านพัก (TMC)",
   core: "ข้อมูลทั่วไป",
 };
 

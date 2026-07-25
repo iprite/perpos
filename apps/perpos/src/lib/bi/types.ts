@@ -46,7 +46,7 @@ export type AnswerSource = (typeof ANSWER_SOURCES)[number];
 export const ANSWER_STATUSES = ["answered", "clarify", "no_match", "refused", "error"] as const;
 export type AnswerStatus = (typeof ANSWER_STATUSES)[number];
 
-export const MODULE_SCOPES = ["gov_procure", "accounting", "core"] as const;
+export const MODULE_SCOPES = ["gov_procure", "accounting", "tmc", "core"] as const;
 export type ModuleScope = (typeof MODULE_SCOPES)[number];
 
 /** หน่วยของ measure (`bi_metrics.unit`) */
