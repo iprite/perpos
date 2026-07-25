@@ -482,10 +482,12 @@ D4 (gate G4): กำไร/ต้นทุน/คอมมิชชั่น/ก
 
 **ผลตรวจเลขจริง (2026-07-25 · `run_bi_metric` vs `computeTmcDashboard`): ตรงทั้ง 12/12** — รายรับ 5,100,738.94 · รายจ่าย 3,120,114.81 · กำไร 1,980,624.13 · เงินสดย่อยจ่าย 439,507.50 / เติม 450,000.00 · เข้าพัก 203 ครั้ง 315 คืน · ค่าห้อง 6,857,824.11 · อาหาร 49,917.10 · ADR 21,770.87 · เฉลี่ย 1.55 คืน · ผลรวมแยกรายแปลง/รายเดือน = ยอดรวมก้อนเดียว · ยิงจาก org อื่นด้วย metric `tmc.*` ได้ 0 (tenant isolation ผ่าน)
 
-**ขั้นตอนที่เหลือก่อนใช้งานจริง (ต้องมีคนตัดสินใจ ห้าม agent ทำเอง):**
+**สถานะ go-live (2026-07-25 — ผู้ใช้สั่งเปิดเอง):** เปิดใช้งานบน prod แล้ว
 
-1. เจ้าของกิจการอ่าน `definition_th` ทั้ง 11 ตัวแล้วเซ็นรับ → รัน `_bi_activate_tmc_metrics.sql` (ใส่ `verified_by` เป็น profile uuid จริง)
-2. เปิดโมดูล `bi` ให้ org `tmc` (`org_module_settings`) + ตั้ง `module_members` role (`owner`/`analyst`/`viewer`) — role นอกสามตัวนี้จะโดน `requireBiMember` ปฏิเสธพร้อมข้อความให้ผู้ดูแลแก้
+- `org_module_settings`: `bi` เปิดให้ org `tmc` (`allowed_roles = owner/analyst/viewer`)
+- `module_members` ของ `bi` 6 คน — map จาก role โมดูล `tmc`: `owner→owner` (2) · `admin→analyst` (2) · `team_lead→viewer` (2) · **ปรับรายคนได้ที่ `module_members`** (role นอกสามตัวนี้จะโดน `requireBiMember` ปฏิเสธ)
+- metric **11/12 = `verified`** (`verified_by` = iprite) · `tmc.stay_deposit_outstanding` คง `draft` ตามเหตุผลด้านบน
+- ตรวจหลังเปิด: retrieval คืน metric ฝั่ง tmc ครบ · `analyst` ยิง `tmc.finance_net_profit` → RAISE "ไม่มีสิทธิ์" (D4 ทำงาน)
 
 ---
 
