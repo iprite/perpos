@@ -456,6 +456,41 @@ D4 (gate G4): กำไร/ต้นทุน/คอมมิชชั่น/ก
 
 ---
 
+### 9.5 🏠 scope `tmc` — ผู้ช่วยวิเคราะห์ธุรกิจสำหรับที่พัก/บ้านพัก (2026-07-25)
+
+**ทำไมทำได้ทั้งที่ BI ถูกพักตาม §9.4:** §9.4 พักเพราะ _ข้อมูลของ `gov_procure` ว่าง_ ไม่ใช่เพราะโค้ด — ฝั่ง org `tmc` (`1f52618c-09c4-49c5-a929-ea5060f26e7d`) มีข้อมูลจริงใช้งานอยู่ทุกวัน: `tmc_stays` 203 แถว (check_in 2026-02-18 → 2027-04-19) · `tmc_finance_entries` 701 · `tmc_petty_cash_txns` 560 · `tmc_properties` 7 · สมาชิกโมดูล 6 คน ⇒ metric ตอบได้จริงตั้งแต่วันแรก
+
+**สิ่งที่เพิ่ม (ไม่มีการแตะ orchestrator/UI เดิมเลย — เป็นการเพิ่ม scope ล้วน):**
+
+| ชิ้น                                                                                 | ไฟล์                                                                                                                                                                           |
+| ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| ขยาย CHECK `module_scope` + seed 12 metric (`status='draft'`)                        | [`20260725120000_bi_tmc_scope_and_metrics.sql`](../supabase/migrations/20260725120000_bi_tmc_scope_and_metrics.sql)                                                            |
+| สคริปต์ตรวจเลขเทียบ `computeTmcDashboard` (รันมือ)                                   | [`_bi_metric_check_tmc.sql`](../supabase/migrations/_bi_metric_check_tmc.sql)                                                                                                  |
+| สคริปต์เปิดใช้งาน draft → verified                                                   | [`_bi_activate_tmc_metrics.sql`](../supabase/migrations/_bi_activate_tmc_metrics.sql)                                                                                          |
+| invariant test ของ seed                                                              | [`metrics.tmc.test.ts`](../apps/perpos/src/lib/bi/metrics.tmc.test.ts) · parser แยกไป [`seed-parse.ts`](../apps/perpos/src/lib/bi/seed-parse.ts) (ใช้ร่วมกับ golden test เดิม) |
+| `MODULE_SCOPES` + `resolveOrgScopes` + `DETAIL_METRIC_BY_SCOPE` + label หน้า metrics | `lib/bi/{types,resolver,drill}.ts` · `[orgSlug]/bi/metrics/page.tsx`                                                                                                           |
+
+**metric 12 ตัว** (ทั้งหมดยึดสูตรจาก [`lib/tmc/dashboard.ts`](../apps/perpos/src/lib/tmc/dashboard.ts) — §3.1 ข้อ 2 ห้าม BI คิดกฎเอง):
+`finance_income` · `finance_expense` · `finance_net_profit` (**owner-only** ตาม D4) · `petty_cash_expense` · `petty_cash_top_up` · `stay_count` · `stay_nights` · `stay_room_revenue` · `stay_fnb_revenue` · `stay_adr` · `stay_avg_nights` · `stay_deposit_outstanding`
+
+**กับดักที่ต้องรู้:**
+
+- **สมุดบัญชีหลักต้องตัดบัญชีเงินสดย่อยออกเสมอ** (`account_id <> '2366c3f9-dcc5-4091-8ab0-c421b77e7fe7'` = `PETTY_CASH_ACCOUNT` ใน dashboard.ts) ไม่งั้นรายจ่ายถูกนับซ้ำกับสมุดเงินสดย่อย — invariant test บังคับข้อนี้
+- **จำนวนคืน = `check_out − check_in` (ไม่มี check_out = 1 คืน)** ไม่ใช่คอลัมน์ `nights` ที่กรอกมือ — ต้องเป็นสูตรเดียวกับ dashboard ทุก metric ที่นับคืน (test บังคับ)
+- **`stay_deposit_outstanding` ยังเปิดไม่ได้** — `deposit_received`/`deposit_returned` non-null 0/203 แถว ⇒ ตอบ 0 เสมอ (ปลุกเมื่อเริ่มบันทึกมัดจำจริง · บล็อกรออยู่ในไฟล์ activate แล้ว)
+- **drill-down ใช้ไม่ได้กับ scope นี้** (`DETAIL_METRIC_BY_SCOPE.tmc = null`) เพราะ metric ชุดแรกเป็นสรุปล้วน — ถ้าต้องการ ต้องเพิ่ม metric ระดับรายการ (`no_summarize` + `chart_hint='table'`) ก่อน
+
+**ผลตรวจเลขจริง (2026-07-25 · `run_bi_metric` vs `computeTmcDashboard`): ตรงทั้ง 12/12** — รายรับ 5,100,738.94 · รายจ่าย 3,120,114.81 · กำไร 1,980,624.13 · เงินสดย่อยจ่าย 439,507.50 / เติม 450,000.00 · เข้าพัก 203 ครั้ง 315 คืน · ค่าห้อง 6,857,824.11 · อาหาร 49,917.10 · ADR 21,770.87 · เฉลี่ย 1.55 คืน · ผลรวมแยกรายแปลง/รายเดือน = ยอดรวมก้อนเดียว · ยิงจาก org อื่นด้วย metric `tmc.*` ได้ 0 (tenant isolation ผ่าน)
+
+**สถานะ go-live (2026-07-25 — ผู้ใช้สั่งเปิดเอง):** เปิดใช้งานบน prod แล้ว
+
+- `org_module_settings`: `bi` เปิดให้ org `tmc` (`allowed_roles = owner/analyst/viewer`)
+- `module_members` ของ `bi` 6 คน — map จาก role โมดูล `tmc`: `owner→owner` (2) · `admin→analyst` (2) · `team_lead→viewer` (2) · **ปรับรายคนได้ที่ `module_members`** (role นอกสามตัวนี้จะโดน `requireBiMember` ปฏิเสธ)
+- metric **11/12 = `verified`** (`verified_by` = iprite) · `tmc.stay_deposit_outstanding` คง `draft` ตามเหตุผลด้านบน
+- ตรวจหลังเปิด: retrieval คืน metric ฝั่ง tmc ครบ · `analyst` ยิง `tmc.finance_net_profit` → RAISE "ไม่มีสิทธิ์" (D4 ทำงาน)
+
+---
+
 ## 10. Code Map
 
 ### Migration (`supabase/migrations/`)

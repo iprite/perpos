@@ -102,6 +102,7 @@ export async function resolveOrgScopes(admin: Admin, orgId: string): Promise<Mod
   const scopes: ModuleScope[] = [...ALWAYS_ON_SCOPES];
   if (enabled.has("gov_procure")) scopes.push("gov_procure");
   if (enabled.has("accounting")) scopes.push("accounting");
+  if (enabled.has("tmc")) scopes.push("tmc");
   return scopes;
 }
 
