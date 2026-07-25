@@ -429,7 +429,7 @@ D4 (gate G4): กำไร/ต้นทุน/คอมมิชชั่น/ก
 ### 9.3 ที่ยังไม่ทำ
 
 - **Phase 2 — LINE `/bi <คำถาม>`:** ยังไม่มีโค้ดใน webhook เลย — **ตั้งใจเลื่อนไปทำหลัง Phase 3** (มติผู้ใช้ 2026-07-24, `P2-D6`: ตอนนั้น 15/29 metric ยังเป็น draft เพราะข้อมูลจริงว่าง เอา LINE ไปก่อนผู้ใช้จะเจอ "ยังตอบไม่ได้" บ่อยกว่าตอบได้) — ต้องเพิ่มคำสั่ง `/bi`/`/ถาม` ใน [`api/line/webhook/route.ts`](../apps/perpos/src/app/api/line/webhook/route.ts), ตาราง `bi_line_groups` (mapping กลุ่ม↔org, ยังไม่มีใน migration), Loading Animation API + push Flex KPI card, dedup ต่อ `line_message_id` + rate-limit
-- **Phase 4:** ยังไม่รีวิว `bi_query_log` เป็น loop ปรับปรุง semantic layer (มี item ค้างเล็ก: เส้นทาง `refused` ยังไม่ log `match_score`) · org ที่สอง (บัญชี) ยังไม่เปิด (metric accounting = ไม่ทำใน Phase 1 ตามมติ D3) · ยังไม่มีหน้า admin จัดการ `bi_metrics` (แก้ SQL ยังต้องทำผ่าน migration/สคริปต์มือเท่านั้น — **ตั้งใจ**: ดู §6.2 ข้อผูกพันถาวรเรื่องสิทธิ์เขียน)
+- **Phase 4:** ยังไม่รีวิว `bi_query_log` เป็น loop ปรับปรุง semantic layer **แต่เครื่องมือพร้อมแล้ว** (2026-07-25 — ดู §9.6) · org ที่สอง (บัญชี) ยังไม่เปิด (metric accounting = ไม่ทำใน Phase 1 ตามมติ D3) · ยังไม่มีหน้า admin จัดการ `bi_metrics` (แก้ SQL ยังต้องทำผ่าน migration/สคริปต์มือเท่านั้น — **ตั้งใจ**: ดู §6.2 ข้อผูกพันถาวรเรื่องสิทธิ์เขียน)
 - **Phase 5 — Free-form SQL fallback + Proactive:** ยังไม่ทำทั้งหมด (validator `node-sql-parser`, anomaly alert, cache)
 - **accounting metric (§7.4 ของ contract):** ยังไม่ทำใน Phase 1 ตามมติ D3 — วางไว้ Phase 4 ข้อ 2 (จุดพิสูจน์ shared module) รอ org ที่สองเปิดจริง
 
@@ -488,6 +488,33 @@ D4 (gate G4): กำไร/ต้นทุน/คอมมิชชั่น/ก
 - `module_members` ของ `bi` 6 คน — map จาก role โมดูล `tmc`: `owner→owner` (2) · `admin→analyst` (2) · `team_lead→viewer` (2) · **ปรับรายคนได้ที่ `module_members`** (role นอกสามตัวนี้จะโดน `requireBiMember` ปฏิเสธ)
 - metric **11/12 = `verified`** (`verified_by` = iprite) · `tmc.stay_deposit_outstanding` คง `draft` ตามเหตุผลด้านบน
 - ตรวจหลังเปิด: retrieval คืน metric ฝั่ง tmc ครบ · `analyst` ยิง `tmc.finance_net_profit` → RAISE "ไม่มีสิทธิ์" (D4 ทำงาน)
+
+---
+
+### 9.6 🔁 ลูปเรียนรู้ (Phase 4) — เครื่องมือพร้อมแล้ว (2026-07-25)
+
+**ทำไมทำก่อนทั้งที่ §9.4 พัก:** นี่คือ _เครื่องมือวัด_ ไม่ใช่ฟีเจอร์ — ต้องมีก่อนที่ traffic จริงจาก org `tmc` (6 คน) จะเกิด ไม่งั้นคำถามที่ตอบไม่ได้ผ่านไปโดยไม่เหลือหลักฐานให้ปรับปรุง
+
+**สิ่งที่แก้ 1 — `match_score` เก็บครบทุกเส้นทางแล้ว** (เดิม `no_match`/`refused` ที่มาจาก `buildNoMatch` เก็บ `null` เสมอ ⇒ ไม่มีฐานให้ปรับเกณฑ์ตาม §3.2.1 ซึ่งห้ามปรับด้วยความรู้สึก)
+
+- `probeNearestMetric()` ([resolver.ts](../apps/perpos/src/lib/bi/resolver.ts)) — ยิง `match_bi_metrics` ด้วย `p_min_similarity=0, p_match_count=1` เพื่อได้ "ตัวที่ใกล้ที่สุดแม้ไม่ผ่านเกณฑ์" · **ยิงเฉพาะเส้นทางตอบไม่ได้** (ไม่ใช่ hot path) · RPC ตัวเดิม ⇒ ยังกรอง verified + scope + role เท่าเดิม ไม่เปิดช่องเห็น metric นอกสิทธิ์
+- สาขา draft เก็บคะแนน cosine ของ draft ตัวที่เปิดเผยจริง (ไม่ใช่ของตัว verified ที่ใกล้ที่สุด)
+- **กับดักที่กันไว้ในโค้ด:** คีย์ "ตัวที่ใกล้ที่สุด" ลง `bi_query_log.matched_metric_key` เท่านั้น — **ห้ามไหลไป `bi_messages.metric_key`** เพราะ `lastAssistantTurn()` อ่านช่องนั้นเป็นบริบทเทิร์นก่อนหน้า ⇒ เทิร์นที่ตอบไม่ได้จะกลายเป็น "เทิร์นก่อนหน้าเรื่อง metric นี้" ทั้งที่ไม่เคยรัน (จึงแยกเป็น arg `nearestMetricKey` คนละตัวกับ `metricKey`) · มีเทสล็อกไว้ใน [`engine.test.ts`](../apps/perpos/src/lib/bi/engine.test.ts)
+- **การอ่าน log เปลี่ยนไป:** แถว `no_match`/`refused` มี `matched_metric_key` = "ใกล้ที่สุด" **ไม่ใช่ "ตัวที่ตอบ"** — ทุก query ต้องอ่านคู่ `answer_status` เสมอ
+
+**สิ่งที่แก้ 2 — สคริปต์รีวิวรายสัปดาห์** [`_bi_review_log.sql`](../supabase/migrations/_bi_review_log.sql) (อ่านอย่างเดียว, รันมือ, ไม่ใช่ migration) 6 บล็อก แต่ละบล็อกจบด้วย "ต้องทำอะไรต่อ":
+
+| บล็อก | สิ่งที่ตอบ                        | การกระทำที่ตามมา                                                                 |
+| ----- | --------------------------------- | -------------------------------------------------------------------------------- |
+| 0     | ตอบได้กี่ %                       | < ~70% = ปัญหา coverage ไม่ใช่ปัญหาโมเดล                                         |
+| 1     | 👎 ทุกอัน                         | นิยามไม่ตรงที่ผู้ใช้เข้าใจ → แก้ `definition_th` หรือแยก metric                  |
+| **2** | **ตอบไม่ได้ทั้งที่ score ≥ 0.55** | **คิวงานอันดับหนึ่ง — ส่วนใหญ่จบที่เติม `synonyms[]` + `pnpm bi:embed`**         |
+| 3     | ตอบไม่ได้และไม่ใกล้อะไรเลย        | เขียน metric ใหม่ตาม §3.2 หรือยอมรับว่านอกขอบเขต (**ห้ามลดเกณฑ์เพื่อให้ตอบได้**) |
+| 4     | ถามกลับบ่อย                       | คู่ VAT = ถูกต้องตาม D1 ห้ามแก้ · คู่อื่น = ชื่อยังกำกวม                         |
+| 5     | metric ที่ไม่มีใครถามถึงใน 30 วัน | เติม synonyms ให้ตรงคำพูดจริง หรือรับว่าเป็น metric ของแดชบอร์ด                  |
+| 6     | error                             | ต้องเป็นศูนย์ · ไม่ศูนย์ = บั๊ก (`/fix-issue`) ไม่ใช่เรื่อง semantic layer       |
+
+**ยังไม่ทำ (ตั้งใจ):** ไม่มีหน้า admin/cron สรุปอัตโนมัติ — รอบรีวิวเป็นงานที่คนต้องอ่านคำถามจริงแล้วตัดสิน ไม่ใช่ตัวเลขที่ส่งเข้ากล่องข้อความแล้วจบ
 
 ---
 

@@ -129,6 +129,38 @@ export async function matchMetrics(input: MatchMetricsInput): Promise<BiMetricCa
   return withVatCounterparts(input.admin, candidates, input.scopes, input.role);
 }
 
+export interface NearestMetricProbe {
+  key: string;
+  similarity: number;
+}
+
+/**
+ * "ตัวที่ใกล้ที่สุด แม้ไม่ผ่านเกณฑ์" — ใช้เฉพาะเส้นทางตอบไม่ได้ เพื่อ **บันทึกคะแนนจริง**
+ * ลง `bi_query_log.match_score` (Phase 4)
+ *
+ * ทำไมต้องมี: เมื่อไม่มี candidate ผ่าน `MIN_SIMILARITY` เลย log เดิมเก็บ `match_score = null`
+ * ⇒ เวลาจะปรับเกณฑ์ (§3.2.1) ไม่มีตัวเลขให้ดูว่า "พลาดไปหวุดหวิด (0.58)" หรือ "นอกเรื่องจริง (0.31)"
+ * ซึ่งคัมภีร์ห้ามปรับด้วยความรู้สึก · **ยิงเฉพาะตอนตอบไม่ได้เท่านั้น** (ไม่ใช่ hot path)
+ * และใช้ RPC ตัวเดียวกัน จึงถูกกรอง verified + scope ของ org + role ของผู้ถามเหมือนเดิม
+ */
+export async function probeNearestMetric(input: {
+  admin: Admin;
+  embedding: number[];
+  scopes: ModuleScope[];
+  role: BiRole;
+}): Promise<NearestMetricProbe | null> {
+  const { data, error } = await input.admin.rpc("match_bi_metrics", {
+    p_query_embedding: input.embedding,
+    p_scopes: input.scopes,
+    p_role: input.role,
+    p_match_count: 1,
+    p_min_similarity: 0,
+  });
+  if (error) throw new Error(`match_bi_metrics (probe): ${error.message}`);
+  const top = normalizeCandidates(data)[0];
+  return top ? { key: top.key, similarity: top.similarity } : null;
+}
+
 /** คีย์ฝั่งตรงข้ามของคู่ VAT (`…_incl_vat` ⇄ `…_excl_vat`) — null ถ้าไม่ใช่คู่ VAT */
 export function vatCounterpartKey(key: string): string | null {
   if (key.endsWith("_incl_vat")) return `${key.slice(0, -"_incl_vat".length)}_excl_vat`;

@@ -47,6 +47,7 @@ import {
   normalizeCandidates,
   vatCounterpartKey,
   matchMetrics as defaultMatchMetrics,
+  probeNearestMetric as defaultProbeNearestMetric,
   resolveOrgScopes as defaultResolveOrgScopes,
   DECISIVE_GAP,
   SUGGEST_MIN_SIMILARITY,
@@ -106,6 +107,8 @@ export interface AskBiDeps {
   checkIndexHealth?: typeof defaultCheckIndexHealth;
   /** ดึง metric ตาม key (ด่าน D1 ใช้ประกอบตัวเลือกฐาน VAT เมื่อคู่หลุด top-N) */
   fetchMetricsByKeys?: typeof defaultFetchMetricsByKeys;
+  /** ตัวที่ใกล้ที่สุดแม้ไม่ผ่านเกณฑ์ — ใช้เก็บ `match_score` ของเส้นทางตอบไม่ได้ */
+  probeNearestMetric?: typeof defaultProbeNearestMetric;
   /** วันอ้างอิง (เทส) */
   today?: Date;
 }
@@ -162,6 +165,12 @@ export async function askBi(input: AskBiInput, deps: AskBiDeps): Promise<BiAnswe
     compare?: BiCompare | null;
     clarify?: BiAnswer["clarify"];
     matchScore?: number | null;
+    /**
+     * metric ที่ "ใกล้ที่สุด" ของเส้นทางตอบไม่ได้ — ลง `bi_query_log` เท่านั้น
+     * **ห้ามไหลไป `bi_messages.metric_key`**: `lastAssistantTurn()` อ่านช่องนั้นเป็นบริบทเทิร์นก่อน
+     * ⇒ เทิร์นที่ตอบไม่ได้จะกลายเป็น "เทิร์นก่อนหน้าเรื่อง metric นี้" ทั้งที่ไม่เคยรัน
+     */
+    nearestMetricKey?: string | null;
     sqlMs?: number | null;
     errorMessage?: string | null;
   }): Promise<BiAnswer> => {
@@ -216,7 +225,7 @@ export async function askBi(input: AskBiInput, deps: AskBiDeps): Promise<BiAnswe
         message_id: messageId || null,
         source,
         question,
-        matched_metric_key: args.metricKey ?? null,
+        matched_metric_key: args.metricKey ?? args.nearestMetricKey ?? null,
         match_score: args.matchScore ?? null,
         params,
         answer_status: args.status,
@@ -714,6 +723,14 @@ interface NoMatchResult {
   bullets: string[];
   followUps: string[];
   errorMessage: string | null;
+  /**
+   * **"ตัวที่ใกล้ที่สุด" ไม่ใช่ "ตัวที่ตอบ"** — เส้นทางนี้ไม่เคยรัน metric
+   * (อ่าน log ต้องดูคู่กับ `answer_status` เสมอ: `no_match`/`refused` = ไม่ได้ตอบด้วย metric นี้)
+   * มีไว้ให้ Phase 4 จัดกลุ่มได้ว่า "คำถามที่พลาดไปเกาะ metric ตัวไหนบ่อย"
+   */
+  nearestMetricKey?: string | null;
+  /** คะแนนจริงของตัวที่ใกล้ที่สุด — ฐานเดียวที่ใช้ปรับเกณฑ์ได้ (§3.2.1 ห้ามปรับด้วยความรู้สึก) */
+  matchScore?: number | null;
 }
 
 /**
@@ -728,7 +745,7 @@ interface NoMatchResult {
 async function buildNoMatch(args: NoMatchArgs): Promise<NoMatchResult> {
   const { admin, deps, scopes, role, question } = args;
 
-  const [health, visible, drafts] = await Promise.all([
+  const [health, visible, drafts, nearest] = await Promise.all([
     // ตรวจไม่ได้ = ถือว่าระบบปกติ (ห้ามเดาว่า "ยังตั้งค่าไม่เสร็จ" แล้วทำผู้ใช้ตกใจ)
     safe(() => (deps.checkIndexHealth ?? defaultCheckIndexHealth)({ admin, scopes, role }), {
       visible: -1,
@@ -736,10 +753,25 @@ async function buildNoMatch(args: NoMatchArgs): Promise<NoMatchResult> {
     }),
     safe(() => (deps.listVisibleMetrics ?? defaultListVisibleMetrics)({ admin, scopes, role }), []),
     safe(() => (deps.listDraftMetrics ?? defaultListDraftMetrics)({ admin, scopes, role }), []),
+    // คะแนนของตัวที่ใกล้ที่สุดแม้ไม่ผ่านเกณฑ์ — ล้มเหลว/ไม่มีเวกเตอร์ = null (ห้ามทำให้ทั้งคำตอบล้ม)
+    args.embedding
+      ? safe(
+          () =>
+            (deps.probeNearestMetric ?? defaultProbeNearestMetric)({
+              admin,
+              embedding: args.embedding!,
+              scopes,
+              role,
+            }),
+          null,
+        )
+      : Promise.resolve(null),
   ]);
 
   const suggestions = suggestMetrics(question, visible);
   const followUps = suggestions.map((s) => `ขอดู${s.label_th}`);
+  /** ค่าเริ่มต้นของทุกสาขา — สาขา draft ทับด้วยคะแนนของ draft ตัวที่เปิดเผยจริง */
+  const near = { nearestMetricKey: nearest?.key ?? null, matchScore: nearest?.similarity ?? null };
 
   // 1) ยังไม่ได้ฝัง embedding จริง ๆ เท่านั้นถึงจะบอกว่า "ระบบยังตั้งค่าไม่เสร็จ"
   if (health.visible > 0 && health.embedded === 0) {
@@ -751,6 +783,7 @@ async function buildNoMatch(args: NoMatchArgs): Promise<NoMatchResult> {
       ],
       followUps,
       errorMessage: `bi_metrics.embedding ยังว่าง (verified=${health.visible}, embedded=0) — ต้องรัน pnpm bi:embed`,
+      ...near,
     };
   }
 
@@ -762,16 +795,20 @@ async function buildNoMatch(args: NoMatchArgs): Promise<NoMatchResult> {
   // ถ้าไม่มีเวกเตอร์ให้เทียบ (เช่นในเทสที่ inject rows เอง) → ถอยไปใช้ keyword อย่างเดียว
   const keywordDrafts = matchByKeyword(question, drafts, 3);
   const qVec = args.embedding;
-  const draft = qVec
+  const draftHit = qVec
     ? // มีเวกเตอร์คำถาม → **ต้อง** เทียบความหมายได้ถึงจะเปิดเผย
       // draft ที่ยังไม่ได้ embed = ข้ามไป (fail-safe) — ปล่อยผ่านด้วย keyword อย่างเดียว
       // เท่ากับบั๊ก false positive กลับมาเงียบ ๆ ทุกครั้งที่มีคนเพิ่ม metric ร่างแล้วลืม `pnpm bi:embed`
       (keywordDrafts
         .flatMap((d) => (d.embedding ? [{ d, sim: cosineSimilarity(qVec, d.embedding) }] : []))
         .filter((x) => x.sim >= DRAFT_MIN_SIMILARITY)
-        .sort((a, b) => b.sim - a.sim)[0]?.d ?? null)
+        .sort((a, b) => b.sim - a.sim)[0] ?? null)
     : // ไม่มีเวกเตอร์คำถามเลย (embed ล้ม) → ถอยเป็น keyword อย่างเดียว ดีกว่าไม่บอกอะไรผู้ใช้
-      (keywordDrafts[0] ?? null);
+      // (ไม่มีคะแนนให้บันทึก — log จะได้ `match_score = null` ตามจริง)
+      keywordDrafts[0]
+      ? { d: keywordDrafts[0], sim: null }
+      : null;
+  const draft = draftHit?.d ?? null;
   if (draft) {
     return {
       status: "refused",
@@ -782,6 +819,9 @@ async function buildNoMatch(args: NoMatchArgs): Promise<NoMatchResult> {
       ],
       followUps,
       errorMessage: `draft metric matched: ${draft.key}`,
+      // สาขานี้รู้ว่าเป็น metric ไหนแน่ ๆ → เก็บคะแนนของ draft ตัวนั้น ไม่ใช่ของตัวที่ verified ที่สุด
+      nearestMetricKey: draft.key,
+      matchScore: draftHit?.sim ?? null,
     };
   }
 
@@ -795,6 +835,7 @@ async function buildNoMatch(args: NoMatchArgs): Promise<NoMatchResult> {
       ],
       followUps,
       errorMessage: "ไม่มี metric ที่ verified ในขอบเขตของ org/role นี้",
+      ...near,
     };
   }
 
@@ -809,6 +850,7 @@ async function buildNoMatch(args: NoMatchArgs): Promise<NoMatchResult> {
     ],
     followUps,
     errorMessage: null,
+    ...near,
   };
 }
 
