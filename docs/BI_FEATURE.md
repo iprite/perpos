@@ -2,7 +2,7 @@
 
 > เอกสารนี้เขียนสำหรับ **AI agent + dev ที่จะมาแตะโค้ดต่อ** ไม่ใช่คู่มือผู้ใช้ปลายทาง
 > ที่มา: [`.claude/module-factory/specs/bi.md`](../.claude/module-factory/specs/bi.md) (contract เต็ม §1–§11 + Review Log) + [`.claude/feature-factory/specs/bi-dashboard.md`](../.claude/feature-factory/specs/bi-dashboard.md) (contract Phase 3 ส่วนต่าง) — เอกสารนี้สรุปสิ่งที่ **build จริง** บน prod (org `p2p-x-89`)
-> สถานะ ณ วันที่เขียน (2026-07-25): **Phase 1 (chat) + Phase 3 (interactive dashboard) เสร็จ, apply prod แล้ว, verified 14 / draft 15 metric** — **Phase 2 (LINE `/bi`) ถูกเลื่อนไปทำ "หลัง" Phase 3** (มติผู้ใช้ 2026-07-24, `P2-D6`): ตอนตัดสินใจ 15/29 metric ยังเป็น `draft` เพราะข้อมูลจริงยังว่าง (วันที่หมุด/กำไร/คอมมิชชั่นยังไม่มีค่า) — เอา LINE ไปตอนนั้นผู้ใช้จะเจอ "ยังตอบไม่ได้" บ่อยกว่าตอบได้ ส่วนแดชบอร์ดต่อยอดจากของที่มีอยู่บนเว็บได้ทันทีโดยไม่ต้องแตะ LINE เลย · Free-form SQL (Phase 5) **ยังไม่ทำ**
+> สถานะ ณ วันที่เขียน (2026-07-25): **Phase 1 (chat) + Phase 3 (interactive dashboard) เสร็จ, apply prod แล้ว, verified 14 / draft 15 metric** · 🅿️ **การพัฒนา BI ถูกพักไว้ (มติผู้ใช้ 2026-07-25) — คอขวดคือข้อมูลต้นทางยังว่าง ไม่ใช่โค้ด · เงื่อนไขปลุกกลับ + ขั้นตอนอยู่ที่ §9.4 อ่านก่อนเริ่มงาน BI ใหม่** — **Phase 2 (LINE `/bi`) ถูกเลื่อนไปทำ "หลัง" Phase 3** (มติผู้ใช้ 2026-07-24, `P2-D6`): ตอนตัดสินใจ 15/29 metric ยังเป็น `draft` เพราะข้อมูลจริงยังว่าง (วันที่หมุด/กำไร/คอมมิชชั่นยังไม่มีค่า) — เอา LINE ไปตอนนั้นผู้ใช้จะเจอ "ยังตอบไม่ได้" บ่อยกว่าตอบได้ ส่วนแดชบอร์ดต่อยอดจากของที่มีอยู่บนเว็บได้ทันทีโดยไม่ต้องแตะ LINE เลย · Free-form SQL (Phase 5) **ยังไม่ทำ**
 
 ---
 
@@ -432,6 +432,27 @@ D4 (gate G4): กำไร/ต้นทุน/คอมมิชชั่น/ก
 - **Phase 4:** ยังไม่รีวิว `bi_query_log` เป็น loop ปรับปรุง semantic layer (มี item ค้างเล็ก: เส้นทาง `refused` ยังไม่ log `match_score`) · org ที่สอง (บัญชี) ยังไม่เปิด (metric accounting = ไม่ทำใน Phase 1 ตามมติ D3) · ยังไม่มีหน้า admin จัดการ `bi_metrics` (แก้ SQL ยังต้องทำผ่าน migration/สคริปต์มือเท่านั้น — **ตั้งใจ**: ดู §6.2 ข้อผูกพันถาวรเรื่องสิทธิ์เขียน)
 - **Phase 5 — Free-form SQL fallback + Proactive:** ยังไม่ทำทั้งหมด (validator `node-sql-parser`, anomaly alert, cache)
 - **accounting metric (§7.4 ของ contract):** ยังไม่ทำใน Phase 1 ตามมติ D3 — วางไว้ Phase 4 ข้อ 2 (จุดพิสูจน์ shared module) รอ org ที่สองเปิดจริง
+
+### 9.4 🅿️ พักการพัฒนา BI ไว้ก่อน (มติผู้ใช้ 2026-07-25, `P4-D1`) — **อ่านก่อนเริ่มงาน BI ใหม่**
+
+**คอขวดอยู่ที่ข้อมูลต้นทาง ไม่ใช่โค้ด BI** — ตรวจ `gov_procure_orders` ของ `p2p-x-89` เมื่อ 2026-07-25:
+`contract_date` / `delivery_date` / `receipt_date` / `net_profit_89` / `commission_amount` = **0 non-null ทุกช่อง** · ไม่มีใบไหนเดินพ้น stage `contracted` · ใบล่าสุดสร้าง 2026-07-22
+⇒ **15/29 metric เป็น `draft` เพราะไม่มีข้อมูลให้คำนวณ ไม่ใช่เพราะโค้ดไม่พร้อม** — เพิ่มฟีเจอร์ตอนนี้ไม่ปลดล็อกคุณค่า
+
+**ทำไม Phase 4 ตามแผนเดิมยังทำไม่ได้** (หลักฐาน 2026-07-25):
+| ข้อ | ปัญหา |
+| --- | --- |
+| เก็บเกี่ยว feedback | `bi_query_log` 104 แถวมาจาก **ผู้ใช้คนเดียว (QA)** · 👍 1 · 👎 **0** · คำถามส่วนใหญ่เป็นสตริงทดสอบ ⇒ ไม่มี feedback จริงให้เก็บ |
+| เปิด org ที่สอง (accounting) | org ที่เปิด accounting ทั้งหมดข้อมูลบางกว่า `p2p-x-89`: `p2psupply` เอกสารมีผล **2 ใบ** วันเดียว + **สมาชิกโมดูล 0 คน** · `p2psolutions` มีผล 0 ใบ · `jtacc`/`test-acc-*` 0 ใบ ⇒ ไม่มีทั้งข้อมูลและผู้ใช้ |
+| หน้า admin แก้ metric | ชน **§6.2 (สิทธิ์เขียน `bi_metrics` = service-role เท่านั้นตลอดไป)** และ **§3.2 (หนึ่ง key = หนึ่งนิยามตลอดกาล)** ⇒ ถ้าทำภายหลังให้ทำ **อ่านอย่างเดียว** (มติ `P4-D2`) — การเปิด metric ยังต้องผ่าน golden test + เซ็นรับนิยาม ไม่ใช่คลิกเดียว |
+
+**🔔 เงื่อนไขปลุกกลับ:** มีใบงานเดินพ้น `contracted` จริง (มี `delivery_date`/`receipt_date`) หรือเริ่มกรอกกำไร/คอมมิชชั่น → แล้วทำตามลำดับนี้ **ห้ามลัด**:
+
+1. รัน [`_bi_metric_check.sql`](../supabase/migrations/_bi_metric_check.sql) เทียบเลขที่ metric คำนวณกับข้อมูลจริง (ต้องตรง 100%)
+2. เขียน golden test ของ metric ที่จะเปิด ([`metrics.golden.test.ts`](../apps/perpos/src/lib/bi/metrics.golden.test.ts)) — ต้องเขียวก่อน
+3. **เจ้าของธุรกิจอ่าน `definition_th` แล้วเซ็นรับ** (เหมือนรอบที่เปิด 14 ตัวแรก)
+4. รัน [`_bi_activate_metrics.sql`](../supabase/migrations/_bi_activate_metrics.sql) — มีลิสต์ 15 ตัวที่ยังเปิดไม่ได้ + เหตุผลว่ารออะไรต่อตัวอยู่แล้ว
+5. **ไม่ต้องรัน `pnpm bi:embed` ซ้ำ** — embedding มีครบ 29/29 (จำเป็นเฉพาะเมื่อแก้ `label_th`/`synonyms`/`definition_th`)
 
 ---
 
