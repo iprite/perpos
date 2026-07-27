@@ -73,6 +73,18 @@ export interface CompanyBalance {
   capitalHeld: number;
   /** มูลค่างานรวมของบริษัทนี้ (Σ price_incl_vat) — เทียบกับทุนที่ลงไป */
   pipelineValue: number;
+  /** ต้นทุนสินค้ารวมทุกงาน (Σ cost_price) */
+  pipelineCost: number;
+  /** กำไรขั้นต้นรวมทุกงาน (ทั้ง pipeline — รวมที่ยังเป็นใบเสนอราคา) */
+  pipelineProfit: number;
+  /** มูลค่างานที่ผ่านใบเสนอราคาแล้ว (เซ็นสัญญาขึ้นไป = ทุนถูกใช้จริง) */
+  committedValue: number;
+  /** ต้นทุนของงานที่เซ็นสัญญาขึ้นไป */
+  committedCost: number;
+  /** กำไรขั้นต้นของงานที่เซ็นสัญญาขึ้นไป */
+  committedProfit: number;
+  /** จำนวนงานที่เซ็นสัญญาขึ้นไป */
+  committedCount: number;
   /** กำไรสะสมจากงานที่รับเช็คแล้ว/ปิดงาน (derive จาก orders) */
   profitRealized: number;
   /** กำไรจากงานที่ยังไม่ถึงขั้นรับเช็ค (ยังดึงปันผลไม่ได้) */
@@ -112,6 +124,16 @@ export interface CapitalSummary {
   poolBalance: number;
   /** มูลค่างานรวมทุกบริษัท (Σ price_incl_vat) — คู่กับเงินลงขันเพื่อดูว่าทุนพอไหม */
   totalPipelineValue: number;
+  /** ต้นทุนรวมทุกบริษัท */
+  totalPipelineCost: number;
+  /** กำไรขั้นต้นรวมทั้ง pipeline (รวมงานที่ยังเป็นใบเสนอราคา) */
+  totalPipelineProfit: number;
+  /** กำไรขั้นต้นของงานที่เซ็นสัญญาแล้ว (ทุนถูกใช้จริง) */
+  totalCommittedProfit: number;
+  /** มูลค่างานที่เซ็นสัญญาแล้ว */
+  totalCommittedValue: number;
+  /** ต้นทุนของงานที่เซ็นสัญญาแล้ว */
+  totalCommittedCost: number;
   /** กำไรสะสมทุกบริษัท (รับเช็คแล้ว) */
   totalProfitRealized: number;
   /** กำไรที่ยังไม่ถึงจุดรับเช็ค */
@@ -210,10 +232,19 @@ export function computeCapital(
       .filter((o) => !isProfitRealized(o))
       .reduce((s, o) => s + orderProfit(o), 0);
 
+    // งานที่ผ่านใบเสนอราคาแล้ว = ทุนถูกใช้ซื้อของจริง (committed)
+    const committed = companyOrders.filter((o) => o.stage !== "quotation");
+
     const capitalHeld = allocated - returned;
     return {
       company,
       pipelineValue: companyOrders.reduce((s, o) => s + (o.price_incl_vat ?? 0), 0),
+      pipelineCost: companyOrders.reduce((s, o) => s + (o.cost_price ?? 0), 0),
+      pipelineProfit: companyOrders.reduce((s, o) => s + orderProfit(o), 0),
+      committedValue: committed.reduce((s, o) => s + (o.price_incl_vat ?? 0), 0),
+      committedCost: committed.reduce((s, o) => s + (o.cost_price ?? 0), 0),
+      committedProfit: committed.reduce((s, o) => s + orderProfit(o), 0),
+      committedCount: committed.length,
       allocated,
       returned,
       capitalHeld,
@@ -262,6 +293,11 @@ export function computeCapital(
     totalContributed,
     totalDeployed,
     totalPipelineValue: byCompany.reduce((s, c) => s + c.pipelineValue, 0),
+    totalPipelineCost: byCompany.reduce((s, c) => s + c.pipelineCost, 0),
+    totalPipelineProfit: byCompany.reduce((s, c) => s + c.pipelineProfit, 0),
+    totalCommittedValue: byCompany.reduce((s, c) => s + c.committedValue, 0),
+    totalCommittedCost: byCompany.reduce((s, c) => s + c.committedCost, 0),
+    totalCommittedProfit: byCompany.reduce((s, c) => s + c.committedProfit, 0),
     // กองกลาง = เงินลงขันที่ยังไม่ถูกส่งออกไปบริษัท
     // (repayment/dividend จ่ายออกจากบริษัท ไม่ผ่านกองกลาง → ไม่หักซ้ำตรงนี้)
     poolBalance: totalContributed - totalDeployed,

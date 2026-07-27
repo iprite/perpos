@@ -16,6 +16,7 @@ import {
   ArrowUpRight,
   Building2,
   AlertTriangle,
+  Calculator,
 } from "lucide-react";
 import { PageShell } from "@/components/ui/page-shell";
 import { Button } from "@/components/ui/button";
@@ -56,7 +57,12 @@ import {
   type CapitalSummary,
   type Investor,
 } from "@/lib/gov-procure/capital";
-import { fmtMoney, fmtDateTH } from "../_components/format";
+import { fmtMoney, fmtNum, fmtDateTH } from "../_components/format";
+
+/** % แบบ 1 ตำแหน่ง — ใช้กับอัตรากำไร/ผลตอบแทน */
+function fmtPct(value: number): string {
+  return `${fmtNum(value, 1)}%`;
+}
 import { govApi } from "../_components/api";
 
 /** ฟิลด์ที่ต้องกรอกตามชนิดรายการ — mirror SHAPE ที่ API + CHECK ที่ DB */
@@ -167,6 +173,52 @@ export function CapitalClient({
           />
         </div>
 
+        {/* ── กำไรขั้นต้นที่คาดว่าจะได้ ── */}
+        <div>
+          <div className="mb-2.5 flex items-center gap-1.5 px-1 text-sm font-semibold text-gray-900">
+            <Calculator className="h-4 w-4 text-primary" />
+            กำไรขั้นต้นที่คาดว่าจะได้
+          </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <StatCard
+              icon={<TrendingUp className="h-4 w-4" />}
+              label="กำไรขั้นต้น — งานที่เซ็นสัญญาแล้ว"
+              value={fmtMoney(summary.totalCommittedProfit)}
+              sub={`มูลค่างาน ${fmtMoney(summary.totalCommittedValue)} − ต้นทุน ${fmtMoney(summary.totalCommittedCost)}${
+                summary.totalCommittedValue > 0
+                  ? ` · ${fmtPct((summary.totalCommittedProfit / summary.totalCommittedValue) * 100)} ของมูลค่างาน`
+                  : ""
+              }`}
+              tone="positive"
+              valueColored
+            />
+            <StatCard
+              icon={<Coins className="h-4 w-4" />}
+              label="กำไรขั้นต้น — ทั้ง pipeline"
+              value={fmtMoney(summary.totalPipelineProfit)}
+              sub={`รวมงานที่ยังเป็นใบเสนอราคา · ต้นทุนรวม ${fmtMoney(summary.totalPipelineCost)}`}
+              tone="info"
+            />
+            <StatCard
+              icon={<ArrowUpRight className="h-4 w-4" />}
+              label="ผลตอบแทนต่อทุนที่ลงไป"
+              value={
+                summary.totalDeployed > 0
+                  ? fmtPct((summary.totalCommittedProfit / summary.totalDeployed) * 100)
+                  : "—"
+              }
+              sub={`กำไรงานที่เซ็นแล้ว ÷ ทุนที่กระจายไปบริษัท ${fmtMoney(summary.totalDeployed)}`}
+              tone="positive"
+              valueColored
+            />
+          </div>
+          <Text className="mt-1.5 px-1 text-xs text-gray-500">
+            กำไรขั้นต้น = มูลค่างาน (รวม VAT) − ต้นทุนสินค้า ตามที่คีย์ไว้ในแต่ละงาน — ยังไม่หัก VAT
+            ขาย 7%, ภาษีหัก ณ ที่จ่าย และค่าดำเนินการ · “งานที่เซ็นสัญญาแล้ว” =
+            งานที่พ้นขั้นใบเสนอราคา (ทุนถูกใช้ซื้อของจริง)
+          </Text>
+        </div>
+
         {/* ── เงินอยู่ที่บริษัทไหนเท่าไร ── */}
         <div>
           <div className="mb-2.5 flex items-center gap-1.5 px-1 text-sm font-semibold text-gray-900">
@@ -179,6 +231,9 @@ export function CapitalClient({
                 <TableHead>บริษัท</TableHead>
                 <TableHead align="right">งาน</TableHead>
                 <TableHead align="right">มูลค่างาน</TableHead>
+                <TableHead align="right">ต้นทุน</TableHead>
+                <TableHead align="right">กำไรขั้นต้น</TableHead>
+                <TableHead align="right">กำไรขั้นต้น (เซ็นแล้ว)</TableHead>
                 <TableHead align="right">ทุนที่ถืออยู่</TableHead>
                 <TableHead align="right">กำไรสะสม</TableHead>
                 <TableHead align="right">ปันผลจ่ายแล้ว</TableHead>
@@ -203,6 +258,15 @@ export function CapitalClient({
                   </TableCell>
                   <TableCell align="right" tabular>
                     {fmtMoney(c.pipelineValue)}
+                  </TableCell>
+                  <TableCell align="right" tabular>
+                    {fmtMoney(c.pipelineCost)}
+                  </TableCell>
+                  <TableCell align="right" tabular>
+                    {fmtMoney(c.pipelineProfit)}
+                  </TableCell>
+                  <TableCell align="right" tabular className="text-green-600">
+                    {fmtMoney(c.committedProfit)}
                   </TableCell>
                   <TableCell align="right" tabular>
                     {fmtMoney(c.capitalHeld)}
@@ -234,6 +298,15 @@ export function CapitalClient({
                 </TableCell>
                 <TableCell align="right" tabular>
                   {fmtMoney(summary.totalPipelineValue)}
+                </TableCell>
+                <TableCell align="right" tabular>
+                  {fmtMoney(summary.totalPipelineCost)}
+                </TableCell>
+                <TableCell align="right" tabular>
+                  {fmtMoney(summary.totalPipelineProfit)}
+                </TableCell>
+                <TableCell align="right" tabular>
+                  {fmtMoney(summary.totalCommittedProfit)}
                 </TableCell>
                 <TableCell align="right" tabular>
                   {fmtMoney(summary.totalDeployed)}
