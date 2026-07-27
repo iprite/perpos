@@ -1,6 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
+import { getSupabaseJwks } from "@/lib/supabase/jwks";
+
 /**
  * Single project middleware. Does two jobs on every request:
  *
@@ -50,9 +52,17 @@ export async function middleware(request: NextRequest) {
   });
 
   // Touch the session — triggers a token refresh + setAll() when needed.
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  //
+  // ใช้ getClaims() แทน getUser(): verify ลายเซ็น ES256 ในเครื่องด้วย WebCrypto + JWKS ที่ cache ไว้
+  // → ปกติ 0 round-trip ต่อ request (ของเดิมยิงไป Supabase Auth ทุก request รวม RSC navigation
+  // ทำให้การสลับ Admin/Suite/Flow หน่วง) · ยังคง refresh token ให้อัตโนมัติเมื่อ token ใกล้หมดอายุ
+  // และ fallback ไปถาม Auth server เองถ้า verify ในเครื่องไม่ได้
+  const jwks = await getSupabaseJwks();
+  const { data: claimsData } = await supabase.auth.getClaims(
+    undefined,
+    jwks ? { jwks: jwks as never } : undefined,
+  );
+  const user = claimsData?.claims?.sub ? { id: claimsData.claims.sub } : null;
 
   // DEV-ONLY auto-login: ยังไม่มี session + เปิด flag → พาไป /dev-login
   // (มินต์ session ของ super_admin อัตโนมัติ — ดู src/app/(auth)/dev-login/route.ts)

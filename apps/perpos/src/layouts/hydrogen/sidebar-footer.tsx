@@ -17,11 +17,15 @@ const isPersonalOrg = (o: OrganizationSummary) =>
 interface SidebarFooterProps {
   organizations?: OrganizationSummary[];
   activeOrganizationId?: string | null;
+  /** URL ของหน้าโมดูลที่จะเข้าเมื่อกด "Suite" — layout คำนวณมาให้ (โมดูลที่ใช้ล่าสุด)
+   *  เพื่อข้าม `/[orgSlug]` ที่เป็น server redirect (ทำให้ render 2 รอบ = ช้า) */
+  suiteHref?: string | null;
 }
 
 export function ContextToggle({
   organizations,
   activeOrganizationId,
+  suiteHref,
   className,
 }: SidebarFooterProps & { className?: string }) {
   const pathname = usePathname();
@@ -66,7 +70,7 @@ export function ContextToggle({
           fill={active ? "bg-primary" : undefined}
         />
       ),
-      href: `/${activeBiz.slug}`,
+      href: suiteHref ?? `/${activeBiz.slug}`,
       active: onBiz,
       activeClass: "bg-orange-500 text-primary",
     });

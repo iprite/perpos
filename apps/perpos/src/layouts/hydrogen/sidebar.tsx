@@ -20,12 +20,15 @@ interface SidebarProps {
   className?: string;
   organizations?: OrganizationSummary[];
   activeOrganizationId?: string | null;
+  /** ปลายทางของปุ่ม "Suite" — ดู ContextToggle */
+  suiteHref?: string | null;
 }
 
 export default function Sidebar({
   className,
   organizations = [],
   activeOrganizationId = null,
+  suiteHref = null,
 }: SidebarProps) {
   const pathname = usePathname();
   const firstSegment = pathname.split("/").filter(Boolean)[0] ?? "";
@@ -77,6 +80,7 @@ export default function Sidebar({
           <ContextToggle
             organizations={organizations}
             activeOrganizationId={activeOrganizationId}
+            suiteHref={suiteHref}
           />
         </div>
       </div>

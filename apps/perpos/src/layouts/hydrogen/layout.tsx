@@ -13,6 +13,7 @@ import { ALL_MODULES } from "@/lib/modules";
 import {
   getOrganizationsForCurrentUser,
   getActiveOrganizationId,
+  getActiveModuleKey,
   getEnabledModulesForOrg,
   getModuleRoleForCurrentUser,
   getModuleMenuLabels,
@@ -52,14 +53,36 @@ export default async function HydrogenLayout({ children }: { children: React.Rea
     activeOrg = orgs.find((o) => o.id === cookieOrgId);
   }
 
-  const [orgModuleKeys, currentUserId] = await Promise.all([
+  // getCurrentUserId = getAuthUser ที่ cache() ไว้แล้ว (resolve ไปตั้งแต่ getOrganizations…) →
+  // ไม่มี round-trip เพิ่ม · org modules / personal modules / module role ยิงขนานกันทั้งหมด
+  const currentUserId = await getCurrentUserId();
+  const moduleRoleKey =
+    isOrgRoute && activeOrg?.id && (segments[1] === "just-me" || segments[1] === "accounting")
+      ? segments[1] === "just-me"
+        ? "just_me"
+        : "accounting"
+      : null;
+  const [orgModuleKeys, personalKeys, moduleRole] = await Promise.all([
     getEnabledModulesForOrg(activeOrg?.id ?? null, activeOrg?.role ?? null),
-    getCurrentUserId(),
+    getPersonalModulesForUser(currentUserId),
+    moduleRoleKey && activeOrg?.id
+      ? getModuleRoleForCurrentUser(activeOrg.id, moduleRoleKey)
+      : Promise.resolve(null),
   ]);
-  const personalKeys = await getPersonalModulesForUser(currentUserId);
   // Merge: personal modules are always visible regardless of org context
   const enabledKeys = Array.from(new Set([...orgModuleKeys, ...personalKeys]));
   const menuLabels = await getModuleMenuLabels(enabledKeys);
+
+  // ปุ่ม "Suite" ชี้ตรงไปหน้าโมดูล (ที่ใช้ล่าสุดจาก cookie ถ้ามี) — ไม่ผ่าน `/[orgSlug]`
+  // ซึ่งเป็น server redirect page: เดิมกด 1 ครั้ง = render layout+queries 2 รอบ
+  let suiteHref: string | null = null;
+  if (activeOrg) {
+    const savedKey = await getActiveModuleKey(activeOrg.slug, enabledKeys); // cookie อย่างเดียว
+    const mod =
+      (savedKey ? ALL_MODULES.find((m) => m.key === savedKey && !m.personal) : null) ??
+      ALL_MODULES.find((m) => enabledKeys.includes(m.key) && !m.personal);
+    suiteHref = mod ? `/${activeOrg.slug}${mod.href}` : `/${activeOrg.slug}`;
+  }
 
   // ── Server-side module access guard ─────────────────────────────────────────
   // Only enforce for org routes where a module segment is present.
@@ -78,17 +101,9 @@ export default async function HydrogenLayout({ children }: { children: React.Rea
   // ── Module-level role override ───────────────────────────────────────────────
   // For modules that use per-module roles (module_members table), use the
   // module role instead of the org-level role so sidebar gating is correct.
-  let effectiveOrgRole: string | null = activeOrg?.role ?? null;
-  if (isOrgRoute && segments[1] === "just-me" && activeOrg?.id) {
-    const moduleRole = await getModuleRoleForCurrentUser(activeOrg.id, "just_me");
-    if (moduleRole) effectiveOrgRole = moduleRole;
-  }
-  // accounting ก็ใช้ per-module role (module_members) — sidebar ต้องรู้เพื่อซ่อนกลุ่ม
-  // "หลังบ้าน (นักบัญชี)" จาก staff ที่ไม่มีสิทธิ์เข้าเลย (role matrix §4)
-  if (isOrgRoute && segments[1] === "accounting" && activeOrg?.id) {
-    const moduleRole = await getModuleRoleForCurrentUser(activeOrg.id, "accounting");
-    if (moduleRole) effectiveOrgRole = moduleRole;
-  }
+  // (accounting ก็ใช้ per-module role — sidebar ต้องรู้เพื่อซ่อนกลุ่ม "หลังบ้าน (นักบัญชี)"
+  //  จาก staff ที่ไม่มีสิทธิ์เข้าเลย ตาม role matrix §4) · ยิงไปพร้อมชุดข้างบนแล้ว
+  const effectiveOrgRole: string | null = moduleRole ?? activeOrg?.role ?? null;
 
   return (
     <ModuleProvider
@@ -102,6 +117,7 @@ export default async function HydrogenLayout({ children }: { children: React.Rea
           className="fixed hidden dark:bg-gray-50 xl:flex"
           organizations={orgs}
           activeOrganizationId={activeOrg?.id ?? null}
+          suiteHref={suiteHref}
         />
         <div className="flex w-full flex-col pt-[var(--impersonation-banner-height,0px)] xl:ms-[270px] xl:w-[calc(100%-270px)] 2xl:ms-72 2xl:w-[calc(100%-288px)]">
           <ImpersonationBanner />
@@ -115,6 +131,7 @@ export default async function HydrogenLayout({ children }: { children: React.Rea
                   className="static h-full w-full 2xl:w-full"
                   organizations={orgs}
                   activeOrganizationId={activeOrg?.id ?? null}
+                  suiteHref={suiteHref}
                 />
               }
             />
@@ -123,7 +140,11 @@ export default async function HydrogenLayout({ children }: { children: React.Rea
               <span className="font-neo-tech select-none text-sm font-bold tracking-wide text-primary">
                 PERPOS
               </span>
-              <ContextToggle organizations={orgs} activeOrganizationId={activeOrg?.id ?? null} />
+              <ContextToggle
+                organizations={orgs}
+                activeOrganizationId={activeOrg?.id ?? null}
+                suiteHref={suiteHref}
+              />
               {/* ปุ่ม avatar — เปิด profile menu ลงด้านล่าง */}
               <ProfileMenu variant="icon" />
             </div>
