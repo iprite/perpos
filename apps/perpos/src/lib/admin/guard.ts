@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { getAuthUser } from "@/lib/supabase/auth-user";
+import { getAuthUser, getProfileRole } from "@/lib/supabase/auth-user";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 /**
@@ -17,13 +17,8 @@ export async function requireSuperAdminPage(): Promise<SupabaseClient> {
   const user = await getAuthUser(); // dedupe ต่อ request (ใช้ร่วมกับ HydrogenLayout)
   if (!user) redirect("/signin");
 
-  const admin = createSupabaseAdminClient();
-  const { data: profile } = await admin
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .maybeSingle();
-  if (profile?.role !== "super_admin") redirect("/");
+  // getProfileRole = dedupe ต่อ request → ใช้ผลเดียวกับที่ HydrogenLayout อ่านไปแล้ว
+  if ((await getProfileRole()) !== "super_admin") redirect("/");
 
-  return admin;
+  return createSupabaseAdminClient();
 }

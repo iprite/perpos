@@ -2,7 +2,7 @@ import { cache } from "react";
 import { cookies } from "next/headers";
 
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { getAuthUser } from "@/lib/supabase/auth-user";
+import { getAuthUser, getProfileRole } from "@/lib/supabase/auth-user";
 
 export type OrganizationSummary = {
   id: string;
@@ -25,25 +25,17 @@ export const getOrganizationsForCurrentUser = cache(async (): Promise<Organizati
   const adminClient = createSupabaseAdminClient();
 
   // Check if user is a system admin — admins can see ALL organizations
-  const { data: profile } = await adminClient
-    .from("profiles")
-    .select("role")
-    .eq("id", uid)
-    .maybeSingle();
+  const role = await getProfileRole();
 
-  if (profile?.role === "super_admin") {
+  if (role === "super_admin") {
     // ตัด personal "home org" (ที่ provisionLineUser สร้างให้ผู้ใช้ทุกคนตอนแอด LINE)
     // ออกจาก switcher — super_admin ควรเห็นเฉพาะองค์กรธุรกิจจริง (B2B) ไม่ใช่พื้นที่ส่วนตัวของทุกคน
-    const { data: personalRows } = await adminClient
-      .from("profiles")
-      .select("personal_org_id")
-      .not("personal_org_id", "is", null);
+    const [{ data: personalRows }, { data: allOrgs, error: orgsErr }] = await Promise.all([
+      adminClient.from("profiles").select("personal_org_id").not("personal_org_id", "is", null),
+      adminClient.from("organizations").select("id,name,slug").order("name"),
+    ]);
     const personalOrgIds = new Set((personalRows ?? []).map((r: any) => String(r.personal_org_id)));
 
-    const { data: allOrgs, error: orgsErr } = await adminClient
-      .from("organizations")
-      .select("id,name,slug")
-      .order("name");
     if (orgsErr || !allOrgs?.length) return [];
     return (allOrgs as any[])
       .filter((o) => !personalOrgIds.has(String(o.id)))
@@ -110,7 +102,7 @@ export async function getActiveModuleKey(
  * Fetch a user's role inside a specific module (module_members.module_role).
  * Super-admins always get "owner". Returns null if not a member.
  */
-export async function getModuleRoleForCurrentUser(
+export const getModuleRoleForCurrentUser = cache(async function getModuleRoleForCurrentUser(
   orgId: string,
   moduleKey: string,
 ): Promise<string | null> {
@@ -121,12 +113,7 @@ export async function getModuleRoleForCurrentUser(
   const admin = createSupabaseAdminClient();
 
   // Super-admins bypass module membership
-  const { data: profile } = await admin
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .maybeSingle();
-  if ((profile as any)?.role === "super_admin") return "owner";
+  if ((await getProfileRole()) === "super_admin") return "owner";
 
   const { data: member } = await admin
     .from("module_members")
@@ -138,7 +125,7 @@ export async function getModuleRoleForCurrentUser(
     .maybeSingle();
 
   return (member as any)?.module_role ?? null;
-}
+});
 
 /** Fetch menu_labels for the given module keys from module_registry.
  *  Returns: { moduleKey: { menuKey: customLabel } } — only keys with non-empty labels. */
@@ -169,31 +156,30 @@ export async function getCurrentUserId(): Promise<string | null> {
 }
 
 /** Returns personal module keys for a user — only if grant is_enabled AND user has LINE connected. */
-export async function getPersonalModulesForUser(userId: string | null): Promise<string[]> {
+export const getPersonalModulesForUser = cache(async function getPersonalModulesForUser(
+  userId: string | null,
+): Promise<string[]> {
   if (!userId) return [];
   const { createSupabaseAdminClient } = await import("@/lib/supabase/admin");
   const supabase = createSupabaseAdminClient();
 
-  // Check LINE connection first
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("line_user_id")
-    .eq("id", userId)
-    .maybeSingle();
+  // ยิงคู่กัน — เดิมรอ profile ก่อนค่อยถาม grants (2 round-trip เรียงกัน)
+  const [{ data: profile }, { data: grants }] = await Promise.all([
+    supabase.from("profiles").select("line_user_id").eq("id", userId).maybeSingle(),
+    supabase
+      .from("personal_module_grants")
+      .select("module_key")
+      .eq("user_id", userId)
+      .eq("is_enabled", true),
+  ]);
 
+  // ต้องมี LINE ผูกอยู่ ถึงจะได้ personal module
   if (!(profile as Record<string, unknown> | null)?.line_user_id) return [];
 
-  // Fetch enabled personal grants
-  const { data: grants } = await supabase
-    .from("personal_module_grants")
-    .select("module_key")
-    .eq("user_id", userId)
-    .eq("is_enabled", true);
-
   return (grants ?? []).map((g) => (g as Record<string, string>).module_key);
-}
+});
 
-export async function getEnabledModulesForOrg(
+export const getEnabledModulesForOrg = cache(async function getEnabledModulesForOrg(
   orgId: string | null,
   memberRole: "owner" | "admin" | "team_lead" | "team_member" | null,
 ): Promise<string[]> {
@@ -208,25 +194,16 @@ export async function getEnabledModulesForOrg(
   // เสมอ (ทิ้ง membership จริง) แต่ allowed_roles ของแต่ละโมดูลมาจาก role matrix ของโมดูลนั้น
   // ซึ่งบางโมดูล **ไม่มี role ชื่อ "admin" อยู่เลย** (accounting = owner/accountant/staff/viewer)
   // → super_admin จะมองไม่เห็นโมดูลนั้นตลอดกาล แม้ is_enabled = true
-  const user = await getAuthUser();
-  let isSuperAdmin = false;
-  if (user) {
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", user.id)
-      .maybeSingle();
-    isSuperAdmin = (profile as { role?: string } | null)?.role === "super_admin";
-  }
-
   // Fetch org slug alongside module settings — needed to enforce forOrgSlugs
-  const [{ data: orgData }, { data }] = await Promise.all([
+  const [role, { data: orgData }, { data }] = await Promise.all([
+    getProfileRole(),
     supabase.from("organizations").select("slug").eq("id", orgId).single(),
     supabase
       .from("org_module_settings")
       .select("module_key,is_enabled,allowed_roles")
       .eq("organization_id", orgId),
   ]);
+  const isSuperAdmin = role === "super_admin";
 
   if (!data?.length) return [];
 
@@ -244,14 +221,9 @@ export async function getEnabledModulesForOrg(
       return true;
     })
     .map((row) => row.module_key as string);
-}
+});
 
 /** true ถ้าผู้ใช้ปัจจุบันเป็น super_admin (profiles.role) — ใช้ปลดด่านสิทธิ์ตาม AGENTS.md */
 export async function isSuperAdminUser(): Promise<boolean> {
-  const user = await getAuthUser();
-  if (!user) return false;
-  const { createSupabaseAdminClient } = await import("@/lib/supabase/admin");
-  const admin = createSupabaseAdminClient();
-  const { data } = await admin.from("profiles").select("role").eq("id", user.id).maybeSingle();
-  return (data as { role?: string } | null)?.role === "super_admin";
+  return (await getProfileRole()) === "super_admin";
 }

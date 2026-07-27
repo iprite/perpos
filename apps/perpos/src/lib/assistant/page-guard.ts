@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getAuthUser } from "@/lib/supabase/auth-user";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { resolveAssistantAccess } from "@/lib/assistant/access";
 import type { AssistantKind } from "@/lib/assistant/kinds";
@@ -25,10 +25,8 @@ export interface AssistantPageAuth {
  * defense-in-depth: gate ระดับ SSR — กันคนปิด JS / ดึง RSC ตรง
  */
 export async function requireAssistantPage(): Promise<AssistantPageAuth> {
-  const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // getAuthUser = dedupe ต่อ request (HydrogenLayout resolve ไปแล้ว) → ไม่มี round-trip เพิ่ม
+  const user = await getAuthUser();
   if (!user) redirect("/signin");
 
   const admin = createSupabaseAdminClient();
