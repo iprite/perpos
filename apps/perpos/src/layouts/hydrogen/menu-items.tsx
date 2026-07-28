@@ -23,7 +23,6 @@ import {
   Webhook,
   ShieldBan,
   CreditCard,
-  TrendingUp,
   Briefcase,
   Kanban,
   Calculator,
@@ -415,7 +414,6 @@ function buildTmcMenuItems(org: string, labels: Record<string, string> = {}): Me
     },
     { name: l("stock", "Stock คลัง"), href: t("stock"), icon: <Package className="h-5 w-5" /> },
     { name: l("stays", "การเข้าพัก"), href: t("stays"), icon: <Building2 className="h-5 w-5" /> },
-    { name: "ต้นทุน & กำไร", href: t("costs"), icon: <TrendingUp className="h-5 w-5" /> },
   ];
 }
 
