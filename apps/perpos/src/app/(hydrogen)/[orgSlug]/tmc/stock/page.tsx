@@ -21,6 +21,7 @@ import {
   TableLoading,
 } from "@/components/ui/table";
 import { StatCard } from "@/components/ui/stat-card";
+import { SegmentedControl } from "@/components/ui/segmented";
 import {
   Dialog,
   DialogContent,
@@ -45,7 +46,23 @@ import {
   History,
   AlertTriangle,
   Search,
+  Filter,
+  LayoutDashboard,
+  CalendarRange,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+  Cell,
+} from "recharts";
 import cn from "@core/utils/class-names";
 import { PurchaseDialog } from "./purchase-dialog";
 
@@ -175,7 +192,15 @@ export default function TmcStockPage() {
   const [categories, setCategories] = useState<MasterItem[]>([]);
   const [units, setUnits] = useState<MasterItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"items" | "movements">("items");
+  const [activeTab, setActiveTab] = useState<"items" | "movements" | "dashboard">("items");
+
+  // filter panel (ซ่อนไว้หลัง icon)
+  const [showFilters, setShowFilters] = useState(false);
+  // pagination (แยกหน้าให้แต่ละแท็บ)
+  const PAGE_SIZE = 10;
+  const [page, setPage] = useState(1);
+  // แดชบอร์ด: เลือกดูเฉพาะเดือน ("" = ทุกเดือน)
+  const [dashMonth, setDashMonth] = useState("");
 
   // items filter (tab "รายการสินค้า")
   const [activeCategory, setActiveCategory] = useState<string>("__all__");
@@ -453,6 +478,105 @@ export default function TmcStockPage() {
     });
   }, [items, activeCategory, searchTerm]);
 
+  const hasFilter = activeCategory !== "__all__" || !!searchTerm.trim();
+
+  // เปลี่ยนแท็บ/ตัวกรอง/ข้อมูล → กลับหน้าแรกเสมอ (กันค้างอยู่หน้าที่ไม่มีแถวแล้ว)
+  useEffect(() => {
+    setPage(1);
+  }, [activeTab, activeCategory, searchTerm, items, movements]);
+
+  const pagedItems = filteredItems.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const pagedMovements = movements.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const totalRows = activeTab === "items" ? filteredItems.length : movements.length;
+  const totalPages = Math.max(1, Math.ceil(totalRows / PAGE_SIZE));
+
+  function fmtMonth(ym: string) {
+    const [y, m] = ym.split("-").map(Number);
+    return new Date(y, m - 1, 1).toLocaleDateString("th-TH", { month: "short", year: "2-digit" });
+  }
+
+  // ── แดชบอร์ด ────────────────────────────────────────────────────────────────
+  // หมายเหตุ: สินค้าแต่ละตัวคนละหน่วย (ชิ้น/กล่อง/ลิตร) → รวม "ปริมาณ" ข้ามสินค้าไม่ได้
+  // ทุกกราฟที่มาจาก movements จึงนับเป็น "จำนวนครั้ง" ที่รับเข้า/เบิกออกแทน
+  const dashMonths = useMemo(
+    () => Array.from(new Set(movements.map((m) => m.created_at.slice(0, 7)))).sort(),
+    [movements],
+  );
+  const dashMonthOptions = useMemo(
+    () => [
+      { value: "", label: "ทุกเดือน" },
+      ...[...dashMonths].reverse().map((m) => ({ value: m, label: fmtMonth(m) })),
+    ],
+    [dashMonths],
+  );
+  useEffect(() => {
+    if (dashMonth && !dashMonths.includes(dashMonth)) setDashMonth("");
+  }, [dashMonth, dashMonths]);
+
+  const dash = useMemo(() => {
+    // การเคลื่อนไหวรายเดือน (ทุกเดือนเสมอ เพื่อให้เห็นแนวโน้ม)
+    const byMonth = new Map<string, { in: number; out: number }>();
+    for (const m of movements) {
+      const ym = m.created_at.slice(0, 7);
+      const row = byMonth.get(ym) ?? { in: 0, out: 0 };
+      if (m.movement_type === "in") row.in += 1;
+      else if (m.movement_type === "out") row.out += 1;
+      byMonth.set(ym, row);
+    }
+    const monthly = Array.from(byMonth.entries())
+      .sort(([a], [b]) => (a < b ? -1 : 1))
+      .map(([ym, r]) => ({ ym, name: fmtMonth(ym), รับเข้า: r.in, เบิกออก: r.out }));
+
+    const scoped = dashMonth
+      ? movements.filter((m) => m.created_at.startsWith(dashMonth))
+      : movements;
+
+    // สินค้าที่เบิกออกบ่อยที่สุด (นับครั้ง)
+    const outByItem = new Map<string, number>();
+    // เบิกไปที่แปลงไหนมากที่สุด
+    const outByProp = new Map<string, number>();
+    for (const m of scoped) {
+      if (m.movement_type !== "out") continue;
+      const name = m.tmc_stock_items?.name ?? "(ไม่ทราบสินค้า)";
+      outByItem.set(name, (outByItem.get(name) ?? 0) + 1);
+      const prop = m.property_code ?? "ไม่ระบุ";
+      outByProp.set(prop, (outByProp.get(prop) ?? 0) + 1);
+    }
+    const topOutAll = Array.from(outByItem.entries())
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count);
+    const topOut = topOutAll.slice(0, 10);
+    const byProp = Array.from(outByProp.entries())
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count);
+
+    // จำนวนสินค้าแยกหมวด (สถานะปัจจุบัน ไม่ขึ้นกับเดือน)
+    const byCat = categoryChips.map((c) => ({ name: c.name, count: c.count }));
+
+    return {
+      monthly,
+      topOut,
+      topOutHidden: topOutAll.length - topOut.length,
+      byProp,
+      byCat,
+      moveIn: scoped.filter((m) => m.movement_type === "in").length,
+      moveOut: scoped.filter((m) => m.movement_type === "out").length,
+    };
+  }, [movements, dashMonth, categoryChips]);
+
+  const CAT_COLORS = [
+    "#5D9CEC",
+    "#8067B7",
+    "#EC87C0",
+    "#FFCE54",
+    "#48CFAD",
+    "#FC6E51",
+    "#A0CECB",
+    "#A0D468",
+    "#CCD1D9",
+  ];
+  const TT = { contentStyle: { fontSize: 12, borderRadius: 8, border: "1px solid #E6E9EE" } };
+
   // ── Withdraw over-balance guard (movement dialog) ──────────────────────────
   const selectedMovItem = useMemo(
     () => items.find((i) => i.id === movForm.itemId),
@@ -471,25 +595,51 @@ export default function TmcStockPage() {
       description="TMC Management"
       actions={
         <>
-          <Button variant="outline" size="sm" onClick={() => setShowMaster(true)}>
-            <Settings className="h-4 w-4" /> จัดการหมวด/หน่วย
+          <Button
+            variant={showFilters || hasFilter ? "secondary" : "outline"}
+            size="icon"
+            title="ตัวกรอง"
+            className="relative"
+            onClick={() => setShowFilters((v) => !v)}
+          >
+            <Filter className="h-4 w-4" />
+            {hasFilter && (
+              <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-amber-500" />
+            )}
           </Button>
           <Button
             variant="outline"
+            size="icon"
+            title="จัดการหมวด/หน่วย"
+            onClick={() => setShowMaster(true)}
+          >
+            <Settings className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="outline"
+            size="icon"
+            title="เบิกออก"
             onClick={() => setShowMovement("out")}
             className="border-red-200 text-red-600 hover:bg-red-50"
           >
-            <ArrowUp className="h-4 w-4" /> เบิกออก
+            <ArrowUp className="h-4 w-4" />
           </Button>
           <Button
             variant="outline"
+            size="icon"
+            title="รับเข้า"
             onClick={() => setShowMovement("in")}
             className="border-green-200 text-green-600 hover:bg-green-50"
           >
-            <ArrowDown className="h-4 w-4" /> รับเข้า
+            <ArrowDown className="h-4 w-4" />
           </Button>
-          <Button variant="outline" onClick={() => setShowPurchase(true)}>
-            <ShoppingCart className="h-4 w-4" /> ซื้อเข้าคลัง
+          <Button
+            variant="outline"
+            size="icon"
+            title="ซื้อเข้าคลัง"
+            onClick={() => setShowPurchase(true)}
+          >
+            <ShoppingCart className="h-4 w-4" />
           </Button>
           <Button onClick={() => setShowAddItem(true)}>
             <Plus className="h-4 w-4" /> เพิ่มรายการ
@@ -497,91 +647,20 @@ export default function TmcStockPage() {
         </>
       }
     >
-      {/* Summary stats */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <StatCard
-          icon={<Package className="h-4 w-4" />}
-          label="รายการทั้งหมด"
-          value={String(items.length)}
-          tone="info"
-        />
-        <StatCard
-          icon={<AlertTriangle className="h-4 w-4" />}
-          label="ใกล้หมด"
-          value={String(lowStock.length)}
-          sub={
-            lowStock.length > 0 ? (
-              <span className="block truncate">{lowStock.map((i) => i.name).join(", ")}</span>
-            ) : undefined
-          }
-          tone={lowStock.length > 0 ? "warning" : "neutral"}
-          valueColored
-        />
-        <StatCard
-          icon={<Tag className="h-4 w-4" />}
-          label="หมวดสินค้า"
-          value={String(categoryCount)}
-          tone="neutral"
-        />
-      </div>
-
-      {/* Tabs */}
-      <div className="flex gap-1.5 overflow-x-auto rounded-xl border border-gray-200 bg-white p-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        {(["items", "movements"] as const).map((t) => (
-          <Button
-            key={t}
-            size="sm"
-            variant={activeTab === t ? "secondary" : "ghost"}
-            onClick={() => setActiveTab(t)}
-            className={cn(
-              "shrink-0 whitespace-nowrap",
-              activeTab === t && "bg-gray-100 text-gray-900",
-            )}
-          >
-            {t === "items" ? (
-              <>
-                <Package className="h-3.5 w-3.5" /> รายการสินค้า
-              </>
-            ) : (
-              <>
-                <History className="h-3.5 w-3.5" /> ประวัติรับ-เบิก
-              </>
-            )}
-          </Button>
-        ))}
-      </div>
-
-      {/* Category filter + search (items tab only) */}
-      {activeTab === "items" && (
-        <div className="space-y-2">
-          <div className="flex gap-1.5 overflow-x-auto rounded-xl border border-gray-200 bg-white p-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            <Button
-              size="sm"
-              variant={activeCategory === "__all__" ? "secondary" : "ghost"}
-              onClick={() => setActiveCategory("__all__")}
-              className={cn(
-                "shrink-0 whitespace-nowrap",
-                activeCategory === "__all__" && "bg-gray-100 text-gray-900",
-              )}
-            >
-              ทั้งหมด ({items.length})
-            </Button>
-            {categoryChips.map((c) => (
-              <Button
-                key={c.name}
-                size="sm"
-                variant={activeCategory === c.name ? "secondary" : "ghost"}
-                onClick={() => setActiveCategory(c.name)}
-                className={cn(
-                  "shrink-0 whitespace-nowrap",
-                  activeCategory === c.name && "bg-gray-100 text-gray-900",
-                )}
-              >
-                {c.name} ({c.count})
-              </Button>
-            ))}
-          </div>
-          <div className="relative max-w-xs">
+      {/* Filters — ซ่อนไว้หลัง icon ด้านบน (มีผลกับแท็บรายการสินค้า) */}
+      {showFilters && (
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border bg-white p-3">
+          <Filter className="h-4 w-4 shrink-0 text-gray-400" />
+          <CustomSelect
+            value={activeCategory}
+            onChange={setActiveCategory}
+            options={[
+              { value: "__all__", label: `ทุกหมวด (${items.length})` },
+              ...categoryChips.map((c) => ({ value: c.name, label: `${c.name} (${c.count})` })),
+            ]}
+            className="w-52"
+          />
+          <div className="relative w-full max-w-xs">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
             <Input
               value={searchTerm}
@@ -590,10 +669,326 @@ export default function TmcStockPage() {
               className="pl-9"
             />
           </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            disabled={!hasFilter}
+            onClick={() => {
+              setActiveCategory("__all__");
+              setSearchTerm("");
+            }}
+          >
+            ล้างตัวกรอง
+          </Button>
         </div>
       )}
 
-      {loading ? (
+      {/* View switch */}
+      <SegmentedControl
+        value={activeTab}
+        onChange={setActiveTab}
+        size="sm"
+        options={[
+          { value: "items", label: "รายการสินค้า", icon: <Package className="h-4 w-4" /> },
+          { value: "movements", label: "ประวัติรับ-เบิก", icon: <History className="h-4 w-4" /> },
+          { value: "dashboard", label: "แดชบอร์ด", icon: <LayoutDashboard className="h-4 w-4" /> },
+        ]}
+      />
+
+      {/* ── แดชบอร์ด ── */}
+      {activeTab === "dashboard" &&
+        (loading ? (
+          <div className="animate-pulse space-y-3">
+            {[...Array(3)].map((_, i) => (
+              <div key={i} className="h-64 rounded-xl bg-gray-100" />
+            ))}
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {/* ตัวเลือกเดือน */}
+            <div className="flex flex-wrap items-center gap-2">
+              <CalendarRange className="h-4 w-4 shrink-0 text-gray-400" />
+              <span className="text-sm text-gray-500">ดูการเคลื่อนไหวเดือน</span>
+              <CustomSelect
+                value={dashMonth}
+                onChange={setDashMonth}
+                options={dashMonthOptions}
+                className="w-40"
+              />
+              {dashMonth && (
+                <Button variant="ghost" size="sm" onClick={() => setDashMonth("")}>
+                  ดูทุกเดือน
+                </Button>
+              )}
+            </div>
+
+            {/* การ์ดสรุป */}
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <StatCard
+                icon={<AlertTriangle className="h-4 w-4" />}
+                label="ใกล้หมด — ควรสั่งเพิ่ม"
+                value={String(lowStock.length)}
+                sub={
+                  lowStock.length > 0 ? (
+                    <span className="block truncate">{lowStock.map((i) => i.name).join(", ")}</span>
+                  ) : (
+                    "ระดับสต๊อกปกติทุกรายการ"
+                  )
+                }
+                tone={lowStock.length > 0 ? "warning" : "positive"}
+                valueColored
+              />
+              <StatCard
+                icon={<Package className="h-4 w-4" />}
+                label="รายการทั้งหมด"
+                value={String(items.length)}
+                sub={`${categoryCount} หมวด`}
+                tone="info"
+              />
+              <StatCard
+                icon={<ArrowDown className="h-4 w-4" />}
+                label={dashMonth ? `รับเข้า (${fmtMonth(dashMonth)})` : "รับเข้า (ทั้งหมด)"}
+                value={`${dash.moveIn} ครั้ง`}
+                tone="positive"
+                valueColored
+              />
+              <StatCard
+                icon={<ArrowUp className="h-4 w-4" />}
+                label={dashMonth ? `เบิกออก (${fmtMonth(dashMonth)})` : "เบิกออก (ทั้งหมด)"}
+                value={`${dash.moveOut} ครั้ง`}
+                tone="negative"
+                valueColored
+              />
+            </div>
+
+            {/* Stock ใกล้หมด — สิ่งที่ต้องลงมือทำ */}
+            {lowStock.length > 0 && (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+                <p className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-amber-700">
+                  <AlertTriangle className="h-4 w-4" /> ต่ำกว่าขั้นต่ำ — ควรสั่งเพิ่ม
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {lowStock.map((i) => (
+                    <span
+                      key={i.id}
+                      className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-white px-3 py-1 text-xs text-amber-800"
+                    >
+                      {i.name}
+                      <span className="ml-1 font-bold text-red-500">
+                        {i.current_qty}/{i.min_quantity} {i.unit}
+                      </span>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* การเคลื่อนไหวรายเดือน */}
+            {dash.monthly.length > 0 && (
+              <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+                <p className="mb-3 text-sm font-semibold text-gray-900">
+                  รับเข้า vs เบิกออก รายเดือน (จำนวนครั้ง)
+                  <span className="ml-1.5 text-xs font-normal text-gray-400">
+                    (คลิกแท่งเพื่อเลือกเดือน)
+                  </span>
+                </p>
+                <ResponsiveContainer width="100%" height={260}>
+                  <BarChart data={dash.monthly} barCategoryGap="22%">
+                    <CartesianGrid strokeDasharray="3 3" stroke="#E6E9EE" vertical={false} />
+                    <XAxis
+                      dataKey="name"
+                      tick={{ fontSize: 12 }}
+                      tickLine={false}
+                      axisLine={false}
+                    />
+                    <YAxis
+                      tick={{ fontSize: 12 }}
+                      allowDecimals={false}
+                      tickLine={false}
+                      axisLine={false}
+                      width={36}
+                    />
+                    <Tooltip {...TT} cursor={{ fill: "#F5F7FA" }} />
+                    <Legend wrapperStyle={{ fontSize: 12 }} />
+                    <Bar
+                      dataKey="รับเข้า"
+                      radius={[4, 4, 0, 0]}
+                      className="cursor-pointer"
+                      onClick={(d: { ym?: string }) =>
+                        setDashMonth((p) => (p === d.ym ? "" : (d.ym ?? "")))
+                      }
+                    >
+                      {dash.monthly.map((r) => (
+                        <Cell
+                          key={r.ym}
+                          fill="#48CFAD"
+                          fillOpacity={!dashMonth || dashMonth === r.ym ? 1 : 0.3}
+                        />
+                      ))}
+                    </Bar>
+                    <Bar
+                      dataKey="เบิกออก"
+                      radius={[4, 4, 0, 0]}
+                      className="cursor-pointer"
+                      onClick={(d: { ym?: string }) =>
+                        setDashMonth((p) => (p === d.ym ? "" : (d.ym ?? "")))
+                      }
+                    >
+                      {dash.monthly.map((r) => (
+                        <Cell
+                          key={r.ym}
+                          fill="#ED5565"
+                          fillOpacity={!dashMonth || dashMonth === r.ym ? 1 : 0.3}
+                        />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+
+            <div className="grid gap-4 lg:grid-cols-2">
+              {/* เบิกออกบ่อยที่สุด */}
+              <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+                <p className="mb-3 text-sm font-semibold text-gray-900">
+                  สินค้าที่เบิกบ่อยที่สุด (จำนวนครั้ง)
+                  {dashMonth && (
+                    <span className="ml-1.5 text-xs font-normal text-gray-500">
+                      · {fmtMonth(dashMonth)}
+                    </span>
+                  )}
+                  {dash.topOutHidden > 0 && (
+                    <span className="ml-1.5 text-xs font-normal text-gray-400">
+                      — แสดง 10 อันดับแรก
+                    </span>
+                  )}
+                </p>
+                {dash.topOut.length === 0 ? (
+                  <p className="py-10 text-center text-sm text-gray-400">
+                    ยังไม่มีการเบิกออกในช่วงที่เลือก
+                  </p>
+                ) : (
+                  <ResponsiveContainer width="100%" height={32 + dash.topOut.length * 30}>
+                    <BarChart
+                      data={dash.topOut}
+                      layout="vertical"
+                      margin={{ left: 8, right: 16, top: 4, bottom: 4 }}
+                      barCategoryGap="20%"
+                    >
+                      <CartesianGrid strokeDasharray="3 3" stroke="#E6E9EE" horizontal={false} />
+                      <XAxis
+                        type="number"
+                        allowDecimals={false}
+                        tick={{ fontSize: 12 }}
+                        tickLine={false}
+                        axisLine={false}
+                      />
+                      <YAxis
+                        type="category"
+                        dataKey="name"
+                        tick={{ fontSize: 11 }}
+                        width={130}
+                        tickLine={false}
+                        axisLine={false}
+                      />
+                      <Tooltip {...TT} cursor={{ fill: "#F5F7FA" }} />
+                      <Bar dataKey="count" name="ครั้ง" fill="#8067B7" radius={[0, 4, 4, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                )}
+              </div>
+
+              {/* เบิกไปแปลงไหน */}
+              <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+                <p className="mb-3 text-sm font-semibold text-gray-900">
+                  เบิกไปที่แปลงไหน (จำนวนครั้ง)
+                  {dashMonth && (
+                    <span className="ml-1.5 text-xs font-normal text-gray-500">
+                      · {fmtMonth(dashMonth)}
+                    </span>
+                  )}
+                </p>
+                {dash.byProp.length === 0 ? (
+                  <p className="py-10 text-center text-sm text-gray-400">
+                    ยังไม่มีการเบิกออกในช่วงที่เลือก
+                  </p>
+                ) : (
+                  <ResponsiveContainer width="100%" height={32 + dash.byProp.length * 30}>
+                    <BarChart
+                      data={dash.byProp}
+                      layout="vertical"
+                      margin={{ left: 8, right: 16, top: 4, bottom: 4 }}
+                      barCategoryGap="20%"
+                    >
+                      <CartesianGrid strokeDasharray="3 3" stroke="#E6E9EE" horizontal={false} />
+                      <XAxis
+                        type="number"
+                        allowDecimals={false}
+                        tick={{ fontSize: 12 }}
+                        tickLine={false}
+                        axisLine={false}
+                      />
+                      <YAxis
+                        type="category"
+                        dataKey="name"
+                        tick={{ fontSize: 12 }}
+                        width={92}
+                        tickLine={false}
+                        axisLine={false}
+                      />
+                      <Tooltip {...TT} cursor={{ fill: "#F5F7FA" }} />
+                      <Bar dataKey="count" name="ครั้ง" radius={[0, 4, 4, 0]}>
+                        {dash.byProp.map((_, i) => (
+                          <Cell key={i} fill={CAT_COLORS[i % CAT_COLORS.length]} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                )}
+              </div>
+            </div>
+
+            {/* จำนวนสินค้าแยกหมวด */}
+            {dash.byCat.length > 0 && (
+              <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+                <p className="mb-3 text-sm font-semibold text-gray-900">จำนวนรายการสินค้าแยกหมวด</p>
+                <ResponsiveContainer width="100%" height={32 + dash.byCat.length * 30}>
+                  <BarChart
+                    data={dash.byCat}
+                    layout="vertical"
+                    margin={{ left: 8, right: 16, top: 4, bottom: 4 }}
+                    barCategoryGap="20%"
+                  >
+                    <CartesianGrid strokeDasharray="3 3" stroke="#E6E9EE" horizontal={false} />
+                    <XAxis
+                      type="number"
+                      allowDecimals={false}
+                      tick={{ fontSize: 12 }}
+                      tickLine={false}
+                      axisLine={false}
+                    />
+                    <YAxis
+                      type="category"
+                      dataKey="name"
+                      tick={{ fontSize: 12 }}
+                      width={130}
+                      tickLine={false}
+                      axisLine={false}
+                    />
+                    <Tooltip {...TT} cursor={{ fill: "#F5F7FA" }} />
+                    <Bar dataKey="count" name="รายการ" radius={[0, 4, 4, 0]}>
+                      {dash.byCat.map((_, i) => (
+                        <Cell key={i} fill={CAT_COLORS[i % CAT_COLORS.length]} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+          </div>
+        ))}
+
+      {activeTab === "dashboard" ? null : loading ? (
         <Table>
           <TableHeader>
             <TableRow>
@@ -620,7 +1015,7 @@ export default function TmcStockPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredItems.map((item) => (
+            {pagedItems.map((item) => (
               <TableRow key={item.id}>
                 <TableCell className="font-medium text-gray-900">{item.name}</TableCell>
                 <TableCell className="text-xs text-gray-500">{item.category ?? "—"}</TableCell>
@@ -663,7 +1058,7 @@ export default function TmcStockPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {movements.map((m) => (
+            {pagedMovements.map((m) => (
               <TableRow key={m.id}>
                 <TableCell className="text-gray-500">
                   {new Date(m.created_at).toLocaleDateString("th-TH", {
@@ -689,6 +1084,60 @@ export default function TmcStockPage() {
             )}
           </TableBody>
         </Table>
+      )}
+
+      {/* Pagination (แท็บรายการ/ประวัติ) */}
+      {activeTab !== "dashboard" && !loading && totalRows > 0 && (
+        <div className="flex items-center justify-between px-1">
+          <p className="text-xs text-gray-500">
+            แสดง {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, totalRows)} จาก{" "}
+            {totalRows} รายการ
+          </p>
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={page === 1}
+              className="h-8 w-8"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            {Array.from({ length: totalPages }, (_, i) => i + 1)
+              .filter((p) => p === 1 || p === totalPages || Math.abs(p - page) <= 1)
+              .reduce<(number | "ellipsis")[]>((acc, p, idx, arr) => {
+                if (idx > 0 && p - (arr[idx - 1] as number) > 1) acc.push("ellipsis");
+                acc.push(p);
+                return acc;
+              }, [])
+              .map((item, idx) =>
+                item === "ellipsis" ? (
+                  <span key={`e${idx}`} className="px-1 text-xs text-gray-400">
+                    …
+                  </span>
+                ) : (
+                  <Button
+                    key={item}
+                    variant={item === page ? "default" : "ghost"}
+                    size="icon"
+                    onClick={() => setPage(item as number)}
+                    className="h-8 w-8 text-xs"
+                  >
+                    {item}
+                  </Button>
+                ),
+              )}
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={page === totalPages}
+              className="h-8 w-8"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
       )}
 
       {/* ── Add Item Dialog ─────────────────────────────────────────────────── */}

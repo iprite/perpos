@@ -5,7 +5,9 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getModuleRoleForCurrentUser } from "@/lib/accounting/queries";
 import { computeTmcDashboard, rangeFromMonths } from "@/lib/tmc/dashboard";
 import { TmcRangeFilter } from "./_range-filter";
+import { TmcDashboardTabs } from "./_tabs";
 import { TmcDashboardView } from "./_view";
+import { TmcCostsView } from "./_costs-view";
 
 // TMC = single-tenant — ผูกกับ org เดียว (เหมือนเดิม)
 const TMC_ORG_ID = "1f52618c-09c4-49c5-a929-ea5060f26e7d";
@@ -13,17 +15,25 @@ const TMC_ORG_ID = "1f52618c-09c4-49c5-a929-ea5060f26e7d";
 export default async function TmcDashboardPage({
   searchParams,
 }: {
-  searchParams: Promise<{ range?: string }>;
+  searchParams: Promise<{ range?: string; tab?: string }>;
 }) {
   // Guard: ต้องเป็นสมาชิกโมดูล tmc (หรือ super_admin) — query ผ่าน RLS client (scope ตาม session)
   const role = await getModuleRoleForCurrentUser(TMC_ORG_ID, "tmc");
   if (!role) redirect("/");
 
   const sp = await searchParams;
+  const tab = sp.tab === "costs" ? "costs" : "overview";
   const range = ["1", "3", "6", "12"].includes(sp.range ?? "") ? (sp.range as string) : "6";
 
-  const supabase = await createSupabaseServerClient();
-  const data = await computeTmcDashboard(supabase, TMC_ORG_ID, rangeFromMonths(Number(range)));
+  // แท็บต้นทุนดึงข้อมูลเองฝั่ง client → ไม่ต้อง aggregate ภาพรวมทิ้งเปล่า
+  const data =
+    tab === "overview"
+      ? await computeTmcDashboard(
+          await createSupabaseServerClient(),
+          TMC_ORG_ID,
+          rangeFromMonths(Number(range)),
+        )
+      : null;
 
   return (
     <PageShell
@@ -31,9 +41,10 @@ export default async function TmcDashboardPage({
       icon={<Building2 className="h-6 w-6" />}
       title="Dashboard"
       description="TMC Management — ภาพรวมธุรกิจ"
-      actions={<TmcRangeFilter current={range} />}
+      actions={tab === "overview" ? <TmcRangeFilter current={range} /> : undefined}
+      tabs={<TmcDashboardTabs current={tab} />}
     >
-      <TmcDashboardView data={data} />
+      {data ? <TmcDashboardView data={data} /> : <TmcCostsView />}
     </PageShell>
   );
 }

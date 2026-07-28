@@ -7,6 +7,7 @@
 
 import { useState } from "react";
 import { StatCard } from "@/components/ui/stat-card";
+import { SegmentedControl } from "@/components/ui/segmented";
 import {
   Table,
   TableHeader,
@@ -67,7 +68,7 @@ function fmt(n: number) {
 }
 
 const PROPERTY_COLORS: Record<string, string> = {
-  TMC1: "#4FC1E9",
+  TMC1: "#5D9CEC",
   TMC2: "#8067B7",
   "TMC3-4": "#EC87C0",
   TMC5: "#FFCE54",
@@ -104,29 +105,86 @@ export function TmcDashboardView({ data }: { data: TmcDashData }) {
     รายรับห้อง: r.revenue ?? 0,
   }));
 
+  // เงินเข้า-ออกจริงของช่วงนี้ (บัญชี + เงินสดย่อย) — เติมเงินสดย่อยไม่นับเป็นเงินเข้า
+  // เพราะเป็นการโยกจากบัญชีหลัก ไม่ใช่รายได้ใหม่
+  const cashIn = t.finance.income;
+  const cashOut = t.finance.expense + t.petty.expense;
+  const netCash = cashIn - cashOut;
+
+  // รายรับเดือนล่าสุดเทียบเดือนก่อนหน้า (%)
+  const fm = data.financeMonthly;
+  const last = fm.at(-1)?.income ?? 0;
+  const prev = fm.at(-2)?.income ?? 0;
+  const incomeDelta = fm.length >= 2 && prev > 0 ? ((last - prev) / prev) * 100 : null;
+
+  // หมวดที่มีรายจ่าย — วาดแค่ 12 อันดับแรก และคิดความสูงกราฟจาก "จำนวนแท่งที่วาดจริง"
+  // (ก่อนหน้านี้คิดจากจำนวนหมวดทั้งหมด → กราฟสูงเกินจนแท่งห่างกันมาก)
+  const catExpenseAll = data.byCategory.filter((r) => r.expense > 0);
+  const catExpense = catExpenseAll.slice(0, 12);
+  const catExpenseHidden = catExpenseAll.length - catExpense.length;
+
+  // แปลงที่มีตัวเลขบัญชี — ใช้ทั้งเป็น data และเป็นตัวไล่สี Cell (ต้องเป็นชุดเดียวกัน ไม่งั้นสีเลื่อน)
+  const propRows = data.byProperty.filter((r) => r.finIncome > 0 || r.finExpense > 0);
+
   return (
     <>
-      {/* ── Summary Cards ── */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      {/* ── Headline: กระแสเงินสดรวมของช่วงนี้ ── */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
           icon={<Landmark className="h-4 w-4" />}
-          label="รายรับสุทธิ (บัญชี)"
-          value={`฿${fmtK(t.finance.income - t.finance.expense)}`}
-          sub={`รับ ${fmtK(t.finance.income)} / จ่าย ${fmtK(t.finance.expense)}`}
-          tone="info"
+          label="เงินเข้า-ออกสุทธิ (ช่วงนี้)"
+          value={`฿${fmt(netCash)}`}
+          sub={`เข้า ${fmtK(cashIn)} / ออก ${fmtK(cashOut)} · รวมเงินสดย่อย`}
+          tone={netCash >= 0 ? "info" : "negative"}
+          valueColored
+        />
+        <StatCard
+          icon={<TrendingUp className="h-4 w-4" />}
+          label="รายรับ (บัญชี)"
+          value={`฿${fmt(t.finance.income)}`}
+          sub={
+            incomeDelta == null
+              ? "เดือนล่าสุดเทียบเดือนก่อน —"
+              : `เดือนล่าสุด ${incomeDelta >= 0 ? "▲" : "▼"} ${Math.abs(incomeDelta).toFixed(0)}% เทียบเดือนก่อน`
+          }
+          tone="positive"
+          valueColored
+        />
+        <StatCard
+          icon={<TrendingDown className="h-4 w-4" />}
+          label="รายจ่าย (บัญชี + เงินสดย่อย)"
+          value={`฿${fmt(t.finance.expense + t.petty.expense)}`}
+          sub={`บัญชี ${fmtK(t.finance.expense)} + เงินสดย่อย ${fmtK(t.petty.expense)}`}
+          tone="negative"
+          valueColored
         />
         <StatCard
           icon={<Wallet className="h-4 w-4" />}
           label="เงินสดย่อยคงเหลือ"
-          value={`฿${fmtK(t.petty.top_up - t.petty.expense)}`}
-          sub={`รับ ${fmtK(t.petty.top_up)} / จ่าย ${fmtK(t.petty.expense)}`}
+          value={`฿${fmt(t.petty.top_up - t.petty.expense)}`}
+          sub={`เติม ${fmtK(t.petty.top_up)} / ใช้ ${fmtK(t.petty.expense)}`}
           tone="primary"
         />
+      </div>
+
+      {/* ── ดำเนินงาน: ห้องพัก + คลัง ── */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <StatCard
           icon={<Building2 className="h-4 w-4" />}
-          label="การเข้าพัก (ทั้งหมด)"
-          value={`${t.staysAllTime} ครั้ง`}
-          sub={`ช่วงนี้ ${t.stays.count} ครั้ง · ${t.stays.nights} คืน · ฿${fmtK(t.stays.revenue)}`}
+          label="การเข้าพัก (ช่วงนี้)"
+          value={`${t.stays.count} ครั้ง`}
+          sub={`${t.stays.nights} คืน · สะสมทั้งหมด ${t.staysAllTime} ครั้ง`}
+          tone="positive"
+        />
+        <StatCard
+          icon={<TrendingUp className="h-4 w-4" />}
+          label="รายรับห้องพัก"
+          value={`฿${fmt(t.stays.revenue)}`}
+          sub={
+            t.stays.nights > 0
+              ? `เฉลี่ย ฿${fmt(Math.round(t.stays.revenue / t.stays.nights))} ต่อคืน`
+              : "ยังไม่มีการเข้าพัก"
+          }
           tone="positive"
         />
         <StatCard
@@ -139,68 +197,52 @@ export function TmcDashboardView({ data }: { data: TmcDashData }) {
           }
           label="Stock คลัง"
           value={`${t.stock.items} รายการ`}
-          sub={t.stock.low > 0 ? `ใกล้หมด ${t.stock.low} รายการ` : "ปกติ"}
+          sub={t.stock.low > 0 ? `ใกล้หมด ${t.stock.low} รายการ` : "ระดับสต๊อกปกติ"}
           tone={t.stock.low > 0 ? "warning" : "neutral"}
         />
       </div>
 
-      {/* ── Quick totals row ── */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <StatCard
-          icon={<TrendingUp className="h-4 w-4" />}
-          label="รายรับรวม"
-          value={`฿${fmt(t.finance.income)}`}
-          tone="positive"
-          valueColored
-        />
-        <StatCard
-          icon={<TrendingDown className="h-4 w-4" />}
-          label="รายจ่ายรวม"
-          value={`฿${fmt(t.finance.expense)}`}
-          tone="negative"
-          valueColored
-        />
-        <StatCard
-          icon={<Wallet className="h-4 w-4" />}
-          label="เงินสดย่อย รายจ่าย"
-          value={`฿${fmt(t.petty.expense)}`}
-          tone="warning"
-          valueColored
-        />
-      </div>
+      {/* ── Stock low (ยกขึ้นมาไว้บน — เป็นสิ่งที่ต้องลงมือทำ) ── */}
+      {data.stockLow.length > 0 && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+          <p className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-amber-700">
+            <AlertTriangle className="h-4 w-4" /> Stock ใกล้หมด — ควรสั่งเพิ่ม
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {data.stockLow.map((item) => (
+              <span
+                key={item.name}
+                className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-white px-3 py-1 text-xs text-amber-800"
+              >
+                {item.name}
+                <span className="ml-1 font-bold text-red-500">{item.qty}</span>
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* ── Graph section ── */}
-      <div className="rounded-xl border bg-white">
-        <div className="flex items-center gap-1 border-b px-4 pt-3">
-          {(
-            [
-              { key: "finance", label: "บัญชีการเงิน", icon: <Landmark className="h-3.5 w-3.5" /> },
-              { key: "petty", label: "เงินสดย่อย", icon: <Wallet className="h-3.5 w-3.5" /> },
-              { key: "stays", label: "การเข้าพัก", icon: <Building2 className="h-3.5 w-3.5" /> },
-            ] as const
-          ).map((tab) => (
-            <button
-              key={tab.key}
-              onClick={() => setGraphTab(tab.key)}
-              className={`flex items-center gap-1.5 rounded-t border-b-2 px-3 py-2 text-xs font-medium transition-colors ${
-                graphTab === tab.key
-                  ? "border-blue-500 bg-blue-50 text-blue-600"
-                  : "border-transparent text-slate-500 hover:text-slate-700"
-              }`}
-            >
-              {tab.icon} {tab.label}
-            </button>
-          ))}
+      <div className="rounded-xl border bg-white p-4">
+        <div className="mb-4">
+          <SegmentedControl
+            value={graphTab}
+            onChange={setGraphTab}
+            size="sm"
+            options={[
+              { value: "finance", label: "บัญชีการเงิน", icon: <Landmark className="h-4 w-4" /> },
+              { value: "petty", label: "เงินสดย่อย", icon: <Wallet className="h-4 w-4" /> },
+              { value: "stays", label: "การเข้าพัก", icon: <Building2 className="h-4 w-4" /> },
+            ]}
+          />
         </div>
-        <div className="p-4">
-          {graphTab === "finance" ? (
-            <FinanceChart data={finChart} />
-          ) : graphTab === "petty" ? (
-            <PettyChart data={pettyChart} />
-          ) : (
-            <StaysChart data={staysChart} />
-          )}
-        </div>
+        {graphTab === "finance" ? (
+          <FinanceChart data={finChart} />
+        ) : graphTab === "petty" ? (
+          <PettyChart data={pettyChart} />
+        ) : (
+          <StaysChart data={staysChart} />
+        )}
       </div>
 
       {/* ── By Property ── */}
@@ -249,40 +291,42 @@ export function TmcDashboardView({ data }: { data: TmcDashData }) {
               ))}
             </TableBody>
           </Table>
-          <div className="border-t p-4">
-            <p className="mb-3 text-xs text-slate-500">รายรับ / รายจ่าย แยกแปลง</p>
-            <ResponsiveContainer width="100%" height={200}>
-              <BarChart
-                data={data.byProperty.filter((r) => r.finIncome > 0 || r.finExpense > 0)}
-                layout="vertical"
-                margin={{ left: 16, right: 16 }}
-              >
-                <CartesianGrid strokeDasharray="3 3" stroke="#F5F7FA" horizontal={false} />
-                <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={(v) => fmtK(v)} />
-                <YAxis type="category" dataKey="property" tick={{ fontSize: 11 }} width={56} />
-                <Tooltip {...TT} formatter={(v: number) => `฿${fmt(v)}`} />
-                <Legend wrapperStyle={{ fontSize: 12 }} />
-                <Bar
-                  dataKey="finIncome"
-                  name="รายรับ"
-                  fill="#48CFAD"
-                  radius={[0, 3, 3, 0]}
-                  maxBarSize={20}
+          {propRows.length > 0 && (
+            <div className="border-t p-4">
+              <p className="mb-3 text-xs text-slate-500">รายรับ / รายจ่าย แยกแปลง</p>
+              <ResponsiveContainer width="100%" height={48 + propRows.length * 46}>
+                <BarChart
+                  data={propRows}
+                  layout="vertical"
+                  margin={{ left: 16, right: 16, top: 4, bottom: 4 }}
+                  barCategoryGap="22%"
                 >
-                  {data.byProperty.map((r) => (
-                    <Cell key={r.property} fill={propColor(r.property)} />
-                  ))}
-                </Bar>
-                <Bar
-                  dataKey="finExpense"
-                  name="รายจ่าย"
-                  fill="#E36A7B"
-                  radius={[0, 3, 3, 0]}
-                  maxBarSize={20}
-                />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#F5F7FA" horizontal={false} />
+                  <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={(v) => fmtK(v)} />
+                  <YAxis
+                    type="category"
+                    dataKey="property"
+                    tick={{ fontSize: 11 }}
+                    width={64}
+                    tickLine={false}
+                    axisLine={false}
+                  />
+                  <Tooltip
+                    {...TT}
+                    cursor={{ fill: "#F5F7FA" }}
+                    formatter={(v: number) => `฿${fmt(v)}`}
+                  />
+                  <Legend wrapperStyle={{ fontSize: 12 }} />
+                  <Bar dataKey="finIncome" name="รายรับ" fill="#48CFAD" radius={[0, 3, 3, 0]}>
+                    {propRows.map((r) => (
+                      <Cell key={r.property} fill={propColor(r.property)} />
+                    ))}
+                  </Bar>
+                  <Bar dataKey="finExpense" name="รายจ่าย" fill="#E36A7B" radius={[0, 3, 3, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
         </div>
       )}
 
@@ -325,53 +369,43 @@ export function TmcDashboardView({ data }: { data: TmcDashData }) {
               })}
             </TableBody>
           </Table>
-          {data.byCategory.some((r) => r.expense > 0) && (
+          {catExpense.length > 0 && (
             <div className="border-t p-4">
-              <p className="mb-3 text-xs text-slate-500">รายจ่ายตามหมวด (บาท)</p>
-              <ResponsiveContainer
-                width="100%"
-                height={Math.max(180, data.byCategory.filter((r) => r.expense > 0).length * 28)}
-              >
+              <p className="mb-3 text-xs text-slate-500">
+                รายจ่ายตามหมวด (บาท)
+                {catExpenseHidden > 0 && (
+                  <span className="ml-1 text-slate-400">
+                    — แสดง 12 หมวดแรก จาก {catExpense.length + catExpenseHidden} หมวด
+                  </span>
+                )}
+              </p>
+              <ResponsiveContainer width="100%" height={32 + catExpense.length * 30}>
                 <BarChart
-                  data={data.byCategory.filter((r) => r.expense > 0).slice(0, 12)}
+                  data={catExpense}
                   layout="vertical"
-                  margin={{ left: 8, right: 16 }}
+                  margin={{ left: 8, right: 16, top: 4, bottom: 4 }}
+                  barCategoryGap="20%"
                 >
                   <CartesianGrid strokeDasharray="3 3" stroke="#F5F7FA" horizontal={false} />
                   <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={(v) => fmtK(v)} />
-                  <YAxis type="category" dataKey="category" tick={{ fontSize: 11 }} width={130} />
-                  <Tooltip {...TT} formatter={(v: number) => `฿${fmt(v)}`} />
-                  <Bar
-                    dataKey="expense"
-                    name="รายจ่าย"
-                    fill="#E36A7B"
-                    radius={[0, 3, 3, 0]}
-                    maxBarSize={20}
+                  <YAxis
+                    type="category"
+                    dataKey="category"
+                    tick={{ fontSize: 11 }}
+                    width={150}
+                    tickLine={false}
+                    axisLine={false}
                   />
+                  <Tooltip
+                    {...TT}
+                    cursor={{ fill: "#F5F7FA" }}
+                    formatter={(v: number) => `฿${fmt(v)}`}
+                  />
+                  <Bar dataKey="expense" name="รายจ่าย" fill="#E36A7B" radius={[0, 3, 3, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
           )}
-        </div>
-      )}
-
-      {/* ── Stock low ── */}
-      {data.stockLow.length > 0 && (
-        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
-          <p className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-amber-700">
-            <AlertTriangle className="h-4 w-4" /> Stock ใกล้หมด
-          </p>
-          <div className="flex flex-wrap gap-2">
-            {data.stockLow.map((item) => (
-              <span
-                key={item.name}
-                className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-white px-3 py-1 text-xs text-amber-800"
-              >
-                {item.name}
-                <span className="ml-1 font-bold text-red-500">{item.qty}</span>
-              </span>
-            ))}
-          </div>
         </div>
       )}
     </>
@@ -411,9 +445,9 @@ function FinanceChart({
             <Tooltip {...TT} formatter={(v: number) => `฿${fmt(v)}`} />
             <Line
               dataKey="คงเหลือ"
-              stroke="#4FC1E9"
+              stroke="#5D9CEC"
               strokeWidth={2}
-              dot={{ r: 4, fill: "#4FC1E9" }}
+              dot={{ r: 4, fill: "#5D9CEC" }}
             />
           </LineChart>
         </ResponsiveContainer>
