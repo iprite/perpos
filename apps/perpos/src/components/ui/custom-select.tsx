@@ -18,42 +18,53 @@ type Props = {
 };
 
 interface PanelPos {
-  left:      number;
-  width:     number;
-  top?:      number;   // open downward
-  bottom?:   number;   // open upward
+  left: number;
+  width: number;
+  top?: number; // open downward
+  bottom?: number; // open upward
   maxHeight: number;
 }
 
 const PANEL_MAX_H = 256; // max dropdown height in px
-const GAP         = 4;   // gap between trigger and panel
+const GAP = 4; // gap between trigger and panel
 
-export function CustomSelect({ value, onChange, options, placeholder = "เลือก...", disabled, hasError, className }: Props) {
-  const [open,     setOpen]     = useState(false);
-  const [pos,      setPos]      = useState<PanelPos | null>(null);
+export function CustomSelect({
+  value,
+  onChange,
+  options,
+  placeholder = "เลือก...",
+  disabled,
+  hasError,
+  className,
+}: Props) {
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState<PanelPos | null>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
-  const panelRef   = useRef<HTMLDivElement>(null);
-  const scrollRef  = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   // Calculate position every time the dropdown opens (after layout, before paint)
   useLayoutEffect(() => {
-    if (!open || !triggerRef.current) { setPos(null); return; }
+    if (!open || !triggerRef.current) {
+      setPos(null);
+      return;
+    }
 
-    const r          = triggerRef.current.getBoundingClientRect();
-    const vh         = window.innerHeight;
+    const r = triggerRef.current.getBoundingClientRect();
+    const vh = window.innerHeight;
     const spaceBelow = vh - r.bottom - GAP;
     const spaceAbove = r.top - GAP;
 
     // Flip upward when there's not enough space below
     const openUpward = spaceBelow < PANEL_MAX_H && spaceAbove > spaceBelow;
-    const maxHeight  = Math.floor(
-      Math.min(PANEL_MAX_H, Math.max(openUpward ? spaceAbove : spaceBelow, 80))
+    const maxHeight = Math.floor(
+      Math.min(PANEL_MAX_H, Math.max(openUpward ? spaceAbove : spaceBelow, 80)),
     );
 
     setPos(
       openUpward
         ? { left: r.left, width: r.width, bottom: vh - r.top + GAP, maxHeight }
-        : { left: r.left, width: r.width, top:    r.bottom + GAP,   maxHeight }
+        : { left: r.left, width: r.width, top: r.bottom + GAP, maxHeight },
     );
   }, [open]);
 
@@ -97,9 +108,11 @@ export function CustomSelect({ value, onChange, options, placeholder = "เล�
 
       // Normalize to pixels: mode 0=px, 1=lines(~40px), 2=page
       const delta =
-        e.deltaMode === 1 ? e.deltaY * 40
-        : e.deltaMode === 2 ? e.deltaY * el.clientHeight
-        : e.deltaY;
+        e.deltaMode === 1
+          ? e.deltaY * 40
+          : e.deltaMode === 2
+            ? e.deltaY * el.clientHeight
+            : e.deltaY;
 
       const next = Math.max(0, Math.min(el.scrollTop + delta, el.scrollHeight - el.clientHeight));
       if (next === el.scrollTop) return; // already at boundary — allow default (page scroll)
@@ -118,18 +131,18 @@ export function CustomSelect({ value, onChange, options, placeholder = "เล�
     if (!open || !triggerRef.current) return;
     function onResize() {
       if (!triggerRef.current) return;
-      const r          = triggerRef.current.getBoundingClientRect();
-      const vh         = window.innerHeight;
+      const r = triggerRef.current.getBoundingClientRect();
+      const vh = window.innerHeight;
       const spaceBelow = vh - r.bottom - GAP;
       const spaceAbove = r.top - GAP;
       const openUpward = spaceBelow < PANEL_MAX_H && spaceAbove > spaceBelow;
-      const maxHeight  = Math.floor(
-        Math.min(PANEL_MAX_H, Math.max(openUpward ? spaceAbove : spaceBelow, 80))
+      const maxHeight = Math.floor(
+        Math.min(PANEL_MAX_H, Math.max(openUpward ? spaceAbove : spaceBelow, 80)),
       );
       setPos(
         openUpward
           ? { left: r.left, width: r.width, bottom: vh - r.top + GAP, maxHeight }
-          : { left: r.left, width: r.width, top:    r.bottom + GAP,   maxHeight }
+          : { left: r.left, width: r.width, top: r.bottom + GAP, maxHeight },
       );
     }
     window.addEventListener("resize", onResize);
@@ -144,12 +157,12 @@ export function CustomSelect({ value, onChange, options, placeholder = "เล�
           <div
             ref={panelRef}
             style={{
-              position:  "fixed",
-              left:      pos.left,
-              width:     pos.width,
-              top:       pos.top,
-              bottom:    pos.bottom,
-              zIndex:    9999,
+              position: "fixed",
+              left: pos.left,
+              width: pos.width,
+              top: pos.top,
+              bottom: pos.bottom,
+              zIndex: 9999,
               pointerEvents: "auto",
             }}
             className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg"
@@ -163,16 +176,21 @@ export function CustomSelect({ value, onChange, options, placeholder = "เล�
                 <button
                   key={opt.value}
                   type="button"
-                  onClick={() => { onChange(opt.value); setOpen(false); }}
+                  onClick={() => {
+                    onChange(opt.value);
+                    setOpen(false);
+                  }}
                   className="flex w-full items-center justify-between px-4 py-2.5 text-left text-sm text-slate-700 hover:bg-slate-50"
                 >
                   <span className="truncate">{opt.label}</span>
-                  {opt.value === value && <Check className="ml-2 h-4 w-4 shrink-0 text-slate-600" />}
+                  {opt.value === value && (
+                    <Check className="ml-2 h-4 w-4 shrink-0 text-slate-600" />
+                  )}
                 </button>
               ))}
             </div>
           </div>,
-          document.body
+          document.body,
         )
       : null;
 
@@ -184,17 +202,21 @@ export function CustomSelect({ value, onChange, options, placeholder = "เล�
         disabled={disabled}
         onClick={() => setOpen((v) => !v)}
         className={cn(
-          "inline-flex h-9 w-full items-center justify-between rounded-md border bg-white px-3 text-sm focus:outline-none disabled:opacity-60",
-          hasError ? "border-red-300" : "border-slate-200",
-          !disabled && "hover:bg-slate-50",
-          selected ? "text-slate-800" : "text-slate-400"
+          "inline-flex h-9 w-full items-center justify-between rounded-md border bg-white px-3 text-sm transition-colors focus:outline-none disabled:opacity-60",
+          open
+            ? "border-slate-400 ring-2 ring-slate-900/10"
+            : hasError
+              ? "border-red-300"
+              : "border-slate-200",
+          !disabled && !open && "hover:border-slate-300",
+          selected ? "text-slate-800" : "text-slate-400",
         )}
       >
         <span className="truncate">{selected?.label ?? placeholder}</span>
         <ChevronsUpDown
           className={cn(
             "ml-2 h-3.5 w-3.5 shrink-0 text-slate-400 transition-transform duration-200",
-            open && "rotate-180"
+            open && "rotate-180",
           )}
         />
       </button>
