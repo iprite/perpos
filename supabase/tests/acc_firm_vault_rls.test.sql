@@ -198,6 +198,58 @@ BEGIN
     RAISE EXCEPTION 'T10 FAILED: acc_firm_member_path คืน % สำหรับ path ที่ไม่ใช่ uuid', v_ok;
   END IF;
 
+  -- ═══════════════════════════════════════════════════════════════════════
+  -- G1–G3: guard ที่เพิ่มหลัง review (migration 20260729170000)
+  -- ═══════════════════════════════════════════════════════════════════════
+  EXECUTE format('SET LOCAL request.jwt.claims = %L', json_build_object('sub', usr_a, 'role', 'authenticated')::text);
+  SET LOCAL ROLE authenticated;
+
+  -- G1: แก้ retention_until ตรง ๆ (ไม่แตะ category/period/client) ต้องถูกเขียนทับ
+  UPDATE acc_firm_vault_documents SET retention_until = DATE '2020-01-01' WHERE id = doc_a;
+  SELECT retention_until INTO v_date FROM acc_firm_vault_documents WHERE id = doc_a;
+  IF v_date = DATE '2020-01-01' THEN
+    RAISE EXCEPTION 'G1 FAILED: client เขียน retention_until ได้';
+  END IF;
+
+  -- G2a: เอกสารที่บันทึกแล้ว (active) ลบทิ้งไม่ได้ — ต้องเดินผ่าน pending_purge
+  BEGIN
+    DELETE FROM acc_firm_vault_documents WHERE id = doc_a;
+    RAISE EXCEPTION 'G2a FAILED: ลบเอกสาร active ได้';
+  EXCEPTION WHEN insufficient_privilege THEN
+    NULL;
+  END;
+
+  -- G2b: draft ที่อัปโหลดผิดยังลบได้
+  INSERT INTO acc_firm_vault_documents
+    (firm_org_id, client_id, category_id, title, storage_path, sha256, status)
+  VALUES (org_a, cli_a, cat_src, 'ไฟล์อัปผิด',
+          org_a || '/' || cli_a || '/2026/SRC-01/draft.pdf', 'sha-a-draft', 'draft');
+  DELETE FROM acc_firm_vault_documents WHERE sha256 = 'sha-a-draft';
+  GET DIAGNOSTICS v_cnt = ROW_COUNT;
+  IF v_cnt <> 1 THEN RAISE EXCEPTION 'G2b FAILED: ลบเอกสาร draft ไม่ได้'; END IF;
+
+  -- G2c: legal hold แล้วลบไม่ได้แม้เป็น draft
+  INSERT INTO acc_firm_vault_documents
+    (firm_org_id, client_id, category_id, title, storage_path, sha256, status, legal_hold)
+  VALUES (org_a, cli_a, cat_src, 'เอกสารถูกอายัด',
+          org_a || '/' || cli_a || '/2026/SRC-01/held.pdf', 'sha-a-held', 'draft', true);
+  BEGIN
+    DELETE FROM acc_firm_vault_documents WHERE sha256 = 'sha-a-held';
+    RAISE EXCEPTION 'G2c FAILED: ลบเอกสารที่ติด legal hold ได้';
+  EXCEPTION WHEN insufficient_privilege THEN
+    NULL;
+  END;
+
+  -- G3: accountant ปลด legal hold ไม่ได้ (สิทธิ์ของ owner เท่านั้น)
+  BEGIN
+    UPDATE acc_firm_vault_documents SET legal_hold = false WHERE sha256 = 'sha-a-held';
+    RAISE EXCEPTION 'G3 FAILED: accountant ปลด legal hold ได้';
+  EXCEPTION WHEN insufficient_privilege THEN
+    NULL;
+  END;
+
+  RESET ROLE;
+
   RAISE NOTICE 'ALL TESTS PASSED';
 END;
 $test$;
