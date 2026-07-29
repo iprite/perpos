@@ -43,6 +43,7 @@ import {
   TableCell,
   TableEmpty,
 } from "@/components/ui/table";
+import { TablePager, usePagination } from "@/components/ui/table-pager";
 import { toast } from "@/lib/toast";
 
 import type { Employee, Attendance, AttendanceStatus } from "@/lib/hrm/types";
@@ -139,6 +140,7 @@ export function TimeClient({
         .sort((a, b) => a.work_date.localeCompare(b.work_date)),
     [initialAttendance, empId],
   );
+  const pager = usePagination(dailyRows);
 
   // ── สรุปเดือนของพนักงานที่เลือก ──
   const summary = useMemo(() => {
@@ -327,7 +329,7 @@ export function TimeClient({
                 </div>
               </TableEmpty>
             ) : (
-              dailyRows.map((r) => (
+              pager.rows.map((r) => (
                 <TableRow key={r.id}>
                   <TableCell className="whitespace-nowrap text-gray-700">
                     {fmtDateTH(r.work_date)}
@@ -367,6 +369,7 @@ export function TimeClient({
             )}
           </TableBody>
         </Table>
+        <TablePager pager={pager} />
       </div>
 
       {/* dialog แก้/เพิ่มรายวัน */}

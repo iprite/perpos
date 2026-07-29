@@ -2,14 +2,32 @@
 
 import React, { useMemo, useState } from "react";
 import { CustomSelect } from "@/components/ui/custom-select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { TablePager, usePagination } from "@/components/ui/table-pager";
 import { StatusBadge } from "@/components/ui/badge";
 import cn from "@core/utils/class-names";
 import type { VatDocRow } from "@/lib/tax/actions";
 
 const THAI_MONTHS = [
-  "มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน",
-  "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม",
+  "มกราคม",
+  "กุมภาพันธ์",
+  "มีนาคม",
+  "เมษายน",
+  "พฤษภาคม",
+  "มิถุนายน",
+  "กรกฎาคม",
+  "สิงหาคม",
+  "กันยายน",
+  "ตุลาคม",
+  "พฤศจิกายน",
+  "ธันวาคม",
 ];
 
 function fmt(n: number) {
@@ -45,27 +63,33 @@ export function VatDocsClient({ rows, title, subtitle }: Props) {
       return true;
     });
   }, [rows, year, month]);
+  const pager = usePagination(filtered);
 
   const totalVat = filtered.reduce((s, r) => s + r.vat_amount, 0);
   const totalBase = filtered.reduce((s, r) => s + r.sub_total, 0);
 
   return (
     <div>
-      <div className="flex flex-wrap items-center gap-3 mb-4">
+      <div className="mb-4 flex flex-wrap items-center gap-3">
         <div className="flex items-center gap-2">
           <span className="text-sm text-slate-600">ปี</span>
           <CustomSelect value={year} onChange={setYear} options={YEAR_OPTIONS} className="w-36" />
         </div>
         <div className="flex items-center gap-2">
           <span className="text-sm text-slate-600">เดือน</span>
-          <CustomSelect value={month} onChange={setMonth} options={MONTH_OPTIONS} className="w-44" />
+          <CustomSelect
+            value={month}
+            onChange={setMonth}
+            options={MONTH_OPTIONS}
+            className="w-44"
+          />
         </div>
         <div className="ml-auto text-sm text-slate-500">{filtered.length} รายการ</div>
       </div>
 
       {/* Summary bar */}
       {filtered.length > 0 && (
-        <div className="flex gap-6 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 mb-4">
+        <div className="mb-4 flex gap-6 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
           <div>
             <div className="text-xs text-slate-500">ยอดรวมก่อน VAT</div>
             <div className="font-semibold text-slate-800">{fmt(totalBase)} บาท</div>
@@ -82,7 +106,7 @@ export function VatDocsClient({ rows, title, subtitle }: Props) {
           ไม่พบเอกสารในช่วงเวลาที่เลือก
         </div>
       ) : (
-        <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
           <Table>
             <TableHeader>
               <TableRow>
@@ -95,7 +119,7 @@ export function VatDocsClient({ rows, title, subtitle }: Props) {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtered.map((row) => (
+              {pager.rows.map((row) => (
                 <TableRow key={row.id}>
                   <TableCell className="font-mono text-sm">{row.doc_number ?? "-"}</TableCell>
                   <TableCell className="text-sm">
@@ -108,7 +132,9 @@ export function VatDocsClient({ rows, title, subtitle }: Props) {
                       : "-"}
                   </TableCell>
                   <TableCell className="text-sm">{row.contact_name ?? "-"}</TableCell>
-                  <TableCell align="right" tabular className="text-sm">{fmt(row.sub_total)}</TableCell>
+                  <TableCell align="right" tabular className="text-sm">
+                    {fmt(row.sub_total)}
+                  </TableCell>
                   <TableCell align="right" tabular className="text-sm font-medium text-teal-700">
                     {fmt(row.vat_amount)}
                   </TableCell>
@@ -119,6 +145,7 @@ export function VatDocsClient({ rows, title, subtitle }: Props) {
               ))}
             </TableBody>
           </Table>
+          <TablePager pager={pager} />
         </div>
       )}
     </div>

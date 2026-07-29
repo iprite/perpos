@@ -42,6 +42,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { TablePager, usePagination } from "@/components/ui/table-pager";
 import cn from "@core/utils/class-names";
 
 type Row = Record<string, unknown>;
@@ -104,6 +105,7 @@ export function ChartRenderer({
   /** optional (R7) — มีเมื่อการ์ดเจาะลงรายการได้เท่านั้น */
   onPointClick?: ChartPointClick;
 }) {
+  const pager = usePagination(rows);
   const fmt = useValueFormatter(spec);
 
   const data = React.useMemo(() => {
@@ -427,44 +429,48 @@ function HeatmapView({ spec, rows, fmt }: ViewProps) {
 
 function ChartTableView({ spec, rows, fmt }: ViewProps) {
   const cols = spec.series;
+  const pager = usePagination(rows);
   return (
-    <Table className="shadow-sm">
-      <TableHeader>
-        <TableRow>
-          {spec.x ? <TableHead>{spec.title}</TableHead> : null}
-          {cols.map((c) => (
-            <TableHead key={c.key} align="right">
-              {c.label_th}
-            </TableHead>
-          ))}
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {rows.length === 0 ? (
-          <TableEmpty colSpan={cols.length + (spec.x ? 1 : 0)}>
-            ไม่มีข้อมูลในช่วงที่เลือก
-          </TableEmpty>
-        ) : (
-          rows.map((r, i) => (
-            <TableRow key={`${labelOf(r, spec.x)}-${i}`}>
-              {spec.x ? <TableCell>{labelOf(r, spec.x)}</TableCell> : null}
-              {cols.map((c) =>
-                // เซลล์ผสมเลข+คำไทย ("N วัน") ห้ามใช้ `tabular` (= font-mono) — DESIGN §5 ข้อ 8
-                spec.unit === "days" ? (
-                  <TableCell key={c.key} align="right" className="tabular-nums">
-                    {fmt(numberOf(r, c.key))}
-                  </TableCell>
-                ) : (
-                  <TableCell key={c.key} align="right" tabular>
-                    {fmt(numberOf(r, c.key))}
-                  </TableCell>
-                ),
-              )}
-            </TableRow>
-          ))
-        )}
-      </TableBody>
-    </Table>
+    <div className="space-y-3">
+      <Table className="shadow-sm">
+        <TableHeader>
+          <TableRow>
+            {spec.x ? <TableHead>{spec.title}</TableHead> : null}
+            {cols.map((c) => (
+              <TableHead key={c.key} align="right">
+                {c.label_th}
+              </TableHead>
+            ))}
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {rows.length === 0 ? (
+            <TableEmpty colSpan={cols.length + (spec.x ? 1 : 0)}>
+              ไม่มีข้อมูลในช่วงที่เลือก
+            </TableEmpty>
+          ) : (
+            pager.rows.map((r, i) => (
+              <TableRow key={`${labelOf(r, spec.x)}-${i}`}>
+                {spec.x ? <TableCell>{labelOf(r, spec.x)}</TableCell> : null}
+                {cols.map((c) =>
+                  // เซลล์ผสมเลข+คำไทย ("N วัน") ห้ามใช้ `tabular` (= font-mono) — DESIGN §5 ข้อ 8
+                  spec.unit === "days" ? (
+                    <TableCell key={c.key} align="right" className="tabular-nums">
+                      {fmt(numberOf(r, c.key))}
+                    </TableCell>
+                  ) : (
+                    <TableCell key={c.key} align="right" tabular>
+                      {fmt(numberOf(r, c.key))}
+                    </TableCell>
+                  ),
+                )}
+              </TableRow>
+            ))
+          )}
+        </TableBody>
+      </Table>
+      <TablePager pager={pager} />
+    </div>
   );
 }
 

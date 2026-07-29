@@ -22,6 +22,7 @@ import {
   TableLoading,
   TableRow,
 } from "@/components/ui/table";
+import { TablePager, usePagination } from "@/components/ui/table-pager";
 import { EDGE_FINISH_LABEL, RUG_CATEGORY_LABEL } from "../_fixtures/labels";
 import type { MattiiProduct, MattiiProductSize, RugCategory } from "../_fixtures/types";
 import {
@@ -96,6 +97,7 @@ export default function ProductsPage() {
       return true;
     });
   }, [products, search, category, active]);
+  const pager = usePagination(visible);
 
   const sizesOf = useMemo(() => {
     const map = new Map<string, MattiiProductSize[]>();
@@ -257,7 +259,7 @@ export default function ProductsPage() {
                 </div>
               </TableEmpty>
             ) : (
-              visible.map((p) => {
+              pager.rows.map((p) => {
                 const mine = sizesOf.get(p.id) ?? [];
                 return (
                   <TableRow key={p.id} clickable onClick={() => setOpenId(p.id)}>
@@ -290,6 +292,7 @@ export default function ProductsPage() {
             )}
           </TableBody>
         </Table>
+        <TablePager pager={pager} />
       </div>
 
       <ProductDialog

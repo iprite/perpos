@@ -29,6 +29,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { TablePager, usePagination } from "@/components/ui/table-pager";
 import { toast } from "@/lib/toast";
 import type { P2pgCompany, P2pgFinancial } from "@/lib/p2p-group/types";
 import { FINANCIAL_SOURCE_LABEL, formatMoney, formatThaiMonth } from "@/lib/p2p-group/labels";
@@ -85,6 +86,7 @@ export function FinancialsClient({
   canWrite: boolean;
   canSeeMoney: boolean;
 }) {
+  const pager = usePagination(companies);
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [target, setTarget] = useState<P2pgCompany | null>(null);
@@ -184,8 +186,10 @@ export function FinancialsClient({
     >
       <div className="space-y-4">
         <p className="text-sm text-gray-500">
-          ปุ่ม &quot;ดึงจากระบบบัญชี&quot; จะดึงรายได้/ต้นทุนของบริษัทที่เชื่อมกับองค์กรในระบบแล้วเท่านั้น
-          และ<strong>จะไม่ทับตัวเลขที่กรอกเองหรืองวดที่ปิดแล้ว</strong> — ตัวเลขที่เหลือกรอกได้จากตารางนี้
+          ปุ่ม &quot;ดึงจากระบบบัญชี&quot;
+          จะดึงรายได้/ต้นทุนของบริษัทที่เชื่อมกับองค์กรในระบบแล้วเท่านั้น และ
+          <strong>จะไม่ทับตัวเลขที่กรอกเองหรืองวดที่ปิดแล้ว</strong> —
+          ตัวเลขที่เหลือกรอกได้จากตารางนี้
         </p>
 
         <Table className="shadow-sm">
@@ -207,7 +211,7 @@ export function FinancialsClient({
                 ยังไม่มีบริษัทในทะเบียน — เพิ่มที่เมนู &quot;บริษัทในเครือ&quot;
               </TableEmpty>
             ) : (
-              companies.map((c) => {
+              pager.rows.map((c) => {
                 const f = byCompany.get(c.id);
                 return (
                   <TableRow
@@ -262,6 +266,7 @@ export function FinancialsClient({
             )}
           </TableBody>
         </Table>
+        <TablePager pager={pager} unit="บริษัท" />
       </div>
 
       <Dialog open={open} onOpenChange={setOpen}>

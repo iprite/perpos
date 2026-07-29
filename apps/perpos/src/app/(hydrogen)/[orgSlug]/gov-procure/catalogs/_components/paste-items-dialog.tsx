@@ -31,6 +31,7 @@ import {
   TableHead,
   TableCell,
 } from "@/components/ui/table";
+import { TablePager, usePagination } from "@/components/ui/table-pager";
 import { toast } from "@/lib/toast";
 import type { CatalogItem } from "@/lib/gov-procure/catalog";
 import { parseCatalogCsv, parseCatalogPaste } from "@/lib/gov-procure/catalog-parse";
@@ -70,6 +71,7 @@ export function PasteItemsDialog({
   const [format, setFormat] = useState<"paste" | "csv">("paste");
   const [text, setText] = useState("");
   const [rows, setRows] = useState<DraftRow[] | null>(null);
+  const pager = usePagination(rows ?? []);
   const [saving, setSaving] = useState(false);
 
   const brokenCount = useMemo(() => (rows ?? []).filter((r) => r.broken).length, [rows]);
@@ -237,7 +239,7 @@ export function PasteItemsDialog({
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {rows.map((r) => (
+                    {pager.rows.map((r) => (
                       <TableRow key={r.key}>
                         <TableCell className="min-w-[240px]">
                           <Input
@@ -271,6 +273,7 @@ export function PasteItemsDialog({
                     ))}
                   </TableBody>
                 </Table>
+                <TablePager pager={pager} />
               </div>
             )}
           </div>

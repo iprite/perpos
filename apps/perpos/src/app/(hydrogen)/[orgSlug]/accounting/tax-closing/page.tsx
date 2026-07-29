@@ -20,6 +20,7 @@ import {
   TableEmpty,
   TableLoading,
 } from "@/components/ui/table";
+import { TablePager, usePagination } from "@/components/ui/table-pager";
 import { toast } from "@/lib/toast";
 import {
   AccountingShell,
@@ -93,6 +94,7 @@ export default function TaxClosingPage() {
     () => [...periods].sort((a, b) => b.year - a.year || b.month - a.month),
     [periods],
   );
+  const periodPager = usePagination(sortedPeriods);
 
   function openAdd() {
     setEditing(null);
@@ -240,7 +242,7 @@ export default function TaxClosingPage() {
                   ยังไม่มีงวดบัญชี — งวดจะถูกสร้างเมื่อมีการลงบัญชี/ตั้งค่าเสื่อมในเดือนนั้น
                 </TableEmpty>
               ) : (
-                sortedPeriods.map((p) => {
+                periodPager.rows.map((p) => {
                   const label = fmtMonthYearTH(p.year, p.month);
                   const busy = busyPeriodId === p.id;
                   return (
@@ -283,6 +285,7 @@ export default function TaxClosingPage() {
               )}
             </TableBody>
           </Table>
+          <TablePager pager={periodPager} unit="งวด" />
           <Text className="mt-2 px-1 text-xs text-gray-400">
             งวดที่ปิดแล้วจะ post รายการสมุดรายวันใหม่เข้าไปไม่ได้ — เปิดงวดอีกครั้งได้หากต้องแก้
           </Text>

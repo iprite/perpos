@@ -32,7 +32,7 @@ import {
 } from "@/components/ui/table";
 import { Plus, Trash2, Wallet } from "lucide-react";
 import { PageShell } from "@/components/ui/page-shell";
-import { TablePager, type PaginationState } from "@/components/ui/table-pager";
+import { ControlledTablePager } from "@/components/ui/table-pager";
 import type { PettyCashEntry } from "@/app/api/acc-firm/petty-cash/route";
 
 const PAGE_SIZE = 50;
@@ -201,18 +201,6 @@ export default function PettyCashPage() {
     }
   }
 
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
-  // paging ฝั่ง server (API รับ page/pageSize) — ห่อเป็น state เดียวกับ TablePager เพื่อใช้ UI มาตรฐาน
-  const pager: PaginationState<PettyCashEntry> = {
-    rows: entries,
-    page,
-    setPage,
-    pageSize: PAGE_SIZE,
-    total,
-    totalPages,
-    from: total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1,
-    to: Math.min(page * PAGE_SIZE, total),
-  };
   const balance = totals.total_in - totals.total_out;
   const catOptions = [
     { value: "", label: "ทุกประเภท" },
@@ -344,7 +332,13 @@ export default function PettyCashPage() {
       </Table>
 
       {/* Pagination */}
-      <TablePager pager={pager} />
+      <ControlledTablePager
+        page={page}
+        pageSize={PAGE_SIZE}
+        total={total}
+        onPageChange={setPage}
+        loading={loading}
+      />
 
       {/* Add/Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

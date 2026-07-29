@@ -3,26 +3,61 @@
 import React, { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { PlusCircle } from "lucide-react";
-import { toast } from '@/lib/toast';
+import { toast } from "@/lib/toast";
 
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogBody, DialogFooter, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogBody,
+  DialogFooter,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { CustomSelect } from "@/components/ui/custom-select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { TablePager, usePagination } from "@/components/ui/table-pager";
 import { StatusBadge, type BadgeTone } from "@/components/ui/badge";
 import cn from "@core/utils/class-names";
 import { withBasePath } from "@/utils/base-path";
 import { createPP30, type PP30Row } from "@/lib/tax/actions";
 
 const THAI_MONTHS_SHORT = [
-  "ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.",
-  "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค.",
+  "ม.ค.",
+  "ก.พ.",
+  "มี.ค.",
+  "เม.ย.",
+  "พ.ค.",
+  "มิ.ย.",
+  "ก.ค.",
+  "ส.ค.",
+  "ก.ย.",
+  "ต.ค.",
+  "พ.ย.",
+  "ธ.ค.",
 ];
 
 const THAI_MONTHS_FULL = [
-  "มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน",
-  "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม",
+  "มกราคม",
+  "กุมภาพันธ์",
+  "มีนาคม",
+  "เมษายน",
+  "พฤษภาคม",
+  "มิถุนายน",
+  "กรกฎาคม",
+  "สิงหาคม",
+  "กันยายน",
+  "ตุลาคม",
+  "พฤศจิกายน",
+  "ธันวาคม",
 ];
 
 function fmt(n: number) {
@@ -30,10 +65,10 @@ function fmt(n: number) {
 }
 
 const STATUS_CONFIG: Record<string, { label: string; tone: BadgeTone }> = {
-  draft:     { label: "ร่าง",       tone: "neutral" },
-  submitted: { label: "ยื่นแล้ว",   tone: "info" },
-  paid:      { label: "ชำระแล้ว",  tone: "warning" },
-  received:  { label: "รับใบเสร็จ", tone: "success" },
+  draft: { label: "ร่าง", tone: "neutral" },
+  submitted: { label: "ยื่นแล้ว", tone: "info" },
+  paid: { label: "ชำระแล้ว", tone: "warning" },
+  received: { label: "รับใบเสร็จ", tone: "success" },
 };
 
 function PP30StatusBadge({ status }: { status: string }) {
@@ -57,6 +92,7 @@ type Props = {
 };
 
 export function PP30ListClient({ organizationId, rows: initialRows }: Props) {
+  const pager = usePagination(initialRows);
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [open, setOpen] = useState(false);
@@ -85,12 +121,9 @@ export function PP30ListClient({ organizationId, rows: initialRows }: Props) {
 
   return (
     <div>
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div className="text-sm text-slate-600">{initialRows.length} รายการ</div>
-        <Button
-          className="flex items-center gap-2"
-          onClick={() => setOpen(true)}
-        >
+        <Button className="flex items-center gap-2" onClick={() => setOpen(true)}>
           <PlusCircle className="h-4 w-4" />
           สร้างแบบ ภ.พ.30
         </Button>
@@ -98,12 +131,14 @@ export function PP30ListClient({ organizationId, rows: initialRows }: Props) {
 
       {initialRows.length === 0 ? (
         <div className="rounded-xl border border-slate-200 bg-white p-12 text-center">
-          <div className="text-4xl mb-3">📋</div>
-          <div className="text-slate-600 font-medium">ยังไม่มีแบบ ภ.พ.30</div>
-          <div className="text-sm text-slate-400 mt-1">กดปุ่ม &ldquo;สร้างแบบ ภ.พ.30&rdquo; เพื่อเริ่มต้น</div>
+          <div className="mb-3 text-4xl">📋</div>
+          <div className="font-medium text-slate-600">ยังไม่มีแบบ ภ.พ.30</div>
+          <div className="mt-1 text-sm text-slate-400">
+            กดปุ่ม &ldquo;สร้างแบบ ภ.พ.30&rdquo; เพื่อเริ่มต้น
+          </div>
         </div>
       ) : (
-        <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
           <Table>
             <TableHeader>
               <TableRow>
@@ -116,7 +151,7 @@ export function PP30ListClient({ organizationId, rows: initialRows }: Props) {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {initialRows.map((row) => (
+              {pager.rows.map((row) => (
                 <TableRow
                   key={row.id}
                   clickable
@@ -126,9 +161,20 @@ export function PP30ListClient({ organizationId, rows: initialRows }: Props) {
                   <TableCell>
                     {THAI_MONTHS_SHORT[row.period_month - 1]} {row.period_year + 543}
                   </TableCell>
-                  <TableCell align="right" tabular>{fmt(row.output_vat_total)}</TableCell>
-                  <TableCell align="right" tabular>{fmt(row.input_vat_total)}</TableCell>
-                  <TableCell align="right" tabular className={cn("font-medium", row.net_vat > 0 ? "text-red-600" : "text-teal-600")}>
+                  <TableCell align="right" tabular>
+                    {fmt(row.output_vat_total)}
+                  </TableCell>
+                  <TableCell align="right" tabular>
+                    {fmt(row.input_vat_total)}
+                  </TableCell>
+                  <TableCell
+                    align="right"
+                    tabular
+                    className={cn(
+                      "font-medium",
+                      row.net_vat > 0 ? "text-red-600" : "text-teal-600",
+                    )}
+                  >
                     {fmt(row.net_vat)}
                   </TableCell>
                   <TableCell>
@@ -138,6 +184,7 @@ export function PP30ListClient({ organizationId, rows: initialRows }: Props) {
               ))}
             </TableBody>
           </Table>
+          <TablePager pager={pager} />
         </div>
       )}
 
@@ -147,27 +194,19 @@ export function PP30ListClient({ organizationId, rows: initialRows }: Props) {
             <DialogTitle>สร้างแบบ ภ.พ.30</DialogTitle>
           </DialogHeader>
           <DialogBody>
-          <div className="space-y-4">
-            <div className="space-y-1.5">
-              <Label>ปี (ค.ศ.)</Label>
-              <CustomSelect
-                value={year}
-                onChange={setYear}
-                options={YEAR_OPTIONS}
-              />
+            <div className="space-y-4">
+              <div className="space-y-1.5">
+                <Label>ปี (ค.ศ.)</Label>
+                <CustomSelect value={year} onChange={setYear} options={YEAR_OPTIONS} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>เดือน</Label>
+                <CustomSelect value={month} onChange={setMonth} options={MONTH_OPTIONS} />
+              </div>
+              <div className="text-sm text-slate-500">
+                งวดภาษี: {THAI_MONTHS_FULL[Number(month) - 1]} พ.ศ. {Number(year) + 543}
+              </div>
             </div>
-            <div className="space-y-1.5">
-              <Label>เดือน</Label>
-              <CustomSelect
-                value={month}
-                onChange={setMonth}
-                options={MONTH_OPTIONS}
-              />
-            </div>
-            <div className="text-sm text-slate-500">
-              งวดภาษี: {THAI_MONTHS_FULL[Number(month) - 1]} พ.ศ. {Number(year) + 543}
-            </div>
-          </div>
           </DialogBody>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)} disabled={pending}>

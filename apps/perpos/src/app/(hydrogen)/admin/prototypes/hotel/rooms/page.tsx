@@ -18,6 +18,7 @@ import {
   TableCell,
   TableEmpty,
 } from "@/components/ui/table";
+import { TablePager, usePagination } from "@/components/ui/table-pager";
 import {
   HotelShell,
   useHotelRole,
@@ -80,6 +81,7 @@ export default function RoomsPage() {
       })
       .sort((a, b) => a.sort_order - b.sort_order);
   }, [rooms, search, typeF, statusF, hkF]);
+  const pager = usePagination(filtered);
 
   const kpi = useMemo(() => {
     const available = rooms.filter((r) => r.status === "available").length;
@@ -173,7 +175,7 @@ export default function RoomsPage() {
               </div>
             </TableEmpty>
           ) : (
-            filtered.map((r) => (
+            pager.rows.map((r) => (
               <TableRow key={r.id} clickable onClick={() => setDetail(r)}>
                 <TableCell className="font-medium text-gray-900">{r.room_number}</TableCell>
                 <TableCell align="center">
@@ -196,6 +198,7 @@ export default function RoomsPage() {
           )}
         </TableBody>
       </Table>
+      <TablePager pager={pager} />
 
       {/* dialog */}
       <RoomDetailDialog

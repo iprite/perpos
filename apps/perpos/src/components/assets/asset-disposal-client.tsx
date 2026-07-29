@@ -23,20 +23,21 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { TablePager, usePagination } from "@/components/ui/table-pager";
 
 import { disposeAssetAction, type AssetRow } from "@/lib/assets/actions";
 import { toast } from "@/lib/toast";
 
 type FormState = {
-  disposal_date:   string;
+  disposal_date: string;
   disposal_amount: string;
-  notes:           string;
+  notes: string;
 };
 
 const emptyForm: FormState = {
-  disposal_date:   "",
+  disposal_date: "",
   disposal_amount: "0",
-  notes:           "",
+  notes: "",
 };
 
 export function AssetDisposalClient({
@@ -47,6 +48,7 @@ export function AssetDisposalClient({
   activeAssets: AssetRow[];
 }) {
   const [rows, setRows] = useState<AssetRow[]>(activeAssets);
+  const pager = usePagination(rows);
   const [selected, setSelected] = useState<AssetRow | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm);
   const [saving, setSaving] = useState(false);
@@ -54,7 +56,11 @@ export function AssetDisposalClient({
 
   function openDispose(row: AssetRow) {
     setSelected(row);
-    setForm({ disposal_date: new Date().toISOString().slice(0, 10), disposal_amount: String(row.cost - row.accumulated_depreciation), notes: "" });
+    setForm({
+      disposal_date: new Date().toISOString().slice(0, 10),
+      disposal_amount: String(row.cost - row.accumulated_depreciation),
+      notes: "",
+    });
     setErr(null);
   }
 
@@ -71,13 +77,18 @@ export function AssetDisposalClient({
     setErr(null);
     const res = await disposeAssetAction({
       organizationId,
-      id:              selected.id,
-      disposal_date:   form.disposal_date,
+      id: selected.id,
+      disposal_date: form.disposal_date,
       disposal_amount: parseFloat(form.disposal_amount) || 0,
-      notes:           form.notes.trim() || null,
+      notes: form.notes.trim() || null,
     });
     setSaving(false);
-    if (!res.ok) { const msg = (res as any).error ?? "บันทึกไม่สำเร็จ"; setErr(msg); toast.error(msg); return; }
+    if (!res.ok) {
+      const msg = (res as any).error ?? "บันทึกไม่สำเร็จ";
+      setErr(msg);
+      toast.error(msg);
+      return;
+    }
 
     setRows((prev) => prev.filter((r) => r.id !== selected.id));
     toast.success(`จำหน่ายสินทรัพย์ ${selected.name} แล้ว`);
@@ -107,13 +118,17 @@ export function AssetDisposalClient({
               </TableCell>
             </TableRow>
           ) : (
-            rows.map((row) => (
+            pager.rows.map((row) => (
               <TableRow key={row.id} className="hover:bg-slate-50">
                 <TableCell className="font-mono text-sm">{row.asset_code}</TableCell>
                 <TableCell className="text-sm font-medium text-slate-900">{row.name}</TableCell>
                 <TableCell className="text-sm text-slate-600">
                   {row.purchase_date
-                    ? new Date(row.purchase_date).toLocaleDateString("th-TH", { year: "numeric", month: "short", day: "numeric" })
+                    ? new Date(row.purchase_date).toLocaleDateString("th-TH", {
+                        year: "numeric",
+                        month: "short",
+                        day: "numeric",
+                      })
                     : "—"}
                 </TableCell>
                 <TableCell className="text-right text-sm text-slate-700">
@@ -132,37 +147,61 @@ export function AssetDisposalClient({
           )}
         </TableBody>
       </Table>
+      <TablePager pager={pager} />
 
-      <Dialog open={!!selected} onOpenChange={(v) => { if (!v) setSelected(null); }}>
+      <Dialog
+        open={!!selected}
+        onOpenChange={(v) => {
+          if (!v) setSelected(null);
+        }}
+      >
         <DialogContent size="sm">
           <DialogHeader>
             <DialogTitle>บันทึกจำหน่ายสินทรัพย์</DialogTitle>
           </DialogHeader>
           <DialogBody>
-          {selected && (
-            <div className="grid gap-4">
-              <p className="text-sm text-slate-600">
-                สินทรัพย์: <span className="font-medium text-slate-900">{selected.name}</span>
-              </p>
-              <div className="space-y-1.5">
-                <Label>วันที่จำหน่าย <span className="text-red-500">*</span></Label>
-                <ThaiDatePicker value={form.disposal_date} onChange={(v) => set("disposal_date", v)} />
+            {selected && (
+              <div className="grid gap-4">
+                <p className="text-sm text-slate-600">
+                  สินทรัพย์: <span className="font-medium text-slate-900">{selected.name}</span>
+                </p>
+                <div className="space-y-1.5">
+                  <Label>
+                    วันที่จำหน่าย <span className="text-red-500">*</span>
+                  </Label>
+                  <ThaiDatePicker
+                    value={form.disposal_date}
+                    onChange={(v) => set("disposal_date", v)}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>มูลค่าที่จำหน่าย (บาท)</Label>
+                  <Input
+                    type="number"
+                    value={form.disposal_amount}
+                    onChange={(e) => set("disposal_amount", e.target.value)}
+                    placeholder="0.00"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>หมายเหตุ</Label>
+                  <Input
+                    value={form.notes}
+                    onChange={(e) => set("notes", e.target.value)}
+                    placeholder="หมายเหตุ"
+                  />
+                </div>
+                {err && <p className="text-sm text-red-500">{err}</p>}
               </div>
-              <div className="space-y-1.5">
-                <Label>มูลค่าที่จำหน่าย (บาท)</Label>
-                <Input type="number" value={form.disposal_amount} onChange={(e) => set("disposal_amount", e.target.value)} placeholder="0.00" />
-              </div>
-              <div className="space-y-1.5">
-                <Label>หมายเหตุ</Label>
-                <Input value={form.notes} onChange={(e) => set("notes", e.target.value)} placeholder="หมายเหตุ" />
-              </div>
-              {err && <p className="text-sm text-red-500">{err}</p>}
-            </div>
-          )}
+            )}
           </DialogBody>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setSelected(null)} disabled={saving}>ยกเลิก</Button>
-            <Button onClick={handleSave} disabled={saving}>{saving ? "กำลังบันทึก..." : "บันทึกจำหน่าย"}</Button>
+            <Button variant="outline" onClick={() => setSelected(null)} disabled={saving}>
+              ยกเลิก
+            </Button>
+            <Button onClick={handleSave} disabled={saving}>
+              {saving ? "กำลังบันทึก..." : "บันทึกจำหน่าย"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

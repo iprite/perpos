@@ -32,6 +32,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { TablePager, usePagination } from "@/components/ui/table-pager";
 import { toast } from "@/lib/toast";
 import type { P2pgCompany, P2pgIntercompany, P2pgLoan } from "@/lib/p2p-group/types";
 import {
@@ -60,6 +61,7 @@ export function IntercompanyClient({
   orgId: string;
   canWrite: boolean;
 }) {
+  const loanPager = usePagination(loans);
   const router = useRouter();
   const [tab, setTab] = useState<Tab>("transactions");
   const [open, setOpen] = useState(false);
@@ -95,7 +97,12 @@ export function IntercompanyClient({
   const activeLoanTotal = loans
     .filter((l) => l.status === "active")
     .reduce(
-      (a, l) => a + loanOutstanding(Number(l.principal), transactions.filter((t) => t.loan_id === l.id)),
+      (a, l) =>
+        a +
+        loanOutstanding(
+          Number(l.principal),
+          transactions.filter((t) => t.loan_id === l.id),
+        ),
       0,
     );
 
@@ -160,8 +167,7 @@ export function IntercompanyClient({
 
   async function save() {
     const num = (v?: string) => (v == null || v.trim() === "" ? null : Number(v));
-    const base =
-      dialogKind === "loan" ? "/api/p2p-group/loans" : "/api/p2p-group/intercompany";
+    const base = dialogKind === "loan" ? "/api/p2p-group/loans" : "/api/p2p-group/intercompany";
     const payload =
       dialogKind === "loan"
         ? {
@@ -282,69 +288,72 @@ export function IntercompanyClient({
         />
 
         {tab === "loans" ? (
-          <Table className="shadow-sm">
-            <TableHeader>
-              <TableRow>
-                <TableHead>เลขที่สัญญา</TableHead>
-                <TableHead>ผู้ให้กู้</TableHead>
-                <TableHead>ผู้กู้</TableHead>
-                <TableHead align="right">เงินต้น</TableHead>
-                <TableHead align="right">คงเหลือ</TableHead>
-                <TableHead align="right">ดอกเบี้ย</TableHead>
-                <TableHead align="center">ครบกำหนด</TableHead>
-                <TableHead align="center">สถานะ</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {loans.length === 0 ? (
-                <TableEmpty colSpan={8}>
-                  ยังไม่มีสัญญาเงินกู้ระหว่างบริษัท — เพิ่มเพื่อติดตามยอดคงค้างและดอกเบี้ย
-                </TableEmpty>
-              ) : (
-                loans.map((l) => (
-                  <TableRow
-                    key={l.id}
-                    clickable={canWrite}
-                    onClick={canWrite ? () => openEditLoan(l) : undefined}
-                  >
-                    <TableCell>{l.contract_no || "—"}</TableCell>
-                    <TableCell>{companyName.get(l.lender_company_id) ?? "—"}</TableCell>
-                    <TableCell>{companyName.get(l.borrower_company_id) ?? "—"}</TableCell>
-                    <TableCell align="right" tabular>
-                      {formatMoney(l.principal)}
-                    </TableCell>
-                    <TableCell align="right" tabular>
-                      {formatMoney(
-                        loanOutstanding(
-                          Number(l.principal),
-                          transactions.filter((t) => t.loan_id === l.id),
-                        ),
-                      )}
-                    </TableCell>
-                    <TableCell align="right" className="tabular-nums">
-                      {l.interest_rate == null ? "—" : `${l.interest_rate}%`}
-                    </TableCell>
-                    <TableCell align="center" className="tabular-nums">
-                      {formatThaiDate(l.due_date)}
-                    </TableCell>
-                    <TableCell align="center">
-                      <StatusBadge
-                        tone={
-                          l.status === "repaid"
-                            ? "success"
-                            : l.status === "written_off"
-                              ? "danger"
-                              : "info"
-                        }
-                      >
-                        {LOAN_STATUS_LABEL[l.status]}
-                      </StatusBadge>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
+          <div className="space-y-3">
+            <Table className="shadow-sm">
+              <TableHeader>
+                <TableRow>
+                  <TableHead>เลขที่สัญญา</TableHead>
+                  <TableHead>ผู้ให้กู้</TableHead>
+                  <TableHead>ผู้กู้</TableHead>
+                  <TableHead align="right">เงินต้น</TableHead>
+                  <TableHead align="right">คงเหลือ</TableHead>
+                  <TableHead align="right">ดอกเบี้ย</TableHead>
+                  <TableHead align="center">ครบกำหนด</TableHead>
+                  <TableHead align="center">สถานะ</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {loans.length === 0 ? (
+                  <TableEmpty colSpan={8}>
+                    ยังไม่มีสัญญาเงินกู้ระหว่างบริษัท — เพิ่มเพื่อติดตามยอดคงค้างและดอกเบี้ย
+                  </TableEmpty>
+                ) : (
+                  loanPager.rows.map((l) => (
+                    <TableRow
+                      key={l.id}
+                      clickable={canWrite}
+                      onClick={canWrite ? () => openEditLoan(l) : undefined}
+                    >
+                      <TableCell>{l.contract_no || "—"}</TableCell>
+                      <TableCell>{companyName.get(l.lender_company_id) ?? "—"}</TableCell>
+                      <TableCell>{companyName.get(l.borrower_company_id) ?? "—"}</TableCell>
+                      <TableCell align="right" tabular>
+                        {formatMoney(l.principal)}
+                      </TableCell>
+                      <TableCell align="right" tabular>
+                        {formatMoney(
+                          loanOutstanding(
+                            Number(l.principal),
+                            transactions.filter((t) => t.loan_id === l.id),
+                          ),
+                        )}
+                      </TableCell>
+                      <TableCell align="right" className="tabular-nums">
+                        {l.interest_rate == null ? "—" : `${l.interest_rate}%`}
+                      </TableCell>
+                      <TableCell align="center" className="tabular-nums">
+                        {formatThaiDate(l.due_date)}
+                      </TableCell>
+                      <TableCell align="center">
+                        <StatusBadge
+                          tone={
+                            l.status === "repaid"
+                              ? "success"
+                              : l.status === "written_off"
+                                ? "danger"
+                                : "info"
+                          }
+                        >
+                          {LOAN_STATUS_LABEL[l.status]}
+                        </StatusBadge>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+            <TablePager pager={loanPager} unit="สัญญา" />
+          </div>
         ) : (
           <Table className="shadow-sm">
             <TableHeader>
@@ -370,9 +379,7 @@ export function IntercompanyClient({
                   <TableRow
                     key={t.id}
                     clickable={canWrite && tab === "transactions"}
-                    onClick={
-                      canWrite && tab === "transactions" ? () => openEditTxn(t) : undefined
-                    }
+                    onClick={canWrite && tab === "transactions" ? () => openEditTxn(t) : undefined}
                   >
                     <TableCell align="center" className="tabular-nums">
                       {formatThaiDate(t.txn_date)}
@@ -424,7 +431,8 @@ export function IntercompanyClient({
 
         {tab === "transactions" && canWrite && transactions.length > 0 && (
           <p className="px-1 text-xs text-gray-500">
-            คลิกที่แถวเพื่อแก้ไขรายการ · ปุ่ม &quot;ยืนยันยอด&quot; ใช้เมื่ออีกฝั่งตรวจสอบยอดตรงกันแล้ว
+            คลิกที่แถวเพื่อแก้ไขรายการ · ปุ่ม &quot;ยืนยันยอด&quot;
+            ใช้เมื่ออีกฝั่งตรวจสอบยอดตรงกันแล้ว
           </p>
         )}
       </div>

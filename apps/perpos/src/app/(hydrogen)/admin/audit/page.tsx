@@ -34,6 +34,7 @@ import {
   TableEmpty,
   TableLoading,
 } from "@/components/ui/table";
+import { ControlledTablePager } from "@/components/ui/table-pager";
 import { CopyInline } from "@/components/ui/copy-cell";
 import {
   Dialog,
@@ -367,8 +368,6 @@ export default function AuditLogPage() {
     );
   }
 
-  const totalPages = Math.max(1, Math.ceil(total / LIMIT));
-
   return (
     <AdminPage
       width="wide"
@@ -575,31 +574,13 @@ export default function AuditLogPage() {
         </TableBody>
       </Table>
 
-      {/* Pagination */}
-      {totalPages > 1 && (
-        <div className="flex items-center justify-between px-1">
-          <span className="text-xs text-gray-500">
-            รายการ {(page - 1) * LIMIT + 1}–{Math.min(page * LIMIT, total)} จาก{" "}
-            {total.toLocaleString()}
-          </span>
-          <div className="flex items-center gap-1">
-            <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => load(page - 1)}>
-              ‹
-            </Button>
-            <span className="px-2 text-xs text-gray-600">
-              {page} / {totalPages}
-            </span>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={page >= totalPages}
-              onClick={() => load(page + 1)}
-            >
-              ›
-            </Button>
-          </div>
-        </div>
-      )}
+      <ControlledTablePager
+        page={page}
+        pageSize={LIMIT}
+        total={total}
+        onPageChange={load}
+        loading={loading}
+      />
 
       {/* ── Integrity Check ─────────────────────────────────────────── */}
       <div className="space-y-4 rounded-2xl border border-gray-200 bg-white p-5">

@@ -10,6 +10,7 @@ import {
   TableCell,
   TableEmpty,
 } from "@/components/ui/table";
+import { LinkTablePager } from "@/components/ui/table-pager";
 import { Bug, Clock, CheckCircle2, AlertTriangle } from "lucide-react";
 import { requireSuperAdminPage } from "@/lib/admin/guard";
 import { listIssues, getIssueStats, isActiveStatus, daysSince } from "@/lib/admin/issues";
@@ -29,14 +30,6 @@ import {
 } from "./_meta";
 import cn from "@core/utils/class-names";
 
-function pageHref(page: number, sp: Record<string, string>) {
-  const qs = new URLSearchParams();
-  for (const [k, v] of Object.entries(sp)) if (v) qs.set(k, v);
-  if (page > 1) qs.set("page", String(page));
-  else qs.delete("page");
-  return qs.toString() ? `?${qs}` : "?";
-}
-
 export default async function AdminIssuesPage({
   searchParams,
 }: {
@@ -53,7 +46,6 @@ export default async function AdminIssuesPage({
     listIssues(admin, { status, type, severity, page: reqPage }),
     getIssueStats(admin),
   ]);
-  const totalPages = Math.max(1, Math.ceil(total / limit));
   const baseSp = { status, type, severity };
   const hasFilter = Boolean(status || type || severity);
 
@@ -196,36 +188,7 @@ export default async function AdminIssuesPage({
         </TableBody>
       </Table>
 
-      <div className="mt-4 flex items-center justify-between text-sm text-gray-500">
-        <span>ทั้งหมด {total.toLocaleString("th-TH")} รายการ</span>
-        <div className="flex items-center gap-2">
-          {page <= 1 ? (
-            <Button variant="outline" size="sm" disabled>
-              ก่อนหน้า
-            </Button>
-          ) : (
-            <Link href={pageHref(page - 1, baseSp)}>
-              <Button variant="outline" size="sm">
-                ก่อนหน้า
-              </Button>
-            </Link>
-          )}
-          <span className="tabular-nums">
-            {page} / {totalPages}
-          </span>
-          {page >= totalPages ? (
-            <Button variant="outline" size="sm" disabled>
-              ถัดไป
-            </Button>
-          ) : (
-            <Link href={pageHref(page + 1, baseSp)}>
-              <Button variant="outline" size="sm">
-                ถัดไป
-              </Button>
-            </Link>
-          )}
-        </div>
-      </div>
+      <LinkTablePager page={page} pageSize={limit} total={total} query={baseSp} className="mt-4" />
     </AdminPage>
   );
 }

@@ -19,6 +19,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { TablePager, usePagination } from "@/components/ui/table-pager";
 import { Text } from "@/components/ui/typography";
 import { notify } from "@/lib/toast";
 import type { MattiiStaff } from "../_fixtures/types";
@@ -153,6 +154,7 @@ const CARD_OPTIONS = FLEX_CARDS.map((c) => ({ value: c.key as string, label: c.l
 
 export function LineNotifyTab({ staff }: { staff: MattiiStaff[] }) {
   const [events, setEvents] = useState<NotifyEvent[]>(EVENTS);
+  const pager = usePagination(events);
   const [card, setCard] = useState<FlexCardKind>("cf_approved");
   const [audience, setAudience] = useState<FlexAudience>("owner");
 
@@ -193,7 +195,7 @@ export function LineNotifyTab({ staff }: { staff: MattiiStaff[] }) {
             {events.length === 0 ? (
               <TableEmpty colSpan={5}>ยังไม่มีเหตุการณ์ให้ตั้งค่า</TableEmpty>
             ) : (
-              events.map((e) => (
+              pager.rows.map((e) => (
                 <TableRow key={e.key}>
                   <TableCell>
                     <div className="flex items-center gap-2">
@@ -264,6 +266,7 @@ export function LineNotifyTab({ staff }: { staff: MattiiStaff[] }) {
             )}
           </TableBody>
         </Table>
+        <TablePager pager={pager} />
         <div className="mt-2 flex flex-wrap items-center gap-3 px-1">
           <Text className="text-xs text-gray-500">
             เปิดอยู่ {fmtNum(enabledCount)} จาก {fmtNum(events.length)} เหตุการณ์

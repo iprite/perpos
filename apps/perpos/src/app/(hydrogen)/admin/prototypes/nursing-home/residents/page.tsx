@@ -31,6 +31,7 @@ import {
   TableCell,
   TableEmpty,
 } from "@/components/ui/table";
+import { TablePager, usePagination } from "@/components/ui/table-pager";
 import { toast } from "@/lib/toast";
 
 import { RESIDENTS, ROOMS, BEDS, RESIDENT_SUBSCRIPTIONS, SERVICE_PACKAGES } from "../_fixtures";
@@ -158,6 +159,7 @@ export default function ResidentsPage() {
       return true;
     });
   }, [residents, q, status, care]);
+  const pager = usePagination(rows);
 
   // ── admission submit (workflow §11) ──
   function submitAdmission(e: React.FormEvent) {
@@ -319,7 +321,7 @@ export default function ResidentsPage() {
                 </div>
               </TableEmpty>
             ) : (
-              rows.map((r) => {
+              pager.rows.map((r) => {
                 const sub = subByResident.get(r.id);
                 const age = calcAge(r.birth_date);
                 return (
@@ -355,6 +357,7 @@ export default function ResidentsPage() {
             )}
           </TableBody>
         </Table>
+        <TablePager pager={pager} />
       </div>
 
       <p className="text-xs text-gray-400">

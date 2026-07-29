@@ -20,6 +20,7 @@ import {
   TableCell,
   TableEmpty,
 } from "@/components/ui/table";
+import { TablePager, usePagination } from "@/components/ui/table-pager";
 import {
   Dialog,
   DialogContent,
@@ -89,6 +90,7 @@ export default function StaffPage() {
           : true,
       );
   }, [staff, q, role, status]);
+  const pager = usePagination(filtered);
 
   const kpi = useMemo(() => {
     const active = staff.filter((s) => s.employment_status === "active");
@@ -192,7 +194,7 @@ export default function StaffPage() {
               </div>
             </TableEmpty>
           ) : (
-            filtered.map((s) => (
+            pager.rows.map((s) => (
               <TableRow
                 key={s.id}
                 clickable={canWrite}
@@ -214,6 +216,7 @@ export default function StaffPage() {
           )}
         </TableBody>
       </Table>
+      <TablePager pager={pager} />
 
       <StaffDialog
         state={dlg}

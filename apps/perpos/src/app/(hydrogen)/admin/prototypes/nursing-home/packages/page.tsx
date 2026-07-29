@@ -28,6 +28,7 @@ import {
   TableCell,
   TableEmpty,
 } from "@/components/ui/table";
+import { TablePager, usePagination } from "@/components/ui/table-pager";
 import { toast } from "@/lib/toast";
 import {
   NursingShell,
@@ -67,6 +68,7 @@ export default function PackagesPage() {
   const canWrite = can("write", "service_packages");
 
   const [packages, setPackages] = useState<ServicePackage[]>(SERVICE_PACKAGES);
+  const pager = usePagination(packages);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<ServicePackage | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm);
@@ -219,7 +221,7 @@ export default function PackagesPage() {
           {packages.length === 0 ? (
             <TableEmpty colSpan={6}>ยังไม่มีแพ็กเกจ</TableEmpty>
           ) : (
-            packages.map((pkg) => (
+            pager.rows.map((pkg) => (
               <TableRow
                 key={pkg.id}
                 clickable={canWrite}
@@ -257,6 +259,7 @@ export default function PackagesPage() {
           )}
         </TableBody>
       </Table>
+      <TablePager pager={pager} unit="แพ็กเกจ" />
 
       {/* Dialog เพิ่ม/แก้ */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

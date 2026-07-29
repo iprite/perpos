@@ -21,6 +21,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { TablePager, usePagination } from "@/components/ui/table-pager";
 import { Text } from "@/components/ui/typography";
 import { EMPTY_STATES } from "../_fixtures/empty-states";
 import { ESTIMATED_COST_HINT, orderEconomics, salesCostProfitTotals } from "../_fixtures/metrics";
@@ -53,6 +54,7 @@ export function OrdersTable({
   filtered: boolean;
   canCreate: boolean;
 }) {
+  const pager = usePagination(orders);
   const { isOwner } = useMattiiRole();
   const { customerOf, orderItems } = useMattiiData();
 
@@ -118,7 +120,7 @@ export function OrdersTable({
               </div>
             </TableEmpty>
           ) : (
-            orders.map((o) => {
+            pager.rows.map((o) => {
               const customer = customerOf(o.customer_id);
               const econ = econOf.get(o.id);
               const estimated = econ?.basis === "estimated";
@@ -234,6 +236,7 @@ export function OrdersTable({
           </TableFooter>
         )}
       </Table>
+      <TablePager pager={pager} unit="ออเดอร์" />
       {isOwner && orders.length > 0 && (
         <Text className="mt-2 px-1 text-xs text-gray-500">
           {hasEstimated

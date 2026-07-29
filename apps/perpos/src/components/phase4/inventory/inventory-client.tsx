@@ -1,16 +1,31 @@
 "use client";
 
 import React, { useMemo, useState, useTransition } from "react";
-import { toast } from '@/lib/toast';
+import { toast } from "@/lib/toast";
 import { Plus } from "lucide-react";
 
 import cn from "@core/utils/class-names";
 import { CustomSelect } from "@/components/ui/custom-select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Dialog, DialogContent, DialogBody, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogBody,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { TablePager, usePagination } from "@/components/ui/table-pager";
 import {
   issueInventoryFifoAction,
   listInventoryLayersAction,
@@ -24,18 +39,32 @@ function fmt(n: number) {
   return n.toLocaleString("th-TH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-export function InventoryClient(props: { organizationId: string; initialItems: InventoryItemRow[] }) {
+export function InventoryClient(props: {
+  organizationId: string;
+  initialItems: InventoryItemRow[];
+}) {
   const [pending, startTransition] = useTransition();
   const [items, setItems] = useState(props.initialItems);
+  const itemPager = usePagination(items);
   const [tab, setTab] = useState<"items" | "movements" | "layers">("items");
 
   const [editOpen, setEditOpen] = useState(false);
-  const [edit, setEdit] = useState<{ id?: string; sku: string; name: string; uom: string; unitCost: string; status: "active" | "inactive" }>(
-    { sku: "", name: "", uom: "EA", unitCost: "0", status: "active" },
-  );
+  const [edit, setEdit] = useState<{
+    id?: string;
+    sku: string;
+    name: string;
+    uom: string;
+    unitCost: string;
+    status: "active" | "inactive";
+  }>({ sku: "", name: "", uom: "EA", unitCost: "0", status: "active" });
 
   const [moveOpen, setMoveOpen] = useState(false);
-  const [move, setMove] = useState<{ itemId: string; type: "in" | "out"; qty: string; unitCost: string }>({
+  const [move, setMove] = useState<{
+    itemId: string;
+    type: "in" | "out";
+    qty: string;
+    unitCost: string;
+  }>({
     itemId: "",
     type: "in",
     qty: "1",
@@ -45,6 +74,7 @@ export function InventoryClient(props: { organizationId: string; initialItems: I
   const [layersOpen, setLayersOpen] = useState(false);
   const [layersTitle, setLayersTitle] = useState("FIFO Layers");
   const [layers, setLayers] = useState<any[]>([]);
+  const layerPager = usePagination(layers);
 
   const refresh = () => {
     startTransition(async () => {
@@ -102,14 +132,23 @@ export function InventoryClient(props: { organizationId: string; initialItems: I
     }
     startTransition(async () => {
       if (move.type === "in") {
-        const res = await receiveInventoryAction({ organizationId: props.organizationId, itemId: move.itemId, qty, unitCost });
+        const res = await receiveInventoryAction({
+          organizationId: props.organizationId,
+          itemId: move.itemId,
+          qty,
+          unitCost,
+        });
         if (!res.ok) {
           toast.error(res.error);
           return;
         }
         toast.success("รับเข้าแล้ว");
       } else {
-        const res = await issueInventoryFifoAction({ organizationId: props.organizationId, itemId: move.itemId, qty });
+        const res = await issueInventoryFifoAction({
+          organizationId: props.organizationId,
+          itemId: move.itemId,
+          qty,
+        });
         if (!res.ok) {
           toast.error(res.error);
           return;
@@ -142,14 +181,24 @@ export function InventoryClient(props: { organizationId: string; initialItems: I
         <div className="flex items-center gap-2">
           <button
             type="button"
-            className={cn("rounded-md px-3 py-1.5 text-sm", tab === "items" ? "bg-primary text-primary-foreground" : "bg-slate-100 hover:bg-slate-200")}
+            className={cn(
+              "rounded-md px-3 py-1.5 text-sm",
+              tab === "items"
+                ? "bg-primary text-primary-foreground"
+                : "bg-slate-100 hover:bg-slate-200",
+            )}
             onClick={() => setTab("items")}
           >
             สินค้า
           </button>
           <button
             type="button"
-            className={cn("rounded-md px-3 py-1.5 text-sm", tab === "layers" ? "bg-primary text-primary-foreground" : "bg-slate-100 hover:bg-slate-200")}
+            className={cn(
+              "rounded-md px-3 py-1.5 text-sm",
+              tab === "layers"
+                ? "bg-primary text-primary-foreground"
+                : "bg-slate-100 hover:bg-slate-200",
+            )}
             onClick={() => setTab("layers")}
           >
             FIFO Layers
@@ -159,7 +208,13 @@ export function InventoryClient(props: { organizationId: string; initialItems: I
           <Button variant="outline" className="gap-2" onClick={() => setMoveOpen(true)}>
             เคลื่อนไหวสต๊อก
           </Button>
-          <Button className="gap-2" onClick={() => { setEdit({ sku: "", name: "", uom: "EA", unitCost: "0", status: "active" }); setEditOpen(true); }}>
+          <Button
+            className="gap-2"
+            onClick={() => {
+              setEdit({ sku: "", name: "", uom: "EA", unitCost: "0", status: "active" });
+              setEditOpen(true);
+            }}
+          >
             <Plus className="h-4 w-4" />
             เพิ่มสินค้า
           </Button>
@@ -179,7 +234,7 @@ export function InventoryClient(props: { organizationId: string; initialItems: I
             </TableRow>
           </TableHeader>
           <TableBody>
-            {items.map((it) => (
+            {itemPager.rows.map((it) => (
               <TableRow key={it.id}>
                 <TableCell className="font-mono text-sm">{it.sku}</TableCell>
                 <TableCell className="text-sm text-slate-900">{it.name}</TableCell>
@@ -195,7 +250,14 @@ export function InventoryClient(props: { organizationId: string; initialItems: I
                       variant="ghost"
                       size="sm"
                       onClick={() => {
-                        setEdit({ id: it.id, sku: it.sku, name: it.name, uom: it.uom, unitCost: String(it.unitCost), status: it.status === "inactive" ? "inactive" : "active" });
+                        setEdit({
+                          id: it.id,
+                          sku: it.sku,
+                          name: it.name,
+                          uom: it.uom,
+                          unitCost: String(it.unitCost),
+                          status: it.status === "inactive" ? "inactive" : "active",
+                        });
                         setEditOpen(true);
                       }}
                     >
@@ -214,6 +276,7 @@ export function InventoryClient(props: { organizationId: string; initialItems: I
             ) : null}
           </TableBody>
         </Table>
+        <TablePager pager={itemPager} />
       </div>
 
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
@@ -222,40 +285,55 @@ export function InventoryClient(props: { organizationId: string; initialItems: I
             <DialogTitle>{edit.id ? "แก้ไขสินค้า" : "เพิ่มสินค้า"}</DialogTitle>
           </DialogHeader>
           <DialogBody>
-          <div className="grid gap-3">
-            <div className="grid gap-2">
-              <Label>SKU</Label>
-              <Input value={edit.sku} onChange={(e) => setEdit((s) => ({ ...s, sku: e.target.value }))} />
-            </div>
-            <div className="grid gap-2">
-              <Label>ชื่อ</Label>
-              <Input value={edit.name} onChange={(e) => setEdit((s) => ({ ...s, name: e.target.value }))} />
-            </div>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid gap-3">
               <div className="grid gap-2">
-                <Label>หน่วย</Label>
-                <Input value={edit.uom} onChange={(e) => setEdit((s) => ({ ...s, uom: e.target.value }))} />
+                <Label>SKU</Label>
+                <Input
+                  value={edit.sku}
+                  onChange={(e) => setEdit((s) => ({ ...s, sku: e.target.value }))}
+                />
               </div>
               <div className="grid gap-2">
-                <Label>ต้นทุนเริ่มต้น/ล่าสุด</Label>
-                <Input inputMode="decimal" value={edit.unitCost} onChange={(e) => setEdit((s) => ({ ...s, unitCost: e.target.value }))} />
+                <Label>ชื่อ</Label>
+                <Input
+                  value={edit.name}
+                  onChange={(e) => setEdit((s) => ({ ...s, name: e.target.value }))}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="grid gap-2">
+                  <Label>หน่วย</Label>
+                  <Input
+                    value={edit.uom}
+                    onChange={(e) => setEdit((s) => ({ ...s, uom: e.target.value }))}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label>ต้นทุนเริ่มต้น/ล่าสุด</Label>
+                  <Input
+                    inputMode="decimal"
+                    value={edit.unitCost}
+                    onChange={(e) => setEdit((s) => ({ ...s, unitCost: e.target.value }))}
+                  />
+                </div>
+              </div>
+              <div className="grid gap-2">
+                <Label>สถานะ</Label>
+                <CustomSelect
+                  value={edit.status}
+                  onChange={(v) => setEdit((s) => ({ ...s, status: v as "active" | "inactive" }))}
+                  options={[
+                    { value: "active", label: "Active" },
+                    { value: "inactive", label: "Inactive" },
+                  ]}
+                />
               </div>
             </div>
-            <div className="grid gap-2">
-              <Label>สถานะ</Label>
-              <CustomSelect
-                value={edit.status}
-                onChange={(v) => setEdit((s) => ({ ...s, status: v as "active" | "inactive" }))}
-                options={[
-                  { value: "active", label: "Active" },
-                  { value: "inactive", label: "Inactive" },
-                ]}
-              />
-            </div>
-          </div>
           </DialogBody>
           <DialogFooter>
-            <Button onClick={saveItem} disabled={pending}>บันทึก</Button>
+            <Button onClick={saveItem} disabled={pending}>
+              บันทึก
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -266,45 +344,55 @@ export function InventoryClient(props: { organizationId: string; initialItems: I
             <DialogTitle>เคลื่อนไหวสต๊อก</DialogTitle>
           </DialogHeader>
           <DialogBody>
-          <div className="grid gap-3">
-            <div className="grid gap-2">
-              <Label>สินค้า</Label>
-              <CustomSelect
-                value={move.itemId}
-                onChange={(v) => setMove((s) => ({ ...s, itemId: v }))}
-                options={[
-                  { value: "", label: "เลือกสินค้า" },
-                  ...items.map((it) => ({ value: it.id, label: `${it.sku} ${it.name}` })),
-                ]}
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid gap-3">
               <div className="grid gap-2">
-                <Label>ประเภท</Label>
+                <Label>สินค้า</Label>
                 <CustomSelect
-                  value={move.type}
-                  onChange={(v) => setMove((s) => ({ ...s, type: v as "in" | "out" }))}
+                  value={move.itemId}
+                  onChange={(v) => setMove((s) => ({ ...s, itemId: v }))}
                   options={[
-                    { value: "in", label: "รับเข้า" },
-                    { value: "out", label: "จ่ายออก" },
+                    { value: "", label: "เลือกสินค้า" },
+                    ...items.map((it) => ({ value: it.id, label: `${it.sku} ${it.name}` })),
                   ]}
                 />
               </div>
-              <div className="grid gap-2">
-                <Label>จำนวน</Label>
-                <Input inputMode="decimal" value={move.qty} onChange={(e) => setMove((s) => ({ ...s, qty: e.target.value }))} />
+              <div className="grid grid-cols-2 gap-2">
+                <div className="grid gap-2">
+                  <Label>ประเภท</Label>
+                  <CustomSelect
+                    value={move.type}
+                    onChange={(v) => setMove((s) => ({ ...s, type: v as "in" | "out" }))}
+                    options={[
+                      { value: "in", label: "รับเข้า" },
+                      { value: "out", label: "จ่ายออก" },
+                    ]}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label>จำนวน</Label>
+                  <Input
+                    inputMode="decimal"
+                    value={move.qty}
+                    onChange={(e) => setMove((s) => ({ ...s, qty: e.target.value }))}
+                  />
+                </div>
               </div>
+              {move.type === "in" ? (
+                <div className="grid gap-2">
+                  <Label>ต้นทุน/หน่วย</Label>
+                  <Input
+                    inputMode="decimal"
+                    value={move.unitCost}
+                    onChange={(e) => setMove((s) => ({ ...s, unitCost: e.target.value }))}
+                  />
+                </div>
+              ) : null}
             </div>
-            {move.type === "in" ? (
-              <div className="grid gap-2">
-                <Label>ต้นทุน/หน่วย</Label>
-                <Input inputMode="decimal" value={move.unitCost} onChange={(e) => setMove((s) => ({ ...s, unitCost: e.target.value }))} />
-              </div>
-            ) : null}
-          </div>
           </DialogBody>
           <DialogFooter>
-            <Button onClick={submitMovement} disabled={pending}>บันทึก</Button>
+            <Button onClick={submitMovement} disabled={pending}>
+              บันทึก
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -315,37 +403,41 @@ export function InventoryClient(props: { organizationId: string; initialItems: I
             <DialogTitle>FIFO Layers: {layersTitle}</DialogTitle>
           </DialogHeader>
           <DialogBody>
-          <div className="rounded-lg border border-slate-200">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[140px]">รับเข้า</TableHead>
-                  <TableHead className="text-right w-[140px]">คงเหลือ</TableHead>
-                  <TableHead className="text-right w-[140px]">ต้นทุน/หน่วย</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {layers.map((l: any) => (
-                  <TableRow key={String(l.id)}>
-                    <TableCell>{String(l.received_at).slice(0, 10)}</TableCell>
-                    <TableCell className="text-right tabular-nums">{fmt(Number(l.qty_remaining ?? 0))}</TableCell>
-                    <TableCell className="text-right tabular-nums">{fmt(Number(l.unit_cost ?? 0))}</TableCell>
-                  </TableRow>
-                ))}
-                {!layers.length ? (
+            <div className="rounded-lg border border-slate-200">
+              <Table>
+                <TableHeader>
                   <TableRow>
-                    <TableCell colSpan={3} className="py-10 text-center text-sm text-slate-600">
-                      ไม่มี layers
-                    </TableCell>
+                    <TableHead className="w-[140px]">รับเข้า</TableHead>
+                    <TableHead className="w-[140px] text-right">คงเหลือ</TableHead>
+                    <TableHead className="w-[140px] text-right">ต้นทุน/หน่วย</TableHead>
                   </TableRow>
-                ) : null}
-              </TableBody>
-            </Table>
-          </div>
+                </TableHeader>
+                <TableBody>
+                  {layerPager.rows.map((l: any) => (
+                    <TableRow key={String(l.id)}>
+                      <TableCell>{String(l.received_at).slice(0, 10)}</TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {fmt(Number(l.qty_remaining ?? 0))}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {fmt(Number(l.unit_cost ?? 0))}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {!layers.length ? (
+                    <TableRow>
+                      <TableCell colSpan={3} className="py-10 text-center text-sm text-slate-600">
+                        ไม่มี layers
+                      </TableCell>
+                    </TableRow>
+                  ) : null}
+                </TableBody>
+              </Table>
+              <TablePager pager={layerPager} unit="ชั้น" />
+            </div>
           </DialogBody>
         </DialogContent>
       </Dialog>
     </div>
   );
 }
-

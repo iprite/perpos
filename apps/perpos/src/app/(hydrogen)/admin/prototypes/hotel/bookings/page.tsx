@@ -19,6 +19,7 @@ import {
   TableCell,
   TableEmpty,
 } from "@/components/ui/table";
+import { TablePager, usePagination } from "@/components/ui/table-pager";
 import {
   HotelShell,
   useHotelRole,
@@ -99,6 +100,7 @@ export default function BookingsPage() {
       })
       .sort((a, b) => b.check_in_date.localeCompare(a.check_in_date));
   }, [bookings, rooms, search, statusF, sourceF, stayF, fromDate, toDate]);
+  const pager = usePagination(filtered);
 
   // ── KPI (จาก fixture จริง) ──
   const kpi = useMemo(() => {
@@ -216,7 +218,7 @@ export default function BookingsPage() {
               </div>
             </TableEmpty>
           ) : (
-            filtered.map((b) => {
+            pager.rows.map((b) => {
               const bal = computeBalance(b, paymentsOf(b.id, payments));
               const t = roomType(b.room_id);
               return (
@@ -258,6 +260,7 @@ export default function BookingsPage() {
           )}
         </TableBody>
       </Table>
+      <TablePager pager={pager} />
 
       {/* dialogs */}
       <BookingDialog open={createOpen} onOpenChange={setCreateOpen} />

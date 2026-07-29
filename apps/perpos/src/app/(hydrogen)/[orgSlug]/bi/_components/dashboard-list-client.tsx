@@ -31,6 +31,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { TablePager, usePagination } from "@/components/ui/table-pager";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { notify } from "@/lib/toast";
 import { MAX_DASHBOARDS_PER_USER, type BiDashboard } from "@/lib/bi/types";
@@ -72,6 +73,7 @@ export function DashboardListClient({
   const [name, setName] = React.useState("");
   const [busy, setBusy] = React.useState(false);
   const [selected, setSelected] = React.useState<BiDashboard | null>(null);
+  const pager = usePagination(dashboards);
 
   const create = async () => {
     const clean = name.trim();
@@ -163,26 +165,29 @@ export function DashboardListClient({
       {dashboards.length === 0 ? (
         <EmptyDashboards orgSlug={orgSlug} />
       ) : (
-        <Table className="shadow-sm">
-          <TableHeader>
-            <TableRow>
-              <TableHead>ชื่อแดชบอร์ด</TableHead>
-              <TableHead align="right">จำนวนการ์ด</TableHead>
-              <TableHead>แก้ไขล่าสุด</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {dashboards.map((d) => (
-              <TableRow key={d.id} clickable onClick={() => setSelected(d)}>
-                <TableCell>{d.name}</TableCell>
-                <TableCell align="right" tabular>
-                  {new Intl.NumberFormat("en-US").format(d.item_count ?? 0)}
-                </TableCell>
-                <TableCell>{formatThaiDateTime(d.updated_at || d.created_at)}</TableCell>
+        <div className="space-y-3">
+          <Table className="shadow-sm">
+            <TableHeader>
+              <TableRow>
+                <TableHead>ชื่อแดชบอร์ด</TableHead>
+                <TableHead align="right">จำนวนการ์ด</TableHead>
+                <TableHead>แก้ไขล่าสุด</TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {pager.rows.map((d) => (
+                <TableRow key={d.id} clickable onClick={() => setSelected(d)}>
+                  <TableCell>{d.name}</TableCell>
+                  <TableCell align="right" tabular>
+                    {new Intl.NumberFormat("en-US").format(d.item_count ?? 0)}
+                  </TableCell>
+                  <TableCell>{formatThaiDateTime(d.updated_at || d.created_at)}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+          <TablePager pager={pager} unit="แดชบอร์ด" />
+        </div>
       )}
 
       {/* สร้างใหม่ */}

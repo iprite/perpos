@@ -5,15 +5,7 @@
 // mock client state (useGolfData) — mutation ในหน่วยความจำ
 
 import { useEffect, useMemo, useState } from "react";
-import {
-  Users,
-  Search,
-  UserPlus,
-  MessageCircle,
-  Star,
-  BadgeCheck,
-  UserX,
-} from "lucide-react";
+import { Users, Search, UserPlus, MessageCircle, Star, BadgeCheck, UserX } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -39,6 +31,7 @@ import {
   TableEmpty,
   TableLoading,
 } from "@/components/ui/table";
+import { TablePager, usePagination } from "@/components/ui/table-pager";
 import { notify } from "@/lib/toast";
 import {
   GolfShell,
@@ -123,6 +116,7 @@ export default function GolfMembersPage() {
       return true;
     });
   }, [members, search, typeF, tierF, statusF]);
+  const pager = usePagination(filtered);
 
   const hasFilter = !!(search || typeF || tierF || statusF);
 
@@ -246,7 +240,7 @@ export default function GolfMembersPage() {
               </div>
             </TableEmpty>
           ) : (
-            filtered.map((m) => (
+            pager.rows.map((m) => (
               <TableRow key={m.id} clickable onClick={() => setDetail(m)}>
                 <TableCell>
                   <div className="flex items-center gap-2.5">
@@ -261,7 +255,7 @@ export default function GolfMembersPage() {
                           </StatusBadge>
                         )}
                       </div>
-                      <div className="text-xs text-gray-500 tabular-nums">
+                      <div className="text-xs tabular-nums text-gray-500">
                         {m.member_no ?? "ลูกค้าทั่วไป"}
                         {m.phone ? ` · ${m.phone}` : ""}
                       </div>
@@ -286,7 +280,11 @@ export default function GolfMembersPage() {
                 </TableCell>
                 <TableCell
                   align="center"
-                  className={m.no_show_count >= 3 ? "tabular-nums font-medium text-red-600" : "tabular-nums text-gray-600"}
+                  className={
+                    m.no_show_count >= 3
+                      ? "font-medium tabular-nums text-red-600"
+                      : "tabular-nums text-gray-600"
+                  }
                 >
                   {fmtNum(m.no_show_count)}
                 </TableCell>
@@ -300,6 +298,7 @@ export default function GolfMembersPage() {
           )}
         </TableBody>
       </Table>
+      <TablePager pager={pager} />
 
       <MemberDetailDialog
         member={detail}

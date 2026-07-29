@@ -27,6 +27,7 @@ import {
   TableCell,
   TableEmpty,
 } from "@/components/ui/table";
+import { TablePager, usePagination } from "@/components/ui/table-pager";
 import {
   Dialog,
   DialogContent,
@@ -79,6 +80,7 @@ export default function CarePlansPage() {
       .filter((p) => (fStatus ? p.status === fStatus : true))
       .sort((a, b) => (a.created_at! < b.created_at! ? 1 : -1));
   }, [plans, fResident, fStatus]);
+  const pager = usePagination(filtered);
 
   const activeCount = plans.filter((p) => p.status === "active").length;
   const itemsDone = items.filter((i) => i.is_done).length;
@@ -222,7 +224,7 @@ export default function CarePlansPage() {
           {filtered.length === 0 ? (
             <TableEmpty colSpan={6}>ยังไม่มีแผนการดูแลตามเงื่อนไข</TableEmpty>
           ) : (
-            filtered.map((p) => {
+            pager.rows.map((p) => {
               const its = planItems(p.id);
               const done = its.filter((i) => i.is_done).length;
               return (
@@ -248,6 +250,7 @@ export default function CarePlansPage() {
           )}
         </TableBody>
       </Table>
+      <TablePager pager={pager} />
 
       {/* detail dialog */}
       <Dialog open={!!detail} onOpenChange={(o) => !o && setDetail(null)}>

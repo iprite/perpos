@@ -32,6 +32,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { TablePager, usePagination } from "@/components/ui/table-pager";
 import { toast } from "@/lib/toast";
 import type { P2pgCompany, P2pgDividend, P2pgInvestment } from "@/lib/p2p-group/types";
 import {
@@ -60,6 +61,8 @@ export function InvestmentsClient({
   orgId: string;
   canWrite: boolean;
 }) {
+  const divPager = usePagination(dividends);
+  const invPager = usePagination(investments);
   const router = useRouter();
   const [tab, setTab] = useState<Tab>("investments");
   const [open, setOpen] = useState(false);
@@ -67,12 +70,12 @@ export function InvestmentsClient({
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState<Record<string, string>>({});
 
-  const companyName = useMemo(
-    () => new Map(companies.map((c) => [c.id, c.name])),
-    [companies],
-  );
+  const companyName = useMemo(() => new Map(companies.map((c) => [c.id, c.name])), [companies]);
   const companyOptions = useMemo(
-    () => companies.filter((c) => c.company_type !== "holding").map((c) => ({ value: c.id, label: c.name })),
+    () =>
+      companies
+        .filter((c) => c.company_type !== "holding")
+        .map((c) => ({ value: c.id, label: c.name })),
     [companies],
   );
 
@@ -232,119 +235,125 @@ export function InvestmentsClient({
         />
 
         {tab === "investments" ? (
-          <Table className="shadow-sm">
-            <TableHeader>
-              <TableRow>
-                <TableHead align="center">วันที่ลงทุน</TableHead>
-                <TableHead>บริษัท</TableHead>
-                <TableHead align="right">จำนวนหุ้น</TableHead>
-                <TableHead align="right">เงินลงทุน</TableHead>
-                <TableHead align="right">ถือหุ้นหลังลงทุน</TableHead>
-                <TableHead>วิธีบันทึก</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {investments.length === 0 ? (
-                <TableEmpty colSpan={6}>
-                  ยังไม่มีรายการเงินลงทุน — บันทึกเงินที่บริษัทแม่ลงในบริษัทลูกเพื่อคำนวณผลตอบแทน
-                </TableEmpty>
-              ) : (
-                investments.map((i) => (
-                  <TableRow
-                    key={i.id}
-                    clickable={canWrite}
-                    onClick={
-                      canWrite
-                        ? () => {
-                            setTab("investments");
-                            openEditInvestment(i);
-                          }
-                        : undefined
-                    }
-                  >
-                    <TableCell align="center" className="tabular-nums">
-                      {formatThaiDate(i.invest_date)}
-                    </TableCell>
-                    <TableCell>{companyName.get(i.company_id) ?? "—"}</TableCell>
-                    <TableCell align="right" tabular>
-                      {i.shares == null ? "—" : i.shares.toLocaleString("th-TH")}
-                    </TableCell>
-                    <TableCell align="right" tabular>
-                      {formatMoney(i.cost_amount)}
-                    </TableCell>
-                    <TableCell align="right" className="tabular-nums">
-                      {i.ownership_pct_after == null ? "—" : `${i.ownership_pct_after}%`}
-                    </TableCell>
-                    <TableCell>{INVESTMENT_METHOD_LABEL[i.method]}</TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
+          <div className="space-y-3">
+            <Table className="shadow-sm">
+              <TableHeader>
+                <TableRow>
+                  <TableHead align="center">วันที่ลงทุน</TableHead>
+                  <TableHead>บริษัท</TableHead>
+                  <TableHead align="right">จำนวนหุ้น</TableHead>
+                  <TableHead align="right">เงินลงทุน</TableHead>
+                  <TableHead align="right">ถือหุ้นหลังลงทุน</TableHead>
+                  <TableHead>วิธีบันทึก</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {investments.length === 0 ? (
+                  <TableEmpty colSpan={6}>
+                    ยังไม่มีรายการเงินลงทุน — บันทึกเงินที่บริษัทแม่ลงในบริษัทลูกเพื่อคำนวณผลตอบแทน
+                  </TableEmpty>
+                ) : (
+                  invPager.rows.map((i) => (
+                    <TableRow
+                      key={i.id}
+                      clickable={canWrite}
+                      onClick={
+                        canWrite
+                          ? () => {
+                              setTab("investments");
+                              openEditInvestment(i);
+                            }
+                          : undefined
+                      }
+                    >
+                      <TableCell align="center" className="tabular-nums">
+                        {formatThaiDate(i.invest_date)}
+                      </TableCell>
+                      <TableCell>{companyName.get(i.company_id) ?? "—"}</TableCell>
+                      <TableCell align="right" tabular>
+                        {i.shares == null ? "—" : i.shares.toLocaleString("th-TH")}
+                      </TableCell>
+                      <TableCell align="right" tabular>
+                        {formatMoney(i.cost_amount)}
+                      </TableCell>
+                      <TableCell align="right" className="tabular-nums">
+                        {i.ownership_pct_after == null ? "—" : `${i.ownership_pct_after}%`}
+                      </TableCell>
+                      <TableCell>{INVESTMENT_METHOD_LABEL[i.method]}</TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+            <TablePager pager={invPager} unit="รายการ" />
+          </div>
         ) : (
-          <Table className="shadow-sm">
-            <TableHeader>
-              <TableRow>
-                <TableHead align="center">วันประกาศ</TableHead>
-                <TableHead>บริษัท</TableHead>
-                <TableHead align="right">ประกาศจ่าย</TableHead>
-                <TableHead align="right">รับจริง</TableHead>
-                <TableHead align="right">ภาษีหัก ณ ที่จ่าย</TableHead>
-                <TableHead align="center">วันที่รับ</TableHead>
-                <TableHead align="center">สถานะ</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {dividends.length === 0 ? (
-                <TableEmpty colSpan={7}>ยังไม่มีรายการเงินปันผล</TableEmpty>
-              ) : (
-                dividends.map((d) => (
-                  <TableRow
-                    key={d.id}
-                    clickable={canWrite}
-                    onClick={
-                      canWrite
-                        ? () => {
-                            setTab("dividends");
-                            openEditDividend(d);
+          <div className="space-y-3">
+            <Table className="shadow-sm">
+              <TableHeader>
+                <TableRow>
+                  <TableHead align="center">วันประกาศ</TableHead>
+                  <TableHead>บริษัท</TableHead>
+                  <TableHead align="right">ประกาศจ่าย</TableHead>
+                  <TableHead align="right">รับจริง</TableHead>
+                  <TableHead align="right">ภาษีหัก ณ ที่จ่าย</TableHead>
+                  <TableHead align="center">วันที่รับ</TableHead>
+                  <TableHead align="center">สถานะ</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {dividends.length === 0 ? (
+                  <TableEmpty colSpan={7}>ยังไม่มีรายการเงินปันผล</TableEmpty>
+                ) : (
+                  divPager.rows.map((d) => (
+                    <TableRow
+                      key={d.id}
+                      clickable={canWrite}
+                      onClick={
+                        canWrite
+                          ? () => {
+                              setTab("dividends");
+                              openEditDividend(d);
+                            }
+                          : undefined
+                      }
+                    >
+                      <TableCell align="center" className="tabular-nums">
+                        {formatThaiDate(d.declared_date)}
+                      </TableCell>
+                      <TableCell>{companyName.get(d.company_id) ?? "—"}</TableCell>
+                      <TableCell align="right" tabular>
+                        {formatMoney(d.amount_declared)}
+                      </TableCell>
+                      <TableCell align="right" tabular>
+                        {formatMoney(d.amount_received)}
+                      </TableCell>
+                      <TableCell align="right" tabular>
+                        {formatMoney(d.wht_amount)}
+                      </TableCell>
+                      <TableCell align="center" className="tabular-nums">
+                        {formatThaiDate(d.paid_date)}
+                      </TableCell>
+                      <TableCell align="center">
+                        <StatusBadge
+                          tone={
+                            d.status === "paid"
+                              ? "success"
+                              : d.status === "cancelled"
+                                ? "neutral"
+                                : "warning"
                           }
-                        : undefined
-                    }
-                  >
-                    <TableCell align="center" className="tabular-nums">
-                      {formatThaiDate(d.declared_date)}
-                    </TableCell>
-                    <TableCell>{companyName.get(d.company_id) ?? "—"}</TableCell>
-                    <TableCell align="right" tabular>
-                      {formatMoney(d.amount_declared)}
-                    </TableCell>
-                    <TableCell align="right" tabular>
-                      {formatMoney(d.amount_received)}
-                    </TableCell>
-                    <TableCell align="right" tabular>
-                      {formatMoney(d.wht_amount)}
-                    </TableCell>
-                    <TableCell align="center" className="tabular-nums">
-                      {formatThaiDate(d.paid_date)}
-                    </TableCell>
-                    <TableCell align="center">
-                      <StatusBadge
-                        tone={
-                          d.status === "paid"
-                            ? "success"
-                            : d.status === "cancelled"
-                              ? "neutral"
-                              : "warning"
-                        }
-                      >
-                        {DIVIDEND_STATUS_LABEL[d.status]}
-                      </StatusBadge>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
+                        >
+                          {DIVIDEND_STATUS_LABEL[d.status]}
+                        </StatusBadge>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+            <TablePager pager={divPager} unit="รายการ" />
+          </div>
         )}
       </div>
 

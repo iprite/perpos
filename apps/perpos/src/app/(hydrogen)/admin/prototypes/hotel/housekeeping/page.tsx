@@ -17,6 +17,7 @@ import {
   TableCell,
   TableEmpty,
 } from "@/components/ui/table";
+import { TablePager, usePagination } from "@/components/ui/table-pager";
 import {
   HotelShell,
   useHotelRole,
@@ -90,6 +91,7 @@ export default function HousekeepingPage() {
         );
       });
   }, [housekeeping, rooms, search, statusF, dateF]);
+  const pager = usePagination(filtered);
 
   // ── KPI (เฉพาะวันนี้) ──
   const kpi = useMemo(() => {
@@ -189,7 +191,7 @@ export default function HousekeepingPage() {
               </div>
             </TableEmpty>
           ) : (
-            filtered.map((t) => {
+            pager.rows.map((t) => {
               const r = roomOf(t.room_id);
               return (
                 <TableRow key={t.id} clickable onClick={() => setDetail(t)}>
@@ -216,6 +218,7 @@ export default function HousekeepingPage() {
           )}
         </TableBody>
       </Table>
+      <TablePager pager={pager} />
 
       <HousekeepingDetailDialog
         task={detail}

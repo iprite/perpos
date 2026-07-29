@@ -25,6 +25,7 @@ import {
   TableEmpty,
   TableLoading,
 } from "@/components/ui/table";
+import { TablePager, usePagination } from "@/components/ui/table-pager";
 import { Plus, Check, Users, Wallet, TrendingUp, AlertCircle } from "lucide-react";
 import { PageShell } from "@/components/ui/page-shell";
 import { StatCard as UiStatCard } from "@/components/ui/stat-card";
@@ -197,6 +198,7 @@ export default function ServiceClientsPage() {
     }
     return true;
   });
+  const pager = usePagination(filtered);
 
   // Current CE year → map to fee column
   const year = new Date().getFullYear();
@@ -329,7 +331,7 @@ export default function ServiceClientsPage() {
           ) : filtered.length === 0 ? (
             <TableEmpty colSpan={5}>ไม่พบรายการ</TableEmpty>
           ) : (
-            filtered.map((c) => (
+            pager.rows.map((c) => (
               <TableRow
                 key={c.id}
                 clickable
@@ -381,6 +383,7 @@ export default function ServiceClientsPage() {
           )}
         </TableBody>
       </Table>
+      <TablePager pager={pager} />
 
       {/* Add/Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

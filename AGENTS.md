@@ -380,25 +380,26 @@ Endpoint: `POST /api/assistant/scheduler`
 
 ### Components ที่ต้องใช้เสมอ
 
-| ต้องการ                                            | ใช้                                                                                                | Import จาก                         |
-| -------------------------------------------------- | -------------------------------------------------------------------------------------------------- | ---------------------------------- |
-| ปุ่ม                                               | `<Button>`                                                                                         | `@/components/ui/button`           |
-| Text input / number                                | `<Input>`                                                                                          | `@/components/ui/input`            |
-| **Form Select (value-based)**                      | `<CustomSelect>`                                                                                   | `@/components/ui/custom-select`    |
-| **Navigation Dropdown (icon+list)**                | `<Dropdown>`                                                                                       | `@/components/ui/dropdown`         |
-| **Rich Panel Popover**                             | `<Popover>`                                                                                        | `@/components/ui/popover`          |
-| **Date picker**                                    | `<ThaiDatePicker>`                                                                                 | `@/components/ui/thai-date-picker` |
-| Label                                              | `<Label>`                                                                                          | `@/components/ui/label`            |
-| Modal / Dialog                                     | `<Dialog>`, `<DialogContent>`, `<DialogBody>`, `<DialogHeader>`, `<DialogTitle>`, `<DialogFooter>` | `@/components/ui/dialog`           |
-| Native select (เฉพาะ `type="month"` หรือกรณีพิเศษ) | `<NativeSelect>`                                                                                   | `@/components/ui/native-select`    |
-| Time input                                         | `<Input type="time">`                                                                              | `@/components/ui/input`            |
-| **หัวข้อ/ข้อความ (Title/Text)**                    | `<Title>`, `<Text>`                                                                                | `@/components/ui/typography`       |
-| **รูปโปรไฟล์ + fallback อักษรย่อ**                 | `<Avatar>`                                                                                         | `@/components/ui/avatar`           |
-| ป้ายสถานะ                                          | `<StatusBadge tone=…>`                                                                             | `@/components/ui/badge`            |
-| KPI/การ์ดสรุป                                      | `<StatCard>`                                                                                       | `@/components/ui/stat-card`        |
-| **ตัวเลือก 2–3 อย่าง (สลับ/mutually exclusive)**   | `<SegmentedControl>`                                                                               | `@/components/ui/segmented`        |
-| **อัปโหลดรูป PNG (โลโก้/ลายเซน) → data URL**       | `<ImageUpload>`                                                                                    | `@/components/ui/image-upload`     |
-| **เลือก/ลากไฟล์ (เอกสาร, รูปบิล, เสียง, CSV)**     | `<FileDropzone>`                                                                                   | `@/components/ui/file-dropzone`    |
+| ต้องการ                                                 | ใช้                                                                                                                  | Import จาก                         |
+| ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- | ---------------------------------- |
+| ปุ่ม                                                    | `<Button>`                                                                                                           | `@/components/ui/button`           |
+| Text input / number                                     | `<Input>`                                                                                                            | `@/components/ui/input`            |
+| **Form Select (value-based)**                           | `<CustomSelect>`                                                                                                     | `@/components/ui/custom-select`    |
+| **Navigation Dropdown (icon+list)**                     | `<Dropdown>`                                                                                                         | `@/components/ui/dropdown`         |
+| **Rich Panel Popover**                                  | `<Popover>`                                                                                                          | `@/components/ui/popover`          |
+| **Date picker**                                         | `<ThaiDatePicker>`                                                                                                   | `@/components/ui/thai-date-picker` |
+| Label                                                   | `<Label>`                                                                                                            | `@/components/ui/label`            |
+| Modal / Dialog                                          | `<Dialog>`, `<DialogContent>`, `<DialogBody>`, `<DialogHeader>`, `<DialogTitle>`, `<DialogFooter>`                   | `@/components/ui/dialog`           |
+| Native select (เฉพาะ `type="month"` หรือกรณีพิเศษ)      | `<NativeSelect>`                                                                                                     | `@/components/ui/native-select`    |
+| Time input                                              | `<Input type="time">`                                                                                                | `@/components/ui/input`            |
+| **หัวข้อ/ข้อความ (Title/Text)**                         | `<Title>`, `<Text>`                                                                                                  | `@/components/ui/typography`       |
+| **รูปโปรไฟล์ + fallback อักษรย่อ**                      | `<Avatar>`                                                                                                           | `@/components/ui/avatar`           |
+| ป้ายสถานะ                                               | `<StatusBadge tone=…>`                                                                                               | `@/components/ui/badge`            |
+| KPI/การ์ดสรุป                                           | `<StatCard>`                                                                                                         | `@/components/ui/stat-card`        |
+| **ตัวเลือก 2–3 อย่าง (สลับ/mutually exclusive)**        | `<SegmentedControl>`                                                                                                 | `@/components/ui/segmented`        |
+| **อัปโหลดรูป PNG (โลโก้/ลายเซน) → data URL**            | `<ImageUpload>`                                                                                                      | `@/components/ui/image-upload`     |
+| **เลือก/ลากไฟล์ (เอกสาร, รูปบิล, เสียง, CSV)**          | `<FileDropzone>`                                                                                                     | `@/components/ui/file-dropzone`    |
+| **แถบแบ่งหน้าใต้ตาราง (บังคับทุกตารางที่ list ยาวได้)** | `usePagination` + `<TablePager>` · `<ControlledTablePager>` (fetch ทีละหน้า) · `<LinkTablePager>` (SSR searchParams) | `@/components/ui/table-pager`      |
 
 > **rizzui**: โค้ด/หน้าจอ**ใหม่**ห้าม import จาก `rizzui`/`rizzui/typography` ตรง ๆ — ใช้ `@/components/ui/*` เสมอ (`Button/Input/Select/Title/Text/Avatar/Badge` ฯลฯ มีครบแล้ว)
 >

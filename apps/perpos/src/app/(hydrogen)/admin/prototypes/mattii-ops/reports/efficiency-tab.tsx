@@ -15,6 +15,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { TablePager, usePagination } from "@/components/ui/table-pager";
 import { Text } from "@/components/ui/typography";
 import { baselineComparison } from "../_fixtures/baseline";
 import { benchmark } from "../_fixtures/benchmarks";
@@ -23,6 +24,7 @@ import { SectionHeading, fmtNum, fmtPercent } from "../_components";
 
 export function EfficiencyTab({ orders }: { orders: MattiiOrder[] }) {
   const rows = useMemo(() => baselineComparison(orders), [orders]);
+  const pager = usePagination(rows);
 
   const leadRow = rows.find((r) => r.key === "lead_time_days");
   const lateRow = rows.find((r) => r.key === "late_rate_percent");
@@ -76,7 +78,7 @@ export function EfficiencyTab({ orders }: { orders: MattiiOrder[] }) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {rows.map((row) => {
+            {pager.rows.map((row) => {
               const has = row.after !== null;
               const diff = has ? (row.after as number) - row.before : 0;
               const better = row.lowerIsBetter ? diff < 0 : diff > 0;
@@ -122,6 +124,7 @@ export function EfficiencyTab({ orders }: { orders: MattiiOrder[] }) {
             })}
           </TableBody>
         </Table>
+        <TablePager pager={pager} />
         <Text className="mt-2 px-1 text-xs text-gray-400">
           ค่า “ก่อนมีระบบ” เป็นค่าประมาณการจากเจ้าของร้าน ({benchmark.source_note})
           ใช้เพื่อเปรียบเทียบภาพรวม ไม่ใช่สถิติทางการ · ค่า “ตอนนี้” คำนวณจากงานที่เดินในระบบจริง

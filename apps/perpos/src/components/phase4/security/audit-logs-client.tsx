@@ -1,17 +1,32 @@
 "use client";
 
 import React, { useEffect, useRef, useState, useTransition } from "react";
-import { toast } from '@/lib/toast';
+import { toast } from "@/lib/toast";
 
 import { Button } from "@/components/ui/button";
 import { CustomSelect } from "@/components/ui/custom-select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Dialog, DialogContent, DialogBody, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { TablePager, usePagination } from "@/components/ui/table-pager";
+import {
+  Dialog,
+  DialogContent,
+  DialogBody,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { listAuditLogsAction, type AuditLogRow } from "@/lib/phase4/security/actions";
 
 export function AuditLogsClient(props: { organizationId: string; initialRows: AuditLogRow[] }) {
   const [pending, startTransition] = useTransition();
   const [rows, setRows] = useState(props.initialRows);
+  const pager = usePagination(rows);
   const [tableName, setTableName] = useState<string>("");
   const [action, setAction] = useState<string>("");
   const [open, setOpen] = useState(false);
@@ -22,9 +37,17 @@ export function AuditLogsClient(props: { organizationId: string; initialRows: Au
   // โหลดข้อมูลใหม่อัตโนมัติเมื่อเปลี่ยน filter (ข้ามรอบแรกเพราะมีข้อมูลจาก server แล้ว)
   const didMount = useRef(false);
   useEffect(() => {
-    if (!didMount.current) { didMount.current = true; return; }
+    if (!didMount.current) {
+      didMount.current = true;
+      return;
+    }
     startTransition(async () => {
-      const res = await listAuditLogsAction({ organizationId: orgId, limit: 200, tableName: tableName || undefined, action: action || undefined });
+      const res = await listAuditLogsAction({
+        organizationId: orgId,
+        limit: 200,
+        tableName: tableName || undefined,
+        action: action || undefined,
+      });
       if (!res.ok) {
         toast.error(res.error);
         return;
@@ -46,12 +69,12 @@ export function AuditLogsClient(props: { organizationId: string; initialRows: Au
               placeholder="ทั้งหมด"
               options={[
                 { value: "", label: "ทั้งหมด" },
-                { value: "journal_entries",  label: "journal_entries" },
-                { value: "journal_items",    label: "journal_items" },
-                { value: "invoices",         label: "invoices" },
+                { value: "journal_entries", label: "journal_entries" },
+                { value: "journal_items", label: "journal_items" },
+                { value: "invoices", label: "invoices" },
                 { value: "wht_certificates", label: "wht_certificates" },
-                { value: "bank_lines",       label: "bank_lines" },
-                { value: "inventory_items",  label: "inventory_items" },
+                { value: "bank_lines", label: "bank_lines" },
+                { value: "inventory_items", label: "inventory_items" },
               ]}
             />
           </div>
@@ -63,7 +86,7 @@ export function AuditLogsClient(props: { organizationId: string; initialRows: Au
               className="w-36"
               placeholder="ทั้งหมด"
               options={[
-                { value: "",       label: "ทั้งหมด" },
+                { value: "", label: "ทั้งหมด" },
                 { value: "INSERT", label: "INSERT" },
                 { value: "UPDATE", label: "UPDATE" },
                 { value: "DELETE", label: "DELETE" },
@@ -86,9 +109,11 @@ export function AuditLogsClient(props: { organizationId: string; initialRows: Au
             </TableRow>
           </TableHeader>
           <TableBody>
-            {rows.map((r) => (
+            {pager.rows.map((r) => (
               <TableRow key={r.id}>
-                <TableCell className="font-mono text-xs">{r.createdAt.replace('T',' ').slice(0,19)}</TableCell>
+                <TableCell className="font-mono text-xs">
+                  {r.createdAt.replace("T", " ").slice(0, 19)}
+                </TableCell>
                 <TableCell>{r.action}</TableCell>
                 <TableCell>{r.tableName}</TableCell>
                 <TableCell className="font-mono text-xs">{r.recordId ?? "-"}</TableCell>
@@ -115,6 +140,7 @@ export function AuditLogsClient(props: { organizationId: string; initialRows: Au
             ) : null}
           </TableBody>
         </Table>
+        <TablePager pager={pager} />
       </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
@@ -123,15 +149,12 @@ export function AuditLogsClient(props: { organizationId: string; initialRows: Au
             <DialogTitle>Audit Log Detail</DialogTitle>
           </DialogHeader>
           <DialogBody>
-          <pre className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-900">
-            {JSON.stringify(detail, null, 2)}
-          </pre>
+            <pre className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-900">
+              {JSON.stringify(detail, null, 2)}
+            </pre>
           </DialogBody>
         </DialogContent>
       </Dialog>
     </div>
   );
 }
-
-
-

@@ -18,6 +18,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { TablePager, usePagination } from "@/components/ui/table-pager";
 import { Text } from "@/components/ui/typography";
 import { STAFF_ROLE_LABEL } from "../_fixtures/labels";
 import type { MattiiStaff } from "../_fixtures/types";
@@ -31,6 +32,7 @@ export function TeamTab({
   staff: MattiiStaff[];
   onChange: (updater: (prev: MattiiStaff[]) => MattiiStaff[]) => void;
 }) {
+  const pager = usePagination(staff);
   const { isOwner } = useMattiiRole();
   const [editing, setEditing] = useState<MattiiStaff | null | "new">(null);
 
@@ -82,7 +84,7 @@ export function TeamTab({
               </div>
             </TableEmpty>
           ) : (
-            staff.map((s) => (
+            pager.rows.map((s) => (
               <TableRow key={s.id} clickable onClick={() => setEditing(s)}>
                 <TableCell>
                   <span className="font-medium text-gray-900">{s.display_name}</span>
@@ -127,6 +129,7 @@ export function TeamTab({
           </TableFooter>
         )}
       </Table>
+      <TablePager pager={pager} unit="คน" />
 
       <Text className="px-1 text-xs text-gray-500">
         คลิกที่แถวเพื่อแก้ไขข้อมูล เปลี่ยนบทบาท หรือปิดใช้งาน — คนที่ยังไม่ผูก LINE (

@@ -20,6 +20,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { TablePager, usePagination } from "@/components/ui/table-pager";
 import { notify } from "@/lib/toast";
 import { codPendingAmount, codPendingCount } from "../_fixtures/metrics";
 import { MOCK_ORG_ID } from "../_fixtures/helpers";
@@ -105,6 +106,7 @@ export default function MattiiPaymentsPage() {
 
   const summary = useMemo(() => paymentSummary(rows, orders), [rows, orders]);
   const unpaidOrders = useMemo(() => outstandingOrders(orders), [orders]);
+  const pager = usePagination(unpaidOrders);
 
   const visible = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -344,7 +346,7 @@ export default function MattiiPaymentsPage() {
                   </div>
                 </TableEmpty>
               ) : (
-                unpaidOrders.map((o) => (
+                pager.rows.map((o) => (
                   <TableRow
                     key={o.id}
                     clickable
@@ -375,6 +377,7 @@ export default function MattiiPaymentsPage() {
               )}
             </TableBody>
           </Table>
+          <TablePager pager={pager} />
         </div>
       )}
 

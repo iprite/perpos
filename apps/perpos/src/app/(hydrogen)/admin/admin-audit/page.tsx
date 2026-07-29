@@ -1,5 +1,3 @@
-import Link from "next/link";
-import { Button } from "@/components/ui/button";
 import { StatusBadge, type BadgeTone } from "@/components/ui/badge";
 import {
   Table,
@@ -10,6 +8,7 @@ import {
   TableCell,
   TableEmpty,
 } from "@/components/ui/table";
+import { LinkTablePager } from "@/components/ui/table-pager";
 import { ScrollText } from "lucide-react";
 import { requireSuperAdminPage } from "@/lib/admin/guard";
 import { getAdminAudit } from "@/lib/admin/admin-audit";
@@ -40,13 +39,6 @@ const fmtTime = (iso: string) =>
   });
 
 // สร้าง href หน้าถัดไป/ก่อนหน้า (คง action filter ไว้)
-function pageHref(page: number, action: string) {
-  const qs = new URLSearchParams();
-  if (action) qs.set("action", action);
-  if (page > 1) qs.set("page", String(page));
-  return qs.toString() ? `?${qs}` : "?";
-}
-
 export default async function AdminAuditPage({
   searchParams,
 }: {
@@ -61,7 +53,6 @@ export default async function AdminAuditPage({
     page: reqPage,
     action,
   });
-  const totalPages = Math.max(1, Math.ceil(total / limit));
 
   return (
     <AdminPage
@@ -125,36 +116,13 @@ export default async function AdminAuditPage({
         </TableBody>
       </Table>
 
-      <div className="mt-4 flex items-center justify-between text-sm text-gray-500">
-        <span>ทั้งหมด {total.toLocaleString("th-TH")} รายการ</span>
-        <div className="flex items-center gap-2">
-          {page <= 1 ? (
-            <Button variant="outline" size="sm" disabled>
-              ก่อนหน้า
-            </Button>
-          ) : (
-            <Link href={pageHref(page - 1, action)}>
-              <Button variant="outline" size="sm">
-                ก่อนหน้า
-              </Button>
-            </Link>
-          )}
-          <span className="tabular-nums">
-            {page} / {totalPages}
-          </span>
-          {page >= totalPages ? (
-            <Button variant="outline" size="sm" disabled>
-              ถัดไป
-            </Button>
-          ) : (
-            <Link href={pageHref(page + 1, action)}>
-              <Button variant="outline" size="sm">
-                ถัดไป
-              </Button>
-            </Link>
-          )}
-        </div>
-      </div>
+      <LinkTablePager
+        page={page}
+        pageSize={limit}
+        total={total}
+        query={{ action }}
+        className="mt-4"
+      />
     </AdminPage>
   );
 }

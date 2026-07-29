@@ -15,6 +15,7 @@ import {
   TableEmpty,
   TableLoading,
 } from "@/components/ui/table";
+import { TablePager, usePagination } from "@/components/ui/table-pager";
 import {
   Dialog,
   DialogContent,
@@ -81,6 +82,7 @@ const isStuck = (j: Job) =>
 
 export default function SttJobsPage() {
   const [items, setItems] = useState<Job[]>([]);
+  const pager = usePagination(items);
   const [counts, setCounts] = useState<Counts>({
     pending: 0,
     processing: 0,
@@ -199,7 +201,7 @@ export default function SttJobsPage() {
           ) : items.length === 0 ? (
             <TableEmpty colSpan={5}>ไม่มีงานในสถานะนี้</TableEmpty>
           ) : (
-            items.map((j) => {
+            pager.rows.map((j) => {
               const stuck = isStuck(j);
               return (
                 <TableRow key={j.id} clickable onClick={() => setDetailJob(j)}>
@@ -233,6 +235,7 @@ export default function SttJobsPage() {
           )}
         </TableBody>
       </Table>
+      <TablePager pager={pager} />
 
       <Dialog
         open={!!detailJob}

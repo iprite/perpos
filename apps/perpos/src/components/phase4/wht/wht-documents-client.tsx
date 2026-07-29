@@ -3,17 +3,36 @@
 import React, { useMemo, useState, useTransition } from "react";
 import { pdf } from "@react-pdf/renderer";
 import { Download, FilePlus2 } from "lucide-react";
-import { toast } from '@/lib/toast';
+import { toast } from "@/lib/toast";
 
 import { Button } from "@/components/ui/button";
 import { CustomSelect } from "@/components/ui/custom-select";
 import { Input } from "@/components/ui/input";
 import { ThaiDatePicker } from "@/components/ui/thai-date-picker";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Dialog, DialogContent, DialogBody, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { TablePager, usePagination } from "@/components/ui/table-pager";
+import {
+  Dialog,
+  DialogContent,
+  DialogBody,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import cn from "@core/utils/class-names";
-import { createWhtCertificateAction, postWhtLiabilityAutoAction, uploadWhtPdfAction } from "@/lib/phase4/wht/actions";
+import {
+  createWhtCertificateAction,
+  postWhtLiabilityAutoAction,
+  uploadWhtPdfAction,
+} from "@/lib/phase4/wht/actions";
 import { WhtCertificatePdf, type WhtPdfData } from "@/components/phase4/wht/wht-pdf";
 
 export type WhtRow = {
@@ -39,6 +58,7 @@ export function WhtDocumentsClient(props: {
   const [pending, startTransition] = useTransition();
   const [open, setOpen] = useState(false);
   const [rows, setRows] = useState(props.rows);
+  const pager = usePagination(rows);
 
   const [form, setForm] = useState({
     whtDate: new Date().toISOString().slice(0, 10),
@@ -101,7 +121,10 @@ export function WhtDocumentsClient(props: {
         return;
       }
 
-      const post = await postWhtLiabilityAutoAction({ organizationId: props.organizationId, whtId: res.whtId });
+      const post = await postWhtLiabilityAutoAction({
+        organizationId: props.organizationId,
+        whtId: res.whtId,
+      });
       if (!post.ok) toast.error(String(post.error));
 
       const certNo = res.certificateNo ?? "WHT";
@@ -109,8 +132,16 @@ export function WhtDocumentsClient(props: {
       const pdfData: WhtPdfData = {
         certificateNo: certNo,
         whtDate: form.whtDate,
-        payer: { name: form.payerName || "บริษัท", taxId: form.payerTaxId || undefined, address: form.payerAddress || undefined },
-        receiver: { name: form.receiverName, taxId: form.receiverTaxId || undefined, address: form.receiverAddress || undefined },
+        payer: {
+          name: form.payerName || "บริษัท",
+          taxId: form.payerTaxId || undefined,
+          address: form.payerAddress || undefined,
+        },
+        receiver: {
+          name: form.receiverName,
+          taxId: form.receiverTaxId || undefined,
+          address: form.receiverAddress || undefined,
+        },
         category: form.whtCategory,
         ratePct: `${(rate * 100).toFixed(0)}%`,
         baseAmount: fmt(base),
@@ -121,7 +152,11 @@ export function WhtDocumentsClient(props: {
       const blob = await instance.toBlob();
 
       const file = new File([blob], `wht-${res.whtId}.pdf`, { type: "application/pdf" });
-      const up = await uploadWhtPdfAction({ organizationId: props.organizationId, whtId: res.whtId, file });
+      const up = await uploadWhtPdfAction({
+        organizationId: props.organizationId,
+        whtId: res.whtId,
+        file,
+      });
       if (!up.ok) {
         toast.error(String(up.error));
       }
@@ -167,7 +202,7 @@ export function WhtDocumentsClient(props: {
           </TableHeader>
           <TableBody>
             {rows.length ? (
-              rows.map((r) => (
+              pager.rows.map((r) => (
                 <TableRow key={r.id}>
                   <TableCell className="font-mono text-sm">{r.certificateNo ?? "-"}</TableCell>
                   <TableCell>{r.whtDate}</TableCell>
@@ -186,6 +221,7 @@ export function WhtDocumentsClient(props: {
             )}
           </TableBody>
         </Table>
+        <TablePager pager={pager} />
       </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
@@ -194,62 +230,95 @@ export function WhtDocumentsClient(props: {
             <DialogTitle>สร้างใบรับรองหัก ณ ที่จ่าย (50 ทวิ)</DialogTitle>
           </DialogHeader>
           <DialogBody>
-          <div className="grid gap-4">
-            <div className="grid gap-2">
-              <Label>วันที่</Label>
-              <ThaiDatePicker value={form.whtDate} onChange={(v) => setForm((s) => ({ ...s, whtDate: v }))} />
-            </div>
-
-            <div className="grid gap-2">
-              <Label>ผู้หักภาษี (ผู้จ่ายเงิน)</Label>
-              <Input value={form.payerName} onChange={(e) => setForm((s) => ({ ...s, payerName: e.target.value }))} placeholder="ชื่อบริษัท" />
-              <div className="grid grid-cols-2 gap-2">
-                <Input value={form.payerTaxId} onChange={(e) => setForm((s) => ({ ...s, payerTaxId: e.target.value }))} placeholder="เลขผู้เสียภาษี" />
-                <Input value={form.payerAddress} onChange={(e) => setForm((s) => ({ ...s, payerAddress: e.target.value }))} placeholder="ที่อยู่" />
-              </div>
-            </div>
-
-            <div className="grid gap-2">
-              <Label>ผู้ถูกหักภาษี (ผู้รับเงิน)</Label>
-              <Input value={form.receiverName} onChange={(e) => setForm((s) => ({ ...s, receiverName: e.target.value }))} placeholder="ชื่อผู้รับเงิน" />
-              <div className="grid grid-cols-2 gap-2">
-                <Input value={form.receiverTaxId} onChange={(e) => setForm((s) => ({ ...s, receiverTaxId: e.target.value }))} placeholder="เลขผู้เสียภาษี" />
-                <Input value={form.receiverAddress} onChange={(e) => setForm((s) => ({ ...s, receiverAddress: e.target.value }))} placeholder="ที่อยู่" />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid gap-4">
               <div className="grid gap-2">
-                <Label>หมวด WHT</Label>
-                <Input value={form.whtCategory} onChange={(e) => setForm((s) => ({ ...s, whtCategory: e.target.value }))} />
-              </div>
-              <div className="grid gap-2">
-                <Label>อัตรา</Label>
-                <CustomSelect
-                  value={form.whtRate}
-                  onChange={(v) => setForm((s) => ({ ...s, whtRate: v }))}
-                  options={[
-                    { value: "0.01", label: "1%" },
-                    { value: "0.03", label: "3%" },
-                    { value: "0.05", label: "5%" },
-                    { value: "0.10", label: "10%" },
-                  ]}
+                <Label>วันที่</Label>
+                <ThaiDatePicker
+                  value={form.whtDate}
+                  onChange={(v) => setForm((s) => ({ ...s, whtDate: v }))}
                 />
               </div>
-            </div>
 
-            <div className="grid grid-cols-2 gap-2">
               <div className="grid gap-2">
-                <Label>ฐานภาษี</Label>
-                <Input inputMode="decimal" value={form.baseAmount} onChange={(e) => setForm((s) => ({ ...s, baseAmount: e.target.value }))} />
+                <Label>ผู้หักภาษี (ผู้จ่ายเงิน)</Label>
+                <Input
+                  value={form.payerName}
+                  onChange={(e) => setForm((s) => ({ ...s, payerName: e.target.value }))}
+                  placeholder="ชื่อบริษัท"
+                />
+                <div className="grid grid-cols-2 gap-2">
+                  <Input
+                    value={form.payerTaxId}
+                    onChange={(e) => setForm((s) => ({ ...s, payerTaxId: e.target.value }))}
+                    placeholder="เลขผู้เสียภาษี"
+                  />
+                  <Input
+                    value={form.payerAddress}
+                    onChange={(e) => setForm((s) => ({ ...s, payerAddress: e.target.value }))}
+                    placeholder="ที่อยู่"
+                  />
+                </div>
               </div>
+
               <div className="grid gap-2">
-                <Label>ภาษีหัก ณ ที่จ่าย (คำนวณ)</Label>
-                <Input value={fmt(computed.wht)} readOnly />
+                <Label>ผู้ถูกหักภาษี (ผู้รับเงิน)</Label>
+                <Input
+                  value={form.receiverName}
+                  onChange={(e) => setForm((s) => ({ ...s, receiverName: e.target.value }))}
+                  placeholder="ชื่อผู้รับเงิน"
+                />
+                <div className="grid grid-cols-2 gap-2">
+                  <Input
+                    value={form.receiverTaxId}
+                    onChange={(e) => setForm((s) => ({ ...s, receiverTaxId: e.target.value }))}
+                    placeholder="เลขผู้เสียภาษี"
+                  />
+                  <Input
+                    value={form.receiverAddress}
+                    onChange={(e) => setForm((s) => ({ ...s, receiverAddress: e.target.value }))}
+                    placeholder="ที่อยู่"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div className="grid gap-2">
+                  <Label>หมวด WHT</Label>
+                  <Input
+                    value={form.whtCategory}
+                    onChange={(e) => setForm((s) => ({ ...s, whtCategory: e.target.value }))}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label>อัตรา</Label>
+                  <CustomSelect
+                    value={form.whtRate}
+                    onChange={(v) => setForm((s) => ({ ...s, whtRate: v }))}
+                    options={[
+                      { value: "0.01", label: "1%" },
+                      { value: "0.03", label: "3%" },
+                      { value: "0.05", label: "5%" },
+                      { value: "0.10", label: "10%" },
+                    ]}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div className="grid gap-2">
+                  <Label>ฐานภาษี</Label>
+                  <Input
+                    inputMode="decimal"
+                    value={form.baseAmount}
+                    onChange={(e) => setForm((s) => ({ ...s, baseAmount: e.target.value }))}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label>ภาษีหัก ณ ที่จ่าย (คำนวณ)</Label>
+                  <Input value={fmt(computed.wht)} readOnly />
+                </div>
               </div>
             </div>
-
-          </div>
           </DialogBody>
           <DialogFooter>
             <Button className="gap-2" onClick={createAndDownload} disabled={pending}>

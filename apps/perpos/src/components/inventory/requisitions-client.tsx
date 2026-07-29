@@ -2,15 +2,30 @@
 
 import React, { useState, useTransition } from "react";
 import { CustomSelect } from "@/components/ui/custom-select";
-import { toast } from '@/lib/toast';
+import { toast } from "@/lib/toast";
 import { Plus, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ThaiDatePicker } from "@/components/ui/thai-date-picker";
 import { Label } from "@/components/ui/label";
-import { Dialog, DialogContent, DialogBody, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogBody,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { TablePager, usePagination } from "@/components/ui/table-pager";
 import { StatusBadge, type BadgeTone } from "@/components/ui/badge";
 import {
   listStockRequisitionsAction,
@@ -29,7 +44,13 @@ type ItemLine = {
   notes: string;
 };
 
-const EMPTY_LINE: ItemLine = { inventoryItemId: "", productName: "", qty: "1", unit: "EA", notes: "" };
+const EMPTY_LINE: ItemLine = {
+  inventoryItemId: "",
+  productName: "",
+  qty: "1",
+  unit: "EA",
+  notes: "",
+};
 
 const STATUS_TONE: Record<string, BadgeTone> = {
   draft: "neutral",
@@ -52,6 +73,7 @@ export function RequisitionsClient(props: {
 }) {
   const [pending, startTransition] = useTransition();
   const [rows, setRows] = useState(props.initialRows);
+  const pager = usePagination(rows);
   const [open, setOpen] = useState(false);
 
   const [docNumber, setDocNumber] = useState("");
@@ -64,7 +86,10 @@ export function RequisitionsClient(props: {
   const refresh = () => {
     startTransition(async () => {
       const res = await listStockRequisitionsAction({ organizationId: props.organizationId });
-      if (!res.ok) { toast.error(res.error); return; }
+      if (!res.ok) {
+        toast.error(res.error);
+        return;
+      }
       setRows(res.rows);
     });
   };
@@ -80,7 +105,7 @@ export function RequisitionsClient(props: {
   };
 
   const updateLine = (idx: number, patch: Partial<ItemLine>) => {
-    setLines((prev) => prev.map((l, i) => i === idx ? { ...l, ...patch } : l));
+    setLines((prev) => prev.map((l, i) => (i === idx ? { ...l, ...patch } : l)));
   };
 
   const selectItem = (idx: number, itemId: string) => {
@@ -96,10 +121,19 @@ export function RequisitionsClient(props: {
   const removeLine = (idx: number) => setLines((prev) => prev.filter((_, i) => i !== idx));
 
   const save = () => {
-    if (!docNumber.trim()) { toast.error("กรุณากรอกเลขที่เอกสาร"); return; }
-    if (!docDate) { toast.error("กรุณากรอกวันที่"); return; }
+    if (!docNumber.trim()) {
+      toast.error("กรุณากรอกเลขที่เอกสาร");
+      return;
+    }
+    if (!docDate) {
+      toast.error("กรุณากรอกวันที่");
+      return;
+    }
     const validLines = lines.filter((l) => l.productName.trim());
-    if (!validLines.length) { toast.error("กรุณาเพิ่มรายการอย่างน้อย 1 รายการ"); return; }
+    if (!validLines.length) {
+      toast.error("กรุณาเพิ่มรายการอย่างน้อย 1 รายการ");
+      return;
+    }
 
     startTransition(async () => {
       const res = await createStockRequisitionAction({
@@ -117,7 +151,10 @@ export function RequisitionsClient(props: {
           notes: l.notes.trim() || undefined,
         })),
       });
-      if (!res.ok) { toast.error(res.error); return; }
+      if (!res.ok) {
+        toast.error(res.error);
+        return;
+      }
       toast.success("สร้างใบเบิกแล้ว");
       setOpen(false);
       refresh();
@@ -127,7 +164,10 @@ export function RequisitionsClient(props: {
   const approve = (id: string) => {
     startTransition(async () => {
       const res = await updateRequisitionStatusAction({ id, status: "approved" });
-      if (!res.ok) { toast.error(res.error); return; }
+      if (!res.ok) {
+        toast.error(res.error);
+        return;
+      }
       toast.success("อนุมัติใบเบิกแล้ว");
       refresh();
     });
@@ -155,18 +195,25 @@ export function RequisitionsClient(props: {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {rows.map((r) => (
+            {pager.rows.map((r) => (
               <TableRow key={r.id}>
                 <TableCell className="font-mono text-sm">{r.docNumber}</TableCell>
                 <TableCell className="text-sm">{r.docDate}</TableCell>
                 <TableCell className="text-sm">{r.requester ?? "-"}</TableCell>
                 <TableCell className="text-sm">{r.department ?? "-"}</TableCell>
                 <TableCell>
-                  <StatusBadge tone={STATUS_TONE[r.status] ?? "neutral"}>{STATUS_TH[r.status] ?? r.status}</StatusBadge>
+                  <StatusBadge tone={STATUS_TONE[r.status] ?? "neutral"}>
+                    {STATUS_TH[r.status] ?? r.status}
+                  </StatusBadge>
                 </TableCell>
                 <TableCell>
                   {r.status === "draft" && (
-                    <Button variant="outline" size="sm" onClick={() => approve(r.id)} disabled={pending}>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => approve(r.id)}
+                      disabled={pending}
+                    >
                       อนุมัติ
                     </Button>
                   )}
@@ -182,6 +229,7 @@ export function RequisitionsClient(props: {
             ) : null}
           </TableBody>
         </Table>
+        <TablePager pager={pager} />
       </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
@@ -190,98 +238,129 @@ export function RequisitionsClient(props: {
             <DialogTitle>สร้างใบเบิกสินค้า</DialogTitle>
           </DialogHeader>
           <DialogBody>
-          <div className="grid gap-3">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="grid gap-1.5">
-                <Label>เลขที่เอกสาร</Label>
-                <Input value={docNumber} onChange={(e) => setDocNumber(e.target.value)} placeholder="REQ-001" />
+            <div className="grid gap-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="grid gap-1.5">
+                  <Label>เลขที่เอกสาร</Label>
+                  <Input
+                    value={docNumber}
+                    onChange={(e) => setDocNumber(e.target.value)}
+                    placeholder="REQ-001"
+                  />
+                </div>
+                <div className="grid gap-1.5">
+                  <Label>วันที่</Label>
+                  <ThaiDatePicker value={docDate} onChange={(v) => setDocDate(v)} />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="grid gap-1.5">
+                  <Label>ผู้เบิก</Label>
+                  <Input
+                    value={requester}
+                    onChange={(e) => setRequester(e.target.value)}
+                    placeholder="ชื่อผู้เบิก"
+                  />
+                </div>
+                <div className="grid gap-1.5">
+                  <Label>แผนก</Label>
+                  <Input
+                    value={department}
+                    onChange={(e) => setDepartment(e.target.value)}
+                    placeholder="ชื่อแผนก"
+                  />
+                </div>
               </div>
               <div className="grid gap-1.5">
-                <Label>วันที่</Label>
-                <ThaiDatePicker value={docDate} onChange={(v) => setDocDate(v)} />
+                <Label>หมายเหตุ</Label>
+                <Input
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder="หมายเหตุ (ถ้ามี)"
+                />
               </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="grid gap-1.5">
-                <Label>ผู้เบิก</Label>
-                <Input value={requester} onChange={(e) => setRequester(e.target.value)} placeholder="ชื่อผู้เบิก" />
-              </div>
-              <div className="grid gap-1.5">
-                <Label>แผนก</Label>
-                <Input value={department} onChange={(e) => setDepartment(e.target.value)} placeholder="ชื่อแผนก" />
-              </div>
-            </div>
-            <div className="grid gap-1.5">
-              <Label>หมายเหตุ</Label>
-              <Input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="หมายเหตุ (ถ้ามี)" />
-            </div>
 
-            <div className="mt-2">
-              <div className="mb-2 flex items-center justify-between">
-                <span className="text-sm font-medium text-slate-700">รายการสินค้า</span>
-                <Button type="button" variant="outline" size="sm" onClick={addLine} className="gap-1">
-                  <Plus className="h-3.5 w-3.5" />
-                  เพิ่มรายการ
-                </Button>
-              </div>
-              <div className="grid gap-2">
-                {lines.map((line, idx) => (
-                  <div key={idx} className="grid grid-cols-[1fr_80px_80px_32px] gap-2 rounded-lg border border-slate-100 p-2">
-                    <div className="grid gap-1">
-                      {props.inventoryItems.length > 0 && (
-                        <CustomSelect
-                          value={line.inventoryItemId}
-                          onChange={(v) => selectItem(idx, v)}
-                          options={[
-                            { value: "", label: "เลือกสินค้า (หรือพิมพ์เอง)" },
-                            ...props.inventoryItems.map((it) => ({ value: it.id, label: it.name })),
-                          ]}
+              <div className="mt-2">
+                <div className="mb-2 flex items-center justify-between">
+                  <span className="text-sm font-medium text-slate-700">รายการสินค้า</span>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={addLine}
+                    className="gap-1"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    เพิ่มรายการ
+                  </Button>
+                </div>
+                <div className="grid gap-2">
+                  {lines.map((line, idx) => (
+                    <div
+                      key={idx}
+                      className="grid grid-cols-[1fr_80px_80px_32px] gap-2 rounded-lg border border-slate-100 p-2"
+                    >
+                      <div className="grid gap-1">
+                        {props.inventoryItems.length > 0 && (
+                          <CustomSelect
+                            value={line.inventoryItemId}
+                            onChange={(v) => selectItem(idx, v)}
+                            options={[
+                              { value: "", label: "เลือกสินค้า (หรือพิมพ์เอง)" },
+                              ...props.inventoryItems.map((it) => ({
+                                value: it.id,
+                                label: it.name,
+                              })),
+                            ]}
+                          />
+                        )}
+                        <Input
+                          className="h-8 text-xs"
+                          placeholder="ชื่อสินค้า"
+                          value={line.productName}
+                          onChange={(e) => updateLine(idx, { productName: e.target.value })}
                         />
-                      )}
-                      <Input
-                        className="h-8 text-xs"
-                        placeholder="ชื่อสินค้า"
-                        value={line.productName}
-                        onChange={(e) => updateLine(idx, { productName: e.target.value })}
-                      />
+                      </div>
+                      <div className="grid gap-1">
+                        <span className="text-xs text-slate-500">จำนวน</span>
+                        <Input
+                          className="h-8 text-xs"
+                          inputMode="decimal"
+                          value={line.qty}
+                          onChange={(e) => updateLine(idx, { qty: e.target.value })}
+                        />
+                      </div>
+                      <div className="grid gap-1">
+                        <span className="text-xs text-slate-500">หน่วย</span>
+                        <Input
+                          className="h-8 text-xs"
+                          value={line.unit}
+                          onChange={(e) => updateLine(idx, { unit: e.target.value })}
+                        />
+                      </div>
+                      <div className="flex items-end">
+                        <button
+                          type="button"
+                          className="flex h-8 w-8 items-center justify-center rounded text-slate-400 hover:text-red-500"
+                          onClick={() => removeLine(idx)}
+                          disabled={lines.length <= 1}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
                     </div>
-                    <div className="grid gap-1">
-                      <span className="text-xs text-slate-500">จำนวน</span>
-                      <Input
-                        className="h-8 text-xs"
-                        inputMode="decimal"
-                        value={line.qty}
-                        onChange={(e) => updateLine(idx, { qty: e.target.value })}
-                      />
-                    </div>
-                    <div className="grid gap-1">
-                      <span className="text-xs text-slate-500">หน่วย</span>
-                      <Input
-                        className="h-8 text-xs"
-                        value={line.unit}
-                        onChange={(e) => updateLine(idx, { unit: e.target.value })}
-                      />
-                    </div>
-                    <div className="flex items-end">
-                      <button
-                        type="button"
-                        className="flex h-8 w-8 items-center justify-center rounded text-slate-400 hover:text-red-500"
-                        onClick={() => removeLine(idx)}
-                        disabled={lines.length <= 1}
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
             </div>
-
-          </div>
           </DialogBody>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setOpen(false)}>ยกเลิก</Button>
-            <Button onClick={save} disabled={pending}>บันทึก</Button>
+            <Button variant="outline" onClick={() => setOpen(false)}>
+              ยกเลิก
+            </Button>
+            <Button onClick={save} disabled={pending}>
+              บันทึก
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

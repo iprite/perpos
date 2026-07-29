@@ -2,13 +2,19 @@
 
 import React, { useTransition, useState } from "react";
 import { useRouter } from "next/navigation";
-import { toast } from '@/lib/toast';
+import { toast } from "@/lib/toast";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/badge";
 import {
-  Table, TableHeader, TableBody, TableRow, TableHead, TableCell,
+  Table,
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableCell,
 } from "@/components/ui/table";
+import { TablePager, usePagination } from "@/components/ui/table-pager";
 import type { FinanceAccountRow } from "@/lib/finance/queries";
 import { toggleFinanceAccountActiveAction } from "@/lib/finance/actions";
 
@@ -18,10 +24,10 @@ type Props = {
 };
 
 const CATEGORY_TH: Record<FinanceAccountRow["accountCategory"], string> = {
-  petty_cash:      "เงินสดย่อย",
-  bank:            "ธนาคาร",
+  petty_cash: "เงินสดย่อย",
+  bank: "ธนาคาร",
   payment_channel: "ช่องทางรับเงิน",
-  reserve:         "สำรอง",
+  reserve: "สำรอง",
 };
 
 export function FinanceAccountsTable({ rows, organizationId }: Props) {
@@ -29,11 +35,13 @@ export function FinanceAccountsTable({ rows, organizationId }: Props) {
   const [isPending, startTransition] = useTransition();
   const [search, setSearch] = useState("");
 
-  const filtered = rows.filter((r) =>
-    r.name.toLowerCase().includes(search.toLowerCase()) ||
-    (r.bankName ?? "").toLowerCase().includes(search.toLowerCase()) ||
-    (r.accountNumber ?? "").toLowerCase().includes(search.toLowerCase()),
+  const filtered = rows.filter(
+    (r) =>
+      r.name.toLowerCase().includes(search.toLowerCase()) ||
+      (r.bankName ?? "").toLowerCase().includes(search.toLowerCase()) ||
+      (r.accountNumber ?? "").toLowerCase().includes(search.toLowerCase()),
   );
+  const pager = usePagination(filtered);
 
   function toggleActive(row: FinanceAccountRow) {
     startTransition(async () => {
@@ -75,13 +83,20 @@ export function FinanceAccountsTable({ rows, organizationId }: Props) {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {filtered.map((row) => (
+          {pager.rows.map((row) => (
             <TableRow key={row.id}>
               <TableCell className="font-medium text-slate-800">{row.name}</TableCell>
               <TableCell className="text-slate-600">{CATEGORY_TH[row.accountCategory]}</TableCell>
               <TableCell className="text-slate-500">
-                {row.bankName && <span>{row.bankName}{row.accountNumber ? ` · ${row.accountNumber}` : ""}</span>}
-                {row.channelType && <span className="capitalize">{row.channelType.replace("_", " ")}</span>}
+                {row.bankName && (
+                  <span>
+                    {row.bankName}
+                    {row.accountNumber ? ` · ${row.accountNumber}` : ""}
+                  </span>
+                )}
+                {row.channelType && (
+                  <span className="capitalize">{row.channelType.replace("_", " ")}</span>
+                )}
                 {row.custodianName && <span>ผู้รับผิดชอบ: {row.custodianName}</span>}
                 {row.purpose && <span>{row.purpose}</span>}
               </TableCell>
@@ -89,11 +104,14 @@ export function FinanceAccountsTable({ rows, organizationId }: Props) {
                 {row.initialBalance.toLocaleString("th-TH", { minimumFractionDigits: 2 })}
               </TableCell>
               <TableCell align="center">
-                <StatusBadge tone={row.isActive ? "success" : "neutral"}>{row.isActive ? "ใช้งาน" : "ปิดใช้งาน"}</StatusBadge>
+                <StatusBadge tone={row.isActive ? "success" : "neutral"}>
+                  {row.isActive ? "ใช้งาน" : "ปิดใช้งาน"}
+                </StatusBadge>
               </TableCell>
               <TableCell align="right">
                 <Button
-                  variant="ghost" size="sm"
+                  variant="ghost"
+                  size="sm"
                   onClick={() => toggleActive(row)}
                   disabled={isPending}
                   className="h-7 px-2 text-xs text-blue-600 hover:bg-blue-50 hover:text-blue-700"
@@ -105,6 +123,7 @@ export function FinanceAccountsTable({ rows, organizationId }: Props) {
           ))}
         </TableBody>
       </Table>
+      <TablePager pager={pager} />
     </div>
   );
 }

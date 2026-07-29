@@ -17,6 +17,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { TablePager, usePagination } from "@/components/ui/table-pager";
 import cn from "@core/utils/class-names";
 import { parseCsv } from "@/utils/csv";
 import {
@@ -52,6 +53,7 @@ export function BankReconciliationClient(props: {
   const [imports, setImports] = useState(props.initialImports);
   const [activeImportId, setActiveImportId] = useState<string>(imports[0]?.id ?? "");
   const [lines, setLines] = useState<BankLineRow[]>([]);
+  const pager = usePagination(lines);
   const [selectedLine, setSelectedLine] = useState<BankLineRow | null>(null);
   const [suggestions, setSuggestions] = useState<SuggestRow[]>([]);
 
@@ -392,7 +394,7 @@ export function BankReconciliationClient(props: {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {lines.map((l) => (
+                {pager.rows.map((l) => (
                   <TableRow
                     key={l.id}
                     className={cn(selectedLine?.id === l.id ? "bg-slate-50" : undefined)}
@@ -424,6 +426,7 @@ export function BankReconciliationClient(props: {
                 ))}
               </TableBody>
             </Table>
+            <TablePager pager={pager} />
           </div>
         </div>
 

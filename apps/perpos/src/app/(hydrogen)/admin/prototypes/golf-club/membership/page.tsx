@@ -5,14 +5,7 @@
 // mock client state (useGolfData)
 
 import { useEffect, useMemo, useState } from "react";
-import {
-  BadgeCheck,
-  Plus,
-  UserPlus,
-  Banknote,
-  Users,
-  Percent,
-} from "lucide-react";
+import { BadgeCheck, Plus, UserPlus, Banknote, Users, Percent } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { CustomSelect } from "@/components/ui/custom-select";
@@ -37,6 +30,7 @@ import {
   TableEmpty,
   TableLoading,
 } from "@/components/ui/table";
+import { TablePager, usePagination } from "@/components/ui/table-pager";
 import { notify } from "@/lib/toast";
 import {
   GolfShell,
@@ -77,7 +71,8 @@ export default function GolfMembershipPage() {
   const memberCountByPlan = useMemo(() => {
     const map = new Map<string, number>();
     for (const m of members) {
-      if (m.membership_plan_id) map.set(m.membership_plan_id, (map.get(m.membership_plan_id) ?? 0) + 1);
+      if (m.membership_plan_id)
+        map.set(m.membership_plan_id, (map.get(m.membership_plan_id) ?? 0) + 1);
     }
     return map;
   }, [members]);
@@ -103,6 +98,7 @@ export default function GolfMembershipPage() {
     () => [...plans].sort((a, b) => a.price_per_year - b.price_per_year),
     [plans],
   );
+  const pager = usePagination(sortedPlans);
 
   return (
     <GolfShell
@@ -158,9 +154,7 @@ export default function GolfMembershipPage() {
         <StatCard
           icon={<Percent className="h-4 w-4" />}
           label="แพ็กเกจสูงสุด"
-          value={
-            sortedPlans.length ? TIER_LABEL[sortedPlans[sortedPlans.length - 1].tier] : "—"
-          }
+          value={sortedPlans.length ? TIER_LABEL[sortedPlans[sortedPlans.length - 1].tier] : "—"}
           sub={
             sortedPlans.length
               ? formatAmount(sortedPlans[sortedPlans.length - 1].price_per_year)
@@ -204,7 +198,7 @@ export default function GolfMembershipPage() {
               </div>
             </TableEmpty>
           ) : (
-            sortedPlans.map((p) => (
+            pager.rows.map((p) => (
               <TableRow
                 key={p.id}
                 clickable={writable}
@@ -221,7 +215,9 @@ export default function GolfMembershipPage() {
                   {p.green_fee_discount_pct != null ? `${p.green_fee_discount_pct}%` : "—"}
                 </TableCell>
                 <TableCell align="center" className="tabular-nums text-gray-700">
-                  {p.free_buckets_per_month != null ? `${fmtNum(p.free_buckets_per_month)} ตะกร้า` : "—"}
+                  {p.free_buckets_per_month != null
+                    ? `${fmtNum(p.free_buckets_per_month)} ตะกร้า`
+                    : "—"}
                 </TableCell>
                 <TableCell align="center" className="tabular-nums text-gray-700">
                   ×{p.points_multiplier ?? 1}
@@ -239,6 +235,7 @@ export default function GolfMembershipPage() {
           )}
         </TableBody>
       </Table>
+      <TablePager pager={pager} />
 
       {/* dialogs */}
       <MembershipPlanDialog plan={null} open={createOpen} onOpenChange={setCreateOpen} />
@@ -357,9 +354,7 @@ function SubscribeMemberDialog({
                 </div>
               )}
 
-              {err && (
-                <p className="text-xs text-red-600">กรุณาเลือกทั้งลูกค้าและแพ็กเกจ</p>
-              )}
+              {err && <p className="text-xs text-red-600">กรุณาเลือกทั้งลูกค้าและแพ็กเกจ</p>}
             </div>
           </DialogBody>
           <DialogFooter>

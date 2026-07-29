@@ -2,13 +2,19 @@
 
 import React, { useTransition, useState } from "react";
 import { useRouter } from "next/navigation";
-import { toast } from '@/lib/toast';
+import { toast } from "@/lib/toast";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { StatusBadge, type BadgeTone } from "@/components/ui/badge";
 import {
-  Table, TableHeader, TableBody, TableRow, TableHead, TableCell,
+  Table,
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableCell,
 } from "@/components/ui/table";
+import { TablePager, usePagination } from "@/components/ui/table-pager";
 import type { CheckTransactionRow } from "@/lib/finance/queries";
 import { updateCheckTransactionStatusAction } from "@/lib/finance/actions";
 
@@ -21,14 +27,14 @@ const STATUS_LABELS: Record<CheckTransactionRow["status"], string> = {
   pending: "รอดำเนินการ",
   cleared: "ผ่านแล้ว",
   bounced: "เช็คคืน",
-  voided:  "ยกเลิก",
+  voided: "ยกเลิก",
 };
 
 const STATUS_TONE: Record<CheckTransactionRow["status"], BadgeTone> = {
   pending: "warning",
   cleared: "success",
   bounced: "danger",
-  voided:  "neutral",
+  voided: "neutral",
 };
 
 export function CheckTransactionsTable({ rows, organizationId }: Props) {
@@ -36,11 +42,13 @@ export function CheckTransactionsTable({ rows, organizationId }: Props) {
   const [isPending, startTransition] = useTransition();
   const [search, setSearch] = useState("");
 
-  const filtered = rows.filter((r) =>
-    r.checkNumber.toLowerCase().includes(search.toLowerCase()) ||
-    (r.bankName ?? "").toLowerCase().includes(search.toLowerCase()) ||
-    (r.contactName ?? "").toLowerCase().includes(search.toLowerCase()),
+  const filtered = rows.filter(
+    (r) =>
+      r.checkNumber.toLowerCase().includes(search.toLowerCase()) ||
+      (r.bankName ?? "").toLowerCase().includes(search.toLowerCase()) ||
+      (r.contactName ?? "").toLowerCase().includes(search.toLowerCase()),
   );
+  const pager = usePagination(filtered);
 
   function changeStatus(row: CheckTransactionRow, status: CheckTransactionRow["status"]) {
     startTransition(async () => {
@@ -84,7 +92,7 @@ export function CheckTransactionsTable({ rows, organizationId }: Props) {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {filtered.map((row) => (
+          {pager.rows.map((row) => (
             <TableRow key={row.id}>
               <TableCell className="font-medium text-slate-800">{row.checkNumber}</TableCell>
               <TableCell className="text-slate-600">{row.bankName ?? "—"}</TableCell>
@@ -95,17 +103,40 @@ export function CheckTransactionsTable({ rows, organizationId }: Props) {
                 {row.amount.toLocaleString("th-TH", { minimumFractionDigits: 2 })}
               </TableCell>
               <TableCell align="center">
-                <StatusBadge tone={STATUS_TONE[row.status]}>{STATUS_LABELS[row.status]}</StatusBadge>
+                <StatusBadge tone={STATUS_TONE[row.status]}>
+                  {STATUS_LABELS[row.status]}
+                </StatusBadge>
               </TableCell>
               <TableCell align="right">
                 {row.status === "pending" && (
                   <div className="flex justify-end gap-1">
-                    <Button variant="ghost" size="sm" onClick={() => changeStatus(row, "cleared")} disabled={isPending}
-                      className="h-7 px-2 text-xs text-green-600 hover:bg-green-50 hover:text-green-700">ผ่าน</Button>
-                    <Button variant="ghost" size="sm" onClick={() => changeStatus(row, "bounced")} disabled={isPending}
-                      className="h-7 px-2 text-xs text-red-600 hover:bg-red-50 hover:text-red-700">คืน</Button>
-                    <Button variant="ghost" size="sm" onClick={() => changeStatus(row, "voided")} disabled={isPending}
-                      className="h-7 px-2 text-xs text-slate-500 hover:bg-slate-50">ยกเลิก</Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => changeStatus(row, "cleared")}
+                      disabled={isPending}
+                      className="h-7 px-2 text-xs text-green-600 hover:bg-green-50 hover:text-green-700"
+                    >
+                      ผ่าน
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => changeStatus(row, "bounced")}
+                      disabled={isPending}
+                      className="h-7 px-2 text-xs text-red-600 hover:bg-red-50 hover:text-red-700"
+                    >
+                      คืน
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => changeStatus(row, "voided")}
+                      disabled={isPending}
+                      className="h-7 px-2 text-xs text-slate-500 hover:bg-slate-50"
+                    >
+                      ยกเลิก
+                    </Button>
                   </div>
                 )}
               </TableCell>
@@ -113,6 +144,7 @@ export function CheckTransactionsTable({ rows, organizationId }: Props) {
           ))}
         </TableBody>
       </Table>
+      <TablePager pager={pager} />
     </div>
   );
 }

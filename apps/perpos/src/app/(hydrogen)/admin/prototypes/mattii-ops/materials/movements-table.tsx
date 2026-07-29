@@ -20,6 +20,7 @@ import {
   TableLoading,
   TableRow,
 } from "@/components/ui/table";
+import { TablePager, usePagination } from "@/components/ui/table-pager";
 import { MATERIAL_UNIT_LABEL, STOCK_MOVE_TYPE_LABEL } from "../_fixtures/labels";
 import type { MattiiMaterial, MattiiStockMovement, StockMoveType } from "../_fixtures/types";
 import {
@@ -89,6 +90,7 @@ export function MovementsTab({
       })
       .sort((a, b) => b.occurred_at.localeCompare(a.occurred_at));
   }, [movements, materialId, moveType, from, to]);
+  const pager = usePagination(visible);
 
   const filtered = Boolean(materialId || moveType || from || to);
   const colCount = isOwner ? 8 : 7;
@@ -173,7 +175,7 @@ export function MovementsTab({
               </div>
             </TableEmpty>
           ) : (
-            visible.map((mv) => {
+            pager.rows.map((mv) => {
               const material = materialOf(mv.material_id);
               const unit = material ? MATERIAL_UNIT_LABEL[material.unit] : "";
               const staff = staffOf(mv.staff_id);
@@ -218,6 +220,7 @@ export function MovementsTab({
           )}
         </TableBody>
       </Table>
+      <TablePager pager={pager} />
     </div>
   );
 }

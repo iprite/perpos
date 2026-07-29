@@ -21,6 +21,7 @@ import {
   TableCell,
   TableEmpty,
 } from "@/components/ui/table";
+import { TablePager, usePagination } from "@/components/ui/table-pager";
 import {
   GolfShell,
   NoAccess,
@@ -93,9 +94,13 @@ export default function BookingsListPage() {
           b.booking_date.localeCompare(a.booking_date) || a.start_time.localeCompare(b.start_time),
       );
   }, [bookings, typeF, statusF, channelF, payF, dateF]);
+  const pager = usePagination(filtered);
 
   const revenue = useMemo(
-    () => filtered.filter((b) => b.status !== "cancelled").reduce((s, b) => s + (b.total_amount ?? 0), 0),
+    () =>
+      filtered
+        .filter((b) => b.status !== "cancelled")
+        .reduce((s, b) => s + (b.total_amount ?? 0), 0),
     [filtered],
   );
 
@@ -198,7 +203,12 @@ export default function BookingsListPage() {
             <div className="flex items-center gap-1.5">
               <ThaiDatePicker value={dateF} onChange={setDateF} placeholder="ทุกวัน" />
               {dateF && (
-                <Button size="icon" variant="ghost" onClick={() => setDateF("")} aria-label="ล้างวันที่">
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => setDateF("")}
+                  aria-label="ล้างวันที่"
+                >
                   <X className="h-4 w-4" />
                 </Button>
               )}
@@ -243,7 +253,7 @@ export default function BookingsListPage() {
               </div>
             </TableEmpty>
           ) : (
-            filtered.map((b) => (
+            pager.rows.map((b) => (
               <TableRow key={b.id} clickable onClick={() => openDetail(b)}>
                 <TableCell className="font-medium text-gray-900">{b.booking_ref ?? "—"}</TableCell>
                 <TableCell className="text-gray-600">
@@ -285,6 +295,7 @@ export default function BookingsListPage() {
           </TableFooter>
         )}
       </Table>
+      <TablePager pager={pager} />
 
       <BookingFormDialog open={formOpen} onOpenChange={setFormOpen} editBooking={editBooking} />
       <BookingDetailDialog

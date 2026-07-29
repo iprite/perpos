@@ -2,29 +2,54 @@
 
 import React, { useState, useTransition } from "react";
 import { CheckCircle2, Circle, ChevronDown, Printer } from "lucide-react";
-import { toast } from '@/lib/toast';
+import { toast } from "@/lib/toast";
 
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogBody, DialogFooter, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogBody,
+  DialogFooter,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { ThaiDatePicker } from "@/components/ui/thai-date-picker";
 import { CustomSelect } from "@/components/ui/custom-select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { TablePager, usePagination } from "@/components/ui/table-pager";
 import cn from "@core/utils/class-names";
 import { updatePP30Status, type PP30Row, type VatDocRow } from "@/lib/tax/actions";
 import { PP30FormPreview } from "@/components/tax/pp30-form-preview";
 
 const THAI_MONTHS_FULL = [
-  "มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน",
-  "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม",
+  "มกราคม",
+  "กุมภาพันธ์",
+  "มีนาคม",
+  "เมษายน",
+  "พฤษภาคม",
+  "มิถุนายน",
+  "กรกฎาคม",
+  "สิงหาคม",
+  "กันยายน",
+  "ตุลาคม",
+  "พฤศจิกายน",
+  "ธันวาคม",
 ];
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; dot: string }> = {
-  draft:     { label: "ร่าง",       color: "text-slate-600", dot: "bg-slate-400" },
-  submitted: { label: "ยื่นแล้ว",   color: "text-blue-700",  dot: "bg-blue-500" },
-  paid:      { label: "ชำระแล้ว",  color: "text-amber-700", dot: "bg-amber-500" },
-  received:  { label: "รับใบเสร็จ", color: "text-teal-700",  dot: "bg-teal-500" },
+  draft: { label: "ร่าง", color: "text-slate-600", dot: "bg-slate-400" },
+  submitted: { label: "ยื่นแล้ว", color: "text-blue-700", dot: "bg-blue-500" },
+  paid: { label: "ชำระแล้ว", color: "text-amber-700", dot: "bg-amber-500" },
+  received: { label: "รับใบเสร็จ", color: "text-teal-700", dot: "bg-teal-500" },
 };
 
 const STATUS_ORDER = ["draft", "submitted", "paid", "received"];
@@ -37,8 +62,14 @@ function fmt(n: number) {
 function fmtDate(d: string | null) {
   if (!d) return "-";
   try {
-    return new Date(d).toLocaleDateString("th-TH", { day: "2-digit", month: "short", year: "numeric" });
-  } catch { return d; }
+    return new Date(d).toLocaleDateString("th-TH", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    });
+  } catch {
+    return d;
+  }
 }
 
 type Tab = "document" | "sales" | "purchases" | "history";
@@ -70,7 +101,9 @@ export function PP30DetailClient({
   const [paymentAmount, setPaymentAmount] = useState(String(row.payment_amount ?? row.net_vat));
   const [paymentRef, setPaymentRef] = useState(row.payment_ref ?? "");
   const [receiptRef, setReceiptRef] = useState(row.receipt_ref ?? "");
-  const [submittedAt, setSubmittedAt] = useState(row.submitted_at ?? new Date().toISOString().slice(0, 10));
+  const [submittedAt, setSubmittedAt] = useState(
+    row.submitted_at ?? new Date().toISOString().slice(0, 10),
+  );
 
   const currentStepIdx = STATUS_ORDER.indexOf(row.status);
 
@@ -119,36 +152,40 @@ export function PP30DetailClient({
   ];
 
   return (
-    <div className="flex flex-col lg:flex-row gap-6">
+    <div className="flex flex-col gap-6 lg:flex-row">
       {/* Left panel - 2/3 */}
-      <div className="flex-1 min-w-0">
+      <div className="min-w-0 flex-1">
         {/* Stepper */}
-        <div className="rounded-xl border border-slate-200 bg-white p-4 mb-4">
+        <div className="mb-4 rounded-xl border border-slate-200 bg-white p-4">
           <div className="flex items-center">
             {STATUS_LABELS.map((label, idx) => {
               const done = idx <= currentStepIdx;
               const active = idx === currentStepIdx;
               return (
                 <React.Fragment key={label}>
-                  <div className="flex flex-col items-center gap-1 flex-1">
+                  <div className="flex flex-1 flex-col items-center gap-1">
                     <div
                       className={cn(
-                        "w-7 h-7 rounded-full border-2 flex items-center justify-center",
+                        "flex h-7 w-7 items-center justify-center rounded-full border-2",
                         done
                           ? "border-teal-500 bg-teal-500 text-white"
-                          : "border-slate-300 text-slate-300"
+                          : "border-slate-300 text-slate-300",
                       )}
                     >
                       {done ? (
-                        <CheckCircle2 className="w-5 h-5 text-white" strokeWidth={2.5} />
+                        <CheckCircle2 className="h-5 w-5 text-white" strokeWidth={2.5} />
                       ) : (
-                        <Circle className="w-5 h-5" />
+                        <Circle className="h-5 w-5" />
                       )}
                     </div>
                     <span
                       className={cn(
-                        "text-xs text-center leading-tight",
-                        active ? "font-semibold text-teal-700" : done ? "text-slate-700" : "text-slate-400"
+                        "text-center text-xs leading-tight",
+                        active
+                          ? "font-semibold text-teal-700"
+                          : done
+                            ? "text-slate-700"
+                            : "text-slate-400",
                       )}
                     >
                       {label}
@@ -157,8 +194,8 @@ export function PP30DetailClient({
                   {idx < STATUS_LABELS.length - 1 && (
                     <div
                       className={cn(
-                        "h-px flex-1 mx-1 border-t-2 border-dashed",
-                        idx < currentStepIdx ? "border-teal-400" : "border-slate-200"
+                        "mx-1 h-px flex-1 border-t-2 border-dashed",
+                        idx < currentStepIdx ? "border-teal-400" : "border-slate-200",
                       )}
                     />
                   )}
@@ -169,16 +206,16 @@ export function PP30DetailClient({
         </div>
 
         {/* Tabs */}
-        <div className="flex border-b border-slate-200 mb-4">
+        <div className="mb-4 flex border-b border-slate-200">
           {tabs.map((t) => (
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
               className={cn(
-                "px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors",
+                "-mb-px border-b-2 px-4 py-2 text-sm font-medium transition-colors",
                 tab === t.id
                   ? "border-teal-500 text-teal-700"
-                  : "border-transparent text-slate-500 hover:text-slate-700"
+                  : "border-transparent text-slate-500 hover:text-slate-700",
               )}
             >
               {t.label}
@@ -207,27 +244,46 @@ export function PP30DetailClient({
         )}
 
         {tab === "history" && (
-          <div className="rounded-xl border border-slate-200 bg-white p-6 space-y-3">
-            <div className="font-semibold text-slate-800 mb-4">ประวัติการดำเนินการ</div>
+          <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-6">
+            <div className="mb-4 font-semibold text-slate-800">ประวัติการดำเนินการ</div>
             <HistoryItem label="สร้างเอกสาร" date={fmtDate(row.created_at)} done />
-            <HistoryItem label="ยื่นแบบ" date={row.submitted_at ? fmtDate(row.submitted_at) : null} done={!!row.submitted_at} />
-            <HistoryItem label="ชำระเงิน" date={row.payment_ref ?? null} done={row.status === "paid" || row.status === "received"} />
-            <HistoryItem label="รับใบเสร็จ" date={row.receipt_ref ?? null} done={row.status === "received"} />
+            <HistoryItem
+              label="ยื่นแบบ"
+              date={row.submitted_at ? fmtDate(row.submitted_at) : null}
+              done={!!row.submitted_at}
+            />
+            <HistoryItem
+              label="ชำระเงิน"
+              date={row.payment_ref ?? null}
+              done={row.status === "paid" || row.status === "received"}
+            />
+            <HistoryItem
+              label="รับใบเสร็จ"
+              date={row.receipt_ref ?? null}
+              done={row.status === "received"}
+            />
           </div>
         )}
       </div>
 
       {/* Right panel - 1/3 */}
-      <div className="lg:w-80 shrink-0 space-y-4">
+      <div className="shrink-0 space-y-4 lg:w-80">
         {/* Title card */}
         <div className="rounded-xl border border-slate-200 bg-white p-4">
-          <div className="flex items-start justify-between gap-2 mb-3">
+          <div className="mb-3 flex items-start justify-between gap-2">
             <div>
-              <div className="font-semibold text-slate-900">ภ.พ.30 {monthTh}/{beYear}</div>
-              <div className="text-xs text-slate-500 mt-0.5">{row.filing_number}</div>
+              <div className="font-semibold text-slate-900">
+                ภ.พ.30 {monthTh}/{beYear}
+              </div>
+              <div className="mt-0.5 text-xs text-slate-500">{row.filing_number}</div>
             </div>
             <div className="flex gap-2">
-              <Button size="sm" variant="outline" className="flex items-center gap-1" onClick={() => window.print()}>
+              <Button
+                size="sm"
+                variant="outline"
+                className="flex items-center gap-1"
+                onClick={() => window.print()}
+              >
                 <Printer className="h-3.5 w-3.5" />
                 พิมพ์
               </Button>
@@ -244,15 +300,15 @@ export function PP30DetailClient({
           </div>
 
           {/* Status */}
-          <div className="flex items-center gap-2 py-2 border-t border-slate-100">
-            <span className={cn("inline-block w-2 h-2 rounded-full", statusCfg.dot)} />
+          <div className="flex items-center gap-2 border-t border-slate-100 py-2">
+            <span className={cn("inline-block h-2 w-2 rounded-full", statusCfg.dot)} />
             <span className={cn("text-sm font-medium", statusCfg.color)}>{statusCfg.label}</span>
           </div>
         </div>
 
         {/* Filing info */}
-        <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-3">
-          <div className="font-medium text-slate-800 text-sm">ยื่นแบบฟอร์มและชำระเงิน</div>
+        <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-4">
+          <div className="text-sm font-medium text-slate-800">ยื่นแบบฟอร์มและชำระเงิน</div>
           <TimelineItem
             label="ยื่นแบบ"
             value={row.submitted_at ? fmtDate(row.submitted_at) : "รอดำเนินการ"}
@@ -277,15 +333,17 @@ export function PP30DetailClient({
         </div>
 
         {/* Basic info */}
-        <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-2">
-          <div className="font-medium text-slate-800 text-sm mb-3">ข้อมูลพื้นฐาน</div>
+        <div className="space-y-2 rounded-xl border border-slate-200 bg-white p-4">
+          <div className="mb-3 text-sm font-medium text-slate-800">ข้อมูลพื้นฐาน</div>
           <InfoRow label="งวดภาษี" value={`${monthTh} ${beYear}`} />
           <InfoRow label="ภาษีขาย" value={`${fmt(row.output_vat_total)} บาท`} />
           <InfoRow label="ภาษีซื้อ" value={`${fmt(row.input_vat_total)} บาท`} />
           <InfoRow
             label="ยอดสุทธิ"
             value={`${fmt(row.net_vat)} บาท`}
-            valueClass={row.net_vat > 0 ? "text-red-600 font-semibold" : "text-teal-600 font-semibold"}
+            valueClass={
+              row.net_vat > 0 ? "text-red-600 font-semibold" : "text-teal-600 font-semibold"
+            }
           />
           <InfoRow label="รายการขาย" value={`${salesRows.length} รายการ`} />
           <InfoRow label="รายการซื้อ" value={`${purchaseRows.length} รายการ`} />
@@ -300,37 +358,49 @@ export function PP30DetailClient({
             <DialogTitle>อัปเดตสถานะ</DialogTitle>
           </DialogHeader>
           <DialogBody>
-          <div className="space-y-4">
-            <div className="space-y-1.5">
-              <Label>สถานะ</Label>
-              <CustomSelect
-                value={newStatus}
-                onChange={(v) => setNewStatus(v as PP30Row["status"])}
-                options={[
-                  { value: "draft", label: "ร่าง" },
-                  { value: "submitted", label: "ยื่นแล้ว" },
-                  { value: "paid", label: "ชำระแล้ว" },
-                  { value: "received", label: "รับใบเสร็จแล้ว" },
-                ]}
-              />
+            <div className="space-y-4">
+              <div className="space-y-1.5">
+                <Label>สถานะ</Label>
+                <CustomSelect
+                  value={newStatus}
+                  onChange={(v) => setNewStatus(v as PP30Row["status"])}
+                  options={[
+                    { value: "draft", label: "ร่าง" },
+                    { value: "submitted", label: "ยื่นแล้ว" },
+                    { value: "paid", label: "ชำระแล้ว" },
+                    { value: "received", label: "รับใบเสร็จแล้ว" },
+                  ]}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>วันที่ยื่นแบบ</Label>
+                <ThaiDatePicker value={submittedAt} onChange={(v) => setSubmittedAt(v)} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>จำนวนเงินที่ชำระ</Label>
+                <Input
+                  type="number"
+                  value={paymentAmount}
+                  onChange={(e) => setPaymentAmount(e.target.value)}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>เลขที่อ้างอิงการชำระ</Label>
+                <Input
+                  value={paymentRef}
+                  onChange={(e) => setPaymentRef(e.target.value)}
+                  placeholder="เลขที่ชำระเงิน..."
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>เลขที่ใบเสร็จ</Label>
+                <Input
+                  value={receiptRef}
+                  onChange={(e) => setReceiptRef(e.target.value)}
+                  placeholder="เลขที่ใบเสร็จ..."
+                />
+              </div>
             </div>
-            <div className="space-y-1.5">
-              <Label>วันที่ยื่นแบบ</Label>
-              <ThaiDatePicker value={submittedAt} onChange={(v) => setSubmittedAt(v)} />
-            </div>
-            <div className="space-y-1.5">
-              <Label>จำนวนเงินที่ชำระ</Label>
-              <Input type="number" value={paymentAmount} onChange={(e) => setPaymentAmount(e.target.value)} />
-            </div>
-            <div className="space-y-1.5">
-              <Label>เลขที่อ้างอิงการชำระ</Label>
-              <Input value={paymentRef} onChange={(e) => setPaymentRef(e.target.value)} placeholder="เลขที่ชำระเงิน..." />
-            </div>
-            <div className="space-y-1.5">
-              <Label>เลขที่ใบเสร็จ</Label>
-              <Input value={receiptRef} onChange={(e) => setReceiptRef(e.target.value)} placeholder="เลขที่ใบเสร็จ..." />
-            </div>
-          </div>
           </DialogBody>
           <DialogFooter>
             <Button variant="outline" onClick={() => setStatusOpen(false)} disabled={pending}>
@@ -347,6 +417,7 @@ export function PP30DetailClient({
 }
 
 function VatDocTable({ rows, emptyLabel }: { rows: VatDocRow[]; emptyLabel: string }) {
+  const pager = usePagination(rows);
   if (rows.length === 0) {
     return (
       <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-500">
@@ -355,7 +426,7 @@ function VatDocTable({ rows, emptyLabel }: { rows: VatDocRow[]; emptyLabel: stri
     );
   }
   return (
-    <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+    <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
       <Table>
         <TableHeader>
           <TableRow className="bg-slate-50">
@@ -368,23 +439,27 @@ function VatDocTable({ rows, emptyLabel }: { rows: VatDocRow[]; emptyLabel: stri
           </TableRow>
         </TableHeader>
         <TableBody>
-          {rows.map((r) => (
+          {pager.rows.map((r) => (
             <TableRow key={r.id}>
               <TableCell className="font-mono text-sm">{r.doc_number ?? "-"}</TableCell>
               <TableCell className="text-sm">
                 {r.issue_date
-                  ? new Date(r.issue_date).toLocaleDateString("th-TH", { day: "2-digit", month: "short", year: "numeric" })
+                  ? new Date(r.issue_date).toLocaleDateString("th-TH", {
+                      day: "2-digit",
+                      month: "short",
+                      year: "numeric",
+                    })
                   : "-"}
               </TableCell>
               <TableCell className="text-sm">{r.contact_name ?? "-"}</TableCell>
-              <TableCell className="text-right tabular-nums text-sm">
+              <TableCell className="text-right text-sm tabular-nums">
                 {r.sub_total.toLocaleString("th-TH", { minimumFractionDigits: 2 })}
               </TableCell>
-              <TableCell className="text-right tabular-nums text-sm font-medium">
+              <TableCell className="text-right text-sm font-medium tabular-nums">
                 {r.vat_amount.toLocaleString("th-TH", { minimumFractionDigits: 2 })}
               </TableCell>
               <TableCell>
-                <span className="text-xs bg-slate-100 text-slate-600 rounded-full px-2 py-0.5">
+                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">
                   {r.status}
                 </span>
               </TableCell>
@@ -392,6 +467,7 @@ function VatDocTable({ rows, emptyLabel }: { rows: VatDocRow[]; emptyLabel: stri
           ))}
         </TableBody>
       </Table>
+      <TablePager pager={pager} />
     </div>
   );
 }
@@ -399,8 +475,10 @@ function VatDocTable({ rows, emptyLabel }: { rows: VatDocRow[]; emptyLabel: stri
 function HistoryItem({ label, date, done }: { label: string; date: string | null; done: boolean }) {
   return (
     <div className="flex items-center gap-3">
-      <div className={cn("w-2 h-2 rounded-full shrink-0", done ? "bg-teal-500" : "bg-slate-200")} />
-      <span className={cn("text-sm flex-1", done ? "text-slate-700" : "text-slate-400")}>{label}</span>
+      <div className={cn("h-2 w-2 shrink-0 rounded-full", done ? "bg-teal-500" : "bg-slate-200")} />
+      <span className={cn("flex-1 text-sm", done ? "text-slate-700" : "text-slate-400")}>
+        {label}
+      </span>
       <span className="text-xs text-slate-400">{date ?? "-"}</span>
     </div>
   );
@@ -409,9 +487,16 @@ function HistoryItem({ label, date, done }: { label: string; date: string | null
 function TimelineItem({ label, value, done }: { label: string; value: string; done: boolean }) {
   return (
     <div className="flex items-start gap-3">
-      <div className={cn("w-2 h-2 rounded-full mt-1.5 shrink-0", done ? "bg-teal-500" : "bg-slate-200")} />
+      <div
+        className={cn(
+          "mt-1.5 h-2 w-2 shrink-0 rounded-full",
+          done ? "bg-teal-500" : "bg-slate-200",
+        )}
+      />
       <div>
-        <div className={cn("text-sm", done ? "text-slate-700 font-medium" : "text-slate-400")}>{label}</div>
+        <div className={cn("text-sm", done ? "font-medium text-slate-700" : "text-slate-400")}>
+          {label}
+        </div>
         <div className="text-xs text-slate-400">{value}</div>
       </div>
     </div>
@@ -428,7 +513,7 @@ function InfoRow({
   valueClass?: string;
 }) {
   return (
-    <div className="flex justify-between text-sm py-1 border-b border-slate-50 last:border-0">
+    <div className="flex justify-between border-b border-slate-50 py-1 text-sm last:border-0">
       <span className="text-slate-500">{label}</span>
       <span className={cn("text-slate-800", valueClass)}>{value}</span>
     </div>

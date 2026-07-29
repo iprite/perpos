@@ -21,6 +21,7 @@ import {
   TableEmpty,
   TableLoading,
 } from "@/components/ui/table";
+import { TablePager, usePagination } from "@/components/ui/table-pager";
 import { AdminPage } from "../_components/admin-page";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -143,7 +144,10 @@ export default function ResourcesPage() {
     return () => clearInterval(id);
   }, [loadData]);
 
+  const pager = usePagination(data?.orgs ?? []);
+
   if (authLoading) return <div className="p-6 text-sm text-gray-500">กำลังโหลด…</div>;
+
   if (role !== "super_admin")
     return (
       <div className="rounded-xl border border-gray-200 bg-white p-6">
@@ -275,7 +279,7 @@ export default function ResourcesPage() {
               เพื่อเริ่มเก็บข้อมูล
             </TableEmpty>
           ) : (
-            orgs.map((org) => {
+            pager.rows.map((org) => {
               const isExpanded = expandedOrg === org.org_id;
               return (
                 <React.Fragment key={org.org_id}>
@@ -356,6 +360,7 @@ export default function ResourcesPage() {
           )}
         </TableBody>
       </Table>
+      <TablePager pager={pager} unit="องค์กร" />
 
       {/* Integration guide */}
       <div className="rounded-2xl border border-dashed border-gray-300 bg-gray-50/40 p-5">

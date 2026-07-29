@@ -4,34 +4,42 @@ import React, { useMemo, useState, useTransition } from "react";
 import { CustomSelect } from "@/components/ui/custom-select";
 import { useRouter } from "next/navigation";
 import { FileDown, Search, XCircle } from "lucide-react";
-import { toast } from '@/lib/toast';
+import { toast } from "@/lib/toast";
 
 import { Button } from "@/components/ui/button";
-import { Input }  from "@/components/ui/input";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Input } from "@/components/ui/input";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { TablePager, usePagination } from "@/components/ui/table-pager";
 import { PurchaseDocStatusBadge } from "./purchase-doc-status-badge";
 import { voidPurchaseDocumentAction } from "@/lib/purchase/documents/actions";
 import type { PurchaseDocTypeConfig, AnyPurchaseDocStatus } from "./purchase-doc-type-config";
 import type { OrganizationSummary } from "@/lib/accounting/queries";
 
 export type PurchaseDocRow = {
-  id:             string;
+  id: string;
   organizationId: string;
-  docNumber:      string | null;
-  issueDate:      string;
-  dueDate:        string | null;
-  vendorName:     string;
-  subTotal:       number;
-  vatAmount:      number;
-  totalAmount:    number;
-  status:         AnyPurchaseDocStatus;
+  docNumber: string | null;
+  issueDate: string;
+  dueDate: string | null;
+  vendorName: string;
+  subTotal: number;
+  vatAmount: number;
+  totalAmount: number;
+  status: AnyPurchaseDocStatus;
 };
 
 export function PurchaseDocsTable(props: {
-  config:               PurchaseDocTypeConfig;
-  organizations:        OrganizationSummary[];
+  config: PurchaseDocTypeConfig;
+  organizations: OrganizationSummary[];
   activeOrganizationId: string | null;
-  rows:                 PurchaseDocRow[];
+  rows: PurchaseDocRow[];
 }) {
   const { config } = props;
   const router = useRouter();
@@ -44,7 +52,7 @@ export function PurchaseDocsTable(props: {
     return org?.role === "owner" || org?.role === "admin";
   }, [activeOrg, props.organizations]);
 
-  const [q, setQ]               = useState("");
+  const [q, setQ] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | AnyPurchaseDocStatus>("all");
 
   const filtered = useMemo(() => {
@@ -55,6 +63,7 @@ export function PurchaseDocsTable(props: {
       return `${r.docNumber ?? ""} ${r.vendorName}`.toLowerCase().includes(qq);
     });
   }, [props.rows, q, statusFilter]);
+  const pager = usePagination(filtered);
 
   return (
     <div className="grid gap-4">
@@ -66,7 +75,7 @@ export function PurchaseDocsTable(props: {
               value={q}
               onChange={(e) => setQ(e.target.value)}
               placeholder="ค้นหาเลขที่/ชื่อผู้จำหน่าย"
-              className="pl-9 w-72"
+              className="w-72 pl-9"
             />
           </div>
           <CustomSelect
@@ -97,7 +106,7 @@ export function PurchaseDocsTable(props: {
         </TableHeader>
         <TableBody>
           {filtered.length ? (
-            filtered.map((r) => (
+            pager.rows.map((r) => (
               <TableRow key={r.id}>
                 <TableCell>{r.issueDate}</TableCell>
                 <TableCell className="font-mono text-sm">{r.docNumber ?? "-"}</TableCell>
@@ -109,13 +118,21 @@ export function PurchaseDocsTable(props: {
                     </div>
                   ) : null}
                 </TableCell>
-                <TableCell className="text-right tabular-nums">{r.totalAmount.toFixed(2)}</TableCell>
+                <TableCell className="text-right tabular-nums">
+                  {r.totalAmount.toFixed(2)}
+                </TableCell>
                 <TableCell>
                   <PurchaseDocStatusBadge status={r.status} />
                 </TableCell>
                 <TableCell>
                   <div className="flex justify-end gap-2">
-                    <Button variant="outline" size="sm" className="gap-2" disabled title="กำลังพัฒนา">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-2"
+                      disabled
+                      title="กำลังพัฒนา"
+                    >
                       <FileDown className="h-4 w-4" />
                       PDF
                     </Button>
@@ -123,11 +140,16 @@ export function PurchaseDocsTable(props: {
                       variant="ghost"
                       size="sm"
                       className="gap-2"
-                      disabled={!canManage || pending || r.status === "voided" || r.status === "cancelled"}
+                      disabled={
+                        !canManage || pending || r.status === "voided" || r.status === "cancelled"
+                      }
                       onClick={() => {
                         if (!activeOrg) return;
                         startTransition(async () => {
-                          const res = await voidPurchaseDocumentAction({ docId: r.id, organizationId: activeOrg });
+                          const res = await voidPurchaseDocumentAction({
+                            docId: r.id,
+                            organizationId: activeOrg,
+                          });
                           if (!res.ok) toast.error(String(res.error));
                           else toast.success("ยกเลิกเอกสารแล้ว");
                           router.refresh();
@@ -150,6 +172,7 @@ export function PurchaseDocsTable(props: {
           )}
         </TableBody>
       </Table>
+      <TablePager pager={pager} />
     </div>
   );
 }

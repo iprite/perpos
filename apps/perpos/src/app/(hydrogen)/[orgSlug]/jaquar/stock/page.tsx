@@ -20,6 +20,7 @@ import {
   TableCell,
   TableLoading,
 } from "@/components/ui/table";
+import { ControlledTablePager } from "@/components/ui/table-pager";
 import {
   Dialog,
   DialogContent,
@@ -505,8 +506,6 @@ export default function JaquarStockPage() {
     }
   };
 
-  const totalPages = Math.ceil(totalItems / limit);
-
   return (
     <PageShell
       width="wide"
@@ -702,33 +701,15 @@ export default function JaquarStockPage() {
             </TableBody>
           </Table>
 
-          {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="flex items-center justify-between border-t pt-4">
-              <span className="text-sm text-gray-500">
-                แสดงหน้า {page} จากทั้งหมด {totalPages} หน้า (จำนวนสินค้าทั้งหมด {totalItems}{" "}
-                รายการ)
-              </span>
-              <div className="flex items-center gap-1">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  disabled={page === 1}
-                >
-                  <ChevronLeft className="h-4 w-4" aria-hidden="true" /> ก่อนหน้า
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                  disabled={page === totalPages}
-                >
-                  ถัดไป <ChevronRight className="h-4 w-4" aria-hidden="true" />
-                </Button>
-              </div>
-            </div>
-          )}
+          <ControlledTablePager
+            page={page}
+            pageSize={limit}
+            total={totalItems}
+            onPageChange={setPage}
+            loading={loading}
+            unit="สินค้า"
+            className="border-t pt-4"
+          />
         </div>
       )}
 

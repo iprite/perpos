@@ -23,6 +23,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { TablePager, usePagination } from "@/components/ui/table-pager";
 import { CHAT_CHANNEL_LABEL } from "../_fixtures/labels";
 import type { ChatChannel, MattiiCustomer } from "../_fixtures/types";
 import {
@@ -51,11 +52,14 @@ export function CustomerDetailDialog({
 }) {
   const { orders, conversations } = useMattiiData();
 
-  if (!customer) return null;
+  const myOrders = customer
+    ? orders
+        .filter((o) => o.customer_id === customer.id)
+        .sort((a, b) => b.created_at.localeCompare(a.created_at))
+    : [];
+  const pager = usePagination(myOrders);
 
-  const myOrders = orders
-    .filter((o) => o.customer_id === customer.id)
-    .sort((a, b) => b.created_at.localeCompare(a.created_at));
+  if (!customer) return null;
   const liveSpent = myOrders.reduce((s, o) => s + o.paid_amount, 0);
   const liveOutstanding = myOrders.reduce((s, o) => s + o.outstanding_amount, 0);
   const myChats = conversations.filter((c) => c.customer_id === customer.id);
@@ -159,7 +163,7 @@ export function CustomerDetailDialog({
                   {myOrders.length === 0 ? (
                     <TableEmpty colSpan={5}>ลูกค้ารายนี้ยังไม่มีออเดอร์</TableEmpty>
                   ) : (
-                    myOrders.map((o) => (
+                    pager.rows.map((o) => (
                       <TableRow key={o.id}>
                         <TableCell>
                           <span className="font-mono">{o.order_no}</span>
@@ -185,6 +189,7 @@ export function CustomerDetailDialog({
                   )}
                 </TableBody>
               </Table>
+              <TablePager pager={pager} />
             </div>
           </div>
         </DialogBody>

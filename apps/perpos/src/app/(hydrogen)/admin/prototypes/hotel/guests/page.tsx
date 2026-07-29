@@ -19,6 +19,7 @@ import {
   TableCell,
   TableEmpty,
 } from "@/components/ui/table";
+import { TablePager, usePagination } from "@/components/ui/table-pager";
 import { HotelShell, useHotelRole, useHotelData, NoAccess } from "../_components";
 import type { Guest } from "../_fixtures/types";
 import { GuestDetailDialog, GuestFormDialog, stayCountOf } from "./guest-dialogs";
@@ -74,6 +75,7 @@ export default function GuestsPage() {
       })
       .sort((a, b) => (stayCounts.get(b.id) ?? 0) - (stayCounts.get(a.id) ?? 0));
   }, [guests, stayCounts, search, natF, typeF]);
+  const pager = usePagination(filtered);
 
   const kpi = useMemo(() => {
     let regulars = 0;
@@ -172,7 +174,7 @@ export default function GuestsPage() {
               </div>
             </TableEmpty>
           ) : (
-            filtered.map((g) => {
+            pager.rows.map((g) => {
               const count = stayCounts.get(g.id) ?? 0;
               const idLabel =
                 g.id_type === "passport"
@@ -209,6 +211,7 @@ export default function GuestsPage() {
           )}
         </TableBody>
       </Table>
+      <TablePager pager={pager} />
 
       {/* dialogs */}
       <GuestFormDialog open={createOpen} onOpenChange={setCreateOpen} />

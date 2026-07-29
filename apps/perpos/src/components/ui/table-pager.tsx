@@ -1,9 +1,16 @@
 "use client";
 
 /**
- * TablePager — แถบแบ่งหน้ามาตรฐานใต้ตาราง (client-side paging)
+ * TablePager — แถบแบ่งหน้ามาตรฐาน "ตัวเดียวของทั้งแอป" (ดู DESIGN.md §5.1)
  *
- * ใช้คู่กับ `usePagination` เสมอ:
+ * ทุกตารางที่รายการอาจยาวเกินหน้าจอต้องมีแถบนี้ และต้อง**หน้าตาเหมือนกันหมด** —
+ * ห้ามประกอบปุ่ม ‹ › / "ก่อนหน้า–ถัดไป" เองอีก. เลือก 1 ใน 3 ท่าตามที่มาของข้อมูล:
+ *
+ *   1) ข้อมูลอยู่ในมือครบแล้ว (client filter)      → `usePagination` + `<TablePager>`
+ *   2) fetch ทีละหน้าจาก API (client component)    → `<ControlledTablePager>`
+ *   3) หน้า SSR ที่ page อยู่ใน searchParams        → `<LinkTablePager>`
+ *
+ * ท่าที่ 1 — ใช้คู่กับ `usePagination` เสมอ:
  *
  *   const pager = usePagination(filteredRows);          // default 10 แถว/หน้า
  *   ...
@@ -22,7 +29,9 @@
  * 1,000 แถว ต้องจัดการ `truncated` ที่ชั้น fetch ก่อน (ดู lib/accounting/paging.ts)
  */
 
+import type * as React from "react";
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -90,6 +99,63 @@ function pageItems(page: number, totalPages: number): (number | "ellipsis")[] {
     }, []);
 }
 
+/**
+ * PagerBar — เปลือกหน้าตาเดียวของทุกแถบแบ่งหน้า (internal)
+ *
+ * ทั้งสามท่าต่างกันแค่ "กดแล้วเกิดอะไร" — หน้าตาต้องออกมาจากที่นี่ที่เดียวเท่านั้น
+ * `renderPage` คืน element ของปุ่มเลขหน้า/ลูกศร (ปุ่ม onClick หรือ Link แล้วแต่ท่า)
+ */
+function PagerBar({
+  page,
+  totalPages,
+  from,
+  to,
+  total,
+  unit,
+  className,
+  renderStep,
+  renderPage,
+}: {
+  page: number;
+  totalPages: number;
+  from: number;
+  to: number;
+  total: number;
+  unit: string;
+  className?: string;
+  renderStep: (target: number, dir: "prev" | "next", disabled: boolean) => React.ReactNode;
+  renderPage: (target: number, active: boolean) => React.ReactNode;
+}) {
+  return (
+    <div className={`flex items-center justify-between px-1 ${className ?? ""}`}>
+      <p className="text-xs text-gray-500">
+        แสดง {from.toLocaleString("th-TH")}–{to.toLocaleString("th-TH")} จาก{" "}
+        {total.toLocaleString("th-TH")} {unit}
+      </p>
+      <div className="flex items-center gap-1">
+        {renderStep(Math.max(1, page - 1), "prev", page <= 1)}
+        {pageItems(page, totalPages).map((item, idx) =>
+          item === "ellipsis" ? (
+            <span key={`e${idx}`} className="px-1 text-xs text-gray-400">
+              …
+            </span>
+          ) : (
+            <span key={item}>{renderPage(item, item === page)}</span>
+          ),
+        )}
+        {renderStep(Math.min(totalPages, page + 1), "next", page >= totalPages)}
+      </div>
+    </div>
+  );
+}
+
+const STEP_ICON = {
+  prev: <ChevronLeft className="h-4 w-4" />,
+  next: <ChevronRight className="h-4 w-4" />,
+} as const;
+const STEP_LABEL = { prev: "หน้าก่อนหน้า", next: "หน้าถัดไป" } as const;
+
+/** ท่าที่ 1 — client-side paging (คู่กับ `usePagination`) */
 export function TablePager<T>({
   pager,
   /** คำเรียกหน่วยของแถว เช่น "รายการ" (default) / "คน" / "เอกสาร" */
@@ -108,51 +174,198 @@ export function TablePager<T>({
   if (totalPages <= 1 && !alwaysShow) return null;
 
   return (
-    <div className={`flex items-center justify-between px-1 ${className ?? ""}`}>
-      <p className="text-xs text-gray-500">
-        แสดง {from}–{to} จาก {total} {unit}
-      </p>
-      <div className="flex items-center gap-1">
+    <PagerBar
+      page={page}
+      totalPages={totalPages}
+      from={from}
+      to={to}
+      total={total}
+      unit={unit}
+      className={className}
+      renderStep={(target, dir, disabled) => (
         <Button
           variant="ghost"
           size="icon"
-          onClick={() => setPage(Math.max(1, page - 1))}
-          disabled={page === 1}
+          onClick={() => setPage(target)}
+          disabled={disabled}
           className="h-8 w-8"
-          aria-label="หน้าก่อนหน้า"
+          aria-label={STEP_LABEL[dir]}
         >
-          <ChevronLeft className="h-4 w-4" />
+          {STEP_ICON[dir]}
         </Button>
+      )}
+      renderPage={(target, active) => (
+        <Button
+          variant={active ? "default" : "ghost"}
+          size="icon"
+          onClick={() => setPage(target)}
+          className="h-8 w-8 text-xs"
+          aria-current={active ? "page" : undefined}
+        >
+          {target}
+        </Button>
+      )}
+    />
+  );
+}
 
-        {pageItems(page, totalPages).map((item, idx) =>
-          item === "ellipsis" ? (
-            <span key={`e${idx}`} className="px-1 text-xs text-gray-400">
-              …
-            </span>
-          ) : (
-            <Button
-              key={item}
-              variant={item === page ? "default" : "ghost"}
-              size="icon"
-              onClick={() => setPage(item)}
-              className="h-8 w-8 text-xs"
-            >
-              {item}
-            </Button>
-          ),
-        )}
+/**
+ * ท่าที่ 2 — ControlledTablePager: หน้า client ที่ fetch ทีละหน้าจาก API
+ *
+ *   <ControlledTablePager page={page} pageSize={LIMIT} total={total} onPageChange={load} />
+ *
+ * `total` ต้องเป็นยอด "ทั้งหมดที่ตรงเงื่อนไข" ที่ API คืนมา (ไม่ใช่จำนวนแถวของหน้านี้)
+ */
+export function ControlledTablePager({
+  page,
+  pageSize,
+  total,
+  onPageChange,
+  unit = "รายการ",
+  /** true ระหว่างรอ fetch — ปิดปุ่มกันกดรัว */
+  loading = false,
+  alwaysShow = false,
+  className,
+}: {
+  page: number;
+  pageSize: number;
+  total: number;
+  onPageChange: (page: number) => void;
+  unit?: string;
+  loading?: boolean;
+  alwaysShow?: boolean;
+  className?: string;
+}) {
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  if (total === 0) return null;
+  if (totalPages <= 1 && !alwaysShow) return null;
 
+  return (
+    <PagerBar
+      page={page}
+      totalPages={totalPages}
+      from={(page - 1) * pageSize + 1}
+      to={Math.min(page * pageSize, total)}
+      total={total}
+      unit={unit}
+      className={className}
+      renderStep={(target, dir, disabled) => (
         <Button
           variant="ghost"
           size="icon"
-          onClick={() => setPage(Math.min(totalPages, page + 1))}
-          disabled={page === totalPages}
+          onClick={() => onPageChange(target)}
+          disabled={disabled || loading}
           className="h-8 w-8"
-          aria-label="หน้าถัดไป"
+          aria-label={STEP_LABEL[dir]}
         >
-          <ChevronRight className="h-4 w-4" />
+          {STEP_ICON[dir]}
         </Button>
-      </div>
-    </div>
+      )}
+      renderPage={(target, active) => (
+        <Button
+          variant={active ? "default" : "ghost"}
+          size="icon"
+          onClick={() => onPageChange(target)}
+          disabled={loading}
+          className="h-8 w-8 text-xs"
+          aria-current={active ? "page" : undefined}
+        >
+          {target}
+        </Button>
+      )}
+    />
+  );
+}
+
+/**
+ * ท่าที่ 3 — LinkTablePager: หน้า SSR ที่ page อยู่ใน searchParams
+ *
+ *   <LinkTablePager page={page} pageSize={limit} total={total} query={{ status, type }} />
+ *
+ * `query` = ตัวกรองอื่นที่ต้องคงไว้ (ค่าว่าง/undefined จะถูกตัดทิ้ง) — `page` ถูกใส่ให้เอง
+ * (หน้า 1 ไม่ใส่ `page` ใน URL เพื่อให้ลิงก์สะอาด)
+ */
+export function LinkTablePager({
+  page,
+  pageSize,
+  total,
+  query,
+  basePath,
+  unit = "รายการ",
+  alwaysShow = false,
+  className,
+}: {
+  page: number;
+  pageSize: number;
+  total: number;
+  query?: Record<string, string | number | undefined | null>;
+  /** ปกติไม่ต้องส่ง — ลิงก์เป็น relative query string ของหน้าปัจจุบัน */
+  basePath?: string;
+  unit?: string;
+  alwaysShow?: boolean;
+  className?: string;
+}) {
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  if (total === 0) return null;
+  if (totalPages <= 1 && !alwaysShow) return null;
+
+  const hrefFor = (target: number) => {
+    const qs = new URLSearchParams();
+    for (const [k, v] of Object.entries(query ?? {})) {
+      if (v !== undefined && v !== null && v !== "") qs.set(k, String(v));
+    }
+    if (target > 1) qs.set("page", String(target));
+    const s = qs.toString();
+    return `${basePath ?? ""}${s ? `?${s}` : basePath ? "" : "?"}`;
+  };
+
+  return (
+    <PagerBar
+      page={page}
+      totalPages={totalPages}
+      from={(page - 1) * pageSize + 1}
+      to={Math.min(page * pageSize, total)}
+      total={total}
+      unit={unit}
+      className={className}
+      renderStep={(target, dir, disabled) =>
+        disabled ? (
+          <Button
+            variant="ghost"
+            size="icon"
+            disabled
+            className="h-8 w-8"
+            aria-label={STEP_LABEL[dir]}
+          >
+            {STEP_ICON[dir]}
+          </Button>
+        ) : (
+          <Button
+            asChild
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            aria-label={STEP_LABEL[dir]}
+          >
+            <Link href={hrefFor(target)} scroll={false}>
+              {STEP_ICON[dir]}
+            </Link>
+          </Button>
+        )
+      }
+      renderPage={(target, active) => (
+        <Button
+          asChild
+          variant={active ? "default" : "ghost"}
+          size="icon"
+          className="h-8 w-8 text-xs"
+          aria-current={active ? "page" : undefined}
+        >
+          <Link href={hrefFor(target)} scroll={false}>
+            {target}
+          </Link>
+        </Button>
+      )}
+    />
   );
 }

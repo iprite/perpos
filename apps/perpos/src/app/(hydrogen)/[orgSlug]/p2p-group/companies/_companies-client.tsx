@@ -31,6 +31,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { TablePager, usePagination } from "@/components/ui/table-pager";
 import { toast } from "@/lib/toast";
 import type { P2pgCompany } from "@/lib/p2p-group/types";
 import {
@@ -102,8 +103,7 @@ function toForm(c: P2pgCompany): FormState {
     registered_capital: c.registered_capital == null ? "" : String(c.registered_capital),
     paid_up_capital: c.paid_up_capital == null ? "" : String(c.paid_up_capital),
     registered_date: c.registered_date ?? "",
-    fiscal_year_end_month:
-      c.fiscal_year_end_month == null ? "12" : String(c.fiscal_year_end_month),
+    fiscal_year_end_month: c.fiscal_year_end_month == null ? "12" : String(c.fiscal_year_end_month),
     business_type: c.business_type ?? "",
     address: c.address ?? "",
     directors: (c.directors ?? []).join(", "),
@@ -145,6 +145,7 @@ export function CompaniesClient({
   canWrite: boolean;
   canSeeMoney: boolean;
 }) {
+  const pager = usePagination(initial);
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<P2pgCompany | null>(null);
@@ -175,7 +176,11 @@ export function CompaniesClient({
     try {
       const payload = toPayload(form);
       if (editing) {
-        await p2pgMutate(withOrg(`/api/p2p-group/companies/${editing.id}`, orgId), "PATCH", payload);
+        await p2pgMutate(
+          withOrg(`/api/p2p-group/companies/${editing.id}`, orgId),
+          "PATCH",
+          payload,
+        );
         toast.success("บันทึกการแก้ไขแล้ว");
       } else {
         await p2pgMutate(withOrg("/api/p2p-group/companies", orgId), "POST", payload);
@@ -239,8 +244,12 @@ export function CompaniesClient({
               ยังไม่มีบริษัทในทะเบียน — กด &quot;เพิ่มบริษัท&quot; เพื่อเริ่มต้น
             </TableEmpty>
           ) : (
-            initial.map((c) => (
-              <TableRow key={c.id} clickable={canWrite} onClick={canWrite ? () => openEdit(c) : undefined}>
+            pager.rows.map((c) => (
+              <TableRow
+                key={c.id}
+                clickable={canWrite}
+                onClick={canWrite ? () => openEdit(c) : undefined}
+              >
                 <TableCell>
                   <div className="font-medium text-gray-900">{c.name}</div>
                   {c.legal_name && <div className="text-xs text-gray-500">{c.legal_name}</div>}
@@ -283,6 +292,7 @@ export function CompaniesClient({
           )}
         </TableBody>
       </Table>
+      <TablePager pager={pager} />
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent size="xl">
