@@ -90,6 +90,35 @@ export interface CollectionConfig {
   upsertOn?: string;
   /** ทั้งตารางเป็นข้อมูลอ่อนไหว → viewer ไม่มีสิทธิ์อ่านเลย (contract §4) */
   sensitive?: boolean;
+  /**
+   * id ที่ payload อ้างถึง — ต้องพิสูจน์ว่าอยู่ org เดียวกันก่อนเขียน
+   * (DB มี composite FK ผูก org ให้อีกชั้น แต่ชั้นนี้ทำให้ error เป็นภาษาคน ไม่ใช่ FK violation ดิบ
+   *  และครอบ `loan_id` ที่ยังเป็น FK เดี่ยวด้วยเหตุผลเรื่อง ON DELETE SET NULL)
+   */
+  refs?: readonly { field: string; table: string; label: string }[];
+}
+
+/** ตรวจว่า id ที่อ้างถึงเป็นของ org นี้จริง — คืนข้อความไทยถ้าไม่ผ่าน */
+async function validateRefs(
+  cfg: CollectionConfig,
+  payload: Record<string, unknown>,
+  orgId: string,
+): Promise<string | null> {
+  if (!cfg.refs?.length) return null;
+  const admin = createAdminClient();
+
+  for (const ref of cfg.refs) {
+    const value = payload[ref.field];
+    if (value == null || value === "") continue;
+    const { count, error } = await admin
+      .from(ref.table)
+      .select("id", { count: "exact", head: true })
+      .eq("id", value as string)
+      .eq("org_id", orgId);
+    if (error) return `ตรวจสอบ${ref.label}ไม่สำเร็จ`;
+    if (!count) return `ไม่พบ${ref.label}ที่เลือกในองค์กรนี้`;
+  }
+  return null;
 }
 
 /** GET collection — filter org_id เสมอ */
@@ -126,6 +155,9 @@ export async function handleCreate(req: NextRequest, cfg: CollectionConfig): Pro
   const err = cfg.beforeWrite?.(payload, g.auth, "create");
   if (err) return p2pgError(err, 400);
 
+  const refErr = await validateRefs(cfg, payload, g.auth.orgId);
+  if (refErr) return p2pgError(refErr, 400);
+
   payload.org_id = g.auth.orgId;
   payload.created_by = g.auth.userId;
 
@@ -156,6 +188,9 @@ export async function handleUpdate(
 
   const err = cfg.beforeWrite?.(payload, g.auth, "update");
   if (err) return p2pgError(err, 400);
+
+  const refErr = await validateRefs(cfg, payload, g.auth.orgId);
+  if (refErr) return p2pgError(refErr, 400);
 
   const admin = createAdminClient();
   await setAuditContext(req, g.auth.userId, g.auth.orgId);

@@ -44,6 +44,7 @@ export const COMPANIES_CONFIG: CollectionConfig = {
 
 export const FINANCIALS_CONFIG: CollectionConfig = {
   table: "p2pg_financials",
+  refs: [{ field: "company_id", table: "p2pg_companies", label: "บริษัท" }],
   allowed: [
     "company_id",
     "period_month",
@@ -77,6 +78,7 @@ export const FINANCIALS_CONFIG: CollectionConfig = {
 
 export const INVESTMENTS_CONFIG: CollectionConfig = {
   table: "p2pg_investments",
+  refs: [{ field: "company_id", table: "p2pg_companies", label: "บริษัท" }],
   allowed: [
     "company_id",
     "invest_date",
@@ -93,6 +95,7 @@ export const INVESTMENTS_CONFIG: CollectionConfig = {
 
 export const DIVIDENDS_CONFIG: CollectionConfig = {
   table: "p2pg_dividends",
+  refs: [{ field: "company_id", table: "p2pg_companies", label: "บริษัท" }],
   allowed: [
     "company_id",
     "declared_date",
@@ -115,6 +118,10 @@ export const DIVIDENDS_CONFIG: CollectionConfig = {
 
 export const LOANS_CONFIG: CollectionConfig = {
   table: "p2pg_loans",
+  refs: [
+    { field: "lender_company_id", table: "p2pg_companies", label: "บริษัทผู้ให้กู้" },
+    { field: "borrower_company_id", table: "p2pg_companies", label: "บริษัทผู้กู้" },
+  ],
   allowed: [
     "lender_company_id",
     "borrower_company_id",
@@ -141,6 +148,11 @@ export const LOANS_CONFIG: CollectionConfig = {
 
 export const INTERCOMPANY_CONFIG: CollectionConfig = {
   table: "p2pg_intercompany",
+  refs: [
+    { field: "from_company_id", table: "p2pg_companies", label: "บริษัทต้นทาง" },
+    { field: "to_company_id", table: "p2pg_companies", label: "บริษัทปลายทาง" },
+    { field: "loan_id", table: "p2pg_loans", label: "สัญญาเงินกู้" },
+  ],
   allowed: [
     "txn_date",
     "from_company_id",
@@ -169,6 +181,7 @@ export const INTERCOMPANY_CONFIG: CollectionConfig = {
 
 export const BANK_ACCOUNTS_CONFIG: CollectionConfig = {
   table: "p2pg_bank_accounts",
+  refs: [{ field: "company_id", table: "p2pg_companies", label: "บริษัท" }],
   allowed: [
     "company_id",
     "bank_name",
@@ -186,6 +199,7 @@ export const BANK_ACCOUNTS_CONFIG: CollectionConfig = {
 
 export const BANK_BALANCES_CONFIG: CollectionConfig = {
   table: "p2pg_bank_balances",
+  refs: [{ field: "bank_account_id", table: "p2pg_bank_accounts", label: "บัญชีธนาคาร" }],
   allowed: ["bank_account_id", "as_of_date", "balance", "source", "note"],
   required: ["bank_account_id", "as_of_date", "balance"],
   orderBy: { column: "as_of_date", ascending: false },

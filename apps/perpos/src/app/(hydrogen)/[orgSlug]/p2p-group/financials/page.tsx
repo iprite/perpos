@@ -23,7 +23,7 @@ export default async function FinancialsPage({
 
   const [companies, financials] = await Promise.all([
     listCompanies(ctx.rls, ctx.orgId),
-    listFinancials(ctx.rls, ctx.orgId, { periodMonth }),
+    listFinancials(ctx.rls, ctx.orgId, { periodMonth, basic: !ctx.canSeeMoney }),
   ]);
 
   return (

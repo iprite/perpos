@@ -45,7 +45,8 @@ export default async function P2pGroupDashboardPage({
 
   const [companies, financials] = await Promise.all([
     listCompanies(ctx.rls, ctx.orgId),
-    listFinancials(ctx.rls, ctx.orgId, { periodMonth }),
+    // viewer อ่านตารางฐานไม่ได้ (RLS) → ต้องอ่านผ่าน view ที่มีเฉพาะคอลัมน์ไม่อ่อนไหว
+    listFinancials(ctx.rls, ctx.orgId, { periodMonth, basic: !ctx.canSeeMoney }),
   ]);
 
   // บริษัทลูก = ทุกบริษัทที่ไม่ใช่บริษัทแม่ (โฮลดิ้งไม่มีรายได้ดำเนินงานของตัวเอง)

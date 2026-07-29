@@ -56,8 +56,21 @@ module roles: `owner` · `manager` · `viewer`
 | เพิ่ม/แก้/ลบ | ✅ | ✅ | ⛔ |
 | ผูก `org_ref_id` | ⛔ | ⛔ | ⛔ (super_admin ทาง DB) |
 
-บังคับ 2 ชั้น: **API** (`sensitive: true` ใน `_configs.ts` → 403 · `stripSensitiveFinancial` สำหรับงบรายเดือน)
-+ **หน้า** (`requireP2pGroupMoneyPage` → `notFound()` สำหรับ 4 หน้าที่เป็นตัวเลขอ่อนไหวล้วน)
+บังคับ **3 ชั้น** — ชั้นล่างสุดสำคัญที่สุด:
+
+1. **DB (ชั้นจริง)** — RLS SELECT ของ 7 ตารางอ่อนไหวต้องผ่าน `p2pg_has_money_access(org_id)`
+   (= `module_members.module_role IN ('owner','manager')` หรือ super_admin) · viewer/คนที่ไม่ใช่สมาชิกโมดูล
+   ได้ **0 แถว** แม้ยิง PostgREST ตรงด้วย token ตัวเอง
+2. **API** — `sensitive: true` ใน `_configs.ts` → 403 · `stripSensitiveFinancial` สำหรับงบรายเดือน
+3. **หน้า** — `requireP2pGroupMoneyPage` → `notFound()` สำหรับ 4 หน้าที่เป็นตัวเลขอ่อนไหวล้วน
+
+**viewer อ่านงบรายเดือนได้ผ่าน view `p2pg_financials_basic` เท่านั้น** (มีแค่ `revenue`/`headcount`) —
+`listFinancials(..., { basic: true })` · **ห้ามเพิ่มคอลัมน์อ่อนไหวเข้า view นี้เด็ดขาด**
+
+> **กับดักที่เจอตอนแก้ (สำคัญมาก):** policy เดิมชื่อ `<t>_write` เป็น **`FOR ALL`** — และ "ALL" **รวม SELECT**
+> ⇒ ต่อให้รัด `_select` แล้ว policy เขียนก็ยังเปิดทางอ่านอยู่ (policy แบบ permissive OR กัน)
+> ⇒ ต้องแยกเป็น `_insert`/`_update`/`_delete` **ห้ามใช้ `FOR ALL` กับตารางที่มีการอ่านแบบมีเงื่อนไข**
+> จับได้เพราะทดสอบสวมสิทธิ์ viewer จริงหลังแก้ ไม่ใช่เชื่อว่าแก้แล้วต้องหาย
 
 ---
 
@@ -124,6 +137,14 @@ apps/perpos/src/app/(hydrogen)/[orgSlug]/p2p-group/
 | กำไรขั้นต้น = รายได้ (อัตรากำไรลวง) | sync เขียน `cogs = 0` เมื่อไม่มีใบซื้อ | ไม่มีเอกสาร → `null` |
 | ปุ่มในแถวที่คลิกได้เปิด dialog แก้ไขไปด้วย | `TableRow clickable` + ปุ่มในเซลล์ | `e.stopPropagation()` ที่ปุ่ม |
 | ข้อความบอก "คลิกที่แถวเพื่อแก้ไข" แต่คลิกไม่ได้ | ลืมใส่ `clickable/onClick` ในตารางธุรกรรม | ใส่ให้ตรงกับที่ UI สัญญาไว้ |
+| **ด่านสิทธิ์ viewer ข้ามได้ทั้งชุด** | RLS เป็น `is_org_member` เฉย ๆ — ด่านทั้งหมดอยู่ชั้นแอป | เพิ่ม `p2pg_has_money_access()` เข้า policy (รอบแรกแก้แล้ว**ยังไม่หาย** เพราะ `<t>_write` เป็น `FOR ALL` = รวม SELECT → ต้องแยก insert/update/delete) |
+| อ้าง `company_id`/`bank_account_id` ข้าม org ได้ | FK คอลัมน์เดียว | composite FK `(id, org_id)` + `refs` ตรวจที่ API (ข้อความไทย) · `loan_id` คงเป็น FK เดี่ยว (SET NULL) → พึ่ง `refs` อย่างเดียว |
+
+**ข้อยกเว้นที่ตั้งใจ (advisor จะเตือน — อย่าไล่ "แก้"):**
+`p2pg_financials_basic` ขึ้น `security_definer_view` = จำเป็น (ต้องข้าม RLS ฐานถึงจะให้ viewer เห็นรายได้)
+ปลอดภัยเพราะไม่มีคอลัมน์อ่อนไหว + กรอง `is_org_member` เอง + `security_barrier` + GRANT แค่ SELECT ·
+`p2pg_has_money_access` เรียกผ่าน `/rest/v1/rpc` ได้ = จำเป็น (policy รันด้วยสิทธิ์ผู้เรียก) และคืนแค่ boolean
+ของตัวผู้เรียกเอง (ไม่รับ `p_user`)
 
 ---
 

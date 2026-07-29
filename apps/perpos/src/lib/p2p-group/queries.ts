@@ -30,19 +30,49 @@ export async function listCompanies(db: SupabaseClient, orgId: string): Promise<
   return (data ?? []) as P2pgCompany[];
 }
 
+/**
+ * งบรายเดือน
+ * @param opts.basic — อ่านผ่าน view `p2pg_financials_basic` (มีเฉพาะรายได้/จำนวนพนักงาน)
+ *   ต้องใช้เมื่อผู้ใช้เป็น `viewer` — RLS ของตารางฐานปิดไม่ให้ viewer อ่านอยู่แล้ว
+ *   (ถ้าเผลออ่านตารางฐานด้วยสิทธิ์ viewer จะได้ 0 แถว = หน้าจอว่างเปล่าแบบเงียบ ๆ)
+ */
 export async function listFinancials(
   db: SupabaseClient,
   orgId: string,
-  opts?: { periodMonth?: string; from?: string; to?: string; companyId?: string },
+  opts?: {
+    periodMonth?: string;
+    from?: string;
+    to?: string;
+    companyId?: string;
+    basic?: boolean;
+  },
 ): Promise<P2pgFinancial[]> {
-  let q = db.from("p2pg_financials").select("*").eq("org_id", orgId);
+  const source = opts?.basic ? "p2pg_financials_basic" : "p2pg_financials";
+  let q = db.from(source).select("*").eq("org_id", orgId);
   if (opts?.periodMonth) q = q.eq("period_month", opts.periodMonth);
   if (opts?.from) q = q.gte("period_month", opts.from);
   if (opts?.to) q = q.lte("period_month", opts.to);
   if (opts?.companyId) q = q.eq("company_id", opts.companyId);
   const { data, error } = await q.order("period_month", { ascending: false });
   if (error) throw new Error(error.message);
-  return (data ?? []) as P2pgFinancial[];
+
+  // view ไม่มีคอลัมน์อ่อนไหว → เติมเป็น null ให้ครบรูป (ไม่ใช่ undefined) เพื่อให้สูตรใน metrics.ts
+  // เห็น "ยังไม่มีข้อมูล" ตรงตามความเป็นจริง
+  const rows = (data ?? []) as Partial<P2pgFinancial>[];
+  if (!opts?.basic) return rows as P2pgFinancial[];
+  return rows.map((r) => ({
+    cogs: null,
+    opex: null,
+    other_income: null,
+    net_profit: null,
+    cash_balance: null,
+    total_assets: null,
+    total_liabilities: null,
+    equity: null,
+    ar: null,
+    ap: null,
+    ...r,
+  })) as P2pgFinancial[];
 }
 
 export async function listInvestments(db: SupabaseClient, orgId: string) {
