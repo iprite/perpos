@@ -429,41 +429,36 @@ function buildAccFirmMenuItems(org: string, labels: Record<string, string> = {})
       name: l("dashboard", "Dashboard"),
       href: `/${org}/acc-firm`,
       icon: <LayoutDashboard className="h-5 w-5" />,
+      activeMatch: [f("reports")],
     },
+    { name: "งานบัญชี" },
     {
       name: l("ocr", "บันทึกบัญชีด้วย AI"),
       href: f("ocr"),
       icon: <Sparkles className="h-5 w-5" />,
     },
     {
-      name: l("clients", "บริษัทลูกค้า"),
+      name: l("close-check", "ตรวจปิดงวด"),
+      href: f("close-check"),
+      icon: <ShieldCheck className="h-5 w-5" />,
+    },
+    { name: "ลูกค้าและเอกสาร" },
+    {
+      name: l("clients", "ลูกค้า"),
       href: f("clients"),
       icon: <Building2 className="h-5 w-5" />,
+      activeMatch: [f("service-clients")],
     },
     {
       name: l("vault", "คลังเอกสารลูกค้า"),
       href: f("vault"),
       icon: <FolderLock className="h-5 w-5" />,
     },
-    {
-      name: l("reports", "รายงานรวม"),
-      href: f("reports"),
-      icon: <BarChart3 className="h-5 w-5" />,
-    },
-    {
-      name: l("close-check", "ตรวจปิดงวด"),
-      href: f("close-check"),
-      icon: <ShieldCheck className="h-5 w-5" />,
-    },
+    { name: "ภายในสำนักงาน" },
     {
       name: l("petty-cash", "เงินสดย่อย"),
       href: f("petty-cash"),
       icon: <Wallet className="h-5 w-5" />,
-    },
-    {
-      name: l("service-clients", "ลูกค้าบริการ"),
-      href: f("service-clients"),
-      icon: <Calculator className="h-5 w-5" />,
     },
   ];
 }

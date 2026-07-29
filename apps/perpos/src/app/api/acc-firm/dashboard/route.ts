@@ -18,6 +18,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireModuleMember } from "../../_lib/module-auth";
 import { createAdminClient } from "../../_lib/supabase";
+import { fetchAllRows, type RowsPage } from "@/lib/accounting/paging";
+
+type JournalLineRow = {
+  org_id: string;
+  debit: number;
+  credit: number;
+  acc_accounts: { account_type: string } | null;
+};
 
 type InvoiceBuckets = {
   draft: { count: number; amount: number };
@@ -66,30 +74,45 @@ export async function GET(req: NextRequest) {
   // ── 2. Batch fetch invoice + KPI data for all clients ─────────────────────
   const clientOrgIds = clients.map((c) => (c.client_org as unknown as { id: string }).id);
 
-  const [{ data: invoiceRows }, { data: lineRows }] = await Promise.all([
+  // ทั้งสอง query เอาไปคิดยอดรวม → ต้องได้ครบทุกแถว (PostgREST ตัด 1,000 แถวเงียบ ๆ)
+  const [invoiceRes, lineRes] = await Promise.all([
     // Invoice snapshot per org (เฉพาะ doc_type='invoice' — acc_documents รวมใบเสนอราคา/ใบเสร็จด้วย)
-    admin
-      .from("acc_documents")
-      .select("org_id, status, due_date, total")
-      .in("org_id", clientOrgIds)
-      .eq("doc_type", "invoice")
-      .neq("status", "void"),
+    fetchAllRows<{ org_id: string; status: string; due_date: string | null; total: number }>(
+      (from, to) =>
+        admin
+          .from("acc_documents")
+          .select("org_id, status, due_date, total")
+          .in("org_id", clientOrgIds)
+          .eq("doc_type", "invoice")
+          .neq("status", "void")
+          .order("id")
+          .range(from, to),
+    ),
 
     // Posted journal lines this month (for revenue / expense) — ยึด pattern lib/accounting/reports.ts
-    admin
-      .from("acc_journal_lines")
-      .select(
-        `
-        org_id, debit, credit,
+    fetchAllRows<JournalLineRow>(
+      (from, to) =>
+        admin
+          .from("acc_journal_lines")
+          .select(
+            `
+        id, org_id, debit, credit,
         acc_accounts ( account_type ),
         acc_journal_entries!inner ( status, entry_date )
       `,
-      )
-      .in("org_id", clientOrgIds)
-      .eq("acc_journal_entries.status", "posted")
-      .gte("acc_journal_entries.entry_date", monthStart)
-      .lte("acc_journal_entries.entry_date", today),
+          )
+          .in("org_id", clientOrgIds)
+          .eq("acc_journal_entries.status", "posted")
+          .gte("acc_journal_entries.entry_date", monthStart)
+          .lte("acc_journal_entries.entry_date", today)
+          .order("id")
+          .range(from, to) as unknown as RowsPage<JournalLineRow>,
+    ),
   ]);
+
+  const invoiceRows = invoiceRes.rows;
+  const lineRows = lineRes.rows;
+  const truncated = invoiceRes.truncated || lineRes.truncated;
 
   // ── 3. Aggregate invoice buckets per org ──────────────────────────────────
   const invoiceMap = new Map<string, InvoiceBuckets>();
@@ -102,7 +125,7 @@ export async function GET(req: NextRequest) {
     });
   }
 
-  for (const inv of invoiceRows ?? []) {
+  for (const inv of invoiceRows) {
     const buckets = invoiceMap.get(inv.org_id);
     if (!buckets) continue;
     const amt = Number(inv.total ?? 0);
@@ -126,12 +149,7 @@ export async function GET(req: NextRequest) {
   const kpiMap = new Map<string, { revenue: number; expense: number }>();
   for (const orgId of clientOrgIds) kpiMap.set(orgId, { revenue: 0, expense: 0 });
 
-  for (const line of (lineRows ?? []) as unknown as Array<{
-    org_id: string;
-    debit: number;
-    credit: number;
-    acc_accounts: { account_type: string } | null;
-  }>) {
+  for (const line of lineRows) {
     const kpi = kpiMap.get(line.org_id);
     if (!kpi) continue;
     const type = line.acc_accounts?.account_type;
@@ -159,5 +177,6 @@ export async function GET(req: NextRequest) {
     };
   });
 
-  return NextResponse.json({ summaries, asOf: today });
+  // truncated = ชนเพดานการดึงแถว → ตัวเลขยังไม่ครบ UI ต้องเตือน (ห้ามกลืนเงียบ)
+  return NextResponse.json({ summaries, asOf: today, truncated });
 }

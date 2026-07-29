@@ -16,22 +16,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireModuleMember } from "../../_lib/module-auth";
 import { createAdminClient } from "../../_lib/supabase";
-import { getModuleRoles } from "@/lib/modules";
-
-// บทบาทที่ firm member ได้รับเมื่อถูก provision เข้า module ของ client org
-// (แต่ละ module มี role set ต่างกัน — accounting มี 'accountant', hrm มี 'hr')
-const FIRM_MODULE_ROLE: Record<string, string> = {
-  accounting: "accountant",
-  hrm: "hr",
-};
-
-/** role ที่จะ grant: map ที่กำหนด → ไม่งั้น role แรกที่ canWrite ที่ไม่ใช่ owner */
-function firmRoleFor(moduleKey: string): string {
-  const mapped = FIRM_MODULE_ROLE[moduleKey];
-  if (mapped) return mapped;
-  const writable = getModuleRoles(moduleKey).find((r) => r.canWrite && r.key !== "owner");
-  return writable?.key ?? "viewer";
-}
+import { firmRoleFor } from "@/lib/acc-firm/provision-roles";
 
 // ── GET ────────────────────────────────────────────────────────────────────────
 export async function GET(req: NextRequest) {
@@ -214,14 +199,18 @@ export async function DELETE(req: NextRequest) {
     .maybeSingle();
   if (!engagement) return NextResponse.json({ error: "ไม่พบ engagement" }, { status: 404 });
 
-  // 1. Deactivate module_members for all managed modules
-  const { error: mmErr } = await admin
-    .from("module_members")
-    .update({ is_active: false })
-    .eq("org_id", String(clientOrgId))
-    .eq("user_id", String(userId))
-    .in("module_key", engagement.modules_managed as string[]);
-  if (mmErr) return NextResponse.json({ error: mmErr.message }, { status: 500 });
+  // 1. Deactivate module_members — **เฉพาะแถวที่ provision สร้างไว้เอง** (module_role
+  //    ตรงกับ firmRoleFor) ไม่งั้นจะไปถอนสิทธิ์เดิมของคนที่เป็นเจ้าของ org ลูกค้าอยู่แล้ว
+  for (const moduleKey of engagement.modules_managed as string[]) {
+    const { error: mmErr } = await admin
+      .from("module_members")
+      .update({ is_active: false })
+      .eq("org_id", String(clientOrgId))
+      .eq("user_id", String(userId))
+      .eq("module_key", moduleKey)
+      .eq("module_role", firmRoleFor(moduleKey));
+    if (mmErr) return NextResponse.json({ error: mmErr.message }, { status: 500 });
+  }
 
   // 2. Remove from organization_members of client org
   //    (only if they have no other active modules in this org)
@@ -239,7 +228,7 @@ export async function DELETE(req: NextRequest) {
       .delete()
       .eq("organization_id", String(clientOrgId))
       .eq("user_id", String(userId))
-      .neq("role", "owner"); // safety: never delete the org owner
+      .eq("role", "team_member"); // เอาออกได้เฉพาะแถวที่ provision สร้าง (ไม่แตะ owner/admin เดิม)
   }
 
   return NextResponse.json({ ok: true });

@@ -4,7 +4,7 @@
 // คำไทยของสถานะ/กลุ่ม มาจาก lib/acc-firm/vault/types.ts เท่านั้น
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { CalendarPlus, FolderPlus, Upload } from "lucide-react";
+import { CalendarPlus, Filter, FolderPlus, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { CustomSelect } from "@/components/ui/custom-select";
 import { Label } from "@/components/ui/label";
@@ -42,7 +42,7 @@ import {
 } from "@/lib/acc-firm/vault/types";
 import { useVaultApi } from "./api";
 import { UploadDocumentDialog } from "./upload-dialog";
-import { THAI_MONTH_OPTIONS, fmtDate, fmtPeriodLabel, isOverdue } from "./format";
+import { THAI_MONTH_OPTIONS, fmtDate, isOverdue } from "./format";
 
 const STATUS_OPTIONS = (Object.keys(CHECKLIST_STATUS_LABELS) as ChecklistStatus[]).map((s) => ({
   value: s,
@@ -78,6 +78,7 @@ export function PeriodTab({
     const p = initialPeriods.find((x) => x.id === initialPeriodId);
     return p && p.kind === "month" ? Number(p.periodStart.slice(5, 7)) : now.getMonth() + 1;
   });
+  const [showPicker, setShowPicker] = useState(false);
   const [rows, setRows] = useState<ChecklistRow[]>(initialChecklist);
   const [loading, setLoading] = useState(false);
   const [opening, setOpening] = useState(false);
@@ -182,30 +183,21 @@ export function PeriodTab({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-end gap-3 rounded-xl border border-gray-200 bg-white p-3 shadow-sm">
-        <div>
-          <Label>ปี</Label>
-          <CustomSelect
-            value={String(year)}
-            onChange={(v) => setYear(Number(v))}
-            options={yearOptions}
-            className="mt-1 w-36"
-          />
-        </div>
-        <div>
-          <Label>เดือน</Label>
-          <CustomSelect
-            value={String(month)}
-            onChange={(v) => setMonth(Number(v))}
-            options={THAI_MONTH_OPTIONS}
-            className="mt-1 w-40"
-          />
-        </div>
+      {/* ตัวเลือกงวดซ่อนหลังปุ่มไอคอน (DESIGN.md §4) — งวดที่ดูอยู่ยังบอกเป็นข้อความข้างปุ่มเสมอ */}
+      <div className="flex flex-wrap items-center gap-2">
+        <Button
+          variant={showPicker ? "secondary" : "outline"}
+          size="icon"
+          title="เลือกงวด"
+          onClick={() => setShowPicker((v) => !v)}
+        >
+          <Filter className="h-4 w-4" />
+        </Button>
+        <Text className="text-sm font-medium text-gray-800">
+          {THAI_MONTH_OPTIONS.find((m) => m.value === String(month))?.label} {year + 543}
+        </Text>
         {period && (
-          <Text className="pb-2 text-xs text-gray-500">
-            งวด {fmtPeriodLabel("month", period.periodStart, period.periodEnd)} · สิ้นงวด{" "}
-            {fmtDate(period.periodEnd)}
-          </Text>
+          <Text className="text-xs text-gray-500">· สิ้นงวด {fmtDate(period.periodEnd)}</Text>
         )}
         {period && canWrite && (
           <Button
@@ -219,6 +211,29 @@ export function PeriodTab({
           </Button>
         )}
       </div>
+
+      {showPicker && (
+        <div className="flex flex-wrap items-end gap-3 rounded-xl border border-gray-200 bg-white p-3 shadow-sm">
+          <div>
+            <Label>ปี</Label>
+            <CustomSelect
+              value={String(year)}
+              onChange={(v) => setYear(Number(v))}
+              options={yearOptions}
+              className="mt-1 w-36"
+            />
+          </div>
+          <div>
+            <Label>เดือน</Label>
+            <CustomSelect
+              value={String(month)}
+              onChange={(v) => setMonth(Number(v))}
+              options={THAI_MONTH_OPTIONS}
+              className="mt-1 w-40"
+            />
+          </div>
+        </div>
+      )}
 
       {!period ? (
         <div className="flex flex-col items-center justify-center rounded-xl border border-gray-200 bg-white py-16 text-center shadow-sm">

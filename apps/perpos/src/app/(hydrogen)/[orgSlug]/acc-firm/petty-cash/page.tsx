@@ -30,8 +30,18 @@ import {
   TableEmpty,
   TableLoading,
 } from "@/components/ui/table";
-import { Plus, Trash2, Wallet } from "lucide-react";
+import {
+  Plus,
+  Trash2,
+  Wallet,
+  Filter,
+  LayoutDashboard,
+  ArrowUpRight,
+  ArrowDownLeft,
+  HandCoins,
+} from "lucide-react";
 import { PageShell } from "@/components/ui/page-shell";
+import { StatCard } from "@/components/ui/stat-card";
 import { ControlledTablePager } from "@/components/ui/table-pager";
 import type { PettyCashEntry } from "@/app/api/acc-firm/petty-cash/route";
 
@@ -73,6 +83,9 @@ export default function PettyCashPage() {
   const [to, setTo] = useState("");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
+  // เปลือกหน้า: ซ่อน/กางการ์ดสรุป + ตัวกรองหลังปุ่มไอคอน (DESIGN.md §4)
+  const [showSummary, setShowSummary] = useState(true);
+  const [showFilters, setShowFilters] = useState(false);
 
   // Data state
   const [entries, setEntries] = useState<PettyCashEntry[]>([]);
@@ -206,6 +219,7 @@ export default function PettyCashPage() {
     { value: "", label: "ทุกประเภท" },
     ...categories.map((c) => ({ value: c, label: c })),
   ];
+  const hasFilter = !!(category || from || to || search);
 
   return (
     <PageShell
@@ -214,50 +228,94 @@ export default function PettyCashPage() {
       title="เงินสดย่อย"
       description="บัญชีเงินสดย่อยสำนักงานบัญชี"
       actions={
-        <Button onClick={openAdd}>
-          <Plus className="mr-1 h-4 w-4" /> เพิ่มรายการ
-        </Button>
+        <>
+          <Button
+            variant={showSummary ? "secondary" : "outline"}
+            size="icon"
+            title={showSummary ? "ซ่อนการ์ดสรุป" : "แสดงการ์ดสรุป"}
+            aria-expanded={showSummary}
+            onClick={() => setShowSummary((v) => !v)}
+          >
+            <LayoutDashboard className="h-4 w-4" />
+          </Button>
+          <Button
+            variant={showFilters || hasFilter ? "secondary" : "outline"}
+            size="icon"
+            title="ตัวกรอง"
+            className="relative"
+            onClick={() => setShowFilters((v) => !v)}
+          >
+            <Filter className="h-4 w-4" />
+            {hasFilter && (
+              <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-amber-500" />
+            )}
+          </Button>
+          <Button onClick={openAdd}>
+            <Plus className="mr-1 h-4 w-4" /> เพิ่มรายการ
+          </Button>
+        </>
       }
     >
       {/* Summary cards */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <SummaryCard label="เงินออก (รวม)" value={totals.total_out} color="text-red-600" />
-        <SummaryCard label="เงินเข้า (รวม)" value={totals.total_in} color="text-green-600" />
-        <SummaryCard label="เก็บเงิน (รวม)" value={totals.total_collected} color="text-blue-600" />
-        <SummaryCard
+      <div className={showSummary ? "grid grid-cols-2 gap-3 sm:grid-cols-4" : "hidden"}>
+        <StatCard
+          icon={<ArrowUpRight className="h-4 w-4" />}
+          label="เงินออก (รวม)"
+          value={fmtBaht(totals.total_out)}
+          tone="negative"
+          valueColored
+        />
+        <StatCard
+          icon={<ArrowDownLeft className="h-4 w-4" />}
+          label="เงินเข้า (รวม)"
+          value={fmtBaht(totals.total_in)}
+          tone="positive"
+          valueColored
+        />
+        <StatCard
+          icon={<HandCoins className="h-4 w-4" />}
+          label="เก็บเงิน (รวม)"
+          value={fmtBaht(totals.total_collected)}
+          tone="info"
+        />
+        <StatCard
+          icon={<Wallet className="h-4 w-4" />}
           label="คงเหลือสุทธิ"
-          value={balance}
-          color={balance >= 0 ? "text-green-700" : "text-red-700"}
+          value={fmtBaht(balance)}
+          tone={balance >= 0 ? "positive" : "negative"}
+          valueColored
         />
       </div>
 
       {/* Filters */}
-      <FilterBar>
-        <FilterSearch value={search} onChange={handleSearch} placeholder="ค้นหารายการ..." />
-        <CustomSelect
-          value={category}
-          onChange={setCategory}
-          options={catOptions}
-          className="w-48"
-        />
-        <div className="flex items-center gap-2">
-          <Label className="whitespace-nowrap text-xs">จาก</Label>
-          <ThaiDatePicker value={from} onChange={setFrom} placeholder="วันที่เริ่ม" />
-        </div>
-        <div className="flex items-center gap-2">
-          <Label className="text-xs">ถึง</Label>
-          <ThaiDatePicker value={to} onChange={setTo} placeholder="วันที่สิ้นสุด" />
-        </div>
-        <FilterClear
-          disabled={!(category || from || to || search)}
-          onClick={() => {
-            setCategory("");
-            setFrom("");
-            setTo("");
-            setSearch("");
-          }}
-        />
-      </FilterBar>
+      {showFilters && (
+        <FilterBar>
+          <FilterSearch value={search} onChange={handleSearch} placeholder="ค้นหารายการ..." />
+          <CustomSelect
+            value={category}
+            onChange={setCategory}
+            options={catOptions}
+            className="w-48"
+          />
+          <div className="flex items-center gap-2">
+            <Label className="whitespace-nowrap text-xs">จาก</Label>
+            <ThaiDatePicker value={from} onChange={setFrom} placeholder="วันที่เริ่ม" />
+          </div>
+          <div className="flex items-center gap-2">
+            <Label className="text-xs">ถึง</Label>
+            <ThaiDatePicker value={to} onChange={setTo} placeholder="วันที่สิ้นสุด" />
+          </div>
+          <FilterClear
+            disabled={!hasFilter}
+            onClick={() => {
+              setCategory("");
+              setFrom("");
+              setTo("");
+              setSearch("");
+            }}
+          />
+        </FilterBar>
+      )}
 
       {/* Table */}
       <Table stickyHeader fillViewport>
@@ -482,13 +540,11 @@ export default function PettyCashPage() {
   );
 }
 
-function SummaryCard({ label, value, color }: { label: string; value: number; color: string }) {
-  return (
-    <div className="rounded-xl border bg-white p-4">
-      <p className="mb-1 text-xs text-gray-500">{label}</p>
-      <p className={`font-mono text-lg font-bold ${color}`}>
-        {Math.abs(value).toLocaleString("th-TH", { minimumFractionDigits: 2 })}
-      </p>
-    </div>
-  );
+/** เงินเต็ม "1,234.56 ฿" — ยอดลบ U+2212 */
+function fmtBaht(v: number): string {
+  const sign = v < 0 ? "\u2212" : "";
+  return `${sign}${Math.abs(v).toLocaleString("th-TH", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })} \u0e3f`;
 }

@@ -4,7 +4,7 @@
 // เอกสารข้อมูลอ่อนไหว: ต้องยืนยันใน Dialog ก่อน + เฉพาะสิทธิ์ owner (ตรงกับด่านฝั่ง API)
 
 import { useMemo, useState } from "react";
-import { Download, FileText, ShieldAlert, Upload } from "lucide-react";
+import { Download, FileText, Filter, ShieldAlert, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { CustomSelect } from "@/components/ui/custom-select";
 import { FilterBar, FilterSearch, FilterClear } from "@/components/ui/filter-bar";
@@ -68,6 +68,7 @@ export function DocumentsTab({
   const [documents, setDocuments] = useState(initialDocuments);
   const [q, setQ] = useState("");
   const [categoryId, setCategoryId] = useState("");
+  const [showFilters, setShowFilters] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [confirmDoc, setConfirmDoc] = useState<VaultDocument | null>(null);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
@@ -81,6 +82,8 @@ export function DocumentsTab({
     ],
     [categories, documents],
   );
+
+  const hasFilter = !!q || !!categoryId;
 
   const rows = useMemo(() => {
     const keyword = q.trim().toLowerCase();
@@ -119,27 +122,51 @@ export function DocumentsTab({
 
   return (
     <div className="space-y-4">
-      <FilterBar>
-        <FilterSearch value={q} onChange={setQ} placeholder="ค้นหา ชื่อเอกสาร / คู่ค้า" />
-        <CustomSelect
-          value={categoryId}
-          onChange={setCategoryId}
-          options={categoryOptions}
-          className="w-56"
-        />
+      {/* ตัวกรองซ่อนหลังปุ่มไอคอน (DESIGN.md §4) — พื้นที่เหนือตารางมีค่ากว่า
+          ยังไม่มีเอกสารเลย → ไม่ต้องมีแถบนี้ (empty state มี CTA อัปโหลดของตัวเอง) */}
+      <div className={documents.length === 0 ? "hidden" : "flex items-center gap-2"}>
+        <Button
+          variant={showFilters || hasFilter ? "secondary" : "outline"}
+          size="icon"
+          title="ตัวกรอง"
+          className="relative"
+          onClick={() => setShowFilters((v) => !v)}
+        >
+          <Filter className="h-4 w-4" />
+          {hasFilter && (
+            <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-amber-500" />
+          )}
+        </Button>
         {canWrite && (
-          <Button size="sm" variant="outline" onClick={() => setUploadOpen(true)}>
+          <Button
+            size="sm"
+            variant="outline"
+            className="ms-auto"
+            onClick={() => setUploadOpen(true)}
+          >
             <Upload className="mr-1 h-4 w-4" /> อัปโหลดเอกสาร
           </Button>
         )}
-        <FilterClear
-          disabled={!q && !categoryId}
-          onClick={() => {
-            setQ("");
-            setCategoryId("");
-          }}
-        />
-      </FilterBar>
+      </div>
+
+      {showFilters && (
+        <FilterBar>
+          <FilterSearch value={q} onChange={setQ} placeholder="ค้นหา ชื่อเอกสาร / คู่ค้า" />
+          <CustomSelect
+            value={categoryId}
+            onChange={setCategoryId}
+            options={categoryOptions}
+            className="w-56"
+          />
+          <FilterClear
+            disabled={!hasFilter}
+            onClick={() => {
+              setQ("");
+              setCategoryId("");
+            }}
+          />
+        </FilterBar>
+      )}
 
       {documents.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-xl border border-gray-200 bg-white py-16 text-center shadow-sm">
