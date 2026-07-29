@@ -91,3 +91,6 @@ web_legacy/
 /playwright-report/
 /blob-report/
 /playwright/.cache/
+
+# graphify knowledge graph (เลิกใช้ 2026-07-29 — ไม่มี consumer จริง, graph.json 12MB ทำ repo บวม)
+graphify-out/
