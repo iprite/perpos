@@ -31,7 +31,17 @@ import {
 import { StatusBadge } from "@/components/ui/badge";
 import { SegmentedControl } from "@/components/ui/segmented";
 import { usePagination, TablePager } from "@/components/ui/table-pager";
-import { Plus, X, Pencil, Trash2, AlertTriangle, BedDouble, LayoutGrid, Rows3 } from "lucide-react";
+import { FilterBar, FilterClear } from "@/components/ui/filter-bar";
+import {
+  Plus,
+  Pencil,
+  Trash2,
+  AlertTriangle,
+  BedDouble,
+  LayoutGrid,
+  Rows3,
+  Filter,
+} from "lucide-react";
 
 const TMC_ORG_ID = "1f52618c-09c4-49c5-a929-ea5060f26e7d";
 const SAV_ACCOUNT_ID = "a4ee27ea-6568-4097-abd7-a91fbf4805d0"; // กสิกร ออมทรัพย์
@@ -208,6 +218,8 @@ export default function TmcStaysPage() {
   const [filterProperty, setFilterProperty] = useState("");
   const [filterMonth, setFilterMonth] = useState("");
   const [view, setView] = useState<"card" | "table">("card");
+  const [showFilters, setShowFilters] = useState(false);
+  const hasFilter = !!filterProperty || !!filterMonth;
   const [availableMonths, setAvailableMonths] = useState<string[]>([]);
 
   // Add / Edit form
@@ -722,9 +734,32 @@ export default function TmcStaysPage() {
       title="การเข้าพัก"
       description="TMC Management"
       actions={
-        <Button onClick={openAdd}>
-          <Plus className="h-4 w-4" /> บันทึกเข้าพัก
-        </Button>
+        <>
+          <SegmentedControl
+            value={view}
+            onChange={setView}
+            ariaLabel="รูปแบบการแสดงผล"
+            options={[
+              { value: "card", label: "การ์ด", icon: <LayoutGrid className="h-4 w-4" /> },
+              { value: "table", label: "ตาราง", icon: <Rows3 className="h-4 w-4" /> },
+            ]}
+          />
+          <Button
+            variant={showFilters || hasFilter ? "secondary" : "outline"}
+            size="icon"
+            title="ตัวกรอง"
+            className="relative"
+            onClick={() => setShowFilters((v) => !v)}
+          >
+            <Filter className="h-4 w-4" />
+            {hasFilter && (
+              <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-amber-500" />
+            )}
+          </Button>
+          <Button onClick={openAdd}>
+            <Plus className="h-4 w-4" /> บันทึกเข้าพัก
+          </Button>
+        </>
       }
     >
       {/* Stats */}
@@ -749,49 +784,38 @@ export default function TmcStaysPage() {
         </div>
       </div>
 
-      {/* Filters */}
-      <div className="flex flex-wrap items-center gap-2">
-        <CustomSelect
-          value={filterProperty}
-          onChange={setFilterProperty}
-          options={PROPERTY_FILTER_OPTIONS}
-          className="w-32"
-        />
-        <CustomSelect
-          value={filterMonth}
-          onChange={setFilterMonth}
-          options={monthOptions}
-          className="w-36"
-        />
-        {(filterProperty || filterMonth) && (
-          <Button
-            variant="ghost"
-            size="sm"
+      {/* Filters — ซ่อนไว้หลัง icon ด้านบน */}
+      {showFilters && (
+        <FilterBar>
+          <CustomSelect
+            value={filterProperty}
+            onChange={setFilterProperty}
+            options={PROPERTY_FILTER_OPTIONS}
+            className="w-32"
+          />
+          <CustomSelect
+            value={filterMonth}
+            onChange={setFilterMonth}
+            options={monthOptions}
+            className="w-36"
+          />
+          <FilterClear
+            disabled={!hasFilter}
             onClick={() => {
               setFilterProperty("");
               setFilterMonth("");
             }}
-            className="gap-1 text-slate-400 hover:text-slate-600"
-          >
-            <X className="h-3.5 w-3.5" /> ล้างตัวกรอง
-          </Button>
-        )}
-        <SegmentedControl
-          className="ms-auto"
-          value={view}
-          onChange={setView}
-          ariaLabel="รูปแบบการแสดงผล"
-          options={[
-            { value: "card", label: "การ์ด", icon: <LayoutGrid className="h-4 w-4" /> },
-            { value: "table", label: "ตาราง", icon: <Rows3 className="h-4 w-4" /> },
-          ]}
-        />
-      </div>
+          />
+        </FilterBar>
+      )}
 
       {/* ── มุมมองตาราง ─────────────────────────────────────────────────── */}
       {view === "table" && (
         <div className="space-y-3">
-          <Table stickyHeader maxHeight="calc(100vh - 24rem)">
+          <Table
+            stickyHeader
+            maxHeight={showFilters ? "calc(100vh - 25rem)" : "calc(100vh - 21rem)"}
+          >
             <TableHeader sticky>
               <TableRow>
                 <TableHead>แปลง</TableHead>
