@@ -854,7 +854,15 @@ CREATE POLICY "ai_worker_write_reports_only"
 
 - **ผลลัพธ์ของ Graph**: จะอยู่ในโฟลเดอร์ `graphify-out/` ประกอบด้วย `graph.json`, `GRAPH_REPORT.md` และ `graph.html` (สำหรับเปิดดูความสัมพันธ์เชิงแผนภาพบน browser)
 - **กฎการอัปเดต**: ทุกครั้งที่มีการสร้างโมดูลใหม่, ย้ายโครงสร้างโฟลเดอร์ หรืออัปเดตโค้ดครั้งใหญ่ **ต้องสั่งรันอัปเดต Graph เสมอ** เพื่อให้ฐานข้อมูลความรู้ของ Agent เป็นปัจจุบัน ด้วยคำสั่ง:
+
   ```bash
   .venv/bin/python3 -m graphify update .
   ```
+
   _(ไม่มีค่าใช้จ่าย API ของ LLM เนื่องจากเป็นการดึงโครงสร้างแบบ AST ท้องถิ่น)_
+
+- **venv พังหลังอัปเกรด Python / ย้ายโฟลเดอร์** (อาการ: `no such file or directory: .venv/bin/python3` — `pyvenv.cfg` ยังชี้ path เก่า) → สร้างใหม่:
+  ```bash
+  rm -rf .venv && python3 -m venv .venv && .venv/bin/pip install -q graphifyy
+  ```
+- **`graph.html` ไม่ถูกสร้างแล้ว** ตั้งแต่ 2026-07-29: โค้ดเบสโตเกินเพดาน viz ของ graphify (9,425 nodes เทียบเพดาน 5,000) — ตัว `graph.json` + `GRAPH_REPORT.md` ที่ agent ใช้จริงยังอัปเดตครบ · ถ้าอยากได้ HTML จริง ๆ ต้อง `GRAPHIFY_VIZ_NODE_LIMIT=12000` **และ** ให้ topology เปลี่ยน (ไฟล์ ~4 MB, เปิดในเบราว์เซอร์หนัก)
