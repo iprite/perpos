@@ -18,6 +18,7 @@ import {
   TableCell,
   TableEmpty,
 } from "@/components/ui/table";
+import { TablePager, usePagination } from "@/components/ui/table-pager";
 import {
   HotelShell,
   useHotelRole,
@@ -244,6 +245,7 @@ function Section({
   empty: string;
   amountLabel: string;
 }) {
+  const pager = usePagination(rows);
   return (
     <div className="rounded-xl border border-gray-200 bg-white">
       <div className="flex items-center gap-2 border-b border-gray-100 px-4 py-3">
@@ -267,7 +269,7 @@ function Section({
           {rows.length === 0 ? (
             <TableEmpty colSpan={5}>{empty}</TableEmpty>
           ) : (
-            rows.map((b) => {
+            pager.rows.map((b) => {
               const t = roomType(b.room_id);
               const bal = balanceOf(b);
               return (
@@ -297,6 +299,7 @@ function Section({
           )}
         </TableBody>
       </Table>
+      <TablePager pager={pager} unit="รายการ" />
     </div>
   );
 }

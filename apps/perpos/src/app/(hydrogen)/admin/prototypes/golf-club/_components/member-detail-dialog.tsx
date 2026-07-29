@@ -48,6 +48,7 @@ import {
   TableHead,
   TableCell,
 } from "@/components/ui/table";
+import { TablePager, usePagination } from "@/components/ui/table-pager";
 import cn from "@core/utils/class-names";
 import { notify } from "@/lib/toast";
 import { useGolfData } from "./data-context";
@@ -113,10 +114,7 @@ function computeMemberRisk(m: GolfMember, totalBookings: number): RiskOutput {
     return {
       risk_level: "medium",
       reason: `${name} มีประวัติ no-show ${m.no_show_count} ครั้งจาก ${totalBookings} ครั้ง (${rate}%) ยังอยู่ในเกณฑ์ที่รับได้ แต่ควรเฝ้าระวังคิวช่วงพีค — เสี่ยงระดับกลาง`,
-      suggest: [
-        "ส่งเตือนยืนยันคิวก่อนถึงวันเล่นตามปกติ",
-        "ถ้าจองช่วงพีคและยังไม่ชำระ ค่อยขอมัดจำ",
-      ],
+      suggest: ["ส่งเตือนยืนยันคิวก่อนถึงวันเล่นตามปกติ", "ถ้าจองช่วงพีคและยังไม่ชำระ ค่อยขอมัดจำ"],
       confidence: 0.78,
     };
   }
@@ -136,7 +134,11 @@ const RISK_META: Record<
   { tone: BadgeTone; label: string; icon: React.ReactNode }
 > = {
   high: { tone: "danger", label: "เสี่ยงสูง", icon: <AlertTriangle className="h-3.5 w-3.5" /> },
-  medium: { tone: "warning", label: "เสี่ยงปานกลาง", icon: <AlertTriangle className="h-3.5 w-3.5" /> },
+  medium: {
+    tone: "warning",
+    label: "เสี่ยงปานกลาง",
+    icon: <AlertTriangle className="h-3.5 w-3.5" />,
+  },
   low: { tone: "success", label: "เสี่ยงต่ำ", icon: <ShieldCheck className="h-3.5 w-3.5" /> },
 };
 
@@ -173,7 +175,7 @@ export function MemberDetailDialog({
 
   // live member จาก store (points/tier อัปเดตสด)
   const m = useMemo(
-    () => (member ? members.find((x) => x.id === member.id) ?? member : null),
+    () => (member ? (members.find((x) => x.id === member.id) ?? member) : null),
     [members, member],
   );
 
@@ -187,6 +189,7 @@ export function MemberDetailDialog({
           : b.booking_date.localeCompare(a.booking_date),
       );
   }, [bookings, m]);
+  const historyPager = usePagination(history);
 
   const ledger = useMemo(() => {
     if (!m) return [];
@@ -194,6 +197,7 @@ export function MemberDetailDialog({
       .filter((p) => p.member_id === m.id)
       .sort((a, b) => b.created_at.localeCompare(a.created_at));
   }, [points, m]);
+  const ledgerPager = usePagination(ledger);
 
   const plan = useMemo(
     () => (m?.membership_plan_id ? plans.find((p) => p.id === m.membership_plan_id) : null),
@@ -274,280 +278,285 @@ export function MemberDetailDialog({
 
   return (
     <>
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent size="2xl">
-        <DialogHeader>
-          <DialogTitle>
-            <span className="flex flex-wrap items-center gap-2">
-              <Avatar name={m.display_name} className="h-8 w-8 text-xs" />
-              {m.display_name}
-              <MemberTypeBadge type={m.member_type} />
-              {m.tier !== "none" && (
-                <StatusBadge tone={TIER_TONE[m.tier]}>{TIER_LABEL[m.tier]}</StatusBadge>
-              )}
-              {fromLine && (
-                <StatusBadge tone="info" className="gap-1">
-                  <MessageCircle className="h-3 w-3" />
-                  จาก LINE
-                </StatusBadge>
-              )}
-            </span>
-          </DialogTitle>
-        </DialogHeader>
-        <DialogBody>
-          <div className="space-y-5">
-            {/* ── โปรไฟล์ + สรุปเร็ว ── */}
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-              <InfoTile icon={<Phone className="h-4 w-4" />} label="เบอร์โทร" value={m.phone ?? "—"} />
-              <InfoTile
-                icon={<Star className="h-4 w-4" />}
-                label="แต้มสะสมคงเหลือ"
-                value={`${fmtNum(m.points_balance)} แต้ม`}
-                tabularNums
-              />
-              <InfoTile
-                icon={<User className="h-4 w-4" />}
-                label="รหัสสมาชิก"
-                value={m.member_no ?? "ลูกค้าทั่วไป"}
-                badge={
-                  <StatusBadge tone={STATUS_META[m.status].tone}>
-                    {STATUS_META[m.status].label}
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent size="2xl">
+          <DialogHeader>
+            <DialogTitle>
+              <span className="flex flex-wrap items-center gap-2">
+                <Avatar name={m.display_name} className="h-8 w-8 text-xs" />
+                {m.display_name}
+                <MemberTypeBadge type={m.member_type} />
+                {m.tier !== "none" && (
+                  <StatusBadge tone={TIER_TONE[m.tier]}>{TIER_LABEL[m.tier]}</StatusBadge>
+                )}
+                {fromLine && (
+                  <StatusBadge tone="info" className="gap-1">
+                    <MessageCircle className="h-3 w-3" />
+                    จาก LINE
                   </StatusBadge>
-                }
-              />
-            </div>
-
-            {m.notes && (
-              <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-600">
-                {m.notes}
+                )}
+              </span>
+            </DialogTitle>
+          </DialogHeader>
+          <DialogBody>
+            <div className="space-y-5">
+              {/* ── โปรไฟล์ + สรุปเร็ว ── */}
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <InfoTile
+                  icon={<Phone className="h-4 w-4" />}
+                  label="เบอร์โทร"
+                  value={m.phone ?? "—"}
+                />
+                <InfoTile
+                  icon={<Star className="h-4 w-4" />}
+                  label="แต้มสะสมคงเหลือ"
+                  value={`${fmtNum(m.points_balance)} แต้ม`}
+                  tabularNums
+                />
+                <InfoTile
+                  icon={<User className="h-4 w-4" />}
+                  label="รหัสสมาชิก"
+                  value={m.member_no ?? "ลูกค้าทั่วไป"}
+                  badge={
+                    <StatusBadge tone={STATUS_META[m.status].tone}>
+                      {STATUS_META[m.status].label}
+                    </StatusBadge>
+                  }
+                />
               </div>
-            )}
 
-            {/* ── สมาชิกภาพ + tier ── */}
-            <Section icon={<BadgeCheck className="h-4 w-4" />} title="สมาชิกภาพ">
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <div>
-                  <Label htmlFor="mem-tier">ระดับสมาชิก (tier)</Label>
-                  <CustomSelect
-                    className="mt-1"
-                    value={tier}
-                    onChange={handleTierChange}
-                    options={TIER_OPTIONS}
-                    disabled={!writable}
-                  />
+              {m.notes && (
+                <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-600">
+                  {m.notes}
                 </div>
-                <div className="rounded-lg border border-gray-200 bg-white px-3 py-2">
-                  <Text className="text-xs text-gray-500">แพ็กเกจ / วันหมดอายุ</Text>
-                  {plan ? (
-                    <div className="mt-1 flex flex-wrap items-center gap-2">
-                      <Text className="text-sm font-medium text-gray-900">{plan.name}</Text>
-                      <StatusBadge tone={expiresActive ? "success" : "danger"}>
-                        {expiresActive ? "ใช้งาน" : "หมดอายุ"}
-                      </StatusBadge>
-                      <Text className="text-xs text-gray-500">
-                        ถึง {fmtDateTH(m.membership_expires_at)}
-                      </Text>
-                    </div>
-                  ) : (
-                    <Text className="mt-1 text-sm text-gray-400">
-                      ยังไม่ได้สมัครแพ็กเกจรายปี (สมัครได้ที่หน้า “แพ็กเกจสมาชิก”)
-                    </Text>
-                  )}
-                </div>
-              </div>
-            </Section>
+              )}
 
-            {/* ── แต้มสะสม + earn/redeem ── */}
-            <Section icon={<Star className="h-4 w-4" />} title="แต้มสะสม">
-              {writable && (
-                <div className="mb-3 flex flex-col gap-2 rounded-lg border border-gray-200 bg-gray-50 p-3 sm:flex-row sm:items-end">
-                  <div className="flex-1">
-                    <Label htmlFor="pt-amount">จำนวนแต้ม</Label>
-                    <Input
-                      id="pt-amount"
-                      type="number"
-                      min={1}
+              {/* ── สมาชิกภาพ + tier ── */}
+              <Section icon={<BadgeCheck className="h-4 w-4" />} title="สมาชิกภาพ">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div>
+                    <Label htmlFor="mem-tier">ระดับสมาชิก (tier)</Label>
+                    <CustomSelect
                       className="mt-1"
-                      placeholder="เช่น 200"
-                      value={ptAmount}
-                      onChange={(e) => setPtAmount(e.target.value)}
+                      value={tier}
+                      onChange={handleTierChange}
+                      options={TIER_OPTIONS}
+                      disabled={!writable}
                     />
                   </div>
-                  <div className="flex gap-2">
-                    <Button variant="secondary" onClick={earn}>
-                      <Plus className="mr-1.5 h-4 w-4" /> เพิ่มแต้ม
-                    </Button>
-                    <Button variant="outline" onClick={redeem}>
-                      <Minus className="mr-1.5 h-4 w-4" /> แลกแต้ม
-                    </Button>
-                  </div>
-                </div>
-              )}
-
-              {ledger.length === 0 ? (
-                <div className="rounded-lg border border-dashed border-gray-200 py-6 text-center text-sm text-gray-400">
-                  ยังไม่มีประวัติแต้ม
-                </div>
-              ) : (
-                <Table stickyHeader maxHeight="14rem" className="shadow-sm">
-                  <TableHeader sticky>
-                    <TableRow>
-                      <TableHead>วันที่</TableHead>
-                      <TableHead>รายการ</TableHead>
-                      <TableHead align="right">แต้ม</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {ledger.map((p) => (
-                      <TableRow key={p.id}>
-                        <TableCell className="text-gray-500 tabular-nums">
-                          {fmtDateTH(p.created_at)}
-                        </TableCell>
-                        <TableCell wrap className="text-gray-700">
-                          {p.description}
-                        </TableCell>
-                        <TableCell
-                          align="right"
-                          className={cn(
-                            "tabular-nums font-medium",
-                            p.points >= 0 ? "text-green-600" : "text-red-600",
-                          )}
-                        >
-                          {p.points >= 0 ? "+" : "−"}
-                          {fmtNum(Math.abs(p.points))}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </Section>
-
-            {/* ── AI-2 no-show risk ── */}
-            <Section icon={<Sparkles className="h-4 w-4" />} title="ประเมินความเสี่ยง no-show ด้วย AI">
-              <div className="rounded-xl border border-gray-200 bg-white p-3">
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                  <Text className="text-xs text-gray-500">
-                    ประวัติ no-show {fmtNum(m.no_show_count)} ครั้ง จาก {fmtNum(history.length)}{" "}
-                    การจอง — AI ประเมินความเสี่ยงและแนะแนวทาง
-                  </Text>
-                  <Button size="sm" onClick={runAi} disabled={aiLoading}>
-                    {aiLoading ? (
-                      <>
-                        <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
-                        กำลังประเมิน…
-                      </>
-                    ) : (
-                      <>
-                        <Sparkles className="mr-1.5 h-4 w-4" />
-                        ประเมิน no-show ด้วย AI
-                      </>
-                    )}
-                  </Button>
-                </div>
-
-                {aiLoading && (
-                  <div className="mt-3 animate-pulse space-y-2">
-                    <div className="h-4 w-1/3 rounded bg-gray-100" />
-                    <div className="h-4 w-full rounded bg-gray-100" />
-                    <div className="h-4 w-2/3 rounded bg-gray-100" />
-                  </div>
-                )}
-
-                {aiResult && !aiLoading && (
-                  <div className="mt-3 space-y-3">
-                    <StatusBadge tone={RISK_META[aiResult.risk_level].tone} className="gap-1">
-                      {RISK_META[aiResult.risk_level].icon}
-                      {RISK_META[aiResult.risk_level].label}
-                    </StatusBadge>
-                    <p className="text-sm leading-relaxed text-gray-700">{aiResult.reason}</p>
-                    <div className="rounded-lg border border-blue-200 bg-blue-50 p-3">
-                      <div className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-blue-700">
-                        <Lightbulb className="h-3.5 w-3.5" />
-                        คำแนะนำ
+                  <div className="rounded-lg border border-gray-200 bg-white px-3 py-2">
+                    <Text className="text-xs text-gray-500">แพ็กเกจ / วันหมดอายุ</Text>
+                    {plan ? (
+                      <div className="mt-1 flex flex-wrap items-center gap-2">
+                        <Text className="text-sm font-medium text-gray-900">{plan.name}</Text>
+                        <StatusBadge tone={expiresActive ? "success" : "danger"}>
+                          {expiresActive ? "ใช้งาน" : "หมดอายุ"}
+                        </StatusBadge>
+                        <Text className="text-xs text-gray-500">
+                          ถึง {fmtDateTH(m.membership_expires_at)}
+                        </Text>
                       </div>
-                      <ul className="space-y-1.5">
-                        {aiResult.suggest.map((s, i) => (
-                          <li key={i} className="flex gap-2 text-xs text-blue-800">
-                            <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-blue-500" />
-                            {s}
-                          </li>
-                        ))}
-                      </ul>
+                    ) : (
+                      <Text className="mt-1 text-sm text-gray-400">
+                        ยังไม่ได้สมัครแพ็กเกจรายปี (สมัครได้ที่หน้า “แพ็กเกจสมาชิก”)
+                      </Text>
+                    )}
+                  </div>
+                </div>
+              </Section>
+
+              {/* ── แต้มสะสม + earn/redeem ── */}
+              <Section icon={<Star className="h-4 w-4" />} title="แต้มสะสม">
+                {writable && (
+                  <div className="mb-3 flex flex-col gap-2 rounded-lg border border-gray-200 bg-gray-50 p-3 sm:flex-row sm:items-end">
+                    <div className="flex-1">
+                      <Label htmlFor="pt-amount">จำนวนแต้ม</Label>
+                      <Input
+                        id="pt-amount"
+                        type="number"
+                        min={1}
+                        className="mt-1"
+                        placeholder="เช่น 200"
+                        value={ptAmount}
+                        onChange={(e) => setPtAmount(e.target.value)}
+                      />
                     </div>
-                    <Text className="text-[11px] text-gray-400">
-                      ความเชื่อมั่น {Math.round(aiResult.confidence * 100)}% · AI ประเมินจากประวัติที่ระบบมี
-                      (ตรวจทานก่อนตัดสินใจ)
-                    </Text>
+                    <div className="flex gap-2">
+                      <Button variant="secondary" onClick={earn}>
+                        <Plus className="mr-1.5 h-4 w-4" /> เพิ่มแต้ม
+                      </Button>
+                      <Button variant="outline" onClick={redeem}>
+                        <Minus className="mr-1.5 h-4 w-4" /> แลกแต้ม
+                      </Button>
+                    </div>
                   </div>
                 )}
-              </div>
-            </Section>
 
-            {/* ── ประวัติการจอง ── */}
-            <Section
-              icon={<CalendarClock className="h-4 w-4" />}
-              title={`ประวัติการจอง (${fmtNum(history.length)})`}
-            >
-              {history.length === 0 ? (
-                <div className="rounded-lg border border-dashed border-gray-200 py-6 text-center text-sm text-gray-400">
-                  ยังไม่มีประวัติการจอง
+                {ledger.length === 0 ? (
+                  <div className="rounded-lg border border-dashed border-gray-200 py-6 text-center text-sm text-gray-400">
+                    ยังไม่มีประวัติแต้ม
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <Table stickyHeader maxHeight="14rem" className="shadow-sm">
+                      <TableHeader sticky>
+                        <TableRow>
+                          <TableHead>วันที่</TableHead>
+                          <TableHead>รายการ</TableHead>
+                          <TableHead align="right">แต้ม</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {ledgerPager.rows.map((p) => (
+                          <TableRow key={p.id}>
+                            <TableCell className="tabular-nums text-gray-500">
+                              {fmtDateTH(p.created_at)}
+                            </TableCell>
+                            <TableCell wrap className="text-gray-700">
+                              {p.description}
+                            </TableCell>
+                            <TableCell
+                              align="right"
+                              className={cn(
+                                "font-medium tabular-nums",
+                                p.points >= 0 ? "text-green-600" : "text-red-600",
+                              )}
+                            >
+                              {p.points >= 0 ? "+" : "−"}
+                              {fmtNum(Math.abs(p.points))}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                    <TablePager pager={ledgerPager} unit="รายการ" />
+                  </div>
+                )}
+              </Section>
+
+              {/* ── AI-2 no-show risk ── */}
+              <Section
+                icon={<Sparkles className="h-4 w-4" />}
+                title="ประเมินความเสี่ยง no-show ด้วย AI"
+              >
+                <div className="rounded-xl border border-gray-200 bg-white p-3">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <Text className="text-xs text-gray-500">
+                      ประวัติ no-show {fmtNum(m.no_show_count)} ครั้ง จาก {fmtNum(history.length)}{" "}
+                      การจอง — AI ประเมินความเสี่ยงและแนะแนวทาง
+                    </Text>
+                    <Button size="sm" onClick={runAi} disabled={aiLoading}>
+                      {aiLoading ? (
+                        <>
+                          <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                          กำลังประเมิน…
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="mr-1.5 h-4 w-4" />
+                          ประเมิน no-show ด้วย AI
+                        </>
+                      )}
+                    </Button>
+                  </div>
+
+                  {aiLoading && (
+                    <div className="mt-3 animate-pulse space-y-2">
+                      <div className="h-4 w-1/3 rounded bg-gray-100" />
+                      <div className="h-4 w-full rounded bg-gray-100" />
+                      <div className="h-4 w-2/3 rounded bg-gray-100" />
+                    </div>
+                  )}
+
+                  {aiResult && !aiLoading && (
+                    <div className="mt-3 space-y-3">
+                      <StatusBadge tone={RISK_META[aiResult.risk_level].tone} className="gap-1">
+                        {RISK_META[aiResult.risk_level].icon}
+                        {RISK_META[aiResult.risk_level].label}
+                      </StatusBadge>
+                      <p className="text-sm leading-relaxed text-gray-700">{aiResult.reason}</p>
+                      <div className="rounded-lg border border-blue-200 bg-blue-50 p-3">
+                        <div className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-blue-700">
+                          <Lightbulb className="h-3.5 w-3.5" />
+                          คำแนะนำ
+                        </div>
+                        <ul className="space-y-1.5">
+                          {aiResult.suggest.map((s, i) => (
+                            <li key={i} className="flex gap-2 text-xs text-blue-800">
+                              <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-blue-500" />
+                              {s}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                      <Text className="text-[11px] text-gray-400">
+                        ความเชื่อมั่น {Math.round(aiResult.confidence * 100)}% · AI
+                        ประเมินจากประวัติที่ระบบมี (ตรวจทานก่อนตัดสินใจ)
+                      </Text>
+                    </div>
+                  )}
                 </div>
-              ) : (
-                <Table stickyHeader maxHeight="16rem" className="shadow-sm">
-                  <TableHeader sticky>
-                    <TableRow>
-                      <TableHead>เลขที่ / วันที่</TableHead>
-                      <TableHead align="center">สถานะ</TableHead>
-                      <TableHead align="right">ยอดรวม</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {history.map((b) => (
-                      <TableRow key={b.id}>
-                        <TableCell>
-                          <div className="font-medium text-gray-900 tabular-nums">
-                            {b.booking_ref ?? "—"}
-                          </div>
-                          <div className="text-xs text-gray-500 tabular-nums">
-                            {fmtDateTH(b.booking_date)} · {b.start_time}
-                          </div>
-                        </TableCell>
-                        <TableCell align="center">
-                          <BookingStatusBadge status={b.status} />
-                        </TableCell>
-                        <TableCell align="right" tabular>
-                          {formatAmount(b.total_amount ?? 0)}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </Section>
-          </div>
-        </DialogBody>
-        <DialogFooter>
-          {writable && (
-            <Button
-              variant="secondary"
-              className="mr-auto"
-              onClick={() => setBookOpen(true)}
-            >
-              <CalendarPlus className="mr-1.5 h-4 w-4" /> จองให้ลูกค้ารายนี้
+              </Section>
+
+              {/* ── ประวัติการจอง ── */}
+              <Section
+                icon={<CalendarClock className="h-4 w-4" />}
+                title={`ประวัติการจอง (${fmtNum(history.length)})`}
+              >
+                {history.length === 0 ? (
+                  <div className="rounded-lg border border-dashed border-gray-200 py-6 text-center text-sm text-gray-400">
+                    ยังไม่มีประวัติการจอง
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <Table stickyHeader maxHeight="16rem" className="shadow-sm">
+                      <TableHeader sticky>
+                        <TableRow>
+                          <TableHead>เลขที่ / วันที่</TableHead>
+                          <TableHead align="center">สถานะ</TableHead>
+                          <TableHead align="right">ยอดรวม</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {historyPager.rows.map((b) => (
+                          <TableRow key={b.id}>
+                            <TableCell>
+                              <div className="font-medium tabular-nums text-gray-900">
+                                {b.booking_ref ?? "—"}
+                              </div>
+                              <div className="text-xs tabular-nums text-gray-500">
+                                {fmtDateTH(b.booking_date)} · {b.start_time}
+                              </div>
+                            </TableCell>
+                            <TableCell align="center">
+                              <BookingStatusBadge status={b.status} />
+                            </TableCell>
+                            <TableCell align="right" tabular>
+                              {formatAmount(b.total_amount ?? 0)}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                    <TablePager pager={historyPager} unit="รายการ" />
+                  </div>
+                )}
+              </Section>
+            </div>
+          </DialogBody>
+          <DialogFooter>
+            {writable && (
+              <Button variant="secondary" className="mr-auto" onClick={() => setBookOpen(true)}>
+                <CalendarPlus className="mr-1.5 h-4 w-4" /> จองให้ลูกค้ารายนี้
+              </Button>
+            )}
+            <Button variant="ghost" onClick={() => onOpenChange(false)}>
+              ปิด
             </Button>
-          )}
-          <Button variant="ghost" onClick={() => onOpenChange(false)}>
-            ปิด
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-    <BookingFormDialog
-      open={bookOpen}
-      onOpenChange={setBookOpen}
-      prefill={{ memberId: m.id }}
-    />
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <BookingFormDialog open={bookOpen} onOpenChange={setBookOpen} prefill={{ memberId: m.id }} />
     </>
   );
 }

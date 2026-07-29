@@ -29,6 +29,7 @@ import {
   TableEmpty,
   TableFooter,
 } from "@/components/ui/table";
+import { TablePager, usePagination } from "@/components/ui/table-pager";
 import { toast } from "@/lib/toast";
 import {
   NursingShell,
@@ -90,6 +91,7 @@ export default function InvoicesPage() {
   const filtered = invoices.filter(
     (i) => (!fStatus || i.status === fStatus) && (!fMonth || i.period_month === fMonth),
   );
+  const pager = usePagination(filtered);
 
   // KPI — รายได้ผูกกับเดือนที่เลือก, แต่ "ยอดค้างชำระ (AR)" = สูตรเดียวทั้งโมดูล (snapshot ทุกเดือน)
   const monthInv = invoices.filter((i) => i.period_month === fMonth && i.status !== "void");
@@ -289,7 +291,7 @@ export default function InvoicesPage() {
           {filtered.length === 0 ? (
             <TableEmpty colSpan={7}>ไม่พบใบแจ้งหนี้ตามเงื่อนไข</TableEmpty>
           ) : (
-            filtered.map((inv) => (
+            pager.rows.map((inv) => (
               <TableRow key={inv.id} clickable onClick={() => setDetail(inv)}>
                 <TableCell className="font-medium text-gray-900">{inv.invoice_no}</TableCell>
                 <TableCell>{residentName(inv.resident_id)}</TableCell>
@@ -309,6 +311,7 @@ export default function InvoicesPage() {
           )}
         </TableBody>
       </Table>
+      <TablePager pager={pager} unit="บิล" />
 
       {/* ─── Dialog รายละเอียดบิล ─── */}
       <Dialog open={!!detail} onOpenChange={(o) => !o && setDetail(null)}>

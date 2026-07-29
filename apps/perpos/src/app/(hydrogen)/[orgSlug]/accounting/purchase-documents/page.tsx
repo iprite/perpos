@@ -422,6 +422,7 @@ function PurchaseTaxReportView({
   report: PurchaseTaxReport | null;
   loading: boolean;
 }) {
+  const reportPager = usePagination(report?.rows ?? []);
   const yearOptions = useMemo(() => {
     const y = new Date().getFullYear();
     return [y + 1, y, y - 1, y - 2].map((v) => ({ value: String(v), label: `${v + 543}` }));
@@ -477,7 +478,7 @@ function PurchaseTaxReportView({
             ) : !report || report.rows.length === 0 ? (
               <TableEmpty colSpan={8}>ไม่มีใบกำกับภาษีซื้อในงวดนี้</TableEmpty>
             ) : (
-              report.rows.map((r) => (
+              reportPager.rows.map((r) => (
                 <TableRow key={r.id}>
                   <TableCell align="center" className="tabular-nums text-gray-500">
                     {r.seq}
@@ -511,6 +512,7 @@ function PurchaseTaxReportView({
             )}
           </TableBody>
         </Table>
+        <TablePager pager={reportPager} unit="รายการ" />
 
         {report && report.rows.length > 0 && (
           <div className="ml-auto mt-4 w-full max-w-sm space-y-1.5 text-sm">

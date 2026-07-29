@@ -28,6 +28,7 @@ import {
   TableCell,
   TableEmpty,
 } from "@/components/ui/table";
+import { TablePager, usePagination } from "@/components/ui/table-pager";
 import {
   Dialog,
   DialogContent,
@@ -66,6 +67,7 @@ export default function MedicationsPage() {
   const [tab, setTab] = useState<Tab>("emar");
   const [admins, setAdmins] = useState<MedicationAdministration[]>(MEDICATION_ADMINISTRATIONS);
   const [orders, setOrders] = useState<MedicationOrder[]>(MEDICATION_ORDERS);
+  const orderPager = usePagination(orders);
 
   const [fResident, setFResident] = useState("");
   const [fStatus, setFStatus] = useState("");
@@ -84,6 +86,7 @@ export default function MedicationsPage() {
       .filter((a) => (fStatus ? a.status === fStatus : true))
       .sort((a, b) => (a.scheduled_at < b.scheduled_at ? -1 : 1));
   }, [admins, fResident, fStatus]);
+  const adminPager = usePagination(filteredAdmins);
 
   // A5 rule-based stats
   const stats = useMemo(() => {
@@ -260,121 +263,127 @@ export default function MedicationsPage() {
             />
           </div>
 
+          <div className="space-y-3">
+            <Table stickyHeader maxHeight="60vh">
+              <TableHeader sticky>
+                <TableRow>
+                  <TableHead align="right">เวลา</TableHead>
+                  <TableHead>ผู้พัก</TableHead>
+                  <TableHead>ยา / ขนาด</TableHead>
+                  <TableHead align="center">สถานะ</TableHead>
+                  <TableHead>เหตุผล/หมายเหตุ</TableHead>
+                  <TableHead align="right">การทำเครื่องหมาย</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredAdmins.length === 0 ? (
+                  <TableEmpty colSpan={6}>ไม่มีรอบยาตามเงื่อนไข</TableEmpty>
+                ) : (
+                  adminPager.rows.map((a) => {
+                    const o = orderOf(a.medication_order_id);
+                    return (
+                      <TableRow key={a.id}>
+                        <TableCell align="right" tabular>
+                          {fmtTimeTH(a.scheduled_at)}
+                        </TableCell>
+                        <TableCell>{residentName(a.resident_id)}</TableCell>
+                        <TableCell>
+                          <span className="font-medium text-gray-900">{o?.drug_name ?? "—"}</span>
+                          <span className="ml-1 text-gray-400">{o?.dosage}</span>
+                        </TableCell>
+                        <TableCell align="center">
+                          <MedAdminStatusBadge status={a.status} />
+                        </TableCell>
+                        <TableCell wrap>
+                          <span className="text-gray-500">{a.reason ?? "—"}</span>
+                        </TableCell>
+                        <TableCell align="right">
+                          {a.status === "pending" && canAdminister ? (
+                            <div className="flex justify-end gap-1.5">
+                              <Button size="sm" onClick={() => markGiven(a.id)}>
+                                ให้ยาแล้ว
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => setActTarget({ id: a.id, status: "missed" })}
+                              >
+                                พลาด
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => setActTarget({ id: a.id, status: "refused" })}
+                              >
+                                ปฏิเสธ
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => setActTarget({ id: a.id, status: "held" })}
+                              >
+                                งด
+                              </Button>
+                            </div>
+                          ) : (
+                            <span className="text-xs text-gray-400">
+                              {a.administered_at
+                                ? fmtTimeTH(a.administered_at)
+                                : a.status === "pending"
+                                  ? "เฉพาะเวรตน"
+                                  : "—"}
+                            </span>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
+                )}
+              </TableBody>
+            </Table>
+            <TablePager pager={adminPager} unit="รายการ" />
+          </div>
+        </>
+      ) : (
+        <div className="space-y-3">
           <Table stickyHeader maxHeight="60vh">
             <TableHeader sticky>
               <TableRow>
-                <TableHead align="right">เวลา</TableHead>
                 <TableHead>ผู้พัก</TableHead>
-                <TableHead>ยา / ขนาด</TableHead>
+                <TableHead>ยา</TableHead>
+                <TableHead>ขนาด / ทาง</TableHead>
+                <TableHead>รอบ</TableHead>
+                <TableHead>เวลา</TableHead>
                 <TableHead align="center">สถานะ</TableHead>
-                <TableHead>เหตุผล/หมายเหตุ</TableHead>
-                <TableHead align="right">การทำเครื่องหมาย</TableHead>
+                <TableHead>เริ่มใช้</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredAdmins.length === 0 ? (
-                <TableEmpty colSpan={6}>ไม่มีรอบยาตามเงื่อนไข</TableEmpty>
+              {orders.length === 0 ? (
+                <TableEmpty colSpan={7}>ยังไม่มีรายการสั่งยา</TableEmpty>
               ) : (
-                filteredAdmins.map((a) => {
-                  const o = orderOf(a.medication_order_id);
-                  return (
-                    <TableRow key={a.id}>
-                      <TableCell align="right" tabular>
-                        {fmtTimeTH(a.scheduled_at)}
-                      </TableCell>
-                      <TableCell>{residentName(a.resident_id)}</TableCell>
-                      <TableCell>
-                        <span className="font-medium text-gray-900">{o?.drug_name ?? "—"}</span>
-                        <span className="ml-1 text-gray-400">{o?.dosage}</span>
-                      </TableCell>
-                      <TableCell align="center">
-                        <MedAdminStatusBadge status={a.status} />
-                      </TableCell>
-                      <TableCell wrap>
-                        <span className="text-gray-500">{a.reason ?? "—"}</span>
-                      </TableCell>
-                      <TableCell align="right">
-                        {a.status === "pending" && canAdminister ? (
-                          <div className="flex justify-end gap-1.5">
-                            <Button size="sm" onClick={() => markGiven(a.id)}>
-                              ให้ยาแล้ว
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => setActTarget({ id: a.id, status: "missed" })}
-                            >
-                              พลาด
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => setActTarget({ id: a.id, status: "refused" })}
-                            >
-                              ปฏิเสธ
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => setActTarget({ id: a.id, status: "held" })}
-                            >
-                              งด
-                            </Button>
-                          </div>
-                        ) : (
-                          <span className="text-xs text-gray-400">
-                            {a.administered_at
-                              ? fmtTimeTH(a.administered_at)
-                              : a.status === "pending"
-                                ? "เฉพาะเวรตน"
-                                : "—"}
-                          </span>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })
+                orderPager.rows.map((o) => (
+                  <TableRow key={o.id}>
+                    <TableCell>{residentName(o.resident_id)}</TableCell>
+                    <TableCell>
+                      <span className="font-medium text-gray-900">{o.drug_name}</span>
+                    </TableCell>
+                    <TableCell>
+                      {o.dosage} · {o.route}
+                    </TableCell>
+                    <TableCell className="uppercase">{o.frequency}</TableCell>
+                    <TableCell tabular>{o.schedule_times.join(", ") || "PRN"}</TableCell>
+                    <TableCell align="center">
+                      <MedActiveBadge active={o.is_active} />
+                    </TableCell>
+                    <TableCell>{fmtDateTH(o.start_date)}</TableCell>
+                  </TableRow>
+                ))
               )}
             </TableBody>
           </Table>
-        </>
-      ) : (
-        <Table stickyHeader maxHeight="60vh">
-          <TableHeader sticky>
-            <TableRow>
-              <TableHead>ผู้พัก</TableHead>
-              <TableHead>ยา</TableHead>
-              <TableHead>ขนาด / ทาง</TableHead>
-              <TableHead>รอบ</TableHead>
-              <TableHead>เวลา</TableHead>
-              <TableHead align="center">สถานะ</TableHead>
-              <TableHead>เริ่มใช้</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {orders.length === 0 ? (
-              <TableEmpty colSpan={7}>ยังไม่มีรายการสั่งยา</TableEmpty>
-            ) : (
-              orders.map((o) => (
-                <TableRow key={o.id}>
-                  <TableCell>{residentName(o.resident_id)}</TableCell>
-                  <TableCell>
-                    <span className="font-medium text-gray-900">{o.drug_name}</span>
-                  </TableCell>
-                  <TableCell>
-                    {o.dosage} · {o.route}
-                  </TableCell>
-                  <TableCell className="uppercase">{o.frequency}</TableCell>
-                  <TableCell tabular>{o.schedule_times.join(", ") || "PRN"}</TableCell>
-                  <TableCell align="center">
-                    <MedActiveBadge active={o.is_active} />
-                  </TableCell>
-                  <TableCell>{fmtDateTH(o.start_date)}</TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
+          <TablePager pager={orderPager} unit="รายการ" />
+        </div>
       )}
 
       {/* dialog เปลี่ยนสถานะ + เหตุผล */}

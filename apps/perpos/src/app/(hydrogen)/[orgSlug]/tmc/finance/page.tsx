@@ -343,6 +343,7 @@ export default function TmcFinancePage() {
   // audit log viewer
   const [showLogs, setShowLogs] = useState(false);
   const [logs, setLogs] = useState<AuditLog[]>([]);
+  const logPager = usePagination(logs);
   const [logsLoading, setLogsLoading] = useState(false);
 
   const authHeader = useCallback(async () => {
@@ -1437,55 +1438,58 @@ export default function TmcFinancePage() {
                 ยังไม่มีประวัติการแก้ไข
               </div>
             ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>วันเวลา</TableHead>
-                    <TableHead>ผู้แก้ไข</TableHead>
-                    <TableHead>รายการ</TableHead>
-                    <TableHead align="center">ประเภท</TableHead>
-                    <TableHead>สรุปการเปลี่ยนแปลง</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {logs.map((log) => {
-                    const diff = diffSummary(log);
-                    const editor = log.profiles?.display_name ?? log.profiles?.email ?? "ไม่ทราบ";
-                    const refDesc = String(
-                      log.old_data?.description ?? log.new_data?.description ?? "—",
-                    );
-                    return (
-                      <TableRow key={log.id}>
-                        <TableCell className="text-xs text-slate-500">
-                          {fmtDateTime(log.changed_at)}
-                        </TableCell>
-                        <TableCell
-                          className="max-w-[120px] truncate text-xs text-slate-700"
-                          title={editor}
-                        >
-                          {editor}
-                        </TableCell>
-                        <TableCell
-                          className="max-w-[140px] truncate text-slate-700"
-                          title={refDesc}
-                        >
-                          {refDesc}
-                        </TableCell>
-                        <TableCell align="center">
-                          {log.action === "delete" ? (
-                            <StatusBadge tone="danger">ลบ</StatusBadge>
-                          ) : (
-                            <StatusBadge tone="warning">แก้ไข</StatusBadge>
-                          )}
-                        </TableCell>
-                        <TableCell wrap className="max-w-xs text-xs text-slate-500" title={diff}>
-                          {diff}
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
+              <div className="space-y-3">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>วันเวลา</TableHead>
+                      <TableHead>ผู้แก้ไข</TableHead>
+                      <TableHead>รายการ</TableHead>
+                      <TableHead align="center">ประเภท</TableHead>
+                      <TableHead>สรุปการเปลี่ยนแปลง</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {logPager.rows.map((log) => {
+                      const diff = diffSummary(log);
+                      const editor = log.profiles?.display_name ?? log.profiles?.email ?? "ไม่ทราบ";
+                      const refDesc = String(
+                        log.old_data?.description ?? log.new_data?.description ?? "—",
+                      );
+                      return (
+                        <TableRow key={log.id}>
+                          <TableCell className="text-xs text-slate-500">
+                            {fmtDateTime(log.changed_at)}
+                          </TableCell>
+                          <TableCell
+                            className="max-w-[120px] truncate text-xs text-slate-700"
+                            title={editor}
+                          >
+                            {editor}
+                          </TableCell>
+                          <TableCell
+                            className="max-w-[140px] truncate text-slate-700"
+                            title={refDesc}
+                          >
+                            {refDesc}
+                          </TableCell>
+                          <TableCell align="center">
+                            {log.action === "delete" ? (
+                              <StatusBadge tone="danger">ลบ</StatusBadge>
+                            ) : (
+                              <StatusBadge tone="warning">แก้ไข</StatusBadge>
+                            )}
+                          </TableCell>
+                          <TableCell wrap className="max-w-xs text-xs text-slate-500" title={diff}>
+                            {diff}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+                <TablePager pager={logPager} unit="รายการ" />
+              </div>
             )}
           </DialogBody>
 

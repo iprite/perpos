@@ -26,6 +26,7 @@ import {
   TableHead,
   TableCell,
 } from "@/components/ui/table";
+import { TablePager, usePagination } from "@/components/ui/table-pager";
 import { StatusBadge } from "@/components/ui/badge";
 import { StatCard } from "@/components/ui/stat-card";
 
@@ -175,6 +176,7 @@ export function VitalsTab({ residentId }: { residentId: string }) {
         .sort((a, b) => (a.measured_at < b.measured_at ? 1 : -1)),
     [residentId],
   );
+  const pager = usePagination(rows);
   if (rows.length === 0)
     return <EmptyTab icon={<HeartPulse className="h-7 w-7" />} text="ยังไม่มีบันทึกสัญญาณชีพ" />;
   const latest = rows[0]!;
@@ -226,7 +228,7 @@ export function VitalsTab({ residentId }: { residentId: string }) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {rows.map((v) => (
+            {pager.rows.map((v) => (
               <TableRow key={v.id}>
                 <TableCell>{fmtDateTimeTH(v.measured_at)}</TableCell>
                 <TableCell align="right" tabular>
@@ -251,6 +253,7 @@ export function VitalsTab({ residentId }: { residentId: string }) {
             ))}
           </TableBody>
         </Table>
+        <TablePager pager={pager} unit="ครั้ง" />
       </div>
     </div>
   );
@@ -366,6 +369,7 @@ export function FinanceTab({ residentId }: { residentId: string }) {
         .sort((a, b) => (a.issue_date < b.issue_date ? 1 : -1)),
     [residentId],
   );
+  const invPager = usePagination(invoices);
   const outstanding = invoices
     .filter((i) => i.status !== "void")
     .reduce((s, i) => s + (i.total - i.paid_amount), 0);
@@ -409,7 +413,7 @@ export function FinanceTab({ residentId }: { residentId: string }) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {invoices.map((i) => (
+            {invPager.rows.map((i) => (
               <TableRow key={i.id}>
                 <TableCell className="font-mono text-xs text-gray-600">{i.invoice_no}</TableCell>
                 <TableCell align="center">{fmtMonthTH(i.period_month)}</TableCell>
@@ -432,6 +436,7 @@ export function FinanceTab({ residentId }: { residentId: string }) {
             ))}
           </TableBody>
         </Table>
+        <TablePager pager={invPager} unit="บิล" />
       </div>
     </div>
   );

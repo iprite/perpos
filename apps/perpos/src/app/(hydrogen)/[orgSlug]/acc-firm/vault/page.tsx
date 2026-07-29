@@ -18,6 +18,7 @@ import {
   TableCell,
   TableEmpty,
 } from "@/components/ui/table";
+import { LinkTablePager } from "@/components/ui/table-pager";
 import { listClientSummaries } from "@/lib/acc-firm/vault/queries";
 import { requireVaultPage } from "./_components/guard";
 import { VaultClientFilter } from "./_components/client-filter";
@@ -29,10 +30,10 @@ export default async function VaultIndexPage({
   searchParams,
 }: {
   params: Promise<{ orgSlug: string }>;
-  searchParams: Promise<{ q?: string; scope?: string }>;
+  searchParams: Promise<{ q?: string; scope?: string; page?: string }>;
 }) {
   const { orgSlug } = await params;
-  const { q = "", scope = "" } = await searchParams;
+  const { q = "", scope = "", page: pageParam } = await searchParams;
   const ctx = await requireVaultPage(orgSlug);
 
   const summaries = await listClientSummaries(ctx.rls, ctx.orgId);
@@ -47,6 +48,11 @@ export default async function VaultIndexPage({
       .toLowerCase()
       .includes(keyword);
   });
+
+  // แบ่งหน้าฝั่ง server — page อยู่ใน searchParams (ดู DESIGN.md §5.1 ท่าที่ 3)
+  const PAGE_SIZE = 25;
+  const page = Math.max(1, Number(pageParam ?? 1) || 1);
+  const pageRows = rows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const totalClients = summaries.length;
   const clientsMissing = summaries.filter((s) => s.missingRequired > 0).length;
@@ -108,65 +114,76 @@ export default async function VaultIndexPage({
           </Button>
         </div>
       ) : (
-        <Table className="shadow-sm">
-          <TableHeader>
-            <TableRow>
-              <TableHead>รหัส</TableHead>
-              <TableHead>ชื่อบริษัท</TableHead>
-              <TableHead>เลขผู้เสียภาษี</TableHead>
-              <TableHead align="right">ขาดเอกสาร</TableHead>
-              <TableHead align="right">เลยกำหนด</TableHead>
-              <TableHead align="right">เอกสารทั้งหมด</TableHead>
-              <TableHead>อัปโหลดล่าสุด</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {rows.length === 0 ? (
-              <TableEmpty colSpan={7}>ไม่พบลูกค้าที่ตรงกับตัวกรอง</TableEmpty>
-            ) : (
-              rows.map((s) => (
-                <LinkRow key={s.client.id} href={`/${orgSlug}/acc-firm/vault/${s.client.id}`}>
-                  <TableCell className="font-medium text-gray-800">{s.client.clientCode}</TableCell>
-                  <TableCell className="text-gray-800">
-                    <span className="flex items-center gap-2">
-                      {s.client.companyName}
-                      {!s.client.dbdRelocationNotified && s.client.storageLocation && (
-                        <StatusBadge tone="warning">ยังไม่แจ้งย้ายที่เก็บ</StatusBadge>
+        <div className="space-y-3">
+          <Table className="shadow-sm">
+            <TableHeader>
+              <TableRow>
+                <TableHead>รหัส</TableHead>
+                <TableHead>ชื่อบริษัท</TableHead>
+                <TableHead>เลขผู้เสียภาษี</TableHead>
+                <TableHead align="right">ขาดเอกสาร</TableHead>
+                <TableHead align="right">เลยกำหนด</TableHead>
+                <TableHead align="right">เอกสารทั้งหมด</TableHead>
+                <TableHead>อัปโหลดล่าสุด</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {rows.length === 0 ? (
+                <TableEmpty colSpan={7}>ไม่พบลูกค้าที่ตรงกับตัวกรอง</TableEmpty>
+              ) : (
+                pageRows.map((s) => (
+                  <LinkRow key={s.client.id} href={`/${orgSlug}/acc-firm/vault/${s.client.id}`}>
+                    <TableCell className="font-medium text-gray-800">
+                      {s.client.clientCode}
+                    </TableCell>
+                    <TableCell className="text-gray-800">
+                      <span className="flex items-center gap-2">
+                        {s.client.companyName}
+                        {!s.client.dbdRelocationNotified && s.client.storageLocation && (
+                          <StatusBadge tone="warning">ยังไม่แจ้งย้ายที่เก็บ</StatusBadge>
+                        )}
+                      </span>
+                    </TableCell>
+                    <TableCell align="right" tabular className="text-gray-600">
+                      {s.client.taxId ?? "—"}
+                    </TableCell>
+                    <TableCell align="right" tabular>
+                      {s.missingRequired > 0 ? (
+                        <span className="text-amber-700">
+                          {s.missingRequired.toLocaleString("th-TH")}
+                        </span>
+                      ) : (
+                        <span className="text-gray-400">0</span>
                       )}
-                    </span>
-                  </TableCell>
-                  <TableCell align="right" tabular className="text-gray-600">
-                    {s.client.taxId ?? "—"}
-                  </TableCell>
-                  <TableCell align="right" tabular>
-                    {s.missingRequired > 0 ? (
-                      <span className="text-amber-700">
-                        {s.missingRequired.toLocaleString("th-TH")}
-                      </span>
-                    ) : (
-                      <span className="text-gray-400">0</span>
-                    )}
-                  </TableCell>
-                  <TableCell align="right" tabular>
-                    {s.overdueRequired > 0 ? (
-                      <span className="text-red-600">
-                        {s.overdueRequired.toLocaleString("th-TH")}
-                      </span>
-                    ) : (
-                      <span className="text-gray-400">0</span>
-                    )}
-                  </TableCell>
-                  <TableCell align="right" tabular className="text-gray-700">
-                    {s.documentCount.toLocaleString("th-TH")}
-                  </TableCell>
-                  <TableCell className="text-xs text-gray-500">
-                    {fmtDateTime(s.lastUploadAt)}
-                  </TableCell>
-                </LinkRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
+                    </TableCell>
+                    <TableCell align="right" tabular>
+                      {s.overdueRequired > 0 ? (
+                        <span className="text-red-600">
+                          {s.overdueRequired.toLocaleString("th-TH")}
+                        </span>
+                      ) : (
+                        <span className="text-gray-400">0</span>
+                      )}
+                    </TableCell>
+                    <TableCell align="right" tabular className="text-gray-700">
+                      {s.documentCount.toLocaleString("th-TH")}
+                    </TableCell>
+                    <TableCell className="text-xs text-gray-500">
+                      {fmtDateTime(s.lastUploadAt)}
+                    </TableCell>
+                  </LinkRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+          <LinkTablePager
+            page={page}
+            pageSize={PAGE_SIZE}
+            total={rows.length}
+            query={{ q, scope }}
+            unit="ราย"
+          />
+        </div>
       )}
 
       {overdueItems > 0 && (

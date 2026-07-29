@@ -90,6 +90,9 @@ export default function TaxClosingPage() {
         .sort((a, b) => b.due_date.localeCompare(a.due_date)),
     [taxFilings],
   );
+  // filingRows ถูกเรียกเฉพาะแท็บที่ active → รายการที่แบ่งหน้าคือของแท็บนั้น
+  const filingList = tab === "pp30" ? pp30Filings : pndFilings;
+  const filingPager = usePagination(filingList, { resetKey: tab });
   const sortedPeriods = useMemo(
     () => [...periods].sort((a, b) => b.year - a.year || b.month - a.month),
     [periods],
@@ -146,62 +149,65 @@ export default function TaxClosingPage() {
   );
 
   const filingRows = (rows: AccTaxFiling[], emptyText: string) => (
-    <Table className="shadow-sm">
-      <TableHeader>
-        <TableRow>
-          <TableHead>แบบภาษี</TableHead>
-          <TableHead>งวด</TableHead>
-          <TableHead align="center">สถานะ</TableHead>
-          <TableHead align="right">ยอดต้องชำระ</TableHead>
-          <TableHead>กำหนดยื่น</TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {loading.taxFilings ? (
-          <TableLoading colSpan={5} />
-        ) : rows.length === 0 ? (
-          <TableEmpty colSpan={5}>
-            <div className="flex flex-col items-center gap-3 py-10 text-center">
-              <div className="rounded-full bg-gray-100 p-4">
-                <Receipt className="h-8 w-8 text-gray-400" />
-              </div>
-              <div>
-                <div className="text-sm font-medium text-gray-900">{emptyText}</div>
-                <div className="mt-1 text-sm text-gray-500">
-                  เพิ่มแบบภาษีใหม่ หรือบันทึกเงินเดือนเพื่อสร้าง ภ.ง.ด.1 อัตโนมัติ
+    <div className="space-y-3">
+      <Table className="shadow-sm">
+        <TableHeader>
+          <TableRow>
+            <TableHead>แบบภาษี</TableHead>
+            <TableHead>งวด</TableHead>
+            <TableHead align="center">สถานะ</TableHead>
+            <TableHead align="right">ยอดต้องชำระ</TableHead>
+            <TableHead>กำหนดยื่น</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {loading.taxFilings ? (
+            <TableLoading colSpan={5} />
+          ) : rows.length === 0 ? (
+            <TableEmpty colSpan={5}>
+              <div className="flex flex-col items-center gap-3 py-10 text-center">
+                <div className="rounded-full bg-gray-100 p-4">
+                  <Receipt className="h-8 w-8 text-gray-400" />
                 </div>
+                <div>
+                  <div className="text-sm font-medium text-gray-900">{emptyText}</div>
+                  <div className="mt-1 text-sm text-gray-500">
+                    เพิ่มแบบภาษีใหม่ หรือบันทึกเงินเดือนเพื่อสร้าง ภ.ง.ด.1 อัตโนมัติ
+                  </div>
+                </div>
+                {canWrite && (
+                  <Button size="sm" onClick={openAdd}>
+                    <Plus className="mr-1.5 h-4 w-4" /> เพิ่มแบบภาษี
+                  </Button>
+                )}
               </div>
-              {canWrite && (
-                <Button size="sm" onClick={openAdd}>
-                  <Plus className="mr-1.5 h-4 w-4" /> เพิ่มแบบภาษี
-                </Button>
-              )}
-            </div>
-          </TableEmpty>
-        ) : (
-          rows.map((f) => (
-            <TableRow key={f.id} clickable onClick={() => openEdit(f)}>
-              <TableCell>
-                <div className="font-medium text-gray-900">{TAX_KIND_LABEL[f.tax_kind]}</div>
-                <div className="text-xs text-gray-400">{TAX_KIND_PLAIN[f.tax_kind]}</div>
-              </TableCell>
-              <TableCell className="whitespace-nowrap text-gray-600">
-                {fmtMonthYearTH(f.period_year, f.period_month)}
-              </TableCell>
-              <TableCell align="center">
-                <TaxStatusBadge status={f.status} />
-              </TableCell>
-              <TableCell align="right" tabular className="font-medium text-gray-900">
-                {fmtMoney(f.net_payable ?? 0)}
-              </TableCell>
-              <TableCell className="whitespace-nowrap text-gray-500">
-                {fmtDateTH(f.due_date)}
-              </TableCell>
-            </TableRow>
-          ))
-        )}
-      </TableBody>
-    </Table>
+            </TableEmpty>
+          ) : (
+            filingPager.rows.map((f) => (
+              <TableRow key={f.id} clickable onClick={() => openEdit(f)}>
+                <TableCell>
+                  <div className="font-medium text-gray-900">{TAX_KIND_LABEL[f.tax_kind]}</div>
+                  <div className="text-xs text-gray-400">{TAX_KIND_PLAIN[f.tax_kind]}</div>
+                </TableCell>
+                <TableCell className="whitespace-nowrap text-gray-600">
+                  {fmtMonthYearTH(f.period_year, f.period_month)}
+                </TableCell>
+                <TableCell align="center">
+                  <TaxStatusBadge status={f.status} />
+                </TableCell>
+                <TableCell align="right" tabular className="font-medium text-gray-900">
+                  {fmtMoney(f.net_payable ?? 0)}
+                </TableCell>
+                <TableCell className="whitespace-nowrap text-gray-500">
+                  {fmtDateTH(f.due_date)}
+                </TableCell>
+              </TableRow>
+            ))
+          )}
+        </TableBody>
+      </Table>
+      <TablePager pager={filingPager} unit="แบบ" />
+    </div>
   );
 
   return (

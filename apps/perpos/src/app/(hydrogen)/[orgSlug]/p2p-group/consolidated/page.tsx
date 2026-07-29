@@ -14,9 +14,15 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { LinkTablePager } from "@/components/ui/table-pager";
 import { listCompanies, listFinancials, listIntercompany } from "@/lib/p2p-group/queries";
 import { consolidate, grossProfit, isEliminated, monthStart } from "@/lib/p2p-group/metrics";
-import { IC_TYPE_LABEL, formatMoney, formatThaiDate, formatThaiMonth } from "@/lib/p2p-group/labels";
+import {
+  IC_TYPE_LABEL,
+  formatMoney,
+  formatThaiDate,
+  formatThaiMonth,
+} from "@/lib/p2p-group/labels";
 import { requireP2pGroupMoneyPage } from "../_components/guard";
 import { MonthFilter } from "../_components/month-filter";
 import { Coverage } from "../_components/coverage";
@@ -26,10 +32,10 @@ export default async function ConsolidatedPage({
   searchParams,
 }: {
   params: Promise<{ orgSlug: string }>;
-  searchParams: Promise<{ period?: string }>;
+  searchParams: Promise<{ period?: string; page?: string }>;
 }) {
   const { orgSlug } = await params;
-  const { period } = await searchParams;
+  const { period, page: pageParam } = await searchParams;
   const ctx = await requireP2pGroupMoneyPage(orgSlug);
 
   const periodMonth = /^\d{4}-\d{2}-01$/.test(period ?? "")
@@ -47,6 +53,10 @@ export default async function ConsolidatedPage({
   const subFinancials = financials.filter((f) => subIds.has(f.company_id));
   const result = consolidate(subFinancials, intercompany, subsidiaries.length);
   const eliminated = intercompany.filter(isEliminated);
+  // แบ่งหน้าฝั่ง server — page อยู่ใน searchParams (ดู DESIGN.md §5.1 ท่าที่ 3)
+  const ELIM_PAGE_SIZE = 20;
+  const elimPage = Math.max(1, Number(pageParam ?? 1) || 1);
+  const elimRows = eliminated.slice((elimPage - 1) * ELIM_PAGE_SIZE, elimPage * ELIM_PAGE_SIZE);
   const companyName = new Map(companies.map((c) => [c.id, c.name]));
   const finByCompany = new Map(financials.map((f) => [f.company_id, f]));
 
@@ -186,7 +196,7 @@ export default async function ConsolidatedPage({
                   งวดนี้ไม่มีรายการระหว่างบริษัทที่ต้องตัดออก — ยอดรวมจึงเท่ากับผลบวกของทุกบริษัท
                 </TableEmpty>
               ) : (
-                eliminated.map((t) => (
+                elimRows.map((t) => (
                   <TableRow key={t.id}>
                     <TableCell align="center" className="tabular-nums">
                       {formatThaiDate(t.txn_date)}
@@ -202,6 +212,13 @@ export default async function ConsolidatedPage({
               )}
             </TableBody>
           </Table>
+          <LinkTablePager
+            page={elimPage}
+            pageSize={ELIM_PAGE_SIZE}
+            total={eliminated.length}
+            query={{ period }}
+            unit="รายการ"
+          />
         </div>
       </div>
     </PageShell>

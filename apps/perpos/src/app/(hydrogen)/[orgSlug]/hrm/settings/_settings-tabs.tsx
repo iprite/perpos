@@ -29,6 +29,7 @@ import {
   TableHead,
   TableCell,
 } from "@/components/ui/table";
+import { TablePager, usePagination } from "@/components/ui/table-pager";
 import { toast } from "@/lib/toast";
 
 import type { LeaveType, PayItem, PayItemType, Fund, AccountSetting } from "@/lib/hrm/types";
@@ -65,6 +66,7 @@ export function LeaveTab({
   orgId: string;
   canWrite: boolean;
 }) {
+  const pager = usePagination(rows);
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<LeaveType | null>(null);
@@ -149,7 +151,7 @@ export function LeaveTab({
           </TableRow>
         </TableHeader>
         <TableBody>
-          {rows.map((lt) => (
+          {pager.rows.map((lt) => (
             <TableRow
               key={lt.id}
               clickable={canWrite}
@@ -174,6 +176,7 @@ export function LeaveTab({
           ))}
         </TableBody>
       </Table>
+      <TablePager pager={pager} unit="ประเภท" />
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent size="lg">
@@ -290,6 +293,7 @@ export function PayItemTab({
   const [saving, setSaving] = useState(false);
 
   const sorted = useMemo(() => [...rows].sort((a, b) => a.sort_order - b.sort_order), [rows]);
+  const pager = usePagination(sorted);
 
   function openAdd() {
     setEditing(null);
@@ -373,7 +377,7 @@ export function PayItemTab({
           </TableRow>
         </TableHeader>
         <TableBody>
-          {sorted.map((pi) => (
+          {pager.rows.map((pi) => (
             <TableRow
               key={pi.id}
               clickable={canWrite && !pi.is_system}
@@ -410,6 +414,7 @@ export function PayItemTab({
           ))}
         </TableBody>
       </Table>
+      <TablePager pager={pager} unit="รายการ" />
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent size="lg">
@@ -511,6 +516,7 @@ export function FundTab({
   orgId: string;
   canWrite: boolean;
 }) {
+  const pager = usePagination(rows);
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Fund | null>(null);
@@ -579,7 +585,7 @@ export function FundTab({
           </TableRow>
         </TableHeader>
         <TableBody>
-          {rows.map((fund) => (
+          {pager.rows.map((fund) => (
             <TableRow
               key={fund.id}
               clickable={canWrite}
@@ -602,6 +608,7 @@ export function FundTab({
           ))}
         </TableBody>
       </Table>
+      <TablePager pager={pager} unit="กองทุน" />
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent size="lg">
@@ -691,6 +698,7 @@ export function AccountTab({
   orgId: string;
   canWrite: boolean;
 }) {
+  const pager = usePagination(rows);
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<AccountSetting | null>(null);
@@ -738,7 +746,7 @@ export function AccountTab({
           </TableRow>
         </TableHeader>
         <TableBody>
-          {rows.map((as) => (
+          {pager.rows.map((as) => (
             <TableRow
               key={as.id}
               clickable={canWrite}
@@ -755,6 +763,7 @@ export function AccountTab({
           ))}
         </TableBody>
       </Table>
+      <TablePager pager={pager} unit="รายการ" />
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent size="md">
