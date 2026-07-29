@@ -326,6 +326,7 @@ export const MODULE_MENUS: Record<string, MenuDef[]> = {
   acc_firm: [
     { key: "dashboard", label: "Dashboard" },
     { key: "clients", label: "ลูกค้า (Client Orgs)" },
+    { key: "vault", label: "คลังเอกสารลูกค้า" },
     { key: "reports", label: "รายงานรวม" },
     { key: "close-check", label: "ตรวจปิดงวด" },
     { key: "petty-cash", label: "เงินสดย่อย" },

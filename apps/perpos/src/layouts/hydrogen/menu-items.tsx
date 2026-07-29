@@ -7,6 +7,7 @@ import {
   BookOpenText,
   ReceiptText,
   FileInput,
+  FolderLock,
   BarChart3,
   ShieldCheck,
   Wallet,
@@ -438,6 +439,11 @@ function buildAccFirmMenuItems(org: string, labels: Record<string, string> = {})
       name: l("clients", "บริษัทลูกค้า"),
       href: f("clients"),
       icon: <Building2 className="h-5 w-5" />,
+    },
+    {
+      name: l("vault", "คลังเอกสารลูกค้า"),
+      href: f("vault"),
+      icon: <FolderLock className="h-5 w-5" />,
     },
     {
       name: l("reports", "รายงานรวม"),
