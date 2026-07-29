@@ -12,6 +12,7 @@ import {
   Wallet,
   Package,
   Contact,
+  ArrowLeftRight,
   Building2,
   DollarSign,
   Landmark,
@@ -559,13 +560,44 @@ function buildP2pSupplyMenuItems(org: string, labels: Record<string, string> = {
 }
 
 function buildP2pGroupMenuItems(org: string, labels: Record<string, string> = {}): MenuItem[] {
+  const p = (path: string) => `/${org}/p2p-group/${path}`;
   const l = (key: string, fallback: string) => labels[key] || fallback;
   return [
     { name: "P2P Group" },
     {
-      name: l("dashboard", "Dashboard"),
+      name: l("dashboard", "ภาพรวมกลุ่ม"),
       href: `/${org}/p2p-group`,
       icon: <LayoutDashboard className="h-5 w-5" />,
+    },
+    {
+      name: l("companies", "บริษัทในเครือ"),
+      href: p("companies"),
+      icon: <Building2 className="h-5 w-5" />,
+    },
+    {
+      name: l("financials", "ตัวเลขรายเดือน"),
+      href: p("financials"),
+      icon: <ReceiptText className="h-5 w-5" />,
+    },
+    {
+      name: l("consolidated", "งบรวมกลุ่ม"),
+      href: p("consolidated"),
+      icon: <BarChart3 className="h-5 w-5" />,
+    },
+    {
+      name: l("investments", "เงินลงทุน & ปันผล"),
+      href: p("investments"),
+      icon: <Landmark className="h-5 w-5" />,
+    },
+    {
+      name: l("intercompany", "รายการระหว่างกัน"),
+      href: p("intercompany"),
+      icon: <ArrowLeftRight className="h-5 w-5" />,
+    },
+    {
+      name: l("treasury", "เงินสด & ธนาคาร"),
+      href: p("treasury"),
+      icon: <Wallet className="h-5 w-5" />,
     },
   ];
 }
