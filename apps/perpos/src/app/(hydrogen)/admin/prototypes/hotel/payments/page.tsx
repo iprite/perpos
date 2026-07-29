@@ -19,6 +19,7 @@ import {
   TableCell,
   TableEmpty,
 } from "@/components/ui/table";
+import { TablePager, usePagination } from "@/components/ui/table-pager";
 import {
   HotelShell,
   useHotelRole,
@@ -100,6 +101,7 @@ export default function PaymentsPage() {
       })
       .sort((a, b) => b.paid_at.localeCompare(a.paid_at));
   }, [payments, bookings, rooms, search, kindF, methodF, fromDate, toDate]);
+  const payPager = usePagination(filteredPayments);
 
   // ── AR: ยอดค้างชำระต่อ booking ──
   const arRows = useMemo(() => {
@@ -112,6 +114,7 @@ export default function PaymentsPage() {
       .filter((r) => r.balance > 0)
       .sort((a, b) => b.balance - a.balance);
   }, [bookings, payments]);
+  const arPager = usePagination(arRows);
 
   // ── KPI ──
   const kpi = useMemo(() => {
@@ -217,60 +220,111 @@ export default function PaymentsPage() {
           </div>
 
           {/* payment table */}
+          <div className="space-y-3">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>วันที่/เวลา</TableHead>
+                  <TableHead>รหัสจอง</TableHead>
+                  <TableHead>แขก</TableHead>
+                  <TableHead>ห้อง</TableHead>
+                  <TableHead align="center">ประเภท</TableHead>
+                  <TableHead>ช่องทาง</TableHead>
+                  <TableHead>อ้างอิง</TableHead>
+                  <TableHead align="right">ยอด</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredPayments.length === 0 ? (
+                  <TableEmpty colSpan={8}>
+                    <div className="flex flex-col items-center gap-2 py-6">
+                      <Wallet className="h-8 w-8 text-gray-300" />
+                      <span>ไม่พบรายการรับชำระตามเงื่อนไข</span>
+                    </div>
+                  </TableEmpty>
+                ) : (
+                  payPager.rows.map((p) => {
+                    const b = bookingOf(p.booking_id);
+                    const isRefund = p.kind === "refund";
+                    return (
+                      <TableRow
+                        key={p.id}
+                        clickable={!!b}
+                        onClick={b ? () => setDetail(b) : undefined}
+                      >
+                        <TableCell className="text-gray-500">{fmtDateTimeTH(p.paid_at)}</TableCell>
+                        <TableCell className="font-medium text-gray-900">
+                          {b?.booking_code ?? "—"}
+                        </TableCell>
+                        <TableCell>{b?.guest_name ?? "—"}</TableCell>
+                        <TableCell>{roomNoOf(b)}</TableCell>
+                        <TableCell align="center">
+                          <PaymentKindBadge kind={p.kind} />
+                        </TableCell>
+                        <TableCell className="text-gray-500">
+                          {PAYMENT_METHOD_LABEL[p.method]}
+                        </TableCell>
+                        <TableCell className="text-gray-400">{p.reference ?? "—"}</TableCell>
+                        <TableCell
+                          align="right"
+                          tabular
+                          className={
+                            isRefund ? "font-medium text-red-600" : "font-medium text-green-600"
+                          }
+                        >
+                          {isRefund
+                            ? `−${fmtMoney(p.amount, { currency: false })} ฿`
+                            : fmtMoney(p.amount)}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
+                )}
+              </TableBody>
+            </Table>
+            <TablePager pager={payPager} unit="รายการ" />
+          </div>
+        </>
+      ) : (
+        /* ── AR ยอดค้างชำระ ── */
+        <div className="space-y-3">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>วันที่/เวลา</TableHead>
                 <TableHead>รหัสจอง</TableHead>
                 <TableHead>แขก</TableHead>
                 <TableHead>ห้อง</TableHead>
-                <TableHead align="center">ประเภท</TableHead>
-                <TableHead>ช่องทาง</TableHead>
-                <TableHead>อ้างอิง</TableHead>
-                <TableHead align="right">ยอด</TableHead>
+                <TableHead>เข้าพัก</TableHead>
+                <TableHead align="right">ยอดรวม</TableHead>
+                <TableHead align="right">ชำระแล้ว</TableHead>
+                <TableHead align="right">ค้างชำระ</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredPayments.length === 0 ? (
-                <TableEmpty colSpan={8}>
+              {arRows.length === 0 ? (
+                <TableEmpty colSpan={7}>
                   <div className="flex flex-col items-center gap-2 py-6">
-                    <Wallet className="h-8 w-8 text-gray-300" />
-                    <span>ไม่พบรายการรับชำระตามเงื่อนไข</span>
+                    <Banknote className="h-8 w-8 text-gray-300" />
+                    <span>เยี่ยม! ไม่มียอดค้างชำระคงเหลือ</span>
                   </div>
                 </TableEmpty>
               ) : (
-                filteredPayments.map((p) => {
-                  const b = bookingOf(p.booking_id);
-                  const isRefund = p.kind === "refund";
+                arPager.rows.map(({ booking: b, balance }) => {
+                  const paid = b.grand_total - balance;
                   return (
-                    <TableRow
-                      key={p.id}
-                      clickable={!!b}
-                      onClick={b ? () => setDetail(b) : undefined}
-                    >
-                      <TableCell className="text-gray-500">{fmtDateTimeTH(p.paid_at)}</TableCell>
-                      <TableCell className="font-medium text-gray-900">
-                        {b?.booking_code ?? "—"}
-                      </TableCell>
-                      <TableCell>{b?.guest_name ?? "—"}</TableCell>
+                    <TableRow key={b.id} clickable onClick={() => setDetail(b)}>
+                      <TableCell className="font-medium text-gray-900">{b.booking_code}</TableCell>
+                      <TableCell>{b.guest_name}</TableCell>
                       <TableCell>{roomNoOf(b)}</TableCell>
-                      <TableCell align="center">
-                        <PaymentKindBadge kind={p.kind} />
+                      <TableCell className="text-gray-500">{fmtDateTH(b.check_in_date)}</TableCell>
+                      <TableCell align="right" tabular>
+                        {fmtMoney(b.grand_total)}
                       </TableCell>
-                      <TableCell className="text-gray-500">
-                        {PAYMENT_METHOD_LABEL[p.method]}
+                      <TableCell align="right" tabular className="text-gray-500">
+                        {fmtMoney(paid)}
                       </TableCell>
-                      <TableCell className="text-gray-400">{p.reference ?? "—"}</TableCell>
-                      <TableCell
-                        align="right"
-                        tabular
-                        className={
-                          isRefund ? "font-medium text-red-600" : "font-medium text-green-600"
-                        }
-                      >
-                        {isRefund
-                          ? `−${fmtMoney(p.amount, { currency: false })} ฿`
-                          : fmtMoney(p.amount)}
+                      <TableCell align="right" tabular className="font-semibold text-red-600">
+                        {fmtMoney(balance)}
                       </TableCell>
                     </TableRow>
                   );
@@ -278,53 +332,8 @@ export default function PaymentsPage() {
               )}
             </TableBody>
           </Table>
-        </>
-      ) : (
-        /* ── AR ยอดค้างชำระ ── */
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>รหัสจอง</TableHead>
-              <TableHead>แขก</TableHead>
-              <TableHead>ห้อง</TableHead>
-              <TableHead>เข้าพัก</TableHead>
-              <TableHead align="right">ยอดรวม</TableHead>
-              <TableHead align="right">ชำระแล้ว</TableHead>
-              <TableHead align="right">ค้างชำระ</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {arRows.length === 0 ? (
-              <TableEmpty colSpan={7}>
-                <div className="flex flex-col items-center gap-2 py-6">
-                  <Banknote className="h-8 w-8 text-gray-300" />
-                  <span>เยี่ยม! ไม่มียอดค้างชำระคงเหลือ</span>
-                </div>
-              </TableEmpty>
-            ) : (
-              arRows.map(({ booking: b, balance }) => {
-                const paid = b.grand_total - balance;
-                return (
-                  <TableRow key={b.id} clickable onClick={() => setDetail(b)}>
-                    <TableCell className="font-medium text-gray-900">{b.booking_code}</TableCell>
-                    <TableCell>{b.guest_name}</TableCell>
-                    <TableCell>{roomNoOf(b)}</TableCell>
-                    <TableCell className="text-gray-500">{fmtDateTH(b.check_in_date)}</TableCell>
-                    <TableCell align="right" tabular>
-                      {fmtMoney(b.grand_total)}
-                    </TableCell>
-                    <TableCell align="right" tabular className="text-gray-500">
-                      {fmtMoney(paid)}
-                    </TableCell>
-                    <TableCell align="right" tabular className="font-semibold text-red-600">
-                      {fmtMoney(balance)}
-                    </TableCell>
-                  </TableRow>
-                );
-              })
-            )}
-          </TableBody>
-        </Table>
+          <TablePager pager={arPager} unit="รายการ" />
+        </div>
       )}
 
       {/* dialogs */}

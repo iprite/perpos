@@ -5,7 +5,15 @@ import { Download, Printer } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { ThaiDatePicker } from "@/components/ui/thai-date-picker";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { TablePager, usePagination } from "@/components/ui/table-pager";
 import {
   getPnlAction,
   getTrialBalanceAction,
@@ -35,6 +43,7 @@ export function FinancialReportsClient(props: {
   const [includeClosing, setIncludeClosing] = useState(true);
 
   const [trialBalance, setTrialBalance] = useState<TrialBalanceRow[]>(props.initialTrialBalance);
+  const tbPager = usePagination(trialBalance);
   const [pnl, setPnl] = useState<PnlRow[]>(props.initialPnl);
 
   const [pending, startTransition] = useTransition();
@@ -47,8 +56,12 @@ export function FinancialReportsClient(props: {
   }, [trialBalance]);
 
   const pnlTotals = useMemo(() => {
-    const revenue = pnl.filter((r) => r.section === "revenue").reduce((s, r) => s + (r.amount ?? 0), 0);
-    const expense = pnl.filter((r) => r.section === "expense").reduce((s, r) => s + (r.amount ?? 0), 0);
+    const revenue = pnl
+      .filter((r) => r.section === "revenue")
+      .reduce((s, r) => s + (r.amount ?? 0), 0);
+    const expense = pnl
+      .filter((r) => r.section === "expense")
+      .reduce((s, r) => s + (r.amount ?? 0), 0);
     return { revenue, expense, net: revenue - expense };
   }, [pnl]);
 
@@ -57,11 +70,20 @@ export function FinancialReportsClient(props: {
   // โหลดรายงานใหม่อัตโนมัติเมื่อเปลี่ยน filter (ข้ามรอบแรกเพราะมีข้อมูลจาก server แล้ว)
   const didMount = useRef(false);
   useEffect(() => {
-    if (!didMount.current) { didMount.current = true; return; }
+    if (!didMount.current) {
+      didMount.current = true;
+      return;
+    }
     setError(null);
     startTransition(async () => {
       const [tb, pl] = await Promise.all([
-        getTrialBalanceAction({ organizationId: orgId, startDate, endDate, postedOnly, includeClosing }),
+        getTrialBalanceAction({
+          organizationId: orgId,
+          startDate,
+          endDate,
+          postedOnly,
+          includeClosing,
+        }),
         getPnlAction({ organizationId: orgId, startDate, endDate, postedOnly, includeClosing }),
       ]);
       if (!tb.ok) {
@@ -95,18 +117,34 @@ export function FinancialReportsClient(props: {
           <div className="grid gap-1">
             <div className="text-xs text-slate-600">ช่วงวันที่</div>
             <div className="flex items-center gap-2">
-              <ThaiDatePicker value={startDate} onChange={(v) => setStartDate(v)} className="w-[160px]" />
+              <ThaiDatePicker
+                value={startDate}
+                onChange={(v) => setStartDate(v)}
+                className="w-[160px]"
+              />
               <div className="text-sm text-slate-500">–</div>
-              <ThaiDatePicker value={endDate} onChange={(v) => setEndDate(v)} className="w-[160px]" />
+              <ThaiDatePicker
+                value={endDate}
+                onChange={(v) => setEndDate(v)}
+                className="w-[160px]"
+              />
             </div>
           </div>
 
           <label className="flex items-center gap-2 text-sm text-slate-700">
-            <input type="checkbox" checked={postedOnly} onChange={(e) => setPostedOnly(e.target.checked)} />
+            <input
+              type="checkbox"
+              checked={postedOnly}
+              onChange={(e) => setPostedOnly(e.target.checked)}
+            />
             เฉพาะโพสต์แล้ว
           </label>
           <label className="flex items-center gap-2 text-sm text-slate-700">
-            <input type="checkbox" checked={includeClosing} onChange={(e) => setIncludeClosing(e.target.checked)} />
+            <input
+              type="checkbox"
+              checked={includeClosing}
+              onChange={(e) => setIncludeClosing(e.target.checked)}
+            />
             รวมรายการปิดงบ
           </label>
         </div>
@@ -136,7 +174,9 @@ export function FinancialReportsClient(props: {
         <button
           className={cn(
             "rounded-md px-3 py-1.5 text-sm",
-            tab === "trial" ? "bg-primary text-primary-foreground" : "bg-slate-100 text-slate-800 hover:bg-slate-200",
+            tab === "trial"
+              ? "bg-primary text-primary-foreground"
+              : "bg-slate-100 text-slate-800 hover:bg-slate-200",
           )}
           onClick={() => setTab("trial")}
           type="button"
@@ -146,7 +186,9 @@ export function FinancialReportsClient(props: {
         <button
           className={cn(
             "rounded-md px-3 py-1.5 text-sm",
-            tab === "pnl" ? "bg-primary text-primary-foreground" : "bg-slate-100 text-slate-800 hover:bg-slate-200",
+            tab === "pnl"
+              ? "bg-primary text-primary-foreground"
+              : "bg-slate-100 text-slate-800 hover:bg-slate-200",
           )}
           onClick={() => setTab("pnl")}
           type="button"
@@ -155,7 +197,11 @@ export function FinancialReportsClient(props: {
         </button>
       </div>
 
-      {error ? <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div> : null}
+      {error ? (
+        <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+          {error}
+        </div>
+      ) : null}
 
       {tab === "trial" ? (
         <div className="rounded-xl border border-slate-200 bg-white">
@@ -172,7 +218,7 @@ export function FinancialReportsClient(props: {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {trialBalance.map((r) => (
+              {tbPager.rows.map((r) => (
                 <TableRow key={r.accountId}>
                   <TableCell>
                     <button
@@ -183,7 +229,10 @@ export function FinancialReportsClient(props: {
                     >
                       <div className="flex items-center gap-2">
                         <div className="font-mono text-xs text-slate-600">{r.accountCode}</div>
-                        <div className="text-sm text-slate-900" style={{ paddingLeft: r.level * 12 }}>
+                        <div
+                          className="text-sm text-slate-900"
+                          style={{ paddingLeft: r.level * 12 }}
+                        >
                           {r.accountName}
                         </div>
                       </div>
@@ -202,17 +251,26 @@ export function FinancialReportsClient(props: {
                 <TableCell className="font-semibold">รวมงวดนี้</TableCell>
                 <TableCell />
                 <TableCell />
-                <TableCell className="text-right font-semibold tabular-nums">{fmt(trialTotals.dr)}</TableCell>
-                <TableCell className="text-right font-semibold tabular-nums">{fmt(trialTotals.cr)}</TableCell>
+                <TableCell className="text-right font-semibold tabular-nums">
+                  {fmt(trialTotals.dr)}
+                </TableCell>
+                <TableCell className="text-right font-semibold tabular-nums">
+                  {fmt(trialTotals.cr)}
+                </TableCell>
                 <TableCell />
                 <TableCell />
               </TableRow>
             </TableBody>
           </Table>
+          <TablePager pager={tbPager} unit="บัญชี" />
 
           <div className="flex items-center justify-between border-t border-slate-200 px-4 py-3 text-sm">
             <div className="text-slate-600">สถานะ</div>
-            <div className={cn("font-semibold", trialTotals.balanced ? "text-emerald-700" : "text-red-700")}
+            <div
+              className={cn(
+                "font-semibold",
+                trialTotals.balanced ? "text-emerald-700" : "text-red-700",
+              )}
             >
               {trialTotals.balanced ? "สมดุล" : "ไม่สมดุล"}
             </div>
@@ -230,14 +288,19 @@ export function FinancialReportsClient(props: {
             <TableBody>
               <TableRow>
                 <TableCell className="font-semibold text-slate-900">รายได้</TableCell>
-                <TableCell className="text-right font-semibold tabular-nums">{fmt(pnlTotals.revenue)}</TableCell>
+                <TableCell className="text-right font-semibold tabular-nums">
+                  {fmt(pnlTotals.revenue)}
+                </TableCell>
               </TableRow>
               {pnl
                 .filter((r) => r.section === "revenue")
                 .map((r) => (
                   <TableRow key={r.accountId}>
                     <TableCell>
-                      <div className="flex items-center gap-2" style={{ paddingLeft: r.level * 12 }}>
+                      <div
+                        className="flex items-center gap-2"
+                        style={{ paddingLeft: r.level * 12 }}
+                      >
                         <div className="font-mono text-xs text-slate-600">{r.accountCode}</div>
                         <div className="text-sm text-slate-900">{r.accountName}</div>
                       </div>
@@ -248,14 +311,19 @@ export function FinancialReportsClient(props: {
 
               <TableRow>
                 <TableCell className="font-semibold text-slate-900">ค่าใช้จ่าย</TableCell>
-                <TableCell className="text-right font-semibold tabular-nums">{fmt(pnlTotals.expense)}</TableCell>
+                <TableCell className="text-right font-semibold tabular-nums">
+                  {fmt(pnlTotals.expense)}
+                </TableCell>
               </TableRow>
               {pnl
                 .filter((r) => r.section === "expense")
                 .map((r) => (
                   <TableRow key={r.accountId}>
                     <TableCell>
-                      <div className="flex items-center gap-2" style={{ paddingLeft: r.level * 12 }}>
+                      <div
+                        className="flex items-center gap-2"
+                        style={{ paddingLeft: r.level * 12 }}
+                      >
                         <div className="font-mono text-xs text-slate-600">{r.accountCode}</div>
                         <div className="text-sm text-slate-900">{r.accountName}</div>
                       </div>
@@ -266,7 +334,12 @@ export function FinancialReportsClient(props: {
 
               <TableRow>
                 <TableCell className="text-lg font-semibold">กำไร(ขาดทุน)สุทธิ</TableCell>
-                <TableCell className={cn("text-right text-lg font-semibold tabular-nums", pnlTotals.net >= 0 ? "text-emerald-700" : "text-red-700")}>
+                <TableCell
+                  className={cn(
+                    "text-right text-lg font-semibold tabular-nums",
+                    pnlTotals.net >= 0 ? "text-emerald-700" : "text-red-700",
+                  )}
+                >
                   {fmt(pnlTotals.net)}
                 </TableCell>
               </TableRow>

@@ -27,6 +27,7 @@ import {
   TableCell,
   TableEmpty,
 } from "@/components/ui/table";
+import { TablePager, usePagination } from "@/components/ui/table-pager";
 import {
   HotelShell,
   useHotelRole,
@@ -228,6 +229,7 @@ function ArrivalsCard({
   onOpen: (b: Booking) => void;
   emptyText: string;
 }) {
+  const pager = usePagination(rows);
   return (
     <div className="rounded-xl border border-gray-200 bg-white">
       <div className="flex items-center gap-2 border-b border-gray-100 px-4 py-3">
@@ -250,7 +252,7 @@ function ArrivalsCard({
           {rows.length === 0 ? (
             <TableEmpty colSpan={4}>{emptyText}</TableEmpty>
           ) : (
-            rows.map((b) => {
+            pager.rows.map((b) => {
               const t = roomType(b.room_id);
               return (
                 <TableRow key={b.id} clickable onClick={() => onOpen(b)}>
@@ -274,6 +276,7 @@ function ArrivalsCard({
           )}
         </TableBody>
       </Table>
+      <TablePager pager={pager} unit="รายการ" />
     </div>
   );
 }

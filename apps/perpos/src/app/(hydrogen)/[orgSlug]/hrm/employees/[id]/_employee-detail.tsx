@@ -53,6 +53,7 @@ import {
   TableHead,
   TableCell,
 } from "@/components/ui/table";
+import { TablePager, usePagination } from "@/components/ui/table-pager";
 import { toast } from "@/lib/toast";
 
 import type {
@@ -663,6 +664,7 @@ function PayrollTab({ payslips, runs }: { payslips: Payslip[]; runs: PayrollRun[
       }),
     [payslips, runById],
   );
+  const pager = usePagination(slips);
 
   if (slips.length === 0)
     return <EmptyTab icon={<Wallet className="h-7 w-7" />} text="ยังไม่มีสลิปเงินเดือน" />;
@@ -706,7 +708,7 @@ function PayrollTab({ payslips, runs }: { payslips: Payslip[]; runs: PayrollRun[
             </TableRow>
           </TableHeader>
           <TableBody>
-            {slips.map((p) => {
+            {pager.rows.map((p) => {
               const run = runById.get(p.run_id);
               return (
                 <TableRow key={p.id}>
@@ -730,6 +732,7 @@ function PayrollTab({ payslips, runs }: { payslips: Payslip[]; runs: PayrollRun[
             })}
           </TableBody>
         </Table>
+        <TablePager pager={pager} unit="รอบจ่าย" />
       </div>
     </div>
   );
@@ -750,6 +753,7 @@ function LeaveTab({
     () => requests.slice().sort((a, b) => (a.start_date < b.start_date ? 1 : -1)),
     [requests],
   );
+  const pager = usePagination(sorted);
 
   return (
     <div className="space-y-4">
@@ -785,7 +789,7 @@ function LeaveTab({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {sorted.map((l) => {
+              {pager.rows.map((l) => {
                 const lt = typeById.get(l.leave_type_id);
                 return (
                   <TableRow key={l.id}>
@@ -810,6 +814,7 @@ function LeaveTab({
               })}
             </TableBody>
           </Table>
+          <TablePager pager={pager} unit="รายการ" />
         </div>
       )}
     </div>
@@ -835,6 +840,7 @@ function TimeTab({ rows, month }: { rows: Attendance[]; month: { year: number; m
     () => rows.slice().sort((a, b) => (a.work_date < b.work_date ? 1 : -1)),
     [rows],
   );
+  const pager = usePagination(sorted);
   const sum = useMemo(() => {
     return rows.reduce(
       (acc, r) => {
@@ -897,7 +903,7 @@ function TimeTab({ rows, month }: { rows: Attendance[]; month: { year: number; m
               </TableRow>
             </TableHeader>
             <TableBody>
-              {sorted.map((r) => (
+              {pager.rows.map((r) => (
                 <TableRow key={r.id}>
                   <TableCell className="whitespace-nowrap text-gray-700">
                     {fmtDateTH(r.work_date)}
@@ -926,6 +932,7 @@ function TimeTab({ rows, month }: { rows: Attendance[]; month: { year: number; m
               ))}
             </TableBody>
           </Table>
+          <TablePager pager={pager} unit="วัน" />
         </div>
       )}
     </div>

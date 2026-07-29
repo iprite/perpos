@@ -91,6 +91,8 @@ export function IntercompanyClient({
   const unconfirmed = transactions.filter(
     (t) => !t.counterparty_confirmed && t.status !== "cancelled",
   );
+  const txnRows = tab === "reconcile" ? unconfirmed : transactions;
+  const txPager = usePagination(txnRows, { resetKey: tab });
   const openBalance = transactions
     .filter((t) => t.status === "open")
     .reduce((a, t) => a + Number(t.amount ?? 0), 0);
@@ -355,78 +357,83 @@ export function IntercompanyClient({
             <TablePager pager={loanPager} unit="สัญญา" />
           </div>
         ) : (
-          <Table className="shadow-sm">
-            <TableHeader>
-              <TableRow>
-                <TableHead align="center">วันที่</TableHead>
-                <TableHead>จาก</TableHead>
-                <TableHead>ถึง</TableHead>
-                <TableHead>ประเภท</TableHead>
-                <TableHead align="right">จำนวนเงิน</TableHead>
-                <TableHead align="center">สถานะ</TableHead>
-                <TableHead align="center">คู่สัญญายืนยัน</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {(tab === "reconcile" ? unconfirmed : transactions).length === 0 ? (
-                <TableEmpty colSpan={7}>
-                  {tab === "reconcile"
-                    ? "ไม่มีรายการที่รอการยืนยัน — ยอดสองฝั่งตรงกันครบแล้ว"
-                    : "ยังไม่มีรายการระหว่างบริษัท"}
-                </TableEmpty>
-              ) : (
-                (tab === "reconcile" ? unconfirmed : transactions).map((t) => (
-                  <TableRow
-                    key={t.id}
-                    clickable={canWrite && tab === "transactions"}
-                    onClick={canWrite && tab === "transactions" ? () => openEditTxn(t) : undefined}
-                  >
-                    <TableCell align="center" className="tabular-nums">
-                      {formatThaiDate(t.txn_date)}
-                    </TableCell>
-                    <TableCell>{companyName.get(t.from_company_id) ?? "—"}</TableCell>
-                    <TableCell>{companyName.get(t.to_company_id) ?? "—"}</TableCell>
-                    <TableCell>{IC_TYPE_LABEL[t.ic_type]}</TableCell>
-                    <TableCell align="right" tabular>
-                      {formatMoney(t.amount)}
-                    </TableCell>
-                    <TableCell align="center">
-                      <StatusBadge
-                        tone={
-                          t.status === "settled"
-                            ? "success"
-                            : t.status === "cancelled"
-                              ? "neutral"
-                              : "warning"
-                        }
-                      >
-                        {IC_STATUS_LABEL[t.status]}
-                      </StatusBadge>
-                    </TableCell>
-                    <TableCell align="center">
-                      {t.counterparty_confirmed ? (
-                        <StatusBadge tone="success">ยืนยันแล้ว</StatusBadge>
-                      ) : canWrite ? (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={(e) => {
-                            e.stopPropagation(); // อย่าให้คลิกปุ่มไปเปิด dialog แก้ไขของแถว
-                            confirmTxn(t.id);
-                          }}
+          <div className="space-y-3">
+            <Table className="shadow-sm">
+              <TableHeader>
+                <TableRow>
+                  <TableHead align="center">วันที่</TableHead>
+                  <TableHead>จาก</TableHead>
+                  <TableHead>ถึง</TableHead>
+                  <TableHead>ประเภท</TableHead>
+                  <TableHead align="right">จำนวนเงิน</TableHead>
+                  <TableHead align="center">สถานะ</TableHead>
+                  <TableHead align="center">คู่สัญญายืนยัน</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {txnRows.length === 0 ? (
+                  <TableEmpty colSpan={7}>
+                    {tab === "reconcile"
+                      ? "ไม่มีรายการที่รอการยืนยัน — ยอดสองฝั่งตรงกันครบแล้ว"
+                      : "ยังไม่มีรายการระหว่างบริษัท"}
+                  </TableEmpty>
+                ) : (
+                  txPager.rows.map((t) => (
+                    <TableRow
+                      key={t.id}
+                      clickable={canWrite && tab === "transactions"}
+                      onClick={
+                        canWrite && tab === "transactions" ? () => openEditTxn(t) : undefined
+                      }
+                    >
+                      <TableCell align="center" className="tabular-nums">
+                        {formatThaiDate(t.txn_date)}
+                      </TableCell>
+                      <TableCell>{companyName.get(t.from_company_id) ?? "—"}</TableCell>
+                      <TableCell>{companyName.get(t.to_company_id) ?? "—"}</TableCell>
+                      <TableCell>{IC_TYPE_LABEL[t.ic_type]}</TableCell>
+                      <TableCell align="right" tabular>
+                        {formatMoney(t.amount)}
+                      </TableCell>
+                      <TableCell align="center">
+                        <StatusBadge
+                          tone={
+                            t.status === "settled"
+                              ? "success"
+                              : t.status === "cancelled"
+                                ? "neutral"
+                                : "warning"
+                          }
                         >
-                          <CheckCircle2 className="me-1 h-4 w-4" />
-                          ยืนยันยอด
-                        </Button>
-                      ) : (
-                        <StatusBadge tone="warning">รอยืนยัน</StatusBadge>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
+                          {IC_STATUS_LABEL[t.status]}
+                        </StatusBadge>
+                      </TableCell>
+                      <TableCell align="center">
+                        {t.counterparty_confirmed ? (
+                          <StatusBadge tone="success">ยืนยันแล้ว</StatusBadge>
+                        ) : canWrite ? (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={(e) => {
+                              e.stopPropagation(); // อย่าให้คลิกปุ่มไปเปิด dialog แก้ไขของแถว
+                              confirmTxn(t.id);
+                            }}
+                          >
+                            <CheckCircle2 className="me-1 h-4 w-4" />
+                            ยืนยันยอด
+                          </Button>
+                        ) : (
+                          <StatusBadge tone="warning">รอยืนยัน</StatusBadge>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+            <TablePager pager={txPager} unit="รายการ" />
+          </div>
         )}
 
         {tab === "transactions" && canWrite && transactions.length > 0 && (

@@ -17,6 +17,7 @@ import {
   TableCell,
   TableEmpty,
 } from "@/components/ui/table";
+import { TablePager, usePagination } from "@/components/ui/table-pager";
 import { StatusBadge } from "@/components/ui/badge";
 import { toast } from "@/lib/toast";
 
@@ -59,6 +60,7 @@ export default function AdminTokensPage() {
     lifetime_spent: number;
     ledger: LedgerRow[];
   } | null>(null);
+  const ledgerPager = usePagination(lookup?.ledger ?? []);
 
   const authHeaders = useCallback(
     (t = token) => ({ "Content-Type": "application/json", Authorization: `Bearer ${t}` }),
@@ -384,7 +386,7 @@ export default function AdminTokensPage() {
                     {lookup.ledger.length === 0 ? (
                       <TableEmpty colSpan={6}>ไม่มีรายการ</TableEmpty>
                     ) : (
-                      lookup.ledger.map((l, i) => (
+                      ledgerPager.rows.map((l, i) => (
                         <TableRow key={i}>
                           <TableCell>{new Date(l.created_at).toLocaleString("th-TH")}</TableCell>
                           <TableCell>{l.kind}</TableCell>
@@ -403,6 +405,7 @@ export default function AdminTokensPage() {
                     )}
                   </TableBody>
                 </Table>
+                <TablePager pager={ledgerPager} unit="รายการ" />
               </div>
             ) : null}
           </AdminCard>

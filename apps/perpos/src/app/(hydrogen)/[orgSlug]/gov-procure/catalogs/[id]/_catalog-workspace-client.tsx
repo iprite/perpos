@@ -47,6 +47,7 @@ import {
   TableEmpty,
   TableLoading,
 } from "@/components/ui/table";
+import { TablePager, usePagination } from "@/components/ui/table-pager";
 import { toast } from "@/lib/toast";
 import type { Catalog, CatalogItem, CatalogItemStats } from "@/lib/gov-procure/catalog";
 import type { GovProcureOrder } from "@/lib/gov-procure/types";
@@ -633,121 +634,125 @@ function ItemsTable({
   onOpen: (item: CatalogItem) => void;
   onClearFilters: () => void;
 }) {
+  const pager = usePagination(rows);
   return (
-    <Table stickyHeader maxHeight="calc(100vh - 300px)" className="shadow-sm">
-      <TableHeader sticky>
-        <TableRow>
-          <TableHead align="right">ลำดับ</TableHead>
-          <TableHead>สินค้า</TableHead>
-          <TableHead align="right">จำนวน</TableHead>
-          <TableHead align="right">ราคา/หน่วย</TableHead>
-          <TableHead align="center">รูป</TableHead>
-          <TableHead align="center">ที่มาข้อมูล</TableHead>
-          <TableHead>ต้องตรวจ</TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {loading ? (
-          <TableLoading colSpan={7} />
-        ) : rows.length === 0 ? (
-          <TableEmpty colSpan={7}>
-            <div className="flex flex-col items-center gap-2 py-6">
-              {hasFilter ? (
-                <>
-                  <CheckCircle2 className="h-8 w-8 text-green-500" />
-                  <span>ไม่มีรายการค้างในมุมมองนี้ — ตรวจครบแล้ว</span>
-                  <Button variant="outline" size="sm" className="mt-1" onClick={onClearFilters}>
-                    <FilterX className="mr-1.5 h-4 w-4" /> ดูรายการทั้งหมด
-                  </Button>
-                </>
-              ) : (
-                <>
-                  <Search className="h-8 w-8 text-gray-300" />
-                  <span>ไม่พบรายการตามเงื่อนไข</span>
-                </>
-              )}
-            </div>
-          </TableEmpty>
-        ) : (
-          rows.map((item) => {
-            const locked = isItemLocked(item);
-            const estimate = priceEstimateLabel(item);
-            return (
-              <TableRow
-                key={item.id}
-                clickable={!locked}
-                selected={item.id === selectedId}
-                className={locked ? "cursor-default opacity-60" : undefined}
-                onClick={locked ? undefined : () => onOpen(item)}
-              >
-                <TableCell align="right" tabular className="text-gray-500">
-                  {item.seq_no}
-                </TableCell>
-                <TableCell>
-                  {locked ? (
-                    <div className="h-8 w-52 animate-pulse rounded bg-gray-100" />
-                  ) : (
-                    <div className="min-w-0 max-w-[260px]">
-                      <div className="truncate font-medium text-gray-900">{item.name}</div>
-                      <div className="truncate text-xs text-gray-500">
-                        {item.spec_line ?? "— ยังไม่มีสเปก —"}
-                      </div>
-                    </div>
-                  )}
-                </TableCell>
-                <TableCell align="right" className="tabular-nums text-gray-700">
-                  {fmtQty(item.qty, item.unit)}
-                </TableCell>
-                <TableCell align="right" tabular>
-                  {locked ? (
-                    <div className="ml-auto h-4 w-16 animate-pulse rounded bg-gray-100" />
-                  ) : item.unit_price_ref === null ? (
-                    <span className="text-gray-400">—</span>
-                  ) : (
-                    <div className="flex flex-col items-end">
-                      <span>{fmtMoney(item.unit_price_ref)}</span>
-                      {estimate && (
-                        <span className="font-sans text-[11px] text-gray-500">{estimate}</span>
-                      )}
-                    </div>
-                  )}
-                </TableCell>
-                <TableCell align="center">
-                  <ItemThumb name={item.name} url={imageUrls[item.id]} />
-                </TableCell>
-                <TableCell align="center">
-                  <SourceBadge source={item.source} />
-                </TableCell>
-                <TableCell>
-                  {locked ? (
-                    <StatusBadge tone="info" className="gap-1">
-                      <Sparkles className="h-3 w-3 animate-pulse" /> AI กำลังเติมข้อมูล
-                    </StatusBadge>
-                  ) : (
-                    <IssueChips issues={computeIssues(item)} />
-                  )}
-                </TableCell>
-              </TableRow>
-            );
-          })
-        )}
-      </TableBody>
-      {rows.length > 0 && (
-        <TableFooter>
+    <div className="space-y-3">
+      <Table stickyHeader maxHeight="calc(100vh - 300px)" className="shadow-sm">
+        <TableHeader sticky>
           <TableRow>
-            <TableCell colSpan={3} className="font-medium text-gray-700">
-              แสดง {fmtNum(rows.length)} จาก {fmtNum(total)} รายการ
-            </TableCell>
-            <TableCell align="right" tabular className="font-semibold text-gray-900">
-              {fmtMoney(filteredValue)}
-            </TableCell>
-            <TableCell colSpan={3} className="text-xs text-gray-500">
-              มูลค่าประมาณการเฉพาะที่กรอง
-            </TableCell>
+            <TableHead align="right">ลำดับ</TableHead>
+            <TableHead>สินค้า</TableHead>
+            <TableHead align="right">จำนวน</TableHead>
+            <TableHead align="right">ราคา/หน่วย</TableHead>
+            <TableHead align="center">รูป</TableHead>
+            <TableHead align="center">ที่มาข้อมูล</TableHead>
+            <TableHead>ต้องตรวจ</TableHead>
           </TableRow>
-        </TableFooter>
-      )}
-    </Table>
+        </TableHeader>
+        <TableBody>
+          {loading ? (
+            <TableLoading colSpan={7} />
+          ) : rows.length === 0 ? (
+            <TableEmpty colSpan={7}>
+              <div className="flex flex-col items-center gap-2 py-6">
+                {hasFilter ? (
+                  <>
+                    <CheckCircle2 className="h-8 w-8 text-green-500" />
+                    <span>ไม่มีรายการค้างในมุมมองนี้ — ตรวจครบแล้ว</span>
+                    <Button variant="outline" size="sm" className="mt-1" onClick={onClearFilters}>
+                      <FilterX className="mr-1.5 h-4 w-4" /> ดูรายการทั้งหมด
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Search className="h-8 w-8 text-gray-300" />
+                    <span>ไม่พบรายการตามเงื่อนไข</span>
+                  </>
+                )}
+              </div>
+            </TableEmpty>
+          ) : (
+            pager.rows.map((item) => {
+              const locked = isItemLocked(item);
+              const estimate = priceEstimateLabel(item);
+              return (
+                <TableRow
+                  key={item.id}
+                  clickable={!locked}
+                  selected={item.id === selectedId}
+                  className={locked ? "cursor-default opacity-60" : undefined}
+                  onClick={locked ? undefined : () => onOpen(item)}
+                >
+                  <TableCell align="right" tabular className="text-gray-500">
+                    {item.seq_no}
+                  </TableCell>
+                  <TableCell>
+                    {locked ? (
+                      <div className="h-8 w-52 animate-pulse rounded bg-gray-100" />
+                    ) : (
+                      <div className="min-w-0 max-w-[260px]">
+                        <div className="truncate font-medium text-gray-900">{item.name}</div>
+                        <div className="truncate text-xs text-gray-500">
+                          {item.spec_line ?? "— ยังไม่มีสเปก —"}
+                        </div>
+                      </div>
+                    )}
+                  </TableCell>
+                  <TableCell align="right" className="tabular-nums text-gray-700">
+                    {fmtQty(item.qty, item.unit)}
+                  </TableCell>
+                  <TableCell align="right" tabular>
+                    {locked ? (
+                      <div className="ml-auto h-4 w-16 animate-pulse rounded bg-gray-100" />
+                    ) : item.unit_price_ref === null ? (
+                      <span className="text-gray-400">—</span>
+                    ) : (
+                      <div className="flex flex-col items-end">
+                        <span>{fmtMoney(item.unit_price_ref)}</span>
+                        {estimate && (
+                          <span className="font-sans text-[11px] text-gray-500">{estimate}</span>
+                        )}
+                      </div>
+                    )}
+                  </TableCell>
+                  <TableCell align="center">
+                    <ItemThumb name={item.name} url={imageUrls[item.id]} />
+                  </TableCell>
+                  <TableCell align="center">
+                    <SourceBadge source={item.source} />
+                  </TableCell>
+                  <TableCell>
+                    {locked ? (
+                      <StatusBadge tone="info" className="gap-1">
+                        <Sparkles className="h-3 w-3 animate-pulse" /> AI กำลังเติมข้อมูล
+                      </StatusBadge>
+                    ) : (
+                      <IssueChips issues={computeIssues(item)} />
+                    )}
+                  </TableCell>
+                </TableRow>
+              );
+            })
+          )}
+        </TableBody>
+        {rows.length > 0 && (
+          <TableFooter>
+            <TableRow>
+              <TableCell colSpan={3} className="font-medium text-gray-700">
+                แสดง {fmtNum(rows.length)} จาก {fmtNum(total)} รายการ
+              </TableCell>
+              <TableCell align="right" tabular className="font-semibold text-gray-900">
+                {fmtMoney(filteredValue)}
+              </TableCell>
+              <TableCell colSpan={3} className="text-xs text-gray-500">
+                มูลค่าประมาณการเฉพาะที่กรอง
+              </TableCell>
+            </TableRow>
+          </TableFooter>
+        )}
+      </Table>
+      <TablePager pager={pager} unit="สินค้า" />
+    </div>
   );
 }
 

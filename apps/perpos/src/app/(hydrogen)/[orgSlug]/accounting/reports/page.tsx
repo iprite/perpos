@@ -23,6 +23,7 @@ import {
   TableEmpty,
   TableLoading,
 } from "@/components/ui/table";
+import { TablePager, usePagination } from "@/components/ui/table-pager";
 import { toast } from "@/lib/toast";
 import {
   AccountingShell,
@@ -118,9 +119,11 @@ export default function ReportsPage() {
   const [ledgerAcc, setLedgerAcc] = useState("");
 
   const [trial, setTrial] = useState<TrialReport | null>(null);
+  const trialPager = usePagination(trial?.rows ?? []);
   const [income, setIncome] = useState<IncomeReport | null>(null);
   const [balance, setBalance] = useState<BalanceReport | null>(null);
   const [ledger, setLedger] = useState<LedgerReport | null>(null);
+  const ledgerPager = usePagination(ledger?.rows ?? []);
   const [reportLoading, setReportLoading] = useState(false);
 
   const accountOptions = useMemo(
@@ -255,7 +258,7 @@ export default function ReportsPage() {
               ) : !trial || trial.rows.length === 0 ? (
                 <TableEmpty colSpan={4}>ไม่มีรายการในงวดนี้</TableEmpty>
               ) : (
-                trial.rows.map((r) => (
+                trialPager.rows.map((r) => (
                   <TableRow key={r.account_id}>
                     <TableCell className="font-mono text-xs tabular-nums text-gray-400">
                       {r.code}
@@ -285,6 +288,7 @@ export default function ReportsPage() {
               </TableFooter>
             )}
           </Table>
+          <TablePager pager={trialPager} unit="บัญชี" />
         </div>
       )}
 
@@ -528,7 +532,7 @@ export default function ReportsPage() {
                   ) : !ledger || ledger.rows.length === 0 ? (
                     <TableEmpty colSpan={6}>ไม่มีรายการเคลื่อนไหวในงวดนี้</TableEmpty>
                   ) : (
-                    ledger.rows.map((r, i) => (
+                    ledgerPager.rows.map((r, i) => (
                       <TableRow key={`${r.entry_number}-${i}`}>
                         <TableCell className="whitespace-nowrap text-gray-500">
                           {fmtDateTH(r.entry_date)}
@@ -553,6 +557,7 @@ export default function ReportsPage() {
                   )}
                 </TableBody>
               </Table>
+              <TablePager pager={ledgerPager} />
             </div>
           )}
         </div>
