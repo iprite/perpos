@@ -284,8 +284,8 @@ export default function PurchaseDocumentsPage() {
             </div>
           </div>
 
-          <Table className="shadow-sm">
-            <TableHeader>
+          <Table stickyHeader fillViewport className="shadow-sm">
+            <TableHeader sticky>
               <TableRow>
                 <TableHead>วันที่</TableHead>
                 <TableHead>เลขที่ใบกำกับ</TableHead>

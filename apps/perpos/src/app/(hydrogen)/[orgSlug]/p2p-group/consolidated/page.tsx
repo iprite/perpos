@@ -180,8 +180,8 @@ export default async function ConsolidatedPage({
           <div className="mb-2.5 px-1 text-sm font-semibold text-gray-900">
             รายการที่ถูกตัดออกในงวดนี้
           </div>
-          <Table className="shadow-sm">
-            <TableHeader>
+          <Table className="shadow-sm" stickyHeader fillViewport>
+            <TableHeader sticky>
               <TableRow>
                 <TableHead align="center">วันที่</TableHead>
                 <TableHead>จาก</TableHead>

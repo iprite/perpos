@@ -138,8 +138,8 @@ export function SchedulerView({ initialData }: { initialData: SchedulerData }) {
 
       {/* Run log */}
       <AdminCard title="ประวัติการรันล่าสุด" bodyClassName="p-0">
-        <Table wrapperClassName="rounded-none border-0">
-          <TableHeader>
+        <Table stickyHeader fillViewport wrapperClassName="rounded-none border-0">
+          <TableHeader sticky>
             <TableRow>
               <TableHead>เวลา</TableHead>
               <TableHead align="center">สถานะ</TableHead>

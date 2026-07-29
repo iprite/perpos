@@ -350,8 +350,8 @@ export function LeaveClient({
         <div className="mb-2.5 px-1 text-sm font-semibold text-gray-900">
           วันลาคงเหลือต่อคน (ปี {year + 543})
         </div>
-        <Table className="shadow-sm">
-          <TableHeader>
+        <Table stickyHeader fillViewport className="shadow-sm">
+          <TableHeader sticky>
             <TableRow>
               <TableHead>พนักงาน</TableHead>
               {balanceTypes.map((t) => (

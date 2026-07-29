@@ -243,8 +243,8 @@ export function ProductsClient({
               </div>
             )}
 
-            <Table className="shadow-sm">
-              <TableHeader>
+            <Table className="shadow-sm" stickyHeader fillViewport>
+              <TableHeader sticky>
                 <TableRow>
                   <TableHead align="center">รูป</TableHead>
                   <TableHead>ชื่อสินค้า</TableHead>

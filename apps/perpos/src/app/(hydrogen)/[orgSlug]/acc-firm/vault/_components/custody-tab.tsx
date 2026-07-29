@@ -136,8 +136,8 @@ export function CustodyTab({
         </div>
       ) : (
         <div className="space-y-3">
-          <Table className="shadow-sm">
-            <TableHeader>
+          <Table stickyHeader fillViewport className="shadow-sm">
+            <TableHeader sticky>
               <TableRow>
                 <TableHead>เลขที่ใบรับ</TableHead>
                 <TableHead align="center">ทิศทาง</TableHead>

@@ -982,8 +982,8 @@ export default function TmcStockPage() {
           </TableBody>
         </Table>
       ) : activeTab === "items" ? (
-        <Table>
-          <TableHeader>
+        <Table stickyHeader fillViewport>
+          <TableHeader sticky>
             <TableRow>
               <TableHead>รายการ</TableHead>
               <TableHead>หมวด</TableHead>
@@ -1024,8 +1024,8 @@ export default function TmcStockPage() {
           </TableBody>
         </Table>
       ) : (
-        <Table>
-          <TableHeader>
+        <Table stickyHeader fillViewport>
+          <TableHeader sticky>
             <TableRow>
               <TableHead>วันที่</TableHead>
               <TableHead>รายการ</TableHead>

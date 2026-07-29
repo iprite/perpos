@@ -614,8 +614,8 @@ export default function JaquarStockPage() {
         </div>
       ) : (
         <div className="space-y-4">
-          <Table>
-            <TableHeader>
+          <Table stickyHeader fillViewport>
+            <TableHeader sticky>
               <TableRow>
                 <TableHead>รหัสสินค้า</TableHead>
                 <TableHead>รายละเอียดสินค้า</TableHead>

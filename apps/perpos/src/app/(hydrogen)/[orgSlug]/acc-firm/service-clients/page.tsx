@@ -315,8 +315,8 @@ export default function ServiceClientsPage() {
       </div>
 
       {/* Table */}
-      <Table>
-        <TableHeader>
+      <Table stickyHeader fillViewport>
+        <TableHeader sticky>
           <TableRow>
             <TableHead>ลูกค้า</TableHead>
             <TableHead align="right">ค่าบริการ/เดือน</TableHead>

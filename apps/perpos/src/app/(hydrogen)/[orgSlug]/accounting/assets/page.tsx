@@ -196,8 +196,8 @@ export default function AssetsPage() {
       </div>
 
       {/* table */}
-      <Table className="shadow-sm">
-        <TableHeader>
+      <Table stickyHeader fillViewport className="shadow-sm">
+        <TableHeader sticky>
           <TableRow>
             <TableHead>สินทรัพย์</TableHead>
             <TableHead>วันได้มา</TableHead>

@@ -271,7 +271,7 @@ export function InvestorsClient({
           <div className="mb-2.5 px-1 text-sm font-semibold text-gray-900">
             เงินเข้า-ออกของนักลงทุน
           </div>
-          <Table className="shadow-sm" maxHeight="50vh" stickyHeader>
+          <Table className="shadow-sm" stickyHeader fillViewport>
             <TableHeader sticky>
               <TableRow>
                 <TableHead>วันที่</TableHead>

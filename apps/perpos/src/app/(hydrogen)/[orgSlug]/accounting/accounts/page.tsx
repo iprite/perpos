@@ -160,8 +160,8 @@ export default function AccountsPage() {
       </div>
 
       {/* tree table */}
-      <Table className="shadow-sm">
-        <TableHeader>
+      <Table stickyHeader fillViewport className="shadow-sm">
+        <TableHeader sticky>
           <TableRow>
             <TableHead>เลขที่ / ชื่อบัญชี</TableHead>
             <TableHead align="center">ประเภท</TableHead>

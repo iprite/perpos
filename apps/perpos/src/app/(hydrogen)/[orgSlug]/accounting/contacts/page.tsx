@@ -141,8 +141,8 @@ export default function ContactsPage() {
         </div>
       </div>
 
-      <Table className="shadow-sm">
-        <TableHeader>
+      <Table stickyHeader fillViewport className="shadow-sm">
+        <TableHeader sticky>
           <TableRow>
             <TableHead>ชื่อ</TableHead>
             <TableHead align="center">ประเภท</TableHead>

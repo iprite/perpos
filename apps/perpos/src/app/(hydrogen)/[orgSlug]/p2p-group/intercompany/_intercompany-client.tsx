@@ -291,8 +291,8 @@ export function IntercompanyClient({
 
         {tab === "loans" ? (
           <div className="space-y-3">
-            <Table className="shadow-sm">
-              <TableHeader>
+            <Table className="shadow-sm" stickyHeader fillViewport>
+              <TableHeader sticky>
                 <TableRow>
                   <TableHead>เลขที่สัญญา</TableHead>
                   <TableHead>ผู้ให้กู้</TableHead>

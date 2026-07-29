@@ -156,8 +156,8 @@ export default function ProductsPage() {
         />
       </FilterBar>
 
-      <Table className="shadow-sm">
-        <TableHeader>
+      <Table stickyHeader fillViewport className="shadow-sm">
+        <TableHeader sticky>
           <TableRow>
             <TableHead>รหัส</TableHead>
             <TableHead>ชื่อ</TableHead>

@@ -241,8 +241,8 @@ export function TreasuryClient({
           </div>
         )}
 
-        <Table className="shadow-sm">
-          <TableHeader>
+        <Table className="shadow-sm" stickyHeader fillViewport>
+          <TableHeader sticky>
             <TableRow>
               <TableHead>ธนาคาร / บัญชี</TableHead>
               <TableHead>บริษัท</TableHead>

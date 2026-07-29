@@ -697,7 +697,7 @@ function PayrollTab({ payslips, runs }: { payslips: Payslip[]; runs: PayrollRun[
       </div>
 
       <div>
-        <Table stickyHeader maxHeight="48vh" className="shadow-sm">
+        <Table stickyHeader fillViewport className="shadow-sm">
           <TableHeader sticky>
             <TableRow>
               <TableHead>รอบจ่าย</TableHead>
@@ -777,8 +777,8 @@ function LeaveTab({
         <EmptyTab icon={<CalendarOff className="h-7 w-7" />} text="ยังไม่มีประวัติการลา" />
       ) : (
         <div>
-          <Table className="shadow-sm">
-            <TableHeader>
+          <Table stickyHeader fillViewport className="shadow-sm">
+            <TableHeader sticky>
               <TableRow>
                 <TableHead>ประเภท</TableHead>
                 <TableHead align="center">ตั้งแต่</TableHead>
@@ -890,7 +890,7 @@ function TimeTab({ rows, month }: { rows: Attendance[]; month: { year: number; m
         <EmptyTab icon={<Clock className="h-7 w-7" />} text="ยังไม่มีบันทึกเวลาทำงานในเดือนนี้" />
       ) : (
         <div>
-          <Table stickyHeader maxHeight="48vh" className="shadow-sm">
+          <Table stickyHeader fillViewport className="shadow-sm">
             <TableHeader sticky>
               <TableRow>
                 <TableHead>วันที่</TableHead>

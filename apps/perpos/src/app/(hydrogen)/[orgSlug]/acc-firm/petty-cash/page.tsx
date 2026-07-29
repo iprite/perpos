@@ -260,8 +260,8 @@ export default function PettyCashPage() {
       </FilterBar>
 
       {/* Table */}
-      <Table>
-        <TableHeader>
+      <Table stickyHeader fillViewport>
+        <TableHeader sticky>
           <TableRow>
             <TableHead>วันที่</TableHead>
             <TableHead>รายการ</TableHead>

@@ -140,8 +140,8 @@ export function LeaveTab({
         ) : null
       }
     >
-      <Table className="rounded-none border-0 shadow-none">
-        <TableHeader>
+      <Table stickyHeader fillViewport className="rounded-none border-0 shadow-none">
+        <TableHeader sticky>
           <TableRow>
             <TableHead>ชื่อประเภท</TableHead>
             <TableHead>รหัส</TableHead>
@@ -366,7 +366,7 @@ export function PayItemTab({
         ) : null
       }
     >
-      <Table stickyHeader maxHeight="58vh" className="rounded-none border-0 shadow-none">
+      <Table stickyHeader fillViewport className="rounded-none border-0 shadow-none">
         <TableHeader sticky>
           <TableRow>
             <TableHead>ชื่อรายการ</TableHead>
@@ -574,8 +574,8 @@ export function FundTab({
       title="กองทุน & ประกันสังคม"
       description="อัตราเงินสมทบของลูกจ้าง/นายจ้าง และเพดานฐานคำนวณ — ใช้คำนวณยอดหักในรอบเงินเดือน"
     >
-      <Table className="rounded-none border-0 shadow-none">
-        <TableHeader>
+      <Table stickyHeader fillViewport className="rounded-none border-0 shadow-none">
+        <TableHeader sticky>
           <TableRow>
             <TableHead>ชื่อกองทุน</TableHead>
             <TableHead align="center">ประเภท</TableHead>
@@ -738,8 +738,8 @@ export function AccountTab({
       title="การบันทึกบัญชี"
       description="ผูกบัญชีในผังบัญชีกับแต่ละรายการเงินเดือน — ใช้ตอนระบบลงบัญชีอัตโนมัติเมื่อปิดรอบ"
     >
-      <Table className="rounded-none border-0 shadow-none">
-        <TableHeader>
+      <Table stickyHeader fillViewport className="rounded-none border-0 shadow-none">
+        <TableHeader sticky>
           <TableRow>
             <TableHead>รายการ</TableHead>
             <TableHead>บัญชีที่ผูก</TableHead>

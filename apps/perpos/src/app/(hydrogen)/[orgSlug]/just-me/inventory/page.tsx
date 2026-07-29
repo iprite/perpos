@@ -1213,8 +1213,8 @@ export default function JustMeInventoryPage() {
               </div>
 
               <div className="overflow-x-auto">
-                <Table wrapperClassName="rounded-none border-0">
-                  <TableHeader>
+                <Table stickyHeader fillViewport wrapperClassName="rounded-none border-0">
+                  <TableHeader sticky>
                     <TableRow>
                       <TableHead>รหัสสายไฟ (Tag)</TableHead>
                       <TableHead>ชนิดสินค้า</TableHead>
@@ -1271,8 +1271,8 @@ export default function JustMeInventoryPage() {
                 </h2>
               </div>
 
-              <Table wrapperClassName="rounded-none border-0">
-                <TableHeader>
+              <Table stickyHeader fillViewport wrapperClassName="rounded-none border-0">
+                <TableHeader sticky>
                   <TableRow>
                     <TableHead>วันที่ / เวลา</TableHead>
                     <TableHead>ประเภทรายการ</TableHead>

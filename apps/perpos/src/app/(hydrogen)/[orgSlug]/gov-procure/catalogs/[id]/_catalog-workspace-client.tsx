@@ -637,7 +637,7 @@ function ItemsTable({
   const pager = usePagination(rows);
   return (
     <div className="space-y-3">
-      <Table stickyHeader maxHeight="calc(100vh - 300px)" className="shadow-sm">
+      <Table stickyHeader fillViewport className="shadow-sm">
         <TableHeader sticky>
           <TableRow>
             <TableHead align="right">ลำดับ</TableHead>

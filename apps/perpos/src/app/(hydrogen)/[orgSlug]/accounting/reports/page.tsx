@@ -243,8 +243,8 @@ export default function ReportsPage() {
               </StatusBadge>
             )}
           </div>
-          <Table className="shadow-sm">
-            <TableHeader>
+          <Table stickyHeader fillViewport className="shadow-sm">
+            <TableHeader sticky>
               <TableRow>
                 <TableHead>เลขที่</TableHead>
                 <TableHead>ชื่อบัญชี</TableHead>
@@ -515,8 +515,8 @@ export default function ReportsPage() {
               <div className="mb-2.5 px-1 text-sm font-semibold text-gray-900">
                 {selectedLedgerAccount?.code} · {selectedLedgerAccount?.name}
               </div>
-              <Table className="shadow-sm">
-                <TableHeader>
+              <Table stickyHeader fillViewport className="shadow-sm">
+                <TableHeader sticky>
                   <TableRow>
                     <TableHead>วันที่</TableHead>
                     <TableHead>เลขที่</TableHead>

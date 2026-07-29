@@ -246,8 +246,8 @@ function ReceivablesTable({
         <TrendingUp className="h-4 w-4 text-gray-400" />
         รายการงานค้างรับ (เรียงตามจำนวนวันค้าง)
       </div>
-      <Table className="shadow-sm">
-        <TableHeader>
+      <Table className="shadow-sm" stickyHeader fillViewport>
+        <TableHeader sticky>
           <TableRow>
             <TableHead>หน่วยงาน / กอง</TableHead>
             <TableHead align="center">บริษัท</TableHead>

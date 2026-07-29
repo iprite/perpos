@@ -2,6 +2,7 @@ import * as React from "react";
 import { ChevronUp, ChevronDown, ChevronsUpDown } from "lucide-react";
 
 import cn from "@core/utils/class-names";
+import { TableFillScroller } from "./table-fill";
 
 export type SortDir = "asc" | "desc" | null;
 
@@ -38,57 +39,38 @@ const Table = React.forwardRef<HTMLTableElement, TableProps>(
     { className, stickyHeader, maxHeight, wrapperClassName, dense, fillViewport, ...props },
     ref,
   ) => {
-    const wrapperRef = React.useRef<HTMLDivElement>(null);
-    const [fillHeight, setFillHeight] = React.useState<number | null>(null);
-    const reserve = typeof fillViewport === "number" ? fillViewport : 72;
+    const wrapperClass = cn(
+      "w-full overflow-auto rounded-xl border border-gray-200 bg-white",
+      wrapperClassName,
+    );
+    const table = (
+      <table
+        ref={ref}
+        data-sticky-header={stickyHeader ? "" : undefined}
+        className={cn(
+          "w-full caption-bottom text-sm",
+          dense && "[&_td]:py-1.5 [&_th]:h-8",
+          className,
+        )}
+        {...props}
+      />
+    );
 
-    // วัดจากตำแหน่งจริงของตาราง — ของเหนือตารางยุบ/กางได้ (แถบตัวกรอง) ก็ยังพอดีเสมอ
-    // ตั้งใจไม่ใส่ dependency array: ต้องวัดใหม่ทุก render (ของเหนือตารางเปลี่ยนความสูงได้)
-    // ไม่วนไม่จบเพราะ setState เฉพาะตอนค่าต่างเกิน 1px → รอบถัดไปค่าเท่าเดิม React bail out
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    React.useLayoutEffect(() => {
-      if (!fillViewport) {
-        setFillHeight(null);
-        return;
-      }
-      const measure = () => {
-        const el = wrapperRef.current;
-        if (!el) return;
-        const top = el.getBoundingClientRect().top + window.scrollY;
-        const next = Math.max(200, window.innerHeight - top - reserve);
-        setFillHeight((prev) => (prev !== null && Math.abs(prev - next) < 1 ? prev : next));
-      };
-      measure();
-      window.addEventListener("resize", measure);
-      return () => window.removeEventListener("resize", measure);
-    });
-
-    const style =
-      fillHeight !== null
-        ? { maxHeight: `${fillHeight}px` }
-        : maxHeight
-          ? { maxHeight }
-          : undefined;
+    // fillViewport ต้องวัดตำแหน่งจริง → อยู่ใน client component แยก (Table ใช้ใน Server Component ได้)
+    if (fillViewport) {
+      return (
+        <TableFillScroller
+          reserve={typeof fillViewport === "number" ? fillViewport : 72}
+          className={wrapperClass}
+        >
+          {table}
+        </TableFillScroller>
+      );
+    }
 
     return (
-      <div
-        ref={wrapperRef}
-        className={cn(
-          "w-full overflow-auto rounded-xl border border-gray-200 bg-white",
-          wrapperClassName,
-        )}
-        style={style}
-      >
-        <table
-          ref={ref}
-          data-sticky-header={stickyHeader ? "" : undefined}
-          className={cn(
-            "w-full caption-bottom text-sm",
-            dense && "[&_td]:py-1.5 [&_th]:h-8",
-            className,
-          )}
-          {...props}
-        />
+      <div className={wrapperClass} style={maxHeight ? { maxHeight } : undefined}>
+        {table}
       </div>
     );
   },
