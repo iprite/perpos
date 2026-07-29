@@ -3,7 +3,7 @@
 // upload-dialog.tsx — อัปโหลดเอกสารเข้าคลัง (ใช้ร่วมทั้งแท็บงวดและแท็บเอกสาร)
 // ไฟล์วิ่งตรงจาก browser → storage ด้วย signed upload URL (ไม่ผ่าน route)
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Upload } from "lucide-react";
 import {
   Dialog,
@@ -16,13 +16,12 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Text } from "@/components/ui/typography";
 import { CustomSelect } from "@/components/ui/custom-select";
+import { FileDropzone } from "@/components/ui/file-dropzone";
 import { ThaiDatePicker } from "@/components/ui/thai-date-picker";
 import { toast } from "@/lib/toast";
 import { GROUP_LABELS, type VaultCategory } from "@/lib/acc-firm/vault/types";
 import { useVaultApi } from "./api";
-import { fmtBytes } from "./format";
 
 export function UploadDocumentDialog({
   open,
@@ -46,7 +45,6 @@ export function UploadDocumentDialog({
   onUploaded: () => void;
 }) {
   const api = useVaultApi(orgId);
-  const fileRef = useRef<HTMLInputElement>(null);
   const [categoryId, setCategoryId] = useState(defaultCategoryId ?? "");
   const [title, setTitle] = useState("");
   const [docDate, setDocDate] = useState("");
@@ -59,7 +57,6 @@ export function UploadDocumentDialog({
       setTitle("");
       setDocDate("");
       setFile(null);
-      if (fileRef.current) fileRef.current.value = "";
     }
   }, [open, defaultCategoryId]);
 
@@ -127,18 +124,15 @@ export function UploadDocumentDialog({
             </div>
             <div>
               <Label htmlFor="vault-upload-file">ไฟล์ *</Label>
-              <Input
+              <FileDropzone
                 id="vault-upload-file"
-                ref={fileRef}
-                type="file"
-                className="mt-1"
-                onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+                value={file}
+                onChange={setFile}
+                accept="application/pdf,image/*"
+                maxSizeMb={50}
+                hint="รองรับ PDF / รูปภาพ ขนาดไม่เกิน 50 MB"
+                disabled={saving}
               />
-              <Text className="mt-1 text-xs text-gray-500">
-                {file
-                  ? `${file.name} · ${fmtBytes(file.size)}`
-                  : "รองรับ PDF / รูปภาพ ขนาดไม่เกิน 50 MB"}
-              </Text>
             </div>
           </div>
         </DialogBody>
