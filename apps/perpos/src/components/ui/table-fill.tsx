@@ -18,11 +18,29 @@ export function TableFillScroller({
   className?: string;
   children: React.ReactNode;
 }) {
-  const ref = React.useRef<HTMLDivElement>(null);
-  const [maxHeight, setMaxHeight] = React.useState<number | null>(null);
+  const { ref, height } = useFillViewport<HTMLDivElement>(reserve);
 
-  // วัดจากตำแหน่งจริงของตาราง — ของเหนือตารางยุบ/กางได้ (แถบตัวกรอง) ก็ยังพอดีเสมอ
-  // ตั้งใจไม่ใส่ dependency array: ต้องวัดใหม่ทุก render (ของเหนือตารางเปลี่ยนความสูงได้)
+  return (
+    <div
+      ref={ref}
+      className={className}
+      style={height !== null ? { maxHeight: height } : undefined}
+    >
+      {children}
+    </div>
+  );
+}
+
+/**
+ * วัดความสูงที่เหลือจากตำแหน่งจริงของ element ถึงขอบล่างของ browser
+ * ใช้กับของที่ต้อง "สูงสุดแค่ขอบ browser แล้วเลื่อนในตัวเอง" — ตาราง, บอร์ด kanban ฯลฯ
+ * ห้ามเดา `calc(100vh - Nrem)` เอง (ของเหนือมันยุบ/กางได้)
+ */
+export function useFillViewport<T extends HTMLElement>(reserve: number) {
+  const ref = React.useRef<T>(null);
+  const [height, setHeight] = React.useState<number | null>(null);
+
+  // ตั้งใจไม่ใส่ dependency array: ต้องวัดใหม่ทุก render (ของเหนือเปลี่ยนความสูงได้)
   // ไม่วนไม่จบเพราะ setState เฉพาะตอนค่าต่างเกิน 1px → รอบถัดไปค่าเท่าเดิม React bail out
   // eslint-disable-next-line react-hooks/exhaustive-deps
   React.useLayoutEffect(() => {
@@ -31,16 +49,12 @@ export function TableFillScroller({
       if (!el) return;
       const top = el.getBoundingClientRect().top + window.scrollY;
       const next = Math.max(200, window.innerHeight - top - reserve);
-      setMaxHeight((prev) => (prev !== null && Math.abs(prev - next) < 1 ? prev : next));
+      setHeight((prev) => (prev !== null && Math.abs(prev - next) < 1 ? prev : next));
     };
     measure();
     window.addEventListener("resize", measure);
     return () => window.removeEventListener("resize", measure);
   });
 
-  return (
-    <div ref={ref} className={className} style={maxHeight !== null ? { maxHeight } : undefined}>
-      {children}
-    </div>
-  );
+  return { ref, height };
 }
