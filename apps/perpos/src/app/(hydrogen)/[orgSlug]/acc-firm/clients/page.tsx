@@ -628,7 +628,8 @@ export default function AccFirmClientsPage() {
   const year = new Date().getFullYear();
   const feeKey = `fee_${year}` as keyof ServiceClient;
   const totalRevenue = filtered.reduce((s, c) => s + Number(c[feeKey] ?? 0), 0);
-  // เกณฑ์เดียวกับคอลัมน์ "เชื่อม LINE PERPOS" ในตาราง — ผูก org แล้ว = เชื่อมแล้ว
+  // เกณฑ์เดียวกับคอลัมน์ "เชื่อมระบบ" ในตาราง — ผูก org ของลูกค้าในระบบแล้ว = เชื่อมแล้ว
+  // (คนละเรื่องกับคอลัมน์ "กลุ่ม LINE" ที่ดูว่าผูกกลุ่ม LINE ของลูกค้าแล้วหรือยัง)
   const linkedCount = filtered.filter((c) => !!c.client_org_id).length;
 
   // F2: สรุปรายได้ค่าบริการของ firm (จาก client ทั้งหมดที่โหลดมา)
@@ -739,7 +740,7 @@ export default function AccFirmClientsPage() {
           unit="บาท/เดือน"
           isMoney
         />
-        <StatCard label="เชื่อม LINE PERPOS แล้ว" value={linkedCount} unit="ราย" />
+        <StatCard label="เชื่อมระบบแล้ว" value={linkedCount} unit="ราย" />
       </div>
 
       {showFilters && (
@@ -772,7 +773,7 @@ export default function AccFirmClientsPage() {
             <TableHead align="right">ค่าบริการ/เดือน</TableHead>
             <TableHead align="right">ค่าบริการ/ปี</TableHead>
             <TableHead>บริการ</TableHead>
-            <TableHead align="center">เชื่อม LINE PERPOS</TableHead>
+            <TableHead align="center">เชื่อมระบบ</TableHead>
             <TableHead align="center">กลุ่ม LINE</TableHead>
             <TableHead align="center">สถานะ</TableHead>
           </TableRow>
