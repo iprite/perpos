@@ -295,18 +295,22 @@ const [view, setView] = useState<"card" | "table">("card");
 - **แถบแบ่งหน้าใช้ตัวเดียวกันทั้งสองมุมมอง** — `usePagination(rows, { pageSize: view === "table" ? 20 : 12, resetKey: view })` (การ์ดก็ต้องแบ่งหน้า ห้ามเรนเดอร์ทั้ง list รวด)
 - มุมมองตารางไม่มีคอลัมน์ปุ่ม action (§5 ข้อ 3) → ถ้าการ์ดมีปุ่มลบ ให้ย้ายปุ่มลบไปไว้ใน footer ของ dialog แก้ไข (`className="mr-auto"`) เพื่อให้สองมุมมองทำงานได้เท่ากัน
 
-### ตารางที่เป็นเนื้อหาหลักของหน้า — สูงเต็มจอ
+### ตารางที่อยู่ล่างสุดของหน้า — สูงสุดแค่ขอบ browser (บังคับ)
 
-หน้าที่ตารางคือเนื้อหาหลัก ให้ตาราง **สูงจนสุดขอบล่างของ viewport แล้วเลื่อนในตัวเอง** (หัวคอลัมน์ค้าง) แทนที่จะให้ทั้งหน้าเลื่อนแล้วหัวตารางหลุดจอ:
+**ตารางที่เป็นของชิ้นสุดท้ายของหน้า (ไม่มี section อื่นต่อท้ายนอกจากแถบแบ่งหน้า) ต้องยืดสูงจนสุดขอบล่างของ browser แล้วเลื่อนในตัวเอง** — ไม่ใช่ปล่อยให้ทั้งหน้าเลื่อนจนหัวคอลัมน์หลุดจอ และไม่ใช่จบตารางกลางจอทิ้งพื้นที่ว่างข้างล่าง
 
 ```tsx
-<Table stickyHeader maxHeight={showFilters ? "calc(100vh - 25rem)" : "calc(100vh - 21rem)"}>
+<Table stickyHeader fillViewport>
   <TableHeader sticky>…</TableHeader>
+  …
+</Table>
+<TablePager pager={pager} />
 ```
 
-- ค่าที่ลบออกจาก `100vh` = ความสูงของทุกอย่างเหนือตาราง (header หน้า + การ์ดสรุป + แถบตัวกรองถ้าเปิด) **บวกที่ว่างสำหรับแถบแบ่งหน้า (~4rem)** — แถบแบ่งหน้าต้องยังอยู่ในจอ ไม่ต้องเลื่อนหน้าไปหา
-- ของที่ยุบ/กางได้ (แถบตัวกรอง) ทำให้ค่านี้ต่างกันสองค่า → ผูกกับ state ตรง ๆ อย่างตัวอย่าง
-- ตรวจด้วยของจริงเสมอ (`getBoundingClientRect().bottom` เทียบ `innerHeight`) — เดาเลขแล้วเหลือช่องว่าง/ล้นทุกที
+- `fillViewport` **วัดตำแหน่งจริงของตารางให้เอง** (`getBoundingClientRect` + resize + ทุกครั้งที่ re-render) → ของเหนือตารางยุบ/กางได้ (แถบตัวกรอง, การ์ดสรุป) ก็ยังพอดีเสมอ · **ห้ามเดา `calc(100vh - Nrem)` เอง** — เลขจะผิดทันทีที่ layout เปลี่ยน
+- กันที่ให้ของใต้ตารางไว้ 72px (แถบแบ่งหน้า + ระยะขอบล่าง) — ถ้าใต้ตารางมีของมากกว่านั้น ส่งตัวเลขเอง: `fillViewport={120}`
+- ต้องมาคู่ `stickyHeader` + `<TableHeader sticky>` เสมอ (ตารางเลื่อนเองแล้วหัวคอลัมน์ต้องค้าง)
+- **ไม่ใช้กับตารางที่ไม่ได้อยู่ล่างสุด** (มี section/การ์ดต่อท้าย) หรือตารางสั้นคงที่ในการ์ดสรุป — ปล่อยให้สูงตามเนื้อหา
 
 ### Dashboard Page Template
 
@@ -406,6 +410,7 @@ import { StatusBadge } from "@/components/ui/badge";
 6. **`<Table>` ใน grid/flex column ต้องให้คอลัมน์ยุบได้** — ถ้าวาง `<Table>` (หรือของกว้างอื่น) ไว้ใน grid/flex item (เช่น 2-column workspace `lg:grid-cols-12` + `col-span-*`) คอลัมน์นั้น **ต้องมี `min-w-0` หรือ `overflow-hidden/auto`** ไม่งั้นบนมือถือ (ยุบเหลือคอลัมน์เดียว) ความกว้างตารางจะดัน track ให้กว้างเกิน viewport → ทั้งหน้า scroll แนวนอน. สาเหตุ: grid/flex item ค่า default `min-width: auto` ยุบต่ำกว่า content ไม่ได้ — การตั้ง `min-w-0` (หรือ `overflow≠visible` ที่ทำให้ auto min-size = 0) แก้ได้. **ข้อยกเว้น**: table ที่วางตรงใน `PageShell`/`PageCard` (block เต็มแถว) ไม่ต้องทำอะไร — block ไม่มีปัญหานี้
 7. **ห้าม card ซ้อน card — `<Table>` เป็น "การ์ด" ในตัวอยู่แล้ว** (`rounded-xl border border-gray-200 bg-white`). **ห้ามห่อ `<Table>` ในกล่อง bordered card อีกชั้น** (`<div className="rounded-xl border … bg-white shadow-sm">`) — จะเห็นเส้นขอบ/การ์ดซ้อนกัน (ชัดเป็นพิเศษเมื่อมี title header ในกล่อง). **pattern ถูก**: ถ้าต้องมีหัวข้อ → ทำเป็น **heading เหนือตาราง** (`<div className="mb-2.5 px-1 text-sm font-semibold text-gray-900">หัวข้อ</div>`) แล้ววาง `<Table className="shadow-sm">` ยืนเดี่ยว (Table = การ์ด, `shadow-sm` ให้เงา) · ถ้าจำเป็นต้องวางตารางในการ์ดจริง ๆ (เช่น `SectionCard`/`PageCard` ที่มี title+ปุ่ม action) → ทำตาราง **flush**: `<Table className="rounded-none border-0 shadow-none">` (ตารางไม่มีขอบของตัวเอง, การ์ดด้านนอกเป็นขอบเดียว)
 8. **`tabular` prop = `font-mono` → ตัวอักษรไทยเพี้ยน** (monospace stack ไม่มี glyph ไทย → "วัน"/"ไม่จำกัด"/"ไม่มีเพดาน" หลุดไป fallback ไม่ตรง body font). ดังนั้นใช้ `tabular` เฉพาะ **เงิน + ตัวเลข/รหัสล้วน** (`1,234.56 ฿`, `PAY-2026-04`) · เซลล์ที่ **ผสมเลข+คำไทย** ใช้ `align="right" className="tabular-nums"` แทน (เลขยังเรียงตรงด้วย tabular figures แต่ฟอนต์ทั้งเซลล์ = body ตรงกับ Thai) — **ห้ามใส่ `tabular`**
+9. **ตารางที่อยู่ล่างสุดของหน้า → `<Table stickyHeader fillViewport>`** — สูงสุดแค่ขอบล่างของ browser แล้วเลื่อนในตัวเอง (ดูกฎเต็มใน §4 "ตารางที่อยู่ล่างสุดของหน้า") · ห้ามเดา `calc(100vh - Nrem)` เอง
 
 ตัวอย่าง structure ดิบ (อ้างอิงเท่านั้น — โค้ดจริงใช้ primitives ด้านบน):
 
@@ -1007,5 +1012,5 @@ import {
 | 2026-07-28 | **แท็บในหน้ารวมเป็นมาตรฐานเดียว = `<SegmentedControl>` (pill)** — เลิกแถบแท็บที่ประกอบเองจากกลุ่ม `<Button>` · §7 เพิ่มตารางขนาด (default = `sm` สำหรับแท็บ/ตัวกรอง · `md` เฉพาะ form control · `xs` inline ในตาราง) + pill `w-fit` ไม่ถูกยืด + ไอคอนย่อตามขนาดอัตโนมัติ                                                                                                                                                                                                            |
 | 2026-07-29 | เพิ่ม **`<FileDropzone>` เป็นมาตรฐานเดียวของการเลือกไฟล์ทั้งแอป** (§7) — เลิก `<input type="file">` ที่มองเห็น + เลิกประกอบ dropzone เอง · migrate 7 จุดเดิม (acc-firm OCR/vault, assistant STT, just-me OCR, tmc purchase, jaquar CSV, bank reconcile CSV, avatar)                                                                                                                                                                                                                 |
 | 2026-06-17 | เปลี่ยน **primary/brand = CHARCOAL `#3C3B3D`** (โทน mono เลิก AQUA) — blue/sky/cyan → charcoal scale, token primary/blue → charcoal, title (h1/PageShell/Title) ใช้ `text-primary` · สี accent อื่น (PLUM/PINK/MINT/RUBY/SUNFLOWER) คงเดิม                                                                                                                                                                                                                                          |
-| 2026-07-29 | เพิ่ม §4 **Filter toggle** (ซ่อนตัวกรองหลังปุ่มไอคอน + จุดเตือนเมื่อกรองค้าง), **สลับมุมมองการ์ด↔ตาราง** (`SegmentedControl` บน `PageShell actions` + แบ่งหน้าใช้ตัวเดียวกัน), **ตารางหลักสูงเต็มจอ** (`stickyHeader` + `maxHeight` ผูกกับสถานะแถบตัวกรอง) — ถอดจาก petty-cash + tmc/stays                                                                                                                                                                                          |
+| 2026-07-29 | เพิ่ม §4 **Filter toggle** (ซ่อนตัวกรองหลังปุ่มไอคอน + จุดเตือนเมื่อกรองค้าง), **สลับมุมมองการ์ด↔ตาราง** (`SegmentedControl` บน `PageShell actions` + แบ่งหน้าใช้ตัวเดียวกัน), **ตารางที่อยู่ล่างสุดของหน้าต้องสูงสุดแค่ขอบ browser** — เพิ่ม prop `fillViewport` ใน `<Table>` (วัดตำแหน่งจริงให้เอง ห้ามเดา `calc(100vh - Nrem)`) — ถอดจาก petty-cash + tmc/stays                                                                                                                  |
 | 2026-07-29 | **รวมแถบแบ่งหน้าเป็นมาตรฐานเดียวทั้งแอป (§5.1)** — เดิมมี 4 แบบปนกัน (pill เลขหน้า / `‹ ›` / ปุ่ม outline "ก่อนหน้า–ถัดไป" / load-more) · `table-pager.tsx` คุมหน้าตาที่เดียวผ่าน `PagerBar` แล้วแตกเป็น 3 ท่าตามที่มาข้อมูล (`TablePager` / `ControlledTablePager` / `LinkTablePager`) · migrate ad-hoc 5 จุด (admin audit/admin-audit/issues/leads, jaquar stock) + เพิ่มแถบให้ตารางที่ยังไม่มีอีก 72 จุด · ระบุตารางที่ยกเว้น (ตัวแก้บรรทัดเอกสาร / ตารางสรุป / การ์ดสรุป slice) |
