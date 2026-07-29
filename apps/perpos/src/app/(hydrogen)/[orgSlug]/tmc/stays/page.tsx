@@ -18,7 +18,20 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { Plus, X, Pencil, Trash2, AlertTriangle, BedDouble } from "lucide-react";
+import {
+  Table,
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableCell,
+  TableEmpty,
+  TableLoading,
+} from "@/components/ui/table";
+import { StatusBadge } from "@/components/ui/badge";
+import { SegmentedControl } from "@/components/ui/segmented";
+import { usePagination, TablePager } from "@/components/ui/table-pager";
+import { Plus, X, Pencil, Trash2, AlertTriangle, BedDouble, LayoutGrid, Rows3 } from "lucide-react";
 
 const TMC_ORG_ID = "1f52618c-09c4-49c5-a929-ea5060f26e7d";
 const SAV_ACCOUNT_ID = "a4ee27ea-6568-4097-abd7-a91fbf4805d0"; // กสิกร ออมทรัพย์
@@ -174,6 +187,17 @@ function guestDisplayName(g: Stay["tmc_guests"]) {
   if (!g) return "ไม่ระบุชื่อ";
   return g.nickname ?? `${g.first_name} ${g.last_name ?? ""}`.trim();
 }
+function shortDate(iso: string) {
+  return new Date(iso).toLocaleDateString("th-TH", { day: "numeric", month: "short" });
+}
+function stayTypeTone(t: string) {
+  return t === "paid" ? "success" : t === "influencer" ? "info" : "neutral";
+}
+function extraRevenueOf(s: Stay) {
+  return (
+    (s.food_amount ?? 0) + (s.drink_amount ?? 0) + (s.mookata_amount ?? 0) + (s.bbq_amount ?? 0)
+  );
+}
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
@@ -183,6 +207,7 @@ export default function TmcStaysPage() {
   const [loading, setLoading] = useState(true);
   const [filterProperty, setFilterProperty] = useState("");
   const [filterMonth, setFilterMonth] = useState("");
+  const [view, setView] = useState<"card" | "table">("card");
   const [availableMonths, setAvailableMonths] = useState<string[]>([]);
 
   // Add / Edit form
@@ -377,6 +402,12 @@ export default function TmcStaysPage() {
   const influStays = stays.filter((s) => s.stay_type === "influencer");
 
   const isEditMode = editingStay !== null;
+
+  // แบ่งหน้า — ใช้ร่วมกันทั้งมุมมองการ์ดและตาราง
+  const pager = usePagination(stays, {
+    pageSize: view === "table" ? 20 : 12,
+    resetKey: view,
+  });
 
   // ── Form body (shared between add + edit) ──────────────────────────────────
   const formBody = (
@@ -745,144 +776,291 @@ export default function TmcStaysPage() {
             <X className="h-3.5 w-3.5" /> ล้างตัวกรอง
           </Button>
         )}
+        <SegmentedControl
+          className="ms-auto"
+          value={view}
+          onChange={setView}
+          ariaLabel="รูปแบบการแสดงผล"
+          options={[
+            { value: "card", label: "การ์ด", icon: <LayoutGrid className="h-4 w-4" /> },
+            { value: "table", label: "ตาราง", icon: <Rows3 className="h-4 w-4" /> },
+          ]}
+        />
       </div>
 
-      {/* Stays Grid */}
-      {loading ? (
-        <div className="p-8 text-center text-slate-400">กำลังโหลด...</div>
-      ) : stays.length === 0 ? (
-        <div className="p-8 text-center text-slate-400">ยังไม่มีข้อมูลการเข้าพัก</div>
-      ) : (
-        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-          {stays.map((stay) => {
-            const guest = stay.tmc_guests;
-            const name = guestDisplayName(guest);
-            const extraRevenue =
-              (stay.food_amount ?? 0) +
-              (stay.mookata_amount ?? 0) +
-              (stay.bbq_amount ?? 0) +
-              (stay.drink_amount ?? 0);
-            return (
-              <div
-                key={stay.id}
-                className="space-y-3 rounded-xl border bg-white p-4 transition-shadow hover:shadow-md"
-              >
-                <div className="flex items-start justify-between">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-bold text-blue-700">
-                        {stay.property_code ?? "—"}
-                      </span>
-                      <span
-                        className={`rounded-full px-2 py-0.5 text-xs ${
-                          stay.stay_type === "paid"
-                            ? "bg-green-100 text-green-700"
-                            : stay.stay_type === "influencer"
-                              ? "bg-purple-100 text-purple-700"
-                              : "bg-slate-100 text-slate-600"
-                        }`}
-                      >
-                        {stayTypeLabel(stay.stay_type)}
-                      </span>
-                    </div>
-                    <p className="mt-1 truncate font-semibold text-slate-800">{name}</p>
-                    {guest?.tel && <p className="text-xs text-slate-400">{guest.tel}</p>}
-                  </div>
-                  {/* Action buttons */}
-                  <div className="ml-2 flex shrink-0 items-center gap-1">
-                    {stay.room_rate != null && (
-                      <p className="mr-1 text-sm font-bold text-green-600">{fmt(stay.room_rate)}</p>
-                    )}
-                    <button
-                      onClick={() => openEdit(stay)}
-                      title="แก้ไข"
-                      className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-blue-50 hover:text-blue-600"
-                    >
-                      <Pencil className="h-3.5 w-3.5" />
-                    </button>
-                    <button
-                      onClick={() => {
-                        setDeleteTarget(stay);
-                        setDeleteReason("");
-                      }}
-                      title="ลบ"
-                      className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-600">
-                  <span>
-                    {new Date(stay.check_in).toLocaleDateString("th-TH", {
-                      day: "numeric",
-                      month: "short",
-                    })}
-                  </span>
-                  <span className="text-slate-300">→</span>
-                  <span>
-                    {new Date(stay.check_out).toLocaleDateString("th-TH", {
-                      day: "numeric",
-                      month: "short",
-                    })}
-                  </span>
-                  <span className="ml-auto text-slate-400">{stay.nights} คืน</span>
-                </div>
-
-                <div className="flex flex-wrap gap-2 text-xs text-slate-500">
-                  {stay.booking_channel && (
-                    <span className="rounded bg-slate-100 px-2 py-0.5">{stay.booking_channel}</span>
-                  )}
-                  {stay.group_type && (
-                    <span className="rounded bg-slate-100 px-2 py-0.5">{stay.group_type}</span>
-                  )}
-                  {stay.group_size && (
-                    <span className="rounded bg-slate-100 px-2 py-0.5">{stay.group_size} คน</span>
-                  )}
-                  {stay.butler_service_visit && (
-                    <span className="rounded bg-indigo-50 px-2 py-0.5 text-indigo-600">
-                      บัตเลอร์ {stay.butler_service_visit}
-                    </span>
-                  )}
-                </div>
-
-                {extraRevenue > 0 && (
-                  <div className="flex flex-wrap gap-2 text-xs text-slate-500">
-                    {stay.food_amount ? <span>🍽️ {fmt(stay.food_amount)}</span> : null}
-                    {stay.drink_amount ? <span>🥤 {fmt(stay.drink_amount)}</span> : null}
-                    {stay.mookata_amount ? <span>🥩 {fmt(stay.mookata_amount)}</span> : null}
-                    {stay.bbq_amount ? <span>🔥 {fmt(stay.bbq_amount)}</span> : null}
-                  </div>
-                )}
-
-                {(stay.deposit_received || stay.deposit_returned) && (
-                  <div className="flex flex-wrap gap-2 text-xs">
-                    {stay.deposit_received ? (
-                      <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-amber-700">
-                        💵 มัดจำ {fmt(stay.deposit_received)}
-                      </span>
-                    ) : null}
-                    {stay.deposit_returned ? (
-                      <span className="rounded-full border border-slate-200 bg-slate-100 px-2 py-0.5 text-slate-500">
-                        ↩ คืน {fmt(stay.deposit_returned)}
-                      </span>
-                    ) : null}
-                  </div>
-                )}
-
-                {(stay.feedback || stay.issues || stay.damaged_items) && (
-                  <div className="space-y-1 border-t pt-2 text-xs">
-                    {stay.feedback && <p className="text-slate-600">💬 {stay.feedback}</p>}
-                    {stay.issues && <p className="text-orange-600">⚠️ {stay.issues}</p>}
-                    {stay.damaged_items && <p className="text-red-600">🔧 {stay.damaged_items}</p>}
-                  </div>
-                )}
-              </div>
-            );
-          })}
+      {/* ── มุมมองตาราง ─────────────────────────────────────────────────── */}
+      {view === "table" && (
+        <div className="space-y-3">
+          <Table stickyHeader maxHeight="calc(100vh - 24rem)">
+            <TableHeader sticky>
+              <TableRow>
+                <TableHead>แปลง</TableHead>
+                <TableHead>ลูกค้า</TableHead>
+                <TableHead>ช่วงเข้าพัก</TableHead>
+                <TableHead align="center">ประเภท</TableHead>
+                <TableHead>ช่องทาง / กลุ่ม</TableHead>
+                <TableHead align="right">ยอดที่พัก</TableHead>
+                <TableHead align="right">อาหาร/เครื่องดื่ม</TableHead>
+                <TableHead align="right">มัดจำ</TableHead>
+                <TableHead>หมายเหตุ</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {loading ? (
+                <TableLoading colSpan={9} />
+              ) : pager.rows.length === 0 ? (
+                <TableEmpty colSpan={9}>ยังไม่มีข้อมูลการเข้าพัก</TableEmpty>
+              ) : (
+                pager.rows.map((stay) => {
+                  const extra = extraRevenueOf(stay);
+                  return (
+                    <TableRow key={stay.id} clickable onClick={() => openEdit(stay)}>
+                      <TableCell>
+                        <span className="font-medium text-gray-900">
+                          {stay.property_code ?? "—"}
+                        </span>
+                      </TableCell>
+                      <TableCell>
+                        <div className="font-medium text-gray-900">
+                          {guestDisplayName(stay.tmc_guests)}
+                        </div>
+                        {stay.tmc_guests?.tel && (
+                          <div className="text-xs text-gray-500">{stay.tmc_guests.tel}</div>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <div className="text-gray-900">
+                          {shortDate(stay.check_in)} <span className="text-gray-400">→</span>{" "}
+                          {shortDate(stay.check_out)}
+                        </div>
+                        <div className="text-xs text-gray-500">{stay.nights} คืน</div>
+                      </TableCell>
+                      <TableCell align="center">
+                        <StatusBadge tone={stayTypeTone(stay.stay_type)}>
+                          {stayTypeLabel(stay.stay_type)}
+                        </StatusBadge>
+                      </TableCell>
+                      <TableCell>
+                        <div className="text-gray-700">{stay.booking_channel ?? "—"}</div>
+                        <div className="text-xs text-gray-500">
+                          {[
+                            stay.group_type,
+                            stay.group_size ? `${stay.group_size} คน` : null,
+                            stay.butler_service_visit
+                              ? `บัตเลอร์ ${stay.butler_service_visit}`
+                              : null,
+                          ]
+                            .filter(Boolean)
+                            .join(" · ") || "—"}
+                        </div>
+                      </TableCell>
+                      <TableCell align="right" tabular>
+                        {stay.room_rate != null ? (
+                          <span className="font-medium text-green-600">{fmt(stay.room_rate)}</span>
+                        ) : (
+                          <span className="text-gray-400">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell align="right" tabular>
+                        {extra > 0 ? (
+                          <>
+                            <div>{fmt(extra)}</div>
+                            <div className="text-xs text-gray-500">
+                              {[
+                                stay.food_amount ? `🍽️ ${fmt(stay.food_amount)}` : null,
+                                stay.drink_amount ? `🥤 ${fmt(stay.drink_amount)}` : null,
+                                stay.mookata_amount ? `🥩 ${fmt(stay.mookata_amount)}` : null,
+                                stay.bbq_amount ? `🔥 ${fmt(stay.bbq_amount)}` : null,
+                              ]
+                                .filter(Boolean)
+                                .join("  ")}
+                            </div>
+                          </>
+                        ) : (
+                          <span className="text-gray-400">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell align="right" tabular>
+                        {stay.deposit_received ? (
+                          <>
+                            <div className="text-amber-700">{fmt(stay.deposit_received)}</div>
+                            {stay.deposit_returned ? (
+                              <div className="text-xs text-gray-500">
+                                คืน {fmt(stay.deposit_returned)}
+                              </div>
+                            ) : null}
+                          </>
+                        ) : (
+                          <span className="text-gray-400">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell wrap className="max-w-xs">
+                        {stay.feedback || stay.issues || stay.damaged_items ? (
+                          <div className="space-y-0.5 text-xs">
+                            {stay.feedback && <p className="text-gray-600">💬 {stay.feedback}</p>}
+                            {stay.issues && <p className="text-orange-600">⚠️ {stay.issues}</p>}
+                            {stay.damaged_items && (
+                              <p className="text-red-600">🔧 {stay.damaged_items}</p>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-gray-400">—</span>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
+              )}
+            </TableBody>
+          </Table>
+          <TablePager pager={pager} unit="รายการ" />
         </div>
       )}
+
+      {/* Stays Grid */}
+      {view === "card" &&
+        (loading ? (
+          <div className="p-8 text-center text-slate-400">กำลังโหลด...</div>
+        ) : stays.length === 0 ? (
+          <div className="p-8 text-center text-slate-400">ยังไม่มีข้อมูลการเข้าพัก</div>
+        ) : (
+          <div className="space-y-3">
+            <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+              {pager.rows.map((stay) => {
+                const guest = stay.tmc_guests;
+                const name = guestDisplayName(guest);
+                const extraRevenue = extraRevenueOf(stay);
+                return (
+                  <div
+                    key={stay.id}
+                    className="space-y-3 rounded-xl border bg-white p-4 transition-shadow hover:shadow-md"
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-bold text-blue-700">
+                            {stay.property_code ?? "—"}
+                          </span>
+                          <span
+                            className={`rounded-full px-2 py-0.5 text-xs ${
+                              stay.stay_type === "paid"
+                                ? "bg-green-100 text-green-700"
+                                : stay.stay_type === "influencer"
+                                  ? "bg-purple-100 text-purple-700"
+                                  : "bg-slate-100 text-slate-600"
+                            }`}
+                          >
+                            {stayTypeLabel(stay.stay_type)}
+                          </span>
+                        </div>
+                        <p className="mt-1 truncate font-semibold text-slate-800">{name}</p>
+                        {guest?.tel && <p className="text-xs text-slate-400">{guest.tel}</p>}
+                      </div>
+                      {/* Action buttons */}
+                      <div className="ml-2 flex shrink-0 items-center gap-1">
+                        {stay.room_rate != null && (
+                          <p className="mr-1 text-sm font-bold text-green-600">
+                            {fmt(stay.room_rate)}
+                          </p>
+                        )}
+                        <button
+                          onClick={() => openEdit(stay)}
+                          title="แก้ไข"
+                          className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-blue-50 hover:text-blue-600"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          onClick={() => {
+                            setDeleteTarget(stay);
+                            setDeleteReason("");
+                          }}
+                          title="ลบ"
+                          className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-600">
+                      <span>
+                        {new Date(stay.check_in).toLocaleDateString("th-TH", {
+                          day: "numeric",
+                          month: "short",
+                        })}
+                      </span>
+                      <span className="text-slate-300">→</span>
+                      <span>
+                        {new Date(stay.check_out).toLocaleDateString("th-TH", {
+                          day: "numeric",
+                          month: "short",
+                        })}
+                      </span>
+                      <span className="ml-auto text-slate-400">{stay.nights} คืน</span>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2 text-xs text-slate-500">
+                      {stay.booking_channel && (
+                        <span className="rounded bg-slate-100 px-2 py-0.5">
+                          {stay.booking_channel}
+                        </span>
+                      )}
+                      {stay.group_type && (
+                        <span className="rounded bg-slate-100 px-2 py-0.5">{stay.group_type}</span>
+                      )}
+                      {stay.group_size && (
+                        <span className="rounded bg-slate-100 px-2 py-0.5">
+                          {stay.group_size} คน
+                        </span>
+                      )}
+                      {stay.butler_service_visit && (
+                        <span className="rounded bg-indigo-50 px-2 py-0.5 text-indigo-600">
+                          บัตเลอร์ {stay.butler_service_visit}
+                        </span>
+                      )}
+                    </div>
+
+                    {extraRevenue > 0 && (
+                      <div className="flex flex-wrap gap-2 text-xs text-slate-500">
+                        {stay.food_amount ? <span>🍽️ {fmt(stay.food_amount)}</span> : null}
+                        {stay.drink_amount ? <span>🥤 {fmt(stay.drink_amount)}</span> : null}
+                        {stay.mookata_amount ? <span>🥩 {fmt(stay.mookata_amount)}</span> : null}
+                        {stay.bbq_amount ? <span>🔥 {fmt(stay.bbq_amount)}</span> : null}
+                      </div>
+                    )}
+
+                    {(stay.deposit_received || stay.deposit_returned) && (
+                      <div className="flex flex-wrap gap-2 text-xs">
+                        {stay.deposit_received ? (
+                          <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-amber-700">
+                            💵 มัดจำ {fmt(stay.deposit_received)}
+                          </span>
+                        ) : null}
+                        {stay.deposit_returned ? (
+                          <span className="rounded-full border border-slate-200 bg-slate-100 px-2 py-0.5 text-slate-500">
+                            ↩ คืน {fmt(stay.deposit_returned)}
+                          </span>
+                        ) : null}
+                      </div>
+                    )}
+
+                    {(stay.feedback || stay.issues || stay.damaged_items) && (
+                      <div className="space-y-1 border-t pt-2 text-xs">
+                        {stay.feedback && <p className="text-slate-600">💬 {stay.feedback}</p>}
+                        {stay.issues && <p className="text-orange-600">⚠️ {stay.issues}</p>}
+                        {stay.damaged_items && (
+                          <p className="text-red-600">🔧 {stay.damaged_items}</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            <TablePager pager={pager} unit="รายการ" />
+          </div>
+        ))}
 
       {/* ── Add / Edit Dialog ────────────────────────────────────────────── */}
       <Dialog
@@ -904,6 +1082,21 @@ export default function TmcStaysPage() {
           </DialogHeader>
           {formBody}
           <DialogFooter>
+            {isEditMode && (
+              <Button
+                variant="destructive"
+                className="mr-auto"
+                onClick={() => {
+                  const target = editingStay;
+                  setShowForm(false);
+                  setEditingStay(null);
+                  setDeleteReason("");
+                  setDeleteTarget(target);
+                }}
+              >
+                <Trash2 className="h-4 w-4" /> ลบ
+              </Button>
+            )}
             <Button
               variant="outline"
               onClick={() => {
