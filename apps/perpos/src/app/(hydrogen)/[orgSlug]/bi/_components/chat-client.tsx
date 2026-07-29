@@ -154,7 +154,8 @@ export function ChatClient(props: ChatClientProps) {
   const [pinPayload, setPinPayload] = React.useState<PinPayload | null>(null);
 
   React.useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+    // nearest = เลื่อนเฉพาะกรอบข้อความ ไม่ดันทั้งหน้า
+    bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }, [turns.length, busy]);
 
   const ask = React.useCallback(
@@ -324,9 +325,10 @@ export function ChatClient(props: ChatClientProps) {
   );
 
   return (
-    <div className="space-y-4">
+    // สูงเท่าที่เหลือในจอ: แถบเลือกบทสนทนา + ช่องพิมพ์อยู่กับที่ เลื่อนเฉพาะข้อความในกรอบ
+    <div className="flex h-[calc(100dvh-11rem)] min-h-[26rem] flex-col gap-4">
       {/* แถบเลือกบทสนทนา */}
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex shrink-0 flex-wrap items-center gap-2">
         <MessagesSquare className="h-4 w-4 text-gray-400" />
         <CustomSelect
           className="w-64"
@@ -345,9 +347,12 @@ export function ChatClient(props: ChatClientProps) {
 
       {/* บทสนทนา */}
       {turns.length === 0 && !busy ? (
-        <EmptyChat metrics={metrics} onAsk={ask} disabled={!canWrite} />
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          <EmptyChat metrics={metrics} onAsk={ask} disabled={!canWrite} />
+        </div>
       ) : (
-        <div className="space-y-5">
+        // กรอบครอบพื้นที่บทสนทนา — กรอบอยู่กับที่ เลื่อนเฉพาะข้อความข้างใน
+        <div className="min-h-0 flex-1 space-y-5 overflow-y-auto rounded-xl border border-gray-200 bg-gray-50 p-4">
           {turns.map((turn) => (
             <div key={turn.key} className="space-y-2.5">
               {turn.question ? <QuestionBubble text={turn.question} /> : null}
@@ -393,7 +398,7 @@ export function ChatClient(props: ChatClientProps) {
 
       {/* ช่องพิมพ์คำถาม — ดัก Enter ที่ระดับกล่อง (event bubble จาก textarea) เพื่อให้ทำงานแน่นอน */}
       <div
-        className="sticky bottom-0 space-y-2 rounded-xl border border-gray-200 bg-white p-3 shadow-sm"
+        className="shrink-0 space-y-2 rounded-xl border border-gray-200 bg-white p-3 shadow-sm"
         onKeyDown={handleComposerKeyDown}
       >
         <Textarea
