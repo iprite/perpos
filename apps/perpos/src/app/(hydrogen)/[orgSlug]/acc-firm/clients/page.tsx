@@ -994,7 +994,14 @@ export default function AccFirmClientsPage() {
                         <RadioGroup
                           name="vat-registered"
                           value={form.vat_registered ? "yes" : "no"}
-                          onChange={(v) => setForm((f) => ({ ...f, vat_registered: v === "yes" }))}
+                          // เลือก "ไม่ได้จด" แล้วล้างวันที่จดทิ้ง — ไม่งั้นข้อมูลขัดกันเอง
+                          onChange={(v) =>
+                            setForm((f) => ({
+                              ...f,
+                              vat_registered: v === "yes",
+                              vat_registered_date: v === "yes" ? f.vat_registered_date : "",
+                            }))
+                          }
                           ariaLabel="จดทะเบียน VAT"
                           options={[
                             { value: "yes", label: "จดทะเบียน", hint: "ต้องยื่น ภ.พ.30 ทุกเดือน" },
@@ -1475,6 +1482,17 @@ export default function AccFirmClientsPage() {
               <span className="mr-auto self-center text-xs text-gray-400">
                 บัญชีของคุณเป็นสิทธิ์อ่านอย่างเดียว จึงแก้ไขไม่ได้
               </span>
+            )}
+            {/* ฟอร์มแบ่งเป็นแท็บแล้ว — ถ้าฟิลด์บังคับอยู่คนละแท็บ ต้องบอกว่าติดตรงไหน
+                ไม่งั้นผู้ใช้เห็นปุ่มบันทึกจางแล้วไม่รู้ว่าทำไม */}
+            {canWrite && (!form.client_code || !form.company_name) && tab !== "main" && (
+              <button
+                type="button"
+                onClick={() => setTab("main")}
+                className="mr-auto self-center text-xs text-amber-600 underline underline-offset-2"
+              >
+                ยังกรอกไม่ครบ — ต้องมีรหัสลูกค้าและชื่อบริษัทในแท็บ &ldquo;ข้อมูลหลัก&rdquo;
+              </button>
             )}
             <Button variant="outline" onClick={() => setDialogOpen(false)}>
               {canWrite ? "ยกเลิก" : "ปิด"}
