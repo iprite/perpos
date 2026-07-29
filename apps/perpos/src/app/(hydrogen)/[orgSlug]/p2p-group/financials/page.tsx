@@ -2,7 +2,7 @@
 // viewer เห็นได้เฉพาะรายได้/พนักงาน (strip ที่ server ผ่าน canSeeMoney)
 import { listCompanies, listFinancials } from "@/lib/p2p-group/queries";
 import { monthStart } from "@/lib/p2p-group/metrics";
-import { stripSensitiveFinancial } from "@/lib/p2p-group/types";
+import { stripSensitiveCompany, stripSensitiveFinancial } from "@/lib/p2p-group/types";
 import { requireP2pGroupPage } from "../_components/guard";
 import { FinancialsClient } from "./_financials-client";
 
@@ -28,7 +28,7 @@ export default async function FinancialsPage({
 
   return (
     <FinancialsClient
-      companies={companies}
+      companies={ctx.canSeeMoney ? companies : companies.map(stripSensitiveCompany)}
       financials={ctx.canSeeMoney ? financials : financials.map(stripSensitiveFinancial)}
       periodMonth={periodMonth}
       orgId={ctx.orgId}

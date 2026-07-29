@@ -184,6 +184,24 @@ export const SENSITIVE_FINANCIAL_FIELDS = [
   "ap",
 ] as const;
 
+/**
+ * ฟิลด์ของทะเบียนบริษัทที่ viewer ไม่ได้เห็น (§4 — ทุนจดทะเบียนอยู่ฝั่งตัวเลขเงิน)
+ * viewer ยังเห็นชื่อ/ประเภท/สัดส่วนถือหุ้น/เลขนิติบุคคลได้ตามปกติ
+ */
+export const SENSITIVE_COMPANY_FIELDS = ["registered_capital", "paid_up_capital"] as const;
+
+/**
+ * ตัดทุนจดทะเบียนออกก่อนส่งให้ client ของ viewer
+ * (ซ่อนแค่คอลัมน์ในตารางไม่พอ — ค่าจะติดไปกับ props/RSC payload อยู่ดี)
+ */
+export function stripSensitiveCompany<T extends Partial<P2pgCompany>>(row: T): T {
+  const out = { ...row };
+  for (const f of SENSITIVE_COMPANY_FIELDS) {
+    if (f in out) (out as Record<string, unknown>)[f] = null;
+  }
+  return out;
+}
+
 /** ตัดฟิลด์อ่อนไหวออกจากงบรายเดือนสำหรับ viewer */
 export function stripSensitiveFinancial<T extends Partial<P2pgFinancial>>(row: T): T {
   const out = { ...row };

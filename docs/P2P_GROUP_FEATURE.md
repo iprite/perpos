@@ -67,6 +67,9 @@ module roles: `owner` · `manager` · `viewer`
 **viewer อ่านงบรายเดือนได้ผ่าน view `p2pg_financials_basic` เท่านั้น** (มีแค่ `revenue`/`headcount`) —
 `listFinancials(..., { basic: true })` · **ห้ามเพิ่มคอลัมน์อ่อนไหวเข้า view นี้เด็ดขาด**
 
+**ทุนจดทะเบียนก็เป็นตัวเลขเงิน** — หน้าที่ส่ง `P2pgCompany` ให้ client component ต้องผ่าน
+`stripSensitiveCompany` เมื่อ `!canSeeMoney` (ซ่อนคอลัมน์ในตารางไม่พอ — ค่าติดไปกับ props/RSC payload)
+
 > **กับดักที่เจอตอนแก้ (สำคัญมาก):** policy เดิมชื่อ `<t>_write` เป็น **`FOR ALL`** — และ "ALL" **รวม SELECT**
 > ⇒ ต่อให้รัด `_select` แล้ว policy เขียนก็ยังเปิดทางอ่านอยู่ (policy แบบ permissive OR กัน)
 > ⇒ ต้องแยกเป็น `_insert`/`_update`/`_delete` **ห้ามใช้ `FOR ALL` กับตารางที่มีการอ่านแบบมีเงื่อนไข**

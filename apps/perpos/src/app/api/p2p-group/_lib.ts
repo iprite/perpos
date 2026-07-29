@@ -150,7 +150,14 @@ export async function handleCreate(req: NextRequest, cfg: CollectionConfig): Pro
   const payload = pickFields(body, cfg.allowed);
 
   for (const f of cfg.required ?? []) {
-    if (payload[f] == null || payload[f] === "") return p2pgError(`ข้อมูลไม่ครบ: ${f}`, 400);
+    const v = payload[f];
+    // ช่องว่างล้วน ("   ") ต้องไม่ผ่านเหมือนช่องว่างเปล่า
+    if (v == null || (typeof v === "string" && v.trim() === ""))
+      return p2pgError(`ข้อมูลไม่ครบ: ${f}`, 400);
+  }
+  // trim ค่าข้อความทุกตัวก่อนเขียน (กันชื่อที่มีช่องว่างหัว-ท้ายแล้วค้นหา/เทียบไม่เจอ)
+  for (const [k, v] of Object.entries(payload)) {
+    if (typeof v === "string") payload[k] = v.trim() === "" ? null : v.trim();
   }
   const err = cfg.beforeWrite?.(payload, g.auth, "create");
   if (err) return p2pgError(err, 400);
@@ -159,10 +166,22 @@ export async function handleCreate(req: NextRequest, cfg: CollectionConfig): Pro
   if (refErr) return p2pgError(refErr, 400);
 
   payload.org_id = g.auth.orgId;
-  payload.created_by = g.auth.userId;
 
   const admin = createAdminClient();
   await setAuditContext(req, g.auth.userId, g.auth.orgId);
+
+  // upsert ที่ชนแถวเดิม = การ "แก้" ไม่ใช่การ "สร้าง" → ห้ามทับ created_by
+  // (ไม่งั้นร่องรอยว่าใครสร้างงวดนั้นหายทุกครั้งที่มีคนแก้ตัวเลข)
+  let isUpdate = false;
+  if (cfg.upsertOn) {
+    let probe = admin.from(cfg.table).select("id").eq("org_id", g.auth.orgId);
+    for (const col of cfg.upsertOn.split(",").map((c) => c.trim())) {
+      probe = probe.eq(col, payload[col] as string);
+    }
+    const { data: existing } = await probe.maybeSingle();
+    isUpdate = Boolean(existing);
+  }
+  if (!isUpdate) payload.created_by = g.auth.userId;
 
   const q = cfg.upsertOn
     ? admin.from(cfg.table).upsert(payload, { onConflict: cfg.upsertOn })
@@ -185,6 +204,10 @@ export async function handleUpdate(
   const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
   const payload = pickFields(body, cfg.allowed);
   if (Object.keys(payload).length === 0) return p2pgError("ไม่มีข้อมูลที่จะแก้ไข", 400);
+
+  for (const [k, v] of Object.entries(payload)) {
+    if (typeof v === "string") payload[k] = v.trim() === "" ? null : v.trim();
+  }
 
   const err = cfg.beforeWrite?.(payload, g.auth, "update");
   if (err) return p2pgError(err, 400);
