@@ -62,7 +62,6 @@ import {
   Landmark,
   FolderLock,
 } from "lucide-react";
-import { RadioGroup } from "@/components/ui/radio-group";
 import { ThaiDatePicker } from "@/components/ui/thai-date-picker";
 import { PageShell } from "@/components/ui/page-shell";
 import { StatCard as UiStatCard } from "@/components/ui/stat-card";
@@ -923,14 +922,14 @@ export default function AccFirmClientsPage() {
                     <div>
                       <Label>สถานะลูกค้า</Label>
                       <div className="mt-1">
-                        <RadioGroup
-                          name="client-active"
+                        <SegmentedControl
+                          size="form"
                           value={form.is_active ? "active" : "inactive"}
                           onChange={(v) => setForm((f) => ({ ...f, is_active: v === "active" }))}
                           ariaLabel="สถานะลูกค้า"
                           options={[
-                            { value: "active", label: "ใช้งาน", hint: "ยังรับทำบัญชีให้อยู่" },
-                            { value: "inactive", label: "ยกเลิก", hint: "เลิกจ้าง/หยุดให้บริการ" },
+                            { value: "active", label: "ใช้งาน" },
+                            { value: "inactive", label: "ยกเลิก" },
                           ]}
                         />
                       </div>
@@ -1000,8 +999,8 @@ export default function AccFirmClientsPage() {
                     <div>
                       <Label>จดทะเบียนภาษีมูลค่าเพิ่ม (VAT)</Label>
                       <div className="mt-1">
-                        <RadioGroup
-                          name="vat-registered"
+                        <SegmentedControl
+                          size="form"
                           value={form.vat_registered ? "yes" : "no"}
                           // เลือก "ไม่ได้จด" แล้วล้างวันที่จดทิ้ง — ไม่งั้นข้อมูลขัดกันเอง
                           onChange={(v) =>
@@ -1013,7 +1012,7 @@ export default function AccFirmClientsPage() {
                           }
                           ariaLabel="จดทะเบียน VAT"
                           options={[
-                            { value: "yes", label: "จดทะเบียน", hint: "ต้องยื่น ภ.พ.30 ทุกเดือน" },
+                            { value: "yes", label: "จดทะเบียน" },
                             { value: "no", label: "ไม่ได้จด" },
                           ]}
                         />
@@ -1054,17 +1053,13 @@ export default function AccFirmClientsPage() {
                     <div>
                       <Label>ประกันสังคม</Label>
                       <div className="mt-1">
-                        <RadioGroup
-                          name="sso-registered"
+                        <SegmentedControl
+                          size="form"
                           value={form.sso_registered ? "yes" : "no"}
                           onChange={(v) => setForm((f) => ({ ...f, sso_registered: v === "yes" }))}
                           ariaLabel="ขึ้นทะเบียนประกันสังคม"
                           options={[
-                            {
-                              value: "yes",
-                              label: "ขึ้นทะเบียนแล้ว",
-                              hint: "นำส่งเงินสมทบทุกเดือน",
-                            },
+                            { value: "yes", label: "ขึ้นทะเบียนแล้ว" },
                             { value: "no", label: "ยังไม่ขึ้นทะเบียน" },
                           ]}
                         />
@@ -1085,8 +1080,8 @@ export default function AccFirmClientsPage() {
                   <div>
                     <Label>ช่องทางยื่นแบบ</Label>
                     <div className="mt-1">
-                      <RadioGroup
-                        name="efiling"
+                      <SegmentedControl
+                        size="form"
                         value={form.efiling_enabled ? "efiling" : "paper"}
                         onChange={(v) =>
                           setForm((f) => ({ ...f, efiling_enabled: v === "efiling" }))
