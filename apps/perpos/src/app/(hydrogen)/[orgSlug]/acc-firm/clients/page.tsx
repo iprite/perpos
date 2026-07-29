@@ -244,30 +244,6 @@ type FirmMember = {
   accessModules: string[];
 };
 
-/** วัน-เวลาไทยแบบสั้น "29 ก.ค. 2569 17:05" */
-function fmtDateTime(iso: string | null): string {
-  if (!iso) return "—";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "—";
-  const TH = [
-    "ม.ค.",
-    "ก.พ.",
-    "มี.ค.",
-    "เม.ย.",
-    "พ.ค.",
-    "มิ.ย.",
-    "ก.ค.",
-    "ส.ค.",
-    "ก.ย.",
-    "ต.ค.",
-    "พ.ย.",
-    "ธ.ค.",
-  ];
-  const hh = String(d.getHours()).padStart(2, "0");
-  const mm = String(d.getMinutes()).padStart(2, "0");
-  return `${d.getDate()} ${TH[d.getMonth()]} ${d.getFullYear() + 543} ${hh}:${mm}`;
-}
-
 /** ค่าบริการ: "12,000 ฿" หรือ null/0 → "—" */
 function fmtFeeMonthly(v: number | null) {
   if (v == null || v === 0) return "—";
@@ -998,7 +974,7 @@ export default function AccFirmClientsPage() {
                         <Label>สถานะลูกค้า</Label>
                         <div className="mt-1">
                           <SegmentedControl
-                            size="form"
+                            size="sm"
                             value={form.is_active ? "active" : "inactive"}
                             onChange={(v) => setForm((f) => ({ ...f, is_active: v === "active" }))}
                             ariaLabel="สถานะลูกค้า"
@@ -1079,7 +1055,7 @@ export default function AccFirmClientsPage() {
                         <Label>จดทะเบียนภาษีมูลค่าเพิ่ม (VAT)</Label>
                         <div className="mt-1">
                           <SegmentedControl
-                            size="form"
+                            size="sm"
                             value={form.vat_registered ? "yes" : "no"}
                             // เลือก "ไม่ได้จด" แล้วล้างวันที่จดทิ้ง — ไม่งั้นข้อมูลขัดกันเอง
                             onChange={(v) =>
@@ -1133,7 +1109,7 @@ export default function AccFirmClientsPage() {
                         <Label>ประกันสังคม</Label>
                         <div className="mt-1">
                           <SegmentedControl
-                            size="form"
+                            size="sm"
                             value={form.sso_registered ? "yes" : "no"}
                             onChange={(v) =>
                               setForm((f) => ({ ...f, sso_registered: v === "yes" }))
@@ -1162,7 +1138,7 @@ export default function AccFirmClientsPage() {
                       <Label>ช่องทางยื่นแบบ</Label>
                       <div className="mt-1">
                         <SegmentedControl
-                          size="form"
+                          size="sm"
                           value={form.efiling_enabled ? "efiling" : "paper"}
                           onChange={(v) =>
                             setForm((f) => ({ ...f, efiling_enabled: v === "efiling" }))
@@ -1553,13 +1529,6 @@ export default function AccFirmClientsPage() {
               </div>
             </div>
           </DialogBody>
-
-          {editing && (
-            <p className="border-t px-6 pt-3 text-xs text-gray-400">
-              แก้ไขล่าสุด {fmtDateTime(editing.updated_at)}
-              {editing.updated_by_name ? ` โดย ${editing.updated_by_name}` : ""}
-            </p>
-          )}
 
           <DialogFooter>
             {editing && canWrite && !editing.client_org_id && (
