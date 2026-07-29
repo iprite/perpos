@@ -18,6 +18,7 @@ import {
   TableCell,
   TableEmpty,
 } from "@/components/ui/table";
+import { TablePager, usePagination } from "@/components/ui/table-pager";
 import { AdminCard } from "../_components/admin-page";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { SchedulerData } from "@/lib/admin/scheduler";
@@ -79,6 +80,7 @@ function Stat({
 export function SchedulerView({ initialData }: { initialData: SchedulerData }) {
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
   const [data, setData] = useState<SchedulerData>(initialData);
+  const runPager = usePagination(data.runs);
 
   const refresh = useCallback(async () => {
     try {
@@ -152,7 +154,7 @@ export function SchedulerView({ initialData }: { initialData: SchedulerData }) {
             {data.runs.length === 0 ? (
               <TableEmpty colSpan={7}>ยังไม่มีบันทึกการรัน</TableEmpty>
             ) : (
-              data.runs.map((r) => (
+              runPager.rows.map((r) => (
                 <TableRow key={r.id}>
                   <TableCell className="text-gray-700">{fmtTs(r.ran_at)}</TableCell>
                   <TableCell align="center">
@@ -186,6 +188,7 @@ export function SchedulerView({ initialData }: { initialData: SchedulerData }) {
             )}
           </TableBody>
         </Table>
+        <TablePager pager={runPager} unit="รอบ" />
       </AdminCard>
     </div>
   );

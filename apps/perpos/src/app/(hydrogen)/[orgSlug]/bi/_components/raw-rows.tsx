@@ -19,6 +19,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { TablePager, usePagination } from "@/components/ui/table-pager";
 import { notify } from "@/lib/toast";
 import cn from "@core/utils/class-names";
 
@@ -72,6 +73,7 @@ export function RawRows({
   }, [rows]);
 
   const visible = rows.slice(0, MAX_VISIBLE_ROWS);
+  const pager = usePagination(visible);
 
   const copyCsv = async () => {
     try {
@@ -135,7 +137,7 @@ export function RawRows({
               {visible.length === 0 ? (
                 <TableEmpty colSpan={cols.length}>ไม่มีข้อมูล</TableEmpty>
               ) : (
-                visible.map((r, i) => (
+                pager.rows.map((r, i) => (
                   <TableRow key={i}>
                     {cols.map((c) => {
                       const numeric = typeof r[c] === "number";
@@ -154,6 +156,7 @@ export function RawRows({
               )}
             </TableBody>
           </Table>
+          <TablePager pager={pager} />
 
           {rows.length > MAX_VISIBLE_ROWS ? (
             <Text className="px-1 text-xs text-gray-500">

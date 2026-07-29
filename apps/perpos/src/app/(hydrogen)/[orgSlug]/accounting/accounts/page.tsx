@@ -21,6 +21,7 @@ import {
   TableEmpty,
   TableLoading,
 } from "@/components/ui/table";
+import { TablePager, usePagination } from "@/components/ui/table-pager";
 import {
   AccountingShell,
   useAccountingRole,
@@ -92,6 +93,7 @@ export default function AccountsPage() {
       .sort((a, b) => a.code.localeCompare(b.code))
       .map((a) => ({ ...a, _level: 0 }));
   }, [accounts, search, typeF]);
+  const pager = usePagination(rows);
 
   const counts = useMemo(() => {
     const m: Record<string, number> = {};
@@ -172,7 +174,7 @@ export default function AccountsPage() {
           ) : rows.length === 0 ? (
             <TableEmpty colSpan={3}>ไม่พบบัญชีที่ตรงเงื่อนไข</TableEmpty>
           ) : (
-            rows.map((a) => {
+            pager.rows.map((a) => {
               const isHeader = a._level === 0 && a.parent_id === null;
               return (
                 <TableRow key={a.id} clickable onClick={() => openEdit(a)}>
@@ -205,6 +207,7 @@ export default function AccountsPage() {
           )}
         </TableBody>
       </Table>
+      <TablePager pager={pager} />
 
       <AccountDialog open={dialogOpen} onOpenChange={setDialogOpen} account={editing} />
     </AccountingShell>

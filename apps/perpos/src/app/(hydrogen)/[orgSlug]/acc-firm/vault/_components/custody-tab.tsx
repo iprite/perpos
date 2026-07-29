@@ -30,6 +30,7 @@ import {
   TableCell,
   TableEmpty,
 } from "@/components/ui/table";
+import { TablePager, usePagination } from "@/components/ui/table-pager";
 import { toast } from "@/lib/toast";
 import {
   CUSTODY_DIRECTION_LABELS,
@@ -68,6 +69,7 @@ export function CustodyTab({
 }) {
   const api = useVaultApi(orgId);
   const [entries, setEntries] = useState(initialEntries);
+  const pager = usePagination(entries);
   const [open, setOpen] = useState(false);
   const [direction, setDirection] = useState<CustodyDirection>("in");
   const [form, setForm] = useState(EMPTY_FORM);
@@ -133,53 +135,58 @@ export function CustodyTab({
           )}
         </div>
       ) : (
-        <Table className="shadow-sm">
-          <TableHeader>
-            <TableRow>
-              <TableHead>เลขที่ใบรับ</TableHead>
-              <TableHead align="center">ทิศทาง</TableHead>
-              <TableHead>รายการ</TableHead>
-              <TableHead align="right">จำนวน</TableHead>
-              <TableHead>ช่องทาง</TableHead>
-              <TableHead>ผู้ส่งมอบ</TableHead>
-              <TableHead>เมื่อ</TableHead>
-              <TableHead>ผู้รับของสำนักงาน</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {entries.length === 0 ? (
-              <TableEmpty colSpan={8}>ยังไม่มีรายการ</TableEmpty>
-            ) : (
-              entries.map((e) => (
-                <TableRow key={e.id}>
-                  <TableCell align="left" tabular className="text-gray-700">
-                    {e.receiptNo ?? "—"}
-                  </TableCell>
-                  <TableCell align="center">
-                    <StatusBadge tone={e.direction === "in" ? "info" : "neutral"}>
-                      {CUSTODY_DIRECTION_LABELS[e.direction]}
-                    </StatusBadge>
-                  </TableCell>
-                  <TableCell className="text-gray-800">
-                    {e.itemSummary}
-                    {e.note && (
-                      <Text className="mt-0.5 text-xs text-gray-500">หมายเหตุ: {e.note}</Text>
-                    )}
-                  </TableCell>
-                  <TableCell align="right" className="tabular-nums text-gray-700">
-                    {e.itemCount == null ? "—" : `${e.itemCount} รายการ`}
-                  </TableCell>
-                  <TableCell className="text-gray-600">{CUSTODY_METHOD_LABELS[e.method]}</TableCell>
-                  <TableCell className="text-gray-600">{e.handedBy ?? "—"}</TableCell>
-                  <TableCell className="text-xs text-gray-500">
-                    {fmtDateTime(e.occurredAt)}
-                  </TableCell>
-                  <TableCell className="text-gray-600">{e.receivedByName ?? "—"}</TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
+        <div className="space-y-3">
+          <Table className="shadow-sm">
+            <TableHeader>
+              <TableRow>
+                <TableHead>เลขที่ใบรับ</TableHead>
+                <TableHead align="center">ทิศทาง</TableHead>
+                <TableHead>รายการ</TableHead>
+                <TableHead align="right">จำนวน</TableHead>
+                <TableHead>ช่องทาง</TableHead>
+                <TableHead>ผู้ส่งมอบ</TableHead>
+                <TableHead>เมื่อ</TableHead>
+                <TableHead>ผู้รับของสำนักงาน</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {entries.length === 0 ? (
+                <TableEmpty colSpan={8}>ยังไม่มีรายการ</TableEmpty>
+              ) : (
+                pager.rows.map((e) => (
+                  <TableRow key={e.id}>
+                    <TableCell align="left" tabular className="text-gray-700">
+                      {e.receiptNo ?? "—"}
+                    </TableCell>
+                    <TableCell align="center">
+                      <StatusBadge tone={e.direction === "in" ? "info" : "neutral"}>
+                        {CUSTODY_DIRECTION_LABELS[e.direction]}
+                      </StatusBadge>
+                    </TableCell>
+                    <TableCell className="text-gray-800">
+                      {e.itemSummary}
+                      {e.note && (
+                        <Text className="mt-0.5 text-xs text-gray-500">หมายเหตุ: {e.note}</Text>
+                      )}
+                    </TableCell>
+                    <TableCell align="right" className="tabular-nums text-gray-700">
+                      {e.itemCount == null ? "—" : `${e.itemCount} รายการ`}
+                    </TableCell>
+                    <TableCell className="text-gray-600">
+                      {CUSTODY_METHOD_LABELS[e.method]}
+                    </TableCell>
+                    <TableCell className="text-gray-600">{e.handedBy ?? "—"}</TableCell>
+                    <TableCell className="text-xs text-gray-500">
+                      {fmtDateTime(e.occurredAt)}
+                    </TableCell>
+                    <TableCell className="text-gray-600">{e.receivedByName ?? "—"}</TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+          <TablePager pager={pager} />
+        </div>
       )}
 
       <Dialog open={open} onOpenChange={setOpen}>

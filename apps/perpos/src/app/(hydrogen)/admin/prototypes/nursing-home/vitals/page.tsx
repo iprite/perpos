@@ -28,6 +28,7 @@ import {
   TableEmpty,
   TableLoading,
 } from "@/components/ui/table";
+import { TablePager, usePagination } from "@/components/ui/table-pager";
 import {
   Dialog,
   DialogContent,
@@ -102,6 +103,7 @@ export default function VitalsPage() {
       .filter((r) => (fFlag ? r.flag === fFlag : true))
       .sort((a, b) => (a.measured_at < b.measured_at ? 1 : -1));
   }, [rows, fResident, fFlag]);
+  const pager = usePagination(filtered);
 
   const todayAbnormal = useMemo(
     () => rows.filter((r) => r.measured_at.startsWith(TODAY) && r.flag !== "normal").length,
@@ -340,7 +342,7 @@ export default function VitalsPage() {
           ) : filtered.length === 0 ? (
             <TableEmpty colSpan={9}>ยังไม่มีการบันทึกสัญญาณชีพตามเงื่อนไข</TableEmpty>
           ) : (
-            filtered.map((r) => (
+            pager.rows.map((r) => (
               <TableRow key={r.id}>
                 <TableCell>{residentName(r.resident_id)}</TableCell>
                 <TableCell>{fmtDateTimeTH(r.measured_at)}</TableCell>
@@ -368,6 +370,7 @@ export default function VitalsPage() {
           )}
         </TableBody>
       </Table>
+      <TablePager pager={pager} />
 
       {/* dialog เพิ่ม vital */}
       <Dialog open={open} onOpenChange={setOpen}>

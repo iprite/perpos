@@ -15,6 +15,7 @@ import {
   TableHead,
   TableCell,
 } from "@/components/ui/table";
+import { TablePager, usePagination } from "@/components/ui/table-pager";
 import {
   Dialog,
   DialogContent,
@@ -171,6 +172,7 @@ export default function TranscribeView({
   const [token, setToken] = useState("");
 
   const [jobs, setJobs] = useState<Job[]>(initialJobs);
+  const jobPager = usePagination(jobs);
 
   // upload state
   const [file, setFile] = useState<File | null>(null);
@@ -590,139 +592,144 @@ export default function TranscribeView({
               </Button>
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>ไฟล์</TableHead>
-                  <TableHead align="center">สถานะ</TableHead>
-                  <TableHead className="hidden md:table-cell">สร้างเมื่อ</TableHead>
-                  <TableHead>หมดอายุ</TableHead>
-                  <TableHead align="right">จัดการ</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {jobs.map((job) => {
-                  const exp = job.status === "completed" ? expiryInfo(job.created_at) : null;
-                  const isDone = job.status === "completed";
-                  const isRecall = job.source === "recall";
-                  // งานบอทที่ยกเลิก/ไม่มีเสียง = ไม่ใช่ "ล้มเหลว" จริง → แสดงสถานะให้ตรง + ไม่ต้องลองใหม่
-                  const cancelledLike =
-                    job.status === "failed" &&
-                    (job.bot_state === "cancelled" ||
-                      job.bot_state === "no_recording" ||
-                      job.bot_state === "stuck");
-                  const statusText =
-                    job.bot_state === "cancelled"
-                      ? "ยกเลิก"
-                      : job.bot_state === "no_recording"
-                        ? "ไม่มีการประชุม"
-                        : job.bot_state === "stuck"
-                          ? "บอทเข้าห้องไม่สำเร็จ"
-                          : STATUS_TEXT[job.status];
-                  const statusTone: BadgeTone = cancelledLike ? "neutral" : STATUS_TONE[job.status];
-                  return (
-                    <TableRow
-                      key={job.id}
-                      clickable={isDone}
-                      onClick={
-                        isDone
-                          ? () => {
-                              setActiveJob(job);
-                              setCopied(false);
-                            }
-                          : undefined
-                      }
-                    >
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <FileAudio className="h-4 w-4 shrink-0 text-gray-400" />
-                          <div className="min-w-0">
-                            <div className="truncate font-medium text-gray-900">
-                              {job.transcript_json?.meeting_title || job.file_name}
-                            </div>
-                            <div className="truncate text-xs text-gray-400">
-                              {job.file_name}
-                              {job.file_size ? ` · ${fmtSize(job.file_size)}` : ""}
+            <div className="space-y-3">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>ไฟล์</TableHead>
+                    <TableHead align="center">สถานะ</TableHead>
+                    <TableHead className="hidden md:table-cell">สร้างเมื่อ</TableHead>
+                    <TableHead>หมดอายุ</TableHead>
+                    <TableHead align="right">จัดการ</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {jobPager.rows.map((job) => {
+                    const exp = job.status === "completed" ? expiryInfo(job.created_at) : null;
+                    const isDone = job.status === "completed";
+                    const isRecall = job.source === "recall";
+                    // งานบอทที่ยกเลิก/ไม่มีเสียง = ไม่ใช่ "ล้มเหลว" จริง → แสดงสถานะให้ตรง + ไม่ต้องลองใหม่
+                    const cancelledLike =
+                      job.status === "failed" &&
+                      (job.bot_state === "cancelled" ||
+                        job.bot_state === "no_recording" ||
+                        job.bot_state === "stuck");
+                    const statusText =
+                      job.bot_state === "cancelled"
+                        ? "ยกเลิก"
+                        : job.bot_state === "no_recording"
+                          ? "ไม่มีการประชุม"
+                          : job.bot_state === "stuck"
+                            ? "บอทเข้าห้องไม่สำเร็จ"
+                            : STATUS_TEXT[job.status];
+                    const statusTone: BadgeTone = cancelledLike
+                      ? "neutral"
+                      : STATUS_TONE[job.status];
+                    return (
+                      <TableRow
+                        key={job.id}
+                        clickable={isDone}
+                        onClick={
+                          isDone
+                            ? () => {
+                                setActiveJob(job);
+                                setCopied(false);
+                              }
+                            : undefined
+                        }
+                      >
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <FileAudio className="h-4 w-4 shrink-0 text-gray-400" />
+                            <div className="min-w-0">
+                              <div className="truncate font-medium text-gray-900">
+                                {job.transcript_json?.meeting_title || job.file_name}
+                              </div>
+                              <div className="truncate text-xs text-gray-400">
+                                {job.file_name}
+                                {job.file_size ? ` · ${fmtSize(job.file_size)}` : ""}
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      </TableCell>
-                      <TableCell align="center">
-                        <StatusBadge tone={statusTone}>{statusText}</StatusBadge>
-                        {job.status === "failed" && !cancelledLike && job.error_message ? (
-                          <div
-                            className="mt-1 max-w-[200px] truncate text-xs text-red-600"
-                            title={job.error_message}
-                          >
-                            {job.error_message}
-                          </div>
-                        ) : null}
-                      </TableCell>
-                      <TableCell className="hidden text-gray-500 md:table-cell">
-                        {fmtDateTime(job.created_at)}
-                      </TableCell>
-                      <TableCell>
-                        {exp ? (
-                          <span
-                            className={`inline-flex items-center gap-1 text-xs ${exp.expired ? "text-gray-400" : exp.soon ? "text-amber-600" : "text-gray-500"}`}
-                          >
-                            <Clock className="h-3.5 w-3.5" /> {exp.label}
-                          </span>
-                        ) : (
-                          <span className="text-xs text-gray-300">—</span>
-                        )}
-                      </TableCell>
-                      <TableCell align="right" onClick={(e) => e.stopPropagation()}>
-                        <div className="flex items-center justify-end gap-1.5">
-                          {job.status === "completed" ? (
-                            <>
-                              <Button
-                                size="sm"
-                                disabled={pdfBusyId === job.id || exp?.expired}
-                                onClick={() => downloadPdf(job, { rowId: job.id })}
-                              >
-                                {pdfBusyId === job.id ? (
-                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                ) : (
-                                  <>
-                                    <Download className="mr-1 h-3.5 w-3.5" /> MoM
-                                  </>
-                                )}
-                              </Button>
-                              {isRecall ? (
+                        </TableCell>
+                        <TableCell align="center">
+                          <StatusBadge tone={statusTone}>{statusText}</StatusBadge>
+                          {job.status === "failed" && !cancelledLike && job.error_message ? (
+                            <div
+                              className="mt-1 max-w-[200px] truncate text-xs text-red-600"
+                              title={job.error_message}
+                            >
+                              {job.error_message}
+                            </div>
+                          ) : null}
+                        </TableCell>
+                        <TableCell className="hidden text-gray-500 md:table-cell">
+                          {fmtDateTime(job.created_at)}
+                        </TableCell>
+                        <TableCell>
+                          {exp ? (
+                            <span
+                              className={`inline-flex items-center gap-1 text-xs ${exp.expired ? "text-gray-400" : exp.soon ? "text-amber-600" : "text-gray-500"}`}
+                            >
+                              <Clock className="h-3.5 w-3.5" /> {exp.label}
+                            </span>
+                          ) : (
+                            <span className="text-xs text-gray-300">—</span>
+                          )}
+                        </TableCell>
+                        <TableCell align="right" onClick={(e) => e.stopPropagation()}>
+                          <div className="flex items-center justify-end gap-1.5">
+                            {job.status === "completed" ? (
+                              <>
                                 <Button
-                                  variant="outline"
                                   size="sm"
-                                  disabled={audioBusyId === job.id || exp?.expired}
-                                  onClick={() => downloadAudio(job)}
+                                  disabled={pdfBusyId === job.id || exp?.expired}
+                                  onClick={() => downloadPdf(job, { rowId: job.id })}
                                 >
-                                  {audioBusyId === job.id ? (
+                                  {pdfBusyId === job.id ? (
                                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
                                   ) : (
                                     <>
-                                      <Download className="mr-1 h-3.5 w-3.5" /> เสียง
+                                      <Download className="mr-1 h-3.5 w-3.5" /> MoM
                                     </>
                                   )}
                                 </Button>
-                              ) : null}
-                            </>
-                          ) : cancelledLike ? (
-                            <span className="text-xs text-gray-300">—</span>
-                          ) : job.status === "failed" || job.status === "pending" ? (
-                            <Button variant="outline" size="sm" onClick={() => retry(job.id)}>
-                              <Play className="mr-1 h-3.5 w-3.5" />{" "}
-                              {job.status === "pending" ? "เริ่มถอดเสียง" : "ลองใหม่"}
-                            </Button>
-                          ) : (
-                            <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
-                          )}
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
+                                {isRecall ? (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    disabled={audioBusyId === job.id || exp?.expired}
+                                    onClick={() => downloadAudio(job)}
+                                  >
+                                    {audioBusyId === job.id ? (
+                                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                    ) : (
+                                      <>
+                                        <Download className="mr-1 h-3.5 w-3.5" /> เสียง
+                                      </>
+                                    )}
+                                  </Button>
+                                ) : null}
+                              </>
+                            ) : cancelledLike ? (
+                              <span className="text-xs text-gray-300">—</span>
+                            ) : job.status === "failed" || job.status === "pending" ? (
+                              <Button variant="outline" size="sm" onClick={() => retry(job.id)}>
+                                <Play className="mr-1 h-3.5 w-3.5" />{" "}
+                                {job.status === "pending" ? "เริ่มถอดเสียง" : "ลองใหม่"}
+                              </Button>
+                            ) : (
+                              <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
+                            )}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+              <TablePager pager={jobPager} unit="งาน" />
+            </div>
           )}
         </div>
       </div>

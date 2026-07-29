@@ -19,6 +19,7 @@ import {
   TableCell,
   TableLoading,
 } from "@/components/ui/table";
+import { TablePager, usePagination } from "@/components/ui/table-pager";
 import {
   BarChart3,
   AlertTriangle,
@@ -126,6 +127,7 @@ export default function AccFirmReportsPage() {
   const [loading, setLoading] = useState(true);
   const [actionable, setActionable] = useState<ActionableInvoice[]>([]);
   const [clientSummary, setClientSummary] = useState<ClientSummaryRow[]>([]);
+  const clientPager = usePagination(clientSummary);
   const [asOf, setAsOf] = useState("");
   const [tab, setTab] = useState<"pending" | "calendar" | "summary">("pending");
   const [filterBucket, setFilterBucket] = useState<string>("");
@@ -174,6 +176,7 @@ export default function AccFirmReportsPage() {
     if (filterOrg) list = list.filter((i) => i.orgId === filterOrg);
     return list;
   }, [actionable, filterBucket, filterOrg]);
+  const actionPager = usePagination(filteredActionable);
 
   // Totals
   const totals = useMemo(
@@ -301,65 +304,68 @@ export default function AccFirmReportsPage() {
               <p className="text-sm text-slate-300">ไม่มีงานค้างในขณะนี้ 🎉</p>
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>สถานะ</TableHead>
-                  <TableHead>Client</TableHead>
-                  <TableHead>เลขที่</TableHead>
-                  <TableHead>ลูกค้า</TableHead>
-                  <TableHead>วันที่ออก</TableHead>
-                  <TableHead>ครบกำหนด</TableHead>
-                  <TableHead align="right">จำนวนเงิน</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {loading ? (
-                  <TableLoading colSpan={7} />
-                ) : (
-                  filteredActionable.map((inv) => {
-                    const bCfg = BUCKET_CONFIG[inv.bucket];
-                    return (
-                      <TableRow
-                        key={inv.id}
-                        clickable
-                        onClick={() => router.push(`/${inv.orgSlug}/accounting/invoices`)}
-                      >
-                        <TableCell>
-                          <StatusBadge tone={bCfg.tone}>
-                            {bCfg.icon} {bCfg.label}
-                          </StatusBadge>
-                        </TableCell>
-                        <TableCell className="text-xs font-medium text-slate-700">
-                          {inv.orgName}
-                        </TableCell>
-                        <TableCell className="font-mono text-xs text-slate-500">
-                          {inv.invoiceNo ?? "—"}
-                        </TableCell>
-                        <TableCell className="max-w-[140px] truncate text-xs text-slate-700">
-                          {inv.contactName}
-                        </TableCell>
-                        <TableCell className="text-xs text-slate-400">
-                          {fmtDate(inv.issueDate)}
-                        </TableCell>
-                        <TableCell
-                          className={`text-xs font-medium ${inv.bucket === "overdue" ? "text-red-600" : inv.bucket === "due_soon" ? "text-amber-600" : "text-slate-400"}`}
+            <div className="space-y-3">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>สถานะ</TableHead>
+                    <TableHead>Client</TableHead>
+                    <TableHead>เลขที่</TableHead>
+                    <TableHead>ลูกค้า</TableHead>
+                    <TableHead>วันที่ออก</TableHead>
+                    <TableHead>ครบกำหนด</TableHead>
+                    <TableHead align="right">จำนวนเงิน</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {loading ? (
+                    <TableLoading colSpan={7} />
+                  ) : (
+                    actionPager.rows.map((inv) => {
+                      const bCfg = BUCKET_CONFIG[inv.bucket];
+                      return (
+                        <TableRow
+                          key={inv.id}
+                          clickable
+                          onClick={() => router.push(`/${inv.orgSlug}/accounting/invoices`)}
                         >
-                          {fmtDate(inv.dueDate)}
-                        </TableCell>
-                        <TableCell
-                          align="right"
-                          tabular
-                          className="text-xs font-semibold text-slate-800"
-                        >
-                          ฿{inv.totalAmount.toLocaleString("th-TH", { minimumFractionDigits: 2 })}
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })
-                )}
-              </TableBody>
-            </Table>
+                          <TableCell>
+                            <StatusBadge tone={bCfg.tone}>
+                              {bCfg.icon} {bCfg.label}
+                            </StatusBadge>
+                          </TableCell>
+                          <TableCell className="text-xs font-medium text-slate-700">
+                            {inv.orgName}
+                          </TableCell>
+                          <TableCell className="font-mono text-xs text-slate-500">
+                            {inv.invoiceNo ?? "—"}
+                          </TableCell>
+                          <TableCell className="max-w-[140px] truncate text-xs text-slate-700">
+                            {inv.contactName}
+                          </TableCell>
+                          <TableCell className="text-xs text-slate-400">
+                            {fmtDate(inv.issueDate)}
+                          </TableCell>
+                          <TableCell
+                            className={`text-xs font-medium ${inv.bucket === "overdue" ? "text-red-600" : inv.bucket === "due_soon" ? "text-amber-600" : "text-slate-400"}`}
+                          >
+                            {fmtDate(inv.dueDate)}
+                          </TableCell>
+                          <TableCell
+                            align="right"
+                            tabular
+                            className="text-xs font-semibold text-slate-800"
+                          >
+                            ฿{inv.totalAmount.toLocaleString("th-TH", { minimumFractionDigits: 2 })}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
+                  )}
+                </TableBody>
+              </Table>
+              <TablePager pager={actionPager} />
+            </div>
           )}
         </div>
       )}
@@ -447,72 +453,75 @@ export default function AccFirmReportsPage() {
             ไม่มี client orgs
           </div>
         ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Client</TableHead>
-                <TableHead align="center">เกินกำหนด</TableHead>
-                <TableHead align="center">ใกล้ครบ</TableHead>
-                <TableHead align="center">Draft</TableHead>
-                <TableHead align="center">Open</TableHead>
-                <TableHead align="right">ยอดค้างชำระ</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {loading ? (
-                <TableLoading colSpan={6} />
-              ) : (
-                clientSummary.map((c) => (
-                  <TableRow
-                    key={c.orgId}
-                    clickable
-                    onClick={() => router.push(`/${c.orgSlug}/accounting`)}
-                    className={c.overdue > 0 ? "bg-red-50/30" : ""}
-                  >
-                    <TableCell>
-                      <p className="font-semibold text-slate-800">{c.orgName}</p>
-                      <p className="text-xs text-slate-400">{c.orgSlug}</p>
-                    </TableCell>
-                    <TableCell align="center" tabular>
-                      {c.overdue > 0 ? (
-                        <span className="font-bold text-red-600">{c.overdue}</span>
-                      ) : (
-                        <span className="text-slate-200">—</span>
-                      )}
-                    </TableCell>
-                    <TableCell align="center" tabular>
-                      {c.due_soon > 0 ? (
-                        <span className="font-bold text-amber-600">{c.due_soon}</span>
-                      ) : (
-                        <span className="text-slate-200">—</span>
-                      )}
-                    </TableCell>
-                    <TableCell align="center" tabular>
-                      {c.draft > 0 ? (
-                        <span className="text-gray-500">{c.draft}</span>
-                      ) : (
-                        <span className="text-slate-200">—</span>
-                      )}
-                    </TableCell>
-                    <TableCell align="center" tabular>
-                      {c.open > 0 ? (
-                        <span className="text-blue-600">{c.open}</span>
-                      ) : (
-                        <span className="text-slate-200">—</span>
-                      )}
-                    </TableCell>
-                    <TableCell align="right" tabular>
-                      {c.totalOverdue > 0 ? (
-                        <span className="font-bold text-red-600">฿{fmtK(c.totalOverdue)}</span>
-                      ) : (
-                        <span className="text-slate-200">—</span>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
+          <div className="space-y-3">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Client</TableHead>
+                  <TableHead align="center">เกินกำหนด</TableHead>
+                  <TableHead align="center">ใกล้ครบ</TableHead>
+                  <TableHead align="center">Draft</TableHead>
+                  <TableHead align="center">Open</TableHead>
+                  <TableHead align="right">ยอดค้างชำระ</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {loading ? (
+                  <TableLoading colSpan={6} />
+                ) : (
+                  clientPager.rows.map((c) => (
+                    <TableRow
+                      key={c.orgId}
+                      clickable
+                      onClick={() => router.push(`/${c.orgSlug}/accounting`)}
+                      className={c.overdue > 0 ? "bg-red-50/30" : ""}
+                    >
+                      <TableCell>
+                        <p className="font-semibold text-slate-800">{c.orgName}</p>
+                        <p className="text-xs text-slate-400">{c.orgSlug}</p>
+                      </TableCell>
+                      <TableCell align="center" tabular>
+                        {c.overdue > 0 ? (
+                          <span className="font-bold text-red-600">{c.overdue}</span>
+                        ) : (
+                          <span className="text-slate-200">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell align="center" tabular>
+                        {c.due_soon > 0 ? (
+                          <span className="font-bold text-amber-600">{c.due_soon}</span>
+                        ) : (
+                          <span className="text-slate-200">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell align="center" tabular>
+                        {c.draft > 0 ? (
+                          <span className="text-gray-500">{c.draft}</span>
+                        ) : (
+                          <span className="text-slate-200">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell align="center" tabular>
+                        {c.open > 0 ? (
+                          <span className="text-blue-600">{c.open}</span>
+                        ) : (
+                          <span className="text-slate-200">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell align="right" tabular>
+                        {c.totalOverdue > 0 ? (
+                          <span className="font-bold text-red-600">฿{fmtK(c.totalOverdue)}</span>
+                        ) : (
+                          <span className="text-slate-200">—</span>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+            <TablePager pager={clientPager} unit="ลูกค้า" />
+          </div>
         ))}
     </PageShell>
   );

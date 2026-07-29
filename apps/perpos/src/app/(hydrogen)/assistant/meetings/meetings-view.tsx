@@ -12,6 +12,7 @@ import {
   TableCell,
   TableEmpty,
 } from "@/components/ui/table";
+import { TablePager, usePagination } from "@/components/ui/table-pager";
 import { StatusBadge } from "@/components/ui/badge";
 import {
   Dialog,
@@ -115,6 +116,7 @@ export default function MeetingsView({
     used: 0,
   });
   const [jobs, setJobs] = useState<Job[]>(initialJobs);
+  const pager = usePagination(jobs);
   const [upcoming, setUpcoming] = useState<CalEvent[]>(initialUpcoming);
   const [selected, setSelected] = useState<Job | null>(null);
   const [downloading, setDownloading] = useState("");
@@ -477,7 +479,7 @@ export default function MeetingsView({
                 ยังไม่มีประวัติบอทประชุม — วางลิงก์ประชุมใน LINE เพื่อเริ่ม
               </TableEmpty>
             ) : (
-              jobs.map((j) => {
+              pager.rows.map((j) => {
                 const st = jobStatus(j);
                 return (
                   <TableRow key={j.id} clickable onClick={() => setSelected(j)}>
@@ -498,6 +500,7 @@ export default function MeetingsView({
             )}
           </TableBody>
         </Table>
+        <TablePager pager={pager} unit="งาน" />
       </div>
 
       {/* Detail dialog */}

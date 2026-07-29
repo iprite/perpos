@@ -18,6 +18,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { TablePager, usePagination } from "@/components/ui/table-pager";
 import { Text } from "@/components/ui/typography";
 import { MACHINE_KIND_LABEL, MACHINE_STATUS_LABEL } from "../_fixtures/labels";
 import type { MachineStatus, MattiiMachine } from "../_fixtures/types";
@@ -37,6 +38,7 @@ export function MachinesTab({
   machines: MattiiMachine[];
   onChange: (updater: (prev: MattiiMachine[]) => MattiiMachine[]) => void;
 }) {
+  const pager = usePagination(machines);
   const { isOwner } = useMattiiRole();
   const [editing, setEditing] = useState<MattiiMachine | null | "new">(null);
 
@@ -86,7 +88,7 @@ export function MachinesTab({
               </div>
             </TableEmpty>
           ) : (
-            machines.map((m) => (
+            pager.rows.map((m) => (
               <TableRow key={m.id} clickable onClick={() => setEditing(m)}>
                 <TableCell>
                   <span className="font-mono font-medium text-gray-900">{m.code}</span>
@@ -136,6 +138,7 @@ export function MachinesTab({
           </TableFooter>
         )}
       </Table>
+      <TablePager pager={pager} unit="เครื่อง" />
 
       <Text className="px-1 text-xs text-gray-500">
         คลิกที่แถวเพื่อแก้ไขเครื่อง — เครื่องที่อยู่สถานะ “ซ่อมบำรุง”

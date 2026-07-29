@@ -4,12 +4,23 @@ import React, { useMemo, useState, useTransition } from "react";
 import { CustomSelect } from "@/components/ui/custom-select";
 import { useRouter } from "next/navigation";
 import { CheckCircle2, FileDown, Search, XCircle, Layers3 } from "lucide-react";
-import { toast } from '@/lib/toast';
+import { toast } from "@/lib/toast";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { InvoiceStatusBadge, type InvoiceStatus } from "@/components/sales/invoices/invoice-status-badge";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { TablePager, usePagination } from "@/components/ui/table-pager";
+import {
+  InvoiceStatusBadge,
+  type InvoiceStatus,
+} from "@/components/sales/invoices/invoice-status-badge";
 import { markInvoicePaidAction, voidInvoiceAction } from "@/lib/sales/invoices/actions";
 import { postInvoiceCogsAction } from "@/lib/phase4/inventory/actions";
 import type { OrganizationSummary } from "@/lib/accounting/queries";
@@ -64,6 +75,7 @@ export function InvoicesTable(props: {
         return hay.includes(qq);
       });
   }, [props.rows, q, status]);
+  const pager = usePagination(filtered);
 
   return (
     <div className="grid gap-4">
@@ -75,7 +87,7 @@ export function InvoicesTable(props: {
               value={q}
               onChange={(e) => setQ(e.target.value)}
               placeholder="ค้นหาเลขที่/ชื่อลูกค้า"
-              className="pl-9 w-72"
+              className="w-72 pl-9"
             />
           </div>
           <CustomSelect
@@ -110,15 +122,19 @@ export function InvoicesTable(props: {
         </TableHeader>
         <TableBody>
           {filtered.length ? (
-            filtered.map((r) => (
+            pager.rows.map((r) => (
               <TableRow key={r.id}>
                 <TableCell>{r.issueDate}</TableCell>
                 <TableCell className="font-mono text-sm">{r.invoiceNumber ?? "-"}</TableCell>
                 <TableCell>
                   <div className="font-medium text-slate-900">{r.customerName}</div>
-                  {r.dueDate ? <div className="mt-0.5 text-xs text-slate-600">กำหนดชำระ {r.dueDate}</div> : null}
+                  {r.dueDate ? (
+                    <div className="mt-0.5 text-xs text-slate-600">กำหนดชำระ {r.dueDate}</div>
+                  ) : null}
                 </TableCell>
-                <TableCell className="text-right tabular-nums">{r.totalAmount.toFixed(2)}</TableCell>
+                <TableCell className="text-right tabular-nums">
+                  {r.totalAmount.toFixed(2)}
+                </TableCell>
                 <TableCell>
                   <InvoiceStatusBadge status={r.status} />
                 </TableCell>
@@ -139,11 +155,19 @@ export function InvoicesTable(props: {
                       variant="outline"
                       size="sm"
                       className="gap-2"
-                      disabled={!canManage || pending || !(r.status === "sent" || r.status === "overdue" || r.status === "paid") || !!r.cogsJournalEntryId}
+                      disabled={
+                        !canManage ||
+                        pending ||
+                        !(r.status === "sent" || r.status === "overdue" || r.status === "paid") ||
+                        !!r.cogsJournalEntryId
+                      }
                       onClick={() => {
                         if (!activeOrg) return;
                         startTransition(async () => {
-                          const res = await postInvoiceCogsAction({ invoiceId: r.id, organizationId: activeOrg });
+                          const res = await postInvoiceCogsAction({
+                            invoiceId: r.id,
+                            organizationId: activeOrg,
+                          });
                           if (!res.ok) {
                             toast.error(String(res.error));
                           } else if (!res.journalEntryId) {
@@ -163,11 +187,16 @@ export function InvoicesTable(props: {
                       variant="outline"
                       size="sm"
                       className="gap-2"
-                      disabled={!canManage || pending || !(r.status === "sent" || r.status === "overdue")}
+                      disabled={
+                        !canManage || pending || !(r.status === "sent" || r.status === "overdue")
+                      }
                       onClick={() => {
                         if (!activeOrg) return;
                         startTransition(async () => {
-                          await markInvoicePaidAction({ invoiceId: r.id, organizationId: activeOrg });
+                          await markInvoicePaidAction({
+                            invoiceId: r.id,
+                            organizationId: activeOrg,
+                          });
                           router.refresh();
                         });
                       }}
@@ -205,6 +234,7 @@ export function InvoicesTable(props: {
           )}
         </TableBody>
       </Table>
+      <TablePager pager={pager} />
     </div>
   );
 }

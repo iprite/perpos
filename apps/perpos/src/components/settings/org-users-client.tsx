@@ -26,6 +26,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { TablePager, usePagination } from "@/components/ui/table-pager";
 
 import {
   updateMemberRoleAction,
@@ -216,7 +217,9 @@ export function OrgUsersClient({
 }) {
   const [tab, setTab] = useState<"members" | "invites">("members");
   const [members, setMembers] = useState<OrgMemberRow[]>(initialMembers);
+  const memberPager = usePagination(members);
   const [invites, setInvites] = useState<OrgInviteRow[]>(initialInvites);
+  const invitePager = usePagination(invites);
 
   const [inviteOpen, setInviteOpen] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
@@ -362,7 +365,7 @@ export function OrgUsersClient({
                   </TableCell>
                 </TableRow>
               ) : (
-                members.map((m, i) => (
+                memberPager.rows.map((m, i) => (
                   <TableRow key={m.id} className="hover:bg-slate-50">
                     <TableCell className="text-sm text-slate-400">{i + 1}</TableCell>
                     <TableCell>
@@ -417,6 +420,7 @@ export function OrgUsersClient({
               )}
             </TableBody>
           </Table>
+          <TablePager pager={memberPager} unit="คน" />
         </div>
       )}
 
@@ -441,7 +445,7 @@ export function OrgUsersClient({
                   </TableCell>
                 </TableRow>
               ) : (
-                invites.map((inv) => (
+                invitePager.rows.map((inv) => (
                   <TableRow key={inv.id} className="hover:bg-slate-50">
                     <TableCell>
                       <div className="flex items-center gap-2">
@@ -480,6 +484,7 @@ export function OrgUsersClient({
               )}
             </TableBody>
           </Table>
+          <TablePager pager={invitePager} unit="คำเชิญ" />
         </div>
       )}
 

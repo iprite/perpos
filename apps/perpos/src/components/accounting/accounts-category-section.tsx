@@ -5,9 +5,21 @@ import { Pencil, Power } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { TablePager, usePagination } from "@/components/ui/table-pager";
 import { setAccountActiveAction } from "@/lib/accounting/accounts-actions";
-import { formatType, type AccountRow, type AccountType } from "@/components/accounting/accounts-types";
+import {
+  formatType,
+  type AccountRow,
+  type AccountType,
+} from "@/components/accounting/accounts-types";
 
 export function AccountsCategorySection(props: {
   type: AccountType;
@@ -17,6 +29,7 @@ export function AccountsCategorySection(props: {
   onEdit: (a: AccountRow) => void;
   onRefresh: () => void;
 }) {
+  const pager = usePagination(props.rows);
   const [pending, startTransition] = useTransition();
 
   return (
@@ -40,18 +53,24 @@ export function AccountsCategorySection(props: {
           </TableHeader>
           <TableBody>
             {props.rows.length ? (
-              props.rows.map((a) => (
+              pager.rows.map((a) => (
                 <TableRow key={a.id}>
                   <TableCell className="font-mono text-sm">{a.code}</TableCell>
                   <TableCell>
                     <div className="font-medium text-slate-900">{a.name}</div>
-                    {a.description ? <div className="mt-0.5 text-xs text-slate-600">{a.description}</div> : null}
+                    {a.description ? (
+                      <div className="mt-0.5 text-xs text-slate-600">{a.description}</div>
+                    ) : null}
                   </TableCell>
                   <TableCell>
-                    <div className="text-sm text-slate-700">{a.normalBalance === "debit" ? "Debit" : "Credit"}</div>
+                    <div className="text-sm text-slate-700">
+                      {a.normalBalance === "debit" ? "Debit" : "Credit"}
+                    </div>
                   </TableCell>
                   <TableCell>
-                    <Badge variant={a.isActive ? "success" : "danger"}>{a.isActive ? "ใช้งาน" : "ปิด"}</Badge>
+                    <Badge variant={a.isActive ? "success" : "danger"}>
+                      {a.isActive ? "ใช้งาน" : "ปิด"}
+                    </Badge>
                   </TableCell>
                   <TableCell>
                     <div className="flex justify-end gap-2">
@@ -97,6 +116,7 @@ export function AccountsCategorySection(props: {
             )}
           </TableBody>
         </Table>
+        <TablePager pager={pager} />
       </div>
     </div>
   );

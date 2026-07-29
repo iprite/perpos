@@ -40,6 +40,7 @@ import {
   TableEmpty,
   TableLoading,
 } from "@/components/ui/table";
+import { TablePager, usePagination } from "@/components/ui/table-pager";
 
 type Mapping = {
   id: string;
@@ -95,6 +96,7 @@ export default function OcrMemoryPage() {
   const [loading, setLoading] = useState(true);
 
   const [mappings, setMappings] = useState<Mapping[]>([]);
+  const pager = usePagination(mappings);
   const [stats, setStats] = useState<Stats | null>(null);
   const [clients, setClients] = useState<AccountOption[]>([]);
   const [filterClient, setFilterClient] = useState("");
@@ -369,7 +371,7 @@ export default function OcrMemoryPage() {
               ระบบยังไม่ได้จดจำผู้ขายรายใด — อนุมัติร่างสมุดรายวันสักใบ แล้วระบบจะเริ่มจำเอง
             </TableEmpty>
           ) : (
-            mappings.map((m) => (
+            pager.rows.map((m) => (
               <TableRow key={m.id} clickable onClick={() => openEdit(m)}>
                 <TableCell className="font-semibold text-gray-800">{m.vendor_name}</TableCell>
                 <TableCell className="tabular-nums text-gray-500">
@@ -392,6 +394,7 @@ export default function OcrMemoryPage() {
           )}
         </TableBody>
       </Table>
+      <TablePager pager={pager} unit="ผู้ขาย" />
 
       {/* Dialog แก้ไข/ลบความจำ */}
       <Dialog open={!!active} onOpenChange={(o) => !o && setActive(null)}>

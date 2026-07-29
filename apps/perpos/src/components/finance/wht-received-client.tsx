@@ -2,7 +2,15 @@
 
 import React, { useEffect, useRef, useState, useTransition } from "react";
 import { ThaiDatePicker } from "@/components/ui/thai-date-picker";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { TablePager, usePagination } from "@/components/ui/table-pager";
 import { getWhtReceivedAction, type WhtReceivedRow } from "@/lib/finance/report-actions";
 
 function fmt(n: number) {
@@ -11,12 +19,12 @@ function fmt(n: number) {
 
 const DOC_TYPE_LABELS: Record<string, string> = {
   quotation: "ใบเสนอราคา",
-  deposit:   "ใบรับมัดจำ",
-  invoice:   "ใบแจ้งหนี้",
-  receipt:   "ใบเสร็จรับเงิน",
+  deposit: "ใบรับมัดจำ",
+  invoice: "ใบแจ้งหนี้",
+  receipt: "ใบเสร็จรับเงิน",
   tax_invoice: "ใบกำกับภาษีขาย",
   credit_note: "ใบลดหนี้",
-  debit_note:  "ใบเพิ่มหนี้",
+  debit_note: "ใบเพิ่มหนี้",
   billing_note: "ใบวางบิล",
 };
 
@@ -27,9 +35,10 @@ export function WhtReceivedClient(props: {
   initialRows: WhtReceivedRow[];
 }) {
   const [startDate, setStartDate] = useState(props.initialStartDate);
-  const [endDate, setEndDate]     = useState(props.initialEndDate);
-  const [rows, setRows]           = useState<WhtReceivedRow[]>(props.initialRows);
-  const [error, setError]         = useState<string | null>(null);
+  const [endDate, setEndDate] = useState(props.initialEndDate);
+  const [rows, setRows] = useState<WhtReceivedRow[]>(props.initialRows);
+  const pager = usePagination(rows);
+  const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
   const orgId = props.organizationId;
@@ -37,7 +46,10 @@ export function WhtReceivedClient(props: {
   // โหลดรายงานใหม่อัตโนมัติเมื่อเปลี่ยนช่วงวันที่ (ข้ามรอบแรกเพราะมีข้อมูลจาก server แล้ว)
   const didMount = useRef(false);
   useEffect(() => {
-    if (!didMount.current) { didMount.current = true; return; }
+    if (!didMount.current) {
+      didMount.current = true;
+      return;
+    }
     setError(null);
     startTransition(async () => {
       const res = await getWhtReceivedAction(orgId, startDate, endDate);
@@ -53,7 +65,11 @@ export function WhtReceivedClient(props: {
       <div className="flex flex-wrap items-end gap-3">
         <div className="grid gap-1">
           <div className="text-xs text-slate-500">ตั้งแต่วันที่</div>
-          <ThaiDatePicker value={startDate} onChange={(v) => setStartDate(v)} className="h-9 w-40" />
+          <ThaiDatePicker
+            value={startDate}
+            onChange={(v) => setStartDate(v)}
+            className="h-9 w-40"
+          />
         </div>
         <div className="grid gap-1">
           <div className="text-xs text-slate-500">ถึงวันที่</div>
@@ -63,7 +79,9 @@ export function WhtReceivedClient(props: {
       </div>
 
       {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>
+        <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+          {error}
+        </div>
       )}
 
       <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
@@ -81,28 +99,41 @@ export function WhtReceivedClient(props: {
           <TableBody>
             {rows.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="py-10 text-center text-sm text-slate-500">ไม่มีรายการ</TableCell>
+                <TableCell colSpan={6} className="py-10 text-center text-sm text-slate-500">
+                  ไม่มีรายการ
+                </TableCell>
               </TableRow>
             ) : (
-              rows.map((row) => (
+              pager.rows.map((row) => (
                 <TableRow key={row.id}>
                   <TableCell className="text-sm">{row.issueDate}</TableCell>
                   <TableCell className="font-mono text-sm">{row.docNumber}</TableCell>
-                  <TableCell className="text-sm">{DOC_TYPE_LABELS[row.docType] ?? row.docType}</TableCell>
+                  <TableCell className="text-sm">
+                    {DOC_TYPE_LABELS[row.docType] ?? row.docType}
+                  </TableCell>
                   <TableCell className="text-sm">{row.contactName || "-"}</TableCell>
-                  <TableCell className="text-right tabular-nums text-sm">{fmt(row.totalAmount)}</TableCell>
-                  <TableCell className="text-right tabular-nums text-sm font-medium text-red-600">{fmt(row.withholdingTax)}</TableCell>
+                  <TableCell className="text-right text-sm tabular-nums">
+                    {fmt(row.totalAmount)}
+                  </TableCell>
+                  <TableCell className="text-right text-sm font-medium tabular-nums text-red-600">
+                    {fmt(row.withholdingTax)}
+                  </TableCell>
                 </TableRow>
               ))
             )}
             {rows.length > 0 && (
               <TableRow className="bg-slate-50 font-semibold">
-                <TableCell colSpan={5} className="text-right text-sm">รวมภาษีถูกหัก ณ ที่จ่าย</TableCell>
-                <TableCell className="text-right tabular-nums text-sm text-red-700">{fmt(totalWht)}</TableCell>
+                <TableCell colSpan={5} className="text-right text-sm">
+                  รวมภาษีถูกหัก ณ ที่จ่าย
+                </TableCell>
+                <TableCell className="text-right text-sm tabular-nums text-red-700">
+                  {fmt(totalWht)}
+                </TableCell>
               </TableRow>
             )}
           </TableBody>
         </Table>
+        <TablePager pager={pager} />
       </div>
     </div>
   );

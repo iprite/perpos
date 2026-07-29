@@ -19,6 +19,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { TablePager, usePagination } from "@/components/ui/table-pager";
 import { Text } from "@/components/ui/typography";
 import { ESTIMATED_COST_HINT, orderEconomics, salesCostProfitTotals } from "../_fixtures/metrics";
 import type { CostCategory, MattiiOrder, MattiiOrderCost } from "../_fixtures/types";
@@ -89,6 +90,7 @@ export function ProfitTab({ orders }: { orders: MattiiOrder[] }) {
       return a.profit - b.profit;
     });
   }, [orders, orderItems, allCosts, extraCosts, sort]);
+  const pager = usePagination(rows);
 
   const totals = useMemo(() => {
     const base = salesCostProfitTotals(orders, orderItems);
@@ -190,7 +192,7 @@ export function ProfitTab({ orders }: { orders: MattiiOrder[] }) {
                 </div>
               </TableEmpty>
             ) : (
-              rows.map((r) => (
+              pager.rows.map((r) => (
                 <TableRow key={r.order.id} clickable onClick={() => setOpenId(r.order.id)}>
                   <TableCell>
                     <div className="flex items-center gap-2">
@@ -274,6 +276,7 @@ export function ProfitTab({ orders }: { orders: MattiiOrder[] }) {
             </TableFooter>
           )}
         </Table>
+        <TablePager pager={pager} />
         <Text className="mt-2 px-1 text-xs text-gray-500">≈ = {ESTIMATED_COST_HINT}</Text>
         <Text className="mt-1 px-1 text-xs text-gray-400">
           คลิกที่แถวเพื่อดูต้นทุนแยกหมวดของออเดอร์นั้น และเพิ่มต้นทุนที่กรอกมือ (เช่น ค่าแรง OT)

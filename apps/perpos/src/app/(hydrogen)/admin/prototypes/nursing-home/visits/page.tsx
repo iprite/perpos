@@ -21,6 +21,7 @@ import {
   TableCell,
   TableEmpty,
 } from "@/components/ui/table";
+import { TablePager, usePagination } from "@/components/ui/table-pager";
 import {
   Dialog,
   DialogContent,
@@ -79,6 +80,7 @@ export default function VisitsPage() {
       .filter((v) => (todayOnly ? v.scheduled_at.startsWith(TODAY) : true))
       .sort((a, b) => a.scheduled_at.localeCompare(b.scheduled_at));
   }, [visits, status, todayOnly]);
+  const pager = usePagination(filtered);
 
   const kpi = useMemo(() => {
     const today = visits.filter((v) => v.scheduled_at.startsWith(TODAY));
@@ -192,7 +194,7 @@ export default function VisitsPage() {
               </div>
             </TableEmpty>
           ) : (
-            filtered.map((v) => (
+            pager.rows.map((v) => (
               <TableRow key={v.id}>
                 <TableCell className="font-medium text-gray-900">
                   {residentName(v.resident_id)}
@@ -228,6 +230,7 @@ export default function VisitsPage() {
           )}
         </TableBody>
       </Table>
+      <TablePager pager={pager} />
 
       <CreateVisitDialog open={createDlg} onOpenChange={setCreateDlg} onAdd={addVisit} />
     </NursingShell>

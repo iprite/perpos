@@ -2,8 +2,22 @@
 
 import React, { useTransition } from "react";
 
-import { Dialog, DialogContent, DialogBody, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogBody,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { TablePager, usePagination } from "@/components/ui/table-pager";
 import { getAccountLedgerAction, type LedgerLine } from "@/lib/reports/actions";
 
 function fmt(n: number) {
@@ -22,9 +36,11 @@ export function AccountDrilldownDialog(props: {
 }) {
   const [pending, startTransition] = useTransition();
   const [rows, setRows] = React.useState<LedgerLine[]>([]);
+  const pager = usePagination(rows);
   const [count, setCount] = React.useState(0);
 
-  const { open, accountId, organizationId, startDate, endDate, onError, title, onOpenChange } = props;
+  const { open, accountId, organizationId, startDate, endDate, onError, title, onOpenChange } =
+    props;
 
   React.useEffect(() => {
     if (!open) return;
@@ -55,31 +71,34 @@ export function AccountDrilldownDialog(props: {
           <DialogTitle>รายละเอียดบัญชี: {title}</DialogTitle>
         </DialogHeader>
         <DialogBody>
-        <div className="text-sm text-slate-600">แสดง {rows.length} รายการ จากทั้งหมด {count}</div>
-        {pending ? <div className="mt-2 text-sm text-slate-500">กำลังโหลด…</div> : null}
+          <div className="text-sm text-slate-600">
+            แสดง {rows.length} รายการ จากทั้งหมด {count}
+          </div>
+          {pending ? <div className="mt-2 text-sm text-slate-500">กำลังโหลด…</div> : null}
 
-        <div className="mt-3">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-[120px]">วันที่</TableHead>
-                <TableHead>คำอธิบาย</TableHead>
-                <TableHead className="w-[120px] text-right">เดบิต</TableHead>
-                <TableHead className="w-[120px] text-right">เครดิต</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {rows.map((l) => (
-                <TableRow key={`${l.journalEntryId}-${l.lineNo}`}>
-                  <TableCell>{l.entryDate}</TableCell>
-                  <TableCell className="text-sm text-slate-900">{l.description ?? ""}</TableCell>
-                  <TableCell className="text-right tabular-nums">{fmt(l.debit)}</TableCell>
-                  <TableCell className="text-right tabular-nums">{fmt(l.credit)}</TableCell>
+          <div className="mt-3">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-[120px]">วันที่</TableHead>
+                  <TableHead>คำอธิบาย</TableHead>
+                  <TableHead className="w-[120px] text-right">เดบิต</TableHead>
+                  <TableHead className="w-[120px] text-right">เครดิต</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
+              </TableHeader>
+              <TableBody>
+                {pager.rows.map((l) => (
+                  <TableRow key={`${l.journalEntryId}-${l.lineNo}`}>
+                    <TableCell>{l.entryDate}</TableCell>
+                    <TableCell className="text-sm text-slate-900">{l.description ?? ""}</TableCell>
+                    <TableCell className="text-right tabular-nums">{fmt(l.debit)}</TableCell>
+                    <TableCell className="text-right tabular-nums">{fmt(l.credit)}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+            <TablePager pager={pager} />
+          </div>
         </DialogBody>
       </DialogContent>
     </Dialog>

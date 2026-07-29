@@ -10,6 +10,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { TablePager, usePagination } from "@/components/ui/table-pager";
 import type { OrgMemberRow } from "@/lib/settings/user-actions";
 
 type RoleDef = {
@@ -22,36 +23,42 @@ type RoleDef = {
 
 const ROLE_DEFS: RoleDef[] = [
   {
-    role:         "owner",
-    label:        "เจ้าของ",
-    description:  "ควบคุมระบบได้ทั้งหมด รวมถึงการจัดการผู้ใช้และตั้งค่าองค์กร",
-    color:        "bg-violet-50 text-violet-700",
-    capabilities: ["จัดการผู้ใช้ทั้งหมด", "ตั้งค่าองค์กร", "เข้าถึงข้อมูลทุกส่วน", "ลบและแก้ไขข้อมูลทุกส่วน"],
+    role: "owner",
+    label: "เจ้าของ",
+    description: "ควบคุมระบบได้ทั้งหมด รวมถึงการจัดการผู้ใช้และตั้งค่าองค์กร",
+    color: "bg-violet-50 text-violet-700",
+    capabilities: [
+      "จัดการผู้ใช้ทั้งหมด",
+      "ตั้งค่าองค์กร",
+      "เข้าถึงข้อมูลทุกส่วน",
+      "ลบและแก้ไขข้อมูลทุกส่วน",
+    ],
   },
   {
-    role:         "admin",
-    label:        "ผู้ดูแลระบบ",
-    description:  "จัดการผู้ใช้ได้ เข้าถึงข้อมูลได้ทั้งหมด แต่ไม่สามารถลบองค์กรได้",
-    color:        "bg-blue-50 text-blue-700",
+    role: "admin",
+    label: "ผู้ดูแลระบบ",
+    description: "จัดการผู้ใช้ได้ เข้าถึงข้อมูลได้ทั้งหมด แต่ไม่สามารถลบองค์กรได้",
+    color: "bg-blue-50 text-blue-700",
     capabilities: ["เชิญและจัดการผู้ใช้", "เข้าถึงข้อมูลทุกส่วน", "แก้ไขข้อมูลทุกส่วน"],
   },
   {
-    role:         "team_lead",
-    label:        "Team lead",
-    description:  "หัวหน้าทีม สามารถจัดการข้อมูลหลักและอนุมัติรายการได้",
-    color:        "bg-amber-50 text-amber-700",
+    role: "team_lead",
+    label: "Team lead",
+    description: "หัวหน้าทีม สามารถจัดการข้อมูลหลักและอนุมัติรายการได้",
+    color: "bg-amber-50 text-amber-700",
     capabilities: ["เข้าถึงข้อมูลทุกส่วน", "แก้ไขข้อมูลหลัก", "อนุมัติรายการ"],
   },
   {
-    role:         "team_member",
-    label:        "Team member",
-    description:  "เข้าถึงและใช้งานระบบตามสิทธิ์พื้นฐาน ไม่สามารถจัดการผู้ใช้ได้",
-    color:        "bg-slate-100 text-slate-600",
+    role: "team_member",
+    label: "Team member",
+    description: "เข้าถึงและใช้งานระบบตามสิทธิ์พื้นฐาน ไม่สามารถจัดการผู้ใช้ได้",
+    color: "bg-slate-100 text-slate-600",
     capabilities: ["เข้าถึงข้อมูลทั่วไป", "สร้างและแก้ไขเอกสาร"],
   },
 ];
 
 export function OrgRolesClient({ members }: { members: OrgMemberRow[] }) {
+  const memberPager = usePagination(members);
   const countByRole = (role: string) => members.filter((m) => m.role === role).length;
 
   return (
@@ -61,7 +68,7 @@ export function OrgRolesClient({ members }: { members: OrgMemberRow[] }) {
         <p className="mt-1 text-sm text-slate-500">ระดับสิทธิ์การเข้าถึงของผู้ใช้งานในองค์กร</p>
       </div>
 
-      <div className="rounded-lg border border-slate-200 bg-white overflow-hidden">
+      <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
         <Table>
           <TableHeader>
             <TableRow className="bg-slate-50">
@@ -74,27 +81,32 @@ export function OrgRolesClient({ members }: { members: OrgMemberRow[] }) {
           </TableHeader>
           <TableBody>
             {ROLE_DEFS.map((def, i) => (
-              <TableRow key={def.role} className="hover:bg-slate-50 align-top">
-                <TableCell className="text-sm text-slate-400 pt-4">{i + 1}</TableCell>
+              <TableRow key={def.role} className="align-top hover:bg-slate-50">
+                <TableCell className="pt-4 text-sm text-slate-400">{i + 1}</TableCell>
                 <TableCell className="pt-4">
-                  <span className={cn("inline-flex whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-semibold", def.color)}>
+                  <span
+                    className={cn(
+                      "inline-flex whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-semibold",
+                      def.color,
+                    )}
+                  >
                     {def.label}
                   </span>
                 </TableCell>
-                <TableCell className="text-sm text-slate-600 pt-4 max-w-xs">
+                <TableCell className="max-w-xs pt-4 text-sm text-slate-600">
                   {def.description}
                 </TableCell>
                 <TableCell className="pt-4">
                   <ul className="space-y-1">
                     {def.capabilities.map((cap) => (
                       <li key={cap} className="flex items-center gap-1.5 text-xs text-slate-600">
-                        <span className="h-1.5 w-1.5 rounded-full bg-teal-400 shrink-0" />
+                        <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-teal-400" />
                         {cap}
                       </li>
                     ))}
                   </ul>
                 </TableCell>
-                <TableCell className="text-right text-sm font-medium text-slate-700 pt-4">
+                <TableCell className="pt-4 text-right text-sm font-medium text-slate-700">
                   {countByRole(def.role)}
                 </TableCell>
               </TableRow>
@@ -106,7 +118,7 @@ export function OrgRolesClient({ members }: { members: OrgMemberRow[] }) {
       {members.length > 0 && (
         <div className="mt-6">
           <h2 className="mb-3 text-sm font-semibold text-slate-700">ผู้ใช้งานทั้งหมด</h2>
-          <div className="rounded-lg border border-slate-200 bg-white overflow-hidden">
+          <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
             <Table>
               <TableHeader>
                 <TableRow className="bg-slate-50">
@@ -117,7 +129,7 @@ export function OrgRolesClient({ members }: { members: OrgMemberRow[] }) {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {members.map((m, i) => (
+                {memberPager.rows.map((m, i) => (
                   <TableRow key={m.id} className="hover:bg-slate-50">
                     <TableCell className="text-sm text-slate-400">{i + 1}</TableCell>
                     <TableCell className="text-sm font-medium text-slate-900">
@@ -128,7 +140,12 @@ export function OrgRolesClient({ members }: { members: OrgMemberRow[] }) {
                       {(() => {
                         const def = ROLE_DEFS.find((d) => d.role === m.role);
                         return (
-                          <span className={cn("inline-flex whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-medium", def?.color ?? "bg-slate-100 text-slate-600")}>
+                          <span
+                            className={cn(
+                              "inline-flex whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-medium",
+                              def?.color ?? "bg-slate-100 text-slate-600",
+                            )}
+                          >
                             {def?.label ?? m.role}
                           </span>
                         );
@@ -138,6 +155,7 @@ export function OrgRolesClient({ members }: { members: OrgMemberRow[] }) {
                 ))}
               </TableBody>
             </Table>
+            <TablePager pager={memberPager} unit="คน" />
           </div>
         </div>
       )}

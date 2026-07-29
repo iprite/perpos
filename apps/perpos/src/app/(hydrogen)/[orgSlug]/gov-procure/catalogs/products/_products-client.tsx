@@ -22,6 +22,7 @@ import {
   TableCell,
   TableEmpty,
 } from "@/components/ui/table";
+import { TablePager, usePagination } from "@/components/ui/table-pager";
 import { toast } from "@/lib/toast";
 import type { CatalogProduct } from "@/lib/gov-procure/catalog";
 import { computeProductStats, isStalePrice } from "@/lib/gov-procure/catalog-product-list";
@@ -123,6 +124,7 @@ export function ProductsClient({
       return true;
     });
   }, [products, q, category, priceFilter]);
+  const pager = usePagination(filtered);
 
   const stats = useMemo(() => computeProductStats(products), [products]);
   const hasFilter = Boolean(q || category || priceFilter);
@@ -265,7 +267,7 @@ export function ProductsClient({
                     </div>
                   </TableEmpty>
                 ) : (
-                  filtered.map((p) => (
+                  pager.rows.map((p) => (
                     <TableRow key={p.id} clickable onClick={() => setEditing(p)}>
                       <TableCell align="center">
                         <ProductThumb name={p.name} url={thumbs[p.id]} />
@@ -299,6 +301,7 @@ export function ProductsClient({
                 )}
               </TableBody>
             </Table>
+            <TablePager pager={pager} />
           </>
         )}
       </div>

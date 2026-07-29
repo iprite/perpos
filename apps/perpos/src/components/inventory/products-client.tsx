@@ -1,15 +1,30 @@
 "use client";
 
 import React, { useState, useTransition } from "react";
-import { toast } from '@/lib/toast';
+import { toast } from "@/lib/toast";
 import { Plus } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { CustomSelect } from "@/components/ui/custom-select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Dialog, DialogContent, DialogBody, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogBody,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { TablePager, usePagination } from "@/components/ui/table-pager";
 import { StatusBadge } from "@/components/ui/badge";
 import {
   listInventoryItemsAction,
@@ -32,16 +47,23 @@ function fmt(n: number) {
   return n.toLocaleString("th-TH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-export function ProductsClient(props: { organizationId: string; initialItems: InventoryItemRow[] }) {
+export function ProductsClient(props: {
+  organizationId: string;
+  initialItems: InventoryItemRow[];
+}) {
   const [pending, startTransition] = useTransition();
   const [items, setItems] = useState(props.initialItems);
+  const pager = usePagination(items);
   const [open, setOpen] = useState(false);
   const [edit, setEdit] = useState<EditState>(EMPTY_EDIT);
 
   const refresh = () => {
     startTransition(async () => {
       const res = await listInventoryItemsAction({ organizationId: props.organizationId });
-      if (!res.ok) { toast.error(res.error); return; }
+      if (!res.ok) {
+        toast.error(res.error);
+        return;
+      }
       setItems(res.rows);
     });
   };
@@ -78,7 +100,10 @@ export function ProductsClient(props: { organizationId: string; initialItems: In
         unitCost: Number(edit.unitCost || 0),
         status: edit.status,
       });
-      if (!res.ok) { toast.error(res.error); return; }
+      if (!res.ok) {
+        toast.error(res.error);
+        return;
+      }
       toast.success("บันทึกสินค้าแล้ว");
       setOpen(false);
       refresh();
@@ -106,12 +131,14 @@ export function ProductsClient(props: { organizationId: string; initialItems: In
             </TableRow>
           </TableHeader>
           <TableBody>
-            {items.map((it) => (
+            {pager.rows.map((it) => (
               <TableRow key={it.id} clickable onClick={() => openEdit(it)}>
                 <TableCell className="font-mono text-sm">{it.sku}</TableCell>
                 <TableCell className="text-sm text-slate-900">{it.name}</TableCell>
                 <TableCell className="text-sm">{it.uom}</TableCell>
-                <TableCell align="right" tabular className="text-sm">{fmt(it.unitCost)}</TableCell>
+                <TableCell align="right" tabular className="text-sm">
+                  {fmt(it.unitCost)}
+                </TableCell>
                 <TableCell>
                   <StatusBadge tone={it.status === "active" ? "success" : "neutral"}>
                     {it.status === "active" ? "ใช้งาน" : "ไม่ใช้งาน"}
@@ -128,6 +155,7 @@ export function ProductsClient(props: { organizationId: string; initialItems: In
             ) : null}
           </TableBody>
         </Table>
+        <TablePager pager={pager} />
       </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
@@ -136,41 +164,61 @@ export function ProductsClient(props: { organizationId: string; initialItems: In
             <DialogTitle>{edit.id ? "แก้ไขสินค้า/บริการ" : "เพิ่มสินค้า/บริการ"}</DialogTitle>
           </DialogHeader>
           <DialogBody>
-          <div className="grid gap-3">
-            <div className="grid gap-1.5">
-              <Label>SKU</Label>
-              <Input value={edit.sku} onChange={(e) => setEdit((s) => ({ ...s, sku: e.target.value }))} placeholder="เช่น PRD-001" />
-            </div>
-            <div className="grid gap-1.5">
-              <Label>ชื่อสินค้า/บริการ</Label>
-              <Input value={edit.name} onChange={(e) => setEdit((s) => ({ ...s, name: e.target.value }))} placeholder="ชื่อสินค้า" />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid gap-3">
               <div className="grid gap-1.5">
-                <Label>หน่วย (UOM)</Label>
-                <Input value={edit.uom} onChange={(e) => setEdit((s) => ({ ...s, uom: e.target.value }))} placeholder="EA" />
+                <Label>SKU</Label>
+                <Input
+                  value={edit.sku}
+                  onChange={(e) => setEdit((s) => ({ ...s, sku: e.target.value }))}
+                  placeholder="เช่น PRD-001"
+                />
               </div>
               <div className="grid gap-1.5">
-                <Label>ราคาต้นทุน</Label>
-                <Input inputMode="decimal" value={edit.unitCost} onChange={(e) => setEdit((s) => ({ ...s, unitCost: e.target.value }))} />
+                <Label>ชื่อสินค้า/บริการ</Label>
+                <Input
+                  value={edit.name}
+                  onChange={(e) => setEdit((s) => ({ ...s, name: e.target.value }))}
+                  placeholder="ชื่อสินค้า"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="grid gap-1.5">
+                  <Label>หน่วย (UOM)</Label>
+                  <Input
+                    value={edit.uom}
+                    onChange={(e) => setEdit((s) => ({ ...s, uom: e.target.value }))}
+                    placeholder="EA"
+                  />
+                </div>
+                <div className="grid gap-1.5">
+                  <Label>ราคาต้นทุน</Label>
+                  <Input
+                    inputMode="decimal"
+                    value={edit.unitCost}
+                    onChange={(e) => setEdit((s) => ({ ...s, unitCost: e.target.value }))}
+                  />
+                </div>
+              </div>
+              <div className="grid gap-1.5">
+                <Label>สถานะ</Label>
+                <CustomSelect
+                  value={edit.status}
+                  onChange={(v) => setEdit((s) => ({ ...s, status: v as "active" | "inactive" }))}
+                  options={[
+                    { value: "active", label: "ใช้งาน" },
+                    { value: "inactive", label: "ไม่ใช้งาน" },
+                  ]}
+                />
               </div>
             </div>
-            <div className="grid gap-1.5">
-              <Label>สถานะ</Label>
-              <CustomSelect
-                value={edit.status}
-                onChange={(v) => setEdit((s) => ({ ...s, status: v as "active" | "inactive" }))}
-                options={[
-                  { value: "active",   label: "ใช้งาน" },
-                  { value: "inactive", label: "ไม่ใช้งาน" },
-                ]}
-              />
-            </div>
-          </div>
           </DialogBody>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setOpen(false)}>ยกเลิก</Button>
-            <Button onClick={save} disabled={pending}>บันทึก</Button>
+            <Button variant="outline" onClick={() => setOpen(false)}>
+              ยกเลิก
+            </Button>
+            <Button onClick={save} disabled={pending}>
+              บันทึก
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

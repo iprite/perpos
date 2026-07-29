@@ -20,6 +20,7 @@ import {
   TableEmpty,
   TableLoading,
 } from "@/components/ui/table";
+import { TablePager, usePagination } from "@/components/ui/table-pager";
 import {
   Dialog,
   DialogContent,
@@ -77,6 +78,7 @@ export default function CheckinsPage() {
       .filter((c) => (staffFilter ? c.staff_id === staffFilter : true))
       .sort((a, b) => b.checkin_at.localeCompare(a.checkin_at));
   }, [rows, day, staffFilter]);
+  const pager = usePagination(filtered);
 
   // KPI — คำนวณจากข้อมูลจริง
   const onDuty = rows.filter((c) => c.status === "checked_in").length;
@@ -207,7 +209,7 @@ export default function CheckinsPage() {
                 {day === "today" ? "ยังไม่มีการเช็คอินวันนี้" : "ยังไม่มีข้อมูลเช็คอิน"}
               </TableEmpty>
             ) : (
-              filtered.map((c) => {
+              pager.rows.map((c) => {
                 const sh = shiftById(c.shift_id);
                 const s = staffById(c.staff_id);
                 return (
@@ -259,6 +261,7 @@ export default function CheckinsPage() {
             )}
           </TableBody>
         </Table>
+        <TablePager pager={pager} />
       </div>
 
       <CheckinDialog open={checkinDlg} onClose={() => setCheckinDlg(false)} onSave={addCheckin} />

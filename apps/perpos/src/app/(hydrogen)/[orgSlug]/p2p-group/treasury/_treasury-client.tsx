@@ -31,9 +31,15 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { TablePager, usePagination } from "@/components/ui/table-pager";
 import { toast } from "@/lib/toast";
 import type { P2pgBankAccount, P2pgBankBalance, P2pgCompany } from "@/lib/p2p-group/types";
-import { BANK_ACCOUNT_TYPE_LABEL, formatMoney, formatThaiDate, toOptions } from "@/lib/p2p-group/labels";
+import {
+  BANK_ACCOUNT_TYPE_LABEL,
+  formatMoney,
+  formatThaiDate,
+  toOptions,
+} from "@/lib/p2p-group/labels";
 import { latestBalanceByAccount } from "@/lib/p2p-group/queries";
 import { p2pgMutate, withOrg } from "../_components/api";
 
@@ -50,6 +56,7 @@ export function TreasuryClient({
   orgId: string;
   canWrite: boolean;
 }) {
+  const pager = usePagination(accounts);
   const router = useRouter();
   const [accountDialog, setAccountDialog] = useState(false);
   const [balanceDialog, setBalanceDialog] = useState(false);
@@ -252,7 +259,7 @@ export function TreasuryClient({
                 ยังไม่มีบัญชีธนาคาร — เพิ่มบัญชีของแต่ละบริษัทเพื่อดูเงินสดรวมทั้งกลุ่ม
               </TableEmpty>
             ) : (
-              accounts.map((a) => {
+              pager.rows.map((a) => {
                 const bal = latest.get(a.id);
                 return (
                   <TableRow
@@ -301,6 +308,7 @@ export function TreasuryClient({
             )}
           </TableBody>
         </Table>
+        <TablePager pager={pager} unit="บัญชี" />
       </div>
 
       <Dialog open={accountDialog} onOpenChange={setAccountDialog}>

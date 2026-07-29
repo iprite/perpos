@@ -4,34 +4,42 @@ import React, { useMemo, useState, useTransition } from "react";
 import { CustomSelect } from "@/components/ui/custom-select";
 import { useRouter } from "next/navigation";
 import { FileDown, Search, XCircle } from "lucide-react";
-import { toast } from '@/lib/toast';
+import { toast } from "@/lib/toast";
 
 import { Button } from "@/components/ui/button";
-import { Input }  from "@/components/ui/input";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Input } from "@/components/ui/input";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { TablePager, usePagination } from "@/components/ui/table-pager";
 import { SaleDocStatusBadge } from "./sale-doc-status-badge";
 import { voidSaleDocumentAction } from "@/lib/sales/documents/actions";
 import type { DocTypeConfig, AnyDocStatus } from "./doc-type-config";
 import type { OrganizationSummary } from "@/lib/accounting/queries";
 
 export type SaleDocRow = {
-  id:           string;
+  id: string;
   organizationId: string;
-  docNumber:    string | null;
-  issueDate:    string;
-  dueDate:      string | null;
+  docNumber: string | null;
+  issueDate: string;
+  dueDate: string | null;
   customerName: string;
-  subTotal:     number;
-  vatAmount:    number;
-  totalAmount:  number;
-  status:       AnyDocStatus;
+  subTotal: number;
+  vatAmount: number;
+  totalAmount: number;
+  status: AnyDocStatus;
 };
 
 export function SaleDocsTable(props: {
-  config:               DocTypeConfig;
-  organizations:        OrganizationSummary[];
+  config: DocTypeConfig;
+  organizations: OrganizationSummary[];
   activeOrganizationId: string | null;
-  rows:                 SaleDocRow[];
+  rows: SaleDocRow[];
 }) {
   const { config } = props;
   const router = useRouter();
@@ -44,7 +52,7 @@ export function SaleDocsTable(props: {
     return org?.role === "owner" || org?.role === "admin";
   }, [activeOrg, props.organizations]);
 
-  const [q, setQ]         = useState("");
+  const [q, setQ] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | AnyDocStatus>("all");
 
   const filtered = useMemo(() => {
@@ -55,6 +63,7 @@ export function SaleDocsTable(props: {
       return `${r.docNumber ?? ""} ${r.customerName}`.toLowerCase().includes(qq);
     });
   }, [props.rows, q, statusFilter]);
+  const pager = usePagination(filtered);
 
   return (
     <div className="grid gap-4">
@@ -66,7 +75,7 @@ export function SaleDocsTable(props: {
               value={q}
               onChange={(e) => setQ(e.target.value)}
               placeholder="ค้นหาเลขที่/ชื่อลูกค้า"
-              className="pl-9 w-72"
+              className="w-72 pl-9"
             />
           </div>
           <CustomSelect
@@ -97,7 +106,7 @@ export function SaleDocsTable(props: {
         </TableHeader>
         <TableBody>
           {filtered.length ? (
-            filtered.map((r) => (
+            pager.rows.map((r) => (
               <TableRow key={r.id}>
                 <TableCell>{r.issueDate}</TableCell>
                 <TableCell className="font-mono text-sm">{r.docNumber ?? "-"}</TableCell>
@@ -109,13 +118,21 @@ export function SaleDocsTable(props: {
                     </div>
                   ) : null}
                 </TableCell>
-                <TableCell className="text-right tabular-nums">{r.totalAmount.toFixed(2)}</TableCell>
+                <TableCell className="text-right tabular-nums">
+                  {r.totalAmount.toFixed(2)}
+                </TableCell>
                 <TableCell>
                   <SaleDocStatusBadge status={r.status} />
                 </TableCell>
                 <TableCell>
                   <div className="flex justify-end gap-2">
-                    <Button variant="outline" size="sm" className="gap-2" disabled title="กำลังพัฒนา">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-2"
+                      disabled
+                      title="กำลังพัฒนา"
+                    >
                       <FileDown className="h-4 w-4" />
                       PDF
                     </Button>
@@ -127,7 +144,10 @@ export function SaleDocsTable(props: {
                       onClick={() => {
                         if (!activeOrg) return;
                         startTransition(async () => {
-                          const res = await voidSaleDocumentAction({ docId: r.id, organizationId: activeOrg });
+                          const res = await voidSaleDocumentAction({
+                            docId: r.id,
+                            organizationId: activeOrg,
+                          });
                           if (!res.ok) toast.error(String(res.error));
                           else toast.success("ยกเลิกเอกสารแล้ว");
                           router.refresh();
@@ -150,6 +170,7 @@ export function SaleDocsTable(props: {
           )}
         </TableBody>
       </Table>
+      <TablePager pager={pager} />
     </div>
   );
 }

@@ -29,6 +29,7 @@ import {
   TableEmpty,
   TableFooter,
 } from "@/components/ui/table";
+import { TablePager, usePagination } from "@/components/ui/table-pager";
 import { toast } from "@/lib/toast";
 import { NursingShell, useNursingRole, fmtMoney, fmtDateTH, fullName } from "../_components";
 import { INVOICES, PAYMENTS, RESIDENTS, computeArAging } from "../_fixtures";
@@ -71,13 +72,14 @@ export default function PaymentsPage() {
   // ─── AR aging — สูตรเดียวทั้งโมดูล (issued/partially_paid/overdue ที่ยังเก็บไม่ครบ) ───
   const aging = useMemo(() => computeArAging(invoices), [invoices]);
 
+  const sortedPayments = [...payments].sort((a, b) => b.paid_at.localeCompare(a.paid_at));
+  const pager = usePagination(sortedPayments);
+
   if (!canView) return <NoAccess />;
 
   const totalAR = aging.total;
   const overdueAR = aging.overdueTotal;
   const receivedTotal = payments.reduce((s, p) => s + p.amount, 0);
-
-  const sortedPayments = [...payments].sort((a, b) => b.paid_at.localeCompare(a.paid_at));
 
   function openPay(invId?: string) {
     const inv = invId ? invoices.find((i) => i.id === invId) : openInvoices[0];
@@ -207,7 +209,7 @@ export default function PaymentsPage() {
           {sortedPayments.length === 0 ? (
             <TableEmpty colSpan={6}>ยังไม่มีการรับชำระ</TableEmpty>
           ) : (
-            sortedPayments.map((p) => {
+            pager.rows.map((p) => {
               const inv = invoices.find((i) => i.id === p.invoice_id);
               return (
                 <TableRow key={p.id}>
@@ -239,6 +241,7 @@ export default function PaymentsPage() {
           </TableRow>
         </TableFooter>
       </Table>
+      <TablePager pager={pager} />
 
       {/* Dialog รับชำระ */}
       <Dialog open={payOpen} onOpenChange={setPayOpen}>

@@ -21,6 +21,7 @@ import {
   TableLoading,
   TableRow,
 } from "@/components/ui/table";
+import { TablePager, usePagination } from "@/components/ui/table-pager";
 import { EMPTY_STATES } from "../_fixtures/empty-states";
 import { MATERIAL_CATEGORY_LABEL, MATERIAL_UNIT_LABEL } from "../_fixtures/labels";
 import { isLowStockMaterial } from "../_fixtures/metrics";
@@ -70,6 +71,7 @@ export function MaterialsTab({
       })
       .sort((a, b) => Number(isLowStock(b)) - Number(isLowStock(a)));
   }, [materials, search, category, scope]);
+  const pager = usePagination(visible);
 
   const filtered = Boolean(search || category || scope === "low");
   const colCount = isOwner ? 9 : 7;
@@ -168,7 +170,7 @@ export function MaterialsTab({
               </div>
             </TableEmpty>
           ) : (
-            visible.map((m) => {
+            pager.rows.map((m) => {
               const low = isLowStock(m);
               return (
                 <TableRow key={m.id} clickable onClick={() => onSelect(m)}>
@@ -210,6 +212,7 @@ export function MaterialsTab({
           )}
         </TableBody>
       </Table>
+      <TablePager pager={pager} />
     </div>
   );
 }

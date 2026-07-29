@@ -35,6 +35,7 @@ import {
   TableEmpty,
   TableLoading,
 } from "@/components/ui/table";
+import { TablePager, usePagination } from "@/components/ui/table-pager";
 import {
   Dialog,
   DialogContent,
@@ -118,6 +119,7 @@ export default function IncidentsPage() {
         .sort((a, b) => (a.occurred_at < b.occurred_at ? 1 : -1)),
     [rows, fSeverity, fStatus],
   );
+  const pager = usePagination(filtered);
 
   const openCount = useMemo(() => rows.filter((r) => r.status === "open").length, [rows]);
   const criticalCount = useMemo(
@@ -308,7 +310,7 @@ export default function IncidentsPage() {
           ) : filtered.length === 0 ? (
             <TableEmpty colSpan={canWrite ? 7 : 6}>ยังไม่มีรายงานเหตุการณ์ตามเงื่อนไข</TableEmpty>
           ) : (
-            filtered.map((r) => (
+            pager.rows.map((r) => (
               <TableRow key={r.id}>
                 <TableCell>{fmtDateTimeTH(r.occurred_at)}</TableCell>
                 <TableCell>{residentName(r.resident_id)}</TableCell>
@@ -337,6 +339,7 @@ export default function IncidentsPage() {
           )}
         </TableBody>
       </Table>
+      <TablePager pager={pager} />
 
       {/* dialog แจ้งเหตุการณ์ใหม่ */}
       <Dialog open={open} onOpenChange={(o) => (o ? setOpen(true) : resetAndClose())}>

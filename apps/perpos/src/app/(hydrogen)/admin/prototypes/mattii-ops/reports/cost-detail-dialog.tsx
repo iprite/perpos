@@ -28,6 +28,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { TablePager, usePagination } from "@/components/ui/table-pager";
 import { Text } from "@/components/ui/typography";
 import { notify } from "@/lib/toast";
 import { MOCK_ORG_ID } from "../_fixtures/helpers";
@@ -66,6 +67,7 @@ export function CostDetailDialog({
   onOpenChange: (v: boolean) => void;
   onAddCost: (cost: MattiiOrderCost) => void;
 }) {
+  const pager = usePagination(costs);
   const [adding, setAdding] = useState(false);
   const [category, setCategory] = useState<CostCategory>("labor");
   const [label, setLabel] = useState("");
@@ -197,7 +199,7 @@ export function CostDetailDialog({
                     {costs.length === 0 ? (
                       <TableEmpty colSpan={4}>ยังไม่มีต้นทุนที่บันทึกกับออเดอร์นี้</TableEmpty>
                     ) : (
-                      costs.map((c) => (
+                      pager.rows.map((c) => (
                         <TableRow key={c.id}>
                           <TableCell>
                             <StatusBadge tone="neutral">
@@ -227,6 +229,7 @@ export function CostDetailDialog({
                     </TableFooter>
                   )}
                 </Table>
+                <TablePager pager={pager} />
               </div>
 
               {adding && (

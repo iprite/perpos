@@ -369,6 +369,55 @@ import { StatusBadge } from "@/components/ui/badge";
 </table>
 ```
 
+### 5.1 Pagination — แถบแบ่งหน้า (บังคับ, หน้าตาเดียวทั้งแอป)
+
+> **กฎ**: ทุกตารางที่รายการ "อาจยาวเกินหนึ่งหน้าจอ" ต้องมีแถบแบ่งหน้า และต้องเป็น
+> `@/components/ui/table-pager` เท่านั้น — **ห้ามประกอบปุ่ม ‹ › / "ก่อนหน้า–ถัดไป" / "หน้า X / Y" เอง**
+> (เดิมมี 4 แบบปนกันทั้งแอป — pill เลขหน้า, ‹ ›, ปุ่ม outline ไทย, load-more — **รวมเป็นแบบเดียวแล้ว 2026-07-29**)
+
+**หน้าตามาตรฐาน** (มาจาก `PagerBar` ที่เดียว — ทุกท่าใช้ร่วมกัน):
+ซ้าย = `แสดง {from}–{to} จาก {total} {unit}` (`text-xs text-gray-500`) ·
+ขวา = `‹` + เลขหน้าแบบย่อ (`1 … 4 5 6 … 20`) + `›` เป็นปุ่ม `size="icon"` สูง `h-8` ·
+หน้าปัจจุบัน = `variant="default"` (charcoal) · หน้าอื่น = `ghost` · **ซ่อนตัวเองอัตโนมัติเมื่อมีหน้าเดียว**
+
+**เลือก 1 ใน 3 ท่า ตามที่มาของข้อมูล** (หน้าตาออกมาเหมือนกันหมด):
+
+| ที่มาของข้อมูล                            | ใช้                              | ตัวอย่าง                        |
+| ----------------------------------------- | -------------------------------- | ------------------------------- |
+| ได้ข้อมูลมาครบแล้ว กรองฝั่ง client        | `usePagination` + `<TablePager>` | ทะเบียนลูกค้า, สมุดรายวัน       |
+| fetch ทีละหน้าจาก API (client component)  | `<ControlledTablePager>`         | `/admin/audit`, `jaquar/stock`  |
+| หน้า SSR ที่ `page` อยู่ใน `searchParams` | `<LinkTablePager>`               | `/admin/issues`, `/admin/leads` |
+
+```tsx
+// ท่า 1 — client-side (ที่ใช้บ่อยที่สุด)
+const pager = usePagination(filtered);           // default 10 แถว/หน้า
+<TableBody>{pager.rows.map(...)}</TableBody>
+</Table>
+<TablePager pager={pager} unit="ราย" />          // unit = คำเรียกแถว (default "รายการ")
+
+// ท่า 2 — fetch ทีละหน้า
+<ControlledTablePager page={page} pageSize={LIMIT} total={total} onPageChange={load} loading={loading} />
+
+// ท่า 3 — SSR searchParams (query = ตัวกรองอื่นที่ต้องคงไว้ · page ใส่ให้เอง)
+<LinkTablePager page={page} pageSize={limit} total={total} query={{ status, type }} />
+```
+
+**กฎย่อย:**
+
+- ส่ง **แถวที่ผ่านตัวกรองแล้ว** เข้า `usePagination` เสมอ — ไม่ใช่ raw list (ไม่งั้น "แสดง x–y จาก N" โกหก)
+- `total` ของท่า 2/3 ต้องเป็นยอด**ทั้งหมดที่ตรงเงื่อนไข**จาก API ไม่ใช่จำนวนแถวของหน้านี้
+- `<Table>` ที่เป็น JSX root เดี่ยว ๆ → ห่อคู่กับ pager ด้วย `<div className="space-y-3">`
+- **hook ต้องอยู่ระดับ component เสมอ** — ห้ามวางใต้ early return (`if (!x) return …`) หรือในฟังก์ชันซ้อน
+  (ผิดกฎ hooks · `pnpm lint` จับได้ ให้ยกการคำนวณ source + hook ขึ้นเหนือ guard)
+- list ที่มาจาก PostgREST และอาจถูกตัด 1,000 แถว → จัดการ `truncated` ที่ชั้น fetch **ก่อน** (ดู `lib/accounting/paging.ts`)
+  แล้วค่อยแบ่งหน้า · ปุ่ม **"โหลดเพิ่ม"** ใช้ได้เฉพาะกรณีนี้ (ต่อท้าย list) — ไม่ใช่แทนแถบแบ่งหน้า
+
+**ยกเว้น — ตารางที่ไม่ต้องมีแถบแบ่งหน้า** (จำนวนแถวถูกจำกัดโดยธรรมชาติ):
+
+- **ตัวแก้บรรทัดเอกสารในฟอร์ม** (บรรทัดใบกำกับ, ไซซ์สินค้า) — ผู้ใช้ต้องเห็น/แก้ทุกบรรทัดพร้อมกัน · แบ่งหน้า = ผิด
+- **ตารางสรุป/รายงาน** ที่แถวมาจากมิติคงที่ (งบทดลอง, งบดุล, ยอดตามเดือน/ช่องทาง/หมวด, เมทริกซ์สิทธิ์)
+- **การ์ดสรุปหน้าแรก** ที่ `.slice(0, N)` อยู่แล้ว (รายการล่าสุด 5–15 แถว)
+
 ### Column Alignment Rules
 
 | Column type             | Alignment        | Class                     |
@@ -874,12 +923,13 @@ import {
 
 ## Changelog
 
-| วันที่     | การเปลี่ยนแปลง                                                                                                                                                                                                                                                           |
-| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 2026-06-06 | สร้าง DESIGN.md จาก Stripe + Linear + Emil Kowalski                                                                                                                                                                                                                      |
-| 2026-06-17 | เพิ่ม §13 Dialog / Popup Standard — sticky header/footer, size prop, DialogBody บังคับทั้งระบบ                                                                                                                                                                           |
-| 2026-06-17 | §2 ล็อก PERPOS Standard Palette (flat-UI) ทั้งแอป — override Tailwind token (AQUA=primary) + migrate ฮาร์ดโค้ด hex (รวม LINE flex cards) · ยกเว้นเอกสารพิมพ์ (wht-pdf, pp30/wht-cert preview, mom-html) คงสีเดิม                                                         |
-| 2026-07-21 | เพิ่ม §13.5 เอกสารภาษีที่พิมพ์ (A4) — ม.86/4, ต้นฉบับ/สำเนา, `bahtText` แหล่งเดียว · เพิ่ม anti-pattern: KPI คิดกฎเอง + ยอดรวมจาก list ที่ถูกตัดแถว                                                                                                                      |
-| 2026-07-28 | **แท็บในหน้ารวมเป็นมาตรฐานเดียว = `<SegmentedControl>` (pill)** — เลิกแถบแท็บที่ประกอบเองจากกลุ่ม `<Button>` · §7 เพิ่มตารางขนาด (default = `sm` สำหรับแท็บ/ตัวกรอง · `md` เฉพาะ form control · `xs` inline ในตาราง) + pill `w-fit` ไม่ถูกยืด + ไอคอนย่อตามขนาดอัตโนมัติ |
-| 2026-07-29 | เพิ่ม **`<FileDropzone>` เป็นมาตรฐานเดียวของการเลือกไฟล์ทั้งแอป** (§7) — เลิก `<input type="file">` ที่มองเห็น + เลิกประกอบ dropzone เอง · migrate 7 จุดเดิม (acc-firm OCR/vault, assistant STT, just-me OCR, tmc purchase, jaquar CSV, bank reconcile CSV, avatar)      |
-| 2026-06-17 | เปลี่ยน **primary/brand = CHARCOAL `#3C3B3D`** (โทน mono เลิก AQUA) — blue/sky/cyan → charcoal scale, token primary/blue → charcoal, title (h1/PageShell/Title) ใช้ `text-primary` · สี accent อื่น (PLUM/PINK/MINT/RUBY/SUNFLOWER) คงเดิม                               |
+| วันที่     | การเปลี่ยนแปลง                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-06-06 | สร้าง DESIGN.md จาก Stripe + Linear + Emil Kowalski                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| 2026-06-17 | เพิ่ม §13 Dialog / Popup Standard — sticky header/footer, size prop, DialogBody บังคับทั้งระบบ                                                                                                                                                                                                                                                                                                                                                                                      |
+| 2026-06-17 | §2 ล็อก PERPOS Standard Palette (flat-UI) ทั้งแอป — override Tailwind token (AQUA=primary) + migrate ฮาร์ดโค้ด hex (รวม LINE flex cards) · ยกเว้นเอกสารพิมพ์ (wht-pdf, pp30/wht-cert preview, mom-html) คงสีเดิม                                                                                                                                                                                                                                                                    |
+| 2026-07-21 | เพิ่ม §13.5 เอกสารภาษีที่พิมพ์ (A4) — ม.86/4, ต้นฉบับ/สำเนา, `bahtText` แหล่งเดียว · เพิ่ม anti-pattern: KPI คิดกฎเอง + ยอดรวมจาก list ที่ถูกตัดแถว                                                                                                                                                                                                                                                                                                                                 |
+| 2026-07-28 | **แท็บในหน้ารวมเป็นมาตรฐานเดียว = `<SegmentedControl>` (pill)** — เลิกแถบแท็บที่ประกอบเองจากกลุ่ม `<Button>` · §7 เพิ่มตารางขนาด (default = `sm` สำหรับแท็บ/ตัวกรอง · `md` เฉพาะ form control · `xs` inline ในตาราง) + pill `w-fit` ไม่ถูกยืด + ไอคอนย่อตามขนาดอัตโนมัติ                                                                                                                                                                                                            |
+| 2026-07-29 | เพิ่ม **`<FileDropzone>` เป็นมาตรฐานเดียวของการเลือกไฟล์ทั้งแอป** (§7) — เลิก `<input type="file">` ที่มองเห็น + เลิกประกอบ dropzone เอง · migrate 7 จุดเดิม (acc-firm OCR/vault, assistant STT, just-me OCR, tmc purchase, jaquar CSV, bank reconcile CSV, avatar)                                                                                                                                                                                                                 |
+| 2026-06-17 | เปลี่ยน **primary/brand = CHARCOAL `#3C3B3D`** (โทน mono เลิก AQUA) — blue/sky/cyan → charcoal scale, token primary/blue → charcoal, title (h1/PageShell/Title) ใช้ `text-primary` · สี accent อื่น (PLUM/PINK/MINT/RUBY/SUNFLOWER) คงเดิม                                                                                                                                                                                                                                          |
+| 2026-07-29 | **รวมแถบแบ่งหน้าเป็นมาตรฐานเดียวทั้งแอป (§5.1)** — เดิมมี 4 แบบปนกัน (pill เลขหน้า / `‹ ›` / ปุ่ม outline "ก่อนหน้า–ถัดไป" / load-more) · `table-pager.tsx` คุมหน้าตาที่เดียวผ่าน `PagerBar` แล้วแตกเป็น 3 ท่าตามที่มาข้อมูล (`TablePager` / `ControlledTablePager` / `LinkTablePager`) · migrate ad-hoc 5 จุด (admin audit/admin-audit/issues/leads, jaquar stock) + เพิ่มแถบให้ตารางที่ยังไม่มีอีก 72 จุด · ระบุตารางที่ยกเว้น (ตัวแก้บรรทัดเอกสาร / ตารางสรุป / การ์ดสรุป slice) |

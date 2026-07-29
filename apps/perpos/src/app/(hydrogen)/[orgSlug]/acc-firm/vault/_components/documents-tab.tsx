@@ -27,6 +27,7 @@ import {
   TableCell,
   TableEmpty,
 } from "@/components/ui/table";
+import { TablePager, usePagination } from "@/components/ui/table-pager";
 import { toast } from "@/lib/toast";
 import {
   DOCUMENT_STATUS_LABELS,
@@ -92,6 +93,7 @@ export function DocumentsTab({
         .includes(keyword);
     });
   }, [documents, q, categoryId]);
+  const pager = usePagination(rows);
 
   async function reload() {
     try {
@@ -155,75 +157,80 @@ export function DocumentsTab({
           )}
         </div>
       ) : (
-        <Table className="shadow-sm">
-          <TableHeader>
-            <TableRow>
-              <TableHead>ชื่อเอกสาร</TableHead>
-              <TableHead>ประเภท</TableHead>
-              <TableHead>วันที่เอกสาร</TableHead>
-              <TableHead align="center">สถานะ</TableHead>
-              <TableHead align="right">ขนาด</TableHead>
-              <TableHead>อัปโหลดเมื่อ</TableHead>
-              <TableHead align="right">ไฟล์</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {rows.length === 0 ? (
-              <TableEmpty colSpan={7}>ไม่พบเอกสารที่ตรงกับตัวกรอง</TableEmpty>
-            ) : (
-              rows.map((d) => {
-                const blocked = d.isSensitive && !canDownloadSensitive;
-                return (
-                  <TableRow key={d.id}>
-                    <TableCell className="text-gray-800">
-                      <span className="flex items-center gap-2">
-                        {d.title}
-                        {d.isSensitive && <StatusBadge tone="warning">ข้อมูลส่วนบุคคล</StatusBadge>}
-                        {d.legalHold && <StatusBadge tone="danger">ห้ามทำลาย</StatusBadge>}
-                      </span>
-                      <Text className="mt-0.5 text-xs text-gray-500">
-                        ที่มา {SOURCE_LABELS[d.source]}
-                        {d.uploadedByName ? ` · โดย ${d.uploadedByName}` : ""}
-                      </Text>
-                    </TableCell>
-                    <TableCell className="text-gray-600">
-                      <span className="font-mono text-xs text-gray-400">{d.categoryCode}</span>{" "}
-                      {d.categoryName}
-                    </TableCell>
-                    <TableCell className="text-gray-600">{fmtDate(d.docDate)}</TableCell>
-                    <TableCell align="center">
-                      <StatusBadge tone={DOC_STATUS_TONE[d.status]}>
-                        {DOCUMENT_STATUS_LABELS[d.status]}
-                      </StatusBadge>
-                    </TableCell>
-                    <TableCell align="right" tabular className="text-gray-600">
-                      {fmtBytes(d.sizeBytes)}
-                    </TableCell>
-                    <TableCell className="text-xs text-gray-500">
-                      {fmtDateTime(d.uploadedAt)}
-                    </TableCell>
-                    <TableCell align="right">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        disabled={blocked || downloadingId === d.id}
-                        title={
-                          blocked
-                            ? "เอกสารข้อมูลส่วนบุคคล — เปิดได้เฉพาะสิทธิ์ Owner ของสำนักงาน"
-                            : undefined
-                        }
-                        onClick={() => (d.isSensitive ? setConfirmDoc(d) : void download(d))}
-                      >
-                        <Download className="mr-1 h-4 w-4" />
-                        {blocked ? "เฉพาะ Owner" : "เปิดไฟล์"}
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                );
-              })
-            )}
-          </TableBody>
-        </Table>
+        <div className="space-y-3">
+          <Table className="shadow-sm">
+            <TableHeader>
+              <TableRow>
+                <TableHead>ชื่อเอกสาร</TableHead>
+                <TableHead>ประเภท</TableHead>
+                <TableHead>วันที่เอกสาร</TableHead>
+                <TableHead align="center">สถานะ</TableHead>
+                <TableHead align="right">ขนาด</TableHead>
+                <TableHead>อัปโหลดเมื่อ</TableHead>
+                <TableHead align="right">ไฟล์</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {rows.length === 0 ? (
+                <TableEmpty colSpan={7}>ไม่พบเอกสารที่ตรงกับตัวกรอง</TableEmpty>
+              ) : (
+                pager.rows.map((d) => {
+                  const blocked = d.isSensitive && !canDownloadSensitive;
+                  return (
+                    <TableRow key={d.id}>
+                      <TableCell className="text-gray-800">
+                        <span className="flex items-center gap-2">
+                          {d.title}
+                          {d.isSensitive && (
+                            <StatusBadge tone="warning">ข้อมูลส่วนบุคคล</StatusBadge>
+                          )}
+                          {d.legalHold && <StatusBadge tone="danger">ห้ามทำลาย</StatusBadge>}
+                        </span>
+                        <Text className="mt-0.5 text-xs text-gray-500">
+                          ที่มา {SOURCE_LABELS[d.source]}
+                          {d.uploadedByName ? ` · โดย ${d.uploadedByName}` : ""}
+                        </Text>
+                      </TableCell>
+                      <TableCell className="text-gray-600">
+                        <span className="font-mono text-xs text-gray-400">{d.categoryCode}</span>{" "}
+                        {d.categoryName}
+                      </TableCell>
+                      <TableCell className="text-gray-600">{fmtDate(d.docDate)}</TableCell>
+                      <TableCell align="center">
+                        <StatusBadge tone={DOC_STATUS_TONE[d.status]}>
+                          {DOCUMENT_STATUS_LABELS[d.status]}
+                        </StatusBadge>
+                      </TableCell>
+                      <TableCell align="right" tabular className="text-gray-600">
+                        {fmtBytes(d.sizeBytes)}
+                      </TableCell>
+                      <TableCell className="text-xs text-gray-500">
+                        {fmtDateTime(d.uploadedAt)}
+                      </TableCell>
+                      <TableCell align="right">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={blocked || downloadingId === d.id}
+                          title={
+                            blocked
+                              ? "เอกสารข้อมูลส่วนบุคคล — เปิดได้เฉพาะสิทธิ์ Owner ของสำนักงาน"
+                              : undefined
+                          }
+                          onClick={() => (d.isSensitive ? setConfirmDoc(d) : void download(d))}
+                        >
+                          <Download className="mr-1 h-4 w-4" />
+                          {blocked ? "เฉพาะ Owner" : "เปิดไฟล์"}
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
+              )}
+            </TableBody>
+          </Table>
+          <TablePager pager={pager} />
+        </div>
       )}
 
       <UploadDocumentDialog

@@ -5,9 +5,21 @@ import { Download } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { ThaiDatePicker } from "@/components/ui/thai-date-picker";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { TablePager, usePagination } from "@/components/ui/table-pager";
 import { downloadCsv, toCsv } from "@/components/reports/csv";
-import { getOutputVatReportAction, getWhtSummaryAction, type OutputVatRow } from "@/lib/reports/actions";
+import {
+  getOutputVatReportAction,
+  getWhtSummaryAction,
+  type OutputVatRow,
+} from "@/lib/reports/actions";
 
 function fmt(n: number) {
   return n.toLocaleString("th-TH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -24,6 +36,7 @@ export function TaxAndClosingClient(props: {
   const [startDate, setStartDate] = useState(props.initialStartDate);
   const [endDate, setEndDate] = useState(props.initialEndDate);
   const [rows, setRows] = useState<OutputVatRow[]>(props.initialRows);
+  const pager = usePagination(rows);
   const [wht, setWht] = useState(props.initialWht);
   const [error, setError] = useState<string | null>(null);
 
@@ -38,7 +51,10 @@ export function TaxAndClosingClient(props: {
   // โหลดรายงานใหม่อัตโนมัติเมื่อเปลี่ยนช่วงวันที่ (ข้ามรอบแรกเพราะมีข้อมูลจาก server แล้ว)
   const didMount = useRef(false);
   useEffect(() => {
-    if (!didMount.current) { didMount.current = true; return; }
+    if (!didMount.current) {
+      didMount.current = true;
+      return;
+    }
     setError(null);
     startTransition(async () => {
       const [vatRes, whtRes] = await Promise.all([
@@ -65,9 +81,17 @@ export function TaxAndClosingClient(props: {
           <div className="grid gap-1">
             <div className="text-xs text-slate-600">ช่วงวันที่</div>
             <div className="flex items-center gap-2">
-              <ThaiDatePicker value={startDate} onChange={(v) => setStartDate(v)} className="w-[160px]" />
+              <ThaiDatePicker
+                value={startDate}
+                onChange={(v) => setStartDate(v)}
+                className="w-[160px]"
+              />
               <div className="text-sm text-slate-500">–</div>
-              <ThaiDatePicker value={endDate} onChange={(v) => setEndDate(v)} className="w-[160px]" />
+              <ThaiDatePicker
+                value={endDate}
+                onChange={(v) => setEndDate(v)}
+                className="w-[160px]"
+              />
             </div>
           </div>
         </div>
@@ -97,20 +121,30 @@ export function TaxAndClosingClient(props: {
         </div>
       </div>
 
-      {error ? <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div> : null}
+      {error ? (
+        <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+          {error}
+        </div>
+      ) : null}
 
       <div className="grid gap-4 md:grid-cols-3">
         <div className="rounded-xl border border-slate-200 bg-white p-4">
           <div className="text-xs text-slate-600">ยอดขายฐานภาษี (VAT)</div>
-          <div className="mt-1 text-2xl font-semibold tabular-nums text-slate-900">{fmt(totals.amount)}</div>
+          <div className="mt-1 text-2xl font-semibold tabular-nums text-slate-900">
+            {fmt(totals.amount)}
+          </div>
         </div>
         <div className="rounded-xl border border-slate-200 bg-white p-4">
           <div className="text-xs text-slate-600">ภาษีขาย</div>
-          <div className="mt-1 text-2xl font-semibold tabular-nums text-slate-900">{fmt(totals.vat)}</div>
+          <div className="mt-1 text-2xl font-semibold tabular-nums text-slate-900">
+            {fmt(totals.vat)}
+          </div>
         </div>
         <div className="rounded-xl border border-slate-200 bg-white p-4">
           <div className="text-xs text-slate-600">สรุป WHT (หัก ณ ที่จ่าย)</div>
-          <div className="mt-1 text-2xl font-semibold tabular-nums text-slate-900">{fmt(wht.totalWithholding)}</div>
+          <div className="mt-1 text-2xl font-semibold tabular-nums text-slate-900">
+            {fmt(wht.totalWithholding)}
+          </div>
           <div className="mt-1 text-xs text-slate-600">จำนวนเอกสาร {wht.count}</div>
         </div>
       </div>
@@ -118,7 +152,9 @@ export function TaxAndClosingClient(props: {
       <div className="rounded-xl border border-slate-200 bg-white">
         <div className="border-b border-slate-200 px-5 py-4">
           <div className="text-sm font-semibold text-slate-900">รายงานภาษีขาย (Output VAT)</div>
-          <div className="mt-0.5 text-xs text-slate-600">อิงจากใบแจ้งหนี้ที่มี VAT และไม่ถูก void</div>
+          <div className="mt-0.5 text-xs text-slate-600">
+            อิงจากใบแจ้งหนี้ที่มี VAT และไม่ถูก void
+          </div>
         </div>
         <Table>
           <TableHeader>
@@ -133,7 +169,7 @@ export function TaxAndClosingClient(props: {
           </TableHeader>
           <TableBody>
             {rows.length ? (
-              rows.map((r) => (
+              pager.rows.map((r) => (
                 <TableRow key={`${r.issueDate}-${r.invoiceNumber ?? ""}-${r.customerName}`}>
                   <TableCell>{r.issueDate}</TableCell>
                   <TableCell className="font-mono text-sm">{r.invoiceNumber ?? "-"}</TableCell>
@@ -152,16 +188,16 @@ export function TaxAndClosingClient(props: {
             )}
           </TableBody>
         </Table>
+        <TablePager pager={pager} />
       </div>
 
       <div className="rounded-xl border border-slate-200 bg-white p-5">
         <div className="text-sm font-semibold text-slate-900">ปิดงบสิ้นปี (แนวคิด)</div>
         <div className="mt-2 text-sm text-slate-600">
-          Phase 3 จะเตรียม workflow และ RPC สำหรับปิดงบแบบ transaction (สร้างรายการปิดบัญชี + ล็อกงวด + เตรียมยอดยกมา)
-          โดยในรอบนี้ยังไม่ได้เปิดใช้งาน UI ปิดงบเต็มรูปแบบ
+          Phase 3 จะเตรียม workflow และ RPC สำหรับปิดงบแบบ transaction (สร้างรายการปิดบัญชี +
+          ล็อกงวด + เตรียมยอดยกมา) โดยในรอบนี้ยังไม่ได้เปิดใช้งาน UI ปิดงบเต็มรูปแบบ
         </div>
       </div>
     </div>
   );
 }
-

@@ -31,6 +31,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { TablePager, usePagination } from "@/components/ui/table-pager";
 import { baselineComparison } from "./_fixtures/baseline";
 import { benchmark } from "./_fixtures/benchmarks";
 import { dashboardMetrics } from "./_fixtures/metrics";
@@ -57,6 +58,7 @@ export default function MattiiOverviewPage() {
     [orders, materials, shipments, printJobs, orderItems],
   );
   const comparison = useMemo(() => baselineComparison(orders), [orders]);
+  const pager = usePagination(comparison);
   const replyTimeRow = comparison.find((r) => r.key === "reply_time_minutes");
 
   return (
@@ -250,7 +252,7 @@ export default function MattiiOverviewPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {comparison.map((row) => {
+            {pager.rows.map((row) => {
               // after = null → ยังไม่มีค่าปัจจุบันให้เทียบ (เช่น ออเดอร์/เดือน — fixture เป็นภาพ ณ ขณะหนึ่ง)
               const after = row.after;
               const better =
@@ -285,6 +287,7 @@ export default function MattiiOverviewPage() {
             })}
           </TableBody>
         </Table>
+        <TablePager pager={pager} />
         <Text className="mt-1.5 px-1 text-xs text-gray-400">
           ค่า &quot;ก่อนมีระบบ&quot; ({benchmark.source_note})
           เป็นประมาณการจากเจ้าของร้านเพื่อใช้เล่าเรื่องในการนำเสนอ ไม่ใช่สถิติที่วัดจากระบบเดิม

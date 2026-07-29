@@ -27,6 +27,7 @@ import {
   TableCell,
   TableEmpty,
 } from "@/components/ui/table";
+import { TablePager, usePagination } from "@/components/ui/table-pager";
 import { toast } from "@/lib/toast";
 import {
   useHotelData,
@@ -83,6 +84,7 @@ export function GuestDetailDialog({
       .filter((b) => b.guest_id === guest.id)
       .sort((a, b) => b.check_in_date.localeCompare(a.check_in_date));
   }, [guest, bookings]);
+  const pager = usePagination(history);
 
   if (!guest) return null;
 
@@ -160,7 +162,7 @@ export function GuestDetailDialog({
                   {history.length === 0 ? (
                     <TableEmpty colSpan={6}>ยังไม่มีประวัติเข้าพัก</TableEmpty>
                   ) : (
-                    history.map((b) => {
+                    pager.rows.map((b) => {
                       const t = roomType(b.room_id);
                       const bal = computeBalance(b, paymentsOf(b.id, payments));
                       return (
@@ -196,6 +198,7 @@ export function GuestDetailDialog({
                   )}
                 </TableBody>
               </Table>
+              <TablePager pager={pager} />
             </div>
           </div>
         </DialogBody>

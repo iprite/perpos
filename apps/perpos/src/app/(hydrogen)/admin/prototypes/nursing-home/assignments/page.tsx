@@ -20,6 +20,7 @@ import {
   TableCell,
   TableEmpty,
 } from "@/components/ui/table";
+import { TablePager, usePagination } from "@/components/ui/table-pager";
 import {
   Dialog,
   DialogContent,
@@ -76,6 +77,7 @@ export default function AssignmentsPage() {
         .filter((a) => (status ? a.status === status : true)),
     [rows, staffFilter, status],
   );
+  const pager = usePagination(filtered);
 
   const kpi = useMemo(() => {
     const active = rows.filter((a) => a.status === "active");
@@ -185,7 +187,7 @@ export default function AssignmentsPage() {
               </div>
             </TableEmpty>
           ) : (
-            filtered.map((a) => (
+            pager.rows.map((a) => (
               <TableRow key={a.id}>
                 <TableCell className="font-medium text-gray-900">{staffName(a.staff_id)}</TableCell>
                 <TableCell>{residentName(a.resident_id)}</TableCell>
@@ -213,6 +215,7 @@ export default function AssignmentsPage() {
           )}
         </TableBody>
       </Table>
+      <TablePager pager={pager} />
 
       <AssignDialog
         open={dlg}
