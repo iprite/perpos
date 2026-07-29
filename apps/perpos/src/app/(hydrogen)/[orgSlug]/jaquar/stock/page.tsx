@@ -4,6 +4,7 @@ import React, { useEffect, useState, useCallback, useMemo } from "react";
 import { useParams } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
+import { FileDropzone } from "@/components/ui/file-dropzone";
 import { PageShell } from "@/components/ui/page-shell";
 import { Input } from "@/components/ui/input";
 import { CustomSelect } from "@/components/ui/custom-select";
@@ -331,10 +332,12 @@ export default function JaquarStockPage() {
   };
 
   // 8. Custom CSV parsing logic
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const handleFileChange = (file: File | null) => {
     setCsvFile(file);
+    if (!file) {
+      setParsedSummary(null);
+      return;
+    }
 
     const reader = new FileReader();
     reader.onload = (event) => {
@@ -1067,11 +1070,11 @@ export default function JaquarStockPage() {
                   </p>
                   <p className="mt-1 font-semibold text-gray-700">ตัวอย่าง: Stock Update.csv</p>
                 </div>
-                <input
-                  type="file"
-                  accept=".csv"
+                <FileDropzone
+                  value={csvFile}
                   onChange={handleFileChange}
-                  className="block w-full cursor-pointer pt-2 text-xs text-gray-500 file:mr-4 file:rounded-md file:border-0 file:bg-gray-100 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-gray-700 hover:file:bg-gray-200"
+                  accept=".csv,text/csv"
+                  label="ลากไฟล์ CSV มาวาง หรือคลิกเพื่อเลือก"
                 />
               </div>
 

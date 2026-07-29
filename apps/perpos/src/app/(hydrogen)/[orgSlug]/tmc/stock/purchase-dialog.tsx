@@ -2,6 +2,7 @@
 
 import { useState, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
+import { FileDropzone } from "@/components/ui/file-dropzone";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { CustomSelect } from "@/components/ui/custom-select";
@@ -122,7 +123,6 @@ export function PurchaseDialog({
   const [ocrLoading, setOcrLoading] = useState(false);
   const [ocrError, setOcrError] = useState("");
   const [previewUrl, setPreviewUrl] = useState("");
-  const fileRef = useRef<HTMLInputElement>(null);
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -286,40 +286,26 @@ export function PurchaseDialog({
           {/* OCR upload area */}
           {mode === "ocr" && (
             <div className="space-y-3">
-              <div
-                className="cursor-pointer rounded-xl border-2 border-dashed border-gray-200 p-6 text-center transition-colors hover:border-blue-300 hover:bg-blue-50"
-                onClick={() => fileRef.current?.click()}
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  const f = e.dataTransfer.files[0];
+              {previewUrl ? (
+                <img
+                  src={previewUrl}
+                  alt="ตัวอย่างบิลที่เลือก"
+                  className="mx-auto max-h-48 rounded-lg object-contain"
+                />
+              ) : null}
+              <FileDropzone
+                value={null}
+                onChange={(f) => {
                   if (f) void handleFile(f);
                 }}
-              >
-                {previewUrl ? (
-                  <img
-                    src={previewUrl}
-                    alt="bill preview"
-                    className="mx-auto max-h-48 rounded-lg object-contain"
-                  />
-                ) : (
-                  <div className="space-y-2">
-                    <Upload className="mx-auto h-8 w-8 text-gray-400" />
-                    <p className="text-sm text-gray-500">คลิกหรือลากไฟล์รูปบิล/ใบเสร็จมาวาง</p>
-                    <p className="text-xs text-gray-400">รองรับ JPG, PNG, HEIC</p>
-                  </div>
-                )}
-                <input
-                  ref={fileRef}
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={(e) => {
-                    const f = e.target.files?.[0];
-                    if (f) void handleFile(f);
-                  }}
-                />
-              </div>
+                accept="image/*"
+                label={
+                  previewUrl
+                    ? "ลากรูปใหม่มาวาง หรือคลิกเพื่อเลือก"
+                    : "คลิกหรือลากไฟล์รูปบิล/ใบเสร็จมาวาง"
+                }
+                hint="รองรับ JPG, PNG, HEIC"
+              />
 
               {ocrLoading && (
                 <div className="flex items-center gap-2 rounded-lg bg-blue-50 px-4 py-3 text-sm text-blue-600">

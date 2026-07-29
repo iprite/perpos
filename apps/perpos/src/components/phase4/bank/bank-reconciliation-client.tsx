@@ -1,14 +1,22 @@
 "use client";
 
 import React, { useMemo, useState, useTransition } from "react";
-import { toast } from '@/lib/toast';
+import { toast } from "@/lib/toast";
 import { CheckCircle2, UploadCloud, XCircle } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { FileDropzone } from "@/components/ui/file-dropzone";
 import { CustomSelect } from "@/components/ui/custom-select";
 import { Input } from "@/components/ui/input";
 import { ThaiDatePicker } from "@/components/ui/thai-date-picker";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import cn from "@core/utils/class-names";
 import { parseCsv } from "@/utils/csv";
 import {
@@ -54,7 +62,14 @@ export function BankReconciliationClient(props: {
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [csvHeaders, setCsvHeaders] = useState<string[]>([]);
   const [csvRecords, setCsvRecords] = useState<Record<string, string>[]>([]);
-  const [mapping, setMapping] = useState<Mapping>({ txnDate: "", description: "", amount: "", direction: "", reference: "", balance: "" });
+  const [mapping, setMapping] = useState<Mapping>({
+    txnDate: "",
+    description: "",
+    amount: "",
+    direction: "",
+    reference: "",
+    balance: "",
+  });
 
   const canImport = Boolean(csvFile) && csvHeaders.length > 0;
 
@@ -63,7 +78,10 @@ export function BankReconciliationClient(props: {
       setSelectedLine(null);
       setSuggestions([]);
       startTransition(async () => {
-        const res = await listBankLinesAction({ organizationId: props.organizationId, bankImportId: importId });
+        const res = await listBankLinesAction({
+          organizationId: props.organizationId,
+          bankImportId: importId,
+        });
         if (!res.ok) {
           toast.error(res.error);
           return;
@@ -96,7 +114,14 @@ export function BankReconciliationClient(props: {
     if (!csvRecords.length) return [];
     const m = mapping;
     if (!m.txnDate || !m.amount) return [];
-    const out: Array<{ txn_date: string; description?: string; amount: number; direction: "in" | "out"; reference?: string; balance?: number }> = [];
+    const out: Array<{
+      txn_date: string;
+      description?: string;
+      amount: number;
+      direction: "in" | "out";
+      reference?: string;
+      balance?: number;
+    }> = [];
     for (const r of csvRecords.slice(0, 1000)) {
       const date = (r[m.txnDate] ?? "").trim();
       const amountRaw = (r[m.amount] ?? "").replaceAll(",", "").trim();
@@ -104,7 +129,10 @@ export function BankReconciliationClient(props: {
       const amt = Number(amountRaw);
       if (!Number.isFinite(amt) || amt === 0) continue;
       const dirRaw = m.direction ? (r[m.direction] ?? "").toLowerCase() : "";
-      const direction: "in" | "out" = dirRaw.includes("in") || dirRaw.includes("credit") || dirRaw.includes("รับ") || amt > 0 ? "in" : "out";
+      const direction: "in" | "out" =
+        dirRaw.includes("in") || dirRaw.includes("credit") || dirRaw.includes("รับ") || amt > 0
+          ? "in"
+          : "out";
       out.push({
         txn_date: date,
         description: m.description ? r[m.description] : "",
@@ -141,7 +169,14 @@ export function BankReconciliationClient(props: {
       setCsvFile(null);
       setCsvHeaders([]);
       setCsvRecords([]);
-      setMapping({ txnDate: "", description: "", amount: "", direction: "", reference: "", balance: "" });
+      setMapping({
+        txnDate: "",
+        description: "",
+        amount: "",
+        direction: "",
+        reference: "",
+        balance: "",
+      });
       refreshImports();
     });
   };
@@ -150,7 +185,11 @@ export function BankReconciliationClient(props: {
     setSelectedLine(l);
     setSuggestions([]);
     startTransition(async () => {
-      const res = await suggestReconciliationAction({ organizationId: props.organizationId, bankLineId: l.id, limit: 10 });
+      const res = await suggestReconciliationAction({
+        organizationId: props.organizationId,
+        bankLineId: l.id,
+        limit: 10,
+      });
       if (!res.ok) {
         toast.error(res.error);
         return;
@@ -162,7 +201,11 @@ export function BankReconciliationClient(props: {
   const confirmMatch = (jeId: string) => {
     if (!selectedLine) return;
     startTransition(async () => {
-      const res = await confirmReconciliationAction({ organizationId: props.organizationId, bankLineId: selectedLine.id, journalEntryId: jeId });
+      const res = await confirmReconciliationAction({
+        organizationId: props.organizationId,
+        bankLineId: selectedLine.id,
+        journalEntryId: jeId,
+      });
       if (!res.ok) {
         toast.error(res.error);
         return;
@@ -177,7 +220,10 @@ export function BankReconciliationClient(props: {
   const unmatch = () => {
     if (!selectedLine) return;
     startTransition(async () => {
-      const res = await unreconcileBankLineAction({ organizationId: props.organizationId, bankLineId: selectedLine.id });
+      const res = await unreconcileBankLineAction({
+        organizationId: props.organizationId,
+        bankLineId: selectedLine.id,
+      });
       if (!res.ok) {
         toast.error(res.error);
         return;
@@ -195,7 +241,9 @@ export function BankReconciliationClient(props: {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <div className="text-sm font-semibold text-slate-900">อัปโหลด Bank Statement (CSV)</div>
-            <div className="mt-0.5 text-xs text-slate-600">นำเข้ารายการธนาคารเพื่อทำการจับคู่กับรายการในระบบ</div>
+            <div className="mt-0.5 text-xs text-slate-600">
+              นำเข้ารายการธนาคารเพื่อทำการจับคู่กับรายการในระบบ
+            </div>
           </div>
         </div>
 
@@ -230,24 +278,24 @@ export function BankReconciliationClient(props: {
         <div className="mt-4 grid gap-3 md:grid-cols-3">
           <div className="md:col-span-1">
             <div className="text-xs text-slate-600">เลือกไฟล์ CSV</div>
-            <label className="mt-1 flex h-10 cursor-pointer items-center justify-center gap-2 rounded-md border border-slate-200 bg-slate-50 text-sm text-slate-700 hover:bg-slate-100">
-              <UploadCloud className="h-4 w-4" />
-              <span>{csvFile ? csvFile.name : "เลือกไฟล์"}</span>
-              <input
-                type="file"
-                accept=".csv,text/csv"
-                className="hidden"
-                onChange={async (e) => {
-                  const f = e.target.files?.[0] ?? null;
-                  if (!f) return;
-                  const text = await f.text();
-                  const parsed = parseCsv(text);
-                  setCsvFile(f);
-                  setCsvHeaders(parsed.headers);
-                  setCsvRecords(parsed.records);
-                }}
-              />
-            </label>
+            <FileDropzone
+              value={csvFile}
+              onChange={async (f) => {
+                if (!f) {
+                  setCsvFile(null);
+                  setCsvHeaders([]);
+                  setCsvRecords([]);
+                  return;
+                }
+                const text = await f.text();
+                const parsed = parseCsv(text);
+                setCsvFile(f);
+                setCsvHeaders(parsed.headers);
+                setCsvRecords(parsed.records);
+              }}
+              accept=".csv,text/csv"
+              label="ลากไฟล์ CSV มาวาง หรือคลิกเพื่อเลือก"
+            />
           </div>
 
           <div className="md:col-span-2">
@@ -255,16 +303,55 @@ export function BankReconciliationClient(props: {
               <div className="grid gap-2 rounded-lg border border-slate-200 p-3">
                 <div className="text-sm font-semibold text-slate-900">ตั้งค่า Mapping</div>
                 <div className="grid grid-cols-2 gap-2">
-                  <MappingSelect label="วันที่" value={mapping.txnDate} onChange={(v) => setMapping((s) => ({ ...s, txnDate: v }))} headers={csvHeaders} />
-                  <MappingSelect label="จำนวนเงิน" value={mapping.amount} onChange={(v) => setMapping((s) => ({ ...s, amount: v }))} headers={csvHeaders} />
-                  <MappingSelect label="รายละเอียด" value={mapping.description} onChange={(v) => setMapping((s) => ({ ...s, description: v }))} headers={csvHeaders} />
-                  <MappingSelect label="ทิศทาง (optional)" value={mapping.direction ?? ""} onChange={(v) => setMapping((s) => ({ ...s, direction: v }))} headers={csvHeaders} optional />
-                  <MappingSelect label="อ้างอิง (optional)" value={mapping.reference ?? ""} onChange={(v) => setMapping((s) => ({ ...s, reference: v }))} headers={csvHeaders} optional />
-                  <MappingSelect label="คงเหลือ (optional)" value={mapping.balance ?? ""} onChange={(v) => setMapping((s) => ({ ...s, balance: v }))} headers={csvHeaders} optional />
+                  <MappingSelect
+                    label="วันที่"
+                    value={mapping.txnDate}
+                    onChange={(v) => setMapping((s) => ({ ...s, txnDate: v }))}
+                    headers={csvHeaders}
+                  />
+                  <MappingSelect
+                    label="จำนวนเงิน"
+                    value={mapping.amount}
+                    onChange={(v) => setMapping((s) => ({ ...s, amount: v }))}
+                    headers={csvHeaders}
+                  />
+                  <MappingSelect
+                    label="รายละเอียด"
+                    value={mapping.description}
+                    onChange={(v) => setMapping((s) => ({ ...s, description: v }))}
+                    headers={csvHeaders}
+                  />
+                  <MappingSelect
+                    label="ทิศทาง (optional)"
+                    value={mapping.direction ?? ""}
+                    onChange={(v) => setMapping((s) => ({ ...s, direction: v }))}
+                    headers={csvHeaders}
+                    optional
+                  />
+                  <MappingSelect
+                    label="อ้างอิง (optional)"
+                    value={mapping.reference ?? ""}
+                    onChange={(v) => setMapping((s) => ({ ...s, reference: v }))}
+                    headers={csvHeaders}
+                    optional
+                  />
+                  <MappingSelect
+                    label="คงเหลือ (optional)"
+                    value={mapping.balance ?? ""}
+                    onChange={(v) => setMapping((s) => ({ ...s, balance: v }))}
+                    headers={csvHeaders}
+                    optional
+                  />
                 </div>
                 <div className="flex items-center justify-between">
-                  <div className="text-xs text-slate-600">ตัวอย่างที่จะนำเข้า: {previewLines.length.toLocaleString("th-TH")} รายการ</div>
-                  <Button onClick={importCsv} disabled={pending || !previewLines.length} className="gap-2">
+                  <div className="text-xs text-slate-600">
+                    ตัวอย่างที่จะนำเข้า: {previewLines.length.toLocaleString("th-TH")} รายการ
+                  </div>
+                  <Button
+                    onClick={importCsv}
+                    disabled={pending || !previewLines.length}
+                    className="gap-2"
+                  >
                     <UploadCloud className="h-4 w-4" />
                     นำเข้า
                   </Button>
@@ -287,7 +374,10 @@ export function BankReconciliationClient(props: {
                 setActiveImportId(id);
                 if (id) loadLines(id);
               }}
-              options={imports.map((im) => ({ value: im.id, label: `${im.bankName} • ${im.bankAccountName}` }))}
+              options={imports.map((im) => ({
+                value: im.id,
+                label: `${im.bankName} • ${im.bankAccountName}`,
+              }))}
             />
           </div>
 
@@ -311,9 +401,16 @@ export function BankReconciliationClient(props: {
                     <TableCell>{l.txnDate}</TableCell>
                     <TableCell>
                       <div className="text-sm text-slate-900">{l.description ?? ""}</div>
-                      <div className="mt-0.5 text-xs text-slate-600">{l.direction.toUpperCase()} {l.reference ?? ""}</div>
+                      <div className="mt-0.5 text-xs text-slate-600">
+                        {l.direction.toUpperCase()} {l.reference ?? ""}
+                      </div>
                     </TableCell>
-                    <TableCell className={cn("text-right tabular-nums", l.direction === "in" ? "text-emerald-700" : "text-slate-900")}>
+                    <TableCell
+                      className={cn(
+                        "text-right tabular-nums",
+                        l.direction === "in" ? "text-emerald-700" : "text-slate-900",
+                      )}
+                    >
                       {fmt(l.amount)}
                     </TableCell>
                     <TableCell>
@@ -334,7 +431,9 @@ export function BankReconciliationClient(props: {
           <div className="text-sm font-semibold text-slate-900">คำแนะนำการจับคู่</div>
           {selectedLine ? (
             <div className="mt-2 rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm">
-              <div className="font-medium text-slate-900">{selectedLine.txnDate} • {fmt(selectedLine.amount)}</div>
+              <div className="font-medium text-slate-900">
+                {selectedLine.txnDate} • {fmt(selectedLine.amount)}
+              </div>
               <div className="mt-1 text-xs text-slate-600">{selectedLine.description ?? ""}</div>
               {selectedLine.matchedJournalEntryId ? (
                 <div className="mt-3 flex items-center justify-between">
@@ -347,24 +446,40 @@ export function BankReconciliationClient(props: {
               ) : null}
             </div>
           ) : (
-            <div className="mt-2 text-sm text-slate-600">เลือก statement ด้านซ้ายเพื่อดูคำแนะนำ</div>
+            <div className="mt-2 text-sm text-slate-600">
+              เลือก statement ด้านซ้ายเพื่อดูคำแนะนำ
+            </div>
           )}
 
           <div className="mt-4 grid gap-2">
             {suggestions.map((s) => (
-              <div key={s.journalEntryId} className="flex items-center justify-between rounded-lg border border-slate-200 p-3">
+              <div
+                key={s.journalEntryId}
+                className="flex items-center justify-between rounded-lg border border-slate-200 p-3"
+              >
                 <div>
-                  <div className="font-mono text-xs text-slate-600">{s.journalEntryId.slice(0, 8)}</div>
+                  <div className="font-mono text-xs text-slate-600">
+                    {s.journalEntryId.slice(0, 8)}
+                  </div>
                   <div className="mt-0.5 text-sm text-slate-900">{s.memo ?? "(ไม่มี memo)"}</div>
-                  <div className="mt-0.5 text-xs text-slate-600">วันที่ {s.entryDate} • ±{s.dayDiff} วัน</div>
+                  <div className="mt-0.5 text-xs text-slate-600">
+                    วันที่ {s.entryDate} • ±{s.dayDiff} วัน
+                  </div>
                 </div>
-                <Button className="gap-2" size="sm" onClick={() => confirmMatch(s.journalEntryId)} disabled={pending || !!selectedLine?.matchedJournalEntryId}>
+                <Button
+                  className="gap-2"
+                  size="sm"
+                  onClick={() => confirmMatch(s.journalEntryId)}
+                  disabled={pending || !!selectedLine?.matchedJournalEntryId}
+                >
                   <CheckCircle2 className="h-4 w-4" />
                   Match
                 </Button>
               </div>
             ))}
-            {selectedLine && !suggestions.length ? <div className="text-sm text-slate-600">ไม่พบคำแนะนำ (ลองจับคู่เองจากสมุดรายวัน)</div> : null}
+            {selectedLine && !suggestions.length ? (
+              <div className="text-sm text-slate-600">ไม่พบคำแนะนำ (ลองจับคู่เองจากสมุดรายวัน)</div>
+            ) : null}
           </div>
         </div>
       </div>

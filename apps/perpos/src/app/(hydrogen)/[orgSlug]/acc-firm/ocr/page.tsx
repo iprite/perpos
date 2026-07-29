@@ -9,6 +9,7 @@ import { PageShell } from "@/components/ui/page-shell";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { CustomSelect } from "@/components/ui/custom-select";
+import { FileDropzone } from "@/components/ui/file-dropzone";
 import { FilterBar, FilterClear } from "@/components/ui/filter-bar";
 import { ThaiDatePicker } from "@/components/ui/thai-date-picker";
 import {
@@ -43,7 +44,6 @@ import {
   UploadCloud,
   Sparkles,
   X,
-  FileUp,
   Lock,
   Brain,
 } from "lucide-react";
@@ -155,8 +155,6 @@ export default function AccFirmOcrPage() {
   const [uploadClient, setUploadClient] = useState("");
   const [uploadFiles, setUploadFiles] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
-  const [dragOver, setDragOver] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Review Workspace States
   const [activeJob, setActiveJob] = useState<OcrJob | null>(null);
@@ -829,39 +827,12 @@ export default function AccFirmOcrPage() {
                 />
               </div>
 
-              <div
-                onDragOver={(e) => {
-                  e.preventDefault();
-                  setDragOver(true);
-                }}
-                onDragLeave={() => setDragOver(false)}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  setDragOver(false);
-                  addFiles(e.dataTransfer.files);
-                }}
-                onClick={() => fileInputRef.current?.click()}
-                className={`cursor-pointer rounded-xl border-2 border-dashed p-6 text-center transition-colors ${dragOver ? "border-teal-400 bg-teal-50" : "border-slate-200 hover:border-teal-300 hover:bg-slate-50"}`}
-              >
-                <FileUp className="mx-auto mb-2 h-8 w-8 text-slate-300" />
-                <p className="text-sm font-medium text-slate-600">
-                  ลากไฟล์มาวาง หรือคลิกเพื่อเลือก
-                </p>
-                <p className="mt-1 text-xs text-slate-400">
-                  รองรับรูปภาพ (JPG/PNG/WebP) และ PDF · เลือกได้หลายไฟล์
-                </p>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept={ACCEPT_TYPES}
-                  multiple
-                  className="hidden"
-                  onChange={(e) => {
-                    if (e.target.files) addFiles(e.target.files);
-                    e.target.value = "";
-                  }}
-                />
-              </div>
+              <FileDropzone
+                multiple
+                onFiles={addFiles}
+                accept={ACCEPT_TYPES}
+                hint="รองรับรูปภาพ (JPG/PNG/WebP) และ PDF · เลือกได้หลายไฟล์"
+              />
 
               {uploadFiles.length > 0 && (
                 <div className="max-h-44 space-y-1.5 overflow-y-auto">

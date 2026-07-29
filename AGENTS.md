@@ -7,8 +7,9 @@
 > 📘 **จัดซื้อครุภัณฑ์ภาครัฐ (gov_procure — pipeline 6 stage, per-org p2p-x-89):** อ่าน [`docs/GOV_PROCURE_FEATURE.md`](docs/GOV_PROCURE_FEATURE.md) — state machine, field-level finance-lock, AI/LINE, provisioning + cutover status, กับดักที่แก้แล้ว, **§8 แคตตาล็อกสินค้า AI** (5 ตารางใหม่ `gov_procure_catalog*`/`_products`, 14 API route, AI enrich chunked, PDF 2 เทมเพลต — บน branch `feat/gov-procure-catalog` ยังไม่ merge)
 > 📘 **บัญชี/ภาษี (accounting — เอกสารขาย 9 ชนิด, ใบกำกับซื้อ, auto journal, ภ.พ.30):** อ่าน [`docs/ACCOUNTING_FEATURE.md`](docs/ACCOUNTING_FEATURE.md) — invariant ที่ห้ามพัง (snapshot/จุดรับรู้รายได้/เลขเอกสาร), ผังบัญชีที่ auto journal ใช้, สิทธิ์หลังบ้าน, กับดักที่แก้แล้ว — **อ่านก่อนแตะ `/accounting` ทุกครั้ง**
 > 📘 **OCR ถอดบิล→บันทึกบัญชี (acc_firm, self-improvement loop):** อ่าน [`docs/ACC_FIRM_OCR_FEATURE.md`](docs/ACC_FIRM_OCR_FEATURE.md) — pipeline 3 สเต็ป Gemini, loop จำผู้ขาย→บัญชีจากการอนุมัติของคน (human-in-the-loop เสมอ), bucket/secret/FK กับดักที่แก้แล้ว
-> 📘 **บริษัทโฮลดิ้ง (`p2p_group` — per-org `p2pholding`, Phase 1):** อ่าน [`docs/P2P_GROUP_FEATURE.md`](docs/P2P_GROUP_FEATURE.md) — 8 ตาราง `p2pg_*`, 7 หน้า (ภาพรวมกลุ่ม/ทะเบียนบริษัท/ตัวเลขรายเดือน/งบรวม/เงินลงทุน-ปันผล/รายการระหว่างกัน/เงินสด-ธนาคาร), **invariant ที่ห้ามพัง**: `org_ref_id` ตั้งได้เฉพาะ super_admin ทาง DB (ผูกแล้ว = อ่านงบข้าม org ผ่าน service-role) · เงินที่ยังไม่มีข้อมูล = `NULL` ไม่ใช่ 0 · สูตรอยู่ที่ `lib/p2p-group/metrics.ts` ที่เดียว · รายได้ auto ต้องใช้ `selectBillingDocuments` เดียวกับสมุดรายวัน · **route.ts ห้าม export อะไรนอกจาก handler** (config อยู่ `api/p2p-group/_configs.ts`) — ยังไม่มี AI/LINE (Phase 2)
-> 📘 **ผู้ช่วยวิเคราะห์ธุรกิจ (BI Chat + แดชบอร์ดปักหมุด, module `bi`, shared, org `p2p-x-89`):** อ่าน [`docs/BI_FEATURE.md`](docs/BI_FEATURE.md) — semantic layer (`bi_metrics`) เป็นหัวใจ, flow 6 สเต็ป, RPC `run_bi_metric`/`match_bi_metrics`, **ข้อผูกพันถาวร**: ตาราง `bi_*` ถูก REVOKE จาก authenticated ⇒ ทุก read path ต้องกรอง `created_by` เอง + สิทธิ์เขียน `bi_metrics` = service-role เท่านั้นตลอดไป, verified 14 / draft 15 metric (gov_procure) + **scope `tmc` 12 metric ใหม่ (ยัง draft — §9.5)**, **Phase 3 (แดชบอร์ดปักหมุด + drill-down + เทียบช่วงก่อน) เสร็จแล้ว apply prod แล้ว** (โควตาการ์ดแยกจากโควตาคำถาม AI โดยสมบูรณ์), กับดักที่แก้แล้ว (S1 data leak/BLOCKER-1/2/D1 หลุดเป็นระยะ), LINE (Phase 2, เลื่อนไปหลัง Phase 3)/Free-form SQL (Phase 5) ยังไม่ทำ
+> 📘 **คลังเอกสารลูกค้า (`acc_firm` → `/acc-firm/vault`, per-org `jtacc`):** อ่าน [`docs/ACC_FIRM_VAULT_FEATURE.md`](docs/ACC_FIRM_VAULT_FEATURE.md) — 11 ตาราง `acc_firm_vault_*` + bucket private `acc_vault`, **invariant ที่ห้ามพัง**: `retention_until` คำนวณโดย trigger เท่านั้น (ทุก UPDATE) · เอกสารที่บันทึกแล้วลบไม่ได้ ต้องเดิน `pending_purge → purged` และเก็บ metadata+sha256 ตลอด · `legal_hold` ปลดได้เฉพาะ owner · ไฟล์เข้าถึงผ่าน signed URL ≤60 วิ **ที่เขียน access log ก่อนเสมอ** · access log/audit เป็น append-only (REVOKE จาก service*role ด้วย) · ทะเบียนลูกค้า = `acc_firm_service_clients` (ลูกค้าไม่ต้องมี org) — Phase 2 (purge approval/incident/RoPA/LINE) + Phase 3 (AI classify/LIFF) ยังไม่ทำ
+> 📘 **บริษัทโฮลดิ้ง (`p2p_group` — per-org `p2pholding`, Phase 1):** อ่าน [`docs/P2P_GROUP_FEATURE.md`](docs/P2P_GROUP_FEATURE.md) — 8 ตาราง `p2pg*_`, 7 หน้า (ภาพรวมกลุ่ม/ทะเบียนบริษัท/ตัวเลขรายเดือน/งบรวม/เงินลงทุน-ปันผล/รายการระหว่างกัน/เงินสด-ธนาคาร), **invariant ที่ห้ามพัง**: `org*ref_id`ตั้งได้เฉพาะ super_admin ทาง DB (ผูกแล้ว = อ่านงบข้าม org ผ่าน service-role) · เงินที่ยังไม่มีข้อมูล =`NULL`ไม่ใช่ 0 · สูตรอยู่ที่`lib/p2p-group/metrics.ts`ที่เดียว · รายได้ auto ต้องใช้`selectBillingDocuments`เดียวกับสมุดรายวัน · **route.ts ห้าม export อะไรนอกจาก handler** (config อยู่`api/p2p-group/\_configs.ts`) — ยังไม่มี AI/LINE (Phase 2)
+📘 **ผู้ช่วยวิเคราะห์ธุรกิจ (BI Chat + แดชบอร์ดปักหมุด, module `bi`, shared, org `p2p-x-89`):** อ่าน [`docs/BI_FEATURE.md`](docs/BI_FEATURE.md) — semantic layer (`bi_metrics`) เป็นหัวใจ, flow 6 สเต็ป, RPC `run_bi_metric`/`match_bi_metrics`, **ข้อผูกพันถาวร**: ตาราง `bi*_`ถูก REVOKE จาก authenticated ⇒ ทุก read path ต้องกรอง`created_by`เอง + สิทธิ์เขียน`bi_metrics`= service-role เท่านั้นตลอดไป, verified 14 / draft 15 metric (gov_procure) + **scope`tmc` 12 metric ใหม่ (ยัง draft — §9.5)**, **Phase 3 (แดชบอร์ดปักหมุด + drill-down + เทียบช่วงก่อน) เสร็จแล้ว apply prod แล้ว\*\* (โควตาการ์ดแยกจากโควตาคำถาม AI โดยสมบูรณ์), กับดักที่แก้แล้ว (S1 data leak/BLOCKER-1/2/D1 หลุดเป็นระยะ), LINE (Phase 2, เลื่อนไปหลัง Phase 3)/Free-form SQL (Phase 5) ยังไม่ทำ
 
 ---
 
@@ -400,6 +401,7 @@ Endpoint: `POST /api/assistant/scheduler`
 | KPI/การ์ดสรุป                                      | `<StatCard>`                                                                                       | `@/components/ui/stat-card`        |
 | **ตัวเลือก 2–3 อย่าง (สลับ/mutually exclusive)**   | `<SegmentedControl>`                                                                               | `@/components/ui/segmented`        |
 | **อัปโหลดรูป PNG (โลโก้/ลายเซน) → data URL**       | `<ImageUpload>`                                                                                    | `@/components/ui/image-upload`     |
+| **เลือก/ลากไฟล์ (เอกสาร, รูปบิล, เสียง, CSV)**     | `<FileDropzone>`                                                                                   | `@/components/ui/file-dropzone`    |
 
 > **rizzui**: โค้ด/หน้าจอ**ใหม่**ห้าม import จาก `rizzui`/`rizzui/typography` ตรง ๆ — ใช้ `@/components/ui/*` เสมอ (`Button/Input/Select/Title/Text/Avatar/Badge` ฯลฯ มีครบแล้ว)
 >
@@ -589,6 +591,38 @@ import { ThaiDatePicker } from "@/components/ui/thai-date-picker";
   placeholder="เลือกวันที่" // optional
 />;
 ```
+
+### FileDropzone — ช่องเลือก/ลากไฟล์ (บังคับ)
+
+> **ห้ามใช้ `<input type="file">` ดิบ หรือ `<Input type="file">` ที่ผู้ใช้มองเห็น** — ปุ่ม "Choose File" ของเบราว์เซอร์
+> เป็นภาษาอังกฤษ อยู่นอกพาเลตต์ และลากไฟล์มาวางไม่ได้ · **ห้ามประกอบ dropzone เองด้วย `onDragOver`/`onDrop`**
+
+```tsx
+import { FileDropzone } from '@/components/ui/file-dropzone';
+
+// ไฟล์เดียว (controlled) — มีการ์ดไฟล์ + ปุ่มเอาออกให้ในตัว
+<FileDropzone
+  value={file}
+  onChange={setFile}
+  accept="application/pdf,image/*"
+  maxSizeMb={50}
+  hint="รองรับ PDF / รูปภาพ ขนาดไม่เกิน 50 MB"
+/>
+
+// หลายไฟล์ — ส่งไฟล์ที่ผ่านด่านออกไป ผู้เรียกจัดการรายการเอง
+<FileDropzone multiple onFiles={addFiles} accept={ACCEPT_TYPES} hint="เลือกได้หลายไฟล์" />
+
+// ให้ปุ่มที่อยู่นอกกล่องเปิดหน้าต่างเลือกไฟล์ (เช่น CTA ใน empty state)
+const openPicker = useRef<(() => void) | null>(null);
+<FileDropzone value={file} onChange={setFile} openRef={openPicker} />
+<Button onClick={() => openPicker.current?.()}>อัปโหลดไฟล์</Button>
+```
+
+- กันชนิดไฟล์ (`accept`) + เพดานขนาด (`maxSizeMb`) ให้เอง พร้อมข้อความไทยใต้กล่อง — **ไม่ต้องเช็คซ้ำใน component**
+  (แต่กฎเชิงธุรกิจ เช่น ความยาวไฟล์เสียง/โควตา ยังเป็นหน้าที่ผู้เรียก)
+- ปรับข้อความ/ไอคอนด้วย `label` · `hint` · `icon`
+- **ข้อยกเว้นที่ยอมรับ**: ปุ่ม "แนบไฟล์" ที่อยู่ในแถบเครื่องมือ (compose note ของ crm, gov-procure detail) ยังใช้
+  hidden input + ปุ่มได้ เพราะไม่ใช่พื้นที่วางไฟล์ · รูปโปรไฟล์/โลโก้ที่ต้องได้ data URL ใช้ `<ImageUpload>`
 
 ### ห้ามใช้เด็ดขาด
 

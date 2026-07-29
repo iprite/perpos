@@ -505,6 +505,25 @@ import { SegmentedControl } from "@/components/ui/segmented";
 
 ---
 
+### FileDropzone — ช่องรับไฟล์ (บังคับทั้งแอป)
+
+ทุกที่ที่ผู้ใช้ต้อง "เลือกไฟล์" ต้องเป็นพื้นที่ที่ **ลากไฟล์มาวางได้** ไม่ใช่ปุ่ม `Choose File` ของเบราว์เซอร์
+(ภาษาอังกฤษปนหน้าจอไทย + อยู่นอกพาเลตต์ + ผู้ใช้ที่ลากไฟล์มาแล้ววางไม่ได้จะงง)
+
+```tsx
+import { FileDropzone } from "@/components/ui/file-dropzone";
+
+<FileDropzone value={file} onChange={setFile} accept="application/pdf,image/*" maxSizeMb={50} />
+<FileDropzone multiple onFiles={addFiles} accept={ACCEPT} />   // หลายไฟล์
+```
+
+- กล่องเส้นประ `border-2 border-dashed border-gray-300` → ตอนลากผ่านเป็น `border-primary`
+- เลือกไฟล์แล้ว (โหมดไฟล์เดียว) → เปลี่ยนเป็น **การ์ดไฟล์ + ขนาด + ปุ่ม ✕** ไม่ต้องเห็นพื้นที่ลากค้างไว้
+- ไฟล์ผิดชนิด/ใหญ่เกิน → ข้อความไทยสีแดงใต้กล่อง **ไม่ใช่ toast** (ผู้ใช้กำลังมองที่กล่องอยู่แล้ว)
+- ❌ ห้าม `<input type="file">` ที่มองเห็น · ❌ ห้ามประกอบ `onDragOver`/`onDrop` เอง · ❌ ห้าม `file:` utility ของ Tailwind
+
+---
+
 ## 8. Empty States
 
 ```tsx
@@ -862,4 +881,5 @@ import {
 | 2026-06-17 | §2 ล็อก PERPOS Standard Palette (flat-UI) ทั้งแอป — override Tailwind token (AQUA=primary) + migrate ฮาร์ดโค้ด hex (รวม LINE flex cards) · ยกเว้นเอกสารพิมพ์ (wht-pdf, pp30/wht-cert preview, mom-html) คงสีเดิม                                                         |
 | 2026-07-21 | เพิ่ม §13.5 เอกสารภาษีที่พิมพ์ (A4) — ม.86/4, ต้นฉบับ/สำเนา, `bahtText` แหล่งเดียว · เพิ่ม anti-pattern: KPI คิดกฎเอง + ยอดรวมจาก list ที่ถูกตัดแถว                                                                                                                      |
 | 2026-07-28 | **แท็บในหน้ารวมเป็นมาตรฐานเดียว = `<SegmentedControl>` (pill)** — เลิกแถบแท็บที่ประกอบเองจากกลุ่ม `<Button>` · §7 เพิ่มตารางขนาด (default = `sm` สำหรับแท็บ/ตัวกรอง · `md` เฉพาะ form control · `xs` inline ในตาราง) + pill `w-fit` ไม่ถูกยืด + ไอคอนย่อตามขนาดอัตโนมัติ |
+| 2026-07-29 | เพิ่ม **`<FileDropzone>` เป็นมาตรฐานเดียวของการเลือกไฟล์ทั้งแอป** (§7) — เลิก `<input type="file">` ที่มองเห็น + เลิกประกอบ dropzone เอง · migrate 7 จุดเดิม (acc-firm OCR/vault, assistant STT, just-me OCR, tmc purchase, jaquar CSV, bank reconcile CSV, avatar)      |
 | 2026-06-17 | เปลี่ยน **primary/brand = CHARCOAL `#3C3B3D`** (โทน mono เลิก AQUA) — blue/sky/cyan → charcoal scale, token primary/blue → charcoal, title (h1/PageShell/Title) ใช้ `text-primary` · สี accent อื่น (PLUM/PINK/MINT/RUBY/SUNFLOWER) คงเดิม                               |
