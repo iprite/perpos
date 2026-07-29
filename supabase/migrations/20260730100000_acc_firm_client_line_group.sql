@@ -72,6 +72,7 @@ create unique index if not exists acc_firm_client_line_messages_dedup_uniq
 create or replace function public.set_acc_firm_client_line_groups_updated_at()
 returns trigger
 language plpgsql
+set search_path to 'public'
 as $$
 begin
   new.updated_at := now();
@@ -87,62 +88,23 @@ create trigger trg_acc_firm_client_line_groups_updated_at
   execute function public.set_acc_firm_client_line_groups_updated_at();
 
 -- ── RLS ───────────────────────────────────────────────────────────────────────
+-- ใช้ helper เดียวกับคลังเอกสาร: acc_firm_member = สมาชิกโมดูลของ firm นั้น (หรือ admin/super_admin)
+-- acc_firm_writer = สมาชิกที่ไม่ใช่ viewer — ตรงกับด่านใน API (viewer แก้/ส่งไม่ได้)
 alter table public.acc_firm_client_line_groups enable row level security;
 alter table public.acc_firm_client_line_messages enable row level security;
 
--- อ่าน: สมาชิกของ firm org · เขียน: owner/admin/team_lead (เหมือนทะเบียนลูกค้า)
 create policy "acc_firm_client_line_groups_select"
   on public.acc_firm_client_line_groups for select
-  using (
-    exists (
-      select 1 from public.organization_members
-      where organization_id = acc_firm_client_line_groups.firm_org_id
-        and user_id = auth.uid()
-        and is_active = true
-    )
-  );
+  using (public.acc_firm_member(firm_org_id));
 
 create policy "acc_firm_client_line_groups_write"
   on public.acc_firm_client_line_groups for all
-  using (
-    exists (
-      select 1 from public.organization_members
-      where organization_id = acc_firm_client_line_groups.firm_org_id
-        and user_id = auth.uid()
-        and is_active = true
-        and role in ('owner', 'admin', 'team_lead')
-    )
-  )
-  with check (
-    exists (
-      select 1 from public.organization_members
-      where organization_id = acc_firm_client_line_groups.firm_org_id
-        and user_id = auth.uid()
-        and is_active = true
-        and role in ('owner', 'admin', 'team_lead')
-    )
-  );
-
-create policy "acc_firm_client_line_groups_super_admin"
-  on public.acc_firm_client_line_groups for all
-  using (exists (select 1 from public.profiles where id = auth.uid() and role = 'super_admin'))
-  with check (exists (select 1 from public.profiles where id = auth.uid() and role = 'super_admin'));
+  using (public.acc_firm_writer(firm_org_id))
+  with check (public.acc_firm_writer(firm_org_id));
 
 create policy "acc_firm_client_line_messages_select"
   on public.acc_firm_client_line_messages for select
-  using (
-    exists (
-      select 1 from public.organization_members
-      where organization_id = acc_firm_client_line_messages.firm_org_id
-        and user_id = auth.uid()
-        and is_active = true
-    )
-  );
-
-create policy "acc_firm_client_line_messages_super_admin"
-  on public.acc_firm_client_line_messages for all
-  using (exists (select 1 from public.profiles where id = auth.uid() and role = 'super_admin'))
-  with check (exists (select 1 from public.profiles where id = auth.uid() and role = 'super_admin'));
+  using (public.acc_firm_member(firm_org_id));
 
 -- log เขียนผ่าน service-role เท่านั้น (append-only จากฝั่งเซิร์ฟเวอร์)
 revoke insert, update, delete on public.acc_firm_client_line_messages from authenticated;
