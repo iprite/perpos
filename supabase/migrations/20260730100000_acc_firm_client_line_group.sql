@@ -108,3 +108,8 @@ create policy "acc_firm_client_line_messages_select"
 
 -- log เขียนผ่าน service-role เท่านั้น (append-only จากฝั่งเซิร์ฟเวอร์)
 revoke insert, update, delete on public.acc_firm_client_line_messages from authenticated;
+
+-- รหัสเชื่อมกลุ่มเป็น secret (ใครถือรหัส = ผูกกลุ่มของตัวเองเข้ากับลูกค้ารายนั้นได้)
+-- → อ่านได้เฉพาะ service-role · แอปเสิร์ฟผ่าน API ที่ตัดรหัสออกให้ viewer แล้ว
+revoke select (pair_code, pair_code_expires_at)
+  on public.acc_firm_client_line_groups from authenticated, anon;

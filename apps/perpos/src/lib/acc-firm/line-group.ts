@@ -85,6 +85,16 @@ export function normalizePairCode(raw: string): string | null {
   return PAIR_CODE_RE.test(t) ? t : null;
 }
 
+/**
+ * ข้อความนี้ "อาจ" เป็นเรื่องของโมดูลนี้ไหม — เช็คด้วยสตริงล้วน ไม่แตะ DB
+ * ใช้เป็นด่านหน้าใน webhook: ข้อความคุยกันธรรมดาในกลุ่มจะไม่ยิง query ใด ๆ เลย
+ */
+export function isAccFirmGroupInput(text: string): boolean {
+  const t = text.trim();
+  if (t.startsWith("/")) return true;
+  return normalizePairCode(t) !== null;
+}
+
 // ── ฝั่งเว็บ (ทีมงาน) ─────────────────────────────────────────────────────────
 
 /** แถวของลูกค้ารายนี้ (สร้างให้ถ้ายังไม่มี) */
@@ -218,7 +228,9 @@ export async function redeemPairCode(
     return { text: "❌ กลุ่มนี้ผูกกับลูกค้ารายอื่นอยู่แล้ว — เลิกผูกก่อนจึงจะเชื่อมใหม่ได้" };
   }
 
-  const { error } = await admin
+  // atomic: ผูกได้ก็ต่อเมื่อรหัสยัง "ไม่ถูกใช้" (`pair_code` ยังเป็นค่าเดิม)
+  // → ถ้าสองกลุ่มพิมพ์รหัสเดียวกันพร้อมกัน คนที่สองจะ match 0 แถว ไม่แย่งกลุ่มของคนแรก
+  const { data: updated, error } = await admin
     .from(TABLE)
     .update({
       status: "linked",
@@ -229,8 +241,12 @@ export async function redeemPairCode(
       pair_code: null, // ใช้ครั้งเดียว
       pair_code_expires_at: null,
     })
-    .eq("id", r.id);
+    .eq("id", r.id)
+    .eq("pair_code", code)
+    .select("id");
   if (error) return { text: `❌ เชื่อมกลุ่มไม่สำเร็จ: ${error.message}` };
+  if (!updated?.length)
+    return { text: "⌛ รหัสนี้ถูกใช้ไปแล้ว — ขอรหัสใหม่จากทีมงานบัญชีได้เลยครับ" };
 
   const client = await getClientBasics(admin, r.service_client_id);
   const enabled = await enabledEventLabels(admin, r.service_client_id);

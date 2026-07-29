@@ -23,7 +23,7 @@ import {
 import { buildBotFlex } from "@/lib/assistant/recall-events";
 import { handleGovGroupCommand } from "@/lib/gov-procure/line-group";
 import { confirmPending } from "@/lib/gov-procure/line-commands";
-import { handleAccFirmGroupMessage } from "@/lib/acc-firm/line-group";
+import { handleAccFirmGroupMessage, isAccFirmGroupInput } from "@/lib/acc-firm/line-group";
 import { getServiceRemaining, getTokenBalance } from "@/lib/assistant/token-balance";
 import {
   buildBotConfirmFlex,
@@ -3427,8 +3427,13 @@ export async function POST(req: NextRequest) {
       if (msg.type === "text") {
         const gText = String(msg.text ?? "");
 
-        // acc_firm: รหัสเชื่อมกลุ่ม (พิมพ์เดี่ยว ๆ ได้ ไม่ต้องขึ้นต้น /) + คำสั่งของกลุ่มลูกค้า
+        // ข้อความคุยกันธรรมดาในกลุ่ม = ไม่ยิง query ใด ๆ (ด่านนี้เช็คด้วยสตริงล้วน)
+        const isCmd = gText.trim().startsWith("/");
+        if (!isCmd && !isAccFirmGroupInput(gText)) continue;
+
         const accProfile = lineUserId ? await getProfileByLineId(admin, lineUserId) : null;
+
+        // acc_firm: รหัสเชื่อมกลุ่ม (พิมพ์เดี่ยว ๆ ได้ ไม่ต้องขึ้นต้น /) + คำสั่งของกลุ่มลูกค้า
         const accReply = await handleAccFirmGroupMessage(
           admin,
           groupId,
@@ -3448,7 +3453,7 @@ export async function POST(req: NextRequest) {
           continue;
         }
 
-        if (gText.trim().startsWith("/")) {
+        if (isCmd) {
           const reply = await handleGovGroupCommand(
             admin,
             groupId,

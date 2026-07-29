@@ -62,7 +62,16 @@ export async function GET(req: NextRequest) {
     .eq("firm_org_id", orgId);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  return NextResponse.json({ rows: data ?? [] });
+  // รหัสเชื่อมกลุ่มเป็น secret (ใครถือรหัส = ผูกกลุ่มของตัวเองเข้ากับลูกค้ารายนั้นได้)
+  // → viewer ที่สร้างรหัสเองไม่ได้ ก็ต้องไม่เห็นรหัสที่ทีมค้างไว้
+  const rows = (data ?? []).map((r) => {
+    const row = r as Record<string, unknown>;
+    return auth.moduleRole === "viewer"
+      ? { ...row, pair_code: null, pair_code_expires_at: null }
+      : row;
+  });
+
+  return NextResponse.json({ rows });
 }
 
 export async function POST(req: NextRequest) {
