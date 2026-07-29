@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import Link from "next/link";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
+import { FileDropzone } from "@/components/ui/file-dropzone";
 import { StatCard } from "@/components/ui/stat-card";
 import { StatusBadge, type BadgeTone } from "@/components/ui/badge";
 import {
@@ -174,8 +175,7 @@ export default function TranscribeView({
   // upload state
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
-  const [dragOver, setDragOver] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const openFilePicker = useRef<(() => void) | null>(null);
 
   // result dialog
   const [activeJob, setActiveJob] = useState<Job | null>(null);
@@ -335,7 +335,6 @@ export default function TranscribeView({
       }
 
       setFile(null);
-      if (fileInputRef.current) fileInputRef.current.value = "";
       await fetchJobs(token);
     } catch (e: any) {
       toast.error(e?.message ?? "เกิดข้อผิดพลาด");
@@ -491,63 +490,22 @@ export default function TranscribeView({
             {/* Upload card */}
             <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
               <h2 className="mb-3 text-sm font-semibold text-gray-900">อัปโหลดไฟล์ใหม่</h2>
-              <div
-                onDragOver={(e) => {
-                  e.preventDefault();
-                  setDragOver(true);
+              <FileDropzone
+                value={file}
+                onChange={(f) => {
+                  if (f) pickFile(f);
+                  else {
+                    setFile(null);
+                    setFileDuration(null);
+                  }
                 }}
-                onDragLeave={() => setDragOver(false)}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  setDragOver(false);
-                  pickFile(e.dataTransfer.files?.[0] ?? null);
-                }}
-                onClick={() => fileInputRef.current?.click()}
-                className={`flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed px-6 py-10 text-center transition-colors ${
-                  dragOver
-                    ? "border-primary bg-gray-50"
-                    : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
-                }`}
-              >
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept={ACCEPT}
-                  className="hidden"
-                  onChange={(e) => pickFile(e.target.files?.[0] ?? null)}
-                />
-                {file ? (
-                  <div className="flex items-center gap-3">
-                    <FileAudio className="h-8 w-8 shrink-0 text-primary" />
-                    <div className="min-w-0 text-left">
-                      <div className="truncate font-medium text-gray-900">{file.name}</div>
-                      <div className="text-xs text-gray-500">{fmtSize(file.size)}</div>
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setFile(null);
-                        setFileDuration(null);
-                        if (fileInputRef.current) fileInputRef.current.value = "";
-                      }}
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
-                  </div>
-                ) : (
-                  <>
-                    <UploadCloud className="mb-3 h-10 w-10 text-gray-400" />
-                    <p className="text-sm font-medium text-gray-700">
-                      ลากไฟล์มาวาง หรือคลิกเพื่อเลือก
-                    </p>
-                    <p className="mt-1 text-xs text-gray-400">
-                      รองรับ mp3, ogg, m4a, wav, mp4 · สูงสุด 200 MB
-                    </p>
-                  </>
-                )}
-              </div>
+                accept={ACCEPT}
+                maxSizeMb={200}
+                icon={<UploadCloud className="h-10 w-10" />}
+                hint="รองรับ mp3, ogg, m4a, wav, mp4 · สูงสุด 200 MB"
+                className="mt-0"
+                openRef={openFilePicker}
+              />
 
               {file && fileDuration ? (
                 <p className="mt-3 text-xs text-gray-500">
@@ -627,7 +585,7 @@ export default function TranscribeView({
               </div>
               <h3 className="text-sm font-medium text-gray-900">ยังไม่มีงานถอดเสียง</h3>
               <p className="mt-1 text-sm text-gray-500">อัปโหลดไฟล์เสียงไฟล์แรกเพื่อเริ่มต้น</p>
-              <Button className="mt-4" size="sm" onClick={() => fileInputRef.current?.click()}>
+              <Button className="mt-4" size="sm" onClick={() => openFilePicker.current?.()}>
                 <UploadCloud className="mr-2 h-4 w-4" /> อัปโหลดไฟล์เสียง
               </Button>
             </div>

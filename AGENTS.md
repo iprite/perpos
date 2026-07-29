@@ -401,6 +401,7 @@ Endpoint: `POST /api/assistant/scheduler`
 | KPI/การ์ดสรุป                                      | `<StatCard>`                                                                                       | `@/components/ui/stat-card`        |
 | **ตัวเลือก 2–3 อย่าง (สลับ/mutually exclusive)**   | `<SegmentedControl>`                                                                               | `@/components/ui/segmented`        |
 | **อัปโหลดรูป PNG (โลโก้/ลายเซน) → data URL**       | `<ImageUpload>`                                                                                    | `@/components/ui/image-upload`     |
+| **เลือก/ลากไฟล์ (เอกสาร, รูปบิล, เสียง, CSV)**     | `<FileDropzone>`                                                                                   | `@/components/ui/file-dropzone`    |
 
 > **rizzui**: โค้ด/หน้าจอ**ใหม่**ห้าม import จาก `rizzui`/`rizzui/typography` ตรง ๆ — ใช้ `@/components/ui/*` เสมอ (`Button/Input/Select/Title/Text/Avatar/Badge` ฯลฯ มีครบแล้ว)
 >
@@ -590,6 +591,38 @@ import { ThaiDatePicker } from "@/components/ui/thai-date-picker";
   placeholder="เลือกวันที่" // optional
 />;
 ```
+
+### FileDropzone — ช่องเลือก/ลากไฟล์ (บังคับ)
+
+> **ห้ามใช้ `<input type="file">` ดิบ หรือ `<Input type="file">` ที่ผู้ใช้มองเห็น** — ปุ่ม "Choose File" ของเบราว์เซอร์
+> เป็นภาษาอังกฤษ อยู่นอกพาเลตต์ และลากไฟล์มาวางไม่ได้ · **ห้ามประกอบ dropzone เองด้วย `onDragOver`/`onDrop`**
+
+```tsx
+import { FileDropzone } from '@/components/ui/file-dropzone';
+
+// ไฟล์เดียว (controlled) — มีการ์ดไฟล์ + ปุ่มเอาออกให้ในตัว
+<FileDropzone
+  value={file}
+  onChange={setFile}
+  accept="application/pdf,image/*"
+  maxSizeMb={50}
+  hint="รองรับ PDF / รูปภาพ ขนาดไม่เกิน 50 MB"
+/>
+
+// หลายไฟล์ — ส่งไฟล์ที่ผ่านด่านออกไป ผู้เรียกจัดการรายการเอง
+<FileDropzone multiple onFiles={addFiles} accept={ACCEPT_TYPES} hint="เลือกได้หลายไฟล์" />
+
+// ให้ปุ่มที่อยู่นอกกล่องเปิดหน้าต่างเลือกไฟล์ (เช่น CTA ใน empty state)
+const openPicker = useRef<(() => void) | null>(null);
+<FileDropzone value={file} onChange={setFile} openRef={openPicker} />
+<Button onClick={() => openPicker.current?.()}>อัปโหลดไฟล์</Button>
+```
+
+- กันชนิดไฟล์ (`accept`) + เพดานขนาด (`maxSizeMb`) ให้เอง พร้อมข้อความไทยใต้กล่อง — **ไม่ต้องเช็คซ้ำใน component**
+  (แต่กฎเชิงธุรกิจ เช่น ความยาวไฟล์เสียง/โควตา ยังเป็นหน้าที่ผู้เรียก)
+- ปรับข้อความ/ไอคอนด้วย `label` · `hint` · `icon`
+- **ข้อยกเว้นที่ยอมรับ**: ปุ่ม "แนบไฟล์" ที่อยู่ในแถบเครื่องมือ (compose note ของ crm, gov-procure detail) ยังใช้
+  hidden input + ปุ่มได้ เพราะไม่ใช่พื้นที่วางไฟล์ · รูปโปรไฟล์/โลโก้ที่ต้องได้ data URL ใช้ `<ImageUpload>`
 
 ### ห้ามใช้เด็ดขาด
 

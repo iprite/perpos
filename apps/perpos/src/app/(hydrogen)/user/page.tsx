@@ -5,6 +5,7 @@ import { QRCodeSVG } from "qrcode.react";
 import { Image as ImageIcon, Link2, Save, X, UserCog } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { FileDropzone } from "@/components/ui/file-dropzone";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Avatar } from "@/components/ui/avatar";
@@ -55,7 +56,9 @@ export default function UserSettingsPage() {
   const [avatarError, setAvatarError] = useState<string | null>(null);
 
   const [linkLoading, setLinkLoading] = useState(false);
-  const [link, setLink] = useState<{ token: string; expiresAt: string; linkUrl: string } | null>(null);
+  const [link, setLink] = useState<{ token: string; expiresAt: string; linkUrl: string } | null>(
+    null,
+  );
   const [linkError, setLinkError] = useState<string | null>(null);
 
   const previewUrl = useMemo(() => {
@@ -65,7 +68,8 @@ export default function UserSettingsPage() {
 
   const isLineLinked = Boolean(profile?.line_user_id);
   const displayName = String(profile?.display_name ?? email ?? "").trim();
-  const canSaveNickname = nickname.trim().length > 0 && nickname.trim() !== String(profile?.display_name ?? "").trim();
+  const canSaveNickname =
+    nickname.trim().length > 0 && nickname.trim() !== String(profile?.display_name ?? "").trim();
   const isLinkExpired = link ? new Date(link.expiresAt).getTime() <= Date.now() : false;
 
   return (
@@ -87,20 +91,24 @@ export default function UserSettingsPage() {
               <Avatar
                 src={previewUrl ?? profile?.avatar_url ?? undefined}
                 name={displayName || email || "U"}
-                className="bg-gray-100 ring-1 ring-gray-200 text-sm font-semibold text-gray-700 !h-20 !w-20"
+                className="!h-20 !w-20 bg-gray-100 text-sm font-semibold text-gray-700 ring-1 ring-gray-200"
               />
 
               <div className="min-w-[260px] flex-1">
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) => {
-                    const f = e.target.files?.[0] ?? null;
+                <FileDropzone
+                  value={file}
+                  onChange={(f) => {
                     setAvatarError(null);
                     setFile(f);
                   }}
+                  accept="image/*"
+                  maxSizeMb={5}
+                  label="ลากรูปโปรไฟล์มาวาง หรือคลิกเพื่อเลือก"
+                  hint="รองรับ JPG / PNG ขนาดไม่เกิน 5 MB"
                 />
-                <div className="mt-2 text-xs text-gray-500">รองรับไฟล์รูปภาพ เช่น .jpg .png .webp</div>
+                <div className="mt-2 text-xs text-gray-500">
+                  รองรับไฟล์รูปภาพ เช่น .jpg .png .webp
+                </div>
 
                 {avatarError ? (
                   <div className="mt-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
@@ -144,7 +152,8 @@ export default function UserSettingsPage() {
                         toast.success("บันทึกรูปโปรไฟล์แล้ว");
                       } catch (e: any) {
                         const m = String(e?.message ?? "อัปโหลดไม่สำเร็จ");
-                        setAvatarError(m); toast.error(m);
+                        setAvatarError(m);
+                        toast.error(m);
                       } finally {
                         setSavingAvatar(false);
                       }
@@ -186,7 +195,9 @@ export default function UserSettingsPage() {
                 />
               </div>
               {nicknameError ? (
-                <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{nicknameError}</div>
+                <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                  {nicknameError}
+                </div>
               ) : null}
               <div className="flex flex-wrap gap-2">
                 <Button
@@ -211,7 +222,8 @@ export default function UserSettingsPage() {
                       toast.success("บันทึกชื่อเล่นแล้ว");
                     } catch (e: any) {
                       const m = String(e?.message ?? "บันทึกไม่สำเร็จ");
-                      setNicknameError(m); toast.error(m);
+                      setNicknameError(m);
+                      toast.error(m);
                     } finally {
                       setSavingNickname(false);
                     }
@@ -242,10 +254,13 @@ export default function UserSettingsPage() {
           <div className="rounded-2xl border border-gray-200 bg-white p-5">
             <div className="flex items-center justify-between gap-3 text-gray-900">
               <div className="flex items-center gap-2">
-              <Link2 className="h-4 w-4" />
-              <div className="text-sm font-semibold">เชื่อมต่อ LINE @perpos</div>
+                <Link2 className="h-4 w-4" />
+                <div className="text-sm font-semibold">เชื่อมต่อ LINE @perpos</div>
               </div>
-              <StatusBadge tone={isLineLinked ? "success" : "danger"} className="font-normal tracking-wide">
+              <StatusBadge
+                tone={isLineLinked ? "success" : "danger"}
+                className="font-normal tracking-wide"
+              >
                 {isLineLinked ? "เชื่อมต่อแล้ว" : "ยังไม่เชื่อม"}
               </StatusBadge>
             </div>
@@ -255,9 +270,13 @@ export default function UserSettingsPage() {
                 <div>
                   เชื่อมแล้ว ({profile?.line_user_id})
                   {profile?.line_linked_at ? (
-                    <div className="mt-1 text-xs text-gray-500">เชื่อมเมื่อ: {formatDateTime(profile.line_linked_at)}</div>
+                    <div className="mt-1 text-xs text-gray-500">
+                      เชื่อมเมื่อ: {formatDateTime(profile.line_linked_at)}
+                    </div>
                   ) : null}
-                  <div className="mt-1 text-xs text-gray-500">หากต้องการเปลี่ยนบัญชี LINE ให้สร้างโค้ดผูกบัญชีใหม่</div>
+                  <div className="mt-1 text-xs text-gray-500">
+                    หากต้องการเปลี่ยนบัญชี LINE ให้สร้างโค้ดผูกบัญชีใหม่
+                  </div>
                 </div>
               ) : (
                 <div>
@@ -270,7 +289,9 @@ export default function UserSettingsPage() {
             </div>
 
             {linkError ? (
-              <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{linkError}</div>
+              <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                {linkError}
+              </div>
             ) : null}
 
             <div className="mt-4 grid gap-3">
@@ -298,8 +319,13 @@ export default function UserSettingsPage() {
                     });
                     const json = (await res.json().catch(() => null)) as LinkTokenResponse | null;
                     if (!res.ok) throw new Error(String((json as any)?.error ?? "request_failed"));
-                    if (!json || !(json as any).ok) throw new Error(String((json as any)?.error ?? "request_failed"));
-                    setLink({ token: (json as any).token, expiresAt: (json as any).expiresAt, linkUrl: (json as any).linkUrl });
+                    if (!json || !(json as any).ok)
+                      throw new Error(String((json as any)?.error ?? "request_failed"));
+                    setLink({
+                      token: (json as any).token,
+                      expiresAt: (json as any).expiresAt,
+                      linkUrl: (json as any).linkUrl,
+                    });
                   } catch (e: any) {
                     setLinkError(String(e?.message ?? "ไม่สามารถสร้างโค้ดผูกบัญชีได้"));
                   } finally {
@@ -307,21 +333,30 @@ export default function UserSettingsPage() {
                   }
                 }}
               >
-                {linkLoading ? "กำลังสร้าง QR..." : isLineLinked ? "สร้าง QR ใหม่" : "สร้าง QR เพื่อเชื่อม LINE"}
+                {linkLoading
+                  ? "กำลังสร้าง QR..."
+                  : isLineLinked
+                    ? "สร้าง QR ใหม่"
+                    : "สร้าง QR เพื่อเชื่อม LINE"}
               </Button>
 
               {link ? (
                 <div className="rounded-xl border border-gray-200 bg-gray-50 p-3">
                   <div className="flex items-center justify-between gap-3">
                     <div className="text-xs font-medium text-gray-700">โค้ดผูกบัญชี</div>
-                    <StatusBadge tone={isLinkExpired ? "danger" : "warning"} className="font-normal tracking-wide">
+                    <StatusBadge
+                      tone={isLinkExpired ? "danger" : "warning"}
+                      className="font-normal tracking-wide"
+                    >
                       {isLinkExpired ? "หมดอายุ" : "รอผูกบัญชี"}
                     </StatusBadge>
                   </div>
                   <div className="flex items-center justify-center rounded-lg bg-white p-3">
                     <QRCodeSVG value={link.linkUrl} size={200} />
                   </div>
-                  <div className="mt-3 text-xs text-gray-600">หมดอายุ: {formatDateTime(link.expiresAt)}</div>
+                  <div className="mt-3 text-xs text-gray-600">
+                    หมดอายุ: {formatDateTime(link.expiresAt)}
+                  </div>
                   <div className="mt-3 grid gap-2">
                     <Button
                       variant="outline"
