@@ -343,7 +343,16 @@ export const MODULE_MENUS: Record<string, MenuDef[]> = {
   ],
   b2g: [{ key: "dashboard", label: "Dashboard" }],
   p2p_supply: [{ key: "dashboard", label: "Dashboard" }],
-  p2p_group: [{ key: "dashboard", label: "Dashboard" }],
+  // โมดูลบริษัทโฮลดิ้ง — contract .claude/module-factory/specs/p2p_group.md §5
+  p2p_group: [
+    { key: "dashboard", label: "ภาพรวมกลุ่ม" },
+    { key: "companies", label: "บริษัทในเครือ" },
+    { key: "financials", label: "ตัวเลขรายเดือน" },
+    { key: "consolidated", label: "งบรวมกลุ่ม" },
+    { key: "investments", label: "เงินลงทุน & ปันผล" },
+    { key: "intercompany", label: "รายการระหว่างกัน" },
+    { key: "treasury", label: "เงินสด & ธนาคาร" },
+  ],
   hrm: [
     { key: "dashboard", label: "ภาพรวม" },
     { key: "employees", label: "พนักงาน" },
