@@ -920,37 +920,51 @@ import {
 
 ทุก size บนมือถือ = `w-[calc(100vw-2rem)]` อัตโนมัติ
 
-### Dialog ที่มีแท็บ — ล็อกความสูง + แถบแท็บอยู่ใน header (บังคับ)
+### Dialog ฟอร์มยาว — เมนูกลุ่มแนวตั้งด้านซ้าย (บังคับเมื่อเกิน ~15 ฟิลด์ / 4 กลุ่ม)
 
-ฟอร์มยาวที่แบ่งเป็นแท็บ ถ้าปล่อยให้ body สูงตามเนื้อหา กล่องจะ**เด้งสูง-เตี้ยทุกครั้งที่สลับแท็บ**
-ปุ่ม "บันทึก/ยกเลิก" ขยับหนีมือ และภาพรวมดูกระตุก
+ฟอร์มแก้ไข "หนึ่งระเบียน" ที่มีฟิลด์เยอะ (ทะเบียนลูกค้า, โปรไฟล์กิจการ) **ห้ามยัดเป็นสกอร์ลยาวเดียว
+และห้ามใช้แถบ pill แนวนอน** — pill 6 อันในกล่องแคบจะแน่น อ่านชื่อกลุ่มไม่ทัน และตกขอบ
+ท่ามาตรฐาน = **เมนูกลุ่มเรียงแนวตั้งด้านซ้าย + เนื้อหาด้านขวา** (แบบหน้า Settings ของ macOS/Slack/Notion
+และหน้าแก้ไขลูกค้าของ Xero/Attio)
 
 ```tsx
-<DialogContent size="xl">
+<DialogContent size="3xl">
   <DialogHeader>
-    <DialogTitle>แก้ไขลูกค้า</DialogTitle>
-    {/* แถบแท็บอยู่ใน header → ไม่เลื่อนหายตอน scroll เนื้อหา */}
-    <div className="mt-2">
-      <SegmentedControl value={tab} onChange={switchTab} options={TABS} />
-    </div>
+    <DialogTitle className="flex items-center gap-2">
+      <span className="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-xs …">{code}</span>
+      <span className="truncate">{name}</span> {/* ระบุว่ากำลังแก้ "ใคร" */}
+    </DialogTitle>
   </DialogHeader>
 
-  {/* fixedHeight = สูงคงที่ทุกแท็บ · true = min(60vh,32rem) · "sm"/"lg" = เล็ก/ใหญ่ */}
-  <DialogBody fixedHeight ref={bodyRef}>
-    …
+  <DialogBody fixedHeight className="flex flex-col overflow-hidden p-0 sm:flex-row">
+    <nav className="sm:w-52 sm:flex-col sm:border-r …">…ปุ่มกลุ่ม…</nav>
+    <div ref={paneRef} className="min-w-0 flex-1 overflow-y-auto px-5 py-4">
+      <div className="mb-4">
+        <p className="text-sm font-semibold text-gray-900">{activeTab.label}</p>
+        <p className="text-xs text-gray-400">{activeTab.desc}</p>
+      </div>
+      <div className="max-w-2xl space-y-4">…ฟิลด์…</div>
+    </div>
   </DialogBody>
   <DialogFooter>…</DialogFooter>
 </DialogContent>
 ```
 
-- **สลับแท็บต้องเลื่อนกลับบนสุด** — `bodyRef.current?.scrollTo({ top: 0 })` ใน handler เดียวกับที่ setTab
-  (ไม่งั้นเปิดแท็บใหม่มาค้างกลางหน้า) · `DialogBody` รับ `ref` ได้แล้ว
-- แท็บที่เนื้อหาสั้นจะมีที่ว่างด้านล่าง = ปกติและตั้งใจ · แท็บที่ยาวกว่าจะ scroll ในตัว
-- ฟิลด์บังคับที่อยู่คนละแท็บ ต้องมีข้อความบอกในแถบล่างว่าติดตรงไหน + กดแล้วกระโดดไปแท็บนั้น
+**กฎ**
+
+- **`fixedHeight` บังคับ** — สลับกลุ่มแล้วกล่องต้องไม่เด้งสูง-เตี้ย (ปุ่มบันทึกขยับหนีมือ)
+  ⚠️ `h-[...]` จะไม่มีผลถ้ายังมี `flex-1` (flex-basis:0 ชนะ height) — `DialogBody` จัดการให้แล้ว
+- **หัวข้อกลุ่ม + คำอธิบายหนึ่งบรรทัด** อยู่บนสุดของฝั่งเนื้อหาเสมอ (บอกว่าอยู่ตรงไหน + กลุ่มนี้มีไว้ทำอะไร)
+- **ฟิลด์จำกัดความกว้าง `max-w-2xl`** — กล่องกว้าง 3xl แต่ input ที่ยาวเต็มความกว้างอ่านยาก
+- **จอแคบ (`< sm`) เมนูยุบเป็นแถบเลื่อนแนวนอนด้านบน** + เลื่อนตัวที่เลือกเข้ามาให้เห็น (`scrollIntoView`)
+- **สลับกลุ่มต้องเลื่อนเนื้อหากลับบนสุด** (`paneRef.current?.scrollTo({ top: 0 })`)
+- **จุดเตือนในเมนู** เมื่อกลุ่มนั้นยังกรอกฟิลด์บังคับไม่ครบ + ข้อความในแถบล่างที่กดแล้วกระโดดไปกลุ่มนั้น
   (ไม่งั้นผู้ใช้เห็นปุ่มบันทึกจางโดยไม่รู้สาเหตุ)
-- ⚠️ กับดัก: `h-[...]` จะไม่มีผลถ้ายังมี `flex-1` อยู่ (flex-basis:0 ชนะ height) — `DialogBody`
-  จัดการให้แล้ว **อย่าใส่ `flex-1` ทับเอง**
+- **ปุ่มบันทึกเดียวสำหรับทุกกลุ่ม** — ห้ามบันทึกแยกรายกลุ่ม (ผู้ใช้ไม่รู้ว่าต้องกดกี่ครั้ง)
 - ต้นแบบจริง: กล่องแก้ไขลูกค้า [acc-firm/clients](<apps/perpos/src/app/(hydrogen)/[orgSlug]/acc-firm/clients/page.tsx>)
+
+> ฟอร์มสั้น (≤ ~10 ฟิลด์) ไม่ต้องมีเมนู — ใช้ `<DialogBody>` ธรรมดาสกอร์ลเดียวจบ
+> ถ้าระเบียนโตจนมี "ประวัติ/ไฟล์แนบ/กิจกรรม" ด้วย ให้ย้ายไปเป็น **หน้าเต็ม** ไม่ใช่ dialog
 
 ### Dialog ที่มีปุ่ม Destructive (ลบ/อันตราย)
 

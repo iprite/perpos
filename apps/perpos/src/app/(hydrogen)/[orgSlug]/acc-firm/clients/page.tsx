@@ -11,6 +11,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
+import cn from "@core/utils/class-names";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { toast } from "@/lib/toast";
 import { Button } from "@/components/ui/button";
@@ -136,13 +137,44 @@ const MONTH_OPTIONS = [
 
 /** กลุ่มข้อมูลในกล่องแก้ไขลูกค้า — แบ่งตามงานที่ทีมทำจริง ไม่ใช่ตามโครงตาราง */
 const CLIENT_TABS = [
-  { key: "main", label: "ข้อมูลหลัก", icon: <Building2 className="h-4 w-4" /> },
-  { key: "contact", label: "ติดต่อ", icon: <Phone className="h-4 w-4" /> },
-  { key: "tax", label: "ภาษี/ประกันสังคม", icon: <Landmark className="h-4 w-4" /> },
-  { key: "service", label: "บริการ/ค่าบริการ", icon: <Wallet className="h-4 w-4" /> },
-  { key: "docs", label: "เอกสาร", icon: <FolderLock className="h-4 w-4" /> },
-  { key: "link", label: "เชื่อมระบบ/LINE", icon: <Link2 className="h-4 w-4" />, editOnly: true },
-] as { key: ClientTab; label: string; icon: React.ReactNode; editOnly?: boolean }[];
+  {
+    key: "main",
+    label: "ข้อมูลหลัก",
+    icon: <Building2 className="h-4 w-4" />,
+    desc: "ชื่อ เลขผู้เสียภาษี และสถานะของลูกค้ารายนี้",
+  },
+  {
+    key: "contact",
+    label: "ติดต่อ",
+    icon: <Phone className="h-4 w-4" />,
+    desc: "คนที่ทีมคุยด้วย และที่อยู่ที่ใช้บนเอกสาร",
+  },
+  {
+    key: "tax",
+    label: "ภาษี/ประกันสังคม",
+    icon: <Landmark className="h-4 w-4" />,
+    desc: "ข้อมูลที่ใช้ตั้งรอบยื่นแบบและนำส่งเงินสมทบ",
+  },
+  {
+    key: "service",
+    label: "บริการ/ค่าบริการ",
+    icon: <Wallet className="h-4 w-4" />,
+    desc: "งานที่รับทำให้ และค่าบริการที่เก็บ",
+  },
+  {
+    key: "docs",
+    label: "เอกสาร",
+    icon: <FolderLock className="h-4 w-4" />,
+    desc: "รอบส่งเอกสาร ที่เก็บเอกสาร และผู้รับผิดชอบวิชาชีพ",
+  },
+  {
+    key: "link",
+    label: "เชื่อมระบบ/LINE",
+    icon: <Link2 className="h-4 w-4" />,
+    desc: "เชื่อมบัญชีลูกค้าในระบบ และกลุ่ม LINE ที่ส่งอัปเดต",
+    editOnly: true,
+  },
+] as { key: ClientTab; label: string; icon: React.ReactNode; desc: string; editOnly?: boolean }[];
 
 type ClientTab = "main" | "contact" | "tax" | "service" | "docs" | "link";
 
@@ -282,6 +314,11 @@ export default function AccFirmClientsPage() {
   const [editing, setEditing] = useState<ServiceClient | null>(null);
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
+  /** กลุ่มที่โชว์ในเมนู — "เชื่อมระบบ/LINE" มีเฉพาะลูกค้าที่บันทึกแล้ว */
+  const visibleTabs = CLIENT_TABS.filter((t) => !t.editOnly || !!editing);
+  /** ยังกรอกฟิลด์บังคับไม่ครบ (อยู่กลุ่ม "ข้อมูลหลัก") — ใช้ทั้งจุดเตือนในเมนูและแถบล่าง */
+  const missingRequired = !form.client_code || !form.company_name;
+  const activeTab = CLIENT_TABS.find((t) => t.key === tab) ?? CLIENT_TABS[0];
 
   // การเชื่อมระบบ (engagement) ในกล่องแก้ไข
   const [availableOrgs, setAvailableOrgs] = useState<{ value: string; label: string }[]>([]);
@@ -834,632 +871,686 @@ export default function AccFirmClientsPage() {
       </Table>
       <TablePager pager={pager} unit="ราย" />
 
-      {/* Add/Edit Dialog */}
+      {/* Add/Edit Dialog — เมนูกลุ่มข้อมูลเรียงแนวตั้งด้านซ้าย (แบบหน้า Settings)
+          ฟิลด์เยอะ 6 กลุ่ม: แถบแนวนอนจะแน่นและอ่านยาก · แนวตั้งเห็นทุกกลุ่มพร้อมกัน
+          และความสูงกล่องคงที่ในตัวเอง */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent size="xl">
+        <DialogContent size="3xl">
           <DialogHeader>
-            <DialogTitle>{editing ? "แก้ไขลูกค้า" : "เพิ่มลูกค้า"}</DialogTitle>
-            {/* แถบกลุ่มข้อมูลอยู่ใน header (ไม่เลื่อนหาย) — ฟอร์มยาวเกินกว่าจะไล่ทีเดียว
-                แบ่งเป็นกลุ่มตามงานที่ทีมทำจริง */}
-            <div className="mt-2">
-              <SegmentedControl
-                value={tab}
-                onChange={(v) => switchTab(v as ClientTab)}
-                ariaLabel="กลุ่มข้อมูลลูกค้า"
-                options={CLIENT_TABS.filter((t) => !t.editOnly || !!editing).map((t) => ({
-                  value: t.key,
-                  label: t.label,
-                  icon: t.icon,
-                }))}
-              />
-            </div>
+            <DialogTitle className="flex items-center gap-2">
+              {editing ? (
+                <>
+                  <span className="shrink-0 rounded bg-gray-100 px-1.5 py-0.5 font-mono text-xs font-normal text-gray-600">
+                    {editing.client_code}
+                  </span>
+                  <span className="truncate">{editing.company_name}</span>
+                </>
+              ) : (
+                "เพิ่มลูกค้า"
+              )}
+            </DialogTitle>
           </DialogHeader>
 
-          {/* ล็อกความสูงไว้ — สลับแท็บแล้วกล่องต้องไม่เด้งสูง-เตี้ย */}
-          <DialogBody fixedHeight ref={dialogBodyRef}>
-            <div className="space-y-4">
-              {/* ── ข้อมูลหลัก ───────────────────────────────────────────── */}
-              {tab === "main" && (
-                <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label>รหัสลูกค้า *</Label>
-                      <Input
-                        value={form.client_code}
-                        onChange={(e) => setForm((f) => ({ ...f, client_code: e.target.value }))}
-                        placeholder="เช่น IN01, C01"
-                      />
-                    </div>
-                    <div>
-                      <Label>ประเภทนิติบุคคล</Label>
-                      <CustomSelect
-                        value={form.entity_type}
-                        onChange={(v) => setForm((f) => ({ ...f, entity_type: v }))}
-                        options={ENTITY_TYPE_OPTIONS}
-                      />
-                    </div>
-                    <div className="col-span-2">
-                      <Label>ชื่อบริษัท *</Label>
-                      <Input
-                        value={form.company_name}
-                        onChange={(e) => setForm((f) => ({ ...f, company_name: e.target.value }))}
-                        placeholder="บริษัท ... จำกัด"
-                      />
-                    </div>
-                    <div>
-                      <Label>เลขประจำตัวผู้เสียภาษี (13 หลัก)</Label>
-                      <Input
-                        value={form.tax_id}
-                        onChange={(e) =>
-                          setForm((f) => ({ ...f, tax_id: e.target.value.replace(/\D/g, "") }))
-                        }
-                        inputMode="numeric"
-                        maxLength={13}
-                        placeholder="0105xxxxxxxxx"
-                      />
-                    </div>
-                    <div>
-                      <Label>สาขา (ตามใบกำกับภาษี)</Label>
-                      <Input
-                        value={form.branch_code}
-                        onChange={(e) =>
-                          setForm((f) => ({
-                            ...f,
-                            branch_code: e.target.value.replace(/\D/g, "").slice(0, 5),
-                          }))
-                        }
-                        inputMode="numeric"
-                        maxLength={5}
-                        placeholder="00000"
-                      />
-                      <p className="mt-1 text-xs text-gray-400">
-                        00000 = สำนักงานใหญ่ · 00001 = สาขาที่ 1 (ต้องระบุในใบกำกับภาษี ม.86/4)
-                      </p>
-                    </div>
-                  </div>
-
-                  {editing && (
-                    <div>
-                      <Label>สถานะลูกค้า</Label>
-                      <div className="mt-1">
-                        <SegmentedControl
-                          size="form"
-                          value={form.is_active ? "active" : "inactive"}
-                          onChange={(v) => setForm((f) => ({ ...f, is_active: v === "active" }))}
-                          ariaLabel="สถานะลูกค้า"
-                          options={[
-                            { value: "active", label: "ใช้งาน" },
-                            { value: "inactive", label: "ยกเลิก" },
-                          ]}
-                        />
-                      </div>
-                    </div>
-                  )}
-
-                  <div>
-                    <Label>หมายเหตุ</Label>
-                    <Input
-                      value={form.note}
-                      onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))}
-                      placeholder="หมายเหตุเพิ่มเติม"
-                    />
-                  </div>
-                </div>
-              )}
-
-              {/* ── ข้อมูลติดต่อ ─────────────────────────────────────────── */}
-              {tab === "contact" && (
-                <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label>ชื่อผู้ติดต่อ</Label>
-                      <Input
-                        value={form.contact_name}
-                        onChange={(e) => setForm((f) => ({ ...f, contact_name: e.target.value }))}
-                        placeholder="เช่น คุณสมชาย (ฝ่ายบัญชี)"
-                      />
-                    </div>
-                    <div>
-                      <Label>เบอร์โทร</Label>
-                      <Input
-                        value={form.contact_phone}
-                        onChange={(e) => setForm((f) => ({ ...f, contact_phone: e.target.value }))}
-                        inputMode="tel"
-                        placeholder="08x-xxx-xxxx"
-                      />
-                    </div>
-                    <div className="col-span-2">
-                      <Label>อีเมล</Label>
-                      <Input
-                        value={form.contact_email}
-                        onChange={(e) => setForm((f) => ({ ...f, contact_email: e.target.value }))}
-                        type="email"
-                        placeholder="name@company.co.th"
-                      />
-                    </div>
-                    <div className="col-span-2">
-                      <Label>ที่อยู่จดทะเบียน</Label>
-                      <Input
-                        value={form.address}
-                        onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))}
-                        placeholder="เลขที่ ... ถนน ... แขวง/ตำบล ... เขต/อำเภอ ... จังหวัด ... รหัสไปรษณีย์"
-                      />
-                      <p className="mt-1 text-xs text-gray-400">
-                        ใช้เป็นที่อยู่บนใบกำกับภาษี/แบบยื่นภาษีของลูกค้า
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* ── ภาษี / ประกันสังคม / รอบบัญชี ───────────────────────── */}
-              {tab === "tax" && (
-                <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label>จดทะเบียนภาษีมูลค่าเพิ่ม (VAT)</Label>
-                      <div className="mt-1">
-                        <SegmentedControl
-                          size="form"
-                          value={form.vat_registered ? "yes" : "no"}
-                          // เลือก "ไม่ได้จด" แล้วล้างวันที่จดทิ้ง — ไม่งั้นข้อมูลขัดกันเอง
-                          onChange={(v) =>
-                            setForm((f) => ({
-                              ...f,
-                              vat_registered: v === "yes",
-                              vat_registered_date: v === "yes" ? f.vat_registered_date : "",
-                            }))
-                          }
-                          ariaLabel="จดทะเบียน VAT"
-                          options={[
-                            { value: "yes", label: "จดทะเบียน" },
-                            { value: "no", label: "ไม่ได้จด" },
-                          ]}
-                        />
-                      </div>
-                    </div>
-                    <div>
-                      <Label>วันที่จดทะเบียน VAT</Label>
-                      <ThaiDatePicker
-                        value={form.vat_registered_date}
-                        onChange={(iso) => setForm((f) => ({ ...f, vat_registered_date: iso }))}
-                        placeholder={form.vat_registered ? "เลือกวันที่" : "— ไม่ได้จด VAT —"}
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <Label>วันสิ้นรอบบัญชี</Label>
-                    <div className="mt-1 flex gap-2">
-                      <CustomSelect
-                        value={form.fiscal_year_end_day}
-                        onChange={(v) => setForm((f) => ({ ...f, fiscal_year_end_day: v }))}
-                        options={Array.from({ length: 31 }, (_, i) => ({
-                          value: String(i + 1),
-                          label: String(i + 1),
-                        }))}
-                        className="w-20"
-                      />
-                      <CustomSelect
-                        value={form.fiscal_year_end_month}
-                        onChange={(v) => setForm((f) => ({ ...f, fiscal_year_end_month: v }))}
-                        options={MONTH_OPTIONS}
-                        className="w-40"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label>ประกันสังคม</Label>
-                      <div className="mt-1">
-                        <SegmentedControl
-                          size="form"
-                          value={form.sso_registered ? "yes" : "no"}
-                          onChange={(v) => setForm((f) => ({ ...f, sso_registered: v === "yes" }))}
-                          ariaLabel="ขึ้นทะเบียนประกันสังคม"
-                          options={[
-                            { value: "yes", label: "ขึ้นทะเบียนแล้ว" },
-                            { value: "no", label: "ยังไม่ขึ้นทะเบียน" },
-                          ]}
-                        />
-                      </div>
-                    </div>
-                    <div>
-                      <Label>เลขที่บัญชีนายจ้าง (สปส.)</Label>
-                      <Input
-                        value={form.sso_employer_no}
-                        onChange={(e) =>
-                          setForm((f) => ({ ...f, sso_employer_no: e.target.value }))
-                        }
-                        placeholder="เช่น 1000xxxxxxx"
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <Label>ช่องทางยื่นแบบ</Label>
-                    <div className="mt-1">
-                      <SegmentedControl
-                        size="form"
-                        value={form.efiling_enabled ? "efiling" : "paper"}
-                        onChange={(v) =>
-                          setForm((f) => ({ ...f, efiling_enabled: v === "efiling" }))
-                        }
-                        ariaLabel="ช่องทางยื่นแบบ"
-                        options={[
-                          { value: "efiling", label: "e-Filing (สรรพากรออนไลน์)" },
-                          { value: "paper", label: "ยื่นกระดาษที่สรรพากรพื้นที่" },
-                        ]}
-                      />
-                    </div>
-                    <p className="mt-1 text-xs text-gray-400">
-                      บันทึกแค่ช่องทาง — ห้ามเก็บรหัสผ่าน e-Filing ของลูกค้าไว้ในระบบ
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {/* ── บริการและค่าบริการ ──────────────────────────────────── */}
-              {tab === "service" && (
-                <div className="space-y-4">
-                  <div>
-                    <p className="mb-2 text-sm font-medium text-gray-700">บริการที่ให้</p>
-                    <div className="flex flex-wrap gap-2">
-                      {SERVICE_FLAGS.map(({ key, label, title }) => {
-                        const on = form[key as keyof FormState] as boolean;
-                        return (
-                          <button
-                            key={key}
-                            type="button"
-                            title={title}
-                            onClick={() => toggleFlag(key as keyof FormState)}
-                            className={`flex flex-col items-start rounded-lg border px-3 py-1.5 transition-colors ${
-                              on
-                                ? "border-blue-600 bg-blue-600 text-white"
-                                : "border-gray-200 bg-white text-gray-600 hover:border-blue-300"
-                            }`}
-                          >
-                            <span className="text-sm font-medium">{label}</span>
-                            <span
-                              className={`text-[11px] ${on ? "text-white/80" : "text-gray-400"}`}
-                            >
-                              {title}
-                            </span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  <div>
-                    <p className="mb-2 text-sm font-medium text-gray-700">
-                      ค่าบริการรายเดือน (บาท)
-                    </p>
-                    <div className="grid grid-cols-4 gap-3">
-                      {([2023, 2024, 2025, 2026] as const).map((y) => (
-                        <div key={y}>
-                          <Label className="text-xs">ปี {y + 543}</Label>
-                          <Input
-                            type="number"
-                            value={(form as Record<string, unknown>)[`fee_${y}`] as string}
-                            onChange={(e) =>
-                              setForm((f) => ({ ...f, [`fee_${y}`]: e.target.value }))
-                            }
-                            placeholder="0"
-                          />
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label>ค่าบริการรายปี (บาท)</Label>
-                      <Input
-                        type="number"
-                        value={form.fee_yearly}
-                        onChange={(e) => setForm((f) => ({ ...f, fee_yearly: e.target.value }))}
-                        placeholder="0"
-                      />
-                      <p className="mt-1 text-xs text-gray-400">
-                        สำหรับลูกค้าที่ชำระเป็นรายปี — ปล่อยว่างถ้าคิดรายเดือน
-                      </p>
-                    </div>
-                    <div>
-                      <Label>หมายเหตุค่าบริการ</Label>
-                      <Input
-                        value={form.billing_note}
-                        onChange={(e) => setForm((f) => ({ ...f, billing_note: e.target.value }))}
-                        placeholder="เช่น ชำระล่วงหน้าทั้งปี"
-                      />
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* ── เอกสาร / ผู้รับผิดชอบวิชาชีพ ────────────────────────── */}
-              {tab === "docs" && (
-                <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label>วันที่ลูกค้าส่งเอกสารประจำเดือน</Label>
-                      <CustomSelect
-                        value={form.doc_due_day}
-                        onChange={(v) => setForm((f) => ({ ...f, doc_due_day: v }))}
-                        options={[
-                          { value: "", label: "— ไม่กำหนด —" },
-                          ...Array.from({ length: 31 }, (_, i) => ({
-                            value: String(i + 1),
-                            label: `วันที่ ${i + 1} ของเดือนถัดไป`,
-                          })),
-                        ]}
-                      />
-                    </div>
-                    <div>
-                      <Label>ช่องทางรับเอกสาร</Label>
-                      <CustomSelect
-                        value={form.doc_channel}
-                        onChange={(v) => setForm((f) => ({ ...f, doc_channel: v }))}
-                        options={DOC_CHANNEL_OPTIONS}
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <Label>สถานที่เก็บเอกสาร</Label>
-                    <Input
-                      value={form.storage_location}
-                      onChange={(e) => setForm((f) => ({ ...f, storage_location: e.target.value }))}
-                      placeholder="เช่น สำนักงานบัญชี ชั้น 3 ห้องเก็บเอกสาร"
-                    />
-                    {form.storage_location.trim() !== "" && (
-                      <label className="mt-2 flex cursor-pointer items-center gap-2">
-                        <input
-                          type="checkbox"
-                          checked={form.dbd_relocation_notified}
-                          onChange={(e) =>
-                            setForm((f) => ({ ...f, dbd_relocation_notified: e.target.checked }))
-                          }
-                          className="rounded"
-                        />
-                        <span className="text-sm text-gray-700">
-                          แจ้งย้ายสถานที่เก็บบัญชีต่อกรมพัฒนาธุรกิจการค้าแล้ว
-                        </span>
-                      </label>
+          {/* ล็อกความสูงไว้ — สลับกลุ่มแล้วกล่องต้องไม่เด้งสูง-เตี้ย */}
+          <DialogBody fixedHeight className="flex flex-col overflow-hidden p-0 sm:flex-row">
+            {/* เมนูกลุ่ม — แนวตั้งบนจอปกติ · จอแคบยุบเป็นแถบเลื่อนแนวนอนด้านบน */}
+            <nav
+              aria-label="กลุ่มข้อมูลลูกค้า"
+              className="flex shrink-0 gap-1 overflow-x-auto border-b border-gray-100 bg-gray-50/70 p-2 sm:w-52 sm:flex-col sm:overflow-y-auto sm:border-b-0 sm:border-r [&::-webkit-scrollbar]:hidden"
+            >
+              {visibleTabs.map((t) => {
+                const active = tab === t.key;
+                const warn = t.key === "main" && !!missingRequired;
+                return (
+                  <button
+                    key={t.key}
+                    type="button"
+                    onClick={(e) => {
+                      switchTab(t.key);
+                      // จอแคบเมนูเป็นแถบเลื่อน — เลื่อนตัวที่เลือกเข้ามาให้เห็นเต็ม
+                      e.currentTarget.scrollIntoView({ inline: "center", block: "nearest" });
+                    }}
+                    className={cn(
+                      "flex shrink-0 items-center gap-2 whitespace-nowrap rounded-lg px-3 py-2 text-sm transition-colors sm:w-full",
+                      active
+                        ? "bg-white font-medium text-gray-900 shadow-sm sm:bg-gray-200/70 sm:shadow-none"
+                        : "text-gray-500 hover:bg-gray-100 hover:text-gray-700",
                     )}
-                  </div>
+                  >
+                    <span className={active ? "text-gray-700" : "text-gray-400"}>{t.icon}</span>
+                    {t.label}
+                    {warn && <span className="ms-auto h-1.5 w-1.5 rounded-full bg-amber-500" />}
+                  </button>
+                );
+              })}
+            </nav>
 
-                  <div className="space-y-3 rounded-xl border border-gray-200 p-3">
-                    <p className="text-sm font-medium text-gray-700">ผู้ทำบัญชี / ผู้สอบบัญชี</p>
+            {/* เนื้อหาของกลุ่มที่เลือก — ส่วนเดียวที่ scroll */}
+            <div ref={dialogBodyRef} className="min-w-0 flex-1 overflow-y-auto px-5 py-4">
+              {/* หัวข้อกลุ่ม — บอกว่ากำลังอยู่ตรงไหน (สำคัญบนจอแคบที่เมนูเป็นแถบเลื่อน) */}
+              <div className="mb-4">
+                <p className="text-sm font-semibold text-gray-900">{activeTab.label}</p>
+                <p className="text-xs text-gray-400">{activeTab.desc}</p>
+              </div>
+              <div className="max-w-2xl space-y-4">
+                {/* ── ข้อมูลหลัก ───────────────────────────────────────────── */}
+                {tab === "main" && (
+                  <div className="space-y-4">
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <Label>ผู้ทำบัญชี (CPD)</Label>
+                        <Label>รหัสลูกค้า *</Label>
                         <Input
-                          value={form.accountant_name}
-                          onChange={(e) =>
-                            setForm((f) => ({ ...f, accountant_name: e.target.value }))
-                          }
-                          placeholder="ชื่อ-นามสกุล"
+                          value={form.client_code}
+                          onChange={(e) => setForm((f) => ({ ...f, client_code: e.target.value }))}
+                          placeholder="เช่น IN01, C01"
                         />
                       </div>
                       <div>
-                        <Label>เลขทะเบียนผู้ทำบัญชี</Label>
+                        <Label>ประเภทนิติบุคคล</Label>
+                        <CustomSelect
+                          value={form.entity_type}
+                          onChange={(v) => setForm((f) => ({ ...f, entity_type: v }))}
+                          options={ENTITY_TYPE_OPTIONS}
+                        />
+                      </div>
+                      <div className="col-span-2">
+                        <Label>ชื่อบริษัท *</Label>
                         <Input
-                          value={form.accountant_license}
-                          onChange={(e) =>
-                            setForm((f) => ({ ...f, accountant_license: e.target.value }))
-                          }
-                          placeholder="เช่น 12345678901234"
+                          value={form.company_name}
+                          onChange={(e) => setForm((f) => ({ ...f, company_name: e.target.value }))}
+                          placeholder="บริษัท ... จำกัด"
                         />
                       </div>
                       <div>
-                        <Label>ผู้สอบบัญชี (CPA/TA)</Label>
+                        <Label>เลขประจำตัวผู้เสียภาษี (13 หลัก)</Label>
                         <Input
-                          value={form.auditor_name}
-                          onChange={(e) => setForm((f) => ({ ...f, auditor_name: e.target.value }))}
-                          placeholder="ชื่อ-นามสกุล"
+                          value={form.tax_id}
+                          onChange={(e) =>
+                            setForm((f) => ({ ...f, tax_id: e.target.value.replace(/\D/g, "") }))
+                          }
+                          inputMode="numeric"
+                          maxLength={13}
+                          placeholder="0105xxxxxxxxx"
                         />
                       </div>
                       <div>
-                        <Label>เลขทะเบียนผู้สอบบัญชี</Label>
+                        <Label>สาขา (ตามใบกำกับภาษี)</Label>
                         <Input
-                          value={form.auditor_license}
+                          value={form.branch_code}
                           onChange={(e) =>
-                            setForm((f) => ({ ...f, auditor_license: e.target.value }))
+                            setForm((f) => ({
+                              ...f,
+                              branch_code: e.target.value.replace(/\D/g, "").slice(0, 5),
+                            }))
                           }
-                          placeholder="เช่น 1234"
+                          inputMode="numeric"
+                          maxLength={5}
+                          placeholder="00000"
+                        />
+                        <p className="mt-1 text-xs text-gray-400">
+                          00000 = สำนักงานใหญ่ · 00001 = สาขาที่ 1 (ต้องระบุในใบกำกับภาษี ม.86/4)
+                        </p>
+                      </div>
+                    </div>
+
+                    {editing && (
+                      <div>
+                        <Label>สถานะลูกค้า</Label>
+                        <div className="mt-1">
+                          <SegmentedControl
+                            size="form"
+                            value={form.is_active ? "active" : "inactive"}
+                            onChange={(v) => setForm((f) => ({ ...f, is_active: v === "active" }))}
+                            ariaLabel="สถานะลูกค้า"
+                            options={[
+                              { value: "active", label: "ใช้งาน" },
+                              { value: "inactive", label: "ยกเลิก" },
+                            ]}
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    <div>
+                      <Label>หมายเหตุ</Label>
+                      <Input
+                        value={form.note}
+                        onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))}
+                        placeholder="หมายเหตุเพิ่มเติม"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* ── ข้อมูลติดต่อ ─────────────────────────────────────────── */}
+                {tab === "contact" && (
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label>ชื่อผู้ติดต่อ</Label>
+                        <Input
+                          value={form.contact_name}
+                          onChange={(e) => setForm((f) => ({ ...f, contact_name: e.target.value }))}
+                          placeholder="เช่น คุณสมชาย (ฝ่ายบัญชี)"
+                        />
+                      </div>
+                      <div>
+                        <Label>เบอร์โทร</Label>
+                        <Input
+                          value={form.contact_phone}
+                          onChange={(e) =>
+                            setForm((f) => ({ ...f, contact_phone: e.target.value }))
+                          }
+                          inputMode="tel"
+                          placeholder="08x-xxx-xxxx"
+                        />
+                      </div>
+                      <div className="col-span-2">
+                        <Label>อีเมล</Label>
+                        <Input
+                          value={form.contact_email}
+                          onChange={(e) =>
+                            setForm((f) => ({ ...f, contact_email: e.target.value }))
+                          }
+                          type="email"
+                          placeholder="name@company.co.th"
+                        />
+                      </div>
+                      <div className="col-span-2">
+                        <Label>ที่อยู่จดทะเบียน</Label>
+                        <Input
+                          value={form.address}
+                          onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))}
+                          placeholder="เลขที่ ... ถนน ... แขวง/ตำบล ... เขต/อำเภอ ... จังหวัด ... รหัสไปรษณีย์"
+                        />
+                        <p className="mt-1 text-xs text-gray-400">
+                          ใช้เป็นที่อยู่บนใบกำกับภาษี/แบบยื่นภาษีของลูกค้า
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* ── ภาษี / ประกันสังคม / รอบบัญชี ───────────────────────── */}
+                {tab === "tax" && (
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label>จดทะเบียนภาษีมูลค่าเพิ่ม (VAT)</Label>
+                        <div className="mt-1">
+                          <SegmentedControl
+                            size="form"
+                            value={form.vat_registered ? "yes" : "no"}
+                            // เลือก "ไม่ได้จด" แล้วล้างวันที่จดทิ้ง — ไม่งั้นข้อมูลขัดกันเอง
+                            onChange={(v) =>
+                              setForm((f) => ({
+                                ...f,
+                                vat_registered: v === "yes",
+                                vat_registered_date: v === "yes" ? f.vat_registered_date : "",
+                              }))
+                            }
+                            ariaLabel="จดทะเบียน VAT"
+                            options={[
+                              { value: "yes", label: "จดทะเบียน" },
+                              { value: "no", label: "ไม่ได้จด" },
+                            ]}
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <Label>วันที่จดทะเบียน VAT</Label>
+                        <ThaiDatePicker
+                          value={form.vat_registered_date}
+                          onChange={(iso) => setForm((f) => ({ ...f, vat_registered_date: iso }))}
+                          placeholder={form.vat_registered ? "เลือกวันที่" : "— ไม่ได้จด VAT —"}
                         />
                       </div>
                     </div>
-                    <p className="text-xs text-gray-400">
-                      พ.ร.บ.การบัญชี
-                      บังคับให้ทุกนิติบุคคลมีผู้ทำบัญชีและแจ้งชื่อต่อกรมพัฒนาธุรกิจการค้า
-                    </p>
-                  </div>
-                </div>
-              )}
 
-              {/* ── การเชื่อมระบบ PERPOS + กลุ่ม LINE ─────────────────────────── */}
-              {tab === "link" && editing && (
-                <div className="space-y-3 border-t pt-4">
-                  <div className="flex items-center gap-2">
-                    <Link2 className="h-4 w-4 text-gray-500" />
-                    <p className="text-sm font-medium text-gray-700">การเชื่อมระบบ PERPOS</p>
-                  </div>
-
-                  {editing.engagement ? (
-                    <>
-                      <div className="rounded-xl border bg-gray-50 p-3">
-                        <p className="text-sm font-medium text-gray-800">
-                          {editing.engagement.client_org.name}
-                        </p>
-                        <p className="text-xs text-gray-400">
-                          {editing.engagement.client_org.slug}
-                          {editing.engagement.started_at
-                            ? ` · เริ่มดูแล ${editing.engagement.started_at}`
-                            : ""}
-                        </p>
+                    <div>
+                      <Label>วันสิ้นรอบบัญชี</Label>
+                      <div className="mt-1 flex gap-2">
+                        <CustomSelect
+                          value={form.fiscal_year_end_day}
+                          onChange={(v) => setForm((f) => ({ ...f, fiscal_year_end_day: v }))}
+                          options={Array.from({ length: 31 }, (_, i) => ({
+                            value: String(i + 1),
+                            label: String(i + 1),
+                          }))}
+                          className="w-20"
+                        />
+                        <CustomSelect
+                          value={form.fiscal_year_end_month}
+                          onChange={(v) => setForm((f) => ({ ...f, fiscal_year_end_month: v }))}
+                          options={MONTH_OPTIONS}
+                          className="w-40"
+                        />
                       </div>
+                    </div>
 
-                      <div className="space-y-1.5">
-                        <Label>Modules ที่ดูแล</Label>
-                        <div className="flex flex-wrap gap-2">
-                          {MODULE_OPTIONS.map((m) => (
-                            <button
-                              key={m.value}
-                              type="button"
-                              disabled={!isAdmin}
-                              onClick={() => toggleLinkModule(m.value)}
-                              className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm transition-colors disabled:cursor-default disabled:opacity-70 ${
-                                linkModules.includes(m.value)
-                                  ? "border-teal-300 bg-teal-50 text-teal-700"
-                                  : "border-gray-200 text-gray-500 hover:border-gray-300"
-                              }`}
-                            >
-                              {MODULE_ICON[m.value]} {m.label}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-
-                      {isAdmin && (
-                        <div className="space-y-1.5">
-                          <Label>สถานะการดูแล</Label>
-                          <CustomSelect
-                            value={editing.engagement.status}
-                            onChange={(v) => saveEngagement(v)}
-                            options={ENGAGEMENT_STATUS}
-                            className="w-40"
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label>ประกันสังคม</Label>
+                        <div className="mt-1">
+                          <SegmentedControl
+                            size="form"
+                            value={form.sso_registered ? "yes" : "no"}
+                            onChange={(v) =>
+                              setForm((f) => ({ ...f, sso_registered: v === "yes" }))
+                            }
+                            ariaLabel="ขึ้นทะเบียนประกันสังคม"
+                            options={[
+                              { value: "yes", label: "ขึ้นทะเบียนแล้ว" },
+                              { value: "no", label: "ยังไม่ขึ้นทะเบียน" },
+                            ]}
                           />
                         </div>
-                      )}
+                      </div>
+                      <div>
+                        <Label>เลขที่บัญชีนายจ้าง (สปส.)</Label>
+                        <Input
+                          value={form.sso_employer_no}
+                          onChange={(e) =>
+                            setForm((f) => ({ ...f, sso_employer_no: e.target.value }))
+                          }
+                          placeholder="เช่น 1000xxxxxxx"
+                        />
+                      </div>
+                    </div>
 
+                    <div>
+                      <Label>ช่องทางยื่นแบบ</Label>
+                      <div className="mt-1">
+                        <SegmentedControl
+                          size="form"
+                          value={form.efiling_enabled ? "efiling" : "paper"}
+                          onChange={(v) =>
+                            setForm((f) => ({ ...f, efiling_enabled: v === "efiling" }))
+                          }
+                          ariaLabel="ช่องทางยื่นแบบ"
+                          options={[
+                            { value: "efiling", label: "e-Filing (สรรพากรออนไลน์)" },
+                            { value: "paper", label: "ยื่นกระดาษที่สรรพากรพื้นที่" },
+                          ]}
+                        />
+                      </div>
+                      <p className="mt-1 text-xs text-gray-400">
+                        บันทึกแค่ช่องทาง — ห้ามเก็บรหัสผ่าน e-Filing ของลูกค้าไว้ในระบบ
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* ── บริการและค่าบริการ ──────────────────────────────────── */}
+                {tab === "service" && (
+                  <div className="space-y-4">
+                    <div>
+                      <p className="mb-2 text-sm font-medium text-gray-700">บริการที่ให้</p>
                       <div className="flex flex-wrap gap-2">
-                        {editing.engagement.modules_managed.includes("accounting") && (
-                          <Link
-                            href={`/${editing.engagement.client_org.slug}/accounting`}
-                            target="_blank"
-                          >
-                            <Button size="sm" variant="outline" className="gap-1.5 text-xs">
-                              <BookOpenText className="h-3.5 w-3.5" /> เปิดสมุดบัญชี
-                              <ArrowUpRight className="h-3 w-3" />
-                            </Button>
-                          </Link>
+                        {SERVICE_FLAGS.map(({ key, label, title }) => {
+                          const on = form[key as keyof FormState] as boolean;
+                          return (
+                            <button
+                              key={key}
+                              type="button"
+                              title={title}
+                              onClick={() => toggleFlag(key as keyof FormState)}
+                              className={cn(
+                                "flex flex-col items-start rounded-lg border px-3 py-1.5 text-left transition-colors",
+                                on
+                                  ? "border-teal-300 bg-teal-50"
+                                  : "border-gray-200 bg-white hover:border-gray-300",
+                              )}
+                            >
+                              <span
+                                className={cn(
+                                  "text-sm font-medium",
+                                  on ? "text-teal-700" : "text-gray-600",
+                                )}
+                              >
+                                {on ? "✓ " : ""}
+                                {label}
+                              </span>
+                              <span className="text-[11px] text-gray-400">{title}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    <div>
+                      <p className="mb-2 text-sm font-medium text-gray-700">
+                        ค่าบริการรายเดือน (บาท)
+                      </p>
+                      <div className="grid grid-cols-4 gap-3">
+                        {([2023, 2024, 2025, 2026] as const).map((y) => (
+                          <div key={y}>
+                            <Label className="text-xs">ปี {y + 543}</Label>
+                            <Input
+                              type="number"
+                              value={(form as Record<string, unknown>)[`fee_${y}`] as string}
+                              onChange={(e) =>
+                                setForm((f) => ({ ...f, [`fee_${y}`]: e.target.value }))
+                              }
+                              placeholder="0"
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label>ค่าบริการรายปี (บาท)</Label>
+                        <Input
+                          type="number"
+                          value={form.fee_yearly}
+                          onChange={(e) => setForm((f) => ({ ...f, fee_yearly: e.target.value }))}
+                          placeholder="0"
+                        />
+                        <p className="mt-1 text-xs text-gray-400">
+                          สำหรับลูกค้าที่ชำระเป็นรายปี — ปล่อยว่างถ้าคิดรายเดือน
+                        </p>
+                      </div>
+                      <div>
+                        <Label>หมายเหตุค่าบริการ</Label>
+                        <Input
+                          value={form.billing_note}
+                          onChange={(e) => setForm((f) => ({ ...f, billing_note: e.target.value }))}
+                          placeholder="เช่น ชำระล่วงหน้าทั้งปี"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* ── เอกสาร / ผู้รับผิดชอบวิชาชีพ ────────────────────────── */}
+                {tab === "docs" && (
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label>วันที่ลูกค้าส่งเอกสารประจำเดือน</Label>
+                        <CustomSelect
+                          value={form.doc_due_day}
+                          onChange={(v) => setForm((f) => ({ ...f, doc_due_day: v }))}
+                          options={[
+                            { value: "", label: "— ไม่กำหนด —" },
+                            ...Array.from({ length: 31 }, (_, i) => ({
+                              value: String(i + 1),
+                              label: `วันที่ ${i + 1} ของเดือนถัดไป`,
+                            })),
+                          ]}
+                        />
+                      </div>
+                      <div>
+                        <Label>ช่องทางรับเอกสาร</Label>
+                        <CustomSelect
+                          value={form.doc_channel}
+                          onChange={(v) => setForm((f) => ({ ...f, doc_channel: v }))}
+                          options={DOC_CHANNEL_OPTIONS}
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <Label>สถานที่เก็บเอกสาร</Label>
+                      <Input
+                        value={form.storage_location}
+                        onChange={(e) =>
+                          setForm((f) => ({ ...f, storage_location: e.target.value }))
+                        }
+                        placeholder="เช่น สำนักงานบัญชี ชั้น 3 ห้องเก็บเอกสาร"
+                      />
+                      {form.storage_location.trim() !== "" && (
+                        <label className="mt-2 flex cursor-pointer items-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={form.dbd_relocation_notified}
+                            onChange={(e) =>
+                              setForm((f) => ({ ...f, dbd_relocation_notified: e.target.checked }))
+                            }
+                            className="rounded"
+                          />
+                          <span className="text-sm text-gray-700">
+                            แจ้งย้ายสถานที่เก็บบัญชีต่อกรมพัฒนาธุรกิจการค้าแล้ว
+                          </span>
+                        </label>
+                      )}
+                    </div>
+
+                    <div className="space-y-3 rounded-xl border border-gray-200 p-3">
+                      <p className="text-sm font-medium text-gray-700">ผู้ทำบัญชี / ผู้สอบบัญชี</p>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <Label>ผู้ทำบัญชี (CPD)</Label>
+                          <Input
+                            value={form.accountant_name}
+                            onChange={(e) =>
+                              setForm((f) => ({ ...f, accountant_name: e.target.value }))
+                            }
+                            placeholder="ชื่อ-นามสกุล"
+                          />
+                        </div>
+                        <div>
+                          <Label>เลขทะเบียนผู้ทำบัญชี</Label>
+                          <Input
+                            value={form.accountant_license}
+                            onChange={(e) =>
+                              setForm((f) => ({ ...f, accountant_license: e.target.value }))
+                            }
+                            placeholder="เช่น 12345678901234"
+                          />
+                        </div>
+                        <div>
+                          <Label>ผู้สอบบัญชี (CPA/TA)</Label>
+                          <Input
+                            value={form.auditor_name}
+                            onChange={(e) =>
+                              setForm((f) => ({ ...f, auditor_name: e.target.value }))
+                            }
+                            placeholder="ชื่อ-นามสกุล"
+                          />
+                        </div>
+                        <div>
+                          <Label>เลขทะเบียนผู้สอบบัญชี</Label>
+                          <Input
+                            value={form.auditor_license}
+                            onChange={(e) =>
+                              setForm((f) => ({ ...f, auditor_license: e.target.value }))
+                            }
+                            placeholder="เช่น 1234"
+                          />
+                        </div>
+                      </div>
+                      <p className="text-xs text-gray-400">
+                        พ.ร.บ.การบัญชี
+                        บังคับให้ทุกนิติบุคคลมีผู้ทำบัญชีและแจ้งชื่อต่อกรมพัฒนาธุรกิจการค้า
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* ── การเชื่อมระบบ PERPOS + กลุ่ม LINE ─────────────────────────── */}
+                {tab === "link" && editing && (
+                  <div className="space-y-3 border-t pt-4">
+                    <div className="flex items-center gap-2">
+                      <Link2 className="h-4 w-4 text-gray-500" />
+                      <p className="text-sm font-medium text-gray-700">การเชื่อมระบบ PERPOS</p>
+                    </div>
+
+                    {editing.engagement ? (
+                      <>
+                        <div className="rounded-xl border bg-gray-50 p-3">
+                          <p className="text-sm font-medium text-gray-800">
+                            {editing.engagement.client_org.name}
+                          </p>
+                          <p className="text-xs text-gray-400">
+                            {editing.engagement.client_org.slug}
+                            {editing.engagement.started_at
+                              ? ` · เริ่มดูแล ${editing.engagement.started_at}`
+                              : ""}
+                          </p>
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <Label>Modules ที่ดูแล</Label>
+                          <div className="flex flex-wrap gap-2">
+                            {MODULE_OPTIONS.map((m) => (
+                              <button
+                                key={m.value}
+                                type="button"
+                                disabled={!isAdmin}
+                                onClick={() => toggleLinkModule(m.value)}
+                                className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm transition-colors disabled:cursor-default disabled:opacity-70 ${
+                                  linkModules.includes(m.value)
+                                    ? "border-teal-300 bg-teal-50 text-teal-700"
+                                    : "border-gray-200 text-gray-500 hover:border-gray-300"
+                                }`}
+                              >
+                                {MODULE_ICON[m.value]} {m.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        {isAdmin && (
+                          <div className="space-y-1.5">
+                            <Label>สถานะการดูแล</Label>
+                            <CustomSelect
+                              value={editing.engagement.status}
+                              onChange={(v) => saveEngagement(v)}
+                              options={ENGAGEMENT_STATUS}
+                              className="w-40"
+                            />
+                          </div>
                         )}
+
+                        <div className="flex flex-wrap gap-2">
+                          {editing.engagement.modules_managed.includes("accounting") && (
+                            <Link
+                              href={`/${editing.engagement.client_org.slug}/accounting`}
+                              target="_blank"
+                            >
+                              <Button size="sm" variant="outline" className="gap-1.5 text-xs">
+                                <BookOpenText className="h-3.5 w-3.5" /> เปิดสมุดบัญชี
+                                <ArrowUpRight className="h-3 w-3" />
+                              </Button>
+                            </Link>
+                          )}
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="gap-1.5 text-xs"
+                            onClick={() => {
+                              const c = editing;
+                              setDialogOpen(false);
+                              openProvision(c);
+                            }}
+                          >
+                            <UserCog className="h-3.5 w-3.5" /> จัดการผู้ดูแล
+                          </Button>
+                          {isAdmin && (
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              className="gap-1.5 text-xs"
+                              disabled={linkSaving || linkModules.length === 0}
+                              onClick={() => saveEngagement()}
+                            >
+                              {linkSaving ? "กำลังบันทึก…" : "บันทึก modules"}
+                            </Button>
+                          )}
+                          {isAdmin && (
+                            <Button
+                              size="sm"
+                              variant={confirmUnlink ? "destructive" : "outline"}
+                              className="ms-auto gap-1.5 text-xs"
+                              disabled={linkSaving}
+                              onClick={() => (confirmUnlink ? unlinkOrg() : setConfirmUnlink(true))}
+                            >
+                              <Unlink className="h-3.5 w-3.5" />
+                              {linkSaving
+                                ? "กำลังเลิกเชื่อม…"
+                                : confirmUnlink
+                                  ? "กดอีกครั้งเพื่อยืนยัน"
+                                  : "เลิกเชื่อม"}
+                            </Button>
+                          )}
+                        </div>
+                        {confirmUnlink && (
+                          <p className="text-xs text-red-600">
+                            เลิกเชื่อมแล้ว ทีมของสำนักงานจะ
+                            <b>ถูกถอนสิทธิ์ออกจากบัญชีของลูกค้ารายนี้ทั้งหมด</b>{" "}
+                            และข้อมูลค่าบริการ/เอกสารในทะเบียนยังอยู่ครบ
+                          </p>
+                        )}
+                      </>
+                    ) : isAdmin ? (
+                      <>
+                        <p className="text-xs text-gray-400">
+                          เชื่อมกับ org ของลูกค้าในระบบ เพื่อให้ทีมเข้าไปทำบัญชี / ใช้ OCR /
+                          ตรวจปิดงวดให้ได้
+                        </p>
+                        <div className="space-y-1.5">
+                          <Label>องค์กรลูกค้าในระบบ</Label>
+                          <CustomSelect
+                            value={linkOrgId}
+                            onChange={setLinkOrgId}
+                            options={[
+                              { value: "", label: "— เลือกองค์กร —" },
+                              ...availableOrgs.filter((o) => !linkedOrgIds.has(o.value)),
+                            ]}
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label>Modules ที่จะดูแล</Label>
+                          <div className="flex flex-wrap gap-2">
+                            {MODULE_OPTIONS.map((m) => (
+                              <button
+                                key={m.value}
+                                type="button"
+                                onClick={() => toggleLinkModule(m.value)}
+                                className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm transition-colors ${
+                                  linkModules.includes(m.value)
+                                    ? "border-teal-300 bg-teal-50 text-teal-700"
+                                    : "border-gray-200 text-gray-500 hover:border-gray-300"
+                                }`}
+                              >
+                                {MODULE_ICON[m.value]} {m.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
                         <Button
                           size="sm"
                           variant="outline"
-                          className="gap-1.5 text-xs"
-                          onClick={() => {
-                            const c = editing;
-                            setDialogOpen(false);
-                            openProvision(c);
-                          }}
+                          className="gap-1.5"
+                          disabled={linkSaving || !linkOrgId || linkModules.length === 0}
+                          onClick={linkOrg}
                         >
-                          <UserCog className="h-3.5 w-3.5" /> จัดการผู้ดูแล
+                          <Link2 className="h-3.5 w-3.5" />
+                          {linkSaving ? "กำลังเชื่อม…" : "เชื่อมระบบ"}
                         </Button>
-                        {isAdmin && (
-                          <Button
-                            size="sm"
-                            variant="secondary"
-                            className="gap-1.5 text-xs"
-                            disabled={linkSaving || linkModules.length === 0}
-                            onClick={() => saveEngagement()}
-                          >
-                            {linkSaving ? "กำลังบันทึก…" : "บันทึก modules"}
-                          </Button>
-                        )}
-                        {isAdmin && (
-                          <Button
-                            size="sm"
-                            variant={confirmUnlink ? "destructive" : "outline"}
-                            className="ms-auto gap-1.5 text-xs"
-                            disabled={linkSaving}
-                            onClick={() => (confirmUnlink ? unlinkOrg() : setConfirmUnlink(true))}
-                          >
-                            <Unlink className="h-3.5 w-3.5" />
-                            {linkSaving
-                              ? "กำลังเลิกเชื่อม…"
-                              : confirmUnlink
-                                ? "กดอีกครั้งเพื่อยืนยัน"
-                                : "เลิกเชื่อม"}
-                          </Button>
-                        )}
-                      </div>
-                      {confirmUnlink && (
-                        <p className="text-xs text-red-600">
-                          เลิกเชื่อมแล้ว ทีมของสำนักงานจะ
-                          <b>ถูกถอนสิทธิ์ออกจากบัญชีของลูกค้ารายนี้ทั้งหมด</b>{" "}
-                          และข้อมูลค่าบริการ/เอกสารในทะเบียนยังอยู่ครบ
-                        </p>
-                      )}
-                    </>
-                  ) : isAdmin ? (
-                    <>
+                      </>
+                    ) : (
                       <p className="text-xs text-gray-400">
-                        เชื่อมกับ org ของลูกค้าในระบบ เพื่อให้ทีมเข้าไปทำบัญชี / ใช้ OCR /
-                        ตรวจปิดงวดให้ได้
+                        ลูกค้ารายนี้ยังไม่ได้เชื่อมกับ org ในระบบ — ติดต่อผู้ดูแลระบบเพื่อเปิดให้
                       </p>
-                      <div className="space-y-1.5">
-                        <Label>องค์กรลูกค้าในระบบ</Label>
-                        <CustomSelect
-                          value={linkOrgId}
-                          onChange={setLinkOrgId}
-                          options={[
-                            { value: "", label: "— เลือกองค์กร —" },
-                            ...availableOrgs.filter((o) => !linkedOrgIds.has(o.value)),
-                          ]}
-                        />
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label>Modules ที่จะดูแล</Label>
-                        <div className="flex flex-wrap gap-2">
-                          {MODULE_OPTIONS.map((m) => (
-                            <button
-                              key={m.value}
-                              type="button"
-                              onClick={() => toggleLinkModule(m.value)}
-                              className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm transition-colors ${
-                                linkModules.includes(m.value)
-                                  ? "border-teal-300 bg-teal-50 text-teal-700"
-                                  : "border-gray-200 text-gray-500 hover:border-gray-300"
-                              }`}
-                            >
-                              {MODULE_ICON[m.value]} {m.label}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="gap-1.5"
-                        disabled={linkSaving || !linkOrgId || linkModules.length === 0}
-                        onClick={linkOrg}
-                      >
-                        <Link2 className="h-3.5 w-3.5" />
-                        {linkSaving ? "กำลังเชื่อม…" : "เชื่อมระบบ"}
-                      </Button>
-                    </>
-                  ) : (
-                    <p className="text-xs text-gray-400">
-                      ลูกค้ารายนี้ยังไม่ได้เชื่อมกับ org ในระบบ — ติดต่อผู้ดูแลระบบเพื่อเปิดให้
-                    </p>
-                  )}
-                </div>
-              )}
+                    )}
+                  </div>
+                )}
 
-              {/* กลุ่ม LINE ของลูกค้า — เชื่อมด้วยรหัส + ตั้งค่าอัปเดตที่จะส่ง */}
-              {tab === "link" && editing && orgId && token && (
-                <ClientLineGroupSection
-                  orgId={orgId}
-                  token={token}
-                  clientId={editing.id}
-                  canWrite={canWrite}
-                  onChanged={load}
-                />
-              )}
+                {/* กลุ่ม LINE ของลูกค้า — เชื่อมด้วยรหัส + ตั้งค่าอัปเดตที่จะส่ง */}
+                {tab === "link" && editing && orgId && token && (
+                  <ClientLineGroupSection
+                    orgId={orgId}
+                    token={token}
+                    clientId={editing.id}
+                    canWrite={canWrite}
+                    onChanged={load}
+                  />
+                )}
+              </div>
             </div>
           </DialogBody>
 
@@ -1489,7 +1580,7 @@ export default function AccFirmClientsPage() {
             )}
             {/* ฟอร์มแบ่งเป็นแท็บแล้ว — ถ้าฟิลด์บังคับอยู่คนละแท็บ ต้องบอกว่าติดตรงไหน
                 ไม่งั้นผู้ใช้เห็นปุ่มบันทึกจางแล้วไม่รู้ว่าทำไม */}
-            {canWrite && (!form.client_code || !form.company_name) && tab !== "main" && (
+            {canWrite && missingRequired && tab !== "main" && (
               <button
                 type="button"
                 onClick={() => switchTab("main")}
@@ -1502,7 +1593,7 @@ export default function AccFirmClientsPage() {
               {canWrite ? "ยกเลิก" : "ปิด"}
             </Button>
             {canWrite && (
-              <Button onClick={save} disabled={saving || !form.client_code || !form.company_name}>
+              <Button onClick={save} disabled={saving || missingRequired}>
                 {saving ? "กำลังบันทึก…" : "บันทึก"}
               </Button>
             )}
