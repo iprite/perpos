@@ -42,7 +42,7 @@ export function SegmentedControl<T extends string>({
   value: T;
   onChange: (value: T) => void;
   options: SegmentedOption<T>[];
-  /** sm = ตัวกรอง/แท็บในหน้า (default) · md = form control ในฟอร์ม · xs = inline ในตาราง */
+  /** sm = ตัวกรอง/แท็บ/yes-no ในฟอร์ม (default) · md = คู่กับ Input (h-9) · xs = inline ในตาราง */
   size?: "xs" | "sm" | "md";
   /** กระจายเต็มความกว้าง (แต่ละตัวเลือกกว้างเท่ากัน) */
   fullWidth?: boolean;

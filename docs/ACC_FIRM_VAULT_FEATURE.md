@@ -88,6 +88,47 @@ acc_firm_vault_incidents         เอกสารสูญหาย/ข้อ�
 
 ---
 
+## 4.5 กลุ่ม LINE ของลูกค้า (client LINE group) — เชื่อมด้วยรหัส + ส่งอัปเดตรายลูกค้า
+
+**โมเดล:** 1 ลูกค้าในทะเบียน (`acc_firm_service_clients`) = 1 กลุ่ม LINE
+(ต่างจาก gov_procure ที่ผูก "1 กลุ่มต่อ org" ใน `gov_procure_settings`)
+
+**วิธีเชื่อม (ทีมงานคุมทั้งหมด):** เพิ่ม Perpos OA เข้ากลุ่มลูกค้า → ทีมกด "สร้างรหัสเชื่อมกลุ่ม"
+ในกล่องแก้ไขลูกค้าที่ `/acc-firm/clients` → ได้รหัส `PP-XXXXXX` (ใช้ครั้งเดียว, หมดอายุ 24 ชม.) →
+พิมพ์รหัสนั้นในกลุ่ม → webhook ผูก `line_group_id` เข้ากับลูกค้ารายนั้น
+
+**invariant / กติกาความปลอดภัย**
+
+- **กลุ่มที่ยังไม่ผูก บอทเงียบเสมอ** — ตอบเฉพาะรหัสที่มีอยู่จริงเท่านั้น (รหัสมั่ว = ไม่ตอบ กันคนสุ่มรหัสในกลุ่มอื่น)
+- **รหัสคือ secret** — ใช้ครั้งเดียว ล้างทิ้งทันทีที่ผูกสำเร็จ/เลิกผูก
+- 1 กลุ่มผูกได้ลูกค้าเดียว และ 1 ลูกค้าผูกได้กลุ่มเดียว (unique index ทั้งสองฝั่ง)
+- ทุกข้อความ query ด้วย `service_client_id` ตรงเสมอ → ไม่มีทางส่งข้อมูลลูกค้ารายอื่นเข้ากลุ่ม
+
+**อัปเดตที่ส่งได้ (สวิตช์รายลูกค้า)** — `CLIENT_LINE_EVENTS` ใน [`lib/acc-firm/line-group.ts`](../apps/perpos/src/lib/acc-firm/line-group.ts)
+
+| event          | เกิดเมื่อ                                     | ต้นทาง                                                   |
+| -------------- | --------------------------------------------- | -------------------------------------------------------- |
+| `doc_received` | บันทึกเอกสารเข้าคลังสำเร็จ                    | `POST /api/acc-firm/vault/documents` (intent=register)   |
+| `tax_due`      | ก่อนครบกำหนดยื่น 7 / 3 / 1 วัน และวันครบกำหนด | scheduler tier **t60** → `sweepClientTaxDueReminders`    |
+| `tax_filed`    | ทีมกดยืนยันว่ายื่นแบบแล้ว                     | `POST /api/accounting/tax-filings/[id]/mark-filed`       |
+| `billing`      | ทีมพิมพ์ส่งเอง                                | `POST /api/acc-firm/client-line-group` (`action:"send"`) |
+| `announce`     | ทีมพิมพ์ส่งเอง                                | เหมือนบน                                                 |
+
+**dedup:** งานอัตโนมัติส่งผ่าน `dedupKey` (`tax_due:<filingId>:<daysLeft>`, `tax_filed:<filingId>`) →
+unique index บน `(service_client_id, dedup_key)` ทำให้ scheduler รันซ้ำกี่รอบก็ไม่ส่งซ้ำ
+
+**คำสั่งในกลุ่ม (ฝั่งลูกค้า):** `/สถานะ` (สถานะยื่นภาษี 6 งวดล่าสุด) · `/help` — เลิกเชื่อมทำจากฝั่งเว็บเท่านั้น
+
+**ตาราง:** `acc_firm_client_line_groups` (สถานะ + รหัส + สวิตช์ 5 ตัว) ·
+`acc_firm_client_line_messages` (log การส่ง + dedup, INSERT/UPDATE ถูก revoke จาก authenticated)
+— migration [`20260730100000_acc_firm_client_line_group.sql`](../supabase/migrations/20260730100000_acc_firm_client_line_group.sql)
+
+**Code map:** `lib/acc-firm/line-group.ts` (ผูก/เลิกผูก/router ในกลุ่ม/ตัวส่ง + Flex) ·
+`lib/acc-firm/line-reminders.ts` (sweep เตือนภาษี) · `api/acc-firm/client-line-group/route.ts` ·
+`(hydrogen)/[orgSlug]/acc-firm/clients/_line-group-section.tsx` · hook ใน webhook (branch กลุ่ม, วางก่อน gov_procure)
+
+---
+
 ## 5. สถานะ + สิ่งที่ยังไม่ทำ
 
 **เสร็จแล้ว (Phase 1)**: schema + RLS + retention/deletion/legal-hold guard + bucket + taxonomy + แม่แบบ +
@@ -95,7 +136,8 @@ API 7 เส้น + หน้าแรกคลัง + แฟ้มลูก�
 
 **ยังไม่ทำ**
 
-- **Phase 2 (compliance)**: purge approval flow (DB กันแล้ว แต่ยังไม่มีหน้าให้อนุมัติ) · หน้า incident + นับถอยหลัง 15 วัน/72 ชม. · access-log viewer · RoPA export · LINE alert ผูก deadline
+- **Phase 2 (compliance)**: purge approval flow (DB กันแล้ว แต่ยังไม่มีหน้าให้อนุมัติ) · หน้า incident + นับถอยหลัง 15 วัน/72 ชม. · access-log viewer · RoPA export
+  — **LINE alert ผูก deadline เสร็จแล้ว** (ดู §4.5 กลุ่ม LINE ของลูกค้า) แต่ยังไม่มีหน้าดูประวัติการส่ง (`acc_firm_client_line_messages`) และยังไม่มี event "ทวงเอกสารที่ยังไม่ครบตาม checklist"
 - **Phase 3 (AI)**: Gemini auto-classify ต่อยอดจาก [`ACC_FIRM_OCR_FEATURE.md`](ACC_FIRM_OCR_FEATURE.md) · LIFF upload · full-text search
 - ลายเซ็นลูกค้า (canvas) + ใบรับเอกสาร PDF ผ่าน `pdf-renderer` · งวดรายปีในหน้า (API รองรับแล้ว) ·
   paging ตารางเอกสาร (ยังไม่ใช้ `lib/accounting/paging.ts` → เสี่ยงเพดาน 1,000 แถวเมื่อเอกสารเยอะ)

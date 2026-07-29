@@ -8,6 +8,7 @@
  * ไฟล์วิ่งตรงจาก browser → storage ด้วย signed upload URL (ไม่ผ่าน route นี้) เพื่อไม่กิน memory ของ Vercel
  */
 import { NextRequest, NextResponse } from "next/server";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { listDocuments } from "@/lib/acc-firm/vault/queries";
 import {
   assertClientOfFirm,
@@ -17,6 +18,17 @@ import {
 } from "@/lib/acc-firm/vault/documents";
 import type { DocumentClassification, DocumentSource } from "@/lib/acc-firm/vault/types";
 import { requireVault, vaultErrorResponse } from "../_lib";
+import { buildUpdateFlex, notifyClientGroup } from "@/lib/acc-firm/line-group";
+
+/** ชื่อบริษัทของลูกค้า (ใช้ในการ์ด LINE) */
+async function companyNameOf(db: SupabaseClient, clientId: string): Promise<string> {
+  const { data } = await db
+    .from("acc_firm_service_clients")
+    .select("company_name")
+    .eq("id", clientId)
+    .maybeSingle();
+  return (data as { company_name?: string } | null)?.company_name ?? "ลูกค้า";
+}
 
 export async function GET(req: NextRequest) {
   const ctx = await requireVault(req);
@@ -106,6 +118,23 @@ export async function POST(req: NextRequest) {
           : undefined,
       source: typeof body?.source === "string" ? (body.source as DocumentSource) : "web",
       uploadedBy: ctx.userId,
+    });
+
+    // แจ้งกลุ่ม LINE ของลูกค้าว่าได้รับเอกสารแล้ว (ปิด/เปิดได้รายลูกค้า · ล้มเหลวไม่กระทบการบันทึก)
+    await notifyClientGroup(ctx.db, {
+      serviceClientId: clientId,
+      event: "doc_received",
+      summary: `รับเอกสาร: ${title}`,
+      messages: [
+        buildUpdateFlex({
+          title: "📥 ได้รับเอกสารแล้ว",
+          companyName: await companyNameOf(ctx.db, clientId),
+          highlight: title,
+          highlightTone: "success",
+          lines: [`ประเภท: ${(category.code as string) ?? "-"}`, "เก็บเข้าคลังเอกสารเรียบร้อย"],
+          footnote: "หากส่งผิดไฟล์ แจ้งทีมงานบัญชีได้ทันที",
+        }),
+      ],
     });
 
     return NextResponse.json(created, { status: 201 });

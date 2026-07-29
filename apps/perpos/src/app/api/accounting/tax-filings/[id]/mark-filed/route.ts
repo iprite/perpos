@@ -3,6 +3,12 @@ import { createAdminClient } from "../../../../_lib/supabase";
 import { setAuditContext } from "../../../../_lib/audit";
 import { recordMetric } from "@/lib/metrics";
 import { requireAccountingMember, canWriteBackstage, accError } from "../../../_lib";
+import {
+  buildUpdateFlex,
+  companyNameByOrg,
+  notifyClientGroupByOrg,
+  TAX_LABEL,
+} from "@/lib/acc-firm/line-group";
 
 const ROUTE = "/api/accounting/tax-filings/[id]/mark-filed";
 type Ctx = { params: Promise<{ id: string }> };
@@ -41,6 +47,23 @@ export async function POST(req: NextRequest, ctx: Ctx) {
     void recordMetric({ orgId, route: ROUTE, method: req.method, status: 500, t0 });
     return accError(error.message, 500);
   }
+  // แจ้งกลุ่ม LINE ของลูกค้า (ถ้า org นี้เป็นลูกค้าของสำนักงานบัญชีที่ผูกกลุ่มไว้)
+  const f = data as { tax_kind: string; period_year: number; period_month: number };
+  await notifyClientGroupByOrg(admin, orgId, {
+    event: "tax_filed",
+    summary: `ยื่น ${TAX_LABEL[f.tax_kind] ?? f.tax_kind} งวด ${f.period_month}/${f.period_year}`,
+    dedupKey: `tax_filed:${id}`,
+    messages: [
+      buildUpdateFlex({
+        title: "✅ ยื่นภาษีให้แล้ว",
+        companyName: await companyNameByOrg(admin, orgId),
+        highlight: `${TAX_LABEL[f.tax_kind] ?? f.tax_kind} งวด ${f.period_month}/${f.period_year}`,
+        highlightTone: "success",
+        footnote: "เอกสารยืนยันการยื่นเก็บไว้ในคลังเอกสารของบริษัท",
+      }),
+    ],
+  });
+
   void recordMetric({ orgId, route: ROUTE, method: req.method, status: 200, t0 });
   return NextResponse.json(data);
 }
