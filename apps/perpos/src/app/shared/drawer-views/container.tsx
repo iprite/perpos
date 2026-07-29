@@ -1,7 +1,7 @@
 "use client";
 
 import { Drawer } from "rizzui";
-import { useEffect } from "react";
+import { Fragment, useEffect } from "react";
 import cn from "@core/utils/class-names";
 import { usePathname } from "next/navigation";
 import { useDrawer } from "@/app/shared/drawer-views/use-drawer";
@@ -29,7 +29,9 @@ export default function GlobalDrawer() {
       )}
       className="z-[9999] h-screen"
     >
-      {view}
+      {/* rizzui Drawer render children เป็น array `[resizer, children]` → item ต้องมี key
+          (ไม่งั้น React เตือน "unique key prop" ทุกครั้งที่เปิด drawer) */}
+      {view ? <Fragment key="drawer-view">{view}</Fragment> : null}
     </Drawer>
   );
 }
