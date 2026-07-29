@@ -18,7 +18,7 @@ const DialogOverlay = React.forwardRef<
   <DialogPrimitive.Overlay
     ref={ref}
     className={cn(
-      "fixed inset-0 z-50 bg-black/40 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
+      "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-50 bg-black/40",
       className,
     )}
     {...props}
@@ -65,7 +65,7 @@ const DialogContent = React.forwardRef<
       {...props}
     >
       {children}
-      <DialogClose className="absolute right-4 top-4 z-10 rounded-md p-0.5 text-gray-400 opacity-80 transition-opacity hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 ring-offset-white">
+      <DialogClose className="absolute right-4 top-4 z-10 rounded-md p-0.5 text-gray-400 opacity-80 ring-offset-white transition-opacity hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2">
         <X className="h-4 w-4" />
         <span className="sr-only">ปิด</span>
       </DialogClose>
@@ -88,10 +88,36 @@ function DialogHeader({ className, ...props }: React.HTMLAttributes<HTMLDivEleme
 }
 DialogHeader.displayName = "DialogHeader";
 
-/** Body — ส่วนเดียวที่ scroll ได้ */
-function DialogBody({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn("min-h-0 flex-1 overflow-y-auto px-5 py-4", className)} {...props} />;
-}
+/**
+ * Body — ส่วนเดียวที่ scroll ได้
+ *
+ * `fixedHeight` = ล็อกความสูงไว้คงที่ (ไม่ยืด-หดตามเนื้อหา) — **บังคับใช้กับ dialog ที่มีแท็บ**
+ * ไม่งั้นกล่องจะเด้งสูง-เตี้ยทุกครั้งที่สลับแท็บ ปุ่มในแถบล่างขยับหนีมือผู้ใช้
+ *   true      → min(60vh, 32rem) — ค่ากลางที่พอดีกับฟอร์มส่วนใหญ่
+ *   "sm"|"lg" → min(48vh, 24rem) / min(70vh, 40rem)
+ */
+const DialogBody = React.forwardRef<
+  HTMLDivElement,
+  React.HTMLAttributes<HTMLDivElement> & { fixedHeight?: boolean | "sm" | "lg" }
+>(function DialogBody({ className, fixedHeight, ...props }, ref) {
+  // หมายเหตุ: ต้อง **ไม่ใส่ `flex-1`** เมื่อล็อกความสูง — flex-basis:0 ของ flex-1 ชนะ height
+  // ทำให้ h-[...] ไม่มีผล (กับดักที่เคยเจอ) · ปล่อย shrink ปกติไว้ เพื่อให้ยังย่อได้บนจอเตี้ย
+  const locked =
+    fixedHeight === "sm"
+      ? "h-[min(48vh,24rem)]"
+      : fixedHeight === "lg"
+        ? "h-[min(70vh,40rem)]"
+        : fixedHeight
+          ? "h-[min(60vh,32rem)]"
+          : "flex-1";
+  return (
+    <div
+      ref={ref}
+      className={cn("min-h-0 overflow-y-auto px-5 py-4", locked, className)}
+      {...props}
+    />
+  );
+});
 DialogBody.displayName = "DialogBody";
 
 /** Footer — pinned ล่างสุด, มีเส้นคั่นบน, ปุ่มชิดขวา (ปุ่ม destructive ใส่ className="mr-auto") */
@@ -112,7 +138,11 @@ const DialogTitle = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Title>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Title>
 >(({ className, ...props }, ref) => (
-  <DialogPrimitive.Title ref={ref} className={cn("text-lg font-semibold text-gray-900", className)} {...props} />
+  <DialogPrimitive.Title
+    ref={ref}
+    className={cn("text-lg font-semibold text-gray-900", className)}
+    {...props}
+  />
 ));
 DialogTitle.displayName = DialogPrimitive.Title.displayName;
 
@@ -120,7 +150,11 @@ const DialogDescription = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Description>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Description>
 >(({ className, ...props }, ref) => (
-  <DialogPrimitive.Description ref={ref} className={cn("text-sm text-gray-500", className)} {...props} />
+  <DialogPrimitive.Description
+    ref={ref}
+    className={cn("text-sm text-gray-500", className)}
+    {...props}
+  />
 ));
 DialogDescription.displayName = DialogPrimitive.Description.displayName;
 

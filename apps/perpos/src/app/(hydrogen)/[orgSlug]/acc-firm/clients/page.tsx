@@ -8,7 +8,7 @@
  * (`acc_firm_clients`) เป็นคุณสมบัติของลูกค้าในทะเบียน จัดการในกล่องแก้ไขของลูกค้ารายนั้น
  */
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -274,6 +274,12 @@ export default function AccFirmClientsPage() {
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [tab, setTab] = useState<ClientTab>("main");
+  /** เนื้อในกล่อง — สลับแท็บแล้วต้องเลื่อนกลับบนสุด (ไม่งั้นเปิดแท็บใหม่มาค้างกลางหน้า) */
+  const dialogBodyRef = useRef<HTMLDivElement>(null);
+  const switchTab = (next: ClientTab) => {
+    setTab(next);
+    dialogBodyRef.current?.scrollTo({ top: 0 });
+  };
   const [editing, setEditing] = useState<ServiceClient | null>(null);
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
@@ -834,14 +840,12 @@ export default function AccFirmClientsPage() {
         <DialogContent size="xl">
           <DialogHeader>
             <DialogTitle>{editing ? "แก้ไขลูกค้า" : "เพิ่มลูกค้า"}</DialogTitle>
-          </DialogHeader>
-
-          <DialogBody>
-            <div className="space-y-4">
-              {/* แถบกลุ่มข้อมูล — ฟอร์มยาวเกินกว่าจะไล่ทีเดียว แบ่งเป็นกลุ่มตามงานที่ทำจริง */}
+            {/* แถบกลุ่มข้อมูลอยู่ใน header (ไม่เลื่อนหาย) — ฟอร์มยาวเกินกว่าจะไล่ทีเดียว
+                แบ่งเป็นกลุ่มตามงานที่ทีมทำจริง */}
+            <div className="mt-2">
               <SegmentedControl
                 value={tab}
-                onChange={(v) => setTab(v as ClientTab)}
+                onChange={(v) => switchTab(v as ClientTab)}
                 ariaLabel="กลุ่มข้อมูลลูกค้า"
                 options={CLIENT_TABS.filter((t) => !t.editOnly || !!editing).map((t) => ({
                   value: t.key,
@@ -849,7 +853,12 @@ export default function AccFirmClientsPage() {
                   icon: t.icon,
                 }))}
               />
+            </div>
+          </DialogHeader>
 
+          {/* ล็อกความสูงไว้ — สลับแท็บแล้วกล่องต้องไม่เด้งสูง-เตี้ย */}
+          <DialogBody fixedHeight ref={dialogBodyRef}>
+            <div className="space-y-4">
               {/* ── ข้อมูลหลัก ───────────────────────────────────────────── */}
               {tab === "main" && (
                 <div className="space-y-4">
@@ -1488,7 +1497,7 @@ export default function AccFirmClientsPage() {
             {canWrite && (!form.client_code || !form.company_name) && tab !== "main" && (
               <button
                 type="button"
-                onClick={() => setTab("main")}
+                onClick={() => switchTab("main")}
                 className="mr-auto self-center text-xs text-amber-600 underline underline-offset-2"
               >
                 ยังกรอกไม่ครบ — ต้องมีรหัสลูกค้าและชื่อบริษัทในแท็บ &ldquo;ข้อมูลหลัก&rdquo;

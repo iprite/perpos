@@ -946,6 +946,38 @@ import {
 
 ทุก size บนมือถือ = `w-[calc(100vw-2rem)]` อัตโนมัติ
 
+### Dialog ที่มีแท็บ — ล็อกความสูง + แถบแท็บอยู่ใน header (บังคับ)
+
+ฟอร์มยาวที่แบ่งเป็นแท็บ ถ้าปล่อยให้ body สูงตามเนื้อหา กล่องจะ**เด้งสูง-เตี้ยทุกครั้งที่สลับแท็บ**
+ปุ่ม "บันทึก/ยกเลิก" ขยับหนีมือ และภาพรวมดูกระตุก
+
+```tsx
+<DialogContent size="xl">
+  <DialogHeader>
+    <DialogTitle>แก้ไขลูกค้า</DialogTitle>
+    {/* แถบแท็บอยู่ใน header → ไม่เลื่อนหายตอน scroll เนื้อหา */}
+    <div className="mt-2">
+      <SegmentedControl value={tab} onChange={switchTab} options={TABS} />
+    </div>
+  </DialogHeader>
+
+  {/* fixedHeight = สูงคงที่ทุกแท็บ · true = min(60vh,32rem) · "sm"/"lg" = เล็ก/ใหญ่ */}
+  <DialogBody fixedHeight ref={bodyRef}>
+    …
+  </DialogBody>
+  <DialogFooter>…</DialogFooter>
+</DialogContent>
+```
+
+- **สลับแท็บต้องเลื่อนกลับบนสุด** — `bodyRef.current?.scrollTo({ top: 0 })` ใน handler เดียวกับที่ setTab
+  (ไม่งั้นเปิดแท็บใหม่มาค้างกลางหน้า) · `DialogBody` รับ `ref` ได้แล้ว
+- แท็บที่เนื้อหาสั้นจะมีที่ว่างด้านล่าง = ปกติและตั้งใจ · แท็บที่ยาวกว่าจะ scroll ในตัว
+- ฟิลด์บังคับที่อยู่คนละแท็บ ต้องมีข้อความบอกในแถบล่างว่าติดตรงไหน + กดแล้วกระโดดไปแท็บนั้น
+  (ไม่งั้นผู้ใช้เห็นปุ่มบันทึกจางโดยไม่รู้สาเหตุ)
+- ⚠️ กับดัก: `h-[...]` จะไม่มีผลถ้ายังมี `flex-1` อยู่ (flex-basis:0 ชนะ height) — `DialogBody`
+  จัดการให้แล้ว **อย่าใส่ `flex-1` ทับเอง**
+- ต้นแบบจริง: กล่องแก้ไขลูกค้า [acc-firm/clients](<apps/perpos/src/app/(hydrogen)/[orgSlug]/acc-firm/clients/page.tsx>)
+
 ### Dialog ที่มีปุ่ม Destructive (ลบ/อันตราย)
 
 ```tsx
