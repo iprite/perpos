@@ -4,6 +4,7 @@
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { seedAccFirmVault } from "@/lib/acc-firm/vault/provision";
 
 // ── TMC ─────────────────────────────────────────────────────────────────────────
 
@@ -286,5 +287,7 @@ export async function seedModule(
 ): Promise<Record<string, number> | null> {
   if (moduleKey === "tmc") return seedTmc(orgId, admin);
   if (moduleKey === "accounting") return seedAccounting(orgId, admin);
+  // สำนักงานบัญชี: แม่แบบรายการเอกสารของคลังเอกสารลูกค้า — ถ้าไม่มี "เปิดงวด" จะทำไม่ได้เลย
+  if (moduleKey === "acc_firm") return seedAccFirmVault(orgId, admin);
   return null;
 }

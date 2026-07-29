@@ -407,8 +407,9 @@ export async function createCustodyEntry(
 ): Promise<{ id: string; receiptNo: string }> {
   if (!args.itemSummary.trim()) throw new VaultError("ระบุรายการเอกสารที่รับ-ส่ง", 400);
 
-  const year = new Date().getFullYear();
-  const prefix = `${args.direction === "in" ? "RCV" : "RTN"}-${year}-`;
+  // เลขที่ใบรับเป็นเอกสารที่ลูกค้าเห็น → ใช้ปี พ.ศ. ให้ตรงกับวันที่ทุกจุดในหน้าจอ (DESIGN §14)
+  const yearBe = new Date().getFullYear() + 543;
+  const prefix = `${args.direction === "in" ? "RCV" : "RTN"}-${yearBe}-`;
   const { count } = await db
     .from("acc_firm_vault_custody_log")
     .select("id", { count: "exact", head: true })
