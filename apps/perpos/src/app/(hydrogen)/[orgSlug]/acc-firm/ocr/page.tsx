@@ -46,6 +46,7 @@ import {
   X,
   Lock,
   Brain,
+  Filter,
 } from "lucide-react";
 import { toast } from "@/lib/toast";
 
@@ -149,6 +150,7 @@ export default function AccFirmOcrPage() {
   // Filters
   const [filterClient, setFilterClient] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
+  const [showFilters, setShowFilters] = useState(false);
 
   // Upload Dialog States
   const [uploadOpen, setUploadOpen] = useState(false);
@@ -590,6 +592,7 @@ export default function AccFirmOcrPage() {
     setLines(nextLines);
   };
 
+  const hasFilter = !!filterClient || !!filterStatus;
   const filteredJobs = useMemo(
     () =>
       jobs.filter((job) => {
@@ -631,11 +634,23 @@ export default function AccFirmOcrPage() {
               {batchRunning ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
-                <Sparkles className="h-4 w-4 text-teal-600" />
+                <Sparkles className="h-4 w-4 text-primary" />
               )}
               วิเคราะห์ทั้งหมด ({pendingCount})
             </Button>
           )}
+          <Button
+            variant={showFilters || hasFilter ? "secondary" : "outline"}
+            size="icon"
+            title="ตัวกรอง"
+            className="relative"
+            onClick={() => setShowFilters((v) => !v)}
+          >
+            <Filter className="h-4 w-4" />
+            {hasFilter && (
+              <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-amber-500" />
+            )}
+          </Button>
           <Link href={`/${orgSlug}/acc-firm/ocr/memory`}>
             <Button variant="outline" className="gap-2">
               <Brain className="h-4 w-4" /> ความจำของระบบ
@@ -647,34 +662,36 @@ export default function AccFirmOcrPage() {
         </div>
       }
     >
-      {/* Filters Bar */}
-      <FilterBar>
-        <CustomSelect
-          value={filterClient}
-          onChange={setFilterClient}
-          options={[{ value: "", label: "ทุกบริษัทลูกค้า" }, ...clients]}
-          className="w-64"
-        />
-        <CustomSelect
-          value={filterStatus}
-          onChange={setFilterStatus}
-          options={[
-            { value: "", label: "ทุกสถานะ" },
-            { value: "pending", label: "รอดำเนินการ" },
-            { value: "processing", label: "กำลังวิเคราะห์" },
-            { value: "completed", label: "เสร็จสมบูรณ์" },
-            { value: "failed", label: "ล้มเหลว" },
-          ]}
-          className="w-48"
-        />
-        <FilterClear
-          disabled={!filterClient && !filterStatus}
-          onClick={() => {
-            setFilterClient("");
-            setFilterStatus("");
-          }}
-        />
-      </FilterBar>
+      {/* ตัวกรองซ่อนหลังปุ่มไอคอนบนหัวหน้า (DESIGN.md §4) */}
+      {showFilters && (
+        <FilterBar>
+          <CustomSelect
+            value={filterClient}
+            onChange={setFilterClient}
+            options={[{ value: "", label: "ทุกบริษัทลูกค้า" }, ...clients]}
+            className="w-64"
+          />
+          <CustomSelect
+            value={filterStatus}
+            onChange={setFilterStatus}
+            options={[
+              { value: "", label: "ทุกสถานะ" },
+              { value: "pending", label: "รอดำเนินการ" },
+              { value: "processing", label: "กำลังวิเคราะห์" },
+              { value: "completed", label: "เสร็จสมบูรณ์" },
+              { value: "failed", label: "ล้มเหลว" },
+            ]}
+            className="w-48"
+          />
+          <FilterClear
+            disabled={!hasFilter}
+            onClick={() => {
+              setFilterClient("");
+              setFilterStatus("");
+            }}
+          />
+        </FilterBar>
+      )}
 
       {/* OCR Jobs Queue Table */}
       <div className="rounded-xl border bg-white">
@@ -812,7 +829,7 @@ export default function AccFirmOcrPage() {
         <DialogContent size="lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <UploadCloud className="h-5 w-5 text-teal-500" /> อัปโหลดเอกสารเข้าระบบ AI
+              <UploadCloud className="h-5 w-5 text-primary" /> อัปโหลดเอกสารเข้าระบบ AI
             </DialogTitle>
           </DialogHeader>
 
@@ -979,7 +996,7 @@ export default function AccFirmOcrPage() {
                     if (!conf) return null;
                     return (
                       <div className="flex items-center gap-2 text-xs">
-                        <Sparkles className="h-4 w-4 text-teal-500" />
+                        <Sparkles className="h-4 w-4 text-primary" />
                         <span className="text-slate-500">ความมั่นใจของ AI ในการอ่านเอกสาร:</span>
                         <span
                           className={`rounded-full border px-2 py-0.5 font-semibold ${conf.cls}`}

@@ -4,7 +4,6 @@
 
 import Link from "next/link";
 import { Archive, AlertTriangle, CalendarClock, FolderOpen, Users } from "lucide-react";
-import { PageShell } from "@/components/ui/page-shell";
 import { StatCard } from "@/components/ui/stat-card";
 import { StatusBadge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -21,7 +20,7 @@ import {
 import { LinkTablePager } from "@/components/ui/table-pager";
 import { listClientSummaries } from "@/lib/acc-firm/vault/queries";
 import { requireVaultPage } from "./_components/guard";
-import { VaultClientFilter } from "./_components/client-filter";
+import { VaultFilterShell } from "./_components/filter-shell";
 import { LinkRow } from "./_components/link-row";
 import { fmtDateTime } from "./_components/format";
 
@@ -60,43 +59,54 @@ export default async function VaultIndexPage({
   const totalDocuments = summaries.reduce((sum, s) => sum + s.documentCount, 0);
 
   return (
-    <PageShell
-      width="full"
+    <VaultFilterShell
       icon={<Archive className="h-6 w-6" />}
       title="คลังเอกสารลูกค้า"
       description="ทะเบียนเอกสารของลูกค้าแต่ละราย — ครบ/ขาดอะไร เก็บไว้ที่ไหน ใครรับไป"
+      q={q}
+      scope={scope}
+      summary={
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <StatCard
+            icon={<Users className="h-4 w-4" />}
+            label="ลูกค้าทั้งหมด"
+            value={totalClients.toLocaleString("th-TH")}
+            tone="info"
+          />
+          <StatCard
+            icon={<FolderOpen className="h-4 w-4" />}
+            label="ลูกค้าที่ยังขาดเอกสาร"
+            value={clientsMissing.toLocaleString("th-TH")}
+            sub={totalClients > 0 ? `จากทั้งหมด ${totalClients} ราย` : undefined}
+            tone={clientsMissing > 0 ? "warning" : "positive"}
+            valueColored
+          />
+          <StatCard
+            icon={<CalendarClock className="h-4 w-4" />}
+            label="รายการที่เลยกำหนด"
+            value={overdueItems.toLocaleString("th-TH")}
+            tone={overdueItems > 0 ? "negative" : "positive"}
+            valueColored
+          />
+          <StatCard
+            icon={<Archive className="h-4 w-4" />}
+            label="เอกสารในคลัง"
+            value={totalDocuments.toLocaleString("th-TH")}
+            tone="neutral"
+          />
+        </div>
+      }
     >
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard
-          icon={<Users className="h-4 w-4" />}
-          label="ลูกค้าทั้งหมด"
-          value={totalClients.toLocaleString("th-TH")}
-          tone="info"
-        />
-        <StatCard
-          icon={<FolderOpen className="h-4 w-4" />}
-          label="ลูกค้าที่ยังขาดเอกสาร"
-          value={clientsMissing.toLocaleString("th-TH")}
-          sub={totalClients > 0 ? `จากทั้งหมด ${totalClients} ราย` : undefined}
-          tone={clientsMissing > 0 ? "warning" : "positive"}
-          valueColored
-        />
-        <StatCard
-          icon={<CalendarClock className="h-4 w-4" />}
-          label="รายการที่เลยกำหนด"
-          value={overdueItems.toLocaleString("th-TH")}
-          tone={overdueItems > 0 ? "negative" : "positive"}
-          valueColored
-        />
-        <StatCard
-          icon={<Archive className="h-4 w-4" />}
-          label="เอกสารในคลัง"
-          value={totalDocuments.toLocaleString("th-TH")}
-          tone="neutral"
-        />
-      </div>
-
-      <VaultClientFilter q={q} scope={scope} />
+      {/* เตือนก่อนตาราง — ตารางต้องเป็นชิ้นสุดท้ายของหน้า (fillViewport, DESIGN.md §4) */}
+      {overdueItems > 0 && (
+        <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+          <Text className="text-xs text-amber-800">
+            มีรายการเอกสารที่เลยกำหนดรับ {overdueItems.toLocaleString("th-TH")} รายการ —
+            เปิดแฟ้มลูกค้าเพื่อดูว่าค้างหมวดไหน แล้วติดตามจากลูกค้า
+          </Text>
+        </div>
+      )}
 
       {summaries.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-xl border border-gray-200 bg-white py-16 text-center shadow-sm">
@@ -107,16 +117,16 @@ export default async function VaultIndexPage({
             ยังไม่มีลูกค้าในคลังเอกสาร
           </Title>
           <Text className="mt-1 text-sm text-gray-500">
-            เพิ่มลูกค้าในทะเบียนลูกค้าบริการก่อน แล้วเอกสารทุกงวดจะมาอยู่ที่นี่
+            เพิ่มลูกค้าในทะเบียนลูกค้าก่อน แล้วเอกสารทุกงวดจะมาอยู่ที่นี่
           </Text>
           <Button className="mt-4" size="sm" asChild>
-            <Link href={`/${orgSlug}/acc-firm/service-clients`}>ไปที่ทะเบียนลูกค้าบริการ</Link>
+            <Link href={`/${orgSlug}/acc-firm/clients`}>ไปที่ทะเบียนลูกค้า</Link>
           </Button>
         </div>
       ) : (
         <div className="space-y-3">
-          <Table className="shadow-sm">
-            <TableHeader>
+          <Table className="shadow-sm" stickyHeader fillViewport>
+            <TableHeader sticky>
               <TableRow>
                 <TableHead>รหัส</TableHead>
                 <TableHead>ชื่อบริษัท</TableHead>
@@ -185,16 +195,6 @@ export default async function VaultIndexPage({
           />
         </div>
       )}
-
-      {overdueItems > 0 && (
-        <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3">
-          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
-          <Text className="text-xs text-amber-800">
-            มีรายการเอกสารที่เลยกำหนดรับ {overdueItems.toLocaleString("th-TH")} รายการ —
-            เปิดแฟ้มลูกค้าเพื่อดูว่าค้างหมวดไหน แล้วติดตามจากลูกค้า
-          </Text>
-        </div>
-      )}
-    </PageShell>
+    </VaultFilterShell>
   );
 }

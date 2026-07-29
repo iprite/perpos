@@ -48,7 +48,7 @@ const NEAR_DUE_DAYS = 7;
  *   - draft && due_date < today     → overdue
  *   - draft && due_date >= today    → pending
  */
-function deriveState(
+export function deriveState(
   status: "draft" | "ready" | "filed",
   dueDate: string,
   today: string,
