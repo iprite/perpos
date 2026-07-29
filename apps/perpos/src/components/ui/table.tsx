@@ -25,29 +25,73 @@ type TableProps = React.TableHTMLAttributes<HTMLTableElement> & {
   wrapperClassName?: string;
   /** โหมดแน่น — ลด padding แถว/หัวคอลัมน์ (ดูข้อมูลได้มากขึ้นต่อจอ) */
   dense?: boolean;
+  /**
+   * ตารางที่อยู่ล่างสุดของหน้า → ยืดสูงจนสุดขอบล่างของ browser แล้ว scroll ในตัวเอง
+   * (วัดตำแหน่งจริงให้เอง ไม่ต้องเดา `calc(100vh - …)`) · ใส่คู่ `stickyHeader`
+   * ตัวเลข = พื้นที่ (px) ที่กันไว้ให้ของที่อยู่ใต้ตาราง — default 72 = แถบแบ่งหน้า + ระยะขอบล่าง
+   */
+  fillViewport?: boolean | number;
 };
 
 const Table = React.forwardRef<HTMLTableElement, TableProps>(
-  ({ className, stickyHeader, maxHeight, wrapperClassName, dense, ...props }, ref) => (
-    <div
-      className={cn(
-        "w-full overflow-auto rounded-xl border border-gray-200 bg-white",
-        wrapperClassName,
-      )}
-      style={maxHeight ? { maxHeight } : undefined}
-    >
-      <table
-        ref={ref}
-        data-sticky-header={stickyHeader ? "" : undefined}
+  (
+    { className, stickyHeader, maxHeight, wrapperClassName, dense, fillViewport, ...props },
+    ref,
+  ) => {
+    const wrapperRef = React.useRef<HTMLDivElement>(null);
+    const [fillHeight, setFillHeight] = React.useState<number | null>(null);
+    const reserve = typeof fillViewport === "number" ? fillViewport : 72;
+
+    // วัดจากตำแหน่งจริงของตาราง — ของเหนือตารางยุบ/กางได้ (แถบตัวกรอง) ก็ยังพอดีเสมอ
+    // ตั้งใจไม่ใส่ dependency array: ต้องวัดใหม่ทุก render (ของเหนือตารางเปลี่ยนความสูงได้)
+    // ไม่วนไม่จบเพราะ setState เฉพาะตอนค่าต่างเกิน 1px → รอบถัดไปค่าเท่าเดิม React bail out
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    React.useLayoutEffect(() => {
+      if (!fillViewport) {
+        setFillHeight(null);
+        return;
+      }
+      const measure = () => {
+        const el = wrapperRef.current;
+        if (!el) return;
+        const top = el.getBoundingClientRect().top + window.scrollY;
+        const next = Math.max(200, window.innerHeight - top - reserve);
+        setFillHeight((prev) => (prev !== null && Math.abs(prev - next) < 1 ? prev : next));
+      };
+      measure();
+      window.addEventListener("resize", measure);
+      return () => window.removeEventListener("resize", measure);
+    });
+
+    const style =
+      fillHeight !== null
+        ? { maxHeight: `${fillHeight}px` }
+        : maxHeight
+          ? { maxHeight }
+          : undefined;
+
+    return (
+      <div
+        ref={wrapperRef}
         className={cn(
-          "w-full caption-bottom text-sm",
-          dense && "[&_td]:py-1.5 [&_th]:h-8",
-          className,
+          "w-full overflow-auto rounded-xl border border-gray-200 bg-white",
+          wrapperClassName,
         )}
-        {...props}
-      />
-    </div>
-  ),
+        style={style}
+      >
+        <table
+          ref={ref}
+          data-sticky-header={stickyHeader ? "" : undefined}
+          className={cn(
+            "w-full caption-bottom text-sm",
+            dense && "[&_td]:py-1.5 [&_th]:h-8",
+            className,
+          )}
+          {...props}
+        />
+      </div>
+    );
+  },
 );
 Table.displayName = "Table";
 

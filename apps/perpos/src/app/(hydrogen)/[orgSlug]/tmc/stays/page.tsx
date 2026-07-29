@@ -812,10 +812,7 @@ export default function TmcStaysPage() {
       {/* ── มุมมองตาราง ─────────────────────────────────────────────────── */}
       {view === "table" && (
         <div className="space-y-3">
-          <Table
-            stickyHeader
-            maxHeight={showFilters ? "calc(100vh - 25rem)" : "calc(100vh - 21rem)"}
-          >
+          <Table stickyHeader fillViewport>
             <TableHeader sticky>
               <TableRow>
                 <TableHead>แปลง</TableHead>
