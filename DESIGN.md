@@ -237,7 +237,76 @@ import { FilterBar, FilterSearch, FilterClear } from '@/components/ui/filter-bar
 - ช่องค้นหา **ห้าม `flex-1` เดี่ยว ๆ** — จะกินที่ทั้งแถวแล้วดันตัวอื่นตกบรรทัด · ใช้ `<FilterSearch>` (กว้างพอประมาณ ยืดได้จำกัด) หรือ `flex-1 min-w-[12rem] max-w-sm`
 - select/pill: กำหนดความกว้างคงที่ (`w-36`/`w-40`) หรือปล่อยตามเนื้อหา + `shrink-0`
 - ปุ่มล้างตัวกรองใช้ `<FilterClear>` (`ms-auto` ดันไปชิดขวาของแถว)
-- ตัวกรองเกิน ~4 อัน → ซ่อนทั้งแถบไว้หลังปุ่มไอคอน `<Filter>` บน `PageShell actions` (มีจุดเตือนเมื่อกรองค้าง) แทนที่จะปล่อยกินพื้นที่เหนือตารางตลอดเวลา
+- ตัวกรองเกิน ~4 อัน → ซ่อนทั้งแถบไว้หลังปุ่มไอคอน `<Filter>` (ดูหัวข้อถัดไป) แทนที่จะปล่อยกินพื้นที่เหนือตารางตลอดเวลา
+
+### Filter toggle (ตัวกรองหลังปุ่มไอคอน) — ท่ามาตรฐานของหน้าที่มีตาราง
+
+หน้ารายการที่ตารางคือพระเอก **ให้ซ่อนแถบตัวกรองไว้หลังปุ่มไอคอน** — พื้นที่เหนือตารางมีค่ากว่าตัวกรองที่ผู้ใช้แตะนาน ๆ ครั้ง
+(ตัวกรอง ≤2 อันที่ใช้ตลอดจะโชว์คาไว้ก็ได้ · เกินกว่านั้น หรือหน้ามีตารางสูงเต็มจอ → ซ่อน)
+
+```tsx
+const [showFilters, setShowFilters] = useState(false);
+const hasFilter = !!filterA || !!filterB;      // มีตัวกรองค้างอยู่ไหม
+
+<PageShell
+  actions={
+    <>
+      {/* สลับมุมมอง (ถ้ามี) → SegmentedControl · แล้วค่อยปุ่มกรอง · ปุ่ม primary ขวาสุดเสมอ */}
+      <Button
+        variant={showFilters || hasFilter ? "secondary" : "outline"}
+        size="icon" title="ตัวกรอง" className="relative"
+        onClick={() => setShowFilters((v) => !v)}
+      >
+        <Filter className="h-4 w-4" />
+        {hasFilter && <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-amber-500" />}
+      </Button>
+      <Button onClick={openAdd}><Plus className="h-4 w-4" /> เพิ่มรายการ</Button>
+    </>
+  }
+>
+  {showFilters && (
+    <FilterBar>
+      …ตัวกรอง…
+      <FilterClear disabled={!hasFilter} onClick={resetAll} />
+    </FilterBar>
+  )}
+```
+
+- **จุดสีเหลืองมุมปุ่มบังคับ** เมื่อ `hasFilter` — ไม่งั้นผู้ใช้ลืมว่ากรองค้างแล้วงงว่าข้อมูลหาย · ปุ่มเป็น `secondary` เมื่อเปิดแถบหรือกรองค้าง
+- ต้นแบบจริง: [petty-cash](<apps/perpos/src/app/(hydrogen)/[orgSlug]/tmc/petty-cash/page.tsx>) · [tmc/stays](<apps/perpos/src/app/(hydrogen)/[orgSlug]/tmc/stays/page.tsx>)
+
+### สลับมุมมอง การ์ด ↔ ตาราง
+
+หน้ารายการที่มีทั้งมุมมองการ์ด (อ่านทีละรายการ) และตาราง (กวาดสายตาเทียบกัน) ให้สลับด้วย **`<SegmentedControl>` บน `PageShell actions`** (ไม่ใช่แถวแยกเหนือตาราง)
+
+```tsx
+const [view, setView] = useState<"card" | "table">("card");
+<SegmentedControl
+  value={view}
+  onChange={setView}
+  ariaLabel="รูปแบบการแสดงผล"
+  options={[
+    { value: "card", label: "การ์ด", icon: <LayoutGrid className="h-4 w-4" /> },
+    { value: "table", label: "ตาราง", icon: <Rows3 className="h-4 w-4" /> },
+  ]}
+/>;
+```
+
+- **แถบแบ่งหน้าใช้ตัวเดียวกันทั้งสองมุมมอง** — `usePagination(rows, { pageSize: view === "table" ? 20 : 12, resetKey: view })` (การ์ดก็ต้องแบ่งหน้า ห้ามเรนเดอร์ทั้ง list รวด)
+- มุมมองตารางไม่มีคอลัมน์ปุ่ม action (§5 ข้อ 3) → ถ้าการ์ดมีปุ่มลบ ให้ย้ายปุ่มลบไปไว้ใน footer ของ dialog แก้ไข (`className="mr-auto"`) เพื่อให้สองมุมมองทำงานได้เท่ากัน
+
+### ตารางที่เป็นเนื้อหาหลักของหน้า — สูงเต็มจอ
+
+หน้าที่ตารางคือเนื้อหาหลัก ให้ตาราง **สูงจนสุดขอบล่างของ viewport แล้วเลื่อนในตัวเอง** (หัวคอลัมน์ค้าง) แทนที่จะให้ทั้งหน้าเลื่อนแล้วหัวตารางหลุดจอ:
+
+```tsx
+<Table stickyHeader maxHeight={showFilters ? "calc(100vh - 25rem)" : "calc(100vh - 21rem)"}>
+  <TableHeader sticky>…</TableHeader>
+```
+
+- ค่าที่ลบออกจาก `100vh` = ความสูงของทุกอย่างเหนือตาราง (header หน้า + การ์ดสรุป + แถบตัวกรองถ้าเปิด) **บวกที่ว่างสำหรับแถบแบ่งหน้า (~4rem)** — แถบแบ่งหน้าต้องยังอยู่ในจอ ไม่ต้องเลื่อนหน้าไปหา
+- ของที่ยุบ/กางได้ (แถบตัวกรอง) ทำให้ค่านี้ต่างกันสองค่า → ผูกกับ state ตรง ๆ อย่างตัวอย่าง
+- ตรวจด้วยของจริงเสมอ (`getBoundingClientRect().bottom` เทียบ `innerHeight`) — เดาเลขแล้วเหลือช่องว่าง/ล้นทุกที
 
 ### Dashboard Page Template
 
@@ -938,4 +1007,5 @@ import {
 | 2026-07-28 | **แท็บในหน้ารวมเป็นมาตรฐานเดียว = `<SegmentedControl>` (pill)** — เลิกแถบแท็บที่ประกอบเองจากกลุ่ม `<Button>` · §7 เพิ่มตารางขนาด (default = `sm` สำหรับแท็บ/ตัวกรอง · `md` เฉพาะ form control · `xs` inline ในตาราง) + pill `w-fit` ไม่ถูกยืด + ไอคอนย่อตามขนาดอัตโนมัติ                                                                                                                                                                                                            |
 | 2026-07-29 | เพิ่ม **`<FileDropzone>` เป็นมาตรฐานเดียวของการเลือกไฟล์ทั้งแอป** (§7) — เลิก `<input type="file">` ที่มองเห็น + เลิกประกอบ dropzone เอง · migrate 7 จุดเดิม (acc-firm OCR/vault, assistant STT, just-me OCR, tmc purchase, jaquar CSV, bank reconcile CSV, avatar)                                                                                                                                                                                                                 |
 | 2026-06-17 | เปลี่ยน **primary/brand = CHARCOAL `#3C3B3D`** (โทน mono เลิก AQUA) — blue/sky/cyan → charcoal scale, token primary/blue → charcoal, title (h1/PageShell/Title) ใช้ `text-primary` · สี accent อื่น (PLUM/PINK/MINT/RUBY/SUNFLOWER) คงเดิม                                                                                                                                                                                                                                          |
+| 2026-07-29 | เพิ่ม §4 **Filter toggle** (ซ่อนตัวกรองหลังปุ่มไอคอน + จุดเตือนเมื่อกรองค้าง), **สลับมุมมองการ์ด↔ตาราง** (`SegmentedControl` บน `PageShell actions` + แบ่งหน้าใช้ตัวเดียวกัน), **ตารางหลักสูงเต็มจอ** (`stickyHeader` + `maxHeight` ผูกกับสถานะแถบตัวกรอง) — ถอดจาก petty-cash + tmc/stays                                                                                                                                                                                          |
 | 2026-07-29 | **รวมแถบแบ่งหน้าเป็นมาตรฐานเดียวทั้งแอป (§5.1)** — เดิมมี 4 แบบปนกัน (pill เลขหน้า / `‹ ›` / ปุ่ม outline "ก่อนหน้า–ถัดไป" / load-more) · `table-pager.tsx` คุมหน้าตาที่เดียวผ่าน `PagerBar` แล้วแตกเป็น 3 ท่าตามที่มาข้อมูล (`TablePager` / `ControlledTablePager` / `LinkTablePager`) · migrate ad-hoc 5 จุด (admin audit/admin-audit/issues/leads, jaquar stock) + เพิ่มแถบให้ตารางที่ยังไม่มีอีก 72 จุด · ระบุตารางที่ยกเว้น (ตัวแก้บรรทัดเอกสาร / ตารางสรุป / การ์ดสรุป slice) |
