@@ -298,6 +298,7 @@ export function CatalogSettingsDialog({
               <Label>รูปแบบเอกสาร</Label>
               <div className="mt-1">
                 <SegmentedControl
+                  size="md"
                   value={template}
                   onChange={(v) => !locked && canWrite && setTemplate(v)}
                   ariaLabel="รูปแบบเอกสาร"

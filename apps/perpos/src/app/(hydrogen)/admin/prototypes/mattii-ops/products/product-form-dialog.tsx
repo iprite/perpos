@@ -217,6 +217,7 @@ export function ProductFormDialog({
             <div>
               <Label>สถานะการขาย</Label>
               <SegmentedControl
+                size="md"
                 className="mt-1"
                 value={status}
                 onChange={setStatus}

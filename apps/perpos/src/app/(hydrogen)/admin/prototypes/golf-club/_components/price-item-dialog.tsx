@@ -263,6 +263,7 @@ export function PriceItemDialog({
               <div className="sm:col-span-2">
                 <Label>สถานะ</Label>
                 <SegmentedControl
+                  size="md"
                   className="mt-1"
                   value={f.active ? "active" : "inactive"}
                   onChange={(v) => set("active", v === "active")}
@@ -288,7 +289,12 @@ export function PriceItemDialog({
           </DialogBody>
           <DialogFooter>
             {item && (
-              <Button type="button" variant="destructive" className="mr-auto" onClick={handleDelete}>
+              <Button
+                type="button"
+                variant="destructive"
+                className="mr-auto"
+                onClick={handleDelete}
+              >
                 <Trash2 className="mr-1.5 h-4 w-4" /> ลบรายการ
               </Button>
             )}

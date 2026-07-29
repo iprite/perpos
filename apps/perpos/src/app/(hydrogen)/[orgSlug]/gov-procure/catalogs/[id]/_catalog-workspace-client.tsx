@@ -434,17 +434,14 @@ export function CatalogWorkspaceClient({
           <>
             {/* แท็บ + ตัวกรอง + โหมดดู — แถวเดียว ล้นแล้วเลื่อน (DESIGN §4) */}
             <div className="flex items-center gap-2 overflow-x-auto rounded-xl border border-gray-200 bg-white p-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              {TAB_ORDER.map((t) => (
-                <Button
-                  key={t}
-                  size="sm"
-                  variant={tab === t ? "secondary" : "ghost"}
-                  className={`shrink-0 whitespace-nowrap ${tab === t ? "bg-gray-100 text-gray-900" : ""}`}
-                  onClick={() => setTab(t)}
-                >
-                  {TAB_LABELS[t]} ({fmtNum(tabCounts[t])})
-                </Button>
-              ))}
+              <SegmentedControl<WorkspaceTab>
+                value={tab}
+                onChange={setTab}
+                options={TAB_ORDER.map((t) => ({
+                  value: t,
+                  label: `${TAB_LABELS[t]} (${fmtNum(tabCounts[t])})`,
+                }))}
+              />
 
               <div className="relative ml-1 w-56 shrink-0">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />

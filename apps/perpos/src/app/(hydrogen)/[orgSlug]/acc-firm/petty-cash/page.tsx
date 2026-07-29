@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { CustomSelect } from "@/components/ui/custom-select";
+import { FilterBar, FilterSearch, FilterClear } from "@/components/ui/filter-bar";
 import { ThaiDatePicker } from "@/components/ui/thai-date-picker";
 import {
   Dialog,
@@ -29,8 +30,9 @@ import {
   TableEmpty,
   TableLoading,
 } from "@/components/ui/table";
-import { Plus, Trash2, ChevronLeft, ChevronRight, Wallet } from "lucide-react";
+import { Plus, Trash2, Wallet } from "lucide-react";
 import { PageShell } from "@/components/ui/page-shell";
+import { TablePager, type PaginationState } from "@/components/ui/table-pager";
 import type { PettyCashEntry } from "@/app/api/acc-firm/petty-cash/route";
 
 const PAGE_SIZE = 50;
@@ -199,7 +201,18 @@ export default function PettyCashPage() {
     }
   }
 
-  const totalPages = Math.ceil(total / PAGE_SIZE);
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  // paging ฝั่ง server (API รับ page/pageSize) — ห่อเป็น state เดียวกับ TablePager เพื่อใช้ UI มาตรฐาน
+  const pager: PaginationState<PettyCashEntry> = {
+    rows: entries,
+    page,
+    setPage,
+    pageSize: PAGE_SIZE,
+    total,
+    totalPages,
+    from: total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1,
+    to: Math.min(page * PAGE_SIZE, total),
+  };
   const balance = totals.total_in - totals.total_out;
   const catOptions = [
     { value: "", label: "ทุกประเภท" },
@@ -231,14 +244,8 @@ export default function PettyCashPage() {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-wrap items-end gap-3 rounded-xl border bg-gray-50 p-4">
-        <div className="min-w-[200px] flex-1">
-          <Input
-            placeholder="ค้นหารายการ..."
-            value={search}
-            onChange={(e) => handleSearch(e.target.value)}
-          />
-        </div>
+      <FilterBar>
+        <FilterSearch value={search} onChange={handleSearch} placeholder="ค้นหารายการ..." />
         <CustomSelect
           value={category}
           onChange={setCategory}
@@ -253,21 +260,16 @@ export default function PettyCashPage() {
           <Label className="text-xs">ถึง</Label>
           <ThaiDatePicker value={to} onChange={setTo} placeholder="วันที่สิ้นสุด" />
         </div>
-        {(category || from || to || search) && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => {
-              setCategory("");
-              setFrom("");
-              setTo("");
-              setSearch("");
-            }}
-          >
-            ล้างตัวกรอง
-          </Button>
-        )}
-      </div>
+        <FilterClear
+          disabled={!(category || from || to || search)}
+          onClick={() => {
+            setCategory("");
+            setFrom("");
+            setTo("");
+            setSearch("");
+          }}
+        />
+      </FilterBar>
 
       {/* Table */}
       <Table>
@@ -342,31 +344,7 @@ export default function PettyCashPage() {
       </Table>
 
       {/* Pagination */}
-      {totalPages > 1 && (
-        <div className="flex items-center justify-between px-1">
-          <span className="text-sm text-gray-600">
-            หน้า {page} / {totalPages} ({total} รายการ)
-          </span>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setPage((p) => p - 1)}
-              disabled={page === 1}
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setPage((p) => p + 1)}
-              disabled={page === totalPages}
-            >
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
-      )}
+      <TablePager pager={pager} />
 
       {/* Add/Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

@@ -175,29 +175,69 @@ import { PageShell, PageCard } from "@/components/ui/page-shell";
 - หัวข้อหน้า = `<h1>` ใน PageShell อยู่แล้ว (`text-2xl font-semibold text-gray-900`) — **อย่าเขียน `<h1>`/`text-xl font-bold` เอง** และอย่าใช้ `text-slate-900`
 - `admin` import `AdminPage`/`AdminCard` ได้เหมือนเดิม (เป็น alias ของ `PageShell`/`PageCard`)
 
-### Tab navigation (แถบแท็บในหน้า) — บังคับ "row เดียว ล้นแล้วเลื่อน"
+### Tab navigation (แถบแท็บในหน้า) — **ใช้ `<SegmentedControl>` (pill) เท่านั้น**
 
-> แถบแท็บที่มีหลายแท็บ (เช่นหน้า ตั้งค่า) **ห้ามตกบรรทัด (wrap)** — ต้องเป็น **row เดียว ล้นแล้วเลื่อนซ้าย-ขวา**
-> (บนมือถือ/จอแคบ wrap แล้วดูรก + สูงไม่คงที่). ใช้ `overflow-x-auto` + ซ่อน scrollbar + แท็บ `shrink-0 whitespace-nowrap`.
+> **แท็บในหน้ามีมาตรฐานเดียว = pill** ไม่ว่าจะกี่แท็บ · ห้ามประกอบแถบแท็บเองจากกลุ่ม `<Button>`
+> (เดิมมีสองแบบปนกัน — pill กับกล่อง `rounded-xl` + ปุ่ม ghost — หน้าที่เหมือนกันแต่หน้าตาคนละแบบ **รวมเป็น pill หมดแล้ว 2026-07**)
 
 ```tsx
-// ✅ ถูก — row เดียว, ล้น → scroll, scrollbar ซ่อน
-<div className="flex gap-1.5 overflow-x-auto rounded-xl border border-gray-200 bg-white p-1.5 shadow-sm [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-  {tabs.map((t) => (
-    <Button key={t.key} size="sm" variant={active===t.key ? "secondary" : "ghost"}
-      className={cn("shrink-0 whitespace-nowrap", active===t.key && "bg-gray-100 text-gray-900")}
-      onClick={() => setTab(t.key)}>
-      <span className="mr-1.5">{t.icon}</span>{t.label}
-    </Button>
-  ))}
+import { SegmentedControl } from "@/components/ui/segmented";
+
+// ✅ ถูก — pill, row เดียว, ล้นแล้วเลื่อนเอง, ไม่ต้องใส่ size (default sm = ขนาดของแท็บ/ตัวกรอง)
+<SegmentedControl
+  value={tab}
+  onChange={setTab}
+  options={TABS.map((t) => ({ value: t.key, label: t.label, icon: t.icon }))}
+/>
+
+// ❌ ห้าม — ประกอบแถบแท็บเอง
+<div className="flex gap-1.5 overflow-x-auto rounded-xl border … bg-white p-1.5">
+  {tabs.map(t => <Button variant={active === t.key ? "secondary" : "ghost"} …>{t.label}</Button>)}
 </div>
 
 // ❌ ห้าม — flex-wrap (ตก 2 บรรทัด)
 <div className="flex flex-wrap gap-1.5 ...">
 ```
 
-- **`flex` + `overflow-x-auto`** (ไม่ใช่ `flex-wrap`) · ซ่อน scrollbar ด้วย `[scrollbar-width:none] [&::-webkit-scrollbar]:hidden`
-- แท็บแต่ละอัน **`shrink-0 whitespace-nowrap`** (ไม่ถูกบีบ/ตัดคำ) · ใช้ `<Button size="sm" variant="ghost|secondary">` (active = secondary + `bg-gray-100`)
+- **row เดียว ล้นแล้วเลื่อนซ้าย-ขวา** — `SegmentedControl` ทำให้ในตัวแล้ว (scrollbar ซ่อน, แต่ละแท็บ `shrink-0 whitespace-nowrap`) · **ห้าม wrap** เด็ดขาด (จอแคบแล้วดูรก + สูงไม่คงที่)
+- ขนาด/ไอคอน/ความกว้าง ดูกฎเต็มใน **§7 SegmentedControl** — แท็บในหน้าใช้ default (`sm`) เสมอ ไม่ต้องส่ง `size`
+- **ข้อยกเว้นเดียว**: แถบที่เป็น **navigation ข้ามหน้า** (แต่ละอันเป็น `<Link>`/`router.push` ไปคนละ URL) ไม่ใช่แท็บ — `SegmentedControl` เป็น radio-group ของ state ให้ใช้ลิงก์ตามปกติ
+
+### Filter bar (แถบตัวกรอง) — บังคับ `<FilterBar>` + กฎ "อยู่บรรทัดเดียวจนกว่าจะไม่พอ"
+
+> **กฎตัดสิน**: กลุ่มของสั้น ๆ ที่วางเรียงกัน (ตัวกรอง, ปุ่ม action, ชิป) ต้องใช้ **`flex-wrap`**
+> — **ห้ามใช้ `flex-col` + `sm:/lg:flex-row`**
+
+เหตุผล — สองวิธีนี้ "ตัดสินใจ" คนละอย่าง:
+
+| วิธี                       | ตัดสินจาก                | ผลที่ได้                                                                                        |
+| -------------------------- | ------------------------ | ----------------------------------------------------------------------------------------------- |
+| `flex-col` → `lg:flex-row` | **ความกว้างจอ**          | จอ 1000px ที่มีแค่ 3 ตัวกรองก็ยังถูกบังคับซ้อน 3 บรรทัด · จอ 1280px ที่มี 6 ตัวกรองกลับอัดจนล้น |
+| **`flex-wrap`** ✅         | **เนื้อหาพอดีไหมจริง ๆ** | อยู่บรรทัดเดียวจนกว่าจะไม่พอ แล้วตกทีละตัว ไม่ใช่ตกยกแผง                                        |
+
+จอไม่รู้ว่าเนื้อหากว้างเท่าไร แต่ `flex-wrap` รู้ → ใช้ breakpoint switch เฉพาะกับ **layout ของหน้า** (sidebar/คอลัมน์) ไม่ใช่กับ **กลุ่มของสั้น ๆ**
+
+```tsx
+import { FilterBar, FilterSearch, FilterClear } from '@/components/ui/filter-bar';
+
+// ✅ ถูก
+<FilterBar>
+  <FilterSearch value={q} onChange={setQ} placeholder="ค้นหา ชื่อ / รหัสสินค้า" />
+  <SegmentedControl value={kind} onChange={setKind} options={KIND_OPTIONS} />
+  <CustomSelect value={status} onChange={setStatus} options={STATUS_OPTIONS} className="w-36" />
+  <FilterClear onClick={reset} disabled={!hasFilter} />   {/* ชิดขวาอัตโนมัติ */}
+</FilterBar>
+
+// ❌ ห้าม — breakpoint switch (ตกยกแผงทั้งที่มีที่ว่าง)
+<div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+```
+
+**กฎความกว้างของลูกในแถว** (ผิดข้อนี้ = ตกบรรทัดทั้งที่ยังมีที่ว่าง):
+
+- ช่องค้นหา **ห้าม `flex-1` เดี่ยว ๆ** — จะกินที่ทั้งแถวแล้วดันตัวอื่นตกบรรทัด · ใช้ `<FilterSearch>` (กว้างพอประมาณ ยืดได้จำกัด) หรือ `flex-1 min-w-[12rem] max-w-sm`
+- select/pill: กำหนดความกว้างคงที่ (`w-36`/`w-40`) หรือปล่อยตามเนื้อหา + `shrink-0`
+- ปุ่มล้างตัวกรองใช้ `<FilterClear>` (`ms-auto` ดันไปชิดขวาของแถว)
+- ตัวกรองเกิน ~4 อัน → ซ่อนทั้งแถบไว้หลังปุ่มไอคอน `<Filter>` บน `PageShell actions` (มีจุดเตือนเมื่อกรองค้าง) แทนที่จะปล่อยกินพื้นที่เหนือตารางตลอดเวลา
 
 ### Dashboard Page Template
 
@@ -445,9 +485,23 @@ import { SegmentedControl } from "@/components/ui/segmented";
 ```
 
 - pill: container `rounded-full border bg-gray-50 p-0.5` · active = `bg-primary text-white` (charcoal) ·
-  inactive = `text-gray-600 hover:bg-gray-100` · `size="sm"|"md"` · `activeClassName` override สีตาม semantic
-- ใช้กับ **2–3 ตัวเลือก** เท่านั้น · ค่าจาก list ยาว → `<CustomSelect>` · boolean on/off ล้วน → toggle/switch ·
-  filter ในหน้า list / >3 ตัวเลือก → Tab (§4) หรือ `CustomSelect`
+  inactive = `text-gray-600 hover:bg-gray-100` · `activeClassName` override สีตาม semantic
+- ใช้กับ **ตัวเลือกที่เห็นทั้งหมดพร้อมกันได้** (ปกติ 2–5 อัน) — ทั้งตัวเลือกในฟอร์ม, ตัวกรอง, และ **แท็บในหน้า** (§4 ใช้ตัวนี้ตัวเดียว)
+- ค่าจาก list ยาว/ไม่จำกัด → `<CustomSelect>` · boolean on/off ล้วนที่ไม่ต้องมี label สองข้าง → toggle/switch
+
+#### ขนาด — เลือกตาม "บริบทที่วาง" ไม่ใช่ตามความชอบ (บังคับ)
+
+| size               | สูง   | ใช้เมื่อ                                                                          |
+| ------------------ | ----- | --------------------------------------------------------------------------------- |
+| **`sm`** (default) | `h-7` | **ตัวกรอง / แท็บ / สลับมุมมองในหน้า** — กรณีที่เจอบ่อยที่สุด                      |
+| `md`               | `h-9` | เป็น **form control ในฟอร์ม** (สูงเท่า `Input`/`CustomSelect` ที่อยู่แถวเดียวกัน) |
+| `xs`               | `h-6` | inline ใน **แถวตาราง** / ช่องแคบ                                                  |
+
+- **default = `sm`** — ไม่ต้องใส่ `size` เมื่อใช้เป็นตัวกรอง/แท็บ · ใส่ `size="md"` **เฉพาะ**ตอนวางคู่กับ `Input`/`CustomSelect` ในฟอร์ม (ถ้าไม่ใส่จะเตี้ยกว่าช่องข้าง ๆ)
+- **ห้ามใช้ `md` เป็นตัวกรองในหน้า** — ใหญ่เกิน กินพื้นที่เหนือตาราง (กับดักที่เคยเจอ: default เดิมเป็น `md` ทำให้ทุกหน้าที่ไม่ใส่ `size` บวมหมด)
+- **ไอคอนย่อให้พอดีขนาดอัตโนมัติ** — ผู้เรียกส่ง `h-4 w-4` มาได้เลย component override ให้เอง ไม่ต้องไล่ปรับรายจุด
+- **pill กว้างเท่าเนื้อหาเสมอ** (`w-fit` ในตัว) — วางใน `flex flex-col` / grid ได้โดยไม่ถูกยืดเต็มแถว · ถ้าอยากให้เต็มแถวจริง ๆ ใช้ `fullWidth`
+- ล้นจอ → **เลื่อนแนวนอนในตัว** (scrollbar ซ่อน) ไม่ตกบรรทัด
 
 ---
 
@@ -801,10 +855,11 @@ import {
 
 ## Changelog
 
-| วันที่     | การเปลี่ยนแปลง                                                                                                                                                                                                                             |
-| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 2026-06-06 | สร้าง DESIGN.md จาก Stripe + Linear + Emil Kowalski                                                                                                                                                                                        |
-| 2026-06-17 | เพิ่ม §13 Dialog / Popup Standard — sticky header/footer, size prop, DialogBody บังคับทั้งระบบ                                                                                                                                             |
-| 2026-06-17 | §2 ล็อก PERPOS Standard Palette (flat-UI) ทั้งแอป — override Tailwind token (AQUA=primary) + migrate ฮาร์ดโค้ด hex (รวม LINE flex cards) · ยกเว้นเอกสารพิมพ์ (wht-pdf, pp30/wht-cert preview, mom-html) คงสีเดิม                           |
-| 2026-07-21 | เพิ่ม §13.5 เอกสารภาษีที่พิมพ์ (A4) — ม.86/4, ต้นฉบับ/สำเนา, `bahtText` แหล่งเดียว · เพิ่ม anti-pattern: KPI คิดกฎเอง + ยอดรวมจาก list ที่ถูกตัดแถว                                                                                        |
-| 2026-06-17 | เปลี่ยน **primary/brand = CHARCOAL `#3C3B3D`** (โทน mono เลิก AQUA) — blue/sky/cyan → charcoal scale, token primary/blue → charcoal, title (h1/PageShell/Title) ใช้ `text-primary` · สี accent อื่น (PLUM/PINK/MINT/RUBY/SUNFLOWER) คงเดิม |
+| วันที่     | การเปลี่ยนแปลง                                                                                                                                                                                                                                                           |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 2026-06-06 | สร้าง DESIGN.md จาก Stripe + Linear + Emil Kowalski                                                                                                                                                                                                                      |
+| 2026-06-17 | เพิ่ม §13 Dialog / Popup Standard — sticky header/footer, size prop, DialogBody บังคับทั้งระบบ                                                                                                                                                                           |
+| 2026-06-17 | §2 ล็อก PERPOS Standard Palette (flat-UI) ทั้งแอป — override Tailwind token (AQUA=primary) + migrate ฮาร์ดโค้ด hex (รวม LINE flex cards) · ยกเว้นเอกสารพิมพ์ (wht-pdf, pp30/wht-cert preview, mom-html) คงสีเดิม                                                         |
+| 2026-07-21 | เพิ่ม §13.5 เอกสารภาษีที่พิมพ์ (A4) — ม.86/4, ต้นฉบับ/สำเนา, `bahtText` แหล่งเดียว · เพิ่ม anti-pattern: KPI คิดกฎเอง + ยอดรวมจาก list ที่ถูกตัดแถว                                                                                                                      |
+| 2026-07-28 | **แท็บในหน้ารวมเป็นมาตรฐานเดียว = `<SegmentedControl>` (pill)** — เลิกแถบแท็บที่ประกอบเองจากกลุ่ม `<Button>` · §7 เพิ่มตารางขนาด (default = `sm` สำหรับแท็บ/ตัวกรอง · `md` เฉพาะ form control · `xs` inline ในตาราง) + pill `w-fit` ไม่ถูกยืด + ไอคอนย่อตามขนาดอัตโนมัติ |
+| 2026-06-17 | เปลี่ยน **primary/brand = CHARCOAL `#3C3B3D`** (โทน mono เลิก AQUA) — blue/sky/cyan → charcoal scale, token primary/blue → charcoal, title (h1/PageShell/Title) ใช้ `text-primary` · สี accent อื่น (PLUM/PINK/MINT/RUBY/SUNFLOWER) คงเดิม                               |

@@ -45,6 +45,7 @@ import {
   TableCell,
   TableEmpty,
 } from "@/components/ui/table";
+import { TablePager, usePagination } from "@/components/ui/table-pager";
 import { toast } from "@/lib/toast";
 import { COMPANIES, COMPANY_DOT_CLASS, type GovProcureOrder } from "@/lib/gov-procure/types";
 import {
@@ -101,6 +102,8 @@ export function CapitalClient({
   );
 
   const investorName = useMemo(() => new Map(investors.map((i) => [i.id, i.name])), [investors]);
+
+  const flowsPager = usePagination(flows);
 
   async function handleDelete(flow: CapitalFlow) {
     if (!confirm(`ลบรายการ "${FLOW_LABELS[flow.flow_type]}" ${fmtMoney(flow.amount)} ?`)) return;
@@ -367,7 +370,7 @@ export function CapitalClient({
                   </div>
                 </TableEmpty>
               ) : (
-                flows.map((f) => {
+                flowsPager.rows.map((f) => {
                   const tone = FLOW_TONE[f.flow_type];
                   return (
                     <TableRow key={f.id}>
@@ -412,6 +415,7 @@ export function CapitalClient({
               )}
             </TableBody>
           </Table>
+          <TablePager pager={flowsPager} className="mt-3" />
         </div>
       </div>
 

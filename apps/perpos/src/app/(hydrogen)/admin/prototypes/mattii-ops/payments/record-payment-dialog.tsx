@@ -133,6 +133,7 @@ export function RecordPaymentDialog({
               <Label>ประเภทรายการ</Label>
               <div className="mt-1">
                 <SegmentedControl
+                  size="md"
                   value={direction}
                   onChange={setDirection}
                   fullWidth

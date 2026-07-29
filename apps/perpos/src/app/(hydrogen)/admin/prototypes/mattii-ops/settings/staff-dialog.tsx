@@ -181,6 +181,7 @@ export function StaffDialog({
             <div>
               <Label>สถานะการใช้งาน</Label>
               <SegmentedControl
+                size="md"
                 className="mt-1"
                 value={status}
                 onChange={setStatus}

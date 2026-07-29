@@ -199,6 +199,7 @@ export function RecordCfDialog({
         <DialogBody>
           <div className="space-y-4">
             <SegmentedControl
+              size="md"
               value={result}
               onChange={setResult}
               fullWidth

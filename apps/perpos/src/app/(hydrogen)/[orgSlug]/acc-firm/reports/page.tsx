@@ -3,8 +3,8 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
-import cn from "@core/utils/class-names";
 import { Button } from "@/components/ui/button";
+import { SegmentedControl } from "@/components/ui/segmented";
 import { CustomSelect } from "@/components/ui/custom-select";
 import { PageShell } from "@/components/ui/page-shell";
 import { StatCard } from "@/components/ui/stat-card";
@@ -257,29 +257,15 @@ export default function AccFirmReportsPage() {
       </div>
 
       {/* Tabs (§4 — row เดียว ล้นแล้วเลื่อน) */}
-      <div className="flex gap-1.5 overflow-x-auto rounded-xl border border-gray-200 bg-white p-1.5 shadow-sm [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        {(
-          [
-            { key: "pending", label: "งานค้าง", icon: <AlertTriangle className="h-4 w-4" /> },
-            { key: "calendar", label: "ปฏิทินภาษี", icon: <CalendarDays className="h-4 w-4" /> },
-            { key: "summary", label: "สรุปต่อ Client", icon: <Building2 className="h-4 w-4" /> },
-          ] as const
-        ).map((t) => (
-          <Button
-            key={t.key}
-            size="sm"
-            variant={tab === t.key ? "secondary" : "ghost"}
-            className={cn(
-              "shrink-0 whitespace-nowrap",
-              tab === t.key && "bg-gray-100 text-gray-900",
-            )}
-            onClick={() => setTab(t.key)}
-          >
-            <span className="mr-1.5">{t.icon}</span>
-            {t.label}
-          </Button>
-        ))}
-      </div>
+      <SegmentedControl<"pending" | "calendar" | "summary">
+        value={tab}
+        onChange={setTab}
+        options={[
+          { value: "pending", label: "งานค้าง", icon: <AlertTriangle className="h-4 w-4" /> },
+          { value: "calendar", label: "ปฏิทินภาษี", icon: <CalendarDays className="h-4 w-4" /> },
+          { value: "summary", label: "สรุปต่อ Client", icon: <Building2 className="h-4 w-4" /> },
+        ]}
+      />
 
       {/* ── Tab: งานค้าง ─────────────────────────────────────────────────────── */}
       {tab === "pending" && (

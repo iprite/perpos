@@ -172,13 +172,13 @@ export function BookingFormDialog({
 
   const isTee = form.booking_type === "tee_time";
   const member: GolfMember | null =
-    form.bookerMode === "member" ? members.find((m) => m.id === form.member_id) ?? null : null;
+    form.bookerMode === "member" ? (members.find((m) => m.id === form.member_id) ?? null) : null;
 
   // timeslots ตามทรัพยากร
   const timeSlots = useMemo(() => {
     const r = resources.find((x) => x.id === form.resource_id);
     if (!r) return [];
-    const step = isTee ? r.tee_interval_min ?? 10 : 60;
+    const step = isTee ? (r.tee_interval_min ?? 10) : 60;
     return generateSlots(r.open_time ?? "06:00", r.close_time ?? "18:00", step);
   }, [resources, form.resource_id, isTee]);
 
@@ -221,14 +221,22 @@ export function BookingFormDialog({
         : `${r.name} ช่วงเวลานี้ถูกจองแล้ว — เลือก bay/เวลาอื่น`;
     }
     return null;
-  }, [resources, bookings, form.resource_id, form.date, form.time, form.party_size, isTee, editBooking]);
+  }, [
+    resources,
+    bookings,
+    form.resource_id,
+    form.date,
+    form.time,
+    form.party_size,
+    isTee,
+    editBooking,
+  ]);
 
   function validate(): string | null {
     if (!form.resource_id) return "กรุณาเลือกทรัพยากร";
     if (!form.time) return "กรุณาเลือกเวลา";
     if (form.bookerMode === "member" && !form.member_id) return "กรุณาเลือกสมาชิก";
-    if (form.bookerMode === "walk_in" && !form.contact_name.trim())
-      return "กรุณากรอกชื่อผู้จอง";
+    if (form.bookerMode === "walk_in" && !form.contact_name.trim()) return "กรุณากรอกชื่อผู้จอง";
     if (conflict) return conflict;
     return null;
   }
@@ -259,7 +267,10 @@ export function BookingFormDialog({
       bucket_qty: isTee ? null : Math.max(1, form.bucket_qty),
       bucket_price_item_id: isTee ? null : form.bucket_price_item_id,
       total_amount: quote.total,
-      deposit_amount: paymentResult.payment_status === "deposit_paid" ? paymentResult.paid_amount : (editBooking?.deposit_amount ?? 0),
+      deposit_amount:
+        paymentResult.payment_status === "deposit_paid"
+          ? paymentResult.paid_amount
+          : (editBooking?.deposit_amount ?? 0),
       paid_amount: paymentResult.paid_amount,
       payment_status: paymentResult.payment_status,
       payment_method: paymentResult.payment_method,
@@ -324,6 +335,7 @@ export function BookingFormDialog({
                 <div>
                   <Label>ประเภทการจอง</Label>
                   <SegmentedControl
+                    size="md"
                     className="mt-1"
                     fullWidth
                     value={form.booking_type}
@@ -394,6 +406,7 @@ export function BookingFormDialog({
               <div>
                 <Label>ผู้จอง</Label>
                 <SegmentedControl
+                  size="md"
                   className="mt-1"
                   value={form.bookerMode}
                   onChange={(v) => setForm((f) => ({ ...f, bookerMode: v }))}
@@ -473,7 +486,10 @@ export function BookingFormDialog({
                       className="mt-1"
                       value={form.caddie_count}
                       onChange={(e) =>
-                        setForm((f) => ({ ...f, caddie_count: Math.max(0, Number(e.target.value) || 0) }))
+                        setForm((f) => ({
+                          ...f,
+                          caddie_count: Math.max(0, Number(e.target.value) || 0),
+                        }))
                       }
                     />
                   </div>
@@ -486,7 +502,10 @@ export function BookingFormDialog({
                       className="mt-1"
                       value={form.cart_count}
                       onChange={(e) =>
-                        setForm((f) => ({ ...f, cart_count: Math.max(0, Number(e.target.value) || 0) }))
+                        setForm((f) => ({
+                          ...f,
+                          cart_count: Math.max(0, Number(e.target.value) || 0),
+                        }))
                       }
                     />
                   </div>
@@ -496,6 +515,7 @@ export function BookingFormDialog({
                   <div>
                     <Label>ขนาดตะกร้า</Label>
                     <SegmentedControl
+                      size="md"
                       className="mt-1"
                       fullWidth
                       value={form.bucket_price_item_id}
@@ -517,7 +537,10 @@ export function BookingFormDialog({
                       className="mt-1"
                       value={form.bucket_qty}
                       onChange={(e) =>
-                        setForm((f) => ({ ...f, bucket_qty: Math.max(1, Number(e.target.value) || 1) }))
+                        setForm((f) => ({
+                          ...f,
+                          bucket_qty: Math.max(1, Number(e.target.value) || 1),
+                        }))
                       }
                     />
                   </div>
@@ -555,9 +578,7 @@ export function BookingFormDialog({
                     <div key={it.id} className="flex items-center justify-between text-gray-600">
                       <span>
                         {it.description}
-                        <span className="ml-1 text-gray-400">
-                          @ {fmtNum(it.unit_price)}
-                        </span>
+                        <span className="ml-1 text-gray-400">@ {fmtNum(it.unit_price)}</span>
                       </span>
                       <span className="font-mono tabular-nums text-gray-700">
                         {formatAmount(it.line_total)}
@@ -590,7 +611,8 @@ export function BookingFormDialog({
               </div>
               <PaymentMock total={quote.total} value={payment} onChange={setPayment} allowDeposit />
               <Text className="text-xs text-gray-400">
-                * ระบบจำลอง — ไม่มีการตัดเงินจริง. เลือก “จ่ายทีหลัง” เพื่อบันทึกจองแบบยังไม่ชำระ (รับชำระย้อนหลังได้)
+                * ระบบจำลอง — ไม่มีการตัดเงินจริง. เลือก “จ่ายทีหลัง” เพื่อบันทึกจองแบบยังไม่ชำระ
+                (รับชำระย้อนหลังได้)
               </Text>
             </div>
           )}

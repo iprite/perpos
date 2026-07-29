@@ -134,6 +134,7 @@ export function CreateCatalogDialog({
               <Label htmlFor="cat-template">รูปแบบเอกสาร</Label>
               <div className="mt-1">
                 <SegmentedControl
+                  size="md"
                   value={template}
                   onChange={setTemplate}
                   ariaLabel="รูปแบบเอกสาร"

@@ -29,6 +29,7 @@ import {
 } from "lucide-react";
 import cn from "@core/utils/class-names";
 import { Button } from "@/components/ui/button";
+import { SegmentedControl } from "@/components/ui/segmented";
 import { Input } from "@/components/ui/input";
 import { CustomSelect } from "@/components/ui/custom-select";
 import { Text } from "@/components/ui/typography";
@@ -185,28 +186,11 @@ export function DetailDialog({
             {isAnomaly && <AnomalyBox order={live} />}
 
             {/* ── tab bar (row เดียว, overflow-x, ไม่ wrap — §4) ── */}
-            <div className="flex gap-1.5 overflow-x-auto rounded-xl border border-gray-200 bg-white p-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              {TABS.map((t) => {
-                const active = tab === t.key;
-                return (
-                  <Button
-                    key={t.key}
-                    size="sm"
-                    variant={active ? "secondary" : "ghost"}
-                    className={cn(
-                      "shrink-0 whitespace-nowrap",
-                      active && "bg-gray-100 text-gray-900",
-                    )}
-                    onClick={() => setTab(t.key)}
-                  >
-                    <span className={cn("mr-1.5", active ? "text-primary" : "text-gray-400")}>
-                      {t.icon}
-                    </span>
-                    {t.label}
-                  </Button>
-                );
-              })}
-            </div>
+            <SegmentedControl<Tab>
+              value={tab}
+              onChange={setTab}
+              options={TABS.map((t) => ({ value: t.key, label: t.label, icon: t.icon }))}
+            />
 
             {/* ── tab content ── */}
             {tab === "basic" && <BasicTab order={live} />}
@@ -274,7 +258,7 @@ function SummaryFigure({
   return (
     <div className="rounded-lg border border-gray-200 bg-gray-50 px-3.5 py-2.5">
       <Text className="text-xs text-gray-500">{label}</Text>
-      <div className={cn("mt-0.5 tabular-nums text-lg font-semibold", valueColor)}>{value}</div>
+      <div className={cn("mt-0.5 text-lg font-semibold tabular-nums", valueColor)}>{value}</div>
     </div>
   );
 }
@@ -584,7 +568,7 @@ function TimelineTab({
                     {m.label}
                   </Text>
                 </div>
-                <Text className="shrink-0 tabular-nums text-xs text-gray-500">
+                <Text className="shrink-0 text-xs tabular-nums text-gray-500">
                   {done ? fmtDateTH(date) : "ยังไม่ถึงหมุด"}
                 </Text>
               </li>
@@ -798,7 +782,7 @@ function MoneyRow({
       </span>
       <span
         className={cn(
-          "tabular-nums text-sm",
+          "text-sm tabular-nums",
           strong ? "font-semibold text-gray-900" : "text-gray-700",
           negativeHint && value != null && value > 0 && "text-red-600",
         )}
@@ -813,7 +797,7 @@ function DateRow({ label, value }: { label: string; value: string | null }) {
   return (
     <div className="flex items-center justify-between gap-3 py-1.5">
       <span className="text-sm text-gray-500">{label}</span>
-      <span className="tabular-nums text-sm text-gray-700">{fmtDateTH(value)}</span>
+      <span className="text-sm tabular-nums text-gray-700">{fmtDateTH(value)}</span>
     </div>
   );
 }
@@ -822,7 +806,7 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="flex items-center justify-between gap-3 py-1.5">
       <span className="text-sm text-gray-500">{label}</span>
-      <span className="tabular-nums text-sm text-gray-700">{value}</span>
+      <span className="text-sm tabular-nums text-gray-700">{value}</span>
     </div>
   );
 }

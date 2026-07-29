@@ -34,6 +34,7 @@ import {
   TableCell,
   TableEmpty,
 } from "@/components/ui/table";
+import { TablePager, usePagination } from "@/components/ui/table-pager";
 import { toast } from "@/lib/toast";
 import type { Catalog, CatalogListStats, CatalogStatus } from "@/lib/gov-procure/catalog";
 import { COMPANIES, type GovProcureOrder } from "@/lib/gov-procure/types";
@@ -131,6 +132,10 @@ export function CatalogsClient({
   );
 
   const hasFilter = Boolean(q || statusF || companyF || attachF);
+
+  const pager = usePagination(filtered, {
+    resetKey: `${q}|${statusF}|${companyF}|${attachF}`,
+  });
 
   const loadMore = useCallback(async () => {
     setLoadingMore(true);
@@ -308,7 +313,7 @@ export function CatalogsClient({
                     </div>
                   </TableEmpty>
                 ) : (
-                  filtered.map((c) => {
+                  pager.rows.map((c) => {
                     const s = stats.byCatalog[c.id];
                     const order = c.order_id ? orderById.get(c.order_id) : undefined;
                     const itemCount = s?.total ?? 0;
@@ -375,6 +380,7 @@ export function CatalogsClient({
                 </TableFooter>
               )}
             </Table>
+            <TablePager pager={pager} unit="ชุด" className="mt-3" />
           </>
         )}
       </div>

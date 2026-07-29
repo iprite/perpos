@@ -11,7 +11,6 @@ import {
   UserCheck,
   Trash2,
   Gauge,
-  Search,
   ChevronDown,
   Users as UsersIcon,
   Copy,
@@ -35,6 +34,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { CustomSelect } from "@/components/ui/custom-select";
+import { FilterBar, FilterSearch } from "@/components/ui/filter-bar";
 import {
   Dialog,
   DialogContent,
@@ -44,6 +44,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog";
+import { TablePager, usePagination } from "@/components/ui/table-pager";
 import { startImpersonationSession } from "@/components/impersonation-banner";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -771,6 +772,9 @@ export default function AdminUsersPage() {
     [allOrgs],
   );
 
+  // แบ่งหน้าเฉพาะรายชื่อที่แสดง — ตัวนับ (ออนไลน์/จำนวนคน) ยังคิดจากชุดเต็ม
+  const pager = usePagination(filtered, { resetKey: `${query}|${statusFilter}` });
+
   // ── guards ─────────────────────────────────────────────────────────────────────
   if (authLoading)
     return (
@@ -797,20 +801,12 @@ export default function AdminUsersPage() {
       description="ผู้ใช้ทุกคนสมัครผ่าน LINE — กำหนดองค์กร (ERP) และโควต้าผู้ช่วย AI ได้จากที่นี่"
     >
       {/* Filter bar */}
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-        <div className="relative flex-1">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-          <Input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="ค้นหาชื่อ หรือ อีเมล"
-            className="pl-9"
-          />
-        </div>
+      <FilterBar>
+        <FilterSearch value={query} onChange={setQuery} placeholder="ค้นหาชื่อ หรือ อีเมล" />
         <CustomSelect
           value={statusFilter}
           onChange={setStatusFilter}
-          className="sm:w-48"
+          className="w-48"
           options={[
             { value: "all", label: "ทุกสถานะ" },
             { value: "online", label: "กำลังออนไลน์" },
@@ -819,14 +815,14 @@ export default function AdminUsersPage() {
             { value: "admin", label: "ผู้ดูแลระบบ" },
           ]}
         />
-        <div className="hidden items-center gap-2 text-sm text-gray-500 sm:flex sm:whitespace-nowrap">
+        <div className="ms-auto hidden items-center gap-2 text-sm text-gray-500 sm:flex sm:whitespace-nowrap">
           <span className="inline-flex items-center gap-1.5 rounded-full bg-green-50 px-2 py-0.5 font-medium text-green-700">
             <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
             ออนไลน์ {onlineCount}
           </span>
           <span>{filtered.length} คน</span>
         </div>
-      </div>
+      </FilterBar>
 
       {/* Feedback */}
       {error && (
@@ -882,7 +878,7 @@ export default function AdminUsersPage() {
             <p className="mt-1 text-sm text-gray-400">ผู้ใช้จะปรากฏที่นี่เมื่อแอด LINE OA</p>
           </div>
         ) : (
-          filtered.map((u) => {
+          pager.rows.map((u) => {
             const isExpanded = expandedUserId === u.id;
             const lowCredit = u.tokens.balance <= 0;
             const availableOrgs = allOrgs.filter((o) => !u.orgs.some((m) => m.orgId === o.id));
@@ -1111,6 +1107,7 @@ export default function AdminUsersPage() {
             );
           })
         )}
+        <TablePager pager={pager} unit="คน" />
       </div>
 
       {/* Token grant dialog */}

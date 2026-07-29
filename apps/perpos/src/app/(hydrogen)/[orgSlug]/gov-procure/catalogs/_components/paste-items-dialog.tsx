@@ -178,6 +178,7 @@ export function PasteItemsDialog({
         <DialogBody>
           <div className="space-y-4">
             <SegmentedControl
+              size="md"
               value={format}
               onChange={(v) => {
                 setFormat(v);

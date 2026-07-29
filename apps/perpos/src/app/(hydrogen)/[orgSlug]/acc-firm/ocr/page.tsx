@@ -9,6 +9,7 @@ import { PageShell } from "@/components/ui/page-shell";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { CustomSelect } from "@/components/ui/custom-select";
+import { FilterBar, FilterClear } from "@/components/ui/filter-bar";
 import { ThaiDatePicker } from "@/components/ui/thai-date-picker";
 import {
   Dialog,
@@ -19,6 +20,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { StatusBadge, type BadgeTone } from "@/components/ui/badge";
+import { TablePager, usePagination } from "@/components/ui/table-pager";
 import {
   Table,
   TableHeader,
@@ -600,6 +602,10 @@ export default function AccFirmOcrPage() {
     [jobs, filterClient, filterStatus],
   );
 
+  const jobsPager = usePagination(filteredJobs, {
+    resetKey: `${filterClient}|${filterStatus}`,
+  });
+
   const pendingCount = useMemo(
     () => jobs.filter((j) => j.status === "pending" || j.status === "failed").length,
     [jobs],
@@ -644,30 +650,33 @@ export default function AccFirmOcrPage() {
       }
     >
       {/* Filters Bar */}
-      <div className="flex flex-wrap items-center gap-4 rounded-xl border bg-slate-50 p-4">
-        <div className="w-full space-y-1 sm:w-64">
-          <Label className="text-xs text-slate-500">เลือกบริษัทลูกค้า</Label>
-          <CustomSelect
-            value={filterClient}
-            onChange={setFilterClient}
-            options={[{ value: "", label: "ทุกบริษัทลูกค้า" }, ...clients]}
-          />
-        </div>
-        <div className="w-full space-y-1 sm:w-48">
-          <Label className="text-xs text-slate-500">สถานะคิวงาน</Label>
-          <CustomSelect
-            value={filterStatus}
-            onChange={setFilterStatus}
-            options={[
-              { value: "", label: "ทุกสถานะ" },
-              { value: "pending", label: "รอดำเนินการ" },
-              { value: "processing", label: "กำลังวิเคราะห์" },
-              { value: "completed", label: "เสร็จสมบูรณ์" },
-              { value: "failed", label: "ล้มเหลว" },
-            ]}
-          />
-        </div>
-      </div>
+      <FilterBar>
+        <CustomSelect
+          value={filterClient}
+          onChange={setFilterClient}
+          options={[{ value: "", label: "ทุกบริษัทลูกค้า" }, ...clients]}
+          className="w-64"
+        />
+        <CustomSelect
+          value={filterStatus}
+          onChange={setFilterStatus}
+          options={[
+            { value: "", label: "ทุกสถานะ" },
+            { value: "pending", label: "รอดำเนินการ" },
+            { value: "processing", label: "กำลังวิเคราะห์" },
+            { value: "completed", label: "เสร็จสมบูรณ์" },
+            { value: "failed", label: "ล้มเหลว" },
+          ]}
+          className="w-48"
+        />
+        <FilterClear
+          disabled={!filterClient && !filterStatus}
+          onClick={() => {
+            setFilterClient("");
+            setFilterStatus("");
+          }}
+        />
+      </FilterBar>
 
       {/* OCR Jobs Queue Table */}
       <div className="rounded-xl border bg-white">
@@ -699,7 +708,7 @@ export default function AccFirmOcrPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredJobs.map((job) => {
+              {jobsPager.rows.map((job) => {
                 const fileName = job.document_url.split("/").pop()?.split("?")[0] || "document";
                 const isProcessing = processingJobId === job.id || job.status === "processing";
                 const amount = job.extracted_json?.amounts?.grand_total;
@@ -788,6 +797,7 @@ export default function AccFirmOcrPage() {
           </Table>
         )}
       </div>
+      <TablePager pager={jobsPager} unit="เอกสาร" />
 
       {/* ── Upload Dialog ─────────────────────────────────────────────────────── */}
       <Dialog

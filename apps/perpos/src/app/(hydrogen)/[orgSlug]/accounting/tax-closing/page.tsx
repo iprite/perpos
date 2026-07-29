@@ -7,8 +7,8 @@
 
 import { useMemo, useState } from "react";
 import { Landmark, Plus, Receipt, CalendarCheck, Lock, Unlock } from "lucide-react";
-import cn from "@core/utils/class-names";
 import { Button } from "@/components/ui/button";
+import { SegmentedControl } from "@/components/ui/segmented";
 import { Text } from "@/components/ui/typography";
 import {
   Table,
@@ -132,20 +132,15 @@ export default function TaxClosingPage() {
     );
 
   const tabs = (
-    <div className="flex gap-1.5 overflow-x-auto rounded-xl border border-gray-200 bg-white p-1.5 shadow-sm [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-      {TABS.filter((t) => t.show).map((t) => (
-        <Button
-          key={t.key}
-          size="sm"
-          variant={tab === t.key ? "secondary" : "ghost"}
-          className={cn("shrink-0 whitespace-nowrap", tab === t.key && "bg-gray-100 text-gray-900")}
-          onClick={() => setTab(t.key)}
-        >
-          <span className="mr-1.5">{t.icon}</span>
-          {t.label}
-        </Button>
-      ))}
-    </div>
+    <SegmentedControl<TaxTab>
+      value={tab}
+      onChange={setTab}
+      options={TABS.filter((t) => t.show).map((t) => ({
+        value: t.key,
+        label: t.label,
+        icon: t.icon,
+      }))}
+    />
   );
 
   const filingRows = (rows: AccTaxFiling[], emptyText: string) => (

@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { CustomSelect } from "@/components/ui/custom-select";
+import { FilterBar } from "@/components/ui/filter-bar";
 import { ThaiDatePicker } from "@/components/ui/thai-date-picker";
 import { StatCard } from "@/components/ui/stat-card";
 import { StatusBadge } from "@/components/ui/badge";
@@ -246,32 +247,30 @@ export function TimeClient({
       </div>
 
       {/* ── เลือกพนักงาน + เดือน ── */}
-      <div className="flex flex-col gap-2 rounded-xl border border-gray-200 bg-white p-3 shadow-sm sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-          <CustomSelect
-            value={empId}
-            onChange={setEmpId}
-            options={employees.map((e) => ({
-              value: e.id,
-              label: `${e.employee_code} · ${fullName(e)}`,
-            }))}
-            className="sm:w-64"
-          />
-          <CustomSelect
-            value={monthStr}
-            onChange={() => {}}
-            options={monthOpts}
-            disabled
-            className="sm:w-44"
-          />
-        </div>
+      <FilterBar hideIcon>
+        <CustomSelect
+          value={empId}
+          onChange={setEmpId}
+          options={employees.map((e) => ({
+            value: e.id,
+            label: `${e.employee_code} · ${fullName(e)}`,
+          }))}
+          className="w-64"
+        />
+        <CustomSelect
+          value={monthStr}
+          onChange={() => {}}
+          options={monthOpts}
+          disabled
+          className="w-44"
+        />
         {canWrite && (
-          <Button size="sm" onClick={openAdd} disabled={!empId}>
+          <Button size="sm" onClick={openAdd} disabled={!empId} className="ms-auto">
             <CalendarPlus className="mr-1.5 h-4 w-4" />
             บันทึกเวลาวันใหม่
           </Button>
         )}
-      </div>
+      </FilterBar>
 
       {/* ── สรุปต่อคน → ป้อนเข้าเงินเดือน ── */}
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">

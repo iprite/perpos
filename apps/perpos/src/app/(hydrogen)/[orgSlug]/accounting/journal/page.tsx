@@ -23,6 +23,7 @@ import {
   TableEmpty,
   TableLoading,
 } from "@/components/ui/table";
+import { TablePager, usePagination } from "@/components/ui/table-pager";
 import { toast } from "@/lib/toast";
 import {
   AccountingShell,
@@ -79,6 +80,8 @@ export default function JournalPage() {
       })
       .sort((a, b) => b.entry_date.localeCompare(a.entry_date));
   }, [journalEntries, search, statusF, sourceF]);
+
+  const pager = usePagination(filtered, { resetKey: `${search}|${statusF}|${sourceF}` });
 
   const stats = useMemo(() => {
     const total = journalEntries.length;
@@ -210,7 +213,7 @@ export default function JournalPage() {
               </div>
             </TableEmpty>
           ) : (
-            filtered.map((j) => (
+            pager.rows.map((j) => (
               <TableRow key={j.id} clickable onClick={() => void openEdit(j)}>
                 <TableCell className="font-medium text-gray-900">{j.entry_number}</TableCell>
                 <TableCell className="whitespace-nowrap text-gray-500">
@@ -236,6 +239,8 @@ export default function JournalPage() {
           )}
         </TableBody>
       </Table>
+
+      <TablePager pager={pager} />
 
       <JournalDialog open={dialogOpen} onOpenChange={setDialogOpen} entry={editing} />
     </AccountingShell>

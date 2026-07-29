@@ -169,6 +169,7 @@ export function ProductDialog({
                   <Label>ประเภท *</Label>
                   <div className="mt-1">
                     <SegmentedControl
+                      size="md"
                       value={kind}
                       onChange={setKind}
                       options={KIND_OPTIONS}
@@ -181,6 +182,7 @@ export function ProductDialog({
                   <Label>สถานะ</Label>
                   <div className="mt-1">
                     <SegmentedControl
+                      size="md"
                       value={isActive ? "active" : "inactive"}
                       onChange={(v) => setIsActive(v === "active")}
                       options={STATUS_OPTIONS}

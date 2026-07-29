@@ -8,8 +8,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { BarChart3, Scale, TrendingUp, Landmark, ListTree } from "lucide-react";
-import cn from "@core/utils/class-names";
-import { Button } from "@/components/ui/button";
+import { SegmentedControl } from "@/components/ui/segmented";
 import { CustomSelect } from "@/components/ui/custom-select";
 import { Text } from "@/components/ui/typography";
 import { StatusBadge } from "@/components/ui/badge";
@@ -208,20 +207,11 @@ export default function ReportsPage() {
     );
 
   const tabs = (
-    <div className="flex gap-1.5 overflow-x-auto rounded-xl border border-gray-200 bg-white p-1.5 shadow-sm [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-      {TABS.map((t) => (
-        <Button
-          key={t.key}
-          size="sm"
-          variant={tab === t.key ? "secondary" : "ghost"}
-          className={cn("shrink-0 whitespace-nowrap", tab === t.key && "bg-gray-100 text-gray-900")}
-          onClick={() => setTab(t.key)}
-        >
-          <span className="mr-1.5">{t.icon}</span>
-          {t.label}
-        </Button>
-      ))}
-    </div>
+    <SegmentedControl<ReportTab>
+      value={tab}
+      onChange={setTab}
+      options={TABS.map((t) => ({ value: t.key, label: t.label, icon: t.icon }))}
+    />
   );
 
   return (

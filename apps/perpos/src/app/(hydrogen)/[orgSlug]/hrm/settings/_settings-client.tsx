@@ -6,9 +6,8 @@
 
 import { useState } from "react";
 import { CalendarOff, Coins, Landmark, BookOpen, MessageSquare } from "lucide-react";
-import cn from "@core/utils/class-names";
 
-import { Button } from "@/components/ui/button";
+import { SegmentedControl } from "@/components/ui/segmented";
 import { Text } from "@/components/ui/typography";
 import type { LeaveType, PayItem, Fund, AccountSetting } from "@/lib/hrm/types";
 import { LeaveTab, PayItemTab, FundTab, AccountTab, SectionCard } from "./_settings-tabs";
@@ -42,23 +41,11 @@ export function SettingsClient({
   return (
     <div className="space-y-5">
       {/* Tab navigation — row เดียว, ล้นแล้วเลื่อนซ้าย-ขวา (ไม่ตกบรรทัด) */}
-      <div className="flex gap-1.5 overflow-x-auto rounded-xl border border-gray-200 bg-white p-1.5 shadow-sm [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        {TABS.map((t) => (
-          <Button
-            key={t.key}
-            variant={tab === t.key ? "secondary" : "ghost"}
-            size="sm"
-            className={cn(
-              "shrink-0 whitespace-nowrap",
-              tab === t.key && "bg-gray-100 text-gray-900",
-            )}
-            onClick={() => setTab(t.key)}
-          >
-            <span className="mr-1.5">{t.icon}</span>
-            {t.label}
-          </Button>
-        ))}
-      </div>
+      <SegmentedControl<TabKey>
+        value={tab}
+        onChange={setTab}
+        options={TABS.map((t) => ({ value: t.key, label: t.label, icon: t.icon }))}
+      />
 
       {tab === "leave" && <LeaveTab rows={leaveTypes} orgId={orgId} canWrite={canWrite} />}
       {tab === "payitem" && <PayItemTab rows={payItems} orgId={orgId} canWrite={canWrite} />}

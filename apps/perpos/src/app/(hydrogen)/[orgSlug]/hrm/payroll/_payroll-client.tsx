@@ -44,6 +44,7 @@ import {
   TableCell,
   TableEmpty,
 } from "@/components/ui/table";
+import { TablePager, usePagination } from "@/components/ui/table-pager";
 import { toast } from "@/lib/toast";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
@@ -150,6 +151,9 @@ export function PayrollClient({
   const [empById, setEmpById] = useState<Map<string, Employee>>(new Map());
   const [slipsLoading, setSlipsLoading] = useState(false);
   const [acting, setActing] = useState(false);
+
+  const runsPager = usePagination(initial);
+  const slipsPager = usePagination(slips, { resetKey: detailRun?.id ?? "" });
 
   // ── เปิดรายละเอียดรอบ (lazy fetch สลิป + พนักงาน) ──
   async function openDetail(run: PayrollRun) {
@@ -309,7 +313,7 @@ export function PayrollClient({
                 </div>
               </TableEmpty>
             ) : (
-              initial.map((r) => (
+              runsPager.rows.map((r) => (
                 <TableRow key={r.id} clickable onClick={() => openDetail(r)}>
                   <TableCell className="font-mono text-xs text-gray-500">{r.run_number}</TableCell>
                   <TableCell className="font-medium text-gray-900">
@@ -329,6 +333,7 @@ export function PayrollClient({
             )}
           </TableBody>
         </Table>
+        <TablePager pager={runsPager} className="mt-3" />
       </div>
 
       <p className="text-xs text-gray-400">
@@ -406,7 +411,7 @@ export function PayrollClient({
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {slips.map((p) => {
+                          {slipsPager.rows.map((p) => {
                             const emp = empById.get(p.employee_id);
                             const name = emp ? `${emp.first_name} ${emp.last_name}` : "—";
                             return (
@@ -448,6 +453,7 @@ export function PayrollClient({
                         </TableBody>
                       </Table>
                     )}
+                    <TablePager pager={slipsPager} unit="คน" className="mt-3" />
                   </div>
                 </div>
               </DialogBody>

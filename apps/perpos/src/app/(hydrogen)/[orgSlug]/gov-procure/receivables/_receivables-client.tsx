@@ -23,6 +23,7 @@ import {
   TableHead,
   TableCell,
 } from "@/components/ui/table";
+import { TablePager, usePagination } from "@/components/ui/table-pager";
 import { computeDuration, isRealized } from "@/lib/gov-procure/summary";
 import type { GovProcureOrder, GovProcureSettings, GovProcureRole } from "@/lib/gov-procure/types";
 import {
@@ -238,6 +239,7 @@ function ReceivablesTable({
   totalAmount: number;
   onRow: (o: GovProcureOrder) => void;
 }) {
+  const pager = usePagination(rows);
   return (
     <>
       <div className="mb-2.5 flex items-center gap-2 px-1 text-sm font-semibold text-gray-900">
@@ -256,7 +258,7 @@ function ReceivablesTable({
           </TableRow>
         </TableHeader>
         <TableBody>
-          {rows.map((r) => (
+          {pager.rows.map((r) => (
             <TableRow key={r.order.id} clickable onClick={() => onRow(r.order)}>
               <TableCell>
                 <div className="min-w-0">
@@ -300,6 +302,7 @@ function ReceivablesTable({
           </TableRow>
         </TableFooter>
       </Table>
+      <TablePager pager={pager} unit="งาน" className="mt-3" />
     </>
   );
 }
@@ -317,7 +320,7 @@ function ForecastCell({ row }: { row: ReceivableRow }) {
     <div className="flex flex-col items-center gap-1">
       <div className="flex items-center gap-1.5" title={avgHint}>
         <CalendarClock className="h-3.5 w-3.5 text-gray-400" />
-        <span className="tabular-nums text-sm text-gray-700">
+        <span className="text-sm tabular-nums text-gray-700">
           {fmtDateTH(forecast.expectedIso)}
         </span>
       </div>

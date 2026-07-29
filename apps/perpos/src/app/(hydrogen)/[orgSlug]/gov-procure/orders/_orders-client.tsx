@@ -22,6 +22,7 @@ import {
   TableCell,
   TableEmpty,
 } from "@/components/ui/table";
+import { TablePager, usePagination } from "@/components/ui/table-pager";
 import { STAGE_ORDER, STAGE_LABELS } from "@/lib/gov-procure/stage";
 import { computeAging, isOverdue } from "@/lib/gov-procure/summary";
 import {
@@ -130,6 +131,10 @@ function OrdersBody() {
   const hasAnyOrder = orders.length > 0;
   const hasFilter = Boolean(search || stageF || companyF || deptF);
 
+  const pager = usePagination(filtered, {
+    resetKey: `${search}|${stageF}|${companyF}|${deptF}`,
+  });
+
   function clearFilters() {
     setSearch("");
     setStageF("");
@@ -209,7 +214,7 @@ function OrdersBody() {
                     </div>
                   </TableEmpty>
                 ) : (
-                  filtered.map((o) => {
+                  pager.rows.map((o) => {
                     const aging = computeAging(o, TODAY_DATE);
                     const overdue = isOverdue(o, settings.sla_threshold, TODAY_DATE);
                     return (
@@ -264,6 +269,7 @@ function OrdersBody() {
                 </TableFooter>
               )}
             </Table>
+            <TablePager pager={pager} unit="งาน" className="mt-3" />
           </>
         )}
 

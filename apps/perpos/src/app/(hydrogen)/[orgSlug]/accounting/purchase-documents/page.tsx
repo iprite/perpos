@@ -7,8 +7,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { FileInput, Plus, Search, Printer, AlertTriangle, CheckCircle2, Ban } from "lucide-react";
-import cn from "@core/utils/class-names";
 import { Input } from "@/components/ui/input";
+import { SegmentedControl } from "@/components/ui/segmented";
 import { Button } from "@/components/ui/button";
 import { CustomSelect } from "@/components/ui/custom-select";
 import { StatCard } from "@/components/ui/stat-card";
@@ -23,6 +23,7 @@ import {
   TableEmpty,
   TableLoading,
 } from "@/components/ui/table";
+import { TablePager, usePagination } from "@/components/ui/table-pager";
 import {
   AccountingShell,
   useAccountingRole,
@@ -170,6 +171,8 @@ export default function PurchaseDocumentsPage() {
     );
   }, [docs, search]);
 
+  const docPager = usePagination(filtered, { resetKey: search });
+
   const stats = useMemo(() => {
     const live = docs.filter((d) => d.status !== "void");
     const claimable = live.filter((d) => d.is_vat_claimable);
@@ -192,24 +195,14 @@ export default function PurchaseDocumentsPage() {
     );
 
   const tabs = (
-    <div className="flex gap-1.5 overflow-x-auto rounded-xl border border-gray-200 bg-white p-1.5 shadow-sm [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-      {(
-        [
-          { key: "register", label: "ทะเบียนใบกำกับภาษีซื้อ" },
-          { key: "report", label: "รายงานภาษีซื้อ" },
-        ] as { key: Tab; label: string }[]
-      ).map((t) => (
-        <Button
-          key={t.key}
-          size="sm"
-          variant={tab === t.key ? "secondary" : "ghost"}
-          className={cn("shrink-0 whitespace-nowrap", tab === t.key && "bg-gray-100 text-gray-900")}
-          onClick={() => setTab(t.key)}
-        >
-          {t.label}
-        </Button>
-      ))}
-    </div>
+    <SegmentedControl<Tab>
+      value={tab}
+      onChange={setTab}
+      options={[
+        { value: "register", label: "ทะเบียนใบกำกับภาษีซื้อ" },
+        { value: "report", label: "รายงานภาษีซื้อ" },
+      ]}
+    />
   );
 
   return (
@@ -329,7 +322,7 @@ export default function PurchaseDocumentsPage() {
                   </div>
                 </TableEmpty>
               ) : (
-                filtered.map((d) => (
+                docPager.rows.map((d) => (
                   <TableRow key={d.id} clickable onClick={() => void openDoc(d)}>
                     <TableCell className="whitespace-nowrap text-gray-500">
                       {fmtDateTH(d.issue_date)}
@@ -374,6 +367,8 @@ export default function PurchaseDocumentsPage() {
               )}
             </TableBody>
           </Table>
+
+          <TablePager pager={docPager} unit="ฉบับ" />
         </>
       ) : (
         <PurchaseTaxReportView

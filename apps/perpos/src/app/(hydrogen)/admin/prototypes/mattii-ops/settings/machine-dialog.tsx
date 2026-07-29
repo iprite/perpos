@@ -174,6 +174,7 @@ export function MachineDialog({
             <div>
               <Label>สถานะเครื่อง</Label>
               <SegmentedControl
+                size="md"
                 className="mt-1"
                 value={status}
                 onChange={(v) => setStatus(v)}
