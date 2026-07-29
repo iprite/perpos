@@ -371,8 +371,8 @@ export default function AdminTokensPage() {
                     </div>
                   </div>
                 </div>
-                <Table>
-                  <TableHeader>
+                <Table stickyHeader fillViewport>
+                  <TableHeader sticky>
                     <TableRow>
                       <TableHead>เวลา</TableHead>
                       <TableHead>ประเภท</TableHead>

@@ -352,8 +352,8 @@ export default function OcrMemoryPage() {
       <div className="mb-2.5 px-1 text-sm font-semibold text-gray-900">
         ผู้ขาย → บัญชีที่ระบบจำไว้
       </div>
-      <Table className="shadow-sm">
-        <TableHeader>
+      <Table stickyHeader fillViewport className="shadow-sm">
+        <TableHeader sticky>
           <TableRow>
             <TableHead>ผู้ขาย</TableHead>
             <TableHead>เลขผู้เสียภาษี</TableHead>

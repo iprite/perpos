@@ -952,7 +952,7 @@ export default function TmcPettyCashPage() {
             </TableBody>
           </Table>
         ) : (
-          <Table stickyHeader maxHeight="70vh" className="shadow-sm">
+          <Table stickyHeader fillViewport className="shadow-sm">
             <TableHeader sticky>
               <TableRow>
                 <TableHead>หมวด</TableHead>
@@ -1192,8 +1192,8 @@ export default function TmcPettyCashPage() {
       {/* Table */}
       {view === "list" && (
         <>
-          <Table>
-            <TableHeader>
+          <Table stickyHeader fillViewport>
+            <TableHeader sticky>
               <TableRow>
                 <TableHead>วันที่</TableHead>
                 <TableHead>รายการ</TableHead>

@@ -192,8 +192,8 @@ export function FinancialsClient({
           ตัวเลขที่เหลือกรอกได้จากตารางนี้
         </p>
 
-        <Table className="shadow-sm">
-          <TableHeader>
+        <Table className="shadow-sm" stickyHeader fillViewport>
+          <TableHeader sticky>
             <TableRow>
               <TableHead>บริษัท</TableHead>
               <TableHead align="right">รายได้</TableHead>

@@ -86,8 +86,8 @@ export default async function AdminIssuesPage({
 
       <IssueFilters status={status} type={type} severity={severity} />
 
-      <Table>
-        <TableHeader>
+      <Table stickyHeader fillViewport>
+        <TableHeader sticky>
           <TableRow>
             <TableHead>เลขอ้างอิง</TableHead>
             <TableHead>หัวข้อ</TableHead>

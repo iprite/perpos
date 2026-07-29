@@ -384,8 +384,8 @@ export default function UsvillaPage() {
           </div>
         ) : (
           <div className="space-y-3">
-            <Table wrapperClassName="rounded-none border-0">
-              <TableHeader>
+            <Table stickyHeader fillViewport wrapperClassName="rounded-none border-0">
+              <TableHeader sticky>
                 <TableRow>
                   <TableHead>{t.col_room}</TableHead>
                   <TableHead>{t.col_guest}</TableHead>

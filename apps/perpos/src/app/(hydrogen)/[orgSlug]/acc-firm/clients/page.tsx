@@ -383,8 +383,8 @@ export default function AccFirmClientsPage() {
         </div>
       ) : (
         <div className="space-y-3">
-          <Table>
-            <TableHeader>
+          <Table stickyHeader fillViewport>
+            <TableHeader sticky>
               <TableRow>
                 <TableHead>องค์กร</TableHead>
                 <TableHead>Modules</TableHead>

@@ -61,8 +61,8 @@ export default async function AdminAuditPage({
       icon={<ScrollText className="h-6 w-6" />}
       actions={<AuditActionFilter actions={actions} current={action} />}
     >
-      <Table>
-        <TableHeader>
+      <Table stickyHeader fillViewport>
+        <TableHeader sticky>
           <TableRow>
             <TableHead>เวลา</TableHead>
             <TableHead>ผู้ดำเนินการ</TableHead>

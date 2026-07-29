@@ -341,7 +341,7 @@ export function CapitalClient({
             <Coins className="h-4 w-4 text-primary" />
             รายการเคลื่อนไหวเงินทุน
           </div>
-          <Table className="shadow-sm" maxHeight="60vh" stickyHeader>
+          <Table className="shadow-sm" stickyHeader fillViewport>
             <TableHeader sticky>
               <TableRow>
                 <TableHead>วันที่</TableHead>

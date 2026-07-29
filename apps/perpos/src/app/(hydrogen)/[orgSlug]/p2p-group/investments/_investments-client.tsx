@@ -236,8 +236,8 @@ export function InvestmentsClient({
 
         {tab === "investments" ? (
           <div className="space-y-3">
-            <Table className="shadow-sm">
-              <TableHeader>
+            <Table className="shadow-sm" stickyHeader fillViewport>
+              <TableHeader sticky>
                 <TableRow>
                   <TableHead align="center">วันที่ลงทุน</TableHead>
                   <TableHead>บริษัท</TableHead>
@@ -289,8 +289,8 @@ export function InvestmentsClient({
           </div>
         ) : (
           <div className="space-y-3">
-            <Table className="shadow-sm">
-              <TableHeader>
+            <Table className="shadow-sm" stickyHeader fillViewport>
+              <TableHeader sticky>
                 <TableRow>
                   <TableHead align="center">วันประกาศ</TableHead>
                   <TableHead>บริษัท</TableHead>

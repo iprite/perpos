@@ -178,8 +178,8 @@ export default function JournalPage() {
       </div>
 
       {/* table */}
-      <Table className="shadow-sm">
-        <TableHeader>
+      <Table stickyHeader fillViewport className="shadow-sm">
+        <TableHeader sticky>
           <TableRow>
             <TableHead>เลขที่</TableHead>
             <TableHead>วันที่</TableHead>

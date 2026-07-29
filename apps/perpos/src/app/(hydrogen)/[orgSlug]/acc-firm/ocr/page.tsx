@@ -695,8 +695,8 @@ export default function AccFirmOcrPage() {
             </Button>
           </div>
         ) : (
-          <Table wrapperClassName="rounded-none border-0">
-            <TableHeader>
+          <Table stickyHeader fillViewport wrapperClassName="rounded-none border-0">
+            <TableHeader sticky>
               <TableRow>
                 <TableHead>บริษัทลูกค้า</TableHead>
                 <TableHead>ชื่อไฟล์เอกสาร</TableHead>

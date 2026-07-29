@@ -225,8 +225,8 @@ export function CompaniesClient({
         ) : undefined
       }
     >
-      <Table className="shadow-sm">
-        <TableHeader>
+      <Table className="shadow-sm" stickyHeader fillViewport>
+        <TableHeader sticky>
           <TableRow>
             <TableHead>บริษัท</TableHead>
             <TableHead>ประเภท</TableHead>

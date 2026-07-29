@@ -459,8 +459,8 @@ export default function B2gOrdersPage() {
           </FilterBar>
 
           {/* Table */}
-          <Table>
-            <TableHeader>
+          <Table stickyHeader fillViewport>
+            <TableHeader sticky>
               <TableRow>
                 <TableHead align="center">#</TableHead>
                 <TableHead>QT / สินค้า</TableHead>

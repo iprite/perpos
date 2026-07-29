@@ -185,8 +185,8 @@ export default function SttJobsPage() {
         />
       </div>
 
-      <Table>
-        <TableHeader>
+      <Table stickyHeader fillViewport>
+        <TableHeader sticky>
           <TableRow>
             <TableHead>ไฟล์ / ผู้ใช้</TableHead>
             <TableHead align="center">ที่มา</TableHead>

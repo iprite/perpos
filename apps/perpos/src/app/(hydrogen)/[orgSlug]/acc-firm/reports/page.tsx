@@ -305,8 +305,8 @@ export default function AccFirmReportsPage() {
             </div>
           ) : (
             <div className="space-y-3">
-              <Table>
-                <TableHeader>
+              <Table stickyHeader fillViewport>
+                <TableHeader sticky>
                   <TableRow>
                     <TableHead>สถานะ</TableHead>
                     <TableHead>Client</TableHead>
@@ -421,8 +421,8 @@ export default function AccFirmReportsPage() {
               </Button>
             </div>
           ) : (
-            <Table>
-              <TableHeader>
+            <Table stickyHeader fillViewport>
+              <TableHeader sticky>
                 <TableRow>
                   <TableHead>Client</TableHead>
                   <TableHead>ประเภทภาษี</TableHead>
@@ -454,8 +454,8 @@ export default function AccFirmReportsPage() {
           </div>
         ) : (
           <div className="space-y-3">
-            <Table>
-              <TableHeader>
+            <Table stickyHeader fillViewport>
+              <TableHeader sticky>
                 <TableRow>
                   <TableHead>Client</TableHead>
                   <TableHead align="center">เกินกำหนด</TableHead>

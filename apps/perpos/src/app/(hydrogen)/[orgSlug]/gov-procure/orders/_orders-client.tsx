@@ -190,8 +190,8 @@ function OrdersBody() {
             </div>
 
             {/* table */}
-            <Table>
-              <TableHeader>
+            <Table stickyHeader fillViewport>
+              <TableHeader sticky>
                 <TableRow>
                   <TableHead align="right">ลำดับ</TableHead>
                   <TableHead>หน่วยงาน / กอง</TableHead>

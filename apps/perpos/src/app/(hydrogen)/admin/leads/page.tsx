@@ -68,8 +68,8 @@ export default async function AdminLeadsPage({
         />
       </div>
 
-      <Table className="shadow-sm">
-        <TableHeader>
+      <Table stickyHeader fillViewport className="shadow-sm">
+        <TableHeader sticky>
           <TableRow>
             <TableHead>ชื่อ</TableHead>
             <TableHead>เบอร์โทร</TableHead>

@@ -166,8 +166,8 @@ export function DashboardListClient({
         <EmptyDashboards orgSlug={orgSlug} />
       ) : (
         <div className="space-y-3">
-          <Table className="shadow-sm">
-            <TableHeader>
+          <Table className="shadow-sm" stickyHeader fillViewport>
+            <TableHeader sticky>
               <TableRow>
                 <TableHead>ชื่อแดชบอร์ด</TableHead>
                 <TableHead align="right">จำนวนการ์ด</TableHead>

@@ -464,7 +464,7 @@ export default function MeetingsView({
         <h2 className="mb-2 flex items-center gap-2 text-sm font-semibold text-gray-700">
           <Video className="h-4 w-4" /> ประวัติบอทประชุม
         </h2>
-        <Table stickyHeader maxHeight="60vh">
+        <Table stickyHeader fillViewport>
           <TableHeader sticky>
             <TableRow>
               <TableHead>วันที่</TableHead>

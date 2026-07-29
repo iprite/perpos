@@ -158,8 +158,8 @@ export function DocumentsTab({
         </div>
       ) : (
         <div className="space-y-3">
-          <Table className="shadow-sm">
-            <TableHeader>
+          <Table stickyHeader fillViewport className="shadow-sm">
+            <TableHeader sticky>
               <TableRow>
                 <TableHead>ชื่อเอกสาร</TableHead>
                 <TableHead>ประเภท</TableHead>

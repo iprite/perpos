@@ -150,8 +150,8 @@ export default function TaxClosingPage() {
 
   const filingRows = (rows: AccTaxFiling[], emptyText: string) => (
     <div className="space-y-3">
-      <Table className="shadow-sm">
-        <TableHeader>
+      <Table stickyHeader fillViewport className="shadow-sm">
+        <TableHeader sticky>
           <TableRow>
             <TableHead>แบบภาษี</TableHead>
             <TableHead>งวด</TableHead>

@@ -289,8 +289,8 @@ export function CatalogsClient({
               </div>
             )}
 
-            <Table className="shadow-sm">
-              <TableHeader>
+            <Table className="shadow-sm" stickyHeader fillViewport>
+              <TableHeader sticky>
                 <TableRow>
                   <TableHead>ชื่อชุด</TableHead>
                   <TableHead>งานที่แนบ</TableHead>

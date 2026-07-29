@@ -296,7 +296,7 @@ export function TimeClient({
         <div className="mb-2.5 px-1 text-sm font-semibold text-gray-900">
           เวลาทำงานรายวัน — {fmtPeriod(year, month)}
         </div>
-        <Table stickyHeader maxHeight="52vh" className="shadow-sm">
+        <Table stickyHeader fillViewport className="shadow-sm">
           <TableHeader sticky>
             <TableRow>
               <TableHead>วันที่</TableHead>

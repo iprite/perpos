@@ -205,8 +205,8 @@ export default function EntriesPage() {
       </div>
 
       {/* table */}
-      <Table className="shadow-sm">
-        <TableHeader>
+      <Table stickyHeader fillViewport className="shadow-sm">
+        <TableHeader sticky>
           <TableRow>
             <TableHead>วันที่</TableHead>
             <TableHead>รายการ</TableHead>
