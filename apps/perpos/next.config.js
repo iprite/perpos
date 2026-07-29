@@ -26,6 +26,13 @@ const nextConfig = {
     ],
   },
   transpilePackages: ["core"],
+  experimental: {
+    // เครื่อง build ของ Vercel = 2 cores / 8 GB — ค่า default ให้ Next spawn worker ตามจำนวน core
+    // แล้วแต่ละตัวถือ heap ของตัวเอง → รวมทะลุ RAM จริงจนโดน OOM killer (SIGKILL) กลาง build
+    // บังคับ worker เดียว + เปิด optimization ของ webpack ที่ Next เตรียมไว้สำหรับเครื่อง RAM จำกัด
+    cpus: 1,
+    webpackMemoryOptimizations: true,
+  },
 };
 
 // Sentry wrap — upload source maps เฉพาะเมื่อมี SENTRY_AUTH_TOKEN (CI/local ไม่มี = ข้าม ไม่ fail)
