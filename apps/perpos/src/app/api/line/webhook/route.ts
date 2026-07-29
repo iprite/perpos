@@ -23,6 +23,7 @@ import {
 import { buildBotFlex } from "@/lib/assistant/recall-events";
 import { handleGovGroupCommand } from "@/lib/gov-procure/line-group";
 import { confirmPending } from "@/lib/gov-procure/line-commands";
+import { handleAccFirmGroupMessage } from "@/lib/acc-firm/line-group";
 import { getServiceRemaining, getTokenBalance } from "@/lib/assistant/token-balance";
 import {
   buildBotConfirmFlex,
@@ -3418,18 +3419,40 @@ export async function POST(req: NextRequest) {
     const source = event.source as Record<string, string>;
     const lineUserId = source?.userId ?? "";
 
-    // ─── ข้อความในกลุ่ม/ห้อง — เฉพาะคำสั่ง gov_procure (กลุ่มที่ยังไม่ผูก บอทเงียบ) ──────
+    // ─── ข้อความในกลุ่ม/ห้อง — คำสั่ง gov_procure + กลุ่มลูกค้าของสำนักงานบัญชี ──────────
+    //   กลุ่มที่ยังไม่ผูกกับอะไรเลย บอทเงียบ (ตอบเฉพาะรหัสเชื่อมกลุ่มที่ถูกต้อง)
     //   ไม่ provision สมาชิกกลุ่มอัตโนมัติ และไม่ไหลเข้า flow ส่วนตัวด้านล่าง
     const groupId = source?.groupId || source?.roomId || "";
     if (groupId) {
       if (msg.type === "text") {
         const gText = String(msg.text ?? "");
+
+        // acc_firm: รหัสเชื่อมกลุ่ม (พิมพ์เดี่ยว ๆ ได้ ไม่ต้องขึ้นต้น /) + คำสั่งของกลุ่มลูกค้า
+        const accProfile = lineUserId ? await getProfileByLineId(admin, lineUserId) : null;
+        const accReply = await handleAccFirmGroupMessage(
+          admin,
+          groupId,
+          lineUserId,
+          accProfile?.id ?? null,
+          gText,
+        ).catch((e) => {
+          console.error("[line] acc_firm group message failed:", String(e));
+          return null;
+        });
+        if (accReply) {
+          if ("text" in accReply) await replyText(replyToken, accReply.text);
+          else
+            await replyLine(replyToken, [
+              { type: "flex", altText: accReply.altText, contents: accReply.flex },
+            ]);
+          continue;
+        }
+
         if (gText.trim().startsWith("/")) {
-          const gProfile = lineUserId ? await getProfileByLineId(admin, lineUserId) : null;
           const reply = await handleGovGroupCommand(
             admin,
             groupId,
-            gProfile?.id ?? null,
+            accProfile?.id ?? null,
             gText,
           ).catch((e) => {
             console.error("[line] gov group command failed:", String(e));

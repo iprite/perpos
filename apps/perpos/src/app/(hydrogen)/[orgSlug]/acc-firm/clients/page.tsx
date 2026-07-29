@@ -62,6 +62,7 @@ import { PageShell } from "@/components/ui/page-shell";
 import { StatCard as UiStatCard } from "@/components/ui/stat-card";
 import type { ServiceClient } from "@/app/api/acc-firm/service-clients/route";
 import { summarizeServiceFees } from "@/lib/acc-firm/billing";
+import { ClientLineGroupSection } from "./_line-group-section";
 
 /** เงินเต็ม "1,234.56 ฿" — ยอดลบ U+2212 */
 function fmtMoney(v: number): string {
@@ -220,6 +221,8 @@ export default function AccFirmClientsPage() {
   /** สิทธิ์แก้ทะเบียน — viewer แก้ไม่ได้ (ตรงกับด่านใน POST/PATCH) */
   const [canWrite, setCanWrite] = useState(true);
   const [clients, setClients] = useState<ServiceClient[]>([]);
+  /** id ของลูกค้าที่ผูกกลุ่ม LINE แล้ว */
+  const [lineGroups, setLineGroups] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
   const [showInactive, setShowInactive] = useState(false);
@@ -269,13 +272,28 @@ export default function AccFirmClientsPage() {
   const load = useCallback(async () => {
     if (!orgId || !token) return;
     setLoading(true);
-    const res = await fetch(`/api/acc-firm/service-clients?orgId=${orgId}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
+    const [res, groupRes] = await Promise.all([
+      fetch(`/api/acc-firm/service-clients?orgId=${orgId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      }),
+      fetch(`/api/acc-firm/client-line-group?orgId=${orgId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      }),
+    ]);
     if (res.ok) {
       const json = (await res.json()) as { clients: ServiceClient[]; canWrite: boolean };
       setClients(json.clients ?? []);
       setCanWrite(json.canWrite);
+    }
+    if (groupRes.ok) {
+      const j = (await groupRes.json()) as {
+        rows: { service_client_id: string; status: string }[];
+      };
+      setLineGroups(
+        new Set(
+          (j.rows ?? []).filter((r) => r.status === "linked").map((r) => r.service_client_id),
+        ),
+      );
     }
     setLoading(false);
   }, [orgId, token]);
@@ -676,14 +694,15 @@ export default function AccFirmClientsPage() {
             <TableHead align="right">ค่าบริการ/ปี</TableHead>
             <TableHead>บริการ</TableHead>
             <TableHead align="center">เชื่อม LINE PERPOS</TableHead>
+            <TableHead align="center">กลุ่ม LINE</TableHead>
             <TableHead align="center">สถานะ</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {loading ? (
-            <TableLoading colSpan={6} />
+            <TableLoading colSpan={7} />
           ) : filtered.length === 0 ? (
-            <TableEmpty colSpan={6}>ไม่พบรายการ</TableEmpty>
+            <TableEmpty colSpan={7}>ไม่พบรายการ</TableEmpty>
           ) : (
             pager.rows.map((c) => (
               <TableRow
@@ -730,6 +749,11 @@ export default function AccFirmClientsPage() {
                 <TableCell align="center">
                   <StatusBadge tone={c.client_org_id ? "success" : "neutral"}>
                     {c.client_org_id ? "เชื่อมแล้ว" : "ยังไม่เชื่อม"}
+                  </StatusBadge>
+                </TableCell>
+                <TableCell align="center">
+                  <StatusBadge tone={lineGroups.has(c.id) ? "success" : "neutral"}>
+                    {lineGroups.has(c.id) ? "เชื่อมแล้ว" : "ยังไม่เชื่อม"}
                   </StatusBadge>
                 </TableCell>
                 <TableCell align="center">
@@ -1118,6 +1142,17 @@ export default function AccFirmClientsPage() {
                     </p>
                   )}
                 </div>
+              )}
+
+              {/* กลุ่ม LINE ของลูกค้า — เชื่อมด้วยรหัส + ตั้งค่าอัปเดตที่จะส่ง */}
+              {editing && orgId && token && (
+                <ClientLineGroupSection
+                  orgId={orgId}
+                  token={token}
+                  clientId={editing.id}
+                  canWrite={canWrite}
+                  onChanged={load}
+                />
               )}
             </div>
           </DialogBody>

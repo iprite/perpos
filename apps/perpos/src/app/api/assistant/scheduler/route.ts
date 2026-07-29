@@ -16,6 +16,7 @@ import { buildBotConfirmFlex, buildQuotaWarningFlex } from "@/lib/assistant/bot-
 import { getServiceRemaining } from "@/lib/assistant/token-balance";
 import { getStripe } from "../../_lib/stripe";
 import { alertAdminLine } from "@/lib/admin/alert";
+import { sweepClientTaxDueReminders } from "@/lib/acc-firm/line-reminders";
 
 const QUOTA_WARN_LEAD_S = 600; // เตือนโควต้าบอทใกล้หมด ≥10 นาทีก่อน kick
 const SCHED_PLATFORM_LABEL: Record<string, string> = {
@@ -60,6 +61,7 @@ async function run(req: NextRequest) {
   // ตัวนับสรุปผลการรัน → เก็บลง scheduler_runs ให้หน้า Scheduler Monitor อ่าน
   const counts = { stuck_failed: 0, requeued: 0, requeue_gaveup: 0, cleaned_jobs: 0 };
   let overdueMarked = 0; // เอกสารขายที่เลยกำหนดชำระ (ไม่เก็บลง scheduler_runs — คนละโดเมน)
+  let taxDueSent = 0; // เตือนกำหนดยื่นภาษีที่ส่งเข้ากลุ่ม LINE ลูกค้าของสำนักงานบัญชี
   const logRun = async (okFlag: boolean, errorMessage?: string) => {
     await admin
       .from("scheduler_runs")
@@ -1126,9 +1128,23 @@ async function run(req: NextRequest) {
         /* best-effort — ไม่ทำให้ scheduler ล้ม */
       }
 
+    // ── acc_firm: เตือนกำหนดยื่นภาษีเข้ากลุ่ม LINE ของลูกค้า (T-7/T-3/T-1/วันครบกำหนด) ──
+    // dedup ต่อ "แบบภาษี × จุดเตือน" อยู่ใน notifyClientGroup → รันซ้ำกี่รอบก็ไม่ส่งซ้ำ
+    if (run60)
+      try {
+        taxDueSent = (await sweepClientTaxDueReminders(admin, now)).sent;
+      } catch {
+        /* best-effort — ไม่ทำให้ scheduler ล้ม */
+      }
+
     await markTiers(); // อัปเดต last-run ของ tier ที่รันรอบนี้ (หลังงานสำเร็จ → crash ก่อนหน้านี้ = retry รอบหน้า)
     await logRun(true);
-    return NextResponse.json({ ok: true, ...counts, overdue_marked: overdueMarked });
+    return NextResponse.json({
+      ok: true,
+      ...counts,
+      overdue_marked: overdueMarked,
+      acc_firm_tax_due_sent: taxDueSent,
+    });
   } catch (e) {
     await logRun(false, e instanceof Error ? e.message : String(e));
     return NextResponse.json({ ok: false, error: "scheduler_failed" }, { status: 500 });
