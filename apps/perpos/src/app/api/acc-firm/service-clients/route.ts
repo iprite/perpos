@@ -40,6 +40,26 @@ export type ServiceClient = {
   fiscal_year_end_day: number;
   storage_location: string | null;
   dbd_relocation_notified: boolean;
+  // ── ข้อมูลติดต่อ ──
+  contact_name: string | null;
+  contact_phone: string | null;
+  contact_email: string | null;
+  address: string | null;
+  // ── ภาษี / ประกันสังคม ──
+  /** สาขาตาม ม.86/4 — '00000' = สำนักงานใหญ่ */
+  branch_code: string;
+  vat_registered_date: string | null;
+  sso_registered: boolean;
+  sso_employer_no: string | null;
+  efiling_enabled: boolean;
+  // ── ผู้ทำบัญชี (CPD) / ผู้สอบบัญชี (CPA/TA) ──
+  accountant_name: string | null;
+  accountant_license: string | null;
+  auditor_name: string | null;
+  auditor_license: string | null;
+  // ── รอบงานเอกสาร ──
+  doc_due_day: number | null;
+  doc_channel: string | null;
   /** org ใน PERPOS ของลูกค้ารายนี้ (null = ยังไม่เชื่อมระบบ) */
   client_org_id: string | null;
   /** การเชื่อมระบบ (engagement) — มีเมื่อ client_org_id ไม่ null */
@@ -191,8 +211,33 @@ function sanitize(body: Record<string, unknown>) {
       else delete out[f];
     }
   }
+  // วันที่ลูกค้าส่งเอกสารประจำเดือน — smallint nullable (ฟอร์มส่งมาเป็น string)
+  if ("doc_due_day" in out) {
+    const n = Number(out.doc_due_day);
+    out.doc_due_day = Number.isInteger(n) && n >= 1 && n <= 31 ? n : null;
+  }
+  // สาขาตาม ม.86/4 — NOT NULL, ว่าง = สำนักงานใหญ่
+  if ("branch_code" in out) {
+    const b = String(out.branch_code ?? "").replace(/\D/g, "");
+    out.branch_code = b ? b.padStart(5, "0").slice(-5) : "00000";
+  }
   // ข้อความว่าง = ยังไม่ระบุ (null) ไม่ใช่สตริงว่าง
-  for (const f of ["tax_id", "entity_type", "storage_location"] as const) {
+  for (const f of [
+    "tax_id",
+    "entity_type",
+    "storage_location",
+    "contact_name",
+    "contact_phone",
+    "contact_email",
+    "address",
+    "vat_registered_date",
+    "sso_employer_no",
+    "accountant_name",
+    "accountant_license",
+    "auditor_name",
+    "auditor_license",
+    "doc_channel",
+  ] as const) {
     if (f in out && (out[f] === "" || out[f] === undefined)) out[f] = null;
   }
   return out;

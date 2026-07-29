@@ -57,7 +57,13 @@ import {
   ShieldCheck,
   ShieldOff,
   BookOpen,
+  Building2,
+  Phone,
+  Landmark,
+  FolderLock,
 } from "lucide-react";
+import { RadioGroup } from "@/components/ui/radio-group";
+import { ThaiDatePicker } from "@/components/ui/thai-date-picker";
 import { PageShell } from "@/components/ui/page-shell";
 import { StatCard as UiStatCard } from "@/components/ui/stat-card";
 import type { ServiceClient } from "@/app/api/acc-firm/service-clients/route";
@@ -129,6 +135,28 @@ const MONTH_OPTIONS = [
   "ธันวาคม",
 ].map((label, i) => ({ value: String(i + 1), label }));
 
+/** กลุ่มข้อมูลในกล่องแก้ไขลูกค้า — แบ่งตามงานที่ทีมทำจริง ไม่ใช่ตามโครงตาราง */
+const CLIENT_TABS = [
+  { key: "main", label: "ข้อมูลหลัก", icon: <Building2 className="h-4 w-4" /> },
+  { key: "contact", label: "ติดต่อ", icon: <Phone className="h-4 w-4" /> },
+  { key: "tax", label: "ภาษี/ประกันสังคม", icon: <Landmark className="h-4 w-4" /> },
+  { key: "service", label: "บริการ/ค่าบริการ", icon: <Wallet className="h-4 w-4" /> },
+  { key: "docs", label: "เอกสาร", icon: <FolderLock className="h-4 w-4" /> },
+  { key: "link", label: "เชื่อมระบบ/LINE", icon: <Link2 className="h-4 w-4" />, editOnly: true },
+] as { key: ClientTab; label: string; icon: React.ReactNode; editOnly?: boolean }[];
+
+type ClientTab = "main" | "contact" | "tax" | "service" | "docs" | "link";
+
+/** ช่องทางที่ลูกค้าส่งเอกสารมาให้สำนักงาน */
+const DOC_CHANNEL_OPTIONS = [
+  { value: "", label: "— ไม่ระบุ —" },
+  { value: "line", label: "ส่งทาง LINE" },
+  { value: "pickup", label: "สำนักงานไปรับเอง" },
+  { value: "onsite", label: "ลูกค้านำมาส่งที่สำนักงาน" },
+  { value: "post", label: "ไปรษณีย์/ขนส่ง" },
+  { value: "other", label: "อื่น ๆ" },
+];
+
 const EMPTY_FORM = {
   client_code: "",
   company_name: "",
@@ -139,6 +167,21 @@ const EMPTY_FORM = {
   fiscal_year_end_day: "31",
   storage_location: "",
   dbd_relocation_notified: false,
+  contact_name: "",
+  contact_phone: "",
+  contact_email: "",
+  address: "",
+  branch_code: "00000",
+  vat_registered_date: "",
+  sso_registered: false,
+  sso_employer_no: "",
+  efiling_enabled: false,
+  accountant_name: "",
+  accountant_license: "",
+  auditor_name: "",
+  auditor_license: "",
+  doc_due_day: "",
+  doc_channel: "",
   fee_2023: "",
   fee_2024: "",
   fee_2025: "",
@@ -230,6 +273,7 @@ export default function AccFirmClientsPage() {
   const [showFilters, setShowFilters] = useState(false);
 
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [tab, setTab] = useState<ClientTab>("main");
   const [editing, setEditing] = useState<ServiceClient | null>(null);
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
@@ -321,6 +365,7 @@ export default function AccFirmClientsPage() {
   );
 
   function openAdd() {
+    setTab("main");
     setEditing(null);
     setForm(EMPTY_FORM);
     setLinkOrgId("");
@@ -329,6 +374,7 @@ export default function AccFirmClientsPage() {
   }
 
   function openEdit(c: ServiceClient) {
+    setTab("main");
     setEditing(c);
     setConfirmUnlink(false);
     setConfirmDelete(false);
@@ -342,6 +388,21 @@ export default function AccFirmClientsPage() {
       fiscal_year_end_day: String(c.fiscal_year_end_day ?? 31),
       storage_location: c.storage_location ?? "",
       dbd_relocation_notified: c.dbd_relocation_notified,
+      contact_name: c.contact_name ?? "",
+      contact_phone: c.contact_phone ?? "",
+      contact_email: c.contact_email ?? "",
+      address: c.address ?? "",
+      branch_code: c.branch_code ?? "00000",
+      vat_registered_date: c.vat_registered_date ?? "",
+      sso_registered: c.sso_registered ?? false,
+      sso_employer_no: c.sso_employer_no ?? "",
+      efiling_enabled: c.efiling_enabled ?? false,
+      accountant_name: c.accountant_name ?? "",
+      accountant_license: c.accountant_license ?? "",
+      auditor_name: c.auditor_name ?? "",
+      auditor_license: c.auditor_license ?? "",
+      doc_due_day: c.doc_due_day != null ? String(c.doc_due_day) : "",
+      doc_channel: c.doc_channel ?? "",
       fee_2023: c.fee_2023 != null ? String(c.fee_2023) : "",
       fee_2024: c.fee_2024 != null ? String(c.fee_2024) : "",
       fee_2025: c.fee_2025 != null ? String(c.fee_2025) : "",
@@ -777,67 +838,181 @@ export default function AccFirmClientsPage() {
 
           <DialogBody>
             <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label>รหัสลูกค้า *</Label>
-                  <Input
-                    value={form.client_code}
-                    onChange={(e) => setForm((f) => ({ ...f, client_code: e.target.value }))}
-                    placeholder="เช่น IN01, C01"
-                  />
-                </div>
-                <div className="col-span-2">
-                  <Label>ชื่อบริษัท *</Label>
-                  <Input
-                    value={form.company_name}
-                    onChange={(e) => setForm((f) => ({ ...f, company_name: e.target.value }))}
-                    placeholder="บริษัท ... จำกัด"
-                  />
-                </div>
-              </div>
+              {/* แถบกลุ่มข้อมูล — ฟอร์มยาวเกินกว่าจะไล่ทีเดียว แบ่งเป็นกลุ่มตามงานที่ทำจริง */}
+              <SegmentedControl
+                value={tab}
+                onChange={(v) => setTab(v as ClientTab)}
+                ariaLabel="กลุ่มข้อมูลลูกค้า"
+                options={CLIENT_TABS.filter((t) => !t.editOnly || !!editing).map((t) => ({
+                  value: t.key,
+                  label: t.label,
+                  icon: t.icon,
+                }))}
+              />
 
-              {/* ข้อมูลนิติบุคคล — ไปแสดงหัวแฟ้มในคลังเอกสารลูกค้า */}
-              <div className="space-y-3 rounded-xl border border-gray-200 p-3">
-                <p className="text-sm font-medium text-gray-700">ข้อมูลนิติบุคคล</p>
-                <div className="grid grid-cols-2 gap-4">
+              {/* ── ข้อมูลหลัก ───────────────────────────────────────────── */}
+              {tab === "main" && (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label>รหัสลูกค้า *</Label>
+                      <Input
+                        value={form.client_code}
+                        onChange={(e) => setForm((f) => ({ ...f, client_code: e.target.value }))}
+                        placeholder="เช่น IN01, C01"
+                      />
+                    </div>
+                    <div>
+                      <Label>ประเภทนิติบุคคล</Label>
+                      <CustomSelect
+                        value={form.entity_type}
+                        onChange={(v) => setForm((f) => ({ ...f, entity_type: v }))}
+                        options={ENTITY_TYPE_OPTIONS}
+                      />
+                    </div>
+                    <div className="col-span-2">
+                      <Label>ชื่อบริษัท *</Label>
+                      <Input
+                        value={form.company_name}
+                        onChange={(e) => setForm((f) => ({ ...f, company_name: e.target.value }))}
+                        placeholder="บริษัท ... จำกัด"
+                      />
+                    </div>
+                    <div>
+                      <Label>เลขประจำตัวผู้เสียภาษี (13 หลัก)</Label>
+                      <Input
+                        value={form.tax_id}
+                        onChange={(e) =>
+                          setForm((f) => ({ ...f, tax_id: e.target.value.replace(/\D/g, "") }))
+                        }
+                        inputMode="numeric"
+                        maxLength={13}
+                        placeholder="0105xxxxxxxxx"
+                      />
+                    </div>
+                    <div>
+                      <Label>สาขา (ตามใบกำกับภาษี)</Label>
+                      <Input
+                        value={form.branch_code}
+                        onChange={(e) =>
+                          setForm((f) => ({
+                            ...f,
+                            branch_code: e.target.value.replace(/\D/g, "").slice(0, 5),
+                          }))
+                        }
+                        inputMode="numeric"
+                        maxLength={5}
+                        placeholder="00000"
+                      />
+                      <p className="mt-1 text-xs text-gray-400">
+                        00000 = สำนักงานใหญ่ · 00001 = สาขาที่ 1 (ต้องระบุในใบกำกับภาษี ม.86/4)
+                      </p>
+                    </div>
+                  </div>
+
+                  {editing && (
+                    <div>
+                      <Label>สถานะลูกค้า</Label>
+                      <div className="mt-1">
+                        <RadioGroup
+                          name="client-active"
+                          value={form.is_active ? "active" : "inactive"}
+                          onChange={(v) => setForm((f) => ({ ...f, is_active: v === "active" }))}
+                          ariaLabel="สถานะลูกค้า"
+                          options={[
+                            { value: "active", label: "ใช้งาน", hint: "ยังรับทำบัญชีให้อยู่" },
+                            { value: "inactive", label: "ยกเลิก", hint: "เลิกจ้าง/หยุดให้บริการ" },
+                          ]}
+                        />
+                      </div>
+                    </div>
+                  )}
+
                   <div>
-                    <Label>เลขประจำตัวผู้เสียภาษี (13 หลัก)</Label>
+                    <Label>หมายเหตุ</Label>
                     <Input
-                      value={form.tax_id}
-                      onChange={(e) =>
-                        setForm((f) => ({ ...f, tax_id: e.target.value.replace(/\D/g, "") }))
-                      }
-                      inputMode="numeric"
-                      maxLength={13}
-                      placeholder="0105xxxxxxxxx"
-                    />
-                  </div>
-                  <div>
-                    <Label>ประเภทนิติบุคคล</Label>
-                    <CustomSelect
-                      value={form.entity_type}
-                      onChange={(v) => setForm((f) => ({ ...f, entity_type: v }))}
-                      options={ENTITY_TYPE_OPTIONS}
+                      value={form.note}
+                      onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))}
+                      placeholder="หมายเหตุเพิ่มเติม"
                     />
                   </div>
                 </div>
+              )}
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label>จดทะเบียน VAT</Label>
-                    <div className="mt-1">
-                      <SegmentedControl
-                        size="md"
-                        value={form.vat_registered ? "yes" : "no"}
-                        onChange={(v) => setForm((f) => ({ ...f, vat_registered: v === "yes" }))}
-                        ariaLabel="จดทะเบียน VAT"
-                        options={[
-                          { value: "yes", label: "จดทะเบียน" },
-                          { value: "no", label: "ไม่ได้จด" },
-                        ]}
+              {/* ── ข้อมูลติดต่อ ─────────────────────────────────────────── */}
+              {tab === "contact" && (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label>ชื่อผู้ติดต่อ</Label>
+                      <Input
+                        value={form.contact_name}
+                        onChange={(e) => setForm((f) => ({ ...f, contact_name: e.target.value }))}
+                        placeholder="เช่น คุณสมชาย (ฝ่ายบัญชี)"
+                      />
+                    </div>
+                    <div>
+                      <Label>เบอร์โทร</Label>
+                      <Input
+                        value={form.contact_phone}
+                        onChange={(e) => setForm((f) => ({ ...f, contact_phone: e.target.value }))}
+                        inputMode="tel"
+                        placeholder="08x-xxx-xxxx"
+                      />
+                    </div>
+                    <div className="col-span-2">
+                      <Label>อีเมล</Label>
+                      <Input
+                        value={form.contact_email}
+                        onChange={(e) => setForm((f) => ({ ...f, contact_email: e.target.value }))}
+                        type="email"
+                        placeholder="name@company.co.th"
+                      />
+                    </div>
+                    <div className="col-span-2">
+                      <Label>ที่อยู่จดทะเบียน</Label>
+                      <Input
+                        value={form.address}
+                        onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))}
+                        placeholder="เลขที่ ... ถนน ... แขวง/ตำบล ... เขต/อำเภอ ... จังหวัด ... รหัสไปรษณีย์"
+                      />
+                      <p className="mt-1 text-xs text-gray-400">
+                        ใช้เป็นที่อยู่บนใบกำกับภาษี/แบบยื่นภาษีของลูกค้า
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* ── ภาษี / ประกันสังคม / รอบบัญชี ───────────────────────── */}
+              {tab === "tax" && (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label>จดทะเบียนภาษีมูลค่าเพิ่ม (VAT)</Label>
+                      <div className="mt-1">
+                        <RadioGroup
+                          name="vat-registered"
+                          value={form.vat_registered ? "yes" : "no"}
+                          onChange={(v) => setForm((f) => ({ ...f, vat_registered: v === "yes" }))}
+                          ariaLabel="จดทะเบียน VAT"
+                          options={[
+                            { value: "yes", label: "จดทะเบียน", hint: "ต้องยื่น ภ.พ.30 ทุกเดือน" },
+                            { value: "no", label: "ไม่ได้จด" },
+                          ]}
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <Label>วันที่จดทะเบียน VAT</Label>
+                      <ThaiDatePicker
+                        value={form.vat_registered_date}
+                        onChange={(iso) => setForm((f) => ({ ...f, vat_registered_date: iso }))}
+                        placeholder={form.vat_registered ? "เลือกวันที่" : "— ไม่ได้จด VAT —"}
                       />
                     </div>
                   </div>
+
                   <div>
                     <Label>วันสิ้นรอบบัญชี</Label>
                     <div className="mt-1 flex gap-2">
@@ -858,124 +1033,244 @@ export default function AccFirmClientsPage() {
                       />
                     </div>
                   </div>
-                </div>
 
-                <div>
-                  <Label>สถานที่เก็บเอกสาร</Label>
-                  <Input
-                    value={form.storage_location}
-                    onChange={(e) => setForm((f) => ({ ...f, storage_location: e.target.value }))}
-                    placeholder="เช่น สำนักงานบัญชี ชั้น 3 ห้องเก็บเอกสาร"
-                  />
-                  {form.storage_location.trim() !== "" && (
-                    <label className="mt-2 flex cursor-pointer items-center gap-2">
-                      <input
-                        type="checkbox"
-                        checked={form.dbd_relocation_notified}
-                        onChange={(e) =>
-                          setForm((f) => ({ ...f, dbd_relocation_notified: e.target.checked }))
-                        }
-                        className="rounded"
-                      />
-                      <span className="text-sm text-gray-700">
-                        แจ้งย้ายสถานที่เก็บบัญชีต่อกรมพัฒนาธุรกิจการค้าแล้ว
-                      </span>
-                    </label>
-                  )}
-                </div>
-              </div>
-
-              {/* Fees */}
-              <div>
-                <p className="mb-2 text-sm font-medium text-gray-700">ค่าบริการรายเดือน (บาท)</p>
-                <div className="grid grid-cols-4 gap-3">
-                  {([2023, 2024, 2025, 2026] as const).map((y) => (
-                    <div key={y}>
-                      <Label className="text-xs">ปี {y + 543}</Label>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label>ประกันสังคม</Label>
+                      <div className="mt-1">
+                        <RadioGroup
+                          name="sso-registered"
+                          value={form.sso_registered ? "yes" : "no"}
+                          onChange={(v) => setForm((f) => ({ ...f, sso_registered: v === "yes" }))}
+                          ariaLabel="ขึ้นทะเบียนประกันสังคม"
+                          options={[
+                            {
+                              value: "yes",
+                              label: "ขึ้นทะเบียนแล้ว",
+                              hint: "นำส่งเงินสมทบทุกเดือน",
+                            },
+                            { value: "no", label: "ยังไม่ขึ้นทะเบียน" },
+                          ]}
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <Label>เลขที่บัญชีนายจ้าง (สปส.)</Label>
                       <Input
-                        type="number"
-                        value={(form as Record<string, unknown>)[`fee_${y}`] as string}
-                        onChange={(e) => setForm((f) => ({ ...f, [`fee_${y}`]: e.target.value }))}
-                        placeholder="0"
+                        value={form.sso_employer_no}
+                        onChange={(e) =>
+                          setForm((f) => ({ ...f, sso_employer_no: e.target.value }))
+                        }
+                        placeholder="เช่น 1000xxxxxxx"
                       />
                     </div>
-                  ))}
+                  </div>
+
+                  <div>
+                    <Label>ช่องทางยื่นแบบ</Label>
+                    <div className="mt-1">
+                      <RadioGroup
+                        name="efiling"
+                        value={form.efiling_enabled ? "efiling" : "paper"}
+                        onChange={(v) =>
+                          setForm((f) => ({ ...f, efiling_enabled: v === "efiling" }))
+                        }
+                        ariaLabel="ช่องทางยื่นแบบ"
+                        options={[
+                          { value: "efiling", label: "e-Filing (สรรพากรออนไลน์)" },
+                          { value: "paper", label: "ยื่นกระดาษที่สรรพากรพื้นที่" },
+                        ]}
+                      />
+                    </div>
+                    <p className="mt-1 text-xs text-gray-400">
+                      บันทึกแค่ช่องทาง — ห้ามเก็บรหัสผ่าน e-Filing ของลูกค้าไว้ในระบบ
+                    </p>
+                  </div>
                 </div>
-              </div>
-
-              <div>
-                <Label>ค่าบริการรายปี (บาท)</Label>
-                <Input
-                  type="number"
-                  value={form.fee_yearly}
-                  onChange={(e) => setForm((f) => ({ ...f, fee_yearly: e.target.value }))}
-                  placeholder="0"
-                />
-                <p className="mt-1 text-xs text-gray-400">
-                  สำหรับลูกค้าที่ชำระเป็นรายปี (ไม่ได้คิดรายเดือน) — ปล่อยว่างถ้าคิดรายเดือน
-                </p>
-              </div>
-
-              <div>
-                <Label>หมายเหตุค่าบริการ</Label>
-                <Input
-                  value={form.billing_note}
-                  onChange={(e) => setForm((f) => ({ ...f, billing_note: e.target.value }))}
-                  placeholder="เช่น ชำระล่วงหน้าทั้งปี"
-                />
-              </div>
-
-              {/* Service flags */}
-              <div>
-                <p className="mb-2 text-sm font-medium text-gray-700">บริการที่ให้</p>
-                <div className="flex flex-wrap gap-2">
-                  {SERVICE_FLAGS.map(({ key, label, title }) => {
-                    const on = form[key as keyof FormState] as boolean;
-                    return (
-                      <button
-                        key={key}
-                        type="button"
-                        title={title}
-                        onClick={() => toggleFlag(key as keyof FormState)}
-                        className={`flex flex-col items-start rounded-lg border px-3 py-1.5 transition-colors ${
-                          on
-                            ? "border-blue-600 bg-blue-600 text-white"
-                            : "border-gray-200 bg-white text-gray-600 hover:border-blue-300"
-                        }`}
-                      >
-                        <span className="text-sm font-medium">{label}</span>
-                        <span className={`text-[11px] ${on ? "text-white/80" : "text-gray-400"}`}>
-                          {title}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <div>
-                <Label>หมายเหตุ</Label>
-                <Input
-                  value={form.note}
-                  onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))}
-                  placeholder="หมายเหตุเพิ่มเติม"
-                />
-              </div>
-
-              {editing && (
-                <label className="flex cursor-pointer items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={form.is_active}
-                    onChange={(e) => setForm((f) => ({ ...f, is_active: e.target.checked }))}
-                    className="rounded"
-                  />
-                  <span className="text-sm text-gray-700">ใช้งาน (Active)</span>
-                </label>
               )}
 
-              {/* ── การเชื่อมระบบ PERPOS ─────────────────────────────────────── */}
-              {editing && (
+              {/* ── บริการและค่าบริการ ──────────────────────────────────── */}
+              {tab === "service" && (
+                <div className="space-y-4">
+                  <div>
+                    <p className="mb-2 text-sm font-medium text-gray-700">บริการที่ให้</p>
+                    <div className="flex flex-wrap gap-2">
+                      {SERVICE_FLAGS.map(({ key, label, title }) => {
+                        const on = form[key as keyof FormState] as boolean;
+                        return (
+                          <button
+                            key={key}
+                            type="button"
+                            title={title}
+                            onClick={() => toggleFlag(key as keyof FormState)}
+                            className={`flex flex-col items-start rounded-lg border px-3 py-1.5 transition-colors ${
+                              on
+                                ? "border-blue-600 bg-blue-600 text-white"
+                                : "border-gray-200 bg-white text-gray-600 hover:border-blue-300"
+                            }`}
+                          >
+                            <span className="text-sm font-medium">{label}</span>
+                            <span
+                              className={`text-[11px] ${on ? "text-white/80" : "text-gray-400"}`}
+                            >
+                              {title}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div>
+                    <p className="mb-2 text-sm font-medium text-gray-700">
+                      ค่าบริการรายเดือน (บาท)
+                    </p>
+                    <div className="grid grid-cols-4 gap-3">
+                      {([2023, 2024, 2025, 2026] as const).map((y) => (
+                        <div key={y}>
+                          <Label className="text-xs">ปี {y + 543}</Label>
+                          <Input
+                            type="number"
+                            value={(form as Record<string, unknown>)[`fee_${y}`] as string}
+                            onChange={(e) =>
+                              setForm((f) => ({ ...f, [`fee_${y}`]: e.target.value }))
+                            }
+                            placeholder="0"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label>ค่าบริการรายปี (บาท)</Label>
+                      <Input
+                        type="number"
+                        value={form.fee_yearly}
+                        onChange={(e) => setForm((f) => ({ ...f, fee_yearly: e.target.value }))}
+                        placeholder="0"
+                      />
+                      <p className="mt-1 text-xs text-gray-400">
+                        สำหรับลูกค้าที่ชำระเป็นรายปี — ปล่อยว่างถ้าคิดรายเดือน
+                      </p>
+                    </div>
+                    <div>
+                      <Label>หมายเหตุค่าบริการ</Label>
+                      <Input
+                        value={form.billing_note}
+                        onChange={(e) => setForm((f) => ({ ...f, billing_note: e.target.value }))}
+                        placeholder="เช่น ชำระล่วงหน้าทั้งปี"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* ── เอกสาร / ผู้รับผิดชอบวิชาชีพ ────────────────────────── */}
+              {tab === "docs" && (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label>วันที่ลูกค้าส่งเอกสารประจำเดือน</Label>
+                      <CustomSelect
+                        value={form.doc_due_day}
+                        onChange={(v) => setForm((f) => ({ ...f, doc_due_day: v }))}
+                        options={[
+                          { value: "", label: "— ไม่กำหนด —" },
+                          ...Array.from({ length: 31 }, (_, i) => ({
+                            value: String(i + 1),
+                            label: `วันที่ ${i + 1} ของเดือนถัดไป`,
+                          })),
+                        ]}
+                      />
+                    </div>
+                    <div>
+                      <Label>ช่องทางรับเอกสาร</Label>
+                      <CustomSelect
+                        value={form.doc_channel}
+                        onChange={(v) => setForm((f) => ({ ...f, doc_channel: v }))}
+                        options={DOC_CHANNEL_OPTIONS}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <Label>สถานที่เก็บเอกสาร</Label>
+                    <Input
+                      value={form.storage_location}
+                      onChange={(e) => setForm((f) => ({ ...f, storage_location: e.target.value }))}
+                      placeholder="เช่น สำนักงานบัญชี ชั้น 3 ห้องเก็บเอกสาร"
+                    />
+                    {form.storage_location.trim() !== "" && (
+                      <label className="mt-2 flex cursor-pointer items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={form.dbd_relocation_notified}
+                          onChange={(e) =>
+                            setForm((f) => ({ ...f, dbd_relocation_notified: e.target.checked }))
+                          }
+                          className="rounded"
+                        />
+                        <span className="text-sm text-gray-700">
+                          แจ้งย้ายสถานที่เก็บบัญชีต่อกรมพัฒนาธุรกิจการค้าแล้ว
+                        </span>
+                      </label>
+                    )}
+                  </div>
+
+                  <div className="space-y-3 rounded-xl border border-gray-200 p-3">
+                    <p className="text-sm font-medium text-gray-700">ผู้ทำบัญชี / ผู้สอบบัญชี</p>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label>ผู้ทำบัญชี (CPD)</Label>
+                        <Input
+                          value={form.accountant_name}
+                          onChange={(e) =>
+                            setForm((f) => ({ ...f, accountant_name: e.target.value }))
+                          }
+                          placeholder="ชื่อ-นามสกุล"
+                        />
+                      </div>
+                      <div>
+                        <Label>เลขทะเบียนผู้ทำบัญชี</Label>
+                        <Input
+                          value={form.accountant_license}
+                          onChange={(e) =>
+                            setForm((f) => ({ ...f, accountant_license: e.target.value }))
+                          }
+                          placeholder="เช่น 12345678901234"
+                        />
+                      </div>
+                      <div>
+                        <Label>ผู้สอบบัญชี (CPA/TA)</Label>
+                        <Input
+                          value={form.auditor_name}
+                          onChange={(e) => setForm((f) => ({ ...f, auditor_name: e.target.value }))}
+                          placeholder="ชื่อ-นามสกุล"
+                        />
+                      </div>
+                      <div>
+                        <Label>เลขทะเบียนผู้สอบบัญชี</Label>
+                        <Input
+                          value={form.auditor_license}
+                          onChange={(e) =>
+                            setForm((f) => ({ ...f, auditor_license: e.target.value }))
+                          }
+                          placeholder="เช่น 1234"
+                        />
+                      </div>
+                    </div>
+                    <p className="text-xs text-gray-400">
+                      พ.ร.บ.การบัญชี
+                      บังคับให้ทุกนิติบุคคลมีผู้ทำบัญชีและแจ้งชื่อต่อกรมพัฒนาธุรกิจการค้า
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* ── การเชื่อมระบบ PERPOS + กลุ่ม LINE ─────────────────────────── */}
+              {tab === "link" && editing && (
                 <div className="space-y-3 border-t pt-4">
                   <div className="flex items-center gap-2">
                     <Link2 className="h-4 w-4 text-gray-500" />
@@ -1145,7 +1440,7 @@ export default function AccFirmClientsPage() {
               )}
 
               {/* กลุ่ม LINE ของลูกค้า — เชื่อมด้วยรหัส + ตั้งค่าอัปเดตที่จะส่ง */}
-              {editing && orgId && token && (
+              {tab === "link" && editing && orgId && token && (
                 <ClientLineGroupSection
                   orgId={orgId}
                   token={token}
