@@ -10,8 +10,10 @@ import { PageShell } from "@/components/ui/page-shell";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { CustomSelect } from "@/components/ui/custom-select";
+import { FilterBar } from "@/components/ui/filter-bar";
 import { ThaiDatePicker } from "@/components/ui/thai-date-picker";
 import { StatusBadge, type BadgeTone } from "@/components/ui/badge";
+import { TablePager, usePagination } from "@/components/ui/table-pager";
 import {
   Table,
   TableHeader,
@@ -339,6 +341,7 @@ export default function AccFirmClientsPage() {
 
   // ── Filter ────────────────────────────────────────────────────────────────
   const filtered = filterStatus ? clients.filter((c) => c.status === filterStatus) : clients;
+  const pager = usePagination(filtered, { resetKey: filterStatus });
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
@@ -363,15 +366,14 @@ export default function AccFirmClientsPage() {
       }
     >
       {/* Filter */}
-      <div className="flex items-center gap-2">
-        <Label className="shrink-0 text-xs text-slate-500">กรอง:</Label>
+      <FilterBar bare>
         <CustomSelect
           value={filterStatus}
           onChange={setFilterStatus}
           options={[{ value: "", label: "ทั้งหมด" }, ...STATUS_OPTIONS]}
           className="w-36"
         />
-      </div>
+      </FilterBar>
 
       {/* Table */}
       {!loading && filtered.length === 0 ? (
@@ -380,57 +382,60 @@ export default function AccFirmClientsPage() {
           <p>{filterStatus ? "ไม่มี client ในสถานะนี้" : "ยังไม่มี client org"}</p>
         </div>
       ) : (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>องค์กร</TableHead>
-              <TableHead>Modules</TableHead>
-              <TableHead>เริ่มดูแล</TableHead>
-              <TableHead>สถานะ</TableHead>
-              <TableHead>หมายเหตุ</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {loading ? (
-              <TableLoading colSpan={5} />
-            ) : (
-              filtered.map((c) => (
-                // super_admin → แก้ engagement · firm member → จัดสิทธิ์ทีม (provision) ภายใน engagement
-                <TableRow
-                  key={c.id}
-                  clickable
-                  onClick={() => (isAdmin ? openEdit(c) : openProvision(c))}
-                >
-                  <TableCell>
-                    <p className="font-semibold text-slate-800">{c.client_org.name}</p>
-                    <p className="text-xs text-slate-400">{c.client_org.slug}</p>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex gap-1">
-                      {c.modules_managed.map((m) => (
-                        <span
-                          key={m}
-                          className="flex items-center gap-1 whitespace-nowrap rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600"
-                        >
-                          {MODULE_ICON[m]} {m}
-                        </span>
-                      ))}
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-xs text-slate-500">{c.started_at ?? "—"}</TableCell>
-                  <TableCell>
-                    <StatusBadge tone={STATUS_TONE[c.status] ?? "neutral"}>
-                      {STATUS_OPTIONS.find((s) => s.value === c.status)?.label ?? c.status}
-                    </StatusBadge>
-                  </TableCell>
-                  <TableCell className="max-w-[160px] truncate text-xs text-slate-400">
-                    {c.note ?? "—"}
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
+        <div className="space-y-3">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>องค์กร</TableHead>
+                <TableHead>Modules</TableHead>
+                <TableHead>เริ่มดูแล</TableHead>
+                <TableHead>สถานะ</TableHead>
+                <TableHead>หมายเหตุ</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {loading ? (
+                <TableLoading colSpan={5} />
+              ) : (
+                pager.rows.map((c) => (
+                  // super_admin → แก้ engagement · firm member → จัดสิทธิ์ทีม (provision) ภายใน engagement
+                  <TableRow
+                    key={c.id}
+                    clickable
+                    onClick={() => (isAdmin ? openEdit(c) : openProvision(c))}
+                  >
+                    <TableCell>
+                      <p className="font-semibold text-slate-800">{c.client_org.name}</p>
+                      <p className="text-xs text-slate-400">{c.client_org.slug}</p>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex gap-1">
+                        {c.modules_managed.map((m) => (
+                          <span
+                            key={m}
+                            className="flex items-center gap-1 whitespace-nowrap rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600"
+                          >
+                            {MODULE_ICON[m]} {m}
+                          </span>
+                        ))}
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-xs text-slate-500">{c.started_at ?? "—"}</TableCell>
+                    <TableCell>
+                      <StatusBadge tone={STATUS_TONE[c.status] ?? "neutral"}>
+                        {STATUS_OPTIONS.find((s) => s.value === c.status)?.label ?? c.status}
+                      </StatusBadge>
+                    </TableCell>
+                    <TableCell className="max-w-[160px] truncate text-xs text-slate-400">
+                      {c.note ?? "—"}
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+          {!loading && <TablePager pager={pager} unit="ราย" />}
+        </div>
       )}
 
       {/* ── Add Dialog ──────────────────────────────────────────────────────── */}

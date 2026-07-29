@@ -10,6 +10,7 @@ import cn from "@core/utils/class-names";
 import { Button } from "@/components/ui/button";
 import { Dropdown, type DropdownItem } from "@/components/ui/dropdown";
 import { Label } from "@/components/ui/label";
+import { SegmentedControl } from "@/components/ui/segmented";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
@@ -173,23 +174,12 @@ export function OrderDetailDialog({
           </DialogHeader>
           <DialogBody>
             <div className="space-y-4">
-              {/* แท็บ — row เดียว ล้นแล้วเลื่อน (DESIGN §4) */}
-              <div className="flex gap-1.5 overflow-x-auto rounded-xl border border-gray-200 bg-white p-1.5 shadow-sm [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                {TABS.map((t) => (
-                  <Button
-                    key={t.key}
-                    size="sm"
-                    variant={activeTab === t.key ? "secondary" : "ghost"}
-                    className={cn(
-                      "shrink-0 whitespace-nowrap",
-                      activeTab === t.key && "bg-gray-100 text-gray-900",
-                    )}
-                    onClick={() => setTab(t.key)}
-                  >
-                    {t.label}
-                  </Button>
-                ))}
-              </div>
+              {/* แท็บ — pill มาตรฐาน (DESIGN §4) */}
+              <SegmentedControl
+                value={activeTab}
+                onChange={setTab}
+                options={TABS.map((t) => ({ value: t.key, label: t.label }))}
+              />
 
               {activeTab === "summary" && (
                 <SummaryTab

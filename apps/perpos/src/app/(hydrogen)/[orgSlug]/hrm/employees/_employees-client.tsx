@@ -7,12 +7,13 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Users, UserPlus, Search, Wallet, CalendarClock } from "lucide-react";
+import { Users, UserPlus, Wallet, CalendarClock } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { CustomSelect } from "@/components/ui/custom-select";
+import { FilterBar, FilterSearch } from "@/components/ui/filter-bar";
 import { ThaiDatePicker } from "@/components/ui/thai-date-picker";
 import { StatCard } from "@/components/ui/stat-card";
 import { Avatar } from "@/components/ui/avatar";
@@ -34,6 +35,7 @@ import {
   TableCell,
   TableEmpty,
 } from "@/components/ui/table";
+import { TablePager, usePagination } from "@/components/ui/table-pager";
 import { toast } from "@/lib/toast";
 
 import type { Employee, EmploymentType } from "@/lib/hrm/types";
@@ -126,6 +128,8 @@ export function EmployeesClient({
     });
   }, [initial, q, status, type]);
 
+  const pager = usePagination(rows, { resetKey: `${q}|${status}|${type}` });
+
   // ── submit เพิ่มพนักงาน (POST จริง) ──
   async function submitEmployee(e: React.FormEvent) {
     e.preventDefault();
@@ -201,24 +205,11 @@ export function EmployeesClient({
       </div>
 
       {/* Filter bar */}
-      <div className="flex flex-col gap-2 rounded-xl border border-gray-200 bg-white p-3 shadow-sm sm:flex-row sm:items-center">
-        <div className="relative flex-1">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-          <Input
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="ค้นหาชื่อ รหัส ตำแหน่ง หรือแผนก…"
-            className="pl-9"
-          />
-        </div>
-        <CustomSelect
-          value={status}
-          onChange={setStatus}
-          options={STATUS_OPTS}
-          className="sm:w-40"
-        />
-        <CustomSelect value={type} onChange={setType} options={TYPE_OPTS} className="sm:w-44" />
-      </div>
+      <FilterBar>
+        <FilterSearch value={q} onChange={setQ} placeholder="ค้นหาชื่อ รหัส ตำแหน่ง หรือแผนก…" />
+        <CustomSelect value={status} onChange={setStatus} options={STATUS_OPTS} className="w-40" />
+        <CustomSelect value={type} onChange={setType} options={TYPE_OPTS} className="w-44" />
+      </FilterBar>
 
       {/* Table — เป็นการ์ดในตัว ไม่ห่อ card ซ้อน */}
       <Table stickyHeader maxHeight="62vh" className="shadow-sm">
@@ -257,7 +248,7 @@ export function EmployeesClient({
               </div>
             </TableEmpty>
           ) : (
-            rows.map((e) => (
+            pager.rows.map((e) => (
               <TableRow
                 key={e.id}
                 clickable
@@ -294,6 +285,8 @@ export function EmployeesClient({
           )}
         </TableBody>
       </Table>
+
+      <TablePager pager={pager} unit="คน" />
 
       <p className="text-xs text-gray-400">
         แสดง {fmtNum(rows.length)} จาก {fmtNum(initial.length)} คน · คลิกแถวเพื่อดูแฟ้มพนักงาน 360°

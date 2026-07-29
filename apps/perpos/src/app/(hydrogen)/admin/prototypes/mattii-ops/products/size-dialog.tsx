@@ -127,6 +127,7 @@ export function SizeDialog({
             <div>
               <Label>ชนิดขนาด</Label>
               <SegmentedControl
+                size="md"
                 className="mt-1"
                 value={kind}
                 onChange={(v) => setKind(v)}
@@ -241,6 +242,7 @@ export function SizeDialog({
             <div>
               <Label>สถานะ</Label>
               <SegmentedControl
+                size="md"
                 className="mt-1"
                 value={status}
                 onChange={setStatus}

@@ -545,22 +545,11 @@ function LineNotifySection({
           </Text>
           <StatusBadge tone="info">จำลอง — ไม่ยิง LINE จริง</StatusBadge>
         </div>
-        <div className="flex gap-1.5 overflow-x-auto rounded-xl border border-gray-200 bg-white p-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          {LINE_TABS.map((t) => (
-            <Button
-              key={t.key}
-              size="sm"
-              variant={tab === t.key ? "secondary" : "ghost"}
-              className={cn(
-                "shrink-0 whitespace-nowrap",
-                tab === t.key && "bg-gray-100 text-gray-900",
-              )}
-              onClick={() => setTab(t.key)}
-            >
-              {t.label}
-            </Button>
-          ))}
-        </div>
+        <SegmentedControl<LineTab>
+          value={tab}
+          onChange={setTab}
+          options={LINE_TABS.map((t) => ({ value: t.key, label: t.label }))}
+        />
 
         <div className="mt-4 flex flex-wrap justify-center gap-6 rounded-xl border border-gray-100 bg-gray-50 p-5">
           {tab === "T1" && (

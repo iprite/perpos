@@ -8,11 +8,13 @@ import { PageShell } from "@/components/ui/page-shell";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { CustomSelect } from "@/components/ui/custom-select";
+import { FilterBar, FilterClear } from "@/components/ui/filter-bar";
 import { Dropdown } from "@/components/ui/dropdown";
 import { MultiSelect } from "@/components/ui/multi-select";
 import { ThaiDatePicker } from "@/components/ui/thai-date-picker";
 import { StatusBadge } from "@/components/ui/badge";
 import { StatCard } from "@/components/ui/stat-card";
+import { TablePager, usePagination } from "@/components/ui/table-pager";
 import { SegmentedControl } from "@/components/ui/segmented";
 import {
   Table,
@@ -46,8 +48,6 @@ import {
   MapPin,
   Check,
   X,
-  ChevronLeft,
-  ChevronRight,
   List,
   CalendarRange,
   LayoutDashboard,
@@ -268,10 +268,6 @@ export default function TmcPettyCashPage() {
   // delete confirm
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
-  // pagination
-  const PAGE_SIZE = 10;
-  const [page, setPage] = useState(1);
-
   const authHeader = useCallback(async () => {
     const { data } = await supabase.auth.getSession();
     return { Authorization: `Bearer ${data.session?.access_token ?? ""}` };
@@ -316,9 +312,6 @@ export default function TmcPettyCashPage() {
   useEffect(() => {
     void load();
   }, [load]);
-  useEffect(() => {
-    setPage(1);
-  }, [txns]);
 
   // ── Save txn ───────────────────────────────────────────────────────────────
   async function handleSave() {
@@ -541,8 +534,7 @@ export default function TmcPettyCashPage() {
     !!filterFund || !!filterType || filterProp.length > 0 || filterCat.length > 0 || !!from || !!to;
   const balance = totalTopUp - totalExpense;
 
-  const totalPages = Math.max(1, Math.ceil(txns.length / PAGE_SIZE));
-  const pagedTxns = txns.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const pager = usePagination(txns);
 
   // ── สรุปรายจ่ายแยกตามหมวด × เดือน (pivot) ────────────────────────────────
   const summary = useMemo(() => {
@@ -742,8 +734,7 @@ export default function TmcPettyCashPage() {
     >
       {/* Filters — ซ่อนไว้หลัง icon ด้านบน */}
       {showFilters && (
-        <div className="flex flex-wrap items-center gap-2 rounded-xl border bg-white p-3">
-          <Filter className="h-4 w-4 shrink-0 text-slate-400" />
+        <FilterBar>
           <CustomSelect
             value={filterFund}
             onChange={setFilterFund}
@@ -772,9 +763,7 @@ export default function TmcPettyCashPage() {
           />
           <ThaiDatePicker value={from} onChange={setFrom} placeholder="ตั้งแต่" className="w-32" />
           <ThaiDatePicker value={to} onChange={setTo} placeholder="ถึง" className="w-32" />
-          <Button
-            variant="ghost"
-            size="sm"
+          <FilterClear
             disabled={!hasFilter}
             onClick={() => {
               setFilterFund("");
@@ -784,10 +773,8 @@ export default function TmcPettyCashPage() {
               setFrom("");
               setTo("");
             }}
-          >
-            ล้างตัวกรอง
-          </Button>
-        </div>
+          />
+        </FilterBar>
       )}
 
       {/* ── จัดการหมวด/แปลง — popup ── */}
@@ -1223,7 +1210,7 @@ export default function TmcPettyCashPage() {
               ) : txns.length === 0 ? (
                 <TableEmpty colSpan={7}>ยังไม่มีรายการเงินสดย่อย</TableEmpty>
               ) : (
-                pagedTxns.map((t) => (
+                pager.rows.map((t) => (
                   <TableRow key={t.id} clickable onClick={() => openEdit(t)}>
                     <TableCell className="text-slate-500">{fmtDate(t.txn_date)}</TableCell>
                     <TableCell className="text-slate-800">
@@ -1251,61 +1238,7 @@ export default function TmcPettyCashPage() {
             </TableBody>
           </Table>
 
-          {/* Pagination Footer */}
-          {!loading && txns.length > 0 && (
-            <div className="flex items-center justify-between px-1">
-              <p className="text-xs text-slate-500">
-                แสดง {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, txns.length)} จาก{" "}
-                {txns.length} รายการ
-              </p>
-              <div className="flex items-center gap-1">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  disabled={page === 1}
-                  className="h-8 w-8"
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </Button>
-
-                {Array.from({ length: totalPages }, (_, i) => i + 1)
-                  .filter((p) => p === 1 || p === totalPages || Math.abs(p - page) <= 1)
-                  .reduce<(number | "ellipsis")[]>((acc, p, idx, arr) => {
-                    if (idx > 0 && p - (arr[idx - 1] as number) > 1) acc.push("ellipsis");
-                    acc.push(p);
-                    return acc;
-                  }, [])
-                  .map((item, idx) =>
-                    item === "ellipsis" ? (
-                      <span key={`e${idx}`} className="px-1 text-xs text-slate-400">
-                        …
-                      </span>
-                    ) : (
-                      <Button
-                        key={item}
-                        variant={item === page ? "default" : "ghost"}
-                        size="icon"
-                        onClick={() => setPage(item as number)}
-                        className="h-8 w-8 text-xs"
-                      >
-                        {item}
-                      </Button>
-                    ),
-                  )}
-
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                  disabled={page === totalPages}
-                  className="h-8 w-8"
-                >
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-          )}
+          {!loading && <TablePager pager={pager} />}
         </>
       )}
 

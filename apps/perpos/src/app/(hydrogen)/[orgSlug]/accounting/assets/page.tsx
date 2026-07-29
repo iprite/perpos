@@ -39,6 +39,7 @@ import {
   TableEmpty,
   TableLoading,
 } from "@/components/ui/table";
+import { TablePager, usePagination } from "@/components/ui/table-pager";
 import { toast } from "@/lib/toast";
 import {
   AccountingShell,
@@ -91,6 +92,8 @@ export default function AssetsPage() {
   const [deprPeriod, setDeprPeriod] = useState(periodOpts[0]?.value ?? "");
 
   const activeAssets = useMemo(() => assets.filter((a) => a.status === "active"), [assets]);
+
+  const pager = usePagination(assets);
 
   const stats = useMemo(() => {
     const totalCost = activeAssets.reduce((s, a) => s + a.cost, 0);
@@ -228,7 +231,7 @@ export default function AssetsPage() {
               </div>
             </TableEmpty>
           ) : (
-            assets.map((a) => {
+            pager.rows.map((a) => {
               const book = round2(a.cost - a.accumulated_depreciation);
               const used = monthsUsed(a.acquire_date);
               return (
@@ -266,6 +269,8 @@ export default function AssetsPage() {
           )}
         </TableBody>
       </Table>
+
+      <TablePager pager={pager} />
 
       <AssetDialog open={dialogOpen} onOpenChange={setDialogOpen} asset={editing} />
 

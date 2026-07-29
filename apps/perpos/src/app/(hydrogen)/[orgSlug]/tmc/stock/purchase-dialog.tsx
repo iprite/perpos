@@ -17,7 +17,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Plus, Trash2, Upload, Loader2, Camera, Pencil, Check } from "lucide-react";
-import cn from "@core/utils/class-names";
+import { SegmentedControl } from "@/components/ui/segmented";
 
 const TMC_ORG_ID = "1f52618c-09c4-49c5-a929-ea5060f26e7d";
 
@@ -274,30 +274,14 @@ export function PurchaseDialog({
 
         <DialogBody>
           {/* Mode toggle */}
-          <div className="flex gap-1.5 overflow-x-auto rounded-xl border border-gray-200 bg-white p-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            {(["manual", "ocr"] as const).map((m) => (
-              <Button
-                key={m}
-                size="sm"
-                variant={mode === m ? "secondary" : "ghost"}
-                onClick={() => setMode(m)}
-                className={cn(
-                  "shrink-0 whitespace-nowrap",
-                  mode === m && "bg-gray-100 text-gray-900",
-                )}
-              >
-                {m === "manual" ? (
-                  <>
-                    <Pencil className="h-3.5 w-3.5" /> กรอกเอง
-                  </>
-                ) : (
-                  <>
-                    <Camera className="h-3.5 w-3.5" /> อ่านบิล OCR
-                  </>
-                )}
-              </Button>
-            ))}
-          </div>
+          <SegmentedControl<"manual" | "ocr">
+            value={mode}
+            onChange={setMode}
+            options={[
+              { value: "manual", label: "กรอกเอง", icon: <Pencil className="h-4 w-4" /> },
+              { value: "ocr", label: "อ่านบิล OCR", icon: <Camera className="h-4 w-4" /> },
+            ]}
+          />
 
           {/* OCR upload area */}
           {mode === "ocr" && (

@@ -265,7 +265,9 @@ export default function MeetingsView({
       } else if (d.reason === "invalid_url")
         toast.error("ไม่พบลิงก์ประชุม (รองรับ Google Meet / Zoom / Teams)");
       else if (d.reason === "calendar_not_connected")
-        toast.error("ต้องเชื่อม Google Calendar ก่อนจึงจะลงนัดล่วงหน้าได้ — ไปที่แท็บ “เชื่อมต่อ Google”");
+        toast.error(
+          "ต้องเชื่อม Google Calendar ก่อนจึงจะลงนัดล่วงหน้าได้ — ไปที่แท็บ “เชื่อมต่อ Google”",
+        );
       else if (d.reason === "low_quota")
         toast.error(`โควต้าบอทไม่พอ (เหลือ ${d.remainMin ?? 0} นาที) — เติมที่หน้าการชำระเงิน`);
       else if (d.reason === "already_active") toast("บอทเข้าห้องประชุมนี้อยู่แล้ว");
@@ -341,12 +343,12 @@ export default function MeetingsView({
           วางลิงก์ห้องประชุม (Google Meet / Zoom / Teams) แล้วบอทจะเข้าห้องบันทึกให้ทันที ·
           ถ้าใส่วัน-เวลานัดมาด้วย ระบบจะลงนัดใน Google Calendar แล้วส่งบอทให้ตามเวลา
         </p>
-        <div className="flex flex-col gap-2 sm:flex-row">
+        <div className="flex flex-wrap items-center gap-2">
           <Input
             value={meetingUrl}
             onChange={(e) => setMeetingUrl(e.target.value)}
             placeholder="วางลิงก์ประชุม (ใส่วัน-เวลาด้วยเพื่อลงนัดล่วงหน้า)…"
-            className="flex-1"
+            className="min-w-[16rem] flex-1"
             onKeyDown={(e) => {
               if (e.key === "Enter") sendBot();
             }}

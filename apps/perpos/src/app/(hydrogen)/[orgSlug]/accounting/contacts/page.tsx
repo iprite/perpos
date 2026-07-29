@@ -21,6 +21,7 @@ import {
   TableEmpty,
   TableLoading,
 } from "@/components/ui/table";
+import { TablePager, usePagination } from "@/components/ui/table-pager";
 import { AccountingShell, useAccountingRole, useAccountingData, NoAccess } from "../_components";
 import { ContactDialog } from "../_components/contact-dialog";
 import type { AccContact } from "@/lib/accounting/types";
@@ -66,6 +67,8 @@ export default function ContactsPage() {
       })
       .sort((a, b) => a.name.localeCompare(b.name, "th"));
   }, [contacts, search, kindF]);
+
+  const pager = usePagination(filtered, { resetKey: `${search}|${kindF}` });
 
   const stats = useMemo(() => {
     const customers = contacts.filter((c) => c.kind === "customer" || c.kind === "both").length;
@@ -171,7 +174,7 @@ export default function ContactsPage() {
               </div>
             </TableEmpty>
           ) : (
-            filtered.map((c) => {
+            pager.rows.map((c) => {
               const m = KIND_META[c.kind];
               return (
                 <TableRow key={c.id} clickable onClick={() => openEdit(c)}>
@@ -192,6 +195,8 @@ export default function ContactsPage() {
           )}
         </TableBody>
       </Table>
+
+      <TablePager pager={pager} unit="ราย" />
 
       <ContactDialog
         open={dialogOpen}

@@ -1,7 +1,8 @@
 # HRM — โมดูลบริหารทรัพยากรบุคคล (HR ครบวงจร)
 
 > โมดูล **HR สำหรับธุรกิจจิ๋ว/SME ≤10 คน** — ยุบ `payroll` เดิมเข้ามารวม + เพิ่ม การลา / เวลาทำงาน /
-> เอกสาร / แฟ้มพนักงาน 360°. per-org (specific module), RLS, มาตรฐาน module-auth.
+> เอกสาร / แฟ้มพนักงาน 360°. **shared module** (superadmin เปิดให้ org ไหนก็ได้ที่ `/admin/modules`
+> เหมือน accounting — งานบุคคลเป็นเรื่องสากลของทุกบริษัท) · ข้อมูล per-org ตาม RLS, มาตรฐาน module-auth.
 > Spec/contract เต็ม + Review Log: `.claude/module-factory/specs/hrm.md`
 
 ## ภาพรวม

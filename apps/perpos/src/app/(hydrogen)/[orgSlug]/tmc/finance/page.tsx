@@ -9,6 +9,7 @@ import { PageShell } from "@/components/ui/page-shell";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { CustomSelect } from "@/components/ui/custom-select";
+import { FilterBar, FilterClear } from "@/components/ui/filter-bar";
 import { MultiSelect } from "@/components/ui/multi-select";
 import { ThaiDatePicker } from "@/components/ui/thai-date-picker";
 import { StatusBadge } from "@/components/ui/badge";
@@ -41,8 +42,6 @@ import {
   X,
   Pencil,
   Trash2,
-  ChevronLeft,
-  ChevronRight,
   Landmark,
   History,
   TrendingUp,
@@ -53,6 +52,7 @@ import {
   LayoutDashboard,
 } from "lucide-react";
 import { StatCard } from "@/components/ui/stat-card";
+import { TablePager, usePagination } from "@/components/ui/table-pager";
 import { Dropdown } from "@/components/ui/dropdown";
 import { SegmentedControl } from "@/components/ui/segmented";
 import {
@@ -317,10 +317,6 @@ export default function TmcFinancePage() {
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
 
-  // pagination
-  const PAGE_SIZE = 10;
-  const [page, setPage] = useState(1);
-
   // entry form (create / edit)
   const [showForm, setShowForm] = useState(false);
   const [editEntry, setEditEntry] = useState<Entry | null>(null);
@@ -414,9 +410,6 @@ export default function TmcFinancePage() {
   useEffect(() => {
     void load();
   }, [load]);
-  useEffect(() => {
-    setPage(1);
-  }, [entries]);
 
   // ── Entry form helpers ───────────────────────────────────────────────────────
   function openCreate() {
@@ -629,8 +622,7 @@ export default function TmcFinancePage() {
 
   const totalIncome = entries.reduce((s, e) => s + (e.income ?? 0), 0);
   const totalExpense = entries.reduce((s, e) => s + (e.expense ?? 0), 0);
-  const totalPages = Math.max(1, Math.ceil(entries.length / PAGE_SIZE));
-  const pagedEntries = entries.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const pager = usePagination(entries);
 
   const accountFilterOpts = useMemo(
     () => [
@@ -884,8 +876,7 @@ export default function TmcFinancePage() {
     >
       {/* ── Filters — ซ่อนไว้หลัง icon ด้านบน ── */}
       {showFilters && (
-        <div className="flex flex-wrap items-center gap-2 rounded-xl border bg-white p-3">
-          <Filter className="h-4 w-4 shrink-0 text-slate-400" />
+        <FilterBar>
           <CustomSelect
             value={filterAccountId}
             onChange={setFilterAccountId}
@@ -907,9 +898,7 @@ export default function TmcFinancePage() {
           />
           <ThaiDatePicker value={from} onChange={setFrom} placeholder="ตั้งแต่" className="w-32" />
           <ThaiDatePicker value={to} onChange={setTo} placeholder="ถึง" className="w-32" />
-          <Button
-            variant="ghost"
-            size="sm"
+          <FilterClear
             disabled={!hasFilter}
             onClick={() => {
               setFilterAccountId("");
@@ -918,10 +907,8 @@ export default function TmcFinancePage() {
               setFrom("");
               setTo("");
             }}
-          >
-            ล้างตัวกรอง
-          </Button>
-        </div>
+          />
+        </FilterBar>
       )}
 
       {/* ── View switch ── */}
@@ -1218,7 +1205,7 @@ export default function TmcFinancePage() {
             ) : entries.length === 0 ? (
               <TableEmpty colSpan={7}>ยังไม่มีรายการ</TableEmpty>
             ) : (
-              pagedEntries.map((e) => (
+              pager.rows.map((e) => (
                 <TableRow key={e.id} clickable onClick={() => openEdit(e)}>
                   <TableCell className="text-slate-600">
                     {new Date(e.entry_date).toLocaleDateString("th-TH", {
@@ -1256,59 +1243,7 @@ export default function TmcFinancePage() {
         </Table>
       )}
 
-      {/* Pagination */}
-      {view === "list" && !loading && entries.length > 0 && (
-        <div className="flex items-center justify-between px-1">
-          <p className="text-xs text-slate-500">
-            แสดง {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, entries.length)} จาก{" "}
-            {entries.length} รายการ
-          </p>
-          <div className="flex items-center gap-1">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-              disabled={page === 1}
-              className="h-8 w-8"
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            {Array.from({ length: totalPages }, (_, i) => i + 1)
-              .filter((p) => p === 1 || p === totalPages || Math.abs(p - page) <= 1)
-              .reduce<(number | "ellipsis")[]>((acc, p, idx, arr) => {
-                if (idx > 0 && p - (arr[idx - 1] as number) > 1) acc.push("ellipsis");
-                acc.push(p);
-                return acc;
-              }, [])
-              .map((item, idx) =>
-                item === "ellipsis" ? (
-                  <span key={`e${idx}`} className="px-1 text-xs text-slate-400">
-                    …
-                  </span>
-                ) : (
-                  <Button
-                    key={item}
-                    variant={item === page ? "default" : "ghost"}
-                    size="icon"
-                    onClick={() => setPage(item as number)}
-                    className="h-8 w-8 text-xs"
-                  >
-                    {item}
-                  </Button>
-                ),
-              )}
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-              disabled={page === totalPages}
-              className="h-8 w-8"
-            >
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
-      )}
+      {view === "list" && !loading && <TablePager pager={pager} />}
 
       {/* ── Add / Edit Entry Dialog ── */}
       <Dialog

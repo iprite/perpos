@@ -244,6 +244,7 @@ export function MembershipPlanDialog({
               <div>
                 <Label>รถกอล์ฟฟรี</Label>
                 <SegmentedControl
+                  size="md"
                   className="mt-1"
                   value={f.freeCart ? "yes" : "no"}
                   onChange={(v) => set("freeCart", v === "yes")}
@@ -254,6 +255,7 @@ export function MembershipPlanDialog({
               <div>
                 <Label>แคดดี้ฟรี</Label>
                 <SegmentedControl
+                  size="md"
                   className="mt-1"
                   value={f.freeCaddie ? "yes" : "no"}
                   onChange={(v) => set("freeCaddie", v === "yes")}
@@ -264,6 +266,7 @@ export function MembershipPlanDialog({
               <div className="sm:col-span-2">
                 <Label>สถานะแพ็กเกจ</Label>
                 <SegmentedControl
+                  size="md"
                   className="mt-1"
                   value={f.active ? "active" : "inactive"}
                   onChange={(v) => set("active", v === "active")}
@@ -284,7 +287,12 @@ export function MembershipPlanDialog({
           </DialogBody>
           <DialogFooter>
             {plan && (
-              <Button type="button" variant="destructive" className="mr-auto" onClick={handleDelete}>
+              <Button
+                type="button"
+                variant="destructive"
+                className="mr-auto"
+                onClick={handleDelete}
+              >
                 <Trash2 className="mr-1.5 h-4 w-4" /> ลบแพ็กเกจ
               </Button>
             )}

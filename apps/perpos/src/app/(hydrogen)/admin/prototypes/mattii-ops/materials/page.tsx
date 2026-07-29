@@ -7,8 +7,7 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { AlertTriangle, ArrowLeftRight, Boxes, Coins, PackageSearch } from "lucide-react";
-import cn from "@core/utils/class-names";
-import { Button } from "@/components/ui/button";
+import { SegmentedControl } from "@/components/ui/segmented";
 import { StatCard } from "@/components/ui/stat-card";
 import { MATERIAL_UNIT_LABEL } from "../_fixtures/labels";
 import { lowStockMaterials } from "../_fixtures/metrics";
@@ -129,24 +128,12 @@ export default function MaterialsPage() {
         )}
       </div>
 
-      {/* แถบแท็บ — row เดียว ล้นแล้วเลื่อน (DESIGN §4) */}
-      <div className="flex gap-1.5 overflow-x-auto rounded-xl border border-gray-200 bg-white p-1.5 shadow-sm [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        {tabs.map((t) => (
-          <Button
-            key={t.key}
-            size="sm"
-            variant={tab === t.key ? "secondary" : "ghost"}
-            className={cn(
-              "shrink-0 whitespace-nowrap",
-              tab === t.key && "bg-gray-100 text-gray-900",
-            )}
-            onClick={() => setTab(t.key)}
-          >
-            <span className="mr-1.5">{t.icon}</span>
-            {t.label}
-          </Button>
-        ))}
-      </div>
+      {/* แถบแท็บ — pill มาตรฐาน (DESIGN §4) */}
+      <SegmentedControl
+        value={tab}
+        onChange={setTab}
+        options={tabs.map((t) => ({ value: t.key, label: t.label, icon: t.icon }))}
+      />
 
       {tab === "materials" ? (
         <MaterialsTab

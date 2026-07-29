@@ -24,7 +24,10 @@ export interface PaymentMockValue {
   depositAmount: number;
 }
 
-export function defaultPaymentValue(total: number, suggestedDeposit?: number | null): PaymentMockValue {
+export function defaultPaymentValue(
+  total: number,
+  suggestedDeposit?: number | null,
+): PaymentMockValue {
   const dep =
     suggestedDeposit && suggestedDeposit > 0
       ? Math.min(suggestedDeposit, total)
@@ -116,6 +119,7 @@ export function PaymentMock({
         <div>
           <Label>รูปแบบการชำระ</Label>
           <SegmentedControl
+            size="md"
             className="mt-1"
             fullWidth
             value={value.mode}
@@ -150,6 +154,7 @@ export function PaymentMock({
       <div>
         <Label>วิธีชำระ</Label>
         <SegmentedControl
+          size="md"
           className="mt-1"
           fullWidth
           value={value.method}

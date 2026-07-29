@@ -9,6 +9,7 @@ import { PageShell } from "@/components/ui/page-shell";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { CustomSelect } from "@/components/ui/custom-select";
+import { FilterBar, FilterSearch, FilterClear } from "@/components/ui/filter-bar";
 import { StatusBadge } from "@/components/ui/badge";
 import {
   Table,
@@ -21,6 +22,7 @@ import {
   TableLoading,
 } from "@/components/ui/table";
 import { StatCard } from "@/components/ui/stat-card";
+import { TablePager, usePagination } from "@/components/ui/table-pager";
 import { SegmentedControl } from "@/components/ui/segmented";
 import {
   Dialog,
@@ -45,12 +47,9 @@ import {
   ShoppingCart,
   History,
   AlertTriangle,
-  Search,
   Filter,
   LayoutDashboard,
   CalendarRange,
-  ChevronLeft,
-  ChevronRight,
 } from "lucide-react";
 import {
   BarChart,
@@ -63,7 +62,6 @@ import {
   ResponsiveContainer,
   Cell,
 } from "recharts";
-import cn from "@core/utils/class-names";
 import { PurchaseDialog } from "./purchase-dialog";
 
 const TMC_ORG_ID = "1f52618c-09c4-49c5-a929-ea5060f26e7d";
@@ -196,9 +194,6 @@ export default function TmcStockPage() {
 
   // filter panel (ซ่อนไว้หลัง icon)
   const [showFilters, setShowFilters] = useState(false);
-  // pagination (แยกหน้าให้แต่ละแท็บ)
-  const PAGE_SIZE = 10;
-  const [page, setPage] = useState(1);
   // แดชบอร์ด: เลือกดูเฉพาะเดือน ("" = ทุกเดือน)
   const [dashMonth, setDashMonth] = useState("");
 
@@ -480,15 +475,11 @@ export default function TmcStockPage() {
 
   const hasFilter = activeCategory !== "__all__" || !!searchTerm.trim();
 
-  // เปลี่ยนแท็บ/ตัวกรอง/ข้อมูล → กลับหน้าแรกเสมอ (กันค้างอยู่หน้าที่ไม่มีแถวแล้ว)
-  useEffect(() => {
-    setPage(1);
-  }, [activeTab, activeCategory, searchTerm, items, movements]);
-
-  const pagedItems = filteredItems.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
-  const pagedMovements = movements.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
-  const totalRows = activeTab === "items" ? filteredItems.length : movements.length;
-  const totalPages = Math.max(1, Math.ceil(totalRows / PAGE_SIZE));
+  // แบ่งหน้าแยกกันต่อแท็บ — resetKey กันกรณีจำนวนแถวบังเอิญเท่าเดิมหลังกรอง
+  const itemPager = usePagination(filteredItems, {
+    resetKey: `${activeCategory}|${searchTerm}`,
+  });
+  const movePager = usePagination(movements);
 
   function fmtMonth(ym: string) {
     const [y, m] = ym.split("-").map(Number);
@@ -649,8 +640,7 @@ export default function TmcStockPage() {
     >
       {/* Filters — ซ่อนไว้หลัง icon ด้านบน (มีผลกับแท็บรายการสินค้า) */}
       {showFilters && (
-        <div className="flex flex-wrap items-center gap-2 rounded-xl border bg-white p-3">
-          <Filter className="h-4 w-4 shrink-0 text-gray-400" />
+        <FilterBar>
           <CustomSelect
             value={activeCategory}
             onChange={setActiveCategory}
@@ -660,27 +650,15 @@ export default function TmcStockPage() {
             ]}
             className="w-52"
           />
-          <div className="relative w-full max-w-xs">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-            <Input
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="ค้นหาชื่อสินค้า"
-              className="pl-9"
-            />
-          </div>
-          <Button
-            variant="ghost"
-            size="sm"
+          <FilterSearch value={searchTerm} onChange={setSearchTerm} placeholder="ค้นหาชื่อสินค้า" />
+          <FilterClear
             disabled={!hasFilter}
             onClick={() => {
               setActiveCategory("__all__");
               setSearchTerm("");
             }}
-          >
-            ล้างตัวกรอง
-          </Button>
-        </div>
+          />
+        </FilterBar>
       )}
 
       {/* View switch */}
@@ -1015,7 +993,7 @@ export default function TmcStockPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {pagedItems.map((item) => (
+            {itemPager.rows.map((item) => (
               <TableRow key={item.id}>
                 <TableCell className="font-medium text-gray-900">{item.name}</TableCell>
                 <TableCell className="text-xs text-gray-500">{item.category ?? "—"}</TableCell>
@@ -1058,7 +1036,7 @@ export default function TmcStockPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {pagedMovements.map((m) => (
+            {movePager.rows.map((m) => (
               <TableRow key={m.id}>
                 <TableCell className="text-gray-500">
                   {new Date(m.created_at).toLocaleDateString("th-TH", {
@@ -1086,59 +1064,8 @@ export default function TmcStockPage() {
         </Table>
       )}
 
-      {/* Pagination (แท็บรายการ/ประวัติ) */}
-      {activeTab !== "dashboard" && !loading && totalRows > 0 && (
-        <div className="flex items-center justify-between px-1">
-          <p className="text-xs text-gray-500">
-            แสดง {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, totalRows)} จาก{" "}
-            {totalRows} รายการ
-          </p>
-          <div className="flex items-center gap-1">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-              disabled={page === 1}
-              className="h-8 w-8"
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            {Array.from({ length: totalPages }, (_, i) => i + 1)
-              .filter((p) => p === 1 || p === totalPages || Math.abs(p - page) <= 1)
-              .reduce<(number | "ellipsis")[]>((acc, p, idx, arr) => {
-                if (idx > 0 && p - (arr[idx - 1] as number) > 1) acc.push("ellipsis");
-                acc.push(p);
-                return acc;
-              }, [])
-              .map((item, idx) =>
-                item === "ellipsis" ? (
-                  <span key={`e${idx}`} className="px-1 text-xs text-gray-400">
-                    …
-                  </span>
-                ) : (
-                  <Button
-                    key={item}
-                    variant={item === page ? "default" : "ghost"}
-                    size="icon"
-                    onClick={() => setPage(item as number)}
-                    className="h-8 w-8 text-xs"
-                  >
-                    {item}
-                  </Button>
-                ),
-              )}
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-              disabled={page === totalPages}
-              className="h-8 w-8"
-            >
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
-      )}
+      {!loading && activeTab === "items" && <TablePager pager={itemPager} />}
+      {!loading && activeTab === "movements" && <TablePager pager={movePager} unit="ครั้ง" />}
 
       {/* ── Add Item Dialog ─────────────────────────────────────────────────── */}
       <Dialog open={showAddItem} onOpenChange={setShowAddItem}>
@@ -1312,30 +1239,15 @@ export default function TmcStockPage() {
 
           <DialogBody>
             {/* Tab bar */}
-            <div className="flex gap-1.5 overflow-x-auto rounded-xl border border-gray-200 bg-white p-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              <Button
-                size="sm"
-                variant={masterTab === "categories" ? "secondary" : "ghost"}
-                onClick={() => setMasterTab("categories")}
-                className={cn(
-                  "flex-1 shrink-0 whitespace-nowrap",
-                  masterTab === "categories" && "bg-gray-100 text-gray-900",
-                )}
-              >
-                <Tag className="h-3.5 w-3.5" /> หมวดหมู่
-              </Button>
-              <Button
-                size="sm"
-                variant={masterTab === "units" ? "secondary" : "ghost"}
-                onClick={() => setMasterTab("units")}
-                className={cn(
-                  "flex-1 shrink-0 whitespace-nowrap",
-                  masterTab === "units" && "bg-gray-100 text-gray-900",
-                )}
-              >
-                <Ruler className="h-3.5 w-3.5" /> หน่วย
-              </Button>
-            </div>
+            <SegmentedControl
+              value={masterTab}
+              onChange={setMasterTab}
+              fullWidth
+              options={[
+                { value: "categories", label: "หมวดหมู่", icon: <Tag className="h-4 w-4" /> },
+                { value: "units", label: "หน่วย", icon: <Ruler className="h-4 w-4" /> },
+              ]}
+            />
 
             {/* Categories tab */}
             {masterTab === "categories" && (

@@ -31,6 +31,7 @@ import {
   TableCell,
   TableEmpty,
 } from "@/components/ui/table";
+import { TablePager, usePagination } from "@/components/ui/table-pager";
 import { toast } from "@/lib/toast";
 import {
   FLOW_LABELS,
@@ -71,6 +72,11 @@ export function InvestorsClient({
     }
     return map;
   }, [flows]);
+
+  const investorFlows = useMemo(() => flows.filter((f) => f.investor_id), [flows]);
+
+  const balancesPager = usePagination(balances);
+  const flowsPager = usePagination(investorFlows);
 
   function upsertInvestor(next: Investor) {
     setInvestors((prev) => {
@@ -214,7 +220,7 @@ export function InvestorsClient({
               {balances.length === 0 ? (
                 <TableEmpty colSpan={6}>ยังไม่มีนักลงทุน</TableEmpty>
               ) : (
-                balances.map((b) => (
+                balancesPager.rows.map((b) => (
                   <TableRow key={b.investor.id}>
                     <TableCell>{b.investor.name}</TableCell>
                     <TableCell align="right" className="tabular-nums">
@@ -257,6 +263,7 @@ export function InvestorsClient({
               </TableRow>
             </TableFooter>
           </Table>
+          <TablePager pager={balancesPager} unit="ราย" className="mt-3" />
         </div>
 
         {/* ── ไทม์ไลน์เงินเข้า-ออกของนักลงทุน (ทุกคนเห็นเหมือนกัน) ── */}
@@ -275,27 +282,26 @@ export function InvestorsClient({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {flows.filter((f) => f.investor_id).length === 0 ? (
+              {investorFlows.length === 0 ? (
                 <TableEmpty colSpan={5}>ยังไม่มีรายการ</TableEmpty>
               ) : (
-                flows
-                  .filter((f) => f.investor_id)
-                  .map((f) => (
-                    <TableRow key={f.id}>
-                      <TableCell className="tabular-nums">{fmtDateTH(f.flow_date)}</TableCell>
-                      <TableCell>
-                        {investors.find((i) => i.id === f.investor_id)?.name ?? "—"}
-                      </TableCell>
-                      <TableCell>{FLOW_LABELS[f.flow_type]}</TableCell>
-                      <TableCell>{f.company ?? "—"}</TableCell>
-                      <TableCell align="right" tabular>
-                        {fmtMoney(f.amount)}
-                      </TableCell>
-                    </TableRow>
-                  ))
+                flowsPager.rows.map((f) => (
+                  <TableRow key={f.id}>
+                    <TableCell className="tabular-nums">{fmtDateTH(f.flow_date)}</TableCell>
+                    <TableCell>
+                      {investors.find((i) => i.id === f.investor_id)?.name ?? "—"}
+                    </TableCell>
+                    <TableCell>{FLOW_LABELS[f.flow_type]}</TableCell>
+                    <TableCell>{f.company ?? "—"}</TableCell>
+                    <TableCell align="right" tabular>
+                      {fmtMoney(f.amount)}
+                    </TableCell>
+                  </TableRow>
+                ))
               )}
             </TableBody>
           </Table>
+          <TablePager pager={flowsPager} className="mt-3" />
         </div>
       </div>
 

@@ -16,8 +16,8 @@ import {
   CheckCircle2,
   Plus,
 } from "lucide-react";
-import cn from "@core/utils/class-names";
 import { Input } from "@/components/ui/input";
+import { SegmentedControl } from "@/components/ui/segmented";
 import { Button } from "@/components/ui/button";
 import { CustomSelect } from "@/components/ui/custom-select";
 import { StatCard } from "@/components/ui/stat-card";
@@ -31,6 +31,7 @@ import {
   TableEmpty,
   TableLoading,
 } from "@/components/ui/table";
+import { TablePager, usePagination } from "@/components/ui/table-pager";
 import {
   AccountingShell,
   useAccountingRole,
@@ -103,6 +104,8 @@ export default function DocumentsPage() {
       .sort((a, b) => b.issue_date.localeCompare(a.issue_date));
   }, [documents, tab, search, statusF]);
 
+  const pager = usePagination(filtered, { resetKey: `${tab}|${search}|${statusF}` });
+
   // KPI สรุป — ใช้ "เอกสารที่ออกบิลแล้ว" ชุดเดียวกับที่ auto journal ใช้รับรู้รายได้
   // (เดิมนับเฉพาะ doc_type='invoice' → org ที่ออกใบกำกับภาษีเห็นยอดเป็น 0
   //  และการ์ดเกินกำหนด/รับชำระนับทุกชนิดรวมใบเสนอราคา + นับซ้ำทั้งสาย QT→INV→RC)
@@ -145,19 +148,11 @@ export default function DocumentsPage() {
     );
 
   const tabs = (
-    <div className="flex gap-1.5 overflow-x-auto rounded-xl border border-gray-200 bg-white p-1.5 shadow-sm [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-      {DOC_TABS.map((t) => (
-        <Button
-          key={t.key}
-          size="sm"
-          variant={tab === t.key ? "secondary" : "ghost"}
-          className={cn("shrink-0 whitespace-nowrap", tab === t.key && "bg-gray-100 text-gray-900")}
-          onClick={() => setTab(t.key)}
-        >
-          {t.label}
-        </Button>
-      ))}
-    </div>
+    <SegmentedControl<DocTab>
+      value={tab}
+      onChange={setTab}
+      options={DOC_TABS.map((t) => ({ value: t.key, label: t.label }))}
+    />
   );
 
   return (
@@ -282,7 +277,7 @@ export default function DocumentsPage() {
               </div>
             </TableEmpty>
           ) : (
-            filtered.map((d) => (
+            pager.rows.map((d) => (
               <TableRow key={d.id} clickable onClick={() => openDoc(d)}>
                 <TableCell className="whitespace-nowrap font-mono text-xs tabular-nums text-gray-900">
                   {d.doc_number}
@@ -308,6 +303,8 @@ export default function DocumentsPage() {
           )}
         </TableBody>
       </Table>
+
+      <TablePager pager={pager} unit="ฉบับ" />
 
       <DocumentDialog
         open={dialogOpen}

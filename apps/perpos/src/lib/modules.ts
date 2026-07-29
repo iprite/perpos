@@ -226,10 +226,11 @@ export const ALL_MODULES: ModuleDef[] = [
     ],
   },
   {
+    // shared module — เปิดให้ org ไหนก็ได้ผ่าน /admin/modules (งานบุคคลเป็นเรื่องสากลของทุกบริษัท
+    // เหมือน accounting) · ข้อมูลยัง per-org ตาม RLS เหมือนเดิม
     key: "hrm",
     label: "HR",
     href: "/hrm",
-    specific: true,
     match: (p) => {
       const seg = p.split("/").filter(Boolean);
       return seg.length >= 2 && seg[1] === "hrm";

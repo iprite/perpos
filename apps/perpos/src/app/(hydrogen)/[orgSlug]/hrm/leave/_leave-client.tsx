@@ -43,6 +43,7 @@ import {
   TableCell,
   TableEmpty,
 } from "@/components/ui/table";
+import { TablePager, usePagination } from "@/components/ui/table-pager";
 import { toast } from "@/lib/toast";
 
 import type { Employee, LeaveType, LeaveRequest } from "@/lib/hrm/types";
@@ -169,6 +170,9 @@ export function LeaveClient({
     }
     return Array.from(byEmp, ([employee_id, m]) => ({ employee_id, byCode: m }));
   }, [balances]);
+
+  const requestsPager = usePagination(sortedRequests);
+  const balancePager = usePagination(balanceRows, { resetKey: year });
 
   const detail = useMemo(
     () => initialRequests.find((r) => r.id === detailId) ?? null,
@@ -305,7 +309,7 @@ export function LeaveClient({
                 </div>
               </TableEmpty>
             ) : (
-              sortedRequests.map((r) => {
+              requestsPager.rows.map((r) => {
                 const emp = empById.get(r.employee_id);
                 const lt = typeById.get(r.leave_type_id);
                 return (
@@ -338,6 +342,7 @@ export function LeaveClient({
             )}
           </TableBody>
         </Table>
+        <TablePager pager={requestsPager} className="mt-3" />
       </div>
 
       {/* (b) ตารางวันลาคงเหลือต่อคน — title เหนือตาราง */}
@@ -362,7 +367,7 @@ export function LeaveClient({
                 ยังไม่มีข้อมูลวันลาคงเหลือของพนักงาน
               </TableEmpty>
             ) : (
-              balanceRows.map((row) => {
+              balancePager.rows.map((row) => {
                 const emp = empById.get(row.employee_id);
                 return (
                   <TableRow key={row.employee_id}>
@@ -385,6 +390,7 @@ export function LeaveClient({
             )}
           </TableBody>
         </Table>
+        <TablePager pager={balancePager} unit="คน" className="mt-3" />
       </div>
 
       {/* ── Dialog รายละเอียดใบลา ── */}

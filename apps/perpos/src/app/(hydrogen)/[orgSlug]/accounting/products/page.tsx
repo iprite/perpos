@@ -6,10 +6,10 @@
 // gate §4: products — owner/accountant/staff (W) · viewer (V)
 
 import { useMemo, useState } from "react";
-import { Package, Search, ShoppingBag, Wrench, Plus } from "lucide-react";
-import { Input } from "@/components/ui/input";
+import { Package, ShoppingBag, Wrench, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SegmentedControl } from "@/components/ui/segmented";
+import { FilterBar, FilterSearch } from "@/components/ui/filter-bar";
 import { StatCard } from "@/components/ui/stat-card";
 import { StatusBadge } from "@/components/ui/badge";
 import {
@@ -22,6 +22,7 @@ import {
   TableEmpty,
   TableLoading,
 } from "@/components/ui/table";
+import { TablePager, usePagination } from "@/components/ui/table-pager";
 import {
   AccountingShell,
   useAccountingRole,
@@ -81,6 +82,8 @@ export default function ProductsPage() {
       .sort((a, b) => a.name.localeCompare(b.name, "th"));
   }, [products, search, kindF, statusF]);
 
+  const pager = usePagination(filtered, { resetKey: `${search}|${kindF}|${statusF}` });
+
   const stats = useMemo(() => {
     const goods = products.filter((p) => p.kind === "good").length;
     const services = products.filter((p) => p.kind === "service").length;
@@ -137,31 +140,21 @@ export default function ProductsPage() {
         />
       </div>
 
-      <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
-          <div className="relative flex-1">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-            <Input
-              className="pl-9"
-              placeholder="ค้นหา ชื่อ / รหัสสินค้า"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-          </div>
-          <SegmentedControl
-            value={kindF}
-            onChange={setKindF}
-            options={KIND_OPTIONS}
-            ariaLabel="กรองตามประเภท"
-          />
-          <SegmentedControl
-            value={statusF}
-            onChange={setStatusF}
-            options={STATUS_OPTIONS}
-            ariaLabel="กรองตามสถานะ"
-          />
-        </div>
-      </div>
+      <FilterBar>
+        <FilterSearch value={search} onChange={setSearch} placeholder="ค้นหา ชื่อ / รหัสสินค้า" />
+        <SegmentedControl
+          value={kindF}
+          onChange={setKindF}
+          options={KIND_OPTIONS}
+          ariaLabel="กรองตามประเภท"
+        />
+        <SegmentedControl
+          value={statusF}
+          onChange={setStatusF}
+          options={STATUS_OPTIONS}
+          ariaLabel="กรองตามสถานะ"
+        />
+      </FilterBar>
 
       <Table className="shadow-sm">
         <TableHeader>
@@ -197,7 +190,7 @@ export default function ProductsPage() {
               </div>
             </TableEmpty>
           ) : (
-            filtered.map((p) => {
+            pager.rows.map((p) => {
               const m = KIND_META[p.kind];
               return (
                 <TableRow key={p.id} clickable onClick={() => openEdit(p)}>
@@ -225,6 +218,8 @@ export default function ProductsPage() {
           )}
         </TableBody>
       </Table>
+
+      <TablePager pager={pager} />
 
       <ProductDialog
         open={dialogOpen}

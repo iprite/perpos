@@ -38,7 +38,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { toast } from "@/lib/toast";
-import cn from "@core/utils/class-names";
+import { SegmentedControl } from "@/components/ui/segmented";
 
 import { RESIDENTS, ROOMS, BEDS, MOCK_FAMILY_SUMMARY_A4 } from "../../_fixtures";
 import {
@@ -252,26 +252,12 @@ export default function ResidentProfilePage() {
             </div>
           </div>
 
-          {/* Tab nav */}
-          <div className="flex gap-1 overflow-x-auto rounded-xl border border-gray-200 bg-white p-1.5 shadow-sm">
-            {TABS.map((t) => (
-              <Button
-                key={t.key}
-                variant="ghost"
-                size="sm"
-                onClick={() => setTab(t.key)}
-                className={cn(
-                  "shrink-0 gap-1.5",
-                  tab === t.key
-                    ? "bg-primary/10 font-medium text-primary hover:bg-primary/10"
-                    : "text-gray-600 hover:bg-gray-50 hover:text-gray-900",
-                )}
-              >
-                {t.icon}
-                {t.label}
-              </Button>
-            ))}
-          </div>
+          {/* Tab nav — pill มาตรฐาน (DESIGN §4) */}
+          <SegmentedControl
+            value={tab}
+            onChange={setTab}
+            options={TABS.map((t) => ({ value: t.key, label: t.label, icon: t.icon }))}
+          />
 
           {/* Tab content */}
           <div>

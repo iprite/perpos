@@ -16,8 +16,8 @@ import {
   ListChecks,
   Plus,
 } from "lucide-react";
-import cn from "@core/utils/class-names";
 import { Input } from "@/components/ui/input";
+import { SegmentedControl } from "@/components/ui/segmented";
 import { CustomSelect } from "@/components/ui/custom-select";
 import { ThaiDatePicker } from "@/components/ui/thai-date-picker";
 import { Button } from "@/components/ui/button";
@@ -32,6 +32,7 @@ import {
   TableEmpty,
   TableLoading,
 } from "@/components/ui/table";
+import { TablePager, usePagination } from "@/components/ui/table-pager";
 import {
   AccountingShell,
   useAccountingRole,
@@ -106,6 +107,10 @@ export default function EntriesPage() {
       .sort((a, b) => b.entry_date.localeCompare(a.entry_date));
   }, [entries, tab, search, categoryF, fromDate, toDate]);
 
+  const pager = usePagination(filtered, {
+    resetKey: `${tab}|${search}|${categoryF}|${fromDate}|${toDate}`,
+  });
+
   // KPI — คำนวณจากรายการที่ filter อยู่ (สะท้อนสิ่งที่เห็น)
   const income = sumIncome(filtered);
   const expense = sumExpense(filtered);
@@ -128,19 +133,11 @@ export default function EntriesPage() {
     );
 
   const tabs = (
-    <div className="flex gap-1.5 overflow-x-auto rounded-xl border border-gray-200 bg-white p-1.5 shadow-sm [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-      {KIND_TABS.map((t) => (
-        <Button
-          key={t.key}
-          size="sm"
-          variant={tab === t.key ? "secondary" : "ghost"}
-          className={cn("shrink-0 whitespace-nowrap", tab === t.key && "bg-gray-100 text-gray-900")}
-          onClick={() => setTab(t.key)}
-        >
-          {t.label}
-        </Button>
-      ))}
-    </div>
+    <SegmentedControl<KindTab>
+      value={tab}
+      onChange={setTab}
+      options={KIND_TABS.map((t) => ({ value: t.key, label: t.label }))}
+    />
   );
 
   return (
@@ -243,7 +240,7 @@ export default function EntriesPage() {
               </div>
             </TableEmpty>
           ) : (
-            filtered.map((e) => {
+            pager.rows.map((e) => {
               const isIncome = e.kind === "income";
               return (
                 <TableRow key={e.id} clickable onClick={() => openEdit(e)}>
@@ -275,6 +272,8 @@ export default function EntriesPage() {
           )}
         </TableBody>
       </Table>
+
+      <TablePager pager={pager} />
 
       <EntryDialog open={dialogOpen} onOpenChange={setDialogOpen} entry={editing} />
     </AccountingShell>

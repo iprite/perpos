@@ -26,9 +26,9 @@ import {
   Eye,
   Download,
 } from "lucide-react";
-import cn from "@core/utils/class-names";
 
 import { Button } from "@/components/ui/button";
+import { SegmentedControl } from "@/components/ui/segmented";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { CustomSelect } from "@/components/ui/custom-select";
@@ -358,25 +358,11 @@ export function EmployeeDetail({
       </div>
 
       {/* Tab nav */}
-      <div className="flex gap-1 overflow-x-auto rounded-xl border border-gray-200 bg-white p-1.5 shadow-sm">
-        {TABS.map((t) => (
-          <Button
-            key={t.key}
-            variant="ghost"
-            size="sm"
-            onClick={() => setTab(t.key)}
-            className={cn(
-              "shrink-0 gap-1.5",
-              tab === t.key
-                ? "bg-primary/10 font-medium text-primary hover:bg-primary/10"
-                : "text-gray-600 hover:bg-gray-50 hover:text-gray-900",
-            )}
-          >
-            {t.icon}
-            {t.label}
-          </Button>
-        ))}
-      </div>
+      <SegmentedControl<TabKey>
+        value={tab}
+        onChange={setTab}
+        options={TABS.map((t) => ({ value: t.key, label: t.label, icon: t.icon }))}
+      />
 
       {/* Tab content */}
       <div>
