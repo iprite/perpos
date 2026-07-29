@@ -77,6 +77,11 @@ BEGIN
     SELECT DISTINCT organization_id FROM org_module_settings
      WHERE module_key = 'acc_firm' AND is_enabled = true
   LOOP
+    -- idempotent: firm ที่มี template default แล้วข้ามไป (กัน seed ซ้ำตอน re-run)
+    IF EXISTS (SELECT 1 FROM acc_firm_vault_templates WHERE firm_org_id = v_org AND is_default) THEN
+      CONTINUE;
+    END IF;
+
     INSERT INTO acc_firm_vault_templates (firm_org_id, name, entity_type, vat_registered, is_default)
     VALUES (v_org, 'บริษัทจำกัด (จด VAT)', 'company', true, true)
     RETURNING id INTO v_tpl;
