@@ -138,12 +138,20 @@ export function FileDropzone(props: FileDropzoneProps) {
     if (inputRef.current) inputRef.current.value = "";
   }
 
-  // มีไฟล์แล้ว → แสดงการ์ดไฟล์พร้อมปุ่มเอาออก (ไม่ต้องโชว์พื้นที่ลากอีก)
+  // มีไฟล์แล้ว → แสดงการ์ดไฟล์พร้อมปุ่มเอาออก
+  // (การ์ดยังรับ drop ได้ — ลากไฟล์ใหม่มาทับได้เลย ไม่ต้องกดเอาของเดิมออกก่อน)
   if (value) {
     return (
       <div
+        onDragOver={(e) => {
+          e.preventDefault();
+          if (!disabled) setDragOver(true);
+        }}
+        onDragLeave={() => setDragOver(false)}
+        onDrop={handleDrop}
         className={cn(
-          "mt-1 flex items-center gap-3 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3",
+          "relative mt-1 flex items-center gap-3 rounded-xl border px-4 py-3 transition-colors",
+          dragOver ? "border-primary bg-gray-50" : "border-gray-200 bg-gray-50",
           className,
         )}
       >
@@ -162,6 +170,9 @@ export function FileDropzone(props: FileDropzoneProps) {
         >
           <X className="h-4 w-4" />
         </Button>
+        {error ? (
+          <Text className="absolute -bottom-5 left-0 text-xs text-red-600">{error}</Text>
+        ) : null}
       </div>
     );
   }

@@ -333,8 +333,11 @@ export default function JaquarStockPage() {
 
   // 8. Custom CSV parsing logic
   const handleFileChange = (file: File | null) => {
-    if (!file) return;
     setCsvFile(file);
+    if (!file) {
+      setParsedSummary(null);
+      return;
+    }
 
     const reader = new FileReader();
     reader.onload = (event) => {
@@ -1068,7 +1071,7 @@ export default function JaquarStockPage() {
                   <p className="mt-1 font-semibold text-gray-700">ตัวอย่าง: Stock Update.csv</p>
                 </div>
                 <FileDropzone
-                  value={null}
+                  value={csvFile}
                   onChange={handleFileChange}
                   accept=".csv,text/csv"
                   label="ลากไฟล์ CSV มาวาง หรือคลิกเพื่อเลือก"
