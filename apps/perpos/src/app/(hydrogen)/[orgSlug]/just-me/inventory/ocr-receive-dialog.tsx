@@ -2,6 +2,7 @@
 
 import { useState, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
+import { SegmentedControl } from "@/components/ui/segmented";
 import { FileDropzone } from "@/components/ui/file-dropzone";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -249,26 +250,15 @@ export function OcrReceiveDialog({
         </DialogHeader>
 
         <DialogBody>
-          {/* Mode toggle */}
-          <div className="flex w-fit gap-1 rounded-lg bg-slate-100 p-1">
-            {(["manual", "ocr"] as const).map((m) => (
-              <button
-                key={m}
-                onClick={() => setMode(m)}
-                className={`flex items-center gap-1.5 rounded-md px-4 py-1.5 text-sm font-medium transition-colors ${mode === m ? "bg-white text-slate-900 shadow" : "text-slate-500 hover:text-slate-700"}`}
-              >
-                {m === "manual" ? (
-                  <>
-                    <Pencil className="h-3.5 w-3.5" /> กรอกเอง
-                  </>
-                ) : (
-                  <>
-                    <Camera className="h-3.5 w-3.5" /> อ่านบิล OCR
-                  </>
-                )}
-              </button>
-            ))}
-          </div>
+          {/* Mode toggle — DESIGN §7: ตัวเลือก 2 อย่างที่สลับกัน = SegmentedControl (pill) */}
+          <SegmentedControl<"manual" | "ocr">
+            value={mode}
+            onChange={setMode}
+            options={[
+              { value: "manual", label: "กรอกเอง", icon: <Pencil className="h-4 w-4" /> },
+              { value: "ocr", label: "อ่านบิล OCR", icon: <Camera className="h-4 w-4" /> },
+            ]}
+          />
 
           {/* OCR upload area */}
           {mode === "ocr" && (

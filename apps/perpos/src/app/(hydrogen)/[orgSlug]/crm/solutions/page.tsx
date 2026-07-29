@@ -6,6 +6,7 @@ import Link from "next/link";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { toast } from "@/lib/toast";
 import { Button } from "@/components/ui/button";
+import { SegmentedControl } from "@/components/ui/segmented";
 import { Input } from "@/components/ui/input";
 import { CustomSelect } from "@/components/ui/custom-select";
 import { PageShell } from "@/components/ui/page-shell";
@@ -220,18 +221,15 @@ export default function CrmSolutionsPage() {
               onChange={(e) => setQ(e.target.value)}
             />
           </div>
-          {/* View toggle */}
-          <div className="flex overflow-hidden rounded-lg border">
-            {(["kanban", "list"] as const).map((mode) => (
-              <button
-                key={mode}
-                onClick={() => setViewMode(mode)}
-                className={`px-3 py-1.5 text-xs font-medium capitalize transition-colors ${viewMode === mode ? "bg-indigo-600 text-white" : "bg-white text-slate-600 hover:bg-slate-50"}`}
-              >
-                {mode === "kanban" ? "Kanban" : "List"}
-              </button>
-            ))}
-          </div>
+          {/* View toggle — DESIGN §7 pill */}
+          <SegmentedControl<"kanban" | "list">
+            value={viewMode}
+            onChange={setViewMode}
+            options={[
+              { value: "kanban", label: "Kanban" },
+              { value: "list", label: "List" },
+            ]}
+          />
           <CustomSelect
             value={statusFilter}
             onChange={(v) => {

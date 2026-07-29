@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import cn from "@core/utils/class-names";
 import { MoreVertical, Plus, Mail, UserMinus } from "lucide-react";
 import { Popover } from "@/components/ui/popover";
+import { SegmentedControl } from "@/components/ui/segmented";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -37,23 +38,23 @@ import { backendUrl } from "@/lib/backend";
 import { toast } from "@/lib/toast";
 
 const ROLE_LABELS: Record<string, string> = {
-  owner:       "เจ้าของ",
-  admin:       "ผู้ดูแลระบบ",
-  team_lead:   "Team lead",
+  owner: "เจ้าของ",
+  admin: "ผู้ดูแลระบบ",
+  team_lead: "Team lead",
   team_member: "Team member",
 };
 
 const ROLE_COLORS: Record<string, string> = {
-  owner:       "bg-violet-50 text-violet-700",
-  admin:       "bg-blue-50 text-blue-700",
-  team_lead:   "bg-amber-50 text-amber-700",
+  owner: "bg-violet-50 text-violet-700",
+  admin: "bg-blue-50 text-blue-700",
+  team_lead: "bg-amber-50 text-amber-700",
   team_member: "bg-slate-100 text-slate-600",
 };
 
 const ROLE_OPTIONS = [
-  { value: "owner",       label: "เจ้าของ" },
-  { value: "admin",       label: "ผู้ดูแลระบบ" },
-  { value: "team_lead",   label: "Team lead" },
+  { value: "owner", label: "เจ้าของ" },
+  { value: "admin", label: "ผู้ดูแลระบบ" },
+  { value: "team_lead", label: "Team lead" },
   { value: "team_member", label: "Team member" },
 ];
 
@@ -72,7 +73,12 @@ function Avatar({ name, avatarUrl }: { name: string; avatarUrl: string | null })
     );
   }
   return (
-    <div className={cn("h-9 w-9 rounded-full flex items-center justify-center text-sm font-semibold text-white", color)}>
+    <div
+      className={cn(
+        "flex h-9 w-9 items-center justify-center rounded-full text-sm font-semibold text-white",
+        color,
+      )}
+    >
       {initials}
     </div>
   );
@@ -111,7 +117,10 @@ function MemberMenu({
     setRemoving(true);
     const res = await removeMemberAction({ organizationId, memberId: member.id });
     setRemoving(false);
-    if (res?.ok === false) { toast.error("นำผู้ใช้ออกไม่สำเร็จ"); return; }
+    if (res?.ok === false) {
+      toast.error("นำผู้ใช้ออกไม่สำเร็จ");
+      return;
+    }
     onUpdated({ ...member, role: "team_member" }); // signal removal via parent
     toast.success(`นำ ${member.display_name ?? member.email} ออกแล้ว`);
   }
@@ -134,14 +143,20 @@ function MemberMenu({
         <div className="w-36 py-1">
           <button
             type="button"
-            onClick={() => { setMenuOpen(false); setEditOpen(true); }}
+            onClick={() => {
+              setMenuOpen(false);
+              setEditOpen(true);
+            }}
             className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
           >
             เปลี่ยนสิทธิ์
           </button>
           <button
             type="button"
-            onClick={() => { setMenuOpen(false); void handleRemove(); }}
+            onClick={() => {
+              setMenuOpen(false);
+              void handleRemove();
+            }}
             disabled={removing}
             className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 disabled:opacity-50"
           >
@@ -151,27 +166,36 @@ function MemberMenu({
         </div>
       </Popover>
 
-      <Dialog open={editOpen} onOpenChange={(v) => { if (!v) setEditOpen(false); }}>
+      <Dialog
+        open={editOpen}
+        onOpenChange={(v) => {
+          if (!v) setEditOpen(false);
+        }}
+      >
         <DialogContent size="sm">
           <DialogHeader>
             <DialogTitle>เปลี่ยนสิทธิ์ผู้ใช้งาน</DialogTitle>
           </DialogHeader>
           <DialogBody>
-          <div className="space-y-3">
-            <p className="text-sm text-slate-600">{member.display_name ?? member.email}</p>
-            <div className="space-y-1.5">
-              <Label>สิทธิ์การใช้งาน</Label>
-              <CustomSelect
-                value={role}
-                onChange={(v) => setRole(v as OrgMemberRow["role"])}
-                options={ROLE_OPTIONS}
-              />
+            <div className="space-y-3">
+              <p className="text-sm text-slate-600">{member.display_name ?? member.email}</p>
+              <div className="space-y-1.5">
+                <Label>สิทธิ์การใช้งาน</Label>
+                <CustomSelect
+                  value={role}
+                  onChange={(v) => setRole(v as OrgMemberRow["role"])}
+                  options={ROLE_OPTIONS}
+                />
+              </div>
             </div>
-          </div>
           </DialogBody>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setEditOpen(false)} disabled={saving}>ยกเลิก</Button>
-            <Button onClick={handleRoleChange} disabled={saving}>{saving ? "กำลังบันทึก..." : "บันทึก"}</Button>
+            <Button variant="outline" onClick={() => setEditOpen(false)} disabled={saving}>
+              ยกเลิก
+            </Button>
+            <Button onClick={handleRoleChange} disabled={saving}>
+              {saving ? "กำลังบันทึก..." : "บันทึก"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -203,7 +227,10 @@ export function OrgUsersClient({
 
   async function handleInvite() {
     const email = inviteEmail.trim();
-    if (!email) { setInviteErr("กรุณากรอกอีเมล"); return; }
+    if (!email) {
+      setInviteErr("กรุณากรอกอีเมล");
+      return;
+    }
     setInviting(true);
     setInviteErr(null);
     setInviteSuccess(null);
@@ -242,10 +269,10 @@ export function OrgUsersClient({
     // Optimistically add to invites tab
     setInvites((prev) => [
       {
-        id:         String(Date.now()),
+        id: String(Date.now()),
         email,
-        org_role:   inviteRole as OrgInviteRow["org_role"],
-        status:     "pending",
+        org_role: inviteRole as OrgInviteRow["org_role"],
+        status: "pending",
         created_at: new Date().toISOString(),
         expires_at: new Date(Date.now() + 7 * 86400 * 1000).toISOString(),
       },
@@ -265,7 +292,10 @@ export function OrgUsersClient({
 
   async function handleCancelInvite(invite: OrgInviteRow) {
     const res = await cancelInviteAction({ organizationId, inviteId: invite.id });
-    if (res?.ok === false) { toast.error("ยกเลิกคำเชิญไม่สำเร็จ"); return; }
+    if (res?.ok === false) {
+      toast.error("ยกเลิกคำเชิญไม่สำเร็จ");
+      return;
+    }
     setInvites((prev) => prev.filter((i) => i.id !== invite.id));
     toast.success("ยกเลิกคำเชิญแล้ว");
   }
@@ -283,33 +313,36 @@ export function OrgUsersClient({
             ผู้ใช้งานปัจจุบัน {members.length} คน
           </span>
         </div>
-        <Button onClick={() => { setInviteOpen(true); setInviteErr(null); setInviteSuccess(null); }} size="sm">
+        <Button
+          onClick={() => {
+            setInviteOpen(true);
+            setInviteErr(null);
+            setInviteSuccess(null);
+          }}
+          size="sm"
+        >
           <Plus className="mr-1 h-4 w-4" /> เพิ่มผู้ใช้งานใหม่
         </Button>
       </div>
 
-      {/* Tabs */}
-      <div className="mb-4 flex gap-0 border-b border-slate-200">
-        {(["members", "invites"] as const).map((t) => (
-          <button
-            key={t}
-            type="button"
-            onClick={() => setTab(t)}
-            className={cn(
-              "px-4 pb-3 text-sm font-medium transition-colors",
-              tab === t
-                ? "border-b-2 border-slate-900 text-slate-900"
-                : "text-slate-500 hover:text-slate-700",
-            )}
-          >
-            {t === "members" ? "ผู้ใช้งานในระบบ" : `คำเชิญรอตอบรับ${invites.length > 0 ? ` (${invites.length})` : ""}`}
-          </button>
-        ))}
+      {/* Tabs — DESIGN §4/§7: แท็บในหน้า = SegmentedControl (pill) มาตรฐานเดียว */}
+      <div className="mb-4">
+        <SegmentedControl<"members" | "invites">
+          value={tab}
+          onChange={setTab}
+          options={[
+            { value: "members", label: "ผู้ใช้งานในระบบ" },
+            {
+              value: "invites",
+              label: `คำเชิญรอตอบรับ${invites.length > 0 ? ` (${invites.length})` : ""}`,
+            },
+          ]}
+        />
       </div>
 
       {/* Members table */}
       {tab === "members" && (
-        <div className="rounded-lg border border-slate-200 bg-white overflow-hidden">
+        <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
           <Table>
             <TableHeader>
               <TableRow className="bg-slate-50">
@@ -317,7 +350,7 @@ export function OrgUsersClient({
                 <TableHead>ชื่อผู้ใช้งาน</TableHead>
                 <TableHead>อีเมล</TableHead>
                 <TableHead className="w-36">สิทธิ์การใช้งาน</TableHead>
-                <TableHead className="w-28 text-slate-400 text-xs">เพิ่มเมื่อ</TableHead>
+                <TableHead className="w-28 text-xs text-slate-400">เพิ่มเมื่อ</TableHead>
                 <TableHead className="w-12" />
               </TableRow>
             </TableHeader>
@@ -345,11 +378,18 @@ export function OrgUsersClient({
                     </TableCell>
                     <TableCell className="text-sm text-slate-500">{m.email ?? "—"}</TableCell>
                     <TableCell>
-                      <span className={cn("inline-flex whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-medium", ROLE_COLORS[m.role] ?? "bg-slate-100 text-slate-600")}>
+                      <span
+                        className={cn(
+                          "inline-flex whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-medium",
+                          ROLE_COLORS[m.role] ?? "bg-slate-100 text-slate-600",
+                        )}
+                      >
                         {ROLE_LABELS[m.role] ?? m.role}
                       </span>
                     </TableCell>
-                    <TableCell className="text-xs text-slate-400">{formatDate(m.created_at)}</TableCell>
+                    <TableCell className="text-xs text-slate-400">
+                      {formatDate(m.created_at)}
+                    </TableCell>
                     <TableCell>
                       {m.user_id !== currentUserId && (
                         <MemberMenu
@@ -360,9 +400,11 @@ export function OrgUsersClient({
                             setMembers((prev) => {
                               const copy = prev.filter((x) => x.id !== m.id);
                               // check if updated is valid:
-                              if (prev.find(x => x.id === updated.id)) {
-                                const idx = prev.findIndex(x => x.id === updated.id);
-                                const c = [...prev]; c[idx] = updated; return c;
+                              if (prev.find((x) => x.id === updated.id)) {
+                                const idx = prev.findIndex((x) => x.id === updated.id);
+                                const c = [...prev];
+                                c[idx] = updated;
+                                return c;
                               }
                               return copy;
                             });
@@ -380,7 +422,7 @@ export function OrgUsersClient({
 
       {/* Invites table */}
       {tab === "invites" && (
-        <div className="rounded-lg border border-slate-200 bg-white overflow-hidden">
+        <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
           <Table>
             <TableHeader>
               <TableRow className="bg-slate-50">
@@ -408,17 +450,26 @@ export function OrgUsersClient({
                       </div>
                     </TableCell>
                     <TableCell>
-                      <span className={cn("inline-flex whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-medium", ROLE_COLORS[inv.org_role] ?? "bg-slate-100 text-slate-600")}>
+                      <span
+                        className={cn(
+                          "inline-flex whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-medium",
+                          ROLE_COLORS[inv.org_role] ?? "bg-slate-100 text-slate-600",
+                        )}
+                      >
                         {ROLE_LABELS[inv.org_role] ?? inv.org_role}
                       </span>
                     </TableCell>
-                    <TableCell className="text-sm text-slate-500">{formatDate(inv.created_at)}</TableCell>
-                    <TableCell className="text-sm text-slate-500">{formatDate(inv.expires_at)}</TableCell>
+                    <TableCell className="text-sm text-slate-500">
+                      {formatDate(inv.created_at)}
+                    </TableCell>
+                    <TableCell className="text-sm text-slate-500">
+                      {formatDate(inv.expires_at)}
+                    </TableCell>
                     <TableCell className="text-right">
                       <Button
                         size="sm"
                         variant="outline"
-                        className="text-red-600 hover:text-red-700 border-red-200 hover:border-red-300"
+                        className="border-red-200 text-red-600 hover:border-red-300 hover:text-red-700"
                         onClick={() => handleCancelInvite(inv)}
                       >
                         ยกเลิก
@@ -433,39 +484,46 @@ export function OrgUsersClient({
       )}
 
       {/* Invite Dialog */}
-      <Dialog open={inviteOpen} onOpenChange={(v) => { if (!v) setInviteOpen(false); }}>
+      <Dialog
+        open={inviteOpen}
+        onOpenChange={(v) => {
+          if (!v) setInviteOpen(false);
+        }}
+      >
         <DialogContent size="sm">
           <DialogHeader>
             <DialogTitle>เพิ่มผู้ใช้งานใหม่</DialogTitle>
           </DialogHeader>
           <DialogBody>
-          <div className="grid gap-4">
-            <div className="space-y-1.5">
-              <Label>อีเมล <span className="text-red-500">*</span></Label>
-              <Input
-                type="email"
-                value={inviteEmail}
-                onChange={(e) => setInviteEmail(e.target.value)}
-                placeholder="name@example.com"
-                disabled={inviting}
-              />
+            <div className="grid gap-4">
+              <div className="space-y-1.5">
+                <Label>
+                  อีเมล <span className="text-red-500">*</span>
+                </Label>
+                <Input
+                  type="email"
+                  value={inviteEmail}
+                  onChange={(e) => setInviteEmail(e.target.value)}
+                  placeholder="name@example.com"
+                  disabled={inviting}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>สิทธิ์การใช้งาน</Label>
+                <CustomSelect value={inviteRole} onChange={setInviteRole} options={ROLE_OPTIONS} />
+              </div>
+              {inviteErr && <p className="text-sm text-red-500">{inviteErr}</p>}
+              {inviteSuccess && (
+                <p className="rounded-md bg-teal-50 px-3 py-2 text-sm text-teal-700">
+                  {inviteSuccess}
+                </p>
+              )}
             </div>
-            <div className="space-y-1.5">
-              <Label>สิทธิ์การใช้งาน</Label>
-              <CustomSelect
-                value={inviteRole}
-                onChange={setInviteRole}
-                options={ROLE_OPTIONS}
-              />
-            </div>
-            {inviteErr && <p className="text-sm text-red-500">{inviteErr}</p>}
-            {inviteSuccess && (
-              <p className="rounded-md bg-teal-50 px-3 py-2 text-sm text-teal-700">{inviteSuccess}</p>
-            )}
-          </div>
           </DialogBody>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setInviteOpen(false)} disabled={inviting}>ปิด</Button>
+            <Button variant="outline" onClick={() => setInviteOpen(false)} disabled={inviting}>
+              ปิด
+            </Button>
             <Button onClick={handleInvite} disabled={inviting}>
               {inviting ? "กำลังส่ง..." : "ส่งคำเชิญ"}
             </Button>
