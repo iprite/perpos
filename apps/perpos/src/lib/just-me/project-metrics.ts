@@ -398,6 +398,136 @@ export function quoteTotal(
   return total === null ? null : round2(total);
 }
 
+// ─── เทียบราคาผู้ขาย (ตารางเทียบ + สรุปให้ AI เรียบเรียง) ───────────────────
+export interface VendorQuoteCompareVendor {
+  quote_id: string;
+  vendor_name: string;
+  status: string;
+  total_amount: number | null;
+  delivery_days: number | null;
+  credit_terms: string | null;
+  /** เสนอราคามากี่บรรทัดจากทั้งหมด */
+  priced_lines: number;
+  /** ชนะราคาต่ำสุดกี่บรรทัด */
+  cheapest_lines: number;
+}
+
+export interface VendorQuoteCompareLine {
+  pr_item_id: string;
+  name: string;
+  unit: string;
+  qty: number;
+  cheapest_quote_id: string | null;
+  cheapest_vendor_name: string | null;
+  cheapest_unit_cost: number | null;
+  /** ส่วนต่างต่อหน่วย แพงสุด − ถูกสุด · null = มีราคาน้อยกว่า 2 เจ้า (เทียบไม่ได้) */
+  spread: number | null;
+}
+
+export interface VendorQuoteComparison {
+  line_count: number;
+  vendors: VendorQuoteCompareVendor[];
+  /** เรียงจากส่วนต่างมากไปน้อย (บรรทัดที่ตัดสินใจแล้วประหยัดได้มากที่สุดอยู่บน) */
+  lines: VendorQuoteCompareLine[];
+  cheapest_quote_id: string | null;
+  cheapest_vendor_name: string | null;
+  cheapest_total: number | null;
+  /** ยอดรวมแพงสุด − ถูกสุด · null = มีเจ้าที่เทียบได้น้อยกว่า 2 */
+  total_spread: number | null;
+  unpriced_line_names: string[];
+}
+
+/**
+ * เทียบใบเสนอราคาหลายเจ้าของ PR หนึ่งใบ — **derive อย่างเดียว ไม่ตัดสินใจแทนคน**
+ * กติกา "ไม่มีข้อมูล = null": เจ้าที่ไม่ได้เสนอราคาบรรทัดนั้นถูกข้าม ไม่ตีเป็น 0
+ */
+export function compareVendorQuotes(input: {
+  items: { id: string; name: string; unit: string; qty: number }[];
+  quotes: {
+    id: string;
+    vendor_name: string;
+    status: string;
+    total_amount: number | null;
+    delivery_days: number | null;
+    credit_terms: string | null;
+  }[];
+  quoteItems: { quote_id: string; pr_item_id: string; unit_cost: number | null }[];
+}): VendorQuoteComparison {
+  const priceOf = new Map<string, number>();
+  for (const line of input.quoteItems) {
+    if (isNum(line.unit_cost)) priceOf.set(`${line.quote_id}#${line.pr_item_id}`, line.unit_cost);
+  }
+
+  const pricedCount = new Map<string, number>();
+  const winCount = new Map<string, number>();
+  const unpriced: string[] = [];
+
+  const lines: VendorQuoteCompareLine[] = input.items.map((item) => {
+    const offers = input.quotes
+      .map((q) => ({ quote: q, cost: priceOf.get(`${q.id}#${item.id}`) }))
+      .filter((o): o is { quote: (typeof input.quotes)[number]; cost: number } => isNum(o.cost));
+
+    for (const o of offers) pricedCount.set(o.quote.id, (pricedCount.get(o.quote.id) ?? 0) + 1);
+    if (offers.length === 0) {
+      unpriced.push(item.name);
+      return {
+        pr_item_id: item.id,
+        name: item.name,
+        unit: item.unit,
+        qty: item.qty,
+        cheapest_quote_id: null,
+        cheapest_vendor_name: null,
+        cheapest_unit_cost: null,
+        spread: null,
+      };
+    }
+
+    const costs = offers.map((o) => o.cost);
+    const min = Math.min(...costs);
+    const max = Math.max(...costs);
+    const winner = offers.find((o) => o.cost === min)!;
+    winCount.set(winner.quote.id, (winCount.get(winner.quote.id) ?? 0) + 1);
+
+    return {
+      pr_item_id: item.id,
+      name: item.name,
+      unit: item.unit,
+      qty: item.qty,
+      cheapest_quote_id: winner.quote.id,
+      cheapest_vendor_name: winner.quote.vendor_name,
+      cheapest_unit_cost: round2(min),
+      spread: offers.length >= 2 ? round2(max - min) : null,
+    };
+  });
+
+  const vendors: VendorQuoteCompareVendor[] = input.quotes.map((q) => ({
+    quote_id: q.id,
+    vendor_name: q.vendor_name,
+    status: q.status,
+    total_amount: isNum(q.total_amount) ? q.total_amount : null,
+    delivery_days: isNum(q.delivery_days) ? q.delivery_days : null,
+    credit_terms: q.credit_terms,
+    priced_lines: pricedCount.get(q.id) ?? 0,
+    cheapest_lines: winCount.get(q.id) ?? 0,
+  }));
+
+  const comparable = vendors.filter((v) => v.total_amount !== null);
+  const totals = comparable.map((v) => v.total_amount as number);
+  const cheapest =
+    totals.length > 0 ? comparable.find((v) => v.total_amount === Math.min(...totals))! : null;
+
+  return {
+    line_count: input.items.length,
+    vendors,
+    lines: [...lines].sort((a, b) => (b.spread ?? -1) - (a.spread ?? -1)),
+    cheapest_quote_id: cheapest?.quote_id ?? null,
+    cheapest_vendor_name: cheapest?.vendor_name ?? null,
+    cheapest_total: cheapest?.total_amount ?? null,
+    total_spread: totals.length >= 2 ? round2(Math.max(...totals) - Math.min(...totals)) : null,
+    unpriced_line_names: unpriced,
+  };
+}
+
 // ─── รวมข้ามโครงการ (หน้ารายงาน) ────────────────────────────────────────────
 export interface PortfolioSummary {
   projects_counted: number;

@@ -116,6 +116,7 @@ interface StockMovement {
   created_at: string;
   requested_by: string | null;
   requester_name: string | null;
+  project_id: string | null;
   unit_cost: number | null;
   total_cost: number | null;
   creator: Person | null;
@@ -195,6 +196,9 @@ export default function JustMeInventoryPage() {
   const [costs, setCosts] = useState<ItemCost[]>([]);
   const [costMonthly, setCostMonthly] = useState<CostMonthly[]>([]);
   const [members, setMembers] = useState<Person[]>([]);
+  const [projects, setProjects] = useState<{ id: string; project_code: string; name: string }[]>(
+    [],
+  );
   const [costItemId, setCostItemId] = useState("");
 
   // OCR dialog
@@ -241,6 +245,7 @@ export default function JustMeInventoryPage() {
     requested_by: "",
     requester_name: "",
     unit_cost: "",
+    project_id: "",
   });
   const [formLoading, setFormLoading] = useState(false);
 
@@ -294,6 +299,14 @@ export default function JustMeInventoryPage() {
       setSerials(json.serials || []);
       setMovements(json.movements || []);
       setCosts(json.costs || []);
+      // โครงการสำหรับผูกการเบิกใช้ (ต้นทุนจริงต่อโครงการ) — อ่านผ่าน RLS ปกติ
+      const { data: projRows } = await supabase
+        .from("just_me_projects")
+        .select("id, project_code, name, status")
+        .eq("org_id", org.id)
+        .not("status", "in", '("closed","cancelled","lost")')
+        .order("project_code", { ascending: false });
+      setProjects((projRows ?? []) as { id: string; project_code: string; name: string }[]);
       setCostMonthly(json.costMonthly || []);
       setMembers(json.members || []);
     } catch (err: any) {
@@ -492,6 +505,7 @@ export default function JustMeInventoryPage() {
         requested_by: "",
         requester_name: "",
         unit_cost: "",
+        project_id: "",
       });
       await loadData();
     } catch (err: any) {
@@ -1471,6 +1485,25 @@ export default function JustMeInventoryPage() {
                       ? "ผู้เบิก (จำเป็น) — ใครนำของไปใช้"
                       : "ผู้เบิก / ผู้รับของ (ถ้ามี)"}
                   </p>
+                  {["issue", "return"].includes(formMovement.movement_type) && (
+                    <div className="space-y-1.5">
+                      <Label htmlFor="mov-project">โครงการที่เบิกไปใช้</Label>
+                      <CustomSelect
+                        value={formMovement.project_id}
+                        onChange={(val) => setFormMovement({ ...formMovement, project_id: val })}
+                        options={[
+                          { value: "", label: "— ไม่ผูกโครงการ (ใช้ในงานทั่วไป) —" },
+                          ...projects.map((p) => ({
+                            value: p.id,
+                            label: `${p.project_code} · ${p.name}`,
+                          })),
+                        ]}
+                      />
+                      <p className="text-xs text-gray-500">
+                        ผูกโครงการแล้วมูลค่าที่เบิกจะถูกนับเป็นต้นทุนจริงของโครงการนั้นทันที
+                      </p>
+                    </div>
+                  )}
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                     <div className="space-y-1.5">
                       <Label htmlFor="mov-requester-member">สมาชิกในระบบ</Label>
@@ -1877,6 +1910,7 @@ export default function JustMeInventoryPage() {
                     <TableHead align="right">จำนวน</TableHead>
                     <TableHead align="right">มูลค่า (฿)</TableHead>
                     <TableHead>ผู้เบิก / ผู้รับของ</TableHead>
+                    <TableHead>โครงการ</TableHead>
                     <TableHead>จากคลัง</TableHead>
                     <TableHead>ไปยังคลัง</TableHead>
                     <TableHead>เอกสารอ้างอิง / ผู้ทำรายการ</TableHead>
@@ -1884,7 +1918,7 @@ export default function JustMeInventoryPage() {
                 </TableHeader>
                 <TableBody>
                   {movements.length === 0 ? (
-                    <TableEmpty colSpan={9}>ยังไม่มีรายการบันทึก</TableEmpty>
+                    <TableEmpty colSpan={10}>ยังไม่มีรายการบันทึก</TableEmpty>
                   ) : (
                     movePager.rows.map((mov) => {
                       const item = items.find((i) => i.id === mov.item_id);
@@ -1918,6 +1952,9 @@ export default function JustMeInventoryPage() {
                           </TableCell>
                           <TableCell className="text-xs text-slate-600">
                             {mov.requester?.display_name || mov.requester_name || "—"}
+                          </TableCell>
+                          <TableCell className="text-xs text-slate-600">
+                            {projects.find((p) => p.id === mov.project_id)?.project_code ?? "—"}
                           </TableCell>
                           <TableCell className="text-xs text-slate-500">
                             {src ? src.name : "—"}

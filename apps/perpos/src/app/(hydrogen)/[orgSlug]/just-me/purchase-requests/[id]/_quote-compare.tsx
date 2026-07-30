@@ -7,7 +7,7 @@
  */
 
 import { useEffect, useState } from "react";
-import { BadgeCheck, Plus } from "lucide-react";
+import { BadgeCheck, Plus, Sparkles } from "lucide-react";
 import { StatusBadge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CustomSelect } from "@/components/ui/custom-select";
@@ -37,6 +37,7 @@ import { notify } from "@/lib/toast";
 import { VENDOR_QUOTE_STATUS_LABEL } from "@/lib/just-me/labels";
 import type { JustMePrItem, JustMeVendorQuote, JustMeVendorQuoteItem } from "@/lib/just-me/types";
 import { jmSend } from "../../_components/api-client";
+import { AiOpinionCard, type AiOpinionView } from "../../_components/ai-opinion";
 import { money } from "../../_components/format";
 import type { PrOption } from "./_types";
 
@@ -90,6 +91,24 @@ export function QuoteCompare({
   const [form, setForm] = useState<QuoteForm>(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [selecting, setSelecting] = useState<string | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiOpinion, setAiOpinion] = useState<AiOpinionView | null>(null);
+
+  /** AI สรุปการเทียบราคา — เสนอข้อมูลให้คนตัดสิน ไม่เลือกผู้ขายแทน */
+  async function askAi() {
+    setAiLoading(true);
+    setAiOpinion(null);
+    try {
+      const res = await jmSend<{ opinion: AiOpinionView }>(orgId, "ai/quote-summary", "POST", {
+        pr_id: prId,
+      });
+      setAiOpinion(res.opinion);
+    } catch (e) {
+      notify.error(e instanceof Error ? e.message : "สรุปการเทียบราคาไม่สำเร็จ");
+    } finally {
+      setAiLoading(false);
+    }
+  }
 
   useEffect(() => {
     if (!open) setForm(EMPTY_FORM);
@@ -179,14 +198,27 @@ export function QuoteCompare({
 
   return (
     <div className="space-y-2.5">
-      <div className="flex items-center gap-2 px-1">
+      <div className="flex flex-wrap items-center gap-2 px-1">
         <div className="text-sm font-semibold text-gray-900">เทียบราคาผู้ขาย</div>
+        <Button
+          size="sm"
+          variant="outline"
+          className="ms-auto"
+          onClick={askAi}
+          disabled={aiLoading || quotes.length === 0}
+          title={quotes.length === 0 ? "ยังไม่มีใบเสนอราคาให้เทียบ" : undefined}
+        >
+          <Sparkles className="h-4 w-4" />
+          {aiLoading ? "กำลังสรุป…" : "ให้ AI สรุปการเทียบราคา"}
+        </Button>
         {canWrite && (
-          <Button size="sm" variant="outline" className="ms-auto" onClick={openCreate}>
+          <Button size="sm" variant="outline" onClick={openCreate}>
             <Plus className="h-4 w-4" /> เพิ่มใบเสนอราคา
           </Button>
         )}
       </div>
+
+      {aiOpinion && <AiOpinionCard opinion={aiOpinion} />}
 
       <Table className="shadow-sm">
         <TableHeader>

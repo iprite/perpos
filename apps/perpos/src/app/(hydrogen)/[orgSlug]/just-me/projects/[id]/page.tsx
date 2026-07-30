@@ -24,17 +24,24 @@ import { billingPlanTotals } from "@/lib/just-me/project-metrics";
 import { loadAccountingReadiness, loadDocumentNumbers } from "@/lib/just-me/accounting-bridge";
 import type { JustMeBoqItem, JustMeProjectCost, JustMeWorkCategory } from "@/lib/just-me/types";
 import { requireJustMePage } from "../../_components/guard";
-import { ProjectDetailClient } from "./_detail-client";
+import { ProjectDetailClient, type TabKey } from "./_detail-client";
 import type { AccountingLink, BoqPriceOption, ProjectPrRow } from "./_types";
 
 export const dynamic = "force-dynamic";
 
+/** แท็บที่เปิดได้จากลิงก์ภายนอก (การ์ด LINE ส่ง `?tab=billings` มา) */
+const DEEP_LINK_TABS: TabKey[] = ["overview", "files", "boq", "purchasing", "billings", "usage"];
+
 export default async function JustMeProjectDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ orgSlug: string; id: string }>;
+  searchParams: Promise<{ tab?: string }>;
 }) {
   const { orgSlug, id } = await params;
+  const { tab } = await searchParams;
+  const initialTab = DEEP_LINK_TABS.find((t) => t === tab);
   const ctx = await requireJustMePage(orgSlug);
   const basic = !ctx.canSeeCost;
 
@@ -138,6 +145,7 @@ export default async function JustMeProjectDetailPage({
       orgSlug={orgSlug}
       canWrite={ctx.canWrite}
       canSeeCost={ctx.canSeeCost}
+      initialTab={initialTab}
       initial={{
         project,
         files,

@@ -48,7 +48,7 @@ import { PurchasingTab } from "./_purchasing-tab";
 import { UsageTab } from "./_usage-tab";
 import type { ProjectDetailInitial } from "./_types";
 
-type TabKey = "overview" | "files" | "boq" | "purchasing" | "billings" | "usage";
+export type TabKey = "overview" | "files" | "boq" | "purchasing" | "billings" | "usage";
 
 /** แท็บ "จัดซื้อ" มีต้นทุนจากผู้ขาย → viewer ไม่เห็นทั้งแท็บ (contract §5 ข้อ 2) */
 const TABS: { value: TabKey; label: string; icon: React.ReactNode; costOnly?: boolean }[] = [
@@ -76,15 +76,18 @@ export function ProjectDetailClient({
   canWrite,
   canSeeCost,
   initial,
+  initialTab,
 }: {
   orgId: string;
   orgSlug: string;
   canWrite: boolean;
   canSeeCost: boolean;
   initial: ProjectDetailInitial;
+  /** แท็บที่เปิดตอนเข้าหน้า (จาก `?tab=` — ลิงก์ในการ์ด LINE ใช้ท่านี้) */
+  initialTab?: TabKey;
 }) {
   const router = useRouter();
-  const [tab, setTab] = useState<TabKey>("overview");
+  const [tab, setTab] = useState<TabKey>(initialTab ?? "overview");
   const [project, setProject] = useState<JustMeProject>(initial.project);
   const [editOpen, setEditOpen] = useState(false);
 

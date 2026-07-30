@@ -12,6 +12,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "../../../_lib/supabase";
 import { assertOrgRefs, auditMutation, guard, jmError, pickFields } from "../../_lib";
 import { getSettings } from "@/lib/just-me/price-book";
+import { notifyOverBudgetCrossed, notifyPrSubmitted } from "@/lib/just-me/notify";
+import { loadProjectMetrics } from "@/lib/just-me/projects";
 import {
   applyPrItems,
   getPurchaseRequest,
@@ -74,10 +76,25 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
     const items = await listPurchaseRequestItems(admin, g.orgId, id);
     if (items.length === 0)
       return jmError("ใบขอซื้อยังไม่มีรายการ — เพิ่มรายการก่อนส่งขออนุมัติ", 400);
-    return patchPr(req, admin, g, id, {
+    const settings = await getSettings(admin, g.orgId);
+    const res = await patchPr(req, admin, g, id, {
       status: "submitted",
       submitted_at: new Date().toISOString(),
     });
+    if (res.ok) {
+      // แจ้งผู้อนุมัติทาง LINE — best-effort (ส่งไม่ได้ก็ไม่ทำให้การส่งขออนุมัติล้ม)
+      const fresh = await getPurchaseRequest(admin, g.orgId, id);
+      if (fresh) {
+        await notifyPrSubmitted(admin, {
+          orgId: g.orgId,
+          pr: fresh,
+          itemCount: items.length,
+          ownerApprovalOnly: settings.pr_approval_required,
+          submittedBy: g.auth.userId,
+        });
+      }
+    }
+    return res;
   }
 
   if (action === "approve") {
@@ -86,11 +103,25 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
     if (settings.pr_approval_required && g.auth.role !== "owner") {
       return jmError("ใบขอซื้อต้องให้เจ้าของเป็นผู้อนุมัติ (ตั้งค่าไว้ในหน้าตั้งค่า)", 403);
     }
-    return patchPr(req, admin, g, id, {
+    // อนุมัติ = ต้นทุนผูกพันเพิ่ม → อาจข้ามเส้นงบ (เทียบก่อน/หลังเพื่อแจ้งครั้งเดียว)
+    const before = pr.project_id ? await loadProjectMetrics(admin, g.orgId, pr.project_id) : null;
+    const res = await patchPr(req, admin, g, id, {
       status: "approved",
       approved_at: new Date().toISOString(),
       approved_by: g.auth.userId,
     });
+    if (res.ok && before) {
+      const after = await loadProjectMetrics(admin, g.orgId, before.project.id);
+      if (after) {
+        await notifyOverBudgetCrossed(admin, {
+          orgId: g.orgId,
+          project: before.project,
+          before: before.summary,
+          after: after.summary,
+        });
+      }
+    }
+    return res;
   }
 
   if (action === "cancel") {

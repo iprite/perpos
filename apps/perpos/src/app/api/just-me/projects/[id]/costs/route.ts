@@ -7,7 +7,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "../../../../_lib/supabase";
 import { assertOrgRefs, auditMutation, guard, jmError, numOrNull } from "../../../_lib";
-import { getProject, listProjectCosts } from "@/lib/just-me/projects";
+import { getProject, listProjectCosts, loadProjectMetrics } from "@/lib/just-me/projects";
+import { notifyOverBudgetCrossed } from "@/lib/just-me/notify";
 import type { ProjectCostKind } from "@/lib/just-me/types";
 
 type Ctx = { params: Promise<{ id: string }> };
@@ -57,6 +58,9 @@ export async function POST(req: NextRequest, ctx: Ctx) {
     ]);
     if (refErr) return jmError(refErr, 400);
 
+    // ต้นทุนก้อนนี้อาจดันโครงการข้ามเส้นงบ → เก็บสถานะก่อนบันทึกไว้เทียบ (แจ้ง LINE ครั้งเดียว)
+    const before = await loadProjectMetrics(admin, g.orgId, id);
+
     await auditMutation(req, g.auth);
     const { data, error } = await admin
       .from("just_me_project_costs")
@@ -76,6 +80,18 @@ export async function POST(req: NextRequest, ctx: Ctx) {
       .select("*")
       .single();
     if (error) return jmError(error.message, 500);
+
+    if (before) {
+      const after = await loadProjectMetrics(admin, g.orgId, id);
+      if (after) {
+        await notifyOverBudgetCrossed(admin, {
+          orgId: g.orgId,
+          project,
+          before: before.summary,
+          after: after.summary,
+        });
+      }
+    }
 
     return NextResponse.json({ cost: data }, { status: 201 });
   } catch (e) {

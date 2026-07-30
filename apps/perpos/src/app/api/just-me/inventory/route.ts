@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireModuleMember } from "../../_lib/module-auth";
 import { createAdminClient } from "../../_lib/supabase";
 import { canSeeCost, stripCostList, type JustMeRole } from "../_lib";
+import { loadProjectMetrics } from "@/lib/just-me/projects";
+import { notifyOverBudgetCrossed } from "@/lib/just-me/notify";
 
 export async function GET(req: NextRequest) {
   const orgId = req.nextUrl.searchParams.get("orgId");
@@ -223,6 +225,8 @@ export async function POST(req: NextRequest) {
       requested_by,
       requester_name,
       unit_cost,
+      project_id,
+      boq_item_id,
     } = body;
 
     if (!movement_type || !["receive", "transfer", "issue", "return"].includes(movement_type)) {
@@ -300,6 +304,37 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // ผูกโครงการ (ไม่บังคับ) — ต้องเป็นโครงการขององค์กรนี้เท่านั้น กันอ้างข้ามองค์กร
+    // (FK เป็นคอลัมน์เดียวโดยตั้งใจ ด่านจึงอยู่ที่นี่ — contract §4.5)
+    if (project_id) {
+      const { data: proj } = await admin
+        .from("just_me_projects")
+        .select("id")
+        .eq("id", project_id)
+        .eq("org_id", orgId)
+        .maybeSingle();
+      if (!proj) {
+        return NextResponse.json({ error: "ไม่พบโครงการที่เลือกในองค์กรนี้" }, { status: 400 });
+      }
+    }
+    if (boq_item_id) {
+      const { data: boqItem } = await admin
+        .from("just_me_boq_items")
+        .select("id")
+        .eq("id", boq_item_id)
+        .eq("org_id", orgId)
+        .maybeSingle();
+      if (!boqItem) {
+        return NextResponse.json({ error: "ไม่พบรายการ BOQ ที่อ้างถึง" }, { status: 400 });
+      }
+    }
+
+    // การเบิกใช้ดันต้นทุนจริงของโครงการ → เก็บสถานะก่อนบันทึกไว้เทียบ (แจ้งเตือนครั้งเดียวตอนข้ามเส้นงบ)
+    const budgetBefore =
+      project_id && movement_type === "issue"
+        ? await loadProjectMetrics(admin, orgId, project_id as string)
+        : null;
+
     // Transaction implementation:
     // 1. Check stock balances for source warehouse if we are transferring, issuing, or returning
     if (source_warehouse_id) {
@@ -359,6 +394,8 @@ export async function POST(req: NextRequest) {
         note,
         requested_by: requested_by || null,
         requester_name: requesterName || null,
+        project_id: project_id || null,
+        boq_item_id: boq_item_id || null,
         unit_cost: unitCost,
         created_by: auth.userId,
       })
@@ -490,6 +527,18 @@ export async function POST(req: NextRequest) {
             });
           }
         }
+      }
+    }
+
+    if (budgetBefore) {
+      const budgetAfter = await loadProjectMetrics(admin, orgId, project_id as string);
+      if (budgetAfter) {
+        await notifyOverBudgetCrossed(admin, {
+          orgId,
+          project: budgetBefore.project,
+          before: budgetBefore.summary,
+          after: budgetAfter.summary,
+        });
       }
     }
 

@@ -25,6 +25,7 @@ import {
   loadDocumentNumbers,
   postAccountingDocument,
 } from "@/lib/just-me/accounting-bridge";
+import { notifyBillingEvent } from "@/lib/just-me/notify";
 import type { JustMeProjectBilling } from "@/lib/just-me/types";
 
 type Ctx = { params: Promise<{ id: string }> };
@@ -226,6 +227,16 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
       .select("*")
       .single();
     if (error) return jmError(error.message, 500);
+
+    // เพิ่งเปลี่ยนเป็น "พร้อมวางบิล" (ไม่ใช่ของเดิมอยู่แล้ว) → แจ้ง owner/manager ทาง LINE
+    if (patch.status === "ready" && billing.status !== "ready") {
+      await notifyBillingEvent(admin, {
+        orgId: g.orgId,
+        event: "ready",
+        project,
+        billing: data as JustMeProjectBilling,
+      });
+    }
     return NextResponse.json({ billing: data });
   } catch (e) {
     return jmError(e instanceof Error ? e.message : "แก้ไขงวดงานไม่สำเร็จ", 500);
@@ -310,6 +321,15 @@ async function invoiceBilling(
       { status: 207 },
     );
   }
+
+  // แจ้ง LINE ว่าวางบิลงวดนี้แล้ว (owner/manager เท่านั้น) — best-effort
+  await notifyBillingEvent(admin, {
+    orgId: g.orgId,
+    event: "invoiced",
+    project,
+    billing: data as JustMeProjectBilling,
+    docNumber: created.doc_number,
+  });
 
   return NextResponse.json({
     billing: data,
