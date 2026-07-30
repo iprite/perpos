@@ -282,6 +282,7 @@ export interface JustMeProjectBilling {
   invoice_document_id: string | null;
   invoiced_at: string | null;
   paid_at: string | null;
+  note: string | null;
   created_at: string;
 }
 

@@ -8,14 +8,24 @@
  */
 
 import { notFound } from "next/navigation";
-import { listBoqItems, listBoqs } from "@/lib/just-me/boq";
+import { listApprovedBoqItems, listBoqItems, listBoqs } from "@/lib/just-me/boq";
 import { listPriceBook, listWorkCategories } from "@/lib/just-me/price-book";
-import { getProject, listProjectFiles, loadProjectSummaries } from "@/lib/just-me/projects";
+import {
+  getProject,
+  listProjectBillings,
+  listProjectCosts,
+  listProjectFiles,
+  listProjectProgress,
+  listProjectUsage,
+  loadProjectSummaries,
+} from "@/lib/just-me/projects";
 import { listPrItems, listProjectPurchaseRequests, listVendors } from "@/lib/just-me/purchasing";
-import type { JustMeBoqItem, JustMeWorkCategory } from "@/lib/just-me/types";
+import { billingPlanTotals } from "@/lib/just-me/project-metrics";
+import { loadAccountingReadiness, loadDocumentNumbers } from "@/lib/just-me/accounting-bridge";
+import type { JustMeBoqItem, JustMeProjectCost, JustMeWorkCategory } from "@/lib/just-me/types";
 import { requireJustMePage } from "../../_components/guard";
 import { ProjectDetailClient } from "./_detail-client";
-import type { BoqPriceOption, ProjectPrRow } from "./_types";
+import type { AccountingLink, BoqPriceOption, ProjectPrRow } from "./_types";
 
 export const dynamic = "force-dynamic";
 
@@ -79,6 +89,39 @@ export default async function JustMeProjectDetailPage({
     });
   }
 
+  // ── B5: งวดงาน / ใช้จริง / สะพานเชื่อมระบบบัญชี ──
+  const [billings, usage, progress, approvedItems, readiness] = await Promise.all([
+    listProjectBillings(ctx.rls, ctx.orgId, id),
+    listProjectUsage(ctx.rls, ctx.orgId, id, { basic }),
+    listProjectProgress(ctx.rls, ctx.orgId, id),
+    listApprovedBoqItems(ctx.rls, ctx.orgId, id, { basic }),
+    loadAccountingReadiness(ctx.rls, ctx.orgId),
+  ]);
+  // ต้นทุนนอกคลัง = ข้อมูลต้นทุน → ดึงเฉพาะผู้ที่มีสิทธิ์เห็น
+  const costs: JustMeProjectCost[] = ctx.canSeeCost
+    ? await listProjectCosts(ctx.rls, ctx.orgId, id)
+    : [];
+
+  const billingTotals = billingPlanTotals(project.contract_amount, billings);
+  const documents = await loadDocumentNumbers(ctx.rls, ctx.orgId, [
+    project.quotation_document_id,
+    ...billings.map((b) => b.invoice_document_id),
+  ]);
+
+  // ชื่อวัสดุของแถวเบิก (แถวคลังเก็บแค่ item_id)
+  const itemIds = Array.from(new Set(usage.map((u) => u.item_id).filter(Boolean)));
+  const itemNames: Record<string, string> = {};
+  if (itemIds.length > 0) {
+    const { data: itemRows } = await ctx.rls
+      .from("just_me_inventory_items")
+      .select("id, name")
+      .eq("org_id", ctx.orgId)
+      .in("id", itemIds);
+    for (const row of (itemRows ?? []) as { id: string; name: string }[]) {
+      itemNames[row.id] = row.name;
+    }
+  }
+
   const priceOptions: BoqPriceOption[] = priceRows.map((r) => ({
     id: r.id,
     name: r.name,
@@ -105,6 +148,25 @@ export default async function JustMeProjectDetailPage({
         categories,
         priceOptions,
         purchaseRequests,
+        billings,
+        billingPlanned: billingTotals.planned,
+        billingRemaining: billingTotals.remaining,
+        documents: Object.fromEntries(documents) as Record<string, AccountingLink>,
+        accounting: {
+          configured: readiness.configured,
+          vatRegistered: readiness.vat_registered,
+          taxIdentityMissing: readiness.tax_identity_ready ? [] : readiness.missing,
+        },
+        usage,
+        itemNames,
+        costs,
+        progress,
+        approvedItems: approvedItems.map((i) => ({
+          id: i.id,
+          name: i.name,
+          unit: i.unit,
+          qty: i.qty,
+        })),
       }}
     />
   );

@@ -8,7 +8,11 @@ import type {
   JustMeBoq,
   JustMeBoqItem,
   JustMeProject,
+  JustMeProjectBilling,
+  JustMeProjectCost,
   JustMeProjectFile,
+  JustMeProjectProgress,
+  JustMeProjectUsageRow,
   JustMeWorkCategory,
   PurchaseRequestStatus,
 } from "@/lib/just-me/types";
@@ -37,6 +41,40 @@ export interface ProjectDetailInitial {
   priceOptions: BoqPriceOption[];
   /** ใบขอซื้อของโครงการนี้ (owner/manager เท่านั้น — viewer ได้ [] และไม่เห็นแท็บ) */
   purchaseRequests: ProjectPrRow[];
+  /** งวดงาน (ฝั่งขาย → viewer เห็นได้) */
+  billings: JustMeProjectBilling[];
+  /** ยอดที่ยังวางบิลได้ = สัญญา − งวดที่ยังไม่ยกเลิก (จาก `billingPlanTotals`) */
+  billingPlanned: number;
+  billingRemaining: number | null;
+  /** เลขที่เอกสารในระบบบัญชีของ id ที่ just_me เก็บไว้ */
+  documents: Record<string, AccountingLink>;
+  /** ความพร้อมของฝั่งบัญชี — ใช้ "เตือน" ก่อนออกเอกสาร (ไม่บล็อก) */
+  accounting: ProjectAccountingInfo;
+  /** วัสดุที่เบิกเข้าโครงการ (viewer ได้แถวที่ไม่มีมูลค่า) */
+  usage: JustMeProjectUsageRow[];
+  /** ชื่อวัสดุของแถวเบิก (item_id → ชื่อ) */
+  itemNames: Record<string, string>;
+  /** ต้นทุนนอกคลัง — viewer ได้ [] */
+  costs: JustMeProjectCost[];
+  /** ความคืบหน้าที่บันทึกไว้ */
+  progress: JustMeProjectProgress[];
+  /** บรรทัดของ BOQ ที่อนุมัติแล้ว (ใช้เลือกตอนบันทึกความคืบหน้า) */
+  approvedItems: { id: string; name: string; unit: string; qty: number }[];
+}
+
+/** เอกสารในระบบบัญชีที่ just_me อ้างถึง */
+export interface AccountingLink {
+  doc_number: string;
+  status: string;
+  doc_type: string;
+}
+
+export interface ProjectAccountingInfo {
+  /** มีแถว `acc_org_settings` แล้วหรือยัง */
+  configured: boolean;
+  vatRegistered: boolean;
+  /** ช่องตาม ม.86/4 ที่ยังว่าง (ว่าง = ครบ) */
+  taxIdentityMissing: string[];
 }
 
 /** ใบขอซื้อเท่าที่แท็บ "จัดซื้อ" ต้องใช้ (สรุปจาก server แล้ว) */

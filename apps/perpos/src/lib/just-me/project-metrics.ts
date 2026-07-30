@@ -312,6 +312,15 @@ export function billingPlanTotals(
   return { planned, remaining, exceeds: remaining < -0.005 };
 }
 
+/**
+ * เงินประกันผลงานของงวด = ยอดงวด × %ที่ตั้งไว้ต่อโครงการ
+ * ไม่ได้ตั้ง % ไว้ (null) → **0** (โครงการที่ไม่มีเงินประกัน = ไม่หัก ไม่ใช่ "ไม่รู้")
+ */
+export function billingRetentionAmount(amount: number | null, retentionPct: number | null): number {
+  if (!isNum(amount) || !isNum(retentionPct) || retentionPct <= 0) return 0;
+  return round2((amount * retentionPct) / 100);
+}
+
 /** แปลง % ของสัญญา → จำนวนเงินงวด (null ถ้ายังไม่มีมูลค่าสัญญา) */
 export function billingAmountFromPercent(
   contractAmount: number | null,

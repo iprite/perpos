@@ -11,7 +11,8 @@
  */
 
 import { useEffect, useMemo, useState } from "react";
-import { ClipboardList, CopyPlus, Lock, Plus } from "lucide-react";
+import Link from "next/link";
+import { AlertTriangle, ClipboardList, CopyPlus, ExternalLink, Lock, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/badge";
 import { CustomSelect } from "@/components/ui/custom-select";
@@ -48,9 +49,10 @@ import type {
   JustMeBoqItem,
   JustMeWorkCategory,
 } from "@/lib/just-me/types";
+import { ThaiDatePicker } from "@/components/ui/thai-date-picker";
 import { jmGet, jmSend } from "../../_components/api-client";
 import { money, pctValue, qtyText } from "../../_components/format";
-import type { BoqPriceOption } from "./_types";
+import type { AccountingLink, BoqPriceOption, ProjectAccountingInfo } from "./_types";
 
 const KIND_OPTIONS = (Object.keys(BOQ_ITEM_KIND_LABEL) as BoqItemKind[]).map((k) => ({
   value: k,
@@ -91,6 +93,7 @@ const EMPTY_LINE: LineForm = {
 
 export function BoqTab({
   orgId,
+  orgSlug,
   projectId,
   canWrite,
   canSeeCost,
@@ -99,9 +102,12 @@ export function BoqTab({
   activeItems,
   categories,
   priceOptions,
+  accounting,
+  quotationDoc,
   onChanged,
 }: {
   orgId: string;
+  orgSlug: string;
   projectId: string;
   canWrite: boolean;
   canSeeCost: boolean;
@@ -110,6 +116,8 @@ export function BoqTab({
   activeItems: JustMeBoqItem[];
   categories: JustMeWorkCategory[];
   priceOptions: BoqPriceOption[];
+  accounting: ProjectAccountingInfo;
+  quotationDoc: AccountingLink | null;
   onChanged: () => void;
 }) {
   const [boqId, setBoqId] = useState<string | null>(activeBoqId);
@@ -120,6 +128,10 @@ export function BoqTab({
   const [editing, setEditing] = useState<JustMeBoqItem | null>(null);
   const [form, setForm] = useState<LineForm>(EMPTY_LINE);
   const [approveOpen, setApproveOpen] = useState(false);
+  const [quoteOpen, setQuoteOpen] = useState(false);
+  const [quoteGroupBy, setQuoteGroupBy] = useState<"category" | "item">("category");
+  const [quoteDate, setQuoteDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [quoteDue, setQuoteDue] = useState("");
 
   // SSR ส่งของใหม่มา (หลัง router.refresh) → รับมาแทนของเดิม
   useEffect(() => {
@@ -283,6 +295,32 @@ export function BoqTab({
     }
   }
 
+  /** ออกใบเสนอราคา — เอกสารไปเกิดที่ระบบบัญชี (เลขที่/ผังบัญชีเป็นของที่นั่น) */
+  async function issueQuotation() {
+    if (!boqId) return;
+    setBusy(true);
+    try {
+      const res = await jmSend<{
+        doc_number: string;
+        contact_created?: boolean;
+        journal_warning?: string | null;
+      }>(orgId, `boq/${boqId}/quotation`, "POST", {
+        groupBy: quoteGroupBy,
+        issue_date: quoteDate,
+        due_date: quoteDue || null,
+      });
+      notify.success(`ออกใบเสนอราคาเลขที่ ${res.doc_number} ในระบบบัญชีแล้ว`);
+      if (res.contact_created) notify.success("สร้างลูกค้ารายนี้ในระบบบัญชีให้อัตโนมัติแล้ว");
+      if (res.journal_warning) notify.error(res.journal_warning);
+      setQuoteOpen(false);
+      onChanged();
+    } catch (e) {
+      notify.error(e, "ออกใบเสนอราคาไม่สำเร็จ");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   if (boqs.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white py-16 text-center shadow-sm">
@@ -325,6 +363,11 @@ export function BoqTab({
               <CopyPlus className="h-4 w-4" /> สร้าง revision ใหม่จากฉบับนี้
             </Button>
           )}
+          {canWrite && canSeeCost && boq?.status === "approved" && !quotationDoc && (
+            <Button disabled={busy || items.length === 0} onClick={() => setQuoteOpen(true)}>
+              ออกใบเสนอราคา
+            </Button>
+          )}
           {editable && (
             <>
               <Button variant="outline" onClick={openNewLine}>
@@ -337,6 +380,21 @@ export function BoqTab({
           )}
         </div>
       </div>
+
+      {quotationDoc && (
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-gray-200 bg-white p-3 shadow-sm">
+          <Text className="text-sm text-gray-700">
+            ออกใบเสนอราคาแล้ว เลขที่{" "}
+            <span className="font-mono font-medium text-gray-900">{quotationDoc.doc_number}</span>
+          </Text>
+          <Link
+            className="ms-auto inline-flex items-center gap-1 text-sm text-blue-600 hover:underline"
+            href={`/${orgSlug}/accounting/documents`}
+          >
+            เปิดในระบบบัญชี <ExternalLink className="h-3.5 w-3.5" />
+          </Link>
+        </div>
+      )}
 
       {boq && boq.status !== "draft" && (
         <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3">
@@ -627,6 +685,89 @@ export function BoqTab({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <Dialog open={quoteOpen} onOpenChange={setQuoteOpen}>
+        <DialogContent size="lg">
+          <DialogHeader>
+            <DialogTitle>ออกใบเสนอราคาจาก BOQ ฉบับนี้</DialogTitle>
+          </DialogHeader>
+          <DialogBody>
+            <div className="space-y-4">
+              <AccountingWarning accounting={accounting} />
+              <div>
+                <Label>รูปแบบรายการในเอกสาร</Label>
+                <div className="mt-1">
+                  <SegmentedControl
+                    value={quoteGroupBy}
+                    onChange={(v) => setQuoteGroupBy(v as "category" | "item")}
+                    size="md"
+                    options={[
+                      { value: "category", label: "สรุปตามหมวดงาน" },
+                      { value: "item", label: "แจกแจงทุกรายการ" },
+                    ]}
+                  />
+                </div>
+                <p className="mt-1 text-xs text-gray-500">
+                  สรุปตามหมวดงาน = ลูกค้าเห็นยอดรวมรายหมวด (ไม่เห็นโครงต้นทุนของเรา) ·
+                  ยอดรวมเท่ากันทั้งสองแบบ = {money(totals.total_amount)}
+                </p>
+              </div>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div>
+                  <Label>วันที่เอกสาร</Label>
+                  <div className="mt-1">
+                    <ThaiDatePicker value={quoteDate} onChange={setQuoteDate} />
+                  </div>
+                </div>
+                <div>
+                  <Label>ยืนราคาถึงวันที่</Label>
+                  <div className="mt-1">
+                    <ThaiDatePicker value={quoteDue} onChange={setQuoteDue} />
+                  </div>
+                </div>
+              </div>
+              <Text className="text-xs text-gray-500">
+                เอกสารจะถูกสร้างในระบบบัญชี (เลขที่ออกโดยระบบบัญชี) แล้วผูกกลับมาที่โครงการนี้ ·
+                ถ้ายังไม่มีลูกค้ารายนี้ในระบบบัญชี ระบบจะสร้างให้จากชื่อลูกค้าของโครงการ
+              </Text>
+            </div>
+          </DialogBody>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setQuoteOpen(false)} disabled={busy}>
+              ยกเลิก
+            </Button>
+            <Button onClick={issueQuotation} disabled={busy}>
+              {busy ? "กำลังออกเอกสาร…" : "ออกใบเสนอราคา"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+/** เตือน (ไม่บล็อก) ว่าข้อมูลกิจการยังไม่ครบตาม ม.86/4 — ใช้ทั้งใบเสนอราคาและใบแจ้งหนี้ */
+export function AccountingWarning({ accounting }: { accounting: ProjectAccountingInfo }) {
+  if (!accounting.configured) {
+    return (
+      <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3">
+        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+        <Text className="text-sm text-amber-800">
+          ยังไม่ได้ตั้งค่ากิจการในระบบบัญชี — ออกเอกสารได้ แต่ข้อมูลผู้ขายบนเอกสารจะว่าง
+          กรุณาไปกรอกที่ ระบบบัญชี → ตั้งค่า
+        </Text>
+      </div>
+    );
+  }
+  if (accounting.taxIdentityMissing.length === 0) return null;
+  return (
+    <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3">
+      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+      <Text className="text-sm text-amber-800">
+        ข้อมูลกิจการยังไม่ครบ ({accounting.taxIdentityMissing.join(" · ")}) —
+        เอกสารภาษีที่ออกจะไม่ครบตามมาตรา 86/4 และระบบบัญชีจะปฏิเสธการออกใบกำกับภาษี กรุณากรอกที่
+        ระบบบัญชี → ตั้งค่า ก่อน
+      </Text>
     </div>
   );
 }

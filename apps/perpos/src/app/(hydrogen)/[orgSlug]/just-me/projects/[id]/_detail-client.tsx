@@ -41,9 +41,11 @@ import { PROJECT_STATUS_LABEL, PROJECT_STATUS_TONE } from "@/lib/just-me/labels"
 import type { JustMeProject, ProjectStatus } from "@/lib/just-me/types";
 import { jmSend } from "../../_components/api-client";
 import { money, percent, thaiDate } from "../../_components/format";
+import { BillingsTab } from "./_billings-tab";
 import { BoqTab } from "./_boq-tab";
 import { FilesTab } from "./_files-tab";
 import { PurchasingTab } from "./_purchasing-tab";
+import { UsageTab } from "./_usage-tab";
 import type { ProjectDetailInitial } from "./_types";
 
 type TabKey = "overview" | "files" | "boq" | "purchasing" | "billings" | "usage";
@@ -242,7 +244,14 @@ export function ProjectDetailClient({
       {tab === "boq" && (
         <BoqTab
           orgId={orgId}
+          orgSlug={orgSlug}
           projectId={project.id}
+          accounting={initial.accounting}
+          quotationDoc={
+            project.quotation_document_id
+              ? (initial.documents[project.quotation_document_id] ?? null)
+              : null
+          }
           canWrite={canWrite}
           canSeeCost={canSeeCost}
           boqs={initial.boqs}
@@ -259,20 +268,34 @@ export function ProjectDetailClient({
       )}
 
       {tab === "billings" && (
-        <Placeholder
-          title="งวดงานและการวางบิล"
-          detail="ตั้งงวดงานตามสัญญาแล้วออกใบแจ้งหนี้เข้าระบบบัญชี — เปิดใช้ในเฟสถัดไป"
+        <BillingsTab
+          orgId={orgId}
+          orgSlug={orgSlug}
+          canWrite={canWrite}
+          canSeeCost={canSeeCost}
+          project={project}
+          billings={initial.billings}
+          planned={initial.billingPlanned}
+          remaining={initial.billingRemaining}
+          billedAmount={summary?.billed_amount ?? null}
+          documents={initial.documents}
+          accounting={initial.accounting}
+          onChanged={() => router.refresh()}
         />
       )}
 
       {tab === "usage" && (
-        <Placeholder
-          title="วัสดุที่เบิกใช้จริง"
-          detail={
-            canSeeCost
-              ? "เบิกของเข้าโครงการจากหน้าคลัง แล้วมาดูต้นทุนจริงเทียบงบที่นี่ — เปิดใช้ในเฟสถัดไป"
-              : "รายการเบิกใช้ของโครงการ — เปิดใช้ในเฟสถัดไป"
-          }
+        <UsageTab
+          orgId={orgId}
+          projectId={project.id}
+          canWrite={canWrite}
+          canSeeCost={canSeeCost}
+          usage={initial.usage}
+          itemNames={initial.itemNames}
+          costs={initial.costs}
+          progress={initial.progress}
+          approvedItems={initial.approvedItems}
+          onChanged={() => router.refresh()}
         />
       )}
 
