@@ -37,6 +37,7 @@ export type PropRow = {
   finExpense: number;
   pettyExpense: number;
   stays: number;
+  nights: number;
   stayRevenue: number;
 };
 export type CatRow = { category: string; income: number; expense: number };
@@ -181,7 +182,7 @@ export async function computeTmcDashboard(
   // ─── By Property ───
   const finByProp: Record<string, { income: number; expense: number }> = {};
   const pettyByProp: Record<string, number> = {};
-  const staysByProp: Record<string, { stays: number; revenue: number }> = {};
+  const staysByProp: Record<string, { stays: number; nights: number; revenue: number }> = {};
 
   for (const e of finRows) {
     const k = e.property_code ?? "(ไม่ระบุ)";
@@ -196,8 +197,16 @@ export async function computeTmcDashboard(
   }
   for (const s of stayRows) {
     const k = s.property_code ?? "(ไม่ระบุ)";
-    if (!staysByProp[k]) staysByProp[k] = { stays: 0, revenue: 0 };
+    if (!staysByProp[k]) staysByProp[k] = { stays: 0, nights: 0, revenue: 0 };
     staysByProp[k].stays++;
+    staysByProp[k].nights += s.check_out
+      ? Math.max(
+          0,
+          Math.round(
+            (new Date(s.check_out).getTime() - new Date(s.check_in).getTime()) / 86_400_000,
+          ),
+        )
+      : 1;
     staysByProp[k].revenue += Number(s.room_rate ?? 0);
   }
 
@@ -211,6 +220,7 @@ export async function computeTmcDashboard(
       finExpense: +(finByProp[k]?.expense ?? 0).toFixed(2),
       pettyExpense: +(pettyByProp[k] ?? 0).toFixed(2),
       stays: staysByProp[k]?.stays ?? 0,
+      nights: staysByProp[k]?.nights ?? 0,
       stayRevenue: +(staysByProp[k]?.revenue ?? 0).toFixed(2),
     }))
     .sort((a, b) => b.finIncome + b.stayRevenue - (a.finIncome + a.stayRevenue));

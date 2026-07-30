@@ -112,6 +112,7 @@ const BUTLER_OPTIONS_SELECT = [
 
 type Stay = {
   id: string;
+  booking_group_id: string;
   check_in: string;
   check_out: string;
   check_in_time: string | null;
@@ -297,8 +298,32 @@ export default function TmcStaysPage() {
     setShowForm(true);
   }
 
-  // ── Open edit form ─────────────────────────────────────────────────────────
-  function openEdit(stay: Stay) {
+  // ── Open edit form — แก้ทั้ง booking (ทุกห้องในกลุ่ม) ─────────────────────
+  async function openEdit(stay: Stay) {
+    // ดึงทุกแถวของ booking นี้ (list ที่โหลดอยู่อาจถูกกรองจนเห็นไม่ครบทุกห้อง)
+    let group: Stay[] = [stay];
+    try {
+      const h = await headers();
+      const p = new URLSearchParams({ orgId: TMC_ORG_ID, bookingGroupId: stay.booking_group_id });
+      const res = await fetch(backendUrl(`/tmc/stays?${p}`), { headers: h });
+      if (res.ok) {
+        const rows = (await res.json()) as Stay[];
+        if (rows.length > 0) group = rows;
+      }
+    } catch {
+      // ใช้แถวเดียวที่มีถ้าดึงกลุ่มไม่สำเร็จ
+    }
+    const sum = (pick: (s: Stay) => number | null) => {
+      const vals = group.map(pick).filter((v): v is number => v != null);
+      return vals.length > 0 ? vals.reduce((a, b) => a + b, 0) : null;
+    };
+    const firstNonNull = <T,>(pick: (s: Stay) => T | null) =>
+      group.map(pick).find((v) => v != null && v !== "") ?? null;
+
+    const totalRate = sum((s) => s.room_rate);
+    const totalReceived = sum((s) => s.deposit_received);
+    const totalReturned = sum((s) => s.deposit_returned);
+
     setEditingStay(stay);
     setForm({
       firstName: stay.tmc_guests?.first_name ?? "",
@@ -306,31 +331,31 @@ export default function TmcStaysPage() {
       nickname: stay.tmc_guests?.nickname ?? "",
       tel: stay.tmc_guests?.tel ?? "",
       propertyCode: stay.property_code ?? "",
-      propertyCodes: stay.property_code ? [stay.property_code] : [],
+      propertyCodes: group.map((s) => s.property_code).filter((c): c is string => !!c),
       checkIn: stay.check_in,
       checkOut: stay.check_out,
       checkInTime: stay.check_in_time ?? "15:00",
       checkOutTime: stay.check_out_time ?? "12:00",
       bookingChannel: stay.booking_channel ?? "Line",
       stayType: stay.stay_type,
-      roomRate: stay.room_rate != null ? String(stay.room_rate) : "",
+      roomRate: totalRate != null ? String(totalRate) : "",
       promotionPct: stay.promotion_pct != null ? String(stay.promotion_pct) : "",
-      depositReceived: stay.deposit_received != null ? String(stay.deposit_received) : "",
-      depositReturned: stay.deposit_returned != null ? String(stay.deposit_returned) : "",
+      depositReceived: totalReceived != null ? String(totalReceived) : "",
+      depositReturned: totalReturned != null ? String(totalReturned) : "",
       depositAccountId: stay.deposit_account_id ?? SAV_ACCOUNT_ID,
-      depositReceivedDate: stay.deposit_received_date ?? "",
-      depositReturnedDate: stay.deposit_returned_date ?? "",
+      depositReceivedDate: firstNonNull((s) => s.deposit_received_date) ?? "",
+      depositReturnedDate: firstNonNull((s) => s.deposit_returned_date) ?? "",
       groupSize: stay.group_size != null ? String(stay.group_size) : "",
       groupType: stay.group_type ?? "Family",
-      butlerServiceVisit: stay.butler_service_visit ?? "",
-      foodAmount: stay.food_amount != null ? String(stay.food_amount) : "",
-      drinkAmount: stay.drink_amount != null ? String(stay.drink_amount) : "",
-      mookataAmount: stay.mookata_amount != null ? String(stay.mookata_amount) : "",
-      bbqAmount: stay.bbq_amount != null ? String(stay.bbq_amount) : "",
-      activityDetail: stay.activity_detail ?? "",
-      feedback: stay.feedback ?? "",
-      issues: stay.issues ?? "",
-      damagedItems: stay.damaged_items ?? "",
+      butlerServiceVisit: firstNonNull((s) => s.butler_service_visit) ?? "",
+      foodAmount: String(firstNonNull((s) => s.food_amount) ?? "") || "",
+      drinkAmount: String(firstNonNull((s) => s.drink_amount) ?? "") || "",
+      mookataAmount: String(firstNonNull((s) => s.mookata_amount) ?? "") || "",
+      bbqAmount: String(firstNonNull((s) => s.bbq_amount) ?? "") || "",
+      activityDetail: firstNonNull((s) => s.activity_detail) ?? "",
+      feedback: firstNonNull((s) => s.feedback) ?? "",
+      issues: firstNonNull((s) => s.issues) ?? "",
+      damagedItems: firstNonNull((s) => s.damaged_items) ?? "",
     });
     setFormError("");
     setShowForm(true);
@@ -338,9 +363,12 @@ export default function TmcStaysPage() {
 
   // ── Save (add or edit) ─────────────────────────────────────────────────────
   async function handleSave() {
-    const hasProperty = editingStay ? !!form.propertyCode : form.propertyCodes.length > 0;
-    if (!hasProperty || !form.checkIn || !form.checkOut) return;
+    if (form.propertyCodes.length === 0 || !form.checkIn || !form.checkOut) return;
     if (!editingStay && !form.firstName) return;
+    if (form.checkOut <= form.checkIn) {
+      setFormError("วันเช็คเอาท์ต้องอยู่หลังวันเช็คอิน (อย่างน้อย 1 คืน)");
+      return;
+    }
     setSaving(true);
     setFormError("");
     try {
@@ -350,7 +378,11 @@ export default function TmcStaysPage() {
         const res = await fetch(backendUrl("/tmc/stays"), {
           method: "PUT",
           headers: h,
-          body: JSON.stringify({ id: editingStay.id, orgId: TMC_ORG_ID, ...form }),
+          body: JSON.stringify({
+            bookingGroupId: editingStay.booking_group_id,
+            orgId: TMC_ORG_ID,
+            ...form,
+          }),
         });
         if (!res.ok) {
           const d = (await res.json()) as { error?: string };
@@ -467,31 +499,23 @@ export default function TmcStaysPage() {
           <div className="col-span-2 space-y-1.5">
             <Label>
               แปลงที่จอง *{" "}
-              {!isEditMode && (
-                <span className="text-xs font-normal text-slate-400">(เลือกได้มากกว่า 1 แปลง)</span>
-              )}
+              <span className="text-xs font-normal text-slate-400">(เลือกได้มากกว่า 1 แปลง)</span>
             </Label>
             <div className="mt-1 grid grid-cols-4 gap-2 sm:grid-cols-6">
               {PROPERTY_CODES.filter((code) => code !== "ส่วนกลาง").map((code) => {
-                const isSelected = isEditMode
-                  ? form.propertyCode === code
-                  : form.propertyCodes.includes(code);
+                const isSelected = form.propertyCodes.includes(code);
                 return (
                   <button
                     key={code}
                     type="button"
                     onClick={() => {
-                      if (isEditMode) {
-                        setForm((f) => ({ ...f, propertyCode: code }));
-                      } else {
-                        setForm((f) => {
-                          const exist = f.propertyCodes.includes(code);
-                          const next = exist
-                            ? f.propertyCodes.filter((c) => c !== code)
-                            : [...f.propertyCodes, code];
-                          return { ...f, propertyCodes: next };
-                        });
-                      }
+                      setForm((f) => {
+                        const exist = f.propertyCodes.includes(code);
+                        const next = exist
+                          ? f.propertyCodes.filter((c) => c !== code)
+                          : [...f.propertyCodes, code];
+                        return { ...f, propertyCodes: next };
+                      });
                     }}
                     className={`rounded-lg border px-3 py-2 text-center text-sm font-medium transition-all ${
                       isSelected
@@ -526,6 +550,15 @@ export default function TmcStaysPage() {
               value={form.checkOut}
               onChange={(v) => setForm((f) => ({ ...f, checkOut: v }))}
             />
+            {form.checkIn && form.checkOut && (
+              <p
+                className={`text-xs ${form.checkOut <= form.checkIn ? "text-red-600" : "text-gray-500"}`}
+              >
+                {form.checkOut <= form.checkIn
+                  ? "วันเช็คเอาท์ต้องอยู่หลังวันเช็คอิน"
+                  : `= เข้าพัก ${Math.round((new Date(form.checkOut).getTime() - new Date(form.checkIn).getTime()) / 86_400_000)} คืน`}
+              </p>
+            )}
           </div>
           <div className="space-y-1.5">
             <Label>เวลาเช็คอิน</Label>
@@ -573,6 +606,11 @@ export default function TmcStaysPage() {
               value={form.roomRate}
               onChange={(e) => setForm((f) => ({ ...f, roomRate: e.target.value }))}
             />
+            {form.propertyCodes.length > 1 && (
+              <p className="text-xs text-gray-500">
+                ยอดรวมทั้ง booking — ระบบหารเท่ากัน {form.propertyCodes.length} ห้อง
+              </p>
+            )}
           </div>
           <div className="space-y-1.5">
             <Label>ส่วนลด (%)</Label>
@@ -1131,9 +1169,10 @@ export default function TmcStaysPage() {
               onClick={handleSave}
               disabled={
                 saving ||
-                (isEditMode ? !form.propertyCode : form.propertyCodes.length === 0) ||
+                form.propertyCodes.length === 0 ||
                 !form.checkIn ||
                 !form.checkOut ||
+                form.checkOut <= form.checkIn ||
                 (!isEditMode && !form.firstName)
               }
             >
