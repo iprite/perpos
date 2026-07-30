@@ -37,6 +37,7 @@ import {
   TrendingUp,
   TrendingDown,
   AlertTriangle,
+  Percent,
 } from "lucide-react";
 import type { TmcDashData } from "@/lib/tmc/dashboard";
 
@@ -168,7 +169,21 @@ export function TmcDashboardView({ data }: { data: TmcDashData }) {
       </div>
 
       {/* ── ดำเนินงาน: ห้องพัก + คลัง ── */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <StatCard
+          icon={<Percent className="h-4 w-4" />}
+          label="อัตราการเข้าพัก (Occupancy)"
+          value={t.occupancy.rate == null ? "—" : `${t.occupancy.rate}%`}
+          sub={
+            t.occupancy.rate == null
+              ? "ยังไม่มีห้องเปิดขาย"
+              : `ขายได้ ${t.occupancy.soldNights} จาก ${t.occupancy.availableNights} คืน · ${t.occupancy.rooms} ห้อง`
+          }
+          tone={
+            t.occupancy.rate == null ? "neutral" : t.occupancy.rate >= 50 ? "positive" : "warning"
+          }
+          valueColored
+        />
         <StatCard
           icon={<Building2 className="h-4 w-4" />}
           label="การเข้าพัก (ช่วงนี้)"

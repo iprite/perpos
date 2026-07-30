@@ -18,6 +18,8 @@ export type Totals = {
   stays: { count: number; nights: number; revenue: number };
   stock: { items: number; low: number };
   staysAllTime: number;
+  /** อัตราการเข้าพัก — คิดจากห้องที่เปิดขาย (tmc_properties.is_rentable) เท่านั้น */
+  occupancy: { rate: number | null; soldNights: number; availableNights: number; rooms: number };
 };
 export type Monthly = {
   month: string;
@@ -87,6 +89,22 @@ export async function computeTmcDashboard(
       .eq("is_active", true)
       .order("current_qty", { ascending: true }),
     db.from("tmc_stays").select("id", { count: "exact", head: true }).eq("org_id", orgId),
+  ]);
+
+  // ─── Occupancy — ห้องที่เปิดขายจริงเท่านั้น + stays ที่คาบเกี่ยวช่วง (ไม่ใช่แค่ check_in ในช่วง) ───
+  const [rentableRes, occStaysRes] = await Promise.all([
+    db
+      .from("tmc_properties")
+      .select("code")
+      .eq("org_id", orgId)
+      .eq("is_active", true)
+      .eq("is_rentable", true),
+    db
+      .from("tmc_stays")
+      .select("property_code, check_in, check_out")
+      .eq("org_id", orgId)
+      .lte("check_in", to)
+      .or(`check_out.is.null,check_out.gt.${from}`),
   ]);
 
   const finRows = finRes.data ?? [];
@@ -213,6 +231,22 @@ export async function computeTmcDashboard(
     }))
     .sort((a, b) => b.income + b.expense - (a.income + a.expense));
 
+  // ─── Occupancy rate — คืนที่ขายได้ (clip ให้อยู่ในช่วง) / (จำนวนห้องเปิดขาย × จำนวนคืนในช่วง) ───
+  const rentableCodes = new Set((rentableRes.data ?? []).map((p) => p.code as string));
+  const rangeStartMs = new Date(from).getTime();
+  const rangeEndMs = new Date(to).getTime() + 86_400_000; // exclusive — คืนสุดท้ายคือคืนของวันที่ to
+  let soldNights = 0;
+  for (const s of occStaysRes.data ?? []) {
+    if (!rentableCodes.has(s.property_code ?? "")) continue;
+    const inMs = new Date(s.check_in).getTime();
+    const outMs = s.check_out ? new Date(s.check_out).getTime() : inMs + 86_400_000;
+    const overlap = Math.min(outMs, rangeEndMs) - Math.max(inMs, rangeStartMs);
+    soldNights += Math.max(0, Math.round(overlap / 86_400_000));
+  }
+  const roomsCount = rentableCodes.size;
+  const nightsInRange = Math.max(0, Math.round((rangeEndMs - rangeStartMs) / 86_400_000));
+  const availableNights = roomsCount * nightsInRange;
+
   // ─── Totals ───
   const totals: Totals = {
     finance: {
@@ -235,6 +269,12 @@ export async function computeTmcDashboard(
       ).length,
     },
     staysAllTime: staysCountRes.count ?? 0,
+    occupancy: {
+      rate: availableNights > 0 ? +((soldNights / availableNights) * 100).toFixed(1) : null,
+      soldNights,
+      availableNights,
+      rooms: roomsCount,
+    },
   };
 
   return {
