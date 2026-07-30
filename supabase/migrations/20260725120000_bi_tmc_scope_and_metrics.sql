@@ -165,6 +165,7 @@ SELECT {{dim_select}}
 FROM tmc_finance_entries o, __p
 WHERE o.org_id = __p.org_id
   AND o.account_id IS DISTINCT FROM '2366c3f9-dcc5-4091-8ab0-c421b77e7fe7'::uuid
+  AND o.category IS DISTINCT FROM 'เงินสดย่อย'
   {{time_filter}} {{filters}}
 {{group_by}}
 ORDER BY 2 DESC NULLS LAST
@@ -199,6 +200,7 @@ SELECT {{dim_select}}
 FROM tmc_finance_entries o, __p
 WHERE o.org_id = __p.org_id
   AND o.account_id IS DISTINCT FROM '2366c3f9-dcc5-4091-8ab0-c421b77e7fe7'::uuid
+  AND o.category IS DISTINCT FROM 'เงินสดย่อย'
   {{time_filter}} {{filters}}
 {{group_by}}
 ORDER BY 2 DESC NULLS LAST

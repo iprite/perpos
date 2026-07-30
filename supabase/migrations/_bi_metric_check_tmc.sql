@@ -45,6 +45,7 @@ fin AS (   -- สมุดบัญชีหลัก: ตัดบัญชี�
   FROM tmc_finance_entries
   WHERE org_id = (SELECT id FROM org)
     AND account_id IS DISTINCT FROM '2366c3f9-dcc5-4091-8ab0-c421b77e7fe7'::uuid
+    AND category IS DISTINCT FROM 'เงินสดย่อย'  -- เงินโยกไปเติมกอง ไม่ใช่รายจ่าย (กันนับซ้ำ)
 ),
 petty AS (
   SELECT sum(amount) FILTER (WHERE txn_type = 'expense') AS expense,

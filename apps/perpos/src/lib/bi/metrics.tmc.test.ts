@@ -180,6 +180,12 @@ describe("bi seed (tmc) — ต้องยึดสูตรเดียวก�
     }
   });
 
+  it("metric ที่รวมรายจ่ายบัญชีต้องตัดหมวด 'เงินสดย่อย' (เงินโยกไปเติมกอง — กันนับซ้ำ)", () => {
+    for (const key of ["tmc.finance_expense", "tmc.finance_net_profit"]) {
+      expect(byKey(key).sql_template).toMatch(/o\.category IS DISTINCT FROM 'เงินสดย่อย'/);
+    }
+  });
+
   it("metric เงินสดย่อยต้องระบุ txn_type ชัดเจน (top_up กับ expense ห้ามปนกัน)", () => {
     expect(byKey("tmc.petty_cash_expense").sql_template).toMatch(/o\.txn_type = 'expense'/);
     expect(byKey("tmc.petty_cash_top_up").sql_template).toMatch(/o\.txn_type = 'top_up'/);
