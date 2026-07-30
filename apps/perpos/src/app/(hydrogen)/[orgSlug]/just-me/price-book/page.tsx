@@ -8,7 +8,12 @@
 import { Lock, Tags } from "lucide-react";
 import { PageShell } from "@/components/ui/page-shell";
 import { Text } from "@/components/ui/typography";
-import { getSettings, listPriceBook, listWorkCategories } from "@/lib/just-me/price-book";
+import {
+  getSettings,
+  listInventoryItemOptions,
+  listPriceBook,
+  listWorkCategories,
+} from "@/lib/just-me/price-book";
 import { requireJustMePage } from "../_components/guard";
 import { PriceBookClient } from "./_price-book-client";
 
@@ -38,10 +43,11 @@ export default async function JustMePriceBookPage({
     );
   }
 
-  const [rows, categories, settings] = await Promise.all([
+  const [rows, categories, settings, items] = await Promise.all([
     listPriceBook(ctx.rls, ctx.orgId, { includeInactive: true }),
     listWorkCategories(ctx.rls, ctx.orgId, { includeInactive: true }),
     getSettings(ctx.rls, ctx.orgId),
+    listInventoryItemOptions(ctx.rls, ctx.orgId),
   ]);
 
   return (
@@ -52,6 +58,7 @@ export default async function JustMePriceBookPage({
       rows={rows}
       categories={categories}
       settings={settings}
+      items={items}
     />
   );
 }

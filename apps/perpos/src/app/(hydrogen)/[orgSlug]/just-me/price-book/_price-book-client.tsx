@@ -43,7 +43,7 @@ import { TablePager, usePagination } from "@/components/ui/table-pager";
 import { Text } from "@/components/ui/typography";
 import { notify } from "@/lib/toast";
 import { MARGIN_SOURCE_LABEL } from "@/lib/just-me/labels";
-import type { PriceBookComputed } from "@/lib/just-me/price-book";
+import type { InventoryItemOption, PriceBookComputed } from "@/lib/just-me/price-book";
 import type { JustMeSettings, JustMeWorkCategory, MaterialCostMode } from "@/lib/just-me/types";
 import { jmSend } from "../_components/api-client";
 import { money, pctValue } from "../_components/format";
@@ -57,6 +57,7 @@ interface RowForm {
   name: string;
   unit: string;
   category_id: string;
+  item_id: string;
   material_cost_mode: MaterialCostMode;
   material_unit_cost_manual: string;
   labor_unit_cost: string;
@@ -70,6 +71,7 @@ const EMPTY_ROW: RowForm = {
   name: "",
   unit: "",
   category_id: "",
+  item_id: "",
   material_cost_mode: "manual",
   material_unit_cost_manual: "",
   labor_unit_cost: "0",
@@ -86,6 +88,7 @@ export function PriceBookClient({
   rows,
   categories,
   settings,
+  items,
 }: {
   orgId: string;
   isOwner: boolean;
@@ -93,6 +96,7 @@ export function PriceBookClient({
   rows: PriceBookComputed[];
   categories: JustMeWorkCategory[];
   settings: JustMeSettings;
+  items: InventoryItemOption[];
 }) {
   const router = useRouter();
   const [term, setTerm] = useState("");
@@ -139,6 +143,7 @@ export function PriceBookClient({
       name: row.name,
       unit: row.unit,
       category_id: row.category_id ?? "",
+      item_id: row.item_id ?? "",
       material_cost_mode: row.material_cost_mode,
       material_unit_cost_manual:
         row.material_unit_cost_manual === null ? "" : String(row.material_unit_cost_manual),
@@ -157,10 +162,15 @@ export function PriceBookClient({
     if (form.material_cost_mode === "manual" && form.material_unit_cost_manual.trim() === "") {
       return notify.error("โหมดกำหนดเองต้องระบุต้นทุนวัสดุต่อหน่วย");
     }
+    // โหมด "จากคลัง" ต้องผูกวัสดุ ไม่งั้นไม่มีต้นทุนให้ดึง → ราคาขายจะว่างตลอด
+    if (form.material_cost_mode === "auto" && !form.item_id) {
+      return notify.error("โหมดจากคลังต้องเลือกวัสดุในคลังที่จะใช้ต้นทุนเฉลี่ย");
+    }
     const payload: Record<string, unknown> = {
       name: form.name.trim(),
       unit: form.unit.trim(),
       category_id: form.category_id || null,
+      item_id: form.material_cost_mode === "auto" ? form.item_id : null,
       material_cost_mode: form.material_cost_mode,
       material_unit_cost_manual: form.material_unit_cost_manual.trim() || null,
       labor_unit_cost: form.labor_unit_cost.trim() || 0,
@@ -388,6 +398,7 @@ export function PriceBookClient({
         form={form}
         setForm={setForm}
         categories={categories}
+        items={items}
         busy={busy}
         onSave={saveRow}
         onAck={ackBaseline}
@@ -411,6 +422,7 @@ function RowDialog({
   form,
   setForm,
   categories,
+  items,
   busy,
   onSave,
   onAck,
@@ -422,6 +434,7 @@ function RowDialog({
   form: RowForm;
   setForm: React.Dispatch<React.SetStateAction<RowForm>>;
   categories: JustMeWorkCategory[];
+  items: InventoryItemOption[];
   busy: boolean;
   onSave: () => void;
   onAck: (row: PriceBookComputed) => void;
@@ -508,6 +521,39 @@ function RowDialog({
                   ใส่ตัวเลขเอง
                 </p>
               </div>
+              {form.material_cost_mode === "auto" && (
+                <div>
+                  <Label>วัสดุในคลังที่ผูกไว้ *</Label>
+                  <div className="mt-1">
+                    <CustomSelect
+                      value={form.item_id}
+                      onChange={(v) => {
+                        const picked = items.find((i) => i.id === v);
+                        set({
+                          item_id: v,
+                          // เติมหน่วยให้ตรงกับคลังถ้ายังไม่ได้กรอก (กันหน่วยไม่ตรงกันแล้วต้นทุนเพี้ยน)
+                          ...(picked && !form.unit.trim() ? { unit: picked.unit } : {}),
+                        });
+                      }}
+                      options={[
+                        { value: "", label: "— เลือกวัสดุในคลัง —" },
+                        ...items.map((i) => ({
+                          value: i.id,
+                          label: `${i.name} (${i.code})${
+                            i.avg_cost === null
+                              ? " · ยังไม่มีต้นทุน"
+                              : ` · ${money(i.avg_cost)} ฿/${i.unit}`
+                          }`,
+                        })),
+                      ]}
+                    />
+                  </div>
+                  <p className="mt-1 text-xs text-gray-500">
+                    ระบบจะใช้ต้นทุนเฉลี่ยถ่วงน้ำหนักของวัสดุนี้เป็นค่าวัสดุ
+                    และอัปเดตตามราคาซื้อจริงให้เอง
+                  </p>
+                </div>
+              )}
               <div>
                 <Label htmlFor="jm-pb-material">ต้นทุนวัสดุ/หน่วย (฿)</Label>
                 <Input

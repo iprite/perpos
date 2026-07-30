@@ -183,6 +183,38 @@ export async function loadAvgCosts(
   return map;
 }
 
+export interface InventoryItemOption {
+  id: string;
+  code: string;
+  name: string;
+  unit: string;
+  /** ต้นทุนเฉลี่ยถ่วงน้ำหนักจากคลัง — null = ยังไม่เคยซื้อเข้า (ห้ามตีเป็น 0) */
+  avg_cost: number | null;
+}
+
+/**
+ * วัสดุในคลังสำหรับผูกกับราคามาตรฐานโหมด `auto`
+ * ต้องผูก `item_id` เท่านั้นระบบถึงจะดึง `avg_cost` มาให้ได้ — ไม่ผูก = ต้นทุนเป็น null ตลอด
+ */
+export async function listInventoryItemOptions(
+  db: SupabaseClient,
+  orgId: string,
+): Promise<InventoryItemOption[]> {
+  const { data, error } = await db
+    .from("just_me_inventory_items")
+    .select("id, code, name, unit")
+    .eq("org_id", orgId)
+    .order("name");
+  if (error) throw new Error(error.message);
+  const items = (data ?? []) as Omit<InventoryItemOption, "avg_cost">[];
+  const avg = await loadAvgCosts(
+    db,
+    orgId,
+    items.map((i) => i.id),
+  );
+  return items.map((i) => ({ ...i, avg_cost: avg.get(i.id) ?? null }));
+}
+
 /** ราคามาตรฐานรายตัว (ใช้ตอนหยิบเข้า BOQ — ต้องรู้ทั้งต้นทุนและ margin ของรายการนั้น) */
 export async function getPriceBookRow(
   db: SupabaseClient,
