@@ -40,10 +40,11 @@ import { ThaiDatePicker } from "@/components/ui/thai-date-picker";
 import { Text } from "@/components/ui/typography";
 import { notify } from "@/lib/toast";
 import { BILLING_STATUS_LABEL, BILLING_STATUS_TONE } from "@/lib/just-me/labels";
+import { billingInvoiceBase, documentVatBreakdown } from "@/lib/just-me/project-metrics";
 import type { JustMeProject, JustMeProjectBilling } from "@/lib/just-me/types";
 import { jmSend } from "../../_components/api-client";
 import { money, pctValue, thaiDate } from "../../_components/format";
-import { AccountingWarning } from "./_boq-tab";
+import { AccountingWarning, CustomerLine, DocumentAmountSummary } from "./_boq-tab";
 import type { AccountingLink, ProjectAccountingInfo } from "./_types";
 
 interface BillingForm {
@@ -102,6 +103,7 @@ export function BillingsTab({
   const [form, setForm] = useState<BillingForm>(EMPTY);
   const [invoiceFor, setInvoiceFor] = useState<JustMeProjectBilling | null>(null);
   const [busy, setBusy] = useState(false);
+  const [confirmCancel, setConfirmCancel] = useState(false);
 
   useEffect(() => setRows(billings), [billings]);
 
@@ -110,12 +112,14 @@ export function BillingsTab({
 
   function openNew() {
     setEditing(null);
+    setConfirmCancel(false);
     setForm({ ...EMPTY, mode: project.contract_amount === null ? "amount" : "percent" });
     setFormOpen(true);
   }
 
   function openEdit(row: JustMeProjectBilling) {
     setEditing(row);
+    setConfirmCancel(false);
     setForm({
       mode: row.percent_of_contract === null ? "amount" : "percent",
       title: row.title ?? "",
@@ -179,6 +183,7 @@ export function BillingsTab({
       notify.error(e, "ทำรายการไม่สำเร็จ");
     } finally {
       setBusy(false);
+      setConfirmCancel(false);
     }
   }
 
@@ -434,14 +439,23 @@ export function BillingsTab({
           </DialogBody>
           <DialogFooter>
             {editing && editing.status !== "cancelled" && canWrite && (
-              <Button
-                variant="destructive"
-                className="mr-auto"
-                disabled={busy || editingLocked}
-                onClick={() => runAction(editing, "cancel")}
-              >
-                ยกเลิกงวดนี้
-              </Button>
+              <div className="mr-auto flex flex-wrap items-center gap-2">
+                <Button
+                  variant={confirmCancel ? "destructive" : "outline"}
+                  disabled={busy || editingLocked}
+                  onClick={() =>
+                    confirmCancel ? runAction(editing, "cancel") : setConfirmCancel(true)
+                  }
+                >
+                  {confirmCancel ? "กดอีกครั้งเพื่อยกเลิกงวดนี้" : "ยกเลิกงวดนี้"}
+                </Button>
+                {confirmCancel && (
+                  <Text className="text-xs text-red-600">
+                    งวดที่ยกเลิกจะไม่ถูกนับในยอดที่ตั้งงวดไว้ และย้อนกลับไม่ได้ —
+                    ถ้ายังต้องวางบิลให้เพิ่มงวดใหม่แทน
+                  </Text>
+                )}
+              </div>
             )}
             {editing?.status === "invoiced" && canWrite && (
               <Button
@@ -467,6 +481,7 @@ export function BillingsTab({
       <InvoiceDialog
         orgId={orgId}
         projectId={project.id}
+        customerName={project.customer_name?.trim() ?? ""}
         billing={invoiceFor}
         accounting={accounting}
         onClose={() => setInvoiceFor(null)}
@@ -483,6 +498,7 @@ export function BillingsTab({
 function InvoiceDialog({
   orgId,
   projectId,
+  customerName,
   billing,
   accounting,
   onClose,
@@ -490,6 +506,8 @@ function InvoiceDialog({
 }: {
   orgId: string;
   projectId: string;
+  /** ชื่อลูกค้าของโครงการ — ว่าง = ออกเอกสารไม่ได้ */
+  customerName: string;
   billing: JustMeProjectBilling | null;
   accounting: ProjectAccountingInfo;
   onClose: () => void;
@@ -538,6 +556,11 @@ function InvoiceDialog({
   }
 
   const retention = billing?.retention_amount ?? 0;
+  /** ฐาน/VAT/ยอดรวมของเอกสารนี้ — สูตรอยู่ `project-metrics.ts` (ห้ามคูณ 1.07 ในหน้า) */
+  const breakdown = documentVatBreakdown(
+    billingInvoiceBase(billing?.amount ?? null, retention, retentionMode),
+    accounting.vatRegistered,
+  );
 
   return (
     <Dialog open={billing !== null} onOpenChange={(v) => !v && onClose()}>
@@ -550,6 +573,8 @@ function InvoiceDialog({
         <DialogBody>
           <div className="space-y-4">
             <AccountingWarning accounting={accounting} />
+            <CustomerLine customerName={customerName} />
+            <DocumentAmountSummary breakdown={breakdown} />
             <div>
               <Label>ชนิดเอกสาร</Label>
               <div className="mt-1">
@@ -607,7 +632,11 @@ function InvoiceDialog({
           <Button variant="outline" onClick={onClose} disabled={busy}>
             ยกเลิก
           </Button>
-          <Button onClick={submit} disabled={busy}>
+          <Button
+            onClick={submit}
+            disabled={busy || !customerName}
+            title={customerName ? undefined : "ต้องระบุชื่อลูกค้าของโครงการก่อน"}
+          >
             {busy ? "กำลังออกเอกสาร…" : "ออกเอกสาร"}
           </Button>
         </DialogFooter>

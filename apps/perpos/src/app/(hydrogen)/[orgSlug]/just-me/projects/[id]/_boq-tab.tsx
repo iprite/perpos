@@ -10,9 +10,17 @@
  *  - viewer เห็นเฉพาะฝั่งราคาขาย (API/RLS ตัดคอลัมน์ต้นทุนออกให้แล้ว)
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { AlertTriangle, ClipboardList, CopyPlus, ExternalLink, Lock, Plus } from "lucide-react";
+import {
+  AlertTriangle,
+  ClipboardList,
+  Copy,
+  CopyPlus,
+  ExternalLink,
+  Lock,
+  Plus,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/badge";
 import { CustomSelect } from "@/components/ui/custom-select";
@@ -42,7 +50,7 @@ import { TablePager, usePagination } from "@/components/ui/table-pager";
 import { Text } from "@/components/ui/typography";
 import { notify } from "@/lib/toast";
 import { BOQ_ITEM_KIND_LABEL, BOQ_STATUS_LABEL, MARGIN_SOURCE_LABEL } from "@/lib/just-me/labels";
-import { boqTotals } from "@/lib/just-me/project-metrics";
+import { boqTotals, documentVatBreakdown } from "@/lib/just-me/project-metrics";
 import type {
   BoqItemKind,
   JustMeBoq,
@@ -95,6 +103,7 @@ export function BoqTab({
   orgId,
   orgSlug,
   projectId,
+  customerName,
   canWrite,
   canSeeCost,
   boqs,
@@ -109,6 +118,8 @@ export function BoqTab({
   orgId: string;
   orgSlug: string;
   projectId: string;
+  /** ชื่อลูกค้าของโครงการ — เอกสารออกในนามนี้ (ว่าง = ออกเอกสารไม่ได้) */
+  customerName: string | null;
   canWrite: boolean;
   canSeeCost: boolean;
   boqs: JustMeBoq[];
@@ -132,6 +143,8 @@ export function BoqTab({
   const [quoteGroupBy, setQuoteGroupBy] = useState<"category" | "item">("category");
   const [quoteDate, setQuoteDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [quoteDue, setQuoteDue] = useState("");
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const nameRef = useRef<HTMLInputElement>(null);
 
   // SSR ส่งของใหม่มา (หลัง router.refresh) → รับมาแทนของเดิม
   useEffect(() => {
@@ -144,6 +157,12 @@ export function BoqTab({
   const totals = useMemo(() => boqTotals(items), [items]);
   const pager = usePagination(items, { pageSize: 20, resetKey: boqId });
   const colSpan = canSeeCost ? 9 : 5;
+  const customer = customerName?.trim() ?? "";
+  /** ยอดก่อน/หลัง VAT ของเอกสาร — คิดที่ `project-metrics.ts` ห้ามคูณเองในหน้า */
+  const quoteVat = useMemo(
+    () => documentVatBreakdown(totals.total_amount, accounting.vatRegistered),
+    [totals.total_amount, accounting.vatRegistered],
+  );
 
   async function loadItems(nextId: string) {
     setBoqId(nextId);
@@ -185,6 +204,7 @@ export function BoqTab({
 
   function openNewLine() {
     setEditing(null);
+    setConfirmDelete(false);
     setForm(EMPTY_LINE);
     setLineOpen(true);
   }
@@ -192,6 +212,7 @@ export function BoqTab({
   function openEditLine(item: JustMeBoqItem) {
     if (!editable) return;
     setEditing(item);
+    setConfirmDelete(false);
     setForm({
       price_book_id: item.price_book_id ?? "",
       name: item.name,
@@ -225,14 +246,22 @@ export function BoqTab({
     }));
   }
 
-  async function saveLine() {
-    if (!boqId) return;
-    if (!form.name.trim()) return notify.error("กรุณาระบุชื่อรายการ");
-    if (!form.unit.trim()) return notify.error("กรุณาระบุหน่วยนับ");
+  /** แปลงฟอร์มเป็น payload ของ API — คืน null เมื่อกรอกไม่ครบ (แจ้งเตือนให้แล้ว) */
+  function buildLinePayload(): Record<string, unknown> | null {
+    if (!form.name.trim()) {
+      notify.error("กรุณาระบุชื่อรายการ");
+      return null;
+    }
+    if (!form.unit.trim()) {
+      notify.error("กรุณาระบุหน่วยนับ");
+      return null;
+    }
     const qty = Number(form.qty);
-    if (!Number.isFinite(qty) || qty <= 0) return notify.error("ปริมาณต้องมากกว่า 0");
-
-    const payload: Record<string, unknown> = {
+    if (!Number.isFinite(qty) || qty <= 0) {
+      notify.error("ปริมาณต้องมากกว่า 0");
+      return null;
+    }
+    return {
       price_book_id: form.price_book_id || null,
       category_id: form.category_id || null,
       item_kind: form.item_kind,
@@ -244,6 +273,17 @@ export function BoqTab({
       overhead_unit_cost: form.overhead_unit_cost === "" ? null : Number(form.overhead_unit_cost),
       margin_pct: form.margin_pct === "" ? null : Number(form.margin_pct),
     };
+  }
+
+  /**
+   * บันทึกบรรทัด
+   * `mode="next"` = ถอด BOQ รัว ๆ: ไม่ปิดกล่อง คงชนิด/หมวด/%กำไร/หน่วยไว้ แล้วโฟกัสช่องชื่อ
+   * (ล้าง "ราคามาตรฐานที่เลือก" ด้วย เพราะถ้าคงไว้ บรรทัดใหม่จะถูกผูกกับราคามาตรฐานที่ชื่อ/ต้นทุนไม่ตรงกัน)
+   */
+  async function saveLine(mode: "close" | "next" = "close") {
+    if (!boqId) return;
+    const payload = buildLinePayload();
+    if (!payload) return;
 
     setBusy(true);
     try {
@@ -256,10 +296,41 @@ export function BoqTab({
         await jmSend(orgId, `boq/${boqId}/items`, "POST", { items: [payload] });
         notify.created("เพิ่มรายการแล้ว");
       }
+      await refreshItems(boqId);
+      if (mode === "next") {
+        setEditing(null);
+        setConfirmDelete(false);
+        setForm((f) => ({
+          ...EMPTY_LINE,
+          item_kind: f.item_kind,
+          category_id: f.category_id,
+          margin_pct: f.margin_pct,
+          unit: f.unit,
+        }));
+        setTimeout(() => nameRef.current?.focus(), 0);
+      } else {
+        setLineOpen(false);
+      }
+    } catch (e) {
+      notify.error(e, "บันทึกรายการไม่สำเร็จ");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /** ทำซ้ำบรรทัดที่กำลังแก้ไข → ได้บรรทัดใหม่ที่เหมือนกันทุกช่อง (แก้ปริมาณทีหลังได้) */
+  async function duplicateLine() {
+    if (!boqId || !editing) return;
+    const payload = buildLinePayload();
+    if (!payload) return;
+    setBusy(true);
+    try {
+      await jmSend(orgId, `boq/${boqId}/items`, "POST", { items: [payload] });
+      notify.created("ทำซ้ำบรรทัดนี้แล้ว — เพิ่มอีก 1 บรรทัดที่เหมือนกัน");
       setLineOpen(false);
       await refreshItems(boqId);
     } catch (e) {
-      notify.error(e, "บันทึกรายการไม่สำเร็จ");
+      notify.error(e, "ทำซ้ำบรรทัดไม่สำเร็จ");
     } finally {
       setBusy(false);
     }
@@ -277,6 +348,7 @@ export function BoqTab({
       notify.error(e, "ลบรายการไม่สำเร็จ");
     } finally {
       setBusy(false);
+      setConfirmDelete(false);
     }
   }
 
@@ -540,6 +612,7 @@ export function BoqTab({
                   <Label htmlFor="jm-line-name">ชื่อรายการ *</Label>
                   <Input
                     id="jm-line-name"
+                    ref={nameRef}
                     className="mt-1"
                     value={form.name}
                     onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
@@ -634,24 +707,35 @@ export function BoqTab({
               <Text className="text-xs text-gray-500">
                 ราคาขายและยอดรวมคิดจากต้นทุน 3 ก้อน × (1 + %กำไร) ที่ฝั่งเซิร์ฟเวอร์ —
                 บันทึกแล้วจะเห็นค่าจริงในตาราง
+                {!editing &&
+                  " · กด “บันทึก & เพิ่มถัดไป” เพื่อถอด BOQ ต่อเนื่องโดยไม่ต้องเปิดกล่องใหม่"}
               </Text>
             </div>
           </DialogBody>
           <DialogFooter>
             {editing && (
               <Button
-                variant="destructive"
+                variant={confirmDelete ? "destructive" : "outline"}
                 className="mr-auto"
                 disabled={busy}
-                onClick={deleteLine}
+                onClick={() => (confirmDelete ? deleteLine() : setConfirmDelete(true))}
               >
-                ลบรายการ
+                {confirmDelete ? "กดอีกครั้งเพื่อลบถาวร" : "ลบรายการ"}
               </Button>
             )}
             <Button variant="outline" onClick={() => setLineOpen(false)} disabled={busy}>
               ยกเลิก
             </Button>
-            <Button onClick={saveLine} disabled={busy}>
+            {editing ? (
+              <Button variant="outline" onClick={duplicateLine} disabled={busy}>
+                <Copy className="h-4 w-4" /> ทำซ้ำบรรทัดนี้
+              </Button>
+            ) : (
+              <Button variant="outline" onClick={() => saveLine("next")} disabled={busy}>
+                {busy ? "กำลังบันทึก…" : "บันทึก & เพิ่มถัดไป"}
+              </Button>
+            )}
+            <Button onClick={() => saveLine("close")} disabled={busy}>
               {busy ? "กำลังบันทึก…" : "บันทึก"}
             </Button>
           </DialogFooter>
@@ -694,6 +778,8 @@ export function BoqTab({
           <DialogBody>
             <div className="space-y-4">
               <AccountingWarning accounting={accounting} />
+              <CustomerLine customerName={customer} />
+              <DocumentAmountSummary breakdown={quoteVat} />
               <div>
                 <Label>รูปแบบรายการในเอกสาร</Label>
                 <div className="mt-1">
@@ -709,7 +795,7 @@ export function BoqTab({
                 </div>
                 <p className="mt-1 text-xs text-gray-500">
                   สรุปตามหมวดงาน = ลูกค้าเห็นยอดรวมรายหมวด (ไม่เห็นโครงต้นทุนของเรา) ·
-                  ยอดรวมเท่ากันทั้งสองแบบ = {money(totals.total_amount)}
+                  ยอดเท่ากันทั้งสองแบบ
                 </p>
               </div>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -736,12 +822,78 @@ export function BoqTab({
             <Button variant="outline" onClick={() => setQuoteOpen(false)} disabled={busy}>
               ยกเลิก
             </Button>
-            <Button onClick={issueQuotation} disabled={busy}>
+            <Button
+              onClick={issueQuotation}
+              disabled={busy || !customer}
+              title={customer ? undefined : "ต้องระบุชื่อลูกค้าของโครงการก่อน"}
+            >
               {busy ? "กำลังออกเอกสาร…" : "ออกใบเสนอราคา"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+/**
+ * "ออกให้ใคร" — ต้องเห็นก่อนกดออกเอกสารเสมอ (ใช้ทั้งใบเสนอราคาและใบแจ้งหนี้)
+ * ไม่มีชื่อลูกค้า = ออกเอกสารไม่ได้ (ผู้เรียกปิดปุ่มด้วย)
+ */
+export function CustomerLine({ customerName }: { customerName: string }) {
+  if (!customerName) {
+    return (
+      <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3">
+        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+        <Text className="text-sm text-amber-800">
+          โครงการนี้ยังไม่ได้ระบุชื่อลูกค้า จึงยังออกเอกสารไม่ได้ — กรอกที่ปุ่ม
+          &quot;แก้ไขข้อมูล&quot; ด้านบนของหน้าโครงการก่อน
+        </Text>
+      </div>
+    );
+  }
+  return (
+    <div className="rounded-xl border border-gray-200 bg-gray-50 p-3">
+      <Text className="text-xs text-gray-500">ออกให้</Text>
+      <Text className="text-sm font-medium text-gray-900">{customerName}</Text>
+    </div>
+  );
+}
+
+/** ยอดก่อน VAT / VAT / รวม — ค่าทุกตัวมาจาก `documentVatBreakdown()` เท่านั้น */
+export function DocumentAmountSummary({
+  breakdown,
+}: {
+  breakdown: { base: number; vat: number; total: number; vat_rate_pct: number } | null;
+}) {
+  if (!breakdown) return null;
+  return (
+    <div className="rounded-xl border border-gray-200 bg-white p-3">
+      <div className="flex items-center justify-between">
+        <Text className="text-sm text-gray-600">ยอดก่อน VAT</Text>
+        <Text className="text-sm tabular-nums text-gray-900">{money(breakdown.base)}</Text>
+      </div>
+      {breakdown.vat_rate_pct > 0 ? (
+        <>
+          <div className="mt-1 flex items-center justify-between">
+            <Text className="text-sm text-gray-600">
+              VAT {breakdown.vat_rate_pct.toLocaleString("th-TH")}%
+            </Text>
+            <Text className="text-sm tabular-nums text-gray-900">{money(breakdown.vat)}</Text>
+          </div>
+          <div className="mt-2 flex items-center justify-between border-t border-gray-200 pt-2">
+            <Text className="text-sm font-semibold text-gray-900">รวมที่ลูกค้าต้องจ่าย</Text>
+            <Text className="text-base font-semibold tabular-nums text-gray-900">
+              {money(breakdown.total)}
+            </Text>
+          </div>
+        </>
+      ) : (
+        <Text className="mt-1 text-xs text-gray-500">
+          กิจการไม่ได้จดทะเบียน VAT — เอกสารนี้จะไม่มี VAT (ยอดที่ลูกค้าต้องจ่าย ={" "}
+          {money(breakdown.total)})
+        </Text>
+      )}
     </div>
   );
 }

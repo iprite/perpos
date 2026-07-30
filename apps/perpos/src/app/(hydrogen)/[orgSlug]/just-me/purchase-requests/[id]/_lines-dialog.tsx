@@ -167,21 +167,27 @@ export function LinesDialog({
             {picks.length > 0 && (
               <div>
                 <Label>หยิบจาก BOQ ที่อนุมัติแล้ว</Label>
-                <div className="mt-1 flex flex-wrap gap-2">
-                  {picks.slice(0, 12).map((p) => (
-                    <Button
-                      key={p.boq_item_id}
-                      size="sm"
-                      variant="outline"
-                      onClick={() => addFromBoq(p)}
-                    >
-                      <Plus className="h-4 w-4" /> {p.name}
-                      <span className="ms-1 text-xs text-gray-500">
-                        เหลือ {qtyText(p.remaining_qty)} {p.unit}
-                      </span>
-                    </Button>
-                  ))}
+                <div className="mt-1 flex flex-wrap items-center gap-2">
+                  <CustomSelect
+                    value=""
+                    onChange={(v) => {
+                      const pick = picks.find((p) => p.boq_item_id === v);
+                      if (pick) addFromBoq(pick);
+                    }}
+                    className="w-full sm:w-[28rem]"
+                    options={[
+                      { value: "", label: `— เลือกบรรทัด BOQ (เหลือ ${picks.length} บรรทัด) —` },
+                      ...picks.map((p) => ({
+                        value: p.boq_item_id,
+                        label: `${p.name} · เหลือ ${qtyText(p.remaining_qty)} ${p.unit}`,
+                      })),
+                    ]}
+                  />
                 </div>
+                <p className="mt-1 text-xs text-gray-500">
+                  เลือกแล้วระบบเติมเป็นบรรทัดใหม่ในตารางด้านล่างพร้อมผูกกับ BOQ ให้ (ผูกไว้ =
+                  ระบบกันสั่งเกินปริมาณที่ถอดไว้ได้) — เลือกได้ครบทุกบรรทัด ไม่ตัดจำนวน
+                </p>
               </div>
             )}
 

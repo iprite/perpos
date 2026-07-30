@@ -35,7 +35,7 @@ import { PageCard, PageShell } from "@/components/ui/page-shell";
 import { SegmentedControl } from "@/components/ui/segmented";
 import { StatCard } from "@/components/ui/stat-card";
 import { ThaiDatePicker } from "@/components/ui/thai-date-picker";
-import { Text, Title } from "@/components/ui/typography";
+import { Text } from "@/components/ui/typography";
 import { notify } from "@/lib/toast";
 import { PROJECT_STATUS_LABEL, PROJECT_STATUS_TONE } from "@/lib/just-me/labels";
 import type { JustMeProject, ProjectStatus } from "@/lib/just-me/types";
@@ -249,6 +249,7 @@ export function ProjectDetailClient({
           orgId={orgId}
           orgSlug={orgSlug}
           projectId={project.id}
+          customerName={project.customer_name}
           accounting={initial.accounting}
           quotationDoc={
             project.quotation_document_id
@@ -290,6 +291,7 @@ export function ProjectDetailClient({
       {tab === "usage" && (
         <UsageTab
           orgId={orgId}
+          orgSlug={orgSlug}
           projectId={project.id}
           canWrite={canWrite}
           canSeeCost={canSeeCost}
@@ -324,22 +326,6 @@ function Field({ label, value }: { label: string; value: React.ReactNode }) {
       <Text className="text-xs text-gray-500">{label}</Text>
       <Text className="text-sm text-gray-900">{value}</Text>
     </div>
-  );
-}
-
-function Placeholder({ title, detail }: { title: string; detail: string }) {
-  return (
-    <PageCard>
-      <div className="flex flex-col items-center justify-center gap-2 py-14 text-center">
-        <div className="rounded-full bg-gray-100 p-4">
-          <ReceiptText className="h-8 w-8 text-gray-400" />
-        </div>
-        <Title as="h3" className="text-sm font-medium text-gray-900">
-          {title}
-        </Title>
-        <Text className="max-w-md text-sm text-gray-500">{detail}</Text>
-      </div>
-    </PageCard>
   );
 }
 
@@ -396,6 +382,7 @@ function EditProjectDialog({
   const [form, setForm] = useState<EditForm>(() => toForm(project));
   const [saving, setSaving] = useState(false);
   const [cancelling, setCancelling] = useState(false);
+  const [cancelOpen, setCancelOpen] = useState(false);
 
   useEffect(() => {
     if (open) setForm(toForm(project));
@@ -446,6 +433,7 @@ function EditProjectDialog({
     try {
       await jmSend(orgId, `projects/${project.id}`, "DELETE");
       notify.success("ยกเลิกโครงการแล้ว");
+      setCancelOpen(false);
       onOpenChange(false);
       router.push(`/${orgSlug}/just-me/projects`);
     } catch (e) {
@@ -456,151 +444,190 @@ function EditProjectDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent size="xl">
-        <DialogHeader>
-          <DialogTitle>แก้ไขข้อมูลโครงการ</DialogTitle>
-        </DialogHeader>
-        <DialogBody>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div className="sm:col-span-2">
-              <Label htmlFor="jm-edit-name">ชื่อโครงการ *</Label>
-              <Input
-                id="jm-edit-name"
-                className="mt-1"
-                value={form.name}
-                onChange={(e) => set({ name: e.target.value })}
-              />
-            </div>
-            <div>
-              <Label htmlFor="jm-edit-customer">ลูกค้า</Label>
-              <Input
-                id="jm-edit-customer"
-                className="mt-1"
-                value={form.customer_name}
-                onChange={(e) => set({ customer_name: e.target.value })}
-              />
-            </div>
-            <div>
-              <Label htmlFor="jm-edit-status">สถานะโครงการ</Label>
-              <div className="mt-1">
-                <CustomSelect
-                  value={form.status}
-                  onChange={(v) => set({ status: v as ProjectStatus })}
-                  options={STATUS_OPTIONS}
-                />
-              </div>
-            </div>
-            <div className="sm:col-span-2">
-              <Label htmlFor="jm-edit-site">ที่ตั้งหน้างาน</Label>
-              <Input
-                id="jm-edit-site"
-                className="mt-1"
-                value={form.site_address}
-                onChange={(e) => set({ site_address: e.target.value })}
-              />
-            </div>
-            <div>
-              <Label htmlFor="jm-edit-lat">ละติจูด</Label>
-              <Input
-                id="jm-edit-lat"
-                className="mt-1"
-                inputMode="decimal"
-                value={form.latitude}
-                onChange={(e) => set({ latitude: e.target.value })}
-                placeholder="13.7563"
-              />
-            </div>
-            <div>
-              <Label htmlFor="jm-edit-lng">ลองจิจูด</Label>
-              <Input
-                id="jm-edit-lng"
-                className="mt-1"
-                inputMode="decimal"
-                value={form.longitude}
-                onChange={(e) => set({ longitude: e.target.value })}
-                placeholder="100.5018"
-              />
-            </div>
-            <div>
-              <Label>วันที่เริ่มงาน</Label>
-              <div className="mt-1">
-                <ThaiDatePicker
-                  value={form.start_date}
-                  onChange={(iso) => set({ start_date: iso })}
-                />
-              </div>
-            </div>
-            <div>
-              <Label>กำหนดส่งมอบ</Label>
-              <div className="mt-1">
-                <ThaiDatePicker value={form.end_date} onChange={(iso) => set({ end_date: iso })} />
-              </div>
-            </div>
-            <div>
-              <Label htmlFor="jm-edit-contract">มูลค่าสัญญา (฿)</Label>
-              <Input
-                id="jm-edit-contract"
-                className="mt-1"
-                inputMode="decimal"
-                value={form.contract_amount}
-                onChange={(e) => set({ contract_amount: e.target.value })}
-              />
-              <p className="mt-1 text-xs text-gray-500">
-                เว้นว่าง = ยังไม่มีสัญญา (ระบบเติมให้ตอนอนุมัติ BOQ ครั้งแรก)
-              </p>
-            </div>
-            <div>
-              <Label htmlFor="jm-edit-retention">เงินประกันผลงาน (%)</Label>
-              <Input
-                id="jm-edit-retention"
-                className="mt-1"
-                inputMode="decimal"
-                value={form.retention_pct}
-                onChange={(e) => set({ retention_pct: e.target.value })}
-              />
-            </div>
-            {canSeeCost && (
-              <div>
-                <Label htmlFor="jm-edit-margin">%กำไรของโครงการนี้</Label>
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent size="xl">
+          <DialogHeader>
+            <DialogTitle>แก้ไขข้อมูลโครงการ</DialogTitle>
+          </DialogHeader>
+          <DialogBody>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="sm:col-span-2">
+                <Label htmlFor="jm-edit-name">ชื่อโครงการ *</Label>
                 <Input
-                  id="jm-edit-margin"
+                  id="jm-edit-name"
+                  className="mt-1"
+                  value={form.name}
+                  onChange={(e) => set({ name: e.target.value })}
+                />
+              </div>
+              <div>
+                <Label htmlFor="jm-edit-customer">ลูกค้า</Label>
+                <Input
+                  id="jm-edit-customer"
+                  className="mt-1"
+                  value={form.customer_name}
+                  onChange={(e) => set({ customer_name: e.target.value })}
+                />
+              </div>
+              <div>
+                <Label htmlFor="jm-edit-status">สถานะโครงการ</Label>
+                <div className="mt-1">
+                  <CustomSelect
+                    value={form.status}
+                    onChange={(v) => set({ status: v as ProjectStatus })}
+                    options={STATUS_OPTIONS}
+                  />
+                </div>
+              </div>
+              <div className="sm:col-span-2">
+                <Label htmlFor="jm-edit-site">ที่ตั้งหน้างาน</Label>
+                <Input
+                  id="jm-edit-site"
+                  className="mt-1"
+                  value={form.site_address}
+                  onChange={(e) => set({ site_address: e.target.value })}
+                />
+              </div>
+              <div>
+                <Label htmlFor="jm-edit-lat">ละติจูด</Label>
+                <Input
+                  id="jm-edit-lat"
                   className="mt-1"
                   inputMode="decimal"
-                  value={form.margin_pct}
-                  onChange={(e) => set({ margin_pct: e.target.value })}
-                  placeholder="เว้นว่าง = ใช้ค่าเริ่มต้นบริษัท"
+                  value={form.latitude}
+                  onChange={(e) => set({ latitude: e.target.value })}
+                  placeholder="13.7563"
                 />
               </div>
-            )}
-            <div className="sm:col-span-2">
-              <Label htmlFor="jm-edit-note">หมายเหตุ</Label>
-              <Input
-                id="jm-edit-note"
-                className="mt-1"
-                value={form.note}
-                onChange={(e) => set({ note: e.target.value })}
-              />
+              <div>
+                <Label htmlFor="jm-edit-lng">ลองจิจูด</Label>
+                <Input
+                  id="jm-edit-lng"
+                  className="mt-1"
+                  inputMode="decimal"
+                  value={form.longitude}
+                  onChange={(e) => set({ longitude: e.target.value })}
+                  placeholder="100.5018"
+                />
+              </div>
+              <div>
+                <Label>วันที่เริ่มงาน</Label>
+                <div className="mt-1">
+                  <ThaiDatePicker
+                    value={form.start_date}
+                    onChange={(iso) => set({ start_date: iso })}
+                  />
+                </div>
+              </div>
+              <div>
+                <Label>กำหนดส่งมอบ</Label>
+                <div className="mt-1">
+                  <ThaiDatePicker
+                    value={form.end_date}
+                    onChange={(iso) => set({ end_date: iso })}
+                  />
+                </div>
+              </div>
+              <div>
+                <Label htmlFor="jm-edit-contract">มูลค่าสัญญา (฿)</Label>
+                <Input
+                  id="jm-edit-contract"
+                  className="mt-1"
+                  inputMode="decimal"
+                  value={form.contract_amount}
+                  onChange={(e) => set({ contract_amount: e.target.value })}
+                />
+                <p className="mt-1 text-xs text-gray-500">
+                  เว้นว่าง = ยังไม่มีสัญญา (ระบบเติมให้ตอนอนุมัติ BOQ ครั้งแรก)
+                </p>
+              </div>
+              <div>
+                <Label htmlFor="jm-edit-retention">เงินประกันผลงาน (%)</Label>
+                <Input
+                  id="jm-edit-retention"
+                  className="mt-1"
+                  inputMode="decimal"
+                  value={form.retention_pct}
+                  onChange={(e) => set({ retention_pct: e.target.value })}
+                />
+              </div>
+              {canSeeCost && (
+                <div>
+                  <Label htmlFor="jm-edit-margin">%กำไรของโครงการนี้</Label>
+                  <Input
+                    id="jm-edit-margin"
+                    className="mt-1"
+                    inputMode="decimal"
+                    value={form.margin_pct}
+                    onChange={(e) => set({ margin_pct: e.target.value })}
+                    placeholder="เว้นว่าง = ใช้ค่าเริ่มต้นบริษัท"
+                  />
+                </div>
+              )}
+              <div className="sm:col-span-2">
+                <Label htmlFor="jm-edit-note">หมายเหตุ</Label>
+                <Input
+                  id="jm-edit-note"
+                  className="mt-1"
+                  value={form.note}
+                  onChange={(e) => set({ note: e.target.value })}
+                />
+              </div>
             </div>
-          </div>
-        </DialogBody>
-        <DialogFooter>
-          <Button
-            variant="destructive"
-            className="mr-auto"
-            onClick={cancelProject}
-            disabled={cancelling || saving || project.status === "cancelled"}
-          >
-            {cancelling ? "กำลังยกเลิก…" : "ยกเลิกโครงการ"}
-          </Button>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
-            ปิด
-          </Button>
-          <Button onClick={save} disabled={saving}>
-            {saving ? "กำลังบันทึก…" : "บันทึก"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+          </DialogBody>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              className="mr-auto"
+              onClick={() => setCancelOpen(true)}
+              disabled={cancelling || saving || project.status === "cancelled"}
+            >
+              ยกเลิกโครงการ
+            </Button>
+            <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
+              ปิด
+            </Button>
+            <Button onClick={save} disabled={saving}>
+              {saving ? "กำลังบันทึก…" : "บันทึก"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ยืนยันก่อนทำลาย (DESIGN §12) — บอกผลที่จะเกิดและวิธีย้อนกลับ */}
+      <Dialog open={cancelOpen} onOpenChange={setCancelOpen}>
+        <DialogContent size="sm">
+          <DialogHeader>
+            <DialogTitle>ยกเลิกโครงการนี้?</DialogTitle>
+          </DialogHeader>
+          <DialogBody>
+            <div className="space-y-2">
+              <Text className="text-sm text-gray-700">
+                <span className="font-medium text-gray-900">{project.name}</span> จะถูกตั้งเป็นสถานะ
+                &quot;ยกเลิก&quot; และหลุดจากยอดรวมของทุกการ์ดสรุป
+                (มูลค่าสัญญา/ต้นทุน/ยอดค้างวางบิล)
+              </Text>
+              <Text className="text-sm text-gray-700">
+                ข้อมูล BOQ / ใบขอซื้อ / งวดงาน ยังอยู่ครบ และ
+                <span className="font-medium text-gray-900">
+                  {" "}
+                  เปลี่ยนสถานะกลับมาทำต่อได้ที่ช่อง &quot;สถานะโครงการ&quot;
+                </span>{" "}
+                — ไม่ใช่การลบถาวร
+              </Text>
+            </div>
+          </DialogBody>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCancelOpen(false)} disabled={cancelling}>
+              ไม่ยกเลิก
+            </Button>
+            <Button variant="destructive" onClick={cancelProject} disabled={cancelling}>
+              {cancelling ? "กำลังยกเลิก…" : "ยืนยันยกเลิกโครงการ"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

@@ -23,6 +23,7 @@ import {
 import { FilterBar, FilterClear, FilterSearch } from "@/components/ui/filter-bar";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PageShell } from "@/components/ui/page-shell";
 import {
   Table,
   TableBody,
@@ -146,7 +147,19 @@ export function PurchaseRequestsClient({
   }
 
   return (
-    <div className="space-y-3">
+    <PageShell
+      title="ใบขอซื้อ (PR)"
+      description="ขอซื้อของเข้าโครงการ เทียบราคาผู้ขาย แล้วรับของเข้าคลัง"
+      icon={<ShoppingCart className="h-6 w-6" />}
+      width="full"
+      actions={
+        canWrite ? (
+          <Button onClick={() => setOpen(true)}>
+            <Plus className="h-4 w-4" /> สร้างใบขอซื้อ
+          </Button>
+        ) : undefined
+      }
+    >
       <FilterBar>
         <FilterSearch
           value={term}
@@ -173,83 +186,80 @@ export function PurchaseRequestsClient({
           }}
           disabled={!hasFilter && !term}
         />
-        {canWrite && (
-          <Button onClick={() => setOpen(true)}>
-            <Plus className="h-4 w-4" /> สร้างใบขอซื้อ
-          </Button>
-        )}
       </FilterBar>
 
-      <Table stickyHeader fillViewport>
-        <TableHeader sticky>
-          <TableRow>
-            <TableHead>เลขที่ใบ</TableHead>
-            <TableHead>โครงการ</TableHead>
-            <TableHead align="center">สถานะ</TableHead>
-            <TableHead>ต้องการใช้</TableHead>
-            <TableHead>ผู้ขายที่เลือก</TableHead>
-            <TableHead align="right">ยอดประเมิน</TableHead>
-            <TableHead align="right">ยอดที่เลือก</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {rows.length === 0 ? (
-            <TableEmpty colSpan={7}>
-              <div className="flex flex-col items-center gap-2 py-6">
-                <div className="rounded-full bg-gray-100 p-4">
-                  <ShoppingCart className="h-8 w-8 text-gray-400" />
+      <div className="space-y-3">
+        <Table stickyHeader fillViewport>
+          <TableHeader sticky>
+            <TableRow>
+              <TableHead>เลขที่ใบ</TableHead>
+              <TableHead>โครงการ</TableHead>
+              <TableHead align="center">สถานะ</TableHead>
+              <TableHead>ต้องการใช้</TableHead>
+              <TableHead>ผู้ขายที่เลือก</TableHead>
+              <TableHead align="right">ยอดประเมิน</TableHead>
+              <TableHead align="right">ยอดที่เลือก</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {rows.length === 0 ? (
+              <TableEmpty colSpan={7}>
+                <div className="flex flex-col items-center gap-2 py-6">
+                  <div className="rounded-full bg-gray-100 p-4">
+                    <ShoppingCart className="h-8 w-8 text-gray-400" />
+                  </div>
+                  <Text className="text-sm font-medium text-gray-900">
+                    {hasFilter ? "ไม่พบใบขอซื้อตามเงื่อนไขที่กรอง" : "ยังไม่มีใบขอซื้อ"}
+                  </Text>
+                  <Text className="text-sm text-gray-500">
+                    {hasFilter
+                      ? "ลองล้างตัวกรองหรือเปลี่ยนคำค้น"
+                      : "เลือกรายการจาก BOQ ของโครงการ แล้วสร้างใบขอซื้อเพื่อเทียบราคาผู้ขาย"}
+                  </Text>
+                  {canWrite && !hasFilter && (
+                    <Button size="sm" onClick={() => setOpen(true)}>
+                      <Plus className="h-4 w-4" /> สร้างใบขอซื้อใบแรก
+                    </Button>
+                  )}
                 </div>
-                <Text className="text-sm font-medium text-gray-900">
-                  {hasFilter ? "ไม่พบใบขอซื้อตามเงื่อนไขที่กรอง" : "ยังไม่มีใบขอซื้อ"}
-                </Text>
-                <Text className="text-sm text-gray-500">
-                  {hasFilter
-                    ? "ลองล้างตัวกรองหรือเปลี่ยนคำค้น"
-                    : "เลือกรายการจาก BOQ ของโครงการ แล้วสร้างใบขอซื้อเพื่อเทียบราคาผู้ขาย"}
-                </Text>
-                {canWrite && !hasFilter && (
-                  <Button size="sm" onClick={() => setOpen(true)}>
-                    <Plus className="h-4 w-4" /> สร้างใบขอซื้อใบแรก
-                  </Button>
-                )}
-              </div>
-            </TableEmpty>
-          ) : (
-            rows.map((row) => (
-              <TableRow
-                key={row.id}
-                clickable
-                onClick={() => router.push(`/${orgSlug}/just-me/purchase-requests/${row.id}`)}
-              >
-                <TableCell className="font-mono text-xs text-gray-500">{row.pr_code}</TableCell>
-                <TableCell className="font-medium text-gray-900">{row.project_label}</TableCell>
-                <TableCell align="center">
-                  <StatusBadge tone={PR_STATUS_TONE[row.status]}>
-                    {PR_STATUS_LABEL[row.status]}
-                  </StatusBadge>
-                </TableCell>
-                <TableCell>{thaiDate(row.needed_date)}</TableCell>
-                <TableCell>{row.vendor_label || "—"}</TableCell>
-                <TableCell align="right" tabular>
-                  {money(row.total_estimated_cost)}
-                </TableCell>
-                <TableCell align="right" tabular>
-                  {money(row.total_selected_cost)}
-                </TableCell>
-              </TableRow>
-            ))
-          )}
-        </TableBody>
-      </Table>
+              </TableEmpty>
+            ) : (
+              rows.map((row) => (
+                <TableRow
+                  key={row.id}
+                  clickable
+                  onClick={() => router.push(`/${orgSlug}/just-me/purchase-requests/${row.id}`)}
+                >
+                  <TableCell className="font-mono text-xs text-gray-500">{row.pr_code}</TableCell>
+                  <TableCell className="font-medium text-gray-900">{row.project_label}</TableCell>
+                  <TableCell align="center">
+                    <StatusBadge tone={PR_STATUS_TONE[row.status]}>
+                      {PR_STATUS_LABEL[row.status]}
+                    </StatusBadge>
+                  </TableCell>
+                  <TableCell>{thaiDate(row.needed_date)}</TableCell>
+                  <TableCell>{row.vendor_label || "—"}</TableCell>
+                  <TableCell align="right" tabular>
+                    {money(row.total_estimated_cost)}
+                  </TableCell>
+                  <TableCell align="right" tabular>
+                    {money(row.total_selected_cost)}
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
 
-      <LinkTablePager
-        page={page}
-        pageSize={pageSize}
-        total={total}
-        query={pagerQuery}
-        unit="ใบ"
-        className={pending ? "opacity-60" : undefined}
-      />
+        <LinkTablePager
+          page={page}
+          pageSize={pageSize}
+          total={total}
+          query={pagerQuery}
+          unit="ใบ"
+          className={pending ? "opacity-60" : undefined}
+        />
+      </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent size="lg">
@@ -315,6 +325,6 @@ export function PurchaseRequestsClient({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </PageShell>
   );
 }

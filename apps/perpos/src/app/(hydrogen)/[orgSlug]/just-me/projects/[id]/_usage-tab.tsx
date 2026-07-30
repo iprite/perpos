@@ -11,6 +11,7 @@
  */
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { CustomSelect } from "@/components/ui/custom-select";
@@ -55,6 +56,7 @@ const COST_KIND_OPTIONS = (Object.keys(PROJECT_COST_KIND_LABEL) as ProjectCostKi
 
 export function UsageTab({
   orgId,
+  orgSlug,
   projectId,
   canWrite,
   canSeeCost,
@@ -66,6 +68,7 @@ export function UsageTab({
   onChanged,
 }: {
   orgId: string;
+  orgSlug: string;
   projectId: string;
   canWrite: boolean;
   canSeeCost: boolean;
@@ -83,6 +86,7 @@ export function UsageTab({
 
   const [costOpen, setCostOpen] = useState(false);
   const [progressOpen, setProgressOpen] = useState(false);
+  const [costDetail, setCostDetail] = useState<JustMeProjectCost | null>(null);
 
   return (
     <div className="space-y-6">
@@ -91,7 +95,14 @@ export function UsageTab({
         <div className="flex items-center justify-between">
           <Text className="px-1 text-sm font-semibold text-gray-900">วัสดุที่เบิกเข้าโครงการ</Text>
           <Text className="text-xs text-gray-500">
-            เบิกของได้ที่หน้าคลัง → แท็บ &quot;เบิกโอน&quot; แล้วเลือกโครงการนี้
+            เบิกของที่{" "}
+            <Link
+              className="font-medium text-blue-600 hover:underline"
+              href={`/${orgSlug}/just-me/inventory`}
+            >
+              หน้าคลัง → แท็บ &quot;เบิกโอน&quot;
+            </Link>{" "}
+            แล้วเลือกโครงการนี้ — ถ้าไม่เลือกโครงการ ของที่เบิกจะไม่ถูกนับเป็นต้นทุนของงานนี้
           </Text>
         </div>
         <Table className="shadow-sm">
@@ -151,33 +162,26 @@ export function UsageTab({
                 <TableHead>ประเภท</TableHead>
                 <TableHead>รายละเอียด</TableHead>
                 <TableHead align="right">จำนวนเงิน</TableHead>
-                {canWrite && <TableHead align="center">ลบ</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
               {costPager.rows.length === 0 ? (
-                <TableEmpty colSpan={canWrite ? 5 : 4}>
+                <TableEmpty colSpan={4}>
                   ยังไม่มีต้นทุนนอกคลัง — ค่าแรงและผู้รับเหมาช่วงบันทึกที่นี่
                 </TableEmpty>
               ) : (
                 costPager.rows.map((row) => (
-                  <TableRow key={row.id}>
+                  <TableRow
+                    key={row.id}
+                    clickable={canWrite}
+                    onClick={canWrite ? () => setCostDetail(row) : undefined}
+                  >
                     <TableCell>{thaiDate(row.cost_date)}</TableCell>
                     <TableCell>{labelOf(PROJECT_COST_KIND_LABEL, row.cost_kind)}</TableCell>
                     <TableCell wrap>{row.description || "—"}</TableCell>
                     <TableCell align="right" tabular>
                       {money(row.amount)}
                     </TableCell>
-                    {canWrite && (
-                      <TableCell align="center">
-                        <DeleteCostButton
-                          orgId={orgId}
-                          projectId={projectId}
-                          costId={row.id}
-                          onDone={onChanged}
-                        />
-                      </TableCell>
-                    )}
                   </TableRow>
                 ))
               )}
@@ -236,6 +240,13 @@ export function UsageTab({
         <TablePager pager={progressPager} unit="รายการ" />
       </div>
 
+      <CostDetailDialog
+        row={costDetail}
+        orgId={orgId}
+        projectId={projectId}
+        onClose={() => setCostDetail(null)}
+        onDeleted={onChanged}
+      />
       <CostDialog
         open={costOpen}
         onOpenChange={setCostOpen}
@@ -255,26 +266,39 @@ export function UsageTab({
   );
 }
 
-function DeleteCostButton({
+/**
+ * รายละเอียดต้นทุนนอกคลังหนึ่งรายการ (เปิดจากการคลิกแถว — DESIGN §5 ข้อ 3 ห้ามมีคอลัมน์ปุ่มในแถว)
+ * ⚠️ API ยังไม่มี PATCH ของ `projects/[id]/costs` → รายการที่บันทึกแล้วยัง "แก้ไม่ได้"
+ *    ที่ทำได้คือลบแล้วบันทึกใหม่ — หน้าจึงบอกทางไว้ตรง ๆ แทนที่จะโชว์ฟอร์มที่กดแล้วไม่มีผล
+ */
+function CostDetailDialog({
+  row,
   orgId,
   projectId,
-  costId,
-  onDone,
+  onClose,
+  onDeleted,
 }: {
+  row: JustMeProjectCost | null;
   orgId: string;
   projectId: string;
-  costId: string;
-  onDone: () => void;
+  onClose: () => void;
+  onDeleted: () => void;
 }) {
   const [busy, setBusy] = useState(false);
   const [confirm, setConfirm] = useState(false);
 
+  useEffect(() => {
+    if (row) setConfirm(false);
+  }, [row]);
+
   async function remove() {
+    if (!row) return;
     setBusy(true);
     try {
-      await jmSend(orgId, `projects/${projectId}/costs?costId=${costId}`, "DELETE");
+      await jmSend(orgId, `projects/${projectId}/costs?costId=${row.id}`, "DELETE");
       notify.deleted("ลบรายการต้นทุนแล้ว");
-      onDone();
+      onDeleted();
+      onClose();
     } catch (e) {
       notify.error(e, "ลบไม่สำเร็จ");
     } finally {
@@ -284,14 +308,58 @@ function DeleteCostButton({
   }
 
   return (
-    <Button
-      size="sm"
-      variant={confirm ? "destructive" : "ghost"}
-      disabled={busy}
-      onClick={() => (confirm ? remove() : setConfirm(true))}
-    >
-      {confirm ? "ยืนยันลบ" : "ลบ"}
-    </Button>
+    <Dialog open={row !== null} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent size="md">
+        <DialogHeader>
+          <DialogTitle>รายการต้นทุนนอกคลัง</DialogTitle>
+        </DialogHeader>
+        <DialogBody>
+          <div className="space-y-3">
+            <DetailRow label="วันที่" value={thaiDate(row?.cost_date)} />
+            <DetailRow
+              label="ประเภท"
+              value={row ? labelOf(PROJECT_COST_KIND_LABEL, row.cost_kind) : "—"}
+            />
+            <DetailRow label="รายละเอียด" value={row?.description || "—"} />
+            <DetailRow label="จำนวนเงิน" value={money(row?.amount ?? null)} />
+            <Text className="text-xs text-gray-500">
+              รายการที่บันทึกแล้วยังแก้ตัวเลขไม่ได้ (ต้นทุนถูกนับเข้ายอดสรุปของโครงการไปแล้ว) —
+              ถ้ากรอกผิด ให้ลบรายการนี้แล้วบันทึกใหม่
+            </Text>
+            {confirm && (
+              <div className="rounded-xl border border-red-200 bg-red-50 p-3">
+                <Text className="text-sm text-red-700">
+                  ลบแล้วยอด &quot;ต้นทุนจริง&quot; และกำไรคาดการณ์ของโครงการจะเปลี่ยนทันที
+                  และกู้คืนไม่ได้ — กด &quot;ยืนยันลบ&quot; อีกครั้งถ้าแน่ใจ
+                </Text>
+              </div>
+            )}
+          </div>
+        </DialogBody>
+        <DialogFooter>
+          <Button
+            variant={confirm ? "destructive" : "outline"}
+            className="mr-auto"
+            disabled={busy}
+            onClick={() => (confirm ? remove() : setConfirm(true))}
+          >
+            {busy ? "กำลังลบ…" : confirm ? "ยืนยันลบ" : "ลบรายการนี้"}
+          </Button>
+          <Button variant="outline" onClick={onClose} disabled={busy}>
+            ปิด
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function DetailRow({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div className="flex items-start justify-between gap-4">
+      <Text className="text-xs text-gray-500">{label}</Text>
+      <Text className="text-right text-sm text-gray-900">{value}</Text>
+    </div>
   );
 }
 

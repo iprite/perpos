@@ -21,6 +21,7 @@ import {
 import { FilterBar, FilterClear, FilterSearch } from "@/components/ui/filter-bar";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PageShell } from "@/components/ui/page-shell";
 import { SegmentedControl } from "@/components/ui/segmented";
 import {
   Table,
@@ -167,7 +168,19 @@ export function VendorsClient({
   const colSpan = canSeeCost ? 6 : 5;
 
   return (
-    <div className="space-y-3">
+    <PageShell
+      title="ผู้ขาย"
+      description="ทะเบียนซัพพลายเออร์ที่ใช้เทียบราคาและสั่งซื้อ"
+      icon={<Truck className="h-6 w-6" />}
+      width="full"
+      actions={
+        canWrite ? (
+          <Button onClick={openCreate}>
+            <Plus className="h-4 w-4" /> เพิ่มผู้ขาย
+          </Button>
+        ) : undefined
+      }
+    >
       <FilterBar>
         <FilterSearch
           value={term}
@@ -188,68 +201,65 @@ export function VendorsClient({
           onClick={() => apply({ q: "", inactive: false })}
           disabled={!q && !includeInactive && !term}
         />
-        {canWrite && (
-          <Button onClick={openCreate}>
-            <Plus className="h-4 w-4" /> เพิ่มผู้ขาย
-          </Button>
-        )}
       </FilterBar>
 
-      <Table stickyHeader fillViewport>
-        <TableHeader sticky>
-          <TableRow>
-            <TableHead>ชื่อผู้ขาย</TableHead>
-            <TableHead>ผู้ติดต่อ</TableHead>
-            <TableHead>เบอร์โทร</TableHead>
-            <TableHead>เลขผู้เสียภาษี</TableHead>
-            {canSeeCost && <TableHead align="right">ชนะราคา (ครั้ง)</TableHead>}
-            <TableHead align="center">สถานะ</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {pager.rows.length === 0 ? (
-            <TableEmpty colSpan={colSpan}>
-              <div className="flex flex-col items-center gap-2 py-6">
-                <div className="rounded-full bg-gray-100 p-4">
-                  <Truck className="h-8 w-8 text-gray-400" />
+      <div className="space-y-3">
+        <Table stickyHeader fillViewport>
+          <TableHeader sticky>
+            <TableRow>
+              <TableHead>ชื่อผู้ขาย</TableHead>
+              <TableHead>ผู้ติดต่อ</TableHead>
+              <TableHead>เบอร์โทร</TableHead>
+              <TableHead>เลขผู้เสียภาษี</TableHead>
+              {canSeeCost && <TableHead align="right">ชนะราคา (ครั้ง)</TableHead>}
+              <TableHead align="center">สถานะ</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {pager.rows.length === 0 ? (
+              <TableEmpty colSpan={colSpan}>
+                <div className="flex flex-col items-center gap-2 py-6">
+                  <div className="rounded-full bg-gray-100 p-4">
+                    <Truck className="h-8 w-8 text-gray-400" />
+                  </div>
+                  <Text className="text-sm font-medium text-gray-900">ยังไม่มีผู้ขายในทะเบียน</Text>
+                  <Text className="text-sm text-gray-500">
+                    เพิ่มร้าน/ซัพพลายเออร์ที่ใช้ประจำ แล้วนำไปเทียบราคาในใบขอซื้อได้ทันที
+                  </Text>
+                  {canWrite && (
+                    <Button size="sm" onClick={openCreate}>
+                      <Plus className="h-4 w-4" /> เพิ่มผู้ขายรายแรก
+                    </Button>
+                  )}
                 </div>
-                <Text className="text-sm font-medium text-gray-900">ยังไม่มีผู้ขายในทะเบียน</Text>
-                <Text className="text-sm text-gray-500">
-                  เพิ่มร้าน/ซัพพลายเออร์ที่ใช้ประจำ แล้วนำไปเทียบราคาในใบขอซื้อได้ทันที
-                </Text>
-                {canWrite && (
-                  <Button size="sm" onClick={openCreate}>
-                    <Plus className="h-4 w-4" /> เพิ่มผู้ขายรายแรก
-                  </Button>
-                )}
-              </div>
-            </TableEmpty>
-          ) : (
-            pager.rows.map((row) => (
-              <TableRow key={row.id} clickable={canWrite} onClick={() => openEdit(row)}>
-                <TableCell className="font-medium text-gray-900">{row.name}</TableCell>
-                <TableCell>{row.contact_name || "—"}</TableCell>
-                <TableCell>{row.phone || "—"}</TableCell>
-                <TableCell className="font-mono text-xs text-gray-500">
-                  {row.tax_id || "—"}
-                </TableCell>
-                {canSeeCost && (
-                  <TableCell align="right" className="tabular-nums">
-                    {row.win_count === null ? "—" : row.win_count.toLocaleString("th-TH")}
+              </TableEmpty>
+            ) : (
+              pager.rows.map((row) => (
+                <TableRow key={row.id} clickable={canWrite} onClick={() => openEdit(row)}>
+                  <TableCell className="font-medium text-gray-900">{row.name}</TableCell>
+                  <TableCell>{row.contact_name || "—"}</TableCell>
+                  <TableCell>{row.phone || "—"}</TableCell>
+                  <TableCell className="font-mono text-xs text-gray-500">
+                    {row.tax_id || "—"}
                   </TableCell>
-                )}
-                <TableCell align="center">
-                  <StatusBadge tone={row.is_active ? "success" : "neutral"}>
-                    {row.is_active ? "ใช้งาน" : "เลิกใช้"}
-                  </StatusBadge>
-                </TableCell>
-              </TableRow>
-            ))
-          )}
-        </TableBody>
-      </Table>
+                  {canSeeCost && (
+                    <TableCell align="right" className="tabular-nums">
+                      {row.win_count === null ? "—" : row.win_count.toLocaleString("th-TH")}
+                    </TableCell>
+                  )}
+                  <TableCell align="center">
+                    <StatusBadge tone={row.is_active ? "success" : "neutral"}>
+                      {row.is_active ? "ใช้งาน" : "เลิกใช้"}
+                    </StatusBadge>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
 
-      <TablePager pager={pager} unit="ราย" />
+        <TablePager pager={pager} unit="ราย" />
+      </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent size="xl">
@@ -350,6 +360,6 @@ export function VendorsClient({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </PageShell>
   );
 }

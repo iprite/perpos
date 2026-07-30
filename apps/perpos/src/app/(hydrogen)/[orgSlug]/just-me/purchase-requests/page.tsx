@@ -84,32 +84,25 @@ export default async function JustMePurchaseRequestsPage({
   }));
 
   return (
-    <PageShell
-      title="ใบขอซื้อ (PR)"
-      description="ขอซื้อของเข้าโครงการ เทียบราคาผู้ขาย แล้วรับของเข้าคลัง"
-      icon={<ShoppingCart className="h-6 w-6" />}
-      width="full"
-    >
-      <PurchaseRequestsClient
-        orgId={ctx.orgId}
-        orgSlug={orgSlug}
-        canWrite={ctx.canWrite}
-        rows={rows}
-        total={prPage.total}
-        page={page}
-        pageSize={PAGE_SIZE}
-        projectId={projectId}
-        status={status}
-        q={q}
-        projectOptions={projects.rows.map((p) => ({
-          value: p.id,
-          label: `${p.project_code} · ${p.name}`,
-        }))}
-        warehouseOptions={((warehouses.data ?? []) as { id: string; name: string }[]).map((w) => ({
-          value: w.id,
-          label: w.name,
-        }))}
-      />
-    </PageShell>
+    <PurchaseRequestsClient
+      orgId={ctx.orgId}
+      orgSlug={orgSlug}
+      canWrite={ctx.canWrite}
+      rows={rows}
+      total={prPage.total}
+      page={page}
+      pageSize={PAGE_SIZE}
+      projectId={projectId}
+      status={status}
+      q={q}
+      projectOptions={projects.rows.map((p) => ({
+        value: p.id,
+        label: `${p.project_code} · ${p.name}`,
+      }))}
+      warehouseOptions={((warehouses.data ?? []) as { id: string; name: string }[]).map((w) => ({
+        value: w.id,
+        label: w.name,
+      }))}
+    />
   );
 }

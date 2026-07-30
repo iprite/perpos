@@ -1,10 +1,13 @@
+"use client";
+
 /**
- * _report-table.tsx — ตารางเทียบงบข้ามโครงการ (server component, display ล้วน)
+ * _report-table.tsx — ตารางเทียบงบข้ามโครงการ (display ล้วน — รับค่าที่ server คิดมาแล้ว)
+ * เป็น client component เพราะทั้งแถวต้องคลิกเข้าหน้าโครงการได้ (DESIGN §5 ข้อ 3)
  * ⛔ ไม่คำนวณเงินเอง — ทุกช่องรับค่าที่ `project-metrics.ts` คิดมาแล้ว
  * กติกา: null = "—" · ค่าประมาณการติด ≈ · แถวที่เกินงบไฮไลต์แดง (เรียงมาก่อนแล้วจากหน้า)
  */
 
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { StatusBadge } from "@/components/ui/badge";
 import {
   Table,
@@ -51,6 +54,7 @@ export function ReportTable({
   orgSlug: string;
   query: Record<string, string>;
 }) {
+  const router = useRouter();
   return (
     <div className="space-y-3">
       <div className="px-1 text-sm font-semibold text-gray-900">
@@ -79,14 +83,14 @@ export function ReportTable({
             </TableEmpty>
           ) : (
             rows.map((r) => (
-              <TableRow key={r.id} className={r.over_budget ? "bg-red-50" : undefined}>
+              <TableRow
+                key={r.id}
+                clickable
+                onClick={() => router.push(`/${orgSlug}/just-me/projects/${r.id}`)}
+                className={r.over_budget ? "bg-red-50" : undefined}
+              >
                 <TableCell>
-                  <Link
-                    href={`/${orgSlug}/just-me/projects/${r.id}`}
-                    className="font-mono text-xs text-primary hover:underline"
-                  >
-                    {r.project_code}
-                  </Link>
+                  <span className="font-mono text-xs text-primary">{r.project_code}</span>
                 </TableCell>
                 <TableCell wrap>{r.name}</TableCell>
                 <TableCell align="center">

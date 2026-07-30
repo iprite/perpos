@@ -321,6 +321,57 @@ export function billingRetentionAmount(amount: number | null, retentionPct: numb
   return round2((amount * retentionPct) / 100);
 }
 
+// ─── VAT ของเอกสารที่จะออก (ใบเสนอราคา/ใบแจ้งหนี้) ─────────────────────────
+/** อัตรา VAT มาตรฐานของไทย — ใช้เมื่อฝั่งบัญชีไม่ได้ระบุอัตราอื่นมา */
+export const DEFAULT_VAT_RATE_PCT = 7;
+
+export interface DocumentVatBreakdown {
+  /** ฐานก่อน VAT */
+  base: number;
+  /** ภาษีมูลค่าเพิ่ม — 0 เมื่อกิจการไม่ได้จด VAT */
+  vat: number;
+  /** ยอดรวมที่ลูกค้าต้องจ่าย */
+  total: number;
+  /** อัตราที่ใช้จริง (0 = ไม่จด VAT) */
+  vat_rate_pct: number;
+}
+
+/**
+ * แตกยอดเอกสารเป็น ก่อน VAT / VAT / รวม — **ที่เดียวของทั้งโมดูล**
+ * (หน้าเว็บห้ามคูณ 1.07 เอง · ยอดจริงบนเอกสารออกโดย module accounting)
+ *  - ยังไม่มียอด (`null`) → คืน `null` ไม่ใช่ 0
+ *  - กิจการไม่จด VAT → `vat = 0` และ `total = base` (เอกสารไม่มี VAT)
+ */
+export function documentVatBreakdown(
+  base: number | null | undefined,
+  vatRegistered: boolean,
+  vatRatePct: number = DEFAULT_VAT_RATE_PCT,
+): DocumentVatBreakdown | null {
+  if (!isNum(base)) return null;
+  const b = round2(base);
+  if (!vatRegistered) return { base: b, vat: 0, total: b, vat_rate_pct: 0 };
+  const rate = isNum(vatRatePct) && vatRatePct > 0 ? vatRatePct : DEFAULT_VAT_RATE_PCT;
+  const vat = round2((b * rate) / 100);
+  return { base: b, vat, total: round2(b + vat), vat_rate_pct: rate };
+}
+
+/**
+ * ฐานก่อน VAT ของ "หนึ่งงวดงาน" ตามวิธีจัดการเงินประกันผลงาน
+ *  - `note` = ไม่หักออกจากเอกสาร (ฐาน = ยอดงวดเต็ม)
+ *  - `discount` = หักออกจากยอดในเอกสาร (ฐานลดลงตามที่หัก)
+ * ต้องตรงกับ `buildInvoicePayload()` ใน `accounting-bridge.ts` เสมอ
+ */
+export function billingInvoiceBase(
+  amount: number | null | undefined,
+  retentionAmount: number | null | undefined,
+  retentionMode: "note" | "discount",
+): number | null {
+  if (!isNum(amount)) return null;
+  if (retentionMode !== "discount") return round2(amount);
+  const retention = isNum(retentionAmount) ? Math.max(0, retentionAmount) : 0;
+  return round2(Math.max(0, amount - retention));
+}
+
 /** แปลง % ของสัญญา → จำนวนเงินงวด (null ถ้ายังไม่มีมูลค่าสัญญา) */
 export function billingAmountFromPercent(
   contractAmount: number | null,

@@ -8,7 +8,7 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { FolderPlus, Plus } from "lucide-react";
+import { FolderKanban, FolderPlus, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/badge";
 import { CustomSelect } from "@/components/ui/custom-select";
@@ -23,6 +23,7 @@ import {
 import { FilterBar, FilterClear, FilterSearch } from "@/components/ui/filter-bar";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PageShell } from "@/components/ui/page-shell";
 import {
   Table,
   TableBody,
@@ -90,6 +91,7 @@ export function ProjectsClient({
   pageSize,
   status,
   q,
+  kpi,
 }: {
   orgId: string;
   orgSlug: string;
@@ -101,6 +103,8 @@ export function ProjectsClient({
   pageSize: number;
   status: ProjectStatus | "";
   q: string;
+  /** การ์ดสรุปที่ server คิดมาแล้ว (วางเหนือแถบตัวกรอง) */
+  kpi: React.ReactNode;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -160,7 +164,20 @@ export function ProjectsClient({
   }
 
   return (
-    <div className="space-y-3">
+    <PageShell
+      title="โครงการ"
+      description="ทะเบียนงานรับเหมา ตั้งแต่สำรวจหน้างานจนปิดโครงการ"
+      icon={<FolderKanban className="h-6 w-6" />}
+      width="full"
+      actions={
+        canWrite ? (
+          <Button onClick={() => setOpen(true)}>
+            <Plus className="h-4 w-4" /> เพิ่มโครงการ
+          </Button>
+        ) : undefined
+      }
+    >
+      {kpi}
       <FilterBar>
         <FilterSearch
           value={term}
@@ -175,121 +192,118 @@ export function ProjectsClient({
           className="w-44"
         />
         <FilterClear onClick={reset} disabled={!hasFilter && !term} />
-        {canWrite && (
-          <Button onClick={() => setOpen(true)}>
-            <Plus className="h-4 w-4" /> เพิ่มโครงการ
-          </Button>
-        )}
       </FilterBar>
 
-      <Table stickyHeader fillViewport>
-        <TableHeader sticky>
-          <TableRow>
-            <TableHead>รหัส</TableHead>
-            <TableHead>ชื่อโครงการ</TableHead>
-            <TableHead>ลูกค้า</TableHead>
-            <TableHead align="center">สถานะ</TableHead>
-            <TableHead align="right">มูลค่าสัญญา</TableHead>
-            {canSeeCost && (
-              <>
-                <TableHead align="right">ต้นทุนจริง</TableHead>
-                <TableHead align="right">%คืบหน้า</TableHead>
-                <TableHead align="right">กำไรคาดการณ์ ≈</TableHead>
-              </>
-            )}
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {rows.length === 0 ? (
-            <TableEmpty colSpan={colSpan}>
-              <div className="flex flex-col items-center gap-2 py-6">
-                <div className="rounded-full bg-gray-100 p-4">
-                  <FolderPlus className="h-8 w-8 text-gray-400" />
-                </div>
-                <Text className="text-sm font-medium text-gray-900">
-                  {hasFilter ? "ไม่พบโครงการตามเงื่อนไขที่กรอง" : "ยังไม่มีโครงการ"}
-                </Text>
-                <Text className="text-sm text-gray-500">
-                  {hasFilter
-                    ? "ลองล้างตัวกรองหรือเปลี่ยนคำค้น"
-                    : "เริ่มจากสร้างโครงการที่ไปสำรวจหน้างานมา แล้วค่อยถอด BOQ"}
-                </Text>
-                {hasFilter ? (
-                  <Button size="sm" variant="outline" onClick={reset}>
-                    ล้างตัวกรอง
-                  </Button>
-                ) : (
-                  canWrite && (
-                    <Button size="sm" onClick={() => setOpen(true)}>
-                      <Plus className="h-4 w-4" /> เพิ่มโครงการแรก
+      <div className="space-y-3">
+        <Table stickyHeader fillViewport>
+          <TableHeader sticky>
+            <TableRow>
+              <TableHead>รหัส</TableHead>
+              <TableHead>ชื่อโครงการ</TableHead>
+              <TableHead>ลูกค้า</TableHead>
+              <TableHead align="center">สถานะ</TableHead>
+              <TableHead align="right">มูลค่าสัญญา</TableHead>
+              {canSeeCost && (
+                <>
+                  <TableHead align="right">ต้นทุนจริง</TableHead>
+                  <TableHead align="right">%คืบหน้า</TableHead>
+                  <TableHead align="right">กำไรคาดการณ์ ≈</TableHead>
+                </>
+              )}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {rows.length === 0 ? (
+              <TableEmpty colSpan={colSpan}>
+                <div className="flex flex-col items-center gap-2 py-6">
+                  <div className="rounded-full bg-gray-100 p-4">
+                    <FolderPlus className="h-8 w-8 text-gray-400" />
+                  </div>
+                  <Text className="text-sm font-medium text-gray-900">
+                    {hasFilter ? "ไม่พบโครงการตามเงื่อนไขที่กรอง" : "ยังไม่มีโครงการ"}
+                  </Text>
+                  <Text className="text-sm text-gray-500">
+                    {hasFilter
+                      ? "ลองล้างตัวกรองหรือเปลี่ยนคำค้น"
+                      : "เริ่มจากสร้างโครงการที่ไปสำรวจหน้างานมา แล้วค่อยถอด BOQ"}
+                  </Text>
+                  {hasFilter ? (
+                    <Button size="sm" variant="outline" onClick={reset}>
+                      ล้างตัวกรอง
                     </Button>
-                  )
-                )}
-              </div>
-            </TableEmpty>
-          ) : (
-            rows.map((row) => (
-              <TableRow
-                key={row.id}
-                clickable
-                onClick={() => router.push(`/${orgSlug}/just-me/projects/${row.id}`)}
-              >
-                <TableCell className="font-mono text-xs text-gray-500">
-                  {row.project_code}
-                </TableCell>
-                <TableCell className="font-medium text-gray-900">{row.name}</TableCell>
-                <TableCell>{row.customer_name || "—"}</TableCell>
-                <TableCell align="center">
-                  <StatusBadge tone={PROJECT_STATUS_TONE[row.status]}>
-                    {PROJECT_STATUS_LABEL[row.status]}
-                  </StatusBadge>
-                </TableCell>
-                <TableCell align="right" tabular>
-                  {money(row.contract_amount)}
-                </TableCell>
-                {canSeeCost && (
-                  <>
-                    <TableCell
-                      align="right"
-                      tabular
-                      className={row.over_budget ? "text-red-600" : undefined}
-                    >
-                      {money(row.actual_cost)}
-                    </TableCell>
-                    <TableCell align="right" className="tabular-nums">
-                      {row.progress_pct === null ? (
-                        <span className="text-xs text-gray-400">ยังไม่บันทึก</span>
-                      ) : (
-                        percent(row.progress_pct)
-                      )}
-                    </TableCell>
-                    <TableCell
-                      align="right"
-                      tabular
-                      className={
-                        row.forecast_profit !== null && row.forecast_profit < 0
-                          ? "text-red-600"
-                          : undefined
-                      }
-                    >
-                      {money(row.forecast_profit)}
-                    </TableCell>
-                  </>
-                )}
-              </TableRow>
-            ))
-          )}
-        </TableBody>
-      </Table>
+                  ) : (
+                    canWrite && (
+                      <Button size="sm" onClick={() => setOpen(true)}>
+                        <Plus className="h-4 w-4" /> เพิ่มโครงการแรก
+                      </Button>
+                    )
+                  )}
+                </div>
+              </TableEmpty>
+            ) : (
+              rows.map((row) => (
+                <TableRow
+                  key={row.id}
+                  clickable
+                  onClick={() => router.push(`/${orgSlug}/just-me/projects/${row.id}`)}
+                >
+                  <TableCell className="font-mono text-xs text-gray-500">
+                    {row.project_code}
+                  </TableCell>
+                  <TableCell className="font-medium text-gray-900">{row.name}</TableCell>
+                  <TableCell>{row.customer_name || "—"}</TableCell>
+                  <TableCell align="center">
+                    <StatusBadge tone={PROJECT_STATUS_TONE[row.status]}>
+                      {PROJECT_STATUS_LABEL[row.status]}
+                    </StatusBadge>
+                  </TableCell>
+                  <TableCell align="right" tabular>
+                    {money(row.contract_amount)}
+                  </TableCell>
+                  {canSeeCost && (
+                    <>
+                      <TableCell
+                        align="right"
+                        tabular
+                        className={row.over_budget ? "text-red-600" : undefined}
+                      >
+                        {money(row.actual_cost)}
+                      </TableCell>
+                      <TableCell align="right" className="tabular-nums">
+                        {row.progress_pct === null ? (
+                          <span className="text-xs text-gray-400">ยังไม่บันทึก</span>
+                        ) : (
+                          percent(row.progress_pct)
+                        )}
+                      </TableCell>
+                      <TableCell
+                        align="right"
+                        tabular
+                        className={
+                          row.forecast_profit !== null && row.forecast_profit < 0
+                            ? "text-red-600"
+                            : undefined
+                        }
+                      >
+                        {money(row.forecast_profit)}
+                      </TableCell>
+                    </>
+                  )}
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
 
-      <LinkTablePager
-        page={page}
-        pageSize={pageSize}
-        total={total}
-        query={pagerQuery}
-        unit="โครงการ"
-        className={pending ? "opacity-60" : undefined}
-      />
+        <LinkTablePager
+          page={page}
+          pageSize={pageSize}
+          total={total}
+          query={pagerQuery}
+          unit="โครงการ"
+          className={pending ? "opacity-60" : undefined}
+        />
+      </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent size="lg">
@@ -363,6 +377,6 @@ export function ProjectsClient({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </PageShell>
   );
 }

@@ -2,11 +2,13 @@ import { describe, it, expect } from "vitest";
 import {
   actualCost,
   billingAmountFromPercent,
+  billingInvoiceBase,
   billingPlanTotals,
   boqLineTotals,
   boqTotals,
   committedCost,
   costDrift,
+  documentVatBreakdown,
   effectiveMaterialCost,
   progressPct,
   resolveMargin,
@@ -379,6 +381,53 @@ describe("งวดงาน", () => {
     expect(billingAmountFromPercent(1000000, 30)).toBe(300000);
     expect(billingAmountFromPercent(null, 30)).toBeNull();
     expect(billingAmountFromPercent(1000000, null)).toBeNull();
+  });
+});
+
+describe("VAT ของเอกสารที่จะออก", () => {
+  it("กิจการจด VAT → แตกฐาน/VAT/รวม ที่ 7%", () => {
+    expect(documentVatBreakdown(100000, true)).toEqual({
+      base: 100000,
+      vat: 7000,
+      total: 107000,
+      vat_rate_pct: 7,
+    });
+  });
+
+  it("กิจการไม่จด VAT → ไม่มี VAT และยอดรวมเท่าฐาน", () => {
+    expect(documentVatBreakdown(100000, false)).toEqual({
+      base: 100000,
+      vat: 0,
+      total: 100000,
+      vat_rate_pct: 0,
+    });
+  });
+
+  it("ยังไม่มียอด → null ไม่ใช่ 0", () => {
+    expect(documentVatBreakdown(null, true)).toBeNull();
+    expect(documentVatBreakdown(undefined, false)).toBeNull();
+  });
+
+  it("ปัดสองตำแหน่งไม่ให้เพี้ยนจากจุดลอย", () => {
+    expect(documentVatBreakdown(1234.56, true)).toEqual({
+      base: 1234.56,
+      vat: 86.42,
+      total: 1320.98,
+      vat_rate_pct: 7,
+    });
+  });
+
+  it("อัตราที่ส่งมาไม่สมเหตุผล → กลับไปใช้ 7%", () => {
+    expect(documentVatBreakdown(100, true, 0)?.vat).toBe(7);
+    expect(documentVatBreakdown(100, true, Number.NaN)?.vat).toBe(7);
+    expect(documentVatBreakdown(100, true, 10)?.vat).toBe(10);
+  });
+
+  it("ฐานของงวด: ไม่หักเงินประกัน = ยอดเต็ม · หัก = ลดลงตามที่หัก", () => {
+    expect(billingInvoiceBase(300000, 15000, "note")).toBe(300000);
+    expect(billingInvoiceBase(300000, 15000, "discount")).toBe(285000);
+    expect(billingInvoiceBase(300000, null, "discount")).toBe(300000);
+    expect(billingInvoiceBase(null, 15000, "note")).toBeNull();
   });
 });
 

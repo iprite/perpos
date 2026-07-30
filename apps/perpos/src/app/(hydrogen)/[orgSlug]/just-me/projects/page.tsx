@@ -8,7 +8,6 @@
  */
 
 import { FolderKanban, Landmark, ReceiptText, TrendingDown } from "lucide-react";
-import { PageShell } from "@/components/ui/page-shell";
 import { StatCard } from "@/components/ui/stat-card";
 import { listProjects, loadProjectSummaries } from "@/lib/just-me/projects";
 import {
@@ -93,13 +92,9 @@ export default async function JustMeProjectsPage({
     };
   });
 
-  return (
-    <PageShell
-      title="โครงการ"
-      description="ทะเบียนงานรับเหมา ตั้งแต่สำรวจหน้างานจนปิดโครงการ"
-      icon={<FolderKanban className="h-6 w-6" />}
-      width="full"
-    >
+  // การ์ดสรุป + คำเตือนแถวถูกตัด — คิดที่ server แล้วส่งเป็น node ให้ client วางเหนือตัวกรอง
+  const kpi = (
+    <>
       <div
         className={`grid grid-cols-1 gap-3 ${ctx.canSeeCost ? "sm:grid-cols-2 xl:grid-cols-4" : "sm:grid-cols-2"}`}
       >
@@ -143,19 +138,22 @@ export default async function JustMeProjectsPage({
           {all.total.toLocaleString("th-TH")} โครงการ — ตัวเลขยังไม่ครบทั้งหมด
         </p>
       )}
+    </>
+  );
 
-      <ProjectsClient
-        orgId={ctx.orgId}
-        orgSlug={orgSlug}
-        canWrite={ctx.canWrite}
-        canSeeCost={ctx.canSeeCost}
-        rows={rows}
-        total={pageData.total}
-        page={page}
-        pageSize={PAGE_SIZE}
-        status={status}
-        q={q}
-      />
-    </PageShell>
+  return (
+    <ProjectsClient
+      orgId={ctx.orgId}
+      orgSlug={orgSlug}
+      canWrite={ctx.canWrite}
+      canSeeCost={ctx.canSeeCost}
+      rows={rows}
+      total={pageData.total}
+      page={page}
+      pageSize={PAGE_SIZE}
+      status={status}
+      q={q}
+      kpi={kpi}
+    />
   );
 }

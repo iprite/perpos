@@ -7,8 +7,6 @@
  * ซึ่ง viewer ไม่มีสิทธิ์เห็น → ไม่ดึงให้เลย (ไม่ใช่แสดง 0 ที่ทำให้เข้าใจผิด)
  */
 
-import { Truck } from "lucide-react";
-import { PageShell } from "@/components/ui/page-shell";
 import { countVendorWins, listVendors } from "@/lib/just-me/purchasing";
 import { requireJustMePage } from "../_components/guard";
 import { VendorsClient, type VendorRow } from "./_vendors-client";
@@ -50,20 +48,13 @@ export default async function JustMeVendorsPage({
   }));
 
   return (
-    <PageShell
-      title="ผู้ขาย"
-      description="ทะเบียนซัพพลายเออร์ที่ใช้เทียบราคาและสั่งซื้อ"
-      icon={<Truck className="h-6 w-6" />}
-      width="full"
-    >
-      <VendorsClient
-        orgId={ctx.orgId}
-        canWrite={ctx.canWrite}
-        canSeeCost={ctx.canSeeCost}
-        rows={rows}
-        q={q}
-        includeInactive={includeInactive}
-      />
-    </PageShell>
+    <VendorsClient
+      orgId={ctx.orgId}
+      canWrite={ctx.canWrite}
+      canSeeCost={ctx.canSeeCost}
+      rows={rows}
+      q={q}
+      includeInactive={includeInactive}
+    />
   );
 }

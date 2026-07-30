@@ -11,6 +11,14 @@ import { useRouter } from "next/navigation";
 import { CheckCircle2, PackageCheck, Pencil, Send, ShoppingCart, XCircle } from "lucide-react";
 import { StatusBadge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogBody,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { PageCard, PageShell } from "@/components/ui/page-shell";
 import { StatCard } from "@/components/ui/stat-card";
 import {
@@ -50,6 +58,7 @@ export function PrDetailClient({
   const [busy, setBusy] = useState<string | null>(null);
   const [linesOpen, setLinesOpen] = useState(false);
   const [receiveOpen, setReceiveOpen] = useState(false);
+  const [cancelOpen, setCancelOpen] = useState(false);
 
   const editable = pr.status === "draft" || pr.status === "submitted";
   const canApprove = pr.status === "submitted" && (!initial.approvalRequired || isOwner);
@@ -110,11 +119,7 @@ export function PrDetailClient({
             </Button>
           )}
           {canWrite && pr.status !== "received" && pr.status !== "cancelled" && (
-            <Button
-              variant="destructive"
-              disabled={busy !== null}
-              onClick={() => act("cancel", "ยกเลิกใบขอซื้อแล้ว")}
-            >
+            <Button variant="outline" disabled={busy !== null} onClick={() => setCancelOpen(true)}>
               <XCircle className="h-4 w-4" /> ยกเลิกใบ
             </Button>
           )}
@@ -279,6 +284,42 @@ export function PrDetailClient({
         onSaved={() => router.refresh()}
       />
 
+      {/* ยืนยันก่อนยกเลิกใบ (DESIGN §12) — ย้อนกลับไม่ได้ ต้องออกใบใหม่ */}
+      <Dialog open={cancelOpen} onOpenChange={setCancelOpen}>
+        <DialogContent size="sm">
+          <DialogHeader>
+            <DialogTitle>ยกเลิกใบขอซื้อ {pr.pr_code}?</DialogTitle>
+          </DialogHeader>
+          <DialogBody>
+            <div className="space-y-2">
+              <Text className="text-sm text-gray-700">
+                ใบที่ยกเลิกแล้ว <span className="font-medium text-gray-900">แก้ไขต่อไม่ได้</span>{" "}
+                และ <span className="font-medium text-gray-900">เปิดกลับมาใช้ใหม่ไม่ได้</span> —
+                ถ้ายังต้องซื้อของชุดนี้ ต้องสร้างใบขอซื้อใบใหม่แล้วหยิบรายการจาก BOQ อีกครั้ง
+              </Text>
+              <Text className="text-sm text-gray-700">
+                ของที่รับเข้าคลังไปแล้ว (ถ้ามี) ยังอยู่ในคลังตามเดิม ไม่ถูกดึงกลับ
+              </Text>
+            </div>
+          </DialogBody>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCancelOpen(false)} disabled={busy !== null}>
+              ไม่ยกเลิก
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={busy !== null}
+              onClick={async () => {
+                await act("cancel", "ยกเลิกใบขอซื้อแล้ว");
+                setCancelOpen(false);
+              }}
+            >
+              {busy === "cancel" ? "กำลังยกเลิก…" : "ยืนยันยกเลิกใบนี้"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <ReceiveDialog
         open={receiveOpen}
         onOpenChange={setReceiveOpen}
@@ -287,6 +328,14 @@ export function PrDetailClient({
         items={items}
         warehouseOptions={initial.warehouseOptions}
         defaultWarehouseId={pr.warehouse_id}
+        onEditLines={
+          canWrite && editable
+            ? () => {
+                setReceiveOpen(false);
+                setLinesOpen(true);
+              }
+            : null
+        }
         onDone={() => router.refresh()}
       />
     </PageShell>
