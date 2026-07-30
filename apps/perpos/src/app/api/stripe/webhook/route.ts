@@ -619,8 +619,13 @@ async function handleTokenPaymentSucceeded(
     p_event_id: eventId,
   });
 
+  // เก็บบัตรเฉพาะที่ "ตั้งใจให้ใช้ซ้ำได้" — ลูกค้าติ๊ก save_card, PI ที่ตั้ง setup_future_usage
+  // หรือ auto-charge (บัตรใช้ซ้ำได้อยู่แล้ว) · ถ้าเก็บบัตรจากการซื้อครั้งเดียว (save_card=0)
+  // หน้า billing จะโชว์ "มีบัตรบันทึกไว้" แต่เปิด auto top-up แล้วชาร์จ off-session ไม่ผ่าน
   const pmId = asString(pi.payment_method);
-  if (pmId) await captureTokenCard(admin, stripe, profileId, pmId);
+  const reusable =
+    asString(md.save_card) === "1" || asString(md.auto) === "1" || !!pi.setup_future_usage;
+  if (pmId && reusable) await captureTokenCard(admin, stripe, profileId, pmId);
 
   // auto-charge สำเร็จ → ปลดล็อก runtime + บันทึกเวลา
   if (asString(md.auto) === "1") {
