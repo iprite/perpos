@@ -67,6 +67,59 @@ async function createDepositFinanceEntry(opts: {
   });
 }
 
+// ── Room input helper ─────────────────────────────────────────────────────────
+
+type RoomInput = { code: string; checkIn: string; checkOut: string; roomRate: number | null };
+
+/**
+ * อ่านรายละเอียดรายห้องจาก body — 1 booking ระบุวันที่/ยอดแยกต่อห้องได้
+ * รองรับทั้ง `rooms[]` (ท่าใหม่) และท่าเดิม (propertyCodes + วันที่ชุดเดียว)
+ */
+function parseRooms(body: Record<string, unknown>): { rooms: RoomInput[] } | { error: string } {
+  const legacyCodes: string[] = (
+    Array.isArray(body.propertyCodes)
+      ? body.propertyCodes.map(String)
+      : body.propertyCode
+        ? [String(body.propertyCode)]
+        : []
+  ).filter(Boolean);
+
+  const raw = Array.isArray(body.rooms) ? (body.rooms as Record<string, unknown>[]) : null;
+  const rooms: RoomInput[] =
+    raw && raw.length > 0
+      ? raw.map((r) => ({
+          code: String(r.code ?? "").trim(),
+          checkIn: String(r.checkIn ?? body.checkIn ?? ""),
+          checkOut: String(r.checkOut ?? body.checkOut ?? ""),
+          roomRate:
+            r.roomRate !== undefined && r.roomRate !== null && String(r.roomRate) !== ""
+              ? Number(r.roomRate)
+              : null,
+        }))
+      : legacyCodes.map((code) => ({
+          code,
+          checkIn: String(body.checkIn ?? ""),
+          checkOut: String(body.checkOut ?? ""),
+          roomRate: null,
+        }));
+
+  if (rooms.length === 0) return { error: "ต้องระบุห้อง/แปลงที่เข้าพักอย่างน้อย 1 ห้อง" };
+  const codes = rooms.map((r) => r.code);
+  if (codes.some((c) => !c)) return { error: "ต้องระบุห้อง/แปลงของทุกรายการ" };
+  if (new Set(codes).size !== codes.length) {
+    return { error: "ห้องซ้ำกันใน booking เดียว — แต่ละห้องระบุได้ครั้งเดียว" };
+  }
+  for (const r of rooms) {
+    if (!r.checkIn || !r.checkOut) {
+      return { error: `ต้องระบุวันเช็คอินและวันเช็คเอาท์ของห้อง ${r.code}` };
+    }
+    if (r.checkOut <= r.checkIn) {
+      return { error: `ห้อง ${r.code}: วันเช็คเอาท์ต้องอยู่หลังวันเช็คอิน (อย่างน้อย 1 คืน)` };
+    }
+  }
+  return { rooms };
+}
+
 // ── GET ───────────────────────────────────────────────────────────────────────
 
 export async function GET(req: NextRequest) {
@@ -122,40 +175,20 @@ export async function POST(req: NextRequest) {
   if (!auth.ok) return auth.res;
 
   const admin = createAdminClient();
-  // Support either body.propertyCodes (array) or body.propertyCode (single string)
-  const propertyCodes: string[] = (
-    Array.isArray(body.propertyCodes)
-      ? body.propertyCodes.map(String)
-      : body.propertyCode
-        ? [String(body.propertyCode)]
-        : []
-  ).filter(Boolean);
-
-  // 1 booking ต้องระบุห้อง + ช่วงวันที่เข้าพักเสมอ — ฐานของ "คืนต่อห้อง / revenue ต่อห้อง"
-  if (propertyCodes.length === 0) {
-    return NextResponse.json(
-      { error: "ต้องระบุห้อง/แปลงที่เข้าพักอย่างน้อย 1 ห้อง" },
-      { status: 400 },
-    );
-  }
-  const checkInStr = String(body.checkIn ?? "");
-  const checkOutStr = String(body.checkOut ?? "");
-  if (!checkInStr || !checkOutStr) {
-    return NextResponse.json({ error: "ต้องระบุวันเช็คอินและวันเช็คเอาท์" }, { status: 400 });
-  }
-  if (checkOutStr <= checkInStr) {
-    return NextResponse.json(
-      { error: "วันเช็คเอาท์ต้องอยู่หลังวันเช็คอิน (อย่างน้อย 1 คืน)" },
-      { status: 400 },
-    );
-  }
+  // 1 booking ต้องระบุห้อง + ช่วงวันที่ต่อห้องเสมอ — ฐานของ "คืนต่อห้อง / revenue ต่อห้อง"
+  const parsed = parseRooms(body);
+  if ("error" in parsed) return NextResponse.json({ error: parsed.error }, { status: 400 });
+  const rooms = parsed.rooms;
 
   // Resolve property codes to IDs
   const { data: props } = await admin
     .from("tmc_properties")
     .select("id, code")
     .eq("org_id", orgId)
-    .in("code", propertyCodes);
+    .in(
+      "code",
+      rooms.map((r) => r.code),
+    );
 
   const propMap = new Map<string, string>();
   props?.forEach((p) => propMap.set(p.code, p.id));
@@ -220,16 +253,17 @@ export async function POST(req: NextRequest) {
   const depositAccountId = String(body.depositAccountId || DEFAULT_ACCOUNT_ID);
   const depositReceivedDate = body.depositReceivedDate ? String(body.depositReceivedDate) : null;
   const depositReturnedDate = body.depositReturnedDate ? String(body.depositReturnedDate) : null;
-  const checkIn = checkInStr;
-  const checkOut = checkOutStr;
+  // วันอ้างอิงของ booking (ใช้เป็น fallback วันที่ลงบัญชีมัดจำ) = ห้องแรก
+  const checkIn = rooms[0].checkIn;
+  const checkOut = rooms[0].checkOut;
 
-  const count = propertyCodes.length;
-  const codesToInsert = propertyCodes;
+  const count = rooms.length;
 
   const roomRate = body.roomRate ? Number(body.roomRate) : null;
   const promotionPct = body.promotionPct ? Number(body.promotionPct) : null;
   const depositAmount = body.depositAmount ? Number(body.depositAmount) : null;
 
+  // ยอดห้อง: ถ้าส่งรายห้องมาใช้ตามนั้น · ไม่งั้น fallback หารยอดรวมเท่ากัน (ท่าเดิม)
   const dividedRate = roomRate !== null ? Number((roomRate / count).toFixed(2)) : null;
   const dividedDeposit = depositAmount !== null ? Number((depositAmount / count).toFixed(2)) : null;
   const dividedReceived =
@@ -238,21 +272,22 @@ export async function POST(req: NextRequest) {
     depositReturned !== null ? Number((depositReturned / count).toFixed(2)) : null;
 
   const bookingGroupId = crypto.randomUUID();
-  const rows = codesToInsert.map((code, idx) => {
+  const rows = rooms.map((room, idx) => {
     const isFirst = idx === 0;
+    const code = room.code;
     return {
       org_id: orgId,
       booking_group_id: bookingGroupId,
       guest_id: guestId,
-      property_id: code ? (propMap.get(code) ?? null) : null,
-      property_code: code || null,
-      check_in: checkIn,
-      check_out: checkOut,
+      property_id: propMap.get(code) ?? null,
+      property_code: code,
+      check_in: room.checkIn,
+      check_out: room.checkOut,
       check_in_time: body.checkInTime ?? null,
       check_out_time: body.checkOutTime ?? null,
       booking_channel: body.bookingChannel ?? null,
       stay_type: body.stayType ?? "paid",
-      room_rate: dividedRate,
+      room_rate: room.roomRate ?? dividedRate,
       promotion_pct: promotionPct,
       deposit_amount: dividedDeposit,
       deposit_received: dividedReceived,
@@ -383,31 +418,16 @@ export async function PUT(req: NextRequest) {
   }
   const first = existingRows[0];
 
-  // Validate — 1 booking ต้องระบุห้อง + ช่วงวันที่เสมอ
-  const propertyCodes: string[] = (
-    Array.isArray(body.propertyCodes)
-      ? body.propertyCodes.map(String)
-      : body.propertyCode
-        ? [String(body.propertyCode)]
-        : []
-  ).filter(Boolean);
-  if (propertyCodes.length === 0) {
-    return NextResponse.json(
-      { error: "ต้องระบุห้อง/แปลงที่เข้าพักอย่างน้อย 1 ห้อง" },
-      { status: 400 },
-    );
-  }
-  const checkIn = String(body.checkIn ?? first.check_in ?? "");
-  const checkOut = String(body.checkOut ?? first.check_out ?? "");
-  if (!checkIn || !checkOut) {
-    return NextResponse.json({ error: "ต้องระบุวันเช็คอินและวันเช็คเอาท์" }, { status: 400 });
-  }
-  if (checkOut <= checkIn) {
-    return NextResponse.json(
-      { error: "วันเช็คเอาท์ต้องอยู่หลังวันเช็คอิน (อย่างน้อย 1 คืน)" },
-      { status: 400 },
-    );
-  }
+  // Validate — 1 booking ระบุห้อง + วันที่ต่อห้อง (legacy caller ไม่ส่งวันที่ → ใช้ของเดิม)
+  if (body.checkIn === undefined && first.check_in) body.checkIn = first.check_in;
+  if (body.checkOut === undefined && first.check_out) body.checkOut = first.check_out;
+  const parsed = parseRooms(body);
+  if ("error" in parsed) return NextResponse.json({ error: parsed.error }, { status: 400 });
+  const rooms = parsed.rooms;
+  const propertyCodes = rooms.map((r) => r.code);
+  // วันอ้างอิงของ booking (fallback วันที่ลงบัญชีมัดจำ) = ห้องแรก
+  const checkIn = rooms[0].checkIn;
+  const checkOut = rooms[0].checkOut;
 
   // Resolve property codes → ids
   const { data: props } = await admin
@@ -439,8 +459,8 @@ export async function PUT(req: NextRequest) {
     ? ([body.nickname || body.firstName, body.lastName].filter(Boolean).join(" ").trim() as string)
     : (g?.nickname ?? [g?.first_name, g?.last_name].filter(Boolean).join(" ").trim() ?? "ลูกค้า");
 
-  // ยอดที่กรอกเป็น "ยอดรวมทั้ง booking" → หารเท่ากันต่อห้อง (ท่าเดียวกับตอนสร้าง)
-  const count = propertyCodes.length;
+  // ยอดห้อง: รายห้องถ้าส่งมา · มัดจำเป็นยอดรวม booking หารเท่ากันต่อห้อง (ท่าเดียวกับตอนสร้าง)
+  const count = rooms.length;
   const roomRate = body.roomRate ? Number(body.roomRate) : null;
   const depositAmount = body.depositAmount ? Number(body.depositAmount) : null;
   const depositReceived = body.depositReceived ? Number(body.depositReceived) : null;
@@ -451,13 +471,10 @@ export async function PUT(req: NextRequest) {
 
   const div = (v: number | null) => (v !== null ? Number((v / count).toFixed(2)) : null);
   const sharedPatch = {
-    check_in: checkIn,
-    check_out: checkOut,
     check_in_time: body.checkInTime ?? first.check_in_time,
     check_out_time: body.checkOutTime ?? first.check_out_time,
     booking_channel: body.bookingChannel ?? null,
     stay_type: body.stayType ?? "paid",
-    room_rate: div(roomRate),
     promotion_pct: body.promotionPct ? Number(body.promotionPct) : null,
     // deposit_amount แตะเฉพาะเมื่อ client ส่งมา (ฟอร์มปัจจุบันไม่มีช่องนี้ — อย่า null ทับของเดิม)
     ...(body.depositAmount !== undefined ? { deposit_amount: div(depositAmount) } : {}),
@@ -495,14 +512,21 @@ export async function PUT(req: NextRequest) {
   const prevReceived = existingRows.reduce((s, r) => s + Number(r.deposit_received ?? 0), 0);
   const prevReturned = existingRows.reduce((s, r) => s + Number(r.deposit_returned ?? 0), 0);
 
-  for (let idx = 0; idx < propertyCodes.length; idx++) {
-    const code = propertyCodes[idx];
+  for (let idx = 0; idx < rooms.length; idx++) {
+    const room = rooms[idx];
+    const code = room.code;
     const isFirst = idx === 0;
+    // ต่อห้อง: วันที่ + ยอดห้อง (รายห้องถ้าส่งมา ไม่งั้นหารเท่าจากยอดรวม)
+    const perRoomPatch = {
+      check_in: room.checkIn,
+      check_out: room.checkOut,
+      room_rate: room.roomRate ?? div(roomRate),
+    };
     const existing = remaining.get(code);
     if (existing) {
       const { data: updated, error } = await admin
         .from("tmc_stays")
-        .update({ ...sharedPatch, ...extrasFor(isFirst) })
+        .update({ ...sharedPatch, ...perRoomPatch, ...extrasFor(isFirst) })
         .eq("id", existing.id as string)
         .eq("org_id", orgId)
         .select()
@@ -530,6 +554,7 @@ export async function PUT(req: NextRequest) {
           property_code: code,
           created_by: auth.userId,
           ...sharedPatch,
+          ...perRoomPatch,
           ...extrasFor(isFirst),
         })
         .select()
