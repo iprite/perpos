@@ -15,7 +15,7 @@ const TMC_ORG_ID = "1f52618c-09c4-49c5-a929-ea5060f26e7d";
 export default async function TmcDashboardPage({
   searchParams,
 }: {
-  searchParams: Promise<{ range?: string; tab?: string }>;
+  searchParams: Promise<{ range?: string; from?: string; to?: string; tab?: string }>;
 }) {
   // Guard: ต้องเป็นสมาชิกโมดูล tmc (หรือ super_admin) — query ผ่าน RLS client (scope ตาม session)
   const role = await getModuleRoleForCurrentUser(TMC_ORG_ID, "tmc");
@@ -23,16 +23,23 @@ export default async function TmcDashboardPage({
 
   const sp = await searchParams;
   const tab = sp.tab === "costs" ? "costs" : "overview";
-  const range = ["1", "3", "6", "12"].includes(sp.range ?? "") ? (sp.range as string) : "6";
+
+  // ช่วงเวลา: กำหนดเอง (?from=&to=) ชนะ preset เดือนล่าสุด (?range=)
+  const isDate = (s?: string) => !!s && /^\d{4}-\d{2}-\d{2}$/.test(s);
+  const custom = isDate(sp.from) && isDate(sp.to) && (sp.from as string) <= (sp.to as string);
+  const range = custom
+    ? "custom"
+    : ["1", "3", "6", "12"].includes(sp.range ?? "")
+      ? (sp.range as string)
+      : "6";
+  const period = custom
+    ? { from: sp.from as string, to: sp.to as string }
+    : rangeFromMonths(Number(range));
 
   // แท็บต้นทุนดึงข้อมูลเองฝั่ง client → ไม่ต้อง aggregate ภาพรวมทิ้งเปล่า
   const data =
     tab === "overview"
-      ? await computeTmcDashboard(
-          await createSupabaseServerClient(),
-          TMC_ORG_ID,
-          rangeFromMonths(Number(range)),
-        )
+      ? await computeTmcDashboard(await createSupabaseServerClient(), TMC_ORG_ID, period)
       : null;
 
   return (
@@ -41,7 +48,15 @@ export default async function TmcDashboardPage({
       icon={<Building2 className="h-6 w-6" />}
       title="Dashboard"
       description="TMC Management — ภาพรวมธุรกิจ"
-      actions={tab === "overview" ? <TmcRangeFilter current={range} /> : undefined}
+      actions={
+        tab === "overview" ? (
+          <TmcRangeFilter
+            current={range}
+            from={custom ? sp.from : undefined}
+            to={custom ? sp.to : undefined}
+          />
+        ) : undefined
+      }
       tabs={<TmcDashboardTabs current={tab} />}
     >
       {data ? <TmcDashboardView data={data} /> : <TmcCostsView />}
