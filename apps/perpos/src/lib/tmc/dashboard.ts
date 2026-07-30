@@ -54,6 +54,31 @@ export type TmcDashData = {
 
 const PETTY_CASH_ACCOUNT = "2366c3f9-dcc5-4091-8ab0-c421b77e7fe7";
 
+const DAY_MS = 86_400_000;
+
+/**
+ * กระจายคืนของ stay ตาม "วันที่พักจริง" — คืนของวันที่ X นับเข้าเดือนของ X
+ * (เช่น 31 ธ.ค. → 2 ม.ค. = ธ.ค. 1 คืน + ม.ค. 1 คืน) · clip ให้อยู่ในช่วง [from, to]
+ */
+function nightsPerMonth(
+  checkIn: string,
+  checkOut: string | null,
+  from: string,
+  to: string,
+): Record<string, number> {
+  const startMs = Math.max(new Date(checkIn).getTime(), new Date(from).getTime());
+  const endMs = Math.min(
+    checkOut ? new Date(checkOut).getTime() : new Date(checkIn).getTime() + DAY_MS,
+    new Date(to).getTime() + DAY_MS,
+  );
+  const out: Record<string, number> = {};
+  for (let t = startMs; t < endMs; t += DAY_MS) {
+    const m = new Date(t).toISOString().slice(0, 7);
+    out[m] = (out[m] ?? 0) + 1;
+  }
+  return out;
+}
+
 export async function computeTmcDashboard(
   db: SupabaseClient,
   orgId: string,
@@ -75,14 +100,15 @@ export async function computeTmcDashboard(
       .eq("org_id", orgId)
       .gte("txn_date", from)
       .lte("txn_date", to),
+    // stays ที่ "คาบเกี่ยว" ช่วง (ไม่ใช่แค่ check_in ในช่วง) — คืนต้องนับตามวันที่พักจริง
     db
       .from("tmc_stays")
       .select(
         "check_in, check_out, room_rate, food_amount, drink_amount, mookata_amount, bbq_amount, property_code",
       )
       .eq("org_id", orgId)
-      .gte("check_in", from)
-      .lte("check_in", to),
+      .lte("check_in", to)
+      .or(`check_out.is.null,check_out.gt.${from}`),
     db
       .from("tmc_stock_items")
       .select("name, current_qty, min_quantity")
@@ -92,21 +118,13 @@ export async function computeTmcDashboard(
     db.from("tmc_stays").select("id", { count: "exact", head: true }).eq("org_id", orgId),
   ]);
 
-  // ─── Occupancy — ห้องที่เปิดขายจริงเท่านั้น + stays ที่คาบเกี่ยวช่วง (ไม่ใช่แค่ check_in ในช่วง) ───
-  const [rentableRes, occStaysRes] = await Promise.all([
-    db
-      .from("tmc_properties")
-      .select("code")
-      .eq("org_id", orgId)
-      .eq("is_active", true)
-      .eq("is_rentable", true),
-    db
-      .from("tmc_stays")
-      .select("property_code, check_in, check_out")
-      .eq("org_id", orgId)
-      .lte("check_in", to)
-      .or(`check_out.is.null,check_out.gt.${from}`),
-  ]);
+  // ─── Occupancy — ห้องที่เปิดขายจริงเท่านั้น (ใช้ stayRows ชุดเดียวกัน — คาบเกี่ยวช่วงอยู่แล้ว) ───
+  const rentableRes = await db
+    .from("tmc_properties")
+    .select("code")
+    .eq("org_id", orgId)
+    .eq("is_active", true)
+    .eq("is_rentable", true);
 
   const finRows = finRes.data ?? [];
   const pettyRows = pettyRes.data ?? [];
@@ -133,24 +151,23 @@ export async function computeTmcDashboard(
     if (t.txn_type === "expense") pettyByMonth[m].expense += Number(t.amount);
   }
   for (const s of stayRows) {
-    const m = s.check_in.slice(0, 7);
-    if (!staysByMonth[m]) staysByMonth[m] = { stays: 0, nights: 0, revenue: 0, food: 0 };
-    const nights = s.check_out
-      ? Math.max(
-          0,
-          Math.round(
-            (new Date(s.check_out).getTime() - new Date(s.check_in).getTime()) / 86_400_000,
-          ),
-        )
-      : 1;
-    staysByMonth[m].stays++;
-    staysByMonth[m].nights += nights;
-    staysByMonth[m].revenue += Number(s.room_rate ?? 0);
-    staysByMonth[m].food +=
-      Number(s.food_amount ?? 0) +
-      Number(s.drink_amount ?? 0) +
-      Number(s.mookata_amount ?? 0) +
-      Number(s.bbq_amount ?? 0);
+    // ครั้ง/รายรับ/อาหาร นับเข้าเดือนที่เช็คอิน (เฉพาะ stay ที่เช็คอินในช่วง)
+    if (s.check_in >= from && s.check_in <= to) {
+      const m = s.check_in.slice(0, 7);
+      if (!staysByMonth[m]) staysByMonth[m] = { stays: 0, nights: 0, revenue: 0, food: 0 };
+      staysByMonth[m].stays++;
+      staysByMonth[m].revenue += Number(s.room_rate ?? 0);
+      staysByMonth[m].food +=
+        Number(s.food_amount ?? 0) +
+        Number(s.drink_amount ?? 0) +
+        Number(s.mookata_amount ?? 0) +
+        Number(s.bbq_amount ?? 0);
+    }
+    // คืน กระจายตามวันที่พักจริง (stay คร่อมเดือน → แยกคืนเข้าแต่ละเดือน)
+    for (const [m, n] of Object.entries(nightsPerMonth(s.check_in, s.check_out, from, to))) {
+      if (!staysByMonth[m]) staysByMonth[m] = { stays: 0, nights: 0, revenue: 0, food: 0 };
+      staysByMonth[m].nights += n;
+    }
   }
 
   const allMonths = Array.from(
@@ -198,16 +215,14 @@ export async function computeTmcDashboard(
   for (const s of stayRows) {
     const k = s.property_code ?? "(ไม่ระบุ)";
     if (!staysByProp[k]) staysByProp[k] = { stays: 0, nights: 0, revenue: 0 };
-    staysByProp[k].stays++;
-    staysByProp[k].nights += s.check_out
-      ? Math.max(
-          0,
-          Math.round(
-            (new Date(s.check_out).getTime() - new Date(s.check_in).getTime()) / 86_400_000,
-          ),
-        )
-      : 1;
-    staysByProp[k].revenue += Number(s.room_rate ?? 0);
+    if (s.check_in >= from && s.check_in <= to) {
+      staysByProp[k].stays++;
+      staysByProp[k].revenue += Number(s.room_rate ?? 0);
+    }
+    // คืนต่อห้อง = คืนที่พักจริงในช่วง (clip)
+    staysByProp[k].nights += Object.values(
+      nightsPerMonth(s.check_in, s.check_out, from, to),
+    ).reduce((a, b) => a + b, 0);
   }
 
   const propKeys = Array.from(
@@ -243,18 +258,19 @@ export async function computeTmcDashboard(
 
   // ─── Occupancy rate — คืนที่ขายได้ (clip ให้อยู่ในช่วง) / (จำนวนห้องเปิดขาย × จำนวนคืนในช่วง) ───
   const rentableCodes = new Set((rentableRes.data ?? []).map((p) => p.code as string));
-  const rangeStartMs = new Date(from).getTime();
-  const rangeEndMs = new Date(to).getTime() + 86_400_000; // exclusive — คืนสุดท้ายคือคืนของวันที่ to
   let soldNights = 0;
-  for (const s of occStaysRes.data ?? []) {
+  for (const s of stayRows) {
     if (!rentableCodes.has(s.property_code ?? "")) continue;
-    const inMs = new Date(s.check_in).getTime();
-    const outMs = s.check_out ? new Date(s.check_out).getTime() : inMs + 86_400_000;
-    const overlap = Math.min(outMs, rangeEndMs) - Math.max(inMs, rangeStartMs);
-    soldNights += Math.max(0, Math.round(overlap / 86_400_000));
+    soldNights += Object.values(nightsPerMonth(s.check_in, s.check_out, from, to)).reduce(
+      (a, b) => a + b,
+      0,
+    );
   }
   const roomsCount = rentableCodes.size;
-  const nightsInRange = Math.max(0, Math.round((rangeEndMs - rangeStartMs) / 86_400_000));
+  const nightsInRange = Math.max(
+    0,
+    Math.round((new Date(to).getTime() + DAY_MS - new Date(from).getTime()) / DAY_MS),
+  );
   const availableNights = roomsCount * nightsInRange;
 
   // ─── Totals ───

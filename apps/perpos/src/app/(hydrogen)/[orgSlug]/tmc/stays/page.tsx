@@ -159,6 +159,8 @@ const emptyForm = {
   // stay
   propertyCode: "",
   propertyCodes: [] as string[],
+  // รายละเอียดรายห้อง (เมื่อเลือก ≥2 ห้อง) — ว่าง = ใช้วันที่หลักของ booking
+  roomDetails: [] as { code: string; checkIn: string; checkOut: string; rate: string }[],
   checkIn: "",
   checkOut: "",
   checkInTime: "15:00",
@@ -332,6 +334,14 @@ export default function TmcStaysPage() {
       tel: stay.tmc_guests?.tel ?? "",
       propertyCode: stay.property_code ?? "",
       propertyCodes: group.map((s) => s.property_code).filter((c): c is string => !!c),
+      roomDetails: group
+        .filter((s) => !!s.property_code)
+        .map((s) => ({
+          code: s.property_code as string,
+          checkIn: s.check_in,
+          checkOut: s.check_out,
+          rate: s.room_rate != null ? String(s.room_rate) : "",
+        })),
       checkIn: stay.check_in,
       checkOut: stay.check_out,
       checkInTime: stay.check_in_time ?? "15:00",
@@ -363,11 +373,28 @@ export default function TmcStaysPage() {
 
   // ── Save (add or edit) ─────────────────────────────────────────────────────
   async function handleSave() {
-    if (form.propertyCodes.length === 0 || !form.checkIn || !form.checkOut) return;
+    if (form.propertyCodes.length === 0) return;
     if (!editingStay && !form.firstName) return;
-    if (form.checkOut <= form.checkIn) {
-      setFormError("วันเช็คเอาท์ต้องอยู่หลังวันเช็คอิน (อย่างน้อย 1 คืน)");
-      return;
+    const multi = form.propertyCodes.length > 1;
+    // payload รายห้อง — ห้องที่ไม่ได้กรอกวันที่เอง = ใช้วันที่หลักของ booking
+    const rooms = form.propertyCodes.map((code) => {
+      const d = form.roomDetails.find((r) => r.code === code);
+      return {
+        code,
+        checkIn: d?.checkIn || form.checkIn,
+        checkOut: d?.checkOut || form.checkOut,
+        roomRate: multi ? d?.rate || null : form.roomRate || null,
+      };
+    });
+    for (const r of rooms) {
+      if (!r.checkIn || !r.checkOut) {
+        setFormError(`ต้องระบุวันเช็คอิน-เช็คเอาต์ของห้อง ${r.code}`);
+        return;
+      }
+      if (r.checkOut <= r.checkIn) {
+        setFormError(`ห้อง ${r.code}: วันเช็คเอาท์ต้องอยู่หลังวันเช็คอิน (อย่างน้อย 1 คืน)`);
+        return;
+      }
     }
     setSaving(true);
     setFormError("");
@@ -382,6 +409,7 @@ export default function TmcStaysPage() {
             bookingGroupId: editingStay.booking_group_id,
             orgId: TMC_ORG_ID,
             ...form,
+            rooms,
           }),
         });
         if (!res.ok) {
@@ -394,7 +422,7 @@ export default function TmcStaysPage() {
         const res = await fetch(backendUrl("/tmc/stays"), {
           method: "POST",
           headers: h,
-          body: JSON.stringify({ orgId: TMC_ORG_ID, ...form }),
+          body: JSON.stringify({ orgId: TMC_ORG_ID, ...form, rooms }),
         });
         if (!res.ok) {
           const d = (await res.json()) as { error?: string };
@@ -446,6 +474,34 @@ export default function TmcStaysPage() {
   const influStays = stays.filter((s) => s.stay_type === "influencer");
 
   const isEditMode = editingStay !== null;
+
+  // ── รายห้อง: วันที่/ยอดต่อห้อง (หลายห้องใน booking เดียวไม่จำเป็นต้องวันเดียวกัน) ──
+  const multiRoom = form.propertyCodes.length > 1;
+  const effectiveRoom = (code: string) => {
+    const d = form.roomDetails.find((r) => r.code === code);
+    return {
+      checkIn: d?.checkIn || form.checkIn,
+      checkOut: d?.checkOut || form.checkOut,
+      rate: d?.rate ?? "",
+    };
+  };
+  const roomNights = (ci: string, co: string) =>
+    ci && co && co > ci
+      ? Math.round((new Date(co).getTime() - new Date(ci).getTime()) / 86_400_000)
+      : 0;
+  const roomsValid =
+    form.propertyCodes.length > 0 &&
+    form.propertyCodes.every((code) => {
+      const r = effectiveRoom(code);
+      return !!r.checkIn && !!r.checkOut && r.checkOut > r.checkIn;
+    });
+  const totalRoomRate = multiRoom
+    ? form.propertyCodes.reduce((s, code) => s + (Number(effectiveRoom(code).rate) || 0), 0)
+    : Number(form.roomRate) || 0;
+  const totalNights = form.propertyCodes.reduce((s, code) => {
+    const r = effectiveRoom(code);
+    return s + roomNights(r.checkIn, r.checkOut);
+  }, 0);
 
   // แบ่งหน้า — ใช้ร่วมกันทั้งมุมมองการ์ดและตาราง
   const pager = usePagination(stays, {
@@ -514,7 +570,10 @@ export default function TmcStaysPage() {
                         const next = exist
                           ? f.propertyCodes.filter((c) => c !== code)
                           : [...f.propertyCodes, code];
-                        return { ...f, propertyCodes: next };
+                        const details = exist
+                          ? f.roomDetails.filter((d) => d.code !== code)
+                          : [...f.roomDetails, { code, checkIn: "", checkOut: "", rate: "" }];
+                        return { ...f, propertyCodes: next, roomDetails: details };
                       });
                     }}
                     className={`rounded-lg border px-3 py-2 text-center text-sm font-medium transition-all ${
@@ -528,6 +587,59 @@ export default function TmcStaysPage() {
                 );
               })}
             </div>
+            {multiRoom && (
+              <div className="mt-2 space-y-2 rounded-lg border border-slate-200 p-3">
+                <p className="text-xs font-medium text-slate-500">
+                  วันที่ + ยอดรายห้อง — ห้องที่ไม่กรอกใช้วันเช็คอิน-เช็คเอาต์หลักด้านล่าง
+                </p>
+                {form.propertyCodes.map((code) => {
+                  const r = effectiveRoom(code);
+                  const nights = roomNights(r.checkIn, r.checkOut);
+                  const badRange = !!r.checkIn && !!r.checkOut && r.checkOut <= r.checkIn;
+                  const setDetail = (
+                    patch: Partial<{ checkIn: string; checkOut: string; rate: string }>,
+                  ) =>
+                    setForm((f) => ({
+                      ...f,
+                      roomDetails: f.roomDetails.map((d) =>
+                        d.code === code ? { ...d, ...patch } : d,
+                      ),
+                    }));
+                  return (
+                    <div
+                      key={code}
+                      className="grid grid-cols-2 items-center gap-2 sm:grid-cols-[3.5rem_1fr_1fr_7rem_3.5rem]"
+                    >
+                      <span className="text-sm font-medium text-slate-700">{code}</span>
+                      <ThaiDatePicker
+                        value={r.checkIn}
+                        onChange={(v) => setDetail({ checkIn: v })}
+                        placeholder="เช็คอิน"
+                      />
+                      <ThaiDatePicker
+                        value={r.checkOut}
+                        onChange={(v) => setDetail({ checkOut: v })}
+                        placeholder="เช็คเอาต์"
+                      />
+                      <Input
+                        type="number"
+                        placeholder="ยอดห้อง"
+                        value={r.rate}
+                        onChange={(e) => setDetail({ rate: e.target.value })}
+                      />
+                      <span
+                        className={`text-xs ${badRange ? "text-red-600" : "text-gray-500"} text-right`}
+                      >
+                        {badRange ? "วันผิด" : `${nights} คืน`}
+                      </span>
+                    </div>
+                  );
+                })}
+                <p className="text-xs text-slate-500">
+                  รวม {totalNights} คืน · ยอดรวม {totalRoomRate.toLocaleString("th-TH")} บาท
+                </p>
+              </div>
+            )}
           </div>
           <div className="space-y-1.5">
             <Label>ประเภท</Label>
@@ -538,14 +650,14 @@ export default function TmcStaysPage() {
             />
           </div>
           <div className="space-y-1.5">
-            <Label>เช็คอิน *</Label>
+            <Label>{multiRoom ? "เช็คอิน (ค่าเริ่มต้นทุกห้อง)" : "เช็คอิน *"}</Label>
             <ThaiDatePicker
               value={form.checkIn}
               onChange={(v) => setForm((f) => ({ ...f, checkIn: v }))}
             />
           </div>
           <div className="space-y-1.5">
-            <Label>เช็คเอาต์ *</Label>
+            <Label>{multiRoom ? "เช็คเอาต์ (ค่าเริ่มต้นทุกห้อง)" : "เช็คเอาต์ *"}</Label>
             <ThaiDatePicker
               value={form.checkOut}
               onChange={(v) => setForm((f) => ({ ...f, checkOut: v }))}
@@ -601,15 +713,17 @@ export default function TmcStaysPage() {
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5">
             <Label>ยอดที่พัก (บาท)</Label>
-            <Input
-              type="number"
-              value={form.roomRate}
-              onChange={(e) => setForm((f) => ({ ...f, roomRate: e.target.value }))}
-            />
-            {form.propertyCodes.length > 1 && (
-              <p className="text-xs text-gray-500">
-                ยอดรวมทั้ง booking — ระบบหารเท่ากัน {form.propertyCodes.length} ห้อง
-              </p>
+            {multiRoom ? (
+              <>
+                <Input type="number" value={totalRoomRate || ""} disabled readOnly />
+                <p className="text-xs text-gray-500">รวมจากยอดรายห้องด้านบนอัตโนมัติ</p>
+              </>
+            ) : (
+              <Input
+                type="number"
+                value={form.roomRate}
+                onChange={(e) => setForm((f) => ({ ...f, roomRate: e.target.value }))}
+              />
             )}
           </div>
           <div className="space-y-1.5">
@@ -1167,14 +1281,7 @@ export default function TmcStaysPage() {
             </Button>
             <Button
               onClick={handleSave}
-              disabled={
-                saving ||
-                form.propertyCodes.length === 0 ||
-                !form.checkIn ||
-                !form.checkOut ||
-                form.checkOut <= form.checkIn ||
-                (!isEditMode && !form.firstName)
-              }
+              disabled={saving || !roomsValid || (!isEditMode && !form.firstName)}
             >
               {saving ? "กำลังบันทึก…" : isEditMode ? "บันทึกการแก้ไข" : "บันทึก"}
             </Button>
