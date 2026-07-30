@@ -9,7 +9,14 @@
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { normalizePage, toPaged, type PageOpts, type Paged } from "@/lib/accounting/paging";
+import {
+  fetchAllRows,
+  normalizePage,
+  toPaged,
+  type PageOpts,
+  type Paged,
+  type RowsPage,
+} from "@/lib/accounting/paging";
 import { listApprovedBoqItems } from "./boq";
 import { summarizeProject, type ProjectMoneySummary } from "./project-metrics";
 import { listPrItems, listProjectPurchaseRequests } from "./purchasing";
@@ -20,6 +27,7 @@ import type {
   JustMeProjectFile,
   JustMeProjectProgress,
   JustMeProjectUsageRow,
+  JustMePurchaseRequest,
   ProjectStatus,
 } from "./types";
 
@@ -162,6 +170,164 @@ export async function listProjectProgress(
     .order("progress_date", { ascending: false });
   if (error) throw new Error(error.message);
   return (data ?? []) as JustMeProjectProgress[];
+}
+
+/** ดึงทุกแถวที่ใช้คิดยอดรวม (กัน PostgREST ตัดเงียบ 1,000 แถว) แล้วคืนเฉพาะ rows */
+async function allRows<T>(
+  page: (from: number, to: number) => RowsPage<T>,
+  maxRows = 20_000,
+): Promise<T[]> {
+  const { rows } = await fetchAllRows<T>(page, { maxRows });
+  return rows;
+}
+
+/**
+ * สรุปเงินของ **หลายโครงการพร้อมกัน** (ตารางโครงการ / การ์ด KPI)
+ * — คิวรีคงที่ ~7 ครั้งไม่ว่าจะกี่โครงการ (ห้ามวนเรียก `loadProjectMetrics` ทีละใบ)
+ * — ทุกตัวเลขยังมาจาก `summarizeProject()` ที่เดียวเหมือนเดิม (ไฟล์นี้แค่ประกอบข้อมูล)
+ * ⛔ เป็นข้อมูลต้นทุน — caller ต้องผ่าน cost-access ก่อนเรียกเสมอ
+ */
+export async function loadProjectSummaries(
+  db: SupabaseClient,
+  orgId: string,
+  projects: Pick<JustMeProject, "id" | "status" | "contract_amount" | "budget_cost">[],
+): Promise<Map<string, ProjectMoneySummary>> {
+  const out = new Map<string, ProjectMoneySummary>();
+  const ids = projects.map((p) => p.id);
+  if (ids.length === 0) return out;
+
+  const [boqs, usage, otherCosts, prs, progress, billings] = await Promise.all([
+    allRows<{ id: string; project_id: string }>((from, to) =>
+      db
+        .from("just_me_boqs")
+        .select("id, project_id")
+        .eq("org_id", orgId)
+        .eq("status", "approved")
+        .in("project_id", ids)
+        .range(from, to),
+    ),
+    allRows<{ project_id: string; movement_type: string; total_cost: number | null }>((from, to) =>
+      db
+        .from("just_me_stock_movements")
+        .select("project_id, movement_type, total_cost")
+        .eq("org_id", orgId)
+        .in("project_id", ids)
+        .range(from, to),
+    ),
+    allRows<{ project_id: string; amount: number | null }>((from, to) =>
+      db
+        .from("just_me_project_costs")
+        .select("project_id, amount")
+        .eq("org_id", orgId)
+        .in("project_id", ids)
+        .range(from, to),
+    ),
+    allRows<{ id: string; project_id: string; status: string }>((from, to) =>
+      db
+        .from("just_me_purchase_requests")
+        .select("id, project_id, status")
+        .eq("org_id", orgId)
+        .in("project_id", ids)
+        .range(from, to),
+    ),
+    allRows<{
+      project_id: string;
+      boq_item_id: string | null;
+      progress_date: string;
+      done_qty: number | null;
+      percent: number | null;
+      created_at: string;
+    }>((from, to) =>
+      db
+        .from("just_me_project_progress")
+        .select("project_id, boq_item_id, progress_date, done_qty, percent, created_at")
+        .eq("org_id", orgId)
+        .in("project_id", ids)
+        .range(from, to),
+    ),
+    allRows<{ project_id: string; amount: number | null; status: string }>((from, to) =>
+      db
+        .from("just_me_project_billings")
+        .select("project_id, amount, status")
+        .eq("org_id", orgId)
+        .in("project_id", ids)
+        .range(from, to),
+    ),
+  ]);
+
+  const boqProject = new Map(boqs.map((b) => [b.id, b.project_id]));
+  const [boqItems, prItems] = await Promise.all([
+    boqs.length === 0
+      ? Promise.resolve([])
+      : allRows<{ id: string; boq_id: string; qty: number; amount: number }>((from, to) =>
+          db
+            .from("just_me_boq_items")
+            .select("id, boq_id, qty, amount")
+            .eq("org_id", orgId)
+            .in(
+              "boq_id",
+              boqs.map((b) => b.id),
+            )
+            .range(from, to),
+        ),
+    prs.length === 0
+      ? Promise.resolve([])
+      : allRows<{
+          pr_id: string;
+          qty: number;
+          received_qty: number;
+          selected_unit_cost: number | null;
+          estimated_unit_cost: number | null;
+        }>((from, to) =>
+          db
+            .from("just_me_pr_items")
+            .select("pr_id, qty, received_qty, selected_unit_cost, estimated_unit_cost")
+            .eq("org_id", orgId)
+            .in(
+              "pr_id",
+              prs.map((p) => p.id),
+            )
+            .range(from, to),
+        ),
+  ]);
+  const prProject = new Map(prs.map((p) => [p.id, p.project_id]));
+
+  const bucket = <T>(rows: T[], key: (row: T) => string | undefined) => {
+    const map = new Map<string, T[]>();
+    for (const row of rows) {
+      const k = key(row);
+      if (!k) continue;
+      const list = map.get(k);
+      if (list) list.push(row);
+      else map.set(k, [row]);
+    }
+    return map;
+  };
+
+  const usageBy = bucket(usage, (r) => r.project_id);
+  const costsBy = bucket(otherCosts, (r) => r.project_id);
+  const prsBy = bucket(prs, (r) => r.project_id);
+  const prItemsBy = bucket(prItems, (r) => prProject.get(r.pr_id));
+  const boqItemsBy = bucket(boqItems, (r) => boqProject.get(r.boq_id));
+  const progressBy = bucket(progress, (r) => r.project_id);
+  const billingsBy = bucket(billings, (r) => r.project_id);
+
+  for (const project of projects) {
+    out.set(
+      project.id,
+      summarizeProject({
+        project,
+        usage: (usageBy.get(project.id) ?? []) as JustMeProjectUsageRow[],
+        otherCosts: (costsBy.get(project.id) ?? []).map((c) => ({ amount: c.amount ?? 0 })),
+        prs: (prsBy.get(project.id) ?? []) as JustMePurchaseRequest[],
+        prItems: prItemsBy.get(project.id) ?? [],
+        boqItems: boqItemsBy.get(project.id) ?? [],
+        progress: (progressBy.get(project.id) ?? []) as JustMeProjectProgress[],
+        billings: (billingsBy.get(project.id) ?? []) as JustMeProjectBilling[],
+      }),
+    );
+  }
+  return out;
 }
 
 export interface ProjectMetrics {
