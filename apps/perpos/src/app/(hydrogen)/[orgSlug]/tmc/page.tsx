@@ -15,7 +15,13 @@ const TMC_ORG_ID = "1f52618c-09c4-49c5-a929-ea5060f26e7d";
 export default async function TmcDashboardPage({
   searchParams,
 }: {
-  searchParams: Promise<{ range?: string; from?: string; to?: string; tab?: string }>;
+  searchParams: Promise<{
+    range?: string;
+    from?: string;
+    to?: string;
+    dep?: string;
+    tab?: string;
+  }>;
 }) {
   // Guard: ต้องเป็นสมาชิกโมดูล tmc (หรือ super_admin) — query ผ่าน RLS client (scope ตาม session)
   const role = await getModuleRoleForCurrentUser(TMC_ORG_ID, "tmc");
@@ -35,11 +41,15 @@ export default async function TmcDashboardPage({
   const period = custom
     ? { from: sp.from as string, to: sp.to as string }
     : rangeFromMonths(Number(range));
+  // ?dep=ex = ไม่รวมหมวดมัดจำ (ค่ามัดจำ/คืนเงินมัดจำ) ในตัวเลขฝั่งบัญชี
+  const excludeDeposits = sp.dep === "ex";
 
   // แท็บต้นทุนดึงข้อมูลเองฝั่ง client → ไม่ต้อง aggregate ภาพรวมทิ้งเปล่า
   const data =
     tab === "overview"
-      ? await computeTmcDashboard(await createSupabaseServerClient(), TMC_ORG_ID, period)
+      ? await computeTmcDashboard(await createSupabaseServerClient(), TMC_ORG_ID, period, {
+          excludeDeposits,
+        })
       : null;
 
   return (
@@ -54,6 +64,7 @@ export default async function TmcDashboardPage({
             current={range}
             from={custom ? sp.from : undefined}
             to={custom ? sp.to : undefined}
+            deposits={excludeDeposits ? "ex" : "in"}
           />
         ) : undefined
       }

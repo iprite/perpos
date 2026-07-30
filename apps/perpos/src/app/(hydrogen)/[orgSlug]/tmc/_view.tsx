@@ -19,6 +19,7 @@ import {
 import {
   BarChart,
   Bar,
+  ComposedChart,
   LineChart,
   Line,
   XAxis,
@@ -104,6 +105,7 @@ export function TmcDashboardView({ data }: { data: TmcDashData }) {
     การเข้าพัก: r.stays ?? 0,
     คืน: r.nights ?? 0,
     รายรับห้อง: r.revenue ?? 0,
+    "Occupancy %": r.occupancy ?? null,
   }));
 
   // เงินเข้า-ออกจริงของช่วงนี้ (บัญชี + เงินสดย่อย) — เติมเงินสดย่อยไม่นับเป็นเงินเข้า
@@ -497,22 +499,60 @@ function PettyChart({ data }: { data: { name: string; รับเงิน: num
 function StaysChart({
   data,
 }: {
-  data: { name: string; การเข้าพัก: number; คืน: number; รายรับห้อง: number }[];
+  data: {
+    name: string;
+    การเข้าพัก: number;
+    คืน: number;
+    รายรับห้อง: number;
+    "Occupancy %": number | null;
+  }[];
 }) {
   return (
     <div className="space-y-4">
       <div>
-        <p className="mb-2 text-xs text-slate-500">การเข้าพัก — ครั้ง / คืน</p>
+        <p className="mb-2 text-xs text-slate-500">
+          การเข้าพัก — ครั้ง / คืน · เส้น = อัตราการเข้าพัก (%)
+        </p>
         <ResponsiveContainer width="100%" height={190}>
-          <BarChart data={data} barGap={4}>
+          <ComposedChart data={data} barGap={4}>
             <CartesianGrid strokeDasharray="3 3" stroke="#F5F7FA" />
             <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-            <YAxis tick={{ fontSize: 11 }} />
-            <Tooltip {...TT} />
+            <YAxis yAxisId="left" tick={{ fontSize: 11 }} />
+            <YAxis
+              yAxisId="right"
+              orientation="right"
+              domain={[0, 100]}
+              tick={{ fontSize: 11 }}
+              tickFormatter={(v) => `${v}%`}
+            />
+            <Tooltip
+              {...TT}
+              formatter={(v: number, name: string) => (name === "Occupancy %" ? `${v}%` : v)}
+            />
             <Legend wrapperStyle={{ fontSize: 12 }} />
-            <Bar dataKey="การเข้าพัก" fill="#79DCC3" radius={[3, 3, 0, 0]} maxBarSize={44} />
-            <Bar dataKey="คืน" fill="#A7E8D8" radius={[3, 3, 0, 0]} maxBarSize={44} />
-          </BarChart>
+            <Bar
+              yAxisId="left"
+              dataKey="การเข้าพัก"
+              fill="#79DCC3"
+              radius={[3, 3, 0, 0]}
+              maxBarSize={44}
+            />
+            <Bar
+              yAxisId="left"
+              dataKey="คืน"
+              fill="#A7E8D8"
+              radius={[3, 3, 0, 0]}
+              maxBarSize={44}
+            />
+            <Line
+              yAxisId="right"
+              dataKey="Occupancy %"
+              stroke="#8067B7"
+              strokeWidth={2}
+              dot={{ r: 3, fill: "#8067B7" }}
+              connectNulls
+            />
+          </ComposedChart>
         </ResponsiveContainer>
       </div>
       <div>

@@ -30,6 +30,8 @@ export type Monthly = {
   nights?: number;
   revenue?: number;
   food?: number;
+  /** อัตราการเข้าพักของเดือนนั้น (%) — null เมื่อไม่มีห้องเปิดขาย */
+  occupancy?: number | null;
 };
 export type PropRow = {
   property: string;
@@ -53,6 +55,15 @@ export type TmcDashData = {
 };
 
 const PETTY_CASH_ACCOUNT = "2366c3f9-dcc5-4091-8ab0-c421b77e7fe7";
+
+/**
+ * หมวดฝั่งบัญชีที่เป็น "เงินโยกภายใน" ไปเติมกองเงินสดย่อย — ไม่ใช่รายจ่ายจริง
+ * ต้องตัดออกเสมอ ไม่งั้นนับซ้ำกับรายจ่ายเงินสดย่อย (เงินก้อนเดียวถูกนับ 2 รอบ)
+ */
+const PETTY_TRANSFER_CATEGORY = "เงินสดย่อย";
+
+/** หมวดเงินมัดจำ (เงินของแขก ไม่ใช่รายได้/รายจ่ายจริง) — ตัดออกได้ผ่านตัวกรองบนแดชบอร์ด */
+export const DEPOSIT_CATEGORIES = ["ค่ามัดจำ", "คืนเงินมัดจำ"];
 
 const DAY_MS = 86_400_000;
 
@@ -83,6 +94,7 @@ export async function computeTmcDashboard(
   db: SupabaseClient,
   orgId: string,
   range: { from: string; to: string },
+  opts?: { excludeDeposits?: boolean },
 ): Promise<TmcDashData> {
   const { from, to } = range;
 
@@ -126,7 +138,13 @@ export async function computeTmcDashboard(
     .eq("is_active", true)
     .eq("is_rentable", true);
 
-  const finRows = finRes.data ?? [];
+  // ตัดหมวด "เงินสดย่อย" (เงินโยกไปเติมกอง) ออกจากสมุดบัญชีเสมอ — กันนับซ้ำกับรายจ่ายเงินสดย่อย
+  // + ตัดหมวดมัดจำเมื่อผู้ใช้เลือก "ไม่รวมมัดจำ" (เงินของแขก ไม่ใช่รายได้/รายจ่ายจริง)
+  const finRows = (finRes.data ?? []).filter(
+    (e) =>
+      e.category !== PETTY_TRANSFER_CATEGORY &&
+      (!opts?.excludeDeposits || !DEPOSIT_CATEGORIES.includes(e.category ?? "")),
+  );
   const pettyRows = pettyRes.data ?? [];
   const stayRows = staysRes.data ?? [];
 
@@ -258,13 +276,14 @@ export async function computeTmcDashboard(
 
   // ─── Occupancy rate — คืนที่ขายได้ (clip ให้อยู่ในช่วง) / (จำนวนห้องเปิดขาย × จำนวนคืนในช่วง) ───
   const rentableCodes = new Set((rentableRes.data ?? []).map((p) => p.code as string));
+  const soldByMonth: Record<string, number> = {};
   let soldNights = 0;
   for (const s of stayRows) {
     if (!rentableCodes.has(s.property_code ?? "")) continue;
-    soldNights += Object.values(nightsPerMonth(s.check_in, s.check_out, from, to)).reduce(
-      (a, b) => a + b,
-      0,
-    );
+    for (const [m, n] of Object.entries(nightsPerMonth(s.check_in, s.check_out, from, to))) {
+      soldByMonth[m] = (soldByMonth[m] ?? 0) + n;
+      soldNights += n;
+    }
   }
   const roomsCount = rentableCodes.size;
   const nightsInRange = Math.max(
@@ -272,6 +291,21 @@ export async function computeTmcDashboard(
     Math.round((new Date(to).getTime() + DAY_MS - new Date(from).getTime()) / DAY_MS),
   );
   const availableNights = roomsCount * nightsInRange;
+
+  // คืนเปิดขายต่อเดือน = ห้องเปิดขาย × จำนวนวันของเดือนนั้นที่อยู่ในช่วง [from, to]
+  const availByMonth: Record<string, number> = {};
+  for (let t = new Date(from).getTime(); t < new Date(to).getTime() + DAY_MS; t += DAY_MS) {
+    const m = new Date(t).toISOString().slice(0, 7);
+    availByMonth[m] = (availByMonth[m] ?? 0) + roomsCount;
+  }
+  const occupancyOfMonth = (m: string): number | null => {
+    const avail = availByMonth[m] ?? 0;
+    return avail > 0 ? +(((soldByMonth[m] ?? 0) / avail) * 100).toFixed(1) : null;
+  };
+  const staysMonthlyWithOcc: Monthly[] = staysMonthly.map((r) => ({
+    ...r,
+    occupancy: occupancyOfMonth(r.month),
+  }));
 
   // ─── Totals ───
   const totals: Totals = {
@@ -307,7 +341,7 @@ export async function computeTmcDashboard(
     totals,
     financeMonthly,
     pettyMonthly,
-    staysMonthly,
+    staysMonthly: staysMonthlyWithOcc,
     byProperty,
     byCategory,
     stockLow: (stockRes.data ?? [])
