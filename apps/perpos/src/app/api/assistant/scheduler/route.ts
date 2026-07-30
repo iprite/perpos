@@ -1056,8 +1056,10 @@ async function run(req: NextRequest) {
             })
             .eq("profile_id", a.profile_id);
           try {
-            // off-session charge → สำเร็จ: webhook payment_intent.succeeded เติม token + reset status
-            await stripe.paymentIntents.create({
+            // off-session charge → เติม token ที่นี่เลยเมื่อ PI succeeded (ไม่พึ่ง webhook อย่างเดียว)
+            // เหตุผล: ถ้า payment_intent.succeeded ไม่มา (event ไม่ได้สมัคร/ตกหล่น) แถวนี้จะไม่เคย
+            // ได้ last_charged_at → stale lock ปลดทุก 15 นาทีแล้วชาร์จซ้ำเรื่อย ๆ = เก็บเงินซ้ำ
+            const pi = await stripe.paymentIntents.create({
               amount: Math.round(Number((pack as { price: number }).price) * 100),
               currency: String((pack as { currency?: string }).currency ?? "THB").toLowerCase(),
               customer: customerId,
@@ -1072,6 +1074,28 @@ async function run(req: NextRequest) {
                 auto: "1",
               },
             });
+            if (pi.status === "succeeded") {
+              // idempotent ด้วย payment_intent → webhook ที่มาทีหลังเป็น duplicate ไม่เติมซ้ำ
+              await admin.rpc("apply_token_payment", {
+                p_profile_id: a.profile_id,
+                p_pack_code: a.pack_code,
+                p_tokens: Number((pack as { tokens: number }).tokens),
+                p_amount: (pi.amount_received ?? pi.amount ?? 0) / 100,
+                p_currency: (pi.currency ?? "thb").toUpperCase(),
+                p_payment_intent: pi.id,
+                p_event_id: null,
+              });
+              await admin
+                .from("token_autotopup")
+                .update({
+                  status: "idle",
+                  charging_at: null,
+                  last_charged_at: now.toISOString(),
+                  last_error: null,
+                  updated_at: now.toISOString(),
+                })
+                .eq("profile_id", a.profile_id);
+            }
           } catch (chErr) {
             // บัตรถูกปฏิเสธ (off-session) → ปิด auto ทันที + แจ้ง LINE (ตามนโยบาย: ล้มครั้งแรกปิดเลย)
             await admin

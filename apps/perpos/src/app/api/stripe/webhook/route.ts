@@ -588,14 +588,17 @@ async function handleTokenPaymentSucceeded(
   stripe: ReturnType<typeof getStripe>,
   pi: Stripe.PaymentIntent,
   eventId: string,
+  // metadata สำรอง (จาก checkout session) — ใช้เมื่อ PI ไม่มี metadata ติดมา
+  fallbackMeta?: Record<string, unknown>,
 ) {
-  if (asString(pi.metadata?.kind) !== "token_topup") return;
-  const profileId = asString(pi.metadata?.profile_id);
-  const packCode = asString(pi.metadata?.pack_code);
+  const md = { ...(fallbackMeta ?? {}), ...(pi.metadata ?? {}) };
+  if (asString(md.kind) !== "token_topup") return;
+  const profileId = asString(md.profile_id);
+  const packCode = asString(md.pack_code);
   if (!profileId || !packCode) return;
 
   // ตรึงจำนวน token จาก metadata ตอนชาร์จ (กัน pack ถูกแก้ระหว่างทาง) · fallback อ่าน pack
-  let tokens = Number(asString(pi.metadata?.tokens));
+  let tokens = Number(asString(md.tokens));
   if (!Number.isFinite(tokens) || tokens <= 0) {
     const { data: pack } = await admin
       .from("token_packs")
@@ -616,11 +619,16 @@ async function handleTokenPaymentSucceeded(
     p_event_id: eventId,
   });
 
+  // เก็บบัตรเฉพาะที่ "ตั้งใจให้ใช้ซ้ำได้" — ลูกค้าติ๊ก save_card, PI ที่ตั้ง setup_future_usage
+  // หรือ auto-charge (บัตรใช้ซ้ำได้อยู่แล้ว) · ถ้าเก็บบัตรจากการซื้อครั้งเดียว (save_card=0)
+  // หน้า billing จะโชว์ "มีบัตรบันทึกไว้" แต่เปิด auto top-up แล้วชาร์จ off-session ไม่ผ่าน
   const pmId = asString(pi.payment_method);
-  if (pmId) await captureTokenCard(admin, stripe, profileId, pmId);
+  const reusable =
+    asString(md.save_card) === "1" || asString(md.auto) === "1" || !!pi.setup_future_usage;
+  if (pmId && reusable) await captureTokenCard(admin, stripe, profileId, pmId);
 
   // auto-charge สำเร็จ → ปลดล็อก runtime + บันทึกเวลา
-  if (asString(pi.metadata?.auto) === "1") {
+  if (asString(md.auto) === "1") {
     await admin
       .from("token_autotopup")
       .update({
@@ -677,6 +685,22 @@ async function handleTokenPaymentFailed(
       ],
     }).catch(() => undefined);
   }
+}
+
+// Checkout mode='payment' (ซื้อแพ็กเครดิต) จบแล้ว → เติมเครดิตทันที ไม่รอ payment_intent.succeeded
+// เหตุผล: event นั้นตกหล่นได้ (เคยไม่ได้สมัครใน Stripe endpoint → ลูกค้าจ่ายเงินแล้วเครดิตไม่ขึ้น)
+// ปลอดภัยเพราะ apply_token_payment idempotent ด้วย payment_intent — PI event ที่มาทีหลังจะเป็น duplicate
+async function handleTokenCheckoutCompleted(
+  admin: ReturnType<typeof createAdminClient>,
+  stripe: ReturnType<typeof getStripe>,
+  session: Stripe.Checkout.Session,
+  eventId: string,
+) {
+  if (session.payment_status !== "paid") return; // ยังไม่จ่าย (async payment) → รอ PI event
+  const piId = asString(session.payment_intent);
+  if (!piId) return;
+  const pi = await stripe.paymentIntents.retrieve(piId);
+  await handleTokenPaymentSucceeded(admin, stripe, pi, eventId, session.metadata ?? undefined);
 }
 
 // Checkout mode='setup' (บันทึกบัตรอย่างเดียว) สำเร็จ → เก็บ payment_method
@@ -739,7 +763,7 @@ export async function POST(req: NextRequest) {
       if (k === "token_setup") {
         await handleTokenSetupCompleted(admin, stripe, session); // บันทึกบัตร
       } else if (k === "token_topup") {
-        // เติม token จัดการที่ payment_intent.succeeded (มีทั้ง manual + auto)
+        await handleTokenCheckoutCompleted(admin, stripe, session, event.id);
       } else if (isSttSession(session)) {
         await handleSttCheckout(admin, stripe, session, event.id);
       } else {
