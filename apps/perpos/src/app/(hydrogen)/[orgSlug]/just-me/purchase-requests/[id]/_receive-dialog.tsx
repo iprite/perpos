@@ -1,0 +1,194 @@
+"use client";
+
+/**
+ * _receive-dialog.tsx — รับของเข้าคลังตามใบขอซื้อ
+ * ⛔ ปริมาณคงเหลือ/สถานะใบ คิดที่ server (`receivePurchaseRequest`) — ที่นี่แค่กรอกจำนวนที่ได้รับรอบนี้
+ */
+
+import { useEffect, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { CustomSelect } from "@/components/ui/custom-select";
+import {
+  Dialog,
+  DialogBody,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableEmpty,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { notify } from "@/lib/toast";
+import type { JustMePrItem } from "@/lib/just-me/types";
+import { jmSend } from "../../_components/api-client";
+import { qtyText } from "../../_components/format";
+import type { PrOption } from "./_types";
+
+export function ReceiveDialog({
+  open,
+  onOpenChange,
+  orgId,
+  prId,
+  items,
+  warehouseOptions,
+  defaultWarehouseId,
+  onDone,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  orgId: string;
+  prId: string;
+  items: JustMePrItem[];
+  warehouseOptions: PrOption[];
+  defaultWarehouseId: string | null;
+  onDone: () => void;
+}) {
+  const [warehouseId, setWarehouseId] = useState(defaultWarehouseId ?? "");
+  const [qty, setQty] = useState<Record<string, string>>({});
+  const [note, setNote] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    setWarehouseId(defaultWarehouseId ?? warehouseOptions[0]?.value ?? "");
+    const next: Record<string, string> = {};
+    for (const it of items) {
+      const remaining = (it.qty ?? 0) - (it.received_qty ?? 0);
+      next[it.id] = remaining > 0 ? String(remaining) : "";
+    }
+    setQty(next);
+    setNote("");
+  }, [open, items, defaultWarehouseId, warehouseOptions]);
+
+  async function submit() {
+    const lines = items
+      .filter((it) => Number(qty[it.id]) > 0)
+      .map((it) => ({ pr_item_id: it.id, qty: Number(qty[it.id]) }));
+    if (lines.length === 0) {
+      notify.error("ยังไม่ได้ระบุจำนวนที่รับของ");
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await jmSend<{ status_changed_to: string | null }>(
+        orgId,
+        `purchase-requests/${prId}/receive`,
+        "POST",
+        { warehouse_id: warehouseId || null, lines, note: note.trim() || null },
+      );
+      notify.success(
+        res.status_changed_to === "received" ? "รับของครบตามใบขอซื้อแล้ว" : "บันทึกการรับของแล้ว",
+      );
+      onOpenChange(false);
+      onDone();
+    } catch (e) {
+      notify.error(e, "รับของไม่สำเร็จ");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent size="2xl">
+        <DialogHeader>
+          <DialogTitle>รับของเข้าคลัง</DialogTitle>
+        </DialogHeader>
+        <DialogBody>
+          <div className="space-y-4">
+            <div>
+              <Label>คลังปลายทาง *</Label>
+              <div className="mt-1">
+                <CustomSelect
+                  value={warehouseId}
+                  onChange={setWarehouseId}
+                  options={[{ value: "", label: "— เลือกคลัง —" }, ...warehouseOptions]}
+                />
+              </div>
+              <p className="mt-1 text-xs text-gray-500">
+                ต้นทุนเฉลี่ยของวัสดุระบบคิดให้เองจากราคาที่เลือกไว้ในใบขอซื้อ
+              </p>
+            </div>
+
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>รายการ</TableHead>
+                  <TableHead align="right">สั่งไว้</TableHead>
+                  <TableHead align="right">รับแล้ว</TableHead>
+                  <TableHead align="right">รับรอบนี้</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {items.length === 0 ? (
+                  <TableEmpty colSpan={4}>ใบขอซื้อนี้ยังไม่มีรายการ</TableEmpty>
+                ) : (
+                  items.map((it) => {
+                    const remaining = (it.qty ?? 0) - (it.received_qty ?? 0);
+                    return (
+                      <TableRow key={it.id}>
+                        <TableCell wrap>
+                          {it.name}
+                          {!it.item_id && (
+                            <span className="ms-1 text-xs text-amber-700">
+                              (ยังไม่ผูกวัสดุในคลัง — รับของไม่ได้)
+                            </span>
+                          )}
+                        </TableCell>
+                        <TableCell align="right" className="tabular-nums">
+                          {qtyText(it.qty)} {it.unit}
+                        </TableCell>
+                        <TableCell align="right" className="tabular-nums">
+                          {qtyText(it.received_qty)}
+                        </TableCell>
+                        <TableCell align="right">
+                          <Input
+                            className="w-28 text-right"
+                            inputMode="decimal"
+                            value={qty[it.id] ?? ""}
+                            disabled={remaining <= 0 || !it.item_id}
+                            onChange={(e) =>
+                              setQty((prev) => ({ ...prev, [it.id]: e.target.value }))
+                            }
+                          />
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
+                )}
+              </TableBody>
+            </Table>
+
+            <div>
+              <Label htmlFor="jm-receive-note">หมายเหตุการรับของ</Label>
+              <Input
+                id="jm-receive-note"
+                className="mt-1"
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                placeholder="เช่น เลขที่ใบส่งของของผู้ขาย"
+              />
+            </div>
+          </div>
+        </DialogBody>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
+            ยกเลิก
+          </Button>
+          <Button onClick={submit} disabled={saving}>
+            {saving ? "กำลังบันทึก…" : "บันทึกการรับของ"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}

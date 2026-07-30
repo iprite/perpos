@@ -15,6 +15,7 @@ import {
   MapPin,
   Pencil,
   ReceiptText,
+  ShoppingCart,
   Warehouse,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -42,14 +43,22 @@ import { jmSend } from "../../_components/api-client";
 import { money, percent, thaiDate } from "../../_components/format";
 import { BoqTab } from "./_boq-tab";
 import { FilesTab } from "./_files-tab";
+import { PurchasingTab } from "./_purchasing-tab";
 import type { ProjectDetailInitial } from "./_types";
 
-type TabKey = "overview" | "files" | "boq" | "billings" | "usage";
+type TabKey = "overview" | "files" | "boq" | "purchasing" | "billings" | "usage";
 
-const TABS: { value: TabKey; label: string; icon: React.ReactNode }[] = [
+/** แท็บ "จัดซื้อ" มีต้นทุนจากผู้ขาย → viewer ไม่เห็นทั้งแท็บ (contract §5 ข้อ 2) */
+const TABS: { value: TabKey; label: string; icon: React.ReactNode; costOnly?: boolean }[] = [
   { value: "overview", label: "ภาพรวม", icon: <LayoutDashboard className="h-4 w-4" /> },
   { value: "files", label: "แบบ/ไฟล์", icon: <FileStack className="h-4 w-4" /> },
   { value: "boq", label: "BOQ", icon: <ClipboardList className="h-4 w-4" /> },
+  {
+    value: "purchasing",
+    label: "จัดซื้อ",
+    icon: <ShoppingCart className="h-4 w-4" />,
+    costOnly: true,
+  },
   { value: "billings", label: "งวดงาน", icon: <ReceiptText className="h-4 w-4" /> },
   { value: "usage", label: "ใช้จริง", icon: <Warehouse className="h-4 w-4" /> },
 ];
@@ -105,7 +114,11 @@ export function ProjectDetailClient({
           value={tab}
           onChange={setTab}
           ariaLabel="ส่วนของโครงการ"
-          options={TABS.map((t) => ({ value: t.value, label: t.label, icon: t.icon }))}
+          options={TABS.filter((t) => !t.costOnly || canSeeCost).map((t) => ({
+            value: t.value,
+            label: t.label,
+            icon: t.icon,
+          }))}
         />
       }
     >
@@ -239,6 +252,10 @@ export function ProjectDetailClient({
           priceOptions={initial.priceOptions}
           onChanged={() => router.refresh()}
         />
+      )}
+
+      {tab === "purchasing" && canSeeCost && (
+        <PurchasingTab orgSlug={orgSlug} rows={initial.purchaseRequests} />
       )}
 
       {tab === "billings" && (

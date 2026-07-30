@@ -355,6 +355,40 @@ export function effectiveMaterialCost(row: {
   return isNum(row.avg_cost) ? row.avg_cost : null;
 }
 
+// ─── จัดซื้อ (ยอดบนใบขอซื้อ/ใบเสนอราคาผู้ขาย) ───────────────────────────────
+/**
+ * ยอดรวมของใบขอซื้อ — **ยอดทั้งสองช่องคำนวณที่นี่เท่านั้น ห้ามรับจาก body**
+ * - `total_estimated_cost` = Σ qty × ราคาประเมิน · `total_selected_cost` = Σ qty × ราคาที่เลือก
+ * - ไม่มีบรรทัดไหนมีราคาเลย → `null` (ไม่ใช่ 0 — 0 แปลว่า "ของฟรี")
+ */
+export function prTotals(
+  items: Pick<JustMePrItem, "qty" | "estimated_unit_cost" | "selected_unit_cost">[],
+): { total_estimated_cost: number | null; total_selected_cost: number | null } {
+  const est = sumDefined(
+    items.map((i) => (isNum(i.estimated_unit_cost) ? (i.qty ?? 0) * i.estimated_unit_cost : null)),
+  );
+  const sel = sumDefined(
+    items.map((i) => (isNum(i.selected_unit_cost) ? (i.qty ?? 0) * i.selected_unit_cost : null)),
+  );
+  return {
+    total_estimated_cost: est === null ? null : round2(est),
+    total_selected_cost: sel === null ? null : round2(sel),
+  };
+}
+
+/**
+ * ยอดรวมของใบเสนอราคาผู้ขาย 1 ใบ (จากบรรทัดราคาที่ผู้ขายเสนอ)
+ * บรรทัดที่ผู้ขายไม่ได้เสนอราคา (unit_cost = null) ไม่ถูกนับ · ไม่มีเลย → `null`
+ */
+export function quoteTotal(
+  lines: { unit_cost: number | null; qty: number | null }[],
+): number | null {
+  const total = sumDefined(
+    lines.map((l) => (isNum(l.unit_cost) && isNum(l.qty) ? l.unit_cost * l.qty : null)),
+  );
+  return total === null ? null : round2(total);
+}
+
 // ─── รวมข้ามโครงการ (หน้ารายงาน) ────────────────────────────────────────────
 export interface PortfolioSummary {
   projects_counted: number;

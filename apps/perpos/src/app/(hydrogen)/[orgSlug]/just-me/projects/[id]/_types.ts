@@ -10,6 +10,7 @@ import type {
   JustMeProject,
   JustMeProjectFile,
   JustMeWorkCategory,
+  PurchaseRequestStatus,
 } from "@/lib/just-me/types";
 
 /** แถวราคามาตรฐานเท่าที่หน้า BOQ ต้องใช้ (ไม่ส่งให้ viewer เลย) */
@@ -34,4 +35,19 @@ export interface ProjectDetailInitial {
   summary: ProjectMoneySummary | null;
   categories: JustMeWorkCategory[];
   priceOptions: BoqPriceOption[];
+  /** ใบขอซื้อของโครงการนี้ (owner/manager เท่านั้น — viewer ได้ [] และไม่เห็นแท็บ) */
+  purchaseRequests: ProjectPrRow[];
+}
+
+/** ใบขอซื้อเท่าที่แท็บ "จัดซื้อ" ต้องใช้ (สรุปจาก server แล้ว) */
+export interface ProjectPrRow {
+  id: string;
+  pr_code: string;
+  status: PurchaseRequestStatus;
+  needed_date: string | null;
+  vendor_name: string | null;
+  total_estimated_cost: number | null;
+  total_selected_cost: number | null;
+  item_count: number;
+  received_count: number;
 }
