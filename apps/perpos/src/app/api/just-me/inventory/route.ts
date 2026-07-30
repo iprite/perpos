@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireModuleMember } from "../../_lib/module-auth";
 import { createAdminClient } from "../../_lib/supabase";
-import { canSeeCost, stripCostList, type JustMeRole } from "../_lib";
+import { canSeeCost, canWrite, stripCost, stripCostList, type JustMeRole } from "../_lib";
 import { loadProjectMetrics } from "@/lib/just-me/projects";
 import { notifyOverBudgetCrossed } from "@/lib/just-me/notify";
 
@@ -132,6 +132,16 @@ export async function POST(req: NextRequest) {
 
   const auth = await requireModuleMember(req, orgId, "just_me");
   if (!auth.ok) return auth.res;
+
+  // เขียนคลัง = กระทบต้นทุนเฉลี่ยถาวร (trigger สะสมทางเดียว กู้ไม่ได้) และ response มีต้นทุนติดกลับไป
+  // ⇒ จำกัดเท่ากับผู้ที่เห็นต้นทุนได้ (owner/manager) — ตรงกับ RLS ที่รัดไว้ที่ชั้น DB
+  const role = auth.moduleRole as JustMeRole;
+  if (!canWrite(role)) {
+    return NextResponse.json(
+      { error: "คุณไม่มีสิทธิ์บันทึกรายการคลัง (เฉพาะเจ้าของและผู้จัดการ)" },
+      { status: 403 },
+    );
+  }
 
   const body = await req.json().catch(() => ({}));
   const { action } = body;
@@ -283,7 +293,8 @@ export async function POST(req: NextRequest) {
       .from("just_me_inventory_items")
       .select("*")
       .eq("id", item_id)
-      .single();
+      .eq("org_id", orgId)
+      .maybeSingle();
 
     if (!item) {
       return NextResponse.json({ error: "ไม่พบข้อมูลสินค้า" }, { status: 404 });
@@ -302,6 +313,23 @@ export async function POST(req: NextRequest) {
         { error: `จำนวน Serial Number (${serialsList.length}) ไม่สอดคล้องกับจำนวนสินค้า (${qty})` },
         { status: 400 },
       );
+    }
+
+    // คลังต้นทาง/ปลายทางต้องเป็นขององค์กรนี้ (ไม่งั้นแก้ยอดคงเหลือของ org อื่นได้)
+    for (const [wid, label] of [
+      [source_warehouse_id, "คลังต้นทาง"],
+      [destination_warehouse_id, "คลังปลายทาง"],
+    ] as [string | null, string][]) {
+      if (!wid) continue;
+      const { data: wh } = await admin
+        .from("just_me_warehouses")
+        .select("id")
+        .eq("id", wid)
+        .eq("org_id", orgId)
+        .maybeSingle();
+      if (!wh) {
+        return NextResponse.json({ error: `ไม่พบ${label}ในองค์กรนี้` }, { status: 400 });
+      }
     }
 
     // ผูกโครงการ (ไม่บังคับ) — ต้องเป็นโครงการขององค์กรนี้เท่านั้น กันอ้างข้ามองค์กร
@@ -341,6 +369,7 @@ export async function POST(req: NextRequest) {
       const { data: srcBal } = await admin
         .from("just_me_stock_balances")
         .select("quantity")
+        .eq("org_id", orgId)
         .eq("warehouse_id", source_warehouse_id)
         .eq("item_id", item_id)
         .maybeSingle();
@@ -409,6 +438,7 @@ export async function POST(req: NextRequest) {
       const { data: srcBal } = await admin
         .from("just_me_stock_balances")
         .select("quantity")
+        .eq("org_id", orgId)
         .eq("warehouse_id", source_warehouse_id)
         .eq("item_id", item_id)
         .maybeSingle();
@@ -418,6 +448,7 @@ export async function POST(req: NextRequest) {
       await admin
         .from("just_me_stock_balances")
         .update({ quantity: newSrcQty, updated_at: new Date().toISOString() })
+        .eq("org_id", orgId)
         .eq("warehouse_id", source_warehouse_id)
         .eq("item_id", item_id);
     }
@@ -427,6 +458,7 @@ export async function POST(req: NextRequest) {
       const { data: destBal } = await admin
         .from("just_me_stock_balances")
         .select("quantity")
+        .eq("org_id", orgId)
         .eq("warehouse_id", destination_warehouse_id)
         .eq("item_id", item_id)
         .maybeSingle();
@@ -436,6 +468,7 @@ export async function POST(req: NextRequest) {
         await admin
           .from("just_me_stock_balances")
           .update({ quantity: newDestQty, updated_at: new Date().toISOString() })
+          .eq("org_id", orgId)
           .eq("warehouse_id", destination_warehouse_id)
           .eq("item_id", item_id);
       } else {
@@ -542,7 +575,10 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    return NextResponse.json({ success: true, movement }, { status: 201 });
+    return NextResponse.json(
+      { success: true, movement: stripCost(movement as Record<string, unknown>, role) },
+      { status: 201 },
+    );
   }
 
   return NextResponse.json({ error: "action not supported" }, { status: 400 });

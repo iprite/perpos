@@ -187,6 +187,36 @@ async function allRows<T>(
  * — ทุกตัวเลขยังมาจาก `summarizeProject()` ที่เดียวเหมือนเดิม (ไฟล์นี้แค่ประกอบข้อมูล)
  * ⛔ เป็นข้อมูลต้นทุน — caller ต้องผ่าน cost-access ก่อนเรียกเสมอ
  */
+
+/**
+ * งวดที่เอกสารถูกยกเลิกที่ระบบบัญชี (`acc_documents.status = 'void'`) ต้องไม่ถูกนับว่า "วางบิลแล้ว"
+ * — ยอดเงินฝั่งขายเป็นของ accounting เสมอ (contract §8 กฎ 5) · just_me จำสถานะไว้เองไม่พอ
+ *   เพราะการยกเลิกเกิดที่หน้าบัญชีโดยที่ just_me ไม่รู้ ⇒ "ยอดค้างวางบิล" จะต่ำกว่าจริงถาวร
+ * คืนงวดชุดใหม่ที่งวดซึ่งเอกสารถูกยกเลิกถูกลดสถานะเป็น `cancelled` (สูตรตัดออกจากทั้งยอดวางบิลและยอดที่วางแผนไว้)
+ */
+async function reconcileBillingsWithAccounting<
+  T extends { invoice_document_id: string | null; status: string },
+>(db: SupabaseClient, orgId: string, billings: T[]): Promise<T[]> {
+  const docIds = billings.map((b) => b.invoice_document_id).filter((v): v is string => !!v);
+  if (docIds.length === 0) return billings;
+  const { data } = await db
+    .from("acc_documents")
+    .select("id, status")
+    .eq("org_id", orgId)
+    .in("id", Array.from(new Set(docIds)));
+  const voided = new Set(
+    ((data ?? []) as { id: string; status: string }[])
+      .filter((d) => d.status === "void")
+      .map((d) => d.id),
+  );
+  if (voided.size === 0) return billings;
+  return billings.map((b) =>
+    b.invoice_document_id && voided.has(b.invoice_document_id)
+      ? ({ ...b, status: "cancelled" } as T)
+      : b,
+  );
+}
+
 export async function loadProjectSummaries(
   db: SupabaseClient,
   orgId: string,
@@ -245,10 +275,15 @@ export async function loadProjectSummaries(
         .in("project_id", ids)
         .range(from, to),
     ),
-    allRows<{ project_id: string; amount: number | null; status: string }>((from, to) =>
+    allRows<{
+      project_id: string;
+      amount: number | null;
+      status: string;
+      invoice_document_id: string | null;
+    }>((from, to) =>
       db
         .from("just_me_project_billings")
-        .select("project_id, amount, status")
+        .select("project_id, amount, status, invoice_document_id")
         .eq("org_id", orgId)
         .in("project_id", ids)
         .range(from, to),
@@ -310,7 +345,10 @@ export async function loadProjectSummaries(
   const prItemsBy = bucket(prItems, (r) => prProject.get(r.pr_id));
   const boqItemsBy = bucket(boqItems, (r) => boqProject.get(r.boq_id));
   const progressBy = bucket(progress, (r) => r.project_id);
-  const billingsBy = bucket(billings, (r) => r.project_id);
+  const billingsBy = bucket(
+    await reconcileBillingsWithAccounting(db, orgId, billings),
+    (r) => r.project_id,
+  );
 
   for (const project of projects) {
     out.set(
@@ -380,7 +418,7 @@ export async function loadProjectMetrics(
     prItems,
     boqItems,
     progress,
-    billings,
+    billings: await reconcileBillingsWithAccounting(db, orgId, billings),
   });
 
   return {
