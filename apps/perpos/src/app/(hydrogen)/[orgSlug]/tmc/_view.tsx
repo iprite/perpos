@@ -275,6 +275,7 @@ export function TmcDashboardView({ data }: { data: TmcDashData }) {
                 <TableHead align="right">เงินสดย่อย</TableHead>
                 <TableHead align="right">รายรับห้อง</TableHead>
                 <TableHead align="right">เข้าพัก</TableHead>
+                <TableHead align="right">คืน</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -299,8 +300,11 @@ export function TmcDashboardView({ data }: { data: TmcDashData }) {
                   <TableCell align="right" tabular className="font-medium text-emerald-700">
                     {r.stayRevenue > 0 ? fmt(r.stayRevenue) : "—"}
                   </TableCell>
-                  <TableCell align="right" tabular className="text-slate-500">
+                  <TableCell align="right" className="tabular-nums text-slate-500">
                     {r.stays > 0 ? `${r.stays} ครั้ง` : "—"}
+                  </TableCell>
+                  <TableCell align="right" className="tabular-nums text-slate-500">
+                    {r.nights > 0 ? `${r.nights} คืน` : "—"}
                   </TableCell>
                 </TableRow>
               ))}
