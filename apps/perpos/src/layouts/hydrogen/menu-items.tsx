@@ -45,6 +45,10 @@ import {
   Presentation,
   Bug,
   Inbox,
+  FolderKanban,
+  Tags,
+  ShoppingCart,
+  Truck,
 } from "lucide-react";
 
 import type { Role } from "@/lib/supabase/types";
@@ -514,6 +518,36 @@ function buildJustMeMenuItems(
     href: p("inventory"),
     icon: <Package className="h-5 w-5" />,
   });
+
+  // ─ บริหารโครงการ (presale → construction)
+  items.push({
+    name: l("projects", "โครงการ"),
+    href: p("projects"),
+    icon: <FolderKanban className="h-5 w-5" />,
+  });
+  // ราคามาตรฐาน/ใบขอซื้อ/ผู้ขาย/รายงาน = มีต้นทุนและกำไร → เฉพาะผู้บริหาร
+  if (orgRole === "owner" || orgRole === "admin") {
+    items.push({
+      name: l("price_book", "ราคามาตรฐาน"),
+      href: p("price-book"),
+      icon: <Tags className="h-5 w-5" />,
+    });
+    items.push({
+      name: l("purchase_requests", "ใบขอซื้อ (PR)"),
+      href: p("purchase-requests"),
+      icon: <ShoppingCart className="h-5 w-5" />,
+    });
+    items.push({
+      name: l("vendors", "ผู้ขาย"),
+      href: p("vendors"),
+      icon: <Truck className="h-5 w-5" />,
+    });
+    items.push({
+      name: l("project_reports", "รายงานโครงการ"),
+      href: p("project-reports"),
+      icon: <BarChart3 className="h-5 w-5" />,
+    });
+  }
   return items;
 }
 
