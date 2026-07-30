@@ -15,8 +15,11 @@
 --        (account_id <> '2366c3f9-dcc5-4091-8ab0-c421b77e7fe7' = PETTY_CASH_ACCOUNT
 --         ใน dashboard.ts — กันนับซ้ำกับสมุดเงินสดย่อย) ยึดวันที่รายการ entry_date
 --      · เงินสดย่อย = tmc_petty_cash_txns แยก txn_type top_up / expense ยึด txn_date
---      · เข้าพัก = tmc_stays ยึด check_in · จำนวนคืน = check_out - check_in
---        (ไม่มี check_out ถือเป็น 1 คืน — ตรงกับ dashboard.ts) · รายได้ค่าห้อง = room_rate
+--      · เข้าพัก = tmc_stays ยึด check_in · **จำนวนคืน/ADR = รายคืนตามวันที่พักจริง**
+--        (แตก stay เป็นรายคืนด้วย generate_series · time_basis = night_date — คืนคร่อมเดือน
+--         แยกเข้าเดือนที่พักจริง ตรงกับ nightsPerMonth ใน dashboard.ts · ไม่มี check_out = 1 คืน)
+--        · คืนเฉลี่ยต่อการเข้าพัก (stay_avg_nights) ยังยึด check_in เพราะเป็น metric ราย stay
+--        · รายได้ค่าห้อง = room_rate
 --        · อาหาร/เครื่องดื่ม = food + drink + mookata + bbq
 --   ถ้าแก้สูตรใน dashboard.ts ต้องแก้ที่นี่ด้วย มิฉะนั้นตัวเลขบนแชทกับบนหน้าจอจะขัดกัน
 --
@@ -320,19 +323,23 @@ $tpl$,
 SELECT public._bi_seed_metric(
   p_key           => 'tmc.stay_nights',
   p_label_th      => 'จำนวนคืนเข้าพัก',
-  p_definition_th => 'ผลรวมจำนวนคืนของการเข้าพักในช่วงที่เลือก ยึดวันเช็คอิน (check_in) · จำนวนคืนคำนวณจากวันเช็คเอาต์ลบวันเช็คอิน ถ้าไม่มีวันเช็คเอาต์ถือเป็น 1 คืน — สูตรเดียวกับหน้าภาพรวม TMC (totals.stays.nights) ไม่ได้ใช้ช่อง nights ที่กรอกมือ',
+  p_definition_th => 'ผลรวมจำนวนคืนที่พักจริงในช่วงที่เลือก — แตกการเข้าพักเป็นรายคืน คืนของวันที่ใดนับเข้าวันที่/เดือนนั้น (เช่น พัก 31 ธ.ค. ถึง 2 ม.ค. = ธ.ค. 1 คืน + ม.ค. 1 คืน) ถ้าไม่มีวันเช็คเอาต์ถือเป็น 1 คืน — สูตรเดียวกับหน้าภาพรวม TMC (nightsPerMonth ใน dashboard.ts) ไม่ได้ใช้ช่อง nights ที่กรอกมือ',
   p_grain         => 'stay',
   p_unit          => 'days',
   p_unit_decimals => 0,
-  p_time_basis    => 'check_in',
-  p_includes      => ARRAY['ทุกรายการเข้าพักในช่วงที่เลือก'],
-  p_excludes      => ARRAY['คืนที่ล้นออกนอกช่วงเวลาไม่ถูกตัดออก (นับทั้งก้อนที่วันเช็คอิน)'],
+  p_time_basis    => 'night_date',
+  p_includes      => ARRAY['ทุกคืนที่พักจริงในช่วงที่เลือก รวมคืนของ stay ที่เช็คอินก่อนช่วงแต่พักต่อเข้ามา'],
+  p_excludes      => ARRAY['คืนที่อยู่นอกช่วงเวลา (ตัดตามวันที่พักจริง ไม่นับทั้งก้อนที่วันเช็คอิน)'],
   p_synonyms      => ARRAY['จำนวนคืน','กี่คืน','คืนเข้าพัก','room nights','ยอดคืน'],
   p_sql_template  => $tpl$
 SELECT {{dim_select}}
-       sum(CASE WHEN o.check_out IS NULL THEN 1 ELSE GREATEST(o.check_out - o.check_in, 0) END)::bigint AS value,
-       count(*)::bigint AS stay_count
-FROM tmc_stays o, __p
+       count(*)::bigint AS value,
+       count(DISTINCT o.id)::bigint AS stay_count
+FROM (
+  SELECT s.*, n.night_date::date AS night_date
+  FROM tmc_stays s
+  CROSS JOIN LATERAL generate_series(s.check_in, coalesce(s.check_out, s.check_in + 1) - 1, interval '1 day') AS n(night_date)
+) o, __p
 WHERE o.org_id = __p.org_id {{time_filter}} {{filters}}
 {{group_by}}
 ORDER BY 2 DESC NULLS LAST
@@ -415,20 +422,25 @@ $tpl$,
 SELECT public._bi_seed_metric(
   p_key           => 'tmc.stay_adr',
   p_label_th      => 'ราคาห้องเฉลี่ยต่อคืน',
-  p_definition_th => 'รายได้ค่าห้องทั้งหมดหารด้วยจำนวนคืนเข้าพักทั้งหมดในช่วงที่เลือก ยึดวันเช็คอิน (check_in) — ใช้สูตรค่าห้องและจำนวนคืนชุดเดียวกับหน้าภาพรวม TMC · การพักฟรีหรือพักของผู้บริหารถูกนับเป็นคืนด้วย จึงกดค่าเฉลี่ยลง ถ้าต้องการเฉพาะที่มีรายได้ให้กรองประเภทการเข้าพักเป็น paid',
+  p_definition_th => 'ค่าห้องเฉลี่ยต่อคืนที่พักจริงในช่วงที่เลือก — แตกการเข้าพักเป็นรายคืน (ค่าห้องของ stay ถูกเฉลี่ยเท่ากันต่อคืน) คืนของวันที่ใดนับเข้าวันที่/เดือนนั้น สูตรคืนชุดเดียวกับหน้าภาพรวม TMC · การพักฟรีหรือพักของผู้บริหารถูกนับเป็นคืนด้วย จึงกดค่าเฉลี่ยลง ถ้าต้องการเฉพาะที่มีรายได้ให้กรองประเภทการเข้าพักเป็น paid',
   p_grain         => 'stay',
   p_unit          => 'thb',
-  p_time_basis    => 'check_in',
-  p_includes      => ARRAY['ค่าห้องรวมของช่วงที่เลือก หารด้วยจำนวนคืนรวม'],
+  p_time_basis    => 'night_date',
+  p_includes      => ARRAY['ค่าห้องเฉลี่ยต่อคืน (ค่าห้องของแต่ละ stay หารจำนวนคืนของ stay นั้น) เฉลี่ยทุกคืนในช่วง'],
   p_excludes      => ARRAY['อาหาร/เครื่องดื่ม','เงินมัดจำ'],
   p_synonyms      => ARRAY['ราคาเฉลี่ยต่อคืน','ค่าห้องเฉลี่ย','adr','average daily rate','เฉลี่ยต่อคืน'],
   p_sql_template  => $tpl$
 SELECT {{dim_select}}
-       (sum(coalesce(o.room_rate,0))
-        / NULLIF(sum(CASE WHEN o.check_out IS NULL THEN 1 ELSE GREATEST(o.check_out - o.check_in, 0) END),0))::numeric AS value,
-       sum(coalesce(o.room_rate,0))::numeric AS room_revenue,
-       sum(CASE WHEN o.check_out IS NULL THEN 1 ELSE GREATEST(o.check_out - o.check_in, 0) END)::bigint AS nights
-FROM tmc_stays o, __p
+       (sum(o.night_rate) / NULLIF(count(*), 0))::numeric AS value,
+       sum(o.night_rate)::numeric AS room_revenue,
+       count(*)::bigint AS nights
+FROM (
+  SELECT s.*, n.night_date::date AS night_date,
+         (coalesce(s.room_rate, 0)
+          / GREATEST(coalesce(s.check_out, s.check_in + 1) - s.check_in, 1))::numeric AS night_rate
+  FROM tmc_stays s
+  CROSS JOIN LATERAL generate_series(s.check_in, coalesce(s.check_out, s.check_in + 1) - 1, interval '1 day') AS n(night_date)
+) o, __p
 WHERE o.org_id = __p.org_id {{time_filter}} {{filters}}
 {{group_by}}
 ORDER BY 2 DESC NULLS LAST

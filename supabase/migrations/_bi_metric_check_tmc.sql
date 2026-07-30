@@ -51,7 +51,8 @@ petty AS (
          sum(amount) FILTER (WHERE txn_type = 'top_up')  AS top_up
   FROM tmc_petty_cash_txns WHERE org_id = (SELECT id FROM org)
 ),
-stay AS (  -- จำนวนคืน = check_out − check_in · ไม่มี check_out = 1 คืน (ตรง dashboard.ts)
+stay AS (  -- จำนวนคืน = check_out − check_in · ไม่มี check_out = 1 คืน
+           -- (BI ตัวจริงแตกเป็นรายคืน night_date — ยอดรวม all-time เท่ากัน จึงเทียบแบบนี้ได้)
   SELECT count(*)                                        AS cnt,
          sum(CASE WHEN check_out IS NULL THEN 1 ELSE GREATEST(check_out - check_in, 0) END) AS nights,
          sum(coalesce(room_rate,0))                      AS room_revenue,

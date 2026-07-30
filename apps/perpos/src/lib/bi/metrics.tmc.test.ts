@@ -41,9 +41,13 @@ const isSensitive = (m: SeedMetric) =>
 
 const hasAggregate = (tpl: string) => /\b(sum|count|avg|min|max)\s*\(/i.test(tpl);
 
-/** สูตรจำนวนคืนต้องเป็นก้อนเดียวกับ dashboard.ts (check_out − check_in, ไม่มี = 1 คืน) */
+/** สูตรจำนวนคืนราย stay (check_out − check_in, ไม่มี = 1 คืน) — ใช้กับ metric ราย stay */
 const NIGHTS_EXPR =
   /CASE WHEN o\.check_out IS NULL THEN 1 ELSE GREATEST\(o\.check_out - o\.check_in, 0\) END/;
+
+/** สูตรคืนตรงเดือน — แตก stay เป็นรายคืนตามวันที่พักจริง (ตรงกับ nightsPerMonth ใน dashboard.ts) */
+const PER_NIGHT_EXPR =
+  /generate_series\(s\.check_in, coalesce\(s\.check_out, s\.check_in \+ 1\) - 1, interval '1 day'\)/;
 
 describe("bi seed (tmc) — โครงสร้างไฟล์", () => {
   it("parse metric ได้ครบ 12 ตัว และ key ไม่ซ้ำ", () => {
@@ -80,7 +84,12 @@ describe.each(METRICS.map((m) => [m.key, m] as const))("bi metric (tmc): %s", (_
 
   it("ประกาศ time_basis ชัดเจน และเป็นคอลัมน์วันที่ของตารางนั้นจริง", () => {
     expect(m.time_basis).not.toBeUndefined();
-    expect(["entry_date", "txn_date", "check_in"]).toContain(m.time_basis);
+    // night_date = คอลัมน์ derived จาก generate_series (metric รายคืน) — ต้องมีในซับเควรีจริง
+    expect(["entry_date", "txn_date", "check_in", "night_date"]).toContain(m.time_basis);
+    if (m.time_basis === "night_date") {
+      expect(m.sql_template).toContain("AS night_date");
+      expect(m.sql_template).toMatch(PER_NIGHT_EXPR);
+    }
   });
 
   it("org isolation: template ต้อง bind o.org_id = __p.org_id", () => {
@@ -96,7 +105,10 @@ describe.each(METRICS.map((m) => [m.key, m] as const))("bi metric (tmc): %s", (_
   });
 
   it("ยิงได้เฉพาะตารางของโมดูล tmc", () => {
-    const tables = Array.from(m.sql_template.matchAll(/FROM\s+([a-z_]+)\s+o\b/gi)).map((x) => x[1]);
+    // รองรับทั้ง FROM <table> o ตรง ๆ และซับเควรีรายคืน (FROM <table> s ... ) o
+    const tables = Array.from(m.sql_template.matchAll(/FROM\s+([a-z_]+)\s+(?:o|s)\b/gi)).map(
+      (x) => x[1],
+    );
     expect(tables.length).toBe(1);
     expect(ALLOWED_TABLES).toContain(tables[0]);
   });
@@ -173,10 +185,16 @@ describe("bi seed (tmc) — ต้องยึดสูตรเดียวก�
     expect(byKey("tmc.petty_cash_top_up").sql_template).toMatch(/o\.txn_type = 'top_up'/);
   });
 
-  it("ทุก metric ที่นับคืนต้องใช้สูตรจำนวนคืนก้อนเดียวกับ dashboard.ts", () => {
-    for (const key of ["tmc.stay_nights", "tmc.stay_adr", "tmc.stay_avg_nights"]) {
-      expect(byKey(key).sql_template).toMatch(NIGHTS_EXPR);
+  it("metric รายคืน (nights/ADR) ต้องกระจายคืนตามวันที่พักจริง — สูตรเดียวกับ nightsPerMonth", () => {
+    for (const key of ["tmc.stay_nights", "tmc.stay_adr"]) {
+      const m = byKey(key);
+      expect(m.time_basis).toBe("night_date");
+      expect(m.sql_template).toMatch(PER_NIGHT_EXPR);
     }
+  });
+
+  it("คืนเฉลี่ยต่อการเข้าพัก (ราย stay) ยังใช้สูตรคืนก้อนเดียวกับ dashboard.ts", () => {
+    expect(byKey("tmc.stay_avg_nights").sql_template).toMatch(NIGHTS_EXPR);
   });
 
   it("ตัวหารของค่าเฉลี่ยต้องกันหารศูนย์ด้วย NULLIF", () => {
