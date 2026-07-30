@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireModuleMember } from "../../_lib/module-auth";
 import { createAdminClient } from "../../_lib/supabase";
+import { canSeeCost, stripCostList, type JustMeRole } from "../_lib";
 
 export async function GET(req: NextRequest) {
   const orgId = req.nextUrl.searchParams.get("orgId");
@@ -105,14 +106,20 @@ export async function GET(req: NextRequest) {
     members = profs ?? [];
   }
 
+  // ผู้รับเหมาช่วง/ช่าง (viewer) ต้องไม่เห็นต้นทุนเลย — เส้นนี้อ่านด้วย service-role (bypass RLS)
+  // ด่านของ DB จึงไม่ทำงานที่นี่ ต้องตัดออกที่ชั้น API ด้วย (contract §4.6 ข้อ 2)
+  const role = auth.moduleRole as JustMeRole;
+  const showCost = canSeeCost(role);
+
   return NextResponse.json({
     warehouses: warehouses ?? [],
     items: items ?? [],
     balances: balances ?? [],
     serials: serials ?? [],
-    movements: movementsWithCreators,
-    costs: costs ?? [],
-    costMonthly: costMonthly ?? [],
+    movements: showCost ? movementsWithCreators : stripCostList(movementsWithCreators, role),
+    costs: showCost ? (costs ?? []) : [],
+    costMonthly: showCost ? (costMonthly ?? []) : [],
+    canSeeCost: showCost,
     members,
   });
 }
