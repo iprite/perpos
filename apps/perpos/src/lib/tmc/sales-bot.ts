@@ -233,6 +233,24 @@ export function sanitizeForLine(text: string): string {
     .trim();
 }
 
+export type BotMode = "sales" | "service";
+
+/**
+ * บุคลิก + หน้าที่ของบอทต่อโหมด
+ * ขาย = ปิดการขายให้ทีม · บริการ = ดูแลคนที่จ่ายเงินมาแล้ว (เรื่องด่วนต้องถึงคนเร็วที่สุด)
+ */
+const MODE_BRIEF: Record<BotMode, string> = {
+  sales: `โหมดปัจจุบัน: **ผู้ช่วยขาย** (ลูกค้ายังไม่ได้จอง)
+- หน้าที่: ให้ข้อมูลห้องพัก ราคา ห้องว่าง รูป ให้ครบและน่าเชื่อถือ เพื่อให้ทีมปิดการขายต่อได้
+- ปิดท้ายด้วยประโยคชวนคุยต่อเรื่องวันเข้าพักหรือหลังที่สนใจ`,
+  service: `โหมดปัจจุบัน: **ผู้ช่วยดูแลลูกค้า** (ลูกค้ากำลังเข้าพักหรือเพิ่งเข้าพักเสร็จ)
+- หน้าที่: ดูแลให้ลูกค้าสบายใจ ตอบเรื่องการใช้งานที่พักและเงื่อนไขที่มีในข้อมูลอ้างอิง
+- **เรื่องด่วนหน้างานต้องถึงคนให้เร็วที่สุด** — แจ้งของเสีย/ซ่อม (แอร์ น้ำ ไฟ สระ) · ขอของเพิ่ม ·
+  เช็คอิน-เช็คเอาท์นอกเวลา · เรื่องร้องเรียน · ความปลอดภัย → ตอบสั้น ๆ ว่ากำลังเรียกทีมงาน
+  แล้วปิดท้ายด้วย ${NEED_ADMIN} ทันที ห้ามพยายามแก้ปัญหาเองหรือให้คำแนะนำทางเทคนิค
+- ห้ามขายของหรือชวนจองเพิ่มระหว่างลูกค้ากำลังมีปัญหา`,
+};
+
 export interface AnswerResult {
   /** ข้อความที่จะตอบลูกค้า (null = ตอบไม่ได้ ต้องส่งต่อแอดมิน) */
   answer: string | null;
@@ -250,8 +268,19 @@ export async function answerSalesQuestion(args: {
   history?: { role: "customer" | "bot"; text: string }[];
   /** บล็อก "ข้อมูลห้องว่างจากระบบจองจริง" (จาก lib/tmc/availability.ts) — มีเมื่อลูกค้าถามพร้อมวันที่ */
   availabilityText?: string;
+  /** sales = ก่อนจอง (ราคา/ห้องว่าง) · service = ดูแลระหว่าง–หลังเข้าพัก */
+  botMode?: BotMode;
 }): Promise<AnswerResult> {
-  const { admin, orgId, botName, question, minSimilarity, history = [], availabilityText } = args;
+  const {
+    admin,
+    orgId,
+    botName,
+    question,
+    minSimilarity,
+    history = [],
+    availabilityText,
+    botMode = "sales",
+  } = args;
 
   // ดึงกว้างกว่าเกณฑ์เล็กน้อย เพื่อให้โมเดลเห็นบริบทข้างเคียง แล้วค่อยตัดสินด้วยคะแนนสูงสุด
   const chunks = await retrieveContext(admin, orgId, question, Math.max(0, minSimilarity - 0.1));
@@ -272,6 +301,8 @@ export async function answerSalesQuestion(args: {
 
   const prompt = `คุณคือ "${botName}" แอดมินฝ่ายขายของ Thammachat Villa — luxury pool villa ให้เช่าเหมาหลัง
 คุณดูแลลูกค้าทาง LINE ด้วยมาตรฐานเดียวกับพนักงานต้อนรับของโรงแรมระดับห้าดาว
+
+${MODE_BRIEF[botMode]}
 
 บุคลิกและน้ำเสียง (สำคัญพอ ๆ กับความถูกต้อง)
 - สุภาพ อบอุ่น มีระดับ มั่นใจ — เหมือนคนที่ภูมิใจในบ้านที่ตัวเองดูแล ไม่ใช่พนักงานที่อ่านสคริปต์
