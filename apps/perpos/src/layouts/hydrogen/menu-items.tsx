@@ -399,26 +399,38 @@ function buildCrmMenuItems(org: string, labels: Record<string, string> = {}): Me
 }
 
 // ─── TMC module ─────────────────────────────────────────────────────────────
-function buildTmcMenuItems(org: string, labels: Record<string, string> = {}): MenuItem[] {
+function buildTmcMenuItems(
+  org: string,
+  orgRole?: string | null,
+  labels: Record<string, string> = {},
+): MenuItem[] {
   const t = (path: string) => `/${org}/tmc/${path}`;
   const l = (key: string, fallback: string) => labels[key] || fallback;
-  return [
-    { name: "TMC Management" },
-    {
-      name: l("dashboard", "Dashboard"),
-      href: `/${org}/tmc`,
-      icon: <LayoutDashboard className="h-5 w-5" />,
-    },
-    {
-      name: l("finance", "บัญชีและการเงิน"),
-      href: t("finance"),
-      icon: <Landmark className="h-5 w-5" />,
-    },
-    {
-      name: l("petty-cash", "เงินสดย่อย"),
-      href: t("petty-cash"),
-      icon: <Wallet className="h-5 w-5" />,
-    },
+  // Dashboard / บัญชีและการเงิน / เงินสดย่อย = ตัวเลขรายได้-ต้นทุนทั้งกิจการ → เฉพาะเจ้าของและผู้ดูแล
+  const isManager = orgRole === "owner" || orgRole === "admin";
+  const items: MenuItem[] = [{ name: "TMC Management" }];
+
+  if (isManager) {
+    items.push(
+      {
+        name: l("dashboard", "Dashboard"),
+        href: `/${org}/tmc`,
+        icon: <LayoutDashboard className="h-5 w-5" />,
+      },
+      {
+        name: l("finance", "บัญชีและการเงิน"),
+        href: t("finance"),
+        icon: <Landmark className="h-5 w-5" />,
+      },
+      {
+        name: l("petty-cash", "เงินสดย่อย"),
+        href: t("petty-cash"),
+        icon: <Wallet className="h-5 w-5" />,
+      },
+    );
+  }
+
+  items.push(
     { name: l("stock", "Stock คลัง"), href: t("stock"), icon: <Package className="h-5 w-5" /> },
     { name: l("stays", "การเข้าพัก"), href: t("stays"), icon: <Building2 className="h-5 w-5" /> },
     {
@@ -426,7 +438,9 @@ function buildTmcMenuItems(org: string, labels: Record<string, string> = {}): Me
       href: t("sales-bot"),
       icon: <Bot className="h-5 w-5" />,
     },
-  ];
+  );
+
+  return items;
 }
 
 // ─── Accounting Firm module ──────────────────────────────────────────────────
@@ -789,7 +803,7 @@ export function getMenuItems(
       : context === "stt"
         ? buildSttMenuItems(org, menuLabels.stt ?? {})
         : context === "tmc"
-          ? buildTmcMenuItems(org, menuLabels.tmc ?? {})
+          ? buildTmcMenuItems(org, orgRole, menuLabels.tmc ?? {})
           : context === "crm"
             ? buildCrmMenuItems(org, menuLabels.crm ?? {})
             : context === "acc_firm"

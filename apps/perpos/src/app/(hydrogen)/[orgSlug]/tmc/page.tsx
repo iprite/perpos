@@ -1,20 +1,18 @@
-import { redirect } from "next/navigation";
 import { Building2 } from "lucide-react";
 import { PageShell } from "@/components/ui/page-shell";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { getModuleRoleForCurrentUser } from "@/lib/accounting/queries";
+import { TMC_ORG_ID, requireTmcManagerPage } from "./_guard";
 import { computeTmcDashboard, rangeFromMonths } from "@/lib/tmc/dashboard";
 import { TmcRangeFilter } from "./_range-filter";
 import { TmcDashboardTabs } from "./_tabs";
 import { TmcDashboardView } from "./_view";
 import { TmcCostsView } from "./_costs-view";
 
-// TMC = single-tenant — ผูกกับ org เดียว (เหมือนเดิม)
-const TMC_ORG_ID = "1f52618c-09c4-49c5-a929-ea5060f26e7d";
-
 export default async function TmcDashboardPage({
+  params,
   searchParams,
 }: {
+  params: Promise<{ orgSlug: string }>;
   searchParams: Promise<{
     range?: string;
     from?: string;
@@ -23,9 +21,9 @@ export default async function TmcDashboardPage({
     tab?: string;
   }>;
 }) {
-  // Guard: ต้องเป็นสมาชิกโมดูล tmc (หรือ super_admin) — query ผ่าน RLS client (scope ตาม session)
-  const role = await getModuleRoleForCurrentUser(TMC_ORG_ID, "tmc");
-  if (!role) redirect("/");
+  // Guard: เฉพาะเจ้าของ/ผู้ดูแลโมดูล tmc (หรือ super_admin) — ข้อมูลอ่านผ่าน RLS client
+  const { orgSlug } = await params;
+  await requireTmcManagerPage(orgSlug);
 
   const sp = await searchParams;
   const tab = sp.tab === "costs" ? "costs" : "overview";
