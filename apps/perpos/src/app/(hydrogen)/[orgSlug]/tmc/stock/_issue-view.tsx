@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { CustomSelect } from "@/components/ui/custom-select";
+import { SegmentedControl } from "@/components/ui/segmented";
 import { StatusBadge } from "@/components/ui/badge";
 import { toast } from "@/lib/toast";
 import {
@@ -57,6 +58,7 @@ export function IssueView({
   const [note, setNote] = useState("");
   const [qtyOverride, setQtyOverride] = useState<Record<string, string>>({});
   const [extraBeds, setExtraBeds] = useState<ExtraBed[]>([]);
+  const [lineView, setLineView] = useState<"summary" | "rooms">("summary");
   const [saving, setSaving] = useState(false);
 
   const itemById = useMemo(() => new Map(items.map((i) => [i.id, i])), [items]);
@@ -184,6 +186,27 @@ export function IssueView({
       if (n > available) out.set(itemId, { need: n, available });
     }
     return out;
+  }, [groups, itemById, homeQty]);
+
+  /** ยอดรวมทั้งหลังต่อรายการ — ใช้เป็น "ใบหยิบของ" (หยิบทีเดียวจบ ไม่ต้องไล่ทีละห้อง) */
+  const totals = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const g of groups)
+      for (const l of g.lines) if (l.qty > 0) m.set(l.itemId, (m.get(l.itemId) ?? 0) + l.qty);
+    return Array.from(m.entries())
+      .map(([itemId, qty]) => {
+        const item = itemById.get(itemId);
+        const available = item ? homeQty(item) : 0;
+        return {
+          itemId,
+          name: item?.name ?? "—",
+          unit: item?.unit ?? "",
+          qty,
+          available,
+          short: qty > available,
+        };
+      })
+      .sort((a, b) => a.name.localeCompare(b.name, "th"));
   }, [groups, itemById, homeQty]);
 
   const anyShort = shortByItem.size > 0;
@@ -417,8 +440,59 @@ export function IssueView({
                 </div>
               )}
 
+              {/* สลับมุมมอง: ใบหยิบของ (รวมทั้งหลัง) ↔ รายห้อง (แก้จำนวน) */}
+              {propertyCode && groups.length > 0 && (
+                <SegmentedControl
+                  value={lineView}
+                  onChange={setLineView}
+                  options={[
+                    { value: "summary", label: "สรุปรวมทั้งหลัง" },
+                    { value: "rooms", label: "แยกรายห้อง (แก้จำนวน)" },
+                  ]}
+                />
+              )}
+
+              {/* ใบหยิบของ — รวมทุกห้อง + เตียงเสริมแล้ว */}
+              {propertyCode && lineView === "summary" && (
+                <Table className="rounded-none border-0 shadow-none">
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>รายการ</TableHead>
+                      <TableHead align="right">คงเหลือ</TableHead>
+                      <TableHead align="right">ต้องหยิบ</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {totals.map((t) => (
+                      <TableRow key={t.itemId}>
+                        <TableCell className="font-medium text-gray-900">{t.name}</TableCell>
+                        <TableCell
+                          align="right"
+                          className={
+                            t.short ? "tabular-nums text-red-600" : "tabular-nums text-gray-400"
+                          }
+                        >
+                          {t.available} {t.unit}
+                        </TableCell>
+                        <TableCell
+                          align="right"
+                          className={
+                            t.short
+                              ? "font-semibold tabular-nums text-red-600"
+                              : "font-semibold tabular-nums text-gray-900"
+                          }
+                        >
+                          {t.qty} {t.unit}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                    {totals.length === 0 && <TableEmpty colSpan={3}>ยังไม่มีรายการ</TableEmpty>}
+                  </TableBody>
+                </Table>
+              )}
+
               {/* รายการที่จะเบิก แยกตามห้อง */}
-              {propertyCode && (
+              {propertyCode && lineView === "rooms" && (
                 <Table className="rounded-none border-0 shadow-none">
                   <TableHeader>
                     <TableRow>
