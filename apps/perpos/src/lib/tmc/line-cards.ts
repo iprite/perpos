@@ -20,6 +20,7 @@ const SUCCESS_BG = "#F2FCF9";
 const WARN = "#8A6100";
 const WARN_BG = "#FFFCF3";
 const SEPARATOR = "#E6E9EE";
+const DANGER = "#C43448";
 
 /** เกณฑ์สีของ chip อัตราการเข้าพัก — ≥90% เขียว · <40% เหลือง · นอกนั้นน้ำเงิน */
 const RATE_HIGH = 90;
@@ -485,6 +486,158 @@ export function buildTmcKbDraftFlex(c: TmcKbDraftCard): LineMessage {
             text: isRule
               ? "กดยืนยันแล้วบอทจะทำตามกฎนี้ทุกข้อความ จนกว่าจะมีคนแก้หรือปิดกฎนะคะ"
               : "ตรวจตัวเลขและเงื่อนไขให้ครบก่อนกดยืนยันนะคะ — บอทจะเอาไปตอบลูกค้าจริง",
+            size: "xxs",
+            color: FINE,
+            margin: "sm",
+            wrap: true,
+          },
+        ],
+      },
+    },
+  };
+}
+
+/** การ์ดรวมชุด — ข้อความเดียวของแอดมินมีหลายเรื่อง (ข้อมูล + คำสั่งปนกัน) */
+export function buildTmcKbBatchFlex(c: {
+  batchId: string;
+  items: {
+    draftKind: "article" | "rule";
+    action: "create" | "update";
+    targetTitle: string | null;
+    title: string;
+    content: string;
+  }[];
+  skipped: string[];
+}): LineMessage {
+  const label = (i: (typeof c.items)[number]) =>
+    i.draftKind === "rule"
+      ? i.action === "update"
+        ? "แทนที่กฎเดิม"
+        : "กฎใหม่"
+      : i.action === "update"
+        ? "แก้ความรู้เดิม"
+        : "ความรู้ใหม่";
+
+  return {
+    type: "flex",
+    altText: `📋 ทวนก่อนบันทึก ${c.items.length} รายการ — กดยืนยันในแชท`,
+    contents: {
+      type: "bubble",
+      size: "mega",
+      header: {
+        type: "box",
+        layout: "vertical",
+        backgroundColor: CHARCOAL,
+        paddingAll: "14px",
+        contents: [
+          {
+            type: "text",
+            text: `📋 ทวนก่อนบันทึก ${c.items.length} รายการ`,
+            color: WHITE,
+            weight: "bold",
+            size: "md",
+            wrap: true,
+          },
+          {
+            type: "text",
+            text: "ยังไม่มีอะไรถูกบันทึก จนกว่าจะกดยืนยัน",
+            color: "#C9C8CA",
+            size: "xs",
+            margin: "xs",
+            wrap: true,
+          },
+        ],
+      },
+      body: {
+        type: "box",
+        layout: "vertical",
+        paddingAll: "16px",
+        spacing: "md",
+        contents: [
+          ...c.items.map((i, idx) => ({
+            type: "box" as const,
+            layout: "vertical" as const,
+            spacing: "xs" as const,
+            contents: [
+              {
+                type: "text" as const,
+                text: `${idx + 1}. ${label(i)}`,
+                size: "xxs" as const,
+                weight: "bold" as const,
+                color: i.draftKind === "rule" ? WARN : SUCCESS,
+              },
+              {
+                type: "text" as const,
+                text: clip(i.draftKind === "rule" ? i.content : i.title, 90),
+                size: "sm" as const,
+                color: INK,
+                wrap: true,
+              },
+              ...(i.draftKind === "article"
+                ? [
+                    {
+                      type: "text" as const,
+                      text: clip(i.content, 160),
+                      size: "xxs" as const,
+                      color: INK_MUTED,
+                      wrap: true,
+                    },
+                  ]
+                : []),
+              ...(i.targetTitle
+                ? [
+                    {
+                      type: "text" as const,
+                      text: `แทนที่: ${clip(i.targetTitle, 60)}`,
+                      size: "xxs" as const,
+                      color: WARN,
+                      wrap: true,
+                    },
+                  ]
+                : []),
+            ],
+          })),
+          ...(c.skipped.length
+            ? [
+                { type: "separator" as const, margin: "md" as const, color: SEPARATOR },
+                {
+                  type: "text" as const,
+                  text: `ไม่รับ ${c.skipped.length} รายการ:\n${c.skipped.map((s) => `• ${clip(s, 90)}`).join("\n")}`,
+                  size: "xxs" as const,
+                  color: DANGER,
+                  wrap: true,
+                  margin: "sm" as const,
+                },
+              ]
+            : []),
+        ],
+      },
+      footer: {
+        type: "box",
+        layout: "vertical",
+        spacing: "sm",
+        paddingAll: "12px",
+        contents: [
+          {
+            type: "button",
+            style: "primary",
+            height: "sm",
+            color: CHARCOAL,
+            action: {
+              type: "postback",
+              label: `ยืนยันทั้งหมด (${c.items.length})`,
+              data: `tmckb:okall:${c.batchId}`,
+            },
+          },
+          {
+            type: "button",
+            style: "secondary",
+            height: "sm",
+            action: { type: "postback", label: "ยกเลิก", data: `tmckb:noall:${c.batchId}` },
+          },
+          {
+            type: "text",
+            text: "ตรวจให้ครบก่อนกดยืนยันนะคะ — บอทจะเอาไปใช้กับลูกค้าจริง",
             size: "xxs",
             color: FINE,
             margin: "sm",

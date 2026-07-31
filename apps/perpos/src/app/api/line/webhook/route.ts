@@ -31,12 +31,14 @@ import {
 } from "@/lib/tmc/notify-group";
 import {
   cancelTmcKbDraft,
+  cancelTmcKbBatch,
+  confirmTmcKbBatch,
   confirmTmcKbDraft,
   handleTmcGroupKnowledge,
   mentionsBot,
   stripBotMention,
 } from "@/lib/tmc/kb-ingest";
-import { buildTmcKbDraftFlex } from "@/lib/tmc/line-cards";
+import { buildTmcKbBatchFlex, buildTmcKbDraftFlex } from "@/lib/tmc/line-cards";
 import { getServiceRemaining, getTokenBalance } from "@/lib/assistant/token-balance";
 import {
   buildBotConfirmFlex,
@@ -3427,17 +3429,24 @@ export async function POST(req: NextRequest) {
           (event.source as Record<string, string>)?.groupId ||
           (event.source as Record<string, string>)?.roomId ||
           "";
-        const [, act, draftId] = pbData.split(":");
-        if (pbGroup && draftId) {
+        const [, act, refId] = pbData.split(":");
+        if (pbGroup && refId) {
+          const fail = (e: unknown) => {
+            console.error("[line] tmc kb confirm failed:", String(e));
+            return "ขออภัยค่ะ ระบบขัดข้อง บันทึกไม่สำเร็จ 🙏";
+          };
           const msg =
             act === "ok"
-              ? await confirmTmcKbDraft(admin, draftId, pbGroup).catch((e) => {
-                  console.error("[line] tmc kb confirm failed:", String(e));
-                  return "ขออภัยค่ะ ระบบขัดข้อง บันทึกไม่สำเร็จ 🙏";
-                })
-              : await cancelTmcKbDraft(admin, draftId, pbGroup).catch(
-                  () => "ยกเลิกไม่สำเร็จค่ะ 🙏",
-                );
+              ? await confirmTmcKbDraft(admin, refId, pbGroup).catch(fail)
+              : act === "okall"
+                ? await confirmTmcKbBatch(admin, refId, pbGroup).catch(fail)
+                : act === "noall"
+                  ? await cancelTmcKbBatch(admin, refId, pbGroup).catch(
+                      () => "ยกเลิกไม่สำเร็จค่ะ 🙏",
+                    )
+                  : await cancelTmcKbDraft(admin, refId, pbGroup).catch(
+                      () => "ยกเลิกไม่สำเร็จค่ะ 🙏",
+                    );
           await replyText(pbReplyToken, msg);
         }
       }
@@ -3492,6 +3501,9 @@ export async function POST(req: NextRequest) {
           if (kbReply) {
             if (kbReply.kind === "draft") {
               await replyLine(replyToken, [buildTmcKbDraftFlex(kbReply)]);
+            } else if (kbReply.kind === "batch") {
+              // ข้อความเดียวมีหลายเรื่อง → การ์ดรวม กดยืนยันทีเดียวทั้งชุด
+              await replyLine(replyToken, [buildTmcKbBatchFlex(kbReply)]);
             } else {
               await replyText(replyToken, kbReply.text);
             }

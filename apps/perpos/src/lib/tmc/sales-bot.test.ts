@@ -8,7 +8,7 @@ import {
 } from "./sales-bot";
 import { mentionsBot, stripBotMention } from "./kb-ingest";
 import { isUnsafeRule, normalizeRule, rulesBlock, MAX_RULES, MAX_RULE_CHARS } from "./bot-rules";
-import { buildTmcKbDraftFlex } from "./line-cards";
+import { buildTmcKbBatchFlex, buildTmcKbDraftFlex } from "./line-cards";
 
 describe("sanitizeForLine — LINE เป็นข้อความล้วน markdown ต้องไม่หลุดถึงลูกค้า", () => {
   it("ถอด bold/heading ทิ้ง", () => {
@@ -208,5 +208,45 @@ describe("isUnsafeRule — กฎห้ามลบล้าง invariant ขอ
     expect(isUnsafeRule("เรียกผู้เข้าพักว่า คุณท่าน ทุกคำ ห้ามเปลี่ยน")).toBeNull();
     expect(isUnsafeRule("ลงท้ายด้วย ค่ะ เสมอ")).toBeNull();
     expect(isUnsafeRule("ห้ามใช้อีโมจิเกิน 1 ตัว")).toBeNull();
+  });
+});
+
+describe("buildTmcKbBatchFlex — ข้อความเดียวมีหลายเรื่อง ต้องทวนครบก่อนกดยืนยัน", () => {
+  const items = [
+    {
+      draftKind: "rule" as const,
+      action: "create" as const,
+      targetTitle: null,
+      title: "คำเรียกลูกค้า",
+      content: "เรียกผู้เข้าพักว่า คุณท่าน เสมอ",
+    },
+    {
+      draftKind: "article" as const,
+      action: "update" as const,
+      targetTitle: "ราคาบ้าน 4 ห้องนอน",
+      title: "ราคา Thammachat Villa (4 ห้องนอน)",
+      content: "วันธรรมดา 19,900 บาท/คืน",
+    },
+  ];
+
+  it("แสดงครบทุกรายการ + บอกว่าจะทับของเดิมอันไหน", () => {
+    const card = JSON.stringify(buildTmcKbBatchFlex({ batchId: "b1", items, skipped: [] }));
+    expect(card).toContain("เรียกผู้เข้าพักว่า คุณท่าน เสมอ");
+    expect(card).toContain("ราคา Thammachat Villa (4 ห้องนอน)");
+    expect(card).toContain("แทนที่: ราคาบ้าน 4 ห้องนอน");
+    expect(card).toContain("tmckb:okall:b1");
+    expect(card).toContain("tmckb:noall:b1");
+  });
+
+  it("รายการที่ระบบไม่รับต้องโชว์ให้คนเห็น ไม่ใช่หายเงียบ", () => {
+    const card = JSON.stringify(
+      buildTmcKbBatchFlex({
+        batchId: "b2",
+        items,
+        skipped: ["“ห้ามเรียกแอดมิน” — กฎนี้สั่งไม่ให้ส่งต่อคน"],
+      }),
+    );
+    expect(card).toContain("ไม่รับ 1 รายการ");
+    expect(card).toContain("ห้ามเรียกแอดมิน");
   });
 });
