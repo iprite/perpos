@@ -334,6 +334,11 @@ export const MODULE_MENUS: Record<string, MenuDef[]> = {
     { key: "dashboard", label: "Dashboard" },
     { key: "clock_in_out", label: "Clock In/Out" },
     { key: "inventory", label: "Inventory" },
+    { key: "projects", label: "โครงการ" },
+    { key: "price_book", label: "ราคามาตรฐาน" },
+    { key: "purchase_requests", label: "ใบขอซื้อ (PR)" },
+    { key: "vendors", label: "ผู้ขาย" },
+    { key: "project_reports", label: "รายงานโครงการ" },
   ],
   usvilla: [{ key: "dashboard", label: "Dashboard" }],
   jaquar: [

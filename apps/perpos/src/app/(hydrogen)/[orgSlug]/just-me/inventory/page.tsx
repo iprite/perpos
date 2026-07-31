@@ -20,7 +20,20 @@ import {
   TableEmpty,
 } from "@/components/ui/table";
 import { TablePager, usePagination } from "@/components/ui/table-pager";
+import { SegmentedControl } from "@/components/ui/segmented";
+import { StatCard } from "@/components/ui/stat-card";
 import { OcrReceiveDialog } from "./ocr-receive-dialog";
+import {
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  CartesianGrid,
+} from "recharts";
 import {
   Package,
   Warehouse,
@@ -32,11 +45,16 @@ import {
   FileText,
   CheckCircle,
   TrendingUp,
+  TrendingDown,
   AlertCircle,
   Loader2,
   Scissors,
   Info,
   ScanLine,
+  MapPin,
+  Coins,
+  Wallet,
+  Users,
 } from "lucide-react";
 import cn from "@core/utils/class-names";
 
@@ -45,6 +63,10 @@ interface WarehouseData {
   name: string;
   type: "central" | "site";
   location_address: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  contact_name: string | null;
+  contact_phone: string | null;
   is_active: boolean;
   created_at: string;
 }
@@ -92,11 +114,62 @@ interface StockMovement {
   note: string | null;
   created_by: string | null;
   created_at: string;
-  creator: {
-    id: string;
-    display_name: string | null;
-    email: string | null;
-  } | null;
+  requested_by: string | null;
+  requester_name: string | null;
+  project_id: string | null;
+  unit_cost: number | null;
+  total_cost: number | null;
+  creator: Person | null;
+  requester: Person | null;
+}
+
+interface Person {
+  id: string;
+  display_name: string | null;
+  email: string | null;
+}
+
+interface ItemCost {
+  item_id: string;
+  avg_cost: number;
+  last_cost: number | null;
+  last_purchase_at: string | null;
+  qty_on_hand: number;
+  value_on_hand: number;
+}
+
+interface CostMonthly {
+  item_id: string;
+  month: string;
+  qty_received: number;
+  value_received: number;
+  avg_purchase_cost: number | null;
+  qty_issued: number;
+  value_issued: number;
+}
+
+const fmtMoney = (v: number, decimals = 2) =>
+  new Intl.NumberFormat("th-TH", {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  }).format(v);
+
+const fmtQty = (v: number) =>
+  new Intl.NumberFormat("th-TH", { maximumFractionDigits: 2 }).format(v);
+
+/** ดึงพิกัดจากข้อความที่วาง — รับได้ทั้ง "13.6684, 100.6069" และลิงก์ Google Maps */
+function parseLatLng(text: string): { lat: string; lng: string } | null {
+  const patterns = [
+    /@(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)/, // .../maps/@13.66,100.60,17z
+    /!3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)/, // ...!3d13.66!4d100.60
+    /[?&]q=(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)/, // ...?q=13.66,100.60
+    /^\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*$/, // 13.66, 100.60
+  ];
+  for (const re of patterns) {
+    const m = text.match(re);
+    if (m) return { lat: m[1], lng: m[2] };
+  }
+  return null;
 }
 
 export default function JustMeInventoryPage() {
@@ -105,7 +178,7 @@ export default function JustMeInventoryPage() {
 
   // UI States
   const [activeTab, setActiveTab] = useState<
-    "overview" | "warehouses" | "items" | "movement" | "scraps" | "history"
+    "overview" | "warehouses" | "items" | "movement" | "scraps" | "cost" | "history"
   >("overview");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -120,6 +193,13 @@ export default function JustMeInventoryPage() {
   const [serials, setSerials] = useState<ItemSerial[]>([]);
   const [movements, setMovements] = useState<StockMovement[]>([]);
   const movePager = usePagination(movements);
+  const [costs, setCosts] = useState<ItemCost[]>([]);
+  const [costMonthly, setCostMonthly] = useState<CostMonthly[]>([]);
+  const [members, setMembers] = useState<Person[]>([]);
+  const [projects, setProjects] = useState<{ id: string; project_code: string; name: string }[]>(
+    [],
+  );
+  const [costItemId, setCostItemId] = useState("");
 
   // OCR dialog
   const [ocrDialogOpen, setOcrDialogOpen] = useState(false);
@@ -135,6 +215,10 @@ export default function JustMeInventoryPage() {
     name: "",
     type: "site",
     location_address: "",
+    latitude: "",
+    longitude: "",
+    contact_name: "",
+    contact_phone: "",
   });
   const [formItem, setFormItem] = useState({
     name: "",
@@ -158,6 +242,10 @@ export default function JustMeInventoryPage() {
     note: "",
     serialsText: "",
     length_remaining: "",
+    requested_by: "",
+    requester_name: "",
+    unit_cost: "",
+    project_id: "",
   });
   const [formLoading, setFormLoading] = useState(false);
 
@@ -210,6 +298,17 @@ export default function JustMeInventoryPage() {
       setBalances(json.balances || []);
       setSerials(json.serials || []);
       setMovements(json.movements || []);
+      setCosts(json.costs || []);
+      // โครงการสำหรับผูกการเบิกใช้ (ต้นทุนจริงต่อโครงการ) — อ่านผ่าน RLS ปกติ
+      const { data: projRows } = await supabase
+        .from("just_me_projects")
+        .select("id, project_code, name, status")
+        .eq("org_id", org.id)
+        .not("status", "in", '("closed","cancelled","lost")')
+        .order("project_code", { ascending: false });
+      setProjects((projRows ?? []) as { id: string; project_code: string; name: string }[]);
+      setCostMonthly(json.costMonthly || []);
+      setMembers(json.members || []);
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -254,7 +353,15 @@ export default function JustMeInventoryPage() {
 
       setSuccess(`เพิ่มคลังสินค้า "${formWarehouse.name}" สำเร็จ`);
       toast.success(`เพิ่มคลังสินค้า "${formWarehouse.name}" แล้ว`);
-      setFormWarehouse({ name: "", type: "site", location_address: "" });
+      setFormWarehouse({
+        name: "",
+        type: "site",
+        location_address: "",
+        latitude: "",
+        longitude: "",
+        contact_name: "",
+        contact_phone: "",
+      });
       await loadData();
     } catch (err: any) {
       setError(err.message);
@@ -352,6 +459,15 @@ export default function JustMeInventoryPage() {
         return;
       }
 
+      if (
+        formMovement.movement_type === "issue" &&
+        !formMovement.requested_by &&
+        !formMovement.requester_name.trim()
+      ) {
+        setError("กรุณาระบุผู้เบิก (เลือกสมาชิก หรือกรอกชื่อช่าง/ทีม)");
+        return;
+      }
+
       // Extract serials
       const serial_numbers = formMovement.serialsText
         .split("\n")
@@ -386,6 +502,10 @@ export default function JustMeInventoryPage() {
         note: "",
         serialsText: "",
         length_remaining: "",
+        requested_by: "",
+        requester_name: "",
+        unit_cost: "",
+        project_id: "",
       });
       await loadData();
     } catch (err: any) {
@@ -502,6 +622,132 @@ export default function JustMeInventoryPage() {
     }));
   }, [items]);
 
+  // ───────── ต้นทุน (Cost) ─────────
+  const costMap = useMemo(() => new Map(costs.map((c) => [c.item_id, c])), [costs]);
+
+  /** ราคาซื้อเฉลี่ยรายเดือน (เฉพาะเดือนที่มีการซื้อ) ต่อวัสดุ — ใช้หาแนวโน้ม */
+  const purchaseSeries = useMemo(() => {
+    const map = new Map<string, { month: string; cost: number }[]>();
+    for (const row of costMonthly) {
+      if (row.avg_purchase_cost === null || Number(row.qty_received) <= 0) continue;
+      const arr = map.get(row.item_id) ?? [];
+      arr.push({ month: row.month, cost: Number(row.avg_purchase_cost) });
+      map.set(row.item_id, arr);
+    }
+    map.forEach((arr) => arr.sort((a, b) => a.month.localeCompare(b.month)));
+    return map;
+  }, [costMonthly]);
+
+  const costRows = useMemo(() => {
+    return items
+      .map((item) => {
+        const c = costMap.get(item.id);
+        const series = purchaseSeries.get(item.id) ?? [];
+        const first = series[0]?.cost ?? null;
+        const last = series[series.length - 1]?.cost ?? null;
+        const trendPct =
+          first && last && series.length > 1 && first > 0 ? ((last - first) / first) * 100 : null;
+        return {
+          item,
+          avgCost: Number(c?.avg_cost ?? 0),
+          lastCost:
+            c?.last_cost === null || c?.last_cost === undefined ? null : Number(c.last_cost),
+          lastPurchaseAt: c?.last_purchase_at ?? null,
+          qtyOnHand: Number(c?.qty_on_hand ?? 0),
+          valueOnHand: Number(c?.value_on_hand ?? 0),
+          trendPct,
+          batches: series.length,
+        };
+      })
+      .sort((a, b) => b.valueOnHand - a.valueOnHand);
+  }, [items, costMap, purchaseSeries]);
+  const costPager = usePagination(costRows);
+
+  const costSummary = useMemo(() => {
+    const cutoff = Date.now() - 30 * 86400_000;
+    let bought = 0;
+    let issued = 0;
+    for (const m of movements) {
+      if (new Date(m.created_at).getTime() < cutoff) continue;
+      const val = Number(m.total_cost ?? 0);
+      if (m.movement_type === "receive") bought += val;
+      if (m.movement_type === "issue") issued += val;
+    }
+    return {
+      stockValue: costRows.reduce((s, r) => s + r.valueOnHand, 0),
+      bought30: bought,
+      issued30: issued,
+      up: costRows.filter((r) => (r.trendPct ?? 0) > 1).length,
+      down: costRows.filter((r) => (r.trendPct ?? 0) < -1).length,
+    };
+  }, [movements, costRows]);
+
+  /** วัสดุที่แสดงกราฟแนวโน้ม — default = ตัวที่มีประวัติซื้อมากที่สุด */
+  const trendItemId = useMemo(() => {
+    if (costItemId && purchaseSeries.has(costItemId)) return costItemId;
+    // เลือกตัวที่มีประวัติซื้อหลายครั้งและราคาขยับมากที่สุด (เห็นแนวโน้มชัดสุด)
+    let best = "";
+    let bestScore = -1;
+    purchaseSeries.forEach((arr, id) => {
+      if (arr.length < 2) return;
+      const first = arr[0].cost;
+      const last = arr[arr.length - 1].cost;
+      const swing = first > 0 ? Math.abs((last - first) / first) : 0;
+      const score = arr.length + swing * 10;
+      if (score > bestScore) {
+        best = id;
+        bestScore = score;
+      }
+    });
+    if (best) return best;
+    const firstWithData = Array.from(purchaseSeries.keys())[0];
+    return firstWithData ?? "";
+  }, [costItemId, purchaseSeries]);
+
+  const trendChartData = useMemo(() => {
+    const arr = purchaseSeries.get(trendItemId) ?? [];
+    return arr.map((p) => ({
+      month: new Date(p.month).toLocaleDateString("th-TH", { month: "short", year: "2-digit" }),
+      cost: Number(p.cost.toFixed(2)),
+    }));
+  }, [purchaseSeries, trendItemId]);
+
+  const usageChartData = useMemo(() => {
+    const byMonth = new Map<string, number>();
+    for (const row of costMonthly) {
+      byMonth.set(row.month, (byMonth.get(row.month) ?? 0) + Number(row.value_issued ?? 0));
+    }
+    return Array.from(byMonth.entries())
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([month, value]) => ({
+        month: new Date(month).toLocaleDateString("th-TH", { month: "short", year: "2-digit" }),
+        value: Math.round(value),
+      }));
+  }, [costMonthly]);
+
+  /** สรุปผู้เบิก — ใครเบิกอะไรไปเท่าไร (นับจากรายการเบิกใช้งาน) */
+  const requesterSummary = useMemo(() => {
+    const map = new Map<string, { name: string; times: number; value: number; lastAt: string }>();
+    for (const m of movements) {
+      if (m.movement_type !== "issue") continue;
+      const name = m.requester?.display_name || m.requester_name || "ไม่ระบุผู้เบิก";
+      const cur = map.get(name) ?? { name, times: 0, value: 0, lastAt: m.created_at };
+      cur.times += 1;
+      cur.value += Number(m.total_cost ?? 0);
+      if (m.created_at > cur.lastAt) cur.lastAt = m.created_at;
+      map.set(name, cur);
+    }
+    return Array.from(map.values()).sort((a, b) => b.value - a.value);
+  }, [movements]);
+
+  const memberOptions = useMemo(
+    () => [
+      { value: "", label: "— ไม่ใช่สมาชิกในระบบ (กรอกชื่อด้านขวา) —" },
+      ...members.map((m) => ({ value: m.id, label: m.display_name || m.email || m.id })),
+    ],
+    [members],
+  );
+
   const warehouseOptions = useMemo(() => {
     return warehouses.map((w) => ({
       value: w.id,
@@ -550,38 +796,32 @@ export default function JustMeInventoryPage() {
       ) : (
         <div className="space-y-6">
           {/* Tabs */}
-          <div className="flex w-fit flex-wrap gap-1 rounded-lg bg-slate-100 p-1">
-            {[
-              { id: "overview", label: "สรุปภาพรวม", icon: <TrendingUp className="h-4 w-4" /> },
+          <SegmentedControl
+            value={activeTab}
+            onChange={(val) => {
+              setActiveTab(val as typeof activeTab);
+              setError(null);
+              setSuccess(null);
+            }}
+            ariaLabel="หมวดของระบบคลังสินค้า"
+            options={[
+              { value: "overview", label: "สรุปภาพรวม", icon: <TrendingUp className="h-4 w-4" /> },
               {
-                id: "warehouses",
+                value: "warehouses",
                 label: "คลังสินค้า & ไซต์",
                 icon: <Warehouse className="h-4 w-4" />,
               },
-              { id: "items", label: "วัสดุ/สินค้า", icon: <Package className="h-4 w-4" /> },
-              { id: "movement", label: "เบิก/โอน", icon: <ArrowLeftRight className="h-4 w-4" /> },
-              { id: "scraps", label: "เศษสายไฟ", icon: <Scissors className="h-4 w-4" /> },
-              { id: "history", label: "ประวัติ", icon: <History className="h-4 w-4" /> },
-            ].map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => {
-                  setActiveTab(tab.id as any);
-                  setError(null);
-                  setSuccess(null);
-                }}
-                className={cn(
-                  "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
-                  activeTab === tab.id
-                    ? "bg-white text-slate-900 shadow-sm"
-                    : "text-slate-500 hover:text-slate-700",
-                )}
-              >
-                {tab.icon}
-                {tab.label}
-              </button>
-            ))}
-          </div>
+              { value: "items", label: "วัสดุ/สินค้า", icon: <Package className="h-4 w-4" /> },
+              {
+                value: "movement",
+                label: "เบิก/โอน",
+                icon: <ArrowLeftRight className="h-4 w-4" />,
+              },
+              { value: "scraps", label: "เศษสายไฟ", icon: <Scissors className="h-4 w-4" /> },
+              { value: "cost", label: "ต้นทุน", icon: <Coins className="h-4 w-4" /> },
+              { value: "history", label: "ประวัติ", icon: <History className="h-4 w-4" /> },
+            ]}
+          />
 
           {/* TAB CONTENT: Overview */}
           {activeTab === "overview" && (
@@ -754,7 +994,7 @@ export default function JustMeInventoryPage() {
                   </div>
 
                   <div className="space-y-1.5">
-                    <Label htmlFor="wh-addr">ที่อยู่ / พิกัดสถานที่</Label>
+                    <Label htmlFor="wh-addr">ที่อยู่สถานที่</Label>
                     <Input
                       id="wh-addr"
                       placeholder="ที่ตั้งคลัง หรือ ไซต์ก่อสร้าง"
@@ -763,6 +1003,71 @@ export default function JustMeInventoryPage() {
                         setFormWarehouse({ ...formWarehouse, location_address: e.target.value })
                       }
                     />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label htmlFor="wh-pin">พิกัดที่ตั้ง (วางลิงก์ Google Maps ได้เลย)</Label>
+                    <Input
+                      id="wh-pin"
+                      placeholder="วางลิงก์แผนที่ หรือ 13.6684, 100.6069"
+                      onChange={(e) => {
+                        const parsed = parseLatLng(e.target.value);
+                        if (parsed)
+                          setFormWarehouse((prev) => ({
+                            ...prev,
+                            latitude: parsed.lat,
+                            longitude: parsed.lng,
+                          }));
+                      }}
+                    />
+                    <div className="grid grid-cols-2 gap-2">
+                      <Input
+                        type="number"
+                        step="any"
+                        placeholder="ละติจูด"
+                        value={formWarehouse.latitude}
+                        onChange={(e) =>
+                          setFormWarehouse({ ...formWarehouse, latitude: e.target.value })
+                        }
+                      />
+                      <Input
+                        type="number"
+                        step="any"
+                        placeholder="ลองจิจูด"
+                        value={formWarehouse.longitude}
+                        onChange={(e) =>
+                          setFormWarehouse({ ...formWarehouse, longitude: e.target.value })
+                        }
+                      />
+                    </div>
+                    <p className="text-xs text-gray-500">
+                      ใส่พิกัดแล้วจะมีปุ่มเปิดแผนที่ให้ในตารางด้านขวา
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="wh-contact">ผู้ดูแลหน้างาน</Label>
+                      <Input
+                        id="wh-contact"
+                        placeholder="เช่น ช่างสมชาย (โฟร์แมน)"
+                        value={formWarehouse.contact_name}
+                        onChange={(e) =>
+                          setFormWarehouse({ ...formWarehouse, contact_name: e.target.value })
+                        }
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="wh-phone">เบอร์ติดต่อ</Label>
+                      <Input
+                        id="wh-phone"
+                        placeholder="08x-xxx-xxxx"
+                        value={formWarehouse.contact_phone}
+                        onChange={(e) =>
+                          setFormWarehouse({ ...formWarehouse, contact_phone: e.target.value })
+                        }
+                      />
+                    </div>
                   </div>
 
                   <Button type="submit" className="w-full font-bold" disabled={formLoading}>
@@ -784,7 +1089,8 @@ export default function JustMeInventoryPage() {
                     <TableRow>
                       <TableHead>ชื่อคลัง / ไซต์งาน</TableHead>
                       <TableHead>ประเภท</TableHead>
-                      <TableHead>ที่อยู่</TableHead>
+                      <TableHead>ที่ตั้ง / พิกัด</TableHead>
+                      <TableHead>ผู้ดูแลหน้างาน</TableHead>
                       <TableHead>สถานะ</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -798,7 +1104,31 @@ export default function JustMeInventoryPage() {
                           </StatusBadge>
                         </TableCell>
                         <TableCell className="max-w-xs text-xs text-slate-500">
-                          {wh.location_address || "—"}
+                          <p className="truncate">{wh.location_address || "—"}</p>
+                          {wh.latitude !== null && wh.longitude !== null && (
+                            <a
+                              href={`https://www.google.com/maps/search/?api=1&query=${wh.latitude},${wh.longitude}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="mt-0.5 inline-flex items-center gap-1 font-medium text-primary hover:underline"
+                            >
+                              <MapPin className="h-3.5 w-3.5" />
+                              <span className="tabular-nums">
+                                {Number(wh.latitude).toFixed(4)}, {Number(wh.longitude).toFixed(4)}
+                              </span>
+                            </a>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-xs text-slate-600">
+                          {wh.contact_name || "—"}
+                          {wh.contact_phone && (
+                            <a
+                              href={`tel:${wh.contact_phone.replace(/[^+\d]/g, "")}`}
+                              className="block text-slate-400 hover:underline"
+                            >
+                              {wh.contact_phone}
+                            </a>
+                          )}
                         </TableCell>
                         <TableCell>
                           <span className="inline-flex items-center gap-1 whitespace-nowrap text-xs font-semibold text-emerald-700">
@@ -1118,6 +1448,85 @@ export default function JustMeInventoryPage() {
                   </div>
                 </div>
 
+                {/* ต้นทุนซื้อ — เฉพาะรายการรับเข้า */}
+                {formMovement.movement_type === "receive" && (
+                  <div className="space-y-1.5 rounded-xl border border-emerald-200 bg-emerald-50/60 p-4">
+                    <Label htmlFor="mov-cost">
+                      ต้นทุนต่อหน่วย (บาท /{" "}
+                      {selectedFormItemObj ? selectedFormItemObj.unit : "หน่วย"})
+                    </Label>
+                    <Input
+                      id="mov-cost"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      placeholder="ราคาซื้อจากผู้ขาย — ปล่อยว่างจะใช้ต้นทุนเฉลี่ยเดิม"
+                      value={formMovement.unit_cost}
+                      onChange={(e) =>
+                        setFormMovement({ ...formMovement, unit_cost: e.target.value })
+                      }
+                    />
+                    <p className="text-xs text-emerald-800/80">
+                      ระบบจะคิดต้นทุนเฉลี่ยถ่วงน้ำหนัก (moving average) ให้อัตโนมัติ
+                      {formMovement.unit_cost &&
+                        formMovement.quantity &&
+                        ` · มูลค่ารับเข้า ${fmtMoney(
+                          Number(formMovement.unit_cost) * Number(formMovement.quantity),
+                        )} ฿`}
+                    </p>
+                  </div>
+                )}
+
+                {/* ผู้เบิก / ผู้รับของ */}
+                <div className="space-y-3 rounded-xl border bg-slate-50 p-4">
+                  <p className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
+                    <Users className="h-4 w-4 text-primary" />
+                    {formMovement.movement_type === "issue"
+                      ? "ผู้เบิก (จำเป็น) — ใครนำของไปใช้"
+                      : "ผู้เบิก / ผู้รับของ (ถ้ามี)"}
+                  </p>
+                  {["issue", "return"].includes(formMovement.movement_type) && (
+                    <div className="space-y-1.5">
+                      <Label htmlFor="mov-project">โครงการที่เบิกไปใช้</Label>
+                      <CustomSelect
+                        value={formMovement.project_id}
+                        onChange={(val) => setFormMovement({ ...formMovement, project_id: val })}
+                        options={[
+                          { value: "", label: "— ไม่ผูกโครงการ (ใช้ในงานทั่วไป) —" },
+                          ...projects.map((p) => ({
+                            value: p.id,
+                            label: `${p.project_code} · ${p.name}`,
+                          })),
+                        ]}
+                      />
+                      <p className="text-xs text-gray-500">
+                        ผูกโครงการแล้วมูลค่าที่เบิกจะถูกนับเป็นต้นทุนจริงของโครงการนั้นทันที
+                      </p>
+                    </div>
+                  )}
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="mov-requester-member">สมาชิกในระบบ</Label>
+                      <CustomSelect
+                        value={formMovement.requested_by}
+                        onChange={(val) => setFormMovement({ ...formMovement, requested_by: val })}
+                        options={memberOptions}
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="mov-requester-name">ชื่อช่าง / ทีม (ไม่มีบัญชีในระบบ)</Label>
+                      <Input
+                        id="mov-requester-name"
+                        placeholder="เช่น ช่างสมชาย ผลดี (ทีมไฟฟ้า A)"
+                        value={formMovement.requester_name}
+                        onChange={(e) =>
+                          setFormMovement({ ...formMovement, requester_name: e.target.value })
+                        }
+                      />
+                    </div>
+                  </div>
+                </div>
+
                 {/* Serial and Wire length sections */}
                 {selectedFormItemObj &&
                   (selectedFormItemObj.has_serial || selectedFormItemObj.has_cable_measurement) && (
@@ -1262,6 +1671,227 @@ export default function JustMeInventoryPage() {
             </div>
           )}
 
+          {/* TAB CONTENT: Cost */}
+          {activeTab === "cost" && (
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <StatCard
+                  icon={<Wallet className="h-4 w-4" />}
+                  label="มูลค่าสต๊อกคงเหลือ"
+                  value={`${fmtMoney(costSummary.stockValue)} ฿`}
+                  sub="ตีด้วยต้นทุนเฉลี่ยถ่วงน้ำหนัก"
+                  tone="info"
+                  valueColored
+                />
+                <StatCard
+                  icon={<Package className="h-4 w-4" />}
+                  label="ต้นทุนซื้อเข้า 30 วัน"
+                  value={`${fmtMoney(costSummary.bought30)} ฿`}
+                  tone="positive"
+                  valueColored
+                />
+                <StatCard
+                  icon={<ArrowLeftRight className="h-4 w-4" />}
+                  label="มูลค่าเบิกใช้ 30 วัน"
+                  value={`${fmtMoney(costSummary.issued30)} ฿`}
+                  sub="ต้นทุนวัสดุที่ลงหน้างานจริง"
+                  tone="negative"
+                  valueColored
+                />
+                <StatCard
+                  icon={<TrendingUp className="h-4 w-4" />}
+                  label="แนวโน้มราคาซื้อ"
+                  value={`↑ ${costSummary.up} / ↓ ${costSummary.down}`}
+                  sub="จำนวนวัสดุที่ราคาขึ้น / ลง"
+                  tone="warning"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
+                <div className="min-w-0 space-y-3 rounded-xl border bg-white p-5 shadow-sm">
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-3">
+                    <h2 className="flex items-center gap-2 text-sm font-semibold text-gray-900">
+                      <TrendingUp className="h-5 w-5 text-primary" />
+                      แนวโน้มราคาซื้อรายเดือน
+                    </h2>
+                    <CustomSelect
+                      className="w-56"
+                      value={trendItemId}
+                      onChange={setCostItemId}
+                      options={items
+                        .filter((i) => purchaseSeries.has(i.id))
+                        .map((i) => ({ value: i.id, label: `${i.name} (${i.code})` }))}
+                    />
+                  </div>
+                  {trendChartData.length === 0 ? (
+                    <div className="py-16 text-center text-sm text-gray-400">
+                      ยังไม่มีประวัติราคาซื้อ
+                    </div>
+                  ) : (
+                    <ResponsiveContainer width="100%" height={260}>
+                      <LineChart data={trendChartData}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e6e9ee" />
+                        <XAxis dataKey="month" tick={{ fontSize: 11 }} />
+                        <YAxis tick={{ fontSize: 11 }} width={64} domain={["auto", "auto"]} />
+                        <Tooltip
+                          formatter={(v: any) => [`${fmtMoney(Number(v))} ฿`, "ราคาซื้อเฉลี่ย"]}
+                        />
+                        <Line
+                          type="monotone"
+                          dataKey="cost"
+                          stroke="#3C3B3D"
+                          strokeWidth={2}
+                          dot={{ r: 3 }}
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  )}
+                </div>
+
+                <div className="min-w-0 space-y-3 rounded-xl border bg-white p-5 shadow-sm">
+                  <h2 className="flex items-center gap-2 border-b pb-3 text-sm font-semibold text-gray-900">
+                    <Coins className="h-5 w-5 text-primary" />
+                    มูลค่าวัสดุที่เบิกใช้รายเดือน (ทุกวัสดุ)
+                  </h2>
+                  {usageChartData.length === 0 ? (
+                    <div className="py-16 text-center text-sm text-gray-400">
+                      ยังไม่มีรายการเบิกใช้
+                    </div>
+                  ) : (
+                    <ResponsiveContainer width="100%" height={260}>
+                      <BarChart data={usageChartData}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e6e9ee" />
+                        <XAxis dataKey="month" tick={{ fontSize: 11 }} />
+                        <YAxis tick={{ fontSize: 11 }} width={72} />
+                        <Tooltip
+                          formatter={(v: any) => [`${fmtMoney(Number(v), 0)} ฿`, "มูลค่าเบิกใช้"]}
+                        />
+                        <Bar dataKey="value" fill="#5D9CEC" radius={[4, 4, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  )}
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <div className="px-1 text-sm font-semibold text-gray-900">
+                  ต้นทุนรายวัสดุ (moving average)
+                </div>
+                <Table className="shadow-sm">
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>วัสดุ</TableHead>
+                      <TableHead align="right">ต้นทุนเฉลี่ย/หน่วย</TableHead>
+                      <TableHead align="right">ราคาซื้อล่าสุด</TableHead>
+                      <TableHead align="right">คงเหลือ</TableHead>
+                      <TableHead align="right">มูลค่าคงเหลือ (฿)</TableHead>
+                      <TableHead align="center">แนวโน้มราคา</TableHead>
+                      <TableHead>ซื้อล่าสุด</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {costRows.length === 0 ? (
+                      <TableEmpty colSpan={7}>ยังไม่มีข้อมูลต้นทุน</TableEmpty>
+                    ) : (
+                      costPager.rows.map((r) => (
+                        <TableRow key={r.item.id}>
+                          <TableCell className="font-bold text-slate-800">
+                            <p>{r.item.name}</p>
+                            <code className="font-mono text-[11px] font-normal text-slate-400">
+                              {r.item.code}
+                            </code>
+                          </TableCell>
+                          <TableCell align="right" tabular>
+                            {fmtMoney(r.avgCost)}
+                          </TableCell>
+                          <TableCell align="right" tabular className="text-slate-500">
+                            {r.lastCost === null ? "—" : fmtMoney(r.lastCost)}
+                          </TableCell>
+                          <TableCell align="right" className="tabular-nums text-slate-600">
+                            {fmtQty(r.qtyOnHand)} {r.item.unit}
+                          </TableCell>
+                          <TableCell align="right" tabular className="font-bold text-slate-800">
+                            {fmtMoney(r.valueOnHand)}
+                          </TableCell>
+                          <TableCell align="center">
+                            {r.trendPct === null ? (
+                              <span className="text-xs text-slate-400">
+                                {r.batches <= 1 ? "ซื้อครั้งเดียว" : "—"}
+                              </span>
+                            ) : (
+                              <span
+                                className={cn(
+                                  "inline-flex items-center gap-1 whitespace-nowrap text-xs font-bold tabular-nums",
+                                  r.trendPct > 0 ? "text-red-600" : "text-green-600",
+                                )}
+                              >
+                                {r.trendPct > 0 ? (
+                                  <TrendingUp className="h-3.5 w-3.5" />
+                                ) : (
+                                  <TrendingDown className="h-3.5 w-3.5" />
+                                )}
+                                {r.trendPct > 0 ? "+" : "−"}
+                                {fmtMoney(Math.abs(r.trendPct), 1)}%
+                              </span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-xs text-slate-500">
+                            {r.lastPurchaseAt
+                              ? new Date(r.lastPurchaseAt).toLocaleDateString("th-TH", {
+                                  day: "numeric",
+                                  month: "short",
+                                  year: "numeric",
+                                  timeZone: "Asia/Bangkok",
+                                })
+                              : "—"}
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+                <TablePager pager={costPager} unit="รายการ" />
+              </div>
+
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 px-1 text-sm font-semibold text-gray-900">
+                  <Users className="h-4 w-4 text-primary" />
+                  ใครเบิกของไปเท่าไร (จากรายการเบิกใช้งาน)
+                </div>
+                <Table className="shadow-sm">
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>ผู้เบิก</TableHead>
+                      <TableHead align="right">จำนวนครั้ง</TableHead>
+                      <TableHead align="right">มูลค่าที่เบิก (฿)</TableHead>
+                      <TableHead>เบิกล่าสุด</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {requesterSummary.length === 0 ? (
+                      <TableEmpty colSpan={4}>ยังไม่มีรายการเบิกใช้งาน</TableEmpty>
+                    ) : (
+                      requesterSummary.map((r) => (
+                        <TableRow key={r.name}>
+                          <TableCell className="font-bold text-slate-800">{r.name}</TableCell>
+                          <TableCell align="right" tabular className="text-slate-600">
+                            {r.times}
+                          </TableCell>
+                          <TableCell align="right" tabular className="font-bold text-slate-800">
+                            {fmtMoney(r.value)}
+                          </TableCell>
+                          <TableCell className="text-xs text-slate-500">
+                            {fmtDateTime(r.lastAt)}
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+          )}
+
           {/* TAB CONTENT: History */}
           {activeTab === "history" && (
             <div className="overflow-hidden rounded-xl border bg-white">
@@ -1278,6 +1908,9 @@ export default function JustMeInventoryPage() {
                     <TableHead>ประเภทรายการ</TableHead>
                     <TableHead>สินค้า</TableHead>
                     <TableHead align="right">จำนวน</TableHead>
+                    <TableHead align="right">มูลค่า (฿)</TableHead>
+                    <TableHead>ผู้เบิก / ผู้รับของ</TableHead>
+                    <TableHead>โครงการ</TableHead>
                     <TableHead>จากคลัง</TableHead>
                     <TableHead>ไปยังคลัง</TableHead>
                     <TableHead>เอกสารอ้างอิง / ผู้ทำรายการ</TableHead>
@@ -1285,7 +1918,7 @@ export default function JustMeInventoryPage() {
                 </TableHeader>
                 <TableBody>
                   {movements.length === 0 ? (
-                    <TableEmpty colSpan={7}>ยังไม่มีรายการบันทึก</TableEmpty>
+                    <TableEmpty colSpan={10}>ยังไม่มีรายการบันทึก</TableEmpty>
                   ) : (
                     movePager.rows.map((mov) => {
                       const item = items.find((i) => i.id === mov.item_id);
@@ -1311,6 +1944,17 @@ export default function JustMeInventoryPage() {
                           </TableCell>
                           <TableCell align="right" tabular className="font-black text-slate-800">
                             {mov.quantity} {item ? item.unit : "ชิ้น"}
+                          </TableCell>
+                          <TableCell align="right" tabular className="text-slate-700">
+                            {mov.total_cost === null || mov.total_cost === undefined
+                              ? "—"
+                              : fmtMoney(Number(mov.total_cost))}
+                          </TableCell>
+                          <TableCell className="text-xs text-slate-600">
+                            {mov.requester?.display_name || mov.requester_name || "—"}
+                          </TableCell>
+                          <TableCell className="text-xs text-slate-600">
+                            {projects.find((p) => p.id === mov.project_id)?.project_code ?? "—"}
                           </TableCell>
                           <TableCell className="text-xs text-slate-500">
                             {src ? src.name : "—"}
