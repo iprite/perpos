@@ -33,6 +33,10 @@
 8. **บอทเงียบเมื่ออยู่โหมดคนจริง** — หลัง escalate ลูกค้ารายนั้นเข้าโหมด `human` ตาม `human_mode_minutes`
    ถ้าบอทยังตอบแทรกตอนแอดมินคุยอยู่ = พังประสบการณ์ลูกค้า
 9. **ราคา/เงื่อนไขทั้งหมดอยู่ในคลังความรู้ ไม่ฮาร์ดโค้ดในโค้ด** — แก้ราคาแล้วต้องกด "อัปเดตความรู้" ให้บอทเรียนใหม่
+10. **"กฎประจำตัว" ≠ "ความรู้"** — คำสั่งวิธีพูด/ข้อห้าม (เช่น "เรียกลูกค้าว่าคุณท่าน") ต้องอยู่ใน `tmc_bot_rules`
+    ที่เข้า prompt **ทุกข้อความ** ห้ามเอาไปยัดคลังความรู้ (retrieval ไม่มีทางหยิบมาใช้) ·
+    และกฎ **ห้ามลบล้างกติกาความถูกต้อง** — `isUnsafeRule()` ปฏิเสธกฎที่สั่งให้เดา/ยืนยันจอง/ไม่ส่งต่อคน
+    ตั้งแต่ต้นทาง และ prompt สั่งให้ยึดกติกาความถูกต้องเสมอเมื่อขัดกัน (ดู §6.4)
 
 ---
 
@@ -85,7 +89,8 @@ verify signature (TMC secret) → resolve org → upsert contact → บัน�
 | `tmc_chat_contacts`    | ลูกค้า LINE + โหมด bot/human + โควตาวัน                                                                                                                                             |
 | `tmc_chat_messages`    | ประวัติข้อความทุกฝั่ง + similarity ตอนบอทตอบ                                                                                                                                        |
 | `tmc_chat_escalations` | เคสรอแอดมิน (`open → handled/closed`)                                                                                                                                               |
-| `tmc_kb_drafts`        | ร่างความรู้จากกลุ่ม LINE ที่รอกดยืนยัน (`pending → applied/cancelled/expired`, หมดอายุ 24 ชม.)                                                                                      |
+| `tmc_kb_drafts`        | ร่างความรู้/กฎจากกลุ่ม LINE ที่รอกดยืนยัน (`kind` = `article`/`rule` · `pending → applied/cancelled/expired`, หมดอายุ 24 ชม.)                                                       |
+| `tmc_bot_rules`        | **กฎประจำตัวบอท** — คำสั่งวิธีพูด/ข้อห้ามที่เข้า prompt ทุกข้อความ ไม่ผ่าน retrieval (ดู §6.4)                                                                                      |
 
 **RPC:** `match_tmc_kb_chunks(p_org_id, query_embedding, match_count, min_similarity)` ·
 `replace_tmc_kb_chunks(p_article_id, p_chunks jsonb)` — ทั้งคู่ SECURITY DEFINER + REVOKE จาก `authenticated`
@@ -96,18 +101,20 @@ verify signature (TMC secret) → resolve org → upsert contact → บัน�
 
 ## 5. Code map
 
-| ไฟล์                                                                                             | หน้าที่                                                                         |
-| ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------- |
-| [`lib/tmc/sales-bot.ts`](../apps/perpos/src/lib/tmc/sales-bot.ts)                                | embed / chunk / retrieve / `answerSalesQuestion` / `wantsHuman`                 |
-| [`lib/tmc/line-oa.ts`](../apps/perpos/src/lib/tmc/line-oa.ts)                                    | channel @tmcvilla — signature, reply, profile, `tmcChatUrl`                     |
-| [`lib/tmc/notify-group.ts`](../apps/perpos/src/lib/tmc/notify-group.ts)                          | กลุ่มแจ้งเตือนฝั่งบอท PERPOS — รหัส `TMC-XXXXXX`, ผูก/ปลดผูกกลุ่ม               |
-| [`lib/tmc/kb-ingest.ts`](../apps/perpos/src/lib/tmc/kb-ingest.ts)                                | แท็ก @perpos → AI เรียบเรียงเป็นร่าง → `confirmTmcKbDraft` / `cancelTmcKbDraft` |
-| [`lib/tmc/line-cards.ts`](../apps/perpos/src/lib/tmc/line-cards.ts)                              | `buildTmcEscalationFlex` — การ์ดแจ้งแอดมิน (ส่งผ่านบอท PERPOS)                  |
-| [`api/line/tmc/webhook/route.ts`](../apps/perpos/src/app/api/line/tmc/webhook/route.ts)          | webhook @tmcvilla (ลูกค้ารายบุคคล) + escalation                                 |
-| [`api/line/webhook/route.ts`](../apps/perpos/src/app/api/line/webhook/route.ts)                  | ฝั่งกลุ่ม — รับรหัสผูกกลุ่ม, แท็กบอทเพิ่มความรู้, ปลดผูกเมื่อ `leave`           |
-| `api/tmc/kb/route.ts` · `kb/[id]` · `kb/reembed`                                                 | CRUD คลังความรู้ + ปุ่ม "อัปเดตความรู้"                                         |
-| `api/tmc/sales-bot/route.ts` · `sales-bot/inbox`                                                 | ตั้งค่า + สถิติ · เคส/ลูกค้า/บทสนทนา                                            |
-| [`tmc/sales-bot/page.tsx`](<../apps/perpos/src/app/(hydrogen)/[orgSlug]/tmc/sales-bot/page.tsx>) | UI 4 แท็บ (คลังความรู้ / เคสรอแอดมิน / ลูกค้า / ตั้งค่าบอท)                     |
+| ไฟล์                                                                                             | หน้าที่                                                                             |
+| ------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------- |
+| [`lib/tmc/sales-bot.ts`](../apps/perpos/src/lib/tmc/sales-bot.ts)                                | embed / chunk / retrieve / `answerSalesQuestion` / `wantsHuman`                     |
+| [`lib/tmc/line-oa.ts`](../apps/perpos/src/lib/tmc/line-oa.ts)                                    | channel @tmcvilla — signature, reply, profile, `tmcChatUrl`                         |
+| [`lib/tmc/notify-group.ts`](../apps/perpos/src/lib/tmc/notify-group.ts)                          | กลุ่มแจ้งเตือนฝั่งบอท PERPOS — รหัส `TMC-XXXXXX`, ผูก/ปลดผูกกลุ่ม                   |
+| [`lib/tmc/kb-ingest.ts`](../apps/perpos/src/lib/tmc/kb-ingest.ts)                                | แท็ก @perpos → AI แยก "ข้อมูล/กฎ" → ร่าง → `confirmTmcKbDraft` / `cancelTmcKbDraft` |
+| [`lib/tmc/bot-rules.ts`](../apps/perpos/src/lib/tmc/bot-rules.ts)                                | กฎประจำตัว — `loadBotRules` / `rulesBlock` / `isUnsafeRule` / `normalizeRule`       |
+| [`lib/tmc/line-cards.ts`](../apps/perpos/src/lib/tmc/line-cards.ts)                              | `buildTmcEscalationFlex` — การ์ดแจ้งแอดมิน (ส่งผ่านบอท PERPOS)                      |
+| [`api/line/tmc/webhook/route.ts`](../apps/perpos/src/app/api/line/tmc/webhook/route.ts)          | webhook @tmcvilla (ลูกค้ารายบุคคล) + escalation                                     |
+| [`api/line/webhook/route.ts`](../apps/perpos/src/app/api/line/webhook/route.ts)                  | ฝั่งกลุ่ม — รับรหัสผูกกลุ่ม, แท็กบอทเพิ่มความรู้, ปลดผูกเมื่อ `leave`               |
+| `api/tmc/kb/route.ts` · `kb/[id]` · `kb/reembed`                                                 | CRUD คลังความรู้ + ปุ่ม "อัปเดตความรู้"                                             |
+| `api/tmc/bot-rules/route.ts` · `bot-rules/[id]`                                                  | CRUD กฎประจำตัว (มี guardrail `isUnsafeRule` ทั้ง POST/PATCH)                       |
+| `api/tmc/sales-bot/route.ts` · `sales-bot/inbox`                                                 | ตั้งค่า + สถิติ · เคส/ลูกค้า/บทสนทนา                                                |
+| [`tmc/sales-bot/page.tsx`](<../apps/perpos/src/app/(hydrogen)/[orgSlug]/tmc/sales-bot/page.tsx>) | UI 5 แท็บ (คลังความรู้ / กฎประจำตัว / เคสรอแอดมิน / ลูกค้า / ตั้งค่าบอท)            |
 
 ---
 
@@ -224,6 +231,31 @@ verify signature (TMC secret) → resolve org → upsert contact → บัน�
 **ขอบเขต:** บอทบอกได้แค่ว่าง/ไม่ว่าง + ราคา · **ห้ามบอกว่าจองให้แล้ว** — การยืนยันจอง/รับเงินยังส่งต่อคนเสมอ
 
 ---
+
+## 6.4 กฎประจำตัวบอท (คำสั่งที่มีผลทุกข้อความ)
+
+> **ปัญหาที่แก้:** ความรู้ทุกชิ้นในคลังถูกหยิบมาใช้ด้วย **similarity กับคำถามลูกค้า** —
+> คำสั่งอย่าง _"เรียกลูกค้าว่าคุณท่านทุกคำ"_ ไม่มีทางแมตช์กับ _"บ้าน 5 ห้องนอนราคาเท่าไหร่"_
+> เขียนลงคลังเท่าไรบอทก็ไม่เคยหยิบมาใช้ · กฎจึงต้องเป็นของคนละชนิด ที่ **ยัดเข้า prompt ทุกครั้ง**
+
+- **ตาราง** `tmc_bot_rules` (ต่อ org) · แถวที่ `is_active` ถูกโหลดใน webhook แล้วส่งเข้า
+  `answerSalesQuestion({ rules })` → `rulesBlock()` แทรกไว้ **หลังบุคลิก ก่อนกติกาความถูกต้อง**
+- **เพดาน** `MAX_RULES = 20` ข้อ · `MAX_RULE_CHARS = 200` ตัวอักษร/ข้อ (prompt บวม = จ่าย token ทุกข้อความ
+  และโมเดลเริ่มลืมกฎท้าย ๆ) · กฎเป็น **ประโยคเดียว** — หลายเรื่องให้แยกหลายกฎ
+- **2 ช่องทางสั่ง**
+  1. หน้าเว็บ → แท็บ **"กฎประจำตัว"** (เพิ่ม/แก้/ปิด/เรียงลำดับ/ลบ · กู้คืนข้อความก่อนถูกเขียนทับได้)
+  2. กลุ่ม LINE → แท็ก `@perpos` แล้วพิมพ์คำสั่ง เช่น `@perpos เรียกลูกค้าว่าคุณท่านทุกคำ ห้ามเปลี่ยน`
+     → AI **แยกเองว่าเป็น "ข้อมูล" หรือ "กฎ"** → การ์ดทวน (`🎛️ ทวนก่อนตั้งกฎประจำตัวบอท`) → กดยืนยันถึงมีผล
+     · คำสั่งที่ขัดกับกฎเดิม (เช่น เปลี่ยนคำเรียกลูกค้า) → AI เลือก `update` **แทนที่กฎเดิม** ไม่สะสมกฎที่ตีกัน
+
+**invariant ที่ห้ามพัง**
+
+- **กฎห้ามลบล้างกติกาความถูกต้อง** — ด่านที่ 1 `isUnsafeRule()` ปฏิเสธตั้งแต่ต้นทาง (ทั้ง API และช่องทาง LINE
+  — ไม่สร้างร่างให้กดยืนยันด้วยซ้ำ): สั่งไม่ให้ส่งต่อคน · สั่งให้เดา/ห้ามบอกว่าไม่รู้ · ยืนยันการจอง ·
+  ให้เลขบัญชี · ลด/ต่อรองราคาเอง · ด่านที่ 2 = ลำดับใน prompt + ประโยคปิดท้ายบล็อกที่บอกโมเดลว่า
+  **ถ้ากฎขัดกับกติกาความถูกต้อง ให้ยึดกติกาความถูกต้อง**
+- **กฎไม่ต้องฝัง embedding** (ไม่ผ่าน retrieval) — แก้แล้วมีผลกับข้อความถัดไปทันที ไม่ต้องกด "อัปเดตความรู้"
+- เก็บ `source`/`source_note`/`source_line_user_id`/`previous_rule` เหมือนคลังความรู้ → รู้ว่าใครสั่งเมื่อไหร่ + กู้คืนได้
 
 ## 7. คลังความรู้ตั้งต้น
 

@@ -16,6 +16,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { embedArticle, retrieveContext, type KbArticleInput } from "./sales-bot";
+import { isUnsafeRule, normalizeRule, MAX_RULES } from "./bot-rules";
 
 const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
 const MODEL = "gemini-2.5-flash";
@@ -33,13 +34,19 @@ const CATEGORIES = [
 ];
 
 const USAGE =
-  "พิมพ์ข้อมูลต่อท้ายการแท็กได้เลยค่ะ 🙏\n" +
-  'ตัวอย่าง: "@perpos บ้าน 5 ห้องนอน มีคาราโอเกะกับโต๊ะพูล ใช้ฟรีไม่มีค่าบริการ"\n' +
-  "ระบบจะบันทึกเข้าคลังความรู้ให้ผู้ช่วยขายนำไปตอบลูกค้าทันทีค่ะ";
+  "พิมพ์ต่อท้ายการแท็กได้เลยค่ะ 🙏 บันทึกได้ 2 แบบ\n" +
+  '• ข้อมูลที่ให้บอทตอบลูกค้า — "@perpos บ้าน 5 ห้องนอน มีคาราโอเกะกับโต๊ะพูล ใช้ฟรี"\n' +
+  '• กฎว่าบอทต้องพูดยังไง — "@perpos เรียกลูกค้าว่าคุณท่านทุกคำ ห้ามเปลี่ยน"\n' +
+  "ระบบจะทวนให้ดูก่อน กดยืนยันแล้วผู้ช่วยขายจะใช้ทันทีค่ะ";
 
 interface AiDecision {
+  /** fact = ข้อมูลเข้าคลังความรู้ · rule = คำสั่งวิธีพูด/ข้อห้าม ที่บอทต้องทำทุกข้อความ */
+  kind?: "fact" | "rule";
   action: "create" | "update";
   article_id?: string;
+  /** เฉพาะ kind=rule */
+  rule_id?: string;
+  rule?: string;
   category: string;
   title: string;
   content: string;
@@ -74,17 +81,41 @@ export function mentionsBot(text: string, mention?: unknown): boolean {
 async function askGemini(
   note: string,
   existing: { id: string; title: string; category: string | null; content: string } | null,
+  rules: { id: string; rule: string }[],
 ): Promise<AiDecision | null> {
   const key = process.env.GEMINI_API_KEY ?? "";
   if (!key) return null;
 
-  const prompt = `คุณคือผู้ช่วยจัดระเบียบคลังความรู้ของบ้านพัก Thammachat Villa (ให้เช่าเหมาหลัง)
-ทีมแอดมินเพิ่งพิมพ์ข้อมูลใหม่เข้ามาในกลุ่ม LINE หน้าที่ของคุณคือเรียบเรียงให้เป็นบทความที่บอทขายเอาไปตอบลูกค้าได้
+  const prompt = `คุณคือผู้ช่วยจัดระเบียบ "สมองของบอทขาย" ของบ้านพัก Thammachat Villa (ให้เช่าเหมาหลัง)
+ทีมแอดมินเพิ่งพิมพ์ข้อความเข้ามาในกลุ่ม LINE — คุณต้องแยกก่อนว่าเป็นของชนิดไหน
 
-ข้อมูลใหม่จากแอดมิน:
+ชนิดที่ 1 (kind = "fact") — **ข้อมูล** ที่บอทเอาไปตอบลูกค้า
+  เช่น ราคา เงื่อนไข สิ่งอำนวยความสะดวก นโยบายมัดจำ จำนวนห้องนอน
+ชนิดที่ 2 (kind = "rule") — **คำสั่งว่าบอทต้องพูด/วางตัวอย่างไร** ที่ต้องมีผลกับทุกข้อความ
+  เช่น "เรียกลูกค้าว่าคุณท่านทุกคำ" · "ห้ามใช้อีโมจิ" · "ลงท้ายด้วยค่ะเสมอ" ·
+  "ทักด้วยชื่อบ้านทุกครั้ง" · "ห้ามเรียกลูกค้าว่าพี่"
+  สังเกต: เป็นคำสั่งถึงบอท ไม่ใช่ข้อเท็จจริงเรื่องที่พัก · ตอบคำถามลูกค้าตรง ๆ ไม่ได้
+
+ข้อความจากแอดมิน:
 """
 ${note}
 """
+
+${
+  rules.length
+    ? `กฎประจำตัวที่บอทถืออยู่ตอนนี้
+${rules.map((r) => `- (id: ${r.id}) ${r.rule}`).join("\n")}`
+    : "ตอนนี้บอทยังไม่มีกฎประจำตัวเลย"
+}
+
+ถ้า kind = "rule"
+- เขียน rule เป็น **ประโยคคำสั่งเดียว สั้น ชัด ไม่เกิน 150 ตัวอักษร** เช่น "เรียกผู้เข้าพักว่า คุณท่าน เสมอ ห้ามใช้คำเรียกอื่น"
+- ถ้าคำสั่งใหม่ **ขัดหรือแทนที่กฎเดิม** (เช่น เปลี่ยนคำเรียกลูกค้า) → action = "update" + rule_id ของกฎเดิมนั้น
+  ไม่งั้น action = "create"
+- title = สรุปกฎสั้น ๆ ไม่เกิน 40 ตัวอักษร · content = ข้อความเดียวกับ rule · category = "กฎประจำตัว" · keywords = []
+- **ห้ามแต่งกฎที่แอดมินไม่ได้สั่ง** และห้ามรวมหลายเรื่องไว้ในกฎเดียว
+
+ถ้า kind = "fact" ให้ทำตามด้านล่างนี้ (เรียบเรียงเป็นบทความคลังความรู้)
 
 ${
   existing
@@ -118,7 +149,7 @@ ${existing.content}
 - category เลือกจาก: ${CATEGORIES.join(" / ")}
 
 ตอบเป็น JSON อย่างเดียว ไม่มีข้อความอื่น:
-{"action":"create"|"update","article_id":"<ใส่เฉพาะตอน update>","category":"...","title":"...","content":"...","keywords":["..."]}`;
+{"kind":"fact"|"rule","action":"create"|"update","article_id":"<ใส่เฉพาะตอน update บทความ>","rule_id":"<ใส่เฉพาะตอน update กฎ>","rule":"<ใส่เฉพาะ kind=rule>","category":"...","title":"...","content":"...","keywords":["..."]}`;
 
   const res = await fetch(`${GEMINI_BASE}/${MODEL}:generateContent?key=${key}`, {
     method: "POST",
@@ -157,6 +188,8 @@ export type IngestReply =
   | { kind: "text"; text: string }
   | {
       kind: "draft";
+      /** article = ความรู้เข้าคลัง (ผ่าน retrieval) · rule = กฎประจำตัว (เข้า prompt ทุกครั้ง) */
+      draftKind: "article" | "rule";
       draftId: string;
       action: "create" | "update";
       targetTitle: string | null;
@@ -192,6 +225,16 @@ export async function handleTmcGroupKnowledge(
     };
   }
 
+  // กฎประจำตัวที่บอทถืออยู่ — ให้ AI ตัดสินได้ว่าคำสั่งใหม่ "แทนที่" กฎเดิมข้อไหน
+  const { data: ruleRows } = await admin
+    .from("tmc_bot_rules")
+    .select("id, rule")
+    .eq("org_id", orgId)
+    .eq("is_active", true)
+    .order("sort_order")
+    .limit(MAX_RULES);
+  const currentRules = (ruleRows ?? []) as { id: string; rule: string }[];
+
   // หาบทความเดิมที่ใกล้เคียง เพื่อให้ AI เลือกได้ว่าจะแก้ของเดิมหรือเพิ่มใหม่
   let existing: { id: string; title: string; category: string | null; content: string } | null =
     null;
@@ -209,11 +252,76 @@ export async function handleTmcGroupKnowledge(
     existing = null; // หาไม่ได้ก็ยังเพิ่มใหม่ได้
   }
 
-  const decision = await askGemini(note, existing);
+  const decision = await askGemini(note, existing, currentRules);
   if (!decision) {
     return {
       kind: "text",
       text: "ขออภัยค่ะ ระบบเรียบเรียงข้อมูลไม่สำเร็จ รบกวนพิมพ์ใหม่อีกครั้งนะคะ 🙏",
+    };
+  }
+
+  // ─── คำสั่งวิธีพูด/ข้อห้าม → กฎประจำตัว (ไม่เข้าคลังความรู้) ────────────────
+  if (decision.kind === "rule") {
+    const rule = normalizeRule(String(decision.rule ?? decision.content ?? ""));
+    if (!rule) {
+      return {
+        kind: "text",
+        text: "ยังจับใจความคำสั่งไม่ได้ค่ะ 🙏 รบกวนพิมพ์สั้น ๆ ชัด ๆ อีกครั้งนะคะ",
+      };
+    }
+
+    // กฎที่ลบล้างกติกาความปลอดภัยของบอท = ไม่รับตั้งแต่ต้นทาง (ไม่สร้างร่างให้กดยืนยันด้วยซ้ำ)
+    const unsafe = isUnsafeRule(rule);
+    if (unsafe) {
+      return {
+        kind: "text",
+        text: `ขออภัยค่ะ กฎนี้บันทึกให้ไม่ได้ 🙏\n${unsafe}\n\nถ้าต้องการปรับเรื่องนี้จริง ๆ รบกวนคุยกับผู้ดูแลระบบนะคะ`,
+      };
+    }
+
+    const target = currentRules.find((r) => r.id === decision.rule_id);
+    const isRuleUpdate = decision.action === "update" && !!target;
+    if (!isRuleUpdate && currentRules.length >= MAX_RULES) {
+      return {
+        kind: "text",
+        text: `ตอนนี้บอทมีกฎประจำตัวครบ ${MAX_RULES} ข้อแล้วค่ะ 🙏\nรบกวนปิดหรือลบกฎที่ไม่ใช้แล้วในหน้า “ผู้ช่วยขาย LINE → กฎประจำตัว” ก่อนนะคะ`,
+      };
+    }
+
+    const ruleTitle = (decision.title ?? "").trim().slice(0, 60) || "กฎประจำตัวบอท";
+    const { data: rDraft, error: rErr } = await admin
+      .from("tmc_kb_drafts")
+      .insert({
+        org_id: orgId,
+        group_id: groupId,
+        line_user_id: lineUserId ?? null,
+        note: note.slice(0, 2000),
+        kind: "rule",
+        action: isRuleUpdate ? "update" : "create",
+        target_rule_id: isRuleUpdate ? target!.id : null,
+        target_title: isRuleUpdate ? target!.rule : null,
+        category: "กฎประจำตัว",
+        title: ruleTitle,
+        content: rule,
+        keywords: [],
+      })
+      .select("id")
+      .single();
+
+    if (rErr || !rDraft) {
+      return { kind: "text", text: "ขออภัยค่ะ ระบบขัดข้อง สร้างร่างไม่สำเร็จ 🙏" };
+    }
+
+    return {
+      kind: "draft",
+      draftKind: "rule",
+      draftId: (rDraft as { id: string }).id,
+      action: isRuleUpdate ? "update" : "create",
+      targetTitle: isRuleUpdate ? target!.rule : null,
+      category: "กฎประจำตัว",
+      title: ruleTitle,
+      content: rule,
+      note: note.slice(0, 2000),
     };
   }
 
@@ -247,6 +355,7 @@ export async function handleTmcGroupKnowledge(
 
   return {
     kind: "draft",
+    draftKind: "article",
     draftId: (draft as { id: string }).id,
     action: isUpdate ? "update" : "create",
     targetTitle: isUpdate ? existing!.title : null,
@@ -269,8 +378,10 @@ export async function confirmTmcKbDraft(
     org_id: string;
     group_id: string;
     note: string;
+    kind?: "article" | "rule";
     action: "create" | "update";
     target_article_id: string | null;
+    target_rule_id: string | null;
     target_title: string | null;
     category: string;
     title: string;
@@ -289,6 +400,55 @@ export async function confirmTmcKbDraft(
   if (new Date(d.expires_at) < new Date()) {
     await admin.from("tmc_kb_drafts").update({ status: "expired" }).eq("id", d.id);
     return "รายการนี้หมดอายุแล้วค่ะ 🙏 รบกวนแท็กพิมพ์ข้อมูลเข้ามาใหม่นะคะ";
+  }
+
+  // ─── กฎประจำตัว — เขียนลง tmc_bot_rules ไม่ต้องฝัง embedding (ไม่ผ่าน retrieval) ───
+  if (d.kind === "rule") {
+    const isRuleUpdate = d.action === "update" && !!d.target_rule_id;
+    if (isRuleUpdate) {
+      const { data: cur } = await admin
+        .from("tmc_bot_rules")
+        .select("rule")
+        .eq("id", d.target_rule_id!)
+        .maybeSingle();
+      const prev = (cur as { rule: string } | null)?.rule ?? null;
+      if (prev === null) return "กฎเดิมถูกลบไปแล้วค่ะ 🙏 รบกวนพิมพ์คำสั่งเข้ามาใหม่นะคะ";
+
+      const { error } = await admin
+        .from("tmc_bot_rules")
+        .update({
+          rule: d.content,
+          is_active: true,
+          updated_at: new Date().toISOString(),
+          source: "line",
+          source_note: d.note,
+          source_line_user_id: d.line_user_id,
+          previous_rule: prev,
+        })
+        .eq("id", d.target_rule_id!)
+        .eq("org_id", d.org_id);
+      if (error) return "บันทึกไม่สำเร็จค่ะ 🙏 ลองใหม่อีกครั้งนะคะ";
+    } else {
+      const { error } = await admin.from("tmc_bot_rules").insert({
+        org_id: d.org_id,
+        rule: d.content,
+        sort_order: 500,
+        source: "line",
+        source_note: d.note,
+        source_line_user_id: d.line_user_id,
+      });
+      if (error) return "บันทึกไม่สำเร็จค่ะ 🙏 ลองใหม่อีกครั้งนะคะ";
+    }
+
+    await admin
+      .from("tmc_kb_drafts")
+      .update({ status: "applied", decided_at: new Date().toISOString() })
+      .eq("id", d.id);
+
+    const rHead = isRuleUpdate
+      ? `แก้กฎประจำตัวเรียบร้อยค่ะ ✅\n(แทนที่กฎเดิม “${d.target_title ?? "-"}”)`
+      : "บันทึกกฎประจำตัวเรียบร้อยค่ะ ✅";
+    return `${rHead}\n\n📌 ${d.content}\n\nผู้ช่วยขายจะทำตามกฎนี้ทุกข้อความตั้งแต่นี้เลยค่ะ\n(ปิด/แก้/ลบได้ที่หน้า “ผู้ช่วยขาย LINE → กฎประจำตัว”)`;
   }
 
   const isUpdate = d.action === "update" && !!d.target_article_id;

@@ -355,6 +355,8 @@ export function buildTmcEscalationFlex(c: TmcEscalationCard): LineMessage {
 
 export interface TmcKbDraftCard {
   draftId: string;
+  /** article = ความรู้เข้าคลัง · rule = กฎประจำตัวที่บอทต้องทำทุกข้อความ */
+  draftKind?: "article" | "rule";
   action: "create" | "update";
   /** ชื่อบทความเดิมที่จะถูกเขียนทับ (เฉพาะ action=update) */
   targetTitle: string | null;
@@ -371,12 +373,20 @@ function clip(text: string, max: number): string {
 
 export function buildTmcKbDraftFlex(c: TmcKbDraftCard): LineMessage {
   const isUpdate = c.action === "update";
+  const isRule = c.draftKind === "rule";
   const tone = isUpdate ? { fg: WARN, bg: WARN_BG } : { fg: SUCCESS, bg: SUCCESS_BG };
-  const label = isUpdate ? "เขียนทับความรู้เดิม" : "เพิ่มความรู้ใหม่";
+  const label = isRule
+    ? isUpdate
+      ? "แทนที่กฎประจำตัวเดิม"
+      : "เพิ่มกฎประจำตัวใหม่"
+    : isUpdate
+      ? "เขียนทับความรู้เดิม"
+      : "เพิ่มความรู้ใหม่";
+  const heading = isRule ? "🎛️ ทวนก่อนตั้งกฎประจำตัวบอท" : "📝 ทวนก่อนบันทึกเข้าคลังความรู้";
 
   return {
     type: "flex",
-    altText: `📝 ทวนก่อนบันทึก: ${clip(c.title, 60)} — กดยืนยันในแชท`,
+    altText: `${isRule ? "🎛️ ทวนก่อนตั้งกฎ" : "📝 ทวนก่อนบันทึก"}: ${clip(c.title, 60)} — กดยืนยันในแชท`,
     contents: {
       type: "bubble",
       header: {
@@ -387,7 +397,7 @@ export function buildTmcKbDraftFlex(c: TmcKbDraftCard): LineMessage {
         contents: [
           {
             type: "text",
-            text: "📝 ทวนก่อนบันทึกเข้าคลังความรู้",
+            text: heading,
             color: WHITE,
             weight: "bold",
             size: "md",
@@ -472,7 +482,9 @@ export function buildTmcKbDraftFlex(c: TmcKbDraftCard): LineMessage {
           },
           {
             type: "text",
-            text: "ตรวจตัวเลขและเงื่อนไขให้ครบก่อนกดยืนยันนะคะ — บอทจะเอาไปตอบลูกค้าจริง",
+            text: isRule
+              ? "กดยืนยันแล้วบอทจะทำตามกฎนี้ทุกข้อความ จนกว่าจะมีคนแก้หรือปิดกฎนะคะ"
+              : "ตรวจตัวเลขและเงื่อนไขให้ครบก่อนกดยืนยันนะคะ — บอทจะเอาไปตอบลูกค้าจริง",
             size: "xxs",
             color: FINE,
             margin: "sm",

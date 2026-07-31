@@ -42,6 +42,7 @@ import {
 import {
   BookOpen,
   Bot,
+  Gavel,
   Inbox,
   LifeBuoy,
   MessageSquare,
@@ -72,7 +73,19 @@ const CATEGORIES = [
   "ทั่วไป",
 ];
 
-type Tab = "kb" | "inbox" | "chats" | "settings";
+type Tab = "kb" | "rules" | "inbox" | "chats" | "settings";
+
+/** กฎประจำตัวบอท — เข้า prompt ทุกข้อความ ไม่ผ่าน retrieval (ต่างจากคลังความรู้) */
+interface BotRule {
+  id: string;
+  rule: string;
+  is_active: boolean;
+  sort_order: number;
+  source: string;
+  source_note: string | null;
+  previous_rule: string | null;
+  updated_at: string;
+}
 
 interface Article {
   id: string;
@@ -160,6 +173,16 @@ const EMPTY_FORM = {
   hasPrevious: false,
 };
 
+const EMPTY_RULE_FORM = {
+  id: "",
+  rule: "",
+  isActive: true,
+  sortOrder: 0,
+  source: "web",
+  sourceNote: null as string | null,
+  hasPrevious: false,
+};
+
 function thaiDateTime(iso: string | null): string {
   if (!iso) return "—";
   return new Date(iso).toLocaleString("th-TH", {
@@ -177,6 +200,7 @@ export default function TmcSalesBotPage() {
   const [busy, setBusy] = useState(false);
 
   const [articles, setArticles] = useState<Article[]>([]);
+  const [rules, setRules] = useState<BotRule[]>([]);
   const [cases, setCases] = useState<EscalationCase[]>([]);
   const [caseStatus, setCaseStatus] = useState("open");
   const [contacts, setContacts] = useState<Contact[]>([]);
@@ -190,6 +214,8 @@ export default function TmcSalesBotPage() {
 
   const [form, setForm] = useState({ ...EMPTY_FORM });
   const [formOpen, setFormOpen] = useState(false);
+  const [ruleForm, setRuleForm] = useState({ ...EMPTY_RULE_FORM });
+  const [ruleOpen, setRuleOpen] = useState(false);
   const [convo, setConvo] = useState<{ contact: Contact | null; messages: ChatMessage[] } | null>(
     null,
   );
@@ -230,6 +256,12 @@ export default function TmcSalesBotPage() {
     setArticles(res.ok ? await res.json() : []);
   }, [headers]);
 
+  const loadRules = useCallback(async () => {
+    const h = await headers();
+    const res = await fetch(backendUrl(`/tmc/bot-rules?orgId=${TMC_ORG_ID}`), { headers: h });
+    setRules(res.ok ? await res.json() : []);
+  }, [headers]);
+
   const loadCases = useCallback(async () => {
     const h = await headers();
     const res = await fetch(
@@ -252,7 +284,7 @@ export default function TmcSalesBotPage() {
   useEffect(() => {
     (async () => {
       setLoading(true);
-      await Promise.all([loadMeta(), loadArticles(), loadCases(), loadContacts()]);
+      await Promise.all([loadMeta(), loadArticles(), loadRules(), loadCases(), loadContacts()]);
       setLoading(false);
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -307,6 +339,85 @@ export default function TmcSalesBotPage() {
       await Promise.all([loadArticles(), loadMeta()]);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "บันทึกไม่สำเร็จ");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // ─── กฎประจำตัวบอท ─────────────────────────────────────────────────────────
+
+  async function saveRule() {
+    if (!ruleForm.rule.trim()) {
+      toast.error("พิมพ์ข้อความกฎก่อนนะครับ");
+      return;
+    }
+    setBusy(true);
+    try {
+      const h = await headers();
+      const payload = {
+        orgId: TMC_ORG_ID,
+        rule: ruleForm.rule.trim(),
+        isActive: ruleForm.isActive,
+        sortOrder: ruleForm.sortOrder,
+      };
+      const res = ruleForm.id
+        ? await fetch(backendUrl(`/tmc/bot-rules/${ruleForm.id}`), {
+            method: "PATCH",
+            headers: h,
+            body: JSON.stringify(payload),
+          })
+        : await fetch(backendUrl("/tmc/bot-rules"), {
+            method: "POST",
+            headers: h,
+            body: JSON.stringify(payload),
+          });
+      if (!res.ok) throw new Error((await res.json()).error ?? "บันทึกไม่สำเร็จ");
+      toast.success("บันทึกกฎแล้ว — บอทจะทำตามทุกข้อความถัดไป");
+      setRuleOpen(false);
+      await loadRules();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "บันทึกไม่สำเร็จ");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function deleteRule() {
+    if (!ruleForm.id || !confirm("ลบกฎนี้?")) return;
+    setBusy(true);
+    try {
+      const h = await headers();
+      const res = await fetch(backendUrl(`/tmc/bot-rules/${ruleForm.id}?orgId=${TMC_ORG_ID}`), {
+        method: "DELETE",
+        headers: h,
+      });
+      if (!res.ok) throw new Error((await res.json()).error ?? "ลบไม่สำเร็จ");
+      toast.success("ลบกฎแล้ว");
+      setRuleOpen(false);
+      await loadRules();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "ลบไม่สำเร็จ");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function restoreRule() {
+    if (!ruleForm.id) return;
+    setBusy(true);
+    try {
+      const h = await headers();
+      const res = await fetch(backendUrl(`/tmc/bot-rules/${ruleForm.id}`), {
+        method: "PATCH",
+        headers: h,
+        body: JSON.stringify({ orgId: TMC_ORG_ID, restorePrevious: true }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error ?? "กู้คืนไม่สำเร็จ");
+      toast.success("กู้คืนข้อความเดิมแล้ว");
+      setRuleOpen(false);
+      await loadRules();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "กู้คืนไม่สำเร็จ");
     } finally {
       setBusy(false);
     }
@@ -524,6 +635,7 @@ export default function TmcSalesBotPage() {
     pageSize: 15,
     resetKey: `${q}|${categoryFilter}`,
   });
+  const rulePager = usePagination(rules, { pageSize: 15 });
   const casePager = usePagination(cases, { pageSize: 15, resetKey: caseStatus });
   const contactPager = usePagination(contacts, { pageSize: 15 });
 
@@ -543,6 +655,7 @@ export default function TmcSalesBotPage() {
           onChange={(v) => setTab(v as Tab)}
           options={[
             { value: "kb", label: "คลังความรู้", icon: <BookOpen className="h-4 w-4" /> },
+            { value: "rules", label: "กฎประจำตัว", icon: <Gavel className="h-4 w-4" /> },
             { value: "inbox", label: "เคสรอแอดมิน", icon: <Inbox className="h-4 w-4" /> },
             { value: "chats", label: "ลูกค้า", icon: <MessageSquare className="h-4 w-4" /> },
             { value: "settings", label: "ตั้งค่าบอท", icon: <Settings2 className="h-4 w-4" /> },
@@ -619,6 +732,16 @@ export default function TmcSalesBotPage() {
                 <Plus className="h-4 w-4" /> เพิ่มความรู้
               </Button>
             </>
+          )}
+          {tab === "rules" && (
+            <Button
+              onClick={() => {
+                setRuleForm({ ...EMPTY_RULE_FORM });
+                setRuleOpen(true);
+              }}
+            >
+              <Plus className="h-4 w-4" /> เพิ่มกฎ
+            </Button>
           )}
         </>
       }
@@ -756,6 +879,82 @@ export default function TmcSalesBotPage() {
             </TableBody>
           </Table>
           <TablePager pager={kbPager} unit="บทความ" />
+        </div>
+      )}
+
+      {/* ─── กฎประจำตัวบอท ─── */}
+      {tab === "rules" && (
+        <div className="space-y-3">
+          <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+            <Text className="text-sm font-medium text-gray-900">
+              กฎที่บอทต้องทำ “ทุกข้อความ” ไม่ว่าลูกค้าจะถามอะไร
+            </Text>
+            <Text className="mt-1 text-xs text-gray-500">
+              ต่างจากคลังความรู้ตรงที่ไม่ต้องแมตช์กับคำถาม — ใช้กับวิธีพูดและการวางตัว เช่น
+              “เรียกลูกค้าว่า คุณท่าน ทุกคำ” · สั่งจากกลุ่ม LINE ก็ได้ (แท็ก @perpos แล้วพิมพ์คำสั่ง
+              แล้วกดยืนยันในการ์ด) · กฎที่สั่งให้บอทเดา ยืนยันการจอง ให้เลขบัญชี หรือไม่ส่งต่อคน
+              ระบบจะไม่รับ
+            </Text>
+          </div>
+
+          <Table stickyHeader fillViewport>
+            <TableHeader sticky>
+              <TableRow>
+                <TableHead align="center">ลำดับ</TableHead>
+                <TableHead>กฎ</TableHead>
+                <TableHead align="center">ที่มา</TableHead>
+                <TableHead align="center">สถานะ</TableHead>
+                <TableHead align="right">อัปเดตล่าสุด</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {loading ? (
+                <TableLoading colSpan={5} />
+              ) : rulePager.rows.length === 0 ? (
+                <TableEmpty colSpan={5}>
+                  ยังไม่มีกฎประจำตัว — บอทจะใช้บุคลิกมาตรฐาน กด “เพิ่มกฎ” เพื่อกำหนดวิธีพูดเอง
+                </TableEmpty>
+              ) : (
+                rulePager.rows.map((r) => (
+                  <TableRow
+                    key={r.id}
+                    clickable
+                    onClick={() => {
+                      setRuleForm({
+                        id: r.id,
+                        rule: r.rule,
+                        isActive: r.is_active,
+                        sortOrder: r.sort_order,
+                        source: r.source ?? "web",
+                        sourceNote: r.source_note ?? null,
+                        hasPrevious: !!r.previous_rule,
+                      });
+                      setRuleOpen(true);
+                    }}
+                  >
+                    <TableCell align="center" className="tabular-nums text-gray-500">
+                      {r.sort_order}
+                    </TableCell>
+                    <TableCell wrap>{r.rule}</TableCell>
+                    <TableCell align="center">
+                      <StatusBadge tone={r.source === "line" ? "info" : "neutral"}>
+                        {r.source === "line" ? "กลุ่ม LINE" : "หน้าเว็บ"}
+                      </StatusBadge>
+                    </TableCell>
+                    <TableCell align="center">
+                      <StatusBadge tone={r.is_active ? "success" : "neutral"}>
+                        {r.is_active ? "ใช้งาน" : "ปิด"}
+                      </StatusBadge>
+                    </TableCell>
+                    <TableCell align="right" className="tabular-nums text-gray-500">
+                      {thaiDateTime(r.updated_at)}
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+          <TablePager pager={rulePager} unit="กฎ" />
         </div>
       )}
 
@@ -1257,6 +1456,95 @@ export default function TmcSalesBotPage() {
               ยกเลิก
             </Button>
             <Button disabled={busy} onClick={saveArticle}>
+              {busy ? "กำลังบันทึก…" : "บันทึก"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ─── กล่องแก้กฎประจำตัว ─── */}
+      <Dialog open={ruleOpen} onOpenChange={setRuleOpen}>
+        <DialogContent size="lg">
+          <DialogHeader>
+            <DialogTitle>{ruleForm.id ? "แก้กฎประจำตัว" : "เพิ่มกฎประจำตัว"}</DialogTitle>
+          </DialogHeader>
+          <DialogBody>
+            <div className="space-y-4">
+              {ruleForm.source === "line" && ruleForm.sourceNote && (
+                <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+                  <Text className="text-xs font-medium text-gray-500">
+                    สั่งมาจากกลุ่ม LINE — ข้อความต้นฉบับ
+                  </Text>
+                  <Text className="mt-1 whitespace-pre-wrap text-xs text-gray-600">
+                    {ruleForm.sourceNote}
+                  </Text>
+                </div>
+              )}
+
+              <div>
+                <Label htmlFor="rule">ข้อความกฎ *</Label>
+                <textarea
+                  id="rule"
+                  rows={3}
+                  className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 focus:border-primary focus:outline-none"
+                  placeholder="เช่น เรียกผู้เข้าพักว่า คุณท่าน เสมอ ห้ามใช้คำเรียกอื่น"
+                  value={ruleForm.rule}
+                  onChange={(e) => setRuleForm({ ...ruleForm, rule: e.target.value })}
+                />
+                <Text className="mt-1 text-xs text-gray-500">
+                  เขียนเป็นคำสั่งเดียว สั้น ชัด (ไม่เกิน 200 ตัวอักษร) — หลายเรื่องให้แยกเป็นหลายกฎ
+                </Text>
+              </div>
+
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div>
+                  <Label htmlFor="rorder">ลำดับ (น้อย = อยู่บนสุด)</Label>
+                  <Input
+                    id="rorder"
+                    type="number"
+                    className="mt-1"
+                    value={ruleForm.sortOrder}
+                    onChange={(e) =>
+                      setRuleForm({ ...ruleForm, sortOrder: Number(e.target.value) || 0 })
+                    }
+                  />
+                </div>
+                <div>
+                  <Label>สถานะ</Label>
+                  <SegmentedControl
+                    size="md"
+                    value={ruleForm.isActive ? "on" : "off"}
+                    onChange={(v) => setRuleForm({ ...ruleForm, isActive: v === "on" })}
+                    options={[
+                      { value: "on", label: "ใช้งาน" },
+                      { value: "off", label: "ปิด" },
+                    ]}
+                  />
+                </div>
+              </div>
+
+              {ruleForm.hasPrevious && (
+                <Button variant="outline" disabled={busy} onClick={restoreRule}>
+                  <Undo2 className="h-4 w-4" /> กู้คืนข้อความก่อนหน้า
+                </Button>
+              )}
+            </div>
+          </DialogBody>
+          <DialogFooter>
+            {ruleForm.id && (
+              <Button
+                variant="destructive"
+                className="mr-auto"
+                disabled={busy}
+                onClick={deleteRule}
+              >
+                ลบ
+              </Button>
+            )}
+            <Button variant="outline" onClick={() => setRuleOpen(false)}>
+              ยกเลิก
+            </Button>
+            <Button disabled={busy} onClick={saveRule}>
               {busy ? "กำลังบันทึก…" : "บันทึก"}
             </Button>
           </DialogFooter>
