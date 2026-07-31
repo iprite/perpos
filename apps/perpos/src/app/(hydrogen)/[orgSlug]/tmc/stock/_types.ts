@@ -51,7 +51,7 @@ export type PresetLine = {
   preset_id: string;
   item_id: string;
   qty: number;
-  qty_basis: "fixed" | "per_guest" | "per_night" | "per_bed";
+  qty_basis: "fixed" | "per_guest" | "per_night" | "per_bed" | "per_bathroom";
   is_optional: boolean;
   sort_order: number;
 };

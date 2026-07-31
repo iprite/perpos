@@ -14,6 +14,7 @@ const BASIS_OPTIONS = [
   { value: "fixed", label: "คงที่" },
   { value: "per_guest", label: "ต่อคน" },
   { value: "per_night", label: "ต่อคืน" },
+  { value: "per_bathroom", label: "ต่อห้องน้ำ" },
 ];
 
 /** จัดการชุดเบิกของ — หัวหน้าแก้เองได้ ไม่ต้องรอ dev (specs/tmc-stock-v2.md §4.5 ข้อ 1) */

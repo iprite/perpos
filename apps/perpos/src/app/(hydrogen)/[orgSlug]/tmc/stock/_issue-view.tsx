@@ -105,6 +105,10 @@ export function IssueView({
     [roomPresets, itemById],
   );
 
+  /** จำนวนห้องน้ำของหลังนี้ = ห้องนอน + 1 (ห้องน้ำกลาง) — กติกาจากเจ้าของ
+   *  ใช้คูณบรรทัดที่ตั้ง qty_basis = per_bathroom (ทิชชูม้วน · คัตเติลบัด · หมวกอาบน้ำ · ถุงขยะห้องน้ำ) */
+  const bathrooms = bedroomNames.length > 0 ? bedroomNames.length + 1 : 1;
+
   // เปลี่ยนหลังแล้วล้างของที่แก้ไว้ ไม่งั้นค่าค้างข้ามหลัง
   useEffect(() => {
     setQtyOverride({});
@@ -124,6 +128,7 @@ export function IssueView({
         itemId: string;
         name: string;
         unit: string;
+        hint: string;
         qty: number;
         available: number;
         short: boolean;
@@ -142,7 +147,11 @@ export function IssueView({
         .map((l) => {
           const item = itemById.get(l.item_id);
           const base =
-            l.qty_basis === "per_guest" ? Number(l.qty) * Math.max(guests, 1) : Number(l.qty);
+            l.qty_basis === "per_guest"
+              ? Number(l.qty) * Math.max(guests, 1)
+              : l.qty_basis === "per_bathroom"
+                ? Number(l.qty) * bathrooms
+                : Number(l.qty);
           const key = `${keyPrefix}|${l.id}`;
           const raw = qtyOverride[key];
           const qty = raw === undefined ? (l.is_optional ? 0 : base) : Number(raw || 0);
@@ -152,6 +161,15 @@ export function IssueView({
             itemId: l.item_id,
             name: item?.name ?? "—",
             unit: item?.unit ?? "",
+            // บอกที่มาของจำนวนไว้ข้างชื่อ จะได้รู้ว่าทำไมเลขนี้ (แก้ทับได้เสมอ)
+            hint:
+              l.qty_basis === "per_guest"
+                ? `${l.qty}/คน`
+                : l.qty_basis === "per_bathroom"
+                  ? `${l.qty}/ห้องน้ำ × ${bathrooms}`
+                  : l.is_optional
+                    ? "เบิกเมื่อต้องการ"
+                    : "",
             qty,
             available,
             short: qty > available,
@@ -174,7 +192,7 @@ export function IssueView({
       );
     }
     return rows;
-  }, [roomPresets, bedPresets, extraBeds, qtyOverride, itemById, homeQty]);
+  }, [roomPresets, bedPresets, extraBeds, qtyOverride, itemById, homeQty, bathrooms]);
 
   /** ของชิ้นเดียวกันถูกเบิกจากหลายห้อง → ต้องรวมก่อนเทียบคงเหลือ ไม่งั้นเช็คทีละห้องผ่านแต่รวมแล้วไม่พอ */
   const shortByItem = useMemo(() => {
@@ -534,7 +552,12 @@ export function IssueView({
                         </TableRow>
                         {g.lines.map((l) => (
                           <TableRow key={l.key}>
-                            <TableCell className="pl-6 text-gray-700">{l.name}</TableCell>
+                            <TableCell className="pl-6 text-gray-700">
+                              {l.name}
+                              {l.hint && (
+                                <span className="ml-1.5 text-xs text-gray-400">({l.hint})</span>
+                              )}
+                            </TableCell>
                             <TableCell
                               align="right"
                               className={
