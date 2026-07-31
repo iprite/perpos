@@ -70,13 +70,21 @@ export function SetCountsDialog({
     return m;
   }, [balances, locationId]);
 
+  /** ผ้าอยู่ได้แค่วงจรผ้า (ห้องผ้าสะอาด / ผ้าเปื้อนรอส่ง / ร้านซัก)
+   *  ถ้าเลือกจุดเก็บอื่นแล้วยังใส่ยอดผ้าได้ ยอดจะไปกองผิดที่แล้วหน้าเบิกของจะเห็นเป็น 0 */
+  const isLinenLoc = useMemo(() => {
+    const kind = locations.find((l) => l.id === locationId)?.kind;
+    return ["linen_room", "soiled", "laundry"].includes(kind ?? "");
+  }, [locations, locationId]);
+
   const rows = useMemo(() => {
     const term = q.trim().toLowerCase();
     return items
       .filter((i) => (cls === "all" ? true : i.stock_class === cls))
+      .filter((i) => (isLinenLoc ? true : !["linen", "bedding"].includes(i.item_group ?? "")))
       .filter((i) => (term ? i.name.toLowerCase().includes(term) : true))
       .map((i) => ({ item: i, current: qtyAt.get(i.id) ?? 0 }));
-  }, [items, cls, q, qtyAt]);
+  }, [items, cls, q, qtyAt, isLinenLoc]);
 
   /** ส่งเฉพาะแถวที่กรอกและค่าต่างจากเดิม — ไม่ต้องกรอกครบทุกรายการ */
   const changed = useMemo(
@@ -161,6 +169,13 @@ export function SetCountsDialog({
                 />
               </div>
             </div>
+
+            {!isLinenLoc && (
+              <p className="rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-xs text-amber-800">
+                จุดเก็บนี้ไม่ใช่ที่เก็บผ้า — รายการผ้า/เครื่องนอนถูกซ่อนไว้ (ผ้าอยู่ได้เฉพาะ
+                ห้องผ้าสะอาด · ผ้าเปื้อนรอส่ง · ร้านซัก)
+              </p>
+            )}
 
             <div className="flex flex-wrap items-center gap-2">
               <SegmentedControl
