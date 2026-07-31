@@ -36,6 +36,25 @@ export async function POST(req: NextRequest) {
   const auth = await requireTmcMember(req, orgId);
   if (!auth.ok) return auth.res;
 
+  // เบิกทั้งหลัง (หลายห้องในใบเดียว) — ท่าหลักของหน้าเบิกของ
+  if (Array.isArray(body.groups) && body.groups.length > 0) {
+    const { data, error } = await createAdminClient().rpc("tmc_stock_issue_rooms", {
+      p_org_id: orgId,
+      p_property_code: String(body.propertyCode ?? ""),
+      p_groups: body.groups,
+      p_stay_id: (body.stayId as string) || null,
+      p_note: (body.note as string) || null,
+      p_created_by: auth.userId,
+    });
+    if (error) {
+      const status = error.code === "23514" || error.code === "23503" ? 400 : 500;
+      void recordMetric({ orgId, route: "/api/tmc/stock/issues", method: "POST", status, t0 });
+      return NextResponse.json({ error: error.message }, { status });
+    }
+    void recordMetric({ orgId, route: "/api/tmc/stock/issues", method: "POST", status: 201, t0 });
+    return NextResponse.json(data, { status: 201 });
+  }
+
   const presetId = (body.presetId as string) || null;
   const lines = Array.isArray(body.lines) ? body.lines : null;
   if (!presetId && (!lines || lines.length === 0)) {
