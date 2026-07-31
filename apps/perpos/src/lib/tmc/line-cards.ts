@@ -213,6 +213,7 @@ export function buildTmcDailyOccupancyFlex(d: TmcDailyOccupancy): LineMessage {
             d.mtd.freeNights > 0 ? `${d.mtd.freeNights} คืน · ${fmtPct(d.mtd.freeRate)}` : "—",
             { color: d.mtd.freeNights > 0 ? WARN : INK },
           ),
+          kpiRow("รายได้เข้าพัก", fmtBaht0(d.mtd.stayRevenue), { color: SUCCESS, bold: true }),
           kpiRow("มูลค่าจองเดือนนี้", fmtBaht0(d.mtd.value), { bold: true }),
           {
             type: "text",
