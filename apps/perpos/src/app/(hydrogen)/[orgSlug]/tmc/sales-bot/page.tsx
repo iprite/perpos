@@ -885,8 +885,12 @@ export default function TmcSalesBotPage() {
               ) : linkCode ? (
                 <div className="space-y-3">
                   <Text className="text-sm text-gray-700">
-                    เชิญ <span className="font-medium">@tmcvilla</span> เข้ากลุ่มของทีมแอดมิน
-                    แล้วพิมพ์รหัสนี้ในกลุ่ม
+                    เชิญ <span className="font-medium">บอท PERPOS (@perpos)</span>{" "}
+                    เข้ากลุ่มของทีมแอดมิน แล้วพิมพ์รหัสนี้ในกลุ่ม
+                    <br />
+                    <span className="text-xs text-gray-500">
+                      (ห้ามเอา @tmcvilla เข้ากลุ่ม — OA นั้นไว้คุยกับลูกค้าเท่านั้น)
+                    </span>
                   </Text>
                   <div className="flex flex-wrap items-center gap-3">
                     <code className="rounded-lg bg-gray-100 px-4 py-2 font-mono text-lg font-semibold tracking-widest text-gray-900">

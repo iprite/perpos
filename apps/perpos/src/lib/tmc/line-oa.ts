@@ -6,7 +6,7 @@
  *
  * env ที่ต้องตั้ง
  *   TMC_LINE_CHANNEL_SECRET        — ใช้ verify webhook signature
- *   TMC_LINE_CHANNEL_ACCESS_TOKEN  — ใช้ reply/push/ดึงโปรไฟล์
+ *   TMC_LINE_CHANNEL_ACCESS_TOKEN  — ใช้ reply / ดึงโปรไฟล์ลูกค้า / อ่าน bot info
  *   TMC_BOT_ORG_SLUG (optional)    — ระบุ org เจ้าของ OA ถ้ามีหลาย org ที่เปิด module tmc
  */
 import crypto from "crypto";
@@ -41,37 +41,6 @@ export async function tmcReplyText(replyToken: string, text: string): Promise<vo
     headers: { authorization: `Bearer ${token()}`, "content-type": "application/json" },
     body: JSON.stringify({ replyToken, messages: [{ type: "text", text: text.slice(0, 4900) }] }),
   }).catch(() => undefined);
-}
-
-export async function tmcPushText(to: string, text: string): Promise<void> {
-  if (!token() || !to) return;
-  await fetch(`${LINE_API}/message/push`, {
-    method: "POST",
-    headers: { authorization: `Bearer ${token()}`, "content-type": "application/json" },
-    body: JSON.stringify({ to, messages: [{ type: "text", text: text.slice(0, 4900) }] }),
-  }).catch(() => undefined);
-}
-
-/** push ข้อความใด ๆ (รวม Flex) ออกจาก @tmcvilla — ใช้ส่งการ์ดแจ้งเตือนเข้ากลุ่มทีมแอดมิน */
-export async function tmcPushMessages(to: string, messages: unknown[]): Promise<boolean> {
-  if (!token() || !to || !messages.length) return false;
-  const res = await fetch(`${LINE_API}/message/push`, {
-    method: "POST",
-    headers: { authorization: `Bearer ${token()}`, "content-type": "application/json" },
-    body: JSON.stringify({ to, messages }),
-  }).catch(() => null);
-  return !!res?.ok;
-}
-
-/** ชื่อกลุ่ม (โชว์ในหน้าตั้งค่าให้แอดมินรู้ว่าผูกกลุ่มไหนอยู่) */
-export async function tmcGetGroupName(groupId: string): Promise<string | null> {
-  if (!token()) return null;
-  const res = await fetch(`${LINE_API}/group/${groupId}/summary`, {
-    headers: { authorization: `Bearer ${token()}` },
-  }).catch(() => null);
-  if (!res?.ok) return null;
-  const json = (await res.json().catch(() => null)) as { groupName?: string } | null;
-  return json?.groupName ?? null;
 }
 
 export interface TmcLineProfile {

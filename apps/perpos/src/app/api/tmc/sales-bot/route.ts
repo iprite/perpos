@@ -4,12 +4,14 @@
  * GET  ?orgId=                        → { settings, stats, lineConfigured }
  * PUT                                 → แก้ตั้งค่า
  * POST { action: "link-code" }        → ออกรหัสผูกกลุ่ม TMC-XXXXXX (อายุ 24 ชม.)
+ *                                       กลุ่มอยู่กับบอท PERPOS — รหัสถูกรับที่ /api/line/webhook
  * POST { action: "unlink-group" }     → ปลดการผูกกลุ่ม
  */
 import { randomBytes } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "../../_lib/supabase";
 import { requireTmcMember, canWriteFinance } from "../_lib";
+import { generateTmcLinkCode, TMC_LINK_CODE_TTL_HOURS } from "@/lib/tmc/notify-group";
 
 export async function GET(req: NextRequest) {
   const orgId = req.nextUrl.searchParams.get("orgId") ?? "";
@@ -107,17 +109,6 @@ export async function PUT(req: NextRequest) {
   return NextResponse.json({ ok: true });
 }
 
-/** อักษรที่ใช้ในรหัส — ตัด 0/O/1/I/L ออก กันอ่านผิดตอนพิมพ์ลงกลุ่ม */
-const CODE_ALPHABET = "23456789ABCDEFGHJKMNPQRSTUVWXYZ";
-const CODE_TTL_HOURS = 24;
-
-function generateLinkCode(): string {
-  // ใช้ randomBytes ของ node ตรง ๆ (ไม่พึ่ง global crypto ที่ต่างกันตาม runtime/เวอร์ชัน Node)
-  const bytes = randomBytes(6);
-  const body = Array.from(bytes, (b) => CODE_ALPHABET[b % CODE_ALPHABET.length]).join("");
-  return `TMC-${body}`;
-}
-
 export async function POST(req: NextRequest) {
   const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
   const orgId = String(body.orgId ?? "");
@@ -132,8 +123,8 @@ export async function POST(req: NextRequest) {
   const admin = createAdminClient();
 
   if (action === "link-code") {
-    const code = generateLinkCode();
-    const expiresAt = new Date(Date.now() + CODE_TTL_HOURS * 3600_000).toISOString();
+    const code = generateTmcLinkCode(randomBytes);
+    const expiresAt = new Date(Date.now() + TMC_LINK_CODE_TTL_HOURS * 3600_000).toISOString();
     const { error } = await admin
       .from("tmc_bot_settings")
       .upsert({ org_id: orgId, link_code: code, link_code_expires_at: expiresAt });

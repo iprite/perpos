@@ -24,6 +24,11 @@ import { buildBotFlex } from "@/lib/assistant/recall-events";
 import { handleGovGroupCommand } from "@/lib/gov-procure/line-group";
 import { confirmPending } from "@/lib/gov-procure/line-commands";
 import { handleAccFirmGroupMessage, isAccFirmGroupInput } from "@/lib/acc-firm/line-group";
+import {
+  handleTmcGroupMessage,
+  isTmcGroupInput,
+  unlinkTmcGroupOnLeave,
+} from "@/lib/tmc/notify-group";
 import { getServiceRemaining, getTokenBalance } from "@/lib/assistant/token-balance";
 import {
   buildBotConfirmFlex,
@@ -3412,6 +3417,18 @@ export async function POST(req: NextRequest) {
       continue;
     }
 
+    // บอทถูกเตะ/ออกจากกลุ่ม → ปลดกลุ่มแจ้งเตือนของผู้ช่วยขาย TMC (ถ้าเป็นกลุ่มนั้น)
+    if (event.type === "leave") {
+      const leftSource = event.source as Record<string, string>;
+      const leftGroupId = leftSource?.groupId || leftSource?.roomId || "";
+      if (leftGroupId) {
+        await unlinkTmcGroupOnLeave(admin, leftGroupId).catch((e) =>
+          console.error("[line] tmc group unlink failed:", String(e)),
+        );
+      }
+      continue;
+    }
+
     if (event.type !== "message") continue;
     const msg = event.message as Record<string, unknown>;
 
@@ -3429,7 +3446,17 @@ export async function POST(req: NextRequest) {
 
         // ข้อความคุยกันธรรมดาในกลุ่ม = ไม่ยิง query ใด ๆ (ด่านนี้เช็คด้วยสตริงล้วน)
         const isCmd = gText.trim().startsWith("/");
-        if (!isCmd && !isAccFirmGroupInput(gText)) continue;
+        if (!isCmd && !isAccFirmGroupInput(gText) && !isTmcGroupInput(gText)) continue;
+
+        // TMC: รหัสผูกกลุ่มแจ้งเตือนของผู้ช่วยขาย @tmcvilla (กลุ่มอยู่กับบอท PERPOS)
+        if (isTmcGroupInput(gText)) {
+          const tmcReply = await handleTmcGroupMessage(admin, groupId, gText).catch((e) => {
+            console.error("[line] tmc group link failed:", String(e));
+            return null;
+          });
+          if (tmcReply) await replyText(replyToken, tmcReply.text);
+          continue; // รหัสไม่ตรง = เงียบ (กันเดารหัส)
+        }
 
         const accProfile = lineUserId ? await getProfileByLineId(admin, lineUserId) : null;
 
