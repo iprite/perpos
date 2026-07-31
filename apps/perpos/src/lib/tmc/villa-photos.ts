@@ -118,14 +118,14 @@ export function photoIntro(photos: VillaPhoto[], question: string): string {
   const villa = photos[0]?.villa_name ?? "บ้านพัก";
   const cat = pick(question, CATEGORY_HINTS);
   const what = cat ? `รูป${cat}` : "รูปบรรยากาศ";
-  return `ได้เลยค่ะ ส่ง${what}ของ ${villa} ให้ดูนะคะ 🌿\nหากอยากดูมุมไหนเพิ่มเติม บอกได้เลยค่ะ`;
+  return `ได้เลยครับ ส่ง${what}ของ ${villa} ให้ดูครับ 🌿\nหากอยากดูมุมไหนเพิ่มเติม บอกได้เลยครับ`;
 }
 
 export function askWhichVillaText(villaNames: string[]): string {
   return [
-    "ได้เลยค่ะ ไม่ทราบว่าคุณลูกค้าสนใจดูรูปของหลังไหนคะ",
+    "ได้เลยครับ ไม่ทราบว่าสนใจดูรูปของหลังไหนครับ",
     ...villaNames.map((n) => `• ${n}`),
     "",
-    "แจ้งชื่อหลังที่สนใจ หรือบอกจำนวนผู้เข้าพักมาได้เลยนะคะ เดี๋ยวแนะนำให้ค่ะ",
+    "แจ้งชื่อหลังที่สนใจ หรือบอกจำนวนผู้เข้าพักมาได้เลยครับ เดี๋ยวผมแนะนำให้ครับ",
   ].join("\n");
 }
