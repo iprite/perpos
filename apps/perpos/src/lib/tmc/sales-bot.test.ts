@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { chunkArticle, isSmallTalk, sanitizeForLine, wantsHuman } from "./sales-bot";
+import {
+  chunkArticle,
+  hasUngroundedTime,
+  isSmallTalk,
+  sanitizeForLine,
+  wantsHuman,
+} from "./sales-bot";
 import { mentionsBot, stripBotMention } from "./kb-ingest";
 import { buildTmcKbDraftFlex } from "./line-cards";
 
@@ -143,5 +149,23 @@ describe("buildTmcKbDraftFlex — การ์ดทวนก่อนบัน�
     const body = JSON.stringify(card);
     expect(body).toContain("…");
     expect(body.length).toBeLessThan(4000);
+  });
+});
+
+describe("hasUngroundedTime — กันบอทแต่งเวลาเอง", () => {
+  const ctx = "เช็คอินได้ตั้งแต่ 14:00 น. เช็คเอาท์ก่อน 12:00 น.";
+
+  it("เวลาที่ไม่มีในบริบท = แต่งเอง (เคสจริง: อาหารเช้า 07:00)", () => {
+    expect(hasUngroundedTime("อาหารเช้าส่งเวลา 07:00 น. ค่ะ", "ราคารวมอาหารเช้า")).toBe(true);
+    expect(hasUngroundedTime("สระเปิด 6 โมงเช้าค่ะ", "มีสระว่ายน้ำส่วนตัว")).toBe(true);
+  });
+
+  it("เวลาที่มีในบริบท ตอบได้ตามปกติ", () => {
+    expect(hasUngroundedTime("เช็คอินได้ตั้งแต่ 14:00 น. ค่ะ", ctx)).toBe(false);
+    expect(hasUngroundedTime("เช็คเอาท์ก่อน 12.00 น. นะคะ", ctx)).toBe(false);
+  });
+
+  it("คำตอบที่ไม่มีเวลาเลย ไม่ถูกบล็อก (ราคา/จำนวนคนต้องผ่าน)", () => {
+    expect(hasUngroundedTime("ราคา 29,900 บาท/คืน สำหรับ 10 ท่านค่ะ", ctx)).toBe(false);
   });
 });

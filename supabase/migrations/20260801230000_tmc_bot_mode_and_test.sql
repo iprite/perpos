@@ -20,3 +20,8 @@ COMMENT ON COLUMN public.tmc_bot_settings.bot_mode IS
   'sales = ผู้ช่วยขาย (ก่อนจอง) · service = ผู้ช่วยดูแลลูกค้าระหว่าง/หลังเข้าพัก';
 COMMENT ON COLUMN public.tmc_bot_settings.test_mode IS
   'เปิด = บอทตอบเฉพาะ line_user_id ใน test_line_user_ids · คนอื่นบอทเงียบและเปิดเคสให้แอดมิน';
+
+-- 2026-08-01 (later): เพิ่มโหมด 'both' — ทดสอบเต็มรูปแบบทั้งงานขายและงานบริการพร้อมกัน
+ALTER TABLE public.tmc_bot_settings DROP CONSTRAINT IF EXISTS tmc_bot_settings_bot_mode_check;
+ALTER TABLE public.tmc_bot_settings
+  ADD CONSTRAINT tmc_bot_settings_bot_mode_check CHECK (bot_mode IN ('sales', 'service', 'both'));

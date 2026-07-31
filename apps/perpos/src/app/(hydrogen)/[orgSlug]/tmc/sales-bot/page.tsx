@@ -142,7 +142,7 @@ interface BotSettings {
   notify_linked_at: string | null;
   link_code: string | null;
   link_code_expires_at: string | null;
-  bot_mode: "sales" | "service";
+  bot_mode: "sales" | "service" | "both";
   test_mode: boolean;
   test_line_user_ids: string[];
 }
@@ -548,13 +548,18 @@ export default function TmcSalesBotPage() {
                 onChange={(v) =>
                   patchSettings(
                     { botMode: v },
-                    v === "sales" ? "สลับเป็นโหมดการขายแล้ว" : "สลับเป็นโหมดการบริการแล้ว",
+                    v === "sales"
+                      ? "สลับเป็นโหมดการขายแล้ว"
+                      : v === "service"
+                        ? "สลับเป็นโหมดการบริการแล้ว"
+                        : "เปิดทั้งงานขายและงานบริการแล้ว",
                   )
                 }
                 ariaLabel="โหมดของบอท"
                 options={[
                   { value: "sales", label: "การขาย", icon: <Tag className="h-4 w-4" /> },
                   { value: "service", label: "การบริการ", icon: <LifeBuoy className="h-4 w-4" /> },
+                  { value: "both", label: "ทั้งสองอย่าง", icon: <Sparkles className="h-4 w-4" /> },
                 ]}
               />
               <Button
