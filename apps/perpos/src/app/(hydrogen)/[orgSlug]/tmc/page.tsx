@@ -1,7 +1,7 @@
 import { Building2 } from "lucide-react";
 import { PageShell } from "@/components/ui/page-shell";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { TMC_ORG_ID, requireTmcManagerPage } from "./_guard";
+import { TMC_ORG_ID, requireTmcOwnerPage } from "./_guard";
 import { computeTmcDashboard, rangeFromMonths } from "@/lib/tmc/dashboard";
 import { TmcRangeFilter } from "./_range-filter";
 import { TmcDashboardTabs } from "./_tabs";
@@ -21,9 +21,9 @@ export default async function TmcDashboardPage({
     tab?: string;
   }>;
 }) {
-  // Guard: เฉพาะเจ้าของ/ผู้ดูแลโมดูล tmc (หรือ super_admin) — ข้อมูลอ่านผ่าน RLS client
+  // Guard: เฉพาะเจ้าของโมดูล tmc (หรือ super_admin) — ข้อมูลอ่านผ่าน RLS client
   const { orgSlug } = await params;
-  await requireTmcManagerPage(orgSlug);
+  await requireTmcOwnerPage(orgSlug);
 
   const sp = await searchParams;
   const tab = sp.tab === "costs" ? "costs" : "overview";

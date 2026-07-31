@@ -406,17 +406,21 @@ function buildTmcMenuItems(
 ): MenuItem[] {
   const t = (path: string) => `/${org}/tmc/${path}`;
   const l = (key: string, fallback: string) => labels[key] || fallback;
-  // Dashboard / บัญชีและการเงิน / เงินสดย่อย = ตัวเลขรายได้-ต้นทุนทั้งกิจการ → เฉพาะเจ้าของและผู้ดูแล
+  // บัญชีและการเงิน / เงินสดย่อย = ตัวเลขเงินของกิจการ → เจ้าของและผู้ดูแล
+  // Dashboard = ภาพรวมทั้งกิจการ → เจ้าของเท่านั้น
   const isManager = orgRole === "owner" || orgRole === "admin";
   const items: MenuItem[] = [{ name: "TMC Management" }];
 
+  if (orgRole === "owner") {
+    items.push({
+      name: l("dashboard", "Dashboard"),
+      href: `/${org}/tmc`,
+      icon: <LayoutDashboard className="h-5 w-5" />,
+    });
+  }
+
   if (isManager) {
     items.push(
-      {
-        name: l("dashboard", "Dashboard"),
-        href: `/${org}/tmc`,
-        icon: <LayoutDashboard className="h-5 w-5" />,
-      },
       {
         name: l("finance", "บัญชีและการเงิน"),
         href: t("finance"),
