@@ -29,6 +29,14 @@ import {
   isTmcGroupInput,
   unlinkTmcGroupOnLeave,
 } from "@/lib/tmc/notify-group";
+import {
+  cancelTmcKbDraft,
+  confirmTmcKbDraft,
+  handleTmcGroupKnowledge,
+  mentionsBot,
+  stripBotMention,
+} from "@/lib/tmc/kb-ingest";
+import { buildTmcKbDraftFlex } from "@/lib/tmc/line-cards";
 import { getServiceRemaining, getTokenBalance } from "@/lib/assistant/token-balance";
 import {
   buildBotConfirmFlex,
@@ -3413,6 +3421,25 @@ export async function POST(req: NextRequest) {
         await handleCalendarSend(admin, pbUserId, pbData.slice("calsend:".length), pbReplyToken);
       } else if (pbUserId && pbData.startsWith("botcancel:")) {
         await handleRecallCancel(admin, pbUserId, pbData.slice("botcancel:".length), pbReplyToken);
+      } else if (pbData.startsWith("tmckb:")) {
+        // ปุ่มยืนยัน/ยกเลิกร่างความรู้ของผู้ช่วยขาย TMC (กดในกลุ่มทีมแอดมิน)
+        const pbGroup =
+          (event.source as Record<string, string>)?.groupId ||
+          (event.source as Record<string, string>)?.roomId ||
+          "";
+        const [, act, draftId] = pbData.split(":");
+        if (pbGroup && draftId) {
+          const msg =
+            act === "ok"
+              ? await confirmTmcKbDraft(admin, draftId, pbGroup).catch((e) => {
+                  console.error("[line] tmc kb confirm failed:", String(e));
+                  return "ขออภัยค่ะ ระบบขัดข้อง บันทึกไม่สำเร็จ 🙏";
+                })
+              : await cancelTmcKbDraft(admin, draftId, pbGroup).catch(
+                  () => "ยกเลิกไม่สำเร็จค่ะ 🙏",
+                );
+          await replyText(pbReplyToken, msg);
+        }
       }
       continue;
     }
@@ -3444,9 +3471,34 @@ export async function POST(req: NextRequest) {
       if (msg.type === "text") {
         const gText = String(msg.text ?? "");
 
-        // ข้อความคุยกันธรรมดาในกลุ่ม = ไม่ยิง query ใด ๆ (ด่านนี้เช็คด้วยสตริงล้วน)
+        // ข้อความคุยกันธรรมดาในกลุ่ม = ไม่ยิง query ใด ๆ (ด่านนี้เช็คด้วย payload ล้วน)
         const isCmd = gText.trim().startsWith("/");
-        if (!isCmd && !isAccFirmGroupInput(gText) && !isTmcGroupInput(gText)) continue;
+        const taggedBot = mentionsBot(gText, msg.mention);
+        if (!isCmd && !taggedBot && !isAccFirmGroupInput(gText) && !isTmcGroupInput(gText))
+          continue;
+
+        // TMC: แท็ก @perpos ในกลุ่มที่ผูกไว้ + พิมพ์ข้อมูล → บันทึกเข้าคลังความรู้ผู้ช่วยขาย
+        if (taggedBot) {
+          const note = stripBotMention(
+            gText,
+            (msg.mention as { mentionees?: [] } | undefined)?.mentionees,
+          );
+          const kbReply = await handleTmcGroupKnowledge(admin, groupId, note, lineUserId).catch(
+            (e) => {
+              console.error("[line] tmc kb ingest failed:", String(e));
+              return { kind: "text" as const, text: "ขออภัยค่ะ ระบบขัดข้อง บันทึกไม่สำเร็จ 🙏" };
+            },
+          );
+          if (kbReply) {
+            if (kbReply.kind === "draft") {
+              await replyLine(replyToken, [buildTmcKbDraftFlex(kbReply)]);
+            } else {
+              await replyText(replyToken, kbReply.text);
+            }
+            continue;
+          }
+          // กลุ่มไม่ได้ผูกกับ TMC → ไหลต่อไปให้ logic เดิมของกลุ่มจัดการ
+        }
 
         // TMC: รหัสผูกกลุ่มแจ้งเตือนของผู้ช่วยขาย @tmcvilla (กลุ่มอยู่กับบอท PERPOS)
         if (isTmcGroupInput(gText)) {

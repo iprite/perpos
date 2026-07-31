@@ -49,6 +49,7 @@ import {
   RefreshCw,
   Settings2,
   Sparkles,
+  Undo2,
   Unlink,
   UserCheck,
   Users,
@@ -79,6 +80,9 @@ interface Article {
   sort_order: number;
   embedded_at: string | null;
   updated_at: string;
+  source: string;
+  source_note: string | null;
+  previous_content: string | null;
 }
 
 interface EscalationCase {
@@ -144,6 +148,9 @@ const EMPTY_FORM = {
   keywords: "",
   isActive: true,
   sortOrder: 0,
+  source: "web",
+  sourceNote: null as string | null,
+  hasPrevious: false,
 };
 
 function thaiDateTime(iso: string | null): string {
@@ -308,6 +315,27 @@ export default function TmcSalesBotPage() {
       await Promise.all([loadArticles(), loadMeta()]);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "ลบไม่สำเร็จ");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function restorePrevious() {
+    if (!form.id) return;
+    setBusy(true);
+    try {
+      const h = await headers();
+      const res = await fetch(backendUrl(`/tmc/kb/${form.id}`), {
+        method: "PATCH",
+        headers: h,
+        body: JSON.stringify({ orgId: TMC_ORG_ID, restorePrevious: true }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error ?? "กู้คืนไม่สำเร็จ");
+      toast.success('กู้คืนเนื้อหาเดิมแล้ว — กด "อัปเดตความรู้" เพื่อให้บอทเรียนใหม่');
+      setFormOpen(false);
+      await Promise.all([loadArticles(), loadMeta()]);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "กู้คืนไม่สำเร็จ");
     } finally {
       setBusy(false);
     }
@@ -599,6 +627,9 @@ export default function TmcSalesBotPage() {
                         keywords: (a.keywords ?? []).join(", "),
                         isActive: a.is_active,
                         sortOrder: a.sort_order,
+                        source: a.source ?? "web",
+                        sourceNote: a.source_note ?? null,
+                        hasPrevious: !!a.previous_content,
                       });
                       setFormOpen(true);
                     }}
@@ -947,6 +978,29 @@ export default function TmcSalesBotPage() {
           </DialogHeader>
           <DialogBody>
             <div className="space-y-4">
+              {form.source === "line" && (
+                <div className="rounded-xl border border-gray-200 bg-gray-50 p-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <StatusBadge tone="info">มาจากกลุ่ม LINE</StatusBadge>
+                    {form.hasPrevious && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="ms-auto"
+                        disabled={busy}
+                        onClick={restorePrevious}
+                      >
+                        <Undo2 className="h-4 w-4" /> กู้คืนเนื้อหาก่อนหน้า
+                      </Button>
+                    )}
+                  </div>
+                  {form.sourceNote && (
+                    <Text className="mt-2 whitespace-pre-wrap text-xs text-gray-600">
+                      ข้อความต้นฉบับที่แอดมินพิมพ์: “{form.sourceNote}”
+                    </Text>
+                  )}
+                </div>
+              )}
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                 <div className="sm:col-span-2">
                   <Label htmlFor="title">หัวข้อ (คำถามที่ลูกค้าถาม) *</Label>

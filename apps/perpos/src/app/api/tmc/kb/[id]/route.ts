@@ -18,6 +18,32 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   const g = await guard(req, String(body.orgId ?? ""));
   if (g.error) return g.error;
 
+  // กู้คืนเนื้อหาก่อนถูกเขียนทับจากช่องทาง LINE (AI เรียบเรียงผิดได้ และไม่มีขั้นตอนยืนยัน)
+  if (body.restorePrevious === true) {
+    const { data: cur } = await g
+      .auth!.rls.from("tmc_kb_articles")
+      .select("previous_content")
+      .eq("id", id)
+      .eq("org_id", String(body.orgId))
+      .maybeSingle();
+    const prev = (cur as { previous_content: string | null } | null)?.previous_content;
+    if (!prev) return NextResponse.json({ error: "ไม่มีเนื้อหาเดิมให้กู้คืน" }, { status: 400 });
+
+    const { error } = await g
+      .auth!.rls.from("tmc_kb_articles")
+      .update({
+        content: prev,
+        previous_content: null,
+        embedded_at: null,
+        updated_at: new Date().toISOString(),
+        updated_by: g.auth!.userId,
+      })
+      .eq("id", id)
+      .eq("org_id", String(body.orgId));
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ ok: true, restored: true });
+  }
+
   const patch: Record<string, unknown> = {
     updated_at: new Date().toISOString(),
     updated_by: g.auth!.userId,
