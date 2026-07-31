@@ -110,6 +110,26 @@ export function chunkArticle(article: KbArticleInput): string[] {
   return parts.map((body, i) => `${head}${i === 0 ? kw : ""}\n${body}`);
 }
 
+/**
+ * ฝังบทความตาม id — ใช้หลังบันทึกจากหน้าเว็บ เพื่อให้ "แก้แล้วบอทรู้ทันที"
+ * ไม่โยน error: ถ้าฝังไม่สำเร็จ `embedded_at` ยังเป็น null ปุ่ม "อัปเดตความรู้" จะตามเก็บให้
+ */
+export async function embedArticleById(admin: Admin, articleId: string): Promise<boolean> {
+  try {
+    const { data } = await admin
+      .from("tmc_kb_articles")
+      .select("id, title, category, content, keywords, is_active")
+      .eq("id", articleId)
+      .maybeSingle();
+    const a = data as (KbArticleInput & { is_active: boolean }) | null;
+    if (!a || !a.is_active) return false;
+    await embedArticle(admin, a);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** ฝังบทความ 1 ชิ้น → แทนที่ chunk เดิมทั้งหมดของบทความนั้น */
 export async function embedArticle(admin: Admin, article: KbArticleInput): Promise<number> {
   const texts = chunkArticle(article);
