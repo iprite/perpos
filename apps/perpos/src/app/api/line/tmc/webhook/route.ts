@@ -381,12 +381,17 @@ export async function POST(req: NextRequest) {
         continue;
       }
 
+      // โหมดทดสอบ: คนในลิสต์ให้บอท "ตอบเสมอ" แม้เพิ่งส่งเคสให้แอดมินไป
+      // (เปิดเคสแจ้งทีมเหมือนเดิม แต่ไม่เงียบใส่คนที่กำลังนั่งทดสอบบอทอยู่)
+      const alwaysReply =
+        settings.test_mode && (settings.test_line_user_ids ?? []).includes(lineUserId);
+
       // โหมดคนจริงยังไม่หมดอายุ → บอทเงียบ ปล่อยให้แอดมินคุย
       const humanActive =
         contact.mode === "human" &&
         !!contact.human_until &&
         new Date(contact.human_until) > new Date();
-      if (humanActive) continue;
+      if (humanActive && !alwaysReply) continue;
 
       // ทริกเกอร์ 1: ลูกค้าขอคุยกับคนจริง
       if (wantsHuman(text)) {

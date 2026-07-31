@@ -15,7 +15,7 @@ const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
 const EMBED_MODEL = "gemini-embedding-001";
 const EMBED_DIM = 768;
 const ANSWER_MODEL = "gemini-2.5-flash";
-const MATCH_COUNT = 6;
+const MATCH_COUNT = 8;
 
 /** ความยาวสูงสุดต่อ chunk (ตัวอักษร) — บทความยาวถูกซอยตามย่อหน้า */
 const MAX_CHUNK_CHARS = 900;
@@ -41,6 +41,8 @@ export interface RetrievedChunk {
   similarity: number;
   /** อัปเดตล่าสุดของบทความ — ใช้ตัดสินเมื่อข้อมูลในคลังขัดกันเอง (ของใหม่ชนะเสมอ) */
   updated_at: string;
+  /** keyword = คำใน "คำที่ลูกค้ามักถาม" ตรงกับคำถามตรง ๆ · vector = ใกล้เคียงเชิงความหมาย */
+  matched_by?: "keyword" | "vector";
 }
 
 // ─── Embedding ───────────────────────────────────────────────────────────────
@@ -137,9 +139,11 @@ export async function retrieveContext(
   minSimilarity: number,
 ): Promise<RetrievedChunk[]> {
   const vector = await embed(question, "RETRIEVAL_QUERY");
-  const { data, error } = await admin.rpc("match_tmc_kb_chunks", {
+  // ผสม vector + คำสำคัญ — ภาษาไทยไม่มีช่องว่าง embedding จึงพลาดคำเฉพาะ (คาราโอเกะ/BBQ)
+  const { data, error } = await admin.rpc("match_tmc_kb_hybrid", {
     p_org_id: orgId,
     query_embedding: JSON.stringify(vector),
+    p_question: question,
     match_count: MATCH_COUNT,
     min_similarity: minSimilarity,
   });

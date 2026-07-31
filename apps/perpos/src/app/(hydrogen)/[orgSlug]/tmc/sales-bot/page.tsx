@@ -802,22 +802,44 @@ export default function TmcSalesBotPage() {
                       </StatusBadge>
                     </TableCell>
                     <TableCell align="right">
-                      {c.status === "open" && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          disabled={busy}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            void patchInbox(
-                              { escalationId: c.id, status: "handled" },
-                              "ปิดเคสแล้ว",
-                            );
-                          }}
-                        >
-                          <UserCheck className="h-4 w-4" /> คุยแล้ว
-                        </Button>
-                      )}
+                      <div className="flex justify-end gap-2">
+                        {c.reason === "no_answer" && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            title="สร้างบทความจากคำถามนี้ เพื่อให้บอทตอบได้ครั้งหน้า"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              // ปิดวงจร: คำถามที่บอทตอบไม่ได้ = ความรู้ที่คลังยังขาด
+                              setForm({
+                                ...EMPTY_FORM,
+                                title: c.question.slice(0, 120),
+                                keywords: c.question.slice(0, 80),
+                              });
+                              setTab("kb");
+                              setFormOpen(true);
+                            }}
+                          >
+                            <BookOpen className="h-4 w-4" /> เพิ่มความรู้
+                          </Button>
+                        )}
+                        {c.status === "open" && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={busy}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              void patchInbox(
+                                { escalationId: c.id, status: "handled" },
+                                "ปิดเคสแล้ว",
+                              );
+                            }}
+                          >
+                            <UserCheck className="h-4 w-4" /> คุยแล้ว
+                          </Button>
+                        )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))

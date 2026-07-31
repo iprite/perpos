@@ -244,13 +244,30 @@ for (const v of villas) {
 for (const v of villas) {
   const title = `${v.nameTh || v.name} — ห้องพัก สิ่งอำนวยความสะดวก จำนวนคน`;
   const content = villaArticle(v);
-  const keywords = [
-    v.nameTh || v.name,
-    v.name,
-    "สิ่งอำนวยความสะดวก",
-    "นอนกี่คน",
-    ...(v.amenities ?? []).slice(0, 5),
-  ].filter(Boolean);
+  // keywords = "คำที่ลูกค้าพิมพ์แล้วต้องเจอบทความนี้"
+  // ค้นแบบผสม (match_tmc_kb_hybrid) จับคำเหล่านี้ในคำถามตรง ๆ → ใส่ให้ครบที่สุดเท่าที่มี
+  // ต้องมีทั้งชื่อสิ่งอำนวยความสะดวกดิบ ๆ (คาราโอเกะ / Wi-Fi / BBQ) เพราะ embedding ไทยพลาดคำเฉพาะ
+  const keywords = Array.from(
+    new Set(
+      [
+        v.nameTh || v.name,
+        v.name,
+        v.code,
+        "สิ่งอำนวยความสะดวก",
+        "นอนกี่คน",
+        ...(v.amenities ?? []),
+        ...(v.highlights ?? []),
+        // ตัดคำนำหน้าออกให้เหลือคำที่ลูกค้าพิมพ์จริง เช่น "เตาปิ้งย่าง BBQ" → "BBQ"
+        ...(v.amenities ?? []).flatMap((a) =>
+          String(a)
+            .split(/[\s/]+/)
+            .filter((w) => w.length >= 3),
+        ),
+      ]
+        .filter(Boolean)
+        .map((k) => String(k).trim()),
+    ),
+  );
 
   console.log(`📝 ${title}`);
   if (DRY) {
