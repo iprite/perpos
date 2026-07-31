@@ -82,6 +82,29 @@ export function PresetManager({
     }
   }
 
+  /** แก้บรรทัดในชุด — upsert ต้องส่งค่าเดิมไปครบ ไม่งั้นช่องที่ไม่ได้แก้จะกลับเป็นค่าตั้งต้น */
+  function saveLine(
+    l: {
+      item_id: string;
+      qty: number;
+      qty_basis: string;
+      is_optional: boolean;
+      sort_order: number;
+    },
+    patch: { qty?: number; qtyBasis?: string; isOptional?: boolean },
+  ) {
+    if (!selected) return;
+    return post({
+      action: "save_line",
+      presetId: selected.id,
+      itemId: l.item_id,
+      qty: patch.qty ?? Number(l.qty),
+      qtyBasis: patch.qtyBasis ?? l.qty_basis,
+      isOptional: patch.isOptional ?? l.is_optional,
+      sortOrder: l.sort_order,
+    });
+  }
+
   // ── รายการชุด ────────────────────────────────────────────────────
   if (!selected) {
     return (
@@ -187,7 +210,15 @@ export function PresetManager({
         <Button variant="ghost" size="sm" onClick={() => setSelectedId(null)}>
           <ChevronLeft className="h-4 w-4" /> ชุดทั้งหมด
         </Button>
-        <span className="flex-1 truncate text-sm font-medium text-gray-900">{selected.name}</span>
+        <Input
+          defaultValue={selected.name}
+          key={selected.id}
+          className="h-8 flex-1 text-sm font-medium"
+          onBlur={(e) => {
+            const v = e.target.value.trim();
+            if (v && v !== selected.name) void patch({ id: selected.id, name: v });
+          }}
+        />
         <Button
           variant="ghost"
           size="sm"
@@ -202,36 +233,41 @@ export function PresetManager({
         {lines.map((l) => (
           <div
             key={l.id}
-            className="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-gray-50"
+            className="flex items-center gap-1.5 rounded-lg px-2 py-1.5 hover:bg-gray-50"
           >
-            <span className="flex-1 truncate text-sm text-gray-700">
+            <span className="min-w-0 flex-1 truncate text-sm text-gray-700">
               {itemById.get(l.item_id)?.name ?? "(ไม่พบรายการ)"}
             </span>
             <Input
               type="number"
               defaultValue={String(l.qty)}
-              className="h-7 w-16 text-right text-sm"
+              className="h-7 w-14 shrink-0 text-right text-sm"
               onBlur={(e) => {
                 const v = Number(e.target.value);
-                if (v > 0 && v !== Number(l.qty)) {
-                  void post({
-                    action: "save_line",
-                    presetId: selected.id,
-                    itemId: l.item_id,
-                    qty: v,
-                    qtyBasis: l.qty_basis,
-                    sortOrder: l.sort_order,
-                  });
-                }
+                if (v > 0 && v !== Number(l.qty)) void saveLine(l, { qty: v });
               }}
             />
-            <span className="w-14 text-xs text-gray-400">
-              {BASIS_OPTIONS.find((b) => b.value === l.qty_basis)?.label}
-            </span>
+            {/* เงื่อนไขการนับ — แก้ได้เลย ไม่ต้องลบแล้วเพิ่มใหม่ */}
+            <CustomSelect
+              value={l.qty_basis}
+              onChange={(v) => void saveLine(l, { qtyBasis: v })}
+              className="w-24 shrink-0"
+              options={BASIS_OPTIONS}
+            />
+            <Button
+              variant={l.is_optional ? "secondary" : "ghost"}
+              size="sm"
+              className="shrink-0 px-2"
+              disabled={busy}
+              title="เบิกเมื่อต้องการ (ไม่เบิกอัตโนมัติ)"
+              onClick={() => void saveLine(l, { isOptional: !l.is_optional })}
+            >
+              {l.is_optional ? "ไม่บังคับ" : "บังคับ"}
+            </Button>
             <Button
               variant="ghost"
               size="icon"
-              className="h-7 w-7 text-gray-300 hover:bg-red-50 hover:text-red-500"
+              className="h-7 w-7 shrink-0 text-gray-300 hover:bg-red-50 hover:text-red-500"
               disabled={busy}
               onClick={() => post({ action: "delete_line", lineId: l.id })}
             >
