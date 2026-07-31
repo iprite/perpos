@@ -49,6 +49,7 @@ import {
   Tags,
   ShoppingCart,
   Truck,
+  Bot,
 } from "lucide-react";
 
 import type { Role } from "@/lib/supabase/types";
@@ -420,6 +421,11 @@ function buildTmcMenuItems(org: string, labels: Record<string, string> = {}): Me
     },
     { name: l("stock", "Stock คลัง"), href: t("stock"), icon: <Package className="h-5 w-5" /> },
     { name: l("stays", "การเข้าพัก"), href: t("stays"), icon: <Building2 className="h-5 w-5" /> },
+    {
+      name: l("sales-bot", "ผู้ช่วยขาย LINE"),
+      href: t("sales-bot"),
+      icon: <Bot className="h-5 w-5" />,
+    },
   ];
 }
 

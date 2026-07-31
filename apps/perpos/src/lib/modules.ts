@@ -317,6 +317,7 @@ export const MODULE_MENUS: Record<string, MenuDef[]> = {
     { key: "petty-cash", label: "เงินสดย่อย" },
     { key: "stock", label: "Stock คลัง" },
     { key: "stays", label: "การเข้าพัก" },
+    { key: "sales-bot", label: "ผู้ช่วยขาย LINE" },
   ],
   crm: [
     { key: "dashboard", label: "Dashboard" },

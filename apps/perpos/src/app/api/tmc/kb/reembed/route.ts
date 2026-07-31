@@ -1,0 +1,66 @@
+/**
+ * อัปเดตความรู้ให้บอท — ฝัง (embed) บทความที่ยังไม่ได้ฝัง หรือแก้ไขหลังฝังล่าสุด
+ *
+ * body: { orgId, articleId? , all?: boolean }
+ *   ไม่ระบุ articleId → ฝังเฉพาะบทความที่ค้าง (embedded_at IS NULL)
+ *   all: true         → ฝังใหม่ทั้งหมด (ใช้ตอนย้าย/แก้ model)
+ *
+ * ⚠️ เขียน chunk ผ่าน RPC replace_tmc_kb_chunks ที่ REVOKE จาก authenticated
+ *    จึงต้องใช้ service-role client — แต่ด่านสิทธิ์อยู่ที่ requireTmcMember ก่อนเสมอ
+ */
+import { NextRequest, NextResponse } from "next/server";
+import { createAdminClient } from "../../../_lib/supabase";
+import { requireTmcMember, canWriteFinance } from "../../_lib";
+import { embedArticle, type KbArticleInput } from "@/lib/tmc/sales-bot";
+
+export const maxDuration = 60;
+
+export async function POST(req: NextRequest) {
+  const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
+  const orgId = String(body.orgId ?? "");
+  if (!orgId) return NextResponse.json({ error: "missing orgId" }, { status: 400 });
+
+  const auth = await requireTmcMember(req, orgId);
+  if (!auth.ok) return auth.res;
+  if (!canWriteFinance(auth.role))
+    return NextResponse.json({ error: "ไม่มีสิทธิ์" }, { status: 403 });
+
+  if (!process.env.GEMINI_API_KEY) {
+    return NextResponse.json(
+      { error: "ยังไม่ได้ตั้งค่า GEMINI_API_KEY บนเซิร์ฟเวอร์" },
+      { status: 503 },
+    );
+  }
+
+  const admin = createAdminClient();
+  let q = admin
+    .from("tmc_kb_articles")
+    .select("id, title, category, content, keywords")
+    .eq("org_id", orgId)
+    .eq("is_active", true);
+
+  if (body.articleId) q = q.eq("id", String(body.articleId));
+  else if (body.all !== true) q = q.is("embedded_at", null);
+
+  const { data, error } = await q;
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  const articles = (data ?? []) as KbArticleInput[];
+  let chunks = 0;
+  const failed: { title: string; error: string }[] = [];
+
+  for (const a of articles) {
+    try {
+      chunks += await embedArticle(admin, a);
+    } catch (e) {
+      failed.push({ title: a.title, error: e instanceof Error ? e.message : String(e) });
+    }
+  }
+
+  return NextResponse.json({
+    ok: failed.length === 0,
+    articles: articles.length - failed.length,
+    chunks,
+    failed,
+  });
+}

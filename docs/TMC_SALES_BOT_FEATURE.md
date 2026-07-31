@@ -1,0 +1,149 @@
+# ผู้ช่วยขาย TMC (LINE @tmcvilla) — คัมภีร์ฟีเจอร์
+
+> บอทแอดมินขายบน **LINE OA @tmcvilla** ตอบคำถามลูกค้าเรื่องเข้าพัก (ราคา ห้องนอน เตียงเสริม สัตว์เลี้ยง ส่วนลด)
+> ด้วย RAG จากคลังความรู้ที่ทีม TMC จัดการเองผ่านหน้าเว็บ · ตอบไม่ได้เมื่อไร ส่งต่อแอดมินตัวจริงทันที
+
+**หน้า:** `/[orgSlug]/tmc/sales-bot` (เมนู "ผู้ช่วยขาย LINE") · **org:** `tmc` (`1f52618c-09c4-49c5-a929-ea5060f26e7d`)
+
+---
+
+## 1. หลักการที่ห้ามพัง (invariant)
+
+1. **@tmcvilla ≠ บอท PERPOS** — คนละ LINE channel คนละ secret คนละ webhook
+   `TMC_LINE_CHANNEL_*` ใช้กับ `/api/line/tmc/webhook` เท่านั้น · `LINE_MESSAGING_CHANNEL_*` ใช้กับ `/api/line/webhook` เท่านั้น
+   **ห้ามสลับ/ใช้ปนกัน** — signature จะไม่ผ่าน และข้อความจะออกผิด OA
+2. **บอทตอบจากคลังความรู้เท่านั้น ห้ามเดา** — prompt บังคับให้ตอบ `[[NO_ANSWER]]` เมื่อ context ไม่พอ
+   **เส้นแบ่ง**: อธิบาย _เงื่อนไข_ ได้ (วิธีชำระเงิน จำนวนมัดจำ นโยบายเลื่อน/ยกเลิก) แต่พอลูกค้าจะ
+   _ลงมือทำจริง_ **ต้องส่งต่อคนเสมอ** — ห้องว่างวันไหน · ขอจอง/ยืนยันจอง · ขอเลขบัญชี · แจ้งว่าโอนแล้ว ·
+   ขอเลื่อน/ยกเลิกของจริง · ต่อรองราคา
+3. **embedding ต้อง model + มิติเดียวกันทั้ง ingestion และ query** — `gemini-embedding-001` / 768 มิติ
+   (`RETRIEVAL_DOCUMENT` ตอนฝัง · `RETRIEVAL_QUERY` ตอนถาม) — เปลี่ยนข้างเดียว = retrieve เพี้ยนทั้งระบบ
+4. **`tmc_kb_chunks` เข้าถึงผ่าน service-role เท่านั้น** (RLS deny-all) และ `match_tmc_kb_chunks` **บังคับ `p_org_id`** เสมอ
+5. **บอทเงียบเมื่ออยู่โหมดคนจริง** — หลัง escalate ลูกค้ารายนั้นเข้าโหมด `human` ตาม `human_mode_minutes`
+   ถ้าบอทยังตอบแทรกตอนแอดมินคุยอยู่ = พังประสบการณ์ลูกค้า
+6. **ราคา/เงื่อนไขทั้งหมดอยู่ในคลังความรู้ ไม่ฮาร์ดโค้ดในโค้ด** — แก้ราคาแล้วต้องกด "อัปเดตความรู้" ให้บอทเรียนใหม่
+
+---
+
+## 2. ทริกเกอร์ส่งต่อแอดมิน (2 แบบตามที่ออกแบบไว้)
+
+| ทริกเกอร์            | เงื่อนไข                                                                                       | ข้อความตอบลูกค้า |
+| -------------------- | ---------------------------------------------------------------------------------------------- | ---------------- |
+| **ลูกค้าขอคุยกับคน** | `wantsHuman(text)` — คำอย่าง "ขอคุยกับแอดมิน" "ไม่ใช่บอท" "ขอคนจริง"                           | `handoff_text`   |
+| **บอทตอบไม่ได้**     | similarity สูงสุด < `min_similarity` **หรือ** Gemini ตอบ `[[NO_ANSWER]]` **หรือ** Gemini error | `fallback_text`  |
+
+เมื่อ escalate ระบบจะ:
+
+1. ตั้ง `tmc_chat_contacts.mode='human'` + `human_until = now + human_mode_minutes` → **บอทเงียบ**
+2. เขียนแถวใน `tmc_chat_escalations` (status `open`)
+3. **push Flex card** หาแอดมินที่เลือกไว้ (`notify_profile_ids`) ทาง **LINE ส่วนตัวผ่านบอท PERPOS**
+   การ์ดมี 2 ปุ่ม — "เข้าไปคุยกับลูกค้า" (ลิงก์ห้องแชทใน LINE OA Manager) และ "เปิดหน้าผู้ช่วยขาย"
+
+แอดมินคุยกับลูกค้าใน **LINE Official Account Manager** ตามปกติ (ไม่ต้องผ่านเว็บเรา) แล้วค่อยกด "คุยแล้ว"
+ในหน้าเว็บเพื่อปิดเคส · จะคืนลูกค้าให้บอทตอบต่อก่อนเวลาก็กด "คืนให้บอทตอบต่อ" ในกล่องบทสนทนา
+
+---
+
+## 3. Flow ต่อ 1 ข้อความ (`/api/line/tmc/webhook`)
+
+```
+verify signature (TMC secret) → resolve org → upsert contact → บันทึกข้อความ (dedup ต่อ line_message_id)
+  → บอทปิดอยู่ / เกินโควตาวัน (daily_message_cap) → เงียบ
+  → อยู่โหมดคนจริง (human_until ยังไม่หมด)        → เงียบ
+  → wantsHuman()                                  → handoff_text + escalate(request_human)
+  → isSmallTalk() (ทักทายสั้น ๆ)                   → greeting_text
+  → RAG: embed → match_tmc_kb_chunks → Gemini ตอบ
+        ตอบได้    → ส่งคำตอบ
+        ตอบไม่ได้ → fallback_text + escalate(no_answer)
+```
+
+- `maxDuration = 30` · reply แบบ inline (latency ~3–5 วิ) เหมือนผู้ช่วยโฟล์
+- ข้อความเดียวพัง ไม่ทำให้ทั้ง batch fail (LINE retry ทั้งก้อน → กันตอบซ้ำด้วย unique index บน `line_message_id`)
+- ส่งประวัติ 6 ข้อความล่าสุดเข้า prompt ให้บอทเข้าใจบริบทต่อเนื่อง
+
+---
+
+## 4. ตาราง (migration [`20260801000000_tmc_sales_bot.sql`](../supabase/migrations/20260801000000_tmc_sales_bot.sql))
+
+| ตาราง                  | หน้าที่                                                                                           |
+| ---------------------- | ------------------------------------------------------------------------------------------------- |
+| `tmc_kb_articles`      | คลังความรู้ที่แอดมินจัดการผ่าน UI · `embedded_at IS NULL` = ยังไม่ได้ฝัง (UI ขึ้นป้าย "รออัปเดต") |
+| `tmc_kb_chunks`        | chunk + `vector(768)` + hnsw · **RLS deny-all**                                                   |
+| `tmc_bot_settings`     | ตั้งค่าต่อ org (เปิด/ปิด, ข้อความ 3 ชุด, เกณฑ์, ผู้รับแจ้งเตือน, `oa_bot_user_id` cache)          |
+| `tmc_chat_contacts`    | ลูกค้า LINE + โหมด bot/human + โควตาวัน                                                           |
+| `tmc_chat_messages`    | ประวัติข้อความทุกฝั่ง + similarity ตอนบอทตอบ                                                      |
+| `tmc_chat_escalations` | เคสรอแอดมิน (`open → handled/closed`)                                                             |
+
+**RPC:** `match_tmc_kb_chunks(p_org_id, query_embedding, match_count, min_similarity)` ·
+`replace_tmc_kb_chunks(p_article_id, p_chunks jsonb)` — ทั้งคู่ SECURITY DEFINER + REVOKE จาก `authenticated`
+
+**RLS ตารางที่เหลือ:** อ่าน = สมาชิก `organization_members` ของ org · เขียน = `owner/admin/management/team_lead`
+
+---
+
+## 5. Code map
+
+| ไฟล์                                                                                             | หน้าที่                                                          |
+| ------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------- |
+| [`lib/tmc/sales-bot.ts`](../apps/perpos/src/lib/tmc/sales-bot.ts)                                | embed / chunk / retrieve / `answerSalesQuestion` / `wantsHuman`  |
+| [`lib/tmc/line-oa.ts`](../apps/perpos/src/lib/tmc/line-oa.ts)                                    | channel @tmcvilla — signature, reply/push, profile, `tmcChatUrl` |
+| [`lib/tmc/line-cards.ts`](../apps/perpos/src/lib/tmc/line-cards.ts)                              | `buildTmcEscalationFlex` — การ์ดแจ้งแอดมิน (ส่งผ่านบอท PERPOS)   |
+| [`api/line/tmc/webhook/route.ts`](../apps/perpos/src/app/api/line/tmc/webhook/route.ts)          | webhook + escalation                                             |
+| `api/tmc/kb/route.ts` · `kb/[id]` · `kb/reembed`                                                 | CRUD คลังความรู้ + ปุ่ม "อัปเดตความรู้"                          |
+| `api/tmc/sales-bot/route.ts` · `sales-bot/inbox`                                                 | ตั้งค่า + สถิติ · เคส/ลูกค้า/บทสนทนา                             |
+| [`tmc/sales-bot/page.tsx`](<../apps/perpos/src/app/(hydrogen)/[orgSlug]/tmc/sales-bot/page.tsx>) | UI 4 แท็บ (คลังความรู้ / เคสรอแอดมิน / ลูกค้า / ตั้งค่าบอท)      |
+
+---
+
+## 6. ติดตั้ง LINE OA @tmcvilla (ต้องทำก่อนบอทถึงจะทำงาน)
+
+1. **LINE Developers Console** → Messaging API channel ของ @tmcvilla → คัดลอก **Channel secret** และออก **Channel access token (long-lived)**
+2. ตั้ง env บน Vercel (production + preview):
+   ```
+   TMC_LINE_CHANNEL_SECRET=…
+   TMC_LINE_CHANNEL_ACCESS_TOKEN=…
+   ```
+   (`TMC_BOT_ORG_SLUG` ไม่ต้องตั้ง ตราบใดที่มี org เดียวที่เปิด module `tmc`)
+3. ตั้ง **Webhook URL** = `https://app.perpos.ai/api/line/tmc/webhook` แล้วกด Verify + เปิด "Use webhook"
+4. **LINE Official Account Manager → การตั้งค่า → การตอบกลับ (Response settings)**
+   - โหมดแชท: **เปิด** (ไม่งั้นแอดมินตอบมือไม่ได้)
+   - **Webhook: เปิด** (ไม่งั้น webhook ไม่ยิงเลย บอทจะเงียบสนิท)
+   - ปิด "ตอบกลับอัตโนมัติ" / greeting message ของ LINE เอง (เราส่ง greeting เองแล้ว)
+5. ในหน้า **ผู้ช่วยขาย LINE → ตั้งค่าบอท** เลือกแอดมินที่จะรับแจ้งเตือน
+   (ต้องเป็นคนที่ **ผูก LINE กับบอท PERPOS แล้ว** — คนที่ยังไม่ผูกจะติ๊กไม่ได้)
+
+> **ทดสอบ**: ทักเข้า @tmcvilla ว่า "บ้าน 5 ห้องนอนราคาเท่าไหร่" → ควรได้ราคาจากคลังความรู้ ·
+> ทักว่า "ขอคุยกับแอดมิน" → ควรได้ `handoff_text` + แอดมินได้การ์ดใน LINE ส่วนตัว
+
+---
+
+## 7. คลังความรู้ตั้งต้น
+
+seed 11 บทความจาก **บทสนทนา/คลิปสอนขายจริงของ TMC** (ถอดเสียงด้วย Gemini) ครอบคลุม:
+บ้าน 3 หลัง · ราคา 5 ห้องนอน / 4 ห้องนอน · High Season · ส่วนลดคืนที่ 2 · สัตว์เลี้ยง · ผังห้องนอนทั้ง 2 แบบ ·
+เตียงเสริม · **เงื่อนไขชำระเงิน+มัดจำ (50/50, ประกันความเสียหาย 10,000)** · **นโยบายเลื่อน/ยกเลิก (เลื่อนได้ 1 ครั้ง แจ้งล่วงหน้า 14 วัน ไม่คืนเงิน)**
+
+**แก้ราคา/เงื่อนไข** → แก้ในหน้าเว็บ → บทความขึ้น "รออัปเดต" → กด **"อัปเดตความรู้"** (ฝังเฉพาะที่ค้าง)
+ปุ่ม **"ฝังความรู้ใหม่ทั้งหมด"** ในแท็บตั้งค่าใช้ตอนเปลี่ยน embedding model เท่านั้น
+
+---
+
+## 8. เกณฑ์ที่ปรับได้ (แท็บตั้งค่าบอท)
+
+| ค่า                  | ค่าเริ่มต้น | ผล                                                        |
+| -------------------- | ----------- | --------------------------------------------------------- |
+| `min_similarity`     | 0.60        | สูงขึ้น = บอทระวังตัว ส่งต่อแอดมินบ่อยขึ้น                |
+| `human_mode_minutes` | 120         | หลังส่งต่อ บอทเงียบกี่นาที                                |
+| `daily_message_cap`  | 60          | กันสแปม/ค่า API ต่อลูกค้า 1 คน/วัน (เกินแล้วเงียบ ไม่ตอบ) |
+
+**คะแนนที่วัดได้จริง (ทดสอบ 2026-07-31):** คำถามตรงหมวด 0.70–0.83 · คำถามนอกคลัง 0.58–0.65
+→ 0.60 เป็นจุดที่คำถามก้ำกึ่งยังหลุดเข้าไปให้ Gemini ตัดสิน แล้ว guardrail จะตอบ `[[NO_ANSWER]]` เอง (= ส่งต่อคน)
+
+---
+
+## 9. ยังไม่ทำ (ถ้าจะต่อยอด)
+
+- เช็คห้องว่าง/ราคาจริงจาก `tmc_stays` ให้บอทตอบ "วันที่ 15 ว่างไหม" ได้เอง
+- ให้แอดมินพิมพ์ตอบจากหน้าเว็บ (ตอนนี้ต้องคุยใน LINE OA Manager)
+- รูปบ้าน/แผนที่ (Flex carousel) ตอนลูกค้าถามถึงบ้านแต่ละหลัง
+- สรุปสถิติ "คำถามที่บอทตอบไม่ได้บ่อย" → เสนอหัวข้อความรู้ใหม่อัตโนมัติ
