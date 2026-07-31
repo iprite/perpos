@@ -16,10 +16,10 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { Plus, Trash2, Upload, Loader2, Camera, Pencil } from "lucide-react";
+import { Plus, Trash2, Upload, Loader2, Camera, Pencil, AlertTriangle } from "lucide-react";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
-type LineItem = { id: string; name: string; unit: string; qty: string };
+type LineItem = { id: string; name: string; unit: string; qty: string; unitCost: string };
 
 type Props = {
   open: boolean;
@@ -50,7 +50,7 @@ function uid() {
   return Math.random().toString(36).slice(2);
 }
 function newLine(): LineItem {
-  return { id: uid(), name: "", unit: "ชิ้น", qty: "" };
+  return { id: uid(), name: "", unit: "ชิ้น", qty: "", unitCost: "" };
 }
 
 /** บีบอัดรูปก่อนส่ง: สูงสุด 1920px / 2MB */
@@ -140,7 +140,7 @@ export function OcrReceiveDialog({
         });
 
         const data = (await res.json()) as {
-          items?: { name: string; unit: string; qty: number }[];
+          items?: { name: string; unit: string; qty: number; unit_cost?: number | null }[];
           note?: string | null;
           date?: string | null;
           error?: string;
@@ -160,6 +160,7 @@ export function OcrReceiveDialog({
           name: String(i.name ?? ""),
           unit: String(i.unit || "ชิ้น"),
           qty: String(i.qty ?? ""),
+          unitCost: i.unit_cost === null || i.unit_cost === undefined ? "" : String(i.unit_cost),
         }));
         if (parsed.length > 0) setLines(parsed);
       } catch {
@@ -196,6 +197,7 @@ export function OcrReceiveDialog({
         referenceNo: referenceNo || undefined,
         note: note || undefined,
         items: valid.map((l) => ({
+          unitCost: l.unitCost.trim() === "" ? null : Number(l.unitCost),
           name: l.name.trim(),
           unit: l.unit || "ชิ้น",
           qty: Number(l.qty),
@@ -235,6 +237,12 @@ export function OcrReceiveDialog({
   }
 
   const totalQty = lines.reduce((s, l) => s + (Number(l.qty) || 0), 0);
+  const totalCost = lines.reduce((s, l) => s + (Number(l.qty) || 0) * (Number(l.unitCost) || 0), 0);
+  // บรรทัดที่ไม่กรอกราคา = ระบบจะใช้ต้นทุนเฉลี่ยเดิม และ "วัสดุใหม่" จะได้ต้นทุน 0 ไปตลอด
+  const missingCost = lines.filter((l) => l.name.trim() && Number(l.qty) > 0 && !l.unitCost.trim());
+  const missingCostNew = missingCost.filter(
+    (l) => !existingItemNames.some((n) => n.toLowerCase() === l.name.trim().toLowerCase()),
+  );
 
   // ── Render ────────────────────────────────────────────────────────────────────
   return (
@@ -330,15 +338,19 @@ export function OcrReceiveDialog({
             </datalist>
 
             {/* Header */}
-            <div className="grid grid-cols-[1fr_90px_80px_32px] gap-2 px-1">
+            <div className="grid grid-cols-[1fr_84px_72px_96px_32px] gap-2 px-1">
               <p className="text-xs font-medium text-slate-400">ชื่อสินค้า / วัสดุ</p>
               <p className="text-xs font-medium text-slate-400">หน่วย</p>
               <p className="text-xs font-medium text-slate-400">จำนวน</p>
+              <p className="text-xs font-medium text-slate-400">ราคา/หน่วย (฿)</p>
               <span />
             </div>
 
             {lines.map((l) => (
-              <div key={l.id} className="grid grid-cols-[1fr_90px_80px_32px] items-center gap-2">
+              <div
+                key={l.id}
+                className="grid grid-cols-[1fr_84px_72px_96px_32px] items-center gap-2"
+              >
                 <Input
                   value={l.name}
                   onChange={(e) => updateLine(l.id, { name: e.target.value })}
@@ -360,6 +372,15 @@ export function OcrReceiveDialog({
                   placeholder="0"
                   className="h-8 text-right text-sm"
                 />
+                <Input
+                  type="number"
+                  min="0"
+                  step="any"
+                  value={l.unitCost}
+                  onChange={(e) => updateLine(l.id, { unitCost: e.target.value })}
+                  placeholder="—"
+                  className="h-8 text-right text-sm"
+                />
                 <button
                   type="button"
                   onClick={() => removeLine(l.id)}
@@ -370,7 +391,36 @@ export function OcrReceiveDialog({
               </div>
             ))}
 
-            <div className="flex justify-end border-t pt-1">
+            {missingCost.length > 0 && (
+              <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
+                <span>
+                  มี {missingCost.length} รายการที่ยังไม่กรอกราคา/หน่วย —{" "}
+                  {missingCostNew.length > 0 ? (
+                    <>
+                      <strong>
+                        {missingCostNew.length} รายการเป็นวัสดุใหม่ จะถูกบันทึกด้วยต้นทุน 0
+                      </strong>{" "}
+                      ทำให้ราคาขายและกำไรของโครงการที่เบิกวัสดุนี้ผิดไปด้วย
+                    </>
+                  ) : (
+                    <>ระบบจะใช้ต้นทุนเฉลี่ยเดิมแทน (ราคาที่ซื้อจริงรอบนี้จะไม่ถูกบันทึก)</>
+                  )}
+                </span>
+              </div>
+            )}
+
+            <div className="flex justify-between border-t pt-1">
+              <p className="text-xs text-slate-400">
+                มูลค่ารวม{" "}
+                <span className="font-bold tabular-nums text-slate-700">
+                  {totalCost.toLocaleString("th-TH", {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}
+                </span>{" "}
+                ฿
+              </p>
               <p className="text-xs text-slate-400">
                 รวม <span className="font-bold text-slate-700">{totalQty}</span> ชิ้น/หน่วย
               </p>

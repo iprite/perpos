@@ -1,7 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireModuleMember } from "../../_lib/module-auth";
 import { createAdminClient } from "../../_lib/supabase";
-import { canSeeCost, canWrite, stripCost, stripCostList, type JustMeRole } from "../_lib";
+import {
+  auditMutation,
+  canSeeCost,
+  canWrite,
+  stripCost,
+  stripCostList,
+  type JustMeRole,
+} from "../_lib";
 import { loadProjectMetrics } from "@/lib/just-me/projects";
 import { notifyOverBudgetCrossed } from "@/lib/just-me/notify";
 
@@ -147,6 +154,8 @@ export async function POST(req: NextRequest) {
   const { action } = body;
 
   const admin = createAdminClient();
+  // ทุกอย่างใต้ POST นี้แก้ยอดคลัง/ต้นทุน → ต้องรู้ว่าใครเป็นคนทำ (contract `_lib.ts` ข้อ 2)
+  await auditMutation(req, { ...auth, role });
 
   // Route actions
   if (action === "create_warehouse") {
@@ -250,6 +259,15 @@ export async function POST(req: NextRequest) {
     }
 
     const qty = Number(quantity);
+
+    // ต้องมีคลังต้นทาง/ปลายทางตามประเภท — เดิมด่านนี้อยู่แค่ฝั่งหน้าจอ
+    // ยิง issue โดยไม่ส่งคลังต้นทาง = ตัดมูลค่าออกจากฐานต้นทุนโดยไม่มีคลังไหนถูกหักของ (ยอดเพี้ยนถาวร)
+    if (["transfer", "issue", "return"].includes(movement_type) && !source_warehouse_id) {
+      return NextResponse.json({ error: "กรุณาระบุคลังต้นทาง" }, { status: 400 });
+    }
+    if (["receive", "transfer", "return"].includes(movement_type) && !destination_warehouse_id) {
+      return NextResponse.json({ error: "กรุณาระบุคลังปลายทาง" }, { status: 400 });
+    }
     const requesterName = typeof requester_name === "string" ? requester_name.trim() : "";
 
     // ผู้เบิก: รายการเบิกใช้งานต้องระบุว่าใครเบิก (สมาชิกในระบบ หรือชื่อช่าง/ทีม)

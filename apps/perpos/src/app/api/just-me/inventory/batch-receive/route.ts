@@ -3,7 +3,7 @@ import { requireModuleMember } from "../../../_lib/module-auth";
 import { createAdminClient } from "../../../_lib/supabase";
 import { canWrite, type JustMeRole } from "../../_lib";
 
-type ReceiveItem = { name: string; unit: string; qty: number };
+type ReceiveItem = { name: string; unit: string; qty: number; unitCost?: number | null };
 
 export async function POST(req: NextRequest) {
   const orgId = req.nextUrl.searchParams.get("orgId");
@@ -40,6 +40,17 @@ export async function POST(req: NextRequest) {
 
   const admin = createAdminClient();
 
+  // คลังปลายทางต้องเป็นขององค์กรนี้ (ไม่งั้นยัดของเข้าคลังของ org อื่นได้)
+  const { data: wh } = await admin
+    .from("just_me_warehouses")
+    .select("id")
+    .eq("id", warehouseId)
+    .eq("org_id", orgId)
+    .maybeSingle();
+  if (!wh) {
+    return NextResponse.json({ error: "ไม่พบคลังปลายทางในองค์กรนี้" }, { status: 400 });
+  }
+
   // Fetch all existing items for this org once to minimise queries
   const { data: existingItems } = await admin
     .from("just_me_inventory_items")
@@ -65,8 +76,12 @@ export async function POST(req: NextRequest) {
       itemId = matched.id;
     } else {
       // Auto-create a simple item (no serial, no cable tracking)
-      const datePart = new Date().toISOString().slice(0, 10).replace(/-/g, "");
-      const code = `AUTO-${datePart}-${String(idx + 1).padStart(3, "0")}`;
+      // รหัสต้องไม่ชนกับบิลใบอื่นในวันเดียวกัน (UNIQUE (org_id, code)) → ใส่เวลา+สุ่มท้าย
+      const now = new Date();
+      const datePart = now.toISOString().slice(0, 10).replace(/-/g, "");
+      const timePart = now.toISOString().slice(11, 19).replace(/:/g, "");
+      const rand = Math.random().toString(36).slice(2, 5).toUpperCase();
+      const code = `AUTO-${datePart}-${timePart}-${rand}-${String(idx + 1).padStart(2, "0")}`;
 
       const { data: newItem, error: createErr } = await admin
         .from("just_me_inventory_items")
@@ -91,6 +106,18 @@ export async function POST(req: NextRequest) {
       created = true;
     }
 
+    // ราคาต่อหน่วยจากบิล — ไม่ส่งมา = trigger จะใช้ต้นทุนเฉลี่ยเดิม (วัสดุใหม่จะได้ 0 ตลอดไป)
+    // จึงต้องส่งมาให้ได้มากที่สุด และห้ามรับค่าติดลบ
+    const rawCost = line.unitCost;
+    const unitCost =
+      rawCost === null || rawCost === undefined || rawCost === ("" as unknown)
+        ? null
+        : Number(rawCost);
+    if (unitCost !== null && (Number.isNaN(unitCost) || unitCost < 0)) {
+      errors.push(`ราคาต่อหน่วยของ "${name}" ไม่ถูกต้อง`);
+      continue;
+    }
+
     // Insert movement
     const { error: movErr } = await admin.from("just_me_stock_movements").insert({
       org_id: orgId,
@@ -101,6 +128,7 @@ export async function POST(req: NextRequest) {
       quantity: qty,
       reference_no: referenceNo || null,
       note: note || null,
+      unit_cost: unitCost,
       created_by: auth.userId,
     });
 

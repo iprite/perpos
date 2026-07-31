@@ -1,7 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { requireModuleMember } from '../../../_lib/module-auth';
+import { NextRequest, NextResponse } from "next/server";
+import { requireModuleMember } from "../../../_lib/module-auth";
 
-type OcrItem = { name: string; unit: string; qty: number };
+type OcrItem = { name: string; unit: string; qty: number; unit_cost: number | null };
 type OcrResult = {
   items: OcrItem[];
   note: string | null;
@@ -9,22 +9,25 @@ type OcrResult = {
 };
 
 export async function POST(req: NextRequest) {
-  const body = await req.json().catch(() => ({})) as Record<string, string>;
+  const body = (await req.json().catch(() => ({}))) as Record<string, string>;
   const { orgId, imageBase64, mimeType } = body;
 
   if (!orgId || !imageBase64) {
-    return NextResponse.json({ error: 'missing orgId or imageBase64' }, { status: 400 });
+    return NextResponse.json({ error: "missing orgId or imageBase64" }, { status: 400 });
   }
 
-  const auth = await requireModuleMember(req, orgId, 'just_me');
+  const auth = await requireModuleMember(req, orgId, "just_me");
   if (!auth.ok) return auth.res;
 
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
-    return NextResponse.json({ error: 'OCR ไม่พร้อมใช้งาน (ไม่มี GEMINI_API_KEY)' }, { status: 503 });
+    return NextResponse.json(
+      { error: "OCR ไม่พร้อมใช้งาน (ไม่มี GEMINI_API_KEY)" },
+      { status: 503 },
+    );
   }
 
-  const imgMime = mimeType ?? 'image/jpeg';
+  const imgMime = mimeType ?? "image/jpeg";
 
   const prompt = `You are a Thai receipt/invoice OCR expert for an inventory management system.
 Extract structured stock item data from this receipt/bill/delivery note image.
@@ -48,29 +51,34 @@ CRITICAL RULES — follow exactly:
    Omit lines where qty is 0 or unreadable.
    DO NOT include subtotals, taxes, discounts, or service fees as items.
 
+4b. UNIT COST: Read the per-unit price of each line (ราคา/หน่วย). If the bill shows only a
+   line total (จำนวนเงิน), divide it by qty to get the per-unit price.
+   Prices are BEFORE VAT when the bill lists VAT separately; if only a VAT-included total is
+   shown, still report that number as-is — do NOT compute VAT yourself.
+   If the per-unit price cannot be read with confidence, return null (NEVER guess).
+
 5. NOTE: Extract the vendor/seller name as note. Return null if not visible.
 
 Return ONLY valid JSON — no markdown fences, no explanation, nothing else:
 {
   "items": [
-    { "name": "ชื่อสินค้า/วัสดุ", "unit": "ชิ้น/เมตร/กล่อง/...", "qty": number }
+    { "name": "ชื่อสินค้า/วัสดุ", "unit": "ชิ้น/เมตร/กล่อง/...", "qty": number, "unit_cost": number or null }
   ],
   "note": "ชื่อร้านหรือผู้ขาย or null",
   "date": "YYYY-MM-DD or null"
 }`;
 
   const ocrRes = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
     {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        contents: [{
-          parts: [
-            { text: prompt },
-            { inline_data: { mime_type: imgMime, data: imageBase64 } },
-          ],
-        }],
+        contents: [
+          {
+            parts: [{ text: prompt }, { inline_data: { mime_type: imgMime, data: imageBase64 } }],
+          },
+        ],
         generationConfig: { maxOutputTokens: 2000, temperature: 0 },
       }),
     },
@@ -81,17 +89,23 @@ Return ONLY valid JSON — no markdown fences, no explanation, nothing else:
     return NextResponse.json({ error: `Gemini error: ${err.slice(0, 200)}` }, { status: 502 });
   }
 
-  const ocrJson = await ocrRes.json() as {
+  const ocrJson = (await ocrRes.json()) as {
     candidates: { content: { parts: { text: string }[] } }[];
   };
-  const content = ocrJson.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
-  const cleaned = content.replace(/^```[a-z]*\n?/i, '').replace(/\n?```$/i, '').trim();
+  const content = ocrJson.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+  const cleaned = content
+    .replace(/^```[a-z]*\n?/i, "")
+    .replace(/\n?```$/i, "")
+    .trim();
 
   let parsed: OcrResult;
   try {
     parsed = JSON.parse(cleaned) as OcrResult;
   } catch {
-    return NextResponse.json({ error: 'ไม่สามารถอ่านบิลได้ กรุณาลองใหม่หรือกรอกเอง', raw: content }, { status: 422 });
+    return NextResponse.json(
+      { error: "ไม่สามารถอ่านบิลได้ กรุณาลองใหม่หรือกรอกเอง", raw: content },
+      { status: 422 },
+    );
   }
 
   return NextResponse.json({
