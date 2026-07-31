@@ -34,6 +34,16 @@ function token(): string {
   return process.env.TMC_LINE_CHANNEL_ACCESS_TOKEN ?? "";
 }
 
+/** ตอบหลายข้อความในครั้งเดียว (LINE จำกัด 5 ข้อความต่อ reply) — ใช้ตอนส่งรูปห้องพัก */
+export async function tmcReplyMessages(replyToken: string, messages: unknown[]): Promise<void> {
+  if (!token() || !replyToken || !messages.length) return;
+  await fetch(`${LINE_API}/message/reply`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${token()}`, "content-type": "application/json" },
+    body: JSON.stringify({ replyToken, messages: messages.slice(0, 5) }),
+  }).catch(() => undefined);
+}
+
 export async function tmcReplyText(replyToken: string, text: string): Promise<void> {
   if (!token() || !replyToken) return;
   await fetch(`${LINE_API}/message/reply`, {

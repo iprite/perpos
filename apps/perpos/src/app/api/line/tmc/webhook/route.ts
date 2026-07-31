@@ -24,10 +24,23 @@ import {
   tmcGetBotUserId,
   tmcGetProfile,
   tmcLineConfigured,
+  tmcReplyMessages,
   tmcReplyText,
   verifyTmcSignature,
 } from "@/lib/tmc/line-oa";
 import { buildTmcEscalationFlex } from "@/lib/tmc/line-cards";
+import {
+  askWhichVillaText,
+  findVillaPhotos,
+  photoIntro,
+  wantsPhotos,
+} from "@/lib/tmc/villa-photos";
+import {
+  availabilityBlock,
+  checkAvailability,
+  extractStayDates,
+  mightAskAvailability,
+} from "@/lib/tmc/availability";
 import { sendLineMessages } from "@/lib/line/send-messages";
 
 export const runtime = "nodejs";
@@ -373,6 +386,46 @@ export async function POST(req: NextRequest) {
         continue;
       }
 
+      // ลูกค้าขอดูรูป → ส่งรูปจริงจากคลังรูป (ไม่ต้องผ่าน RAG)
+      if (wantsPhotos(text)) {
+        const { data: recent } = await admin
+          .from("tmc_chat_messages")
+          .select("text")
+          .eq("contact_id", contact.id)
+          .order("created_at", { ascending: false })
+          .limit(8);
+        const ctx = ((recent ?? []) as { text: string }[]).map((m) => m.text).join(" ");
+
+        const look = await findVillaPhotos(admin, orgId, text, ctx);
+        if (look.photos.length) {
+          const intro = photoIntro(look.photos, text);
+          if (ev.replyToken) {
+            await tmcReplyMessages(ev.replyToken, [
+              { type: "text", text: intro },
+              ...look.photos.map((p) => ({
+                type: "image",
+                originalContentUrl: p.public_url,
+                previewImageUrl: p.public_url,
+              })),
+            ]);
+          }
+          await logMessage(admin, {
+            orgId,
+            contactId: contact.id,
+            role: "bot",
+            text: `${intro}\n(ส่งรูป ${look.photos.length} รูป)`,
+          });
+          continue;
+        }
+        if (look.askWhichVilla && look.villaNames.length) {
+          const ask = askWhichVillaText(look.villaNames);
+          if (ev.replyToken) await tmcReplyText(ev.replyToken, ask);
+          await logMessage(admin, { orgId, contactId: contact.id, role: "bot", text: ask });
+          continue;
+        }
+        // ไม่มีรูปในคลังเลย → ปล่อยให้ไหลไปทาง RAG/ส่งต่อแอดมินตามปกติ
+      }
+
       // ทักทายสั้น ๆ → ตอบเองไม่ต้องเรียกแอดมิน
       if (isSmallTalk(text)) {
         if (ev.replyToken) await tmcReplyText(ev.replyToken, settings.greeting_text);
@@ -397,8 +450,22 @@ export async function POST(req: NextRequest) {
         .slice(1) // ตัดข้อความล่าสุด (= คำถามปัจจุบัน)
         .reverse();
 
+      // ลูกค้าถามพร้อมวันที่ → เช็คห้องว่างจากรายการการเข้าพักจริง แล้วส่งให้โมเดลใช้ตอบ
+      // (โค้ดบอกแค่ว่าง/ไม่ว่าง + วันในสัปดาห์ · ราคายังหยิบจากคลังความรู้เหมือนเดิม)
+      let availabilityText: string | undefined;
+      if (mightAskAvailability(text)) {
+        try {
+          const dates = await extractStayDates(text);
+          if (dates)
+            availabilityText = availabilityBlock(await checkAvailability(admin, orgId, dates));
+        } catch {
+          availabilityText = undefined; // เช็คไม่ได้ → ตอบตามคลังความรู้ตามปกติ
+        }
+      }
+
       let answer: string | null = null;
       let best = 0;
+      let needsAdmin = false;
       try {
         const result = await answerSalesQuestion({
           admin,
@@ -407,9 +474,11 @@ export async function POST(req: NextRequest) {
           question: text,
           minSimilarity: Number(settings.min_similarity),
           history,
+          availabilityText,
         });
         answer = result.answer;
         best = result.bestSimilarity;
+        needsAdmin = result.needsAdmin;
       } catch {
         answer = null;
       }
@@ -422,7 +491,19 @@ export async function POST(req: NextRequest) {
           role: "bot",
           text: answer,
           similarity: best,
+          isEscalation: needsAdmin,
         });
+        // ตอบได้บางส่วน (บอทบอกเองว่ามีท่อนที่ไม่รู้) → เรียกแอดมินมาต่อ ห้ามปล่อยให้เดา
+        if (needsAdmin) {
+          await escalate(admin, {
+            settings,
+            contact,
+            reason: "no_answer",
+            question: text,
+            messageId,
+            bestSimilarity: best,
+          });
+        }
         continue;
       }
 

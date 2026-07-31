@@ -14,3 +14,9 @@ COMMENT ON COLUMN public.tmc_kb_articles.source_note IS
   'ข้อความดิบที่แอดมินพิมพ์ในกลุ่ม LINE ก่อน AI เรียบเรียง';
 COMMENT ON COLUMN public.tmc_kb_articles.previous_content IS
   'เนื้อหาก่อนการแก้ครั้งล่าสุดจากช่องทาง LINE — ใช้กู้คืนเมื่อ AI เรียบเรียงผิด';
+
+-- 2026-08-01: เพิ่มช่องทาง 'landing' — ความรู้ที่นำเข้าจากเว็บ landing (repo iprite/tmc)
+ALTER TABLE public.tmc_kb_articles DROP CONSTRAINT IF EXISTS tmc_kb_articles_source_check;
+ALTER TABLE public.tmc_kb_articles
+  ADD CONSTRAINT tmc_kb_articles_source_check
+  CHECK (source IN ('web', 'line', 'seed', 'landing'));
