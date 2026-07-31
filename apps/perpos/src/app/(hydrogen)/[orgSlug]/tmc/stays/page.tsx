@@ -470,6 +470,8 @@ export default function TmcStaysPage() {
 
   // ── Derived stats ──────────────────────────────────────────────────────────
   const totalRevenue = stays.reduce((s, st) => s + (st.room_rate ?? 0), 0);
+  // หน่วยหลักของธุรกิจห้องพัก = "ห้อง×คืน" ไม่ใช่จำนวนครั้งที่จอง (1 ครั้งอาจพักหลายคืน)
+  const totalStayNights = stays.reduce((s, st) => s + (st.nights ?? 0), 0);
   const paidStays = stays.filter((s) => s.stay_type === "paid");
   const influStays = stays.filter((s) => s.stay_type === "influencer");
 
@@ -919,8 +921,9 @@ export default function TmcStaysPage() {
         <div className="rounded-xl border bg-white p-4">
           <p className="text-xs text-slate-500">เข้าพักทั้งหมด</p>
           <p className="text-2xl font-bold text-slate-800">
-            {stays.length} <span className="text-sm font-normal text-slate-400">ครั้ง</span>
+            {totalStayNights} <span className="text-sm font-normal text-slate-400">คืน</span>
           </p>
+          <p className="mt-0.5 text-xs text-slate-400">{stays.length} ครั้ง</p>
         </div>
         <div className="rounded-xl border bg-white p-4">
           <p className="text-xs text-slate-500">รายได้รวม</p>
