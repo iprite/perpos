@@ -228,3 +228,125 @@ export function buildTmcDailyOccupancyFlex(d: TmcDailyOccupancy): LineMessage {
     },
   };
 }
+
+// ─── ผู้ช่วยขาย @tmcvilla — การ์ดแจ้งแอดมินว่ามีลูกค้ารอคนจริง ─────────────────
+
+export interface TmcEscalationCard {
+  reason: "no_answer" | "request_human";
+  customerName: string;
+  question: string;
+  /** ลิงก์ห้องแชทของลูกค้าใน LINE OA Manager */
+  chatUrl: string;
+  /** ลิงก์หน้า "ผู้ช่วยขาย" ในเว็บ (ดูประวัติ/คืนให้บอท) */
+  consoleUrl: string;
+  askedAt: Date;
+}
+
+export function buildTmcEscalationFlex(c: TmcEscalationCard): LineMessage {
+  const isRequest = c.reason === "request_human";
+  const tone = isRequest ? { fg: INFO, bg: INFO_BG } : { fg: WARN, bg: WARN_BG };
+  const label = isRequest ? "ลูกค้าขอคุยกับแอดมิน" : "บอทตอบไม่ได้";
+  const time = c.askedAt.toLocaleString("th-TH", {
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "Asia/Bangkok",
+  });
+
+  return {
+    type: "flex",
+    altText: `🔔 ${label} · ${c.customerName}: ${c.question.slice(0, 60)}`,
+    contents: {
+      type: "bubble",
+      header: {
+        type: "box",
+        layout: "vertical",
+        backgroundColor: CHARCOAL,
+        paddingAll: "14px",
+        contents: [
+          {
+            type: "text",
+            text: "🔔 ลูกค้ารอแอดมิน",
+            color: WHITE,
+            weight: "bold",
+            size: "md",
+            wrap: true,
+          },
+          {
+            type: "text",
+            text: `TMC Villa · ${time} น.`,
+            color: "#C9C8CA",
+            size: "xs",
+            margin: "xs",
+            wrap: true,
+          },
+        ],
+      },
+      body: {
+        type: "box",
+        layout: "vertical",
+        paddingAll: "16px",
+        contents: [
+          {
+            type: "box",
+            layout: "vertical",
+            backgroundColor: tone.bg,
+            cornerRadius: "6px",
+            paddingAll: "8px",
+            contents: [
+              { type: "text", text: label, size: "xs", weight: "bold", color: tone.fg, wrap: true },
+            ],
+          },
+          {
+            type: "text",
+            text: c.customerName,
+            size: "sm",
+            weight: "bold",
+            color: INK,
+            margin: "md",
+            wrap: true,
+          },
+          {
+            type: "text",
+            text: `“${c.question}”`,
+            size: "sm",
+            color: INK_MUTED,
+            margin: "sm",
+            wrap: true,
+          },
+          { type: "separator", margin: "md", color: SEPARATOR },
+          {
+            type: "text",
+            text: "บอทหยุดตอบลูกค้ารายนี้ชั่วคราวแล้ว — กดปุ่มด้านล่างเพื่อเข้าไปคุยต่อได้เลย",
+            size: "xxs",
+            color: FINE,
+            margin: "md",
+            wrap: true,
+          },
+        ],
+      },
+      footer: {
+        type: "box",
+        layout: "vertical",
+        spacing: "sm",
+        paddingAll: "12px",
+        contents: [
+          {
+            type: "button",
+            style: "primary",
+            height: "sm",
+            color: CHARCOAL,
+            action: { type: "uri", label: "เข้าไปคุยกับลูกค้า", uri: c.chatUrl },
+          },
+          {
+            type: "button",
+            style: "secondary",
+            height: "sm",
+            action: { type: "uri", label: "เปิดหน้าผู้ช่วยขาย", uri: c.consoleUrl },
+          },
+        ],
+      },
+    },
+  };
+}
