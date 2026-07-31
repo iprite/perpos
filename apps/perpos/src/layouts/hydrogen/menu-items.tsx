@@ -79,7 +79,7 @@ export function isLinkMenuItem(item: MenuItem): item is LinkMenuItem {
 
 const allRoles: Role[] = ["super_admin", "user"];
 
-const SYSTEM_SEGMENTS = new Set(["admin", "user", "signin", "no-org", "no-module", "assistant"]);
+const SYSTEM_SEGMENTS = new Set(["admin", "user", "signin", "no-module", "assistant"]);
 
 function hasRole(itemRoles: Role[] | undefined, role: Role | null) {
   if (!itemRoles) return true;

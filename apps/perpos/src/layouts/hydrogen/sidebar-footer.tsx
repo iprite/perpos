@@ -10,7 +10,7 @@ import { BrandIcon } from "@/components/ui/brand-icon";
 import cn from "@core/utils/class-names";
 import type { OrganizationSummary } from "@/lib/accounting/queries";
 
-const SYSTEM_SEGMENTS = new Set(["admin", "user", "signin", "no-org", "no-module", "assistant"]);
+const SYSTEM_SEGMENTS = new Set(["admin", "user", "signin", "no-module", "assistant"]);
 const isPersonalOrg = (o: OrganizationSummary) =>
   o.name.startsWith("พื้นที่ส่วนตัว") || /^u[a-z0-9]{10}$/.test(o.slug);
 
