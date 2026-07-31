@@ -56,12 +56,14 @@ export default async function HydrogenLayout({ children }: { children: React.Rea
   // getCurrentUserId = getAuthUser ที่ cache() ไว้แล้ว (resolve ไปตั้งแต่ getOrganizations…) →
   // ไม่มี round-trip เพิ่ม · org modules / personal modules / module role ยิงขนานกันทั้งหมด
   const currentUserId = await getCurrentUserId();
+  // module ที่ sidebar ต้องรู้ role ระดับ module (module_members) เพื่อซ่อนเมนู
+  const MODULE_ROLE_SEGMENTS: Record<string, string> = {
+    "just-me": "just_me",
+    accounting: "accounting",
+    tmc: "tmc",
+  };
   const moduleRoleKey =
-    isOrgRoute && activeOrg?.id && (segments[1] === "just-me" || segments[1] === "accounting")
-      ? segments[1] === "just-me"
-        ? "just_me"
-        : "accounting"
-      : null;
+    isOrgRoute && activeOrg?.id ? (MODULE_ROLE_SEGMENTS[segments[1]] ?? null) : null;
   const [orgModuleKeys, personalKeys, moduleRole] = await Promise.all([
     getEnabledModulesForOrg(activeOrg?.id ?? null, activeOrg?.role ?? null),
     getPersonalModulesForUser(currentUserId),
