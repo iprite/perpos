@@ -61,7 +61,7 @@ interface BotSettings {
   daily_message_cap: number;
   notify_group_id: string | null;
   oa_bot_user_id: string | null;
-  bot_mode: "sales" | "service";
+  bot_mode: "sales" | "service" | "both";
   test_mode: boolean;
   test_line_user_ids: string[];
 }

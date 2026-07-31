@@ -106,7 +106,7 @@ export async function PUT(req: NextRequest) {
   if (body.dailyMessageCap !== undefined) {
     patch.daily_message_cap = Math.min(500, Math.max(5, Number(body.dailyMessageCap) || 60));
   }
-  if (body.botMode === "sales" || body.botMode === "service") patch.bot_mode = body.botMode;
+  if (["sales", "service", "both"].includes(String(body.botMode))) patch.bot_mode = body.botMode;
   if (typeof body.testMode === "boolean") patch.test_mode = body.testMode;
   if (Array.isArray(body.testLineUserIds)) {
     patch.test_line_user_ids = (body.testLineUserIds as string[]).map(String);
