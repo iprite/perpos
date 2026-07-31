@@ -236,6 +236,8 @@ export default function TmcStockPage() {
   const [newLocName, setNewLocName] = useState("");
   const [newLocKind, setNewLocKind] = useState("store");
   const [addingLoc, setAddingLoc] = useState(false);
+  // รวมจุดเก็บที่ปิดใช้งานแล้วด้วย — ไม่งั้นปิดแล้วเปิดกลับไม่ได้ (หน้าหลักโหลดเฉพาะที่ใช้งานอยู่)
+  const [allLocations, setAllLocations] = useState<StockLocation[]>([]);
 
   const authHeader = useCallback(async () => {
     const { data } = await supabase.auth.getSession();
@@ -426,10 +428,19 @@ export default function TmcStockPage() {
       setNewLocName("");
       toast.success("เพิ่มจุดเก็บแล้ว");
       load();
+      loadAllLocations();
     } finally {
       setAddingLoc(false);
     }
   }
+
+  /** โหลดจุดเก็บ "ทั้งหมด" (รวมที่ปิดใช้งาน) สำหรับหน้าตั้งค่า */
+  const loadAllLocations = useCallback(async () => {
+    const h = await authHeader();
+    const res = await fetch(`/api/tmc/stock/locations?orgId=${TMC_ORG_ID}`, { headers: h });
+    const data = await res.json();
+    setAllLocations(Array.isArray(data) ? data : []);
+  }, [authHeader]);
 
   async function patchLocation(id: string, patch: Record<string, unknown>) {
     const h = await authHeader();
@@ -440,11 +451,20 @@ export default function TmcStockPage() {
     });
     const data = await res.json().catch(() => ({}) as { error?: string });
     if (!res.ok) toast.error(data.error ?? "บันทึกไม่สำเร็จ");
-    else load();
+    else {
+      load();
+      loadAllLocations();
+    }
   }
 
   const saveLocation = (id: string, name: string) => patchLocation(id, { name });
   const deactivateLocation = (id: string) => patchLocation(id, { isActive: false });
+  const reactivateLocation = (id: string) => patchLocation(id, { isActive: true });
+
+  // จุดเก็บทั้งหมด (รวมที่ปิดใช้) โหลดเมื่อเปิดหน้าตั้งค่าเท่านั้น
+  useEffect(() => {
+    if (showMaster) loadAllLocations();
+  }, [showMaster, loadAllLocations]);
 
   // ── Category CRUD ─────────────────────────────────────────────────────────
   async function addCategory() {
@@ -1533,15 +1553,42 @@ export default function TmcStockPage() {
             {/* จุดเก็บของ — คลังกลาง / ห้องผ้าสะอาด / ร้านซัก / แต่ละหลัง */}
             {masterTab === "locations" && (
               <div className="space-y-1">
-                {locations.map((l) => (
-                  <EditableRow
-                    key={l.id}
-                    label={l.name}
-                    placeholder="ชื่อจุดเก็บ"
-                    onSave={(name) => saveLocation(l.id, name)}
-                    onDelete={() => deactivateLocation(l.id)}
-                  />
-                ))}
+                {allLocations
+                  .filter((l) => l.is_active)
+                  .map((l) => (
+                    <EditableRow
+                      key={l.id}
+                      label={l.name}
+                      placeholder="ชื่อจุดเก็บ"
+                      onSave={(name) => saveLocation(l.id, name)}
+                      onDelete={() => deactivateLocation(l.id)}
+                    />
+                  ))}
+                {/* ที่ปิดใช้งานแล้ว — ต้องเห็นเพื่อเปิดกลับได้ */}
+                {allLocations.some((l) => !l.is_active) && (
+                  <div className="mt-2 border-t pt-2">
+                    <p className="px-3 pb-1 text-xs text-gray-400">เลิกใช้แล้ว</p>
+                    {allLocations
+                      .filter((l) => !l.is_active)
+                      .map((l) => (
+                        <div
+                          key={l.id}
+                          className="flex items-center gap-2 rounded-lg px-3 py-2 hover:bg-gray-50"
+                        >
+                          <span className="flex-1 text-sm text-gray-400 line-through">
+                            {l.name}
+                          </span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => void reactivateLocation(l.id)}
+                          >
+                            เปิดใช้อีกครั้ง
+                          </Button>
+                        </div>
+                      ))}
+                  </div>
+                )}
                 {/* เพิ่มจุดเก็บใหม่ เช่น ร้านซักเจ้าที่สอง */}
                 <div className="mt-2 flex items-center gap-2 border-t pt-2">
                   <Input

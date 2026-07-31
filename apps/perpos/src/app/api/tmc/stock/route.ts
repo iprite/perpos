@@ -112,72 +112,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(data, { status: 201 });
   }
 
-  // Record movement (in/out/adjust)
-  const { itemId, movementType, quantity, propertyCode, note, unitCost } = body as Record<
-    string,
-    string
-  >;
-  if (!itemId || !movementType || !quantity) {
-    return NextResponse.json(
-      { error: "missing itemId, movementType, or quantity" },
-      { status: 400 },
-    );
-  }
-
-  // B5: guard NaN / non-positive quantity
-  const qNum = Number(quantity);
-  if (Number.isNaN(qNum) || qNum <= 0) {
-    return NextResponse.json({ error: "จำนวนไม่ถูกต้อง" }, { status: 400 });
-  }
-
-  // B2: guard out-exceeds-stock
-  if (movementType === "out") {
-    const { data: stockItem, error: stockErr } = await admin
-      .from("tmc_stock_items")
-      .select("current_qty, name, unit")
-      .eq("id", itemId)
-      .eq("org_id", orgId)
-      .maybeSingle();
-    if (stockErr || !stockItem) {
-      return NextResponse.json({ error: "ไม่พบรายการสินค้า" }, { status: 404 });
-    }
-    if (qNum > stockItem.current_qty) {
-      return NextResponse.json(
-        { error: `เบิกเกินยอดคงเหลือ (คงเหลือ ${stockItem.current_qty} ${stockItem.unit})` },
-        { status: 400 },
-      );
-    }
-  }
-
-  const { data: prop } = propertyCode
-    ? await admin
-        .from("tmc_properties")
-        .select("id")
-        .eq("org_id", orgId)
-        .eq("code", propertyCode)
-        .maybeSingle()
-    : { data: null };
-
-  const { data, error } = await admin
-    .from("tmc_stock_movements")
-    .insert({
-      org_id: orgId,
-      item_id: itemId,
-      movement_type: movementType,
-      quantity: Number(quantity),
-      property_id: prop?.id ?? null,
-      property_code: propertyCode || null,
-      note: note || null,
-      unit_cost: unitCost ? Number(unitCost) : null,
-      created_by: auth.userId,
-    })
-    .select(`*, tmc_stock_items(name, unit, current_qty)`)
-    .single();
-
-  if (error) {
-    void recordMetric({ orgId, route: "/api/tmc/stock", method: req.method, status: 500, t0 });
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-  void recordMetric({ orgId, route: "/api/tmc/stock", method: req.method, status: 201, t0 });
-  return NextResponse.json(data, { status: 201 });
+  // การเคลื่อนไหวสต๊อกย้ายไปที่ /api/tmc/stock/movements (แบบ from → to) แล้ว
+  // ทางเดิมเขียน movement โดยไม่รู้จุดเก็บ → ปิดทิ้ง กันมีสองทางเขียนที่กติกาไม่เท่ากัน
+  void recordMetric({ orgId, route: "/api/tmc/stock", method: req.method, status: 410, t0 });
+  return NextResponse.json(
+    { error: "ย้ายไปใช้ POST /api/tmc/stock/movements แทน" },
+    { status: 410 },
+  );
 }
