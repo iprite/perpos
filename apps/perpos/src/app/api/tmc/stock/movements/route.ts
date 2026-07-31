@@ -26,6 +26,38 @@ export async function POST(req: NextRequest) {
   const auth = await requireTmcMember(req, orgId);
   if (!auth.ok) return auth.res;
 
+  // ตั้งยอดตั้งต้น / ปรับยอดตามที่นับได้ — หลายรายการในครั้งเดียว
+  if (body.action === "set_counts") {
+    if (!["owner", "admin", "team_lead"].includes(auth.role)) {
+      return NextResponse.json({ error: "ต้องการสิทธิ์ team_lead ขึ้นไป" }, { status: 403 });
+    }
+    const lines = Array.isArray(body.lines) ? body.lines : [];
+    if (lines.length === 0) {
+      return NextResponse.json({ error: "ไม่มีรายการให้ตั้งยอด" }, { status: 400 });
+    }
+    const { data, error } = await createAdminClient().rpc("tmc_stock_set_counts", {
+      p_org_id: orgId,
+      p_location_id: String(body.locationId ?? ""),
+      p_lines: lines,
+      p_reason: (body.reason as string) || "count",
+      p_note: (body.note as string) || null,
+      p_created_by: auth.userId,
+    });
+    if (error) {
+      const status = error.code === "23514" || error.code === "23503" ? 400 : 500;
+      void recordMetric({ orgId, route: "/api/tmc/stock/movements", method: "POST", status, t0 });
+      return NextResponse.json({ error: error.message }, { status });
+    }
+    void recordMetric({
+      orgId,
+      route: "/api/tmc/stock/movements",
+      method: "POST",
+      status: 201,
+      t0,
+    });
+    return NextResponse.json(data, { status: 201 });
+  }
+
   const itemId = String(body.itemId ?? "");
   const movementType = String(body.movementType ?? "");
   const quantity = Number(body.quantity);

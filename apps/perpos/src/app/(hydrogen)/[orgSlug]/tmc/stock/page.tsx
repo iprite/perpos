@@ -55,6 +55,7 @@ import {
   Warehouse,
   PackageCheck,
   Shirt,
+  ClipboardList,
 } from "lucide-react";
 import {
   BarChart,
@@ -72,6 +73,7 @@ import { ReusableMatrix } from "./_reusable-matrix";
 import { IssueView } from "./_issue-view";
 import { PresetManager } from "./_preset-manager";
 import { LaundryView } from "./_laundry-view";
+import { SetCountsDialog } from "./_set-counts";
 import {
   GROUP_LABELS,
   MOVEMENT_LABELS,
@@ -224,6 +226,7 @@ export default function TmcStockPage() {
     "categories",
   );
   const [showPurchase, setShowPurchase] = useState(false);
+  const [showCounts, setShowCounts] = useState(false);
 
   // forms
   const [itemForm, setItemForm] = useState({
@@ -806,6 +809,14 @@ export default function TmcStockPage() {
             onClick={() => setShowMaster(true)}
           >
             <Settings className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="outline"
+            size="icon"
+            title="ตั้งยอดคงเหลือ (ยอดตั้งต้น / นับสต๊อก)"
+            onClick={() => setShowCounts(true)}
+          >
+            <ClipboardList className="h-4 w-4" />
           </Button>
           <Button
             variant="outline"
@@ -1588,6 +1599,17 @@ export default function TmcStockPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <SetCountsDialog
+        orgId={TMC_ORG_ID}
+        open={showCounts}
+        onOpenChange={setShowCounts}
+        items={items}
+        locations={locations}
+        balances={balances}
+        authHeader={authHeader}
+        onDone={load}
+      />
 
       {/* ── Purchase Dialog ─────────────────────────────────────────────────── */}
       <PurchaseDialog
