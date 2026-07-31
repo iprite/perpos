@@ -35,17 +35,23 @@ export async function POST(req: NextRequest) {
   const admin = createAdminClient();
   let q = admin
     .from("tmc_kb_articles")
-    .select("id, title, category, content, keywords")
+    .select("id, title, category, content, keywords, embedded_at, updated_at")
     .eq("org_id", orgId)
     .eq("is_active", true);
 
   if (body.articleId) q = q.eq("id", String(body.articleId));
-  else if (body.all !== true) q = q.is("embedded_at", null);
 
   const { data, error } = await q;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  const articles = (data ?? []) as KbArticleInput[];
+  type Row = KbArticleInput & { embedded_at: string | null; updated_at: string };
+  const all = (data ?? []) as Row[];
+  // "ค้าง" = ยังไม่เคยฝัง หรือแก้เนื้อหาหลังฝังครั้งล่าสุด
+  // (เทียบสองคอลัมน์ใน PostgREST ตรง ๆ ไม่ได้ จึงกรองฝั่งนี้)
+  const articles: KbArticleInput[] =
+    body.articleId || body.all === true
+      ? all
+      : all.filter((a) => !a.embedded_at || new Date(a.embedded_at) < new Date(a.updated_at));
   let chunks = 0;
   const failed: { title: string; error: string }[] = [];
 
@@ -62,5 +68,6 @@ export async function POST(req: NextRequest) {
     articles: articles.length - failed.length,
     chunks,
     failed,
+    total: all.length,
   });
 }

@@ -361,6 +361,11 @@ export default function TmcSalesBotPage() {
       if (!res.ok) throw new Error(json.error ?? "อัปเดตความรู้ไม่สำเร็จ");
       if (json.failed?.length) {
         toast.error(`มี ${json.failed.length} บทความที่ฝังไม่สำเร็จ — ลองใหม่อีกครั้ง`);
+      } else if (json.articles === 0) {
+        // 0 = ไม่มีอะไรค้าง ไม่ใช่ความล้มเหลว — ข้อความเดิมอ่านแล้วเหมือนพัง
+        toast.success(
+          `ทุกบทความเรียนครบแล้ว ไม่มีอะไรต้องอัปเดต (${json.total ?? 0} บทความในคลัง)`,
+        );
       } else {
         toast.success(`บอทเรียนรู้แล้ว ${json.articles} บทความ (${json.chunks} ท่อน)`);
       }
@@ -587,8 +592,18 @@ export default function TmcSalesBotPage() {
           )}
           {tab === "kb" && (
             <>
-              <Button variant="outline" disabled={busy} onClick={() => reembed(false)}>
-                <RefreshCw className="h-4 w-4" /> อัปเดตความรู้
+              <Button
+                variant={stats.pendingEmbed > 0 ? "secondary" : "outline"}
+                disabled={busy}
+                title={
+                  stats.pendingEmbed > 0
+                    ? `มี ${stats.pendingEmbed} บทความรอให้บอทเรียน`
+                    : "ทุกบทความเรียนครบแล้ว"
+                }
+                onClick={() => reembed(false)}
+              >
+                <RefreshCw className="h-4 w-4" />
+                {stats.pendingEmbed > 0 ? `อัปเดตความรู้ (${stats.pendingEmbed})` : "อัปเดตความรู้"}
               </Button>
               <Button
                 onClick={() => {
