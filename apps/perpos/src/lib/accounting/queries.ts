@@ -48,13 +48,21 @@ export const getOrganizationsForCurrentUser = cache(async (): Promise<Organizati
   }
 
   // Regular users — only orgs they are a member of
-  const { data: memberships, error: memErr } = await adminClient
-    .from("organization_members")
-    .select("organization_id,role")
-    .eq("user_id", uid);
+  const [{ data: memberships, error: memErr }, { data: selfProfile }] = await Promise.all([
+    adminClient.from("organization_members").select("organization_id,role").eq("user_id", uid),
+    adminClient.from("profiles").select("personal_org_id").eq("id", uid).maybeSingle(),
+  ]);
   if (memErr || !memberships?.length) return [];
 
-  const orgIds = Array.from(new Set(memberships.map((m: any) => String(m.organization_id))));
+  // ตัด "home org" ส่วนตัว (provisionLineUser สร้างให้ทุกคนตอนแอด LINE) ออกจาก
+  // รายการองค์กร Suite — เป็นที่เก็บไฟล์ของผู้ช่วย AI ไม่ใช่ workspace ERP
+  // (ไม่มี org_module_settings เลย → เลือกแล้วไม่มีโมดูลให้เข้า เด้งกลับ Flow)
+  const personalOrgId = (selfProfile as { personal_org_id?: string | null } | null)
+    ?.personal_org_id;
+  const orgIds = Array.from(new Set(memberships.map((m: any) => String(m.organization_id)))).filter(
+    (id) => id !== String(personalOrgId ?? ""),
+  );
+  if (!orgIds.length) return [];
   const { data: orgs, error: orgErr } = await adminClient
     .from("organizations")
     .select("id,name,slug")
