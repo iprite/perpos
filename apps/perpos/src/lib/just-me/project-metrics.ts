@@ -119,18 +119,25 @@ export function boqTotals(items: Pick<JustMeBoqItem, "amount" | "cost_amount">[]
  * คืน `counted` เพื่อให้การ์ดบอกฐานที่นับได้ (§8 กฎ 6)
  */
 export function actualCost(
-  usage: Pick<JustMeProjectUsageRow, "movement_type" | "total_cost">[],
+  usage: Pick<JustMeProjectUsageRow, "movement_type" | "total_cost" | "reversal_of_id">[],
   otherCosts: Pick<JustMeProjectCost, "amount">[],
 ): { value: number; counted: number } {
   const issued = usage.filter((u) => u.movement_type === "issue");
   const returned = usage.filter((u) => u.movement_type === "return");
+  // การกลับรายการ "ใบเบิก" ออกมาเป็นแถวชนิด receive (ของกลับเข้าคลัง) — ต้องหักออกจากต้นทุน
+  // ⚠️ หักได้เฉพาะแถวที่เป็นตัวกลับรายการ (`reversal_of_id`) เท่านั้น —
+  //    receive ธรรมดาก็มี project_id ได้ (รับของจาก PR ของโครงการ) ถ้าหักหมดจะติดลบ
+  const reversedIssues = usage.filter(
+    (u) => u.movement_type === "receive" && u.reversal_of_id !== null,
+  );
   const material =
     issued.reduce((s, u) => s + (u.total_cost ?? 0), 0) -
-    returned.reduce((s, u) => s + (u.total_cost ?? 0), 0);
+    returned.reduce((s, u) => s + (u.total_cost ?? 0), 0) -
+    reversedIssues.reduce((s, u) => s + (u.total_cost ?? 0), 0);
   const other = otherCosts.reduce((s, c) => s + (c.amount ?? 0), 0);
   return {
     value: round2(material + other),
-    counted: issued.length + returned.length + otherCosts.length,
+    counted: issued.length + returned.length + reversedIssues.length + otherCosts.length,
   };
 }
 
@@ -240,7 +247,7 @@ export interface ProjectMoneySummary {
 
 export function summarizeProject(input: {
   project: Pick<JustMeProject, "status" | "contract_amount" | "budget_cost">;
-  usage: Pick<JustMeProjectUsageRow, "movement_type" | "total_cost">[];
+  usage: Pick<JustMeProjectUsageRow, "movement_type" | "total_cost" | "reversal_of_id">[];
   otherCosts: Pick<JustMeProjectCost, "amount">[];
   prs: Pick<JustMePurchaseRequest, "id" | "status">[];
   prItems: Pick<

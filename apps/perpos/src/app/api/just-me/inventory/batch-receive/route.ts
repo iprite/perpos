@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireModuleMember } from "../../../_lib/module-auth";
 import { createAdminClient } from "../../../_lib/supabase";
-import { canWrite, type JustMeRole } from "../../_lib";
+import { auditMutation, canWrite, type JustMeRole } from "../../_lib";
 import { lineToken, postStockMovement } from "@/lib/just-me/stock-movements";
 
 type ReceiveItem = { name: string; unit: string; qty: number; unitCost?: number | null };
@@ -42,6 +42,8 @@ export async function POST(req: NextRequest) {
   }
 
   const admin = createAdminClient();
+  // รับของเข้าคลัง = แก้ยอด/ต้นทุนถาวร → ต้องรู้ว่าใครทำ (เหมือน route คลังตัวอื่น)
+  await auditMutation(req, { ...auth, role: auth.moduleRole as JustMeRole });
 
   // คลังปลายทางต้องเป็นขององค์กรนี้ (ไม่งั้นยัดของเข้าคลังของ org อื่นได้)
   const { data: wh } = await admin

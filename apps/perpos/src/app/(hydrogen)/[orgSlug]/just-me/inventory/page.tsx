@@ -136,6 +136,8 @@ interface StockMovement {
   /** ≠ null = รายการนี้เกิดจากการปรับยอดตามใบตรวจนับ (ไม่ใช่การรับ/เบิกปกติ) */
   stock_count_id: string | null;
   adjustment_reason: string | null;
+  /** ≠ null = แถวนี้คือ "รายการกลับรายการ" ของ movement ที่อ้างถึง */
+  reversal_of_id: string | null;
 }
 
 interface Person {
@@ -240,6 +242,9 @@ export default function JustMeInventoryPage() {
   // หยิบเศษสายไฟมาใช้ (ตัดความยาวออกจากเส้นที่เลือก)
   const [scrapUse, setScrapUse] = useState<{ serial: ItemSerial; lengthUsed: string } | null>(null);
   const [scrapSaving, setScrapSaving] = useState(false);
+  const [reverseTarget, setReverseTarget] = useState<StockMovement | null>(null);
+  const [reverseReason, setReverseReason] = useState("");
+  const [reverseSaving, setReverseSaving] = useState(false);
 
   // Form States
   const [formWarehouse, setFormWarehouse] = useState({
@@ -577,6 +582,47 @@ export default function JustMeInventoryPage() {
       setScrapSaving(false);
     }
   };
+
+  /**
+   * กลับรายการที่บันทึกผิด — รายการเดินคลังแก้/ลบไม่ได้ (ล็อกที่ DB) นี่คือทางออกเดียว
+   * ระบบออกรายการชนิดตรงข้ามให้ ถอนด้วยราคาของต้นฉบับ ⇒ ต้นทุนเฉลี่ยกลับที่เดิม
+   */
+  const handleReverseMovement = async () => {
+    if (!reverseTarget) return;
+    const reason = reverseReason.trim();
+    if (!reason) {
+      toast.error("กรุณาระบุเหตุผลที่กลับรายการ");
+      return;
+    }
+    try {
+      setReverseSaving(true);
+      const res = await fetch(`/api/just-me/inventory?orgId=${orgId}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${authToken}` },
+        body: JSON.stringify({
+          action: "reverse_movement",
+          movement_id: reverseTarget.id,
+          reason,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "กลับรายการไม่สำเร็จ");
+      toast.success("กลับรายการแล้ว — ยอดคลังและต้นทุนถูกถอนกลับ");
+      setReverseTarget(null);
+      setReverseReason("");
+      await loadData();
+    } catch (err: any) {
+      toast.error(err.message || "กลับรายการไม่สำเร็จ");
+    } finally {
+      setReverseSaving(false);
+    }
+  };
+
+  /** id ของรายการที่ถูกกลับรายการไปแล้ว — กลับซ้ำไม่ได้ (DB ก็กันอีกชั้น) */
+  const reversedIds = useMemo(
+    () => new Set(movements.map((m) => m.reversal_of_id).filter(Boolean) as string[]),
+    [movements],
+  );
 
   // Memoized Calculations
   const stockOverviewList = useMemo(() => {
@@ -2077,8 +2123,22 @@ export default function JustMeInventoryPage() {
                       const item = items.find((i) => i.id === mov.item_id);
                       const src = warehouses.find((w) => w.id === mov.source_warehouse_id);
                       const dest = warehouses.find((w) => w.id === mov.destination_warehouse_id);
+                      // กลับรายการได้เมื่อ: แก้ข้อมูลได้ · ไม่ใช่ตัวกลับรายการเอง · ยังไม่เคยถูกกลับ
+                      const canReverse =
+                        canWrite && !mov.reversal_of_id && !reversedIds.has(mov.id);
                       return (
-                        <TableRow key={mov.id}>
+                        <TableRow
+                          key={mov.id}
+                          clickable={canReverse}
+                          onClick={
+                            canReverse
+                              ? () => {
+                                  setReverseTarget(mov);
+                                  setReverseReason("");
+                                }
+                              : undefined
+                          }
+                        >
                           <TableCell className="text-xs text-slate-500">
                             {fmtDateTime(mov.created_at)}
                           </TableCell>
@@ -2132,6 +2192,12 @@ export default function JustMeInventoryPage() {
                             {mov.note && <p className="italic text-slate-500">โน้ต: {mov.note}</p>}
                             {mov.adjustment_reason && (
                               <p className="text-amber-700">เหตุผล: {mov.adjustment_reason}</p>
+                            )}
+                            {mov.reversal_of_id && (
+                              <StatusBadge tone="danger">รายการกลับรายการ</StatusBadge>
+                            )}
+                            {reversedIds.has(mov.id) && (
+                              <StatusBadge tone="neutral">ถูกกลับรายการแล้ว</StatusBadge>
                             )}
                           </TableCell>
                         </TableRow>
@@ -2207,6 +2273,75 @@ export default function JustMeInventoryPage() {
             </Button>
             <Button onClick={handleUseScrap} disabled={scrapSaving || !scrapUse?.lengthUsed}>
               {scrapSaving ? "กำลังบันทึก…" : "บันทึกการใช้"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* กลับรายการ — รายการเดินคลังแก้/ลบไม่ได้ ทางแก้ของที่บันทึกผิดคือออกรายการตรงข้าม */}
+      <Dialog
+        open={!!reverseTarget}
+        onOpenChange={(o) => {
+          if (!o) {
+            setReverseTarget(null);
+            setReverseReason("");
+          }
+        }}
+      >
+        <DialogContent size="md">
+          <DialogHeader>
+            <DialogTitle>กลับรายการที่บันทึกผิด</DialogTitle>
+          </DialogHeader>
+          <DialogBody>
+            {reverseTarget && (
+              <div className="space-y-4">
+                <div className="rounded-lg bg-gray-50 p-3 text-xs text-gray-600">
+                  <p className="font-semibold text-gray-900">
+                    {getMovementLabel(reverseTarget.movement_type)} ·{" "}
+                    {items.find((i) => i.id === reverseTarget.item_id)?.name ?? "ไม่พบชื่อสินค้า"}
+                  </p>
+                  <p className="mt-1">
+                    จำนวน {reverseTarget.quantity}{" "}
+                    {items.find((i) => i.id === reverseTarget.item_id)?.unit ?? "ชิ้น"} ·{" "}
+                    {fmtDateTime(reverseTarget.created_at)}
+                  </p>
+                  {canSeeCost && reverseTarget.total_cost !== null && (
+                    <p className="mt-1">มูลค่า {fmtMoney(Number(reverseTarget.total_cost))} ฿</p>
+                  )}
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="reverse-reason">เหตุผลที่กลับรายการ *</Label>
+                  <Input
+                    id="reverse-reason"
+                    value={reverseReason}
+                    onChange={(e) => setReverseReason(e.target.value)}
+                    placeholder="เช่น กรอกจำนวนผิด / เลือกคลังผิด"
+                  />
+                  <p className="text-xs text-gray-500">
+                    ระบบจะออก<b>รายการใหม่ชนิดตรงข้าม</b> ถอนด้วยราคาของรายการเดิม ⇒
+                    ยอดคลังและต้นทุนเฉลี่ยกลับที่เดิม · รายการเดิมยังอยู่ในประวัติ (ลบไม่ได้)
+                    และกลับรายการซ้ำไม่ได้
+                  </p>
+                </div>
+              </div>
+            )}
+          </DialogBody>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setReverseTarget(null);
+                setReverseReason("");
+              }}
+            >
+              ยกเลิก
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleReverseMovement}
+              disabled={reverseSaving || !reverseReason.trim()}
+            >
+              {reverseSaving ? "กำลังกลับรายการ…" : "กลับรายการ"}
             </Button>
           </DialogFooter>
         </DialogContent>

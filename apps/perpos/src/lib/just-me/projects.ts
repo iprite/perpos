@@ -236,10 +236,15 @@ export async function loadProjectSummaries(
         .in("project_id", ids)
         .range(from, to),
     ),
-    allRows<{ project_id: string; movement_type: string; total_cost: number | null }>((from, to) =>
+    allRows<{
+      project_id: string;
+      movement_type: string;
+      total_cost: number | null;
+      reversal_of_id: string | null;
+    }>((from, to) =>
       db
         .from("just_me_stock_movements")
-        .select("project_id, movement_type, total_cost")
+        .select("project_id, movement_type, total_cost, reversal_of_id")
         .eq("org_id", orgId)
         .in("project_id", ids)
         .range(from, to),

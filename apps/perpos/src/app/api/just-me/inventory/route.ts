@@ -15,6 +15,7 @@ import {
   getMovement,
   movementWarehouseRule,
   postStockMovement,
+  reverseStockMovement,
   serialSourceFilter,
   type JustMeMovementType,
 } from "@/lib/just-me/stock-movements";
@@ -625,6 +626,32 @@ export async function POST(req: NextRequest) {
             ? `บันทึกยอดคลังแล้ว แต่จัดการ Serial ไม่ครบ: ${serialErrors.join(" · ")} — กรุณาตรวจทะเบียน Serial`
             : null,
       },
+      { status: 201 },
+    );
+  }
+
+  // กลับรายการที่บันทึกผิด — รายการเคลื่อนไหวแก้/ลบไม่ได้ นี่คือทางออกเดียวของผู้ใช้
+  if (action === "reverse_movement") {
+    const { movement_id, reason } = body;
+    if (typeof movement_id !== "string" || !movement_id) {
+      return NextResponse.json({ error: "ไม่พบรายการที่ต้องการกลับรายการ" }, { status: 400 });
+    }
+    const trimmed = typeof reason === "string" ? reason.trim() : "";
+    if (!trimmed) {
+      return NextResponse.json({ error: "กรุณาระบุเหตุผลที่กลับรายการ" }, { status: 400 });
+    }
+
+    const res = await reverseStockMovement(admin, {
+      orgId,
+      movementId: movement_id,
+      reason: trimmed,
+      createdBy: auth.userId,
+    });
+    if (!res.ok) return NextResponse.json({ error: res.error }, { status: res.status });
+
+    const created = await getMovement(admin, orgId, res.movementId);
+    return NextResponse.json(
+      { success: true, movement: stripCost(created as Record<string, unknown>, role) },
       { status: 201 },
     );
   }

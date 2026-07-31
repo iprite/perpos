@@ -87,11 +87,11 @@ describe("ต้นทุนจริง", () => {
   it("นับการเบิกใช้ (issue) หักด้วยของที่คืนกลับคลัง — รับเข้า/โอน ไม่นับ", () => {
     const r = actualCost(
       [
-        { movement_type: "receive", total_cost: 50000 },
-        { movement_type: "transfer", total_cost: 20000 },
-        { movement_type: "issue", total_cost: 12000 },
-        { movement_type: "issue", total_cost: 3000 },
-        { movement_type: "return", total_cost: 500 },
+        { movement_type: "receive", total_cost: 50000, reversal_of_id: null },
+        { movement_type: "transfer", total_cost: 20000, reversal_of_id: null },
+        { movement_type: "issue", total_cost: 12000, reversal_of_id: null },
+        { movement_type: "issue", total_cost: 3000, reversal_of_id: null },
+        { movement_type: "return", total_cost: 500, reversal_of_id: null },
       ],
       [],
     );
@@ -103,8 +103,8 @@ describe("ต้นทุนจริง", () => {
   it("ของที่เบิกไปแล้วคืนกลับคลัง ต้องหักออกจากต้นทุนโครงการ", () => {
     const r = actualCost(
       [
-        { movement_type: "issue", total_cost: 12000 },
-        { movement_type: "return", total_cost: 2500 },
+        { movement_type: "issue", total_cost: 12000, reversal_of_id: null },
+        { movement_type: "return", total_cost: 2500, reversal_of_id: null },
       ],
       [],
     );
@@ -112,9 +112,31 @@ describe("ต้นทุนจริง", () => {
     expect(r.counted).toBe(2);
   });
 
+  it("กลับรายการใบเบิก ต้องหักต้นทุนออก (แถวกลับรายการเป็นชนิด receive)", () => {
+    const r = actualCost(
+      [
+        { movement_type: "issue", total_cost: 825, reversal_of_id: null },
+        { movement_type: "receive", total_cost: 825, reversal_of_id: "mv-1" },
+      ],
+      [],
+    );
+    expect(r.value).toBe(0);
+  });
+
+  it("รับเข้าธรรมดาของโครงการ (จาก PR) ต้องไม่ถูกหัก — หักได้เฉพาะแถวกลับรายการ", () => {
+    const r = actualCost(
+      [
+        { movement_type: "receive", total_cost: 50000, reversal_of_id: null },
+        { movement_type: "issue", total_cost: 12000, reversal_of_id: null },
+      ],
+      [],
+    );
+    expect(r.value).toBe(12000);
+  });
+
   it("รวมต้นทุนที่ไม่ผ่านคลัง (ค่าแรง/ผู้รับเหมาช่วง)", () => {
     const r = actualCost(
-      [{ movement_type: "issue", total_cost: 15000 }],
+      [{ movement_type: "issue", total_cost: 15000, reversal_of_id: null }],
       [{ amount: 8000 }, { amount: 2500 }],
     );
     expect(r.value).toBe(25500);
@@ -264,7 +286,7 @@ describe("ความคืบหน้า", () => {
 
 describe("สรุปเงินของโครงการ", () => {
   const base = {
-    usage: [{ movement_type: "issue" as const, total_cost: 200000 }],
+    usage: [{ movement_type: "issue" as const, total_cost: 200000, reversal_of_id: null }],
     otherCosts: [{ amount: 50000 }],
     prs: [{ id: "p1", status: "approved" as PurchaseRequestStatus }],
     prItems: [

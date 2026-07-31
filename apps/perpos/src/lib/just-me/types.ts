@@ -311,5 +311,7 @@ export interface JustMeProjectUsageRow {
   boq_item_id: string | null;
   requested_by: string | null;
   requester_name: string | null;
+  /** ไม่ null = แถวนี้คือ "รายการกลับรายการ" ของ movement ที่อ้างถึง */
+  reversal_of_id: string | null;
   created_at: string;
 }

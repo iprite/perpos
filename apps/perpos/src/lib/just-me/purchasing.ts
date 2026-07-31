@@ -819,7 +819,9 @@ export async function receivePurchaseRequest(
   const movementIds: string[] = [];
   for (const p of planned) {
     // ของเข้าคลัง + ยอดคงเหลือ = คำสั่งเดียวแบบ atomic (`postStockMovement`)
-    // token ผูกกับบรรทัด + ยอดที่รับไปแล้ว ⇒ กดรับซ้ำรอบเดิมไม่ได้ของสองเท่า
+    // token = (ก้อนที่หน้าเว็บสร้างตอนเปิดกล่องรับของ) + บรรทัด — **ห้ามผูกกับ `received_qty`**
+    // เพราะถ้าคำขอสำเร็จที่เซิร์ฟเวอร์แต่ client เห็น error แล้วกดใหม่ ยอดที่รับไปแล้วเปลี่ยนไปแล้ว
+    // ⇒ token เปลี่ยน ⇒ ด่านกันซ้ำไม่จับ ⇒ รับของเข้าคลังสองเท่า (ด่าน "รับเกินที่สั่ง" กันได้แค่บางกรณี)
     const posted = await postStockMovement(db, {
       orgId: args.orgId,
       itemId: p.item.item_id!,
@@ -833,7 +835,7 @@ export async function receivePurchaseRequest(
       boqItemId: p.item.boq_item_id,
       purchaseRequestId: pr.id,
       createdBy: args.userId,
-      clientToken: lineToken(args.clientToken, `${p.item.id}:${p.item.received_qty ?? 0}`),
+      clientToken: lineToken(args.clientToken, p.item.id),
     });
     if (!posted.ok) return { ok: false, error: posted.error, status: posted.status };
     movementIds.push(posted.movementId);

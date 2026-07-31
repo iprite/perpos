@@ -148,10 +148,27 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
     const existing = await listStockCountItems(admin, g.orgId, [id]);
     const byId = new Map(existing.map((l) => [l.id, l]));
 
+    // บรรทัดที่ปรับยอดสำเร็จไปแล้ว (post ล้มกลางทาง) ห้ามแก้ซ้ำ —
+    // กันซ้ำใช้ token ต่อบรรทัด ถ้าปล่อยให้แก้ยอดแล้วกดใหม่ ระบบจะข้ามเงียบแต่ปิดใบว่าสำเร็จ
+    const { data: postedRows } = await admin
+      .from("just_me_stock_movements")
+      .select("item_id")
+      .eq("org_id", g.orgId)
+      .eq("stock_count_id", id);
+    const postedItems = new Set(
+      ((postedRows ?? []) as { item_id: string }[]).map((r) => r.item_id),
+    );
+
     for (const input of inputs) {
       const lineId = typeof input.id === "string" ? input.id : "";
       const line = byId.get(lineId);
       if (!line) return jmError("มีบรรทัดที่ไม่อยู่ในใบตรวจนับนี้", 400);
+      if (postedItems.has(line.item_id)) {
+        return jmError(
+          "บรรทัดนี้ปรับยอดเข้าคลังไปแล้ว แก้ไม่ได้ — ถ้ายอดผิดต้องกลับรายการที่หน้ารายการเคลื่อนไหวก่อน แล้วเปิดใบนับใหม่",
+          409,
+        );
+      }
 
       const raw = input.counted_qty;
       let counted: number | null = null;
@@ -184,6 +201,20 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
     );
     const built = buildAdjustments(lines, (itemId) => items.get(itemId)?.name ?? "ไม่พบชื่อวัสดุ");
     if (!built.ok) return jmError(built.error, 400);
+
+    // "เจอของเกิน" ของวัสดุที่ยังไม่เคยมีต้นทุน จะเข้าคลังด้วยมูลค่า 0 แล้วลากต้นทุนเฉลี่ยลงถาวร
+    // (ปรับยอดเจอ 10 ชิ้นที่ 0 → ซื้อจริง 10@100 ⇒ avg = 50 = ครึ่งเดียวของราคาจริง)
+    // ⇒ ต้องเข้าทาง "รับเข้า" ที่กรอกราคาได้แทน
+    const costs = await loadAvgCosts(admin, g.orgId);
+    const noBasis = built.adjustments
+      .filter((a) => a.type === "receive" && !(costs.get(a.itemId) ?? 0))
+      .map((a) => items.get(a.itemId)?.name ?? "วัสดุ");
+    if (noBasis.length > 0) {
+      return jmError(
+        `วัสดุที่ยังไม่เคยมีราคาซื้อในระบบ ปรับยอดขาขึ้นไม่ได้ (จะทำให้ต้นทุนเฉลี่ยต่ำกว่าจริง): ${noBasis.join(" · ")} — ให้บันทึกเป็น "รับเข้า" พร้อมราคาก่อน แล้วค่อยตรวจนับ`,
+        400,
+      );
+    }
 
     // ทุกบรรทัดต้องผ่าน — บรรทัดไหนพลาด = ไม่ปิดใบ และบอกว่าบรรทัดไหน (ยิงซ้ำได้ token กันซ้ำให้)
     const posted: string[] = [];

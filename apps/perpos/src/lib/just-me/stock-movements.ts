@@ -137,6 +137,27 @@ export async function postStockMovement(
   return { ok: true, movementId: data };
 }
 
+/**
+ * กลับรายการที่บันทึกผิด — รายการเคลื่อนไหวแก้/ลบไม่ได้ (trigger) นี่คือทางออกเดียว
+ * ออกเป็นแถวใหม่ชนิดตรงข้าม ถอนด้วย `unit_cost` ของต้นฉบับ (ต้นทุนเฉลี่ยจึงกลับที่เดิมเป๊ะ)
+ */
+export async function reverseStockMovement(
+  db: SupabaseClient,
+  args: { orgId: string; movementId: string; reason: string; createdBy?: string | null },
+): Promise<PostMovementResult> {
+  const { data, error } = await db.rpc("just_me_reverse_movement", {
+    p_org: args.orgId,
+    p_movement: args.movementId,
+    p_reason: args.reason,
+    p_created_by: args.createdBy || null,
+  });
+  if (error) return { ok: false, ...translateMovementError(error) };
+  if (!data || typeof data !== "string") {
+    return { ok: false, error: "กลับรายการไม่สำเร็จ กรุณาลองใหม่อีกครั้ง", status: 500 };
+  }
+  return { ok: true, movementId: data };
+}
+
 /** อ่าน movement ที่เพิ่งบันทึก (route เดิมคืนแถวเต็มให้ UI) */
 export async function getMovement(
   db: SupabaseClient,

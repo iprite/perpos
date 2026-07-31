@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireModuleMember } from "../../../_lib/module-auth";
+import { canWrite, type JustMeRole } from "../../_lib";
+
+/** เพดานรูปที่รับ (base64 ~1.37 เท่าของไฟล์จริง) — กันยิง payload ใหญ่เผาโควตา Gemini */
+const MAX_IMAGE_BASE64 = 11_000_000; // ≈ 8 MB
 
 type OcrItem = { name: string; unit: string; qty: number; unit_cost: number | null };
 type OcrResult = {
@@ -16,8 +20,19 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "missing orgId or imageBase64" }, { status: 400 });
   }
 
+  if (imageBase64.length > MAX_IMAGE_BASE64) {
+    return NextResponse.json(
+      { error: "ไฟล์รูปใหญ่เกิน 8 MB — ย่อรูปก่อนอัปโหลด" },
+      { status: 413 },
+    );
+  }
+
   const auth = await requireModuleMember(req, orgId, "just_me");
   if (!auth.ok) return auth.res;
+  // อ่านบิลเข้าคลัง = ทางเดียวที่จบด้วยการรับของเข้า → ผู้ที่แก้ข้อมูลไม่ได้ก็ไม่ควรเรียก (กันเผาโควตา AI)
+  if (!canWrite(auth.moduleRole as JustMeRole)) {
+    return NextResponse.json({ error: "ไม่มีสิทธิ์แก้ไขข้อมูลในโมดูลนี้" }, { status: 403 });
+  }
 
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
