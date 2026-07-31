@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -15,7 +15,6 @@ import type { StockIssue } from "./_types";
 
 type PrintLine = {
   quantity: number;
-  room_name: string | null;
   tmc_stock_items: { name: string; unit: string } | null;
 };
 
@@ -66,22 +65,6 @@ export function IssuePrintDialog({
       else m.set(name, { name, unit: l.tmc_stock_items?.unit ?? "", qty: Number(l.quantity) });
     }
     return Array.from(m.values()).sort((a, b) => a.name.localeCompare(b.name, "th"));
-  }, [lines]);
-
-  /** แยกรายห้อง = ใบเช็คตอนไปวางของ/เก็บกลับที่หลังนั้น */
-  const byRoom = useMemo(() => {
-    const m = new Map<string, { name: string; unit: string; qty: number }[]>();
-    for (const l of lines) {
-      const room = l.room_name ?? "ไม่ระบุห้อง";
-      const arr = m.get(room) ?? [];
-      arr.push({
-        name: l.tmc_stock_items?.name ?? "—",
-        unit: l.tmc_stock_items?.unit ?? "",
-        qty: Number(l.quantity),
-      });
-      m.set(room, arr);
-    }
-    return Array.from(m.entries());
   }, [lines]);
 
   const issuedAt = issue ? new Date(issue.created_at) : null;
@@ -185,7 +168,7 @@ export function IssuePrintDialog({
 
               {/* 1. ใบหยิบของจากคลัง */}
               <div>
-                <p className="mb-1 font-semibold">1. หยิบของออกจากคลัง (รวมทั้งหลัง)</p>
+                <p className="mb-1 font-semibold">รายการที่ต้องหยิบ (รวมทั้งหลัง)</p>
                 <table className="w-full border-collapse text-[13px]">
                   <thead>
                     <tr className="border-y border-gray-400">
@@ -214,42 +197,6 @@ export function IssuePrintDialog({
                       <td />
                       <td />
                     </tr>
-                  </tbody>
-                </table>
-              </div>
-
-              {/* 2. เช็คตอนไปวาง/เก็บกลับ รายห้อง */}
-              <div className="break-inside-avoid">
-                <p className="mb-1 font-semibold">2. เช็คที่หลัง — แยกรายห้อง</p>
-                <table className="w-full border-collapse text-[13px]">
-                  <thead>
-                    <tr className="border-y border-gray-400">
-                      <th className="py-1 text-left font-medium">ห้อง / รายการ</th>
-                      <th className="w-20 py-1 text-right font-medium">จำนวน</th>
-                      <th className="w-16 py-1 text-center font-medium">วางแล้ว</th>
-                      <th className="w-16 py-1 text-center font-medium">เก็บกลับ</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {byRoom.map(([room, rows]) => (
-                      <Fragment key={room}>
-                        <tr className="border-b border-gray-300 bg-gray-100">
-                          <td colSpan={4} className="py-1 font-semibold">
-                            {room}
-                          </td>
-                        </tr>
-                        {rows.map((r, i) => (
-                          <tr key={`${room}-${i}`} className="border-b border-gray-200">
-                            <td className="py-1 pl-4">{r.name}</td>
-                            <td className="py-1 text-right font-mono tabular-nums">
-                              {r.qty} {r.unit}
-                            </td>
-                            <td className="py-1 text-center">☐</td>
-                            <td className="py-1 text-center">☐</td>
-                          </tr>
-                        ))}
-                      </Fragment>
-                    ))}
                   </tbody>
                 </table>
               </div>
