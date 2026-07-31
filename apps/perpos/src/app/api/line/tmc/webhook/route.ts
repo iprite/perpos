@@ -19,6 +19,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "../../../_lib/supabase";
 import { answerSalesQuestion, isSmallTalk, wantsHuman } from "@/lib/tmc/sales-bot";
+import { loadBotRules } from "@/lib/tmc/bot-rules";
 import {
   tmcChatUrl,
   tmcGetBotUserId,
@@ -504,6 +505,8 @@ export async function POST(req: NextRequest) {
           history,
           availabilityText,
           botMode: settings.bot_mode ?? "sales",
+          // กฎประจำตัวที่ทีมสั่งไว้ — ต้องมีผลทุกข้อความ จึงโหลดตรงนี้ ไม่ผ่าน retrieval
+          rules: await loadBotRules(admin, orgId).catch(() => []),
         });
         answer = result.answer;
         best = result.bestSimilarity;

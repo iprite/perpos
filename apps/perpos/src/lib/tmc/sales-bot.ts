@@ -8,6 +8,7 @@
  *    เปลี่ยนที่ใดที่หนึ่ง vector space จะไม่ตรงกัน → retrieve เพี้ยนทั้งระบบ
  */
 import type { createAdminClient } from "../../app/api/_lib/supabase";
+import { rulesBlock } from "./bot-rules";
 
 type Admin = ReturnType<typeof createAdminClient>;
 
@@ -314,6 +315,8 @@ export async function answerSalesQuestion(args: {
   availabilityText?: string;
   /** sales = ก่อนจอง (ราคา/ห้องว่าง) · service = ดูแลระหว่าง–หลังเข้าพัก */
   botMode?: BotMode;
+  /** กฎประจำตัวที่ทีมสั่งไว้ (lib/tmc/bot-rules.ts) — ใส่ทุกครั้ง ไม่ผ่าน retrieval */
+  rules?: string[];
 }): Promise<AnswerResult> {
   const {
     admin,
@@ -324,6 +327,7 @@ export async function answerSalesQuestion(args: {
     history = [],
     availabilityText,
     botMode = "sales",
+    rules = [],
   } = args;
 
   // ดึงกว้างกว่าเกณฑ์เล็กน้อย เพื่อให้โมเดลเห็นบริบทข้างเคียง แล้วค่อยตัดสินด้วยคะแนนสูงสุด
@@ -353,7 +357,7 @@ ${MODE_BRIEF[botMode]}
 - ภาษาไทยสละสลวย ประโยคลื่นไหล ลงท้าย "ค่ะ / นะคะ" · เรียกผู้เข้าพักว่า "คุณลูกค้า" หรือ "ท่าน"
 - ห้ามใช้คำห้วน คำวัยรุ่น คำย่อ หรือภาษาแชท (จ้า, ครับผม, โอเคค่า, ok, thx)
 - ขายด้วยการให้ข้อมูลที่ครบและอ่านง่าย ไม่เร่งรัด ไม่ยัดเยียด ไม่เว่อร์เกินจริง
-
+${rulesBlock(rules) ? `\n${rulesBlock(rules)}\n` : ""}
 โครงคำตอบ
 1. ประโยคเปิดสั้น ๆ 1 ประโยค รับเรื่องอย่างอบอุ่น (เช่น "ได้เลยค่ะ" / "ขอบคุณที่สนใจนะคะ")
    — **ห้ามขึ้นต้นด้วย "สวัสดีค่ะ" ถ้ามีบทสนทนาก่อนหน้าแล้ว** (ทักซ้ำทุกข้อความดูเป็นบอท)
