@@ -13,7 +13,6 @@ const WHITE = "#ffffff";
 const INK = "#1A1A1B";
 const INK_MUTED = "#656D78";
 const FINE = "#9CA3AF";
-const RUBY = "#D8334A";
 const INFO = "#0C447C";
 const INFO_BG = "#E6F1FB";
 const SUCCESS = "#065F46";
@@ -62,13 +61,17 @@ function thaiShortDate(iso: string): string {
   });
 }
 
+/**
+ * แถว KPI ซ้าย-ขวา · สัดส่วน 5:4
+ * ⚠️ label ต้องสั้น (~15 ตัวอักษรไทย) — Flex ตัดท้ายเป็น "…" ไม่ขึ้นบรรทัดใหม่ให้
+ */
 function kpiRow(label: string, value: string, opts?: { color?: string; bold?: boolean }) {
   return {
     type: "box" as const,
     layout: "horizontal" as const,
     margin: "sm" as const,
     contents: [
-      { type: "text" as const, text: label, size: "sm" as const, color: INK_MUTED, flex: 3 },
+      { type: "text" as const, text: label, size: "sm" as const, color: INK_MUTED, flex: 5 },
       {
         type: "text" as const,
         text: value,
@@ -100,19 +103,11 @@ export function buildTmcDailyOccupancyFlex(d: TmcDailyOccupancy): LineMessage {
 
   const barPct = Math.max(1, Math.min(100, Math.round(rate ?? 0)));
   const vacant = d.rooms - d.occupied;
-  const total = d.roomRevenue + d.foodRevenue;
-
-  const deltaPts =
-    rate !== null && d.lastWeekRate !== null ? +(rate - d.lastWeekRate).toFixed(1) : null;
-  const deltaText =
-    deltaPts === null
-      ? "—"
-      : `${deltaPts > 0 ? "+" : deltaPts < 0 ? "−" : ""}${Math.abs(deltaPts).toFixed(1)} จุด`;
-  const deltaColor = deltaPts === null ? INK : deltaPts < 0 ? RUBY : deltaPts > 0 ? SUCCESS : INK;
+  const bt = d.bookedToday;
 
   return {
     type: "flex",
-    altText: `🏨 ยอดห้องพัก ${thaiShortDate(d.date)} · เข้าพัก ${d.occupied}/${d.rooms} ห้อง (${fmtPct(rate)}) · รับ ${fmtBaht0(total)}`,
+    altText: `🏨 ยอดห้องพัก ${thaiShortDate(d.date)} · เข้าพัก ${d.occupied}/${d.rooms} ห้อง (${fmtPct(rate)}) · จองใหม่ ${fmtBaht0(bt.value)}`,
     contents: {
       type: "bubble",
       header: {
@@ -181,29 +176,44 @@ export function buildTmcDailyOccupancyFlex(d: TmcDailyOccupancy): LineMessage {
               },
             ],
           },
-          kpiRow("อัตราการเข้าพัก (คืนนี้)", fmtPct(rate), { color: tone.fg, bold: true }),
+          kpiRow("อัตราการเข้าพัก", fmtPct(rate), { color: tone.fg, bold: true }),
           kpiRow("ห้องว่างคืนนี้", vacant > 0 ? `${vacant} ห้อง` : "— เต็ม", { bold: true }),
+          kpiRow(
+            "ห้องฟรีคืนนี้",
+            d.freeOccupied > 0 ? `${d.freeOccupied} ห้อง · ${fmtPct(d.freeRate)}` : "—",
+            { color: d.freeOccupied > 0 ? WARN : INK },
+          ),
           kpiRow("เช็คอินวันนี้", `${d.checkIns.rooms} ห้อง · ${d.checkIns.guests} ท่าน`),
           kpiRow("เช็คเอาต์วันนี้", `${d.checkOuts.rooms} ห้อง`),
           kpiRow("พักต่อเนื่อง", `${d.stayThrough} ห้อง`),
           { type: "separator", margin: "md", color: SEPARATOR },
-          kpiRow("รายได้ค่าห้อง", fmtBaht(d.roomRevenue), { bold: true }),
-          kpiRow("อาหาร / เครื่องดื่ม", fmtBaht(d.foodRevenue)),
-          kpiRow("รวมรับวันนี้", fmtBaht(total), { color: SUCCESS, bold: true }),
-          {
-            type: "text",
-            text: d.vacantCodes.length
-              ? `ห้องว่าง · ${d.vacantCodes.join(" · ")}`
-              : "ห้องเต็มทุกหลัง",
-            size: "xxs",
-            color: INK_MUTED,
-            margin: "md",
-            wrap: true,
-          },
+          kpiRow("บันทึกจองเข้ามาวันนี้", bt.rooms > 0 ? `${bt.rooms} รายการ` : "ยังไม่มี"),
+          kpiRow("รวมคืนที่จองเข้ามา", `${bt.nights} คืน`),
+          kpiRow("มูลค่าจองวันนี้", fmtBaht(bt.value), {
+            color: bt.value > 0 ? SUCCESS : INK,
+            bold: true,
+          }),
+          ...(d.vacantCodes.length
+            ? [
+                {
+                  type: "text",
+                  text: `ห้องว่าง · ${d.vacantCodes.join(" · ")}`,
+                  size: "xxs",
+                  color: INK_MUTED,
+                  margin: "md",
+                  wrap: true,
+                },
+              ]
+            : []),
           { type: "separator", margin: "md", color: SEPARATOR },
-          kpiRow("อัตราการเข้าพัก (เดือนนี้)", fmtPct(d.mtd.rate), { bold: true }),
-          kpiRow("รับสะสมเดือนนี้", fmtBaht0(d.mtd.roomRevenue + d.mtd.foodRevenue)),
-          kpiRow("เทียบวันเดียวกันสัปดาห์ก่อน", deltaText, { color: deltaColor }),
+          kpiRow("เข้าพักเดือนนี้", fmtPct(d.mtd.rate), { bold: true }),
+          kpiRow("ห้อง×คืนที่ใช้จริง", `${d.mtd.soldNights} / ${d.mtd.availableNights} คืน`),
+          kpiRow(
+            "ห้องฟรีเดือนนี้",
+            d.mtd.freeNights > 0 ? `${d.mtd.freeNights} คืน · ${fmtPct(d.mtd.freeRate)}` : "—",
+            { color: d.mtd.freeNights > 0 ? WARN : INK },
+          ),
+          kpiRow("มูลค่าจองเดือนนี้", fmtBaht0(d.mtd.value), { bold: true }),
           {
             type: "text",
             text: "🔒 รายงานอัตโนมัติจากระบบ TMC · ส่งเฉพาะทีมผู้บริหารที่กำหนดไว้",
