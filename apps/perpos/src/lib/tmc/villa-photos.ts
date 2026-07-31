@@ -8,6 +8,7 @@
  * ชื่อไฟล์เดิมไม่มีความหมาย (1.jpeg / DSC04857.jpeg) การจับคู่ "ขอรูปห้องนอน"
  * จึงพึ่ง `category` ที่ Gemini vision ติดให้ตอนนำเข้า
  */
+import { publicVillaName } from "./villa-naming";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 /** ส่งได้สูงสุด 5 ข้อความต่อ 1 reply → ข้อความนำ 1 + รูป 4 */
@@ -95,7 +96,8 @@ export async function findVillaPhotos(
     .order("sort_order");
 
   const rows = (all ?? []) as (VillaPhoto & { villa_slug: string; sort_order: number })[];
-  const villaNames = Array.from(new Set(rows.map((r) => r.villa_name)));
+  // ชื่อที่โชว์ลูกค้าต้องผ่าน publicVillaName เสมอ (ห้ามเผยว่ามีหลัง Pet Friendly แยก)
+  const villaNames = Array.from(new Set(rows.map((r) => publicVillaName(r.villa_name))));
   if (!rows.length) return { photos: [], askWhichVilla: false, villaNames };
 
   // หลังไหน: ดูจากคำถามก่อน ถ้าไม่ระบุค่อยดูจากบทสนทนาก่อนหน้า
@@ -115,7 +117,7 @@ export async function findVillaPhotos(
 
 /** ข้อความนำก่อนส่งรูป */
 export function photoIntro(photos: VillaPhoto[], question: string): string {
-  const villa = photos[0]?.villa_name ?? "บ้านพัก";
+  const villa = photos[0] ? publicVillaName(photos[0].villa_name) : "บ้านพัก";
   const cat = pick(question, CATEGORY_HINTS);
   const what = cat ? `รูป${cat}` : "รูปบรรยากาศ";
   return `ได้เลยครับ ส่ง${what}ของ ${villa} ให้ดูครับ 🌿\nหากอยากดูมุมไหนเพิ่มเติม บอกได้เลยครับ`;

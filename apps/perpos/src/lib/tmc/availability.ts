@@ -9,6 +9,7 @@
  *    (เดิมโมเดลเดาวันในสัปดาห์เองแล้วตอบราคาผิด 4,000 บาท/คืน — ตอนนี้โค้ดคำนวณให้แทน)
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { GRAND_NAME, VILLA_NAME } from "./villa-naming";
 
 const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
 const MODEL = "gemini-2.5-flash";
@@ -18,10 +19,16 @@ const TZ = "Asia/Bangkok";
  * รหัสห้องในระบบ ↔ ชื่อที่ลูกค้าเรียก
  * ยืนยันโดยเจ้าของ 2026-08-01 — ห้ามเดาเอง ผิด = บอกลูกค้าผิดหลัง
  */
-export const RENTABLE_VILLAS: { code: string; name: string; short: string }[] = [
-  { code: "TMC7", name: "ธรรมชาติแกรนด์ (TMC 7)", short: "5 ห้องนอน" },
-  { code: "TMC1", name: "ธรรมชาติวิลล่า", short: "4 ห้องนอน" },
-  { code: "TMC5", name: "ธรรมชาติวิลล่า Pet Friendly", short: "4 ห้องนอน · รับสัตว์เลี้ยง" },
+export const RENTABLE_VILLAS: {
+  code: string;
+  name: string;
+  short: string;
+  /** หลังที่พาสัตว์เลี้ยงเข้าพักได้ — ชื่อที่ลูกค้าเห็นเหมือนวิลล่าหลังอื่น (ดู villa-naming.ts) */
+  petFriendly?: boolean;
+}[] = [
+  { code: "TMC7", name: GRAND_NAME, short: "5 ห้องนอน" },
+  { code: "TMC1", name: VILLA_NAME, short: "4 ห้องนอน" },
+  { code: "TMC5", name: VILLA_NAME, short: "4 ห้องนอน", petFriendly: true },
 ];
 
 export interface StayDates {
@@ -36,6 +43,7 @@ export interface VillaAvailability {
   name: string;
   short: string;
   available: boolean;
+  petFriendly?: boolean;
 }
 
 export interface AvailabilityResult {
@@ -222,8 +230,29 @@ export function availabilityBlock(a: AvailabilityResult): string {
   L.push("วันในสัปดาห์ของคืนที่เข้าพัก (ใช้เลือกเรทราคาให้ถูกวัน):");
   for (const n of a.nightWeekdays) L.push(`  - ${n}`);
   L.push("สถานะห้องว่าง:");
+  // บ้าน 4 ห้องนอนมีหลายหลังแต่ลูกค้าเห็นเป็นแบบเดียว → รวมเป็นบรรทัดเดียวว่าว่างกี่หลัง
+  const groups = new Map<string, { total: number; free: number }>();
   for (const v of a.villas) {
-    L.push(`  - ${v.name} (${v.short}): ${v.available ? "ว่าง" : "ไม่ว่าง (มีคิวจองแล้ว)"}`);
+    const g = groups.get(v.name) ?? { total: 0, free: 0 };
+    g.total += 1;
+    if (v.available) g.free += 1;
+    groups.set(v.name, g);
+  }
+  for (const [name, g] of Array.from(groups)) {
+    if (g.total === 1) {
+      L.push(`  - ${name}: ${g.free ? "ว่าง" : "ไม่ว่าง (มีคิวจองแล้ว)"}`);
+    } else {
+      L.push(
+        `  - ${name}: ${g.free ? `ว่าง ${g.free} หลัง (จากทั้งหมด ${g.total} หลัง)` : "ไม่ว่าง (มีคิวจองแล้ว)"}`,
+      );
+    }
+  }
+  // ข้อมูลภายในสำหรับตอบเฉพาะเคสพาสัตว์เลี้ยง — ห้ามหลุดไปในคำตอบถ้าลูกค้าไม่ได้ถาม
+  const pet = a.villas.find((v) => v.petFriendly);
+  if (pet) {
+    L.push(
+      `(ข้อมูลภายใน ห้ามบอกลูกค้าถ้าไม่ได้ถามเรื่องสัตว์เลี้ยง) หลังที่พาสัตว์เลี้ยงเข้าพักได้: ${pet.available ? "ว่าง" : "ไม่ว่าง"}`,
+    );
   }
   return L.join("\n");
 }
