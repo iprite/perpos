@@ -25,7 +25,8 @@ export async function GET(req: NextRequest) {
         .select("quantity, room_name, tmc_stock_items(name, unit)")
         .eq("org_id", orgId)
         .eq("issue_id", id)
-        .is("ref_movement_id", null),
+        .is("ref_movement_id", null)
+        .order("created_at"), // เรียงตามลำดับที่เบิก = ลำดับห้องในชุด (ใบพิมพ์ต้องเรียงเหมือนกันทุกครั้ง)
     ]);
     if (!issue) return NextResponse.json({ error: "ไม่พบใบเบิก" }, { status: 404 });
     return NextResponse.json({ issue, lines: lines ?? [] });

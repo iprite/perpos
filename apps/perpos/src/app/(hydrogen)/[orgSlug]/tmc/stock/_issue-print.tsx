@@ -96,7 +96,16 @@ export function IssuePrintDialog({
             @page { size: A4; margin: 12mm; }
             body * { visibility: hidden !important; }
             #tmc-issue-sheet, #tmc-issue-sheet * { visibility: visible !important; }
-            #tmc-issue-sheet { position: absolute; inset: 0; margin: 0; }
+            /* กล่อง dialog มี max-h + overflow-auto — ถ้าไม่ปลดจะพิมพ์ได้แค่หน้าแรก */
+            [role="dialog"], [role="dialog"] * {
+              max-height: none !important;
+              height: auto !important;
+              overflow: visible !important;
+            }
+            #tmc-issue-sheet { position: absolute; inset: 0 auto auto 0; width: 100%; margin: 0; }
+            #tmc-issue-sheet table { page-break-inside: auto; }
+            #tmc-issue-sheet tr { page-break-inside: avoid; }
+            #tmc-issue-sheet thead { display: table-header-group; }
             [data-no-print] { display: none !important; }
           }
         `}</style>
@@ -124,6 +133,11 @@ export function IssuePrintDialog({
                     <p className="text-xs text-gray-600">TMC Management · คลังผ้าและของใช้</p>
                   </div>
                   <div className="text-right text-xs text-gray-600">
+                    {issue?.status === "voided" && (
+                      <p className="mb-0.5 inline-block border-2 border-black px-2 py-0.5 text-sm font-bold text-black">
+                        ยกเลิกแล้ว — ห้ามใช้
+                      </p>
+                    )}
                     <p>เลขที่ {docNo}</p>
                     <p>
                       วันที่{" "}
