@@ -45,6 +45,42 @@ export type Movement = {
   to_location: { code: string; name: string } | null;
 };
 
+// ── ชุดเบิกของ (preset) + ใบเบิก — specs/tmc-stock-v2.md §4.5 ────────────────
+export type PresetLine = {
+  id: string;
+  preset_id: string;
+  item_id: string;
+  qty: number;
+  qty_basis: "fixed" | "per_guest" | "per_night" | "per_bed";
+  is_optional: boolean;
+  sort_order: number;
+};
+
+export type StockPreset = {
+  id: string;
+  name: string;
+  preset_kind: "checkout" | "daily" | "welcome" | "custom";
+  property_code: string | null;
+  room_name: string | null;
+  source_location_id: string | null;
+  is_active: boolean;
+  sort_order: number;
+  tmc_stock_preset_lines?: PresetLine[];
+};
+
+export type StockIssue = {
+  id: string;
+  preset_id: string | null;
+  property_code: string | null;
+  room_name: string | null;
+  status: "posted" | "voided";
+  line_count: number;
+  total_qty: number;
+  note: string | null;
+  created_at: string;
+  tmc_stock_presets: { name: string; room_name: string | null } | null;
+};
+
 /** ชื่อไทยของกลุ่มสินค้า — ใช้เป็นตัวกรองในแท็บของใช้แล้วหมดไป */
 export const GROUP_LABELS: Record<string, string> = {
   amenity: "ของใช้ในห้อง",

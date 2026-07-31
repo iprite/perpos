@@ -53,6 +53,7 @@ import {
   ArrowLeftRight,
   Repeat,
   Warehouse,
+  PackageCheck,
 } from "lucide-react";
 import {
   BarChart,
@@ -67,6 +68,8 @@ import {
 } from "recharts";
 import { PurchaseDialog } from "./purchase-dialog";
 import { ReusableMatrix } from "./_reusable-matrix";
+import { IssueView } from "./_issue-view";
+import { PresetManager } from "./_preset-manager";
 import {
   GROUP_LABELS,
   MOVEMENT_LABELS,
@@ -74,6 +77,8 @@ import {
   type StockLocation,
   type StockBalance,
   type Movement,
+  type StockPreset,
+  type StockIssue,
 } from "./_types";
 
 const TMC_ORG_ID = "1f52618c-09c4-49c5-a929-ea5060f26e7d";
@@ -183,12 +188,14 @@ export default function TmcStockPage() {
   const [locations, setLocations] = useState<StockLocation[]>([]);
   const [balances, setBalances] = useState<StockBalance[]>([]);
   const [movements, setMovements] = useState<Movement[]>([]);
+  const [presets, setPresets] = useState<StockPreset[]>([]);
+  const [issues, setIssues] = useState<StockIssue[]>([]);
   const [categories, setCategories] = useState<MasterItem[]>([]);
   const [units, setUnits] = useState<MasterItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"items" | "reusable" | "movements" | "dashboard">(
-    "items",
-  );
+  const [activeTab, setActiveTab] = useState<
+    "items" | "reusable" | "issues" | "movements" | "dashboard"
+  >("items");
 
   // filter panel (ซ่อนไว้หลัง icon)
   const [showFilters, setShowFilters] = useState(false);
@@ -207,7 +214,9 @@ export default function TmcStockPage() {
     "receive" | "issue" | "transfer" | "adjust" | null
   >(null);
   const [showMaster, setShowMaster] = useState(false);
-  const [masterTab, setMasterTab] = useState<"categories" | "units" | "locations">("categories");
+  const [masterTab, setMasterTab] = useState<"categories" | "units" | "locations" | "presets">(
+    "categories",
+  );
   const [showPurchase, setShowPurchase] = useState(false);
 
   // forms
@@ -260,6 +269,18 @@ export default function TmcStockPage() {
     setLoading(false);
   }, [authHeader]);
 
+  // ชุดเบิกของ + ใบเบิก (P3)
+  const loadIssuing = useCallback(async () => {
+    const h = await authHeader();
+    const [pRes, iRes] = await Promise.all([
+      fetch(`/api/tmc/stock/presets?orgId=${TMC_ORG_ID}`, { headers: h }),
+      fetch(`/api/tmc/stock/issues?orgId=${TMC_ORG_ID}`, { headers: h }),
+    ]);
+    const [ps, is] = await Promise.all([pRes.json(), iRes.json()]);
+    setPresets(Array.isArray(ps) ? ps : []);
+    setIssues(Array.isArray(is) ? is : []);
+  }, [authHeader]);
+
   // load master data (categories + units)
   const loadMaster = useCallback(async () => {
     const h = await authHeader();
@@ -283,7 +304,8 @@ export default function TmcStockPage() {
     load();
     loadMaster();
     loadAccounts();
-  }, [load, loadMaster, loadAccounts]);
+    loadIssuing();
+  }, [load, loadMaster, loadAccounts, loadIssuing]);
 
   // derived options
   const activeCategories = useMemo(() => categories.filter((c) => c.is_active), [categories]);
@@ -848,6 +870,11 @@ export default function TmcStockPage() {
             label: `ของใช้ซ้ำ (${reusables.length})`,
             icon: <Repeat className="h-4 w-4" />,
           },
+          {
+            value: "issues",
+            label: "เบิกของ",
+            icon: <PackageCheck className="h-4 w-4" />,
+          },
           { value: "movements", label: "ประวัติรับ-เบิก", icon: <History className="h-4 w-4" /> },
           { value: "dashboard", label: "แดชบอร์ด", icon: <LayoutDashboard className="h-4 w-4" /> },
         ]}
@@ -1190,6 +1217,21 @@ export default function TmcStockPage() {
             <TableLoading colSpan={5} />
           </TableBody>
         </Table>
+      ) : activeTab === "issues" ? (
+        <IssueView
+          orgId={TMC_ORG_ID}
+          presets={presets}
+          items={items}
+          locations={locations}
+          balances={balances}
+          issues={issues}
+          authHeader={authHeader}
+          canWrite
+          onDone={() => {
+            load();
+            loadIssuing();
+          }}
+        />
       ) : activeTab === "reusable" ? (
         <ReusableMatrix
           items={filteredItems}
@@ -1547,8 +1589,27 @@ export default function TmcStockPage() {
                 { value: "categories", label: "หมวดหมู่", icon: <Tag className="h-4 w-4" /> },
                 { value: "units", label: "หน่วย", icon: <Ruler className="h-4 w-4" /> },
                 { value: "locations", label: "จุดเก็บ", icon: <Warehouse className="h-4 w-4" /> },
+                {
+                  value: "presets",
+                  label: "ชุดเบิกของ",
+                  icon: <PackageCheck className="h-4 w-4" />,
+                },
               ]}
             />
+
+            {/* ชุดเบิกของประจำห้อง — แก้เองได้ ไม่ต้องรอ dev (specs §4.5) */}
+            {masterTab === "presets" && (
+              <PresetManager
+                orgId={TMC_ORG_ID}
+                presets={presets}
+                items={items}
+                properties={locations
+                  .filter((l) => l.kind === "property")
+                  .map((l) => ({ code: l.code, name: l.name }))}
+                authHeader={authHeader}
+                onChanged={loadIssuing}
+              />
+            )}
 
             {/* จุดเก็บของ — คลังกลาง / ห้องผ้าสะอาด / ร้านซัก / แต่ละหลัง */}
             {masterTab === "locations" && (
