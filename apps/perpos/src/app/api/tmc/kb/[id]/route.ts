@@ -1,6 +1,8 @@
 /** คลังความรู้ของผู้ช่วยขาย TMC — แก้ไข / ลบ (ลบบทความ = chunk ถูก cascade ตามไปด้วย) */
 import { NextRequest, NextResponse } from "next/server";
 import { requireTmcMember, canWriteFinance } from "../../_lib";
+import { createAdminClient } from "../../../_lib/supabase";
+import { embedArticleById } from "@/lib/tmc/sales-bot";
 
 async function guard(req: NextRequest, orgId: string) {
   if (!orgId) return { error: NextResponse.json({ error: "missing orgId" }, { status: 400 }) };
@@ -41,7 +43,8 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
       .eq("id", id)
       .eq("org_id", String(body.orgId));
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-    return NextResponse.json({ ok: true, restored: true });
+    const embedded = await embedArticleById(createAdminClient(), id);
+    return NextResponse.json({ ok: true, restored: true, embedded });
   }
 
   const patch: Record<string, unknown> = {
@@ -67,7 +70,11 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     .eq("org_id", String(body.orgId));
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ ok: true });
+
+  // เนื้อหาเปลี่ยน = ต้องฝังใหม่ ทำให้เลยตรงนี้ ไม่ต้องรอคนกดปุ่ม
+  const embedded =
+    patch.embedded_at === null ? await embedArticleById(createAdminClient(), id) : true;
+  return NextResponse.json({ ok: true, embedded });
 }
 
 export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {

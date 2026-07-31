@@ -296,8 +296,13 @@ export default function TmcSalesBotPage() {
             headers: h,
             body: JSON.stringify(payload),
           });
-      if (!res.ok) throw new Error((await res.json()).error ?? "บันทึกไม่สำเร็จ");
-      toast.success("บันทึกแล้ว — อย่าลืมกด “อัปเดตความรู้” ให้บอทเรียนของใหม่");
+      const saved = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(saved.error ?? "บันทึกไม่สำเร็จ");
+      toast.success(
+        saved?.embedded === false
+          ? "บันทึกแล้ว แต่ยังฝังข้อมูลไม่สำเร็จ — กด “อัปเดตความรู้” อีกครั้งนะครับ"
+          : "บันทึกแล้ว บอทเรียนรู้ทันที",
+      );
       setFormOpen(false);
       await Promise.all([loadArticles(), loadMeta()]);
     } catch (e) {
@@ -338,7 +343,7 @@ export default function TmcSalesBotPage() {
         body: JSON.stringify({ orgId: TMC_ORG_ID, restorePrevious: true }),
       });
       if (!res.ok) throw new Error((await res.json()).error ?? "กู้คืนไม่สำเร็จ");
-      toast.success('กู้คืนเนื้อหาเดิมแล้ว — กด "อัปเดตความรู้" เพื่อให้บอทเรียนใหม่');
+      toast.success("กู้คืนเนื้อหาเดิมแล้ว บอทเรียนรู้ทันที");
       setFormOpen(false);
       await Promise.all([loadArticles(), loadMeta()]);
     } catch (e) {

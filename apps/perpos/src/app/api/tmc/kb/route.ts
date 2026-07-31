@@ -1,6 +1,8 @@
 /** คลังความรู้ของผู้ช่วยขาย TMC — list / create */
 import { NextRequest, NextResponse } from "next/server";
 import { requireTmcMember, canWriteFinance } from "../_lib";
+import { createAdminClient } from "../../_lib/supabase";
+import { embedArticleById } from "@/lib/tmc/sales-bot";
 
 export async function GET(req: NextRequest) {
   const orgId = req.nextUrl.searchParams.get("orgId") ?? "";
@@ -53,5 +55,8 @@ export async function POST(req: NextRequest) {
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json(data);
+
+  // ฝังทันทีเลย — ไม่ต้องให้คนไปกด "อัปเดตความรู้" อีกที (ฝังไม่ได้ก็ยังบันทึกสำเร็จ)
+  const embedded = await embedArticleById(createAdminClient(), (data as { id: string }).id);
+  return NextResponse.json({ ...(data as object), embedded });
 }
