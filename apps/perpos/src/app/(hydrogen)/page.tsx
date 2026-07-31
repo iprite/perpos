@@ -31,7 +31,7 @@ export default async function DashboardPage() {
   const hasAssistant = personalKeys.includes("stt"); // ผู้ช่วย AI (per-profile)
 
   // ลำดับ (non-super_admin): Perpos Flow / ผู้ช่วย AI (B2C) เป็น default หลัก >
-  // ERP (B2B, ถ้าไม่มีผู้ช่วย) > no-org
+  // ERP (B2B, ถ้าไม่มีผู้ช่วย)
   // ทุกคนที่แอด LINE จะมี grant 'stt' → default ไป /assistant · ผู้ใช้ org-only
   // ที่ไม่มีผู้ช่วย ค่อย fallback เข้า ERP
   if (hasAssistant) redirect("/assistant");
@@ -52,5 +52,7 @@ export default async function DashboardPage() {
     if (erpModule) redirect(`/${orgSlug}${erpModule.href}`);
   }
 
-  redirect("/no-org");
+  // ทุกคนที่แอด LINE ได้ personal module (stt) จาก provisionLineUser เสมอ
+  // → ไม่มีสภาวะ "ไม่มีอะไรให้เข้า" จริง ๆ, fallback ที่ผู้ช่วย AI
+  redirect("/assistant");
 }

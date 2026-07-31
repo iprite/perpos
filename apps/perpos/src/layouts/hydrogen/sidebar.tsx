@@ -11,7 +11,7 @@ import type { OrganizationSummary } from "@/lib/accounting/queries";
 
 const HIDE_ORG_SWITCHER_SEGMENTS = new Set(["admin", "assistant"]);
 // segment ที่ไม่ใช่บริบทองค์กร (ERP) — ไม่ต้องโชว์บล็อก org/module switcher ด้านล่าง
-const NON_BIZ_SEGMENTS = new Set(["admin", "assistant", "user", "no-org", "no-module", "signin"]);
+const NON_BIZ_SEGMENTS = new Set(["admin", "assistant", "user", "no-module", "signin"]);
 
 const isPersonalOrg = (o: OrganizationSummary) =>
   o.name.startsWith("พื้นที่ส่วนตัว") || /^u[a-z0-9]{10}$/.test(o.slug);
