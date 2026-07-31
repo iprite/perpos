@@ -1,6 +1,6 @@
 # TMC Stock v2 — ออกแบบระบบคลังของ PMS
 
-> สถานะ: **P1 เสร็จแล้ว (apply prod 2026-07-31)** · P2–P7 ยังเป็นแบบ · ขอบเขต: module `tmc` (org `tmc`)
+> สถานะ: **P1–P3 เสร็จแล้ว (apply prod 2026-07-31)** · P4–P7 ยังเป็นแบบ · ขอบเขต: module `tmc` (org `tmc`)
 > ที่มา: ไฟล์ตั้งต้น `ของใช้แม่บ้าน.xlsx` (27 รายการ) + `สต๊อกของงานก่อสร้าง_ผ้า.xlsx` (sheet `สต๊อกผ้า` + A/B/C/VELA)
 > ของเดิมในระบบ: `tmc_stock_items` 41 รายการ · `tmc_stock_movements` **0 แถว** → ยัง reset โครงได้ปลอดภัย
 
@@ -197,6 +197,18 @@ alter table tmc_stock_movements add
 
 ### ตาราง
 
+> **สถานะ: ทำครบแล้ว + apply prod (2026-07-31)** — ตาราง/ชุด/ใบเบิก/RPC/หน้าจอ ครบตามหัวข้อนี้ ·
+> [`20260731170000_tmc_stock_preset_tables.sql`](../supabase/migrations/20260731170000_tmc_stock_preset_tables.sql) ·
+> seed TMC7 [`…170100_seed_tmc7.sql`](../supabase/migrations/20260731170100_tmc_stock_preset_seed_tmc7.sql)
+> `tmc_stock_issues` + RPC `tmc_stock_issue_preset()`/`tmc_stock_void_issue()` + แท็บ "เบิกของ"
+>
+> - แท็บ "ชุดเบิกของ" ในตั้งค่าคลัง อยู่ใน [`…180000_p3_issues.sql`](../supabase/migrations/20260731180000_tmc_stock_v2_p3_issues.sql)
+>
+> **ต่างจากที่ออกแบบไว้ 1 จุด: เพิ่ม `room_name`** — spec เดิมวางชุดไว้ที่ระดับ "หลัง" แต่ของจริง
+> ที่ลูกค้าให้มาเป็น **รายห้อง** (TMC7 = 5 ห้องนอน + พื้นที่ร่วม 4 จุด = 9 ชุด · รวม 99 ผืนต่อรอบเช็คเอาต์)
+> ไม่มีมิติห้อง = ชุดของทั้งหลังยุบเป็นก้อนเดียวและแก้รายห้องไม่ได้ · unique index คุมที่
+> (org, preset_kind, property_code, room_name)
+
 ```sql
 tmc_stock_presets (
   id, org_id,
@@ -319,7 +331,19 @@ UI ยึด `PageShell` + `Table stickyHeader fillViewport` + `TablePager` + `F
 
 ---
 
-### P2 — ใช้งานจริงขั้นต่ำ: รับเข้า / เบิก / ย้าย + 3 แท็บแรก
+### P2 — ใช้งานจริงขั้นต่ำ: รับเข้า / เบิก / ย้าย + 3 แท็บแรก ✅ เสร็จแล้ว (2026-07-31)
+
+> migration [`…160000_p2_no_negative.sql`](../supabase/migrations/20260731160000_tmc_stock_v2_p2_no_negative.sql) ·
+> API `/api/tmc/stock/{movements,locations}` · หน้า `tmc/stock` แท็บใหม่ + [`_reusable-matrix.tsx`](<../apps/perpos/src/app/(hydrogen)/[orgSlug]/tmc/stock/_reusable-matrix.tsx>)
+>
+> **ต่างจากแผน / เพิ่มเข้ามา**
+>
+> - ปิดหนี้ P1 ครบ: กันติดลบ **ณ จุดเก็บต้นทาง** (ทั้ง UI และ trigger — เดิมเช็คจากยอดรวม) ·
+>   เพิ่มรายการใหม่ต้องเลือกชนิดของ+กลุ่ม → ผูกจุดเก็บประจำอัตโนมัติ · ชื่อซ้ำได้ข้อความไทย
+> - `POST /api/tmc/stock` (ทางเขียน movement เส้นเก่า ไม่มี caller แล้ว) → ตอบ 410 กันมีสองทางเขียนที่กติกาไม่เท่ากัน
+> - จุดเก็บที่ "เลิกใช้" ต้องเปิดกลับได้ → หน้าตั้งค่าโหลดรายการทั้งหมด แยกส่วน "เลิกใช้แล้ว"
+>
+> verify: ย้ายผ้าเช็ดตัว 4 ผืน ห้องผ้าสะอาด→TMC3-4 บน preview จริง — ยอดรวมคงที่ 1,465 (ย้ายที่ ไม่ใช่หายไป)
 
 **ทำอะไร**
 
@@ -335,7 +359,31 @@ UI ยึด `PageShell` + `Table stickyHeader fillViewport` + `TablePager` + `F
 
 ---
 
-### P3 — เบิกของแบบ preset (งานหน้างานเบาลงทันที)
+### P3 — เบิกของแบบ preset (งานหน้างานเบาลงทันที) ✅ เสร็จแล้ว (2026-07-31)
+
+> migration [`…170000_preset_tables.sql`](../supabase/migrations/20260731170000_tmc_stock_preset_tables.sql) ·
+> [`…170100_seed_tmc7.sql`](../supabase/migrations/20260731170100_tmc_stock_preset_seed_tmc7.sql) ·
+> [`…180000_p3_issues.sql`](../supabase/migrations/20260731180000_tmc_stock_v2_p3_issues.sql) ·
+> [`…190000_p3_fixes.sql`](../supabase/migrations/20260731190000_tmc_stock_v2_p3_fixes.sql)
+>
+> **ต่างจากแผน**
+>
+> 1. **เพิ่มมิติ `room_name`** — spec เดิมวางชุดไว้ที่ระดับ "หลัง" แต่ของจริงเป็น **รายห้อง**
+>    (TMC7 = 5 ห้องนอน + พื้นที่ร่วม 4 จุด = 9 ชุด · 51 บรรทัด · 99 ผืนต่อรอบเช็คเอาต์)
+> 2. **ต้นทางยึด "บ้าน" ของของแต่ละชิ้นก่อน `preset.source_location_id`** (เจอตอนรีวิว) —
+>    ทุกชุดที่ seed ตั้ง source = ห้องผ้าสะอาด · วันนี้บรรทัดเป็นผ้าล้วนเลยบังเอิญตรง
+>    แต่พอเพิ่มของใช้แล้วหมดไปเข้าชุด ระบบจะหักผิดที่ ขณะที่หน้าจอโชว์คงเหลืออีกที่
+> 3. **trigger เช็ค `item.org_id = movement.org_id`** — `item_id` มาจาก client ทั้ง `/movements`
+>    และ RPC เบิกชุด แต่เดิมไม่เคยเช็คว่าสินค้าอยู่ org ไหน
+>
+> **ยังไม่ได้ทำในเฟสนี้** — ปุ่ม "เบิกชุดเข้าพัก" บนหน้า `tmc/stays` (ผูก `stay_id` อัตโนมัติ)
+> ยกไปทำพร้อม CPOR ใน P6 · ปุ่มยกเลิกใบเบิกโชว์ทุก member แต่ API ต้อง team_lead+ (หน้าไม่รู้ role ตัวเอง)
+>
+> **ของที่ต้องรับเข้าก่อนใช้ชุดได้เต็ม** — ปลอกหมอนเล็ก · ปลอกหมอนใหญ่ · ผ้าเช็ดจาน · ผ้าเช็ดเท้าครัว (สีดำ)
+> เป็นรายการที่สร้างจาก seed แต่ไม่มีในไฟล์ยอดยกมา → คงเหลือ 0
+>
+> verify: เบิกชุด "TMC7 — Standard 1" (ของไม่พอ 2 บรรทัด → ใส่ 0 ข้าม) → 7 บรรทัด 11 ชิ้นเข้า TMC7 ·
+> กดยกเลิก → ยอดกลับเท่าเดิม 1,403 ผืน · movement 14 แถว (7 + 7 กลับ)
 
 **ทำอะไร** — รายละเอียดเต็มใน §4.5
 
