@@ -1,6 +1,6 @@
 // _guard.ts — ด่านสิทธิ์ฝั่งหน้าของโมดูล tmc (per-org module, module_members)
 // role ของ tmc: owner | admin | team_lead
-// Dashboard / บัญชีและการเงิน / เงินสดย่อย = ตัวเลขรายได้-ต้นทุนทั้งกิจการ → เฉพาะ owner|admin
+// บัญชีและการเงิน / เงินสดย่อย → owner|admin · Dashboard (ภาพรวมทั้งกิจการ) → owner เท่านั้น
 import "server-only";
 
 import { redirect } from "next/navigation";
@@ -21,5 +21,13 @@ export async function requireTmcManagerPage(orgSlug: string): Promise<TmcRole> {
   const role = (await getModuleRoleForCurrentUser(TMC_ORG_ID, "tmc")) as TmcRole | null;
   if (!role) redirect("/");
   if (!isTmcManager(role)) redirect(`/${orgSlug}/tmc/stock`);
+  return role;
+}
+
+/** Dashboard = เจ้าของเท่านั้น · ผู้ดูแล → บัญชีและการเงิน · ที่เหลือ → Stock */
+export async function requireTmcOwnerPage(orgSlug: string): Promise<TmcRole> {
+  const role = (await getModuleRoleForCurrentUser(TMC_ORG_ID, "tmc")) as TmcRole | null;
+  if (!role) redirect("/");
+  if (role !== "owner") redirect(`/${orgSlug}/tmc/${role === "admin" ? "finance" : "stock"}`);
   return role;
 }
