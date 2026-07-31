@@ -60,6 +60,8 @@ export function IssueView({
   const [qtyOverride, setQtyOverride] = useState<Record<string, string>>({});
   const [extraBeds, setExtraBeds] = useState<ExtraBed[]>([]);
   const [lineView, setLineView] = useState<"summary" | "rooms">("summary");
+  // ตัวกรองชั้นของ — ดูอย่างเดียว ไม่กระทบของที่เบิกจริง (submit ใช้ groups เต็มเสมอ)
+  const [clsFilter, setClsFilter] = useState<"all" | "reusable" | "consumable">("all");
   const [saving, setSaving] = useState(false);
   const [printing, setPrinting] = useState<StockIssue | null>(null);
 
@@ -129,6 +131,7 @@ export function IssueView({
         name: string;
         unit: string;
         hint: string;
+        cls: string;
         qty: number;
         available: number;
         short: boolean;
@@ -170,6 +173,7 @@ export function IssueView({
                   : l.is_optional
                     ? "เบิกเมื่อต้องการ"
                     : "",
+            cls: item?.stock_class ?? "consumable",
             qty,
             available,
             short: qty > available,
@@ -221,6 +225,7 @@ export function IssueView({
           itemId,
           name: item?.name ?? "—",
           unit: item?.unit ?? "",
+          cls: item?.stock_class ?? "consumable",
           qty,
           available,
           short: qty > available,
@@ -228,6 +233,18 @@ export function IssueView({
       })
       .sort((a, b) => a.name.localeCompare(b.name, "th"));
   }, [groups, itemById, homeQty]);
+
+  /** มุมมองที่ผ่านตัวกรอง — ใช้เรนเดอร์เท่านั้น (ห้ามเอาไปคิดยอด/ส่งเบิก) */
+  const shownTotals = useMemo(
+    () => (clsFilter === "all" ? totals : totals.filter((t) => t.cls === clsFilter)),
+    [totals, clsFilter],
+  );
+  const shownGroups = useMemo(() => {
+    if (clsFilter === "all") return groups;
+    return groups
+      .map((g) => ({ ...g, lines: g.lines.filter((l) => l.cls === clsFilter) }))
+      .filter((g) => g.lines.length > 0);
+  }, [groups, clsFilter]);
 
   const anyShort = shortByItem.size > 0;
   const totalQty = groups.reduce((s, g) => s + g.lines.reduce((t, l) => t + l.qty, 0), 0);
@@ -480,14 +497,27 @@ export function IssueView({
 
               {/* สลับมุมมอง: ใบหยิบของ (รวมทั้งหลัง) ↔ รายห้อง (แก้จำนวน) */}
               {propertyCode && groups.length > 0 && (
-                <SegmentedControl
-                  value={lineView}
-                  onChange={setLineView}
-                  options={[
-                    { value: "summary", label: "สรุปรวมทั้งหลัง" },
-                    { value: "rooms", label: "แยกรายห้อง (แก้จำนวน)" },
-                  ]}
-                />
+                <div className="flex flex-wrap items-center gap-2">
+                  <SegmentedControl
+                    value={lineView}
+                    onChange={setLineView}
+                    options={[
+                      { value: "summary", label: "สรุปรวมทั้งหลัง" },
+                      { value: "rooms", label: "แยกรายห้อง (แก้จำนวน)" },
+                    ]}
+                  />
+                  {/* กรองชั้นของ — ของใช้ซ้ำต้องเก็บกลับ ของใช้แล้วหมดไปไม่ต้อง จึงหยิบคนละรอบ */}
+                  <SegmentedControl
+                    value={clsFilter}
+                    onChange={setClsFilter}
+                    ariaLabel="ชั้นของ"
+                    options={[
+                      { value: "all", label: "ทั้งหมด" },
+                      { value: "reusable", label: "ของใช้ซ้ำ" },
+                      { value: "consumable", label: "ใช้แล้วหมดไป" },
+                    ]}
+                  />
+                </div>
               )}
 
               {/* ใบหยิบของ — รวมทุกห้อง + เตียงเสริมแล้ว */}
@@ -501,7 +531,7 @@ export function IssueView({
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {totals.map((t) => (
+                    {shownTotals.map((t) => (
                       <TableRow key={t.itemId}>
                         <TableCell className="font-medium text-gray-900">{t.name}</TableCell>
                         <TableCell
@@ -524,7 +554,11 @@ export function IssueView({
                         </TableCell>
                       </TableRow>
                     ))}
-                    {totals.length === 0 && <TableEmpty colSpan={3}>ยังไม่มีรายการ</TableEmpty>}
+                    {shownTotals.length === 0 && (
+                      <TableEmpty colSpan={3}>
+                        {totals.length === 0 ? "ยังไม่มีรายการ" : "ไม่มีรายการในหมวดที่กรอง"}
+                      </TableEmpty>
+                    )}
                   </TableBody>
                 </Table>
               )}
@@ -540,7 +574,7 @@ export function IssueView({
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {groups.map((g) => (
+                    {shownGroups.map((g) => (
                       <Fragment key={g.key}>
                         <TableRow>
                           <TableCell
@@ -582,8 +616,12 @@ export function IssueView({
                         ))}
                       </Fragment>
                     ))}
-                    {groups.length === 0 && (
-                      <TableEmpty colSpan={3}>หลังนี้ยังไม่มีชุดของประจำห้อง</TableEmpty>
+                    {shownGroups.length === 0 && (
+                      <TableEmpty colSpan={3}>
+                        {groups.length === 0
+                          ? "หลังนี้ยังไม่มีชุดของประจำห้อง"
+                          : "ไม่มีรายการในหมวดที่กรอง"}
+                      </TableEmpty>
                     )}
                   </TableBody>
                 </Table>
