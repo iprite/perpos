@@ -96,14 +96,40 @@ export function IssuePrintDialog({
             @page { size: A4; margin: 12mm; }
             body * { visibility: hidden !important; }
             #tmc-issue-sheet, #tmc-issue-sheet * { visibility: visible !important; }
-            /* กล่อง dialog มี max-h + overflow-auto — ถ้าไม่ปลดจะพิมพ์ได้แค่หน้าแรก */
-            [role="dialog"], [role="dialog"] * {
+            /* กล่อง dialog ถูกจัดกลางจอด้วย fixed + translate และมี max-h/overflow
+               ถ้าไม่ปลดออก ใบจะพิมพ์เริ่มกลางหน้าและถูกตัดที่หน้าแรก */
+            [role="dialog"] {
+              position: static !important;
+              transform: none !important;
+              inset: auto !important;
+              max-height: none !important;
+              height: auto !important;
+              max-width: none !important;
+              width: auto !important;
+              overflow: visible !important;
+              box-shadow: none !important;
+              border: 0 !important;
+              border-radius: 0 !important;
+            }
+            /* ชั้นในปลดแค่ความสูง/สกรอล — ห้ามแตะความกว้าง ไม่งั้น w-full ของตารางหาย
+               แล้วตารางจะหดไปกองซ้ายไม่เต็มหน้ากระดาษ */
+            [role="dialog"] * {
               max-height: none !important;
               height: auto !important;
               overflow: visible !important;
             }
-            #tmc-issue-sheet { position: absolute; inset: 0 auto auto 0; width: 100%; margin: 0; }
-            #tmc-issue-sheet table { page-break-inside: auto; }
+            /* หลังปลด dialog เป็น static แล้ว จะไม่มี ancestor ที่ positioned เหลือ
+               → absolute ตัวนี้จึงอิงกับ "หน้ากระดาษ" จริง ไม่ใช่กล่อง dialog
+               (จำเป็น เพราะของที่ซ่อนด้วย visibility ยังกินที่อยู่ ถ้าปล่อย static ใบจะไหลลงไปหน้าถัดไป) */
+            #tmc-issue-sheet {
+              position: absolute !important;
+              top: 0 !important;
+              left: 0 !important;
+              width: 100% !important;
+              margin: 0 !important;
+              padding: 0 !important;
+            }
+            #tmc-issue-sheet table { width: 100% !important; page-break-inside: auto; }
             #tmc-issue-sheet tr { page-break-inside: avoid; }
             #tmc-issue-sheet thead { display: table-header-group; }
             [data-no-print] { display: none !important; }
