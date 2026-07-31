@@ -15,7 +15,7 @@ import type { StockIssue } from "./_types";
 
 type PrintLine = {
   quantity: number;
-  tmc_stock_items: { name: string; unit: string } | null;
+  tmc_stock_items: { name: string; unit: string; stock_class: string } | null;
 };
 
 /** ใบเช็คของต่อหลัง — พิมพ์ไปเช็คตอนหยิบของออก แล้วเช็คซ้ำตอนไปส่งที่หลังนั้น
@@ -55,16 +55,24 @@ export function IssuePrintDialog({
     };
   }, [issue, orgId, authHeader]);
 
-  /** ยอดรวมต่อรายการ = ใบหยิบของจากคลัง */
-  const totals = useMemo(() => {
-    const m = new Map<string, { name: string; unit: string; qty: number }>();
+  /** ยอดรวมต่อรายการ แยก 2 ชั้น — ของใช้ซ้ำต้องเก็บกลับ ของใช้แล้วหมดไปไม่ต้อง
+   *  จึงต้องอยู่คนละตารางบนใบเช็ค */
+  const [reusable, consumable] = useMemo(() => {
+    const m = new Map<string, { name: string; unit: string; qty: number; cls: string }>();
     for (const l of lines) {
       const name = l.tmc_stock_items?.name ?? "—";
       const cur = m.get(name);
       if (cur) cur.qty += Number(l.quantity);
-      else m.set(name, { name, unit: l.tmc_stock_items?.unit ?? "", qty: Number(l.quantity) });
+      else
+        m.set(name, {
+          name,
+          unit: l.tmc_stock_items?.unit ?? "",
+          qty: Number(l.quantity),
+          cls: l.tmc_stock_items?.stock_class ?? "consumable",
+        });
     }
-    return Array.from(m.values()).sort((a, b) => a.name.localeCompare(b.name, "th"));
+    const all = Array.from(m.values()).sort((a, b) => a.name.localeCompare(b.name, "th"));
+    return [all.filter((x) => x.cls === "reusable"), all.filter((x) => x.cls !== "reusable")];
   }, [lines]);
 
   const issuedAt = issue ? new Date(issue.created_at) : null;
@@ -166,40 +174,83 @@ export function IssuePrintDialog({
                 )}
               </div>
 
-              {/* 1. ใบหยิบของจากคลัง */}
-              <div>
-                <p className="mb-1 font-semibold">รายการที่ต้องหยิบ (รวมทั้งหลัง)</p>
-                <table className="w-full border-collapse text-[13px]">
-                  <thead>
-                    <tr className="border-y border-gray-400">
-                      <th className="py-1 text-left font-medium">รายการ</th>
-                      <th className="w-20 py-1 text-right font-medium">จำนวน</th>
-                      <th className="w-16 py-1 text-center font-medium">จ่ายออก</th>
-                      <th className="w-16 py-1 text-center font-medium">รับคืน</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {totals.map((t) => (
-                      <tr key={t.name} className="border-b border-gray-200">
-                        <td className="py-1">{t.name}</td>
-                        <td className="py-1 text-right font-mono tabular-nums">
-                          {t.qty} {t.unit}
-                        </td>
-                        <td className="py-1 text-center">☐</td>
-                        <td className="py-1 text-center">☐</td>
+              {/* ของใช้ซ้ำ — ต้องเก็บกลับ จึงมีช่อง "รับคืน" */}
+              {reusable.length > 0 && (
+                <div>
+                  <p className="mb-1 font-semibold">
+                    1. ของใช้ซ้ำ (ผ้า / เครื่องนอน) — ต้องเก็บกลับ
+                  </p>
+                  <table className="w-full border-collapse text-[13px]">
+                    <thead>
+                      <tr className="border-y border-gray-400">
+                        <th className="py-1 text-left font-medium">รายการ</th>
+                        <th className="w-20 py-1 text-right font-medium">จำนวน</th>
+                        <th className="w-16 py-1 text-center font-medium">จ่ายออก</th>
+                        <th className="w-16 py-1 text-center font-medium">รับคืน</th>
                       </tr>
-                    ))}
-                    <tr className="border-t-2 border-gray-400 font-semibold">
-                      <td className="py-1">รวม</td>
-                      <td className="py-1 text-right font-mono tabular-nums">
-                        {totals.reduce((s, t) => s + t.qty, 0)}
-                      </td>
-                      <td />
-                      <td />
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody>
+                      {reusable.map((t) => (
+                        <tr key={t.name} className="border-b border-gray-200">
+                          <td className="py-1">{t.name}</td>
+                          <td className="py-1 text-right font-mono tabular-nums">
+                            {t.qty} {t.unit}
+                          </td>
+                          <td className="py-1 text-center">☐</td>
+                          <td className="py-1 text-center">☐</td>
+                        </tr>
+                      ))}
+                      <tr className="border-t-2 border-gray-400 font-semibold">
+                        <td className="py-1">รวมของใช้ซ้ำ</td>
+                        <td className="py-1 text-right font-mono tabular-nums">
+                          {reusable.reduce((s2, t) => s2 + t.qty, 0)}
+                        </td>
+                        <td />
+                        <td />
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {/* ของใช้แล้วหมดไป — ไม่ต้องเก็บกลับ */}
+              {consumable.length > 0 && (
+                <div className="break-inside-avoid">
+                  <p className="mb-1 font-semibold">
+                    {reusable.length > 0 ? "2. " : ""}ของใช้แล้วหมดไป — ไม่ต้องเก็บกลับ
+                  </p>
+                  <table className="w-full border-collapse text-[13px]">
+                    <thead>
+                      <tr className="border-y border-gray-400">
+                        <th className="py-1 text-left font-medium">รายการ</th>
+                        <th className="w-20 py-1 text-right font-medium">จำนวน</th>
+                        <th className="w-16 py-1 text-center font-medium">จ่ายออก</th>
+                        <th className="w-16 py-1 text-center font-medium">วางแล้ว</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {consumable.map((t) => (
+                        <tr key={t.name} className="border-b border-gray-200">
+                          <td className="py-1">{t.name}</td>
+                          <td className="py-1 text-right font-mono tabular-nums">
+                            {t.qty} {t.unit}
+                          </td>
+                          <td className="py-1 text-center">☐</td>
+                          <td className="py-1 text-center">☐</td>
+                        </tr>
+                      ))}
+                      <tr className="border-t-2 border-gray-400 font-semibold">
+                        <td className="py-1">รวมของใช้แล้วหมดไป</td>
+                        <td className="py-1 text-right font-mono tabular-nums">
+                          {consumable.reduce((s2, t) => s2 + t.qty, 0)}
+                        </td>
+                        <td />
+                        <td />
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              )}
 
               {/* ลายเซ็น */}
               <div className="grid grid-cols-3 gap-6 pt-6 text-center text-xs text-gray-700">

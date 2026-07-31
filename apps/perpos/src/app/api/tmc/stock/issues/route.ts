@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
       auth.rls.from("tmc_stock_issues").select("*").eq("org_id", orgId).eq("id", id).maybeSingle(),
       auth.rls
         .from("tmc_stock_movements")
-        .select("quantity, room_name, tmc_stock_items(name, unit)")
+        .select("quantity, room_name, tmc_stock_items(name, unit, stock_class)")
         .eq("org_id", orgId)
         .eq("issue_id", id)
         .is("ref_movement_id", null)
