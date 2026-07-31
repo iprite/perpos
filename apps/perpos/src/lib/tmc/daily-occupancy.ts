@@ -51,6 +51,8 @@ export type TmcDailyOccupancy = {
     /** ห้อง×คืนที่ให้ฟรี + อัตราส่วนต่อห้องที่เปิดขาย (%) */
     freeNights: number;
     freeRate: number | null;
+    /** ค่าห้องของผู้ที่ "เข้าพัก" ในเดือนนี้ (ยึดวันเช็คอิน — ตรงกับ totals.stays.revenue บนแดชบอร์ด) */
+    stayRevenue: number;
     bookings: number;
     rooms: number;
     value: number;
@@ -194,6 +196,10 @@ export async function computeTmcDailyOccupancy(
       availableNights,
       freeNights,
       freeRate: availableNights > 0 ? +((freeNights / availableNights) * 100).toFixed(1) : null,
+      stayRevenue: +stays
+        .filter((s) => s.check_in >= monthStart && s.check_in <= date)
+        .reduce((sum, r) => sum + Number(r.room_rate ?? 0), 0)
+        .toFixed(2),
       bookings: mtdBookings.bookings,
       rooms: mtdBookings.rooms,
       value: mtdBookings.value,
