@@ -81,6 +81,38 @@ export type StockIssue = {
   tmc_stock_presets: { name: string; room_name: string | null } | null;
 };
 
+// ── รอบซัก (P4) — specs/tmc-stock-v2.md §3.5 ─────────────────────────────────
+export type LaundryBatchLine = {
+  id: string;
+  batch_id: string;
+  item_id: string;
+  qty_sent: number;
+  qty_returned: number;
+  qty_damaged: number;
+  unit_price: number | null;
+};
+
+export type LaundryBatch = {
+  id: string;
+  vendor_location_id: string;
+  vendor_name: string | null;
+  ref_no: string | null;
+  source_location_id: string | null;
+  return_location_id: string | null;
+  sent_at: string;
+  returned_at: string | null;
+  status: "sent" | "closed";
+  total_sent: number;
+  total_returned: number;
+  total_damaged: number;
+  total_missing: number;
+  laundry_cost: number | null;
+  note: string | null;
+  tmc_laundry_batch_lines?: LaundryBatchLine[];
+};
+
+export type LaundryPrice = { item_id: string; price_per_piece: number };
+
 /** ชื่อไทยของกลุ่มสินค้า — ใช้เป็นตัวกรองในแท็บของใช้แล้วหมดไป */
 export const GROUP_LABELS: Record<string, string> = {
   amenity: "ของใช้ในห้อง",

@@ -54,6 +54,7 @@ import {
   Repeat,
   Warehouse,
   PackageCheck,
+  Shirt,
 } from "lucide-react";
 import {
   BarChart,
@@ -70,6 +71,7 @@ import { PurchaseDialog } from "./purchase-dialog";
 import { ReusableMatrix } from "./_reusable-matrix";
 import { IssueView } from "./_issue-view";
 import { PresetManager } from "./_preset-manager";
+import { LaundryView } from "./_laundry-view";
 import {
   GROUP_LABELS,
   MOVEMENT_LABELS,
@@ -79,6 +81,8 @@ import {
   type Movement,
   type StockPreset,
   type StockIssue,
+  type LaundryBatch,
+  type LaundryPrice,
 } from "./_types";
 
 const TMC_ORG_ID = "1f52618c-09c4-49c5-a929-ea5060f26e7d";
@@ -190,11 +194,13 @@ export default function TmcStockPage() {
   const [movements, setMovements] = useState<Movement[]>([]);
   const [presets, setPresets] = useState<StockPreset[]>([]);
   const [issues, setIssues] = useState<StockIssue[]>([]);
+  const [batches, setBatches] = useState<LaundryBatch[]>([]);
+  const [laundryPrices, setLaundryPrices] = useState<LaundryPrice[]>([]);
   const [categories, setCategories] = useState<MasterItem[]>([]);
   const [units, setUnits] = useState<MasterItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<
-    "items" | "reusable" | "issues" | "movements" | "dashboard"
+    "items" | "reusable" | "issues" | "laundry" | "movements" | "dashboard"
   >("items");
 
   // filter panel (ซ่อนไว้หลัง icon)
@@ -281,6 +287,15 @@ export default function TmcStockPage() {
     setIssues(Array.isArray(is) ? is : []);
   }, [authHeader]);
 
+  // รอบซัก + ราคาต่อผืน (P4)
+  const loadLaundry = useCallback(async () => {
+    const h = await authHeader();
+    const res = await fetch(`/api/tmc/stock/laundry?orgId=${TMC_ORG_ID}`, { headers: h });
+    const data = await res.json();
+    setBatches(Array.isArray(data.batches) ? data.batches : []);
+    setLaundryPrices(Array.isArray(data.prices) ? data.prices : []);
+  }, [authHeader]);
+
   // load master data (categories + units)
   const loadMaster = useCallback(async () => {
     const h = await authHeader();
@@ -305,7 +320,8 @@ export default function TmcStockPage() {
     loadMaster();
     loadAccounts();
     loadIssuing();
-  }, [load, loadMaster, loadAccounts, loadIssuing]);
+    loadLaundry();
+  }, [load, loadMaster, loadAccounts, loadIssuing, loadLaundry]);
 
   // derived options
   const activeCategories = useMemo(() => categories.filter((c) => c.is_active), [categories]);
@@ -875,6 +891,7 @@ export default function TmcStockPage() {
             label: "เบิกของ",
             icon: <PackageCheck className="h-4 w-4" />,
           },
+          { value: "laundry", label: "ส่งซัก / รับคืน", icon: <Shirt className="h-4 w-4" /> },
           { value: "movements", label: "ประวัติรับ-เบิก", icon: <History className="h-4 w-4" /> },
           { value: "dashboard", label: "แดชบอร์ด", icon: <LayoutDashboard className="h-4 w-4" /> },
         ]}
@@ -1230,6 +1247,21 @@ export default function TmcStockPage() {
           onDone={() => {
             load();
             loadIssuing();
+          }}
+        />
+      ) : activeTab === "laundry" ? (
+        <LaundryView
+          orgId={TMC_ORG_ID}
+          items={items}
+          locations={locations}
+          balances={balances}
+          batches={batches}
+          prices={laundryPrices}
+          accounts={accounts}
+          authHeader={authHeader}
+          onDone={() => {
+            load();
+            loadLaundry();
           }}
         />
       ) : activeTab === "reusable" ? (
