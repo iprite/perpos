@@ -77,16 +77,23 @@ function nightsPerMonth(
   from: string,
   to: string,
 ): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const d of nightsList(checkIn, checkOut, from, to)) {
+    const m = d.slice(0, 7);
+    out[m] = (out[m] ?? 0) + 1;
+  }
+  return out;
+}
+
+/** วันที่ของคืนที่ stay ครอบครอง (clip ให้อยู่ในช่วง [from, to]) — YYYY-MM-DD */
+function nightsList(checkIn: string, checkOut: string | null, from: string, to: string): string[] {
   const startMs = Math.max(new Date(checkIn).getTime(), new Date(from).getTime());
   const endMs = Math.min(
     checkOut ? new Date(checkOut).getTime() : new Date(checkIn).getTime() + DAY_MS,
     new Date(to).getTime() + DAY_MS,
   );
-  const out: Record<string, number> = {};
-  for (let t = startMs; t < endMs; t += DAY_MS) {
-    const m = new Date(t).toISOString().slice(0, 7);
-    out[m] = (out[m] ?? 0) + 1;
-  }
+  const out: string[] = [];
+  for (let t = startMs; t < endMs; t += DAY_MS) out.push(new Date(t).toISOString().slice(0, 10));
   return out;
 }
 
@@ -276,15 +283,21 @@ export async function computeTmcDashboard(
 
   // ─── Occupancy rate — คืนที่ขายได้ (clip ให้อยู่ในช่วง) / (จำนวนห้องเปิดขาย × จำนวนคืนในช่วง) ───
   const rentableCodes = new Set((rentableRes.data ?? []).map((p) => p.code as string));
+  // นับเป็น "ห้อง×คืน" ที่ไม่ซ้ำ — ถ้ามี stay ซ้อนทับห้องเดียวกันคืนเดียวกัน (จองคาบเกี่ยว/บันทึกซ้ำ)
+  // ต้องนับครั้งเดียว ไม่งั้นอัตราการเข้าพักทะลุ 100% · นิยามเดียวกับการ์ดรายวัน (lib/tmc/daily-occupancy.ts)
+  const soldNightKeys = new Set<string>();
   const soldByMonth: Record<string, number> = {};
-  let soldNights = 0;
   for (const s of stayRows) {
     if (!rentableCodes.has(s.property_code ?? "")) continue;
-    for (const [m, n] of Object.entries(nightsPerMonth(s.check_in, s.check_out, from, to))) {
-      soldByMonth[m] = (soldByMonth[m] ?? 0) + n;
-      soldNights += n;
+    for (const d of nightsList(s.check_in, s.check_out, from, to)) {
+      const key = `${s.property_code}|${d}`;
+      if (soldNightKeys.has(key)) continue;
+      soldNightKeys.add(key);
+      const m = d.slice(0, 7);
+      soldByMonth[m] = (soldByMonth[m] ?? 0) + 1;
     }
   }
+  const soldNights = soldNightKeys.size;
   const roomsCount = rentableCodes.size;
   const nightsInRange = Math.max(
     0,

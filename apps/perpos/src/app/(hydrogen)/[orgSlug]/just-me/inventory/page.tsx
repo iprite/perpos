@@ -22,7 +22,17 @@ import {
 import { TablePager, usePagination } from "@/components/ui/table-pager";
 import { SegmentedControl } from "@/components/ui/segmented";
 import { StatCard } from "@/components/ui/stat-card";
+import {
+  Dialog,
+  DialogContent,
+  DialogBody,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { OcrReceiveDialog } from "./ocr-receive-dialog";
+import { movementWarehouseRule, type JustMeMovementType } from "@/lib/just-me/stock-movements";
+import { CABLE_SCRAP_THRESHOLD_M } from "@/lib/just-me/cable";
 import {
   ResponsiveContainer,
   LineChart,
@@ -205,6 +215,12 @@ export default function JustMeInventoryPage() {
   const [movements, setMovements] = useState<StockMovement[]>([]);
   const movePager = usePagination(movements);
   const [costs, setCosts] = useState<ItemCost[]>([]);
+  // สิทธิ์จาก API — หน้าเดิมไม่เคยอ่าน ทำให้ viewer เห็นต้นทุนเป็น 0 เต็มหน้า
+  // และคนที่เขียนไม่ได้กรอกฟอร์มจนจบแล้วเพิ่งโดนปฏิเสธ
+  const [canSeeCost, setCanSeeCost] = useState(true);
+  const [canWrite, setCanWrite] = useState(true);
+  const [movementsTotal, setMovementsTotal] = useState<number | null>(null);
+  const [movementsTruncated, setMovementsTruncated] = useState(false);
   const [costMonthly, setCostMonthly] = useState<CostMonthly[]>([]);
   const [members, setMembers] = useState<Person[]>([]);
   const [projects, setProjects] = useState<{ id: string; project_code: string; name: string }[]>(
@@ -220,6 +236,10 @@ export default function JustMeInventoryPage() {
   // Search Filters
   const [searchItem, setSearchItem] = useState("");
   const [searchSerial, setSearchSerial] = useState("");
+
+  // หยิบเศษสายไฟมาใช้ (ตัดความยาวออกจากเส้นที่เลือก)
+  const [scrapUse, setScrapUse] = useState<{ serial: ItemSerial; lengthUsed: string } | null>(null);
+  const [scrapSaving, setScrapSaving] = useState(false);
 
   // Form States
   const [formWarehouse, setFormWarehouse] = useState({
@@ -312,6 +332,10 @@ export default function JustMeInventoryPage() {
       setSerials(json.serials || []);
       setMovements(json.movements || []);
       setCosts(json.costs || []);
+      setCanSeeCost(json.canSeeCost !== false);
+      setCanWrite(json.canWrite !== false);
+      setMovementsTotal(typeof json.movementsTotal === "number" ? json.movementsTotal : null);
+      setMovementsTruncated(!!json.movementsTruncated);
       // โครงการสำหรับผูกการเบิกใช้ (ต้นทุนจริงต่อโครงการ) — อ่านผ่าน RLS ปกติ
       const { data: projRows } = await supabase
         .from("just_me_projects")
@@ -457,17 +481,12 @@ export default function JustMeInventoryPage() {
         setError("กรุณาเลือกสินค้า / วัสดุ");
         return;
       }
-      if (
-        ["transfer", "issue", "return"].includes(formMovement.movement_type) &&
-        !formMovement.source_warehouse_id
-      ) {
+      const whRule = movementWarehouseRule(formMovement.movement_type as JustMeMovementType);
+      if (whRule.source && !formMovement.source_warehouse_id) {
         setError("กรุณาเลือกคลังต้นทาง");
         return;
       }
-      if (
-        ["receive", "transfer", "return"].includes(formMovement.movement_type) &&
-        !formMovement.destination_warehouse_id
-      ) {
+      if (whRule.destination && !formMovement.destination_warehouse_id) {
         setError("กรุณาเลือกคลังปลายทาง");
         return;
       }
@@ -530,6 +549,32 @@ export default function JustMeInventoryPage() {
       toast.error(err.message || "บันทึกไม่สำเร็จ");
     } finally {
       setFormLoading(false);
+    }
+  };
+
+  /** ตัดความยาวออกจากเส้นเศษที่เลือก — ใช้หมดแล้วเส้นนั้นถูกปิด (ไม่มีรายการคลังใหม่) */
+  const handleUseScrap = async () => {
+    if (!scrapUse) return;
+    try {
+      setScrapSaving(true);
+      const res = await fetch(`/api/just-me/inventory?orgId=${orgId}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${authToken}` },
+        body: JSON.stringify({
+          action: "use_scrap",
+          serial_id: scrapUse.serial.id,
+          length_used: scrapUse.lengthUsed,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "บันทึกการใช้เศษไม่สำเร็จ");
+      toast.success("ตัดความยาวจากเส้นนี้แล้ว");
+      setScrapUse(null);
+      await loadData();
+    } catch (err: any) {
+      toast.error(err.message || "บันทึกการใช้เศษไม่สำเร็จ");
+    } finally {
+      setScrapSaving(false);
     }
   };
 
@@ -780,18 +825,30 @@ export default function JustMeInventoryPage() {
       description="จัดการคลังสินค้ากลาง ไซต์งาน และสายไฟเหลือใช้"
       actions={
         <>
-          <Button
-            size="sm"
-            onClick={() => setOcrDialogOpen(true)}
-            disabled={loading || warehouses.length === 0}
-            className="gap-1.5"
-          >
-            <ScanLine className="h-4 w-4" />
-            สแกนบิลรับของ
-          </Button>
+          {canWrite && (
+            <Button
+              size="sm"
+              onClick={() => setOcrDialogOpen(true)}
+              disabled={loading || warehouses.length === 0}
+              className="gap-1.5"
+            >
+              <ScanLine className="h-4 w-4" />
+              สแกนบิลรับของ
+            </Button>
+          )}
         </>
       }
     >
+      {!canWrite && (
+        <div className="flex items-center gap-2.5 rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-600">
+          <Info className="h-4 w-4 shrink-0 text-gray-400" />
+          <span>
+            บัญชีนี้ดูข้อมูลได้อย่างเดียว — การรับเข้า/เบิก/โอน และตรวจนับสต๊อก
+            สงวนไว้สำหรับเจ้าของและผู้จัดการ
+          </span>
+        </div>
+      )}
+
       {error && (
         <div className="flex items-center gap-2.5 rounded-xl border border-red-200 bg-red-50 p-4 text-sm leading-normal text-red-700">
           <AlertCircle className="h-4 w-4 shrink-0 text-red-500" />
@@ -829,21 +886,45 @@ export default function JustMeInventoryPage() {
                 icon: <Warehouse className="h-4 w-4" />,
               },
               { value: "items", label: "วัสดุ/สินค้า", icon: <Package className="h-4 w-4" /> },
-              {
-                value: "movement",
-                label: "เบิก/โอน",
-                icon: <ArrowLeftRight className="h-4 w-4" />,
-              },
-              {
-                value: "stockcount",
-                label: "ตรวจนับสต๊อก",
-                icon: <ClipboardCheck className="h-4 w-4" />,
-              },
+              ...(canWrite
+                ? [
+                    {
+                      value: "movement",
+                      label: "เบิก/โอน",
+                      icon: <ArrowLeftRight className="h-4 w-4" />,
+                    },
+                  ]
+                : []),
+              ...(canWrite && canSeeCost
+                ? [
+                    {
+                      value: "stockcount",
+                      label: "ตรวจนับสต๊อก",
+                      icon: <ClipboardCheck className="h-4 w-4" />,
+                    },
+                  ]
+                : []),
               { value: "scraps", label: "เศษสายไฟ", icon: <Scissors className="h-4 w-4" /> },
-              { value: "cost", label: "ต้นทุน", icon: <Coins className="h-4 w-4" /> },
+              ...(canSeeCost
+                ? [{ value: "cost", label: "ต้นทุน", icon: <Coins className="h-4 w-4" /> }]
+                : []),
               { value: "history", label: "ประวัติ", icon: <History className="h-4 w-4" /> },
             ]}
           />
+
+          {movementsTruncated && (
+            <div className="flex items-start gap-2.5 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
+              <span>
+                แสดงความเคลื่อนไหวล่าสุด {movements.length.toLocaleString("th-TH")} รายการ
+                {movementsTotal !== null && (
+                  <> จากทั้งหมด {movementsTotal.toLocaleString("th-TH")} รายการ</>
+                )}{" "}
+                — ตัวเลขสรุปในแท็บ &quot;ต้นทุน&quot; และตารางผู้เบิก คิดจากชุดที่แสดงนี้เท่านั้น
+                จึงอาจต่ำกว่ายอดจริง
+              </span>
+            </div>
+          )}
 
           {/* TAB CONTENT: Overview */}
           {activeTab === "overview" && (
@@ -1376,10 +1457,12 @@ export default function JustMeInventoryPage() {
                         setFormMovement({
                           ...formMovement,
                           movement_type: val,
-                          source_warehouse_id: ["transfer", "issue", "return"].includes(val)
+                          source_warehouse_id: movementWarehouseRule(val as JustMeMovementType)
+                            .source
                             ? formMovement.source_warehouse_id
                             : "",
-                          destination_warehouse_id: ["receive", "transfer", "return"].includes(val)
+                          destination_warehouse_id: movementWarehouseRule(val as JustMeMovementType)
+                            .destination
                             ? formMovement.destination_warehouse_id
                             : "",
                         })
@@ -1409,8 +1492,9 @@ export default function JustMeInventoryPage() {
 
                 {/* Warehouse Fields based on movement type */}
                 <div className="grid grid-cols-2 gap-4">
-                  {/* Source Warehouse */}
-                  {["transfer", "issue", "return"].includes(formMovement.movement_type) && (
+                  {/* Source Warehouse — คืนของไม่มีคลังต้นทาง (ของมาจากหน้างาน) */}
+                  {movementWarehouseRule(formMovement.movement_type as JustMeMovementType)
+                    .source && (
                     <div className="space-y-1.5">
                       <Label htmlFor="mov-src">คลังต้นทาง *</Label>
                       <CustomSelect
@@ -1425,9 +1509,14 @@ export default function JustMeInventoryPage() {
                   )}
 
                   {/* Destination Warehouse */}
-                  {["receive", "transfer", "return"].includes(formMovement.movement_type) && (
+                  {movementWarehouseRule(formMovement.movement_type as JustMeMovementType)
+                    .destination && (
                     <div className="space-y-1.5">
-                      <Label htmlFor="mov-dest">คลังปลายทาง *</Label>
+                      <Label htmlFor="mov-dest">
+                        {formMovement.movement_type === "return"
+                          ? "คลังที่รับของคืน *"
+                          : "คลังปลายทาง *"}
+                      </Label>
                       <CustomSelect
                         value={formMovement.destination_warehouse_id}
                         onChange={(val) =>
@@ -1439,6 +1528,14 @@ export default function JustMeInventoryPage() {
                     </div>
                   )}
                 </div>
+
+                {formMovement.movement_type === "return" && (
+                  <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                    คืนของ = ของที่เบิกไปหน้างานแล้วใช้ไม่หมด เอากลับเข้าคลัง —
+                    ไม่ต้องเลือกคลังต้นทาง (ของถูกหักออกจากคลังไปแล้วตอนเบิก)
+                    ยอดของคลังที่รับคืนจะเพิ่มขึ้นอย่างเดียว
+                  </p>
+                )}
 
                 {/* Quantity and reference */}
                 <div className="grid grid-cols-2 gap-4">
@@ -1576,13 +1673,17 @@ export default function JustMeInventoryPage() {
                         </div>
                       )}
 
+                      {/* ช่องความยาวโผล่เฉพาะที่ระบบทำอะไรกับมันจริง ๆ:
+                          เบิก = ลงทะเบียนเศษที่เหลือ · รับเข้า = ความยาวของเส้นที่มี Serial */}
                       {selectedFormItemObj.has_cable_measurement &&
-                        ["receive", "issue"].includes(formMovement.movement_type) && (
+                        (formMovement.movement_type === "issue" ||
+                          (formMovement.movement_type === "receive" &&
+                            selectedFormItemObj.has_serial)) && (
                           <div className="space-y-1.5">
                             <Label htmlFor="mov-len" className="font-bold text-slate-700">
                               {formMovement.movement_type === "receive"
-                                ? "ความยาวสายไฟรับเข้า (เมตร)"
-                                : "ความยาวสายไฟที่เหลือกลับเข้าสต็อก (เมตร)"}
+                                ? "ความยาวของเส้นที่รับเข้า (เมตร)"
+                                : "ความยาวที่เหลือติดหน้างาน (เมตร)"}
                             </Label>
                             <Input
                               id="mov-len"
@@ -1595,7 +1696,14 @@ export default function JustMeInventoryPage() {
                                 })
                               }
                               placeholder="ปล่อยว่างหากรับเข้าม้วนเต็ม"
+                              min="0"
+                              step="0.01"
                             />
+                            <p className="text-slate-500">
+                              {formMovement.movement_type === "issue"
+                                ? "กรอกแล้วระบบออกรหัสเศษให้เอง (SCR-…) ไปอยู่ในแท็บ “เศษสายไฟ” ให้หยิบมาใช้ต่อได้ · ปล่อยว่าง = ใช้หมด ไม่มีเศษ · เศษไม่คืนยอด/ต้นทุน (ถ้าของกลับเข้าคลังจริงให้ใช้รายการ “คืนของ”)"
+                                : "ความยาวจริงของเส้นนี้ ปล่อยว่างได้ถ้าเป็นม้วนเต็ม"}
+                            </p>
                           </div>
                         )}
                     </div>
@@ -1629,6 +1737,7 @@ export default function JustMeInventoryPage() {
                   </h2>
                   <p className="text-xs text-slate-400">
                     รายการสายไฟที่ตัดแบ่งใช้แล้ว และมีเศษความยาวที่ใช้งานเฉพาะจุดย่อยได้
+                    {canWrite && " · คลิกที่แถวเพื่อหยิบเศษมาใช้"}
                   </p>
                 </div>
 
@@ -1661,8 +1770,16 @@ export default function JustMeInventoryPage() {
                       cablePager.rows.map((s) => {
                         const item = items.find((i) => i.id === s.item_id);
                         const wh = warehouses.find((w) => w.id === s.warehouse_id);
+                        const usable =
+                          s.status === "in_stock" && (s.length_remaining ?? 0) > 0 && canWrite;
                         return (
-                          <TableRow key={s.id}>
+                          <TableRow
+                            key={s.id}
+                            clickable={usable}
+                            onClick={
+                              usable ? () => setScrapUse({ serial: s, lengthUsed: "" }) : undefined
+                            }
+                          >
                             <TableCell className="font-mono text-xs font-bold text-slate-800">
                               {s.serial_number}
                             </TableCell>
@@ -1676,8 +1793,12 @@ export default function JustMeInventoryPage() {
                               {s.length_remaining !== null ? `${s.length_remaining} เมตร` : "—"}
                             </TableCell>
                             <TableCell>
-                              {s.is_scrap ? (
-                                <StatusBadge tone="danger">เศษสั้น (Scrap &lt; 5m)</StatusBadge>
+                              {s.status !== "in_stock" || (s.length_remaining ?? 0) <= 0 ? (
+                                <StatusBadge tone="neutral">ใช้หมดแล้ว</StatusBadge>
+                              ) : s.is_scrap ? (
+                                <StatusBadge tone="danger">
+                                  เศษสั้น (&lt; {CABLE_SCRAP_THRESHOLD_M} ม.)
+                                </StatusBadge>
                               ) : (
                                 <StatusBadge tone="success">ม้วนตัดแบ่งใช้ (In Stock)</StatusBadge>
                               )}
@@ -2039,6 +2160,57 @@ export default function JustMeInventoryPage() {
           warehouseOptions={warehouseOptions}
         />
       )}
+
+      {/* หยิบเศษสายไฟมาใช้ — ตัดความยาวออกจากเส้นที่เลือก */}
+      <Dialog open={!!scrapUse} onOpenChange={(o) => !o && setScrapUse(null)}>
+        <DialogContent size="md">
+          <DialogHeader>
+            <DialogTitle>หยิบเศษสายไฟมาใช้</DialogTitle>
+          </DialogHeader>
+          <DialogBody>
+            {scrapUse && (
+              <div className="space-y-4">
+                <div className="rounded-lg bg-gray-50 p-3 text-xs text-gray-600">
+                  <p className="font-mono font-bold text-gray-900">
+                    {scrapUse.serial.serial_number}
+                  </p>
+                  <p>
+                    {items.find((i) => i.id === scrapUse.serial.item_id)?.name ?? "—"} · เหลืออยู่{" "}
+                    <span className="font-semibold tabular-nums">
+                      {scrapUse.serial.length_remaining ?? 0}
+                    </span>{" "}
+                    เมตร
+                  </p>
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="scrap-used">ความยาวที่ใช้ (เมตร) *</Label>
+                  <Input
+                    id="scrap-used"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={scrapUse.lengthUsed}
+                    onChange={(e) => setScrapUse({ ...scrapUse, lengthUsed: e.target.value })}
+                    placeholder={`ไม่เกิน ${scrapUse.serial.length_remaining ?? 0} เมตร`}
+                  />
+                  <p className="text-xs text-gray-500">
+                    เศษถูกตัดออกจากยอดคลังและต้นทุนไปแล้วตอนเบิก — การใช้เศษจึงลดแค่ความยาวที่เหลือ
+                    ไม่เกิดรายการคลังใหม่
+                  </p>
+                </div>
+              </div>
+            )}
+          </DialogBody>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setScrapUse(null)}>
+              ยกเลิก
+            </Button>
+            <Button onClick={handleUseScrap} disabled={scrapSaving || !scrapUse?.lengthUsed}>
+              {scrapSaving ? "กำลังบันทึก…" : "บันทึกการใช้"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </PageShell>
   );
 }

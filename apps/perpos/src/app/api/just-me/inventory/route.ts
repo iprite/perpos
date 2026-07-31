@@ -13,9 +13,20 @@ import { loadProjectMetrics } from "@/lib/just-me/projects";
 import { notifyOverBudgetCrossed } from "@/lib/just-me/notify";
 import {
   getMovement,
+  movementWarehouseRule,
   postStockMovement,
+  serialSourceFilter,
   type JustMeMovementType,
 } from "@/lib/just-me/stock-movements";
+import {
+  applyScrapUsage,
+  isScrapLength,
+  nextScrapCode,
+  parseCableLength,
+} from "@/lib/just-me/cable";
+
+/** เพดานแถวประวัติที่ดึงมาแสดง — เกินนี้ต้องบอกผู้ใช้ ไม่ใช่ตัดเงียบ */
+const MOVEMENT_LIMIT = 1000;
 
 export async function GET(req: NextRequest) {
   const orgId = req.nextUrl.searchParams.get("orgId");
@@ -56,14 +67,20 @@ export async function GET(req: NextRequest) {
     .eq("org_id", orgId);
   if (serErr) return NextResponse.json({ error: serErr.message }, { status: 500 });
 
-  // 5. Fetch Stock Movements
+  // 5. Fetch Stock Movements — จำกัดแถวเพื่อความเร็ว แต่ต้องบอกหน้าเว็บว่าถูกตัด
+  //    (ไม่งั้นการ์ดสรุป/ตารางผู้เบิกจะต่ำกว่าจริงเงียบ ๆ เมื่อข้อมูลโต)
   const { data: movements, error: movErr } = await admin
     .from("just_me_stock_movements")
     .select("*")
     .eq("org_id", orgId)
     .order("created_at", { ascending: false })
-    .limit(1000);
+    .limit(MOVEMENT_LIMIT);
   if (movErr) return NextResponse.json({ error: movErr.message }, { status: 500 });
+
+  const { count: movementsTotal } = await admin
+    .from("just_me_stock_movements")
+    .select("id", { count: "exact", head: true })
+    .eq("org_id", orgId);
 
   // 6. Fetch item costs (ต้นทุนเฉลี่ยถ่วงน้ำหนัก) + แนวโน้มรายเดือน 12 เดือนล่าสุด
   const { data: costs, error: costErr } = await admin
@@ -134,6 +151,9 @@ export async function GET(req: NextRequest) {
     costs: showCost ? (costs ?? []) : [],
     costMonthly: showCost ? (costMonthly ?? []) : [],
     canSeeCost: showCost,
+    canWrite: canWrite(role),
+    movementsTotal,
+    movementsTruncated: (movements ?? []).length >= MOVEMENT_LIMIT,
     members,
   });
 }
@@ -265,13 +285,17 @@ export async function POST(req: NextRequest) {
     }
 
     const qty = Number(quantity);
+    const movementType = movement_type as JustMeMovementType;
 
     // ต้องมีคลังต้นทาง/ปลายทางตามประเภท — เดิมด่านนี้อยู่แค่ฝั่งหน้าจอ
     // ยิง issue โดยไม่ส่งคลังต้นทาง = ตัดมูลค่าออกจากฐานต้นทุนโดยไม่มีคลังไหนถูกหักของ (ยอดเพี้ยนถาวร)
-    if (["transfer", "issue", "return"].includes(movement_type) && !source_warehouse_id) {
+    // คืนของ = ต้นทางคือหน้างาน ไม่ใช่คลัง (กฎอยู่ที่ movementWarehouseRule ที่เดียว)
+    const whRule = movementWarehouseRule(movementType);
+    const sourceWarehouseId = whRule.source ? source_warehouse_id || null : null;
+    if (whRule.source && !sourceWarehouseId) {
       return NextResponse.json({ error: "กรุณาระบุคลังต้นทาง" }, { status: 400 });
     }
-    if (["receive", "transfer", "return"].includes(movement_type) && !destination_warehouse_id) {
+    if (whRule.destination && !destination_warehouse_id) {
       return NextResponse.json({ error: "กรุณาระบุคลังปลายทาง" }, { status: 400 });
     }
     const requesterName = typeof requester_name === "string" ? requester_name.trim() : "";
@@ -341,7 +365,7 @@ export async function POST(req: NextRequest) {
 
     // คลังต้นทาง/ปลายทางต้องเป็นขององค์กรนี้ (ไม่งั้นแก้ยอดคงเหลือของ org อื่นได้)
     for (const [wid, label] of [
-      [source_warehouse_id, "คลังต้นทาง"],
+      [sourceWarehouseId, "คลังต้นทาง"],
       [destination_warehouse_id, "คลังปลายทาง"],
     ] as [string | null, string][]) {
       if (!wid) continue;
@@ -387,17 +411,30 @@ export async function POST(req: NextRequest) {
         ? await loadProjectMetrics(admin, orgId, project_id as string)
         : null;
 
+    // ความยาวสายไฟ (วัสดุที่ตัดเป็นเมตร) — ปล่อยว่าง = ไม่ได้ระบุ ไม่ใช่ 0
+    // เดิมเทียบ `Number("") < 5` ⇒ ม้วนเต็มที่ไม่ได้กรอกความยาวติดธง "เศษ" ทันที
+    const parsedLength = parseCableLength(length_remaining);
+    if (!parsedLength.ok) {
+      return NextResponse.json({ error: parsedLength.error }, { status: 400 });
+    }
+    const cableLength = item.has_cable_measurement ? parsedLength.value : null;
+
     // ยอดคงเหลือ/ของพอไหม = ตรวจใน RPC แบบล็อกแถว (ตรวจที่นี่ก่อนก็ยังแข่งกันได้)
-    // 1. For serial verification: If transferring, issuing, or returning, check that serials exist in the source warehouse
+    // 1. หา serial ต้นทางให้ตรงกับ "สถานะจริง" ของเส้นนั้น
+    //    โอน/เบิก = เส้นที่ยังอยู่ในคลังต้นทาง · คืน = เส้นที่ถูกเบิกออกไปแล้ว (`issued`)
+    //    เดิมคืนของไปหาเส้น `in_stock` ในคลังต้นทาง ⇒ ไม่มีวันเจอ คืนของที่มี serial ไม่ได้เลย
     let verifiedSerials: any[] = [];
-    if (item.has_serial && source_warehouse_id) {
-      const { data: foundSerials } = await admin
+    const srcFilter = item.has_serial ? serialSourceFilter(movementType, sourceWarehouseId) : null;
+    if (srcFilter) {
+      let q = admin
         .from("just_me_item_serials")
         .select("*")
+        .eq("org_id", orgId)
         .eq("item_id", item_id)
-        .eq("warehouse_id", source_warehouse_id)
-        .eq("status", "in_stock")
+        .eq("status", srcFilter.status)
         .in("serial_number", serialsList);
+      if (srcFilter.warehouseId) q = q.eq("warehouse_id", srcFilter.warehouseId);
+      const { data: foundSerials } = await q;
 
       const foundList = foundSerials ?? [];
       if (foundList.length !== serialsList.length) {
@@ -406,7 +443,10 @@ export async function POST(req: NextRequest) {
         );
         return NextResponse.json(
           {
-            error: `พบ Serial Number ที่ไม่มีในคลัง หรือไม่ได้อยู่ในสถานะ In Stock: ${missing.join(", ")}`,
+            error:
+              movementType === "return"
+                ? `คืนของไม่ได้ — ไม่พบ Serial Number ที่อยู่ในสถานะ "เบิกออกไปแล้ว": ${missing.join(", ")}`
+                : `พบ Serial Number ที่ไม่มีในคลัง หรือไม่ได้อยู่ในสถานะ In Stock: ${missing.join(", ")}`,
           },
           { status: 400 },
         );
@@ -418,9 +458,9 @@ export async function POST(req: NextRequest) {
     const posted = await postStockMovement(admin, {
       orgId,
       itemId: item_id,
-      type: movement_type as JustMeMovementType,
+      type: movementType,
       qty,
-      sourceWarehouseId: source_warehouse_id || null,
+      sourceWarehouseId,
       destinationWarehouseId: destination_warehouse_id || null,
       referenceNo: reference_no || null,
       note: note || null,
@@ -448,16 +488,15 @@ export async function POST(req: NextRequest) {
 
     // 3. Manage Serials state updates
     const serialErrors: string[] = [];
+    const linkSerial = async (serialId: string) => {
+      const { error } = await admin
+        .from("just_me_stock_movement_serials")
+        .insert({ movement_id: posted.movementId, serial_id: serialId });
+      if (error) serialErrors.push(`ผูก Serial กับรายการนี้ไม่สำเร็จ`);
+    };
     if (item.has_serial && !serialLinkCount) {
-      const linkSerial = async (serialId: string) => {
-        const { error } = await admin
-          .from("just_me_stock_movement_serials")
-          .insert({ movement_id: posted.movementId, serial_id: serialId });
-        if (error) serialErrors.push(`ผูก Serial กับรายการนี้ไม่สำเร็จ`);
-      };
-
       for (const sn of serialsList) {
-        if (movement_type === "receive") {
+        if (movementType === "receive") {
           // Insert new serial
           const { data: newSer, error: insErr } = await admin
             .from("just_me_item_serials")
@@ -467,10 +506,8 @@ export async function POST(req: NextRequest) {
               warehouse_id: destination_warehouse_id,
               serial_number: sn,
               status: "in_stock",
-              length_remaining: item.has_cable_measurement
-                ? Number(length_remaining) || null
-                : null,
-              is_scrap: item.has_cable_measurement && Number(length_remaining) < 5,
+              length_remaining: cableLength,
+              is_scrap: isScrapLength(cableLength),
             })
             .select()
             .single();
@@ -487,20 +524,20 @@ export async function POST(req: NextRequest) {
         } else {
           const currentSer = verifiedSerials.find((fs) => fs.serial_number === sn);
           if (!currentSer) {
-            serialErrors.push(`ไม่พบ Serial "${sn}" ในคลังต้นทาง`);
+            serialErrors.push(`ไม่พบ Serial "${sn}" ที่พร้อมทำรายการ`);
             continue;
           }
           let patch: Record<string, unknown> = {};
-          if (movement_type === "transfer") {
+          if (movementType === "transfer") {
             patch = { warehouse_id: destination_warehouse_id };
-          } else if (movement_type === "issue") {
-            const lengthRem = item.has_cable_measurement ? Number(length_remaining) : null;
+          } else if (movementType === "issue") {
             patch = {
               status: "issued",
-              length_remaining: lengthRem,
-              is_scrap: item.has_cable_measurement && lengthRem !== null && lengthRem < 5,
+              length_remaining: cableLength,
+              is_scrap: isScrapLength(cableLength),
             };
           } else {
+            // คืนของ: เส้นที่ `issued` กลับเข้าคลังปลายทาง (ต้องย้ายคลังด้วย ไม่ใช่แค่เปลี่ยนสถานะ)
             patch = { status: "in_stock", warehouse_id: destination_warehouse_id };
           }
           const { error: updErr } = await admin
@@ -514,6 +551,56 @@ export async function POST(req: NextRequest) {
           await linkSerial(currentSer.id);
         }
       }
+    }
+
+    // 3.1 วัสดุที่ตัดเป็นเมตรแต่ไม่มี Serial (สายไฟทุกตัวที่ใช้จริงเป็นแบบนี้)
+    //     ช่อง "ความยาวที่เหลือ" เดิมถูกทิ้งเงียบ เพราะโค้ดสร้าง serial อยู่ใต้ `if (item.has_serial)` ทั้งก้อน
+    //     ⇒ ลงทะเบียนเป็น "เส้นเศษ" ให้เอง (รหัสระบบออกให้) เพื่อให้หยิบมาใช้ต่อได้จริง
+    //     เศษไม่กระทบยอดคงเหลือ/ต้นทุน — มูลค่าของม้วนถูกตัดไปแล้วตอนเบิก (ดู lib/just-me/cable.ts)
+    if (
+      item.has_cable_measurement &&
+      !item.has_serial &&
+      !serialLinkCount &&
+      cableLength !== null &&
+      cableLength > 0 &&
+      movementType === "issue"
+    ) {
+      const { data: existingCodes } = await admin
+        .from("just_me_item_serials")
+        .select("serial_number")
+        .eq("org_id", orgId)
+        .eq("item_id", item_id);
+      const codes = (existingCodes ?? []).map((r: any) => r.serial_number as string);
+
+      let created: { id: string } | null = null;
+      for (let attempt = 0; attempt < 3 && !created; attempt++) {
+        const code = nextScrapCode(item.code, codes);
+        const { data: newScrap, error: scrapErr } = await admin
+          .from("just_me_item_serials")
+          .insert({
+            org_id: orgId,
+            item_id,
+            warehouse_id: sourceWarehouseId, // เศษกลับมาอยู่ที่คลังที่เบิกออกไป
+            serial_number: code,
+            status: "in_stock",
+            length_remaining: cableLength,
+            is_scrap: isScrapLength(cableLength),
+          })
+          .select("id")
+          .single();
+        if (newScrap) {
+          created = newScrap as { id: string };
+          break;
+        }
+        if (scrapErr?.code === "23505") {
+          codes.push(code); // ชนกับเส้นที่เพิ่งเกิดพร้อมกัน → ขยับเลขแล้วลองใหม่
+          continue;
+        }
+        serialErrors.push("บันทึกเศษสายไฟไม่สำเร็จ");
+        break;
+      }
+      if (created) await linkSerial(created.id);
+      else if (serialErrors.length === 0) serialErrors.push("ออกรหัสเศษสายไฟไม่สำเร็จ");
     }
 
     if (budgetBefore) {
@@ -540,6 +627,62 @@ export async function POST(req: NextRequest) {
       },
       { status: 201 },
     );
+  }
+
+  // หยิบเศษสายไฟมาใช้ — ตัดความยาวออกจากทะเบียนเศษ ใช้หมดแล้วปิดเส้นนั้น
+  // ไม่มีรายการคลังใหม่: ม้วนถูกตัดออกจากยอด/มูลค่าไปแล้วตอนเบิก (กติกาใน lib/just-me/cable.ts)
+  if (action === "use_scrap") {
+    const { serial_id, length_used } = body;
+    if (!serial_id) {
+      return NextResponse.json({ error: "ไม่พบเส้นที่ต้องการใช้" }, { status: 400 });
+    }
+    const parsedUsed = parseCableLength(length_used);
+    if (!parsedUsed.ok || parsedUsed.value === null) {
+      return NextResponse.json(
+        { error: parsedUsed.ok ? "กรุณาระบุความยาวที่ใช้ (เมตร)" : parsedUsed.error },
+        { status: 400 },
+      );
+    }
+
+    const { data: scrap } = await admin
+      .from("just_me_item_serials")
+      .select("id, item_id, status, length_remaining")
+      .eq("id", serial_id)
+      .eq("org_id", orgId)
+      .maybeSingle();
+    if (!scrap) {
+      return NextResponse.json({ error: "ไม่พบเส้นสายไฟนี้ในองค์กรนี้" }, { status: 404 });
+    }
+    if (scrap.status !== "in_stock") {
+      return NextResponse.json({ error: "เส้นนี้ไม่ได้อยู่ในสต็อกแล้ว" }, { status: 400 });
+    }
+
+    const usage = applyScrapUsage(
+      scrap.length_remaining === null ? null : Number(scrap.length_remaining),
+      parsedUsed.value,
+    );
+    if (!usage.ok) return NextResponse.json({ error: usage.error }, { status: 400 });
+
+    const { data: updated, error: updErr } = await admin
+      .from("just_me_item_serials")
+      .update({
+        length_remaining: usage.lengthRemaining,
+        is_scrap: usage.isScrap,
+        status: usage.status,
+      })
+      .eq("id", scrap.id)
+      .eq("org_id", orgId)
+      .eq("length_remaining", scrap.length_remaining) // กันสองคนตัดเส้นเดียวกันพร้อมกัน
+      .select()
+      .single();
+    if (updErr || !updated) {
+      return NextResponse.json(
+        { error: "เส้นนี้เพิ่งถูกใช้ไปแล้ว กรุณาโหลดหน้าใหม่" },
+        { status: 409 },
+      );
+    }
+
+    return NextResponse.json({ success: true, serial: updated });
   }
 
   return NextResponse.json({ error: "action not supported" }, { status: 400 });

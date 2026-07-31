@@ -84,7 +84,7 @@ describe("ราคาต่อหน่วยและยอดบรรทั�
 });
 
 describe("ต้นทุนจริง", () => {
-  it("นับเฉพาะการเบิกใช้ (issue) — รับเข้า/โอน/คืน ไม่นับ", () => {
+  it("นับการเบิกใช้ (issue) หักด้วยของที่คืนกลับคลัง — รับเข้า/โอน ไม่นับ", () => {
     const r = actualCost(
       [
         { movement_type: "receive", total_cost: 50000 },
@@ -95,7 +95,20 @@ describe("ต้นทุนจริง", () => {
       ],
       [],
     );
-    expect(r.value).toBe(15000);
+    // 12,000 + 3,000 − 500 (ของที่คืนกลับคลัง)
+    expect(r.value).toBe(14500);
+    expect(r.counted).toBe(3);
+  });
+
+  it("ของที่เบิกไปแล้วคืนกลับคลัง ต้องหักออกจากต้นทุนโครงการ", () => {
+    const r = actualCost(
+      [
+        { movement_type: "issue", total_cost: 12000 },
+        { movement_type: "return", total_cost: 2500 },
+      ],
+      [],
+    );
+    expect(r.value).toBe(9500);
     expect(r.counted).toBe(2);
   });
 

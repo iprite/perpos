@@ -39,6 +39,44 @@ export type PostMovementResult =
   | { ok: true; movementId: string }
   | { ok: false; error: string; status: number };
 
+/**
+ * คลังต้นทาง/ปลายทางที่แต่ละชนิดต้องมี — **แหล่งเดียวของกฎนี้** (หน้าเว็บ + API + RPC ต้องตรงกัน)
+ *
+ * ⛔ `return` = "ของที่เบิกไปหน้างานแล้วใช้ไม่หมด เอากลับเข้าคลัง"
+ *    ต้นทางคือ **หน้างาน/โครงการ ไม่ใช่คลัง** — ของถูกหักออกจากคลังไปแล้วตอนเบิก
+ *    (ของเดิมบังคับให้เลือกคลังต้นทางแล้วหักยอดซ้ำ ⇒ คืนของไม่ได้เลยเพราะยอดต้นทางไม่พอ)
+ */
+export function movementWarehouseRule(type: JustMeMovementType): {
+  source: boolean;
+  destination: boolean;
+} {
+  switch (type) {
+    case "receive":
+      return { source: false, destination: true };
+    case "transfer":
+      return { source: true, destination: true };
+    case "issue":
+      return { source: true, destination: false };
+    case "return":
+      return { source: false, destination: true };
+  }
+}
+
+/**
+ * ของเดิมที่ต้องหยิบมาใช้ตอนบันทึก serial — ต้องตรงกับ "สถานะจริง" ของเส้นนั้น
+ * · โอน/เบิก → ของที่ยังอยู่ในคลังต้นทาง (`in_stock`)
+ * · คืน      → ของที่ถูกเบิกออกไปแล้ว (`issued`) ไม่ผูกคลัง
+ * · รับเข้า  → ไม่มีของเดิม (สร้างใหม่)
+ */
+export function serialSourceFilter(
+  type: JustMeMovementType,
+  sourceWarehouseId: string | null,
+): { status: "in_stock" | "issued"; warehouseId: string | null } | null {
+  if (type === "receive") return null;
+  if (type === "return") return { status: "issued", warehouseId: null };
+  return { status: "in_stock", warehouseId: sourceWarehouseId };
+}
+
 /** SQLSTATE ที่ RPC ใช้ส่ง "ข้อความไทยที่ผู้ใช้อ่านรู้เรื่อง" ออกมา (invalid_parameter_value) */
 const USER_FACING_SQLSTATE = "22023";
 

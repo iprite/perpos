@@ -112,8 +112,10 @@ export function boqTotals(items: Pick<JustMeBoqItem, "amount" | "cost_amount">[]
 // ─── ต้นทุนจริง / ผูกพัน ────────────────────────────────────────────────────
 /**
  * ต้นทุนจริง = มูลค่าวัสดุที่ **เบิกใช้** จากคลังเข้าโครงการ (movement `issue`)
+ *              **หักของที่เบิกไปแล้วใช้ไม่หมดและคืนกลับคลัง** (movement `return`)
  *              + ต้นทุนที่ไม่ผ่านคลัง (ค่าแรง/ผู้รับเหมาช่วง/ขนส่ง)
- * หมายเหตุ: `receive`/`transfer`/`return` ไม่นับ — ของยังอยู่ในคลัง ไม่ได้ลงหน้างาน
+ * หมายเหตุ: `receive`/`transfer` ไม่นับ — ของยังอยู่ในคลัง ไม่ได้ลงหน้างาน
+ *           ส่วน `return` ต้องหักออก ไม่งั้นของที่คืนแล้วยังถูกคิดเป็นต้นทุนโครงการตลอดไป
  * คืน `counted` เพื่อให้การ์ดบอกฐานที่นับได้ (§8 กฎ 6)
  */
 export function actualCost(
@@ -121,9 +123,15 @@ export function actualCost(
   otherCosts: Pick<JustMeProjectCost, "amount">[],
 ): { value: number; counted: number } {
   const issued = usage.filter((u) => u.movement_type === "issue");
-  const material = issued.reduce((s, u) => s + (u.total_cost ?? 0), 0);
+  const returned = usage.filter((u) => u.movement_type === "return");
+  const material =
+    issued.reduce((s, u) => s + (u.total_cost ?? 0), 0) -
+    returned.reduce((s, u) => s + (u.total_cost ?? 0), 0);
   const other = otherCosts.reduce((s, c) => s + (c.amount ?? 0), 0);
-  return { value: round2(material + other), counted: issued.length + otherCosts.length };
+  return {
+    value: round2(material + other),
+    counted: issued.length + returned.length + otherCosts.length,
+  };
 }
 
 const COMMITTED_PR_STATUSES = new Set(["approved", "ordered", "partially_received"]);
