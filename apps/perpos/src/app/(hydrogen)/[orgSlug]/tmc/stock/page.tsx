@@ -611,6 +611,23 @@ export default function TmcStockPage() {
 
   const locById = useMemo(() => new Map(locations.map((l) => [l.id, l])), [locations]);
 
+  /** ยอดของใช้ซ้ำแยกตามจุดเก็บ — ตอบว่า "ผ้าอยู่ที่ไหนบ้าง อย่างละเท่าไร" */
+  const reusableByLocation = useMemo(() => {
+    const reusableIds = new Set(items.filter((i) => i.stock_class === "reusable").map((i) => i.id));
+    const sum = new Map<string, number>();
+    for (const b of balances) {
+      if (!reusableIds.has(b.item_id)) continue;
+      sum.set(b.location_id, (sum.get(b.location_id) ?? 0) + Number(b.qty));
+    }
+    return (
+      locations
+        .map((l) => ({ loc: l, qty: sum.get(l.id) ?? 0 }))
+        // จุดเก็บหลักของผ้าโชว์เสมอ แม้ยอดเป็น 0 (จะได้รู้ว่าไม่มีค้าง) · ที่เหลือโชว์เมื่อมีของ
+        .filter((r) => r.qty !== 0 || ["linen_room", "soiled", "laundry"].includes(r.loc.kind))
+        .sort((a, b) => a.loc.sort_order - b.loc.sort_order)
+    );
+  }, [items, balances, locations]);
+
   /** ยอดคงเหลือของผ้าที่อยู่นอกบ้าน (ร้านซัก) — ตอบว่า "ผ้าค้างอยู่ที่ร้านกี่ผืน" */
   const atLaundry = useMemo(
     () =>
@@ -774,13 +791,40 @@ export default function TmcStockPage() {
     (showMovement === "issue" || showMovement === "transfer") &&
     !movForm.toLocationId;
 
-  const locationOptions = useMemo(
-    () => [
+  /** จุดเก็บที่ผ้าอยู่ได้จริง — ผ้าวนอยู่ระหว่าง ห้องผ้าสะอาด → ผ้าเปื้อนรอส่ง → ร้านซัก
+   *  (การส่งผ้าเข้าห้องพักทำผ่าน "เบิกชุด" ซึ่งเลือกหลังให้อยู่แล้ว) */
+  const LINEN_KINDS = ["linen_room", "soiled", "laundry"];
+
+  /** ต้นทาง: โชว์เฉพาะจุดที่ "มีของชิ้นนี้อยู่จริง" — ไม่มีของก็ย้ายออกไม่ได้ */
+  const fromOptions = useMemo(() => {
+    if (!movForm.itemId) return [{ value: "", label: "— เลือกสินค้าก่อน —" }];
+    const have = new Set(
+      balances
+        .filter((b) => b.item_id === movForm.itemId && Number(b.qty) > 0)
+        .map((b) => b.location_id),
+    );
+    const list = locations.filter((l) => have.has(l.id));
+    if (list.length === 0) {
+      return [{ value: "", label: "— ไม่มีของชิ้นนี้อยู่จุดเก็บใด —" }];
+    }
+    return [
       { value: "", label: "— เลือกจุดเก็บ —" },
-      ...locations.map((l) => ({ value: l.id, label: l.name })),
-    ],
-    [locations],
-  );
+      ...list.map((l) => ({
+        value: l.id,
+        label: `${l.name} (${balances.find((b) => b.item_id === movForm.itemId && b.location_id === l.id)?.qty ?? 0})`,
+      })),
+    ];
+  }, [locations, balances, movForm.itemId]);
+
+  /** ปลายทาง: ผ้า/เครื่องนอน ไปได้แค่วงจรผ้า · ของอื่นไปได้ทุกที่ */
+  const toOptions = useMemo(() => {
+    const isLinen = ["linen", "bedding"].includes(selectedMovItem?.item_group ?? "");
+    const list = isLinen ? locations.filter((l) => LINEN_KINDS.includes(l.kind)) : locations;
+    return [
+      { value: "", label: "— เลือกจุดเก็บ —" },
+      ...list.map((l) => ({ value: l.id, label: l.name })),
+    ];
+  }, [locations, selectedMovItem]);
 
   return (
     <PageShell
@@ -934,6 +978,42 @@ export default function TmcStockPage() {
             tone={atLaundry > 0 ? "warning" : "neutral"}
             valueColored
           />
+        </div>
+      )}
+
+      {/* แยกตามจุดเก็บ — จัดของตามจำนวนได้โดยไม่ต้องไล่ดูในตาราง */}
+      {!loading && activeTab === "reusable" && reusableByLocation.length > 0 && (
+        <div className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm">
+          <p className="mb-2 text-xs font-medium uppercase tracking-wide text-gray-500">
+            แยกตามจุดเก็บ
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {reusableByLocation.map(({ loc, qty }) => (
+              <span
+                key={loc.id}
+                className={
+                  qty === 0
+                    ? "inline-flex items-baseline gap-1.5 rounded-lg border border-gray-200 bg-gray-50 px-2.5 py-1"
+                    : loc.is_external
+                      ? "inline-flex items-baseline gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1"
+                      : "inline-flex items-baseline gap-1.5 rounded-lg border border-gray-200 bg-white px-2.5 py-1"
+                }
+              >
+                <span className="text-xs text-gray-500">{loc.name}</span>
+                <span
+                  className={
+                    qty === 0
+                      ? "text-sm tabular-nums text-gray-400"
+                      : loc.is_external
+                        ? "text-sm font-semibold tabular-nums text-amber-700"
+                        : "text-sm font-semibold tabular-nums text-gray-900"
+                  }
+                >
+                  {qty.toLocaleString("th-TH")}
+                </span>
+              </span>
+            ))}
+          </div>
         </div>
       )}
 
@@ -1524,7 +1604,7 @@ export default function TmcStockPage() {
                     <CustomSelect
                       value={movForm.fromLocationId}
                       onChange={(v) => setMovForm((f) => ({ ...f, fromLocationId: v }))}
-                      options={locationOptions}
+                      options={fromOptions}
                     />
                     {fromQty !== null && (
                       <p className="text-xs text-gray-400">
@@ -1539,7 +1619,7 @@ export default function TmcStockPage() {
                     <CustomSelect
                       value={movForm.toLocationId}
                       onChange={(v) => setMovForm((f) => ({ ...f, toLocationId: v }))}
-                      options={locationOptions}
+                      options={toOptions}
                     />
                     {needsDestination && (
                       <p className="text-xs text-amber-600">
