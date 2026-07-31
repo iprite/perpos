@@ -24,6 +24,7 @@ const DEFAULT_RECIPIENTS = [
   "U44e3bafd796a8c323969bf428a9260ac",
   "Udacb99dd58f40dcdde8306f153f349ae",
   "Ub87b7849a41552bd62da41241f0ec315",
+  "Uc1178cc76d2cb9b19ce4de09eecdd663",
 ];
 
 function recipients(): string[] {
