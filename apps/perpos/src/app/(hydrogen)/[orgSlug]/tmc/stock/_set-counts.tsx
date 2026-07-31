@@ -79,11 +79,16 @@ export function SetCountsDialog({
 
   const rows = useMemo(() => {
     const term = q.trim().toLowerCase();
-    return items
-      .filter((i) => (cls === "all" ? true : i.stock_class === cls))
-      .filter((i) => (isLinenLoc ? true : !["linen", "bedding"].includes(i.item_group ?? "")))
-      .filter((i) => (term ? i.name.toLowerCase().includes(term) : true))
-      .map((i) => ({ item: i, current: qtyAt.get(i.id) ?? 0 }));
+    return (
+      items
+        .filter((i) => (cls === "all" ? true : i.stock_class === cls))
+        // วงจรผ้า = ผ้าเท่านั้น · ที่อื่น = ทุกอย่างยกเว้นผ้า (ด่านเดียวกันนี้บังคับที่ DB ด้วย)
+        .filter((i) =>
+          ["linen", "bedding"].includes(i.item_group ?? "") ? isLinenLoc : !isLinenLoc,
+        )
+        .filter((i) => (term ? i.name.toLowerCase().includes(term) : true))
+        .map((i) => ({ item: i, current: qtyAt.get(i.id) ?? 0 }))
+    );
   }, [items, cls, q, qtyAt, isLinenLoc]);
 
   /** ส่งเฉพาะแถวที่กรอกและค่าต่างจากเดิม — ไม่ต้องกรอกครบทุกรายการ */
@@ -170,12 +175,12 @@ export function SetCountsDialog({
               </div>
             </div>
 
-            {!isLinenLoc && (
-              <p className="rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-xs text-amber-800">
-                จุดเก็บนี้ไม่ใช่ที่เก็บผ้า — รายการผ้า/เครื่องนอนถูกซ่อนไว้ (ผ้าอยู่ได้เฉพาะ
-                ห้องผ้าสะอาด · ผ้าเปื้อนรอส่ง · ร้านซัก)
-              </p>
-            )}
+            <p className="rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-xs text-amber-800">
+              {isLinenLoc
+                ? "จุดเก็บในวงจรผ้า — เห็นเฉพาะผ้า/เครื่องนอน (ของอื่นเก็บที่นี่ไม่ได้)"
+                : "จุดเก็บนี้ไม่ใช่ที่เก็บผ้า — รายการผ้า/เครื่องนอนถูกซ่อนไว้ (ผ้าอยู่ได้เฉพาะ ห้องผ้าสะอาด · ผ้าเปื้อนรอส่ง · ร้านซัก)"}
+            </p>
+            {/* กติกาเดียวกันนี้บังคับที่ trigger ของ DB ด้วย — ทุกทางเข้าจึงเจอกฎเดียวกัน */}
 
             <div className="flex flex-wrap items-center gap-2">
               <SegmentedControl
