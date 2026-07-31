@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { chunkArticle, isSmallTalk, sanitizeForLine, wantsHuman } from "./sales-bot";
+import { mentionsBot, stripBotMention } from "./kb-ingest";
+import { buildTmcKbDraftFlex } from "./line-cards";
 
 describe("sanitizeForLine — LINE เป็นข้อความล้วน markdown ต้องไม่หลุดถึงลูกค้า", () => {
   it("ถอด bold/heading ทิ้ง", () => {
@@ -72,5 +74,74 @@ describe("chunkArticle", () => {
 
   it("บทความสั้นได้ chunk เดียว", () => {
     expect(chunkArticle({ ...base, content: "สั้นมาก" })).toHaveLength(1);
+  });
+});
+
+describe("stripBotMention — ตัดการแท็กออกให้เหลือแต่เนื้อข้อมูล", () => {
+  it("ตัดตามช่วง index/length ที่ LINE ส่งมา", () => {
+    expect(
+      stripBotMention("@PERPOS Bot ราคาบ้าน 5 ห้องนอน 25,900", [
+        { index: 0, length: 11, isSelf: true },
+      ]),
+    ).toBe("ราคาบ้าน 5 ห้องนอน 25,900");
+  });
+
+  it("client ที่ไม่ส่ง mention object มา ก็ยังตัด @xxx ต้นข้อความให้", () => {
+    expect(stripBotMention("@perpos ค่าเตียงเสริม 1,000 บาท")).toBe("ค่าเตียงเสริม 1,000 บาท");
+  });
+
+  it("แท็กเปล่า ๆ → ได้สตริงว่าง (ผู้เรียกจะตอบวิธีใช้)", () => {
+    expect(stripBotMention("@perpos", [{ index: 0, length: 7, isSelf: true }])).toBe("");
+  });
+});
+
+describe("mentionsBot", () => {
+  it("จับจาก isSelf ของ LINE เป็นหลัก", () => {
+    expect(mentionsBot("ข้อความ", { mentionees: [{ isSelf: true }] })).toBe(true);
+    expect(mentionsBot("ข้อความ", { mentionees: [{ isSelf: false }] })).toBe(false);
+  });
+
+  it("ไม่ถือว่าแท็กบอท ถ้าเป็นข้อความคุยกันธรรมดา", () => {
+    expect(mentionsBot("พรุ่งนี้ใครเข้าเวร")).toBe(false);
+  });
+});
+
+describe("buildTmcKbDraftFlex — การ์ดทวนก่อนบันทึก", () => {
+  const base = {
+    draftId: "d1",
+    category: "ราคา",
+    title: "ราคาบ้าน 4 ห้องนอนเท่าไหร่",
+    content: "• วันธรรมดา: 19,900 บาท/คืน",
+  };
+
+  it("ปุ่มยืนยัน/ยกเลิกผูกกับ draftId ที่ถูกต้อง (ผิด = ยืนยันผิดรายการ)", () => {
+    const card = buildTmcKbDraftFlex({ ...base, action: "create", targetTitle: null });
+    const contents = (card as { contents: Record<string, any> }).contents;
+    const actions = contents.footer.contents
+      .filter((c: { type: string }) => c.type === "button")
+      .map((b: { action: { data: string } }) => b.action.data);
+    expect(actions).toEqual(["tmckb:ok:d1", "tmckb:no:d1"]);
+  });
+
+  it("โหมดเขียนทับต้องบอกชื่อบทความเดิม ไม่งั้นแอดมินกดยืนยันโดยไม่รู้ว่าทับอะไร", () => {
+    const card = buildTmcKbDraftFlex({
+      ...base,
+      action: "update",
+      targetTitle: "ราคาบ้าน 4 ห้องนอน (ธรรมชาติวิลล่า)",
+    });
+    expect(JSON.stringify(card)).toContain("ราคาบ้าน 4 ห้องนอน (ธรรมชาติวิลล่า)");
+    expect(JSON.stringify(card)).toContain("เขียนทับความรู้เดิม");
+  });
+
+  it("เนื้อหายาวถูกตัดให้พอดีการ์ด (Flex ไม่มี scroll)", () => {
+    const card = buildTmcKbDraftFlex({
+      ...base,
+      action: "create",
+      targetTitle: null,
+      content: "ก".repeat(2000),
+    });
+    const body = JSON.stringify(card);
+    expect(body).toContain("…");
+    expect(body.length).toBeLessThan(4000);
   });
 });

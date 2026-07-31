@@ -73,14 +73,15 @@ verify signature (TMC secret) → resolve org → upsert contact → บัน�
 
 ## 4. ตาราง (migration [`20260801000000_tmc_sales_bot.sql`](../supabase/migrations/20260801000000_tmc_sales_bot.sql))
 
-| ตาราง                  | หน้าที่                                                                                                |
-| ---------------------- | ------------------------------------------------------------------------------------------------------ |
-| `tmc_kb_articles`      | คลังความรู้ที่แอดมินจัดการผ่าน UI · `embedded_at IS NULL` = ยังไม่ได้ฝัง (UI ขึ้นป้าย "รออัปเดต")      |
-| `tmc_kb_chunks`        | chunk + `vector(768)` + hnsw · **RLS deny-all**                                                        |
-| `tmc_bot_settings`     | ตั้งค่าต่อ org (เปิด/ปิด, ข้อความ 3 ชุด, เกณฑ์, กลุ่มแจ้งเตือน + รหัสผูกกลุ่ม, `oa_bot_user_id` cache) |
-| `tmc_chat_contacts`    | ลูกค้า LINE + โหมด bot/human + โควตาวัน                                                                |
-| `tmc_chat_messages`    | ประวัติข้อความทุกฝั่ง + similarity ตอนบอทตอบ                                                           |
-| `tmc_chat_escalations` | เคสรอแอดมิน (`open → handled/closed`)                                                                  |
+| ตาราง                  | หน้าที่                                                                                                                                                                             |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tmc_kb_articles`      | คลังความรู้ · `embedded_at IS NULL` = ยังไม่ได้ฝัง (UI ขึ้นป้าย "รออัปเดต") · `source`/`source_note`/`source_line_user_id`/`previous_content` = ร่องรอยที่มาเมื่อเพิ่มจากกลุ่ม LINE |
+| `tmc_kb_chunks`        | chunk + `vector(768)` + hnsw · **RLS deny-all**                                                                                                                                     |
+| `tmc_bot_settings`     | ตั้งค่าต่อ org (เปิด/ปิด, ข้อความ 3 ชุด, เกณฑ์, กลุ่มแจ้งเตือน + รหัสผูกกลุ่ม, `oa_bot_user_id` cache)                                                                              |
+| `tmc_chat_contacts`    | ลูกค้า LINE + โหมด bot/human + โควตาวัน                                                                                                                                             |
+| `tmc_chat_messages`    | ประวัติข้อความทุกฝั่ง + similarity ตอนบอทตอบ                                                                                                                                        |
+| `tmc_chat_escalations` | เคสรอแอดมิน (`open → handled/closed`)                                                                                                                                               |
+| `tmc_kb_drafts`        | ร่างความรู้จากกลุ่ม LINE ที่รอกดยืนยัน (`pending → applied/cancelled/expired`, หมดอายุ 24 ชม.)                                                                                      |
 
 **RPC:** `match_tmc_kb_chunks(p_org_id, query_embedding, match_count, min_similarity)` ·
 `replace_tmc_kb_chunks(p_article_id, p_chunks jsonb)` — ทั้งคู่ SECURITY DEFINER + REVOKE จาก `authenticated`
@@ -91,15 +92,18 @@ verify signature (TMC secret) → resolve org → upsert contact → บัน�
 
 ## 5. Code map
 
-| ไฟล์                                                                                             | หน้าที่                                                          |
-| ------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------- |
-| [`lib/tmc/sales-bot.ts`](../apps/perpos/src/lib/tmc/sales-bot.ts)                                | embed / chunk / retrieve / `answerSalesQuestion` / `wantsHuman`  |
-| [`lib/tmc/line-oa.ts`](../apps/perpos/src/lib/tmc/line-oa.ts)                                    | channel @tmcvilla — signature, reply/push, profile, `tmcChatUrl` |
-| [`lib/tmc/line-cards.ts`](../apps/perpos/src/lib/tmc/line-cards.ts)                              | `buildTmcEscalationFlex` — การ์ดแจ้งแอดมิน (ส่งผ่านบอท PERPOS)   |
-| [`api/line/tmc/webhook/route.ts`](../apps/perpos/src/app/api/line/tmc/webhook/route.ts)          | webhook + escalation                                             |
-| `api/tmc/kb/route.ts` · `kb/[id]` · `kb/reembed`                                                 | CRUD คลังความรู้ + ปุ่ม "อัปเดตความรู้"                          |
-| `api/tmc/sales-bot/route.ts` · `sales-bot/inbox`                                                 | ตั้งค่า + สถิติ · เคส/ลูกค้า/บทสนทนา                             |
-| [`tmc/sales-bot/page.tsx`](<../apps/perpos/src/app/(hydrogen)/[orgSlug]/tmc/sales-bot/page.tsx>) | UI 4 แท็บ (คลังความรู้ / เคสรอแอดมิน / ลูกค้า / ตั้งค่าบอท)      |
+| ไฟล์                                                                                             | หน้าที่                                                                         |
+| ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------- |
+| [`lib/tmc/sales-bot.ts`](../apps/perpos/src/lib/tmc/sales-bot.ts)                                | embed / chunk / retrieve / `answerSalesQuestion` / `wantsHuman`                 |
+| [`lib/tmc/line-oa.ts`](../apps/perpos/src/lib/tmc/line-oa.ts)                                    | channel @tmcvilla — signature, reply, profile, `tmcChatUrl`                     |
+| [`lib/tmc/notify-group.ts`](../apps/perpos/src/lib/tmc/notify-group.ts)                          | กลุ่มแจ้งเตือนฝั่งบอท PERPOS — รหัส `TMC-XXXXXX`, ผูก/ปลดผูกกลุ่ม               |
+| [`lib/tmc/kb-ingest.ts`](../apps/perpos/src/lib/tmc/kb-ingest.ts)                                | แท็ก @perpos → AI เรียบเรียงเป็นร่าง → `confirmTmcKbDraft` / `cancelTmcKbDraft` |
+| [`lib/tmc/line-cards.ts`](../apps/perpos/src/lib/tmc/line-cards.ts)                              | `buildTmcEscalationFlex` — การ์ดแจ้งแอดมิน (ส่งผ่านบอท PERPOS)                  |
+| [`api/line/tmc/webhook/route.ts`](../apps/perpos/src/app/api/line/tmc/webhook/route.ts)          | webhook @tmcvilla (ลูกค้ารายบุคคล) + escalation                                 |
+| [`api/line/webhook/route.ts`](../apps/perpos/src/app/api/line/webhook/route.ts)                  | ฝั่งกลุ่ม — รับรหัสผูกกลุ่ม, แท็กบอทเพิ่มความรู้, ปลดผูกเมื่อ `leave`           |
+| `api/tmc/kb/route.ts` · `kb/[id]` · `kb/reembed`                                                 | CRUD คลังความรู้ + ปุ่ม "อัปเดตความรู้"                                         |
+| `api/tmc/sales-bot/route.ts` · `sales-bot/inbox`                                                 | ตั้งค่า + สถิติ · เคส/ลูกค้า/บทสนทนา                                            |
+| [`tmc/sales-bot/page.tsx`](<../apps/perpos/src/app/(hydrogen)/[orgSlug]/tmc/sales-bot/page.tsx>) | UI 4 แท็บ (คลังความรู้ / เคสรอแอดมิน / ลูกค้า / ตั้งค่าบอท)                     |
 
 ---
 
@@ -139,6 +143,49 @@ verify signature (TMC secret) → resolve org → upsert contact → บัน�
 
 > **ทดสอบ**: ทักเข้า @tmcvilla ว่า "บ้าน 5 ห้องนอนราคาเท่าไหร่" → ควรได้ราคาจากคลังความรู้ ·
 > ทักว่า "ขอคุยกับแอดมิน" → ควรได้ `handoff_text` + การ์ดเด้งเข้ากลุ่มทีมแอดมิน
+
+---
+
+## 6.2 เพิ่มความรู้จากกลุ่ม LINE (แท็ก @perpos → ทวน → ยืนยัน)
+
+ในกลุ่มที่ผูกแล้ว **แท็ก @perpos แล้วพิมพ์ข้อมูลต่อท้าย**
+
+```
+@perpos บ้าน 5 ห้องนอน มีคาราโอเกะกับโต๊ะพูล ใช้ฟรีไม่มีค่าบริการ
+```
+
+**flow** ([lib/tmc/kb-ingest.ts](../apps/perpos/src/lib/tmc/kb-ingest.ts))
+
+1. หาบทความเดิมที่ใกล้เคียงที่สุดด้วย RAG (เกณฑ์ 0.55)
+2. Gemini ตัดสินว่า **แก้ของเดิม** หรือ **เพิ่มเรื่องใหม่** แล้วเรียบเรียงเป็นบทความ
+3. บันทึกเป็น **ร่าง** (`tmc_kb_drafts`) แล้วส่ง **การ์ดสรุปให้ทวน + ปุ่มยืนยัน/ยกเลิก** เข้ากลุ่ม
+   — ตอนนี้ยัง **ไม่มีอะไรถูกเขียนลงคลัง**
+4. กด **"ยืนยันบันทึก"** → เขียนจริง + ฝัง embedding ทันที → บอทเอาไปตอบลูกค้าได้เลย
+   กด **"ยกเลิก"** → ร่างถูกปิด ไม่มีอะไรเปลี่ยน
+
+> **ทำไมต้องมีขั้นยืนยัน**: AI เรียบเรียงผิดได้ และเคส "แก้ของเดิม" คือการ**เขียนทับข้อมูลจริง**
+> ที่บอทเอาไปตอบลูกค้า — ต้องให้คนเห็นก่อนเสมอ · การ์ดจึงบอกด้วยว่ากำลังจะทับบทความชื่ออะไร
+>
+> **ทำไมต้องมีทางเลือก "แก้ของเดิม"**: ถ้าเพิ่มใหม่ทุกครั้ง คลังจะมีราคา 2 เวอร์ชันที่ขัดกันเอง
+> แล้ว retrieval จะหยิบอันเก่ามาตอบลูกค้าแบบสุ่ม
+
+**กติกาของร่าง** (`postback` = `tmckb:ok:<id>` / `tmckb:no:<id>`)
+
+- ร่างหมดอายุ **24 ชม.** · กดยืนยันซ้ำ **ไม่เขียนซ้ำ** (`status` คุมอยู่) · ยกเลิกแล้วกดยืนยันไม่ได้
+- ยืนยันข้ามกลุ่มไม่ได้ (เทียบ `group_id` ของร่างกับกลุ่มที่กดปุ่ม)
+- บทความเดิมถูกลบไปก่อนกดยืนยัน → แจ้งให้พิมพ์ใหม่ ไม่สร้างมั่ว
+
+**ร่องรอยที่มา**
+
+ทุกบทความเก็บ `source` (`web`/`line`) · `source_note` (ข้อความดิบที่แอดมินพิมพ์) ·
+`source_line_user_id` · และ `previous_content` (เนื้อหาก่อนถูกเขียนทับ)
+หน้าเว็บแสดงป้าย "มาจากกลุ่ม LINE" + ข้อความต้นฉบับ + ปุ่ม **"กู้คืนเนื้อหาก่อนหน้า"**
+
+**ขอบเขต**
+
+- ทำงานเฉพาะ**กลุ่มที่ผูกไว้แล้ว** — กลุ่มอื่นที่แท็กบอท จะไหลไปให้ logic เดิม (acc_firm / gov_procure) จัดการ
+- แท็กเปล่า ๆ ไม่มีข้อความ → บอทตอบวิธีใช้
+- ตรวจการแท็กจาก `message.mention.mentionees[].isSelf` (มี fallback เป็น regex `@…perpos` ต้นข้อความ)
 
 ---
 

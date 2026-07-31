@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
   const { data, error } = await auth.rls
     .from("tmc_kb_articles")
     .select(
-      "id, category, title, content, keywords, is_active, sort_order, embedded_at, updated_at",
+      "id, category, title, content, keywords, is_active, sort_order, embedded_at, updated_at, source, source_note, previous_content",
     )
     .eq("org_id", orgId)
     .order("sort_order")

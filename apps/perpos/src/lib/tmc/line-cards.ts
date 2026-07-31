@@ -350,3 +350,136 @@ export function buildTmcEscalationFlex(c: TmcEscalationCard): LineMessage {
     },
   };
 }
+
+// ─── ผู้ช่วยขาย: การ์ดทวนความรู้ก่อนบันทึก (แท็ก @perpos ในกลุ่มทีมแอดมิน) ────────
+
+export interface TmcKbDraftCard {
+  draftId: string;
+  action: "create" | "update";
+  /** ชื่อบทความเดิมที่จะถูกเขียนทับ (เฉพาะ action=update) */
+  targetTitle: string | null;
+  category: string;
+  title: string;
+  content: string;
+}
+
+/** ตัดข้อความยาวให้พอดีการ์ด — Flex ไม่มี scroll ในตัว */
+function clip(text: string, max: number): string {
+  const t = text.trim();
+  return t.length <= max ? t : `${t.slice(0, max - 1)}…`;
+}
+
+export function buildTmcKbDraftFlex(c: TmcKbDraftCard): LineMessage {
+  const isUpdate = c.action === "update";
+  const tone = isUpdate ? { fg: WARN, bg: WARN_BG } : { fg: SUCCESS, bg: SUCCESS_BG };
+  const label = isUpdate ? "เขียนทับความรู้เดิม" : "เพิ่มความรู้ใหม่";
+
+  return {
+    type: "flex",
+    altText: `📝 ทวนก่อนบันทึก: ${clip(c.title, 60)} — กดยืนยันในแชท`,
+    contents: {
+      type: "bubble",
+      header: {
+        type: "box",
+        layout: "vertical",
+        backgroundColor: CHARCOAL,
+        paddingAll: "14px",
+        contents: [
+          {
+            type: "text",
+            text: "📝 ทวนก่อนบันทึกเข้าคลังความรู้",
+            color: WHITE,
+            weight: "bold",
+            size: "md",
+            wrap: true,
+          },
+          {
+            type: "text",
+            text: "ยังไม่มีอะไรถูกบันทึก จนกว่าจะกดยืนยัน",
+            color: "#C9C8CA",
+            size: "xs",
+            margin: "xs",
+            wrap: true,
+          },
+        ],
+      },
+      body: {
+        type: "box",
+        layout: "vertical",
+        paddingAll: "16px",
+        contents: [
+          {
+            type: "box",
+            layout: "vertical",
+            backgroundColor: tone.bg,
+            cornerRadius: "6px",
+            paddingAll: "8px",
+            contents: [
+              { type: "text", text: label, size: "xs", weight: "bold", color: tone.fg, wrap: true },
+              ...(isUpdate && c.targetTitle
+                ? [
+                    {
+                      type: "text" as const,
+                      text: `ของเดิม: ${clip(c.targetTitle, 60)}`,
+                      size: "xxs" as const,
+                      color: tone.fg,
+                      margin: "xs" as const,
+                      wrap: true,
+                    },
+                  ]
+                : []),
+            ],
+          },
+          kpiRow("หมวด", c.category),
+          { type: "separator", margin: "md", color: SEPARATOR },
+          {
+            type: "text",
+            text: clip(c.title, 90),
+            size: "sm",
+            weight: "bold",
+            color: INK,
+            margin: "md",
+            wrap: true,
+          },
+          {
+            type: "text",
+            text: clip(c.content, 700),
+            size: "sm",
+            color: INK_MUTED,
+            margin: "sm",
+            wrap: true,
+          },
+        ],
+      },
+      footer: {
+        type: "box",
+        layout: "vertical",
+        spacing: "sm",
+        paddingAll: "12px",
+        contents: [
+          {
+            type: "button",
+            style: "primary",
+            height: "sm",
+            color: CHARCOAL,
+            action: { type: "postback", label: "ยืนยันบันทึก", data: `tmckb:ok:${c.draftId}` },
+          },
+          {
+            type: "button",
+            style: "secondary",
+            height: "sm",
+            action: { type: "postback", label: "ยกเลิก", data: `tmckb:no:${c.draftId}` },
+          },
+          {
+            type: "text",
+            text: "ตรวจตัวเลขและเงื่อนไขให้ครบก่อนกดยืนยันนะคะ — บอทจะเอาไปตอบลูกค้าจริง",
+            size: "xxs",
+            color: FINE,
+            margin: "sm",
+            wrap: true,
+          },
+        ],
+      },
+    },
+  };
+}
