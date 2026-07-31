@@ -61,6 +61,9 @@ interface BotSettings {
   daily_message_cap: number;
   notify_group_id: string | null;
   oa_bot_user_id: string | null;
+  bot_mode: "sales" | "service";
+  test_mode: boolean;
+  test_line_user_ids: string[];
 }
 
 interface Contact {
@@ -358,6 +361,26 @@ export async function POST(req: NextRequest) {
       if (!settings.is_enabled) continue;
       if (dayCount > settings.daily_message_cap) continue; // กันสแปม — เงียบ
 
+      // โหมดทดสอบ: บอทตอบเฉพาะคนในลิสต์ · คนอื่น "เงียบแต่เปิดเคสให้แอดมิน"
+      // (เงียบเฉย ๆ = ปล่อยลูกค้าจริงค้างโดยไม่มีใครรู้)
+      if (settings.test_mode && !(settings.test_line_user_ids ?? []).includes(lineUserId)) {
+        const alreadyOpen =
+          contact.mode === "human" &&
+          !!contact.human_until &&
+          new Date(contact.human_until) > new Date();
+        if (!alreadyOpen) {
+          await escalate(admin, {
+            settings,
+            contact,
+            reason: "request_human",
+            question: text,
+            messageId,
+            bestSimilarity: null,
+          });
+        }
+        continue;
+      }
+
       // โหมดคนจริงยังไม่หมดอายุ → บอทเงียบ ปล่อยให้แอดมินคุย
       const humanActive =
         contact.mode === "human" &&
@@ -475,6 +498,7 @@ export async function POST(req: NextRequest) {
           minSimilarity: Number(settings.min_similarity),
           history,
           availabilityText,
+          botMode: settings.bot_mode ?? "sales",
         });
         answer = result.answer;
         best = result.bestSimilarity;

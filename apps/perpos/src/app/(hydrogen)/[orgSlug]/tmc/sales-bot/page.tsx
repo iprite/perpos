@@ -43,12 +43,16 @@ import {
   BookOpen,
   Bot,
   Inbox,
+  LifeBuoy,
   MessageSquare,
   Plus,
+  Power,
+  PowerOff,
   Copy,
   RefreshCw,
   Settings2,
   Sparkles,
+  Tag,
   Undo2,
   Unlink,
   UserCheck,
@@ -138,6 +142,9 @@ interface BotSettings {
   notify_linked_at: string | null;
   link_code: string | null;
   link_code_expires_at: string | null;
+  bot_mode: "sales" | "service";
+  test_mode: boolean;
+  test_line_user_ids: string[];
 }
 
 const EMPTY_FORM = {
@@ -434,6 +441,27 @@ export default function TmcSalesBotPage() {
     }
   }
 
+  /** แก้ค่าบางตัวแล้วบันทึกทันที — ใช้กับสวิตช์บนหัวหน้าที่ต้องมีผลเดี๋ยวนั้น */
+  async function patchSettings(partial: Record<string, unknown>, okMsg: string) {
+    if (!settings) return;
+    setBusy(true);
+    try {
+      const h = await headers();
+      const res = await fetch(backendUrl("/tmc/sales-bot"), {
+        method: "PUT",
+        headers: h,
+        body: JSON.stringify({ orgId: TMC_ORG_ID, ...partial }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error ?? "บันทึกไม่สำเร็จ");
+      toast.success(okMsg);
+      await loadMeta();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "บันทึกไม่สำเร็จ");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function saveSettings() {
     if (!settings) return;
     setBusy(true);
@@ -452,6 +480,9 @@ export default function TmcSalesBotPage() {
           minSimilarity: settings.min_similarity,
           humanModeMinutes: settings.human_mode_minutes,
           dailyMessageCap: settings.daily_message_cap,
+          botMode: settings.bot_mode,
+          testMode: settings.test_mode,
+          testLineUserIds: settings.test_line_user_ids,
         }),
       });
       if (!res.ok) throw new Error((await res.json()).error ?? "บันทึกไม่สำเร็จ");
@@ -509,21 +540,62 @@ export default function TmcSalesBotPage() {
         />
       }
       actions={
-        tab === "kb" ? (
-          <>
-            <Button variant="outline" disabled={busy} onClick={() => reembed(false)}>
-              <RefreshCw className="h-4 w-4" /> อัปเดตความรู้
-            </Button>
-            <Button
-              onClick={() => {
-                setForm({ ...EMPTY_FORM });
-                setFormOpen(true);
-              }}
-            >
-              <Plus className="h-4 w-4" /> เพิ่มความรู้
-            </Button>
-          </>
-        ) : undefined
+        <>
+          {settings && (
+            <>
+              <SegmentedControl
+                value={settings.bot_mode ?? "sales"}
+                onChange={(v) =>
+                  patchSettings(
+                    { botMode: v },
+                    v === "sales" ? "สลับเป็นโหมดการขายแล้ว" : "สลับเป็นโหมดการบริการแล้ว",
+                  )
+                }
+                ariaLabel="โหมดของบอท"
+                options={[
+                  { value: "sales", label: "การขาย", icon: <Tag className="h-4 w-4" /> },
+                  { value: "service", label: "การบริการ", icon: <LifeBuoy className="h-4 w-4" /> },
+                ]}
+              />
+              <Button
+                variant={settings.is_enabled ? "secondary" : "outline"}
+                disabled={busy}
+                title={settings.is_enabled ? "กดเพื่อปิดบอท" : "กดเพื่อเปิดบอท"}
+                onClick={() =>
+                  patchSettings(
+                    { isEnabled: !settings.is_enabled },
+                    settings.is_enabled ? "ปิดบอทแล้ว — บอทจะไม่ตอบลูกค้า" : "เปิดบอทแล้ว",
+                  )
+                }
+              >
+                {settings.is_enabled ? (
+                  <>
+                    <Power className="h-4 w-4 text-green-600" /> บอทเปิดอยู่
+                  </>
+                ) : (
+                  <>
+                    <PowerOff className="h-4 w-4 text-gray-400" /> บอทปิดอยู่
+                  </>
+                )}
+              </Button>
+            </>
+          )}
+          {tab === "kb" && (
+            <>
+              <Button variant="outline" disabled={busy} onClick={() => reembed(false)}>
+                <RefreshCw className="h-4 w-4" /> อัปเดตความรู้
+              </Button>
+              <Button
+                onClick={() => {
+                  setForm({ ...EMPTY_FORM });
+                  setFormOpen(true);
+                }}
+              >
+                <Plus className="h-4 w-4" /> เพิ่มความรู้
+              </Button>
+            </>
+          )}
+        </>
       }
     >
       {!lineConfigured && (
@@ -892,6 +964,60 @@ export default function TmcSalesBotPage() {
                   setSettings({ ...settings, daily_message_cap: Number(e.target.value) })
                 }
               />
+            </div>
+          </div>
+
+          <div>
+            <Label>โหมดทดสอบ — จำกัดคนที่บอทตอบ</Label>
+            <div className="mt-2 space-y-3 rounded-xl border border-gray-200 p-3">
+              <SegmentedControl
+                size="md"
+                value={settings.test_mode ? "on" : "off"}
+                onChange={(v) => setSettings({ ...settings, test_mode: v === "on" })}
+                options={[
+                  { value: "off", label: "ปิด — ตอบลูกค้าทุกคน" },
+                  { value: "on", label: "เปิด — ตอบเฉพาะที่เลือก" },
+                ]}
+              />
+              {settings.test_mode && (
+                <>
+                  <Text className="text-xs text-gray-500">
+                    ลูกค้าที่ไม่ได้เลือก บอทจะไม่ตอบ แต่เปิดเคสให้แอดมินทันที จะได้ไม่มีใครถูกทิ้ง
+                  </Text>
+                  <div className="max-h-56 space-y-2 overflow-y-auto">
+                    {contacts.length === 0 && (
+                      <Text className="text-sm text-gray-500">ยังไม่มีลูกค้าในระบบ</Text>
+                    )}
+                    {contacts.map((c) => {
+                      const checked = (settings.test_line_user_ids ?? []).includes(c.line_user_id);
+                      return (
+                        <label
+                          key={c.id}
+                          className="flex cursor-pointer items-center gap-2 text-sm"
+                        >
+                          <input
+                            type="checkbox"
+                            className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                            checked={checked}
+                            onChange={(e) =>
+                              setSettings({
+                                ...settings,
+                                test_line_user_ids: e.target.checked
+                                  ? [...(settings.test_line_user_ids ?? []), c.line_user_id]
+                                  : (settings.test_line_user_ids ?? []).filter(
+                                      (id) => id !== c.line_user_id,
+                                    ),
+                              })
+                            }
+                          />
+                          <span className="text-gray-700">{c.display_name || "ลูกค้า LINE"}</span>
+                          <span className="text-xs text-gray-400">({c.message_count} ข้อความ)</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
             </div>
           </div>
 

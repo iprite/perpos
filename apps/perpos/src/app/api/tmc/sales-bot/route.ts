@@ -6,6 +6,9 @@
  * POST { action: "link-code" }        → ออกรหัสผูกกลุ่ม TMC-XXXXXX (อายุ 24 ชม.)
  *                                       กลุ่มอยู่กับบอท PERPOS — รหัสถูกรับที่ /api/line/webhook
  * POST { action: "unlink-group" }     → ปลดการผูกกลุ่ม
+ *
+ * botMode: sales = ผู้ช่วยขาย (ก่อนจอง) · service = ดูแลลูกค้าระหว่าง/หลังเข้าพัก
+ * testMode + testLineUserIds: ช่วงทดสอบ ให้บอทตอบเฉพาะคนที่ระบุ
  */
 import { randomBytes } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
@@ -98,11 +101,17 @@ export async function PUT(req: NextRequest) {
     patch.min_similarity = Math.min(0.95, Math.max(0.3, Number(body.minSimilarity) || 0.6));
   }
   if (body.humanModeMinutes !== undefined) {
-    patch.human_mode_minutes = Math.min(1440, Math.max(5, Number(body.humanModeMinutes) || 120));
+    patch.human_mode_minutes = Math.min(1440, Math.max(5, Number(body.humanModeMinutes) || 15));
   }
   if (body.dailyMessageCap !== undefined) {
     patch.daily_message_cap = Math.min(500, Math.max(5, Number(body.dailyMessageCap) || 60));
   }
+  if (body.botMode === "sales" || body.botMode === "service") patch.bot_mode = body.botMode;
+  if (typeof body.testMode === "boolean") patch.test_mode = body.testMode;
+  if (Array.isArray(body.testLineUserIds)) {
+    patch.test_line_user_ids = (body.testLineUserIds as string[]).map(String);
+  }
+
   const admin = createAdminClient();
   const { error } = await admin.from("tmc_bot_settings").upsert({ org_id: orgId, ...patch });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
