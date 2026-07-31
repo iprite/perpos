@@ -39,23 +39,12 @@ export async function GET(req: NextRequest) {
     settings = created;
   }
 
-  const [
-    { count: articleCount },
-    { count: pendingEmbed },
-    { count: openCases },
-    { count: contactCount },
-  ] = await Promise.all([
+  const [{ data: kbRows }, { count: openCases }, { count: contactCount }] = await Promise.all([
     admin
       .from("tmc_kb_articles")
-      .select("id", { count: "exact", head: true })
+      .select("embedded_at, updated_at")
       .eq("org_id", orgId)
       .eq("is_active", true),
-    admin
-      .from("tmc_kb_articles")
-      .select("id", { count: "exact", head: true })
-      .eq("org_id", orgId)
-      .eq("is_active", true)
-      .is("embedded_at", null),
     admin
       .from("tmc_chat_escalations")
       .select("id", { count: "exact", head: true })
@@ -67,11 +56,18 @@ export async function GET(req: NextRequest) {
       .eq("org_id", orgId),
   ]);
 
+  // "รออัปเดต" = ยังไม่เคยฝัง หรือแก้เนื้อหาหลังฝังครั้งล่าสุด (นิยามเดียวกับ /kb/reembed)
+  const kb = (kbRows ?? []) as { embedded_at: string | null; updated_at: string }[];
+  const articleCount = kb.length;
+  const pendingEmbed = kb.filter(
+    (a) => !a.embedded_at || new Date(a.embedded_at) < new Date(a.updated_at),
+  ).length;
+
   return NextResponse.json({
     settings,
     stats: {
-      articles: articleCount ?? 0,
-      pendingEmbed: pendingEmbed ?? 0,
+      articles: articleCount,
+      pendingEmbed,
       openCases: openCases ?? 0,
       contacts: contactCount ?? 0,
     },
