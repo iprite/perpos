@@ -21,13 +21,14 @@ import { answerSalesQuestion, isSmallTalk, wantsHuman } from "@/lib/tmc/sales-bo
 import {
   tmcChatUrl,
   tmcGetBotUserId,
+  tmcGetGroupName,
   tmcGetProfile,
   tmcLineConfigured,
+  tmcPushMessages,
   tmcReplyText,
   verifyTmcSignature,
 } from "@/lib/tmc/line-oa";
 import { buildTmcEscalationFlex } from "@/lib/tmc/line-cards";
-import { sendLineMessages } from "@/lib/line/send-messages";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -45,7 +46,10 @@ interface BotSettings {
   min_similarity: number;
   human_mode_minutes: number;
   daily_message_cap: number;
-  notify_profile_ids: string[];
+  notify_group_id: string | null;
+  notify_group_name: string | null;
+  link_code: string | null;
+  link_code_expires_at: string | null;
   oa_bot_user_id: string | null;
 }
 
@@ -206,19 +210,9 @@ async function escalate(
     .select("id")
     .single();
 
-  // ─ แจ้งแอดมินทาง LINE ส่วนตัว (บอท PERPOS) ─
-  const profileIds = settings.notify_profile_ids ?? [];
-  if (!profileIds.length) return;
-
-  const { data: profiles } = await admin
-    .from("profiles")
-    .select("line_user_id")
-    .in("id", profileIds)
-    .not("line_user_id", "is", null);
-  const targets = ((profiles ?? []) as { line_user_id: string }[])
-    .map((p) => p.line_user_id)
-    .filter(Boolean);
-  if (!targets.length) return;
+  // ─ แจ้งเข้ากลุ่ม LINE ของทีมแอดมิน (push จาก @tmcvilla เอง) ─
+  // ยังไม่ได้ผูกกลุ่ม = ไม่มีที่ให้แจ้ง (เคสยังขึ้นในหน้าเว็บตามปกติ)
+  if (!settings.notify_group_id) return;
 
   // cache userId ของ OA ไว้ทำลิงก์ห้องแชท
   let botUserId = settings.oa_bot_user_id;
@@ -249,8 +243,8 @@ async function escalate(
     askedAt: new Date(),
   });
 
-  await sendLineMessages({ to: targets, messages: [card] });
-  if (esc) {
+  const sent = await tmcPushMessages(settings.notify_group_id, [card]);
+  if (esc && sent) {
     await admin
       .from("tmc_chat_escalations")
       .update({ notified_at: new Date().toISOString() })
@@ -263,8 +257,69 @@ async function escalate(
 interface LineEvent {
   type: string;
   replyToken?: string;
-  source?: { type?: string; userId?: string };
+  source?: { type?: string; userId?: string; groupId?: string; roomId?: string };
   message?: { id?: string; type?: string; text?: string };
+}
+
+// ─── กลุ่มทีมแอดมิน ──────────────────────────────────────────────────────────
+
+const LINK_CODE_RE = /^TMC-[A-Z0-9]{6}$/;
+
+/**
+ * เหตุการณ์ที่เกิดในกลุ่ม — บอทมีหน้าที่เดียวคือรับ "รหัสผูกกลุ่ม"
+ * กติกาเดียวกับกลุ่มลูกค้าของ acc_firm: **กลุ่มที่ยังไม่ผูก บอทเงียบเสมอ**
+ * และกลุ่มที่ผูกแล้วก็เงียบ (เป็นช่องทางรับแจ้งเตือนอย่างเดียว ไม่ใช่ห้องคุยกับบอท)
+ */
+async function handleGroupEvent(admin: Admin, settings: BotSettings, ev: LineEvent): Promise<void> {
+  const groupId = ev.source?.groupId ?? ev.source?.roomId;
+  if (!groupId) return;
+
+  // ถูกเตะออก/ออกจากกลุ่มที่ผูกไว้ → ปลดการผูก ไม่งั้นจะ push ไปที่ที่ส่งไม่ถึง
+  if (ev.type === "leave") {
+    if (settings.notify_group_id === groupId) {
+      await admin
+        .from("tmc_bot_settings")
+        .update({ notify_group_id: null, notify_group_name: null, notify_linked_at: null })
+        .eq("org_id", settings.org_id);
+    }
+    return;
+  }
+
+  if (ev.type !== "message" || ev.message?.type !== "text") return;
+
+  const code = (ev.message.text ?? "").trim().toUpperCase();
+  if (!LINK_CODE_RE.test(code)) return; // ไม่ใช่รหัส → เงียบ
+
+  const expires = settings.link_code_expires_at ? new Date(settings.link_code_expires_at) : null;
+  if (!settings.link_code || code !== settings.link_code) return; // รหัสผิด → เงียบ (กันเดา)
+  if (!expires || expires < new Date()) {
+    if (ev.replyToken) {
+      await tmcReplyText(
+        ev.replyToken,
+        "รหัสนี้หมดอายุแล้วค่ะ 🙏 กรุณาขอรหัสใหม่จากหน้า “ผู้ช่วยขาย LINE”",
+      );
+    }
+    return;
+  }
+
+  const groupName = await tmcGetGroupName(groupId);
+  await admin
+    .from("tmc_bot_settings")
+    .update({
+      notify_group_id: groupId,
+      notify_group_name: groupName,
+      notify_linked_at: new Date().toISOString(),
+      link_code: null, // รหัสใช้ครั้งเดียว
+      link_code_expires_at: null,
+    })
+    .eq("org_id", settings.org_id);
+
+  if (ev.replyToken) {
+    await tmcReplyText(
+      ev.replyToken,
+      "ผูกกลุ่มสำเร็จแล้วค่ะ ✅\nต่อจากนี้ ถ้าบอทตอบลูกค้าไม่ได้ หรือลูกค้าขอคุยกับแอดมิน ระบบจะแจ้งเข้ากลุ่มนี้ทันทีค่ะ",
+    );
+  }
 }
 
 export async function POST(req: NextRequest) {
@@ -289,6 +344,16 @@ export async function POST(req: NextRequest) {
   const settings = await loadSettings(admin, orgId);
 
   for (const ev of events) {
+    // กลุ่ม/ห้อง = ช่องทางแจ้งเตือนทีมแอดมิน (รับรหัสผูกกลุ่มอย่างเดียว)
+    if (ev.source?.type === "group" || ev.source?.type === "room") {
+      try {
+        await handleGroupEvent(admin, settings, ev);
+      } catch {
+        /* ไม่ให้ล้มทั้ง batch */
+      }
+      continue;
+    }
+
     const lineUserId = ev.source?.userId;
     if (!lineUserId || ev.source?.type !== "user") continue;
 

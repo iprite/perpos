@@ -56,17 +56,18 @@ CREATE INDEX IF NOT EXISTS tmc_kb_chunks_embedding_idx
 CREATE TABLE IF NOT EXISTS public.tmc_bot_settings (
   org_id             uuid PRIMARY KEY REFERENCES public.organizations(id) ON DELETE CASCADE,
   is_enabled         boolean NOT NULL DEFAULT true,
-  bot_name           text NOT NULL DEFAULT 'น้องแอดมิน TMC',
-  greeting_text      text NOT NULL DEFAULT 'สวัสดีค่ะ 🙏 ยินดีต้อนรับสู่ TMC Villa ค่ะ
-สอบถามเรื่องบ้านพัก ราคา จำนวนคน หรือสัตว์เลี้ยงได้เลยนะคะ พิมพ์ถามมาได้ทันทีค่ะ',
-  fallback_text      text NOT NULL DEFAULT 'ขออภัยค่ะ เรื่องนี้น้องขอส่งต่อให้แอดมินตัวจริงตอบนะคะ 🙏
-รอสักครู่ เดี๋ยวแอดมินเข้ามาตอบในแชทนี้ค่ะ',
-  handoff_text       text NOT NULL DEFAULT 'รับทราบค่ะ กำลังเรียกแอดมินให้นะคะ 🙏
-รอสักครู่ เดี๋ยวแอดมินเข้ามาคุยในแชทนี้ค่ะ',
+  bot_name           text NOT NULL DEFAULT 'ผู้ดูแลลูกค้า Thammachat Villa',
+  greeting_text      text NOT NULL DEFAULT 'สวัสดีค่ะ ยินดีต้อนรับสู่ Thammachat Villa ค่ะ 🌿
+พูลวิลล่าส่วนตัวให้เช่าเหมาหลัง พร้อมอาหารเช้าสำหรับผู้เข้าพักทุกท่าน
+สอบถามราคา จำนวนผู้เข้าพัก ห้องนอน หรือการพาสัตว์เลี้ยงมาด้วย พิมพ์เข้ามาได้เลยนะคะ ยินดีดูแลค่ะ',
+  fallback_text      text NOT NULL DEFAULT 'ขออภัยด้วยนะคะ เรื่องนี้ขออนุญาตให้ผู้ดูแลของเราตอบให้ละเอียดกว่านี้ค่ะ 🙏
+รบกวนรอสักครู่ เดี๋ยวเจ้าหน้าที่เข้ามาดูแลในแชทนี้โดยเร็วที่สุดค่ะ',
+  handoff_text       text NOT NULL DEFAULT 'รับทราบค่ะ กำลังเรียนเชิญเจ้าหน้าที่เข้ามาดูแลให้นะคะ 🙏
+รบกวนรอสักครู่ เดี๋ยวมีผู้ดูแลเข้ามาคุยกับคุณลูกค้าในแชทนี้ค่ะ',
   min_similarity     numeric NOT NULL DEFAULT 0.60,
   human_mode_minutes int NOT NULL DEFAULT 120,     -- เข้าโหมดคนจริงแล้วบอทเงียบกี่นาที
   daily_message_cap  int NOT NULL DEFAULT 60,      -- กันสแปมต่อลูกค้า 1 คน/วัน
-  notify_profile_ids uuid[] NOT NULL DEFAULT '{}', -- แอดมินที่จะได้ push ทาง LINE ส่วนตัว (บอท PERPOS)
+  notify_group_id    text,                         -- กลุ่ม LINE ของทีมแอดมิน (ผูกด้วยรหัส TMC-XXXXXX)
   oa_bot_user_id     text,                         -- userId ของ @tmcvilla (cache ไว้ทำลิงก์ chat.line.biz)
   updated_at         timestamptz NOT NULL DEFAULT now()
 );

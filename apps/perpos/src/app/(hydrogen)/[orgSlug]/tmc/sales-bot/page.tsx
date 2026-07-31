@@ -45,10 +45,13 @@ import {
   Inbox,
   MessageSquare,
   Plus,
+  Copy,
   RefreshCw,
   Settings2,
   Sparkles,
+  Unlink,
   UserCheck,
+  Users,
 } from "lucide-react";
 
 const TMC_ORG_ID = "1f52618c-09c4-49c5-a929-ea5060f26e7d";
@@ -126,14 +129,11 @@ interface BotSettings {
   min_similarity: number;
   human_mode_minutes: number;
   daily_message_cap: number;
-  notify_profile_ids: string[];
-}
-
-interface Member {
-  id: string;
-  name: string;
-  role: string;
-  hasLine: boolean;
+  notify_group_id: string | null;
+  notify_group_name: string | null;
+  notify_linked_at: string | null;
+  link_code: string | null;
+  link_code_expires_at: string | null;
 }
 
 const EMPTY_FORM = {
@@ -167,7 +167,7 @@ export default function TmcSalesBotPage() {
   const [caseStatus, setCaseStatus] = useState("open");
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [settings, setSettings] = useState<BotSettings | null>(null);
-  const [members, setMembers] = useState<Member[]>([]);
+  const [linkCode, setLinkCode] = useState<{ code: string; expiresAt: string } | null>(null);
   const [lineConfigured, setLineConfigured] = useState(true);
   const [stats, setStats] = useState({ articles: 0, pendingEmbed: 0, openCases: 0, contacts: 0 });
 
@@ -196,7 +196,15 @@ export default function TmcSalesBotPage() {
     if (!res.ok) return;
     const json = await res.json();
     setSettings(json.settings);
-    setMembers(json.members ?? []);
+    // รหัสผูกกลุ่มที่ขอไว้แล้วยังไม่หมดอายุ ต้องกลับมาโชว์เมื่อ refresh หน้า
+    // (ไม่งั้นแอดมินปิดหน้าไปแล้วรหัสหาย ต้องขอใหม่ทั้งที่ของเดิมยังใช้ได้)
+    const pending = json.settings?.link_code as string | null | undefined;
+    const pendingExp = json.settings?.link_code_expires_at as string | null | undefined;
+    setLinkCode(
+      pending && pendingExp && new Date(pendingExp) > new Date()
+        ? { code: pending, expiresAt: pendingExp }
+        : null,
+    );
     setStats(json.stats ?? stats);
     setLineConfigured(json.lineConfigured !== false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -359,6 +367,45 @@ export default function TmcSalesBotPage() {
     setConvo({ contact, messages: json.messages ?? [] });
   }
 
+  async function requestLinkCode() {
+    setBusy(true);
+    try {
+      const h = await headers();
+      const res = await fetch(backendUrl("/tmc/sales-bot"), {
+        method: "POST",
+        headers: h,
+        body: JSON.stringify({ orgId: TMC_ORG_ID, action: "link-code" }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? "ขอรหัสไม่สำเร็จ");
+      setLinkCode({ code: json.code, expiresAt: json.expiresAt });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "ขอรหัสไม่สำเร็จ");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function unlinkGroup() {
+    setBusy(true);
+    try {
+      const h = await headers();
+      const res = await fetch(backendUrl("/tmc/sales-bot"), {
+        method: "POST",
+        headers: h,
+        body: JSON.stringify({ orgId: TMC_ORG_ID, action: "unlink-group" }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error ?? "ยกเลิกไม่สำเร็จ");
+      toast.success("ยกเลิกการผูกกลุ่มแล้ว");
+      setLinkCode(null);
+      await loadMeta();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "ยกเลิกไม่สำเร็จ");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function saveSettings() {
     if (!settings) return;
     setBusy(true);
@@ -377,7 +424,6 @@ export default function TmcSalesBotPage() {
           minSimilarity: settings.min_similarity,
           humanModeMinutes: settings.human_mode_minutes,
           dailyMessageCap: settings.daily_message_cap,
-          notifyProfileIds: settings.notify_profile_ids,
         }),
       });
       if (!res.ok) throw new Error((await res.json()).error ?? "บันทึกไม่สำเร็จ");
@@ -815,35 +861,66 @@ export default function TmcSalesBotPage() {
           </div>
 
           <div>
-            <Label>แจ้งเตือนแอดมินคนไหน (ทาง LINE ส่วนตัวผ่านบอท PERPOS)</Label>
-            <div className="mt-2 space-y-2 rounded-xl border border-gray-200 p-3">
-              {members.length === 0 && (
-                <Text className="text-sm text-gray-500">ยังไม่มีสมาชิกในองค์กรนี้</Text>
+            <Label>กลุ่ม LINE ที่รับแจ้งเตือน</Label>
+            <div className="mt-2 rounded-xl border border-gray-200 p-4">
+              {settings.notify_group_id ? (
+                <div className="flex flex-wrap items-center gap-3">
+                  <StatusBadge tone="success">ผูกกลุ่มแล้ว</StatusBadge>
+                  <Text className="text-sm font-medium text-gray-700">
+                    {settings.notify_group_name || "กลุ่ม LINE ของทีมแอดมิน"}
+                  </Text>
+                  <Text className="text-xs text-gray-400">
+                    ผูกเมื่อ {thaiDateTime(settings.notify_linked_at)}
+                  </Text>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="ms-auto"
+                    disabled={busy}
+                    onClick={unlinkGroup}
+                  >
+                    <Unlink className="h-4 w-4" /> ยกเลิกการผูก
+                  </Button>
+                </div>
+              ) : linkCode ? (
+                <div className="space-y-3">
+                  <Text className="text-sm text-gray-700">
+                    เชิญ <span className="font-medium">@tmcvilla</span> เข้ากลุ่มของทีมแอดมิน
+                    แล้วพิมพ์รหัสนี้ในกลุ่ม
+                  </Text>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <code className="rounded-lg bg-gray-100 px-4 py-2 font-mono text-lg font-semibold tracking-widest text-gray-900">
+                      {linkCode.code}
+                    </code>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        void navigator.clipboard.writeText(linkCode.code);
+                        toast.success("คัดลอกรหัสแล้ว");
+                      }}
+                    >
+                      <Copy className="h-4 w-4" /> คัดลอก
+                    </Button>
+                    <Button variant="outline" size="sm" disabled={busy} onClick={loadMeta}>
+                      <RefreshCw className="h-4 w-4" /> ตรวจสถานะ
+                    </Button>
+                  </div>
+                  <Text className="text-xs text-gray-500">
+                    รหัสใช้ได้ครั้งเดียว หมดอายุ {thaiDateTime(linkCode.expiresAt)} ·
+                    ผูกสำเร็จแล้วบอทจะตอบยืนยันในกลุ่มทันที
+                  </Text>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <Text className="text-sm text-gray-500">
+                    ยังไม่ได้ผูกกลุ่ม — เคสที่รอแอดมินจะขึ้นเฉพาะในหน้านี้ ไม่มีแจ้งเตือนเข้า LINE
+                  </Text>
+                  <Button variant="outline" disabled={busy} onClick={requestLinkCode}>
+                    <Users className="h-4 w-4" /> ขอรหัสผูกกลุ่ม
+                  </Button>
+                </div>
               )}
-              {members.map((m) => {
-                const checked = settings.notify_profile_ids.includes(m.id);
-                return (
-                  <label key={m.id} className="flex cursor-pointer items-center gap-2 text-sm">
-                    <input
-                      type="checkbox"
-                      className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
-                      checked={checked}
-                      disabled={!m.hasLine}
-                      onChange={(e) =>
-                        setSettings({
-                          ...settings,
-                          notify_profile_ids: e.target.checked
-                            ? [...settings.notify_profile_ids, m.id]
-                            : settings.notify_profile_ids.filter((id) => id !== m.id),
-                        })
-                      }
-                    />
-                    <span className={m.hasLine ? "text-gray-700" : "text-gray-400"}>
-                      {m.name} {m.hasLine ? "" : "· ยังไม่ได้ผูก LINE กับ PERPOS"}
-                    </span>
-                  </label>
-                );
-              })}
             </div>
           </div>
 

@@ -52,6 +52,28 @@ export async function tmcPushText(to: string, text: string): Promise<void> {
   }).catch(() => undefined);
 }
 
+/** push ข้อความใด ๆ (รวม Flex) ออกจาก @tmcvilla — ใช้ส่งการ์ดแจ้งเตือนเข้ากลุ่มทีมแอดมิน */
+export async function tmcPushMessages(to: string, messages: unknown[]): Promise<boolean> {
+  if (!token() || !to || !messages.length) return false;
+  const res = await fetch(`${LINE_API}/message/push`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${token()}`, "content-type": "application/json" },
+    body: JSON.stringify({ to, messages }),
+  }).catch(() => null);
+  return !!res?.ok;
+}
+
+/** ชื่อกลุ่ม (โชว์ในหน้าตั้งค่าให้แอดมินรู้ว่าผูกกลุ่มไหนอยู่) */
+export async function tmcGetGroupName(groupId: string): Promise<string | null> {
+  if (!token()) return null;
+  const res = await fetch(`${LINE_API}/group/${groupId}/summary`, {
+    headers: { authorization: `Bearer ${token()}` },
+  }).catch(() => null);
+  if (!res?.ok) return null;
+  const json = (await res.json().catch(() => null)) as { groupName?: string } | null;
+  return json?.groupName ?? null;
+}
+
 export interface TmcLineProfile {
   displayName?: string;
   pictureUrl?: string;
