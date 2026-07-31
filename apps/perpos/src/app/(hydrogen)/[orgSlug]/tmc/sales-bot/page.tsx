@@ -604,13 +604,14 @@ export default function TmcSalesBotPage() {
                 <TableHead>คำที่ลูกค้ามักถาม</TableHead>
                 <TableHead align="center">สถานะ</TableHead>
                 <TableHead align="center">บอทเรียนแล้ว</TableHead>
+                <TableHead align="right">อัปเดตล่าสุด</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {loading ? (
-                <TableLoading colSpan={5} />
+                <TableLoading colSpan={6} />
               ) : kbPager.rows.length === 0 ? (
-                <TableEmpty colSpan={5}>
+                <TableEmpty colSpan={6}>
                   ยังไม่มีความรู้ในคลัง — กด “เพิ่มความรู้” เพื่อสอนบอทเรื่องแรก
                 </TableEmpty>
               ) : (
@@ -648,6 +649,9 @@ export default function TmcSalesBotPage() {
                       <StatusBadge tone={a.embedded_at ? "success" : "warning"}>
                         {a.embedded_at ? "เรียนแล้ว" : "รออัปเดต"}
                       </StatusBadge>
+                    </TableCell>
+                    <TableCell align="right" className="tabular-nums text-gray-500">
+                      {thaiDateTime(a.updated_at)}
                     </TableCell>
                   </TableRow>
                 ))
