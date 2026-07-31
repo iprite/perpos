@@ -50,6 +50,9 @@ import {
   Filter,
   LayoutDashboard,
   CalendarRange,
+  ArrowLeftRight,
+  Repeat,
+  Warehouse,
 } from "lucide-react";
 import {
   BarChart,
@@ -63,28 +66,19 @@ import {
   Cell,
 } from "recharts";
 import { PurchaseDialog } from "./purchase-dialog";
+import { ReusableMatrix } from "./_reusable-matrix";
+import {
+  GROUP_LABELS,
+  MOVEMENT_LABELS,
+  type StockItem,
+  type StockLocation,
+  type StockBalance,
+  type Movement,
+} from "./_types";
 
 const TMC_ORG_ID = "1f52618c-09c4-49c5-a929-ea5060f26e7d";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
-type StockItem = {
-  id: string;
-  name: string;
-  unit: string;
-  current_qty: number;
-  min_quantity: number;
-  category: string | null;
-};
-type Movement = {
-  id: string;
-  movement_type: string;
-  quantity: number;
-  property_code: string | null;
-  note: string | null;
-  created_at: string;
-  tmc_stock_items: { name: string; unit: string } | null;
-  tmc_properties: { code: string } | null;
-};
 type MasterItem = { id: string; name: string; sort_order: number; is_active: boolean };
 
 // ── Inline editable row ───────────────────────────────────────────────────────
@@ -186,11 +180,15 @@ export default function TmcStockPage() {
 
   // data
   const [items, setItems] = useState<StockItem[]>([]);
+  const [locations, setLocations] = useState<StockLocation[]>([]);
+  const [balances, setBalances] = useState<StockBalance[]>([]);
   const [movements, setMovements] = useState<Movement[]>([]);
   const [categories, setCategories] = useState<MasterItem[]>([]);
   const [units, setUnits] = useState<MasterItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"items" | "movements" | "dashboard">("items");
+  const [activeTab, setActiveTab] = useState<"items" | "reusable" | "movements" | "dashboard">(
+    "items",
+  );
 
   // filter panel (ซ่อนไว้หลัง icon)
   const [showFilters, setShowFilters] = useState(false);
@@ -205,14 +203,29 @@ export default function TmcStockPage() {
 
   // dialogs
   const [showAddItem, setShowAddItem] = useState(false);
-  const [showMovement, setShowMovement] = useState<"in" | "out" | "adjust" | null>(null);
+  const [showMovement, setShowMovement] = useState<
+    "receive" | "issue" | "transfer" | "adjust" | null
+  >(null);
   const [showMaster, setShowMaster] = useState(false);
-  const [masterTab, setMasterTab] = useState<"categories" | "units">("categories");
+  const [masterTab, setMasterTab] = useState<"categories" | "units" | "locations">("categories");
   const [showPurchase, setShowPurchase] = useState(false);
 
   // forms
-  const [itemForm, setItemForm] = useState({ name: "", unit: "", minQuantity: "0", category: "" });
-  const [movForm, setMovForm] = useState({ itemId: "", quantity: "", propertyCode: "", note: "" });
+  const [itemForm, setItemForm] = useState({
+    name: "",
+    unit: "",
+    minQuantity: "0",
+    category: "",
+    stockClass: "consumable" as "consumable" | "reusable",
+    itemGroup: "",
+  });
+  const [movForm, setMovForm] = useState({
+    itemId: "",
+    quantity: "",
+    fromLocationId: "",
+    toLocationId: "",
+    note: "",
+  });
   const [saving, setSaving] = useState(false);
 
   // add new master
@@ -220,6 +233,9 @@ export default function TmcStockPage() {
   const [newUnitName, setNewUnitName] = useState("");
   const [addingCat, setAddingCat] = useState(false);
   const [addingUnit, setAddingUnit] = useState(false);
+  const [newLocName, setNewLocName] = useState("");
+  const [newLocKind, setNewLocKind] = useState("store");
+  const [addingLoc, setAddingLoc] = useState(false);
 
   const authHeader = useCallback(async () => {
     const { data } = await supabase.auth.getSession();
@@ -236,6 +252,8 @@ export default function TmcStockPage() {
     const res = await fetch(backendUrl(`/tmc/stock?orgId=${TMC_ORG_ID}`), { headers: h });
     const data = await res.json();
     setItems(data.items ?? []);
+    setLocations(data.locations ?? []);
+    setBalances(data.balances ?? []);
     setMovements(data.movements ?? []);
     setLoading(false);
   }, [authHeader]);
@@ -318,7 +336,14 @@ export default function TmcStockPage() {
         return;
       }
       setShowAddItem(false);
-      setItemForm({ name: "", unit: activeUnits[0]?.name ?? "", minQuantity: "0", category: "" });
+      setItemForm({
+        name: "",
+        unit: activeUnits[0]?.name ?? "",
+        minQuantity: "0",
+        category: "",
+        stockClass: "consumable",
+        itemGroup: "amenity",
+      });
       toast.success("เพิ่มสินค้าแล้ว");
       load();
     } catch {
@@ -328,15 +353,27 @@ export default function TmcStockPage() {
     }
   }
 
+  function resetMovForm() {
+    setMovForm({ itemId: "", quantity: "", fromLocationId: "", toLocationId: "", note: "" });
+  }
+
   async function handleMovement() {
     if (!movForm.itemId || !movForm.quantity || !showMovement) return;
     setSaving(true);
     try {
       const h = await authHeader();
-      const res = await fetch(backendUrl("/tmc/stock"), {
+      const res = await fetch("/api/tmc/stock/movements", {
         method: "POST",
         headers: h,
-        body: JSON.stringify({ orgId: TMC_ORG_ID, movementType: showMovement, ...movForm }),
+        body: JSON.stringify({
+          orgId: TMC_ORG_ID,
+          movementType: showMovement,
+          itemId: movForm.itemId,
+          quantity: movForm.quantity,
+          fromLocationId: movForm.fromLocationId || undefined,
+          toLocationId: movForm.toLocationId || undefined,
+          note: movForm.note || undefined,
+        }),
       });
       const data = await res.json().catch(() => ({}) as { error?: string });
       if (!res.ok) {
@@ -344,7 +381,7 @@ export default function TmcStockPage() {
         return;
       }
       setShowMovement(null);
-      setMovForm({ itemId: "", quantity: "", propertyCode: "", note: "" });
+      resetMovForm();
       toast.success("บันทึกการเคลื่อนไหวสต๊อกแล้ว");
       load();
     } catch {
@@ -353,6 +390,61 @@ export default function TmcStockPage() {
       setSaving(false);
     }
   }
+
+  /** เปิดกล่องเคลื่อนไหวโดยตั้งค่าเริ่มต้นให้ตรงกับของชิ้นนั้น (จุดเก็บประจำ = ต้นทาง) */
+  function openMovement(kind: "receive" | "issue" | "transfer" | "adjust", item?: StockItem) {
+    const home = item?.default_location_id ?? "";
+    setMovForm({
+      itemId: item?.id ?? "",
+      quantity: "",
+      fromLocationId: kind === "receive" ? "" : home,
+      toLocationId: kind === "receive" ? home : "",
+      note: "",
+    });
+    setShowMovement(kind);
+  }
+
+  // ── Location CRUD ─────────────────────────────────────────────────────────
+  // จุดเก็บลบจริงไม่ได้ (movement อ้างอยู่) → "ลบ" = ปิดใช้งาน ประวัติยังอ่านได้
+  async function addLocation() {
+    const name = newLocName.trim();
+    if (!name) return;
+    setAddingLoc(true);
+    try {
+      const h = await authHeader();
+      const code = `LOC-${Date.now().toString(36).toUpperCase()}`;
+      const res = await fetch("/api/tmc/stock/locations", {
+        method: "POST",
+        headers: h,
+        body: JSON.stringify({ orgId: TMC_ORG_ID, name, code, kind: newLocKind }),
+      });
+      const data = await res.json().catch(() => ({}) as { error?: string });
+      if (!res.ok) {
+        toast.error(data.error ?? "เพิ่มจุดเก็บไม่สำเร็จ");
+        return;
+      }
+      setNewLocName("");
+      toast.success("เพิ่มจุดเก็บแล้ว");
+      load();
+    } finally {
+      setAddingLoc(false);
+    }
+  }
+
+  async function patchLocation(id: string, patch: Record<string, unknown>) {
+    const h = await authHeader();
+    const res = await fetch("/api/tmc/stock/locations", {
+      method: "PATCH",
+      headers: h,
+      body: JSON.stringify({ orgId: TMC_ORG_ID, id, ...patch }),
+    });
+    const data = await res.json().catch(() => ({}) as { error?: string });
+    if (!res.ok) toast.error(data.error ?? "บันทึกไม่สำเร็จ");
+    else load();
+  }
+
+  const saveLocation = (id: string, name: string) => patchLocation(id, { name });
+  const deactivateLocation = (id: string) => patchLocation(id, { isActive: false });
 
   // ── Category CRUD ─────────────────────────────────────────────────────────
   async function addCategory() {
@@ -449,35 +541,61 @@ export default function TmcStockPage() {
 
   const lowStock = items.filter((i) => i.current_qty <= i.min_quantity && i.min_quantity > 0);
 
-  // ── Items filter (category chips + search) ─────────────────────────────────
+  // ── แบ่งของเป็น 2 ชั้นตาม specs/tmc-stock-v2.md §2.1 ─────────────────────────
+  const consumables = useMemo(() => items.filter((i) => i.stock_class !== "reusable"), [items]);
+  const reusables = useMemo(() => items.filter((i) => i.stock_class === "reusable"), [items]);
+
+  /** แหล่งข้อมูลของแท็บที่เปิดอยู่ (ของใช้แล้วหมดไป vs ของใช้ซ้ำ) */
+  const tabSource = activeTab === "reusable" ? reusables : consumables;
+
+  const locById = useMemo(() => new Map(locations.map((l) => [l.id, l])), [locations]);
+
+  /** ยอดคงเหลือของผ้าที่อยู่นอกบ้าน (ร้านซัก) — ตอบว่า "ผ้าค้างอยู่ที่ร้านกี่ผืน" */
+  const atLaundry = useMemo(
+    () =>
+      balances.reduce((sum, b) => {
+        const l = locById.get(b.location_id);
+        return l?.kind === "laundry" ? sum + Number(b.qty) : sum;
+      }, 0),
+    [balances, locById],
+  );
+
+  // ── Items filter (หมวด + ค้นหา) ────────────────────────────────────────────
   const categoryChips = useMemo(() => {
     const counts = new Map<string, number>();
-    for (const it of items) {
+    for (const it of tabSource) {
       const key = it.category ?? "ไม่ระบุ";
       counts.set(key, (counts.get(key) ?? 0) + 1);
     }
     return Array.from(counts.entries())
       .sort((a, b) => a[0].localeCompare(b[0], "th"))
       .map(([name, count]) => ({ name, count }));
-  }, [items]);
+  }, [tabSource]);
 
   const categoryCount = categoryChips.length;
 
   const filteredItems = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
-    return items.filter((it) => {
+    return tabSource.filter((it) => {
       const cat = it.category ?? "ไม่ระบุ";
       if (activeCategory !== "__all__" && cat !== activeCategory) return false;
       if (term && !it.name.toLowerCase().includes(term)) return false;
       return true;
     });
-  }, [items, activeCategory, searchTerm]);
+  }, [tabSource, activeCategory, searchTerm]);
 
   const hasFilter = activeCategory !== "__all__" || !!searchTerm.trim();
 
+  // เปลี่ยนแท็บแล้วหมวดเดิมอาจไม่มีในแท็บใหม่ → กันตารางว่างโดยไม่มีสาเหตุ
+  useEffect(() => {
+    if (activeCategory !== "__all__" && !categoryChips.some((c) => c.name === activeCategory)) {
+      setActiveCategory("__all__");
+    }
+  }, [categoryChips, activeCategory]);
+
   // แบ่งหน้าแยกกันต่อแท็บ — resetKey กันกรณีจำนวนแถวบังเอิญเท่าเดิมหลังกรอง
   const itemPager = usePagination(filteredItems, {
-    resetKey: `${activeCategory}|${searchTerm}`,
+    resetKey: `${activeTab}|${activeCategory}|${searchTerm}`,
   });
   const movePager = usePagination(movements);
 
@@ -568,15 +686,40 @@ export default function TmcStockPage() {
   ];
   const TT = { contentStyle: { fontSize: 12, borderRadius: 8, border: "1px solid #E6E9EE" } };
 
-  // ── Withdraw over-balance guard (movement dialog) ──────────────────────────
+  // ── กันเบิกเกินยอด ณ "จุดเก็บต้นทาง" (ไม่ใช่ยอดรวมทุกจุดเก็บ) ─────────────
   const selectedMovItem = useMemo(
     () => items.find((i) => i.id === movForm.itemId),
     [items, movForm.itemId],
   );
+
+  /** ยอดคงเหลือของสินค้าที่เลือก ณ จุดเก็บต้นทางที่เลือก */
+  const fromQty = useMemo(() => {
+    if (!movForm.itemId || !movForm.fromLocationId) return null;
+    const row = balances.find(
+      (b) => b.item_id === movForm.itemId && b.location_id === movForm.fromLocationId,
+    );
+    return Number(row?.qty ?? 0);
+  }, [balances, movForm.itemId, movForm.fromLocationId]);
+
   const overWithdraw =
-    showMovement === "out" &&
+    (showMovement === "issue" || showMovement === "transfer") &&
+    fromQty !== null &&
+    Number(movForm.quantity) > fromQty;
+
+  /** ของใช้ซ้ำต้องมีปลายทางเสมอ — ไม่งั้น DB จะปฏิเสธ (invariant §3) */
+  const needsDestination =
     !!selectedMovItem &&
-    Number(movForm.quantity) > selectedMovItem.current_qty;
+    selectedMovItem.stock_class === "reusable" &&
+    (showMovement === "issue" || showMovement === "transfer") &&
+    !movForm.toLocationId;
+
+  const locationOptions = useMemo(
+    () => [
+      { value: "", label: "— เลือกจุดเก็บ —" },
+      ...locations.map((l) => ({ value: l.id, label: l.name })),
+    ],
+    [locations],
+  );
 
   return (
     <PageShell
@@ -601,7 +744,7 @@ export default function TmcStockPage() {
           <Button
             variant="outline"
             size="icon"
-            title="จัดการหมวด/หน่วย"
+            title="ตั้งค่าคลัง (หมวด/หน่วย/จุดเก็บ)"
             onClick={() => setShowMaster(true)}
           >
             <Settings className="h-4 w-4" />
@@ -609,8 +752,16 @@ export default function TmcStockPage() {
           <Button
             variant="outline"
             size="icon"
-            title="เบิกออก"
-            onClick={() => setShowMovement("out")}
+            title="ย้ายที่เก็บ"
+            onClick={() => openMovement("transfer")}
+          >
+            <ArrowLeftRight className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="outline"
+            size="icon"
+            title="เบิกใช้"
+            onClick={() => openMovement("issue")}
             className="border-red-200 text-red-600 hover:bg-red-50"
           >
             <ArrowUp className="h-4 w-4" />
@@ -619,7 +770,7 @@ export default function TmcStockPage() {
             variant="outline"
             size="icon"
             title="รับเข้า"
-            onClick={() => setShowMovement("in")}
+            onClick={() => openMovement("receive")}
             className="border-green-200 text-green-600 hover:bg-green-50"
           >
             <ArrowDown className="h-4 w-4" />
@@ -667,11 +818,49 @@ export default function TmcStockPage() {
         onChange={setActiveTab}
         size="sm"
         options={[
-          { value: "items", label: "รายการสินค้า", icon: <Package className="h-4 w-4" /> },
+          {
+            value: "items",
+            label: `ของใช้แล้วหมดไป (${consumables.length})`,
+            icon: <Package className="h-4 w-4" />,
+          },
+          {
+            value: "reusable",
+            label: `ของใช้ซ้ำ (${reusables.length})`,
+            icon: <Repeat className="h-4 w-4" />,
+          },
           { value: "movements", label: "ประวัติรับ-เบิก", icon: <History className="h-4 w-4" /> },
           { value: "dashboard", label: "แดชบอร์ด", icon: <LayoutDashboard className="h-4 w-4" /> },
         ]}
       />
+
+      {/* ยอดคงเหลือรายจุดเก็บ — ตอบว่าของอยู่ที่ไหน ไม่ใช่แค่มีเท่าไร */}
+      {!loading && activeTab === "reusable" && (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <StatCard
+            icon={<Repeat className="h-4 w-4" />}
+            label="ของใช้ซ้ำทั้งหมด"
+            value={reusables.reduce((s, i) => s + Number(i.current_qty), 0).toLocaleString("th-TH")}
+            sub={`${reusables.length} รายการ`}
+            tone="info"
+          />
+          <StatCard
+            icon={<Warehouse className="h-4 w-4" />}
+            label="อยู่ในบ้าน (คลัง/ห้องผ้า/แต่ละหลัง)"
+            value={(
+              reusables.reduce((s, i) => s + Number(i.current_qty), 0) - atLaundry
+            ).toLocaleString("th-TH")}
+            tone="neutral"
+          />
+          <StatCard
+            icon={<ArrowLeftRight className="h-4 w-4" />}
+            label="อยู่ที่ร้านซัก"
+            value={atLaundry.toLocaleString("th-TH")}
+            sub={atLaundry > 0 ? "ยังไม่ได้รับคืน" : "ไม่มีค้างที่ร้าน"}
+            tone={atLaundry > 0 ? "warning" : "neutral"}
+            valueColored
+          />
+        </div>
+      )}
 
       {/* ── แดชบอร์ด ── */}
       {activeTab === "dashboard" &&
@@ -981,6 +1170,13 @@ export default function TmcStockPage() {
             <TableLoading colSpan={5} />
           </TableBody>
         </Table>
+      ) : activeTab === "reusable" ? (
+        <ReusableMatrix
+          items={filteredItems}
+          locations={locations}
+          balances={balances}
+          onPickItem={(item) => openMovement("transfer", item)}
+        />
       ) : activeTab === "items" ? (
         <Table stickyHeader fillViewport>
           <TableHeader sticky>
@@ -994,9 +1190,11 @@ export default function TmcStockPage() {
           </TableHeader>
           <TableBody>
             {itemPager.rows.map((item) => (
-              <TableRow key={item.id}>
+              <TableRow key={item.id} clickable onClick={() => openMovement("issue", item)}>
                 <TableCell className="font-medium text-gray-900">{item.name}</TableCell>
-                <TableCell className="text-xs text-gray-500">{item.category ?? "—"}</TableCell>
+                <TableCell className="text-xs text-gray-500">
+                  {item.category ?? GROUP_LABELS[item.item_group ?? ""] ?? "—"}
+                </TableCell>
                 <TableCell align="right" className="font-semibold tabular-nums">
                   {item.current_qty} {item.unit}
                 </TableCell>
@@ -1031,7 +1229,7 @@ export default function TmcStockPage() {
               <TableHead>รายการ</TableHead>
               <TableHead align="center">ประเภท</TableHead>
               <TableHead align="right">จำนวน</TableHead>
-              <TableHead>แปลง</TableHead>
+              <TableHead>จาก → ไป</TableHead>
               <TableHead>หมายเหตุ</TableHead>
             </TableRow>
           </TableHeader>
@@ -1046,14 +1244,16 @@ export default function TmcStockPage() {
                 </TableCell>
                 <TableCell className="font-medium">{m.tmc_stock_items?.name}</TableCell>
                 <TableCell align="center">
-                  {m.movement_type === "in" && <StatusBadge tone="success">รับเข้า</StatusBadge>}
-                  {m.movement_type === "out" && <StatusBadge tone="danger">เบิกออก</StatusBadge>}
-                  {m.movement_type === "adjust" && <StatusBadge tone="info">ปรับ</StatusBadge>}
+                  <StatusBadge tone={MOVEMENT_LABELS[m.movement_type]?.tone ?? "neutral"}>
+                    {MOVEMENT_LABELS[m.movement_type]?.label ?? m.movement_type}
+                  </StatusBadge>
                 </TableCell>
                 <TableCell align="right" className="tabular-nums">
                   {m.quantity} {m.tmc_stock_items?.unit}
                 </TableCell>
-                <TableCell className="text-gray-500">{m.property_code ?? "—"}</TableCell>
+                <TableCell className="text-gray-500">
+                  {m.from_location?.name ?? "ภายนอก"} → {m.to_location?.name ?? "ใช้ไป/ตัดออก"}
+                </TableCell>
                 <TableCell className="text-xs text-gray-400">{m.note ?? "—"}</TableCell>
               </TableRow>
             ))}
@@ -1109,6 +1309,42 @@ export default function TmcStockPage() {
                   options={categoryOptions}
                 />
               </div>
+              {/* ชนิดของ = กติกาการตัดสต๊อก ไม่ใช่แค่ป้ายกำกับ (specs §2.1) */}
+              <div className="space-y-1.5">
+                <Label>ชนิดของ *</Label>
+                <SegmentedControl
+                  value={itemForm.stockClass}
+                  onChange={(v) =>
+                    setItemForm((f) => ({
+                      ...f,
+                      stockClass: v,
+                      itemGroup: v === "reusable" ? "linen" : "amenity",
+                    }))
+                  }
+                  size="md"
+                  fullWidth
+                  options={[
+                    { value: "consumable", label: "ใช้แล้วหมดไป" },
+                    { value: "reusable", label: "ใช้ซ้ำ" },
+                  ]}
+                />
+                <p className="text-xs text-gray-400">
+                  {itemForm.stockClass === "reusable"
+                    ? "เบิกแล้วไม่หายจากทรัพย์สิน — ย้ายไปอยู่จุดเก็บใหม่ (ผ้า เครื่องนอน อุปกรณ์)"
+                    : "เบิกแล้วถือว่าใช้ไป ตัดออกจากคลังทันที (ของใช้ในห้อง อาหาร ของทำความสะอาด)"}
+                </p>
+              </div>
+              <div className="space-y-1.5">
+                <Label>กลุ่ม *</Label>
+                <CustomSelect
+                  value={itemForm.itemGroup}
+                  onChange={(v) => setItemForm((f) => ({ ...f, itemGroup: v }))}
+                  options={(itemForm.stockClass === "reusable"
+                    ? ["linen", "bedding", "equipment"]
+                    : ["amenity", "fnb", "cleaning", "maintenance"]
+                  ).map((g) => ({ value: g, label: GROUP_LABELS[g] }))}
+                />
+              </div>
             </div>
           </DialogBody>
           <DialogFooter>
@@ -1133,13 +1369,17 @@ export default function TmcStockPage() {
           <DialogHeader>
             <DialogTitle>
               <span className="inline-flex items-center gap-1.5">
-                {showMovement === "in" ? (
+                {showMovement === "receive" ? (
                   <>
                     <ArrowDown className="h-4 w-4" /> รับสินค้าเข้า
                   </>
-                ) : showMovement === "out" ? (
+                ) : showMovement === "issue" ? (
                   <>
-                    <ArrowUp className="h-4 w-4" /> เบิกสินค้าออก
+                    <ArrowUp className="h-4 w-4" /> เบิกใช้
+                  </>
+                ) : showMovement === "transfer" ? (
+                  <>
+                    <ArrowLeftRight className="h-4 w-4" /> ย้ายที่เก็บ
                   </>
                 ) : (
                   <>
@@ -1155,42 +1395,75 @@ export default function TmcStockPage() {
                 <Label>รายการสินค้า *</Label>
                 <CustomSelect
                   value={movForm.itemId}
-                  onChange={(v) => setMovForm((f) => ({ ...f, itemId: v }))}
+                  onChange={(v) => {
+                    const it = items.find((i) => i.id === v);
+                    setMovForm((f) => ({
+                      ...f,
+                      itemId: v,
+                      // ตั้งจุดเก็บประจำของของชิ้นนั้นให้อัตโนมัติ (ผ้า = ห้องผ้าสะอาด, ของใช้ = คลังกลาง)
+                      fromLocationId:
+                        showMovement === "receive" ? "" : (it?.default_location_id ?? ""),
+                      toLocationId:
+                        showMovement === "receive" ? (it?.default_location_id ?? "") : "",
+                    }));
+                  }}
                   options={itemOptions}
                 />
               </div>
+
+              {/* จาก → ไป : หัวใจของโครงใหม่ (specs §2.2) */}
               <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <Label>จำนวน *</Label>
-                  <Input
-                    type="number"
-                    value={movForm.quantity}
-                    onChange={(e) => setMovForm((f) => ({ ...f, quantity: e.target.value }))}
-                  />
-                  {overWithdraw && (
-                    <p className="text-xs text-red-600">
-                      เบิกเกินยอดคงเหลือ (คงเหลือ {selectedMovItem?.current_qty}{" "}
-                      {selectedMovItem?.unit})
+                {showMovement !== "receive" && (
+                  <div className="space-y-1.5">
+                    <Label>จาก *</Label>
+                    <CustomSelect
+                      value={movForm.fromLocationId}
+                      onChange={(v) => setMovForm((f) => ({ ...f, fromLocationId: v }))}
+                      options={locationOptions}
+                    />
+                    {fromQty !== null && (
+                      <p className="text-xs text-gray-400">
+                        คงเหลือที่นี่ {fromQty} {selectedMovItem?.unit}
+                      </p>
+                    )}
+                  </div>
+                )}
+                {showMovement !== "issue" || selectedMovItem?.stock_class === "reusable" ? (
+                  <div className="space-y-1.5">
+                    <Label>ไป {needsDestination ? "*" : ""}</Label>
+                    <CustomSelect
+                      value={movForm.toLocationId}
+                      onChange={(v) => setMovForm((f) => ({ ...f, toLocationId: v }))}
+                      options={locationOptions}
+                    />
+                    {needsDestination && (
+                      <p className="text-xs text-amber-600">
+                        ของใช้ซ้ำไม่หายจากทรัพย์สิน — ต้องบอกว่าย้ายไปอยู่ที่ไหน
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <div className="space-y-1.5">
+                    <Label>ปลายทาง</Label>
+                    <p className="pt-2 text-xs text-gray-400">
+                      ของใช้แล้วหมดไป — เบิกแล้วตัดออกจากคลังทันที
                     </p>
-                  )}
-                </div>
-                <div className="space-y-1.5">
-                  <Label>แปลง</Label>
-                  <CustomSelect
-                    value={movForm.propertyCode}
-                    onChange={(v) => setMovForm((f) => ({ ...f, propertyCode: v }))}
-                    options={[
-                      { value: "", label: "—" },
-                      { value: "TMC1", label: "TMC1" },
-                      { value: "TMC2", label: "TMC2" },
-                      { value: "TMC3-4", label: "TMC3-4" },
-                      { value: "TMC5", label: "TMC5" },
-                      { value: "TMC6", label: "TMC6" },
-                      { value: "TMC7", label: "TMC7" },
-                      { value: "ส่วนกลาง", label: "ส่วนกลาง" },
-                    ]}
-                  />
-                </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-1.5">
+                <Label>จำนวน *</Label>
+                <Input
+                  type="number"
+                  value={movForm.quantity}
+                  onChange={(e) => setMovForm((f) => ({ ...f, quantity: e.target.value }))}
+                />
+                {overWithdraw && (
+                  <p className="text-xs text-red-600">
+                    เกินยอดที่จุดเก็บต้นทาง (คงเหลือ {fromQty} {selectedMovItem?.unit})
+                  </p>
+                )}
               </div>
               <div className="space-y-1.5">
                 <Label>หมายเหตุ</Label>
@@ -1207,7 +1480,14 @@ export default function TmcStockPage() {
             </Button>
             <Button
               onClick={handleMovement}
-              disabled={saving || !movForm.itemId || !movForm.quantity || overWithdraw}
+              disabled={
+                saving ||
+                !movForm.itemId ||
+                !movForm.quantity ||
+                overWithdraw ||
+                needsDestination ||
+                (showMovement === "transfer" && !movForm.toLocationId)
+              }
             >
               {saving ? "กำลังบันทึก…" : "บันทึก"}
             </Button>
@@ -1234,7 +1514,7 @@ export default function TmcStockPage() {
       <Dialog open={showMaster} onOpenChange={setShowMaster}>
         <DialogContent size="md">
           <DialogHeader>
-            <DialogTitle>จัดการหมวดหมู่และหน่วย</DialogTitle>
+            <DialogTitle>ตั้งค่าคลัง — หมวดหมู่ / หน่วย / จุดเก็บ</DialogTitle>
           </DialogHeader>
 
           <DialogBody>
@@ -1246,8 +1526,59 @@ export default function TmcStockPage() {
               options={[
                 { value: "categories", label: "หมวดหมู่", icon: <Tag className="h-4 w-4" /> },
                 { value: "units", label: "หน่วย", icon: <Ruler className="h-4 w-4" /> },
+                { value: "locations", label: "จุดเก็บ", icon: <Warehouse className="h-4 w-4" /> },
               ]}
             />
+
+            {/* จุดเก็บของ — คลังกลาง / ห้องผ้าสะอาด / ร้านซัก / แต่ละหลัง */}
+            {masterTab === "locations" && (
+              <div className="space-y-1">
+                {locations.map((l) => (
+                  <EditableRow
+                    key={l.id}
+                    label={l.name}
+                    placeholder="ชื่อจุดเก็บ"
+                    onSave={(name) => saveLocation(l.id, name)}
+                    onDelete={() => deactivateLocation(l.id)}
+                  />
+                ))}
+                {/* เพิ่มจุดเก็บใหม่ เช่น ร้านซักเจ้าที่สอง */}
+                <div className="mt-2 flex items-center gap-2 border-t pt-2">
+                  <Input
+                    value={newLocName}
+                    onChange={(e) => setNewLocName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") void addLocation();
+                    }}
+                    placeholder="ชื่อจุดเก็บใหม่ เช่น ร้านซัก ข."
+                    className="h-8 flex-1 text-sm"
+                  />
+                  <CustomSelect
+                    value={newLocKind}
+                    onChange={setNewLocKind}
+                    className="w-32"
+                    options={[
+                      { value: "store", label: "สโตร" },
+                      { value: "laundry", label: "ร้านซัก" },
+                      { value: "linen_room", label: "ห้องผ้า" },
+                      { value: "kitchen", label: "ครัว" },
+                      { value: "warehouse", label: "คลัง" },
+                    ]}
+                  />
+                  <Button
+                    size="sm"
+                    onClick={addLocation}
+                    disabled={addingLoc || !newLocName.trim()}
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
+                <p className="pt-1 text-xs text-gray-400">
+                  จุดเก็บที่เคยมีการเคลื่อนไหวแล้วลบไม่ได้ — กดถังขยะคือ &ldquo;เลิกใช้&rdquo;
+                  (ประวัติยังอยู่ครบ)
+                </p>
+              </div>
+            )}
 
             {/* Categories tab */}
             {masterTab === "categories" && (
