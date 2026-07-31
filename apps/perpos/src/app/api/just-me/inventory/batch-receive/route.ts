@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireModuleMember } from "../../../_lib/module-auth";
 import { createAdminClient } from "../../../_lib/supabase";
 import { canWrite, type JustMeRole } from "../../_lib";
+import { lineToken, postStockMovement } from "@/lib/just-me/stock-movements";
 
 type ReceiveItem = { name: string; unit: string; qty: number; unitCost?: number | null };
 
@@ -25,9 +26,11 @@ export async function POST(req: NextRequest) {
     referenceNo?: string;
     note?: string;
     items: ReceiveItem[];
+    /** uuid จากหน้าเว็บ — กดบันทึกซ้ำ/เน็ตหลุดแล้วยิงใหม่ จะไม่ได้ของเข้าคลังสองรอบ */
+    clientToken?: string;
   };
 
-  const { warehouseId, referenceNo, note, items } = body;
+  const { warehouseId, referenceNo, note, items, clientToken } = body;
 
   if (!warehouseId) {
     return NextResponse.json({ error: "กรุณาเลือกคลังปลายทาง" }, { status: 400 });
@@ -118,47 +121,23 @@ export async function POST(req: NextRequest) {
       continue;
     }
 
-    // Insert movement
-    const { error: movErr } = await admin.from("just_me_stock_movements").insert({
-      org_id: orgId,
-      item_id: itemId,
-      movement_type: "receive",
-      source_warehouse_id: null,
-      destination_warehouse_id: warehouseId,
-      quantity: qty,
-      reference_no: referenceNo || null,
+    // บันทึกความเคลื่อนไหว + ยอดคงเหลือในคำสั่งเดียว (atomic · token ต่อบรรทัดกันรับซ้ำ)
+    const posted = await postStockMovement(admin, {
+      orgId,
+      itemId,
+      type: "receive",
+      qty,
+      destinationWarehouseId: warehouseId,
+      referenceNo: referenceNo || null,
       note: note || null,
-      unit_cost: unitCost,
-      created_by: auth.userId,
+      unitCost,
+      createdBy: auth.userId,
+      clientToken: lineToken(clientToken, idx),
     });
 
-    if (movErr) {
-      errors.push(`บันทึกการรับ "${name}" ไม่สำเร็จ: ${movErr.message}`);
+    if (!posted.ok) {
+      errors.push(`บันทึกการรับ "${name}" ไม่สำเร็จ: ${posted.error}`);
       continue;
-    }
-
-    // Upsert stock balance
-    const { data: bal } = await admin
-      .from("just_me_stock_balances")
-      .select("quantity")
-      .eq("warehouse_id", warehouseId)
-      .eq("item_id", itemId)
-      .maybeSingle();
-
-    if (bal) {
-      await admin
-        .from("just_me_stock_balances")
-        .update({ quantity: Number(bal.quantity) + qty, updated_at: new Date().toISOString() })
-        .eq("warehouse_id", warehouseId)
-        .eq("item_id", itemId);
-    } else {
-      await admin.from("just_me_stock_balances").insert({
-        org_id: orgId,
-        warehouse_id: warehouseId,
-        item_id: itemId,
-        quantity: qty,
-        updated_at: new Date().toISOString(),
-      });
     }
 
     results.push({ name, itemId, qty, created });

@@ -55,7 +55,9 @@ import {
   Coins,
   Wallet,
   Users,
+  ClipboardCheck,
 } from "lucide-react";
+import { StockCountTab } from "./stock-count-tab";
 import cn from "@core/utils/class-names";
 
 interface WarehouseData {
@@ -121,6 +123,9 @@ interface StockMovement {
   total_cost: number | null;
   creator: Person | null;
   requester: Person | null;
+  /** ≠ null = รายการนี้เกิดจากการปรับยอดตามใบตรวจนับ (ไม่ใช่การรับ/เบิกปกติ) */
+  stock_count_id: string | null;
+  adjustment_reason: string | null;
 }
 
 interface Person {
@@ -157,6 +162,12 @@ const fmtMoney = (v: number, decimals = 2) =>
 const fmtQty = (v: number) =>
   new Intl.NumberFormat("th-TH", { maximumFractionDigits: 2 }).format(v);
 
+/** uuid ของการกดบันทึกหนึ่งครั้ง (idempotency key ที่ส่งไปกับทุกการเขียนคลัง) */
+const newToken = () =>
+  typeof crypto !== "undefined" && "randomUUID" in crypto
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
 /** ดึงพิกัดจากข้อความที่วาง — รับได้ทั้ง "13.6684, 100.6069" และลิงก์ Google Maps */
 function parseLatLng(text: string): { lat: string; lng: string } | null {
   const patterns = [
@@ -178,7 +189,7 @@ export default function JustMeInventoryPage() {
 
   // UI States
   const [activeTab, setActiveTab] = useState<
-    "overview" | "warehouses" | "items" | "movement" | "scraps" | "cost" | "history"
+    "overview" | "warehouses" | "items" | "movement" | "stockcount" | "scraps" | "cost" | "history"
   >("overview");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -248,6 +259,8 @@ export default function JustMeInventoryPage() {
     project_id: "",
   });
   const [formLoading, setFormLoading] = useState(false);
+  // token ของ "การกดบันทึกครั้งนี้" — ออกใหม่ทุกครั้งที่บันทึกสำเร็จ (กันกดซ้ำได้ของสองรอบ)
+  const [movementToken, setMovementToken] = useState(() => newToken());
 
   const handleUnitSelectionChange = (val: string) => {
     setUnitSelection(val);
@@ -484,6 +497,8 @@ export default function JustMeInventoryPage() {
           action: "movement",
           ...formMovement,
           serial_numbers,
+          // กันกดซ้ำ/เน็ตหลุดแล้วยิงใหม่ — token เดิม = ได้รายการเดิม ยอดไม่เดินสองรอบ
+          clientToken: movementToken,
         }),
       });
 
@@ -492,6 +507,8 @@ export default function JustMeInventoryPage() {
 
       setSuccess("บันทึกรายการเคลื่อนไหวสต็อกสำเร็จ");
       toast.success("บันทึกรายการเคลื่อนไหวสต็อกแล้ว");
+      if (json.warning) toast.error(json.warning);
+      setMovementToken(newToken());
       setFormMovement({
         movement_type: "receive",
         item_id: "",
@@ -816,6 +833,11 @@ export default function JustMeInventoryPage() {
                 value: "movement",
                 label: "เบิก/โอน",
                 icon: <ArrowLeftRight className="h-4 w-4" />,
+              },
+              {
+                value: "stockcount",
+                label: "ตรวจนับสต๊อก",
+                icon: <ClipboardCheck className="h-4 w-4" />,
               },
               { value: "scraps", label: "เศษสายไฟ", icon: <Scissors className="h-4 w-4" /> },
               { value: "cost", label: "ต้นทุน", icon: <Coins className="h-4 w-4" /> },
@@ -1893,6 +1915,16 @@ export default function JustMeInventoryPage() {
           )}
 
           {/* TAB CONTENT: History */}
+          {activeTab === "stockcount" && (
+            <StockCountTab
+              orgId={orgId}
+              authToken={authToken}
+              warehouses={warehouses}
+              items={items}
+              onStockChanged={loadData}
+            />
+          )}
+
           {activeTab === "history" && (
             <div className="overflow-hidden rounded-xl border bg-white">
               <div className="border-b px-5 py-4">
@@ -1938,6 +1970,11 @@ export default function JustMeInventoryPage() {
                             >
                               {getMovementLabel(mov.movement_type)}
                             </span>
+                            {mov.stock_count_id && (
+                              <StatusBadge tone="warning" className="ml-1.5">
+                                ปรับยอดจากการตรวจนับ
+                              </StatusBadge>
+                            )}
                           </TableCell>
                           <TableCell className="font-bold text-slate-800">
                             {item ? item.name : "ไม่พบชื่อสินค้า"}
@@ -1972,6 +2009,9 @@ export default function JustMeInventoryPage() {
                               โดย: {mov.creator?.display_name || "ไม่ระบุชื่อ"}
                             </p>
                             {mov.note && <p className="italic text-slate-500">โน้ต: {mov.note}</p>}
+                            {mov.adjustment_reason && (
+                              <p className="text-amber-700">เหตุผล: {mov.adjustment_reason}</p>
+                            )}
                           </TableCell>
                         </TableRow>
                       );

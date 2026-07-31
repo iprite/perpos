@@ -5,7 +5,7 @@
  * ⛔ ปริมาณคงเหลือ/สถานะใบ คิดที่ server (`receivePurchaseRequest`) — ที่นี่แค่กรอกจำนวนที่ได้รับรอบนี้
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { CustomSelect } from "@/components/ui/custom-select";
@@ -35,6 +35,12 @@ import { jmSend } from "../../_components/api-client";
 import { qtyText } from "../../_components/format";
 import type { PrOption } from "./_types";
 
+/** uuid ของ "การกดรับของครั้งนี้" — idempotency key ที่ server ใช้กันรับซ้ำ */
+const newToken = () =>
+  typeof crypto !== "undefined" && "randomUUID" in crypto
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
 export function ReceiveDialog({
   open,
   onOpenChange,
@@ -61,6 +67,7 @@ export function ReceiveDialog({
   const [qty, setQty] = useState<Record<string, string>>({});
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
+  const tokenRef = useRef(newToken());
 
   useEffect(() => {
     if (!open) return;
@@ -72,6 +79,7 @@ export function ReceiveDialog({
     }
     setQty(next);
     setNote("");
+    tokenRef.current = newToken();
   }, [open, items, defaultWarehouseId, warehouseOptions]);
 
   const unlinkedCount = items.filter((it) => !it.item_id).length;
@@ -91,7 +99,13 @@ export function ReceiveDialog({
         orgId,
         `purchase-requests/${prId}/receive`,
         "POST",
-        { warehouse_id: warehouseId || null, lines, note: note.trim() || null },
+        {
+          warehouse_id: warehouseId || null,
+          lines,
+          note: note.trim() || null,
+          // กันกดรับของซ้ำ — token เดิม + ยอดที่รับไปแล้ว = ไม่เกิดการรับของสองรอบ
+          clientToken: tokenRef.current,
+        },
       );
       notify.success(
         res.status_changed_to === "received" ? "รับของครบตามใบขอซื้อแล้ว" : "บันทึกการรับของแล้ว",

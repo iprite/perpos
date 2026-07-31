@@ -37,6 +37,7 @@ export async function POST(req: NextRequest, ctx: Ctx) {
     warehouseId,
     lines,
     note: typeof body.note === "string" ? body.note : null,
+    clientToken: typeof body.clientToken === "string" ? body.clientToken : null,
   });
   if (!res.ok) return jmError(res.error, res.status);
 

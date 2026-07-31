@@ -94,6 +94,8 @@ export function OcrReceiveDialog({
 }: Props) {
   const [mode, setMode] = useState<"manual" | "ocr">("manual");
   const [lines, setLines] = useState<LineItem[]>([newLine()]);
+  // token ของบิลใบที่กำลังบันทึก — ออกใหม่หลังบันทึกสำเร็จ (กดซ้ำระหว่างนั้นจะไม่รับของสองรอบ)
+  const saveTokenRef = useRef(uid());
 
   const today = new Date().toISOString().slice(0, 10);
   const [warehouseId, setWarehouseId] = useState(warehouseOptions[0]?.value ?? "");
@@ -196,6 +198,8 @@ export function OcrReceiveDialog({
         warehouseId,
         referenceNo: referenceNo || undefined,
         note: note || undefined,
+        // กันกดบันทึกซ้ำ — token เดิม = บรรทัดเดิมไม่ถูกรับเข้าคลังสองรอบ
+        clientToken: saveTokenRef.current,
         items: valid.map((l) => ({
           unitCost: l.unitCost.trim() === "" ? null : Number(l.unitCost),
           name: l.name.trim(),
@@ -227,6 +231,7 @@ export function OcrReceiveDialog({
     }
 
     // reset
+    saveTokenRef.current = uid();
     setLines([newLine()]);
     setReferenceNo("");
     setNote("");

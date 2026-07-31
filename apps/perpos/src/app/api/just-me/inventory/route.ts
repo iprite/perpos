@@ -11,6 +11,11 @@ import {
 } from "../_lib";
 import { loadProjectMetrics } from "@/lib/just-me/projects";
 import { notifyOverBudgetCrossed } from "@/lib/just-me/notify";
+import {
+  getMovement,
+  postStockMovement,
+  type JustMeMovementType,
+} from "@/lib/just-me/stock-movements";
 
 export async function GET(req: NextRequest) {
   const orgId = req.nextUrl.searchParams.get("orgId");
@@ -246,6 +251,7 @@ export async function POST(req: NextRequest) {
       unit_cost,
       project_id,
       boq_item_id,
+      clientToken,
     } = body;
 
     if (!movement_type || !["receive", "transfer", "issue", "return"].includes(movement_type)) {
@@ -381,27 +387,8 @@ export async function POST(req: NextRequest) {
         ? await loadProjectMetrics(admin, orgId, project_id as string)
         : null;
 
-    // Transaction implementation:
-    // 1. Check stock balances for source warehouse if we are transferring, issuing, or returning
-    if (source_warehouse_id) {
-      const { data: srcBal } = await admin
-        .from("just_me_stock_balances")
-        .select("quantity")
-        .eq("org_id", orgId)
-        .eq("warehouse_id", source_warehouse_id)
-        .eq("item_id", item_id)
-        .maybeSingle();
-
-      const currentQty = srcBal ? Number(srcBal.quantity) : 0;
-      if (currentQty < qty) {
-        return NextResponse.json(
-          { error: `สินค้าคงเหลือในคลังต้นทางไม่พอ (มีอยู่ ${currentQty} ${item.unit})` },
-          { status: 400 },
-        );
-      }
-    }
-
-    // 2. For serial verification: If transferring, issuing, or returning, check that serials exist in the source warehouse
+    // ยอดคงเหลือ/ของพอไหม = ตรวจใน RPC แบบล็อกแถว (ตรวจที่นี่ก่อนก็ยังแข่งกันได้)
+    // 1. For serial verification: If transferring, issuing, or returning, check that serials exist in the source warehouse
     let verifiedSerials: any[] = [];
     if (item.has_serial && source_warehouse_id) {
       const { data: foundSerials } = await admin
@@ -427,81 +414,48 @@ export async function POST(req: NextRequest) {
       verifiedSerials = foundList;
     }
 
-    // 3. Create stock movement record
-    const { data: movement, error: movErr } = await admin
-      .from("just_me_stock_movements")
-      .insert({
-        org_id: orgId,
-        item_id,
-        movement_type,
-        source_warehouse_id: source_warehouse_id || null,
-        destination_warehouse_id: destination_warehouse_id || null,
-        quantity: qty,
-        reference_no,
-        note,
-        requested_by: requested_by || null,
-        requester_name: requesterName || null,
-        project_id: project_id || null,
-        boq_item_id: boq_item_id || null,
-        unit_cost: unitCost,
-        created_by: auth.userId,
-      })
-      .select()
-      .single();
-
-    if (movErr) return NextResponse.json({ error: movErr.message }, { status: 500 });
-
-    // 4. Update source stock balance
-    if (source_warehouse_id) {
-      const { data: srcBal } = await admin
-        .from("just_me_stock_balances")
-        .select("quantity")
-        .eq("org_id", orgId)
-        .eq("warehouse_id", source_warehouse_id)
-        .eq("item_id", item_id)
-        .maybeSingle();
-
-      const currentQty = srcBal ? Number(srcBal.quantity) : 0;
-      const newSrcQty = currentQty - qty;
-      await admin
-        .from("just_me_stock_balances")
-        .update({ quantity: newSrcQty, updated_at: new Date().toISOString() })
-        .eq("org_id", orgId)
-        .eq("warehouse_id", source_warehouse_id)
-        .eq("item_id", item_id);
+    // 2. บันทึกความเคลื่อนไหว + ยอดคงเหลือในคำสั่งเดียว (atomic · กดซ้ำด้วย token เดิมได้รายการเดิม)
+    const posted = await postStockMovement(admin, {
+      orgId,
+      itemId: item_id,
+      type: movement_type as JustMeMovementType,
+      qty,
+      sourceWarehouseId: source_warehouse_id || null,
+      destinationWarehouseId: destination_warehouse_id || null,
+      referenceNo: reference_no || null,
+      note: note || null,
+      unitCost,
+      projectId: project_id || null,
+      boqItemId: boq_item_id || null,
+      requestedBy: requested_by || null,
+      requesterName: requesterName || null,
+      createdBy: auth.userId,
+      clientToken: typeof clientToken === "string" ? clientToken : null,
+    });
+    if (!posted.ok) {
+      return NextResponse.json({ error: posted.error }, { status: posted.status });
     }
 
-    // 5. Update destination stock balance
-    if (destination_warehouse_id) {
-      const { data: destBal } = await admin
-        .from("just_me_stock_balances")
-        .select("quantity")
-        .eq("org_id", orgId)
-        .eq("warehouse_id", destination_warehouse_id)
-        .eq("item_id", item_id)
-        .maybeSingle();
+    const movement = (await getMovement(admin, orgId, posted.movementId)) ?? {
+      id: posted.movementId,
+    };
 
-      if (destBal) {
-        const newDestQty = Number(destBal.quantity) + qty;
-        await admin
-          .from("just_me_stock_balances")
-          .update({ quantity: newDestQty, updated_at: new Date().toISOString() })
-          .eq("org_id", orgId)
-          .eq("warehouse_id", destination_warehouse_id)
-          .eq("item_id", item_id);
-      } else {
-        await admin.from("just_me_stock_balances").insert({
-          org_id: orgId,
-          warehouse_id: destination_warehouse_id,
-          item_id,
-          quantity: qty,
-          updated_at: new Date().toISOString(),
-        });
-      }
-    }
+    // ยิงซ้ำด้วย token เดิม = ได้ movement เดิม → ห้ามผูก serial ซ้ำอีกรอบ
+    const { count: serialLinkCount } = await admin
+      .from("just_me_stock_movement_serials")
+      .select("movement_id", { count: "exact", head: true })
+      .eq("movement_id", posted.movementId);
 
-    // 6. Manage Serials state updates
-    if (item.has_serial) {
+    // 3. Manage Serials state updates
+    const serialErrors: string[] = [];
+    if (item.has_serial && !serialLinkCount) {
+      const linkSerial = async (serialId: string) => {
+        const { error } = await admin
+          .from("just_me_stock_movement_serials")
+          .insert({ movement_id: posted.movementId, serial_id: serialId });
+        if (error) serialErrors.push(`ผูก Serial กับรายการนี้ไม่สำเร็จ`);
+      };
+
       for (const sn of serialsList) {
         if (movement_type === "receive") {
           // Insert new serial
@@ -521,62 +475,43 @@ export async function POST(req: NextRequest) {
             .select()
             .single();
 
-          if (!insErr && newSer) {
-            await admin.from("just_me_stock_movement_serials").insert({
-              movement_id: movement.id,
-              serial_id: newSer.id,
-            });
+          if (insErr || !newSer) {
+            serialErrors.push(
+              insErr?.code === "23505"
+                ? `Serial "${sn}" มีอยู่ในระบบแล้ว`
+                : `บันทึก Serial "${sn}" ไม่สำเร็จ`,
+            );
+            continue;
           }
-        } else if (movement_type === "transfer") {
-          // Update warehouse
+          await linkSerial(newSer.id);
+        } else {
           const currentSer = verifiedSerials.find((fs) => fs.serial_number === sn);
-          if (currentSer) {
-            await admin
-              .from("just_me_item_serials")
-              .update({ warehouse_id: destination_warehouse_id })
-              .eq("id", currentSer.id);
-
-            await admin.from("just_me_stock_movement_serials").insert({
-              movement_id: movement.id,
-              serial_id: currentSer.id,
-            });
+          if (!currentSer) {
+            serialErrors.push(`ไม่พบ Serial "${sn}" ในคลังต้นทาง`);
+            continue;
           }
-        } else if (movement_type === "issue") {
-          // Update status to issued
-          const currentSer = verifiedSerials.find((fs) => fs.serial_number === sn);
-          if (currentSer) {
+          let patch: Record<string, unknown> = {};
+          if (movement_type === "transfer") {
+            patch = { warehouse_id: destination_warehouse_id };
+          } else if (movement_type === "issue") {
             const lengthRem = item.has_cable_measurement ? Number(length_remaining) : null;
-            await admin
-              .from("just_me_item_serials")
-              .update({
-                status: "issued",
-                length_remaining: lengthRem,
-                is_scrap: item.has_cable_measurement && lengthRem !== null && lengthRem < 5,
-              })
-              .eq("id", currentSer.id);
-
-            await admin.from("just_me_stock_movement_serials").insert({
-              movement_id: movement.id,
-              serial_id: currentSer.id,
-            });
+            patch = {
+              status: "issued",
+              length_remaining: lengthRem,
+              is_scrap: item.has_cable_measurement && lengthRem !== null && lengthRem < 5,
+            };
+          } else {
+            patch = { status: "in_stock", warehouse_id: destination_warehouse_id };
           }
-        } else if (movement_type === "return") {
-          // Update status back to in_stock at Central Warehouse
-          const currentSer = verifiedSerials.find((fs) => fs.serial_number === sn);
-          if (currentSer) {
-            await admin
-              .from("just_me_item_serials")
-              .update({
-                status: "in_stock",
-                warehouse_id: destination_warehouse_id,
-              })
-              .eq("id", currentSer.id);
-
-            await admin.from("just_me_stock_movement_serials").insert({
-              movement_id: movement.id,
-              serial_id: currentSer.id,
-            });
+          const { error: updErr } = await admin
+            .from("just_me_item_serials")
+            .update(patch)
+            .eq("id", currentSer.id);
+          if (updErr) {
+            serialErrors.push(`ปรับสถานะ Serial "${sn}" ไม่สำเร็จ`);
+            continue;
           }
+          await linkSerial(currentSer.id);
         }
       }
     }
@@ -593,8 +528,16 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // ยอดเดินแล้วแต่ Serial ไม่ครบ = ต้องบอกผู้ใช้ ห้ามกลืนเงียบ (ไม่งั้นทะเบียน Serial เพี้ยนโดยไม่มีใครรู้)
     return NextResponse.json(
-      { success: true, movement: stripCost(movement as Record<string, unknown>, role) },
+      {
+        success: true,
+        movement: stripCost(movement as Record<string, unknown>, role),
+        warning:
+          serialErrors.length > 0
+            ? `บันทึกยอดคลังแล้ว แต่จัดการ Serial ไม่ครบ: ${serialErrors.join(" · ")} — กรุณาตรวจทะเบียน Serial`
+            : null,
+      },
       { status: 201 },
     );
   }

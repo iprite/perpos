@@ -11,6 +11,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { normalizePage, toPaged, type PageOpts, type Paged } from "@/lib/accounting/paging";
 import { prTotals, quoteTotal } from "./project-metrics";
+import { lineToken, postStockMovement } from "./stock-movements";
 import type {
   JustMePrItem,
   JustMePurchaseRequest,
@@ -714,11 +715,10 @@ export interface ReceiveResult {
  * **รับของเข้าคลัง — ฟังก์ชันเดียวของทั้งระบบ** (contract §4.4 invariant 4)
  * ลำดับที่ห้ามสลับ:
  *   1. ตรวจสถานะ PR + ปริมาณคงเหลือของแต่ละบรรทัด (รับเกินที่สั่ง = บล็อก พร้อมบอกยอดคงเหลือ)
- *   2. insert `just_me_stock_movements` type `receive` (ผูก PR/โครงการ/บรรทัด BOQ)
+ *   2. `postStockMovement()` type `receive` (ผูก PR/โครงการ/บรรทัด BOQ) — movement + ยอดคงเหลือ atomic
  *      · `unit_cost` = ราคาที่เลือก ?? ราคาประเมิน — **ห้ามเขียน `total_cost`** (trigger ต้นทุนคิดให้)
- *   3. บวกยอดคงเหลือของคลังปลายทาง
- *   4. บวก `received_qty` ของบรรทัด
- *   5. **อ่านบรรทัดจาก DB ใหม่** แล้วคิดสถานะ PR จากของจริง (ไม่เชื่อ payload)
+ *   3. บวก `received_qty` ของบรรทัด
+ *   4. **อ่านบรรทัดจาก DB ใหม่** แล้วคิดสถานะ PR จากของจริง (ไม่เชื่อ payload)
  */
 export async function receivePurchaseRequest(
   db: SupabaseClient,
@@ -729,6 +729,8 @@ export async function receivePurchaseRequest(
     warehouseId?: string | null;
     lines: ReceiveLineInput[];
     note?: string | null;
+    /** uuid จากหน้าเว็บ — กันกดรับของซ้ำ (ผูกต่อบรรทัด + ยอดที่รับไปแล้ว) */
+    clientToken?: string | null;
   },
 ): Promise<{ ok: true; result: ReceiveResult } | PurchasingFail> {
   const pr = await getPurchaseRequest(db, args.orgId, args.prId);
@@ -816,51 +818,25 @@ export async function receivePurchaseRequest(
 
   const movementIds: string[] = [];
   for (const p of planned) {
-    const { data: movement, error: movErr } = await db
-      .from("just_me_stock_movements")
-      .insert({
-        org_id: args.orgId,
-        item_id: p.item.item_id,
-        movement_type: "receive",
-        destination_warehouse_id: warehouseId,
-        quantity: p.qty,
-        reference_no: pr.pr_code,
-        note: args.note ?? null,
-        unit_cost: p.unitCost,
-        project_id: pr.project_id,
-        boq_item_id: p.item.boq_item_id,
-        purchase_request_id: pr.id,
-        created_by: args.userId,
-      })
-      .select("id")
-      .single();
-    if (movErr) return { ok: false, error: movErr.message, status: 500 };
-    movementIds.push((movement as { id: string }).id);
-
-    const { data: bal } = await db
-      .from("just_me_stock_balances")
-      .select("quantity")
-      .eq("warehouse_id", warehouseId)
-      .eq("item_id", p.item.item_id)
-      .maybeSingle();
-    if (bal) {
-      await db
-        .from("just_me_stock_balances")
-        .update({
-          quantity: Number((bal as { quantity: number }).quantity) + p.qty,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("warehouse_id", warehouseId)
-        .eq("item_id", p.item.item_id);
-    } else {
-      await db.from("just_me_stock_balances").insert({
-        org_id: args.orgId,
-        warehouse_id: warehouseId,
-        item_id: p.item.item_id,
-        quantity: p.qty,
-        updated_at: new Date().toISOString(),
-      });
-    }
+    // ของเข้าคลัง + ยอดคงเหลือ = คำสั่งเดียวแบบ atomic (`postStockMovement`)
+    // token ผูกกับบรรทัด + ยอดที่รับไปแล้ว ⇒ กดรับซ้ำรอบเดิมไม่ได้ของสองเท่า
+    const posted = await postStockMovement(db, {
+      orgId: args.orgId,
+      itemId: p.item.item_id!,
+      type: "receive",
+      qty: p.qty,
+      destinationWarehouseId: warehouseId,
+      referenceNo: pr.pr_code,
+      note: args.note ?? null,
+      unitCost: p.unitCost,
+      projectId: pr.project_id,
+      boqItemId: p.item.boq_item_id,
+      purchaseRequestId: pr.id,
+      createdBy: args.userId,
+      clientToken: lineToken(args.clientToken, `${p.item.id}:${p.item.received_qty ?? 0}`),
+    });
+    if (!posted.ok) return { ok: false, error: posted.error, status: posted.status };
+    movementIds.push(posted.movementId);
 
     const { error: updErr } = await db
       .from("just_me_pr_items")
