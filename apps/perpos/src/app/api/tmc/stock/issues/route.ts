@@ -15,6 +15,22 @@ export async function GET(req: NextRequest) {
   const auth = await requireTmcMember(req, orgId);
   if (!auth.ok) return auth.res;
 
+  // ?id= → ใบเดียวพร้อมบรรทัดจริง (ใช้ทำใบเช็คของที่พิมพ์ออกมา)
+  const id = p.get("id");
+  if (id) {
+    const [{ data: issue }, { data: lines }] = await Promise.all([
+      auth.rls.from("tmc_stock_issues").select("*").eq("org_id", orgId).eq("id", id).maybeSingle(),
+      auth.rls
+        .from("tmc_stock_movements")
+        .select("quantity, room_name, tmc_stock_items(name, unit)")
+        .eq("org_id", orgId)
+        .eq("issue_id", id)
+        .is("ref_movement_id", null),
+    ]);
+    if (!issue) return NextResponse.json({ error: "ไม่พบใบเบิก" }, { status: 404 });
+    return NextResponse.json({ issue, lines: lines ?? [] });
+  }
+
   const { data, error } = await auth.rls
     .from("tmc_stock_issues")
     .select("*, tmc_stock_presets(name, room_name)")

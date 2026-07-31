@@ -26,7 +26,8 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { PackageCheck, Trash2, Plus, BedDouble } from "lucide-react";
+import { PackageCheck, Trash2, Plus, BedDouble, Printer } from "lucide-react";
+import { IssuePrintDialog } from "./_issue-print";
 import type { StockItem, StockLocation, StockBalance, StockPreset, StockIssue } from "./_types";
 
 /** เตียงเสริมที่เลือกไว้ 1 แถว — ต้องบอกว่าเสริมที่ห้องไหน และเพิ่มกี่คน */
@@ -60,6 +61,7 @@ export function IssueView({
   const [extraBeds, setExtraBeds] = useState<ExtraBed[]>([]);
   const [lineView, setLineView] = useState<"summary" | "rooms">("summary");
   const [saving, setSaving] = useState(false);
+  const [printing, setPrinting] = useState<StockIssue | null>(null);
 
   const itemById = useMemo(() => new Map(items.map((i) => [i.id, i])), [items]);
 
@@ -321,16 +323,27 @@ export function IssueView({
                 )}
               </TableCell>
               <TableCell align="right">
-                {is.status === "posted" && canWrite && (
+                <span className="inline-flex items-center gap-1">
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="text-gray-400 hover:bg-red-50 hover:text-red-600"
-                    onClick={() => void voidIssue(is.id)}
+                    title="พิมพ์ใบเช็คของ"
+                    className="text-gray-400 hover:text-gray-900"
+                    onClick={() => setPrinting(is)}
                   >
-                    <Trash2 className="h-3.5 w-3.5" /> ยกเลิก
+                    <Printer className="h-3.5 w-3.5" /> พิมพ์
                   </Button>
-                )}
+                  {is.status === "posted" && canWrite && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-gray-400 hover:bg-red-50 hover:text-red-600"
+                      onClick={() => void voidIssue(is.id)}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" /> ยกเลิก
+                    </Button>
+                  )}
+                </span>
               </TableCell>
             </TableRow>
           ))}
@@ -342,6 +355,13 @@ export function IssueView({
         </TableBody>
       </Table>
       <TablePager pager={pager} unit="ใบ" />
+
+      <IssuePrintDialog
+        orgId={orgId}
+        issue={printing}
+        onClose={() => setPrinting(null)}
+        authHeader={authHeader}
+      />
 
       {/* ── กล่องเบิกชุด ─────────────────────────────────────────────── */}
       <Dialog open={open} onOpenChange={setOpen}>
