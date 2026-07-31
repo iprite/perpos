@@ -1,4 +1,4 @@
--- แยก "รองกันเปื้อนที่นอน" ตามขนาดเตียง (5 ฟุต / 6 ฟุต) + เพิ่ม "ผ้าเช็ดโต๊ะ" ทุกหลัง
+-- แยก "รองกันเปื้อนที่นอน" ตามขนาดเตียง (5 ฟุต / 6 ฟุต) + เพิ่ม "ผ้าเช็ดโต๊ะ" 2 ผืน ทุกหลัง
 -- จำนวนรองกันเปื้อนยึดตามผ้าปูที่นอนของห้องนั้น (ห้องไหนปู 6 ฟุต 1 ผืน ก็รอง 6 ฟุต 1 ผืน)
 -- เตียงเสริม 3 ฟุต ยังใช้ "รองกันเปื้อนที่นอน" ตัวเดิม (ยังไม่มีขนาด 3.5 ฟุต)
 -- ยอดคงเหลือของตัวเดิม (18 ผืน) ไม่ได้ถูกแบ่งอัตโนมัติ — ต้องตั้งยอดของสองตัวใหม่เอง
@@ -64,7 +64,7 @@ begin
 end $$;
 
 insert into public.tmc_stock_preset_lines(preset_id, item_id, qty, qty_basis, sort_order)
-select pr.id, i.id, 1, 'fixed', 20
+select pr.id, i.id, 2, 'fixed', 20
 from public.tmc_stock_presets pr
 join public.organizations o on o.id=pr.org_id and o.slug='tmc'
 join public.tmc_stock_items i on i.org_id=pr.org_id and i.name='ผ้าเช็ดโต๊ะ'
