@@ -13,7 +13,7 @@
 import { randomBytes } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "../../_lib/supabase";
-import { requireTmcMember, canWriteFinance } from "../_lib";
+import { requireTmcMember, canManageSalesBot } from "../_lib";
 import { generateTmcLinkCode, TMC_LINK_CODE_TTL_HOURS } from "@/lib/tmc/notify-group";
 
 export async function GET(req: NextRequest) {
@@ -84,7 +84,7 @@ export async function PUT(req: NextRequest) {
 
   const auth = await requireTmcMember(req, orgId);
   if (!auth.ok) return auth.res;
-  if (!canWriteFinance(auth.role))
+  if (!canManageSalesBot(auth.role))
     return NextResponse.json({ error: "ไม่มีสิทธิ์" }, { status: 403 });
 
   const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
@@ -122,7 +122,7 @@ export async function POST(req: NextRequest) {
 
   const auth = await requireTmcMember(req, orgId);
   if (!auth.ok) return auth.res;
-  if (!canWriteFinance(auth.role))
+  if (!canManageSalesBot(auth.role))
     return NextResponse.json({ error: "ไม่มีสิทธิ์" }, { status: 403 });
 
   const admin = createAdminClient();

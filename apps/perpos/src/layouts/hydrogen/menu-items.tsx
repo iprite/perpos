@@ -406,9 +406,11 @@ function buildTmcMenuItems(
 ): MenuItem[] {
   const t = (path: string) => `/${org}/tmc/${path}`;
   const l = (key: string, fallback: string) => labels[key] || fallback;
-  // บัญชีและการเงิน / เงินสดย่อย = ตัวเลขเงินของกิจการ → เจ้าของและผู้ดูแล
+  // บัญชีและการเงิน / เงินสดย่อย = ตัวเลขเงินของกิจการ → เจ้าของ, ผู้ดูแล, การเงิน
   // Dashboard = ภาพรวมทั้งกิจการ → เจ้าของเท่านั้น
-  const isManager = orgRole === "owner" || orgRole === "admin";
+  // การเงิน (finance) = เห็นเฉพาะ บัญชีและการเงิน / เงินสดย่อย / การเข้าพัก
+  const isFinanceOnly = orgRole === "finance";
+  const isManager = orgRole === "owner" || orgRole === "admin" || isFinanceOnly;
   const items: MenuItem[] = [{ name: "TMC Management" }];
 
   if (orgRole === "owner") {
@@ -434,15 +436,27 @@ function buildTmcMenuItems(
     );
   }
 
-  items.push(
-    { name: l("stock", "Stock คลัง"), href: t("stock"), icon: <Package className="h-5 w-5" /> },
-    { name: l("stays", "การเข้าพัก"), href: t("stays"), icon: <Building2 className="h-5 w-5" /> },
-    {
+  if (!isFinanceOnly) {
+    items.push({
+      name: l("stock", "Stock คลัง"),
+      href: t("stock"),
+      icon: <Package className="h-5 w-5" />,
+    });
+  }
+
+  items.push({
+    name: l("stays", "การเข้าพัก"),
+    href: t("stays"),
+    icon: <Building2 className="h-5 w-5" />,
+  });
+
+  if (!isFinanceOnly) {
+    items.push({
       name: l("sales-bot", "ผู้ช่วยขาย LINE"),
       href: t("sales-bot"),
       icon: <Bot className="h-5 w-5" />,
-    },
-  );
+    });
+  }
 
   return items;
 }

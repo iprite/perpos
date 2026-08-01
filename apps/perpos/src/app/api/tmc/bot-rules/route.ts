@@ -1,6 +1,6 @@
 /** กฎประจำตัวบอทผู้ช่วยขาย TMC — list / create (กฎถูกยัดเข้า prompt ทุกข้อความ ไม่ผ่าน retrieval) */
 import { NextRequest, NextResponse } from "next/server";
-import { requireTmcMember, canWriteFinance } from "../_lib";
+import { requireTmcMember, canManageSalesBot } from "../_lib";
 import { isUnsafeRule, normalizeRule, MAX_RULES } from "@/lib/tmc/bot-rules";
 
 export async function GET(req: NextRequest) {
@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
 
   const auth = await requireTmcMember(req, orgId);
   if (!auth.ok) return auth.res;
-  if (!canWriteFinance(auth.role))
+  if (!canManageSalesBot(auth.role))
     return NextResponse.json({ error: "ไม่มีสิทธิ์" }, { status: 403 });
 
   // กฎที่ลบล้างกติกาความปลอดภัยของบอท (ห้ามเดา/ยืนยันจอง/ไม่ส่งต่อคน) รับไม่ได้ทุกช่องทาง

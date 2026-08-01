@@ -95,6 +95,8 @@ export const ALL_MODULES: ModuleDef[] = [
       { key: "admin", label: "Admin", canWrite: true },
       { key: "team_lead", label: "Team Lead", canWrite: true },
       { key: "team_member", label: "Team Member", canWrite: false },
+      // การเงิน = เห็นเฉพาะ บัญชีและการเงิน / เงินสดย่อย / การเข้าพัก
+      { key: "finance", label: "การเงิน", canWrite: true },
     ],
   },
   {
