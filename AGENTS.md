@@ -225,9 +225,12 @@ pnpm build
   - `usage_events_ref_uniq (ref_table, ref_id, feature)` กันนับซ้ำเวลา trigger ยิงซ้ำ/backfill ทับ
   - `org_id` เป็น NULL ได้ = ต้นทุนที่ยังผูก org ไม่ได้ → โผล่เป็นแถว "ไม่ระบุองค์กร" (ห้ามซ่อน)
 - **2 ทางที่ข้อมูลไหลเข้า**
-  1. **DB trigger บน `assistant_jobs`** (status→completed) — **ตัวเดียวเท่านั้น** เพราะ stt-worker บน Cloud Run
-     เรียก Gemini เอง ไม่ผ่าน `aiChat` ฝั่งแอป → **worker ไม่ต้อง redeploy** · มี `EXCEPTION WHEN OTHERS`
-     (metering พังห้ามทำให้ job ที่เสร็จแล้ว rollback) · `kind='pdf_compress'` = `compute` ไม่ใช่ `gemini` (ไม่เรียก AI)
+  1. **DB trigger — เฉพาะงานที่ Cloud Run worker เรียก Gemini เอง** (ไม่ผ่าน `aiChat` ฝั่งแอป
+     → `recordUsage` มองไม่เห็น) มี 2 ตาราง: `assistant_jobs` (stt + pdf_compress) · `ocr_processing_jobs`
+     → **worker ไม่ต้อง redeploy** · ทุกตัวมี `EXCEPTION WHEN OTHERS` (metering พังห้ามทำให้งานที่เสร็จแล้ว rollback)
+     · `kind='pdf_compress'` = `compute` ไม่ใช่ `gemini` (ไม่เรียก AI) · STT/OCR นับ **ทั้ง Gemini และ compute ของ worker**
+     · ⚠️ `gemini:ocr_job` ยังเป็น **ค่าประมาณ** เพราะ `ocr_processing_jobs` ไม่มีคอลัมน์ token —
+     ถ้าจะให้เป๊ะต้องให้ ocr-worker เก็บ `usageMetadata` แล้วเปลี่ยน trigger มาคิดจาก token จริง
      - ⚠️ **ห้ามเพิ่ม trigger ให้ตารางที่ฟีเจอร์นั้นเรียก AI ผ่าน `aiChat`/`aiEmbed` อยู่แล้ว** — จะนับซ้ำ 2 เท่า
        (เคยพลาดมาแล้วกับ `bi_query_log` + `acc_firm_ai_log` → ถอด trigger ทิ้งใน migration `..._fix_double_count`)
   2. **`recordUsage()`** ([lib/usage/record.ts](apps/perpos/src/lib/usage/record.ts)) = **แหล่งนับต้นทุน AI หลัก** —
