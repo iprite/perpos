@@ -1,3 +1,5 @@
+import { recordLineUsage } from "@/lib/usage/record";
+
 export type LineMessage =
   | { type: "text"; text: string }
   | {
@@ -20,7 +22,12 @@ async function callLineApi(url: string, body: unknown): Promise<LineSendResult> 
     },
     body: JSON.stringify(body),
   }).catch((e: any) => {
-    return { ok: false, status: 0, json: null as any, text: String(e?.message ?? "network_error") } as any;
+    return {
+      ok: false,
+      status: 0,
+      json: null as any,
+      text: String(e?.message ?? "network_error"),
+    } as any;
   });
 
   if (!res || typeof (res as any).ok !== "boolean") {
@@ -33,23 +40,45 @@ async function callLineApi(url: string, body: unknown): Promise<LineSendResult> 
   return { ok: false, error: text || `line_api_error_${status}`, status };
 }
 
-export async function sendLineMessages(args: { to: string | string[]; messages: LineMessage[] }): Promise<LineSendResult> {
+/**
+ * ส่งข้อความ LINE (push/multicast)
+ *
+ * `usage` = บริบทเจ้าของต้นทุน (org ไหน / ฟีเจอร์อะไร) — LINE คิดเงินตามจำนวนข้อความที่ส่งออก
+ * × จำนวนผู้รับ · ไม่ส่งมาก็ยังนับ แต่จะไปกอง "ไม่ระบุองค์กร" ใน /admin/usage
+ */
+export async function sendLineMessages(args: {
+  to: string | string[];
+  messages: LineMessage[];
+  usage?: { orgId?: string | null; profileId?: string | null; feature?: string };
+}): Promise<LineSendResult> {
   const messages = Array.isArray(args.messages) ? args.messages : [];
   if (!messages.length) return { ok: false, error: "Missing messages" };
 
   if (Array.isArray(args.to)) {
     const to = args.to.filter((x) => typeof x === "string" && x.trim().length).map((x) => x.trim());
     if (!to.length) return { ok: false, error: "Missing recipients" };
-    return callLineApi("https://api.line.me/v2/bot/message/multicast", {
+    const result = await callLineApi("https://api.line.me/v2/bot/message/multicast", {
       to,
       messages,
     });
+    if (result.ok) {
+      void recordLineUsage(args.usage ?? {}, {
+        messages: messages.length,
+        recipients: to.length,
+        kind: "multicast",
+      });
+    }
+    return result;
   }
 
   const to = String(args.to ?? "").trim();
   if (!to) return { ok: false, error: "Missing recipient" };
-  return callLineApi("https://api.line.me/v2/bot/message/push", {
+  const result = await callLineApi("https://api.line.me/v2/bot/message/push", {
     to,
     messages,
   });
+  if (result.ok) {
+    void recordLineUsage(args.usage ?? {}, { messages: messages.length, kind: "push" });
+  }
+  return result;
 }

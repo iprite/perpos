@@ -43,6 +43,7 @@ import {
   mightAskAvailability,
 } from "@/lib/tmc/availability";
 import { sendLineMessages } from "@/lib/line/send-messages";
+import { withUsageContext } from "@/lib/usage/context";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -298,6 +299,18 @@ export async function POST(req: NextRequest) {
 
   const settings = await loadSettings(admin, orgId);
 
+  // ต้นทุนทุกอย่างที่เกิดใน webhook นี้ (Gemini + ข้อความ LINE) เป็นของ org เจ้าของ OA
+  return withUsageContext({ orgId, feature: "tmc.sales_bot" }, () =>
+    handleEvents(admin, orgId, settings, events),
+  );
+}
+
+async function handleEvents(
+  admin: Admin,
+  orgId: string,
+  settings: BotSettings,
+  events: LineEvent[],
+): Promise<NextResponse> {
   for (const ev of events) {
     // OA ตัวนี้คุยกับลูกค้ารายบุคคลเท่านั้น — กลุ่ม/ห้องไม่ใช่หน้าที่ของ @tmcvilla
     const lineUserId = ev.source?.userId;

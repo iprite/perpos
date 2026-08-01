@@ -13,6 +13,8 @@
  * See docs/claude.md for usage guide.
  */
 
+import { recordGeminiUsage, recordUsage, type UsageContext } from "@/lib/usage/record";
+
 export type AiProvider = "anthropic" | "gemini";
 
 export interface AiMessage {
@@ -31,6 +33,11 @@ export interface AiCallOptions {
   maxTokens?: number;
   /** Force JSON output (Gemini responseMimeType, Claude via prompt) */
   jsonMode?: boolean;
+  /**
+   * บริบทเจ้าของต้นทุน — ใส่ทุกครั้งที่การเรียกนี้เกิดจาก org/ผู้ใช้จริง
+   * ถ้าไม่ใส่ ต้นทุนจะไปกอง "ไม่ระบุองค์กร" ใน /admin/usage (ยังนับ ไม่หาย)
+   */
+  usage?: UsageContext;
 }
 
 export interface AiResult {
@@ -52,10 +59,35 @@ export async function aiChat(
   const startTime = Date.now();
 
   try {
-    if (provider === "anthropic") {
-      return await callAnthropic(messages, opts, temperature, startTime);
+    const result =
+      provider === "anthropic"
+        ? await callAnthropic(messages, opts, temperature, startTime)
+        : await callGemini(messages, opts, temperature, startTime);
+
+    // วัดต้นทุนทุกครั้งที่เรียกสำเร็จ — ไม่รอผล (ห้ามหน่วง response ของผู้ใช้)
+    const ctx: UsageContext = opts.usage ?? {};
+    if (result.provider === "gemini") {
+      void recordGeminiUsage(ctx, {
+        model: result.model,
+        inputTokens: result.inputTokens,
+        outputTokens: result.outputTokens,
+        meta: { latency_ms: result.latencyMs },
+      });
+    } else {
+      // provider อื่น (ปัจจุบันไม่ได้ใช้ — Gemini เท่านั้นตามข้อผูกพัน Google verification)
+      void recordUsage({
+        ...ctx,
+        service: "other",
+        resource: result.model,
+        unit: "token",
+        quantity: result.inputTokens + result.outputTokens,
+        inputTokens: result.inputTokens,
+        outputTokens: result.outputTokens,
+        meta: { provider: result.provider, latency_ms: result.latencyMs },
+      });
     }
-    return await callGemini(messages, opts, temperature, startTime);
+
+    return result;
   } catch (e) {
     console.error(`[AI:${provider}] call failed`, String(e));
     return null;
@@ -81,6 +113,7 @@ export interface AiEmbedResult {
 export async function aiEmbed(
   text: string,
   taskType: "RETRIEVAL_QUERY" | "RETRIEVAL_DOCUMENT" = "RETRIEVAL_QUERY",
+  usage?: UsageContext,
 ): Promise<AiEmbedResult> {
   const key = process.env.GEMINI_API_KEY;
   if (!key) throw new Error("GEMINI_API_KEY not configured");
@@ -110,7 +143,17 @@ export async function aiEmbed(
   if (!Array.isArray(values) || values.length !== AI_EMBED_DIM) {
     throw new Error(`Gemini embed dim ผิด: ${values?.length}`);
   }
-  return { values, model: AI_EMBED_MODEL, estimatedTokens: Math.ceil(text.length / 4) };
+  // embedContent ไม่คืน usageMetadata → ประมาณจากความยาวข้อความ (~4 ตัวอักษร/token)
+  const estimatedTokens = Math.ceil(text.length / 4);
+  void recordGeminiUsage(usage ?? { feature: "ai.embed" }, {
+    // ambient context (lib/usage/context.ts) เติม org/profile ให้เองถ้า caller ไม่ได้ส่ง
+    model: AI_EMBED_MODEL,
+    inputTokens: estimatedTokens,
+    outputTokens: 0,
+    meta: { task_type: taskType, estimated: true },
+  });
+
+  return { values, model: AI_EMBED_MODEL, estimatedTokens };
 }
 
 // ─── Anthropic (Claude) ───────────────────────────────────────────────────────

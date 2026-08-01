@@ -215,6 +215,31 @@ pnpm build
 
 ---
 
+## ต้นทุนต่อองค์กร (Usage Metering) — ฐานสำหรับออกแบบราคาขาย
+
+หน้า **`/admin/usage`** (super_admin, SSR) รวม "ทุกอย่างที่เสียเงินตามการใช้งาน" มาผูกกับ org เพื่อดู unit economics จริง
+
+- **ตารางกลาง `usage_events`** (append-only, RLS deny-all, service-role เท่านั้น) — 1 แถว = 1 ต้นทุนที่เกิดขึ้น
+  (`org_id`/`profile_id`/`service`/`feature`/`resource`/`quantity`/`unit`/tokens/`cost_usd`/`ref_table`+`ref_id`)
+  - **`cost_usd` ถูก freeze ตอนเขียน** — แก้ราคาวันนี้ต้องไม่ย้อนเปลี่ยนต้นทุนเดือนก่อน
+  - `usage_events_ref_uniq (ref_table, ref_id, feature)` กันนับซ้ำเวลา trigger ยิงซ้ำ/backfill ทับ
+  - `org_id` เป็น NULL ได้ = ต้นทุนที่ยังผูก org ไม่ได้ → โผล่เป็นแถว "ไม่ระบุองค์กร" (ห้ามซ่อน)
+- **2 ทางที่ข้อมูลไหลเข้า**
+  1. **DB trigger** สำหรับแหล่งที่ log อยู่แล้ว: `assistant_jobs` (status→completed) · `acc_firm_ai_log` · `bi_query_log`
+     → **worker บน Cloud Run ไม่ต้อง redeploy** · ทุก trigger มี `EXCEPTION WHEN OTHERS` — metering พังห้ามทำธุรกรรมหลักล้ม
+     · `kind='pdf_compress'` ถูกจัดเป็น `compute` ไม่ใช่ `gemini` (worker ตัวนั้นไม่เรียก AI)
+  2. **`recordUsage()`** ([lib/usage/record.ts](apps/perpos/src/lib/usage/record.ts)) fire-and-forget สำหรับของที่ยังไม่มีตารางของตัวเอง —
+     ต่อไว้แล้วที่ `aiChat`/`aiEmbed` ([lib/ai/client.ts](apps/perpos/src/lib/ai/client.ts)) · `sendLineMessages` · reply ของบอท PERPOS + @tmcvilla
+- **บริบทเจ้าของต้นทุนใช้ ambient context** ([lib/usage/context.ts](apps/perpos/src/lib/usage/context.ts)) — ห่อ handler ด้วย
+  `withUsageContext({ orgId, profileId, feature }, fn)` ครั้งเดียว แล้ว `recordUsage` ที่อยู่ลึกแค่ไหนก็ผูก org ถูก
+  (ต่อไว้แล้ว: `/api/bi/ask`, `/api/line/tmc/webhook`) — **route ใหม่ที่เรียก AI/LINE ควรห่อด้วย ไม่งั้นต้นทุนไปกอง "ไม่ระบุองค์กร"**
+- **ราคา/สมมติฐานแก้ได้จากหน้าเว็บ ไม่ต้อง deploy**: `usage_prices` (ราคาต่อหน่วยรายทรัพยากร) · `usage_settings` (เรต USD→THB + ตัวคูณราคาขาย) ·
+  `usage_fixed_costs` (Vercel/Supabase/โดเมน รายเดือน → ปันส่วนเข้า org แบบ `pro_rata`/`per_org`/`none`) — เขียนผ่าน `/api/admin/usage` (`requireAdmin`)
+- **ยอดรวมทุกช่องมาจาก SQL aggregate** (RPC `admin_usage_by_org` / `admin_usage_by_feature` / `admin_usage_daily`, service-role เท่านั้น)
+  — **ห้าม sum array ฝั่ง JS** เพราะ PostgREST ตัด 1,000 แถวเงียบ ๆ · fetch logic = [lib/admin/usage.ts](apps/perpos/src/lib/admin/usage.ts)
+
+---
+
 ## Database Schema (Supabase)
 
 ### ตารางหลัก
