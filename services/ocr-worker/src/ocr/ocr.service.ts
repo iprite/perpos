@@ -1,3 +1,5 @@
+import { AsyncLocalStorage } from "node:async_hooks";
+
 import { getAdminClient } from "../lib/supabase";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -233,7 +235,8 @@ const GEMINI_MODEL = "gemini-2.5-flash";
 // ── Public entrypoint (never throws — invoked fire-and-forget) ──────────────
 export async function processJob(jobId: string, firmOrgId: string): Promise<void> {
   try {
-    await runJob(jobId, firmOrgId);
+    // ผูกตัวสะสม token ไว้กับงานนี้งานเดียว (ดู usageStore) — งานที่รันพร้อมกันจะไม่ปนกัน
+    await usageStore.run(newUsage(), () => runJob(jobId, firmOrgId));
   } catch (e) {
     console.error(
       `[ocr-worker] Unhandled error processing job ${jobId}:`,
@@ -309,6 +312,9 @@ async function runJob(jobId: string, firmOrgId: string): Promise<void> {
     const draftJournalId = await persistDraftJournal(admin, job, journalData, clientContext);
 
     // 5. Mark job completed.
+    // token รวมของทั้งงาน — เขียนพร้อม status เดียวกัน เพื่อให้ trigger metering
+    // (usage_event_from_ocr_job) เห็นค่าจริงตอนยิง ไม่ใช่ทีหลังแล้วสายเกินไป
+    const usage = usageStore.getStore();
     const { error: updateEndError } = await admin
       .from("ocr_processing_jobs")
       .update({
@@ -317,6 +323,10 @@ async function runJob(jobId: string, firmOrgId: string): Promise<void> {
         classified_json: { classification, journal: journalData },
         draft_journal_id: draftJournalId,
         error_message: null,
+        input_tokens: usage?.inputTokens ?? null,
+        output_tokens: usage?.outputTokens ?? null,
+        ai_calls: usage?.calls ?? null,
+        model: GEMINI_MODEL,
         updated_at: new Date().toISOString(),
       })
       .eq("id", jobId);
@@ -328,9 +338,20 @@ async function runJob(jobId: string, firmOrgId: string): Promise<void> {
   } catch (err) {
     const errorMsg = err instanceof Error ? err.message : "เกิดข้อผิดพลาดในการประมวลผลเอกสาร";
     console.error(`[ocr-worker] Job ${jobId} failed:`, errorMsg);
+    // งานที่ล้มกลางทางก็จ่ายค่า Gemini ของ call ที่ยิงไปแล้วเหมือนกัน — ต้องบันทึก
+    // ไม่งั้นต้นทุนจริงหายไปเงียบ ๆ (เคสเอกสารพัง/โดน safety filter ยิ่งเกิดบ่อย)
+    const failUsage = usageStore.getStore();
     await admin
       .from("ocr_processing_jobs")
-      .update({ status: "failed", error_message: errorMsg, updated_at: new Date().toISOString() })
+      .update({
+        status: "failed",
+        error_message: errorMsg,
+        input_tokens: failUsage?.inputTokens ?? null,
+        output_tokens: failUsage?.outputTokens ?? null,
+        ai_calls: failUsage?.calls ?? null,
+        model: GEMINI_MODEL,
+        updated_at: new Date().toISOString(),
+      })
       .eq("id", jobId);
   }
 }
@@ -475,6 +496,20 @@ async function downloadAndEncodeDocument(
   return { base64, mimeType };
 }
 
+// ── Gemini token accounting ──────────────────────────────────────────────────
+// 1 งาน OCR ยิง Gemini 3 ครั้ง (extract → classify → journal) · เก็บ token รวมของทั้งงาน
+// ไว้เขียนลง ocr_processing_jobs เพื่อให้ /admin/usage คิดต้นทุนจากของจริง ไม่ใช่ค่าประมาณ
+//
+// ใช้ AsyncLocalStorage ไม่ใช่ตัวแปร module-level — Cloud Run รันหลายงานพร้อมกันใน instance
+// เดียวได้ (concurrency > 1) ตัวแปรร่วมจะทำให้ token ของคนละงานปนกัน
+type JobTokenUsage = { inputTokens: number; outputTokens: number; calls: number };
+
+const usageStore = new AsyncLocalStorage<JobTokenUsage>();
+
+function newUsage(): JobTokenUsage {
+  return { inputTokens: 0, outputTokens: 0, calls: 0 };
+}
+
 // ── Gemini calls ─────────────────────────────────────────────────────────────
 async function callGemini(parts: unknown[], maxOutputTokens: number): Promise<string> {
   const apiKey = process.env.GEMINI_API_KEY;
@@ -504,7 +539,22 @@ async function callGemini(parts: unknown[], maxOutputTokens: number): Promise<st
   const result = (await response.json()) as {
     candidates?: Array<{ finishReason?: string; content?: { parts?: Array<{ text?: string }> } }>;
     promptFeedback?: { blockReason?: string };
+    usageMetadata?: {
+      promptTokenCount?: number;
+      candidatesTokenCount?: number;
+      thoughtsTokenCount?: number;
+    };
   };
+
+  // สะสม token ก่อนเช็ค candidates — call ที่ถูก block/ตัดกลางคันก็ถูกคิดเงินไปแล้ว
+  const acc = usageStore.getStore();
+  if (acc) {
+    const u = result.usageMetadata;
+    acc.inputTokens += u?.promptTokenCount ?? 0;
+    acc.outputTokens += (u?.candidatesTokenCount ?? 0) + (u?.thoughtsTokenCount ?? 0);
+    acc.calls += 1;
+  }
+
   if (!result.candidates || result.candidates.length === 0) {
     const blockReason =
       result.promptFeedback?.blockReason || "Blocked by Gemini safety settings or filter";
