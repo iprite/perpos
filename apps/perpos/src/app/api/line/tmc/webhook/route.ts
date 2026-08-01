@@ -61,6 +61,7 @@ interface BotSettings {
   human_mode_minutes: number;
   daily_message_cap: number;
   notify_group_id: string | null;
+  notify_escalations: boolean;
   oa_bot_user_id: string | null;
   bot_mode: "sales" | "service" | "both";
   test_mode: boolean;
@@ -225,8 +226,9 @@ async function escalate(
     .single();
 
   // ─ แจ้งเข้ากลุ่ม LINE ของทีมแอดมิน (push ออกจากบอท PERPOS ที่อยู่ในกลุ่มนั้น) ─
-  // ยังไม่ได้ผูกกลุ่ม = ไม่มีที่ให้แจ้ง (เคสยังขึ้นในหน้าเว็บตามปกติ)
-  if (!settings.notify_group_id) return;
+  // ยังไม่ได้ผูกกลุ่ม / ปิดการแจ้งเตือนไว้ = ไม่ push (เคสยังขึ้นในหน้าเว็บตามปกติ)
+  // ⚠️ ปิดแจ้งเตือนไม่ใช่การปลดผูกกลุ่ม — กลุ่มยังใช้แท็ก @perpos เพิ่มความรู้/สั่งกฎได้เหมือนเดิม
+  if (!settings.notify_group_id || settings.notify_escalations === false) return;
 
   // cache userId ของ OA ไว้ทำลิงก์ห้องแชท
   let botUserId = settings.oa_bot_user_id;

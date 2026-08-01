@@ -3,7 +3,7 @@
 /**
  * TmcRangeFilter — ตัวกรองแดชบอร์ด: ช่วงเวลา (preset/กำหนดเอง) + รวม/ไม่รวมเงินมัดจำ
  * push searchParams → server re-render (loading.tsx แสดง skeleton)
- *   ?range=1|3|12 (default 6 ไม่ใส่) · ?from=&to= (กำหนดเอง ชนะ range) · ?dep=ex (ไม่รวมมัดจำ)
+ *   ?range=1|3|12 (default 6 ไม่ใส่) · ?from=&to= (กำหนดเอง ชนะ range) · ?dep=in (รวมมัดจำ — default คือไม่รวม)
  */
 
 import { useState } from "react";
@@ -51,7 +51,7 @@ export function TmcRangeFilter({
     } else if (mode !== "6") {
       p.set("range", mode);
     }
-    if (dep === "ex") p.set("dep", "ex");
+    if (dep === "in") p.set("dep", "in"); // default = ไม่รวมมัดจำ → ใส่พารามิเตอร์เฉพาะตอน "รวมมัดจำ"
     const qs = p.toString();
     router.push(qs ? `${pathname}?${qs}` : pathname);
   };

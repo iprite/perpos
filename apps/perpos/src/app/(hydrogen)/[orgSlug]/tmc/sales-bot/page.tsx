@@ -152,6 +152,7 @@ interface BotSettings {
   daily_message_cap: number;
   notify_group_id: string | null;
   notify_group_name: string | null;
+  notify_escalations: boolean;
   notify_linked_at: string | null;
   link_code: string | null;
   link_code_expires_at: string | null;
@@ -1279,17 +1280,37 @@ export default function TmcSalesBotPage() {
                   <Text className="text-xs text-gray-400">
                     ผูกเมื่อ {thaiDateTime(settings.notify_linked_at)}
                   </Text>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="ms-auto"
-                    disabled={busy}
-                    onClick={unlinkGroup}
-                  >
-                    <Unlink className="h-4 w-4" /> ยกเลิกการผูก
-                  </Button>
+                  <div className="ms-auto flex items-center gap-2">
+                    <SegmentedControl
+                      value={settings.notify_escalations === false ? "off" : "on"}
+                      onChange={(v) =>
+                        patchSettings(
+                          { notifyEscalations: v === "on" },
+                          v === "on"
+                            ? "เปิดแจ้งเตือนเคสเข้ากลุ่มแล้ว"
+                            : "ปิดแจ้งเตือนแล้ว — เคสยังขึ้นในแท็บ “เคสรอแอดมิน” ตามปกติ",
+                        )
+                      }
+                      ariaLabel="แจ้งเตือนเคสเข้ากลุ่ม"
+                      options={[
+                        { value: "on", label: "แจ้งเตือน" },
+                        { value: "off", label: "ปิดแจ้งเตือน" },
+                      ]}
+                    />
+                    <Button variant="outline" size="sm" disabled={busy} onClick={unlinkGroup}>
+                      <Unlink className="h-4 w-4" /> ยกเลิกการผูก
+                    </Button>
+                  </div>
                 </div>
-              ) : linkCode ? (
+              ) : null}
+              {settings.notify_group_id && settings.notify_escalations === false ? (
+                <Text className="mt-3 text-xs text-amber-700">
+                  ปิดแจ้งเตือนอยู่ — บอทจะไม่ push การ์ดเคสเข้ากลุ่ม แต่ยังส่งต่อให้คนตามปกติ
+                  (บอทเงียบตามเวลาที่ตั้งไว้) และเคสยังขึ้นในแท็บ “เคสรอแอดมิน” · กลุ่มยังใช้แท็ก
+                  @perpos เพิ่มความรู้/สั่งกฎได้เหมือนเดิม
+                </Text>
+              ) : null}
+              {settings.notify_group_id ? null : linkCode ? (
                 <div className="space-y-3">
                   <Text className="text-sm text-gray-700">
                     เชิญ <span className="font-medium">บอท PERPOS (@perpos)</span>{" "}
