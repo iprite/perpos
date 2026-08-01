@@ -94,11 +94,12 @@ async function main() {
   const admin = createClient(url, key, { auth: { persistSession: false } });
 
   const { data: prices } = await admin.from("usage_prices").select("key, unit_cost_usd");
-  const rate = (k, fallback) =>
-    Number(prices?.find((p) => p.key === k)?.unit_cost_usd ?? fallback);
+  const rate = (k, fallback) => Number(prices?.find((p) => p.key === k)?.unit_cost_usd ?? fallback);
   // เรตสุทธิหลังส่วนลด spending-based ที่ถอดจากบิลจริง (ดู migration calibrate_from_real_bill)
+  // ⚠️ ทั้งสองค่าต้องอ่านจาก usage_prices — เคยฮาร์ดโค้ดฝั่ง memory ไว้ ทำให้แก้ราคาในหน้าเว็บ
+  // แล้วขยับแค่ครึ่งเดียว (memory เป็น ~10% ของค่า Cloud Run จึงเพี้ยนแบบเงียบ ๆ)
   const CPU = rate("compute:cloudrun_second", 0.000018814);
-  const MEM = 0.000001799;
+  const MEM = rate("compute:cloudrun_gib_second", 0.000001799);
 
   console.log(`⏳ ดึง Cloud Run usage ${ym} (project ${GCP_PROJECT})…`);
   const [cpu, mem, req] = await Promise.all([
