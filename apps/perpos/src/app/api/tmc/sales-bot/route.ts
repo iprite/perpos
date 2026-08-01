@@ -104,6 +104,8 @@ export async function PUT(req: NextRequest) {
   }
   if (["sales", "service", "both"].includes(String(body.botMode))) patch.bot_mode = body.botMode;
   if (typeof body.testMode === "boolean") patch.test_mode = body.testMode;
+  if (typeof body.notifyEscalations === "boolean")
+    patch.notify_escalations = body.notifyEscalations;
   if (Array.isArray(body.testLineUserIds)) {
     patch.test_line_user_ids = (body.testLineUserIds as string[]).map(String);
   }

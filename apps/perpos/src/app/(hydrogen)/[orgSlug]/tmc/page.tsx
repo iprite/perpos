@@ -39,8 +39,9 @@ export default async function TmcDashboardPage({
   const period = custom
     ? { from: sp.from as string, to: sp.to as string }
     : rangeFromMonths(Number(range));
-  // ?dep=ex = ไม่รวมหมวดมัดจำ (ค่ามัดจำ/คืนเงินมัดจำ) ในตัวเลขฝั่งบัญชี
-  const excludeDeposits = sp.dep === "ex";
+  // เงินมัดจำ = เงินของแขก ไม่ใช่รายได้/รายจ่ายจริง → **ค่าตั้งต้น = ไม่รวม**
+  // ต้องระบุ ?dep=in ถึงจะรวมหมวดมัดจำ (ค่ามัดจำ/คืนเงินมัดจำ) ในตัวเลขฝั่งบัญชี
+  const excludeDeposits = sp.dep !== "in";
 
   // แท็บต้นทุนดึงข้อมูลเองฝั่ง client → ไม่ต้อง aggregate ภาพรวมทิ้งเปล่า
   const data =
