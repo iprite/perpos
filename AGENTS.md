@@ -225,14 +225,22 @@ pnpm build
   - `usage_events_ref_uniq (ref_table, ref_id, feature)` กันนับซ้ำเวลา trigger ยิงซ้ำ/backfill ทับ
   - `org_id` เป็น NULL ได้ = ต้นทุนที่ยังผูก org ไม่ได้ → โผล่เป็นแถว "ไม่ระบุองค์กร" (ห้ามซ่อน)
 - **2 ทางที่ข้อมูลไหลเข้า**
-  1. **DB trigger** สำหรับแหล่งที่ log อยู่แล้ว: `assistant_jobs` (status→completed) · `acc_firm_ai_log` · `bi_query_log`
-     → **worker บน Cloud Run ไม่ต้อง redeploy** · ทุก trigger มี `EXCEPTION WHEN OTHERS` — metering พังห้ามทำธุรกรรมหลักล้ม
-     · `kind='pdf_compress'` ถูกจัดเป็น `compute` ไม่ใช่ `gemini` (worker ตัวนั้นไม่เรียก AI)
-  2. **`recordUsage()`** ([lib/usage/record.ts](apps/perpos/src/lib/usage/record.ts)) fire-and-forget สำหรับของที่ยังไม่มีตารางของตัวเอง —
-     ต่อไว้แล้วที่ `aiChat`/`aiEmbed` ([lib/ai/client.ts](apps/perpos/src/lib/ai/client.ts)) · `sendLineMessages` · reply ของบอท PERPOS + @tmcvilla
+  1. **DB trigger บน `assistant_jobs`** (status→completed) — **ตัวเดียวเท่านั้น** เพราะ stt-worker บน Cloud Run
+     เรียก Gemini เอง ไม่ผ่าน `aiChat` ฝั่งแอป → **worker ไม่ต้อง redeploy** · มี `EXCEPTION WHEN OTHERS`
+     (metering พังห้ามทำให้ job ที่เสร็จแล้ว rollback) · `kind='pdf_compress'` = `compute` ไม่ใช่ `gemini` (ไม่เรียก AI)
+     - ⚠️ **ห้ามเพิ่ม trigger ให้ตารางที่ฟีเจอร์นั้นเรียก AI ผ่าน `aiChat`/`aiEmbed` อยู่แล้ว** — จะนับซ้ำ 2 เท่า
+       (เคยพลาดมาแล้วกับ `bi_query_log` + `acc_firm_ai_log` → ถอด trigger ทิ้งใน migration `..._fix_double_count`)
+  2. **`recordUsage()`** ([lib/usage/record.ts](apps/perpos/src/lib/usage/record.ts)) = **แหล่งนับต้นทุน AI หลัก** —
+     ต่อไว้ที่ `aiChat`/`aiEmbed` ([lib/ai/client.ts](apps/perpos/src/lib/ai/client.ts)) · `sendLineMessages` · reply ของบอท PERPOS + @tmcvilla
+     - เขียนจริงผ่าน `after()` ของ Next 15 (**ห้ามเปลี่ยนเป็น `void insert()` ลอย ๆ** — บน Vercel ฟังก์ชันถูก freeze ตอนตอบ event จะหาย)
+     - merge บริบทจาก ambient context **ก่อน** เลื่อนงาน (AsyncLocalStorage หายหลัง response)
 - **บริบทเจ้าของต้นทุนใช้ ambient context** ([lib/usage/context.ts](apps/perpos/src/lib/usage/context.ts)) — ห่อ handler ด้วย
   `withUsageContext({ orgId, profileId, feature }, fn)` ครั้งเดียว แล้ว `recordUsage` ที่อยู่ลึกแค่ไหนก็ผูก org ถูก
-  (ต่อไว้แล้ว: `/api/bi/ask`, `/api/line/tmc/webhook`) — **route ใหม่ที่เรียก AI/LINE ควรห่อด้วย ไม่งั้นต้นทุนไปกอง "ไม่ระบุองค์กร"**
+  (ต่อไว้แล้ว: `bi/ask` · `line/tmc/webhook` · `acc-firm/close-check` · `gov-procure/ai/{brief,anomaly}` ·
+  `gov-procure/catalogs/[id]/enrich/run` · `just-me/ai/{quote-summary,project-health}`)
+  — **route ใหม่ที่เรียก AI/LINE ต้องห่อด้วย ไม่งั้นต้นทุนไปกอง "ไม่ระบุองค์กร"**
+- **สูตรเงินมีเทสคุม** ([lib/admin/usage.test.ts](apps/perpos/src/lib/admin/usage.test.ts)) — `prorateFixedCosts` เฉลี่ยต้นทุนคงที่
+  ตาม **วันที่ทับกับเดือนนั้นจริง** (ห้ามใช้ `days/30` รวบเดียว — ช่วง 90 วันจะกวาดของ 4 เดือนมาเต็มจำนวน)
 - **ราคา/สมมติฐานแก้ได้จากหน้าเว็บ ไม่ต้อง deploy**: `usage_prices` (ราคาต่อหน่วยรายทรัพยากร) · `usage_settings` (เรต USD→THB + ตัวคูณราคาขาย) ·
   `usage_fixed_costs` (Vercel/Supabase/โดเมน รายเดือน → ปันส่วนเข้า org แบบ `pro_rata`/`per_org`/`none`) — เขียนผ่าน `/api/admin/usage` (`requireAdmin`)
 - **ยอดรวมทุกช่องมาจาก SQL aggregate** (RPC `admin_usage_by_org` / `admin_usage_by_feature` / `admin_usage_daily`, service-role เท่านั้น)

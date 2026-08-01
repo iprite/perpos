@@ -126,11 +126,13 @@ export function UsageView({
           tone="negative"
           valueColored
         />
+        {/* ต้องอยู่ฐานเวลาเดียวกับการ์ด "ต้นทุนรวม" ที่อยู่ติดกัน — ไม่งั้นช่วง 90 วัน
+            จะเห็นราคาขายน้อยกว่าต้นทุน (เพราะข้างหนึ่งเป็น 90 วัน อีกข้างเป็น 30 วัน) */}
         <StatCard
           icon={<Percent className="h-4 w-4" />}
           label={`ราคาที่ควรเก็บรวม (×${nf(margin, 2)})`}
-          value={`${thb(report.totals.totalUsd * margin * toMonthly, rate)} ฿`}
-          sub="ประมาณเป็นยอดต่อเดือน"
+          value={`${thb(report.totals.totalUsd * margin, rate)} ฿`}
+          sub={`ในช่วงนี้ · ≈ ${thb(report.totals.totalUsd * margin * toMonthly, rate)} ฿/เดือน`}
           tone="positive"
           valueColored
         />

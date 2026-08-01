@@ -9,6 +9,7 @@ import { listOrders } from "@/lib/gov-procure/orders";
 import { getSettings } from "@/lib/gov-procure/settings";
 import { computeSummary } from "@/lib/gov-procure/summary";
 import { buildExecutiveBrief } from "@/lib/gov-procure/ai";
+import { withUsageContext } from "@/lib/usage/context";
 
 export const maxDuration = 30; // เผื่อ latency Gemini (narration สั้น ~3-5 วิ)
 
@@ -27,7 +28,10 @@ export async function POST(req: NextRequest) {
       getSettings(admin, orgId),
     ]);
     const summary = computeSummary(orders, settings.sla_threshold);
-    const brief = await buildExecutiveBrief(summary);
+    const brief = await withUsageContext(
+      { orgId, profileId: auth.userId, feature: "gov_procure.brief" },
+      () => buildExecutiveBrief(summary),
+    );
     return NextResponse.json({ brief });
   } catch (e) {
     return govError((e as Error).message, 500);

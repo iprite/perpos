@@ -101,6 +101,30 @@ function monthsInRange(from: Date, to: Date): string[] {
   return out;
 }
 
+/**
+ * เฉลี่ยต้นทุนคงที่รายเดือนเข้าช่วงที่เลือก — คืน map(id → USD ที่ตกอยู่ในช่วงนี้)
+ *
+ * ต้นทุนคงที่บันทึกเป็นยอด "ทั้งเดือน" แต่ผู้ใช้เลือกดูเป็นช่วงวัน (7/30/90/365)
+ * จึงต้องตัดตาม **วันที่ช่วงนั้นทับกับเดือนของรายการจริง** ทีละก้อน
+ *
+ * ห้ามใช้ `days/30` รวบเดียว — ช่วง 90 วันจะกวาดรายการของ 4 เดือนมาเต็มจำนวนทั้งที่ทับจริง 3 เดือน
+ * และช่วงที่คร่อมสองเดือน (เคสปกติของ "30 วันล่าสุด") จะเพี้ยนเสมอ
+ */
+export function prorateFixedCosts(rows: FixedCostRow[], from: Date, to: Date): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const f of rows) {
+    const mStart = new Date(`${f.month.slice(0, 7)}-01T00:00:00Z`);
+    const mEnd = new Date(Date.UTC(mStart.getUTCFullYear(), mStart.getUTCMonth() + 1, 1));
+    const monthMs = mEnd.getTime() - mStart.getTime();
+    const overlapMs = Math.max(
+      0,
+      Math.min(to.getTime(), mEnd.getTime()) - Math.max(from.getTime(), mStart.getTime()),
+    );
+    out.set(f.id, monthMs > 0 ? f.amountUsd * (overlapMs / monthMs) : 0);
+  }
+  return out;
+}
+
 export async function getUsageReport(
   admin: SupabaseClient,
   opts: { days: number; orgId?: string | null },
@@ -155,14 +179,15 @@ export async function getUsageReport(
   // ทั้งสองแบบคิดเฉพาะ org จริง — แถว "ไม่ระบุองค์กร" ไม่รับส่วนแบ่ง
   const realOrgs = orgsRaw.filter((o) => o.org_id);
   const variableTotalReal = realOrgs.reduce((s, o) => s + Number(o.cost_usd ?? 0), 0);
-  // ต้นทุนคงที่ถูกบันทึกเป็นยอด "ทั้งเดือน" → ตัดตามสัดส่วนจำนวนวันที่เลือก
-  const rangeFactor = Math.min(1, opts.days / 30);
-  const proRataPool =
-    fixedCosts.filter((f) => f.allocation === "pro_rata").reduce((s, f) => s + f.amountUsd, 0) *
-    rangeFactor;
-  const perOrgPool =
-    fixedCosts.filter((f) => f.allocation === "per_org").reduce((s, f) => s + f.amountUsd, 0) *
-    rangeFactor;
+
+  const prorated = prorateFixedCosts(fixedCosts, from, to);
+  const poolOf = (kind: FixedCostRow["allocation"]) =>
+    fixedCosts
+      .filter((f) => f.allocation === kind)
+      .reduce((s, f) => s + (prorated.get(f.id) ?? 0), 0);
+
+  const proRataPool = poolOf("pro_rata");
+  const perOrgPool = poolOf("per_org");
   const perOrgShare = realOrgs.length ? perOrgPool / realOrgs.length : 0;
 
   const orgs: OrgUsageRow[] = orgsRaw.map((o) => {
@@ -210,7 +235,7 @@ export async function getUsageReport(
   }));
 
   const variableUsd = orgs.reduce((s, o) => s + o.variableUsd, 0);
-  const fixedUsd = fixedCosts.reduce((s, f) => s + f.amountUsd, 0) * rangeFactor;
+  const fixedUsd = fixedCosts.reduce((s, f) => s + (prorated.get(f.id) ?? 0), 0);
 
   return {
     from: from.toISOString(),

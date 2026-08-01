@@ -11,6 +11,8 @@
  *  - ราคาต่อหน่วยอ่านจากตาราง `usage_prices` (super_admin แก้ได้) แคชในโปรเซส 5 นาที
  */
 
+import { after } from "next/server";
+
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { mergeUsageContext } from "@/lib/usage/context";
 
@@ -69,17 +71,30 @@ export async function priceUsd(key: string): Promise<number> {
   return (await getPrices()).get(key) ?? 0;
 }
 
+/**
+ * เลื่อนงานไปทำหลังส่ง response — บน Vercel ฟังก์ชันอาจถูก freeze ทันทีที่ตอบ
+ * ทำให้ promise ที่ลอย ๆ (`void insert()`) ไม่ได้เขียนจริง → event หาย
+ * `after()` ของ Next 15 การันตีว่างานได้รัน · นอก request scope (cron/สคริปต์) จะ throw → ทำ inline แทน
+ */
+function runAfterResponse(fn: () => Promise<void>): void {
+  try {
+    after(fn);
+  } catch {
+    void fn();
+  }
+}
+
 /** บันทึก 1 event — ไม่ throw ไม่ว่าเกิดอะไร */
 export async function recordUsage(raw: UsageInput): Promise<void> {
   try {
-    // เติม org/profile จากบริบท request ถ้า caller ไม่ได้ส่งมาเอง
+    // ⚠️ ต้อง merge บริบทตรงนี้ (ยังอยู่ใน AsyncLocalStorage scope ของ request)
+    // ก่อนจะเลื่อนการเขียนออกไปหลัง response — ไม่งั้น store หายแล้ว org จะกลายเป็น null
     const input = mergeUsageContext(raw);
     const qty = Number.isFinite(input.quantity) ? Math.max(0, input.quantity) : 0;
     let cost = input.costUsd;
     if (cost == null && input.priceKey) cost = qty * (await priceUsd(input.priceKey));
 
-    const admin = createSupabaseAdminClient();
-    await admin.from("usage_events").insert({
+    const row = {
       org_id: input.orgId ?? null,
       profile_id: input.profileId ?? null,
       service: input.service,
@@ -93,6 +108,11 @@ export async function recordUsage(raw: UsageInput): Promise<void> {
       ref_table: input.refTable ?? null,
       ref_id: input.refId ?? null,
       meta: input.meta ?? {},
+    };
+
+    runAfterResponse(async () => {
+      const { error } = await createSupabaseAdminClient().from("usage_events").insert(row);
+      if (error) console.error("[usage] insert failed", row.feature, error.message);
     });
   } catch (e) {
     console.error("[usage] record failed", raw.feature ?? raw.service, String(e));

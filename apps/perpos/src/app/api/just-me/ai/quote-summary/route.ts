@@ -10,6 +10,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "../../../_lib/supabase";
 import { guard, jmError } from "../../_lib";
 import { summarizeVendorQuotes } from "@/lib/just-me/ai";
+import { withUsageContext } from "@/lib/usage/context";
 import { compareVendorQuotes } from "@/lib/just-me/project-metrics";
 import { getProject } from "@/lib/just-me/projects";
 import {
@@ -63,10 +64,14 @@ export async function POST(req: NextRequest) {
     });
 
     const project = pr.project_id ? await getProject(admin, g.orgId, pr.project_id) : null;
-    const opinion = await summarizeVendorQuotes(comparison, {
-      prCode: pr.pr_code,
-      projectName: project?.name ?? null,
-    });
+    const opinion = await withUsageContext(
+      { orgId: g.orgId, profileId: g.auth.userId, feature: "just_me.quote_summary" },
+      () =>
+        summarizeVendorQuotes(comparison, {
+          prCode: pr.pr_code,
+          projectName: project?.name ?? null,
+        }),
+    );
 
     return NextResponse.json({ comparison, opinion });
   } catch (e) {

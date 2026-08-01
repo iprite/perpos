@@ -11,6 +11,7 @@ import { createAdminClient } from "../../../_lib/supabase";
 import { guard, jmError } from "../../_lib";
 import { summarizeProjectHealth } from "@/lib/just-me/ai";
 import { loadProjectMetrics } from "@/lib/just-me/projects";
+import { withUsageContext } from "@/lib/usage/context";
 
 export async function POST(req: NextRequest) {
   const g = await guard(req, { cost: true });
@@ -25,18 +26,22 @@ export async function POST(req: NextRequest) {
     const metrics = await loadProjectMetrics(admin, g.orgId, projectId);
     if (!metrics) return jmError("ไม่พบโครงการนี้", 404);
 
-    const opinion = await summarizeProjectHealth({
-      project_code: metrics.project.project_code,
-      project_name: metrics.project.name,
-      status: metrics.project.status,
-      summary: metrics.summary,
-      counts: {
-        boq_items: metrics.counts.boq_items,
-        usage_rows: metrics.counts.usage_rows,
-        purchase_requests: metrics.counts.purchase_requests,
-        progress_rows: metrics.counts.progress_rows,
-      },
-    });
+    const opinion = await withUsageContext(
+      { orgId: g.orgId, profileId: g.auth.userId, feature: "just_me.project_health" },
+      () =>
+        summarizeProjectHealth({
+          project_code: metrics.project.project_code,
+          project_name: metrics.project.name,
+          status: metrics.project.status,
+          summary: metrics.summary,
+          counts: {
+            boq_items: metrics.counts.boq_items,
+            usage_rows: metrics.counts.usage_rows,
+            purchase_requests: metrics.counts.purchase_requests,
+            progress_rows: metrics.counts.progress_rows,
+          },
+        }),
+    );
 
     return NextResponse.json({ opinion, summary: metrics.summary });
   } catch (e) {

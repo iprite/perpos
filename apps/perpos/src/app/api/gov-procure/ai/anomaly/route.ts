@@ -8,6 +8,7 @@ import { requireGovProcureMember, orgIdFromQuery, govError } from "../../_lib";
 import { listOrders, getOrder } from "@/lib/gov-procure/orders";
 import { detectAnomaly } from "@/lib/gov-procure/anomaly";
 import { narrateAnomaly } from "@/lib/gov-procure/ai";
+import { withUsageContext } from "@/lib/usage/context";
 
 export const maxDuration = 30;
 
@@ -30,7 +31,10 @@ export async function POST(req: NextRequest) {
     if (!order) return govError("order not found", 404);
 
     const signal = detectAnomaly(order, allOrders);
-    const result = await narrateAnomaly(signal);
+    const result = await withUsageContext(
+      { orgId, profileId: auth.userId, feature: "gov_procure.anomaly" },
+      () => narrateAnomaly(signal),
+    );
     return NextResponse.json({ anomaly: result });
   } catch (e) {
     return govError((e as Error).message, 500);

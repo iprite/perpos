@@ -13,6 +13,7 @@ import { requireGovProcureMember, canWrite, orgIdFromQuery, govError } from "../
 import { getCatalog, type CatalogItem, type CatalogJob } from "@/lib/gov-procure/catalog";
 import { CHUNK_SIZE, estimateCost } from "@/lib/gov-procure/catalog-cost";
 import { enrichCatalogChunk, type CatalogEnrichItemInput } from "@/lib/gov-procure/catalog-ai";
+import { withUsageContext } from "@/lib/usage/context";
 
 export const maxDuration = 60;
 
@@ -118,13 +119,17 @@ export async function POST(req: NextRequest, ctx: Ctx) {
       return { ref, name_raw: it.name_raw || it.name, qty: it.qty, unit: it.unit };
     });
 
-    const outcome = await enrichCatalogChunk(
-      {
-        catalog_title: catalog.title,
-        company: catalog.company ?? undefined,
-        template: catalog.template,
-      },
-      inputs,
+    const outcome = await withUsageContext(
+      { orgId, profileId: auth.userId, feature: "gov_procure.catalog_enrich" },
+      () =>
+        enrichCatalogChunk(
+          {
+            catalog_title: catalog.title,
+            company: catalog.company ?? undefined,
+            template: catalog.template,
+          },
+          inputs,
+        ),
     );
 
     // ── เขียนผลรายตัว (ผลบางส่วนต้องไม่หายเมื่อบางตัวล้ม) ─────────────────
