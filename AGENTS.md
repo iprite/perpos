@@ -246,6 +246,13 @@ pnpm build
   ตาม **วันที่ทับกับเดือนนั้นจริง** (ห้ามใช้ `days/30` รวบเดียว — ช่วง 90 วันจะกวาดของ 4 เดือนมาเต็มจำนวน)
 - **ราคา/สมมติฐานแก้ได้จากหน้าเว็บ ไม่ต้อง deploy**: `usage_prices` (ราคาต่อหน่วยรายทรัพยากร) · `usage_settings` (เรต USD→THB + ตัวคูณราคาขาย) ·
   `usage_fixed_costs` (Vercel/Supabase/โดเมน รายเดือน → ปันส่วนเข้า org แบบ `pro_rata`/`per_org`/`none`) — เขียนผ่าน `/api/admin/usage` (`requireAdmin`)
+- **สอบทานกับบิล GCP จริง (ก.ค. 2026)** — ราคาต่อ token ที่ตั้งไว้ถูกทุกตัว · `usd_thb_rate` = **33.35**
+  (เรตที่ Google ใช้ออกบิล ไม่ใช่ 35) · Cloud Run มี **ส่วนลด spending-based 15.2%** ต้องคิดเป็นเรตสุทธิ
+  - ⚠️ **บิล GCP ทั้งใบไม่ใช่ของ perpos** — GCP project `perpos` แชร์กับ `exapp-clip-renderer` ซึ่งกิน
+    **98.6% ของค่า Cloud Run** (฿958 จาก ฿972 ในเดือน ก.ค.) · ต้นทุน GCP ของ perpos จริง ๆ ≈ ฿104/เดือน
+    **เวลาอ่านบิลต้องแยกด้วย `service_name` จาก Cloud Monitoring เสมอ ห้ามเหมาทั้งใบ**
+  - **gemini-3-pro โผล่ในบิลแต่ไม่ได้มาจากโค้ด perpos** (เราใช้ 2.5-flash + embedding-001) — น่าจะเป็น
+    AI Studio playground หรือแอปอื่นที่ใช้ key เดียวกัน · ใส่ราคาไว้แล้วกันนับเป็น 0
 - **ยอดรวมทุกช่องมาจาก SQL aggregate** (RPC `admin_usage_by_org` / `admin_usage_by_feature` / `admin_usage_daily`, service-role เท่านั้น)
   — **ห้าม sum array ฝั่ง JS** เพราะ PostgREST ตัด 1,000 แถวเงียบ ๆ · fetch logic = [lib/admin/usage.ts](apps/perpos/src/lib/admin/usage.ts)
 
