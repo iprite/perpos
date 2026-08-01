@@ -257,6 +257,88 @@ export async function getUsageReport(
   };
 }
 
+// ── ต้นทุนโครงสร้างพื้นฐาน (ระดับบัญชี GCP — หลายแอปใช้ project เดียวกัน) ──────
+
+export type InfraRow = {
+  month: string;
+  app: string;
+  service: string;
+  cpuSeconds: number;
+  gibSeconds: number;
+  requests: number;
+  costUsd: number;
+  syncedAt: string;
+};
+
+export type InfraReport = {
+  months: string[];
+  month: string;
+  rows: InfraRow[];
+  byApp: { app: string; costUsd: number; requests: number; share: number }[];
+  totalUsd: number;
+  syncedAt: string | null;
+};
+
+/**
+ * ต้นทุน Cloud Run รายเดือนแยกตามแอป — อ่านจาก snapshot ที่ `pnpm infra:sync` เขียนไว้
+ * (แอปบน Vercel ไม่มี credential ของ GCP จึง query Cloud Monitoring สดไม่ได้)
+ */
+export async function getInfraReport(
+  admin: SupabaseClient,
+  month?: string | null,
+): Promise<InfraReport> {
+  const { data: monthRows } = await admin
+    .from("infra_costs")
+    .select("month")
+    .order("month", { ascending: false });
+  const months = Array.from(
+    new Set(((monthRows ?? []) as { month: string }[]).map((r) => r.month)),
+  );
+  const target = month && months.includes(month) ? month : (months[0] ?? "");
+
+  const { data } = await admin
+    .from("infra_costs")
+    .select("month, app, service, cpu_seconds, gib_seconds, requests, cost_usd, synced_at")
+    .eq("month", target)
+    .order("cost_usd", { ascending: false });
+
+  const rows: InfraRow[] = ((data ?? []) as Record<string, unknown>[]).map((r) => ({
+    month: String(r.month),
+    app: String(r.app),
+    service: String(r.service),
+    cpuSeconds: Number(r.cpu_seconds ?? 0),
+    gibSeconds: Number(r.gib_seconds ?? 0),
+    requests: Number(r.requests ?? 0),
+    costUsd: Number(r.cost_usd ?? 0),
+    syncedAt: String(r.synced_at ?? ""),
+  }));
+
+  const totalUsd = rows.reduce((s, r) => s + r.costUsd, 0);
+  const grouped = new Map<string, { costUsd: number; requests: number }>();
+  for (const r of rows) {
+    const g = grouped.get(r.app) ?? { costUsd: 0, requests: 0 };
+    g.costUsd += r.costUsd;
+    g.requests += r.requests;
+    grouped.set(r.app, g);
+  }
+
+  return {
+    months,
+    month: target,
+    rows,
+    byApp: Array.from(grouped.entries())
+      .map(([app, g]) => ({
+        app,
+        costUsd: g.costUsd,
+        requests: g.requests,
+        share: totalUsd > 0 ? g.costUsd / totalUsd : 0,
+      }))
+      .sort((a, b) => b.costUsd - a.costUsd),
+    totalUsd,
+    syncedAt: rows[0]?.syncedAt ?? null,
+  };
+}
+
 export type UsagePriceRow = {
   key: string;
   service: string;

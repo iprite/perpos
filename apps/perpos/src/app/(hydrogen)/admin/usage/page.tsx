@@ -7,7 +7,12 @@
 
 import { Coins } from "lucide-react";
 import { requireSuperAdminPage } from "@/lib/admin/guard";
-import { getUsageReport, listUsagePrices, normalizeUsageDays } from "@/lib/admin/usage";
+import {
+  getInfraReport,
+  getUsageReport,
+  listUsagePrices,
+  normalizeUsageDays,
+} from "@/lib/admin/usage";
 import { AdminPage } from "../_components/admin-page";
 import { UsageDaysFilter } from "./_days-filter";
 import { UsageView } from "./_view";
@@ -15,16 +20,17 @@ import { UsageView } from "./_view";
 export default async function AdminUsagePage({
   searchParams,
 }: {
-  searchParams: Promise<{ days?: string; org?: string }>;
+  searchParams: Promise<{ days?: string; org?: string; month?: string }>;
 }) {
   const admin = await requireSuperAdminPage();
   const sp = await searchParams;
   const days = normalizeUsageDays(sp.days);
   const orgId = sp.org?.trim() || null;
 
-  const [report, prices] = await Promise.all([
+  const [report, prices, infra] = await Promise.all([
     getUsageReport(admin, { days, orgId }),
     listUsagePrices(admin),
+    getInfraReport(admin, sp.month?.trim() || null),
   ]);
 
   return (
@@ -34,7 +40,7 @@ export default async function AdminUsagePage({
       icon={<Coins className="h-6 w-6" />}
       actions={<UsageDaysFilter current={days} />}
     >
-      <UsageView report={report} prices={prices} selectedOrgId={orgId} />
+      <UsageView report={report} prices={prices} selectedOrgId={orgId} infra={infra} />
     </AdminPage>
   );
 }
