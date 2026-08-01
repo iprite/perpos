@@ -1,6 +1,6 @@
 /** คลังความรู้ของผู้ช่วยขาย TMC — list / create */
 import { NextRequest, NextResponse } from "next/server";
-import { requireTmcMember, canWriteFinance } from "../_lib";
+import { requireTmcMember, canManageSalesBot } from "../_lib";
 import { createAdminClient } from "../../_lib/supabase";
 import { embedArticleById } from "@/lib/tmc/sales-bot";
 
@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
 
   const auth = await requireTmcMember(req, orgId);
   if (!auth.ok) return auth.res;
-  if (!canWriteFinance(auth.role))
+  if (!canManageSalesBot(auth.role))
     return NextResponse.json({ error: "ไม่มีสิทธิ์" }, { status: 403 });
 
   const { data, error } = await auth.rls

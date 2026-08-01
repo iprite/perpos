@@ -1,13 +1,13 @@
 /** กฎประจำตัวบอทผู้ช่วยขาย TMC — แก้ไข / เปิด-ปิด / กู้คืน / ลบ */
 import { NextRequest, NextResponse } from "next/server";
-import { requireTmcMember, canWriteFinance } from "../../_lib";
+import { requireTmcMember, canManageSalesBot } from "../../_lib";
 import { isUnsafeRule, normalizeRule } from "@/lib/tmc/bot-rules";
 
 async function guard(req: NextRequest, orgId: string) {
   if (!orgId) return { error: NextResponse.json({ error: "missing orgId" }, { status: 400 }) };
   const auth = await requireTmcMember(req, orgId);
   if (!auth.ok) return { error: auth.res };
-  if (!canWriteFinance(auth.role)) {
+  if (!canManageSalesBot(auth.role)) {
     return { error: NextResponse.json({ error: "ไม่มีสิทธิ์" }, { status: 403 }) };
   }
   return { auth };

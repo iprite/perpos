@@ -7,7 +7,7 @@
  * PATCH { orgId, contactId, mode:'bot' }      → คืนลูกค้ารายนี้ให้บอทตอบต่อ
  */
 import { NextRequest, NextResponse } from "next/server";
-import { requireTmcMember, canWriteFinance } from "../../_lib";
+import { requireTmcMember, canManageSalesBot } from "../../_lib";
 
 const MESSAGE_LIMIT = 100;
 const LIST_LIMIT = 200;
@@ -70,7 +70,7 @@ export async function PATCH(req: NextRequest) {
 
   const auth = await requireTmcMember(req, orgId);
   if (!auth.ok) return auth.res;
-  if (!canWriteFinance(auth.role))
+  if (!canManageSalesBot(auth.role))
     return NextResponse.json({ error: "ไม่มีสิทธิ์" }, { status: 403 });
 
   if (body.escalationId) {

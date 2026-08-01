@@ -10,7 +10,7 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "../../../_lib/supabase";
-import { requireTmcMember, canWriteFinance } from "../../_lib";
+import { requireTmcMember, canManageSalesBot } from "../../_lib";
 import { embedArticle, type KbArticleInput } from "@/lib/tmc/sales-bot";
 
 export const maxDuration = 60;
@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
 
   const auth = await requireTmcMember(req, orgId);
   if (!auth.ok) return auth.res;
-  if (!canWriteFinance(auth.role))
+  if (!canManageSalesBot(auth.role))
     return NextResponse.json({ error: "ไม่มีสิทธิ์" }, { status: 403 });
 
   if (!process.env.GEMINI_API_KEY) {

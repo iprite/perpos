@@ -1,6 +1,6 @@
 /** คลังความรู้ของผู้ช่วยขาย TMC — แก้ไข / ลบ (ลบบทความ = chunk ถูก cascade ตามไปด้วย) */
 import { NextRequest, NextResponse } from "next/server";
-import { requireTmcMember, canWriteFinance } from "../../_lib";
+import { requireTmcMember, canManageSalesBot } from "../../_lib";
 import { createAdminClient } from "../../../_lib/supabase";
 import { embedArticleById } from "@/lib/tmc/sales-bot";
 
@@ -8,7 +8,7 @@ async function guard(req: NextRequest, orgId: string) {
   if (!orgId) return { error: NextResponse.json({ error: "missing orgId" }, { status: 400 }) };
   const auth = await requireTmcMember(req, orgId);
   if (!auth.ok) return { error: auth.res };
-  if (!canWriteFinance(auth.role)) {
+  if (!canManageSalesBot(auth.role)) {
     return { error: NextResponse.json({ error: "ไม่มีสิทธิ์" }, { status: 403 }) };
   }
   return { auth };
