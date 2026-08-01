@@ -32,6 +32,12 @@ const nextConfig = {
     // บังคับ worker เดียว + เปิด optimization ของ webpack ที่ Next เตรียมไว้สำหรับเครื่อง RAM จำกัด
     cpus: 1,
     webpackMemoryOptimizations: true,
+    // ไม่แตก worker process ตอน "Collecting page data" — ให้ทำใน process เดิม
+    // เหตุผลจากของจริง (2026-08-01): heap 4096 ผ่านช่วง webpack compile แต่ไปตายตอน
+    // collecting page data ด้วย container OOM (main 4 GB + worker อีกตัว = ชน 8 GB)
+    // ส่วน heap 3072 ตายเร็วกว่านั้นตั้งแต่ webpack compile (V8 heap OOM ที่ ~3,045 MB)
+    // ⇒ webpack ต้องการ >3 GB จึงลดเพดานไม่ได้ ต้องไปลดจำนวน process ที่ถือ heap พร้อมกันแทน
+    workerThreads: false,
   },
 };
 
