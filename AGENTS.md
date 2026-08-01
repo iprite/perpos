@@ -215,6 +215,54 @@ pnpm build
 
 ---
 
+## ต้นทุนต่อองค์กร (Usage Metering) — ฐานสำหรับออกแบบราคาขาย
+
+หน้า **`/admin/usage`** (super_admin, SSR) รวม "ทุกอย่างที่เสียเงินตามการใช้งาน" มาผูกกับ org เพื่อดู unit economics จริง
+
+- **ตารางกลาง `usage_events`** (append-only, RLS deny-all, service-role เท่านั้น) — 1 แถว = 1 ต้นทุนที่เกิดขึ้น
+  (`org_id`/`profile_id`/`service`/`feature`/`resource`/`quantity`/`unit`/tokens/`cost_usd`/`ref_table`+`ref_id`)
+  - **`cost_usd` ถูก freeze ตอนเขียน** — แก้ราคาวันนี้ต้องไม่ย้อนเปลี่ยนต้นทุนเดือนก่อน
+  - `usage_events_ref_uniq (ref_table, ref_id, feature)` กันนับซ้ำเวลา trigger ยิงซ้ำ/backfill ทับ
+  - `org_id` เป็น NULL ได้ = ต้นทุนที่ยังผูก org ไม่ได้ → โผล่เป็นแถว "ไม่ระบุองค์กร" (ห้ามซ่อน)
+- **2 ทางที่ข้อมูลไหลเข้า**
+  1. **DB trigger — เฉพาะงานที่ Cloud Run worker เรียก Gemini เอง** (ไม่ผ่าน `aiChat` ฝั่งแอป
+     → `recordUsage` มองไม่เห็น) มี 2 ตาราง: `assistant_jobs` (stt + pdf_compress) · `ocr_processing_jobs`
+     → **worker ไม่ต้อง redeploy** · ทุกตัวมี `EXCEPTION WHEN OTHERS` (metering พังห้ามทำให้งานที่เสร็จแล้ว rollback)
+     · `kind='pdf_compress'` = `compute` ไม่ใช่ `gemini` (ไม่เรียก AI) · STT/OCR นับ **ทั้ง Gemini และ compute ของ worker**
+     · ⚠️ `gemini:ocr_job` ยังเป็น **ค่าประมาณ** เพราะ `ocr_processing_jobs` ไม่มีคอลัมน์ token —
+     ถ้าจะให้เป๊ะต้องให้ ocr-worker เก็บ `usageMetadata` แล้วเปลี่ยน trigger มาคิดจาก token จริง
+     - ⚠️ **ห้ามเพิ่ม trigger ให้ตารางที่ฟีเจอร์นั้นเรียก AI ผ่าน `aiChat`/`aiEmbed` อยู่แล้ว** — จะนับซ้ำ 2 เท่า
+       (เคยพลาดมาแล้วกับ `bi_query_log` + `acc_firm_ai_log` → ถอด trigger ทิ้งใน migration `..._fix_double_count`)
+  2. **`recordUsage()`** ([lib/usage/record.ts](apps/perpos/src/lib/usage/record.ts)) = **แหล่งนับต้นทุน AI หลัก** —
+     ต่อไว้ที่ `aiChat`/`aiEmbed` ([lib/ai/client.ts](apps/perpos/src/lib/ai/client.ts)) · `sendLineMessages` · reply ของบอท PERPOS + @tmcvilla
+     - เขียนจริงผ่าน `after()` ของ Next 15 (**ห้ามเปลี่ยนเป็น `void insert()` ลอย ๆ** — บน Vercel ฟังก์ชันถูก freeze ตอนตอบ event จะหาย)
+     - merge บริบทจาก ambient context **ก่อน** เลื่อนงาน (AsyncLocalStorage หายหลัง response)
+- **บริบทเจ้าของต้นทุนใช้ ambient context** ([lib/usage/context.ts](apps/perpos/src/lib/usage/context.ts)) — ห่อ handler ด้วย
+  `withUsageContext({ orgId, profileId, feature }, fn)` ครั้งเดียว แล้ว `recordUsage` ที่อยู่ลึกแค่ไหนก็ผูก org ถูก
+  (ต่อไว้แล้ว: `bi/ask` · `line/tmc/webhook` · `acc-firm/close-check` · `gov-procure/ai/{brief,anomaly}` ·
+  `gov-procure/catalogs/[id]/enrich/run` · `just-me/ai/{quote-summary,project-health}`)
+  — **route ใหม่ที่เรียก AI/LINE ต้องห่อด้วย ไม่งั้นต้นทุนไปกอง "ไม่ระบุองค์กร"**
+- **สูตรเงินมีเทสคุม** ([lib/admin/usage.test.ts](apps/perpos/src/lib/admin/usage.test.ts)) — `prorateFixedCosts` เฉลี่ยต้นทุนคงที่
+  ตาม **วันที่ทับกับเดือนนั้นจริง** (ห้ามใช้ `days/30` รวบเดียว — ช่วง 90 วันจะกวาดของ 4 เดือนมาเต็มจำนวน)
+- **ราคา/สมมติฐานแก้ได้จากหน้าเว็บ ไม่ต้อง deploy**: `usage_prices` (ราคาต่อหน่วยรายทรัพยากร) · `usage_settings` (เรต USD→THB + ตัวคูณราคาขาย) ·
+  `usage_fixed_costs` (Vercel/Supabase/โดเมน รายเดือน → ปันส่วนเข้า org แบบ `pro_rata`/`per_org`/`none`) — เขียนผ่าน `/api/admin/usage` (`requireAdmin`)
+- **สอบทานกับบิล GCP จริง (ก.ค. 2026)** — ราคาต่อ token ที่ตั้งไว้ถูกทุกตัว · `usd_thb_rate` = **33.35**
+  (เรตที่ Google ใช้ออกบิล ไม่ใช่ 35) · Cloud Run มี **ส่วนลด spending-based 15.2%** ต้องคิดเป็นเรตสุทธิ
+  - ⚠️ **บิล GCP ทั้งใบไม่ใช่ของ perpos** — GCP project `perpos` แชร์กับ `exapp-clip-renderer` ซึ่งกิน
+    **98.6% ของค่า Cloud Run** (฿958 จาก ฿972 ในเดือน ก.ค.) · ต้นทุน GCP ของ perpos จริง ๆ ≈ ฿104/เดือน
+    **เวลาอ่านบิลต้องแยกด้วย `service_name` จาก Cloud Monitoring เสมอ ห้ามเหมาทั้งใบ**
+  - **บทเรียนราคาแพงที่เจอจากตรงนี้**: `exapp-clip-renderer` เป็น 8 vCPU + `--no-cpu-throttling`
+    แต่ถูก Cloud Scheduler ปลุกทุก 10 นาทีด้วย watchdog ที่ทำแค่ SELECT+UPDATE → **฿886/เดือน (92%
+    ของบิล exapp)** ทั้งที่ render จริงเดือนละ ~11 ครั้ง · ย้ายไป `pg_cron` แล้ว (schema `exapp`
+    ใช้ Supabase project เดียวกัน) — **service ที่เปิด `--no-cpu-throttling` ห้ามให้ cron ปลุกถี่ ๆ
+    ด้วยงานเบา ๆ** ให้ดูคอลัมน์ "฿/request" ในแท็บโครงสร้างพื้นฐานเป็นสัญญาณเตือน
+  - **gemini-3-pro โผล่ในบิลแต่ไม่ได้มาจากโค้ด perpos** (เราใช้ 2.5-flash + embedding-001) — น่าจะเป็น
+    AI Studio playground หรือแอปอื่นที่ใช้ key เดียวกัน · ใส่ราคาไว้แล้วกันนับเป็น 0
+- **ยอดรวมทุกช่องมาจาก SQL aggregate** (RPC `admin_usage_by_org` / `admin_usage_by_feature` / `admin_usage_daily`, service-role เท่านั้น)
+  — **ห้าม sum array ฝั่ง JS** เพราะ PostgREST ตัด 1,000 แถวเงียบ ๆ · fetch logic = [lib/admin/usage.ts](apps/perpos/src/lib/admin/usage.ts)
+
+---
+
 ## Database Schema (Supabase)
 
 ### ตารางหลัก

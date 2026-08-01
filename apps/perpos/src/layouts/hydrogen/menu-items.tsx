@@ -11,6 +11,7 @@ import {
   BarChart3,
   ShieldCheck,
   Wallet,
+  Coins,
   Package,
   Contact,
   ArrowLeftRight,
@@ -258,6 +259,12 @@ export function buildAdminMenuItems(): MenuItem[] {
       icon: <Wallet className="h-5 w-5" />,
       roles: ["super_admin"],
       activeMatch: ["/admin/payments", "/admin/billing", "/admin/stt-billing", "/admin/tokens"],
+    },
+    {
+      name: "ต้นทุนต่อองค์กร",
+      href: "/admin/usage",
+      icon: <Coins className="h-5 w-5" />,
+      roles: ["super_admin"],
     },
     {
       name: "ลูกค้าขอเดโม (Leads)",

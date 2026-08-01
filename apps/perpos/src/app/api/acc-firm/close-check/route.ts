@@ -15,6 +15,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireModuleMember } from "../../_lib/module-auth";
 import { createAdminClient } from "../../_lib/supabase";
 import { runCloseCheck, narrateAnomalies, type Anomaly } from "@/lib/acc-firm/close-check";
+import { withUsageContext } from "@/lib/usage/context";
 
 export type CloseCheckResponse = {
   clientOrgId: string;
@@ -81,7 +82,12 @@ export async function GET(req: NextRequest) {
 
   try {
     const result = await runCloseCheck(firmOrgId, clientOrgId, year, month, admin);
-    const narration = await narrateAnomalies(result);
+    // ผูกต้นทุน AI เข้าสำนักงานที่สั่งตรวจ (acc_firm_ai_log ยังเก็บ audit ของตัวเองเหมือนเดิม
+    // แต่ไม่มี trigger ยิงเข้า usage_events แล้ว — ชั้น aiChat เป็นแหล่งนับต้นทุนแหล่งเดียว)
+    const narration = await withUsageContext(
+      { orgId: firmOrgId, profileId: auth.userId, feature: "acc_firm.close_check" },
+      () => narrateAnomalies(result),
+    );
 
     // log cost/audit เมื่อเรียก AI จริง (มี narration.meta)
     if (narration) {

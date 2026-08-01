@@ -10,6 +10,7 @@
  *   TMC_BOT_ORG_SLUG (optional)    — ระบุ org เจ้าของ OA ถ้ามีหลาย org ที่เปิด module tmc
  */
 import crypto from "crypto";
+import { recordLineUsage } from "@/lib/usage/record";
 
 const LINE_API = "https://api.line.me/v2/bot";
 
@@ -35,22 +36,40 @@ function token(): string {
 }
 
 /** ตอบหลายข้อความในครั้งเดียว (LINE จำกัด 5 ข้อความต่อ reply) — ใช้ตอนส่งรูปห้องพัก */
-export async function tmcReplyMessages(replyToken: string, messages: unknown[]): Promise<void> {
+export async function tmcReplyMessages(
+  replyToken: string,
+  messages: unknown[],
+  orgId?: string | null,
+): Promise<void> {
   if (!token() || !replyToken || !messages.length) return;
-  await fetch(`${LINE_API}/message/reply`, {
+  const sent = messages.slice(0, 5);
+  const res = await fetch(`${LINE_API}/message/reply`, {
     method: "POST",
     headers: { authorization: `Bearer ${token()}`, "content-type": "application/json" },
-    body: JSON.stringify({ replyToken, messages: messages.slice(0, 5) }),
+    body: JSON.stringify({ replyToken, messages: sent }),
   }).catch(() => undefined);
+  if (res?.ok) {
+    void recordLineUsage(
+      { orgId, feature: "tmc.sales_bot_reply" },
+      { messages: sent.length, kind: "reply" },
+    );
+  }
 }
 
-export async function tmcReplyText(replyToken: string, text: string): Promise<void> {
+export async function tmcReplyText(
+  replyToken: string,
+  text: string,
+  orgId?: string | null,
+): Promise<void> {
   if (!token() || !replyToken) return;
-  await fetch(`${LINE_API}/message/reply`, {
+  const res = await fetch(`${LINE_API}/message/reply`, {
     method: "POST",
     headers: { authorization: `Bearer ${token()}`, "content-type": "application/json" },
     body: JSON.stringify({ replyToken, messages: [{ type: "text", text: text.slice(0, 4900) }] }),
   }).catch(() => undefined);
+  if (res?.ok) {
+    void recordLineUsage({ orgId, feature: "tmc.sales_bot_reply" }, { messages: 1, kind: "reply" });
+  }
 }
 
 export interface TmcLineProfile {

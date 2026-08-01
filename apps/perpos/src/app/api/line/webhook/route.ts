@@ -4,6 +4,7 @@ import { createAdminClient } from "../../_lib/supabase";
 import { triggerSttWorker } from "@/lib/assistant/stt-trigger";
 import { triggerPdfWorker } from "@/lib/assistant/pdf-trigger";
 import { sendLineMessages } from "@/lib/line/send-messages";
+import { recordLineUsage } from "@/lib/usage/record";
 import {
   extractMeetingUrl,
   makeDedupKey,
@@ -1002,11 +1003,18 @@ function verifySignature(body: string, signature: string | null): boolean {
 async function replyLine(replyToken: string, messages: unknown[]) {
   const token = process.env.LINE_MESSAGING_CHANNEL_ACCESS_TOKEN ?? "";
   if (!token) return;
-  await fetch("https://api.line.me/v2/bot/message/reply", {
+  const res = await fetch("https://api.line.me/v2/bot/message/reply", {
     method: "POST",
     headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
     body: JSON.stringify({ replyToken, messages }),
-  });
+  }).catch(() => null);
+  // ข้อความ reply นับรวมโควตาข้อความของ LINE OA เหมือน push → ต้องเข้าบัญชีต้นทุนด้วย
+  if (res?.ok) {
+    void recordLineUsage(
+      { feature: "line.bot_reply" },
+      { messages: messages.length, kind: "reply" },
+    );
+  }
 }
 
 function replyText(replyToken: string, text: string) {

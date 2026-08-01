@@ -10,6 +10,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/app/api/_lib/supabase";
 import { setAuditContext } from "@/app/api/_lib/audit";
 import { askBi, BiThreadNotFoundError } from "@/lib/bi/ask";
+import { withUsageContext } from "@/lib/usage/context";
 import { requireBiMember } from "../_lib";
 
 export const maxDuration = 60;
@@ -36,16 +37,21 @@ export async function POST(req: NextRequest) {
   await setAuditContext(req, auth.userId, auth.orgId);
 
   try {
-    const answer = await askBi(
-      {
-        orgId: auth.orgId,
-        profileId: auth.userId,
-        role: auth.role,
-        question,
-        threadId: body.threadId ?? null,
-        source: "web",
-      },
-      { admin: createAdminClient() },
+    // ผูกบริบทต้นทุน → ทุกการเรียก Gemini ที่เกิดใน askBi ถูกบันทึกเข้า org นี้เอง
+    const answer = await withUsageContext(
+      { orgId: auth.orgId, profileId: auth.userId, feature: "bi.ask" },
+      () =>
+        askBi(
+          {
+            orgId: auth.orgId,
+            profileId: auth.userId,
+            role: auth.role,
+            question,
+            threadId: body.threadId ?? null,
+            source: "web",
+          },
+          { admin: createAdminClient() },
+        ),
     );
     return NextResponse.json(answer);
   } catch (e) {
