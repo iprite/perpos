@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev --port ${PORT:-3005}",
     "lint": "next lint",
-    "build": "NODE_OPTIONS=--max-old-space-size=4096 next build",
+    "build": "NODE_OPTIONS=--max-old-space-size=3072 next build",
     "type:check": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
