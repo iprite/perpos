@@ -251,6 +251,11 @@ pnpm build
   - ⚠️ **บิล GCP ทั้งใบไม่ใช่ของ perpos** — GCP project `perpos` แชร์กับ `exapp-clip-renderer` ซึ่งกิน
     **98.6% ของค่า Cloud Run** (฿958 จาก ฿972 ในเดือน ก.ค.) · ต้นทุน GCP ของ perpos จริง ๆ ≈ ฿104/เดือน
     **เวลาอ่านบิลต้องแยกด้วย `service_name` จาก Cloud Monitoring เสมอ ห้ามเหมาทั้งใบ**
+  - **บทเรียนราคาแพงที่เจอจากตรงนี้**: `exapp-clip-renderer` เป็น 8 vCPU + `--no-cpu-throttling`
+    แต่ถูก Cloud Scheduler ปลุกทุก 10 นาทีด้วย watchdog ที่ทำแค่ SELECT+UPDATE → **฿886/เดือน (92%
+    ของบิล exapp)** ทั้งที่ render จริงเดือนละ ~11 ครั้ง · ย้ายไป `pg_cron` แล้ว (schema `exapp`
+    ใช้ Supabase project เดียวกัน) — **service ที่เปิด `--no-cpu-throttling` ห้ามให้ cron ปลุกถี่ ๆ
+    ด้วยงานเบา ๆ** ให้ดูคอลัมน์ "฿/request" ในแท็บโครงสร้างพื้นฐานเป็นสัญญาณเตือน
   - **gemini-3-pro โผล่ในบิลแต่ไม่ได้มาจากโค้ด perpos** (เราใช้ 2.5-flash + embedding-001) — น่าจะเป็น
     AI Studio playground หรือแอปอื่นที่ใช้ key เดียวกัน · ใส่ราคาไว้แล้วกันนับเป็น 0
 - **ยอดรวมทุกช่องมาจาก SQL aggregate** (RPC `admin_usage_by_org` / `admin_usage_by_feature` / `admin_usage_daily`, service-role เท่านั้น)
