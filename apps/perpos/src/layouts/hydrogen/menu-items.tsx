@@ -261,7 +261,7 @@ export function buildAdminMenuItems(): MenuItem[] {
       activeMatch: ["/admin/payments", "/admin/billing", "/admin/stt-billing", "/admin/tokens"],
     },
     {
-      name: "ต้นทุนต่อองค์กร",
+      name: "ต้นทุนการใช้งาน",
       href: "/admin/usage",
       icon: <Coins className="h-5 w-5" />,
       roles: ["super_admin"],

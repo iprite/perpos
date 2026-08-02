@@ -5,6 +5,7 @@ import { triggerSttWorker } from "@/lib/assistant/stt-trigger";
 import { triggerPdfWorker } from "@/lib/assistant/pdf-trigger";
 import { sendLineMessages } from "@/lib/line/send-messages";
 import { recordLineUsage } from "@/lib/usage/record";
+import { setUsageContext } from "@/lib/usage/context";
 import {
   extractMeetingUrl,
   makeDedupKey,
@@ -3359,6 +3360,20 @@ export async function POST(req: NextRequest) {
   const admin = createAdminClient();
 
   for (const event of parsed.events ?? []) {
+    // ─── บริบทเจ้าของต้นทุนของ event นี้ ──────────────────────────────────────
+    //   ทุกข้อความที่บอทตอบมีต้นทุน (LINE + AI) — ถ้าไม่ตั้งบริบทจะไปกอง "ไม่ระบุองค์กร"
+    //   ตั้งครั้งเดียวต่อ event แล้ว recordUsage ที่อยู่ลึกแค่ไหนก็ผูกเจ้าของถูก
+    const evUserId = (event.source as Record<string, string> | undefined)?.userId ?? "";
+    if (evUserId) {
+      const ctxProfile = await getProfileByLineId(admin, evUserId).catch(() => null);
+      setUsageContext({
+        profileId: ctxProfile?.id ?? null,
+        orgId: ctxProfile?.line_active_org_id ?? null,
+      });
+    } else {
+      setUsageContext({});
+    }
+
     // ─── Follow event — auto-onboarding (แอด LINE → สร้าง account + โควต้า + welcome) ──
     if (event.type === "follow") {
       const fUserId = (event.source as Record<string, string>)?.userId ?? "";

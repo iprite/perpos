@@ -1,10 +1,11 @@
 "use client";
 
 /**
- * มุมมองต้นทุนต่อองค์กร — 3 แท็บ
- *   ต่อองค์กร      : ใครทำให้เราจ่ายเท่าไร + ราคาที่ควรเก็บตาม margin เป้าหมาย
- *   แยกตามฟีเจอร์  : ต้นทุนไปจมอยู่ที่ฟีเจอร์ไหน (เจาะราย org ได้)
- *   สมมติฐาน       : ราคาต่อหน่วย / เรตเงิน / margin / ต้นทุนคงที่ — แก้แล้วมีผลกับข้อมูลใหม่
+ * มุมมองต้นทุนการใช้งาน — แยก 2 โมเดลธุรกิจออกจากกันเด็ดขาด
+ *   ต่อองค์กร (Suite) : ต้นทุน ERP ต่อ org ลูกค้า + ราคาที่ควรเก็บตาม margin เป้าหมาย
+ *   ต่อผู้ใช้ (Flow)  : ต้นทุนผู้ช่วย AI ซึ่งเป็น **per-profile** — หน่วยคือคน ไม่ใช่องค์กร
+ *   แยกตามฟีเจอร์     : ต้นทุนไปจมอยู่ที่ฟีเจอร์ไหน (เจาะราย org หรือราย user ได้)
+ *   สมมติฐาน          : ราคาต่อหน่วย / เรตเงิน / margin / ต้นทุนคงที่ — แก้แล้วมีผลกับข้อมูลใหม่
  *
  * ตัวเลขทุกช่องมาจาก SSR (RPC aggregate) — component นี้ไม่ fetch เอง ยกเว้นตอนบันทึกสมมติฐาน
  */
@@ -19,6 +20,7 @@ import {
   Server,
   SlidersHorizontal,
   Trash2,
+  UserRound,
   Wallet,
 } from "lucide-react";
 import {
@@ -60,7 +62,7 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "@/lib/toast";
 
-type Tab = "orgs" | "features" | "infra" | "assumptions";
+type Tab = "orgs" | "users" | "features" | "infra" | "assumptions";
 
 /** ป้ายชื่อแอปเจ้าของ service (prefix ของ Cloud Run service เป็นตัวตัดสิน) */
 const APP_LABEL: Record<string, string> = {
@@ -104,14 +106,17 @@ export function UsageView({
   report,
   prices,
   selectedOrgId,
+  selectedProfileId,
   infra,
 }: {
   report: UsageReport;
   prices: UsagePriceRow[];
   selectedOrgId: string | null;
+  selectedProfileId: string | null;
   infra: InfraReport;
 }) {
-  const [tab, setTab] = useState<Tab>("orgs");
+  // เจาะดูเจ้าของต้นทุนคนไหนอยู่ = มาจากการคลิกแถว → เปิดที่แท็บฟีเจอร์เลย ไม่ต้องกดซ้ำ
+  const [tab, setTab] = useState<Tab>(selectedOrgId || selectedProfileId ? "features" : "orgs");
   const rate = report.settings.usdThbRate;
   const margin = report.settings.targetMargin;
 
@@ -125,7 +130,7 @@ export function UsageView({
           icon={<Coins className="h-4 w-4" />}
           label="ต้นทุนแปรผัน"
           value={`${thb(report.totals.variableUsd, rate)} ฿`}
-          sub={`${int(report.totals.events)} รายการ · $${nf(report.totals.variableUsd, 4)}`}
+          sub={`องค์กร ${thb(report.totals.suiteVariableUsd, rate)} / ผู้ใช้ ${thb(report.totals.flowVariableUsd, rate)} ฿ · ${int(report.totals.events)} รายการ`}
           tone="info"
         />
         <StatCard
@@ -143,7 +148,7 @@ export function UsageView({
           icon={<Building2 className="h-4 w-4" />}
           label="ต้นทุนรวม"
           value={`${thb(report.totals.totalUsd, rate)} ฿`}
-          sub={`${report.totals.orgsWithUsage} องค์กรที่มีการใช้งาน`}
+          sub={`${report.totals.orgsWithUsage} องค์กร · ${report.totals.usersWithUsage} ผู้ใช้ ที่มีการใช้งาน`}
           tone="negative"
           valueColored
         />
@@ -165,9 +170,9 @@ export function UsageView({
           <span className="font-mono font-medium tabular-nums">
             {thb(report.totals.unattributedUsd, rate)} ฿
           </span>{" "}
-          ที่ยังผูกองค์กรไม่ได้ (แถว “ไม่ระบุองค์กร”) — ส่วนใหญ่มาจากบอทตอบคำถามก่อนขายที่ยังไม่มี
-          org และงานที่ยังไม่ได้ส่งบริบทองค์กรเข้ามา ยอดนี้ยังนับรวมในต้นทุนรวม
-          แต่แบ่งรายองค์กรไม่ได้
+          ที่ยังผูกเจ้าของไม่ได้ (แถว “ไม่ระบุองค์กร” / “ไม่ระบุผู้ใช้”) —
+          ส่วนใหญ่มาจากบอทตอบคำถามก่อนขายที่ยังไม่มีบัญชี และงานที่ยังไม่ได้ส่งบริบทเข้ามา
+          ยอดนี้ยังนับรวมในต้นทุนรวม แต่แบ่งรายเจ้าของไม่ได้
         </div>
       )}
 
@@ -176,7 +181,8 @@ export function UsageView({
         onChange={setTab}
         ariaLabel="มุมมองต้นทุน"
         options={[
-          { value: "orgs", label: "ต่อองค์กร", icon: <Building2 className="h-4 w-4" /> },
+          { value: "orgs", label: "ต่อองค์กร (Suite)", icon: <Building2 className="h-4 w-4" /> },
+          { value: "users", label: "ต่อผู้ใช้ (Flow)", icon: <UserRound className="h-4 w-4" /> },
           { value: "features", label: "แยกตามฟีเจอร์", icon: <Layers className="h-4 w-4" /> },
           { value: "infra", label: "โครงสร้างพื้นฐาน", icon: <Server className="h-4 w-4" /> },
           {
@@ -188,7 +194,14 @@ export function UsageView({
       />
 
       {tab === "orgs" && <OrgTable report={report} />}
-      {tab === "features" && <FeatureTable report={report} selectedOrgId={selectedOrgId} />}
+      {tab === "users" && <UserTable report={report} />}
+      {tab === "features" && (
+        <FeatureTable
+          report={report}
+          selectedOrgId={selectedOrgId}
+          selectedProfileId={selectedProfileId}
+        />
+      )}
       {tab === "infra" && <InfraTable infra={infra} rate={rate} />}
       {tab === "assumptions" && <Assumptions report={report} prices={prices} />}
     </div>
@@ -302,41 +315,171 @@ function OrgTable({ report }: { report: UsageReport }) {
   );
 }
 
-// ── แท็บ 2: แยกตามฟีเจอร์ ─────────────────────────────────────────────────────
+// ── แท็บ 2: ต่อผู้ใช้ (Flow) ──────────────────────────────────────────────────
+//    ผู้ช่วย AI เป็นบริการ per-profile — เจ้าของต้นทุนคือ "คน" ไม่ใช่องค์กร
+//    (org_id ที่ติดมากับงานเป็นแค่ home org ไว้เก็บไฟล์ ห้ามเอาไปคิดเป็นต้นทุนขององค์กร)
+
+function UserTable({ report }: { report: UsageReport }) {
+  const router = useRouter();
+  const rate = report.settings.usdThbRate;
+  const margin = report.settings.targetMargin;
+  const toMonthly = 30 / report.days;
+  const pager = usePagination(report.users, { pageSize: 15 });
+
+  const activeServices = useMemo<UsageServiceKey[]>(
+    () => USAGE_SERVICES.filter((s) => report.users.some((u) => (u.byService[s] ?? 0) > 0)),
+    [report.users],
+  );
+
+  const totals = report.users.reduce(
+    (acc, u) => ({ variable: acc.variable + u.variableUsd, total: acc.total + u.totalUsd }),
+    { variable: 0, total: 0 },
+  );
+
+  return (
+    <div className="space-y-3">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>ผู้ใช้</TableHead>
+            {activeServices.map((s) => (
+              <TableHead key={s} align="right">
+                {SERVICE_LABEL[s]}
+              </TableHead>
+            ))}
+            <TableHead align="right">ปันส่วนคงที่</TableHead>
+            <TableHead align="right">ต้นทุนรวม (฿)</TableHead>
+            <TableHead align="right">ราคาที่ควรเก็บ/เดือน</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {report.users.length === 0 ? (
+            <TableEmpty colSpan={activeServices.length + 4}>
+              ยังไม่มีการใช้ผู้ช่วย AI ที่มีต้นทุนในช่วงนี้
+            </TableEmpty>
+          ) : (
+            pager.rows.map((u) => (
+              <TableRow
+                key={u.profileId ?? "none"}
+                clickable={!!u.profileId}
+                onClick={
+                  u.profileId ? () => router.push(`/admin/usage?user=${u.profileId}`) : undefined
+                }
+              >
+                <TableCell>
+                  <div className="font-medium text-gray-900">{u.displayName}</div>
+                  <div className="text-xs text-gray-500">
+                    {u.email} · {int(u.events)} รายการ · token เข้า {int(u.inTokens)} / ออก{" "}
+                    {int(u.outTokens)}
+                  </div>
+                </TableCell>
+                {activeServices.map((s) => (
+                  <TableCell key={s} align="right" className="tabular-nums">
+                    {u.byService[s] ? thb(u.byService[s] as number, rate) : "—"}
+                  </TableCell>
+                ))}
+                <TableCell align="right" className="tabular-nums text-gray-500">
+                  {u.allocatedUsd > 0 ? thb(u.allocatedUsd, rate) : "—"}
+                </TableCell>
+                <TableCell align="right" tabular>
+                  {thb(u.totalUsd, rate)}
+                </TableCell>
+                <TableCell align="right" tabular className="font-medium text-green-600">
+                  {thb(u.totalUsd * margin * toMonthly, rate)}
+                </TableCell>
+              </TableRow>
+            ))
+          )}
+        </TableBody>
+        {report.users.length > 0 && (
+          <TableFooter>
+            <TableRow>
+              <TableCell>รวมทุกผู้ใช้</TableCell>
+              {activeServices.map((s) => (
+                <TableCell key={s} align="right" className="tabular-nums">
+                  {thb(
+                    report.users.reduce((sum, u) => sum + (u.byService[s] ?? 0), 0),
+                    rate,
+                  )}
+                </TableCell>
+              ))}
+              <TableCell align="right" className="tabular-nums">
+                {thb(totals.total - totals.variable, rate)}
+              </TableCell>
+              <TableCell align="right" tabular>
+                {thb(totals.total, rate)}
+              </TableCell>
+              <TableCell align="right" tabular className="text-green-600">
+                {thb(totals.total * margin * toMonthly, rate)}
+              </TableCell>
+            </TableRow>
+          </TableFooter>
+        )}
+      </Table>
+      <TablePager pager={pager} unit="คน" />
+      <p className="px-1 text-xs text-gray-500">
+        ผู้ช่วย AI (Flow) คิดต้นทุน <b>ต่อคน</b> ไม่ใช่ต่อองค์กร —
+        งานที่คนขององค์กรลูกค้าใช้ส่วนตัวจะไม่ไปโผล่เป็นต้นทุนขององค์กรนั้น · “ราคาที่ควรเก็บ”
+        เทียบกับค่าบริการรายเดือนของ Flow ได้ตรง ๆ
+      </p>
+    </div>
+  );
+}
+
+// ── แท็บ 3: แยกตามฟีเจอร์ ─────────────────────────────────────────────────────
 
 function FeatureTable({
   report,
   selectedOrgId,
+  selectedProfileId,
 }: {
   report: UsageReport;
   selectedOrgId: string | null;
+  selectedProfileId: string | null;
 }) {
   const router = useRouter();
   const rate = report.settings.usdThbRate;
   const pager = usePagination(report.features, { pageSize: 20 });
-  const selected = report.orgs.find((o) => o.orgId === selectedOrgId);
+  const selectedOrg = report.orgs.find((o) => o.orgId === selectedOrgId);
+  const selectedUser = report.users.find((u) => u.profileId === selectedProfileId);
   const totalUsd = report.features.reduce((s, f) => s + f.costUsd, 0);
   const peak = Math.max(1e-9, ...report.daily.map((d) => d.costUsd));
+
+  // เจาะได้ทีละเจ้าของ — เลือก org แล้ว user ต้องหลุด (และกลับกัน) ไม่งั้นตัวกรองซ้อนกันจนได้ 0
+  const drillTo = (key: "org" | "user", value: string) => {
+    const qs = new URLSearchParams();
+    if (report.days !== 30) qs.set("days", String(report.days));
+    if (value) qs.set(key, value);
+    router.push(`/admin/usage${qs.size ? `?${qs}` : ""}`);
+  };
 
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2">
         <CustomSelect
           value={selectedOrgId ?? ""}
-          onChange={(v) =>
-            router.push(
-              `/admin/usage?days=${report.days}${v ? `&org=${v}` : ""}`.replace("days=30&", ""),
-            )
-          }
+          onChange={(v) => drillTo("org", v)}
           className="w-64"
           options={[
-            { value: "", label: "ทุกองค์กร" },
+            { value: "", label: "ทุกองค์กร (Suite)" },
             ...report.orgs
               .filter((o) => o.orgId)
               .map((o) => ({ value: o.orgId as string, label: o.orgName })),
           ]}
         />
-        {selected && <StatusBadge tone="info">{selected.orgName}</StatusBadge>}
+        <CustomSelect
+          value={selectedProfileId ?? ""}
+          onChange={(v) => drillTo("user", v)}
+          className="w-64"
+          options={[
+            { value: "", label: "ทุกผู้ใช้ (Flow)" },
+            ...report.users
+              .filter((u) => u.profileId)
+              .map((u) => ({ value: u.profileId as string, label: u.displayName })),
+          ]}
+        />
+        {selectedOrg && <StatusBadge tone="info">{selectedOrg.orgName}</StatusBadge>}
+        {selectedUser && <StatusBadge tone="info">{selectedUser.displayName}</StatusBadge>}
       </div>
 
       {report.daily.length > 0 && (
@@ -403,7 +546,7 @@ function FeatureTable({
   );
 }
 
-// ── แท็บ 3: โครงสร้างพื้นฐาน (ทั้งบัญชี GCP แยกตามแอป) ────────────────────────
+// ── แท็บ 4: โครงสร้างพื้นฐาน (ทั้งบัญชี GCP แยกตามแอป) ────────────────────────
 
 function InfraTable({ infra, rate }: { infra: InfraReport; rate: number }) {
   const router = useRouter();
@@ -560,7 +703,7 @@ function InfraTable({ infra, rate }: { infra: InfraReport; rate: number }) {
   );
 }
 
-// ── แท็บ 4: สมมติฐาน ─────────────────────────────────────────────────────────
+// ── แท็บ 5: สมมติฐาน ─────────────────────────────────────────────────────────
 
 function Assumptions({ report, prices }: { report: UsageReport; prices: UsagePriceRow[] }) {
   const router = useRouter();

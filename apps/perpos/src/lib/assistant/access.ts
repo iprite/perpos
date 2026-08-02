@@ -32,13 +32,19 @@ export async function resolveHomeOrg(
 
   const { data: rows } = await admin
     .from("organization_members")
-    .select("organization_id, organizations(created_at)")
+    .select("organization_id, organizations(created_at, is_personal)")
     .eq("user_id", userId);
   const list = (rows ?? []) as unknown as Array<{
     organization_id: string;
-    organizations: { created_at: string } | null;
+    organizations: { created_at: string; is_personal?: boolean | null } | null;
   }>;
   if (!list.length) return null;
+
+  // พื้นที่ส่วนตัวมาก่อนเสมอ — ห้ามหยิบ org ลูกค้ามาเป็น home org ของบริการ per-profile
+  // (ไม่งั้นไฟล์/ต้นทุน Flow ของคน ๆ นั้นไปกองที่องค์กรลูกค้า)
+  const personal = list.find((r) => r.organizations?.is_personal);
+  if (personal) return personal.organization_id;
+
   const activeId = p?.line_active_org_id ?? null;
   if (activeId && list.some((r) => r.organization_id === activeId)) return activeId;
   const sorted = [...list].sort((a, b) =>
