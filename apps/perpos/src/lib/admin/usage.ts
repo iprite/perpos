@@ -85,9 +85,9 @@ export type UsageReport = {
   to: string;
   days: number;
   settings: UsageSettings;
-  /** Suite (ERP) — ต้นทุนขององค์กรจริง */
+  /** Suite (ERP) — เฉพาะ org จริง (แถวที่ระบุเจ้าของไม่ได้ถูกตัดออก เหลืออยู่ใน `totals`) */
   orgs: OrgUsageRow[];
-  /** Flow (ผู้ช่วย AI per-profile) — ต้นทุนของผู้ใช้รายคน */
+  /** Flow (ผู้ช่วย AI per-profile) — เฉพาะผู้ใช้จริง */
   users: UserUsageRow[];
   features: FeatureUsageRow[];
   daily: { day: string; costUsd: number; events: number }[];
@@ -305,14 +305,20 @@ export async function getUsageReport(
   const flowVariableUsd = users.reduce((s, u) => s + u.variableUsd, 0);
   const variableUsd = suiteVariableUsd + flowVariableUsd;
   const fixedUsd = fixedCosts.reduce((s, f) => s + (prorated.get(f.id) ?? 0), 0);
+  const eventsTotal =
+    orgs.reduce((s, o) => s + o.events, 0) + users.reduce((s, u) => s + u.events, 0);
+  const unattributedUsd =
+    orgs.filter((o) => !o.orgId).reduce((s, o) => s + o.variableUsd, 0) +
+    users.filter((u) => !u.profileId).reduce((s, u) => s + u.variableUsd, 0);
 
   return {
     from: from.toISOString(),
     to: to.toISOString(),
     days: opts.days,
     settings,
-    orgs,
-    users,
+    // แถวที่ระบุเจ้าของไม่ได้ไม่ต้องรกตาราง — ยอดยังอยู่ครบใน totals (แถบเตือนด้านบนบอกจำนวน)
+    orgs: orgs.filter((o) => o.orgId),
+    users: users.filter((u) => u.profileId),
     features,
     daily,
     fixedCosts,
@@ -320,14 +326,12 @@ export async function getUsageReport(
       variableUsd,
       fixedUsd,
       totalUsd: variableUsd + fixedUsd,
-      events: orgs.reduce((s, o) => s + o.events, 0) + users.reduce((s, u) => s + u.events, 0),
+      events: eventsTotal,
       orgsWithUsage: realOrgs.length,
       usersWithUsage: realUsers.length,
       suiteVariableUsd,
       flowVariableUsd,
-      unattributedUsd:
-        orgs.filter((o) => !o.orgId).reduce((s, o) => s + o.variableUsd, 0) +
-        users.filter((u) => !u.profileId).reduce((s, u) => s + u.variableUsd, 0),
+      unattributedUsd,
     },
   };
 }
