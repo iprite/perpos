@@ -8,6 +8,7 @@
     "gen-module": "node scripts/gen-module.mjs",
     "kb:embed": "node --env-file=apps/perpos/.env.local scripts/kb-embed.mjs",
     "infra:sync": "node --env-file=apps/perpos/.env.local scripts/infra-cost-sync.mjs",
+    "billing:sync": "node --env-file=apps/perpos/.env.local scripts/billing-cost-sync.mjs",
     "bi:embed": "node --env-file=apps/perpos/.env.local scripts/bi-embed.mjs",
     "skills:install": "node scripts/manage-skills.mjs",
     "lint": "turbo lint --filter=starter",

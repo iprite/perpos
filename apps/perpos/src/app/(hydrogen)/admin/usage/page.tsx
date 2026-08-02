@@ -20,7 +20,7 @@ import { UsageView } from "./_view";
 export default async function AdminUsagePage({
   searchParams,
 }: {
-  searchParams: Promise<{ days?: string; org?: string; month?: string }>;
+  searchParams: Promise<{ days?: string; org?: string; month?: string; src?: string }>;
 }) {
   const admin = await requireSuperAdminPage();
   const sp = await searchParams;
@@ -30,7 +30,7 @@ export default async function AdminUsagePage({
   const [report, prices, infra] = await Promise.all([
     getUsageReport(admin, { days, orgId }),
     listUsagePrices(admin),
-    getInfraReport(admin, sp.month?.trim() || null),
+    getInfraReport(admin, sp.month?.trim() || null, sp.src?.trim() || null),
   ]);
 
   return (

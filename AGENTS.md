@@ -251,6 +251,22 @@ pnpm build
   - ⚠️ **บิล GCP ทั้งใบไม่ใช่ของ perpos** — GCP project `perpos` แชร์กับ `exapp-clip-renderer` ซึ่งกิน
     **98.6% ของค่า Cloud Run** (฿958 จาก ฿972 ในเดือน ก.ค.) · ต้นทุน GCP ของ perpos จริง ๆ ≈ ฿104/เดือน
     **เวลาอ่านบิลต้องแยกด้วย `service_name` จาก Cloud Monitoring เสมอ ห้ามเหมาทั้งใบ**
+- **แท็บ "โครงสร้างพื้นฐาน" ครอบทุก billing account — perpos = จุดควบคุมกลาง** (ตาราง `infra_costs`)
+  มี 2 billing account เปิดอยู่: **perpos** (project `perpos`, `gen-lang-client-0874375942`) ·
+  **exapp** (project `exworker-435807`, `gen-lang-client-0897830354`) — riekchang เพิ่มทีหลังได้
+  - **2 source ที่เป็นตัวเลขคนละชุดของเดือนเดียวกัน — ห้ามบวกรวมกัน** (หน้าเว็บสลับดูทีละอันด้วย `?src=`)
+    1. `monitoring` — `pnpm infra:sync [YYYY-MM]` วนทุก project ที่ระบุใน `GCP_PROJECTS`
+       (default `perpos:perpos,exworker-435807:exapp`) → **ค่าประมาณ** ของ Cloud Run เท่านั้น
+       (usage × เรตใน `usage_prices`) · แอปตัดสินจาก prefix ชื่อ service ก่อน ไม่มี prefix ค่อยตกเป็น
+       แอปเจ้าของ project (`post-worker`/`drive-sync` → exapp)
+    2. `billing_export` — `pnpm billing:sync [YYYY-MM]` อ่าน **บิลจริงหักเครดิตแล้ว** จาก BigQuery
+       (`perpos.billing_export.gcp_billing_export_v1_*`) ครบทุกบริการ (Gemini/Storage/Network) แยก SKU
+       · เขียนแบบ **ลบทั้งเดือนแล้วใส่ใหม่** เพราะ Google ปรับยอดย้อนหลังได้
+  - ⚠️ BigQuery export **ต้องเปิดในคอนโซลเท่านั้น** (ไม่มีคำสั่ง gcloud) และ **ไม่ backfill** —
+    ของบัญชี perpos เปิดไว้แล้ว (2026-08-01) · **ของบัญชี exapp ยังไม่ได้เปิด** → ต้องตั้งให้ยิงเข้า
+    dataset เดียวกันใน project `perpos` ไม่งั้น `billing:sync` จะเห็นแค่บัญชี perpos
+  - แอปบน Vercel ไม่มี credential ของ GCP → ทั้งสองทางเป็น **สคริปต์ที่ยืม token จาก `gcloud`** ของเครื่อง
+    ที่ login แล้ว (ท่าเดียวกับ `pnpm kb:embed`) หน้าเว็บอ่านจาก snapshot ในตารางอย่างเดียว
   - **บทเรียนราคาแพงที่เจอจากตรงนี้**: `exapp-clip-renderer` เป็น 8 vCPU + `--no-cpu-throttling`
     แต่ถูก Cloud Scheduler ปลุกทุก 10 นาทีด้วย watchdog ที่ทำแค่ SELECT+UPDATE → **฿886/เดือน (92%
     ของบิล exapp)** ทั้งที่ render จริงเดือนละ ~11 ครั้ง · ย้ายไป `pg_cron` แล้ว (schema `exapp`
