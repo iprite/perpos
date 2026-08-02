@@ -215,9 +215,19 @@ pnpm build
 
 ---
 
-## ต้นทุนต่อองค์กร (Usage Metering) — ฐานสำหรับออกแบบราคาขาย
+## ต้นทุนการใช้งาน (Usage Metering) — ฐานสำหรับออกแบบราคาขาย
 
-หน้า **`/admin/usage`** (super_admin, SSR) รวม "ทุกอย่างที่เสียเงินตามการใช้งาน" มาผูกกับ org เพื่อดู unit economics จริง
+หน้า **`/admin/usage`** (super_admin, SSR) รวม "ทุกอย่างที่เสียเงินตามการใช้งาน" เพื่อดู unit economics จริง
+
+- **แยก 2 โมเดลเด็ดขาดด้วย `usage_events.scope` (binding)** — Flow เป็นบริการ **per-profile** จึงคิดต้นทุน
+  **ต่อผู้ใช้ ไม่ใช่ต่อองค์กร** (org_id ที่ติดมากับงาน = home org ไว้เก็บไฟล์เท่านั้น)
+  - `scope='flow'` → แท็บ **"ต่อผู้ใช้ (Flow)"** (RPC `admin_usage_by_user`) · `scope='suite'` → แท็บ **"ต่อองค์กร (Suite)"** (`admin_usage_by_org`)
+  - ตั้งโดย **trigger `trg_usage_events_scope` เท่านั้น** (feature ขึ้นต้น `assistant.` หรือ org เป็น `organizations.is_personal`)
+    — **ห้ามให้ผู้เรียกส่ง scope เอง** และห้ามคิดต้นทุน Flow เป็นของ org
+  - `organizations.is_personal` = org "พื้นที่ส่วนตัว" ที่ provisioning สร้าง · `ensurePersonalOrg`/`resolveHomeOrg`
+    **ห้าม fallback ไป org ลูกค้า** (บั๊กเดิม: super_admin ที่เป็น owner ของ `justme` ทำให้ต้นทุน STT/PDF ส่วนตัว
+    กองที่ลูกค้า จน justme กลายเป็น org ที่แพงที่สุดทั้งที่ไม่เคยเรียก worker) — migration `20260802120000_usage_scope_flow_suite`
+  - ปันส่วนต้นทุนคงที่: `pro_rata` เฉลี่ยข้าม **ทั้ง org และผู้ใช้** (Vercel/Supabase รับใช้ทั้งสองฝั่ง) · `per_org` แจกเฉพาะ org
 
 - **ตารางกลาง `usage_events`** (append-only, RLS deny-all, service-role เท่านั้น) — 1 แถว = 1 ต้นทุนที่เกิดขึ้น
   (`org_id`/`profile_id`/`service`/`feature`/`resource`/`quantity`/`unit`/tokens/`cost_usd`/`ref_table`+`ref_id`)
@@ -239,7 +249,8 @@ pnpm build
      - merge บริบทจาก ambient context **ก่อน** เลื่อนงาน (AsyncLocalStorage หายหลัง response)
 - **บริบทเจ้าของต้นทุนใช้ ambient context** ([lib/usage/context.ts](apps/perpos/src/lib/usage/context.ts)) — ห่อ handler ด้วย
   `withUsageContext({ orgId, profileId, feature }, fn)` ครั้งเดียว แล้ว `recordUsage` ที่อยู่ลึกแค่ไหนก็ผูก org ถูก
-  (ต่อไว้แล้ว: `bi/ask` · `line/tmc/webhook` · `acc-firm/close-check` · `gov-procure/ai/{brief,anomaly}` ·
+  (ต่อไว้แล้ว: `bi/ask` · `line/webhook` (ตั้งต่อ event ด้วย `setUsageContext` — ลูปมี `continue` หลายสิบจุด
+  ห่อ callback ไม่ไหว) · `line/tmc/webhook` · `acc-firm/close-check` · `gov-procure/ai/{brief,anomaly}` ·
   `gov-procure/catalogs/[id]/enrich/run` · `just-me/ai/{quote-summary,project-health}`)
   — **route ใหม่ที่เรียก AI/LINE ต้องห่อด้วย ไม่งั้นต้นทุนไปกอง "ไม่ระบุองค์กร"**
 - **สูตรเงินมีเทสคุม** ([lib/admin/usage.test.ts](apps/perpos/src/lib/admin/usage.test.ts)) — `prorateFixedCosts` เฉลี่ยต้นทุนคงที่
@@ -277,7 +288,7 @@ pnpm build
     ด้วยงานเบา ๆ** ให้ดูคอลัมน์ "฿/request" ในแท็บโครงสร้างพื้นฐานเป็นสัญญาณเตือน
   - **gemini-3-pro โผล่ในบิลแต่ไม่ได้มาจากโค้ด perpos** (เราใช้ 2.5-flash + embedding-001) — น่าจะเป็น
     AI Studio playground หรือแอปอื่นที่ใช้ key เดียวกัน · ใส่ราคาไว้แล้วกันนับเป็น 0
-- **ยอดรวมทุกช่องมาจาก SQL aggregate** (RPC `admin_usage_by_org` / `admin_usage_by_feature` / `admin_usage_daily`, service-role เท่านั้น)
+- **ยอดรวมทุกช่องมาจาก SQL aggregate** (RPC `admin_usage_by_org` / `admin_usage_by_user` / `admin_usage_by_feature` / `admin_usage_daily`, service-role เท่านั้น)
   — **ห้าม sum array ฝั่ง JS** เพราะ PostgREST ตัด 1,000 แถวเงียบ ๆ · fetch logic = [lib/admin/usage.ts](apps/perpos/src/lib/admin/usage.ts)
 
 ---

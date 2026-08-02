@@ -42,6 +42,23 @@ export type OrgUsageRow = {
   byService: Partial<Record<UsageServiceKey, number>>;
 };
 
+/**
+ * ต้นทุน Flow = per-profile — **หน่วยคือ "ผู้ใช้" ไม่ใช่ "องค์กร"**
+ * (ผู้ช่วย AI ผูก org_id ตาม home org ไว้เก็บไฟล์เท่านั้น ไม่ใช่เจ้าของต้นทุน)
+ */
+export type UserUsageRow = {
+  profileId: string | null;
+  displayName: string;
+  email: string;
+  variableUsd: number;
+  allocatedUsd: number;
+  totalUsd: number;
+  events: number;
+  inTokens: number;
+  outTokens: number;
+  byService: Partial<Record<UsageServiceKey, number>>;
+};
+
 export type FeatureUsageRow = {
   service: UsageServiceKey;
   feature: string;
@@ -68,7 +85,10 @@ export type UsageReport = {
   to: string;
   days: number;
   settings: UsageSettings;
+  /** Suite (ERP) — ต้นทุนขององค์กรจริง */
   orgs: OrgUsageRow[];
+  /** Flow (ผู้ช่วย AI per-profile) — ต้นทุนของผู้ใช้รายคน */
+  users: UserUsageRow[];
   features: FeatureUsageRow[];
   daily: { day: string; costUsd: number; events: number }[];
   fixedCosts: FixedCostRow[];
@@ -78,7 +98,11 @@ export type UsageReport = {
     totalUsd: number;
     events: number;
     orgsWithUsage: number;
-    /** ต้นทุนที่ยังผูก org ไม่ได้ (โผล่เป็นแถว "ไม่ระบุองค์กร") */
+    usersWithUsage: number;
+    /** ต้นทุนแปรผันฝั่ง Suite / Flow (แยกกันเพื่อดู unit economics คนละโมเดล) */
+    suiteVariableUsd: number;
+    flowVariableUsd: number;
+    /** ต้นทุนที่ยังผูกเจ้าของไม่ได้ (แถว "ไม่ระบุองค์กร" / "ไม่ระบุผู้ใช้") */
     unattributedUsd: number;
   };
 };
@@ -127,17 +151,20 @@ export function prorateFixedCosts(rows: FixedCostRow[], from: Date, to: Date): M
 
 export async function getUsageReport(
   admin: SupabaseClient,
-  opts: { days: number; orgId?: string | null },
+  opts: { days: number; orgId?: string | null; profileId?: string | null },
 ): Promise<UsageReport> {
   const to = new Date();
   const from = new Date(to.getTime() - opts.days * 86400000);
   const p = { p_from: from.toISOString(), p_to: to.toISOString() };
+  // เจาะดูทีละเจ้าของต้นทุน — org (Suite) หรือ ผู้ใช้ (Flow) อย่างใดอย่างหนึ่ง
+  const drill = { p_org_id: opts.orgId ?? null, p_profile_id: opts.profileId ?? null };
 
-  const [settingsRes, orgRes, featureRes, dailyRes, fixedRes] = await Promise.all([
+  const [settingsRes, orgRes, userRes, featureRes, dailyRes, fixedRes] = await Promise.all([
     admin.from("usage_settings").select("usd_thb_rate, target_margin").eq("id", true).maybeSingle(),
     admin.rpc("admin_usage_by_org", p),
-    admin.rpc("admin_usage_by_feature", { ...p, p_org_id: opts.orgId ?? null }),
-    admin.rpc("admin_usage_daily", { ...p, p_org_id: opts.orgId ?? null }),
+    admin.rpc("admin_usage_by_user", p),
+    admin.rpc("admin_usage_by_feature", { ...p, ...drill }),
+    admin.rpc("admin_usage_daily", { ...p, ...drill }),
     admin
       .from("usage_fixed_costs")
       .select("id, month, label, amount_usd, allocation, note")
@@ -161,6 +188,17 @@ export async function getUsageReport(
     by_service: Record<string, number | string>;
   }[];
 
+  const usersRaw = (userRes.data ?? []) as {
+    profile_id: string | null;
+    display_name: string;
+    email: string;
+    cost_usd: number | string;
+    events: number;
+    in_tokens: number;
+    out_tokens: number;
+    by_service: Record<string, number | string>;
+  }[];
+
   const fixedCosts: FixedCostRow[] = ((fixedRes.data ?? []) as Record<string, unknown>[]).map(
     (r) => ({
       id: String(r.id),
@@ -173,12 +211,17 @@ export async function getUsageReport(
   );
 
   // ── ปันส่วนต้นทุนคงที่ ─────────────────────────────────────────────────────
-  //   pro_rata = ตามสัดส่วนต้นทุนแปรผันของ org (คนใช้เยอะแบกมาก)
-  //   per_org  = หารเท่ากันทุก org ที่มีการใช้งาน
-  //   none     = ไม่ปันส่วน (นับเป็นต้นทุนรวมของบริษัท แต่ไม่ผูก org)
-  // ทั้งสองแบบคิดเฉพาะ org จริง — แถว "ไม่ระบุองค์กร" ไม่รับส่วนแบ่ง
+  //   pro_rata = ตามสัดส่วนต้นทุนแปรผัน **ของทั้ง Suite และ Flow** (คนใช้เยอะแบกมาก)
+  //              — Vercel/Supabase/โดเมน รับใช้ทั้งสองฝั่ง ถ้าโยนให้ org อย่างเดียว
+  //                องค์กรจะดูแพงเกินจริงเท่ากับส่วนที่ผู้ใช้ Flow ควรแบก
+  //   per_org  = หารเท่ากันทุก org ที่มีการใช้งาน (นิยามผูกกับ "องค์กร" → ไม่แจกให้ผู้ใช้ Flow)
+  //   none     = ไม่ปันส่วน (นับเป็นต้นทุนรวมของบริษัท แต่ไม่ผูกเจ้าของ)
+  // แถวที่ระบุเจ้าของไม่ได้ ("ไม่ระบุองค์กร"/"ไม่ระบุผู้ใช้") ไม่รับส่วนแบ่ง
   const realOrgs = orgsRaw.filter((o) => o.org_id);
-  const variableTotalReal = realOrgs.reduce((s, o) => s + Number(o.cost_usd ?? 0), 0);
+  const realUsers = usersRaw.filter((u) => u.profile_id);
+  const variableTotalReal =
+    realOrgs.reduce((s, o) => s + Number(o.cost_usd ?? 0), 0) +
+    realUsers.reduce((s, u) => s + Number(u.cost_usd ?? 0), 0);
 
   const prorated = prorateFixedCosts(fixedCosts, from, to);
   const poolOf = (kind: FixedCostRow["allocation"]) =>
@@ -189,12 +232,12 @@ export async function getUsageReport(
   const proRataPool = poolOf("pro_rata");
   const perOrgPool = poolOf("per_org");
   const perOrgShare = realOrgs.length ? perOrgPool / realOrgs.length : 0;
+  const proRataShare = (variableUsd: number) =>
+    variableTotalReal > 0 ? (variableUsd / variableTotalReal) * proRataPool : 0;
 
   const orgs: OrgUsageRow[] = orgsRaw.map((o) => {
     const variableUsd = Number(o.cost_usd ?? 0);
-    const allocatedUsd = !o.org_id
-      ? 0
-      : (variableTotalReal > 0 ? (variableUsd / variableTotalReal) * proRataPool : 0) + perOrgShare;
+    const allocatedUsd = !o.org_id ? 0 : proRataShare(variableUsd) + perOrgShare;
     const byService: Partial<Record<UsageServiceKey, number>> = {};
     for (const [k, v] of Object.entries(o.by_service ?? {})) {
       if ((USAGE_SERVICES as readonly string[]).includes(k)) {
@@ -216,6 +259,30 @@ export async function getUsageReport(
   });
   orgs.sort((a, b) => b.totalUsd - a.totalUsd);
 
+  const users: UserUsageRow[] = usersRaw.map((u) => {
+    const variableUsd = Number(u.cost_usd ?? 0);
+    const allocatedUsd = !u.profile_id ? 0 : proRataShare(variableUsd);
+    const byService: Partial<Record<UsageServiceKey, number>> = {};
+    for (const [k, v] of Object.entries(u.by_service ?? {})) {
+      if ((USAGE_SERVICES as readonly string[]).includes(k)) {
+        byService[k as UsageServiceKey] = Number(v);
+      }
+    }
+    return {
+      profileId: u.profile_id,
+      displayName: u.display_name,
+      email: u.email,
+      variableUsd,
+      allocatedUsd,
+      totalUsd: variableUsd + allocatedUsd,
+      events: Number(u.events ?? 0),
+      inTokens: Number(u.in_tokens ?? 0),
+      outTokens: Number(u.out_tokens ?? 0),
+      byService,
+    };
+  });
+  users.sort((a, b) => b.totalUsd - a.totalUsd);
+
   const features: FeatureUsageRow[] = ((featureRes.data ?? []) as Record<string, unknown>[]).map(
     (r) => ({
       service: r.service as UsageServiceKey,
@@ -234,7 +301,9 @@ export async function getUsageReport(
     events: Number(r.events ?? 0),
   }));
 
-  const variableUsd = orgs.reduce((s, o) => s + o.variableUsd, 0);
+  const suiteVariableUsd = orgs.reduce((s, o) => s + o.variableUsd, 0);
+  const flowVariableUsd = users.reduce((s, u) => s + u.variableUsd, 0);
+  const variableUsd = suiteVariableUsd + flowVariableUsd;
   const fixedUsd = fixedCosts.reduce((s, f) => s + (prorated.get(f.id) ?? 0), 0);
 
   return {
@@ -243,6 +312,7 @@ export async function getUsageReport(
     days: opts.days,
     settings,
     orgs,
+    users,
     features,
     daily,
     fixedCosts,
@@ -250,9 +320,14 @@ export async function getUsageReport(
       variableUsd,
       fixedUsd,
       totalUsd: variableUsd + fixedUsd,
-      events: orgs.reduce((s, o) => s + o.events, 0),
+      events: orgs.reduce((s, o) => s + o.events, 0) + users.reduce((s, u) => s + u.events, 0),
       orgsWithUsage: realOrgs.length,
-      unattributedUsd: orgs.filter((o) => !o.orgId).reduce((s, o) => s + o.variableUsd, 0),
+      usersWithUsage: realUsers.length,
+      suiteVariableUsd,
+      flowVariableUsd,
+      unattributedUsd:
+        orgs.filter((o) => !o.orgId).reduce((s, o) => s + o.variableUsd, 0) +
+        users.filter((u) => !u.profileId).reduce((s, u) => s + u.variableUsd, 0),
     },
   };
 }

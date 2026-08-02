@@ -27,6 +27,17 @@ export function withUsageContext<T>(ctx: AmbientUsage, fn: () => Promise<T>): Pr
   return storage.run(ctx, fn);
 }
 
+/**
+ * ตั้งบริบทให้ "ส่วนที่เหลือของ execution นี้" โดยไม่ต้องห่อ callback
+ *
+ * ใช้กับ handler ที่วนหลาย event ในลูปเดียว (LINE webhook) ซึ่งบริบทเปลี่ยนรายรอบ
+ * และการยก body ทั้งก้อนไปใส่ callback เสี่ยงเกิน (`continue` หลายสิบจุด)
+ * — ขอบเขตยังเป็นต่อ request เพราะแต่ละ request มี async context ของตัวเอง
+ */
+export function setUsageContext(ctx: AmbientUsage): void {
+  storage.enterWith(ctx);
+}
+
 export function currentUsageContext(): AmbientUsage | undefined {
   return storage.getStore();
 }

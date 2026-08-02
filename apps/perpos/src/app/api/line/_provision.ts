@@ -53,40 +53,42 @@ async function ensureRow(
   if (!count) await admin.from(table).insert(insert);
 }
 
-/** หา personal org ของ user (reuse ถ้ามี) หรือสร้างใหม่ + ensure owner membership */
+/**
+ * หา personal org ของ user (reuse ถ้ามี) หรือสร้างใหม่ + ensure owner membership
+ *
+ * ⚠️ ห้าม fallback ไป "org ไหนก็ได้ที่ user เป็นสมาชิก/เจ้าของ" — คนที่เป็น owner ขององค์กร
+ *    ลูกค้าอยู่แล้ว (super_admin, เจ้าของกิจการ) จะได้ org ลูกค้าเป็น home org → ไฟล์และ
+ *    **ต้นทุน Flow ส่วนตัวไปกองที่องค์กรลูกค้า** (เคยทำให้ justme กลายเป็น org ที่แพงที่สุด)
+ *    พื้นที่ส่วนตัวต้องเป็น org ที่ `is_personal = true` เท่านั้น
+ */
 async function ensurePersonalOrg(
   admin: SupabaseClient,
   profileId: string,
   displayName: string,
-  preferredOrgId: string | null,
 ): Promise<string> {
-  // 1. line_active_org_id เดิมยังมี membership อยู่ → ใช้เลย
-  if (preferredOrgId) {
-    const { data: m } = await admin
-      .from("organization_members")
-      .select("organization_id")
-      .eq("organization_id", preferredOrgId)
-      .eq("user_id", profileId)
-      .maybeSingle();
-    if (m) return preferredOrgId;
+  // 1. เคยตั้งไว้แล้ว = แหล่งความจริง
+  const { data: prof } = await admin
+    .from("profiles")
+    .select("personal_org_id")
+    .eq("id", profileId)
+    .maybeSingle();
+  const existingId = (prof as { personal_org_id?: string | null } | null)?.personal_org_id ?? null;
+  if (existingId) {
+    await ensureRow(
+      admin,
+      "organization_members",
+      { organization_id: existingId, user_id: profileId },
+      { organization_id: existingId, user_id: profileId, role: "owner" },
+    );
+    return existingId;
   }
 
-  // 2. มี membership owner อยู่แล้ว (provisioning ก่อนหน้าสร้างไว้แต่ค้าง) → ใช้ org นั้น
-  const { data: owned } = await admin
-    .from("organization_members")
-    .select("organization_id")
-    .eq("user_id", profileId)
-    .eq("role", "owner")
-    .order("created_at")
-    .limit(1)
-    .maybeSingle();
-  if (owned) return (owned as { organization_id: string }).organization_id;
-
-  // 3. มี org ที่เคยสร้างค้างไว้ (created_by) แต่ membership หาย → reuse + เติม membership
+  // 2. เคยสร้างพื้นที่ส่วนตัวไว้แต่ pointer หาย → reuse + เติม membership
   const { data: orphan } = await admin
     .from("organizations")
     .select("id")
     .eq("created_by", profileId)
+    .eq("is_personal", true)
     .order("created_at")
     .limit(1)
     .maybeSingle();
@@ -101,11 +103,16 @@ async function ensurePersonalOrg(
     return orgId;
   }
 
-  // 4. สร้างใหม่ + membership
+  // 3. สร้างใหม่ + membership
   const slug = `u${Math.random().toString(36).slice(2, 12)}`;
   const { data: org, error: orgErr } = await admin
     .from("organizations")
-    .insert({ name: `พื้นที่ส่วนตัว — ${displayName}`, slug, created_by: profileId })
+    .insert({
+      name: `พื้นที่ส่วนตัว — ${displayName}`,
+      slug,
+      created_by: profileId,
+      is_personal: true,
+    })
     .select("id")
     .single();
   if (orgErr || !org) throw new Error(`org insert failed: ${orgErr?.message ?? "unknown"}`);
@@ -205,7 +212,7 @@ export async function provisionLineUser(
   }
 
   // 2. personal org + owner membership (idempotent / reuse-if-exists)
-  const orgId = await ensurePersonalOrg(admin, profileId, displayName, preferredOrgId);
+  const orgId = await ensurePersonalOrg(admin, profileId, displayName);
 
   // 3. ผู้ช่วย AI (key ภายใน 'stt') — per-profile: แค่ personal_module_grants ก็พอ
   //    (สิทธิ์เช็คต่อ profile โดย requireAssistantUser / LINE checkSttAccess — ไม่ใช้ org module)
@@ -228,8 +235,10 @@ export async function provisionLineUser(
   // 4. home org pointers + quota
   //    personal_org_id = แหล่งความจริงของ home org (assistant-auth.resolveHomeOrg อ่านตรงนี้)
   //    line_active_org_id = org ที่ active สำหรับ ERP context (อาจถูกสลับด้วย org switcher)
+  //    ⚠️ ตั้ง line_active_org_id ให้เฉพาะคนที่ยังไม่มี — คนที่ทำงาน ERP อยู่กับ org ลูกค้า
+  //       ต้องไม่ถูกดีดกลับมาพื้นที่ส่วนตัวเวลา re-follow
   await admin.from("profiles").update({ personal_org_id: orgId }).eq("id", profileId);
-  if (preferredOrgId !== orgId) {
+  if (!preferredOrgId) {
     await admin.from("profiles").update({ line_active_org_id: orgId }).eq("id", profileId);
   }
   await ensureTokenTrial(admin, profileId);
