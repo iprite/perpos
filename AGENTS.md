@@ -233,7 +233,8 @@ pnpm build
   (`org_id`/`profile_id`/`service`/`feature`/`resource`/`quantity`/`unit`/tokens/`cost_usd`/`ref_table`+`ref_id`)
   - **`cost_usd` ถูก freeze ตอนเขียน** — แก้ราคาวันนี้ต้องไม่ย้อนเปลี่ยนต้นทุนเดือนก่อน
   - `usage_events_ref_uniq (ref_table, ref_id, feature)` กันนับซ้ำเวลา trigger ยิงซ้ำ/backfill ทับ
-  - `org_id` เป็น NULL ได้ = ต้นทุนที่ยังผูก org ไม่ได้ → โผล่เป็นแถว "ไม่ระบุองค์กร" (ห้ามซ่อน)
+  - `org_id` เป็น NULL ได้ = ต้นทุนที่ยังผูกเจ้าของไม่ได้ → **ไม่แสดงเป็นแถวในตาราง** แต่ยังนับใน
+    `totals` + ขึ้นแถบเตือนสีเหลืองเสมอ (`totals.unattributedUsd` — **ห้ามตัดทิ้งจากยอดรวม**)
 - **2 ทางที่ข้อมูลไหลเข้า**
   1. **DB trigger — เฉพาะงานที่ Cloud Run worker เรียก Gemini เอง** (ไม่ผ่าน `aiChat` ฝั่งแอป
      → `recordUsage` มองไม่เห็น) มี 2 ตาราง: `assistant_jobs` (stt + pdf_compress) · `ocr_processing_jobs`
