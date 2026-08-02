@@ -10,8 +10,11 @@
  * Storage, Networking, Scheduler ฯลฯ แยกตาม project → แมปเป็นแอป (perpos / exapp / riekchang)
  *
  * เงื่อนไขก่อนใช้ (ทำครั้งเดียวในคอนโซล ไม่มีคำสั่ง gcloud):
- *   Billing → Billing export → BigQuery export → เปิด "Standard usage cost" ของ **ทุก billing
- *   account** ให้ยิงเข้า dataset เดียวกันใน project `perpos` (ค่าเริ่มต้น: perpos.billing_export)
+ *   Billing → perpos → Billing export → BigQuery export → เปิด "Standard usage cost"
+ *   → project `perpos` / dataset `billing_export`
+ *   ⚠️ ทุก GCP project (perpos + exapp) ถูกย้ายมาผูกบัญชี `perpos` บัญชีเดียวแล้ว (2026-08-02)
+ *      export ใบเดียวจึงครอบทุกแอป — **ถ้าวันหนึ่งแยกบัญชีอีก ต้องเปิด export ของบัญชีใหม่ด้วย**
+ *      (ปลายทางเลือกได้เฉพาะ project ที่อยู่ใต้บัญชีนั้น → จะต้องอ่านหลาย dataset)
  *   ⚠️ export ไม่ backfill — เห็นเฉพาะข้อมูลหลังวันที่เปิด
  *
  * สคริปต์นี้ยืม access token จาก `gcloud` ของเครื่องที่ login แล้ว (ท่าเดียวกับ infra:sync)

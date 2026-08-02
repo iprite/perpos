@@ -251,9 +251,11 @@ pnpm build
   - ⚠️ **บิล GCP ทั้งใบไม่ใช่ของ perpos** — GCP project `perpos` แชร์กับ `exapp-clip-renderer` ซึ่งกิน
     **98.6% ของค่า Cloud Run** (฿958 จาก ฿972 ในเดือน ก.ค.) · ต้นทุน GCP ของ perpos จริง ๆ ≈ ฿104/เดือน
     **เวลาอ่านบิลต้องแยกด้วย `service_name` จาก Cloud Monitoring เสมอ ห้ามเหมาทั้งใบ**
-- **แท็บ "โครงสร้างพื้นฐาน" ครอบทุก billing account — perpos = จุดควบคุมกลาง** (ตาราง `infra_costs`)
-  มี 2 billing account เปิดอยู่: **perpos** (project `perpos`, `gen-lang-client-0874375942`) ·
-  **exapp** (project `exworker-435807`, `gen-lang-client-0897830354`) — riekchang เพิ่มทีหลังได้
+- **แท็บ "โครงสร้างพื้นฐาน" ครอบทุกแอป — perpos = จุดควบคุมกลาง** (ตาราง `infra_costs`)
+  **billing account เหลือใบเดียว = `perpos` (01A657-0A41D8-3265B1)** — ย้าย project ของ exapp
+  (`exworker-435807`, `gen-lang-client-0897830354`) มาผูกใบนี้แล้ว 2026-08-02 บัญชี `exapp`
+  (0110AE-…) เหลือ 0 project · ค่าใช้จ่ายก่อนวันย้ายยังอยู่ใบเก่า · **แอปใหม่ให้ผูกใบ perpos เสมอ**
+  (บิลใบเดียว = ส่วนลด spending-based กองเดียว + BigQuery export ชุดเดียวครบทุกแอป)
   - **2 source ที่เป็นตัวเลขคนละชุดของเดือนเดียวกัน — ห้ามบวกรวมกัน** (หน้าเว็บสลับดูทีละอันด้วย `?src=`)
     1. `monitoring` — `pnpm infra:sync [YYYY-MM]` วนทุก project ที่ระบุใน `GCP_PROJECTS`
        (default `perpos:perpos,exworker-435807:exapp`) → **ค่าประมาณ** ของ Cloud Run เท่านั้น
@@ -263,8 +265,9 @@ pnpm build
        (`perpos.billing_export.gcp_billing_export_v1_*`) ครบทุกบริการ (Gemini/Storage/Network) แยก SKU
        · เขียนแบบ **ลบทั้งเดือนแล้วใส่ใหม่** เพราะ Google ปรับยอดย้อนหลังได้
   - ⚠️ BigQuery export **ต้องเปิดในคอนโซลเท่านั้น** (ไม่มีคำสั่ง gcloud) และ **ไม่ backfill** —
-    ของบัญชี perpos เปิดไว้แล้ว (2026-08-01) · **ของบัญชี exapp ยังไม่ได้เปิด** → ต้องตั้งให้ยิงเข้า
-    dataset เดียวกันใน project `perpos` ไม่งั้น `billing:sync` จะเห็นแค่บัญชี perpos
+    เปิดไว้แล้วที่บัญชี perpos → `perpos.billing_export` (2026-08-01) ครอบทุก project แล้ว
+    · ถ้าอนาคตแยก billing account อีกใบ **ต้องเปิด export ของใบนั้นด้วย** และปลายทางเลือกได้เฉพาะ
+    project ที่อยู่ใต้บัญชีนั้น (ยิงข้ามบัญชีไม่ได้) → สคริปต์ต้องอ่านหลาย dataset
   - แอปบน Vercel ไม่มี credential ของ GCP → ทั้งสองทางเป็น **สคริปต์ที่ยืม token จาก `gcloud`** ของเครื่อง
     ที่ login แล้ว (ท่าเดียวกับ `pnpm kb:embed`) หน้าเว็บอ่านจาก snapshot ในตารางอย่างเดียว
   - **บทเรียนราคาแพงที่เจอจากตรงนี้**: `exapp-clip-renderer` เป็น 8 vCPU + `--no-cpu-throttling`
