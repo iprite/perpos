@@ -26,6 +26,7 @@ import {
   USAGE_SERVICES,
   type FixedCostRow,
   type InfraReport,
+  type InfraSource,
   type UsagePriceRow,
   type UsageReport,
   type UsageServiceKey,
@@ -407,15 +408,21 @@ function FeatureTable({
 function InfraTable({ infra, rate }: { infra: InfraReport; rate: number }) {
   const router = useRouter();
 
+  const isBilling = infra.source === "billing_export";
+
   if (!infra.months.length) {
     return (
       <div className="rounded-xl border border-gray-200 bg-white px-5 py-12 text-center shadow-sm">
         <Server className="mx-auto h-8 w-8 text-gray-400" />
         <h3 className="mt-3 text-sm font-medium text-gray-900">ยังไม่มีข้อมูลโครงสร้างพื้นฐาน</h3>
         <p className="mx-auto mt-1 max-w-md text-sm text-gray-500">
-          ตัวเลขนี้ดึงจาก Cloud Monitoring ด้วยสคริปต์ (แอปบน Vercel ไม่มีสิทธิ์เรียก GCP เอง) — รัน{" "}
+          ตัวเลขนี้ดึงจาก GCP ด้วยสคริปต์ (แอปบน Vercel ไม่มีสิทธิ์เรียก GCP เอง) — รัน{" "}
           <code className="rounded bg-gray-100 px-1 py-0.5 font-mono text-xs">pnpm infra:sync</code>{" "}
-          จากเครื่องที่ล็อกอิน gcloud แล้ว
+          (ประมาณจาก Cloud Run) หรือ{" "}
+          <code className="rounded bg-gray-100 px-1 py-0.5 font-mono text-xs">
+            pnpm billing:sync
+          </code>{" "}
+          (บิลจริง) จากเครื่องที่ล็อกอิน gcloud แล้ว
         </p>
       </div>
     );
@@ -426,10 +433,21 @@ function InfraTable({ infra, rate }: { infra: InfraReport; rate: number }) {
       <div className="flex flex-wrap items-center gap-2">
         <CustomSelect
           value={infra.month}
-          onChange={(v) => router.push(`/admin/usage?month=${v}`)}
+          onChange={(v) => router.push(`/admin/usage?month=${v}&src=${infra.source}`)}
           className="w-40"
           options={infra.months.map((m) => ({ value: m, label: m.slice(0, 7) }))}
         />
+        {infra.availableSources.length > 1 && (
+          <SegmentedControl
+            value={infra.source}
+            onChange={(v) => router.push(`/admin/usage?month=${infra.month}&src=${v}`)}
+            ariaLabel="ที่มาของตัวเลข"
+            options={[
+              { value: "billing_export", label: "บิลจริง" },
+              { value: "monitoring", label: "ประมาณจาก Cloud Run" },
+            ].filter((o) => infra.availableSources.includes(o.value as InfraSource))}
+          />
+        )}
         {infra.syncedAt && (
           <span className="text-xs text-gray-500">
             ดึงข้อมูลล่าสุด {new Date(infra.syncedAt).toLocaleString("th-TH")}
@@ -444,7 +462,11 @@ function InfraTable({ infra, rate }: { infra: InfraReport; rate: number }) {
             icon={<Server className="h-4 w-4" />}
             label={APP_LABEL[a.app] ?? a.app}
             value={`${thb(a.costUsd, rate)} ฿`}
-            sub={`${nf(a.share * 100, 1)}% ของค่า Cloud Run · ${int(a.requests)} request`}
+            sub={
+              isBilling
+                ? `${nf(a.share * 100, 1)}% ของบิล GCP ทั้งใบ`
+                : `${nf(a.share * 100, 1)}% ของค่า Cloud Run · ${int(a.requests)} request`
+            }
             tone={a.app === "perpos" ? "info" : "neutral"}
           />
         ))}
@@ -453,59 +475,86 @@ function InfraTable({ infra, rate }: { infra: InfraReport; rate: number }) {
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Service</TableHead>
+            <TableHead>{isBilling ? "บริการ" : "Service"}</TableHead>
+            {isBilling && <TableHead>SKU</TableHead>}
+            <TableHead>Project</TableHead>
             <TableHead>แอป</TableHead>
-            <TableHead align="right">vCPU-วินาที</TableHead>
-            <TableHead align="right">GiB-วินาที</TableHead>
-            <TableHead align="right">Request</TableHead>
+            {!isBilling && (
+              <>
+                <TableHead align="right">vCPU-วินาที</TableHead>
+                <TableHead align="right">GiB-วินาที</TableHead>
+                <TableHead align="right">Request</TableHead>
+              </>
+            )}
             <TableHead align="right">ต้นทุน (฿)</TableHead>
-            <TableHead align="right">฿/request</TableHead>
+            {!isBilling && <TableHead align="right">฿/request</TableHead>}
           </TableRow>
         </TableHeader>
         <TableBody>
           {infra.rows.map((r) => (
-            <TableRow key={r.service}>
+            <TableRow key={`${r.project}/${r.service}/${r.sku}`}>
               <TableCell className="font-medium text-gray-900">{r.service}</TableCell>
+              {isBilling && <TableCell className="text-gray-500">{r.sku || "—"}</TableCell>}
+              <TableCell className="font-mono text-xs text-gray-500">{r.project}</TableCell>
               <TableCell>
                 <StatusBadge tone={r.app === "perpos" ? "info" : "neutral"}>
                   {APP_LABEL[r.app] ?? r.app}
                 </StatusBadge>
               </TableCell>
-              <TableCell align="right" tabular>
-                {int(r.cpuSeconds)}
-              </TableCell>
-              <TableCell align="right" tabular>
-                {int(r.gibSeconds)}
-              </TableCell>
-              <TableCell align="right" tabular>
-                {int(r.requests)}
-              </TableCell>
+              {!isBilling && (
+                <>
+                  <TableCell align="right" tabular>
+                    {int(r.cpuSeconds)}
+                  </TableCell>
+                  <TableCell align="right" tabular>
+                    {int(r.gibSeconds)}
+                  </TableCell>
+                  <TableCell align="right" tabular>
+                    {int(r.requests)}
+                  </TableCell>
+                </>
+              )}
               <TableCell align="right" tabular>
                 {thb(r.costUsd, rate)}
               </TableCell>
-              <TableCell align="right" tabular className="text-gray-500">
-                {r.requests > 0 ? nf((r.costUsd * rate) / r.requests, 3) : "—"}
-              </TableCell>
+              {!isBilling && (
+                <TableCell align="right" tabular className="text-gray-500">
+                  {r.requests > 0 ? nf((r.costUsd * rate) / r.requests, 3) : "—"}
+                </TableCell>
+              )}
             </TableRow>
           ))}
         </TableBody>
         <TableFooter>
           <TableRow>
-            <TableCell colSpan={5}>รวมทั้งบัญชี GCP</TableCell>
+            <TableCell colSpan={isBilling ? 4 : 6}>
+              {isBilling ? "รวมบิล GCP ทุกบัญชี" : "รวมค่า Cloud Run ทุก project"}
+            </TableCell>
             <TableCell align="right" tabular>
               {thb(infra.totalUsd, rate)}
             </TableCell>
-            <TableCell> </TableCell>
+            {!isBilling && <TableCell> </TableCell>}
           </TableRow>
         </TableFooter>
       </Table>
 
       <p className="px-1 text-xs text-gray-500">
-        GCP project เดียวใช้ร่วมกันหลายแอป — ตัวเลขนี้จึงเป็นของ<strong>ทั้งบัญชี</strong> ไม่ใช่ของ
-        PERPOS อย่างเดียว · “฿/request” ที่สูงผิดปกติมักแปลว่า service นั้นเปิด{" "}
-        <code className="rounded bg-gray-100 px-1 font-mono">--no-cpu-throttling</code>{" "}
-        แล้วถูกปลุกบ่อยโดยงานที่ไม่ได้ทำอะไร (เช่น cron เช็คสถานะ) · อัปเดตด้วย{" "}
-        <code className="rounded bg-gray-100 px-1 font-mono">pnpm infra:sync</code>
+        {isBilling ? (
+          <>
+            ยอดที่ Google ออกบิลจริง (หักเครดิต/ส่วนลดแล้ว) ของ<strong>ทุก billing account</strong>{" "}
+            ที่เปิด BigQuery export ไว้ — perpos คือจุดควบคุมกลางจึงเห็นของ exapp/riekchang ด้วย ·
+            อัปเดตด้วย <code className="rounded bg-gray-100 px-1 font-mono">pnpm billing:sync</code>{" "}
+            (export ไม่ backfill — เดือนก่อนเปิดจะไม่มีข้อมูล)
+          </>
+        ) : (
+          <>
+            ค่า<strong>ประมาณ</strong>จาก usage × เรตใน “สมมติฐาน” ครอบเฉพาะ Cloud Run ทุก project ·
+            “฿/request” ที่สูงผิดปกติมักแปลว่า service นั้นเปิด{" "}
+            <code className="rounded bg-gray-100 px-1 font-mono">--no-cpu-throttling</code>{" "}
+            แล้วถูกปลุกบ่อยโดยงานที่ไม่ได้ทำอะไร (เช่น cron เช็คสถานะ) · อัปเดตด้วย{" "}
+            <code className="rounded bg-gray-100 px-1 font-mono">pnpm infra:sync</code>
+          </>
+        )}
       </p>
     </div>
   );

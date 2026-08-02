@@ -259,10 +259,15 @@ export async function getUsageReport(
 
 // ── ต้นทุนโครงสร้างพื้นฐาน (ระดับบัญชี GCP — หลายแอปใช้ project เดียวกัน) ──────
 
+/** ที่มาของตัวเลข — `monitoring` = ประมาณจาก usage, `billing_export` = บิลจริงจาก BigQuery */
+export type InfraSource = "monitoring" | "billing_export";
+
 export type InfraRow = {
   month: string;
+  project: string;
   app: string;
   service: string;
+  sku: string;
   cpuSeconds: number;
   gibSeconds: number;
   requests: number;
@@ -273,6 +278,9 @@ export type InfraRow = {
 export type InfraReport = {
   months: string[];
   month: string;
+  source: InfraSource;
+  /** source ที่มีข้อมูลจริงของเดือนนี้ (ใช้เปิด/ปิดปุ่มสลับ) */
+  availableSources: InfraSource[];
   rows: InfraRow[];
   byApp: { app: string; costUsd: number; requests: number; share: number }[];
   totalUsd: number;
@@ -280,32 +288,49 @@ export type InfraReport = {
 };
 
 /**
- * ต้นทุน Cloud Run รายเดือนแยกตามแอป — อ่านจาก snapshot ที่ `pnpm infra:sync` เขียนไว้
- * (แอปบน Vercel ไม่มี credential ของ GCP จึง query Cloud Monitoring สดไม่ได้)
+ * ต้นทุนโครงสร้างพื้นฐานรายเดือนแยกตามแอป — อ่านจาก snapshot ที่สคริปต์เขียนไว้
+ * (แอปบน Vercel ไม่มี credential ของ GCP จึง query Cloud Monitoring / BigQuery สดไม่ได้)
+ *
+ * ⚠️ `monitoring` กับ `billing_export` เป็นตัวเลขคนละชุดของเดือนเดียวกัน — คืนทีละ source
+ *    เสมอ ห้ามรวมกัน (จะนับ Cloud Run ซ้ำสองเท่า)
  */
 export async function getInfraReport(
   admin: SupabaseClient,
   month?: string | null,
+  source?: string | null,
 ): Promise<InfraReport> {
   const { data: monthRows } = await admin
     .from("infra_costs")
-    .select("month")
+    .select("month, source")
     .order("month", { ascending: false });
-  const months = Array.from(
-    new Set(((monthRows ?? []) as { month: string }[]).map((r) => r.month)),
-  );
+  const all = (monthRows ?? []) as { month: string; source: string }[];
+  const months = Array.from(new Set(all.map((r) => r.month)));
   const target = month && months.includes(month) ? month : (months[0] ?? "");
+
+  const availableSources = (["billing_export", "monitoring"] as InfraSource[]).filter((s) =>
+    all.some((r) => r.month === target && r.source === s),
+  );
+  const wanted = source === "monitoring" || source === "billing_export" ? source : null;
+  const activeSource: InfraSource =
+    (wanted && availableSources.includes(wanted) ? wanted : null) ??
+    availableSources[0] ??
+    "monitoring";
 
   const { data } = await admin
     .from("infra_costs")
-    .select("month, app, service, cpu_seconds, gib_seconds, requests, cost_usd, synced_at")
+    .select(
+      "month, project, app, service, sku, cpu_seconds, gib_seconds, requests, cost_usd, synced_at",
+    )
     .eq("month", target)
+    .eq("source", activeSource)
     .order("cost_usd", { ascending: false });
 
   const rows: InfraRow[] = ((data ?? []) as Record<string, unknown>[]).map((r) => ({
     month: String(r.month),
+    project: String(r.project ?? ""),
     app: String(r.app),
     service: String(r.service),
+    sku: String(r.sku ?? ""),
     cpuSeconds: Number(r.cpu_seconds ?? 0),
     gibSeconds: Number(r.gib_seconds ?? 0),
     requests: Number(r.requests ?? 0),
@@ -325,6 +350,8 @@ export async function getInfraReport(
   return {
     months,
     month: target,
+    source: activeSource,
+    availableSources,
     rows,
     byApp: Array.from(grouped.entries())
       .map(([app, g]) => ({

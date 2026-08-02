@@ -1,6 +1,10 @@
 #!/usr/bin/env node
 /**
- * infra-cost-sync — ดึงการใช้งาน Cloud Run รายเดือนจาก Cloud Monitoring → เก็บลง `infra_costs`
+ * infra-cost-sync — ดึงการใช้งาน Cloud Run รายเดือนจาก Cloud Monitoring **ทุก GCP project**
+ * (perpos + exapp) → เก็บลง `infra_costs` (source='monitoring')
+ *
+ * ⚠️ ตัวเลขจากที่นี่เป็น **ค่าประมาณ** (usage × เรตใน `usage_prices`) — ต้นทุนจริงทั้งใบ
+ *    รวม Gemini/Storage/Network มาจาก `pnpm billing:sync` (BigQuery billing export)
  *
  *   pnpm infra:sync              # เดือนปัจจุบัน
  *   pnpm infra:sync 2026-07      # เดือนที่ระบุ
@@ -19,14 +23,29 @@ import { fileURLToPath } from "node:url";
 import { createClient } from "@supabase/supabase-js";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const GCP_PROJECT = process.env.GCP_PROJECT ?? "perpos";
 
-/** service_name → แอปเจ้าของ (prefix เป็นตัวตัดสิน) */
-function appOf(service) {
+/**
+ * ทุก GCP project ที่ต้องกวาด — perpos เป็นจุดควบคุมกลางจึงต้องเห็นของทุกแอป
+ * `defaultApp` ใช้เมื่อชื่อ service ไม่มี prefix บอกแอป (เช่น post-worker, drive-sync)
+ * override ได้ด้วย env `GCP_PROJECTS="perpos:perpos,exworker-435807:exapp"`
+ */
+const PROJECTS = (
+  process.env.GCP_PROJECTS ?? "perpos:perpos,exworker-435807:exapp"
+)
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean)
+  .map((s) => {
+    const [id, defaultApp] = s.split(":");
+    return { id, defaultApp: defaultApp || "unknown" };
+  });
+
+/** service_name → แอปเจ้าของ (prefix ชนะเสมอ ไม่งั้นตกที่แอปเจ้าของ project) */
+function appOf(service, defaultApp) {
   if (service.startsWith("perpos-")) return "perpos";
   if (service.startsWith("exapp-")) return "exapp";
   if (service.startsWith("riekchang-")) return "riekchang";
-  return "unknown";
+  return defaultApp;
 }
 
 function loadEnv() {
@@ -52,7 +71,7 @@ function monthRange(arg) {
   return { ym, start, end };
 }
 
-async function timeSeries(token, metric, aligner, start, end) {
+async function timeSeries(token, project, metric, aligner, start, end) {
   const alignment = Math.ceil((end - start) / 1000);
   const p = new URLSearchParams({
     filter: `metric.type="run.googleapis.com/${metric}"`,
@@ -64,11 +83,11 @@ async function timeSeries(token, metric, aligner, start, end) {
     "aggregation.groupByFields": "resource.label.service_name",
   });
   const res = await fetch(
-    `https://monitoring.googleapis.com/v3/projects/${GCP_PROJECT}/timeSeries?${p}`,
+    `https://monitoring.googleapis.com/v3/projects/${project}/timeSeries?${p}`,
     { headers: { Authorization: `Bearer ${token}` } },
   );
   const json = await res.json();
-  if (json.error) throw new Error(`Monitoring: ${json.error.message}`);
+  if (json.error) throw new Error(`Monitoring (${project}): ${json.error.message}`);
 
   const out = new Map();
   for (const ts of json.timeSeries ?? []) {
@@ -101,38 +120,42 @@ async function main() {
   const CPU = rate("compute:cloudrun_second", 0.000018814);
   const MEM = rate("compute:cloudrun_gib_second", 0.000001799);
 
-  console.log(`⏳ ดึง Cloud Run usage ${ym} (project ${GCP_PROJECT})…`);
-  const [cpu, mem, req] = await Promise.all([
-    timeSeries(token, "container/cpu/allocation_time", "ALIGN_SUM", start, end),
-    timeSeries(token, "container/memory/allocation_time", "ALIGN_SUM", start, end),
-    timeSeries(token, "request_count", "ALIGN_SUM", start, end),
-  ]);
+  const rows = [];
+  for (const proj of PROJECTS) {
+    console.log(`⏳ ดึง Cloud Run usage ${ym} (project ${proj.id})…`);
+    const [cpu, mem, req] = await Promise.all([
+      timeSeries(token, proj.id, "container/cpu/allocation_time", "ALIGN_SUM", start, end),
+      timeSeries(token, proj.id, "container/memory/allocation_time", "ALIGN_SUM", start, end),
+      timeSeries(token, proj.id, "request_count", "ALIGN_SUM", start, end),
+    ]);
 
-  const services = new Set([...cpu.keys(), ...mem.keys(), ...req.keys()]);
-  const rows = [...services].map((svc) => {
-    const c = cpu.get(svc) ?? 0;
-    const m = mem.get(svc) ?? 0;
-    return {
-      month: `${ym}-01`,
-      app: appOf(svc),
-      service: svc,
-      cpu_seconds: Number(c.toFixed(3)),
-      gib_seconds: Number(m.toFixed(3)),
-      requests: Math.round(req.get(svc) ?? 0),
-      cost_usd: Number((c * CPU + m * MEM).toFixed(6)),
-      source: "monitoring",
-      synced_at: new Date().toISOString(),
-    };
-  });
+    const services = new Set([...cpu.keys(), ...mem.keys(), ...req.keys()]);
+    for (const svc of services) {
+      const c = cpu.get(svc) ?? 0;
+      const m = mem.get(svc) ?? 0;
+      rows.push({
+        month: `${ym}-01`,
+        project: proj.id,
+        app: appOf(svc, proj.defaultApp),
+        service: svc,
+        cpu_seconds: Number(c.toFixed(3)),
+        gib_seconds: Number(m.toFixed(3)),
+        requests: Math.round(req.get(svc) ?? 0),
+        cost_usd: Number((c * CPU + m * MEM).toFixed(6)),
+        source: "monitoring",
+        synced_at: new Date().toISOString(),
+      });
+    }
+  }
 
   if (!rows.length) {
     console.log("ไม่พบ service ที่มีการใช้งานในเดือนนี้");
     return;
   }
 
-  const { error } = await admin
-    .from("infra_costs")
-    .upsert(rows, { onConflict: "month,app,service,source" });
+  const { error } = await admin.from("infra_costs").upsert(rows, {
+    onConflict: "month,project,app,service,source,sku",
+  });
   if (error) throw new Error(error.message);
 
   rows.sort((a, b) => b.cost_usd - a.cost_usd);
@@ -141,7 +164,9 @@ async function main() {
   for (const r of rows) {
     const pct = total > 0 ? ((r.cost_usd / total) * 100).toFixed(1) : "0.0";
     console.log(
-      `  ${r.app.padEnd(10)} ${r.service.padEnd(30)} $${r.cost_usd.toFixed(4).padStart(9)}  (${pct}%)  ${r.requests} req`,
+      `  ${r.app.padEnd(10)} ${r.project.padEnd(18)} ${r.service.padEnd(24)} $${r.cost_usd
+        .toFixed(4)
+        .padStart(9)}  (${pct}%)  ${r.requests} req`,
     );
   }
 }
