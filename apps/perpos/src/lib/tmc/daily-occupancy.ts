@@ -40,7 +40,7 @@ export type TmcDailyOccupancy = {
    */
   bookedToday: { bookings: number; rooms: number; nights: number; value: number };
   /**
-   * สะสมตั้งแต่ต้นเดือนถึงวันนี้ — rate = อัตราเข้าพัก
+   * ทั้งเดือน (1 ถึงสิ้นเดือน) รวมคืนที่จองล่วงหน้าแล้ว — ไม่ใช่แค่ถึงวันนี้ · rate = อัตราเข้าพัก
    * soldNights/availableNights = ห้อง×คืนที่ใช้จริง / ที่เปิดขาย (ตัวตั้ง-ตัวหารของ rate)
    * bookings/rooms/value = ยอดจองที่ "บันทึกเข้าระบบ" ในเดือนนี้ (คนละฐานกับ rate)
    */
@@ -94,6 +94,17 @@ export async function computeTmcDailyOccupancy(
 ): Promise<TmcDailyOccupancy> {
   const monthStart = `${date.slice(0, 7)}-01`;
   const from = monthStart;
+  // ตัวเลข "เดือนนี้" คิดทั้งเดือน (รวมคืนที่จองล่วงหน้าไว้แล้ว) ไม่ใช่แค่ถึงวันนี้
+  // monthEndEx = วันแรกของเดือนถัดไป (ขอบขวาแบบไม่รวม)
+  const monthEndEx = new Date(
+    Date.UTC(Number(monthStart.slice(0, 4)), Number(monthStart.slice(5, 7)), 1),
+  )
+    .toISOString()
+    .slice(0, 10);
+  const monthEnd = addDays(monthEndEx, -1);
+  const daysInMonth = Math.round(
+    (new Date(monthEndEx).getTime() - new Date(monthStart).getTime()) / DAY_MS,
+  );
 
   const [propRes, stayRes, bookRes] = await Promise.all([
     db
@@ -108,7 +119,7 @@ export async function computeTmcDailyOccupancy(
       .from("tmc_stays")
       .select("stay_type, property_code, check_in, check_out, group_size, room_rate")
       .eq("org_id", orgId)
-      .lte("check_in", date)
+      .lte("check_in", monthEnd)
       .or(`check_out.is.null,check_out.gt.${from}`),
     // ใบจองที่ "เข้ามา" ตั้งแต่ต้นเดือน — ช่วงเวลาไทย (created_at เป็น timestamptz)
     db
@@ -155,7 +166,7 @@ export async function computeTmcDailyOccupancy(
     const isFree = NON_REVENUE_STAY_TYPES.has(s.stay_type ?? "");
     const end = s.check_out ?? addDays(s.check_in, 1);
     const startMs = Math.max(new Date(s.check_in).getTime(), new Date(monthStart).getTime());
-    const endMs = Math.min(new Date(end).getTime(), new Date(date).getTime() + DAY_MS);
+    const endMs = Math.min(new Date(end).getTime(), new Date(monthEndEx).getTime());
     for (let t = startMs; t < endMs; t += DAY_MS) {
       const key = `${s.property_code}|${new Date(t).toISOString().slice(0, 10)}`;
       nightMap.set(key, (nightMap.get(key) ?? true) && isFree);
@@ -169,10 +180,7 @@ export async function computeTmcDailyOccupancy(
   const occupiedCodes = new Set(tonight.map(([k]) => k.split("|")[0]));
   const occupied = occupiedCodes.size;
   const freeOccupied = tonight.filter(([, isFree]) => isFree).length;
-  const daysElapsed = Math.round(
-    (new Date(date).getTime() + DAY_MS - new Date(monthStart).getTime()) / DAY_MS,
-  );
-  const availableNights = rooms * daysElapsed;
+  const availableNights = rooms * daysInMonth;
   return {
     date,
     rooms,
@@ -197,7 +205,7 @@ export async function computeTmcDailyOccupancy(
       freeNights,
       freeRate: availableNights > 0 ? +((freeNights / availableNights) * 100).toFixed(1) : null,
       stayRevenue: +stays
-        .filter((s) => s.check_in >= monthStart && s.check_in <= date)
+        .filter((s) => s.check_in >= monthStart && s.check_in <= monthEnd)
         .reduce((sum, r) => sum + Number(r.room_rate ?? 0), 0)
         .toFixed(2),
       bookings: mtdBookings.bookings,
