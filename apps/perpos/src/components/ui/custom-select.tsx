@@ -2,7 +2,7 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Check, ChevronsUpDown } from "lucide-react";
+import { Check, ChevronsUpDown, Search } from "lucide-react";
 import cn from "@core/utils/class-names";
 
 export type SelectOption = { value: string; label: string };
@@ -15,6 +15,8 @@ type Props = {
   disabled?: boolean;
   hasError?: boolean;
   className?: string;
+  /** ช่องค้นหาในแผงตัวเลือก — ไม่ส่งมา = เปิดเองเมื่อรายการยาว (> 8) */
+  searchable?: boolean;
 };
 
 interface PanelPos {
@@ -36,10 +38,13 @@ export function CustomSelect({
   disabled,
   hasError,
   className,
+  searchable,
 }: Props) {
   const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
   const [pos, setPos] = useState<PanelPos | null>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -149,7 +154,17 @@ export function CustomSelect({
     return () => window.removeEventListener("resize", onResize);
   }, [open]);
 
+  // ล้างคำค้นทุกครั้งที่ปิด — เปิดใหม่ต้องเห็นรายการเต็ม
+  useEffect(() => {
+    if (!open) setQuery("");
+  }, [open]);
+
   const selected = options.find((o) => o.value === value);
+
+  // รายการยาวต้องหาได้ ไม่ใช่ไล่เลื่อนทีละบรรทัด
+  const showSearch = searchable ?? options.length > 8;
+  const q = query.trim().toLowerCase();
+  const visible = q ? options.filter((o) => o.label.toLowerCase().includes(q)) : options;
 
   const panel =
     open && pos
@@ -167,12 +182,41 @@ export function CustomSelect({
             }}
             className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg"
           >
+            {showSearch && (
+              <div className="border-b border-slate-100 p-2">
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+                  <input
+                    ref={searchRef}
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Escape") setOpen(false);
+                      if (e.key === "Enter" && visible.length > 0) {
+                        e.preventDefault();
+                        onChange(visible[0].value);
+                        setOpen(false);
+                      }
+                    }}
+                    placeholder="ค้นหา..."
+                    className="h-8 w-full rounded-md border border-slate-200 bg-white pl-8 pr-2 text-sm text-slate-800 placeholder:text-slate-400 focus:border-slate-400 focus:outline-none"
+                  />
+                </div>
+              </div>
+            )}
             <div
               ref={scrollRef}
-              style={{ maxHeight: pos.maxHeight, overscrollBehavior: "contain" }}
+              style={{
+                // เผื่อความสูงของช่องค้นหา (~52px) ไม่ให้แผงล้นจอ
+                maxHeight: showSearch ? Math.max(pos.maxHeight - 52, 96) : pos.maxHeight,
+                overscrollBehavior: "contain",
+              }}
               className="overflow-y-scroll py-1"
             >
-              {options.map((opt) => (
+              {visible.length === 0 && (
+                <p className="px-4 py-3 text-sm text-slate-400">ไม่พบรายการที่ค้นหา</p>
+              )}
+              {visible.map((opt) => (
                 <button
                   key={opt.value}
                   type="button"
