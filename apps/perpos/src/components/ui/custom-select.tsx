@@ -131,6 +131,39 @@ export function CustomSelect({
     return () => document.removeEventListener("wheel", onWheel, { capture: true });
   }, [pos]);
 
+  // Touch equivalent of the wheel handler above — react-remove-scroll (Radix Dialog)
+  // preventDefault()s touchmove outside the dialog, so on mobile the list was frozen.
+  // Same trick: assign scrollTop manually, which no preventDefault can block.
+  useEffect(() => {
+    if (!pos) return;
+    const el = scrollRef.current;
+    if (!el) return;
+
+    let lastY = 0;
+    const inPanel = (t: EventTarget | null) => el.contains(t as Node) || t === el;
+
+    const onStart = (e: TouchEvent) => {
+      if (inPanel(e.target)) lastY = e.touches[0]?.clientY ?? 0;
+    };
+    const onMove = (e: TouchEvent) => {
+      if (!inPanel(e.target)) return;
+      const y = e.touches[0]?.clientY ?? lastY;
+      const delta = lastY - y; // ลากขึ้น = เลื่อนลง
+      lastY = y;
+      const next = Math.max(0, Math.min(el.scrollTop + delta, el.scrollHeight - el.clientHeight));
+      if (next === el.scrollTop) return; // สุดขอบแล้ว — ปล่อยให้เป็นพฤติกรรมปกติ
+      e.preventDefault();
+      el.scrollTop = next;
+    };
+
+    document.addEventListener("touchstart", onStart, { passive: true, capture: true });
+    document.addEventListener("touchmove", onMove, { passive: false, capture: true });
+    return () => {
+      document.removeEventListener("touchstart", onStart, { capture: true });
+      document.removeEventListener("touchmove", onMove, { capture: true });
+    };
+  }, [pos]);
+
   // Recalculate on window resize while open
   useEffect(() => {
     if (!open || !triggerRef.current) return;
@@ -180,6 +213,13 @@ export function CustomSelect({
               zIndex: 9999,
               pointerEvents: "auto",
             }}
+            // แผงถูก portal ไป body → Radix Dialog/Popover มองว่าเป็น "คลิกนอก" แล้วปิดตัวเอง
+            // (อาการ: เลือกสินค้าในกล่องรับเข้า/เบิกใช้แล้ว dialog ปิดทั้งใบ ค่าไม่ถูกตั้ง)
+            // กันด้วยการไม่ให้ event ไหลถึง document listener ของ DismissableLayer
+            onPointerDown={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
+            onTouchStart={(e) => e.stopPropagation()}
+            onFocusCapture={(e) => e.stopPropagation()}
             className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg"
           >
             {showSearch && (
