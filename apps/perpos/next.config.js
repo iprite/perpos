@@ -42,10 +42,15 @@ const nextConfig = {
 };
 
 // Sentry wrap — upload source maps เฉพาะเมื่อมี SENTRY_AUTH_TOKEN (CI/local ไม่มี = ข้าม ไม่ fail)
+// ไม่มี token = ห้ามให้ plugin สร้าง source map เลย: ของที่สร้างจะไม่ถูกอัปโหลดอยู่ดี แต่กิน RAM/เวลา
+// ทับช่วง webpack compile ที่ถือ heap 4 GB อยู่แล้ว จน build บน Vercel (2 core / 8 GB) โดน OOM kill
+const hasSentryAuthToken = !!process.env.SENTRY_AUTH_TOKEN;
+
 module.exports = withSentryConfig(nextConfig, {
   org: process.env.SENTRY_ORG,
   project: process.env.SENTRY_PROJECT,
   silent: !process.env.CI,
-  widenClientFileUpload: true,
+  widenClientFileUpload: hasSentryAuthToken,
+  sourcemaps: { disable: !hasSentryAuthToken },
   webpack: { treeshake: { removeDebugLogging: true } }, // แทน disableLogger (deprecated)
 });
