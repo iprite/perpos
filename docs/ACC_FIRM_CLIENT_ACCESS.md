@@ -32,14 +32,15 @@
 
 ## 3. Code map
 
-| ชิ้น                                                                                                      | หน้าที่                                                                                                                                                                                                                                          |
-| --------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| [`lib/acc-firm/firm-access.ts`](../apps/perpos/src/lib/acc-firm/firm-access.ts)                           | **แหล่งความจริงเดียว** — `resolveFirmAccess()` (org เดียว) · `listFirmClientOrgs()` (ทั้งหมด) · `firmRoleToClientRole()` · `FIRM_ACCESS_MODULES`                                                                                                 |
-| [`lib/acc-firm/firm-clients.ts`](../apps/perpos/src/lib/acc-firm/firm-clients.ts)                         | wrapper ฝั่ง server component (ดึง user จาก session ให้)                                                                                                                                                                                         |
-| [`api/_lib/module-auth.ts`](../apps/perpos/src/app/api/_lib/module-auth.ts)                               | guard ฝั่ง API — fallback เมื่อไม่มีแถว `module_members` · คืน `firm` มาใน `ModuleAuth`                                                                                                                                                          |
-| [`lib/accounting/queries.ts`](../apps/perpos/src/lib/accounting/queries.ts)                               | guard ฝั่งหน้าเว็บ — `getModuleRoleForCurrentUser` fallback · `getFirmAccessForOrg` · `ownMemberships` · `getOrganizationsForCurrentUser` เติม org ลูกค้าพร้อมธง `viaFirm`                                                                       |
-| [`components/acc-firm/firm-context-bar.tsx`](../apps/perpos/src/components/acc-firm/firm-context-bar.tsx) | แถบ "กำลังทำงานในนาม …" + สลับลูกค้า + กลับสำนักงาน (เรนเดอร์ที่ `accounting/layout.tsx`)                                                                                                                                                        |
-| migration `20260808040000_acc_firm_client_access_rls.sql`                                                 | ฟังก์ชัน `acc_firm_has_client_access()` + policy `SELECT` ชื่อ `<table>_select_firm` บนตารางบัญชี 18 ตัว — **เพิ่มตาราง `acc_*` ใหม่ที่คีย์ด้วย `org_id` ต้องเพิ่ม policy นี้ด้วย** ไม่งั้นหน้านั้นจะว่างเปล่าเฉพาะกับผู้ใช้ที่เข้าในนามสำนักงาน |
+| ชิ้น                                                                                                                                                                     | หน้าที่                                                                                                                                                                                                                                          |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| [`lib/acc-firm/firm-access.ts`](../apps/perpos/src/lib/acc-firm/firm-access.ts)                                                                                          | **แหล่งความจริงเดียว** — `resolveFirmAccess()` (org เดียว) · `listFirmClientOrgs()` (ทั้งหมด) · `firmRoleToClientRole()` · `FIRM_ACCESS_MODULES`                                                                                                 |
+| [`lib/acc-firm/firm-clients.ts`](../apps/perpos/src/lib/acc-firm/firm-clients.ts)                                                                                        | wrapper ฝั่ง server component (ดึง user จาก session ให้)                                                                                                                                                                                         |
+| [`api/_lib/module-auth.ts`](../apps/perpos/src/app/api/_lib/module-auth.ts)                                                                                              | guard ฝั่ง API — fallback เมื่อไม่มีแถว `module_members` · คืน `firm` มาใน `ModuleAuth`                                                                                                                                                          |
+| [`lib/accounting/queries.ts`](../apps/perpos/src/lib/accounting/queries.ts)                                                                                              | guard ฝั่งหน้าเว็บ — `getModuleRoleForCurrentUser` fallback · `getFirmAccessForOrg` · `ownMemberships` · `getOrganizationsForCurrentUser` เติม org ลูกค้าพร้อมธง `viaFirm`                                                                       |
+| [`components/acc-firm/firm-context-bar.tsx`](../apps/perpos/src/components/acc-firm/firm-context-bar.tsx)                                                                | แถบ "กำลังทำงานในนาม …" + สลับลูกค้า + กลับสำนักงาน (เรนเดอร์ที่ `accounting/layout.tsx`)                                                                                                                                                        |
+| [`lib/acc-firm/audit.ts`](../apps/perpos/src/lib/acc-firm/audit.ts) + [`acc-firm/audit/page.tsx`](<../apps/perpos/src/app/(hydrogen)/[orgSlug]/acc-firm/audit/page.tsx>) | หน้าร่องรอยฝั่งสำนักงาน (SSR searchParams-driven) — ดึงผ่าน RPC `acc_firm_audit_list`                                                                                                                                                            |
+| migration `20260808040000_acc_firm_client_access_rls.sql`                                                                                                                | ฟังก์ชัน `acc_firm_has_client_access()` + policy `SELECT` ชื่อ `<table>_select_firm` บนตารางบัญชี 18 ตัว — **เพิ่มตาราง `acc_*` ใหม่ที่คีย์ด้วย `org_id` ต้องเพิ่ม policy นี้ด้วย** ไม่งั้นหน้านั้นจะว่างเปล่าเฉพาะกับผู้ใช้ที่เข้าในนามสำนักงาน |
 
 ## 4. สิทธิ์ที่ได้จริง
 
@@ -86,17 +87,24 @@
 | A6  | **สิทธิ์อ่านของสำนักงานจำกัดที่ `table_name like 'acc\_%'`** — ตารางอื่นก็คีย์ด้วย `org_id` ของลูกค้าเหมือนกัน (`tmc_finance_entries`, `organization_members`, `profiles`) ถ้าไม่กรอง สำนักงานจะอ่าน old_data/new_data ของโมดูลอื่นได้ ขัดกับขอบเขต accounting-only (F2) | policy `audit_logs_select_firm`                                                      |
 | A7  | **การลบต้องระบุ `dml: "DELETE"`** เมื่อไม่ได้อ่านแถวเดิมมาก่อน — ไม่มีทั้ง old/new จะถูกเดาเป็น `UPDATE` แล้วกรอง DELETE ที่ `/admin/audit` จะไม่เจอการลบเลย                                                                                                             | `AuditEventInput.dml` + `log_audit_event()`                                          |
 
-**ดูที่ไหน:** `/admin/audit` (super_admin) — มีคอลัมน์ "การกระทำ" + ช่อง "ทำในนาม (สำนักงาน)"
-ในกล่องรายละเอียด และ export CSV ครบทั้งสองฟิลด์ · สำนักงานบัญชีอ่านร่องรอยของลูกค้าที่ตัวเอง
-ดูแลได้ผ่าน policy `audit_logs_select_firm` (ยังไม่มีหน้าเว็บให้ดู — ดูข้อ 7)
+**ดูที่ไหน:**
+
+- **สำนักงานบัญชี** → `/[firmSlug]/acc-firm/audit` — เห็นเฉพาะร่องรอยตาราง `acc_*` ของลูกค้า
+  ที่ตัวเองดูแล · กรองตามลูกค้า/ช่วงวันที่/เฉพาะรายการที่ระบุเจตนา · ป้าย "ทำในนามสำนักงาน"
+  บนแถวที่มาจาก firm access · **ข้อมูลวิ่งผ่าน RPC `acc_firm_audit_list`** ไม่ใช่ select ตรง
+  เพราะหน้านี้ต้องโชว์ชื่อผู้ทำ แต่ `profiles` อ่านได้เฉพาะแถวตัวเอง — RPC เป็น SECURITY DEFINER
+  ที่บังคับ `acc_firm_has_client_access()` เองด้วยกติกาเดียวกับ policy (ผู้เรียกอื่นได้ 0 แถว)
+- **super_admin** → `/admin/audit` — เห็นทั้งระบบ + กล่องรายละเอียด (old/new เต็ม) + export CSV
 
 **ข้อจำกัดที่ยอมรับ:** การเขียนร่องรอยเป็น best-effort — ถ้าเขียนไม่สำเร็จจะ log error แต่
 ไม่ทำให้ mutation ที่สำเร็จแล้วล้มตาม (ตัวเลือกตรงข้ามคือบัญชีล่มเมื่อระบบ log มีปัญหา)
 
 ## 7. ยังไม่ทำ (Phase ถัดไป)
 
-- **หน้าดูร่องรอยของสำนักงาน/ลูกค้า** — DB เปิดสิทธิ์อ่านแล้ว (`audit_logs_select_firm`)
-  แต่ยังไม่มี UI ใต้ `/acc-firm` หรือหน้าให้ลูกค้าเห็นว่าใครแตะบัญชีตัวเองบ้าง
+- **หน้าให้ลูกค้าเห็นว่าใครแตะบัญชีตัวเอง** — ฝั่งสำนักงานมีแล้ว (`/acc-firm/audit`)
+  แต่ฝั่งลูกค้ายังไม่มี (ต้องเปิด policy ให้สมาชิก org อ่านของตัวเองก่อน)
+- **กล่องรายละเอียด old/new ในหน้าของสำนักงาน** — ตอนนี้โชว์ระดับ "ฟิลด์ที่เปลี่ยน" เท่านั้น
+  ค่าก่อน-หลังเต็ม ๆ ดูได้ที่ `/admin/audit` (super_admin)
 - ร่องรอยระดับ **บรรทัด** ของเอกสาร/สมุดรายวัน (ตอนนี้เก็บที่ระดับหัวเอกสาร + สรุปบรรทัด)
 - ขยาย `FIRM_ACCESS_MODULES` (เช่น `hrm` สำหรับสำนักงานที่รับทำเงินเดือน) — ต้องคิดเพดาน role ใหม่ก่อน
 - แดชบอร์ด "งานค้างต่อลูกค้า" ที่ลิงก์ตรงเข้าจุดที่ค้าง (ข้อมูลมีแล้วจาก close-check/tax-calendar)

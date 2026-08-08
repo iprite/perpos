@@ -331,6 +331,7 @@ export const MODULE_MENUS: Record<string, MenuDef[]> = {
     { key: "clients", label: "ลูกค้า" },
     { key: "vault", label: "คลังเอกสารลูกค้า" },
     { key: "close-check", label: "ตรวจปิดงวด" },
+    { key: "audit", label: "ร่องรอยการแก้บัญชี" },
     { key: "petty-cash", label: "เงินสดย่อย" },
   ],
   just_me: [
