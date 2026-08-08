@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireTmcMember } from "../../_lib";
+import { recordGeminiFromMetadata } from "@/lib/usage/record";
 
 type OcrItem = { name: string; unit: string; qty: number; unitCost: number };
 type OcrResult = {
@@ -92,7 +93,18 @@ Return ONLY valid JSON — no markdown fences, no explanation, nothing else:
 
   const ocrJson = (await ocrRes.json()) as {
     candidates: { content: { parts: { text: string }[] } }[];
+    usageMetadata?: {
+      promptTokenCount?: number;
+      candidatesTokenCount?: number;
+      thoughtsTokenCount?: number;
+    };
   };
+  // promptTokenCount รวม token ของรูปภาพแล้ว (ราคาเดียวกับ text_in สำหรับ 2.5-flash)
+  void recordGeminiFromMetadata(
+    { orgId, profileId: auth.userId, feature: "tmc.stock_ocr" },
+    "gemini-2.5-flash",
+    ocrJson.usageMetadata,
+  );
   const content = ocrJson.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
 
   // Strip markdown code fences if Gemini adds them despite instructions

@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireTmcMember, canManageSalesBot } from "../../_lib";
 import { createAdminClient } from "../../../_lib/supabase";
 import { embedArticleById } from "@/lib/tmc/sales-bot";
+import { setUsageContext } from "@/lib/usage/context";
 
 async function guard(req: NextRequest, orgId: string) {
   if (!orgId) return { error: NextResponse.json({ error: "missing orgId" }, { status: 400 }) };
@@ -19,6 +20,12 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
   const g = await guard(req, String(body.orgId ?? ""));
   if (g.error) return g.error;
+  // ผูกต้นทุน Gemini embed ของการฝังบทความเข้ากับ org นี้
+  setUsageContext({
+    orgId: String(body.orgId ?? ""),
+    profileId: g.auth!.userId,
+    feature: "tmc.kb_embed",
+  });
 
   // กู้คืนเนื้อหาก่อนถูกเขียนทับจากช่องทาง LINE (AI เรียบเรียงผิดได้ และไม่มีขั้นตอนยืนยัน)
   if (body.restorePrevious === true) {

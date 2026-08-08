@@ -264,7 +264,11 @@ async function callGemini(
 
   const data = (await res.json()) as {
     candidates?: { content?: { parts?: { text?: string }[] } }[];
-    usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number };
+    usageMetadata?: {
+      promptTokenCount?: number;
+      candidatesTokenCount?: number;
+      thoughtsTokenCount?: number;
+    };
   };
 
   const text = (data.candidates?.[0]?.content?.parts ?? []).map((p) => p.text ?? "").join("");
@@ -272,7 +276,10 @@ async function callGemini(
   return {
     text,
     inputTokens: data.usageMetadata?.promptTokenCount ?? 0,
-    outputTokens: data.usageMetadata?.candidatesTokenCount ?? 0,
+    // thinking token คิดเงินที่เรตเดียวกับ output — ต้องรวม ไม่งั้นต้นทุนต่ำกว่าจริง
+    outputTokens:
+      (data.usageMetadata?.candidatesTokenCount ?? 0) +
+      (data.usageMetadata?.thoughtsTokenCount ?? 0),
     model,
     provider: "gemini",
     latencyMs: Date.now() - startTime,

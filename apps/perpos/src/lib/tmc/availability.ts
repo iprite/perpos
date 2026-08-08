@@ -9,6 +9,7 @@
  *    (เดิมโมเดลเดาวันในสัปดาห์เองแล้วตอบราคาผิด 4,000 บาท/คืน — ตอนนี้โค้ดคำนวณให้แทน)
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { recordGeminiFromMetadata } from "@/lib/usage/record";
 import { GRAND_NAME, VILLA_NAME } from "./villa-naming";
 
 const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
@@ -145,7 +146,16 @@ export async function extractStayDates(question: string): Promise<StayDates | nu
 
   const json = (await res.json().catch(() => null)) as {
     candidates?: { content?: { parts?: { text?: string }[] } }[];
+    usageMetadata?: {
+      promptTokenCount?: number;
+      candidatesTokenCount?: number;
+      thoughtsTokenCount?: number;
+    };
   } | null;
+  // org มาจาก ambient context ของ tmc webhook (จุดเรียกเดียวของฟังก์ชันนี้)
+  void recordGeminiFromMetadata({ feature: "tmc.sales_bot" }, MODEL, json?.usageMetadata, {
+    step: "extract_stay_dates",
+  });
   const raw = (json?.candidates?.[0]?.content?.parts ?? []).map((p) => p.text ?? "").join("");
 
   try {

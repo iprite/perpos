@@ -169,6 +169,50 @@ export async function recordGeminiUsage(
   });
 }
 
+/** usageMetadata ดิบจาก Gemini REST generateContent */
+export type GeminiUsageMetadata = {
+  promptTokenCount?: number;
+  candidatesTokenCount?: number;
+  thoughtsTokenCount?: number;
+};
+
+/**
+ * วัดต้นทุนจาก usageMetadata ดิบ — สำหรับ call site ที่ยัง fetch Gemini ตรง
+ * (บอท TMC / ผู้ช่วยโฟล์ / OCR รูป ที่มี retry-logic เฉพาะทางจนย้ายเข้า aiChat ไม่คุ้มเสี่ยง)
+ * ⚠️ thoughtsTokenCount ต้องนับเป็น output ด้วย — โมเดล 2.5 คิดเงิน thinking ที่เรตเดียวกับ output
+ */
+export async function recordGeminiFromMetadata(
+  ctx: UsageContext,
+  model: string,
+  usageMetadata: GeminiUsageMetadata | undefined,
+  meta?: Record<string, unknown>,
+): Promise<void> {
+  const input = Math.max(0, Number(usageMetadata?.promptTokenCount ?? 0));
+  const output =
+    Math.max(0, Number(usageMetadata?.candidatesTokenCount ?? 0)) +
+    Math.max(0, Number(usageMetadata?.thoughtsTokenCount ?? 0));
+  if (!input && !output) return; // ไม่มีข้อมูล token = ไม่มีอะไรให้บันทึก
+  await recordGeminiUsage(ctx, { model, inputTokens: input, outputTokens: output, meta });
+}
+
+/**
+ * วัดต้นทุน embedding — embedContent ไม่คืน usageMetadata จึงประมาณจากความยาวข้อความ
+ * (~4 ตัวอักษร/token — ท่าเดียวกับ aiEmbed ใน lib/ai/client.ts)
+ */
+export async function recordGeminiEmbedUsage(
+  ctx: UsageContext,
+  args: { model: string; textLength: number; taskType: string },
+): Promise<void> {
+  const estimatedTokens = Math.ceil(Math.max(0, args.textLength) / 4);
+  if (!estimatedTokens) return;
+  await recordGeminiUsage(ctx, {
+    model: args.model,
+    inputTokens: estimatedTokens,
+    outputTokens: 0,
+    meta: { task_type: args.taskType, estimated: true },
+  });
+}
+
 /** ทางลัดสำหรับข้อความ LINE ที่ส่งออก (push/multicast/reply) */
 export async function recordLineUsage(
   ctx: UsageContext,

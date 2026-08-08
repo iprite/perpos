@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireModuleMember } from "../../../_lib/module-auth";
 import { canWrite, type JustMeRole } from "../../_lib";
+import { recordGeminiFromMetadata } from "@/lib/usage/record";
 
 /** เพดานรูปที่รับ (base64 ~1.37 เท่าของไฟล์จริง) — กันยิง payload ใหญ่เผาโควตา Gemini */
 const MAX_IMAGE_BASE64 = 11_000_000; // ≈ 8 MB
@@ -106,7 +107,18 @@ Return ONLY valid JSON — no markdown fences, no explanation, nothing else:
 
   const ocrJson = (await ocrRes.json()) as {
     candidates: { content: { parts: { text: string }[] } }[];
+    usageMetadata?: {
+      promptTokenCount?: number;
+      candidatesTokenCount?: number;
+      thoughtsTokenCount?: number;
+    };
   };
+  // promptTokenCount รวม token ของรูปภาพแล้ว (ราคาเดียวกับ text_in สำหรับ 2.5-flash)
+  void recordGeminiFromMetadata(
+    { orgId, profileId: auth.userId, feature: "just_me.inventory_ocr" },
+    "gemini-2.5-flash",
+    ocrJson.usageMetadata,
+  );
   const content = ocrJson.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
   const cleaned = content
     .replace(/^```[a-z]*\n?/i, "")

@@ -9,7 +9,12 @@
  */
 import type { createAdminClient } from "../../app/api/_lib/supabase";
 
+import { recordGeminiEmbedUsage, recordGeminiFromMetadata } from "@/lib/usage/record";
+
 type Admin = ReturnType<typeof createAdminClient>;
+
+/** เจ้าของต้นทุน: ผู้ช่วยโฟล์เป็นบริการ per-profile (B2C) — prefix assistant.* → scope 'flow' */
+const USAGE_FEATURE = "assistant.flow_chat";
 
 const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
 const EMBED_MODEL = "gemini-embedding-001";
@@ -107,6 +112,11 @@ async function embedQuery(text: string, apiKey: string): Promise<number[]> {
   if (!Array.isArray(values) || values.length !== EMBED_DIM) {
     throw new Error(`embedQuery dim ผิด: ${values?.length}`);
   }
+  // org/profile มาจาก ambient context ที่ webhook ตั้งไว้ต่อ event
+  void recordGeminiEmbedUsage(
+    { feature: USAGE_FEATURE },
+    { model: EMBED_MODEL, textLength: text.length, taskType: "RETRIEVAL_QUERY" },
+  );
   return values;
 }
 
@@ -235,7 +245,13 @@ export async function answerFlowQuestion(
       throw new Error(`generateContent ${res.status}: ${(await res.text()).slice(0, 200)}`);
     const json = (await res.json()) as {
       candidates?: { content?: { parts?: { text?: string }[] } }[];
+      usageMetadata?: {
+        promptTokenCount?: number;
+        candidatesTokenCount?: number;
+        thoughtsTokenCount?: number;
+      };
     };
+    void recordGeminiFromMetadata({ feature: USAGE_FEATURE }, ANSWER_MODEL, json.usageMetadata);
     const answer = json.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
     if (!answer || answer.length === 0) return FALLBACK_NO_CONTEXT;
     // safety: กัน LINE 5000 ตัวอักษร (replyLine กลืน error → user ไม่ได้คำตอบ) — ปกติไม่ถึง
