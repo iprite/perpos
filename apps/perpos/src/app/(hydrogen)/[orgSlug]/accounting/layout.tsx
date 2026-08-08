@@ -13,7 +13,10 @@ import { notFound } from "next/navigation";
 import {
   getOrganizationsForCurrentUser,
   getModuleRoleForCurrentUser,
+  getFirmAccessForOrg,
 } from "@/lib/accounting/queries";
+import { listFirmClientOrgsForCurrentUser } from "@/lib/acc-firm/firm-clients";
+import { FirmContextBar } from "@/components/acc-firm/firm-context-bar";
 import type { AccountingRole } from "@/lib/accounting/types";
 
 import { AccountingRoleProvider } from "./_components/role-context";
@@ -47,8 +50,25 @@ export default async function AccountingLayout({
   // → ส่งธงแยกให้ role lens ปลดล็อกปุ่ม ให้ตรงกับที่ API อนุญาตแล้ว
   const isSuperAdmin = await isSuperAdminUser();
 
+  // เข้ามาในนามสำนักงานบัญชี (ไม่ได้เป็นสมาชิก org ลูกค้า) → ขึ้นแถบบริบทให้รู้ตัวตลอดเวลา
+  // ว่ากำลังแก้บัญชีของใคร + สลับลูกค้า/กลับสำนักงานได้โดยไม่ต้องเปลี่ยน org
+  const firm = await getFirmAccessForOrg(org.id, "accounting");
+  const firmClients = firm
+    ? (await listFirmClientOrgsForCurrentUser()).filter((c) => c.firmOrgId === firm.firmOrgId)
+    : [];
+
   return (
     <AccountingRoleProvider role={role} isSuperAdmin={isSuperAdmin}>
+      {firm && (
+        <FirmContextBar
+          firmName={firm.firmOrgName}
+          firmSlug={firm.firmOrgSlug}
+          clientName={org.name}
+          clientSlug={org.slug}
+          readOnly={firm.moduleRole === "viewer"}
+          clients={firmClients.map((c) => ({ name: c.name, slug: c.slug }))}
+        />
+      )}
       {/* client provider fetch ทุก resource ผ่าน API (token + super_admin bypass) — loading skeleton ครอบ */}
       <AccountingDataProvider orgId={org.id}>{children}</AccountingDataProvider>
     </AccountingRoleProvider>

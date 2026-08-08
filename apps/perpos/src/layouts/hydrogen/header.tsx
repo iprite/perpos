@@ -9,19 +9,24 @@ import {
   getOrganizationsForCurrentUser,
   getActiveOrganizationId,
   getEnabledModulesForOrg,
+  ownMemberships,
 } from "@/lib/accounting/queries";
 
 interface HeaderProps {
   enabledModuleKeys?: string[];
 }
 
-export default async function Header({ enabledModuleKeys: enabledModuleKeysProp }: HeaderProps = {}) {
-  const organizations        = await getOrganizationsForCurrentUser();
+export default async function Header({
+  enabledModuleKeys: enabledModuleKeysProp,
+}: HeaderProps = {}) {
+  // switcher แสดงเฉพาะ org ของตัวเอง — ลูกค้าของสำนักงานสลับผ่านแถบบริบทแทน
+  const organizations = ownMemberships(await getOrganizationsForCurrentUser());
   const activeOrganizationId = await getActiveOrganizationId();
-  const activeOrg            = organizations.find((o) => o.id === activeOrganizationId);
+  const activeOrg = organizations.find((o) => o.id === activeOrganizationId);
   // Use prop if provided (avoids duplicate DB fetch), otherwise fetch
-  const enabledModuleKeys    = enabledModuleKeysProp
-    ?? await getEnabledModulesForOrg(activeOrganizationId, activeOrg?.role ?? null);
+  const enabledModuleKeys =
+    enabledModuleKeysProp ??
+    (await getEnabledModulesForOrg(activeOrganizationId, activeOrg?.role ?? null));
 
   return (
     <StickyHeader className="z-[990] 2xl:py-5 3xl:px-8 4xl:px-10">

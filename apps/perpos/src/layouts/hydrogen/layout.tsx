@@ -19,6 +19,7 @@ import {
   getModuleMenuLabels,
   getPersonalModulesForUser,
   getCurrentUserId,
+  ownMemberships,
 } from "@/lib/accounting/queries";
 
 // Path segments that are NOT org slugs
@@ -32,7 +33,10 @@ export default async function HydrogenLayout({ children }: { children: React.Rea
   // Determine the active org:
   // - If path is /:orgSlug/... → use slug lookup
   // - For /admin, /user, etc.  → fall back to cookie-based active org
+  // orgs = ทั้งของตัวเอง + org ลูกค้าที่เข้าถึงได้ในนามสำนักงานบัญชี (ต้องมีเพื่อ resolve
+  // activeOrg ของ URL ลูกค้า) · switcher ใน sidebar ใช้เฉพาะของตัวเอง = ownSidebarOrgs
   const orgs = await getOrganizationsForCurrentUser();
+  const ownSidebarOrgs = ownMemberships(orgs);
   const firstSegment = segments[0] ?? "";
   const isOrgRoute = firstSegment.length > 0 && !SYSTEM_SEGMENTS.has(firstSegment);
   const orgSlugFromUrl = isOrgRoute ? firstSegment : null;
@@ -65,7 +69,11 @@ export default async function HydrogenLayout({ children }: { children: React.Rea
   const moduleRoleKey =
     isOrgRoute && activeOrg?.id ? (MODULE_ROLE_SEGMENTS[segments[1]] ?? null) : null;
   const [orgModuleKeys, personalKeys, moduleRole] = await Promise.all([
-    getEnabledModulesForOrg(activeOrg?.id ?? null, activeOrg?.role ?? null),
+    getEnabledModulesForOrg(
+      activeOrg?.id ?? null,
+      activeOrg?.role ?? null,
+      Boolean(activeOrg?.viaFirm),
+    ),
     getPersonalModulesForUser(currentUserId),
     moduleRoleKey && activeOrg?.id
       ? getModuleRoleForCurrentUser(activeOrg.id, moduleRoleKey)
@@ -117,7 +125,7 @@ export default async function HydrogenLayout({ children }: { children: React.Rea
       <main className="flex min-h-screen flex-grow">
         <Sidebar
           className="fixed hidden dark:bg-gray-50 xl:flex"
-          organizations={orgs}
+          organizations={ownSidebarOrgs}
           activeOrganizationId={activeOrg?.id ?? null}
           suiteHref={suiteHref}
         />
@@ -131,7 +139,7 @@ export default async function HydrogenLayout({ children }: { children: React.Rea
               view={
                 <Sidebar
                   className="static h-full w-full 2xl:w-full"
-                  organizations={orgs}
+                  organizations={ownSidebarOrgs}
                   activeOrganizationId={activeOrg?.id ?? null}
                   suiteHref={suiteHref}
                 />
@@ -143,7 +151,7 @@ export default async function HydrogenLayout({ children }: { children: React.Rea
                 PERPOS
               </span>
               <ContextToggle
-                organizations={orgs}
+                organizations={ownSidebarOrgs}
                 activeOrganizationId={activeOrg?.id ?? null}
                 suiteHref={suiteHref}
               />

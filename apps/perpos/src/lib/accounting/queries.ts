@@ -9,7 +9,18 @@ export type OrganizationSummary = {
   name: string;
   slug: string;
   role: "owner" | "admin" | "team_lead" | "team_member";
+  /**
+   * ไม่ null = org ลูกค้าที่เข้าถึงได้ **ในนามสำนักงานบัญชี** (ผู้ใช้ไม่ได้เป็นสมาชิก org นี้)
+   * — โผล่ในลิสต์เพื่อให้ `/[orgSlug]/*` ผ่านด่าน แต่ **ไม่ควรอยู่ใน org switcher หลัก**
+   * (สลับผ่านแถบบริบทของสำนักงานแทน) · เข้าได้เฉพาะโมดูลใน `FIRM_ACCESS_MODULES`
+   */
+  viaFirm?: { firmOrgId: string; firmOrgName: string; firmOrgSlug: string };
 };
+
+/** org ที่ผู้ใช้เป็นสมาชิกจริง (ตัดของที่เข้าผ่านสำนักงานบัญชีออก) — ใช้กับ org switcher */
+export function ownMemberships(orgs: OrganizationSummary[]): OrganizationSummary[] {
+  return orgs.filter((o) => !o.viaFirm);
+}
 
 // cache() = dedupe ต่อ request (scope ต่อ render pass, ไม่ leak ข้าม request) —
 // HydrogenLayout เรียกฟังก์ชันนี้ 2 รอบ (ตรง ๆ + ผ่าน getActiveOrganizationId) → query ซ้ำ
@@ -74,7 +85,7 @@ export const getOrganizationsForCurrentUser = cache(async (): Promise<Organizati
     roleByOrg.set(String(m.organization_id), String(m.role) as OrganizationSummary["role"]);
   }
 
-  return (orgs as any[])
+  const own: OrganizationSummary[] = (orgs as any[])
     .map((o) => ({
       id: String(o.id),
       name: String(o.name),
@@ -82,13 +93,32 @@ export const getOrganizationsForCurrentUser = cache(async (): Promise<Organizati
       role: roleByOrg.get(String(o.id)) ?? "team_member",
     }))
     .sort((a, b) => a.name.localeCompare(b.name, "th"));
+
+  // + org ลูกค้าที่เข้าถึงได้ในนามสำนักงานบัญชี (engagement active) — ไม่ใช่ membership
+  // จึงติดธง viaFirm ไว้ให้ผู้เรียกแยกออก · membership จริงชนะเสมอถ้าซ้ำกัน
+  const { listFirmClientOrgs } = await import("@/lib/acc-firm/firm-access");
+  const firmClients = await listFirmClientOrgs(adminClient, uid);
+  const ownIds = new Set(own.map((o) => o.id));
+  for (const c of firmClients) {
+    if (ownIds.has(c.id)) continue;
+    own.push({
+      id: c.id,
+      name: c.name,
+      slug: c.slug,
+      role: "team_member",
+      viaFirm: { firmOrgId: c.firmOrgId, firmOrgName: c.firmOrgName, firmOrgSlug: c.firmOrgSlug },
+    });
+  }
+  return own;
 });
 
 export async function getActiveOrganizationId(): Promise<string | null> {
   const cookieStore = await cookies();
   const preferred = cookieStore.get("perpos.activeOrgId")?.value ?? null;
 
-  const orgs = await getOrganizationsForCurrentUser();
+  // org ของตัวเองเท่านั้น — org ลูกค้าที่เข้าผ่านสำนักงานบัญชีไม่ควรกลายเป็น "org ที่ใช้อยู่"
+  // (ไม่งั้นกลับหน้าแรกแล้วเด้งเข้าบัญชีลูกค้าแทนที่จะเป็นสำนักงานของตัวเอง)
+  const orgs = ownMemberships(await getOrganizationsForCurrentUser());
   if (!orgs.length) return null;
   if (preferred && orgs.some((o) => o.id === preferred)) return preferred;
   return orgs[0].id;
@@ -132,7 +162,41 @@ export const getModuleRoleForCurrentUser = cache(async function getModuleRoleFor
     .eq("is_active", true)
     .maybeSingle();
 
-  return (member as any)?.module_role ?? null;
+  if ((member as any)?.module_role) return (member as any).module_role;
+
+  // ไม่ใช่สมาชิกโมดูลของ org นี้ → ยังเข้าได้ถ้าเป็นสำนักงานบัญชีที่มี engagement active
+  // (คู่กับ requireModuleMember ฝั่ง API — ต้องตอบตรงกัน ไม่งั้นหน้าเปิดได้แต่ API 403)
+  const { resolveFirmAccess } = await import("@/lib/acc-firm/firm-access");
+  const firm = await resolveFirmAccess(admin, user.id, orgId, moduleKey);
+  return firm?.moduleRole ?? null;
+});
+
+/**
+ * สำนักงานบัญชีที่ผู้ใช้ปัจจุบันใช้เข้า org นี้ (null = เป็นสมาชิก org จริง หรือไม่มีสิทธิ์)
+ * — ใช้เรนเดอร์แถบบริบท "กำลังทำงานในนามสำนักงาน …"
+ */
+export const getFirmAccessForOrg = cache(async function getFirmAccessForOrg(
+  orgId: string,
+  moduleKey: string,
+) {
+  const user = await getAuthUser();
+  if (!user) return null;
+
+  const { createSupabaseAdminClient } = await import("@/lib/supabase/admin");
+  const admin = createSupabaseAdminClient();
+
+  const { data: member } = await admin
+    .from("module_members")
+    .select("module_role")
+    .eq("org_id", orgId)
+    .eq("module_key", moduleKey)
+    .eq("user_id", user.id)
+    .eq("is_active", true)
+    .maybeSingle();
+  if ((member as any)?.module_role) return null; // สมาชิกจริง → ไม่ใช่บริบทสำนักงาน
+
+  const { resolveFirmAccess } = await import("@/lib/acc-firm/firm-access");
+  return resolveFirmAccess(admin, user.id, orgId, moduleKey);
 });
 
 /** Fetch menu_labels for the given module keys from module_registry.
@@ -190,6 +254,9 @@ export const getPersonalModulesForUser = cache(async function getPersonalModules
 export const getEnabledModulesForOrg = cache(async function getEnabledModulesForOrg(
   orgId: string | null,
   memberRole: "owner" | "admin" | "team_lead" | "team_member" | null,
+  /** true = เข้า org นี้ในนามสำนักงานบัญชี → เห็นได้เฉพาะโมดูลในขอบเขต FIRM_ACCESS_MODULES
+   *  (สำนักงานบัญชีมาทำบัญชี ไม่ใช่มาดู CRM/HR/คลังสินค้าของลูกค้า) */
+  viaFirm = false,
 ): Promise<string[]> {
   if (!orgId) return [];
   const { createSupabaseAdminClient } = await import("@/lib/supabase/admin");
@@ -217,9 +284,14 @@ export const getEnabledModulesForOrg = cache(async function getEnabledModulesFor
 
   const orgSlug = (orgData as { slug: string } | null)?.slug ?? "";
 
+  const { FIRM_ACCESS_MODULES } = await import("@/lib/acc-firm/firm-access");
+
   return (data as any[])
     .filter((row) => {
       if (!row.is_enabled) return false;
+      // สำนักงานบัญชี: ขอบเขตโมดูลมาจาก engagement ไม่ใช่ allowed_roles ของลูกค้า
+      // (ลูกค้าตั้ง allowed_roles ไว้สำหรับพนักงานตัวเอง ไม่ได้เผื่อสำนักงาน)
+      if (viaFirm) return (FIRM_ACCESS_MODULES as readonly string[]).includes(row.module_key);
       if (!isSuperAdmin && memberRole && !(row.allowed_roles as string[]).includes(memberRole))
         return false;
       // Guard: specific modules with forOrgSlugs must match this org's slug.

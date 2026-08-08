@@ -12,6 +12,11 @@ export interface AccountingAuth {
   orgId: string;
   role: AccountingRole;
   isSuperAdmin: boolean;
+  /**
+   * ไม่ null = สำนักงานบัญชีเข้ามาทำบัญชีให้ org นี้ผ่าน engagement (ไม่ได้เป็นสมาชิก org)
+   * — เพดานสิทธิ์ = accountant · ใช้เป็นบริบท "ทำในนามใคร" เวลาบันทึกร่องรอยการแก้ไข
+   */
+  firm: import("@/lib/acc-firm/firm-access").FirmAccess | null;
   /** Authed Supabase client (respects RLS) — ใช้กับ GET (per-org อ่าน) */
   rls: ReturnType<typeof createAuthedClient>;
 }
@@ -36,6 +41,7 @@ export async function requireAccountingMember(
     orgId: result.orgId,
     role: result.moduleRole as AccountingRole,
     isSuperAdmin: result.isSuperAdmin,
+    firm: result.firm,
     rls: result.rls,
   };
 }
