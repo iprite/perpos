@@ -413,9 +413,18 @@ export type OrgRole = (typeof ORG_ROLES)[number];
  * ลง module_members ตรง ๆ จะได้ค่าที่โมดูลไม่รู้จัก แล้ว guard จะ fallback เป็น viewer
  * (เคสจริง: org admin ที่ถูก sync เป็น module_role='admin' แล้วเข้า accounting ได้แค่อ่าน)
  *
- * กติกา: โมดูลที่นิยาม role ชื่อเดียวกับ org role อยู่แล้ว (เช่น tmc) ใช้ตรง ๆ ·
- * owner/admin → role สูงสุดของโมดูล (roles[0]) · team_lead → role ที่เขียนได้แต่ไม่ใช่สูงสุด ·
- * team_member → role อ่านอย่างเดียวตัวท้าย
+ * กติกา (roles[] เรียงจากสิทธิ์สูงสุดไปต่ำสุด):
+ *   - โมดูลที่นิยาม role ชื่อเดียวกับ org role อยู่แล้ว (เช่น tmc) → ใช้ตรง ๆ
+ *   - owner/admin → role สูงสุดของโมดูล · **ตั้งใจให้ org admin ได้เท่า owner ของโมดูล**
+ *     (org admin = ผู้ดูแลองค์กร มีอำนาจเต็มอยู่แล้วในระดับ org) — ผลคือผ่านด่านที่เช็ค
+ *     `owner` ล้วน ๆ ด้วย เช่น ตั้งค่าบัญชี/อนุมัติจ่ายเงินเดือน/ปลด legal_hold ของคลังเอกสาร
+ *   - team_lead → role ที่เขียนได้ตัวรองจากสูงสุด (ถ้ามี)
+ *   - team_member → role อ่านอย่างเดียวตัวท้าย · โมดูลที่ **ไม่มี** role อ่านอย่างเดียวเลย
+ *     (เช่น stt = owner/member) จะได้ role ต่ำสุดที่มี ซึ่งเขียนได้ — ยอมรับได้เพราะการที่
+ *     org role นั้นอยู่ใน `allowed_roles` แปลว่าผู้ดูแลตั้งใจให้เข้าถึงโมดูลอยู่แล้ว
+ *
+ * ผู้เรียกที่ต้องการสิทธิ์ต่างจากนี้ให้ตั้ง `module_members.module_role` เอง — ตัวที่เรียก
+ * ฟังก์ชันนี้ (backfill) ไม่ทับค่าที่มีอยู่แล้ว
  */
 export function mapOrgRoleToModuleRole(moduleKey: string, orgRole: string): string | null {
   const roles = getModuleRoles(moduleKey);

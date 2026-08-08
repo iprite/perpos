@@ -99,36 +99,58 @@ export async function syncModuleMembersForOrgRole(
  * ไม่งั้นสมาชิกที่เข้า org **ก่อน** โมดูลถูกเปิดจะไม่มีแถว module_members เลย → เห็นเมนู
  * (เมนูดูจาก org role + allowed_roles) แต่กดเข้าแล้ว `notFound()` ทุกครั้ง
  *
- * เพิ่มเฉพาะแถวที่ขาด — **ไม่แตะ `module_role` ของแถวที่มีอยู่แล้ว** เพื่อไม่ล้างสิทธิ์ที่คน
- * ตั้งมือไว้ (เช่น org admin ที่ถูกจงใจให้เป็น accountant) · แถวที่ role เข้าไม่ถึงแล้วจะถูกปิด
+ * **เติมอย่างเดียว ไม่ถอนสิทธิ์ใคร** — ตั้งใจ:
+ *   - ปิดโมดูลไม่ต้องปิดแถว: `requireModuleMember` เช็ค `org_module_settings.is_enabled`
+ *     อยู่แล้ว และเมนูก็หายไปเอง · ถ้าปิดแถวด้วย พอเปิดโมดูลกลับมาจะไม่มีอะไรปลุกให้
+ *     (เพราะแถวมีอยู่แล้ว insert ก็ข้าม) = ล็อกสมาชิกออกถาวร กลายเป็นบั๊ก 404 ตัวเดิม
+ *   - สิทธิ์ที่คนตั้งมือไว้นอกเหนือ org role (เช่น team_member ที่ถูกเชิญเข้า crm เป็นราย
+ *     บุคคล) ต้องไม่ถูกล้างเพียงเพราะ superadmin กดบันทึกหน้าโมดูล
+ * การถอนสิทธิ์ยังเป็นหน้าที่ของ `syncModuleMembersForOrgRole` (ตอน org role เปลี่ยน) และ
+ * `deactivateModuleMembersForOrg` (ตอนถูกเอาออกจาก org) เหมือนเดิม
+ *
+ * `module_role` ของแถวที่มีอยู่แล้วไม่ถูกแตะ — แถวที่เคยถูกปิดไว้และ role ปัจจุบันเข้าถึงได้
+ * จะถูกเปิดกลับโดยคงระดับสิทธิ์เดิม
  */
 export async function backfillModuleMembersForOrg(admin: Admin, orgId: string): Promise<void> {
+  // ระบุ range ชัดเจน — PostgREST ตัดที่ 1,000 แถวเงียบ ๆ (AGENTS.md) ซึ่งจะทำให้ backfill
+  // ครอบไม่ครบโดยไม่มีสัญญาณเตือน
   const [settings, { data: members }, { data: existing }] = await Promise.all([
     fetchModuleSettings(admin, orgId),
-    admin.from("organization_members").select("user_id, role").eq("organization_id", orgId),
-    admin.from("module_members").select("user_id, module_key, is_active").eq("org_id", orgId),
+    admin
+      .from("organization_members")
+      .select("user_id, role")
+      .eq("organization_id", orgId)
+      .range(0, 9999),
+    admin
+      .from("module_members")
+      .select("user_id, module_key, is_active")
+      .eq("org_id", orgId)
+      .range(0, 9999),
   ]);
   if (!members?.length) return;
 
-  const rows = (existing ?? []).map((m: Record<string, unknown>) => ({
-    user_id: String(m.user_id),
-    module_key: String(m.module_key),
-    is_active: m.is_active === true,
-  }));
-  const anyKey = new Set(rows.map((r) => `${r.user_id}:${r.module_key}`));
+  const activeKeys = new Set<string>();
+  const inactiveKeys = new Set<string>();
+  for (const m of (existing ?? []) as Record<string, unknown>[]) {
+    const key = `${m.user_id}:${m.module_key}`;
+    (m.is_active === true ? activeKeys : inactiveKeys).add(key);
+  }
 
   const toInsert: Record<string, unknown>[] = [];
-  const toRevoke: { user_id: string; module_key: string }[] = [];
+  const reactivateByUser = new Map<string, string[]>();
 
   for (const m of members as Record<string, unknown>[]) {
     const userId = String(m.user_id);
     const orgRole = String(m.role);
-    const allowed = allowedModuleKeys(settings, orgRole);
 
-    for (const module_key of allowed) {
+    for (const module_key of allowedModuleKeys(settings, orgRole)) {
       const key = `${userId}:${module_key}`;
-      // แถวที่เคยถูกปิด (is_active=false) ถือว่าตั้งใจถอนสิทธิ์ → ไม่ปลุกกลับเอง
-      if (anyKey.has(key)) continue;
+      if (activeKeys.has(key)) continue;
+      if (inactiveKeys.has(key)) {
+        // แถวมีอยู่แต่ถูกปิดไว้ → เปิดกลับ คง module_role เดิม (ไม่เลื่อนขั้นให้ใคร)
+        reactivateByUser.set(userId, [...(reactivateByUser.get(userId) ?? []), module_key]);
+        continue;
+      }
       toInsert.push({
         org_id: orgId,
         module_key,
@@ -137,12 +159,6 @@ export async function backfillModuleMembersForOrg(admin: Admin, orgId: string): 
         is_active: true,
       });
     }
-
-    for (const r of rows) {
-      if (r.is_active && r.user_id === userId && !allowed.includes(r.module_key)) {
-        toRevoke.push({ user_id: r.user_id, module_key: r.module_key });
-      }
-    }
   }
 
   if (toInsert.length > 0) {
@@ -150,13 +166,13 @@ export async function backfillModuleMembersForOrg(admin: Admin, orgId: string): 
       .from("module_members")
       .upsert(toInsert, { onConflict: "org_id,module_key,user_id", ignoreDuplicates: true });
   }
-  for (const r of toRevoke) {
+  for (const [userId, keys] of Array.from(reactivateByUser.entries())) {
     await admin
       .from("module_members")
-      .update({ is_active: false })
+      .update({ is_active: true })
       .eq("org_id", orgId)
-      .eq("user_id", r.user_id)
-      .eq("module_key", r.module_key);
+      .eq("user_id", userId)
+      .in("module_key", keys);
   }
 }
 
