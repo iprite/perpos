@@ -59,6 +59,12 @@ export default async function HydrogenLayout({ children }: { children: React.Rea
 
   // getCurrentUserId = getAuthUser ที่ cache() ไว้แล้ว (resolve ไปตั้งแต่ getOrganizations…) →
   // ไม่มี round-trip เพิ่ม · org modules / personal modules / module role ยิงขนานกันทั้งหมด
+  // org ที่ switcher ควรชี้: ถ้าอยู่ในหน้าลูกค้าที่เข้าผ่านสำนักงาน org นั้นไม่อยู่ในลิสต์
+  // switcher (viaFirm) → ชี้ไปที่ "สำนักงาน" แทน ไม่งั้น switcher จะขึ้น placeholder ว่าง ๆ
+  const sidebarActiveOrgId = activeOrg?.viaFirm
+    ? activeOrg.viaFirm.firmOrgId
+    : (activeOrg?.id ?? null);
+
   const currentUserId = await getCurrentUserId();
   // module ที่ sidebar ต้องรู้ role ระดับ module (module_members) เพื่อซ่อนเมนู
   const MODULE_ROLE_SEGMENTS: Record<string, string> = {
@@ -126,7 +132,7 @@ export default async function HydrogenLayout({ children }: { children: React.Rea
         <Sidebar
           className="fixed hidden dark:bg-gray-50 xl:flex"
           organizations={ownSidebarOrgs}
-          activeOrganizationId={activeOrg?.id ?? null}
+          activeOrganizationId={sidebarActiveOrgId}
           suiteHref={suiteHref}
         />
         <div className="flex w-full flex-col pt-[var(--impersonation-banner-height,0px)] xl:ms-[270px] xl:w-[calc(100%-270px)] 2xl:ms-72 2xl:w-[calc(100%-288px)]">
@@ -140,7 +146,7 @@ export default async function HydrogenLayout({ children }: { children: React.Rea
                 <Sidebar
                   className="static h-full w-full 2xl:w-full"
                   organizations={ownSidebarOrgs}
-                  activeOrganizationId={activeOrg?.id ?? null}
+                  activeOrganizationId={sidebarActiveOrgId}
                   suiteHref={suiteHref}
                 />
               }
@@ -152,7 +158,7 @@ export default async function HydrogenLayout({ children }: { children: React.Rea
               </span>
               <ContextToggle
                 organizations={ownSidebarOrgs}
-                activeOrganizationId={activeOrg?.id ?? null}
+                activeOrganizationId={sidebarActiveOrgId}
                 suiteHref={suiteHref}
               />
               {/* ปุ่ม avatar — เปิด profile menu ลงด้านล่าง */}

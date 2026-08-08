@@ -24,6 +24,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 /** โมดูลของลูกค้าที่สำนักงานบัญชีเข้าถึงได้ผ่าน engagement */
 export const FIRM_ACCESS_MODULES = ["accounting"] as const;
+const ACCOUNTING_MODULE = "accounting";
 
 export type FirmAccess = {
   /** org ของสำนักงานบัญชี (เจ้าของ engagement) */
@@ -80,10 +81,12 @@ export async function resolveFirmAccess(
   const firmOrgIds = Array.from(roleByFirm.keys());
 
   // engagement ที่ยัง active กับลูกค้ารายนี้ + สำนักงานยังเปิดโมดูล acc_firm อยู่
-  const [{ data: engagements }, { data: firmSettings }] = await Promise.all([
+  // + การถอนสิทธิ์รายบุคคล (DELETE /api/acc-firm/provision ปิดแถว module_members ของ org
+  //   ลูกค้า) — ต้องชนะ engagement ไม่งั้น "ถอนแล้วยังเข้าได้" = ถอนไม่ได้จริง
+  const [{ data: engagements }, { data: firmSettings }, { data: revoked }] = await Promise.all([
     admin
       .from("acc_firm_clients")
-      .select("firm_org_id")
+      .select("firm_org_id, modules_managed")
       .eq("client_org_id", clientOrgId)
       .eq("status", "active")
       .in("firm_org_id", firmOrgIds),
@@ -93,15 +96,28 @@ export async function resolveFirmAccess(
       .eq("module_key", "acc_firm")
       .eq("is_enabled", true)
       .in("organization_id", firmOrgIds),
+    admin
+      .from("module_members")
+      .select("id")
+      .eq("org_id", clientOrgId)
+      .eq("module_key", moduleKey)
+      .eq("user_id", userId)
+      .eq("is_active", false)
+      .maybeSingle(),
   ]);
   if (!engagements?.length) return null;
+  if (revoked) return null;
 
   const enabledFirms = new Set(
     (firmSettings ?? []).map((s: Record<string, unknown>) => String(s.organization_id)),
   );
   const firmOrgId = (engagements as Record<string, unknown>[])
+    .filter((e) => ((e.modules_managed as string[]) ?? []).includes(moduleKey))
     .map((e) => String(e.firm_org_id))
-    .find((id) => enabledFirms.has(id));
+    .filter((id) => enabledFirms.has(id))
+    // อยู่หลายสำนักงานที่ดูแลลูกค้ารายเดียวกัน → เรียงคงที่ ไม่งั้น role พลิกไปมาราย request
+    // (และไม่ตรงกับ listFirmClientOrgs ที่ dedupe ด้วยลำดับเดียวกัน)
+    .sort()[0];
   if (!firmOrgId) return null;
 
   const { data: firmOrg } = await admin
@@ -150,10 +166,10 @@ export async function listFirmClientOrgs(admin: Admin, userId: string): Promise<
   );
   const firmOrgIds = Array.from(roleByFirm.keys());
 
-  const [{ data: engagements }, { data: firmSettings }] = await Promise.all([
+  const [{ data: engagements }, { data: firmSettings }, { data: revokedRows }] = await Promise.all([
     admin
       .from("acc_firm_clients")
-      .select("firm_org_id, client_org_id")
+      .select("firm_org_id, client_org_id, modules_managed")
       .eq("status", "active")
       .in("firm_org_id", firmOrgIds)
       .range(0, 999),
@@ -163,22 +179,40 @@ export async function listFirmClientOrgs(admin: Admin, userId: string): Promise<
       .eq("module_key", "acc_firm")
       .eq("is_enabled", true)
       .in("organization_id", firmOrgIds),
+    // org ลูกค้าที่ผู้ใช้คนนี้ถูกถอนสิทธิ์รายบุคคลไว้ — ต้องชนะ engagement
+    admin
+      .from("module_members")
+      .select("org_id")
+      .eq("module_key", ACCOUNTING_MODULE)
+      .eq("user_id", userId)
+      .eq("is_active", false)
+      .range(0, 999),
   ]);
   if (!engagements?.length) return [];
 
   const enabledFirms = new Set(
     (firmSettings ?? []).map((s: Record<string, unknown>) => String(s.organization_id)),
   );
+  const revokedOrgs = new Set(
+    (revokedRows ?? []).map((r: Record<string, unknown>) => String(r.org_id)),
+  );
   const live = (engagements as Record<string, unknown>[])
+    .filter((e) => ((e.modules_managed as string[]) ?? []).includes(ACCOUNTING_MODULE))
     .map((e) => ({ firmOrgId: String(e.firm_org_id), clientOrgId: String(e.client_org_id) }))
-    .filter((e) => enabledFirms.has(e.firmOrgId));
+    .filter((e) => enabledFirms.has(e.firmOrgId) && !revokedOrgs.has(e.clientOrgId))
+    // เรียงคงที่ให้ตรงกับ resolveFirmAccess (ลูกค้าเดียวกันผ่านหลายสำนักงาน → เลือกอันเดียวกัน)
+    .sort(
+      (a, b) =>
+        a.clientOrgId.localeCompare(b.clientOrgId) || a.firmOrgId.localeCompare(b.firmOrgId),
+    );
   if (!live.length) return [];
 
   const orgIds = Array.from(new Set(live.map((e) => e.clientOrgId).concat(firmOrgIds)));
   const { data: orgs } = await admin
     .from("organizations")
     .select("id, name, slug")
-    .in("id", orgIds);
+    .in("id", orgIds)
+    .range(0, 9999);
   const orgById = new Map(
     (orgs ?? []).map((o: Record<string, unknown>) => [String(o.id), o as Record<string, unknown>]),
   );

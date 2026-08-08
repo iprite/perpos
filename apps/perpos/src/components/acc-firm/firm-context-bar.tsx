@@ -37,10 +37,13 @@ export function FirmContextBar({
   const router = useRouter();
   const pathname = usePathname();
 
-  // สลับลูกค้าแล้วอยู่หน้าเดิม (เช่น อยู่สมุดรายวันของ A → สมุดรายวันของ B)
+  // สลับลูกค้าแล้วอยู่ "หน้าเดิม" = ระดับ section เท่านั้น (accounting/journal) —
+  // **ห้ามลาก path ทั้งเส้นไปด้วย** เพราะ segment ที่ลึกกว่านั้นคือ id ของเอกสาร/รายการ
+  // ซึ่งเป็นของ org เดิม ย้ายไปอีก org แล้ว 404 (หรือแย่กว่า: ชนกับ id ที่มีอยู่จริง)
   const swapClient = (slug: string) => {
-    const rest = pathname.split("/").slice(2).join("/");
-    router.push(`/${slug}${rest ? `/${rest}` : "/accounting"}`);
+    const [, , module = "accounting", section] = pathname.split("/");
+    const target = [module, section].filter(Boolean).join("/");
+    router.push(`/${slug}/${target}`);
   };
 
   const others = clients.filter((c) => c.slug !== clientSlug);
