@@ -281,8 +281,15 @@ pnpm build
     เปิดไว้แล้วที่บัญชี perpos → `perpos.billing_export` (2026-08-01) ครอบทุก project แล้ว
     · ถ้าอนาคตแยก billing account อีกใบ **ต้องเปิด export ของใบนั้นด้วย** และปลายทางเลือกได้เฉพาะ
     project ที่อยู่ใต้บัญชีนั้น (ยิงข้ามบัญชีไม่ได้) → สคริปต์ต้องอ่านหลาย dataset
-  - แอปบน Vercel ไม่มี credential ของ GCP → ทั้งสองทางเป็น **สคริปต์ที่ยืม token จาก `gcloud`** ของเครื่อง
-    ที่ login แล้ว (ท่าเดียวกับ `pnpm kb:embed`) หน้าเว็บอ่านจาก snapshot ในตารางอย่างเดียว
+  - **sync อัตโนมัติรายวันแล้ว (2026-08-08)** — scheduler tier `t1440` เรียก `runDailyCostSync()`
+    ([lib/admin/cost-sync.ts](apps/perpos/src/lib/admin/cost-sync.ts) — port ตรรกะเดียวกับสคริปต์มือทั้งสองตัว)
+    ทั้ง `billing_export` + `monitoring` เดือนปัจจุบัน (+เดือนก่อนช่วง 3 วันแรกของเดือน เพราะ export lag
+    และ Google ปรับยอดย้อนหลังได้) · auth ด้วย **service account key read-only ใน env `GCP_SYNC_SA_KEY`**
+    (เซ็น JWT ด้วย node:crypto แลก token เอง — ไม่มี dependency เพิ่ม) · **ไม่ตั้ง env = เงียบ ไม่ error**
+    · เหตุที่ต้องมี: ท่อ billing_export วางเสร็จ 2 ส.ค. แต่ "ลืมรัน" จนไม่มีข้อมูลเข้า DB เลย
+    ตอบคำถาม "cost Gemini มาจากไหน" ไม่ได้ทั้งเดือน · สคริปต์มือ (`pnpm billing:sync`/`infra:sync`
+    ยืม token จาก `gcloud` ของเครื่อง dev) ยังใช้ backfill/เดือนย้อนหลังได้เหมือนเดิม
+    หน้าเว็บอ่านจาก snapshot ในตารางอย่างเดียว
   - **บทเรียนราคาแพงที่เจอจากตรงนี้**: `exapp-clip-renderer` เป็น 8 vCPU + `--no-cpu-throttling`
     แต่ถูก Cloud Scheduler ปลุกทุก 10 นาทีด้วย watchdog ที่ทำแค่ SELECT+UPDATE → **฿886/เดือน (92%
     ของบิล exapp)** ทั้งที่ render จริงเดือนละ ~11 ครั้ง · ย้ายไป `pg_cron` แล้ว (schema `exapp`
@@ -372,26 +379,27 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 ## Environment Variables
 
-| Variable                              | หน้าที่                                                                                        | จำเป็น             |
-| ------------------------------------- | ---------------------------------------------------------------------------------------------- | ------------------ |
-| `NEXT_PUBLIC_SUPABASE_URL`            | Supabase project URL                                                                           | ✅                 |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY`       | Supabase anon key                                                                              | ✅                 |
-| `SUPABASE_SERVICE_ROLE_KEY`           | Supabase service role (server only)                                                            | ✅                 |
-| `LINE_MESSAGING_CHANNEL_SECRET`       | LINE webhook signature verify                                                                  | ✅                 |
-| `LINE_MESSAGING_CHANNEL_ACCESS_TOKEN` | ส่งข้อความ LINE                                                                                | ✅                 |
-| `LINE_LOGIN_CHANNEL_ID`               | LINE Login (เข้าเว็บด้วย LINE) — channel ID                                                    | LINE login         |
-| `LINE_LOGIN_CHANNEL_SECRET`           | LINE Login — channel secret                                                                    | LINE login         |
-| `TMC_LINE_CHANNEL_SECRET`             | LINE OA @tmcvilla (ผู้ช่วยขาย TMC) — verify webhook signature · **คนละ channel กับบอท PERPOS** | tmc sales bot      |
-| `TMC_LINE_CHANNEL_ACCESS_TOKEN`       | LINE OA @tmcvilla — reply/push/ดึงโปรไฟล์ลูกค้า                                                | tmc sales bot      |
-| `TMC_BOT_ORG_SLUG`                    | ระบุ org เจ้าของ @tmcvilla (ไม่ต้องตั้งถ้ามี org เดียวที่เปิด module `tmc`)                    | optional           |
-| `CRON_SECRET`                         | ป้องกัน scheduler endpoint                                                                     | ✅                 |
-| `PDF_RENDER_URL`                      | PDF microservice URL — ต้องเป็น **perpos-pdf-renderer** (อย่าชี้ `exapp-pdf-renderer` คนละแอป) | optional           |
-| `PDF_SERVICE_SECRET`                  | PDF service auth                                                                               | optional           |
-| `OCR_WORKER_URL`                      | URL ของ ocr-worker (Cloud Run) สำหรับ AI bookkeeping                                           | acc_firm           |
-| `STT_WORKER_URL`                      | URL ของ stt-worker (Cloud Run) สำหรับแกะเสียงเป็นข้อความ                                       | assistant          |
-| `WORKER_SECRET`                       | shared secret เรียก ocr-worker/stt-worker (`x-worker-secret`)                                  | acc_firm/assistant |
-| `GEMINI_API_KEY`                      | Gemini OCR/classify/journal + speech-to-text (ตั้งที่ ocr-worker + stt-worker)                 | acc_firm/assistant |
-| `SMTP_*`                              | Email invite                                                                                   | optional           |
+| Variable                              | หน้าที่                                                                                                                                                   | จำเป็น             |
+| ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------ |
+| `NEXT_PUBLIC_SUPABASE_URL`            | Supabase project URL                                                                                                                                      | ✅                 |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY`       | Supabase anon key                                                                                                                                         | ✅                 |
+| `SUPABASE_SERVICE_ROLE_KEY`           | Supabase service role (server only)                                                                                                                       | ✅                 |
+| `LINE_MESSAGING_CHANNEL_SECRET`       | LINE webhook signature verify                                                                                                                             | ✅                 |
+| `LINE_MESSAGING_CHANNEL_ACCESS_TOKEN` | ส่งข้อความ LINE                                                                                                                                           | ✅                 |
+| `LINE_LOGIN_CHANNEL_ID`               | LINE Login (เข้าเว็บด้วย LINE) — channel ID                                                                                                               | LINE login         |
+| `LINE_LOGIN_CHANNEL_SECRET`           | LINE Login — channel secret                                                                                                                               | LINE login         |
+| `TMC_LINE_CHANNEL_SECRET`             | LINE OA @tmcvilla (ผู้ช่วยขาย TMC) — verify webhook signature · **คนละ channel กับบอท PERPOS**                                                            | tmc sales bot      |
+| `TMC_LINE_CHANNEL_ACCESS_TOKEN`       | LINE OA @tmcvilla — reply/push/ดึงโปรไฟล์ลูกค้า                                                                                                           | tmc sales bot      |
+| `TMC_BOT_ORG_SLUG`                    | ระบุ org เจ้าของ @tmcvilla (ไม่ต้องตั้งถ้ามี org เดียวที่เปิด module `tmc`)                                                                               | optional           |
+| `CRON_SECRET`                         | ป้องกัน scheduler endpoint                                                                                                                                | ✅                 |
+| `PDF_RENDER_URL`                      | PDF microservice URL — ต้องเป็น **perpos-pdf-renderer** (อย่าชี้ `exapp-pdf-renderer` คนละแอป)                                                            | optional           |
+| `PDF_SERVICE_SECRET`                  | PDF service auth                                                                                                                                          | optional           |
+| `OCR_WORKER_URL`                      | URL ของ ocr-worker (Cloud Run) สำหรับ AI bookkeeping                                                                                                      | acc_firm           |
+| `STT_WORKER_URL`                      | URL ของ stt-worker (Cloud Run) สำหรับแกะเสียงเป็นข้อความ                                                                                                  | assistant          |
+| `WORKER_SECRET`                       | shared secret เรียก ocr-worker/stt-worker (`x-worker-secret`)                                                                                             | acc_firm/assistant |
+| `GEMINI_API_KEY`                      | Gemini OCR/classify/journal + speech-to-text (ตั้งที่ ocr-worker + stt-worker)                                                                            | acc_firm/assistant |
+| `GCP_SYNC_SA_KEY`                     | service account key JSON (read-only: BigQuery jobUser+dataViewer, Monitoring viewer) สำหรับ sync บิล GCP รายวันใน scheduler — ไม่ตั้ง = ข้ามงานนี้เงียบ ๆ | optional           |
+| `SMTP_*`                              | Email invite                                                                                                                                              | optional           |
 
 ---
 

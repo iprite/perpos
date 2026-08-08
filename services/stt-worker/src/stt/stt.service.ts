@@ -15,6 +15,13 @@ const geminiDispatcher = new Agent({
 // จะถูกแปลงเป็นข้อความ generic แทน ไม่รั่วรายละเอียดเทคนิคไปหาผู้ใช้
 class UserFacingError extends Error {}
 
+/**
+ * error ที่เกิด "หลังจาก" Gemini ตอบกลับมาแล้ว (MAX_TOKENS / โดนตัวกรอง / parse JSON พัง)
+ * — เงินถูกเก็บไปแล้วแม้งานจะ fail จึงต้องแนบ token ให้ catch ด้านนอกบันทึกลง job
+ * (trigger usage_event_from_assistant_job ฝั่ง DB จะเห็น token แล้วคิดต้นทุน job ที่ fail ได้)
+ */
+type ErrWithUsage = Error & { geminiUsage?: GeminiUsage | null };
+
 // ─── Types ───────────────────────────────────────────────────────────────────
 export type KeyTopic = {
   topic: string;
@@ -358,9 +365,25 @@ async function runJob(jobId: string, orgId: string): Promise<void> {
         () => undefined,
       );
     }
+    // ถ้า fail "หลัง" Gemini ตอบแล้ว (MAX_TOKENS/ตัวกรอง/parse พัง) → เงินถูกเก็บแล้ว
+    // ต้องเขียน token ลง job ให้ trigger ฝั่ง DB คิดต้นทุนได้ ไม่งั้นต้นทุน Gemini หายเงียบ
+    const failUsage = (err as ErrWithUsage | null)?.geminiUsage ?? null;
     await admin
       .from("assistant_jobs")
-      .update({ status: "failed", error_message: errorMsg, updated_at: new Date().toISOString() })
+      .update({
+        status: "failed",
+        error_message: errorMsg,
+        ...(failUsage
+          ? {
+              prompt_tokens: failUsage.prompt_tokens,
+              audio_input_tokens: failUsage.audio_input_tokens,
+              output_tokens: failUsage.output_tokens,
+              thoughts_tokens: failUsage.thoughts_tokens,
+              usage_metadata: failUsage.raw,
+            }
+          : {}),
+        updated_at: new Date().toISOString(),
+      })
       .eq("id", jobId);
     // งานจาก LINE/บอท ที่ fail → แจ้งผู้ใช้ผ่าน deliver route (push error)
     if (job.source === "line" || job.source === "recall") {
@@ -804,26 +827,39 @@ async function transcribeWithGemini(
       promptTokensDetails?: Array<{ modality?: string; tokenCount?: number }>;
     };
   };
+  // Gemini ตอบแล้ว = เงินถูกเก็บแล้ว — error หลังจุดนี้ต้องพา token ติดไปด้วยเสมอ
+  const usage = parseGeminiUsage(result.usageMetadata);
+  const failWithUsage = (e: Error): never => {
+    (e as ErrWithUsage).geminiUsage = usage;
+    throw e;
+  };
+
   if (!result.candidates || result.candidates.length === 0) {
     const blockReason =
       result.promptFeedback?.blockReason || "Blocked by Gemini safety settings or filter";
     console.warn(`[stt-worker] Gemini no candidates: ${blockReason}`);
-    throw new UserFacingError(
-      "ไม่สามารถประมวลผลไฟล์นี้ได้ (อาจถูกตัวกรองเนื้อหา) กรุณาลองไฟล์อื่น",
+    failWithUsage(
+      new UserFacingError("ไม่สามารถประมวลผลไฟล์นี้ได้ (อาจถูกตัวกรองเนื้อหา) กรุณาลองไฟล์อื่น"),
     );
   }
-  const finishReason = result.candidates[0].finishReason;
+  const finishReason = result.candidates![0].finishReason;
   if (finishReason === "MAX_TOKENS") {
-    throw new UserFacingError("เนื้อหายาวมากจนผลลัพธ์เกินขนาดที่รองรับ — ลองใช้ไฟล์สั้นลง");
+    failWithUsage(
+      new UserFacingError("เนื้อหายาวมากจนผลลัพธ์เกินขนาดที่รองรับ — ลองใช้ไฟล์สั้นลง"),
+    );
   }
   if (finishReason && finishReason !== "STOP") {
     console.warn(`[stt-worker] Gemini incomplete finishReason=${finishReason}`);
-    throw new UserFacingError("ประมวลผลไฟล์ไม่สมบูรณ์ กรุณาลองส่งไฟล์ใหม่อีกครั้ง");
+    failWithUsage(new UserFacingError("ประมวลผลไฟล์ไม่สมบูรณ์ กรุณาลองส่งไฟล์ใหม่อีกครั้ง"));
   }
 
   // output อาจถูกแบ่งเป็นหลาย parts — รวมทุก part เป็น JSON เดียว
-  const text = (result.candidates[0].content?.parts ?? []).map((p) => p?.text ?? "").join("");
-  return { transcript: parseTranscript(text), usage: parseGeminiUsage(result.usageMetadata) };
+  const text = (result.candidates![0].content?.parts ?? []).map((p) => p?.text ?? "").join("");
+  try {
+    return { transcript: parseTranscript(text), usage };
+  } catch (e) {
+    return failWithUsage(e instanceof Error ? e : new Error(String(e)));
+  }
 }
 
 // แปลง usageMetadata ดิบ → GeminiUsage (แยก token เสียงจาก modality breakdown ถ้ามี)

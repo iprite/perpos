@@ -15,6 +15,7 @@
  * ทุกอย่างที่บันทึกผ่านช่องทางนี้ แก้/ลบย้อนหลังได้ที่หน้า "ผู้ช่วยขาย LINE → คลังความรู้"
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { recordGeminiFromMetadata } from "@/lib/usage/record";
 import { embedArticle, retrieveContext, type KbArticleInput } from "./sales-bot";
 import { isUnsafeRule, normalizeRule, MAX_RULES } from "./bot-rules";
 
@@ -178,7 +179,14 @@ ${candidates
   if (!res?.ok) return null;
   const json = (await res.json().catch(() => null)) as {
     candidates?: { content?: { parts?: { text?: string }[] } }[];
+    usageMetadata?: {
+      promptTokenCount?: number;
+      candidatesTokenCount?: number;
+      thoughtsTokenCount?: number;
+    };
   } | null;
+  // org มาจาก ambient context ของ tmc webhook (แท็ก @perpos ในกลุ่มที่ผูกแล้ว)
+  void recordGeminiFromMetadata({ feature: "tmc.kb_ingest" }, MODEL, json?.usageMetadata);
   const raw = (json?.candidates?.[0]?.content?.parts ?? [])
     .map((p) => p.text ?? "")
     .join("")

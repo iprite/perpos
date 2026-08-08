@@ -12,6 +12,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "../../../_lib/supabase";
 import { requireTmcMember, canManageSalesBot } from "../../_lib";
 import { embedArticle, type KbArticleInput } from "@/lib/tmc/sales-bot";
+import { setUsageContext } from "@/lib/usage/context";
 
 export const maxDuration = 60;
 
@@ -24,6 +25,8 @@ export async function POST(req: NextRequest) {
   if (!auth.ok) return auth.res;
   if (!canManageSalesBot(auth.role))
     return NextResponse.json({ error: "ไม่มีสิทธิ์" }, { status: 403 });
+  // ผูกต้นทุน Gemini embed ของการฝังคลังความรู้เข้ากับ org นี้
+  setUsageContext({ orgId, profileId: auth.userId, feature: "tmc.kb_embed" });
 
   if (!process.env.GEMINI_API_KEY) {
     return NextResponse.json(

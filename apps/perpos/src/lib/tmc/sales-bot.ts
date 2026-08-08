@@ -8,6 +8,7 @@
  *    เปลี่ยนที่ใดที่หนึ่ง vector space จะไม่ตรงกัน → retrieve เพี้ยนทั้งระบบ
  */
 import type { createAdminClient } from "../../app/api/_lib/supabase";
+import { recordGeminiEmbedUsage, recordGeminiFromMetadata } from "@/lib/usage/record";
 import { rulesBlock } from "./bot-rules";
 
 type Admin = ReturnType<typeof createAdminClient>;
@@ -80,6 +81,11 @@ async function embed(
   if (!Array.isArray(values) || values.length !== EMBED_DIM) {
     throw new Error(`embed dim ผิด: ได้ ${values?.length} ต้องการ ${EMBED_DIM}`);
   }
+  // QUERY = ตอนบอทตอบลูกค้า (org จาก ambient ของ tmc webhook) · DOCUMENT = ตอนฝังคลังความรู้
+  void recordGeminiEmbedUsage(
+    { feature: taskType === "RETRIEVAL_QUERY" ? "tmc.sales_bot" : "tmc.kb_embed" },
+    { model: EMBED_MODEL, textLength: text.length, taskType },
+  );
   return values;
 }
 
@@ -431,7 +437,17 @@ ${availabilityText ? `\n${availabilityText}\n` : ""}${convo ? `\nบทสนท
   if (!res.ok) throw new Error(`gemini ${res.status}: ${await res.text()}`);
   const json = (await res.json()) as {
     candidates?: { content?: { parts?: { text?: string }[] } }[];
+    usageMetadata?: {
+      promptTokenCount?: number;
+      candidatesTokenCount?: number;
+      thoughtsTokenCount?: number;
+    };
   };
+  void recordGeminiFromMetadata(
+    { orgId, feature: "tmc.sales_bot" },
+    ANSWER_MODEL,
+    json.usageMetadata,
+  );
   const text = (json.candidates?.[0]?.content?.parts ?? [])
     .map((p) => p.text ?? "")
     .join("")

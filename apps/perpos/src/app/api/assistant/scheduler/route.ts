@@ -17,6 +17,11 @@ import { getServiceRemaining } from "@/lib/assistant/token-balance";
 import { getStripe } from "../../_lib/stripe";
 import { alertAdminLine } from "@/lib/admin/alert";
 import { sweepClientTaxDueReminders } from "@/lib/acc-firm/line-reminders";
+import {
+  hasGcpSyncCredential,
+  runDailyCostSync,
+  type DailyCostSyncResult,
+} from "@/lib/admin/cost-sync";
 
 const QUOTA_WARN_LEAD_S = 600; // เตือนโควต้าบอทใกล้หมด ≥10 นาทีก่อน kick
 const SCHED_PLATFORM_LABEL: Record<string, string> = {
@@ -62,6 +67,7 @@ async function run(req: NextRequest) {
   const counts = { stuck_failed: 0, requeued: 0, requeue_gaveup: 0, cleaned_jobs: 0 };
   let overdueMarked = 0; // เอกสารขายที่เลยกำหนดชำระ (ไม่เก็บลง scheduler_runs — คนละโดเมน)
   let taxDueSent = 0; // เตือนกำหนดยื่นภาษีที่ส่งเข้ากลุ่ม LINE ลูกค้าของสำนักงานบัญชี
+  let costSync: DailyCostSyncResult | null = null; // sync บิล GCP รายวัน (t1440)
   const logRun = async (okFlag: boolean, errorMessage?: string) => {
     await admin
       .from("scheduler_runs")
@@ -102,7 +108,8 @@ async function run(req: NextRequest) {
     //    idempotent (ถ้า run crash ก่อน mark → tier ยัง due รอบหน้า รันซ้ำได้ปลอดภัย)
     const T5 = 5 * 60 * 1000,
       T15 = 15 * 60 * 1000,
-      T60 = 60 * 60 * 1000;
+      T60 = 60 * 60 * 1000,
+      T1440 = 24 * 60 * 60 * 1000;
     const nowMs = now.getTime();
     const { data: tierRows } = await admin.from("scheduler_tier_runs").select("tier, last_run_at");
     const lastRun = new Map(
@@ -114,11 +121,14 @@ async function run(req: NextRequest) {
     const run5 = nowMs - (lastRun.get("t5") ?? 0) >= T5; // calendar sync, auto top-up
     const run15 = nowMs - (lastRun.get("t15") ?? 0) >= T15; // PDPA/privacy cleanups, purge media
     const run60 = nowMs - (lastRun.get("t60") ?? 0) >= T60; // webhook/file_links cleanup, token expiry
+    // t1440 = งานรายวัน (sync บิล GCP) — เช็ค credential ก่อน: ไม่มี key = ไม่ due ไม่ mark (เงียบ ฟรี)
+    const run1440 = hasGcpSyncCredential() && nowMs - (lastRun.get("t1440") ?? 0) >= T1440;
     const markTiers = async () => {
       const fired: { tier: string; last_run_at: string }[] = [];
       if (run5) fired.push({ tier: "t5", last_run_at: now.toISOString() });
       if (run15) fired.push({ tier: "t15", last_run_at: now.toISOString() });
       if (run60) fired.push({ tier: "t60", last_run_at: now.toISOString() });
+      if (run1440) fired.push({ tier: "t1440", last_run_at: now.toISOString() });
       if (fired.length)
         await admin
           .from("scheduler_tier_runs")
@@ -1161,6 +1171,22 @@ async function run(req: NextRequest) {
         /* best-effort — ไม่ทำให้ scheduler ล้ม */
       }
 
+    // ── sync บิล GCP เข้า infra_costs วันละครั้ง (billing_export จริง + monitoring ประมาณ) ──
+    // แก้ปัญหา "ท่อวางแล้วแต่ลืมรัน" (billing_export เปิด 1 ส.ค. แต่ไม่เคยมีข้อมูลเข้า DB)
+    // ล้มก็แค่รอรอบพรุ่งนี้ — error ถูกเก็บใน result + log ไว้ดูใน Vercel logs
+    if (run1440)
+      try {
+        costSync = await runDailyCostSync(admin);
+        const errs = [...costSync.billing, ...costSync.monitoring].filter((r) => r.error);
+        if (errs.length)
+          console.error(
+            "[scheduler] cost sync partial failure:",
+            errs.map((r) => `${r.month}: ${r.error}`).join(" | "),
+          );
+      } catch {
+        /* best-effort — ไม่ทำให้ scheduler ล้ม */
+      }
+
     await markTiers(); // อัปเดต last-run ของ tier ที่รันรอบนี้ (หลังงานสำเร็จ → crash ก่อนหน้านี้ = retry รอบหน้า)
     await logRun(true);
     return NextResponse.json({
@@ -1168,6 +1194,7 @@ async function run(req: NextRequest) {
       ...counts,
       overdue_marked: overdueMarked,
       acc_firm_tax_due_sent: taxDueSent,
+      ...(costSync ? { cost_sync: costSync } : {}),
     });
   } catch (e) {
     await logRun(false, e instanceof Error ? e.message : String(e));

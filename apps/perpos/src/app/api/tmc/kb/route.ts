@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireTmcMember, canManageSalesBot } from "../_lib";
 import { createAdminClient } from "../../_lib/supabase";
 import { embedArticleById } from "@/lib/tmc/sales-bot";
+import { setUsageContext } from "@/lib/usage/context";
 
 export async function GET(req: NextRequest) {
   const orgId = req.nextUrl.searchParams.get("orgId") ?? "";
@@ -37,6 +38,8 @@ export async function POST(req: NextRequest) {
   if (!auth.ok) return auth.res;
   if (!canManageSalesBot(auth.role))
     return NextResponse.json({ error: "ไม่มีสิทธิ์" }, { status: 403 });
+  // ผูกต้นทุน Gemini embed ของการฝังบทความเข้ากับ org นี้
+  setUsageContext({ orgId, profileId: auth.userId, feature: "tmc.kb_embed" });
 
   const { data, error } = await auth.rls
     .from("tmc_kb_articles")
