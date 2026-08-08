@@ -29,6 +29,8 @@ export type FirmAuditRow = {
 };
 
 export type FirmAuditFilters = {
+  /** สำนักงานที่อยู่ใน URL — ขอบเขตต้องผูกกับสำนักงานนี้ ไม่ใช่ทุกที่ที่ผู้ใช้สังกัด */
+  firmOrgId: string;
   clientOrgId?: string | null;
   from?: string | null;
   to?: string | null;
@@ -49,17 +51,18 @@ export const FIRM_AUDIT_PAGE_SIZE = 25;
 
 export async function listFirmAudit(
   rls: SupabaseClient,
-  filters: FirmAuditFilters = {},
+  filters: FirmAuditFilters,
 ): Promise<FirmAuditPage> {
-  const page = Math.max(1, filters.page ?? 1);
+  const page = Math.max(1, Math.floor(Number(filters.page) || 1));
   const pageSize = Math.min(200, Math.max(1, filters.pageSize ?? FIRM_AUDIT_PAGE_SIZE));
 
   const { data, error } = await rls.rpc("acc_firm_audit_list", {
+    p_firm_org_id: filters.firmOrgId,
     p_client_org_id: filters.clientOrgId || null,
-    p_from: filters.from || null,
-    // `to` จากตัวกรองเป็น "วันสุดท้ายที่ต้องการ" → ครอบทั้งวันด้วยการเลื่อนไปต้นวันถัดไป
-    // (RPC เทียบแบบ `< p_to`) ไม่งั้นรายการของวันนั้นหายทั้งวัน
-    p_to: filters.to ? nextDayIso(filters.to) : null,
+    p_from: dayStartIso(filters.from),
+    // `to` = "วันสุดท้ายที่ต้องการ" → ครอบทั้งวันด้วยการเลื่อนไปต้นวันถัดไป (RPC เทียบ `< p_to`)
+    // ไม่งั้นรายการของวันนั้นหายทั้งวัน
+    p_to: dayStartIso(filters.to, 1),
     p_only_business: filters.onlyBusiness ?? false,
     p_limit: pageSize,
     p_offset: (page - 1) * pageSize,
@@ -90,9 +93,20 @@ export async function listFirmAudit(
   };
 }
 
-/** "YYYY-MM-DD" → ISO ของต้นวันถัดไป (ใช้ทำช่วงปลายแบบครอบทั้งวัน) */
-function nextDayIso(day: string): string {
-  const d = new Date(`${day}T00:00:00.000Z`);
-  d.setUTCDate(d.getUTCDate() + 1);
+/**
+ * "YYYY-MM-DD" (+ออฟเซ็ตวัน) → ISO ของ **ต้นวันตามเวลาไทย**
+ *
+ * ต้องเป็นเวลาไทยไม่ใช่ UTC เพราะหน้าแสดงเวลาแบบ Asia/Bangkok — ถ้าตัดขอบด้วย UTC
+ * การกรอง "วันที่ 8" จะตกรายการช่วง 00:00–07:00 ของวันที่ 8 ไป และลากช่วงเดียวกัน
+ * ของวันที่ 9 เข้ามาแทน
+ *
+ * ค่าที่ไม่ใช่รูปแบบวันที่ (เช่น ?to=xyz จาก URL ที่คนพิมพ์เอง) → `null` = ไม่กรอง
+ * ไม่ใช่ปล่อยให้ `toISOString()` โยน RangeError แล้วหน้าพัง 500
+ */
+function dayStartIso(day: string | null | undefined, addDays = 0): string | null {
+  if (!day || !/^\d{4}-\d{2}-\d{2}$/.test(day)) return null;
+  const d = new Date(`${day}T00:00:00+07:00`);
+  if (Number.isNaN(d.getTime())) return null;
+  d.setUTCDate(d.getUTCDate() + addDays);
   return d.toISOString();
 }

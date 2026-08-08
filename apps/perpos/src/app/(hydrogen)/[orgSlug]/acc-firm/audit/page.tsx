@@ -104,19 +104,30 @@ export default async function FirmAuditPage({
   const role = await getModuleRoleForCurrentUser(org.id, "acc_firm");
   if (!role) notFound();
 
-  const page = Math.max(1, Number(sp.page ?? 1));
-  const rls = await createSupabaseServerClient();
+  // ?page=abc → NaN แล้ว Math.max คืน NaN ต่อ ⇒ แถบแบ่งหน้าโชว์ "แสดง NaN–NaN"
+  const parsedPage = Math.floor(Number(sp.page));
+  const requestedPage = Number.isFinite(parsedPage) && parsedPage > 0 ? parsedPage : 1;
 
-  const [result, clientOrgs] = await Promise.all([
-    listFirmAudit(rls, {
-      clientOrgId: sp.client ?? null,
-      from: sp.from ?? null,
-      to: sp.to ?? null,
-      onlyBusiness: sp.scope === "business",
-      page,
-    }),
+  const rls = await createSupabaseServerClient();
+  const query = {
+    firmOrgId: org.id,
+    clientOrgId: sp.client ?? null,
+    from: sp.from ?? null,
+    to: sp.to ?? null,
+    onlyBusiness: sp.scope === "business",
+  };
+
+  const [first, clientOrgs] = await Promise.all([
+    listFirmAudit(rls, { ...query, page: requestedPage }),
     listFirmClientOrgsForCurrentUser(),
   ]);
+
+  // ขอหน้าที่เกินจำนวนผลลัพธ์ (เช่นกดจากลิงก์เก่า) → RPC คืน 0 แถว ⇒ total = 0 ⇒ แถบแบ่งหน้า
+  // ซ่อนตัวเอง = ตันอยู่หน้าว่างโดยไม่มีทางกลับ · ถอยมาหน้าแรกให้แทน
+  const result =
+    first.rows.length === 0 && requestedPage > 1
+      ? await listFirmAudit(rls, { ...query, page: 1 })
+      : first;
 
   const clients = clientOrgs
     .filter((c) => c.firmOrgId === org.id)
