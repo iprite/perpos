@@ -57,6 +57,17 @@ export type TmcDailyOccupancy = {
     rooms: number;
     value: number;
   };
+  /**
+   * อัตราเข้าพักล่วงหน้า 2 เดือนถัดไป (จากคืนที่จองเข้ามาแล้ว) — เรียงเดือนใกล้→ไกล
+   * นิยาม/ตัวหารเดียวกับ mtd: คืนที่ขายได้ / (ห้องเปิดขาย × จำนวนวันในเดือน)
+   */
+  forward: Array<{
+    /** เดือน (YYYY-MM) */
+    month: string;
+    rate: number | null;
+    soldNights: number;
+    availableNights: number;
+  }>;
 };
 
 /** ชนิดการเข้าพักที่ "ไม่เกิดรายได้ค่าห้อง" — ให้ห้องฟรี (อินฟลู/ผู้บริหาร/อื่น ๆ) */
@@ -105,6 +116,14 @@ export async function computeTmcDailyOccupancy(
   const daysInMonth = Math.round(
     (new Date(monthEndEx).getTime() - new Date(monthStart).getTime()) / DAY_MS,
   );
+  // ขอบเขตล่วงหน้า 2 เดือนถัดไป — วันแรกของเดือน +1/+2/+3 (ขอบขวาแบบไม่รวม)
+  const monthStartPlus = (n: number) =>
+    new Date(Date.UTC(Number(monthStart.slice(0, 4)), Number(monthStart.slice(5, 7)) - 1 + n, 1))
+      .toISOString()
+      .slice(0, 10);
+  const forwardStarts = [monthStartPlus(1), monthStartPlus(2)];
+  const forwardEndEx = monthStartPlus(3);
+  const forwardEnd = addDays(forwardEndEx, -1);
 
   const [propRes, stayRes, bookRes] = await Promise.all([
     db
@@ -119,7 +138,7 @@ export async function computeTmcDailyOccupancy(
       .from("tmc_stays")
       .select("stay_type, property_code, check_in, check_out, group_size, room_rate")
       .eq("org_id", orgId)
-      .lte("check_in", monthEnd)
+      .lte("check_in", forwardEnd)
       .or(`check_out.is.null,check_out.gt.${from}`),
     // ใบจองที่ "เข้ามา" ตั้งแต่ต้นเดือน — ช่วงเวลาไทย (created_at เป็น timestamptz)
     db
@@ -161,19 +180,37 @@ export async function computeTmcDailyOccupancy(
   // เก็บเป็นแผนที่ "ห้อง|คืน" → ฟรีหรือไม่ · ถ้ามี stay ซ้อนทับห้องเดียวกันคืนเดียวกัน
   // (จองคาบเกี่ยว/บันทึกซ้ำ) ต้องนับครั้งเดียว ไม่งั้นอัตราการเข้าพักทะลุ 100%
   // และคืนที่มีทั้งแบบมีรายได้กับให้ฟรี ให้ถือเป็น "มีรายได้" (ไม่ตีเป็นฟรี)
+  // แผนที่ครอบถึงสิ้นเดือน +2 — เดือนนี้กับ 2 เดือนล่วงหน้าจึงใช้นิยามเดียวกัน
   const nightMap = new Map<string, boolean>();
   for (const s of sellable) {
     const isFree = NON_REVENUE_STAY_TYPES.has(s.stay_type ?? "");
     const end = s.check_out ?? addDays(s.check_in, 1);
     const startMs = Math.max(new Date(s.check_in).getTime(), new Date(monthStart).getTime());
-    const endMs = Math.min(new Date(end).getTime(), new Date(monthEndEx).getTime());
+    const endMs = Math.min(new Date(end).getTime(), new Date(forwardEndEx).getTime());
     for (let t = startMs; t < endMs; t += DAY_MS) {
       const key = `${s.property_code}|${new Date(t).toISOString().slice(0, 10)}`;
       nightMap.set(key, (nightMap.get(key) ?? true) && isFree);
     }
   }
-  const soldNights = nightMap.size;
-  const freeNights = Array.from(nightMap.values()).filter(Boolean).length;
+  const nightDate = (key: string) => key.split("|")[1];
+  const monthNights = Array.from(nightMap.entries()).filter(([k]) => nightDate(k) < monthEndEx);
+  const soldNights = monthNights.length;
+  const freeNights = monthNights.filter(([, isFree]) => isFree).length;
+
+  const forward = forwardStarts.map((start, i) => {
+    const endEx = i === 0 ? forwardStarts[1] : forwardEndEx;
+    const days = Math.round((new Date(endEx).getTime() - new Date(start).getTime()) / DAY_MS);
+    const sold = Array.from(nightMap.keys()).filter(
+      (k) => nightDate(k) >= start && nightDate(k) < endEx,
+    ).length;
+    const avail = rooms * days;
+    return {
+      month: start.slice(0, 7),
+      soldNights: sold,
+      availableNights: avail,
+      rate: avail > 0 ? +((sold / avail) * 100).toFixed(1) : null,
+    };
+  });
 
   // คืนนี้ = ชุดย่อยของแผนที่เดียวกัน (วันที่ = date) — นิยาม "ฟรี" จึงตรงกันทั้งการ์ด
   const tonight = Array.from(nightMap.entries()).filter(([k]) => k.endsWith(`|${date}`));
@@ -212,5 +249,6 @@ export async function computeTmcDailyOccupancy(
       rooms: mtdBookings.rooms,
       value: mtdBookings.value,
     },
+    forward,
   };
 }
