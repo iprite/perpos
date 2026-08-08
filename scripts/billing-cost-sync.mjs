@@ -104,6 +104,10 @@ async function main() {
   console.log(`⏳ อ่านบิล ${ym} จาก ${tables.length} ตาราง: ${tables.join(", ")}`);
 
   // ต้นทุนสุทธิ = cost + เครดิต (เครดิตเป็นค่าลบอยู่แล้ว) — ต้องตรงกับยอดในหน้า Billing
+  // ⚠️ `cost` เป็น **สกุลเงินของ billing account** (ของเรา = THB) ไม่ใช่ USD — ต้องหารด้วย
+  // currency_conversion_rate (จำนวนหน่วยสกุลนั้นต่อ 1 USD) ที่ Google ส่งมากับแถวนั้นเอง
+  // จึงได้เรตเดียวกับที่ใช้ออกบิลเดือนนั้นจริง ไม่ต้องพึ่ง usd_thb_rate ที่เราตั้งเอง
+  // (บัญชีที่เป็น USD อยู่แล้วจะมี rate = 1) — คอลัมน์ปลายทางชื่อ cost_usd จึงเป็น USD จริง
   const union = tables
     .map(
       (t) => `SELECT
@@ -111,8 +115,8 @@ async function main() {
           project.id            AS project_id,
           service.description   AS service,
           sku.description       AS sku,
-          cost,
-          (SELECT IFNULL(SUM(c.amount), 0) FROM UNNEST(credits) c) AS credit,
+          (cost + (SELECT IFNULL(SUM(c.amount), 0) FROM UNNEST(credits) c))
+            / IFNULL(NULLIF(currency_conversion_rate, 0), 1) AS net_usd,
           usage_start_time
         FROM \`${BQ_PROJECT}.${BQ_DATASET}.${t}\``,
     )
@@ -121,7 +125,7 @@ async function main() {
   const rows = await bq(
     token,
     `SELECT billing_account_id, project_id, service, sku,
-            ROUND(SUM(cost + credit), 6) AS cost_usd
+            ROUND(SUM(net_usd), 6) AS cost_usd
        FROM (${union})
       WHERE FORMAT_DATE('%Y-%m', DATE(usage_start_time)) = '${ym}'
       GROUP BY 1, 2, 3, 4
