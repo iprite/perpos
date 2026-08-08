@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "../../../_lib/supabase";
 import { setAuditContext } from "../../../_lib/audit";
+import { logAccountingAudit } from "@/lib/accounting/audit";
 import { recordMetric } from "@/lib/metrics";
 import {
   requireAccountingMember,
@@ -154,6 +155,13 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
   }
 
   const updated = await getJournalEntry(admin, orgId, id);
+  logAccountingAudit(auth, req, {
+    action: "journal.update",
+    table: "acc_journal_entries",
+    recordId: id,
+    oldData: { status: (existing as { status: string }).status },
+    newData: updated,
+  });
   void recordMetric({ orgId, route: ROUTE, method: req.method, status: 200, t0 });
   return NextResponse.json(updated);
 }

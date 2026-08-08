@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "../../../_lib/supabase";
 import { setAuditContext } from "../../../_lib/audit";
+import { logAccountingAudit } from "@/lib/accounting/audit";
 import { recordMetric } from "@/lib/metrics";
 import { requireAccountingMember, canWriteBackstage, accError, orgIdFromQuery } from "../../_lib";
 import { getPurchaseDocument } from "@/lib/accounting/purchase-documents";
@@ -64,6 +65,12 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
       void recordMetric({ orgId, route: ROUTE, method: req.method, status: 400, t0 });
       return accError(r.error);
     }
+    logAccountingAudit(auth, req, {
+      action: "purchase_document.post",
+      table: "acc_purchase_documents",
+      recordId: id,
+      newData: { journal_entry_id: r.journalEntryId, created: r.created },
+    });
     void recordMetric({ orgId, route: ROUTE, method: req.method, status: 200, t0 });
     return NextResponse.json({ journal_entry_id: r.journalEntryId, created: r.created });
   }
@@ -98,6 +105,13 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
     void recordMetric({ orgId, route: ROUTE, method: req.method, status: 500, t0 });
     return accError(error.message, 500);
   }
+  logAccountingAudit(auth, req, {
+    action: "purchase_document.update",
+    table: "acc_purchase_documents",
+    recordId: id,
+    oldData: existing,
+    newData: data,
+  });
   void recordMetric({ orgId, route: ROUTE, method: req.method, status: 200, t0 });
   return NextResponse.json(data);
 }
@@ -138,6 +152,12 @@ export async function DELETE(req: NextRequest, ctx: Ctx) {
     void recordMetric({ orgId, route: ROUTE, method: req.method, status: 500, t0 });
     return accError(error.message, 500);
   }
+  logAccountingAudit(auth, req, {
+    action: "purchase_document.delete",
+    table: "acc_purchase_documents",
+    recordId: id,
+    dml: "DELETE",
+  });
   void recordMetric({ orgId, route: ROUTE, method: req.method, status: 200, t0 });
   return NextResponse.json({ ok: true });
 }

@@ -331,6 +331,7 @@ export const MODULE_MENUS: Record<string, MenuDef[]> = {
     { key: "clients", label: "ลูกค้า" },
     { key: "vault", label: "คลังเอกสารลูกค้า" },
     { key: "close-check", label: "ตรวจปิดงวด" },
+    { key: "audit", label: "ร่องรอยการแก้บัญชี" },
     { key: "petty-cash", label: "เงินสดย่อย" },
   ],
   just_me: [
@@ -403,3 +404,38 @@ export function canModuleWrite(moduleKey: string, moduleRole: string): boolean {
 
 export const ORG_ROLES = ["owner", "admin", "team_lead", "team_member"] as const;
 export type OrgRole = (typeof ORG_ROLES)[number];
+
+/**
+ * แปลง org role → module role ที่ **มีอยู่จริงในโมดูลนั้น**
+ *
+ * จำเป็นเพราะสองชั้นนี้ใช้ชุดคำคนละชุด: `organization_members.role` =
+ * owner/admin/team_lead/team_member ส่วน `module_members.module_role` = role ของโมดูล
+ * (accounting = owner/accountant/staff/viewer, hrm = owner/hr/viewer, …) — เขียน org role
+ * ลง module_members ตรง ๆ จะได้ค่าที่โมดูลไม่รู้จัก แล้ว guard จะ fallback เป็น viewer
+ * (เคสจริง: org admin ที่ถูก sync เป็น module_role='admin' แล้วเข้า accounting ได้แค่อ่าน)
+ *
+ * กติกา (roles[] เรียงจากสิทธิ์สูงสุดไปต่ำสุด):
+ *   - โมดูลที่นิยาม role ชื่อเดียวกับ org role อยู่แล้ว (เช่น tmc) → ใช้ตรง ๆ
+ *   - owner/admin → role สูงสุดของโมดูล · **ตั้งใจให้ org admin ได้เท่า owner ของโมดูล**
+ *     (org admin = ผู้ดูแลองค์กร มีอำนาจเต็มอยู่แล้วในระดับ org) — ผลคือผ่านด่านที่เช็ค
+ *     `owner` ล้วน ๆ ด้วย เช่น ตั้งค่าบัญชี/อนุมัติจ่ายเงินเดือน/ปลด legal_hold ของคลังเอกสาร
+ *   - team_lead → role ที่เขียนได้ตัวรองจากสูงสุด (ถ้ามี)
+ *   - team_member → role อ่านอย่างเดียวตัวท้าย · โมดูลที่ **ไม่มี** role อ่านอย่างเดียวเลย
+ *     (เช่น stt = owner/member) จะได้ role ต่ำสุดที่มี ซึ่งเขียนได้ — ยอมรับได้เพราะการที่
+ *     org role นั้นอยู่ใน `allowed_roles` แปลว่าผู้ดูแลตั้งใจให้เข้าถึงโมดูลอยู่แล้ว
+ *
+ * ผู้เรียกที่ต้องการสิทธิ์ต่างจากนี้ให้ตั้ง `module_members.module_role` เอง — ตัวที่เรียก
+ * ฟังก์ชันนี้ (backfill) ไม่ทับค่าที่มีอยู่แล้ว
+ */
+export function mapOrgRoleToModuleRole(moduleKey: string, orgRole: string): string | null {
+  const roles = getModuleRoles(moduleKey);
+  if (!roles.length) return null;
+  if (roles.some((r) => r.key === orgRole)) return orgRole;
+
+  const writers = roles.filter((r) => r.canWrite);
+  const readers = roles.filter((r) => !r.canWrite);
+
+  if (orgRole === "owner" || orgRole === "admin") return roles[0].key;
+  if (orgRole === "team_lead") return (writers[1] ?? writers[0] ?? roles[0]).key;
+  return (readers[readers.length - 1] ?? roles[roles.length - 1]).key;
+}

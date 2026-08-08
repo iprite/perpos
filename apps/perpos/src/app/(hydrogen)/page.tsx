@@ -6,6 +6,7 @@ import {
   getEnabledModulesForOrg,
   getActiveModuleKey,
   getPersonalModulesForUser,
+  ownMemberships,
 } from "@/lib/accounting/queries";
 import { ALL_MODULES } from "@/lib/modules";
 
@@ -37,8 +38,10 @@ export default async function DashboardPage() {
   if (hasAssistant) redirect("/assistant");
 
   // หา org module (ERP, non-personal) ของ active org
-  if (orgs.length > 0) {
-    const activeOrg = orgs.find((o) => o.id === activeOrgId) ?? orgs[0];
+  // เฉพาะ org ของตัวเอง — ไม่เด้งผู้ใช้เข้า org ลูกค้าที่เข้าถึงได้ในนามสำนักงานบัญชี
+  const ownOrgs = ownMemberships(orgs);
+  if (ownOrgs.length > 0) {
+    const activeOrg = ownOrgs.find((o) => o.id === activeOrgId) ?? ownOrgs[0];
     const orgSlug = activeOrg.slug ?? activeOrg.id;
     const enabledKeys = await getEnabledModulesForOrg(activeOrg.id, activeOrg.role ?? null);
     const savedModuleKey = await getActiveModuleKey(orgSlug, enabledKeys);

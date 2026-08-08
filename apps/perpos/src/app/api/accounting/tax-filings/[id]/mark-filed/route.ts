@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "../../../../_lib/supabase";
 import { setAuditContext } from "../../../../_lib/audit";
+import { logAccountingAudit } from "@/lib/accounting/audit";
 import { recordMetric } from "@/lib/metrics";
 import { requireAccountingMember, canWriteBackstage, accError } from "../../../_lib";
 import {
@@ -65,5 +66,11 @@ export async function POST(req: NextRequest, ctx: Ctx) {
   });
 
   void recordMetric({ orgId, route: ROUTE, method: req.method, status: 200, t0 });
+  logAccountingAudit(auth, req, {
+    action: "tax_filing.mark_filed",
+    table: "acc_tax_filings",
+    recordId: id,
+    newData: data,
+  });
   return NextResponse.json(data);
 }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "../../../_lib/supabase";
 import { setAuditContext } from "../../../_lib/audit";
+import { logAccountingAudit } from "@/lib/accounting/audit";
 import { recordMetric } from "@/lib/metrics";
 import {
   requireAccountingMember,
@@ -202,6 +203,13 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
     if (!("skipped" in jr) && !jr.ok) journalWarning = jr.error;
   }
 
+  logAccountingAudit(auth, req, {
+    action: "document.update",
+    table: "acc_documents",
+    recordId: id,
+    oldData: ex,
+    newData: updated,
+  });
   void recordMetric({ orgId, route: ROUTE, method: req.method, status: 200, t0 });
   return NextResponse.json({ ...updated, journal_warning: journalWarning });
 }
@@ -260,6 +268,12 @@ export async function DELETE(req: NextRequest, ctx: Ctx) {
       void recordMetric({ orgId, route: ROUTE, method: req.method, status: 500, t0 });
       return accError(error.message, 500);
     }
+    logAccountingAudit(auth, req, {
+      action: "document.delete",
+      table: "acc_documents",
+      recordId: id,
+      oldData: d,
+    });
     void recordMetric({ orgId, route: ROUTE, method: req.method, status: 200, t0 });
     return NextResponse.json({ ok: true, mode: "hard_delete" });
   }
@@ -277,6 +291,13 @@ export async function DELETE(req: NextRequest, ctx: Ctx) {
     void recordMetric({ orgId, route: ROUTE, method: req.method, status: 500, t0 });
     return accError(error.message, 500);
   }
+  logAccountingAudit(auth, req, {
+    action: "document.soft_delete",
+    table: "acc_documents",
+    recordId: id,
+    oldData: d,
+    newData: { deleted_by: auth.userId },
+  });
   void recordMetric({ orgId, route: ROUTE, method: req.method, status: 200, t0 });
   return NextResponse.json({ ok: true, mode: "soft_delete" });
 }

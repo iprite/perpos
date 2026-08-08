@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { randomBytes } from "node:crypto";
 import { createAdminClient } from "../../../../_lib/supabase";
 import { setAuditContext } from "../../../../_lib/audit";
+import { logAccountingAudit } from "@/lib/accounting/audit";
 import { recordMetric } from "@/lib/metrics";
 import {
   requireAccountingMember,
@@ -75,18 +76,30 @@ export async function POST(req: NextRequest, ctx: Ctx) {
     .is("revoked_at", null);
 
   const token = randomBytes(24).toString("base64url"); // 192-bit เดาไม่ได้
-  const { error } = await admin.from("acc_document_shares").insert({
-    org_id: orgId,
-    document_id: id,
-    token,
-    created_by: auth.userId,
-  });
+  const { data: shareRow, error } = await admin
+    .from("acc_document_shares")
+    .insert({
+      org_id: orgId,
+      document_id: id,
+      token,
+      created_by: auth.userId,
+    })
+    .select("id")
+    .single();
   if (error) {
     void recordMetric({ orgId, route: ROUTE, method: req.method, status: 500, t0 });
     return accError(error.message, 500);
   }
 
+  const shareId = (shareRow as { id: string } | null)?.id ?? null;
   void recordMetric({ orgId, route: ROUTE, method: req.method, status: 201, t0 });
+  logAccountingAudit(auth, req, {
+    action: "document.share_create",
+    table: "acc_document_shares",
+    recordId: shareId,
+    // ห้ามบันทึก token ลงสมุดร่องรอย — ใครอ่าน log ได้จะเปิดเอกสารได้ทันที
+    newData: { document_id: id },
+  });
   return NextResponse.json({ token, url: shareUrlFromToken(token) }, { status: 201 });
 }
 
@@ -114,5 +127,13 @@ export async function DELETE(req: NextRequest, ctx: Ctx) {
     return accError(error.message, 500);
   }
   void recordMetric({ orgId, route: ROUTE, method: req.method, status: 200, t0 });
+  logAccountingAudit(auth, req, {
+    action: "document.share_revoke",
+    table: "acc_document_shares",
+    recordId: null,
+    dml: "UPDATE",
+    oldData: { document_id: id, revoked: false },
+    newData: { document_id: id, revoked: true },
+  });
   return NextResponse.json({ ok: true });
 }

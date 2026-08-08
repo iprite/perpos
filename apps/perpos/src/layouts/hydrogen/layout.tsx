@@ -19,6 +19,7 @@ import {
   getModuleMenuLabels,
   getPersonalModulesForUser,
   getCurrentUserId,
+  ownMemberships,
 } from "@/lib/accounting/queries";
 
 // Path segments that are NOT org slugs
@@ -32,7 +33,10 @@ export default async function HydrogenLayout({ children }: { children: React.Rea
   // Determine the active org:
   // - If path is /:orgSlug/... → use slug lookup
   // - For /admin, /user, etc.  → fall back to cookie-based active org
+  // orgs = ทั้งของตัวเอง + org ลูกค้าที่เข้าถึงได้ในนามสำนักงานบัญชี (ต้องมีเพื่อ resolve
+  // activeOrg ของ URL ลูกค้า) · switcher ใน sidebar ใช้เฉพาะของตัวเอง = ownSidebarOrgs
   const orgs = await getOrganizationsForCurrentUser();
+  const ownSidebarOrgs = ownMemberships(orgs);
   const firstSegment = segments[0] ?? "";
   const isOrgRoute = firstSegment.length > 0 && !SYSTEM_SEGMENTS.has(firstSegment);
   const orgSlugFromUrl = isOrgRoute ? firstSegment : null;
@@ -55,6 +59,12 @@ export default async function HydrogenLayout({ children }: { children: React.Rea
 
   // getCurrentUserId = getAuthUser ที่ cache() ไว้แล้ว (resolve ไปตั้งแต่ getOrganizations…) →
   // ไม่มี round-trip เพิ่ม · org modules / personal modules / module role ยิงขนานกันทั้งหมด
+  // org ที่ switcher ควรชี้: ถ้าอยู่ในหน้าลูกค้าที่เข้าผ่านสำนักงาน org นั้นไม่อยู่ในลิสต์
+  // switcher (viaFirm) → ชี้ไปที่ "สำนักงาน" แทน ไม่งั้น switcher จะขึ้น placeholder ว่าง ๆ
+  const sidebarActiveOrgId = activeOrg?.viaFirm
+    ? activeOrg.viaFirm.firmOrgId
+    : (activeOrg?.id ?? null);
+
   const currentUserId = await getCurrentUserId();
   // module ที่ sidebar ต้องรู้ role ระดับ module (module_members) เพื่อซ่อนเมนู
   const MODULE_ROLE_SEGMENTS: Record<string, string> = {
@@ -65,7 +75,11 @@ export default async function HydrogenLayout({ children }: { children: React.Rea
   const moduleRoleKey =
     isOrgRoute && activeOrg?.id ? (MODULE_ROLE_SEGMENTS[segments[1]] ?? null) : null;
   const [orgModuleKeys, personalKeys, moduleRole] = await Promise.all([
-    getEnabledModulesForOrg(activeOrg?.id ?? null, activeOrg?.role ?? null),
+    getEnabledModulesForOrg(
+      activeOrg?.id ?? null,
+      activeOrg?.role ?? null,
+      Boolean(activeOrg?.viaFirm),
+    ),
     getPersonalModulesForUser(currentUserId),
     moduleRoleKey && activeOrg?.id
       ? getModuleRoleForCurrentUser(activeOrg.id, moduleRoleKey)
@@ -117,8 +131,8 @@ export default async function HydrogenLayout({ children }: { children: React.Rea
       <main className="flex min-h-screen flex-grow">
         <Sidebar
           className="fixed hidden dark:bg-gray-50 xl:flex"
-          organizations={orgs}
-          activeOrganizationId={activeOrg?.id ?? null}
+          organizations={ownSidebarOrgs}
+          activeOrganizationId={sidebarActiveOrgId}
           suiteHref={suiteHref}
         />
         <div className="flex w-full flex-col pt-[var(--impersonation-banner-height,0px)] xl:ms-[270px] xl:w-[calc(100%-270px)] 2xl:ms-72 2xl:w-[calc(100%-288px)]">
@@ -131,8 +145,8 @@ export default async function HydrogenLayout({ children }: { children: React.Rea
               view={
                 <Sidebar
                   className="static h-full w-full 2xl:w-full"
-                  organizations={orgs}
-                  activeOrganizationId={activeOrg?.id ?? null}
+                  organizations={ownSidebarOrgs}
+                  activeOrganizationId={sidebarActiveOrgId}
                   suiteHref={suiteHref}
                 />
               }
@@ -143,8 +157,8 @@ export default async function HydrogenLayout({ children }: { children: React.Rea
                 PERPOS
               </span>
               <ContextToggle
-                organizations={orgs}
-                activeOrganizationId={activeOrg?.id ?? null}
+                organizations={ownSidebarOrgs}
+                activeOrganizationId={sidebarActiveOrgId}
                 suiteHref={suiteHref}
               />
               {/* ปุ่ม avatar — เปิด profile menu ลงด้านล่าง */}

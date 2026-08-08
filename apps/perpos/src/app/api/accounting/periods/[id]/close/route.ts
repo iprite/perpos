@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "../../../../_lib/supabase";
 import { setAuditContext } from "../../../../_lib/audit";
+import { logAccountingAudit } from "@/lib/accounting/audit";
 import { recordMetric } from "@/lib/metrics";
 import { requireAccountingMember, canClosePeriod, accError } from "../../../_lib";
 
@@ -42,5 +43,11 @@ export async function POST(req: NextRequest, ctx: Ctx) {
     return accError(error.message, 500);
   }
   void recordMetric({ orgId, route: ROUTE, method: req.method, status: 200, t0 });
+  logAccountingAudit(auth, req, {
+    action: "period.close",
+    table: "acc_periods",
+    recordId: id,
+    newData: { status: "closed" },
+  });
   return NextResponse.json(data);
 }
