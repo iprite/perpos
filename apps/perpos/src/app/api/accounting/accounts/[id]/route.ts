@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "../../../_lib/supabase";
 import { setAuditContext } from "../../../_lib/audit";
+import { logAccountingAudit } from "@/lib/accounting/audit";
 import { recordMetric } from "@/lib/metrics";
 import { requireAccountingMember, canWriteBackstage, accError } from "../../_lib";
 
@@ -69,6 +70,12 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
     return accError(error.message, 500);
   }
   void recordMetric({ orgId, route: ROUTE, method: req.method, status: 200, t0 });
+  logAccountingAudit(auth, req, {
+    action: "account.update",
+    table: "acc_accounts",
+    recordId: id,
+    newData: data,
+  });
   return NextResponse.json(data);
 }
 
@@ -106,5 +113,11 @@ export async function DELETE(req: NextRequest, ctx: Ctx) {
     return accError(error.message, 500);
   }
   void recordMetric({ orgId, route: ROUTE, method: req.method, status: 200, t0 });
+  logAccountingAudit(auth, req, {
+    action: "account.delete",
+    table: "acc_accounts",
+    recordId: id,
+    dml: "DELETE",
+  });
   return NextResponse.json({ ok: true });
 }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "../../_lib/supabase";
 import { setAuditContext } from "../../_lib/audit";
+import { logAccountingAudit } from "@/lib/accounting/audit";
 import { recordMetric } from "@/lib/metrics";
 import { requireAccountingMember, canEditSettings, accError, orgIdFromQuery, num } from "../_lib";
 import { getOrgSettings } from "@/lib/accounting/settings";
@@ -69,5 +70,11 @@ export async function PUT(req: NextRequest) {
     return accError(error.message, 500);
   }
   void recordMetric({ orgId, route: ROUTE, method: req.method, status: 200, t0 });
+  logAccountingAudit(auth, req, {
+    action: "settings.update",
+    table: "acc_org_settings",
+    recordId: (data as { id?: string } | null)?.id ?? null,
+    newData: data,
+  });
   return NextResponse.json(data);
 }

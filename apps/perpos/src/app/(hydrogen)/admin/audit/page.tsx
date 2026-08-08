@@ -50,10 +50,14 @@ type AuditEntry = {
   id: string;
   sequence_no: number;
   action: "INSERT" | "UPDATE" | "DELETE";
+  /** ชื่อการกระทำเชิงธุรกิจ (journal.post ฯลฯ) — null = แถวจาก DML trigger */
+  business_action: string | null;
   table_name: string;
   record_id: string | null;
   org_id: string | null;
   actor_id: string | null;
+  /** ไม่ null = ทำ "ในนาม" องค์กรนี้ (สำนักงานบัญชี) */
+  on_behalf_of_org_id: string | null;
   diff_keys: string[] | null;
   payload_hash: string;
   chain_hash: string;
@@ -164,10 +168,12 @@ function exportCsv(entries: AuditEntry[], filename = "audit_logs.csv") {
     "sequence_no",
     "logged_at",
     "action",
+    "business_action",
     "table_name",
     "record_id",
     "actor",
     "org_id",
+    "on_behalf_of_org_id",
     "diff_keys",
     "payload_hash",
     "chain_hash",
@@ -178,10 +184,12 @@ function exportCsv(entries: AuditEntry[], filename = "audit_logs.csv") {
     e.sequence_no,
     e.logged_at,
     e.action,
+    e.business_action ?? "",
     e.table_name,
     e.record_id ?? "",
     actorLabel(e),
     e.org_id ?? "",
+    e.on_behalf_of_org_id ?? "",
     (e.diff_keys ?? []).join(";"),
     e.payload_hash,
     e.chain_hash,
@@ -530,6 +538,7 @@ export default function AuditLogPage() {
             <TableHead align="right">#</TableHead>
             <TableHead>วันเวลา (BKK)</TableHead>
             <TableHead>Action</TableHead>
+            <TableHead>การกระทำ</TableHead>
             <TableHead>ตาราง</TableHead>
             <TableHead>ผู้ทำ</TableHead>
             <TableHead>ฟิลด์ที่เปลี่ยน</TableHead>
@@ -537,9 +546,9 @@ export default function AuditLogPage() {
         </TableHeader>
         <TableBody>
           {loading ? (
-            <TableLoading colSpan={6} />
+            <TableLoading colSpan={7} />
           ) : entries.length === 0 ? (
-            <TableEmpty colSpan={6}>ไม่พบรายการ</TableEmpty>
+            <TableEmpty colSpan={7}>ไม่พบรายการ</TableEmpty>
           ) : (
             entries.map((e) => (
               <TableRow key={e.id} clickable onClick={() => openDetail(e.id)}>
@@ -549,6 +558,15 @@ export default function AuditLogPage() {
                 <TableCell className="text-xs text-gray-600">{fmtTs(e.logged_at)}</TableCell>
                 <TableCell>
                   <StatusBadge tone={actionTone(e.action)}>{e.action}</StatusBadge>
+                </TableCell>
+                <TableCell className="text-xs">
+                  {e.business_action ? (
+                    <span className="whitespace-nowrap rounded bg-gray-100 px-1.5 py-0.5 font-mono text-gray-700">
+                      {e.business_action}
+                    </span>
+                  ) : (
+                    <span className="text-gray-400">—</span>
+                  )}
                 </TableCell>
                 <TableCell className="font-mono text-xs text-gray-700">{e.table_name}</TableCell>
                 <TableCell className="text-xs text-gray-700">{actorLabel(e)}</TableCell>
@@ -680,6 +698,12 @@ export default function AuditLogPage() {
                     [
                       ["Sequence #", String(detail.sequence_no), false],
                       ["Action", detail.action, false],
+                      ["การกระทำ", detail.business_action ?? "—", false],
+                      [
+                        "ทำในนาม (สำนักงาน)",
+                        detail.on_behalf_of_org_id ?? "—",
+                        !!detail.on_behalf_of_org_id,
+                      ],
                       ["ตาราง", detail.table_name, false],
                       ["Record ID", detail.record_id ?? "—", !!detail.record_id],
                       ["Actor", actorLabel(detail), false],

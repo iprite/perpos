@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "../../../../_lib/supabase";
 import { setAuditContext } from "../../../../_lib/audit";
+import { logAccountingAudit } from "@/lib/accounting/audit";
 import { recordMetric } from "@/lib/metrics";
 import {
   requireAccountingMember,
@@ -168,5 +169,11 @@ export async function POST(req: NextRequest, ctx: Ctx) {
   }
 
   void recordMetric({ orgId, route: ROUTE, method: req.method, status: 200, t0 });
+  logAccountingAudit(auth, req, {
+    action: "asset.depreciate",
+    table: "acc_assets",
+    recordId: id,
+    newData: { journal_id: journalId, depreciation: deprThisPeriod },
+  });
   return NextResponse.json({ ok: true, journal_id: journalId, depreciation: deprThisPeriod });
 }
