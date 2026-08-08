@@ -279,6 +279,11 @@ pnpm build
     2. `billing_export` — `pnpm billing:sync [YYYY-MM]` อ่าน **บิลจริงหักเครดิตแล้ว** จาก BigQuery
        (`perpos.billing_export.gcp_billing_export_v1_*`) ครบทุกบริการ (Gemini/Storage/Network) แยก SKU
        · เขียนแบบ **ลบทั้งเดือนแล้วใส่ใหม่** เพราะ Google ปรับยอดย้อนหลังได้
+       · **แอปตัดสินจาก label `app` บนตัว service ก่อน** (`labels` ใน export) แล้วค่อยตกไปที่ mapping ตาม
+       project — เพราะ GCP project `perpos` มี `exapp-clip-renderer` อยู่ด้วย ถ้าดูตาม project อย่างเดียว
+       ค่า instance-based CPU ของ exapp (~฿51/เดือน) จะถูกนับเป็นของ perpos · **service ใหม่ทุกตัวต้องติด
+       `--update-labels app=perpos|exapp` ตอน deploy** (ติดครบ 8 ตัวแล้ว 2026-08-08) · ⚠️ label **มีผลกับ
+       usage หลังวันที่ติดเท่านั้น ไม่ย้อนหลัง** — แถวเก่ายังตกไปใช้ mapping ตาม project เหมือนเดิม
        · ⚠️ **คอลัมน์ `cost` ใน export เป็นสกุลเงินของ billing account (ของเรา = THB) ไม่ใช่ USD** —
        ต้องหารด้วย `currency_conversion_rate` ที่มาในแถวนั้นเสมอ (= เรตที่ Google ใช้ออกบิลเดือนนั้นจริง
        · บัญชีสกุล USD จะได้ rate = 1) ไม่งั้นหน้าเว็บที่คูณ `usd_thb_rate` ซ้ำจะโชว์สูงเกินจริง ~33 เท่า
