@@ -62,6 +62,15 @@ function thaiShortDate(iso: string): string {
   });
 }
 
+/** เดือนไทยสั้น (พ.ศ. 2 หลัก) จาก "YYYY-MM" เช่น "ก.ย. 69" */
+function thaiShortMonth(month: string): string {
+  return new Date(`${month}-01T00:00:00+07:00`).toLocaleDateString("th-TH", {
+    month: "short",
+    year: "2-digit",
+    timeZone: "Asia/Bangkok",
+  });
+}
+
 /**
  * แถว KPI ซ้าย-ขวา · สัดส่วน 5:4
  * ⚠️ label ต้องสั้น (~15 ตัวอักษรไทย) — Flex ตัดท้ายเป็น "…" ไม่ขึ้นบรรทัดใหม่ให้
@@ -216,6 +225,15 @@ export function buildTmcDailyOccupancyFlex(d: TmcDailyOccupancy): LineMessage {
           ),
           kpiRow("รายได้เข้าพัก", fmtBaht0(d.mtd.stayRevenue), { color: SUCCESS, bold: true }),
           kpiRow("มูลค่าจองเดือนนี้", fmtBaht0(d.mtd.value), { bold: true }),
+          // จองล่วงหน้า 2 เดือนถัดไป — นิยาม occupancy เดียวกับเดือนนี้
+          { type: "separator", margin: "md", color: SEPARATOR },
+          ...d.forward.map((f) =>
+            kpiRow(
+              `เข้าพัก ${thaiShortMonth(f.month)}`,
+              `${fmtPct(f.rate)} · ${f.soldNights} คืน`,
+              { bold: true, color: f.soldNights > 0 ? INK : INK_MUTED },
+            ),
+          ),
           {
             type: "text",
             text: "🔒 รายงานอัตโนมัติจากระบบ TMC · ส่งเฉพาะทีมผู้บริหารที่กำหนดไว้",
