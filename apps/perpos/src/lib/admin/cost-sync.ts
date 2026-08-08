@@ -152,6 +152,7 @@ export async function syncBillingExport(
           project.id            AS project_id,
           service.description   AS service,
           sku.description       AS sku,
+          (SELECT l.value FROM UNNEST(labels) l WHERE l.key = 'app' LIMIT 1) AS app_label,
           (cost + (SELECT IFNULL(SUM(c.amount), 0) FROM UNNEST(credits) c))
             / IFNULL(NULLIF(currency_conversion_rate, 0), 1) AS net_usd,
           usage_start_time
@@ -161,11 +162,11 @@ export async function syncBillingExport(
 
   const rows = await bq(
     t,
-    `SELECT billing_account_id, project_id, service, sku,
+    `SELECT billing_account_id, project_id, service, sku, app_label,
             ROUND(SUM(net_usd), 6) AS cost_usd
        FROM (${union})
       WHERE FORMAT_DATE('%Y-%m', DATE(usage_start_time)) = '${ym}'
-      GROUP BY 1, 2, 3, 4
+      GROUP BY 1, 2, 3, 4, 5
      HAVING ABS(cost_usd) > 0.000001
       ORDER BY cost_usd DESC`,
   );
@@ -176,7 +177,10 @@ export async function syncBillingExport(
   const payload = rows.map((r) => ({
     month: `${ym}-01`,
     project: r.project_id ?? "(ไม่ระบุ project)",
-    app: PROJECT_APPS[r.project_id ?? ""] ?? "unknown",
+    // label `app` ที่ติดไว้บน Cloud Run service ชนะ mapping ตาม project เสมอ — จำเป็นเพราะ
+    // GCP project `perpos` มี exapp-clip-renderer อยู่ด้วย (ดูตาม project อย่างเดียวจะนับเป็นของ perpos)
+    // · แถวที่ไม่มี label (บริการที่ติดไม่ได้ / ข้อมูลก่อนวันติด label) ตกกลับไปใช้ mapping เดิม
+    app: (r.app_label as string) || PROJECT_APPS[r.project_id ?? ""] || "unknown",
     service: r.service,
     sku: r.sku ?? "",
     billing_account: r.billing_account_id ?? "",
