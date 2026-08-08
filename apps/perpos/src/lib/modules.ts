@@ -403,3 +403,29 @@ export function canModuleWrite(moduleKey: string, moduleRole: string): boolean {
 
 export const ORG_ROLES = ["owner", "admin", "team_lead", "team_member"] as const;
 export type OrgRole = (typeof ORG_ROLES)[number];
+
+/**
+ * แปลง org role → module role ที่ **มีอยู่จริงในโมดูลนั้น**
+ *
+ * จำเป็นเพราะสองชั้นนี้ใช้ชุดคำคนละชุด: `organization_members.role` =
+ * owner/admin/team_lead/team_member ส่วน `module_members.module_role` = role ของโมดูล
+ * (accounting = owner/accountant/staff/viewer, hrm = owner/hr/viewer, …) — เขียน org role
+ * ลง module_members ตรง ๆ จะได้ค่าที่โมดูลไม่รู้จัก แล้ว guard จะ fallback เป็น viewer
+ * (เคสจริง: org admin ที่ถูก sync เป็น module_role='admin' แล้วเข้า accounting ได้แค่อ่าน)
+ *
+ * กติกา: โมดูลที่นิยาม role ชื่อเดียวกับ org role อยู่แล้ว (เช่น tmc) ใช้ตรง ๆ ·
+ * owner/admin → role สูงสุดของโมดูล (roles[0]) · team_lead → role ที่เขียนได้แต่ไม่ใช่สูงสุด ·
+ * team_member → role อ่านอย่างเดียวตัวท้าย
+ */
+export function mapOrgRoleToModuleRole(moduleKey: string, orgRole: string): string | null {
+  const roles = getModuleRoles(moduleKey);
+  if (!roles.length) return null;
+  if (roles.some((r) => r.key === orgRole)) return orgRole;
+
+  const writers = roles.filter((r) => r.canWrite);
+  const readers = roles.filter((r) => !r.canWrite);
+
+  if (orgRole === "owner" || orgRole === "admin") return roles[0].key;
+  if (orgRole === "team_lead") return (writers[1] ?? writers[0] ?? roles[0]).key;
+  return (readers[readers.length - 1] ?? roles[roles.length - 1]).key;
+}

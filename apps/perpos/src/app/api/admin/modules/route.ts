@@ -3,6 +3,7 @@ import { requireAdmin } from "../../_lib/auth";
 import { createAdminClient } from "../../_lib/supabase";
 import { ALL_MODULES, MODULE_MENUS, ORG_ROLES } from "@/lib/modules";
 import { seedModule, seedAccountingPeriods } from "../_lib/module-seed";
+import { backfillModuleMembersForOrg } from "../../_lib/module-membership";
 
 /** Returns true if this module is allowed to be enabled for the given org slug */
 function isModuleAllowedForOrg(moduleKey: string, orgSlug: string): boolean {
@@ -81,8 +82,7 @@ export async function GET(req: NextRequest) {
 
   // Get slug of selected org (needed to match forOrgSlugs on specific modules)
   const selectedOrg = (orgs ?? []).find((o: Record<string, unknown>) => o.id === orgId) as
-    | { id: string; name: string; slug: string }
-    | undefined;
+    { id: string; name: string; slug: string } | undefined;
   const orgSlug = selectedOrg?.slug ?? "";
 
   // Module-level settings
@@ -249,6 +249,15 @@ export async function PUT(req: NextRequest) {
         console.error("[modules/PUT] repair accounting periods failed", String(e));
       }
     }
+  }
+
+  // เมนู sidebar ตัดสินจาก org role + allowed_roles แต่ด่านเข้าหน้า/API ตัดสินจาก module_members
+  // → ทุกครั้งที่การตั้งค่าโมดูลเปลี่ยน ต้องเติมแถวให้สมาชิกที่มีอยู่ก่อน ไม่งั้นคนที่เข้า org
+  // ก่อนโมดูลถูกเปิด จะเห็นเมนูแต่กดเข้าเจอ 404 ตลอด (best-effort — ไม่ block การบันทึก)
+  try {
+    await backfillModuleMembersForOrg(admin, orgId);
+  } catch (e) {
+    console.error("[modules/PUT] backfill module_members failed", String(e));
   }
 
   // Upsert menu-level settings (if provided)
