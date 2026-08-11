@@ -151,7 +151,6 @@ async function runJob(jobId: string, orgId: string): Promise<void> {
       console.log(
         `[pdf-worker] job ${jobId} done (${result.pages}p, ${result.sizeBefore}→${result.sizeAfter}, ${Math.round(result.ratio * 100)}%).`,
       );
-      await deliverToLine(jobId, orgId);
     } catch (postErr) {
       // ล้มหลังจองโควต้า → คืนโควต้า (idempotent) แล้วโยนต่อให้ outer catch จัดการ
       if (reserved)
@@ -160,6 +159,23 @@ async function runJob(jobId: string, orgId: string): Promise<void> {
           () => undefined,
         );
       throw postErr;
+    }
+
+    // ส่งกลับ LINE — **อยู่นอก try ของงานบีบโดยตั้งใจ**: งานบีบเสร็จ+ปิด job แล้ว
+    //   ส่งไม่สำเร็จห้ามย้อนสถานะเป็น failed (เคยพลาด: ผู้ใช้เห็น "บีบไม่สำเร็จ" ทั้งที่ไฟล์บีบได้ 95%
+    //   และหักโควต้าไปแล้ว) · retry 1 ครั้งพอ แล้วปล่อยให้ job คา completed ให้ดูย้อนหลังได้
+    try {
+      await deliverToLine(jobId, orgId);
+    } catch (deliverErr) {
+      const msg = deliverErr instanceof Error ? deliverErr.message : String(deliverErr);
+      console.warn(`[pdf-worker] job ${jobId} deliver failed (${msg}) — retrying once`);
+      await new Promise((r) => setTimeout(r, 3_000));
+      await deliverToLine(jobId, orgId).catch((e) =>
+        console.error(
+          `[pdf-worker] job ${jobId} deliver retry failed:`,
+          e instanceof Error ? e.message : String(e),
+        ),
+      );
     }
   } catch (err) {
     const raw = err instanceof Error ? err.message : String(err);
