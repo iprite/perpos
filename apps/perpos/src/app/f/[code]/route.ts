@@ -6,7 +6,7 @@
  *   ⚠️ ปุ่มใน LINE Flex มีเพดาน uri 1,000 ตัวอักษร — ห้ามยัด signed URL (+ ?download=ชื่อไฟล์ไทย)
  *      ลงปุ่มตรง ๆ ต้องผ่านลิงก์สั้นนี้เสมอ
  */
-import { NextResponse, type NextRequest } from "next/server";
+import { type NextRequest } from "next/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 const AUDIO_BUCKET = "assistant_audio";
@@ -84,5 +84,8 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ cod
 
   const { data: signed } = await admin.storage.from(bucket).createSignedUrl(path, 60, { download });
   if (!signed?.signedUrl) return EXPIRED();
-  return NextResponse.redirect(signed.signedUrl);
+  // ⚠️ ห้ามใช้ NextResponse.redirect() — มัน normalize URL แล้ว encode ซ้ำ ทำให้ `?download=`
+  //    ที่ supabase-js encode มาแล้วกลายเป็น %25E0%25B8… → ชื่อไฟล์ไทยตอนดาวน์โหลดเป็นขยะ
+  //    ส่ง Location ดิบแทน
+  return new Response(null, { status: 302, headers: { Location: signed.signedUrl } });
 }
