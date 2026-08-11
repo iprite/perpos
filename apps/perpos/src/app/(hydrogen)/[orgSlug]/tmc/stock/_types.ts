@@ -92,6 +92,28 @@ export type LaundryBatchLine = {
   unit_price: number | null;
 };
 
+/** 1 ครั้งที่ร้านส่งผ้าคืน — 1 รอบซักมีได้หลายครั้ง */
+export type LaundryReceiptLine = {
+  id: string;
+  receipt_id: string;
+  batch_line_id: string;
+  item_id: string;
+  qty_returned: number;
+  qty_damaged: number;
+};
+
+export type LaundryReceipt = {
+  id: string;
+  batch_id: string;
+  seq: number;
+  received_at: string;
+  qty_returned: number;
+  qty_damaged: number;
+  cost: number | null;
+  note: string | null;
+  tmc_laundry_receipt_lines?: LaundryReceiptLine[];
+};
+
 export type LaundryBatch = {
   id: string;
   vendor_location_id: string;
@@ -101,7 +123,7 @@ export type LaundryBatch = {
   return_location_id: string | null;
   sent_at: string;
   returned_at: string | null;
-  status: "sent" | "closed";
+  status: "sent" | "partial" | "closed";
   total_sent: number;
   total_returned: number;
   total_damaged: number;
@@ -109,6 +131,7 @@ export type LaundryBatch = {
   laundry_cost: number | null;
   note: string | null;
   tmc_laundry_batch_lines?: LaundryBatchLine[];
+  tmc_laundry_receipts?: LaundryReceipt[];
 };
 
 export type LaundryPrice = { item_id: string; price_per_piece: number };
