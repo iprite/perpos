@@ -82,10 +82,11 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ cod
     download = `recording-${l.job_id}.mp3`;
   }
 
-  const { data: signed } = await admin.storage.from(bucket).createSignedUrl(path, 60, { download });
+  // ⚠️ ห้ามส่ง `download` ให้ supabase-js — มัน encode ค่าที่ encode มาแล้วซ้ำอีกชั้น
+  //    (`%E0%B8…` → `%25E0%25B8…`) ทำให้ชื่อไฟล์ไทยตอนดาวน์โหลดเป็นขยะ · ต่อ query เอง
+  //    และส่ง Location ดิบ (NextResponse.redirect() normalize URL แล้ว encode ซ้ำอีกชั้นเช่นกัน)
+  const { data: signed } = await admin.storage.from(bucket).createSignedUrl(path, 60);
   if (!signed?.signedUrl) return EXPIRED();
-  // ⚠️ ห้ามใช้ NextResponse.redirect() — มัน normalize URL แล้ว encode ซ้ำ ทำให้ `?download=`
-  //    ที่ supabase-js encode มาแล้วกลายเป็น %25E0%25B8… → ชื่อไฟล์ไทยตอนดาวน์โหลดเป็นขยะ
-  //    ส่ง Location ดิบแทน
-  return new Response(null, { status: 302, headers: { Location: signed.signedUrl } });
+  const location = `${signed.signedUrl}&download=${encodeURIComponent(download)}`;
+  return new Response(null, { status: 302, headers: { Location: location } });
 }
