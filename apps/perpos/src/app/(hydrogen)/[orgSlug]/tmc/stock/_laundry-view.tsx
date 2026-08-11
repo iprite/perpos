@@ -26,10 +26,12 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { Shirt, PackageOpen } from "lucide-react";
+import { Shirt, PackageOpen, Undo2 } from "lucide-react";
 import type { StockItem, StockLocation, StockBalance, LaundryBatch, LaundryPrice } from "./_types";
 
 const today = () => new Date().toISOString().slice(0, 10);
+const thDate = (iso: string) =>
+  new Date(iso).toLocaleDateString("th-TH", { day: "2-digit", month: "short" });
 
 export function LaundryView({
   orgId,
@@ -120,7 +122,7 @@ export function LaundryView({
     }
   }
 
-  // ── ฟอร์มรับคืน ────────────────────────────────────────────────
+  // ── ฟอร์มรับคืน (แบ่งรับได้หลายครั้ง) ──────────────────────────
   const [ret, setRet] = useState<Record<string, { returned: string; damaged: string }>>({});
   const [returnedAt, setReturnedAt] = useState(today());
   const [accountId, setAccountId] = useState("");
@@ -128,31 +130,55 @@ export function LaundryView({
 
   const returnLoc = locations.find((l) => l.kind === "linen_room");
   const itemById = useMemo(() => new Map(items.map((i) => [i.id, i])), [items]);
+  const readOnly = closing?.status === "closed";
 
+  /** ค้างที่ร้าน = ส่งไป − คืนสะสม − เสียสะสม · ช่อง "คืนครั้งนี้" ตั้งต้นเท่าที่ยังค้าง */
   const closeRows = useMemo(() => {
     if (!closing) return [];
     return (closing.tmc_laundry_batch_lines ?? []).map((l) => {
+      const already = Number(l.qty_returned) + Number(l.qty_damaged);
+      const pending = Number(l.qty_sent) - already;
       const v = ret[l.id];
-      const returned = v ? Number(v.returned || 0) : Number(l.qty_sent);
+      const returned = v ? Number(v.returned || 0) : pending;
       const damaged = v ? Number(v.damaged || 0) : 0;
       return {
         line: l,
         item: itemById.get(l.item_id),
+        pending,
         returned,
         damaged,
-        missing: Number(l.qty_sent) - returned - damaged,
+        left: pending - returned - damaged,
         price: l.unit_price ?? priceOf(l.item_id),
       };
     });
   }, [closing, ret, itemById, priceOf]);
 
-  const closeInvalid = closeRows.some((r) => r.missing < 0);
+  const closeInvalid = closeRows.some((r) => r.left < 0);
   const autoCost = closeRows.reduce((s, r) => s + r.returned * (r.price ?? 0), 0);
-  const totalMissing = closeRows.reduce((s, r) => s + Math.max(r.missing, 0), 0);
-  const totalDamaged = closeRows.reduce((s, r) => s + r.damaged, 0);
+  const lotReturned = closeRows.reduce((s, r) => s + r.returned, 0);
+  const lotDamaged = closeRows.reduce((s, r) => s + r.damaged, 0);
+  const stillOut = closeRows.reduce((s, r) => s + Math.max(r.left, 0), 0);
+  const receipts = useMemo(
+    () => [...(closing?.tmc_laundry_receipts ?? [])].sort((a, b) => a.seq - b.seq),
+    [closing],
+  );
 
-  async function submitClose() {
+  function resetCloseForm() {
+    setClosing(null);
+    setRet({});
+    setCostOverride("");
+  }
+
+  /** close = true → ส่วนที่ยังไม่กลับมาถือว่า "ขาด" แล้วปิดรอบ */
+  async function submitReceive(close: boolean) {
     if (!closing) return;
+    if (close && stillOut > 0) {
+      const ok = window.confirm(
+        `ยังมีผ้าค้างอยู่ที่ร้าน ${stillOut} ผืน — ปิดรอบตอนนี้จะถือว่าผ้าจำนวนนี้ "ขาด" ` +
+          `และตัดออกจากทรัพย์สิน\n\nถ้าร้านจะทยอยส่งคืน ให้กด "บันทึกรับคืน" แทน`,
+      );
+      if (!ok) return;
+    }
     setSaving(true);
     try {
       const h = await authHeader();
@@ -162,28 +188,56 @@ export function LaundryView({
         body: JSON.stringify({
           orgId,
           batchId: closing.id,
+          close,
           returnLocationId: returnLoc?.id ?? null,
           returnedAt,
           accountId: accountId || null,
           cost: costOverride === "" ? null : Number(costOverride),
-          lines: closeRows.map((r) => ({
-            line_id: r.line.id,
-            returned: r.returned,
-            damaged: r.damaged,
-          })),
+          lines: closeRows
+            .filter((r) => r.returned > 0 || r.damaged > 0)
+            .map((r) => ({ line_id: r.line.id, returned: r.returned, damaged: r.damaged })),
         }),
       });
       const data = await res.json().catch(() => ({}) as { error?: string });
       if (!res.ok) {
-        toast.error(data.error ?? "ปิดรอบไม่สำเร็จ");
+        toast.error(data.error ?? (close ? "ปิดรอบไม่สำเร็จ" : "บันทึกรับคืนไม่สำเร็จ"));
         return;
       }
       toast.success(
-        `ปิดรอบแล้ว — คืน ${data.returned} · เสีย ${data.damaged} · ขาด ${data.missing} ผืน`,
+        close
+          ? `ปิดรอบแล้ว — คืน ${data.returned} · เสีย ${data.damaged} · ขาด ${data.missing} ผืน`
+          : `รับคืนแล้ว ${data.returned} ผืน — ยังค้างที่ร้าน ${data.remaining} ผืน`,
       );
-      setClosing(null);
-      setRet({});
-      setCostOverride("");
+      resetCloseForm();
+      onDone();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  /** ยกเลิกปิดรอบ — ผ้าที่ถูกตัดเป็น "ขาด" กลับไปอยู่ที่ร้านตามเดิม */
+  async function submitReopen() {
+    if (!closing) return;
+    const ok = window.confirm(
+      `ยกเลิกปิดรอบนี้? ผ้าที่ถูกบันทึกว่า "ขาด" ${closing.total_missing} ผืน ` +
+        `จะกลับไปอยู่ที่ร้านซัก แล้วรับคืนต่อได้\n\n(ผ้าที่บันทึกว่า "เสีย" จะไม่ถูกดึงกลับ)`,
+    );
+    if (!ok) return;
+    setSaving(true);
+    try {
+      const h = await authHeader();
+      const res = await fetch("/api/tmc/stock/laundry", {
+        method: "PATCH",
+        headers: h,
+        body: JSON.stringify({ orgId, batchId: closing.id, action: "reopen" }),
+      });
+      const data = await res.json().catch(() => ({}) as { error?: string });
+      if (!res.ok) {
+        toast.error(data.error ?? "ยกเลิกปิดรอบไม่สำเร็จ");
+        return;
+      }
+      toast.success(`ยกเลิกปิดรอบแล้ว — ผ้ากลับไปอยู่ที่ร้าน ${data.restored} ผืน`);
+      resetCloseForm();
       onDone();
     } finally {
       setSaving(false);
@@ -196,7 +250,8 @@ export function LaundryView({
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-3">
         <p className="text-sm text-gray-500">
-          ผ้าที่ส่งซักยังเป็นของเรา — ปิดรอบได้เมื่อ ส่งไป = คืน + เสีย + ขาด
+          ผ้าที่ส่งซักยังเป็นของเรา — ร้านทยอยส่งคืนได้หลายครั้ง ปิดรอบเมื่อ ส่งไป = คืน + เสีย +
+          ขาด
         </p>
         <Button onClick={() => setSendOpen(true)} disabled={vendors.length === 0}>
           <Shirt className="h-4 w-4" /> ส่งซัก
@@ -209,7 +264,8 @@ export function LaundryView({
             <TableHead>ส่งเมื่อ</TableHead>
             <TableHead>ร้าน</TableHead>
             <TableHead align="right">ส่งไป</TableHead>
-            <TableHead align="right">คืน</TableHead>
+            <TableHead align="right">คืนแล้ว</TableHead>
+            <TableHead align="right">ค้างที่ร้าน</TableHead>
             <TableHead align="right">เสีย</TableHead>
             <TableHead align="right">ขาด</TableHead>
             <TableHead align="right">ค่าซัก</TableHead>
@@ -217,45 +273,48 @@ export function LaundryView({
           </TableRow>
         </TableHeader>
         <TableBody>
-          {pager.rows.map((b) => (
-            <TableRow
-              key={b.id}
-              clickable={b.status === "sent"}
-              onClick={b.status === "sent" ? () => setClosing(b) : undefined}
-            >
-              <TableCell className="text-gray-500">
-                {new Date(b.sent_at).toLocaleDateString("th-TH", {
-                  day: "2-digit",
-                  month: "short",
-                })}
-              </TableCell>
-              <TableCell className="font-medium">{b.vendor_name ?? "—"}</TableCell>
-              <TableCell align="right" className="tabular-nums">
-                {b.total_sent}
-              </TableCell>
-              <TableCell align="right" className="tabular-nums">
-                {b.status === "closed" ? b.total_returned : "—"}
-              </TableCell>
-              <TableCell align="right" className="tabular-nums text-amber-700">
-                {b.status === "closed" && Number(b.total_damaged) > 0 ? b.total_damaged : "—"}
-              </TableCell>
-              <TableCell align="right" className="tabular-nums text-red-600">
-                {b.status === "closed" && Number(b.total_missing) > 0 ? b.total_missing : "—"}
-              </TableCell>
-              <TableCell align="right" className="tabular-nums">
-                {b.laundry_cost ? `${Number(b.laundry_cost).toLocaleString("th-TH")} ฿` : "—"}
-              </TableCell>
-              <TableCell align="center">
-                {b.status === "sent" ? (
-                  <StatusBadge tone="warning">อยู่ที่ร้าน</StatusBadge>
-                ) : (
-                  <StatusBadge tone="success">ปิดรอบแล้ว</StatusBadge>
-                )}
-              </TableCell>
-            </TableRow>
-          ))}
+          {pager.rows.map((b) => {
+            const pending =
+              Number(b.total_sent) -
+              Number(b.total_returned) -
+              Number(b.total_damaged) -
+              Number(b.total_missing);
+            return (
+              <TableRow key={b.id} clickable onClick={() => setClosing(b)}>
+                <TableCell className="text-gray-500">{thDate(b.sent_at)}</TableCell>
+                <TableCell className="font-medium">{b.vendor_name ?? "—"}</TableCell>
+                <TableCell align="right" className="tabular-nums">
+                  {b.total_sent}
+                </TableCell>
+                <TableCell align="right" className="tabular-nums">
+                  {Number(b.total_returned) > 0 ? b.total_returned : "—"}
+                </TableCell>
+                <TableCell align="right" className="tabular-nums text-gray-500">
+                  {b.status !== "closed" && pending > 0 ? pending : "—"}
+                </TableCell>
+                <TableCell align="right" className="tabular-nums text-amber-700">
+                  {Number(b.total_damaged) > 0 ? b.total_damaged : "—"}
+                </TableCell>
+                <TableCell align="right" className="tabular-nums text-red-600">
+                  {Number(b.total_missing) > 0 ? b.total_missing : "—"}
+                </TableCell>
+                <TableCell align="right" className="tabular-nums">
+                  {b.laundry_cost ? `${Number(b.laundry_cost).toLocaleString("th-TH")} ฿` : "—"}
+                </TableCell>
+                <TableCell align="center">
+                  {b.status === "closed" ? (
+                    <StatusBadge tone="success">ปิดรอบแล้ว</StatusBadge>
+                  ) : b.status === "partial" ? (
+                    <StatusBadge tone="info">รับคืนบางส่วน</StatusBadge>
+                  ) : (
+                    <StatusBadge tone="warning">อยู่ที่ร้าน</StatusBadge>
+                  )}
+                </TableCell>
+              </TableRow>
+            );
+          })}
           {batches.length === 0 && (
-            <TableEmpty colSpan={8}>
+            <TableEmpty colSpan={9}>
               ยังไม่มีรอบซัก — กด &ldquo;ส่งซัก&rdquo; เพื่อเปิดรอบแรก
             </TableEmpty>
           )}
@@ -359,37 +418,47 @@ export function LaundryView({
         </DialogContent>
       </Dialog>
 
-      {/* ── รับคืน + ปิดรอบ ───────────────────────────────────────── */}
-      <Dialog open={!!closing} onOpenChange={(v) => !v && setClosing(null)}>
+      {/* ── รับคืน (แบ่งรับได้) + ปิดรอบ ───────────────────────────── */}
+      <Dialog open={!!closing} onOpenChange={(v) => !v && resetCloseForm()}>
         <DialogContent size="2xl">
           <DialogHeader>
             <DialogTitle>
               <span className="inline-flex items-center gap-1.5">
-                <PackageOpen className="h-4 w-4" /> รับผ้าคืน — {closing?.vendor_name}
+                <PackageOpen className="h-4 w-4" />
+                {readOnly ? "รอบซักที่ปิดแล้ว" : "รับผ้าคืน"} — {closing?.vendor_name}
               </span>
             </DialogTitle>
           </DialogHeader>
           <DialogBody>
             <div className="space-y-3">
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <Label>วันที่รับคืน</Label>
-                  <ThaiDatePicker value={returnedAt} onChange={setReturnedAt} />
+              {readOnly ? (
+                <p className="rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-600">
+                  รอบนี้ปิดแล้วเมื่อ {closing?.returned_at ? thDate(closing.returned_at) : "—"} —
+                  ผ้าที่ขาด {closing?.total_missing} ผืนถูกตัดออกจากทรัพย์สิน ·
+                  ถ้าร้านส่งคืนมาทีหลัง ให้กด &ldquo;ยกเลิกปิดรอบ&rdquo; แล้วรับคืนต่อได้
+                </p>
+              ) : (
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label>วันที่รับคืน</Label>
+                    <ThaiDatePicker value={returnedAt} onChange={setReturnedAt} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>รับเข้าที่</Label>
+                    <p className="pt-2 text-sm text-gray-500">{returnLoc?.name ?? "—"}</p>
+                  </div>
                 </div>
-                <div className="space-y-1.5">
-                  <Label>รับเข้าที่</Label>
-                  <p className="pt-2 text-sm text-gray-500">{returnLoc?.name ?? "—"}</p>
-                </div>
-              </div>
+              )}
 
               <Table className="rounded-none border-0 shadow-none">
                 <TableHeader>
                   <TableRow>
                     <TableHead>รายการ</TableHead>
                     <TableHead align="right">ส่งไป</TableHead>
-                    <TableHead align="right">คืน</TableHead>
-                    <TableHead align="right">เสีย</TableHead>
-                    <TableHead align="right">ขาด</TableHead>
+                    <TableHead align="right">คืนแล้ว</TableHead>
+                    <TableHead align="right">ค้างที่ร้าน</TableHead>
+                    {!readOnly && <TableHead align="right">คืนครั้งนี้</TableHead>}
+                    {!readOnly && <TableHead align="right">เสีย</TableHead>}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -401,99 +470,159 @@ export function LaundryView({
                       <TableCell align="right" className="tabular-nums text-gray-400">
                         {r.line.qty_sent}
                       </TableCell>
-                      <TableCell align="right">
-                        <Input
-                          type="number"
-                          className="ml-auto h-8 w-16 text-right"
-                          value={ret[r.line.id]?.returned ?? String(r.line.qty_sent)}
-                          onChange={(e) =>
-                            setRet((s) => ({
-                              ...s,
-                              [r.line.id]: {
-                                returned: e.target.value,
-                                damaged: s[r.line.id]?.damaged ?? "0",
-                              },
-                            }))
-                          }
-                        />
-                      </TableCell>
-                      <TableCell align="right">
-                        <Input
-                          type="number"
-                          className="ml-auto h-8 w-16 text-right"
-                          value={ret[r.line.id]?.damaged ?? "0"}
-                          onChange={(e) =>
-                            setRet((s) => ({
-                              ...s,
-                              [r.line.id]: {
-                                returned: s[r.line.id]?.returned ?? String(r.line.qty_sent),
-                                damaged: e.target.value,
-                              },
-                            }))
-                          }
-                        />
+                      <TableCell align="right" className="tabular-nums text-gray-500">
+                        {Number(r.line.qty_returned) > 0 ? r.line.qty_returned : "—"}
                       </TableCell>
                       <TableCell
                         align="right"
                         className={
-                          r.missing > 0
-                            ? "font-semibold tabular-nums text-red-600"
-                            : r.missing < 0
-                              ? "tabular-nums text-red-600"
-                              : "tabular-nums text-gray-400"
+                          r.pending > 0
+                            ? "font-semibold tabular-nums text-amber-700"
+                            : "tabular-nums text-gray-400"
                         }
                       >
-                        {r.missing}
+                        {r.pending > 0 ? r.pending : "—"}
                       </TableCell>
+                      {!readOnly && (
+                        <TableCell align="right">
+                          <Input
+                            type="number"
+                            className="ml-auto h-8 w-16 text-right"
+                            value={ret[r.line.id]?.returned ?? String(r.pending)}
+                            onChange={(e) =>
+                              setRet((s) => ({
+                                ...s,
+                                [r.line.id]: {
+                                  returned: e.target.value,
+                                  damaged: s[r.line.id]?.damaged ?? "0",
+                                },
+                              }))
+                            }
+                          />
+                        </TableCell>
+                      )}
+                      {!readOnly && (
+                        <TableCell align="right">
+                          <Input
+                            type="number"
+                            className="ml-auto h-8 w-16 text-right"
+                            value={ret[r.line.id]?.damaged ?? "0"}
+                            onChange={(e) =>
+                              setRet((s) => ({
+                                ...s,
+                                [r.line.id]: {
+                                  returned: s[r.line.id]?.returned ?? String(r.pending),
+                                  damaged: e.target.value,
+                                },
+                              }))
+                            }
+                          />
+                        </TableCell>
+                      )}
                     </TableRow>
                   ))}
                 </TableBody>
               </Table>
 
               {closeInvalid && (
-                <p className="text-xs text-red-600">คืน + เสีย มากกว่าที่ส่งไป — แก้จำนวนก่อน</p>
+                <p className="text-xs text-red-600">
+                  คืน + เสีย มากกว่าที่ยังค้างอยู่ที่ร้าน — แก้จำนวนก่อน
+                </p>
               )}
-              {(totalMissing > 0 || totalDamaged > 0) && !closeInvalid && (
+              {!readOnly && !closeInvalid && stillOut > 0 && (
                 <p className="text-xs text-amber-700">
-                  ปิดรอบนี้จะตัดผ้าออกจากทรัพย์สิน {totalDamaged + totalMissing} ผืน (เสีย{" "}
-                  {totalDamaged} · ขาด {totalMissing})
+                  บันทึกครั้งนี้แล้วจะยังมีผ้าค้างที่ร้านอีก {stillOut} ผืน — กด
+                  &ldquo;บันทึกรับคืน&rdquo; เพื่อเก็บไว้รับต่อ (ปิดรอบ = ถือว่าจำนวนนี้ขาด)
                 </p>
               )}
 
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <Label>ค่าซัก (บาท)</Label>
-                  <Input
-                    type="number"
-                    value={costOverride}
-                    placeholder={String(autoCost)}
-                    onChange={(e) => setCostOverride(e.target.value)}
-                  />
-                  <p className="text-xs text-gray-400">
-                    เว้นว่าง = คิดจากราคาต่อผืน ({autoCost.toLocaleString("th-TH")} ฿)
-                  </p>
+              {receipts.length > 0 && (
+                <div className="rounded-lg border border-gray-200 p-3">
+                  <p className="mb-1.5 text-xs font-semibold text-gray-900">ประวัติการรับคืน</p>
+                  <ul className="space-y-1 text-xs text-gray-600">
+                    {receipts.map((rc) => (
+                      <li key={rc.id} className="flex items-center justify-between gap-3">
+                        <span>
+                          ครั้งที่ {rc.seq} · {thDate(rc.received_at)}
+                        </span>
+                        <span className="tabular-nums">
+                          คืน {rc.qty_returned}
+                          {Number(rc.qty_damaged) > 0 ? ` · เสีย ${rc.qty_damaged}` : ""}
+                          {rc.cost ? ` · ${Number(rc.cost).toLocaleString("th-TH")} ฿` : ""}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
                 </div>
-                <div className="space-y-1.5">
-                  <Label>จ่ายจากบัญชี</Label>
-                  <CustomSelect
-                    value={accountId}
-                    onChange={setAccountId}
-                    options={[
-                      { value: "", label: "— ยังไม่บันทึกค่าใช้จ่าย —" },
-                      ...accounts.map((a) => ({ value: a.id, label: a.name })),
-                    ]}
-                  />
+              )}
+
+              {!readOnly && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label>ค่าซักครั้งนี้ (บาท)</Label>
+                    <Input
+                      type="number"
+                      value={costOverride}
+                      placeholder={String(autoCost)}
+                      onChange={(e) => setCostOverride(e.target.value)}
+                    />
+                    <p className="text-xs text-gray-400">
+                      เว้นว่าง = คิดจากราคาต่อผืนของที่คืนครั้งนี้ (
+                      {autoCost.toLocaleString("th-TH")} ฿)
+                    </p>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>จ่ายจากบัญชี</Label>
+                    <CustomSelect
+                      value={accountId}
+                      onChange={setAccountId}
+                      options={[
+                        { value: "", label: "— ยังไม่บันทึกค่าใช้จ่าย —" },
+                        ...accounts.map((a) => ({ value: a.id, label: a.name })),
+                      ]}
+                    />
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           </DialogBody>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setClosing(null)}>
-              ยกเลิก
-            </Button>
-            <Button onClick={submitClose} disabled={saving || closeInvalid}>
-              {saving ? "กำลังปิดรอบ…" : "ปิดรอบ"}
-            </Button>
+            {readOnly ? (
+              <>
+                <Button
+                  variant="outline"
+                  className="mr-auto"
+                  onClick={submitReopen}
+                  disabled={saving}
+                >
+                  <Undo2 className="h-4 w-4" />
+                  {saving ? "กำลังยกเลิก…" : "ยกเลิกปิดรอบ"}
+                </Button>
+                <Button variant="outline" onClick={resetCloseForm}>
+                  ปิด
+                </Button>
+              </>
+            ) : (
+              <>
+                <span className="mr-auto text-sm text-gray-500">
+                  ครั้งนี้ คืน {lotReturned}
+                  {lotDamaged > 0 ? ` · เสีย ${lotDamaged}` : ""} ผืน
+                </span>
+                <Button variant="outline" onClick={resetCloseForm}>
+                  ยกเลิก
+                </Button>
+                <Button
+                  variant="secondary"
+                  onClick={() => submitReceive(false)}
+                  disabled={saving || closeInvalid || lotReturned + lotDamaged === 0}
+                >
+                  {saving ? "กำลังบันทึก…" : "บันทึกรับคืน"}
+                </Button>
+                <Button onClick={() => submitReceive(true)} disabled={saving || closeInvalid}>
+                  {saving ? "กำลังปิดรอบ…" : "ปิดรอบ"}
+                </Button>
+              </>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

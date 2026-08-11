@@ -18,7 +18,9 @@ export async function GET(req: NextRequest) {
   const [{ data: batches }, { data: prices }] = await Promise.all([
     auth.rls
       .from("tmc_laundry_batches")
-      .select("*, tmc_laundry_batch_lines(*)")
+      .select(
+        "*, tmc_laundry_batch_lines(*), tmc_laundry_receipts(*, tmc_laundry_receipt_lines(*))",
+      )
       .eq("org_id", orgId)
       .order("sent_at", { ascending: false })
       .limit(100),
@@ -49,17 +51,15 @@ export async function POST(req: NextRequest) {
     if (!itemId || !Number.isFinite(price) || price < 0) {
       return NextResponse.json({ error: "ราคาไม่ถูกต้อง" }, { status: 400 });
     }
-    const { error } = await admin
-      .from("tmc_laundry_prices")
-      .upsert(
-        {
-          org_id: orgId,
-          item_id: itemId,
-          price_per_piece: price,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: "org_id,item_id" },
-      );
+    const { error } = await admin.from("tmc_laundry_prices").upsert(
+      {
+        org_id: orgId,
+        item_id: itemId,
+        price_per_piece: price,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "org_id,item_id" },
+    );
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
     return NextResponse.json({ ok: true });
   }
@@ -104,16 +104,32 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: "ต้องการสิทธิ์ team_lead ขึ้นไป" }, { status: 403 });
   }
 
-  const { data, error } = await createAdminClient().rpc("tmc_laundry_close", {
+  // ยกเลิกปิดรอบ — ผ้าที่ถูกตัดเป็น "ขาด" กลับไปอยู่ที่ร้าน (บันทึกรายการกลับ ไม่ลบของเดิม)
+  if (body.action === "reopen") {
+    const { data, error } = await createAdminClient().rpc("tmc_laundry_reopen", {
+      p_org_id: orgId,
+      p_batch_id: batchId,
+      p_created_by: auth.userId,
+    });
+    if (error) {
+      const status = error.code === "23514" || error.code === "23503" ? 400 : 500;
+      return NextResponse.json({ error: error.message }, { status });
+    }
+    return NextResponse.json(data);
+  }
+
+  // รับคืน — จำนวนใน lines คือ "ที่รับครั้งนี้" · close=true จึงถือว่าที่เหลือคือขาด แล้วปิดรอบ
+  const { data, error } = await createAdminClient().rpc("tmc_laundry_receive", {
     p_org_id: orgId,
     p_batch_id: batchId,
     p_return_id: (body.returnLocationId as string) || null,
-    p_returned_at: (body.returnedAt as string) || null,
+    p_received_at: (body.returnedAt as string) || null,
     p_lines: Array.isArray(body.lines) ? body.lines : [],
     p_cost: body.cost === undefined || body.cost === null ? null : Number(body.cost),
     p_account_id: (body.accountId as string) || null,
     p_note: (body.note as string) || null,
     p_created_by: auth.userId,
+    p_close: body.close === true,
   });
 
   if (error) {
