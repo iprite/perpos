@@ -6,6 +6,7 @@
  *     (LINE bot แนบไฟล์ตรง ๆ ไม่ได้ จึงส่งเป็นลิงก์)
  */
 
+import { randomBytes } from "node:crypto";
 import { NextRequest } from "next/server";
 import { createAdminClient } from "../../../_lib/supabase";
 import { ok, Err } from "../../../_lib/response";
@@ -112,16 +113,25 @@ export async function POST(req: NextRequest) {
 
   const fileName = String(job.file_name ?? "document.pdf");
   const dlName = fileName.replace(/\.pdf$/i, "") + "-CompressedbyFlow.pdf";
-  const { data: signed, error: signErr } = await admin.storage
+
+  // ลิงก์ดาวน์โหลด **ต้องเป็นลิงก์สั้น** (app.perpos.ai/f/<code> → 302 ไป signed URL สด)
+  //   ⚠️ ห้ามยัด signed URL ลงปุ่ม Flex ตรง ๆ — ปุ่ม LINE จำกัด uri 1,000 ตัวอักษร แต่
+  //   signed URL (~550) + `?download=<ชื่อไฟล์ไทย>` (ไทย 1 ตัว = 9 ตัวอักษรหลัง encode) ทะลุง่าย
+  //   → LINE ปฏิเสธทั้ง push → งานที่บีบสำเร็จแล้วถูกรายงานว่า "บีบไม่สำเร็จ"
+  const { error: signErr } = await admin.storage
     .from(BUCKET)
-    .createSignedUrl(meta.output_path, 48 * 60 * 60, { download: dlName });
-  if (signErr || !signed?.signedUrl) {
+    .createSignedUrl(meta.output_path, 60, { download: dlName }); // ตรวจว่าไฟล์ยังอยู่จริง
+  if (signErr) {
     await sendLineMessages({
       to: lineUserId,
       messages: [buildFailFlex("สร้างลิงก์ดาวน์โหลดไม่สำเร็จ ลองใหม่ภายหลัง")],
     });
-    return Err.externalService("pdf-deliver", signErr?.message ?? "signed url failed");
+    return Err.externalService("pdf-deliver", signErr.message);
   }
+  const fileBase = (process.env.APP_BASE_URL ?? "https://app.perpos.ai").replace(/\/$/, "");
+  const code = randomBytes(6).toString("base64url"); // 8 ตัวอักษร unguessable
+  await admin.from("file_links").insert({ code, job_id: jobId, kind: "pdf" });
+  const downloadUrl = `${fileBase}/f/${code}`;
 
   const before = Number(meta.size_before ?? 0);
   const after = Number(meta.size_after ?? 0);
@@ -181,7 +191,7 @@ export async function POST(req: NextRequest) {
       style: "primary",
       color: "#3C3B3D",
       height: "sm",
-      action: { type: "uri", label: "ดาวน์โหลด PDF", uri: signed.signedUrl },
+      action: { type: "uri", label: "ดาวน์โหลด PDF", uri: downloadUrl },
     },
   ];
   if (pdfDriveUrl) {
