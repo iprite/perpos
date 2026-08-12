@@ -50,7 +50,9 @@ import {
   List,
   CalendarRange,
   LayoutDashboard,
+  FileDown,
 } from "lucide-react";
+import { downloadXlsx, xlsxFilename } from "@/lib/export/xlsx";
 import { StatCard } from "@/components/ui/stat-card";
 import { TablePager, usePagination } from "@/components/ui/table-pager";
 import { Dropdown } from "@/components/ui/dropdown";
@@ -625,6 +627,38 @@ export default function TmcFinancePage() {
   const totalExpense = entries.reduce((s, e) => s + (e.expense ?? 0), 0);
   const pager = usePagination(entries);
 
+  // ── ส่งออก Excel — ทุกแถวที่ผ่านตัวกรอง (ไม่ใช่แค่หน้าที่เห็น) ───────────
+  function exportXlsx() {
+    if (entries.length === 0) return;
+    downloadXlsx(xlsxFilename("บัญชีและการเงิน"), [
+      {
+        name: "รายการ",
+        rows: entries,
+        columns: [
+          { header: "วันที่", type: "date", width: 12, value: (e: Entry) => e.entry_date },
+          { header: "รายการ", width: 40, value: (e: Entry) => e.description },
+          { header: "หมวด", width: 18, value: (e: Entry) => e.category },
+          { header: "แปลง", width: 14, value: (e: Entry) => e.property_code ?? "" },
+          { header: "บัญชี", width: 22, value: (e: Entry) => e.tmc_accounts?.name ?? "" },
+          {
+            header: "รายรับ",
+            type: "number",
+            width: 14,
+            value: (e: Entry) => e.income ?? null,
+          },
+          {
+            header: "รายจ่าย",
+            type: "number",
+            width: 14,
+            value: (e: Entry) => e.expense ?? null,
+          },
+          { header: "หมายเหตุ", width: 30, value: (e: Entry) => e.note ?? "" },
+        ],
+        totals: { 0: "รวม", 5: totalIncome, 6: totalExpense },
+      },
+    ]);
+  }
+
   const accountFilterOpts = useMemo(
     () => [
       { value: "", label: "ทุกบัญชี" },
@@ -820,6 +854,15 @@ export default function TmcFinancePage() {
             {hasFilter && (
               <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-amber-500" />
             )}
+          </Button>
+          <Button
+            variant="outline"
+            size="icon"
+            title="ส่งออก Excel"
+            disabled={loading || entries.length === 0}
+            onClick={exportXlsx}
+          >
+            <FileDown className="h-4 w-4" />
           </Button>
           <Button
             variant="outline"

@@ -51,7 +51,9 @@ import {
   List,
   CalendarRange,
   LayoutDashboard,
+  FileDown,
 } from "lucide-react";
+import { downloadXlsx, xlsxFilename } from "@/lib/export/xlsx";
 import {
   BarChart,
   Bar,
@@ -536,6 +538,38 @@ export default function TmcPettyCashPage() {
 
   const pager = usePagination(txns);
 
+  // ── ส่งออก Excel — ทุกแถวที่ผ่านตัวกรอง (ไม่ใช่แค่หน้าที่เห็น) ───────────
+  function exportXlsx() {
+    if (txns.length === 0) return;
+    downloadXlsx(xlsxFilename("เงินสดย่อย"), [
+      {
+        name: "เงินสดย่อย",
+        rows: txns,
+        columns: [
+          { header: "วันที่", type: "date", width: 12, value: (t: Txn) => t.txn_date },
+          { header: "รายการ", width: 40, value: (t: Txn) => t.description },
+          { header: "กระเป๋า", width: 20, value: (t: Txn) => t.tmc_petty_cash_funds?.name ?? "" },
+          { header: "หมวด", width: 18, value: (t: Txn) => t.category ?? "" },
+          { header: "แปลง", width: 14, value: (t: Txn) => t.property_code ?? "" },
+          {
+            header: "เติมเงิน",
+            type: "number",
+            width: 14,
+            value: (t: Txn) => (t.txn_type === "top_up" ? Number(t.amount) : null),
+          },
+          {
+            header: "ใช้เงิน",
+            type: "number",
+            width: 14,
+            value: (t: Txn) => (t.txn_type === "expense" ? Number(t.amount) : null),
+          },
+          { header: "หมายเหตุ", width: 30, value: (t: Txn) => t.note ?? "" },
+        ],
+        totals: { 0: "รวม", 5: totalTopUp, 6: totalExpense },
+      },
+    ]);
+  }
+
   // ── สรุปรายจ่ายแยกตามหมวด × เดือน (pivot) ────────────────────────────────
   const summary = useMemo(() => {
     const expenses = txns.filter((t) => t.txn_type === "expense");
@@ -680,6 +714,15 @@ export default function TmcPettyCashPage() {
             {hasFilter && (
               <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-amber-500" />
             )}
+          </Button>
+          <Button
+            variant="outline"
+            size="icon"
+            title="ส่งออก Excel"
+            disabled={loading || txns.length === 0}
+            onClick={exportXlsx}
+          >
+            <FileDown className="h-4 w-4" />
           </Button>
           <Button
             variant="outline"
