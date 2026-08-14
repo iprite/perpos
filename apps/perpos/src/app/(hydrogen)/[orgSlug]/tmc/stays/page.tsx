@@ -33,6 +33,12 @@ import { SegmentedControl } from "@/components/ui/segmented";
 import { usePagination, TablePager } from "@/components/ui/table-pager";
 import { FilterBar, FilterClear } from "@/components/ui/filter-bar";
 import {
+  DEPOSIT_RATE_MODE_OPTIONS,
+  depositAmountForMode,
+  depositRateModeOf,
+  type DepositRateMode,
+} from "@/lib/tmc/deposit";
+import {
   Plus,
   Pencil,
   Trash2,
@@ -131,6 +137,7 @@ type Stay = {
   mookata_amount: number | null;
   bbq_amount: number | null;
   activity_detail: string | null;
+  deposit_amount: number | null;
   deposit_received: number | null;
   deposit_returned: number | null;
   deposit_account_id: string | null;
@@ -169,6 +176,7 @@ const emptyForm = {
   stayType: "paid",
   roomRate: "",
   promotionPct: "",
+  depositAmount: "", // อัตราค่ามัดจำที่ตกลง (5,000 / 10,000 / อื่นๆ)
   depositReceived: "",
   depositReturned: "",
   depositAccountId: SAV_ACCOUNT_ID,
@@ -229,6 +237,8 @@ export default function TmcStaysPage() {
   const [showForm, setShowForm] = useState(false);
   const [editingStay, setEditingStay] = useState<Stay | null>(null); // null = add mode
   const [form, setForm] = useState(emptyForm);
+  // โหมดของช่อง "อัตราค่ามัดจำ" — ค่าจริงอยู่ที่ form.depositAmount
+  const [depositRateMode, setDepositRateMode] = useState<DepositRateMode>("none");
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState("");
 
@@ -296,6 +306,7 @@ export default function TmcStaysPage() {
   function openAdd() {
     setEditingStay(null);
     setForm(emptyForm);
+    setDepositRateMode("none");
     setFormError("");
     setShowForm(true);
   }
@@ -323,10 +334,14 @@ export default function TmcStaysPage() {
       group.map(pick).find((v) => v != null && v !== "") ?? null;
 
     const totalRate = sum((s) => s.room_rate);
+    // อัตราค่ามัดจำ = ค่าของ booking (เก็บเท่ากันทุกห้อง) — ห้าม sum
+    const depositRate = firstNonNull((s) => s.deposit_amount);
+    const depositAmount = depositRate != null ? String(depositRate) : "";
     const totalReceived = sum((s) => s.deposit_received);
     const totalReturned = sum((s) => s.deposit_returned);
 
     setEditingStay(stay);
+    setDepositRateMode(depositRateModeOf(depositAmount));
     setForm({
       firstName: stay.tmc_guests?.first_name ?? "",
       lastName: stay.tmc_guests?.last_name ?? "",
@@ -350,6 +365,7 @@ export default function TmcStaysPage() {
       stayType: stay.stay_type,
       roomRate: totalRate != null ? String(totalRate) : "",
       promotionPct: stay.promotion_pct != null ? String(stay.promotion_pct) : "",
+      depositAmount,
       depositReceived: totalReceived != null ? String(totalReceived) : "",
       depositReturned: totalReturned != null ? String(totalReturned) : "",
       depositAccountId: stay.deposit_account_id ?? SAV_ACCOUNT_ID,
@@ -802,6 +818,32 @@ export default function TmcStaysPage() {
           <span className="ml-2 text-xs font-normal text-amber-600">บันทึกลงบัญชีอัตโนมัติ</span>
         </p>
         <div className="grid grid-cols-2 gap-3">
+          <div className="col-span-2 space-y-1.5">
+            <Label>อัตราค่ามัดจำที่ตกลง (บาท)</Label>
+            <SegmentedControl
+              size="md"
+              value={depositRateMode}
+              onChange={(mode) => {
+                setDepositRateMode(mode);
+                setForm((f) => ({
+                  ...f,
+                  depositAmount: depositAmountForMode(mode, f.depositAmount),
+                }));
+              }}
+              options={DEPOSIT_RATE_MODE_OPTIONS}
+            />
+            {depositRateMode === "other" && (
+              <Input
+                type="number"
+                placeholder="ระบุจำนวนเงิน"
+                value={form.depositAmount}
+                onChange={(e) => setForm((f) => ({ ...f, depositAmount: e.target.value }))}
+              />
+            )}
+            <p className="text-xs text-amber-600">
+              อัตราที่ตกลงกับลูกค้ารายนี้ (ลูกค้าก่อนปรับราคายังคิด 5,000)
+            </p>
+          </div>
           <div className="space-y-1.5">
             <Label>รับเงินมัดจำ (บาท)</Label>
             <Input
@@ -1057,12 +1099,19 @@ export default function TmcStaysPage() {
                         )}
                       </TableCell>
                       <TableCell align="right" tabular>
-                        {stay.deposit_received ? (
+                        {stay.deposit_received || stay.deposit_amount ? (
                           <>
-                            <div className="text-amber-700">{fmt(stay.deposit_received)}</div>
+                            {stay.deposit_received ? (
+                              <div className="text-amber-700">{fmt(stay.deposit_received)}</div>
+                            ) : null}
                             {stay.deposit_returned ? (
                               <div className="text-xs text-gray-500">
                                 คืน {fmt(stay.deposit_returned)}
+                              </div>
+                            ) : null}
+                            {stay.deposit_amount ? (
+                              <div className="text-xs text-gray-500">
+                                อัตรา {fmt(stay.deposit_amount)}
                               </div>
                             ) : null}
                           </>
@@ -1206,8 +1255,13 @@ export default function TmcStaysPage() {
                       </div>
                     )}
 
-                    {(stay.deposit_received || stay.deposit_returned) && (
+                    {(stay.deposit_received || stay.deposit_returned || stay.deposit_amount) && (
                       <div className="flex flex-wrap gap-2 text-xs">
+                        {stay.deposit_amount ? (
+                          <span className="rounded-full border border-amber-200 bg-white px-2 py-0.5 text-amber-700">
+                            อัตรามัดจำ {fmt(stay.deposit_amount)}
+                          </span>
+                        ) : null}
                         {stay.deposit_received ? (
                           <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-amber-700">
                             💵 มัดจำ {fmt(stay.deposit_received)}
