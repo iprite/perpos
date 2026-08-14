@@ -94,3 +94,11 @@ web_legacy/
 
 # graphify knowledge graph (เลิกใช้ 2026-07-29 — ไม่มี consumer จริง, graph.json 12MB ทำ repo บวม)
 graphify-out/
+
+# terraform (infra/mail) — tfstate เก็บ API token เป็น plaintext
+**/.terraform/
+**/.terraform.lock.hcl
+*.tfstate
+*.tfstate.*
+terraform.tfvars
+*.tfplan

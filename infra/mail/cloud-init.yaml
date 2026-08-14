@@ -1,0 +1,82 @@
+#cloud-config
+# เตรียมเครื่องสำหรับ Stalwart — ดู docs/MAIL_SERVER_PLAN.md
+#
+# ⚠️ ไฟล์นี้ทำแค่ "เตรียมระบบปฏิบัติการ" ไม่ได้ติดตั้ง Stalwart ให้อัตโนมัติ
+#    เพราะตัวติดตั้งของ Stalwart ถามค่าตอนติดตั้ง (ชนิด deployment, ที่เก็บข้อมูล,
+#    รหัสผ่านแอดมิน) — ถ้าปล่อยให้รันเองแล้วมันค้างกลางทาง จะได้เครื่องที่ตั้งค่าครึ่ง ๆ
+#    ซึ่งแก้ยากกว่าติดตั้งใหม่ · สคริปต์ถูกดาวน์โหลดรอไว้ที่ /root/install-stalwart.sh
+#
+# ⚠️ แก้ไฟล์นี้แล้ว Terraform จะไม่สร้างเครื่องใหม่ให้ (ignore_changes = [user_data])
+#    ซึ่งตั้งใจ — สร้างเครื่องใหม่ = เมลหายทั้งหมด · แก้ config หลังติดตั้งให้ทำบนเครื่องตรง ๆ
+
+hostname: ${mail_hostname}
+fqdn: ${mail_hostname}
+prefer_fqdn_over_hostname: true
+
+package_update: true
+package_upgrade: true
+
+packages:
+  - curl
+  - ca-certificates
+  - gnupg
+  - dnsutils      # dig — ใช้ตรวจ PTR/MX/DKIM
+  - netcat-openbsd # nc — ใช้ทดสอบพอร์ตไป SES
+  - unattended-upgrades
+  - fail2ban      # กัน brute-force พอร์ต 22/587/993
+  - htop
+
+write_files:
+  # ---- swap 2GB : CPX11 มี RAM 2GB · Stalwart idle ~150MB แต่ตอน index/ไฟล์แนบใหญ่ต้องมีที่หายใจ
+  - path: /etc/sysctl.d/99-mail.conf
+    content: |
+      vm.swappiness = 10
+      # เพิ่มเพดาน connection สำหรับเมลเซิร์ฟเวอร์
+      net.core.somaxconn = 1024
+      net.ipv4.tcp_max_syn_backlog = 2048
+
+  - path: /etc/apt/apt.conf.d/20auto-upgrades
+    content: |
+      APT::Periodic::Update-Package-Lists "1";
+      APT::Periodic::Unattended-Upgrade "1";
+
+  # ---- fail2ban : เปิดเฉพาะ sshd ก่อน · jail ของ Stalwart ค่อยเพิ่มหลังติดตั้งเสร็จ
+  - path: /etc/fail2ban/jail.d/sshd.local
+    content: |
+      [sshd]
+      enabled = true
+      maxretry = 5
+      bantime = 1h
+
+  # ---- สคริปต์ติดตั้ง Stalwart : เตรียมไว้ให้รันมือใน Phase 0
+  - path: /root/install-stalwart.sh
+    permissions: "0700"
+    content: |
+      #!/usr/bin/env bash
+      set -euo pipefail
+      echo "=== ติดตั้ง Stalwart Mail Server ==="
+      echo "ตอบคำถามตอนติดตั้งดังนี้ (ดู docs/MAIL_SERVER_PLAN.md):"
+      echo "  · deployment      : standalone"
+      echo "  · ที่เก็บข้อมูล    : RocksDB  (blob เก็บบนดิสก์เครื่องนี้ไปก่อน 40GB พอถึง ~25 กล่อง)"
+      echo "  · hostname        : ${mail_hostname}"
+      echo "  · รหัสผ่านแอดมิน   : สร้างแบบสุ่ม แล้วเก็บใน password manager ทันที (ไม่ได้โชว์ซ้ำ)"
+      echo
+      read -rp "กด Enter เพื่อเริ่ม (Ctrl-C เพื่อยกเลิก) "
+      curl --proto '=https' --tlsv1.2 -sSf https://get.stalw.art/install.sh | sh
+      echo
+      echo "=== ติดตั้งเสร็จ — ขั้นต่อไป ==="
+      echo "1. ตั้ง relay ขาออกไป SES ที่พอร์ต 587 (ไม่ใช่ 25 — Hetzner บล็อก 25 ขาออกจนกว่าจะขอปลด)"
+      echo "2. เปิด ACME ให้ออกใบรับรองของ ${mail_hostname}"
+      echo "3. ทดสอบ: nc -zv email-smtp.ap-southeast-1.amazonaws.com 587"
+      echo "4. ส่งเมลทดสอบไป https://www.mail-tester.com  — ต้องได้ >= 9/10"
+
+runcmd:
+  # swap 2GB
+  - [ bash, -c, "fallocate -l 2G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile" ]
+  - [ bash, -c, "echo '/swapfile none swap sw 0 0' >> /etc/fstab" ]
+  - [ sysctl, --system ]
+  - [ systemctl, enable, --now, fail2ban ]
+  # ดาวน์โหลดตัวติดตั้งรอไว้ (ยังไม่รัน — ดูหมายเหตุด้านบน)
+  - [ bash, -c, "echo 'พร้อมติดตั้ง Stalwart แล้ว — รัน: bash /root/install-stalwart.sh' > /etc/motd" ]
+
+final_message: "เครื่องพร้อมแล้ว ($UPTIME วินาที) — ssh เข้ามาแล้วรัน: bash /root/install-stalwart.sh"
