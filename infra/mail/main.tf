@@ -40,7 +40,7 @@ variable "mail_hostname" {
 
 variable "server_type" {
   # CPX = AMD (มีที่สิงคโปร์) · CX/CAX มีเฉพาะยุโรป — อย่าเปลี่ยนเป็น cx22/cax11
-  # cpx11 = 2 vCPU / 2GB / 40GB / 20TB traffic — พอถึงราว 25 กล่อง
+  # cpx11 = 2 vCPU / 2GB / 40GB / 20TB traffic — พอถึงราว 30 กล่อง (ที่โควตา 1GB/กล่อง)
   # ขยับเป็น cpx21 (3 vCPU / 4GB / 80GB) ได้ทีหลังโดยไม่ต้องย้ายข้อมูล
   description = "ขนาดเครื่อง Hetzner"
   type        = string
@@ -160,11 +160,11 @@ resource "hcloud_firewall" "mail" {
 # ---------------------------------------------------------------------------
 
 resource "hcloud_server" "mail" {
-  name        = "perpos-mail"
-  server_type = var.server_type
-  image       = "debian-12"
-  datacenter  = "sin-dc1"
-  ssh_keys    = [hcloud_ssh_key.admin.id]
+  name         = "perpos-mail"
+  server_type  = var.server_type
+  image        = "debian-12"
+  datacenter   = "sin-dc1"
+  ssh_keys     = [hcloud_ssh_key.admin.id]
   firewall_ids = [hcloud_firewall.mail.id]
 
   # สำรองข้อมูลอัตโนมัติ (+20% ของค่าเครื่อง) — ถูกที่สุดในบิลทั้งใบ อย่าปิด
@@ -182,7 +182,7 @@ resource "hcloud_server" "mail" {
   })
 
   labels = {
-    app = "perpos"
+    app  = "perpos"
     role = "mail"
   }
 
