@@ -265,7 +265,6 @@ export async function POST(req: NextRequest) {
 
   // ยอดห้อง: ถ้าส่งรายห้องมาใช้ตามนั้น · ไม่งั้น fallback หารยอดรวมเท่ากัน (ท่าเดิม)
   const dividedRate = roomRate !== null ? Number((roomRate / count).toFixed(2)) : null;
-  const dividedDeposit = depositAmount !== null ? Number((depositAmount / count).toFixed(2)) : null;
   const dividedReceived =
     depositReceived !== null ? Number((depositReceived / count).toFixed(2)) : null;
   const dividedReturned =
@@ -289,7 +288,8 @@ export async function POST(req: NextRequest) {
       stay_type: body.stayType ?? "paid",
       room_rate: room.roomRate ?? dividedRate,
       promotion_pct: promotionPct,
-      deposit_amount: dividedDeposit,
+      // อัตราค่ามัดจำที่ตกลง — ค่าของ booking เก็บเท่ากันทุกห้อง (ห้ามหาร)
+      deposit_amount: depositAmount,
       deposit_received: dividedReceived,
       deposit_returned: dividedReturned,
       deposit_account_id: dividedReceived || dividedReturned ? depositAccountId : null,
@@ -459,7 +459,7 @@ export async function PUT(req: NextRequest) {
     ? ([body.nickname || body.firstName, body.lastName].filter(Boolean).join(" ").trim() as string)
     : (g?.nickname ?? [g?.first_name, g?.last_name].filter(Boolean).join(" ").trim() ?? "ลูกค้า");
 
-  // ยอดห้อง: รายห้องถ้าส่งมา · มัดจำเป็นยอดรวม booking หารเท่ากันต่อห้อง (ท่าเดียวกับตอนสร้าง)
+  // ยอดห้อง: รายห้องถ้าส่งมา · เงินมัดจำที่รับ/คืนเป็นยอดรวม booking หารเท่ากันต่อห้อง (ท่าเดียวกับตอนสร้าง)
   const count = rooms.length;
   const roomRate = body.roomRate ? Number(body.roomRate) : null;
   const depositAmount = body.depositAmount ? Number(body.depositAmount) : null;
@@ -476,8 +476,9 @@ export async function PUT(req: NextRequest) {
     booking_channel: body.bookingChannel ?? null,
     stay_type: body.stayType ?? "paid",
     promotion_pct: body.promotionPct ? Number(body.promotionPct) : null,
-    // deposit_amount แตะเฉพาะเมื่อ client ส่งมา (ฟอร์มปัจจุบันไม่มีช่องนี้ — อย่า null ทับของเดิม)
-    ...(body.depositAmount !== undefined ? { deposit_amount: div(depositAmount) } : {}),
+    // deposit_amount = "อัตราค่ามัดจำที่ตกลง" ของ booking (5,000 / 10,000) ไม่ใช่เงินที่เคลื่อนไหว
+    // → เก็บค่าเดียวกันทุกห้อง ห้ามหาร · แตะเฉพาะเมื่อ client ส่งมา (อย่า null ทับของเดิม)
+    ...(body.depositAmount !== undefined ? { deposit_amount: depositAmount } : {}),
     deposit_received: div(depositReceived),
     deposit_returned: div(depositReturned),
     deposit_account_id: depositReceived || depositReturned ? depositAccountId : null,

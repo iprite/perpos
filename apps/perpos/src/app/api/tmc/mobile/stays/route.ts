@@ -106,7 +106,6 @@ export async function POST(req: NextRequest) {
   const depositAmount = body.depositAmount ? Number(body.depositAmount) : null;
 
   const dividedRate = roomRate !== null ? Number((roomRate / count).toFixed(2)) : null;
-  const dividedDeposit = depositAmount !== null ? Number((depositAmount / count).toFixed(2)) : null;
 
   const rows = codesToInsert.map((code, idx) => {
     const isFirst = idx === 0;
@@ -123,7 +122,8 @@ export async function POST(req: NextRequest) {
       stay_type: body.stayType ?? 'paid',
       room_rate: dividedRate,
       promotion_pct: body.promotionPct ? Number(body.promotionPct) : null,
-      deposit_amount: dividedDeposit,
+      // อัตราค่ามัดจำที่ตกลง — ค่าของ booking เก็บเท่ากันทุกห้อง (ห้ามหาร · ตรงกับ PATCH ด้านล่าง)
+      deposit_amount: depositAmount,
       group_size: body.groupSize ? Number(body.groupSize) : null,
       group_type: body.groupType ?? null,
       // Extra charges and notes only on first stay to avoid duplication

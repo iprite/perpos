@@ -7,6 +7,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { NativeSelect } from '@/components/ui/native-select';
 import { ThaiDatePicker } from '@/components/ui/thai-date-picker';
+import { SegmentedControl } from '@/components/ui/segmented';
+import {
+  DEPOSIT_RATE_MODE_OPTIONS,
+  depositAmountForMode,
+  depositRateModeOf,
+  type DepositRateMode,
+} from '@/lib/tmc/deposit';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type Info = {
@@ -96,6 +103,7 @@ function CheckinForm() {
   const [stayType,       setStayType]       = useState('paid');
   const [roomRate,       setRoomRate]       = useState('');
   const [depositAmount,  setDepositAmount]  = useState('');
+  const [depositRateMode, setDepositRateMode] = useState<DepositRateMode>('none');
   const [groupSize,      setGroupSize]      = useState('');
   const [promotionPct,   setPromotionPct]   = useState('');
   const [foodAmount,     setFoodAmount]     = useState('');
@@ -144,6 +152,7 @@ function CheckinForm() {
           setStayType(s.stay_type ?? 'paid');
           setRoomRate(s.room_rate?.toString() ?? '');
           setDepositAmount(s.deposit_amount?.toString() ?? '');
+          setDepositRateMode(depositRateModeOf(s.deposit_amount?.toString() ?? ''));
           setGroupSize(s.group_size?.toString() ?? '');
           setPromotionPct(s.promotion_pct?.toString() ?? '');
           setFoodAmount(s.food_amount?.toString() ?? '');
@@ -437,11 +446,23 @@ function CheckinForm() {
               <Input className={inputCls} type="number" value={roomRate} onChange={e => setRoomRate(e.target.value)}
                 placeholder="0" />
             </Field>
-            <Field label="มัดจำ (บาท)">
-              <Input className={inputCls} type="number" value={depositAmount} onChange={e => setDepositAmount(e.target.value)}
-                placeholder="0" />
-            </Field>
           </div>
+          <Field label="อัตราค่ามัดจำที่ตกลง (บาท)">
+            <SegmentedControl
+              size="md"
+              fullWidth
+              value={depositRateMode}
+              onChange={mode => {
+                setDepositRateMode(mode);
+                setDepositAmount(a => depositAmountForMode(mode, a));
+              }}
+              options={DEPOSIT_RATE_MODE_OPTIONS}
+            />
+            {depositRateMode === 'other' && (
+              <Input className={`${inputCls} mt-2`} type="number" value={depositAmount}
+                onChange={e => setDepositAmount(e.target.value)} placeholder="ระบุจำนวนเงิน" />
+            )}
+          </Field>
           <div className="grid grid-cols-2 gap-3">
             <Field label="จำนวนคน">
               <Input className={inputCls} type="number" value={groupSize} onChange={e => setGroupSize(e.target.value)}
