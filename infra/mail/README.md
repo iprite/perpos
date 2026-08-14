@@ -31,6 +31,14 @@ terraform apply
 | `ssh_public_key` | `cat ~/.ssh/id_ed25519.pub` |
 | `ssh_allowed_ips` | IP ออฟฟิศ/บ้าน — **อย่าเปิด `0.0.0.0/0` ถ้าเลี่ยงได้** |
 
+> 💡 **ไม่อยากให้ token ลงดิสก์เลย** — ข้าม `hcloud_token` ใน tfvars แล้วส่งทาง env แทน
+> (Terraform อ่าน `TF_VAR_<ชื่อตัวแปร>` อัตโนมัติ · หายไปเมื่อปิด terminal):
+>
+> ```bash
+> read -rs TF_VAR_hcloud_token && export TF_VAR_hcloud_token   # วาง token แล้ว Enter (ไม่โชว์บนจอ)
+> terraform plan
+> ```
+
 ## หลัง apply
 
 `terraform output next_steps` จะบอกขั้นตอนถัดไป โดยสรุป:
