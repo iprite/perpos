@@ -75,6 +75,42 @@ terraform apply
 5. **`terraform.tfvars` และ `*.tfstate` ห้าม commit** — มี API token · `.gitignore` กันไว้แล้ว
    (tfstate เก็บ token ในรูป plaintext แม้จะประกาศ `sensitive`)
 
+## สำรองข้อมูล
+
+มี 2 ชั้น **ที่ไม่ทดแทนกัน**:
+
+| ชั้น                                       | คืออะไร                        | ข้อจำกัด                                                                |
+| ------------------------------------------ | ------------------------------ | ----------------------------------------------------------------------- |
+| Hetzner backup (`backups = true`)          | snapshot ทั้งเครื่อง อัตโนมัติ | **จับ RocksDB กลางคัน กู้แล้วอาจพัง** (§5.1) · อยู่ที่ Hetzner ที่เดียว |
+| [`stalwart-backup.sh`](stalwart-backup.sh) | logical export รายวัน ตี 3 UTC | ต้องหยุด service ~1 วิ                                                  |
+
+**ทำไมต้อง logical**: RocksDB ล็อกไฟล์ไว้ตอน service รัน — `stalwart --export` ระหว่างรัน
+ได้ `Resource temporarily unavailable` ทันที · สคริปต์เลยหยุด service → export → เปิดกลับ
+(วัดจริง = **1 วินาที**) · เมลขาเข้าไม่หาย เซิร์ฟเวอร์ต้นทาง retry ตามมาตรฐาน SMTP
+
+```bash
+systemctl list-timers stalwart-backup      # ดูรอบถัดไป
+/usr/local/sbin/stalwart-backup.sh          # สั่งเองได้ทันที
+```
+
+- ไฟล์ผลลัพธ์ `/var/backups/stalwart/stalwart-<เวลา>.tar.gz.enc` เก็บ **14 วัน** แล้วลบเอง
+- **เข้ารหัส AES-256 เสมอ** (ในนั้นมีเมลลูกค้าทั้งหมด — PDPA) · กุญแจอยู่ที่ `/root/.stalwart-backup-key`
+- 🔴 **กุญแจอยู่บนเครื่องเดียวกับข้อมูล** — เครื่องหาย = ถอดรหัส backup ไม่ได้เลย
+  **ต้อง `cat /root/.stalwart-backup-key` แล้วเก็บลง password manager** (ทำครั้งเดียว)
+- 🔴 **ยังไม่มีตัวส่งออกนอก Hetzner** — สคริปต์เรียก `/usr/local/sbin/stalwart-backup-upload.sh`
+  ถ้ามี · ตราบใดที่ยังไม่ทำ backup อยู่บนเครื่องเดียวกับข้อมูลจริง = **ไม่นับเป็น backup**
+
+กู้คืน:
+
+```bash
+openssl enc -d -aes-256-cbc -pbkdf2 -iter 300000 -pass file:/root/.stalwart-backup-key \
+  -in stalwart-<เวลา>.tar.gz.enc | tar -C /restore -xzf -
+systemctl stop stalwart && stalwart --config /etc/stalwart/config.json --import /restore
+```
+
+> ⚠️ **ยังไม่เคยซ้อมกู้จริง** (สร้างเครื่องใหม่แล้ว import ให้เมลครบ) — เป็น**เกณฑ์ผ่าน Phase 1**
+> ที่ยังไม่ผ่าน · ที่ทำแล้วคือพิสูจน์ว่าไฟล์ถอดรหัสและแตกออกมาได้ครบ (subspace ของ RocksDB)
+
 ## ต้นทุน
 
 **$8.39/เดือน ≈ ฿280** — ราคาจริงจาก API ตอน apply (2026-08-15) ไม่ใช่ค่าประมาณ:

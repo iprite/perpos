@@ -84,18 +84,82 @@ terraform apply
       (ต้องเปิด 443 อยู่แล้วเพราะ ACME + JMAP) · กันด้วยรหัสผ่านอย่างเดียว **ยังไม่มี fail2ban jail**
       → เดารหัสได้ไม่จำกัดครั้ง · เลือกอย่างน้อย 1: jail ของ Stalwart / 2FA ให้แอดมิน / จำกัด `/admin` ตาม IP
 - [ ] **บันทึกค่าเครื่องลง `infra_costs`** — Hetzner อยู่นอกท่อ `billing_export` ต้องกรอกเอง
-- [ ] (หลังจ่ายบิลเดือนแรก) ขอปลดพอร์ต 25 ขาออกกับ Hetzner — เป็นทางหนีทีไล่ถ้า SES มีปัญหา
+- [ ] **ขอปลดพอร์ต 25 ขาออกกับ Hetzner** — ร่างคำขอพร้อมส่งที่
+      [`docs/MAIL_HETZNER_PORT25_REQUEST.md`](MAIL_HETZNER_PORT25_REQUEST.md)
+      · เดิมจดว่า "หลังจ่ายบิลเดือนแรก" — ส่งก่อนได้ ไม่เสียอะไร โดนปฏิเสธก็ตอบซ้ำในเคสเดิม
+      · ⚠️ ก่อนส่งต้องมี `abuse@perpos.ai` ที่รับเมลได้จริง + ตั้งเพดาน auto-ban จริง
+      (ที่เขียนในคำขอต้องเป็นความจริง)
+      · **สำคัญขึ้นกว่าเดิม** เพราะ SES ติดที่บัตร AWS ยังไม่ผ่าน — ถ้าไม่มี relay เลย
+      พอร์ต 25 คือทางเดียวที่ส่งเมลออกได้
 
 ---
 
 ## C. Phase 1 — dogfood ด้วย `perpos.ai` (2 สัปดาห์ก่อนขาย)
 
-- [ ] ตั้ง **relay ขาออก → SES `:587`** · credentials `chmod 600` **ห้าม commit**
-- [ ] **ปิด DKIM signing ของ Stalwart** — เราใช้ SES Easy DKIM (ไม่งั้นได้ลายเซ็นซ้อน)
-- [ ] DNS ของ `perpos.ai`: MX · SPF `include:amazonses.com` · **DKIM CNAME ×3 จาก SES** · DMARC `p=none`
+- [x] **MX ของ `perpos.ai` ชี้มาที่เครื่องเราแล้ว (2026-08-15)** — `MX 10 mail.perpos.ai` (ttl 300)
+      · ที่อยู่ที่รับได้จริงผ่าน MX แล้ว: `admin@` `abuse@` `postmaster@` (probe ได้ `250` ครบ)
+      · 🔍 **เหตุผลที่กล้าสลับ**: ก่อนสลับ Cloudflare Email Routing **ตอบ `550` ทุกที่อยู่อยู่แล้ว**
+      (รวม `iprite@perpos.ai`) — กฎ forward ไป Gmail ตายไปแล้วโดยไม่มีใครรู้ · การสลับจึงไม่ทำให้
+      อะไรแย่ลง มีแต่ดีขึ้น · **บทเรียน: ก่อน cutover ให้ probe MX เดิมด้วย `RCPT TO` เสมอ
+      อย่าเชื่อว่ามันยังทำงาน**
+      · ⚠️ Cloudflare **ห้ามแก้ MX ตราบใดที่ Email Routing ยังเปิดอยู่** (error 1046 / 890190)
+      ต้องปิดที่หน้าเว็บก่อน — token แบบ "Edit zone DNS" ปิดให้ไม่ได้ (คนละ permission)
+      · ค่า MX เดิมสำรองไว้ที่ scratchpad ของ session (`mx-before-cutover.json`)
+      · **ตั้งใจไม่มี `iprite@perpos.ai`** — เจ้าตัวไม่ใช้แล้ว
+- [ ] 🔴 **ยังส่งเมลออกไม่ได้เลย — และ relay ที่ 587 คือทางเดียวจนถึงกลางเดือน ก.ย.**
+      · วัดจากเครื่องจริง: **25 ❌ · 465 ❌ · 587 ✅** (Hetzner บล็อกทั้ง 25 และ 465 ไม่ใช่แค่ 25)
+      · FAQ ของ Hetzner ระบุเงื่อนไขปลดบล็อก: **เป็นลูกค้าครบ 1 เดือน + จ่ายบิลรอบแรก** แล้วยื่น
+      **"limit request"** (ไม่ใช่ support ticket) → บัญชีเปิด 15 ส.ค. ⇒ ยื่นได้ ~15 ก.ย.
+      · ⇒ **ต้องมี relay ที่พอร์ต 587 ให้ได้** (Brevo / SES / Mailgun) ไม่ใช่ทางเลือกเสริม
+      · ทดสอบแล้วออกได้ทั้ง `smtp-relay.brevo.com:587` และ `email-smtp.eu-central-1.amazonaws.com:587`
+
+- [x] **relay ขาออกใช้ Brevo แล้ว (ไม่ใช่ SES)** — `smtp-relay.brevo.com:587` STARTTLS
+      · **ส่งเมลออกได้จริงแล้ว** ยืนยันจาก log: `delivery.delivered … code = 250` ทั้งไป
+      Gmail และ mail-tester
+      · ทำไมไม่ใช่ SES: บัตร AWS ยังยืนยันไม่ผ่าน · Brevo มีบัญชีอยู่แล้ว โดเมน verify แล้ว
+      · ตั้งผ่าน **JMAP admin API** ไม่ใช่หน้าเว็บ — ดู §G ด้านล่าง (วิธีเรียก API)
+- [x] **DNS**: MX ✅ · SPF ✅ (`v=spf1 ip4:46.225.14.18 ip6:… include:spf.brevo.com ~all`)
+      · DKIM ของ Stalwart ✅ เผยแพร่แล้ว (`v1-ed25519-20260815` + `v1-rsa-20260815`)
+      · DMARC ✅ มีอยู่เดิม `p=none` (rua ชี้ Brevo)
+      · 🔴 **SPF เดิมหายไปเงียบ ๆ ตอนปิด Cloudflare Email Routing** — Cloudflare ลบทั้ง MX
+      **และ TXT ของ SPF** ที่มันจัดการอยู่ · ถ้าไม่ไล่ดูจะไม่มีใครรู้ · **เช็ค SPF ทุกครั้งหลังแตะ
+      Email Routing**
+- [x] **DMARC ผ่านแล้ว — และผ่านมาตั้งแต่ก่อนที่เราจะแก้อะไร (2026-08-15)**
+      · header จริงจาก Gmail: `dmarc=pass (p=NONE) header.from=perpos.ai`
+      · เพราะ **Brevo เซ็นด้วย `d=perpos.ai` selector `brevo2` อยู่แล้ว** (ใช้ record
+      `brevo1/brevo2._domainkey` ที่มีใน DNS มาก่อนเราจะเริ่มทำ) → DKIM align → DMARC ผ่าน
+      · SPF ไม่ align (Brevo เขียน Return-Path เป็น `gw.d.sender-sib.com`) แต่ **DMARC ต้องการ
+      แค่อย่างใดอย่างหนึ่ง** จึงไม่เป็นไร
+      · 🔴 **mail-tester บอกว่า DMARC fail ทั้งที่ Gmail บอก pass** — mail-tester ไปตัดสินจาก
+      ลายเซ็นตัวที่เสีย (ดูข้อล่าง) · **อย่าเชื่อ mail-tester อย่างเดียว ให้ดู header จริงจาก
+      ปลายทางจริงเสมอ**
+- [ ] ⚠️ **ลายเซ็น DKIM ของ Stalwart เองยัง `bad format`**
+      · Gmail: `dkim=neutral (bad format) header.i=@perpos.ai`
+      · สาเหตุ: Stalwart ยัด **2 ลายเซ็น (ed25519 + rsa) ไว้ในหัวเดียวคั่นด้วย `,`** แล้วทั้งก้อน
+      ถูก MIME-encode เป็น `=?utf-8?b?…?=` ซึ่งผิดสเปก
+      · ลองแก้แล้วโดยตัดให้เหลือ **RSA อย่างเดียว** (`x:Domain` → `dkimManagement/algorithms`)
+      — ส่งรอบ 5 ไป Gmail แล้ว **รอเจ้าของเช็ค Show original**
+      · ถ้ายังเสีย → **ปิด DKIM ของ Stalwart ทิ้ง** (`x:SenderAuth`) ปล่อยให้ Brevo เซ็นอย่างเดียว
+      ซึ่งตรงกับที่คัมภีร์เขียนไว้แต่แรก — **แผนเดิมถูก ผมเป็นคนไปเปิดเองแล้วทำให้แย่ลง**
+      · ⚠️ แต่ถ้าย้ายออกจาก Brevo ไป SES/Mailgun เมื่อไร **ต้องกลับมาแก้ให้ลายเซ็นตัวเองใช้ได้**
+      ไม่งั้นจะไม่เหลืออะไร align
+- [ ] −1.9 SpamAssassin + −0.5 body errors — ส่วนใหญ่เพราะเมลทดสอบเป็น plain text ล้วน
+      ไม่มี HTML part / List-Unsubscribe · เมลจริงคะแนนดีกว่านี้ ไม่ใช่เรื่องเร่งด่วน
 - [ ] เปิด **Google Postmaster Tools** ของ `perpos.ai`
-- [ ] เพิ่ม **fail2ban jail สำหรับ Stalwart** (587/993) — cloud-init ทำไว้แค่ sshd
-- [ ] 🔴 **logical backup รายวัน + ส่งออกนอก Hetzner** (§5.1 — snapshot ขณะเครื่องรันอาจกู้ไม่ได้)
+- [ ] ⚠️ **fail2ban jail สำหรับ Stalwart — ไม่ต้องทำแล้ว ใช้ของในตัวแทน**
+      · Stalwart มี auto-ban ในตัวตั้งแต่ 0.5.3 (ครอบทั้ง SMTP/IMAP/JMAP/ManageSieve + นับตาม
+      **ชื่อล็อกอิน** ด้วย ไม่ใช่แค่ IP → กัน distributed brute-force ที่หมุน IP ได้)
+      · fail2ban ภายนอก **ใช้กับ Stalwart ไม่ได้อยู่แล้ว** — ระดับ log ปัจจุบันไม่บันทึก auth ที่ล้มเหลว
+      (ลองยิงรหัสผิดแล้วไม่มีบรรทัดใน log เลย) จะ match อะไรก็ไม่เจอ
+      · **ที่ต้องทำ: ตั้งเพดานที่ Settings → Security → Settings** — ยิงรหัสผิด 12 ครั้งติดยังไม่โดนแบน
+      แปลว่า `authBanRate` default หลวมเกินไปสำหรับเครื่องที่เปิด `/admin` ให้ทั้งโลก
+- [x] **logical backup รายวันทำแล้ว** — [`infra/mail/stalwart-backup.sh`](../infra/mail/stalwart-backup.sh) + systemd timer `stalwart-backup.timer` (ตี 3 UTC) · เข้ารหัส AES-256 · เก็บ 14 วัน
+      · ⚠️ **RocksDB ล็อกไฟล์** → export ระหว่าง service รันไม่ได้ ต้องหยุดก่อน (วัดจริง **1 วินาที**)
+      · ทดสอบแล้ว: ถอดรหัส + แตกไฟล์ได้ครบ (680K) · service กลับมาครบทุกพอร์ต
+- [ ] 🔴 **ยังไม่ได้ส่ง backup ออกนอก Hetzner** — ตอนนี้กองอยู่บนเครื่องเดียวกับข้อมูลจริง
+      = **ยังไม่นับเป็น backup** · สคริปต์เรียก `/usr/local/sbin/stalwart-backup-upload.sh` ถ้ามี รอต่อปลายทาง
+- [ ] 🔴 **เก็บกุญแจถอดรหัสลง password manager** — `cat /root/.stalwart-backup-key`
+      กุญแจอยู่บนเครื่องเดียวกับข้อมูล เครื่องหาย = backup ถอดรหัสไม่ได้เลย
 
 **เกณฑ์ผ่าน Phase 1 (ครบทั้ง 4 ข้อถึงจะขายได้):**
 
@@ -157,3 +221,39 @@ terraform apply
 > อ่าน `docs/MAIL_HANDOFF.md` แล้วทำหัวข้อ B ให้หน่อย — ติดตั้ง terraform ถ้ายังไม่มี
 > รัน init กับ plan ให้ดูก่อน **อย่าเพิ่ง apply จนกว่าผมจะบอก**
 > · token ผม export เป็น `TF_VAR_hcloud_token` ไว้แล้ว อย่าถามหาใน chat
+
+---
+
+## G. 🔧 วิธีตั้งค่า Stalwart ผ่าน API (ขุดเองจนเจอ — ไม่มีในเอกสารสาธารณะ)
+
+Stalwart 0.16 ย้ายการจัดการทั้งหมดไปอยู่ใต้ **JMAP** · `/api/*` เหลือแค่ helper
+(`auth` `account` `schema` `discover`) ไม่ใช่ REST สำหรับจัดการอีกแล้ว
+
+**กุญแจ 3 ดอกที่ทำให้เรียกได้:**
+
+1. ต้องใส่ capability **`urn:stalwart:jmap`** ใน `using` (ไม่มีในเอกสาร — ขุดจากโค้ดหน้าแอดมิน)
+2. object ของ Stalwart ขึ้นต้นด้วย **`x:`** — `x:MtaRoute/get`, `x:Domain/get`, `x:DkimSignature/get`
+   (ถ้าเรียก `MtaRoute/get` เฉย ๆ จะได้ `unknownMethod`)
+3. **schema ทั้งหมดดูได้ที่ `GET /api/schema`** (redirect ไป `/api/schema/<hash>` · ต้อง `--compressed`)
+   → บอกทุก field ของทุก object รวม enum และ variant · **นี่คือเอกสาร API ที่แท้จริง**
+
+```bash
+K=$(security find-generic-password -a "$USER" -s perpos-stalwart-apikey -w)
+curl -s -X POST -H "Authorization: Bearer $K" -H "Content-Type: application/json" \
+  https://mail.perpos.ai/jmap/ \
+  --data '{"using":["urn:ietf:params:jmap:core","urn:stalwart:jmap"],
+           "methodCalls":[["x:MtaRoute/get",{"accountId":"b"},"0"]]}'
+```
+
+**กับดักที่เจอ:**
+
+- variant object ใช้ `@type` เป็นตัวแยกชนิด (`{"@type":"Relay", …}` / `{"@type":"Value","secret":"…"}`)
+- ค่าใน **Expression ต้องใส่ single quote** — `{"route":{"else":"'brevo'"}}` ไม่ใช่ `"brevo"`
+  (ไม่งั้นได้ `Invalid variable or constant`)
+- **สร้าง route อย่างเดียวไม่มีผล** ต้องตั้ง `x:MtaOutboundStrategy` (singleton) ให้ชี้มาใช้ด้วย
+- `Principal/set` **ยังเรียกไม่สำเร็จ** (ตอบ `notRequest` แม้ส่ง argument เปล่า) → **การเพิ่ม
+  บัญชี/อีเมล alias ยังต้องทำผ่านหน้าเว็บ** ส่วนที่เหลือทำผ่าน API ได้หมด
+- แก้ config แล้ว **ต้อง `systemctl restart stalwart`** ถึงจะมีผลกับ queue ที่ค้างอยู่
+
+**ส่งเมลทดสอบผ่าน API** (ไม่ต้องรู้รหัสผ่านบัญชี):
+`Email/set` สร้างใน Drafts (`mailboxIds:{"d":true}`) → `EmailSubmission/set` (`identityId` จาก `Identity/get`)
