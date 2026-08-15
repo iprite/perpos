@@ -70,8 +70,10 @@ export function MailRecipientInput({
   );
 
   return (
+    // หน้าตาต้องเท่ากับ <Input> ของดีไซน์ระบบเป๊ะ (ขอบ/มุม/ความสูง/วงโฟกัส)
+    // — ช่องนี้เป็น chip input จึงใช้ <Input> ตรง ๆ ไม่ได้ แต่ห้ามคิดสไตล์ใหม่เอง
     <div
-      className="mt-1 flex min-h-[2.5rem] w-full flex-wrap items-center gap-1.5 rounded-lg border border-gray-200 px-2 py-1.5 transition-colors focus-within:border-primary"
+      className="mt-1 flex min-h-9 w-full flex-wrap items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 py-0.5 transition-colors focus-within:border-slate-400 focus-within:ring-2 focus-within:ring-slate-900/10 hover:border-slate-300"
       onClick={() => inputRef.current?.focus()}
     >
       {value.map((address) => {
@@ -115,7 +117,7 @@ export function MailRecipientInput({
           commit(pasted);
         }}
         placeholder={value.length === 0 ? placeholder : ""}
-        className="min-w-[10rem] flex-1 border-0 bg-transparent text-sm outline-none placeholder:text-gray-400"
+        className="h-7 min-w-[10rem] flex-1 border-0 bg-transparent p-0 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:ring-0"
       />
     </div>
   );
