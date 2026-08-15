@@ -20,14 +20,15 @@ packages:
   - curl
   - ca-certificates
   - gnupg
-  - dnsutils      # dig — ใช้ตรวจ PTR/MX/DKIM
+  - dnsutils # dig — ใช้ตรวจ PTR/MX/DKIM
   - netcat-openbsd # nc — ใช้ทดสอบพอร์ตไป SES
   - unattended-upgrades
-  - fail2ban      # กัน brute-force พอร์ต 22/587/993
+  - fail2ban # กัน brute-force พอร์ต 22/587/993
+  - python3-systemd # จำเป็นสำหรับ fail2ban backend = systemd (ไม่มี = jail sshd start ไม่ขึ้น)
   - htop
 
 write_files:
-  # ---- swap 2GB : CPX11 มี RAM 2GB · Stalwart idle ~150MB แต่ตอน index/ไฟล์แนบใหญ่ต้องมีที่หายใจ
+  # ---- swap 2GB : cx23 มี RAM 4GB · Stalwart idle ~150MB แต่ตอน index/ไฟล์แนบใหญ่ (+ClamAV ทีหลัง) ต้องมีที่หายใจ
   - path: /etc/sysctl.d/99-mail.conf
     content: |
       vm.swappiness = 10
@@ -45,6 +46,10 @@ write_files:
     content: |
       [sshd]
       enabled = true
+      # Debian 12 ไม่มี rsyslog ติดมา → ไม่มี /var/log/auth.log ที่ fail2ban มองหาโดย default
+      # ถ้าไม่ตั้ง backend เป็น systemd ตัว service จะตายทันทีตอน start
+      # ("Have not found any log file for sshd jail") = เครื่องไม่มีเกราะกัน brute-force เลย
+      backend = systemd
       maxretry = 5
       bantime = 1h
 
@@ -72,11 +77,19 @@ write_files:
 
 runcmd:
   # swap 2GB
-  - [ bash, -c, "fallocate -l 2G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile" ]
-  - [ bash, -c, "echo '/swapfile none swap sw 0 0' >> /etc/fstab" ]
-  - [ sysctl, --system ]
-  - [ systemctl, enable, --now, fail2ban ]
+  - [
+      bash,
+      -c,
+      "fallocate -l 2G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile",
+    ]
+  - [bash, -c, "echo '/swapfile none swap sw 0 0' >> /etc/fstab"]
+  - [sysctl, --system]
+  - [systemctl, enable, --now, fail2ban]
   # ดาวน์โหลดตัวติดตั้งรอไว้ (ยังไม่รัน — ดูหมายเหตุด้านบน)
-  - [ bash, -c, "echo 'พร้อมติดตั้ง Stalwart แล้ว — รัน: bash /root/install-stalwart.sh' > /etc/motd" ]
+  - [
+      bash,
+      -c,
+      "echo 'พร้อมติดตั้ง Stalwart แล้ว — รัน: bash /root/install-stalwart.sh' > /etc/motd",
+    ]
 
 final_message: "เครื่องพร้อมแล้ว ($UPTIME วินาที) — ssh เข้ามาแล้วรัน: bash /root/install-stalwart.sh"

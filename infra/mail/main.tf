@@ -39,20 +39,25 @@ variable "mail_hostname" {
 }
 
 variable "server_type" {
-  # CPX = AMD (มีที่สิงคโปร์) · CX/CAX มีเฉพาะยุโรป — อย่าเปลี่ยนเป็น cx22/cax11
-  # cpx11 = 2 vCPU / 2GB / 40GB / 20TB traffic — พอถึงราว 30 กล่อง (ที่โควตา 1GB/กล่อง)
-  # ขยับเป็น cpx21 (3 vCPU / 4GB / 80GB) ได้ทีหลังโดยไม่ต้องย้ายข้อมูล
+  # cx23 = 2 vCPU / 4GB / 40GB / traffic 22TB — มีเฉพาะยุโรป (nbg1/hel1/fsn1)
+  # ขยับเป็น cx33 (4 vCPU / 8GB / 80GB) ได้ทีหลังโดยไม่ต้องย้ายข้อมูล
+  #
+  # ⚠️ ถ้าย้ายไป location นอกยุโรป ต้องเปลี่ยนเป็นซีรีส์ CPX (AMD) — cx*/cax* ไม่มีขายนอก EU
+  #    และที่สิงคโปร์รุ่นเลขคี่ (cpx11/21/31) ถูกเลิกขายแล้ว เหลือเลขคู่ที่แพงกว่า ~3–5 เท่า
   description = "ขนาดเครื่อง Hetzner"
   type        = string
-  default     = "cpx11"
+  default     = "cx23"
 }
 
 variable "location" {
-  # "sin" = สิงคโปร์ · เดิมโค้ดใช้ datacenter "sin-dc1" แต่ Hetzner เลิกใช้ datacenter แล้ว
-  # (changelog 2026-07-01) — primary_ip บังคับ location, server ก็ใช้ location เหมือนกัน
+  # "nbg1" = นูเรมเบิร์ก เยอรมนี · เลือกยุโรปเพราะสิงคโปร์แพงกว่า ~5 เท่าที่สเปกแย่กว่า
+  # (เทียบราคาจริงไว้ใน docs/MAIL_SERVER_PLAN.md §8) — เมลไม่ใช่งาน latency-critical
+  #
+  # ⚠️ ใช้ location ไม่ใช่ datacenter — Hetzner เลิกใช้ datacenter แล้ว (changelog 2026-07-01)
+  # ⚠️ เปลี่ยนค่านี้หลังเครื่องรันแล้ว = สร้าง IP ใหม่ = ชื่อเสียง IP เริ่มนับหนึ่ง + ต้องแก้ PTR/SPF
   description = "ตำแหน่งเครื่อง Hetzner"
   type        = string
-  default     = "sin"
+  default     = "nbg1"
 }
 
 variable "ssh_allowed_ips" {
@@ -94,7 +99,7 @@ resource "hcloud_primary_ip" "mail_v6" {
   auto_delete = false
 
   lifecycle {
-    prevent_destroy = true
+    prevent_destroy = true # กันเผลอ terraform destroy แล้วเสีย IP ที่ warm-up ไว้
   }
 }
 

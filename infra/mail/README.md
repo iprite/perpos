@@ -4,14 +4,20 @@
 
 |              |                                                             |
 | ------------ | ----------------------------------------------------------- |
-| ผู้ให้บริการ | Hetzner Cloud · location `sin` (สิงคโปร์)                   |
-| เครื่อง      | `cpx11` (2 vCPU AMD / 2GB / 40GB / traffic 20TB)            |
+| ผู้ให้บริการ | Hetzner Cloud · location `nbg1` (นูเรมเบิร์ก เยอรมนี)       |
+| เครื่อง      | `cx23` (2 vCPU / 4GB / 40GB / traffic 22TB)                 |
 | ขาออก        | AWS SES พอร์ต **587** (Hetzner บล็อก 25 ขาออกจนกว่าจะขอปลด) |
 | ขาเข้า       | พอร์ต 25 เปิดปกติ (MX ชี้มาที่ `mail.perpos.ai`)            |
 
-> ⚠️ **CPX เท่านั้น** — ซีรีส์ `cx*` / `cax*` (ARM ราคาถูกกว่า) **มีเฉพาะยุโรป ไม่มีที่สิงคโปร์**
+> 🔴 **ทำไมยุโรปไม่ใช่สิงคโปร์ (เปลี่ยนจากแผนเดิม 2026-08-15)** — ราคาจริงจาก API ตอน apply:
+> สิงคโปร์เหลือแต่รุ่นเลขคู่ (`cpx11/21/31` เลิกขายแล้ว) ที่ **แพงกว่ายุโรป ~5 เท่าโดยสเปกแย่กว่า**
+> · `sin` `cpx12` = 1 vCPU / 2GB / 1TB traffic **$17.99** · `nbg1` `cx23` = 2 vCPU / 4GB / **22TB** **$6.49**
+> · ที่ราคาขาย ฿99/กล่อง × 20 กล่อง สิงคโปร์เหลือ margin ~36% ก่อนหักค่าซัพพอร์ต = ธุรกิจไม่เดิน
+> · แลกกับ IMAP ช้าขึ้น ~200ms (เมลไม่ใช่งาน latency-critical) และต้องแจ้งใน DPA ว่าเก็บข้อมูลที่ EU
 >
-> ⚠️ **ระบุตำแหน่งด้วย `location = "sin"` ไม่ใช่ `datacenter = "sin-dc1"`** — Hetzner เลิกใช้
+> ⚠️ **ถ้าย้ายกลับไปนอกยุโรป ต้องเปลี่ยนเป็นซีรีส์ CPX** — `cx*` / `cax*` มีเฉพาะยุโรป
+>
+> ⚠️ **ระบุตำแหน่งด้วย `location` ไม่ใช่ `datacenter`** — Hetzner เลิกใช้
 > datacenter แล้ว ([changelog 2026-07-01](https://docs.hetzner.cloud/changelog#2026-07-01-removing-datacenters))
 > · provider `~> 1.50` (ที่ล็อกจริง 1.68) จะ **validate ไม่ผ่าน** ถ้ายังใช้ `datacenter`
 
@@ -50,7 +56,8 @@ terraform apply
 1. ตั้ง DNS ที่ Cloudflare — `A` + `AAAA` ของ `mail.perpos.ai`
    **ต้องเป็น DNS only (เมฆเทา) ห้ามเปิด proxy** เพราะ Cloudflare ไม่พร็อกซี SMTP/IMAP
 2. `ssh root@<ipv4>` → `bash /root/install-stalwart.sh`
-3. ทดสอบพอร์ตไป SES: `nc -zv email-smtp.ap-southeast-1.amazonaws.com 587`
+3. ทดสอบพอร์ตไป SES: `nc -zv email-smtp.eu-central-1.amazonaws.com 587`
+   (เครื่องอยู่ยุโรปแล้ว → ใช้ SES `eu-central-1` แทน `ap-southeast-1` · ทดสอบแล้วผ่านทั้งคู่)
 4. ตรวจ PTR: `dig -x <ipv4> +short` → ต้องได้ `mail.perpos.ai`
 5. ส่งเมลทดสอบไป [mail-tester.com](https://www.mail-tester.com) → **ต้องได้ ≥ 9/10**
 
@@ -70,8 +77,8 @@ terraform apply
 
 ## ต้นทุน
 
-ประมาณ **฿190–240/เดือน** (เครื่อง + IPv4 + backup) — ยืนยันกับหน้าราคา Hetzner อีกครั้ง
-เพราะสิงคโปร์มีค่าธรรมเนียมสถานที่เพิ่มจากราคายุโรป · ดูตารางเต็มใน §8 ของคัมภีร์
+**$8.39/เดือน ≈ ฿280** — ราคาจริงจาก API ตอน apply (2026-08-15) ไม่ใช่ค่าประมาณ:
+เครื่อง `cx23` $6.49 + primary IPv4 $0.60 + backup 20% ($1.30) · ไม่มี VAT (บัญชีคิดเป็น USD)
 
 > **ค่านี้ไม่โผล่ใน `/admin/usage` เอง** (ท่อ `billing_export` เห็นเฉพาะ GCP)
 > → ต้องกรอกใน `infra_costs` เดือนละครั้ง
