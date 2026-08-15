@@ -106,8 +106,12 @@ terraform apply
       ต้องปิดที่หน้าเว็บก่อน — token แบบ "Edit zone DNS" ปิดให้ไม่ได้ (คนละ permission)
       · ค่า MX เดิมสำรองไว้ที่ scratchpad ของ session (`mx-before-cutover.json`)
       · **ตั้งใจไม่มี `iprite@perpos.ai`** — เจ้าตัวไม่ใช้แล้ว
-- [ ] ⚠️ **ยังส่งเมลออกไม่ได้เลย** — พอร์ต 25 ขาออกโดน Hetzner บล็อก + ยังไม่ได้ต่อ relay
-      → ตอนนี้ `perpos.ai` **รับได้อย่างเดียว**
+- [ ] 🔴 **ยังส่งเมลออกไม่ได้เลย — และ relay ที่ 587 คือทางเดียวจนถึงกลางเดือน ก.ย.**
+      · วัดจากเครื่องจริง: **25 ❌ · 465 ❌ · 587 ✅** (Hetzner บล็อกทั้ง 25 และ 465 ไม่ใช่แค่ 25)
+      · FAQ ของ Hetzner ระบุเงื่อนไขปลดบล็อก: **เป็นลูกค้าครบ 1 เดือน + จ่ายบิลรอบแรก** แล้วยื่น
+      **"limit request"** (ไม่ใช่ support ticket) → บัญชีเปิด 15 ส.ค. ⇒ ยื่นได้ ~15 ก.ย.
+      · ⇒ **ต้องมี relay ที่พอร์ต 587 ให้ได้** (Brevo / SES / Mailgun) ไม่ใช่ทางเลือกเสริม
+      · ทดสอบแล้วออกได้ทั้ง `smtp-relay.brevo.com:587` และ `email-smtp.eu-central-1.amazonaws.com:587`
 
 - [ ] ตั้ง **relay ขาออก → SES `:587`** · credentials `chmod 600` **ห้าม commit**
 - [ ] **ปิด DKIM signing ของ Stalwart** — เราใช้ SES Easy DKIM (ไม่งั้นได้ลายเซ็นซ้อน)
