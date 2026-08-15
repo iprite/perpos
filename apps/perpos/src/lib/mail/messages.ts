@@ -522,6 +522,35 @@ export interface InlineBudget {
 const INLINE_FETCH_BUDGET_BYTES = Math.floor((INLINE_BUDGET_BYTES * 3) / 4);
 
 /**
+ * อ่าน blob โดยนับ byte จริงระหว่างสตรีม — เกินเพดานเมื่อไรตัดทิ้งทันที
+ *
+ * 🔴 ห้ามใช้ `res.arrayBuffer()` ตรง ๆ กับของที่มาจากภายนอก: `part.size` เป็นค่าที่
+ *    **เซิร์ฟเวอร์ปลายทางบอกมา** ถ้าไม่ตรงกับของจริง (หรือถูกหลอก) จะโหลดทั้งก้อนเข้า RAM ก่อนรู้ตัว
+ */
+async function readBlobCapped(res: Response, maxBytes: number): Promise<Buffer | null> {
+  const body = res.body;
+  if (!body) return null;
+  const reader = body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > maxBytes) {
+        await reader.cancel();
+        return null;
+      }
+      chunks.push(value);
+    }
+  } catch {
+    return null;
+  }
+  return Buffer.concat(chunks);
+}
+
+/**
  * ดึงรูป inline (cid:) มาเป็น data: — ผ่านด่าน MIME + งบ byte ที่ `buildInlineImageMap`
  *
  * 🔴 กันหน่วยความจำระเบิด (contract §7): ต้องตัดสินจาก `part.size` **ก่อนโหลด** เสมอ
@@ -554,7 +583,9 @@ async function collectInlineImages(
         name: sanitizeAttachmentName(part.name),
         type: (part.type ?? "").toLowerCase(),
       });
-      const buf = Buffer.from(await res.arrayBuffer());
+      const buf = await readBlobCapped(res, Math.min(size, MAX_INLINE_IMAGE_BYTES));
+      // ขนาดจริงไม่ตรงกับที่ metadata บอก = ไม่เชื่อ ข้ามไปเลย (ยังเปิดเป็นไฟล์แนบได้)
+      if (!buf) continue;
       sources.push({
         cid: normalizeCid(part.cid),
         type: (part.type ?? "").toLowerCase(),

@@ -9,6 +9,7 @@ import {
   sanitizeAttachmentName,
 } from "./jmap";
 import { sanitizeReturnTo } from "./oauth";
+import { isSameOriginRequest } from "@/app/api/mail/_lib";
 
 describe("allowlist ของ returnTo (open redirect)", () => {
   it("ผ่านเฉพาะเส้นทางใต้ /mail", () => {
@@ -95,5 +96,26 @@ describe("URL ดาวน์โหลดประกอบจาก template �
     expect(url.startsWith("https://mail.example.com/jmap/download/")).toBe(true);
     expect(url).not.toContain(" ");
     expect(url).toContain("accept=application%2Fpdf");
+  });
+});
+
+describe("isSameOriginRequest — กัน CSRF ของ route ที่ไม่ต้องมี session (oauth/disconnect)", () => {
+  const base = "https://mail.perpos.ai";
+  const h = (init: Record<string, string>) => new Headers(init);
+
+  it("เว็บอื่นสั่งไม่ได้", () => {
+    expect(isSameOriginRequest(h({ "sec-fetch-site": "cross-site" }), base)).toBe(false);
+    expect(isSameOriginRequest(h({ "sec-fetch-site": "same-site" }), base)).toBe(false);
+    expect(isSameOriginRequest(h({ origin: "https://evil.example.com" }), base)).toBe(false);
+  });
+
+  it("หน้าเว็บของเราเองสั่งได้", () => {
+    expect(isSameOriginRequest(h({ "sec-fetch-site": "same-origin" }), base)).toBe(true);
+    expect(isSameOriginRequest(h({ origin: base }), base)).toBe(true);
+    expect(isSameOriginRequest(h({ origin: `${base}/` }), base)).toBe(true);
+  });
+
+  it("ไม่บอก origin เลย = ไม่ไว้ใจ", () => {
+    expect(isSameOriginRequest(h({}), base)).toBe(false);
   });
 });
