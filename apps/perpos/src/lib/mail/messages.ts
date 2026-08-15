@@ -1,0 +1,652 @@
+/**
+ * แปลง JMAP ↔ DTO และ fetch logic ของโมดูลอีเมล — **ที่เดียว** (spec §5.1)
+ *
+ * กฎ:
+ *  - `starred` ไม่ใช่ mailbox → ใช้ `hasKeyword: $flagged` ห้ามใช้ `inMailbox`
+ *  - `total` มาจาก `Email/query` เท่านั้น ห้ามนับจาก array ที่โหลดมา
+ *  - undo = คืนค่าเดิมรายฉบับ ไม่ใช่ "ทำตรงข้าม"
+ *  - ห้าม cache ข้าม request (ทุกอย่างเป็น argument/ตัวแปรใน scope)
+ */
+
+import {
+  INLINE_IMAGE_TYPES,
+  MailServiceError,
+  fetchBlob,
+  jmapRequest,
+  pickResponse,
+  responseType,
+  sanitizeAttachmentName,
+  type JmapMethodCall,
+} from "./jmap";
+import { buildInlineImageMap, prepareMailHtml, type InlineImageSource } from "./sanitize";
+import type {
+  JmapBodyPart,
+  JmapEmail,
+  JmapEmailAddress,
+  JmapMailbox,
+  JmapThread,
+  MailAddress,
+  MailAttachment,
+  MailMessageDetail,
+  MailThreadDetail,
+  MailBoxKey,
+  MailBulkAction,
+  MailListParams,
+  MailListResult,
+  MailMessage,
+  MailScope,
+  MailSession,
+  MailUndoItem,
+  MailUndoToken,
+  MailboxRole,
+  MailboxSummary,
+} from "./types";
+
+export const MAIL_BOX_LABELS: Record<MailBoxKey, string> = {
+  inbox: "กล่องขาเข้า",
+  starred: "ดาว",
+  sent: "ส่งแล้ว",
+  drafts: "ร่าง",
+  archive: "คลังเก็บ",
+  junk: "จดหมายขยะ",
+  trash: "ถังขยะ",
+};
+
+export const MAIL_BOX_ORDER: MailBoxKey[] = [
+  "inbox",
+  "starred",
+  "sent",
+  "drafts",
+  "archive",
+  "junk",
+  "trash",
+];
+
+const ROLE_KEYS: MailboxRole[] = ["inbox", "sent", "drafts", "archive", "junk", "trash"];
+
+export const EMAIL_LIST_PROPERTIES = [
+  "id",
+  "threadId",
+  "mailboxIds",
+  "from",
+  "subject",
+  "preview",
+  "receivedAt",
+  "keywords",
+  "size",
+  "hasAttachment",
+];
+
+export const EMAIL_DETAIL_PROPERTIES = [
+  "id",
+  "threadId",
+  "mailboxIds",
+  "from",
+  "to",
+  "cc",
+  "subject",
+  "receivedAt",
+  "keywords",
+  "size",
+  "hasAttachment",
+  "htmlBody",
+  "textBody",
+  "attachments",
+  "bodyValues",
+];
+
+export const MAX_BODY_VALUE_BYTES = 1024 * 1024;
+
+export class MailArchiveError extends Error {
+  constructor(message = "ยังสร้างกล่องคลังเก็บไม่ได้") {
+    super(message);
+    this.name = "MailArchiveError";
+  }
+}
+
+// ─── mailbox ─────────────────────────────────────────────────────────────────
+
+export function buildMailboxSummaries(boxes: JmapMailbox[]): MailboxSummary[] {
+  const byRole = new Map<string, JmapMailbox>();
+  for (const box of boxes) {
+    const role = (box.role ?? "").toLowerCase();
+    if (role && ROLE_KEYS.includes(role as MailboxRole) && !byRole.has(role)) {
+      byRole.set(role, box);
+    }
+  }
+  // archive อาจไม่มี role แต่มีชื่อ Archive ที่ระดับบนสุด (เราสร้างเอง §5.2)
+  if (!byRole.has("archive")) {
+    const named = boxes.find(
+      (b) => b.parentId === null && (b.name ?? "").trim().toLowerCase() === "archive",
+    );
+    if (named) byRole.set("archive", named);
+  }
+
+  const summaries: MailboxSummary[] = [];
+  for (const key of MAIL_BOX_ORDER) {
+    if (key === "starred") {
+      // ไม่ใช่ mailbox → ไม่มีตัวเลขให้ถาม (null ไม่ใช่ 0)
+      summaries.push({
+        id: "starred",
+        key,
+        role: null,
+        name: MAIL_BOX_LABELS.starred,
+        unreadCount: null,
+        totalCount: null,
+      });
+      continue;
+    }
+    const box = byRole.get(key);
+    // role ที่ไม่มีจริงบนเซิร์ฟเวอร์ → ซ่อนเมนูนั้นไปเลย
+    if (!box) continue;
+    summaries.push({
+      id: box.id,
+      key,
+      role: key as MailboxRole,
+      name: MAIL_BOX_LABELS[key],
+      unreadCount: typeof box.unreadEmails === "number" ? box.unreadEmails : null,
+      totalCount: typeof box.totalEmails === "number" ? box.totalEmails : null,
+    });
+  }
+  return summaries;
+}
+
+export async function fetchMailboxes(session: MailSession): Promise<JmapMailbox[]> {
+  const responses = await jmapRequest(session, [
+    ["Mailbox/get", { accountId: session.accountId, ids: null }, "m"],
+  ]);
+  const list = pickResponse(responses, "m").list as JmapMailbox[] | undefined;
+  return Array.isArray(list) ? list : [];
+}
+
+export function mailboxIdByKey(boxes: JmapMailbox[]): Partial<Record<MailBoxKey, string>> {
+  const map: Partial<Record<MailBoxKey, string>> = {};
+  for (const s of buildMailboxSummaries(boxes)) {
+    if (s.key !== "starred") map[s.key] = s.id;
+  }
+  return map;
+}
+
+// ─── filter ──────────────────────────────────────────────────────────────────
+
+export function buildFilter(
+  params: Pick<MailListParams, "box" | "q" | "unread" | "attachment">,
+  ids: Partial<Record<MailBoxKey, string>>,
+): Record<string, unknown> {
+  const conditions: Record<string, unknown>[] = [];
+
+  if (params.box === "starred") {
+    conditions.push({ hasKeyword: "$flagged" });
+  } else {
+    const mailboxId = ids[params.box];
+    if (!mailboxId) throw new MailServiceError(404, "ไม่พบโฟลเดอร์นี้ในกล่องเมล");
+    conditions.push({ inMailbox: mailboxId });
+  }
+
+  if (params.unread) conditions.push({ notKeyword: "$seen" });
+  if (params.attachment) conditions.push({ hasAttachment: true });
+  const q = (params.q ?? "").trim();
+  if (q) conditions.push({ text: q });
+
+  if (conditions.length === 1) return conditions[0]!;
+  return { operator: "AND", conditions };
+}
+
+// ─── mapping ─────────────────────────────────────────────────────────────────
+
+export function mapAddress(addr: JmapEmailAddress | null | undefined): MailAddress | null {
+  if (!addr?.email) return null;
+  return { name: addr.name?.trim() ? addr.name.trim() : null, email: addr.email };
+}
+
+export function mapAddresses(list: JmapEmailAddress[] | null | undefined): MailAddress[] {
+  if (!Array.isArray(list)) return [];
+  return list.map(mapAddress).filter((a): a is MailAddress => a !== null);
+}
+
+export function mapEmailToMessage(email: JmapEmail, threadCount = 1): MailMessage {
+  const keywords = email.keywords ?? {};
+  return {
+    id: email.id,
+    threadId: email.threadId ?? email.id,
+    mailboxIds: Object.keys(email.mailboxIds ?? {}).filter((k) => email.mailboxIds?.[k]),
+    from: mapAddress(email.from?.[0]),
+    subject: (email.subject ?? "").trim() || "(ไม่มีหัวเรื่อง)",
+    preview: (email.preview ?? "").trim(),
+    receivedAt: email.receivedAt ?? new Date(0).toISOString(),
+    isUnread: !keywords["$seen"],
+    isFlagged: !!keywords["$flagged"],
+    hasAttachment: !!email.hasAttachment,
+    sizeBytes: typeof email.size === "number" ? email.size : 0,
+    threadCount: threadCount > 0 ? threadCount : 1,
+  };
+}
+
+export function threadCountMap(threads: JmapThread[] | undefined): Record<string, number> {
+  const map: Record<string, number> = {};
+  for (const t of threads ?? []) {
+    map[t.id] = Array.isArray(t.emailIds) ? t.emailIds.length : 1;
+  }
+  return map;
+}
+
+// ─── รายการเมล ───────────────────────────────────────────────────────────────
+
+export async function listMessages(
+  session: MailSession,
+  params: MailListParams,
+): Promise<MailListResult> {
+  const boxes = await fetchMailboxes(session);
+  const filter = buildFilter(params, mailboxIdByKey(boxes));
+  const limit = Math.min(Math.max(params.limit ?? 50, 1), 100);
+
+  const queryArgs: Record<string, unknown> = {
+    accountId: session.accountId,
+    filter,
+    sort: [{ property: "receivedAt", isAscending: false }],
+    collapseThreads: true,
+    calculateTotal: true,
+    limit,
+  };
+  if (params.anchor) {
+    queryArgs.anchor = params.anchor;
+    queryArgs.anchorOffset = params.anchorOffset ?? 1;
+  } else {
+    queryArgs.position = Math.max(params.position ?? 0, 0);
+  }
+
+  const calls: JmapMethodCall[] = [
+    ["Email/query", queryArgs, "q"],
+    [
+      "Email/get",
+      {
+        accountId: session.accountId,
+        "#ids": { resultOf: "q", name: "Email/query", path: "/ids" },
+        properties: EMAIL_LIST_PROPERTIES,
+      },
+      "g",
+    ],
+    [
+      "Thread/get",
+      {
+        accountId: session.accountId,
+        "#ids": { resultOf: "g", name: "Email/get", path: "/list/*/threadId" },
+      },
+      "t",
+    ],
+  ];
+
+  const responses = await jmapRequest(session, calls);
+  const query = pickResponse(responses, "q");
+  const emails = (pickResponse(responses, "g").list as JmapEmail[] | undefined) ?? [];
+  const threads = (pickResponse(responses, "t").list as JmapThread[] | undefined) ?? [];
+  const counts = threadCountMap(threads);
+
+  const messages = emails.map((e) => mapEmailToMessage(e, counts[e.threadId ?? ""] ?? 1));
+  const total = typeof query.total === "number" ? query.total : null;
+  const position = typeof query.position === "number" ? query.position : 0;
+  const hasMore = total !== null ? position + messages.length < total : messages.length === limit;
+
+  return {
+    messages,
+    total,
+    hasMore,
+    queryState: typeof query.queryState === "string" ? query.queryState : null,
+  };
+}
+
+// ─── กล่องคลังเก็บ (ต้องสร้างเอง — §5.2) ─────────────────────────────────────
+
+/** idempotent + lazy: เรียกตอนกด archive ครั้งแรกเท่านั้น ห้ามเรียกตอนโหลดหน้า */
+export async function ensureArchiveMailbox(session: MailSession): Promise<string> {
+  const boxes = await fetchMailboxes(session);
+  const existing = mailboxIdByKey(boxes).archive;
+  if (existing) return existing;
+
+  const create = async (withRole: boolean) => {
+    const props: Record<string, unknown> = { name: "Archive", parentId: null };
+    if (withRole) props.role = "archive";
+    const responses = await jmapRequest(session, [
+      ["Mailbox/set", { accountId: session.accountId, create: { archive: props } }, "s"],
+    ]);
+    if (responseType(responses, "s") === "error") return null;
+    const result = pickResponse(responses, "s");
+    const created = (result.created as Record<string, { id?: string }> | undefined)?.archive;
+    return created?.id ?? null;
+  };
+
+  const withRole = await create(true);
+  if (withRole) return withRole;
+  const plain = await create(false);
+  if (plain) return plain;
+  throw new MailArchiveError();
+}
+
+// ─── สถานะเดิม (สำหรับ undo) + การกระทำ ──────────────────────────────────────
+
+export function toUndoItem(email: JmapEmail): MailUndoItem {
+  const keywords = email.keywords ?? {};
+  return {
+    id: email.id,
+    mailboxIds: Object.keys(email.mailboxIds ?? {}).filter((k) => email.mailboxIds?.[k]),
+    wasUnread: !keywords["$seen"],
+    wasFlagged: !!keywords["$flagged"],
+  };
+}
+
+/** ขยายรายการ id ตาม scope แล้วอ่านสถานะเดิมของทุกฉบับที่จะถูกแตะ */
+export async function resolveTargets(
+  session: MailSession,
+  ids: string[],
+  by: MailScope,
+): Promise<MailUndoItem[]> {
+  if (ids.length === 0) return [];
+  const props = ["id", "threadId", "mailboxIds", "keywords"];
+  const calls: JmapMethodCall[] = [
+    ["Email/get", { accountId: session.accountId, ids, properties: props }, "a"],
+  ];
+  if (by === "thread") {
+    calls.push([
+      "Thread/get",
+      {
+        accountId: session.accountId,
+        "#ids": { resultOf: "a", name: "Email/get", path: "/list/*/threadId" },
+      },
+      "b",
+    ]);
+    calls.push([
+      "Email/get",
+      {
+        accountId: session.accountId,
+        "#ids": { resultOf: "b", name: "Thread/get", path: "/list/*/emailIds" },
+        properties: props,
+      },
+      "c",
+    ]);
+  }
+  const responses = await jmapRequest(session, calls);
+  const list =
+    (pickResponse(responses, by === "thread" ? "c" : "a").list as JmapEmail[] | undefined) ?? [];
+  return list.map(toUndoItem);
+}
+
+export interface MailPatch {
+  isUnread?: boolean;
+  isFlagged?: boolean;
+  moveTo?: "archive" | "trash" | "inbox";
+}
+
+/** แปลง action/patch → update ของ Email/set (pure — มีเทสคุม) */
+export function buildUpdatePatch(
+  patch: MailPatch,
+  targetMailboxId: string | null,
+): Record<string, unknown> {
+  const update: Record<string, unknown> = {};
+  if (patch.isUnread !== undefined) update["keywords/$seen"] = patch.isUnread ? null : true;
+  if (patch.isFlagged !== undefined) update["keywords/$flagged"] = patch.isFlagged ? true : null;
+  if (patch.moveTo && targetMailboxId) update.mailboxIds = { [targetMailboxId]: true };
+  return update;
+}
+
+export function actionToPatch(action: MailBulkAction): MailPatch {
+  switch (action) {
+    case "read":
+      return { isUnread: false };
+    case "unread":
+      return { isUnread: true };
+    case "star":
+      return { isFlagged: true };
+    case "unstar":
+      return { isFlagged: false };
+    case "archive":
+      return { moveTo: "archive" };
+    case "trash":
+      return { moveTo: "trash" };
+  }
+}
+
+export function patchToAction(patch: MailPatch): MailBulkAction {
+  if (patch.moveTo === "trash") return "trash";
+  if (patch.moveTo) return "archive";
+  if (patch.isFlagged !== undefined) return patch.isFlagged ? "star" : "unstar";
+  return patch.isUnread ? "unread" : "read";
+}
+
+/** undo = เขียนค่าเดิมกลับรายฉบับ (ห้าม "ทำตรงข้าม") */
+export function buildUndoUpdates(token: MailUndoToken): Record<string, Record<string, unknown>> {
+  const update: Record<string, Record<string, unknown>> = {};
+  for (const item of token.items) {
+    const mailboxIds: Record<string, boolean> = {};
+    for (const id of item.mailboxIds) mailboxIds[id] = true;
+    update[item.id] = {
+      mailboxIds,
+      "keywords/$seen": item.wasUnread ? null : true,
+      "keywords/$flagged": item.wasFlagged ? true : null,
+    };
+  }
+  return update;
+}
+
+async function runEmailSet(
+  session: MailSession,
+  update: Record<string, Record<string, unknown>>,
+): Promise<number> {
+  if (Object.keys(update).length === 0) return 0;
+  const responses = await jmapRequest(session, [
+    ["Email/set", { accountId: session.accountId, update }, "u"],
+  ]);
+  const result = pickResponse(responses, "u");
+  const updated = result.updated as Record<string, unknown> | null | undefined;
+  return updated ? Object.keys(updated).length : 0;
+}
+
+export interface MailMutationResult {
+  affected: number;
+  undo: MailUndoToken;
+}
+
+/** ใช้ทั้ง PATCH รายฉบับและ bulk — เก็บสถานะเดิมก่อนเสมอ */
+export async function applyMailPatch(
+  session: MailSession,
+  args: { ids: string[]; by: MailScope; patch: MailPatch },
+): Promise<MailMutationResult> {
+  const items = await resolveTargets(session, args.ids, args.by);
+  const action = patchToAction(args.patch);
+
+  let targetMailboxId: string | null = null;
+  if (args.patch.moveTo === "archive") {
+    targetMailboxId = await ensureArchiveMailbox(session);
+  } else if (args.patch.moveTo) {
+    const boxes = mailboxIdByKey(await fetchMailboxes(session));
+    targetMailboxId = boxes[args.patch.moveTo] ?? null;
+    if (!targetMailboxId) throw new MailServiceError(404, "ไม่พบโฟลเดอร์ปลายทาง");
+  }
+
+  const patchBody = buildUpdatePatch(args.patch, targetMailboxId);
+  const update: Record<string, Record<string, unknown>> = {};
+  for (const item of items) update[item.id] = patchBody;
+
+  const affected = await runEmailSet(session, update);
+  return { affected, undo: { action, by: args.by, items } };
+}
+
+export async function applyMailBulk(
+  session: MailSession,
+  args: { ids: string[]; action: MailBulkAction; by: MailScope },
+): Promise<MailMutationResult> {
+  return applyMailPatch(session, {
+    ids: args.ids,
+    by: args.by,
+    patch: actionToPatch(args.action),
+  });
+}
+
+export async function applyMailUndo(
+  session: MailSession,
+  token: MailUndoToken,
+): Promise<{ affected: number }> {
+  const affected = await runEmailSet(session, buildUndoUpdates(token));
+  return { affected };
+}
+
+// ─── บานอ่าน (เธรด) ──────────────────────────────────────────────────────────
+
+const MAX_INLINE_IMAGES = 12;
+
+function bodyValueOf(email: JmapEmail, parts: JmapBodyPart[] | undefined): string | null {
+  const partId = parts?.find((p) => p.partId)?.partId;
+  if (!partId) return null;
+  return email.bodyValues?.[partId]?.value ?? null;
+}
+
+function normalizeCid(cid: string | null | undefined): string {
+  return (cid ?? "").replace(/^</, "").replace(/>$/, "").trim();
+}
+
+export function mapAttachments(email: JmapEmail): MailAttachment[] {
+  return (email.attachments ?? [])
+    .filter((p) => !!p.blobId)
+    .map((p) => ({
+      blobId: p.blobId as string,
+      name: sanitizeAttachmentName(p.name),
+      type: (p.type ?? "application/octet-stream").split(";")[0]?.trim() ?? "",
+      sizeBytes: typeof p.size === "number" ? p.size : 0,
+    }));
+}
+
+/** ดึงรูป inline (cid:) มาเป็น data: — ผ่านด่าน MIME + งบ byte ที่ `buildInlineImageMap` */
+async function collectInlineImages(
+  session: MailSession,
+  email: JmapEmail,
+  html: string,
+): Promise<Record<string, string>> {
+  if (!html.toLowerCase().includes("cid:")) return {};
+  const candidates = (email.attachments ?? [])
+    .filter((p) => p.blobId && normalizeCid(p.cid))
+    .filter((p) => (INLINE_IMAGE_TYPES as readonly string[]).includes((p.type ?? "").toLowerCase()))
+    .slice(0, MAX_INLINE_IMAGES);
+  if (candidates.length === 0) return {};
+
+  const sources: InlineImageSource[] = [];
+  for (const part of candidates) {
+    try {
+      const res = await fetchBlob(session, {
+        blobId: part.blobId as string,
+        name: sanitizeAttachmentName(part.name),
+        type: (part.type ?? "").toLowerCase(),
+      });
+      const buf = Buffer.from(await res.arrayBuffer());
+      sources.push({
+        cid: normalizeCid(part.cid),
+        type: (part.type ?? "").toLowerCase(),
+        base64: buf.toString("base64"),
+      });
+    } catch {
+      // ดึงรูป inline ไม่ได้ = ปล่อยเป็น cid: (CSP บล็อก) แล้วโชว์เป็นไฟล์แนบ
+    }
+  }
+  return buildInlineImageMap(sources);
+}
+
+async function mapMessageDetail(
+  session: MailSession,
+  email: JmapEmail,
+  showImages: boolean,
+): Promise<MailMessageDetail> {
+  const rawHtml = bodyValueOf(email, email.htmlBody);
+  const text = bodyValueOf(email, email.textBody);
+  const keywords = email.keywords ?? {};
+
+  let htmlSanitized: string | null = null;
+  let hasRemoteImages = false;
+  if (rawHtml) {
+    const inlineImages = await collectInlineImages(session, email, rawHtml);
+    const prepared = prepareMailHtml(rawHtml, {
+      inlineImages,
+      stripRemoteImages: !showImages,
+    });
+    htmlSanitized = prepared.html;
+    hasRemoteImages = prepared.hasRemoteImages;
+  }
+
+  return {
+    id: email.id,
+    from: mapAddress(email.from?.[0]),
+    to: mapAddresses(email.to),
+    cc: mapAddresses(email.cc),
+    receivedAt: email.receivedAt ?? new Date(0).toISOString(),
+    subject: (email.subject ?? "").trim() || "(ไม่มีหัวเรื่อง)",
+    isUnread: !keywords["$seen"],
+    isFlagged: !!keywords["$flagged"],
+    htmlSanitized,
+    textBody: text,
+    hasRemoteImages,
+    attachments: mapAttachments(email),
+  };
+}
+
+const DETAIL_GET_ARGS = {
+  properties: EMAIL_DETAIL_PROPERTIES,
+  bodyProperties: ["partId", "blobId", "size", "name", "type", "cid", "disposition"],
+  fetchHTMLBodyValues: true,
+  fetchTextBodyValues: true,
+  maxBodyValueBytes: MAX_BODY_VALUE_BYTES,
+};
+
+export async function getMailThread(
+  session: MailSession,
+  id: string,
+  by: MailScope,
+  opts: { showImages?: boolean } = {},
+): Promise<MailThreadDetail> {
+  const showImages = !!opts.showImages;
+  let emails: JmapEmail[];
+
+  if (by === "email") {
+    const responses = await jmapRequest(session, [
+      ["Email/get", { accountId: session.accountId, ids: [id], ...DETAIL_GET_ARGS }, "a"],
+    ]);
+    emails = (pickResponse(responses, "a").list as JmapEmail[] | undefined) ?? [];
+  } else {
+    const responses = await jmapRequest(session, [
+      [
+        "Email/get",
+        { accountId: session.accountId, ids: [id], properties: ["id", "threadId"] },
+        "a",
+      ],
+      [
+        "Thread/get",
+        {
+          accountId: session.accountId,
+          "#ids": { resultOf: "a", name: "Email/get", path: "/list/*/threadId" },
+        },
+        "b",
+      ],
+      [
+        "Email/get",
+        {
+          accountId: session.accountId,
+          "#ids": { resultOf: "b", name: "Thread/get", path: "/list/*/emailIds" },
+          ...DETAIL_GET_ARGS,
+        },
+        "c",
+      ],
+    ]);
+    emails = (pickResponse(responses, "c").list as JmapEmail[] | undefined) ?? [];
+  }
+
+  if (emails.length === 0) throw new MailServiceError(404, "ไม่พบอีเมลฉบับนี้");
+
+  emails.sort((a, b) => (a.receivedAt ?? "").localeCompare(b.receivedAt ?? ""));
+  const messages: MailMessageDetail[] = [];
+  for (const email of emails) {
+    messages.push(await mapMessageDetail(session, email, showImages));
+  }
+
+  const anchor = emails.find((e) => e.id === id) ?? emails[emails.length - 1]!;
+  return {
+    threadId: anchor.threadId ?? id,
+    subject: messages[0]?.subject ?? "(ไม่มีหัวเรื่อง)",
+    messages,
+  };
+}

@@ -52,7 +52,14 @@ import {
   ShoppingCart,
   Truck,
   Bot,
+  Star,
+  Send,
+  FilePen,
+  Archive,
+  ShieldAlert,
+  Trash2,
 } from "lucide-react";
+import { MAIL_BOX_LABELS, MAIL_MODULE_LABEL } from "@/components/mail/mail-boxes";
 
 import type { Role } from "@/lib/supabase/types";
 
@@ -82,7 +89,7 @@ export function isLinkMenuItem(item: MenuItem): item is LinkMenuItem {
 
 const allRoles: Role[] = ["super_admin", "user"];
 
-const SYSTEM_SEGMENTS = new Set(["admin", "user", "signin", "no-module", "assistant"]);
+const SYSTEM_SEGMENTS = new Set(["admin", "user", "signin", "no-module", "assistant", "mail"]);
 
 function hasRole(itemRoles: Role[] | undefined, role: Role | null) {
   if (!itemRoles) return true;
@@ -381,6 +388,59 @@ function buildSttMenuItems(_org: string, labels: Record<string, string> = {}): M
       name: l("billing", "การชำระเงิน"),
       href: `/assistant/billing`,
       icon: <CreditCard className="h-5 w-5" />,
+      roles: allRoles,
+    },
+  ];
+}
+
+// ─── อีเมล (mail) — webmail top-level ไม่ผูก org ─────────────────────────────
+// sidebar ของ PERPOS ทำหน้าที่เป็น left rail ของเมลไปในตัว (MAIL_UI_SPEC §1)
+// M1 ยังไม่แสดงตัวเลข "ยังไม่ได้อ่าน" ที่นี่ (อยู่หัวรายการของ workspace แทน) — ยกไปทำที่ M3
+function buildMailMenuItems(labels: Record<string, string> = {}): MenuItem[] {
+  const l = (key: string, fallback: string) => labels[key] || fallback;
+  const box = (key: string) => `/mail?box=${key}`;
+  return [
+    { name: MAIL_MODULE_LABEL, roles: allRoles },
+    {
+      name: l("inbox", MAIL_BOX_LABELS.inbox),
+      href: box("inbox"),
+      icon: <Inbox className="h-5 w-5" />,
+      roles: allRoles,
+    },
+    {
+      name: l("starred", MAIL_BOX_LABELS.starred),
+      href: box("starred"),
+      icon: <Star className="h-5 w-5" />,
+      roles: allRoles,
+    },
+    {
+      name: l("sent", MAIL_BOX_LABELS.sent),
+      href: box("sent"),
+      icon: <Send className="h-5 w-5" />,
+      roles: allRoles,
+    },
+    {
+      name: l("drafts", MAIL_BOX_LABELS.drafts),
+      href: box("drafts"),
+      icon: <FilePen className="h-5 w-5" />,
+      roles: allRoles,
+    },
+    {
+      name: l("archive", MAIL_BOX_LABELS.archive),
+      href: box("archive"),
+      icon: <Archive className="h-5 w-5" />,
+      roles: allRoles,
+    },
+    {
+      name: l("junk", MAIL_BOX_LABELS.junk),
+      href: box("junk"),
+      icon: <ShieldAlert className="h-5 w-5" />,
+      roles: allRoles,
+    },
+    {
+      name: l("trash", MAIL_BOX_LABELS.trash),
+      href: box("trash"),
+      icon: <Trash2 className="h-5 w-5" />,
       roles: allRoles,
     },
   ];
@@ -785,6 +845,9 @@ function pickMenuContext(pathname: string, role: Role | null, enabledKeys: strin
   // /assistant/* = ผู้ช่วย AI (per-profile, top-level ไม่มี org)
   if (segments[0] === "assistant") return "stt";
 
+  // /mail/* = webmail (ผูกกับ mail account ที่ผ่าน OAuth ไม่ใช่ org)
+  if (segments[0] === "mail") return "mail";
+
   // For org routes: /:orgSlug/:module/*  →  segments[1] is the module key
   if (segments.length >= 2) {
     const mod = segments[1];
@@ -831,38 +894,40 @@ export function getMenuItems(
   const items =
     context === "admin"
       ? buildAdminMenuItems()
-      : context === "stt"
-        ? buildSttMenuItems(org, menuLabels.stt ?? {})
-        : context === "tmc"
-          ? buildTmcMenuItems(org, orgRole, menuLabels.tmc ?? {})
-          : context === "crm"
-            ? buildCrmMenuItems(org, menuLabels.crm ?? {})
-            : context === "acc_firm"
-              ? buildAccFirmMenuItems(org, menuLabels.acc_firm ?? {})
-              : context === "just_me"
-                ? buildJustMeMenuItems(org, orgRole, menuLabels.just_me ?? {})
-                : context === "usvilla"
-                  ? buildUsvillaMenuItems(org, menuLabels.usvilla ?? {})
-                  : context === "jaquar"
-                    ? buildJaquarMenuItems(org, menuLabels.jaquar ?? {})
-                    : context === "b2g"
-                      ? buildB2gMenuItems(org, menuLabels.b2g ?? {})
-                      : context === "p2p_supply"
-                        ? buildP2pSupplyMenuItems(org, menuLabels.p2p_supply ?? {})
-                        : context === "p2p_group"
-                          ? buildP2pGroupMenuItems(org, menuLabels.p2p_group ?? {})
-                          : context === "hrm"
-                            ? buildHrmMenuItems(org, menuLabels.hrm ?? {})
-                            : context === "gov_procure"
-                              ? buildGovProcureMenuItems(org, menuLabels.gov_procure ?? {})
-                              : context === "bi"
-                                ? buildBiMenuItems(org, menuLabels.bi ?? {})
-                                : buildUserMenuItems(
-                                    org,
-                                    menuLabels.accounting ?? {},
-                                    orgRole,
-                                    role === "super_admin",
-                                  );
+      : context === "mail"
+        ? buildMailMenuItems(menuLabels.mail ?? {})
+        : context === "stt"
+          ? buildSttMenuItems(org, menuLabels.stt ?? {})
+          : context === "tmc"
+            ? buildTmcMenuItems(org, orgRole, menuLabels.tmc ?? {})
+            : context === "crm"
+              ? buildCrmMenuItems(org, menuLabels.crm ?? {})
+              : context === "acc_firm"
+                ? buildAccFirmMenuItems(org, menuLabels.acc_firm ?? {})
+                : context === "just_me"
+                  ? buildJustMeMenuItems(org, orgRole, menuLabels.just_me ?? {})
+                  : context === "usvilla"
+                    ? buildUsvillaMenuItems(org, menuLabels.usvilla ?? {})
+                    : context === "jaquar"
+                      ? buildJaquarMenuItems(org, menuLabels.jaquar ?? {})
+                      : context === "b2g"
+                        ? buildB2gMenuItems(org, menuLabels.b2g ?? {})
+                        : context === "p2p_supply"
+                          ? buildP2pSupplyMenuItems(org, menuLabels.p2p_supply ?? {})
+                          : context === "p2p_group"
+                            ? buildP2pGroupMenuItems(org, menuLabels.p2p_group ?? {})
+                            : context === "hrm"
+                              ? buildHrmMenuItems(org, menuLabels.hrm ?? {})
+                              : context === "gov_procure"
+                                ? buildGovProcureMenuItems(org, menuLabels.gov_procure ?? {})
+                                : context === "bi"
+                                  ? buildBiMenuItems(org, menuLabels.bi ?? {})
+                                  : buildUserMenuItems(
+                                      org,
+                                      menuLabels.accounting ?? {},
+                                      orgRole,
+                                      role === "super_admin",
+                                    );
 
   return items.filter((item) => {
     if (!("href" in item)) return hasRole(item.roles, role);

@@ -7,7 +7,7 @@ import { Avatar } from "@/components/ui/avatar";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { LogOut, ChevronsUpDown, User, Zap, Building2, MessageCircle } from "lucide-react";
+import { LogOut, ChevronsUpDown, User, Zap, Building2, MessageCircle, AtSign } from "lucide-react";
 
 import { useAuth } from "@/app/shared/auth-provider";
 import { useOrgSlug } from "@/app/shared/module-provider";
@@ -37,7 +37,7 @@ export default function ProfileMenu({
             className={cn(
               "flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-gray-600 outline-none transition-colors hover:bg-gray-100 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-300 active:translate-y-px",
               open && "bg-gray-100 text-gray-900",
-              buttonClassName
+              buttonClassName,
             )}
           >
             <User className="h-[18px] w-[18px]" />
@@ -57,7 +57,7 @@ export default function ProfileMenu({
         <button
           className={cn(
             "flex w-full items-center gap-3 rounded-xl bg-gray-50 p-2 text-left outline-none transition-colors hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-gray-300 active:translate-y-px",
-            buttonClassName
+            buttonClassName,
           )}
         >
           <Avatar
@@ -75,7 +75,10 @@ export default function ProfileMenu({
             </div>
           </div>
           <ChevronsUpDown
-            className={cn("h-4 w-4 shrink-0 text-gray-400 transition-transform duration-150", open && "rotate-180")}
+            className={cn(
+              "h-4 w-4 shrink-0 text-gray-400 transition-transform duration-150",
+              open && "rotate-180",
+            )}
           />
         </button>
       )}
@@ -97,6 +100,11 @@ function DropdownMenu() {
       label: "โปรไฟล์",
       href: "/user",
       icon: <User className="h-[18px] w-[18px] shrink-0 text-gray-500" />,
+    },
+    {
+      label: "อีเมล",
+      href: "/mail",
+      icon: <AtSign className="h-[18px] w-[18px] shrink-0 text-gray-500" />,
     },
     {
       label: "แพ็กเกจสมาชิก",
@@ -122,7 +130,7 @@ function DropdownMenu() {
         <Avatar
           src={profile?.avatar_url ?? undefined}
           name={name}
-          className="!h-9 !w-9 !rounded-lg bg-gray-100 text-sm font-semibold text-gray-700 shrink-0"
+          className="!h-9 !w-9 shrink-0 !rounded-lg bg-gray-100 text-sm font-semibold text-gray-700"
         />
         <div className="min-w-0">
           <div className="flex items-center gap-1.5">
@@ -138,15 +146,15 @@ function DropdownMenu() {
 
       {/* แถวลิงก์ข้อกำหนด/ความเป็นส่วนตัว/แชท */}
       <div className="flex items-center gap-2 border-b border-t border-gray-100 px-5 py-2.5 text-xs text-gray-500">
-        <Link href="/terms" className="hover:text-gray-800 transition-colors">
+        <Link href="/terms" className="transition-colors hover:text-gray-800">
           ข้อตกลง
         </Link>
         <span className="text-gray-300">•</span>
-        <Link href="/privacy" className="hover:text-gray-800 transition-colors">
+        <Link href="/privacy" className="transition-colors hover:text-gray-800">
           ความเป็นส่วนตัว
         </Link>
         <span className="text-gray-300">•</span>
-        <button className="flex items-center hover:text-gray-800 transition-colors">
+        <button className="flex items-center transition-colors hover:text-gray-800">
           <MessageCircle className="h-3.5 w-3.5" />
         </button>
       </div>
