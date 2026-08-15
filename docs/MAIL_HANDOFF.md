@@ -124,22 +124,25 @@ terraform apply
       · 🔴 **SPF เดิมหายไปเงียบ ๆ ตอนปิด Cloudflare Email Routing** — Cloudflare ลบทั้ง MX
       **และ TXT ของ SPF** ที่มันจัดการอยู่ · ถ้าไม่ไล่ดูจะไม่มีใครรู้ · **เช็ค SPF ทุกครั้งหลังแตะ
       Email Routing**
-- [x] **เปิดให้ Stalwart เซ็น DKIM เอง (ทางเลือก ข) — 2026-08-15**
-      · `x:SenderAuth` singleton → `dkimSignDomain` = `sender_domain`
-      · เดิม object นี้ **ไม่เคยถูกสร้าง** = ไม่เซ็นอะไรเลย (คีย์มีแต่ไม่ได้ใช้)
-      · ต้อง `systemctl restart stalwart` หลังตั้ง
-      · ⚠️ **ยังไม่ได้ยืนยันผล** — mail-tester ใช้โควตาฟรีหมดวันแล้ว (redirect ไปหน้า upgrade)
-      → ส่งเมลไป `iprite@gmail.com` แทน ให้เปิด **Show original** ดูว่า
-      `DKIM: 'PASS' with domain perpos.ai` (ต้องเป็น perpos.ai ไม่ใช่โดเมนของ Brevo)
-- [ ] 🔴 **DMARC ยังไม่ผ่าน — คะแนน mail-tester ค้างที่ 4.6/10 (−3 จากข้อนี้)**
-      · SPF ผ่าน แต่ผ่านในนาม **`gw.d.sender-sib.com`** (Brevo เขียน Return-Path ทับ) → **ไม่ align**
-      · DKIM signature valid แต่เป็นของ **Brevo** ไม่ใช่ `d=perpos.ai` → **ไม่ align**
-      · DMARC ต้องการให้ SPF **หรือ** DKIM align กับโดเมนใน `From:` — ตอนนี้ไม่มีสักอัน
-      · ทางแก้ 2 ทาง (เลือกทางใดทางหนึ่ง): **(ก)** ทำให้ Brevo เซ็นด้วยคีย์ของ `perpos.ai`
-      (record `brevo1/brevo2._domainkey` มีใน DNS แล้ว — น่าจะแค่ต้อง activate โดเมน/เพิ่ม sender
-      ในหน้า Brevo) · **(ข)** ให้ Stalwart เซ็น DKIM เองตอนส่งออก (คีย์+DNS พร้อมแล้ว เหลือเปิดใช้)
-      · **หมายเหตุ: แผนเดิมที่เขียนว่า "ปิด DKIM ของ Stalwart" ใช้ไม่ได้กับ Brevo** —
-      เหตุผลเดิมคือกันลายเซ็นซ้อนกับ SES Easy DKIM แต่พอ relay ไม่เซ็นในนามเรา กลายเป็นไม่มีอะไร align
+- [x] **DMARC ผ่านแล้ว — และผ่านมาตั้งแต่ก่อนที่เราจะแก้อะไร (2026-08-15)**
+      · header จริงจาก Gmail: `dmarc=pass (p=NONE) header.from=perpos.ai`
+      · เพราะ **Brevo เซ็นด้วย `d=perpos.ai` selector `brevo2` อยู่แล้ว** (ใช้ record
+      `brevo1/brevo2._domainkey` ที่มีใน DNS มาก่อนเราจะเริ่มทำ) → DKIM align → DMARC ผ่าน
+      · SPF ไม่ align (Brevo เขียน Return-Path เป็น `gw.d.sender-sib.com`) แต่ **DMARC ต้องการ
+      แค่อย่างใดอย่างหนึ่ง** จึงไม่เป็นไร
+      · 🔴 **mail-tester บอกว่า DMARC fail ทั้งที่ Gmail บอก pass** — mail-tester ไปตัดสินจาก
+      ลายเซ็นตัวที่เสีย (ดูข้อล่าง) · **อย่าเชื่อ mail-tester อย่างเดียว ให้ดู header จริงจาก
+      ปลายทางจริงเสมอ**
+- [ ] ⚠️ **ลายเซ็น DKIM ของ Stalwart เองยัง `bad format`**
+      · Gmail: `dkim=neutral (bad format) header.i=@perpos.ai`
+      · สาเหตุ: Stalwart ยัด **2 ลายเซ็น (ed25519 + rsa) ไว้ในหัวเดียวคั่นด้วย `,`** แล้วทั้งก้อน
+      ถูก MIME-encode เป็น `=?utf-8?b?…?=` ซึ่งผิดสเปก
+      · ลองแก้แล้วโดยตัดให้เหลือ **RSA อย่างเดียว** (`x:Domain` → `dkimManagement/algorithms`)
+      — ส่งรอบ 5 ไป Gmail แล้ว **รอเจ้าของเช็ค Show original**
+      · ถ้ายังเสีย → **ปิด DKIM ของ Stalwart ทิ้ง** (`x:SenderAuth`) ปล่อยให้ Brevo เซ็นอย่างเดียว
+      ซึ่งตรงกับที่คัมภีร์เขียนไว้แต่แรก — **แผนเดิมถูก ผมเป็นคนไปเปิดเองแล้วทำให้แย่ลง**
+      · ⚠️ แต่ถ้าย้ายออกจาก Brevo ไป SES/Mailgun เมื่อไร **ต้องกลับมาแก้ให้ลายเซ็นตัวเองใช้ได้**
+      ไม่งั้นจะไม่เหลืออะไร align
 - [ ] −1.9 SpamAssassin + −0.5 body errors — ส่วนใหญ่เพราะเมลทดสอบเป็น plain text ล้วน
       ไม่มี HTML part / List-Unsubscribe · เมลจริงคะแนนดีกว่านี้ ไม่ใช่เรื่องเร่งด่วน
 - [ ] เปิด **Google Postmaster Tools** ของ `perpos.ai`
