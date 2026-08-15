@@ -22,7 +22,7 @@
 ```
 PERPOS (perpos.ai) is a Thai SME ERP/accounting SaaS. We are adding a hosted business
 email service for our customers, and we will use SES only as the outbound relay
-(SMTP submission on port 587) from our own mail server (Stalwart) hosted in Singapore.
+(SMTP submission on port 587) from our own mail server (Stalwart) hosted in Germany.
 
 We are an ISV sending on behalf of our customers, on their own verified domains.
 

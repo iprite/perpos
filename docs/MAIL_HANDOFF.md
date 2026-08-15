@@ -94,8 +94,20 @@ terraform apply
 - [ ] **ปิด DKIM signing ของ Stalwart** — เราใช้ SES Easy DKIM (ไม่งั้นได้ลายเซ็นซ้อน)
 - [ ] DNS ของ `perpos.ai`: MX · SPF `include:amazonses.com` · **DKIM CNAME ×3 จาก SES** · DMARC `p=none`
 - [ ] เปิด **Google Postmaster Tools** ของ `perpos.ai`
-- [ ] เพิ่ม **fail2ban jail สำหรับ Stalwart** (587/993) — cloud-init ทำไว้แค่ sshd
-- [ ] 🔴 **logical backup รายวัน + ส่งออกนอก Hetzner** (§5.1 — snapshot ขณะเครื่องรันอาจกู้ไม่ได้)
+- [ ] ⚠️ **fail2ban jail สำหรับ Stalwart — ไม่ต้องทำแล้ว ใช้ของในตัวแทน**
+      · Stalwart มี auto-ban ในตัวตั้งแต่ 0.5.3 (ครอบทั้ง SMTP/IMAP/JMAP/ManageSieve + นับตาม
+      **ชื่อล็อกอิน** ด้วย ไม่ใช่แค่ IP → กัน distributed brute-force ที่หมุน IP ได้)
+      · fail2ban ภายนอก **ใช้กับ Stalwart ไม่ได้อยู่แล้ว** — ระดับ log ปัจจุบันไม่บันทึก auth ที่ล้มเหลว
+      (ลองยิงรหัสผิดแล้วไม่มีบรรทัดใน log เลย) จะ match อะไรก็ไม่เจอ
+      · **ที่ต้องทำ: ตั้งเพดานที่ Settings → Security → Settings** — ยิงรหัสผิด 12 ครั้งติดยังไม่โดนแบน
+      แปลว่า `authBanRate` default หลวมเกินไปสำหรับเครื่องที่เปิด `/admin` ให้ทั้งโลก
+- [x] **logical backup รายวันทำแล้ว** — [`infra/mail/stalwart-backup.sh`](../infra/mail/stalwart-backup.sh) + systemd timer `stalwart-backup.timer` (ตี 3 UTC) · เข้ารหัส AES-256 · เก็บ 14 วัน
+      · ⚠️ **RocksDB ล็อกไฟล์** → export ระหว่าง service รันไม่ได้ ต้องหยุดก่อน (วัดจริง **1 วินาที**)
+      · ทดสอบแล้ว: ถอดรหัส + แตกไฟล์ได้ครบ (680K) · service กลับมาครบทุกพอร์ต
+- [ ] 🔴 **ยังไม่ได้ส่ง backup ออกนอก Hetzner** — ตอนนี้กองอยู่บนเครื่องเดียวกับข้อมูลจริง
+      = **ยังไม่นับเป็น backup** · สคริปต์เรียก `/usr/local/sbin/stalwart-backup-upload.sh` ถ้ามี รอต่อปลายทาง
+- [ ] 🔴 **เก็บกุญแจถอดรหัสลง password manager** — `cat /root/.stalwart-backup-key`
+      กุญแจอยู่บนเครื่องเดียวกับข้อมูล เครื่องหาย = backup ถอดรหัสไม่ได้เลย
 
 **เกณฑ์ผ่าน Phase 1 (ครบทั้ง 4 ข้อถึงจะขายได้):**
 
