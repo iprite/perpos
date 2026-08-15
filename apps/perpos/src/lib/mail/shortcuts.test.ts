@@ -7,8 +7,8 @@ import {
   shouldFireShortcut,
 } from "./shortcuts";
 
-describe("registry คีย์ลัด M1", () => {
-  it("ครบทุกคีย์ตาม UI_SPEC §3 (เฉพาะที่ทำงานจริงใน M1)", () => {
+describe("registry คีย์ลัด", () => {
+  it("ครบทุกคีย์ตาม UI_SPEC §3 (เฉพาะที่ทำงานจริง)", () => {
     const actions = MAIL_SHORTCUTS.map((s) => s.action).sort();
     expect(actions).toEqual(
       [
@@ -24,15 +24,21 @@ describe("registry คีย์ลัด M1", () => {
         "selectToggle",
         "star",
         "trash",
+        // M2
+        "compose",
+        "reply",
+        "replyAll",
+        "forward",
       ].sort(),
     );
   });
 
-  it("ยังไม่ผูกคีย์ของ M2 (c r a f)", () => {
-    const keys = MAIL_SHORTCUTS.map((s) => s.keys);
-    expect(keys).not.toContain("c");
-    expect(keys).not.toContain("r");
-    expect(keys).not.toContain("f");
+  it("คีย์ตอบ/ส่งต่ออยู่ scope reader เท่านั้น (กดในรายการเปล่า ๆ ต้องไม่ทำอะไร)", () => {
+    for (const action of ["reply", "replyAll", "forward"] as const) {
+      expect(MAIL_SHORTCUTS.find((s) => s.action === action)?.scope).toBe("reader");
+    }
+    // เขียนใหม่กดได้ทุกที่
+    expect(MAIL_SHORTCUTS.find((s) => s.action === "compose")?.scope).toBe("global");
   });
 
   it("ตาราง `?` เรนเดอร์จาก registry ตัวเดียวกับที่ผูก handler", () => {

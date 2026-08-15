@@ -7,7 +7,7 @@
  * react-hotkeys-hook v5) ไม่ใช่ `['g','i']` ซึ่งกลายเป็น "กด g+i พร้อมกัน"
  *
  * ไฟล์นี้ถูกใช้ **ทั้ง** ผูก handler **และ** เรนเดอร์ตารางคีย์ลัด (`?`) → ไม่มีทางหลุด sync
- * M1 มีเฉพาะคีย์ที่ทำงานจริง — `c r a f` (เขียน/ตอบ/ส่งต่อ) เป็น M2 จึงยังไม่อยู่ในนี้
+ * มีเฉพาะคีย์ที่ทำงานจริงเสมอ — เพิ่มคีย์ใหม่ต้องมี handler พร้อมกัน ห้ามใส่ปุ่มที่กดแล้วเงียบ
  */
 
 export type MailShortcutAction =
@@ -22,7 +22,12 @@ export type MailShortcutAction =
   | "markUnread"
   | "search"
   | "help"
-  | "gotoInbox";
+  | "gotoInbox"
+  // M2 — เขียน/ตอบ/ส่งต่อ
+  | "compose"
+  | "reply"
+  | "replyAll"
+  | "forward";
 
 export type MailShortcutScope = "global" | "list" | "reader";
 
@@ -55,6 +60,10 @@ export const MAIL_SHORTCUTS: readonly MailShortcut[] = [
   { keys: "u", scope: "global", action: "markUnread", label: "ทำเป็นยังไม่อ่าน", display: ["u"] },
   { keys: "slash", scope: "global", action: "search", label: "ค้นหา", display: ["/"] },
   { keys: "shift+slash", scope: "global", action: "help", label: "ตารางคีย์ลัด", display: ["?"] },
+  { keys: "c", scope: "global", action: "compose", label: "เขียนอีเมลใหม่", display: ["c"] },
+  { keys: "r", scope: "reader", action: "reply", label: "ตอบ", display: ["r"] },
+  { keys: "a", scope: "reader", action: "replyAll", label: "ตอบทั้งหมด", display: ["a"] },
+  { keys: "f", scope: "reader", action: "forward", label: "ส่งต่อ", display: ["f"] },
   {
     keys: "g>i",
     scope: "global",

@@ -36,6 +36,19 @@ import { MailReader } from "@/components/mail/mail-reader";
 import { MailToolbar, type MailFilters } from "@/components/mail/mail-toolbar";
 import { MailShortcutsDialog } from "@/components/mail/mail-shortcuts-dialog";
 import {
+  MailCompose,
+  type MailComposeSeed,
+  type MailDraftPayload,
+  type MailIdentityOption,
+} from "@/components/mail/mail-compose";
+import {
+  buildForwardBody,
+  buildQuotedReply,
+  forwardSubject,
+  replyRecipients,
+  replySubject,
+} from "@/lib/mail/compose";
+import {
   MAIL_HOTKEY_SCOPE,
   useMailShortcuts,
   type MailShortcutHandlers,
@@ -136,6 +149,12 @@ export function MailWorkspace({
   const [mailboxes, setMailboxes] = useState<MailboxSummary[]>([]);
   const [showShortcuts, setShowShortcuts] = useState(false);
 
+  // ── กล่องเขียน (M2) ──────────────────────────────────────────────────────
+  const [composeOpen, setComposeOpen] = useState(false);
+  const [composeSeed, setComposeSeed] = useState<MailComposeSeed | null>(null);
+  const [identities, setIdentities] = useState<MailIdentityOption[]>([]);
+  const [selfEmail, setSelfEmail] = useState("");
+
   const queueRef = useRef(new Map<DestructiveAction, QueueEntry>());
   const listRef = useRef<MailListHandle>(null);
   const searchWrapRef = useRef<HTMLDivElement>(null);
@@ -199,6 +218,22 @@ export function MailWorkspace({
     },
     [],
   );
+
+  useEffect(() => {
+    let alive = true;
+    callMailApi<{ identities: MailIdentityOption[]; defaultEmail: string }>("/api/mail/identities")
+      .then((d) => {
+        if (!alive) return;
+        setIdentities(d.identities ?? []);
+        setSelfEmail(d.defaultEmail ?? "");
+      })
+      .catch(() => {
+        /* เขียนเมลไม่ได้ = ปุ่มยังกดได้แต่จะฟ้องตอนส่ง — ไม่รบกวนตอนเปิดหน้า */
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   const loadFirstPage = useCallback(
     async (mode: "initial" | "refresh") => {
@@ -438,13 +473,76 @@ export function MailWorkspace({
     [flushQueue, undoQueued],
   );
 
+  /**
+   * ส่งเมล = เข้าคิว 8 วิ เหมือน ลบ/เก็บ (MAIL_UI_SPEC §4)
+   * **ห้ามยิง /api/mail/send ทันที** — ส่งผิดคนคือความผิดพลาดที่แก้ไม่ได้
+   * flush ตอน `pagehide` ด้วย keepalive (เหมือนคิวลบ) ไม่งั้นเมลที่ตั้งใจส่งหายไปเฉย ๆ
+   */
+  const sendQueueRef = useRef(
+    new Map<string, { payload: MailDraftPayload; timer: ReturnType<typeof setTimeout> }>(),
+  );
+
+  const flushSend = useCallback(
+    async (key: string, keepalive = false) => {
+      const entry = sendQueueRef.current.get(key);
+      if (!entry) return;
+      clearTimeout(entry.timer);
+      sendQueueRef.current.delete(key);
+      dismissUndoToast(key);
+      try {
+        await postJson("/api/mail/send", entry.payload, keepalive);
+        notify.success("ส่งอีเมลแล้ว");
+        scheduleMailboxRefresh();
+      } catch (e) {
+        if (e instanceof MailSessionExpiredError) return handleExpired();
+        notify.error(e, "ส่งไม่สำเร็จ — อีเมลยังอยู่ในร่าง");
+      }
+    },
+    [handleExpired, scheduleMailboxRefresh],
+  );
+
+  const enqueueSend = useCallback(
+    (payload: MailDraftPayload) => {
+      const key = `mail-send-${Date.now()}`;
+      const timer = setTimeout(() => void flushSend(key), UNDO_TOAST_MS);
+      sendQueueRef.current.set(key, { payload, timer });
+      setComposeOpen(false);
+      showUndoToast({
+        id: key,
+        message: "ส่งแล้ว",
+        onUndo: () => {
+          const entry = sendQueueRef.current.get(key);
+          if (entry) clearTimeout(entry.timer);
+          sendQueueRef.current.delete(key);
+          // ร่างยังอยู่ใน Drafts (autosave) → เปิดกล่องเดิมกลับมาให้แก้ต่อ
+          setComposeSeed({
+            to: payload.to,
+            cc: payload.cc,
+            subject: payload.subject,
+            body: payload.body,
+            inReplyTo: payload.inReplyTo,
+            references: payload.references,
+            focus: "body",
+          });
+          setComposeOpen(true);
+        },
+      });
+    },
+    [flushSend],
+  );
+
   // flush คิวที่ค้างเมื่อกำลังจะออกจากหน้า — ไม่งั้นการกระทำหายเงียบ
   const flushRef = useRef(flushQueue);
   flushRef.current = flushQueue;
+  const sendFlushRef = useRef(flushSend);
+  sendFlushRef.current = flushSend;
   useEffect(() => {
     const flushAll = () => {
       for (const action of Array.from(queueRef.current.keys())) {
         void flushRef.current(action, true);
+      }
+      for (const key of Array.from(sendQueueRef.current.keys())) {
+        void sendFlushRef.current(key, true);
       }
     };
     // 🔴 `pagehide` เท่านั้น — **ห้ามผูก `visibilitychange`** (เคยผูกแล้วถอดออก):
@@ -504,6 +602,58 @@ export function MailWorkspace({
       if (m) void openMessage(m, index);
     },
     [openMessage],
+  );
+
+  // ── เปิดกล่องเขียน (M2) ───────────────────────────────────────────────────
+  const openCompose = useCallback((seed: MailComposeSeed | null = null) => {
+    setComposeSeed(seed);
+    setComposeOpen(true);
+  }, []);
+
+  const detailRef = useRef<MailThreadDetail | null>(null);
+  detailRef.current = detail;
+
+  /** ตอบ/ตอบทั้งหมด/ส่งต่อ ใช้ "ฉบับล่าสุดในเธรด" เป็นต้นทางเสมอ (ตรงกับที่บานอ่านกางอยู่) */
+  const openReply = useCallback(
+    (mode: "reply" | "replyAll" | "forward") => {
+      const thread = detailRef.current;
+      const source = thread?.messages[thread.messages.length - 1];
+      if (!source) return;
+
+      const inReplyTo = source.messageId?.[0] ?? null;
+      const references = source.references ?? [];
+
+      if (mode === "forward") {
+        openCompose({
+          subject: forwardSubject(source.subject),
+          body: buildForwardBody({
+            from: source.from,
+            to: source.to,
+            subject: source.subject,
+            receivedAt: source.receivedAt,
+            textBody: source.textBody,
+          }),
+          focus: "body",
+        });
+        return;
+      }
+
+      const { to, cc } = replyRecipients(source, selfEmail, mode === "replyAll");
+      openCompose({
+        to: to.map((a) => a.email),
+        cc: cc.map((a) => a.email),
+        subject: replySubject(source.subject),
+        body: buildQuotedReply({
+          from: source.from,
+          receivedAt: source.receivedAt,
+          textBody: source.textBody,
+        }),
+        inReplyTo,
+        references,
+        focus: "body",
+      });
+    },
+    [openCompose, selfEmail],
   );
 
   // ── การเลือกหลายรายการ (shift-click = ช่วง) ──────────────────────────────
@@ -587,6 +737,10 @@ export function MailWorkspace({
         searchWrapRef.current?.querySelector("input")?.focus();
       },
       help: () => setShowShortcuts(true),
+      compose: () => openCompose(null),
+      reply: () => openReply("reply"),
+      replyAll: () => openReply("replyAll"),
+      forward: () => openReply("forward"),
       gotoInbox: () => router.push(`${basePath}/?box=inbox`),
     };
   }, [
@@ -598,6 +752,8 @@ export function MailWorkspace({
     enqueueDestructive,
     moveFocus,
     openByIndex,
+    openCompose,
+    openReply,
     router,
     setReadState,
     toggleSelect,
@@ -634,6 +790,7 @@ export function MailWorkspace({
             onToggleFilters={() => setShowFilters((v) => !v)}
             onRefresh={() => void loadFirstPage("refresh")}
             refreshing={refreshing}
+            onCompose={() => openCompose(null)}
             onOpenShortcuts={() => setShowShortcuts(true)}
             searchInputRef={searchWrapRef}
           />
@@ -677,6 +834,9 @@ export function MailWorkspace({
             onArchive={() => activeId && enqueueDestructive("archive", [activeId])}
             onTrash={() => activeId && enqueueDestructive("trash", [activeId])}
             onToggleStar={() => activeId && toggleStar([activeId], !activeMessage?.isFlagged)}
+            onReply={() => openReply("reply")}
+            onReplyAll={() => openReply("replyAll")}
+            onForward={() => openReply("forward")}
           />
         </section>
       </div>
@@ -713,6 +873,14 @@ export function MailWorkspace({
           )}
         </BulkActionBar>
       )}
+
+      <MailCompose
+        open={composeOpen}
+        seed={composeSeed}
+        identities={identities}
+        onClose={() => setComposeOpen(false)}
+        onSend={enqueueSend}
+      />
 
       <MailShortcutsDialog open={showShortcuts} onOpenChange={setShowShortcuts} />
     </HotkeysProvider>

@@ -67,6 +67,9 @@ export interface MailMessageDetail {
   htmlSanitized: string | null;
   textBody: string | null;
   hasRemoteImages: boolean;
+  /** M2 — header สำหรับต่อเธรดเวลาตอบ (null = เซิร์ฟเวอร์ไม่ได้ให้มา) */
+  messageId?: string[] | null;
+  references?: string[] | null;
   attachments: MailAttachment[];
 }
 
@@ -186,6 +189,8 @@ export interface JmapBodyPart {
 }
 
 export interface JmapEmail {
+  messageId?: string[] | null;
+  references?: string[] | null;
   id: string;
   threadId?: string;
   mailboxIds?: Record<string, boolean>;

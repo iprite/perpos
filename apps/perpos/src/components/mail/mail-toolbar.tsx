@@ -9,7 +9,7 @@
  * ตัวกรองซ่อนหลังปุ่มไอคอน <Filter> + จุดเหลืองเมื่อกรองค้าง (DESIGN.md §4)
  */
 
-import { Filter, Keyboard, RefreshCw } from "lucide-react";
+import { Filter, Keyboard, PenLine, RefreshCw } from "lucide-react";
 import cn from "@core/utils/class-names";
 import { Button } from "@/components/ui/button";
 import { FilterBar, FilterClear, FilterSearch } from "@/components/ui/filter-bar";
@@ -32,6 +32,7 @@ export function MailToolbar({
   onToggleFilters,
   onRefresh,
   refreshing,
+  onCompose,
   onOpenShortcuts,
   searchInputRef,
 }: {
@@ -46,6 +47,8 @@ export function MailToolbar({
   onToggleFilters: () => void;
   onRefresh: () => void;
   refreshing: boolean;
+  /** เปิดกล่องเขียนเมล (M2) */
+  onCompose: () => void;
   onOpenShortcuts: () => void;
   searchInputRef?: React.RefObject<HTMLDivElement | null>;
 }) {
@@ -84,6 +87,11 @@ export function MailToolbar({
             className="max-w-xl"
           />
         </div>
+
+        <Button size="sm" title="เขียนอีเมลใหม่ (c)" className="shrink-0" onClick={onCompose}>
+          <PenLine className="h-4 w-4" />
+          <span className="hidden sm:inline">เขียน</span>
+        </Button>
 
         <Button
           variant="outline"

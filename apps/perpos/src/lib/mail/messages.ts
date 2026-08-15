@@ -79,6 +79,9 @@ export const EMAIL_DETAIL_PROPERTIES = [
   "textBody",
   "attachments",
   "bodyValues",
+  // M2 — ต่อเธรดตอนตอบ (ผิดแล้วผู้รับเห็นเป็นเมลใหม่ลอย ๆ แก้ย้อนหลังไม่ได้)
+  "messageId",
+  "references",
 ];
 
 export const MAX_BODY_VALUE_BYTES = 1024 * 1024;
@@ -633,6 +636,8 @@ async function mapMessageDetail(
     textBody: text,
     hasRemoteImages,
     attachments: mapAttachments(email),
+    messageId: Array.isArray(email.messageId) ? email.messageId : null,
+    references: Array.isArray(email.references) ? email.references : null,
   };
 }
 
