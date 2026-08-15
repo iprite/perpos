@@ -14,11 +14,12 @@
  */
 
 import { memo, useEffect, useRef } from "react";
-import { Paperclip, Square, SquareCheckBig, Star } from "lucide-react";
+import { Archive, Paperclip, Square, SquareCheckBig, Star, Trash2 } from "lucide-react";
 import cn from "@core/utils/class-names";
 import { Button } from "@/components/ui/button";
 import type { MailMessage } from "@/lib/mail/types";
 import { formatMailTime } from "@/lib/mail/format";
+import { useSwipeRow } from "@/components/mail/use-swipe-row";
 
 /** ความสูงคงที่ของแถว (px) — ใช้ร่วมกับ VList/skeleton ห้ามแก้ที่เดียว */
 export const MAIL_ROW_HEIGHT = 64;
@@ -34,6 +35,9 @@ export interface MailRowProps {
   onOpen: () => void;
   onToggleSelect: (shiftKey: boolean) => void;
   onToggleStar: () => void;
+  /** M3 — ปัดบนมือถือ (ต้องเป็นตัวเดียวกับปุ่ม/คีย์ลัด เพื่อให้ "เลิกทำ" ใช้ได้เหมือนกัน) */
+  onSwipeArchive?: () => void;
+  onSwipeTrash?: () => void;
 }
 
 function senderLabel(m: MailMessage): string {
@@ -48,6 +52,8 @@ function MailRowBase({
   onOpen,
   onToggleSelect,
   onToggleStar,
+  onSwipeArchive,
+  onSwipeTrash,
 }: MailRowProps) {
   const unread = message.isUnread;
   const subject = message.subject?.trim() || "(ไม่มีหัวเรื่อง)";
@@ -74,114 +80,143 @@ function MailRowBase({
     if (inList && ae !== el) el.focus({ preventScroll: true });
   }, [focused]);
 
+  const swipe = useSwipeRow({
+    onArchive: () => onSwipeArchive?.(),
+    onTrash: () => onSwipeTrash?.(),
+    enabled: !!onSwipeArchive && !!onSwipeTrash,
+  });
+
   return (
     // แถวเป็น <div> เปล่า ๆ **ไม่มี role="button"** — ข้างในมีปุ่มจริง (เลือก/ติดดาว/เปิด)
     // ปุ่มซ้อนใน role=button คือ HTML ที่ screen reader อ่านไม่ออก · onClick ที่นี่มีไว้ให้เมาส์
     // คลิกโดนพื้นที่ว่างได้เฉย ๆ ส่วนคีย์บอร์ดใช้ปุ่มเนื้อหาด้านล่าง
-    <div
-      onClick={onOpen}
-      className={cn(
-        "flex h-16 w-full cursor-pointer items-center gap-2 border-b border-gray-100 px-2 outline-none transition-colors sm:px-3",
-        active ? "bg-gray-100" : "hover:bg-gray-50",
-        // วงเคอร์เซอร์ต้องเห็นชัดแม้แถวนั้นเป็นฉบับที่เปิดอยู่ (WCAG 1.4.11 ต้องคอนทราสต์ ≥3:1)
-        focused && "ring-2 ring-inset ring-primary",
-        focused && !active && "bg-gray-50",
+    <div className="relative h-16 w-full overflow-hidden border-b border-gray-100">
+      {/* พื้นหลังบอกล่วงหน้าว่าปล่อยนิ้วแล้วจะเกิดอะไร (เขียว=เก็บ · แดง=ลบ) */}
+      {swipe.dx !== 0 && (
+        <div
+          aria-hidden
+          className={cn(
+            "absolute inset-0 flex items-center justify-between px-4",
+            swipe.dx > 0 ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700",
+          )}
+        >
+          <span className={cn("flex items-center gap-1.5 text-sm", swipe.dx <= 0 && "invisible")}>
+            <Archive className="h-4 w-4" />
+            {swipe.pendingAction === "archive" ? "ปล่อยเพื่อเก็บ" : "เก็บเข้าคลัง"}
+          </span>
+          <span className={cn("flex items-center gap-1.5 text-sm", swipe.dx >= 0 && "invisible")}>
+            {swipe.pendingAction === "trash" ? "ปล่อยเพื่อลบ" : "ลบ"}
+            <Trash2 className="h-4 w-4" />
+          </span>
+        </div>
       )}
-    >
-      <Button
-        variant="ghost"
-        size="icon"
-        aria-label={selected ? "ไม่เลือกอีเมลนี้" : "เลือกอีเมลนี้"}
-        aria-pressed={selected}
-        className="h-10 w-10 shrink-0 text-gray-400 hover:text-gray-700"
-        onClick={(e) => {
-          e.stopPropagation();
-          onToggleSelect(e.shiftKey);
-        }}
-      >
-        {selected ? (
-          <SquareCheckBig className="h-4 w-4 text-primary" />
-        ) : (
-          <Square className="h-4 w-4" />
-        )}
-      </Button>
-
-      <Button
-        variant="ghost"
-        size="icon"
-        aria-label={message.isFlagged ? "เอาดาวออก" : "ติดดาว"}
-        aria-pressed={message.isFlagged}
-        className="hidden h-10 w-10 shrink-0 text-gray-300 hover:text-amber-500 sm:inline-flex"
-        onClick={(e) => {
-          e.stopPropagation();
-          onToggleStar();
-        }}
-      >
-        <Star className={cn("h-4 w-4", message.isFlagged && "fill-amber-400 text-amber-500")} />
-      </Button>
-
-      {/* จุดยังไม่ได้อ่าน — เว้นที่ไว้เสมอ ไม่ให้แถวขยับ */}
-      <span
-        aria-hidden="true"
+      <div
+        onClick={onOpen}
+        {...swipe.handlers}
+        style={swipe.dx ? { transform: `translateX(${swipe.dx}px)` } : undefined}
         className={cn(
-          "h-1.5 w-1.5 shrink-0 rounded-full",
-          unread ? "bg-primary" : "bg-transparent",
+          "relative flex h-16 w-full cursor-pointer touch-pan-y items-center gap-2 bg-white px-2 outline-none transition-colors sm:px-3",
+          active ? "bg-gray-100" : "hover:bg-gray-50",
+          // วงเคอร์เซอร์ต้องเห็นชัดแม้แถวนั้นเป็นฉบับที่เปิดอยู่ (WCAG 1.4.11 ต้องคอนทราสต์ ≥3:1)
+          focused && "ring-2 ring-inset ring-primary",
+          focused && !active && "bg-gray-50",
         )}
-      />
+      >
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label={selected ? "ไม่เลือกอีเมลนี้" : "เลือกอีเมลนี้"}
+          aria-pressed={selected}
+          className="h-10 w-10 shrink-0 text-gray-400 hover:text-gray-700"
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleSelect(e.shiftKey);
+          }}
+        >
+          {selected ? (
+            <SquareCheckBig className="h-4 w-4 text-primary" />
+          ) : (
+            <Square className="h-4 w-4" />
+          )}
+        </Button>
 
-      {/* พื้นที่เนื้อหา = ปุ่มเปิดจริง (raw <button> เพราะต้องเป็นพื้นผิวเปล่าเต็มแถว
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label={message.isFlagged ? "เอาดาวออก" : "ติดดาว"}
+          aria-pressed={message.isFlagged}
+          className="hidden h-10 w-10 shrink-0 text-gray-300 hover:text-amber-500 sm:inline-flex"
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleStar();
+          }}
+        >
+          <Star className={cn("h-4 w-4", message.isFlagged && "fill-amber-400 text-amber-500")} />
+        </Button>
+
+        {/* จุดยังไม่ได้อ่าน — เว้นที่ไว้เสมอ ไม่ให้แถวขยับ */}
+        <span
+          aria-hidden="true"
+          className={cn(
+            "h-1.5 w-1.5 shrink-0 rounded-full",
+            unread ? "bg-primary" : "bg-transparent",
+          )}
+        />
+
+        {/* พื้นที่เนื้อหา = ปุ่มเปิดจริง (raw <button> เพราะต้องเป็นพื้นผิวเปล่าเต็มแถว
           — <Button> ของดีไซน์ระบบมี padding/variant ที่ทำให้แถว 64px เพี้ยน)
           ไม่ผูก onClick เอง: ปล่อยให้ click (ทั้งเมาส์และ Enter/Space) bubble ไปที่ <div> ชั้นนอก
           → เปิดครั้งเดียวเสมอ */}
-      <button
-        ref={rowRef}
-        type="button"
-        data-mail-row=""
-        tabIndex={focused ? 0 : -1}
-        aria-current={active ? "true" : undefined}
-        aria-label={`${senderLabel(message)} — ${subject}`}
-        // กัน Enter/Space ไม่ให้ลอยไปถึง hotkey ระดับ document (ไม่งั้นเปิดซ้ำสองทาง)
-        onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === " ") e.stopPropagation();
-        }}
-        className="min-w-0 flex-1 text-start outline-none"
-      >
-        <div className="flex items-baseline gap-2">
-          <span
-            className={cn(
-              "min-w-0 flex-1 truncate text-sm",
-              unread ? "font-semibold text-gray-900" : "font-normal text-gray-700",
-            )}
-          >
-            {senderLabel(message)}
-            {message.threadCount > 1 && (
-              <span className="ms-1 text-xs font-normal text-gray-400">
-                ({message.threadCount})
-              </span>
-            )}
-          </span>
-          <span className="shrink-0 text-xs tabular-nums text-gray-500">
-            {formatMailTime(message.receivedAt)}
-          </span>
-        </div>
-
-        <div className="mt-0.5 flex items-center gap-2">
-          <span className="min-w-0 flex-1 truncate text-sm">
-            <span className={cn(unread ? "font-medium text-gray-900" : "text-gray-600")}>
-              {subject}
+        <button
+          ref={rowRef}
+          type="button"
+          data-mail-row=""
+          tabIndex={focused ? 0 : -1}
+          aria-current={active ? "true" : undefined}
+          aria-label={`${senderLabel(message)} — ${subject}`}
+          // กัน Enter/Space ไม่ให้ลอยไปถึง hotkey ระดับ document (ไม่งั้นเปิดซ้ำสองทาง)
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") e.stopPropagation();
+          }}
+          className="min-w-0 flex-1 text-start outline-none"
+        >
+          <div className="flex items-baseline gap-2">
+            <span
+              className={cn(
+                "min-w-0 flex-1 truncate text-sm",
+                unread ? "font-semibold text-gray-900" : "font-normal text-gray-700",
+              )}
+            >
+              {senderLabel(message)}
+              {message.threadCount > 1 && (
+                <span className="ms-1 text-xs font-normal text-gray-400">
+                  ({message.threadCount})
+                </span>
+              )}
             </span>
-            {preview && (
-              <span className={cn(unread ? "text-gray-500" : "text-gray-400")}>
-                {" — "}
-                {preview}
+            <span className="shrink-0 text-xs tabular-nums text-gray-500">
+              {formatMailTime(message.receivedAt)}
+            </span>
+          </div>
+
+          <div className="mt-0.5 flex items-center gap-2">
+            <span className="min-w-0 flex-1 truncate text-sm">
+              <span className={cn(unread ? "font-medium text-gray-900" : "text-gray-600")}>
+                {subject}
               </span>
+              {preview && (
+                <span className={cn(unread ? "text-gray-500" : "text-gray-400")}>
+                  {" — "}
+                  {preview}
+                </span>
+              )}
+            </span>
+            {message.hasAttachment && (
+              <Paperclip aria-label="มีไฟล์แนบ" className="h-3.5 w-3.5 shrink-0 text-gray-400" />
             )}
-          </span>
-          {message.hasAttachment && (
-            <Paperclip aria-label="มีไฟล์แนบ" className="h-3.5 w-3.5 shrink-0 text-gray-400" />
-          )}
-        </div>
-      </button>
+          </div>
+        </button>
+      </div>
     </div>
   );
 }

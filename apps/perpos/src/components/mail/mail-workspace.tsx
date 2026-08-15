@@ -17,7 +17,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { HotkeysProvider } from "react-hotkeys-hook";
-import { Archive, MailOpen, Trash2 } from "lucide-react";
+import { Archive, MailOpen, PenLine, Trash2 } from "lucide-react";
 import cn from "@core/utils/class-names";
 import { Button } from "@/components/ui/button";
 import { BulkActionBar } from "@/components/ui/bulk-action-bar";
@@ -889,6 +889,8 @@ export function MailWorkspace({
               onOpen={(m, i) => (box === "drafts" ? void openDraft(m) : void openMessage(m, i))}
               onToggleSelect={toggleSelect}
               onToggleStar={(m) => toggleStar([m.id], !m.isFlagged)}
+              onSwipeArchive={canArchive ? (m) => enqueueDestructive("archive", [m.id]) : undefined}
+              onSwipeTrash={canTrash ? (m) => enqueueDestructive("trash", [m.id]) : undefined}
               onLoadMore={() => void loadMore()}
               onRetry={() => void loadFirstPage("initial")}
               onClearSearch={() => setSearch("")}
@@ -918,6 +920,19 @@ export function MailWorkspace({
           />
         </section>
       </div>
+
+      {/* FAB เขียนเมล — เฉพาะมือถือ ตำแหน่งที่นิ้วโป้งเอื้อมถึง (UI_SPEC §8)
+          ซ่อนตอนเปิดอ่าน/เลือกหลายฉบับ เพื่อไม่บังปุ่มอื่น */}
+      {!activeId && selectedIds.size === 0 && (
+        <Button
+          size="icon"
+          aria-label="เขียนอีเมลใหม่"
+          className="fixed bottom-5 right-5 z-20 h-14 w-14 rounded-full shadow-lg sm:hidden"
+          onClick={() => openCompose(null)}
+        >
+          <PenLine className="h-6 w-6" />
+        </Button>
+      )}
 
       {selectedIds.size > 0 && (
         <BulkActionBar count={selectedIds.size} onClear={() => setSelectedIds(new Set())}>

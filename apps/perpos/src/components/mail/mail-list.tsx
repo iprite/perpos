@@ -59,6 +59,9 @@ export interface MailListProps {
   onOpen: (m: MailMessage, index: number) => void;
   onToggleSelect: (m: MailMessage, index: number, shiftKey: boolean) => void;
   onToggleStar: (m: MailMessage) => void;
+  /** M3 — ปัดบนมือถือ (ไม่ส่งมา = ปิดท่าทางนี้) */
+  onSwipeArchive?: (m: MailMessage) => void;
+  onSwipeTrash?: (m: MailMessage) => void;
   onLoadMore: () => void;
   onRetry: () => void;
   onClearSearch: () => void;
@@ -81,6 +84,8 @@ export const MailList = forwardRef<MailListHandle, MailListProps>(function MailL
     onOpen,
     onToggleSelect,
     onToggleStar,
+    onSwipeArchive,
+    onSwipeTrash,
     onLoadMore,
     onRetry,
     onClearSearch,
@@ -166,6 +171,8 @@ export const MailList = forwardRef<MailListHandle, MailListProps>(function MailL
               onOpen={() => onOpen(m, i)}
               onToggleSelect={(shiftKey) => onToggleSelect(m, i, shiftKey)}
               onToggleStar={() => onToggleStar(m)}
+              onSwipeArchive={onSwipeArchive ? () => onSwipeArchive(m) : undefined}
+              onSwipeTrash={onSwipeTrash ? () => onSwipeTrash(m) : undefined}
             />
           ))}
         </Virtualizer>
@@ -196,6 +203,8 @@ export const MailList = forwardRef<MailListHandle, MailListProps>(function MailL
     onRetry,
     onToggleSelect,
     onToggleStar,
+    onSwipeArchive,
+    onSwipeTrash,
     searchTerm,
     selectedIds,
   ]);
