@@ -96,6 +96,19 @@ terraform apply
 
 ## C. Phase 1 — dogfood ด้วย `perpos.ai` (2 สัปดาห์ก่อนขาย)
 
+- [x] **MX ของ `perpos.ai` ชี้มาที่เครื่องเราแล้ว (2026-08-15)** — `MX 10 mail.perpos.ai` (ttl 300)
+      · ที่อยู่ที่รับได้จริงผ่าน MX แล้ว: `admin@` `abuse@` `postmaster@` (probe ได้ `250` ครบ)
+      · 🔍 **เหตุผลที่กล้าสลับ**: ก่อนสลับ Cloudflare Email Routing **ตอบ `550` ทุกที่อยู่อยู่แล้ว**
+      (รวม `iprite@perpos.ai`) — กฎ forward ไป Gmail ตายไปแล้วโดยไม่มีใครรู้ · การสลับจึงไม่ทำให้
+      อะไรแย่ลง มีแต่ดีขึ้น · **บทเรียน: ก่อน cutover ให้ probe MX เดิมด้วย `RCPT TO` เสมอ
+      อย่าเชื่อว่ามันยังทำงาน**
+      · ⚠️ Cloudflare **ห้ามแก้ MX ตราบใดที่ Email Routing ยังเปิดอยู่** (error 1046 / 890190)
+      ต้องปิดที่หน้าเว็บก่อน — token แบบ "Edit zone DNS" ปิดให้ไม่ได้ (คนละ permission)
+      · ค่า MX เดิมสำรองไว้ที่ scratchpad ของ session (`mx-before-cutover.json`)
+      · **ตั้งใจไม่มี `iprite@perpos.ai`** — เจ้าตัวไม่ใช้แล้ว
+- [ ] ⚠️ **ยังส่งเมลออกไม่ได้เลย** — พอร์ต 25 ขาออกโดน Hetzner บล็อก + ยังไม่ได้ต่อ relay
+      → ตอนนี้ `perpos.ai` **รับได้อย่างเดียว**
+
 - [ ] ตั้ง **relay ขาออก → SES `:587`** · credentials `chmod 600` **ห้าม commit**
 - [ ] **ปิด DKIM signing ของ Stalwart** — เราใช้ SES Easy DKIM (ไม่งั้นได้ลายเซ็นซ้อน)
 - [ ] DNS ของ `perpos.ai`: MX · SPF `include:amazonses.com` · **DKIM CNAME ×3 จาก SES** · DMARC `p=none`
