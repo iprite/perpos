@@ -2,14 +2,18 @@
 
 แผนเต็ม + เหตุผลเบื้องหลังทุกการตัดสินใจ: [`docs/MAIL_SERVER_PLAN.md`](../../docs/MAIL_SERVER_PLAN.md)
 
-| | |
-| - | - |
-| ผู้ให้บริการ | Hetzner Cloud · `sin-dc1` (สิงคโปร์) |
-| เครื่อง | `cpx11` (2 vCPU AMD / 2GB / 40GB / traffic 20TB) |
-| ขาออก | AWS SES พอร์ต **587** (Hetzner บล็อก 25 ขาออกจนกว่าจะขอปลด) |
-| ขาเข้า | พอร์ต 25 เปิดปกติ (MX ชี้มาที่ `mail.perpos.ai`) |
+|              |                                                             |
+| ------------ | ----------------------------------------------------------- |
+| ผู้ให้บริการ | Hetzner Cloud · location `sin` (สิงคโปร์)                   |
+| เครื่อง      | `cpx11` (2 vCPU AMD / 2GB / 40GB / traffic 20TB)            |
+| ขาออก        | AWS SES พอร์ต **587** (Hetzner บล็อก 25 ขาออกจนกว่าจะขอปลด) |
+| ขาเข้า       | พอร์ต 25 เปิดปกติ (MX ชี้มาที่ `mail.perpos.ai`)            |
 
 > ⚠️ **CPX เท่านั้น** — ซีรีส์ `cx*` / `cax*` (ARM ราคาถูกกว่า) **มีเฉพาะยุโรป ไม่มีที่สิงคโปร์**
+>
+> ⚠️ **ระบุตำแหน่งด้วย `location = "sin"` ไม่ใช่ `datacenter = "sin-dc1"`** — Hetzner เลิกใช้
+> datacenter แล้ว ([changelog 2026-07-01](https://docs.hetzner.cloud/changelog#2026-07-01-removing-datacenters))
+> · provider `~> 1.50` (ที่ล็อกจริง 1.68) จะ **validate ไม่ผ่าน** ถ้ายังใช้ `datacenter`
 
 ---
 
@@ -25,11 +29,11 @@ terraform apply
 
 `terraform.tfvars` ต้องมี:
 
-| ตัวแปร | เอามาจากไหน |
-| ------ | ------------ |
-| `hcloud_token` | Hetzner Console → Security → API tokens → **Read & Write** |
-| `ssh_public_key` | `cat ~/.ssh/id_ed25519.pub` |
-| `ssh_allowed_ips` | IP ออฟฟิศ/บ้าน — **อย่าเปิด `0.0.0.0/0` ถ้าเลี่ยงได้** |
+| ตัวแปร            | เอามาจากไหน                                                |
+| ----------------- | ---------------------------------------------------------- |
+| `hcloud_token`    | Hetzner Console → Security → API tokens → **Read & Write** |
+| `ssh_public_key`  | `cat ~/.ssh/id_ed25519.pub`                                |
+| `ssh_allowed_ips` | IP ออฟฟิศ/บ้าน — **อย่าเปิด `0.0.0.0/0` ถ้าเลี่ยงได้**     |
 
 > 💡 **ไม่อยากให้ token ลงดิสก์เลย** — ข้าม `hcloud_token` ใน tfvars แล้วส่งทาง env แทน
 > (Terraform อ่าน `TF_VAR_<ชื่อตัวแปร>` อัตโนมัติ · หายไปเมื่อปิด terminal):
@@ -74,9 +78,9 @@ terraform apply
 
 ## ขยายทีหลัง
 
-| ต้องการ | ทำยังไง |
-| ------- | -------- |
-| เครื่องแรงขึ้น | เปลี่ยน `server_type` เป็น `cpx21` → `terraform apply` (รีบูต ข้อมูลอยู่ครบ) |
-| ดิสก์เพิ่ม | เพิ่ม `hcloud_volume` (~€0.044/GB/เดือน) แล้ว mount ให้ Stalwart |
-| เก็บเมลบน object storage | Hetzner Object Storage (S3-compatible) — ทำเมื่อดิสก์ใกล้เต็ม ไม่ใช่ตอนนี้ |
-| MX สำรอง | เครื่องที่สองคนละ datacenter + MX priority 20 (Phase 6) |
+| ต้องการ                  | ทำยังไง                                                                      |
+| ------------------------ | ---------------------------------------------------------------------------- |
+| เครื่องแรงขึ้น           | เปลี่ยน `server_type` เป็น `cpx21` → `terraform apply` (รีบูต ข้อมูลอยู่ครบ) |
+| ดิสก์เพิ่ม               | เพิ่ม `hcloud_volume` (~€0.044/GB/เดือน) แล้ว mount ให้ Stalwart             |
+| เก็บเมลบน object storage | Hetzner Object Storage (S3-compatible) — ทำเมื่อดิสก์ใกล้เต็ม ไม่ใช่ตอนนี้   |
+| MX สำรอง                 | เครื่องที่สองคนละ datacenter + MX priority 20 (Phase 6)                      |

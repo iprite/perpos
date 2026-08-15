@@ -1,8 +1,13 @@
 # คัดลอกเป็น terraform.tfvars แล้วใส่ค่าจริง — ห้าม commit ไฟล์ terraform.tfvars
-hcloud_token   = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+#
+# 💡 แนะนำ: อย่าใส่ hcloud_token ในไฟล์นี้ (token จะลงดิสก์) — ส่งทาง env แทน
+#    read -rs TF_VAR_hcloud_token && export TF_VAR_hcloud_token
+# hcloud_token = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+
 ssh_public_key = "ssh-ed25519 AAAA... you@example.com"
 mail_hostname  = "mail.perpos.ai"
 server_type    = "cpx11"
+location       = "sin" # สิงคโปร์ — ห้ามใช้ datacenter "sin-dc1" (Hetzner เลิกใช้แล้ว)
 
 # IP ที่ให้ SSH เข้าได้ — ระบุให้แคบที่สุดเท่าที่ทำได้
 ssh_allowed_ips = ["0.0.0.0/0", "::/0"]

@@ -47,6 +47,14 @@ variable "server_type" {
   default     = "cpx11"
 }
 
+variable "location" {
+  # "sin" = สิงคโปร์ · เดิมโค้ดใช้ datacenter "sin-dc1" แต่ Hetzner เลิกใช้ datacenter แล้ว
+  # (changelog 2026-07-01) — primary_ip บังคับ location, server ก็ใช้ location เหมือนกัน
+  description = "ตำแหน่งเครื่อง Hetzner"
+  type        = string
+  default     = "sin"
+}
+
 variable "ssh_allowed_ips" {
   description = "IP ที่ให้ SSH เข้าได้ — ตั้งเป็น IP ออฟฟิศ/บ้าน อย่าเปิด 0.0.0.0/0 ถ้าเลี่ยงได้"
   type        = list(string)
@@ -68,11 +76,11 @@ resource "hcloud_ssh_key" "admin" {
 # ---------------------------------------------------------------------------
 
 resource "hcloud_primary_ip" "mail_v4" {
-  name          = "perpos-mail-ipv4"
-  type          = "ipv4"
-  datacenter    = "sin-dc1"
-  assignee_type = "server"
-  auto_delete   = false
+  name = "perpos-mail-ipv4"
+  type = "ipv4"
+  # Hetzner เลิกใช้ datacenter แล้ว (changelog 2026-07-01) — ต้องระบุ location แทน
+  location    = var.location
+  auto_delete = false
 
   lifecycle {
     prevent_destroy = true # กันเผลอ terraform destroy แล้วเสีย IP ที่ warm-up ไว้
@@ -80,11 +88,10 @@ resource "hcloud_primary_ip" "mail_v4" {
 }
 
 resource "hcloud_primary_ip" "mail_v6" {
-  name          = "perpos-mail-ipv6"
-  type          = "ipv6"
-  datacenter    = "sin-dc1"
-  assignee_type = "server"
-  auto_delete   = false
+  name        = "perpos-mail-ipv6"
+  type        = "ipv6"
+  location    = var.location
+  auto_delete = false
 
   lifecycle {
     prevent_destroy = true
@@ -163,7 +170,7 @@ resource "hcloud_server" "mail" {
   name         = "perpos-mail"
   server_type  = var.server_type
   image        = "debian-12"
-  datacenter   = "sin-dc1"
+  location     = var.location
   ssh_keys     = [hcloud_ssh_key.admin.id]
   firewall_ids = [hcloud_firewall.mail.id]
 
