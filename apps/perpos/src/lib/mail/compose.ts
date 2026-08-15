@@ -194,8 +194,8 @@ export function replyRecipients(
 
 // ─── ประกอบ JMAP Email ────────────────────────────────────────────────────────
 
-function toJmapAddresses(list: MailAddress[]): { name: string | null; email: string }[] | null {
-  return list.length ? list.map((a) => ({ name: a.name ?? null, email: a.email })) : null;
+function toJmapAddresses(list: MailAddress[]): { name: string | null; email: string }[] {
+  return list.map((a) => ({ name: a.name ?? null, email: a.email }));
 }
 
 export interface BuiltDraft {
@@ -234,14 +234,20 @@ export function buildDraftEmail(
   const bodyText = (input.body ?? "").replace(/\r\n/g, "\n");
   const email: Record<string, unknown> = {
     from: [{ name: from.name ?? null, email: from.email }],
-    to: toJmapAddresses(to),
-    cc: toJmapAddresses(cc),
-    bcc: toJmapAddresses(bcc),
     subject: (input.subject ?? "").trim(),
     // ส่ง text/plain อย่างเดียว (ดูหัวไฟล์) — bodyValues ผูกกับ partId "b"
     bodyValues: { b: { value: bodyText } },
     textBody: [{ partId: "b", type: "text/plain" }],
   };
+
+  /**
+   * 🔴 ช่องผู้รับที่ว่าง ต้อง **ไม่ใส่คีย์เลย** ห้ามใส่ `null`
+   *    Stalwart ตอบ `invalidProperties: ["cc"]` แล้วส่งไม่ออกทั้งฉบับ (เจอจากการทดสอบจริง
+   *    2026-08-15 — ก่อนหน้านี้ส่ง `cc: null` ทำให้ "ส่งเมลไม่ได้เลยแม้แต่ฉบับเดียว")
+   */
+  if (to.length) email.to = toJmapAddresses(to);
+  if (cc.length) email.cc = toJmapAddresses(cc);
+  if (bcc.length) email.bcc = toJmapAddresses(bcc);
 
   if (input.inReplyTo) {
     email.inReplyTo = [input.inReplyTo];

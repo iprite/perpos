@@ -100,6 +100,9 @@ interface QueueEntry {
   timer: ReturnType<typeof setTimeout>;
 }
 
+/** toast ของการส่งมีได้ใบเดียวเสมอ — ดูเหตุผลใน `enqueueSend` */
+const SEND_TOAST_ID = "mail-send-undo";
+
 const ACTION_LABEL: Record<DestructiveAction, string> = {
   archive: "เก็บเข้าคลังแล้ว",
   trash: "ย้ายไปถังขยะแล้ว",
@@ -506,7 +509,7 @@ export function MailWorkspace({
       if (!entry) return;
       clearTimeout(entry.timer);
       sendQueueRef.current.delete(key);
-      dismissUndoToast(key);
+      dismissUndoToast(SEND_TOAST_ID);
       try {
         const res = await postJson<{ movedToSent?: boolean }>(
           "/api/mail/send",
@@ -537,12 +540,23 @@ export function MailWorkspace({
       const timer = setTimeout(() => void flushSend(key), UNDO_TOAST_MS);
       sendQueueRef.current.set(key, { payload, timer });
       setComposeOpen(false);
+      /**
+       * 🔴 ใช้ **id เดียวตายตัว** สำหรับ toast ของการส่ง ไม่ใช่ id ต่อฉบับ
+       *    ส่งรัว ๆ แล้ว toast ซ้อนกันหลายใบ ผู้ใช้จะกด "เลิกทำ" ผิดใบ (ของฉบับที่ส่งไปแล้ว)
+       *    แล้วเข้าใจว่ายกเลิกสำเร็จ ทั้งที่เมลออกไปแล้ว — เจอจริงตอนทดสอบ 2026-08-15
+       *    ⇒ ใบที่เห็นบนจอต้องหมายถึง "ฉบับล่าสุด" เสมอ
+       */
       showUndoToast({
-        id: key,
-        message: "ส่งแล้ว",
+        id: SEND_TOAST_ID,
+        message: `ส่งถึง ${payload.to[0] ?? ""}${payload.to.length > 1 ? ` +${payload.to.length - 1}` : ""}`,
         onUndo: () => {
           const entry = sendQueueRef.current.get(key);
-          if (entry) clearTimeout(entry.timer);
+          if (!entry) {
+            // ครบ 8 วิไปแล้ว = ส่งออกจริง — ต้องบอกตรง ๆ ห้ามเงียบให้เข้าใจผิดว่ายกเลิกได้
+            notify.error(null, "ส่งออกไปแล้ว ยกเลิกไม่ทัน");
+            return;
+          }
+          clearTimeout(entry.timer);
           sendQueueRef.current.delete(key);
           reopenCompose(payload); // ต้องได้ไฟล์แนบ/สำเนาลับ/ร่างเดิมกลับมาครบ
         },

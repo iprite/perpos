@@ -32,8 +32,7 @@ import { FileDropzone } from "@/components/ui/file-dropzone";
 import { notify } from "@/lib/toast";
 import { formatMailSize } from "@/lib/mail/format";
 import { MailRecipientInput } from "@/components/mail/mail-recipients";
-import { MAX_MESSAGE_BYTES, isEmailAddress } from "@/lib/mail/compose";
-import type { MailComposeAttachment } from "@/lib/mail/compose";
+import { MAX_MESSAGE_BYTES, isEmailAddress, type MailComposeAttachment } from "@/lib/mail/compose";
 
 const AUTOSAVE_MS = 3000;
 
@@ -183,7 +182,7 @@ export function MailCompose({
   payloadRef.current = buildPayload;
 
   // ── ร่างอัตโนมัติ ─────────────────────────────────────────────────────────
-  const saveDraft = useCallback(async (): Promise<string | null> => {
+  const saveDraftOnce = useCallback(async (): Promise<string | null> => {
     const payload = payloadRef.current();
     setSaveState("saving");
     try {
@@ -210,6 +209,25 @@ export function MailCompose({
       return null;
     }
   }, []);
+
+  /**
+   * 🔴 กันเซฟซ้อนกัน — ถ้ารอบก่อนยังไม่ตอบแล้วรอบใหม่เริ่ม ทั้งสองจะมี `draftId` เดิม (หรือ null)
+   *    ⇒ สร้างร่างใหม่คนละใบ แต่สั่งลบใบเก่าใบเดียวกัน = **ร่างซ้ำกองใน Drafts**
+   *    (เจอจริงตอนทดสอบ 2026-08-15 — ได้ร่างซ้ำ 3 ใบจากการเขียนครั้งเดียว)
+   *    รอบที่ซ้อนเข้ามาให้ใช้ผลของรอบที่กำลังวิ่งอยู่แทน
+   */
+  const pendingSaveRef = useRef<Promise<string | null> | null>(null);
+
+  const saveDraft = useCallback(async (): Promise<string | null> => {
+    if (pendingSaveRef.current) return pendingSaveRef.current;
+    const run = saveDraftOnce();
+    pendingSaveRef.current = run;
+    try {
+      return await run;
+    } finally {
+      pendingSaveRef.current = null;
+    }
+  }, [saveDraftOnce]);
 
   const dirtyRef = useRef(false);
   useEffect(() => {
