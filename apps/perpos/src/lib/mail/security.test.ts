@@ -119,3 +119,38 @@ describe("isSameOriginRequest — กัน CSRF ของ route ที่ไม
     expect(isSameOriginRequest(h({}), base)).toBe(false);
   });
 });
+
+describe("โดเมนเมลต้องเสิร์ฟเฉพาะ PERPOS Mail (middleware)", () => {
+  // สะท้อนกฎเดียวกับ `isMailAppPath` ใน src/middleware.ts — ถ้าแก้ที่นั่นต้องแก้ที่นี่ด้วย
+  const allowed = (p: string) =>
+    p === "/mail" ||
+    p.startsWith("/mail/") ||
+    p.startsWith("/api/mail/") ||
+    p.startsWith("/_next/") ||
+    p.startsWith("/brand/") ||
+    p === "/favicon.ico" ||
+    p === "/robots.txt";
+
+  it("path ของเมล + asset ผ่าน", () => {
+    for (const p of [
+      "/mail",
+      "/mail/login",
+      "/api/mail/messages",
+      "/_next/static/chunk.js",
+      "/brand/perpos-icon-192.png",
+    ]) {
+      expect(allowed(p), p).toBe(true);
+    }
+  });
+
+  it("หน้าอื่นของ PERPOS ต้องไม่โผล่บนโดเมนเมล", () => {
+    for (const p of ["/", "/signin", "/admin", "/assistant", "/tmc/tmc", "/api/line/webhook"]) {
+      expect(allowed(p), p).toBe(false);
+    }
+  });
+
+  it("ไม่หลุดเพราะชื่อขึ้นต้นคล้ายกัน", () => {
+    expect(allowed("/mailbox")).toBe(false);
+    expect(allowed("/api/mailer")).toBe(false);
+  });
+});
