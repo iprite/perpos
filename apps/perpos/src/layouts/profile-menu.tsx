@@ -7,7 +7,7 @@ import { Avatar } from "@/components/ui/avatar";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { LogOut, ChevronsUpDown, User, Zap, Building2, MessageCircle, AtSign } from "lucide-react";
+import { LogOut, ChevronsUpDown, User, Zap, Building2, MessageCircle } from "lucide-react";
 
 import { useAuth } from "@/app/shared/auth-provider";
 import { useOrgSlug } from "@/app/shared/module-provider";
@@ -100,11 +100,6 @@ function DropdownMenu() {
       label: "โปรไฟล์",
       href: "/user",
       icon: <User className="h-[18px] w-[18px] shrink-0 text-gray-500" />,
-    },
-    {
-      label: "อีเมล",
-      href: "/mail",
-      icon: <AtSign className="h-[18px] w-[18px] shrink-0 text-gray-500" />,
     },
     {
       label: "แพ็กเกจสมาชิก",

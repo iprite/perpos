@@ -13,7 +13,7 @@ import { sanitizeReturnTo } from "./oauth";
 describe("allowlist ของ returnTo (open redirect)", () => {
   it("ผ่านเฉพาะเส้นทางใต้ /mail", () => {
     expect(sanitizeReturnTo("/mail")).toBe("/mail");
-    expect(sanitizeReturnTo("/mail/connect")).toBe("/mail/connect");
+    expect(sanitizeReturnTo("/mail/login")).toBe("/mail/login");
     expect(sanitizeReturnTo("/mail?box=starred")).toBe("/mail?box=starred");
   });
 
@@ -35,7 +35,7 @@ describe("allowlist ของ returnTo (open redirect)", () => {
 
   it("decode แล้วยังต้องผ่านด่านเดิม", () => {
     expect(sanitizeReturnTo("%2F%2Fevil.com")).toBe("/mail");
-    expect(sanitizeReturnTo("%2Fmail%2Fconnect")).toBe("/mail/connect");
+    expect(sanitizeReturnTo("%2Fmail%2Flogin")).toBe("/mail/login");
   });
 });
 

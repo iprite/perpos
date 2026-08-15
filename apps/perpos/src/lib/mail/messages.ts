@@ -18,6 +18,7 @@ import {
   sanitizeAttachmentName,
   type JmapMethodCall,
 } from "./jmap";
+import { MAIL_BOX_LABELS, MAIL_BOX_ORDER } from "./boxes";
 import { buildInlineImageMap, prepareMailHtml, type InlineImageSource } from "./sanitize";
 import type {
   JmapBodyPart,
@@ -41,26 +42,6 @@ import type {
   MailboxRole,
   MailboxSummary,
 } from "./types";
-
-export const MAIL_BOX_LABELS: Record<MailBoxKey, string> = {
-  inbox: "กล่องขาเข้า",
-  starred: "ดาว",
-  sent: "ส่งแล้ว",
-  drafts: "ร่าง",
-  archive: "คลังเก็บ",
-  junk: "จดหมายขยะ",
-  trash: "ถังขยะ",
-};
-
-export const MAIL_BOX_ORDER: MailBoxKey[] = [
-  "inbox",
-  "starred",
-  "sent",
-  "drafts",
-  "archive",
-  "junk",
-  "trash",
-];
 
 const ROLE_KEYS: MailboxRole[] = ["inbox", "sent", "drafts", "archive", "junk", "trash"];
 

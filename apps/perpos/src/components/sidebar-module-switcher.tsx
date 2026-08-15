@@ -27,7 +27,7 @@ const MODULE_ICONS: Record<string, React.ReactNode> = {
 };
 
 // Segments ที่ไม่ใช่ context ขององค์กร (ERP) — module switcher ไม่เกี่ยวข้อง
-const SYSTEM_SEGMENTS = new Set(["admin", "assistant", "user", "no-module", "signin", "mail"]);
+const SYSTEM_SEGMENTS = new Set(["admin", "assistant", "user", "no-module", "signin"]);
 
 export function SidebarModuleSwitcher() {
   const pathname = usePathname() ?? "/";

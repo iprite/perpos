@@ -132,7 +132,7 @@ export function MailWorkspace({ box, boxLabel }: { box: MailBoxKey; boxLabel: st
   messagesRef.current = messages;
 
   const handleExpired = useCallback(() => {
-    router.push("/mail/connect?reason=expired");
+    router.push("/mail/login?reason=expired");
   }, [router]);
 
   // debounce คำค้น (ค้นหาเป็น POST — คำค้นห้ามอยู่ใน URL/log)

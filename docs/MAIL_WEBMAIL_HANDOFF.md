@@ -1,6 +1,6 @@
 # 📬 PERPOS Mail (webmail) — ส่งต่อให้ session ถัดไป
 
-> อัปเดต 2026-08-15 · branch **`feat/mail-webmail-read`** (commit `8466a251`, ยังไม่ push)
+> อัปเดต 2026-08-15 (รอบ 2 — จบหัวข้อ B) · ฐานคือ `main` หลัง #218
 > เอกสารนี้ = **ทำอะไรต่อ** · สัญญาเต็มอยู่ที่ [`.claude/feature-factory/specs/mail-webmail-read.md`](../.claude/feature-factory/specs/mail-webmail-read.md) (646 บรรทัด)
 > UI/UX อยู่ที่ [`MAIL_UI_SPEC.md`](MAIL_UI_SPEC.md) · เมลเซิร์ฟเวอร์อยู่ที่ [`MAIL_HANDOFF.md`](MAIL_HANDOFF.md)
 
@@ -19,18 +19,36 @@
 
 ---
 
-## B. แยกแอปออกจาก PERPOS (ทำก่อน — ไม่แตะเมลที่ใช้งานอยู่)
+## B. แยกแอปออกจาก PERPOS — ✅ **โค้ดเสร็จแล้ว (2026-08-15)** เหลือแต่งาน ops
 
-- [ ] ย้าย `app/(hydrogen)/mail/**` → route group ใหม่ (เช่น `app/(mail)/`) ที่ **ไม่มี AuthGuard ของ PERPOS**
-      · layout/shell ของตัวเอง แบรนด์ "PERPOS Mail" · ไม่ใช้ sidebar/header ของ hydrogen
-- [ ] หน้า login ของเมลเอง — ปุ่มเดียว → OAuth ไป Stalwart (โค้ด `lib/mail/oauth.ts` ใช้ได้เลย)
-- [ ] 🧹 **ถอน diff ออกจาก shared file ให้หมด** (เพราะไม่อยู่ใน hydrogen แล้ว = ไม่ต้องมี):
-      `SYSTEM_SEGMENTS` **5 จุด** (`layouts/hydrogen/{layout,menu-items,header-center,sidebar-footer}.tsx`,
-      `components/sidebar-module-switcher.tsx`) · `buildMailMenuItems` + branch ใน `pickMenuContext`/`getMenuItems`
-      (`menu-items.tsx`) · ลิงก์ "อีเมล" ใน `layouts/profile-menu.tsx`
-      → **โค้ดจะสะอาดกว่าเดิม** และ `components/mail/mail-boxes.ts` ย้ายไป `lib/mail/` ได้
-- [ ] ผูกโดเมน `mail.perpos.ai` ใน Vercel + ตั้ง env ใหม่ (`APP_BASE_URL`, `MAIL_OAUTH_ISSUER`)
-- [ ] **ลงทะเบียน OAuth client ใหม่** (redirect URI เปลี่ยน) — ดูวิธีที่ §A ด้านล่าง
+### ทำแล้ว (อยู่ในโค้ด)
+
+- [x] ย้าย `app/(hydrogen)/mail/**` → **`app/(mail)/`** — route group ของตัวเอง **ไม่มี AuthGuard/RouteRoleGuard
+      /PresenceHeartbeat ของ PERPOS** · `(mail)/layout.tsx` อ่านแค่ cookie "เชื่อมกล่องแล้วหรือยัง" แล้วห่อด้วย
+      `<MailShell>` ([components/mail/mail-shell.tsx](../apps/perpos/src/components/mail/mail-shell.tsx))
+      = topbar แบรนด์ "PERPOS Mail" + **rail กล่องเมลของตัวเอง** (แทน sidebar ของ PERPOS ที่ UI_SPEC §1 เคยยืมใช้) + ชิปบัญชี/ออกจากระบบ · `(mail)/loading.tsx` + `(mail)/mail/loading.tsx` ครบ (มีเทสกันลืมใน `page-load-standard.test.ts`)
+- [x] หน้า login ของเมลเอง — **`/mail/connect` → `/mail/login`** (ปุ่มเดียว → `/api/mail/oauth/start`)
+      · เปลี่ยนปลายทาง redirect ครบทุกจุด (oauth callback, disconnect, workspace ตอน 401, เทส `security.test.ts`)
+      · ข้อความเปลี่ยนจาก "เชื่อมกล่องเมล/ตัดการเชื่อมต่อ" → "เข้าสู่ระบบ/ออกจากระบบ" (ผลิตภัณฑ์เดี่ยว ไม่ใช่ฟีเจอร์เสริมของ PERPOS)
+- [x] 🧹 ถอน diff ออกจาก shared file **หมดแล้ว**: `SYSTEM_SEGMENTS` 5 จุด · `buildMailMenuItems` + branch ใน
+      `pickMenuContext`/`getMenuItems` + import ไอคอนที่ค้าง (`menu-items.tsx`) · ลิงก์ "อีเมล" + `AtSign` ใน `profile-menu.tsx`
+      → **ไม่มีทางเข้าเมลจากฝั่ง PERPOS อีกแล้ว** (แยกขาดตามที่เคาะ)
+- [x] ป้ายกล่องเมลรวมเป็นแหล่งเดียว **`lib/mail/boxes.ts`** (blocker 6 ปิด) — `components/mail/mail-boxes.ts`
+      กับสำเนาใน `lib/mail/messages.ts` ถูกลบ · `MAIL_BOX_ORDER` ย้ายมาอยู่ที่นี่ด้วย
+- [x] `app/api/mail/account` **ไม่ใช่ dead code แล้ว** (blocker 5 ปิด) — ชิปบัญชีบน topbar เรียกใช้จริง
+      (session cookie จำกัด path `/api/mail` ⇒ shell อ่านฝั่ง server ไม่ได้ ต้องถามผ่าน route นี้)
+
+ด่านคุณภาพ: `tsc` 0 error (เหลือ `lib/export/xlsx.ts` ที่พังอยู่แล้วบน main) · `lint` clean · `vitest` 1,336 ผ่าน
+· เปิดจริงบน dev แล้ว: `/mail/login` = หน้าเดี่ยวไม่มี chrome ของ PERPOS · `/mail?box=sent` = rail + workspace 2 pane
+
+### เหลือ (ต้องทำที่คอนโซล — เจ้าของระบบทำ)
+
+- [ ] ผูกโดเมน `mail.perpos.ai` ใน Vercel + ตั้ง env ของโดเมนนั้น (`APP_BASE_URL`, `MAIL_OAUTH_ISSUER`)
+      — ⚠️ ต้องทำ **หลัง** §A ข้อ 5 (ตอนนี้ `mail.perpos.ai` ยังชี้เมลเซิร์ฟเวอร์อยู่)
+- [ ] **ลงทะเบียน OAuth client ใหม่** (redirect URI เปลี่ยนเป็น `https://mail.perpos.ai/api/mail/oauth/callback`) — วิธีอยู่ท้ายเอกสาร
+- [ ] ตัดสินใจเรื่อง URL: ตอนนี้ path ยังเป็น `/mail` และ `/mail/login` (ใช้ได้ทั้งบน `app.perpos.ai` และ `mail.perpos.ai`)
+      ถ้าอยากให้ `mail.perpos.ai/` ตรง ๆ = กล่องขาเข้า ต้องเพิ่ม host-based rewrite ใน `src/middleware.ts`
+      (ยังไม่ทำ — ตั้งใจไม่ใส่ magic ก่อนโดเมนมีจริง)
 
 **ของที่ใช้ต่อได้ 100% ไม่ต้องแตะ:** `lib/mail/*` · `app/api/mail/*` · `components/mail/*`
 (ออกแบบให้ auth ของเมลแยกจาก PERPOS ตั้งแต่ต้น)
@@ -50,7 +68,7 @@
 
 ---
 
-## 🐞 blocker ค้าง 7 ข้อ (ต้องแก้ ไม่ว่าจะย้ายโครงหรือไม่)
+## 🐞 blocker — เหลือ 5 ข้อ (ข้อ 5,6 ปิดไปพร้อมหัวข้อ B)
 
 ### ux-reviewer (FAIL — 4 blocker)
 
@@ -69,9 +87,8 @@
 
 ### module-reviewer (FAIL — 2 blocker)
 
-5. **`app/api/mail/account/route.ts` เป็น dead code** ไม่มี caller ทั้ง repo → ลบ หรือหา caller จริง
-6. **ป้ายชื่อกล่องเมลซ้ำ 2 แหล่ง** — `lib/mail/messages.ts:49-57` vs `components/mail/mail-boxes.ts:19`
-   → รวมเป็นแหล่งเดียว (ย้าย `mail-boxes.ts` ไป `lib/mail/` แล้วให้ `messages.ts` import)
+5. ~~**`app/api/mail/account/route.ts` เป็น dead code**~~ — ✅ **ปิดแล้ว (B)** ชิปบัญชีบน topbar เป็น caller จริง
+6. ~~**ป้ายชื่อกล่องเมลซ้ำ 2 แหล่ง**~~ — ✅ **ปิดแล้ว (B)** รวมที่ `lib/mail/boxes.ts` แหล่งเดียว
 
 ### security-reviewer (PASS — แต่มี MEDIUM ที่ควรปิดก่อน prod)
 
