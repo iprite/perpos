@@ -13,6 +13,9 @@ import type { JmapDiscovery, MailSession } from "./types";
 
 export const JMAP_USING = ["urn:ietf:params:jmap:core", "urn:ietf:params:jmap:mail"] as const;
 
+/** เพิ่ม capability ส่งเมล (M2) — ต้องประกาศเองเวลาเรียก Identity/EmailSubmission */
+export const JMAP_USING_SUBMISSION = [...JMAP_USING, "urn:ietf:params:jmap:submission"] as const;
+
 export const JMAP_TIMEOUT_MS = 15_000;
 export const JMAP_BLOB_TIMEOUT_MS = 60_000;
 
@@ -43,6 +46,8 @@ export class MailServiceError extends Error {
 export async function jmapRequest(
   session: Pick<MailSession, "apiUrl" | "accessToken">,
   methodCalls: JmapMethodCall[],
+  /** ค่าเริ่มต้น = core+mail · ส่งเมลต้องใช้ `JMAP_USING_SUBMISSION` ไม่งั้นได้ `unknownMethod` */
+  using: readonly string[] = JMAP_USING,
 ): Promise<JmapMethodResponse[]> {
   let res: Response;
   try {
@@ -55,7 +60,7 @@ export async function jmapRequest(
         "Content-Type": "application/json",
         Accept: "application/json",
       },
-      body: JSON.stringify({ using: [...JMAP_USING], methodCalls }),
+      body: JSON.stringify({ using: [...using], methodCalls }),
       signal: AbortSignal.timeout(JMAP_TIMEOUT_MS),
     });
   } catch {
@@ -131,6 +136,7 @@ export async function fetchJmapDiscovery(
   const data = (await res.json()) as {
     apiUrl?: string;
     downloadUrl?: string;
+    uploadUrl?: string;
     primaryAccounts?: Record<string, string>;
     accounts?: Record<string, { name?: string }>;
   };
@@ -138,15 +144,24 @@ export async function fetchJmapDiscovery(
   const accountId = data.primaryAccounts?.["urn:ietf:params:jmap:mail"];
   const apiUrl = data.apiUrl;
   const downloadUrl = data.downloadUrl;
+  const uploadUrl = data.uploadUrl;
   if (!accountId || !apiUrl || !downloadUrl) throw new MailServiceError(502);
 
   const resolvedApiUrl = new URL(apiUrl, jmapOrigin);
   if (resolvedApiUrl.origin !== jmapOrigin) throw new MailServiceError(502);
 
+  // uploadUrl ต้องอยู่ origin เดียวกันเช่นกัน — ไม่ผ่านถือว่าไม่มี (อัปโหลดไฟล์แนบจะแจ้งผู้ใช้เอง)
+  let resolvedUploadUrl: string | undefined;
+  if (uploadUrl) {
+    const candidate = new URL(uploadUrl, jmapOrigin);
+    if (candidate.origin === jmapOrigin) resolvedUploadUrl = candidate.toString();
+  }
+
   return {
     accountId,
     apiUrl: resolvedApiUrl.toString(),
     downloadUrl,
+    uploadUrl: resolvedUploadUrl,
     email: data.accounts?.[accountId]?.name ?? "",
   };
 }

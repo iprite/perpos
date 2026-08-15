@@ -133,6 +133,8 @@ export interface MailSession {
   apiUrl: string;
   /** template ดิบจาก JMAP session — ห้ามฮาร์ดโค้ด */
   downloadUrl: string;
+  /** เพิ่มใน M2 — optional เพราะ cookie ที่ออกก่อนหน้ายังไม่มีฟิลด์นี้ (ผู้เรียกต้องมี fallback) */
+  uploadUrl?: string;
 }
 
 export interface MailOAuthState {
@@ -153,6 +155,8 @@ export interface MailApiErrorBody {
 export interface JmapDiscovery {
   apiUrl: string;
   downloadUrl: string;
+  /** M2 — ใช้แนบไฟล์ · ไม่มี = เซิร์ฟเวอร์ไม่ประกาศ (ผู้เรียกมี fallback จาก apiUrl) */
+  uploadUrl?: string;
   accountId: string;
   email: string;
 }
