@@ -2,6 +2,36 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
 import { getSupabaseJwks } from "@/lib/supabase/jwks";
+import { isMailHost } from "@/lib/mail/base-path";
+
+/**
+ * โดเมนของ **PERPOS Mail** — โปรเจกต์ Vercel เดียวเสิร์ฟทั้ง Suite/Flow และ Mail
+ * ⇒ ต้องแยกที่ชั้น middleware ไม่งั้น `https://mail.perpos.ai/` ตกไปที่หน้าแรกของ PERPOS
+ * แล้วเด้งไป LINE login (ลูกค้าเมลไม่มีบัญชี PERPOS)
+ *
+ * บนโดเมนเมล:
+ *  - `/` → **rewrite** ไป `/mail` · `/login` → `/mail/login` (rewrite ไม่ใช่ redirect
+ *    URL ที่ผู้ใช้เห็นจึงไม่มี `/mail` ซ้ำซ้อน — ดู `lib/mail/base-path.ts`)
+ *  - `/api/mail/*` + asset ผ่านตรง ๆ
+ *  - path อื่นของ PERPOS (`/signin` `/admin` `/[orgSlug]` …) → redirect กลับ `/`
+ *  - **ไม่แตะ Supabase session ของ PERPOS เลย**
+ */
+function mailRewriteTarget(pathname: string): string | null {
+  if (pathname === "/") return "/mail";
+  if (pathname === "/login") return "/mail/login";
+  return null;
+}
+
+/** path ที่โดเมนเมลเสิร์ฟได้ตรง ๆ (นอกเหนือจากที่ rewrite) */
+function isMailPassthrough(pathname: string): boolean {
+  return (
+    pathname.startsWith("/api/mail/") ||
+    pathname.startsWith("/_next/") ||
+    pathname.startsWith("/brand/") ||
+    pathname === "/favicon.ico" ||
+    pathname === "/robots.txt"
+  );
+}
 
 /**
  * Single project middleware. Does two jobs on every request:
@@ -21,45 +51,19 @@ import { getSupabaseJwks } from "@/lib/supabase/jwks";
  * the app uses a `src/` directory — Next.js only loads `src/middleware.ts`
  * when `src/app` exists, and ignores any root-level `middleware.ts`.
  */
-/**
- * โดเมนของ **PERPOS Mail** (`mail.perpos.ai`) — โปรเจกต์ Vercel เดียวเสิร์ฟทั้ง Suite/Flow และ Mail
- * ถ้าไม่กันไว้ `https://mail.perpos.ai/` จะตกไปที่หน้าแรกของ PERPOS แล้วเด้งไป LINE login
- * ซึ่งผิดทั้งดีไซน์ (ลูกค้าเมลไม่มีบัญชี PERPOS) และผิดหลัก "แยกขาดกันสนิท"
- *
- * ตั้งชื่อผ่าน env ได้ (`MAIL_APP_BASE_URL`) — ไม่ได้ตั้งก็ใช้ค่า default
- */
-function mailHostname(): string {
-  const raw = process.env.MAIL_APP_BASE_URL;
-  if (!raw) return "mail.perpos.ai";
-  try {
-    return new URL(raw).hostname;
-  } catch {
-    return "mail.perpos.ai";
-  }
-}
-
-/** path ที่โดเมนเมลเสิร์ฟได้เท่านั้น — นอกจากนี้เด้งกลับ `/mail` ทั้งหมด */
-function isMailAppPath(pathname: string): boolean {
-  return (
-    pathname === "/mail" ||
-    pathname.startsWith("/mail/") ||
-    pathname.startsWith("/api/mail/") ||
-    pathname.startsWith("/_next/") ||
-    pathname.startsWith("/brand/") ||
-    pathname === "/favicon.ico" ||
-    pathname === "/robots.txt"
-  );
-}
-
 export async function middleware(request: NextRequest) {
-  // ── โดเมนเมล: เห็นได้เฉพาะ PERPOS Mail · ไม่แตะ Supabase session ของ PERPOS เลย ──
-  const host = (request.headers.get("host") ?? "").split(":")[0]?.toLowerCase() ?? "";
-  if (host === mailHostname()) {
-    if (!isMailAppPath(request.nextUrl.pathname)) {
-      const dest = new URL("/mail", request.url);
-      return NextResponse.redirect(dest, { status: 307 });
+  // ── โดเมนเมล: เห็นได้เฉพาะ PERPOS Mail ──
+  if (isMailHost(request.headers.get("host"))) {
+    const { pathname } = request.nextUrl;
+    const rewriteTo = mailRewriteTarget(pathname);
+    if (rewriteTo) {
+      const url = request.nextUrl.clone();
+      url.pathname = rewriteTo;
+      return NextResponse.rewrite(url);
     }
-    return NextResponse.next();
+    if (isMailPassthrough(pathname)) return NextResponse.next();
+    // `/mail*` ที่ผู้ใช้พิมพ์เอง (หรือลิงก์เก่า) → พากลับ URL ที่ถูกต้องของโดเมนนี้
+    return NextResponse.redirect(new URL("/", request.url), { status: 307 });
   }
 
   // Forward the pathname so RSC layouts can read it.

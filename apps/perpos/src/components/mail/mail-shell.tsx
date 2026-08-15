@@ -53,7 +53,7 @@ function MailBrand() {
  * cookie ของ session ถูกจำกัด path ไว้ที่ `/api/mail` (ตั้งใจ — หน้าเว็บไม่ควรถือ token)
  * ⇒ อ่านฝั่ง server ไม่ได้ ต้องถาม `/api/mail/account` เอา
  */
-function MailAccountMenu() {
+function MailAccountMenu({ basePath }: { basePath: string }) {
   const [email, setEmail] = useState<string | null>(null);
   const [signingOut, setSigningOut] = useState(false);
 
@@ -77,7 +77,7 @@ function MailAccountMenu() {
     try {
       const res = await fetch("/api/mail/oauth/disconnect", { method: "POST" });
       const data = (await res.json().catch(() => null)) as { redirectTo?: string } | null;
-      window.location.href = data?.redirectTo ?? "/mail/login?reason=disconnected";
+      window.location.href = `${basePath}${data?.redirectTo ?? "/login?reason=disconnected"}`;
     } catch {
       setSigningOut(false);
     }
@@ -117,11 +117,12 @@ function MailAccountMenu() {
   );
 }
 
-function MailRail() {
+function MailRail({ basePath }: { basePath: string }) {
   const searchParams = useSearchParams();
   const pathname = usePathname();
   const active = resolveMailBox(searchParams.get("box"));
-  const onMailbox = pathname === "/mail";
+  // บนโดเมนเมล path จริงคือ "/" (middleware rewrite ไป /mail ให้) — ต้องรับทั้งสองแบบ
+  const onMailbox = pathname === `${basePath}/` || pathname === basePath || pathname === "/mail";
 
   return (
     <nav
@@ -134,7 +135,7 @@ function MailRail() {
         return (
           <Link
             key={key}
-            href={key === "inbox" ? "/mail" : `/mail?box=${key}`}
+            href={key === "inbox" ? `${basePath}/` : `${basePath}/?box=${key}`}
             aria-current={isActive ? "page" : undefined}
             className={cn(
               "flex shrink-0 items-center gap-2 whitespace-nowrap rounded-lg px-3 py-2 text-sm transition-colors",
@@ -154,10 +155,13 @@ function MailRail() {
 
 export function MailShell({
   connected,
+  basePath,
   children,
 }: {
   /** เชื่อมกล่องเมลแล้วหรือยัง — ยังไม่เชื่อมจะไม่มี rail (ยังไม่มีกล่องให้เปิด) */
   connected: boolean;
+  /** `""` บนโดเมนเมล · `"/mail"` ที่อื่น — ห้ามฮาร์ดโค้ด (ดู lib/mail/base-path.ts) */
+  basePath: string;
   children: React.ReactNode;
 }) {
   return (
@@ -166,10 +170,10 @@ export function MailShell({
     <div className="flex h-dvh flex-col bg-white">
       <header className="flex h-12 shrink-0 items-center justify-between gap-3 border-b border-gray-200 px-3 sm:px-4">
         <MailBrand />
-        {connected && <MailAccountMenu />}
+        {connected && <MailAccountMenu basePath={basePath} />}
       </header>
       <div className="flex min-h-0 flex-1 flex-col md:flex-row">
-        {connected && <MailRail />}
+        {connected && <MailRail basePath={basePath} />}
         <main className="min-h-0 min-w-0 flex-1 overflow-y-auto px-3 py-2 sm:px-4">{children}</main>
       </div>
     </div>

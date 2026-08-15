@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 
 import { MailShell } from "@/components/mail/mail-shell";
 import { MAIL_CONNECTED_COOKIE, MAIL_HOST_CONNECTED_COOKIE } from "@/lib/mail/session";
 import { MAIL_PRODUCT_NAME } from "@/lib/mail/boxes";
+import { mailBasePath } from "@/lib/mail/base-path";
 
 /**
  * route group ของ **PERPOS Mail** — แยกขาดจาก `(hydrogen)` โดยตั้งใจ
@@ -22,9 +23,15 @@ export const metadata: Metadata = {
 
 export default async function MailAppLayout({ children }: { children: React.ReactNode }) {
   const jar = await cookies();
+  // URL ที่ผู้ใช้เห็นต่างกันตามโดเมน — ลิงก์ทุกอันต้องประกอบจากค่านี้ (ดู lib/mail/base-path.ts)
+  const basePath = mailBasePath((await headers()).get("host"));
   const connected =
     jar.get(MAIL_HOST_CONNECTED_COOKIE)?.value === "1" ||
     jar.get(MAIL_CONNECTED_COOKIE)?.value === "1";
 
-  return <MailShell connected={connected}>{children}</MailShell>;
+  return (
+    <MailShell connected={connected} basePath={basePath}>
+      {children}
+    </MailShell>
+  );
 }

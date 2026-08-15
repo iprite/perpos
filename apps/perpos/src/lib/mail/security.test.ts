@@ -9,6 +9,7 @@ import {
   sanitizeAttachmentName,
 } from "./jmap";
 import { sanitizeReturnTo } from "./oauth";
+import { MAIL_DEFAULT_HOST, isMailHost, mailBasePath, mailHostname } from "./base-path";
 import { isSameOriginRequest } from "@/app/api/mail/_lib";
 
 describe("allowlist ของ returnTo (open redirect)", () => {
@@ -16,6 +17,13 @@ describe("allowlist ของ returnTo (open redirect)", () => {
     expect(sanitizeReturnTo("/mail")).toBe("/mail");
     expect(sanitizeReturnTo("/mail/login")).toBe("/mail/login");
     expect(sanitizeReturnTo("/mail?box=starred")).toBe("/mail?box=starred");
+    // โดเมนเมลใช้ path สั้น
+    expect(sanitizeReturnTo("/")).toBe("/");
+    expect(sanitizeReturnTo("/?box=sent")).toBe("/?box=sent");
+    expect(sanitizeReturnTo("/login?reason=expired")).toBe("/login?reason=expired");
+    // ของนอกโซนเมลไม่ผ่าน
+    expect(sanitizeReturnTo("/admin")).toBe("/");
+    expect(sanitizeReturnTo("/loginx")).toBe("/");
   });
 
   it("บล็อกทุกรูปแบบที่พาออกนอกแอป", () => {
@@ -30,12 +38,12 @@ describe("allowlist ของ returnTo (open redirect)", () => {
       null,
       undefined,
     ]) {
-      expect(sanitizeReturnTo(bad)).toBe("/mail");
+      expect(sanitizeReturnTo(bad)).toBe("/");
     }
   });
 
   it("decode แล้วยังต้องผ่านด่านเดิม", () => {
-    expect(sanitizeReturnTo("%2F%2Fevil.com")).toBe("/mail");
+    expect(sanitizeReturnTo("%2F%2Fevil.com")).toBe("/");
     expect(sanitizeReturnTo("%2Fmail%2Flogin")).toBe("/mail/login");
   });
 });
@@ -120,37 +128,29 @@ describe("isSameOriginRequest — กัน CSRF ของ route ที่ไม
   });
 });
 
-describe("โดเมนเมลต้องเสิร์ฟเฉพาะ PERPOS Mail (middleware)", () => {
-  // สะท้อนกฎเดียวกับ `isMailAppPath` ใน src/middleware.ts — ถ้าแก้ที่นั่นต้องแก้ที่นี่ด้วย
-  const allowed = (p: string) =>
-    p === "/mail" ||
-    p.startsWith("/mail/") ||
-    p.startsWith("/api/mail/") ||
-    p.startsWith("/_next/") ||
-    p.startsWith("/brand/") ||
-    p === "/favicon.ico" ||
-    p === "/robots.txt";
+describe("mailBasePath — URL ที่ผู้ใช้เห็นต่างกันตามโดเมน", () => {
+  const MAIL = "mail.perpos.ai";
 
-  it("path ของเมล + asset ผ่าน", () => {
-    for (const p of [
-      "/mail",
-      "/mail/login",
-      "/api/mail/messages",
-      "/_next/static/chunk.js",
-      "/brand/perpos-icon-192.png",
-    ]) {
-      expect(allowed(p), p).toBe(true);
-    }
+  it("โดเมนเมลไม่มี /mail ซ้ำซ้อน", () => {
+    expect(mailBasePath("mail.perpos.ai", MAIL)).toBe("");
+    expect(mailBasePath("mail.perpos.ai:443", MAIL)).toBe("");
+    expect(mailBasePath("MAIL.PERPOS.AI", MAIL)).toBe("");
   });
 
-  it("หน้าอื่นของ PERPOS ต้องไม่โผล่บนโดเมนเมล", () => {
-    for (const p of ["/", "/signin", "/admin", "/assistant", "/tmc/tmc", "/api/line/webhook"]) {
-      expect(allowed(p), p).toBe(false);
-    }
+  it("โดเมนอื่น (dev / app.perpos.ai) ยังใช้ /mail", () => {
+    expect(mailBasePath("127.0.0.1:3005", MAIL)).toBe("/mail");
+    expect(mailBasePath("app.perpos.ai", MAIL)).toBe("/mail");
+    expect(mailBasePath(null, MAIL)).toBe("/mail");
   });
 
-  it("ไม่หลุดเพราะชื่อขึ้นต้นคล้ายกัน", () => {
-    expect(allowed("/mailbox")).toBe(false);
-    expect(allowed("/api/mailer")).toBe(false);
+  it("ชื่อคล้ายกันต้องไม่หลุด", () => {
+    expect(isMailHost("mail.perpos.ai.evil.com", MAIL)).toBe(false);
+    expect(isMailHost("notmail.perpos.ai", MAIL)).toBe(false);
+  });
+
+  it("อ่านชื่อโฮสต์จาก MAIL_APP_BASE_URL · ค่าพังก็ยังมี default", () => {
+    expect(mailHostname("https://webmail.example.com")).toBe("webmail.example.com");
+    expect(mailHostname("ไม่ใช่ URL")).toBe(MAIL_DEFAULT_HOST);
+    expect(mailHostname(undefined)).toBe(MAIL_DEFAULT_HOST);
   });
 });

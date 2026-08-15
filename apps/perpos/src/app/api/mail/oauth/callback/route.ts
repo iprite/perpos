@@ -21,7 +21,7 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 function connectRedirect(config: { appBaseUrl: string }, reason: string) {
-  const res = NextResponse.redirect(`${config.appBaseUrl}/mail/login?reason=${reason}`, {
+  const res = NextResponse.redirect(`${config.appBaseUrl}/login?reason=${reason}`, {
     status: 302,
   });
   res.headers.set("Cache-Control", "private, no-store");
