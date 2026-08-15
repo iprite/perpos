@@ -9,6 +9,9 @@
  *  - **ห้ามขวางการเลื่อนรายการ** — ตัดสินแกนจากการขยับ 10px แรก ถ้าเป็นแนวตั้งให้ปล่อยผ่านทันที
  *    และไม่ `preventDefault` จนกว่าจะรู้ว่าเป็นการปัดแนวนอนจริง (ไม่งั้นสกอร์ลบนมือถือกระตุก)
  *  - ใช้ Pointer Events ตัวเดียว ครอบทั้งนิ้วและเมาส์ — ห้ามผูก touch/mouse แยกกัน (จะยิงซ้อน)
+ *  - **ปัดแล้วต้องไม่เปิดเมลตามหลัง** — เบราว์เซอร์ยิง `click` ต่อจาก `pointerup` บนอิลิเมนต์เดิม
+ *    (ยิ่งจับ pointer capture ไว้ยิ่งยิงแน่นอน) ⇒ ปัดเก็บ/ลบแล้วเมลจะถูกเปิด+ทำเป็นอ่านแล้วไปด้วย
+ *    จึงต้องกลืน click ถัดไปด้วย `onClickCapture` — **ห้ามถอดออก** (เคยหลุดมาแล้วตอนรีวิว M3)
  *
  * ระยะที่ต้องปัดถึงจะทำงาน = 96px (ประมาณ 1/4 ของจอมือถือ) — สั้นกว่านี้แตะแล้วสะบัดนิ้วนิดเดียวก็ลบ
  */
@@ -35,6 +38,8 @@ export function useSwipeRow({
   const [dx, setDx] = useState(0);
   const startRef = useRef<{ x: number; y: number } | null>(null);
   const axisRef = useRef<"none" | "x" | "y">("none");
+  /** ปัดไปแล้ว → กลืน click ถัดไปหนึ่งครั้ง (ไม่งั้นแถวถูกเปิดตามหลังการปัด) */
+  const swallowClickRef = useRef(false);
 
   const reset = useCallback(() => {
     startRef.current = null;
@@ -77,10 +82,19 @@ export function useSwipeRow({
       return;
     }
     const distance = dx;
+    // ปัดแล้วห้ามเปิดเมล ไม่ว่าจะถึงระยะทำงานหรือแค่ปัดค้างแล้วปล่อย
+    swallowClickRef.current = true;
     reset();
     if (distance >= SWIPE_TRIGGER_PX) onArchive();
     else if (distance <= -SWIPE_TRIGGER_PX) onTrash();
   }, [dx, onArchive, onTrash, reset]);
+
+  const onClickCapture = useCallback((e: React.MouseEvent) => {
+    if (!swallowClickRef.current) return;
+    swallowClickRef.current = false;
+    e.preventDefault();
+    e.stopPropagation();
+  }, []);
 
   /** action ที่จะเกิดถ้าปล่อยนิ้วตอนนี้ — ใช้เปลี่ยนสี/ไอคอนพื้นหลังให้ผู้ใช้รู้ล่วงหน้า */
   const pendingAction: SwipeAction | null =
@@ -89,12 +103,12 @@ export function useSwipeRow({
   return {
     dx,
     pendingAction,
-    swiping: axisRef.current === "x" && dx !== 0,
     handlers: {
       onPointerDown,
       onPointerMove,
       onPointerUp,
       onPointerCancel: reset,
+      onClickCapture,
     },
   };
 }

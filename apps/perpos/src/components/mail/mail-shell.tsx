@@ -124,30 +124,21 @@ function MailRail({ basePath }: { basePath: string }) {
    * ตัวเลขยังไม่ได้อ่านข้าง rail (M3 — เลื่อนมาจาก M1 ตาม UI_SPEC §1)
    * · `text-xs text-gray-500` **ห้ามใช้ badge สีแดง** (DESIGN.md §14: แดง = ผิดพลาดเท่านั้น)
    * · ไม่มีข้อมูล = ไม่แสดงอะไร (null ไม่ใช่ 0)
-   * · รีเฟรชเมื่อหน้าเปลี่ยน + ทุก 60 วิ เท่ากับจังหวะ poll ของรายการ
+   * · **ตัวเลขมาจาก workspace ทางเดียว** (event `mail:mailboxes`) — rail ไม่ยิง API เอง
+   *   ไม่งั้นสองที่ยิงคนละจังหวะ ตัวเลขบนหัวรายการกับข้าง rail จะขัดกันเอง + เรียก JMAP ซ้ำซ้อน
+   *   (workspace ยิงตอนเปิดหน้า, หลังอ่าน/ลบ/เก็บ/รีเฟรช และตอน poll เมลใหม่อยู่แล้ว)
    */
   const [unread, setUnread] = useState<Record<string, number | null>>({});
 
   useEffect(() => {
-    let alive = true;
-    const load = () => {
-      fetch("/api/mail/mailboxes")
-        .then((res) => (res.ok ? res.json() : null))
-        .then((data: { mailboxes?: { key: string; unreadCount: number | null }[] } | null) => {
-          if (!alive || !data?.mailboxes) return;
-          setUnread(Object.fromEntries(data.mailboxes.map((m) => [m.key, m.unreadCount])));
-        })
-        .catch(() => {
-          /* ตัวเลขสรุปพลาดได้ ไม่ต้องรบกวนผู้ใช้ */
-        });
+    const onMailboxes = (e: Event) => {
+      const boxes = (e as CustomEvent<{ key: string; unreadCount: number | null }[]>).detail;
+      if (!Array.isArray(boxes)) return;
+      setUnread(Object.fromEntries(boxes.map((m) => [m.key, m.unreadCount])));
     };
-    load();
-    const id = setInterval(load, 60_000);
-    return () => {
-      alive = false;
-      clearInterval(id);
-    };
-  }, [pathname, searchParams]);
+    window.addEventListener("mail:mailboxes", onMailboxes);
+    return () => window.removeEventListener("mail:mailboxes", onMailboxes);
+  }, []);
   const active = resolveMailBox(searchParams.get("box"));
   // บนโดเมนเมล path จริงคือ "/" (middleware rewrite ไป /mail ให้) — ต้องรับทั้งสองแบบ
   const onMailbox = pathname === `${basePath}/` || pathname === basePath || pathname === "/mail";

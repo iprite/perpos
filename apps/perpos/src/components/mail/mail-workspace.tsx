@@ -196,6 +196,9 @@ export function MailWorkspace({
         "/api/mail/mailboxes",
       );
       setMailboxes(d.mailboxes ?? []);
+      // ส่งต่อให้ rail ใน shell ใช้ตัวเลขชุดเดียวกัน — **ห้ามให้ rail ยิง API เอง**
+      // (สองที่ยิงคนละจังหวะ = ตัวเลขบนหัวรายการกับข้าง rail ขัดกันเอง + โหลด JMAP ซ้ำซ้อน)
+      window.dispatchEvent(new CustomEvent("mail:mailboxes", { detail: d.mailboxes ?? [] }));
     } catch {
       /* ตัวเลขสรุปพลาดได้ ไม่ต้องรบกวนผู้ใช้ — รายการเมลคือของหลัก */
     }
