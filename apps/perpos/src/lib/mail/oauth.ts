@@ -9,6 +9,8 @@
 
 import { createHash, randomBytes } from "node:crypto";
 
+import { hasUsableSessionSecret } from "./secret";
+
 export const MAIL_OAUTH_SCOPE = "urn:ietf:params:oauth:scope:mail offline_access";
 
 export interface MailConfig {
@@ -34,8 +36,10 @@ export function readMailConfig(): MailConfig | null {
   const issuer = process.env.MAIL_OAUTH_ISSUER;
   const clientId = process.env.MAIL_OAUTH_CLIENT_ID;
   const appBaseUrl = process.env.MAIL_APP_BASE_URL || process.env.APP_BASE_URL;
-  const secret = process.env.MAIL_SESSION_SECRET;
-  if (!jmapUrl || !issuer || !clientId || !appBaseUrl || !secret) return null;
+  // ⚠️ ต้องเช็ค "ใช้ได้จริง" ไม่ใช่แค่ "มีค่า" — เคยตั้ง secret เป็น hex แทน base64
+  //    แล้วหน้าเว็บดูปกติ แต่ /api/mail/oauth/start ตอบ 500 เปล่า ๆ หาสาเหตุยาก
+  if (!jmapUrl || !issuer || !clientId || !appBaseUrl) return null;
+  if (!hasUsableSessionSecret(process.env.MAIL_SESSION_SECRET)) return null;
   return {
     jmapUrl,
     issuer: issuer.replace(/[/]+$/, ""),

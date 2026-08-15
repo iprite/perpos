@@ -13,6 +13,7 @@ import type { NextRequest, NextResponse } from "next/server";
 
 import { fetchJmapDiscovery, MailUnauthorizedError } from "./jmap";
 import { readMailConfig, refreshAccessToken, type MailConfig } from "./oauth";
+import { parseSessionSecrets } from "./secret";
 import type { MailOAuthState, MailSession } from "./types";
 
 export const MAIL_SESSION_COOKIE = "perpos_mail_session";
@@ -40,15 +41,7 @@ export function connectedCookieName(): string {
 
 // ─── การเข้ารหัส ─────────────────────────────────────────────────────────────
 
-export function parseSessionSecrets(raw: string | undefined): Buffer[] {
-  if (!raw) return [];
-  return raw
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean)
-    .map((s) => Buffer.from(s, "base64"))
-    .filter((b) => b.length === 32);
-}
+export { parseSessionSecrets };
 
 export function encryptMailPayload(payload: unknown, keys: Buffer[]): string {
   const key = keys[0];

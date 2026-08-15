@@ -60,8 +60,14 @@ function addressList(list: MailAddress[]): string {
   return list.map((a) => (a.name?.trim() ? `${a.name} <${a.email}>` : a.email)).join(", ");
 }
 
+/**
+ * 🔴 ต้องส่ง `type` ไปด้วยเสมอ — ไม่งั้น route ตกไปเป็น `application/octet-stream`
+ *    ซึ่งไม่อยู่ใน allowlist ของรูป ⇒ ตอบ `Content-Disposition: attachment` + `nosniff`
+ *    ⇒ ปุ่ม "ดู" (แสดงรูปใน <Image>) โหลดไม่ขึ้นทุกกรณี
+ *    (ปลอดภัย: route ยัง allowlist ชนิดไฟล์เองอยู่แล้ว ไม่ได้เชื่อค่าที่ส่งมาดิบ ๆ)
+ */
 function attachmentUrl(a: MailAttachment, download: boolean): string {
-  const params = new URLSearchParams({ name: a.name });
+  const params = new URLSearchParams({ name: a.name, type: a.type });
   if (download) params.set("download", "1");
   return `/api/mail/attachments/${encodeURIComponent(a.blobId)}?${params.toString()}`;
 }
@@ -240,6 +246,14 @@ function ThreadView({
 
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="mx-auto w-full max-w-3xl px-3 py-4 sm:px-5">
+          {/* เธรดยาวถูกตัดให้เหลือฉบับล่าสุด — ต้องบอกผู้ใช้ ห้ามหายเงียบ */}
+          {detail.totalMessages > messages.length && (
+            <div className="mb-3 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
+              <Text className="text-xs text-gray-500">
+                เธรดนี้มี {detail.totalMessages} ฉบับ — แสดง {messages.length} ฉบับล่าสุด
+              </Text>
+            </div>
+          )}
           <div className="space-y-3">
             {messages.map((m, i) => (
               <div key={m.id} ref={i === messages.length - 1 ? latestRef : undefined}>
