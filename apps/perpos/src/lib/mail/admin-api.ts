@@ -23,7 +23,11 @@ const ADMIN_ACCOUNT_ID = "b";
 
 /** object ที่หน้าหลังบ้านเรียกได้ — metadata ล้วน (ดูกฎด้านบน) */
 const ADMIN_OBJECTS = [
+  "x:AcmeProvider/query",
+  "x:DkimSignature/get",
+  "x:DkimSignature/set",
   "x:Domain/get",
+  "x:Domain/set",
   "x:Account/query",
   "x:Account/get",
   "x:Certificate/get",
@@ -113,6 +117,8 @@ function listOf<T>(responses: MethodResponse[], callId: string): T[] {
 export interface MailAdminDomain {
   id: string;
   name: string;
+  /** โซนไฟล์ที่ Stalwart สร้างให้ (DKIM ฯลฯ) — ต้นทางของ record ที่ลูกค้าต้องคัดลอก */
+  zoneFile: string | null;
   enabled: boolean;
   createdAt: string | null;
   /** ใบรับรอง/DKIM ต่ออายุเองได้ไหม — `Automatic` = ปล่อยได้ · `Manual` = ต้องมีคนคอยดู */
@@ -202,6 +208,7 @@ export async function fetchMailAdminStatus(config: MailAdminConfig): Promise<Mai
     return {
       id,
       name,
+      zoneFile: asString(d.dnsZoneFile),
       enabled: d.isEnabled !== false,
       createdAt: asString(d.createdAt),
       certificateMode: variantType(d.certificateManagement),
@@ -264,4 +271,136 @@ export async function fetchMailAdminStatus(config: MailAdminConfig): Promise<Mai
     queuedCount,
     fetchedAt: new Date(now).toISOString(),
   };
+}
+
+// ─── เขียน: เพิ่ม/ลบโดเมน ────────────────────────────────────────────────────
+
+/** ชื่อโดเมนที่รับได้ — กันคนพิมพ์ URL/อีเมล/ช่องว่างเข้ามา */
+const DOMAIN_RE = /^(?=.{1,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/;
+
+export function normalizeDomainName(raw: string): string | null {
+  const name = raw
+    .trim()
+    .toLowerCase()
+    .replace(/^https?:\/\//, "")
+    .replace(/^@/, "")
+    .replace(/\/.*$/, "")
+    .replace(/\.$/, "");
+  return DOMAIN_RE.test(name) ? name : null;
+}
+
+interface SetErrorEntry {
+  description?: string;
+  type?: string;
+  linkedObjects?: { object?: string }[];
+}
+
+/**
+ * Stalwart ไม่ได้ส่ง `description` มาทุกครั้ง — บางกรณีมีแค่ `type` (เช่น `objectIsLinked`)
+ * ถ้าปล่อยไปตรง ๆ ผู้ใช้จะเห็นแค่ "ปฏิเสธคำขอ" แล้วไม่รู้ว่าต้องทำอะไรต่อ
+ */
+function firstSetError(res: Record<string, unknown> | null): string | null {
+  if (!res) return "เมลเซิร์ฟเวอร์ปฏิเสธคำขอ";
+  const notCreated = res.notCreated as Record<string, SetErrorEntry> | undefined;
+  const notDestroyed = res.notDestroyed as Record<string, SetErrorEntry> | undefined;
+  for (const bag of [notCreated, notDestroyed]) {
+    const first = bag && Object.values(bag)[0];
+    if (!first) continue;
+    if (first.description) return first.description;
+    if (first.type === "objectIsLinked") {
+      const kinds = new Set((first.linkedObjects ?? []).map((o) => o.object));
+      if (kinds.has("Account") || kinds.has("Principal")) {
+        return "ยังมีกล่องเมลอยู่ใต้โดเมนนี้ — ต้องลบกล่องเมลก่อน";
+      }
+      return "ยังมีข้อมูลอื่นผูกกับโดเมนนี้อยู่ ลบไม่ได้";
+    }
+    return first.type ? `เมลเซิร์ฟเวอร์ปฏิเสธคำขอ (${first.type})` : "เมลเซิร์ฟเวอร์ปฏิเสธคำขอ";
+  }
+  return null;
+}
+
+/**
+ * เพิ่มโดเมนใหม่ — ตั้ง DKIM/ใบรับรองเป็น "อัตโนมัติ" เสมอ (ให้ Stalwart หมุนกุญแจ/ต่ออายุเอง)
+ * ส่วน DNS เป็น `Manual` เพราะโดเมนอยู่กับผู้ให้บริการของลูกค้า เราตั้งให้ไม่ได้
+ */
+export async function createMailDomain(config: MailAdminConfig, rawName: string): Promise<string> {
+  const name = normalizeDomainName(rawName);
+  if (!name) throw new MailAdminError("ชื่อโดเมนไม่ถูกต้อง");
+
+  // ใบรับรองอัตโนมัติต้องผูกกับ ACME provider ที่มีอยู่จริง — ไม่ส่ง id ไป Stalwart ตอบ
+  // "ACME provider not found" · ถ้าเครื่องยังไม่ได้ตั้ง ACME เลย ให้สร้างแบบ Manual ไปก่อน
+  // (โดเมนใช้งานได้ ค่อยมาเปิดใบรับรองทีหลัง ดีกว่าเพิ่มโดเมนไม่ได้เลย)
+  const acme = await adminRequest(config, [
+    ["x:AcmeProvider/query", { accountId: ADMIN_ACCOUNT_ID }, "acme"],
+  ]);
+  const acmeRes = resultOf(acme, "acme");
+  const acmeProviderId = Array.isArray(acmeRes?.ids)
+    ? ((acmeRes.ids as unknown[]).find((v): v is string => typeof v === "string") ?? null)
+    : null;
+
+  const responses = await adminRequest(config, [
+    [
+      "x:Domain/set",
+      {
+        accountId: ADMIN_ACCOUNT_ID,
+        create: {
+          new: {
+            name,
+            isEnabled: true,
+            dkimManagement: { "@type": "Automatic" },
+            certificateManagement: acmeProviderId
+              ? {
+                  "@type": "Automatic",
+                  acmeProviderId,
+                  // ยังไม่ขอใบรับรองให้ subdomain (autoconfig/mta-sts) เพราะ DNS ของลูกค้า
+                  // ยังไม่ชี้มาที่เรา — ACME จะ challenge ไม่ผ่านแล้วเข้าลูป retry
+                  subjectAlternativeNames: {},
+                }
+              : { "@type": "Manual" },
+            dnsManagement: { "@type": "Manual" },
+          },
+        },
+      },
+      "create",
+    ],
+  ]);
+
+  const res = resultOf(responses, "create");
+  const error = firstSetError(res);
+  if (error) throw new MailAdminError(error);
+  const created = res?.created as Record<string, { id?: string }> | undefined;
+  const id = created?.new?.id;
+  if (!id) throw new MailAdminError("สร้างโดเมนแล้วแต่ไม่ได้รหัสกลับมา");
+  return id;
+}
+
+/**
+ * ลบโดเมน — ใช้ตอนพิมพ์ผิด/ทดสอบ
+ *
+ * ⚠️ ต้องลบลายเซ็น DKIM ที่ผูกกับโดเมนก่อนเสมอ ไม่งั้น Stalwart ตอบ `objectIsLinked` ทุกครั้ง
+ *    (เราตั้ง DKIM เป็น Automatic ⇒ ทุกโดเมนมีลายเซ็นติดมาตั้งแต่วินาทีแรก = ลบไม่ได้เลย)
+ *    ส่วนกล่องเมลไม่ลบให้อัตโนมัติ — ข้อมูลของลูกค้าต้องให้คนตัดสินใจลบเอง
+ */
+export async function deleteMailDomain(config: MailAdminConfig, id: string): Promise<void> {
+  const dkim = await adminRequest(config, [
+    ["x:DkimSignature/get", { accountId: ADMIN_ACCOUNT_ID }, "dkim"],
+  ]);
+  const dkimIds = listOf<Record<string, unknown>>(dkim, "dkim")
+    .filter((s) => asString(s.domainId) === id)
+    .map((s) => asString(s.id))
+    .filter((v): v is string => !!v);
+
+  if (dkimIds.length > 0) {
+    const dropped = await adminRequest(config, [
+      ["x:DkimSignature/set", { accountId: ADMIN_ACCOUNT_ID, destroy: dkimIds }, "dropDkim"],
+    ]);
+    const dkimError = firstSetError(resultOf(dropped, "dropDkim"));
+    if (dkimError) throw new MailAdminError(`ลบลายเซ็น DKIM ของโดเมนไม่สำเร็จ — ${dkimError}`);
+  }
+
+  const responses = await adminRequest(config, [
+    ["x:Domain/set", { accountId: ADMIN_ACCOUNT_ID, destroy: [id] }, "destroy"],
+  ]);
+  const error = firstSetError(resultOf(responses, "destroy"));
+  if (error) throw new MailAdminError(error);
 }

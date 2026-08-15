@@ -7,8 +7,22 @@
  * สิ่งที่ตั้งใจไม่มี: ปุ่ม/ลิงก์ใด ๆ ที่พาไปอ่านเมลของลูกค้า — หน้านี้เห็นได้แค่ metadata
  */
 
-import { useMemo, useState } from "react";
-import { AlertTriangle, HardDrive, Inbox, Mail, ShieldCheck, Globe } from "lucide-react";
+import { useCallback, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { AlertTriangle, HardDrive, Inbox, Mail, Plus, ShieldCheck, Globe } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogBody,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { PageShell } from "@/components/ui/page-shell";
 import { SegmentedControl } from "@/components/ui/segmented";
 import { StatCard } from "@/components/ui/stat-card";
@@ -23,7 +37,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { TablePager, usePagination } from "@/components/ui/table-pager";
-import type { MailAdminStatus } from "@/lib/mail/admin-api";
+import type { MailAdminDomain, MailAdminStatus } from "@/lib/mail/admin-api";
+import { MailDnsDialog } from "./_dns-dialog";
 
 /** ใบรับรองเหลือน้อยกว่านี้ = ต้องรีบดู (ACME ต่ออายุเองที่ ~30 วัน ถ้าไม่ต่อ = เมลล่มทั้งระบบ) */
 const CERT_WARN_DAYS = 21;
@@ -100,11 +115,82 @@ export function AdminMailView({
   const domainPager = usePagination(status?.domains ?? []);
   const accountPager = usePagination(status?.accounts ?? []);
 
+  // ── เพิ่ม/ลบโดเมน + ตัวช่วยตั้ง DNS ────────────────────────────────────────
+  const router = useRouter();
+  const [addOpen, setAddOpen] = useState(false);
+  const [newDomain, setNewDomain] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [dnsFor, setDnsFor] = useState<MailAdminDomain | null>(null);
+
+  const authToken = useCallback(async () => {
+    const {
+      data: { session },
+    } = await createSupabaseBrowserClient().auth.getSession();
+    return session?.access_token ?? "";
+  }, []);
+
+  const callDomains = useCallback(
+    async (method: "POST" | "DELETE", body: Record<string, string>) => {
+      const res = await fetch("/api/admin/mail/domains", {
+        method,
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${await authToken()}`,
+        },
+        body: JSON.stringify(body),
+      });
+      const json = (await res.json().catch(() => null)) as { error?: string } | null;
+      if (!res.ok) throw new Error(json?.error ?? "ทำรายการไม่สำเร็จ");
+    },
+    [authToken],
+  );
+
+  async function submitDomain() {
+    setBusy(true);
+    setFormError(null);
+    try {
+      await callDomains("POST", { name: newDomain });
+      setAddOpen(false);
+      setNewDomain("");
+      router.refresh(); // ดึงรายการใหม่จากเซิร์ฟเวอร์ ไม่เดาผลเอง
+    } catch (e) {
+      setFormError(e instanceof Error ? e.message : "เพิ่มโดเมนไม่สำเร็จ");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const [confirmDelete, setConfirmDelete] = useState<MailAdminDomain | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  async function removeDomain(domain: MailAdminDomain) {
+    setBusy(true);
+    setDeleteError(null);
+    try {
+      await callDomains("DELETE", { id: domain.id });
+      setConfirmDelete(null);
+      setDnsFor(null);
+      router.refresh();
+    } catch (e) {
+      setDeleteError(e instanceof Error ? e.message : "ลบโดเมนไม่สำเร็จ");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <PageShell
       title="PERPOS Mail — หลังบ้าน"
       description="ดูแลเมลเซิร์ฟเวอร์และกล่องเมลของลูกค้า โดยไม่ต้อง ssh · เห็นได้แค่ข้อมูลกำกับ ไม่มีทางเปิดอ่านเนื้อหาเมล"
       icon={<Mail className="h-6 w-6" />}
+      actions={
+        tab === "domains" ? (
+          <Button onClick={() => setAddOpen(true)}>
+            <Plus className="h-4 w-4" /> เพิ่มโดเมน
+          </Button>
+        ) : undefined
+      }
       tabs={
         <SegmentedControl
           value={tab}
@@ -185,7 +271,8 @@ export function AdminMailView({
                 <TableEmpty colSpan={6}>ยังไม่มีโดเมนในเมลเซิร์ฟเวอร์</TableEmpty>
               ) : (
                 domainPager.rows.map((d) => (
-                  <TableRow key={d.id}>
+                  // คลิกแถว = เปิดตัวช่วยตั้ง DNS (DESIGN.md §5 ข้อ 3 — ไม่มีคอลัมน์ปุ่มในแถว)
+                  <TableRow key={d.id} clickable onClick={() => setDnsFor(d)}>
                     <TableCell>{d.name}</TableCell>
                     <TableCell align="center">
                       <StatusBadge tone={d.enabled ? "success" : "neutral"}>
@@ -322,6 +409,72 @@ export function AdminMailView({
           </div>
         </div>
       )}
+
+      <Dialog open={addOpen} onOpenChange={setAddOpen}>
+        <DialogContent size="md">
+          <DialogHeader>
+            <DialogTitle>เพิ่มโดเมน</DialogTitle>
+          </DialogHeader>
+          <DialogBody className="space-y-3">
+            <div>
+              <Label htmlFor="mail-domain">ชื่อโดเมน *</Label>
+              <Input
+                id="mail-domain"
+                className="mt-1"
+                value={newDomain}
+                placeholder="example.co.th"
+                autoFocus
+                onChange={(e) => setNewDomain(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && newDomain.trim() && !busy) void submitDomain();
+                }}
+              />
+              <p className="mt-1 text-xs text-gray-500">
+                ใส่เฉพาะชื่อโดเมน ไม่ต้องมี https:// หรือ @ · เพิ่มแล้วต้องตั้ง DNS ต่อ
+                (ระบบจะเปิดตัวช่วยให้)
+              </p>
+            </div>
+            {formError && <p className="text-xs text-red-600">{formError}</p>}
+          </DialogBody>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAddOpen(false)}>
+              ยกเลิก
+            </Button>
+            <Button disabled={busy || !newDomain.trim()} onClick={() => void submitDomain()}>
+              {busy ? "กำลังเพิ่ม…" : "เพิ่มโดเมน"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {dnsFor && (
+        <MailDnsDialog
+          domainId={dnsFor.id}
+          domainName={dnsFor.name}
+          open
+          onOpenChange={(next) => !next && setDnsFor(null)}
+          onDelete={() => setConfirmDelete(dnsFor)}
+          authToken={authToken}
+        />
+      )}
+
+      <ConfirmDeleteDialog
+        open={!!confirmDelete}
+        onOpenChange={(next) => {
+          if (!next) {
+            setConfirmDelete(null);
+            setDeleteError(null);
+          }
+        }}
+        title={`ลบโดเมน ${confirmDelete?.name ?? ""}`}
+        description={
+          deleteError ??
+          "โดเมนจะถูกถอดออกจากเมลเซิร์ฟเวอร์ทันที — เมลที่ส่งเข้ามาหลังจากนี้จะตีกลับ · กล่องเมลใต้โดเมนต้องถูกลบก่อน"
+        }
+        confirmLabel="ลบโดเมน"
+        loading={busy}
+        onConfirm={() => confirmDelete && void removeDomain(confirmDelete)}
+      />
     </PageShell>
   );
 }
