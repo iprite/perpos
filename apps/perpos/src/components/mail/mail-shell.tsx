@@ -161,14 +161,16 @@ export function MailShell({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex min-h-screen flex-col bg-white">
+    // ความสูงของ "หน้าจอ" เป็นของ shell ที่เดียว (h-dvh — ห้ามใช้ 100vh: Safari มือถือคืนค่าสูงเกินจริง)
+    // แล้วเนื้อหาข้างในใช้ h-full เอา — หน้าลูกห้ามเดา calc(100vh - Nrem) เพราะ rail มือถือกินสูงไม่เท่ากัน
+    <div className="flex h-dvh flex-col bg-white">
       <header className="flex h-12 shrink-0 items-center justify-between gap-3 border-b border-gray-200 px-3 sm:px-4">
         <MailBrand />
         {connected && <MailAccountMenu />}
       </header>
       <div className="flex min-h-0 flex-1 flex-col md:flex-row">
         {connected && <MailRail />}
-        <main className="min-w-0 flex-1 px-3 py-2 sm:px-4">{children}</main>
+        <main className="min-h-0 min-w-0 flex-1 overflow-y-auto px-3 py-2 sm:px-4">{children}</main>
       </div>
     </div>
   );

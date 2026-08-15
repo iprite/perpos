@@ -7,7 +7,7 @@ import { MailListSkeleton } from "@/components/mail/mail-list";
  */
 export default function Loading() {
   return (
-    <div className="flex h-[calc(100vh-5rem)] min-h-[30rem] overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+    <div className="flex h-full min-h-[24rem] overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
       <div className="flex min-h-0 w-full flex-col border-gray-200 lg:w-[380px] lg:shrink-0 lg:border-r">
         <div className="flex h-12 items-center gap-2 border-b border-gray-200 px-3">
           <Skeleton className="h-4 w-24" />

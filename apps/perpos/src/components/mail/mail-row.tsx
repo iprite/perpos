@@ -52,14 +52,14 @@ function MailRowBase({
   const unread = message.isUnread;
   const subject = message.subject?.trim() || "(ไม่มีหัวเรื่อง)";
   const preview = message.preview?.trim() ?? "";
-  const rowRef = useRef<HTMLDivElement>(null);
+  const rowRef = useRef<HTMLButtonElement>(null);
 
   /**
    * roving tabindex — แถวที่เคอร์เซอร์ (j/k) อยู่ คือแถวเดียวที่โฟกัสได้ และย้าย DOM focus ตามจริง
    *
-   * 🔴 ห้ามใส่ `onKeyDown` ที่ดัก Enter/Space ที่แถวนี้ (เคยมีแล้วถอดออก):
-   *    คีย์ลัดทั้งหมดมาจาก registry (`lib/mail/shortcuts.ts`) ซึ่งเปิด "แถวที่เคอร์เซอร์อยู่"
-   *    ถ้าแถวดักเองด้วย จะเปิดคนละฉบับกับที่ตาเห็น (DOM focus ค้างที่แถวที่เผลอคลิกไว้)
+   * 🔴 ห้ามทำให้ "แถว" มีสองทางเปิด: ปุ่มเนื้อหาข้างล่างเป็นทางเดียวที่รับคีย์บอร์ด
+   *    ส่วนคีย์ลัดอื่นมาจาก registry (`lib/mail/shortcuts.ts`) ซึ่งเปิด "แถวที่เคอร์เซอร์อยู่"
+   *    ถ้าทั้งคู่ตอบ Enter พร้อมกัน จะเปิดคนละฉบับกับที่ตาเห็น (บั๊กเดิม) — ดู `onKeyDown` ของปุ่ม
    *
    * ย้ายโฟกัสเฉพาะตอนโฟกัสยังอยู่ในรายการ (หรือไม่มีที่ไหนเลย) — ไม่งั้นจะไปแย่งโฟกัส
    * จากช่องค้นหา/ปุ่มบนแถบเครื่องมือขณะผู้ใช้กำลังพิมพ์
@@ -75,17 +75,17 @@ function MailRowBase({
   }, [focused]);
 
   return (
+    // แถวเป็น <div> เปล่า ๆ **ไม่มี role="button"** — ข้างในมีปุ่มจริง (เลือก/ติดดาว/เปิด)
+    // ปุ่มซ้อนใน role=button คือ HTML ที่ screen reader อ่านไม่ออก · onClick ที่นี่มีไว้ให้เมาส์
+    // คลิกโดนพื้นที่ว่างได้เฉย ๆ ส่วนคีย์บอร์ดใช้ปุ่มเนื้อหาด้านล่าง
     <div
-      ref={rowRef}
-      role="button"
-      data-mail-row=""
-      tabIndex={focused ? 0 : -1}
-      aria-current={active ? "true" : undefined}
       onClick={onOpen}
       className={cn(
         "flex h-16 w-full cursor-pointer items-center gap-2 border-b border-gray-100 px-2 outline-none transition-colors sm:px-3",
         active ? "bg-gray-100" : "hover:bg-gray-50",
-        focused && !active && "bg-gray-50 ring-1 ring-inset ring-gray-300",
+        // วงเคอร์เซอร์ต้องเห็นชัดแม้แถวนั้นเป็นฉบับที่เปิดอยู่ (WCAG 1.4.11 ต้องคอนทราสต์ ≥3:1)
+        focused && "ring-2 ring-inset ring-primary",
+        focused && !active && "bg-gray-50",
       )}
     >
       <Button
@@ -129,7 +129,23 @@ function MailRowBase({
         )}
       />
 
-      <div className="min-w-0 flex-1">
+      {/* พื้นที่เนื้อหา = ปุ่มเปิดจริง (raw <button> เพราะต้องเป็นพื้นผิวเปล่าเต็มแถว
+          — <Button> ของดีไซน์ระบบมี padding/variant ที่ทำให้แถว 64px เพี้ยน)
+          ไม่ผูก onClick เอง: ปล่อยให้ click (ทั้งเมาส์และ Enter/Space) bubble ไปที่ <div> ชั้นนอก
+          → เปิดครั้งเดียวเสมอ */}
+      <button
+        ref={rowRef}
+        type="button"
+        data-mail-row=""
+        tabIndex={focused ? 0 : -1}
+        aria-current={active ? "true" : undefined}
+        aria-label={`${senderLabel(message)} — ${subject}`}
+        // กัน Enter/Space ไม่ให้ลอยไปถึง hotkey ระดับ document (ไม่งั้นเปิดซ้ำสองทาง)
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") e.stopPropagation();
+        }}
+        className="min-w-0 flex-1 text-start outline-none"
+      >
         <div className="flex items-baseline gap-2">
           <span
             className={cn(
@@ -165,7 +181,7 @@ function MailRowBase({
             <Paperclip aria-label="มีไฟล์แนบ" className="h-3.5 w-3.5 shrink-0 text-gray-400" />
           )}
         </div>
-      </div>
+      </button>
     </div>
   );
 }

@@ -66,7 +66,17 @@ export function MailToolbar({
           )}
         </div>
 
-        <div ref={searchInputRef} className="ms-auto flex min-w-0 flex-1 justify-end">
+        {/* Esc = ออกจากช่องค้นหา (คืนคีย์ลัด j/k/e/# ให้ใช้ได้ทันที) — คำค้นไม่ถูกล้างทิ้ง
+            stopPropagation กัน Esc ไปสั่ง "ปิดบานอ่าน" ของ registry พร้อมกัน */}
+        <div
+          ref={searchInputRef}
+          className="ms-auto flex min-w-0 flex-1 justify-end"
+          onKeyDown={(e) => {
+            if (e.key !== "Escape") return;
+            e.stopPropagation();
+            (e.target as HTMLElement).blur();
+          }}
+        >
           <FilterSearch
             value={search}
             onChange={onSearchChange}

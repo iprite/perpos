@@ -10,7 +10,7 @@
  *
  * ลบ/เก็บเข้าคลัง = optimistic ผ่านคิว (contract §6.4):
  *   ซ่อนแถวทันที → <UndoToast> 8 วิ → กดเลิกทำ = คืนแถวโดยไม่เคยยิง API → ครบ 8 วิ ค่อยยิงจริง
- *   · flush คิวทันทีเมื่อกำลังจะออกจากหน้า (visibilitychange/pagehide + keepalive)
+ *   · flush คิวทันทีเมื่อกำลังจะออกจากหน้าจริง ๆ (`pagehide` + keepalive) — สลับแท็บไม่นับ
  *   · **ไม่ persist คิวลง storage** — หลังรีโหลดยึดสถานะจากเซิร์ฟเวอร์เสมอ
  */
 
@@ -133,6 +133,8 @@ export function MailWorkspace({ box, boxLabel }: { box: MailBoxKey; boxLabel: st
   const scrollOffsetRef = useRef(0);
   const messagesRef = useRef<MailMessage[]>([]);
   messagesRef.current = messages;
+  /** timer ของ dwell "อ่านแล้ว" — เก็บไว้เพื่อให้คีย์ `u` ยกเลิกได้ก่อนครบเวลา */
+  const dwellTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleExpired = useCallback(() => {
     router.push("/mail/login?reason=expired");
@@ -333,6 +335,11 @@ export function MailWorkspace({ box, boxLabel }: { box: MailBoxKey; boxLabel: st
   const setReadState = useCallback(
     (ids: string[], isUnread: boolean, by: MailScope = "email") => {
       if (ids.length === 0) return;
+      // ผู้ใช้สั่ง "ยังไม่อ่าน" เอง → ยกเลิก dwell ที่กำลังนับอยู่ ไม่งั้นมันมาทับความตั้งใจทีหลัง
+      if (isUnread && dwellTimerRef.current) {
+        clearTimeout(dwellTimerRef.current);
+        dwellTimerRef.current = null;
+      }
       patchLocal(ids, { isUnread });
       void runBulk(
         ids,
@@ -371,7 +378,7 @@ export function MailWorkspace({ box, boxLabel }: { box: MailBoxKey; boxLabel: st
       dismissUndoToast(`mail-undo-${action}`);
       const ids = entry.ids;
       try {
-        await postJson("/api/mail/messages/bulk", { ids, action }, keepalive);
+        await postJson("/api/mail/messages/bulk", { ids, action, by: "thread" }, keepalive);
         setMessages((prev) => prev.filter((m) => !ids.includes(m.id)));
         unhide(ids);
         scheduleMailboxRefresh();
@@ -431,14 +438,13 @@ export function MailWorkspace({ box, boxLabel }: { box: MailBoxKey; boxLabel: st
         void flushRef.current(action, true);
       }
     };
-    const onVisibility = () => {
-      if (document.visibilityState === "hidden") flushAll();
-    };
+    // 🔴 `pagehide` เท่านั้น — **ห้ามผูก `visibilitychange`** (เคยผูกแล้วถอดออก):
+    //    สลับแท็บไปดูอย่างอื่นแล้วกลับมาเป็นเรื่องปกติ ถ้า flush ตอนนั้น = ลบจริงทันที
+    //    ผู้ใช้กด "เลิกทำ" ไม่ทันทั้งที่ยังไม่ครบ 8 วิ · ถ้าเบราว์เซอร์ฆ่าแท็บทิ้งโดยไม่ยิง
+    //    pagehide คิวจะหายไปเฉย ๆ = **ไม่มีอะไรถูกลบ** ซึ่งเป็นทางที่ปลอดภัยกว่า
     window.addEventListener("pagehide", flushAll);
-    document.addEventListener("visibilitychange", onVisibility);
     return () => {
       window.removeEventListener("pagehide", flushAll);
-      document.removeEventListener("visibilitychange", onVisibility);
       flushAll();
     };
   }, []);
@@ -476,7 +482,11 @@ export function MailWorkspace({ box, boxLabel }: { box: MailBoxKey; boxLabel: st
     const target = messagesRef.current.find((m) => m.id === activeId);
     if (!target?.isUnread) return;
     const t = setTimeout(() => setReadState([activeId], false, "thread"), MARK_READ_DWELL_MS);
-    return () => clearTimeout(t);
+    dwellTimerRef.current = t;
+    return () => {
+      clearTimeout(t);
+      if (dwellTimerRef.current === t) dwellTimerRef.current = null;
+    };
   }, [activeId, setReadState]);
 
   const openByIndex = useCallback(
@@ -534,6 +544,13 @@ export function MailWorkspace({ box, boxLabel }: { box: MailBoxKey; boxLabel: st
     setSelectedIds(new Set());
   }, []);
 
+  /**
+   * ปลายทางของ action = กล่องที่ยืนอยู่ → ไม่มีอะไรเกิดขึ้น แต่แถวหายจากจอ + ขึ้น toast หลอก
+   * ⇒ ปิดไปเลยทั้งคีย์ลัด/ปุ่ม (ห้ามมีปุ่มที่กดแล้วไม่เกิดอะไร — contract §6)
+   */
+  const canArchive = box !== "archive";
+  const canTrash = box !== "trash";
+
   // ── คีย์ลัด — action ทุกตัวมาจาก registry (lib/mail/shortcuts.ts) ────────
   const shortcutHandlers = useMemo<MailShortcutHandlers>(() => {
     return {
@@ -545,8 +562,12 @@ export function MailWorkspace({ box, boxLabel }: { box: MailBoxKey; boxLabel: st
         const m = visibleRef.current[focusedIndexRef.current];
         if (m) toggleSelect(m, focusedIndexRef.current, false);
       },
-      archive: () => enqueueDestructive("archive", actionTargets()),
-      trash: () => enqueueDestructive("trash", actionTargets()),
+      archive: () => {
+        if (canArchive) enqueueDestructive("archive", actionTargets());
+      },
+      trash: () => {
+        if (canTrash) enqueueDestructive("trash", actionTargets());
+      },
       star: () => {
         const ids = actionTargets();
         const first = visibleRef.current.find((m) => m.id === ids[0]);
@@ -561,6 +582,8 @@ export function MailWorkspace({ box, boxLabel }: { box: MailBoxKey; boxLabel: st
     };
   }, [
     actionTargets,
+    canArchive,
+    canTrash,
     closePane,
     enqueueDestructive,
     moveFocus,
@@ -582,7 +605,7 @@ export function MailWorkspace({ box, boxLabel }: { box: MailBoxKey; boxLabel: st
 
   return (
     <HotkeysProvider initiallyActiveScopes={[MAIL_HOTKEY_SCOPE]}>
-      <div className="flex h-[calc(100vh-5rem)] min-h-[30rem] overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+      <div className="flex h-full min-h-[24rem] overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
         <section
           className={cn(
             "flex min-h-0 w-full flex-col border-gray-200 lg:w-[380px] lg:shrink-0 lg:border-r",
@@ -639,6 +662,8 @@ export function MailWorkspace({ box, boxLabel }: { box: MailBoxKey; boxLabel: st
             flagged={!!activeMessage?.isFlagged}
             onRetry={() => activeMessage && void openMessage(activeMessage, focusedIndex)}
             onBack={closePane}
+            canArchive={canArchive}
+            canTrash={canTrash}
             onArchive={() => activeId && enqueueDestructive("archive", [activeId])}
             onTrash={() => activeId && enqueueDestructive("trash", [activeId])}
             onToggleStar={() => activeId && toggleStar([activeId], !activeMessage?.isFlagged)}
@@ -651,27 +676,31 @@ export function MailWorkspace({ box, boxLabel }: { box: MailBoxKey; boxLabel: st
           <Button
             size="sm"
             variant="outline"
-            onClick={() => setReadState(Array.from(selectedIds), false)}
+            onClick={() => setReadState(Array.from(selectedIds), false, "thread")}
           >
             <MailOpen className="h-4 w-4" />
             ทำเป็นอ่านแล้ว
           </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => enqueueDestructive("archive", Array.from(selectedIds))}
-          >
-            <Archive className="h-4 w-4" />
-            เก็บเข้าคลัง
-          </Button>
-          <Button
-            size="sm"
-            variant="destructive"
-            onClick={() => enqueueDestructive("trash", Array.from(selectedIds))}
-          >
-            <Trash2 className="h-4 w-4" />
-            ลบ
-          </Button>
+          {canArchive && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => enqueueDestructive("archive", Array.from(selectedIds))}
+            >
+              <Archive className="h-4 w-4" />
+              เก็บเข้าคลัง
+            </Button>
+          )}
+          {canTrash && (
+            <Button
+              size="sm"
+              variant="destructive"
+              onClick={() => enqueueDestructive("trash", Array.from(selectedIds))}
+            >
+              <Trash2 className="h-4 w-4" />
+              ลบ
+            </Button>
+          )}
         </BulkActionBar>
       )}
 

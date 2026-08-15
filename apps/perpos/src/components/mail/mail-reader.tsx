@@ -72,6 +72,9 @@ export interface MailReaderProps {
   error: string | null;
   /** ฉบับล่าสุดในเธรดติดดาวอยู่ไหม (สถานะมาจากรายการ) */
   flagged: boolean;
+  /** ยืนอยู่ในกล่องคลังเก็บ/ถังขยะแล้ว = ปุ่มนั้นไม่มีผล ห้ามแสดง (contract §6) */
+  canArchive?: boolean;
+  canTrash?: boolean;
   onRetry: () => void;
   onBack: () => void;
   onArchive: () => void;
@@ -84,6 +87,8 @@ export function MailReader({
   loading,
   error,
   flagged,
+  canArchive = true,
+  canTrash = true,
   onRetry,
   onBack,
   onArchive,
@@ -121,6 +126,8 @@ export function MailReader({
     <ThreadView
       detail={detail}
       flagged={flagged}
+      canArchive={canArchive}
+      canTrash={canTrash}
       onBack={onBack}
       onArchive={onArchive}
       onTrash={onTrash}
@@ -132,6 +139,8 @@ export function MailReader({
 function ThreadView({
   detail,
   flagged,
+  canArchive,
+  canTrash,
   onBack,
   onArchive,
   onTrash,
@@ -139,6 +148,8 @@ function ThreadView({
 }: {
   detail: MailThreadDetail;
   flagged: boolean;
+  canArchive: boolean;
+  canTrash: boolean;
   onBack: () => void;
   onArchive: () => void;
   onTrash: () => void;
@@ -196,25 +207,34 @@ function ThreadView({
           >
             <Star className={cn("h-4 w-4", flagged && "fill-amber-400 text-amber-500")} />
           </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            title="เก็บเข้าคลัง (e)"
-            aria-label="เก็บเข้าคลัง"
-            onClick={onArchive}
-          >
-            <Archive className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            title="ลบ (#)"
-            aria-label="ลบ"
-            className="text-gray-500 hover:text-red-600"
-            onClick={onTrash}
-          >
-            <Trash2 className="h-4 w-4" />
-          </Button>
+          {canArchive && (
+            <Button
+              variant="ghost"
+              size="icon"
+              title="เก็บเข้าคลัง (e)"
+              aria-label="เก็บเข้าคลัง"
+              onClick={onArchive}
+            >
+              <Archive className="h-4 w-4" />
+            </Button>
+          )}
+          {/* ปุ่มลบต้องไม่ "หน้าตาเหมือนเพื่อนบ้าน" — เคยคลิกพลาดจนเมลตกถังขยะตอนเทส
+              → คั่นด้วยเส้น + เว้นระยะ + ใช้ variant outline โทนแดง (ไม่ใช่ ghost เหมือนอีก 2 ปุ่ม) */}
+          {canTrash && (
+            <>
+              <span aria-hidden className="mx-1 h-5 w-px bg-gray-200" />
+              <Button
+                variant="outline"
+                size="icon"
+                title="ลบ (#)"
+                aria-label="ลบ"
+                className="border-red-200 text-red-600 hover:border-red-300 hover:bg-red-50 hover:text-red-700"
+                onClick={onTrash}
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </>
+          )}
         </div>
       </div>
 
