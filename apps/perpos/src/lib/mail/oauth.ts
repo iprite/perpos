@@ -161,14 +161,18 @@ export function refreshAccessToken(
 
 // ─── open redirect guard (spec §7.5) ─────────────────────────────────────────
 
-const RETURN_TO_ALLOWED = /^[/]mail([/?]|$)/;
+/**
+ * ยอมเฉพาะ path ในโซนเมลเท่านั้น: `/` และ `/login…` (โดเมนเมล) · `/mail…` (dev/โดเมนอื่น)
+ * **ต้องขึ้นต้นด้วย `/` เดียวและตามด้วยตัวอักษรที่รู้จัก** — `//evil.com` จึงไม่ผ่าน
+ */
+const RETURN_TO_ALLOWED = /^[/]($|[?]|login([/?]|$)|mail([/?]|$))/;
 
 /**
- * `returnTo` ต้องอยู่ใต้ `/mail` เท่านั้น — ไม่ผ่าน = `/mail`
+ * `returnTo` ต้องอยู่ในโซนเมลเท่านั้น — ไม่ผ่าน = `/`
  * ตัด backslash / tab / newline / NUL ทิ้งก่อนตรวจ (กัน `/\evil.com` ที่บางเบราว์เซอร์ตีเป็น host)
  */
 export function sanitizeReturnTo(raw: string | null | undefined): string {
-  if (!raw) return "/mail";
+  if (!raw) return "/";
   let value = raw;
   try {
     value = decodeURIComponent(raw);
@@ -184,5 +188,5 @@ export function sanitizeReturnTo(raw: string | null | undefined): string {
     })
     .join("")
     .trim();
-  return RETURN_TO_ALLOWED.test(cleaned) ? cleaned : "/mail";
+  return RETURN_TO_ALLOWED.test(cleaned) ? cleaned : "/";
 }

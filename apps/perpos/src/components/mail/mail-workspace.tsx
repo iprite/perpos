@@ -92,7 +92,16 @@ const ACTION_LABEL: Record<DestructiveAction, string> = {
   trash: "ย้ายไปถังขยะแล้ว",
 };
 
-export function MailWorkspace({ box, boxLabel }: { box: MailBoxKey; boxLabel: string }) {
+export function MailWorkspace({
+  box,
+  boxLabel,
+  basePath,
+}: {
+  box: MailBoxKey;
+  boxLabel: string;
+  /** `""` บนโดเมนเมล · `"/mail"` ที่อื่น — ห้ามฮาร์ดโค้ด (ดู lib/mail/base-path.ts) */
+  basePath: string;
+}) {
   const router = useRouter();
 
   // ── รายการเมล ────────────────────────────────────────────────────────────
@@ -137,8 +146,8 @@ export function MailWorkspace({ box, boxLabel }: { box: MailBoxKey; boxLabel: st
   const dwellTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleExpired = useCallback(() => {
-    router.push("/mail/login?reason=expired");
-  }, [router]);
+    router.push(`${basePath}/login?reason=expired`);
+  }, [basePath, router]);
 
   // debounce คำค้น (ค้นหาเป็น POST — คำค้นห้ามอยู่ใน URL/log)
   useEffect(() => {
@@ -578,10 +587,11 @@ export function MailWorkspace({ box, boxLabel }: { box: MailBoxKey; boxLabel: st
         searchWrapRef.current?.querySelector("input")?.focus();
       },
       help: () => setShowShortcuts(true),
-      gotoInbox: () => router.push("/mail?box=inbox"),
+      gotoInbox: () => router.push(`${basePath}/?box=inbox`),
     };
   }, [
     actionTargets,
+    basePath,
     canArchive,
     canTrash,
     closePane,

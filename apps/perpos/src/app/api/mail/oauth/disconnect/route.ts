@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
   if (!isSameOriginRequest(req.headers, config.appBaseUrl)) {
     return mailError("mail_bad_request", "คำขอไม่ถูกต้อง", 403);
   }
-  const res = mailJson({ ok: true, redirectTo: "/mail/login?reason=disconnected" });
+  const res = mailJson({ ok: true, redirectTo: "/login?reason=disconnected" });
   clearMailSession(res);
   clearMailOAuthState(res);
   return res;

@@ -1,10 +1,11 @@
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { MailWarning } from "lucide-react";
 import { Text } from "@/components/ui/typography";
 import { MailWorkspace } from "@/components/mail/mail-workspace";
 import { MAIL_BOX_LABELS, resolveMailBox } from "@/lib/mail/boxes";
 import { MAIL_CONNECTED_COOKIE, MAIL_HOST_CONNECTED_COOKIE } from "@/lib/mail/session";
+import { mailBasePath } from "@/lib/mail/base-path";
 
 /**
  * /mail — หน้าอ่านเมลของ PERPOS Mail (webmail M1)
@@ -51,10 +52,11 @@ export default async function MailPage({
   const connected =
     jar.get(MAIL_HOST_CONNECTED_COOKIE)?.value === "1" ||
     jar.get(MAIL_CONNECTED_COOKIE)?.value === "1";
-  if (!connected) redirect("/mail/login");
+  const basePath = mailBasePath((await headers()).get("host"));
+  if (!connected) redirect(`${basePath}/login`);
 
   const params = await searchParams;
   const box = resolveMailBox(params.box);
 
-  return <MailWorkspace box={box} boxLabel={MAIL_BOX_LABELS[box]} />;
+  return <MailWorkspace box={box} boxLabel={MAIL_BOX_LABELS[box]} basePath={basePath} />;
 }
