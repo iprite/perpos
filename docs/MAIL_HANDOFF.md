@@ -60,8 +60,14 @@ terraform apply
 - [x] SES `:587` เช็คจากเครื่องแล้ว — **ผ่านทั้ง `eu-central-1` และ `ap-southeast-1`**
       · พอร์ต 25 **ขาออก** ถูกบล็อกตามคาด (บัญชีใหม่) — ไม่กระทบเพราะส่งออกผ่าน SES
 - [x] `dig -x 46.225.14.18 +short` → ได้ `mail.perpos.ai` ✅ (v6 ด้วย)
-- [ ] `bash /root/install-stalwart.sh` → เลือก **RocksDB** · เก็บรหัสแอดมินลง password manager ทันที
-- [ ] เปิดหน้า `https://mail.perpos.ai` ได้ (ACME ออกใบรับรองสำเร็จ)
+- [x] **ติดตั้ง Stalwart แล้ว** — `0.16.17` · service `active`+`enabled` · อยู่ใน **bootstrap mode**
+      · ⚠️ **ตัวติดตั้ง 0.16 ไม่ถามคำถามแล้ว** (คัมภีร์เดิมเขียนว่าถาม deployment/RocksDB/รหัสแอดมิน — ไม่จริงแล้ว)
+      ทุกอย่างไปตั้งใน wizard หน้าเว็บ `:8080/admin` แทน
+      · พอร์ต 8080 **ไม่ได้เปิดใน firewall โดยตั้งใจ** → เข้าผ่าน ssh tunnel เท่านั้น
+- [ ] **เข้า wizard ตั้งค่า** — `ssh -N -L 8080:localhost:8080 root@mail.perpos.ai` แล้วเปิด `http://localhost:8080/admin`
+      · รหัสชั่วคราว: `journalctl -u stalwart -n 200 | grep -A8 'bootstrap mode'` → **เปลี่ยนทันทีในหน้า wizard**
+      · เลือกที่เก็บข้อมูล **RocksDB** · ตั้งโดเมน `perpos.ai`
+- [ ] เปิดหน้า `https://mail.perpos.ai` ได้ (ACME ออกใบรับรองสำเร็จ — ต้องตั้งใน wizard ก่อน ตอนนี้ยังฟังแค่ 8080)
 - [ ] **บันทึกค่าเครื่องลง `infra_costs`** — Hetzner อยู่นอกท่อ `billing_export` ต้องกรอกเอง
 - [ ] (หลังจ่ายบิลเดือนแรก) ขอปลดพอร์ต 25 ขาออกกับ Hetzner — เป็นทางหนีทีไล่ถ้า SES มีปัญหา
 
