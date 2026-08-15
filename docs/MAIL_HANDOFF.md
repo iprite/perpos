@@ -124,6 +124,13 @@ terraform apply
       · 🔴 **SPF เดิมหายไปเงียบ ๆ ตอนปิด Cloudflare Email Routing** — Cloudflare ลบทั้ง MX
       **และ TXT ของ SPF** ที่มันจัดการอยู่ · ถ้าไม่ไล่ดูจะไม่มีใครรู้ · **เช็ค SPF ทุกครั้งหลังแตะ
       Email Routing**
+- [x] **เปิดให้ Stalwart เซ็น DKIM เอง (ทางเลือก ข) — 2026-08-15**
+      · `x:SenderAuth` singleton → `dkimSignDomain` = `sender_domain`
+      · เดิม object นี้ **ไม่เคยถูกสร้าง** = ไม่เซ็นอะไรเลย (คีย์มีแต่ไม่ได้ใช้)
+      · ต้อง `systemctl restart stalwart` หลังตั้ง
+      · ⚠️ **ยังไม่ได้ยืนยันผล** — mail-tester ใช้โควตาฟรีหมดวันแล้ว (redirect ไปหน้า upgrade)
+      → ส่งเมลไป `iprite@gmail.com` แทน ให้เปิด **Show original** ดูว่า
+      `DKIM: 'PASS' with domain perpos.ai` (ต้องเป็น perpos.ai ไม่ใช่โดเมนของ Brevo)
 - [ ] 🔴 **DMARC ยังไม่ผ่าน — คะแนน mail-tester ค้างที่ 4.6/10 (−3 จากข้อนี้)**
       · SPF ผ่าน แต่ผ่านในนาม **`gw.d.sender-sib.com`** (Brevo เขียน Return-Path ทับ) → **ไม่ align**
       · DKIM signature valid แต่เป็นของ **Brevo** ไม่ใช่ `d=perpos.ai` → **ไม่ align**
