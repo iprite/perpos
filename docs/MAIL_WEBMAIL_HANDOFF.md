@@ -150,6 +150,17 @@ MAIL_SESSION_SECRET  = <สุ่มใหม่ เก็บใน keychain `pe
   · แก้ 2 ชั้น: ตั้งค่าใหม่บน Vercel **และ** `readMailConfig()` เช็ค "ใช้ได้จริง" ไม่ใช่แค่ "มีค่า"
   → ผิดเมื่อไรได้หน้า "ยังไม่ได้ตั้งค่าระบบอีเมล" แทน 500 · กติกาคีย์ย้ายไป `lib/mail/secret.ts` แหล่งเดียว
 
+### 3 LOW สุดท้ายของ security review — ปิดแล้ว (2026-08-15)
+
+- ✅ **`oauth/disconnect` ไม่เช็ค origin** (route เดียวที่ทำงานได้โดยไม่ต้องมี session ⇒ ไม่มีเกราะ
+  `SameSite=strict` เหมือน route อื่น) → `isSameOriginRequest()` ใน `api/mail/_lib.ts` (pure + มีเทส)
+  · ตรวจจริงแล้ว: cross-site / origin ปลอม / ไม่มี origin = **403** · หน้าเว็บเราเอง = 200
+- ✅ **อ่าน blob รูป inline โดยเชื่อ `part.size`** → `readBlobCapped()` นับ byte จริงระหว่างสตรีม
+  เกินเพดานเมื่อไร `reader.cancel()` ทิ้งทันที (ท่าเดียวกับ route ไฟล์แนบ) · ขนาดไม่ตรง metadata = ข้ามรูปนั้น
+- ✅ **refresh สำเร็จแล้ว handler พังทีหลัง → cookie ใหม่หาย** (refresh token ที่ถูกหมุนแล้วใช้ไม่ได้อีก
+  = ผู้ใช้หลุดถาวรเพราะ error ชั่วคราวครั้งเดียว) → `withMailSession` เขียน session ลง error response ด้วย
+  **ยกเว้น `MailUnauthorizedError`** ที่ session ตายจริงและ cookie ถูกลบไปแล้ว
+
 **P1 ที่ยังไม่ได้แก้ (ไม่ใช่ blocker):** ปุ่ม ดาว/เก็บ/ลบ ในบานอ่านเป็น ghost icon เหมือนกัน 3 ปุ่มติดกัน
 (`mail-reader.tsx:183-213`) คลิกพลาดง่าย · `visibilitychange → flushAll()` (สลับแท็บ = ลบจริงทันที
 เลิกทำไม่ทัน) ควรเหลือแค่ `pagehide` · Esc ออกจากช่องค้นหาไม่ได้ · แถวเป็น `role="button"` แต่มี `<Button>` ข้างใน

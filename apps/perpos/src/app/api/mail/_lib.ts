@@ -98,8 +98,33 @@ export async function withMailSession(
     if (refreshed) writeMailSession(res, session);
     return res;
   } catch (e) {
-    return mailErrorResponse(e);
+    const res = mailErrorResponse(e);
+    /**
+     * 🔴 refresh สำเร็จแล้วค่อยพังทีหลัง = refresh token ถูก "หมุน" ไปแล้วที่ฝั่งเซิร์ฟเวอร์
+     *    ถ้าไม่เขียน cookie ใหม่ลง response นี้ ของเดิมในเบราว์เซอร์จะใช้ไม่ได้อีกเลย
+     *    ⇒ ผู้ใช้หลุดถาวรเพราะ error ชั่วคราวครั้งเดียว
+     *    ยกเว้น `MailUnauthorizedError` — กรณีนั้น session ตายจริงและ `mailErrorResponse`
+     *    ลบ cookie ไปแล้ว ห้ามเขียนทับกลับเข้าไป
+     */
+    if (refreshed && !(e instanceof MailUnauthorizedError)) writeMailSession(res, session);
+    return res;
   }
+}
+
+/**
+ * คำขอมาจากหน้าเว็บของเราเองไหม (กัน CSRF ของ route ที่ **ไม่ต้องมี session**)
+ *
+ * route ที่ต้องมี session ปลอดภัยอยู่แล้วเพราะ cookie เป็น `SameSite=strict`
+ * แต่ `oauth/disconnect` ทำงานได้โดยไม่ต้องมี session ⇒ ฟอร์มจากเว็บอื่นสั่งเตะผู้ใช้ออกได้
+ *
+ * pure โดยตั้งใจ (รับ `Headers` ไม่ใช่ `NextRequest`) เพื่อให้เทสได้ตรง ๆ
+ */
+export function isSameOriginRequest(headers: Headers, appBaseUrl: string): boolean {
+  const site = headers.get("sec-fetch-site");
+  if (site) return site === "same-origin";
+  const origin = headers.get("origin");
+  if (!origin) return false; // POST ที่ไม่บอก origin เลย = ไม่ไว้ใจ
+  return origin.replace(/[/]+$/, "") === appBaseUrl.replace(/[/]+$/, "");
 }
 
 /** อ่าน JSON body แบบไม่โยน */
