@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 export async function POST() {
-  const res = mailJson({ ok: true, redirectTo: "/mail/connect?reason=disconnected" });
+  const res = mailJson({ ok: true, redirectTo: "/mail/login?reason=disconnected" });
   clearMailSession(res);
   clearMailOAuthState(res);
   return res;

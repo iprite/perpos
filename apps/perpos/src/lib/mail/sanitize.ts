@@ -129,7 +129,9 @@ export const MAIL_SANITIZE_OPTIONS: sanitizeHtml.IOptions = {
   },
   allowedSchemes: ["http", "https", "mailto"],
   allowedSchemesByTag: {
-    img: ["http", "https", "cid", "data"],
+    // ไม่มี "data" โดยตั้งใจ — รูป inline ถูกแปลง cid: → data: ที่ชั้นโครงสร้าง **หลัง** sanitize
+    // (ผ่านด่าน MIME + งบ byte แล้ว) ⇒ ผู้ส่งยัด data: มาเองไม่ได้
+    img: ["http", "https", "cid"],
     a: ["http", "https", "mailto"],
   },
   allowedStyles: { "*": ALLOWED_STYLES },

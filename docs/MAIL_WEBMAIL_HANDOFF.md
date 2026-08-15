@@ -1,6 +1,6 @@
 # 📬 PERPOS Mail (webmail) — ส่งต่อให้ session ถัดไป
 
-> อัปเดต 2026-08-15 · branch **`feat/mail-webmail-read`** (commit `8466a251`, ยังไม่ push)
+> อัปเดต 2026-08-15 (รอบ 3 — จบ B + blocker 7 ข้อ + P1 + **§A ย้ายโดเมนครบแล้ว**) · branch `feat/mail-standalone-app`
 > เอกสารนี้ = **ทำอะไรต่อ** · สัญญาเต็มอยู่ที่ [`.claude/feature-factory/specs/mail-webmail-read.md`](../.claude/feature-factory/specs/mail-webmail-read.md) (646 บรรทัด)
 > UI/UX อยู่ที่ [`MAIL_UI_SPEC.md`](MAIL_UI_SPEC.md) · เมลเซิร์ฟเวอร์อยู่ที่ [`MAIL_HANDOFF.md`](MAIL_HANDOFF.md)
 
@@ -14,73 +14,134 @@
 | URL ของ webmail              | **`mail.perpos.ai`**                                                                         |
 | Stalwart ย้ายไป              | **`stalwart.perpos.ai`**                                                                     |
 | ความสัมพันธ์กับ PERPOS       | **แยกขาดกันสนิท** — ไม่มีลิงก์เชื่อม ไม่มีปุ่มใน toggle                                      |
-| ลำดับงาน                     | **ทำ B (แอป) ก่อน A (ย้ายโดเมน)**                                                            |
+| ลำดับงาน                     | ทำ B (แอป) ก่อน A (ย้ายโดเมน) — **ทำครบทั้งคู่แล้ว 2026-08-15**                              |
 | อิสระในการรื้อ               | **freestyle ได้ ยังไม่มี user** — ไม่ต้องกังวลเรื่อง backward compat                         |
 
 ---
 
-## B. แยกแอปออกจาก PERPOS (ทำก่อน — ไม่แตะเมลที่ใช้งานอยู่)
+## B. แยกแอปออกจาก PERPOS — ✅ **โค้ดเสร็จแล้ว (2026-08-15)** เหลือแต่งาน ops
 
-- [ ] ย้าย `app/(hydrogen)/mail/**` → route group ใหม่ (เช่น `app/(mail)/`) ที่ **ไม่มี AuthGuard ของ PERPOS**
-      · layout/shell ของตัวเอง แบรนด์ "PERPOS Mail" · ไม่ใช้ sidebar/header ของ hydrogen
-- [ ] หน้า login ของเมลเอง — ปุ่มเดียว → OAuth ไป Stalwart (โค้ด `lib/mail/oauth.ts` ใช้ได้เลย)
-- [ ] 🧹 **ถอน diff ออกจาก shared file ให้หมด** (เพราะไม่อยู่ใน hydrogen แล้ว = ไม่ต้องมี):
-      `SYSTEM_SEGMENTS` **5 จุด** (`layouts/hydrogen/{layout,menu-items,header-center,sidebar-footer}.tsx`,
-      `components/sidebar-module-switcher.tsx`) · `buildMailMenuItems` + branch ใน `pickMenuContext`/`getMenuItems`
-      (`menu-items.tsx`) · ลิงก์ "อีเมล" ใน `layouts/profile-menu.tsx`
-      → **โค้ดจะสะอาดกว่าเดิม** และ `components/mail/mail-boxes.ts` ย้ายไป `lib/mail/` ได้
-- [ ] ผูกโดเมน `mail.perpos.ai` ใน Vercel + ตั้ง env ใหม่ (`APP_BASE_URL`, `MAIL_OAUTH_ISSUER`)
-- [ ] **ลงทะเบียน OAuth client ใหม่** (redirect URI เปลี่ยน) — ดูวิธีที่ §A ด้านล่าง
+### ทำแล้ว (อยู่ในโค้ด)
+
+- [x] ย้าย `app/(hydrogen)/mail/**` → **`app/(mail)/`** — route group ของตัวเอง **ไม่มี AuthGuard/RouteRoleGuard
+      /PresenceHeartbeat ของ PERPOS** · `(mail)/layout.tsx` อ่านแค่ cookie "เชื่อมกล่องแล้วหรือยัง" แล้วห่อด้วย
+      `<MailShell>` ([components/mail/mail-shell.tsx](../apps/perpos/src/components/mail/mail-shell.tsx))
+      = topbar แบรนด์ "PERPOS Mail" + **rail กล่องเมลของตัวเอง** (แทน sidebar ของ PERPOS ที่ UI_SPEC §1 เคยยืมใช้) + ชิปบัญชี/ออกจากระบบ · `(mail)/loading.tsx` + `(mail)/mail/loading.tsx` ครบ (มีเทสกันลืมใน `page-load-standard.test.ts`)
+- [x] หน้า login ของเมลเอง — **`/mail/connect` → `/mail/login`** (ปุ่มเดียว → `/api/mail/oauth/start`)
+      · เปลี่ยนปลายทาง redirect ครบทุกจุด (oauth callback, disconnect, workspace ตอน 401, เทส `security.test.ts`)
+      · ข้อความเปลี่ยนจาก "เชื่อมกล่องเมล/ตัดการเชื่อมต่อ" → "เข้าสู่ระบบ/ออกจากระบบ" (ผลิตภัณฑ์เดี่ยว ไม่ใช่ฟีเจอร์เสริมของ PERPOS)
+- [x] 🧹 ถอน diff ออกจาก shared file **หมดแล้ว**: `SYSTEM_SEGMENTS` 5 จุด · `buildMailMenuItems` + branch ใน
+      `pickMenuContext`/`getMenuItems` + import ไอคอนที่ค้าง (`menu-items.tsx`) · ลิงก์ "อีเมล" + `AtSign` ใน `profile-menu.tsx`
+      → **ไม่มีทางเข้าเมลจากฝั่ง PERPOS อีกแล้ว** (แยกขาดตามที่เคาะ)
+- [x] ป้ายกล่องเมลรวมเป็นแหล่งเดียว **`lib/mail/boxes.ts`** (blocker 6 ปิด) — `components/mail/mail-boxes.ts`
+      กับสำเนาใน `lib/mail/messages.ts` ถูกลบ · `MAIL_BOX_ORDER` ย้ายมาอยู่ที่นี่ด้วย
+- [x] `app/api/mail/account` **ไม่ใช่ dead code แล้ว** (blocker 5 ปิด) — ชิปบัญชีบน topbar เรียกใช้จริง
+      (session cookie จำกัด path `/api/mail` ⇒ shell อ่านฝั่ง server ไม่ได้ ต้องถามผ่าน route นี้)
+
+ด่านคุณภาพ: `tsc` 0 error (เหลือ `lib/export/xlsx.ts` ที่พังอยู่แล้วบน main) · `lint` clean · `vitest` 1,336 ผ่าน
+· เปิดจริงบน dev แล้ว: `/mail/login` = หน้าเดี่ยวไม่มี chrome ของ PERPOS · `/mail?box=sent` = rail + workspace 2 pane
+
+### เหลือ (ต้องทำที่คอนโซล — เจ้าของระบบทำ)
+
+- [ ] ผูกโดเมน `mail.perpos.ai` ใน Vercel + ตั้ง env ของโดเมนนั้น (`APP_BASE_URL`, `MAIL_OAUTH_ISSUER`)
+      — ⚠️ ต้องทำ **หลัง** §A ข้อ 5 (ตอนนี้ `mail.perpos.ai` ยังชี้เมลเซิร์ฟเวอร์อยู่)
+- [ ] **ลงทะเบียน OAuth client ใหม่** (redirect URI เปลี่ยนเป็น `https://mail.perpos.ai/api/mail/oauth/callback`) — วิธีอยู่ท้ายเอกสาร
+- [ ] ตัดสินใจเรื่อง URL: ตอนนี้ path ยังเป็น `/mail` และ `/mail/login` (ใช้ได้ทั้งบน `app.perpos.ai` และ `mail.perpos.ai`)
+      ถ้าอยากให้ `mail.perpos.ai/` ตรง ๆ = กล่องขาเข้า ต้องเพิ่ม host-based rewrite ใน `src/middleware.ts`
+      (ยังไม่ทำ — ตั้งใจไม่ใส่ magic ก่อนโดเมนมีจริง)
 
 **ของที่ใช้ต่อได้ 100% ไม่ต้องแตะ:** `lib/mail/*` · `app/api/mail/*` · `components/mail/*`
 (ออกแบบให้ auth ของเมลแยกจาก PERPOS ตั้งแต่ต้น)
 
 ---
 
-## A. ย้าย Stalwart → `stalwart.perpos.ai` (ทำหลัง B — แตะเมลจริง เรียงตามนี้ ห้ามสลับ)
+## A. ย้าย Stalwart → `stalwart.perpos.ai` — ✅ **ทำครบทั้ง 5 ขั้นแล้ว (2026-08-15)**
 
-1. เพิ่ม `A`+`AAAA` ของ `stalwart.perpos.ai` → `46.225.14.18` / `2a01:4f8:c2c:105a::1` (DNS only)
-2. เพิ่มชื่อใหม่เข้า SAN → รอ ACME ออกใบรับรองผ่าน (⚠️ SAN มี 5 ชื่อ ถ้าชื่อใดล้มทั้ง order ล้ม — ดู `MAIL_HANDOFF.md`)
-3. เปลี่ยน **PTR** ที่ Hetzner + `hostname` ใน Stalwart เป็น `stalwart.perpos.ai`
-4. ย้าย **MX** → `stalwart.perpos.ai` · **รอ propagate + ทดสอบรับเมลจริงก่อนไปข้อ 5**
-5. เปลี่ยน `mail.perpos.ai` A/AAAA ไปชี้ Vercel
+| ขั้น                               | ผล  | หลักฐาน                                                                                                               |
+| ---------------------------------- | --- | --------------------------------------------------------------------------------------------------------------------- |
+| 1. A/AAAA ของ `stalwart.perpos.ai` | ✅  | `46.225.14.18` / `2a01:4f8:c2c:105a::1` (DNS only, ttl 300)                                                           |
+| 2. ใบรับรองครอบชื่อใหม่            | ✅  | Let's Encrypt ถึง 13 พ.ย. 2026 · SAN **6 ชื่อ** = 5 เดิม + `stalwart`                                                 |
+| 3. PTR + hostname                  | ✅  | PTR v4/v6 = `stalwart.perpos.ai` · banner พอร์ต 25 = `220 stalwart.perpos.ai` · `hostnamectl` ตรงกัน                  |
+| 4. MX → `stalwart.perpos.ai`       | ✅  | ทดสอบรับเมลจริงจากภายนอก (ผ่าน Brevo) → SPF/DKIM/DMARC **pass ทั้งสาม** → ingest เป็น ham เข้า Inbox                  |
+| 5. `mail.perpos.ai` → Vercel       | ✅  | CNAME → `e89cf56474f25c59.vercel-dns-017.com` · Vercel `misconfigured:false` · ทดสอบรับเมลซ้ำหลังสลับ **ยังเข้าปกติ** |
 
-> 🔴 **ทำข้อ 5 ก่อนข้อ 4 = เมลเข้าไม่ได้ทันที** (MX ชี้ชื่อที่กลายเป็นเว็บแอปไปแล้ว)
-> 🔴 PTR ต้องตรงกับชื่อที่ HELO ใช้ ไม่งั้น deliverability ตก
+### 🔴 กับดักที่เจอจริงตอนทำ (ห้ามลืม)
+
+1. **Stalwart ไม่สั่งออกใบรับรองใหม่เพียงเพราะแก้รายชื่อ SAN หรือ restart** — ลองครบแล้ว
+   (แก้ SAN → restart · touch `x:AcmeProvider` · สร้าง provider ใหม่ · ลบใบเก่า) ไม่มีอะไรกระตุ้นได้เลย
+   เห็นแต่ `No TLS certificates available` รัวทุก 6 วิ
+   · **ท่าที่ได้ผลจริง = สลับ `certificateManagement` เป็น `Manual` แล้วกลับเป็น `Automatic`**
+   (ต้องเป็น _transition_ จริง — เขียนทับด้วยค่าเดิมไม่นับ) แล้ว ACME สั่ง order ทันทีใน ~1 นาที
+   · ระหว่างนั้น **TLS ตกเป็น self-signed ทุกพอร์ต** ⇒ ห้ามทำในเวลาที่มีคนใช้งาน
+2. **ลบใบรับรองตรง ๆ ไม่ได้ถ้ายังถูกอ้างเป็น default** — ได้ `objectIsLinked` จาก `SystemSettings`
+   → ต้อง `defaultCertificateId: null` ก่อนค่อยลบ แล้ว **อย่าลืมตั้งกลับ** เมื่อใบใหม่มา
+3. **`x:Certificate/get` คืน list ว่าง = ยังไม่มีใบเลย** ใช้เป็นสัญญาณตรวจได้ตรง ๆ
+4. **cache ของ resolver สาธารณะไม่ตรงกันหลายนาที** — หลังแก้ MX แล้ว 8.8.8.8 เห็นชื่อใหม่
+   แต่ 1.1.1.1 (ของเจ้าของ zone เอง!) ยังคืนชื่อเก่าสลับไปมา · TTL 300 หายเอง
+   · ผู้ส่งที่ได้ค่าเก่าจะ **defer แล้ว retry ไม่ใช่ตีกลับ** — แต่ตอกย้ำว่าห้ามสลับข้อ 5 ก่อนข้อ 4
+5. **MTA-STS ช่วยไว้**: นโยบายเป็น `mode: testing` และ **ไม่มี TXT `_mta-sts`** เผยแพร่
+   ⇒ ไม่มีผู้ส่งบังคับใช้ ช่วงที่ policy ยังชี้ชื่อเก่าจึงไม่อันตราย
+   · **ก่อนเปิด `enforce` ต้องเช็คว่า policy อัปเดตชื่อใหม่แล้วเสมอ**
+
+### ค่าที่ตั้งไว้แล้วบน Vercel (โปรเจกต์ `perpos` · production + preview)
+
+```
+MAIL_JMAP_URL        = https://stalwart.perpos.ai/jmap/
+MAIL_OAUTH_ISSUER    = https://stalwart.perpos.ai
+MAIL_OAUTH_CLIENT_ID = swc1.yYkf…      # client ใหม่ redirect = mail.perpos.ai (+127.0.0.1 สำหรับ dev)
+MAIL_APP_BASE_URL    = https://mail.perpos.ai
+MAIL_SESSION_SECRET  = <สุ่มใหม่ เก็บใน keychain `perpos-mail-session-secret`>
+```
+
+- **`MAIL_APP_BASE_URL` เป็น env ใหม่** (`lib/mail/oauth.ts` fallback ไป `APP_BASE_URL` ถ้าไม่ตั้ง)
+  จำเป็นเพราะโปรเจกต์ Vercel เดียวเสิร์ฟทั้ง `app.perpos.ai` (Suite/Flow) และ `mail.perpos.ai`
+  — ถ้าใช้ `APP_BASE_URL` ร่วมกัน `redirect_uri` จะพาผู้ใช้ข้ามผลิตภัณฑ์แล้ว OAuth พัง
+- `.env.local` ของ dev ชี้ไป `stalwart.perpos.ai` แล้วเช่นกัน
+
+### ⏳ เหลือขั้นเดียว
+
+`https://mail.perpos.ai/mail/login` ยัง **404** เพราะ prod ยังเป็นโค้ดเก่า —
+ต้อง merge branch `feat/mail-standalone-app` ขึ้น `main` (สั่ง push เมื่อพร้อม) แล้วใช้งานได้ทันที
+· หลัง deploy ตรวจ: `vercel ls --prod` = Ready → เปิด `/mail/login` → กดเข้าสู่ระบบ → เด้งกลับมาที่ `mail.perpos.ai` พร้อมกล่องเมล
 
 ---
 
-## 🐞 blocker ค้าง 7 ข้อ (ต้องแก้ ไม่ว่าจะย้ายโครงหรือไม่)
+## 🐞 blocker — ✅ **แก้ครบทั้ง 7 ข้อแล้ว (2026-08-15)**
 
-### ux-reviewer (FAIL — 4 blocker)
+### ux-reviewer (4 ข้อ — ปิดแล้ว)
 
-1. **`MailRow` ดัก `Enter`/`Space` เอง ชนกับ hotkey `enter`** (`components/mail/mail-row.tsx:62-67`)
-   → กด Enter ครั้งเดียวยิงสองทาง · และ `j`/`k` **ไม่เคยย้าย DOM focus** (`mail-workspace.tsx:473-479`)
-   → โฟกัสจริงค้างที่แถวที่คลิกไว้ ส่วนเคอร์เซอร์สายตาอยู่อีกแถว = **เปิด 2 ฉบับคนละใบ**
-   · แก้: ถอด `onKeyDown` ออกจาก MailRow **หรือ** ทำ roving tabindex (`focused && rowRef.current?.focus()` + `tabIndex={focused?0:-1}`)
-2. **มาร์คอ่านทันทีที่เปิด ไม่มี dwell ไม่มีเลิกทำ** (`mail-workspace.tsx:419`) → พลาดครั้งเดียว "ยังไม่ได้อ่าน" หายถาวร
-   · แก้: dwell 1.5–2 วิ ผูกกับ `activeId` (เปลี่ยนก่อนครบ = ยกเลิก)
-3. **เปิดด้วย `by=thread` แต่มาร์คอ่านด้วย `by=email`** (`mail-workspace.tsx:422` vs `api/mail/messages/bulk/route.ts:19`)
-   → เธรด 3 ฉบับ อ่านครบด้วยตาแต่ค้าง unread 2 · แก้: ส่ง `by:"thread"` ตอนมาร์คอ่านจากการเปิด (คง `email` สำหรับคีย์ `u`)
-4. **ตัวเลข unread บนแถบเครื่องมือค้าง** (`mail-workspace.tsx:191-203`) ดึง `/api/mail/mailboxes` ครั้งเดียวต่อกล่อง
-   · แก้: แยกเป็น `loadMailboxes()` แล้วเรียกซ้ำหลัง refresh / flushQueue / setReadState (debounce ~1 วิ)
+1. ✅ **`MailRow` ชนกับ hotkey / โฟกัสไม่ตรงกับเคอร์เซอร์** → ถอด `onKeyDown` ออกจาก `MailRow` **และ**
+   ทำ **roving tabindex** (`tabIndex={focused?0:-1}` + effect ย้าย DOM focus ตาม `focused`)
+   · ย้ายโฟกัสเฉพาะตอนโฟกัสยังอยู่ในรายการ (เช็ค `data-mail-row`) — ไม่แย่งโฟกัสจากช่องค้นหา
+   · ⇒ คีย์ลัดมาจาก registry ทางเดียว เปิดฉบับเดียวกับที่ตาเห็นเสมอ
+2. ✅ **มาร์คอ่านทันที** → **dwell 1.8 วิ** (`MARK_READ_DWELL_MS`) ผูกกับ `activeId` ใน `useEffect`
+   เปลี่ยนฉบับ/ปิดบานอ่านก่อนครบ = cleanup ยกเลิกให้เอง
+3. ✅ **เปิด `by=thread` แต่มาร์ค `by=email`** → `setReadState(ids, false, "thread")` ตอนเปิดอ่าน
+   (`runBulk` รับ `by` แล้วส่งต่อ API ซึ่งรองรับอยู่แล้ว) · คีย์ `u` ยังเป็น `email` ตามเจตนา
+4. ✅ **ตัวเลข unread ค้าง** → แยก `loadMailboxes()` + `scheduleMailboxRefresh()` (debounce 1 วิ)
+   เรียกซ้ำหลัง อ่าน/ติดดาว (`runBulk`) · ลบ/เก็บจริง (`flushQueue`) · กดรีเฟรช · poll เจอเมลใหม่
 
-**P1 ที่ควรแก้ด้วย:** ปุ่ม ดาว/เก็บ/ลบ ในบานอ่านเป็น ghost icon เหมือนกัน 3 ปุ่มติดกัน (`mail-reader.tsx:183-213`) → คลิกพลาดง่าย (เกิดขึ้นจริงตอนเทส เมลตกถังขยะ) · `visibilitychange → flushAll()` (`mail-workspace.tsx:399`) = สลับแท็บ = ลบจริงทันที เลิกทำไม่ทัน → ใช้ `pagehide` แทน · Esc ออกจากช่องค้นหาไม่ได้ · แถวเป็น `role="button"` แต่มี `<Button>` ข้างใน (a11y)
+### module-reviewer (2 ข้อ — ปิดไปพร้อมหัวข้อ B)
 
-### module-reviewer (FAIL — 2 blocker)
+5. ✅ `app/api/mail/account` มี caller จริงแล้ว = ชิปบัญชีบน topbar ของ PERPOS Mail
+6. ✅ ป้ายชื่อกล่องเมลรวมที่ `lib/mail/boxes.ts` แหล่งเดียว
 
-5. **`app/api/mail/account/route.ts` เป็น dead code** ไม่มี caller ทั้ง repo → ลบ หรือหา caller จริง
-6. **ป้ายชื่อกล่องเมลซ้ำ 2 แหล่ง** — `lib/mail/messages.ts:49-57` vs `components/mail/mail-boxes.ts:19`
-   → รวมเป็นแหล่งเดียว (ย้าย `mail-boxes.ts` ไป `lib/mail/` แล้วให้ `messages.ts` import)
+### security-reviewer (1 MEDIUM + 1 LOW — ปิดแล้ว)
 
-### security-reviewer (PASS — แต่มี MEDIUM ที่ควรปิดก่อน prod)
+7. ✅ **รูป inline `cid:` โหลดทั้งก้อนก่อนตัดงบ** → ตัดสินจาก `part.size` **ก่อน** `fetchBlob` เสมอ:
+   เพดานต่อรูป `MAX_INLINE_IMAGE_BYTES` = 4MB · งบรวมไบต์ดิบ `INLINE_FETCH_BUDGET_BYTES`
+   = ¾ ของ `INLINE_BUDGET_BYTES` (base64 พอง 4/3) · **ไม่มี `size` = ไม่โหลด** (ยังเปิดเป็นไฟล์แนบได้)
+   · ✅ **[LOW]** ถอด `"data"` ออกจาก `allowedSchemesByTag.img` — `cid:`→`data:` เกิดที่ชั้นโครงสร้าง
+   **หลัง** sanitize อยู่แล้ว ⇒ ผู้ส่งยัด `data:` เองไม่ได้ (มีเทสคุมใน `sanitize.test.ts`)
 
-7. **รูป inline `cid:` โหลดทั้งก้อนก่อนตัดงบ** (`lib/mail/messages.ts:525-556`) — ไม่ดู `part.size` เลย
-   → ผู้ส่งภายนอกแนบ PNG 300MB × 3 ใบ = แค่ "เปิดอ่าน" ก็ทำ serverless หมด memory และเมลใบนั้นอ่านไม่ได้ถาวร
-   · แก้: กรอง `part.size` (>4MB ข้าม) + ตัดยอดสะสมก่อนเรียก `fetchBlob` (`size` มีอยู่แล้วใน `bodyProperties`)
-   · **[LOW]** ถอด `'data'` ออกจาก `allowedSchemesByTag.img` (`sanitize.ts:132`) — เราแทน `cid:`→`data:` **หลัง** sanitize อยู่แล้ว
+**P1 ที่ยังไม่ได้แก้ (ไม่ใช่ blocker):** ปุ่ม ดาว/เก็บ/ลบ ในบานอ่านเป็น ghost icon เหมือนกัน 3 ปุ่มติดกัน
+(`mail-reader.tsx:183-213`) คลิกพลาดง่าย · `visibilitychange → flushAll()` (สลับแท็บ = ลบจริงทันที
+เลิกทำไม่ทัน) ควรเหลือแค่ `pagehide` · Esc ออกจากช่องค้นหาไม่ได้ · แถวเป็น `role="button"` แต่มี `<Button>` ข้างใน
 
----
+> ⚠️ ข้อ 1–4 **ยังไม่ได้ทดสอบกับกล่องเมลจริง** (ต้องล็อกอินด้วยรหัสผ่านของกล่อง) — ผ่าน tsc/lint/vitest
+> และเปิดหน้าจริงแล้วว่า render/effect ไม่พัง · ให้ทดสอบมือ 4 เคสนี้ตอนมีเซสชัน: กด j/k แล้ว Enter ต้องเปิด
+> ฉบับที่เคอร์เซอร์อยู่ · กด j ผ่านเมลยังไม่อ่านเร็ว ๆ ต้องไม่กลายเป็นอ่านแล้ว · เปิดเธรด 3 ฉบับแล้วกลับมา
+> ต้องไม่ค้าง unread · ตัวเลข unread ต้องลดหลังอ่าน/ลบ
 
 ## ✅ สิ่งที่ทดสอบแล้วว่าใช้ได้จริง (ไม่ต้องเทสซ้ำ)
 

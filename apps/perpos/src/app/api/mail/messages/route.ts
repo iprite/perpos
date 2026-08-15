@@ -7,7 +7,8 @@
 import { type NextRequest } from "next/server";
 
 import { mailError, mailJson, readJsonBody, withMailSession } from "../_lib";
-import { MAIL_BOX_ORDER, listMessages } from "@/lib/mail/messages";
+import { MAIL_BOX_ORDER } from "@/lib/mail/boxes";
+import { listMessages } from "@/lib/mail/messages";
 import type { MailBoxKey } from "@/lib/mail/types";
 
 export const dynamic = "force-dynamic";

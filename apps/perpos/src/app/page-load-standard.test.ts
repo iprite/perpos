@@ -22,6 +22,7 @@ describe("page load performance standard (AGENTS.md §Page Load Performance)", (
       "(hydrogen)/admin/loading.tsx",
       "(hydrogen)/assistant/loading.tsx",
       "(hydrogen)/[orgSlug]/loading.tsx",
+      "(mail)/loading.tsx", // PERPOS Mail — route group แยก ไม่มี shell ของ hydrogen
     ];
     const missing = required.filter((p) => !existsSync(join(APP, p)));
     expect(missing, `ขาด loading.tsx (ดู AGENTS.md): ${missing.join(", ")}`).toEqual([]);

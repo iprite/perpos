@@ -18,7 +18,13 @@ import {
   sanitizeAttachmentName,
   type JmapMethodCall,
 } from "./jmap";
-import { buildInlineImageMap, prepareMailHtml, type InlineImageSource } from "./sanitize";
+import { MAIL_BOX_LABELS, MAIL_BOX_ORDER } from "./boxes";
+import {
+  INLINE_BUDGET_BYTES,
+  buildInlineImageMap,
+  prepareMailHtml,
+  type InlineImageSource,
+} from "./sanitize";
 import type {
   JmapBodyPart,
   JmapEmail,
@@ -41,26 +47,6 @@ import type {
   MailboxRole,
   MailboxSummary,
 } from "./types";
-
-export const MAIL_BOX_LABELS: Record<MailBoxKey, string> = {
-  inbox: "กล่องขาเข้า",
-  starred: "ดาว",
-  sent: "ส่งแล้ว",
-  drafts: "ร่าง",
-  archive: "คลังเก็บ",
-  junk: "จดหมายขยะ",
-  trash: "ถังขยะ",
-};
-
-export const MAIL_BOX_ORDER: MailBoxKey[] = [
-  "inbox",
-  "starred",
-  "sent",
-  "drafts",
-  "archive",
-  "junk",
-  "trash",
-];
 
 const ROLE_KEYS: MailboxRole[] = ["inbox", "sent", "drafts", "archive", "junk", "trash"];
 
@@ -514,7 +500,22 @@ export function mapAttachments(email: JmapEmail): MailAttachment[] {
     }));
 }
 
-/** ดึงรูป inline (cid:) มาเป็น data: — ผ่านด่าน MIME + งบ byte ที่ `buildInlineImageMap` */
+/** เพดานต่อรูป — ใหญ่กว่านี้ไม่ inline (ยังเปิดเป็นไฟล์แนบได้ตามปกติ) */
+const MAX_INLINE_IMAGE_BYTES = 4 * 1024 * 1024;
+
+/**
+ * งบรวมของ "ไบต์ดิบที่ยอมดาวน์โหลด" — ต้องต่ำกว่างบตอนประกอบ data: (`INLINE_BUDGET_BYTES`)
+ * เพราะ base64 พองราว 4/3 เท่า · คิดจาก `part.size` **ก่อน** ยิง `fetchBlob` เสมอ
+ */
+const INLINE_FETCH_BUDGET_BYTES = Math.floor((INLINE_BUDGET_BYTES * 3) / 4);
+
+/**
+ * ดึงรูป inline (cid:) มาเป็น data: — ผ่านด่าน MIME + งบ byte ที่ `buildInlineImageMap`
+ *
+ * 🔴 กันหน่วยความจำระเบิด (contract §7): ต้องตัดสินจาก `part.size` **ก่อนโหลด** เสมอ
+ *    ไม่งั้นผู้ส่งภายนอกแนบ PNG 300MB มา 3 ใบ = แค่เปิดอ่านก็ทำ serverless หมดหน่วยความจำ
+ *    และเมลฉบับนั้นอ่านไม่ได้ถาวร · ไม่รู้ขนาด (ไม่มี `size`) = **ไม่โหลด** ปล่อยเป็นไฟล์แนบ
+ */
 async function collectInlineImages(
   session: MailSession,
   email: JmapEmail,
@@ -524,11 +525,17 @@ async function collectInlineImages(
   const candidates = (email.attachments ?? [])
     .filter((p) => p.blobId && normalizeCid(p.cid))
     .filter((p) => (INLINE_IMAGE_TYPES as readonly string[]).includes((p.type ?? "").toLowerCase()))
+    .filter((p) => typeof p.size === "number" && p.size > 0 && p.size <= MAX_INLINE_IMAGE_BYTES)
     .slice(0, MAX_INLINE_IMAGES);
   if (candidates.length === 0) return {};
 
   const sources: InlineImageSource[] = [];
+  let budget = INLINE_FETCH_BUDGET_BYTES;
   for (const part of candidates) {
+    const size = part.size as number;
+    // เกินงบแล้ว → ข้ามใบนี้ (ใบถัดไปอาจเล็กพอ) ห้ามโหลดแล้วค่อยตัดทีหลัง
+    if (size > budget) continue;
+    budget -= size;
     try {
       const res = await fetchBlob(session, {
         blobId: part.blobId as string,

@@ -2,7 +2,7 @@
  * รับ code จาก Stalwart → แลก token → ดึง JMAP session → เขียน cookie (spec §2.2)
  *
  * ลำดับบังคับ: เทียบ state แบบ timing-safe → **ลบ cookie ชั่วคราวก่อนแลก token** (ใช้ครั้งเดียว)
- * ห้าม log code/token · ข้อผิดพลาดทุกกรณีเด้งไป /mail/connect พร้อมเหตุผลเป็นคีย์ (ไม่ใช่ error ดิบ)
+ * ห้าม log code/token · ข้อผิดพลาดทุกกรณีเด้งไป /mail/login พร้อมเหตุผลเป็นคีย์ (ไม่ใช่ error ดิบ)
  */
 
 import { NextResponse, type NextRequest } from "next/server";
@@ -21,7 +21,7 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 function connectRedirect(config: { appBaseUrl: string }, reason: string) {
-  const res = NextResponse.redirect(`${config.appBaseUrl}/mail/connect?reason=${reason}`, {
+  const res = NextResponse.redirect(`${config.appBaseUrl}/mail/login?reason=${reason}`, {
     status: 302,
   });
   res.headers.set("Cache-Control", "private, no-store");

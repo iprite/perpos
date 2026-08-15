@@ -38,6 +38,14 @@ describe("sanitizeMailHtml — ตัดของอันตราย", () => {
     expect(sanitizeMailHtml("<p>ข้อความล้วน</p>").hasRemoteImages).toBe(false);
   });
 
+  it('img src="data:" ที่ผู้ส่งยัดมาเองถูกตัด (data: มาได้ทางเดียวคือ cid: ที่เราแปลงเองหลัง sanitize)', () => {
+    const out = sanitizeMailHtml(
+      '<img src="data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=" alt="x">',
+    ).html;
+    expect(out).not.toContain("data:");
+    expect(sanitizeMailHtml('<img src="cid:logo">').html).toContain("cid:logo");
+  });
+
   it("ลิงก์ได้ target/rel ครบ", () => {
     expect(html).toContain('rel="noopener noreferrer nofollow"');
     expect(html).toContain('target="_blank"');
