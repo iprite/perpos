@@ -87,7 +87,7 @@
 
 ```
 MAIL_JMAP_URL        = https://stalwart.perpos.ai/jmap/
-MAIL_OAUTH_ISSUER    = https://stalwart.perpos.ai
+MAIL_OAUTH_ISSUER    = https://login.perpos.ai   # alias ของเครื่องเมล — ชื่อที่ลูกค้าเห็นตอนกรอกรหัสผ่าน
 MAIL_OAUTH_CLIENT_ID = swc1.yYkf…      # client ใหม่ redirect = mail.perpos.ai (+127.0.0.1 สำหรับ dev)
 MAIL_APP_BASE_URL    = https://mail.perpos.ai
 MAIL_SESSION_SECRET  = <สุ่มใหม่ เก็บใน keychain `perpos-mail-session-secret`>
@@ -97,6 +97,18 @@ MAIL_SESSION_SECRET  = <สุ่มใหม่ เก็บใน keychain `pe
   จำเป็นเพราะโปรเจกต์ Vercel เดียวเสิร์ฟทั้ง `app.perpos.ai` (Suite/Flow) และ `mail.perpos.ai`
   — ถ้าใช้ `APP_BASE_URL` ร่วมกัน `redirect_uri` จะพาผู้ใช้ข้ามผลิตภัณฑ์แล้ว OAuth พัง
 - `.env.local` ของ dev ชี้ไป `stalwart.perpos.ai` แล้วเช่นกัน
+
+### เพิ่ม `login.perpos.ai` (2026-08-15, หลัง §A)
+
+ตอน login ผู้ใช้ถูกส่งไปกรอกรหัสผ่านที่เครื่องเมล → เห็นชื่อ `stalwart.perpos.ai` วาบหนึ่ง (ชื่อซอฟต์แวร์ ไม่ใช่แบรนด์เรา)
+· แก้แบบ **ไม่แตะเส้นทางเมลเลย**: เพิ่ม `login.perpos.ai` เป็น A/AAAA ชี้เครื่องเดิม + ใส่เข้า SAN
+แล้วชี้เฉพาะ `MAIL_OAUTH_ISSUER` มาที่ชื่อนี้ · MX/PTR/HELO ยังเป็น `stalwart.perpos.ai` เหมือนเดิม
+
+- ✅ **ครั้งนี้ออกใบรับรองใหม่ได้โดยไม่มีช่วง self-signed** — ท่า `Manual → Automatic` ใช้ได้ทั้งที่ใบเดิมยังอยู่
+  (ต่างจากรอบแรกที่ต้องลบใบเก่าก่อนเพราะตอนนั้น cert store ว่าง) ⇒ **ท่ามาตรฐานของการเพิ่มชื่อคือ toggle เฉย ๆ ห้ามลบใบเก่า**
+- ใบใหม่ครอบ 7 ชื่อ · ตั้งเป็น default แล้วลบใบ 6 ชื่อทิ้ง · ตรวจแล้วทุกชื่อยังเสิร์ฟใบ Let's Encrypt ปกติ
+- ทำไมไม่ย้ายทั้งก้อนไปชื่อใหม่: MX/PTR ไม่มีมนุษย์เห็น การย้ายมีแต่ความเสี่ยง (defer + หน้าต่าง TLS)
+  ส่วนที่คนเห็นจริงมีแค่หน้า OAuth ⇒ เปลี่ยนเฉพาะ issuer ได้ผลเท่ากันที่ความเสี่ยงเกือบศูนย์
 
 ### ⏳ เหลือขั้นเดียว
 
