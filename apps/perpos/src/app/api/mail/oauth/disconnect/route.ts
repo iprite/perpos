@@ -1,0 +1,20 @@
+/**
+ * ตัดการเชื่อมต่อ = **ลบ cookie ฝั่งเราเท่านั้น** (spec §2.4 / §11 ข้อ 1)
+ *
+ * 🔴 Stalwart ไม่มี revocation endpoint (ทดสอบแล้ว 404 ทั้ง /auth/revoke และ /oauth/revoke)
+ * ⇒ ห้ามเขียนโค้ดยิง endpoint ที่รู้อยู่แล้วว่าไม่มี และ **ห้ามบอกผู้ใช้ว่า "เพิกถอนสิทธิ์แล้ว"**
+ * ถ้าอุปกรณ์สูญหายต้องเปลี่ยนรหัสผ่านกล่องเมล · "ออกจากทุกอุปกรณ์" = ผู้ดูแลหมุน MAIL_SESSION_SECRET
+ */
+
+import { mailJson } from "../../_lib";
+import { clearMailOAuthState, clearMailSession } from "@/lib/mail/session";
+
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
+
+export async function POST() {
+  const res = mailJson({ ok: true, redirectTo: "/mail/connect?reason=disconnected" });
+  clearMailSession(res);
+  clearMailOAuthState(res);
+  return res;
+}

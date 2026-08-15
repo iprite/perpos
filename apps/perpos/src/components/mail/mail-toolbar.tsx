@@ -1,0 +1,146 @@
+"use client";
+
+/**
+ * MailToolbar — แถบเครื่องมือเหนือรายการเมล (MAIL_UI_SPEC §2)
+ *
+ * M1 มีเฉพาะ: ชื่อกล่อง + จำนวนยังไม่ได้อ่าน · ค้นหา · รีเฟรช · ตัวกรอง (ยังไม่อ่าน/มีไฟล์แนบ) · ตารางคีย์ลัด
+ * **ไม่มีปุ่ม "เขียนเมล"** — กล่องเขียนเป็น M2 และห้ามมีปุ่มที่กดแล้วไม่เกิดอะไร (contract §6)
+ *
+ * ตัวกรองซ่อนหลังปุ่มไอคอน <Filter> + จุดเหลืองเมื่อกรองค้าง (DESIGN.md §4)
+ */
+
+import { Filter, Keyboard, RefreshCw } from "lucide-react";
+import cn from "@core/utils/class-names";
+import { Button } from "@/components/ui/button";
+import { FilterBar, FilterClear, FilterSearch } from "@/components/ui/filter-bar";
+import { SegmentedControl } from "@/components/ui/segmented";
+
+export interface MailFilters {
+  unread: boolean;
+  attachment: boolean;
+}
+
+export function MailToolbar({
+  boxLabel,
+  unreadCount,
+  totalLabel,
+  search,
+  onSearchChange,
+  filters,
+  onFiltersChange,
+  showFilters,
+  onToggleFilters,
+  onRefresh,
+  refreshing,
+  onOpenShortcuts,
+  searchInputRef,
+}: {
+  boxLabel: string;
+  unreadCount: number | null;
+  totalLabel: string | null;
+  search: string;
+  onSearchChange: (v: string) => void;
+  filters: MailFilters;
+  onFiltersChange: (f: MailFilters) => void;
+  showFilters: boolean;
+  onToggleFilters: () => void;
+  onRefresh: () => void;
+  refreshing: boolean;
+  onOpenShortcuts: () => void;
+  searchInputRef?: React.RefObject<HTMLDivElement | null>;
+}) {
+  const hasFilter = filters.unread || filters.attachment;
+
+  return (
+    <div className="border-b border-gray-200 bg-white">
+      <div className="flex h-12 items-center gap-2 px-2 sm:px-3">
+        <div className="flex min-w-0 shrink-0 items-baseline gap-2">
+          <span className="truncate text-sm font-semibold text-gray-900">{boxLabel}</span>
+          {unreadCount !== null && unreadCount > 0 && (
+            <span className="text-xs font-medium tabular-nums text-gray-500">
+              ยังไม่ได้อ่าน {unreadCount}
+            </span>
+          )}
+          {unreadCount === null && totalLabel && (
+            <span className="text-xs font-medium tabular-nums text-gray-500">{totalLabel}</span>
+          )}
+        </div>
+
+        <div ref={searchInputRef} className="ms-auto flex min-w-0 flex-1 justify-end">
+          <FilterSearch
+            value={search}
+            onChange={onSearchChange}
+            placeholder="ค้นหาในเมล"
+            className="max-w-xl"
+          />
+        </div>
+
+        <Button
+          variant="outline"
+          size="icon"
+          title="รีเฟรช"
+          aria-label="รีเฟรช"
+          disabled={refreshing}
+          onClick={onRefresh}
+          className="shrink-0"
+        >
+          <RefreshCw className={cn("h-4 w-4", refreshing && "animate-spin")} />
+        </Button>
+
+        <Button
+          variant={showFilters || hasFilter ? "secondary" : "outline"}
+          size="icon"
+          title="ตัวกรอง"
+          aria-label="ตัวกรอง"
+          className="relative shrink-0"
+          onClick={onToggleFilters}
+        >
+          <Filter className="h-4 w-4" />
+          {hasFilter && (
+            <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-amber-500" />
+          )}
+        </Button>
+
+        <Button
+          variant="outline"
+          size="icon"
+          title="ตารางคีย์ลัด (?)"
+          aria-label="ตารางคีย์ลัด"
+          className="hidden shrink-0 sm:inline-flex"
+          onClick={onOpenShortcuts}
+        >
+          <Keyboard className="h-4 w-4" />
+        </Button>
+      </div>
+
+      {showFilters && (
+        <div className="px-2 pb-2 sm:px-3">
+          <FilterBar>
+            <SegmentedControl
+              value={filters.unread ? "unread" : "all"}
+              onChange={(v) => onFiltersChange({ ...filters, unread: v === "unread" })}
+              ariaLabel="สถานะการอ่าน"
+              options={[
+                { value: "all", label: "ทั้งหมด" },
+                { value: "unread", label: "ยังไม่ได้อ่าน" },
+              ]}
+            />
+            <SegmentedControl
+              value={filters.attachment ? "attachment" : "any"}
+              onChange={(v) => onFiltersChange({ ...filters, attachment: v === "attachment" })}
+              ariaLabel="ไฟล์แนบ"
+              options={[
+                { value: "any", label: "ทุกฉบับ" },
+                { value: "attachment", label: "มีไฟล์แนบ" },
+              ]}
+            />
+            <FilterClear
+              disabled={!hasFilter}
+              onClick={() => onFiltersChange({ unread: false, attachment: false })}
+            />
+          </FilterBar>
+        </div>
+      )}
+    </div>
+  );
+}

@@ -9,7 +9,7 @@ import { useAuth } from "@/app/shared/auth-provider";
 import { BrandIcon } from "@/components/ui/brand-icon";
 import { UsvillaLangDropdown } from "./usvilla-lang-dropdown";
 
-const SYSTEM_SEGMENTS = new Set(["admin", "user", "signin", "no-module", "assistant"]);
+const SYSTEM_SEGMENTS = new Set(["admin", "user", "signin", "no-module", "assistant", "mail"]);
 const isPersonalOrg = (o: OrganizationSummary) =>
   o.name.startsWith("พื้นที่ส่วนตัว") || /^u[a-z0-9]{10}$/.test(o.slug);
 
