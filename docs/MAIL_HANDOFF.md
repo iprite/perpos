@@ -55,7 +55,8 @@ terraform apply
       และรุ่นที่เหลือแพงกว่ายุโรป ~5 เท่าโดยสเปกแย่กว่า (ดู §8 ของคัมภีร์ที่แก้ตัวเลขแล้ว)
       · PTR ตรวจแล้วได้ `mail.perpos.ai` ทั้ง v4/v6 · ต้นทุนจริง **$8.39/เดือน ≈ ฿280**
 - [x] **fail2ban ใช้งานได้แล้ว** — cloud-init เดิมพัง (Debian 12 ไม่มี `/var/log/auth.log` + ขาด `python3-systemd`) เครื่องเลยไม่มีเกราะกัน brute-force เลย · แก้ทั้งบนเครื่องและใน cloud-init
-- [ ] **ตั้ง DNS ที่ Cloudflare** — `A` `mail.perpos.ai` → `46.225.14.18` · `AAAA` → `2a01:4f8:c2c:105a::1`
+- [x] **DNS ที่ Cloudflare ตั้งแล้ว** — A+AAAA (DNS only, ttl 300) ของ **5 ชื่อ** ชี้ `46.225.14.18` /
+      `2a01:4f8:c2c:105a::1`: `mail` · `autoconfig` · `autodiscover` · `mta-sts` · `ua-auto-config`
       ⚠️ **DNS only (เมฆเทา) ห้ามเปิด proxy** — Cloudflare ไม่พร็อกซี SMTP/IMAP
 - [x] SES `:587` เช็คจากเครื่องแล้ว — **ผ่านทั้ง `eu-central-1` และ `ap-southeast-1`**
       · พอร์ต 25 **ขาออก** ถูกบล็อกตามคาด (บัญชีใหม่) — ไม่กระทบเพราะส่งออกผ่าน SES
@@ -64,10 +65,17 @@ terraform apply
       · ⚠️ **ตัวติดตั้ง 0.16 ไม่ถามคำถามแล้ว** (คัมภีร์เดิมเขียนว่าถาม deployment/RocksDB/รหัสแอดมิน — ไม่จริงแล้ว)
       ทุกอย่างไปตั้งใน wizard หน้าเว็บ `:8080/admin` แทน
       · พอร์ต 8080 **ไม่ได้เปิดใน firewall โดยตั้งใจ** → เข้าผ่าน ssh tunnel เท่านั้น
-- [ ] **เข้า wizard ตั้งค่า** — `ssh -N -L 8080:localhost:8080 root@mail.perpos.ai` แล้วเปิด `http://localhost:8080/admin`
-      · รหัสชั่วคราว: `journalctl -u stalwart -n 200 | grep -A8 'bootstrap mode'` → **เปลี่ยนทันทีในหน้า wizard**
-      · เลือกที่เก็บข้อมูล **RocksDB** · ตั้งโดเมน `perpos.ai`
-- [ ] เปิดหน้า `https://mail.perpos.ai` ได้ (ACME ออกใบรับรองสำเร็จ — ต้องตั้งใน wizard ก่อน ตอนนี้ยังฟังแค่ 8080)
+- [x] **wizard เสร็จ** — RocksDB ที่ `/var/lib/stalwart/` (`config.json` เก็บแค่ storage backend
+      ที่เหลืออยู่ใน RocksDB) · ⚠️ **แก้ config แล้วต้อง `systemctl restart stalwart`** ไม่งั้นค้าง bootstrap mode
+- [x] **ACME ออกใบรับรองจริงแล้ว** (Let's Encrypt ถึง 13 พ.ย. 2026) ครอบ 5 ชื่อ:
+      `mail` · `autoconfig` · `autodiscover` · `mta-sts` · `ua-auto-config` `.perpos.ai`
+      · 🔴 **กับดักที่เสียเวลาไปหนึ่งรอบ**: Stalwart ใส่ 4 ชื่อ auto-discovery เข้า SAN ให้เอง
+      **ถ้าชื่อไหนไม่มีใน DNS ทั้ง order ล้ม** → ได้ self-signed (`CN=rcgen self signed cert`) เงียบ ๆ
+      · แก้โดยเพิ่ม A+AAAA ครบทั้ง 4 ชื่อ (ได้ auto-config ของ Outlook/Thunderbird เป็นของแถม)
+      · ⚠️ Let's Encrypt จำกัด validate ล้มเหลว 5 ครั้ง/ชม./ชื่อ — ถ้าเจออีกให้แก้ DNS **ก่อน** restart ซ้ำ
+- [ ] 🔴 **พอร์ต 587 ยังไม่มี listener** — firewall เปิดไว้แล้วแต่ Stalwart ไม่ได้ฟัง
+      · ลูกค้าส่งเมลออกไม่ได้จนกว่าจะเพิ่ม (Settings → Listeners → submission/STARTTLS)
+      · ที่ฟังอยู่ตอนนี้: 25 · 443 · 465 · 993 · 995 · 4190 (ManageSieve) · 8080 (admin, ไม่เปิดใน firewall)
 - [ ] **บันทึกค่าเครื่องลง `infra_costs`** — Hetzner อยู่นอกท่อ `billing_export` ต้องกรอกเอง
 - [ ] (หลังจ่ายบิลเดือนแรก) ขอปลดพอร์ต 25 ขาออกกับ Hetzner — เป็นทางหนีทีไล่ถ้า SES มีปัญหา
 
