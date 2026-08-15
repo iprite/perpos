@@ -1,6 +1,6 @@
 # 📬 PERPOS Mail (webmail) — ส่งต่อให้ session ถัดไป
 
-> อัปเดต 2026-08-15 (รอบ 2 — จบหัวข้อ B) · ฐานคือ `main` หลัง #218
+> อัปเดต 2026-08-15 (รอบ 2 — จบหัวข้อ B + blocker ครบ 7 ข้อ) · ฐานคือ `main` หลัง #218
 > เอกสารนี้ = **ทำอะไรต่อ** · สัญญาเต็มอยู่ที่ [`.claude/feature-factory/specs/mail-webmail-read.md`](../.claude/feature-factory/specs/mail-webmail-read.md) (646 บรรทัด)
 > UI/UX อยู่ที่ [`MAIL_UI_SPEC.md`](MAIL_UI_SPEC.md) · เมลเซิร์ฟเวอร์อยู่ที่ [`MAIL_HANDOFF.md`](MAIL_HANDOFF.md)
 
@@ -68,36 +68,42 @@
 
 ---
 
-## 🐞 blocker — เหลือ 5 ข้อ (ข้อ 5,6 ปิดไปพร้อมหัวข้อ B)
+## 🐞 blocker — ✅ **แก้ครบทั้ง 7 ข้อแล้ว (2026-08-15)**
 
-### ux-reviewer (FAIL — 4 blocker)
+### ux-reviewer (4 ข้อ — ปิดแล้ว)
 
-1. **`MailRow` ดัก `Enter`/`Space` เอง ชนกับ hotkey `enter`** (`components/mail/mail-row.tsx:62-67`)
-   → กด Enter ครั้งเดียวยิงสองทาง · และ `j`/`k` **ไม่เคยย้าย DOM focus** (`mail-workspace.tsx:473-479`)
-   → โฟกัสจริงค้างที่แถวที่คลิกไว้ ส่วนเคอร์เซอร์สายตาอยู่อีกแถว = **เปิด 2 ฉบับคนละใบ**
-   · แก้: ถอด `onKeyDown` ออกจาก MailRow **หรือ** ทำ roving tabindex (`focused && rowRef.current?.focus()` + `tabIndex={focused?0:-1}`)
-2. **มาร์คอ่านทันทีที่เปิด ไม่มี dwell ไม่มีเลิกทำ** (`mail-workspace.tsx:419`) → พลาดครั้งเดียว "ยังไม่ได้อ่าน" หายถาวร
-   · แก้: dwell 1.5–2 วิ ผูกกับ `activeId` (เปลี่ยนก่อนครบ = ยกเลิก)
-3. **เปิดด้วย `by=thread` แต่มาร์คอ่านด้วย `by=email`** (`mail-workspace.tsx:422` vs `api/mail/messages/bulk/route.ts:19`)
-   → เธรด 3 ฉบับ อ่านครบด้วยตาแต่ค้าง unread 2 · แก้: ส่ง `by:"thread"` ตอนมาร์คอ่านจากการเปิด (คง `email` สำหรับคีย์ `u`)
-4. **ตัวเลข unread บนแถบเครื่องมือค้าง** (`mail-workspace.tsx:191-203`) ดึง `/api/mail/mailboxes` ครั้งเดียวต่อกล่อง
-   · แก้: แยกเป็น `loadMailboxes()` แล้วเรียกซ้ำหลัง refresh / flushQueue / setReadState (debounce ~1 วิ)
+1. ✅ **`MailRow` ชนกับ hotkey / โฟกัสไม่ตรงกับเคอร์เซอร์** → ถอด `onKeyDown` ออกจาก `MailRow` **และ**
+   ทำ **roving tabindex** (`tabIndex={focused?0:-1}` + effect ย้าย DOM focus ตาม `focused`)
+   · ย้ายโฟกัสเฉพาะตอนโฟกัสยังอยู่ในรายการ (เช็ค `data-mail-row`) — ไม่แย่งโฟกัสจากช่องค้นหา
+   · ⇒ คีย์ลัดมาจาก registry ทางเดียว เปิดฉบับเดียวกับที่ตาเห็นเสมอ
+2. ✅ **มาร์คอ่านทันที** → **dwell 1.8 วิ** (`MARK_READ_DWELL_MS`) ผูกกับ `activeId` ใน `useEffect`
+   เปลี่ยนฉบับ/ปิดบานอ่านก่อนครบ = cleanup ยกเลิกให้เอง
+3. ✅ **เปิด `by=thread` แต่มาร์ค `by=email`** → `setReadState(ids, false, "thread")` ตอนเปิดอ่าน
+   (`runBulk` รับ `by` แล้วส่งต่อ API ซึ่งรองรับอยู่แล้ว) · คีย์ `u` ยังเป็น `email` ตามเจตนา
+4. ✅ **ตัวเลข unread ค้าง** → แยก `loadMailboxes()` + `scheduleMailboxRefresh()` (debounce 1 วิ)
+   เรียกซ้ำหลัง อ่าน/ติดดาว (`runBulk`) · ลบ/เก็บจริง (`flushQueue`) · กดรีเฟรช · poll เจอเมลใหม่
 
-**P1 ที่ควรแก้ด้วย:** ปุ่ม ดาว/เก็บ/ลบ ในบานอ่านเป็น ghost icon เหมือนกัน 3 ปุ่มติดกัน (`mail-reader.tsx:183-213`) → คลิกพลาดง่าย (เกิดขึ้นจริงตอนเทส เมลตกถังขยะ) · `visibilitychange → flushAll()` (`mail-workspace.tsx:399`) = สลับแท็บ = ลบจริงทันที เลิกทำไม่ทัน → ใช้ `pagehide` แทน · Esc ออกจากช่องค้นหาไม่ได้ · แถวเป็น `role="button"` แต่มี `<Button>` ข้างใน (a11y)
+### module-reviewer (2 ข้อ — ปิดไปพร้อมหัวข้อ B)
 
-### module-reviewer (FAIL — 2 blocker)
+5. ✅ `app/api/mail/account` มี caller จริงแล้ว = ชิปบัญชีบน topbar ของ PERPOS Mail
+6. ✅ ป้ายชื่อกล่องเมลรวมที่ `lib/mail/boxes.ts` แหล่งเดียว
 
-5. ~~**`app/api/mail/account/route.ts` เป็น dead code**~~ — ✅ **ปิดแล้ว (B)** ชิปบัญชีบน topbar เป็น caller จริง
-6. ~~**ป้ายชื่อกล่องเมลซ้ำ 2 แหล่ง**~~ — ✅ **ปิดแล้ว (B)** รวมที่ `lib/mail/boxes.ts` แหล่งเดียว
+### security-reviewer (1 MEDIUM + 1 LOW — ปิดแล้ว)
 
-### security-reviewer (PASS — แต่มี MEDIUM ที่ควรปิดก่อน prod)
+7. ✅ **รูป inline `cid:` โหลดทั้งก้อนก่อนตัดงบ** → ตัดสินจาก `part.size` **ก่อน** `fetchBlob` เสมอ:
+   เพดานต่อรูป `MAX_INLINE_IMAGE_BYTES` = 4MB · งบรวมไบต์ดิบ `INLINE_FETCH_BUDGET_BYTES`
+   = ¾ ของ `INLINE_BUDGET_BYTES` (base64 พอง 4/3) · **ไม่มี `size` = ไม่โหลด** (ยังเปิดเป็นไฟล์แนบได้)
+   · ✅ **[LOW]** ถอด `"data"` ออกจาก `allowedSchemesByTag.img` — `cid:`→`data:` เกิดที่ชั้นโครงสร้าง
+   **หลัง** sanitize อยู่แล้ว ⇒ ผู้ส่งยัด `data:` เองไม่ได้ (มีเทสคุมใน `sanitize.test.ts`)
 
-7. **รูป inline `cid:` โหลดทั้งก้อนก่อนตัดงบ** (`lib/mail/messages.ts:525-556`) — ไม่ดู `part.size` เลย
-   → ผู้ส่งภายนอกแนบ PNG 300MB × 3 ใบ = แค่ "เปิดอ่าน" ก็ทำ serverless หมด memory และเมลใบนั้นอ่านไม่ได้ถาวร
-   · แก้: กรอง `part.size` (>4MB ข้าม) + ตัดยอดสะสมก่อนเรียก `fetchBlob` (`size` มีอยู่แล้วใน `bodyProperties`)
-   · **[LOW]** ถอด `'data'` ออกจาก `allowedSchemesByTag.img` (`sanitize.ts:132`) — เราแทน `cid:`→`data:` **หลัง** sanitize อยู่แล้ว
+**P1 ที่ยังไม่ได้แก้ (ไม่ใช่ blocker):** ปุ่ม ดาว/เก็บ/ลบ ในบานอ่านเป็น ghost icon เหมือนกัน 3 ปุ่มติดกัน
+(`mail-reader.tsx:183-213`) คลิกพลาดง่าย · `visibilitychange → flushAll()` (สลับแท็บ = ลบจริงทันที
+เลิกทำไม่ทัน) ควรเหลือแค่ `pagehide` · Esc ออกจากช่องค้นหาไม่ได้ · แถวเป็น `role="button"` แต่มี `<Button>` ข้างใน
 
----
+> ⚠️ ข้อ 1–4 **ยังไม่ได้ทดสอบกับกล่องเมลจริง** (ต้องล็อกอินด้วยรหัสผ่านของกล่อง) — ผ่าน tsc/lint/vitest
+> และเปิดหน้าจริงแล้วว่า render/effect ไม่พัง · ให้ทดสอบมือ 4 เคสนี้ตอนมีเซสชัน: กด j/k แล้ว Enter ต้องเปิด
+> ฉบับที่เคอร์เซอร์อยู่ · กด j ผ่านเมลยังไม่อ่านเร็ว ๆ ต้องไม่กลายเป็นอ่านแล้ว · เปิดเธรด 3 ฉบับแล้วกลับมา
+> ต้องไม่ค้าง unread · ตัวเลข unread ต้องลดหลังอ่าน/ลบ
 
 ## ✅ สิ่งที่ทดสอบแล้วว่าใช้ได้จริง (ไม่ต้องเทสซ้ำ)
 

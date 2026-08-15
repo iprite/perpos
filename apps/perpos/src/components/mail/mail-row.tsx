@@ -13,7 +13,7 @@
  *  - **ไม่มีคอลัมน์ปุ่ม action** — มีได้แค่ เลือก / ติดดาว ที่หัวแถว
  */
 
-import { memo } from "react";
+import { memo, useEffect, useRef } from "react";
 import { Paperclip, Square, SquareCheckBig, Star } from "lucide-react";
 import cn from "@core/utils/class-names";
 import { Button } from "@/components/ui/button";
@@ -52,19 +52,36 @@ function MailRowBase({
   const unread = message.isUnread;
   const subject = message.subject?.trim() || "(ไม่มีหัวเรื่อง)";
   const preview = message.preview?.trim() ?? "";
+  const rowRef = useRef<HTMLDivElement>(null);
+
+  /**
+   * roving tabindex — แถวที่เคอร์เซอร์ (j/k) อยู่ คือแถวเดียวที่โฟกัสได้ และย้าย DOM focus ตามจริง
+   *
+   * 🔴 ห้ามใส่ `onKeyDown` ที่ดัก Enter/Space ที่แถวนี้ (เคยมีแล้วถอดออก):
+   *    คีย์ลัดทั้งหมดมาจาก registry (`lib/mail/shortcuts.ts`) ซึ่งเปิด "แถวที่เคอร์เซอร์อยู่"
+   *    ถ้าแถวดักเองด้วย จะเปิดคนละฉบับกับที่ตาเห็น (DOM focus ค้างที่แถวที่เผลอคลิกไว้)
+   *
+   * ย้ายโฟกัสเฉพาะตอนโฟกัสยังอยู่ในรายการ (หรือไม่มีที่ไหนเลย) — ไม่งั้นจะไปแย่งโฟกัส
+   * จากช่องค้นหา/ปุ่มบนแถบเครื่องมือขณะผู้ใช้กำลังพิมพ์
+   */
+  useEffect(() => {
+    if (!focused) return;
+    const el = rowRef.current;
+    if (!el) return;
+    const ae = document.activeElement;
+    const inList =
+      !ae || ae === document.body || (ae as HTMLElement).dataset?.mailRow !== undefined;
+    if (inList && ae !== el) el.focus({ preventScroll: true });
+  }, [focused]);
 
   return (
     <div
+      ref={rowRef}
       role="button"
-      tabIndex={0}
+      data-mail-row=""
+      tabIndex={focused ? 0 : -1}
       aria-current={active ? "true" : undefined}
       onClick={onOpen}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          onOpen();
-        }
-      }}
       className={cn(
         "flex h-16 w-full cursor-pointer items-center gap-2 border-b border-gray-100 px-2 outline-none transition-colors sm:px-3",
         active ? "bg-gray-100" : "hover:bg-gray-50",

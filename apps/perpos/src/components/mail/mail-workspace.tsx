@@ -27,6 +27,7 @@ import type {
   MailBoxKey,
   MailBulkAction,
   MailMessage,
+  MailScope,
   MailThreadDetail,
   MailboxSummary,
 } from "@/lib/mail/types";
@@ -42,6 +43,8 @@ import {
 
 const PAGE_SIZE = 50;
 const POLL_MS = 60_000;
+/** เปิดค้างนานเท่านี้ถึงจะถือว่า "อ่านแล้ว" — กันกด j/k ผ่านแล้วสถานะหายถาวร */
+const MARK_READ_DWELL_MS = 1_800;
 const GENERIC_ERROR = "ระบบอีเมลไม่ตอบสนอง ลองใหม่อีกครั้ง";
 
 class MailSessionExpiredError extends Error {
@@ -153,6 +156,39 @@ export function MailWorkspace({ box, boxLabel }: { box: MailBoxKey; boxLabel: st
     [box, debouncedSearch, filters.attachment, filters.unread],
   );
 
+  // รายชื่อกล่อง (ใช้ตัวเลขยังไม่ได้อ่านที่หัวรายการ)
+  const loadMailboxes = useCallback(async () => {
+    try {
+      const d = await callMailApi<{ mailboxes: MailboxSummary[]; email: string }>(
+        "/api/mail/mailboxes",
+      );
+      setMailboxes(d.mailboxes ?? []);
+    } catch {
+      /* ตัวเลขสรุปพลาดได้ ไม่ต้องรบกวนผู้ใช้ — รายการเมลคือของหลัก */
+    }
+  }, []);
+
+  /**
+   * ตัวเลข "ยังไม่ได้อ่าน" ต้องขยับตามสิ่งที่ผู้ใช้เพิ่งทำ ไม่ใช่ค้างค่าตอนเปิดกล่อง
+   * → เรียกซ้ำหลัง อ่าน/ลบ/เก็บ/รีเฟรช/มีเมลใหม่ · debounce 1 วิ กันยิงรัวตอนกดหลายฉบับติดกัน
+   */
+  const mailboxTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scheduleMailboxRefresh = useCallback(() => {
+    if (mailboxTimerRef.current) clearTimeout(mailboxTimerRef.current);
+    mailboxTimerRef.current = setTimeout(() => void loadMailboxes(), 1000);
+  }, [loadMailboxes]);
+
+  useEffect(() => {
+    void loadMailboxes();
+  }, [box, loadMailboxes]);
+
+  useEffect(
+    () => () => {
+      if (mailboxTimerRef.current) clearTimeout(mailboxTimerRef.current);
+    },
+    [],
+  );
+
   const loadFirstPage = useCallback(
     async (mode: "initial" | "refresh") => {
       if (mode === "initial") setLoading(true);
@@ -168,6 +204,7 @@ export function MailWorkspace({ box, boxLabel }: { box: MailBoxKey; boxLabel: st
         setTotal(data.total ?? null);
         setPendingNew([]);
         setFocusedIndex(data.messages?.length ? 0 : -1);
+        if (mode === "refresh") scheduleMailboxRefresh();
       } catch (e) {
         if (e instanceof MailSessionExpiredError) return handleExpired();
         setError(e instanceof Error ? e.message : GENERIC_ERROR);
@@ -176,7 +213,7 @@ export function MailWorkspace({ box, boxLabel }: { box: MailBoxKey; boxLabel: st
         setRefreshing(false);
       }
     },
-    [buildQuery, handleExpired],
+    [buildQuery, handleExpired, scheduleMailboxRefresh],
   );
 
   // โหลดใหม่เมื่อเปลี่ยนกล่อง / คำค้น / ตัวกรอง
@@ -186,21 +223,6 @@ export function MailWorkspace({ box, boxLabel }: { box: MailBoxKey; boxLabel: st
     setDetail(null);
     void loadFirstPage("initial");
   }, [loadFirstPage]);
-
-  // รายชื่อกล่อง (ใช้ตัวเลขยังไม่ได้อ่านที่หัวรายการ — M1 ยังไม่ใส่ใน sidebar)
-  useEffect(() => {
-    let alive = true;
-    callMailApi<{ mailboxes: MailboxSummary[]; email: string }>("/api/mail/mailboxes")
-      .then((d) => {
-        if (alive) setMailboxes(d.mailboxes ?? []);
-      })
-      .catch(() => {
-        /* ตัวเลขสรุปพลาดได้ ไม่ต้องรบกวนผู้ใช้ — รายการเมลคือของหลัก */
-      });
-    return () => {
-      alive = false;
-    };
-  }, [box]);
 
   const loadMore = useCallback(async () => {
     const current = messagesRef.current;
@@ -237,6 +259,7 @@ export function MailWorkspace({ box, boxLabel }: { box: MailBoxKey; boxLabel: st
         const known = new Set(messagesRef.current.map((m) => m.id));
         const fresh = (data.messages ?? []).filter((m) => !known.has(m.id));
         if (fresh.length === 0) return;
+        scheduleMailboxRefresh();
         if (scrollOffsetRef.current <= 0) {
           setMessages((prev) => [...fresh, ...prev]);
         } else {
@@ -251,7 +274,7 @@ export function MailWorkspace({ box, boxLabel }: { box: MailBoxKey; boxLabel: st
     };
     const id = setInterval(tick, POLL_MS);
     return () => clearInterval(id);
-  }, [buildQuery, loading]);
+  }, [buildQuery, loading, scheduleMailboxRefresh]);
 
   const applyPendingNew = useCallback(() => {
     setMessages((prev) => {
@@ -288,25 +311,34 @@ export function MailWorkspace({ box, boxLabel }: { box: MailBoxKey; boxLabel: st
   }, []);
 
   const runBulk = useCallback(
-    async (ids: string[], action: MailBulkAction, revert: () => void) => {
+    async (ids: string[], action: MailBulkAction, revert: () => void, by: MailScope = "email") => {
       if (ids.length === 0) return;
       try {
-        await postJson("/api/mail/messages/bulk", { ids, action });
+        await postJson("/api/mail/messages/bulk", { ids, action, by });
+        scheduleMailboxRefresh();
       } catch (e) {
         revert();
         if (e instanceof MailSessionExpiredError) return handleExpired();
         notify.error(e, GENERIC_ERROR);
       }
     },
-    [handleExpired],
+    [handleExpired, scheduleMailboxRefresh],
   );
 
+  /**
+   * `by` ต้องตรงกับ "หน่วยที่ผู้ใช้เห็น": เปิดอ่าน = เปิดทั้งเธรด (`?by=thread`)
+   * ⇒ ต้องมาร์คอ่านทั้งเธรดด้วย ไม่งั้นเธรด 3 ฉบับอ่านครบด้วยตาแต่ค้าง unread 2
+   * ส่วนคีย์ `u` (ทำเป็นยังไม่อ่าน) เป็นการกระทำต่อ "ฉบับ" จึงคง `email` ตามเดิม
+   */
   const setReadState = useCallback(
-    (ids: string[], isUnread: boolean) => {
+    (ids: string[], isUnread: boolean, by: MailScope = "email") => {
       if (ids.length === 0) return;
       patchLocal(ids, { isUnread });
-      void runBulk(ids, isUnread ? "unread" : "read", () =>
-        patchLocal(ids, { isUnread: !isUnread }),
+      void runBulk(
+        ids,
+        isUnread ? "unread" : "read",
+        () => patchLocal(ids, { isUnread: !isUnread }),
+        by,
       );
     },
     [patchLocal, runBulk],
@@ -342,13 +374,14 @@ export function MailWorkspace({ box, boxLabel }: { box: MailBoxKey; boxLabel: st
         await postJson("/api/mail/messages/bulk", { ids, action }, keepalive);
         setMessages((prev) => prev.filter((m) => !ids.includes(m.id)));
         unhide(ids);
+        scheduleMailboxRefresh();
       } catch (e) {
         unhide(ids);
         if (e instanceof MailSessionExpiredError) return handleExpired();
         notify.error(e, "ทำรายการไม่สำเร็จ อีเมลถูกคืนกลับรายการแล้ว");
       }
     },
-    [handleExpired, unhide],
+    [handleExpired, scheduleMailboxRefresh, unhide],
   );
 
   const undoQueued = useCallback(
@@ -418,7 +451,6 @@ export function MailWorkspace({ box, boxLabel }: { box: MailBoxKey; boxLabel: st
       setDetail(null);
       setDetailError(null);
       setDetailLoading(true);
-      if (m.isUnread) setReadState([m.id], false);
       try {
         const data = await callMailApi<MailThreadDetail>(
           `/api/mail/messages/${encodeURIComponent(m.id)}?by=thread`,
@@ -431,8 +463,21 @@ export function MailWorkspace({ box, boxLabel }: { box: MailBoxKey; boxLabel: st
         setDetailLoading(false);
       }
     },
-    [handleExpired, setReadState],
+    [handleExpired],
   );
+
+  /**
+   * มาร์ค "อ่านแล้ว" หลังเปิดค้างครบ dwell — **ห้ามมาร์คทันทีที่เปิด**
+   * ผู้ใช้ที่กด j/k ผ่านหรือเผลอคลิกจะทำสถานะ "ยังไม่ได้อ่าน" หายถาวรโดยไม่มีทางเลิกทำ
+   * เปลี่ยนฉบับ/ปิดบานอ่านก่อนครบเวลา = ยกเลิก (cleanup ของ effect)
+   */
+  useEffect(() => {
+    if (!activeId) return;
+    const target = messagesRef.current.find((m) => m.id === activeId);
+    if (!target?.isUnread) return;
+    const t = setTimeout(() => setReadState([activeId], false, "thread"), MARK_READ_DWELL_MS);
+    return () => clearTimeout(t);
+  }, [activeId, setReadState]);
 
   const openByIndex = useCallback(
     (index: number) => {
