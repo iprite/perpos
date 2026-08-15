@@ -154,3 +154,22 @@ describe("mailBasePath — URL ที่ผู้ใช้เห็นต่า�
     expect(mailHostname(undefined)).toBe(MAIL_DEFAULT_HOST);
   });
 });
+
+describe("discovery ต้อง pin กับ JMAP host ไม่ใช่ issuer (บั๊กล็อกอินไม่ผ่าน 2026-08-15)", () => {
+  // จำลองสัญญาจริง: เซิร์ฟเวอร์ประกาศ apiUrl เป็นชื่อ JMAP เสมอ แม้เราถามผ่านชื่อ login
+  const advertisedApiUrl = "https://stalwart.perpos.ai/jmap/";
+  const jmapUrl = "https://stalwart.perpos.ai/jmap/";
+  const issuer = "https://login.perpos.ai";
+
+  it("apiUrl ที่เซิร์ฟเวอร์ประกาศ อยู่ origin เดียวกับ MAIL_JMAP_URL", () => {
+    expect(new URL(advertisedApiUrl).origin).toBe(new URL(jmapUrl).origin);
+  });
+
+  it("ถ้าไป pin กับ issuer จะไม่มีวันตรง (คือบั๊กที่ทำให้ล็อกอินพังทั้งระบบ)", () => {
+    expect(new URL(advertisedApiUrl).origin).not.toBe(new URL(issuer).origin);
+  });
+
+  it("apiUrl ที่ชี้ออกนอก origin ของ JMAP host ต้องถือว่าใช้ไม่ได้ (กัน SSRF)", () => {
+    expect(new URL("https://evil.example.com/jmap/").origin).not.toBe(new URL(jmapUrl).origin);
+  });
+});

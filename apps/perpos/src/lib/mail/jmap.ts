@@ -95,14 +95,24 @@ export function responseType(responses: JmapMethodResponse[], callId: string): s
 
 // ─── discovery (ข้อยกเว้นเดียวที่ตาม redirect ได้) ────────────────────────────
 
+/**
+ * ดึง JMAP session (apiUrl/downloadUrl/accountId) จากเซิร์ฟเวอร์เมล
+ *
+ * 🔴 pin กับ **origin ของ `MAIL_JMAP_URL`** ไม่ใช่ของ issuer — เป็นด่านกัน SSRF/redirect
+ *    ไปเครื่องอื่น (ปลายทางหลัง 307 และ apiUrl ที่เซิร์ฟเวอร์ประกาศ ต้องอยู่ origin เดียวกับที่เราตั้งใน env)
+ *
+ *    ⚠️ ห้ามเปลี่ยนกลับไป pin กับ issuer: หน้า OAuth ของเราอยู่คนละชื่อกับ JMAP โดยตั้งใจ
+ *    (`login.perpos.ai` = ชื่อที่ลูกค้าเห็นตอนกรอกรหัสผ่าน · `stalwart.perpos.ai` = ชื่อที่เซิร์ฟเวอร์
+ *    ประกาศใน apiUrl) — เคย pin กับ issuer แล้วล็อกอินไม่ผ่านทั้งระบบ ขึ้นแค่ "เข้าสู่ระบบไม่สำเร็จ"
+ */
 export async function fetchJmapDiscovery(
-  issuer: string,
+  jmapUrl: string,
   accessToken: string,
 ): Promise<JmapDiscovery> {
-  const issuerOrigin = new URL(issuer).origin;
+  const jmapOrigin = new URL(jmapUrl).origin;
   let res: Response;
   try {
-    res = await fetch(`${issuerOrigin}/.well-known/jmap`, {
+    res = await fetch(`${jmapOrigin}/.well-known/jmap`, {
       method: "GET",
       // ข้อยกเว้นเดียวของกฎ redirect manual — Stalwart ตอบ 307 ไป /jmap/session
       redirect: "follow",
@@ -115,8 +125,8 @@ export async function fetchJmapDiscovery(
   }
   if (res.status === 401) throw new MailUnauthorizedError();
   if (!res.ok) throw new MailServiceError(res.status);
-  // ปลายทางต้องยังอยู่ origin เดียวกับ issuer
-  if (res.url && new URL(res.url).origin !== issuerOrigin) throw new MailServiceError(502);
+  // ปลายทางต้องยังอยู่ origin เดียวกับ JMAP host ที่ตั้งไว้
+  if (res.url && new URL(res.url).origin !== jmapOrigin) throw new MailServiceError(502);
 
   const data = (await res.json()) as {
     apiUrl?: string;
@@ -130,8 +140,8 @@ export async function fetchJmapDiscovery(
   const downloadUrl = data.downloadUrl;
   if (!accountId || !apiUrl || !downloadUrl) throw new MailServiceError(502);
 
-  const resolvedApiUrl = new URL(apiUrl, issuerOrigin);
-  if (resolvedApiUrl.origin !== issuerOrigin) throw new MailServiceError(502);
+  const resolvedApiUrl = new URL(apiUrl, jmapOrigin);
+  if (resolvedApiUrl.origin !== jmapOrigin) throw new MailServiceError(502);
 
   return {
     accountId,

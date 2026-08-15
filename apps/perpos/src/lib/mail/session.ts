@@ -243,7 +243,8 @@ export async function buildMailSession(
   tokens: { accessToken: string; refreshToken: string | null; expiresIn: number },
   now = Date.now(),
 ): Promise<MailSession> {
-  const discovery = await fetchJmapDiscovery(config.issuer, tokens.accessToken);
+  // discovery ยิงที่ JMAP host ไม่ใช่ issuer — สองชื่อนี้ต่างกันโดยตั้งใจ (ดูคอมเมนต์ใน jmap.ts)
+  const discovery = await fetchJmapDiscovery(config.jmapUrl, tokens.accessToken);
   return {
     v: 1,
     accessToken: tokens.accessToken,
