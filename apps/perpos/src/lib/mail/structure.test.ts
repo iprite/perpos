@@ -1,3 +1,4 @@
+import { selectThreadWindow } from "./messages";
 import { describe, expect, it } from "vitest";
 
 import { FIXTURE_HTML_QUOTED, FIXTURE_HTML_REMOTE } from "./fixtures";
@@ -96,5 +97,28 @@ describe("cid: → data: (ด่าน MIME อยู่ตอนประกอ
     expect(Object.keys(map)).toEqual([]);
     const okMap = buildInlineImageMap([{ cid: "small", type: "image/png", base64: "AAAA" }]);
     expect(okMap.small).toBeDefined();
+  });
+});
+
+describe("selectThreadWindow — เพดานจำนวนฉบับต่อเธรด (กัน memory บาน)", () => {
+  const mk = (n: number) => Array.from({ length: n }, (_, i) => ({ id: `m${i}` }));
+
+  it("เธรดสั้นกว่าเพดาน คืนครบทุกฉบับ", () => {
+    const list = mk(5);
+    expect(selectThreadWindow(list, "m2", 30)).toEqual(list);
+  });
+
+  it("เธรดยาวเกิน คืนเฉพาะฉบับล่าสุดตามเพดาน", () => {
+    const out = selectThreadWindow(mk(100), "m99", 30);
+    expect(out).toHaveLength(30);
+    expect(out[0]!.id).toBe("m70");
+    expect(out.at(-1)!.id).toBe("m99");
+  });
+
+  it("ฉบับที่ผู้ใช้กดเปิดต้องอยู่ในผลลัพธ์เสมอ แม้เป็นฉบับเก่ากลางเธรด", () => {
+    const out = selectThreadWindow(mk(100), "m3", 30);
+    expect(out).toHaveLength(30);
+    expect(out.map((e) => e.id)).toContain("m3");
+    expect(out.at(-1)!.id).toBe("m99");
   });
 });

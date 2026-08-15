@@ -504,6 +504,18 @@ export function mapAttachments(email: JmapEmail): MailAttachment[] {
 const MAX_INLINE_IMAGE_BYTES = 4 * 1024 * 1024;
 
 /**
+ * เพดานจำนวนฉบับที่ "กาง" ในบานอ่านต่อหนึ่งคำขอ
+ * เธรด mailing list มีเป็นร้อยฉบับได้ — ถ้าแมปทุกฉบับ ต้องดึง body ฉบับละ ≤1MB + รูป inline อีก
+ * ⇒ ชน memory/timeout ของ serverless แล้ว **เมลฉบับนั้นเปิดไม่ได้ถาวร**
+ */
+export const MAX_THREAD_MESSAGES = 30;
+
+/** งบรูป inline ที่แชร์กันทั้งคำขอ (ไม่ใช่ต่อฉบับ) — mutable โดยตั้งใจ ส่งต่อเป็น reference */
+export interface InlineBudget {
+  remaining: number;
+}
+
+/**
  * งบรวมของ "ไบต์ดิบที่ยอมดาวน์โหลด" — ต้องต่ำกว่างบตอนประกอบ data: (`INLINE_BUDGET_BYTES`)
  * เพราะ base64 พองราว 4/3 เท่า · คิดจาก `part.size` **ก่อน** ยิง `fetchBlob` เสมอ
  */
@@ -520,6 +532,7 @@ async function collectInlineImages(
   session: MailSession,
   email: JmapEmail,
   html: string,
+  budget: InlineBudget,
 ): Promise<Record<string, string>> {
   if (!html.toLowerCase().includes("cid:")) return {};
   const candidates = (email.attachments ?? [])
@@ -530,12 +543,11 @@ async function collectInlineImages(
   if (candidates.length === 0) return {};
 
   const sources: InlineImageSource[] = [];
-  let budget = INLINE_FETCH_BUDGET_BYTES;
   for (const part of candidates) {
     const size = part.size as number;
     // เกินงบแล้ว → ข้ามใบนี้ (ใบถัดไปอาจเล็กพอ) ห้ามโหลดแล้วค่อยตัดทีหลัง
-    if (size > budget) continue;
-    budget -= size;
+    if (size > budget.remaining) continue;
+    budget.remaining -= size;
     try {
       const res = await fetchBlob(session, {
         blobId: part.blobId as string,
@@ -559,6 +571,7 @@ async function mapMessageDetail(
   session: MailSession,
   email: JmapEmail,
   showImages: boolean,
+  budget: InlineBudget,
 ): Promise<MailMessageDetail> {
   const rawHtml = bodyValueOf(email, email.htmlBody);
   const text = bodyValueOf(email, email.textBody);
@@ -567,7 +580,7 @@ async function mapMessageDetail(
   let htmlSanitized: string | null = null;
   let hasRemoteImages = false;
   if (rawHtml) {
-    const inlineImages = await collectInlineImages(session, email, rawHtml);
+    const inlineImages = await collectInlineImages(session, email, rawHtml, budget);
     const prepared = prepareMailHtml(rawHtml, {
       inlineImages,
       stripRemoteImages: !showImages,
@@ -599,6 +612,24 @@ const DETAIL_GET_ARGS = {
   fetchTextBodyValues: true,
   maxBodyValueBytes: MAX_BODY_VALUE_BYTES,
 };
+
+/**
+ * เลือก "ฉบับล่าสุด ≤ max" ของเธรด — และ **ต้องมีฉบับที่ผู้ใช้กดเปิดเสมอ**
+ * (คลิกจากผลค้นหาอาจเป็นฉบับเก่ากลางเธรด ถ้าตัดทิ้งจะกลายเป็นเปิดแล้วไม่เจอสิ่งที่กด)
+ * input ต้องเรียงเก่า→ใหม่มาแล้ว · คืนค่าเรียงเก่า→ใหม่เหมือนกัน
+ */
+export function selectThreadWindow<T extends { id: string }>(
+  emails: T[],
+  anchorId: string,
+  max = MAX_THREAD_MESSAGES,
+): T[] {
+  if (emails.length <= max) return emails;
+  const window = emails.slice(-max);
+  if (window.some((e) => e.id === anchorId)) return window;
+  const anchor = emails.find((e) => e.id === anchorId);
+  if (!anchor) return window;
+  return [anchor, ...window.slice(1)];
+}
 
 export async function getMailThread(
   session: MailSession,
@@ -645,15 +676,21 @@ export async function getMailThread(
   if (emails.length === 0) throw new MailServiceError(404, "ไม่พบอีเมลฉบับนี้");
 
   emails.sort((a, b) => (a.receivedAt ?? "").localeCompare(b.receivedAt ?? ""));
+  const totalMessages = emails.length;
+  const shown = selectThreadWindow(emails, id);
+
+  // งบเดียวใช้ร่วมทั้งเธรด — ห้ามรีเซ็ตต่อฉบับ ไม่งั้นเธรดยาวก็ยังดึงรูปได้ไม่จำกัด
+  const budget: InlineBudget = { remaining: INLINE_FETCH_BUDGET_BYTES };
   const messages: MailMessageDetail[] = [];
-  for (const email of emails) {
-    messages.push(await mapMessageDetail(session, email, showImages));
+  for (const email of shown) {
+    messages.push(await mapMessageDetail(session, email, showImages, budget));
   }
 
-  const anchor = emails.find((e) => e.id === id) ?? emails[emails.length - 1]!;
+  const anchor = shown.find((e) => e.id === id) ?? shown[shown.length - 1]!;
   return {
     threadId: anchor.threadId ?? id,
     subject: messages[0]?.subject ?? "(ไม่มีหัวเรื่อง)",
     messages,
+    totalMessages,
   };
 }

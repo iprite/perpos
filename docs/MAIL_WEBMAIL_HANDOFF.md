@@ -134,6 +134,22 @@ MAIL_SESSION_SECRET  = <สุ่มใหม่ เก็บใน keychain `pe
    · ✅ **[LOW]** ถอด `"data"` ออกจาก `allowedSchemesByTag.img` — `cid:`→`data:` เกิดที่ชั้นโครงสร้าง
    **หลัง** sanitize อยู่แล้ว ⇒ ผู้ส่งยัด `data:` เองไม่ได้ (มีเทสคุมใน `sanitize.test.ts`)
 
+### รอบเก็บกวาดหลัง merge (2026-08-15) — ปิด 2 MEDIUM + บั๊กไฟล์แนบ
+
+- ✅ **[MEDIUM] Sentry ไม่ตัดข้อมูลส่วนบุคคลของเมล** → `lib/observability/scrub-mail.ts` (pure, มีเทส)
+  ต่อเป็น `beforeSend` + `beforeSendTransaction` ครบทั้ง server/client/edge ·
+  ตัด query (ชื่อไฟล์แนบ) · body (คำค้น) · header/cookie · **และ breadcrumb ของ fetch/xhr ที่พก url เต็ม**
+- ✅ **[MEDIUM] เธรดยาวไม่มีเพดาน** → `MAX_THREAD_MESSAGES = 30` (`selectThreadWindow`, มีเทส —
+  **ฉบับที่ผู้ใช้กดเปิดต้องอยู่ในผลลัพธ์เสมอ** แม้เป็นฉบับเก่ากลางเธรด) ·
+  งบรูป inline เปลี่ยนเป็น **ต่อคำขอ** (`InlineBudget` ส่งเป็น reference) ไม่ใช่ต่อฉบับอีกต่อไป ·
+  ไม่ตัดเงียบ — บานอ่านขึ้นแถบ "เธรดนี้มี N ฉบับ — แสดง M ฉบับล่าสุด" (`totalMessages` ใน DTO)
+- ✅ **[บั๊ก] ปุ่ม "ดู" รูปแนบเปิดไม่ขึ้น** → `attachmentUrl()` ส่ง `type` ไปด้วย
+  (ไม่งั้น route ตกเป็น `application/octet-stream` → `attachment` + `nosniff` → รูปไม่ขึ้น)
+- ✅ **[เจอตอน deploy จริง] `MAIL_SESSION_SECRET` ผิดรูปแบบ = 500 เปล่า ๆ** — ต้องเป็น **base64 ของ 32 ไบต์**
+  (ตั้งเป็น hex แล้ว `parseSessionSecrets` กรองทิ้งหมด → คีย์ว่าง → throw ที่ `/api/mail/oauth/start`)
+  · แก้ 2 ชั้น: ตั้งค่าใหม่บน Vercel **และ** `readMailConfig()` เช็ค "ใช้ได้จริง" ไม่ใช่แค่ "มีค่า"
+  → ผิดเมื่อไรได้หน้า "ยังไม่ได้ตั้งค่าระบบอีเมล" แทน 500 · กติกาคีย์ย้ายไป `lib/mail/secret.ts` แหล่งเดียว
+
 **P1 ที่ยังไม่ได้แก้ (ไม่ใช่ blocker):** ปุ่ม ดาว/เก็บ/ลบ ในบานอ่านเป็น ghost icon เหมือนกัน 3 ปุ่มติดกัน
 (`mail-reader.tsx:183-213`) คลิกพลาดง่าย · `visibilitychange → flushAll()` (สลับแท็บ = ลบจริงทันที
 เลิกทำไม่ทัน) ควรเหลือแค่ `pagehide` · Esc ออกจากช่องค้นหาไม่ได้ · แถวเป็น `role="button"` แต่มี `<Button>` ข้างใน

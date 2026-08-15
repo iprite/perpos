@@ -74,6 +74,8 @@ export interface MailThreadDetail {
   threadId: string;
   subject: string;
   messages: MailMessageDetail[];
+  /** จำนวนฉบับทั้งหมดในเธรด — มากกว่า `messages.length` = ถูกตัดตามเพดาน (ห้ามตัดเงียบ) */
+  totalMessages: number;
 }
 
 // ─── การกระทำ / เลิกทำ ────────────────────────────────────────────────────────
