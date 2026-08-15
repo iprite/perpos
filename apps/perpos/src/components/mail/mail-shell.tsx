@@ -120,6 +120,25 @@ function MailAccountMenu({ basePath }: { basePath: string }) {
 function MailRail({ basePath }: { basePath: string }) {
   const searchParams = useSearchParams();
   const pathname = usePathname();
+  /**
+   * ตัวเลขยังไม่ได้อ่านข้าง rail (M3 — เลื่อนมาจาก M1 ตาม UI_SPEC §1)
+   * · `text-xs text-gray-500` **ห้ามใช้ badge สีแดง** (DESIGN.md §14: แดง = ผิดพลาดเท่านั้น)
+   * · ไม่มีข้อมูล = ไม่แสดงอะไร (null ไม่ใช่ 0)
+   * · **ตัวเลขมาจาก workspace ทางเดียว** (event `mail:mailboxes`) — rail ไม่ยิง API เอง
+   *   ไม่งั้นสองที่ยิงคนละจังหวะ ตัวเลขบนหัวรายการกับข้าง rail จะขัดกันเอง + เรียก JMAP ซ้ำซ้อน
+   *   (workspace ยิงตอนเปิดหน้า, หลังอ่าน/ลบ/เก็บ/รีเฟรช และตอน poll เมลใหม่อยู่แล้ว)
+   */
+  const [unread, setUnread] = useState<Record<string, number | null>>({});
+
+  useEffect(() => {
+    const onMailboxes = (e: Event) => {
+      const boxes = (e as CustomEvent<{ key: string; unreadCount: number | null }[]>).detail;
+      if (!Array.isArray(boxes)) return;
+      setUnread(Object.fromEntries(boxes.map((m) => [m.key, m.unreadCount])));
+    };
+    window.addEventListener("mail:mailboxes", onMailboxes);
+    return () => window.removeEventListener("mail:mailboxes", onMailboxes);
+  }, []);
   const active = resolveMailBox(searchParams.get("box"));
   // บนโดเมนเมล path จริงคือ "/" (middleware rewrite ไป /mail ให้) — ต้องรับทั้งสองแบบ
   const onMailbox = pathname === `${basePath}/` || pathname === basePath || pathname === "/mail";
@@ -145,7 +164,17 @@ function MailRail({ basePath }: { basePath: string }) {
             )}
           >
             {BOX_ICON[key]}
-            <span>{MAIL_BOX_LABELS[key]}</span>
+            <span className="flex-1">{MAIL_BOX_LABELS[key]}</span>
+            {!!unread[key] && (
+              <span
+                className={cn(
+                  "shrink-0 text-xs font-medium tabular-nums",
+                  isActive ? "text-white/80" : "text-gray-500",
+                )}
+              >
+                {unread[key]}
+              </span>
+            )}
           </Link>
         );
       })}

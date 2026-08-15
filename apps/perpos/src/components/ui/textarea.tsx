@@ -14,7 +14,10 @@ const Textarea = React.forwardRef<
     <textarea
       rows={rows}
       className={cn(
-        "flex w-full resize-none rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 ring-offset-white placeholder:text-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
+        // โฟกัสต้องเหมือน <Input> เป๊ะ: ขอบเข้มขึ้น + วงจาง ๆ ติดขอบ
+        // (เดิมเป็น ring-blue-500 + ring-offset-2 → blue ถูก map เป็น charcoal
+        //  กลายเป็นวงดำหนามีช่องว่างขาวคั่น ดูเป็นกรอบสองชั้น ไม่เข้าชุดกับช่องอื่น)
+        "flex w-full resize-none rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 transition-colors placeholder:text-slate-400 hover:border-slate-300 focus-visible:border-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/10 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-slate-200",
         className,
       )}
       ref={ref}

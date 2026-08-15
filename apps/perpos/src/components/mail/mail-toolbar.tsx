@@ -57,7 +57,7 @@ export function MailToolbar({
   return (
     <div className="border-b border-gray-200 bg-white">
       <div className="flex h-12 items-center gap-2 px-2 sm:px-3">
-        <div className="flex min-w-0 shrink-0 items-baseline gap-2">
+        <div className="hidden min-w-0 shrink-0 items-baseline gap-2 sm:flex">
           <span className="truncate text-sm font-semibold text-gray-900">{boxLabel}</span>
           {unreadCount !== null && unreadCount > 0 && (
             <span className="text-xs font-medium tabular-nums text-gray-500">
@@ -88,9 +88,15 @@ export function MailToolbar({
           />
         </div>
 
-        <Button size="sm" title="เขียนอีเมลใหม่ (c)" className="shrink-0" onClick={onCompose}>
+        {/* มือถือใช้ FAB มุมขวาล่างแทน (UI_SPEC §8) — ปุ่มนี้จึงโผล่เฉพาะจอ ≥sm */}
+        <Button
+          size="sm"
+          title="เขียนอีเมลใหม่ (c)"
+          className="hidden shrink-0 sm:inline-flex"
+          onClick={onCompose}
+        >
           <PenLine className="h-4 w-4" />
-          <span className="hidden sm:inline">เขียน</span>
+          เขียน
         </Button>
 
         <Button
