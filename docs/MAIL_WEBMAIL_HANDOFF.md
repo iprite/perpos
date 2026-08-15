@@ -1,6 +1,6 @@
 # 📬 PERPOS Mail (webmail) — ส่งต่อให้ session ถัดไป
 
-> อัปเดต 2026-08-15 (รอบ 2 — จบหัวข้อ B + blocker ครบ 7 ข้อ) · ฐานคือ `main` หลัง #218
+> อัปเดต 2026-08-15 (รอบ 3 — จบ B + blocker 7 ข้อ + P1 + **§A ย้ายโดเมนครบแล้ว**) · branch `feat/mail-standalone-app`
 > เอกสารนี้ = **ทำอะไรต่อ** · สัญญาเต็มอยู่ที่ [`.claude/feature-factory/specs/mail-webmail-read.md`](../.claude/feature-factory/specs/mail-webmail-read.md) (646 บรรทัด)
 > UI/UX อยู่ที่ [`MAIL_UI_SPEC.md`](MAIL_UI_SPEC.md) · เมลเซิร์ฟเวอร์อยู่ที่ [`MAIL_HANDOFF.md`](MAIL_HANDOFF.md)
 
@@ -14,7 +14,7 @@
 | URL ของ webmail              | **`mail.perpos.ai`**                                                                         |
 | Stalwart ย้ายไป              | **`stalwart.perpos.ai`**                                                                     |
 | ความสัมพันธ์กับ PERPOS       | **แยกขาดกันสนิท** — ไม่มีลิงก์เชื่อม ไม่มีปุ่มใน toggle                                      |
-| ลำดับงาน                     | **ทำ B (แอป) ก่อน A (ย้ายโดเมน)**                                                            |
+| ลำดับงาน                     | ทำ B (แอป) ก่อน A (ย้ายโดเมน) — **ทำครบทั้งคู่แล้ว 2026-08-15**                              |
 | อิสระในการรื้อ               | **freestyle ได้ ยังไม่มี user** — ไม่ต้องกังวลเรื่อง backward compat                         |
 
 ---
@@ -55,16 +55,54 @@
 
 ---
 
-## A. ย้าย Stalwart → `stalwart.perpos.ai` (ทำหลัง B — แตะเมลจริง เรียงตามนี้ ห้ามสลับ)
+## A. ย้าย Stalwart → `stalwart.perpos.ai` — ✅ **ทำครบทั้ง 5 ขั้นแล้ว (2026-08-15)**
 
-1. เพิ่ม `A`+`AAAA` ของ `stalwart.perpos.ai` → `46.225.14.18` / `2a01:4f8:c2c:105a::1` (DNS only)
-2. เพิ่มชื่อใหม่เข้า SAN → รอ ACME ออกใบรับรองผ่าน (⚠️ SAN มี 5 ชื่อ ถ้าชื่อใดล้มทั้ง order ล้ม — ดู `MAIL_HANDOFF.md`)
-3. เปลี่ยน **PTR** ที่ Hetzner + `hostname` ใน Stalwart เป็น `stalwart.perpos.ai`
-4. ย้าย **MX** → `stalwart.perpos.ai` · **รอ propagate + ทดสอบรับเมลจริงก่อนไปข้อ 5**
-5. เปลี่ยน `mail.perpos.ai` A/AAAA ไปชี้ Vercel
+| ขั้น                               | ผล  | หลักฐาน                                                                                                               |
+| ---------------------------------- | --- | --------------------------------------------------------------------------------------------------------------------- |
+| 1. A/AAAA ของ `stalwart.perpos.ai` | ✅  | `46.225.14.18` / `2a01:4f8:c2c:105a::1` (DNS only, ttl 300)                                                           |
+| 2. ใบรับรองครอบชื่อใหม่            | ✅  | Let's Encrypt ถึง 13 พ.ย. 2026 · SAN **6 ชื่อ** = 5 เดิม + `stalwart`                                                 |
+| 3. PTR + hostname                  | ✅  | PTR v4/v6 = `stalwart.perpos.ai` · banner พอร์ต 25 = `220 stalwart.perpos.ai` · `hostnamectl` ตรงกัน                  |
+| 4. MX → `stalwart.perpos.ai`       | ✅  | ทดสอบรับเมลจริงจากภายนอก (ผ่าน Brevo) → SPF/DKIM/DMARC **pass ทั้งสาม** → ingest เป็น ham เข้า Inbox                  |
+| 5. `mail.perpos.ai` → Vercel       | ✅  | CNAME → `e89cf56474f25c59.vercel-dns-017.com` · Vercel `misconfigured:false` · ทดสอบรับเมลซ้ำหลังสลับ **ยังเข้าปกติ** |
 
-> 🔴 **ทำข้อ 5 ก่อนข้อ 4 = เมลเข้าไม่ได้ทันที** (MX ชี้ชื่อที่กลายเป็นเว็บแอปไปแล้ว)
-> 🔴 PTR ต้องตรงกับชื่อที่ HELO ใช้ ไม่งั้น deliverability ตก
+### 🔴 กับดักที่เจอจริงตอนทำ (ห้ามลืม)
+
+1. **Stalwart ไม่สั่งออกใบรับรองใหม่เพียงเพราะแก้รายชื่อ SAN หรือ restart** — ลองครบแล้ว
+   (แก้ SAN → restart · touch `x:AcmeProvider` · สร้าง provider ใหม่ · ลบใบเก่า) ไม่มีอะไรกระตุ้นได้เลย
+   เห็นแต่ `No TLS certificates available` รัวทุก 6 วิ
+   · **ท่าที่ได้ผลจริง = สลับ `certificateManagement` เป็น `Manual` แล้วกลับเป็น `Automatic`**
+   (ต้องเป็น _transition_ จริง — เขียนทับด้วยค่าเดิมไม่นับ) แล้ว ACME สั่ง order ทันทีใน ~1 นาที
+   · ระหว่างนั้น **TLS ตกเป็น self-signed ทุกพอร์ต** ⇒ ห้ามทำในเวลาที่มีคนใช้งาน
+2. **ลบใบรับรองตรง ๆ ไม่ได้ถ้ายังถูกอ้างเป็น default** — ได้ `objectIsLinked` จาก `SystemSettings`
+   → ต้อง `defaultCertificateId: null` ก่อนค่อยลบ แล้ว **อย่าลืมตั้งกลับ** เมื่อใบใหม่มา
+3. **`x:Certificate/get` คืน list ว่าง = ยังไม่มีใบเลย** ใช้เป็นสัญญาณตรวจได้ตรง ๆ
+4. **cache ของ resolver สาธารณะไม่ตรงกันหลายนาที** — หลังแก้ MX แล้ว 8.8.8.8 เห็นชื่อใหม่
+   แต่ 1.1.1.1 (ของเจ้าของ zone เอง!) ยังคืนชื่อเก่าสลับไปมา · TTL 300 หายเอง
+   · ผู้ส่งที่ได้ค่าเก่าจะ **defer แล้ว retry ไม่ใช่ตีกลับ** — แต่ตอกย้ำว่าห้ามสลับข้อ 5 ก่อนข้อ 4
+5. **MTA-STS ช่วยไว้**: นโยบายเป็น `mode: testing` และ **ไม่มี TXT `_mta-sts`** เผยแพร่
+   ⇒ ไม่มีผู้ส่งบังคับใช้ ช่วงที่ policy ยังชี้ชื่อเก่าจึงไม่อันตราย
+   · **ก่อนเปิด `enforce` ต้องเช็คว่า policy อัปเดตชื่อใหม่แล้วเสมอ**
+
+### ค่าที่ตั้งไว้แล้วบน Vercel (โปรเจกต์ `perpos` · production + preview)
+
+```
+MAIL_JMAP_URL        = https://stalwart.perpos.ai/jmap/
+MAIL_OAUTH_ISSUER    = https://stalwart.perpos.ai
+MAIL_OAUTH_CLIENT_ID = swc1.yYkf…      # client ใหม่ redirect = mail.perpos.ai (+127.0.0.1 สำหรับ dev)
+MAIL_APP_BASE_URL    = https://mail.perpos.ai
+MAIL_SESSION_SECRET  = <สุ่มใหม่ เก็บใน keychain `perpos-mail-session-secret`>
+```
+
+- **`MAIL_APP_BASE_URL` เป็น env ใหม่** (`lib/mail/oauth.ts` fallback ไป `APP_BASE_URL` ถ้าไม่ตั้ง)
+  จำเป็นเพราะโปรเจกต์ Vercel เดียวเสิร์ฟทั้ง `app.perpos.ai` (Suite/Flow) และ `mail.perpos.ai`
+  — ถ้าใช้ `APP_BASE_URL` ร่วมกัน `redirect_uri` จะพาผู้ใช้ข้ามผลิตภัณฑ์แล้ว OAuth พัง
+- `.env.local` ของ dev ชี้ไป `stalwart.perpos.ai` แล้วเช่นกัน
+
+### ⏳ เหลือขั้นเดียว
+
+`https://mail.perpos.ai/mail/login` ยัง **404** เพราะ prod ยังเป็นโค้ดเก่า —
+ต้อง merge branch `feat/mail-standalone-app` ขึ้น `main` (สั่ง push เมื่อพร้อม) แล้วใช้งานได้ทันที
+· หลัง deploy ตรวจ: `vercel ls --prod` = Ready → เปิด `/mail/login` → กดเข้าสู่ระบบ → เด้งกลับมาที่ `mail.perpos.ai` พร้อมกล่องเมล
 
 ---
 

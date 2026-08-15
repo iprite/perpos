@@ -21,12 +21,19 @@ export interface MailConfig {
   appBaseUrl: string;
 }
 
-/** อ่าน env — ไม่ครบคืน null (หน้า/route ต้องขึ้นข้อความไทย ห้าม throw ให้จอขาว) */
+/**
+ * อ่าน env — ไม่ครบคืน null (หน้า/route ต้องขึ้นข้อความไทย ห้าม throw ให้จอขาว)
+ *
+ * 🔴 `MAIL_APP_BASE_URL` ต้องเป็น **โดเมนของ PERPOS Mail** (`https://mail.perpos.ai`)
+ *    ไม่ใช่ `APP_BASE_URL` ที่เป็นของ Suite/Flow (`https://app.perpos.ai`) — โปรเจกต์ Vercel เดียว
+ *    เสิร์ฟสองโดเมน ถ้าใช้ตัวเดียวกัน `redirect_uri` จะพาผู้ใช้ข้ามไปอีกผลิตภัณฑ์แล้ว OAuth พัง
+ *    (ไม่ตั้งไว้ = ตกไปใช้ `APP_BASE_URL` เพื่อให้ dev/เครื่องเดี่ยวยังทำงานเหมือนเดิม)
+ */
 export function readMailConfig(): MailConfig | null {
   const jmapUrl = process.env.MAIL_JMAP_URL;
   const issuer = process.env.MAIL_OAUTH_ISSUER;
   const clientId = process.env.MAIL_OAUTH_CLIENT_ID;
-  const appBaseUrl = process.env.APP_BASE_URL;
+  const appBaseUrl = process.env.MAIL_APP_BASE_URL || process.env.APP_BASE_URL;
   const secret = process.env.MAIL_SESSION_SECRET;
   if (!jmapUrl || !issuer || !clientId || !appBaseUrl || !secret) return null;
   return {
