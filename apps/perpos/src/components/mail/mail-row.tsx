@@ -117,11 +117,15 @@ function MailRowBase({
         className={cn(
           "relative flex h-16 w-full cursor-pointer touch-pan-y items-center gap-2 bg-white px-2 outline-none transition-colors sm:px-3",
           active ? "bg-gray-100" : "hover:bg-gray-50",
-          // วงเคอร์เซอร์ต้องเห็นชัดแม้แถวนั้นเป็นฉบับที่เปิดอยู่ (WCAG 1.4.11 ต้องคอนทราสต์ ≥3:1)
-          focused && "ring-2 ring-inset ring-primary",
           focused && !active && "bg-gray-50",
         )}
       >
+        {/* ตำแหน่งเคอร์เซอร์ = แถบซ้าย 3px + พื้นอ่อน — **ห้ามกลับไปใช้กรอบรอบแถว**
+            (กรอบ ring รอบทุกด้านทำให้รายการดูเป็นตารางแข็ง ๆ) · ยังผ่าน WCAG 1.4.11
+            เพราะแถบ charcoal บนขาวคอนทราสต์ ~10:1 และหนากว่าเส้นรอบรูป 2px ที่กำหนดไว้ */}
+        {focused && (
+          <span aria-hidden className="absolute inset-y-0 left-0 w-[3px] rounded-e bg-primary" />
+        )}
         <Button
           variant="ghost"
           size="icon"
