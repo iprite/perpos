@@ -22,7 +22,7 @@ export const maxDuration = 60;
  * ⇒ ประกาศเพดานที่ทำได้จริง ไม่งั้นผู้ใช้แนบ 10 MB แล้วเจอ 413 ภาษาอังกฤษของ Vercel
  *   แทนข้อความไทยของเรา (`MAX_MESSAGE_BYTES` 25 MB ยังใช้เป็นเพดานรวมของทั้งฉบับเหมือนเดิม)
  */
-export const MAX_UPLOAD_BYTES = 4 * 1024 * 1024;
+const MAX_UPLOAD_BYTES = 4 * 1024 * 1024;
 
 export async function POST(req: NextRequest) {
   // 🔴 ตรวจ session **ก่อน** อ่าน body — ไม่งั้นคนที่ไม่มีสิทธิ์ก็ทำให้เราบัฟเฟอร์ไฟล์ได้

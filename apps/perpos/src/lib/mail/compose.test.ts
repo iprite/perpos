@@ -164,10 +164,17 @@ describe("buildDraftEmail — ประกอบ JMAP Email", () => {
     ).not.toThrow();
   });
 
-  it("cc/bcc ว่าง = null ไม่ใช่ [] (JMAP ไม่รับ array ว่าง)", () => {
+  it("ช่องผู้รับที่ว่างต้องไม่มีคีย์เลย (Stalwart ปฏิเสธ null → ส่งไม่ออกทั้งฉบับ)", () => {
     const { email } = buildDraftEmail({ to: ["a@x.com"] }, ME);
-    expect(email.cc).toBeNull();
-    expect(email.bcc).toBeNull();
+    expect("cc" in email).toBe(false);
+    expect("bcc" in email).toBe(false);
+    expect(email.to).toEqual([{ name: null, email: "a@x.com" }]);
+  });
+
+  it("ใส่คีย์เฉพาะช่องที่มีค่าจริง", () => {
+    const { email } = buildDraftEmail({ to: ["a@x.com"], cc: ["c@x.com"] }, ME);
+    expect(email.cc).toEqual([{ name: null, email: "c@x.com" }]);
+    expect("bcc" in email).toBe(false);
   });
 });
 
