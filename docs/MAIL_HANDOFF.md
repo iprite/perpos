@@ -73,9 +73,16 @@ terraform apply
       **ถ้าชื่อไหนไม่มีใน DNS ทั้ง order ล้ม** → ได้ self-signed (`CN=rcgen self signed cert`) เงียบ ๆ
       · แก้โดยเพิ่ม A+AAAA ครบทั้ง 4 ชื่อ (ได้ auto-config ของ Outlook/Thunderbird เป็นของแถม)
       · ⚠️ Let's Encrypt จำกัด validate ล้มเหลว 5 ครั้ง/ชม./ชื่อ — ถ้าเจออีกให้แก้ DNS **ก่อน** restart ซ้ำ
-- [ ] 🔴 **พอร์ต 587 ยังไม่มี listener** — firewall เปิดไว้แล้วแต่ Stalwart ไม่ได้ฟัง
-      · ลูกค้าส่งเมลออกไม่ได้จนกว่าจะเพิ่ม (Settings → Listeners → submission/STARTTLS)
-      · ที่ฟังอยู่ตอนนี้: 25 · 443 · 465 · 993 · 995 · 4190 (ManageSieve) · 8080 (admin, ไม่เปิดใน firewall)
+- [x] **พอร์ต 587 เพิ่มแล้ว** (`submission`, SMTP, `[::]:587`, STARTTLS) — ตรวจจากนอกเครื่องแล้ว:
+      EHLO โฆษณา `STARTTLS` · หลัง STARTTLS ได้ `AUTH PLAIN LOGIN XOAUTH2 OAUTHBEARER`
+      (ก่อน STARTTLS ไม่โฆษณา PLAIN/LOGIN = ถูกต้อง ไม่ยอมรับรหัสผ่านบนช่องที่ยังไม่เข้ารหัส)
+      · ใบรับรองบน 587 = Let's Encrypt ใบเดียวกับ 443/465/993/25
+      · ที่ฟังครบตอนนี้: **25 · 443 · 465 · 587 · 993 · 995 · 4190** (ManageSieve) · 8080 (admin, ไม่เปิดใน firewall)
+      · 💡 กับดักตอนกรอกฟอร์ม: ช่อง **Bind addresses ต้องกด `+`** ให้ค่าเข้า list ก่อน ไม่งั้นฟ้อง
+      `Minimum length is 1` ทั้งที่พิมพ์ค่าถูกแล้ว
+- [ ] 🔴 **หน้าแอดมินเปิดให้ทั้งอินเทอร์เน็ต** — `https://mail.perpos.ai/admin/` ตอบ 200 จากทุกที่
+      (ต้องเปิด 443 อยู่แล้วเพราะ ACME + JMAP) · กันด้วยรหัสผ่านอย่างเดียว **ยังไม่มี fail2ban jail**
+      → เดารหัสได้ไม่จำกัดครั้ง · เลือกอย่างน้อย 1: jail ของ Stalwart / 2FA ให้แอดมิน / จำกัด `/admin` ตาม IP
 - [ ] **บันทึกค่าเครื่องลง `infra_costs`** — Hetzner อยู่นอกท่อ `billing_export` ต้องกรอกเอง
 - [ ] (หลังจ่ายบิลเดือนแรก) ขอปลดพอร์ต 25 ขาออกกับ Hetzner — เป็นทางหนีทีไล่ถ้า SES มีปัญหา
 
