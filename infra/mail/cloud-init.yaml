@@ -20,14 +20,15 @@ packages:
   - curl
   - ca-certificates
   - gnupg
-  - dnsutils      # dig — ใช้ตรวจ PTR/MX/DKIM
+  - dnsutils # dig — ใช้ตรวจ PTR/MX/DKIM
   - netcat-openbsd # nc — ใช้ทดสอบพอร์ตไป SES
   - unattended-upgrades
-  - fail2ban      # กัน brute-force พอร์ต 22/587/993
+  - fail2ban # กัน brute-force พอร์ต 22/587/993
+  - python3-systemd # จำเป็นสำหรับ fail2ban backend = systemd (ไม่มี = jail sshd start ไม่ขึ้น)
   - htop
 
 write_files:
-  # ---- swap 2GB : CPX11 มี RAM 2GB · Stalwart idle ~150MB แต่ตอน index/ไฟล์แนบใหญ่ต้องมีที่หายใจ
+  # ---- swap 2GB : cx23 มี RAM 4GB · Stalwart idle ~150MB แต่ตอน index/ไฟล์แนบใหญ่ (+ClamAV ทีหลัง) ต้องมีที่หายใจ
   - path: /etc/sysctl.d/99-mail.conf
     content: |
       vm.swappiness = 10
@@ -45,6 +46,10 @@ write_files:
     content: |
       [sshd]
       enabled = true
+      # Debian 12 ไม่มี rsyslog ติดมา → ไม่มี /var/log/auth.log ที่ fail2ban มองหาโดย default
+      # ถ้าไม่ตั้ง backend เป็น systemd ตัว service จะตายทันทีตอน start
+      # ("Have not found any log file for sshd jail") = เครื่องไม่มีเกราะกัน brute-force เลย
+      backend = systemd
       maxretry = 5
       bantime = 1h
 
@@ -55,28 +60,35 @@ write_files:
       #!/usr/bin/env bash
       set -euo pipefail
       echo "=== ติดตั้ง Stalwart Mail Server ==="
-      echo "ตอบคำถามตอนติดตั้งดังนี้ (ดู docs/MAIL_SERVER_PLAN.md):"
-      echo "  · deployment      : standalone"
-      echo "  · ที่เก็บข้อมูล    : RocksDB  (blob เก็บบนดิสก์เครื่องนี้ไปก่อน 40GB พอถึง ~25 กล่อง)"
-      echo "  · hostname        : ${mail_hostname}"
-      echo "  · รหัสผ่านแอดมิน   : สร้างแบบสุ่ม แล้วเก็บใน password manager ทันที (ไม่ได้โชว์ซ้ำ)"
-      echo
-      read -rp "กด Enter เพื่อเริ่ม (Ctrl-C เพื่อยกเลิก) "
+      # ตั้งแต่ 0.16 ตัวติดตั้ง "ไม่ถามคำถามแล้ว" — ลงเสร็จแล้วเข้าสู่ bootstrap mode
+      # แล้วไปตั้งค่าทุกอย่าง (ชนิดที่เก็บข้อมูล/โดเมน/แอดมินตัวจริง) ผ่านหน้าเว็บ :8080/admin
       curl --proto '=https' --tlsv1.2 -sSf https://get.stalw.art/install.sh | sh
       echo
       echo "=== ติดตั้งเสร็จ — ขั้นต่อไป ==="
+      echo "0. รหัสแอดมินชั่วคราวอยู่ใน log:  journalctl -u stalwart -n 200 | grep -A8 'bootstrap mode'"
+      echo "   หน้าเว็บ :8080 ไม่ได้เปิดใน firewall (ตั้งใจ) — เข้าผ่าน ssh tunnel จากเครื่องตัวเอง:"
+      echo "     ssh -N -L 8080:localhost:8080 root@${mail_hostname}   แล้วเปิด http://localhost:8080/admin"
+      echo "   ในหน้า wizard เลือกที่เก็บข้อมูลเป็น RocksDB (40GB พอถึง ~25 กล่อง)"
       echo "1. ตั้ง relay ขาออกไป SES ที่พอร์ต 587 (ไม่ใช่ 25 — Hetzner บล็อก 25 ขาออกจนกว่าจะขอปลด)"
       echo "2. เปิด ACME ให้ออกใบรับรองของ ${mail_hostname}"
-      echo "3. ทดสอบ: nc -zv email-smtp.ap-southeast-1.amazonaws.com 587"
+      echo "3. ทดสอบ: nc -zv email-smtp.eu-central-1.amazonaws.com 587"
       echo "4. ส่งเมลทดสอบไป https://www.mail-tester.com  — ต้องได้ >= 9/10"
 
 runcmd:
   # swap 2GB
-  - [ bash, -c, "fallocate -l 2G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile" ]
-  - [ bash, -c, "echo '/swapfile none swap sw 0 0' >> /etc/fstab" ]
-  - [ sysctl, --system ]
-  - [ systemctl, enable, --now, fail2ban ]
+  - [
+      bash,
+      -c,
+      "fallocate -l 2G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile",
+    ]
+  - [bash, -c, "echo '/swapfile none swap sw 0 0' >> /etc/fstab"]
+  - [sysctl, --system]
+  - [systemctl, enable, --now, fail2ban]
   # ดาวน์โหลดตัวติดตั้งรอไว้ (ยังไม่รัน — ดูหมายเหตุด้านบน)
-  - [ bash, -c, "echo 'พร้อมติดตั้ง Stalwart แล้ว — รัน: bash /root/install-stalwart.sh' > /etc/motd" ]
+  - [
+      bash,
+      -c,
+      "echo 'พร้อมติดตั้ง Stalwart แล้ว — รัน: bash /root/install-stalwart.sh' > /etc/motd",
+    ]
 
 final_message: "เครื่องพร้อมแล้ว ($UPTIME วินาที) — ssh เข้ามาแล้วรัน: bash /root/install-stalwart.sh"

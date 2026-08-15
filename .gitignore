@@ -101,4 +101,6 @@ graphify-out/
 *.tfstate
 *.tfstate.*
 terraform.tfvars
+# ไฟล์ plan ก็มี token ฝังอยู่เหมือน tfstate — ครอบทุกชื่อที่ -out= มักตั้ง
 *.tfplan
+tfplan*

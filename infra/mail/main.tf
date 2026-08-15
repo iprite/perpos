@@ -1,4 +1,4 @@
-# Mail server (Stalwart) บน Hetzner Cloud — สิงคโปร์
+# Mail server (Stalwart) บน Hetzner Cloud — nbg1 (นูเรมเบิร์ก เยอรมนี)
 # ดูคัมภีร์: docs/MAIL_SERVER_PLAN.md
 #
 # ⚠️ ห้าม commit terraform.tfvars และ *.tfstate (มี token + ข้อมูลเครื่อง) — .gitignore กันไว้แล้ว
@@ -39,12 +39,25 @@ variable "mail_hostname" {
 }
 
 variable "server_type" {
-  # CPX = AMD (มีที่สิงคโปร์) · CX/CAX มีเฉพาะยุโรป — อย่าเปลี่ยนเป็น cx22/cax11
-  # cpx11 = 2 vCPU / 2GB / 40GB / 20TB traffic — พอถึงราว 30 กล่อง (ที่โควตา 1GB/กล่อง)
-  # ขยับเป็น cpx21 (3 vCPU / 4GB / 80GB) ได้ทีหลังโดยไม่ต้องย้ายข้อมูล
+  # cx23 = 2 vCPU / 4GB / 40GB / traffic 22TB — มีเฉพาะยุโรป (nbg1/hel1/fsn1)
+  # ขยับเป็น cx33 (4 vCPU / 8GB / 80GB) ได้ทีหลังโดยไม่ต้องย้ายข้อมูล
+  #
+  # ⚠️ ถ้าย้ายไป location นอกยุโรป ต้องเปลี่ยนเป็นซีรีส์ CPX (AMD) — cx*/cax* ไม่มีขายนอก EU
+  #    และที่สิงคโปร์รุ่นเลขคี่ (cpx11/21/31) ถูกเลิกขายแล้ว เหลือเลขคู่ที่แพงกว่า ~3–5 เท่า
   description = "ขนาดเครื่อง Hetzner"
   type        = string
-  default     = "cpx11"
+  default     = "cx23"
+}
+
+variable "location" {
+  # "nbg1" = นูเรมเบิร์ก เยอรมนี · เลือกยุโรปเพราะสิงคโปร์แพงกว่า ~5 เท่าที่สเปกแย่กว่า
+  # (เทียบราคาจริงไว้ใน docs/MAIL_SERVER_PLAN.md §8) — เมลไม่ใช่งาน latency-critical
+  #
+  # ⚠️ ใช้ location ไม่ใช่ datacenter — Hetzner เลิกใช้ datacenter แล้ว (changelog 2026-07-01)
+  # ⚠️ เปลี่ยนค่านี้หลังเครื่องรันแล้ว = สร้าง IP ใหม่ = ชื่อเสียง IP เริ่มนับหนึ่ง + ต้องแก้ PTR/SPF
+  description = "ตำแหน่งเครื่อง Hetzner"
+  type        = string
+  default     = "nbg1"
 }
 
 variable "ssh_allowed_ips" {
@@ -68,11 +81,11 @@ resource "hcloud_ssh_key" "admin" {
 # ---------------------------------------------------------------------------
 
 resource "hcloud_primary_ip" "mail_v4" {
-  name          = "perpos-mail-ipv4"
-  type          = "ipv4"
-  datacenter    = "sin-dc1"
-  assignee_type = "server"
-  auto_delete   = false
+  name = "perpos-mail-ipv4"
+  type = "ipv4"
+  # Hetzner เลิกใช้ datacenter แล้ว (changelog 2026-07-01) — ต้องระบุ location แทน
+  location    = var.location
+  auto_delete = false
 
   lifecycle {
     prevent_destroy = true # กันเผลอ terraform destroy แล้วเสีย IP ที่ warm-up ไว้
@@ -80,14 +93,13 @@ resource "hcloud_primary_ip" "mail_v4" {
 }
 
 resource "hcloud_primary_ip" "mail_v6" {
-  name          = "perpos-mail-ipv6"
-  type          = "ipv6"
-  datacenter    = "sin-dc1"
-  assignee_type = "server"
-  auto_delete   = false
+  name        = "perpos-mail-ipv6"
+  type        = "ipv6"
+  location    = var.location
+  auto_delete = false
 
   lifecycle {
-    prevent_destroy = true
+    prevent_destroy = true # กันเผลอ terraform destroy แล้วเสีย IP ที่ warm-up ไว้
   }
 }
 
@@ -163,7 +175,7 @@ resource "hcloud_server" "mail" {
   name         = "perpos-mail"
   server_type  = var.server_type
   image        = "debian-12"
-  datacenter   = "sin-dc1"
+  location     = var.location
   ssh_keys     = [hcloud_ssh_key.admin.id]
   firewall_ids = [hcloud_firewall.mail.id]
 
