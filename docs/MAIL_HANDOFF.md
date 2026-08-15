@@ -113,9 +113,28 @@ terraform apply
       · ⇒ **ต้องมี relay ที่พอร์ต 587 ให้ได้** (Brevo / SES / Mailgun) ไม่ใช่ทางเลือกเสริม
       · ทดสอบแล้วออกได้ทั้ง `smtp-relay.brevo.com:587` และ `email-smtp.eu-central-1.amazonaws.com:587`
 
-- [ ] ตั้ง **relay ขาออก → SES `:587`** · credentials `chmod 600` **ห้าม commit**
-- [ ] **ปิด DKIM signing ของ Stalwart** — เราใช้ SES Easy DKIM (ไม่งั้นได้ลายเซ็นซ้อน)
-- [ ] DNS ของ `perpos.ai`: MX · SPF `include:amazonses.com` · **DKIM CNAME ×3 จาก SES** · DMARC `p=none`
+- [x] **relay ขาออกใช้ Brevo แล้ว (ไม่ใช่ SES)** — `smtp-relay.brevo.com:587` STARTTLS
+      · **ส่งเมลออกได้จริงแล้ว** ยืนยันจาก log: `delivery.delivered … code = 250` ทั้งไป
+      Gmail และ mail-tester
+      · ทำไมไม่ใช่ SES: บัตร AWS ยังยืนยันไม่ผ่าน · Brevo มีบัญชีอยู่แล้ว โดเมน verify แล้ว
+      · ตั้งผ่าน **JMAP admin API** ไม่ใช่หน้าเว็บ — ดู §G ด้านล่าง (วิธีเรียก API)
+- [x] **DNS**: MX ✅ · SPF ✅ (`v=spf1 ip4:46.225.14.18 ip6:… include:spf.brevo.com ~all`)
+      · DKIM ของ Stalwart ✅ เผยแพร่แล้ว (`v1-ed25519-20260815` + `v1-rsa-20260815`)
+      · DMARC ✅ มีอยู่เดิม `p=none` (rua ชี้ Brevo)
+      · 🔴 **SPF เดิมหายไปเงียบ ๆ ตอนปิด Cloudflare Email Routing** — Cloudflare ลบทั้ง MX
+      **และ TXT ของ SPF** ที่มันจัดการอยู่ · ถ้าไม่ไล่ดูจะไม่มีใครรู้ · **เช็ค SPF ทุกครั้งหลังแตะ
+      Email Routing**
+- [ ] 🔴 **DMARC ยังไม่ผ่าน — คะแนน mail-tester ค้างที่ 4.6/10 (−3 จากข้อนี้)**
+      · SPF ผ่าน แต่ผ่านในนาม **`gw.d.sender-sib.com`** (Brevo เขียน Return-Path ทับ) → **ไม่ align**
+      · DKIM signature valid แต่เป็นของ **Brevo** ไม่ใช่ `d=perpos.ai` → **ไม่ align**
+      · DMARC ต้องการให้ SPF **หรือ** DKIM align กับโดเมนใน `From:` — ตอนนี้ไม่มีสักอัน
+      · ทางแก้ 2 ทาง (เลือกทางใดทางหนึ่ง): **(ก)** ทำให้ Brevo เซ็นด้วยคีย์ของ `perpos.ai`
+      (record `brevo1/brevo2._domainkey` มีใน DNS แล้ว — น่าจะแค่ต้อง activate โดเมน/เพิ่ม sender
+      ในหน้า Brevo) · **(ข)** ให้ Stalwart เซ็น DKIM เองตอนส่งออก (คีย์+DNS พร้อมแล้ว เหลือเปิดใช้)
+      · **หมายเหตุ: แผนเดิมที่เขียนว่า "ปิด DKIM ของ Stalwart" ใช้ไม่ได้กับ Brevo** —
+      เหตุผลเดิมคือกันลายเซ็นซ้อนกับ SES Easy DKIM แต่พอ relay ไม่เซ็นในนามเรา กลายเป็นไม่มีอะไร align
+- [ ] −1.9 SpamAssassin + −0.5 body errors — ส่วนใหญ่เพราะเมลทดสอบเป็น plain text ล้วน
+      ไม่มี HTML part / List-Unsubscribe · เมลจริงคะแนนดีกว่านี้ ไม่ใช่เรื่องเร่งด่วน
 - [ ] เปิด **Google Postmaster Tools** ของ `perpos.ai`
 - [ ] ⚠️ **fail2ban jail สำหรับ Stalwart — ไม่ต้องทำแล้ว ใช้ของในตัวแทน**
       · Stalwart มี auto-ban ในตัวตั้งแต่ 0.5.3 (ครอบทั้ง SMTP/IMAP/JMAP/ManageSieve + นับตาม
@@ -192,3 +211,39 @@ terraform apply
 > อ่าน `docs/MAIL_HANDOFF.md` แล้วทำหัวข้อ B ให้หน่อย — ติดตั้ง terraform ถ้ายังไม่มี
 > รัน init กับ plan ให้ดูก่อน **อย่าเพิ่ง apply จนกว่าผมจะบอก**
 > · token ผม export เป็น `TF_VAR_hcloud_token` ไว้แล้ว อย่าถามหาใน chat
+
+---
+
+## G. 🔧 วิธีตั้งค่า Stalwart ผ่าน API (ขุดเองจนเจอ — ไม่มีในเอกสารสาธารณะ)
+
+Stalwart 0.16 ย้ายการจัดการทั้งหมดไปอยู่ใต้ **JMAP** · `/api/*` เหลือแค่ helper
+(`auth` `account` `schema` `discover`) ไม่ใช่ REST สำหรับจัดการอีกแล้ว
+
+**กุญแจ 3 ดอกที่ทำให้เรียกได้:**
+
+1. ต้องใส่ capability **`urn:stalwart:jmap`** ใน `using` (ไม่มีในเอกสาร — ขุดจากโค้ดหน้าแอดมิน)
+2. object ของ Stalwart ขึ้นต้นด้วย **`x:`** — `x:MtaRoute/get`, `x:Domain/get`, `x:DkimSignature/get`
+   (ถ้าเรียก `MtaRoute/get` เฉย ๆ จะได้ `unknownMethod`)
+3. **schema ทั้งหมดดูได้ที่ `GET /api/schema`** (redirect ไป `/api/schema/<hash>` · ต้อง `--compressed`)
+   → บอกทุก field ของทุก object รวม enum และ variant · **นี่คือเอกสาร API ที่แท้จริง**
+
+```bash
+K=$(security find-generic-password -a "$USER" -s perpos-stalwart-apikey -w)
+curl -s -X POST -H "Authorization: Bearer $K" -H "Content-Type: application/json" \
+  https://mail.perpos.ai/jmap/ \
+  --data '{"using":["urn:ietf:params:jmap:core","urn:stalwart:jmap"],
+           "methodCalls":[["x:MtaRoute/get",{"accountId":"b"},"0"]]}'
+```
+
+**กับดักที่เจอ:**
+
+- variant object ใช้ `@type` เป็นตัวแยกชนิด (`{"@type":"Relay", …}` / `{"@type":"Value","secret":"…"}`)
+- ค่าใน **Expression ต้องใส่ single quote** — `{"route":{"else":"'brevo'"}}` ไม่ใช่ `"brevo"`
+  (ไม่งั้นได้ `Invalid variable or constant`)
+- **สร้าง route อย่างเดียวไม่มีผล** ต้องตั้ง `x:MtaOutboundStrategy` (singleton) ให้ชี้มาใช้ด้วย
+- `Principal/set` **ยังเรียกไม่สำเร็จ** (ตอบ `notRequest` แม้ส่ง argument เปล่า) → **การเพิ่ม
+  บัญชี/อีเมล alias ยังต้องทำผ่านหน้าเว็บ** ส่วนที่เหลือทำผ่าน API ได้หมด
+- แก้ config แล้ว **ต้อง `systemctl restart stalwart`** ถึงจะมีผลกับ queue ที่ค้างอยู่
+
+**ส่งเมลทดสอบผ่าน API** (ไม่ต้องรู้รหัสผ่านบัญชี):
+`Email/set` สร้างใน Drafts (`mailboxIds:{"d":true}`) → `EmailSubmission/set` (`identityId` จาก `Identity/get`)
