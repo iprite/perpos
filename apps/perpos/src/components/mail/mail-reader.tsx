@@ -21,6 +21,9 @@ import Image from "next/image";
 import {
   Archive,
   ChevronLeft,
+  CornerUpLeft,
+  CornerUpRight,
+  ReplyAll,
   Download,
   Eye,
   ImageOff,
@@ -86,6 +89,10 @@ export interface MailReaderProps {
   onArchive: () => void;
   onTrash: () => void;
   onToggleStar: () => void;
+  /** M2 — เปิดกล่องเขียนโดยเติมค่าจากฉบับล่าสุดในเธรด */
+  onReply: () => void;
+  onReplyAll: () => void;
+  onForward: () => void;
 }
 
 export function MailReader({
@@ -100,6 +107,9 @@ export function MailReader({
   onArchive,
   onTrash,
   onToggleStar,
+  onReply,
+  onReplyAll,
+  onForward,
 }: MailReaderProps) {
   if (loading) return <ReaderSkeleton onBack={onBack} />;
 
@@ -138,6 +148,9 @@ export function MailReader({
       onArchive={onArchive}
       onTrash={onTrash}
       onToggleStar={onToggleStar}
+      onReply={onReply}
+      onReplyAll={onReplyAll}
+      onForward={onForward}
     />
   );
 }
@@ -151,6 +164,9 @@ function ThreadView({
   onArchive,
   onTrash,
   onToggleStar,
+  onReply,
+  onReplyAll,
+  onForward,
 }: {
   detail: MailThreadDetail;
   flagged: boolean;
@@ -160,6 +176,9 @@ function ThreadView({
   onArchive: () => void;
   onTrash: () => void;
   onToggleStar: () => void;
+  onReply: () => void;
+  onReplyAll: () => void;
+  onForward: () => void;
 }) {
   const messages = detail.messages;
   const latestId = messages.length ? messages[messages.length - 1]!.id : null;
@@ -260,6 +279,22 @@ function ThreadView({
                 <MessageCard message={m} open={expanded.has(m.id)} onToggle={() => toggle(m.id)} />
               </div>
             ))}
+          </div>
+
+          {/* ปุ่มตอบอยู่ท้ายเธรด = ตำแหน่งที่สายตาอยู่พอดีหลังอ่านจบ (คีย์ลัด r / a / f ทำอย่างเดียวกัน) */}
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Button variant="outline" size="sm" onClick={onReply} title="ตอบ (r)">
+              <CornerUpLeft className="h-4 w-4" />
+              ตอบ
+            </Button>
+            <Button variant="outline" size="sm" onClick={onReplyAll} title="ตอบทั้งหมด (a)">
+              <ReplyAll className="h-4 w-4" />
+              ตอบทั้งหมด
+            </Button>
+            <Button variant="outline" size="sm" onClick={onForward} title="ส่งต่อ (f)">
+              <CornerUpRight className="h-4 w-4" />
+              ส่งต่อ
+            </Button>
           </div>
         </div>
       </div>

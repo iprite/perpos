@@ -255,5 +255,6 @@ export async function buildMailSession(
     accountId: discovery.accountId,
     apiUrl: discovery.apiUrl,
     downloadUrl: discovery.downloadUrl,
+    uploadUrl: discovery.uploadUrl,
   };
 }

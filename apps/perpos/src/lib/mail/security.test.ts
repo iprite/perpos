@@ -11,6 +11,7 @@ import {
 import { sanitizeReturnTo } from "./oauth";
 import { MAIL_DEFAULT_HOST, isMailHost, mailBasePath, mailHostname } from "./base-path";
 import { isSameOriginRequest } from "@/app/api/mail/_lib";
+import { buildUploadUrl } from "./jmap";
 
 describe("allowlist ของ returnTo (open redirect)", () => {
   it("ผ่านเฉพาะเส้นทางใต้ /mail", () => {
@@ -171,5 +172,31 @@ describe("discovery ต้อง pin กับ JMAP host ไม่ใช่ issu
 
   it("apiUrl ที่ชี้ออกนอก origin ของ JMAP host ต้องถือว่าใช้ไม่ได้ (กัน SSRF)", () => {
     expect(new URL("https://evil.example.com/jmap/").origin).not.toBe(new URL(jmapUrl).origin);
+  });
+});
+
+describe("buildUploadUrl — แทน placeholder ให้ถูก (บั๊กแนบไฟล์ไม่ได้ 2026-08-15)", () => {
+  const base = {
+    apiUrl: "https://stalwart.perpos.ai/jmap/",
+    accountId: "b",
+  };
+
+  it("ใช้ template จาก session ตามปกติ", () => {
+    expect(
+      buildUploadUrl({ ...base, uploadUrl: "https://stalwart.perpos.ai/jmap/upload/{accountId}/" }),
+    ).toBe("https://stalwart.perpos.ai/jmap/upload/b/");
+  });
+
+  it("cookie เก่าที่ยังไม่มี uploadUrl → fallback ต้องได้ path ที่ใช้ได้จริง", () => {
+    // เคยพลาด: new URL(...).toString() ทำให้ {} กลายเป็น %7B%7D แล้ว replace ไม่แมตช์
+    const url = buildUploadUrl(base);
+    expect(url).toBe("https://stalwart.perpos.ai/jmap/upload/b/");
+    expect(url).not.toContain("%7B");
+  });
+
+  it("ปลายทางต้องอยู่ origin เดียวกับ JMAP (กัน SSRF)", () => {
+    expect(() =>
+      buildUploadUrl({ ...base, uploadUrl: "https://evil.example.com/jmap/upload/{accountId}/" }),
+    ).toThrow();
   });
 });
