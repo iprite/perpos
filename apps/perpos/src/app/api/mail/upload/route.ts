@@ -11,43 +11,37 @@
 import { type NextRequest } from "next/server";
 
 import { mailError, mailJson, withMailSession } from "../_lib";
-import { MailServiceError, sanitizeAttachmentName } from "@/lib/mail/jmap";
-import { MAX_MESSAGE_BYTES } from "@/lib/mail/compose";
+import { MailServiceError, buildUploadUrl, sanitizeAttachmentName } from "@/lib/mail/jmap";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-/** ไฟล์เดียวห้ามเกินเพดานของทั้งฉบับ (ชั้น compose คิด base64 ซ้ำอีกที) */
-const MAX_UPLOAD_BYTES = MAX_MESSAGE_BYTES;
-
-function uploadEndpoint(session: {
-  uploadUrl?: string;
-  apiUrl: string;
-  accountId: string;
-}): string {
-  const template =
-    session.uploadUrl ?? new URL("/jmap/upload/{accountId}/", session.apiUrl).toString();
-  return template.replace("{accountId}", encodeURIComponent(session.accountId));
-}
+/**
+ * เพดานจริงของ **แพลตฟอร์ม** ไม่ใช่ของเมล — Vercel จำกัด request body ~4.5 MB
+ * ⇒ ประกาศเพดานที่ทำได้จริง ไม่งั้นผู้ใช้แนบ 10 MB แล้วเจอ 413 ภาษาอังกฤษของ Vercel
+ *   แทนข้อความไทยของเรา (`MAX_MESSAGE_BYTES` 25 MB ยังใช้เป็นเพดานรวมของทั้งฉบับเหมือนเดิม)
+ */
+export const MAX_UPLOAD_BYTES = 4 * 1024 * 1024;
 
 export async function POST(req: NextRequest) {
-  const form = await req.formData().catch(() => null);
-  const file = form?.get("file");
-  if (!(file instanceof File)) return mailError("mail_bad_request", "ไม่พบไฟล์ที่อัปโหลด", 400);
-  if (file.size <= 0) return mailError("mail_bad_request", "ไฟล์ว่าง", 400);
-  if (file.size > MAX_UPLOAD_BYTES) {
-    return mailError("mail_bad_request", "ไฟล์ใหญ่เกิน 25 MB", 413);
-  }
-
-  const name = sanitizeAttachmentName(file.name);
-  const type = file.type || "application/octet-stream";
-  const bytes = await file.arrayBuffer();
-
+  // 🔴 ตรวจ session **ก่อน** อ่าน body — ไม่งั้นคนที่ไม่มีสิทธิ์ก็ทำให้เราบัฟเฟอร์ไฟล์ได้
   return withMailSession(req, async (session) => {
+    const form = await req.formData().catch(() => null);
+    const file = form?.get("file");
+    if (!(file instanceof File)) return mailError("mail_bad_request", "ไม่พบไฟล์ที่อัปโหลด", 400);
+    if (file.size <= 0) return mailError("mail_bad_request", "ไฟล์ว่าง", 400);
+    if (file.size > MAX_UPLOAD_BYTES) {
+      return mailError("mail_bad_request", "ไฟล์ใหญ่เกิน 4 MB", 413);
+    }
+
+    const name = sanitizeAttachmentName(file.name);
+    const type = file.type || "application/octet-stream";
+    const bytes = await file.arrayBuffer();
+
     let res: Response;
     try {
-      res = await fetch(uploadEndpoint(session), {
+      res = await fetch(buildUploadUrl(session), {
         method: "POST",
         redirect: "manual",
         cache: "no-store",

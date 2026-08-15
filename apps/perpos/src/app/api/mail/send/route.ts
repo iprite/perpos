@@ -20,8 +20,8 @@ export async function POST(req: NextRequest) {
       const input = readDraftInput(body);
       const identities = await fetchIdentities(session);
       const identity = resolveIdentity(identities, input.identityId, session.email);
-      const { emailId } = await sendMail(session, input, identity);
-      return mailJson({ ok: true, emailId, from: identity.email });
+      const { emailId, movedToSent } = await sendMail(session, input, identity);
+      return mailJson({ ok: true, emailId, from: identity.email, movedToSent });
     } catch (e) {
       if (e instanceof MailComposeError) return mailError("mail_bad_request", e.message, 400);
       throw e;

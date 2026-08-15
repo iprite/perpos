@@ -118,8 +118,13 @@ export async function deleteDraft(session: MailSession, draftId: string): Promis
 }
 
 export interface SendMailResult {
-  /** id ของฉบับที่ถูกส่ง (อยู่ใน Sent แล้ว) */
+  /** id ของฉบับที่ถูกส่ง */
   emailId: string;
+  /**
+   * ส่งออกไปแล้วจริง แต่ย้ายเข้ากล่อง "ส่งแล้ว" ไม่สำเร็จ (ยังค้างใน Drafts)
+   * 🔴 ผู้เรียกต้องบอกผู้ใช้ว่า **ส่งไปแล้ว** ห้ามบอกว่าล้มเหลว ไม่งั้นจะกดส่งซ้ำ = ผู้รับได้สองฉบับ
+   */
+  movedToSent: boolean;
 }
 
 /**
@@ -191,5 +196,11 @@ export async function sendMail(
     throw new MailServiceError(502, "เซิร์ฟเวอร์ปฏิเสธการส่ง ลองใหม่อีกครั้ง");
   }
 
-  return { emailId };
+  // ส่งสำเร็จแล้ว — แต่การย้ายเข้า Sent อาจล้มแยกต่างหาก (ผลอยู่ใน response ของ Email/set ที่ตามมา)
+  const emailUpdated = emailResult.updated as Record<string, unknown> | null | undefined;
+  const emailNotUpdated = emailResult.notUpdated as Record<string, unknown> | null | undefined;
+  const movedToSent = !emailNotUpdated || Object.keys(emailNotUpdated).length === 0;
+  void emailUpdated;
+
+  return { emailId, movedToSent };
 }

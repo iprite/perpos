@@ -235,6 +235,24 @@ export function buildDownloadUrl(
   return url;
 }
 
+/**
+ * URL อัปโหลดไฟล์แนบ (M2) — ท่าเดียวกับ `buildDownloadUrl` คือ **แทน placeholder ด้วย split/join**
+ *
+ * 🔴 ห้ามเอา template ไปผ่าน `new URL(...).toString()` ก่อน — WHATWG จะ percent-encode `{}`
+ *    เป็น `%7BaccountId%7D` แล้ว replace ไม่แมตช์ → ยิงไป path ที่ไม่มีจริง (เคยพลาดมาแล้ว
+ *    และกระทบทุก cookie ที่ออกก่อน M2 ซึ่งยังไม่มี `uploadUrl`)
+ * ปลายทางต้องอยู่ origin เดียวกับ `apiUrl` เสมอ (กัน SSRF)
+ */
+export function buildUploadUrl(
+  session: Pick<MailSession, "uploadUrl" | "accountId" | "apiUrl">,
+): string {
+  const origin = new URL(session.apiUrl).origin;
+  const template = session.uploadUrl ?? `${origin}/jmap/upload/{accountId}/`;
+  const url = template.split("{accountId}").join(encodeURIComponent(session.accountId));
+  if (new URL(url, origin).origin !== origin) throw new MailServiceError(502);
+  return new URL(url, origin).toString();
+}
+
 /** ดึง blob จาก Stalwart (stream) — timeout 60 วิ, ไม่ตาม redirect */
 export async function fetchBlob(
   session: Pick<MailSession, "downloadUrl" | "accountId" | "accessToken" | "apiUrl">,

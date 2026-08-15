@@ -482,6 +482,24 @@ export function MailWorkspace({
     new Map<string, { payload: MailDraftPayload; timer: ReturnType<typeof setTimeout> }>(),
   );
 
+  /** เปิดกล่องเขียนกลับมาพร้อมของเดิมครบ — ใช้ทั้งตอน "เลิกทำ" และตอนส่งไม่สำเร็จ */
+  const reopenCompose = useCallback((payload: MailDraftPayload) => {
+    setComposeSeed({
+      to: payload.to,
+      cc: payload.cc,
+      bcc: payload.bcc,
+      attachments: payload.attachments,
+      identityId: payload.identityId,
+      draftId: payload.draftId,
+      subject: payload.subject,
+      body: payload.body,
+      inReplyTo: payload.inReplyTo,
+      references: payload.references,
+      focus: "body",
+    });
+    setComposeOpen(true);
+  }, []);
+
   const flushSend = useCallback(
     async (key: string, keepalive = false) => {
       const entry = sendQueueRef.current.get(key);
@@ -490,15 +508,27 @@ export function MailWorkspace({
       sendQueueRef.current.delete(key);
       dismissUndoToast(key);
       try {
-        await postJson("/api/mail/send", entry.payload, keepalive);
-        notify.success("ส่งอีเมลแล้ว");
+        const res = await postJson<{ movedToSent?: boolean }>(
+          "/api/mail/send",
+          entry.payload,
+          keepalive,
+        );
+        // ส่งออกไปแล้วจริงแม้ย้ายเข้ากล่อง "ส่งแล้ว" ไม่สำเร็จ — ห้ามบอกว่าล้มเหลว (จะกดส่งซ้ำ)
+        if (res?.movedToSent === false) {
+          notify.success("ส่งแล้ว (แต่ยังไม่ได้ย้ายเข้ากล่องส่งแล้ว)");
+        } else {
+          notify.success("ส่งอีเมลแล้ว");
+        }
         scheduleMailboxRefresh();
+        void loadFirstPage("refresh");
       } catch (e) {
         if (e instanceof MailSessionExpiredError) return handleExpired();
-        notify.error(e, "ส่งไม่สำเร็จ — อีเมลยังอยู่ในร่าง");
+        // 🔴 ห้ามทิ้ง payload — ร่างอาจถูกลบไปแล้วในฝั่งเซิร์ฟเวอร์ระหว่างพยายามส่ง
+        notify.error(e, "ส่งไม่สำเร็จ — เปิดกล่องเขียนกลับมาให้แล้ว");
+        reopenCompose(entry.payload);
       }
     },
-    [handleExpired, scheduleMailboxRefresh],
+    [handleExpired, loadFirstPage, reopenCompose, scheduleMailboxRefresh],
   );
 
   const enqueueSend = useCallback(
@@ -514,21 +544,11 @@ export function MailWorkspace({
           const entry = sendQueueRef.current.get(key);
           if (entry) clearTimeout(entry.timer);
           sendQueueRef.current.delete(key);
-          // ร่างยังอยู่ใน Drafts (autosave) → เปิดกล่องเดิมกลับมาให้แก้ต่อ
-          setComposeSeed({
-            to: payload.to,
-            cc: payload.cc,
-            subject: payload.subject,
-            body: payload.body,
-            inReplyTo: payload.inReplyTo,
-            references: payload.references,
-            focus: "body",
-          });
-          setComposeOpen(true);
+          reopenCompose(payload); // ต้องได้ไฟล์แนบ/สำเนาลับ/ร่างเดิมกลับมาครบ
         },
       });
     },
-    [flushSend],
+    [flushSend, reopenCompose],
   );
 
   // flush คิวที่ค้างเมื่อกำลังจะออกจากหน้า — ไม่งั้นการกระทำหายเงียบ
@@ -555,6 +575,43 @@ export function MailWorkspace({
       flushAll();
     };
   }, []);
+
+  /**
+   * คลิกแถวในกล่อง "ร่าง" = กลับไปเขียนต่อ ไม่ใช่เปิดบานอ่าน
+   * (ไม่งั้นปุ่ม "เก็บเป็นร่าง" ส่งงานเข้าหลุมดำ — ต้องไปเปิด client อื่นเพื่อเขียนต่อ
+   * ซึ่งผิดเกณฑ์ผ่านของ M2 ตรง ๆ)
+   */
+  const openDraft = useCallback(
+    async (m: MailMessage) => {
+      setFocusedIndex(visibleRef.current.findIndex((x) => x.id === m.id));
+      try {
+        const detailData = await callMailApi<MailThreadDetail>(
+          `/api/mail/messages/${encodeURIComponent(m.id)}?by=email`,
+        );
+        const source = detailData.messages[0];
+        if (!source) return;
+        setComposeSeed({
+          to: source.to.map((a) => a.email),
+          cc: source.cc.map((a) => a.email),
+          subject: source.subject === "(ไม่มีหัวเรื่อง)" ? "" : source.subject,
+          body: source.textBody ?? "",
+          attachments: source.attachments.map((a) => ({
+            blobId: a.blobId,
+            name: a.name,
+            type: a.type,
+            size: a.sizeBytes,
+          })),
+          draftId: source.id,
+          focus: "body",
+        });
+        setComposeOpen(true);
+      } catch (e) {
+        if (e instanceof MailSessionExpiredError) return handleExpired();
+        notify.error(e, "เปิดร่างไม่สำเร็จ");
+      }
+    },
+    [handleExpired],
+  );
 
   // ── เปิดอ่าน ─────────────────────────────────────────────────────────────
   const openMessage = useCallback(
@@ -599,9 +656,11 @@ export function MailWorkspace({
   const openByIndex = useCallback(
     (index: number) => {
       const m = visibleRef.current[index];
-      if (m) void openMessage(m, index);
+      if (!m) return;
+      if (box === "drafts") void openDraft(m);
+      else void openMessage(m, index);
     },
-    [openMessage],
+    [box, openDraft, openMessage],
   );
 
   // ── เปิดกล่องเขียน (M2) ───────────────────────────────────────────────────
@@ -760,7 +819,12 @@ export function MailWorkspace({
     toggleStar,
   ]);
 
-  useMailShortcuts(shortcutHandlers, !showShortcuts);
+  /**
+   * 🔴 ปิดคีย์ลัดทั้งชุดเมื่อกล่องเขียน/ตารางคีย์ลัดเปิดอยู่
+   * react-hotkeys-hook กันแค่ตอนโฟกัสอยู่ใน input/textarea — พอโฟกัสไปอยู่ที่ "ปุ่ม" ในกล่องเขียน
+   * (ลิงก์สำเนา, ปุ่มลบไฟล์แนบ, dropzone) แล้วพิมพ์ `#` จะไปลบเมลที่อยู่ข้างหลัง modal
+   */
+  useMailShortcuts(shortcutHandlers, !showShortcuts && !composeOpen);
 
   const activeMessage = useMemo(
     () => messages.find((m) => m.id === activeId) ?? null,
@@ -808,7 +872,7 @@ export function MailWorkspace({
               focusedIndex={focusedIndex}
               newCount={pendingNew.length}
               onApplyNew={applyPendingNew}
-              onOpen={(m, i) => void openMessage(m, i)}
+              onOpen={(m, i) => (box === "drafts" ? void openDraft(m) : void openMessage(m, i))}
               onToggleSelect={toggleSelect}
               onToggleStar={(m) => toggleStar([m.id], !m.isFlagged)}
               onLoadMore={() => void loadMore()}
@@ -878,6 +942,7 @@ export function MailWorkspace({
         open={composeOpen}
         seed={composeSeed}
         identities={identities}
+        defaultEmail={selfEmail}
         onClose={() => setComposeOpen(false)}
         onSend={enqueueSend}
       />

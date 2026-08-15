@@ -13,6 +13,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import cn from "@core/utils/class-names";
 import { Paperclip, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -24,13 +25,14 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { CustomSelect } from "@/components/ui/custom-select";
 import { FileDropzone } from "@/components/ui/file-dropzone";
-import { Text } from "@/components/ui/typography";
 import { notify } from "@/lib/toast";
 import { formatMailSize } from "@/lib/mail/format";
-import { MAX_MESSAGE_BYTES, parseRecipients } from "@/lib/mail/compose";
+import { MailRecipientInput } from "@/components/mail/mail-recipients";
+import { MAX_MESSAGE_BYTES, isEmailAddress } from "@/lib/mail/compose";
 import type { MailComposeAttachment } from "@/lib/mail/compose";
 
 const AUTOSAVE_MS = 3000;
@@ -45,6 +47,15 @@ export interface MailIdentityOption {
 export interface MailComposeSeed {
   to?: string[];
   cc?: string[];
+  /**
+   * 🔴 `bcc`/`attachments`/`identityId`/`draftId` ต้องอยู่ในนี้ด้วยเสมอ —
+   * ตอน "เลิกทำการส่ง" หรือ "ส่งไม่สำเร็จ" เราเปิดกล่องกลับมาจาก seed ตัวนี้
+   * ขาดฟิลด์ไหน = ผู้ใช้เสียของนั้นเงียบ ๆ และร่างเดิมกลายเป็นขยะซ้ำใน Drafts
+   */
+  bcc?: string[];
+  attachments?: MailComposeAttachment[];
+  identityId?: string | null;
+  draftId?: string | null;
   subject?: string;
   body?: string;
   inReplyTo?: string | null;
@@ -70,29 +81,33 @@ export function MailCompose({
   open,
   seed,
   identities,
+  defaultEmail,
   onClose,
   onSend,
 }: {
   open: boolean;
   seed: MailComposeSeed | null;
   identities: MailIdentityOption[];
+  /** ที่อยู่ของกล่องเมลนี้ — ต้องตรงกับที่ฝั่งเซิร์ฟเวอร์เลือกเมื่อไม่ได้ระบุ identity
+   *  (ไม่งั้นช่อง "จาก" โชว์ที่อยู่หนึ่ง แต่ส่งจริงอีกที่อยู่หนึ่ง) */
+  defaultEmail: string;
   /** ปิดกล่อง (ร่างถูกเก็บให้แล้วถ้ามีเนื้อหา) */
   onClose: () => void;
   /** ผู้เรียกรับไปเข้าคิว "ส่งใน 8 วิ + เลิกทำ" */
   onSend: (draft: MailDraftPayload) => void;
 }) {
   const [identityId, setIdentityId] = useState<string | null>(null);
-  const [to, setTo] = useState("");
-  const [cc, setCc] = useState("");
-  const [bcc, setBcc] = useState("");
+  const [to, setTo] = useState<string[]>([]);
+  const [cc, setCc] = useState<string[]>([]);
+  const [bcc, setBcc] = useState<string[]>([]);
   const [showCc, setShowCc] = useState(false);
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
   const [attachments, setAttachments] = useState<MailComposeAttachment[]>([]);
   const [uploading, setUploading] = useState(0);
   const [draftId, setDraftId] = useState<string | null>(null);
-  const [savedAt, setSavedAt] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
+  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [savedAt, setSavedAt] = useState<Date | null>(null);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -102,16 +117,22 @@ export function MailCompose({
   // เปิดกล่องใหม่ = ล้างของเก่าทั้งหมด แล้วเติมค่าตั้งต้น
   useEffect(() => {
     if (!open) return;
-    setIdentityId(null);
-    setTo((seed?.to ?? []).join(", "));
-    setCc((seed?.cc ?? []).join(", "));
-    setShowCc((seed?.cc ?? []).length > 0);
-    setBcc("");
+    setIdentityId(
+      seed?.identityId ??
+        identities.find((i) => i.email.toLowerCase() === defaultEmail.toLowerCase())?.id ??
+        identities[0]?.id ??
+        null,
+    );
+    setTo(seed?.to ?? []);
+    setCc(seed?.cc ?? []);
+    setBcc(seed?.bcc ?? []);
+    setShowCc((seed?.cc ?? []).length > 0 || (seed?.bcc ?? []).length > 0);
     setSubject(seed?.subject ?? "");
     setBody(seed?.body ?? "");
-    setAttachments([]);
-    setDraftId(null);
+    setAttachments(seed?.attachments ?? []);
+    setDraftId(seed?.draftId ?? null);
     setSavedAt(null);
+    setSaveState("idle");
     setError(null);
     setSending(false);
     const t = setTimeout(() => {
@@ -123,22 +144,32 @@ export function MailCompose({
       }
     }, 60);
     return () => clearTimeout(t);
-  }, [open, seed]);
+  }, [defaultEmail, identities, open, seed]);
 
-  const hasContent = useMemo(
-    () =>
-      Boolean(to.trim() || cc.trim() || bcc.trim() || subject.trim() || body.trim()) ||
-      attachments.length > 0,
-    [attachments.length, bcc, body, cc, subject, to],
-  );
+  /**
+   * "มีของที่ต้องเก็บไหม" — เทียบกับ seed ด้วย ไม่งั้นกด `r` แล้ว Esc จะสร้างร่างเปล่าทุกครั้ง
+   * (ข้อความที่อ้างถึงเป็นของที่ระบบใส่เอง ไม่ใช่สิ่งที่ผู้ใช้พิมพ์)
+   */
+  const hasContent = useMemo(() => {
+    const seedBody = seed?.body ?? "";
+    const seedSubject = seed?.subject ?? "";
+    return (
+      to.length > 0 ||
+      cc.length > 0 ||
+      bcc.length > 0 ||
+      subject.trim() !== seedSubject.trim() ||
+      body.trim() !== seedBody.trim() ||
+      attachments.length > 0
+    );
+  }, [attachments.length, bcc.length, body, cc.length, seed, subject, to.length]);
 
   const buildPayload = useCallback(
     (): MailDraftPayload => ({
       draftId,
       identityId,
-      to: splitAddresses(to),
-      cc: splitAddresses(cc),
-      bcc: splitAddresses(bcc),
+      to,
+      cc,
+      bcc,
       subject: subject.trim(),
       body,
       attachments,
@@ -154,7 +185,7 @@ export function MailCompose({
   // ── ร่างอัตโนมัติ ─────────────────────────────────────────────────────────
   const saveDraft = useCallback(async (): Promise<string | null> => {
     const payload = payloadRef.current();
-    setSaving(true);
+    setSaveState("saving");
     try {
       const res = await fetch("/api/mail/drafts", {
         method: "POST",
@@ -165,14 +196,18 @@ export function MailCompose({
         draftId?: string;
         message?: string;
       } | null;
-      if (!res.ok || !data?.draftId) return null;
+      if (!res.ok || !data?.draftId) {
+        setSaveState("error");
+        return null;
+      }
       setDraftId(data.draftId);
-      setSavedAt(new Date().toISOString());
+      setSavedAt(new Date());
+      setSaveState("saved");
       return data.draftId;
     } catch {
-      return null; // เซฟร่างพลาดห้ามรบกวนผู้ใช้ — รอบหน้าอีก 3 วิ
-    } finally {
-      setSaving(false);
+      // ห้ามเงียบ — ผู้ใช้ต้องรู้ว่าตอนนี้ของยังไม่ถูกเก็บ (ก่อนหน้านี้ค้างคำว่า "บันทึกแล้ว")
+      setSaveState("error");
+      return null;
     }
   }, []);
 
@@ -186,8 +221,10 @@ export function MailCompose({
     if (!open) return;
     const id = setInterval(() => {
       if (!dirtyRef.current || !hasContent) return;
-      dirtyRef.current = false;
-      void saveDraft();
+      void saveDraft().then((id) => {
+        // reset เฉพาะตอนเซฟผ่าน ไม่งั้นเซฟพลาดแล้วจะไม่ลองใหม่จนกว่าผู้ใช้จะพิมพ์เพิ่ม
+        if (id) dirtyRef.current = false;
+      });
     }, AUTOSAVE_MS);
     return () => clearInterval(id);
   }, [hasContent, open, saveDraft]);
@@ -220,10 +257,17 @@ export function MailCompose({
 
   // ── ปิด / ส่ง ─────────────────────────────────────────────────────────────
   const closeAndKeepDraft = useCallback(async () => {
-    if (hasContent) {
-      const id = await saveDraft();
-      if (id) notify.success("เก็บเป็นร่างแล้ว");
+    if (!hasContent) {
+      onClose();
+      return;
     }
+    const id = await saveDraft();
+    if (!id) {
+      // 🔴 ปิดตอนนี้ = ข้อความหายจริง ๆ → ค้างกล่องไว้แล้วบอกให้ชัด
+      setError("ยังบันทึกร่างไม่ได้ — ปิดตอนนี้ข้อความจะหาย ลองใหม่อีกครั้ง");
+      return;
+    }
+    notify.success("เก็บเป็นร่างแล้ว");
     onClose();
   }, [hasContent, onClose, saveDraft]);
 
@@ -235,7 +279,7 @@ export function MailCompose({
       setError("ยังไม่ได้ใส่ผู้รับ");
       return;
     }
-    const bad = recipients.filter((r) => parseRecipients(r).invalid.length > 0);
+    const bad = recipients.filter((r) => !isEmailAddress(r));
     if (bad.length) {
       setError(`ที่อยู่อีเมลไม่ถูกต้อง: ${bad.slice(0, 3).join(", ")}`);
       return;
@@ -285,6 +329,15 @@ export function MailCompose({
         </DialogHeader>
 
         <DialogBody fixedHeight className="space-y-3" onKeyDown={onKeyDown}>
+          {/* error อยู่บนสุดเสมอ — เคยอยู่ล่างสุดของกล่องที่เลื่อนได้ กดส่งแล้วเหมือนปุ่มเสีย */}
+          {error && (
+            <div
+              role="alert"
+              className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
+            >
+              {error}
+            </div>
+          )}
           {identityOptions.length > 1 && (
             <div>
               <Label htmlFor="mail-from">จาก</Label>
@@ -311,13 +364,12 @@ export function MailCompose({
                 </Button>
               )}
             </div>
-            <Input
+            <MailRecipientInput
               id="mail-to"
-              ref={toRef}
               value={to}
-              onChange={(e) => setTo(e.target.value)}
-              placeholder="name@example.com, คั่นหลายคนด้วย ,"
-              className="mt-1"
+              onChange={setTo}
+              placeholder="name@example.com — พิมพ์แล้วกด Enter"
+              autoFocus={seed?.focus !== "body"}
             />
           </div>
 
@@ -325,21 +377,11 @@ export function MailCompose({
             <div className="grid gap-3 sm:grid-cols-2">
               <div>
                 <Label htmlFor="mail-cc">สำเนา</Label>
-                <Input
-                  id="mail-cc"
-                  value={cc}
-                  onChange={(e) => setCc(e.target.value)}
-                  className="mt-1"
-                />
+                <MailRecipientInput id="mail-cc" value={cc} onChange={setCc} />
               </div>
               <div>
                 <Label htmlFor="mail-bcc">สำเนาลับ</Label>
-                <Input
-                  id="mail-bcc"
-                  value={bcc}
-                  onChange={(e) => setBcc(e.target.value)}
-                  className="mt-1"
-                />
+                <MailRecipientInput id="mail-bcc" value={bcc} onChange={setBcc} />
               </div>
             </div>
           )}
@@ -356,13 +398,13 @@ export function MailCompose({
 
           <div>
             <Label htmlFor="mail-body">เนื้อหา</Label>
-            <textarea
+            <Textarea
               id="mail-body"
               ref={bodyRef}
               value={body}
               onChange={(e) => setBody(e.target.value)}
               rows={10}
-              className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none transition-colors placeholder:text-gray-400 focus:border-primary"
+              className="mt-1"
               placeholder="พิมพ์ข้อความ…"
             />
           </div>
@@ -405,13 +447,18 @@ export function MailCompose({
                 : "ลากไฟล์มาวางได้ · รวมกันไม่เกิน 25 MB"
             }
           />
-
-          {error && <Text className="text-sm text-red-600">{error}</Text>}
         </DialogBody>
 
         <DialogFooter>
-          <span className="mr-auto text-xs text-gray-400">
-            {saving ? "กำลังบันทึกร่าง…" : savedAt ? "✓ บันทึกร่างแล้ว" : ""}
+          <span
+            className={cn(
+              "mr-auto text-xs",
+              saveState === "error" ? "text-red-600" : "text-gray-400",
+            )}
+          >
+            {saveState === "saving" && "กำลังบันทึกร่าง…"}
+            {saveState === "saved" && savedAt && `✓ บันทึกร่างแล้ว ${formatClock(savedAt)}`}
+            {saveState === "error" && "⚠ บันทึกร่างไม่สำเร็จ"}
           </span>
           <Button variant="outline" onClick={() => void closeAndKeepDraft()} disabled={sending}>
             เก็บเป็นร่าง
@@ -425,10 +472,6 @@ export function MailCompose({
   );
 }
 
-/** ตัดเป็นรายที่อยู่ตามตัวคั่นเดียวกับฝั่งเซิร์ฟเวอร์ — ตรวจความถูกต้องที่ `parseRecipients` */
-function splitAddresses(raw: string): string[] {
-  return raw
-    .split(/[,;\n]+/)
-    .map((s) => s.trim())
-    .filter(Boolean);
+function formatClock(d: Date): string {
+  return new Intl.DateTimeFormat("th-TH", { hour: "2-digit", minute: "2-digit" }).format(d);
 }

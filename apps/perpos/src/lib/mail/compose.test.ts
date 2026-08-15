@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   MailComposeError,
+  isEmailAddress,
   buildDraftEmail,
   buildForwardBody,
   buildQuotedReply,
@@ -167,5 +168,26 @@ describe("buildDraftEmail — ประกอบ JMAP Email", () => {
     const { email } = buildDraftEmail({ to: ["a@x.com"] }, ME);
     expect(email.cc).toBeNull();
     expect(email.bcc).toBeNull();
+  });
+});
+
+describe("ค่าที่ไปเป็น header ต้องปลอดภัย (จาก security review M2)", () => {
+  it("CRLF แทรก header ไม่ทะลุ — ส่วนที่แทรกมากลายเป็น 'ที่อยู่ใช้ไม่ได้' และบล็อกการส่ง", () => {
+    const injected = "a@x.com\r\nBcc: victim@x.com";
+    expect(isEmailAddress(injected)).toBe(false);
+
+    const { valid, invalid } = parseRecipients(injected);
+    // บรรทัดถูกตัดตั้งแต่ต้น — ที่อยู่จริงไม่มี CR/LF ติดไปด้วย
+    expect(valid.map((v) => v.email)).toEqual(["a@x.com"]);
+    expect(valid.every((v) => !/[\r\n]/.test(v.email))).toBe(true);
+    expect(invalid).toEqual(["Bcc: victim@x.com"]);
+
+    // และร่างที่มีของแบบนี้ต้องส่งไม่ได้เลย
+    expect(() => buildDraftEmail({ to: [injected] }, ME)).toThrow(/ไม่ถูกต้อง/);
+  });
+
+  it("ชื่อที่มีอักขระควบคุมถูกตัดออกจากที่อยู่ที่ประกอบได้", () => {
+    const { valid } = parseRecipients('"ชื่อ" <ok@x.com>');
+    expect(valid[0]).toEqual({ name: "ชื่อ", email: "ok@x.com" });
   });
 });
