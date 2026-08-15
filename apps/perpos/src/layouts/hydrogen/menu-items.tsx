@@ -2,6 +2,7 @@ import React from "react";
 import { showAccountingBackstage } from "@/lib/accounting/menu-lens";
 import {
   LayoutDashboard,
+  Mail,
   Users,
   BookImage,
   BookOpenText,
@@ -271,6 +272,12 @@ export function buildAdminMenuItems(): MenuItem[] {
       name: "ลูกค้าขอเดโม (Leads)",
       href: "/admin/leads",
       icon: <Inbox className="h-5 w-5" />,
+      roles: ["super_admin"],
+    },
+    {
+      name: "PERPOS Mail",
+      href: "/admin/mail",
+      icon: <Mail className="h-5 w-5" />,
       roles: ["super_admin"],
     },
     {

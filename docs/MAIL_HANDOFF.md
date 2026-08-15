@@ -241,7 +241,7 @@ Stalwart 0.16 ย้ายการจัดการทั้งหมดไป
 ```bash
 K=$(security find-generic-password -a "$USER" -s perpos-stalwart-apikey -w)
 curl -s -X POST -H "Authorization: Bearer $K" -H "Content-Type: application/json" \
-  https://mail.perpos.ai/jmap/ \
+  https://stalwart.perpos.ai/jmap/ \
   --data '{"using":["urn:ietf:params:jmap:core","urn:stalwart:jmap"],
            "methodCalls":[["x:MtaRoute/get",{"accountId":"b"},"0"]]}'
 ```
