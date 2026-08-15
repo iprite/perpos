@@ -6,8 +6,9 @@
 
 ssh_public_key = "ssh-ed25519 AAAA... you@example.com"
 mail_hostname  = "mail.perpos.ai"
-server_type    = "cpx11"
-location       = "sin" # สิงคโปร์ — ห้ามใช้ datacenter "sin-dc1" (Hetzner เลิกใช้แล้ว)
+server_type    = "cx23"
+location       = "nbg1" # เยอรมนี — ห้ามใช้ datacenter (Hetzner เลิกใช้แล้ว)
+                        # ⚠️ cx23 มีเฉพาะยุโรป · ถ้าเปลี่ยน location ต้องเปลี่ยน server_type ด้วย
 
 # IP ที่ให้ SSH เข้าได้ — ระบุให้แคบที่สุดเท่าที่ทำได้
 ssh_allowed_ips = ["0.0.0.0/0", "::/0"]

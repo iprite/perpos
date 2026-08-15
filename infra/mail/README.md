@@ -1,4 +1,4 @@
-# infra/mail — เมลเซิร์ฟเวอร์ (Stalwart บน Hetzner Cloud, สิงคโปร์)
+# infra/mail — เมลเซิร์ฟเวอร์ (Stalwart บน Hetzner Cloud, เยอรมนี)
 
 แผนเต็ม + เหตุผลเบื้องหลังทุกการตัดสินใจ: [`docs/MAIL_SERVER_PLAN.md`](../../docs/MAIL_SERVER_PLAN.md)
 
@@ -38,7 +38,7 @@ terraform apply
 | ตัวแปร            | เอามาจากไหน                                                |
 | ----------------- | ---------------------------------------------------------- |
 | `hcloud_token`    | Hetzner Console → Security → API tokens → **Read & Write** |
-| `ssh_public_key`  | `cat ~/.ssh/id_ed25519.pub`                                |
+| `ssh_public_key`  | `cat ~/.ssh/perpos_mail_ed25519.pub`                       |
 | `ssh_allowed_ips` | IP ออฟฟิศ/บ้าน — **อย่าเปิด `0.0.0.0/0` ถ้าเลี่ยงได้**     |
 
 > 💡 **ไม่อยากให้ token ลงดิสก์เลย** — ข้าม `hcloud_token` ใน tfvars แล้วส่งทาง env แทน
@@ -85,9 +85,9 @@ terraform apply
 
 ## ขยายทีหลัง
 
-| ต้องการ                  | ทำยังไง                                                                      |
-| ------------------------ | ---------------------------------------------------------------------------- |
-| เครื่องแรงขึ้น           | เปลี่ยน `server_type` เป็น `cpx21` → `terraform apply` (รีบูต ข้อมูลอยู่ครบ) |
-| ดิสก์เพิ่ม               | เพิ่ม `hcloud_volume` (~€0.044/GB/เดือน) แล้ว mount ให้ Stalwart             |
-| เก็บเมลบน object storage | Hetzner Object Storage (S3-compatible) — ทำเมื่อดิสก์ใกล้เต็ม ไม่ใช่ตอนนี้   |
-| MX สำรอง                 | เครื่องที่สองคนละ datacenter + MX priority 20 (Phase 6)                      |
+| ต้องการ                  | ทำยังไง                                                                     |
+| ------------------------ | --------------------------------------------------------------------------- |
+| เครื่องแรงขึ้น           | เปลี่ยน `server_type` เป็น `cx33` → `terraform apply` (รีบูต ข้อมูลอยู่ครบ) |
+| ดิสก์เพิ่ม               | เพิ่ม `hcloud_volume` (~€0.044/GB/เดือน) แล้ว mount ให้ Stalwart            |
+| เก็บเมลบน object storage | Hetzner Object Storage (S3-compatible) — ทำเมื่อดิสก์ใกล้เต็ม ไม่ใช่ตอนนี้  |
+| MX สำรอง                 | เครื่องที่สองคนละ datacenter + MX priority 20 (Phase 6)                     |

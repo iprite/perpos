@@ -1,4 +1,4 @@
-# Mail server (Stalwart) บน Hetzner Cloud — สิงคโปร์
+# Mail server (Stalwart) บน Hetzner Cloud — nbg1 (นูเรมเบิร์ก เยอรมนี)
 # ดูคัมภีร์: docs/MAIL_SERVER_PLAN.md
 #
 # ⚠️ ห้าม commit terraform.tfvars และ *.tfstate (มี token + ข้อมูลเครื่อง) — .gitignore กันไว้แล้ว
