@@ -800,6 +800,11 @@ import { Label } from '@/components/ui/label';
 - **โดเมน (โปรเจกต์ Vercel `perpos` เดียว เสิร์ฟ 2 โดเมน)**: `app.perpos.ai` = Suite/Flow · **`mail.perpos.ai` = PERPOS Mail** (webmail)
   · เมลเซิร์ฟเวอร์อยู่คนละที่: **`stalwart.perpos.ai`** (Hetzner nbg1 — MX/PTR/HELO/ใบรับรอง ชี้ชื่อนี้ทั้งหมด)
   · ⚠️ **`mail.perpos.ai` ไม่ใช่เมลเซิร์ฟเวอร์อีกแล้ว** (ย้ายเมื่อ 2026-08-15) — อย่าเอาไปตั้งเป็น MX/`hostname`/relay
+- ⚠️ **แก้ env อย่างเดียวไม่ขึ้น prod เอง** — `turbo-ignore` (Ignored Build Step) ยกเลิก build ทุกครั้งที่
+  commit ไม่ได้แตะโค้ดของ workspace `starter` (เช่น commit ที่แก้แต่ `docs/`) · env ถูก snapshot ตอน build
+  ⇒ เปลี่ยนค่าใน Vercel แล้ว **ต้องบังคับ build ใหม่**: `vercel deploy --prod --force`
+  (ห้ามแก้ด้วยการ push commit เปล่า) · อาการเวลาเจอ: deployment ขึ้นสถานะ **Canceled** ภายใน ~25 วิ
+  และใน build log มี `This project and its dependencies are not affected` → `Ignoring the change`
 - **Cron**: Google Cloud Scheduler (`asia-southeast1`) → `POST https://perpos.ai/api/assistant/scheduler`
 
 ### Cloud Run Workers — กฎบังคับ

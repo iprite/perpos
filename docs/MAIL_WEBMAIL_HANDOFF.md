@@ -110,6 +110,12 @@ MAIL_SESSION_SECRET  = <สุ่มใหม่ เก็บใน keychain `pe
 - ทำไมไม่ย้ายทั้งก้อนไปชื่อใหม่: MX/PTR ไม่มีมนุษย์เห็น การย้ายมีแต่ความเสี่ยง (defer + หน้าต่าง TLS)
   ส่วนที่คนเห็นจริงมีแค่หน้า OAuth ⇒ เปลี่ยนเฉพาะ issuer ได้ผลเท่ากันที่ความเสี่ยงเกือบศูนย์
 
+### 🪤 กับดักตอน deploy: แก้ env อย่างเดียวไม่ขึ้น prod
+
+`turbo-ignore` ยกเลิก build ถ้า commit ไม่ได้แตะโค้ดแอป (commit เอกสารล้วนโดน 3 รอบติด — ขึ้น **Canceled**
+ภายใน ~25 วิ ไม่ใช่ error ทำให้เข้าใจผิดว่า build ชนกัน) · env ถูก snapshot ตอน build
+⇒ หลังแก้ env บน Vercel ต้อง **`vercel deploy --prod --force`** เสมอ
+
 ### ⏳ เหลือขั้นเดียว
 
 `https://mail.perpos.ai/mail/login` ยัง **404** เพราะ prod ยังเป็นโค้ดเก่า —
