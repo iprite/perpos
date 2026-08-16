@@ -241,7 +241,7 @@ Stalwart 0.16 ย้ายการจัดการทั้งหมดไป
 ```bash
 K=$(security find-generic-password -a "$USER" -s perpos-stalwart-apikey -w)
 curl -s -X POST -H "Authorization: Bearer $K" -H "Content-Type: application/json" \
-  https://mail.perpos.ai/jmap/ \
+  https://stalwart.perpos.ai/jmap/ \
   --data '{"using":["urn:ietf:params:jmap:core","urn:stalwart:jmap"],
            "methodCalls":[["x:MtaRoute/get",{"accountId":"b"},"0"]]}'
 ```
@@ -252,8 +252,16 @@ curl -s -X POST -H "Authorization: Bearer $K" -H "Content-Type: application/json
 - ค่าใน **Expression ต้องใส่ single quote** — `{"route":{"else":"'brevo'"}}` ไม่ใช่ `"brevo"`
   (ไม่งั้นได้ `Invalid variable or constant`)
 - **สร้าง route อย่างเดียวไม่มีผล** ต้องตั้ง `x:MtaOutboundStrategy` (singleton) ให้ชี้มาใช้ด้วย
-- `Principal/set` **ยังเรียกไม่สำเร็จ** (ตอบ `notRequest` แม้ส่ง argument เปล่า) → **การเพิ่ม
-  บัญชี/อีเมล alias ยังต้องทำผ่านหน้าเว็บ** ส่วนที่เหลือทำผ่าน API ได้หมด
+- ~~`Principal/set` เรียกไม่สำเร็จ → เพิ่มบัญชีต้องทำผ่านหน้าเว็บ~~ **ผิด — object ที่ถูกคือ `x:Account`**
+  (2026-08-16): `x:Domain/set` และ `x:Account/set` เรียกได้ปกติ ⇒ เพิ่ม/ลบโดเมนกับกล่องเมลจาก UI ของเราได้
+  · หน้า `/admin/mail` ใช้ทางนี้อยู่แล้ว ([lib/mail/admin-api.ts](../apps/perpos/src/lib/mail/admin-api.ts))
+  · กับดัก 2 ข้อที่เจอตอนทำจริง:
+  1. `certificateManagement: {"@type":"Automatic"}` **ต้องมี `acmeProviderId`** ไม่งั้นได้ `ACME provider not found`
+     (หา id จาก `x:AcmeProvider/query`) · และอย่าใส่ `subjectAlternativeNames` ของโดเมนลูกค้าตั้งแต่แรก
+     เพราะ DNS ยังไม่ชี้มา ACME จะ challenge ไม่ผ่านแล้ววนขอใหม่
+  2. **ลบโดเมนไม่ได้ถ้ายังมีลายเซ็น DKIM ผูกอยู่** (`notDestroyed.type = objectIsLinked`) — และเราตั้ง DKIM
+     เป็น Automatic ทุกโดเมน ⇒ ต้อง `x:DkimSignature/set destroy` ของโดเมนนั้นก่อนเสมอ
+     · error ของ `*/set` บางกรณีมีแค่ `type` ไม่มี `description` — ต้องแปลเป็นข้อความไทยเอง
 - แก้ config แล้ว **ต้อง `systemctl restart stalwart`** ถึงจะมีผลกับ queue ที่ค้างอยู่
 
 **ส่งเมลทดสอบผ่าน API** (ไม่ต้องรู้รหัสผ่านบัญชี):
