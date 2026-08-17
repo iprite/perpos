@@ -11,15 +11,18 @@
  * — rail แทน sidebar ของ PERPOS ที่ MAIL_UI_SPEC §1 เคยยืมมาใช้เป็น left rail
  */
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import {
   Archive,
+  Folder,
   Inbox,
   Mail,
   Send,
+  Settings2,
   ShieldAlert,
+  SlidersHorizontal,
   Star,
   Trash2,
   FileText,
@@ -29,13 +32,16 @@ import cn from "@core/utils/class-names";
 import { Popover } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { Text } from "@/components/ui/typography";
+import { MailFoldersDialog } from "@/components/mail/mail-folders-dialog";
+import { clearCachedPane } from "@/lib/mail/prefs-storage";
 import {
   MAIL_BOX_LABELS,
   MAIL_BOX_ORDER,
   MAIL_PRODUCT_NAME,
-  resolveMailBox,
+  folderBoxValue,
+  resolveBoxSelector,
 } from "@/lib/mail/boxes";
-import type { MailBoxKey } from "@/lib/mail/types";
+import type { MailBoxKey, MailFolder, MailboxSummary } from "@/lib/mail/types";
 
 const BOX_ICON: Record<MailBoxKey, React.ReactNode> = {
   inbox: <Inbox className="h-4 w-4 shrink-0" />,
@@ -105,6 +111,8 @@ function MailAccountMenu({ basePath }: { basePath: string }) {
 
   async function signOut() {
     setSigningOut(true);
+    // ความชอบของคนนี้ต้องไม่ค้างให้คนถัดไปที่ใช้เครื่องเดียวกันเห็น (ค่าจริงอยู่ในกล่องเมลอยู่แล้ว)
+    clearCachedPane();
     try {
       const res = await fetch("/api/mail/oauth/disconnect", { method: "POST" });
       const data = (await res.json().catch(() => null)) as { redirectTo?: string } | null;
@@ -173,17 +181,57 @@ function MailRail({ basePath }: { basePath: string }) {
    *   (workspace ยิงตอนเปิดหน้า, หลังอ่าน/ลบ/เก็บ/รีเฟรช และตอน poll เมลใหม่อยู่แล้ว)
    */
   const [unread, setUnread] = useState<Record<string, number | null>>({});
+  const [folders, setFolders] = useState<MailFolder[]>([]);
+  const [manageOpen, setManageOpen] = useState(false);
+  /** ได้ข้อมูลจากหน้ารายการแล้วหรือยัง — ถ้าได้ ห้าม rail ยิงเอง (ดูคำอธิบายด้านบน) */
+  const gotEventRef = useRef(false);
+
+  const applyPayload = useCallback((mailboxes: MailboxSummary[], next: MailFolder[]) => {
+    setUnread(Object.fromEntries(mailboxes.map((m) => [m.key, m.unreadCount])));
+    setFolders(next);
+  }, []);
+
+  /**
+   * ทางสำรองเฉพาะหน้าที่**ไม่มี** `<MailWorkspace>` (เช่น /account, /rules)
+   * — ที่นั่นไม่มีใครยิงแทน ถ้าไม่ทำ rail จะไม่มีโฟลเดอร์ให้กดเลย
+   */
+  const fetchSelf = useCallback(async () => {
+    try {
+      const res = await fetch("/api/mail/mailboxes");
+      if (!res.ok) return;
+      const d = (await res.json()) as { mailboxes?: MailboxSummary[]; folders?: MailFolder[] };
+      applyPayload(d.mailboxes ?? [], d.folders ?? []);
+    } catch {
+      /* rail ไม่มีตัวเลข/โฟลเดอร์ = ไม่ใช่เรื่องที่ต้องรบกวนผู้ใช้ */
+    }
+  }, [applyPayload]);
 
   useEffect(() => {
     const onMailboxes = (e: Event) => {
-      const boxes = (e as CustomEvent<{ key: string; unreadCount: number | null }[]>).detail;
-      if (!Array.isArray(boxes)) return;
-      setUnread(Object.fromEntries(boxes.map((m) => [m.key, m.unreadCount])));
+      const detail = (e as CustomEvent<{ mailboxes?: MailboxSummary[]; folders?: MailFolder[] }>)
+        .detail;
+      if (!detail || !Array.isArray(detail.mailboxes)) return;
+      gotEventRef.current = true;
+      applyPayload(detail.mailboxes, detail.folders ?? []);
+    };
+    const onFoldersChanged = () => {
+      if (!gotEventRef.current) void fetchSelf();
     };
     window.addEventListener("mail:mailboxes", onMailboxes);
-    return () => window.removeEventListener("mail:mailboxes", onMailboxes);
-  }, []);
-  const active = resolveMailBox(searchParams.get("box"));
+    window.addEventListener("mail:folders-changed", onFoldersChanged);
+    const t = setTimeout(() => {
+      if (!gotEventRef.current) void fetchSelf();
+    }, 600);
+    return () => {
+      clearTimeout(t);
+      window.removeEventListener("mail:mailboxes", onMailboxes);
+      window.removeEventListener("mail:folders-changed", onFoldersChanged);
+    };
+  }, [applyPayload, fetchSelf]);
+
+  const selector = resolveBoxSelector(searchParams.get("box"));
+  const active = selector.kind === "system" ? selector.key : null;
+  const activeFolderId = selector.kind === "folder" ? selector.mailboxId : null;
   // บนโดเมนเมล path จริงคือ "/" (middleware rewrite ไป /mail ให้) — ต้องรับทั้งสองแบบ
   const onMailbox = pathname === `${basePath}/` || pathname === basePath || pathname === "/mail";
 
@@ -222,6 +270,77 @@ function MailRail({ basePath }: { basePath: string }) {
           </Link>
         );
       })}
+
+      {/* โฟลเดอร์ของผู้ใช้ (M3) — ต่อท้ายกล่องระบบเสมอ ห้ามแทรกสลับกัน */}
+      <div className="flex shrink-0 items-center gap-1 md:mt-3 md:border-t md:border-gray-200 md:px-1 md:pt-3">
+        <span className="hidden flex-1 text-xs font-medium text-gray-400 md:block">โฟลเดอร์</span>
+        <Button
+          size="icon"
+          variant="ghost"
+          className="h-8 w-8 shrink-0"
+          title="จัดการโฟลเดอร์"
+          aria-label="จัดการโฟลเดอร์"
+          onClick={() => setManageOpen(true)}
+        >
+          <Settings2 className="h-4 w-4" />
+        </Button>
+      </div>
+
+      {folders.map((f) => {
+        const isActive = onMailbox && f.id === activeFolderId;
+        return (
+          <Link
+            key={f.id}
+            href={`${basePath}/?box=${encodeURIComponent(folderBoxValue(f.id))}`}
+            aria-current={isActive ? "page" : undefined}
+            title={f.path}
+            style={{ paddingInlineStart: 12 + f.depth * 12 }}
+            className={cn(
+              "flex shrink-0 items-center gap-2 whitespace-nowrap rounded-lg py-2 pe-3 text-sm transition-colors",
+              isActive
+                ? "bg-primary text-white"
+                : "text-gray-600 hover:bg-gray-100 hover:text-gray-900",
+            )}
+          >
+            <Folder className="h-4 w-4 shrink-0" />
+            <span className="flex-1 truncate">{f.name}</span>
+            {!!f.unreadCount && (
+              <span
+                className={cn(
+                  "shrink-0 text-xs font-medium tabular-nums",
+                  isActive ? "text-white/80" : "text-gray-500",
+                )}
+              >
+                {f.unreadCount}
+              </span>
+            )}
+          </Link>
+        );
+      })}
+
+      <Link
+        href={`${basePath}/rules`}
+        aria-current={pathname === `${basePath}/rules` ? "page" : undefined}
+        className={cn(
+          "flex shrink-0 items-center gap-2 whitespace-nowrap rounded-lg px-3 py-2 text-sm transition-colors md:mt-2",
+          pathname === `${basePath}/rules`
+            ? "bg-primary text-white"
+            : "text-gray-600 hover:bg-gray-100 hover:text-gray-900",
+        )}
+      >
+        <SlidersHorizontal className="h-4 w-4 shrink-0" />
+        <span className="flex-1">กฎกรอง</span>
+      </Link>
+
+      <MailFoldersDialog
+        open={manageOpen}
+        onOpenChange={setManageOpen}
+        folders={folders}
+        onChanged={() => {
+          // หน้ารายการ (ถ้าเปิดอยู่) จะโหลดชุดใหม่แล้วส่ง `mail:mailboxes` กลับมาให้ rail
+          window.dispatchEvent(new Event("mail:folders-changed"));
+        }}
+      />
     </nav>
   );
 }

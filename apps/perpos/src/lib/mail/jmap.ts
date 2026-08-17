@@ -16,6 +16,9 @@ export const JMAP_USING = ["urn:ietf:params:jmap:core", "urn:ietf:params:jmap:ma
 /** เพิ่ม capability ส่งเมล (M2) — ต้องประกาศเองเวลาเรียก Identity/EmailSubmission */
 export const JMAP_USING_SUBMISSION = [...JMAP_USING, "urn:ietf:params:jmap:submission"] as const;
 
+/** เพิ่ม capability กฎกรอง (M3) — `SieveScript/*` ต้องประกาศเอง ไม่งั้นได้ `unknownMethod` */
+export const JMAP_USING_SIEVE = [...JMAP_USING, "urn:ietf:params:jmap:sieve"] as const;
+
 export const JMAP_TIMEOUT_MS = 15_000;
 export const JMAP_BLOB_TIMEOUT_MS = 60_000;
 

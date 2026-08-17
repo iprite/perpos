@@ -12,6 +12,8 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import { MailServiceError, MailUnauthorizedError } from "@/lib/mail/jmap";
 import { MailArchiveError } from "@/lib/mail/messages";
+import { MailFolderError } from "@/lib/mail/folders";
+import { MailSieveInvalidError } from "@/lib/mail/rules";
 import { readMailConfig } from "@/lib/mail/oauth";
 import {
   clearMailSession,
@@ -47,6 +49,11 @@ export function mailErrorResponse(e: unknown): NextResponse {
   if (e instanceof MailUnauthorizedError) return mailSessionExpired();
   if (e instanceof MailArchiveError) {
     return mailError("mail_archive_unavailable", "ยังสร้างกล่องคลังเก็บไม่ได้", 409);
+  }
+  // ข้อความของสองตัวนี้เขียนไว้ให้ผู้ใช้อ่านโดยตรงแล้ว (ไม่มีรายละเอียดภายใน)
+  if (e instanceof MailFolderError) return mailError("mail_folder_error", e.message, e.status);
+  if (e instanceof MailSieveInvalidError) {
+    return mailError("mail_rules_invalid", e.message, 400);
   }
   if (e instanceof MailServiceError) {
     if (e.status === 404) return mailError("mail_not_found", e.message, 404);

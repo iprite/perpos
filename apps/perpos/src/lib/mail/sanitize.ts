@@ -17,7 +17,13 @@ import { INLINE_IMAGE_TYPES } from "./jmap";
 
 // ─── iframe + CSP — ค่าคงที่อยู่ที่ lib/mail/srcdoc.ts (ไฟล์ที่ไม่มี dependency)
 // re-export ไว้ที่นี่เพื่อความเข้ากันได้ · client component ให้ import จาก srcdoc.ts ตรง ๆ
-export { MAIL_IFRAME_SANDBOX, buildMailSrcdoc, mailCsp } from "./srcdoc";
+export {
+  MAIL_HEIGHT_MESSAGE,
+  MAIL_IFRAME_SANDBOX,
+  buildMailSrcdoc,
+  isValidCspNonce,
+  mailCsp,
+} from "./srcdoc";
 
 // ─── ชั้นที่ 1: sanitize-html ────────────────────────────────────────────────
 

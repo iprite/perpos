@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { MailWarning } from "lucide-react";
 import { Text } from "@/components/ui/typography";
 import { MailWorkspace } from "@/components/mail/mail-workspace";
-import { MAIL_BOX_LABELS, resolveMailBox } from "@/lib/mail/boxes";
+import { MAIL_BOX_LABELS, folderBoxValue, resolveBoxSelector } from "@/lib/mail/boxes";
 import { MAIL_CONNECTED_COOKIE, MAIL_HOST_CONNECTED_COOKIE } from "@/lib/mail/session";
 import { mailBasePath } from "@/lib/mail/base-path";
 
@@ -56,7 +56,11 @@ export default async function MailPage({
   if (!connected) redirect(`${basePath}/login`);
 
   const params = await searchParams;
-  const box = resolveMailBox(params.box);
+  const selector = resolveBoxSelector(params.box);
+  // โฟลเดอร์ที่ผู้ใช้สร้างเอง: SSR ไม่รู้ชื่อ (cookie ของเมลจำกัด path ไว้ที่ /api/mail)
+  // → ส่งป้ายชั่วคราวไป แล้ว workspace เปลี่ยนเป็นชื่อจริงเมื่อโหลดรายการกล่องเสร็จ
+  const box = selector.kind === "system" ? selector.key : folderBoxValue(selector.mailboxId);
+  const boxLabel = selector.kind === "system" ? MAIL_BOX_LABELS[selector.key] : "โฟลเดอร์";
 
-  return <MailWorkspace box={box} boxLabel={MAIL_BOX_LABELS[box]} basePath={basePath} />;
+  return <MailWorkspace box={box} boxLabel={boxLabel} basePath={basePath} />;
 }

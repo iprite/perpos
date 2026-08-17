@@ -16,6 +16,7 @@ import { buildBotConfirmFlex, buildQuotaWarningFlex } from "@/lib/assistant/bot-
 import { getServiceRemaining } from "@/lib/assistant/token-balance";
 import { getStripe } from "../../_lib/stripe";
 import { alertAdminLine } from "@/lib/admin/alert";
+import { runMailServerMonitor } from "@/lib/mail/server-monitor";
 import { sweepClientTaxDueReminders } from "@/lib/acc-firm/line-reminders";
 import {
   hasGcpSyncCredential,
@@ -1004,6 +1005,11 @@ async function run(req: NextRequest) {
         /* token expiry best-effort — ไม่ทำให้ scheduler ล้ม */
       }
 
+    // ── เฝ้าระวังเมลเซิร์ฟเวอร์ (Stalwart) — ตรวจ 25/443/cert จากข้างนอก + heartbeat ──
+    //    แจ้ง LINE super_admin เฉพาะขอบเหตุการณ์ (พัง/หาย) — ดู lib/mail/server-monitor.ts
+    let mailMonitor: { issues: number } | null = null;
+    if (run5) mailMonitor = await runMailServerMonitor(admin);
+
     // ── Token auto top-up: เติมเครดิตอัตโนมัติเมื่อ balance < buffer (off-session charge) ──
     if (run5)
       try {
@@ -1194,6 +1200,7 @@ async function run(req: NextRequest) {
       ...counts,
       overdue_marked: overdueMarked,
       acc_firm_tax_due_sent: taxDueSent,
+      ...(mailMonitor ? { mail_monitor_issues: mailMonitor.issues } : {}),
       ...(costSync ? { cost_sync: costSync } : {}),
     });
   } catch (e) {
