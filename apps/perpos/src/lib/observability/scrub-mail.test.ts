@@ -40,6 +40,8 @@ describe("scrubMailEvent — กันข้อมูลส่วนบุคค
 
   it("ตัวช่วยพื้นฐาน", () => {
     expect(isMailUrl("/api/mail/messages")).toBe(true);
+    // หลังบ้านของเราตอบรหัสผ่านกล่องเมลกลับไป — ต้องถูกล้างเหมือนกัน
+    expect(isMailUrl("/api/admin/mail/accounts")).toBe(true);
     expect(isMailUrl("/api/mailbox")).toBe(false);
     expect(isMailUrl(undefined)).toBe(false);
     expect(stripQuery("/a/b?c=1#d")).toBe("/a/b");

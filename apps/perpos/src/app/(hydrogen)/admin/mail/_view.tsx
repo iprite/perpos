@@ -37,8 +37,22 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { TablePager, usePagination } from "@/components/ui/table-pager";
-import type { MailAdminDomain, MailAdminStatus } from "@/lib/mail/admin-api";
+import type { MailAdminAccount, MailAdminDomain, MailAdminStatus } from "@/lib/mail/admin-api";
 import { MailDnsDialog } from "./_dns-dialog";
+import {
+  MailAccountCreateDialog,
+  MailAccountEditDialog,
+  MailPasswordDialog,
+} from "./_account-dialogs";
+
+const GB = 1024 * 1024 * 1024;
+
+/** "" = ไม่จำกัด · ค่าที่กรอกเป็น GB → ไบต์ */
+function quotaToBytes(gb: string): number | null {
+  const n = Number(gb.trim());
+  if (!gb.trim() || !Number.isFinite(n) || n <= 0) return null;
+  return Math.round(n * GB);
+}
 
 /** ใบรับรองเหลือน้อยกว่านี้ = ต้องรีบดู (ACME ต่ออายุเองที่ ~30 วัน ถ้าไม่ต่อ = เมลล่มทั้งระบบ) */
 const CERT_WARN_DAYS = 21;
@@ -164,6 +178,47 @@ export function AdminMailView({
   const [confirmDelete, setConfirmDelete] = useState<MailAdminDomain | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
+  // ── กล่องเมล ───────────────────────────────────────────────────────────────
+  const [addAccountOpen, setAddAccountOpen] = useState(false);
+  const [editAccount, setEditAccount] = useState<MailAdminAccount | null>(null);
+  const [confirmDeleteAccount, setConfirmDeleteAccount] = useState<MailAdminAccount | null>(null);
+  const [accountError, setAccountError] = useState<string | null>(null);
+  /** รหัสผ่านที่เพิ่งสุ่ม — อยู่ใน state ชั่วคราวเท่านั้น ปิดกล่องแล้วหายไปเลย */
+  const [newPassword, setNewPassword] = useState<{ email: string; password: string } | null>(null);
+
+  const callAccounts = useCallback(
+    async (method: "POST" | "PATCH" | "DELETE", body: Record<string, unknown>) => {
+      const res = await fetch("/api/admin/mail/accounts", {
+        method,
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${await authToken()}`,
+        },
+        body: JSON.stringify(body),
+      });
+      const json = (await res.json().catch(() => null)) as {
+        error?: string;
+        password?: string;
+      } | null;
+      if (!res.ok) throw new Error(json?.error ?? "ทำรายการไม่สำเร็จ");
+      return json;
+    },
+    [authToken],
+  );
+
+  async function runAccountAction(fn: () => Promise<void>) {
+    setBusy(true);
+    setAccountError(null);
+    try {
+      await fn();
+      router.refresh();
+    } catch (e) {
+      setAccountError(e instanceof Error ? e.message : "ทำรายการไม่สำเร็จ");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function removeDomain(domain: MailAdminDomain) {
     setBusy(true);
     setDeleteError(null);
@@ -188,6 +243,19 @@ export function AdminMailView({
         tab === "domains" ? (
           <Button onClick={() => setAddOpen(true)}>
             <Plus className="h-4 w-4" /> เพิ่มโดเมน
+          </Button>
+        ) : tab === "accounts" ? (
+          <Button
+            disabled={(status?.domains.length ?? 0) === 0}
+            title={
+              (status?.domains.length ?? 0) === 0 ? "ต้องมีโดเมนก่อนถึงสร้างกล่องเมลได้" : undefined
+            }
+            onClick={() => {
+              setAccountError(null);
+              setAddAccountOpen(true);
+            }}
+          >
+            <Plus className="h-4 w-4" /> เพิ่มกล่องเมล
           </Button>
         ) : undefined
       }
@@ -319,7 +387,15 @@ export function AdminMailView({
                 <TableEmpty colSpan={7}>ยังไม่มีกล่องเมล</TableEmpty>
               ) : (
                 accountPager.rows.map((a) => (
-                  <TableRow key={a.id}>
+                  // คลิกแถว = แก้ไข/ตั้งรหัสใหม่/ลบ (DESIGN.md §5 ข้อ 3)
+                  <TableRow
+                    key={a.id}
+                    clickable
+                    onClick={() => {
+                      setAccountError(null);
+                      setEditAccount(a);
+                    }}
+                  >
                     <TableCell>{a.email ?? a.name}</TableCell>
                     <TableCell>{a.domain ?? "—"}</TableCell>
                     <TableCell align="center">
@@ -455,6 +531,106 @@ export function AdminMailView({
           onOpenChange={(next) => !next && setDnsFor(null)}
           onDelete={() => setConfirmDelete(dnsFor)}
           authToken={authToken}
+        />
+      )}
+
+      <MailAccountCreateDialog
+        open={addAccountOpen}
+        onOpenChange={(next) => {
+          setAddAccountOpen(next);
+          if (!next) setAccountError(null);
+        }}
+        domains={status?.domains ?? []}
+        busy={busy}
+        error={accountError}
+        onSubmit={({ localPart, domainId, displayName, quotaGb }) =>
+          void runAccountAction(async () => {
+            const json = await callAccounts("POST", {
+              localPart,
+              domainId,
+              displayName,
+              quotaBytes: quotaToBytes(quotaGb),
+            });
+            const domainName = status?.domains.find((d) => d.id === domainId)?.name ?? "";
+            setAddAccountOpen(false);
+            if (json?.password) {
+              setNewPassword({
+                email: `${localPart.trim()}@${domainName}`,
+                password: json.password,
+              });
+            }
+          })
+        }
+      />
+
+      {editAccount && (
+        <MailAccountEditDialog
+          account={editAccount}
+          busy={busy}
+          error={accountError}
+          onClose={() => {
+            setEditAccount(null);
+            setAccountError(null);
+          }}
+          onSave={({ displayName, quotaGb }) =>
+            void runAccountAction(async () => {
+              await callAccounts("PATCH", {
+                id: editAccount.id,
+                displayName,
+                quotaBytes: quotaToBytes(quotaGb),
+              });
+              setEditAccount(null);
+            })
+          }
+          onResetPassword={() =>
+            void runAccountAction(async () => {
+              const json = await callAccounts("PATCH", {
+                id: editAccount.id,
+                action: "reset_password",
+              });
+              if (json?.password) {
+                setNewPassword({
+                  email: editAccount.email ?? editAccount.name,
+                  password: json.password,
+                });
+                setEditAccount(null);
+              }
+            })
+          }
+          onDelete={() => setConfirmDeleteAccount(editAccount)}
+        />
+      )}
+
+      <ConfirmDeleteDialog
+        open={!!confirmDeleteAccount}
+        onOpenChange={(next) => {
+          if (!next) {
+            setConfirmDeleteAccount(null);
+            setAccountError(null);
+          }
+        }}
+        title={`ลบกล่องเมล ${confirmDeleteAccount?.email ?? ""}`}
+        description={
+          accountError ??
+          "อีเมลทั้งหมดในกล่องนี้จะถูกลบถาวร กู้คืนไม่ได้ · เมลที่ส่งมาที่อยู่นี้หลังจากนี้จะตีกลับ"
+        }
+        confirmLabel="ลบกล่องเมล"
+        loading={busy}
+        onConfirm={() =>
+          confirmDeleteAccount &&
+          void runAccountAction(async () => {
+            await callAccounts("DELETE", { id: confirmDeleteAccount.id });
+            setConfirmDeleteAccount(null);
+            setEditAccount(null);
+          })
+        }
+      />
+
+      {newPassword && (
+        <MailPasswordDialog
+          email={newPassword.email}
+          password={newPassword.password}
+          onClose={() => setNewPassword(null)}
         />
       )}
 
