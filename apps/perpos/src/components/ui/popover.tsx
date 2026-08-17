@@ -8,10 +8,14 @@ import cn from "@core/utils/class-names";
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 export type PopoverPlacement =
-  | "bottom-start" | "bottom-end"
-  | "top-start"    | "top-end"
-  | "right-start"  | "right-end"
-  | "left-start"   | "left-end";
+  | "bottom-start"
+  | "bottom-end"
+  | "top-start"
+  | "top-end"
+  | "right-start"
+  | "right-end"
+  | "left-start"
+  | "left-end";
 
 type PopoverProps = {
   /**
@@ -23,6 +27,12 @@ type PopoverProps = {
   /** Panel content */
   children: React.ReactNode;
   placement?: PopoverPlacement;
+  /**
+   * ระยะห่างจาก trigger (px · default 6)
+   * ใช้เมื่อ trigger อยู่ในแถบที่มีเส้นขอบ เช่น header — ระยะปกติวัดจากตัวปุ่ม
+   * ทำให้ panel ไปชนเส้นขอบพอดี ต้องเผื่อระยะจากปุ่มถึงขอบแถบเพิ่มเอง
+   */
+  offset?: number;
   /** Extra className for the panel */
   className?: string;
   /** Extra className for the trigger wrapper */
@@ -68,6 +78,7 @@ export function Popover({
   triggerClassName,
   open: controlledOpen,
   onOpenChange,
+  offset,
 }: PopoverProps) {
   const isControlled = controlledOpen !== undefined;
   const [internalOpen, setInternalOpen] = useState(false);
@@ -79,8 +90,8 @@ export function Popover({
   }
 
   const triggerRef = useRef<HTMLDivElement>(null);
-  const panelRef   = useRef<HTMLDivElement>(null);
-  const pathname   = usePathname();
+  const panelRef = useRef<HTMLDivElement>(null);
+  const pathname = usePathname();
 
   interface PanelPos {
     top?: number;
@@ -91,32 +102,38 @@ export function Popover({
   const [pos, setPos] = useState<PanelPos | null>(null);
 
   // Close on route change
-  useEffect(() => { setOpen(false); }, [pathname]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    setOpen(false);
+  }, [pathname]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useLayoutEffect(() => {
-    if (!open || !triggerRef.current) { setPos(null); return; }
-    const r  = triggerRef.current.getBoundingClientRect();
+    if (!open || !triggerRef.current) {
+      setPos(null);
+      return;
+    }
+    const r = triggerRef.current.getBoundingClientRect();
+    const gap = offset ?? GAP;
     const vw = window.innerWidth;
     const vh = window.innerHeight;
-    const side  = placement.split("-")[0];  // bottom | top | right | left
-    const align = placement.split("-")[1];  // start | end
+    const side = placement.split("-")[0]; // bottom | top | right | left
+    const align = placement.split("-")[1]; // start | end
 
     const next: PanelPos = {};
     if (side === "bottom" || side === "top") {
-      if (side === "bottom") next.top = r.bottom + GAP;
-      else                   next.bottom = vh - r.top + GAP;
+      if (side === "bottom") next.top = r.bottom + gap;
+      else next.bottom = vh - r.top + gap;
       if (align === "start") next.left = r.left;
-      else                   next.right = vw - r.right;
+      else next.right = vw - r.right;
     } else {
       // right / left — panel sits beside the trigger
-      if (side === "right") next.left = r.right + GAP;
-      else                   next.right = vw - r.left + GAP;
+      if (side === "right") next.left = r.right + gap;
+      else next.right = vw - r.left + gap;
       // align start = top edge to trigger top · end = bottom edge to trigger bottom
       if (align === "start") next.top = r.top;
-      else                   next.bottom = vh - r.bottom;
+      else next.bottom = vh - r.bottom;
     }
     setPos(next);
-  }, [open, placement]);
+  }, [open, placement, offset]);
 
   // Close on outside click
   useEffect(() => {
@@ -124,9 +141,12 @@ export function Popover({
     function handle(e: MouseEvent) {
       const t = e.target as Node;
       if (
-        triggerRef.current && !triggerRef.current.contains(t) &&
-        panelRef.current   && !panelRef.current.contains(t)
-      ) setOpen(false);
+        triggerRef.current &&
+        !triggerRef.current.contains(t) &&
+        panelRef.current &&
+        !panelRef.current.contains(t)
+      )
+        setOpen(false);
     }
     document.addEventListener("mousedown", handle);
     return () => document.removeEventListener("mousedown", handle);
@@ -144,26 +164,28 @@ export function Popover({
       </div>
 
       {/* Portal panel */}
-      {open && pos && createPortal(
-        <div
-          ref={panelRef}
-          style={{
-            position: "fixed",
-            top:      pos.top,
-            bottom:   pos.bottom,
-            left:     pos.left,
-            right:    pos.right,
-            zIndex:   9999,
-          }}
-          className={cn(
-            "overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg",
-            className
-          )}
-        >
-          {children}
-        </div>,
-        document.body
-      )}
+      {open &&
+        pos &&
+        createPortal(
+          <div
+            ref={panelRef}
+            style={{
+              position: "fixed",
+              top: pos.top,
+              bottom: pos.bottom,
+              left: pos.left,
+              right: pos.right,
+              zIndex: 9999,
+            }}
+            className={cn(
+              "overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg",
+              className,
+            )}
+          >
+            {children}
+          </div>,
+          document.body,
+        )}
     </>
   );
 }

@@ -19,7 +19,22 @@ import { isMailHost } from "@/lib/mail/base-path";
 function mailRewriteTarget(pathname: string): string | null {
   if (pathname === "/") return "/mail";
   if (pathname === "/login") return "/mail/login";
+  if (pathname === "/account") return "/mail/account";
   return null;
+}
+
+/**
+ * เข้าหน้าล็อกอินสด ๆ = พาไปฟอร์มกรอกอีเมล/รหัสผ่านของเมลเซิร์ฟเวอร์เลย ไม่ต้องกดปุ่มเกิน
+ * (Stalwart ไม่รองรับ password grant — ช่องกรอกอยู่ที่ฝั่งเซิร์ฟเวอร์เมลเท่านั้น
+ *  ซึ่งเป็นเรื่องดี: ระบบเราไม่เคยเห็นรหัสผ่านของลูกค้า)
+ *
+ * 🔴 **ต้องทำที่ middleware ไม่ใช่ในหน้า** — `redirect()` ในหน้าเกิดหลังเริ่ม stream
+ *    Next จะแปลงเป็น `<meta http-equiv="refresh" content="1;…">` = จอขาววาบ 1 วินาทีก่อนไป
+ * 🔴 **ห้ามเด้งเมื่อมี `reason`** — เพิ่งกลับมาจาก OAuth ที่ล้มเหลว/เพิ่งออกจากระบบ
+ *    เด้งซ้ำ = วนลูปและผู้ใช้ไม่ได้อ่านว่าเกิดอะไรขึ้น
+ */
+function shouldSkipToOauth(url: URL, loginPath: string): boolean {
+  return url.pathname === loginPath && !url.searchParams.get("reason");
 }
 
 /** path ที่โดเมนเมลเสิร์ฟได้ตรง ๆ (นอกเหนือจากที่ rewrite) */
@@ -55,6 +70,9 @@ export async function middleware(request: NextRequest) {
   // ── โดเมนเมล: เห็นได้เฉพาะ PERPOS Mail ──
   if (isMailHost(request.headers.get("host"))) {
     const { pathname } = request.nextUrl;
+    if (shouldSkipToOauth(request.nextUrl, "/login")) {
+      return NextResponse.redirect(new URL("/api/mail/oauth/start", request.url), { status: 307 });
+    }
     const rewriteTo = mailRewriteTarget(pathname);
     if (rewriteTo) {
       const url = request.nextUrl.clone();
@@ -64,6 +82,11 @@ export async function middleware(request: NextRequest) {
     if (isMailPassthrough(pathname)) return NextResponse.next();
     // `/mail*` ที่ผู้ใช้พิมพ์เอง (หรือลิงก์เก่า) → พากลับ URL ที่ถูกต้องของโดเมนนี้
     return NextResponse.redirect(new URL("/", request.url), { status: 307 });
+  }
+
+  // โดเมนอื่น (dev / app.perpos.ai) เมลอยู่ใต้ `/mail` — ใช้กฎเดียวกัน
+  if (shouldSkipToOauth(request.nextUrl, "/mail/login")) {
+    return NextResponse.redirect(new URL("/api/mail/oauth/start", request.url), { status: 307 });
   }
 
   // Forward the pathname so RSC layouts can read it.

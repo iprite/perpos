@@ -14,7 +14,17 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { Archive, Inbox, Mail, Send, ShieldAlert, Star, Trash2, FileText } from "lucide-react";
+import {
+  Archive,
+  Inbox,
+  Mail,
+  Send,
+  ShieldAlert,
+  Star,
+  Trash2,
+  FileText,
+  UserRound,
+} from "lucide-react";
 import cn from "@core/utils/class-names";
 import { Popover } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
@@ -55,7 +65,28 @@ function MailBrand() {
  */
 function MailAccountMenu({ basePath }: { basePath: string }) {
   const [email, setEmail] = useState<string | null>(null);
+  const [avatar, setAvatar] = useState<string | null>(null);
   const [signingOut, setSigningOut] = useState(false);
+
+  /** รูปโปรไฟล์เก็บอยู่ในกล่องเมลของเจ้าตัว — ต้องดึงผ่าน API ของเรา (cookie อยู่ path /api/mail) */
+  useEffect(() => {
+    let url: string | null = null;
+    let alive = true;
+    fetch("/api/mail/account/avatar")
+      .then((res) => (res.headers.get("content-type")?.startsWith("image/") ? res.blob() : null))
+      .then((blob) => {
+        if (!alive || !blob) return;
+        url = URL.createObjectURL(blob);
+        setAvatar(url);
+      })
+      .catch(() => {
+        /* ไม่มีรูป = ใช้อักษรย่อ ไม่ต้องรบกวนผู้ใช้ */
+      });
+    return () => {
+      alive = false;
+      if (url) URL.revokeObjectURL(url);
+    };
+  }, []);
 
   useEffect(() => {
     let alive = true;
@@ -86,13 +117,21 @@ function MailAccountMenu({ basePath }: { basePath: string }) {
   return (
     <Popover
       placement="bottom-end"
+      /* trigger สูงไม่เต็ม header (48px) — ระยะปกติ 6px วัดจากตัวปุ่ม ทำให้ panel ไปชนเส้นขอบ
+         ของ header พอดี · 14 = ระยะจากปุ่มถึงขอบ (8) + ช่องไฟที่ควรเห็น (6) */
+      offset={14}
       trigger={
         <button
           type="button"
           className="flex max-w-[14rem] items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-gray-600 transition-colors hover:bg-gray-100"
         >
-          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gray-100 text-[11px] font-semibold uppercase text-gray-600">
-            {(email ?? "?").slice(0, 1)}
+          <span className="flex h-6 w-6 shrink-0 items-center justify-center overflow-hidden rounded-full bg-gray-100 text-[11px] font-semibold uppercase text-gray-600">
+            {avatar ? (
+              // eslint-disable-next-line @next/next/no-img-element -- blob: ของผู้ใช้เอง ไม่ผ่าน CDN
+              <img src={avatar} alt="" className="h-full w-full object-cover" />
+            ) : (
+              (email ?? "?").slice(0, 1)
+            )}
           </span>
           <span className="truncate">{email ?? "บัญชีของฉัน"}</span>
         </button>
@@ -104,9 +143,14 @@ function MailAccountMenu({ basePath }: { basePath: string }) {
         <Text className="mt-3 text-xs text-gray-500">
           การออกจากระบบจะลบสิทธิ์เข้าถึงกล่องเมล <strong>บนอุปกรณ์นี้</strong> เท่านั้น
         </Text>
+        <Button variant="outline" className="mt-3 w-full" asChild>
+          <Link href={`${basePath}/account`}>
+            <UserRound className="h-4 w-4" /> บัญชีของฉัน
+          </Link>
+        </Button>
         <Button
           variant="outline"
-          className="mt-3 w-full"
+          className="mt-2 w-full"
           disabled={signingOut}
           onClick={() => void signOut()}
         >

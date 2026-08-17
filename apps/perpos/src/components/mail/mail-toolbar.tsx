@@ -57,7 +57,7 @@ export function MailToolbar({
   return (
     <div className="border-b border-gray-200 bg-white">
       <div className="flex h-12 items-center gap-2 px-2 sm:px-3">
-        <div className="hidden min-w-0 shrink-0 items-baseline gap-2 sm:flex">
+        <div className="hidden min-w-0 shrink-0 items-baseline gap-2 sm:flex lg:hidden">
           <span className="truncate text-sm font-semibold text-gray-900">{boxLabel}</span>
           {unreadCount !== null && unreadCount > 0 && (
             <span className="text-xs font-medium tabular-nums text-gray-500">
@@ -84,7 +84,8 @@ export function MailToolbar({
             value={search}
             onChange={onSearchChange}
             placeholder="ค้นหาในเมล"
-            className="max-w-xl"
+            /* ต้องยุบได้จริง — บานรายการที่ lg กว้างแค่ 380px ถ้าคง min-w เดิมจะดันปุ่มทะลุกรอบ */
+            className="min-w-0 max-w-xl"
           />
         </div>
 
@@ -96,7 +97,8 @@ export function MailToolbar({
           onClick={onCompose}
         >
           <PenLine className="h-4 w-4" />
-          เขียน
+          {/* ที่ lg บานรายการแคบ (380px) — เหลือไอคอนอย่างเดียวกันของล้นแถว */}
+          <span className="lg:hidden">เขียน</span>
         </Button>
 
         <Button
@@ -130,7 +132,7 @@ export function MailToolbar({
           size="icon"
           title="ตารางคีย์ลัด (?)"
           aria-label="ตารางคีย์ลัด"
-          className="hidden shrink-0 sm:inline-flex"
+          className="hidden shrink-0 sm:inline-flex lg:hidden"
           onClick={onOpenShortcuts}
         >
           <Keyboard className="h-4 w-4" />
