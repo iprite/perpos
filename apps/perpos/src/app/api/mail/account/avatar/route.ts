@@ -78,17 +78,24 @@ export async function GET(req: NextRequest) {
 }
 
 export async function PUT(req: NextRequest) {
-  const type = req.headers.get("content-type")?.split(";")[0]?.trim() ?? "";
-  if (!ALLOWED.includes(type as (typeof ALLOWED)[number])) {
-    return mailError("mail_bad_request", "รองรับเฉพาะไฟล์ PNG / JPEG / WEBP", 400);
-  }
-  const body = await req.arrayBuffer();
-  if (body.byteLength === 0) return mailError("mail_bad_request", "ไม่พบไฟล์รูป", 400);
-  if (body.byteLength > MAX_BYTES) {
-    return mailError("mail_bad_request", "รูปต้องมีขนาดไม่เกิน 256 KB", 400);
-  }
-
+  // 🔴 ตรวจ session **ก่อน** อ่าน body — ไม่งั้นคนที่ไม่มีสิทธิ์ก็ทำให้เราบัฟเฟอร์ไฟล์ได้
+  //    (กฎเดียวกับ `/api/mail/upload` ของ M2)
   return withMailSession(req, async (session) => {
+    const type = req.headers.get("content-type")?.split(";")[0]?.trim() ?? "";
+    if (!ALLOWED.includes(type as (typeof ALLOWED)[number])) {
+      return mailError("mail_bad_request", "รองรับเฉพาะไฟล์ PNG / JPEG / WEBP", 400);
+    }
+    // ปฏิเสธจากหัว content-length ก่อน จะได้ไม่ต้องอ่านของใหญ่เข้าหน่วยความจำเลย
+    const declared = Number(req.headers.get("content-length") ?? "0");
+    if (Number.isFinite(declared) && declared > MAX_BYTES) {
+      return mailError("mail_bad_request", "รูปต้องมีขนาดไม่เกิน 256 KB", 413);
+    }
+    const body = await req.arrayBuffer();
+    if (body.byteLength === 0) return mailError("mail_bad_request", "ไม่พบไฟล์รูป", 400);
+    if (body.byteLength > MAX_BYTES) {
+      return mailError("mail_bad_request", "รูปต้องมีขนาดไม่เกิน 256 KB", 413);
+    }
+
     const up = await fetch(buildUploadUrl(session), {
       method: "POST",
       headers: { Authorization: `Bearer ${session.accessToken}`, "Content-Type": type },

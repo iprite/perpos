@@ -65,7 +65,28 @@ function MailBrand() {
  */
 function MailAccountMenu({ basePath }: { basePath: string }) {
   const [email, setEmail] = useState<string | null>(null);
+  const [avatar, setAvatar] = useState<string | null>(null);
   const [signingOut, setSigningOut] = useState(false);
+
+  /** รูปโปรไฟล์เก็บอยู่ในกล่องเมลของเจ้าตัว — ต้องดึงผ่าน API ของเรา (cookie อยู่ path /api/mail) */
+  useEffect(() => {
+    let url: string | null = null;
+    let alive = true;
+    fetch("/api/mail/account/avatar")
+      .then((res) => (res.headers.get("content-type")?.startsWith("image/") ? res.blob() : null))
+      .then((blob) => {
+        if (!alive || !blob) return;
+        url = URL.createObjectURL(blob);
+        setAvatar(url);
+      })
+      .catch(() => {
+        /* ไม่มีรูป = ใช้อักษรย่อ ไม่ต้องรบกวนผู้ใช้ */
+      });
+    return () => {
+      alive = false;
+      if (url) URL.revokeObjectURL(url);
+    };
+  }, []);
 
   useEffect(() => {
     let alive = true;
@@ -101,8 +122,13 @@ function MailAccountMenu({ basePath }: { basePath: string }) {
           type="button"
           className="flex max-w-[14rem] items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-gray-600 transition-colors hover:bg-gray-100"
         >
-          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gray-100 text-[11px] font-semibold uppercase text-gray-600">
-            {(email ?? "?").slice(0, 1)}
+          <span className="flex h-6 w-6 shrink-0 items-center justify-center overflow-hidden rounded-full bg-gray-100 text-[11px] font-semibold uppercase text-gray-600">
+            {avatar ? (
+              // eslint-disable-next-line @next/next/no-img-element -- blob: ของผู้ใช้เอง ไม่ผ่าน CDN
+              <img src={avatar} alt="" className="h-full w-full object-cover" />
+            ) : (
+              (email ?? "?").slice(0, 1)
+            )}
           </span>
           <span className="truncate">{email ?? "บัญชีของฉัน"}</span>
         </button>
