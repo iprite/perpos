@@ -102,6 +102,8 @@ interface QueueEntry {
 
 /** toast ของการส่งมีได้ใบเดียวเสมอ — ดูเหตุผลใน `enqueueSend` */
 const SEND_TOAST_ID = "mail-send-undo";
+/** ความชอบเรื่องมุมมองต่ออุปกรณ์ — ไม่ใช่ข้อมูลของบัญชี จึงเก็บที่เครื่อง */
+const PANE_STORAGE_KEY = "perpos_mail_pane";
 
 const ACTION_LABEL: Record<DestructiveAction, string> = {
   archive: "เก็บเข้าคลังแล้ว",
@@ -850,13 +852,33 @@ export function MailWorkspace({
 
   const totalLabel = total === null ? null : `${total} ฉบับ`;
 
+  /**
+   * มุมมอง: `split` = รายการ+บานอ่านคู่กัน · `list` = รายการเต็มความกว้าง (เปิดฉบับไหนค่อยแทนที่)
+   * บางคนอยากกวาดตาดูรายการยาว ๆ ไม่ต้องมีบานอ่านกินที่ครึ่งจอ
+   * · จำค่าไว้ใน localStorage (เป็นความชอบของอุปกรณ์นั้น ไม่ต้องเก็บฝั่งเซิร์ฟเวอร์)
+   */
+  const [pane, setPane] = useState<"split" | "list">("split");
+  useEffect(() => {
+    if (localStorage.getItem(PANE_STORAGE_KEY) === "list") setPane("list");
+  }, []);
+  const togglePane = useCallback(() => {
+    setPane((prev) => {
+      const next = prev === "split" ? "list" : "split";
+      localStorage.setItem(PANE_STORAGE_KEY, next);
+      return next;
+    });
+  }, []);
+  // มุมมองรายการ = ทำเหมือนจอมือถือทุกความกว้าง (เปิดอ่านแล้วแทนที่รายการ)
+  const listOnly = pane === "list";
+
   return (
     <HotkeysProvider initiallyActiveScopes={[MAIL_HOTKEY_SCOPE]}>
       <div className="flex h-full min-h-[24rem] overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
         <section
           className={cn(
-            "flex min-h-0 w-full flex-col border-gray-200 lg:w-[380px] lg:shrink-0 lg:border-r",
-            activeId && "hidden lg:flex",
+            "flex min-h-0 w-full flex-col border-gray-200",
+            !listOnly && "lg:w-[380px] lg:shrink-0 lg:border-r",
+            activeId && (listOnly ? "hidden" : "hidden lg:flex"),
           )}
         >
           <MailToolbar
@@ -873,6 +895,8 @@ export function MailWorkspace({
             refreshing={refreshing}
             onCompose={() => openCompose(null)}
             onOpenShortcuts={() => setShowShortcuts(true)}
+            pane={pane}
+            onTogglePane={togglePane}
             searchInputRef={searchWrapRef}
           />
           <div className="min-h-0 flex-1">
@@ -904,7 +928,9 @@ export function MailWorkspace({
           </div>
         </section>
 
-        <section className={cn("min-h-0 flex-1", !activeId && "hidden lg:block")}>
+        <section
+          className={cn("min-h-0 flex-1", !activeId && (listOnly ? "hidden" : "hidden lg:block"))}
+        >
           <MailReader
             detail={detail}
             loading={detailLoading}
