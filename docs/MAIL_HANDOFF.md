@@ -262,7 +262,16 @@ curl -s -X POST -H "Authorization: Bearer $K" -H "Content-Type: application/json
   2. **ลบโดเมนไม่ได้ถ้ายังมีลายเซ็น DKIM ผูกอยู่** (`notDestroyed.type = objectIsLinked`) — และเราตั้ง DKIM
      เป็น Automatic ทุกโดเมน ⇒ ต้อง `x:DkimSignature/set destroy` ของโดเมนนั้นก่อนเสมอ
      · error ของ `*/set` บางกรณีมีแค่ `type` ไม่มี `description` — ต้องแปลเป็นข้อความไทยเอง
-- แก้ config แล้ว **ต้อง `systemctl restart stalwart`** ถึงจะมีผลกับ queue ที่ค้างอยู่
+- แก้ config แล้ว **ต้องสั่ง reload ก่อนถึงจะมีผล** — และ **ไม่ต้อง ssh ไป restart** (เอกสารเดิมเขียนผิด):
+  ```
+  x:Action/set → create { "@type": "ReloadSettings" }
+  ```
+  🔴 **กับดักที่เสียเวลาที่สุดตอนตั้ง route** (2026-08-17): สร้าง route + ผูก `x:MtaOutboundStrategy`
+  ครบถูกต้องแล้ว แต่เมลยัง**ออกทาง route เดิมเงียบ ๆ** ไม่มี error ไม่มี bounce ไม่มีคิวค้าง
+  → สั่ง `ReloadSettings` แล้วเมลฉบับถัดไปไปถูกเส้นทันที
+  · variant อื่น: `ReloadTlsCertificates` · `ReloadLookupStores` · `ReloadBlockedIps`
+  · **วิธีพิสูจน์ว่าเมลไปเส้นไหนจริง** (log ของ relay ไม่โชว์เมลที่มาทาง SMTP ทันที): ส่งหากล่องที่
+  อ่าน header ได้ แล้วดู `Received:` + `Return-Path:` — บอกชัดว่าออกจากโครงข่ายใคร
 
 **ส่งเมลทดสอบผ่าน API** (ไม่ต้องรู้รหัสผ่านบัญชี):
 `Email/set` สร้างใน Drafts (`mailboxIds:{"d":true}`) → `EmailSubmission/set` (`identityId` จาก `Identity/get`)
