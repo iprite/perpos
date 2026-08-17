@@ -10,7 +10,7 @@
  */
 
 import { useState } from "react";
-import { AlertTriangle, Check, Copy, KeyRound } from "lucide-react";
+import { AlertTriangle, Check, Copy, KeyRound, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { CustomSelect } from "@/components/ui/custom-select";
 import {
@@ -187,6 +187,7 @@ export function MailAccountCreateDialog({
 
 export function MailAccountEditDialog({
   account,
+  domains,
   busy,
   error,
   onClose,
@@ -195,10 +196,15 @@ export function MailAccountEditDialog({
   onDelete,
 }: {
   account: MailAdminAccount;
+  domains: MailAdminDomain[];
   busy: boolean;
   error: string | null;
   onClose: () => void;
-  onSave: (patch: { displayName: string; quotaGb: string }) => void;
+  onSave: (patch: {
+    displayName: string;
+    quotaGb: string;
+    aliases: { name: string; domainId: string; enabled: boolean }[];
+  }) => void;
   onResetPassword: () => void;
   onDelete: () => void;
 }) {
@@ -206,6 +212,27 @@ export function MailAccountEditDialog({
   const [quotaGb, setQuotaGb] = useState(
     account.quotaBytes ? String(Math.round((account.quotaBytes / GB) * 10) / 10) : "",
   );
+  // แก้ในหน่วยความจำก่อน แล้วบันทึกทั้งชุดพร้อมปุ่ม "บันทึก" ปุ่มเดียว
+  // (ห้ามบันทึกทีละนามแฝง — ผู้ใช้จะไม่รู้ว่าต้องกดกี่ครั้ง · DESIGN.md §13)
+  // เก็บ `enabled` ติดไปด้วยเสมอ — ถ้าตัดทิ้ง นามแฝงที่ถูกปิดไว้จะกลับมาเปิดเองเงียบ ๆ
+  // ทุกครั้งที่กดบันทึก (เขียนทับทั้งชุด)
+  const [aliases, setAliases] = useState(
+    account.aliases.map((a) => ({ name: a.name, domainId: a.domainId, enabled: a.enabled })),
+  );
+  const [aliasName, setAliasName] = useState("");
+  const [aliasDomainId, setAliasDomainId] = useState(
+    account.aliases[0]?.domainId ?? domains[0]?.id ?? "",
+  );
+
+  const domainName = (id: string) => domains.find((d) => d.id === id)?.name ?? "—";
+
+  function addAlias() {
+    const name = aliasName.trim().toLowerCase();
+    if (!name || !aliasDomainId) return;
+    if (aliases.some((a) => a.name === name && a.domainId === aliasDomainId)) return;
+    setAliases((prev) => [...prev, { name, domainId: aliasDomainId, enabled: true }]);
+    setAliasName("");
+  }
 
   return (
     <Dialog open onOpenChange={(next) => !next && onClose()}>
@@ -237,6 +264,75 @@ export function MailAccountEditDialog({
           </div>
 
           <div className="rounded-lg border border-gray-200 p-3">
+            <p className="text-sm font-medium text-gray-900">นามแฝง</p>
+            <p className="mt-0.5 text-xs text-gray-500">
+              ที่อยู่เพิ่มเติมที่ส่งเข้ากล่องนี้ (เช่น info@ → กล่องฝ่ายขาย) ·
+              ผู้รับยังเห็นชื่อกล่องจริงตอนตอบกลับ
+            </p>
+
+            {aliases.length > 0 && (
+              <ul className="mt-2 space-y-1">
+                {aliases.map((a) => (
+                  <li
+                    key={`${a.name}@${a.domainId}`}
+                    className="flex items-center justify-between gap-2 rounded-md bg-gray-50 px-2.5 py-1.5"
+                  >
+                    <span className="min-w-0 truncate text-sm text-gray-900">
+                      {a.name}@{domainName(a.domainId)}
+                      {!a.enabled && (
+                        <span className="ms-2 text-xs font-normal text-gray-500">(ปิดอยู่)</span>
+                      )}
+                    </span>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      aria-label={`เอานามแฝง ${a.name} ออก`}
+                      className="h-7 w-7 shrink-0 text-gray-400 hover:text-red-600"
+                      onClick={() =>
+                        setAliases((prev) =>
+                          prev.filter((x) => !(x.name === a.name && x.domainId === a.domainId)),
+                        )
+                      }
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            <div className="mt-2 flex items-center gap-2">
+              <Input
+                value={aliasName}
+                placeholder="info"
+                className="flex-1"
+                onChange={(e) => setAliasName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    addAlias();
+                  }
+                }}
+              />
+              <span className="shrink-0 text-sm text-gray-500">@</span>
+              <CustomSelect
+                value={aliasDomainId}
+                onChange={setAliasDomainId}
+                className="w-40"
+                options={domains.map((d) => ({ value: d.id, label: d.name }))}
+              />
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={!aliasName.trim() || !aliasDomainId}
+                onClick={addAlias}
+              >
+                เพิ่ม
+              </Button>
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-gray-200 p-3">
             <p className="text-sm font-medium text-gray-900">รหัสผ่าน</p>
             <p className="mt-0.5 text-xs text-gray-500">
               ระบบอ่านรหัสเดิมไม่ได้ (เก็บเป็นค่าที่ถอดกลับไม่ได้) — ลูกค้าลืมรหัสให้ตั้งใหม่
@@ -262,7 +358,7 @@ export function MailAccountEditDialog({
           <Button variant="outline" onClick={onClose}>
             ปิด
           </Button>
-          <Button disabled={busy} onClick={() => onSave({ displayName, quotaGb })}>
+          <Button disabled={busy} onClick={() => onSave({ displayName, quotaGb, aliases })}>
             {busy ? "กำลังบันทึก…" : "บันทึก"}
           </Button>
         </DialogFooter>

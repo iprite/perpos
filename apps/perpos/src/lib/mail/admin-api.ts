@@ -138,8 +138,18 @@ export interface MailAdminAccount {
   /** ไบต์ที่ใช้จริง · `null` = เซิร์ฟเวอร์ไม่ได้บอก (ไม่ใช่ 0) */
   usedBytes: number | null;
   quotaBytes: number | null;
-  aliasCount: number;
+  /** นามแฝง = ที่อยู่เพิ่มเติมที่ส่งเข้ากล่องนี้ (info@ → กล่องของฝ่ายขาย) */
+  aliases: MailAdminAlias[];
   createdAt: string | null;
+}
+
+export interface MailAdminAlias {
+  /** ส่วนหน้า @ */
+  name: string;
+  domainId: string;
+  /** ชื่อโดเมนสำหรับแสดงผล — `null` ถ้าโดเมนถูกลบไปแล้ว */
+  domain: string | null;
+  enabled: boolean;
 }
 
 export interface MailAdminCertificate {
@@ -177,8 +187,26 @@ function asNumber(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
-function countKeys(value: unknown): number {
-  return value && typeof value === "object" ? Object.keys(value).length : 0;
+/**
+ * `aliases` ของ Stalwart เป็น objectList = ออบเจ็กต์ที่คีย์เป็นลำดับ ("0","1",…) ไม่ใช่อาร์เรย์
+ * → ต้องแปลงเองทุกครั้ง (ทั้งตอนอ่านและตอนเขียน) ไม่งั้นได้ค่าว่างเงียบ ๆ
+ */
+function readAliases(value: unknown, domainNameById: Map<string, string>): MailAdminAlias[] {
+  if (!value || typeof value !== "object") return [];
+  return Object.values(value as Record<string, unknown>)
+    .map((raw) => {
+      const a = (raw ?? {}) as Record<string, unknown>;
+      const name = asString(a.name);
+      const domainId = asString(a.domainId);
+      if (!name || !domainId) return null;
+      return {
+        name,
+        domainId,
+        domain: domainNameById.get(domainId) ?? null,
+        enabled: a.enabled !== false,
+      };
+    })
+    .filter((a): a is MailAdminAlias => a !== null);
 }
 
 function daysUntil(iso: string | null, now: number): number | null {
@@ -261,7 +289,7 @@ export async function fetchMailAdminStatus(config: MailAdminConfig): Promise<Mai
         usedBytes: asNumber(a.usedDiskQuota),
         // คีย์โควตาดิสก์ของ Stalwart คือ `maxDiskQuota` (หน่วยไบต์) — ชื่ออื่นไม่มีจริง
         quotaBytes: asNumber(quotas.maxDiskQuota),
-        aliasCount: countKeys(a.aliases),
+        aliases: readAliases(a.aliases, domainNameById),
         createdAt: asString(a.createdAt),
       };
     });
@@ -516,11 +544,51 @@ export async function resetMailAccountPassword(
   return { password };
 }
 
-/** แก้ชื่อที่แสดง/โควตา — ชื่อกล่องกับโดเมนเปลี่ยนไม่ได้ (เท่ากับเปลี่ยนที่อยู่อีเมล) */
+/**
+ * แปลงรายการนามแฝงเป็น objectList ของ Stalwart (คีย์ "0","1",… ไม่ใช่อาร์เรย์)
+ * ตรวจรูปแบบ/ซ้ำกันเองตั้งแต่ที่นี่ — เขียนไปแล้วชนกันทีหลัง Stalwart ปฏิเสธทั้งชุด
+ */
+function buildAliasObjectList(
+  aliases: { name: string; domainId: string; enabled?: boolean }[],
+): Record<string, unknown> {
+  const seen = new Set<string>();
+  const objectList: Record<string, unknown> = {};
+  aliases.forEach((alias, index) => {
+    const name = normalizeLocalPart(alias.name);
+    if (!name)
+      throw new MailAdminError(`นามแฝง "${alias.name}" ไม่ถูกต้อง (ใช้ a-z 0-9 . _ - เท่านั้น)`);
+    if (!alias.domainId) throw new MailAdminError("นามแฝงต้องเลือกโดเมน");
+    const key = `${name}@${alias.domainId}`;
+    if (seen.has(key)) throw new MailAdminError(`นามแฝง "${name}" ซ้ำในรายการ`);
+    seen.add(key);
+    objectList[String(index)] = {
+      name,
+      domainId: alias.domainId,
+      enabled: alias.enabled !== false,
+      description: null,
+    };
+  });
+  return objectList;
+}
+
+/**
+ * แก้ชื่อที่แสดง / โควตา / นามแฝง — ชื่อกล่องกับโดเมนเปลี่ยนไม่ได้ (เท่ากับเปลี่ยนที่อยู่อีเมล)
+ *
+ * ⚠️ ทุกอย่างต้องไปใน `x:Account/set` **ครั้งเดียว** — เคยแยกเป็น 2 คำขอ (ข้อมูลทั่วไป แล้วค่อย
+ *    นามแฝง) ซึ่งถ้าคำขอหลังพัง (เช่นนามแฝงชนกับที่อยู่ที่มีอยู่) ชื่อ/โควตาจะถูกบันทึกไปแล้ว
+ *    ทั้งที่หน้าเว็บขึ้นว่า "บันทึกไม่สำเร็จ" = ผู้ใช้เห็นสถานะไม่ตรงกับของจริง
+ *
+ * นามแฝงเป็น **การเขียนทับทั้งชุด** (objectList แก้ทีละรายการไม่ได้) ⇒ ผู้เรียกต้องส่งรายการเต็ม
+ * ที่ต้องการเสมอ · ส่งมาไม่ครบ = นามแฝงที่หายไปถูกลบจริง
+ */
 export async function updateMailAccount(
   config: MailAdminConfig,
   id: string,
-  patch: { displayName?: string | null; quotaBytes?: number | null },
+  patch: {
+    displayName?: string | null;
+    quotaBytes?: number | null;
+    aliases?: { name: string; domainId: string; enabled?: boolean }[];
+  },
 ): Promise<void> {
   const update: Record<string, unknown> = {};
   if (patch.displayName !== undefined) update.description = patch.displayName?.trim() || null;
@@ -530,6 +598,7 @@ export async function updateMailAccount(
         ? { maxDiskQuota: Math.floor(patch.quotaBytes) }
         : {};
   }
+  if (patch.aliases !== undefined) update.aliases = buildAliasObjectList(patch.aliases);
   if (Object.keys(update).length === 0) return;
 
   const responses = await adminRequest(config, [
@@ -538,7 +607,13 @@ export async function updateMailAccount(
   const res = resultOf(responses, "update");
   const notUpdated = res?.notUpdated as Record<string, SetErrorEntry> | undefined;
   const first = notUpdated && Object.values(notUpdated)[0];
-  if (first) throw new MailAdminError(first.description ?? "บันทึกไม่สำเร็จ");
+  if (first) {
+    // นามแฝงชนกับที่อยู่ที่มีอยู่แล้วคือสาเหตุที่เจอบ่อยสุดเมื่อบันทึกไม่ผ่าน
+    throw new MailAdminError(
+      first.description ??
+        (patch.aliases ? "บันทึกไม่สำเร็จ — นามแฝงบางตัวอาจถูกใช้ไปแล้ว" : "บันทึกไม่สำเร็จ"),
+    );
+  }
 }
 
 /** ลบกล่องเมล — **เมลทั้งหมดในกล่องหายถาวร** ผู้เรียกต้องยืนยันกับคนก่อนเสมอ */

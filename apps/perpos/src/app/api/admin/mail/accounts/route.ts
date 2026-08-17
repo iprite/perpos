@@ -77,12 +77,28 @@ export async function PATCH(req: NextRequest) {
       const { password } = await resetMailAccountPassword(config, id);
       return NextResponse.json({ password }, { headers: NO_STORE });
     }
+    // นามแฝงส่งมาทั้งชุดเสมอ (เขียนทับ) — ไม่ส่งมา = ไม่แตะของเดิม
+    let aliases: { name: string; domainId: string; enabled?: boolean }[] | undefined;
+    if (Array.isArray(body.aliases)) {
+      if (body.aliases.length > 50) {
+        return NextResponse.json({ error: "นามแฝงเกิน 50 รายการ" }, { status: 400 });
+      }
+      aliases = body.aliases
+        .filter((a): a is Record<string, unknown> => !!a && typeof a === "object")
+        .map((a) => ({
+          name: typeof a.name === "string" ? a.name : "",
+          domainId: typeof a.domainId === "string" ? a.domainId : "",
+          enabled: a.enabled !== false,
+        }));
+    }
+
     await updateMailAccount(config, id, {
       displayName: typeof body.displayName === "string" ? body.displayName : undefined,
       quotaBytes:
         typeof body.quotaBytes === "number" || body.quotaBytes === null
           ? (body.quotaBytes as number | null)
           : undefined,
+      aliases,
     });
     return NextResponse.json({ ok: true }, { headers: NO_STORE });
   } catch (e) {

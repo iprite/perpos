@@ -410,7 +410,7 @@ export function AdminMailView({
                       {a.quotaBytes === null ? "ไม่จำกัด" : formatBytes(a.quotaBytes)}
                     </TableCell>
                     <TableCell align="right" className="tabular-nums">
-                      {a.aliasCount}
+                      {a.aliases.length}
                     </TableCell>
                     <TableCell align="center">{formatDate(a.createdAt)}</TableCell>
                   </TableRow>
@@ -566,18 +566,31 @@ export function AdminMailView({
       {editAccount && (
         <MailAccountEditDialog
           account={editAccount}
+          domains={status?.domains ?? []}
           busy={busy}
           error={accountError}
           onClose={() => {
             setEditAccount(null);
             setAccountError(null);
           }}
-          onSave={({ displayName, quotaGb }) =>
+          onSave={({ displayName, quotaGb, aliases }) =>
             void runAccountAction(async () => {
+              // ชื่อ/โควตา/นามแฝง ไปในคำขอเดียว — ไม่งั้นครึ่งแรกบันทึกไปแล้วครึ่งหลังพัง
+              // ผู้ใช้จะเห็น "บันทึกไม่สำเร็จ" ทั้งที่ชื่อเปลี่ยนไปแล้ว
+              const changed =
+                editAccount.aliases
+                  .map((a) => `${a.name}@${a.domainId}:${a.enabled}`)
+                  .sort()
+                  .join(",") !==
+                aliases
+                  .map((a) => `${a.name}@${a.domainId}:${a.enabled}`)
+                  .sort()
+                  .join(",");
               await callAccounts("PATCH", {
                 id: editAccount.id,
                 displayName,
                 quotaBytes: quotaToBytes(quotaGb),
+                ...(changed ? { aliases } : {}),
               });
               setEditAccount(null);
             })
