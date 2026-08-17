@@ -17,16 +17,22 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { HotkeysProvider } from "react-hotkeys-hook";
-import { Archive, MailOpen, PenLine, Trash2 } from "lucide-react";
+import { Archive, FolderInput, MailOpen, PenLine, Trash2 } from "lucide-react";
 import cn from "@core/utils/class-names";
 import { Button } from "@/components/ui/button";
+import { Dropdown } from "@/components/ui/dropdown";
 import { BulkActionBar } from "@/components/ui/bulk-action-bar";
 import { notify } from "@/lib/toast";
 import { UNDO_TOAST_MS, dismissUndoToast, showUndoToast } from "@/components/ui/undo-toast";
+import { resolveBoxSelector } from "@/lib/mail/boxes";
+import { cachePane, readCachedPane } from "@/lib/mail/prefs-storage";
 import type {
   MailBoxKey,
   MailBulkAction,
+  MailFolder,
   MailMessage,
+  MailPaneMode,
+  MailPrefs,
   MailScope,
   MailThreadDetail,
   MailboxSummary,
@@ -102,8 +108,6 @@ interface QueueEntry {
 
 /** toast ของการส่งมีได้ใบเดียวเสมอ — ดูเหตุผลใน `enqueueSend` */
 const SEND_TOAST_ID = "mail-send-undo";
-/** ความชอบเรื่องมุมมองต่ออุปกรณ์ — ไม่ใช่ข้อมูลของบัญชี จึงเก็บที่เครื่อง */
-const PANE_STORAGE_KEY = "perpos_mail_pane";
 
 const ACTION_LABEL: Record<DestructiveAction, string> = {
   archive: "เก็บเข้าคลังแล้ว",
@@ -115,7 +119,8 @@ export function MailWorkspace({
   boxLabel,
   basePath,
 }: {
-  box: MailBoxKey;
+  /** คีย์ระบบ (`inbox`…) หรือ `f:<mailboxId>` ของโฟลเดอร์เอง — ดู `lib/mail/boxes.ts` */
+  box: string;
   boxLabel: string;
   /** `""` บนโดเมนเมล · `"/mail"` ที่อื่น — ห้ามฮาร์ดโค้ด (ดู lib/mail/base-path.ts) */
   basePath: string;
@@ -152,6 +157,7 @@ export function MailWorkspace({
   const [hiddenIds, setHiddenIds] = useState<Set<string>>(() => new Set());
   const [pendingNew, setPendingNew] = useState<MailMessage[]>([]);
   const [mailboxes, setMailboxes] = useState<MailboxSummary[]>([]);
+  const [folders, setFolders] = useState<MailFolder[]>([]);
   const [showShortcuts, setShowShortcuts] = useState(false);
 
   // ── กล่องเขียน (M2) ──────────────────────────────────────────────────────
@@ -194,13 +200,20 @@ export function MailWorkspace({
   // รายชื่อกล่อง (ใช้ตัวเลขยังไม่ได้อ่านที่หัวรายการ)
   const loadMailboxes = useCallback(async () => {
     try {
-      const d = await callMailApi<{ mailboxes: MailboxSummary[]; email: string }>(
-        "/api/mail/mailboxes",
-      );
+      const d = await callMailApi<{
+        mailboxes: MailboxSummary[];
+        folders?: MailFolder[];
+        email: string;
+      }>("/api/mail/mailboxes");
       setMailboxes(d.mailboxes ?? []);
-      // ส่งต่อให้ rail ใน shell ใช้ตัวเลขชุดเดียวกัน — **ห้ามให้ rail ยิง API เอง**
+      setFolders(d.folders ?? []);
+      // ส่งต่อให้ rail ใน shell ใช้ชุดเดียวกัน — **rail ห้ามยิง API เองเมื่อหน้านี้ถูก mount**
       // (สองที่ยิงคนละจังหวะ = ตัวเลขบนหัวรายการกับข้าง rail ขัดกันเอง + โหลด JMAP ซ้ำซ้อน)
-      window.dispatchEvent(new CustomEvent("mail:mailboxes", { detail: d.mailboxes ?? [] }));
+      window.dispatchEvent(
+        new CustomEvent("mail:mailboxes", {
+          detail: { mailboxes: d.mailboxes ?? [], folders: d.folders ?? [] },
+        }),
+      );
     } catch {
       /* ตัวเลขสรุปพลาดได้ ไม่ต้องรบกวนผู้ใช้ — รายการเมลคือของหลัก */
     }
@@ -219,6 +232,13 @@ export function MailWorkspace({
   useEffect(() => {
     void loadMailboxes();
   }, [box, loadMailboxes]);
+
+  // กล่องจัดการโฟลเดอร์อยู่ใน shell (คนละต้นไม้) → คุยกันด้วย event เพื่อคงแหล่งข้อมูลเดียว
+  useEffect(() => {
+    const onChanged = () => void loadMailboxes();
+    window.addEventListener("mail:folders-changed", onChanged);
+    return () => window.removeEventListener("mail:folders-changed", onChanged);
+  }, [loadMailboxes]);
 
   useEffect(
     () => () => {
@@ -344,10 +364,21 @@ export function MailWorkspace({
     [hiddenIds, messages],
   );
 
+  /** กล่องที่กำลังเปิด — คีย์ระบบหรือโฟลเดอร์เอง (ใช้ตัดสินปุ่ม/ปลายทางที่ย้ายได้) */
+  const selector = useMemo(() => resolveBoxSelector(box), [box]);
+
+  /** ชื่อโฟลเดอร์ของผู้ใช้รู้ได้หลังโหลดรายการกล่องเท่านั้น (SSR อ่าน cookie ของเมลไม่ได้) */
+  const currentBoxLabel = useMemo(() => {
+    if (selector.kind !== "folder") return boxLabel;
+    return folders.find((f) => f.id === selector.mailboxId)?.name ?? boxLabel;
+  }, [boxLabel, folders, selector]);
+
   const unreadCount = useMemo(() => {
-    const mb = mailboxes.find((m) => m.key === box);
-    return mb ? mb.unreadCount : null;
-  }, [box, mailboxes]);
+    if (selector.kind === "folder") {
+      return folders.find((f) => f.id === selector.mailboxId)?.unreadCount ?? null;
+    }
+    return mailboxes.find((m) => m.key === selector.key)?.unreadCount ?? null;
+  }, [folders, mailboxes, selector]);
 
   const activeIdRef = useRef<string | null>(null);
   activeIdRef.current = activeId;
@@ -785,8 +816,50 @@ export function MailWorkspace({
    * ปลายทางของ action = กล่องที่ยืนอยู่ → ไม่มีอะไรเกิดขึ้น แต่แถวหายจากจอ + ขึ้น toast หลอก
    * ⇒ ปิดไปเลยทั้งคีย์ลัด/ปุ่ม (ห้ามมีปุ่มที่กดแล้วไม่เกิดอะไร — contract §6)
    */
-  const canArchive = box !== "archive";
-  const canTrash = box !== "trash";
+  const isSystemBox = (key: MailBoxKey) => selector.kind === "system" && selector.key === key;
+  const canArchive = !isSystemBox("archive");
+  const canTrash = !isSystemBox("trash");
+  const isDrafts = isSystemBox("drafts");
+
+  /** ย้ายเข้าโฟลเดอร์ที่ผู้ใช้สร้างเอง — ไม่เข้าคิวเลิกทำ (ไม่ใช่การทำลาย ย้ายกลับเองได้) */
+  const moveToFolder = useCallback(
+    async (ids: string[], folder: MailFolder) => {
+      if (ids.length === 0) return;
+      setHiddenIds((prev) => {
+        const next = new Set(prev);
+        for (const id of ids) next.add(id);
+        return next;
+      });
+      setSelectedIds(new Set());
+      try {
+        await postJson("/api/mail/messages/bulk", {
+          ids,
+          action: "move",
+          by: "thread",
+          mailboxId: folder.id,
+        });
+        setMessages((prev) => prev.filter((m) => !ids.includes(m.id)));
+        unhide(ids);
+        if (ids.includes(activeIdRef.current ?? "")) {
+          setActiveId(null);
+          setDetail(null);
+        }
+        scheduleMailboxRefresh();
+        notify.success(`ย้ายไป “${folder.name}” แล้ว`);
+      } catch (e) {
+        unhide(ids);
+        if (e instanceof MailSessionExpiredError) return handleExpired();
+        notify.error(e, "ย้ายอีเมลไม่สำเร็จ");
+      }
+    },
+    [handleExpired, scheduleMailboxRefresh, unhide],
+  );
+
+  /** ปลายทางที่ให้เลือกย้าย — ตัดโฟลเดอร์ที่ยืนอยู่ออก (กดแล้วไม่เกิดอะไร = ห้ามมี) */
+  const moveTargets = useMemo(
+    () => folders.filter((f) => !(selector.kind === "folder" && f.id === selector.mailboxId)),
+    [folders, selector],
+  );
 
   // ── คีย์ลัด — action ทุกตัวมาจาก registry (lib/mail/shortcuts.ts) ────────
   const shortcutHandlers = useMemo<MailShortcutHandlers>(() => {
@@ -855,16 +928,43 @@ export function MailWorkspace({
   /**
    * มุมมอง: `split` = รายการ+บานอ่านคู่กัน · `list` = รายการเต็มความกว้าง (เปิดฉบับไหนค่อยแทนที่)
    * บางคนอยากกวาดตาดูรายการยาว ๆ ไม่ต้องมีบานอ่านกินที่ครึ่งจอ
-   * · จำค่าไว้ใน localStorage (เป็นความชอบของอุปกรณ์นั้น ไม่ต้องเก็บฝั่งเซิร์ฟเวอร์)
+   *
+   * **ค่าจริงเก็บในกล่องเมลของเจ้าตัว** (`/api/mail/prefs`) ⇒ ตามตัวผู้ใช้ไปทุกเครื่อง
+   * ส่วน localStorage เหลือเป็นแค่ **แคชกันจอวูบ**: ทาค่าล่าสุดที่เห็นตอน first paint
+   * แล้วค่าจากเซิร์ฟเวอร์มาถึงเมื่อไรก็ทับเสมอ (เครื่องที่ใช้ร่วมกันจึงไม่ติดค่าของคนก่อนหน้า
+   * เกินชั่วอึดใจ · ออกจากระบบก็ล้างแคชทิ้งที่ `mail-shell.tsx`)
    */
-  const [pane, setPane] = useState<"split" | "list">("split");
+  const [pane, setPane] = useState<MailPaneMode>("split");
   useEffect(() => {
-    if (localStorage.getItem(PANE_STORAGE_KEY) === "list") setPane("list");
+    const cached = readCachedPane();
+    if (cached) setPane(cached);
+    let alive = true;
+    fetch("/api/mail/prefs")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: MailPrefs | null) => {
+        if (!alive || !data) return;
+        const next: MailPaneMode = data.pane === "list" ? "list" : "split";
+        setPane(next);
+        cachePane(next);
+      })
+      .catch(() => {
+        /* ความชอบโหลดไม่ได้ = ใช้ค่าที่แคชไว้ ไม่ต้องรบกวนผู้ใช้ */
+      });
+    return () => {
+      alive = false;
+    };
   }, []);
+
   const togglePane = useCallback(() => {
     setPane((prev) => {
       const next = prev === "split" ? "list" : "split";
-      localStorage.setItem(PANE_STORAGE_KEY, next);
+      cachePane(next);
+      // fire-and-forget — ปุ่มต้องตอบสนองทันที ไม่รอเซิร์ฟเวอร์ (พลาดก็แค่กดใหม่)
+      void fetch("/api/mail/prefs", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pane: next }),
+      }).catch(() => {});
       return next;
     });
   }, []);
@@ -882,7 +982,7 @@ export function MailWorkspace({
           )}
         >
           <MailToolbar
-            boxLabel={boxLabel}
+            boxLabel={currentBoxLabel}
             unreadCount={unreadCount}
             totalLabel={totalLabel}
             search={search}
@@ -913,7 +1013,7 @@ export function MailWorkspace({
               focusedIndex={focusedIndex}
               newCount={pendingNew.length}
               onApplyNew={applyPendingNew}
-              onOpen={(m, i) => (box === "drafts" ? void openDraft(m) : void openMessage(m, i))}
+              onOpen={(m, i) => (isDrafts ? void openDraft(m) : void openMessage(m, i))}
               onToggleSelect={toggleSelect}
               onToggleStar={(m) => toggleStar([m.id], !m.isFlagged)}
               onSwipeArchive={canArchive ? (m) => enqueueDestructive("archive", [m.id]) : undefined}
@@ -940,9 +1040,13 @@ export function MailWorkspace({
             onBack={closePane}
             canArchive={canArchive}
             canTrash={canTrash}
+            /* มุมมองรายการ = บานอ่านยืนเดี่ยวกินเต็มจอ ⇒ ต้องมีทางกลับที่เห็นเสมอ + คอลัมน์กว้างขึ้น */
+            standalone={listOnly}
             onArchive={() => activeId && enqueueDestructive("archive", [activeId])}
             onTrash={() => activeId && enqueueDestructive("trash", [activeId])}
             onToggleStar={() => activeId && toggleStar([activeId], !activeMessage?.isFlagged)}
+            moveTargets={moveTargets}
+            onMove={(folder) => activeId && void moveToFolder([activeId], folder)}
             onReply={() => openReply("reply")}
             onReplyAll={() => openReply("replyAll")}
             onForward={() => openReply("forward")}
@@ -973,6 +1077,20 @@ export function MailWorkspace({
             <MailOpen className="h-4 w-4" />
             ทำเป็นอ่านแล้ว
           </Button>
+          {moveTargets.length > 0 && (
+            <Dropdown
+              label="ย้ายไป"
+              placement="top-start"
+              className="h-8"
+              minWidth={220}
+              leadingIcon={<FolderInput className="h-4 w-4" />}
+              items={moveTargets.map((f) => ({
+                key: f.id,
+                label: f.path,
+                onClick: () => void moveToFolder(Array.from(selectedIds), f),
+              }))}
+            />
+          )}
           {canArchive && (
             <Button
               size="sm"

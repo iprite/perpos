@@ -18,7 +18,7 @@ import {
   sanitizeAttachmentName,
   type JmapMethodCall,
 } from "./jmap";
-import { MAIL_BOX_LABELS, MAIL_BOX_ORDER } from "./boxes";
+import { MAIL_BOX_LABELS, MAIL_BOX_ORDER, resolveBoxSelector } from "./boxes";
 import {
   INLINE_BUDGET_BYTES,
   buildInlineImageMap,
@@ -161,13 +161,22 @@ export function mailboxIdByKey(boxes: JmapMailbox[]): Partial<Record<MailBoxKey,
 export function buildFilter(
   params: Pick<MailListParams, "box" | "q" | "unread" | "attachment">,
   ids: Partial<Record<MailBoxKey, string>>,
+  /** id ของ mailbox ที่มีจริงบนเซิร์ฟเวอร์ — ต้องส่งมาเมื่อเปิดโฟลเดอร์ที่ผู้ใช้สร้างเอง (M3) */
+  knownMailboxIds?: ReadonlySet<string>,
 ): Record<string, unknown> {
   const conditions: Record<string, unknown>[] = [];
+  const selector = resolveBoxSelector(params.box);
 
-  if (params.box === "starred") {
+  if (selector.kind === "folder") {
+    // id ที่ไม่มีจริง = 404 เสมอ ห้ามปล่อยผ่านไปให้เซิร์ฟเวอร์ตอบรายการว่างเปล่า (ผู้ใช้จะนึกว่าเมลหาย)
+    if (!knownMailboxIds?.has(selector.mailboxId)) {
+      throw new MailServiceError(404, "ไม่พบโฟลเดอร์นี้ในกล่องเมล");
+    }
+    conditions.push({ inMailbox: selector.mailboxId });
+  } else if (selector.key === "starred") {
     conditions.push({ hasKeyword: "$flagged" });
   } else {
-    const mailboxId = ids[params.box];
+    const mailboxId = ids[selector.key];
     if (!mailboxId) throw new MailServiceError(404, "ไม่พบโฟลเดอร์นี้ในกล่องเมล");
     conditions.push({ inMailbox: mailboxId });
   }
@@ -226,7 +235,7 @@ export async function listMessages(
   params: MailListParams,
 ): Promise<MailListResult> {
   const boxes = await fetchMailboxes(session);
-  const filter = buildFilter(params, mailboxIdByKey(boxes));
+  const filter = buildFilter(params, mailboxIdByKey(boxes), new Set(boxes.map((b) => b.id)));
   const limit = Math.min(Math.max(params.limit ?? 50, 1), 100);
 
   const queryArgs: Record<string, unknown> = {
@@ -363,6 +372,8 @@ export interface MailPatch {
   isUnread?: boolean;
   isFlagged?: boolean;
   moveTo?: "archive" | "trash" | "inbox";
+  /** M3 — ย้ายเข้ากล่องใด ๆ ด้วย id (โฟลเดอร์ที่ผู้ใช้สร้างเอง) · ใช้คู่กับ `moveTo` ไม่ได้ */
+  moveToMailboxId?: string;
 }
 
 /** แปลง action/patch → update ของ Email/set (pure — มีเทสคุม) */
@@ -373,11 +384,13 @@ export function buildUpdatePatch(
   const update: Record<string, unknown> = {};
   if (patch.isUnread !== undefined) update["keywords/$seen"] = patch.isUnread ? null : true;
   if (patch.isFlagged !== undefined) update["keywords/$flagged"] = patch.isFlagged ? true : null;
-  if (patch.moveTo && targetMailboxId) update.mailboxIds = { [targetMailboxId]: true };
+  if ((patch.moveTo || patch.moveToMailboxId) && targetMailboxId) {
+    update.mailboxIds = { [targetMailboxId]: true };
+  }
   return update;
 }
 
-export function actionToPatch(action: MailBulkAction): MailPatch {
+export function actionToPatch(action: MailBulkAction, mailboxId?: string): MailPatch {
   switch (action) {
     case "read":
       return { isUnread: false };
@@ -391,10 +404,14 @@ export function actionToPatch(action: MailBulkAction): MailPatch {
       return { moveTo: "archive" };
     case "trash":
       return { moveTo: "trash" };
+    case "move":
+      if (!mailboxId) throw new MailServiceError(400, "ยังไม่ได้เลือกโฟลเดอร์ปลายทาง");
+      return { moveToMailboxId: mailboxId };
   }
 }
 
 export function patchToAction(patch: MailPatch): MailBulkAction {
+  if (patch.moveToMailboxId) return "move";
   if (patch.moveTo === "trash") return "trash";
   if (patch.moveTo) return "archive";
   if (patch.isFlagged !== undefined) return patch.isFlagged ? "star" : "unstar";
@@ -443,7 +460,14 @@ export async function applyMailPatch(
   const action = patchToAction(args.patch);
 
   let targetMailboxId: string | null = null;
-  if (args.patch.moveTo === "archive") {
+  if (args.patch.moveToMailboxId) {
+    const boxes = await fetchMailboxes(session);
+    // ต้องมีจริงบนเซิร์ฟเวอร์ ไม่งั้น `mailboxIds` ที่เขียนไปทำให้เมล "หายจากทุกกล่อง"
+    if (!boxes.some((b) => b.id === args.patch.moveToMailboxId)) {
+      throw new MailServiceError(404, "ไม่พบโฟลเดอร์ปลายทาง");
+    }
+    targetMailboxId = args.patch.moveToMailboxId;
+  } else if (args.patch.moveTo === "archive") {
     targetMailboxId = await ensureArchiveMailbox(session);
   } else if (args.patch.moveTo) {
     const boxes = mailboxIdByKey(await fetchMailboxes(session));
@@ -461,12 +485,12 @@ export async function applyMailPatch(
 
 export async function applyMailBulk(
   session: MailSession,
-  args: { ids: string[]; action: MailBulkAction; by: MailScope },
+  args: { ids: string[]; action: MailBulkAction; by: MailScope; mailboxId?: string },
 ): Promise<MailMutationResult> {
   return applyMailPatch(session, {
     ids: args.ids,
     by: args.by,
-    patch: actionToPatch(args.action),
+    patch: actionToPatch(args.action, args.mailboxId),
   });
 }
 

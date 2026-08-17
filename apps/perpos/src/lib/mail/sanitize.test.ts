@@ -2,17 +2,18 @@ import { describe, expect, it } from "vitest";
 
 import { FIXTURE_HTML_REMOTE, FIXTURE_HTML_TABLE } from "./fixtures";
 import {
+  MAIL_HEIGHT_MESSAGE,
   MAIL_IFRAME_SANDBOX,
   buildMailSrcdoc,
+  isValidCspNonce,
   mailCsp,
   prepareMailHtml,
   sanitizeMailHtml,
 } from "./sanitize";
 
-const CSP_BLOCKED =
-  "default-src 'none'; img-src 'none'; style-src 'unsafe-inline'; font-src 'none'; form-action 'none'; base-uri 'none'; frame-src 'none'";
-const CSP_ALLOWED =
-  "default-src 'none'; img-src https: data:; style-src 'unsafe-inline'; font-src 'none'; form-action 'none'; base-uri 'none'; frame-src 'none'";
+const NONCE = "abcdef0123456789abcdef0123456789";
+const CSP_BLOCKED = `default-src 'none'; img-src 'none'; script-src 'nonce-${NONCE}'; style-src 'unsafe-inline'; font-src 'none'; form-action 'none'; base-uri 'none'; frame-src 'none'`;
+const CSP_ALLOWED = `default-src 'none'; img-src https: data:; script-src 'nonce-${NONCE}'; style-src 'unsafe-inline'; font-src 'none'; form-action 'none'; base-uri 'none'; frame-src 'none'`;
 
 describe("sanitizeMailHtml — ตัดของอันตราย", () => {
   const { html } = sanitizeMailHtml(FIXTURE_HTML_REMOTE);
@@ -69,25 +70,52 @@ describe("sanitizeMailHtml — ตัดของอันตราย", () => {
 
 describe("CSP + sandbox ของ srcdoc", () => {
   it("สตริง CSP ตรงเป๊ะทั้งสองโหมด", () => {
-    expect(mailCsp(false)).toBe(CSP_BLOCKED);
-    expect(mailCsp(true)).toBe(CSP_ALLOWED);
+    expect(mailCsp(false, NONCE)).toBe(CSP_BLOCKED);
+    expect(mailCsp(true, NONCE)).toBe(CSP_ALLOWED);
   });
 
-  it("สตริง sandbox ตรงเป๊ะและไม่มี allow-scripts / allow-same-origin", () => {
-    expect(MAIL_IFRAME_SANDBOX).toBe("allow-popups allow-popups-to-escape-sandbox");
-    expect(MAIL_IFRAME_SANDBOX).not.toContain("allow-scripts");
+  /**
+   * 🔴 เทสนี้คือด่านของ invariant ที่แพงที่สุดในโมดูล — `allow-same-origin` คู่กับ `allow-scripts`
+   *    เมื่อไร frame ถอด sandbox ตัวเองออกและอ่าน DOM/cookie ของ mail.perpos.ai ได้ทันที
+   */
+  it("sandbox ต้องไม่มี allow-same-origin เด็ดขาด", () => {
     expect(MAIL_IFRAME_SANDBOX).not.toContain("allow-same-origin");
+    expect(MAIL_IFRAME_SANDBOX).toBe("allow-popups allow-popups-to-escape-sandbox allow-scripts");
+  });
+
+  it("CSP ห้ามเปิดทางสคริปต์นอกเหนือจาก nonce ของเรา", () => {
+    for (const csp of [mailCsp(false, NONCE), mailCsp(true, NONCE)]) {
+      expect(csp).not.toContain("unsafe-inline'; script");
+      expect(csp).not.toContain("'unsafe-eval'");
+      expect(csp).not.toContain("strict-dynamic");
+      expect(csp).toContain(`script-src 'nonce-${NONCE}'`);
+    }
+  });
+
+  it("nonce ผิดรูปแบบ = ไม่ยอมประกอบ srcdoc (กัน CSP ทั้งบรรทัดเพี้ยน)", () => {
+    for (const bad of ["", "sh0rt", `x'; script-src *`, '"><script>']) {
+      expect(isValidCspNonce(bad)).toBe(false);
+      expect(() => buildMailSrcdoc("<p>x</p>", { showImages: false, nonce: bad })).toThrow();
+    }
+  });
+
+  it("สคริปต์วัดความสูงต้องมี nonce และไม่แตะเนื้อหาของเมล", () => {
+    const doc = buildMailSrcdoc("<p>x</p>", { showImages: false, nonce: NONCE });
+    expect(doc).toContain(`<script nonce="${NONCE}">`);
+    expect(doc).toContain(MAIL_HEIGHT_MESSAGE);
+    // สคริปต์ต้องอยู่ท้าย body เสมอ — ไม่งั้นวัดตอนเนื้อหายังไม่ถูก parse
+    expect(doc.indexOf("<script")).toBeGreaterThan(doc.indexOf("<p>x</p>"));
   });
 
   it("meta CSP เป็นบรรทัดแรกใน head เสมอ แม้ body ว่าง/HTML เป็น null", () => {
     for (const body of [null, undefined, "", "<p>x</p>"]) {
-      const doc = buildMailSrcdoc(body, { showImages: false });
+      const doc = buildMailSrcdoc(body, { showImages: false, nonce: NONCE });
       expect(doc).toContain(
         `<head><meta http-equiv="Content-Security-Policy" content="${CSP_BLOCKED}">`,
       );
       expect(doc.indexOf("Content-Security-Policy")).toBeLessThan(doc.indexOf("<body>"));
     }
-    expect(buildMailSrcdoc("<p>x</p>", { showImages: true })).toContain(CSP_ALLOWED);
+    expect(buildMailSrcdoc("<p>x</p>", { showImages: true, nonce: NONCE })).toContain(CSP_ALLOWED);
   });
 });
 

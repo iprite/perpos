@@ -81,9 +81,14 @@ terraform apply
       · ที่ฟังครบตอนนี้: **25 · 443 · 465 · 587 · 993 · 995 · 4190** (ManageSieve) · 8080 (admin, ไม่เปิดใน firewall)
       · 💡 กับดักตอนกรอกฟอร์ม: ช่อง **Bind addresses ต้องกด `+`** ให้ค่าเข้า list ก่อน ไม่งั้นฟ้อง
       `Minimum length is 1` ทั้งที่พิมพ์ค่าถูกแล้ว
-- [ ] 🔴 **หน้าแอดมินเปิดให้ทั้งอินเทอร์เน็ต** — `https://mail.perpos.ai/admin/` ตอบ 200 จากทุกที่
-      (ต้องเปิด 443 อยู่แล้วเพราะ ACME + JMAP) · กันด้วยรหัสผ่านอย่างเดียว **ยังไม่มี fail2ban jail**
-      → เดารหัสได้ไม่จำกัดครั้ง · เลือกอย่างน้อย 1: jail ของ Stalwart / 2FA ให้แอดมิน / จำกัด `/admin` ตาม IP
+- [x] **หน้าแอดมินยังเปิดทั้งอินเทอร์เน็ต แต่ auto-ban คุมจริงแล้ว (พิสูจน์ 2026-08-17)**
+      · เดิมเชื่อว่า "ยิงรหัสผิด 12 ครั้งไม่โดนแบน" — **การทดสอบเดิมผิดเอง**: ยิงผ่าน loopback ซึ่ง
+      Stalwart ยกเว้นให้ · ทดสอบใหม่จาก IP จริง → **โดนแบน 1 วันหลังผิดครบ 10 ครั้ง/ชม.** (`authFailure`)
+      ตามค่า `x:Security` singleton (`authBanRate {count:10, period:1h}` · `authBanPeriod 1d`)
+      · ระบบแบน port-scan ก็ทำงานอยู่ (~150 IP ในบัญชีแบนตลอดเวลา)
+      · วิธีทดสอบโดยไม่ล็อกตัวเองออก: ยิงจาก IP สาธารณะของเครื่องเอง แล้วปลดผ่าน
+      `x:BlockedIp/set destroy` + `x:Action ReloadBlockedIps` จากเครื่องอื่น
+      · ที่เหลือเป็นทางเลือก ไม่เร่ง: 2FA แอดมิน / จำกัด `/admin` ตาม IP (IP บ้านเป็น dynamic — ยังไม่ทำ)
 - [ ] **บันทึกค่าเครื่องลง `infra_costs`** — Hetzner อยู่นอกท่อ `billing_export` ต้องกรอกเอง
 - [ ] **ขอปลดพอร์ต 25 ขาออกกับ Hetzner** — ร่างคำขอพร้อมส่งที่
       [`docs/MAIL_HETZNER_PORT25_REQUEST.md`](MAIL_HETZNER_PORT25_REQUEST.md)
@@ -147,20 +152,33 @@ terraform apply
 - [ ] −1.9 SpamAssassin + −0.5 body errors — ส่วนใหญ่เพราะเมลทดสอบเป็น plain text ล้วน
       ไม่มี HTML part / List-Unsubscribe · เมลจริงคะแนนดีกว่านี้ ไม่ใช่เรื่องเร่งด่วน
 - [ ] เปิด **Google Postmaster Tools** ของ `perpos.ai`
-- [ ] ⚠️ **fail2ban jail สำหรับ Stalwart — ไม่ต้องทำแล้ว ใช้ของในตัวแทน**
+- [x] ⚠️ **fail2ban jail สำหรับ Stalwart — ไม่ต้องทำ ใช้ของในตัว ซึ่งพิสูจน์แล้วว่าทำงาน** (ดูข้อหน้าแอดมินด้านบน — ที่เคยคิดว่า default หลวมคือทดสอบผ่าน loopback ที่ถูกยกเว้น)
       · Stalwart มี auto-ban ในตัวตั้งแต่ 0.5.3 (ครอบทั้ง SMTP/IMAP/JMAP/ManageSieve + นับตาม
       **ชื่อล็อกอิน** ด้วย ไม่ใช่แค่ IP → กัน distributed brute-force ที่หมุน IP ได้)
       · fail2ban ภายนอก **ใช้กับ Stalwart ไม่ได้อยู่แล้ว** — ระดับ log ปัจจุบันไม่บันทึก auth ที่ล้มเหลว
       (ลองยิงรหัสผิดแล้วไม่มีบรรทัดใน log เลย) จะ match อะไรก็ไม่เจอ
       · **ที่ต้องทำ: ตั้งเพดานที่ Settings → Security → Settings** — ยิงรหัสผิด 12 ครั้งติดยังไม่โดนแบน
       แปลว่า `authBanRate` default หลวมเกินไปสำหรับเครื่องที่เปิด `/admin` ให้ทั้งโลก
-- [x] **logical backup รายวันทำแล้ว** — [`infra/mail/stalwart-backup.sh`](../infra/mail/stalwart-backup.sh) + systemd timer `stalwart-backup.timer` (ตี 3 UTC) · เข้ารหัส AES-256 · เก็บ 14 วัน
-      · ⚠️ **RocksDB ล็อกไฟล์** → export ระหว่าง service รันไม่ได้ ต้องหยุดก่อน (วัดจริง **1 วินาที**)
-      · ทดสอบแล้ว: ถอดรหัส + แตกไฟล์ได้ครบ (680K) · service กลับมาครบทุกพอร์ต
-- [ ] 🔴 **ยังไม่ได้ส่ง backup ออกนอก Hetzner** — ตอนนี้กองอยู่บนเครื่องเดียวกับข้อมูลจริง
-      = **ยังไม่นับเป็น backup** · สคริปต์เรียก `/usr/local/sbin/stalwart-backup-upload.sh` ถ้ามี รอต่อปลายทาง
-- [ ] 🔴 **เก็บกุญแจถอดรหัสลง password manager** — `cat /root/.stalwart-backup-key`
-      กุญแจอยู่บนเครื่องเดียวกับข้อมูล เครื่องหาย = backup ถอดรหัสไม่ได้เลย
+- [x] **backup รายวัน — แก้ใหม่ 2026-08-17 ให้สำรอง "ทั้งก้อน" แล้ว** (timer `stalwart-backup.timer` ตี 3 UTC เดิม)
+      · 🔴 **บทเรียนแพง**: ของเดิมใช้ `stalwart --export` ซึ่งดึงแค่ metadata subspace (~700KB)
+      **ไม่รวม blob = ตัวเมลทั้งหมดไม่อยู่ใน backup เลย** (ดิสก์มี 1.6GB แต่ไฟล์ backup 743KB)
+      — ที่เคยเขียนว่า "ทดสอบแล้วครบ" คือทดสอบตอนเครื่องยังไม่มีเมลจริง · **ห้ามกลับไปใช้ `--export`**
+      · ท่าใหม่ (`/usr/local/sbin/stalwart-backup.sh` บนเครื่อง): stop → **rsync ทั้ง
+      `/var/lib/stalwart` + `/etc/stalwart` ไป mirror** → start ทันที (downtime วัดจริง **4 วิ**
+      · รอบถัดไปสั้นกว่าเพราะ SST/blob ของ RocksDB ส่วนใหญ่ immutable) → tar+zstd+AES-256 จาก
+      mirror นอกเวลา downtime → **verify ในตัว** (แตกกลับต้องเจอ `.blob` ไม่งั้น exit 1)
+      · ซ้อมกู้แล้ว 2026-08-17: แตกกลับ 82 ไฟล์ 1.6GB **byte ตรงทุกไฟล์** · ไฟล์ละ ~1.2GB เก็บในเครื่อง 3 สำเนา
+- [x] **backup ออกนอกเครื่องแล้ว (2026-08-17)** — GCS `gs://perpos-mail-backup`
+      (**Nearline · `europe-west3` Frankfurt** ใกล้เครื่อง NBG1 อัป 1.2GB ~10 วิ · lifecycle **ลบเองที่ 30 วัน**
+      · ~฿13/เดือน เข้าบิล GCP เดิม → โผล่ในแท็บโครงสร้างพื้นฐานของ `/admin/usage` เองผ่าน billing_export)
+      · `/usr/local/sbin/stalwart-backup-upload.sh` เซ็น JWT ด้วย openssl แลก token เอง — **ไม่ลง gsutil/rclone บนเครื่องเมล**
+      · 🔒 service account `perpos-mail-backup@perpos` มีสิทธิ์ **objectCreator อย่างเดียว** — ทดสอบจริง:
+      GET/DELETE/LIST ได้ 403 หมด ⇒ เครื่องเมลถูกยึดก็ทำลาย backup เก่าไม่ได้ (ลบของเก่า = หน้าที่ lifecycle)
+      · **ซ้อมภัยพิบัติผ่านแล้ว**: โหลดจาก GCS ลงเครื่องอื่น + ถอดรหัส + แตกไฟล์ → 82 ไฟล์ 1.6GB ครบ
+      · ท่อรายวันทดสอบ end-to-end แล้ว (backup → verify → upload ใน run เดียว)
+- [ ] 🔴 **เก็บกุญแจถอดรหัสลง password manager** (เหลือข้อเดียวของหมวดนี้ — คนต้องทำเอง)
+      `ssh root@46.225.14.18 'cat /root/.stalwart-backup-key'` · กุญแจยังอยู่บนเครื่องเดียวกับข้อมูล
+      เครื่องหายทั้งลูก = backup บน GCS ถอดรหัสไม่ได้
 
 **เกณฑ์ผ่าน Phase 1 (ครบทั้ง 4 ข้อถึงจะขายได้):**
 
@@ -170,6 +188,27 @@ terraform apply
 4. 🔴 **ซ้อมกู้จาก backup สำเร็จ 1 ครั้ง** — สร้างเครื่องใหม่จาก backup แล้วเมลครบ
 
 ---
+
+## C2. Monitoring + MTA-STS (เพิ่ม 2026-08-17)
+
+- [x] **เฝ้าระวัง + แจ้งเตือน LINE** — 2 ขา ตัดสินใจเตือนนอกเครื่องเสมอ:
+  1. **scheduler ของแอป (ทุก 5 นาที, tier t5)** เรียก `runMailServerMonitor()`
+     ([lib/mail/server-monitor.ts](../apps/perpos/src/lib/mail/server-monitor.ts)) — ตรวจสดจาก Vercel:
+     พอร์ต 25 (banner 220) · เว็บ/JMAP 443 · วันหมดอายุใบรับรอง (<14 วัน = เตือน)
+  2. **heartbeat รายชั่วโมงจากเครื่องเมล** (`stalwart-heartbeat.timer` → `POST /api/admin/mail-server/heartbeat`
+     auth `x-worker-secret`) ส่งของที่มองได้เฉพาะในเครื่อง: ดิสก์% · อายุ/ขนาด backup · service active
+     — **heartbeat ขาดเกิน 3 ชม. = เรื่องต้องเตือนเช่นกัน** (ตัวส่งตาย/เครื่องดับ)
+  - เตือนผ่าน `alertAdminLine` (LINE → super_admin) เฉพาะ**ขอบเหตุการณ์** (พัง/กลับมาปกติ) + ซ้ำทุก 6 ชม.
+    ถ้ายังพัง — สถานะ dedup อยู่ตาราง `mail_server_health` (แถวเดียว, RLS deny-all) · เกณฑ์: ดิสก์ ≥85% ·
+    backup แก่กว่า 30 ชม. · pure logic มีเทสคุม ([server-monitor.test.ts](../apps/perpos/src/lib/mail/server-monitor.test.ts))
+  - ⚠️ heartbeat จะเริ่มติดเมื่อ **โค้ดฝั่งแอป deploy แล้ว** (endpoint ยังไม่อยู่บน prod ตอนตั้ง timer)
+- [x] **MTA-STS โหมด enforce ทั้งสองโดเมน** — Stalwart เสิร์ฟ policy เองที่
+      `https://mta-sts.<โดเมน>/.well-known/mta-sts.txt` (ตั้งผ่าน `x:MtaSts` singleton: `mode=enforce, maxAge=1d`)
+      · TXT `_mta-sts` + **TLS-RPT** (`_smtp._tls` → rua เข้ากล่อง dmarc ของเราเอง) ครบทั้ง perpos.ai + exworker.co.th
+      · ⚠️ **ถ้าย้าย MX เมื่อไร ต้องแก้ policy + bump `id=` ใน TXT ก่อน** ไม่งั้นปลายทางที่ cache policy จะไม่ส่งเมลมา
+      · 🪤 **กับดัก SAN เดิมกัดซ้ำกับ exworker**: Stalwart ยัด autoconfig/autodiscover/ua-auto-config/mta-sts
+      เข้า ACME order เองตั้งแต่สร้างโดเมน → 3 ชื่อไม่มี DNS ทำ order ล้มวนมาหลายชั่วโมง (rate-limited เงียบ ๆ)
+      — เพิ่ม A/AAAA ครบ 6 record แล้ว 2026-08-17 (ได้ auto-config ของ Outlook/Thunderbird เป็นของแถม)
 
 ## D. ยังไม่เคาะ 5 ข้อ (ไม่บล็อก Phase 0)
 

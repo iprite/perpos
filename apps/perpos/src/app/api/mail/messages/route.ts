@@ -7,17 +7,25 @@
 import { type NextRequest } from "next/server";
 
 import { mailError, mailJson, readJsonBody, withMailSession } from "../_lib";
-import { MAIL_BOX_ORDER } from "@/lib/mail/boxes";
+import { MAIL_BOX_ORDER, MAIL_FOLDER_PREFIX, isMailboxId } from "@/lib/mail/boxes";
 import { listMessages } from "@/lib/mail/messages";
 import type { MailBoxKey } from "@/lib/mail/types";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
+/** คีย์ระบบ หรือ `f:<mailboxId>` ของโฟลเดอร์เอง (M3) — นอกนั้นตีกลับตั้งแต่ที่นี่ */
+function isKnownBoxValue(box: string): boolean {
+  if (box.startsWith(MAIL_FOLDER_PREFIX)) {
+    return isMailboxId(box.slice(MAIL_FOLDER_PREFIX.length));
+  }
+  return MAIL_BOX_ORDER.includes(box as MailBoxKey);
+}
+
 export async function POST(req: NextRequest) {
   const body = await readJsonBody(req);
-  const box = (body.box as MailBoxKey) ?? "inbox";
-  if (!MAIL_BOX_ORDER.includes(box)) {
+  const box = typeof body.box === "string" && body.box ? body.box : "inbox";
+  if (!isKnownBoxValue(box)) {
     return mailError("mail_bad_request", "ไม่รู้จักโฟลเดอร์ที่ขอ", 400);
   }
 

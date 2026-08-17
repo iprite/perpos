@@ -4,11 +4,11 @@
  * MailReader — บานอ่านเมล (MAIL_UI_SPEC §2 · contract §6.2)
  *
  * 🔴 กฎความปลอดภัยที่ห้ามผ่อนเด็ดขาด (contract §7.2):
- *    HTML ของเมลแสดงใน <iframe srcDoc> ที่ sandbox = "allow-popups allow-popups-to-escape-sandbox"
- *    **ห้ามเติม allow-scripts / allow-same-origin ไม่ว่าด้วยเหตุผลใด รวมถึง "เพื่อวัดความสูง"**
- *    → ความสูงจึงเป็นค่าคงที่ + ปุ่ม "ขยาย" แทนการวัดเนื้อหา
- *    srcDoc ประกอบด้วย buildMailSrcdoc() ซึ่งใส่ <meta http-equiv="Content-Security-Policy">
- *    เป็นบรรทัดแรกของ <head> เสมอ — CSP คือด่านจริงของการบล็อกรูปนอก (DOM strip เป็นชั้นรอง)
+ *    HTML ของเมลแสดงใน <iframe srcDoc> ที่ **ห้ามมี `allow-same-origin` เด็ดขาด**
+ *    (ค่า sandbox/CSP อยู่ที่ lib/mail/srcdoc.ts ที่เดียว — ห้ามคัดลอกมาไว้ที่นี่)
+ *    srcDoc ใส่ <meta http-equiv="Content-Security-Policy"> เป็นบรรทัดแรกของ <head> เสมอ
+ *    — CSP คือด่านจริงของการบล็อกรูปนอกและสคริปต์ (DOM strip เป็นชั้นรอง)
+ *    ความสูงมาจากสคริปต์ของเราใน frame ที่ postMessage กลับ — **ตรวจ `event.source` เสมอ**
  *
  * เธรด: กางเฉพาะฉบับล่าสุด · ฉบับอื่นยุบเป็นบรรทัดเดียว
  *  - ยุบ/กางด้วย CSS grid (grid-rows-[0fr] ⇄ [1fr] + overflow-hidden) ไม่วัดความสูง
@@ -26,16 +26,16 @@ import {
   ReplyAll,
   Download,
   Eye,
+  FolderInput,
   ImageOff,
   Mail,
-  Maximize2,
-  Minimize2,
   Paperclip,
   Star,
   Trash2,
 } from "lucide-react";
 import cn from "@core/utils/class-names";
 import { Button } from "@/components/ui/button";
+import { Dropdown } from "@/components/ui/dropdown";
 import { Avatar } from "@/components/ui/avatar";
 import { Skeleton, SkeletonText } from "@/components/ui/skeleton";
 import { Title, Text } from "@/components/ui/typography";
@@ -50,11 +50,20 @@ import { notify } from "@/lib/toast";
 import type {
   MailAddress,
   MailAttachment,
+  MailFolder,
   MailMessageDetail,
   MailThreadDetail,
 } from "@/lib/mail/types";
 import { formatMailDateTime, formatMailSize, mailDisplayName } from "@/lib/mail/format";
-import { MAIL_IFRAME_SANDBOX, buildMailSrcdoc } from "@/lib/mail/srcdoc";
+import {
+  MAIL_HEIGHT_MESSAGE,
+  MAIL_HEIGHT_PING,
+  MAIL_IFRAME_FALLBACK_HEIGHT,
+  MAIL_IFRAME_MAX_HEIGHT,
+  MAIL_IFRAME_MIN_HEIGHT,
+  MAIL_IFRAME_SANDBOX,
+  buildMailSrcdoc,
+} from "@/lib/mail/srcdoc";
 
 const INLINE_IMAGE_TYPES = new Set(["image/png", "image/jpeg", "image/gif", "image/webp"]);
 
@@ -89,6 +98,17 @@ export interface MailReaderProps {
   onArchive: () => void;
   onTrash: () => void;
   onToggleStar: () => void;
+  /**
+   * บานอ่าน "ยืนเดี่ยว" — กินพื้นที่ทั้งหมดโดยไม่มีรายการอยู่ข้าง ๆ (มุมมองรายการ / จอแคบ)
+   * มีผล 2 อย่างที่มาจากเหตุผลเดียวกัน:
+   *  1. ต้องเห็นปุ่ม "กลับไปรายการ" เสมอ — ไม่งั้นเปิดเมลแล้วออกไม่ได้นอกจากกด Esc (ผู้ใช้ไม่รู้)
+   *  2. คอลัมน์เนื้อหากว้างขึ้น — ค่า `max-w-3xl` ตั้งไว้ตอนบานอ่านแบ่งจอกับรายการ
+   *     พอกินเต็มจอแล้วยังคับเท่าเดิม จะเหลือขอบขาวสองข้างเป็นบริเวณกว้าง
+   */
+  standalone?: boolean;
+  /** M3 — โฟลเดอร์ที่ย้ายไปได้ (ว่าง = ยังไม่มีโฟลเดอร์ ⇒ ไม่แสดงปุ่ม) */
+  moveTargets?: MailFolder[];
+  onMove?: (folder: MailFolder) => void;
   /** M2 — เปิดกล่องเขียนโดยเติมค่าจากฉบับล่าสุดในเธรด */
   onReply: () => void;
   onReplyAll: () => void;
@@ -102,16 +122,19 @@ export function MailReader({
   flagged,
   canArchive = true,
   canTrash = true,
+  standalone = false,
   onRetry,
   onBack,
   onArchive,
   onTrash,
   onToggleStar,
+  moveTargets = [],
+  onMove,
   onReply,
   onReplyAll,
   onForward,
 }: MailReaderProps) {
-  if (loading) return <ReaderSkeleton onBack={onBack} />;
+  if (loading) return <ReaderSkeleton onBack={onBack} standalone={standalone} />;
 
   if (error) {
     return (
@@ -144,10 +167,13 @@ export function MailReader({
       flagged={flagged}
       canArchive={canArchive}
       canTrash={canTrash}
+      standalone={standalone}
       onBack={onBack}
       onArchive={onArchive}
       onTrash={onTrash}
       onToggleStar={onToggleStar}
+      moveTargets={moveTargets}
+      onMove={onMove}
       onReply={onReply}
       onReplyAll={onReplyAll}
       onForward={onForward}
@@ -160,10 +186,13 @@ function ThreadView({
   flagged,
   canArchive,
   canTrash,
+  standalone,
   onBack,
   onArchive,
   onTrash,
   onToggleStar,
+  moveTargets,
+  onMove,
   onReply,
   onReplyAll,
   onForward,
@@ -172,10 +201,13 @@ function ThreadView({
   flagged: boolean;
   canArchive: boolean;
   canTrash: boolean;
+  standalone: boolean;
   onBack: () => void;
   onArchive: () => void;
   onTrash: () => void;
   onToggleStar: () => void;
+  moveTargets: MailFolder[];
+  onMove?: (folder: MailFolder) => void;
   onReply: () => void;
   onReplyAll: () => void;
   onForward: () => void;
@@ -213,7 +245,8 @@ function ThreadView({
           variant="ghost"
           size="icon"
           aria-label="กลับไปรายการ"
-          className="shrink-0 lg:hidden"
+          title="กลับไปรายการ (Esc)"
+          className={cn("shrink-0", !standalone && "lg:hidden")}
           onClick={onBack}
         >
           <ChevronLeft className="h-5 w-5" />
@@ -232,6 +265,20 @@ function ThreadView({
           >
             <Star className={cn("h-4 w-4", flagged && "fill-amber-400 text-amber-500")} />
           </Button>
+          {moveTargets.length > 0 && onMove && (
+            <Dropdown
+              label="ย้ายไป"
+              placement="bottom-end"
+              className="h-9"
+              minWidth={220}
+              leadingIcon={<FolderInput className="h-4 w-4" />}
+              items={moveTargets.map((f) => ({
+                key: f.id,
+                label: f.path,
+                onClick: () => onMove(f),
+              }))}
+            />
+          )}
           {canArchive && (
             <Button
               variant="ghost"
@@ -264,7 +311,9 @@ function ThreadView({
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto">
-        <div className="mx-auto w-full max-w-3xl px-3 py-4 sm:px-5">
+        <div
+          className={cn("mx-auto w-full px-3 py-4 sm:px-5", standalone ? "max-w-5xl" : "max-w-3xl")}
+        >
           {/* เธรดยาวถูกตัดให้เหลือฉบับล่าสุด — ต้องบอกผู้ใช้ ห้ามหายเงียบ */}
           {detail.totalMessages > messages.length && (
             <div className="mb-3 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
@@ -311,7 +360,6 @@ function MessageCard({
   open: boolean;
   onToggle: () => void;
 }) {
-  const [expandedHeight, setExpandedHeight] = useState(false);
   const [imagesHtml, setImagesHtml] = useState<string | null>(null);
   const [loadingImages, setLoadingImages] = useState(false);
   const [preview, setPreview] = useState<MailAttachment | null>(null);
@@ -338,10 +386,65 @@ function MessageCard({
   }, [message.id]);
 
   const bodyHtml = imagesHtml ?? message.htmlSanitized;
-  const srcDoc = useMemo(
-    () => (bodyHtml ? buildMailSrcdoc(bodyHtml, { showImages: !!imagesHtml }) : null),
-    [bodyHtml, imagesHtml],
-  );
+
+  /**
+   * nonce ของ CSP — **สุ่มใหม่ทุกครั้งที่ประกอบ srcdoc** ห้ามคงที่/เดาได้
+   * (เดาได้เมื่อไร สคริปต์ที่หลุด sanitizer มาก็แนบ nonce เองแล้วรันได้)
+   */
+  const srcDoc = useMemo(() => {
+    if (!bodyHtml) return null;
+    return buildMailSrcdoc(bodyHtml, {
+      showImages: !!imagesHtml,
+      nonce: crypto.randomUUID().replaceAll("-", ""),
+    });
+  }, [bodyHtml, imagesHtml]);
+
+  /**
+   * ความสูงมาจากสคริปต์วัดข้างใน frame (`postMessage`) — ดูเหตุผลที่ต้องทำแบบนี้ใน `srcdoc.ts`
+   *
+   * 🔴 origin ของ frame เป็น `"null"` (sandbox ไม่มี allow-same-origin ตามที่ต้องเป็น)
+   *    ⇒ ตรวจ origin ไม่ได้ **ต้องเทียบ `event.source` กับ contentWindow ของ frame เรา**
+   *    ไม่งั้นหน้าอื่น/โฆษณาใน iframe ใดก็ยิงข้อความมาปรับความสูงเล่นได้
+   */
+  const frameRef = useRef<HTMLIFrameElement>(null);
+  const [frameHeight, setFrameHeight] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!srcDoc) return;
+    setFrameHeight(null);
+    let done = false;
+
+    const onMessage = (e: MessageEvent) => {
+      if (!frameRef.current || e.source !== frameRef.current.contentWindow) return;
+      const data = e.data as { type?: unknown; height?: unknown } | null;
+      if (!data || data.type !== MAIL_HEIGHT_MESSAGE) return;
+      if (typeof data.height !== "number" || !Number.isFinite(data.height)) return;
+      done = true;
+      setFrameHeight(
+        Math.min(Math.max(Math.ceil(data.height), MAIL_IFRAME_MIN_HEIGHT), MAIL_IFRAME_MAX_HEIGHT),
+      );
+    };
+    window.addEventListener("message", onMessage);
+
+    /**
+     * ถามซ้ำ — `srcdoc` เริ่มโหลดตั้งแต่ React แทรก iframe ลง DOM ซึ่งเกิด**ก่อน** effect นี้
+     * ⇒ ความสูงใบแรกที่ frame ส่งมาหายเสมอถ้ารออย่างเดียว (เจอจริงตอนเทส ไม่ใช่ทฤษฎี)
+     */
+    const ping = () =>
+      frameRef.current?.contentWindow?.postMessage({ type: MAIL_HEIGHT_PING }, "*");
+    ping();
+    const pings = [50, 200, 600, 1200].map((ms) => setTimeout(ping, ms));
+    // วัดไม่สำเร็จใน 2 วิ (สคริปต์ถูกบล็อก/เบราว์เซอร์เก่า) → ใช้ความสูงสำรอง แล้วให้ frame เลื่อนในตัว
+    const fallback = setTimeout(() => {
+      if (!done) setFrameHeight(MAIL_IFRAME_FALLBACK_HEIGHT);
+    }, 2000);
+
+    return () => {
+      for (const t of pings) clearTimeout(t);
+      clearTimeout(fallback);
+      window.removeEventListener("message", onMessage);
+    };
+  }, [srcDoc]);
 
   return (
     <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
@@ -422,34 +525,20 @@ function MessageCard({
               )}
 
               {srcDoc ? (
-                <>
-                  <iframe
-                    title="เนื้อหาอีเมล"
-                    // 🔴 ห้ามเติม allow-scripts / allow-same-origin (contract §7.2)
-                    sandbox={MAIL_IFRAME_SANDBOX}
-                    srcDoc={srcDoc}
-                    referrerPolicy="no-referrer"
-                    className={cn(
-                      "w-full rounded-lg border border-gray-100 bg-white transition-[height]",
-                      expandedHeight ? "h-[1600px]" : "h-[60vh]",
-                    )}
-                  />
-                  <div className="mt-2 flex justify-end">
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="gap-1.5 text-xs text-gray-500"
-                      onClick={() => setExpandedHeight((v) => !v)}
-                    >
-                      {expandedHeight ? (
-                        <Minimize2 className="h-3.5 w-3.5" />
-                      ) : (
-                        <Maximize2 className="h-3.5 w-3.5" />
-                      )}
-                      {expandedHeight ? "ย่อความสูง" : "ขยายความสูง"}
-                    </Button>
-                  </div>
-                </>
+                <iframe
+                  ref={frameRef}
+                  title="เนื้อหาอีเมล"
+                  // 🔴 ห้ามเติม allow-same-origin เด็ดขาด (contract §7.2 · มีเทสจับ)
+                  sandbox={MAIL_IFRAME_SANDBOX}
+                  srcDoc={srcDoc}
+                  referrerPolicy="no-referrer"
+                  onLoad={() =>
+                    frameRef.current?.contentWindow?.postMessage({ type: MAIL_HEIGHT_PING }, "*")
+                  }
+                  // ยังไม่รู้ความสูง = ใช้ค่าตั้งต้นไปก่อน (จอไม่กระโดดตอนค่าจริงมาถึงใน ~100ms)
+                  style={{ height: frameHeight ?? MAIL_IFRAME_MIN_HEIGHT }}
+                  className="w-full rounded-lg border border-gray-100 bg-white"
+                />
               ) : (
                 <pre className="whitespace-pre-wrap break-words font-sans text-sm leading-relaxed text-gray-700">
                   {message.textBody?.trim() || "(อีเมลฉบับนี้ไม่มีเนื้อหา)"}
@@ -535,7 +624,7 @@ function ReaderCenter({
   );
 }
 
-function ReaderSkeleton({ onBack }: { onBack: () => void }) {
+function ReaderSkeleton({ onBack, standalone }: { onBack: () => void; standalone: boolean }) {
   return (
     <div className="flex h-full min-h-0 flex-col bg-white">
       <div className="flex items-center gap-2 border-b border-gray-200 px-3 py-2.5">
@@ -543,14 +632,14 @@ function ReaderSkeleton({ onBack }: { onBack: () => void }) {
           variant="ghost"
           size="icon"
           aria-label="กลับไปรายการ"
-          className="shrink-0 lg:hidden"
+          className={cn("shrink-0", !standalone && "lg:hidden")}
           onClick={onBack}
         >
           <ChevronLeft className="h-5 w-5" />
         </Button>
         <Skeleton className="h-5 w-2/3" />
       </div>
-      <div className="mx-auto w-full max-w-3xl px-5 py-5">
+      <div className={cn("mx-auto w-full px-5 py-5", standalone ? "max-w-5xl" : "max-w-3xl")}>
         <div className="flex items-center gap-3">
           <Skeleton className="h-9 w-9 rounded-lg" />
           <div className="flex-1 space-y-2">

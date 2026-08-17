@@ -29,6 +29,21 @@ export interface MailboxSummary {
   totalCount: number | null;
 }
 
+/**
+ * โฟลเดอร์ที่ผู้ใช้สร้างเอง (M3) — ทุกอย่างอยู่บนเมลเซิร์ฟเวอร์ **ห้ามมีตารางใน Supabase**
+ * `path` = ชื่อเต็มไล่จากรากคั่นด้วย `/` (ต้องใช้กับ `fileinto` ของ Sieve — id ใช้ไม่ได้)
+ */
+export interface MailFolder {
+  id: string;
+  name: string;
+  parentId: string | null;
+  /** 0 = อยู่ระดับบนสุด */
+  depth: number;
+  path: string;
+  unreadCount: number | null;
+  totalCount: number | null;
+}
+
 // ─── ข้อความ ─────────────────────────────────────────────────────────────────
 
 export interface MailMessage {
@@ -83,7 +98,15 @@ export interface MailThreadDetail {
 
 // ─── การกระทำ / เลิกทำ ────────────────────────────────────────────────────────
 
-export type MailBulkAction = "read" | "unread" | "star" | "unstar" | "archive" | "trash";
+export type MailBulkAction =
+  | "read"
+  | "unread"
+  | "star"
+  | "unstar"
+  | "archive"
+  | "trash"
+  /** M3 — ย้ายเข้าโฟลเดอร์ที่ผู้ใช้สร้างเอง (ต้องส่ง `mailboxId` มาด้วย) */
+  | "move";
 
 export type MailScope = "thread" | "email";
 
@@ -104,7 +127,8 @@ export interface MailUndoToken {
 // ─── คำขอ/ผลลัพธ์ของรายการ ────────────────────────────────────────────────────
 
 export interface MailListParams {
-  box: MailBoxKey;
+  /** ตัวเลือกกล่อง — คีย์ระบบ (`inbox`…) หรือ `f:<mailboxId>` ของโฟลเดอร์เอง (ดู `boxes.ts`) */
+  box: string;
   q?: string;
   unread?: boolean;
   attachment?: boolean;
@@ -119,6 +143,54 @@ export interface MailListResult {
   total: number | null;
   hasMore: boolean;
   queryState: string | null;
+}
+
+// ─── ความชอบส่วนตัวของผู้ใช้ (เก็บในกล่องเมลเอง — ดู `lib/mail/prefs.ts`) ─────
+
+/** `split` = รายการ + บานอ่านคู่กัน · `list` = รายการเต็มความกว้าง */
+export type MailPaneMode = "split" | "list";
+
+export interface MailPrefs {
+  pane: MailPaneMode;
+}
+
+// ─── กฎกรองอัตโนมัติ (Sieve — M3) ─────────────────────────────────────────────
+
+/** ช่องของเมลที่เอามาเทียบ — แมปเป็น header test ของ Sieve ที่ `lib/mail/sieve.ts` */
+export type MailRuleField = "from" | "to" | "cc" | "subject";
+
+export type MailRuleOperator = "contains" | "is" | "not_contains";
+
+export interface MailRuleCondition {
+  field: MailRuleField;
+  op: MailRuleOperator;
+  value: string;
+}
+
+/** `all` = ต้องตรงทุกข้อ · `any` = ตรงข้อใดข้อหนึ่ง */
+export type MailRuleMatch = "all" | "any";
+
+export interface MailRule {
+  id: string;
+  name: string;
+  enabled: boolean;
+  match: MailRuleMatch;
+  conditions: MailRuleCondition[];
+  /** id ของกล่องปลายทาง (โฟลเดอร์เอง/จดหมายขยะ/ถังขยะ) — `null` = ไม่ย้าย */
+  moveToMailboxId: string | null;
+  markRead: boolean;
+  star: boolean;
+  /** เจอกฎนี้แล้วหยุด ไม่ตรวจกฎถัดไป */
+  stop: boolean;
+}
+
+export interface MailRulesResult {
+  rules: MailRule[];
+  /**
+   * บนเซิร์ฟเวอร์มีสคริปต์กรองที่ **ไม่ได้สร้างจากหน้านี้** อยู่
+   * ⇒ ห้ามเขียนทับเงียบ ๆ (UI ต้องเตือนและให้ผู้ใช้ยืนยันก่อน)
+   */
+  foreignScript: boolean;
 }
 
 // ─── session / OAuth (เก็บใน cookie เข้ารหัสเท่านั้น ไม่มีอะไรลง Supabase) ────
