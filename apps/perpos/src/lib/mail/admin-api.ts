@@ -544,45 +544,15 @@ export async function resetMailAccountPassword(
   return { password };
 }
 
-/** แก้ชื่อที่แสดง/โควตา — ชื่อกล่องกับโดเมนเปลี่ยนไม่ได้ (เท่ากับเปลี่ยนที่อยู่อีเมล) */
-export async function updateMailAccount(
-  config: MailAdminConfig,
-  id: string,
-  patch: { displayName?: string | null; quotaBytes?: number | null },
-): Promise<void> {
-  const update: Record<string, unknown> = {};
-  if (patch.displayName !== undefined) update.description = patch.displayName?.trim() || null;
-  if (patch.quotaBytes !== undefined) {
-    update.quotas =
-      typeof patch.quotaBytes === "number" && patch.quotaBytes > 0
-        ? { maxDiskQuota: Math.floor(patch.quotaBytes) }
-        : {};
-  }
-  if (Object.keys(update).length === 0) return;
-
-  const responses = await adminRequest(config, [
-    ["x:Account/set", { accountId: ADMIN_ACCOUNT_ID, update: { [id]: update } }, "update"],
-  ]);
-  const res = resultOf(responses, "update");
-  const notUpdated = res?.notUpdated as Record<string, SetErrorEntry> | undefined;
-  const first = notUpdated && Object.values(notUpdated)[0];
-  if (first) throw new MailAdminError(first.description ?? "บันทึกไม่สำเร็จ");
-}
-
 /**
- * ตั้งรายการนามแฝงของกล่อง — **เขียนทับทั้งชุด** (JMAP objectList แก้ทีละรายการไม่ได้)
- * ⇒ ผู้เรียกต้องส่งรายการเต็มที่ต้องการเสมอ ส่งมาไม่ครบ = นามแฝงที่หายไปถูกลบจริง
- *
- * ⚠️ ที่อยู่นามแฝงห้ามชนกับกล่องเมล/นามแฝงอื่นในเซิร์ฟเวอร์ — ถ้าชน Stalwart ปฏิเสธทั้งชุด
+ * แปลงรายการนามแฝงเป็น objectList ของ Stalwart (คีย์ "0","1",… ไม่ใช่อาร์เรย์)
+ * ตรวจรูปแบบ/ซ้ำกันเองตั้งแต่ที่นี่ — เขียนไปแล้วชนกันทีหลัง Stalwart ปฏิเสธทั้งชุด
  */
-export async function setMailAccountAliases(
-  config: MailAdminConfig,
-  id: string,
+function buildAliasObjectList(
   aliases: { name: string; domainId: string; enabled?: boolean }[],
-): Promise<void> {
+): Record<string, unknown> {
   const seen = new Set<string>();
   const objectList: Record<string, unknown> = {};
-
   aliases.forEach((alias, index) => {
     const name = normalizeLocalPart(alias.name);
     if (!name)
@@ -598,21 +568,50 @@ export async function setMailAccountAliases(
       description: null,
     };
   });
+  return objectList;
+}
+
+/**
+ * แก้ชื่อที่แสดง / โควตา / นามแฝง — ชื่อกล่องกับโดเมนเปลี่ยนไม่ได้ (เท่ากับเปลี่ยนที่อยู่อีเมล)
+ *
+ * ⚠️ ทุกอย่างต้องไปใน `x:Account/set` **ครั้งเดียว** — เคยแยกเป็น 2 คำขอ (ข้อมูลทั่วไป แล้วค่อย
+ *    นามแฝง) ซึ่งถ้าคำขอหลังพัง (เช่นนามแฝงชนกับที่อยู่ที่มีอยู่) ชื่อ/โควตาจะถูกบันทึกไปแล้ว
+ *    ทั้งที่หน้าเว็บขึ้นว่า "บันทึกไม่สำเร็จ" = ผู้ใช้เห็นสถานะไม่ตรงกับของจริง
+ *
+ * นามแฝงเป็น **การเขียนทับทั้งชุด** (objectList แก้ทีละรายการไม่ได้) ⇒ ผู้เรียกต้องส่งรายการเต็ม
+ * ที่ต้องการเสมอ · ส่งมาไม่ครบ = นามแฝงที่หายไปถูกลบจริง
+ */
+export async function updateMailAccount(
+  config: MailAdminConfig,
+  id: string,
+  patch: {
+    displayName?: string | null;
+    quotaBytes?: number | null;
+    aliases?: { name: string; domainId: string; enabled?: boolean }[];
+  },
+): Promise<void> {
+  const update: Record<string, unknown> = {};
+  if (patch.displayName !== undefined) update.description = patch.displayName?.trim() || null;
+  if (patch.quotaBytes !== undefined) {
+    update.quotas =
+      typeof patch.quotaBytes === "number" && patch.quotaBytes > 0
+        ? { maxDiskQuota: Math.floor(patch.quotaBytes) }
+        : {};
+  }
+  if (patch.aliases !== undefined) update.aliases = buildAliasObjectList(patch.aliases);
+  if (Object.keys(update).length === 0) return;
 
   const responses = await adminRequest(config, [
-    [
-      "x:Account/set",
-      { accountId: ADMIN_ACCOUNT_ID, update: { [id]: { aliases: objectList } } },
-      "aliases",
-    ],
+    ["x:Account/set", { accountId: ADMIN_ACCOUNT_ID, update: { [id]: update } }, "update"],
   ]);
-  const res = resultOf(responses, "aliases");
+  const res = resultOf(responses, "update");
   const notUpdated = res?.notUpdated as Record<string, SetErrorEntry> | undefined;
   const first = notUpdated && Object.values(notUpdated)[0];
   if (first) {
-    // ชนกับที่อยู่ที่มีอยู่แล้วเป็นสาเหตุที่เจอบ่อยที่สุด — บอกให้ตรงจุด
+    // นามแฝงชนกับที่อยู่ที่มีอยู่แล้วคือสาเหตุที่เจอบ่อยสุดเมื่อบันทึกไม่ผ่าน
     throw new MailAdminError(
-      first.description ?? "บันทึกนามแฝงไม่สำเร็จ — ที่อยู่นี้อาจถูกใช้ไปแล้ว",
+      first.description ??
+        (patch.aliases ? "บันทึกไม่สำเร็จ — นามแฝงบางตัวอาจถูกใช้ไปแล้ว" : "บันทึกไม่สำเร็จ"),
     );
   }
 }

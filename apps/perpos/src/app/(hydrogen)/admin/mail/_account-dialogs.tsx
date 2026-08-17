@@ -203,7 +203,7 @@ export function MailAccountEditDialog({
   onSave: (patch: {
     displayName: string;
     quotaGb: string;
-    aliases: { name: string; domainId: string }[];
+    aliases: { name: string; domainId: string; enabled: boolean }[];
   }) => void;
   onResetPassword: () => void;
   onDelete: () => void;
@@ -214,8 +214,10 @@ export function MailAccountEditDialog({
   );
   // แก้ในหน่วยความจำก่อน แล้วบันทึกทั้งชุดพร้อมปุ่ม "บันทึก" ปุ่มเดียว
   // (ห้ามบันทึกทีละนามแฝง — ผู้ใช้จะไม่รู้ว่าต้องกดกี่ครั้ง · DESIGN.md §13)
+  // เก็บ `enabled` ติดไปด้วยเสมอ — ถ้าตัดทิ้ง นามแฝงที่ถูกปิดไว้จะกลับมาเปิดเองเงียบ ๆ
+  // ทุกครั้งที่กดบันทึก (เขียนทับทั้งชุด)
   const [aliases, setAliases] = useState(
-    account.aliases.map((a) => ({ name: a.name, domainId: a.domainId })),
+    account.aliases.map((a) => ({ name: a.name, domainId: a.domainId, enabled: a.enabled })),
   );
   const [aliasName, setAliasName] = useState("");
   const [aliasDomainId, setAliasDomainId] = useState(
@@ -228,7 +230,7 @@ export function MailAccountEditDialog({
     const name = aliasName.trim().toLowerCase();
     if (!name || !aliasDomainId) return;
     if (aliases.some((a) => a.name === name && a.domainId === aliasDomainId)) return;
-    setAliases((prev) => [...prev, { name, domainId: aliasDomainId }]);
+    setAliases((prev) => [...prev, { name, domainId: aliasDomainId, enabled: true }]);
     setAliasName("");
   }
 
@@ -277,6 +279,9 @@ export function MailAccountEditDialog({
                   >
                     <span className="min-w-0 truncate text-sm text-gray-900">
                       {a.name}@{domainName(a.domainId)}
+                      {!a.enabled && (
+                        <span className="ms-2 text-xs font-normal text-gray-500">(ปิดอยู่)</span>
+                      )}
                     </span>
                     <Button
                       variant="ghost"

@@ -575,27 +575,23 @@ export function AdminMailView({
           }}
           onSave={({ displayName, quotaGb, aliases }) =>
             void runAccountAction(async () => {
+              // ชื่อ/โควตา/นามแฝง ไปในคำขอเดียว — ไม่งั้นครึ่งแรกบันทึกไปแล้วครึ่งหลังพัง
+              // ผู้ใช้จะเห็น "บันทึกไม่สำเร็จ" ทั้งที่ชื่อเปลี่ยนไปแล้ว
+              const changed =
+                editAccount.aliases
+                  .map((a) => `${a.name}@${a.domainId}:${a.enabled}`)
+                  .sort()
+                  .join(",") !==
+                aliases
+                  .map((a) => `${a.name}@${a.domainId}:${a.enabled}`)
+                  .sort()
+                  .join(",");
               await callAccounts("PATCH", {
                 id: editAccount.id,
                 displayName,
                 quotaBytes: quotaToBytes(quotaGb),
+                ...(changed ? { aliases } : {}),
               });
-              // นามแฝงเป็นคนละ call เพราะ Stalwart เขียนทับทั้งชุด — ส่งเฉพาะเมื่อมีการเปลี่ยนจริง
-              const before = editAccount.aliases
-                .map((a) => `${a.name}@${a.domainId}`)
-                .sort()
-                .join(",");
-              const after = aliases
-                .map((a) => `${a.name}@${a.domainId}`)
-                .sort()
-                .join(",");
-              if (before !== after) {
-                await callAccounts("PATCH", {
-                  id: editAccount.id,
-                  action: "set_aliases",
-                  aliases,
-                });
-              }
               setEditAccount(null);
             })
           }
