@@ -11,13 +11,19 @@
  * ไฟล์นี้ pure ไม่ import `@sentry/*` เพื่อให้เทสได้ตรง ๆ และใช้ได้ทั้ง node/edge/browser
  */
 
-const MAIL_PATH = "/api/mail/";
+/**
+ * เส้นทางที่ต้องล้าง
+ * · `/api/mail/` = ของลูกค้า (ชื่อไฟล์แนบใน query, คำค้นใน body)
+ * · `/api/admin/mail/` = หลังบ้านของเรา — **ตอบรหัสผ่านกล่องเมลที่สุ่มใหม่กลับไป**
+ *   จึงห้ามให้ URL/body ของเส้นนี้ไหลเข้า Sentry เช่นกัน
+ */
+const MAIL_PATHS = ["/api/mail/", "/api/admin/mail/"];
 
 type UnknownRecord = Record<string, unknown>;
 
 /** URL นี้เป็นของโมดูลอีเมลไหม (รับได้ทั้ง path ล้วนและ absolute URL) */
 export function isMailUrl(url: unknown): boolean {
-  return typeof url === "string" && url.includes(MAIL_PATH);
+  return typeof url === "string" && MAIL_PATHS.some((p) => url.includes(p));
 }
 
 /** ตัด query string ทิ้ง เหลือเฉพาะ path (คง origin ไว้ถ้ามี) */

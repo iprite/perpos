@@ -14,6 +14,7 @@
  */
 
 import "server-only";
+import { randomInt } from "node:crypto";
 
 const ADMIN_USING = ["urn:ietf:params:jmap:core", "urn:stalwart:jmap"] as const;
 const ADMIN_TIMEOUT_MS = 15_000;
@@ -30,6 +31,7 @@ const ADMIN_OBJECTS = [
   "x:Domain/set",
   "x:Account/query",
   "x:Account/get",
+  "x:Account/set",
   "x:Certificate/get",
   "x:QueuedMessage/query",
 ] as const;
@@ -257,7 +259,8 @@ export async function fetchMailAdminStatus(config: MailAdminConfig): Promise<Mai
         domain,
         role: variantType(a.roles, "User"),
         usedBytes: asNumber(a.usedDiskQuota),
-        quotaBytes: asNumber(quotas.diskQuota ?? quotas.disk),
+        // คีย์โควตาดิสก์ของ Stalwart คือ `maxDiskQuota` (หน่วยไบต์) — ชื่ออื่นไม่มีจริง
+        quotaBytes: asNumber(quotas.maxDiskQuota),
         aliasCount: countKeys(a.aliases),
         createdAt: asString(a.createdAt),
       };
@@ -400,6 +403,148 @@ export async function deleteMailDomain(config: MailAdminConfig, id: string): Pro
 
   const responses = await adminRequest(config, [
     ["x:Domain/set", { accountId: ADMIN_ACCOUNT_ID, destroy: [id] }, "destroy"],
+  ]);
+  const error = firstSetError(resultOf(responses, "destroy"));
+  if (error) throw new MailAdminError(error);
+}
+
+// ─── เขียน: กล่องเมล (บัญชีผู้ใช้) ───────────────────────────────────────────
+
+/**
+ * ตัวอักษรที่ใช้สุ่มรหัสผ่าน — **ตัดตัวที่อ่านสับสน** (0/O, 1/l/I) ออก
+ * เพราะรหัสนี้ถูกอ่าน/พิมพ์ต่อทางโทรศัพท์หรือ LINE จริง ๆ
+ */
+const PASSWORD_ALPHABET = "abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+const PASSWORD_LENGTH = 16;
+
+/**
+ * รหัสผ่านของกล่องเมล **ระบบเป็นคนสุ่มเสมอ** ไม่ให้แอดมินตั้งเอง
+ * (แอดมินตั้งเองมักได้รหัสซ้ำ/เดาง่าย และกลายเป็นรหัสที่ "มีคนอื่นรู้" ตั้งแต่วันแรก)
+ * · คืนค่าเพียงครั้งเดียวตอนสร้าง/รีเซ็ต — **ห้ามเก็บ ห้าม log ห้ามส่งเข้า Sentry**
+ */
+export function generateMailPassword(): string {
+  let out = "";
+  for (let i = 0; i < PASSWORD_LENGTH; i += 1) {
+    out += PASSWORD_ALPHABET[randomInt(PASSWORD_ALPHABET.length)];
+  }
+  return out;
+}
+
+/** ชื่อกล่อง (ส่วนหน้า @) ตาม RFC ที่ Stalwart รับจริง — กันช่องว่าง/อักขระแปลก */
+const LOCAL_PART_RE = /^[a-z0-9]([a-z0-9._-]{0,62}[a-z0-9])?$/;
+
+export function normalizeLocalPart(raw: string): string | null {
+  const name = raw.trim().toLowerCase().replace(/^@/, "").split("@")[0];
+  return LOCAL_PART_RE.test(name) ? name : null;
+}
+
+export interface CreateMailAccountInput {
+  localPart: string;
+  domainId: string;
+  displayName?: string | null;
+  /** เพดานพื้นที่เป็นไบต์ · ไม่ส่ง = ไม่จำกัด */
+  quotaBytes?: number | null;
+}
+
+export async function createMailAccount(
+  config: MailAdminConfig,
+  input: CreateMailAccountInput,
+): Promise<{ id: string; password: string }> {
+  const name = normalizeLocalPart(input.localPart);
+  if (!name) throw new MailAdminError("ชื่อกล่องเมลไม่ถูกต้อง (ใช้ a-z 0-9 . _ - เท่านั้น)");
+  if (!input.domainId) throw new MailAdminError("ต้องเลือกโดเมน");
+
+  const password = generateMailPassword();
+  const quotas =
+    typeof input.quotaBytes === "number" && input.quotaBytes > 0
+      ? { maxDiskQuota: Math.floor(input.quotaBytes) }
+      : {};
+
+  const responses = await adminRequest(config, [
+    [
+      "x:Account/set",
+      {
+        accountId: ADMIN_ACCOUNT_ID,
+        create: {
+          new: {
+            "@type": "User",
+            name,
+            domainId: input.domainId,
+            description: input.displayName?.trim() || null,
+            roles: { "@type": "User" },
+            credentials: { "0": { "@type": "Password", secret: password } },
+            quotas,
+          },
+        },
+      },
+      "create",
+    ],
+  ]);
+
+  const res = resultOf(responses, "create");
+  const error = firstSetError(res);
+  if (error) throw new MailAdminError(error);
+  const created = res?.created as Record<string, { id?: string }> | undefined;
+  const id = created?.new?.id;
+  if (!id) throw new MailAdminError("สร้างกล่องเมลแล้วแต่ไม่ได้รหัสกลับมา");
+  return { id, password };
+}
+
+/**
+ * ตั้งรหัสผ่านใหม่ — **เป็นการเขียนทับ ไม่ใช่การอ่านของเดิม**
+ * (Stalwart คืน `secret` เป็น `****` เสมอ อ่านรหัสเก่าไม่ได้ตั้งแต่ต้น ซึ่งถูกต้องแล้ว)
+ */
+export async function resetMailAccountPassword(
+  config: MailAdminConfig,
+  id: string,
+): Promise<{ password: string }> {
+  const password = generateMailPassword();
+  const responses = await adminRequest(config, [
+    [
+      "x:Account/set",
+      {
+        accountId: ADMIN_ACCOUNT_ID,
+        update: { [id]: { credentials: { "0": { "@type": "Password", secret: password } } } },
+      },
+      "reset",
+    ],
+  ]);
+  const res = resultOf(responses, "reset");
+  const notUpdated = res?.notUpdated as Record<string, SetErrorEntry> | undefined;
+  const first = notUpdated && Object.values(notUpdated)[0];
+  if (first) throw new MailAdminError(first.description ?? "ตั้งรหัสผ่านใหม่ไม่สำเร็จ");
+  return { password };
+}
+
+/** แก้ชื่อที่แสดง/โควตา — ชื่อกล่องกับโดเมนเปลี่ยนไม่ได้ (เท่ากับเปลี่ยนที่อยู่อีเมล) */
+export async function updateMailAccount(
+  config: MailAdminConfig,
+  id: string,
+  patch: { displayName?: string | null; quotaBytes?: number | null },
+): Promise<void> {
+  const update: Record<string, unknown> = {};
+  if (patch.displayName !== undefined) update.description = patch.displayName?.trim() || null;
+  if (patch.quotaBytes !== undefined) {
+    update.quotas =
+      typeof patch.quotaBytes === "number" && patch.quotaBytes > 0
+        ? { maxDiskQuota: Math.floor(patch.quotaBytes) }
+        : {};
+  }
+  if (Object.keys(update).length === 0) return;
+
+  const responses = await adminRequest(config, [
+    ["x:Account/set", { accountId: ADMIN_ACCOUNT_ID, update: { [id]: update } }, "update"],
+  ]);
+  const res = resultOf(responses, "update");
+  const notUpdated = res?.notUpdated as Record<string, SetErrorEntry> | undefined;
+  const first = notUpdated && Object.values(notUpdated)[0];
+  if (first) throw new MailAdminError(first.description ?? "บันทึกไม่สำเร็จ");
+}
+
+/** ลบกล่องเมล — **เมลทั้งหมดในกล่องหายถาวร** ผู้เรียกต้องยืนยันกับคนก่อนเสมอ */
+export async function deleteMailAccount(config: MailAdminConfig, id: string): Promise<void> {
+  const responses = await adminRequest(config, [
+    ["x:Account/set", { accountId: ADMIN_ACCOUNT_ID, destroy: [id] }, "destroy"],
   ]);
   const error = firstSetError(resultOf(responses, "destroy"));
   if (error) throw new MailAdminError(error);
