@@ -90,9 +90,10 @@
 # 1) เปิด dev server (ชื่อใน .claude/launch.json คือ perpos-dev ไม่ใช่ perpos)
 #    ผ่าน preview_start ของ Browser pane
 
-# 2) มินต์ cookie ของกล่องเมลสำหรับ dev — เพราะล็อกอินจริงต้องกรอกรหัสผ่านที่หน้า Stalwart
-node <scratchpad>/mint-session.mjs     # อ่าน API key จาก keychain + MAIL_SESSION_SECRET จาก .env.local
-# แล้วเซ็ตใน browser: document.cookie="perpos_mail_session=…; path=/api/mail" + perpos_mail_connected=1
+# 2) มินต์ cookie ของกล่องเมลสำหรับ dev — เพราะล็อกอินจริงต้องกรอกรหัสผ่านที่หน้า OAuth ของ Stalwart
+node scripts/mail-dev-session.mjs --snippet   # ได้ JS ที่วางในคอนโซลเบราว์เซอร์ได้เลย
+# (อ่าน API key จาก keychain + MAIL_JMAP_URL/MAIL_SESSION_SECRET จาก apps/perpos/.env.local
+#  แล้วดึง accountId/apiUrl จาก JMAP เอง — ไม่ต้องพึ่งไฟล์ discovery ของ session เก่า)
 ```
 
 - **ยืนยันด้วยของจริงเสมอ ไม่ใช่แค่ดู UI** — ตรวจซ้ำที่เซิร์ฟเวอร์ผ่าน JMAP admin (API key ใน keychain
