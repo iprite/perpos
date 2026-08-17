@@ -117,6 +117,9 @@ function MailAccountMenu({ basePath }: { basePath: string }) {
   return (
     <Popover
       placement="bottom-end"
+      /* trigger สูงไม่เต็ม header (48px) — ระยะปกติ 6px วัดจากตัวปุ่ม ทำให้ panel ไปชนเส้นขอบ
+         ของ header พอดี · 14 = ระยะจากปุ่มถึงขอบ (8) + ช่องไฟที่ควรเห็น (6) */
+      offset={14}
       trigger={
         <button
           type="button"
