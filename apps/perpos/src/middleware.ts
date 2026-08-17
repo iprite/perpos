@@ -19,6 +19,7 @@ import { isMailHost } from "@/lib/mail/base-path";
 function mailRewriteTarget(pathname: string): string | null {
   if (pathname === "/") return "/mail";
   if (pathname === "/login") return "/mail/login";
+  if (pathname === "/account") return "/mail/account";
   return null;
 }
 

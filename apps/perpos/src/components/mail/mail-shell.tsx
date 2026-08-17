@@ -14,7 +14,17 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { Archive, Inbox, Mail, Send, ShieldAlert, Star, Trash2, FileText } from "lucide-react";
+import {
+  Archive,
+  Inbox,
+  Mail,
+  Send,
+  ShieldAlert,
+  Star,
+  Trash2,
+  FileText,
+  UserRound,
+} from "lucide-react";
 import cn from "@core/utils/class-names";
 import { Popover } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
@@ -104,9 +114,14 @@ function MailAccountMenu({ basePath }: { basePath: string }) {
         <Text className="mt-3 text-xs text-gray-500">
           การออกจากระบบจะลบสิทธิ์เข้าถึงกล่องเมล <strong>บนอุปกรณ์นี้</strong> เท่านั้น
         </Text>
+        <Button variant="outline" className="mt-3 w-full" asChild>
+          <Link href={`${basePath}/account`}>
+            <UserRound className="h-4 w-4" /> บัญชีของฉัน
+          </Link>
+        </Button>
         <Button
           variant="outline"
-          className="mt-3 w-full"
+          className="mt-2 w-full"
           disabled={signingOut}
           onClick={() => void signOut()}
         >
