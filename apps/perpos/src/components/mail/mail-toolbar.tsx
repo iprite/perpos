@@ -9,7 +9,7 @@
  * ตัวกรองซ่อนหลังปุ่มไอคอน <Filter> + จุดเหลืองเมื่อกรองค้าง (DESIGN.md §4)
  */
 
-import { Filter, Keyboard, PenLine, RefreshCw } from "lucide-react";
+import { Columns2, Filter, Keyboard, PenLine, RefreshCw, Rows3 } from "lucide-react";
 import cn from "@core/utils/class-names";
 import { Button } from "@/components/ui/button";
 import { FilterBar, FilterClear, FilterSearch } from "@/components/ui/filter-bar";
@@ -34,6 +34,8 @@ export function MailToolbar({
   refreshing,
   onCompose,
   onOpenShortcuts,
+  pane,
+  onTogglePane,
   searchInputRef,
 }: {
   boxLabel: string;
@@ -50,6 +52,9 @@ export function MailToolbar({
   /** เปิดกล่องเขียนเมล (M2) */
   onCompose: () => void;
   onOpenShortcuts: () => void;
+  /** มุมมองปัจจุบัน — `list` = ไม่แสดงบานอ่าน (รายการเต็มความกว้าง) */
+  pane: "split" | "list";
+  onTogglePane: () => void;
   searchInputRef?: React.RefObject<HTMLDivElement | null>;
 }) {
   const hasFilter = filters.unread || filters.attachment;
@@ -111,6 +116,21 @@ export function MailToolbar({
           className="shrink-0"
         >
           <RefreshCw className={cn("h-4 w-4", refreshing && "animate-spin")} />
+        </Button>
+
+        {/* สลับมุมมอง: คู่ (รายการ+บานอ่าน) ↔ รายการเต็มความกว้าง
+            บางคนอยากกวาดตาดูรายการยาว ๆ ไม่ต้องมีบานอ่านกินที่ครึ่งจอ
+            ซ่อนบนจอเล็กเพราะที่นั่นเป็นมุมมองรายการอยู่แล้วโดยธรรมชาติ */}
+        <Button
+          variant={pane === "list" ? "secondary" : "outline"}
+          size="icon"
+          title={pane === "split" ? "ซ่อนบานอ่าน (ดูเป็นรายการ)" : "แสดงบานอ่านคู่รายการ"}
+          aria-label={pane === "split" ? "ซ่อนบานอ่าน" : "แสดงบานอ่าน"}
+          aria-pressed={pane === "list"}
+          className="hidden shrink-0 lg:inline-flex"
+          onClick={onTogglePane}
+        >
+          {pane === "split" ? <Rows3 className="h-4 w-4" /> : <Columns2 className="h-4 w-4" />}
         </Button>
 
         <Button
