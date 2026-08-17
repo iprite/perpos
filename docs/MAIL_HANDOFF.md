@@ -206,9 +206,25 @@ terraform apply
       `https://mta-sts.<โดเมน>/.well-known/mta-sts.txt` (ตั้งผ่าน `x:MtaSts` singleton: `mode=enforce, maxAge=1d`)
       · TXT `_mta-sts` + **TLS-RPT** (`_smtp._tls` → rua เข้ากล่อง dmarc ของเราเอง) ครบทั้ง perpos.ai + exworker.co.th
       · ⚠️ **ถ้าย้าย MX เมื่อไร ต้องแก้ policy + bump `id=` ใน TXT ก่อน** ไม่งั้นปลายทางที่ cache policy จะไม่ส่งเมลมา
-      · 🪤 **กับดัก SAN เดิมกัดซ้ำกับ exworker**: Stalwart ยัด autoconfig/autodiscover/ua-auto-config/mta-sts
-      เข้า ACME order เองตั้งแต่สร้างโดเมน → 3 ชื่อไม่มี DNS ทำ order ล้มวนมาหลายชั่วโมง (rate-limited เงียบ ๆ)
-      — เพิ่ม A/AAAA ครบ 6 record แล้ว 2026-08-17 (ได้ auto-config ของ Outlook/Thunderbird เป็นของแถม)
+      · ✅ **ใช้งานได้ทั้งสองโดเมนแล้ว** — `x:Certificate` มี 2 ใบ: perpos.ai (7 SAN, ถึง 13 พ.ย.)
+      และ **exworker.co.th (4 SAN, ถึง 15 พ.ย.)** · ตรวจ: `curl https://mta-sts.<โดเมน>/.well-known/mta-sts.txt`
+      · 🪤 **กับดัก SAN ของ ACME — เสียเวลาไปหลายชั่วโมง อ่านก่อนเพิ่มโดเมนใหม่ทุกครั้ง**:
+      Stalwart ยัด `autoconfig`/`autodiscover`/`ua-auto-config`/`mta-sts` เข้า ACME order **เองตั้งแต่สร้างโดเมน**
+      ⇒ ชื่อไหนไม่มีใน DNS ทั้ง order ล้ม · ของ exworker ล้ม **54 ครั้ง** ใน 08:30–10:19Z แล้วชน
+      `maxRetries: 10` ของ `x:AcmeProvider` ⇒ **task `AcmeRenewal` ถูกทิ้งถาวร ไม่ retry เองอีก**
+      ⇒ **เพิ่ม A+AAAA ของ 4 ชื่อนี้ให้ครบ _ก่อน_ สร้างโดเมนใน Stalwart เสมอ** (ได้ auto-config
+      ของ Outlook/Thunderbird เป็นของแถม) — ทำครบให้ exworker แล้ว 2026-08-17
+      · 🔧 **วิธีปลุก ACME หลัง task ถูกทิ้ง** (ต้องใช้เมื่อแก้ DNS ตามหลัง): `x:Domain/set` →
+      `certificateManagement: {"@type":"Manual"}` + `ReloadSettings` แล้วสลับกลับเป็น
+      `{"@type":"Automatic", acmeProviderId, subjectAlternativeNames}` + `ReloadSettings`
+      · **ท่าที่ไม่ได้ผล ไม่ต้องลองซ้ำ**: `systemctl restart stalwart` · แก้ `subjectAlternativeNames`
+      เฉย ๆ แล้ว reload · `ReloadTlsCertificates` — Stalwart 0.16 **ไม่มี action สั่ง renew** (`x:Action`
+      มีแค่ `Reload*`) และ `renewBefore: R23` ทำให้ไม่ประเมินใบใหม่จนกว่าใบหลักจะเหลือ 23 วัน
+      · ⏱️ **ใบไม่โผล่ทันที รออย่างน้อย ~30 นาที** ก่อนสรุปว่าไม่สำเร็จ (ผมเช็คที่ 15/30/45 นาทีแล้วเข้าใจผิดว่าล้ม)
+      · ⚠️ **`notValidBefore` ของ Let's Encrypt ถูก backdate ~1 ชม.** — ห้ามใช้ค่านั้นสรุปว่า order สำเร็จตอนกี่โมง
+      · ❌ **ห้ามลบ `x:Certificate` ใบหลักเพื่อบังคับ order ใหม่** — ถ้า order ล้ม (rate limit) ทั้งเครื่อง
+      ตกไปเสิร์ฟ self-signed ⇒ **เมลเข้าไม่ได้ทั้งระบบ** · ทางสำรองที่ปลอดภัยคือออกใบเองด้วย
+      **DNS-01 + Cloudflare token** แล้วอัปโหลดผ่าน `x:Certificate/set` (ไม่แตะใบหลัก ไม่มี downtime)
 
 ## D. ยังไม่เคาะ 5 ข้อ (ไม่บล็อก Phase 0)
 
