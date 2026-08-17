@@ -410,7 +410,7 @@ export function AdminMailView({
                       {a.quotaBytes === null ? "ไม่จำกัด" : formatBytes(a.quotaBytes)}
                     </TableCell>
                     <TableCell align="right" className="tabular-nums">
-                      {a.aliasCount}
+                      {a.aliases.length}
                     </TableCell>
                     <TableCell align="center">{formatDate(a.createdAt)}</TableCell>
                   </TableRow>
@@ -566,19 +566,36 @@ export function AdminMailView({
       {editAccount && (
         <MailAccountEditDialog
           account={editAccount}
+          domains={status?.domains ?? []}
           busy={busy}
           error={accountError}
           onClose={() => {
             setEditAccount(null);
             setAccountError(null);
           }}
-          onSave={({ displayName, quotaGb }) =>
+          onSave={({ displayName, quotaGb, aliases }) =>
             void runAccountAction(async () => {
               await callAccounts("PATCH", {
                 id: editAccount.id,
                 displayName,
                 quotaBytes: quotaToBytes(quotaGb),
               });
+              // นามแฝงเป็นคนละ call เพราะ Stalwart เขียนทับทั้งชุด — ส่งเฉพาะเมื่อมีการเปลี่ยนจริง
+              const before = editAccount.aliases
+                .map((a) => `${a.name}@${a.domainId}`)
+                .sort()
+                .join(",");
+              const after = aliases
+                .map((a) => `${a.name}@${a.domainId}`)
+                .sort()
+                .join(",");
+              if (before !== after) {
+                await callAccounts("PATCH", {
+                  id: editAccount.id,
+                  action: "set_aliases",
+                  aliases,
+                });
+              }
               setEditAccount(null);
             })
           }

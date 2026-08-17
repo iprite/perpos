@@ -16,6 +16,7 @@ import {
   deleteMailAccount,
   readMailAdminConfig,
   resetMailAccountPassword,
+  setMailAccountAliases,
   updateMailAccount,
 } from "@/lib/mail/admin-api";
 
@@ -73,6 +74,22 @@ export async function PATCH(req: NextRequest) {
   if (!id) return NextResponse.json({ error: "ต้องระบุรหัสกล่องเมล" }, { status: 400 });
 
   try {
+    if (body.action === "set_aliases") {
+      // ส่งรายการเต็มเสมอ (เขียนทับทั้งชุด) — ดูหมายเหตุใน setMailAccountAliases
+      const raw = Array.isArray(body.aliases) ? body.aliases : [];
+      const aliases = raw
+        .filter((a): a is Record<string, unknown> => !!a && typeof a === "object")
+        .map((a) => ({
+          name: typeof a.name === "string" ? a.name : "",
+          domainId: typeof a.domainId === "string" ? a.domainId : "",
+          enabled: a.enabled !== false,
+        }));
+      if (aliases.length > 50) {
+        return NextResponse.json({ error: "นามแฝงเกิน 50 รายการ" }, { status: 400 });
+      }
+      await setMailAccountAliases(config, id, aliases);
+      return NextResponse.json({ ok: true }, { headers: NO_STORE });
+    }
     if (body.action === "reset_password") {
       const { password } = await resetMailAccountPassword(config, id);
       return NextResponse.json({ password }, { headers: NO_STORE });
