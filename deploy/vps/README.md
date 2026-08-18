@@ -38,18 +38,23 @@ echo "CLOUDFLARE_API_TOKEN=..." > /srv/deploy/.env   # token สิทธิ์ 
 cd /srv/deploy && docker compose up -d caddy
 ```
 
-**สถานะ 2026-08-18**: perpos รันอยู่บนเครื่องแล้ว (`docker compose up -d perpos`, ตอบ 200 ที่
-127.0.0.1:3005 ทั้ง host `app.perpos.ai` และ `mail.perpos.ai`) · `/srv/apps/perpos/.env` = env production
-ที่ pull จาก Vercel (ตัด `VERCEL_*`/`TURBO_*`/`NX_*` ออก) · GitHub secrets ตั้งครบ + CI deploy key อยู่ใน
-`/home/deploy/.ssh/authorized_keys` · **ค้าง: `CLOUDFLARE_API_TOKEN` → Caddy → ชี้ DNS**
+**สถานะ 2026-08-19: ตัด DNS ครบทั้ง 3 แอปแล้ว** — `app.riekchang.com` · `app.exworker.co.th` ·
+`app.perpos.ai` + `mail.perpos.ai` เป็น `A 62.146.233.27` (TTL 300, **เมฆเทา** — เปิดเมฆส้มเป็นขั้นแยกทีหลัง)
+· cron ย้ายมา `/etc/cron.d/perpos` (TZ=Asia/Bangkok) แล้ว, job ใน Cloud Scheduler 4 ตัว **PAUSED**
+(ยังไม่ลบ = rollback ได้) · โปรเจกต์ Vercel ยังรันอยู่ทั้ง 3 = rollback ด้วยการชี้ CNAME กลับ · ค่า env
+ที่ Vercel ตั้งเป็น Sensitive `vercel env pull` คืน `""` — กู้จาก `.env.local`/Cloud Run/DB แล้ว
+(รายละเอียดใน memory ของ agent) · ค้าง: เปิดเมฆส้ม · `NEXT_PUBLIC_LINE_OA_ADD_URL` (riekchang) ·
+`GCP_SYNC_SA_KEY` (perpos cost sync) · ปิด Vercel หลังนิ่ง ~1 เดือน · เฟส 2 เมล
 
 ## Deploy
 
 - Repo secrets: `VPS_HOST` · `VPS_USER` (=deploy) · `VPS_SSH_KEY` · `NEXT_PUBLIC_SUPABASE_URL` · `NEXT_PUBLIC_SUPABASE_ANON_KEY` · `NEXT_PUBLIC_LINE_ADD_FRIEND_URL` · `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`
-- รัน workflow `deploy-vps` (กดมือ) → build standalone → rsync ไป `releases/<ts>` → สลับ symlink `current` → `docker compose restart perpos`
+- รัน workflow `deploy-vps` (กดมือ) → build standalone → **อัปโหลด R2 (`deploy-artifacts`) → VPS ดึงด้วย presigned URL** → `releases/<ts>` → สลับ symlink `current` → `docker compose up -d && restart`
+  · ⚠️ ห้ามกลับไป scp จาก runner หรือ Actions artifact API — เส้นทาง GitHub→Contabo SG ได้ ~40 KB/s (ค้าง 20+ นาที) ส่วน R2 มี CDN → ~17 MB/s · secrets เพิ่ม: `R2_ACCESS_KEY_ID` `R2_SECRET_ACCESS_KEY` `R2_ACCOUNT_ID`
+  · `up -d` อย่างเดียวไม่ recreate เมื่อ symlink เปลี่ยน (bind mount เดิม) → ต้อง `restart` ต่อท้ายเสมอ
 - **rollback**: `ln -sfn /srv/apps/perpos/releases/<ก่อนหน้า> /srv/apps/perpos/current && docker compose restart perpos` (เก็บไว้ 3 release)
 - `NEXT_PUBLIC_*` inline ตอน build — เปลี่ยนค่าต้อง build ใหม่ (เหมือน Vercel) · env ฝั่ง server แก้ที่ `/srv/apps/perpos/.env` แล้ว restart พอ
-- exapp / riekchang: copy workflow นี้ไปแต่ละ repo แล้วปรับ path `server.js` ใน compose ให้ตรงโครง standalone ของ repo นั้น
+- exapp / riekchang: มี workflow เดียวกันใน repo ตัวเองแล้ว (`.github/workflows/deploy-vps.yml`) · ทั้งสองใช้ Supabase project เดียวกับ perpos แต่คนละ schema (`SUPABASE_SCHEMA=exapp` / `riekchang`)
 
 ## Cron (แทน Google Cloud Scheduler)
 
