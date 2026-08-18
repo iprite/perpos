@@ -392,8 +392,13 @@ MTA-STS            → mode: enforce · mx: stalwart.perpos.ai · max_age 86400
 | ✅ ทดสอบ                          | SMTP 25 STARTTLS/IMAPS ใบรับรอง verify OK (จาก EU) · รับเมลเข้าจริง `250 2.0.0 Message queued` · `login.perpos.ai` 302 → `/account` · JMAP session 200 · MTA-STS policy เสิร์ฟจาก SG · heartbeat แถวแรกจาก SG เข้า `mail_server_samples`                                                |
 | ✅ EU                             | `systemctl disable stalwart` + ปิด timer · **ยังไม่ลบเครื่อง (เก็บถึง D+7)** · ถอน key ชั่วคราว SG→EU แล้ว                                                                                                                                                                              |
 
+**✅ ยืนยันส่งออกจริงแล้ว (2026-08-18 18:01Z)** — admin@exworker.co.th → Gmail: `Received: from mailserver.perpos.ai [62.146.233.27]` · TLS1.3 · **spf=pass · dkim=pass (rsa) · dmarc=pass** · ไม่มี relay (`dkim=neutral (no key)` ของ selector ed25519 = Gmail ยังไม่ verify ed25519 — TXT อยู่ใน DNS ครบ ไม่ต้องแก้)
+
 **กับดักที่เจอ**
 
+- **🔴 Stalwart auto-ban IP ของ Caddy** — พอเมลอยู่หลัง reverse proxy ทุก request มาจาก IP container เดียว (`172.18.0.3`) → พอมี request หลาย path ติดกัน Stalwart ตีเป็น `portScanning` แบน Caddy ทั้งตัว = **ทุกคน 403 ที่ login/JMAP** (localhost ยัง 200) ⇒ แก้ที่ใช้จริง: `x:BlockedIp/set destroy` + **`x:AllowedIp` = `172.18.0.0/16`** (docker network ของ Caddy)
+- **🔴 ห้ามใส่อะไรใน `x:SystemSettings.proxyTrustedNetworks`** — มันคือ **PROXY protocol (HAProxy)** ไม่ใช่ X-Forwarded-For: IP ที่อยู่ในนั้น Stalwart จะรอ PROXY header แล้วปิด connection ธรรมดาทันที (empty reply → Caddy 502) — ใส่ `127.0.0.1` = localhost พัง, ใส่ `172.16/12` = **ทั้งระบบ 502** (เจอจริง 2026-08-18) · แก้กลับเป็น `{}` แล้ว**ต้อง `systemctl restart stalwart`** (ReloadSettings ไม่ re-bind) · ถ้าอยากให้ Stalwart เห็น IP จริงต้องให้ Caddy ส่ง PROXY protocol (`transport http { proxy_protocol v2 }`) ก่อน — ยังไม่ทำ (auto-ban ต่อผู้ใช้จริงจึงไม่ทำงานที่ชั้น Stalwart; Cloudflare/Caddy กันแทน)
+- hostname เครื่องต้องเป็น `mailserver.perpos.ai` (Message-ID ใช้ hostname — เคยออกเป็น `@vmi3517994`) ⇒ `hostnamectl set-hostname` + `/etc/hosts` + restart
 - **rsync รอบสุดท้ายทับคอนฟิกที่แก้บน SG** (คอนฟิกอยู่ใน RocksDB เดียวกับข้อมูล) ⇒ ต้องทำ JMAP set (DnsServer/Dns01/ลบ 443) **ซ้ำหลัง rsync สุดท้าย** — ทำแล้ว
 - ufw บล็อก container → host:8080 (Caddy 502) จนกว่าจะ `ufw allow from 172.16.0.0/12 to any port 8080`
 - EU มี `/etc/hosts` `mailserver.perpos.ai → 127.0.1.1` ⇒ ทดสอบจาก EU ต้องยิง IP ตรง (`--server 62.146.233.27 --tls-sni …`)
