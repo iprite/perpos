@@ -412,4 +412,7 @@ MTA-STS            → mode: enforce · mx: stalwart.perpos.ai · max_age 86400
 - [ ] ตัด `stalwart.perpos.ai` ออกจาก `x:MtaSts.mailExchangers` + bump id (key ได้ 403 ที่ `x:MtaSts` ตอนนี้ — ตรวจสิทธิ์/rate limit)
 - [ ] หลังนิ่ง: ตัด `ip4:169.58.196.147 ip6:2a02:c207:…` ออกจาก SPF · ลบเครื่อง EU ($6.6/เดือน) · ลบ record `169.58.196.147` ที่เหลือ (ถ้ามี)
 - [ ] ufw จำกัด 443/80 ให้เฉพาะ Cloudflare IP range (ตอนนี้ยิงตรงข้าม CF ได้) — ทำได้แล้วเพราะเมลใช้ port แยก
-- [ ] backup: `stalwart-backup.timer` เปิดแล้วบน SG (03:00 UTC) — ยังเก็บ local อย่างเดียว (upload script ยังไม่มี เหมือนเดิม)
+- [x] **backup ออกนอกเครื่องแล้ว (2026-08-18)** — `stalwart-backup.timer` 03:00 UTC → stop 1 วิ → rsync mirror → tar+zstd+AES → verify → **`/usr/local/sbin/stalwart-backup-upload.sh` อัปขึ้น Cloudflare R2** `s3://deploy-artifacts/stalwart-backup/` (เก็บ 14 ก้อน · creds `/root/.stalwart-backup-r2.env` · awscli ผ่าน pip)
+      · round-trip ทดสอบแล้ว: ดึงกลับ 29 วิ, sha256 ตรง, ถอดรหัสด้วย `/root/.stalwart-backup-key` ได้ (data 91 + etc 4 + blob 4)
+      · ⚠️ **ก่อนหน้านี้ (ทั้ง Hetzner และ EU) backup ไม่เคยออกนอกเครื่อง** — สคริปต์เช็ค upload script ที่ไม่มีอยู่แล้วเงียบ · "GCS" ในชื่อ unit ไม่เคยเป็นจริง
+      · **restore**: `aws s3 cp` ลงมา → `openssl enc -d -aes-256-cbc -pbkdf2 -iter 300000 -pass file:/root/.stalwart-backup-key` → `zstd -d` → `tar -x` → `data/` ไป `/var/lib/stalwart`, `etc/` ไป `/etc/stalwart` → chown stalwart → start · **key อยู่ที่ `/root/.stalwart-backup-key` บนเครื่องเท่านั้น — เครื่องหาย key หาย = backup ถอดไม่ได้ ⇒ ต้องเก็บสำเนา key ไว้ที่อื่นด้วย** (ยังไม่ทำ)
