@@ -1,0 +1,134 @@
+---
+import { LINE_URL } from "@/lib/site";
+import Layout from "@/layouts/Layout.astro";
+import Lockup from "@/components/Lockup.astro";
+import BrandIcon from "@/components/BrandIcon.astro";
+import Icon from "@/components/Icon.astro";
+import SiteFooter from "@/components/SiteFooter.astro";
+
+// หน้าสำหรับ "แชร์ลิงก์" โดยเฉพาะ — แปะใน LINE/Facebook/X แล้วขึ้นการ์ดรูป
+// (og:image = /og/line-add-friend.png) กดแล้วเข้าเพิ่มเพื่อน @perpos ทันที
+const perks = [
+  {
+    icon: "file-audio",
+    title: "ถอดเสียง + สรุปประชุม",
+    desc: "ส่งไฟล์เสียงหรือวิดีโอ รับรายงานการประชุมกลับใน LINE",
+  },
+  {
+    icon: "file-text",
+    title: "บีบ PDF ให้เล็กลง",
+    desc: "ส่งไฟล์เข้าแชต ระบบบีบแล้วส่งกลับ ไม่ต้องลงโปรแกรม",
+  },
+  {
+    icon: "message-circle",
+    title: "ถามอะไรก็ได้เรื่อง PERPOS",
+    desc: "ผู้ช่วยตอบเรื่องระบบ ราคา และการใช้งานให้ทันที",
+  },
+];
+---
+
+<Layout
+  title="เพิ่มเพื่อน PERPOS บน LINE (@perpos)"
+  description="เพิ่มเพื่อน @perpos บน LINE แล้วใช้ผู้ช่วย AI ได้ทันที — ถอดเสียงประชุม สรุปรายงาน และบีบ PDF จากในแชต"
+  ogImage="/og/line-add-friend.png"
+  ogDescription="แอด @perpos บน LINE แล้วใช้ผู้ช่วย AI ได้ทันที — ถอดเสียงประชุม สรุปรายงาน บีบ PDF จากในแชต"
+>
+  <main class="flex min-h-screen flex-col bg-background-secondary">
+    <div class="container-custom flex flex-1 items-center justify-center py-12 md:py-20">
+      <div
+        class="w-full max-w-xl rounded-3xl border border-border bg-white p-7 shadow-card sm:p-10"
+      >
+        <a href="/" class="inline-flex items-center gap-2.5" aria-label="PERPOS Flow">
+          <BrandIcon product="flow" class="h-7 w-7" />
+          <Lockup tone="mint">PERPOS | FLOW</Lockup>
+        </a>
+
+        <span
+          class="mt-7 flex w-fit items-center gap-2 rounded-full bg-secondary/12 px-3 py-1 text-xs font-semibold text-secondary-dark"
+        >
+          <Icon name="message-circle" class="h-3.5 w-3.5" />
+          LINE OA · @perpos
+        </span>
+
+        <h1 class="mt-4 text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
+          เพิ่มเพื่อน PERPOS บน LINE
+        </h1>
+        <p class="mt-3 text-base leading-7 text-foreground-secondary">
+          แอดเป็นเพื่อนแล้วเริ่มใช้ผู้ช่วย AI ได้เลย ไม่ต้องสมัครสมาชิก ไม่ต้องลงแอปเพิ่ม
+        </p>
+
+        <a
+          href={LINE_URL}
+          data-line-cta
+          class="mt-7 flex w-full items-center justify-center gap-2.5 rounded-xl bg-[#06C755] px-5 py-4 text-base font-semibold text-white shadow-xs transition-all hover:bg-[#05B34C] hover:shadow-lg active:scale-[0.99]"
+        >
+          <svg viewBox="0 0 24 24" class="h-5 w-5" fill="currentColor" aria-hidden="true">
+            <path
+              d="M12 2C6.48 2 2 5.64 2 10.13c0 4.02 3.55 7.39 8.35 8.03.32.07.77.21.88.49.1.25.06.64.03.9l-.14.85c-.04.25-.2.99.87.54 1.07-.45 5.76-3.39 7.86-5.81C21.27 13.49 22 11.9 22 10.13 22 5.64 17.52 2 12 2z"
+            ></path>
+          </svg>
+          เพิ่มเพื่อน @perpos
+        </a>
+        <p data-line-hint class="mt-2.5 hidden text-center text-xs text-foreground-secondary">
+          กำลังเปิดแอป LINE… ถ้าไม่เด้งขึ้นมา กดปุ่มด้านบนได้เลย
+        </p>
+
+        <div class="mt-7 flex items-center gap-4 rounded-2xl border border-border p-4 sm:p-5">
+          <img
+            src="/flow/line-oa-qr.png"
+            alt="QR code สำหรับเพิ่มเพื่อน LINE @perpos"
+            width="112"
+            height="112"
+            class="h-28 w-28 shrink-0 rounded-xl border border-border bg-white object-contain p-1.5"
+          />
+          <div class="min-w-0">
+            <p class="font-semibold text-foreground">อยู่หน้าคอมอยู่?</p>
+            <p class="mt-1 text-sm leading-6 text-foreground-secondary">
+              เปิดกล้อง LINE บนมือถือแล้วสแกน QR นี้เพื่อเพิ่มเพื่อน
+            </p>
+          </div>
+        </div>
+
+        <ul class="mt-7 space-y-3.5">
+          {
+            perks.map((perk) => (
+              <li class="flex gap-3.5">
+                <span class="bg-secondary/12 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-secondary-dark">
+                  <Icon name={perk.icon} class="h-4.5 w-4.5" strokeWidth={1.9} />
+                </span>
+                <div class="min-w-0">
+                  <p class="font-semibold text-foreground">{perk.title}</p>
+                  <p class="mt-0.5 text-sm leading-6 text-foreground-secondary">{perk.desc}</p>
+                </div>
+              </li>
+            ))
+          }
+        </ul>
+
+        <p class="mt-7 text-center text-sm text-foreground-secondary">
+          อยากรู้ว่าทำอะไรได้อีกบ้าง?
+          <a href="/flow" class="font-medium text-primary underline underline-offset-2">
+            ดูรายละเอียด PERPOS Flow
+          </a>
+        </p>
+      </div>
+    </div>
+
+    <SiteFooter />
+  </main>
+</Layout>
+
+<script is:inline define:vars={{ LINE_URL }}>
+  // มือถือ = เจตนาเดียวคือ "แอด" → พาไปแอป LINE ให้เลย (หน่วงนิดให้การ์ด/เพจ paint ก่อน
+  // และให้ปุ่มยังอยู่เป็น fallback). เดสก์ท็อปไม่เด้ง เพราะต้องใช้ QR สแกนแทน
+  // เป็น client-side ล้วน → crawler ของ LINE/Facebook ยังอ่าน og: ได้ตามปกติ
+  (function () {
+    var coarse = window.matchMedia && window.matchMedia("(pointer: coarse)").matches;
+    if (!coarse) return;
+    var hint = document.querySelector("[data-line-hint]");
+    if (hint) hint.classList.remove("hidden");
+    window.setTimeout(function () {
+      window.location.href = LINE_URL;
+    }, 900);
+  })();
+</script>

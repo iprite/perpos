@@ -9,11 +9,20 @@ const GA_ID = import.meta.env.PUBLIC_GA_ID || "G-W5SRQP82KZ";
 interface Props {
   title?: string;
   description?: string;
+  /** Override the social-share image (path relative to site root, or absolute URL). */
+  ogImage?: string;
+  /** Override the text social platforms show under the image. */
+  ogDescription?: string;
+  /** Utility pages (e.g. share/redirect targets) that should stay out of search. */
+  noindex?: boolean;
 }
 
 const {
   title = "PERPOS - Flow & Suite",
   description = "PERPOS Flow ผู้ช่วย AI บน LINE สำหรับ PDF และเสียงประชุม และ PERPOS Suite ระบบ AI ERP สำหรับองค์กรและ workflow เฉพาะธุรกิจ",
+  ogImage: ogImageProp,
+  ogDescription: ogDescriptionProp,
+  noindex = false,
 } = Astro.props;
 
 const keywords = [
@@ -32,8 +41,9 @@ const keywords = [
 ].join(", ");
 
 const canonical = new URL(Astro.url.pathname, SITE).toString();
-const ogImage = new URL("/og-image.png", SITE).toString();
+const ogImage = new URL(ogImageProp ?? "/og-image.png", SITE).toString();
 const ogDescription =
+  ogDescriptionProp ??
   "AI tools and ERP systems for modern Thai work. ใช้ PERPOS Flow บน LINE หรือวางระบบ PERPOS Suite สำหรับองค์กร";
 ---
 
@@ -48,7 +58,7 @@ const ogDescription =
     <meta name="description" content={description} />
     <meta name="keywords" content={keywords} />
     <meta name="author" content="PERPOS" />
-    <meta name="robots" content="index, follow" />
+    <meta name="robots" content={noindex ? "noindex, follow" : "index, follow"} />
     <link rel="canonical" href={canonical} />
     <link rel="icon" type="image/png" sizes="32x32" href="/brand/perpos-icon-32.png" />
     <link rel="icon" type="image/png" sizes="192x192" href="/brand/perpos-icon-192.png" />
@@ -66,14 +76,15 @@ const ogDescription =
     <meta property="og:image" content={ogImage} />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
-    <meta property="og:image:alt" content="PERPOS Flow and PERPOS Suite" />
+    <meta property="og:image:alt" content={title} />
 
     {/* Twitter */}
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content={title} />
     <meta
       name="twitter:description"
-      content="PERPOS Flow ผู้ช่วย AI บน LINE และ PERPOS Suite ระบบ AI ERP สำหรับองค์กร"
+      content={ogDescriptionProp ??
+        "PERPOS Flow ผู้ช่วย AI บน LINE และ PERPOS Suite ระบบ AI ERP สำหรับองค์กร"}
     />
     <meta name="twitter:image" content={ogImage} />
 
