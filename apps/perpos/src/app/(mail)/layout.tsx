@@ -19,6 +19,11 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   title: MAIL_PRODUCT_NAME,
   description: "อีเมลธุรกิจของคุณ",
+  // ทับ openGraph/twitter ของ root ทั้งก้อน — โซนนี้ต้องไม่พ่วงการ์ดโปรโมต Suite/Flow
+  // (และไม่ควรถูก index อยู่แล้ว เพราะเป็นกล่องเมลของผู้ใช้)
+  robots: { index: false, follow: false },
+  openGraph: { title: MAIL_PRODUCT_NAME, description: "อีเมลธุรกิจของคุณ", type: "website" },
+  twitter: { card: "summary", title: MAIL_PRODUCT_NAME, description: "อีเมลธุรกิจของคุณ" },
 };
 
 export default async function MailAppLayout({ children }: { children: React.ReactNode }) {
