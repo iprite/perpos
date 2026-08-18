@@ -152,3 +152,21 @@ describe("สคริปต์ใน srcdoc (วัดความสูง + �
     expect(doc).toContain("mark.perpos-hit-active");
   });
 });
+
+describe("ปลายทางของลิงก์ (กันฟิชชิง)", () => {
+  it("ใส่ title = ปลายทางจริง ให้ลิงก์ http/https", () => {
+    const { html } = sanitizeMailHtml('<a href="https://evil.example/x">ธนาคารกสิกรไทย</a>');
+    expect(html).toContain('title="https://evil.example/x"');
+  });
+
+  it("ไม่ทับ title เดิมที่ผู้ส่งตั้งมา", () => {
+    const { html } = sanitizeMailHtml('<a href="https://a.example" title="ของเดิม">ลิงก์</a>');
+    expect(html).toContain('title="ของเดิม"');
+    expect(html).not.toContain('title="https://a.example"');
+  });
+
+  it("🔴 ห้ามคัดลอก scheme อันตรายมาไว้ใน title (transformTags ทำงานก่อนด่าน scheme)", () => {
+    const { html } = sanitizeMailHtml('<a href="javascript:alert(1)">ลิงก์</a>');
+    expect(html).not.toContain("javascript:");
+  });
+});
