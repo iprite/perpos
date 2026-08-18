@@ -1,6 +1,6 @@
 # Caddy + Cloudflare DNS plugin (DNS-01 challenge — ออกใบรับรองได้แม้อยู่หลัง CF proxy)
 FROM caddy:2-builder AS builder
-RUN xcaddy build --with github.com/caddy-dns/cloudflare
+RUN xcaddy build --with github.com/caddy-dns/cloudflare --with github.com/WeidiDeng/caddy-cloudflare-ip
 
 FROM caddy:2
 COPY --from=builder /usr/bin/caddy /usr/bin/caddy

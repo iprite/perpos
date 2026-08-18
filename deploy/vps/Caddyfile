@@ -4,11 +4,25 @@
 
 {
 	email admin@perpos.ai
+	servers {
+		# หลัง Cloudflare proxy (เมฆส้ม): เชื่อ X-Forwarded-For / CF-Connecting-IP จาก IP ของ CF เท่านั้น
+		# → แอปเห็น IP ผู้ใช้จริงใน x-forwarded-for (audit log / rate-limit ใช้ header นี้อยู่)
+		# ห้ามเชื่อจากทุกที่ — ไม่งั้นใครก็ปลอม IP ได้ (แต่ตอนนี้ port 443 เปิดตรงอยู่ด้วย ดูข้อ ufw)
+		trusted_proxies cloudflare {
+			interval 12h
+			timeout 15s
+		}
+	}
 }
 
 (cf_tls) {
 	tls {
 		dns cloudflare {env.CLOUDFLARE_API_TOKEN}
+	}
+	# access log JSON ไป stdout (docker compose logs caddy) — client_ip = IP ผู้ใช้จริงหลัง trusted_proxies
+	log {
+		output stdout
+		format json
 	}
 }
 
