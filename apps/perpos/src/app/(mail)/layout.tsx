@@ -44,6 +44,17 @@ export function generateMetadata(): Metadata {
       description: MAIL_OG_DESCRIPTION,
       images: [image.url],
     },
+    // ไอคอนแท็บของ Mail แยกจากของ Suite/Flow (สร้างจาก scripts/mail-favicon.mjs)
+    // — โปรเจกต์ Vercel เดียวเสิร์ฟสองโดเมน ถ้าใช้ตัว P เหมือนกันผู้ใช้แยกแท็บไม่ออก
+    icons: {
+      icon: [
+        { url: "/brand/mail-icon-32.png", sizes: "32x32", type: "image/png" },
+        { url: "/brand/mail-icon-192.png", sizes: "192x192", type: "image/png" },
+        { url: "/brand/mail-icon-512.png", sizes: "512x512", type: "image/png" },
+      ],
+      shortcut: "/brand/mail-icon-192.png",
+      apple: { url: "/brand/mail-icon-180.png", sizes: "180x180", type: "image/png" },
+    },
   };
 }
 
