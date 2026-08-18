@@ -16,13 +16,15 @@
 
 ## Setup เครื่อง (ครั้งเดียว)
 
+เครื่องจริง: **62.146.233.27** (Ubuntu 24.04, 4 vCPU / 8GB / 96GB) — setup ครบแล้ว 2026-08-18
+(docker-ce จาก repo ทางการ ไม่ใช่ `docker.io` ของ Ubuntu · user `deploy` + sudo NOPASSWD ·
+sshd key-only (`/etc/ssh/sshd_config.d/99-hardening.conf`) · ufw 22/80/443 · fail2ban · unattended-upgrades)
+
 ```bash
-# 1) hardening พื้นฐาน
+# 1) hardening พื้นฐาน (ทำแล้ว — เก็บไว้อ้างอิงเวลาตั้งเครื่องใหม่)
 adduser deploy && usermod -aG sudo,docker deploy
-# ssh key-only: /etc/ssh/sshd_config → PasswordAuthentication no · PermitRootLogin no
-apt install -y ufw fail2ban unattended-upgrades docker.io docker-compose-plugin
+apt install -y ufw fail2ban unattended-upgrades docker-ce docker-ce-cli containerd.io docker-compose-plugin
 ufw allow OpenSSH && ufw allow 80,443/tcp && ufw allow 443/udp && ufw enable
-dpkg-reconfigure -plow unattended-upgrades
 
 # 2) โครงไดเรกทอรี
 mkdir -p /srv/deploy /srv/caddy /srv/apps/{perpos,exapp,riekchang}/releases
@@ -32,9 +34,14 @@ cp deploy/vps/Caddyfile /srv/caddy/
 $EDITOR /srv/apps/perpos/.env && chmod 600 /srv/apps/perpos/.env
 echo "CLOUDFLARE_API_TOKEN=..." > /srv/deploy/.env   # token สิทธิ์ Zone.DNS:Edit
 
-# 3) ขึ้น Caddy ก่อน (แอปยังไม่มี artifact ก็ได้ container จะ restart รอเอง)
+# 3) ขึ้น Caddy (ต้องมี CLOUDFLARE_API_TOKEN ก่อน ไม่งั้นออกใบรับรองไม่ได้)
 cd /srv/deploy && docker compose up -d caddy
 ```
+
+**สถานะ 2026-08-18**: perpos รันอยู่บนเครื่องแล้ว (`docker compose up -d perpos`, ตอบ 200 ที่
+127.0.0.1:3005 ทั้ง host `app.perpos.ai` และ `mail.perpos.ai`) · `/srv/apps/perpos/.env` = env production
+ที่ pull จาก Vercel (ตัด `VERCEL_*`/`TURBO_*`/`NX_*` ออก) · GitHub secrets ตั้งครบ + CI deploy key อยู่ใน
+`/home/deploy/.ssh/authorized_keys` · **ค้าง: `CLOUDFLARE_API_TOKEN` → Caddy → ชี้ DNS**
 
 ## Deploy
 
