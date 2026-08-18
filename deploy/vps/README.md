@@ -66,8 +66,12 @@ cd /srv/deploy && docker compose up -d caddy
 0 20 * * *  deploy curl -sf -X POST -H "Authorization: Bearer $CRON_SECRET" http://127.0.0.1:3005/api/tmc/notify/daily-occupancy >/dev/null
 0 8 * * 1   deploy curl -sf -X POST -H "Authorization: Bearer $CRON_SECRET" http://127.0.0.1:3005/api/gov-procure/notify/weekly >/dev/null
 0 9 * * *   deploy curl -sf -X POST -H "Authorization: Bearer $CRON_SECRET" http://127.0.0.1:3005/api/gov-procure/notify/aging >/dev/null
-0 3 * * *   deploy curl -sf -X POST -H "Authorization: Bearer $CRON_SECRET" http://127.0.0.1:3006/api/admin/rep-usage/recalc >/dev/null
+
+# /etc/cron.d/exapp  (CRON_SECRET ของ exapp — คนละค่า · ⚠️ exapp ใช้ header `x-cron-secret` ไม่ใช่ Bearer)
+0 3 * * *   deploy curl -sf -X POST -H "x-cron-secret: $CRON_SECRET" http://127.0.0.1:3006/api/admin/rep-usage/recalc >/dev/null
 ```
+
+ทั้งสองไฟล์ตั้ง `TZ=Asia/Bangkok` (เครื่องเป็น Europe/Berlin — job รายวันจะเพี้ยน 5 ชม.ถ้าไม่ตั้ง) · **Cloud Scheduler ทั้ง 5 job PAUSED แล้ว 2026-08-19** (ยังไม่ลบ = rollback ได้)
 
 port 3005–3007 bind ที่ `127.0.0.1` เท่านั้นใน compose (cron บน host ยิงได้ · internet เข้าไม่ได้)
 
