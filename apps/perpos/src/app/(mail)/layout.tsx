@@ -16,15 +16,36 @@ import { mailBasePath } from "@/lib/mail/base-path";
 
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = {
-  title: MAIL_PRODUCT_NAME,
-  description: "อีเมลธุรกิจของคุณ",
-  // ทับ openGraph/twitter ของ root ทั้งก้อน — โซนนี้ต้องไม่พ่วงการ์ดโปรโมต Suite/Flow
-  // (และไม่ควรถูก index อยู่แล้ว เพราะเป็นกล่องเมลของผู้ใช้)
-  robots: { index: false, follow: false },
-  openGraph: { title: MAIL_PRODUCT_NAME, description: "อีเมลธุรกิจของคุณ", type: "website" },
-  twitter: { card: "summary", title: MAIL_PRODUCT_NAME, description: "อีเมลธุรกิจของคุณ" },
-};
+const MAIL_DESCRIPTION = "อีเมลธุรกิจของคุณ";
+const MAIL_OG_DESCRIPTION = "อีเมลองค์กรในโดเมนของคุณ ใช้งานผ่านเว็บได้ทุกเครื่อง";
+
+// ทับ openGraph/twitter ของ root ทั้งก้อน — โซนนี้ต้องไม่พ่วงการ์ดโปรโมต Suite/Flow
+// การ์ดของ mail มีของตัวเอง (public/og/mail.png · สร้างจาก scripts/og-cards.mjs)
+// รูปต้องเป็น URL เต็มของโดเมนเมล เพราะ metadataBase ของ root ชี้ app.perpos.ai
+// (ไม่ index อยู่แล้ว — เป็นกล่องเมลของผู้ใช้)
+export function generateMetadata(): Metadata {
+  const baseUrl = process.env.MAIL_APP_BASE_URL || "https://mail.perpos.ai";
+  const image = { url: new URL("/og/mail.png", baseUrl).toString(), width: 1200, height: 630 };
+  return {
+    title: MAIL_PRODUCT_NAME,
+    description: MAIL_DESCRIPTION,
+    robots: { index: false, follow: false },
+    openGraph: {
+      title: MAIL_PRODUCT_NAME,
+      description: MAIL_OG_DESCRIPTION,
+      type: "website",
+      siteName: MAIL_PRODUCT_NAME,
+      locale: "th_TH",
+      images: [{ ...image, alt: MAIL_OG_DESCRIPTION }],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: MAIL_PRODUCT_NAME,
+      description: MAIL_OG_DESCRIPTION,
+      images: [image.url],
+    },
+  };
+}
 
 export default async function MailAppLayout({ children }: { children: React.ReactNode }) {
   const jar = await cookies();
