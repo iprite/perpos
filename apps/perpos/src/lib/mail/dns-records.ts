@@ -5,17 +5,16 @@
  * ⇒ ค่าที่ให้ลูกค้าคัดลอกต้องมาจาก **ที่เดียว** และตรงกับที่ perpos.ai ใช้จริงอยู่ (พิสูจน์แล้วว่าส่งผ่าน)
  *
  * ⚠️ ย้ายเมลเซิร์ฟเวอร์/เปลี่ยน relay เมื่อไร ต้องแก้ค่าคงที่ในไฟล์นี้ที่เดียว
- *    (ค่าปัจจุบัน = Hetzner nbg1 + relay Brevo · ที่มา: DNS ของ perpos.ai ที่ใช้งานจริง)
+ *    (ค่าปัจจุบัน = Contabo EU · **ส่งตรงพอร์ต 25 ไม่มี relay แล้ว** ที่มา: DNS ของ perpos.ai ที่ใช้งานจริง)
  */
 
 /** โฮสต์เมลเซิร์ฟเวอร์ที่ MX ต้องชี้มา — **ไม่ใช่ `mail.perpos.ai`** (นั่นคือเว็บแอปบน Vercel) */
-export const MAIL_SERVER_HOST = "stalwart.perpos.ai";
+export const MAIL_SERVER_HOST = "mailserver.perpos.ai";
 /** IP ของเครื่องเมล — ต้องอยู่ใน SPF เพราะเมลบางส่วนออกจากเครื่องเราตรง ๆ */
-export const MAIL_SERVER_IPV4 = "46.225.14.18";
-export const MAIL_SERVER_IPV6 = "2a01:4f8:c2c:105a::1";
-/** relay ขาออก (พอร์ต 25 ของ Hetzner ถูกบล็อก) */
-export const MAIL_RELAY_SPF_INCLUDE = "spf.brevo.com";
-export const MAIL_DMARC_RUA = "rua@dmarc.brevo.com";
+export const MAIL_SERVER_IPV4 = "169.58.196.147";
+export const MAIL_SERVER_IPV6 = "2a02:c207:2351:6812::1";
+/** ปลายทางรายงาน DMARC — กล่องของเราเอง (เลิกใช้ relay แล้วจึงไม่ผ่าน Brevo) */
+export const MAIL_DMARC_RUA = "dmarc@perpos.ai";
 
 export type MailDnsKind = "mx" | "spf" | "dkim" | "dmarc";
 
@@ -34,7 +33,7 @@ export interface MailDnsRecord {
 }
 
 export function spfValue(): string {
-  return `v=spf1 ip4:${MAIL_SERVER_IPV4} ip6:${MAIL_SERVER_IPV6} include:${MAIL_RELAY_SPF_INCLUDE} ~all`;
+  return `v=spf1 ip4:${MAIL_SERVER_IPV4} ip6:${MAIL_SERVER_IPV6} ~all`;
 }
 
 export function dmarcValue(): string {
