@@ -142,12 +142,28 @@ MTA-STS            → mode: enforce · mx: stalwart.perpos.ai · max_age 86400
 - [x] **ปิดเครื่องเก่าแล้ว 2026-08-18** (log 6 ชม.สุดท้ายไม่มีเมลเข้าเลย · `systemctl disable stalwart` + `poweroff`)
       **ยังไม่ลบ — เก็บเป็น rollback ถึง ~25 ส.ค.** · ⚠️ ยังเสียค่าเครื่องอยู่ระหว่างนี้ (ปิดเครื่องไม่หยุดบิลของ Hetzner)
       · ของที่ต้องมี**ก่อนลบ** ย้ายมาครบแล้ว: สคริปต์ backup/heartbeat · `/root/.stalwart-backup-key` (+ Keychain) · `/root/.gcs-backup-sa.json`
-- [ ] 🔴 **ตัด IP เก่าออกจาก SPF ก่อนคืน IP เสมอ** (`46.225.14.18` + `2a01:4f8:c2c:105a::1` ยังอยู่ใน SPF
+- [x] **ตัด IP เก่าออกจาก SPF แล้ว (2026-08-18)** — เดิม 🔴 **ต้องทำก่อนคืน IP เสมอ** (`46.225.14.18` + `2a01:4f8:c2c:105a::1` ยังอยู่ใน SPF
       ของ **perpos.ai และ exworker.co.th** ทั้งคู่ ณ 18 ส.ค.) — Hetzner เอา IP ไปให้ลูกค้ารายอื่นต่อ
       ⇒ คนนั้นจะส่งเมลอ้างโดเมนเราผ่าน SPF ได้ทันที · ถือเป็น **เงื่อนไขก่อน `terraform destroy`**
-      · ตัด `include:spf.brevo.com` ออกด้วย (เลิกใช้ relay แล้ว)
-- [ ] ตัดชื่อเก่าออกจาก SPF · ตัดชื่อเก่าออกจาก MTA-STS policy (ขยับ `id` อีกครั้ง) · ดัน TTL กลับ
-- [ ] ลบเครื่อง Hetzner + ยกเลิกบิล — `cd infra/mail && read -rs TF_VAR_hcloud_token && export TF_VAR_hcloud_token && terraform destroy`
+      · ⚠️ **`include:spf.brevo.com` ห้ามตัด** — `noreply@perpos.ai` (เมลเชิญเข้าองค์กร/รีเซ็ตรหัส
+      ผ่าน `SMTP_HOST=smtp-relay.brevo.com`) ยังส่งผ่าน Brevo อยู่ · ตัดได้ต่อเมื่อย้าย SMTP นั้นไปทางอื่นแล้ว
+      · SPF ปัจจุบัน: perpos.ai = `v=spf1 ip4:169.58.196.147 ip6:2a02:…:1 include:spf.brevo.com ~all`
+      · exworker.co.th = `v=spf1 a mx ip4:169.58.196.147 ip6:2a02:…:1 ~all`
+- [x] **เก็บกวาด DNS แล้ว (2026-08-18)** — ลบ MX `stalwart.perpos.ai` ออกจากทั้ง 2 โซน (เหลือ
+      `mailserver.perpos.ai` ตัวเดียว) · 🔴 **เจอของค้าง: 8 record ของ exworker.co.th
+      (`autoconfig`/`autodiscover`/`mta-sts`/`ua-auto-config` × A+AAAA) ยังชี้ IP เก่าที่เพิ่งคืน Hetzner ไป**
+      → ชี้มา Contabo แล้ว · ถ้าปล่อยไว้: ACME order ของ exworker ล้มทั้งใบตอนต่ออายุ (กับดัก SAN §ด้านบน) + คนที่ได้ IP นั้นต่อสวมชื่อโดเมนเราได้
+      · **A/AAAA ของ `stalwart.perpos.ai` ยังต้องเก็บไว้** (ชี้ Contabo) เพราะชื่อนี้อยู่ใน SAN ของใบรับรอง
+      — ลบ DNS ทิ้งเลย = ACME order ล้มทั้งใบ · จะเลิกใช้ชื่อนี้ต้อง **ปิด `stalwart` ใน
+      `subjectAlternativeNames` ก่อน แล้วรอใบใหม่ออก ค่อยลบ record**
+      · MTA-STS policy ยังลิสต์ `stalwart.perpos.ai` อยู่ชั่วคราว — `mxHosts` ในคอนฟิกว่าง แปลว่า Stalwart
+      สร้างรายการจาก MX ใน DNS เอง ⇒ **หายเองเมื่อแคช DNS ของมันหมดอายุ** (เป็น superset ของ MX จริง
+      จึงไม่กระทบการส่ง) · ถ้าอยากให้ผู้ส่งดึงนโยบายใหม่เร็วขึ้นค่อยขยับ `id` ใน `_mta-sts` TXT
+- [x] **ลบเครื่อง Hetzner แล้ว (2026-08-18)** — ยืนยันจาก PTR ของ `46.225.14.18` ที่กลับเป็น
+      `static.18.14.225.46.clients.your-server.de` (rDNS ที่เราตั้งหายไป) + ไม่ตอบ ping
+      · 🪤 **ลบนอก terraform ⇒ `terraform.tfstate` ค้างของผี 7 ตัว** (ไฟล์ไม่ถูกแตะตั้งแต่ 15 ส.ค.)
+      ถอดออกด้วย `terraform state rm` ครบแล้ว — ถ้าจะสร้างเครื่องใหม่ในอนาคต state สะอาดพร้อมใช้
+      · ท่าเดิมถ้าจะลบผ่าน terraform: `cd infra/mail && read -rs TF_VAR_hcloud_token && export TF_VAR_hcloud_token && terraform destroy`
       (7 resource: server/primary IP v4+v6/rdns v4+v6/firewall/ssh key) · **token ไม่เก็บบนดิสก์โดยตั้งใจ ⇒ คนต้องรันเอง**
 - [x] **อัปเดต `infra_costs` แล้ว** (2026-08-18 · `source='manual'` — Hetzner/Contabo อยู่นอกท่อ billing_export)
 - [ ] **ค่อยพิจารณาเปิดส่งตรงพอร์ต 25** เป็นงานแยกอีกรอบ (ดู §6)
