@@ -108,6 +108,16 @@ describe("diffAlerts — กัน spam LINE", () => {
   });
 });
 
+describe("backup ที่หายไปทั้งงาน", () => {
+  it("backupAgeHours = null → เตือน (ไม่ใช่ปล่อยผ่าน)", () => {
+    const issues = evaluateIssues({
+      ...healthy,
+      heartbeat: { ...healthy.heartbeat, backupAgeHours: null, backupSizeMb: null },
+    });
+    expect(issues.backup).toContain("ไม่พบไฟล์ backup");
+  });
+});
+
 describe("normalizeHeartbeat — payload จากเครื่องคือข้อมูลภายนอก", () => {
   it("ค่าที่ไม่ใช่ตัวเลข/บูลีน → null ไม่โยน", () => {
     expect(normalizeHeartbeat({ diskPct: "91; drop table", serviceActive: "true" })).toEqual({

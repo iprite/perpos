@@ -13,12 +13,18 @@ import {
   readMailAdminConfig,
   type MailAdminStatus,
 } from "@/lib/mail/admin-api";
+import { fetchMailServerMetrics } from "@/lib/mail/server-metrics";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { AdminMailView } from "./_view";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminMailPage() {
   await requireSuperAdminPage();
+
+  // การใช้ทรัพยากรของเครื่องมาคนละทางกับ status (heartbeat ใน Supabase ≠ JMAP ของ Stalwart)
+  // ⇒ ดึงคู่กันเสมอ แม้ JMAP ล่ม แท็บ "เครื่องเซิร์ฟเวอร์" ก็ยังต้องบอกได้ว่าเครื่องเป็นยังไง
+  const metricsPromise = fetchMailServerMetrics(createSupabaseAdminClient(), { hours: 24 * 30 });
 
   const config = readMailAdminConfig();
   let status: MailAdminStatus | null = null;
@@ -34,5 +40,5 @@ export default async function AdminMailPage() {
     }
   }
 
-  return <AdminMailView status={status} error={error} />;
+  return <AdminMailView status={status} error={error} metrics={await metricsPromise} />;
 }
