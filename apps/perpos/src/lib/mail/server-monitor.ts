@@ -1,5 +1,10 @@
 /**
- * เฝ้าระวังเมลเซิร์ฟเวอร์ (Stalwart) + แจ้งเตือน LINE — รันจาก scheduler (นอกเครื่องเมล)
+ * เฝ้าระวังเซิร์ฟเวอร์ VPS SG (Stalwart + Docker เว็บ 3 แอป) + แจ้งเตือน LINE — รันจาก scheduler
+ *
+ * ตั้งแต่ 2026-08-19 เมลกับเว็บ (perpos/exapp/riekchang/caddy) อยู่เครื่องเดียวกัน ⇒ heartbeat ก้อนเดียว
+ * รายงานทั้งทรัพยากรเครื่อง + สถานะ container + release ที่แต่ละแอปชี้ (ดู `evaluateHostIssues`)
+ * ⚠️ scheduler ที่รันตัวเฝ้านี้ = container perpos บนเครื่องเดียวกัน — ถ้าเครื่อง/perpos ล่มทั้งตัว
+ *    ตัวนี้เงียบ · ด่านนอกจริง = GitHub Actions `uptime.yml` (ยิง LINE ตรง ไม่ผ่านแอป)
  *
  * ทำไมต้องเช็คจากข้างนอก: ถ้าเครื่องเมลตาย สคริปต์บนเครื่องนั้นย่อมแจ้งอะไรไม่ได้
  * ⇒ ด่านหลัก = Vercel (scheduler ทุก 5 นาที) ตรวจ 465/443/ใบรับรองสด ๆ
@@ -33,6 +38,40 @@ const CERT_WARN_DAYS = 14;
 const DISK_WARN_PCT = 85;
 const BACKUP_STALE_HOURS = 30;
 
+/** container ที่ต้อง "running" เสมอบนเครื่อง SG — หายไปจากรายการ = เตือนเหมือน state ผิด */
+export const EXPECTED_CONTAINERS = ["caddy", "perpos", "exapp", "riekchang"] as const;
+/** RAM ของ container ≥ สัดส่วนนี้ของ mem_limit = ใกล้โดน OOM-kill (compose ตั้ง limit ต่อแอป) */
+const CONTAINER_MEM_WARN_RATIO = 0.9;
+/** deploy สลับ symlink แล้ว container ยังไม่ restart เกินเท่านี้ = release ค้าง (ให้เวลา CI restart) */
+const DEPLOY_STALE_MS = 10 * 60 * 1000;
+
+/** สถานะ Docker container 1 ตัวจาก heartbeat (มาจาก `docker inspect` + `docker stats`) */
+export interface HostContainer {
+  name: string;
+  state: string | null;
+  /** RestartCount ของ Docker = restart โดย policy (crash) เท่านั้น · `docker compose up -d` สร้างใหม่ = 0 */
+  restarts: number | null;
+  /** เพิ่มขึ้นจาก heartbeat ก่อนหน้าเท่าไร (คำนวณตอนรับ) · 0 = ไม่มี crash รอบนี้ */
+  restartDelta: number;
+  oomKilled: boolean | null;
+  exitCode: number | null;
+  startedAt: string | null;
+  memUsedBytes: number | null;
+  /** 0/ไม่มี limit = null */
+  memLimitBytes: number | null;
+}
+
+/** release ที่ /srv/apps/<app>/current ชี้อยู่ */
+export interface HostApp {
+  app: string;
+  release: string | null;
+  /** โฟลเดอร์ปลายทาง symlink ยังอยู่ไหม (false = symlink ขาด — container จะขึ้นไม่ได้หลัง restart) */
+  exists: boolean | null;
+  /** epoch วินาที ที่ symlink `current` ถูกสลับล่าสุด (= เวลา deploy) */
+  currentChangedAt: number | null;
+  sha: string | null;
+}
+
 export interface MailHeartbeat {
   diskPct: number | null;
   backupAgeHours: number | null;
@@ -40,19 +79,138 @@ export interface MailHeartbeat {
   serviceActive: boolean | null;
   /** พอร์ต 25 ยังฟังอยู่บนเครื่องไหม — ตรวจจาก Vercel ไม่ได้ (ดูหัวไฟล์) · null = สคริปต์รุ่นเก่าไม่ได้ส่งมา */
   smtp25Listening: boolean | null;
+  /** สคริปต์รุ่นเก่า (ก่อน 2026-08-19) ไม่ส่งมา = null → ไม่ตัดสินอะไรเรื่อง container/deploy */
+  containers: HostContainer[] | null;
+  apps: HostApp[] | null;
+}
+
+const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : null);
+const bool = (v: unknown) => (typeof v === "boolean" ? v : null);
+const str = (v: unknown) => (typeof v === "string" && v.length > 0 ? v.slice(0, 200) : null);
+
+function normalizeContainer(raw: unknown): HostContainer | null {
+  const r = (raw ?? {}) as Record<string, unknown>;
+  const name = str(r.name);
+  if (!name) return null;
+  const memLimit = num(r.memLimitBytes);
+  return {
+    name,
+    state: str(r.state),
+    restarts: num(r.restarts),
+    restartDelta: Math.max(0, num(r.restartDelta) ?? 0),
+    oomKilled: bool(r.oomKilled),
+    exitCode: num(r.exitCode),
+    startedAt: str(r.startedAt),
+    memUsedBytes: num(r.memUsedBytes),
+    memLimitBytes: memLimit && memLimit > 0 ? memLimit : null,
+  };
+}
+
+function normalizeApp(raw: unknown): HostApp | null {
+  const r = (raw ?? {}) as Record<string, unknown>;
+  const app = str(r.app);
+  if (!app) return null;
+  return {
+    app,
+    release: str(r.release),
+    exists: bool(r.exists),
+    currentChangedAt: num(r.currentChangedAt),
+    sha: str(r.sha),
+  };
 }
 
 /** payload จากเครื่อง = ข้อมูลภายนอก ตรวจทีละช่องเสมอ */
 export function normalizeHeartbeat(raw: unknown): MailHeartbeat {
   const r = (raw ?? {}) as Record<string, unknown>;
-  const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : null);
   return {
     diskPct: num(r.diskPct),
     backupAgeHours: num(r.backupAgeHours),
     backupSizeMb: num(r.backupSizeMb),
-    serviceActive: typeof r.serviceActive === "boolean" ? r.serviceActive : null,
-    smtp25Listening: typeof r.smtp25Listening === "boolean" ? r.smtp25Listening : null,
+    serviceActive: bool(r.serviceActive),
+    smtp25Listening: bool(r.smtp25Listening),
+    containers: Array.isArray(r.containers)
+      ? r.containers.map(normalizeContainer).filter((c): c is HostContainer => c !== null)
+      : null,
+    apps: Array.isArray(r.apps)
+      ? r.apps.map(normalizeApp).filter((a): a is HostApp => a !== null)
+      : null,
   };
+}
+
+/**
+ * ใส่ `restartDelta` ให้ heartbeat ใหม่โดยเทียบ RestartCount กับ heartbeat ก่อนหน้า (เรียกตอนรับ)
+ * — RestartCount ลดลง (container ถูกสร้างใหม่ตอน deploy) = ไม่ใช่ crash → 0
+ */
+export function withRestartDelta(next: MailHeartbeat, prev: MailHeartbeat | null): MailHeartbeat {
+  if (!next.containers) return next;
+  const before = new Map((prev?.containers ?? []).map((c) => [c.name, c.restarts]));
+  return {
+    ...next,
+    containers: next.containers.map((c) => {
+      const p = before.get(c.name);
+      const delta =
+        c.restarts !== null && typeof p === "number" && c.restarts > p ? c.restarts - p : 0;
+      return { ...c, restartDelta: delta };
+    }),
+  };
+}
+
+const fmtMb = (b: number) => `${Math.round(b / 1048576)} MB`;
+
+/** ปัญหาฝั่ง Docker/deploy ของเว็บ 3 แอป (pure — มีเทสคุม) · key ขึ้นต้น `container:`/`crash:`/`mem:`/`deploy:` */
+export function evaluateHostIssues(hb: MailHeartbeat, now: number): Record<string, string> {
+  const issues: Record<string, string> = {};
+  if (hb.containers) {
+    const byName = new Map(hb.containers.map((c) => [c.name, c]));
+    for (const name of EXPECTED_CONTAINERS) {
+      const c = byName.get(name);
+      if (!c) {
+        issues[`container:${name}`] = `ไม่พบ container ${name} บนเครื่อง (ถูกลบ/ยังไม่ได้ up)`;
+        continue;
+      }
+      if (c.state !== "running") {
+        issues[`container:${name}`] =
+          `container ${name} ไม่ทำงาน (state=${c.state ?? "?"}` +
+          (c.exitCode !== null && c.exitCode !== 0 ? `, exit ${c.exitCode}` : "") +
+          (c.oomKilled ? ", OOM-killed" : "") +
+          ")";
+        continue;
+      }
+      if (c.restartDelta > 0) {
+        // เหตุการณ์ครั้งเดียว (crash แล้วกลับมาเองแล้ว) — key `crash:` ไม่ส่งข้อความ "กลับมาปกติ" ตามหลัง
+        issues[`crash:${name}`] =
+          `container ${name} crash แล้ว restart เอง ${c.restartDelta} ครั้งในรอบ heartbeat ที่ผ่านมา` +
+          (c.oomKilled ? " (OOM-killed — RAM ชน mem_limit)" : "");
+      }
+      if (c.memUsedBytes !== null && c.memLimitBytes !== null) {
+        if (c.memUsedBytes >= c.memLimitBytes * CONTAINER_MEM_WARN_RATIO) {
+          issues[`mem:${name}`] =
+            `container ${name} ใช้ RAM ${fmtMb(c.memUsedBytes)}/${fmtMb(c.memLimitBytes)} ` +
+            `(≥${Math.round(CONTAINER_MEM_WARN_RATIO * 100)}% ของ mem_limit — เสี่ยง OOM-kill)`;
+        }
+      }
+    }
+  }
+  if (hb.apps) {
+    const byName = new Map((hb.containers ?? []).map((c) => [c.name, c]));
+    for (const a of hb.apps) {
+      if (a.exists === false) {
+        issues[`deploy:${a.app}`] =
+          `symlink /srv/apps/${a.app}/current ชี้ไป release ที่ไม่มีอยู่ (${a.release ?? "?"}) — restart แล้วจะขึ้นไม่ได้`;
+        continue;
+      }
+      const c = byName.get(a.app);
+      if (!c?.startedAt || a.currentChangedAt === null) continue;
+      const started = new Date(c.startedAt).getTime();
+      const changed = a.currentChangedAt * 1000;
+      if (Number.isFinite(started) && changed > started && now - changed > DEPLOY_STALE_MS) {
+        issues[`deploy:${a.app}`] =
+          `deploy ${a.app} สลับไป release ${a.release ?? "?"} แล้ว แต่ container ยังรันของเก่า ` +
+          `(ไม่ได้ restart มา ${Math.round((now - changed) / 60_000)} นาที)`;
+      }
+    }
+  }
+  return issues;
 }
 
 // ─── ตัวตรวจสด (จาก Vercel) ─────────────────────────────────────────────────
@@ -156,6 +314,7 @@ export function evaluateIssues(args: {
     if (hb.smtp25Listening === false) {
       issues.smtp25 = "เครื่องรายงานว่าไม่มีอะไรฟังพอร์ต 25 แล้ว (เมลขาเข้าจะเข้าไม่ได้)";
     }
+    Object.assign(issues, evaluateHostIssues(hb, args.now));
   }
   return issues;
 }
@@ -179,9 +338,18 @@ export function diffAlerts(
     }
   }
   for (const key of Object.keys(prev.active)) {
-    if (!(key in issues)) recovered.push(key);
+    // `crash:` = เหตุการณ์ชั่วขณะ (container restart เองแล้ว) ไม่มีสถานะ "หาย" ให้แจ้ง
+    if (!(key in issues) && !key.startsWith("crash:")) recovered.push(key);
   }
   return { notify, recovered, next };
+}
+
+function recoverLabel(key: string): string {
+  const [kind, name] = key.split(":");
+  if (name && kind === "container") return `container ${name}`;
+  if (name && kind === "mem") return `RAM ของ container ${name}`;
+  if (name && kind === "deploy") return `release ของ ${name}`;
+  return RECOVER_LABEL[key] ?? key;
 }
 
 const RECOVER_LABEL: Record<string, string> = {
@@ -233,16 +401,16 @@ export async function runMailServerMonitor(
     if (notify.length > 0) {
       await alertAdminLine(
         admin,
-        [`🔴 เมลเซิร์ฟเวอร์ (${HOST})`, "", ...notify.map((m) => `• ${m}`)].join("\n"),
+        [`🔴 เซิร์ฟเวอร์ VPS SG (${HOST})`, "", ...notify.map((m) => `• ${m}`)].join("\n"),
       );
     }
     if (recovered.length > 0) {
       await alertAdminLine(
         admin,
         [
-          "✅ เมลเซิร์ฟเวอร์กลับมาปกติ",
+          "✅ เซิร์ฟเวอร์ VPS SG กลับมาปกติ",
           "",
-          ...recovered.map((k) => `• ${RECOVER_LABEL[k] ?? k}`),
+          ...recovered.map((k) => `• ${recoverLabel(k)}`),
         ].join("\n"),
       );
     }

@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
 
-import { diffAlerts, evaluateIssues, normalizeHeartbeat } from "./server-monitor";
+import {
+  diffAlerts,
+  evaluateHostIssues,
+  evaluateIssues,
+  normalizeHeartbeat,
+  withRestartDelta,
+  type HostContainer,
+  type MailHeartbeat,
+} from "./server-monitor";
 
 const NOW = 1_800_000_000_000;
 const H = 3_600_000;
@@ -15,6 +23,8 @@ const healthy = {
     backupSizeMb: 600,
     serviceActive: true,
     smtp25Listening: true,
+    containers: null,
+    apps: null,
   },
   heartbeatAt: new Date(NOW - H).toISOString(),
   now: NOW,
@@ -37,6 +47,8 @@ describe("evaluateIssues", () => {
         backupSizeMb: 1,
         serviceActive: false,
         smtp25Listening: false,
+        containers: null,
+        apps: null,
       },
     });
     expect(Object.keys(issues).sort()).toEqual([
@@ -59,6 +71,8 @@ describe("evaluateIssues", () => {
         backupSizeMb: 0,
         serviceActive: false,
         smtp25Listening: false,
+        containers: null,
+        apps: null,
       },
       heartbeatAt: new Date(NOW - 4 * H).toISOString(),
     });
@@ -126,7 +140,155 @@ describe("normalizeHeartbeat — payload จากเครื่องคือ
       backupSizeMb: null,
       serviceActive: null,
       smtp25Listening: null,
+      containers: null,
+      apps: null,
     });
     expect(normalizeHeartbeat(null).diskPct).toBeNull();
+    // container ที่ไม่มีชื่อถูกทิ้ง · memLimit 0 = ไม่มี limit → null
+    const hb = normalizeHeartbeat({
+      containers: [{ state: "x" }, { name: "caddy", memLimitBytes: 0 }],
+    });
+    expect(hb.containers).toHaveLength(1);
+    expect(hb.containers![0].memLimitBytes).toBeNull();
+  });
+});
+
+// ─── เว็บ 3 แอป + Caddy บนเครื่องเดียวกัน (2026-08-19) ─────────────────────────
+
+const T0 = new Date(NOW - 2 * H).toISOString(); // container เริ่ม 2 ชม.ก่อน
+function ctr(name: string, over: Partial<HostContainer> = {}): HostContainer {
+  return {
+    name,
+    state: "running",
+    restarts: 0,
+    restartDelta: 0,
+    oomKilled: false,
+    exitCode: 0,
+    startedAt: T0,
+    memUsedBytes: 300 * 1048576,
+    memLimitBytes: 1536 * 1048576,
+    ...over,
+  };
+}
+const hostOk: MailHeartbeat = {
+  ...healthy.heartbeat,
+  containers: ["caddy", "perpos", "exapp", "riekchang"].map((n) => ctr(n)),
+  apps: [
+    {
+      app: "perpos",
+      release: "r1",
+      exists: true,
+      currentChangedAt: (NOW - 3 * H) / 1000,
+      sha: "abc",
+    },
+  ],
+};
+
+describe("evaluateHostIssues — container/deploy", () => {
+  it("ทุก container running + release ตรง = ไม่มีปัญหา", () => {
+    expect(evaluateHostIssues(hostOk, NOW)).toEqual({});
+  });
+
+  it("สคริปต์รุ่นเก่าไม่ส่ง containers/apps (null) = ไม่ตัดสินอะไร", () => {
+    expect(evaluateHostIssues({ ...hostOk, containers: null, apps: null }, NOW)).toEqual({});
+  });
+
+  it("container ที่ต้องมี หายไป / ไม่ running / OOM → เตือนรายตัว", () => {
+    const hb: MailHeartbeat = {
+      ...hostOk,
+      containers: [
+        ctr("caddy"),
+        ctr("perpos", { state: "exited", exitCode: 137, oomKilled: true }),
+        ctr("exapp"),
+        // riekchang หาย
+      ],
+    };
+    const issues = evaluateHostIssues(hb, NOW);
+    expect(Object.keys(issues).sort()).toEqual(["container:perpos", "container:riekchang"]);
+    expect(issues["container:perpos"]).toContain("OOM");
+  });
+
+  it("crash แล้ว restart เอง (restartDelta>0) = แจ้งครั้งเดียว key crash: และไม่มี recovered ตามหลัง", () => {
+    const hb: MailHeartbeat = {
+      ...hostOk,
+      containers: [
+        ctr("caddy"),
+        ctr("perpos", { restartDelta: 2 }),
+        ctr("exapp"),
+        ctr("riekchang"),
+      ],
+    };
+    const issues = evaluateHostIssues(hb, NOW);
+    expect(Object.keys(issues)).toEqual(["crash:perpos"]);
+    const { recovered } = diffAlerts({ active: { "crash:perpos": NOW - H } }, {}, NOW);
+    expect(recovered).toEqual([]);
+  });
+
+  it("RAM ≥90% ของ mem_limit → เตือน · ไม่มี limit (caddy) → ไม่เตือน", () => {
+    const hb: MailHeartbeat = {
+      ...hostOk,
+      containers: [
+        ctr("caddy", { memUsedBytes: 5e9, memLimitBytes: null }),
+        ctr("perpos", { memUsedBytes: 1400 * 1048576 }),
+        ctr("exapp"),
+        ctr("riekchang"),
+      ],
+    };
+    expect(Object.keys(evaluateHostIssues(hb, NOW))).toEqual(["mem:perpos"]);
+  });
+
+  it("deploy สลับ symlink แล้วเกิน 10 นาที แต่ container ยังไม่ restart → release ค้าง", () => {
+    const hb: MailHeartbeat = {
+      ...hostOk,
+      apps: [
+        {
+          app: "perpos",
+          release: "r2",
+          exists: true,
+          currentChangedAt: (NOW - 20 * 60_000) / 1000,
+          sha: null,
+        },
+      ],
+    };
+    expect(evaluateHostIssues(hb, NOW)["deploy:perpos"]).toContain("r2");
+    // เพิ่งสลับ 3 นาที = CI กำลัง restart ยังไม่เตือน
+    const fresh: MailHeartbeat = {
+      ...hostOk,
+      apps: [
+        {
+          app: "perpos",
+          release: "r2",
+          exists: true,
+          currentChangedAt: (NOW - 3 * 60_000) / 1000,
+          sha: null,
+        },
+      ],
+    };
+    expect(evaluateHostIssues(fresh, NOW)).toEqual({});
+  });
+
+  it("symlink current ชี้ไป release ที่ไม่มีอยู่ → เตือน", () => {
+    const hb: MailHeartbeat = {
+      ...hostOk,
+      apps: [{ app: "exapp", release: "gone", exists: false, currentChangedAt: null, sha: null }],
+    };
+    expect(Object.keys(evaluateHostIssues(hb, NOW))).toEqual(["deploy:exapp"]);
+  });
+});
+
+describe("withRestartDelta", () => {
+  it("RestartCount เพิ่ม = delta · ลดลง (container ถูกสร้างใหม่ตอน deploy) = 0", () => {
+    const prev: MailHeartbeat = {
+      ...hostOk,
+      containers: [ctr("perpos", { restarts: 3 }), ctr("exapp", { restarts: 5 })],
+    };
+    const next: MailHeartbeat = {
+      ...hostOk,
+      containers: [ctr("perpos", { restarts: 5 }), ctr("exapp", { restarts: 0 }), ctr("caddy")],
+    };
+    const out = withRestartDelta(next, prev).containers!;
+    expect(out.find((c) => c.name === "perpos")!.restartDelta).toBe(2);
+    expect(out.find((c) => c.name === "exapp")!.restartDelta).toBe(0);
+    expect(out.find((c) => c.name === "caddy")!.restartDelta).toBe(0);
   });
 });

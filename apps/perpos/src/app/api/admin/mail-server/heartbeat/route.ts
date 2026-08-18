@@ -1,5 +1,6 @@
 /**
- * heartbeat จากเมลเซิร์ฟเวอร์ (Stalwart @ Contabo) — ยิงทุก 5 นาทีจาก systemd timer
+ * heartbeat จากเครื่อง VPS SG (Stalwart + Docker เว็บ 3 แอป) — ยิงทุก 5 นาทีจาก systemd timer
+ * payload มีทั้งทรัพยากรเครื่อง + `containers[]` (docker inspect/stats) + `apps[]` (release symlink)
  *
  * auth = `x-worker-secret` (แบบเดียวกับ callback ของ Cloud Run workers — เทียบแบบ .trim()
  * กัน secret ที่มี trailing newline) · **ไม่ใช่โซน `(mail)` ของลูกค้า** — นี่คือ ops ภายใน
@@ -15,7 +16,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "../../../_lib/supabase";
-import { normalizeHeartbeat } from "@/lib/mail/server-monitor";
+import { normalizeHeartbeat, withRestartDelta } from "@/lib/mail/server-monitor";
 import { sampleRowFromPayload } from "@/lib/mail/server-metrics";
 
 export const dynamic = "force-dynamic";
@@ -29,9 +30,19 @@ export async function POST(req: NextRequest) {
   }
 
   const body = (await req.json().catch(() => null)) as unknown;
-  const heartbeat = normalizeHeartbeat(body);
-
   const admin = createAdminClient();
+
+  // เทียบ RestartCount ของแต่ละ container กับรอบก่อน → รู้ว่ามี crash ระหว่าง heartbeat ไหม
+  const { data: prevRow } = await admin
+    .from("mail_server_health")
+    .select("heartbeat")
+    .eq("id", "stalwart")
+    .maybeSingle();
+  const heartbeat = withRestartDelta(
+    normalizeHeartbeat(body),
+    prevRow?.heartbeat ? normalizeHeartbeat(prevRow.heartbeat) : null,
+  );
+
   const takenAt = new Date().toISOString();
   const { error } = await admin.from("mail_server_health").upsert(
     {

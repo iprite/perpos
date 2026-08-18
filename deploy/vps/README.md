@@ -70,6 +70,21 @@ cd /srv/deploy && docker compose up -d caddy
 
 port 3005–3007 bind ที่ `127.0.0.1` เท่านั้นใน compose (cron บน host ยิงได้ · internet เข้าไม่ได้)
 
+## เฝ้าเครื่อง (monitoring) — ดูที่ `/admin/system` ของ perpos · เตือนเข้า LINE super_admin
+
+ตัวเลขทั้งหมดมาจาก **heartbeat บนเครื่องเอง** (`scripts/mail-heartbeat.sh` → `POST /api/admin/mail-server/heartbeat`
+ทุก 5 นาที ผ่าน systemd timer `stalwart-heartbeat.timer` · Contabo API ไม่มี usage ให้ดึง) — ตั้งแต่ 2026-08-19
+สคริปต์ตัวเดิมของเมลรายงาน**ทั้งเครื่อง**: ดิสก์/RAM/โหลด/backup/พอร์ต 25 **+ `docker inspect`/`docker stats`
+ของ container ทุกตัว + release ที่ `/srv/apps/<app>/current` ชี้ (และ `RELEASE` = commit sha ที่ CI เขียนไว้)**
+
+- ตัวตัดสินใจเตือน = scheduler t5 ใน perpos (`lib/mail/server-monitor.ts` → `evaluateHostIssues`) · แจ้งเฉพาะขอบเหตุการณ์ + ซ้ำทุก 6 ชม. · หัวข้อ "🔴 เซิร์ฟเวอร์ VPS SG"
+  - `container:<name>` — caddy/perpos/exapp/riekchang หาย/ไม่ running (มี exit code + OOM ให้)
+  - `crash:<name>` — RestartCount เพิ่ม = crash แล้ว restart เอง (แจ้งครั้งเดียว ไม่มี "กลับมาปกติ" ตาม)
+  - `mem:<name>` — RAM ≥90% ของ `mem_limit` ใน compose (perpos 1536m / exapp 1024m)
+  - `deploy:<app>` — symlink `current` ใหม่กว่า container start >10 นาที = deploy แล้ว container ไม่ restart · หรือ symlink ชี้ release ที่ถูกลบ
+- **อัปเดตสคริปต์บนเครื่อง**: `scp scripts/mail-heartbeat.sh root@62.146.233.27:/usr/local/bin/mail-heartbeat.sh` (timer ใช้ตัวใหม่รอบถัดไป · ไม่ต้อง restart) — ห้ามลืมทุกครั้งที่แก้สคริปต์ ไม่งั้นหน้า admin โชว์ค่าเก่าเงียบ ๆ
+- ⚠️ ตัวเฝ้ารันใน container perpos บนเครื่องเดียวกัน → เครื่องดับ/perpos ล่มทั้งตัว = เงียบ · **ด่านนอก** = GitHub Actions `uptime.yml` (ping `app.perpos.ai/api/health` ทุก 5 นาที ยิง LINE ตรง)
+
 ## Firewall (2 ชั้น)
 
 1. **Contabo Firewall (network-level, ฟรี) — `perpos-sg-web-mail`** ผูกกับ instance 203517994 (2026-08-19, ตั้งผ่าน API) · inbound allow: tcp 22 · 80/443 · **udp 443 (h3)** · 25/465/587 · 993/995 · 4190 · icmp — ที่เหลือ drop (v4+v6) · ทดสอบแล้ว: port ที่เปิด open ครบ, 8080/3005 ถูก drop เงียบ (timeout ไม่ใช่ refused)

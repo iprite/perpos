@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# ตัวส่งสัญญาณจากเมลเซิร์ฟเวอร์ (Stalwart @ Contabo) → PERPOS
+# ตัวส่งสัญญาณจากเครื่อง VPS SG (Stalwart + Docker เว็บ 3 แอป + Caddy) → PERPOS
+# (ชื่อไฟล์ยังเป็น mail-* ตามประวัติ — ตั้งแต่ 2026-08-19 เครื่องเมลกับเครื่องเว็บคือเครื่องเดียวกัน
+#  จึงรายงานทั้งทรัพยากรเครื่อง + สถานะ container + release ของแต่ละแอปในก้อนเดียว)
 #
 # ทำไมต้องมี: **Contabo API ไม่มี usage ให้ดึง** (มีแค่สเปกที่ซื้อกับ audit log)
 #   ⇒ ตัวเลขการใช้ทรัพยากรทั้งหมดต้องให้เครื่องรายงานเข้ามาเอง
@@ -65,8 +67,59 @@ read -r rx tx < <(
   awk -F'[: ]+' '/:/ && $2 !~ /^(lo|docker|veth)/ {rx+=$3; tx+=$11} END {print rx+0, tx+0}' /proc/net/dev
 )
 
+# ── Docker container ของเว็บ 3 แอป + Caddy (ตั้งแต่ 2026-08-19 อยู่เครื่องเดียวกับเมล) ──
+# ต่อ container: state / จำนวน restart โดย restart-policy (= crash · manual restart ไม่นับ) /
+# OOMKilled / เวลาเริ่ม / RAM ที่ใช้เทียบ mem_limit — ไม่มี jq บนเครื่อง จึงประกอบ JSON เอง
+containers="[]"
+if command -v docker >/dev/null 2>&1; then
+  # docker stats ให้ RAM ที่ใช้จริง (cgroup) — no-stream ครั้งเดียว ทุก container พร้อมกัน
+  declare -A mem_used
+  while IFS='|' read -r cname cmem; do
+    [ -z "${cname:-}" ] && continue
+    # "123.4MiB / 1.5GiB" → ไบต์ของตัวแรก
+    mem_used["$cname"]=$(printf '%s' "$cmem" | awk '{
+      v=$1; u=v; gsub(/[0-9.]/,"",u); gsub(/[^0-9.]/,"",v);
+      m=1; if(u=="KiB")m=1024; else if(u=="MiB")m=1048576; else if(u=="GiB")m=1073741824;
+      else if(u=="kB")m=1000; else if(u=="MB")m=1000000; else if(u=="GB")m=1000000000;
+      printf "%d", v*m }')
+  done < <(docker stats --no-stream --format '{{.Name}}|{{.MemUsage}}' 2>/dev/null)
+
+  items=""
+  while read -r cname; do
+    [ -z "${cname:-}" ] && continue
+    row=$(docker inspect --format \
+      '"state":"{{.State.Status}}","restarts":{{.RestartCount}},"oomKilled":{{.State.OOMKilled}},"exitCode":{{.State.ExitCode}},"startedAt":"{{.State.StartedAt}}","memLimitBytes":{{.HostConfig.Memory}}' \
+      "$cname" 2>/dev/null) || continue
+    mu=${mem_used[$cname]:-null}
+    items="${items}${items:+,}{\"name\":\"$cname\",$row,\"memUsedBytes\":$mu}"
+  done < <(docker ps -a --format '{{.Names}}' 2>/dev/null)
+  containers="[$items]"
+fi
+
+# ── release ที่แต่ละแอปชี้อยู่ (/srv/apps/<app>/current → releases/<ts>) ──────────
+# currentChangedAt = mtime ของ symlink เอง (= เวลา deploy สลับ) — ฝั่งแอปเอาไปเทียบกับ startedAt
+# ของ container: symlink ใหม่กว่า container = deploy แล้วแต่ container ยังไม่ restart (release ค้าง)
+apps="[]"
+if [ -d /srv/apps ]; then
+  items=""
+  for d in /srv/apps/*/; do
+    app=$(basename "$d")
+    link="$d/current"
+    [ -L "$link" ] || continue
+    target=$(readlink -f "$link" 2>/dev/null || true)
+    rel=$(basename "${target:-}")
+    ok=false; [ -n "$target" ] && [ -d "$target" ] && ok=true
+    changed=$(stat -c %Y "$link" 2>/dev/null || echo 0)   # stat บน symlink ไม่ตาม link
+    sha=$(head -c 40 "$target/RELEASE" 2>/dev/null | tr -cd '0-9a-f' || true)
+    items="${items}${items:+,}{\"app\":\"$app\",\"release\":\"$rel\",\"exists\":$ok,\"currentChangedAt\":$changed,\"sha\":\"$sha\"}"
+  done
+  apps="[$items]"
+fi
+
 payload=$(cat <<JSON
 {
+  "containers": $containers,
+  "apps": $apps,
   "diskPct": $disk_pct,
   "diskUsedBytes": $disk_used_bytes,
   "diskTotalBytes": $disk_total_bytes,

@@ -8,7 +8,7 @@
  */
 
 import { useCallback, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   AlertTriangle,
   HardDrive,
@@ -109,7 +109,11 @@ export function AdminMailView({
   /** การใช้ทรัพยากรของเครื่อง (heartbeat) — แยกจาก `status` ที่มาจาก JMAP ของ Stalwart */
   metrics: MailServerMetrics;
 }) {
-  const [tab, setTab] = useState<Tab>("overview");
+  // deep-link จากหน้าอื่น (เช่น /admin/system → ?tab=server ดูกราฟเครื่อง)
+  const initialTab = useSearchParams().get("tab");
+  const [tab, setTab] = useState<Tab>(
+    TABS.some((t) => t.value === initialTab) ? (initialTab as Tab) : "overview",
+  );
 
   const totals = useMemo(() => {
     const accounts = status?.accounts ?? [];
