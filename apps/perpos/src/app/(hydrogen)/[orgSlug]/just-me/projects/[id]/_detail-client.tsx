@@ -6,7 +6,7 @@
  * ⛔ ไม่คำนวณเงินเอง — ค่าทุกช่องมาจาก `project-metrics.ts` (ผ่าน props `summary`)
  */
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   ClipboardList,
@@ -46,9 +46,19 @@ import { BoqTab } from "./_boq-tab";
 import { FilesTab } from "./_files-tab";
 import { PurchasingTab } from "./_purchasing-tab";
 import { UsageTab } from "./_usage-tab";
-import type { ProjectDetailInitial } from "./_types";
+import { loadProjectTabAction } from "./_actions";
+import type {
+  BillingsTabData,
+  BoqTabData,
+  FilesTabData,
+  ProjectCoreInitial,
+  ProjectTabDataMap,
+  PurchasingTabData,
+  TabKey,
+  UsageTabData,
+} from "./_types";
 
-export type TabKey = "overview" | "files" | "boq" | "purchasing" | "billings" | "usage";
+export type { TabKey };
 
 /** แท็บ "จัดซื้อ" มีต้นทุนจากผู้ขาย → viewer ไม่เห็นทั้งแท็บ (contract §5 ข้อ 2) */
 const TABS: { value: TabKey; label: string; icon: React.ReactNode; costOnly?: boolean }[] = [
@@ -75,26 +85,72 @@ export function ProjectDetailClient({
   orgSlug,
   canWrite,
   canSeeCost,
-  initial,
+  core,
   initialTab,
+  initialTabData,
 }: {
   orgId: string;
   orgSlug: string;
   canWrite: boolean;
   canSeeCost: boolean;
-  initial: ProjectDetailInitial;
+  core: ProjectCoreInitial;
   /** แท็บที่เปิดตอนเข้าหน้า (จาก `?tab=` — ลิงก์ในการ์ด LINE ใช้ท่านี้) */
-  initialTab?: TabKey;
+  initialTab: TabKey;
+  /** ข้อมูลของแท็บแรกที่ SSR ดึงมาให้แล้ว (แท็บอื่นโหลดตอนกด) */
+  initialTabData: ProjectTabDataMap[TabKey];
 }) {
   const router = useRouter();
-  const [tab, setTab] = useState<TabKey>(initialTab ?? "overview");
-  const [project, setProject] = useState<JustMeProject>(initial.project);
+  const [tab, setTab] = useState<TabKey>(initialTab);
+  const [project, setProject] = useState<JustMeProject>(core.project);
   const [editOpen, setEditOpen] = useState(false);
 
-  // SSR ส่งของใหม่มา (หลัง router.refresh) → sync เข้ากับ state ที่หน้าถืออยู่
-  useEffect(() => setProject(initial.project), [initial.project]);
+  // ข้อมูลรายแท็บ — โหลดครั้งแรกตอนกดเข้าแท็บนั้น แล้วเก็บไว้ใช้ซ้ำ
+  const [tabData, setTabData] = useState<Partial<ProjectTabDataMap>>({
+    [initialTab]: initialTabData,
+  } as Partial<ProjectTabDataMap>);
+  const [tabError, setTabError] = useState<string | null>(null);
 
-  const summary = initial.summary;
+  // SSR ส่งของใหม่มา (หลัง router.refresh) → sync เข้ากับ state ที่หน้าถืออยู่
+  useEffect(() => setProject(core.project), [core.project]);
+
+  const summary = core.summary;
+
+  /** ดึงข้อมูลของแท็บ (บังคับใหม่ = `force` — ใช้หลังบันทึกข้อมูลในแท็บนั้น) */
+  const loadTab = useCallback(
+    async (key: TabKey, force = false) => {
+      if (key === "overview") return;
+      if (!force && tabData[key]) return;
+      setTabError(null);
+      try {
+        const data = await loadProjectTabAction(orgSlug, project.id, key);
+        setTabData((prev) => ({ ...prev, [key]: data }));
+      } catch {
+        setTabError("โหลดข้อมูลส่วนนี้ไม่สำเร็จ กรุณาลองใหม่");
+      }
+    },
+    [orgSlug, project.id, tabData],
+  );
+
+  useEffect(() => {
+    void loadTab(tab);
+    // ตั้งใจ depend เฉพาะ `tab` — loadTab เปลี่ยนทุกครั้งที่ tabData เปลี่ยน (จะวนไม่จบ)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab]);
+
+  /** บันทึกในแท็บไหนก็รีเฟรชเฉพาะแท็บนั้น + หัวหน้า (การ์ดสรุปเงินมาจาก SSR) */
+  const onTabChanged = useCallback(
+    (key: TabKey) => () => {
+      void loadTab(key, true);
+      router.refresh();
+    },
+    [loadTab, router],
+  );
+
+  const files = (tabData.files as FilesTabData | undefined) ?? null;
+  const boq = (tabData.boq as BoqTabData | undefined) ?? null;
+  const purchasing = (tabData.purchasing as PurchasingTabData | undefined) ?? null;
+  const billings = (tabData.billings as BillingsTabData | undefined) ?? null;
+  const usage = (tabData.usage as UsageTabData | undefined) ?? null;
 
   return (
     <PageShell
@@ -234,75 +290,87 @@ export function ProjectDetailClient({
         </div>
       )}
 
-      {tab === "files" && (
-        <FilesTab
-          orgId={orgId}
-          projectId={project.id}
-          canWrite={canWrite}
-          files={initial.files}
-          onChanged={() => router.refresh()}
-        />
-      )}
+      {tab === "files" &&
+        (files ? (
+          <FilesTab
+            orgId={orgId}
+            projectId={project.id}
+            canWrite={canWrite}
+            files={files.files}
+            onChanged={onTabChanged("files")}
+          />
+        ) : (
+          <TabPlaceholder error={tabError} onRetry={() => void loadTab("files", true)} />
+        ))}
 
-      {tab === "boq" && (
-        <BoqTab
-          orgId={orgId}
-          orgSlug={orgSlug}
-          projectId={project.id}
-          customerName={project.customer_name}
-          accounting={initial.accounting}
-          quotationDoc={
-            project.quotation_document_id
-              ? (initial.documents[project.quotation_document_id] ?? null)
-              : null
-          }
-          canWrite={canWrite}
-          canSeeCost={canSeeCost}
-          boqs={initial.boqs}
-          activeBoqId={initial.activeBoqId}
-          activeItems={initial.activeItems}
-          categories={initial.categories}
-          priceOptions={initial.priceOptions}
-          onChanged={() => router.refresh()}
-        />
-      )}
+      {tab === "boq" &&
+        (boq ? (
+          <BoqTab
+            orgId={orgId}
+            orgSlug={orgSlug}
+            projectId={project.id}
+            customerName={project.customer_name}
+            accounting={core.accounting}
+            quotationDoc={boq.quotationDoc}
+            canWrite={canWrite}
+            canSeeCost={canSeeCost}
+            boqs={boq.boqs}
+            activeBoqId={boq.activeBoqId}
+            activeItems={boq.activeItems}
+            categories={boq.categories}
+            priceOptions={boq.priceOptions}
+            onChanged={onTabChanged("boq")}
+          />
+        ) : (
+          <TabPlaceholder error={tabError} onRetry={() => void loadTab("boq", true)} />
+        ))}
 
-      {tab === "purchasing" && canSeeCost && (
-        <PurchasingTab orgSlug={orgSlug} rows={initial.purchaseRequests} />
-      )}
+      {tab === "purchasing" &&
+        canSeeCost &&
+        (purchasing ? (
+          <PurchasingTab orgSlug={orgSlug} rows={purchasing.purchaseRequests} />
+        ) : (
+          <TabPlaceholder error={tabError} onRetry={() => void loadTab("purchasing", true)} />
+        ))}
 
-      {tab === "billings" && (
-        <BillingsTab
-          orgId={orgId}
-          orgSlug={orgSlug}
-          canWrite={canWrite}
-          canSeeCost={canSeeCost}
-          project={project}
-          billings={initial.billings}
-          planned={initial.billingPlanned}
-          remaining={initial.billingRemaining}
-          billedAmount={summary?.billed_amount ?? null}
-          documents={initial.documents}
-          accounting={initial.accounting}
-          onChanged={() => router.refresh()}
-        />
-      )}
+      {tab === "billings" &&
+        (billings ? (
+          <BillingsTab
+            orgId={orgId}
+            orgSlug={orgSlug}
+            canWrite={canWrite}
+            canSeeCost={canSeeCost}
+            project={project}
+            billings={billings.billings}
+            planned={billings.billingPlanned}
+            remaining={billings.billingRemaining}
+            billedAmount={summary?.billed_amount ?? null}
+            documents={billings.documents}
+            accounting={core.accounting}
+            onChanged={onTabChanged("billings")}
+          />
+        ) : (
+          <TabPlaceholder error={tabError} onRetry={() => void loadTab("billings", true)} />
+        ))}
 
-      {tab === "usage" && (
-        <UsageTab
-          orgId={orgId}
-          orgSlug={orgSlug}
-          projectId={project.id}
-          canWrite={canWrite}
-          canSeeCost={canSeeCost}
-          usage={initial.usage}
-          itemNames={initial.itemNames}
-          costs={initial.costs}
-          progress={initial.progress}
-          approvedItems={initial.approvedItems}
-          onChanged={() => router.refresh()}
-        />
-      )}
+      {tab === "usage" &&
+        (usage ? (
+          <UsageTab
+            orgId={orgId}
+            orgSlug={orgSlug}
+            projectId={project.id}
+            canWrite={canWrite}
+            canSeeCost={canSeeCost}
+            usage={usage.usage}
+            itemNames={usage.itemNames}
+            costs={usage.costs}
+            progress={usage.progress}
+            approvedItems={usage.approvedItems}
+            onChanged={onTabChanged("usage")}
+          />
+        ) : (
+          <TabPlaceholder error={tabError} onRetry={() => void loadTab("usage", true)} />
+        ))}
 
       <EditProjectDialog
         open={editOpen}
@@ -629,5 +697,32 @@ function EditProjectDialog({
         </DialogContent>
       </Dialog>
     </>
+  );
+}
+
+/**
+ * ที่ว่างระหว่างรอข้อมูลของแท็บ — skeleton ตาม DESIGN.md §9 (ห้าม spinner กลางจอ)
+ * โหลดพลาดแล้วต้องมีปุ่มลองใหม่ ไม่ใช่หน้าจอว่าง ๆ
+ */
+function TabPlaceholder({ error, onRetry }: { error: string | null; onRetry: () => void }) {
+  if (error) {
+    return (
+      <PageCard title="โหลดข้อมูลไม่สำเร็จ">
+        <div className="flex flex-col items-start gap-3">
+          <Text className="text-sm text-gray-600">{error}</Text>
+          <Button variant="outline" onClick={onRetry}>
+            ลองใหม่
+          </Button>
+        </div>
+      </PageCard>
+    );
+  }
+  return (
+    <div className="animate-pulse space-y-3" aria-label="กำลังโหลดข้อมูล">
+      <div className="h-10 rounded-lg bg-gray-100" />
+      {[0, 1, 2, 3, 4].map((i) => (
+        <div key={i} className="h-12 rounded-lg bg-gray-100" />
+      ))}
+    </div>
   );
 }
