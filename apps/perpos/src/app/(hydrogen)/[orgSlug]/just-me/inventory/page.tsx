@@ -93,6 +93,8 @@ interface InventoryItem {
   has_cable_measurement: boolean;
   conversion_rate: number;
   min_stock: number;
+  /** ปิดใช้งาน = ยังอยู่ในประวัติ แต่ไม่ให้เลือกตอนเบิก-รับอีก */
+  is_active?: boolean;
   created_at: string;
 }
 
@@ -223,6 +225,8 @@ export default function JustMeInventoryPage() {
   const [canWrite, setCanWrite] = useState(true);
   const [movementsTotal, setMovementsTotal] = useState<number | null>(null);
   const [movementsTruncated, setMovementsTruncated] = useState(false);
+  /** ทะเบียน/ยอดคงเหลือดึงไม่ครบ (ชนเพดานฝั่ง API) — ตัวเลขบนหน้าเชื่อไม่ได้ */
+  const [listsTruncated, setListsTruncated] = useState(false);
   const [costMonthly, setCostMonthly] = useState<CostMonthly[]>([]);
   const [members, setMembers] = useState<Person[]>([]);
   const [projects, setProjects] = useState<{ id: string; project_code: string; name: string }[]>(
@@ -245,6 +249,32 @@ export default function JustMeInventoryPage() {
   const [reverseTarget, setReverseTarget] = useState<StockMovement | null>(null);
   const [reverseReason, setReverseReason] = useState("");
   const [reverseSaving, setReverseSaving] = useState(false);
+
+  // แก้ไข/ลบทะเบียน (คลัง + วัสดุ) — เดิมสร้างได้อย่างเดียว พิมพ์ผิดหรือ OCR สร้างชื่อเพี้ยนแล้วค้างถาวร
+  const [editWh, setEditWh] = useState<WarehouseData | null>(null);
+  const [editWhForm, setEditWhForm] = useState({
+    name: "",
+    type: "site",
+    location_address: "",
+    latitude: "",
+    longitude: "",
+    contact_name: "",
+    contact_phone: "",
+    is_active: true,
+  });
+  const [editItem, setEditItem] = useState<InventoryItem | null>(null);
+  const [editItemForm, setEditItemForm] = useState({
+    name: "",
+    code: "",
+    description: "",
+    unit: "ชิ้น",
+    has_serial: false,
+    has_cable_measurement: false,
+    conversion_rate: "1",
+    min_stock: "0",
+    is_active: true,
+  });
+  const [editSaving, setEditSaving] = useState(false);
 
   // Form States
   const [formWarehouse, setFormWarehouse] = useState({
@@ -341,6 +371,7 @@ export default function JustMeInventoryPage() {
       setCanWrite(json.canWrite !== false);
       setMovementsTotal(typeof json.movementsTotal === "number" ? json.movementsTotal : null);
       setMovementsTruncated(!!json.movementsTruncated);
+      setListsTruncated(!!json.listsTruncated);
       // โครงการสำหรับผูกการเบิกใช้ (ต้นทุนจริงต่อโครงการ) — อ่านผ่าน RLS ปกติ
       const { data: projRows } = await supabase
         .from("just_me_projects")
@@ -361,6 +392,112 @@ export default function JustMeInventoryPage() {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  /** ยิง action ของ API คลัง (ใช้ token/org ที่ loadData เก็บไว้แล้ว) */
+  const postAction = useCallback(
+    async (payload: Record<string, unknown>) => {
+      const res = await fetch(`/api/just-me/inventory?orgId=${orgId}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${authToken}` },
+        body: JSON.stringify(payload),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.error || "บันทึกไม่สำเร็จ");
+      return json;
+    },
+    [orgId, authToken],
+  );
+
+  const openEditWarehouse = (wh: WarehouseData) => {
+    if (!canWrite) return;
+    setEditWh(wh);
+    setEditWhForm({
+      name: wh.name,
+      type: wh.type,
+      location_address: wh.location_address ?? "",
+      latitude: wh.latitude === null ? "" : String(wh.latitude),
+      longitude: wh.longitude === null ? "" : String(wh.longitude),
+      contact_name: wh.contact_name ?? "",
+      contact_phone: wh.contact_phone ?? "",
+      is_active: wh.is_active !== false,
+    });
+  };
+
+  const handleUpdateWarehouse = async () => {
+    if (!editWh) return;
+    try {
+      setEditSaving(true);
+      await postAction({ action: "update_warehouse", id: editWh.id, ...editWhForm });
+      toast.success(`บันทึกคลัง "${editWhForm.name}" แล้ว`);
+      setEditWh(null);
+      await loadData();
+    } catch (err: any) {
+      toast.error(err.message || "บันทึกคลังไม่สำเร็จ");
+    } finally {
+      setEditSaving(false);
+    }
+  };
+
+  const handleDeleteWarehouse = async () => {
+    if (!editWh) return;
+    try {
+      setEditSaving(true);
+      await postAction({ action: "delete_warehouse", id: editWh.id });
+      toast.success(`ลบคลัง "${editWh.name}" แล้ว`);
+      setEditWh(null);
+      await loadData();
+    } catch (err: any) {
+      toast.error(err.message || "ลบคลังไม่สำเร็จ");
+    } finally {
+      setEditSaving(false);
+    }
+  };
+
+  const openEditItem = (item: InventoryItem) => {
+    if (!canWrite) return;
+    setEditItem(item);
+    setEditItemForm({
+      name: item.name,
+      code: item.code,
+      description: item.description ?? "",
+      unit: item.unit,
+      has_serial: item.has_serial,
+      has_cable_measurement: item.has_cable_measurement,
+      conversion_rate: String(item.conversion_rate ?? 1),
+      min_stock: String(item.min_stock ?? 0),
+      is_active: item.is_active !== false,
+    });
+  };
+
+  const handleUpdateItem = async () => {
+    if (!editItem) return;
+    try {
+      setEditSaving(true);
+      await postAction({ action: "update_item", id: editItem.id, ...editItemForm });
+      toast.success(`บันทึกวัสดุ "${editItemForm.name}" แล้ว`);
+      setEditItem(null);
+      await loadData();
+    } catch (err: any) {
+      toast.error(err.message || "บันทึกวัสดุไม่สำเร็จ");
+    } finally {
+      setEditSaving(false);
+    }
+  };
+
+  const handleDeleteItem = async () => {
+    if (!editItem) return;
+    try {
+      setEditSaving(true);
+      await postAction({ action: "delete_item", id: editItem.id });
+      toast.success(`ลบวัสดุ "${editItem.name}" แล้ว`);
+      setEditItem(null);
+      await loadData();
+    } catch (err: any) {
+      toast.error(err.message || "ลบวัสดุไม่สำเร็จ");
+    } finally {
+      setEditSaving(false);
+    }
+  };
 
   // Form Submit Handlers
   const handleCreateWarehouse = async (e: React.FormEvent) => {
@@ -724,10 +861,13 @@ export default function JustMeInventoryPage() {
 
   // Memoized Select Options
   const itemOptions = useMemo(() => {
-    return items.map((i) => ({
-      value: i.id,
-      label: `${i.name} (${i.code})`,
-    }));
+    // วัสดุที่ปิดใช้งานยังอยู่ในประวัติ แต่ห้ามหยิบมาทำรายการใหม่
+    return items
+      .filter((i) => i.is_active !== false)
+      .map((i) => ({
+        value: i.id,
+        label: `${i.name} (${i.code})`,
+      }));
   }, [items]);
 
   // ───────── ต้นทุน (Cost) ─────────
@@ -857,10 +997,12 @@ export default function JustMeInventoryPage() {
   );
 
   const warehouseOptions = useMemo(() => {
-    return warehouses.map((w) => ({
-      value: w.id,
-      label: `${w.name} (${w.type === "central" ? "คลังกลาง" : "ไซต์งาน"})`,
-    }));
+    return warehouses
+      .filter((w) => w.is_active !== false)
+      .map((w) => ({
+        value: w.id,
+        label: `${w.name} (${w.type === "central" ? "คลังกลาง" : "ไซต์งาน"})`,
+      }));
   }, [warehouses]);
 
   return (
@@ -957,6 +1099,16 @@ export default function JustMeInventoryPage() {
               { value: "history", label: "ประวัติ", icon: <History className="h-4 w-4" /> },
             ]}
           />
+
+          {listsTruncated && (
+            <div className="flex items-start gap-2.5 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-red-500" />
+              <span>
+                ข้อมูลทะเบียนวัสดุ/ยอดคงเหลือมีมากเกินกว่าที่ระบบดึงมาแสดงได้ในครั้งเดียว —
+                ยอดคงเหลือและมูลค่าคลังบนหน้านี้<b>ต่ำกว่ายอดจริง</b> กรุณาแจ้งผู้ดูแลระบบ
+              </span>
+            </div>
+          )}
 
           {movementsTruncated && (
             <div className="flex items-start gap-2.5 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
@@ -1231,6 +1383,11 @@ export default function JustMeInventoryPage() {
                   <h2 className="text-sm font-semibold text-slate-700">
                     คลังสินค้าและไซต์งานปัจจุบัน
                   </h2>
+                  {canWrite && (
+                    <p className="mt-0.5 text-xs text-gray-500">
+                      คลิกที่แถวเพื่อแก้ไขหรือปิดใช้งาน
+                    </p>
+                  )}
                 </div>
 
                 <Table wrapperClassName="rounded-none border-0">
@@ -1245,7 +1402,11 @@ export default function JustMeInventoryPage() {
                   </TableHeader>
                   <TableBody>
                     {whPager.rows.map((wh) => (
-                      <TableRow key={wh.id}>
+                      <TableRow
+                        key={wh.id}
+                        clickable={canWrite}
+                        onClick={canWrite ? () => openEditWarehouse(wh) : undefined}
+                      >
                         <TableCell className="font-bold text-slate-800">{wh.name}</TableCell>
                         <TableCell>
                           <StatusBadge tone={wh.type === "central" ? "success" : "info"}>
@@ -1280,10 +1441,14 @@ export default function JustMeInventoryPage() {
                           )}
                         </TableCell>
                         <TableCell>
-                          <span className="inline-flex items-center gap-1 whitespace-nowrap text-xs font-semibold text-emerald-700">
-                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                            ใช้งานอยู่
-                          </span>
+                          {wh.is_active === false ? (
+                            <StatusBadge tone="neutral">ปิดใช้งาน</StatusBadge>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 whitespace-nowrap text-xs font-semibold text-emerald-700">
+                              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                              ใช้งานอยู่
+                            </span>
+                          )}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -1435,6 +1600,11 @@ export default function JustMeInventoryPage() {
               <div className="overflow-hidden rounded-xl border bg-white lg:col-span-2">
                 <div className="border-b px-5 py-4">
                   <h2 className="text-sm font-semibold text-slate-700">ข้อมูลวัสดุทั้งหมด</h2>
+                  {canWrite && (
+                    <p className="mt-0.5 text-xs text-gray-500">
+                      คลิกที่แถวเพื่อแก้ไขหรือปิดใช้งาน
+                    </p>
+                  )}
                 </div>
 
                 <Table wrapperClassName="rounded-none border-0">
@@ -1444,11 +1614,16 @@ export default function JustMeInventoryPage() {
                       <TableHead>ชื่อ</TableHead>
                       <TableHead>หน่วย</TableHead>
                       <TableHead>การติดตาม</TableHead>
+                      <TableHead>สถานะ</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {itemPager.rows.map((item) => (
-                      <TableRow key={item.id}>
+                      <TableRow
+                        key={item.id}
+                        clickable={canWrite}
+                        onClick={canWrite ? () => openEditItem(item) : undefined}
+                      >
                         <TableCell className="font-mono text-xs font-bold text-indigo-600">
                           {item.code}
                         </TableCell>
@@ -1475,6 +1650,16 @@ export default function JustMeInventoryPage() {
                               <span className="italic text-slate-400">นับชิ้นปกติ</span>
                             )}
                           </div>
+                        </TableCell>
+                        <TableCell>
+                          {item.is_active === false ? (
+                            <StatusBadge tone="neutral">ปิดใช้งาน</StatusBadge>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 whitespace-nowrap text-xs font-semibold text-emerald-700">
+                              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                              ใช้งานอยู่
+                            </span>
+                          )}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -2342,6 +2527,235 @@ export default function JustMeInventoryPage() {
               disabled={reverseSaving || !reverseReason.trim()}
             >
               {reverseSaving ? "กำลังกลับรายการ…" : "กลับรายการ"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      {/* แก้ไขคลัง / ไซต์งาน */}
+      <Dialog open={!!editWh} onOpenChange={(o) => !o && setEditWh(null)}>
+        <DialogContent size="lg">
+          <DialogHeader>
+            <DialogTitle>แก้ไขคลัง / ไซต์งาน</DialogTitle>
+          </DialogHeader>
+          <DialogBody>
+            <div className="space-y-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="edit-wh-name">ชื่อคลัง / ไซต์งาน *</Label>
+                <Input
+                  id="edit-wh-name"
+                  value={editWhForm.name}
+                  onChange={(e) => setEditWhForm({ ...editWhForm, name: e.target.value })}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>ประเภท</Label>
+                <SegmentedControl
+                  value={editWhForm.type}
+                  onChange={(v) => setEditWhForm({ ...editWhForm, type: v })}
+                  size="md"
+                  options={[
+                    { value: "central", label: "คลังกลาง" },
+                    { value: "site", label: "ไซต์งาน" },
+                  ]}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="edit-wh-addr">ที่ตั้ง</Label>
+                <Input
+                  id="edit-wh-addr"
+                  value={editWhForm.location_address}
+                  onChange={(e) =>
+                    setEditWhForm({ ...editWhForm, location_address: e.target.value })
+                  }
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1.5">
+                  <Label htmlFor="edit-wh-lat">ละติจูด</Label>
+                  <Input
+                    id="edit-wh-lat"
+                    type="number"
+                    step="any"
+                    value={editWhForm.latitude}
+                    onChange={(e) => setEditWhForm({ ...editWhForm, latitude: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="edit-wh-lng">ลองจิจูด</Label>
+                  <Input
+                    id="edit-wh-lng"
+                    type="number"
+                    step="any"
+                    value={editWhForm.longitude}
+                    onChange={(e) => setEditWhForm({ ...editWhForm, longitude: e.target.value })}
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1.5">
+                  <Label htmlFor="edit-wh-contact">ผู้ดูแลหน้างาน</Label>
+                  <Input
+                    id="edit-wh-contact"
+                    value={editWhForm.contact_name}
+                    onChange={(e) => setEditWhForm({ ...editWhForm, contact_name: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="edit-wh-phone">เบอร์ติดต่อ</Label>
+                  <Input
+                    id="edit-wh-phone"
+                    value={editWhForm.contact_phone}
+                    onChange={(e) =>
+                      setEditWhForm({ ...editWhForm, contact_phone: e.target.value })
+                    }
+                  />
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label>สถานะการใช้งาน</Label>
+                <SegmentedControl
+                  value={editWhForm.is_active ? "active" : "inactive"}
+                  onChange={(v) => setEditWhForm({ ...editWhForm, is_active: v === "active" })}
+                  size="md"
+                  options={[
+                    { value: "active", label: "ใช้งานอยู่" },
+                    { value: "inactive", label: "ปิดใช้งาน" },
+                  ]}
+                />
+                <p className="text-xs text-gray-500">
+                  ปิดใช้งาน = ไม่ให้เลือกคลังนี้ตอนทำรายการใหม่ แต่ประวัติและยอดเดิมยังอยู่ครบ
+                </p>
+              </div>
+            </div>
+          </DialogBody>
+          <DialogFooter>
+            <Button
+              variant="destructive"
+              className="mr-auto"
+              onClick={handleDeleteWarehouse}
+              disabled={editSaving}
+            >
+              ลบ
+            </Button>
+            <Button variant="outline" onClick={() => setEditWh(null)}>
+              ยกเลิก
+            </Button>
+            <Button
+              onClick={handleUpdateWarehouse}
+              disabled={editSaving || !editWhForm.name.trim()}
+            >
+              {editSaving ? "กำลังบันทึก…" : "บันทึก"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* แก้ไขวัสดุ / สินค้า */}
+      <Dialog open={!!editItem} onOpenChange={(o) => !o && setEditItem(null)}>
+        <DialogContent size="lg">
+          <DialogHeader>
+            <DialogTitle>แก้ไขวัสดุ / สินค้า</DialogTitle>
+          </DialogHeader>
+          <DialogBody>
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1.5">
+                  <Label htmlFor="edit-item-code">รหัสวัสดุ *</Label>
+                  <Input
+                    id="edit-item-code"
+                    value={editItemForm.code}
+                    onChange={(e) => setEditItemForm({ ...editItemForm, code: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="edit-item-unit">หน่วยนับ</Label>
+                  <Input
+                    id="edit-item-unit"
+                    value={editItemForm.unit}
+                    onChange={(e) => setEditItemForm({ ...editItemForm, unit: e.target.value })}
+                  />
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="edit-item-name">ชื่อวัสดุ *</Label>
+                <Input
+                  id="edit-item-name"
+                  value={editItemForm.name}
+                  onChange={(e) => setEditItemForm({ ...editItemForm, name: e.target.value })}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="edit-item-desc">รายละเอียด</Label>
+                <Input
+                  id="edit-item-desc"
+                  value={editItemForm.description}
+                  onChange={(e) =>
+                    setEditItemForm({ ...editItemForm, description: e.target.value })
+                  }
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1.5">
+                  <Label htmlFor="edit-item-min">จุดสั่งซื้อต่ำสุด</Label>
+                  <Input
+                    id="edit-item-min"
+                    type="number"
+                    value={editItemForm.min_stock}
+                    onChange={(e) =>
+                      setEditItemForm({ ...editItemForm, min_stock: e.target.value })
+                    }
+                  />
+                </div>
+                {editItemForm.has_cable_measurement && (
+                  <div className="space-y-1.5">
+                    <Label htmlFor="edit-item-conv">อัตราแปลงหน่วย</Label>
+                    <Input
+                      id="edit-item-conv"
+                      type="number"
+                      value={editItemForm.conversion_rate}
+                      onChange={(e) =>
+                        setEditItemForm({ ...editItemForm, conversion_rate: e.target.value })
+                      }
+                    />
+                  </div>
+                )}
+              </div>
+              <div className="space-y-1.5">
+                <Label>สถานะการใช้งาน</Label>
+                <SegmentedControl
+                  value={editItemForm.is_active ? "active" : "inactive"}
+                  onChange={(v) => setEditItemForm({ ...editItemForm, is_active: v === "active" })}
+                  size="md"
+                  options={[
+                    { value: "active", label: "ใช้งานอยู่" },
+                    { value: "inactive", label: "ปิดใช้งาน" },
+                  ]}
+                />
+                <p className="text-xs text-gray-500">
+                  ปิดใช้งาน = ไม่ให้เลือกวัสดุนี้ตอนทำรายการใหม่ แต่ประวัติ ยอดคงเหลือ
+                  และต้นทุนเดิมยังอยู่ครบ · วิธีติดตาม (Serial / ตัดเมตร)
+                  เปลี่ยนไม่ได้เมื่อวัสดุเดินรายการไปแล้ว
+                </p>
+              </div>
+            </div>
+          </DialogBody>
+          <DialogFooter>
+            <Button
+              variant="destructive"
+              className="mr-auto"
+              onClick={handleDeleteItem}
+              disabled={editSaving}
+            >
+              ลบ
+            </Button>
+            <Button variant="outline" onClick={() => setEditItem(null)}>
+              ยกเลิก
+            </Button>
+            <Button
+              onClick={handleUpdateItem}
+              disabled={editSaving || !editItemForm.name.trim() || !editItemForm.code.trim()}
+            >
+              {editSaving ? "กำลังบันทึก…" : "บันทึก"}
             </Button>
           </DialogFooter>
         </DialogContent>

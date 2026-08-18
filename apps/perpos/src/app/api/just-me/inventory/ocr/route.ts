@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireModuleMember } from "../../../_lib/module-auth";
 import { canWrite, type JustMeRole } from "../../_lib";
-import { recordGeminiFromMetadata } from "@/lib/usage/record";
+import { aiChat } from "@/lib/ai/client";
+
+// อ่านบิล 1 ใบ = 3–8 วิ (บิลยาว ๆ ถึง 15 วิ) — ค่า default 10 วิ ของ Vercel ทำให้ 504 กลางทาง
+export const maxDuration = 60;
 
 /** เพดานรูปที่รับ (base64 ~1.37 เท่าของไฟล์จริง) — กันยิง payload ใหญ่เผาโควตา Gemini */
 const MAX_IMAGE_BASE64 = 11_000_000; // ≈ 8 MB
@@ -33,14 +36,6 @@ export async function POST(req: NextRequest) {
   // อ่านบิลเข้าคลัง = ทางเดียวที่จบด้วยการรับของเข้า → ผู้ที่แก้ข้อมูลไม่ได้ก็ไม่ควรเรียก (กันเผาโควตา AI)
   if (!canWrite(auth.moduleRole as JustMeRole)) {
     return NextResponse.json({ error: "ไม่มีสิทธิ์แก้ไขข้อมูลในโมดูลนี้" }, { status: 403 });
-  }
-
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    return NextResponse.json(
-      { error: "OCR ไม่พร้อมใช้งาน (ไม่มี GEMINI_API_KEY)" },
-      { status: 503 },
-    );
   }
 
   const imgMime = mimeType ?? "image/jpeg";
@@ -84,42 +79,29 @@ Return ONLY valid JSON — no markdown fences, no explanation, nothing else:
   "date": "YYYY-MM-DD or null"
 }`;
 
-  const ocrRes = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [
-          {
-            parts: [{ text: prompt }, { inline_data: { mime_type: imgMime, data: imageBase64 } }],
-          },
-        ],
-        generationConfig: { maxOutputTokens: 2000, temperature: 0 },
-      }),
-    },
-  );
+  // เรียกผ่าน aiChat เท่านั้น (มาตรฐานเดียวของระบบ) — ได้ thinkingBudget:0 + jsonMode +
+  // การนับต้นทุนอัตโนมัติมาในตัว · **ห้ามกลับไป fetch Gemini ตรง**:
+  // ของเดิมตั้ง maxOutputTokens 2000 โดยไม่ปิด thinking ⇒ บิล ~13 รายการกิน thinking token
+  // จนเต็มโควตา output → JSON ขาดกลางคัน → ผู้ใช้เจอ "อ่านบิลไม่ได้" ทุกครั้ง (วัดแล้ว 3/3)
+  const result = await aiChat([{ role: "user", content: prompt }], {
+    provider: "gemini",
+    model: "gemini-2.5-flash",
+    temperature: 0,
+    jsonMode: true,
+    maxTokens: 8000,
+    images: [{ base64: imageBase64, mimeType: imgMime }],
+    usage: { orgId, profileId: auth.userId, feature: "just_me.inventory_ocr" },
+  });
 
-  if (!ocrRes.ok) {
-    const err = await ocrRes.text();
-    return NextResponse.json({ error: `Gemini error: ${err.slice(0, 200)}` }, { status: 502 });
+  if (!result) {
+    return NextResponse.json(
+      { error: "อ่านบิลไม่สำเร็จ (บริการ AI ไม่ตอบสนอง) — กรุณาลองใหม่หรือกรอกเอง" },
+      { status: 502 },
+    );
   }
 
-  const ocrJson = (await ocrRes.json()) as {
-    candidates: { content: { parts: { text: string }[] } }[];
-    usageMetadata?: {
-      promptTokenCount?: number;
-      candidatesTokenCount?: number;
-      thoughtsTokenCount?: number;
-    };
-  };
-  // promptTokenCount รวม token ของรูปภาพแล้ว (ราคาเดียวกับ text_in สำหรับ 2.5-flash)
-  void recordGeminiFromMetadata(
-    { orgId, profileId: auth.userId, feature: "just_me.inventory_ocr" },
-    "gemini-2.5-flash",
-    ocrJson.usageMetadata,
-  );
-  const content = ocrJson.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+  const content = result.text;
+  // jsonMode คืน JSON ล้วนอยู่แล้ว — ถอด ``` เผื่อไว้เฉย ๆ (โมเดลเผลอครอบได้เป็นบางครั้ง)
   const cleaned = content
     .replace(/^```[a-z]*\n?/i, "")
     .replace(/\n?```$/i, "")

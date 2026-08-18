@@ -29,6 +29,51 @@ import {
 /** เพดานแถวประวัติที่ดึงมาแสดง — เกินนี้ต้องบอกผู้ใช้ ไม่ใช่ตัดเงียบ */
 const MOVEMENT_LIMIT = 1000;
 
+/** PostgREST ตอบสูงสุด 1,000 แถวต่อครั้ง — ทะเบียน/ยอดคงเหลือต้องดึงครบ ไม่งั้นยอดรวมต่ำกว่าจริงเงียบ ๆ */
+const CHUNK = 1000;
+/** กันดึงไม่รู้จบถ้าข้อมูลบวมผิดปกติ — ถึงเพดานแล้วต้องบอกหน้าเว็บว่าไม่ครบ */
+const MAX_ROWS = 20_000;
+
+/**
+ * ดึงทุกแถวของตารางเดียวแบบไล่หน้าเอง (คืน `truncated` เมื่อชนเพดาน)
+ * — ห้ามเปลี่ยนกลับไปเรียกครั้งเดียว: ยอดคงเหลือ/มูลค่าคลังคิดจาก array ชุดนี้
+ */
+async function fetchAll<T>(
+  build: () => {
+    range: (
+      from: number,
+      to: number,
+    ) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>;
+  },
+): Promise<{ rows: T[]; truncated: boolean }> {
+  const rows: T[] = [];
+  for (let from = 0; from < MAX_ROWS; from += CHUNK) {
+    const { data, error } = await build().range(from, from + CHUNK - 1);
+    if (error) throw new Error(error.message);
+    const batch = data ?? [];
+    rows.push(...batch);
+    if (batch.length < CHUNK) return { rows, truncated: false };
+  }
+  return { rows, truncated: true };
+}
+
+/** พิกัดคลัง — กติกาเดียวใช้ทั้งตอนสร้างและตอนแก้ไข */
+function parseCoords(
+  latitude: unknown,
+  longitude: unknown,
+): { ok: true; lat: number | null; lng: number | null } | { ok: false; error: string } {
+  const num = (v: unknown) => (v === "" || v === undefined || v === null ? null : Number(v));
+  const lat = num(latitude);
+  const lng = num(longitude);
+  if (lat !== null && (Number.isNaN(lat) || lat < -90 || lat > 90)) {
+    return { ok: false, error: "ละติจูดต้องอยู่ระหว่าง -90 ถึง 90" };
+  }
+  if (lng !== null && (Number.isNaN(lng) || lng < -180 || lng > 180)) {
+    return { ok: false, error: "ลองจิจูดต้องอยู่ระหว่าง -180 ถึง 180" };
+  }
+  return { ok: true, lat, lng };
+}
+
 export async function GET(req: NextRequest) {
   const orgId = req.nextUrl.searchParams.get("orgId");
   if (!orgId) return NextResponse.json({ error: "missing orgId" }, { status: 400 });
@@ -38,35 +83,64 @@ export async function GET(req: NextRequest) {
 
   const admin = createAdminClient();
 
-  // 1. Fetch Warehouses
-  const { data: warehouses, error: whErr } = await admin
-    .from("just_me_warehouses")
-    .select("*")
-    .eq("org_id", orgId)
-    .order("name");
-  if (whErr) return NextResponse.json({ error: whErr.message }, { status: 500 });
+  // 1-4, 6. ทะเบียน/ยอดคงเหลือ — ดึงครบทุกแถว (ไล่ทีละ 1,000) แล้วบอกหน้าเว็บถ้าชนเพดาน
+  //         เดิมเรียกครั้งเดียว ⇒ org ที่มี serial/ยอดคงเหลือเกิน 1,000 แถว ตัวเลขต่ำกว่าจริงโดยไม่มีใครรู้
+  let warehouses: any[] = [];
+  let items: any[] = [];
+  let balances: any[] = [];
+  let serials: any[] = [];
+  let costs: any[] = [];
+  let costMonthly: any[] = [];
+  let listsTruncated = false;
 
-  // 2. Fetch Inventory Items
-  const { data: items, error: itemErr } = await admin
-    .from("just_me_inventory_items")
-    .select("*")
-    .eq("org_id", orgId)
-    .order("name");
-  if (itemErr) return NextResponse.json({ error: itemErr.message }, { status: 500 });
+  const since = new Date();
+  since.setMonth(since.getMonth() - 11);
+  since.setDate(1);
+  const sinceIso = since.toISOString().slice(0, 10);
 
-  // 3. Fetch Stock Balances
-  const { data: balances, error: balErr } = await admin
-    .from("just_me_stock_balances")
-    .select("*")
-    .eq("org_id", orgId);
-  if (balErr) return NextResponse.json({ error: balErr.message }, { status: 500 });
-
-  // 4. Fetch Item Serials
-  const { data: serials, error: serErr } = await admin
-    .from("just_me_item_serials")
-    .select("*")
-    .eq("org_id", orgId);
-  if (serErr) return NextResponse.json({ error: serErr.message }, { status: 500 });
+  try {
+    const [wh, it, bal, ser, cost, cm] = await Promise.all([
+      fetchAll<any>(() =>
+        admin.from("just_me_warehouses").select("*").eq("org_id", orgId).order("name").order("id"),
+      ),
+      fetchAll<any>(() =>
+        admin
+          .from("just_me_inventory_items")
+          .select("*")
+          .eq("org_id", orgId)
+          .order("name")
+          .order("id"),
+      ),
+      fetchAll<any>(() =>
+        admin.from("just_me_stock_balances").select("*").eq("org_id", orgId).order("id"),
+      ),
+      fetchAll<any>(() =>
+        admin.from("just_me_item_serials").select("*").eq("org_id", orgId).order("id"),
+      ),
+      fetchAll<any>(() =>
+        admin.from("just_me_item_costs").select("*").eq("org_id", orgId).order("item_id"),
+      ),
+      fetchAll<any>(() =>
+        admin
+          .from("just_me_item_cost_monthly")
+          .select("*")
+          .eq("org_id", orgId)
+          .gte("month", sinceIso)
+          // ไล่หน้าเองต้องเรียงด้วยคีย์ที่ไม่ซ้ำ ไม่งั้นแถวข้ามหน้าหาย/ซ้ำ
+          .order("month")
+          .order("item_id"),
+      ),
+    ]);
+    warehouses = wh.rows;
+    items = it.rows;
+    balances = bal.rows;
+    serials = ser.rows;
+    costs = cost.rows;
+    costMonthly = cm.rows;
+    listsTruncated = [wh, it, bal, ser, cost, cm].some((r) => r.truncated);
+  } catch (e: any) {
+    return NextResponse.json({ error: e?.message ?? "โหลดข้อมูลคลังไม่สำเร็จ" }, { status: 500 });
+  }
 
   // 5. Fetch Stock Movements — จำกัดแถวเพื่อความเร็ว แต่ต้องบอกหน้าเว็บว่าถูกตัด
   //    (ไม่งั้นการ์ดสรุป/ตารางผู้เบิกจะต่ำกว่าจริงเงียบ ๆ เมื่อข้อมูลโต)
@@ -82,24 +156,6 @@ export async function GET(req: NextRequest) {
     .from("just_me_stock_movements")
     .select("id", { count: "exact", head: true })
     .eq("org_id", orgId);
-
-  // 6. Fetch item costs (ต้นทุนเฉลี่ยถ่วงน้ำหนัก) + แนวโน้มรายเดือน 12 เดือนล่าสุด
-  const { data: costs, error: costErr } = await admin
-    .from("just_me_item_costs")
-    .select("*")
-    .eq("org_id", orgId);
-  if (costErr) return NextResponse.json({ error: costErr.message }, { status: 500 });
-
-  const since = new Date();
-  since.setMonth(since.getMonth() - 11);
-  since.setDate(1);
-  const { data: costMonthly, error: cmErr } = await admin
-    .from("just_me_item_cost_monthly")
-    .select("*")
-    .eq("org_id", orgId)
-    .gte("month", since.toISOString().slice(0, 10))
-    .order("month");
-  if (cmErr) return NextResponse.json({ error: cmErr.message }, { status: 500 });
 
   // 7. Fetch profiles for creator/requester mapping in-memory to bypass schema cache relationships
   const profileIds = Array.from(
@@ -144,17 +200,19 @@ export async function GET(req: NextRequest) {
   const showCost = canSeeCost(role);
 
   return NextResponse.json({
-    warehouses: warehouses ?? [],
-    items: items ?? [],
-    balances: balances ?? [],
-    serials: serials ?? [],
+    warehouses,
+    items,
+    balances,
+    serials,
     movements: showCost ? movementsWithCreators : stripCostList(movementsWithCreators, role),
-    costs: showCost ? (costs ?? []) : [],
-    costMonthly: showCost ? (costMonthly ?? []) : [],
+    costs: showCost ? costs : [],
+    costMonthly: showCost ? costMonthly : [],
     canSeeCost: showCost,
     canWrite: canWrite(role),
     movementsTotal,
     movementsTruncated: (movements ?? []).length >= MOVEMENT_LIMIT,
+    // ทะเบียน/ยอดคงเหลือดึงไม่ครบ = ตัวเลขบนหน้าเชื่อไม่ได้ ต้องขึ้นเตือน ห้ามเงียบ
+    listsTruncated,
     members,
   });
 }
@@ -190,16 +248,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "ชื่อคลังสินค้า หรือ ประเภทไม่ถูกต้อง" }, { status: 400 });
     }
 
-    const lat =
-      latitude === "" || latitude === undefined || latitude === null ? null : Number(latitude);
-    const lng =
-      longitude === "" || longitude === undefined || longitude === null ? null : Number(longitude);
-    if (lat !== null && (Number.isNaN(lat) || lat < -90 || lat > 90)) {
-      return NextResponse.json({ error: "ละติจูดต้องอยู่ระหว่าง -90 ถึง 90" }, { status: 400 });
-    }
-    if (lng !== null && (Number.isNaN(lng) || lng < -180 || lng > 180)) {
-      return NextResponse.json({ error: "ลองจิจูดต้องอยู่ระหว่าง -180 ถึง 180" }, { status: 400 });
-    }
+    const coords = parseCoords(latitude, longitude);
+    if (!coords.ok) return NextResponse.json({ error: coords.error }, { status: 400 });
+    const lat = coords.lat;
+    const lng = coords.lng;
 
     const { data, error } = await admin
       .from("just_me_warehouses")
@@ -254,6 +306,233 @@ export async function POST(req: NextRequest) {
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json({ item: data }, { status: 201 });
+  }
+
+  // แก้ไขคลัง/ไซต์งาน — ชื่อหรือพิกัดพิมพ์ผิดต้องแก้ได้ ไม่ใช่ค้างถาวร
+  if (action === "update_warehouse") {
+    const {
+      id,
+      name,
+      type,
+      location_address,
+      latitude,
+      longitude,
+      contact_name,
+      contact_phone,
+      is_active,
+    } = body;
+    if (typeof id !== "string" || !id) {
+      return NextResponse.json({ error: "ไม่พบคลังที่ต้องการแก้ไข" }, { status: 400 });
+    }
+    if (!name || !type || !["central", "site"].includes(type)) {
+      return NextResponse.json({ error: "ชื่อคลังสินค้า หรือ ประเภทไม่ถูกต้อง" }, { status: 400 });
+    }
+    const coords = parseCoords(latitude, longitude);
+    if (!coords.ok) return NextResponse.json({ error: coords.error }, { status: 400 });
+
+    const { data, error } = await admin
+      .from("just_me_warehouses")
+      .update({
+        name,
+        type,
+        location_address: location_address || null,
+        latitude: coords.lat,
+        longitude: coords.lng,
+        contact_name: contact_name || null,
+        contact_phone: contact_phone || null,
+        is_active: is_active === undefined ? true : !!is_active,
+      })
+      .eq("id", id)
+      .eq("org_id", orgId) // กันแก้คลังของ org อื่น
+      .select()
+      .maybeSingle();
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (!data) return NextResponse.json({ error: "ไม่พบคลังนี้ในองค์กรนี้" }, { status: 404 });
+    return NextResponse.json({ warehouse: data });
+  }
+
+  // ลบคลัง — ได้เฉพาะคลังที่ยัง "ไม่เคยถูกใช้" เท่านั้น
+  // มีรายการ/ยอด/Serial ผูกอยู่แล้วต้องปิดใช้งานแทน (ลบ = ประวัติคลังหาย ตรวจย้อนหลังไม่ได้)
+  if (action === "delete_warehouse") {
+    const { id } = body;
+    if (typeof id !== "string" || !id) {
+      return NextResponse.json({ error: "ไม่พบคลังที่ต้องการลบ" }, { status: 400 });
+    }
+    const { data: wh } = await admin
+      .from("just_me_warehouses")
+      .select("id")
+      .eq("id", id)
+      .eq("org_id", orgId)
+      .maybeSingle();
+    if (!wh) return NextResponse.json({ error: "ไม่พบคลังนี้ในองค์กรนี้" }, { status: 404 });
+
+    const [{ count: srcCount }, { count: dstCount }, { count: balCount }, { count: serCount }] =
+      await Promise.all([
+        admin
+          .from("just_me_stock_movements")
+          .select("id", { count: "exact", head: true })
+          .eq("org_id", orgId)
+          .eq("source_warehouse_id", id),
+        admin
+          .from("just_me_stock_movements")
+          .select("id", { count: "exact", head: true })
+          .eq("org_id", orgId)
+          .eq("destination_warehouse_id", id),
+        admin
+          .from("just_me_stock_balances")
+          .select("id", { count: "exact", head: true })
+          .eq("org_id", orgId)
+          .eq("warehouse_id", id),
+        admin
+          .from("just_me_item_serials")
+          .select("id", { count: "exact", head: true })
+          .eq("org_id", orgId)
+          .eq("warehouse_id", id),
+      ]);
+    if ((srcCount ?? 0) + (dstCount ?? 0) + (balCount ?? 0) + (serCount ?? 0) > 0) {
+      return NextResponse.json(
+        {
+          error:
+            "ลบไม่ได้เพราะคลังนี้มีประวัติการเคลื่อนไหว/ยอดคงเหลือแล้ว — ให้ปิดใช้งานแทน (ประวัติจะยังอยู่ครบ)",
+        },
+        { status: 409 },
+      );
+    }
+
+    const { error } = await admin
+      .from("just_me_warehouses")
+      .delete()
+      .eq("id", id)
+      .eq("org_id", orgId);
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ success: true });
+  }
+
+  // แก้ไขวัสดุ — ชื่อ/รหัส/หน่วยที่พิมพ์ผิด (โดยเฉพาะที่ OCR สร้างให้อัตโนมัติ) ต้องแก้ได้
+  if (action === "update_item") {
+    const {
+      id,
+      name,
+      code,
+      description,
+      unit,
+      has_serial,
+      has_cable_measurement,
+      conversion_rate,
+      min_stock,
+      is_active,
+    } = body;
+    if (typeof id !== "string" || !id) {
+      return NextResponse.json({ error: "ไม่พบวัสดุที่ต้องการแก้ไข" }, { status: 400 });
+    }
+    if (!name || !code) {
+      return NextResponse.json({ error: "ชื่อสินค้า หรือ รหัสสินค้าไม่ถูกต้อง" }, { status: 400 });
+    }
+
+    const { data: item } = await admin
+      .from("just_me_inventory_items")
+      .select("id, has_serial, has_cable_measurement")
+      .eq("id", id)
+      .eq("org_id", orgId)
+      .maybeSingle();
+    if (!item) return NextResponse.json({ error: "ไม่พบวัสดุนี้ในองค์กรนี้" }, { status: 404 });
+
+    // วิธีติดตาม (Serial / ตัดเมตร) เปลี่ยนความหมายของยอดที่บันทึกไปแล้ว
+    // ⇒ สลับได้เฉพาะวัสดุที่ยังไม่เคยเดินรายการ
+    const wantSerial = !!has_serial;
+    const wantCable = !!has_cable_measurement;
+    if (wantSerial !== item.has_serial || wantCable !== item.has_cable_measurement) {
+      const { count: usedCount } = await admin
+        .from("just_me_stock_movements")
+        .select("id", { count: "exact", head: true })
+        .eq("org_id", orgId)
+        .eq("item_id", id);
+      if ((usedCount ?? 0) > 0) {
+        return NextResponse.json(
+          {
+            error:
+              "วัสดุนี้มีการเคลื่อนไหวแล้ว จึงเปลี่ยนวิธีติดตาม (Serial/ตัดเมตร) ไม่ได้ — แก้ได้เฉพาะชื่อ รหัส หน่วย และรายละเอียด",
+          },
+          { status: 409 },
+        );
+      }
+    }
+
+    const { data, error } = await admin
+      .from("just_me_inventory_items")
+      .update({
+        name,
+        code,
+        description: description || null,
+        unit: unit || "ชิ้น",
+        has_serial: wantSerial,
+        has_cable_measurement: wantCable,
+        conversion_rate: Number(conversion_rate) || 1,
+        min_stock: Number(min_stock) || 0,
+        is_active: is_active === undefined ? true : !!is_active,
+      })
+      .eq("id", id)
+      .eq("org_id", orgId)
+      .select()
+      .maybeSingle();
+    if (error) {
+      return NextResponse.json(
+        { error: error.code === "23505" ? `รหัสวัสดุ "${code}" ถูกใช้ไปแล้ว` : error.message },
+        { status: error.code === "23505" ? 400 : 500 },
+      );
+    }
+    if (!data) return NextResponse.json({ error: "ไม่พบวัสดุนี้ในองค์กรนี้" }, { status: 404 });
+    return NextResponse.json({ item: data });
+  }
+
+  // ลบวัสดุ — FK เป็น CASCADE ⇒ ลบทั้งที่มีประวัติ = ยอด/Serial/ต้นทุนหายเงียบ
+  // จึงยอมให้ลบเฉพาะวัสดุที่ยังไม่เคยถูกใช้ที่ไหนเลย นอกนั้นให้ปิดใช้งาน
+  if (action === "delete_item") {
+    const { id } = body;
+    if (typeof id !== "string" || !id) {
+      return NextResponse.json({ error: "ไม่พบวัสดุที่ต้องการลบ" }, { status: 400 });
+    }
+    const { data: item } = await admin
+      .from("just_me_inventory_items")
+      .select("id")
+      .eq("id", id)
+      .eq("org_id", orgId)
+      .maybeSingle();
+    if (!item) return NextResponse.json({ error: "ไม่พบวัสดุนี้ในองค์กรนี้" }, { status: 404 });
+
+    const refTables = [
+      "just_me_stock_movements",
+      "just_me_stock_balances",
+      "just_me_item_serials",
+      "just_me_boq_items",
+      "just_me_pr_items",
+      "just_me_price_book",
+      "just_me_stock_count_items",
+    ] as const;
+    const counts = await Promise.all(
+      refTables.map((t) =>
+        admin.from(t).select("id", { count: "exact", head: true }).eq("item_id", id),
+      ),
+    );
+    if (counts.some((c) => (c.count ?? 0) > 0)) {
+      return NextResponse.json(
+        {
+          error:
+            "ลบไม่ได้เพราะวัสดุนี้ถูกใช้ในรายการคลัง/BOQ/ราคามาตรฐานแล้ว — ให้ปิดใช้งานแทน (ประวัติจะยังอยู่ครบ)",
+        },
+        { status: 409 },
+      );
+    }
+
+    // ต้นทุนเฉลี่ยของวัสดุที่ไม่เคยเดินรายการ = แถวว่าง ลบพร้อมกันได้
+    await admin.from("just_me_item_costs").delete().eq("org_id", orgId).eq("item_id", id);
+    const { error } = await admin
+      .from("just_me_inventory_items")
+      .delete()
+      .eq("id", id)
+      .eq("org_id", orgId);
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ success: true });
   }
 
   if (action === "movement") {
