@@ -34,6 +34,12 @@ export interface AiCallOptions {
   /** Force JSON output (Gemini responseMimeType, Claude via prompt) */
   jsonMode?: boolean;
   /**
+   * รูปที่ให้โมเดลดู (อ่านบิล/เอกสาร) — แนบไปกับข้อความ `user` ชิ้นสุดท้าย
+   * **Gemini เท่านั้น** · `base64` = ตัวไฟล์ล้วน ไม่มี `data:` นำหน้า
+   * ผู้เรียกเป็นคนคุมขนาดไฟล์เอง (payload ใหญ่ = เผาโควตา)
+   */
+  images?: { base64: string; mimeType: string }[];
+  /**
    * บริบทเจ้าของต้นทุน — ใส่ทุกครั้งที่การเรียกนี้เกิดจาก org/ผู้ใช้จริง
    * ถ้าไม่ใส่ ต้นทุนจะไปกอง "ไม่ระบุองค์กร" ใน /admin/usage (ยังนับ ไม่หาย)
    */
@@ -56,6 +62,11 @@ export async function aiChat(
 ): Promise<AiResult | null> {
   const provider = opts.provider ?? (process.env.PERPOS_AI_PROVIDER as AiProvider) ?? "gemini";
   const temperature = opts.temperature ?? 0;
+  // รูปรองรับเฉพาะ Gemini — ปล่อยผ่านเงียบ = โมเดลตอบจากคำสั่งล้วนโดยไม่เห็นบิล (ผลลัพธ์มั่ว)
+  if (opts.images?.length && provider !== "gemini") {
+    console.error("[AI] images are supported on gemini only — call aborted");
+    return null;
+  }
   const startTime = Date.now();
 
   try {
@@ -229,12 +240,25 @@ async function callGemini(
   if (!key) throw new Error("GEMINI_API_KEY not configured");
 
   const systemMsg = messages.find((m) => m.role === "system")?.content;
+  type GeminiPart = { text: string } | { inline_data: { mime_type: string; data: string } };
   const contents = messages
     .filter((m) => m.role !== "system")
     .map((m) => ({
       role: m.role === "assistant" ? "model" : "user",
-      parts: [{ text: m.content }],
+      parts: [{ text: m.content }] as GeminiPart[],
     }));
+
+  // รูปเกาะไปกับข้อความ user ชิ้นสุดท้าย (คำสั่งต้องมาก่อนรูปเสมอ — โมเดลอ่านตามลำดับ part)
+  if (opts.images?.length) {
+    let target = [...contents].reverse().find((c) => c.role === "user");
+    if (!target) {
+      target = { role: "user", parts: [] as GeminiPart[] };
+      contents.push(target);
+    }
+    for (const img of opts.images) {
+      target.parts.push({ inline_data: { mime_type: img.mimeType, data: img.base64 } });
+    }
+  }
 
   const generationConfig: Record<string, unknown> = {
     temperature,
