@@ -110,7 +110,7 @@ export default async function AdminDashboardPage() {
       {/* Mid row: Health grades + Billing tiers + Users breakdown */}
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         {/* Health grades */}
-        <PageCard title={"Tenant Health Grades"}>
+        <PageCard title="สุขภาพรายองค์กร (เกรด)">
           <div className="flex gap-2">
             {["A", "B", "C", "D", "F"].map((g) => (
               <div
@@ -127,7 +127,7 @@ export default async function AdminDashboardPage() {
               href="/admin/health"
               className="underline-offset-2 hover:text-blue-600 hover:underline"
             >
-              ดูรายละเอียด →
+              ดูสุขภาพรายองค์กร →
             </Link>
           </div>
         </PageCard>

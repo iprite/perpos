@@ -21,10 +21,11 @@ export interface AdminTabItem {
 
 /** แท็บกลุ่มระบบ & โครงสร้าง */
 export const SYSTEM_TABS: AdminTabItem[] = [
-  { label: "Tenant Health", href: "/admin/health" },
-  { label: "Infra สด", href: "/admin/system" },
-  { label: "Resource Monitor", href: "/admin/resources" },
+  // ลำดับ = ตอนไฟไหม้ดูจากซ้าย: เครื่อง/บริการ (infra) ก่อน แล้วค่อยสุขภาพรายลูกค้า
+  { label: "เครื่อง & บริการ (VPS/workers)", href: "/admin/system" },
   { label: "Scheduler", href: "/admin/scheduler" },
+  { label: "ทรัพยากร DB/Storage", href: "/admin/resources" },
+  { label: "สุขภาพรายองค์กร (API/billing)", href: "/admin/health" },
 ];
 
 export function AdminTabs({ items }: { items: AdminTabItem[] }) {

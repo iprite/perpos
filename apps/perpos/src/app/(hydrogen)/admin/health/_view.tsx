@@ -181,7 +181,8 @@ export function HealthView({ initialOrgs }: { initialOrgs: OrgHealth[] }) {
       tabs={<AdminTabs items={SYSTEM_TABS} />}
       description={
         <>
-          คะแนนสุขภาพของแต่ละ org
+          คะแนนสุขภาพ<b>รายองค์กร</b> (API error/webhook/กิจกรรม/billing) — ไม่ใช่สถานะเครื่อง ·
+          เครื่อง VPS/container/workers ดูที่แท็บ &quot;เครื่อง &amp; บริการ&quot;
           {lastRefresh && (
             <span className="ml-2 text-gray-400">
               อัปเดตล่าสุด {lastRefresh.toLocaleTimeString("th-TH")}

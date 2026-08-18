@@ -818,7 +818,7 @@ import { Label } from '@/components/ui/label';
 ### Cloud Run Workers — กฎบังคับ
 
 > **Stack**: ทุก Cloud Run worker ใช้ **plain Express + TypeScript** เท่านั้น — ห้ามใช้ NestJS, Fastify, หรือ framework อื่น
-> Worker มีแค่ 2 endpoints: `GET /healthz` และ `POST /<action>` ตรวจ `x-worker-secret` header
+> Worker มีแค่ 2 endpoints: `GET /health` (มี `/healthz` เป็น alias — Cloud Run ดัก `/healthz` ระดับ platform บางกรณี · `/admin/system` ping `/health`) และ `POST /<action>` ตรวจ `x-worker-secret` header
 
 **โครงสร้าง worker มาตรฐาน:**
 
