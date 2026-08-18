@@ -21,7 +21,15 @@
  * สคริปต์ของเมลเองยังรันไม่ได้อยู่ดี 2 ชั้น: sanitizer ถอด `<script>`/handler ทิ้ง
  * และ CSP เปิดเฉพาะ `'nonce-…'` ที่สุ่มใหม่ทุกครั้ง (เดาไม่ได้ + inline handler ถูกบล็อกอัตโนมัติ)
  */
-export const MAIL_IFRAME_SANDBOX = "allow-popups allow-popups-to-escape-sandbox allow-scripts";
+/**
+ * `allow-modals` เปิดให้ **สคริปต์ของเราตัวเดียว** เรียก `print()` ได้ (ปุ่มพิมพ์เมล)
+ * — ไม่มีมันเบราว์เซอร์บล็อกกล่องพิมพ์ของ frame ทั้งหมด แล้วเราจะต้องไปพิมพ์จากหน้าเว็บแทน
+ *   ซึ่งได้ chrome ของแอปติดไปด้วยและต้องเดา layout กระดาษเอง
+ * ความเสี่ยงที่เพิ่ม = frame เปิด alert/confirm/print ได้ · แต่สคริปต์ในเมลรันไม่ได้อยู่แล้ว
+ *   2 ชั้น (sanitizer ถอดทิ้ง + CSP รับเฉพาะ nonce ที่สุ่มใหม่ทุกฉบับ)
+ */
+export const MAIL_IFRAME_SANDBOX =
+  "allow-popups allow-popups-to-escape-sandbox allow-scripts allow-modals";
 
 /** ชนิดข้อความที่ frame ส่งความสูงกลับมา — ผู้รับต้องตรวจ `event.source` เสมอ (origin เป็น "null") */
 export const MAIL_HEIGHT_MESSAGE = "perpos-mail-height";
@@ -52,6 +60,9 @@ export const MAIL_SCROLL_MESSAGE = "perpos-mail-scroll";
  * (สคริปต์แค่ "อ่าน" href ที่ผ่าน sanitizer มาแล้ว ไม่แก้ DOM ของเมล)
  */
 export const MAIL_LINK_MESSAGE = "perpos-mail-link";
+
+/** หน้าเว็บสั่งให้ frame พิมพ์ตัวเอง — ได้เฉพาะเนื้อเมล ไม่มีแถบเครื่องมือของแอปติดไปด้วย */
+export const MAIL_PRINT_MESSAGE = "perpos-mail-print";
 
 /** ความสูงตั้งต้นก่อนวัดได้ + เพดานกัน frame ยักษ์ทำหน้าพัง (เกินเพดานให้เลื่อนในตัว) */
 export const MAIL_IFRAME_MIN_HEIGHT = 320;
@@ -93,19 +104,21 @@ const SRCDOC_STYLE = [
  */
 const HEIGHT_SCRIPT = [
   "(function(){",
-  "var last=0;",
+  "var last=0;var lastW=0;",
   "function send(){",
   "var h=Math.max(document.documentElement.scrollHeight,document.body?document.body.scrollHeight:0);",
-  "if(h===last)return;last=h;",
-  `parent.postMessage({type:'${MAIL_HEIGHT_MESSAGE}',height:h},'*');`,
+  "var w=Math.max(document.documentElement.scrollWidth,document.body?document.body.scrollWidth:0);",
+  "if(h===last&&w===lastW)return;last=h;lastW=w;",
+  `parent.postMessage({type:'${MAIL_HEIGHT_MESSAGE}',height:h,width:w},'*');`,
   "}",
   "send();",
   "addEventListener('load',send);",
   "function toHit(){var m=document.querySelector('mark.perpos-hit-active');",
   "if(m&&m.scrollIntoView)m.scrollIntoView({block:'center'});}",
   "addEventListener('message',function(e){if(!e.data)return;",
-  `if(e.data.type==='${MAIL_HEIGHT_PING}'){last=0;send();}`,
-  `if(e.data.type==='${MAIL_SCROLL_MESSAGE}'){toHit();}});`,
+  `if(e.data.type==='${MAIL_HEIGHT_PING}'){last=0;lastW=0;send();}`,
+  `if(e.data.type==='${MAIL_SCROLL_MESSAGE}'){toHit();}`,
+  `if(e.data.type==='${MAIL_PRINT_MESSAGE}'){try{print();}catch(err){}}});`,
   "function linkAt(t){while(t&&t!==document){if(t.tagName==='A'&&t.getAttribute('href'))return t.getAttribute('href');t=t.parentNode;}return null;}",
   `function tell(h){parent.postMessage({type:'${MAIL_LINK_MESSAGE}',href:h},'*');}`,
   "addEventListener('mouseover',function(e){var h=linkAt(e.target);if(h)tell(h);},true);",
