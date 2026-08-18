@@ -15,6 +15,10 @@ on:
   # push:
   #   branches: [main]
 
+permissions:
+  contents: read
+  actions: read # VPS ดึง artifact จาก Actions API ด้วย token ของ run นี้
+
 concurrency:
   group: deploy-vps
   cancel-in-progress: false # อย่ายกเลิก deploy ที่กำลังสลับ symlink กลางคัน
@@ -58,27 +62,47 @@ jobs:
           mkdir -p "$OUT/apps/perpos/.next/cache"
           tar -C "$OUT" -czf artifact.tar.gz .
 
-      - name: Upload + activate
+      # runner → Contabo ผ่าน scp ช้ามากเป็นช่วง ๆ (วัดได้ ~6 KB/s ตอน congest → ค้างเป็นสิบนาที)
+      # ในขณะที่ VPS ดาวน์โหลดจาก internet ได้ ~17 MB/s ⇒ ให้ VPS "ดึง" แทนที่จะให้ runner "ดัน"
+      - name: Upload artifact
+        id: art
+        uses: actions/upload-artifact@v4
+        with:
+          name: perpos-standalone
+          path: artifact.tar.gz
+          retention-days: 1
+          compression-level: 0 # tar.gz บีบมาแล้ว
+
+      - name: Activate on VPS
         env:
           VPS_HOST: ${{ secrets.VPS_HOST }}
           VPS_USER: ${{ secrets.VPS_USER }}
           SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          GH_TOKEN: ${{ github.token }}
+          ART_URL: ${{ steps.art.outputs.artifact-url }}
+          ART_ID: ${{ steps.art.outputs.artifact-id }}
+          REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
           mkdir -p ~/.ssh
           echo "$SSH_KEY" > ~/.ssh/id_deploy && chmod 600 ~/.ssh/id_deploy
           ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts 2>/dev/null
-          SSH="ssh -i $HOME/.ssh/id_deploy $VPS_USER@$VPS_HOST"
+          SSH="ssh -i $HOME/.ssh/id_deploy -o ServerAliveInterval=15 $VPS_USER@$VPS_HOST"
           TS=$(date +%Y%m%d%H%M%S)
-          scp -i ~/.ssh/id_deploy artifact.tar.gz "$VPS_USER@$VPS_HOST:/srv/apps/perpos/artifact.tar.gz"
+          APP=/srv/apps/perpos
           $SSH "set -euo pipefail
-            mkdir -p /srv/apps/perpos/releases/$TS
-            tar -xzf /srv/apps/perpos/artifact.tar.gz -C /srv/apps/perpos/releases/$TS
-            rm /srv/apps/perpos/artifact.tar.gz
-            ln -sfn /srv/apps/perpos/releases/$TS /srv/apps/perpos/current
-            cd /srv/deploy && docker compose restart perpos
+            cd $APP
+            # token ของ run นี้ อายุสั้น ใช้ดึง artifact ครั้งเดียว
+            curl -sSL --retry 3 --retry-delay 5 -H 'Authorization: Bearer $GH_TOKEN' \
+              'https://api.github.com/repos/$REPO/actions/artifacts/$ART_ID/zip' -o art.zip
+            rm -rf art && mkdir art && (cd art && unzip -q ../art.zip)
+            mkdir -p releases/$TS
+            tar -xzf art/artifact.tar.gz -C releases/$TS
+            rm -rf art art.zip
+            ln -sfn $APP/releases/$TS $APP/current
+            cd /srv/deploy && docker compose up -d perpos
             # เก็บ 3 release ล่าสุดพอ (rollback = ln -sfn ไป release ก่อนหน้า + restart)
-            cd /srv/apps/perpos/releases && ls -1t | tail -n +4 | xargs -r rm -rf"
+            cd $APP/releases && ls -1t | tail -n +4 | xargs -r rm -rf"
 
       - name: Health check
         run: |
