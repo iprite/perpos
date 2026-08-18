@@ -11,9 +11,17 @@
 name: deploy-vps
 
 on:
-  workflow_dispatch: {} # เริ่มด้วยกดมือก่อน — นิ่งแล้วค่อยเปิด push trigger ด้านล่าง
-  # push:
-  #   branches: [main]
+  workflow_dispatch: {}
+  push:
+    branches: [main]
+    # build เฉพาะเมื่อโค้ดของแอปเปลี่ยน — commit ที่แก้แต่ docs/deploy config ไม่ต้อง build 6 นาที
+    # (เทียบเท่า turbo-ignore บน Vercel) · แก้ env ฝั่ง server ไม่ต้อง deploy (อยู่บนเครื่อง restart พอ)
+    paths:
+      - "apps/perpos/**"
+      - "packages/**"
+      - "pnpm-lock.yaml"
+      - "package.json"
+      - ".github/workflows/deploy-vps.yml"
 
 permissions:
   contents: read
