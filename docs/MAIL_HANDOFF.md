@@ -194,9 +194,14 @@ terraform apply
 - [x] **เฝ้าระวัง + แจ้งเตือน LINE** — 2 ขา ตัดสินใจเตือนนอกเครื่องเสมอ:
   1. **scheduler ของแอป (ทุก 5 นาที, tier t5)** เรียก `runMailServerMonitor()`
      ([lib/mail/server-monitor.ts](../apps/perpos/src/lib/mail/server-monitor.ts)) — ตรวจสดจาก Vercel:
-     พอร์ต 25 (banner 220) · เว็บ/JMAP 443 · วันหมดอายุใบรับรอง (<14 วัน = เตือน)
+     **พอร์ต 465 (SMTPS, banner 220)** · เว็บ/JMAP 443 · วันหมดอายุใบรับรอง (<14 วัน = เตือน)
+     - 🪤 **ห้ามเช็คพอร์ต 25 จาก Vercel** — Vercel บล็อก TCP ขาออกพอร์ต 25 (กันสแปม) ⇒ ต่อไม่ติดเสมอ
+       แม้เครื่องปกติดี = เตือนผิดทุก 6 ชม.ตลอดไป (เจอจริง 2026-08-18 · แก้โดยย้ายไป 465)
+       · คนละเรื่องกับ **Hetzner บล็อก 25 ขาออก** ที่คอมเมนต์ไว้ใน `dns-records.ts`
+     - "พอร์ต 25 ยังฟังอยู่ไหม" จึงเป็นหน้าที่ heartbeat (`smtp25Listening`) ไม่ใช่ด่านนอก
   2. **heartbeat รายชั่วโมงจากเครื่องเมล** (`stalwart-heartbeat.timer` → `POST /api/admin/mail-server/heartbeat`
      auth `x-worker-secret`) ส่งของที่มองได้เฉพาะในเครื่อง: ดิสก์% · อายุ/ขนาด backup · service active
+     · **`smtp25Listening`** (`ss -lnt '( sport = :25 )'` มีบรรทัด LISTEN ไหม) — ไม่ส่งมา = ไม่เตือน
      — **heartbeat ขาดเกิน 3 ชม. = เรื่องต้องเตือนเช่นกัน** (ตัวส่งตาย/เครื่องดับ)
   - เตือนผ่าน `alertAdminLine` (LINE → super_admin) เฉพาะ**ขอบเหตุการณ์** (พัง/กลับมาปกติ) + ซ้ำทุก 6 ชม.
     ถ้ายังพัง — สถานะ dedup อยู่ตาราง `mail_server_health` (แถวเดียว, RLS deny-all) · เกณฑ์: ดิสก์ ≥85% ·
