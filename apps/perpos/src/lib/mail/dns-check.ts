@@ -11,7 +11,7 @@
 
 import "server-only";
 import type { MailDnsRecord } from "./dns-records";
-import { MAIL_RELAY_SPF_INCLUDE, MAIL_SERVER_HOST } from "./dns-records";
+import { MAIL_SERVER_HOST, MAIL_SERVER_IPV4 } from "./dns-records";
 
 const DOH_URL = "https://cloudflare-dns.com/dns-query";
 const DOH_TIMEOUT_MS = 5_000;
@@ -106,14 +106,12 @@ function checkOne(record: MailDnsRecord, answers: string[] | null): MailDnsCheck
           message: "มี SPF มากกว่า 1 บรรทัด — ต้องรวมเป็นบรรทัดเดียว ไม่งั้นถือว่าผิดทั้งหมด",
         };
       }
-      const has = spf[0].toLowerCase().includes(MAIL_RELAY_SPF_INCLUDE);
+      const has = spf[0].toLowerCase().includes(`ip4:${MAIL_SERVER_IPV4}`);
       return {
         key: record.key,
         status: has ? "ok" : "mismatch",
         found: spf,
-        message: has
-          ? null
-          : `พบค่า "${spf[0]}" — ต้องเพิ่ม include:${MAIL_RELAY_SPF_INCLUDE} เข้าไปด้วย`,
+        message: has ? null : `พบค่า "${spf[0]}" — ต้องเพิ่ม ip4:${MAIL_SERVER_IPV4} เข้าไปด้วย`,
       };
     }
     case "dkim": {

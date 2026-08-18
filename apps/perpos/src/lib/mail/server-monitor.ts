@@ -19,8 +19,10 @@
 import tls from "node:tls";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { alertAdminLine } from "@/lib/admin/alert";
+import { MAIL_SERVER_HOST } from "./dns-records";
 
-const HOST = "stalwart.perpos.ai";
+/** ชื่อเครื่องเมลมาจากแหล่งเดียวกับที่หน้าตั้ง DNS ใช้ — แก้ที่ dns-records.ts ที่เดียว */
+const HOST = MAIL_SERVER_HOST;
 const ROW_ID = "stalwart";
 /** SMTPS — ด่านนอกใช้พอร์ตนี้แทน 25 เพราะ Vercel บล็อก 25 ขาออก (ดูหัวไฟล์) */
 const SMTP_PORT = 465;
@@ -227,7 +229,7 @@ export async function runMailServerMonitor(
     if (notify.length > 0) {
       await alertAdminLine(
         admin,
-        ["🔴 เมลเซิร์ฟเวอร์ (stalwart.perpos.ai)", "", ...notify.map((m) => `• ${m}`)].join("\n"),
+        [`🔴 เมลเซิร์ฟเวอร์ (${HOST})`, "", ...notify.map((m) => `• ${m}`)].join("\n"),
       );
     }
     if (recovered.length > 0) {

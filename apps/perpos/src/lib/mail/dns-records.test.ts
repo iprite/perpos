@@ -13,7 +13,7 @@ v1-rsa-20260815._domainkey.perpos.ai. IN TXT (
     "BBBBCCCC"
 )
 _443._tcp.mta-sts.perpos.ai. IN TLSA 3 1 1 70b010550c8cba8c
-perpos.ai. IN MX 10 stalwart.perpos.ai.`;
+perpos.ai. IN MX 10 mailserver.perpos.ai.`;
 
 describe("parseDkimRecords", () => {
   it("อ่าน DKIM ได้ทั้งแบบบรรทัดเดียวและแบบวงเล็บหลายบรรทัด", () => {
@@ -47,7 +47,6 @@ describe("buildMailDnsRecords", () => {
 
   it("SPF ต้องมีทั้ง IP ของเครื่องเราและ relay ที่ใช้ส่งออกจริง", () => {
     expect(spfValue()).toMatch(/^v=spf1 /);
-    expect(spfValue()).toContain("include:spf.brevo.com");
     expect(spfValue()).toContain("ip4:");
     expect(spfValue()).toContain("~all");
   });

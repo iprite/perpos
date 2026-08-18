@@ -110,7 +110,7 @@ export function responseType(responses: JmapMethodResponse[], callId: string): s
  *    ไปเครื่องอื่น (ปลายทางหลัง 307 และ apiUrl ที่เซิร์ฟเวอร์ประกาศ ต้องอยู่ origin เดียวกับที่เราตั้งใน env)
  *
  *    ⚠️ ห้ามเปลี่ยนกลับไป pin กับ issuer: หน้า OAuth ของเราอยู่คนละชื่อกับ JMAP โดยตั้งใจ
- *    (`login.perpos.ai` = ชื่อที่ลูกค้าเห็นตอนกรอกรหัสผ่าน · `stalwart.perpos.ai` = ชื่อที่เซิร์ฟเวอร์
+ *    (`login.perpos.ai` = ชื่อที่ลูกค้าเห็นตอนกรอกรหัสผ่าน · `mailserver.perpos.ai` = ชื่อที่เซิร์ฟเวอร์
  *    ประกาศใน apiUrl) — เคย pin กับ issuer แล้วล็อกอินไม่ผ่านทั้งระบบ ขึ้นแค่ "เข้าสู่ระบบไม่สำเร็จ"
  */
 export async function fetchJmapDiscovery(

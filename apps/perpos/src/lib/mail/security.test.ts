@@ -4,6 +4,7 @@ import { FIXTURE_SESSION } from "./fixtures";
 import {
   MailServiceError,
   buildDownloadUrl,
+  buildUploadUrl,
   isValidBlobId,
   resolveDownloadType,
   sanitizeAttachmentName,
@@ -11,7 +12,6 @@ import {
 import { sanitizeReturnTo } from "./oauth";
 import { MAIL_DEFAULT_HOST, isMailHost, mailBasePath, mailHostname } from "./base-path";
 import { isSameOriginRequest } from "@/app/api/mail/_lib";
-import { buildUploadUrl } from "./jmap";
 
 describe("allowlist ของ returnTo (open redirect)", () => {
   it("ผ่านเฉพาะเส้นทางใต้ /mail", () => {
@@ -158,8 +158,8 @@ describe("mailBasePath — URL ที่ผู้ใช้เห็นต่า�
 
 describe("discovery ต้อง pin กับ JMAP host ไม่ใช่ issuer (บั๊กล็อกอินไม่ผ่าน 2026-08-15)", () => {
   // จำลองสัญญาจริง: เซิร์ฟเวอร์ประกาศ apiUrl เป็นชื่อ JMAP เสมอ แม้เราถามผ่านชื่อ login
-  const advertisedApiUrl = "https://stalwart.perpos.ai/jmap/";
-  const jmapUrl = "https://stalwart.perpos.ai/jmap/";
+  const advertisedApiUrl = "https://mailserver.perpos.ai/jmap/";
+  const jmapUrl = "https://mailserver.perpos.ai/jmap/";
   const issuer = "https://login.perpos.ai";
 
   it("apiUrl ที่เซิร์ฟเวอร์ประกาศ อยู่ origin เดียวกับ MAIL_JMAP_URL", () => {
@@ -177,20 +177,23 @@ describe("discovery ต้อง pin กับ JMAP host ไม่ใช่ issu
 
 describe("buildUploadUrl — แทน placeholder ให้ถูก (บั๊กแนบไฟล์ไม่ได้ 2026-08-15)", () => {
   const base = {
-    apiUrl: "https://stalwart.perpos.ai/jmap/",
+    apiUrl: "https://mailserver.perpos.ai/jmap/",
     accountId: "b",
   };
 
   it("ใช้ template จาก session ตามปกติ", () => {
     expect(
-      buildUploadUrl({ ...base, uploadUrl: "https://stalwart.perpos.ai/jmap/upload/{accountId}/" }),
-    ).toBe("https://stalwart.perpos.ai/jmap/upload/b/");
+      buildUploadUrl({
+        ...base,
+        uploadUrl: "https://mailserver.perpos.ai/jmap/upload/{accountId}/",
+      }),
+    ).toBe("https://mailserver.perpos.ai/jmap/upload/b/");
   });
 
   it("cookie เก่าที่ยังไม่มี uploadUrl → fallback ต้องได้ path ที่ใช้ได้จริง", () => {
     // เคยพลาด: new URL(...).toString() ทำให้ {} กลายเป็น %7B%7D แล้ว replace ไม่แมตช์
     const url = buildUploadUrl(base);
-    expect(url).toBe("https://stalwart.perpos.ai/jmap/upload/b/");
+    expect(url).toBe("https://mailserver.perpos.ai/jmap/upload/b/");
     expect(url).not.toContain("%7B");
   });
 
