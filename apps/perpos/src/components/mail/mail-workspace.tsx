@@ -1029,7 +1029,13 @@ export function MailWorkspace({
         </section>
 
         <section
-          className={cn("min-h-0 flex-1", !activeId && (listOnly ? "hidden" : "hidden lg:block"))}
+          // min-w-0 บังคับ (DESIGN.md §5 ข้อ 6): flex item ค่า default `min-width:auto`
+          // ยุบต่ำกว่าความกว้างเนื้อหาไม่ได้ ⇒ เมลที่มีตาราง/บรรทัดกว้าง ดันบานอ่านให้กว้างเกินจอ
+          // แล้วเนื้อหาถูกตัดขอบขวา (เห็นชัดกับเมลที่ถูกส่งต่อมาจากระบบธนาคาร/หลักทรัพย์)
+          className={cn(
+            "min-h-0 min-w-0 flex-1",
+            !activeId && (listOnly ? "hidden" : "hidden lg:block"),
+          )}
         >
           <MailReader
             detail={detail}
