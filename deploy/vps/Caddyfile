@@ -21,12 +21,12 @@ app.perpos.ai, mail.perpos.ai {
 
 # ── ยังไม่ย้าย: เปิด block เมื่อ deploy แอปนั้นขึ้นเครื่องแล้วเท่านั้น ──────────
 # โดเมนที่ยังไม่มี container รองรับ ห้ามเปิดค้างไว้ — Caddy จะไล่ขอใบรับรองซ้ำจนโดน ACME rate limit
-# app.exworker.co.th {
-# 	import cf_tls
-# 	encode zstd gzip
-# 	reverse_proxy exapp:3006
-# }
-#
+app.exworker.co.th {
+	import cf_tls
+	encode zstd gzip
+	reverse_proxy exapp:3006
+}
+
 # riekchang.com {
 # 	import cf_tls
 # 	encode zstd gzip

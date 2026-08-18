@@ -100,8 +100,8 @@ jobs:
             curl -sSf --retry 3 --retry-delay 5 -o art.tgz \"\$(cat)\"
             tar -xzf art.tgz -C releases/$TS && rm -f art.tgz
             ln -sfn $APP/releases/$TS $APP/current
-            cd /srv/deploy && docker compose up -d perpos
-            # เก็บ 3 release ล่าสุดพอ (rollback = ln -sfn ไป release ก่อนหน้า + up -d)
+            cd /srv/deploy && docker compose up -d perpos && docker compose restart perpos
+            # เก็บ 3 release ล่าสุดพอ (rollback = ln -sfn ไป release ก่อนหน้า + restart)
             cd $APP/releases && ls -1t | tail -n +4 | xargs -r rm -rf"
 
       - name: Cleanup R2 (เก็บไฟล์ล่าสุด 5 ก้อนต่อแอป)
