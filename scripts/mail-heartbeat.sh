@@ -87,11 +87,15 @@ if command -v docker >/dev/null 2>&1; then
   items=""
   while read -r cname; do
     [ -z "${cname:-}" ] && continue
+    # ชื่อจริงบนเครื่องคือ `deploy-perpos-1` (compose project + service + index) — ฝั่งแอปรู้จักแค่ชื่อ
+    # service (`perpos`/`exapp`/`riekchang`/`caddy`) จึงส่ง label ของ compose เป็น name · ไม่มี label = ชื่อเต็ม
+    svc=$(docker inspect --format '{{index .Config.Labels "com.docker.compose.service"}}' "$cname" 2>/dev/null)
+    [ -z "${svc:-}" ] && svc=$cname
     row=$(docker inspect --format \
       '"state":"{{.State.Status}}","restarts":{{.RestartCount}},"oomKilled":{{.State.OOMKilled}},"exitCode":{{.State.ExitCode}},"startedAt":"{{.State.StartedAt}}","memLimitBytes":{{.HostConfig.Memory}}' \
       "$cname" 2>/dev/null) || continue
     mu=${mem_used[$cname]:-null}
-    items="${items}${items:+,}{\"name\":\"$cname\",$row,\"memUsedBytes\":$mu}"
+    items="${items}${items:+,}{\"name\":\"$svc\",\"containerName\":\"$cname\",$row,\"memUsedBytes\":$mu}"
   done < <(docker ps -a --format '{{.Names}}' 2>/dev/null)
   containers="[$items]"
 fi
