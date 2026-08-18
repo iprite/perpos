@@ -45,88 +45,102 @@ export default async function JustMeProjectDetailPage({
   const ctx = await requireJustMePage(orgSlug);
   const basic = !ctx.canSeeCost;
 
-  const project = await getProject(ctx.rls, ctx.orgId, id, { basic });
-  if (!project) notFound();
-
-  const [files, boqs] = await Promise.all([
+  // ── รอบที่ 1: ทุกอย่างที่ไม่ต้องรอผลของกันและกัน ยิงพร้อมกันครั้งเดียว ──
+  //    ⛔ ห้ามแตกกลับไปเป็น await ทีละก้อน — เดิมหน้านี้ไล่ยิง 10 รอบต่อกัน
+  //    (แต่ละรอบ = 1 round-trip ไป Supabase) ⇒ เสียเวลาไปกับ latency ล้วน ๆ ก่อนหน้าจะขึ้น
+  const [
+    project,
+    files,
+    boqs,
+    categories,
+    priceRows,
+    prs,
+    vendors,
+    billings,
+    usage,
+    progress,
+    approvedItems,
+    readiness,
+    costs,
+  ] = await Promise.all([
+    getProject(ctx.rls, ctx.orgId, id, { basic }),
     listProjectFiles(ctx.rls, ctx.orgId, id),
     listBoqs(ctx.rls, ctx.orgId, id, { basic }),
-  ]);
-
-  const activeBoq = boqs[0] ?? null;
-  const [activeItems, summaryMap, categories, priceRows] = await Promise.all([
-    activeBoq
-      ? listBoqItems(ctx.rls, ctx.orgId, activeBoq.id, { basic })
-      : Promise.resolve([] as JustMeBoqItem[]),
-    ctx.canSeeCost
-      ? loadProjectSummaries(ctx.rls, ctx.orgId, [project])
-      : Promise.resolve(new Map()),
+    // ข้อมูลต้นทุนล้วน — viewer ไม่ต้องดึงเลย (และไม่เห็นแท็บนั้นอยู่แล้ว)
     ctx.canSeeCost
       ? listWorkCategories(ctx.rls, ctx.orgId)
       : Promise.resolve([] as JustMeWorkCategory[]),
     ctx.canSeeCost ? listPriceBook(ctx.rls, ctx.orgId) : Promise.resolve([]),
-  ]);
-
-  // แท็บ "จัดซื้อ" — ข้อมูลต้นทุนล้วน จึงดึงเฉพาะเมื่อผู้ใช้มีสิทธิ์เห็น (viewer ได้ [] และไม่เห็นแท็บ)
-  let purchaseRequests: ProjectPrRow[] = [];
-  if (ctx.canSeeCost) {
-    const [prs, vendors] = await Promise.all([
-      listProjectPurchaseRequests(ctx.rls, ctx.orgId, id, { includeCancelled: true }),
-      listVendors(ctx.rls, ctx.orgId, { includeInactive: true }),
-    ]);
-    const prItems = await listPrItems(
-      ctx.rls,
-      ctx.orgId,
-      prs.map((p) => p.id),
-    );
-    const vendorName = new Map(vendors.map((v) => [v.id, v.name]));
-    purchaseRequests = prs.map((pr) => {
-      const lines = prItems.filter((i) => i.pr_id === pr.id);
-      return {
-        id: pr.id,
-        pr_code: pr.pr_code,
-        status: pr.status,
-        needed_date: pr.needed_date,
-        vendor_name: pr.selected_vendor_id ? (vendorName.get(pr.selected_vendor_id) ?? null) : null,
-        total_estimated_cost: pr.total_estimated_cost,
-        total_selected_cost: pr.total_selected_cost,
-        item_count: lines.length,
-        received_count: lines.filter((l) => (l.received_qty ?? 0) + 0.0001 >= (l.qty ?? 0)).length,
-      };
-    });
-  }
-
-  // ── B5: งวดงาน / ใช้จริง / สะพานเชื่อมระบบบัญชี ──
-  const [billings, usage, progress, approvedItems, readiness] = await Promise.all([
+    ctx.canSeeCost
+      ? listProjectPurchaseRequests(ctx.rls, ctx.orgId, id, { includeCancelled: true })
+      : Promise.resolve([]),
+    ctx.canSeeCost
+      ? listVendors(ctx.rls, ctx.orgId, { includeInactive: true })
+      : Promise.resolve([]),
     listProjectBillings(ctx.rls, ctx.orgId, id),
     listProjectUsage(ctx.rls, ctx.orgId, id, { basic }),
     listProjectProgress(ctx.rls, ctx.orgId, id),
     listApprovedBoqItems(ctx.rls, ctx.orgId, id, { basic }),
     loadAccountingReadiness(ctx.rls, ctx.orgId),
+    ctx.canSeeCost
+      ? listProjectCosts(ctx.rls, ctx.orgId, id)
+      : Promise.resolve([] as JustMeProjectCost[]),
   ]);
-  // ต้นทุนนอกคลัง = ข้อมูลต้นทุน → ดึงเฉพาะผู้ที่มีสิทธิ์เห็น
-  const costs: JustMeProjectCost[] = ctx.canSeeCost
-    ? await listProjectCosts(ctx.rls, ctx.orgId, id)
-    : [];
+  if (!project) notFound();
+
+  const activeBoq = boqs[0] ?? null;
+  const usageItemIds = Array.from(new Set(usage.map((u) => u.item_id).filter(Boolean)));
+
+  // ── รอบที่ 2: เฉพาะของที่ต้องรู้ผลรอบแรกก่อน (id ของ BOQ / PR / เอกสาร / วัสดุ) ──
+  const [activeItems, prItems, summaryMap, documents, itemRows] = await Promise.all([
+    activeBoq
+      ? listBoqItems(ctx.rls, ctx.orgId, activeBoq.id, { basic })
+      : Promise.resolve([] as JustMeBoqItem[]),
+    prs.length > 0
+      ? listPrItems(
+          ctx.rls,
+          ctx.orgId,
+          prs.map((pr) => pr.id),
+        )
+      : Promise.resolve([]),
+    ctx.canSeeCost
+      ? loadProjectSummaries(ctx.rls, ctx.orgId, [project])
+      : Promise.resolve(new Map()),
+    loadDocumentNumbers(ctx.rls, ctx.orgId, [
+      project.quotation_document_id,
+      ...billings.map((b) => b.invoice_document_id),
+    ]),
+    usageItemIds.length > 0
+      ? ctx.rls
+          .from("just_me_inventory_items")
+          .select("id, name")
+          .eq("org_id", ctx.orgId)
+          .in("id", usageItemIds)
+      : Promise.resolve({ data: [] as { id: string; name: string }[] }),
+  ]);
+
+  const vendorName = new Map(vendors.map((v) => [v.id, v.name]));
+  const purchaseRequests: ProjectPrRow[] = prs.map((pr) => {
+    const lines = prItems.filter((i) => i.pr_id === pr.id);
+    return {
+      id: pr.id,
+      pr_code: pr.pr_code,
+      status: pr.status,
+      needed_date: pr.needed_date,
+      vendor_name: pr.selected_vendor_id ? (vendorName.get(pr.selected_vendor_id) ?? null) : null,
+      total_estimated_cost: pr.total_estimated_cost,
+      total_selected_cost: pr.total_selected_cost,
+      item_count: lines.length,
+      received_count: lines.filter((l) => (l.received_qty ?? 0) + 0.0001 >= (l.qty ?? 0)).length,
+    };
+  });
 
   const billingTotals = billingPlanTotals(project.contract_amount, billings);
-  const documents = await loadDocumentNumbers(ctx.rls, ctx.orgId, [
-    project.quotation_document_id,
-    ...billings.map((b) => b.invoice_document_id),
-  ]);
 
   // ชื่อวัสดุของแถวเบิก (แถวคลังเก็บแค่ item_id)
-  const itemIds = Array.from(new Set(usage.map((u) => u.item_id).filter(Boolean)));
   const itemNames: Record<string, string> = {};
-  if (itemIds.length > 0) {
-    const { data: itemRows } = await ctx.rls
-      .from("just_me_inventory_items")
-      .select("id, name")
-      .eq("org_id", ctx.orgId)
-      .in("id", itemIds);
-    for (const row of (itemRows ?? []) as { id: string; name: string }[]) {
-      itemNames[row.id] = row.name;
-    }
+  for (const row of (itemRows.data ?? []) as { id: string; name: string }[]) {
+    itemNames[row.id] = row.name;
   }
 
   const priceOptions: BoqPriceOption[] = priceRows.map((r) => ({
