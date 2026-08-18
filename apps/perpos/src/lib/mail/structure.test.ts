@@ -122,3 +122,21 @@ describe("selectThreadWindow — เพดานจำนวนฉบับต�
     expect(out.at(-1)!.id).toBe("m99");
   });
 });
+
+describe("เมลที่เป็นข้อความอ้างถึงล้วน (ส่งต่อ/ตอบกลับ)", () => {
+  it("กางข้อความที่อ้างถึงไว้ ไม่งั้นบานอ่านว่างเปล่าทั้งที่มีเนื้อหา", () => {
+    const { html } = prepareMailHtml(
+      '<div class="gmail_quote"><p>เนื้อความที่ถูกส่งต่อมา</p></div>',
+    );
+    expect(html).toContain("<summary>แสดงข้อความที่อ้างถึง</summary>");
+    expect(html).toMatch(/<details class="quoted-toggle" open/);
+  });
+
+  it("ยังยุบตามเดิมเมื่อผู้ส่งพิมพ์ข้อความของตัวเองไว้ด้วย", () => {
+    const { html } = prepareMailHtml(
+      '<p>ตามที่คุยกันครับ</p><div class="gmail_quote"><p>ของเดิม</p></div>',
+    );
+    expect(html).toContain("<summary>แสดงข้อความที่อ้างถึง</summary>");
+    expect(html).not.toMatch(/<details class="quoted-toggle" open/);
+  });
+});
