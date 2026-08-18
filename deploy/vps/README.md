@@ -83,6 +83,7 @@ port 3005–3007 bind ที่ `127.0.0.1` เท่านั้นใน compo
   - `mem:<name>` — RAM ≥90% ของ `mem_limit` ใน compose (perpos 1536m / exapp 1024m)
   - `deploy:<app>` — symlink `current` ใหม่กว่า container start >10 นาที = deploy แล้ว container ไม่ restart · หรือ symlink ชี้ release ที่ถูกลบ
 - **อัปเดตสคริปต์บนเครื่อง**: `scp scripts/mail-heartbeat.sh root@62.146.233.27:/usr/local/bin/mail-heartbeat.sh` (timer ใช้ตัวใหม่รอบถัดไป · ไม่ต้อง restart) — ห้ามลืมทุกครั้งที่แก้สคริปต์ ไม่งั้นหน้า admin โชว์ค่าเก่าเงียบ ๆ
+- 🪤 **เครื่องเมลเก่า (Contabo EU) ยังยิง heartbeat แถวเดียวกัน (`id=stalwart`)** ได้ ถ้าไม่ปิด timer — เคยเป็น 2026-08-19: EU (stalwart หยุดแล้ว, ดิสก์ 5%) สลับกับ SG (13%) ทุกไม่กี่นาที → เตือน "service stalwart ไม่ active / ไม่มีอะไรฟังพอร์ต 25" ทั้งที่ SG ปกติ · แก้แล้วด้วย `systemctl disable --now stalwart-heartbeat.timer` บน EU — **ก่อนย้าย/โคลนเครื่องต้องปิด timer ฝั่งเก่าเสมอ** · สังเกตได้จาก `mail_server_samples` ที่ disk_pct/service_active สลับไปมา
 - ⚠️ ตัวเฝ้ารันใน container perpos บนเครื่องเดียวกัน → เครื่องดับ/perpos ล่มทั้งตัว = เงียบ · **ด่านนอก** = GitHub Actions `uptime.yml` (ping `app.perpos.ai/api/health` ทุก 5 นาที ยิง LINE ตรง)
 
 ## Firewall (2 ชั้น)
