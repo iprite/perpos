@@ -176,9 +176,15 @@ terraform apply
       GET/DELETE/LIST ได้ 403 หมด ⇒ เครื่องเมลถูกยึดก็ทำลาย backup เก่าไม่ได้ (ลบของเก่า = หน้าที่ lifecycle)
       · **ซ้อมภัยพิบัติผ่านแล้ว**: โหลดจาก GCS ลงเครื่องอื่น + ถอดรหัส + แตกไฟล์ → 82 ไฟล์ 1.6GB ครบ
       · ท่อรายวันทดสอบ end-to-end แล้ว (backup → verify → upload ใน run เดียว)
-- [ ] 🔴 **เก็บกุญแจถอดรหัสลง password manager** (เหลือข้อเดียวของหมวดนี้ — คนต้องทำเอง)
-      `ssh root@46.225.14.18 'cat /root/.stalwart-backup-key'` · กุญแจยังอยู่บนเครื่องเดียวกับข้อมูล
-      เครื่องหายทั้งลูก = backup บน GCS ถอดรหัสไม่ได้
+- [x] **เก็บกุญแจถอดรหัสนอกเครื่องแล้ว (2026-08-18)** — macOS Keychain ของ iprite
+      (`security find-generic-password -s "perpos-mail-backup-key" -w`) พร้อม note บอก bucket +
+      คำสั่งถอดรหัส + checksum · ก่อนหน้านี้กุญแจอยู่บนเครื่องเดียวกับข้อมูล = เครื่องหาย backup บน GCS
+      ก็ถอดไม่ได้
+      · 🪤 **ค่าที่เก็บไม่มี newline แต่ไฟล์ต้นฉบับมี** ⇒ `sha256` คนละค่ากันโดยธรรมชาติ:
+      ค่าเปล่า `d6baa659…2351` · **เขียนกลับเป็นไฟล์ต้องเป็น `07d90a97…eae9`** (= ค่าที่ `openssl -pass file:` ใช้)
+      ⇒ ตอนกู้ให้ใช้ `printf '%s\n' "$KEY" > key` เท่านั้น (ใช้ `echo -n` แล้วถอดไม่ออก)
+      · ตรวจแล้ว 2026-08-18 ว่าเขียนกลับได้ checksum ตรงต้นฉบับ
+      · ⚠️ Keychain ผูกกับ Apple ID เดียว — **ควรมีสำเนาออฟไลน์ (USB/กระดาษในตู้เซฟ) อีกชุด**
 
 **เกณฑ์ผ่าน Phase 1 (ครบทั้ง 4 ข้อถึงจะขายได้):**
 
@@ -199,10 +205,24 @@ terraform apply
        แม้เครื่องปกติดี = เตือนผิดทุก 6 ชม.ตลอดไป (เจอจริง 2026-08-18 · แก้โดยย้ายไป 465)
        · คนละเรื่องกับ **Hetzner บล็อก 25 ขาออก** ที่คอมเมนต์ไว้ใน `dns-records.ts`
      - "พอร์ต 25 ยังฟังอยู่ไหม" จึงเป็นหน้าที่ heartbeat (`smtp25Listening`) ไม่ใช่ด่านนอก
-  2. **heartbeat รายชั่วโมงจากเครื่องเมล** (`stalwart-heartbeat.timer` → `POST /api/admin/mail-server/heartbeat`
+  2. **heartbeat ทุก 5 นาทีจากเครื่องเมล** (`stalwart-heartbeat.timer` → `POST /api/admin/mail-server/heartbeat`
      auth `x-worker-secret`) ส่งของที่มองได้เฉพาะในเครื่อง: ดิสก์% · อายุ/ขนาด backup · service active
      · **`smtp25Listening`** (`ss -lnt '( sport = :25 )'` มีบรรทัด LISTEN ไหม) — ไม่ส่งมา = ไม่เตือน
      — **heartbeat ขาดเกิน 3 ชม. = เรื่องต้องเตือนเช่นกัน** (ตัวส่งตาย/เครื่องดับ)
+  - 🪤 **ย้ายเครื่อง = timer หายทั้งชุด (เจอจริง 2026-08-18 · แก้แล้ว)** — `contabo-setup.sh` ติดตั้งแค่ Stalwart
+    ⇒ ทั้ง `stalwart-heartbeat.timer` และ **`stalwart-backup.timer` ไม่ได้ตามมา** · เฝ้าระวังตาบอด +
+    **ไม่มี backup ตั้งแต่ cutover** โดยไม่มีใครรู้ (backup ล่าสุดบน GCS คือของเครื่องเก่า 03:01Z)
+    **ย้ายเครื่องครั้งหน้าต้องย้าย 3 อย่างนี้เสมอ**: สคริปต์ (`/usr/local/sbin/stalwart-backup*.sh`,
+    `/usr/local/bin/mail-heartbeat.sh`) · ความลับ (`/root/.stalwart-backup-key`, `/root/.gcs-backup-sa.json`,
+    `/etc/stalwart/heartbeat.env`) · unit+timer ทั้งสองชุด — แล้ว **ปิด timer บนเครื่องเก่า** (ไม่งั้นได้
+    backup ของข้อมูลค้าง) · heartbeat มีต้นฉบับในรีโปแล้ว: [`scripts/mail-heartbeat.sh`](../scripts/mail-heartbeat.sh)
+    · ✅ ย้ายครบแล้วบน Contabo + รันทดสอบผ่าน (2026-08-18: หยุด 8 วิ · 618 MB · verify เจอ blob · ขึ้น GCS)
+    · **`backupAgeHours = null` เตือนแล้ว** (เดิมปล่อยผ่าน = ต้นเหตุที่เงียบ) มีเทสคุมใน `server-monitor.test.ts`
+  - **หน้าดูการใช้ทรัพยากร**: `/admin/mail` แท็บ **"เครื่องเซิร์ฟเวอร์"** — ดิสก์/RAM/CPU/ขนาดฐานข้อมูลเมล/
+    ทราฟฟิก/uptime + กราฟย้อนหลัง 24 ชม./7 วัน/30 วัน (ประวัติอยู่ตาราง `mail_server_samples`,
+    scheduler t60 ตัดของเก่าเกิน 30 วัน) · **Contabo API ดึง usage ไม่ได้** (มีแค่สเปกที่ซื้อ + audit log)
+    ⇒ ตัวเลขทุกตัวมาจาก heartbeat · สูตร/ชนิดอยู่ `lib/mail/server-metrics-calc.ts` (ไม่มี `server-only`
+    เพราะแท็บเป็น client) ส่วน DB อยู่ `server-metrics.ts` — **ห้ามรวมสองไฟล์นี้** (หน้าจะพังตอนรัน tsc ไม่จับ)
   - เตือนผ่าน `alertAdminLine` (LINE → super_admin) เฉพาะ**ขอบเหตุการณ์** (พัง/กลับมาปกติ) + ซ้ำทุก 6 ชม.
     ถ้ายังพัง — สถานะ dedup อยู่ตาราง `mail_server_health` (แถวเดียว, RLS deny-all) · เกณฑ์: ดิสก์ ≥85% ·
     backup แก่กว่า 30 ชม. · pure logic มีเทสคุม ([server-monitor.test.ts](../apps/perpos/src/lib/mail/server-monitor.test.ts))

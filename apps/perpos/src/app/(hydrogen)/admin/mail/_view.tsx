@@ -9,7 +9,16 @@
 
 import { useCallback, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, HardDrive, Inbox, Mail, Plus, ShieldCheck, Globe } from "lucide-react";
+import {
+  AlertTriangle,
+  HardDrive,
+  Inbox,
+  Mail,
+  Plus,
+  ShieldCheck,
+  Globe,
+  Server,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -38,6 +47,8 @@ import {
 } from "@/components/ui/table";
 import { TablePager, usePagination } from "@/components/ui/table-pager";
 import type { MailAdminAccount, MailAdminDomain, MailAdminStatus } from "@/lib/mail/admin-api";
+import type { MailServerMetrics } from "@/lib/mail/server-metrics";
+import { AdminMailServerTab } from "./_server-tab";
 import { MailDnsDialog } from "./_dns-dialog";
 import {
   MailAccountCreateDialog,
@@ -64,6 +75,7 @@ const TABS = [
   { value: "domains", label: "โดเมน" },
   { value: "accounts", label: "กล่องเมล" },
   { value: "health", label: "สุขภาพระบบ" },
+  { value: "server", label: "เครื่องเซิร์ฟเวอร์" },
 ] as const;
 type Tab = (typeof TABS)[number]["value"];
 
@@ -90,9 +102,12 @@ function formatDate(iso: string | null): string {
 export function AdminMailView({
   status,
   error,
+  metrics,
 }: {
   status: MailAdminStatus | null;
   error: string | null;
+  /** การใช้ทรัพยากรของเครื่อง (heartbeat) — แยกจาก `status` ที่มาจาก JMAP ของ Stalwart */
+  metrics: MailServerMetrics;
 }) {
   const [tab, setTab] = useState<Tab>("overview");
 
@@ -485,6 +500,8 @@ export function AdminMailView({
           </div>
         </div>
       )}
+
+      {tab === "server" && <AdminMailServerTab metrics={metrics} />}
 
       <Dialog open={addOpen} onOpenChange={setAddOpen}>
         <DialogContent size="md">

@@ -17,6 +17,7 @@ import { getServiceRemaining } from "@/lib/assistant/token-balance";
 import { getStripe } from "../../_lib/stripe";
 import { alertAdminLine } from "@/lib/admin/alert";
 import { runMailServerMonitor } from "@/lib/mail/server-monitor";
+import { pruneMailServerSamples } from "@/lib/mail/server-metrics";
 import { sweepClientTaxDueReminders } from "@/lib/acc-firm/line-reminders";
 import {
   hasGcpSyncCredential,
@@ -724,6 +725,9 @@ async function run(req: NextRequest) {
           .eq("id", pj.id as string);
       }
     } // end if (run15) — purge recall media
+
+    // 8c. ตัดประวัติการใช้ทรัพยากรของเมลเซิร์ฟเวอร์ที่เกินอายุเก็บ (heartbeat ทุก 5 นาที = โตเร็ว)
+    if (run60) await pruneMailServerSamples(admin).catch(() => undefined);
 
     // 9. cleanup webhook_event เก่า > 7 วัน (payload มี media URL/ผู้เข้าร่วม)
     if (run60)

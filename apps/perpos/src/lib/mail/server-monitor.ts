@@ -145,7 +145,11 @@ export function evaluateIssues(args: {
     if (hb.diskPct !== null && hb.diskPct >= DISK_WARN_PCT) {
       issues.disk = `ดิสก์ใช้ไป ${hb.diskPct}% (เกิน ${DISK_WARN_PCT}%)`;
     }
-    if (hb.backupAgeHours !== null && hb.backupAgeHours > BACKUP_STALE_HOURS) {
+    if (hb.backupAgeHours === null) {
+      // 🪤 null = **ไม่พบไฟล์ backup เลย** ไม่ใช่ "ยังไม่มีข้อมูล" — เดิมปล่อยผ่าน ทำให้ตอนย้ายเครื่อง
+      //    มา Contabo (2026-08-18) แล้ว timer backup หายไป ไม่มีใครรู้เลยว่าไม่ได้สำรองข้อมูล
+      issues.backup = "ไม่พบไฟล์ backup บนเครื่องเลย (งานสำรองข้อมูลอาจไม่ได้ติดตั้ง/หยุดทำงาน)";
+    } else if (hb.backupAgeHours > BACKUP_STALE_HOURS) {
       issues.backup = `backup ล่าสุดอายุ ${Math.round(hb.backupAgeHours)} ชม. (ควร <24)`;
     }
     if (hb.serviceActive === false) issues.service = "systemd แจ้งว่า service stalwart ไม่ active";
