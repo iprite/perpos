@@ -56,7 +56,8 @@ export function mailCsp(showImages: boolean, nonce: string): string {
 }
 
 const SRCDOC_STYLE = [
-  "html,body{margin:0;padding:0;background:#ffffff;color:#3c3b3d;",
+  // overflow-x:auto — เมลที่มีตารางกว้างเกินกรอบต้อง "เลื่อนในตัวเอง" ไม่ใช่ล้นออกไปตัดหน้าเว็บ
+  "html,body{margin:0;padding:0;background:#ffffff;color:#3c3b3d;overflow-x:auto;",
   "font-family:Sarabun,'Noto Sans Thai',ui-sans-serif,system-ui,sans-serif;",
   "font-size:14px;line-height:1.6;word-break:break-word;}",
   "img{max-width:100%;height:auto;}",
