@@ -2,6 +2,7 @@ import { Info, Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Text } from "@/components/ui/typography";
 import { MAIL_PRODUCT_NAME } from "@/lib/mail/boxes";
+import { MailWordmark } from "@/components/mail/mail-wordmark";
 
 /**
  * /mail/login — เข้าสู่ระบบกล่องเมล → OAuth ของ Stalwart (contract §2.2)
@@ -47,10 +48,13 @@ export default async function MailLoginPage({
 
       <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
         <div className="flex flex-col items-center justify-center py-6 text-center">
-          <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-primary text-white">
+          <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-mail-600 text-white">
             <Mail className="h-6 w-6" />
           </div>
-          <h1 className="text-lg font-semibold text-gray-900">{MAIL_PRODUCT_NAME}</h1>
+          <h1>
+            <MailWordmark />
+            <span className="sr-only">{MAIL_PRODUCT_NAME}</span>
+          </h1>
           <Text className="mt-1 max-w-sm text-sm text-gray-500">
             เข้าสู่ระบบด้วยอีเมลและรหัสผ่านของกล่องเมลคุณ เพื่อเริ่มอ่านและจัดการอีเมล
           </Text>
