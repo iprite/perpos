@@ -38,13 +38,8 @@ echo "CLOUDFLARE_API_TOKEN=..." > /srv/deploy/.env   # token สิทธิ์ 
 cd /srv/deploy && docker compose up -d caddy
 ```
 
-**สถานะ 2026-08-19: ตัด DNS ครบทั้ง 3 แอปแล้ว** — `app.riekchang.com` · `app.exworker.co.th` ·
-`app.perpos.ai` + `mail.perpos.ai` เป็น `A 62.146.233.27` (TTL 300, **เมฆเทา** — เปิดเมฆส้มเป็นขั้นแยกทีหลัง)
-· cron ย้ายมา `/etc/cron.d/perpos` (TZ=Asia/Bangkok) แล้ว, job ใน Cloud Scheduler 4 ตัว **PAUSED**
-(ยังไม่ลบ = rollback ได้) · โปรเจกต์ Vercel ยังรันอยู่ทั้ง 3 = rollback ด้วยการชี้ CNAME กลับ · ค่า env
-ที่ Vercel ตั้งเป็น Sensitive `vercel env pull` คืน `""` — กู้จาก `.env.local`/Cloud Run/DB แล้ว
-(รายละเอียดใน memory ของ agent) · ค้าง: เปิดเมฆส้ม · `NEXT_PUBLIC_LINE_OA_ADD_URL` (riekchang) ·
-`GCP_SYNC_SA_KEY` (perpos cost sync) · ปิด Vercel หลังนิ่ง ~1 เดือน · เฟส 2 เมล
+**สถานะ 2026-08-19 (ครบทุกเฟส)**: เว็บ 3 แอป + **เมล Stalwart** อยู่บนเครื่องนี้ทั้งหมด · โดเมนเว็บ 4 ตัว = A `62.146.233.27` **เมฆส้ม** (Caddy `trusted_proxies cloudflare`) · ชื่อเมล 10 ตัว = A/AAAA เมฆเทา · cron ครบ (`/etc/cron.d/{perpos,exapp}`, scheduler ทุก 1 นาที) · Cloud Scheduler 5 job PAUSED · auto-deploy บน push main (path filter) · Contabo firewall + ufw · backup Stalwart → R2 14 ก้อน · Vercel 3 โปรเจกต์ + Contabo EU ยังไม่ปิด (rollback ได้ · ปิดหลังนิ่ง ~1 เดือน / D+7)
+· ค้าง: `NEXT_PUBLIC_LINE_OA_ADD_URL` (riekchang) · `GCP_SYNC_SA_KEY` (perpos cost sync) · หมุน `TURNSTILE_SECRET_KEY`/R2 token ที่ผ่านแชท · ตัด `stalwart.perpos.ai` จาก MTA-STS · ตัด IP EU จาก SPF + ลบ EU · ล็อก VPS 24 เดือน · (ทางเลือก) R2 lifecycle + token ไม่มี delete · Caddy PROXY protocol → Stalwart เห็น IP จริง
 
 ## Deploy
 
@@ -81,6 +76,8 @@ port 3005–3007 bind ที่ `127.0.0.1` เท่านั้นใน compo
    · แก้กฎ: CCP → Firewall หรือ API `PUT /v1/firewalls/<id>` (token = OAuth password grant ด้วย client_id/secret + **รหัสล็อกอิน CCP** — หน้า API details ใหม่ไม่มี API password แยกแล้ว) · assign/DELETE **ห้ามส่ง `Content-Type: application/json` เมื่อ body ว่าง** (400)
    · เปิด port ใหม่ต้องเพิ่ม **ทั้งสองชั้น** ไม่งั้นงงว่า ufw allow แล้วทำไมยังเข้าไม่ได้
 2. **ufw บนเครื่อง** — 22 · 80,443/tcp · 443/udp · 25,465,587,993,995,4190/tcp · 8080 เฉพาะ `172.16.0.0/12` (Caddy→Stalwart)
+
+**8080 = HTTP ธรรมดาของ Stalwart (JMAP/OAuth/admin) — ต้องปิดจากภายนอกเสมอ** ทางเข้าจริง = 443 ผ่าน Caddy (`login.perpos.ai`, `mailserver.perpos.ai/jmap`) → TLS ที่ Caddy → ส่งต่อ 8080 ในเครื่อง · admin ยิง JMAP ผ่าน 443 หรือ `ssh` + `127.0.0.1:8080` · ถ้าเห็น 8080 open จากภายนอก = ผิดปกติ
 
 ## ลำดับตัดจริง (cutover)
 
