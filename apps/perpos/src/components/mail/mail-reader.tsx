@@ -30,11 +30,14 @@ import {
   ImageOff,
   Mail,
   Paperclip,
+  Search,
   Star,
   Trash2,
+  X,
 } from "lucide-react";
 import cn from "@core/utils/class-names";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Dropdown } from "@/components/ui/dropdown";
 import { Avatar } from "@/components/ui/avatar";
 import { Skeleton, SkeletonText } from "@/components/ui/skeleton";
@@ -55,9 +58,11 @@ import type {
   MailThreadDetail,
 } from "@/lib/mail/types";
 import { formatMailDateTime, formatMailSize, mailDisplayName } from "@/lib/mail/format";
+import { highlightHtml } from "@/lib/mail/highlight";
 import {
   MAIL_HEIGHT_MESSAGE,
   MAIL_HEIGHT_PING,
+  MAIL_SCROLL_MESSAGE,
   MAIL_IFRAME_FALLBACK_HEIGHT,
   MAIL_IFRAME_MAX_HEIGHT,
   MAIL_IFRAME_MIN_HEIGHT,
@@ -229,6 +234,58 @@ function ThreadView({
     }
   }, [detail.threadId, messages.length]);
 
+  /**
+   * ค้นในเมล — ⌘F ของเบราว์เซอร์หาข้อความใน iframe ไม่เจอ (คนละเอกสาร)
+   * ⇒ ต้องมีช่องค้นของเราเอง ไม่งั้นเมลยาว ๆ หาอะไรไม่เจอเลย
+   */
+  const [findOpen, setFindOpen] = useState(false);
+  const [findInput, setFindInput] = useState("");
+  const [findTerm, setFindTerm] = useState("");
+  const [hitIndex, setHitIndex] = useState(0);
+  const [hitCounts, setHitCounts] = useState<Record<string, number>>({});
+  const findRef = useRef<HTMLInputElement>(null);
+
+  // หน่วงคำค้น — ประกอบ srcdoc ใหม่ทุกตัวอักษรจะกระตุก
+  useEffect(() => {
+    const t = setTimeout(() => setFindTerm(findInput.trim()), 220);
+    return () => clearTimeout(t);
+  }, [findInput]);
+
+  // เปลี่ยนเธรด/เปลี่ยนคำค้น → เริ่มนับใหม่เสมอ
+  useEffect(() => {
+    setHitIndex(0);
+  }, [findTerm, detail.threadId]);
+  useEffect(() => {
+    setFindOpen(false);
+    setFindInput("");
+    setHitCounts({});
+  }, [detail.threadId]);
+
+  const onHitCount = useCallback((id: string, count: number) => {
+    setHitCounts((prev) => (prev[id] === count ? prev : { ...prev, [id]: count }));
+  }, []);
+
+  /** แปลงลำดับรวมทั้งเธรด → (ฉบับไหน, ลำดับที่เท่าไรในฉบับนั้น) */
+  const totalHits = messages.reduce((sum, m) => sum + (hitCounts[m.id] ?? 0), 0);
+  const localActive = useMemo(() => {
+    const map: Record<string, number> = {};
+    let seen = 0;
+    for (const m of messages) {
+      const n = hitCounts[m.id] ?? 0;
+      map[m.id] = hitIndex >= seen && hitIndex < seen + n ? hitIndex - seen : -1;
+      seen += n;
+    }
+    return map;
+  }, [messages, hitCounts, hitIndex]);
+
+  const stepHit = useCallback(
+    (delta: number) => {
+      if (totalHits === 0) return;
+      setHitIndex((i) => (i + delta + totalHits) % totalHits);
+    },
+    [totalHits],
+  );
+
   const toggle = useCallback((id: string) => {
     setExpanded((prev) => {
       const next = new Set(prev);
@@ -255,6 +312,19 @@ function ThreadView({
           {detail.subject?.trim() || "(ไม่มีหัวเรื่อง)"}
         </Title>
         <div className="flex shrink-0 items-center gap-1">
+          <Button
+            variant={findOpen ? "secondary" : "ghost"}
+            size="icon"
+            title="ค้นในเมลฉบับนี้"
+            aria-label="ค้นในเมลฉบับนี้"
+            aria-pressed={findOpen}
+            onClick={() => {
+              setFindOpen((v) => !v);
+              if (!findOpen) setTimeout(() => findRef.current?.focus(), 30);
+            }}
+          >
+            <Search className="h-4 w-4" />
+          </Button>
           <Button
             variant="ghost"
             size="icon"
@@ -310,6 +380,62 @@ function ThreadView({
         </div>
       </div>
 
+      {findOpen && (
+        <div className="flex items-center gap-2 border-b border-gray-200 bg-gray-50 px-3 py-2">
+          <Search className="h-4 w-4 shrink-0 text-gray-400" />
+          <Input
+            ref={findRef}
+            value={findInput}
+            onChange={(e) => setFindInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                stepHit(e.shiftKey ? -1 : 1);
+              }
+              if (e.key === "Escape") setFindOpen(false);
+            }}
+            placeholder="ค้นในเมลฉบับนี้"
+            className="h-8 min-w-0 flex-1"
+          />
+          {/* ต้องบอกจำนวนเสมอ — ไม่มีตัวเลข ผู้ใช้ไม่รู้ว่า "ไม่เจอ" หรือ "ยังไม่ได้หา" */}
+          <span className="shrink-0 text-xs tabular-nums text-gray-500">
+            {findTerm ? (totalHits ? `${hitIndex + 1}/${totalHits}` : "ไม่พบ") : ""}
+          </span>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 shrink-0"
+            disabled={totalHits === 0}
+            title="ก่อนหน้า (Shift+Enter)"
+            aria-label="ผลก่อนหน้า"
+            onClick={() => stepHit(-1)}
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 shrink-0"
+            disabled={totalHits === 0}
+            title="ถัดไป (Enter)"
+            aria-label="ผลถัดไป"
+            onClick={() => stepHit(1)}
+          >
+            <ChevronLeft className="h-4 w-4 rotate-180" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 shrink-0"
+            title="ปิดการค้นหา (Esc)"
+            aria-label="ปิดการค้นหา"
+            onClick={() => setFindOpen(false)}
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+      )}
+
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div
           className={cn("mx-auto w-full px-3 py-4 sm:px-5", standalone ? "max-w-5xl" : "max-w-3xl")}
@@ -325,7 +451,14 @@ function ThreadView({
           <div className="space-y-3">
             {messages.map((m, i) => (
               <div key={m.id} ref={i === messages.length - 1 ? latestRef : undefined}>
-                <MessageCard message={m} open={expanded.has(m.id)} onToggle={() => toggle(m.id)} />
+                <MessageCard
+                  message={m}
+                  open={expanded.has(m.id)}
+                  onToggle={() => toggle(m.id)}
+                  findTerm={findTerm}
+                  activeHit={localActive[m.id] ?? -1}
+                  onHitCount={onHitCount}
+                />
               </div>
             ))}
           </div>
@@ -351,14 +484,38 @@ function ThreadView({
   );
 }
 
+/**
+ * จำความสูงที่วัดได้ของแต่ละฉบับไว้ข้ามการเปิด-ปิด
+ *
+ * ทำไมต้องมี: `srcdoc` เริ่มที่ค่าตั้งต้นแล้วค่อยเด้งเป็นค่าจริงเมื่อสคริปต์วัดตอบกลับ (~100ms)
+ * ⇒ เปิดเมลเดิมซ้ำก็กระตุกทุกครั้ง · เก็บค่าล่าสุดไว้แล้วใช้เป็นค่าเริ่มต้น จอจึงนิ่งตั้งแต่เฟรมแรก
+ * (แค่แคชในหน่วยความจำของแท็บ ไม่ต้องคงทน — รีโหลดแล้วเริ่มใหม่ได้ไม่เสียหาย)
+ */
+const heightCache = new Map<string, number>();
+
+/** เดาความสูงจากความยาวข้อความ — ใกล้ของจริงกว่าค่าคงที่ 320px มาก สำหรับฉบับที่ยังไม่เคยวัด */
+function estimateHeight(message: MailMessageDetail): number {
+  const chars = message.textBody?.length ?? 0;
+  const guess = Math.ceil(chars / 80) * 22 + 120;
+  return Math.min(Math.max(guess, MAIL_IFRAME_MIN_HEIGHT), 1200);
+}
+
 function MessageCard({
   message,
   open,
   onToggle,
+  findTerm,
+  activeHit,
+  onHitCount,
 }: {
   message: MailMessageDetail;
   open: boolean;
   onToggle: () => void;
+  /** คำค้นในเมล (หน่วงมาแล้ว) — ว่าง = ไม่ไฮไลต์ */
+  findTerm: string;
+  /** ลำดับคำที่กำลังโฟกัสภายในฉบับนี้ · -1 = ไม่มีตัวไหนโฟกัสอยู่ */
+  activeHit: number;
+  onHitCount: (id: string, count: number) => void;
 }) {
   const [imagesHtml, setImagesHtml] = useState<string | null>(null);
   const [loadingImages, setLoadingImages] = useState(false);
@@ -391,13 +548,26 @@ function MessageCard({
    * nonce ของ CSP — **สุ่มใหม่ทุกครั้งที่ประกอบ srcdoc** ห้ามคงที่/เดาได้
    * (เดาได้เมื่อไร สคริปต์ที่หลุด sanitizer มาก็แนบ nonce เองแล้วรันได้)
    */
+  /** ไฮไลต์คำค้นที่ชั้นสตริงก่อนประกอบ srcdoc — สคริปต์ใน frame ไม่แตะเนื้อหา (ดู highlight.ts) */
+  const marked = useMemo(() => {
+    if (!bodyHtml) return { html: null as string | null, count: 0 };
+    if (!findTerm) return { html: bodyHtml, count: 0 };
+    const r = highlightHtml(bodyHtml, findTerm, activeHit);
+    return { html: r.html, count: r.count };
+  }, [bodyHtml, findTerm, activeHit]);
+
+  const hitCount = marked.count;
+  useEffect(() => {
+    onHitCount(message.id, open ? hitCount : 0);
+  }, [message.id, hitCount, open, onHitCount]);
+
   const srcDoc = useMemo(() => {
-    if (!bodyHtml) return null;
-    return buildMailSrcdoc(bodyHtml, {
+    if (!marked.html) return null;
+    return buildMailSrcdoc(marked.html, {
       showImages: !!imagesHtml,
       nonce: crypto.randomUUID().replaceAll("-", ""),
     });
-  }, [bodyHtml, imagesHtml]);
+  }, [marked.html, imagesHtml]);
 
   /**
    * ความสูงมาจากสคริปต์วัดข้างใน frame (`postMessage`) — ดูเหตุผลที่ต้องทำแบบนี้ใน `srcdoc.ts`
@@ -407,11 +577,14 @@ function MessageCard({
    *    ไม่งั้นหน้าอื่น/โฆษณาใน iframe ใดก็ยิงข้อความมาปรับความสูงเล่นได้
    */
   const frameRef = useRef<HTMLIFrameElement>(null);
-  const [frameHeight, setFrameHeight] = useState<number | null>(null);
+  const [frameHeight, setFrameHeight] = useState<number>(
+    () => heightCache.get(message.id) ?? estimateHeight(message),
+  );
 
   useEffect(() => {
     if (!srcDoc) return;
-    setFrameHeight(null);
+    // ❌ ห้ามรีเซ็ตความสูงเป็นค่าตั้งต้นตรงนี้ — จอจะกระตุกทุกครั้งที่ประกอบ srcdoc ใหม่
+    //    (เช่นตอนพิมพ์คำค้น) ให้คงค่าที่รู้อยู่แล้วไว้จนกว่าค่าจริงรอบใหม่จะมาถึง
     let done = false;
 
     const onMessage = (e: MessageEvent) => {
@@ -420,9 +593,12 @@ function MessageCard({
       if (!data || data.type !== MAIL_HEIGHT_MESSAGE) return;
       if (typeof data.height !== "number" || !Number.isFinite(data.height)) return;
       done = true;
-      setFrameHeight(
-        Math.min(Math.max(Math.ceil(data.height), MAIL_IFRAME_MIN_HEIGHT), MAIL_IFRAME_MAX_HEIGHT),
+      const h = Math.min(
+        Math.max(Math.ceil(data.height), MAIL_IFRAME_MIN_HEIGHT),
+        MAIL_IFRAME_MAX_HEIGHT,
       );
+      heightCache.set(message.id, h);
+      setFrameHeight(h);
     };
     window.addEventListener("message", onMessage);
 
@@ -436,7 +612,7 @@ function MessageCard({
     const pings = [50, 200, 600, 1200].map((ms) => setTimeout(ping, ms));
     // วัดไม่สำเร็จใน 2 วิ (สคริปต์ถูกบล็อก/เบราว์เซอร์เก่า) → ใช้ความสูงสำรอง แล้วให้ frame เลื่อนในตัว
     const fallback = setTimeout(() => {
-      if (!done) setFrameHeight(MAIL_IFRAME_FALLBACK_HEIGHT);
+      if (!done && !heightCache.has(message.id)) setFrameHeight(MAIL_IFRAME_FALLBACK_HEIGHT);
     }, 2000);
 
     return () => {
@@ -444,7 +620,17 @@ function MessageCard({
       clearTimeout(fallback);
       window.removeEventListener("message", onMessage);
     };
-  }, [srcDoc]);
+  }, [srcDoc, message.id]);
+
+  /** โฟกัสคำค้นเปลี่ยน → บอก frame ให้เลื่อนไปหา (frame เลื่อนจออย่างเดียว ไม่แก้ DOM) */
+  useEffect(() => {
+    if (!srcDoc || activeHit < 0 || hitCount === 0) return;
+    const t = setTimeout(
+      () => frameRef.current?.contentWindow?.postMessage({ type: MAIL_SCROLL_MESSAGE }, "*"),
+      60,
+    );
+    return () => clearTimeout(t);
+  }, [srcDoc, activeHit, hitCount]);
 
   return (
     <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
@@ -536,7 +722,7 @@ function MessageCard({
                     frameRef.current?.contentWindow?.postMessage({ type: MAIL_HEIGHT_PING }, "*")
                   }
                   // ยังไม่รู้ความสูง = ใช้ค่าตั้งต้นไปก่อน (จอไม่กระโดดตอนค่าจริงมาถึงใน ~100ms)
-                  style={{ height: frameHeight ?? MAIL_IFRAME_MIN_HEIGHT }}
+                  style={{ height: frameHeight }}
                   className="w-full rounded-lg border border-gray-100 bg-white"
                 />
               ) : (

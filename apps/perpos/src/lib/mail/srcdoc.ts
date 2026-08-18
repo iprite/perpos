@@ -36,6 +36,14 @@ export const MAIL_HEIGHT_MESSAGE = "perpos-mail-height";
  */
 export const MAIL_HEIGHT_PING = "perpos-mail-measure";
 
+/**
+ * หน้าเว็บสั่งให้ frame เลื่อนไปหาคำค้นที่กำลังโฟกัส (`mark.perpos-hit-active`)
+ *
+ * สคริปต์ใน frame **เลื่อนจออย่างเดียว ไม่แตะเนื้อหา** — ตัว `<mark>` ถูกแทรกตั้งแต่ตอน
+ * ประกอบ srcdoc ฝั่งหน้าเว็บแล้ว (ดู `highlight.ts`) จึงไม่ต้องให้สคริปต์แก้ DOM ของเมล
+ */
+export const MAIL_SCROLL_MESSAGE = "perpos-mail-scroll";
+
 /** ความสูงตั้งต้นก่อนวัดได้ + เพดานกัน frame ยักษ์ทำหน้าพัง (เกินเพดานให้เลื่อนในตัว) */
 export const MAIL_IFRAME_MIN_HEIGHT = 320;
 export const MAIL_IFRAME_MAX_HEIGHT = 20000;
@@ -64,6 +72,8 @@ const SRCDOC_STYLE = [
   "table{max-width:100%;}",
   "a{color:#3c3b3d;}",
   "details.quoted-toggle{margin-top:12px;}",
+  "mark.perpos-hit{background:#ffce54;color:inherit;border-radius:2px;}",
+  "mark.perpos-hit-active{background:#fc6e51;color:#ffffff;}",
   "details.quoted-toggle>summary{cursor:pointer;color:#656d78;font-size:12px;",
   "list-style:none;padding:4px 8px;border:1px solid #e6e9ee;border-radius:9999px;width:fit-content;}",
 ].join("");
@@ -82,7 +92,11 @@ const HEIGHT_SCRIPT = [
   "}",
   "send();",
   "addEventListener('load',send);",
-  `addEventListener('message',function(e){if(e.data&&e.data.type==='${MAIL_HEIGHT_PING}'){last=0;send();}});`,
+  "function toHit(){var m=document.querySelector('mark.perpos-hit-active');",
+  "if(m&&m.scrollIntoView)m.scrollIntoView({block:'center'});}",
+  "addEventListener('message',function(e){if(!e.data)return;",
+  `if(e.data.type==='${MAIL_HEIGHT_PING}'){last=0;send();}`,
+  `if(e.data.type==='${MAIL_SCROLL_MESSAGE}'){toHit();}});`,
   "if(window.ResizeObserver&&document.documentElement){new ResizeObserver(send).observe(document.documentElement);}",
   // ยังเผื่อไว้สำหรับเบราว์เซอร์ที่ ResizeObserver ไม่ยิงตอนรูปมาช้า
   "setTimeout(send,400);setTimeout(send,1500);",

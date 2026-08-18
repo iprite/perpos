@@ -129,3 +129,26 @@ describe("prepareMailHtml — โหมดปิดรูป", () => {
     expect(open.html).toContain("https://cdn.example.com/hero.png");
   });
 });
+
+describe("สคริปต์ใน srcdoc (วัดความสูง + เลื่อนไปหาคำค้น)", () => {
+  const doc = buildMailSrcdoc("<p>x</p>", { showImages: false, nonce: NONCE });
+  const script = /<script[^>]*>([\s\S]*?)<\/script>/.exec(doc)?.[1] ?? "";
+
+  it("สคริปต์ต้องเป็น JS ที่ถูกไวยากรณ์ (ประกอบจากสตริงหลายชิ้น พังง่าย)", () => {
+    expect(script.length).toBeGreaterThan(0);
+    expect(() => new Function(script)).not.toThrow();
+  });
+
+  it("รับคำสั่งเลื่อนไปหาคำค้นได้ และเลื่อนอย่างเดียว ไม่แก้เนื้อหาเมล", () => {
+    expect(script).toContain("perpos-mail-scroll");
+    expect(script).toContain("scrollIntoView");
+    // ห้ามมีคำสั่งที่เขียนทับ DOM ของเมล
+    expect(script).not.toContain("innerHTML");
+    expect(script).not.toContain("insertAdjacent");
+  });
+
+  it("มีสไตล์ของคำค้นที่ไฮไลต์", () => {
+    expect(doc).toContain("mark.perpos-hit");
+    expect(doc).toContain("mark.perpos-hit-active");
+  });
+});
