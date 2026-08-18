@@ -305,6 +305,17 @@ export function restructureMailHtml(
     node.parent().prepend("<summary>แสดงข้อความที่อ้างถึง</summary>");
   });
 
+  // 5.1) ถ้าทั้งฉบับเป็นข้อความที่อ้างถึงล้วน (เมลที่ถูกส่งต่อ/ตอบกลับแบบไม่พิมพ์อะไรเพิ่ม)
+  //      การยุบทำให้บานอ่าน "ว่างเปล่า" ทั้งที่เมลมีเนื้อหา ⇒ กางไว้ตั้งแต่แรก
+  const toggles = $("details.quoted-toggle");
+  if (toggles.length > 0) {
+    const body = $("body").clone();
+    body.find("details.quoted-toggle").remove();
+    const outsideText = (body.text() ?? "").replace(/\s|\u00a0/g, "");
+    const hasOwnImage = body.find("img").length > 0;
+    if (outsideText.length === 0 && !hasOwnImage) toggles.attr("open", "");
+  }
+
   // 6) รูปนอก — DOM strip เป็น "ชั้นรอง" (ด่านจริงคือ CSP ใน srcdoc)
   let remote = false;
   $("img").each((_, el) => {
