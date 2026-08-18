@@ -32,7 +32,7 @@
 | ------------- | ------------------------------------------------------------------------ | ------------------------------------------------------------ | --------------------------------------------------------- |
 | **CHARCOAL**  | `#3C3B3D`                                                                | **primary / brand / info / title**                           | `blue-*`, `sky-*`, `cyan-*`, token `primary` · = gray-700 |
 | ~~AQUA~~      | ~~`#4FC1E9`~~                                                            | **เลิกใช้** — แบรนด์เปลี่ยนเป็น CHARCOAL (โทน mono ไม่มีฟ้า) | —                                                         |
-| BLUE JEANS    | `#5D9CEC`                                                                | accent น้ำเงิน (chart)                                       | —                                                         |
+| BLUE JEANS    | `#5D9CEC`                                                                | **สีแบรนด์ PERPOS Mail** + accent น้ำเงิน (chart)            | `mail-*` (แบรนด์ Mail เท่านั้น — ห้ามใช้แทน info ทั่วไป)  |
 | PLUM          | `#8067B7`                                                                | สีม่วง (accent/หมวดหมู่)                                     | `indigo-*`, `violet-*`, `purple-*`                        |
 | LAVENDER      | `#AC92EC`                                                                | ม่วงอ่อน                                                     | (เฉด 300–400 ของ `indigo`/`violet`)                       |
 | PINK ROSE     | `#EC87C0`                                                                | ชมพู (accent/หมวดหมู่)                                       | `pink-*`, `rose-*`, `fuchsia-*`                           |

@@ -33,11 +33,11 @@ import { Popover } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { Text } from "@/components/ui/typography";
 import { MailFoldersDialog } from "@/components/mail/mail-folders-dialog";
+import { MailWordmark } from "@/components/mail/mail-wordmark";
 import { clearCachedPane } from "@/lib/mail/prefs-storage";
 import {
   MAIL_BOX_LABELS,
   MAIL_BOX_ORDER,
-  MAIL_PRODUCT_NAME,
   folderBoxValue,
   resolveBoxSelector,
 } from "@/lib/mail/boxes";
@@ -56,10 +56,10 @@ const BOX_ICON: Record<MailBoxKey, React.ReactNode> = {
 function MailBrand() {
   return (
     <span className="flex items-center gap-2">
-      <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary text-white">
+      <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-mail-600 text-white">
         <Mail className="h-4 w-4" />
       </span>
-      <span className="text-sm font-semibold text-gray-900">{MAIL_PRODUCT_NAME}</span>
+      <MailWordmark size="sm" />
     </span>
   );
 }

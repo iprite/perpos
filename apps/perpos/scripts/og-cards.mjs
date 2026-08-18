@@ -60,6 +60,10 @@ const shell = (css, markup) => `<!doctype html>
 </style>
 ${markup}`;
 
+// BLUE JEANS #5D9CEC = สีประจำ PERPOS Mail (Suite/Flow ใช้ MINT)
+const MAIL_GLOW = `.glow { position: absolute; right: -220px; bottom: -300px; width: 860px; height: 860px;
+    background: radial-gradient(circle, rgba(93,156,236,0.24) 0%, rgba(93,156,236,0.10) 42%, rgba(93,156,236,0) 68%); }`;
+
 const GLOW = `.glow { position: absolute; right: -220px; bottom: -300px; width: 860px; height: 860px;
     background: radial-gradient(circle, rgba(72,207,173,0.22) 0%, rgba(72,207,173,0.10) 42%, rgba(72,207,173,0) 68%); }`;
 
@@ -78,13 +82,14 @@ const appCard = shell(
 
 // การ์ดของ mail.perpos.ai — พูดถึงกล่องเมลอย่างเดียว ไม่มี Suite/Flow
 const mailCard = shell(
-  `${GLOW}
+  `${MAIL_GLOW}
+  h1 .hl, .brand .sub { color: #5D9CEC; }
   .env { position: absolute; right: 88px; top: 50%; margin-top: -110px; }
   h1.mail { max-width: 760px; }`,
   `<div class="glow"></div>
 <svg class="env" width="260" height="220" viewBox="0 0 100 76" fill="none">
   <rect x="3" y="3" width="94" height="70" rx="9" stroke="rgba(255,255,255,0.22)" stroke-width="3" fill="rgba(255,255,255,0.05)" />
-  <path d="M9 13 L50 44 L91 13" stroke="rgba(72,207,173,0.85)" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" />
+  <path d="M9 13 L50 44 L91 13" stroke="rgba(93,156,236,0.9)" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" />
 </svg>
 <div class="brand">PERPOS<span class="bar">|</span><span class="sub">MAIL</span></div>
 <h1 class="mail">อีเมลองค์กร<span class="hl"> ในโดเมนของคุณ</span><br />ใช้งานผ่านเว็บได้ทุกเครื่อง</h1>
