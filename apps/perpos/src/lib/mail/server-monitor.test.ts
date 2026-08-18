@@ -9,7 +9,13 @@ const healthy = {
   smtpError: null,
   jmapError: null,
   certDaysLeft: 80,
-  heartbeat: { diskPct: 20, backupAgeHours: 5, backupSizeMb: 600, serviceActive: true },
+  heartbeat: {
+    diskPct: 20,
+    backupAgeHours: 5,
+    backupSizeMb: 600,
+    serviceActive: true,
+    smtp25Listening: true,
+  },
   heartbeatAt: new Date(NOW - H).toISOString(),
   now: NOW,
 };
@@ -25,7 +31,13 @@ describe("evaluateIssues", () => {
       smtpError: "x",
       jmapError: "y",
       certDaysLeft: 3,
-      heartbeat: { diskPct: 91, backupAgeHours: 40, backupSizeMb: 1, serviceActive: false },
+      heartbeat: {
+        diskPct: 91,
+        backupAgeHours: 40,
+        backupSizeMb: 1,
+        serviceActive: false,
+        smtp25Listening: false,
+      },
     });
     expect(Object.keys(issues).sort()).toEqual([
       "backup",
@@ -34,13 +46,20 @@ describe("evaluateIssues", () => {
       "jmap",
       "service",
       "smtp",
+      "smtp25",
     ]);
   });
 
   it("heartbeat ขาดเกิน 3 ชม. = ปัญหา และไม่ตัดสินดิสก์จากข้อมูลเก่า", () => {
     const issues = evaluateIssues({
       ...healthy,
-      heartbeat: { diskPct: 99, backupAgeHours: 999, backupSizeMb: 0, serviceActive: false },
+      heartbeat: {
+        diskPct: 99,
+        backupAgeHours: 999,
+        backupSizeMb: 0,
+        serviceActive: false,
+        smtp25Listening: false,
+      },
       heartbeatAt: new Date(NOW - 4 * H).toISOString(),
     });
     expect(Object.keys(issues)).toEqual(["heartbeat"]);
@@ -50,6 +69,15 @@ describe("evaluateIssues", () => {
     expect(evaluateIssues({ ...healthy, heartbeat: null, heartbeatAt: null }).heartbeat).toContain(
       "ยังไม่เคยได้",
     );
+  });
+
+  it("สคริปต์รุ่นเก่าไม่ส่ง smtp25Listening (null) = ไม่เตือน — อย่าเดาแทนเครื่อง", () => {
+    expect(
+      evaluateIssues({
+        ...healthy,
+        heartbeat: { ...healthy.heartbeat, smtp25Listening: null },
+      }),
+    ).toEqual({});
   });
 
   it("วัด cert ไม่ได้ (null) ≠ cert ใกล้หมด — อย่าเตือนมั่ว (443 ล่มมี jmap เตือนอยู่แล้ว)", () => {
@@ -87,6 +115,7 @@ describe("normalizeHeartbeat — payload จากเครื่องคือ
       backupAgeHours: null,
       backupSizeMb: null,
       serviceActive: null,
+      smtp25Listening: null,
     });
     expect(normalizeHeartbeat(null).diskPct).toBeNull();
   });

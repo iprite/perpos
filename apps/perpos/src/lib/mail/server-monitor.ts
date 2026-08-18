@@ -2,21 +2,28 @@
  * เฝ้าระวังเมลเซิร์ฟเวอร์ (Stalwart) + แจ้งเตือน LINE — รันจาก scheduler (นอกเครื่องเมล)
  *
  * ทำไมต้องเช็คจากข้างนอก: ถ้าเครื่องเมลตาย สคริปต์บนเครื่องนั้นย่อมแจ้งอะไรไม่ได้
- * ⇒ ด่านหลัก = Vercel (scheduler ทุก 5 นาที) ตรวจ 25/443/ใบรับรองสด ๆ
- *   ส่วนของที่ต้องมองจากในเครื่อง (ดิสก์/อายุ backup) มาจาก heartbeat รายชั่วโมง
+ * ⇒ ด่านหลัก = Vercel (scheduler ทุก 5 นาที) ตรวจ 465/443/ใบรับรองสด ๆ
+ *   ส่วนของที่ต้องมองจากในเครื่อง (ดิสก์/อายุ backup/พอร์ต 25) มาจาก heartbeat รายชั่วโมง
  *   ที่เครื่องยิงเข้า `/api/admin/mail-server/heartbeat` — heartbeat ขาด = เรื่องต้องเตือนเช่นกัน
+ *
+ * 🪤 **ห้ามเช็คพอร์ต 25 จาก Vercel** — Vercel บล็อก TCP ขาออกพอร์ต 25 (มาตรการกันสแปม)
+ *   ⇒ ต่อไม่ติดเสมอแม้เครื่องเมลปกติดี = เตือนผิดทุก 6 ชม.ตลอดไป (เคยเป็นมาแล้ว 2026-08-18)
+ *   ด่านนอกจึงเช็ค **465 (SMTPS)** แทน — Stalwart ตัวเดียวกันตอบ banner 220 เหมือนกัน
+ *   ส่วน "พอร์ต 25 ยังฟังอยู่ไหม" ให้ heartbeat บนเครื่องรายงานมา (`smtp25Listening`)
+ *   ⚠️ อย่าสับสนกับคอมเมนต์ใน `dns-records.ts` — อันนั้นคือ **Hetzner บล็อกขาออก 25** คนละเรื่องกัน
  *
  * การเตือน: แจ้งเฉพาะ "ขอบเหตุการณ์" (ดี→พัง / พัง→หาย) + เตือนซ้ำทุก 6 ชม. ถ้ายังพังอยู่
  * — ห้าม spam ทุก 5 นาที · สถานะเก็บใน `mail_server_health` (แถวเดียว, RLS deny-all)
  */
 
-import net from "node:net";
 import tls from "node:tls";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { alertAdminLine } from "@/lib/admin/alert";
 
 const HOST = "stalwart.perpos.ai";
 const ROW_ID = "stalwart";
+/** SMTPS — ด่านนอกใช้พอร์ตนี้แทน 25 เพราะ Vercel บล็อก 25 ขาออก (ดูหัวไฟล์) */
+const SMTP_PORT = 465;
 const REALERT_MS = 6 * 60 * 60 * 1000;
 /** heartbeat มาทุก 1 ชม. — ให้อภัย 1 รอบพลาด (deploy/รีบูต) ก่อนถือว่าขาด */
 const HEARTBEAT_STALE_MS = 3 * 60 * 60 * 1000;
@@ -29,6 +36,8 @@ export interface MailHeartbeat {
   backupAgeHours: number | null;
   backupSizeMb: number | null;
   serviceActive: boolean | null;
+  /** พอร์ต 25 ยังฟังอยู่บนเครื่องไหม — ตรวจจาก Vercel ไม่ได้ (ดูหัวไฟล์) · null = สคริปต์รุ่นเก่าไม่ได้ส่งมา */
+  smtp25Listening: boolean | null;
 }
 
 /** payload จากเครื่อง = ข้อมูลภายนอก ตรวจทีละช่องเสมอ */
@@ -40,26 +49,28 @@ export function normalizeHeartbeat(raw: unknown): MailHeartbeat {
     backupAgeHours: num(r.backupAgeHours),
     backupSizeMb: num(r.backupSizeMb),
     serviceActive: typeof r.serviceActive === "boolean" ? r.serviceActive : null,
+    smtp25Listening: typeof r.smtp25Listening === "boolean" ? r.smtp25Listening : null,
   };
 }
 
 // ─── ตัวตรวจสด (จาก Vercel) ─────────────────────────────────────────────────
 
+/** ด่านรับเมลจากภายนอก — ใช้ 465 ไม่ใช่ 25 (Vercel บล็อก 25 ขาออก · ดูหัวไฟล์) */
 function checkSmtp(timeoutMs = 10_000): Promise<string | null> {
   return new Promise((resolve) => {
-    const sock = net.connect({ host: HOST, port: 25 });
+    const sock = tls.connect({ host: HOST, port: SMTP_PORT, servername: HOST });
     const done = (err: string | null) => {
       sock.destroy();
       resolve(err);
     };
-    const timer = setTimeout(() => done("พอร์ต 25 ไม่ตอบใน 10 วิ"), timeoutMs);
+    const timer = setTimeout(() => done(`พอร์ต ${SMTP_PORT} ไม่ตอบใน 10 วิ`), timeoutMs);
     sock.once("data", (buf) => {
       clearTimeout(timer);
-      done(buf.toString().startsWith("220") ? null : "พอร์ต 25 ตอบผิดปกติ (ไม่ใช่ 220)");
+      done(buf.toString().startsWith("220") ? null : `พอร์ต ${SMTP_PORT} ตอบผิดปกติ (ไม่ใช่ 220)`);
     });
     sock.once("error", (e) => {
       clearTimeout(timer);
-      done(`ต่อพอร์ต 25 ไม่ได้ (${e.message.slice(0, 80)})`);
+      done(`ต่อพอร์ต ${SMTP_PORT} ไม่ได้ (${e.message.slice(0, 80)})`);
     });
   });
 }
@@ -136,6 +147,9 @@ export function evaluateIssues(args: {
       issues.backup = `backup ล่าสุดอายุ ${Math.round(hb.backupAgeHours)} ชม. (ควร <24)`;
     }
     if (hb.serviceActive === false) issues.service = "systemd แจ้งว่า service stalwart ไม่ active";
+    if (hb.smtp25Listening === false) {
+      issues.smtp25 = "เครื่องรายงานว่าไม่มีอะไรฟังพอร์ต 25 แล้ว (เมลขาเข้าจะเข้าไม่ได้)";
+    }
   }
   return issues;
 }
@@ -165,7 +179,8 @@ export function diffAlerts(
 }
 
 const RECOVER_LABEL: Record<string, string> = {
-  smtp: "รับเมล (พอร์ต 25)",
+  smtp: `รับเมล (พอร์ต ${SMTP_PORT})`,
+  smtp25: "พอร์ต 25 บนเครื่อง",
   jmap: "เว็บเมล/JMAP",
   cert: "ใบรับรอง TLS",
   heartbeat: "heartbeat จากเครื่อง",
