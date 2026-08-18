@@ -120,8 +120,30 @@ if [ -d /srv/apps ]; then
   apps="[$items]"
 fi
 
+# ── cron บนเครื่อง (/etc/cron.d/perpos + exapp) — เวลา "สั่งรัน" ล่าสุดของแต่ละ URL จาก journal ────
+# cron log แค่ว่า CMD ถูกเรียก (ไม่รู้ว่า curl สำเร็จ) — ฝั่ง perpos มี scheduler_runs ยืนยันอีกชั้น
+# ส่วน exapp มีแค่ตรงนี้ · journal ของเครื่องเป็น persistent (Storage=auto + /var/log/journal)
+cron_active=false
+systemctl is-active --quiet cron && cron_active=true
+cron_jobs="[]"
+if command -v journalctl >/dev/null 2>&1; then
+  cron_jobs=$(journalctl -u cron --since "-26h" -o short-unix --no-pager 2>/dev/null | awk '
+    /CMD \(curl/ {
+      ts = int($1)
+      if (match($0, /http:\/\/127\.0\.0\.1:[0-9]+\/[^ >")]+/)) { u = substr($0, RSTART, RLENGTH); last[u] = ts }
+    }
+    END {
+      printf "["; n = 0
+      for (u in last) { printf "%s{\"url\":\"%s\",\"lastRunAt\":%d}", (n++ ? "," : ""), u, last[u] }
+      printf "]"
+    }')
+  [ -z "${cron_jobs:-}" ] && cron_jobs="[]"
+fi
+
 payload=$(cat <<JSON
 {
+  "cronActive": $cron_active,
+  "cronJobs": $cron_jobs,
   "containers": $containers,
   "apps": $apps,
   "diskPct": $disk_pct,

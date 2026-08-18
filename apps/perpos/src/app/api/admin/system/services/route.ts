@@ -226,7 +226,7 @@ export async function GET(req: NextRequest) {
       .maybeSingle(),
     admin
       .from("mail_server_health")
-      .select("heartbeat, heartbeat_at, last_issues, last_check_at")
+      .select("heartbeat, heartbeat_at, last_issues, last_check_at, web_certs")
       .eq("id", "stalwart")
       .maybeSingle(),
   ]);
@@ -334,6 +334,10 @@ export async function GET(req: NextRequest) {
     uptime_seconds: hbNum("uptimeSeconds"),
     containers: hb?.containers ?? null,
     apps: hb?.apps ?? null,
+    cron_active: hb?.cronActive ?? null,
+    cron_jobs: hb?.cronJobs ?? null,
+    // ใบรับรองที่ Caddy origin ต่อโดเมน (วันที่เหลือ · null = ต่อไม่ได้) — ตัวเฝ้า t5 เขียนไว้
+    web_certs: (hostRow?.web_certs as Record<string, number | null> | null) ?? null,
   };
 
   return ok({ services, vps, checked_at: new Date().toISOString() });
