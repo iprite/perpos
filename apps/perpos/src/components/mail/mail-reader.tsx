@@ -30,7 +30,9 @@ import {
   ImageOff,
   Mail,
   Maximize2,
+  Minimize2,
   Paperclip,
+  Printer,
   Search,
   Star,
   Trash2,
@@ -64,6 +66,7 @@ import {
   MAIL_HEIGHT_MESSAGE,
   MAIL_HEIGHT_PING,
   MAIL_LINK_MESSAGE,
+  MAIL_PRINT_MESSAGE,
   MAIL_SCROLL_MESSAGE,
   MAIL_IFRAME_FALLBACK_HEIGHT,
   MAIL_IFRAME_MAX_HEIGHT,
@@ -534,6 +537,11 @@ function MessageCard({
   /** ลิงก์ที่เมาส์/โฟกัสอยู่ใน frame — แถบบอกปลายทางกันคลิกลิงก์ปลอม */
   const [hoverLink, setHoverLink] = useState<string | null>(null);
   const [fullscreen, setFullscreen] = useState(false);
+  /** ความกว้างเนื้อหาจริงใน frame กับความกว้างกรอบที่มี — ใช้ตัดสินว่าต้องย่อไหม */
+  const [contentWidth, setContentWidth] = useState(0);
+  const [paneWidth, setPaneWidth] = useState(0);
+  const [fitOverride, setFitOverride] = useState<boolean | null>(null);
+  const paneRef = useRef<HTMLDivElement>(null);
 
   const showImages = useCallback(async () => {
     setLoadingImages(true);
@@ -603,7 +611,12 @@ function MessageCard({
 
     const onMessage = (e: MessageEvent) => {
       if (!frameRef.current || e.source !== frameRef.current.contentWindow) return;
-      const data = e.data as { type?: unknown; height?: unknown; href?: unknown } | null;
+      const data = e.data as {
+        type?: unknown;
+        height?: unknown;
+        width?: unknown;
+        href?: unknown;
+      } | null;
       if (!data) return;
       if (data.type === MAIL_LINK_MESSAGE) {
         setHoverLink(typeof data.href === "string" ? data.href : null);
@@ -618,6 +631,9 @@ function MessageCard({
       );
       heightCache.set(message.id, h);
       setFrameHeight(h);
+      if (typeof data.width === "number" && Number.isFinite(data.width)) {
+        setContentWidth(Math.ceil(data.width));
+      }
     };
     window.addEventListener("message", onMessage);
 
@@ -640,6 +656,28 @@ function MessageCard({
       window.removeEventListener("message", onMessage);
     };
   }, [srcDoc, message.id]);
+
+  // วัดความกว้างของกรอบจริง (ของเหนือ-ล่างยุบ/กางได้ ⇒ ต้องเฝ้า ไม่ใช่วัดครั้งเดียว)
+  useEffect(() => {
+    const el = paneRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(() => setPaneWidth(el.clientWidth));
+    ro.observe(el);
+    setPaneWidth(el.clientWidth);
+    return () => ro.disconnect();
+  }, [open]);
+
+  /**
+   * ย่อให้พอดีกรอบ — เมลจากธนาคาร/จดหมายข่าวมักตรึงความกว้างไว้ 600–900px
+   * กรอบเราแคบกว่านั้นบ่อย ⇒ ถ้าไม่ย่อ ต้องเลื่อนซ้าย-ขวาอ่านทีละครึ่ง
+   *
+   * เปิดให้เองเฉพาะตอนที่ย่อแล้ว **ยังอ่านออก** (ไม่ต่ำกว่า 60%) · กว้างเกินกว่านั้น
+   * การย่อทำให้ตัวหนังสือเล็กจนอ่านไม่ได้ → ปล่อยให้เลื่อน หรือกด "เปิดเต็มหน้า" แทน
+   */
+  const overflowRatio = contentWidth > 0 && paneWidth > 0 ? paneWidth / contentWidth : 1;
+  const canFit = overflowRatio < 0.98;
+  const fit = fitOverride ?? (canFit && overflowRatio >= 0.6);
+  const scale = fit && canFit ? overflowRatio : 1;
 
   /** โฟกัสคำค้นเปลี่ยน → บอก frame ให้เลื่อนไปหา (frame เลื่อนจออย่างเดียว ไม่แก้ DOM) */
   useEffect(() => {
@@ -730,7 +768,38 @@ function MessageCard({
               )}
 
               {srcDoc && (
-                <div className="mb-2 flex justify-end">
+                <div className="mb-2 flex flex-wrap justify-end gap-1">
+                  {canFit && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 text-xs text-gray-500"
+                      onClick={() => setFitOverride(!fit)}
+                      title={fit ? "ดูขนาดจริง (เลื่อนซ้าย-ขวา)" : "ย่อให้พอดีกรอบ"}
+                    >
+                      {fit ? (
+                        <Maximize2 className="h-3.5 w-3.5" />
+                      ) : (
+                        <Minimize2 className="h-3.5 w-3.5" />
+                      )}
+                      {fit ? `ขนาดจริง (${Math.round(scale * 100)}%)` : "ย่อให้พอดี"}
+                    </Button>
+                  )}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 text-xs text-gray-500"
+                    onClick={() =>
+                      frameRef.current?.contentWindow?.postMessage(
+                        { type: MAIL_PRINT_MESSAGE },
+                        "*",
+                      )
+                    }
+                    title="พิมพ์เฉพาะเนื้อเมล"
+                  >
+                    <Printer className="h-3.5 w-3.5" />
+                    พิมพ์
+                  </Button>
                   <Button
                     variant="ghost"
                     size="sm"
@@ -745,20 +814,37 @@ function MessageCard({
               )}
 
               {srcDoc ? (
-                <iframe
-                  ref={frameRef}
-                  title="เนื้อหาอีเมล"
-                  // 🔴 ห้ามเติม allow-same-origin เด็ดขาด (contract §7.2 · มีเทสจับ)
-                  sandbox={MAIL_IFRAME_SANDBOX}
-                  srcDoc={srcDoc}
-                  referrerPolicy="no-referrer"
-                  onLoad={() =>
-                    frameRef.current?.contentWindow?.postMessage({ type: MAIL_HEIGHT_PING }, "*")
-                  }
-                  // ยังไม่รู้ความสูง = ใช้ค่าตั้งต้นไปก่อน (จอไม่กระโดดตอนค่าจริงมาถึงใน ~100ms)
-                  style={{ height: frameHeight }}
-                  className="w-full rounded-lg border border-gray-100 bg-white"
-                />
+                /* โหมดย่อ: ตั้งความกว้าง frame เท่าเนื้อหาจริงแล้ว scale ทั้งก้อน
+                   — ไม่แตะ DOM ของเมล และกรอบนอกสูงเท่าที่ย่อแล้วจริง (ไม่เหลือช่องว่าง) */
+                <div
+                  ref={paneRef}
+                  className="overflow-hidden rounded-lg border border-gray-100 bg-white"
+                  style={fit ? { height: Math.ceil(frameHeight * scale) } : undefined}
+                >
+                  <iframe
+                    ref={frameRef}
+                    title="เนื้อหาอีเมล"
+                    // 🔴 ห้ามเติม allow-same-origin เด็ดขาด (contract §7.2 · มีเทสจับ)
+                    sandbox={MAIL_IFRAME_SANDBOX}
+                    srcDoc={srcDoc}
+                    referrerPolicy="no-referrer"
+                    onLoad={() =>
+                      frameRef.current?.contentWindow?.postMessage({ type: MAIL_HEIGHT_PING }, "*")
+                    }
+                    // ยังไม่รู้ความสูง = ใช้ค่าตั้งต้นไปก่อน (จอไม่กระโดดตอนค่าจริงมาถึงใน ~100ms)
+                    style={
+                      fit
+                        ? {
+                            width: contentWidth || "100%",
+                            height: frameHeight,
+                            transform: `scale(${scale})`,
+                            transformOrigin: "top left",
+                          }
+                        : { height: frameHeight }
+                    }
+                    className={cn("bg-white", !fit && "w-full")}
+                  />
+                </div>
               ) : (
                 <pre className="whitespace-pre-wrap break-words font-sans text-sm leading-relaxed text-gray-700">
                   {message.textBody?.trim() || "(อีเมลฉบับนี้ไม่มีเนื้อหา)"}

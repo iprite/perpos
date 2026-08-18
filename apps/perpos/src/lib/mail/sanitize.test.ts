@@ -80,7 +80,9 @@ describe("CSP + sandbox ของ srcdoc", () => {
    */
   it("sandbox ต้องไม่มี allow-same-origin เด็ดขาด", () => {
     expect(MAIL_IFRAME_SANDBOX).not.toContain("allow-same-origin");
-    expect(MAIL_IFRAME_SANDBOX).toBe("allow-popups allow-popups-to-escape-sandbox allow-scripts");
+    expect(MAIL_IFRAME_SANDBOX).toBe(
+      "allow-popups allow-popups-to-escape-sandbox allow-scripts allow-modals",
+    );
   });
 
   it("CSP ห้ามเปิดทางสคริปต์นอกเหนือจาก nonce ของเรา", () => {
@@ -168,5 +170,24 @@ describe("ปลายทางของลิงก์ (กันฟิชช�
   it("🔴 ห้ามคัดลอก scheme อันตรายมาไว้ใน title (transformTags ทำงานก่อนด่าน scheme)", () => {
     const { html } = sanitizeMailHtml('<a href="javascript:alert(1)">ลิงก์</a>');
     expect(html).not.toContain("javascript:");
+  });
+});
+
+describe("สคริปต์ใน srcdoc — พิมพ์และความกว้าง", () => {
+  const doc = buildMailSrcdoc("<p>x</p>", { showImages: false, nonce: NONCE });
+  const script = /<script[^>]*>([\s\S]*?)<\/script>/.exec(doc)?.[1] ?? "";
+
+  it("ยังเป็น JS ที่ถูกไวยากรณ์หลังเพิ่มคำสั่งพิมพ์", () => {
+    expect(() => new Function(script)).not.toThrow();
+  });
+
+  it("รายงานความกว้างเนื้อหามาด้วย (ใช้คำนวณย่อให้พอดีกรอบ)", () => {
+    expect(script).toContain("scrollWidth");
+  });
+
+  it("พิมพ์ได้เฉพาะเมื่อหน้าเว็บสั่ง และต้องมี allow-modals ไม่งั้นเบราว์เซอร์บล็อก", () => {
+    expect(script).toContain("perpos-mail-print");
+    expect(script).toContain("print()");
+    expect(MAIL_IFRAME_SANDBOX).toContain("allow-modals");
   });
 });
