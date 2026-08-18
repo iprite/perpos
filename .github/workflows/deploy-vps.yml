@@ -54,8 +54,12 @@ jobs:
           set -euo pipefail
           OUT=apps/perpos/.next/standalone
           # standalone ไม่รวม static assets กับ public — ต้อง copy เข้าไปเองเสมอ
-          cp -r apps/perpos/.next/static "$OUT/apps/perpos/.next/static"
-          cp -r apps/perpos/public "$OUT/apps/perpos/public"
+          # ใช้ `cp -r src/. dst/` ไม่ใช่ `cp -r src dst` — ถ้าปลายทางมีอยู่แล้ว (standalone บางครั้ง
+          # สร้าง public/ มาเองจากไฟล์ที่ config อ้าง เช่น favicon) แบบหลังจะวางซ้อนเป็น public/public/
+          # → static ทุกไฟล์ 404 (เคยเจอกับ exapp: โลโก้หาย)
+          mkdir -p "$OUT/apps/perpos/.next/static" "$OUT/apps/perpos/public"
+          cp -r apps/perpos/.next/static/. "$OUT/apps/perpos/.next/static/"
+          cp -r apps/perpos/public/. "$OUT/apps/perpos/public/"
           # ต้องมีโฟลเดอร์นี้ในก้อน artifact: /app ถูก mount แบบ :ro บนเครื่อง Docker จึงสร้าง
           # mountpoint ให้ volume .next/cache เองไม่ได้ (read-only file system) → container ไม่ขึ้น
           mkdir -p "$OUT/apps/perpos/.next/cache"
