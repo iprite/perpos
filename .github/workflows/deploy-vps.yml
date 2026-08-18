@@ -17,7 +17,6 @@ on:
 
 permissions:
   contents: read
-  actions: read # VPS ดึง artifact จาก Actions API ด้วย token ของ run นี้
 
 concurrency:
   group: deploy-vps
@@ -62,47 +61,62 @@ jobs:
           mkdir -p "$OUT/apps/perpos/.next/cache"
           tar -C "$OUT" -czf artifact.tar.gz .
 
-      # runner → Contabo ผ่าน scp ช้ามากเป็นช่วง ๆ (วัดได้ ~6 KB/s ตอน congest → ค้างเป็นสิบนาที)
-      # ในขณะที่ VPS ดาวน์โหลดจาก internet ได้ ~17 MB/s ⇒ ให้ VPS "ดึง" แทนที่จะให้ runner "ดัน"
-      - name: Upload artifact
-        id: art
-        uses: actions/upload-artifact@v4
-        with:
-          name: perpos-standalone
-          path: artifact.tar.gz
-          retention-days: 1
-          compression-level: 0 # tar.gz บีบมาแล้ว
+      # เส้นทาง GitHub (runner scp ก็ดี / Actions artifact API ก็ดี) → Contabo SG ช้ามาก (~40 KB/s
+      # ค้างเป็นสิบนาที) เพราะ storage อยู่ US ไม่มี CDN · Cloudflare R2 มี CDN → VPS ดึงได้ ~17 MB/s
+      # ⇒ push ขึ้น R2 แล้วให้ VPS ดึงด้วย presigned URL อายุสั้น (ไม่มี secret โผล่ในคำสั่งฝั่ง VPS)
+      - name: Upload artifact → R2
+        id: r2
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          AWS_EC2_METADATA_DISABLED: "true"
+          EP: https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
+        run: |
+          set -euo pipefail
+          KEY="perpos/${GITHUB_SHA::12}-${GITHUB_RUN_ID}.tar.gz"
+          aws s3 cp artifact.tar.gz "s3://deploy-artifacts/$KEY" --endpoint-url "$EP" --only-show-errors
+          URL=$(aws s3 presign "s3://deploy-artifacts/$KEY" --endpoint-url "$EP" --expires-in 900)
+          echo "::add-mask::$URL"
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+          echo "key=$KEY" >> "$GITHUB_OUTPUT"
 
       - name: Activate on VPS
         env:
           VPS_HOST: ${{ secrets.VPS_HOST }}
           VPS_USER: ${{ secrets.VPS_USER }}
           SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
-          GH_TOKEN: ${{ github.token }}
-          ART_URL: ${{ steps.art.outputs.artifact-url }}
-          ART_ID: ${{ steps.art.outputs.artifact-id }}
-          REPO: ${{ github.repository }}
+          ART_URL: ${{ steps.r2.outputs.url }}
         run: |
           set -euo pipefail
           mkdir -p ~/.ssh
           echo "$SSH_KEY" > ~/.ssh/id_deploy && chmod 600 ~/.ssh/id_deploy
           ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts 2>/dev/null
-          SSH="ssh -i $HOME/.ssh/id_deploy -o ServerAliveInterval=15 $VPS_USER@$VPS_HOST"
           TS=$(date +%Y%m%d%H%M%S)
           APP=/srv/apps/perpos
-          $SSH "set -euo pipefail
-            cd $APP
-            # token ของ run นี้ อายุสั้น ใช้ดึง artifact ครั้งเดียว
-            curl -sSL --retry 3 --retry-delay 5 -H 'Authorization: Bearer $GH_TOKEN' \
-              'https://api.github.com/repos/$REPO/actions/artifacts/$ART_ID/zip' -o art.zip
-            rm -rf art && mkdir art && (cd art && unzip -q ../art.zip)
-            mkdir -p releases/$TS
-            tar -xzf art/artifact.tar.gz -C releases/$TS
-            rm -rf art art.zip
+          # ส่ง URL ทาง stdin ไม่ใช่ argv → ไม่โผล่ใน ps บนเครื่อง
+          printf '%s' "$ART_URL" | ssh -i ~/.ssh/id_deploy -o ServerAliveInterval=15 "$VPS_USER@$VPS_HOST" "set -euo pipefail
+            cd $APP && mkdir -p releases/$TS
+            curl -sSf --retry 3 --retry-delay 5 -o art.tgz \"\$(cat)\"
+            tar -xzf art.tgz -C releases/$TS && rm -f art.tgz
             ln -sfn $APP/releases/$TS $APP/current
             cd /srv/deploy && docker compose up -d perpos
-            # เก็บ 3 release ล่าสุดพอ (rollback = ln -sfn ไป release ก่อนหน้า + restart)
+            # เก็บ 3 release ล่าสุดพอ (rollback = ln -sfn ไป release ก่อนหน้า + up -d)
             cd $APP/releases && ls -1t | tail -n +4 | xargs -r rm -rf"
+
+      - name: Cleanup R2 (เก็บไฟล์ล่าสุด 5 ก้อนต่อแอป)
+        if: always()
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          AWS_EC2_METADATA_DISABLED: "true"
+          EP: https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
+        run: |
+          aws s3api list-objects-v2 --bucket deploy-artifacts --prefix perpos/ --endpoint-url "$EP" \
+            --query 'sort_by(Contents,&LastModified)[:-5].Key' --output text 2>/dev/null \
+            | tr '\t' '\n' | grep -v '^None$' | while read -r k; do
+              [ -n "$k" ] && aws s3 rm "s3://deploy-artifacts/$k" --endpoint-url "$EP" --only-show-errors; done || true
 
       - name: Health check
         run: |
