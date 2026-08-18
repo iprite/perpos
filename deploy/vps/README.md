@@ -75,6 +75,13 @@ cd /srv/deploy && docker compose up -d caddy
 
 port 3005–3007 bind ที่ `127.0.0.1` เท่านั้นใน compose (cron บน host ยิงได้ · internet เข้าไม่ได้)
 
+## Firewall (2 ชั้น)
+
+1. **Contabo Firewall (network-level, ฟรี) — `perpos-sg-web-mail`** ผูกกับ instance 203517994 (2026-08-19, ตั้งผ่าน API) · inbound allow: tcp 22 · 80/443 · **udp 443 (h3)** · 25/465/587 · 993/995 · 4190 · icmp — ที่เหลือ drop (v4+v6) · ทดสอบแล้ว: port ที่เปิด open ครบ, 8080/3005 ถูก drop เงียบ (timeout ไม่ใช่ refused)
+   · แก้กฎ: CCP → Firewall หรือ API `PUT /v1/firewalls/<id>` (token = OAuth password grant ด้วย client_id/secret + **รหัสล็อกอิน CCP** — หน้า API details ใหม่ไม่มี API password แยกแล้ว) · assign/DELETE **ห้ามส่ง `Content-Type: application/json` เมื่อ body ว่าง** (400)
+   · เปิด port ใหม่ต้องเพิ่ม **ทั้งสองชั้น** ไม่งั้นงงว่า ufw allow แล้วทำไมยังเข้าไม่ได้
+2. **ufw บนเครื่อง** — 22 · 80,443/tcp · 443/udp · 25,465,587,993,995,4190/tcp · 8080 เฉพาะ `172.16.0.0/12` (Caddy→Stalwart)
+
 ## ลำดับตัดจริง (cutover)
 
 1. สั่ง VPS รายเดือน → เปิด ticket ขอปลด port 25 + เช็ค IP กับ blacklist **วันแรก** (gate ของเฟส 2)
