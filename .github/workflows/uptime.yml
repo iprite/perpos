@@ -2,6 +2,8 @@ name: Uptime check
 
 # เช็คจาก "ข้างนอก" (GitHub) — ถ้าแอปล่ม endpoint แจ้งเตือนในแอปก็ล่มด้วย
 # จึงต้องยิง LINE ตรงจากที่นี่ ไม่ผ่าน /api/admin/alerts/uptime
+# ครอบ 3 แอป + webmail บน VPS SG (perpos/exapp/riekchang อยู่เครื่องเดียวกัน — ตัวเฝ้าใน perpos
+# เห็น exapp/riekchang ก็จริง แต่ถ้าเครื่องดับทั้งตัวจะเงียบ ด่านนี้คือด่านนอกจริง)
 on:
   schedule:
     - cron: "*/5 * * * *" # ทุก ~5 นาที (GitHub cron อาจ delay ช่วง peak — เป็นเรื่องปกติ)
@@ -15,30 +17,42 @@ jobs:
   ping:
     runs-on: ubuntu-latest
     steps:
-      - name: Check /api/health (retry 3 ครั้ง กัน blip ชั่วคราว)
+      - name: Check ทุกแอปบน VPS (retry 3 ครั้ง กัน blip ชั่วคราว)
         id: check
         run: |
-          URL="https://app.perpos.ai/api/health"
-          code="000"
-          ok=""
-          for i in 1 2 3; do
-            code=$(curl -s -m 10 -o body.txt -w "%{http_code}" "$URL" || echo "000")
-            body=$(cat body.txt 2>/dev/null || echo "")
-            echo "attempt $i: HTTP $code | body=$body"
-            if [ "$code" = "200" ] && printf '%s' "$body" | grep -q '"ok":true'; then
-              ok=1; break
+          # ชื่อ|URL|สิ่งที่ต้องเจอใน body (ว่าง = แค่ HTTP 200) — 3 แอป + webmail อยู่เครื่องเดียวกัน
+          TARGETS=(
+            "PERPOS|https://app.perpos.ai/api/health|\"ok\":true"
+            "exapp|https://app.exworker.co.th/|"
+            "riekchang|https://app.riekchang.com/|"
+            "PERPOS Mail|https://mail.perpos.ai/login|"
+          )
+          down_list=""
+          for t in "${TARGETS[@]}"; do
+            IFS='|' read -r name url must <<<"$t"
+            ok=""; code="000"
+            for i in 1 2 3; do
+              code=$(curl -sL -m 15 -o body.txt -w "%{http_code}" "$url" || echo "000")
+              body=$(cat body.txt 2>/dev/null || echo "")
+              if [ "$code" = "200" ] && { [ -z "$must" ] || printf '%s' "$body" | grep -q "$must"; }; then
+                ok=1; break
+              fi
+              [ "$i" -lt 3 ] && sleep 10
+            done
+            if [ -n "$ok" ]; then
+              echo "✅ $name healthy"
+            else
+              echo "🔴 $name down (last HTTP $code)"
+              down_list="${down_list}• ${name} — HTTP ${code} (${url})%0A"
             fi
-            [ "$i" -lt 3 ] && sleep 10
           done
-          if [ -n "$ok" ]; then
-            echo "✅ healthy"
+          if [ -z "$down_list" ]; then
             echo "down=" >> "$GITHUB_OUTPUT"
           else
-            echo "🔴 down (last HTTP $code)"
             echo "down=1" >> "$GITHUB_OUTPUT"
-            echo "last_code=$code" >> "$GITHUB_OUTPUT"
+            # เก็บหลายบรรทัดใน output ด้วย %0A แล้วค่อยแปลงตอนประกอบข้อความ
+            echo "down_list=$down_list" >> "$GITHUB_OUTPUT"
           fi
-
       - name: Alert LINE ถ้าล่ม (ยิงตรงไป LINE — survive ตอนแอปดับ)
         if: steps.check.outputs.down == '1'
         env:
@@ -49,8 +63,10 @@ jobs:
             echo "::warning::ขาด secret LINE_MESSAGING_CHANNEL_ACCESS_TOKEN หรือ ALERT_LINE_USER_IDS — ข้ามการแจ้งเตือน"
             exit 0
           fi
-          MSG="🔴 PERPOS เว็บอาจล่ม — /api/health ตอบ HTTP ${{ steps.check.outputs.last_code }}
-          เช็คจาก GitHub Actions: $(date -u '+%Y-%m-%d %H:%M UTC')"
+          LIST=$(printf '%s' '${{ steps.check.outputs.down_list }}' | sed 's/%0A/\n/g')
+          MSG="🔴 เว็บบน VPS SG อาจล่ม (เช็คจากข้างนอก — GitHub Actions)
+          $(printf "$LIST")
+          $(date -u '+%Y-%m-%d %H:%M UTC') · ถ้า perpos ล่มด้วย ตัวเฝ้าใน /admin/system จะเงียบ — ssh perpos-sg ดู docker ps"
           IFS=','
           for id in $LINE_IDS; do
             id=$(echo "$id" | xargs)
