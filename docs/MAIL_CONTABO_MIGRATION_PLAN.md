@@ -153,10 +153,16 @@ MTA-STS            → mode: enforce · mx: stalwart.perpos.ai · max_age 86400
       `mailserver.perpos.ai` ตัวเดียว) · 🔴 **เจอของค้าง: 8 record ของ exworker.co.th
       (`autoconfig`/`autodiscover`/`mta-sts`/`ua-auto-config` × A+AAAA) ยังชี้ IP เก่าที่เพิ่งคืน Hetzner ไป**
       → ชี้มา Contabo แล้ว · ถ้าปล่อยไว้: ACME order ของ exworker ล้มทั้งใบตอนต่ออายุ (กับดัก SAN §ด้านบน) + คนที่ได้ IP นั้นต่อสวมชื่อโดเมนเราได้
-      · **A/AAAA ของ `stalwart.perpos.ai` ยังต้องเก็บไว้** (ชี้ Contabo) เพราะชื่อนี้อยู่ใน SAN ของใบรับรอง
-      — ลบ DNS ทิ้งเลย = ACME order ล้มทั้งใบ · จะเลิกใช้ชื่อนี้ต้อง **ปิด `stalwart` ใน
-      `subjectAlternativeNames` ก่อน แล้วรอใบใหม่ออก ค่อยลบ record**
-      · MTA-STS policy ยังลิสต์ `stalwart.perpos.ai` อยู่ชั่วคราว — `mxHosts` ในคอนฟิกว่าง แปลว่า Stalwart
+      · **เลิกใช้ชื่อ `stalwart.perpos.ai` ครบวงจรแล้ว (2026-08-18 12:05Z)** — ทำตามลำดับนี้เท่านั้น:
+      (1) ปิด `stalwart` ใน `subjectAlternativeNames` (2) **บังคับออกใบใหม่**: `x:Domain/set` →
+      `certificateManagement:{"@type":"Manual"}` + reload → แล้วสลับกลับ `Automatic` + reload
+      (3) รอใบใหม่ (มาใน ~1 นาที) แล้วตรวจ SAN (4) **ค่อยลบ A/AAAA** — สลับลำดับ = ACME order ล้มทั้งใบ
+      · 🔑 **คำสั่ง reload ที่ถูกคือ `x:Action/set` + `create:{r:{"@type":"ReloadSettings"}}`**
+      (`x:Action/reload` ไม่มีจริง — `unknownMethod`)
+      · ใบก่อนหน้า 18 ส.ค. 08:59Z (7 ชื่อ) → ใบใหม่ 12:05Z (6 ชื่อ ไม่มี stalwart) หมด 16 พ.ย.
+      · ตรวจแล้วว่าเสิร์ฟใบใหม่ทั้ง 443 และ 25 · **ไม่มี TLSA/DANE ประกาศใน DNS** ⇒ เปลี่ยนใบไม่กระทบ
+      (ถ้าวันหลังเปิด DANE ต้องอัปเดต TLSA ทุกครั้งที่ใบเปลี่ยน)
+      · MTA-STS policy ยังลิสต์ `stalwart.perpos.ai` อยู่ชั่วคราว (หลังลบ MX+A แล้ว) — `mxHosts` ในคอนฟิกว่าง แปลว่า Stalwart
       สร้างรายการจาก MX ใน DNS เอง ⇒ **หายเองเมื่อแคช DNS ของมันหมดอายุ** (เป็น superset ของ MX จริง
       จึงไม่กระทบการส่ง) · ถ้าอยากให้ผู้ส่งดึงนโยบายใหม่เร็วขึ้นค่อยขยับ `id` ใน `_mta-sts` TXT
 - [x] **ลบเครื่อง Hetzner แล้ว (2026-08-18)** — ยืนยันจาก PTR ของ `46.225.14.18` ที่กลับเป็น
