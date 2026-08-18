@@ -62,7 +62,7 @@ cd /srv/deploy && docker compose up -d caddy
 
 ```cron
 # /etc/cron.d/perpos  (CRON_SECRET ตัวเดียวกับใน /srv/apps/perpos/.env)
-*/3 * * * * deploy curl -sf -X POST -H "Authorization: Bearer $CRON_SECRET" http://127.0.0.1:3005/api/assistant/scheduler >/dev/null
+* * * * *   deploy curl -sf -X POST -H "Authorization: Bearer $CRON_SECRET" http://127.0.0.1:3005/api/assistant/scheduler >/dev/null   # กลับเป็นทุก 1 นาที (บน Vercel เคยลดเป็น 3 เพื่อประหยัด CPU)
 0 20 * * *  deploy curl -sf -X POST -H "Authorization: Bearer $CRON_SECRET" http://127.0.0.1:3005/api/tmc/notify/daily-occupancy >/dev/null
 0 8 * * 1   deploy curl -sf -X POST -H "Authorization: Bearer $CRON_SECRET" http://127.0.0.1:3005/api/gov-procure/notify/weekly >/dev/null
 0 9 * * *   deploy curl -sf -X POST -H "Authorization: Bearer $CRON_SECRET" http://127.0.0.1:3005/api/gov-procure/notify/aging >/dev/null
