@@ -42,6 +42,9 @@ services:
     env_file: /srv/apps/perpos/.env
     volumes:
       - /srv/apps/perpos/current:/app:ro
+      # artifact mount เป็น :ro (สลับ symlink ตอน deploy ได้ปลอดภัย) แต่ Next ต้องเขียน
+      # .next/cache (image optimization / ISR) — ไม่มี volume นี้ = EROFS ทุก request ที่แตะ cache
+      - perpos_next_cache:/app/apps/perpos/.next/cache
     # bind เฉพาะ loopback — ให้ cron บน host ยิงได้ ไม่เปิดสู่ internet (Caddy คุยผ่าน network web)
     ports:
       - "127.0.0.1:3005:3005"
@@ -61,6 +64,9 @@ services:
     env_file: /srv/apps/exapp/.env
     volumes:
       - /srv/apps/exapp/current:/app:ro
+      # artifact mount เป็น :ro (สลับ symlink ตอน deploy ได้ปลอดภัย) แต่ Next ต้องเขียน
+      # .next/cache (image optimization / ISR) — ไม่มี volume นี้ = EROFS ทุก request ที่แตะ cache
+      - exapp_next_cache:/app/apps/exapp/.next/cache
     ports:
       - "127.0.0.1:3006:3006"
     networks: [web]
@@ -78,6 +84,9 @@ services:
     env_file: /srv/apps/riekchang/.env
     volumes:
       - /srv/apps/riekchang/current:/app:ro
+      # artifact mount เป็น :ro (สลับ symlink ตอน deploy ได้ปลอดภัย) แต่ Next ต้องเขียน
+      # .next/cache (image optimization / ISR) — ไม่มี volume นี้ = EROFS ทุก request ที่แตะ cache
+      - riekchang_next_cache:/app/apps/riekchang/.next/cache
     ports:
       - "127.0.0.1:3007:3007"
     networks: [web]
@@ -103,3 +112,6 @@ networks:
 volumes:
   caddy_data:
   caddy_config:
+  perpos_next_cache:
+  exapp_next_cache:
+  riekchang_next_cache:
