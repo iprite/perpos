@@ -23,6 +23,9 @@ services:
       # API token สิทธิ์ Zone.DNS:Edit ของ zone ที่ใช้ (สำหรับ DNS-01 — จำเป็นเพราะอยู่หลัง
       # Cloudflare proxy ซึ่งทำให้ HTTP-01 ไม่นิ่ง)
       CLOUDFLARE_API_TOKEN: ${CLOUDFLARE_API_TOKEN}
+    # ให้ Caddy proxy ไป Stalwart ที่รันบน host (native) ได้
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - /srv/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data

@@ -374,3 +374,36 @@ MTA-STS            → mode: enforce · mx: stalwart.perpos.ai · max_age 86400
 - [ ] ตัด `include:spf.brevo.com` + IP เก่าออกจาก SPF หลังนิ่ง · ปิด/ลบเครื่อง Hetzner (เก็บไว้ถึง D+7)
 - [ ] แก้ชื่อเครื่องในโค้ด 2 จุด ([dns-records.ts:12](../apps/perpos/src/lib/mail/dns-records.ts), [server-monitor.ts:23](../apps/perpos/src/lib/mail/server-monitor.ts)) + invariant ใน AGENTS.md
 - [ ] เฝ้าบัญชีดำอัตโนมัติใน `server-monitor.ts` + สมัคร Google Postmaster Tools / MS SNDS (§12)
+
+---
+
+## 15. เฟส 2 — ย้ายเมลจาก Contabo EU → **Contabo SG (เครื่องเดียวกับเว็บ)** — ทำแล้ว 2026-08-19
+
+เครื่อง: **`62.146.233.27` / `2407:3640:2351:7994::1`** (Cloud VPS 4 SG · Ubuntu 24.04 · เว็บ 3 แอป + Stalwart) · ชื่อ `mailserver.perpos.ai` **ไม่เปลี่ยน** ⇒ ไม่ต้องยุ่ง HELO/DKIM/SAN/MTA-STS · downtime จริง **15 วินาที** (stop EU → rsync สุดท้าย → start SG)
+
+| ทำแล้ว                            | รายละเอียด                                                                                                                                                                                                                                                                              |
+| --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ✅ gate                           | IP สะอาด 5 blacklist (Spamhaus/Barracuda/SpamCop/SORBS/PSBL) · port 25 ขาออกเปิด · PTR v4+v6 = `mailserver.perpos.ai` (ตั้งใน CCP)                                                                                                                                                      |
+| ✅ ติดตั้ง                        | Stalwart 0.16.17 native systemd เหมือน EU (binary/config/units/backup script/heartbeat/backup key copy มาครบ) · user `stalwart` **gid 987** (988 ชนกับ docker)                                                                                                                          |
+| ✅ ข้อมูล                         | rsync `/var/lib/stalwart` 846MB (รอบแรก 1m45s · รอบสุดท้ายวินาที)                                                                                                                                                                                                                       |
+| ✅ **443 เป็นของ Caddy**          | Stalwart **ลบ listener 443** · Caddy proxy `mailserver`/`login`/`mta-sts`/`autoconfig`/`autodiscover`/`ua-auto-config` × 2 โดเมน → `host.docker.internal:8080` (ufw allow `172.16.0.0/12` → 8080) · ใบรับรอง 10 ชื่อนั้นออกโดย Caddy DNS-01                                             |
+| ✅ **ACME ของ Stalwart → DNS-01** | `x:DnsServer` Cloudflare (`@type: Cloudflare`, secret = token DNS:Edit) + `x:Domain.dnsManagement = Automatic{dnsServerId, publishRecords:{tlsa}}` (minItems 1 — เลือก tlsa เพราะไม่ใช้/ไม่ให้เขียนทับ MX/SPF/DKIM) + `x:AcmeProvider.challengeType = Dns01` — เลิกพึ่ง TLS-ALPN บน 443 |
+| ✅ DNS                            | 6 ชื่อ perpos.ai + 4 ชื่อ exworker.co.th → A/AAAA ใหม่ (เมฆเทา TTL 300) · SPF ทั้งสองโดเมนเพิ่ม `ip4:62.146.233.27 ip6:2407:…::1` **คง IP เก่าไว้** · MX ไม่แตะ                                                                                                                         |
+| ✅ ทดสอบ                          | SMTP 25 STARTTLS/IMAPS ใบรับรอง verify OK (จาก EU) · รับเมลเข้าจริง `250 2.0.0 Message queued` · `login.perpos.ai` 302 → `/account` · JMAP session 200 · MTA-STS policy เสิร์ฟจาก SG · heartbeat แถวแรกจาก SG เข้า `mail_server_samples`                                                |
+| ✅ EU                             | `systemctl disable stalwart` + ปิด timer · **ยังไม่ลบเครื่อง (เก็บถึง D+7)** · ถอน key ชั่วคราว SG→EU แล้ว                                                                                                                                                                              |
+
+**กับดักที่เจอ**
+
+- **rsync รอบสุดท้ายทับคอนฟิกที่แก้บน SG** (คอนฟิกอยู่ใน RocksDB เดียวกับข้อมูล) ⇒ ต้องทำ JMAP set (DnsServer/Dns01/ลบ 443) **ซ้ำหลัง rsync สุดท้าย** — ทำแล้ว
+- ufw บล็อก container → host:8080 (Caddy 502) จนกว่าจะ `ufw allow from 172.16.0.0/12 to any port 8080`
+- EU มี `/etc/hosts` `mailserver.perpos.ai → 127.0.1.1` ⇒ ทดสอบจาก EU ต้องยิง IP ตรง (`--server 62.146.233.27 --tls-sni …`)
+- เน็ตบ้านบล็อก port 25 ขาออก — ทดสอบ SMTP ต้องยิงจาก VPS อีกเครื่อง
+- admin API key **ไม่มีสิทธิ์อ่านเมล** (Email/query 403 — ถูกต้องตาม `ADMIN_OBJECTS`) ⇒ ยืนยัน delivery ลงกล่องต้องล็อกอินจริง
+
+**ค้าง (D+1 → D+7)**
+
+- [ ] **ส่งเมลออกจริงจาก webmail → Gmail แล้วดู "แสดงต้นฉบับ"**: `Received: from mailserver.perpos.ai [62.146.233.27]` + SPF/DKIM/DMARC pass (ต้องใช้บัญชีจริง — agent ทำไม่ได้)
+- [ ] ตัด `stalwart.perpos.ai` ออกจาก `x:MtaSts.mailExchangers` + bump id (key ได้ 403 ที่ `x:MtaSts` ตอนนี้ — ตรวจสิทธิ์/rate limit)
+- [ ] หลังนิ่ง: ตัด `ip4:169.58.196.147 ip6:2a02:c207:…` ออกจาก SPF · ลบเครื่อง EU ($6.6/เดือน) · ลบ record `169.58.196.147` ที่เหลือ (ถ้ามี)
+- [ ] ufw จำกัด 443/80 ให้เฉพาะ Cloudflare IP range (ตอนนี้ยิงตรงข้าม CF ได้) — ทำได้แล้วเพราะเมลใช้ port แยก
+- [ ] backup: `stalwart-backup.timer` เปิดแล้วบน SG (03:00 UTC) — ยังเก็บ local อย่างเดียว (upload script ยังไม่มี เหมือนเดิม)
