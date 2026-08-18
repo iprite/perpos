@@ -9,8 +9,9 @@ import { NextRequest } from "next/server";
 import { requireAdmin } from "../../../_lib/auth";
 import { createAdminClient } from "../../../_lib/supabase";
 import { ok } from "../../../_lib/response";
+import { normalizeHeartbeat, type MailHeartbeat } from "@/lib/mail/server-monitor";
 
-type Kind = "worker" | "scheduler" | "integration";
+type Kind = "vps_app" | "worker" | "scheduler" | "integration";
 
 type ServiceDef = {
   id: string;
@@ -21,13 +22,67 @@ type ServiceDef = {
   platform: string; // GCP Cloud Run / Cloud Scheduler / managed ...
   region?: string;
   urlEnv?: string; // env ที่เก็บ URL (worker)
-  healthPath?: string; // path สำหรับ ping (worker)
+  url?: string; // URL ตายตัว (vps_app — โดเมนสาธารณะ ping ผ่าน Cloudflare เหมือนผู้ใช้จริง)
+  container?: string; // ชื่อ container ใน docker compose (vps_app) — จับคู่กับ heartbeat
+  healthPath?: string; // path สำหรับ ping (worker/vps_app)
   secretEnv?: string[]; // env secret ที่ต้องตั้ง
   configEnv?: string[]; // env config ที่ต้องตั้ง (integration)
 };
 
 // ─── ทะเบียน backend ทั้งหมดของ PERPOS ──────────────────────────────────────────
 const REGISTRY: ServiceDef[] = [
+  // ── เว็บ 3 แอปบน VPS SG (Docker Compose · เครื่องเดียวกับ Stalwart) ──
+  // ping ผ่านโดเมนจริง (เมฆส้ม → Caddy → container) = เส้นทางเดียวกับผู้ใช้ · สถานะ container/RAM/
+  // release มาจาก heartbeat ของเครื่อง (`vps` ในผลลัพธ์) — ดู lib/mail/server-monitor.ts
+  {
+    id: "vps-perpos",
+    name: "perpos (app.perpos.ai)",
+    kind: "vps_app",
+    purpose: "PERPOS Suite/Flow + webmail (mail.perpos.ai) + API/scheduler ทั้งหมด",
+    stack: "Next.js 15 standalone · node:22-alpine · mem_limit 1536m",
+    platform: "Contabo VPS SG (Docker)",
+    region: "62.146.233.27",
+    url: "https://app.perpos.ai",
+    container: "perpos",
+    healthPath: "/api/health",
+  },
+  {
+    id: "vps-exapp",
+    name: "exapp (exworker)",
+    kind: "vps_app",
+    purpose:
+      "แอป exworker — คนละ repo/deploy pipeline แต่อยู่เครื่องเดียวกัน (schema `exapp` ใน Supabase เดียวกัน)",
+    stack: "Next.js standalone · node:22-alpine · mem_limit 1024m",
+    platform: "Contabo VPS SG (Docker)",
+    region: "62.146.233.27",
+    url: process.env.EXAPP_HEALTH_URL || "https://app.exworker.co.th",
+    container: "exapp",
+    healthPath: "/",
+  },
+  {
+    id: "vps-riekchang",
+    name: "riekchang",
+    kind: "vps_app",
+    purpose: "แอป riekchang — คนละ repo/deploy pipeline แต่อยู่เครื่องเดียวกัน",
+    stack: "Next.js standalone · node:22-alpine",
+    platform: "Contabo VPS SG (Docker)",
+    region: "62.146.233.27",
+    url: process.env.RIEKCHANG_HEALTH_URL || "https://app.riekchang.com",
+    container: "riekchang",
+    healthPath: "/",
+  },
+  {
+    id: "vps-caddy",
+    name: "caddy (reverse proxy + TLS)",
+    kind: "vps_app",
+    purpose:
+      "รับ 80/443 ทุกโดเมน → proxy เข้า container/Stalwart · ออกใบรับรองอัตโนมัติ (DNS-01 Cloudflare)",
+    stack: "Caddy 2 + cloudflare DNS plugin",
+    platform: "Contabo VPS SG (Docker)",
+    region: "62.146.233.27",
+    container: "caddy",
+    secretEnv: [],
+  },
   // ── Cloud Run workers ──
   {
     id: "pdf-renderer",
@@ -78,15 +133,15 @@ const REGISTRY: ServiceDef[] = [
     healthPath: "/health",
     secretEnv: ["WORKER_SECRET"],
   },
-  // ── Cloud Scheduler ──
+  // ── cron ──
   {
     id: "scheduler",
-    name: "assistant-scheduler (cron ทุก 1 นาที)",
+    name: "assistant-scheduler (crontab ทุก 1 นาที)",
     kind: "scheduler",
-    purpose: "ดูแลงานผู้ช่วย AI — ปิดงานค้าง (stuck), ยิงงานคิวซ้ำ (requeue), ลบไฟล์ตาม PDPA",
-    stack: "HTTP POST → /api/assistant/scheduler",
-    platform: "GCP Cloud Scheduler",
-    region: "asia-southeast1",
+    purpose:
+      "ดูแลงานผู้ช่วย AI (stuck/requeue/PDPA) + เฝ้าเซิร์ฟเวอร์ VPS (t5) + sync บิล GCP (t1440) — /etc/cron.d/perpos บน VPS",
+    stack: "HTTP POST 127.0.0.1:3005/api/assistant/scheduler",
+    platform: "crontab บน VPS SG (Cloud Scheduler PAUSED ตั้งแต่ 2026-08-19)",
     secretEnv: ["CRON_SECRET"],
   },
   // ── Managed integrations ──
@@ -160,14 +215,31 @@ export async function GET(req: NextRequest) {
   const envPresent = (keys?: string[]) =>
     (keys ?? []).map((k) => ({ key: k, present: !!process.env[k] }));
 
-  // scheduler last-run (จาก scheduler_runs)
+  // scheduler last-run (จาก scheduler_runs) + heartbeat ล่าสุดของเครื่อง VPS (จาก mail_server_health)
   const admin = createAdminClient();
-  const { data: lastRun } = await admin
-    .from("scheduler_runs")
-    .select("ran_at, ok")
-    .order("ran_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  const [{ data: lastRun }, { data: hostRow }] = await Promise.all([
+    admin
+      .from("scheduler_runs")
+      .select("ran_at, ok")
+      .order("ran_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    admin
+      .from("mail_server_health")
+      .select("heartbeat, heartbeat_at, last_issues, last_check_at")
+      .eq("id", "stalwart")
+      .maybeSingle(),
+  ]);
+  const hb: MailHeartbeat | null = hostRow?.heartbeat
+    ? normalizeHeartbeat(hostRow.heartbeat)
+    : null;
+  const rawHb = (hostRow?.heartbeat ?? null) as Record<string, unknown> | null;
+  const hbNum = (k: string) => {
+    const v = rawHb?.[k];
+    return typeof v === "number" && Number.isFinite(v) ? v : null;
+  };
+  const containersByName = new Map((hb?.containers ?? []).map((c) => [c.name, c]));
+  const appsByName = new Map((hb?.apps ?? []).map((a) => [a.app, a]));
 
   const services = await Promise.all(
     REGISTRY.map(async (s) => {
@@ -182,6 +254,29 @@ export async function GET(req: NextRequest) {
         secrets: envPresent(s.secretEnv),
         configs: envPresent(s.configEnv),
       };
+
+      if (s.kind === "vps_app") {
+        const container = s.container ? (containersByName.get(s.container) ?? null) : null;
+        const release = s.container ? (appsByName.get(s.container) ?? null) : null;
+        const h = s.url ? await pingHealth(s.url, s.healthPath ?? "/") : null;
+        // สถานะ = HTTP ตอบไหม (ถ้ามี URL) · ไม่มี URL (caddy) ใช้ state ของ container จาก heartbeat
+        const status = h
+          ? h.status
+          : container
+            ? container.state === "running"
+              ? "up"
+              : "down"
+            : "unknown";
+        return {
+          ...base,
+          url: s.url ?? null,
+          configured: true,
+          status,
+          latency_ms: h?.latency_ms ?? null,
+          container,
+          release,
+        };
+      }
 
       if (s.kind === "worker" && s.urlEnv) {
         const url = process.env[s.urlEnv];
@@ -224,5 +319,22 @@ export async function GET(req: NextRequest) {
     }),
   );
 
-  return ok({ services, checked_at: new Date().toISOString() });
+  // สรุปเครื่อง VPS (ทรัพยากรจาก heartbeat แถวล่าสุด) — กราฟย้อนหลังดูที่ /admin/mail แท็บเครื่องเซิร์ฟเวอร์
+  const vps = {
+    heartbeat_at: (hostRow?.heartbeat_at as string | null) ?? null,
+    last_check_at: (hostRow?.last_check_at as string | null) ?? null,
+    issues: (hostRow?.last_issues as Record<string, string> | null) ?? {},
+    disk_pct: hb?.diskPct ?? null,
+    disk_used_bytes: hbNum("diskUsedBytes"),
+    disk_total_bytes: hbNum("diskTotalBytes"),
+    mem_used_mb: hbNum("memUsedMb"),
+    mem_total_mb: hbNum("memTotalMb"),
+    load1: hbNum("load1"),
+    cpu_count: hbNum("cpuCount"),
+    uptime_seconds: hbNum("uptimeSeconds"),
+    containers: hb?.containers ?? null,
+    apps: hb?.apps ?? null,
+  };
+
+  return ok({ services, vps, checked_at: new Date().toISOString() });
 }

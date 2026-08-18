@@ -111,6 +111,8 @@ jobs:
             cd $APP && mkdir -p releases/$TS
             curl -sSf --retry 3 --retry-delay 5 -o art.tgz \"\$(cat)\"
             tar -xzf art.tgz -C releases/$TS && rm -f art.tgz
+            # ป้าย commit ของ release นี้ — heartbeat อ่านไปโชว์ที่ /admin/system (ตรวจว่า prod รัน sha ไหน)
+            printf '%s\n' '${{ github.sha }}' > releases/$TS/RELEASE
             ln -sfn $APP/releases/$TS $APP/current
             cd /srv/deploy && docker compose up -d perpos && docker compose restart perpos
             # เก็บ 3 release ล่าสุดพอ (rollback = ln -sfn ไป release ก่อนหน้า + restart)
