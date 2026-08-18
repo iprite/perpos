@@ -144,7 +144,19 @@ export const MAIL_SANITIZE_OPTIONS: sanitizeHtml.IOptions = {
   transformTags: {
     a: (tagName, attribs) => ({
       tagName,
-      attribs: { ...attribs, target: "_blank", rel: "noopener noreferrer nofollow" },
+      attribs: {
+        // title = ปลายทางจริง — ชั้นสำรองของแถบบอกปลายทาง (§ MAIL_LINK_MESSAGE)
+        // ใช้ได้แม้สคริปต์ใน frame ถูกบล็อก · ไม่ทับ title เดิมที่ผู้ส่งตั้งมา
+        //
+        // 🔴 ต้องกรอง scheme เอง: transformTags ทำงาน **ก่อน** ด่าน allowedSchemes
+        //    ⇒ ถ้าคัดลอก href ดิบมา `javascript:` จะรอดมาโผล่ใน title (เทสจับข้อนี้ไว้)
+        ...(attribs.href && !attribs.title && SAFE_LINK_SCHEME.test(attribs.href)
+          ? { title: attribs.href }
+          : {}),
+        ...attribs,
+        target: "_blank",
+        rel: "noopener noreferrer nofollow",
+      },
     }),
   },
   disallowedTagsMode: "discard",
@@ -208,6 +220,9 @@ export function buildInlineImageMap(
   }
   return map;
 }
+
+/** scheme ที่ยอมให้คัดลอกไปโชว์ใน title ได้ (ตรงกับ allowedSchemesByTag ของ <a>) */
+const SAFE_LINK_SCHEME = /^(https?:|mailto:)/i;
 
 const QUOTE_SELECTOR = [
   "blockquote",

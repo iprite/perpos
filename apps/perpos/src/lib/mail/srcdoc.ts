@@ -44,6 +44,15 @@ export const MAIL_HEIGHT_PING = "perpos-mail-measure";
  */
 export const MAIL_SCROLL_MESSAGE = "perpos-mail-scroll";
 
+/**
+ * frame บอกหน้าเว็บว่าตอนนี้เมาส์/โฟกัสอยู่บนลิงก์ไหน (ส่ง `href` หรือ `null` เมื่อออก)
+ *
+ * ทำไมต้องมี: ลิงก์อยู่ในเอกสารคนละใบ ⇒ แถบบอกปลายทางของเบราว์เซอร์ไม่ขึ้น
+ * ผู้ใช้จึงคลิกโดยไม่เห็นว่าจะไปไหน — เป็นช่องฟิชชิงที่เมลปลอมใช้บ่อยที่สุด
+ * (สคริปต์แค่ "อ่าน" href ที่ผ่าน sanitizer มาแล้ว ไม่แก้ DOM ของเมล)
+ */
+export const MAIL_LINK_MESSAGE = "perpos-mail-link";
+
 /** ความสูงตั้งต้นก่อนวัดได้ + เพดานกัน frame ยักษ์ทำหน้าพัง (เกินเพดานให้เลื่อนในตัว) */
 export const MAIL_IFRAME_MIN_HEIGHT = 320;
 export const MAIL_IFRAME_MAX_HEIGHT = 20000;
@@ -97,6 +106,11 @@ const HEIGHT_SCRIPT = [
   "addEventListener('message',function(e){if(!e.data)return;",
   `if(e.data.type==='${MAIL_HEIGHT_PING}'){last=0;send();}`,
   `if(e.data.type==='${MAIL_SCROLL_MESSAGE}'){toHit();}});`,
+  "function linkAt(t){while(t&&t!==document){if(t.tagName==='A'&&t.getAttribute('href'))return t.getAttribute('href');t=t.parentNode;}return null;}",
+  `function tell(h){parent.postMessage({type:'${MAIL_LINK_MESSAGE}',href:h},'*');}`,
+  "addEventListener('mouseover',function(e){var h=linkAt(e.target);if(h)tell(h);},true);",
+  "addEventListener('mouseout',function(e){if(linkAt(e.target))tell(null);},true);",
+  "addEventListener('focusin',function(e){tell(linkAt(e.target));},true);",
   "if(window.ResizeObserver&&document.documentElement){new ResizeObserver(send).observe(document.documentElement);}",
   // ยังเผื่อไว้สำหรับเบราว์เซอร์ที่ ResizeObserver ไม่ยิงตอนรูปมาช้า
   "setTimeout(send,400);setTimeout(send,1500);",

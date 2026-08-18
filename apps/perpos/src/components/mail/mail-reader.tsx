@@ -29,6 +29,7 @@ import {
   FolderInput,
   ImageOff,
   Mail,
+  Maximize2,
   Paperclip,
   Search,
   Star,
@@ -62,6 +63,7 @@ import { highlightHtml } from "@/lib/mail/highlight";
 import {
   MAIL_HEIGHT_MESSAGE,
   MAIL_HEIGHT_PING,
+  MAIL_LINK_MESSAGE,
   MAIL_SCROLL_MESSAGE,
   MAIL_IFRAME_FALLBACK_HEIGHT,
   MAIL_IFRAME_MAX_HEIGHT,
@@ -493,6 +495,15 @@ function ThreadView({
  */
 const heightCache = new Map<string, number>();
 
+/** โดเมนของลิงก์ — ส่วนที่ต้องอ่านก่อนตัดสินใจคลิก (URL พังก็คืนค่าเดิมไปเลย ดีกว่าไม่บอกอะไร) */
+function linkHost(href: string): string {
+  try {
+    return new URL(href).host || href;
+  } catch {
+    return href;
+  }
+}
+
 /** เดาความสูงจากความยาวข้อความ — ใกล้ของจริงกว่าค่าคงที่ 320px มาก สำหรับฉบับที่ยังไม่เคยวัด */
 function estimateHeight(message: MailMessageDetail): number {
   const chars = message.textBody?.length ?? 0;
@@ -520,6 +531,9 @@ function MessageCard({
   const [imagesHtml, setImagesHtml] = useState<string | null>(null);
   const [loadingImages, setLoadingImages] = useState(false);
   const [preview, setPreview] = useState<MailAttachment | null>(null);
+  /** ลิงก์ที่เมาส์/โฟกัสอยู่ใน frame — แถบบอกปลายทางกันคลิกลิงก์ปลอม */
+  const [hoverLink, setHoverLink] = useState<string | null>(null);
+  const [fullscreen, setFullscreen] = useState(false);
 
   const showImages = useCallback(async () => {
     setLoadingImages(true);
@@ -589,8 +603,13 @@ function MessageCard({
 
     const onMessage = (e: MessageEvent) => {
       if (!frameRef.current || e.source !== frameRef.current.contentWindow) return;
-      const data = e.data as { type?: unknown; height?: unknown } | null;
-      if (!data || data.type !== MAIL_HEIGHT_MESSAGE) return;
+      const data = e.data as { type?: unknown; height?: unknown; href?: unknown } | null;
+      if (!data) return;
+      if (data.type === MAIL_LINK_MESSAGE) {
+        setHoverLink(typeof data.href === "string" ? data.href : null);
+        return;
+      }
+      if (data.type !== MAIL_HEIGHT_MESSAGE) return;
       if (typeof data.height !== "number" || !Number.isFinite(data.height)) return;
       done = true;
       const h = Math.min(
@@ -710,6 +729,21 @@ function MessageCard({
                 </div>
               )}
 
+              {srcDoc && (
+                <div className="mb-2 flex justify-end">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 text-xs text-gray-500"
+                    onClick={() => setFullscreen(true)}
+                    title="เปิดเต็มหน้า"
+                  >
+                    <Maximize2 className="h-3.5 w-3.5" />
+                    เปิดเต็มหน้า
+                  </Button>
+                </div>
+              )}
+
               {srcDoc ? (
                 <iframe
                   ref={frameRef}
@@ -765,6 +799,41 @@ function MessageCard({
           )}
         </div>
       </div>
+
+      {/* แถบบอกปลายทางของลิงก์ — เบราว์เซอร์ไม่ขึ้นให้เองเพราะลิงก์อยู่ในเอกสารคนละใบ
+          โดเมนตัวหนาก่อนเสมอ: คนอ่านโดเมนก่อน ไม่ใช่ path (ฟิชชิงชอบซ่อนโดเมนจริงไว้ท้าย URL) */}
+      {open && hoverLink && (
+        <div className="flex items-center gap-2 border-t border-gray-100 bg-gray-50 px-4 py-1.5">
+          <span className="shrink-0 text-[11px] text-gray-400">ไปที่</span>
+          <span className="min-w-0 flex-1 truncate text-[11px] text-gray-500">
+            <span className="font-semibold text-gray-700">{linkHost(hoverLink)}</span>
+            <span className="ms-1">{hoverLink}</span>
+          </span>
+        </div>
+      )}
+
+      <Dialog open={fullscreen} onOpenChange={setFullscreen}>
+        <DialogContent size="full">
+          <DialogHeader>
+            <DialogTitle className="truncate">
+              {message.subject?.trim() || "(ไม่มีหัวเรื่อง)"}
+            </DialogTitle>
+          </DialogHeader>
+          <DialogBody className="p-0">
+            {/* iframe คนละตัวกับในการ์ด แต่ sandbox/CSP ชุดเดียวกันเป๊ะ (srcDoc เดิม)
+                ไม่ต้องวัดความสูง — ให้เนื้อหาเลื่อนในกรอบเต็มจอเอง */}
+            {srcDoc && (
+              <iframe
+                title="เนื้อหาอีเมล (เต็มหน้า)"
+                sandbox={MAIL_IFRAME_SANDBOX}
+                srcDoc={srcDoc}
+                referrerPolicy="no-referrer"
+                className="h-[80vh] w-full bg-white"
+              />
+            )}
+          </DialogBody>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={!!preview} onOpenChange={(o) => !o && setPreview(null)}>
         <DialogContent size="3xl">
