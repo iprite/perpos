@@ -229,7 +229,9 @@ function zipStore(files: { name: string; data: string }[]) {
     ...u16(0),
   ]);
 
-  return new Blob([...parts, ...central, eocd], {
+  // TS 5.7+ ผูก Uint8Array กับชนิด buffer (ArrayBuffer | SharedArrayBuffer) — `BlobPart`
+  // รับเฉพาะ ArrayBuffer จึงต้อง cast (ค่าจริงมาจาก Uint8Array.from ทั้งหมด ปลอดภัย)
+  return new Blob([...parts, ...central, eocd] as unknown as BlobPart[], {
     type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   });
 }

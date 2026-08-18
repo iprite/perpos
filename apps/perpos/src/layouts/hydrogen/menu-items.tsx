@@ -552,13 +552,20 @@ function buildJustMeMenuItems(
   const l = (key: string, fallback: string) => labels[key] || fallback;
   const items: MenuItem[] = [{ name: "Just Me" }];
 
-  // Only show Dashboard to owner and admin roles
-  if (orgRole === "owner" || orgRole === "admin") {
+  // กติกาสิทธิ์ (ต้องตรงกับ `[orgSlug]/just-me/_guard.ts` เสมอ — ซ่อนเมนูอย่างเดียวไม่พอ):
+  //   owner = ทุกเมนู · admin = ทุกเมนูยกเว้น "อนุมัติค่าเดินทาง" (เงินจ่ายออกต้องผ่านเจ้าของ)
+  //   ที่เหลือ (manager/viewer/member) = เฉพาะคลังสินค้า + เวลาทำงานและการเดินทาง
+  const isOwner = orgRole === "owner";
+  const isManagement = isOwner || orgRole === "admin";
+
+  if (isManagement) {
     items.push({
       name: l("dashboard", "Dashboard"),
       href: `/${org}/just-me`,
       icon: <LayoutDashboard className="h-5 w-5" />,
     });
+  }
+  if (isOwner) {
     items.push({
       name: l("travel_claims", "อนุมัติค่าเดินทาง"),
       href: p("travel-claims"),
@@ -566,6 +573,7 @@ function buildJustMeMenuItems(
     });
   }
 
+  // งานหน้างาน — ทุกคนในโมดูลเห็น
   items.push({
     name: "เวลาทำงานและการเดินทาง",
     href: p("clock-in-out"),
@@ -577,14 +585,13 @@ function buildJustMeMenuItems(
     icon: <Package className="h-5 w-5" />,
   });
 
-  // ─ บริหารโครงการ (presale → construction)
-  items.push({
-    name: l("projects", "โครงการ"),
-    href: p("projects"),
-    icon: <FolderKanban className="h-5 w-5" />,
-  });
-  // ราคามาตรฐาน/ใบขอซื้อ/ผู้ขาย/รายงาน = มีต้นทุนและกำไร → เฉพาะผู้บริหาร
-  if (orgRole === "owner" || orgRole === "admin") {
+  // บริหารโครงการ + ราคามาตรฐาน/ใบขอซื้อ/ผู้ขาย/รายงาน = เห็นต้นทุนและกำไร → ผู้บริหารเท่านั้น
+  if (isManagement) {
+    items.push({
+      name: l("projects", "โครงการ"),
+      href: p("projects"),
+      icon: <FolderKanban className="h-5 w-5" />,
+    });
     items.push({
       name: l("price_book", "ราคามาตรฐาน"),
       href: p("price-book"),
