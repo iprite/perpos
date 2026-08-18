@@ -139,9 +139,17 @@ MTA-STS            → mode: enforce · mx: stalwart.perpos.ai · max_age 86400
 
 ### D+1 → D+7 — เก็บกวาด
 
-- [ ] ยืนยันไม่มีเมลวิ่งเข้าเครื่องเก่าอีก (ดู log) → ปิดเครื่องเก่า **แต่ยังไม่ลบ** (เก็บ 7 วันเป็น rollback)
-- [ ] ตัด IP เก่าออกจาก SPF · ตัดชื่อเก่าออกจาก MTA-STS policy (ขยับ `id` อีกครั้ง) · ดัน TTL กลับ
-- [ ] ลบเครื่อง Hetzner + ยกเลิกบิล · อัปเดต `infra_costs` (Hetzner/Contabo อยู่นอกท่อ billing_export ต้องกรอกเอง)
+- [x] **ปิดเครื่องเก่าแล้ว 2026-08-18** (log 6 ชม.สุดท้ายไม่มีเมลเข้าเลย · `systemctl disable stalwart` + `poweroff`)
+      **ยังไม่ลบ — เก็บเป็น rollback ถึง ~25 ส.ค.** · ⚠️ ยังเสียค่าเครื่องอยู่ระหว่างนี้ (ปิดเครื่องไม่หยุดบิลของ Hetzner)
+      · ของที่ต้องมี**ก่อนลบ** ย้ายมาครบแล้ว: สคริปต์ backup/heartbeat · `/root/.stalwart-backup-key` (+ Keychain) · `/root/.gcs-backup-sa.json`
+- [ ] 🔴 **ตัด IP เก่าออกจาก SPF ก่อนคืน IP เสมอ** (`46.225.14.18` + `2a01:4f8:c2c:105a::1` ยังอยู่ใน SPF
+      ของ **perpos.ai และ exworker.co.th** ทั้งคู่ ณ 18 ส.ค.) — Hetzner เอา IP ไปให้ลูกค้ารายอื่นต่อ
+      ⇒ คนนั้นจะส่งเมลอ้างโดเมนเราผ่าน SPF ได้ทันที · ถือเป็น **เงื่อนไขก่อน `terraform destroy`**
+      · ตัด `include:spf.brevo.com` ออกด้วย (เลิกใช้ relay แล้ว)
+- [ ] ตัดชื่อเก่าออกจาก SPF · ตัดชื่อเก่าออกจาก MTA-STS policy (ขยับ `id` อีกครั้ง) · ดัน TTL กลับ
+- [ ] ลบเครื่อง Hetzner + ยกเลิกบิล — `cd infra/mail && read -rs TF_VAR_hcloud_token && export TF_VAR_hcloud_token && terraform destroy`
+      (7 resource: server/primary IP v4+v6/rdns v4+v6/firewall/ssh key) · **token ไม่เก็บบนดิสก์โดยตั้งใจ ⇒ คนต้องรันเอง**
+- [x] **อัปเดต `infra_costs` แล้ว** (2026-08-18 · `source='manual'` — Hetzner/Contabo อยู่นอกท่อ billing_export)
 - [ ] **ค่อยพิจารณาเปิดส่งตรงพอร์ต 25** เป็นงานแยกอีกรอบ (ดู §6)
 
 ---
