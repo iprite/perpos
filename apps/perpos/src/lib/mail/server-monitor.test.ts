@@ -25,6 +25,9 @@ const healthy = {
     smtp25Listening: true,
     containers: null,
     apps: null,
+    cronActive: null,
+    cronJobs: null,
+    uptimeSeconds: null,
   },
   heartbeatAt: new Date(NOW - H).toISOString(),
   now: NOW,
@@ -49,6 +52,9 @@ describe("evaluateIssues", () => {
         smtp25Listening: false,
         containers: null,
         apps: null,
+        cronActive: null,
+        cronJobs: null,
+        uptimeSeconds: null,
       },
     });
     expect(Object.keys(issues).sort()).toEqual([
@@ -73,6 +79,9 @@ describe("evaluateIssues", () => {
         smtp25Listening: false,
         containers: null,
         apps: null,
+        cronActive: null,
+        cronJobs: null,
+        uptimeSeconds: null,
       },
       heartbeatAt: new Date(NOW - 4 * H).toISOString(),
     });
@@ -142,6 +151,9 @@ describe("normalizeHeartbeat — payload จากเครื่องคือ
       smtp25Listening: null,
       containers: null,
       apps: null,
+      cronActive: null,
+      cronJobs: null,
+      uptimeSeconds: null,
     });
     expect(normalizeHeartbeat(null).diskPct).toBeNull();
     // container ที่ไม่มีชื่อถูกทิ้ง · memLimit 0 = ไม่มี limit → null
@@ -290,5 +302,56 @@ describe("withRestartDelta", () => {
     expect(out.find((c) => c.name === "perpos")!.restartDelta).toBe(2);
     expect(out.find((c) => c.name === "exapp")!.restartDelta).toBe(0);
     expect(out.find((c) => c.name === "caddy")!.restartDelta).toBe(0);
+  });
+});
+
+describe("cron + ใบรับรอง origin", () => {
+  const withCron = (
+    jobs: { url: string; lastRunAt: number }[] | null,
+    uptime = 100 * 3600,
+  ): MailHeartbeat => ({
+    ...hostOk,
+    cronActive: true,
+    cronJobs: jobs,
+    uptimeSeconds: uptime,
+  });
+  const nowS = NOW / 1000;
+
+  it("scheduler ทุกนาที + exapp รายวัน สดทั้งคู่ = ไม่มีปัญหา", () => {
+    const hb = withCron([
+      { url: "http://127.0.0.1:3005/api/assistant/scheduler", lastRunAt: nowS - 60 },
+      { url: "http://127.0.0.1:3006/api/admin/rep-usage/recalc", lastRunAt: nowS - 20 * 3600 },
+    ]);
+    expect(evaluateHostIssues(hb, NOW)).toEqual({});
+  });
+
+  it("exapp รายวันเกิน 26 ชม. / scheduler เกิน 10 นาที → เตือน · cron daemon หยุด → เตือน", () => {
+    const hb = withCron([
+      { url: "http://127.0.0.1:3005/api/assistant/scheduler", lastRunAt: nowS - 15 * 60 },
+      { url: "http://127.0.0.1:3006/api/admin/rep-usage/recalc", lastRunAt: nowS - 30 * 3600 },
+    ]);
+    const issues = evaluateHostIssues({ ...hb, cronActive: false }, NOW);
+    expect(Object.keys(issues).sort()).toEqual([
+      "cron:exapp-daily",
+      "cron:perpos-scheduler",
+      "cron:service",
+    ]);
+  });
+
+  it("ไม่เห็นใน journal: เครื่องเพิ่งบูต = ไม่เตือน · เปิดมา >30 ชม. = เตือน", () => {
+    expect(evaluateHostIssues(withCron([], 2 * 3600), NOW)).toEqual({});
+    expect(Object.keys(evaluateHostIssues(withCron([], 40 * 3600), NOW)).sort()).toEqual([
+      "cron:exapp-daily",
+      "cron:perpos-scheduler",
+    ]);
+  });
+
+  it("ใบรับรอง origin: <14 วัน → cert: · ต่อไม่ได้ (null) → origin: · ไม่ส่ง = ไม่ตรวจ", () => {
+    const issues = evaluateIssues({
+      ...healthy,
+      webCerts: { "app.perpos.ai": 80, "mail.perpos.ai": 5, "app.riekchang.com": null },
+    });
+    expect(Object.keys(issues).sort()).toEqual(["cert:mail.perpos.ai", "origin:app.riekchang.com"]);
+    expect(evaluateIssues(healthy)).toEqual({});
   });
 });

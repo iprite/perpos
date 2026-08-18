@@ -72,6 +72,34 @@ export interface HostApp {
   sha: string | null;
 }
 
+/** งาน cron ที่ journal เห็นว่าถูก "สั่งรัน" (CMD) ล่าสุด — ไม่รู้ผลของ curl · perpos ยืนยันซ้ำด้วย scheduler_runs */
+export interface CronJobSeen {
+  url: string;
+  /** epoch วินาที */
+  lastRunAt: number;
+}
+
+/**
+ * งาน cron ที่ต้องมีบนเครื่อง (จับคู่ด้วย substring ของ URL) + อายุสูงสุดที่ยอมรับได้
+ * ⚠️ cron ของ Ubuntu (3.0pl1) **ไม่สน `TZ=` ในไฟล์ crontab** ตอนคำนวณเวลา (แค่ export ให้ job)
+ *    — เครื่องต้องตั้ง timezone Asia/Bangkok เอง (ตั้งแล้ว 2026-08-19 · เดิม Berlin ทำให้งานรายวันช้า 5 ชม.)
+ */
+export const EXPECTED_CRON = [
+  { key: "perpos-scheduler", match: "3005/api/assistant/scheduler", maxAgeMin: 10 },
+  { key: "exapp-daily", match: "3006/api/admin/rep-usage/recalc", maxAgeMin: 26 * 60 },
+] as const;
+/** journal ว่างเปล่าตอนเครื่องเพิ่งขึ้น — ให้เวลาเครื่องเปิดมานานพอที่งานรายวันควรผ่านมาแล้วก่อนเตือน "ไม่เคยเห็น" */
+const CRON_NEVER_SEEN_MIN_UPTIME_S = 30 * 3600;
+
+/** โดเมนเว็บที่ Caddy ออกใบรับรองให้ (DNS-01) — ตรวจที่ origin ตรง ๆ ข้าม Cloudflare (Cloudflare edge cert ไม่ใช่ของเรา) */
+export const WEB_ORIGIN_IP = "62.146.233.27";
+export const WEB_DOMAINS = [
+  "app.perpos.ai",
+  "mail.perpos.ai",
+  "app.exworker.co.th",
+  "app.riekchang.com",
+] as const;
+
 export interface MailHeartbeat {
   diskPct: number | null;
   backupAgeHours: number | null;
@@ -82,6 +110,11 @@ export interface MailHeartbeat {
   /** สคริปต์รุ่นเก่า (ก่อน 2026-08-19) ไม่ส่งมา = null → ไม่ตัดสินอะไรเรื่อง container/deploy */
   containers: HostContainer[] | null;
   apps: HostApp[] | null;
+  /** cron daemon บนเครื่อง active ไหม · null = สคริปต์รุ่นเก่า */
+  cronActive: boolean | null;
+  cronJobs: CronJobSeen[] | null;
+  /** วินาทีที่เครื่องเปิดมา (ใช้ตัดสินว่า "ไม่เคยเห็น cron" ผิดปกติหรือแค่เพิ่งบูต) */
+  uptimeSeconds: number | null;
 }
 
 const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : null);
@@ -134,6 +167,18 @@ export function normalizeHeartbeat(raw: unknown): MailHeartbeat {
     apps: Array.isArray(r.apps)
       ? r.apps.map(normalizeApp).filter((a): a is HostApp => a !== null)
       : null,
+    cronActive: bool(r.cronActive),
+    cronJobs: Array.isArray(r.cronJobs)
+      ? r.cronJobs
+          .map((j) => {
+            const jj = (j ?? {}) as Record<string, unknown>;
+            const url = str(jj.url);
+            const at = num(jj.lastRunAt);
+            return url && at !== null ? { url, lastRunAt: at } : null;
+          })
+          .filter((j): j is CronJobSeen => j !== null)
+      : null,
+    uptimeSeconds: num(r.uptimeSeconds),
   };
 }
 
@@ -210,6 +255,26 @@ export function evaluateHostIssues(hb: MailHeartbeat, now: number): Record<strin
       }
     }
   }
+  if (hb.cronActive === false)
+    issues["cron:service"] = "cron daemon บนเครื่องไม่ทำงาน (งานตามเวลาทุกตัวหยุด)";
+  if (hb.cronJobs) {
+    for (const job of EXPECTED_CRON) {
+      const seen = hb.cronJobs.find((j) => j.url.includes(job.match));
+      if (!seen) {
+        // journal ไม่มีเลย — เพิ่งบูต/ติดตั้งยังไม่ถึงรอบ ก็ยังไม่ตัดสิน
+        if (hb.uptimeSeconds !== null && hb.uptimeSeconds >= CRON_NEVER_SEEN_MIN_UPTIME_S) {
+          issues[`cron:${job.key}`] =
+            `ไม่เห็น cron ${job.key} ถูกสั่งรันเลยใน journal ทั้งที่เครื่องเปิดมา >30 ชม. (ไฟล์ /etc/cron.d หาย/ผิด?)`;
+        }
+        continue;
+      }
+      const ageMin = (now / 1000 - seen.lastRunAt) / 60;
+      if (ageMin > job.maxAgeMin) {
+        issues[`cron:${job.key}`] =
+          `cron ${job.key} ถูกสั่งรันล่าสุด ${Math.round(ageMin >= 120 ? ageMin / 60 : ageMin)} ${ageMin >= 120 ? "ชม." : "นาที"}ก่อน (ควร ≤${job.maxAgeMin >= 120 ? `${job.maxAgeMin / 60} ชม.` : `${job.maxAgeMin} นาที`})`;
+      }
+    }
+  }
   return issues;
 }
 
@@ -248,6 +313,32 @@ async function checkJmap(): Promise<string | null> {
   }
 }
 
+/** ใบรับรองที่ origin ตอบเมื่อ SNI = servername · ต่อไปที่ `ip` ตรง (ข้าม Cloudflare) · null = ต่อไม่ได้/วัดไม่ได้ */
+export function checkOriginCertDaysLeft(
+  servername: string,
+  ip: string,
+  timeoutMs = 10_000,
+): Promise<number | null> {
+  return new Promise((resolve) => {
+    const sock = tls.connect({ host: ip, port: 443, servername });
+    const timer = setTimeout(() => {
+      sock.destroy();
+      resolve(null);
+    }, timeoutMs);
+    sock.once("secureConnect", () => {
+      clearTimeout(timer);
+      const cert = sock.getPeerCertificate();
+      sock.destroy();
+      if (!cert?.valid_to) return resolve(null);
+      resolve(Math.floor((new Date(cert.valid_to).getTime() - Date.now()) / 86_400_000));
+    });
+    sock.once("error", () => {
+      clearTimeout(timer);
+      resolve(null);
+    });
+  });
+}
+
 function checkCertDaysLeft(timeoutMs = 10_000): Promise<number | null> {
   return new Promise((resolve) => {
     const sock = tls.connect({ host: HOST, port: 443, servername: HOST });
@@ -284,9 +375,20 @@ export function evaluateIssues(args: {
   heartbeat: MailHeartbeat | null;
   heartbeatAt: string | null;
   now: number;
+  /** ใบรับรองของโดเมนเว็บที่ origin (Caddy) — วันที่เหลือต่อโดเมน · null = ต่อไม่ได้ · ไม่ส่ง = ไม่ตรวจ */
+  webCerts?: Record<string, number | null>;
 }): Record<string, string> {
   const issues: Record<string, string> = {};
   if (args.smtpError) issues.smtp = `รับเมลไม่ได้: ${args.smtpError}`;
+  for (const [domain, days] of Object.entries(args.webCerts ?? {})) {
+    if (days === null) {
+      issues[`origin:${domain}`] =
+        `Caddy ที่ origin ไม่ตอบ TLS สำหรับ ${domain} (ผู้ใช้จะเจอ Cloudflare 52x)`;
+    } else if (days < CERT_WARN_DAYS) {
+      issues[`cert:${domain}`] =
+        `ใบรับรอง ${domain} ที่ Caddy เหลือ ${days} วัน (DNS-01 ต่ออายุไม่สำเร็จ?)`;
+    }
+  }
   if (args.jmapError) issues.jmap = `เว็บเมล/JMAP มีปัญหา: ${args.jmapError}`;
   if (args.certDaysLeft !== null && args.certDaysLeft < CERT_WARN_DAYS) {
     issues.cert = `ใบรับรอง TLS เหลือ ${args.certDaysLeft} วัน (ACME อาจต่ออายุไม่สำเร็จ)`;
@@ -349,6 +451,9 @@ function recoverLabel(key: string): string {
   if (name && kind === "container") return `container ${name}`;
   if (name && kind === "mem") return `RAM ของ container ${name}`;
   if (name && kind === "deploy") return `release ของ ${name}`;
+  if (name && kind === "cron") return name === "service" ? "cron daemon" : `cron ${name}`;
+  if (name && kind === "cert") return `ใบรับรอง ${name}`;
+  if (name && kind === "origin") return `Caddy origin ${name}`;
   return RECOVER_LABEL[key] ?? key;
 }
 
@@ -368,11 +473,16 @@ export async function runMailServerMonitor(
   admin: SupabaseClient,
 ): Promise<{ issues: number } | null> {
   try {
-    const [smtpError, jmapError, certDaysLeft] = await Promise.all([
+    const [smtpError, jmapError, certDaysLeft, ...webCertDays] = await Promise.all([
       checkSmtp(),
       checkJmap(),
       checkCertDaysLeft(),
+      ...WEB_DOMAINS.map((d) => checkOriginCertDaysLeft(d, WEB_ORIGIN_IP)),
     ]);
+    const webCerts: Record<string, number | null> = {};
+    WEB_DOMAINS.forEach((d, i) => {
+      webCerts[d] = webCertDays[i] ?? null;
+    });
 
     const { data: row } = await admin
       .from("mail_server_health")
@@ -388,6 +498,7 @@ export async function runMailServerMonitor(
       heartbeat: row?.heartbeat ? normalizeHeartbeat(row.heartbeat) : null,
       heartbeatAt: (row?.heartbeat_at as string | null) ?? null,
       now,
+      webCerts,
     });
 
     const prev: AlertState = { active: {} };
@@ -421,6 +532,7 @@ export async function runMailServerMonitor(
         alert_state: next,
         last_check_at: new Date(now).toISOString(),
         last_issues: issues,
+        web_certs: webCerts,
       },
       { onConflict: "id" },
     );

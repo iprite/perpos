@@ -66,7 +66,7 @@ cd /srv/deploy && docker compose up -d caddy
 0 3 * * *   deploy curl -sf -X POST -H "x-cron-secret: $CRON_SECRET" http://127.0.0.1:3006/api/admin/rep-usage/recalc >/dev/null
 ```
 
-ทั้งสองไฟล์ตั้ง `TZ=Asia/Bangkok` (เครื่องเป็น Europe/Berlin — job รายวันจะเพี้ยน 5 ชม.ถ้าไม่ตั้ง) · **Cloud Scheduler ทั้ง 5 job PAUSED แล้ว 2026-08-19** (ยังไม่ลบ = rollback ได้)
+🪤 **`TZ=Asia/Bangkok` ในไฟล์ crontab ไม่มีผลกับเวลาที่ cron คำนวณ** (Ubuntu `cron` 3.0pl1 แค่ export ให้ job · เฉพาะ cronie ถึงมี `CRON_TZ`) — เครื่องเดิมเป็น Europe/Berlin ทำให้งานรายวัน**ทุกตัวช้า 5 ชม.** (daily-occupancy 20:00 ไปยิงตอน 01:00 BKK · exapp 03:00 → 08:00) · **แก้แล้ว 2026-08-19: `timedatectl set-timezone Asia/Bangkok` + `systemctl restart cron`** — เครื่องใหม่ต้องตั้ง timezone ระดับ OS เสมอ อย่าพึ่ง TZ ในไฟล์ · **Cloud Scheduler ทั้ง 5 job PAUSED แล้ว 2026-08-19** (ยังไม่ลบ = rollback ได้)
 
 port 3005–3007 bind ที่ `127.0.0.1` เท่านั้นใน compose (cron บน host ยิงได้ · internet เข้าไม่ได้)
 
@@ -82,6 +82,8 @@ port 3005–3007 bind ที่ `127.0.0.1` เท่านั้นใน compo
   - `crash:<name>` — RestartCount เพิ่ม = crash แล้ว restart เอง (แจ้งครั้งเดียว ไม่มี "กลับมาปกติ" ตาม)
   - `mem:<name>` — RAM ≥90% ของ `mem_limit` ใน compose (perpos 1536m / exapp 1024m)
   - `deploy:<app>` — symlink `current` ใหม่กว่า container start >10 นาที = deploy แล้ว container ไม่ restart · หรือ symlink ชี้ release ที่ถูกลบ
+  - `cron:service` / `cron:perpos-scheduler` (>10 นาที) / `cron:exapp-daily` (>26 ชม.) — จาก `journalctl -u cron` (เห็นแค่ว่า CMD ถูกเรียก) · "ไม่เคยเห็น" เตือนเมื่อเครื่องเปิดมา >30 ชม.
+  - `cert:<โดเมน>` (<14 วัน) / `origin:<โดเมน>` (ต่อไม่ได้) — ตัวเฝ้าต่อ TLS ไป **`62.146.233.27:443` ตรง ๆ พร้อม SNI** ของ app.perpos.ai / mail.perpos.ai / app.exworker.co.th / app.riekchang.com (ข้าม Cloudflare — ใบที่ผู้ใช้เห็นเป็นของ CF แต่ถ้า origin หมดอายุจะได้ 526)
 - **อัปเดตสคริปต์บนเครื่อง**: `scp scripts/mail-heartbeat.sh root@62.146.233.27:/usr/local/bin/mail-heartbeat.sh` (timer ใช้ตัวใหม่รอบถัดไป · ไม่ต้อง restart) — ห้ามลืมทุกครั้งที่แก้สคริปต์ ไม่งั้นหน้า admin โชว์ค่าเก่าเงียบ ๆ
 - 🪤 **เครื่องเมลเก่า (Contabo EU) ยังยิง heartbeat แถวเดียวกัน (`id=stalwart`)** ได้ ถ้าไม่ปิด timer — เคยเป็น 2026-08-19: EU (stalwart หยุดแล้ว, ดิสก์ 5%) สลับกับ SG (13%) ทุกไม่กี่นาที → เตือน "service stalwart ไม่ active / ไม่มีอะไรฟังพอร์ต 25" ทั้งที่ SG ปกติ · แก้แล้วด้วย `systemctl disable --now stalwart-heartbeat.timer` บน EU — **ก่อนย้าย/โคลนเครื่องต้องปิด timer ฝั่งเก่าเสมอ** · สังเกตได้จาก `mail_server_samples` ที่ disk_pct/service_active สลับไปมา
 - ⚠️ ตัวเฝ้ารันใน container perpos บนเครื่องเดียวกัน → เครื่องดับ/perpos ล่มทั้งตัว = เงียบ · **ด่านนอก** = GitHub Actions `uptime.yml` (ping `app.perpos.ai/api/health` ทุก 5 นาที ยิง LINE ตรง)

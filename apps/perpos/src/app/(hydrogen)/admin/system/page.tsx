@@ -55,6 +55,9 @@ type Vps = {
   uptime_seconds: number | null;
   containers: HostContainer[] | null;
   apps: HostApp[] | null;
+  cron_active: boolean | null;
+  cron_jobs: { url: string; lastRunAt: number }[] | null;
+  web_certs: Record<string, number | null> | null;
 };
 type Service = {
   id: string;
@@ -421,6 +424,57 @@ function VpsHostCard({ vps }: { vps: Vps }) {
           valueColored
         />
       </div>
+      {(vps.cron_jobs || vps.web_certs) && (
+        <div className="grid grid-cols-1 gap-4 border-t border-gray-100 px-5 py-3 text-xs sm:grid-cols-2">
+          {vps.cron_jobs && (
+            <div>
+              <p className="mb-1 font-medium text-gray-700">
+                cron บนเครื่อง{" "}
+                <span className={vps.cron_active === false ? "text-red-600" : "text-green-600"}>
+                  ({vps.cron_active === false ? "daemon หยุด!" : "daemon ทำงาน"})
+                </span>
+              </p>
+              <ul className="space-y-0.5 text-gray-500">
+                {vps.cron_jobs.length === 0 && (
+                  <li>ยังไม่เห็นงานถูกสั่งรันใน journal 26 ชม.ที่ผ่านมา</li>
+                )}
+                {[...vps.cron_jobs]
+                  .sort((a, b) => b.lastRunAt - a.lastRunAt)
+                  .map((j) => (
+                    <li key={j.url} className="flex justify-between gap-3">
+                      <code className="truncate">{j.url.replace("http://127.0.0.1:", ":")}</code>
+                      <span className="shrink-0">
+                        สั่งรัน {ago(new Date(j.lastRunAt * 1000).toISOString())}
+                      </span>
+                    </li>
+                  ))}
+              </ul>
+              <p className="mt-1 text-[10px] text-gray-400">
+                journal บอกแค่ว่าถูกเรียก — ผลจริงของ perpos ดูที่ Scheduler Monitor
+              </p>
+            </div>
+          )}
+          {vps.web_certs && (
+            <div>
+              <p className="mb-1 font-medium text-gray-700">
+                ใบรับรอง TLS ที่ Caddy origin (ข้าม Cloudflare)
+              </p>
+              <ul className="space-y-0.5 text-gray-500">
+                {Object.entries(vps.web_certs).map(([d, days]) => (
+                  <li key={d} className="flex justify-between gap-3">
+                    <code>{d}</code>
+                    <span
+                      className={days === null ? "text-red-600" : days < 14 ? "text-amber-600" : ""}
+                    >
+                      {days === null ? "ต่อไม่ได้" : `เหลือ ${days} วัน`}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
       {issues.length > 0 && (
         <div className="border-t border-gray-100 px-5 py-3">
           <p className="mb-1.5 text-xs font-medium text-red-600">
