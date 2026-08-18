@@ -28,39 +28,73 @@ export interface BoqPriceOption {
   overhead_unit_cost: number;
 }
 
-export interface ProjectDetailInitial {
+/** แท็บของหน้ารายละเอียดโครงการ (นิยามที่นี่เพื่อให้ทั้ง server/client อ้างชุดเดียวกัน) */
+export type TabKey = "overview" | "files" | "boq" | "purchasing" | "billings" | "usage";
+
+/** ของที่หน้าต้องมีเสมอไม่ว่าจะเปิดแท็บไหน (หัวเรื่อง + การ์ดสรุปเงิน) */
+export interface ProjectCoreInitial {
   project: JustMeProject;
-  files: JustMeProjectFile[];
-  boqs: JustMeBoq[];
-  /** บรรทัดของ BOQ ฉบับที่เลือกไว้ตอนเปิดหน้า (ฉบับล่าสุด) */
-  activeBoqId: string | null;
-  activeItems: JustMeBoqItem[];
   /** null = ผู้ใช้ไม่มีสิทธิ์เห็นต้นทุน */
   summary: ProjectMoneySummary | null;
+  /** ความพร้อมของฝั่งบัญชี — ใช้ "เตือน" ก่อนออกเอกสาร (ไม่บล็อก) */
+  accounting: ProjectAccountingInfo;
+}
+
+export interface FilesTabData {
+  files: JustMeProjectFile[];
+}
+
+export interface BoqTabData {
+  boqs: JustMeBoq[];
+  /** BOQ ฉบับที่เลือกไว้ตอนเปิดแท็บ (ฉบับล่าสุด) */
+  activeBoqId: string | null;
+  activeItems: JustMeBoqItem[];
   categories: JustMeWorkCategory[];
   priceOptions: BoqPriceOption[];
+  /** ใบเสนอราคาที่ออกจาก BOQ นี้ (ถ้ามี) */
+  quotationDoc: AccountingLink | null;
+}
+
+export interface PurchasingTabData {
   /** ใบขอซื้อของโครงการนี้ (owner/manager เท่านั้น — viewer ได้ [] และไม่เห็นแท็บ) */
   purchaseRequests: ProjectPrRow[];
-  /** งวดงาน (ฝั่งขาย → viewer เห็นได้) */
+}
+
+export interface BillingsTabData {
   billings: JustMeProjectBilling[];
   /** ยอดที่ยังวางบิลได้ = สัญญา − งวดที่ยังไม่ยกเลิก (จาก `billingPlanTotals`) */
   billingPlanned: number;
   billingRemaining: number | null;
   /** เลขที่เอกสารในระบบบัญชีของ id ที่ just_me เก็บไว้ */
   documents: Record<string, AccountingLink>;
-  /** ความพร้อมของฝั่งบัญชี — ใช้ "เตือน" ก่อนออกเอกสาร (ไม่บล็อก) */
-  accounting: ProjectAccountingInfo;
+}
+
+export interface UsageTabData {
   /** วัสดุที่เบิกเข้าโครงการ (viewer ได้แถวที่ไม่มีมูลค่า) */
   usage: JustMeProjectUsageRow[];
   /** ชื่อวัสดุของแถวเบิก (item_id → ชื่อ) */
   itemNames: Record<string, string>;
   /** ต้นทุนนอกคลัง — viewer ได้ [] */
   costs: JustMeProjectCost[];
-  /** ความคืบหน้าที่บันทึกไว้ */
   progress: JustMeProjectProgress[];
   /** บรรทัดของ BOQ ที่อนุมัติแล้ว (ใช้เลือกตอนบันทึกความคืบหน้า) */
   approvedItems: { id: string; name: string; unit: string; qty: number }[];
 }
+
+/**
+ * ข้อมูลของแต่ละแท็บ — โหลด "เฉพาะแท็บที่เปิดจริง"
+ * (SSR ส่งมาแค่แท็บแรก · แท็บอื่นดึงตอนกดผ่าน `loadProjectTabAction`)
+ */
+export interface ProjectTabDataMap {
+  overview: Record<string, never>;
+  files: FilesTabData;
+  boq: BoqTabData;
+  purchasing: PurchasingTabData;
+  billings: BillingsTabData;
+  usage: UsageTabData;
+}
+
+export type ProjectTabData = ProjectTabDataMap[TabKey];
 
 /** เอกสารในระบบบัญชีที่ just_me อ้างถึง */
 export interface AccountingLink {
