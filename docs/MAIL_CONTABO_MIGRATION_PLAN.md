@@ -402,7 +402,7 @@ MTA-STS            → mode: enforce · mx: stalwart.perpos.ai · max_age 86400
 
 **ค้าง (D+1 → D+7)**
 
-- [ ] **ส่งเมลออกจริงจาก webmail → Gmail แล้วดู "แสดงต้นฉบับ"**: `Received: from mailserver.perpos.ai [62.146.233.27]` + SPF/DKIM/DMARC pass (ต้องใช้บัญชีจริง — agent ทำไม่ได้)
+- [x] ส่งเมลออกจริง → Gmail: SPF/DKIM/DMARC pass (2026-08-18 18:01Z)
 - [ ] ตัด `stalwart.perpos.ai` ออกจาก `x:MtaSts.mailExchangers` + bump id (key ได้ 403 ที่ `x:MtaSts` ตอนนี้ — ตรวจสิทธิ์/rate limit)
 - [ ] หลังนิ่ง: ตัด `ip4:169.58.196.147 ip6:2a02:c207:…` ออกจาก SPF · ลบเครื่อง EU ($6.6/เดือน) · ลบ record `169.58.196.147` ที่เหลือ (ถ้ามี)
 - [ ] ufw จำกัด 443/80 ให้เฉพาะ Cloudflare IP range (ตอนนี้ยิงตรงข้าม CF ได้) — ทำได้แล้วเพราะเมลใช้ port แยก
