@@ -1,0 +1,33 @@
+# PERPOS VPS — reverse proxy ทุกโดเมน → Next.js instance ตาม port
+# ทุกโดเมนเว็บอยู่หลัง Cloudflare proxy (เมฆส้ม) → ใช้ DNS-01 ออกใบรับรอง origin
+# ⚠️ mailserver.perpos.ai / login.perpos.ai ไม่อยู่ในไฟล์นี้ — เฟสเมลค่อยเพิ่ม (และเป็นเมฆเทาเสมอ)
+
+{
+	email admin@perpos.ai
+}
+
+(cf_tls) {
+	tls {
+		dns cloudflare {env.CLOUDFLARE_API_TOKEN}
+	}
+}
+
+# perpos — โปรเจกต์เดียวเสิร์ฟ 2 โดเมน (middleware ของแอปแยกพฤติกรรมตาม host เอง)
+app.perpos.ai, mail.perpos.ai {
+	import cf_tls
+	encode zstd gzip
+	reverse_proxy perpos:3005
+}
+
+app.exworker.co.th {
+	import cf_tls
+	encode zstd gzip
+	reverse_proxy exapp:3006
+}
+
+# TODO: ใส่โดเมนจริงของ riekchang
+riekchang.example.com {
+	import cf_tls
+	encode zstd gzip
+	reverse_proxy riekchang:3007
+}

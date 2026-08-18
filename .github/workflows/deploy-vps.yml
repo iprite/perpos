@@ -1,0 +1,83 @@
+# Deploy perpos → Contabo SG VPS
+# ท่า: build standalone ใน CI (เครื่อง 16GB — ห้าม build บน VPS 8GB, เคย OOM บน Vercel มาแล้ว)
+#      → rsync artifact ไป releases/<ts> → สลับ symlink `current` → restart container
+#
+# ยังไม่ active จนกว่าจะตั้ง secrets ครบ (ดู deploy/vps/README.md):
+#   VPS_HOST · VPS_USER · VPS_SSH_KEY (private key)
+#   NEXT_PUBLIC_SUPABASE_URL · NEXT_PUBLIC_SUPABASE_ANON_KEY (+ NEXT_PUBLIC_* อื่นที่ใช้)
+# NEXT_PUBLIC_* ถูก inline ตอน build — เปลี่ยนค่าแล้วต้อง build ใหม่ (เหมือน Vercel)
+# ส่วน env ฝั่ง server (service role, LINE, ฯลฯ) อยู่ที่ /srv/apps/perpos/.env บนเครื่อง อ่านตอน runtime
+
+name: deploy-vps
+
+on:
+  workflow_dispatch: {} # เริ่มด้วยกดมือก่อน — นิ่งแล้วค่อยเปิด push trigger ด้านล่าง
+  # push:
+  #   branches: [main]
+
+concurrency:
+  group: deploy-vps
+  cancel-in-progress: false # อย่ายกเลิก deploy ที่กำลังสลับ symlink กลางคัน
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Build (standalone)
+        working-directory: apps/perpos
+        env:
+          BUILD_STANDALONE: "1"
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          NEXT_PUBLIC_APP_URL: https://app.perpos.ai
+          NEXT_PUBLIC_LINE_ADD_FRIEND_URL: ${{ secrets.NEXT_PUBLIC_LINE_ADD_FRIEND_URL }}
+          NEXT_PUBLIC_GOOGLE_MAPS_API_KEY: ${{ secrets.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY }}
+        run: pnpm build
+
+      - name: Assemble artifact
+        run: |
+          set -euo pipefail
+          OUT=apps/perpos/.next/standalone
+          # standalone ไม่รวม static assets กับ public — ต้อง copy เข้าไปเองเสมอ
+          cp -r apps/perpos/.next/static "$OUT/apps/perpos/.next/static"
+          cp -r apps/perpos/public "$OUT/apps/perpos/public"
+          tar -C "$OUT" -czf artifact.tar.gz .
+
+      - name: Upload + activate
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          echo "$SSH_KEY" > ~/.ssh/id_deploy && chmod 600 ~/.ssh/id_deploy
+          ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+          SSH="ssh -i $HOME/.ssh/id_deploy $VPS_USER@$VPS_HOST"
+          TS=$(date +%Y%m%d%H%M%S)
+          scp -i ~/.ssh/id_deploy artifact.tar.gz "$VPS_USER@$VPS_HOST:/srv/apps/perpos/artifact.tar.gz"
+          $SSH "set -euo pipefail
+            mkdir -p /srv/apps/perpos/releases/$TS
+            tar -xzf /srv/apps/perpos/artifact.tar.gz -C /srv/apps/perpos/releases/$TS
+            rm /srv/apps/perpos/artifact.tar.gz
+            ln -sfn /srv/apps/perpos/releases/$TS /srv/apps/perpos/current
+            cd /srv/deploy && docker compose restart perpos
+            # เก็บ 3 release ล่าสุดพอ (rollback = ln -sfn ไป release ก่อนหน้า + restart)
+            cd /srv/apps/perpos/releases && ls -1t | tail -n +4 | xargs -r rm -rf"
+
+      - name: Health check
+        run: |
+          sleep 8
+          curl -sf -o /dev/null -w "%{http_code}\n" --resolve app.perpos.ai:443:${{ secrets.VPS_HOST }} https://app.perpos.ai/ | grep -qE "^(200|307|308)$"

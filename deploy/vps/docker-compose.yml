@@ -1,0 +1,105 @@
+# PERPOS VPS — Contabo SG (Cloud VPS 4: 4 vCPU / 8GB)
+# เว็บ 3 โปรเจกต์ + Caddy (reverse proxy + auto TLS) · เมล (Stalwart) จะเพิ่มทีหลังในเฟส 2
+#
+# โครงบนเครื่อง (สร้างครั้งเดียวตอน setup):
+#   /srv/apps/<app>/current   → artifact ล่าสุด (symlink ไป releases/<ts> — CI สลับให้)
+#   /srv/apps/<app>/.env      → runtime env ของแอปนั้น (chmod 600, ไม่อยู่ใน git)
+#   /srv/caddy/Caddyfile      → copy จาก repo นี้
+#
+# หมายเหตุ: ไม่ build image ต่อแอป — ใช้ node:22-alpine mount artifact ที่ CI rsync มา
+# ⇒ deploy = สลับ symlink + `docker compose restart <app>` (ไม่กินแรมเครื่องเลย)
+
+services:
+  caddy:
+    build:
+      context: .
+      dockerfile: Dockerfile.caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp" # HTTP/3
+    environment:
+      # API token สิทธิ์ Zone.DNS:Edit ของ zone ที่ใช้ (สำหรับ DNS-01 — จำเป็นเพราะอยู่หลัง
+      # Cloudflare proxy ซึ่งทำให้ HTTP-01 ไม่นิ่ง)
+      CLOUDFLARE_API_TOKEN: ${CLOUDFLARE_API_TOKEN}
+    volumes:
+      - /srv/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks: [web]
+
+  perpos:
+    image: node:22-alpine
+    restart: unless-stopped
+    working_dir: /app
+    # standalone ของ monorepo: server.js อยู่ที่ apps/perpos/server.js ภายใน artifact
+    command: node apps/perpos/server.js
+    environment:
+      PORT: "3005"
+      HOSTNAME: "0.0.0.0"
+      NODE_ENV: production
+    env_file: /srv/apps/perpos/.env
+    volumes:
+      - /srv/apps/perpos/current:/app:ro
+    # bind เฉพาะ loopback — ให้ cron บน host ยิงได้ ไม่เปิดสู่ internet (Caddy คุยผ่าน network web)
+    ports:
+      - "127.0.0.1:3005:3005"
+    networks: [web]
+    # กัน memory leak ลามทั้งเครื่อง — แอปเดียวพังไม่ดึงเมล/แอปอื่นตาย
+    mem_limit: 1536m
+
+  exapp:
+    image: node:22-alpine
+    restart: unless-stopped
+    working_dir: /app
+    command: node apps/exapp/server.js # TODO: ปรับ path ตามโครง standalone ของ repo exapp
+    environment:
+      PORT: "3006"
+      HOSTNAME: "0.0.0.0"
+      NODE_ENV: production
+    env_file: /srv/apps/exapp/.env
+    volumes:
+      - /srv/apps/exapp/current:/app:ro
+    ports:
+      - "127.0.0.1:3006:3006"
+    networks: [web]
+    mem_limit: 1024m
+
+  riekchang:
+    image: node:22-alpine
+    restart: unless-stopped
+    working_dir: /app
+    command: node apps/riekchang/server.js # TODO: ปรับ path ตามโครง standalone ของ repo riekchang
+    environment:
+      PORT: "3007"
+      HOSTNAME: "0.0.0.0"
+      NODE_ENV: production
+    env_file: /srv/apps/riekchang/.env
+    volumes:
+      - /srv/apps/riekchang/current:/app:ro
+    ports:
+      - "127.0.0.1:3007:3007"
+    networks: [web]
+    mem_limit: 1024m
+
+  # ── เฟส 2: เมล (หลังผ่าน gate port 25 + blacklist เท่านั้น) ──────────────────
+  # stalwart:
+  #   image: stalwartlabs/mail-server:latest
+  #   restart: unless-stopped
+  #   ports:
+  #     - "25:25"      # SMTP (ต้องขอ Contabo ปลดล็อกก่อน)
+  #     - "465:465"    # submissions
+  #     - "587:587"    # submission
+  #     - "993:993"    # IMAPS
+  #     - "127.0.0.1:8080:8080"  # JMAP/admin — เข้าผ่าน Caddy เท่านั้น
+  #   volumes:
+  #     - /srv/stalwart:/opt/stalwart-mail
+  #   networks: [web]
+
+networks:
+  web:
+
+volumes:
+  caddy_data:
+  caddy_config:

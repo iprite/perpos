@@ -3,6 +3,10 @@ const { withSentryConfig } = require("@sentry/nextjs");
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  // VPS deploy (GitHub Actions → rsync artifact): build ด้วย BUILD_STANDALONE=1 เพื่อให้ได้
+  // .next/standalone (server.js + node_modules ที่จำเป็น ก้อนเดียวจบ) — ไม่ตั้ง env = พฤติกรรม
+  // เดิมบน Vercel ทุกประการ (ดู deploy/vps/README.md)
+  ...(process.env.BUILD_STANDALONE === "1" ? { output: "standalone" } : {}),
   // Skip in-build type-check + lint — เรา gate `tsc --noEmit`=0 และ `pnpm lint` clean แยกก่อน merge
   // (AGENTS.md §Verify) อยู่แล้ว. in-build type-check กิน RAM สูงจน OOM (exit 137) บนเครื่อง build
   // Vercel Hobby (8GB) เมื่อ codebase โต — ข้ามได้ปลอดภัยเพราะ redundant กับ gate ภายนอก + build เร็ว/เบา
