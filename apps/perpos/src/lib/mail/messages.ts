@@ -186,6 +186,8 @@ export function buildFilter(
   ids: Partial<Record<MailBoxKey, string>>,
   /** id ของ mailbox ที่มีจริงบนเซิร์ฟเวอร์ — ต้องส่งมาเมื่อเปิดโฟลเดอร์ที่ผู้ใช้สร้างเอง (M3) */
   knownMailboxIds?: ReadonlySet<string>,
+  /** `false` = ไม่ใส่เงื่อนไขคำค้นลง filter (ขอบเขตกล่องยังเหมือนกัน) — ใช้ตอนสแกนหาข้อความเอง */
+  opts: { includeText?: boolean } = {},
 ): Record<string, unknown> {
   const conditions: Record<string, unknown>[] = [];
   const selector = resolveBoxSelector(params.box);
@@ -230,7 +232,7 @@ export function buildFilter(
 
   if (params.unread) conditions.push({ notKeyword: "$seen" });
   if (params.attachment) conditions.push({ hasAttachment: true });
-  if (q) conditions.push({ text: q });
+  if (q && opts.includeText !== false) conditions.push({ text: q });
 
   if (conditions.length === 0) return {};
   if (conditions.length === 1) return conditions[0]!;
@@ -307,6 +309,41 @@ export function threadCountMap(threads: JmapThread[] | undefined): Record<string
   return map;
 }
 
+// ─── ค้นหาแบบ "มีข้อความนี้อยู่ข้างใน" (fallback) ─────────────────────────────
+
+/**
+ * ดัชนีค้นหาของเมลเซิร์ฟเวอร์ตัดคำด้วย **ช่องว่าง** และไม่รองรับคำบางส่วน/ไวลด์การ์ด
+ * (ยืนยันกับ Stalwart จริง 2026-08-19: `tiktok` เจอ · `tik` ไม่เจอ · `tik*` ไม่เจอ
+ *  · `คือรหัส` เจอ แต่ `รหัส` ไม่เจอ เพราะไทยเขียนติดกันจึงเป็นคำเดียวทั้งก้อน)
+ *
+ * ⇒ ถ้าค้นด้วยดัชนีแล้ว **ไม่เจอเลย** ให้สแกนหาข้อความบางส่วนจากหัวเรื่อง/ผู้ส่ง/ตัวอย่างเนื้อหา
+ *   ของเมลล่าสุด `SEARCH_SCAN_LIMIT` ฉบับแทน — ผู้ใช้พิมพ์ "tik" แล้วต้องเจอ TikTok
+ *
+ * ทำเฉพาะตอน "ไม่เจอเลย" เท่านั้น (ทางปกติต้องเร็วเหมือนเดิม) และ **มีเพดานเสมอ**
+ * — สแกนทั้งกล่องเมลที่มีหมื่นฉบับ = คำขอเดียวลาก metadata หลายสิบ MB
+ */
+export const SEARCH_SCAN_LIMIT = 500;
+
+/** ตัดช่องว่าง + ตัวพิมพ์ใหญ่-เล็ก ให้เทียบแบบ "มีอยู่ข้างใน" ได้ทั้งไทยและอังกฤษ */
+function normalizeForScan(value: string): string {
+  return value.trim().toLowerCase();
+}
+
+export function messageMatchesText(m: MailMessage, needle: string): boolean {
+  const q = normalizeForScan(needle);
+  if (!q) return false;
+  const haystack = [
+    m.subject,
+    m.preview,
+    m.from?.name ?? "",
+    m.from?.email ?? "",
+    ...m.attachments.map((a) => a.name),
+  ]
+    .join(" ")
+    .toLowerCase();
+  return haystack.includes(q);
+}
+
 // ─── รายการเมล ───────────────────────────────────────────────────────────────
 
 export async function listMessages(
@@ -367,11 +404,71 @@ export async function listMessages(
   const position = typeof query.position === "number" ? query.position : 0;
   const hasMore = total !== null ? position + messages.length < total : messages.length === limit;
 
+  const q = (params.q ?? "").trim();
+  // ดัชนีหาไม่เจอ + เป็นหน้าแรกของการค้น → ลองสแกนหาข้อความบางส่วนให้ (ดู SEARCH_SCAN_LIMIT)
+  if (q && messages.length === 0 && !params.anchor && (params.position ?? 0) === 0) {
+    return scanMessagesByText(session, params, boxes, limit, q);
+  }
+
   return {
     messages,
     total,
     hasMore,
     queryState: typeof query.queryState === "string" ? query.queryState : null,
+  };
+}
+
+/** สแกนเมลล่าสุด `SEARCH_SCAN_LIMIT` ฉบับในขอบเขตเดิม แล้วกรองด้วย "มีข้อความนี้อยู่ข้างใน" */
+async function scanMessagesByText(
+  session: MailSession,
+  params: MailListParams,
+  boxes: JmapMailbox[],
+  limit: number,
+  q: string,
+): Promise<MailListResult> {
+  const filter = buildFilter(params, mailboxIdByKey(boxes), new Set(boxes.map((b) => b.id)), {
+    includeText: false,
+  });
+
+  const responses = await jmapRequest(session, [
+    [
+      "Email/query",
+      {
+        accountId: session.accountId,
+        filter,
+        sort: [{ property: "receivedAt", isAscending: false }],
+        collapseThreads: true,
+        calculateTotal: true,
+        limit: SEARCH_SCAN_LIMIT,
+        position: 0,
+      },
+      "q",
+    ],
+    [
+      "Email/get",
+      {
+        accountId: session.accountId,
+        "#ids": { resultOf: "q", name: "Email/query", path: "/ids" },
+        properties: EMAIL_LIST_PROPERTIES,
+        bodyProperties: ["blobId", "name", "type", "size", "disposition", "cid"],
+      },
+      "g",
+    ],
+  ]);
+
+  const query = pickResponse(responses, "q");
+  const emails = (pickResponse(responses, "g").list as JmapEmail[] | undefined) ?? [];
+  const scanned = emails.length;
+  const scannedTotal = typeof query.total === "number" ? query.total : scanned;
+  const matched = emails.map((e) => mapEmailToMessage(e)).filter((m) => messageMatchesText(m, q));
+
+  return {
+    messages: matched.slice(0, limit),
+    total: matched.length,
+    hasMore: matched.length > limit,
+    queryState: null,
+    /** บอกหน้าเว็บว่าผลนี้มาจากการสแกน ไม่ใช่ดัชนี — และสแกนไม่ครบทั้งกล่องหรือเปล่า */
+    scan: { scanned, truncated: scannedTotal > scanned },
   };
 }
 

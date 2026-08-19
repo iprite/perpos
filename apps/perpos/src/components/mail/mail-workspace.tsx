@@ -101,6 +101,8 @@ interface ListResponse {
   total: number | null;
   hasMore: boolean;
   queryState: string | null;
+  /** ผลจากการสแกนหาข้อความบางส่วน (ดัชนีหาไม่เจอ) — ดู `scanMessagesByText` */
+  scan?: { scanned: number; truncated: boolean };
 }
 
 async function callMailApi<T>(url: string, init?: RequestInit): Promise<T> {
@@ -193,6 +195,10 @@ export function MailWorkspace({
   // ── คิว optimistic + เมลใหม่ ─────────────────────────────────────────────
   const [hiddenIds, setHiddenIds] = useState<Set<string>>(() => new Set());
   const [pendingNew, setPendingNew] = useState<MailMessage[]>([]);
+  /** ผลค้นหารอบนี้มาจากการสแกน (ไม่ใช่ดัชนี) — ต้องบอกผู้ใช้ว่าสแกนได้แค่ไหน */
+  const [searchScan, setSearchScan] = useState<{ scanned: number; truncated: boolean } | null>(
+    null,
+  );
   const [mailboxes, setMailboxes] = useState<MailboxSummary[]>([]);
   const [folders, setFolders] = useState<MailFolder[]>([]);
   const [showShortcuts, setShowShortcuts] = useState(false);
@@ -344,6 +350,7 @@ export function MailWorkspace({
       if (cached) {
         // คิว "เมลใหม่" เป็นของกล่องก่อนหน้า — ไม่ล้างที่นี่ ผู้ใช้กด "แสดง" แล้วได้เมลข้ามกล่อง
         setPendingNew([]);
+        setSearchScan(null);
         setMessages(cached.messages ?? []);
         setHasMore(!!cached.hasMore);
         setTotal(cached.total ?? null);
@@ -364,6 +371,7 @@ export function MailWorkspace({
         setHasMore(!!data.hasMore);
         setTotal(data.total ?? null);
         setPendingNew([]);
+        setSearchScan(data.scan ?? null);
         setFocusedIndex(data.messages?.length ? 0 : -1);
         if (mode === "refresh") scheduleMailboxRefresh();
         // เก็บผลจริงลงแคชเสมอ (ทั้ง initial และ refresh) — ครั้งหน้าที่กลับมากล่องนี้จะวาดทันที
@@ -1369,6 +1377,7 @@ export function MailWorkspace({
                 hasMore={hasMore}
                 error={error}
                 searchTerm={debouncedSearch}
+                searchScan={searchScan}
                 /* ป้ายกล่องมีเฉพาะตอนผลค้นหาข้ามกล่อง — ในกล่องเดียวกันทุกแถวป้ายซ้ำกันหมด */
                 mailboxLabels={debouncedSearch && searchScope === "all" ? mailboxLabels : undefined}
                 selectedIds={selectedIds}
