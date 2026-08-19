@@ -18,6 +18,7 @@ export const reader = defineMailMessages({
   "reader.find": { th: "ค้นในเมลฉบับนี้", en: "Find in this email" },
   "reader.star": { th: "ติดดาว", en: "Star" },
   "reader.star.title": { th: "ติดดาว (s)", en: "Star (s)" },
+  "reader.unstar": { th: "เอาดาวออก", en: "Remove star" },
   "reader.spam": { th: "แจ้งว่าเป็นสแปม", en: "Report as spam" },
   "reader.spam.title": {
     th: "แจ้งว่าเป็นสแปม (ย้ายไปจดหมายขยะ + สอนตัวกรอง)",
@@ -34,6 +35,7 @@ export const reader = defineMailMessages({
   "reader.archive.title": { th: "เก็บเข้าคลัง (e)", en: "Archive (e)" },
   "reader.trash": { th: "ลบ", en: "Delete" },
   "reader.trash.title": { th: "ลบ (#)", en: "Delete (#)" },
+  "reader.more": { th: "ตัวเลือกเพิ่มเติม", en: "More actions" },
 
   // แถบค้นในเมล
   "reader.find.notFound": { th: "ไม่พบ", en: "Not found" },
