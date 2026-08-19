@@ -40,6 +40,7 @@ import {
   Mail,
   Maximize2,
   Minimize2,
+  MoreVertical,
   Paperclip,
   Printer,
   Search,
@@ -54,6 +55,7 @@ import { Button } from "@/components/ui/button";
 import { MailRuleDialog, type MailRuleSeed } from "@/components/mail/mail-rule-dialog";
 import { Input } from "@/components/ui/input";
 import { Dropdown } from "@/components/ui/dropdown";
+import { Popover } from "@/components/ui/popover";
 import { Avatar } from "@/components/ui/avatar";
 import { Skeleton, SkeletonText } from "@/components/ui/skeleton";
 import { Title, Text } from "@/components/ui/typography";
@@ -287,6 +289,8 @@ function ThreadView({
    * ⇒ ต้องมีช่องค้นของเราเอง ไม่งั้นเมลยาว ๆ หาอะไรไม่เจอเลย
    */
   const [findOpen, setFindOpen] = useState(false);
+  /** เมนู ⋯ ของมือถือ (ปุ่มที่ยุบเข้ามาเพราะแถวเดียวใส่ไม่หมด) */
+  const [moreOpen, setMoreOpen] = useState(false);
   const [findInput, setFindInput] = useState("");
   const [findTerm, setFindTerm] = useState("");
   const [hitIndex, setHitIndex] = useState(0);
@@ -370,7 +374,8 @@ function ThreadView({
         <Title as="h2" className="min-w-0 flex-1 truncate text-base font-semibold text-gray-900">
           {hasMailSubject(detail.subject) ? detail.subject.trim() : t("reader.noSubject")}
         </Title>
-        <div className="flex shrink-0 items-center gap-1">
+        {/* จอ ≥sm: ปุ่มครบทั้งแถว */}
+        <div className="hidden shrink-0 items-center gap-1 sm:flex">
           <Button
             variant={findOpen ? "secondary" : "ghost"}
             size="icon"
@@ -469,6 +474,120 @@ function ThreadView({
               </Button>
             </>
           )}
+        </div>
+
+        {/* มือถือ: แถวเดียวใส่ปุ่มไม่หมด — เหลือของที่ใช้บ่อยที่สุด (เก็บ/ลบ) ที่เหลือยุบเข้าเมนู ⋯
+            เดิมปุ่มล้นออกนอกจอจนกดลบไม่ได้ (แถบนี้ไม่ได้เลื่อนแนวนอน) */}
+        <div className="flex shrink-0 items-center gap-1 sm:hidden">
+          {canArchive && (
+            <Button
+              variant="ghost"
+              size="icon"
+              title={t("reader.archive.title")}
+              aria-label={t("reader.archive")}
+              onClick={onArchive}
+            >
+              <Archive className="h-4 w-4" />
+            </Button>
+          )}
+          {canTrash && (
+            <Button
+              variant="outline"
+              size="icon"
+              title={t("reader.trash.title")}
+              aria-label={t("reader.trash")}
+              className="border-red-200 text-red-600 hover:border-red-300 hover:bg-red-50 hover:text-red-700"
+              onClick={onTrash}
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          )}
+          <Popover
+            placement="bottom-end"
+            open={moreOpen}
+            onOpenChange={setMoreOpen}
+            triggerClassName="shrink-0"
+            trigger={
+              <button
+                type="button"
+                aria-label={t("reader.more")}
+                title={t("reader.more")}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-md text-gray-600 transition-colors hover:bg-gray-100"
+              >
+                <MoreVertical className="h-4 w-4" />
+              </button>
+            }
+          >
+            <div className="max-h-[70vh] min-w-[220px] overflow-y-auto py-1">
+              <MoreMenuItem
+                icon={<Search className="h-4 w-4" />}
+                label={t("reader.find")}
+                onClick={() => {
+                  setMoreOpen(false);
+                  setFindOpen(true);
+                  setTimeout(() => findRef.current?.focus(), 30);
+                }}
+              />
+              <MoreMenuItem
+                icon={
+                  <Star className={cn("h-4 w-4", flagged && "fill-amber-400 text-amber-500")} />
+                }
+                label={flagged ? t("reader.unstar") : t("reader.star")}
+                onClick={() => {
+                  setMoreOpen(false);
+                  onToggleStar();
+                }}
+              />
+              {onMarkSpam && (
+                <MoreMenuItem
+                  icon={<ShieldAlert className="h-4 w-4" />}
+                  label={t("reader.spam")}
+                  onClick={() => {
+                    setMoreOpen(false);
+                    onMarkSpam();
+                  }}
+                />
+              )}
+              {onNotSpam && (
+                <MoreMenuItem
+                  icon={<ShieldCheck className="h-4 w-4" />}
+                  label={t("reader.notSpam")}
+                  onClick={() => {
+                    setMoreOpen(false);
+                    onNotSpam();
+                  }}
+                />
+              )}
+              {ruleSeed && (
+                <MoreMenuItem
+                  icon={<Filter className="h-4 w-4" />}
+                  label={t("reader.rule")}
+                  onClick={() => {
+                    setMoreOpen(false);
+                    setRuleOpen(true);
+                  }}
+                />
+              )}
+              {moveTargets.length > 0 && onMove && (
+                <>
+                  <div className="mt-1 border-t border-gray-100 px-3 pb-1 pt-2 text-xs font-medium text-gray-400">
+                    {t("reader.move")}
+                  </div>
+                  {moveTargets.map((f) => (
+                    <MoreMenuItem
+                      key={f.id}
+                      icon={<FolderInput className="h-4 w-4" />}
+                      label={f.path}
+                      onClick={() => {
+                        setMoreOpen(false);
+                        onMove(f);
+                      }}
+                    />
+                  ))}
+                </>
+              )}
+            </div>
+          </Popover>
         </div>
       </div>
 
@@ -571,7 +690,7 @@ function ThreadView({
           </div>
 
           {/* ปุ่มตอบอยู่ท้ายเธรด = ตำแหน่งที่สายตาอยู่พอดีหลังอ่านจบ (คีย์ลัด r / a / f ทำอย่างเดียวกัน) */}
-          <div className="mt-4 flex flex-wrap gap-2">
+          <div className="mt-4 hidden flex-wrap gap-2 sm:flex">
             <Button variant="outline" size="sm" onClick={onReply} title={t("reader.reply.title")}>
               <CornerUpLeft className="h-4 w-4" />
               {t("reader.reply")}
@@ -597,7 +716,64 @@ function ThreadView({
           </div>
         </div>
       </div>
+
+      {/* มือถือ: แถบตอบกลับติดขอบล่าง — เมลยาว ๆ ไม่ต้องเลื่อนลงไปสุดเพื่อหาปุ่มตอบ
+          (ท่าเดียวกับ Gmail/Outlook บนมือถือ) · จอ ≥sm ใช้ปุ่มท้ายเธรดเหมือนเดิม */}
+      <div className="flex shrink-0 items-center gap-2 border-t border-gray-200 bg-white px-3 py-2 sm:hidden">
+        <Button
+          variant="outline"
+          size="sm"
+          className="min-w-0 flex-1"
+          onClick={onReply}
+          title={t("reader.reply.title")}
+        >
+          <CornerUpLeft className="h-4 w-4 shrink-0" />
+          <span className="truncate">{t("reader.reply")}</span>
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          className="min-w-0 flex-1"
+          onClick={onReplyAll}
+          title={t("reader.replyAll.title")}
+        >
+          <ReplyAll className="h-4 w-4 shrink-0" />
+          <span className="truncate">{t("reader.replyAll")}</span>
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          className="min-w-0 flex-1"
+          onClick={onForward}
+          title={t("reader.forward.title")}
+        >
+          <CornerUpRight className="h-4 w-4 shrink-0" />
+          <span className="truncate">{t("reader.forward")}</span>
+        </Button>
+      </div>
     </div>
+  );
+}
+
+/** แถวหนึ่งของเมนู ⋯ บนมือถือ — สูง 44px ตามเกณฑ์เป้านิ้ว (py-3 + text-sm) */
+function MoreMenuItem({
+  icon,
+  label,
+  onClick,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex w-full items-center gap-2.5 px-3 py-3 text-left text-sm text-gray-700 transition-colors hover:bg-gray-50"
+    >
+      <span className="shrink-0 text-gray-500">{icon}</span>
+      <span className="min-w-0 flex-1 truncate">{label}</span>
+    </button>
   );
 }
 
