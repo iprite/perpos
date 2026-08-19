@@ -51,13 +51,24 @@ cd /srv/deploy && docker compose up -d caddy
 - `NEXT_PUBLIC_*` inline ตอน build — เปลี่ยนค่าต้อง build ใหม่ (เหมือน Vercel) · env ฝั่ง server แก้ที่ `/srv/apps/perpos/.env` แล้ว restart พอ
 - exapp / riekchang: มี workflow เดียวกันใน repo ตัวเองแล้ว (`.github/workflows/deploy-vps.yml`) · ทั้งสองใช้ Supabase project เดียวกับ perpos แต่คนละ schema (`SUPABASE_SCHEMA=exapp` / `riekchang`)
 
+## Scheduler worker (`perpos-worker`) — process ยาวแทน cron ยิง HTTP
+
+- service ใน `docker-compose.yml` ใช้ image/artifact/env เดียวกับ `perpos` แต่ `command: node apps/perpos/worker/scheduler-worker.js` (ไฟล์นี้ CI bundle ด้วย esbuild ใส่มาในก้อน artifact — `pnpm build:worker`)
+- **deploy** = workflow เดิม `up -d perpos perpos-worker && restart perpos perpos-worker` · **rollback** = `ln -sfn` + `docker compose restart perpos perpos-worker` (ต้อง restart ทั้งคู่)
+- **ห้าม scale เป็น 2 instance** — ถึงเผลอก็มี lease ใน DB (`scheduler_leases`) ให้ตัวหลังข้ามรอบ ไม่รันซ้อน · ยิงมือได้เหมือนเดิม: `curl -X POST -H "Authorization: Bearer $CRON_SECRET" http://127.0.0.1:3005/api/assistant/scheduler`
+- **หยุด/restart ปลอดภัย** — worker จับ SIGTERM รอรอบปัจจุบันจบ (≤100 วิ) · compose `stop_grace_period: 120s` · lease ค้าง (SIGKILL/OOM) หมดอายุเอง 20 นาที
+- ดู log: `docker compose logs -f perpos-worker` (บรรทัด `tick ok in …ms` ทุกนาที) · เฝ้าโดย heartbeat → `/admin/system` (`container:perpos-worker`) + `scheduler_runs` ใน DB
+- ปรับจังหวะ: env `SCHEDULER_INTERVAL_MS` ใน `/srv/apps/perpos/.env` (default 60000, ต่ำสุด 15000) แล้ว `docker compose restart perpos-worker`
+- **ครั้งแรกบนเครื่อง**: `scp deploy/vps/docker-compose.yml perpos-sg:/srv/deploy/docker-compose.yml` → merge โค้ดให้ CI สร้าง artifact ที่มี `worker/` → หลัง deploy เขียว ค่อยลบบรรทัด `* * * * *` ใน `/etc/cron.d/perpos` (ลบก่อน = ช่วงว่าง scheduler)
+
 ## Cron (แทน Google Cloud Scheduler)
 
 ยิงจากเครื่องเองผ่าน localhost — ฟรี ไม่ผ่าน internet · ตอนย้ายให้ **ปิด job ฝั่ง GCP** พร้อมกัน (กันยิงซ้ำ 2 ทาง)
 
+> **scheduler ของ perpos ไม่ใช่ cron แล้ว (2026-08-19)** — เป็น container `perpos-worker` (ดูหัวข้อถัดไป) · บรรทัด `* * * * *` เดิมถอดออกจาก `/etc/cron.d/perpos` แล้ว
+
 ```cron
 # /etc/cron.d/perpos  (CRON_SECRET ตัวเดียวกับใน /srv/apps/perpos/.env)
-* * * * *   deploy curl -sf -X POST -H "Authorization: Bearer $CRON_SECRET" http://127.0.0.1:3005/api/assistant/scheduler >/dev/null   # กลับเป็นทุก 1 นาที (บน Vercel เคยลดเป็น 3 เพื่อประหยัด CPU)
 0 20 * * *  deploy curl -sf -X POST -H "Authorization: Bearer $CRON_SECRET" http://127.0.0.1:3005/api/tmc/notify/daily-occupancy >/dev/null
 0 8 * * 1   deploy curl -sf -X POST -H "Authorization: Bearer $CRON_SECRET" http://127.0.0.1:3005/api/gov-procure/notify/weekly >/dev/null
 0 9 * * *   deploy curl -sf -X POST -H "Authorization: Bearer $CRON_SECRET" http://127.0.0.1:3005/api/gov-procure/notify/aging >/dev/null

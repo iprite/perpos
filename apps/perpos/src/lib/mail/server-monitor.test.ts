@@ -184,7 +184,7 @@ function ctr(name: string, over: Partial<HostContainer> = {}): HostContainer {
 }
 const hostOk: MailHeartbeat = {
   ...healthy.heartbeat,
-  containers: ["caddy", "perpos", "exapp", "riekchang"].map((n) => ctr(n)),
+  containers: ["caddy", "perpos", "perpos-worker", "exapp", "riekchang"].map((n) => ctr(n)),
   apps: [
     {
       app: "perpos",
@@ -211,6 +211,7 @@ describe("evaluateHostIssues — container/deploy", () => {
       containers: [
         ctr("caddy"),
         ctr("perpos", { state: "exited", exitCode: 137, oomKilled: true }),
+        ctr("perpos-worker"),
         ctr("exapp"),
         // riekchang หาย
       ],
@@ -226,6 +227,7 @@ describe("evaluateHostIssues — container/deploy", () => {
       containers: [
         ctr("caddy"),
         ctr("perpos", { restartDelta: 2 }),
+        ctr("perpos-worker"),
         ctr("exapp"),
         ctr("riekchang"),
       ],
@@ -242,6 +244,7 @@ describe("evaluateHostIssues — container/deploy", () => {
       containers: [
         ctr("caddy", { memUsedBytes: 5e9, memLimitBytes: null }),
         ctr("perpos", { memUsedBytes: 1400 * 1048576 }),
+        ctr("perpos-worker"),
         ctr("exapp"),
         ctr("riekchang"),
       ],
@@ -325,24 +328,20 @@ describe("cron + ใบรับรอง origin", () => {
     expect(evaluateHostIssues(hb, NOW)).toEqual({});
   });
 
-  it("exapp รายวันเกิน 26 ชม. / scheduler เกิน 10 นาที → เตือน · cron daemon หยุด → เตือน", () => {
+  it("exapp รายวันเกิน 26 ชม. → เตือน · cron daemon หยุด → เตือน · scheduler perpos ไม่ใช่ cron แล้ว (worker container)", () => {
     const hb = withCron([
+      // แถวเก่าใน journal (ก่อนย้ายเป็น worker) ต้องไม่ทำให้เตือน
       { url: "http://127.0.0.1:3005/api/assistant/scheduler", lastRunAt: nowS - 15 * 60 },
       { url: "http://127.0.0.1:3006/api/admin/rep-usage/recalc", lastRunAt: nowS - 30 * 3600 },
     ]);
     const issues = evaluateHostIssues({ ...hb, cronActive: false }, NOW);
-    expect(Object.keys(issues).sort()).toEqual([
-      "cron:exapp-daily",
-      "cron:perpos-scheduler",
-      "cron:service",
-    ]);
+    expect(Object.keys(issues).sort()).toEqual(["cron:exapp-daily", "cron:service"]);
   });
 
   it("ไม่เห็นใน journal: เครื่องเพิ่งบูต = ไม่เตือน · เปิดมา >30 ชม. = เตือน", () => {
     expect(evaluateHostIssues(withCron([], 2 * 3600), NOW)).toEqual({});
     expect(Object.keys(evaluateHostIssues(withCron([], 40 * 3600), NOW)).sort()).toEqual([
       "cron:exapp-daily",
-      "cron:perpos-scheduler",
     ]);
   });
 
