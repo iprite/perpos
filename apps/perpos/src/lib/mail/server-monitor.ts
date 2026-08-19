@@ -6,10 +6,10 @@
  * ⚠️ scheduler ที่รันตัวเฝ้านี้ = container perpos บนเครื่องเดียวกัน — ถ้าเครื่อง/perpos ล่มทั้งตัว
  *    ตัวนี้เงียบ · ด่านนอกจริง = GitHub Actions `uptime.yml` (ยิง LINE ตรง ไม่ผ่านแอป)
  *
- * ทำไมต้องเช็คจากข้างนอก: ถ้าเครื่องเมลตาย สคริปต์บนเครื่องนั้นย่อมแจ้งอะไรไม่ได้
- * ⇒ ด่านหลัก = Vercel (scheduler ทุก 5 นาที) ตรวจ 465/443/ใบรับรองสด ๆ
- *   ส่วนของที่ต้องมองจากในเครื่อง (ดิสก์/อายุ backup/พอร์ต 25) มาจาก heartbeat รายชั่วโมง
- *   ที่เครื่องยิงเข้า `/api/admin/mail-server/heartbeat` — heartbeat ขาด = เรื่องต้องเตือนเช่นกัน
+ * สองแหล่งข้อมูล: (1) ตัวตรวจสด (scheduler t5 ทุก 5 นาที) ต่อ 465/443/ใบรับรองของเมล + TLS ที่ Caddy origin
+ *   ของโดเมนเว็บ (2) heartbeat ทุก 5 นาทีจากเครื่อง (ดิสก์/backup/พอร์ต 25/container/release/cron)
+ *   ที่ยิงเข้า `/api/admin/mail-server/heartbeat` — heartbeat ขาด >30 นาที = เรื่องต้องเตือนเช่นกัน
+ *   (คอมเมนต์ "Vercel" ด้านล่างเป็นประวัติ — ตั้งแต่ 2026-08-19 scheduler รันใน container perpos บน VPS)
  *
  * 🪤 **ห้ามเช็คพอร์ต 25 จาก Vercel** — Vercel บล็อก TCP ขาออกพอร์ต 25 (มาตรการกันสแปม)
  *   ⇒ ต่อไม่ติดเสมอแม้เครื่องเมลปกติดี = เตือนผิดทุก 6 ชม.ตลอดไป (เคยเป็นมาแล้ว 2026-08-18)
@@ -32,8 +32,11 @@ const ROW_ID = "stalwart";
 /** SMTPS — ด่านนอกใช้พอร์ตนี้แทน 25 เพราะ Vercel บล็อก 25 ขาออก (ดูหัวไฟล์) */
 const SMTP_PORT = 465;
 const REALERT_MS = 6 * 60 * 60 * 1000;
-/** heartbeat มาทุก 1 ชม. — ให้อภัย 1 รอบพลาด (deploy/รีบูต) ก่อนถือว่าขาด */
-const HEARTBEAT_STALE_MS = 3 * 60 * 60 * 1000;
+/**
+ * heartbeat มาทุก 5 นาที (systemd timer) — ให้อภัย ~6 รอบ (รีบูตเครื่อง/deploy perpos) ก่อนถือว่าขาด
+ * เดิม 3 ชม. สมัยยิงรายชั่วโมง — ตอนนี้ heartbeat แบก container/cron ด้วย ปล่อยมืด 3 ชม.นานไป
+ */
+const HEARTBEAT_STALE_MS = 30 * 60 * 1000;
 const CERT_WARN_DAYS = 14;
 const DISK_WARN_PCT = 85;
 const BACKUP_STALE_HOURS = 30;
@@ -264,7 +267,7 @@ export function evaluateHostIssues(hb: MailHeartbeat, now: number): Record<strin
         // journal ไม่มีเลย — เพิ่งบูต/ติดตั้งยังไม่ถึงรอบ ก็ยังไม่ตัดสิน
         if (hb.uptimeSeconds !== null && hb.uptimeSeconds >= CRON_NEVER_SEEN_MIN_UPTIME_S) {
           issues[`cron:${job.key}`] =
-            `ไม่เห็น cron ${job.key} ถูกสั่งรันเลยใน journal ทั้งที่เครื่องเปิดมา >30 ชม. (ไฟล์ /etc/cron.d หาย/ผิด?)`;
+            `ไม่เห็น cron ${job.key} ถูกสั่งรันเลยใน journal 72 ชม.ล่าสุด ทั้งที่เครื่องเปิดมา >30 ชม. (ไฟล์ /etc/cron.d หาย/ผิด?)`;
         }
         continue;
       }
@@ -278,7 +281,7 @@ export function evaluateHostIssues(hb: MailHeartbeat, now: number): Record<strin
   return issues;
 }
 
-// ─── ตัวตรวจสด (จาก Vercel) ─────────────────────────────────────────────────
+// ─── ตัวตรวจสด (จาก scheduler) ─────────────────────────────────────────────────
 
 /** ด่านรับเมลจากภายนอก — ใช้ 465 ไม่ใช่ 25 (Vercel บล็อก 25 ขาออก · ดูหัวไฟล์) */
 function checkSmtp(timeoutMs = 10_000): Promise<string | null> {
@@ -399,7 +402,7 @@ export function evaluateIssues(args: {
     issues.heartbeat =
       beatAge === null
         ? "ยังไม่เคยได้ heartbeat จากเครื่องเมล"
-        : `heartbeat ขาดมา ${Math.round(beatAge / 3_600_000)} ชม. (ตัวส่งบนเครื่องอาจตาย)`;
+        : `heartbeat ขาดมา ${Math.round(beatAge / 60_000)} นาที (timer บนเครื่องตาย/เครื่องดับ?)`;
   } else if (args.heartbeat) {
     const hb = args.heartbeat;
     if (hb.diskPct !== null && hb.diskPct >= DISK_WARN_PCT) {

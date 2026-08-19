@@ -122,12 +122,13 @@ fi
 
 # ── cron บนเครื่อง (/etc/cron.d/perpos + exapp) — เวลา "สั่งรัน" ล่าสุดของแต่ละ URL จาก journal ────
 # cron log แค่ว่า CMD ถูกเรียก (ไม่รู้ว่า curl สำเร็จ) — ฝั่ง perpos มี scheduler_runs ยืนยันอีกชั้น
+# ดูย้อน 72 ชม. (กว้างกว่าเกณฑ์ 26 ชม.) เพื่อให้ฝั่งแอปรายงาน "เก่าไป X ชม." แทนที่จะเป็น "ไม่เคยเห็น"
 # ส่วน exapp มีแค่ตรงนี้ · journal ของเครื่องเป็น persistent (Storage=auto + /var/log/journal)
 cron_active=false
 systemctl is-active --quiet cron && cron_active=true
 cron_jobs="[]"
 if command -v journalctl >/dev/null 2>&1; then
-  cron_jobs=$(journalctl -u cron --since "-26h" -o short-unix --no-pager 2>/dev/null | awk '
+  cron_jobs=$(journalctl -u cron --since "-72h" -o short-unix --no-pager 2>/dev/null | awk '
     /CMD \(curl/ {
       ts = int($1)
       if (match($0, /http:\/\/127\.0\.0\.1:[0-9]+\/[^ >")]+/)) { u = substr($0, RSTART, RLENGTH); last[u] = ts }
