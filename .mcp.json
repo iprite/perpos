@@ -15,8 +15,8 @@
       "args": ["/Users/iprite/.claude/mcps/modelcontextprotocol/dist/index.js"]
     },
     "google-analytics": {
-      "command": "/Users/iprite/.claude/mcps/google-analytics-mcp/venv/bin/google-analytics-mcp",
-      "args": [],
+      "command": "/Users/iprite/.claude/mcps/google-analytics-mcp/venv/bin/python3.14",
+      "args": ["/Users/iprite/.claude/mcps/ga4-multi/proxy.py"],
       "env": {
         "GA4_PROPERTY_ID": "454917081",
         "GOOGLE_APPLICATION_CREDENTIALS": "/Users/iprite/.config/gcloud/application_default_credentials.json"
