@@ -2,9 +2,7 @@
   "mcpServers": {
     "playwright-mcp": {
       "command": "node",
-      "args": [
-        "/Users/iprite/.claude/mcps/playwright-mcp/cli.js"
-      ]
+      "args": ["/Users/iprite/.claude/mcps/playwright-mcp/cli.js"]
     },
     "chrome-devtools-mcp": {
       "command": "node",
@@ -14,9 +12,11 @@
     },
     "perplexity-mcp": {
       "command": "node",
-      "args": [
-        "/Users/iprite/.claude/mcps/modelcontextprotocol/dist/index.js"
-      ]
+      "args": ["/Users/iprite/.claude/mcps/modelcontextprotocol/dist/index.js"]
+    },
+    "google-analytics": {
+      "command": "/Users/iprite/.claude/mcps/google-analytics-mcp/venv/bin/google-analytics-mcp",
+      "args": []
     }
   }
 }
