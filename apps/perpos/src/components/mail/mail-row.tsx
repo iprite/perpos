@@ -28,7 +28,7 @@ import {
 } from "lucide-react";
 import cn from "@core/utils/class-names";
 import { Button } from "@/components/ui/button";
-import type { MailMessage } from "@/lib/mail/types";
+import type { MailAttachment, MailMessage } from "@/lib/mail/types";
 import { formatMailTime } from "@/lib/mail/format";
 import { useSwipeRow } from "@/components/mail/use-swipe-row";
 
@@ -54,6 +54,8 @@ export interface MailRowProps {
   /** M3 — ปัดบนมือถือ (ต้องเป็นตัวเดียวกับปุ่ม/คีย์ลัด เพื่อให้ "เลิกทำ" ใช้ได้เหมือนกัน) */
   onSwipeArchive?: () => void;
   onSwipeTrash?: () => void;
+  /** กดชิปไฟล์แนบ → เปิดกล่องดูตัวอย่าง/ดาวน์โหลด (ไม่เปิดเมล) */
+  onPreviewAttachment?: (attachment: MailAttachment) => void;
 }
 
 function senderLabel(m: MailMessage): string {
@@ -70,6 +72,7 @@ function MailRowBase({
   onToggleStar,
   onSwipeArchive,
   onSwipeTrash,
+  onPreviewAttachment,
 }: MailRowProps) {
   const unread = message.isUnread;
   const subject = message.subject?.trim() || "(ไม่มีหัวเรื่อง)";
@@ -106,7 +109,8 @@ function MailRowBase({
     // แถวเป็น <div> เปล่า ๆ **ไม่มี role="button"** — ข้างในมีปุ่มจริง (เลือก/ติดดาว/เปิด)
     // ปุ่มซ้อนใน role=button คือ HTML ที่ screen reader อ่านไม่ออก · onClick ที่นี่มีไว้ให้เมาส์
     // คลิกโดนพื้นที่ว่างได้เฉย ๆ ส่วนคีย์บอร์ดใช้ปุ่มเนื้อหาด้านล่าง
-    <div className="relative h-16 w-full overflow-hidden border-b border-gray-100">
+    /* min-h ไม่ใช่ h — แถวที่มีชิปไฟล์แนบสูงกว่า 64px (overflow-hidden ยังต้องมีไว้ให้พื้นหลังปัดนิ้ว) */
+    <div className="relative min-h-16 w-full overflow-hidden border-b border-gray-100">
       {/* พื้นหลังบอกล่วงหน้าว่าปล่อยนิ้วแล้วจะเกิดอะไร (เขียว=เก็บ · แดง=ลบ) */}
       {swipe.dx !== 0 && (
         <div
@@ -241,15 +245,21 @@ function MailRowBase({
               ⚠️ แสดงอย่างเดียว กดดาวน์โหลดจากรายการไม่ได้ (รายการไม่พก blobId) */}
           {message.attachments.length > 0 && (
             <div className="mt-1 flex flex-wrap items-center gap-1.5">
-              {message.attachments.map((a, i) => (
-                <span
-                  key={`${a.name}-${i}`}
+              {message.attachments.map((a) => (
+                <button
+                  key={a.blobId}
+                  type="button"
                   title={`${a.name}${a.sizeBytes ? ` · ${formatBytes(a.sizeBytes)}` : ""}`}
-                  className="inline-flex max-w-[12rem] items-center gap-1 rounded-full border border-gray-200 bg-white px-2 py-0.5 text-xs text-gray-600"
+                  /* กดชิป = ดูไฟล์ ไม่ใช่เปิดเมล ⇒ ต้องหยุด event ไม่ให้ไหลไปที่แถว */
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onPreviewAttachment?.(a);
+                  }}
+                  className="inline-flex max-w-[12rem] items-center gap-1 rounded-full border border-gray-200 bg-white px-2 py-0.5 text-xs text-gray-600 transition-colors hover:border-gray-300 hover:bg-gray-50"
                 >
                   <AttachmentIcon type={a.type} />
                   <span className="truncate">{a.name}</span>
-                </span>
+                </button>
               ))}
               {message.attachmentCount > message.attachments.length && (
                 <span className="text-xs text-gray-400">

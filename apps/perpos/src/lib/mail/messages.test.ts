@@ -139,16 +139,15 @@ describe("การกระทำและการเลิกทำ", () => {
 describe("mapEmailToMessage — ชิปไฟล์แนบในรายการ", () => {
   const base = { id: "e1", threadId: "t1", mailboxIds: { a: true }, subject: "s" };
 
-  it("ส่งชื่อ/ชนิด/ขนาดมา แต่ **ไม่ส่ง blobId** (รายการดาวน์โหลดไฟล์ไม่ได้)", () => {
+  it("ส่ง blobId มาด้วย — ชิปในรายการต้องกดดู/ดาวน์โหลดได้โดยไม่ต้องเปิดเมล", () => {
     const m = mapEmailToMessage({
       ...base,
       hasAttachment: true,
       attachments: [{ blobId: "b1", name: "2026Aug-E.pdf", type: "application/pdf", size: 1024 }],
     } as never);
     expect(m.attachments).toEqual([
-      { name: "2026Aug-E.pdf", type: "application/pdf", sizeBytes: 1024 },
+      { blobId: "b1", name: "2026Aug-E.pdf", type: "application/pdf", sizeBytes: 1024 },
     ]);
-    expect(JSON.stringify(m)).not.toContain("b1");
   });
 
   it("เกินเพดานให้ตัด แต่ยังบอกจำนวนจริงเพื่อทำ +N", () => {
