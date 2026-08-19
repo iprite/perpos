@@ -24,6 +24,7 @@ import {
 import cn from "@core/utils/class-names";
 import { Button } from "@/components/ui/button";
 import { FilterBar, FilterClear, FilterSearch } from "@/components/ui/filter-bar";
+import type { MailSearchScope } from "@/lib/mail/types";
 import { SegmentedControl } from "@/components/ui/segmented";
 
 export interface MailFilters {
@@ -48,6 +49,8 @@ export function MailToolbar({
   pane,
   onTogglePane,
   searchInputRef,
+  searchScope,
+  onSearchScopeChange,
   selectAllState,
   onToggleSelectAll,
   selectAllDisabled = false,
@@ -71,6 +74,9 @@ export function MailToolbar({
   pane: "split" | "list";
   onTogglePane: () => void;
   searchInputRef?: React.RefObject<HTMLDivElement | null>;
+  /** ขอบเขตค้นหา — ชิปโผล่เฉพาะตอนมีคำค้น (ไม่มีคำค้นก็ไม่มีอะไรให้เลือกขอบเขต) */
+  searchScope: MailSearchScope;
+  onSearchScopeChange: (scope: MailSearchScope) => void;
   /** สถานะการเลือกของรายการที่โหลดมาแล้ว — `some` = เลือกบางส่วน (ปุ่มยังเป็น "เลือกทั้งหมด") */
   selectAllState: "none" | "some" | "all";
   onToggleSelectAll: () => void;
@@ -114,6 +120,19 @@ export function MailToolbar({
             /* ต้องยุบได้จริง — บานรายการที่ lg กว้างแค่ 380px ถ้าคง min-w เดิมจะดันปุ่มทะลุกรอบ */
             className="min-w-0 max-w-xl"
           />
+          {search.trim() && (
+            <SegmentedControl
+              size="xs"
+              className="ms-2 shrink-0"
+              value={searchScope}
+              onChange={(v) => onSearchScopeChange(v === "box" ? "box" : "all")}
+              ariaLabel="ขอบเขตการค้นหา"
+              options={[
+                { value: "all", label: "ทั้งหมด" },
+                { value: "box", label: "กล่องนี้" },
+              ]}
+            />
+          )}
         </div>
 
         {/* มือถือใช้ FAB มุมขวาล่างแทน (UI_SPEC §8) — ปุ่มนี้จึงโผล่เฉพาะจอ ≥sm */}

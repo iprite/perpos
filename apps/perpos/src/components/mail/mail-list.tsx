@@ -43,6 +43,8 @@ export interface MailListHandle {
   scrollToTop: () => void;
 }
 
+export type MailboxLabelMap = Record<string, { label: string; folder: boolean }>;
+
 export interface MailListProps {
   messages: MailMessage[];
   loading: boolean;
@@ -51,6 +53,12 @@ export interface MailListProps {
   error: string | null;
   /** มีคำค้นอยู่ไหม (ใช้เลือกข้อความ empty state) */
   searchTerm: string;
+  /**
+   * ป้าย "อยู่กล่องไหน" ต่อ mailboxId — ส่งมาเฉพาะตอนผลลัพธ์มาจากหลายกล่อง (ค้นทั้งหมด)
+   * ไม่ส่ง = ไม่แสดงป้าย (ในกล่องเดียวกันทุกแถวป้ายซ้ำกันหมด รกเปล่า ๆ)
+   * `folder` = โฟลเดอร์ที่ผู้ใช้สร้างเอง (ใช้เลือกป้ายที่ถูกเมื่อเมลอยู่หลายกล่อง)
+   */
+  mailboxLabels?: MailboxLabelMap;
   selectedIds: Set<string>;
   activeId: string | null;
   focusedIndex: number;
@@ -69,6 +77,19 @@ export interface MailListProps {
   onScrollOffsetChange?: (offset: number) => void;
 }
 
+/**
+ * ป้าย "อยู่กล่องไหน" ของแถวหนึ่ง — เมลอยู่ได้หลายกล่องพร้อมกัน (กฎกรองสำเนาเข้าโฟลเดอร์ ฯลฯ)
+ * ⇒ เลือก **โฟลเดอร์ที่ผู้ใช้สร้างเองก่อน** เพราะนั่นคือที่ที่เขาจะตามไปหา
+ * (ถ้าเลือก id แรกตามใจ JMAP จะได้ "กล่องขาเข้า" แล้วตามไปหาไม่เจอฉบับที่เพิ่งเห็น)
+ */
+function pickBoxLabel(m: MailMessage, labels?: MailboxLabelMap): string | undefined {
+  if (!labels) return undefined;
+  const named = m.mailboxIds.filter((id) => labels[id]);
+  const folder = named.find((id) => labels[id]?.folder);
+  const chosen = folder ?? named[0];
+  return chosen ? labels[chosen]?.label : undefined;
+}
+
 export const MailList = forwardRef<MailListHandle, MailListProps>(function MailList(
   {
     messages,
@@ -77,6 +98,7 @@ export const MailList = forwardRef<MailListHandle, MailListProps>(function MailL
     hasMore,
     error,
     searchTerm,
+    mailboxLabels,
     selectedIds,
     activeId,
     focusedIndex,
@@ -177,6 +199,7 @@ export const MailList = forwardRef<MailListHandle, MailListProps>(function MailL
               onSwipeArchive={onSwipeArchive ? () => onSwipeArchive(m) : undefined}
               onSwipeTrash={onSwipeTrash ? () => onSwipeTrash(m) : undefined}
               onPreviewAttachment={setPreview}
+              boxLabel={pickBoxLabel(m, mailboxLabels)}
             />
           ))}
         </Virtualizer>
@@ -211,6 +234,7 @@ export const MailList = forwardRef<MailListHandle, MailListProps>(function MailL
     onSwipeTrash,
     searchTerm,
     selectedIds,
+    mailboxLabels,
   ]);
 
   return (

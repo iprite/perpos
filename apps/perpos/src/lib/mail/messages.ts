@@ -182,15 +182,39 @@ export function mailboxIdByKey(boxes: JmapMailbox[]): Partial<Record<MailBoxKey,
 // ─── filter ──────────────────────────────────────────────────────────────────
 
 export function buildFilter(
-  params: Pick<MailListParams, "box" | "q" | "unread" | "attachment">,
+  params: Pick<MailListParams, "box" | "q" | "unread" | "attachment" | "searchScope">,
   ids: Partial<Record<MailBoxKey, string>>,
   /** id ของ mailbox ที่มีจริงบนเซิร์ฟเวอร์ — ต้องส่งมาเมื่อเปิดโฟลเดอร์ที่ผู้ใช้สร้างเอง (M3) */
   knownMailboxIds?: ReadonlySet<string>,
 ): Record<string, unknown> {
   const conditions: Record<string, unknown>[] = [];
   const selector = resolveBoxSelector(params.box);
+  const q = (params.q ?? "").trim();
 
-  if (selector.kind === "folder") {
+  /**
+   * ค้นหา = ค้น **ทั้งกล่องเมล** เป็นค่าเริ่มต้น (แบบ Gmail)
+   *
+   * เดิม AND กับกล่องที่เปิดอยู่เสมอ ⇒ เมลที่กฎกรองย้ายเข้าโฟลเดอร์ไปแล้ว "ค้นไม่เจอ" ตลอดกาล
+   * ถ้ายืนอยู่กล่องขาเข้า — เป็นสาเหตุจริงที่ผู้ใช้บอกว่าค้นหาไม่ได้ (2026-08-19)
+   *
+   * ยกเว้น 2 อย่าง:
+   *  - ผู้ใช้เลือก "กล่องนี้" เอง (`searchScope: "box"`)
+   *  - ยืนอยู่ในถังขยะ/จดหมายขยะ → ค้นในกล่องนั้นตามที่เห็น (ไม่ใช่ทั้งระบบ)
+   */
+  const inTrashOrJunk =
+    selector.kind === "system" && (selector.key === "trash" || selector.key === "junk");
+  const searchEverywhere = !!q && (params.searchScope ?? "all") === "all" && !inTrashOrJunk;
+
+  if (searchEverywhere) {
+    // ของที่ทิ้ง/ถูกคัดว่าเป็นขยะไปแล้ว ไม่ควรโผล่ปนผลค้นหาโดยที่ผู้ใช้ไม่ได้ขอ
+    const excluded = [ids.trash, ids.junk].filter((id): id is string => !!id);
+    if (excluded.length > 0) {
+      conditions.push({
+        operator: "NOT",
+        conditions: excluded.map((id) => ({ inMailbox: id })),
+      });
+    }
+  } else if (selector.kind === "folder") {
     // id ที่ไม่มีจริง = 404 เสมอ ห้ามปล่อยผ่านไปให้เซิร์ฟเวอร์ตอบรายการว่างเปล่า (ผู้ใช้จะนึกว่าเมลหาย)
     if (!knownMailboxIds?.has(selector.mailboxId)) {
       throw new MailServiceError(404, "ไม่พบโฟลเดอร์นี้ในกล่องเมล");
@@ -206,9 +230,9 @@ export function buildFilter(
 
   if (params.unread) conditions.push({ notKeyword: "$seen" });
   if (params.attachment) conditions.push({ hasAttachment: true });
-  const q = (params.q ?? "").trim();
   if (q) conditions.push({ text: q });
 
+  if (conditions.length === 0) return {};
   if (conditions.length === 1) return conditions[0]!;
   return { operator: "AND", conditions };
 }

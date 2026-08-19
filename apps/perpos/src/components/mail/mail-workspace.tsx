@@ -35,6 +35,8 @@ import { notify } from "@/lib/toast";
 import { UNDO_TOAST_MS, dismissUndoToast, showUndoToast } from "@/components/ui/undo-toast";
 import { resolveBoxSelector } from "@/lib/mail/boxes";
 import {
+  cacheSearchScope,
+  readCachedSearchScope,
   MAIL_LIST_WIDTH_DEFAULT,
   MAIL_LIST_WIDTH_MAX,
   MAIL_LIST_WIDTH_MIN,
@@ -51,11 +53,12 @@ import type {
   MailMessage,
   MailPaneMode,
   MailPrefs,
+  MailSearchScope,
   MailScope,
   MailThreadDetail,
   MailboxSummary,
 } from "@/lib/mail/types";
-import { MailList, type MailListHandle } from "@/components/mail/mail-list";
+import { MailList, type MailListHandle, type MailboxLabelMap } from "@/components/mail/mail-list";
 import { MailPaneResizeContext, MailReader } from "@/components/mail/mail-reader";
 import { MailToolbar, type MailFilters } from "@/components/mail/mail-toolbar";
 import { MailShortcutsDialog } from "@/components/mail/mail-shortcuts-dialog";
@@ -160,6 +163,19 @@ export function MailWorkspace({
   // ── ตัวกรอง / ค้นหา ──────────────────────────────────────────────────────
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
+  /**
+   * ขอบเขตค้นหา — `all` (ค่าเริ่มต้น) = ทั้งกล่องเมล เพราะเมลที่กฎกรองย้ายไปโฟลเดอร์แล้ว
+   * ต้องหาเจอจากที่ไหนก็ได้ · จำค่าที่ผู้ใช้เลือกไว้ที่เครื่อง (ความชอบของเครื่อง ไม่ต้องขึ้นเซิร์ฟเวอร์)
+   */
+  const [searchScope, setSearchScope] = useState<MailSearchScope>("all");
+  useEffect(() => {
+    const cached = readCachedSearchScope();
+    if (cached) setSearchScope(cached);
+  }, []);
+  const changeSearchScope = useCallback((next: MailSearchScope) => {
+    setSearchScope(next);
+    cacheSearchScope(next);
+  }, []);
   const [filters, setFilters] = useState<MailFilters>({ unread: false, attachment: false });
   const [showFilters, setShowFilters] = useState(false);
 
@@ -210,12 +226,12 @@ export function MailWorkspace({
     (extra: Record<string, unknown>) => ({
       box,
       limit: PAGE_SIZE,
-      ...(debouncedSearch ? { q: debouncedSearch } : {}),
+      ...(debouncedSearch ? { q: debouncedSearch, searchScope } : {}),
       ...(filters.unread ? { unread: true } : {}),
       ...(filters.attachment ? { attachment: true } : {}),
       ...extra,
     }),
-    [box, debouncedSearch, filters.attachment, filters.unread],
+    [box, debouncedSearch, filters.attachment, filters.unread, searchScope],
   );
 
   // รายชื่อกล่อง (ใช้ตัวเลขยังไม่ได้อ่านที่หัวรายการ)
@@ -776,14 +792,29 @@ export function MailWorkspace({
     };
   }, [activeId, setReadState]);
 
+  const draftsMailboxId = useMemo(
+    () => mailboxes.find((m) => m.key === "drafts")?.id ?? null,
+    [mailboxes],
+  );
+
+  /**
+   * ฉบับร่างต้องเปิดเป็น "กล่องเขียน" เสมอ — ตัดสินจาก **กล่องที่เมลฉบับนั้นอยู่จริง**
+   * ไม่ใช่กล่องที่ผู้ใช้ยืนอยู่ (ค้นข้ามกล่องพาฉบับร่างมาโผล่ที่ไหนก็ได้ ⇒ เปิดอ่านอย่างเดียว
+   * แล้วเขียนต่อ/ส่งไม่ได้)
+   */
+  const isDraftMessage = useCallback(
+    (m: MailMessage) => (draftsMailboxId ? m.mailboxIds.includes(draftsMailboxId) : false),
+    [draftsMailboxId],
+  );
+
   const openByIndex = useCallback(
     (index: number) => {
       const m = visibleRef.current[index];
       if (!m) return;
-      if (box === "drafts") void openDraft(m);
+      if (isDraftMessage(m)) void openDraft(m);
       else void openMessage(m, index);
     },
-    [box, openDraft, openMessage],
+    [isDraftMessage, openDraft, openMessage],
   );
 
   // ── เปิดกล่องเขียน (M2) ───────────────────────────────────────────────────
@@ -1073,6 +1104,17 @@ export function MailWorkspace({
     }
   }, [afterMutation, emptyableBox, handleExpired, loadFirstPage]);
 
+  /**
+   * ป้ายบอกว่าเมลแถวนี้อยู่กล่องไหน — ใช้ตอนผลค้นหามาจากหลายกล่อง
+   * (เจอแล้วต้องรู้ว่ามันอยู่ที่ไหน ไม่งั้นกดเข้าไปแล้วงงว่าทำไมไม่อยู่ในกล่องที่ยืนอยู่)
+   */
+  const mailboxLabels = useMemo<MailboxLabelMap>(() => {
+    const map: MailboxLabelMap = {};
+    for (const m of mailboxes) map[m.id] = { label: m.name, folder: false };
+    for (const f of folders) map[f.id] = { label: f.name, folder: true };
+    return map;
+  }, [mailboxes, folders]);
+
   /** ปลายทางที่ให้เลือกย้าย — ตัดโฟลเดอร์ที่ยืนอยู่ออก (กดแล้วไม่เกิดอะไร = ห้ามมี) */
   const moveTargets = useMemo(
     () => folders.filter((f) => !(selector.kind === "folder" && f.id === selector.mailboxId)),
@@ -1300,6 +1342,8 @@ export function MailWorkspace({
               onOpenShortcuts={() => setShowShortcuts(true)}
               pane={pane}
               onTogglePane={togglePane}
+              searchScope={searchScope}
+              onSearchScopeChange={changeSearchScope}
               selectAllState={selectAllState}
               onToggleSelectAll={toggleSelectAll}
               selectAllDisabled={visibleMessages.length === 0}
@@ -1325,12 +1369,14 @@ export function MailWorkspace({
                 hasMore={hasMore}
                 error={error}
                 searchTerm={debouncedSearch}
+                /* ป้ายกล่องมีเฉพาะตอนผลค้นหาข้ามกล่อง — ในกล่องเดียวกันทุกแถวป้ายซ้ำกันหมด */
+                mailboxLabels={debouncedSearch && searchScope === "all" ? mailboxLabels : undefined}
                 selectedIds={selectedIds}
                 activeId={activeId}
                 focusedIndex={focusedIndex}
                 newCount={pendingNew.length}
                 onApplyNew={applyPendingNew}
-                onOpen={(m, i) => (isDrafts ? void openDraft(m) : void openMessage(m, i))}
+                onOpen={(m, i) => (isDraftMessage(m) ? void openDraft(m) : void openMessage(m, i))}
                 onToggleSelect={toggleSelect}
                 onToggleStar={(m) => toggleStar([m.id], !m.isFlagged)}
                 onSwipeArchive={

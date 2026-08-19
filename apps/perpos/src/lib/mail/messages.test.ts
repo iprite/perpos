@@ -77,9 +77,12 @@ describe("filter ต่อ MailBoxKey", () => {
     expect(JSON.stringify(f)).not.toContain("inMailbox");
   });
 
-  it("รวมตัวกรองด้วย AND", () => {
+  it("รวมตัวกรองด้วย AND (ขอบเขต “กล่องนี้”)", () => {
     expect(
-      buildFilter({ box: "inbox", unread: true, attachment: true, q: "ใบแจ้งหนี้" }, ids),
+      buildFilter(
+        { box: "inbox", unread: true, attachment: true, q: "ใบแจ้งหนี้", searchScope: "box" },
+        ids,
+      ),
     ).toEqual({
       operator: "AND",
       conditions: [
@@ -88,6 +91,30 @@ describe("filter ต่อ MailBoxKey", () => {
         { hasAttachment: true },
         { text: "ใบแจ้งหนี้" },
       ],
+    });
+  });
+
+  it("มีคำค้น = ค้นทั้งกล่องเมล ไม่ผูกกับกล่องที่เปิดอยู่ (แต่ตัดถังขยะ/จดหมายขยะ)", () => {
+    expect(buildFilter({ box: "inbox", q: "ใบแจ้งหนี้" }, ids)).toEqual({
+      operator: "AND",
+      conditions: [
+        { operator: "NOT", conditions: [{ inMailbox: "d" }, { inMailbox: "e" }] },
+        { text: "ใบแจ้งหนี้" },
+      ],
+    });
+  });
+
+  it("เลือก “กล่องนี้” = กลับไปผูกกับกล่องที่เปิดอยู่", () => {
+    expect(buildFilter({ box: "inbox", q: "abc", searchScope: "box" }, ids)).toEqual({
+      operator: "AND",
+      conditions: [{ inMailbox: "a" }, { text: "abc" }],
+    });
+  });
+
+  it("ยืนอยู่ในถังขยะ/จดหมายขยะ = ค้นเฉพาะกล่องนั้น (ไม่กวาดทั้งระบบ)", () => {
+    expect(buildFilter({ box: "trash", q: "abc" }, ids)).toEqual({
+      operator: "AND",
+      conditions: [{ inMailbox: "d" }, { text: "abc" }],
     });
   });
 
