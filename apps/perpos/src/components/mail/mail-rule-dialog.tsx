@@ -72,6 +72,8 @@ export function MailRuleDialog({
 }) {
   const [name, setName] = useState("");
   const [useSubject, setUseSubject] = useState(false);
+  /** ค่าที่จะใช้จริงของเงื่อนไขหัวเรื่อง — แก้ได้ (หัวเรื่องเต็มมักจำเพาะเกินจนกฎไม่เคยตรง) */
+  const [subjectInput, setSubjectInput] = useState("");
   const [moveTo, setMoveTo] = useState("");
   const [markRead, setMarkRead] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -84,6 +86,7 @@ export function MailRuleDialog({
     if (!open || !seed) return;
     setName(seed.fromName?.trim() || seed.fromEmail);
     setUseSubject(false);
+    setSubjectInput(cleanSubject(seed.subject));
     setMoveTo(defaultMailboxId ?? "");
     setMarkRead(false);
   }, [open, seed, defaultMailboxId]);
@@ -134,8 +137,13 @@ export function MailRuleDialog({
       const conditions: MailRuleCondition[] = [
         { field: "from", op: "contains", value: seed.fromEmail },
       ];
-      if (useSubject && subjectValue) {
-        conditions.push({ field: "subject", op: "contains", value: subjectValue });
+      if (useSubject) {
+        const value = subjectInput.trim();
+        if (!value) {
+          notify.error(null, "เปิดเงื่อนไขหัวเรื่องไว้ แต่ยังไม่ได้กรอกคำ");
+          return;
+        }
+        conditions.push({ field: "subject", op: "contains", value });
       }
       const rule: MailRule = {
         id: `r${Date.now().toString(36)}`,
@@ -163,7 +171,7 @@ export function MailRuleDialog({
     } finally {
       setSaving(false);
     }
-  }, [seed, name, useSubject, subjectValue, moveTo, markRead, onOpenChange]);
+  }, [seed, name, useSubject, subjectInput, moveTo, markRead, onOpenChange]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -185,21 +193,53 @@ export function MailRuleDialog({
                 />
               </div>
 
-              <div className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5">
-                <Text className="text-xs font-medium text-gray-500">เงื่อนไข</Text>
-                <Text className="mt-1 break-all text-sm text-gray-900">
-                  ผู้ส่งมีคำว่า <strong>{seed.fromEmail}</strong>
-                </Text>
-                {subjectValue && (
-                  <div className="mt-2 flex flex-wrap items-center gap-2">
-                    <Text className="min-w-0 text-sm text-gray-700">
-                      และหัวเรื่องมีคำว่า <strong className="break-all">{subjectValue}</strong>
+              {/* เงื่อนไข = แถวละข้อ ปุ่มเปิด-ปิดอยู่ในแถวของตัวเอง
+                  (เดิมสองข้ออยู่กล่องเดียวกับปุ่มเดียว → ไม่รู้ว่าปุ่มคุมข้อไหน) */}
+              <div className="divide-y divide-gray-200 overflow-hidden rounded-xl border border-gray-200">
+                <div className="bg-gray-50 px-3 py-2">
+                  <Text className="text-xs font-medium text-gray-500">
+                    เงื่อนไข — ต้องตรงทุกข้อที่เปิดไว้
+                  </Text>
+                </div>
+
+                <div className="flex items-start gap-3 px-3 py-2.5">
+                  <div className="min-w-0 flex-1">
+                    <Text className="text-xs text-gray-500">ผู้ส่งมีคำว่า</Text>
+                    <Text className="mt-0.5 break-all text-sm font-medium text-gray-900">
+                      {seed.fromEmail}
                     </Text>
-                    <YesNo
-                      label="ใช้เงื่อนไขหัวเรื่องด้วย"
-                      value={useSubject}
-                      onChange={setUseSubject}
-                    />
+                  </div>
+                  {/* ผู้ส่งเป็นแกนของกฎที่สร้างจากเมล — ปิดไม่ได้ (ปิดแล้วเหลือกฎที่กว้างจนอันตราย) */}
+                  <span className="mt-0.5 shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600">
+                    เสมอ
+                  </span>
+                </div>
+
+                {subjectValue && (
+                  <div className="px-3 py-2.5">
+                    <div className="flex items-start gap-3">
+                      <Text className="min-w-0 flex-1 text-xs text-gray-500">หัวเรื่องมีคำว่า</Text>
+                      <YesNo
+                        label="ใช้เงื่อนไขหัวเรื่องด้วย"
+                        value={useSubject}
+                        onChange={setUseSubject}
+                      />
+                    </div>
+                    {useSubject ? (
+                      /* แก้ได้ — หัวเรื่องเต็ม ๆ ของฉบับเดียวมักจำเพาะเกินจนกฎไม่เคยตรงอีก
+                         ผู้ใช้ควรตัดเหลือคำที่ซ้ำทุกฉบับ เช่น "นัดหมายของท่าน" */
+                      <Input
+                        value={subjectInput}
+                        maxLength={MAIL_RULE_VALUE_MAX}
+                        onChange={(e) => setSubjectInput(e.target.value)}
+                        placeholder="คำที่มีในหัวเรื่องทุกฉบับ"
+                        className="mt-1.5"
+                      />
+                    ) : (
+                      <Text className="mt-0.5 line-clamp-2 break-all text-sm text-gray-400">
+                        {subjectValue}
+                      </Text>
+                    )}
                   </div>
                 )}
               </div>
