@@ -161,11 +161,24 @@ export function buildMailboxSummaries(boxes: JmapMailbox[]): MailboxSummary[] {
       key,
       role: key as MailboxRole,
       name: MAIL_BOX_LABELS[key],
-      unreadCount: typeof box.unreadEmails === "number" ? box.unreadEmails : null,
+      unreadCount: mailboxUnreadCount(box),
       totalCount: typeof box.totalEmails === "number" ? box.totalEmails : null,
     });
   }
   return summaries;
+}
+
+/**
+ * ตัวเลข "ยังไม่ได้อ่าน" ของกล่อง — **นับเป็นเธรด ไม่ใช่ฉบับ**
+ *
+ * รายการเมลของเราแสดงเป็นเธรด (`collapseThreads: true`) ⇒ ถ้าเอา `unreadEmails` มาโชว์
+ * ป้ายจะไม่ตรงกับจำนวนแถวที่เห็น (เธรดเดียวมี 3 ฉบับที่ยังไม่ได้อ่าน = ป้ายขึ้น 3 แต่มีแถวเดียว
+ * — เจอจริงบนมือถือ: ป้าย 4 แต่กรอง "ยังไม่ได้อ่าน" แล้วเห็น 2 แถว)
+ * เซิร์ฟเวอร์ที่ไม่ส่ง `unreadThreads` มา (ไม่ใช่ทุกตัวรองรับ) ค่อยตกไปใช้จำนวนฉบับตามเดิม
+ */
+export function mailboxUnreadCount(box: JmapMailbox): number | null {
+  if (typeof box.unreadThreads === "number") return box.unreadThreads;
+  return typeof box.unreadEmails === "number" ? box.unreadEmails : null;
 }
 
 export async function fetchMailboxes(session: MailSession): Promise<JmapMailbox[]> {

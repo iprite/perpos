@@ -10,6 +10,7 @@ import {
   LIST_ATTACHMENT_MAX,
   messageMatchesText,
   mailboxIdByKey,
+  mailboxUnreadCount,
   mapEmailToMessage,
   patchToAction,
   threadCountMap,
@@ -238,5 +239,20 @@ describe("messageMatchesText — ค้นแบบ 'มีข้อความ
   it("ไม่ตรงก็คือไม่ตรง · คำค้นว่าง = ไม่ match (กันคืนทั้งกล่อง)", () => {
     expect(messageMatchesText(base, "instagram")).toBe(false);
     expect(messageMatchesText(base, "   ")).toBe(false);
+  });
+});
+
+describe("mailboxUnreadCount — ป้ายต้องนับหน่วยเดียวกับที่รายการแสดง (เธรด)", () => {
+  const box = (extra: Record<string, unknown>) =>
+    ({ id: "x", name: "Inbox", role: "inbox", parentId: null, ...extra }) as never;
+
+  it("มี unreadThreads = ใช้ตัวนั้น (เธรดเดียวมีหลายฉบับที่ยังไม่ได้อ่านต้องนับ 1)", () => {
+    expect(mailboxUnreadCount(box({ unreadEmails: 4, unreadThreads: 2 }))).toBe(2);
+    expect(mailboxUnreadCount(box({ unreadEmails: 4, unreadThreads: 0 }))).toBe(0);
+  });
+
+  it("เซิร์ฟเวอร์ไม่ส่ง unreadThreads → ตกไปใช้จำนวนฉบับ · ไม่มีทั้งคู่ = null (ไม่ใช่ 0)", () => {
+    expect(mailboxUnreadCount(box({ unreadEmails: 3 }))).toBe(3);
+    expect(mailboxUnreadCount(box({}))).toBeNull();
   });
 });
