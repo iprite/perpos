@@ -9,7 +9,11 @@ import { NextRequest } from "next/server";
 import { requireAdmin } from "../../../_lib/auth";
 import { createAdminClient } from "../../../_lib/supabase";
 import { ok } from "../../../_lib/response";
-import { normalizeHeartbeat, type MailHeartbeat } from "@/lib/mail/server-monitor";
+import {
+  collapseBlueGreen,
+  normalizeHeartbeat,
+  type MailHeartbeat,
+} from "@/lib/mail/server-monitor";
 
 type Kind = "vps_app" | "worker" | "scheduler" | "integration";
 
@@ -240,7 +244,8 @@ export async function GET(req: NextRequest) {
     const v = rawHb?.[k];
     return typeof v === "number" && Number.isFinite(v) ? v : null;
   };
-  const containersByName = new Map((hb?.containers ?? []).map((c) => [c.name, c]));
+  // perpos-blue/perpos-green → ตัวแทน `perpos` = สีที่รันอยู่ (สีว่างที่ stopped ไม่ใช่ปัญหา)
+  const containersByName = new Map(collapseBlueGreen(hb?.containers ?? []).map((c) => [c.name, c]));
   const appsByName = new Map((hb?.apps ?? []).map((a) => [a.app, a]));
 
   const services = await Promise.all(

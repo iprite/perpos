@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   diffAlerts,
+  collapseBlueGreen,
   evaluateHostIssues,
   evaluateIssues,
   normalizeHeartbeat,
@@ -431,5 +432,50 @@ describe("evaluateHostIssues — ทรัพยากรเครื่อง (
       workers: { "pdf-renderer": "timeout 15s", "stt-worker": null },
     });
     expect(Object.keys(issues)).toEqual(["worker:pdf-renderer"]);
+  });
+});
+
+describe("blue/green — perpos-blue/perpos-green ยุบเป็น perpos", () => {
+  const rest = ["caddy", "perpos-worker", "exapp", "riekchang"].map((n) => ctr(n));
+  it("สีว่างที่ stopped ค้างอยู่ = ปกติ ไม่เตือน · ตัวแทนคือสีที่ running", () => {
+    const hb = {
+      ...hostOk,
+      containers: [
+        ...rest,
+        ctr("perpos-blue", { state: "exited", exitCode: 0 }),
+        ctr("perpos-green"),
+      ],
+    };
+    expect(evaluateHostIssues(hb, NOW)).toEqual({});
+    const c = collapseBlueGreen(hb.containers).find((x) => x.name === "perpos");
+    expect(c?.state).toBe("running");
+  });
+  it("ทั้งสองสีดับ → เตือน container:perpos ครั้งเดียว (ไม่ใช่รายสี)", () => {
+    const hb = {
+      ...hostOk,
+      containers: [
+        ...rest,
+        ctr("perpos-blue", { state: "exited", exitCode: 137, oomKilled: true }),
+        ctr("perpos-green", {
+          state: "exited",
+          exitCode: 0,
+          startedAt: new Date(NOW - 5 * H).toISOString(),
+        }),
+      ],
+    };
+    const issues = evaluateHostIssues(hb, NOW);
+    expect(Object.keys(issues)).toEqual(["container:perpos"]);
+    expect(issues["container:perpos"]).toContain("OOM-killed"); // เอาสีที่ start ล่าสุดมารายงาน
+  });
+  it("รันทั้งคู่ (หลัง up -d มือ) → ไม่เตือน และใช้สีที่ start ล่าสุดเทียบ release", () => {
+    const hb = {
+      ...hostOk,
+      containers: [
+        ...rest,
+        ctr("perpos-blue", { startedAt: new Date(NOW - 5 * H).toISOString() }),
+        ctr("perpos-green"),
+      ],
+    };
+    expect(evaluateHostIssues(hb, NOW)).toEqual({});
   });
 });

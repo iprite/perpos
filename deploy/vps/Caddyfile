@@ -29,10 +29,23 @@
 }
 
 # perpos — โปรเจกต์เดียวเสิร์ฟ 2 โดเมน (middleware ของแอปแยกพฤติกรรมตาม host เอง)
+# blue/green (zero-downtime deploy): ปกติรันสีเดียว อีกสี stopped (DNS ไม่ resolve = unhealthy เฉย ๆ)
+# lb_policy first = ส่งเข้าตัวแรกที่ healthy เสมอ (blue ก่อน) · health เช็ค /api/health ทุก 3 วิ —
+# สคริปต์ deploy แตะ /tmp/perpos-drain ให้สีเก่าตอบ 503 → หลุดจาก pool ก่อนถูก stop
+# lb_try_duration = ถ้า dial ไม่ติด (สีนั้นเพิ่งดับ) ลองตัวถัดไปแทนที่จะตอบ 502 ทันที
 app.perpos.ai, mail.perpos.ai {
 	import cf_tls
 	encode zstd gzip
-	reverse_proxy perpos:3005
+	reverse_proxy perpos-blue:3005 perpos-green:3005 {
+		lb_policy first
+		lb_try_duration 20s
+		lb_try_interval 250ms
+		health_uri /api/health
+		health_interval 3s
+		health_timeout 2s
+		fail_duration 10s
+		max_fails 1
+	}
 }
 
 # โดเมนที่ยังไม่มี container รองรับ ห้ามเปิดค้างไว้ — Caddy จะไล่ขอใบรับรองซ้ำจนโดน ACME rate limit

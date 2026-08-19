@@ -47,15 +47,17 @@ cd /srv/deploy && docker compose up -d caddy
 - รัน workflow `deploy-vps` (กดมือ) → build standalone → **อัปโหลด R2 (`deploy-artifacts`) → VPS ดึงด้วย presigned URL** → `releases/<ts>` → สลับ symlink `current` → `docker compose up -d && restart`
   · ⚠️ ห้ามกลับไป scp จาก runner หรือ Actions artifact API — เส้นทาง GitHub→Contabo SG ได้ ~40 KB/s (ค้าง 20+ นาที) ส่วน R2 มี CDN → ~17 MB/s · secrets เพิ่ม: `R2_ACCESS_KEY_ID` `R2_SECRET_ACCESS_KEY` `R2_ACCOUNT_ID`
   · `up -d` อย่างเดียวไม่ recreate เมื่อ symlink เปลี่ยน (bind mount เดิม) → ต้อง `restart` ต่อท้ายเสมอ
-- **rollback**: `ln -sfn /srv/apps/perpos/releases/<ก่อนหน้า> /srv/apps/perpos/current && docker compose restart perpos` (เก็บไว้ 3 release)
+- **perpos deploy แบบ blue/green = zero-downtime (2026-08-19)** — compose มี `perpos-blue` + `perpos-green` (ปกติรันทีละสี อีกสี stopped) · Caddy `reverse_proxy perpos-blue perpos-green` + `lb_policy first` + health `/api/health` ทุก 3 วิ · CI สลับ symlink แล้วรัน [`switch-perpos.sh`](switch-perpos.sh) (ก็อปมาในก้อน artifact ที่ `deploy/`): up สีว่าง (recreate → resolve symlink ใหม่) → รอ `/api/health` ok ในตัว container ≤120 วิ → แตะ `/tmp/perpos-drain` ในสีเก่า (health ตอบ 503 → Caddy ตัดออก) → stop สีเก่า → restart worker · **สีใหม่ boot ไม่ผ่าน = สีเก่าเสิร์ฟต่อ + deploy แดง** (ไม่มีช่วง prod ว่าง) · ⚠️ ห้าม `docker compose restart perpos-*` เพื่อ deploy — ต้องผ่านสคริปต์
+- **rollback**: `ln -sfn /srv/apps/perpos/releases/<ก่อนหน้า> /srv/apps/perpos/current && bash /srv/apps/perpos/current/deploy/switch-perpos.sh` (เก็บไว้ 3 release · release ก่อนฟีเจอร์นี้ไม่มีสคริปต์ → ใช้ก็อปจาก repo) · exapp/riekchang ยัง `docker compose restart <app>` ตรง ๆ
+- cron บน host (`/etc/cron.d/perpos`) ยิงผ่าน Caddy: `curl --resolve app.perpos.ai:443:127.0.0.1 https://app.perpos.ai/api/...` (container perpos ไม่ publish port 3005 ออก host แล้ว — สองสี bind port เดียวกันไม่ได้)
 - `NEXT_PUBLIC_*` inline ตอน build — เปลี่ยนค่าต้อง build ใหม่ (เหมือน Vercel) · env ฝั่ง server แก้ที่ `/srv/apps/perpos/.env` แล้ว restart พอ
 - exapp / riekchang: มี workflow เดียวกันใน repo ตัวเองแล้ว (`.github/workflows/deploy-vps.yml`) · ทั้งสองใช้ Supabase project เดียวกับ perpos แต่คนละ schema (`SUPABASE_SCHEMA=exapp` / `riekchang`)
 
 ## Scheduler worker (`perpos-worker`) — process ยาวแทน cron ยิง HTTP
 
 - service ใน `docker-compose.yml` ใช้ image/artifact/env เดียวกับ `perpos` แต่ `command: node apps/perpos/worker/scheduler-worker.js` (ไฟล์นี้ CI bundle ด้วย esbuild ใส่มาในก้อน artifact — `pnpm build:worker`)
-- **deploy** = workflow เดิม `up -d perpos perpos-worker && restart perpos perpos-worker` · **rollback** = `ln -sfn` + `docker compose restart perpos perpos-worker` (ต้อง restart ทั้งคู่)
-- **ห้าม scale เป็น 2 instance** — ถึงเผลอก็มี lease ใน DB (`scheduler_leases`) ให้ตัวหลังข้ามรอบ ไม่รันซ้อน · ยิงมือได้เหมือนเดิม: `curl -X POST -H "Authorization: Bearer $CRON_SECRET" http://127.0.0.1:3005/api/assistant/scheduler`
+- **deploy/rollback** = `switch-perpos.sh` จัดการให้ (ขั้นสุดท้ายของสคริปต์ = `up -d perpos-worker && restart perpos-worker`) — restart worker เอง = `docker compose restart perpos-worker`
+- **ห้าม scale เป็น 2 instance** — ถึงเผลอก็มี lease ใน DB (`scheduler_leases`) ให้ตัวหลังข้ามรอบ ไม่รันซ้อน · ยิงมือได้เหมือนเดิม: `curl -X POST -H "Authorization: Bearer $CRON_SECRET" --resolve app.perpos.ai:443:127.0.0.1 https://app.perpos.ai/api/assistant/scheduler`
 - **หยุด/restart ปลอดภัย** — worker จับ SIGTERM รอรอบปัจจุบันจบ (≤100 วิ) · compose `stop_grace_period: 120s` · lease ค้าง (SIGKILL/OOM) หมดอายุเอง 20 นาที
 - **worker ตาย = ใครเตือน?** heartbeat route (container perpos) เช็ค `scheduler_runs` ทุก 5 นาที → LINE `scheduler:stale` เมื่อเงียบ >10 นาที (ตัวเฝ้าหลักรันใน worker จึงพึ่งตัวเองไม่ได้) · ด่านนอกสุด = `uptime.yml`
 - ดู log: `docker compose logs -f perpos-worker` (บรรทัด `tick ok in …ms` ทุกนาที) · เฝ้าโดย heartbeat → `/admin/system` (`container:perpos-worker`) + `scheduler_runs` ใน DB
