@@ -1,23 +1,29 @@
 "use client";
 
 /**
- * หน้าตั้งค่าบัญชีของผู้ใช้เมล — ชื่อที่แสดง · รูปโปรไฟล์ · รหัสผ่าน
+ * หน้าตั้งค่าบัญชีของผู้ใช้เมล — แบ่งเป็นเมนูย่อย: โปรไฟล์ · ลายเซ็น · รหัสผ่าน · ภาษา
  *
  * กฎ:
  *  - ทุกอย่างทำในนามผู้ใช้ผ่าน `/api/mail/account/*` (cookie ของตัวเอง) — ไม่มีสิทธิ์แอดมินในเส้นนี้
  *  - เปลี่ยนรหัสผ่านต้องกรอกรหัสปัจจุบันเสมอ · **ห้ามเก็บรหัสไว้ใน state นานเกินจำเป็น**
  *  - รูปโปรไฟล์เห็นเฉพาะในเว็บเมลของเรา — บอกผู้ใช้ตรง ๆ อย่าให้เข้าใจผิดว่าปลายทางเห็นด้วย
+ *  - **ลายเซ็นอยู่ใน `perpos-prefs.json` ของกล่องเมลเอง** (ไม่ใช่ DB ของ PERPOS — invariant ข้อ 1
+ *    ของโซน `(mail)`) · เขียนผ่าน `PUT /api/mail/prefs` ที่ merge ทีละช่อง ⇒ ส่งเฉพาะช่องลายเซ็นได้
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Trash2, UserRound } from "lucide-react";
+import { Globe, KeyRound, PenLine, Trash2, UserRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { SegmentedControl } from "@/components/ui/segmented";
 import { Text, Title } from "@/components/ui/typography";
 import { useMailLocale } from "@/components/mail/mail-locale";
 import { MAIL_LOCALES, type MailLocale } from "@/lib/mail/i18n";
+import { MAIL_SIGNATURE_MAX, fetchMailPrefsShared } from "@/lib/mail/prefs-storage";
+import { applySignature } from "@/lib/mail/compose";
+import type { MailPrefs } from "@/lib/mail/types";
 
 type Status = { tone: "ok" | "error"; text: string } | null;
 
@@ -48,8 +54,11 @@ function Note({ status }: { status: Status }) {
   );
 }
 
+type AccountTab = "profile" | "signature" | "password" | "language";
+
 export function MailAccountView() {
   const { locale, setLocale, t } = useMailLocale();
+  const [tab, setTab] = useState<AccountTab>("profile");
   const [email, setEmail] = useState<string | null>(null);
   const [displayName, setDisplayName] = useState("");
   const [savedName, setSavedName] = useState("");
@@ -60,6 +69,13 @@ export function MailAccountView() {
   const [avatarStatus, setAvatarStatus] = useState<Status>(null);
   const [avatarBusy, setAvatarBusy] = useState(false);
   const filePicker = useRef<HTMLInputElement>(null);
+
+  const [signature, setSignature] = useState("");
+  const [savedSignature, setSavedSignature] = useState("");
+  const [signatureOnReply, setSignatureOnReply] = useState(true);
+  const [savedOnReply, setSavedOnReply] = useState(true);
+  const [sigStatus, setSigStatus] = useState<Status>(null);
+  const [savingSig, setSavingSig] = useState(false);
 
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
@@ -91,6 +107,50 @@ export function MailAccountView() {
       await loadAvatar();
     })();
   }, [loadAvatar]);
+
+  // ลายเซ็นอยู่ในไฟล์ความชอบเดียวกับมุมมอง/ภาษา (คำขอถูกแชร์กับ MailLocaleProvider)
+  useEffect(() => {
+    let alive = true;
+    void fetchMailPrefsShared<MailPrefs>().then((data) => {
+      if (!alive || !data) return;
+      const text = typeof data.signature === "string" ? data.signature : "";
+      const onReply = data.signatureOnReply !== false;
+      setSignature(text);
+      setSavedSignature(text);
+      setSignatureOnReply(onReply);
+      setSavedOnReply(onReply);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  async function saveSignature() {
+    setSavingSig(true);
+    setSigStatus(null);
+    try {
+      const res = await fetch("/api/mail/prefs", {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        // ส่งเฉพาะสองช่องนี้ — route รวมกับค่าเดิม (มุมมอง/ความกว้าง/ภาษาของ workspace ต้องไม่ถูกรีเซ็ต)
+        body: JSON.stringify({ signature, signatureOnReply }),
+      });
+      if (!res.ok) throw new Error(t("account.signature.failed"));
+      const saved = (await res.json().catch(() => null)) as Partial<MailPrefs> | null;
+      const text = typeof saved?.signature === "string" ? saved.signature : signature.trimEnd();
+      setSignature(text);
+      setSavedSignature(text);
+      setSavedOnReply(signatureOnReply);
+      setSigStatus({ tone: "ok", text: t("account.signature.saved") });
+    } catch (e) {
+      setSigStatus({
+        tone: "error",
+        text: e instanceof Error ? e.message : t("account.signature.failed"),
+      });
+    } finally {
+      setSavingSig(false);
+    }
+  }
 
   async function saveName() {
     setSavingName(true);
@@ -189,6 +249,29 @@ export function MailAccountView() {
     }
   }
 
+  const TABS = [
+    {
+      value: "profile" as const,
+      label: t("account.tab.profile"),
+      icon: <UserRound className="h-4 w-4" />,
+    },
+    {
+      value: "signature" as const,
+      label: t("account.tab.signature"),
+      icon: <PenLine className="h-4 w-4" />,
+    },
+    {
+      value: "password" as const,
+      label: t("account.tab.password"),
+      icon: <KeyRound className="h-4 w-4" />,
+    },
+    {
+      value: "language" as const,
+      label: t("account.tab.language"),
+      icon: <Globe className="h-4 w-4" />,
+    },
+  ];
+
   return (
     // โครงเดียวกับหน้า /rules — เต็มความกว้างของ main (rail อยู่ซ้ายแล้ว ไม่ต้องมีปุ่มย้อนกลับ)
     <div className="w-full space-y-4 py-4">
@@ -199,9 +282,16 @@ export function MailAccountView() {
         <Text className="mt-0.5 truncate text-sm text-gray-500">{email ?? "—"}</Text>
       </div>
 
-      {/* จอกว้างแบ่ง 2 คอลัมน์ — การ์ดสั้น ๆ ซ้อนกันเป็นแท่งเดียวเหลือที่ว่างขวาทั้งจอ */}
-      <div className="grid gap-4 xl:grid-cols-2">
-        <div className="space-y-4">
+      {/* เมนูย่อย — pill ตาม DESIGN.md §4 (แท็บในหน้ามีมาตรฐานเดียว) */}
+      <SegmentedControl
+        value={tab}
+        onChange={setTab}
+        ariaLabel={t("account.title")}
+        options={TABS}
+      />
+
+      {tab === "profile" && (
+        <div className="grid gap-4 xl:grid-cols-2">
           <Card title={t("account.avatar.title")} description={t("account.avatar.desc")}>
             <div className="flex items-center gap-4">
               <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full bg-gray-100">
@@ -277,23 +367,75 @@ export function MailAccountView() {
             </div>
             <Note status={nameStatus} />
           </Card>
-
-          <Card title={t("account.language.title")} description={t("account.language.desc")}>
-            <SegmentedControl<MailLocale>
-              value={locale}
-              onChange={(next) => setLocale(next)}
-              ariaLabel={t("common.language")}
-              options={MAIL_LOCALES.map((code) => ({
-                value: code,
-                label: code === "th" ? "ไทย" : "English",
-              }))}
-            />
-            <p className="mt-2 text-xs text-gray-500">{t("account.language.hint")}</p>
-          </Card>
         </div>
+      )}
 
-        <Card title={t("account.password.title")} description={t("account.password.desc")}>
+      {tab === "signature" && (
+        <Card title={t("account.signature.title")} description={t("account.signature.desc")}>
           <div className="space-y-3">
+            <div>
+              <Label htmlFor="mail-signature">{t("account.signature.label")}</Label>
+              <Textarea
+                id="mail-signature"
+                rows={6}
+                className="mt-1 font-mono"
+                value={signature}
+                maxLength={MAIL_SIGNATURE_MAX}
+                placeholder={t("account.signature.placeholder")}
+                onChange={(e) => setSignature(e.target.value)}
+              />
+              <p className="mt-1 text-xs text-gray-400">
+                {t("account.signature.counter", {
+                  used: signature.length,
+                  max: MAIL_SIGNATURE_MAX,
+                })}
+              </p>
+            </div>
+
+            <div>
+              <Label>{t("account.signature.onReply")}</Label>
+              <div className="mt-1">
+                <SegmentedControl
+                  value={signatureOnReply ? "on" : "off"}
+                  onChange={(v) => setSignatureOnReply(v === "on")}
+                  ariaLabel={t("account.signature.onReply")}
+                  options={[
+                    { value: "on", label: t("account.signature.onReply.on") },
+                    { value: "off", label: t("account.signature.onReply.off") },
+                  ]}
+                />
+              </div>
+            </div>
+
+            {signature.trim() && (
+              <div>
+                <p className="text-xs text-gray-500">{t("account.signature.preview")}</p>
+                {/* ตัวอย่างใช้ฟังก์ชันเดียวกับกล่องเขียนจริง — สิ่งที่เห็นคือสิ่งที่ผู้รับได้ */}
+                <pre className="mt-1 max-h-48 overflow-auto whitespace-pre-wrap rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-700">
+                  {applySignature("", signature).replace(/^\n+/, "")}
+                </pre>
+              </div>
+            )}
+
+            <p className="text-xs text-gray-500">{t("account.signature.hint")}</p>
+
+            <Button
+              disabled={
+                savingSig ||
+                (signature.trimEnd() === savedSignature && signatureOnReply === savedOnReply)
+              }
+              onClick={() => void saveSignature()}
+            >
+              {savingSig ? t("common.saving") : t("common.save")}
+            </Button>
+            <Note status={sigStatus} />
+          </div>
+        </Card>
+      )}
+
+      {tab === "password" && (
+        <Card title={t("account.password.title")} description={t("account.password.desc")}>
+          <div className="max-w-md space-y-3">
             <div>
               <Label htmlFor="mail-pw-current">{t("account.password.current")}</Label>
               <Input
@@ -337,7 +479,22 @@ export function MailAccountView() {
             <Note status={pwStatus} />
           </div>
         </Card>
-      </div>
+      )}
+
+      {tab === "language" && (
+        <Card title={t("account.language.title")} description={t("account.language.desc")}>
+          <SegmentedControl<MailLocale>
+            value={locale}
+            onChange={(next) => setLocale(next)}
+            ariaLabel={t("common.language")}
+            options={MAIL_LOCALES.map((code) => ({
+              value: code,
+              label: code === "th" ? "ไทย" : "English",
+            }))}
+          />
+          <p className="mt-2 text-xs text-gray-500">{t("account.language.hint")}</p>
+        </Card>
+      )}
     </div>
   );
 }

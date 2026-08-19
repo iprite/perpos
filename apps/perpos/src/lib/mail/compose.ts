@@ -103,6 +103,22 @@ export function forwardSubject(subject: string | null | undefined): string {
   return FWD_PREFIX.test(base) ? base : `Fwd: ${base}`;
 }
 
+// ─── ลายเซ็น ─────────────────────────────────────────────────────────────────
+
+/**
+ * ต่อลายเซ็นเข้ากับเนื้อความตั้งต้นของกล่องเขียน
+ *
+ * - คั่นด้วย `-- ` (ขีดสองตัว+เว้นวรรค) ตามธรรมเนียมเมล (RFC 3676 §4.3) — ไคลเอนต์ทั่วโลก
+ *   ใช้บรรทัดนี้ตัดลายเซ็นออกจากส่วนที่ยกมาอ้าง ⇒ ห้ามเปลี่ยนเป็นเส้นคั่นสวย ๆ
+ * - ตอบ/ส่งต่อ: ลายเซ็นอยู่ **เหนือ** ข้อความที่อ้างถึงเสมอ (คนอ่านจากบนลงล่าง
+ *   และเคอร์เซอร์ของกล่องเขียนอยู่บนสุด)
+ */
+export function applySignature(body: string, signature: string): string {
+  const sig = signature.replace(/\r\n/g, "\n").trimEnd();
+  if (!sig) return body;
+  return `\n\n-- \n${sig}\n${body}`;
+}
+
 // ─── ข้อความที่อ้างถึง ────────────────────────────────────────────────────────
 
 function addressLabel(addr: MailAddress | null | undefined): string {

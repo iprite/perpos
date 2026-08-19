@@ -19,6 +19,18 @@ export const MAIL_LIST_WIDTH_MIN = 280;
 export const MAIL_LIST_WIDTH_MAX = 720;
 export const MAIL_LIST_WIDTH_DEFAULT = 380;
 
+/**
+ * เพดานความยาวลายเซ็น (ตัวอักษร) — ลายเซ็นเป็นข้อความล้วนต่อท้ายเมลทุกฉบับ
+ * ยาวเกินนี้แปลว่าผู้ใช้เอาเนื้อหาจริงมาใส่ผิดที่ (และไฟล์ prefs มีเพดาน 8KB อยู่แล้ว)
+ */
+export const MAIL_SIGNATURE_MAX = 2000;
+
+/** ลายเซ็นที่อ่านมาจากไฟล์/ที่ผู้ใช้พิมพ์ — ตัด CR + ตัดช่องว่างท้าย + บีบความยาว */
+export function normalizeMailSignature(raw: unknown): string {
+  if (typeof raw !== "string") return "";
+  return raw.replace(/\r\n/g, "\n").slice(0, MAIL_SIGNATURE_MAX).trimEnd();
+}
+
 /** ค่าที่ผู้ใช้/ไคลเอนต์อื่นเขียนมั่วได้ ⇒ บีบเข้ากรอบเสมอ (ไม่ใช่ตัวเลข = ค่าเริ่มต้น) */
 export function clampMailListWidth(raw: unknown): number {
   if (typeof raw !== "number" || !Number.isFinite(raw)) return MAIL_LIST_WIDTH_DEFAULT;
