@@ -214,7 +214,10 @@
     display: inline-grid;
     place-content: center;
     cursor: pointer;
-    transition: 0.18s background-color, 0.18s border-color, 0.18s box-shadow;
+    transition:
+      0.18s background-color,
+      0.18s border-color,
+      0.18s box-shadow;
   }
 
   input[type="checkbox"]::before {
@@ -334,7 +337,10 @@
     display: grid;
     gap: 10px;
     cursor: pointer;
-    transition: 0.2s border-color, 0.2s background, 0.2s transform;
+    transition:
+      0.2s border-color,
+      0.2s background,
+      0.2s transform;
     box-shadow: var(--upl-shadow);
   }
 
@@ -490,7 +496,9 @@
     cursor: pointer;
     padding: 8px;
     border-radius: 10px;
-    transition: 0.2s background, 0.2s color;
+    transition:
+      0.2s background,
+      0.2s color;
   }
 
   .uploader__remove:hover {
@@ -1160,7 +1168,7 @@ td.rc-table-cell-fix-right {
 
 .rizzui-input-field,
 .rizzui-textarea-field {
-  @apply !text-sm placeholder:!text-gray-400 !outline-none;
+  @apply !text-sm !outline-none placeholder:!text-gray-400;
 }
 
 .isomorphic-form label > span,
@@ -1177,7 +1185,6 @@ td.rc-table-cell-fix-right {
 .isomorphic-form label select {
   @apply !text-sm;
 }
-
 
 /*
 * Draft Text Editor
@@ -1211,7 +1218,8 @@ td.rc-table-cell-fix-right {
 }
 
 .radial-progress-bar {
-  background: radial-gradient(closest-side, #f1f1f1 85%, transparent 90% 100%),
+  background:
+    radial-gradient(closest-side, #f1f1f1 85%, transparent 90% 100%),
     conic-gradient(var(--progress-bg) var(--progress-value), #ddd 0);
 }
 
@@ -1473,11 +1481,11 @@ div[style="z-index: 1000001;"],
 }
 
 :is(
-    .rbc-header + .rbc-header,
-    .rbc-day-bg + .rbc-day-bg,
-    .rbc-month-row + .rbc-month-row,
-    .rbc-timeslot-group
-  ) {
+  .rbc-header + .rbc-header,
+  .rbc-day-bg + .rbc-day-bg,
+  .rbc-month-row + .rbc-month-row,
+  .rbc-timeslot-group
+) {
   @apply border-muted;
 }
 
@@ -1727,7 +1735,7 @@ div[style="z-index: 1000001;"],
 .job-schedule-calendar button.react-calendar__tile--active,
 .job-schedule-calendar button.react-calendar__tile--hasActive,
 .job-schedule-calendar button.react-calendar__tile--now {
-  @apply !bg-transparent !text-gray-600  hover:!bg-[#e6e6e6] dark:hover:!bg-gray-100;
+  @apply !bg-transparent !text-gray-600 hover:!bg-[#e6e6e6] dark:hover:!bg-gray-100;
 }
 .job-schedule-calendar button.react-calendar__month-view__days__day {
   @apply relative;
@@ -1784,4 +1792,21 @@ div[style="z-index: 1000001;"],
 
 [dir="rtl"] :is(.rizzui-checkbox-icon, .rizzui-switch-on-icon) {
   @apply -scale-x-100;
+}
+
+/**
+ * PERPOS Mail — ช่องกรอกบนมือถือต้องไม่เล็กกว่า 16px
+ *
+ * Safari บน iOS **ซูมทั้งหน้าเอง** เมื่อโฟกัสช่องที่ตัวอักษรเล็กกว่า 16px
+ * (อาการ: กดจะพิมพ์แล้วจอขยายจนปุ่ม/ป้ายหลุดออกนอกจอ ต้องเลื่อนซ้าย-ขวา)
+ * — แก้ที่ต้นทางทั้งโซนเดียวจบ ดีกว่าไล่ใส่ `text-base` รายช่อง (ลืมทีเดียวก็กลับมาเป็นอีก)
+ *
+ * ใช้ `body:has(.mail-zone)` ไม่ใช่ `.mail-zone` ตรง ๆ เพราะ **dialog/popover ถูก portal ไป body**
+ * (กล่องเขียนเมล, แผงตัวเลือก) จึงอยู่นอก div ของ shell
+ * ⚠️ กฎนี้ครอบเฉพาะโซนเมล — Suite/Flow ไม่มี `.mail-zone` จึงไม่ถูกแตะ
+ */
+@media (max-width: 639px) {
+  body:has(.mail-zone) :is(input, textarea, select) {
+    font-size: 16px;
+  }
 }

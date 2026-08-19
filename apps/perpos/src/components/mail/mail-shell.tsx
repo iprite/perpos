@@ -383,7 +383,7 @@ export function MailShell({
     <MailLocaleProvider initialLocale={locale} connected={connected}>
       {/* ความสูงของ "หน้าจอ" เป็นของ shell ที่เดียว (h-dvh — ห้ามใช้ 100vh: Safari มือถือคืนค่าสูงเกินจริง)
     แล้วเนื้อหาข้างในใช้ h-full เอา — หน้าลูกห้ามเดา calc(100vh - Nrem) เพราะ rail มือถือกินสูงไม่เท่ากัน */}
-      <div className="flex h-dvh flex-col bg-white">
+      <div className="mail-zone flex h-dvh flex-col bg-white">
         <header className="flex h-12 shrink-0 items-center justify-between gap-3 border-b border-gray-200 px-3 sm:px-4">
           <MailBrand />
           {connected && <MailAccountMenu basePath={basePath} />}
