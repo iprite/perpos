@@ -68,6 +68,8 @@ export interface MailListProps {
   onOpen: (m: MailMessage, index: number) => void;
   onToggleSelect: (m: MailMessage, index: number, shiftKey: boolean) => void;
   onToggleStar: (m: MailMessage) => void;
+  /** สลับอ่านแล้ว/ยังไม่ได้อ่าน — ปุ่มลัดตอน hover ในแถว (เดสก์ท็อป) */
+  onToggleRead: (m: MailMessage) => void;
   /** M3 — ปัดบนมือถือ (ไม่ส่งมา = ปิดท่าทางนี้) */
   onSwipeArchive?: (m: MailMessage) => void;
   onSwipeTrash?: (m: MailMessage) => void;
@@ -107,6 +109,7 @@ export const MailList = forwardRef<MailListHandle, MailListProps>(function MailL
     onOpen,
     onToggleSelect,
     onToggleStar,
+    onToggleRead,
     onSwipeArchive,
     onSwipeTrash,
     onLoadMore,
@@ -196,6 +199,7 @@ export const MailList = forwardRef<MailListHandle, MailListProps>(function MailL
               onOpen={() => onOpen(m, i)}
               onToggleSelect={(shiftKey) => onToggleSelect(m, i, shiftKey)}
               onToggleStar={() => onToggleStar(m)}
+              onToggleRead={() => onToggleRead(m)}
               onSwipeArchive={onSwipeArchive ? () => onSwipeArchive(m) : undefined}
               onSwipeTrash={onSwipeTrash ? () => onSwipeTrash(m) : undefined}
               onPreviewAttachment={setPreview}
@@ -230,6 +234,7 @@ export const MailList = forwardRef<MailListHandle, MailListProps>(function MailL
     onRetry,
     onToggleSelect,
     onToggleStar,
+    onToggleRead,
     onSwipeArchive,
     onSwipeTrash,
     searchTerm,
