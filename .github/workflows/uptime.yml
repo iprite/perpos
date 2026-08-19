@@ -54,20 +54,124 @@ jobs:
             # เก็บหลายบรรทัดใน output ด้วย %0A แล้วค่อยแปลงตอนประกอบข้อความ
             echo "down_list=$down_list" >> "$GITHUB_OUTPUT"
           fi
-      - name: Alert LINE ถ้าล่ม (ยิงตรงไป LINE — survive ตอนแอปดับ)
+      # ── self-healing: ล่ม → ลอง restart เอง 1 ครั้ง (ผ่าน switch-app.sh = zero-downtime) → เช็คซ้ำ ──
+      # กันวน: จำเวลา restart ล่าสุดไว้ใน actions/cache — ถ้าเพิ่ง restart ไปใน 30 นาที ไม่ทำซ้ำ (แจ้ง 🔴 ให้คนดูแทน)
+      - name: ดูว่าเพิ่ง auto-restart ไปหรือยัง
+        if: steps.check.outputs.down == '1'
+        id: last
+        uses: actions/cache/restore@v4
+        with:
+          path: .uptime-restart
+          key: uptime-restart-${{ github.run_id }}
+          restore-keys: uptime-restart-
+      - name: Auto-restart แอปที่ล่ม (ครั้งเดียว ไม่วน)
+        if: steps.check.outputs.down == '1'
+        id: heal
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          DOWN_LIST: ${{ steps.check.outputs.down_list }}
+        run: |
+          set -uo pipefail
+          now=$(date +%s); last=$(cat .uptime-restart/ts 2>/dev/null || echo 0)
+          if [ -z "$VPS_HOST" ] || [ -z "$SSH_KEY" ]; then echo "result=skip" >> "$GITHUB_OUTPUT"; echo "ไม่มี secret VPS — ข้าม auto-restart"; exit 0; fi
+          if (( now - last < 1800 )); then
+            echo "result=recent" >> "$GITHUB_OUTPUT"; echo "เพิ่ง auto-restart เมื่อ $(( (now-last)/60 )) นาทีก่อน — ไม่ทำซ้ำ (ให้คนดู)"; exit 0
+          fi
+          # แปลชื่อที่ล่ม → คำสั่งบนเครื่อง (choice ปิด — ไม่มีอะไรจาก input คนภายนอกไหลเข้า)
+          cmds=""
+          printf '%s' "$DOWN_LIST" | grep -q '• PERPOS —\|• PERPOS Mail —' && cmds="$cmds perpos"
+          printf '%s' "$DOWN_LIST" | grep -q '• exapp —'      && cmds="$cmds exapp"
+          printf '%s' "$DOWN_LIST" | grep -q '• riekchang —'  && cmds="$cmds riekchang"
+          printf '%s' "$DOWN_LIST" | grep -q '• Mail OAuth'   && cmds="$cmds stalwart"
+          n=$(printf '%s' "$DOWN_LIST" | grep -o '•' | wc -l)
+          [ "$n" -ge 5 ] && cmds="caddy $cmds"   # ล่มทุกตัว = น่าจะ Caddy/เครือข่าย → restart Caddy ก่อน
+          echo "จะ restart:$cmds"
+          mkdir -p ~/.ssh; echo "$SSH_KEY" > ~/.ssh/id_up && chmod 600 ~/.ssh/id_up
+          ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+          cat > remote.sh <<'EOS'
+          set -uo pipefail; cd /srv/deploy
+          sw() { local s=/srv/apps/$1/current/deploy/switch-app.sh; [ -f "$s" ] || s=/srv/deploy/switch-app.sh; bash "$s" "$@"; }
+          rc=0
+          for c in "$@"; do
+            echo "── restart $c"
+            case "$c" in
+              caddy)     docker compose restart caddy ;;
+              perpos)    sw perpos 3005 perpos-worker ;;
+              exapp)     sw exapp 3006 ;;
+              riekchang) sw riekchang 3007 ;;
+              stalwart)  systemctl restart stalwart ;;
+            esac || rc=1
+          done
+          exit $rc
+          EOS
+          ssh -i ~/.ssh/id_up -o ConnectTimeout=25 -o ServerAliveInterval=15 "$VPS_USER@$VPS_HOST" "S=\$(cat); bash -c \"\$S\" heal$cmds" < remote.sh 2>&1 | tail -n 40
+          if [ "${PIPESTATUS[0]}" = "0" ]; then
+            echo "result=restarted" >> "$GITHUB_OUTPUT"
+          else
+            echo "result=ssh_failed" >> "$GITHUB_OUTPUT"; echo "ssh/restart ล้ม (เครื่องอาจดับทั้งตัว)"
+          fi
+          mkdir -p .uptime-restart && echo "$now" > .uptime-restart/ts
+      - name: จำเวลา auto-restart
+        if: steps.heal.outputs.result == 'restarted' || steps.heal.outputs.result == 'ssh_failed'
+        uses: actions/cache/save@v4
+        with:
+          path: .uptime-restart
+          key: uptime-restart-${{ github.run_id }}
+      - name: เช็คซ้ำหลัง restart
+        if: steps.heal.outputs.result == 'restarted'
+        id: recheck
+        run: |
+          sleep 20
+          still=""
+          for t in "PERPOS|https://app.perpos.ai/api/health" "exapp|https://app.exworker.co.th/" "riekchang|https://app.riekchang.com/" "PERPOS Mail|https://mail.perpos.ai/login" "Mail OAuth|https://login.perpos.ai/.well-known/oauth-authorization-server"; do
+            IFS='|' read -r name url <<<"$t"
+            code=$(curl -sL -m 15 -o /dev/null -w "%{http_code}" "$url" || echo 000)
+            [ "$code" = "200" ] || still="${still}• ${name} — HTTP ${code}%0A"
+          done
+          echo "still=$still" >> "$GITHUB_OUTPUT"
+      - name: Alert LINE (ยิงตรงไป LINE — survive ตอนแอปดับ)
         if: steps.check.outputs.down == '1'
         env:
           LINE_TOKEN: ${{ secrets.LINE_MESSAGING_CHANNEL_ACCESS_TOKEN }}
           LINE_IDS: ${{ secrets.ALERT_LINE_USER_IDS }}
+          HEAL: ${{ steps.heal.outputs.result }}
+          STILL: ${{ steps.recheck.outputs.still }}
+          OPS_URL: ${{ github.server_url }}/${{ github.repository }}/actions/workflows/ops-vps.yml
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           if [ -z "$LINE_TOKEN" ] || [ -z "$LINE_IDS" ]; then
             echo "::warning::ขาด secret LINE_MESSAGING_CHANNEL_ACCESS_TOKEN หรือ ALERT_LINE_USER_IDS — ข้ามการแจ้งเตือน"
             exit 0
           fi
           LIST=$(printf '%s' '${{ steps.check.outputs.down_list }}' | sed 's/%0A/\n/g')
-          MSG="🔴 เว็บบน VPS SG อาจล่ม (เช็คจากข้างนอก — GitHub Actions)
+          STAMP=$(TZ=Asia/Bangkok date '+%d/%m %H:%M')
+          case "$HEAL" in
+            restarted)
+              if [ -z "$STILL" ]; then
+                MSG="🟡 เว็บบน VPS ล่มชั่วครู่ — restart อัตโนมัติแล้วกลับมาปกติ
           $(printf "$LIST")
-          $(date -u '+%Y-%m-%d %H:%M UTC') · ถ้า perpos ล่มด้วย ตัวเฝ้าใน /admin/system จะเงียบ — ssh perpos-sg ดู docker ps"
+          $STAMP · ไม่ต้องทำอะไร (ดู log: $RUN_URL)"
+              else
+                MSG="🔴 restart อัตโนมัติแล้วยังไม่ขึ้น — ต้องคนดู
+          $(printf "$LIST" | sed 's/^/ก่อน: /')
+          $(printf '%s' "$STILL" | sed 's/%0A/\n/g' | sed 's/^/ยังล่ม: /')
+          $STAMP · สั่งเพิ่ม: $OPS_URL (status / logs / rollback)"
+              fi ;;
+            recent)
+              MSG="🔴 เว็บบน VPS ยังล่ม (เพิ่ง auto-restart ไปใน 30 นาที — ไม่ทำซ้ำ)
+          $(printf "$LIST")
+          $STAMP · สั่งเอง: $OPS_URL (status / logs / rollback)" ;;
+            ssh_failed)
+              MSG="🔴 เว็บบน VPS ล่ม และ ssh เข้าเครื่องไม่ได้ (เครื่องอาจดับทั้งตัว)
+          $(printf "$LIST")
+          $STAMP · เช็ค Contabo panel / รอ reboot · $OPS_URL" ;;
+            *)
+              MSG="🔴 เว็บบน VPS SG อาจล่ม (เช็คจากข้างนอก — GitHub Actions)
+          $(printf "$LIST")
+          $STAMP · สั่งดู/แก้จากมือถือ: $OPS_URL" ;;
+          esac
           IFS=','
           for id in $LINE_IDS; do
             id=$(echo "$id" | xargs)

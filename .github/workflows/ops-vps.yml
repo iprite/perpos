@@ -1,0 +1,187 @@
+# ops-vps — สั่งงานเครื่อง VPS SG จาก GitHub (มือถือก็ได้) โดยไม่ต้อง ssh เอง
+#
+# ทำไมต้องอยู่ที่ GitHub: ถ้า perpos ล่ม บอท LINE (/api/line/webhook) ก็ล่มด้วย — ช่องเดียวที่ยังมีชีวิต
+# ตอนเครื่องมีปัญหาคือ GitHub (ตัวเดียวกับที่ยิง LINE เตือนใน uptime.yml)
+#
+# ใช้ยังไง: Actions → ops-vps → Run workflow → เลือก action (แอป GitHub บนมือถือ 3 แตะจบ)
+#   • กลุ่มอ่านอย่างเดียว (status / logs-* / releases / disk / cron-list) — ปลอดภัย กดได้เสมอ
+#   • กลุ่มแก้ไข (restart-* / rollback-*) — เป็น choice list ปิด **ห้ามเปิดช่องรันคำสั่งอิสระ**
+#     restart-<app> = รัน switch-app.sh ซ้ำบน release ปัจจุบัน = zero-downtime (สีว่างขึ้นก่อน สีเก่าค่อยดับ)
+#     rollback-<app> = ชี้ symlink ไป release ก่อนหน้า แล้ว switch (สีใหม่ไม่ผ่าน health = สีเดิมเสิร์ฟต่อ)
+# ผลทุกครั้งแจ้ง LINE (secret ชุดเดียวกับ uptime/deploy) — สรุปสั้น + ลิงก์ log เต็มใน run
+name: ops-vps
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "สั่งอะไร"
+        required: true
+        type: choice
+        default: status
+        options:
+          # ── อ่านอย่างเดียว ──
+          - status
+          - logs-perpos
+          - logs-perpos-worker
+          - logs-exapp
+          - logs-riekchang
+          - logs-caddy
+          - logs-stalwart
+          - releases
+          - disk
+          - cron-list
+          # ── แก้ไข (choice ปิด) ──
+          - restart-perpos
+          - restart-perpos-worker
+          - restart-exapp
+          - restart-riekchang
+          - restart-caddy
+          - restart-stalwart
+          - rollback-perpos
+          - rollback-exapp
+          - rollback-riekchang
+      lines:
+        description: "จำนวนบรรทัด log (เฉพาะ logs-*)"
+        required: false
+        default: "150"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: vps-ops-${{ github.event.inputs.action }}
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: เตรียม ssh
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          echo "$SSH_KEY" > ~/.ssh/id_ops && chmod 600 ~/.ssh/id_ops
+          ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: ${{ github.event.inputs.action }}
+        id: op
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          ACTION: ${{ github.event.inputs.action }}
+          LINES: ${{ github.event.inputs.lines }}
+        run: |
+          set -uo pipefail
+          # ตัวเลขล้วนเท่านั้น (input มาจากคน แต่กันไว้ก่อน — ห้ามให้ค่า input ไหลเข้า shell บนเครื่องดิบ ๆ)
+          [[ "$LINES" =~ ^[0-9]{1,4}$ ]] || LINES=150
+          # remote script ทั้งก้อนเป็น literal ที่นี่ — สาขาถูกเลือกด้วย case จาก ACTION ที่เป็น choice ปิดอยู่แล้ว
+          cat > remote.sh <<'EOS'
+          set -uo pipefail
+          ACTION="$1"; LINES="$2"
+          cd /srv/deploy
+          dc() { docker compose "$@"; }
+          rel() {  # แสดง release ทั้งหมดของแอป + ตัวที่ current ชี้ + sha
+            local app=$1 cur; cur=$(readlink -f /srv/apps/$app/current 2>/dev/null || echo '?')
+            echo "── $app  current → ${cur##*/}  ($(cat $cur/RELEASE 2>/dev/null | cut -c1-12 || echo '?'))"
+            ls -1t /srv/apps/$app/releases 2>/dev/null | sed "s|^|   |;s|^   ${cur##*/}\$|   ${cur##*/}  ◀ current|"
+          }
+          switch() {  # restart/rollback ผ่านสคริปต์ blue/green ของ release ที่ current ชี้ (fallback = ก็อปใน /srv/deploy)
+            local app=$1 port=$2; shift 2
+            local s=/srv/apps/$app/current/deploy/switch-app.sh
+            [ -x "$s" ] || [ -f "$s" ] || s=/srv/deploy/switch-app.sh
+            [ -f "$s" ] || { echo "❌ ไม่พบ switch-app.sh (ทั้งใน release และ /srv/deploy)"; return 1; }
+            bash "$s" "$app" "$port" "$@"
+          }
+          rollback() {  # ชี้ symlink ไป release ก่อนหน้าตัวที่ current ชี้ แล้ว switch · ล้ม = ดึง symlink กลับ
+            local app=$1 port=$2; shift 2
+            local cur prev; cur=$(readlink -f /srv/apps/$app/current)
+            prev=$(ls -1dt /srv/apps/$app/releases/* | grep -vx "$cur" | head -n1 || true)
+            [ -n "$prev" ] || { echo "❌ ไม่มี release ก่อนหน้าให้ rollback"; return 1; }
+            echo "rollback $app: ${cur##*/} → ${prev##*/}"
+            ln -sfn "$prev" /srv/apps/$app/current
+            if switch "$app" "$port" "$@"; then echo "✅ rollback สำเร็จ → ${prev##*/}"; else
+              ln -sfn "$cur" /srv/apps/$app/current; echo "❌ สีใหม่ไม่ผ่าน health — symlink กลับ ${cur##*/} (ของเดิมยังเสิร์ฟ)"; return 1; fi
+          }
+          case "$ACTION" in
+            status)
+              echo "▶ $(hostname)  up: $(uptime -p)  load: $(cut -d' ' -f1-3 /proc/loadavg)"
+              free -m | awk 'NR==2{printf "RAM: %d/%d MB used (%.0f%%)\n",$3,$2,$3*100/$2}'
+              df -h / | awk 'NR==2{print "disk /: "$3"/"$2" ("$5")"}'
+              echo; echo "▶ docker"
+              docker ps -a --format 'table {{.Names}}\t{{.Status}}\t{{.RunningFor}}' | sed 's/^deploy-//'
+              echo; docker stats --no-stream --format 'table {{.Name}}\t{{.MemUsage}}\t{{.CPUPerc}}' | sed 's/^deploy-//'
+              echo; echo "▶ stalwart: $(systemctl is-active stalwart 2>/dev/null)   cron: $(systemctl is-active cron 2>/dev/null)"
+              echo; echo "▶ health ในเครื่อง (ผ่าน Caddy)"
+              for d in app.perpos.ai app.exworker.co.th app.riekchang.com mail.perpos.ai; do
+                printf '  %-22s HTTP %s\n' "$d" "$(curl -s -m 8 -o /dev/null -w '%{http_code}' --resolve $d:443:127.0.0.1 https://$d/ || echo 000)"
+              done
+              echo; rel perpos; rel exapp; rel riekchang ;;
+            logs-perpos)         dc logs --tail "$LINES" --timestamps perpos-blue perpos-green 2>&1 | tail -n "$LINES" ;;
+            logs-perpos-worker)  dc logs --tail "$LINES" --timestamps perpos-worker 2>&1 ;;
+            logs-exapp)          dc logs --tail "$LINES" --timestamps exapp-blue exapp-green 2>&1 | tail -n "$LINES" ;;
+            logs-riekchang)      dc logs --tail "$LINES" --timestamps riekchang-blue riekchang-green 2>&1 | tail -n "$LINES" ;;
+            logs-caddy)          dc logs --tail "$LINES" --timestamps caddy 2>&1 ;;
+            logs-stalwart)       journalctl -u stalwart -n "$LINES" --no-pager 2>&1 ;;
+            releases)            rel perpos; rel exapp; rel riekchang ;;
+            disk)
+              df -h /; echo; du -sh /srv/apps/*/releases /var/lib/docker /var/lib/stalwart /var/log 2>/dev/null
+              echo; docker system df ;;
+            cron-list)           for f in /etc/cron.d/perpos /etc/cron.d/exapp; do echo "── $f"; grep -v '^\s*#' "$f" 2>/dev/null | sed -E 's/(Bearer|x-cron-secret: )[^"'"'"' ]+/\1 ***/'; done
+                                 echo; systemctl list-timers --no-pager | head -n 15 ;;
+            restart-perpos)      switch perpos 3005 perpos-worker ;;
+            restart-perpos-worker) dc restart perpos-worker && dc ps perpos-worker ;;
+            restart-exapp)       switch exapp 3006 ;;
+            restart-riekchang)   switch riekchang 3007 ;;
+            restart-caddy)       dc restart caddy && sleep 3 && dc ps caddy ;;
+            restart-stalwart)    systemctl restart stalwart && sleep 3 && systemctl status stalwart --no-pager | head -n 8 ;;
+            rollback-perpos)     rollback perpos 3005 perpos-worker ;;
+            rollback-exapp)      rollback exapp 3006 ;;
+            rollback-riekchang)  rollback riekchang 3007 ;;
+            *) echo "❌ unknown action: $ACTION"; exit 2 ;;
+          esac
+          EOS
+          # ส่งสคริปต์ทาง stdin แล้วอ่านให้หมดก่อนค่อยรัน (ห้าม `bash -s` — คำสั่งลูกอย่าง docker exec จะแย่งกิน stdin ที่เหลือ)
+          ssh -i ~/.ssh/id_ops -o ServerAliveInterval=15 -o ConnectTimeout=20 \
+              "$VPS_USER@$VPS_HOST" "S=\$(cat); bash -c \"\$S\" ops '$ACTION' '$LINES'" < remote.sh 2>&1 | tee out.txt
+          rc=${PIPESTATUS[0]}
+          echo "rc=$rc" >> "$GITHUB_OUTPUT"
+          # ท้าย log 12 บรรทัดไว้แปะใน LINE (ตัดให้พอดี 1 ข้อความ)
+          tail -n 12 out.txt | cut -c1-160 > tail.txt
+          exit "$rc"
+
+      - name: Notify LINE (ผลคำสั่ง)
+        if: always()
+        env:
+          LINE_TOKEN: ${{ secrets.LINE_MESSAGING_CHANNEL_ACCESS_TOKEN }}
+          LINE_IDS: ${{ secrets.ALERT_LINE_USER_IDS }}
+          STATUS: ${{ job.status }}
+          ACTION: ${{ github.event.inputs.action }}
+          ACTOR: ${{ github.actor }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [ -z "$LINE_TOKEN" ] || [ -z "$LINE_IDS" ]; then
+            echo "::warning::ขาด secret LINE — ข้ามการแจ้งเตือน"; exit 0
+          fi
+          # คำสั่งอ่านอย่างเดียวไม่ต้องกวน LINE ถ้าสำเร็จ (คนที่กดกำลังดูหน้าจอ run อยู่แล้ว)
+          case "$ACTION" in restart-*|rollback-*) ;; *) [ "$STATUS" = "success" ] && exit 0 ;; esac
+          case "$STATUS" in success) ICON="✅";; cancelled) ICON="⚪";; *) ICON="🔴";; esac
+          TAIL=$(cat tail.txt 2>/dev/null || echo "(ไม่มี log)")
+          MSG="$ICON ops-vps: $ACTION — $STATUS
+          โดย $ACTOR · $(TZ=Asia/Bangkok date '+%d/%m %H:%M')
+          ────
+          $TAIL
+          ────
+          $RUN_URL"
+          IFS=','
+          for id in $LINE_IDS; do
+            id=$(echo "$id" | xargs); [ -z "$id" ] && continue
+            payload=$(jq -n --arg to "$id" --arg text "$MSG" '{to:$to, messages:[{type:"text", text:$text}]}')
+            curl -s -X POST https://api.line.me/v2/bot/message/push \
+              -H "Authorization: Bearer $LINE_TOKEN" -H "Content-Type: application/json" \
+              -d "$payload" -o /dev/null -w "LINE push -> $id: HTTP %{http_code}\n"
+          done
