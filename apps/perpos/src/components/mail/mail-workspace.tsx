@@ -1558,14 +1558,22 @@ export function MailWorkspace({
       )}
 
       {selectedIds.size > 0 && (
-        <BulkActionBar count={selectedIds.size} onClear={() => setSelectedIds(new Set())}>
+        <BulkActionBar
+          count={selectedIds.size}
+          onClear={() => setSelectedIds(new Set())}
+          selectedLabel={t("workspace.bulk.selected")}
+          clearLabel={t("workspace.bulk.clear")}
+        >
+          {/* มือถือเหลือไอคอน — 4 ปุ่มพร้อมป้ายเต็มยาวเกินจอ (ป้ายกลับมาที่ ≥sm) */}
           <Button
             size="sm"
             variant="outline"
+            title={t("workspace.bulk.markRead")}
+            aria-label={t("workspace.bulk.markRead")}
             onClick={() => setReadState(Array.from(selectedIds), false, "thread")}
           >
             <MailOpen className="h-4 w-4" />
-            {t("workspace.bulk.markRead")}
+            <span className="hidden sm:inline">{t("workspace.bulk.markRead")}</span>
           </Button>
           {moveTargets.length > 0 && (
             <Dropdown
@@ -1585,20 +1593,24 @@ export function MailWorkspace({
             <Button
               size="sm"
               variant="outline"
+              title={t("workspace.bulk.archive")}
+              aria-label={t("workspace.bulk.archive")}
               onClick={() => enqueueDestructive("archive", Array.from(selectedIds))}
             >
               <Archive className="h-4 w-4" />
-              {t("workspace.bulk.archive")}
+              <span className="hidden sm:inline">{t("workspace.bulk.archive")}</span>
             </Button>
           )}
           {canTrash && (
             <Button
               size="sm"
               variant="destructive"
+              title={t("common.delete")}
+              aria-label={t("common.delete")}
               onClick={() => enqueueDestructive("trash", Array.from(selectedIds))}
             >
               <Trash2 className="h-4 w-4" />
-              {t("common.delete")}
+              <span className="hidden sm:inline">{t("common.delete")}</span>
             </Button>
           )}
         </BulkActionBar>

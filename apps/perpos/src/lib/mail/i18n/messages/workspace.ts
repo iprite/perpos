@@ -92,6 +92,8 @@ export const workspace = defineMailMessages({
 
   // ปุ่ม FAB + แถบเลือกหลายฉบับ
   "workspace.compose": { th: "เขียนอีเมลใหม่", en: "New email" },
+  "workspace.bulk.selected": { th: "เลือกแล้ว", en: "selected" },
+  "workspace.bulk.clear": { th: "ยกเลิกการเลือก", en: "Clear selection" },
   "workspace.bulk.markRead": { th: "ทำเป็นอ่านแล้ว", en: "Mark as read" },
   "workspace.bulk.move": { th: "ย้ายไป", en: "Move to" },
   "workspace.bulk.archive": { th: "เก็บเข้าคลัง", en: "Archive" },
