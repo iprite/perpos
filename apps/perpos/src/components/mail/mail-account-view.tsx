@@ -18,6 +18,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { SegmentedControl } from "@/components/ui/segmented";
+import { CustomSelect } from "@/components/ui/custom-select";
+import { StatusBadge } from "@/components/ui/badge";
 import { Text, Title } from "@/components/ui/typography";
 import { useMailLocale } from "@/components/mail/mail-locale";
 import { MAIL_LOCALES, type MailLocale } from "@/lib/mail/i18n";
@@ -70,10 +72,26 @@ export function MailAccountView() {
   const [avatarBusy, setAvatarBusy] = useState(false);
   const filePicker = useRef<HTMLInputElement>(null);
 
+  /** ที่อยู่ทั้งหมดที่ส่งในนามได้ (ที่อยู่หลัก + นามแฝง) — มาจาก Identity ของเมลเซิร์ฟเวอร์ */
+  const [identities, setIdentities] = useState<{ email: string; name: string }[]>([]);
+  const [names, setNames] = useState<Record<string, string>>({});
+  const [savedNames, setSavedNames] = useState<Record<string, string>>({});
+  const [defaultFrom, setDefaultFrom] = useState("");
+  const [savedDefaultFrom, setSavedDefaultFrom] = useState("");
+  const [replyFromReceived, setReplyFromReceived] = useState(true);
+  const [savedReplyFrom, setSavedReplyFrom] = useState(true);
+  const [senderStatus, setSenderStatus] = useState<Status>(null);
+  const [savingSender, setSavingSender] = useState(false);
+
   const [signature, setSignature] = useState("");
   const [savedSignature, setSavedSignature] = useState("");
   const [signatureOnReply, setSignatureOnReply] = useState(true);
   const [savedOnReply, setSavedOnReply] = useState(true);
+  /** ลายเซ็นแยกรายที่อยู่ — คีย์ = อีเมลตัวพิมพ์เล็ก · ไม่มีคีย์ = ที่อยู่นั้นใช้ลายเซ็นหลัก */
+  const [sigByAddress, setSigByAddress] = useState<Record<string, string>>({});
+  const [savedSigByAddress, setSavedSigByAddress] = useState<Record<string, string>>({});
+  /** กำลังแก้ลายเซ็นของที่อยู่ไหน — `""` = ลายเซ็นหลัก (ใช้กับทุกที่อยู่ที่ไม่ได้ตั้งแยก) */
+  const [sigScope, setSigScope] = useState("");
   const [sigStatus, setSigStatus] = useState<Status>(null);
   const [savingSig, setSavingSig] = useState(false);
 
@@ -99,10 +117,19 @@ export function MailAccountView() {
     void (async () => {
       const res = await fetch("/api/mail/account/profile", { cache: "no-store" });
       if (res.ok) {
-        const data = (await res.json()) as { email?: string; displayName?: string };
+        const data = (await res.json()) as {
+          email?: string;
+          displayName?: string;
+          identities?: { email: string; name: string }[];
+        };
         setEmail(data.email ?? null);
         setDisplayName(data.displayName ?? "");
         setSavedName(data.displayName ?? "");
+        const list = (data.identities ?? []).filter((i) => !!i.email);
+        setIdentities(list);
+        const map = Object.fromEntries(list.map((i) => [i.email.toLowerCase(), i.name ?? ""]));
+        setNames(map);
+        setSavedNames(map);
       }
       await loadAvatar();
     })();
@@ -115,10 +142,22 @@ export function MailAccountView() {
       if (!alive || !data) return;
       const text = typeof data.signature === "string" ? data.signature : "";
       const onReply = data.signatureOnReply !== false;
+      const byAddress =
+        data.signatureByAddress && typeof data.signatureByAddress === "object"
+          ? { ...data.signatureByAddress }
+          : {};
       setSignature(text);
       setSavedSignature(text);
       setSignatureOnReply(onReply);
       setSavedOnReply(onReply);
+      setSigByAddress(byAddress);
+      setSavedSigByAddress(byAddress);
+      const from = typeof data.defaultFromEmail === "string" ? data.defaultFromEmail : "";
+      const replyFrom = data.replyFromReceived !== false;
+      setDefaultFrom(from);
+      setSavedDefaultFrom(from);
+      setReplyFromReceived(replyFrom);
+      setSavedReplyFrom(replyFrom);
     });
     return () => {
       alive = false;
@@ -132,15 +171,21 @@ export function MailAccountView() {
       const res = await fetch("/api/mail/prefs", {
         method: "PUT",
         headers: { "content-type": "application/json" },
-        // ส่งเฉพาะสองช่องนี้ — route รวมกับค่าเดิม (มุมมอง/ความกว้าง/ภาษาของ workspace ต้องไม่ถูกรีเซ็ต)
-        body: JSON.stringify({ signature, signatureOnReply }),
+        // ส่งเฉพาะช่องลายเซ็น — route รวมกับค่าเดิม (มุมมอง/ความกว้าง/ภาษาของ workspace ต้องไม่ถูกรีเซ็ต)
+        body: JSON.stringify({ signature, signatureOnReply, signatureByAddress: sigByAddress }),
       });
       if (!res.ok) throw new Error(t("account.signature.failed"));
       const saved = (await res.json().catch(() => null)) as Partial<MailPrefs> | null;
       const text = typeof saved?.signature === "string" ? saved.signature : signature.trimEnd();
+      const byAddress =
+        saved?.signatureByAddress && typeof saved.signatureByAddress === "object"
+          ? { ...saved.signatureByAddress }
+          : sigByAddress;
       setSignature(text);
       setSavedSignature(text);
       setSavedOnReply(signatureOnReply);
+      setSigByAddress(byAddress);
+      setSavedSigByAddress(byAddress);
       setSigStatus({ tone: "ok", text: t("account.signature.saved") });
     } catch (e) {
       setSigStatus({
@@ -149,6 +194,42 @@ export function MailAccountView() {
       });
     } finally {
       setSavingSig(false);
+    }
+  }
+
+  /** บันทึก "ที่อยู่ผู้ส่ง" — ชื่อรายที่อยู่ไปที่เมลเซิร์ฟเวอร์ · ที่อยู่เริ่มต้น/กฎการตอบไปที่ prefs */
+  async function saveSender() {
+    setSavingSender(true);
+    setSenderStatus(null);
+    try {
+      const [profileRes, prefsRes] = await Promise.all([
+        fetch("/api/mail/account/profile", {
+          method: "PATCH",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ names }),
+        }),
+        fetch("/api/mail/prefs", {
+          method: "PUT",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ defaultFromEmail: defaultFrom, replyFromReceived }),
+        }),
+      ]);
+      const json = (await profileRes.json().catch(() => null)) as {
+        error?: { message?: string };
+      } | null;
+      if (!profileRes.ok) throw new Error(json?.error?.message ?? t("account.sender.failed"));
+      if (!prefsRes.ok) throw new Error(t("account.sender.failed"));
+      setSavedNames({ ...names });
+      setSavedDefaultFrom(defaultFrom);
+      setSavedReplyFrom(replyFromReceived);
+      setSenderStatus({ tone: "ok", text: t("account.sender.saved") });
+    } catch (e) {
+      setSenderStatus({
+        tone: "error",
+        text: e instanceof Error ? e.message : t("account.sender.failed"),
+      });
+    } finally {
+      setSavingSender(false);
     }
   }
 
@@ -248,6 +329,25 @@ export function MailAccountView() {
       setSavingPw(false);
     }
   }
+
+  /**
+   * ลายเซ็นของ scope ที่กำลังแก้ · `""` = ลายเซ็นหลัก
+   * ที่อยู่ที่ยังไม่ได้ตั้งแยก จะเห็นช่องว่าง (พร้อมคำอธิบายว่ายังใช้ค่าเริ่มต้นอยู่) —
+   * **ห้ามเติมลายเซ็นหลักลงไปให้เอง** ไม่งั้นพอกดบันทึกจะกลายเป็นตั้งแยกโดยผู้ใช้ไม่ได้ตั้งใจ
+   */
+  const scopedSignature = sigScope ? (sigByAddress[sigScope] ?? "") : signature;
+  const setScopedSignature = (value: string) => {
+    if (!sigScope) return setSignature(value);
+    setSigByAddress((prev) => {
+      const next = { ...prev };
+      if (value.trim()) next[sigScope] = value;
+      else delete next[sigScope]; // ว่าง = กลับไปใช้ลายเซ็นหลัก
+      return next;
+    });
+  };
+
+  const sameMap = (a: Record<string, string>, b: Record<string, string>) =>
+    JSON.stringify(Object.entries(a).sort()) === JSON.stringify(Object.entries(b).sort());
 
   const TABS = [
     {
@@ -367,29 +467,118 @@ export function MailAccountView() {
             </div>
             <Note status={nameStatus} />
           </Card>
+
+          {identities.length > 1 && (
+            <Card title={t("account.sender.title")} description={t("account.sender.desc")}>
+              <div className="space-y-3">
+                <ul className="space-y-2">
+                  {identities.map((identity) => {
+                    const key = identity.email.toLowerCase();
+                    const isDefault = defaultFrom
+                      ? defaultFrom === key
+                      : key === email?.toLowerCase();
+                    return (
+                      <li key={key} className="rounded-lg border border-gray-200 p-3">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <span className="min-w-0 truncate text-sm font-medium text-gray-900">
+                            {identity.email}
+                          </span>
+                          {isDefault ? (
+                            <StatusBadge tone="info">{t("account.sender.defaultOn")}</StatusBadge>
+                          ) : (
+                            <Button variant="ghost" size="sm" onClick={() => setDefaultFrom(key)}>
+                              {t("account.sender.default")}
+                            </Button>
+                          )}
+                        </div>
+                        <Input
+                          className="mt-2"
+                          value={names[key] ?? ""}
+                          maxLength={80}
+                          placeholder={t("account.name.placeholder")}
+                          onChange={(e) => setNames((prev) => ({ ...prev, [key]: e.target.value }))}
+                        />
+                      </li>
+                    );
+                  })}
+                </ul>
+                <p className="text-xs text-gray-500">{t("account.sender.defaultHint")}</p>
+
+                <div>
+                  <Label>{t("account.sender.replyFrom")}</Label>
+                  <div className="mt-1">
+                    <SegmentedControl
+                      value={replyFromReceived ? "on" : "off"}
+                      onChange={(v) => setReplyFromReceived(v === "on")}
+                      ariaLabel={t("account.sender.replyFrom")}
+                      options={[
+                        { value: "on", label: t("account.signature.onReply.on") },
+                        { value: "off", label: t("account.signature.onReply.off") },
+                      ]}
+                    />
+                  </div>
+                  <p className="mt-1 text-xs text-gray-500">{t("account.sender.replyFromHint")}</p>
+                </div>
+
+                <Button
+                  disabled={
+                    savingSender ||
+                    (sameMap(names, savedNames) &&
+                      defaultFrom === savedDefaultFrom &&
+                      replyFromReceived === savedReplyFrom)
+                  }
+                  onClick={() => void saveSender()}
+                >
+                  {savingSender ? t("common.saving") : t("common.save")}
+                </Button>
+                <Note status={senderStatus} />
+              </div>
+            </Card>
+          )}
         </div>
       )}
 
       {tab === "signature" && (
         <Card title={t("account.signature.title")} description={t("account.signature.desc")}>
           <div className="space-y-3">
+            {identities.length > 1 && (
+              <div>
+                <Label htmlFor="mail-signature-scope">{t("account.signature.scope")}</Label>
+                <CustomSelect
+                  className="mt-1 max-w-sm"
+                  value={sigScope}
+                  onChange={setSigScope}
+                  options={[
+                    { value: "", label: t("account.signature.scope.default") },
+                    ...identities.map((i) => ({
+                      value: i.email.toLowerCase(),
+                      label: i.email,
+                    })),
+                  ]}
+                />
+              </div>
+            )}
+
             <div>
               <Label htmlFor="mail-signature">{t("account.signature.label")}</Label>
               <Textarea
                 id="mail-signature"
                 rows={6}
                 className="mt-1 font-mono"
-                value={signature}
+                value={scopedSignature}
                 maxLength={MAIL_SIGNATURE_MAX}
                 placeholder={t("account.signature.placeholder")}
-                onChange={(e) => setSignature(e.target.value)}
+                onChange={(e) => setScopedSignature(e.target.value)}
               />
               <p className="mt-1 text-xs text-gray-400">
                 {t("account.signature.counter", {
-                  used: signature.length,
+                  used: scopedSignature.length,
                   max: MAIL_SIGNATURE_MAX,
                 })}
               </p>
+              {sigScope && !scopedSignature.trim() && (
+                <p className="mt-1 text-xs text-gray-500">{t("account.signature.inherits")}</p>
+              )}
             </div>
 
             <div>
@@ -407,12 +596,12 @@ export function MailAccountView() {
               </div>
             </div>
 
-            {signature.trim() && (
+            {scopedSignature.trim() && (
               <div>
                 <p className="text-xs text-gray-500">{t("account.signature.preview")}</p>
                 {/* ตัวอย่างใช้ฟังก์ชันเดียวกับกล่องเขียนจริง — สิ่งที่เห็นคือสิ่งที่ผู้รับได้ */}
                 <pre className="mt-1 max-h-48 overflow-auto whitespace-pre-wrap rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-700">
-                  {applySignature("", signature).replace(/^\n+/, "")}
+                  {applySignature("", scopedSignature).replace(/^\n+/, "")}
                 </pre>
               </div>
             )}
@@ -422,7 +611,9 @@ export function MailAccountView() {
             <Button
               disabled={
                 savingSig ||
-                (signature.trimEnd() === savedSignature && signatureOnReply === savedOnReply)
+                (signature.trimEnd() === savedSignature &&
+                  signatureOnReply === savedOnReply &&
+                  sameMap(sigByAddress, savedSigByAddress))
               }
               onClick={() => void saveSignature()}
             >

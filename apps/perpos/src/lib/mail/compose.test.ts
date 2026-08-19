@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import {
   MailComposeError,
   applySignature,
+  pickIdentityForReply,
+  swapSignature,
   isEmailAddress,
   buildDraftEmail,
   buildForwardBody,
@@ -216,5 +218,48 @@ describe("applySignature — ลายเซ็นต่อท้าย", () => 
     expect(applySignature("เนื้อความ", "")).toBe("เนื้อความ");
     expect(applySignature("", "   ")).toBe("");
     expect(applySignature("", "ก\r\nข   ")).toBe("\n\n-- \nก\nข\n");
+  });
+});
+
+describe("swapSignature — เปลี่ยนที่อยู่ผู้ส่งกลางคัน", () => {
+  it("แทนที่เฉพาะบล็อกลายเซ็นเดิม ข้อความที่ผู้ใช้พิมพ์ไม่ถูกแตะ", () => {
+    const body = `สวัสดีครับ${applySignature("", "ทีมขาย")}`;
+    const out = swapSignature(body, "ทีมขาย", "ฝ่ายบัญชี");
+    expect(out).toBe(`สวัสดีครับ${applySignature("", "ฝ่ายบัญชี")}`);
+    expect(out.startsWith("สวัสดีครับ")).toBe(true);
+  });
+
+  it("ผู้ใช้ลบ/แก้ลายเซ็นเองแล้ว = ไม่แตะเลย (ห้ามเขียนทับข้อความที่พิมพ์ไว้)", () => {
+    const edited = "สวัสดีครับ\n\n-- \nทีมขาย (แก้เอง)\n";
+    expect(swapSignature(edited, "ทีมขาย", "ฝ่ายบัญชี")).toBe(edited);
+  });
+
+  it("เดิมยังไม่มีลายเซ็น → ต่อลายเซ็นใหม่ให้ · ไม่มีทั้งคู่ = คงเดิม", () => {
+    expect(swapSignature("ข้อความ", "", "ใหม่")).toBe(applySignature("ข้อความ", "ใหม่"));
+    expect(swapSignature("ข้อความ", "", "")).toBe("ข้อความ");
+  });
+});
+
+describe("pickIdentityForReply — ตอบจากที่อยู่ที่เขาส่งหา", () => {
+  const own = ["admin@perpos.ai", "info@perpos.ai"];
+
+  it("เลือกที่อยู่ของเราที่อยู่ใน To ก่อน แล้วค่อย Cc · ไม่สนตัวพิมพ์", () => {
+    expect(pickIdentityForReply({ to: [{ name: null, email: "INFO@perpos.ai" }] }, own)).toBe(
+      "info@perpos.ai",
+    );
+    expect(
+      pickIdentityForReply(
+        {
+          to: [{ name: null, email: "someone@x.com" }],
+          cc: [{ name: null, email: "admin@perpos.ai" }],
+        },
+        own,
+      ),
+    ).toBe("admin@perpos.ai");
+  });
+
+  it("ไม่มีที่อยู่ของเราในผู้รับเลย = null (ให้ใช้ค่าเริ่มต้นแทน)", () => {
+    expect(pickIdentityForReply({ to: [{ name: null, email: "x@y.com" }] }, own)).toBeNull();
+    expect(pickIdentityForReply({ to: [{ name: null, email: "info@perpos.ai" }] }, [])).toBeNull();
   });
 });

@@ -16,14 +16,11 @@ describe("normalizeMailPrefs", () => {
       locale: "en",
       signature: "",
       signatureOnReply: true,
+      signatureByAddress: {},
+      defaultFromEmail: "",
+      replyFromReceived: true,
     });
-    expect(normalizeMailPrefs({ pane: "split" })).toEqual({
-      pane: "split",
-      listWidth: MAIL_LIST_WIDTH_DEFAULT,
-      locale: "th",
-      signature: "",
-      signatureOnReply: true,
-    });
+    expect(normalizeMailPrefs({ pane: "split" })).toEqual(MAIL_PREFS_DEFAULT);
     expect(normalizeMailPrefs({ locale: "fr" }).locale).toBe("th");
   });
 
@@ -64,6 +61,30 @@ describe("normalizeMailPrefs", () => {
       locale: "th",
       signature: "",
       signatureOnReply: true,
+      signatureByAddress: {},
+      defaultFromEmail: "",
+      replyFromReceived: true,
     });
+  });
+});
+
+describe("normalizeMailPrefs — ผู้ส่ง/ลายเซ็นแยกรายที่อยู่", () => {
+  it("ลายเซ็นรายที่อยู่: คีย์ต้องเป็นอีเมล (ตัวพิมพ์เล็ก) · ค่าว่างไม่เก็บ", () => {
+    const out = normalizeMailPrefs({
+      signatureByAddress: { "INFO@perpos.ai": "ฝ่ายขาย", ไม่ใช่อีเมล: "x", "a@b.co": "   " },
+    }).signatureByAddress;
+    expect(out).toEqual({ "info@perpos.ai": "ฝ่ายขาย" });
+  });
+
+  it("ที่อยู่เริ่มต้นต้องเป็นอีเมลจริง ไม่งั้นถือว่าไม่ได้ตั้ง", () => {
+    expect(normalizeMailPrefs({ defaultFromEmail: "Info@Perpos.ai" }).defaultFromEmail).toBe(
+      "info@perpos.ai",
+    );
+    expect(normalizeMailPrefs({ defaultFromEmail: "ไม่ใช่อีเมล" }).defaultFromEmail).toBe("");
+  });
+
+  it("ไฟล์เก่าที่ยังไม่มีช่อง replyFromReceived = เปิดไว้", () => {
+    expect(normalizeMailPrefs({ pane: "split" }).replyFromReceived).toBe(true);
+    expect(normalizeMailPrefs({ replyFromReceived: false }).replyFromReceived).toBe(false);
   });
 });

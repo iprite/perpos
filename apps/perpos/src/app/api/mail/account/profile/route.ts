@@ -62,6 +62,11 @@ export async function GET(req: NextRequest) {
       email: session.email,
       // Stalwart ตั้ง name เริ่มต้นเป็นอีเมล — ถือว่า "ยังไม่ได้ตั้งชื่อ"
       displayName: primary && primary.name !== primary.email ? primary.name : "",
+      /** ทุกที่อยู่ที่ส่งในนามได้ (ที่อยู่หลัก + นามแฝง) — หน้าบัญชีตั้งชื่อแยกรายที่อยู่ได้ */
+      identities: identities.map((i) => ({
+        email: i.email,
+        name: i.name && i.name !== i.email ? i.name : "",
+      })),
     });
   });
 }
@@ -114,14 +119,36 @@ export async function PATCH(req: NextRequest) {
     }
 
     // ── เปลี่ยนชื่อที่แสดง ─────────────────────────────────────────────────
+    /**
+     * รับได้ 2 แบบ:
+     *  - `displayName`            → ตั้งชื่อเดียวให้ **ทุก** ที่อยู่ (กล่องที่ไม่มีนามแฝง)
+     *  - `names: {email: name}`   → ตั้งชื่อ **แยกรายที่อยู่** (กล่องที่มีนามแฝง เช่น ฝ่ายขาย/บัญชี)
+     * ที่อยู่ที่ไม่ได้ส่งมาใน `names` = ไม่แตะ (ห้ามรีเซ็ตของที่ผู้ใช้ตั้งไว้เงียบ ๆ)
+     */
     const displayName = typeof body.displayName === "string" ? body.displayName.trim() : null;
-    if (displayName === null) return mailError("mail_bad_request", "ไม่มีข้อมูลให้บันทึก", 400);
-    if (displayName.length > MAX_NAME) {
-      return mailError("mail_bad_request", `ชื่อที่แสดงยาวเกิน ${MAX_NAME} ตัวอักษร`, 400);
+    const rawNames =
+      body.names && typeof body.names === "object" && !Array.isArray(body.names)
+        ? (body.names as Record<string, unknown>)
+        : null;
+    if (displayName === null && !rawNames) {
+      return mailError("mail_bad_request", "ไม่มีข้อมูลให้บันทึก", 400);
     }
-    // ขึ้นบรรทัดใหม่ในชื่อ = แทรกหัวเมลเพิ่มได้ (header injection)
-    if (/[\r\n]/.test(displayName)) {
-      return mailError("mail_bad_request", "ชื่อที่แสดงมีอักขระที่ใช้ไม่ได้", 400);
+
+    const byEmail = new Map<string, string>();
+    for (const [email, value] of Object.entries(rawNames ?? {})) {
+      byEmail.set(email.trim().toLowerCase(), typeof value === "string" ? value.trim() : "");
+    }
+    for (const name of [
+      ...(displayName === null ? [] : [displayName]),
+      ...Array.from(byEmail.values()),
+    ]) {
+      if (name.length > MAX_NAME) {
+        return mailError("mail_bad_request", `ชื่อที่แสดงยาวเกิน ${MAX_NAME} ตัวอักษร`, 400);
+      }
+      // ขึ้นบรรทัดใหม่ในชื่อ = แทรกหัวเมลเพิ่มได้ (header injection)
+      if (/[\r\n]/.test(name)) {
+        return mailError("mail_bad_request", "ชื่อที่แสดงมีอักขระที่ใช้ไม่ได้", 400);
+      }
     }
 
     const identities = await loadIdentities(session);
@@ -129,21 +156,21 @@ export async function PATCH(req: NextRequest) {
       return mailError("mail_service", "ไม่พบข้อมูลผู้ส่งของบัญชีนี้", 502);
     }
 
+    // ว่าง = กลับไปใช้อีเมลเป็นชื่อ (พฤติกรรมเริ่มต้นของ Stalwart)
+    const update: Record<string, { name: string }> = {};
+    for (const identity of identities) {
+      const key = identity.email.trim().toLowerCase();
+      const next = rawNames ? byEmail.get(key) : (displayName ?? undefined);
+      if (next === undefined) continue;
+      update[identity.id] = { name: next || identity.email };
+    }
+    if (Object.keys(update).length === 0) {
+      return mailError("mail_bad_request", "ไม่พบที่อยู่ที่จะตั้งชื่อ", 400);
+    }
+
     const res = await jmapRequest(
       session,
-      [
-        [
-          "Identity/set",
-          {
-            accountId: session.accountId,
-            // ว่าง = กลับไปใช้อีเมลเป็นชื่อ (พฤติกรรมเริ่มต้นของ Stalwart)
-            update: Object.fromEntries(
-              identities.map((i) => [i.id, { name: displayName || i.email }]),
-            ),
-          },
-          "u",
-        ],
-      ],
+      [["Identity/set", { accountId: session.accountId, update }, "u"]],
       JMAP_USING_SUBMISSION,
     );
     const notUpdated = res.find((r) => r[2] === "u")?.[1]?.notUpdated as
@@ -151,6 +178,6 @@ export async function PATCH(req: NextRequest) {
     const failure = notUpdated && Object.values(notUpdated)[0];
     if (failure)
       return mailError("mail_bad_request", failure.description ?? "บันทึกไม่สำเร็จ", 400);
-    return mailJson({ ok: true, displayName });
+    return mailJson({ ok: true, displayName: displayName ?? undefined });
   });
 }
