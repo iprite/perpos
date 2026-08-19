@@ -28,6 +28,7 @@ export function MailRecipientInput({
   onChange,
   placeholder,
   autoFocus,
+  bare,
 }: {
   id?: string;
   /** รายที่อยู่ (string ดิบ) — ผู้เรียกส่งต่อให้ API ได้เลย */
@@ -35,6 +36,11 @@ export function MailRecipientInput({
   onChange: (next: string[]) => void;
   placeholder?: string;
   autoFocus?: boolean;
+  /**
+   * ถอดกรอบ/พื้นออก ให้เป็น "แถว" แบบเดียวกับกล่องเขียนเมลบนมือถือ (Gmail)
+   * — เส้นคั่นเป็นของแถวที่ครอบอยู่ ไม่ใช่ของช่องนี้
+   */
+  bare?: boolean;
 }) {
   const t = useMailT();
   const [text, setText] = useState("");
@@ -75,7 +81,12 @@ export function MailRecipientInput({
     // หน้าตาต้องเท่ากับ <Input> ของดีไซน์ระบบเป๊ะ (ขอบ/มุม/ความสูง/วงโฟกัส)
     // — ช่องนี้เป็น chip input จึงใช้ <Input> ตรง ๆ ไม่ได้ แต่ห้ามคิดสไตล์ใหม่เอง
     <div
-      className="mt-1 flex min-h-9 w-full flex-wrap items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 py-0.5 transition-colors focus-within:border-slate-400 focus-within:ring-2 focus-within:ring-slate-900/10 hover:border-slate-300"
+      className={cn(
+        "flex min-h-9 w-full flex-wrap items-center gap-1.5 bg-white",
+        bare
+          ? "px-0 py-1"
+          : "mt-1 rounded-md border border-slate-200 px-3 py-0.5 transition-colors focus-within:border-slate-400 focus-within:ring-2 focus-within:ring-slate-900/10 hover:border-slate-300",
+      )}
       onClick={() => inputRef.current?.focus()}
     >
       {value.map((address) => {
@@ -119,7 +130,11 @@ export function MailRecipientInput({
           commit(pasted);
         }}
         placeholder={value.length === 0 ? placeholder : ""}
-        className="h-7 min-w-[10rem] flex-1 border-0 bg-transparent p-0 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:ring-0"
+        className={cn(
+          "h-7 flex-1 border-0 bg-transparent p-0 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:ring-0",
+          // แถวบนมือถือแคบกว่า — ขั้นต่ำ 10rem จะดันจนล้นออกนอกจอ
+          bare ? "min-w-[6rem]" : "min-w-[10rem]",
+        )}
       />
     </div>
   );
