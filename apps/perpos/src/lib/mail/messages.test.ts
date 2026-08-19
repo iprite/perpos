@@ -8,6 +8,7 @@ import {
   buildUndoUpdates,
   buildUpdatePatch,
   LIST_ATTACHMENT_MAX,
+  messageMatchesText,
   mailboxIdByKey,
   mapEmailToMessage,
   patchToAction,
@@ -206,5 +207,36 @@ describe("mapEmailToMessage — ชิปไฟล์แนบในรายก
     const m = mapEmailToMessage({ ...base } as never);
     expect(m.attachments).toEqual([]);
     expect(m.attachmentCount).toBe(0);
+  });
+});
+
+describe("messageMatchesText — ค้นแบบ 'มีข้อความนี้อยู่ข้างใน' (fallback)", () => {
+  const base = mapEmailToMessage({
+    id: "e1",
+    threadId: "t1",
+    mailboxIds: { a: true },
+    from: [{ name: "TikTok", email: "noreply@account.tiktok.com" }],
+    subject: "424197 คือรหัส 6 หลักของคุณ",
+    preview: "โปรดอย่าแชร์รหัสนี้กับใคร",
+    attachments: [{ blobId: "b1", name: "ใบแจ้งหนี้.pdf", type: "application/pdf", size: 1 }],
+  } as never);
+
+  it("คำบางส่วนของชื่อผู้ส่ง (สิ่งที่ดัชนีของเมลเซิร์ฟเวอร์หาไม่เจอ)", () => {
+    expect(messageMatchesText(base, "tik")).toBe(true);
+    expect(messageMatchesText(base, "TIK")).toBe(true);
+  });
+
+  it("คำไทยกลางประโยคที่เขียนติดกัน", () => {
+    expect(messageMatchesText(base, "รหัส")).toBe(true);
+  });
+
+  it("หาในชื่อไฟล์แนบและอีเมลผู้ส่งได้ด้วย", () => {
+    expect(messageMatchesText(base, "ใบแจ้งหนี้")).toBe(true);
+    expect(messageMatchesText(base, "account.tiktok.com")).toBe(true);
+  });
+
+  it("ไม่ตรงก็คือไม่ตรง · คำค้นว่าง = ไม่ match (กันคืนทั้งกล่อง)", () => {
+    expect(messageMatchesText(base, "instagram")).toBe(false);
+    expect(messageMatchesText(base, "   ")).toBe(false);
   });
 });

@@ -54,6 +54,12 @@ export interface MailListProps {
   /** มีคำค้นอยู่ไหม (ใช้เลือกข้อความ empty state) */
   searchTerm: string;
   /**
+   * ผลค้นหามาจากการ **สแกนหาข้อความบางส่วน** เพราะดัชนีของเมลเซิร์ฟเวอร์หาไม่เจอ
+   * (ดัชนีตัดคำด้วยช่องว่าง จึงหา "tik" ใน "TikTok" หรือคำไทยกลางประโยคไม่เจอ)
+   * `truncated` = สแกนไม่ครบทั้งกล่อง ⇒ **ต้องบอกผู้ใช้** ห้ามให้เข้าใจว่านี่คือผลทั้งหมด
+   */
+  searchScan?: { scanned: number; truncated: boolean } | null;
+  /**
    * ป้าย "อยู่กล่องไหน" ต่อ mailboxId — ส่งมาเฉพาะตอนผลลัพธ์มาจากหลายกล่อง (ค้นทั้งหมด)
    * ไม่ส่ง = ไม่แสดงป้าย (ในกล่องเดียวกันทุกแถวป้ายซ้ำกันหมด รกเปล่า ๆ)
    * `folder` = โฟลเดอร์ที่ผู้ใช้สร้างเอง (ใช้เลือกป้ายที่ถูกเมื่อเมลอยู่หลายกล่อง)
@@ -100,6 +106,7 @@ export const MailList = forwardRef<MailListHandle, MailListProps>(function MailL
     hasMore,
     error,
     searchTerm,
+    searchScan,
     mailboxLabels,
     selectedIds,
     activeId,
@@ -181,6 +188,13 @@ export const MailList = forwardRef<MailListHandle, MailListProps>(function MailL
 
     return (
       <div className="h-full overflow-y-auto">
+        {searchScan && (
+          /* ผู้ใช้ต้องรู้ว่าผลนี้มาจากการสแกนของล่าสุด ไม่ใช่ค้นทั้งกล่อง (ไม่งั้นเข้าใจว่าเมลหาย) */
+          <div className="border-b border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+            ค้นแบบตรงตัวจากเมลล่าสุด {searchScan.scanned} ฉบับ
+            {searchScan.truncated ? " — ยังมีเมลเก่ากว่านั้นที่ยังไม่ได้ค้น ลองพิมพ์ให้เต็มคำ" : ""}
+          </div>
+        )}
         <Virtualizer
           ref={vRef}
           as="ul"
@@ -238,6 +252,7 @@ export const MailList = forwardRef<MailListHandle, MailListProps>(function MailL
     onSwipeArchive,
     onSwipeTrash,
     searchTerm,
+    searchScan,
     selectedIds,
     mailboxLabels,
   ]);

@@ -161,6 +161,11 @@ export interface MailListParams {
 
 export interface MailListResult {
   messages: MailMessage[];
+  /**
+   * มีเมื่อผลลัพธ์มาจาก **การสแกนหาข้อความบางส่วน** (ดัชนีของเมลเซิร์ฟเวอร์หาไม่เจอ)
+   * `truncated` = ยังมีเมลเก่ากว่านั้นที่ไม่ได้สแกน ⇒ หน้าเว็บต้องบอกผู้ใช้ ห้ามเงียบ
+   */
+  scan?: { scanned: number; truncated: boolean };
   total: number | null;
   hasMore: boolean;
   queryState: string | null;
