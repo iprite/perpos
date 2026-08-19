@@ -10,7 +10,17 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, ArrowDown, ArrowUp, ChevronDown, Plus, Trash2 } from "lucide-react";
+import {
+  AlertTriangle,
+  ArrowDown,
+  ArrowUp,
+  Check,
+  ChevronDown,
+  ChevronsDownUp,
+  ChevronsUpDown,
+  Plus,
+  Trash2,
+} from "lucide-react";
 import cn from "@core/utils/class-names";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -194,38 +204,64 @@ export function MailRulesView() {
     );
   }
 
+  const allExpanded = rules.length > 0 && expanded.size === rules.length;
+  const collapseLabel = allExpanded ? t("rules.collapseAll") : t("rules.expandAll");
+  const saveLabel = saving ? t("common.saving") : t("common.save");
+
   return (
     <div className="w-full space-y-4 py-4">
-      <div className="flex flex-wrap items-center gap-3">
+      {/* หัวเรื่องกับปุ่มอยู่คนละบรรทัดบนมือถือ — ก่อนหน้านี้ปุ่มบีบคอลัมน์หัวเรื่องจนคำอธิบาย
+          ตกบรรทัดละ 2–3 คำ · จอแคบปุ่มเหลือแต่ไอคอน (ป้ายยังอยู่ครบใน aria-label/title) */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
         <div className="min-w-0 flex-1">
           <Title as="h1" className="text-2xl font-semibold text-primary">
             {t("rules.title")}
           </Title>
           <Text className="mt-0.5 text-sm text-gray-500">{t("rules.subtitle")}</Text>
         </div>
-        {rules.length > 1 && (
+        <div className="flex shrink-0 items-center gap-2">
+          {rules.length > 1 && (
+            <Button
+              variant="outline"
+              className="w-9 px-0 sm:w-auto sm:px-4"
+              title={collapseLabel}
+              aria-label={collapseLabel}
+              onClick={() =>
+                setExpanded((prev) =>
+                  prev.size === rules.length ? new Set() : new Set(rules.map((r) => r.id)),
+                )
+              }
+            >
+              {allExpanded ? (
+                <ChevronsDownUp className="h-4 w-4" />
+              ) : (
+                <ChevronsUpDown className="h-4 w-4" />
+              )}
+              <span className="hidden sm:inline">{collapseLabel}</span>
+            </Button>
+          )}
           <Button
             variant="outline"
-            onClick={() =>
-              setExpanded((prev) =>
-                prev.size === rules.length ? new Set() : new Set(rules.map((r) => r.id)),
-              )
-            }
+            className="w-9 px-0 sm:w-auto sm:px-4"
+            disabled={rules.length >= MAIL_RULE_MAX}
+            title={t("rules.add")}
+            aria-label={t("rules.add")}
+            onClick={() => addRule()}
           >
-            {expanded.size === rules.length ? t("rules.collapseAll") : t("rules.expandAll")}
+            <Plus className="h-4 w-4" />
+            <span className="hidden sm:inline">{t("rules.add")}</span>
           </Button>
-        )}
-        <Button
-          variant="outline"
-          disabled={rules.length >= MAIL_RULE_MAX}
-          onClick={() => addRule()}
-        >
-          <Plus className="h-4 w-4" />
-          {t("rules.add")}
-        </Button>
-        <Button disabled={saving} onClick={() => void save(foreignScript)}>
-          {saving ? t("common.saving") : t("common.save")}
-        </Button>
+          <Button
+            className="ms-auto w-9 px-0 sm:ms-0 sm:w-auto sm:px-4"
+            disabled={saving}
+            title={saveLabel}
+            aria-label={saveLabel}
+            onClick={() => void save(foreignScript)}
+          >
+            <Check className="h-4 w-4" />
+            <span className="hidden sm:inline">{saveLabel}</span>
+          </Button>
+        </div>
       </div>
 
       {error && (
