@@ -30,6 +30,7 @@ import cn from "@core/utils/class-names";
 import { Button } from "@/components/ui/button";
 import { Dropdown } from "@/components/ui/dropdown";
 import { BulkActionBar } from "@/components/ui/bulk-action-bar";
+import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog";
 import { notify } from "@/lib/toast";
 import { UNDO_TOAST_MS, dismissUndoToast, showUndoToast } from "@/components/ui/undo-toast";
 import { resolveBoxSelector } from "@/lib/mail/boxes";
@@ -76,6 +77,9 @@ import {
   useMailShortcuts,
   type MailShortcutHandlers,
 } from "@/components/mail/use-mail-shortcuts";
+
+/** เพดานรอบของการล้างกล่องต่อการกดหนึ่งครั้ง (รอบละ 200 ⇒ 4,000 ฉบับ) */
+const EMPTY_MAX_ROUNDS = 20;
 
 const PAGE_SIZE = 50;
 const POLL_MS = 60_000;
@@ -978,6 +982,97 @@ export function MailWorkspace({
     [inboxMailboxId, moveToMailbox],
   );
 
+  /**
+   * เลือกทั้งหมด = ทุกฉบับ **ที่โหลดมาแล้วและมองเห็นอยู่** (ไม่ใช่ทั้งกล่อง)
+   * เลือกของที่ผู้ใช้ยังไม่เคยเห็นแล้วกดลบ/ย้าย คือความเสียหายที่กู้ยาก
+   */
+  const selectAllState: "none" | "some" | "all" = useMemo(() => {
+    if (visibleMessages.length === 0 || selectedIds.size === 0) return "none";
+    return visibleMessages.every((m) => selectedIds.has(m.id)) ? "all" : "some";
+  }, [visibleMessages, selectedIds]);
+
+  const toggleSelectAll = useCallback(() => {
+    setSelectedIds((prev) => {
+      const all = visibleMessages.length > 0 && visibleMessages.every((m) => prev.has(m.id));
+      return all ? new Set<string>() : new Set(visibleMessages.map((m) => m.id));
+    });
+  }, [visibleMessages]);
+
+  /**
+   * ล้างถังขยะ/จดหมายขยะ — **ลบถาวร ไม่มีเลิกทำ** ⇒ ต้องยืนยันก่อนเสมอ
+   * เดินเป็นก้อนจนหมดเหมือนงานอื่น (เพดานต่อ request กันลบครึ่ง ๆ กลาง ๆ ตอน timeout)
+   */
+  const emptyableBox = isSystemBox("trash") ? "trash" : isSystemBox("junk") ? "junk" : null;
+  /**
+   * 🔴 จำนวนที่โชว์ในคำยืนยันต้องเป็นของ **ทั้งกล่อง** ไม่ใช่ `total` ของรายการที่กรอง/ค้นอยู่
+   *    (เคยพลาด: ค้นแล้วเห็น 3 ฉบับ กดยืนยัน "3 ฉบับ" แต่ของจริงหาย 560 — ลบถาวรกู้ไม่ได้)
+   *    และระหว่างมีตัวกรอง/คำค้น **ห้ามล้าง** เพราะสิ่งที่ผู้ใช้เห็นตรงหน้าไม่ใช่สิ่งที่จะโดนลบ
+   */
+  const emptyBoxTotal = useMemo(
+    () =>
+      emptyableBox ? (mailboxes.find((m) => m.key === emptyableBox)?.totalCount ?? null) : null,
+    [emptyableBox, mailboxes],
+  );
+  const emptyBlockedByFilter = !!debouncedSearch || filters.unread || filters.attachment;
+  const [emptyConfirm, setEmptyConfirm] = useState(false);
+  const [emptying, setEmptying] = useState(false);
+
+  const emptyBox = useCallback(async () => {
+    if (!emptyableBox) return;
+    setEmptying(true);
+    let removed = 0;
+    let left = 0;
+    let failed: unknown = null;
+    try {
+      // เดินเป็นก้อนจนหมด · เพดานรอบกันลูปไม่รู้จบถ้าเซิร์ฟเวอร์รายงาน remaining ไม่ลด
+      for (let round = 0; round < EMPTY_MAX_ROUNDS; round += 1) {
+        const res = await postJson<{ destroyed: number; remaining: number }>(
+          "/api/mail/messages/empty",
+          { box: emptyableBox },
+        );
+        removed += res.destroyed ?? 0;
+        left = res.remaining ?? 0;
+        if (!res.destroyed || !res.remaining) break;
+      }
+    } catch (e) {
+      if (e instanceof MailSessionExpiredError) {
+        setEmptying(false);
+        setEmptyConfirm(false);
+        return handleExpired();
+      }
+      failed = e;
+    }
+
+    setEmptying(false);
+    setEmptyConfirm(false);
+    setSelectedIds(new Set());
+    setActiveId(null);
+    setDetail(null);
+    afterMutation();
+
+    if (failed) {
+      // ลบไปแล้วบางส่วนก่อนพัง = **ห้ามบอกว่าไม่สำเร็จเฉย ๆ** ของหายไปจริงและกู้ไม่ได้
+      if (removed > 0) notify.error(null, `ลบถาวรไปแล้ว ${removed} ฉบับ แล้วเจอปัญหา`);
+      else notify.error(failed, "ล้างกล่องไม่สำเร็จ");
+    } else if (removed === 0) {
+      notify.success("ไม่มีอะไรให้ลบ");
+    } else {
+      // เหลือค้าง = ต้องบอกตรง ๆ พร้อมบอกว่าให้กดซ้ำ (ห้ามตัดเงียบ)
+      notify.success(
+        left > 0
+          ? `ลบถาวรแล้ว ${removed} ฉบับ · เหลืออีก ${left} กดล้างอีกครั้งได้`
+          : `ลบถาวรแล้ว ${removed} ฉบับ`,
+      );
+    }
+
+    // รีเฟรชรายการเป็นงานคนละชิ้น — พังตรงนี้ไม่ได้แปลว่าการลบไม่สำเร็จ
+    try {
+      await loadFirstPage("refresh");
+    } catch {
+      /* รายการจะตามมาเองตอนรีเฟรชรอบหน้า */
+    }
+  }, [afterMutation, emptyableBox, handleExpired, loadFirstPage]);
+
   /** ปลายทางที่ให้เลือกย้าย — ตัดโฟลเดอร์ที่ยืนอยู่ออก (กดแล้วไม่เกิดอะไร = ห้ามมี) */
   const moveTargets = useMemo(
     () => folders.filter((f) => !(selector.kind === "folder" && f.id === selector.mailboxId)),
@@ -1205,6 +1300,20 @@ export function MailWorkspace({
               onOpenShortcuts={() => setShowShortcuts(true)}
               pane={pane}
               onTogglePane={togglePane}
+              selectAllState={selectAllState}
+              onToggleSelectAll={toggleSelectAll}
+              selectAllDisabled={visibleMessages.length === 0}
+              onEmptyBox={
+                emptyableBox
+                  ? () =>
+                      emptyBlockedByFilter
+                        ? notify.error(
+                            null,
+                            "ล้างกล่องระหว่างใช้ตัวกรอง/ค้นหาไม่ได้ — ล้างตัวกรองก่อน",
+                          )
+                        : setEmptyConfirm(true)
+                  : undefined
+              }
               searchInputRef={searchWrapRef}
             />
             <div className="min-h-0 flex-1">
@@ -1397,6 +1506,20 @@ export function MailWorkspace({
         defaultEmail={selfEmail}
         onClose={() => setComposeOpen(false)}
         onSend={enqueueSend}
+      />
+
+      <ConfirmDeleteDialog
+        open={emptyConfirm}
+        onOpenChange={(v) => !emptying && setEmptyConfirm(v)}
+        title={emptyableBox === "junk" ? "ล้างจดหมายขยะ" : "ล้างถังขยะ"}
+        description={
+          emptyBoxTotal === null
+            ? "เมลทั้งหมดในกล่องนี้จะถูกลบถาวร — กู้คืนไม่ได้"
+            : `เมลทั้งหมดในกล่องนี้ (${emptyBoxTotal} ฉบับ) จะถูกลบถาวร — กู้คืนไม่ได้`
+        }
+        confirmLabel={emptying ? "กำลังลบ…" : "ลบถาวร"}
+        loading={emptying}
+        onConfirm={() => void emptyBox()}
       />
 
       <MailShortcutsDialog open={showShortcuts} onOpenChange={setShowShortcuts} />

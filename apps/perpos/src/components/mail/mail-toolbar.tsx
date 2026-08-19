@@ -9,7 +9,18 @@
  * ตัวกรองซ่อนหลังปุ่มไอคอน <Filter> + จุดเหลืองเมื่อกรองค้าง (DESIGN.md §4)
  */
 
-import { Columns2, Filter, Keyboard, PenLine, RefreshCw, Rows3 } from "lucide-react";
+import {
+  CheckSquare,
+  Columns2,
+  Filter,
+  Keyboard,
+  MinusSquare,
+  PenLine,
+  RefreshCw,
+  Rows3,
+  Square,
+  Trash2,
+} from "lucide-react";
 import cn from "@core/utils/class-names";
 import { Button } from "@/components/ui/button";
 import { FilterBar, FilterClear, FilterSearch } from "@/components/ui/filter-bar";
@@ -37,6 +48,10 @@ export function MailToolbar({
   pane,
   onTogglePane,
   searchInputRef,
+  selectAllState,
+  onToggleSelectAll,
+  selectAllDisabled = false,
+  onEmptyBox,
 }: {
   boxLabel: string;
   unreadCount: number | null;
@@ -56,6 +71,13 @@ export function MailToolbar({
   pane: "split" | "list";
   onTogglePane: () => void;
   searchInputRef?: React.RefObject<HTMLDivElement | null>;
+  /** สถานะการเลือกของรายการที่โหลดมาแล้ว — `some` = เลือกบางส่วน (ปุ่มยังเป็น "เลือกทั้งหมด") */
+  selectAllState: "none" | "some" | "all";
+  onToggleSelectAll: () => void;
+  /** รายการว่าง = ไม่มีอะไรให้เลือก ⇒ ปุ่มต้องกดไม่ได้ (กดแล้วไม่เกิดอะไร = ดูเหมือนพัง) */
+  selectAllDisabled?: boolean;
+  /** มีเฉพาะถังขยะ/จดหมายขยะ — ล้างทิ้งถาวร (ผู้เรียกถามยืนยันเอง) */
+  onEmptyBox?: () => void;
 }) {
   const hasFilter = filters.unread || filters.attachment;
 
@@ -105,6 +127,39 @@ export function MailToolbar({
           {/* ที่ lg บานรายการแคบ (380px) — เหลือไอคอนอย่างเดียวกันของล้นแถว */}
           <span className="lg:hidden">เขียน</span>
         </Button>
+
+        {/* เลือกทั้งหมด "ในรายการที่โหลดมาแล้ว" — ไม่ใช่ทั้งกล่อง (เลือกของที่ยังไม่เห็นคืออันตราย) */}
+        <Button
+          variant={selectAllState === "none" ? "outline" : "secondary"}
+          size="icon"
+          title={selectAllState === "all" ? "ยกเลิกการเลือกทั้งหมด" : "เลือกทั้งหมดในรายการ"}
+          aria-label={selectAllState === "all" ? "ยกเลิกการเลือกทั้งหมด" : "เลือกทั้งหมดในรายการ"}
+          aria-pressed={selectAllState === "all"}
+          disabled={selectAllDisabled}
+          onClick={onToggleSelectAll}
+          className="shrink-0"
+        >
+          {selectAllState === "all" ? (
+            <CheckSquare className="h-4 w-4" />
+          ) : selectAllState === "some" ? (
+            <MinusSquare className="h-4 w-4" />
+          ) : (
+            <Square className="h-4 w-4" />
+          )}
+        </Button>
+
+        {onEmptyBox && (
+          <Button
+            variant="outline"
+            size="icon"
+            title="ล้างกล่องนี้ (ลบถาวร)"
+            aria-label="ล้างกล่องนี้"
+            onClick={onEmptyBox}
+            className="shrink-0 border-red-200 text-red-600 hover:border-red-300 hover:bg-red-50 hover:text-red-700"
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        )}
 
         <Button
           variant="outline"
