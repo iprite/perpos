@@ -155,6 +155,25 @@ jobs:
             | tr '\t' '\n' | grep -v '^None$' | while read -r k; do
               [ -n "$k" ] && aws s3 rm "s3://deploy-artifacts/$k" --endpoint-url "$EP" --only-show-errors; done || true
 
+      # ── อุ่น Vercel standby (DR เฉพาะเว็บ) ─────────────────────────────────────────────
+      # deploy ชุดเดียวกันขึ้น Vercel โดย "ไม่รับ traffic" (ไม่ assign domain) → มี deployment Ready เสมอ
+      # เวลา VPS ร่วง: ชี้ CNAME ใน Cloudflare กลับ Vercel ได้ใน 1 นาที (เว็บขึ้น · เมล/cron ยังอยู่ SG)
+      # ไม่มี VERCEL_TOKEN = ข้ามเงียบ · ล้มไม่ทำให้ deploy VPS แดง (continue-on-error)
+      - name: Warm Vercel standby
+        continue-on-error: true
+        working-directory: apps/perpos
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: team_8CbScV5IBAxTH2ypaiI3vthg
+          VERCEL_PROJECT_ID: prj_kuLwusKmzEF8mCBUYWjPENhGAt7w
+        run: |
+          set -euo pipefail
+          [ -n "${VERCEL_TOKEN:-}" ] || { echo "ไม่มี VERCEL_TOKEN — ข้าม standby"; exit 0; }
+          npx -y vercel@latest pull --yes --environment=production --token="$VERCEL_TOKEN" >/dev/null
+          npx -y vercel@latest build --prod --token="$VERCEL_TOKEN" >/dev/null
+          URL=$(npx -y vercel@latest deploy --prebuilt --prod --skip-domain --token="$VERCEL_TOKEN")
+          echo "standby: $URL"
+
       - name: Health check
         run: |
           sleep 8
