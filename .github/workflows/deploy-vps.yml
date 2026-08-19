@@ -1,6 +1,7 @@
 # Deploy perpos → Contabo SG VPS
 # ท่า: build standalone ใน CI (เครื่อง 16GB — ห้าม build บน VPS 8GB, เคย OOM บน Vercel มาแล้ว)
-#      → rsync artifact ไป releases/<ts> → สลับ symlink `current` → restart container
+#      → อัปโหลด R2 → VPS ดึงไป releases/<ts> → สลับ symlink `current` → blue/green switch (zero-downtime)
+#        (deploy/vps/switch-perpos.sh: up สีว่าง → รอ health → drain สีเก่า → stop — ไม่มีช่วง 502)
 #
 # ยังไม่ active จนกว่าจะตั้ง secrets ครบ (ดู deploy/vps/README.md):
 #   VPS_HOST · VPS_USER · VPS_SSH_KEY (private key)
@@ -22,6 +23,7 @@ on:
       - "pnpm-lock.yaml"
       - "package.json"
       - ".github/workflows/deploy-vps.yml"
+      - "deploy/vps/switch-perpos.sh"
 
 permissions:
   contents: read
@@ -84,6 +86,9 @@ jobs:
           # worker bundle → container perpos-worker รัน node apps/perpos/worker/scheduler-worker.js
           mkdir -p "$OUT/apps/perpos/worker"
           cp apps/perpos/.next/worker/scheduler-worker.js "$OUT/apps/perpos/worker/"
+          # สคริปต์สลับ blue/green ไปกับ release (เวอร์ชันเดียวกับโค้ด · rollback ก็ใช้ตัวใน current/deploy/)
+          mkdir -p "$OUT/deploy"
+          cp deploy/vps/switch-perpos.sh "$OUT/deploy/"
           tar -C "$OUT" -czf artifact.tar.gz .
 
       # เส้นทาง GitHub (runner scp ก็ดี / Actions artifact API ก็ดี) → Contabo SG ช้ามาก (~40 KB/s
@@ -127,8 +132,9 @@ jobs:
             # ป้าย commit ของ release นี้ — heartbeat อ่านไปโชว์ที่ /admin/system (ตรวจว่า prod รัน sha ไหน)
             printf '%s\n' '${{ github.sha }}' > releases/$TS/RELEASE
             ln -sfn $APP/releases/$TS $APP/current
-            cd /srv/deploy && docker compose up -d perpos perpos-worker && docker compose restart perpos perpos-worker
-            # เก็บ 3 release ล่าสุดพอ (rollback = ln -sfn ไป release ก่อนหน้า + restart)
+            # blue/green: สีใหม่ต้องผ่าน /api/health ก่อน traffic ย้าย · ล้ม = สีเก่ายังเสิร์ฟ + exit 1 (deploy แดง)
+            bash $APP/releases/$TS/deploy/switch-perpos.sh
+            # เก็บ 3 release ล่าสุดพอ (rollback = ln -sfn ไป release ก่อนหน้า + bash current/deploy/switch-perpos.sh)
             cd $APP/releases && ls -1t | tail -n +4 | xargs -r rm -rf"
 
       - name: Cleanup R2 (เก็บไฟล์ล่าสุด 5 ก้อนต่อแอป)

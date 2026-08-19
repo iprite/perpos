@@ -44,7 +44,7 @@ const BACKUP_STALE_HOURS = 30;
 /** container ที่ต้อง "running" เสมอบนเครื่อง SG — หายไปจากรายการ = เตือนเหมือน state ผิด */
 export const EXPECTED_CONTAINERS = [
   "caddy",
-  "perpos",
+  "perpos", // = สีที่รันอยู่ของ perpos-blue/perpos-green (ยุบด้วย collapseBlueGreen ก่อนตัดสิน)
   "perpos-worker",
   "exapp",
   "riekchang",
@@ -246,8 +246,45 @@ export function withRestartDelta(next: MailHeartbeat, prev: MailHeartbeat | null
 
 const fmtMb = (b: number) => `${Math.round(b / 1048576)} MB`;
 
+/** service ที่ deploy แบบ blue/green (compose มี `<name>-blue` + `<name>-green` · ปกติรันทีละสี) */
+const BLUE_GREEN = ["perpos"] as const;
+
+/**
+ * ยุบ `perpos-blue`/`perpos-green` เป็นตัวแทนชื่อ `perpos` ตัวเดียวก่อนตัดสิน — เลือกสีที่ running
+ * (ถ้ารันทั้งคู่เอาที่ start ล่าสุด · ไม่มีสีไหนรัน = เอาที่ start ล่าสุดเพื่อรายงาน state/exit ของมัน)
+ * สีที่ stopped ค้างอยู่เป็นเรื่องปกติของ blue/green — ห้ามเตือน "container ไม่ทำงาน"
+ */
+export function collapseBlueGreen(containers: HostContainer[]): HostContainer[] {
+  const out: HostContainer[] = [];
+  const groups = new Map<string, HostContainer[]>();
+  for (const c of containers) {
+    const base = BLUE_GREEN.find((b) => c.name === `${b}-blue` || c.name === `${b}-green`);
+    if (!base) {
+      out.push(c);
+      continue;
+    }
+    const g = groups.get(base) ?? [];
+    g.push(c);
+    groups.set(base, g);
+  }
+  const startedMs = (c: HostContainer) => {
+    const t = c.startedAt ? new Date(c.startedAt).getTime() : NaN;
+    return Number.isFinite(t) ? t : 0;
+  };
+  groups.forEach((g, base) => {
+    const running = g.filter((c) => c.state === "running");
+    const pool = running.length > 0 ? running : g;
+    const pick = pool.reduce((a, b) => (startedMs(b) > startedMs(a) ? b : a));
+    out.push({ ...pick, name: base });
+  });
+  return out;
+}
+
 /** ปัญหาฝั่ง Docker/deploy ของเว็บ 3 แอป (pure — มีเทสคุม) · key ขึ้นต้น `container:`/`crash:`/`mem:`/`deploy:` */
-export function evaluateHostIssues(hb: MailHeartbeat, now: number): Record<string, string> {
+export function evaluateHostIssues(hbRaw: MailHeartbeat, now: number): Record<string, string> {
+  const hb = hbRaw.containers
+    ? { ...hbRaw, containers: collapseBlueGreen(hbRaw.containers) }
+    : hbRaw;
   const issues: Record<string, string> = {};
   if (hb.containers) {
     const byName = new Map(hb.containers.map((c) => [c.name, c]));
