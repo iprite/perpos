@@ -35,7 +35,12 @@ import { formatMailSize } from "@/lib/mail/format";
 import { MailRecipientInput } from "@/components/mail/mail-recipients";
 import { useMailLocale } from "@/components/mail/mail-locale";
 import { MAIL_LOCALE_TAGS, type MailLocale } from "@/lib/mail/i18n";
-import { MAX_MESSAGE_BYTES, isEmailAddress, type MailComposeAttachment } from "@/lib/mail/compose";
+import {
+  MAX_MESSAGE_BYTES,
+  isEmailAddress,
+  swapSignature,
+  type MailComposeAttachment,
+} from "@/lib/mail/compose";
 
 const AUTOSAVE_MS = 3000;
 
@@ -93,6 +98,7 @@ export function MailCompose({
   seed,
   identities,
   defaultEmail,
+  signatureFor,
   onClose,
   onSend,
 }: {
@@ -102,6 +108,8 @@ export function MailCompose({
   /** ที่อยู่ของกล่องเมลนี้ — ต้องตรงกับที่ฝั่งเซิร์ฟเวอร์เลือกเมื่อไม่ได้ระบุ identity
    *  (ไม่งั้นช่อง "จาก" โชว์ที่อยู่หนึ่ง แต่ส่งจริงอีกที่อยู่หนึ่ง) */
   defaultEmail: string;
+  /** ลายเซ็นของแต่ละที่อยู่ (นามแฝงตั้งลายเซ็นแยกได้) — ใช้ตอนผู้ใช้สลับช่อง "จาก" กลางคัน */
+  signatureFor?: (email: string) => string;
   /** ปิดกล่อง (ร่างถูกเก็บให้แล้วถ้ามีเนื้อหา) */
   onClose: () => void;
   /** ผู้เรียกรับไปเข้าคิว "ส่งใน 8 วิ + เลิกทำ" */
@@ -357,6 +365,24 @@ export function MailCompose({
     [submit],
   );
 
+  /**
+   * เปลี่ยนที่อยู่ผู้ส่งกลางคัน → สลับลายเซ็นให้ตรงที่อยู่ใหม่
+   * แทนที่**เฉพาะบล็อกลายเซ็นเดิมที่ระบบใส่ไว้** (`swapSignature`) — ที่ผู้ใช้พิมพ์เองไม่ถูกแตะ
+   */
+  const changeIdentity = useCallback(
+    (nextId: string) => {
+      const prevEmail = identities.find((i) => i.id === identityId)?.email ?? defaultEmail;
+      const nextEmail = identities.find((i) => i.id === nextId)?.email ?? defaultEmail;
+      setIdentityId(nextId);
+      if (!signatureFor) return;
+      const before = signatureFor(prevEmail);
+      const after = signatureFor(nextEmail);
+      if (before === after) return;
+      setBody((prev) => swapSignature(prev, before, after));
+    },
+    [defaultEmail, identities, identityId, signatureFor],
+  );
+
   const identityOptions = useMemo(
     () =>
       identities.map((i) => ({
@@ -532,7 +558,7 @@ export function MailCompose({
                 <div className="py-1.5">
                   <CustomSelect
                     value={identityId ?? identityOptions[0]!.value}
-                    onChange={setIdentityId}
+                    onChange={changeIdentity}
                     options={identityOptions}
                   />
                 </div>
@@ -589,7 +615,7 @@ export function MailCompose({
               <Label htmlFor="mail-from">{t("compose.field.from")}</Label>
               <CustomSelect
                 value={identityId ?? identityOptions[0]!.value}
-                onChange={setIdentityId}
+                onChange={changeIdentity}
                 options={identityOptions}
                 className="mt-1"
               />

@@ -75,6 +75,7 @@ import {
   applySignature,
   buildForwardBody,
   buildQuotedReply,
+  pickIdentityForReply,
   forwardSubject,
   replyRecipients,
   replySubject,
@@ -859,26 +860,65 @@ export function MailWorkspace({
     setComposeOpen(true);
   }, []);
 
-  /** ลายเซ็นที่ตั้งไว้ที่ `/account` (มาพร้อม prefs) — ref เพราะ callback ด้านล่างไม่ควร re-create */
-  const signatureRef = useRef<{ text: string; onReply: boolean }>({ text: "", onReply: true });
+  /** ค่าตั้ง "ผู้ส่ง + ลายเซ็น" จาก `/account` (มาพร้อม prefs) — ref เพราะ callback ด้านล่างไม่ควร re-create */
+  const senderPrefsRef = useRef<{
+    signature: string;
+    onReply: boolean;
+    byAddress: Record<string, string>;
+    defaultFrom: string;
+    replyFromReceived: boolean;
+  }>({ signature: "", onReply: true, byAddress: {}, defaultFrom: "", replyFromReceived: true });
+
+  const identitiesRef = useRef<MailIdentityOption[]>([]);
+  identitiesRef.current = identities;
+
+  /** ลายเซ็นของที่อยู่นั้น — ไม่ได้ตั้งแยกไว้ = ใช้ลายเซ็นหลัก */
+  const signatureFor = useCallback((email: string): string => {
+    const { signature, byAddress } = senderPrefsRef.current;
+    return byAddress[email.trim().toLowerCase()] ?? signature;
+  }, []);
+
+  /** id ของ identity ตามที่อยู่ (ตัวพิมพ์เล็ก) — ไม่พบ = null (ให้กล่องเขียนเลือกค่าเริ่มต้นเอง) */
+  const identityIdFor = useCallback((email: string): string | null => {
+    const key = email.trim().toLowerCase();
+    if (!key) return null;
+    return identitiesRef.current.find((i) => i.email.toLowerCase() === key)?.id ?? null;
+  }, []);
 
   /**
    * ใส่ลายเซ็น **เฉพาะตอนเริ่มเขียนใหม่/ตอบ/ส่งต่อ** เท่านั้น
    * — ร่างเดิมและกล่องที่เปิดกลับมาหลัง "เลิกทำการส่ง"/ส่งไม่สำเร็จ มีลายเซ็นอยู่ในเนื้อความแล้ว
    *   ถ้าใส่ซ้ำจะได้ลายเซ็นสองชุดต่อการเปิดหนึ่งครั้ง
    */
-  const withSignature = useCallback(
-    (seed: MailComposeSeed | null, kind: "new" | "reply"): MailComposeSeed | null => {
-      const { text, onReply } = signatureRef.current;
-      if (!text || (kind === "reply" && !onReply)) return seed;
-      return { ...(seed ?? {}), body: applySignature(seed?.body ?? "", text) };
+  /**
+   * เติม "ที่อยู่ผู้ส่ง + ลายเซ็นของที่อยู่นั้น" ให้ค่าตั้งต้นของกล่องเขียน
+   *
+   * `fromEmail` = ที่อยู่ที่ตัดสินใจมาแล้ว (เขียนใหม่ = ค่าเริ่มต้นที่ผู้ใช้ตั้ง ·
+   * ตอบ/ส่งต่อ = ที่อยู่ที่เขาส่งหา) — ว่าง = ปล่อยให้กล่องเขียนใช้ที่อยู่หลักตามเดิม
+   */
+  const withSender = useCallback(
+    (
+      seed: MailComposeSeed | null,
+      kind: "new" | "reply",
+      fromEmail: string,
+    ): MailComposeSeed | null => {
+      const identityId = identityIdFor(fromEmail);
+      const signature = signatureFor(fromEmail || selfEmail);
+      const { onReply } = senderPrefsRef.current;
+      const useSignature = signature && !(kind === "reply" && !onReply);
+      if (!identityId && !useSignature) return seed;
+      return {
+        ...(seed ?? {}),
+        ...(identityId ? { identityId } : {}),
+        ...(useSignature ? { body: applySignature(seed?.body ?? "", signature) } : {}),
+      };
     },
-    [],
+    [identityIdFor, selfEmail, signatureFor],
   );
 
   const openNewCompose = useCallback(() => {
-    openCompose(withSignature(null, "new"));
-  }, [openCompose, withSignature]);
+    openCompose(withSender(null, "new", senderPrefsRef.current.defaultFrom));
+  }, [openCompose, withSender]);
 
   const detailRef = useRef<MailThreadDetail | null>(null);
   detailRef.current = detail;
@@ -893,9 +933,23 @@ export function MailWorkspace({
       const inReplyTo = source.messageId?.[0] ?? null;
       const references = source.references ?? [];
 
+      /**
+       * ที่อยู่ผู้ส่งของการตอบ = ที่อยู่ของเราที่ฉบับนั้นถูกส่งมาหา (ถ้าเปิดตัวเลือกไว้)
+       * ลูกค้าส่งหา info@ แล้วตอบกลับจาก admin@ = ผู้รับสับสน · ปิดตัวเลือก/หาไม่เจอ
+       * ค่อยตกไปใช้ที่อยู่เริ่มต้นที่ผู้ใช้ตั้ง
+       */
+      const { replyFromReceived, defaultFrom } = senderPrefsRef.current;
+      const received = replyFromReceived
+        ? pickIdentityForReply(
+            { to: source.to, cc: source.cc },
+            identitiesRef.current.map((i) => i.email),
+          )
+        : null;
+      const fromEmail = received ?? defaultFrom;
+
       if (mode === "forward") {
         openCompose(
-          withSignature(
+          withSender(
             {
               subject: forwardSubject(source.subject),
               body: buildForwardBody({
@@ -908,6 +962,7 @@ export function MailWorkspace({
               focus: "body",
             },
             "reply",
+            fromEmail,
           ),
         );
         return;
@@ -915,7 +970,7 @@ export function MailWorkspace({
 
       const { to, cc } = replyRecipients(source, selfEmail, mode === "replyAll");
       openCompose(
-        withSignature(
+        withSender(
           {
             to: to.map((a) => a.email),
             cc: cc.map((a) => a.email),
@@ -930,10 +985,11 @@ export function MailWorkspace({
             focus: "body",
           },
           "reply",
+          fromEmail,
         ),
       );
     },
-    [openCompose, selfEmail, withSignature],
+    [openCompose, selfEmail, withSender],
   );
 
   // ── การเลือกหลายรายการ (shift-click = ช่วง) ──────────────────────────────
@@ -1276,6 +1332,9 @@ export function MailWorkspace({
     locale: MAIL_LOCALE_DEFAULT,
     signature: "",
     signatureOnReply: true,
+    signatureByAddress: {},
+    defaultFromEmail: "",
+    replyFromReceived: true,
   });
   const persistPrefs = useCallback((patch: Partial<MailPrefs>) => {
     const next = { ...prefsRef.current, ...patch };
@@ -1306,10 +1365,19 @@ export function MailWorkspace({
           locale: normalizeMailLocale(data.locale),
           signature: typeof data.signature === "string" ? data.signature : "",
           signatureOnReply: data.signatureOnReply !== false,
+          signatureByAddress:
+            data.signatureByAddress && typeof data.signatureByAddress === "object"
+              ? data.signatureByAddress
+              : {},
+          defaultFromEmail: typeof data.defaultFromEmail === "string" ? data.defaultFromEmail : "",
+          replyFromReceived: data.replyFromReceived !== false,
         };
-        signatureRef.current = {
-          text: prefsRef.current.signature,
+        senderPrefsRef.current = {
+          signature: prefsRef.current.signature,
           onReply: prefsRef.current.signatureOnReply,
+          byAddress: prefsRef.current.signatureByAddress,
+          defaultFrom: prefsRef.current.defaultFromEmail,
+          replyFromReceived: prefsRef.current.replyFromReceived,
         };
         setPane(next);
         setListWidth(width);
@@ -1647,6 +1715,7 @@ export function MailWorkspace({
         seed={composeSeed}
         identities={identities}
         defaultEmail={selfEmail}
+        signatureFor={signatureFor}
         onClose={() => setComposeOpen(false)}
         onSend={enqueueSend}
       />

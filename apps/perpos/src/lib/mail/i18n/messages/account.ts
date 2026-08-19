@@ -30,11 +30,43 @@ export const account = defineMailMessages({
     en: 'Separated by the standard "-- " line and always placed above quoted text',
   },
   "account.signature.preview": { th: "ตัวอย่างท้ายเมล", en: "Preview" },
+  "account.signature.scope": { th: "ลายเซ็นของที่อยู่", en: "Signature for" },
+  "account.signature.scope.default": {
+    th: "ทุกที่อยู่ (ค่าเริ่มต้น)",
+    en: "All addresses (default)",
+  },
+  "account.signature.inherits": {
+    th: "ที่อยู่นี้ยังใช้ลายเซ็นค่าเริ่มต้นอยู่ — พิมพ์ที่นี่เพื่อตั้งแยกเฉพาะที่อยู่นี้",
+    en: "This address still uses the default signature — type here to give it its own",
+  },
+  "account.signature.useDefault": { th: "กลับไปใช้ค่าเริ่มต้น", en: "Use the default" },
   "account.signature.saved": {
     th: "บันทึกแล้ว — ใช้กับเมลที่เขียนหลังจากนี้",
     en: "Saved — applies to messages you write from now on",
   },
   "account.signature.failed": { th: "บันทึกลายเซ็นไม่สำเร็จ", en: "Could not save signature" },
+
+  "account.sender.title": { th: "ที่อยู่ผู้ส่ง", en: "Sender addresses" },
+  "account.sender.desc": {
+    th: "ที่อยู่ทั้งหมดที่กล่องนี้ส่งในนามได้ (ที่อยู่หลัก + นามแฝง) — ตั้งชื่อที่แสดงแยกได้ทีละที่อยู่",
+    en: "Every address this mailbox can send as (primary + aliases) — each can have its own display name",
+  },
+  "account.sender.default": { th: "ใช้เป็นที่อยู่เริ่มต้น", en: "Use as default" },
+  "account.sender.defaultOn": { th: "ที่อยู่เริ่มต้น", en: "Default" },
+  "account.sender.defaultHint": {
+    th: "ที่อยู่ที่ขึ้นให้ตอนกดเขียนเมลใหม่",
+    en: "The address pre-selected when you start a new message",
+  },
+  "account.sender.replyFrom": {
+    th: "ตอบกลับจากที่อยู่ที่เขาส่งหา",
+    en: "Reply from the address it was sent to",
+  },
+  "account.sender.replyFromHint": {
+    th: "ลูกค้าส่งหา info@ แล้วกดตอบ = ส่งออกจาก info@ ไม่ใช่ที่อยู่หลัก",
+    en: "A mail sent to info@ replies from info@, not from your primary address",
+  },
+  "account.sender.saved": { th: "บันทึกที่อยู่ผู้ส่งแล้ว", en: "Sender settings saved" },
+  "account.sender.failed": { th: "บันทึกไม่สำเร็จ", en: "Could not save" },
 
   "account.avatar.title": { th: "รูปโปรไฟล์", en: "Profile picture" },
   "account.avatar.desc": {

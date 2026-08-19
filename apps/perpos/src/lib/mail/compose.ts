@@ -113,6 +113,41 @@ export function forwardSubject(subject: string | null | undefined): string {
  * - ตอบ/ส่งต่อ: ลายเซ็นอยู่ **เหนือ** ข้อความที่อ้างถึงเสมอ (คนอ่านจากบนลงล่าง
  *   และเคอร์เซอร์ของกล่องเขียนอยู่บนสุด)
  */
+
+/**
+ * สลับลายเซ็นในเนื้อความที่กำลังเขียนอยู่ (เปลี่ยนช่อง "จาก" ระหว่างทาง)
+ *
+ * แทนที่**เฉพาะบล็อกลายเซ็นเดิมที่เราใส่ไว้เอง**เท่านั้น — ถ้าผู้ใช้ลบ/แก้จนไม่ตรงแล้ว
+ * ถือว่าเป็นข้อความของเขา **ห้ามแตะ** (เขียนทับ = ข้อความที่พิมพ์ไว้หาย แก้คืนไม่ได้)
+ */
+export function swapSignature(body: string, previous: string, next: string): string {
+  const before = applySignature("", previous);
+  if (!before) return next ? applySignature(body, next) : body;
+  if (!body.includes(before)) return body;
+  return body.replace(before, applySignature("", next));
+}
+
+/**
+ * ที่อยู่ผู้ส่งที่ควรใช้ตอน "ตอบ/ส่งต่อ" = ที่อยู่ของเราที่ฉบับนั้นถูกส่งมาหา
+ *
+ * ลูกค้าส่งหา `info@` แล้วเราตอบกลับจาก `admin@` ผู้รับจะงง (และกฎกรองฝั่งเขาอาจไม่จับคู่เธรด)
+ * ⇒ ไล่จาก To ก่อน แล้วค่อย Cc · เทียบแบบไม่สนตัวพิมพ์ · ไม่ตรงสักอัน = คืน null (ใช้ค่าเริ่มต้น)
+ */
+export function pickIdentityForReply(
+  recipients: { to?: MailAddress[] | null; cc?: MailAddress[] | null },
+  ownAddresses: string[],
+): string | null {
+  const own = new Set(ownAddresses.map((a) => a.trim().toLowerCase()).filter(Boolean));
+  if (own.size === 0) return null;
+  for (const list of [recipients.to ?? [], recipients.cc ?? []]) {
+    for (const addr of list) {
+      const email = (addr?.email ?? "").trim().toLowerCase();
+      if (email && own.has(email)) return email;
+    }
+  }
+  return null;
+}
+
 export function applySignature(body: string, signature: string): string {
   const sig = signature.replace(/\r\n/g, "\n").trimEnd();
   if (!sig) return body;

@@ -31,6 +31,34 @@ export function normalizeMailSignature(raw: unknown): string {
   return raw.replace(/\r\n/g, "\n").slice(0, MAIL_SIGNATURE_MAX).trimEnd();
 }
 
+/**
+ * เพดานจำนวนที่อยู่ที่เก็บลายเซ็นแยกได้ — กล่องหนึ่งมีนามแฝงไม่กี่อัน
+ * (ผูกกับเพดานขนาดไฟล์ `perpos-prefs.json` ใน `prefs.ts` — ขึ้นตัวนี้ต้องขึ้นตัวนั้นด้วย)
+ */
+export const MAIL_SIGNATURE_ADDRESS_MAX = 5;
+
+/** อีเมลที่ใช้เป็น "คีย์" ของค่าตั้งค่า — ตัวพิมพ์เล็กเสมอ ไม่ใช่ที่อยู่ = ทิ้ง */
+export function normalizeMailAddressKey(raw: unknown): string {
+  if (typeof raw !== "string") return "";
+  const value = raw.trim().toLowerCase();
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value) ? value : "";
+}
+
+/** ลายเซ็นแยกรายที่อยู่ — ทิ้งคีย์ที่ไม่ใช่อีเมล/ค่าที่ว่างเปล่า แล้วบีบจำนวนลง */
+export function normalizeSignatureMap(raw: unknown): Record<string, string> {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  const out: Record<string, string> = {};
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    const email = normalizeMailAddressKey(key);
+    if (!email) continue;
+    const text = normalizeMailSignature(value);
+    if (!text) continue; // ว่าง = ใช้ลายเซ็นหลัก ไม่ต้องเก็บ
+    out[email] = text;
+    if (Object.keys(out).length >= MAIL_SIGNATURE_ADDRESS_MAX) break;
+  }
+  return out;
+}
+
 /** ค่าที่ผู้ใช้/ไคลเอนต์อื่นเขียนมั่วได้ ⇒ บีบเข้ากรอบเสมอ (ไม่ใช่ตัวเลข = ค่าเริ่มต้น) */
 export function clampMailListWidth(raw: unknown): number {
   if (typeof raw !== "number" || !Number.isFinite(raw)) return MAIL_LIST_WIDTH_DEFAULT;

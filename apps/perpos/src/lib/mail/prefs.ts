@@ -15,7 +15,9 @@ import { MAIL_LOCALE_DEFAULT, normalizeMailLocale } from "./i18n";
 import {
   MAIL_LIST_WIDTH_DEFAULT,
   clampMailListWidth,
+  normalizeMailAddressKey,
   normalizeMailSignature,
+  normalizeSignatureMap,
 } from "./prefs-storage";
 import type { MailPrefs, MailSession } from "./types";
 
@@ -23,8 +25,12 @@ const JMAP_USING_FILES = ["urn:ietf:params:jmap:core", "urn:ietf:params:jmap:fil
 
 const PREFS_NAME = "perpos-prefs.json";
 const PREFS_TYPE = "application/json";
-/** ไฟล์ตั้งค่าเล็กมาก — ใหญ่กว่านี้แปลว่ามีอะไรผิด ไม่ต้องอ่านต่อ */
-const MAX_BYTES = 8 * 1024;
+/**
+ * เพดานไฟล์ตั้งค่า — ใหญ่กว่านี้แปลว่ามีอะไรผิด ไม่ต้องอ่านต่อ
+ * ⚠️ ต้องเผื่อลายเซ็นแยกรายที่อยู่: 6 ที่อยู่ × 2,000 ตัวอักษรไทย (3 ไบต์/ตัว) ≈ 36 KB
+ *    ถ้าตั้งต่ำเกินไป ไฟล์ที่ใหญ่ขึ้นจะถูกมองว่าเพี้ยน → คืนค่าเริ่มต้น = **ความชอบหายทั้งชุด**
+ */
+const MAX_BYTES = 64 * 1024;
 
 export const MAIL_PREFS_DEFAULT: MailPrefs = {
   pane: "split",
@@ -32,6 +38,9 @@ export const MAIL_PREFS_DEFAULT: MailPrefs = {
   locale: MAIL_LOCALE_DEFAULT,
   signature: "",
   signatureOnReply: true,
+  signatureByAddress: {},
+  defaultFromEmail: "",
+  replyFromReceived: true,
 };
 
 interface FileNodeInfo {
@@ -66,6 +75,10 @@ export function normalizeMailPrefs(raw: unknown): MailPrefs {
     signature: normalizeMailSignature(obj.signature),
     // ไม่เคยตั้ง (ไฟล์เก่า) = ใส่ตอนตอบด้วย — ตรงกับที่ผู้ใช้คาดจากเมลไคลเอนต์ทั่วไป
     signatureOnReply: obj.signatureOnReply !== false,
+    signatureByAddress: normalizeSignatureMap(obj.signatureByAddress),
+    defaultFromEmail: normalizeMailAddressKey(obj.defaultFromEmail),
+    // ไฟล์เก่า = เปิด (ผู้รับควรเห็นที่อยู่ที่เขาส่งหาเป็นผู้ส่งเสมอ)
+    replyFromReceived: obj.replyFromReceived !== false,
   };
 }
 
