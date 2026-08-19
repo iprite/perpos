@@ -119,7 +119,7 @@ port 3005–3007 bind ที่ `127.0.0.1` เท่านั้นใน compo
 
 ## DR — เว็บร่วง / เครื่องร่วง
 
-**Vercel standby (เว็บเท่านั้น · $0)** — ทุก deploy VPS สำเร็จ workflow จะ `vercel build` + `deploy --prebuilt --prod --skip-domain` ขึ้น Vercel ด้วย (step "Warm Vercel standby" · ต้องมี secret `VERCEL_TOKEN` ทั้ง 3 repo — ไม่มี = ข้ามเงียบ) ⇒ มี deployment Ready ที่ `*.vercel.app` เสมอ แต่**ไม่รับ traffic** (production domain ถูกถอดไปชี้ VPS) · URL ดิบตอบ 302 SSO = Deployment Protection ปกติ
+**Vercel standby (เว็บเท่านั้น · $0)** — ทุก deploy VPS สำเร็จ workflow จะ `vercel build` + `deploy --prebuilt --prod --skip-domain` ขึ้น Vercel ด้วย (step "Warm Vercel standby" · secret `VERCEL_TOKEN` ตั้งครบ 3 repo แล้ว 2026-08-19 — ไม่มี = ข้ามเงียบ) ⇒ มี deployment Ready ที่ `*.vercel.app` เสมอ แต่**ไม่รับ traffic** (production domain ถูกถอดไปชี้ VPS) · URL ดิบตอบ 302 SSO = Deployment Protection ปกติ
 
 - **สลับไป Vercel ตอนแอปบน VPS พัง** (≈2 นาที): Cloudflare DNS → `app.perpos.ai` (หรือ `app.exworker.co.th` / `app.riekchang.com`) เปลี่ยน A → **CNAME `cname.vercel-dns.com`** เมฆส้ม → Vercel dashboard → Project → Settings → Domains → Add โดเมนกลับ (ถูกถอดเพราะ `--skip-domain`) → รอ ~1 นาที · **`mail.perpos.ai` ก็ทำแบบเดียวกันได้** (webmail คุย JMAP กับ SG — ถ้า SG ยังรันเมลอยู่)
 - **สลับกลับ**: Vercel → Domains → Remove → Cloudflare → A `62.146.233.27` เมฆส้ม
