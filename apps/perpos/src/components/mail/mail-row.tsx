@@ -14,14 +14,30 @@
  */
 
 import { memo, useEffect, useRef } from "react";
-import { Archive, Paperclip, Square, SquareCheckBig, Star, Trash2 } from "lucide-react";
+import {
+  Archive,
+  FileArchive,
+  FileSpreadsheet,
+  FileText,
+  Image as ImageIcon,
+  Paperclip,
+  Square,
+  SquareCheckBig,
+  Star,
+  Trash2,
+} from "lucide-react";
 import cn from "@core/utils/class-names";
 import { Button } from "@/components/ui/button";
 import type { MailMessage } from "@/lib/mail/types";
 import { formatMailTime } from "@/lib/mail/format";
 import { useSwipeRow } from "@/components/mail/use-swipe-row";
 
-/** ความสูงคงที่ของแถว (px) — ใช้ร่วมกับ VList/skeleton ห้ามแก้ที่เดียว */
+/**
+ * ความสูง **ขั้นต่ำ** ของแถว (px) — เป็นค่าประมาณให้ virtualizer + ความสูงของ skeleton
+ *
+ * ⚠️ ไม่ใช่ความสูงตายตัวอีกแล้ว: แถวที่มีไฟล์แนบสูงกว่านี้เพราะมีชิปเพิ่มมาอีกบรรทัด
+ * (`virtua` วัดขนาดจริงเอง ค่านี้ใช้แค่ก่อนวัด) — เคยล็อกด้วย `h-16` แล้วชิปล้นทับแถวถัดไป
+ */
 export const MAIL_ROW_HEIGHT = 64;
 
 export interface MailRowProps {
@@ -115,7 +131,7 @@ function MailRowBase({
         {...swipe.handlers}
         style={swipe.dx ? { transform: `translateX(${swipe.dx}px)` } : undefined}
         className={cn(
-          "relative flex h-16 w-full cursor-pointer touch-pan-y items-center gap-2 bg-white px-2 outline-none transition-colors sm:px-3",
+          "relative flex min-h-16 w-full cursor-pointer touch-pan-y items-center gap-2 bg-white px-2 py-1.5 outline-none transition-colors sm:px-3",
           active ? "bg-gray-100" : "hover:bg-gray-50",
           focused && !active && "bg-gray-50",
         )}
@@ -215,14 +231,61 @@ function MailRowBase({
                 </span>
               )}
             </span>
-            {message.hasAttachment && (
+            {message.hasAttachment && message.attachments.length === 0 && (
+              /* มีไฟล์แนบแต่ไม่รู้ชื่อ (เซิร์ฟเวอร์ไม่ได้ส่งมา) — ยังต้องบอกว่ามี */
               <Paperclip aria-label="มีไฟล์แนบ" className="h-3.5 w-3.5 shrink-0 text-gray-400" />
             )}
           </div>
+
+          {/* ชิปไฟล์แนบ (แบบ Gmail) — ดูแล้วรู้ว่าเป็นไฟล์อะไรโดยไม่ต้องเปิดเมล
+              ⚠️ แสดงอย่างเดียว กดดาวน์โหลดจากรายการไม่ได้ (รายการไม่พก blobId) */}
+          {message.attachments.length > 0 && (
+            <div className="mt-1 flex flex-wrap items-center gap-1.5">
+              {message.attachments.map((a, i) => (
+                <span
+                  key={`${a.name}-${i}`}
+                  title={`${a.name}${a.sizeBytes ? ` · ${formatBytes(a.sizeBytes)}` : ""}`}
+                  className="inline-flex max-w-[12rem] items-center gap-1 rounded-full border border-gray-200 bg-white px-2 py-0.5 text-xs text-gray-600"
+                >
+                  <AttachmentIcon type={a.type} />
+                  <span className="truncate">{a.name}</span>
+                </span>
+              ))}
+              {message.attachmentCount > message.attachments.length && (
+                <span className="text-xs text-gray-400">
+                  +{message.attachmentCount - message.attachments.length}
+                </span>
+              )}
+            </div>
+          )}
         </button>
       </div>
     </div>
   );
+}
+
+/**
+ * ไอคอนตามชนิดไฟล์ — **โทนเทาล้วน**
+ * (Gmail ใช้ไอคอนสี แต่พาเลตต์เราห้ามใช้แดงกับอะไรที่ไม่ใช่ "ผิดพลาด" — DESIGN.md §2)
+ */
+function AttachmentIcon({ type }: { type: string }) {
+  const cls = "h-3 w-3 shrink-0 text-gray-400";
+  if (type.startsWith("image/")) return <ImageIcon className={cls} />;
+  if (type === "application/pdf") return <FileText className={cls} />;
+  if (type.includes("spreadsheet") || type.includes("excel") || type === "text/csv") {
+    return <FileSpreadsheet className={cls} />;
+  }
+  if (type.includes("zip") || type.includes("compressed") || type.includes("rar")) {
+    return <FileArchive className={cls} />;
+  }
+  return <Paperclip className={cls} />;
+}
+
+/** ขนาดไฟล์แบบสั้น — ใช้ในทูลทิปของชิปเท่านั้น (ในแถวไม่มีที่พอ) */
+function formatBytes(bytes: number): string {
+  if (bytes >= 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+  if (bytes >= 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${bytes} B`;
 }
 
 export const MailRow = memo(MailRowBase);
