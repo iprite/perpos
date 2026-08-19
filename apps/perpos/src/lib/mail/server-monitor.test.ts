@@ -29,7 +29,7 @@ const healthy = {
     cronJobs: null,
     uptimeSeconds: null,
   },
-  heartbeatAt: new Date(NOW - H).toISOString(),
+  heartbeatAt: new Date(NOW - 5 * 60_000).toISOString(),
   now: NOW,
 };
 
@@ -68,7 +68,7 @@ describe("evaluateIssues", () => {
     ]);
   });
 
-  it("heartbeat ขาดเกิน 3 ชม. = ปัญหา และไม่ตัดสินดิสก์จากข้อมูลเก่า", () => {
+  it("heartbeat ขาดเกิน 30 นาที = ปัญหา และไม่ตัดสินดิสก์จากข้อมูลเก่า", () => {
     const issues = evaluateIssues({
       ...healthy,
       heartbeat: {
