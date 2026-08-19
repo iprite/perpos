@@ -31,7 +31,7 @@
 # perpos — โปรเจกต์เดียวเสิร์ฟ 2 โดเมน (middleware ของแอปแยกพฤติกรรมตาม host เอง)
 # blue/green (zero-downtime deploy): ปกติรันสีเดียว อีกสี stopped (DNS ไม่ resolve = unhealthy เฉย ๆ)
 # lb_policy first = ส่งเข้าตัวแรกที่ healthy เสมอ (blue ก่อน) · health เช็ค /api/health ทุก 3 วิ —
-# สคริปต์ deploy แตะ /tmp/perpos-drain ให้สีเก่าตอบ 503 → หลุดจาก pool ก่อนถูก stop
+# สคริปต์ deploy (switch-app.sh) แตะ /tmp/drain ให้สีเก่าตอบ 503 · exapp/riekchang ใช้ท่าเดียวกัน → หลุดจาก pool ก่อนถูก stop
 # lb_try_duration = ถ้า dial ไม่ติด (สีนั้นเพิ่งดับ) ลองตัวถัดไปแทนที่จะตอบ 502 ทันที
 app.perpos.ai, mail.perpos.ai {
 	import cf_tls
@@ -52,13 +52,31 @@ app.perpos.ai, mail.perpos.ai {
 app.exworker.co.th {
 	import cf_tls
 	encode zstd gzip
-	reverse_proxy exapp:3006
+	reverse_proxy exapp-blue:3006 exapp-green:3006 {
+		lb_policy first
+		lb_try_duration 20s
+		lb_try_interval 250ms
+		health_uri /api/health
+		health_interval 3s
+		health_timeout 2s
+		fail_duration 10s
+		max_fails 1
+	}
 }
 
 app.riekchang.com {
 	import cf_tls
 	encode zstd gzip
-	reverse_proxy riekchang:3007
+	reverse_proxy riekchang-blue:3007 riekchang-green:3007 {
+		lb_policy first
+		lb_try_duration 20s
+		lb_try_interval 250ms
+		health_uri /api/health
+		health_interval 3s
+		health_timeout 2s
+		fail_duration 10s
+		max_fails 1
+	}
 }
 
 # ── เมล (เฟส 2, 2026-08-19) — Stalwart อยู่บน host (native systemd) ไม่ใช่ container ──

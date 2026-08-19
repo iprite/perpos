@@ -44,7 +44,7 @@ const BACKUP_STALE_HOURS = 30;
 /** container ที่ต้อง "running" เสมอบนเครื่อง SG — หายไปจากรายการ = เตือนเหมือน state ผิด */
 export const EXPECTED_CONTAINERS = [
   "caddy",
-  "perpos", // = สีที่รันอยู่ของ perpos-blue/perpos-green (ยุบด้วย collapseBlueGreen ก่อนตัดสิน)
+  "perpos", // perpos/exapp/riekchang = สีที่รันอยู่ของ <app>-blue/<app>-green (ยุบด้วย collapseBlueGreen ก่อนตัดสิน)
   "perpos-worker",
   "exapp",
   "riekchang",
@@ -247,7 +247,7 @@ export function withRestartDelta(next: MailHeartbeat, prev: MailHeartbeat | null
 const fmtMb = (b: number) => `${Math.round(b / 1048576)} MB`;
 
 /** service ที่ deploy แบบ blue/green (compose มี `<name>-blue` + `<name>-green` · ปกติรันทีละสี) */
-const BLUE_GREEN = ["perpos"] as const;
+const BLUE_GREEN = ["perpos", "exapp", "riekchang"] as const;
 
 /**
  * ยุบ `perpos-blue`/`perpos-green` เป็นตัวแทนชื่อ `perpos` ตัวเดียวก่อนตัดสิน — เลือกสีที่ running

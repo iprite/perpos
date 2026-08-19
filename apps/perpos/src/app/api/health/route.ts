@@ -7,11 +7,11 @@ import { NextResponse } from "next/server";
 export const dynamic = "force-dynamic";
 
 /**
- * ไฟล์ drain: สคริปต์ deploy (deploy/vps/switch-perpos.sh) แตะไฟล์นี้ในสีเก่า → ตอบ 503 →
+ * ไฟล์ drain: สคริปต์ deploy (deploy/vps/switch-app.sh) แตะไฟล์นี้ในสีเก่า → ตอบ 503 →
  * Caddy ตัด container นี้ออกจาก pool ก่อนถูก stop ⇒ ไม่มี request ค้างโดนตัดกลางคัน
  * (อยู่ใน /tmp ของ container — หายเองเมื่อ container ถูกสร้างใหม่)
  */
-const DRAIN_FILE = "/tmp/perpos-drain";
+const DRAIN_FILE = "/tmp/drain";
 
 export function GET() {
   if (existsSync(DRAIN_FILE)) {

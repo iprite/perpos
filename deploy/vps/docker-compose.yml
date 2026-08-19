@@ -8,7 +8,7 @@
 #
 # หมายเหตุ: ไม่ build image ต่อแอป — ใช้ node:22-alpine mount artifact ที่ CI rsync มา
 # ⇒ deploy = สลับ symlink + `docker compose restart <app>` (ไม่กินแรมเครื่องเลย)
-#   · perpos ใช้ blue/green (switch-perpos.sh) จึงไม่มีช่วง 502 ตอน deploy — แอปอื่นยัง restart ตรง ๆ
+#   · ทั้ง 3 แอปใช้ blue/green (switch-app.sh) จึงไม่มีช่วง 502 ตอน deploy
 
 services:
   caddy:
@@ -33,9 +33,9 @@ services:
       - caddy_config:/config
     networks: [web]
 
-  # perpos — blue/green 2 ตัว (zero-downtime deploy, 2026-08-19): ปกติรันทีละสี อีกสี stopped
-  # deploy = deploy/vps/switch-perpos.sh: up สีว่างจาก release ใหม่ → รอ /api/health ผ่าน → drain สีเก่า
-  # (แตะ /tmp/perpos-drain ให้ health ตอบ 503 → Caddy หยุดส่ง) → stop สีเก่า · Caddy `lb_policy first`
+  # perpos — blue/green 2 ตัว (zero-downtime deploy, 2026-08-19 · exapp/riekchang ใช้ท่าเดียวกันด้านล่าง): ปกติรันทีละสี อีกสี stopped
+  # deploy = deploy/vps/switch-app.sh perpos 3005 perpos-worker: up สีว่างจาก release ใหม่ → รอ /api/health ผ่าน → drain สีเก่า
+  # (แตะ /tmp/drain ให้ health ตอบ 503 → Caddy หยุดส่ง) → stop สีเก่า · Caddy `lb_policy first`
   # ชอบ blue ก่อน (ดู Caddyfile) · ไม่ publish port ออก host — cron บน host ยิงผ่าน Caddy 443 แทน
   # ⚠️ ห้ามรัน `docker compose up -d` เฉย ๆ แล้วหวังว่าจะสลับ release — ต้องผ่านสคริปต์เท่านั้น
   perpos-blue: &perpos
@@ -83,11 +83,12 @@ services:
     stop_grace_period: 120s
     mem_limit: 512m
 
-  exapp:
+  # exapp — blue/green เหมือน perpos (deploy = switch-app.sh exapp 3006) · ไม่ publish port ออก host
+  exapp-blue: &exapp
     image: node:22-alpine
     restart: unless-stopped
     working_dir: /app
-    command: node apps/exapp/server.js # TODO: ปรับ path ตามโครง standalone ของ repo exapp
+    command: node apps/exapp/server.js
     environment:
       PORT: "3006"
       HOSTNAME: "0.0.0.0"
@@ -95,19 +96,22 @@ services:
     env_file: /srv/apps/exapp/.env
     volumes:
       - /srv/apps/exapp/current:/app:ro
-      # artifact mount เป็น :ro (สลับ symlink ตอน deploy ได้ปลอดภัย) แต่ Next ต้องเขียน
-      # .next/cache (image optimization / ISR) — ไม่มี volume นี้ = EROFS ทุก request ที่แตะ cache
+      # artifact mount เป็น :ro แต่ Next ต้องเขียน .next/cache (image optimization / ISR)
+      # — ไม่มี volume นี้ = EROFS ทุก request ที่แตะ cache · สองสีแชร์ volume เดียวได้
       - exapp_next_cache:/app/apps/exapp/.next/cache
-    ports:
-      - "127.0.0.1:3006:3006"
     networks: [web]
     mem_limit: 1024m
+    stop_grace_period: 30s
 
-  riekchang:
+  exapp-green:
+    <<: *exapp
+
+  # riekchang — blue/green เหมือน perpos (deploy = switch-app.sh riekchang 3007) · ไม่ publish port ออก host
+  riekchang-blue: &riekchang
     image: node:22-alpine
     restart: unless-stopped
     working_dir: /app
-    command: node apps/riekchang/server.js # TODO: ปรับ path ตามโครง standalone ของ repo riekchang
+    command: node apps/riekchang/server.js
     environment:
       PORT: "3007"
       HOSTNAME: "0.0.0.0"
@@ -115,13 +119,15 @@ services:
     env_file: /srv/apps/riekchang/.env
     volumes:
       - /srv/apps/riekchang/current:/app:ro
-      # artifact mount เป็น :ro (สลับ symlink ตอน deploy ได้ปลอดภัย) แต่ Next ต้องเขียน
-      # .next/cache (image optimization / ISR) — ไม่มี volume นี้ = EROFS ทุก request ที่แตะ cache
+      # artifact mount เป็น :ro แต่ Next ต้องเขียน .next/cache (image optimization / ISR)
+      # — ไม่มี volume นี้ = EROFS ทุก request ที่แตะ cache · สองสีแชร์ volume เดียวได้
       - riekchang_next_cache:/app/apps/riekchang/.next/cache
-    ports:
-      - "127.0.0.1:3007:3007"
     networks: [web]
     mem_limit: 1024m
+    stop_grace_period: 30s
+
+  riekchang-green:
+    <<: *riekchang
 
   # ── เฟส 2: เมล (หลังผ่าน gate port 25 + blacklist เท่านั้น) ──────────────────
   # stalwart:
