@@ -42,7 +42,13 @@ const DISK_WARN_PCT = 85;
 const BACKUP_STALE_HOURS = 30;
 
 /** container ที่ต้อง "running" เสมอบนเครื่อง SG — หายไปจากรายการ = เตือนเหมือน state ผิด */
-export const EXPECTED_CONTAINERS = ["caddy", "perpos", "exapp", "riekchang"] as const;
+export const EXPECTED_CONTAINERS = [
+  "caddy",
+  "perpos",
+  "perpos-worker",
+  "exapp",
+  "riekchang",
+] as const;
 /** RAM ของ container ≥ สัดส่วนนี้ของ mem_limit = ใกล้โดน OOM-kill (compose ตั้ง limit ต่อแอป) */
 const CONTAINER_MEM_WARN_RATIO = 0.9;
 /** deploy สลับ symlink แล้ว container ยังไม่ restart เกินเท่านี้ = release ค้าง (ให้เวลา CI restart) */
@@ -88,7 +94,7 @@ export interface CronJobSeen {
  *    — เครื่องต้องตั้ง timezone Asia/Bangkok เอง (ตั้งแล้ว 2026-08-19 · เดิม Berlin ทำให้งานรายวันช้า 5 ชม.)
  */
 export const EXPECTED_CRON = [
-  { key: "perpos-scheduler", match: "3005/api/assistant/scheduler", maxAgeMin: 10 },
+  // perpos scheduler ไม่ใช่ cron แล้ว (2026-08-19) — เป็น container `perpos-worker` (ดู EXPECTED_CONTAINERS)
   { key: "exapp-daily", match: "3006/api/admin/rep-usage/recalc", maxAgeMin: 26 * 60 },
 ] as const;
 /** journal ว่างเปล่าตอนเครื่องเพิ่งขึ้น — ให้เวลาเครื่องเปิดมานานพอที่งานรายวันควรผ่านมาแล้วก่อนเตือน "ไม่เคยเห็น" */

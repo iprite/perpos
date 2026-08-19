@@ -435,7 +435,9 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 Endpoint: `POST /api/assistant/scheduler`
 
 - ป้องกันด้วย `Authorization: Bearer <CRON_SECRET>` หรือ `x-vercel-cron-secret`
-- ตั้ง cron ทุก 1 นาทีผ่าน **crontab บน VPS** (`/etc/cron.d/perpos`) — เดิม Google Cloud Scheduler (PAUSED แล้ว 2026-08-19)
+- **ตัวรันหลัก (ตั้งแต่ 2026-08-19) = worker process `perpos-worker` ใน docker compose** — loop ทุก 60 วิ ([src/worker/scheduler-worker.ts](apps/perpos/src/worker/scheduler-worker.ts) → `runScheduler()` ใน [lib/scheduler/run.ts](apps/perpos/src/lib/scheduler/run.ts)) · CI bundle ด้วย esbuild (`pnpm build:worker` → `apps/perpos/worker/scheduler-worker.js` ในก้อน artifact เดียวกับแอป) · **ห้ามมี `next/*` import ในเส้นทางของ `lib/scheduler/run.ts`** · endpoint HTTP ยังอยู่ไว้ยิงมือ/สำรอง (crontab เดิมถอดออกแล้ว · Google Cloud Scheduler PAUSED)
+  - **กันรันซ้อน**: single-flight ใน process + **lease ใน DB** (`scheduler_leases` · RPC `scheduler_acquire_lease`/`scheduler_release_lease`, TTL 20 นาที) — worker 2 ตัว/HTTP ยิงพร้อมกัน = ตัวหลังข้ามรอบ (`skipped:"locked"`) · RPC พัง = fail-open (งานทุกตัว idempotent)
+  - **graceful shutdown**: SIGTERM → รอรอบปัจจุบันจบ (เพดาน 100 วิ) แล้ว exit · compose `stop_grace_period: 120s` · crash → `restart: unless-stopped` · เฝ้าด้วย `EXPECTED_CONTAINERS` (`container:perpos-worker`) ไม่ใช่ `cron:` แล้ว
 - Logic (เหลือเฉพาะงาน STT — task/briefing/follow-up เดิมถูกลบแล้ว):
   - Stuck STT jobs (`processing` ค้าง) → mark failed + refund quota + แจ้ง LINE
   - Requeue pending STT jobs (worker ไม่ว่าง/trigger พลาด) → ยิงซ้ำ, เกิน 30 นาที = ยอมแพ้
@@ -813,7 +815,7 @@ import { Label } from '@/components/ui/label';
   (ห้ามแก้ด้วยการ push commit เปล่า) · อาการเวลาเจอ: deployment ขึ้นสถานะ **Canceled** ภายใน ~25 วิ
   และใน build log มี `This project and its dependencies are not affected` → `Ignoring the change`
 - **เฝ้าเครื่อง VPS**: heartbeat จากเครื่อง (`scripts/mail-heartbeat.sh` ทุก 5 นาที) รายงาน**ทั้งเครื่อง** — ดิสก์/RAM/โหลด + สถานะ Docker container ทุกตัว (state/RestartCount/OOM/RAM เทียบ `mem_limit`) + release ที่ `/srv/apps/<app>/current` ชี้ (`RELEASE` = sha ที่ CI เขียน) → ดูที่ **`/admin/system`** (การ์ด VPS + กลุ่ม "เว็บ 3 แอป + Caddy" ping โดเมนจริง) · ตัวเตือน = scheduler t5 `evaluateHostIssues()` ใน [lib/mail/server-monitor.ts](apps/perpos/src/lib/mail/server-monitor.ts) → LINE super_admin (`container:`/`crash:`/`mem:`/`deploy:`/`cron:`/`cert:`/`origin:` — cron จาก journal + ใบรับรอง Caddy origin 4 โดเมนเว็บ) · **แก้สคริปต์แล้วต้อง scp ขึ้นเครื่องเอง** (ดู [`deploy/vps/README.md`](deploy/vps/README.md) §เฝ้าเครื่อง) · ด่านนอกเมื่อเครื่องดับ = GitHub Actions `uptime.yml`
-- **Cron**: **crontab บน VPS** (`/etc/cron.d/perpos` + `/etc/cron.d/exapp` · ⚠️ `TZ=` ในไฟล์ไม่มีผลกับเวลา cron — เครื่องตั้ง timezone Asia/Bangkok ระดับ OS แล้ว 2026-08-19) ยิง `127.0.0.1:3005/api/assistant/scheduler` **ทุก 1 นาที** + job รายวัน/รายสัปดาห์ · Google Cloud Scheduler 5 job **PAUSED** (ยังไม่ลบ) · exapp ตรวจ header `x-cron-secret` ไม่ใช่ Bearer
+- **Cron**: **crontab บน VPS** (`/etc/cron.d/perpos` + `/etc/cron.d/exapp` · ⚠️ `TZ=` ในไฟล์ไม่มีผลกับเวลา cron — เครื่องตั้ง timezone Asia/Bangkok ระดับ OS แล้ว 2026-08-19) job รายวัน/รายสัปดาห์ (tmc/gov-procure notify · exapp) — **scheduler ของ perpos ไม่ใช่ cron แล้ว** เป็น container `perpos-worker` (ดูหัวข้อ Notification Scheduler) · Google Cloud Scheduler 5 job **PAUSED** (ยังไม่ลบ) · exapp ตรวจ header `x-cron-secret` ไม่ใช่ Bearer
 
 ### Cloud Run Workers — กฎบังคับ
 

@@ -55,6 +55,24 @@ services:
     # กัน memory leak ลามทั้งเครื่อง — แอปเดียวพังไม่ดึงเมล/แอปอื่นตาย
     mem_limit: 1536m
 
+  # scheduler worker ของ perpos — process ยาวแทน cron ยิง HTTP ทุกนาที (ตั้งแต่ 2026-08-19)
+  # artifact/env เดียวกับ perpos · ไฟล์ bundle โดย CI (`pnpm build:worker`) · logic = lib/scheduler/run.ts
+  # ⚠️ ต้องมี instance เดียว (ห้าม scale) — มี lease ใน DB กันซ้อนอีกชั้นถ้าเผลอ
+  perpos-worker:
+    image: node:22-alpine
+    restart: unless-stopped
+    working_dir: /app
+    command: node apps/perpos/worker/scheduler-worker.js
+    environment:
+      NODE_ENV: production
+    env_file: /srv/apps/perpos/.env
+    volumes:
+      - /srv/apps/perpos/current:/app:ro
+    networks: [web]
+    # graceful shutdown: worker รอรอบปัจจุบันจบก่อน exit (เพดาน 100 วิในโค้ด) — ให้เวลามากกว่านั้น
+    stop_grace_period: 120s
+    mem_limit: 512m
+
   exapp:
     image: node:22-alpine
     restart: unless-stopped
