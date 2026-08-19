@@ -61,7 +61,12 @@ export const EMAIL_LIST_PROPERTIES = [
   "keywords",
   "size",
   "hasAttachment",
+  // ชื่อไฟล์แนบสำหรับชิปในรายการ (แบบ Gmail) — ดู `LIST_ATTACHMENT_MAX`
+  "attachments",
 ];
+
+/** โชว์ชิปไฟล์แนบไม่เกินกี่ตัวต่อแถว — เกินกว่านี้แถวจะยาวกว่าหัวเรื่องเอง */
+export const LIST_ATTACHMENT_MAX = 3;
 
 /**
  * header ที่บอกว่า "เมลฉบับนี้ผ่านการตรวจอะไรมาบ้าง" — ชุดที่เจอจริงในทุกเซิร์ฟเวอร์หลัก
@@ -233,8 +238,38 @@ export function mapEmailToMessage(email: JmapEmail, threadCount = 1): MailMessag
     isUnread: !keywords["$seen"],
     isFlagged: !!keywords["$flagged"],
     hasAttachment: !!email.hasAttachment,
+    ...listAttachmentChips(email),
     sizeBytes: typeof email.size === "number" ? email.size : 0,
     threadCount: threadCount > 0 ? threadCount : 1,
+  };
+}
+
+/**
+ * ไฟล์แนบที่เอาไปทำ "ชิป" ในรายการ
+ *
+ * 🔴 **ต้องตัดรูป inline ทิ้ง** — JMAP นับ part ที่ฝังในเนื้อเมล (โลโก้/สเปเซอร์/พิกเซลติดตาม)
+ *    รวมอยู่ใน `attachments` ด้วย ถ้าไม่กรอง จดหมายข่าวทุกฉบับจะขึ้นชิป `logo.png` `pixel.gif`
+ *    ทั้งที่ผู้ใช้ไม่ได้รับไฟล์อะไรเลย (และ `hasAttachment` ของฉบับนั้นเป็น false ด้วยซ้ำ)
+ *
+ * 🔴 **ไม่ส่ง `blobId`** — รายการเมลไม่ควรพก handle ที่ดาวน์โหลดไฟล์ได้ (เปิดฉบับนั้นก่อน)
+ */
+export function listAttachmentChips(email: JmapEmail): {
+  attachments: { name: string; type: string; sizeBytes: number }[];
+  attachmentCount: number;
+} {
+  const real = (email.attachments ?? []).filter((p) => {
+    if (!p.blobId) return false;
+    const part = p as { disposition?: string | null; cid?: string | null };
+    if (part.cid) return false;
+    return (part.disposition ?? "attachment").toLowerCase() !== "inline";
+  });
+  return {
+    attachments: real.slice(0, LIST_ATTACHMENT_MAX).map((p) => ({
+      name: sanitizeAttachmentName(p.name),
+      type: (p.type ?? "application/octet-stream").split(";")[0]?.trim() ?? "",
+      sizeBytes: typeof p.size === "number" ? p.size : 0,
+    })),
+    attachmentCount: real.length,
   };
 }
 
@@ -279,6 +314,9 @@ export async function listMessages(
         accountId: session.accountId,
         "#ids": { resultOf: "q", name: "Email/query", path: "/ids" },
         properties: EMAIL_LIST_PROPERTIES,
+        // ขอเฉพาะฟิลด์ที่ชิปต้องใช้ — ของทั้งก้อนหนักโดยไม่จำเป็น (25 แถว × ไฟล์แนบหลายตัว)
+        // `disposition`/`cid` จำเป็นสำหรับกรองรูป inline ออก (ดู `listAttachmentChips`)
+        bodyProperties: ["blobId", "name", "type", "size", "disposition", "cid"],
       },
       "g",
     ],

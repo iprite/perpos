@@ -58,6 +58,13 @@ export interface MailMessage {
   isUnread: boolean;
   isFlagged: boolean;
   hasAttachment: boolean;
+  /**
+   * ไฟล์แนบสำหรับ "ชิป" ในรายการ (สูงสุด `LIST_ATTACHMENT_MAX`) — **ไม่มี `blobId` โดยเจตนา**
+   * ⇒ ดาวน์โหลดจากรายการไม่ได้ ต้องเปิดฉบับนั้นก่อน (รายการเป็นแค่ภาพรวม)
+   */
+  attachments: { name: string; type: string; sizeBytes: number }[];
+  /** จำนวนไฟล์แนบทั้งหมด (มากกว่าความยาวของ `attachments` ได้ → แสดง "+N") */
+  attachmentCount: number;
   sizeBytes: number;
   threadCount: number;
 }

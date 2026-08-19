@@ -7,6 +7,7 @@ import {
   buildMailboxSummaries,
   buildUndoUpdates,
   buildUpdatePatch,
+  LIST_ATTACHMENT_MAX,
   mailboxIdByKey,
   mapEmailToMessage,
   patchToAction,
@@ -132,5 +133,52 @@ describe("การกระทำและการเลิกทำ", () => {
       wasUnread: true,
       wasFlagged: true,
     });
+  });
+});
+
+describe("mapEmailToMessage — ชิปไฟล์แนบในรายการ", () => {
+  const base = { id: "e1", threadId: "t1", mailboxIds: { a: true }, subject: "s" };
+
+  it("ส่งชื่อ/ชนิด/ขนาดมา แต่ **ไม่ส่ง blobId** (รายการดาวน์โหลดไฟล์ไม่ได้)", () => {
+    const m = mapEmailToMessage({
+      ...base,
+      hasAttachment: true,
+      attachments: [{ blobId: "b1", name: "2026Aug-E.pdf", type: "application/pdf", size: 1024 }],
+    } as never);
+    expect(m.attachments).toEqual([
+      { name: "2026Aug-E.pdf", type: "application/pdf", sizeBytes: 1024 },
+    ]);
+    expect(JSON.stringify(m)).not.toContain("b1");
+  });
+
+  it("เกินเพดานให้ตัด แต่ยังบอกจำนวนจริงเพื่อทำ +N", () => {
+    const attachments = Array.from({ length: 5 }, (_, i) => ({
+      blobId: `b${i}`,
+      name: `f${i}.pdf`,
+      type: "application/pdf",
+      size: 10,
+    }));
+    const m = mapEmailToMessage({ ...base, hasAttachment: true, attachments } as never);
+    expect(m.attachments).toHaveLength(LIST_ATTACHMENT_MAX);
+    expect(m.attachmentCount).toBe(5);
+  });
+
+  it("รูป inline (cid / disposition=inline) ไม่ใช่ไฟล์แนบ — จดหมายข่าวต้องไม่ขึ้นชิป", () => {
+    const m = mapEmailToMessage({
+      ...base,
+      attachments: [
+        { blobId: "b1", name: "logo.png", type: "image/png", size: 10, cid: "logo@x" },
+        { blobId: "b2", name: "spacer.gif", type: "image/gif", size: 5, disposition: "inline" },
+        { blobId: "b3", name: "ใบแจ้งยอด.pdf", type: "application/pdf", size: 2048 },
+      ],
+    } as never);
+    expect(m.attachments.map((a) => a.name)).toEqual(["ใบแจ้งยอด.pdf"]);
+    expect(m.attachmentCount).toBe(1);
+  });
+
+  it("ไม่มีไฟล์แนบ = อาร์เรย์ว่าง ไม่ใช่ undefined", () => {
+    const m = mapEmailToMessage({ ...base } as never);
+    expect(m.attachments).toEqual([]);
+    expect(m.attachmentCount).toBe(0);
   });
 });
