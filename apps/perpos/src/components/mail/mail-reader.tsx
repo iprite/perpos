@@ -43,6 +43,8 @@ import {
   Paperclip,
   Printer,
   Search,
+  ShieldAlert,
+  ShieldCheck,
   Star,
   Trash2,
   X,
@@ -141,6 +143,13 @@ export interface MailReaderProps {
   basePath: string;
   /** โฟลเดอร์ที่กำลังเปิดอยู่ (ถ้าเป็นของผู้ใช้เอง) = ปลายทางที่เดาให้ตอนสร้างกฎ */
   currentFolderId?: string | null;
+  /**
+   * แจ้งว่าเป็น/ไม่เป็นสแปม — ส่งมาแค่ตัวที่ใช้ได้ในกล่องที่ยืนอยู่
+   * (อยู่ในจดหมายขยะ = "ไม่ใช่สแปม" · กล่องอื่น = "นี่คือสแปม")
+   * นอกจากย้ายกล่องแล้ว ยังเป็น**สัญญาณสอนตัวกรอง**ของเมลเซิร์ฟเวอร์ด้วย
+   */
+  onMarkSpam?: () => void;
+  onNotSpam?: () => void;
   /** M3 — โฟลเดอร์ที่ย้ายไปได้ (ว่าง = ยังไม่มีโฟลเดอร์ ⇒ ไม่แสดงปุ่ม) */
   moveTargets?: MailFolder[];
   onMove?: (folder: MailFolder) => void;
@@ -160,6 +169,8 @@ export function MailReader({
   standalone = false,
   basePath,
   currentFolderId = null,
+  onMarkSpam,
+  onNotSpam,
   onRetry,
   onBack,
   onArchive,
@@ -207,6 +218,8 @@ export function MailReader({
       standalone={standalone}
       basePath={basePath}
       currentFolderId={currentFolderId}
+      onMarkSpam={onMarkSpam}
+      onNotSpam={onNotSpam}
       onBack={onBack}
       onArchive={onArchive}
       onTrash={onTrash}
@@ -228,6 +241,8 @@ function ThreadView({
   standalone,
   basePath,
   currentFolderId,
+  onMarkSpam,
+  onNotSpam,
   onBack,
   onArchive,
   onTrash,
@@ -245,6 +260,8 @@ function ThreadView({
   standalone: boolean;
   basePath: string;
   currentFolderId: string | null;
+  onMarkSpam?: () => void;
+  onNotSpam?: () => void;
   onBack: () => void;
   onArchive: () => void;
   onTrash: () => void;
@@ -384,6 +401,28 @@ function ThreadView({
           >
             <Star className={cn("h-4 w-4", flagged && "fill-amber-400 text-amber-500")} />
           </Button>
+          {onMarkSpam && (
+            <Button
+              variant="ghost"
+              size="icon"
+              title="แจ้งว่าเป็นสแปม (ย้ายไปจดหมายขยะ + สอนตัวกรอง)"
+              aria-label="แจ้งว่าเป็นสแปม"
+              onClick={onMarkSpam}
+            >
+              <ShieldAlert className="h-4 w-4" />
+            </Button>
+          )}
+          {onNotSpam && (
+            <Button
+              variant="ghost"
+              size="icon"
+              title="ไม่ใช่สแปม (ย้ายกลับกล่องขาเข้า + สอนตัวกรอง)"
+              aria-label="ไม่ใช่สแปม"
+              onClick={onNotSpam}
+            >
+              <ShieldCheck className="h-4 w-4" />
+            </Button>
+          )}
           {ruleSeed && (
             <Button
               variant="ghost"
@@ -600,6 +639,7 @@ function MessageCard({
   /** ลิงก์ที่เมาส์/โฟกัสอยู่ใน frame — แถบบอกปลายทางกันคลิกลิงก์ปลอม */
   const [hoverLink, setHoverLink] = useState<string | null>(null);
   const [fullscreen, setFullscreen] = useState(false);
+  const [showSecurity, setShowSecurity] = useState(false);
   /** ความกว้างเนื้อหาจริงใน frame กับความกว้างกรอบที่มี — ใช้ตัดสินว่าต้องย่อไหม */
   const [contentWidth, setContentWidth] = useState(0);
   const [paneWidth, setPaneWidth] = useState(0);
@@ -927,6 +967,19 @@ function MessageCard({
                     <Maximize2 className="h-3.5 w-3.5" />
                     เปิดเต็มหน้า
                   </Button>
+                  {/* ผลตรวจของเมลเซิร์ฟเวอร์ — มีเฉพาะฉบับที่มี header พวกนี้จริง */}
+                  {message.securityHeaders.length > 0 && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 text-xs text-gray-500"
+                      onClick={() => setShowSecurity(true)}
+                      title="ผลตรวจสแปม / SPF / DKIM / DMARC ของฉบับนี้"
+                    >
+                      <ShieldCheck className="h-3.5 w-3.5" />
+                      ผลตรวจ
+                    </Button>
+                  )}
                 </div>
               )}
 
@@ -1023,6 +1076,28 @@ function MessageCard({
             </DialogTitle>
           </DialogHeader>
           <DialogBody className="p-0">
+            <Dialog open={showSecurity} onOpenChange={setShowSecurity}>
+              <DialogContent size="xl">
+                <DialogHeader>
+                  <DialogTitle>ผลตรวจของเมลฉบับนี้</DialogTitle>
+                </DialogHeader>
+                <DialogBody>
+                  {/* แสดงดิบตามที่เมลเซิร์ฟเวอร์เขียนไว้ — ไม่ตีความ/ไม่สรุปแทน
+                (รูปแบบต่างกันตามผู้ส่ง สรุปผิดแล้วผู้ใช้ตัดสินใจผิดเรื่องความปลอดภัย) */}
+                  <div className="space-y-3">
+                    {message.securityHeaders.map((h) => (
+                      <div key={h.name}>
+                        <div className="text-xs font-medium text-gray-500">{h.name}</div>
+                        <pre className="mt-1 whitespace-pre-wrap break-all rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-700">
+                          {h.value}
+                        </pre>
+                      </div>
+                    ))}
+                  </div>
+                </DialogBody>
+              </DialogContent>
+            </Dialog>
+
             {/* iframe คนละตัวกับในการ์ด แต่ sandbox/CSP ชุดเดียวกันเป๊ะ (srcDoc เดิม)
                 ไม่ต้องวัดความสูง — ให้เนื้อหาเลื่อนในกรอบเต็มจอเอง */}
             {srcDoc && (

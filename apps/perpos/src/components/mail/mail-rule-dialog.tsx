@@ -14,7 +14,7 @@
  *  - กฎมีผลกับเมลที่เข้ามาใหม่เท่านั้น (Sieve ไม่ย้อนหลัง) — ต้องบอกในกล่องเสมอ
  */
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -33,8 +33,15 @@ import { Text } from "@/components/ui/typography";
 import { notify } from "@/lib/toast";
 import { showUndoToast } from "@/components/ui/undo-toast";
 import { MAIL_RULE_APPLY_LIMIT, MAIL_RULE_MAX, MAIL_RULE_VALUE_MAX } from "@/lib/mail/rule-meta";
+
+/**
+ * เพดานจำนวน "ก้อน" ต่อการกดหนึ่งครั้ง — กันลูปไม่รู้จบถ้าเซิร์ฟเวอร์รายงาน `remaining` ไม่ลด
+ * (200 × 25 = 5,000 ฉบับ ซึ่งเกินกล่องขาเข้าของคนทั่วไปไปมากแล้ว)
+ */
+const MAX_BATCHES = 25;
 import type {
   MailFolder,
+  MailUndoItem,
   MailUndoToken,
   MailRule,
   MailRuleCondition,
@@ -83,6 +90,11 @@ export function MailRuleDialog({
   const [applyExisting, setApplyExisting] = useState(false);
   const [matchCount, setMatchCount] = useState<number | null>(null);
   const [counting, setCounting] = useState(false);
+  /** ความคืบหน้าตอนไล่จัดการเมลเดิม (งานเป็นก้อนละ MAIL_RULE_APPLY_LIMIT) */
+  const [applyDone, setApplyDone] = useState(0);
+  const [applyLeft, setApplyLeft] = useState(0);
+  /** กดหยุดกลางทาง — หยุด "หลังจบก้อนปัจจุบัน" เสมอ ไม่ตัดกลาง request */
+  const stopRef = useRef(false);
   const [targets, setTargets] = useState<{ value: string; label: string }[]>([]);
 
   const subjectValue = seed ? cleanSubject(seed.subject) : "";
@@ -99,6 +111,9 @@ export function MailRuleDialog({
     setMarkRead(false);
     setApplyExisting(false);
     setMatchCount(null);
+    setApplyDone(0);
+    setApplyLeft(0);
+    stopRef.current = false;
   }, [open, seed, defaultMailboxId]);
 
   useEffect(() => {
@@ -203,6 +218,8 @@ export function MailRuleDialog({
 
   const save = useCallback(async () => {
     if (!seed) return;
+    stopRef.current = false;
+    setApplyDone(0);
     setSaving(true);
     try {
       const res = await fetch("/api/mail/rules");
@@ -240,46 +257,80 @@ export function MailRuleDialog({
         return;
       }
 
-      // ของเดิมเป็นงานคนละชิ้น (Sieve ย้อนหลังไม่ได้) — กฎถูกบันทึกไปแล้วแม้ขั้นนี้พลาด
-      const applied = await fetch("/api/mail/rules/apply", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rule }),
-      });
-      const result = (await applied.json().catch(() => null)) as {
-        affected?: number;
-        remaining?: number;
-        undo?: MailUndoToken;
-        message?: string;
-      } | null;
-      if (!applied.ok) {
-        notify.error(null, result?.message ?? "สร้างกฎแล้ว แต่ใช้กับเมลเดิมไม่สำเร็จ");
-        onOpenChange(false);
-        return;
+      /**
+       * ของเดิมเป็นงานคนละชิ้น (Sieve ย้อนหลังไม่ได้) — กฎถูกบันทึกไปแล้วแม้ขั้นนี้พลาด
+       *
+       * เพดาน 200 คือเพดานของ **หนึ่ง request** (กันย้ายครึ่ง ๆ กลาง ๆ ตอน timeout)
+       * ไม่ใช่เพดานของงาน ⇒ วนยิงเป็นก้อนจนหมด แล้วรายงานยอดรวมทีเดียว
+       * ผู้ใช้กดหยุดกลางทางได้ — ที่ทำไปแล้วยังเลิกทำได้ครบ
+       */
+      const undoItems: MailUndoItem[] = [];
+      let done = 0;
+      let left = 0;
+      let batches = 0;
+      for (;;) {
+        const applied = await fetch("/api/mail/rules/apply", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ rule }),
+        });
+        const result = (await applied.json().catch(() => null)) as {
+          affected?: number;
+          remaining?: number;
+          undo?: MailUndoToken;
+          message?: string;
+        } | null;
+        if (!applied.ok) {
+          // ก้อนแรกพัง = ยังไม่ได้ทำอะไรเลย · ก้อนหลังพัง = ทำไปแล้วบางส่วน ต้องบอกยอดจริง
+          notify.error(
+            null,
+            done === 0
+              ? (result?.message ?? "สร้างกฎแล้ว แต่ใช้กับเมลเดิมไม่สำเร็จ")
+              : `จัดการไปแล้ว ${done} ฉบับ แล้วเจอปัญหา — กดสร้างกฎซ้ำเพื่อทำต่อได้`,
+          );
+          break;
+        }
+        const affected = result?.affected ?? 0;
+        done += affected;
+        left = result?.remaining ?? 0;
+        if (result?.undo?.items?.length) undoItems.push(...result.undo.items);
+        setApplyDone(done);
+        setApplyLeft(left);
+        batches += 1;
+
+        if (affected === 0 || left === 0) break;
+        if (stopRef.current) break;
+        // กันลูปไม่รู้จบถ้าเซิร์ฟเวอร์รายงาน remaining ผิด (เช่นกฎที่ย้ายไม่สำเร็จเงียบ ๆ)
+        if (batches >= MAX_BATCHES) break;
       }
-      const affected = result?.affected ?? 0;
-      const remaining = result?.remaining ?? 0;
+
       onOpenChange(false);
-      if (affected === 0) {
+      if (done === 0) {
         notify.saved("สร้างกฎกรองแล้ว — ไม่พบเมลเดิมที่ตรงเงื่อนไข");
         return;
       }
-      const undo = result?.undo;
       showUndoToast({
-        message:
-          `จัดการเมลเดิมแล้ว ${affected} ฉบับ` + (remaining > 0 ? ` · เหลืออีก ${remaining}` : ""),
+        message: `จัดการเมลเดิมแล้ว ${done} ฉบับ` + (left > 0 ? ` · เหลืออีก ${left}` : ""),
         onUndo: () => {
-          if (!undo?.items?.length) return;
-          // เช็ค res.ok ด้วย — 4xx/5xx ไม่ทำให้ fetch reject ⇒ เงียบไปเฉย ๆ ผู้ใช้จะนึกว่าคืนค่าแล้ว
-          void fetch("/api/mail/messages/undo", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ items: undo.items }),
-          })
-            .then((res) => {
-              if (!res.ok) notify.error(null, "เลิกทำไม่สำเร็จ");
-            })
-            .catch(() => notify.error(null, "เลิกทำไม่สำเร็จ"));
+          if (undoItems.length === 0) return;
+          // เลิกทำต้องแบ่งก้อนเหมือนกัน — route รับได้ครั้งละ MAIL_RULE_APPLY_LIMIT รายการ
+          void (async () => {
+            for (let i = 0; i < undoItems.length; i += MAIL_RULE_APPLY_LIMIT) {
+              const chunk = undoItems.slice(i, i + MAIL_RULE_APPLY_LIMIT);
+              try {
+                // เช็ค res.ok ด้วย — 4xx/5xx ไม่ทำให้ fetch reject ⇒ เงียบไปเฉย ๆ
+                const res = await fetch("/api/mail/messages/undo", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ items: chunk }),
+                });
+                if (!res.ok) throw new Error("undo failed");
+              } catch {
+                notify.error(null, "เลิกทำไม่สำเร็จทั้งหมด — บางฉบับยังอยู่ที่ใหม่");
+                return;
+              }
+            }
+          })();
         },
       });
     } catch (e) {
@@ -389,7 +440,7 @@ export function MailRuleDialog({
                             ? "ไม่พบเมลเดิมที่ตรงเงื่อนไข"
                             : `พบ ${matchCount} ฉบับ` +
                               (matchCount > MAIL_RULE_APPLY_LIMIT
-                                ? ` — ครั้งนี้ทำได้ ${MAIL_RULE_APPLY_LIMIT}`
+                                ? ` — ทยอยทำเป็นก้อนละ ${MAIL_RULE_APPLY_LIMIT} จนครบ`
                                 : "")}
                     </Text>
                   </div>
@@ -419,16 +470,28 @@ export function MailRuleDialog({
           )}
         </DialogBody>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            ยกเลิก
-          </Button>
+          {/* ระหว่างไล่จัดการของเดิมต้องเห็นความคืบหน้า + หยุดได้ (งานยาวหลายก้อน) */}
+          {saving && applyExisting && (applyDone > 0 || applyLeft > 0) && (
+            <Text className="mr-auto text-xs tabular-nums text-gray-500">
+              จัดการแล้ว {applyDone} ฉบับ{applyLeft > 0 ? ` · เหลือ ${applyLeft}` : ""}
+            </Text>
+          )}
+          {saving && applyExisting ? (
+            <Button variant="outline" onClick={() => (stopRef.current = true)}>
+              หยุด
+            </Button>
+          ) : (
+            <Button variant="outline" disabled={saving} onClick={() => onOpenChange(false)}>
+              ยกเลิก
+            </Button>
+          )}
           <Button
             /* เปิด "ใช้กับเมลเดิม" ไว้แต่กฎไม่มีการกระทำ = เซิร์ฟเวอร์ตอบ 400 แน่นอน
                ⇒ กันตั้งแต่ปุ่ม ไม่ใช่ปล่อยให้กฎถูกบันทึกแล้วค่อยขึ้น error */
             disabled={saving || !seed || (applyExisting && !hasAction)}
             onClick={() => void save()}
           >
-            {saving ? "กำลังบันทึก…" : "สร้างกฎ"}
+            {!saving ? "สร้างกฎ" : applyExisting ? "กำลังจัดการ…" : "กำลังบันทึก…"}
           </Button>
         </DialogFooter>
       </DialogContent>

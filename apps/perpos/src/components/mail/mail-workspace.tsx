@@ -241,14 +241,43 @@ export function MailWorkspace({
    * → เรียกซ้ำหลัง อ่าน/ลบ/เก็บ/รีเฟรช/มีเมลใหม่ · debounce 1 วิ กันยิงรัวตอนกดหลายฉบับติดกัน
    */
   const mailboxTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /**
+   * แคชหน้าแรกของแต่ละกล่อง (ดู `loadFirstPage`) — ต้องทิ้งทุกครั้งที่ **ข้อมูลขยับ**
+   * ไม่งั้นกลับมากล่องเดิมแล้วเห็นเมลที่เพิ่งลบ/ย้าย โผล่ค้างชั่วครู่ก่อนของจริงมาทับ
+   *
+   * 🔴 แยกจาก `scheduleMailboxRefresh` เด็ดขาด — เคยเอาไปล้างไว้ในนั้น แล้วปรากฏว่า
+   *    "สลับกล่อง" ก็เรียกตัวนั้นด้วย ⇒ แคชถูกล้างก่อนถูกอ่านทุกครั้ง = ฟีเจอร์ไม่เคยทำงานเลย
+   */
+  const firstPageCacheRef = useRef(new Map<string, ListResponse>());
+  const invalidateFirstPages = useCallback(() => {
+    firstPageCacheRef.current.clear();
+  }, []);
+
   const scheduleMailboxRefresh = useCallback(() => {
     if (mailboxTimerRef.current) clearTimeout(mailboxTimerRef.current);
     mailboxTimerRef.current = setTimeout(() => void loadMailboxes(), 1000);
   }, [loadMailboxes]);
 
+  /** ข้อมูลขยับ (ลบ/ย้าย/อ่านแล้ว/ติดดาว) = ทิ้งแคช + รีเฟรชตัวเลข — คู่นี้มาด้วยกันเสมอ */
+  const afterMutation = useCallback(() => {
+    invalidateFirstPages();
+    scheduleMailboxRefresh();
+  }, [invalidateFirstPages, scheduleMailboxRefresh]);
+
+  /**
+   * โหลดครั้งแรกตอนเปิดหน้า แล้ว "สลับกล่อง" ให้ตามมาทีหลังแบบหน่วง (ไม่ยิงทันที)
+   * — ตัวเลขยังไม่ได้อ่านเป็นของรอง ค่าเดิมที่ค้างอยู่ 1 วินาทีไม่ทำให้ใครเข้าใจผิด
+   *   แต่การยิง JMAP ทุกครั้งที่คลิกเมนูคือรอบ network ที่เสียเปล่าจริง ๆ
+   */
+  const mailboxesLoadedRef = useRef(false);
   useEffect(() => {
-    void loadMailboxes();
-  }, [box, loadMailboxes]);
+    if (!mailboxesLoadedRef.current) {
+      mailboxesLoadedRef.current = true;
+      void loadMailboxes();
+      return;
+    }
+    scheduleMailboxRefresh();
+  }, [box, loadMailboxes, scheduleMailboxRefresh]);
 
   // กล่องจัดการโฟลเดอร์อยู่ใน shell (คนละต้นไม้) → คุยกันด้วย event เพื่อคงแหล่งข้อมูลเดียว
   useEffect(() => {
@@ -280,10 +309,31 @@ export function MailWorkspace({
     };
   }, []);
 
+  /**
+   * แคชหน้าแรกของกล่อง/ตัวกรองที่เคยเปิดในเซสชันนี้ — กลับมากล่องเดิมแล้วเห็นรายการทันที
+   * (เดิมขึ้น skeleton รอ JMAP ทุกครั้งที่คลิกเมนู ทั้งที่ข้อมูลชุดเดิมเพิ่งอยู่ในมือ)
+   *
+   * ⚠️ เป็นแค่ภาพชั่วคราว — ยิงของจริงตามหลังเสมอแล้วทับ (สถานะอ่าน/ลบจากอุปกรณ์อื่นต้องมาถูก)
+   * และ **ไม่ persist ลง storage** ตามกฎเดิมของโซนนี้ (หลังรีโหลดยึดเซิร์ฟเวอร์เท่านั้น)
+   */
+  const cacheKey = useMemo(() => JSON.stringify(buildQuery({})), [buildQuery]);
+
   const loadFirstPage = useCallback(
     async (mode: "initial" | "refresh") => {
-      if (mode === "initial") setLoading(true);
-      else setRefreshing(true);
+      const cached = mode === "initial" ? firstPageCacheRef.current.get(cacheKey) : undefined;
+      if (cached) {
+        // คิว "เมลใหม่" เป็นของกล่องก่อนหน้า — ไม่ล้างที่นี่ ผู้ใช้กด "แสดง" แล้วได้เมลข้ามกล่อง
+        setPendingNew([]);
+        setMessages(cached.messages ?? []);
+        setHasMore(!!cached.hasMore);
+        setTotal(cached.total ?? null);
+        setFocusedIndex(cached.messages?.length ? 0 : -1);
+        setRefreshing(true);
+      } else if (mode === "initial") {
+        setLoading(true);
+      } else {
+        setRefreshing(true);
+      }
       setError(null);
       try {
         const data = await postJson<ListResponse>(
@@ -296,6 +346,8 @@ export function MailWorkspace({
         setPendingNew([]);
         setFocusedIndex(data.messages?.length ? 0 : -1);
         if (mode === "refresh") scheduleMailboxRefresh();
+        // เก็บผลจริงลงแคชเสมอ (ทั้ง initial และ refresh) — ครั้งหน้าที่กลับมากล่องนี้จะวาดทันที
+        firstPageCacheRef.current.set(cacheKey, data);
       } catch (e) {
         if (e instanceof MailSessionExpiredError) return handleExpired();
         setError(e instanceof Error ? e.message : GENERIC_ERROR);
@@ -304,7 +356,7 @@ export function MailWorkspace({
         setRefreshing(false);
       }
     },
-    [buildQuery, handleExpired, scheduleMailboxRefresh],
+    [buildQuery, cacheKey, handleExpired, scheduleMailboxRefresh],
   );
 
   // โหลดใหม่เมื่อเปลี่ยนกล่อง / คำค้น / ตัวกรอง
@@ -350,7 +402,7 @@ export function MailWorkspace({
         const known = new Set(messagesRef.current.map((m) => m.id));
         const fresh = (data.messages ?? []).filter((m) => !known.has(m.id));
         if (fresh.length === 0) return;
-        scheduleMailboxRefresh();
+        afterMutation();
         if (scrollOffsetRef.current <= 0) {
           setMessages((prev) => [...fresh, ...prev]);
         } else {
@@ -365,7 +417,7 @@ export function MailWorkspace({
     };
     const id = setInterval(tick, POLL_MS);
     return () => clearInterval(id);
-  }, [buildQuery, loading, scheduleMailboxRefresh]);
+  }, [afterMutation, buildQuery, loading]);
 
   const applyPendingNew = useCallback(() => {
     setMessages((prev) => {
@@ -417,7 +469,7 @@ export function MailWorkspace({
       if (ids.length === 0) return;
       try {
         await postJson("/api/mail/messages/bulk", { ids, action, by });
-        scheduleMailboxRefresh();
+        afterMutation();
       } catch (e) {
         revert();
         if (e instanceof MailSessionExpiredError) return handleExpired();
@@ -481,7 +533,7 @@ export function MailWorkspace({
         await postJson("/api/mail/messages/bulk", { ids, action, by: "thread" }, keepalive);
         setMessages((prev) => prev.filter((m) => !ids.includes(m.id)));
         unhide(ids);
-        scheduleMailboxRefresh();
+        afterMutation();
       } catch (e) {
         unhide(ids);
         if (e instanceof MailSessionExpiredError) return handleExpired();
@@ -575,7 +627,7 @@ export function MailWorkspace({
         } else {
           notify.success("ส่งอีเมลแล้ว");
         }
-        scheduleMailboxRefresh();
+        afterMutation();
         void loadFirstPage("refresh");
       } catch (e) {
         if (e instanceof MailSessionExpiredError) return handleExpired();
@@ -839,8 +891,13 @@ export function MailWorkspace({
   const isDrafts = isSystemBox("drafts");
 
   /** ย้ายเข้าโฟลเดอร์ที่ผู้ใช้สร้างเอง — ไม่เข้าคิวเลิกทำ (ไม่ใช่การทำลาย ย้ายกลับเองได้) */
-  const moveToFolder = useCallback(
-    async (ids: string[], folder: MailFolder) => {
+  const moveToMailbox = useCallback(
+    async (
+      ids: string[],
+      mailboxId: string,
+      label: string,
+      opts: { successText?: string; by?: MailScope } = {},
+    ) => {
       if (ids.length === 0) return;
       setHiddenIds((prev) => {
         const next = new Set(prev);
@@ -852,8 +909,10 @@ export function MailWorkspace({
         await postJson("/api/mail/messages/bulk", {
           ids,
           action: "move",
-          by: "thread",
-          mailboxId: folder.id,
+          // ย้ายโฟลเดอร์ = ทั้งเธรด (คนคิดเป็นบทสนทนา) · แจ้งสแปม = รายฉบับ
+          // (เธรดเดียวมีทั้งสแปมและเมลที่เราตอบเอง — ป้อนทั้งชุดให้ตัวกรองคือสอนผิด)
+          by: opts.by ?? "thread",
+          mailboxId,
         });
         setMessages((prev) => prev.filter((m) => !ids.includes(m.id)));
         unhide(ids);
@@ -861,15 +920,62 @@ export function MailWorkspace({
           setActiveId(null);
           setDetail(null);
         }
-        scheduleMailboxRefresh();
-        notify.success(`ย้ายไป “${folder.name}” แล้ว`);
+        afterMutation();
+        notify.success(opts.successText ?? `ย้ายไป “${label}” แล้ว`);
       } catch (e) {
         unhide(ids);
         if (e instanceof MailSessionExpiredError) return handleExpired();
         notify.error(e, "ย้ายอีเมลไม่สำเร็จ");
       }
     },
-    [handleExpired, scheduleMailboxRefresh, unhide],
+    [afterMutation, handleExpired, unhide],
+  );
+
+  const moveToFolder = useCallback(
+    (ids: string[], folder: MailFolder) => moveToMailbox(ids, folder.id, folder.name),
+    [moveToMailbox],
+  );
+
+  /**
+   * แจ้งสแปม / ไม่ใช่สแปม — ในทางเทคนิคคือ "ย้ายเข้า-ออกกล่องจดหมายขยะ"
+   * ซึ่ง **เป็นสัญญาณสอนตัวกรองของเมลเซิร์ฟเวอร์ด้วย** (Stalwart เก็บตัวอย่างไปฝึกต่อ)
+   * ⇒ ห้ามทำเป็นแค่ "ลบ" หรือย้ายเข้าโฟลเดอร์ที่ผู้ใช้สร้างเอง จะไม่มีการเรียนรู้เกิดขึ้น
+   */
+  const junkMailboxId = useMemo(
+    () => mailboxes.find((m) => m.key === "junk")?.id ?? null,
+    [mailboxes],
+  );
+  const inboxMailboxId = useMemo(
+    () => mailboxes.find((m) => m.key === "inbox")?.id ?? null,
+    [mailboxes],
+  );
+  const inJunk = isSystemBox("junk");
+  /**
+   * กล่องที่ **ห้ามมีปุ่ม "นี่คือสแปม"** — เมลในนี้เป็นของเราเอง
+   * ส่งแล้ว/ฉบับร่าง: กดแล้วได้สอนตัวกรองว่าโดเมนตัวเองคือสแปม (ร่างยังหายจากที่ควรอยู่ด้วย)
+   * ถังขยะ: ผู้ใช้ตัดสินไปแล้วว่าไม่เอา ไม่ต้องมีทางเลือกที่สอง
+   */
+  const canReportSpam = !inJunk && !isSystemBox("sent") && !isDrafts && !isSystemBox("trash");
+
+  const markSpam = useCallback(
+    (ids: string[]) => {
+      if (!junkMailboxId) return;
+      void moveToMailbox(ids, junkMailboxId, "จดหมายขยะ", {
+        successText: "ย้ายไปจดหมายขยะแล้ว",
+        by: "email",
+      });
+    },
+    [junkMailboxId, moveToMailbox],
+  );
+  const markNotSpam = useCallback(
+    (ids: string[]) => {
+      if (!inboxMailboxId) return;
+      void moveToMailbox(ids, inboxMailboxId, "กล่องขาเข้า", {
+        successText: "ย้ายกลับกล่องขาเข้าแล้ว",
+        by: "email",
+      });
+    },
+    [inboxMailboxId, moveToMailbox],
   );
 
   /** ปลายทางที่ให้เลือกย้าย — ตัดโฟลเดอร์ที่ยืนอยู่ออก (กดแล้วไม่เกิดอะไร = ห้ามมี) */
@@ -1204,6 +1310,13 @@ export function MailWorkspace({
               basePath={basePath}
               /* อยู่ในโฟลเดอร์ของผู้ใช้เอง = เดาปลายทางของกฎใหม่ให้เป็นโฟลเดอร์นั้น */
               currentFolderId={selector.kind === "folder" ? selector.mailboxId : null}
+              /* ปุ่มแจ้งสแปมมีทีละตัวตามกล่องที่ยืนอยู่ — ในจดหมายขยะให้ "ไม่ใช่สแปม" เท่านั้น */
+              onMarkSpam={
+                canReportSpam && junkMailboxId && activeId ? () => markSpam([activeId]) : undefined
+              }
+              onNotSpam={
+                inJunk && inboxMailboxId && activeId ? () => markNotSpam([activeId]) : undefined
+              }
               onArchive={() => activeId && enqueueDestructive("archive", [activeId])}
               onTrash={() => activeId && enqueueDestructive("trash", [activeId])}
               onToggleStar={() => activeId && toggleStar([activeId], !activeMessage?.isFlagged)}
