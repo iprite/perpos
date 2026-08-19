@@ -19,6 +19,11 @@ export const JMAP_USING_SUBMISSION = [...JMAP_USING, "urn:ietf:params:jmap:submi
 /** เพิ่ม capability กฎกรอง (M3) — `SieveScript/*` ต้องประกาศเอง ไม่งั้นได้ `unknownMethod` */
 export const JMAP_USING_SIEVE = [...JMAP_USING, "urn:ietf:params:jmap:sieve"] as const;
 
+/** placeholder ที่ JMAP ใช้ใน `uploadUrl` — ปีกกาโดน URL encode ง่าย ดูกับดักที่ `buildUploadUrl` */
+export const ACCOUNT_ID_PLACEHOLDER = "{accountId}";
+/** ข้อความแทน placeholder ชั่วคราวตอนตรวจ origin (ต้องไม่โดน URL encode และไม่ชนของจริง) */
+const PROBE_TOKEN = "perposaccountidprobe";
+
 export const JMAP_TIMEOUT_MS = 15_000;
 export const JMAP_BLOB_TIMEOUT_MS = 60_000;
 
@@ -153,11 +158,21 @@ export async function fetchJmapDiscovery(
   const resolvedApiUrl = new URL(apiUrl, jmapOrigin);
   if (resolvedApiUrl.origin !== jmapOrigin) throw new MailServiceError(502);
 
-  // uploadUrl ต้องอยู่ origin เดียวกันเช่นกัน — ไม่ผ่านถือว่าไม่มี (อัปโหลดไฟล์แนบจะแจ้งผู้ใช้เอง)
+  /**
+   * uploadUrl ต้องอยู่ origin เดียวกันเช่นกัน — ไม่ผ่านถือว่าไม่มี (อัปโหลดไฟล์แนบจะแจ้งผู้ใช้เอง)
+   *
+   * 🔴 ห้าม `new URL(uploadUrl).toString()` ตรง ๆ — WHATWG URL **เข้ารหัสปีกกาเสมอ**
+   *    `{accountId}` → `%7BaccountId%7D` แล้ว `buildUploadUrl` หา placeholder ไม่เจอ
+   *    ⇒ ยิงไป `/jmap/upload/%7BaccountId%7D/` = 404 ทุกครั้ง (อัปโหลดทั้งระบบพัง:
+   *    ไฟล์แนบ · รูปโปรไฟล์ · ความชอบส่วนตัว · **สคริปต์กฎกรอง**) — เจอจริง 2026-08-19
+   *    ⇒ ตรวจ origin ด้วยสำเนาที่แทน placeholder เป็นข้อความธรรมดาก่อน แล้วคืน template เดิม
+   */
   let resolvedUploadUrl: string | undefined;
   if (uploadUrl) {
-    const candidate = new URL(uploadUrl, jmapOrigin);
-    if (candidate.origin === jmapOrigin) resolvedUploadUrl = candidate.toString();
+    const probe = new URL(uploadUrl.split(ACCOUNT_ID_PLACEHOLDER).join(PROBE_TOKEN), jmapOrigin);
+    if (probe.origin === jmapOrigin) {
+      resolvedUploadUrl = probe.toString().split(PROBE_TOKEN).join(ACCOUNT_ID_PLACEHOLDER);
+    }
   }
 
   return {
@@ -250,8 +265,15 @@ export function buildUploadUrl(
   session: Pick<MailSession, "uploadUrl" | "accountId" | "apiUrl">,
 ): string {
   const origin = new URL(session.apiUrl).origin;
-  const template = session.uploadUrl ?? `${origin}/jmap/upload/{accountId}/`;
-  const url = template.split("{accountId}").join(encodeURIComponent(session.accountId));
+  const template = session.uploadUrl ?? `${origin}/jmap/upload/${ACCOUNT_ID_PLACEHOLDER}/`;
+  const id = encodeURIComponent(session.accountId);
+  // รับรูปแบบที่ถูกเข้ารหัสไว้แล้วด้วย — cookie ที่ออกก่อนแก้บั๊ก 2026-08-19 พก `%7BaccountId%7D`
+  // มาเต็ม ๆ และเราไม่อยากบังคับให้ผู้ใช้ทุกคนล็อกอินใหม่เพียงเพราะเรื่องนี้
+  const url = template
+    .split(ACCOUNT_ID_PLACEHOLDER)
+    .join(id)
+    .split(encodeURIComponent(ACCOUNT_ID_PLACEHOLDER))
+    .join(id);
   if (new URL(url, origin).origin !== origin) throw new MailServiceError(502);
   return new URL(url, origin).toString();
 }

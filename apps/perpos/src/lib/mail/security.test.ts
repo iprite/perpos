@@ -206,4 +206,29 @@ describe("buildUploadUrl — แทน placeholder ให้ถูก (บั๊
       buildUploadUrl({ ...base, uploadUrl: "https://evil.example.com/jmap/upload/{accountId}/" }),
     ).toThrow();
   });
+
+  /**
+   * บั๊ก 2026-08-19: ตอน discovery เอา `new URL(uploadUrl).toString()` มาเก็บลง cookie
+   * ⇒ `{accountId}` กลายเป็น `%7BaccountId%7D` ตั้งแต่ต้นทาง — อัปโหลดทุกอย่างได้ 404
+   * (ไฟล์แนบ · รูปโปรไฟล์ · ความชอบส่วนตัว · สคริปต์กฎกรอง) · cookie เก่ายังพกค่านี้อยู่
+   */
+  it("cookie ที่พก placeholder แบบเข้ารหัสมา ต้องยังใช้ได้ (ไม่ต้องบังคับล็อกอินใหม่)", () => {
+    const url = buildUploadUrl({
+      ...base,
+      uploadUrl: "https://mailserver.perpos.ai/jmap/upload/%7BaccountId%7D/",
+    });
+    expect(url).toBe("https://mailserver.perpos.ai/jmap/upload/b/");
+  });
+
+  it("URL ต้องไม่มี placeholder หลงเหลือไม่ว่ารูปแบบไหน", () => {
+    for (const uploadUrl of [
+      "https://mailserver.perpos.ai/jmap/upload/{accountId}/",
+      "https://mailserver.perpos.ai/jmap/upload/%7BaccountId%7D/",
+      undefined,
+    ]) {
+      const url = buildUploadUrl({ ...base, uploadUrl });
+      expect(url).not.toContain("accountId");
+      expect(url).not.toContain("%7B");
+    }
+  });
 });
