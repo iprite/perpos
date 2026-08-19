@@ -9,6 +9,7 @@
  */
 
 import type { MailBoxKey } from "./types";
+import { MAIL_LOCALE_DEFAULT, type MailLocale } from "./i18n";
 
 /** ลำดับที่แสดงใน rail — และเป็นชุดคีย์ที่ถูกต้องทั้งหมด */
 export const MAIL_BOX_ORDER = [
@@ -21,15 +22,43 @@ export const MAIL_BOX_ORDER = [
   "trash",
 ] as const satisfies readonly MailBoxKey[];
 
-export const MAIL_BOX_LABELS: Record<MailBoxKey, string> = {
-  inbox: "กล่องขาเข้า",
-  starred: "ดาว",
-  sent: "ส่งแล้ว",
-  drafts: "ร่าง",
-  archive: "คลังเก็บ",
-  junk: "จดหมายขยะ",
-  trash: "ถังขยะ",
+export const MAIL_BOX_LABELS_BY_LOCALE: Record<MailLocale, Record<MailBoxKey, string>> = {
+  th: {
+    inbox: "กล่องขาเข้า",
+    starred: "ดาว",
+    sent: "ส่งแล้ว",
+    drafts: "ร่าง",
+    archive: "คลังเก็บ",
+    junk: "จดหมายขยะ",
+    trash: "ถังขยะ",
+  },
+  en: {
+    inbox: "Inbox",
+    starred: "Starred",
+    sent: "Sent",
+    drafts: "Drafts",
+    archive: "Archive",
+    junk: "Junk",
+    trash: "Trash",
+  },
 };
+
+/** ป้ายภาษาไทย (ค่าเริ่มต้น) — ฝั่ง UI ที่รู้ภาษาผู้ใช้ให้ใช้ `mailBoxLabel(key, locale)` */
+export const MAIL_BOX_LABELS: Record<MailBoxKey, string> = MAIL_BOX_LABELS_BY_LOCALE.th;
+
+export function mailBoxLabel(key: MailBoxKey, locale: MailLocale = MAIL_LOCALE_DEFAULT): string {
+  return MAIL_BOX_LABELS_BY_LOCALE[locale][key];
+}
+
+/**
+ * ค่าที่ DTO ฝั่งเซิร์ฟเวอร์ใส่แทนหัวเรื่องว่าง (`lib/mail/messages.ts`) — ฝั่ง UI ต้องมองเป็น "ว่าง"
+ * แล้วขึ้นป้ายตามภาษาผู้ใช้เอง (`hasMailSubject`) ไม่งั้นคนใช้ภาษาอังกฤษเห็นไทยหลุดมา
+ */
+export const MAIL_NO_SUBJECT_PLACEHOLDER = "(ไม่มีหัวเรื่อง)";
+export function hasMailSubject(subject: string | null | undefined): subject is string {
+  const s = subject?.trim();
+  return !!s && s !== MAIL_NO_SUBJECT_PLACEHOLDER;
+}
 
 /** ชื่อผลิตภัณฑ์ (แยกขาดจาก Suite/Flow — ดู docs/MAIL_WEBMAIL_HANDOFF.md) */
 export const MAIL_PRODUCT_NAME = "PERPOS Mail";

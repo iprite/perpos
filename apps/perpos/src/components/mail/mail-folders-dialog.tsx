@@ -25,14 +25,15 @@ import { Text } from "@/components/ui/typography";
 import { notify } from "@/lib/toast";
 import { MAIL_FOLDER_DEPTH_MAX, MAIL_FOLDER_NAME_MAX } from "@/lib/mail/boxes";
 import type { MailFolder } from "@/lib/mail/types";
+import { useMailLocale } from "@/components/mail/mail-locale";
 
-async function callApi<T>(url: string, init?: RequestInit): Promise<T> {
+async function callApi<T>(url: string, fallbackMessage: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, {
     ...init,
     headers: init?.body ? { "Content-Type": "application/json" } : undefined,
   });
   const data = (await res.json().catch(() => null)) as (T & { message?: string }) | null;
-  if (!res.ok) throw new Error(data?.message ?? "ทำรายการไม่สำเร็จ");
+  if (!res.ok) throw new Error(data?.message ?? fallbackMessage);
   return data as T;
 }
 
@@ -48,6 +49,7 @@ export function MailFoldersDialog({
   /** เรียกหลังทุกการเปลี่ยนแปลง เพื่อให้ rail/รายการโหลดชุดใหม่ */
   onChanged: () => void;
 }) {
+  const { t } = useMailLocale();
   const [name, setName] = useState("");
   const [parentId, setParentId] = useState("");
   const [busy, setBusy] = useState(false);
@@ -64,7 +66,7 @@ export function MailFoldersDialog({
 
   /** โฟลเดอร์ที่เป็น "แม่" ได้ — ลึกสุดตามเพดาน ไม่งั้นเซิร์ฟเวอร์ตีกลับตอนกดสร้าง */
   const parentOptions = [
-    { value: "", label: "— ระดับบนสุด —" },
+    { value: "", label: t("shell.folders.create.parentTop") },
     ...folders
       .filter((f) => f.depth < MAIL_FOLDER_DEPTH_MAX - 1)
       .map((f) => ({ value: f.id, label: f.path })),
@@ -74,20 +76,20 @@ export function MailFoldersDialog({
     if (!name.trim()) return;
     setBusy(true);
     try {
-      await callApi("/api/mail/folders", {
+      await callApi("/api/mail/folders", t("shell.folders.apiFailed"), {
         method: "POST",
         body: JSON.stringify({ name: name.trim(), parentId: parentId || null }),
       });
       setName("");
       setParentId("");
-      notify.created("สร้างโฟลเดอร์แล้ว");
+      notify.created(t("shell.folders.created"));
       onChanged();
     } catch (e) {
-      notify.error(e, "สร้างโฟลเดอร์ไม่สำเร็จ");
+      notify.error(e, t("shell.folders.createFailed"));
     } finally {
       setBusy(false);
     }
-  }, [name, onChanged, parentId]);
+  }, [name, onChanged, parentId, t]);
 
   const rename = useCallback(
     async (folder: MailFolder) => {
@@ -98,62 +100,72 @@ export function MailFoldersDialog({
       }
       setBusy(true);
       try {
-        await callApi(`/api/mail/folders/${encodeURIComponent(folder.id)}`, {
-          method: "PATCH",
-          body: JSON.stringify({ name: next }),
-        });
+        await callApi(
+          `/api/mail/folders/${encodeURIComponent(folder.id)}`,
+          t("shell.folders.apiFailed"),
+          {
+            method: "PATCH",
+            body: JSON.stringify({ name: next }),
+          },
+        );
         setEditingId(null);
-        notify.updated("เปลี่ยนชื่อโฟลเดอร์แล้ว");
+        notify.updated(t("shell.folders.renamed"));
         onChanged();
       } catch (e) {
-        notify.error(e, "เปลี่ยนชื่อไม่สำเร็จ");
+        notify.error(e, t("shell.folders.renameFailed"));
       } finally {
         setBusy(false);
       }
     },
-    [editingName, onChanged],
+    [editingName, onChanged, t],
   );
 
   const remove = useCallback(
     async (folder: MailFolder) => {
       setBusy(true);
       try {
-        await callApi(`/api/mail/folders/${encodeURIComponent(folder.id)}`, { method: "DELETE" });
-        notify.deleted("ลบโฟลเดอร์แล้ว");
+        await callApi(
+          `/api/mail/folders/${encodeURIComponent(folder.id)}`,
+          t("shell.folders.apiFailed"),
+          { method: "DELETE" },
+        );
+        notify.deleted(t("shell.folders.deleted"));
         onChanged();
       } catch (e) {
-        notify.error(e, "ลบโฟลเดอร์ไม่สำเร็จ");
+        notify.error(e, t("shell.folders.deleteFailed"));
       } finally {
         setBusy(false);
       }
     },
-    [onChanged],
+    [onChanged, t],
   );
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent size="lg">
         <DialogHeader>
-          <DialogTitle>จัดการโฟลเดอร์</DialogTitle>
+          <DialogTitle>{t("shell.folders.title")}</DialogTitle>
         </DialogHeader>
         <DialogBody>
           <div className="space-y-4">
             <div className="rounded-xl border border-gray-200 p-4">
-              <Text className="text-xs font-medium text-gray-500">สร้างโฟลเดอร์ใหม่</Text>
+              <Text className="text-xs font-medium text-gray-500">
+                {t("shell.folders.create.section")}
+              </Text>
               <div className="mt-2 space-y-3">
                 <div>
-                  <Label htmlFor="mail-folder-name">ชื่อโฟลเดอร์ *</Label>
+                  <Label htmlFor="mail-folder-name">{t("shell.folders.create.name")}</Label>
                   <Input
                     id="mail-folder-name"
                     className="mt-1"
                     value={name}
                     maxLength={MAIL_FOLDER_NAME_MAX}
-                    placeholder="เช่น ลูกค้า, ใบแจ้งหนี้"
+                    placeholder={t("shell.folders.create.namePlaceholder")}
                     onChange={(e) => setName(e.target.value)}
                   />
                 </div>
                 <div>
-                  <Label htmlFor="mail-folder-parent">อยู่ใต้โฟลเดอร์</Label>
+                  <Label htmlFor="mail-folder-parent">{t("shell.folders.create.parent")}</Label>
                   <CustomSelect
                     value={parentId}
                     onChange={setParentId}
@@ -163,18 +175,16 @@ export function MailFoldersDialog({
                 </div>
                 <Button disabled={busy || !name.trim()} onClick={() => void create()}>
                   <FolderPlus className="h-4 w-4" />
-                  {busy ? "กำลังบันทึก…" : "สร้างโฟลเดอร์"}
+                  {busy ? t("common.saving") : t("shell.folders.create.submit")}
                 </Button>
               </div>
             </div>
 
             <div>
-              <Text className="text-xs font-medium text-gray-500">โฟลเดอร์ของฉัน</Text>
+              <Text className="text-xs font-medium text-gray-500">{t("shell.folders.mine")}</Text>
               {folders.length === 0 ? (
                 <div className="mt-2 rounded-xl border border-dashed border-gray-300 px-4 py-8 text-center">
-                  <Text className="text-sm text-gray-500">
-                    ยังไม่มีโฟลเดอร์ — สร้างอันแรกจากช่องด้านบน
-                  </Text>
+                  <Text className="text-sm text-gray-500">{t("shell.folders.empty")}</Text>
                 </div>
               ) : (
                 <ul className="mt-2 divide-y divide-gray-200 rounded-xl border border-gray-200">
@@ -190,10 +200,10 @@ export function MailFoldersDialog({
                             onChange={(e) => setEditingName(e.target.value)}
                           />
                           <Button size="sm" disabled={busy} onClick={() => void rename(f)}>
-                            บันทึก
+                            {t("common.save")}
                           </Button>
                           <Button size="sm" variant="outline" onClick={() => setEditingId(null)}>
-                            ยกเลิก
+                            {t("common.cancel")}
                           </Button>
                         </>
                       ) : (
@@ -205,12 +215,14 @@ export function MailFoldersDialog({
                             {f.name}
                           </span>
                           <span className="shrink-0 text-xs tabular-nums text-gray-500">
-                            {f.totalCount === null ? "—" : `${f.totalCount} ฉบับ`}
+                            {f.totalCount === null
+                              ? "—"
+                              : t("shell.folders.count", { count: f.totalCount })}
                           </span>
                           <Button
                             size="icon"
                             variant="ghost"
-                            aria-label={`เปลี่ยนชื่อ ${f.name}`}
+                            aria-label={t("shell.folders.renameAria", { name: f.name })}
                             onClick={() => {
                               setEditingId(f.id);
                               setEditingName(f.name);
@@ -221,7 +233,7 @@ export function MailFoldersDialog({
                           <Button
                             size="icon"
                             variant="outline"
-                            aria-label={`ลบ ${f.name}`}
+                            aria-label={t("shell.folders.deleteAria", { name: f.name })}
                             className="border-red-200 text-red-600 hover:bg-red-50"
                             disabled={busy}
                             onClick={() => void remove(f)}
@@ -235,15 +247,14 @@ export function MailFoldersDialog({
                 </ul>
               )}
               <Text className="mt-2 text-xs text-gray-500">
-                ลบได้เฉพาะโฟลเดอร์ที่ไม่มีอีเมลและไม่มีโฟลเดอร์ย่อยเหลืออยู่ · ซ้อนได้ลึกสุด{" "}
-                {MAIL_FOLDER_DEPTH_MAX} ชั้น
+                {t("shell.folders.hint", { max: MAIL_FOLDER_DEPTH_MAX })}
               </Text>
             </div>
           </div>
         </DialogBody>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
-            ปิด
+            {t("common.close")}
           </Button>
         </DialogFooter>
       </DialogContent>

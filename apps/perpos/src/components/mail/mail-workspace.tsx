@@ -33,7 +33,9 @@ import { BulkActionBar } from "@/components/ui/bulk-action-bar";
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog";
 import { notify } from "@/lib/toast";
 import { UNDO_TOAST_MS, dismissUndoToast, showUndoToast } from "@/components/ui/undo-toast";
-import { resolveBoxSelector } from "@/lib/mail/boxes";
+import { hasMailSubject, mailBoxLabel, resolveBoxSelector } from "@/lib/mail/boxes";
+import { MAIL_LOCALE_DEFAULT, normalizeMailLocale, type MailTranslate } from "@/lib/mail/i18n";
+import { useMailLocale } from "@/components/mail/mail-locale";
 import {
   cacheSearchScope,
   readCachedSearchScope,
@@ -45,6 +47,7 @@ import {
   clampMailListWidth,
   readCachedListWidth,
   readCachedPane,
+  fetchMailPrefsShared,
 } from "@/lib/mail/prefs-storage";
 import type {
   MailBoxKey,
@@ -88,7 +91,6 @@ const PAGE_SIZE = 50;
 const POLL_MS = 60_000;
 /** เปิดค้างนานเท่านี้ถึงจะถือว่า "อ่านแล้ว" — กันกด j/k ผ่านแล้วสถานะหายถาวร */
 const MARK_READ_DWELL_MS = 1_800;
-const GENERIC_ERROR = "ระบบอีเมลไม่ตอบสนอง ลองใหม่อีกครั้ง";
 
 class MailSessionExpiredError extends Error {
   constructor() {
@@ -103,6 +105,9 @@ interface ListResponse {
   queryState: string | null;
   /** ผลจากการสแกนหาข้อความบางส่วน (ดัชนีหาไม่เจอ) — ดู `scanMessagesByText` */
   scan?: { scanned: number; truncated: boolean };
+  /** พ่วงมาเมื่อขอ `withMailboxes` (หน้าแรกของกล่อง) — รูปเดียวกับ `/api/mail/mailboxes` */
+  mailboxes?: MailboxSummary[];
+  folders?: MailFolder[];
 }
 
 async function callMailApi<T>(url: string, init?: RequestInit): Promise<T> {
@@ -110,7 +115,8 @@ async function callMailApi<T>(url: string, init?: RequestInit): Promise<T> {
   if (res.status === 401) throw new MailSessionExpiredError();
   const data: unknown = await res.json().catch(() => null);
   if (!res.ok) {
-    const message = (data as { message?: string } | null)?.message ?? GENERIC_ERROR;
+    // ไม่มีข้อความจากเซิร์ฟเวอร์ = message ว่าง → ผู้เรียกเติมข้อความกลางตามภาษาผู้ใช้ (`apiError`)
+    const message = (data as { message?: string } | null)?.message ?? "";
     throw new Error(message);
   }
   return data as T;
@@ -135,23 +141,33 @@ interface QueueEntry {
 /** toast ของการส่งมีได้ใบเดียวเสมอ — ดูเหตุผลใน `enqueueSend` */
 const SEND_TOAST_ID = "mail-send-undo";
 
-const ACTION_LABEL: Record<DestructiveAction, string> = {
-  archive: "เก็บเข้าคลังแล้ว",
-  trash: "ย้ายไปถังขยะแล้ว",
-};
+const ACTION_LABEL = {
+  archive: "workspace.action.archived",
+  trash: "workspace.action.trashed",
+} as const satisfies Record<DestructiveAction, string>;
+
+/** "{count} ฉบับ" — อังกฤษแยก 1/หลาย · ไทยเท่ากัน */
+function countLabel(t: MailTranslate, count: number): string {
+  return t(count === 1 ? "workspace.count.one" : "workspace.count.many", { count });
+}
+
+/** error จาก `callMailApi` ที่ไม่มีข้อความจากเซิร์ฟเวอร์ → แทนด้วยข้อความกลางตามภาษาผู้ใช้ */
+function apiError(e: unknown, generic: string): unknown {
+  return e instanceof Error && !e.message ? generic : e;
+}
 
 export function MailWorkspace({
   box,
-  boxLabel,
   basePath,
 }: {
   /** คีย์ระบบ (`inbox`…) หรือ `f:<mailboxId>` ของโฟลเดอร์เอง — ดู `lib/mail/boxes.ts` */
   box: string;
-  boxLabel: string;
   /** `""` บนโดเมนเมล · `"/mail"` ที่อื่น — ห้ามฮาร์ดโค้ด (ดู lib/mail/base-path.ts) */
   basePath: string;
 }) {
   const router = useRouter();
+  const { locale, t } = useMailLocale();
+  const genericError = t("workspace.error.generic");
 
   // ── รายการเมล ────────────────────────────────────────────────────────────
   const [messages, setMessages] = useState<MailMessage[]>([]);
@@ -240,14 +256,9 @@ export function MailWorkspace({
     [box, debouncedSearch, filters.attachment, filters.unread, searchScope],
   );
 
-  // รายชื่อกล่อง (ใช้ตัวเลขยังไม่ได้อ่านที่หัวรายการ)
-  const loadMailboxes = useCallback(async () => {
-    try {
-      const d = await callMailApi<{
-        mailboxes: MailboxSummary[];
-        folders?: MailFolder[];
-        email: string;
-      }>("/api/mail/mailboxes");
+  /** รับชุดกล่อง (จาก `/api/mail/mailboxes` หรือที่พ่วงมากับหน้าแรกของรายการ) แล้วกระจายให้ทุกที่ */
+  const applyMailboxes = useCallback(
+    (d: { mailboxes?: MailboxSummary[]; folders?: MailFolder[] }) => {
       setMailboxes(d.mailboxes ?? []);
       setFolders(d.folders ?? []);
       // ส่งต่อให้ rail ใน shell ใช้ชุดเดียวกัน — **rail ห้ามยิง API เองเมื่อหน้านี้ถูก mount**
@@ -257,10 +268,23 @@ export function MailWorkspace({
           detail: { mailboxes: d.mailboxes ?? [], folders: d.folders ?? [] },
         }),
       );
+    },
+    [],
+  );
+
+  // รายชื่อกล่อง (ใช้ตัวเลขยังไม่ได้อ่านที่หัวรายการ)
+  const loadMailboxes = useCallback(async () => {
+    try {
+      const d = await callMailApi<{
+        mailboxes: MailboxSummary[];
+        folders?: MailFolder[];
+        email: string;
+      }>("/api/mail/mailboxes");
+      applyMailboxes(d);
     } catch {
       /* ตัวเลขสรุปพลาดได้ ไม่ต้องรบกวนผู้ใช้ — รายการเมลคือของหลัก */
     }
-  }, []);
+  }, [applyMailboxes]);
 
   /**
    * ตัวเลข "ยังไม่ได้อ่าน" ต้องขยับตามสิ่งที่ผู้ใช้เพิ่งทำ ไม่ใช่ค้างค่าตอนเปิดกล่อง
@@ -295,15 +319,9 @@ export function MailWorkspace({
    * — ตัวเลขยังไม่ได้อ่านเป็นของรอง ค่าเดิมที่ค้างอยู่ 1 วินาทีไม่ทำให้ใครเข้าใจผิด
    *   แต่การยิง JMAP ทุกครั้งที่คลิกเมนูคือรอบ network ที่เสียเปล่าจริง ๆ
    */
-  const mailboxesLoadedRef = useRef(false);
-  useEffect(() => {
-    if (!mailboxesLoadedRef.current) {
-      mailboxesLoadedRef.current = true;
-      void loadMailboxes();
-      return;
-    }
-    scheduleMailboxRefresh();
-  }, [box, loadMailboxes, scheduleMailboxRefresh]);
+  // (2026-08-19) เปิดหน้า/สลับกล่อง **ไม่ยิง `/api/mail/mailboxes` แยกแล้ว** — หน้าแรกของรายการ
+  // ขอ `withMailboxes` พ่วงชุดกล่องมาในคำตอบเดียว (ดู `loadFirstPage`) ⇒ ตัด 1 request ตอนเปิดหน้า
+  // และตัวเลขยังไม่ได้อ่านสดเท่ารายการเสมอ · `loadMailboxes` เหลือไว้สำหรับรีเฟรชหลัง mutation/โฟลเดอร์เปลี่ยน
 
   // กล่องจัดการโฟลเดอร์อยู่ใน shell (คนละต้นไม้) → คุยกันด้วย event เพื่อคงแหล่งข้อมูลเดียว
   useEffect(() => {
@@ -319,19 +337,29 @@ export function MailWorkspace({
     [],
   );
 
+  /**
+   * identities ใช้ตอน "เขียน/ตอบ" เท่านั้น — เลื่อนไปโหลดหลัง paint แรกราว 2 วิ
+   * ไม่ให้ไปเบียดกับ mailboxes/messages/prefs ในจังหวะเปิดหน้า (เซิร์ฟเวอร์ทำทีละ request)
+   * ผู้ใช้กดเขียนก่อน 2 วิ = compose ยังเปิดได้ (ตัวเลือกผู้ส่งตามมาทีหลัง)
+   */
   useEffect(() => {
     let alive = true;
-    callMailApi<{ identities: MailIdentityOption[]; defaultEmail: string }>("/api/mail/identities")
-      .then((d) => {
-        if (!alive) return;
-        setIdentities(d.identities ?? []);
-        setSelfEmail(d.defaultEmail ?? "");
-      })
-      .catch(() => {
-        /* เขียนเมลไม่ได้ = ปุ่มยังกดได้แต่จะฟ้องตอนส่ง — ไม่รบกวนตอนเปิดหน้า */
-      });
+    const timer = setTimeout(() => {
+      callMailApi<{ identities: MailIdentityOption[]; defaultEmail: string }>(
+        "/api/mail/identities",
+      )
+        .then((d) => {
+          if (!alive) return;
+          setIdentities(d.identities ?? []);
+          setSelfEmail(d.defaultEmail ?? "");
+        })
+        .catch(() => {
+          /* เขียนเมลไม่ได้ = ปุ่มยังกดได้แต่จะฟ้องตอนส่ง — ไม่รบกวนตอนเปิดหน้า */
+        });
+    }, 2000);
     return () => {
       alive = false;
+      clearTimeout(timer);
     };
   }, []);
 
@@ -365,26 +393,29 @@ export function MailWorkspace({
       try {
         const data = await postJson<ListResponse>(
           "/api/mail/messages",
-          buildQuery({ position: 0 }),
+          // หน้าแรกขอชุดกล่อง (ตัวเลขยังไม่ได้อ่าน) พ่วงมาด้วย — เซิร์ฟเวอร์ดึงกล่องอยู่แล้ว ไม่มี JMAP เพิ่ม
+          buildQuery({ position: 0, withMailboxes: true }),
         );
+        if (data.mailboxes) applyMailboxes({ mailboxes: data.mailboxes, folders: data.folders });
         setMessages(data.messages ?? []);
         setHasMore(!!data.hasMore);
         setTotal(data.total ?? null);
         setPendingNew([]);
         setSearchScan(data.scan ?? null);
         setFocusedIndex(data.messages?.length ? 0 : -1);
-        if (mode === "refresh") scheduleMailboxRefresh();
         // เก็บผลจริงลงแคชเสมอ (ทั้ง initial และ refresh) — ครั้งหน้าที่กลับมากล่องนี้จะวาดทันที
-        firstPageCacheRef.current.set(cacheKey, data);
+        // (ไม่เก็บชุดกล่อง — ของสดมาพร้อมคำตอบถัดไปอยู่แล้ว)
+        const { mailboxes: _m, folders: _f, ...page } = data;
+        firstPageCacheRef.current.set(cacheKey, page);
       } catch (e) {
         if (e instanceof MailSessionExpiredError) return handleExpired();
-        setError(e instanceof Error ? e.message : GENERIC_ERROR);
+        setError(e instanceof Error && e.message ? e.message : genericError);
       } finally {
         setLoading(false);
         setRefreshing(false);
       }
     },
-    [buildQuery, cacheKey, handleExpired, scheduleMailboxRefresh],
+    [applyMailboxes, buildQuery, cacheKey, genericError, handleExpired],
   );
 
   // โหลดใหม่เมื่อเปลี่ยนกล่อง / คำค้น / ตัวกรอง
@@ -412,11 +443,11 @@ export function MailWorkspace({
       setHasMore(!!data.hasMore);
     } catch (e) {
       if (e instanceof MailSessionExpiredError) return handleExpired();
-      notify.error(e, GENERIC_ERROR);
+      notify.error(apiError(e, genericError), genericError);
     } finally {
       setLoadingMore(false);
     }
-  }, [buildQuery, handleExpired, hasMore, loading, loadingMore]);
+  }, [buildQuery, genericError, handleExpired, hasMore, loading, loadingMore]);
 
   // เมลใหม่ต้องโผล่เองได้ — poll เฉพาะตอนแท็บเปิดอยู่ และห้ามแทรกจนแถวกระโดด
   useEffect(() => {
@@ -464,11 +495,14 @@ export function MailWorkspace({
   /** กล่องที่กำลังเปิด — คีย์ระบบหรือโฟลเดอร์เอง (ใช้ตัดสินปุ่ม/ปลายทางที่ย้ายได้) */
   const selector = useMemo(() => resolveBoxSelector(box), [box]);
 
-  /** ชื่อโฟลเดอร์ของผู้ใช้รู้ได้หลังโหลดรายการกล่องเท่านั้น (SSR อ่าน cookie ของเมลไม่ได้) */
+  /**
+   * ป้ายกล่องตามภาษาผู้ใช้ (SSR ไม่รู้ภาษาจริง จึงคิดที่นี่) · ชื่อโฟลเดอร์ของผู้ใช้รู้ได้หลังโหลด
+   * รายการกล่องเท่านั้น (SSR อ่าน cookie ของเมลไม่ได้) — ระหว่างนั้นขึ้นป้ายชั่วคราว "โฟลเดอร์"
+   */
   const currentBoxLabel = useMemo(() => {
-    if (selector.kind !== "folder") return boxLabel;
-    return folders.find((f) => f.id === selector.mailboxId)?.name ?? boxLabel;
-  }, [boxLabel, folders, selector]);
+    if (selector.kind !== "folder") return mailBoxLabel(selector.key, locale);
+    return folders.find((f) => f.id === selector.mailboxId)?.name ?? t("workspace.folder");
+  }, [folders, locale, selector, t]);
 
   const unreadCount = useMemo(() => {
     if (selector.kind === "folder") {
@@ -501,10 +535,10 @@ export function MailWorkspace({
       } catch (e) {
         revert();
         if (e instanceof MailSessionExpiredError) return handleExpired();
-        notify.error(e, GENERIC_ERROR);
+        notify.error(apiError(e, genericError), genericError);
       }
     },
-    [handleExpired, scheduleMailboxRefresh],
+    [genericError, handleExpired, scheduleMailboxRefresh],
   );
 
   /**
@@ -565,10 +599,10 @@ export function MailWorkspace({
       } catch (e) {
         unhide(ids);
         if (e instanceof MailSessionExpiredError) return handleExpired();
-        notify.error(e, "ทำรายการไม่สำเร็จ อีเมลถูกคืนกลับรายการแล้ว");
+        notify.error(apiError(e, genericError), t("workspace.flush.failed"));
       }
     },
-    [handleExpired, scheduleMailboxRefresh, unhide],
+    [genericError, handleExpired, scheduleMailboxRefresh, t, unhide],
   );
 
   const undoQueued = useCallback(
@@ -602,11 +636,15 @@ export function MailWorkspace({
       queueRef.current.set(action, { ids: merged, timer });
       showUndoToast({
         id: `mail-undo-${action}`,
-        message: `${ACTION_LABEL[action]} ${merged.length} ฉบับ`,
+        message: t("workspace.undo.message", {
+          action: t(ACTION_LABEL[action]),
+          n: countLabel(t, merged.length),
+        }),
+        undoLabel: t("common.undo"),
         onUndo: () => undoQueued(action),
       });
     },
-    [flushQueue, undoQueued],
+    [flushQueue, t, undoQueued],
   );
 
   /**
@@ -651,20 +689,20 @@ export function MailWorkspace({
         );
         // ส่งออกไปแล้วจริงแม้ย้ายเข้ากล่อง "ส่งแล้ว" ไม่สำเร็จ — ห้ามบอกว่าล้มเหลว (จะกดส่งซ้ำ)
         if (res?.movedToSent === false) {
-          notify.success("ส่งแล้ว (แต่ยังไม่ได้ย้ายเข้ากล่องส่งแล้ว)");
+          notify.success(t("workspace.send.sentNotMoved"));
         } else {
-          notify.success("ส่งอีเมลแล้ว");
+          notify.success(t("workspace.send.sent"));
         }
         afterMutation();
         void loadFirstPage("refresh");
       } catch (e) {
         if (e instanceof MailSessionExpiredError) return handleExpired();
         // 🔴 ห้ามทิ้ง payload — ร่างอาจถูกลบไปแล้วในฝั่งเซิร์ฟเวอร์ระหว่างพยายามส่ง
-        notify.error(e, "ส่งไม่สำเร็จ — เปิดกล่องเขียนกลับมาให้แล้ว");
+        notify.error(apiError(e, genericError), t("workspace.send.failed"));
         reopenCompose(entry.payload);
       }
     },
-    [handleExpired, loadFirstPage, reopenCompose, scheduleMailboxRefresh],
+    [genericError, handleExpired, loadFirstPage, reopenCompose, scheduleMailboxRefresh, t],
   );
 
   const enqueueSend = useCallback(
@@ -681,12 +719,16 @@ export function MailWorkspace({
        */
       showUndoToast({
         id: SEND_TOAST_ID,
-        message: `ส่งถึง ${payload.to[0] ?? ""}${payload.to.length > 1 ? ` +${payload.to.length - 1}` : ""}`,
+        message: t("workspace.send.to", {
+          to: payload.to[0] ?? "",
+          more: payload.to.length > 1 ? ` +${payload.to.length - 1}` : "",
+        }),
+        undoLabel: t("common.undo"),
         onUndo: () => {
           const entry = sendQueueRef.current.get(key);
           if (!entry) {
             // ครบ 8 วิไปแล้ว = ส่งออกจริง — ต้องบอกตรง ๆ ห้ามเงียบให้เข้าใจผิดว่ายกเลิกได้
-            notify.error(null, "ส่งออกไปแล้ว ยกเลิกไม่ทัน");
+            notify.error(null, t("workspace.send.tooLate"));
             return;
           }
           clearTimeout(entry.timer);
@@ -695,7 +737,7 @@ export function MailWorkspace({
         },
       });
     },
-    [flushSend, reopenCompose],
+    [flushSend, reopenCompose, t],
   );
 
   // flush คิวที่ค้างเมื่อกำลังจะออกจากหน้า — ไม่งั้นการกระทำหายเงียบ
@@ -740,7 +782,7 @@ export function MailWorkspace({
         setComposeSeed({
           to: source.to.map((a) => a.email),
           cc: source.cc.map((a) => a.email),
-          subject: source.subject === "(ไม่มีหัวเรื่อง)" ? "" : source.subject,
+          subject: hasMailSubject(source.subject) ? source.subject : "",
           body: source.textBody ?? "",
           attachments: source.attachments.map((a) => ({
             blobId: a.blobId,
@@ -754,10 +796,10 @@ export function MailWorkspace({
         setComposeOpen(true);
       } catch (e) {
         if (e instanceof MailSessionExpiredError) return handleExpired();
-        notify.error(e, "เปิดร่างไม่สำเร็จ");
+        notify.error(apiError(e, genericError), t("workspace.draft.openFailed"));
       }
     },
-    [handleExpired],
+    [genericError, handleExpired, t],
   );
 
   // ── เปิดอ่าน ─────────────────────────────────────────────────────────────
@@ -775,12 +817,12 @@ export function MailWorkspace({
         setDetail(data);
       } catch (e) {
         if (e instanceof MailSessionExpiredError) return handleExpired();
-        setDetailError(e instanceof Error ? e.message : GENERIC_ERROR);
+        setDetailError(e instanceof Error && e.message ? e.message : genericError);
       } finally {
         setDetailLoading(false);
       }
     },
-    [handleExpired],
+    [genericError, handleExpired],
   );
 
   /**
@@ -964,14 +1006,14 @@ export function MailWorkspace({
           setDetail(null);
         }
         afterMutation();
-        notify.success(opts.successText ?? `ย้ายไป “${label}” แล้ว`);
+        notify.success(opts.successText ?? t("workspace.move.done", { label }));
       } catch (e) {
         unhide(ids);
         if (e instanceof MailSessionExpiredError) return handleExpired();
-        notify.error(e, "ย้ายอีเมลไม่สำเร็จ");
+        notify.error(apiError(e, genericError), t("workspace.move.failed"));
       }
     },
-    [afterMutation, handleExpired, unhide],
+    [afterMutation, genericError, handleExpired, t, unhide],
   );
 
   const moveToFolder = useCallback(
@@ -1003,22 +1045,22 @@ export function MailWorkspace({
   const markSpam = useCallback(
     (ids: string[]) => {
       if (!junkMailboxId) return;
-      void moveToMailbox(ids, junkMailboxId, "จดหมายขยะ", {
-        successText: "ย้ายไปจดหมายขยะแล้ว",
+      void moveToMailbox(ids, junkMailboxId, mailBoxLabel("junk", locale), {
+        successText: t("workspace.spam.marked"),
         by: "email",
       });
     },
-    [junkMailboxId, moveToMailbox],
+    [junkMailboxId, locale, moveToMailbox, t],
   );
   const markNotSpam = useCallback(
     (ids: string[]) => {
       if (!inboxMailboxId) return;
-      void moveToMailbox(ids, inboxMailboxId, "กล่องขาเข้า", {
-        successText: "ย้ายกลับกล่องขาเข้าแล้ว",
+      void moveToMailbox(ids, inboxMailboxId, mailBoxLabel("inbox", locale), {
+        successText: t("workspace.spam.unmarked"),
         by: "email",
       });
     },
-    [inboxMailboxId, moveToMailbox],
+    [inboxMailboxId, locale, moveToMailbox, t],
   );
 
   /**
@@ -1091,16 +1133,17 @@ export function MailWorkspace({
 
     if (failed) {
       // ลบไปแล้วบางส่วนก่อนพัง = **ห้ามบอกว่าไม่สำเร็จเฉย ๆ** ของหายไปจริงและกู้ไม่ได้
-      if (removed > 0) notify.error(null, `ลบถาวรไปแล้ว ${removed} ฉบับ แล้วเจอปัญหา`);
-      else notify.error(failed, "ล้างกล่องไม่สำเร็จ");
+      if (removed > 0)
+        notify.error(null, t("workspace.empty.partialFail", { n: countLabel(t, removed) }));
+      else notify.error(apiError(failed, genericError), t("workspace.empty.failed"));
     } else if (removed === 0) {
-      notify.success("ไม่มีอะไรให้ลบ");
+      notify.success(t("workspace.empty.nothing"));
     } else {
       // เหลือค้าง = ต้องบอกตรง ๆ พร้อมบอกว่าให้กดซ้ำ (ห้ามตัดเงียบ)
       notify.success(
         left > 0
-          ? `ลบถาวรแล้ว ${removed} ฉบับ · เหลืออีก ${left} กดล้างอีกครั้งได้`
-          : `ลบถาวรแล้ว ${removed} ฉบับ`,
+          ? t("workspace.empty.doneRemaining", { n: countLabel(t, removed), left })
+          : t("workspace.empty.done", { n: countLabel(t, removed) }),
       );
     }
 
@@ -1110,7 +1153,7 @@ export function MailWorkspace({
     } catch {
       /* รายการจะตามมาเองตอนรีเฟรชรอบหน้า */
     }
-  }, [afterMutation, emptyableBox, handleExpired, loadFirstPage]);
+  }, [afterMutation, emptyableBox, genericError, handleExpired, loadFirstPage, t]);
 
   /**
    * ป้ายบอกว่าเมลแถวนี้อยู่กล่องไหน — ใช้ตอนผลค้นหามาจากหลายกล่อง
@@ -1118,10 +1161,10 @@ export function MailWorkspace({
    */
   const mailboxLabels = useMemo<MailboxLabelMap>(() => {
     const map: MailboxLabelMap = {};
-    for (const m of mailboxes) map[m.id] = { label: m.name, folder: false };
+    for (const m of mailboxes) map[m.id] = { label: mailBoxLabel(m.key, locale), folder: false };
     for (const f of folders) map[f.id] = { label: f.name, folder: true };
     return map;
-  }, [mailboxes, folders]);
+  }, [mailboxes, folders, locale]);
 
   /** ปลายทางที่ให้เลือกย้าย — ตัดโฟลเดอร์ที่ยืนอยู่ออก (กดแล้วไม่เกิดอะไร = ห้ามมี) */
   const moveTargets = useMemo(
@@ -1191,7 +1234,7 @@ export function MailWorkspace({
     [activeId, messages],
   );
 
-  const totalLabel = total === null ? null : `${total} ฉบับ`;
+  const totalLabel = total === null ? null : countLabel(t, total);
 
   /**
    * มุมมอง: `split` = รายการ+บานอ่านคู่กัน · `list` = รายการเต็มความกว้าง (เปิดฉบับไหนค่อยแทนที่)
@@ -1210,7 +1253,11 @@ export function MailWorkspace({
    * ค่าล่าสุดของ "ทั้งชุด" — PUT ของ prefs เขียนทับทั้งไฟล์ (normalize เติมค่าเริ่มต้นให้ช่องที่ขาด)
    * ⇒ ส่งแค่ช่องที่เพิ่งเปลี่ยนไม่ได้ ไม่งั้นอีกช่องถูกรีเซ็ตเงียบ ๆ
    */
-  const prefsRef = useRef<MailPrefs>({ pane: "split", listWidth: MAIL_LIST_WIDTH_DEFAULT });
+  const prefsRef = useRef<MailPrefs>({
+    pane: "split",
+    listWidth: MAIL_LIST_WIDTH_DEFAULT,
+    locale: MAIL_LOCALE_DEFAULT,
+  });
   const persistPrefs = useCallback((patch: Partial<MailPrefs>) => {
     const next = { ...prefsRef.current, ...patch };
     prefsRef.current = next;
@@ -1228,13 +1275,16 @@ export function MailWorkspace({
     const cachedWidth = readCachedListWidth();
     if (cachedWidth) setListWidth(clampMailListWidth(cachedWidth));
     let alive = true;
-    fetch("/api/mail/prefs")
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data: MailPrefs | null) => {
+    fetchMailPrefsShared<MailPrefs>()
+      .then((data) => {
         if (!alive || !data) return;
         const next: MailPaneMode = data.pane === "list" ? "list" : "split";
         const width = clampMailListWidth(data.listWidth);
-        prefsRef.current = { pane: next, listWidth: width };
+        prefsRef.current = {
+          pane: next,
+          listWidth: width,
+          locale: normalizeMailLocale(data.locale),
+        };
         setPane(next);
         setListWidth(width);
         cachePane(next);
@@ -1359,10 +1409,7 @@ export function MailWorkspace({
                 emptyableBox
                   ? () =>
                       emptyBlockedByFilter
-                        ? notify.error(
-                            null,
-                            "ล้างกล่องระหว่างใช้ตัวกรอง/ค้นหาไม่ได้ — ล้างตัวกรองก่อน",
-                          )
+                        ? notify.error(null, t("workspace.empty.blocked"))
                         : setEmptyConfirm(true)
                   : undefined
               }
@@ -1413,12 +1460,12 @@ export function MailWorkspace({
             <div
               role="separator"
               aria-orientation="vertical"
-              aria-label="ปรับความกว้างคอลัมน์รายการ"
+              aria-label={t("workspace.divider.aria")}
               aria-valuenow={listWidth}
               aria-valuemin={MAIL_LIST_WIDTH_MIN}
               aria-valuemax={MAIL_LIST_WIDTH_MAX}
               tabIndex={0}
-              title="ลากเพื่อปรับความกว้าง (ดับเบิลคลิก = ค่าเริ่มต้น)"
+              title={t("workspace.divider.title")}
               onPointerDown={onDividerPointerDown}
               onPointerMove={onDividerPointerMove}
               onPointerUp={onDividerPointerUp}
@@ -1502,7 +1549,7 @@ export function MailWorkspace({
       {!activeId && selectedIds.size === 0 && (
         <Button
           size="icon"
-          aria-label="เขียนอีเมลใหม่"
+          aria-label={t("workspace.compose")}
           className="fixed bottom-5 right-5 z-20 h-14 w-14 rounded-full shadow-lg sm:hidden"
           onClick={() => openCompose(null)}
         >
@@ -1518,11 +1565,11 @@ export function MailWorkspace({
             onClick={() => setReadState(Array.from(selectedIds), false, "thread")}
           >
             <MailOpen className="h-4 w-4" />
-            ทำเป็นอ่านแล้ว
+            {t("workspace.bulk.markRead")}
           </Button>
           {moveTargets.length > 0 && (
             <Dropdown
-              label="ย้ายไป"
+              label={t("workspace.bulk.move")}
               placement="top-start"
               className="h-8"
               minWidth={220}
@@ -1541,7 +1588,7 @@ export function MailWorkspace({
               onClick={() => enqueueDestructive("archive", Array.from(selectedIds))}
             >
               <Archive className="h-4 w-4" />
-              เก็บเข้าคลัง
+              {t("workspace.bulk.archive")}
             </Button>
           )}
           {canTrash && (
@@ -1551,7 +1598,7 @@ export function MailWorkspace({
               onClick={() => enqueueDestructive("trash", Array.from(selectedIds))}
             >
               <Trash2 className="h-4 w-4" />
-              ลบ
+              {t("common.delete")}
             </Button>
           )}
         </BulkActionBar>
@@ -1569,13 +1616,15 @@ export function MailWorkspace({
       <ConfirmDeleteDialog
         open={emptyConfirm}
         onOpenChange={(v) => !emptying && setEmptyConfirm(v)}
-        title={emptyableBox === "junk" ? "ล้างจดหมายขยะ" : "ล้างถังขยะ"}
+        title={t(
+          emptyableBox === "junk" ? "workspace.empty.titleJunk" : "workspace.empty.titleTrash",
+        )}
         description={
           emptyBoxTotal === null
-            ? "เมลทั้งหมดในกล่องนี้จะถูกลบถาวร — กู้คืนไม่ได้"
-            : `เมลทั้งหมดในกล่องนี้ (${emptyBoxTotal} ฉบับ) จะถูกลบถาวร — กู้คืนไม่ได้`
+            ? t("workspace.empty.desc")
+            : t("workspace.empty.descCount", { n: countLabel(t, emptyBoxTotal) })
         }
-        confirmLabel={emptying ? "กำลังลบ…" : "ลบถาวร"}
+        confirmLabel={emptying ? t("workspace.empty.deleting") : t("workspace.empty.confirm")}
         loading={emptying}
         onConfirm={() => void emptyBox()}
       />

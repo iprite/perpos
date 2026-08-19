@@ -11,6 +11,7 @@
  */
 
 import { MailServiceError, buildDownloadUrl, buildUploadUrl, jmapRequest } from "./jmap";
+import { MAIL_LOCALE_DEFAULT, normalizeMailLocale } from "./i18n";
 import { MAIL_LIST_WIDTH_DEFAULT, clampMailListWidth } from "./prefs-storage";
 import type { MailPrefs, MailSession } from "./types";
 
@@ -24,6 +25,7 @@ const MAX_BYTES = 8 * 1024;
 export const MAIL_PREFS_DEFAULT: MailPrefs = {
   pane: "split",
   listWidth: MAIL_LIST_WIDTH_DEFAULT,
+  locale: MAIL_LOCALE_DEFAULT,
 };
 
 interface FileNodeInfo {
@@ -54,6 +56,7 @@ export function normalizeMailPrefs(raw: unknown): MailPrefs {
   return {
     pane: obj.pane === "list" ? "list" : "split",
     listWidth: clampMailListWidth(obj.listWidth),
+    locale: normalizeMailLocale(obj.locale),
   };
 }
 

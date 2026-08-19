@@ -8,7 +8,8 @@ import { type NextRequest } from "next/server";
 
 import { mailError, mailJson, readJsonBody, withMailSession } from "../_lib";
 import { MAIL_BOX_ORDER, MAIL_FOLDER_PREFIX, isMailboxId } from "@/lib/mail/boxes";
-import { listMessages } from "@/lib/mail/messages";
+import { buildMailboxSummaries, fetchMailboxes, listMessages } from "@/lib/mail/messages";
+import { buildMailFolders, systemMailboxIds } from "@/lib/mail/folders";
 import type { MailBoxKey } from "@/lib/mail/types";
 
 export const dynamic = "force-dynamic";
@@ -43,5 +44,20 @@ export async function POST(req: NextRequest) {
     limit: Math.min(Math.max(Math.trunc(limitRaw), 1), 100),
   };
 
-  return withMailSession(req, async (session) => mailJson(await listMessages(session, params)));
+  /**
+   * `withMailboxes` — หน้าแรกของแต่ละกล่องขอ "รายชื่อกล่อง + ตัวเลขยังไม่ได้อ่าน" พ่วงมาด้วย
+   * (รูปเดียวกับ `GET /api/mail/mailboxes`) — `listMessages` ต้องดึงกล่องอยู่แล้วเพื่อประกอบ filter
+   * ⇒ ได้ฟรี ไม่มี JMAP เพิ่ม และหน้าเว็บตัด request ตอนเปิดหน้าไปได้ 1 (Node ทำทีละ request)
+   */
+  const withMailboxes = body.withMailboxes === true;
+  return withMailSession(req, async (session) => {
+    if (!withMailboxes) return mailJson(await listMessages(session, params));
+    const boxes = await fetchMailboxes(session);
+    const result = await listMessages(session, params, boxes);
+    return mailJson({
+      ...result,
+      mailboxes: buildMailboxSummaries(boxes),
+      folders: buildMailFolders(boxes, systemMailboxIds(boxes)),
+    });
+  });
 }

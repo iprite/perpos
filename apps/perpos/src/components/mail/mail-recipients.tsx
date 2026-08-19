@@ -20,6 +20,7 @@ import { useCallback, useRef, useState } from "react";
 import { X } from "lucide-react";
 import cn from "@core/utils/class-names";
 import { isEmailAddress, parseRecipients } from "@/lib/mail/compose";
+import { useMailT } from "@/components/mail/mail-locale";
 
 export function MailRecipientInput({
   id,
@@ -35,6 +36,7 @@ export function MailRecipientInput({
   placeholder?: string;
   autoFocus?: boolean;
 }) {
+  const t = useMailT();
   const [text, setText] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -81,7 +83,7 @@ export function MailRecipientInput({
         return (
           <span
             key={address}
-            title={ok ? address : "ที่อยู่อีเมลไม่ถูกต้อง"}
+            title={ok ? address : t("compose.recipient.invalid")}
             className={cn(
               "inline-flex max-w-full items-center gap-1 rounded-full px-2 py-0.5 text-xs",
               ok ? "bg-gray-100 text-gray-700" : "border border-red-200 bg-red-50 text-red-700",
@@ -90,7 +92,7 @@ export function MailRecipientInput({
             <span className="truncate">{address}</span>
             <button
               type="button"
-              aria-label={`เอา ${address} ออก`}
+              aria-label={t("compose.recipient.remove", { address })}
               className="shrink-0 rounded-full p-0.5 text-gray-400 outline-none hover:text-gray-700"
               onClick={(e) => {
                 e.stopPropagation();

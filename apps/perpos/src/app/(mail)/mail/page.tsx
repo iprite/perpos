@@ -3,7 +3,8 @@ import { redirect } from "next/navigation";
 import { MailWarning } from "lucide-react";
 import { Text } from "@/components/ui/typography";
 import { MailWorkspace } from "@/components/mail/mail-workspace";
-import { MAIL_BOX_LABELS, folderBoxValue, resolveBoxSelector } from "@/lib/mail/boxes";
+import { folderBoxValue, resolveBoxSelector } from "@/lib/mail/boxes";
+import { MAIL_LOCALE_COOKIE, mailTranslator, normalizeMailLocale } from "@/lib/mail/i18n";
 import { MAIL_CONNECTED_COOKIE, MAIL_HOST_CONNECTED_COOKIE } from "@/lib/mail/session";
 import { mailBasePath } from "@/lib/mail/base-path";
 
@@ -31,6 +32,9 @@ export default async function MailPage({
 }: {
   searchParams: Promise<{ box?: string }>;
 }) {
+  const jar = await cookies();
+  // ภาษาจาก cookie (ตัวเดียวกับที่ layout ใช้) — จอ SSR นี้ไม่มี provider ให้ hook
+  const t = mailTranslator(normalizeMailLocale(jar.get(MAIL_LOCALE_COOKIE)?.value));
   const missingEnv = REQUIRED_ENV.filter((k) => !process.env[k]);
   if (missingEnv.length > 0) {
     return (
@@ -39,16 +43,13 @@ export default async function MailPage({
           <div className="mb-4 rounded-full bg-gray-100 p-4">
             <MailWarning className="h-8 w-8 text-gray-400" />
           </div>
-          <p className="text-sm font-medium text-gray-900">ยังไม่ได้ตั้งค่าระบบอีเมล</p>
-          <Text className="mt-1 max-w-md text-sm text-gray-500">
-            ผู้ดูแลระบบต้องตั้งค่าการเชื่อมต่อเซิร์ฟเวอร์อีเมลก่อนจึงจะใช้งานหน้านี้ได้
-          </Text>
+          <p className="text-sm font-medium text-gray-900">{t("workspace.setup.title")}</p>
+          <Text className="mt-1 max-w-md text-sm text-gray-500">{t("workspace.setup.desc")}</Text>
         </div>
       </div>
     );
   }
 
-  const jar = await cookies();
   const connected =
     jar.get(MAIL_HOST_CONNECTED_COOKIE)?.value === "1" ||
     jar.get(MAIL_CONNECTED_COOKIE)?.value === "1";
@@ -61,10 +62,10 @@ export default async function MailPage({
   }
 
   const selector = resolveBoxSelector(params.box);
+  // ป้ายกล่องคิดฝั่ง workspace ตามภาษาผู้ใช้ (`mailBoxLabel(key, locale)`) — SSR ส่งแค่คีย์
   // โฟลเดอร์ที่ผู้ใช้สร้างเอง: SSR ไม่รู้ชื่อ (cookie ของเมลจำกัด path ไว้ที่ /api/mail)
-  // → ส่งป้ายชั่วคราวไป แล้ว workspace เปลี่ยนเป็นชื่อจริงเมื่อโหลดรายการกล่องเสร็จ
+  // → workspace ขึ้นป้ายชั่วคราวแล้วเปลี่ยนเป็นชื่อจริงเมื่อโหลดรายการกล่องเสร็จ
   const box = selector.kind === "system" ? selector.key : folderBoxValue(selector.mailboxId);
-  const boxLabel = selector.kind === "system" ? MAIL_BOX_LABELS[selector.key] : "โฟลเดอร์";
 
-  return <MailWorkspace box={box} boxLabel={boxLabel} basePath={basePath} />;
+  return <MailWorkspace box={box} basePath={basePath} />;
 }

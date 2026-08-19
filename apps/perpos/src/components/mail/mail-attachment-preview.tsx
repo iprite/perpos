@@ -23,6 +23,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Text } from "@/components/ui/typography";
+import { useMailT } from "@/components/mail/mail-locale";
 import { MailPdfPreview, PDF_PREVIEW_MAX_BYTES } from "@/components/mail/mail-pdf-preview";
 import { INLINE_IMAGE_TYPES } from "@/lib/mail/jmap";
 import { formatMailSize } from "@/lib/mail/format";
@@ -42,6 +43,7 @@ export function MailAttachmentPreview({
   attachment: MailAttachment | null;
   onClose: () => void;
 }) {
+  const t = useMailT();
   /** เรนเดอร์ PDF ไม่สำเร็จ (ไฟล์เพี้ยน/ฟอนต์แปลก) = ตกไปโหมดดาวน์โหลดอย่างเดียว ไม่ค้างจอเปล่า */
   const [pdfFailed, setPdfFailed] = useState(false);
   useEffect(() => setPdfFailed(false), [attachment?.blobId]);
@@ -85,24 +87,26 @@ export function MailAttachmentPreview({
                 <FileQuestion className="h-8 w-8 text-gray-400" />
               </div>
               <Text className="text-sm font-medium text-gray-900">
-                ไฟล์ชนิดนี้ดูตัวอย่างในเว็บไม่ได้
+                {t("preview.unsupported.title")}
               </Text>
               <Text className="mt-1 max-w-sm text-sm text-gray-500">
-                {attachment.type || "ไม่ทราบชนิดไฟล์"} · {formatMailSize(attachment.sizeBytes)} —
-                ดาวน์โหลดแล้วเปิดด้วยโปรแกรมในเครื่อง
+                {t("preview.unsupported.desc", {
+                  type: attachment.type || t("preview.unknownType"),
+                  size: formatMailSize(attachment.sizeBytes),
+                })}
               </Text>
             </div>
           )}
         </DialogBody>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>
-            ปิด
+            {t("common.close")}
           </Button>
           {attachment && (
             <Button asChild>
               <a href={mailAttachmentUrl(attachment, true)} download={attachment.name}>
                 <Download className="h-4 w-4" />
-                ดาวน์โหลด
+                {t("preview.download")}
               </a>
             </Button>
           )}

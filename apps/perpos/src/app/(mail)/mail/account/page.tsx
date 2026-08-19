@@ -24,5 +24,5 @@ export default async function MailAccountPage() {
   if (!connected)
     redirect(`${basePath}/login?returnTo=${encodeURIComponent(`${basePath}/account`)}`);
 
-  return <MailAccountView basePath={basePath} />;
+  return <MailAccountView />;
 }

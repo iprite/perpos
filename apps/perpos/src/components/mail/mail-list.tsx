@@ -25,6 +25,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import type { MailAttachment, MailMessage } from "@/lib/mail/types";
 import { MailAttachmentPreview } from "@/components/mail/mail-attachment-preview";
 import { MAIL_ROW_HEIGHT, MailRow } from "@/components/mail/mail-row";
+import { useMailT } from "@/components/mail/mail-locale";
 
 const ListItem = forwardRef<HTMLLIElement, CustomItemComponentProps>(function ListItem(
   { style, children },
@@ -126,6 +127,7 @@ export const MailList = forwardRef<MailListHandle, MailListProps>(function MailL
   },
   ref,
 ) {
+  const t = useMailT();
   const vRef = useRef<VirtualizerHandle>(null);
   /** ไฟล์แนบที่กำลังดูตัวอย่างจากชิปในรายการ (ไม่ต้องเปิดเมลก่อน) */
   const [preview, setPreview] = useState<MailAttachment | null>(null);
@@ -154,11 +156,11 @@ export const MailList = forwardRef<MailListHandle, MailListProps>(function MailL
       return (
         <EmptyBlock
           icon={<RefreshCw className="h-8 w-8 text-gray-400" />}
-          title="โหลดรายการอีเมลไม่สำเร็จ"
+          title={t("list.error.title")}
           description={error}
           action={
             <Button size="sm" onClick={onRetry}>
-              ลองใหม่
+              {t("common.retry")}
             </Button>
           }
         />
@@ -169,19 +171,19 @@ export const MailList = forwardRef<MailListHandle, MailListProps>(function MailL
       return searchTerm ? (
         <EmptyBlock
           icon={<SearchX className="h-8 w-8 text-gray-400" />}
-          title={`ไม่พบอีเมลที่ตรงกับ «${searchTerm}»`}
-          description="ลองใช้คำค้นที่สั้นลง หรือค้นจากชื่อผู้ส่ง"
+          title={t("list.empty.search.title", { term: searchTerm })}
+          description={t("list.empty.search.description")}
           action={
             <Button size="sm" variant="outline" onClick={onClearSearch}>
-              ล้างการค้นหา
+              {t("list.empty.search.clear")}
             </Button>
           }
         />
       ) : (
         <EmptyBlock
           icon={<Inbox className="h-8 w-8 text-gray-400" />}
-          title="ยังไม่มีอีเมลในกล่องนี้"
-          description="เมื่อมีอีเมลเข้ามา จะแสดงที่นี่ทันที"
+          title={t("list.empty.box.title")}
+          description={t("list.empty.box.description")}
         />
       );
     }
@@ -191,8 +193,8 @@ export const MailList = forwardRef<MailListHandle, MailListProps>(function MailL
         {searchScan && (
           /* ผู้ใช้ต้องรู้ว่าผลนี้มาจากการสแกนของล่าสุด ไม่ใช่ค้นทั้งกล่อง (ไม่งั้นเข้าใจว่าเมลหาย) */
           <div className="border-b border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-            ค้นแบบตรงตัวจากเมลล่าสุด {searchScan.scanned} ฉบับ
-            {searchScan.truncated ? " — ยังมีเมลเก่ากว่านั้นที่ยังไม่ได้ค้น ลองพิมพ์ให้เต็มคำ" : ""}
+            {t("list.scan.notice", { count: searchScan.scanned })}
+            {searchScan.truncated ? t("list.scan.truncated") : ""}
           </div>
         )}
         <Virtualizer
@@ -225,10 +227,10 @@ export const MailList = forwardRef<MailListHandle, MailListProps>(function MailL
         <div className="flex items-center justify-center px-3 py-4">
           {hasMore ? (
             <Button variant="outline" size="sm" disabled={loadingMore} onClick={onLoadMore}>
-              {loadingMore ? "กำลังโหลด…" : "โหลดเพิ่ม"}
+              {loadingMore ? t("common.loading") : t("list.loadMore")}
             </Button>
           ) : (
-            <span className="text-xs text-gray-400">แสดงครบทุกฉบับแล้ว</span>
+            <span className="text-xs text-gray-400">{t("list.allLoaded")}</span>
           )}
         </div>
       </div>
@@ -255,6 +257,7 @@ export const MailList = forwardRef<MailListHandle, MailListProps>(function MailL
     searchScan,
     selectedIds,
     mailboxLabels,
+    t,
   ]);
 
   return (
@@ -263,7 +266,7 @@ export const MailList = forwardRef<MailListHandle, MailListProps>(function MailL
         <div className="absolute inset-x-0 top-2 z-10 flex justify-center">
           <Button size="sm" className="gap-1.5 shadow-lg" onClick={onApplyNew}>
             <ArrowUp className="h-4 w-4" />
-            มีเมลใหม่ {newCount} ฉบับ
+            {t("list.newMail", { count: newCount })}
           </Button>
         </div>
       )}

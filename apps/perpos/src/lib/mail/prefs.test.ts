@@ -5,14 +5,17 @@ import { MAIL_PREFS_DEFAULT, normalizeMailPrefs } from "./prefs";
 
 describe("normalizeMailPrefs", () => {
   it("รับเฉพาะค่าที่รู้จัก", () => {
-    expect(normalizeMailPrefs({ pane: "list", listWidth: 420 })).toEqual({
+    expect(normalizeMailPrefs({ pane: "list", listWidth: 420, locale: "en" })).toEqual({
       pane: "list",
       listWidth: 420,
+      locale: "en",
     });
     expect(normalizeMailPrefs({ pane: "split" })).toEqual({
       pane: "split",
       listWidth: MAIL_LIST_WIDTH_DEFAULT,
+      locale: "th",
     });
+    expect(normalizeMailPrefs({ locale: "fr" }).locale).toBe("th");
   });
 
   it("ไฟล์ที่ผู้ใช้/ไคลเอนต์อื่นแก้จนเพี้ยน → ค่าเริ่มต้น ไม่โยน", () => {
@@ -30,7 +33,11 @@ describe("normalizeMailPrefs", () => {
     }
   });
 
-  it("ค่าเริ่มต้นคือ split (บานอ่านคู่กับรายการ) กว้าง 380px", () => {
-    expect(MAIL_PREFS_DEFAULT).toEqual({ pane: "split", listWidth: MAIL_LIST_WIDTH_DEFAULT });
+  it("ค่าเริ่มต้นคือ split (บานอ่านคู่กับรายการ) กว้าง 380px ภาษาไทย", () => {
+    expect(MAIL_PREFS_DEFAULT).toEqual({
+      pane: "split",
+      listWidth: MAIL_LIST_WIDTH_DEFAULT,
+      locale: "th",
+    });
   });
 });

@@ -5,6 +5,7 @@ import { MailShell } from "@/components/mail/mail-shell";
 import { MAIL_CONNECTED_COOKIE, MAIL_HOST_CONNECTED_COOKIE } from "@/lib/mail/session";
 import { MAIL_PRODUCT_NAME } from "@/lib/mail/boxes";
 import { mailBasePath } from "@/lib/mail/base-path";
+import { MAIL_LOCALE_COOKIE, normalizeMailLocale } from "@/lib/mail/i18n";
 
 /**
  * route group ของ **PERPOS Mail** — แยกขาดจาก `(hydrogen)` โดยตั้งใจ
@@ -66,8 +67,11 @@ export default async function MailAppLayout({ children }: { children: React.Reac
     jar.get(MAIL_HOST_CONNECTED_COOKIE)?.value === "1" ||
     jar.get(MAIL_CONNECTED_COOKIE)?.value === "1";
 
+  // ภาษาจาก cookie → จอแรกถูกภาษาตั้งแต่ SSR (ค่าจริงในกล่องเมลจะมาทับฝั่งเบราว์เซอร์)
+  const locale = normalizeMailLocale(jar.get(MAIL_LOCALE_COOKIE)?.value);
+
   return (
-    <MailShell connected={connected} basePath={basePath}>
+    <MailShell connected={connected} basePath={basePath} locale={locale}>
       {children}
     </MailShell>
   );

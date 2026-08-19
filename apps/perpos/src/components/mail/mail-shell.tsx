@@ -35,12 +35,13 @@ import { Text } from "@/components/ui/typography";
 import { MailFoldersDialog } from "@/components/mail/mail-folders-dialog";
 import { MailWordmark } from "@/components/mail/mail-wordmark";
 import { clearCachedPane } from "@/lib/mail/prefs-storage";
+import type { MailLocale } from "@/lib/mail/i18n";
 import {
-  MAIL_BOX_LABELS,
-  MAIL_BOX_ORDER,
-  folderBoxValue,
-  resolveBoxSelector,
-} from "@/lib/mail/boxes";
+  MailLocaleProvider,
+  clearCachedMailLocale,
+  useMailLocale,
+} from "@/components/mail/mail-locale";
+import { MAIL_BOX_ORDER, folderBoxValue, mailBoxLabel, resolveBoxSelector } from "@/lib/mail/boxes";
 import type { MailBoxKey, MailFolder, MailboxSummary } from "@/lib/mail/types";
 
 const BOX_ICON: Record<MailBoxKey, React.ReactNode> = {
@@ -70,6 +71,7 @@ function MailBrand() {
  * ⇒ อ่านฝั่ง server ไม่ได้ ต้องถาม `/api/mail/account` เอา
  */
 function MailAccountMenu({ basePath }: { basePath: string }) {
+  const { t } = useMailLocale();
   const [email, setEmail] = useState<string | null>(null);
   const [avatar, setAvatar] = useState<string | null>(null);
   const [signingOut, setSigningOut] = useState(false);
@@ -78,18 +80,22 @@ function MailAccountMenu({ basePath }: { basePath: string }) {
   useEffect(() => {
     let url: string | null = null;
     let alive = true;
-    fetch("/api/mail/account/avatar")
-      .then((res) => (res.headers.get("content-type")?.startsWith("image/") ? res.blob() : null))
-      .then((blob) => {
-        if (!alive || !blob) return;
-        url = URL.createObjectURL(blob);
-        setAvatar(url);
-      })
-      .catch(() => {
-        /* ไม่มีรูป = ใช้อักษรย่อ ไม่ต้องรบกวนผู้ใช้ */
-      });
+    // รูปเป็นของประดับ — รอให้รายการเมล/กล่องขึ้นก่อน (เซิร์ฟเวอร์ทำทีละ request) ค่อยดึง
+    const loadAvatar = () =>
+      fetch("/api/mail/account/avatar")
+        .then((res) => (res.headers.get("content-type")?.startsWith("image/") ? res.blob() : null))
+        .then((blob) => {
+          if (!alive || !blob) return;
+          url = URL.createObjectURL(blob);
+          setAvatar(url);
+        })
+        .catch(() => {
+          /* ไม่มีรูป = ใช้อักษรย่อ ไม่ต้องรบกวนผู้ใช้ */
+        });
+    const timer = setTimeout(() => void loadAvatar(), 1500);
     return () => {
       alive = false;
+      clearTimeout(timer);
       if (url) URL.revokeObjectURL(url);
     };
   }, []);
@@ -113,6 +119,7 @@ function MailAccountMenu({ basePath }: { basePath: string }) {
     setSigningOut(true);
     // ความชอบของคนนี้ต้องไม่ค้างให้คนถัดไปที่ใช้เครื่องเดียวกันเห็น (ค่าจริงอยู่ในกล่องเมลอยู่แล้ว)
     clearCachedPane();
+    clearCachedMailLocale();
     try {
       const res = await fetch("/api/mail/oauth/disconnect", { method: "POST" });
       const data = (await res.json().catch(() => null)) as { redirectTo?: string } | null;
@@ -141,19 +148,21 @@ function MailAccountMenu({ basePath }: { basePath: string }) {
               (email ?? "?").slice(0, 1)
             )}
           </span>
-          <span className="truncate">{email ?? "บัญชีของฉัน"}</span>
+          <span className="truncate">{email ?? t("shell.account.myAccount")}</span>
         </button>
       }
     >
       <div className="min-w-[240px] p-3">
-        <Text className="text-xs text-gray-500">กล่องเมลที่เชื่อมอยู่</Text>
+        <Text className="text-xs text-gray-500">{t("shell.account.connectedMailbox")}</Text>
         <p className="mt-0.5 truncate text-sm font-medium text-gray-900">{email ?? "—"}</p>
         <Text className="mt-3 text-xs text-gray-500">
-          การออกจากระบบจะลบสิทธิ์เข้าถึงกล่องเมล <strong>บนอุปกรณ์นี้</strong> เท่านั้น
+          {t("shell.account.signOutNotePrefix")}
+          <strong>{t("shell.account.signOutNoteDevice")}</strong>
+          {t("shell.account.signOutNoteSuffix")}
         </Text>
         <Button variant="outline" className="mt-3 w-full" asChild>
           <Link href={`${basePath}/account`}>
-            <UserRound className="h-4 w-4" /> บัญชีของฉัน
+            <UserRound className="h-4 w-4" /> {t("shell.account.myAccount")}
           </Link>
         </Button>
         <Button
@@ -162,7 +171,7 @@ function MailAccountMenu({ basePath }: { basePath: string }) {
           disabled={signingOut}
           onClick={() => void signOut()}
         >
-          {signingOut ? "กำลังออกจากระบบ…" : "ออกจากระบบ"}
+          {signingOut ? t("shell.account.signingOut") : t("shell.account.signOut")}
         </Button>
       </div>
     </Popover>
@@ -170,6 +179,7 @@ function MailAccountMenu({ basePath }: { basePath: string }) {
 }
 
 function MailRail({ basePath }: { basePath: string }) {
+  const { locale, t } = useMailLocale();
   const searchParams = useSearchParams();
   const pathname = usePathname();
   /**
@@ -185,6 +195,9 @@ function MailRail({ basePath }: { basePath: string }) {
   const [manageOpen, setManageOpen] = useState(false);
   /** ได้ข้อมูลจากหน้ารายการแล้วหรือยัง — ถ้าได้ ห้าม rail ยิงเอง (ดูคำอธิบายด้านบน) */
   const gotEventRef = useRef(false);
+  /** อยู่หน้ารายการเมล (มี `<MailWorkspace>`) หรือไม่ — ตัดสินว่า rail ต้องดึงชุดกล่องเองไหม */
+  const onWorkspacePage =
+    pathname === `${basePath}/` || pathname === basePath || pathname === "/mail";
 
   const applyPayload = useCallback((mailboxes: MailboxSummary[], next: MailFolder[]) => {
     setUnread(Object.fromEntries(mailboxes.map((m) => [m.key, m.unreadCount])));
@@ -219,25 +232,30 @@ function MailRail({ basePath }: { basePath: string }) {
     };
     window.addEventListener("mail:mailboxes", onMailboxes);
     window.addEventListener("mail:folders-changed", onFoldersChanged);
-    const t = setTimeout(() => {
-      if (!gotEventRef.current) void fetchSelf();
-    }, 600);
+    // หน้ารายการ: workspace ส่งชุดกล่องมาพร้อมหน้าแรกเสมอ (พ่วงกับ /api/mail/messages) — rail
+    // ห้ามยิงเองมาเบียด · fallback ไกล ๆ ไว้เผื่อรายการโหลดพัง · หน้าอื่น (/rules, /account) ยิงเองทันที
+    const t = setTimeout(
+      () => {
+        if (!gotEventRef.current) void fetchSelf();
+      },
+      onWorkspacePage ? 8000 : 0,
+    );
     return () => {
       clearTimeout(t);
       window.removeEventListener("mail:mailboxes", onMailboxes);
       window.removeEventListener("mail:folders-changed", onFoldersChanged);
     };
-  }, [applyPayload, fetchSelf]);
+  }, [applyPayload, fetchSelf, onWorkspacePage]);
 
   const selector = resolveBoxSelector(searchParams.get("box"));
   const active = selector.kind === "system" ? selector.key : null;
   const activeFolderId = selector.kind === "folder" ? selector.mailboxId : null;
   // บนโดเมนเมล path จริงคือ "/" (middleware rewrite ไป /mail ให้) — ต้องรับทั้งสองแบบ
-  const onMailbox = pathname === `${basePath}/` || pathname === basePath || pathname === "/mail";
+  const onMailbox = onWorkspacePage;
 
   return (
     <nav
-      aria-label="กล่องเมล"
+      aria-label={t("shell.rail.aria")}
       className="flex shrink-0 gap-1 overflow-x-auto border-b border-gray-200 px-2 py-2 md:w-[200px] md:flex-col md:overflow-y-auto md:overflow-x-visible md:border-b-0 md:border-r md:px-2 md:py-3 [&::-webkit-scrollbar]:hidden"
       style={{ scrollbarWidth: "none" }}
     >
@@ -256,7 +274,7 @@ function MailRail({ basePath }: { basePath: string }) {
             )}
           >
             {BOX_ICON[key]}
-            <span className="flex-1">{MAIL_BOX_LABELS[key]}</span>
+            <span className="flex-1">{mailBoxLabel(key, locale)}</span>
             {!!unread[key] && (
               <span
                 className={cn(
@@ -273,13 +291,15 @@ function MailRail({ basePath }: { basePath: string }) {
 
       {/* โฟลเดอร์ของผู้ใช้ (M3) — ต่อท้ายกล่องระบบเสมอ ห้ามแทรกสลับกัน */}
       <div className="flex shrink-0 items-center gap-1 md:mt-3 md:border-t md:border-gray-200 md:px-1 md:pt-3">
-        <span className="hidden flex-1 text-xs font-medium text-gray-400 md:block">โฟลเดอร์</span>
+        <span className="hidden flex-1 text-xs font-medium text-gray-400 md:block">
+          {t("shell.rail.folders")}
+        </span>
         <Button
           size="icon"
           variant="ghost"
           className="h-8 w-8 shrink-0"
-          title="จัดการโฟลเดอร์"
-          aria-label="จัดการโฟลเดอร์"
+          title={t("shell.rail.manageFolders")}
+          aria-label={t("shell.rail.manageFolders")}
           onClick={() => setManageOpen(true)}
         >
           <Settings2 className="h-4 w-4" />
@@ -329,7 +349,7 @@ function MailRail({ basePath }: { basePath: string }) {
         )}
       >
         <SlidersHorizontal className="h-4 w-4 shrink-0" />
-        <span className="flex-1">กฎกรอง</span>
+        <span className="flex-1">{t("shell.rail.rules")}</span>
       </Link>
 
       <MailFoldersDialog
@@ -348,26 +368,33 @@ function MailRail({ basePath }: { basePath: string }) {
 export function MailShell({
   connected,
   basePath,
+  locale,
   children,
 }: {
   /** เชื่อมกล่องเมลแล้วหรือยัง — ยังไม่เชื่อมจะไม่มี rail (ยังไม่มีกล่องให้เปิด) */
   connected: boolean;
   /** `""` บนโดเมนเมล · `"/mail"` ที่อื่น — ห้ามฮาร์ดโค้ด (ดู lib/mail/base-path.ts) */
   basePath: string;
+  /** ภาษาจาก cookie ตอน SSR (ดู `mail-locale.tsx`) */
+  locale?: MailLocale;
   children: React.ReactNode;
 }) {
   return (
-    // ความสูงของ "หน้าจอ" เป็นของ shell ที่เดียว (h-dvh — ห้ามใช้ 100vh: Safari มือถือคืนค่าสูงเกินจริง)
-    // แล้วเนื้อหาข้างในใช้ h-full เอา — หน้าลูกห้ามเดา calc(100vh - Nrem) เพราะ rail มือถือกินสูงไม่เท่ากัน
-    <div className="flex h-dvh flex-col bg-white">
-      <header className="flex h-12 shrink-0 items-center justify-between gap-3 border-b border-gray-200 px-3 sm:px-4">
-        <MailBrand />
-        {connected && <MailAccountMenu basePath={basePath} />}
-      </header>
-      <div className="flex min-h-0 flex-1 flex-col md:flex-row">
-        {connected && <MailRail basePath={basePath} />}
-        <main className="min-h-0 min-w-0 flex-1 overflow-y-auto px-3 py-2 sm:px-4">{children}</main>
+    <MailLocaleProvider initialLocale={locale} connected={connected}>
+      {/* ความสูงของ "หน้าจอ" เป็นของ shell ที่เดียว (h-dvh — ห้ามใช้ 100vh: Safari มือถือคืนค่าสูงเกินจริง)
+    แล้วเนื้อหาข้างในใช้ h-full เอา — หน้าลูกห้ามเดา calc(100vh - Nrem) เพราะ rail มือถือกินสูงไม่เท่ากัน */}
+      <div className="flex h-dvh flex-col bg-white">
+        <header className="flex h-12 shrink-0 items-center justify-between gap-3 border-b border-gray-200 px-3 sm:px-4">
+          <MailBrand />
+          {connected && <MailAccountMenu basePath={basePath} />}
+        </header>
+        <div className="flex min-h-0 flex-1 flex-col md:flex-row">
+          {connected && <MailRail basePath={basePath} />}
+          <main className="min-h-0 min-w-0 flex-1 overflow-y-auto px-3 py-2 sm:px-4">
+            {children}
+          </main>
+        </div>
       </div>
-    </div>
+    </MailLocaleProvider>
   );
 }

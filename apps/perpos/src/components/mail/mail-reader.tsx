@@ -16,6 +16,7 @@
  *  - "แสดงรูป" ผูกกับ message id เดียว ห้ามเป็น state รวมทั้งเธรด
  */
 
+import { hasMailSubject } from "@/lib/mail/boxes";
 import {
   createContext,
   useCallback,
@@ -68,6 +69,7 @@ import {
   mailAttachmentUrl,
 } from "@/components/mail/mail-attachment-preview";
 import { notify } from "@/lib/toast";
+import { useMailLocale, useMailT } from "@/components/mail/mail-locale";
 import type {
   MailAddress,
   MailAttachment,
@@ -171,17 +173,18 @@ export function MailReader({
   onReplyAll,
   onForward,
 }: MailReaderProps) {
+  const t = useMailT();
   if (loading) return <ReaderSkeleton onBack={onBack} standalone={standalone} />;
 
   if (error) {
     return (
       <ReaderCenter
         icon={<Mail className="h-8 w-8 text-gray-400" />}
-        title="เปิดอีเมลไม่สำเร็จ"
+        title={t("reader.error.title")}
         description={error}
         action={
           <Button size="sm" onClick={onRetry}>
-            ลองใหม่
+            {t("common.retry")}
           </Button>
         }
       />
@@ -192,8 +195,8 @@ export function MailReader({
     return (
       <ReaderCenter
         icon={<Mail className="h-8 w-8 text-gray-400" />}
-        title="เลือกอีเมลเพื่ออ่าน"
-        description="เลือกจากรายการทางซ้าย หรือกด j / k แล้ว Enter"
+        title={t("reader.empty.title")}
+        description={t("reader.empty.desc")}
       />
     );
   }
@@ -261,6 +264,7 @@ function ThreadView({
   onReplyAll: () => void;
   onForward: () => void;
 }) {
+  const t = useMailT();
   const messages = detail.messages;
   const latestId = messages.length ? messages[messages.length - 1]!.id : null;
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set(latestId ? [latestId] : []));
@@ -356,22 +360,22 @@ function ThreadView({
         <Button
           variant="ghost"
           size="icon"
-          aria-label="กลับไปรายการ"
-          title="กลับไปรายการ (Esc)"
+          aria-label={t("reader.back")}
+          title={t("reader.back.title")}
           className={cn("shrink-0", !standalone && "lg:hidden")}
           onClick={onBack}
         >
           <ChevronLeft className="h-5 w-5" />
         </Button>
         <Title as="h2" className="min-w-0 flex-1 truncate text-base font-semibold text-gray-900">
-          {detail.subject?.trim() || "(ไม่มีหัวเรื่อง)"}
+          {hasMailSubject(detail.subject) ? detail.subject.trim() : t("reader.noSubject")}
         </Title>
         <div className="flex shrink-0 items-center gap-1">
           <Button
             variant={findOpen ? "secondary" : "ghost"}
             size="icon"
-            title="ค้นในเมลฉบับนี้"
-            aria-label="ค้นในเมลฉบับนี้"
+            title={t("reader.find")}
+            aria-label={t("reader.find")}
             aria-pressed={findOpen}
             onClick={() => {
               setFindOpen((v) => !v);
@@ -383,8 +387,8 @@ function ThreadView({
           <Button
             variant="ghost"
             size="icon"
-            title="ติดดาว (s)"
-            aria-label="ติดดาว"
+            title={t("reader.star.title")}
+            aria-label={t("reader.star")}
             aria-pressed={flagged}
             onClick={onToggleStar}
           >
@@ -394,8 +398,8 @@ function ThreadView({
             <Button
               variant="ghost"
               size="icon"
-              title="แจ้งว่าเป็นสแปม (ย้ายไปจดหมายขยะ + สอนตัวกรอง)"
-              aria-label="แจ้งว่าเป็นสแปม"
+              title={t("reader.spam.title")}
+              aria-label={t("reader.spam")}
               onClick={onMarkSpam}
             >
               <ShieldAlert className="h-4 w-4" />
@@ -405,8 +409,8 @@ function ThreadView({
             <Button
               variant="ghost"
               size="icon"
-              title="ไม่ใช่สแปม (ย้ายกลับกล่องขาเข้า + สอนตัวกรอง)"
-              aria-label="ไม่ใช่สแปม"
+              title={t("reader.notSpam.title")}
+              aria-label={t("reader.notSpam")}
               onClick={onNotSpam}
             >
               <ShieldCheck className="h-4 w-4" />
@@ -416,8 +420,8 @@ function ThreadView({
             <Button
               variant="ghost"
               size="icon"
-              title="สร้างกฎกรองจากเมลนี้"
-              aria-label="สร้างกฎกรองจากเมลนี้"
+              title={t("reader.rule")}
+              aria-label={t("reader.rule")}
               onClick={() => setRuleOpen(true)}
             >
               <Filter className="h-4 w-4" />
@@ -425,7 +429,7 @@ function ThreadView({
           )}
           {moveTargets.length > 0 && onMove && (
             <Dropdown
-              label="ย้ายไป"
+              label={t("reader.move")}
               placement="bottom-end"
               className="h-9"
               minWidth={220}
@@ -441,8 +445,8 @@ function ThreadView({
             <Button
               variant="ghost"
               size="icon"
-              title="เก็บเข้าคลัง (e)"
-              aria-label="เก็บเข้าคลัง"
+              title={t("reader.archive.title")}
+              aria-label={t("reader.archive")}
               onClick={onArchive}
             >
               <Archive className="h-4 w-4" />
@@ -456,8 +460,8 @@ function ThreadView({
               <Button
                 variant="outline"
                 size="icon"
-                title="ลบ (#)"
-                aria-label="ลบ"
+                title={t("reader.trash.title")}
+                aria-label={t("reader.trash")}
                 className="border-red-200 text-red-600 hover:border-red-300 hover:bg-red-50 hover:text-red-700"
                 onClick={onTrash}
               >
@@ -490,20 +494,24 @@ function ThreadView({
               }
               if (e.key === "Escape") setFindOpen(false);
             }}
-            placeholder="ค้นในเมลฉบับนี้"
+            placeholder={t("reader.find")}
             className="h-8 min-w-0 flex-1"
           />
           {/* ต้องบอกจำนวนเสมอ — ไม่มีตัวเลข ผู้ใช้ไม่รู้ว่า "ไม่เจอ" หรือ "ยังไม่ได้หา" */}
           <span className="shrink-0 text-xs tabular-nums text-gray-500">
-            {findTerm ? (totalHits ? `${hitIndex + 1}/${totalHits}` : "ไม่พบ") : ""}
+            {findTerm
+              ? totalHits
+                ? `${hitIndex + 1}/${totalHits}`
+                : t("reader.find.notFound")
+              : ""}
           </span>
           <Button
             variant="ghost"
             size="icon"
             className="h-8 w-8 shrink-0"
             disabled={totalHits === 0}
-            title="ก่อนหน้า (Shift+Enter)"
-            aria-label="ผลก่อนหน้า"
+            title={t("reader.find.prev.title")}
+            aria-label={t("reader.find.prev")}
             onClick={() => stepHit(-1)}
           >
             <ChevronLeft className="h-4 w-4" />
@@ -513,8 +521,8 @@ function ThreadView({
             size="icon"
             className="h-8 w-8 shrink-0"
             disabled={totalHits === 0}
-            title="ถัดไป (Enter)"
-            aria-label="ผลถัดไป"
+            title={t("reader.find.next.title")}
+            aria-label={t("reader.find.next")}
             onClick={() => stepHit(1)}
           >
             <ChevronLeft className="h-4 w-4 rotate-180" />
@@ -523,8 +531,8 @@ function ThreadView({
             variant="ghost"
             size="icon"
             className="h-8 w-8 shrink-0"
-            title="ปิดการค้นหา (Esc)"
-            aria-label="ปิดการค้นหา"
+            title={t("reader.find.close.title")}
+            aria-label={t("reader.find.close")}
             onClick={() => setFindOpen(false)}
           >
             <X className="h-4 w-4" />
@@ -540,7 +548,10 @@ function ThreadView({
           {detail.totalMessages > messages.length && (
             <div className="mb-3 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
               <Text className="text-xs text-gray-500">
-                เธรดนี้มี {detail.totalMessages} ฉบับ — แสดง {messages.length} ฉบับล่าสุด
+                {t("reader.thread.truncated", {
+                  total: detail.totalMessages,
+                  shown: messages.length,
+                })}
               </Text>
             </div>
           )}
@@ -561,17 +572,27 @@ function ThreadView({
 
           {/* ปุ่มตอบอยู่ท้ายเธรด = ตำแหน่งที่สายตาอยู่พอดีหลังอ่านจบ (คีย์ลัด r / a / f ทำอย่างเดียวกัน) */}
           <div className="mt-4 flex flex-wrap gap-2">
-            <Button variant="outline" size="sm" onClick={onReply} title="ตอบ (r)">
+            <Button variant="outline" size="sm" onClick={onReply} title={t("reader.reply.title")}>
               <CornerUpLeft className="h-4 w-4" />
-              ตอบ
+              {t("reader.reply")}
             </Button>
-            <Button variant="outline" size="sm" onClick={onReplyAll} title="ตอบทั้งหมด (a)">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onReplyAll}
+              title={t("reader.replyAll.title")}
+            >
               <ReplyAll className="h-4 w-4" />
-              ตอบทั้งหมด
+              {t("reader.replyAll")}
             </Button>
-            <Button variant="outline" size="sm" onClick={onForward} title="ส่งต่อ (f)">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onForward}
+              title={t("reader.forward.title")}
+            >
               <CornerUpRight className="h-4 w-4" />
-              ส่งต่อ
+              {t("reader.forward")}
             </Button>
           </div>
         </div>
@@ -622,6 +643,7 @@ function MessageCard({
   activeHit: number;
   onHitCount: (id: string, count: number) => void;
 }) {
+  const { locale, t } = useMailLocale();
   const [imagesHtml, setImagesHtml] = useState<string | null>(null);
   const [loadingImages, setLoadingImages] = useState(false);
   const [preview, setPreview] = useState<MailAttachment | null>(null);
@@ -650,18 +672,18 @@ function MessageCard({
       );
       const data: unknown = await res.json();
       if (!res.ok) {
-        const msg = (data as { message?: string })?.message ?? "โหลดรูปในอีเมลไม่สำเร็จ";
+        const msg = (data as { message?: string })?.message ?? t("reader.images.failed");
         throw new Error(msg);
       }
       const found = (data as MailThreadDetail).messages?.find((x) => x.id === message.id);
-      if (!found?.htmlSanitized) throw new Error("ไม่พบเนื้อหาอีเมลฉบับนี้");
+      if (!found?.htmlSanitized) throw new Error(t("reader.images.notFound"));
       setImagesHtml(found.htmlSanitized);
     } catch (e) {
-      notify.error(e, "โหลดรูปในอีเมลไม่สำเร็จ");
+      notify.error(e, t("reader.images.failed"));
     } finally {
       setLoadingImages(false);
     }
-  }, [message.id]);
+  }, [message.id, t]);
 
   const bodyHtml = imagesHtml ?? message.htmlSanitized;
 
@@ -864,21 +886,23 @@ function MessageCard({
               </span>
             )}
             <span className="ms-auto shrink-0 text-xs tabular-nums text-gray-500">
-              {formatMailDateTime(message.receivedAt)}
+              {formatMailDateTime(message.receivedAt, locale)}
             </span>
           </div>
           {open ? (
             <div className="mt-0.5 space-y-0.5">
-              <Text className="truncate text-xs text-gray-500">ถึง: {addressList(message.to)}</Text>
+              <Text className="truncate text-xs text-gray-500">
+                {t("reader.to", { list: addressList(message.to) })}
+              </Text>
               {message.cc.length > 0 && (
                 <Text className="truncate text-xs text-gray-500">
-                  สำเนา: {addressList(message.cc)}
+                  {t("reader.cc", { list: addressList(message.cc) })}
                 </Text>
               )}
             </div>
           ) : (
             <Text className="mt-0.5 truncate text-xs text-gray-400">
-              {message.textBody?.trim().slice(0, 140) || "แตะเพื่อกางข้อความนี้"}
+              {message.textBody?.trim().slice(0, 140) || t("reader.expandHint")}
             </Text>
           )}
         </div>
@@ -898,9 +922,7 @@ function MessageCard({
               {message.hasRemoteImages && !imagesHtml && (
                 <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
                   <ImageOff className="h-4 w-4 shrink-0 text-amber-600" />
-                  <span className="text-xs text-amber-700">
-                    บล็อกรูปจากภายนอกไว้ เพื่อไม่ให้ผู้ส่งรู้ว่าคุณเปิดอ่าน
-                  </span>
+                  <span className="text-xs text-amber-700">{t("reader.images.blocked")}</span>
                   <Button
                     size="sm"
                     variant="outline"
@@ -908,7 +930,7 @@ function MessageCard({
                     disabled={loadingImages}
                     onClick={showImages}
                   >
-                    {loadingImages ? "กำลังโหลด…" : "แสดงรูป"}
+                    {loadingImages ? t("reader.images.loading") : t("reader.images.show")}
                   </Button>
                 </div>
               )}
@@ -921,14 +943,16 @@ function MessageCard({
                       size="sm"
                       className="h-7 text-xs text-gray-500"
                       onClick={() => setFitOverride(!fit)}
-                      title={fit ? "ดูขนาดจริง (เลื่อนซ้าย-ขวา)" : "ย่อให้พอดีกรอบ"}
+                      title={fit ? t("reader.fit.actualSize.title") : t("reader.fit.shrink.title")}
                     >
                       {fit ? (
                         <Maximize2 className="h-3.5 w-3.5" />
                       ) : (
                         <Minimize2 className="h-3.5 w-3.5" />
                       )}
-                      {fit ? `ขนาดจริง (${Math.round(scale * 100)}%)` : "ย่อให้พอดี"}
+                      {fit
+                        ? t("reader.fit.actualSize", { percent: Math.round(scale * 100) })
+                        : t("reader.fit.shrink")}
                     </Button>
                   )}
                   <Button
@@ -941,20 +965,20 @@ function MessageCard({
                         "*",
                       )
                     }
-                    title="พิมพ์เฉพาะเนื้อเมล"
+                    title={t("reader.print.title")}
                   >
                     <Printer className="h-3.5 w-3.5" />
-                    พิมพ์
+                    {t("reader.print")}
                   </Button>
                   <Button
                     variant="ghost"
                     size="sm"
                     className="h-7 text-xs text-gray-500"
                     onClick={() => setFullscreen(true)}
-                    title="เปิดเต็มหน้า"
+                    title={t("reader.fullscreen")}
                   >
                     <Maximize2 className="h-3.5 w-3.5" />
-                    เปิดเต็มหน้า
+                    {t("reader.fullscreen")}
                   </Button>
                   {/* ผลตรวจของเมลเซิร์ฟเวอร์ — มีเฉพาะฉบับที่มี header พวกนี้จริง */}
                   {message.securityHeaders.length > 0 && (
@@ -963,10 +987,10 @@ function MessageCard({
                       size="sm"
                       className="h-7 text-xs text-gray-500"
                       onClick={() => setShowSecurity(true)}
-                      title="ผลตรวจสแปม / SPF / DKIM / DMARC ของฉบับนี้"
+                      title={t("reader.security.title")}
                     >
                       <ShieldCheck className="h-3.5 w-3.5" />
-                      ผลตรวจ
+                      {t("reader.security")}
                     </Button>
                   )}
                 </div>
@@ -982,7 +1006,7 @@ function MessageCard({
                 >
                   <iframe
                     ref={frameRef}
-                    title="เนื้อหาอีเมล"
+                    title={t("reader.frame.title")}
                     // 🔴 ห้ามเติม allow-same-origin เด็ดขาด (contract §7.2 · มีเทสจับ)
                     sandbox={MAIL_IFRAME_SANDBOX}
                     srcDoc={srcDoc}
@@ -1006,7 +1030,7 @@ function MessageCard({
                 </div>
               ) : (
                 <pre className="whitespace-pre-wrap break-words font-sans text-sm leading-relaxed text-gray-700">
-                  {message.textBody?.trim() || "(อีเมลฉบับนี้ไม่มีเนื้อหา)"}
+                  {message.textBody?.trim() || t("reader.noBody")}
                 </pre>
               )}
 
@@ -1026,12 +1050,12 @@ function MessageCard({
                       </span>
                       <Button size="sm" variant="ghost" onClick={() => setPreview(a)}>
                         <Eye className="h-4 w-4" />
-                        ดู
+                        {t("reader.attachment.view")}
                       </Button>
                       <Button size="sm" variant="outline" asChild>
                         <a href={mailAttachmentUrl(a, true)} download={a.name}>
                           <Download className="h-4 w-4" />
-                          ดาวน์โหลด
+                          {t("reader.attachment.download")}
                         </a>
                       </Button>
                     </div>
@@ -1047,7 +1071,7 @@ function MessageCard({
           โดเมนตัวหนาก่อนเสมอ: คนอ่านโดเมนก่อน ไม่ใช่ path (ฟิชชิงชอบซ่อนโดเมนจริงไว้ท้าย URL) */}
       {open && hoverLink && (
         <div className="flex items-center gap-2 border-t border-gray-100 bg-gray-50 px-4 py-1.5">
-          <span className="shrink-0 text-[11px] text-gray-400">ไปที่</span>
+          <span className="shrink-0 text-[11px] text-gray-400">{t("reader.link.goto")}</span>
           <span className="min-w-0 flex-1 truncate text-[11px] text-gray-500">
             <span className="font-semibold text-gray-700">{linkHost(hoverLink)}</span>
             <span className="ms-1">{hoverLink}</span>
@@ -1059,14 +1083,14 @@ function MessageCard({
         <DialogContent size="full">
           <DialogHeader>
             <DialogTitle className="truncate">
-              {message.subject?.trim() || "(ไม่มีหัวเรื่อง)"}
+              {hasMailSubject(message.subject) ? message.subject.trim() : t("reader.noSubject")}
             </DialogTitle>
           </DialogHeader>
           <DialogBody className="p-0">
             <Dialog open={showSecurity} onOpenChange={setShowSecurity}>
               <DialogContent size="xl">
                 <DialogHeader>
-                  <DialogTitle>ผลตรวจของเมลฉบับนี้</DialogTitle>
+                  <DialogTitle>{t("reader.security.dialogTitle")}</DialogTitle>
                 </DialogHeader>
                 <DialogBody>
                   {/* แสดงดิบตามที่เมลเซิร์ฟเวอร์เขียนไว้ — ไม่ตีความ/ไม่สรุปแทน
@@ -1089,7 +1113,7 @@ function MessageCard({
                 ไม่ต้องวัดความสูง — ให้เนื้อหาเลื่อนในกรอบเต็มจอเอง */}
             {srcDoc && (
               <iframe
-                title="เนื้อหาอีเมล (เต็มหน้า)"
+                title={t("reader.frame.fullscreenTitle")}
                 sandbox={MAIL_IFRAME_SANDBOX}
                 srcDoc={srcDoc}
                 referrerPolicy="no-referrer"
@@ -1127,13 +1151,14 @@ function ReaderCenter({
 }
 
 function ReaderSkeleton({ onBack, standalone }: { onBack: () => void; standalone: boolean }) {
+  const t = useMailT();
   return (
     <div className="flex h-full min-h-0 flex-col bg-white">
       <div className="flex items-center gap-2 border-b border-gray-200 px-3 py-2.5">
         <Button
           variant="ghost"
           size="icon"
-          aria-label="กลับไปรายการ"
+          aria-label={t("reader.back")}
           className={cn("shrink-0", !standalone && "lg:hidden")}
           onClick={onBack}
         >

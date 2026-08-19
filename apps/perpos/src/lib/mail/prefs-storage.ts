@@ -25,6 +25,30 @@ export function clampMailListWidth(raw: unknown): number {
   return Math.round(Math.min(MAIL_LIST_WIDTH_MAX, Math.max(MAIL_LIST_WIDTH_MIN, raw)));
 }
 
+/**
+ * โหลด `/api/mail/prefs` แบบ **แชร์คำขอเดียว** — ทั้ง `MailLocaleProvider` (ภาษา) และ
+ * `MailWorkspace` (มุมมอง/ความกว้าง) ต้องอ่านไฟล์เดียวกันตอนเปิดหน้า ถ้าต่างคนต่างยิง
+ * = 2 request ที่อ่าน FileNode เดิมซ้ำ แถมไปเบียดกับ mailboxes/messages ในจังหวะ paint แรก
+ * (บนเครื่องเดียว Node ทำทีละ request → ทุก request ที่ตัดออกได้ = เร็วขึ้นทั้งหน้า)
+ * คำขอที่ล้มเหลวไม่ถูกจำ (ครั้งหน้ายิงใหม่ได้)
+ */
+let prefsInflight: { at: number; promise: Promise<unknown> } | null = null;
+const PREFS_SHARE_MS = 3000;
+export function fetchMailPrefsShared<T = unknown>(): Promise<T | null> {
+  const now = Date.now();
+  if (prefsInflight && now - prefsInflight.at < PREFS_SHARE_MS) {
+    return prefsInflight.promise as Promise<T | null>;
+  }
+  const promise = fetch("/api/mail/prefs")
+    .then((res) => (res.ok ? (res.json() as Promise<T>) : null))
+    .catch(() => {
+      prefsInflight = null;
+      return null;
+    });
+  prefsInflight = { at: now, promise };
+  return promise;
+}
+
 export const MAIL_SEARCH_SCOPE_STORAGE_KEY = "perpos_mail_search_scope";
 
 /** ขอบเขตค้นหาล่าสุดที่ผู้ใช้เลือก — ความชอบของเครื่อง ไม่ต้องขึ้นเซิร์ฟเวอร์ */

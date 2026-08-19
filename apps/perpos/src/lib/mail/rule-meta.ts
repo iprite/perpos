@@ -6,6 +6,7 @@
  */
 
 import type { MailRuleField, MailRuleOperator } from "./types";
+import type { MailLocale } from "./i18n";
 
 export const MAIL_RULE_MAX = 30;
 export const MAIL_RULE_CONDITION_MAX = 5;
@@ -21,15 +22,21 @@ export const MAIL_RULE_APPLY_LIMIT = 200;
 export const MAIL_RULE_FIELDS: MailRuleField[] = ["from", "to", "cc", "subject"];
 export const MAIL_RULE_OPERATORS: MailRuleOperator[] = ["contains", "is", "not_contains"];
 
-export const MAIL_RULE_FIELD_LABELS: Record<MailRuleField, string> = {
-  from: "ผู้ส่ง",
-  to: "ผู้รับ (ถึง)",
-  cc: "ผู้รับ (สำเนา)",
-  subject: "หัวเรื่อง",
+export const MAIL_RULE_FIELD_LABELS_BY_LOCALE: Record<MailLocale, Record<MailRuleField, string>> = {
+  th: { from: "ผู้ส่ง", to: "ผู้รับ (ถึง)", cc: "ผู้รับ (สำเนา)", subject: "หัวเรื่อง" },
+  en: { from: "Sender", to: "Recipient (To)", cc: "Recipient (Cc)", subject: "Subject" },
 };
 
-export const MAIL_RULE_OPERATOR_LABELS: Record<MailRuleOperator, string> = {
-  contains: "มีคำว่า",
-  is: "ตรงกับ",
-  not_contains: "ไม่มีคำว่า",
+export const MAIL_RULE_OPERATOR_LABELS_BY_LOCALE: Record<
+  MailLocale,
+  Record<MailRuleOperator, string>
+> = {
+  th: { contains: "มีคำว่า", is: "ตรงกับ", not_contains: "ไม่มีคำว่า" },
+  en: { contains: "contains", is: "is exactly", not_contains: "does not contain" },
 };
+
+/** ป้ายภาษาไทย (ค่าเริ่มต้น) — ฝั่ง UI ใช้ตัว `_BY_LOCALE[locale]` */
+export const MAIL_RULE_FIELD_LABELS: Record<MailRuleField, string> =
+  MAIL_RULE_FIELD_LABELS_BY_LOCALE.th;
+export const MAIL_RULE_OPERATOR_LABELS: Record<MailRuleOperator, string> =
+  MAIL_RULE_OPERATOR_LABELS_BY_LOCALE.th;

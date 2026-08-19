@@ -32,6 +32,8 @@ import { FileDropzone } from "@/components/ui/file-dropzone";
 import { notify } from "@/lib/toast";
 import { formatMailSize } from "@/lib/mail/format";
 import { MailRecipientInput } from "@/components/mail/mail-recipients";
+import { useMailLocale } from "@/components/mail/mail-locale";
+import { MAIL_LOCALE_TAGS, type MailLocale } from "@/lib/mail/i18n";
 import { MAX_MESSAGE_BYTES, isEmailAddress, type MailComposeAttachment } from "@/lib/mail/compose";
 
 const AUTOSAVE_MS = 3000;
@@ -95,6 +97,7 @@ export function MailCompose({
   /** ผู้เรียกรับไปเข้าคิว "ส่งใน 8 วิ + เลิกทำ" */
   onSend: (draft: MailDraftPayload) => void;
 }) {
+  const { locale, t } = useMailLocale();
   const [identityId, setIdentityId] = useState<string | null>(null);
   const [to, setTo] = useState<string[]>([]);
   const [cc, setCc] = useState<string[]>([]);
@@ -134,7 +137,7 @@ export function MailCompose({
     setSaveState("idle");
     setError(null);
     setSending(false);
-    const t = setTimeout(() => {
+    const timer = setTimeout(() => {
       if (seed?.focus === "body") {
         bodyRef.current?.focus();
         bodyRef.current?.setSelectionRange(0, 0); // เขียนต่อด้านบนข้อความที่อ้างถึง
@@ -142,7 +145,7 @@ export function MailCompose({
         toRef.current?.focus();
       }
     }, 60);
-    return () => clearTimeout(t);
+    return () => clearTimeout(timer);
   }, [defaultEmail, identities, open, seed]);
 
   /**
@@ -250,28 +253,34 @@ export function MailCompose({
   // ── ไฟล์แนบ ───────────────────────────────────────────────────────────────
   const totalBytes = attachments.reduce((sum, a) => sum + a.size, 0);
 
-  const addFiles = useCallback(async (files: File[]) => {
-    for (const file of files) {
-      setUploading((n) => n + 1);
-      try {
-        const form = new FormData();
-        form.append("file", file);
-        const res = await fetch("/api/mail/upload", { method: "POST", body: form });
-        const data = (await res.json().catch(() => null)) as
-          (MailComposeAttachment & { message?: string }) | null;
-        if (!res.ok || !data?.blobId) {
-          notify.error(null, data?.message ?? `แนบไฟล์ "${file.name}" ไม่สำเร็จ`);
-          continue;
+  const addFiles = useCallback(
+    async (files: File[]) => {
+      for (const file of files) {
+        setUploading((n) => n + 1);
+        try {
+          const form = new FormData();
+          form.append("file", file);
+          const res = await fetch("/api/mail/upload", { method: "POST", body: form });
+          const data = (await res.json().catch(() => null)) as
+            (MailComposeAttachment & { message?: string }) | null;
+          if (!res.ok || !data?.blobId) {
+            notify.error(
+              null,
+              data?.message ?? t("compose.attachment.failed", { name: file.name }),
+            );
+            continue;
+          }
+          setAttachments((prev) => [
+            ...prev,
+            { blobId: data.blobId, name: data.name, type: data.type, size: data.size },
+          ]);
+        } finally {
+          setUploading((n) => n - 1);
         }
-        setAttachments((prev) => [
-          ...prev,
-          { blobId: data.blobId, name: data.name, type: data.type, size: data.size },
-        ]);
-      } finally {
-        setUploading((n) => n - 1);
       }
-    }
-  }, []);
+    },
+    [t],
+  );
 
   // ── ปิด / ส่ง ─────────────────────────────────────────────────────────────
   const closeAndKeepDraft = useCallback(async () => {
@@ -282,37 +291,37 @@ export function MailCompose({
     const id = await saveDraft();
     if (!id) {
       // 🔴 ปิดตอนนี้ = ข้อความหายจริง ๆ → ค้างกล่องไว้แล้วบอกให้ชัด
-      setError("ยังบันทึกร่างไม่ได้ — ปิดตอนนี้ข้อความจะหาย ลองใหม่อีกครั้ง");
+      setError(t("compose.error.draftNotSaved"));
       return;
     }
-    notify.success("เก็บเป็นร่างแล้ว");
+    notify.success(t("compose.draft.kept"));
     onClose();
-  }, [hasContent, onClose, saveDraft]);
+  }, [hasContent, onClose, saveDraft, t]);
 
   const submit = useCallback(() => {
     setError(null);
     const payload = payloadRef.current();
     const recipients = [...payload.to, ...payload.cc, ...payload.bcc];
     if (recipients.length === 0) {
-      setError("ยังไม่ได้ใส่ผู้รับ");
+      setError(t("compose.error.noRecipient"));
       return;
     }
     const bad = recipients.filter((r) => !isEmailAddress(r));
     if (bad.length) {
-      setError(`ที่อยู่อีเมลไม่ถูกต้อง: ${bad.slice(0, 3).join(", ")}`);
+      setError(t("compose.error.badAddress", { list: bad.slice(0, 3).join(", ") }));
       return;
     }
     if (totalBytes * (4 / 3) > MAX_MESSAGE_BYTES) {
-      setError("ไฟล์แนบรวมกันเกิน 25 MB");
+      setError(t("compose.error.tooLarge"));
       return;
     }
     if (uploading > 0) {
-      setError("รอไฟล์แนบอัปโหลดให้เสร็จก่อน");
+      setError(t("compose.error.uploading"));
       return;
     }
     setSending(true);
     onSend(payload);
-  }, [onSend, totalBytes, uploading]);
+  }, [onSend, t, totalBytes, uploading]);
 
   // ⌘/Ctrl+Enter ส่งได้จากทุกช่องในกล่อง (รวม textarea)
   const onKeyDown = useCallback(
@@ -343,7 +352,9 @@ export function MailCompose({
     >
       <DialogContent size="2xl">
         <DialogHeader>
-          <DialogTitle>{seed?.inReplyTo ? "ตอบอีเมล" : "เขียนอีเมล"}</DialogTitle>
+          <DialogTitle>
+            {seed?.inReplyTo ? t("compose.title.reply") : t("compose.title.new")}
+          </DialogTitle>
         </DialogHeader>
 
         <DialogBody fixedHeight className="space-y-3" onKeyDown={onKeyDown}>
@@ -358,7 +369,7 @@ export function MailCompose({
           )}
           {identityOptions.length > 1 && (
             <div>
-              <Label htmlFor="mail-from">จาก</Label>
+              <Label htmlFor="mail-from">{t("compose.field.from")}</Label>
               <CustomSelect
                 value={identityId ?? identityOptions[0]!.value}
                 onChange={setIdentityId}
@@ -370,7 +381,7 @@ export function MailCompose({
 
           <div>
             <div className="flex items-center justify-between">
-              <Label htmlFor="mail-to">ถึง *</Label>
+              <Label htmlFor="mail-to">{t("compose.field.to")}</Label>
               {!showCc && (
                 <Button
                   variant="ghost"
@@ -378,7 +389,7 @@ export function MailCompose({
                   className="h-6 px-2 text-xs text-gray-500"
                   onClick={() => setShowCc(true)}
                 >
-                  สำเนา / สำเนาลับ
+                  {t("compose.field.ccBccToggle")}
                 </Button>
               )}
             </div>
@@ -386,7 +397,7 @@ export function MailCompose({
               id="mail-to"
               value={to}
               onChange={setTo}
-              placeholder="name@example.com — พิมพ์แล้วกด Enter"
+              placeholder={t("compose.to.placeholder")}
               autoFocus={seed?.focus !== "body"}
             />
           </div>
@@ -394,18 +405,18 @@ export function MailCompose({
           {showCc && (
             <div className="grid gap-3 sm:grid-cols-2">
               <div>
-                <Label htmlFor="mail-cc">สำเนา</Label>
+                <Label htmlFor="mail-cc">{t("compose.field.cc")}</Label>
                 <MailRecipientInput id="mail-cc" value={cc} onChange={setCc} />
               </div>
               <div>
-                <Label htmlFor="mail-bcc">สำเนาลับ</Label>
+                <Label htmlFor="mail-bcc">{t("compose.field.bcc")}</Label>
                 <MailRecipientInput id="mail-bcc" value={bcc} onChange={setBcc} />
               </div>
             </div>
           )}
 
           <div>
-            <Label htmlFor="mail-subject">หัวเรื่อง</Label>
+            <Label htmlFor="mail-subject">{t("compose.field.subject")}</Label>
             <Input
               id="mail-subject"
               value={subject}
@@ -415,7 +426,7 @@ export function MailCompose({
           </div>
 
           <div>
-            <Label htmlFor="mail-body">เนื้อหา</Label>
+            <Label htmlFor="mail-body">{t("compose.field.body")}</Label>
             <Textarea
               id="mail-body"
               ref={bodyRef}
@@ -423,7 +434,7 @@ export function MailCompose({
               onChange={(e) => setBody(e.target.value)}
               rows={10}
               className="mt-1"
-              placeholder="พิมพ์ข้อความ…"
+              placeholder={t("compose.body.placeholder")}
             />
           </div>
 
@@ -442,7 +453,7 @@ export function MailCompose({
                   <Button
                     variant="ghost"
                     size="icon"
-                    aria-label={`เอา ${a.name} ออก`}
+                    aria-label={t("compose.attachment.remove", { name: a.name })}
                     className="h-7 w-7 shrink-0"
                     onClick={() =>
                       setAttachments((prev) => prev.filter((x) => x.blobId !== a.blobId))
@@ -461,8 +472,8 @@ export function MailCompose({
             maxSizeMb={25}
             hint={
               uploading > 0
-                ? `กำลังอัปโหลด ${uploading} ไฟล์…`
-                : "ลากไฟล์มาวางได้ · รวมกันไม่เกิน 25 MB"
+                ? t("compose.attachment.uploading", { count: uploading })
+                : t("compose.attachment.hint")
             }
           />
         </DialogBody>
@@ -474,15 +485,17 @@ export function MailCompose({
               saveState === "error" ? "text-red-600" : "text-gray-400",
             )}
           >
-            {saveState === "saving" && "กำลังบันทึกร่าง…"}
-            {saveState === "saved" && savedAt && `✓ บันทึกร่างแล้ว ${formatClock(savedAt)}`}
-            {saveState === "error" && "⚠ บันทึกร่างไม่สำเร็จ"}
+            {saveState === "saving" && t("compose.draft.saving")}
+            {saveState === "saved" &&
+              savedAt &&
+              t("compose.draft.saved", { time: formatClock(savedAt, locale) })}
+            {saveState === "error" && t("compose.draft.failed")}
           </span>
           <Button variant="outline" onClick={() => void closeAndKeepDraft()} disabled={sending}>
-            เก็บเป็นร่าง
+            {t("compose.action.keepDraft")}
           </Button>
           <Button onClick={submit} disabled={sending || uploading > 0}>
-            {sending ? "กำลังส่ง…" : "ส่ง"}
+            {sending ? t("compose.action.sending") : t("compose.action.send")}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -490,6 +503,9 @@ export function MailCompose({
   );
 }
 
-function formatClock(d: Date): string {
-  return new Intl.DateTimeFormat("th-TH", { hour: "2-digit", minute: "2-digit" }).format(d);
+function formatClock(d: Date, locale: MailLocale): string {
+  return new Intl.DateTimeFormat(MAIL_LOCALE_TAGS[locale], {
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(d);
 }
