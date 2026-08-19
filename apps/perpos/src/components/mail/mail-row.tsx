@@ -265,7 +265,13 @@ function MailRowBase({
           {/* ชิปไฟล์แนบ (แบบ Gmail) — ดูแล้วรู้ว่าเป็นไฟล์อะไรโดยไม่ต้องเปิดเมล
               ⚠️ แสดงอย่างเดียว กดดาวน์โหลดจากรายการไม่ได้ (รายการไม่พก blobId) */}
           {message.attachments.length > 0 && (
-            <div className="mt-1 flex flex-wrap items-center gap-1.5">
+            <div
+              className={cn(
+                "mt-1 flex flex-wrap items-center gap-1.5",
+                // เว้นที่ให้ปุ่มลัดตอน hover — ไม่งั้นชิปตัวขวาสุดอยู่ใต้ปุ่มจนกดเปิดพรีวิวไม่ได้
+                hasQuickActions && "sm:group-hover:pe-24",
+              )}
+            >
               {message.attachments.map((a) => (
                 <button
                   key={a.blobId}
@@ -298,9 +304,12 @@ function MailRowBase({
         {hasQuickActions && (
           <div
             className={cn(
-              /* ยึดบรรทัดแรก (แถวเดียวกับเวลา) ไม่ใช่กลางแถว — ไม่งั้นทับชิปไฟล์แนบจนกดไม่ได้ */
-              "absolute right-2 top-1.5 hidden items-center gap-0.5 rounded-lg px-1 shadow-sm",
-              "sm:group-focus-within:flex sm:group-hover:flex",
+              /* กึ่งกลางแนวตั้งของแถว · ไม่ทับชิปไฟล์แนบเพราะแถวชิปเว้นที่ขวาให้ตอน hover */
+              "absolute right-2 top-1/2 hidden -translate-y-1/2 items-center gap-0.5 rounded-lg px-1 shadow-sm",
+              /* 🔴 hover อย่างเดียว — เคยใส่ `group-focus-within` ด้วย แล้วแถวที่เคอร์เซอร์คีย์บอร์ด
+                 (j/k) หรือโฟกัสค้างอยู่ โชว์ปุ่มค้างพร้อมกับแถวที่เมาส์ชี้ = ดูเหมือนบั๊ก
+                 คีย์บอร์ดมีคีย์ลัดของตัวเองอยู่แล้ว (e/# ฯลฯ) จึงไม่เสียการเข้าถึง */
+              "sm:group-hover:flex",
               /* พื้นต้องเป็นสีเดียวกับแถวตอนนั้น ไม่งั้นเห็นเป็นกล่องขาวแปะบนพื้นเทา */
               active ? "bg-gray-100" : "bg-gray-50",
             )}
