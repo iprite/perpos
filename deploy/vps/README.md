@@ -38,7 +38,7 @@ echo "CLOUDFLARE_API_TOKEN=..." > /srv/deploy/.env   # token สิทธิ์ 
 cd /srv/deploy && docker compose up -d caddy
 ```
 
-**สถานะ 2026-08-19 (ครบทุกเฟส)**: เว็บ 3 แอป + **เมล Stalwart** อยู่บนเครื่องนี้ทั้งหมด · โดเมนเว็บ 4 ตัว = A `62.146.233.27` **เมฆส้ม** (Caddy `trusted_proxies cloudflare`) · ชื่อเมล 10 ตัว = A/AAAA เมฆเทา · cron ครบ (`/etc/cron.d/{perpos,exapp}`, scheduler ทุก 1 นาที) · Cloud Scheduler 5 job PAUSED · auto-deploy บน push main (path filter) · Contabo firewall + ufw · backup Stalwart → R2 14 ก้อน · Vercel 3 โปรเจกต์ + Contabo EU ยังไม่ปิด (rollback ได้ · ปิดหลังนิ่ง ~1 เดือน / D+7)
+**สถานะ 2026-08-19 (ครบทุกเฟส)**: เว็บ 3 แอป + **เมล Stalwart** อยู่บนเครื่องนี้ทั้งหมด · โดเมนเว็บ 4 ตัว = A `62.146.233.27` **เมฆส้ม** (Caddy `trusted_proxies cloudflare`) · ชื่อเมล 10 ตัว = A/AAAA เมฆเทา · cron ครบ (`/etc/cron.d/{perpos,exapp}`, scheduler ทุก 1 นาที) · Cloud Scheduler **ลบแล้ว 2026-08-19** · auto-deploy บน push main (path filter) · Contabo firewall + ufw · backup Stalwart → R2 14 ก้อน · Vercel 3 โปรเจกต์ + Contabo EU ยังไม่ปิด (rollback ได้ · ปิดหลังนิ่ง ~1 เดือน / D+7)
 · ค้าง: `NEXT_PUBLIC_LINE_OA_ADD_URL` (riekchang) · `GCP_SYNC_SA_KEY` (perpos cost sync) · หมุน `TURNSTILE_SECRET_KEY`/R2 token ที่ผ่านแชท · ตัด `stalwart.perpos.ai` จาก MTA-STS · ตัด IP EU จาก SPF + ลบ EU · ล็อก VPS 24 เดือน · (ทางเลือก) R2 lifecycle + token ไม่มี delete · Caddy PROXY protocol → Stalwart เห็น IP จริง
 
 ## Deploy
@@ -80,7 +80,7 @@ cd /srv/deploy && docker compose up -d caddy
 0 3 * * *   deploy curl -sf -X POST -H "x-cron-secret: $CRON_SECRET" http://127.0.0.1:3006/api/admin/rep-usage/recalc >/dev/null
 ```
 
-🪤 **`TZ=Asia/Bangkok` ในไฟล์ crontab ไม่มีผลกับเวลาที่ cron คำนวณ** (Ubuntu `cron` 3.0pl1 แค่ export ให้ job · เฉพาะ cronie ถึงมี `CRON_TZ`) — เครื่องเดิมเป็น Europe/Berlin ทำให้งานรายวัน**ทุกตัวช้า 5 ชม.** (daily-occupancy 20:00 ไปยิงตอน 01:00 BKK · exapp 03:00 → 08:00) · **แก้แล้ว 2026-08-19: `timedatectl set-timezone Asia/Bangkok` + `systemctl restart cron`** — เครื่องใหม่ต้องตั้ง timezone ระดับ OS เสมอ อย่าพึ่ง TZ ในไฟล์ · **Cloud Scheduler ทั้ง 5 job PAUSED แล้ว 2026-08-19** (ยังไม่ลบ = rollback ได้)
+🪤 **`TZ=Asia/Bangkok` ในไฟล์ crontab ไม่มีผลกับเวลาที่ cron คำนวณ** (Ubuntu `cron` 3.0pl1 แค่ export ให้ job · เฉพาะ cronie ถึงมี `CRON_TZ`) — เครื่องเดิมเป็น Europe/Berlin ทำให้งานรายวัน**ทุกตัวช้า 5 ชม.** (daily-occupancy 20:00 ไปยิงตอน 01:00 BKK · exapp 03:00 → 08:00) · **แก้แล้ว 2026-08-19: `timedatectl set-timezone Asia/Bangkok` + `systemctl restart cron`** — เครื่องใหม่ต้องตั้ง timezone ระดับ OS เสมอ อย่าพึ่ง TZ ในไฟล์ · **Cloud Scheduler ทั้ง 5 job ลบแล้ว 2026-08-19** (cron บน VPS รันครบ 24 ชม.+ ก่อนลบ)
 
 port 3005–3007 bind ที่ `127.0.0.1` เท่านั้นใน compose (cron บน host ยิงได้ · internet เข้าไม่ได้)
 
