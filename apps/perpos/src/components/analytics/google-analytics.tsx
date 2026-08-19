@@ -63,6 +63,9 @@ export default function GoogleAnalytics() {
         {`window.dataLayer = window.dataLayer || [];
 function gtag(){dataLayer.push(arguments);}
 window.gtag = gtag;
+// เครื่อง dev ห้ามยิงเข้า property จริง — เคยมี hostname=localhost ปนในข้อมูล prod
+if (/^(localhost|127\\.0\\.0\\.1|0\\.0\\.0\\.0|\\[?::1\\]?)$/.test(location.hostname) ||
+    location.hostname.endsWith('.local')) { window['ga-disable-${GA_ID}'] = true; }
 gtag('js', new Date());
 gtag('config', '${GA_ID}', { send_page_view: false });`}
       </Script>
