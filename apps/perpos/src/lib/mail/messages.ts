@@ -251,10 +251,11 @@ export function mapEmailToMessage(email: JmapEmail, threadCount = 1): MailMessag
  *    รวมอยู่ใน `attachments` ด้วย ถ้าไม่กรอง จดหมายข่าวทุกฉบับจะขึ้นชิป `logo.png` `pixel.gif`
  *    ทั้งที่ผู้ใช้ไม่ได้รับไฟล์อะไรเลย (และ `hasAttachment` ของฉบับนั้นเป็น false ด้วยซ้ำ)
  *
- * 🔴 **ไม่ส่ง `blobId`** — รายการเมลไม่ควรพก handle ที่ดาวน์โหลดไฟล์ได้ (เปิดฉบับนั้นก่อน)
+ * ส่ง `blobId` มาด้วย (ชิปกดดูตัวอย่าง/ดาวน์โหลดได้) — ปลอดภัยเพราะ route ไฟล์แนบผูกกับ
+ * session ของเจ้าของกล่องเมลเสมอ และยัง allowlist ชนิดไฟล์ที่แสดง inline ได้เหมือนเดิม
  */
 export function listAttachmentChips(email: JmapEmail): {
-  attachments: { name: string; type: string; sizeBytes: number }[];
+  attachments: MailAttachment[];
   attachmentCount: number;
 } {
   const real = (email.attachments ?? []).filter((p) => {
@@ -265,6 +266,7 @@ export function listAttachmentChips(email: JmapEmail): {
   });
   return {
     attachments: real.slice(0, LIST_ATTACHMENT_MAX).map((p) => ({
+      blobId: p.blobId as string,
       name: sanitizeAttachmentName(p.name),
       type: (p.type ?? "application/octet-stream").split(";")[0]?.trim() ?? "",
       sizeBytes: typeof p.size === "number" ? p.size : 0,

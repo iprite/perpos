@@ -59,10 +59,11 @@ export interface MailMessage {
   isFlagged: boolean;
   hasAttachment: boolean;
   /**
-   * ไฟล์แนบสำหรับ "ชิป" ในรายการ (สูงสุด `LIST_ATTACHMENT_MAX`) — **ไม่มี `blobId` โดยเจตนา**
-   * ⇒ ดาวน์โหลดจากรายการไม่ได้ ต้องเปิดฉบับนั้นก่อน (รายการเป็นแค่ภาพรวม)
+   * ไฟล์แนบสำหรับ "ชิป" ในรายการ (สูงสุด `LIST_ATTACHMENT_MAX`)
+   * มี `blobId` ด้วยเพื่อให้กดชิปแล้วดูตัวอย่าง/ดาวน์โหลดได้ทันทีโดยไม่ต้องเปิดเมล
+   * — ตัว `blobId` ใช้ได้เฉพาะกับ session ของเจ้าของกล่องเมลเอง (route ไฟล์แนบตรวจ session ทุกครั้ง)
    */
-  attachments: { name: string; type: string; sizeBytes: number }[];
+  attachments: MailAttachment[];
   /** จำนวนไฟล์แนบทั้งหมด (มากกว่าความยาวของ `attachments` ได้ → แสดง "+N") */
   attachmentCount: number;
   sizeBytes: number;

@@ -25,7 +25,6 @@ import {
   useRef,
   useState,
 } from "react";
-import Image from "next/image";
 import {
   Archive,
   ChevronLeft,
@@ -64,6 +63,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  MailAttachmentPreview,
+  mailAttachmentUrl,
+} from "@/components/mail/mail-attachment-preview";
 import { notify } from "@/lib/toast";
 import type {
   MailAddress,
@@ -87,23 +90,9 @@ import {
   buildMailSrcdoc,
 } from "@/lib/mail/srcdoc";
 
-const INLINE_IMAGE_TYPES = new Set(["image/png", "image/jpeg", "image/gif", "image/webp"]);
-
 function addressList(list: MailAddress[]): string {
   if (!list.length) return "—";
   return list.map((a) => (a.name?.trim() ? `${a.name} <${a.email}>` : a.email)).join(", ");
-}
-
-/**
- * 🔴 ต้องส่ง `type` ไปด้วยเสมอ — ไม่งั้น route ตกไปเป็น `application/octet-stream`
- *    ซึ่งไม่อยู่ใน allowlist ของรูป ⇒ ตอบ `Content-Disposition: attachment` + `nosniff`
- *    ⇒ ปุ่ม "ดู" (แสดงรูปใน <Image>) โหลดไม่ขึ้นทุกกรณี
- *    (ปลอดภัย: route ยัง allowlist ชนิดไฟล์เองอยู่แล้ว ไม่ได้เชื่อค่าที่ส่งมาดิบ ๆ)
- */
-function attachmentUrl(a: MailAttachment, download: boolean): string {
-  const params = new URLSearchParams({ name: a.name, type: a.type });
-  if (download) params.set("download", "1");
-  return `/api/mail/attachments/${encodeURIComponent(a.blobId)}?${params.toString()}`;
 }
 
 /**
@@ -1035,14 +1024,12 @@ function MessageCard({
                       <span className="shrink-0 text-xs tabular-nums text-gray-500">
                         {formatMailSize(a.sizeBytes)}
                       </span>
-                      {INLINE_IMAGE_TYPES.has(a.type) && (
-                        <Button size="sm" variant="ghost" onClick={() => setPreview(a)}>
-                          <Eye className="h-4 w-4" />
-                          ดู
-                        </Button>
-                      )}
+                      <Button size="sm" variant="ghost" onClick={() => setPreview(a)}>
+                        <Eye className="h-4 w-4" />
+                        ดู
+                      </Button>
                       <Button size="sm" variant="outline" asChild>
-                        <a href={attachmentUrl(a, true)} download={a.name}>
+                        <a href={mailAttachmentUrl(a, true)} download={a.name}>
                           <Download className="h-4 w-4" />
                           ดาวน์โหลด
                         </a>
@@ -1113,25 +1100,7 @@ function MessageCard({
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!preview} onOpenChange={(o) => !o && setPreview(null)}>
-        <DialogContent size="3xl">
-          <DialogHeader>
-            <DialogTitle className="truncate">{preview?.name}</DialogTitle>
-          </DialogHeader>
-          <DialogBody>
-            {preview && (
-              <Image
-                src={attachmentUrl(preview, false)}
-                alt={preview.name}
-                width={1600}
-                height={1200}
-                unoptimized
-                className="h-auto w-full rounded-lg object-contain"
-              />
-            )}
-          </DialogBody>
-        </DialogContent>
-      </Dialog>
+      <MailAttachmentPreview attachment={preview} onClose={() => setPreview(null)} />
     </div>
   );
 }

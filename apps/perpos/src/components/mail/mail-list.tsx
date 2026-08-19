@@ -16,13 +16,14 @@
  * แล้วเราขึ้นแถบ "มีเมลใหม่ N ฉบับ" ค้างหัวรายการ กดแล้วค่อย merge
  */
 
-import { forwardRef, useCallback, useImperativeHandle, useMemo, useRef } from "react";
+import { forwardRef, useCallback, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { ArrowUp, Inbox, RefreshCw, SearchX } from "lucide-react";
 import { Virtualizer, type CustomItemComponentProps, type VirtualizerHandle } from "virtua";
 import cn from "@core/utils/class-names";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import type { MailMessage } from "@/lib/mail/types";
+import type { MailAttachment, MailMessage } from "@/lib/mail/types";
+import { MailAttachmentPreview } from "@/components/mail/mail-attachment-preview";
 import { MAIL_ROW_HEIGHT, MailRow } from "@/components/mail/mail-row";
 
 const ListItem = forwardRef<HTMLLIElement, CustomItemComponentProps>(function ListItem(
@@ -94,6 +95,8 @@ export const MailList = forwardRef<MailListHandle, MailListProps>(function MailL
   ref,
 ) {
   const vRef = useRef<VirtualizerHandle>(null);
+  /** ไฟล์แนบที่กำลังดูตัวอย่างจากชิปในรายการ (ไม่ต้องเปิดเมลก่อน) */
+  const [preview, setPreview] = useState<MailAttachment | null>(null);
 
   useImperativeHandle(ref, () => ({
     scrollToIndex: (index: number) => vRef.current?.scrollToIndex(index, { align: "nearest" }),
@@ -173,6 +176,7 @@ export const MailList = forwardRef<MailListHandle, MailListProps>(function MailL
               onToggleStar={() => onToggleStar(m)}
               onSwipeArchive={onSwipeArchive ? () => onSwipeArchive(m) : undefined}
               onSwipeTrash={onSwipeTrash ? () => onSwipeTrash(m) : undefined}
+              onPreviewAttachment={setPreview}
             />
           ))}
         </Virtualizer>
@@ -220,6 +224,7 @@ export const MailList = forwardRef<MailListHandle, MailListProps>(function MailL
         </div>
       )}
       <div className="min-h-0 flex-1">{body}</div>
+      <MailAttachmentPreview attachment={preview} onClose={() => setPreview(null)} />
     </div>
   );
 });
