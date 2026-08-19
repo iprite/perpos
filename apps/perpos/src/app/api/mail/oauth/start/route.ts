@@ -3,6 +3,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 import { mailNotConfigured } from "../../_lib";
+import { mailBasePath } from "@/lib/mail/base-path";
 import {
   buildAuthorizeUrl,
   codeChallengeS256,
@@ -22,7 +23,13 @@ export async function GET(req: NextRequest) {
 
   const codeVerifier = createCodeVerifier();
   const state = randomUrlSafe(32);
-  const returnTo = sanitizeReturnTo(req.nextUrl.searchParams.get("returnTo"));
+  /**
+   * ไม่ได้ระบุปลายทางมา (เช่นเด้งมาจาก middleware) = กลับกล่องขาเข้าของ **host นี้**
+   * — `sanitizeReturnTo` คืน `/` ซึ่งถูกเฉพาะบนโดเมนเมล · บน dev/โดเมนอื่น `/` คือหน้าแรกของ Suite
+   *   (อาการ: ล็อกอินเสร็จแล้วเด้งออกไปแอปหลักแทนที่จะเข้าเมล)
+   */
+  const requested = sanitizeReturnTo(req.nextUrl.searchParams.get("returnTo"));
+  const returnTo = requested === "/" ? `${mailBasePath(req.headers.get("host"))}/` : requested;
 
   const res = NextResponse.redirect(
     buildAuthorizeUrl(config, { state, codeChallenge: codeChallengeS256(codeVerifier) }),

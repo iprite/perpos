@@ -11,6 +11,7 @@
  */
 
 import { MailServiceError, buildDownloadUrl, buildUploadUrl, jmapRequest } from "./jmap";
+import { MAIL_LIST_WIDTH_DEFAULT, clampMailListWidth } from "./prefs-storage";
 import type { MailPrefs, MailSession } from "./types";
 
 const JMAP_USING_FILES = ["urn:ietf:params:jmap:core", "urn:ietf:params:jmap:filenode"] as const;
@@ -20,7 +21,10 @@ const PREFS_TYPE = "application/json";
 /** ไฟล์ตั้งค่าเล็กมาก — ใหญ่กว่านี้แปลว่ามีอะไรผิด ไม่ต้องอ่านต่อ */
 const MAX_BYTES = 8 * 1024;
 
-export const MAIL_PREFS_DEFAULT: MailPrefs = { pane: "split" };
+export const MAIL_PREFS_DEFAULT: MailPrefs = {
+  pane: "split",
+  listWidth: MAIL_LIST_WIDTH_DEFAULT,
+};
 
 interface FileNodeInfo {
   id: string;
@@ -46,8 +50,11 @@ async function findPrefsNode(session: MailSession): Promise<FileNodeInfo | null>
 /** ตรวจทีละช่อง — ไฟล์นี้ผู้ใช้แก้เองผ่าน IMAP/ไคลเอนต์อื่นได้ ห้ามเชื่อรูปร่างที่อ่านมา */
 export function normalizeMailPrefs(raw: unknown): MailPrefs {
   if (!raw || typeof raw !== "object") return MAIL_PREFS_DEFAULT;
-  const pane = (raw as Record<string, unknown>).pane;
-  return { pane: pane === "list" ? "list" : "split" };
+  const obj = raw as Record<string, unknown>;
+  return {
+    pane: obj.pane === "list" ? "list" : "split",
+    listWidth: clampMailListWidth(obj.listWidth),
+  };
 }
 
 export async function readMailPrefs(session: MailSession): Promise<MailPrefs> {

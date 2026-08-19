@@ -53,9 +53,13 @@ export default async function MailPage({
     jar.get(MAIL_HOST_CONNECTED_COOKIE)?.value === "1" ||
     jar.get(MAIL_CONNECTED_COOKIE)?.value === "1";
   const basePath = mailBasePath((await headers()).get("host"));
-  if (!connected) redirect(`${basePath}/login`);
-
   const params = await searchParams;
+  if (!connected) {
+    // เปิดลิงก์ตรงมาที่กล่องใดกล่องหนึ่ง แล้วต้องล็อกอินก่อน → กลับมาที่กล่องเดิม ไม่ใช่หน้าแรก
+    const target = `${basePath}/${params.box ? `?box=${encodeURIComponent(params.box)}` : ""}`;
+    redirect(`${basePath}/login?returnTo=${encodeURIComponent(target)}`);
+  }
+
   const selector = resolveBoxSelector(params.box);
   // โฟลเดอร์ที่ผู้ใช้สร้างเอง: SSR ไม่รู้ชื่อ (cookie ของเมลจำกัด path ไว้ที่ /api/mail)
   // → ส่งป้ายชั่วคราวไป แล้ว workspace เปลี่ยนเป็นชื่อจริงเมื่อโหลดรายการกล่องเสร็จ

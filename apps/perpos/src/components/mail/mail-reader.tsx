@@ -16,7 +16,15 @@
  *  - "แสดงรูป" ผูกกับ message id เดียว ห้ามเป็น state รวมทั้งเธรด
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import Image from "next/image";
 import {
   Archive,
@@ -26,6 +34,7 @@ import {
   ReplyAll,
   Download,
   Eye,
+  Filter,
   FolderInput,
   ImageOff,
   Mail,
@@ -40,6 +49,7 @@ import {
 } from "lucide-react";
 import cn from "@core/utils/class-names";
 import { Button } from "@/components/ui/button";
+import { MailRuleDialog, type MailRuleSeed } from "@/components/mail/mail-rule-dialog";
 import { Input } from "@/components/ui/input";
 import { Dropdown } from "@/components/ui/dropdown";
 import { Avatar } from "@/components/ui/avatar";
@@ -94,6 +104,17 @@ function attachmentUrl(a: MailAttachment, download: boolean): string {
   return `/api/mail/attachments/${encodeURIComponent(a.blobId)}?${params.toString()}`;
 }
 
+/**
+ * "ตอนนี้ผู้ใช้กำลังลากตัวแบ่งอยู่" — ส่งลงมาจาก `MailWorkspace`
+ *
+ * ระหว่างลาก การ์ดเมลต้อง **หยุดวัด/หยุดคิดโหมดย่อ** ทั้งหมด ไม่งั้นได้ลูป:
+ * กรอบเปลี่ยนความกว้าง → เอกสารใน iframe reflow → สคริปต์ข้างในส่งความสูง/ความกว้างใหม่
+ * → กรอบนอกเปลี่ยนความสูง + สลับโหมดย่อ → reflow อีก … วนทุกเฟรมจนเห็นเป็นเนื้อหากระพริบ
+ * (Roundcube ไม่เจอปัญหานี้เพราะ iframe ของเขาสูงเท่ากรอบและไม่มีโหมดย่อ — เราเลือกทางที่
+ *  สูงตามเนื้อหา+ย่อพอดีกรอบ จึงต้องกันลูปเอง)
+ */
+export const MailPaneResizeContext = createContext(false);
+
 export interface MailReaderProps {
   detail: MailThreadDetail | null;
   loading: boolean;
@@ -116,6 +137,10 @@ export interface MailReaderProps {
    *     พอกินเต็มจอแล้วยังคับเท่าเดิม จะเหลือขอบขาวสองข้างเป็นบริเวณกว้าง
    */
   standalone?: boolean;
+  /** คำนำหน้าลิงก์ของโซนเมล (invariant ข้อ 0) — ส่งต่อให้กล่องสร้างกฎกรอง */
+  basePath: string;
+  /** โฟลเดอร์ที่กำลังเปิดอยู่ (ถ้าเป็นของผู้ใช้เอง) = ปลายทางที่เดาให้ตอนสร้างกฎ */
+  currentFolderId?: string | null;
   /** M3 — โฟลเดอร์ที่ย้ายไปได้ (ว่าง = ยังไม่มีโฟลเดอร์ ⇒ ไม่แสดงปุ่ม) */
   moveTargets?: MailFolder[];
   onMove?: (folder: MailFolder) => void;
@@ -133,6 +158,8 @@ export function MailReader({
   canArchive = true,
   canTrash = true,
   standalone = false,
+  basePath,
+  currentFolderId = null,
   onRetry,
   onBack,
   onArchive,
@@ -178,6 +205,8 @@ export function MailReader({
       canArchive={canArchive}
       canTrash={canTrash}
       standalone={standalone}
+      basePath={basePath}
+      currentFolderId={currentFolderId}
       onBack={onBack}
       onArchive={onArchive}
       onTrash={onTrash}
@@ -197,6 +226,8 @@ function ThreadView({
   canArchive,
   canTrash,
   standalone,
+  basePath,
+  currentFolderId,
   onBack,
   onArchive,
   onTrash,
@@ -212,6 +243,8 @@ function ThreadView({
   canArchive: boolean;
   canTrash: boolean;
   standalone: boolean;
+  basePath: string;
+  currentFolderId: string | null;
   onBack: () => void;
   onArchive: () => void;
   onTrash: () => void;
@@ -291,6 +324,17 @@ function ThreadView({
     [totalHits],
   );
 
+  /**
+   * สร้างกฎกรองจากฉบับที่กำลังอ่าน — ใช้ **ฉบับล่าสุดในเธรด** (ฉบับที่กางอยู่)
+   * ไม่ใช่ฉบับแรก เพราะเธรดยาว ๆ ผู้ส่งคนแรกมักไม่ใช่คนที่ผู้ใช้อยากกรอง
+   */
+  const [ruleOpen, setRuleOpen] = useState(false);
+  const ruleSeed: MailRuleSeed | null = useMemo(() => {
+    const last = messages[messages.length - 1];
+    if (!last?.from?.email) return null;
+    return { fromEmail: last.from.email, fromName: last.from.name, subject: detail.subject ?? "" };
+  }, [messages, detail.subject]);
+
   const toggle = useCallback((id: string) => {
     setExpanded((prev) => {
       const next = new Set(prev);
@@ -340,6 +384,17 @@ function ThreadView({
           >
             <Star className={cn("h-4 w-4", flagged && "fill-amber-400 text-amber-500")} />
           </Button>
+          {ruleSeed && (
+            <Button
+              variant="ghost"
+              size="icon"
+              title="สร้างกฎกรองจากเมลนี้"
+              aria-label="สร้างกฎกรองจากเมลนี้"
+              onClick={() => setRuleOpen(true)}
+            >
+              <Filter className="h-4 w-4" />
+            </Button>
+          )}
           {moveTargets.length > 0 && onMove && (
             <Dropdown
               label="ย้ายไป"
@@ -384,6 +439,14 @@ function ThreadView({
           )}
         </div>
       </div>
+
+      <MailRuleDialog
+        open={ruleOpen}
+        onOpenChange={setRuleOpen}
+        seed={ruleSeed}
+        basePath={basePath}
+        defaultMailboxId={currentFolderId}
+      />
 
       {findOpen && (
         <div className="flex items-center gap-2 border-b border-gray-200 bg-gray-50 px-3 py-2">
@@ -543,6 +606,13 @@ function MessageCard({
   const [fitOverride, setFitOverride] = useState<boolean | null>(null);
   const paneRef = useRef<HTMLDivElement>(null);
 
+  /** กำลังลากตัวแบ่งอยู่ไหม — เก็บเป็น ref ด้วยเพราะ listener/observer อ่านค่าตอนถูกเรียก */
+  const resizing = useContext(MailPaneResizeContext);
+  const resizingRef = useRef(resizing);
+  useEffect(() => {
+    resizingRef.current = resizing;
+  }, [resizing]);
+
   const showImages = useCallback(async () => {
     setLoadingImages(true);
     try {
@@ -611,6 +681,8 @@ function MessageCard({
 
     const onMessage = (e: MessageEvent) => {
       if (!frameRef.current || e.source !== frameRef.current.contentWindow) return;
+      // ลากอยู่ = ไม่รับค่าที่วัดระหว่างทาง (ดู MailPaneResizeContext) — วัดใหม่ทีเดียวตอนปล่อยมือ
+      if (resizingRef.current) return;
       const data = e.data as {
         type?: unknown;
         height?: unknown;
@@ -657,15 +729,42 @@ function MessageCard({
     };
   }, [srcDoc, message.id]);
 
-  // วัดความกว้างของกรอบจริง (ของเหนือ-ล่างยุบ/กางได้ ⇒ ต้องเฝ้า ไม่ใช่วัดครั้งเดียว)
+  /**
+   * วัดความกว้างของกรอบจริง (ของเหนือ-ล่างยุบ/กางได้ ⇒ ต้องเฝ้า ไม่ใช่วัดครั้งเดียว)
+   * — รวบหลายครั้งใน 1 เฟรมด้วย rAF และข้ามการเปลี่ยนที่ต่ำกว่า 2px (เศษจาก scrollbar/zoom)
+   * — ระหว่างลากตัวแบ่ง ไม่วัดเลย (ค่าค้างไว้เท่าตอนก่อนเริ่มลาก)
+   */
   useEffect(() => {
     const el = paneRef.current;
     if (!el || typeof ResizeObserver === "undefined") return;
-    const ro = new ResizeObserver(() => setPaneWidth(el.clientWidth));
+    let raf = 0;
+    const measure = () => {
+      raf = 0;
+      const w = el.clientWidth;
+      setPaneWidth((prev) => (Math.abs(prev - w) < 2 ? prev : w));
+    };
+    const ro = new ResizeObserver(() => {
+      if (resizingRef.current || raf) return;
+      raf = requestAnimationFrame(measure);
+    });
     ro.observe(el);
-    setPaneWidth(el.clientWidth);
-    return () => ro.disconnect();
+    measure();
+    return () => {
+      if (raf) cancelAnimationFrame(raf);
+      ro.disconnect();
+    };
   }, [open]);
+
+  /** ปล่อยมือจากตัวแบ่งแล้วค่อยวัดรอบเดียว (กรอบ + ถามความสูง/ความกว้างจาก frame ใหม่) */
+  useEffect(() => {
+    if (resizing) return;
+    const el = paneRef.current;
+    if (el) {
+      const w = el.clientWidth;
+      setPaneWidth((prev) => (Math.abs(prev - w) < 2 ? prev : w));
+    }
+    frameRef.current?.contentWindow?.postMessage({ type: MAIL_HEIGHT_PING }, "*");
+  }, [resizing]);
 
   /**
    * ย่อให้พอดีกรอบ — เมลจากธนาคาร/จดหมายข่าวมักตรึงความกว้างไว้ 600–900px
@@ -675,9 +774,27 @@ function MessageCard({
    * การย่อทำให้ตัวหนังสือเล็กจนอ่านไม่ได้ → ปล่อยให้เลื่อน หรือกด "เปิดเต็มหน้า" แทน
    */
   const overflowRatio = contentWidth > 0 && paneWidth > 0 ? paneWidth / contentWidth : 1;
-  const canFit = overflowRatio < 0.98;
-  const fit = fitOverride ?? (canFit && overflowRatio >= 0.6);
-  const scale = fit && canFit ? overflowRatio : 1;
+
+  /**
+   * เกณฑ์เข้า-ออกคนละค่า (hysteresis): เข้าโหมดย่อเมื่อกรอบแคบกว่าเนื้อหาจริง (<0.98)
+   * แต่จะออกก็ต่อเมื่อกรอบกว้างพ้นเนื้อหาชัดเจนแล้ว (>1.02) — ใช้เกณฑ์เดียวกันทั้งเข้าและออก
+   * เมื่อไร ความกว้างที่วนอยู่แถวเส้นแบ่งจะสลับโหมดกลับไปกลับมาไม่จบ (= กระพริบ)
+   */
+  const [autoFit, setAutoFit] = useState(false);
+  useEffect(() => {
+    if (!contentWidth || !paneWidth) return;
+    const ratio = paneWidth / contentWidth;
+    setAutoFit((prev) => {
+      // ย่อแล้วตัวหนังสือเล็กจนอ่านไม่ออก → ปล่อยให้เลื่อนซ้าย-ขวา หรือกด "เปิดเต็มหน้า"
+      if (ratio < 0.6) return false;
+      return prev ? ratio < 1.02 : ratio < 0.98;
+    });
+  }, [contentWidth, paneWidth]);
+
+  /** ปุ่มสลับต้องไม่หายวูบตอนกำลังย่ออยู่ ⇒ นับ autoFit เป็น "ย่อได้" ด้วย */
+  const canFit = overflowRatio < 0.98 || autoFit;
+  const fit = fitOverride ?? autoFit;
+  const scale = fit ? Math.min(1, overflowRatio) : 1;
 
   /** โฟกัสคำค้นเปลี่ยน → บอก frame ให้เลื่อนไปหา (frame เลื่อนจออย่างเดียว ไม่แก้ DOM) */
   useEffect(() => {

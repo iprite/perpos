@@ -32,9 +32,9 @@ const REASON_MESSAGE: Record<string, string> = {
 export default async function MailLoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ reason?: string }>;
+  searchParams: Promise<{ reason?: string; returnTo?: string }>;
 }) {
-  const { reason } = await searchParams;
+  const { reason, returnTo } = await searchParams;
   const message = reason ? REASON_MESSAGE[reason] : undefined;
 
   return (
@@ -60,6 +60,8 @@ export default async function MailLoginPage({
           </Text>
           {/* เป็น API route (302 ไปเซิร์ฟเวอร์เมล) ไม่ใช่หน้าในแอป → ใช้ form GET ไม่ใช่ <Link> */}
           <form action="/api/mail/oauth/start" method="get" className="mt-6 w-full">
+            {/* ล็อกอินเสร็จแล้วกลับหน้าที่ตั้งใจเปิด — ค่าถูกกรองอีกชั้นด้วย `sanitizeReturnTo` ที่ start */}
+            {returnTo && <input type="hidden" name="returnTo" value={returnTo} />}
             <Button type="submit" className="w-full">
               เข้าสู่ระบบ
             </Button>

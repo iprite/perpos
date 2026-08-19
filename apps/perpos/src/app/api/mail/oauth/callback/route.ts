@@ -8,6 +8,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 import { mailNotConfigured } from "../../_lib";
+import { mailBasePath } from "@/lib/mail/base-path";
 import { exchangeAuthorizationCode, readMailConfig, sanitizeReturnTo } from "@/lib/mail/oauth";
 import {
   buildMailSession,
@@ -20,8 +21,22 @@ import {
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
+/**
+ * หน้าเข้าสู่ระบบของโซนเมล — **ห้ามฮาร์ดโค้ด `/login`** (invariant ข้อ 0 ของ `(mail)`)
+ * บนโดเมนเมลคือ `/login` แต่บน dev/โดเมนอื่นคือ `/mail/login` (ไม่งั้นได้ 404 ของ Suite)
+ */
+function loginUrl(appBaseUrl: string, reason: string): string {
+  let host: string | null = null;
+  try {
+    host = new URL(appBaseUrl).host;
+  } catch {
+    /* ค่าเพี้ยน = ถือว่าไม่ใช่โดเมนเมล → ได้ `/mail/login` ซึ่งใช้ได้ทุกที่ */
+  }
+  return `${appBaseUrl}${mailBasePath(host)}/login?reason=${reason}`;
+}
+
 function connectRedirect(config: { appBaseUrl: string }, reason: string) {
-  const res = NextResponse.redirect(`${config.appBaseUrl}/login?reason=${reason}`, {
+  const res = NextResponse.redirect(loginUrl(config.appBaseUrl, reason), {
     status: 302,
   });
   res.headers.set("Cache-Control", "private, no-store");

@@ -152,6 +152,8 @@ export type MailPaneMode = "split" | "list";
 
 export interface MailPrefs {
   pane: MailPaneMode;
+  /** ความกว้างคอลัมน์รายการ (px) ตอนมุมมอง `split` — ผู้ใช้ลากตัวแบ่งเองได้ */
+  listWidth: number;
 }
 
 // ─── กฎกรองอัตโนมัติ (Sieve — M3) ─────────────────────────────────────────────
