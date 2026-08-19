@@ -56,6 +56,8 @@ export interface MailRowProps {
   onSwipeTrash?: () => void;
   /** กดชิปไฟล์แนบ → เปิดกล่องดูตัวอย่าง/ดาวน์โหลด (ไม่เปิดเมล) */
   onPreviewAttachment?: (attachment: MailAttachment) => void;
+  /** ชื่อกล่องที่เมลฉบับนี้อยู่ — มีเฉพาะตอนผลค้นหาข้ามกล่อง */
+  boxLabel?: string;
 }
 
 function senderLabel(m: MailMessage): string {
@@ -73,6 +75,7 @@ function MailRowBase({
   onSwipeArchive,
   onSwipeTrash,
   onPreviewAttachment,
+  boxLabel,
 }: MailRowProps) {
   const unread = message.isUnread;
   const subject = message.subject?.trim() || "(ไม่มีหัวเรื่อง)";
@@ -218,6 +221,11 @@ function MailRowBase({
                 </span>
               )}
             </span>
+            {boxLabel && (
+              <span className="shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">
+                {boxLabel}
+              </span>
+            )}
             <span className="shrink-0 text-xs tabular-nums text-gray-500">
               {formatMailTime(message.receivedAt)}
             </span>

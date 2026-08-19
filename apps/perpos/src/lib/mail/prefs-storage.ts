@@ -8,7 +8,7 @@
  * ต้องใช้คีย์เดียวกัน — และ shell ต้องไม่ import ตัว workspace ทั้งก้อนมาเพียงเพื่อค่าคงที่ตัวเดียว
  */
 
-import type { MailPaneMode } from "./types";
+import type { MailPaneMode, MailSearchScope } from "./types";
 
 /**
  * ขอบเขตความกว้างคอลัมน์รายการ (px) — อยู่ที่นี่เพราะทั้งฝั่งเบราว์เซอร์ (ตัวลาก)
@@ -23,6 +23,25 @@ export const MAIL_LIST_WIDTH_DEFAULT = 380;
 export function clampMailListWidth(raw: unknown): number {
   if (typeof raw !== "number" || !Number.isFinite(raw)) return MAIL_LIST_WIDTH_DEFAULT;
   return Math.round(Math.min(MAIL_LIST_WIDTH_MAX, Math.max(MAIL_LIST_WIDTH_MIN, raw)));
+}
+
+export const MAIL_SEARCH_SCOPE_STORAGE_KEY = "perpos_mail_search_scope";
+
+/** ขอบเขตค้นหาล่าสุดที่ผู้ใช้เลือก — ความชอบของเครื่อง ไม่ต้องขึ้นเซิร์ฟเวอร์ */
+export function readCachedSearchScope(): MailSearchScope | null {
+  try {
+    return localStorage.getItem(MAIL_SEARCH_SCOPE_STORAGE_KEY) === "box" ? "box" : null;
+  } catch {
+    return null;
+  }
+}
+
+export function cacheSearchScope(scope: MailSearchScope): void {
+  try {
+    localStorage.setItem(MAIL_SEARCH_SCOPE_STORAGE_KEY, scope);
+  } catch {
+    /* โหมดส่วนตัว = ไม่จำ ไม่เป็นไร */
+  }
 }
 
 export const MAIL_PANE_STORAGE_KEY = "perpos_mail_pane";
@@ -70,6 +89,7 @@ export function clearCachedPane(): void {
   try {
     localStorage.removeItem(MAIL_PANE_STORAGE_KEY);
     localStorage.removeItem(MAIL_LIST_WIDTH_STORAGE_KEY);
+    localStorage.removeItem(MAIL_SEARCH_SCOPE_STORAGE_KEY);
   } catch {
     /* ไม่มีอะไรให้ล้าง */
   }

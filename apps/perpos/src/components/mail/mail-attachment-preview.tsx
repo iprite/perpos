@@ -9,6 +9,7 @@
  *    **ห้ามแก้ให้ iframe ไฟล์ที่ไม่ได้อยู่ใน allowlist เพื่อให้ "ดูตัวอย่างได้"**
  */
 
+import { useEffect, useState } from "react";
 import Image from "next/image";
 import { Download, FileQuestion } from "lucide-react";
 
@@ -22,6 +23,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Text } from "@/components/ui/typography";
+import { MailPdfPreview, PDF_PREVIEW_MAX_BYTES } from "@/components/mail/mail-pdf-preview";
 import { INLINE_IMAGE_TYPES } from "@/lib/mail/jmap";
 import { formatMailSize } from "@/lib/mail/format";
 import type { MailAttachment } from "@/lib/mail/types";
@@ -40,8 +42,18 @@ export function MailAttachmentPreview({
   attachment: MailAttachment | null;
   onClose: () => void;
 }) {
-  const canPreview =
+  /** เรนเดอร์ PDF ไม่สำเร็จ (ไฟล์เพี้ยน/ฟอนต์แปลก) = ตกไปโหมดดาวน์โหลดอย่างเดียว ไม่ค้างจอเปล่า */
+  const [pdfFailed, setPdfFailed] = useState(false);
+  useEffect(() => setPdfFailed(false), [attachment?.blobId]);
+
+  const isImage =
     !!attachment && (INLINE_IMAGE_TYPES as readonly string[]).includes(attachment.type);
+  const isPdf =
+    !!attachment &&
+    attachment.type === "application/pdf" &&
+    attachment.sizeBytes <= PDF_PREVIEW_MAX_BYTES &&
+    !pdfFailed;
+  const canPreview = isImage || isPdf;
 
   return (
     <Dialog open={!!attachment} onOpenChange={(o) => !o && onClose()}>
@@ -50,7 +62,14 @@ export function MailAttachmentPreview({
           <DialogTitle className="truncate">{attachment?.name}</DialogTitle>
         </DialogHeader>
         <DialogBody>
-          {attachment && canPreview && (
+          {attachment && isPdf && (
+            <MailPdfPreview
+              url={mailAttachmentUrl(attachment, false)}
+              label={attachment.name}
+              onFail={() => setPdfFailed(true)}
+            />
+          )}
+          {attachment && isImage && (
             <Image
               src={mailAttachmentUrl(attachment, false)}
               alt={attachment.name}

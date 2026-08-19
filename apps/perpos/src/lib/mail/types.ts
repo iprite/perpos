@@ -139,10 +139,18 @@ export interface MailUndoToken {
 
 // ─── คำขอ/ผลลัพธ์ของรายการ ────────────────────────────────────────────────────
 
+export type MailSearchScope = "all" | "box";
+
 export interface MailListParams {
   /** ตัวเลือกกล่อง — คีย์ระบบ (`inbox`…) หรือ `f:<mailboxId>` ของโฟลเดอร์เอง (ดู `boxes.ts`) */
   box: string;
   q?: string;
+  /**
+   * ขอบเขตการค้นหา — มีผลเฉพาะเมื่อมี `q`
+   * `all` (ค่าเริ่มต้น) = ทั้งกล่องเมล **ยกเว้นถังขยะ/จดหมายขยะ** · `box` = เฉพาะกล่องที่เปิดอยู่
+   * (ค้นในกล่องขาเข้าอย่างเดียวแปลว่าเมลที่กฎกรองย้ายไปโฟลเดอร์แล้วจะหาไม่เจอตลอดกาล)
+   */
+  searchScope?: MailSearchScope;
   unread?: boolean;
   attachment?: boolean;
   anchor?: string;

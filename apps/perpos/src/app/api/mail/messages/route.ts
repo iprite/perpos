@@ -33,6 +33,8 @@ export async function POST(req: NextRequest) {
   const params = {
     box,
     q: typeof body.q === "string" ? body.q.slice(0, 200) : undefined,
+    // ค่าอื่นที่ไม่รู้จัก = `all` (ค้นทั้งกล่องเมล) — ดูเหตุผลใน `buildFilter`
+    searchScope: body.searchScope === "box" ? ("box" as const) : ("all" as const),
     unread: body.unread === true,
     attachment: body.attachment === true,
     anchor: typeof body.anchor === "string" ? body.anchor : undefined,
