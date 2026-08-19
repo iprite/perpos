@@ -149,3 +149,40 @@ jobs:
         run: |
           sleep 8
           curl -sf -o /dev/null -w "%{http_code}\n" --resolve app.perpos.ai:443:${{ secrets.VPS_HOST }} https://app.perpos.ai/ | grep -qE "^(200|307|308)$"
+
+      # แจ้งผล deploy ทาง LINE (super_admin) ทุกครั้ง — สำเร็จ/ล้ม/ยกเลิก · ใช้ secret ชุดเดียวกับ uptime.yml
+      # (ยิงตรงไป LINE ไม่ผ่านแอป — deploy ที่ล้มอาจทำให้แอปตอบไม่ได้)
+      - name: Notify LINE (ผล deploy)
+        if: always()
+        env:
+          LINE_TOKEN: ${{ secrets.LINE_MESSAGING_CHANNEL_ACCESS_TOKEN }}
+          LINE_IDS: ${{ secrets.ALERT_LINE_USER_IDS }}
+          STATUS: ${{ job.status }}
+          TITLE: ${{ github.event.head_commit.message }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          SHA: ${{ github.sha }}
+        run: |
+          if [ -z "$LINE_TOKEN" ] || [ -z "$LINE_IDS" ]; then
+            echo "::warning::ขาด secret LINE_MESSAGING_CHANNEL_ACCESS_TOKEN หรือ ALERT_LINE_USER_IDS — ข้ามการแจ้งเตือน"
+            exit 0
+          fi
+          case "$STATUS" in
+            success)   ICON="✅"; HEAD="deploy perpos ขึ้น VPS แล้ว";;
+            cancelled) ICON="⚪"; HEAD="deploy perpos ถูกยกเลิก";;
+            *)         ICON="🔴"; HEAD="deploy perpos ล้มเหลว — prod ยังเป็น release เดิม";;
+          esac
+          FIRST_LINE=$(printf '%s' "$TITLE" | head -n1 | cut -c1-120)
+          MSG="$ICON $HEAD
+          $FIRST_LINE
+          ${SHA:0:12} · $(TZ=Asia/Bangkok date '+%d/%m %H:%M')
+          $RUN_URL"
+          IFS=','
+          for id in $LINE_IDS; do
+            id=$(echo "$id" | xargs)
+            [ -z "$id" ] && continue
+            payload=$(jq -n --arg to "$id" --arg text "$MSG" '{to:$to, messages:[{type:"text", text:$text}]}')
+            curl -s -X POST https://api.line.me/v2/bot/message/push \
+              -H "Authorization: Bearer $LINE_TOKEN" \
+              -H "Content-Type: application/json" \
+              -d "$payload" -o /dev/null -w "LINE push -> $id: HTTP %{http_code}\n"
+          done
