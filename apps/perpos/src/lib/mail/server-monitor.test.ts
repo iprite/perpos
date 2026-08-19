@@ -352,6 +352,28 @@ describe("cron + ใบรับรอง origin", () => {
     expect(evaluateHostIssues(hb, NOW)).toEqual({});
   });
 
+  it("มี URL เก่า+ใหม่ของงานเดียวกัน → ใช้ครั้งล่าสุด ไม่ใช่ตัวแรกที่เจอ", () => {
+    const hb = withCron([
+      { url: "http://127.0.0.1:3005/api/tmc/notify/daily-occupancy", lastRunAt: nowS - 40 * 3600 },
+      { url: "https://app.perpos.ai/api/tmc/notify/daily-occupancy", lastRunAt: nowS - 2 * 3600 },
+      { url: "https://app.exworker.co.th/api/admin/rep-usage/recalc", lastRunAt: nowS - 2 * 3600 },
+      { url: "https://app.perpos.ai/api/gov-procure/notify/aging", lastRunAt: nowS - 2 * 3600 },
+      { url: "https://app.perpos.ai/api/gov-procure/notify/weekly", lastRunAt: nowS - 2 * 86400 },
+    ]);
+    expect(evaluateHostIssues(hb, NOW)).toEqual({});
+  });
+
+  // cron.d ยิงผ่าน Caddy (ไม่มีพอร์ตใน URL) ตั้งแต่ 2026-08-19 — เงื่อนไขที่ผูกพอร์ตเคยทำให้เตือนผิดว่า "ไม่เคยเห็น"
+  it("URL แบบผ่าน Caddy (ไม่มีพอร์ต) ต้อง match ได้เหมือนกัน", () => {
+    const hb = withCron([
+      { url: "https://app.exworker.co.th/api/admin/rep-usage/recalc", lastRunAt: nowS - 20 * 3600 },
+      { url: "https://app.perpos.ai/api/tmc/notify/daily-occupancy", lastRunAt: nowS - 20 * 3600 },
+      { url: "https://app.perpos.ai/api/gov-procure/notify/aging", lastRunAt: nowS - 20 * 3600 },
+      { url: "https://app.perpos.ai/api/gov-procure/notify/weekly", lastRunAt: nowS - 5 * 86400 },
+    ]);
+    expect(evaluateHostIssues(hb, NOW)).toEqual({});
+  });
+
   it("exapp รายวันเกิน 26 ชม. → เตือน · cron daemon หยุด → เตือน · scheduler perpos ไม่ใช่ cron แล้ว (worker container)", () => {
     const hb = withCron([
       // แถวเก่าใน journal (ก่อนย้ายเป็น worker) ต้องไม่ทำให้เตือน

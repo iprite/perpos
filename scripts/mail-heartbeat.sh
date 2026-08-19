@@ -131,7 +131,9 @@ if command -v journalctl >/dev/null 2>&1; then
   cron_jobs=$(journalctl -u cron --since "-72h" -o short-unix --no-pager 2>/dev/null | awk '
     /CMD \(curl/ {
       ts = int($1)
-      if (match($0, /http:\/\/127\.0\.0\.1:[0-9]+\/[^ >")]+/)) { u = substr($0, RSTART, RLENGTH); last[u] = ts }
+      # cron.d ยิงผ่าน Caddy แล้ว (https://app.perpos.ai/… + --resolve) ไม่ใช่ http://127.0.0.1:<port>/… อีก
+      # → จับ URL แบบไม่ผูก host/port (ฝั่งแอป EXPECTED_CRON จับคู่ด้วย path เท่านั้น)
+      if (match($0, /https?:\/\/[^ >")]+/)) { u = substr($0, RSTART, RLENGTH); last[u] = ts }
     }
     END {
       printf "["; n = 0
