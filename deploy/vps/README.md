@@ -117,6 +117,16 @@ port 3005–3007 bind ที่ `127.0.0.1` เท่านั้นใน compo
   - ไม่มี secret VPS = ข้ามขั้นนี้เงียบ ๆ (เตือนแบบเดิม)
 - ทางที่สะดวกกว่ากดเอง: เปิด Claude จากมือถือแล้วบอก "perpos ล่ม ดูให้ที" — agent รัน `gh workflow run ops-vps -f action=status` / `logs-perpos` วินิจฉัย แล้วค่อยสั่ง restart/rollback ผ่าน workflow เดียวกัน (สิทธิ์เท่ากับที่กดมือ ไม่มีช่องรันคำสั่งดิบ)
 
+## DR — เว็บร่วง / เครื่องร่วง
+
+**Vercel standby (เว็บเท่านั้น · $0)** — ทุก deploy VPS สำเร็จ workflow จะ `vercel build` + `deploy --prebuilt --prod --skip-domain` ขึ้น Vercel ด้วย (step "Warm Vercel standby" · ต้องมี secret `VERCEL_TOKEN` ทั้ง 3 repo — ไม่มี = ข้ามเงียบ) ⇒ มี deployment Ready ที่ `*.vercel.app` เสมอ แต่**ไม่รับ traffic** (production domain ถูกถอดไปชี้ VPS) · URL ดิบตอบ 302 SSO = Deployment Protection ปกติ
+
+- **สลับไป Vercel ตอนแอปบน VPS พัง** (≈2 นาที): Cloudflare DNS → `app.perpos.ai` (หรือ `app.exworker.co.th` / `app.riekchang.com`) เปลี่ยน A → **CNAME `cname.vercel-dns.com`** เมฆส้ม → Vercel dashboard → Project → Settings → Domains → Add โดเมนกลับ (ถูกถอดเพราะ `--skip-domain`) → รอ ~1 นาที · **`mail.perpos.ai` ก็ทำแบบเดียวกันได้** (webmail คุย JMAP กับ SG — ถ้า SG ยังรันเมลอยู่)
+- **สลับกลับ**: Vercel → Domains → Remove → Cloudflare → A `62.146.233.27` เมฆส้ม
+- ข้อจำกัด: env บน Vercel = ชุดตอนย้าย (ค่า Sensitive ยังอยู่ครบ แค่อ่านไม่ได้) — ถ้าแก้ env บน VPS ต้องไป `vercel env add` ด้วยถึงจะตรง · cron/worker/เมลยังอยู่ SG — ช่วยเฉพาะ "แอปพัง" ไม่ใช่ "เครื่องพัง"
+
+**เครื่องร่วงทั้งก้อน** — Contabo **snapshot** (1 ก้อนฟรี · สร้าง 2026-08-19 ตอนระบบนิ่งครบ · **หมดอายุเอง 30 วัน ต้องสร้างซ้ำทุกเดือน** CCP → vmi3517994 → Snapshots) → restore = เครื่องใหม่ใน ~15 นาที (IP เดิม) · ถ้า snapshot หมดอายุ: สร้างเครื่องใหม่ตาม §Setup + deploy ผ่าน CI + restore เมลจาก R2 backup (§MAIL_CONTABO_MIGRATION_PLAN §15)
+
 ## Firewall (2 ชั้น)
 
 1. **Contabo Firewall (network-level, ฟรี) — `perpos-sg-web-mail`** ผูกกับ instance 203517994 (2026-08-19, ตั้งผ่าน API) · inbound allow: tcp 22 · 80/443 · **udp 443 (h3)** · 25/465/587 · 993/995 · 4190 · icmp — ที่เหลือ drop (v4+v6) · ทดสอบแล้ว: port ที่เปิด open ครบ, 8080/3005 ถูก drop เงียบ (timeout ไม่ใช่ refused)

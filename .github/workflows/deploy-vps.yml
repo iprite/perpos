@@ -161,7 +161,7 @@ jobs:
       # ไม่มี VERCEL_TOKEN = ข้ามเงียบ · ล้มไม่ทำให้ deploy VPS แดง (continue-on-error)
       - name: Warm Vercel standby
         continue-on-error: true
-        working-directory: apps/perpos
+        # รันจาก root ของ repo — Vercel project ตั้ง Root Directory = apps/perpos ไว้แล้ว (รันใน apps/ = path ซ้อน ENOENT)
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: team_8CbScV5IBAxTH2ypaiI3vthg
@@ -170,9 +170,9 @@ jobs:
           set -euo pipefail
           [ -n "${VERCEL_TOKEN:-}" ] || { echo "ไม่มี VERCEL_TOKEN — ข้าม standby"; exit 0; }
           npx -y vercel@latest pull --yes --environment=production --token="$VERCEL_TOKEN" >/dev/null
-          npx -y vercel@latest build --prod --token="$VERCEL_TOKEN" >/dev/null
-          URL=$(npx -y vercel@latest deploy --prebuilt --prod --skip-domain --token="$VERCEL_TOKEN")
-          echo "standby: $URL"
+          npx -y vercel@latest build --prod --token="$VERCEL_TOKEN" >/dev/null 2>&1
+          # --skip-domain = deployment Ready ที่ *.vercel.app แต่ไม่แย่ง production domain (ซึ่งเราชี้ VPS อยู่)
+          npx -y vercel@latest deploy --prebuilt --prod --skip-domain --token="$VERCEL_TOKEN" 2>&1 | grep -oE "https://[a-z0-9.-]+\.vercel\.app" | tail -1 | sed "s/^/standby: /"
 
       - name: Health check
         run: |
