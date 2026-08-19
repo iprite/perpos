@@ -88,7 +88,7 @@ jobs:
           rel() {  # แสดง release ทั้งหมดของแอป + ตัวที่ current ชี้ + sha
             local app=$1 cur; cur=$(readlink -f /srv/apps/$app/current 2>/dev/null || echo '?')
             echo "── $app  current → ${cur##*/}  ($(cat $cur/RELEASE 2>/dev/null | cut -c1-12 || echo '?'))"
-            ls -1t /srv/apps/$app/releases 2>/dev/null | sed "s|^|   |;s|^   ${cur##*/}\$|   ${cur##*/}  ◀ current|"
+            ls -1 /srv/apps/$app/releases 2>/dev/null | sort -r | sed "s|^|   |;s|^   ${cur##*/}\$|   ${cur##*/}  ◀ current|"
           }
           switch() {  # restart/rollback ผ่านสคริปต์ blue/green ของ release ที่ current ชี้ (fallback = ก็อปใน /srv/deploy)
             local app=$1 port=$2; shift 2
@@ -100,7 +100,9 @@ jobs:
           rollback() {  # ชี้ symlink ไป release ก่อนหน้าตัวที่ current ชี้ แล้ว switch · ล้ม = ดึง symlink กลับ
             local app=$1 port=$2; shift 2
             local cur prev; cur=$(readlink -f /srv/apps/$app/current)
-            prev=$(ls -1dt /srv/apps/$app/releases/* | grep -vx "$cur" | head -n1 || true)
+            # เรียงตาม "ชื่อ" (= timestamp ตอน deploy) ไม่ใช่ mtime — เลือกตัวที่เก่ากว่า current ถัดไป 1 ขั้น
+            # (mtime เชื่อไม่ได้: ls -t เคยเอา 20260818… ขึ้นก่อน 20260819… · และหลัง rollback ครั้งก่อน current ไม่ใช่ตัวใหม่สุด)
+            prev=$(ls -1 /srv/apps/$app/releases | sort -r | awk -v c="${cur##*/}" 'f{print;exit} $0==c{f=1}' | sed "s|^|/srv/apps/$app/releases/|")
             [ -n "$prev" ] || { echo "❌ ไม่มี release ก่อนหน้าให้ rollback"; return 1; }
             echo "rollback $app: ${cur##*/} → ${prev##*/}"
             ln -sfn "$prev" /srv/apps/$app/current
