@@ -7,6 +7,8 @@
  * จึงอยู่ใต้ /api/admin และเขียนตาราง `mail_server_health` ผ่าน service role ได้
  *
  * ตัวตัดสินใจเตือนอยู่ที่ scheduler (`runMailServerMonitor`) — route นี้แค่บันทึกค่า
+ * **ยกเว้น 1 อย่าง**: ตรวจว่า scheduler worker (container perpos-worker) ยังเดินอยู่ (`checkSchedulerLiveness`)
+ * เพราะถ้า worker ตาย ตัวเฝ้าใน worker จะเงียบ — route นี้รันใน container perpos จึงเป็นด่านอิสระ
  *
  * บันทึก 2 ที่คนละหน้าที่ (ดู lib/mail/server-metrics.ts):
  *   - `mail_server_health` แถวเดียว = ค่าล่าสุดที่เกณฑ์เตือนใช้
@@ -16,7 +18,11 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "../../../_lib/supabase";
-import { normalizeHeartbeat, withRestartDelta } from "@/lib/mail/server-monitor";
+import {
+  checkSchedulerLiveness,
+  normalizeHeartbeat,
+  withRestartDelta,
+} from "@/lib/mail/server-monitor";
 import { sampleRowFromPayload } from "@/lib/mail/server-metrics";
 
 export const dynamic = "force-dynamic";
@@ -59,6 +65,9 @@ export async function POST(req: NextRequest) {
     .from("mail_server_samples")
     .insert(sampleRowFromPayload(body, takenAt));
   if (sampleError) console.error("[mail-heartbeat] เก็บประวัติไม่สำเร็จ:", sampleError.message);
+
+  // ด่านอิสระ: worker scheduler ยังเขียน scheduler_runs อยู่ไหม (best-effort — ไม่ทำให้ heartbeat ล้ม)
+  await checkSchedulerLiveness(admin);
 
   return NextResponse.json({ ok: true });
 }

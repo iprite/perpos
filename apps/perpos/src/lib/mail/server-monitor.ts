@@ -53,6 +53,22 @@ export const EXPECTED_CONTAINERS = [
 const CONTAINER_MEM_WARN_RATIO = 0.9;
 /** deploy สลับ symlink แล้ว container ยังไม่ restart เกินเท่านี้ = release ค้าง (ให้เวลา CI restart) */
 const DEPLOY_STALE_MS = 10 * 60 * 1000;
+/** RAM ทั้งเครื่องใช้ไป ≥ สัดส่วนนี้ = ใกล้ OOM ระดับ host (kernel จะฆ่า process ใหญ่สุด — มักเป็น Next/Stalwart) */
+const HOST_MEM_WARN_RATIO = 0.92;
+/** load1 ≥ CPU × เท่านี้ = เครื่องอืด (งานค้างคิวเกินแกนประมวลผล 3 เท่า) */
+const LOAD_WARN_PER_CPU = 3;
+/** uptime ต่ำกว่านี้ = เครื่องเพิ่งรีบูต (แจ้งครั้งเดียว ไม่มีสถานะ "หาย" — คีย์ `reboot` ถูก diffAlerts ข้ามตอน recover) */
+const REBOOT_RECENT_S = 10 * 60;
+/** scheduler (worker `perpos-worker`) ไม่เขียน `scheduler_runs` นานเกินนี้ = worker ตาย/ค้าง (ตรวจจาก heartbeat route ซึ่งรันใน container perpos ไม่ใช่ worker) */
+export const SCHEDULER_STALE_MS = 10 * 60 * 1000;
+export const SCHEDULER_STALE_KEY = "scheduler:stale";
+/** Cloud Run workers ที่ต้องตอบ /health (ชื่อ env ที่เก็บ URL · ไม่ตั้ง env = ไม่ตรวจ) */
+export const EXPECTED_WORKERS = [
+  { key: "pdf-renderer", urlEnv: "PDF_RENDER_URL" },
+  { key: "ocr-worker", urlEnv: "OCR_WORKER_URL" },
+  { key: "stt-worker", urlEnv: "STT_WORKER_URL" },
+  { key: "pdf-compress-worker", urlEnv: "PDF_COMPRESS_WORKER_URL" },
+] as const;
 
 /** สถานะ Docker container 1 ตัวจาก heartbeat (มาจาก `docker inspect` + `docker stats`) */
 export interface HostContainer {
@@ -94,11 +110,20 @@ export interface CronJobSeen {
  *    — เครื่องต้องตั้ง timezone Asia/Bangkok เอง (ตั้งแล้ว 2026-08-19 · เดิม Berlin ทำให้งานรายวันช้า 5 ชม.)
  */
 export const EXPECTED_CRON = [
-  // perpos scheduler ไม่ใช่ cron แล้ว (2026-08-19) — เป็น container `perpos-worker` (ดู EXPECTED_CONTAINERS)
+  // perpos scheduler ไม่ใช่ cron แล้ว (2026-08-19) — เป็น container `perpos-worker` (ดู EXPECTED_CONTAINERS + SCHEDULER_STALE_KEY)
   { key: "exapp-daily", match: "3006/api/admin/rep-usage/recalc", maxAgeMin: 26 * 60 },
+  { key: "tmc-daily-occupancy", match: "3005/api/tmc/notify/daily-occupancy", maxAgeMin: 26 * 60 },
+  { key: "gov-procure-aging", match: "3005/api/gov-procure/notify/aging", maxAgeMin: 26 * 60 },
+  {
+    key: "gov-procure-weekly",
+    match: "3005/api/gov-procure/notify/weekly",
+    maxAgeMin: 8 * 24 * 60,
+  },
 ] as const;
 /** journal ว่างเปล่าตอนเครื่องเพิ่งขึ้น — ให้เวลาเครื่องเปิดมานานพอที่งานรายวันควรผ่านมาแล้วก่อนเตือน "ไม่เคยเห็น" */
 const CRON_NEVER_SEEN_MIN_UPTIME_S = 30 * 3600;
+/** heartbeat อ่าน journal ย้อนหลังเท่านี้ (ต้องตรงกับ `--since` ใน scripts/mail-heartbeat.sh) */
+const CRON_JOURNAL_WINDOW_MIN = 72 * 60;
 
 /** โดเมนเว็บที่ Caddy ออกใบรับรองให้ (DNS-01) — ตรวจที่ origin ตรง ๆ ข้าม Cloudflare (Cloudflare edge cert ไม่ใช่ของเรา) */
 export const WEB_ORIGIN_IP = "62.146.233.27";
@@ -122,8 +147,14 @@ export interface MailHeartbeat {
   /** cron daemon บนเครื่อง active ไหม · null = สคริปต์รุ่นเก่า */
   cronActive: boolean | null;
   cronJobs: CronJobSeen[] | null;
-  /** วินาทีที่เครื่องเปิดมา (ใช้ตัดสินว่า "ไม่เคยเห็น cron" ผิดปกติหรือแค่เพิ่งบูต) */
+  /** วินาทีที่เครื่องเปิดมา (ใช้ตัดสินว่า "ไม่เห็น cron" ผิดปกติหรือแค่เพิ่งบูต + ตรวจรีบูต) */
   uptimeSeconds: number | null;
+  /** RAM ทั้งเครื่อง (MB) — เตือนเมื่อใช้ ≥ HOST_MEM_WARN_RATIO ของทั้งหมด (OOM-killer จะเริ่มฆ่า container) */
+  memUsedMb: number | null;
+  memTotalMb: number | null;
+  /** load average 1 นาที เทียบจำนวน CPU */
+  load1: number | null;
+  cpuCount: number | null;
 }
 
 const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : null);
@@ -188,6 +219,10 @@ export function normalizeHeartbeat(raw: unknown): MailHeartbeat {
           .filter((j): j is CronJobSeen => j !== null)
       : null,
     uptimeSeconds: num(r.uptimeSeconds),
+    memUsedMb: num(r.memUsedMb),
+    memTotalMb: num(r.memTotalMb),
+    load1: num(r.load1),
+    cpuCount: num(r.cpuCount),
   };
 }
 
@@ -264,14 +299,31 @@ export function evaluateHostIssues(hb: MailHeartbeat, now: number): Record<strin
       }
     }
   }
+  if (hb.memUsedMb !== null && hb.memTotalMb !== null && hb.memTotalMb > 0) {
+    const ratio = hb.memUsedMb / hb.memTotalMb;
+    if (ratio >= HOST_MEM_WARN_RATIO)
+      issues.hostmem = `RAM ทั้งเครื่องใช้ไป ${Math.round(ratio * 100)}% (${Math.round(hb.memUsedMb)}/${Math.round(hb.memTotalMb)} MB) — เสี่ยง OOM-killer ฆ่า container`;
+  }
+  if (hb.load1 !== null && hb.cpuCount !== null && hb.cpuCount > 0) {
+    if (hb.load1 >= hb.cpuCount * LOAD_WARN_PER_CPU)
+      issues.load = `เครื่องอืด: load1 = ${hb.load1.toFixed(1)} บน ${hb.cpuCount} CPU (เกิน ${LOAD_WARN_PER_CPU} เท่า)`;
+  }
+  if (hb.uptimeSeconds !== null && hb.uptimeSeconds < REBOOT_RECENT_S) {
+    issues.reboot = `เครื่อง VPS เพิ่งรีบูต (uptime ${Math.round(hb.uptimeSeconds / 60)} นาที) — เช็คว่า container/Stalwart กลับมาครบ`;
+  }
   if (hb.cronActive === false)
     issues["cron:service"] = "cron daemon บนเครื่องไม่ทำงาน (งานตามเวลาทุกตัวหยุด)";
   if (hb.cronJobs) {
     for (const job of EXPECTED_CRON) {
       const seen = hb.cronJobs.find((j) => j.url.includes(job.match));
       if (!seen) {
-        // journal ไม่มีเลย — เพิ่งบูต/ติดตั้งยังไม่ถึงรอบ ก็ยังไม่ตัดสิน
-        if (hb.uptimeSeconds !== null && hb.uptimeSeconds >= CRON_NEVER_SEEN_MIN_UPTIME_S) {
+        // journal ไม่มีเลย — เพิ่งบูต/ติดตั้งยังไม่ถึงรอบ ก็ยังไม่ตัดสิน · งานที่รอบยาวกว่าหน้าต่าง journal
+        // (รายสัปดาห์) ตัดสิน "ไม่เคยเห็น" ไม่ได้ (heartbeat ดูย้อนแค่ 72 ชม.) — ตรวจได้เฉพาะตอนเห็นแล้วเก่าเกิน
+        if (
+          job.maxAgeMin <= CRON_JOURNAL_WINDOW_MIN &&
+          hb.uptimeSeconds !== null &&
+          hb.uptimeSeconds >= CRON_NEVER_SEEN_MIN_UPTIME_S
+        ) {
           issues[`cron:${job.key}`] =
             `ไม่เห็น cron ${job.key} ถูกสั่งรันเลยใน journal 72 ชม.ล่าสุด ทั้งที่เครื่องเปิดมา >30 ชม. (ไฟล์ /etc/cron.d หาย/ผิด?)`;
         }
@@ -386,8 +438,15 @@ export function evaluateIssues(args: {
   now: number;
   /** ใบรับรองของโดเมนเว็บที่ origin (Caddy) — วันที่เหลือต่อโดเมน · null = ต่อไม่ได้ · ไม่ส่ง = ไม่ตรวจ */
   webCerts?: Record<string, number | null>;
+  /** Cloud Run workers: key → ข้อความ error (null = ตอบ /health ปกติ) · ไม่ส่ง = ไม่ตรวจ */
+  workers?: Record<string, string | null>;
 }): Record<string, string> {
   const issues: Record<string, string> = {};
+  for (const [key, err] of Object.entries(args.workers ?? {})) {
+    if (err)
+      issues[`worker:${key}`] =
+        `Cloud Run ${key} ไม่ตอบ /health: ${err} (งาน PDF/OCR/STT ที่ยิงไปจะค้าง)`;
+  }
   if (args.smtpError) issues.smtp = `รับเมลไม่ได้: ${args.smtpError}`;
   for (const [domain, days] of Object.entries(args.webCerts ?? {})) {
     if (days === null) {
@@ -449,8 +508,8 @@ export function diffAlerts(
     }
   }
   for (const key of Object.keys(prev.active)) {
-    // `crash:` = เหตุการณ์ชั่วขณะ (container restart เองแล้ว) ไม่มีสถานะ "หาย" ให้แจ้ง
-    if (!(key in issues) && !key.startsWith("crash:")) recovered.push(key);
+    // `crash:`/`reboot` = เหตุการณ์ชั่วขณะ (container restart เองแล้ว / เครื่องบูตเสร็จ) ไม่มีสถานะ "หาย" ให้แจ้ง
+    if (!(key in issues) && !key.startsWith("crash:") && key !== "reboot") recovered.push(key);
   }
   return { notify, recovered, next };
 }
@@ -463,10 +522,13 @@ function recoverLabel(key: string): string {
   if (name && kind === "cron") return name === "service" ? "cron daemon" : `cron ${name}`;
   if (name && kind === "cert") return `ใบรับรอง ${name}`;
   if (name && kind === "origin") return `Caddy origin ${name}`;
+  if (name && kind === "worker") return `Cloud Run worker ${name}`;
   return RECOVER_LABEL[key] ?? key;
 }
 
 const RECOVER_LABEL: Record<string, string> = {
+  hostmem: "RAM ทั้งเครื่อง",
+  load: "โหลดเครื่อง",
   smtp: `รับเมล (พอร์ต ${SMTP_PORT})`,
   smtp25: "พอร์ต 25 บนเครื่อง",
   jmap: "เว็บเมล/JMAP",
@@ -478,16 +540,113 @@ const RECOVER_LABEL: Record<string, string> = {
 };
 
 /** จุดเรียกจาก scheduler (t5) — best-effort: monitoring พังต้องไม่ทำ scheduler ล้ม */
+/** ping /health ของ Cloud Run worker — timeout 15 วิ + ลองซ้ำ 1 ครั้ง (cold start ของ Playwright ช้าได้) · คืน null = ปกติ */
+export async function checkWorkerHealth(
+  baseUrl: string,
+  timeoutMs = 15_000,
+): Promise<string | null> {
+  const url = `${baseUrl.replace(/\/$/, "")}/health`;
+  let last = "";
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+    try {
+      const res = await fetch(url, { signal: ctrl.signal, cache: "no-store" });
+      if (res.ok) return null;
+      last = `HTTP ${res.status}`;
+    } catch (e) {
+      last =
+        e instanceof Error && e.name === "AbortError"
+          ? `timeout ${timeoutMs / 1000}s`
+          : String(e instanceof Error ? e.message : e);
+    } finally {
+      clearTimeout(timer);
+    }
+    if (attempt === 0) await new Promise((r) => setTimeout(r, 5_000));
+  }
+  return last || "unknown";
+}
+
+/**
+ * ตรวจว่า scheduler worker ยังเดินอยู่ — เรียกจาก **heartbeat route** (container perpos) ทุก 5 นาที
+ * เพราะตัวเฝ้าหลัก (`runMailServerMonitor`) รันอยู่ **ใน worker เอง** ถ้า worker ตายก็เงียบทั้งระบบ
+ * · เกณฑ์ = แถวล่าสุดใน `scheduler_runs` เก่ากว่า SCHEDULER_STALE_MS · dedup/recover ผ่าน
+ *   `mail_server_health.alert_state.active[SCHEDULER_STALE_KEY]` (runMailServerMonitor พกคีย์นี้ต่อโดยไม่แตะ)
+ */
+export async function checkSchedulerLiveness(
+  admin: SupabaseClient,
+  now = Date.now(),
+): Promise<void> {
+  try {
+    const { data: last } = await admin
+      .from("scheduler_runs")
+      .select("ran_at")
+      .order("ran_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const lastAt = last?.ran_at ? new Date(last.ran_at as string).getTime() : null;
+    const ageMs = lastAt === null ? null : now - lastAt;
+    const stale = ageMs === null || ageMs > SCHEDULER_STALE_MS;
+
+    const { data: row } = await admin
+      .from("mail_server_health")
+      .select("alert_state")
+      .eq("id", ROW_ID)
+      .maybeSingle();
+    const active = {
+      ...((row?.alert_state as { active?: Record<string, number> } | null)?.active ?? {}),
+    };
+    const lastSent = active[SCHEDULER_STALE_KEY];
+
+    if (stale) {
+      if (lastSent !== undefined && now - lastSent < REALERT_MS) return;
+      active[SCHEDULER_STALE_KEY] = now;
+      await alertAdminLine(
+        admin,
+        [
+          "🔴 scheduler ของ PERPOS หยุดเดิน (container perpos-worker)",
+          ageMs === null
+            ? "ไม่พบแถวใน scheduler_runs เลย"
+            : `scheduler_runs ล่าสุด ${Math.round(ageMs / 60_000)} นาทีก่อน (ควร ≤${SCHEDULER_STALE_MS / 60_000})`,
+          "งาน STT/PDF ค้าง, เตือนต่าง ๆ, ตัวเฝ้าเครื่อง จะเงียบทั้งหมด — ssh perpos-sg แล้ว docker compose logs perpos-worker",
+          lastSent !== undefined ? "(ยังไม่หาย)" : "",
+        ]
+          .filter(Boolean)
+          .join("\n"),
+      );
+    } else if (lastSent !== undefined) {
+      delete active[SCHEDULER_STALE_KEY];
+      await alertAdminLine(admin, "✅ scheduler ของ PERPOS (perpos-worker) กลับมาเดินแล้ว");
+    } else return;
+
+    await admin
+      .from("mail_server_health")
+      .upsert({ id: ROW_ID, alert_state: { active } }, { onConflict: "id" });
+  } catch (e) {
+    console.error("[scheduler-liveness] failed:", e instanceof Error ? e.message : String(e));
+  }
+}
+
 export async function runMailServerMonitor(
   admin: SupabaseClient,
 ): Promise<{ issues: number } | null> {
   try {
-    const [smtpError, jmapError, certDaysLeft, ...webCertDays] = await Promise.all([
+    const workerTargets: { key: string; url: string }[] = [];
+    for (const w of EXPECTED_WORKERS) {
+      const url = process.env[w.urlEnv];
+      if (url) workerTargets.push({ key: w.key, url });
+    }
+    const [smtpError, jmapError, certDaysLeft, workerErrs, ...webCertDays] = await Promise.all([
       checkSmtp(),
       checkJmap(),
       checkCertDaysLeft(),
+      Promise.all(workerTargets.map((w) => checkWorkerHealth(w.url))),
       ...WEB_DOMAINS.map((d) => checkOriginCertDaysLeft(d, WEB_ORIGIN_IP)),
     ]);
+    const workers: Record<string, string | null> = {};
+    workerTargets.forEach((w, i) => {
+      workers[w.key] = workerErrs[i] ?? null;
+    });
     const webCerts: Record<string, number | null> = {};
     WEB_DOMAINS.forEach((d, i) => {
       webCerts[d] = webCertDays[i] ?? null;
@@ -508,15 +667,21 @@ export async function runMailServerMonitor(
       heartbeatAt: (row?.heartbeat_at as string | null) ?? null,
       now,
       webCerts,
+      workers,
     });
 
     const prev: AlertState = { active: {} };
+    // คีย์ `scheduler:*` เป็นของ checkSchedulerLiveness (heartbeat route) — ตัวนี้ห้ามแจ้ง/ห้าม recover แทน แค่พกต่อ
+    const foreign: Record<string, number> = {};
     const rawActive = (row?.alert_state as { active?: Record<string, unknown> } | null)?.active;
     for (const [k, v] of Object.entries(rawActive ?? {})) {
-      if (typeof v === "number") prev.active[k] = v;
+      if (typeof v !== "number") continue;
+      if (k.startsWith("scheduler:")) foreign[k] = v;
+      else prev.active[k] = v;
     }
 
     const { notify, recovered, next } = diffAlerts(prev, issues, now);
+    Object.assign(next.active, foreign);
 
     if (notify.length > 0) {
       await alertAdminLine(
