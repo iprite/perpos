@@ -438,7 +438,8 @@ export function MailCompose({
   );
 
   if (isMobile) {
-    const fromLabel = identityOptions.find((o) => o.value === identityId)?.label ?? defaultEmail;
+    // แถวแคบ ๆ บนมือถือโชว์แค่ที่อยู่ (label เต็มเป็น `ชื่อ <อีเมล>` ซ้ำซ้อนจนล้นแถว)
+    const fromLabel = identities.find((i) => i.id === identityId)?.email ?? defaultEmail;
     return (
       <Dialog
         open={open}
@@ -484,7 +485,10 @@ export function MailCompose({
             </Button>
           </div>
 
-          <div className="flex min-h-0 flex-1 flex-col overflow-y-auto" onKeyDown={onKeyDown}>
+          <div
+            className="flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden"
+            onKeyDown={onKeyDown}
+          >
             {errorBanner && <div className="px-4 pt-3">{errorBanner}</div>}
 
             <ComposeRow
@@ -507,7 +511,7 @@ export function MailCompose({
                 id="mail-to"
                 value={to}
                 onChange={setTo}
-                placeholder={t("compose.to.placeholder")}
+                placeholder={t("compose.to.placeholderShort")}
                 autoFocus={seed?.focus !== "body"}
               />
             </ComposeRow>
@@ -543,7 +547,8 @@ export function MailCompose({
                 value={subject}
                 onChange={(e) => setSubject(e.target.value)}
                 placeholder={t("compose.field.subject")}
-                className="rounded-none border-0 px-0 hover:border-0 focus-visible:border-0 focus-visible:ring-0"
+                // text-base = 16px กัน Safari/iOS ซูมทั้งหน้าตอนโฟกัส (ดูหมายเหตุใน mail-recipients)
+                className="rounded-none border-0 px-0 text-base hover:border-0 focus-visible:border-0 focus-visible:ring-0"
               />
             </ComposeRow>
 

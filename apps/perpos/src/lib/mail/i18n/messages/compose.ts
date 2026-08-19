@@ -18,6 +18,8 @@ export const compose = defineMailMessages({
     th: "name@example.com — พิมพ์แล้วกด Enter",
     en: "name@example.com — type and press Enter",
   },
+  /** แถวผู้รับบนมือถือแคบ — ข้อความยาวแบบจอใหญ่จะล้นแถว */
+  "compose.to.placeholderShort": { th: "อีเมลผู้รับ", en: "Recipient email" },
   "compose.body.placeholder": { th: "พิมพ์ข้อความ…", en: "Write your message…" },
 
   "compose.attachment.remove": { th: "เอา {name} ออก", en: "Remove {name}" },

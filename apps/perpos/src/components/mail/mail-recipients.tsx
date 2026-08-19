@@ -131,9 +131,11 @@ export function MailRecipientInput({
         }}
         placeholder={value.length === 0 ? placeholder : ""}
         className={cn(
-          "h-7 flex-1 border-0 bg-transparent p-0 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:ring-0",
+          "h-7 flex-1 border-0 bg-transparent p-0 text-slate-900 outline-none placeholder:text-slate-400 focus:ring-0",
           // แถวบนมือถือแคบกว่า — ขั้นต่ำ 10rem จะดันจนล้นออกนอกจอ
-          bare ? "min-w-[6rem]" : "min-w-[10rem]",
+          // 🔴 `text-base` (16px) ห้ามลด: Safari บน iOS **ซูมทั้งหน้า** เมื่อโฟกัสช่องที่ตัวอักษรเล็กกว่า 16px
+          //    (อาการ: กดจะพิมพ์แล้วจอขยายจนปุ่มปิด/ส่งหลุดออกนอกจอ)
+          bare ? "min-w-[6rem] text-base" : "min-w-[10rem] text-sm",
         )}
       />
     </div>
