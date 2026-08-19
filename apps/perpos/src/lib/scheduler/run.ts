@@ -24,6 +24,9 @@ import {
   type DailyCostSyncResult,
 } from "@/lib/admin/cost-sync";
 
+/** run ล้มติดต่อกัน (DB/เครือข่ายล่ม) → แจ้งซ้ำทุก 30 นาทีพอ ไม่ใช่ทุกนาที */
+const FAIL_REALERT_MS = 30 * 60 * 1000;
+let lastFailAlertAt = 0;
 const QUOTA_WARN_LEAD_S = 600; // เตือนโควต้าบอทใกล้หมด ≥10 นาทีก่อน kick
 const SCHED_PLATFORM_LABEL: Record<string, string> = {
   google_meet: "Google Meet",
@@ -100,7 +103,11 @@ async function runSchedulerTick(
         () => undefined,
         () => undefined,
       ); // log ต้องไม่ทำให้ scheduler ล้ม
-    // แจ้ง admin ทาง LINE เฉพาะตอนมีปัญหาจริง — digest 1 ครั้ง/run (กัน spam)
+    // แจ้ง admin ทาง LINE เฉพาะตอนมีปัญหาจริง — digest 1 ครั้ง/run · ถ้า run ล้มทุกนาที (เช่น DB ล่ม)
+    // ให้แจ้งซ้ำไม่ถี่กว่า FAIL_REALERT_MS (worker เป็น process ยาว ตัวแปรระดับโมดูลจึงจำข้ามรอบได้)
+    const failedOnly = !okFlag && counts.stuck_failed === 0 && counts.requeue_gaveup === 0;
+    if (failedOnly && Date.now() - lastFailAlertAt < FAIL_REALERT_MS) return;
+    if (!okFlag) lastFailAlertAt = Date.now();
     if (!okFlag || counts.stuck_failed > 0 || counts.requeue_gaveup > 0) {
       await alertAdminLine(
         admin,
@@ -1204,11 +1211,15 @@ async function runSchedulerTick(
       try {
         costSync = await runDailyCostSync(admin);
         const errs = [...costSync.billing, ...costSync.monitoring].filter((r) => r.error);
-        if (errs.length)
-          console.error(
-            "[scheduler] cost sync partial failure:",
-            errs.map((r) => `${r.month}: ${r.error}`).join(" | "),
+        if (errs.length) {
+          const detail = errs.map((r) => `${r.month}: ${r.error}`).join(" | ");
+          console.error("[scheduler] cost sync partial failure:", detail);
+          // งานรายวัน — แจ้ง LINE วันละครั้งพอ (ไม่งั้นบิล GCP ใน /admin/usage ค้างเงียบ ๆ เหมือนเดิม)
+          await alertAdminLine(
+            admin,
+            `⚠️ sync บิล GCP (t1440) ล้มบางส่วน\n${detail.slice(0, 1500)}`,
           );
+        }
       } catch {
         /* best-effort — ไม่ทำให้ scheduler ล้ม */
       }

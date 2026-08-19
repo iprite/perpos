@@ -28,6 +28,10 @@ const healthy = {
     cronActive: null,
     cronJobs: null,
     uptimeSeconds: null,
+    memUsedMb: null,
+    memTotalMb: null,
+    load1: null,
+    cpuCount: null,
   },
   heartbeatAt: new Date(NOW - 5 * 60_000).toISOString(),
   now: NOW,
@@ -55,6 +59,10 @@ describe("evaluateIssues", () => {
         cronActive: null,
         cronJobs: null,
         uptimeSeconds: null,
+        memUsedMb: null,
+        memTotalMb: null,
+        load1: null,
+        cpuCount: null,
       },
     });
     expect(Object.keys(issues).sort()).toEqual([
@@ -82,6 +90,10 @@ describe("evaluateIssues", () => {
         cronActive: null,
         cronJobs: null,
         uptimeSeconds: null,
+        memUsedMb: null,
+        memTotalMb: null,
+        load1: null,
+        cpuCount: null,
       },
       heartbeatAt: new Date(NOW - 4 * H).toISOString(),
     });
@@ -154,6 +166,10 @@ describe("normalizeHeartbeat — payload จากเครื่องคือ
       cronActive: null,
       cronJobs: null,
       uptimeSeconds: null,
+      memUsedMb: null,
+      memTotalMb: null,
+      load1: null,
+      cpuCount: null,
     });
     expect(normalizeHeartbeat(null).diskPct).toBeNull();
     // container ที่ไม่มีชื่อถูกทิ้ง · memLimit 0 = ไม่มี limit → null
@@ -317,6 +333,10 @@ describe("cron + ใบรับรอง origin", () => {
     cronActive: true,
     cronJobs: jobs,
     uptimeSeconds: uptime,
+    memUsedMb: null,
+    memTotalMb: null,
+    load1: null,
+    cpuCount: null,
   });
   const nowS = NOW / 1000;
 
@@ -324,6 +344,9 @@ describe("cron + ใบรับรอง origin", () => {
     const hb = withCron([
       { url: "http://127.0.0.1:3005/api/assistant/scheduler", lastRunAt: nowS - 60 },
       { url: "http://127.0.0.1:3006/api/admin/rep-usage/recalc", lastRunAt: nowS - 20 * 3600 },
+      { url: "http://127.0.0.1:3005/api/tmc/notify/daily-occupancy", lastRunAt: nowS - 20 * 3600 },
+      { url: "http://127.0.0.1:3005/api/gov-procure/notify/aging", lastRunAt: nowS - 20 * 3600 },
+      { url: "http://127.0.0.1:3005/api/gov-procure/notify/weekly", lastRunAt: nowS - 5 * 86400 },
     ]);
     expect(evaluateHostIssues(hb, NOW)).toEqual({});
   });
@@ -333,15 +356,25 @@ describe("cron + ใบรับรอง origin", () => {
       // แถวเก่าใน journal (ก่อนย้ายเป็น worker) ต้องไม่ทำให้เตือน
       { url: "http://127.0.0.1:3005/api/assistant/scheduler", lastRunAt: nowS - 15 * 60 },
       { url: "http://127.0.0.1:3006/api/admin/rep-usage/recalc", lastRunAt: nowS - 30 * 3600 },
+      { url: "http://127.0.0.1:3005/api/tmc/notify/daily-occupancy", lastRunAt: nowS - 20 * 3600 },
+      { url: "http://127.0.0.1:3005/api/gov-procure/notify/aging", lastRunAt: nowS - 20 * 3600 },
+      { url: "http://127.0.0.1:3005/api/gov-procure/notify/weekly", lastRunAt: nowS - 9 * 86400 },
     ]);
     const issues = evaluateHostIssues({ ...hb, cronActive: false }, NOW);
-    expect(Object.keys(issues).sort()).toEqual(["cron:exapp-daily", "cron:service"]);
+    expect(Object.keys(issues).sort()).toEqual([
+      "cron:exapp-daily",
+      "cron:gov-procure-weekly",
+      "cron:service",
+    ]);
   });
 
   it("ไม่เห็นใน journal: เครื่องเพิ่งบูต = ไม่เตือน · เปิดมา >30 ชม. = เตือน", () => {
     expect(evaluateHostIssues(withCron([], 2 * 3600), NOW)).toEqual({});
+    // งานรายสัปดาห์ไม่เข้าเกณฑ์ "ไม่เคยเห็น" (journal ดูย้อนแค่ 72 ชม.)
     expect(Object.keys(evaluateHostIssues(withCron([], 40 * 3600), NOW)).sort()).toEqual([
       "cron:exapp-daily",
+      "cron:gov-procure-aging",
+      "cron:tmc-daily-occupancy",
     ]);
   });
 
@@ -352,5 +385,51 @@ describe("cron + ใบรับรอง origin", () => {
     });
     expect(Object.keys(issues).sort()).toEqual(["cert:mail.perpos.ai", "origin:app.riekchang.com"]);
     expect(evaluateIssues(healthy)).toEqual({});
+  });
+});
+
+describe("evaluateHostIssues — ทรัพยากรเครื่อง (RAM/load/reboot)", () => {
+  it("RAM ทั้งเครื่อง ≥92% → hostmem · load1 ≥ 3×CPU → load · uptime <10 นาที → reboot", () => {
+    const hb: MailHeartbeat = {
+      ...hostOk,
+      memUsedMb: 7500,
+      memTotalMb: 8000,
+      load1: 13,
+      cpuCount: 4,
+      uptimeSeconds: 120,
+    };
+    const issues = evaluateHostIssues(hb, NOW);
+    expect(Object.keys(issues).sort()).toEqual(["hostmem", "load", "reboot"]);
+    expect(issues.hostmem).toContain("94%");
+  });
+
+  it("ค่าปกติ / สคริปต์รุ่นเก่าไม่ส่ง (null) = ไม่เตือน", () => {
+    expect(
+      evaluateHostIssues(
+        {
+          ...hostOk,
+          memUsedMb: 4000,
+          memTotalMb: 8000,
+          load1: 2,
+          cpuCount: 4,
+          uptimeSeconds: 86400,
+        },
+        NOW,
+      ),
+    ).toEqual({});
+    expect(evaluateHostIssues(hostOk, NOW)).toEqual({});
+  });
+
+  it("reboot เป็นเหตุการณ์ชั่วขณะ — ไม่มี recovered ตามหลัง (เหมือน crash:)", () => {
+    const { recovered } = diffAlerts({ active: { reboot: NOW - H, hostmem: NOW - H } }, {}, NOW);
+    expect(recovered).toEqual(["hostmem"]);
+  });
+
+  it("Cloud Run worker ไม่ตอบ /health → worker:<key> · ตอบปกติ = ไม่เตือน", () => {
+    const issues = evaluateIssues({
+      ...healthy,
+      workers: { "pdf-renderer": "timeout 15s", "stt-worker": null },
+    });
+    expect(Object.keys(issues)).toEqual(["worker:pdf-renderer"]);
   });
 });

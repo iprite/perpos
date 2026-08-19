@@ -136,12 +136,14 @@ const REGISTRY: ServiceDef[] = [
   // ── cron ──
   {
     id: "scheduler",
-    name: "assistant-scheduler (crontab ทุก 1 นาที)",
+    name: "perpos-worker (scheduler loop ทุก 1 นาที)",
     kind: "scheduler",
     purpose:
-      "ดูแลงานผู้ช่วย AI (stuck/requeue/PDPA) + เฝ้าเซิร์ฟเวอร์ VPS (t5) + sync บิล GCP (t1440) — /etc/cron.d/perpos บน VPS",
-    stack: "HTTP POST 127.0.0.1:3005/api/assistant/scheduler",
-    platform: "crontab บน VPS SG (Cloud Scheduler PAUSED ตั้งแต่ 2026-08-19)",
+      "ดูแลงานผู้ช่วย AI (stuck/requeue/PDPA) + เฝ้าเซิร์ฟเวอร์ VPS (t5) + sync บิล GCP (t1440) — worker process ใน docker compose (lib/scheduler/run.ts)",
+    stack:
+      "node apps/perpos/worker/scheduler-worker.js (esbuild bundle) · lease กันซ้อนใน scheduler_leases",
+    platform:
+      "container perpos-worker บน VPS SG (cron/Cloud Scheduler เลิกใช้ 2026-08-19) · HTTP endpoint เหลือไว้ยิงมือ",
     secretEnv: ["CRON_SECRET"],
   },
   // ── Managed integrations ──

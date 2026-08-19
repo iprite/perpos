@@ -26,6 +26,7 @@ jobs:
             "exapp|https://app.exworker.co.th/|"
             "riekchang|https://app.riekchang.com/|"
             "PERPOS Mail|https://mail.perpos.ai/login|"
+            "Mail OAuth (login.perpos.ai → Stalwart)|https://login.perpos.ai/.well-known/oauth-authorization-server|issuer"
           )
           down_list=""
           for t in "${TARGETS[@]}"; do

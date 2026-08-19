@@ -57,6 +57,7 @@ cd /srv/deploy && docker compose up -d caddy
 - **deploy** = workflow เดิม `up -d perpos perpos-worker && restart perpos perpos-worker` · **rollback** = `ln -sfn` + `docker compose restart perpos perpos-worker` (ต้อง restart ทั้งคู่)
 - **ห้าม scale เป็น 2 instance** — ถึงเผลอก็มี lease ใน DB (`scheduler_leases`) ให้ตัวหลังข้ามรอบ ไม่รันซ้อน · ยิงมือได้เหมือนเดิม: `curl -X POST -H "Authorization: Bearer $CRON_SECRET" http://127.0.0.1:3005/api/assistant/scheduler`
 - **หยุด/restart ปลอดภัย** — worker จับ SIGTERM รอรอบปัจจุบันจบ (≤100 วิ) · compose `stop_grace_period: 120s` · lease ค้าง (SIGKILL/OOM) หมดอายุเอง 20 นาที
+- **worker ตาย = ใครเตือน?** heartbeat route (container perpos) เช็ค `scheduler_runs` ทุก 5 นาที → LINE `scheduler:stale` เมื่อเงียบ >10 นาที (ตัวเฝ้าหลักรันใน worker จึงพึ่งตัวเองไม่ได้) · ด่านนอกสุด = `uptime.yml`
 - ดู log: `docker compose logs -f perpos-worker` (บรรทัด `tick ok in …ms` ทุกนาที) · เฝ้าโดย heartbeat → `/admin/system` (`container:perpos-worker`) + `scheduler_runs` ใน DB
 - ปรับจังหวะ: env `SCHEDULER_INTERVAL_MS` ใน `/srv/apps/perpos/.env` (default 60000, ต่ำสุด 15000) แล้ว `docker compose restart perpos-worker`
 - **ครั้งแรกบนเครื่อง**: `scp deploy/vps/docker-compose.yml perpos-sg:/srv/deploy/docker-compose.yml` → merge โค้ดให้ CI สร้าง artifact ที่มี `worker/` → หลัง deploy เขียว ค่อยลบบรรทัด `* * * * *` ใน `/etc/cron.d/perpos` (ลบก่อน = ช่วงว่าง scheduler)
