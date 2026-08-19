@@ -20,6 +20,8 @@ import {
   FileSpreadsheet,
   FileText,
   Image as ImageIcon,
+  Mail,
+  MailOpen,
   Paperclip,
   Square,
   SquareCheckBig,
@@ -58,6 +60,8 @@ export interface MailRowProps {
   onPreviewAttachment?: (attachment: MailAttachment) => void;
   /** ชื่อกล่องที่เมลฉบับนี้อยู่ — มีเฉพาะตอนผลค้นหาข้ามกล่อง */
   boxLabel?: string;
+  /** สลับอ่านแล้ว/ยังไม่ได้อ่าน (ปุ่มลอยตอน hover — เดสก์ท็อป) */
+  onToggleRead?: () => void;
 }
 
 function senderLabel(m: MailMessage): string {
@@ -76,8 +80,11 @@ function MailRowBase({
   onSwipeTrash,
   onPreviewAttachment,
   boxLabel,
+  onToggleRead,
 }: MailRowProps) {
   const unread = message.isUnread;
+  /** ไม่มี action ไหนใช้ได้เลย = ไม่ต้องมีแผงปุ่ม (เช่นในถังขยะที่ลบไม่ได้แล้ว) */
+  const hasQuickActions = !!onSwipeArchive || !!onSwipeTrash || !!onToggleRead;
   const subject = message.subject?.trim() || "(ไม่มีหัวเรื่อง)";
   const preview = message.preview?.trim() ?? "";
   const rowRef = useRef<HTMLButtonElement>(null);
@@ -138,7 +145,7 @@ function MailRowBase({
         {...swipe.handlers}
         style={swipe.dx ? { transform: `translateX(${swipe.dx}px)` } : undefined}
         className={cn(
-          "relative flex min-h-16 w-full cursor-pointer touch-pan-y items-center gap-2 bg-white px-2 py-1.5 outline-none transition-colors sm:px-3",
+          "group relative flex min-h-16 w-full cursor-pointer touch-pan-y items-center gap-2 bg-white px-2 py-1.5 outline-none transition-colors sm:px-3",
           active ? "bg-gray-100" : "hover:bg-gray-50",
           focused && !active && "bg-gray-50",
         )}
@@ -226,7 +233,13 @@ function MailRowBase({
                 {boxLabel}
               </span>
             )}
-            <span className="shrink-0 text-xs tabular-nums text-gray-500">
+            <span
+              className={cn(
+                "shrink-0 text-xs tabular-nums text-gray-500",
+                // เดสก์ท็อป: hover แล้วเอาเวลาออกเพื่อให้ปุ่มลัดขึ้นแทนที่ (แบบ Gmail)
+                hasQuickActions && "sm:group-hover:invisible",
+              )}
+            >
               {formatMailTime(message.receivedAt)}
             </span>
           </div>
@@ -277,8 +290,76 @@ function MailRowBase({
             </div>
           )}
         </button>
+
+        {/*
+          ปุ่มลัดตอน hover (เดสก์ท็อปเท่านั้น — มือถือใช้ปัดนิ้วอยู่แล้ว และ hover บนจอสัมผัส
+          จะค้างจนบังเวลา) · ทุกปุ่มต้อง stopPropagation ไม่งั้นกดแล้วเปิดเมลไปด้วย
+        */}
+        {hasQuickActions && (
+          <div
+            className={cn(
+              /* ยึดบรรทัดแรก (แถวเดียวกับเวลา) ไม่ใช่กลางแถว — ไม่งั้นทับชิปไฟล์แนบจนกดไม่ได้ */
+              "absolute right-2 top-1.5 hidden items-center gap-0.5 rounded-lg px-1 shadow-sm",
+              "sm:group-focus-within:flex sm:group-hover:flex",
+              /* พื้นต้องเป็นสีเดียวกับแถวตอนนั้น ไม่งั้นเห็นเป็นกล่องขาวแปะบนพื้นเทา */
+              active ? "bg-gray-100" : "bg-gray-50",
+            )}
+          >
+            {onSwipeArchive && (
+              <QuickAction
+                label="เก็บเข้าคลัง"
+                icon={<Archive className="h-4 w-4" />}
+                onClick={onSwipeArchive}
+              />
+            )}
+            {onSwipeTrash && (
+              <QuickAction
+                label="ลบ"
+                icon={<Trash2 className="h-4 w-4" />}
+                onClick={onSwipeTrash}
+                danger
+              />
+            )}
+            {onToggleRead && (
+              <QuickAction
+                label={unread ? "ทำเป็นอ่านแล้ว" : "ทำเป็นยังไม่ได้อ่าน"}
+                icon={unread ? <MailOpen className="h-4 w-4" /> : <Mail className="h-4 w-4" />}
+                onClick={onToggleRead}
+              />
+            )}
+          </div>
+        )}
       </div>
     </div>
+  );
+}
+
+/** ปุ่มลัดในแถว — เล็ก เทา และ **ห้ามให้คลิกไหลไปเปิดเมล** */
+function QuickAction({
+  label,
+  icon,
+  onClick,
+  danger,
+}: {
+  label: string;
+  icon: React.ReactNode;
+  onClick: () => void;
+  danger?: boolean;
+}) {
+  return (
+    <Button
+      size="icon"
+      variant="ghost"
+      className={cn("h-8 w-8 text-gray-500", danger && "hover:text-red-600")}
+      title={label}
+      aria-label={label}
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick();
+      }}
+    >
+      {icon}
+    </Button>
   );
 }
 

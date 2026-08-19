@@ -1379,6 +1379,9 @@ export function MailWorkspace({
                 onOpen={(m, i) => (isDraftMessage(m) ? void openDraft(m) : void openMessage(m, i))}
                 onToggleSelect={toggleSelect}
                 onToggleStar={(m) => toggleStar([m.id], !m.isFlagged)}
+                /* ปุ่มลัดในแถว = **ฉบับนั้นฉบับเดียว** (คนอ่านว่า "ฉบับนี้")
+                   ทั้งเธรดเป็นเรื่องของการเลือกหลายฉบับแล้วสั่งจากแถบ bulk */
+                onToggleRead={(m) => setReadState([m.id], !m.isUnread, "email")}
                 onSwipeArchive={
                   canArchive ? (m) => enqueueDestructive("archive", [m.id]) : undefined
                 }
