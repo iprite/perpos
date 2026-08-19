@@ -63,6 +63,21 @@ export const EMAIL_LIST_PROPERTIES = [
   "hasAttachment",
 ];
 
+/**
+ * header ที่บอกว่า "เมลฉบับนี้ผ่านการตรวจอะไรมาบ้าง" — ชุดที่เจอจริงในทุกเซิร์ฟเวอร์หลัก
+ * (Stalwart ของเราเขียน `X-Spam-*` · ผู้ส่งภายนอกอาจติด `Authentication-Results`/`Received-SPF` มาด้วย)
+ */
+export const SECURITY_HEADERS = [
+  "X-Spam-Status",
+  "X-Spam-Result",
+  "X-Spam-Score",
+  "X-Spam-Flag",
+  "Authentication-Results",
+  "Received-SPF",
+] as const;
+
+const SECURITY_HEADER_PROPERTIES = SECURITY_HEADERS.map((h) => `header:${h}:asText`);
+
 export const EMAIL_DETAIL_PROPERTIES = [
   "id",
   "threadId",
@@ -82,6 +97,9 @@ export const EMAIL_DETAIL_PROPERTIES = [
   // M2 — ต่อเธรดตอนตอบ (ผิดแล้วผู้รับเห็นเป็นเมลใหม่ลอย ๆ แก้ย้อนหลังไม่ได้)
   "messageId",
   "references",
+  // ผลตรวจของเมลเซิร์ฟเวอร์ (ตัวกรองสแปม + SPF/DKIM/DMARC) — โชว์ดิบ ๆ ให้ผู้ใช้ตัดสินเอง
+  // ⚠️ **ห้าม parse แล้วสรุปเอง** ชื่อ/รูปแบบ header ต่างกันตามเซิร์ฟเวอร์ที่ส่งมา
+  ...SECURITY_HEADER_PROPERTIES,
 ];
 
 export const MAX_BODY_VALUE_BYTES = 1024 * 1024;
@@ -662,7 +680,19 @@ async function mapMessageDetail(
     attachments: mapAttachments(email),
     messageId: Array.isArray(email.messageId) ? email.messageId : null,
     references: Array.isArray(email.references) ? email.references : null,
+    securityHeaders: SECURITY_HEADERS.flatMap((name) => {
+      const value = readHeaderText(email, name);
+      return value ? [{ name: name as string, value }] : [];
+    }),
   };
+}
+
+/** ค่าที่ JMAP คืนมาเป็น `header:<ชื่อ>:asText` — ไม่มี = ผู้ส่ง/เซิร์ฟเวอร์ไม่ได้ใส่ */
+function readHeaderText(email: JmapEmail, name: string): string | null {
+  const raw = (email as unknown as Record<string, unknown>)[`header:${name}:asText`];
+  if (typeof raw !== "string") return null;
+  const value = raw.trim();
+  return value ? value.slice(0, 2000) : null;
 }
 
 const DETAIL_GET_ARGS = {

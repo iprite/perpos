@@ -86,6 +86,11 @@ export interface MailMessageDetail {
   messageId?: string[] | null;
   references?: string[] | null;
   attachments: MailAttachment[];
+  /**
+   * ผลตรวจจากเมลเซิร์ฟเวอร์ (สแปม/SPF/DKIM/DMARC) — **แสดงดิบตามที่ได้มา ห้ามตีความแทนผู้ใช้**
+   * ว่างเปล่า = ไม่มี header พวกนี้ในเมลฉบับนั้น
+   */
+  securityHeaders: { name: string; value: string }[];
 }
 
 export interface MailThreadDetail {
