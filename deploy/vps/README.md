@@ -102,6 +102,21 @@ port 3005–3007 bind ที่ `127.0.0.1` เท่านั้นใน compo
 - 🪤 **เครื่องเมลเก่า (Contabo EU) ยังยิง heartbeat แถวเดียวกัน (`id=stalwart`)** ได้ ถ้าไม่ปิด timer — เคยเป็น 2026-08-19: EU (stalwart หยุดแล้ว, ดิสก์ 5%) สลับกับ SG (13%) ทุกไม่กี่นาที → เตือน "service stalwart ไม่ active / ไม่มีอะไรฟังพอร์ต 25" ทั้งที่ SG ปกติ · แก้แล้วด้วย `systemctl disable --now stalwart-heartbeat.timer` บน EU — **ก่อนย้าย/โคลนเครื่องต้องปิด timer ฝั่งเก่าเสมอ** · สังเกตได้จาก `mail_server_samples` ที่ disk_pct/service_active สลับไปมา
 - ⚠️ ตัวเฝ้ารันใน container perpos บนเครื่องเดียวกัน → เครื่องดับ/perpos ล่มทั้งตัว = เงียบ · **ด่านนอก** = GitHub Actions `uptime.yml` (ping `app.perpos.ai/api/health` ทุก 5 นาที ยิง LINE ตรง) · **ผล deploy แจ้ง LINE ทุกครั้ง** (step ท้าย `deploy-vps.yml`) — ทั้งคู่ใช้ secret `LINE_MESSAGING_CHANNEL_ACCESS_TOKEN` + `ALERT_LINE_USER_IDS` (line_user_id ของ super_admin, ตั้งถูกคนแล้ว 2026-08-19 · เปลี่ยนคน = `printf ID | gh secret set ALERT_LINE_USER_IDS`) · ดูสถานะ deploy: https://github.com/iprite/perpos/actions/workflows/deploy-vps.yml
 
+## สั่งงานเครื่องจากมือถือ (ไม่ต้อง ssh) — `ops-vps.yml` + self-healing ใน `uptime.yml` (2026-08-19)
+
+> โจทย์: อยู่นอกบ้าน มือถือเครื่องเดียว LINE เตือนว่าเครื่องมีปัญหา — **บอท LINE อยู่บน perpos ตัวเดียวกัน ล่มพร้อมกัน** สั่งผ่าน LINE ตอนนั้นไม่ได้ ⇒ ทางเดียวที่ยังมีชีวิต = GitHub
+
+- **`ops-vps`** (Actions → ops-vps → Run workflow → เลือก action · แอป GitHub บนมือถือ 3 แตะ) — ssh เข้าเครื่องด้วย secret ชุดเดียวกับ deploy (`VPS_HOST/VPS_USER/VPS_SSH_KEY`)
+  - อ่านอย่างเดียว: `status` (uptime/RAM/disk/docker ps+stats/stalwart/health ผ่าน Caddy/release ทุกแอป) · `logs-{perpos,perpos-worker,exapp,riekchang,caddy,stalwart}` (input `lines`) · `releases` · `disk` · `cron-list` (secret ถูก mask)
+  - แก้ไข (**choice ปิดเท่านั้น — ห้ามเพิ่มช่องรันคำสั่งอิสระ**): `restart-{perpos,exapp,riekchang}` = รัน `switch-app.sh` ซ้ำบน release ปัจจุบัน (zero-downtime) · `restart-{perpos-worker,caddy,stalwart}` · `rollback-{perpos,exapp,riekchang}` = ชี้ `current` ไป release ก่อนหน้าแล้ว switch (สีใหม่ไม่ผ่าน health → ดึง symlink กลับ ของเดิมเสิร์ฟต่อ)
+  - ผลแจ้ง LINE: คำสั่งแก้ไขแจ้งทุกครั้ง (✅/🔴 + ท้าย log 12 บรรทัด + ลิงก์ run) · คำสั่งอ่านแจ้งเฉพาะตอนล้ม
+  - remote script ส่งทาง stdin แล้ว `S=$(cat); bash -c "$S"` — **ห้ามใช้ `bash -s`** (docker exec ในสคริปต์จะแย่งกิน stdin ที่เหลือ)
+- **self-healing ใน `uptime.yml`**: เจอล่ม (หลัง retry 3 ครั้ง) → ssh ไป restart เฉพาะตัวที่ล่ม (perpos/mail→`switch-app.sh perpos` · exapp · riekchang · Mail OAuth→`systemctl restart stalwart` · ล่มครบทุกตัว→restart Caddy ก่อน) → รอ 20 วิ เช็คซ้ำ →
+  🟡 "restart แล้วกลับมาปกติ" (ไม่ต้องทำอะไร) / 🔴 "restart แล้วยังไม่ขึ้น" + ลิงก์ ops-vps / 🔴 "ssh ไม่ได้ = เครื่องอาจดับทั้งตัว"
+  - **กันวน**: จำเวลา restart ล่าสุดใน actions/cache (`uptime-restart-*`) — ล่มซ้ำภายใน 30 นาทีไม่ restart อีก แจ้ง 🔴 ให้คนดูแทน (ไม่งั้นแอปที่ boot ไม่ขึ้นจะถูกเตะทุก 5 นาที)
+  - ไม่มี secret VPS = ข้ามขั้นนี้เงียบ ๆ (เตือนแบบเดิม)
+- ทางที่สะดวกกว่ากดเอง: เปิด Claude จากมือถือแล้วบอก "perpos ล่ม ดูให้ที" — agent รัน `gh workflow run ops-vps -f action=status` / `logs-perpos` วินิจฉัย แล้วค่อยสั่ง restart/rollback ผ่าน workflow เดียวกัน (สิทธิ์เท่ากับที่กดมือ ไม่มีช่องรันคำสั่งดิบ)
+
 ## Firewall (2 ชั้น)
 
 1. **Contabo Firewall (network-level, ฟรี) — `perpos-sg-web-mail`** ผูกกับ instance 203517994 (2026-08-19, ตั้งผ่าน API) · inbound allow: tcp 22 · 80/443 · **udp 443 (h3)** · 25/465/587 · 993/995 · 4190 · icmp — ที่เหลือ drop (v4+v6) · ทดสอบแล้ว: port ที่เปิด open ครบ, 8080/3005 ถูก drop เงียบ (timeout ไม่ใช่ refused)
