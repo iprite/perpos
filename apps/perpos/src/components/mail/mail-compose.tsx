@@ -14,7 +14,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import cn from "@core/utils/class-names";
-import { Paperclip, X } from "lucide-react";
+import { useMedia } from "@core/hooks/use-media";
+import { ChevronDown, ChevronUp, Paperclip, Send, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -37,6 +38,15 @@ import { MAIL_LOCALE_TAGS, type MailLocale } from "@/lib/mail/i18n";
 import { MAX_MESSAGE_BYTES, isEmailAddress, type MailComposeAttachment } from "@/lib/mail/compose";
 
 const AUTOSAVE_MS = 3000;
+
+/** เพดานต่อไฟล์แนบ (MB) — ด่านเดียวกันทั้งกล่องลากวาง (จอใหญ่) และปุ่มคลิปหนีบ (มือถือ) */
+const MAX_ATTACHMENT_MB = 25;
+
+/**
+ * มือถือ = กล่องเขียนเต็มจอแบบ Gmail (แถบเครื่องมือบนสุด + แถวข้อมูลคั่นด้วยเส้นบาง)
+ * จอใหญ่ = dialog ฟอร์มปกติเหมือนเดิม · เกณฑ์เดียวกับ `sm:` ของ Tailwind (640px)
+ */
+const MOBILE_QUERY = "(max-width: 639px)";
 
 export interface MailIdentityOption {
   id: string;
@@ -115,6 +125,10 @@ export function MailCompose({
 
   const bodyRef = useRef<HTMLTextAreaElement>(null);
   const toRef = useRef<HTMLInputElement>(null);
+  /** ให้ปุ่มคลิปหนีบบนแถบเครื่องมือ (มือถือ) เปิดหน้าต่างเลือกไฟล์ของ FileDropzone ตัวเดียวกัน */
+  const openPickerRef = useRef<(() => void) | null>(null);
+
+  const isMobile = useMedia(MOBILE_QUERY, false);
 
   // เปิดกล่องใหม่ = ล้างของเก่าทั้งหมด แล้วเติมค่าตั้งต้น
   useEffect(() => {
@@ -256,6 +270,15 @@ export function MailCompose({
   const addFiles = useCallback(
     async (files: File[]) => {
       for (const file of files) {
+        // ด่านขนาดต้องอยู่ตรงนี้ด้วย ไม่ใช่แค่ในกล่องลากวาง — บนมือถือไฟล์เข้ามาทางปุ่มคลิปหนีบ
+        // ที่กล่อง (พร้อมข้อความเตือนของมัน) ถูกซ่อนไว้ ⇒ ไฟล์ใหญ่เกินจะเงียบหายถ้าไม่เช็คซ้ำ
+        if (file.size > MAX_ATTACHMENT_MB * 1024 * 1024) {
+          notify.error(
+            null,
+            t("compose.attachment.tooLarge", { name: file.name, limit: MAX_ATTACHMENT_MB }),
+          );
+          continue;
+        }
         setUploading((n) => n + 1);
         try {
           const form = new FormData();
@@ -343,6 +366,205 @@ export function MailCompose({
     [identities],
   );
 
+  const title = seed?.inReplyTo ? t("compose.title.reply") : t("compose.title.new");
+
+  /** error อยู่บนสุดเสมอ — เคยอยู่ล่างสุดของกล่องที่เลื่อนได้ กดส่งแล้วเหมือนปุ่มเสีย */
+  const errorBanner = error ? (
+    <div
+      role="alert"
+      className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
+    >
+      {error}
+    </div>
+  ) : null;
+
+  const attachmentList =
+    attachments.length > 0 ? (
+      <ul className="space-y-1.5">
+        {attachments.map((a) => (
+          <li
+            key={a.blobId}
+            className="flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2"
+          >
+            <Paperclip className="h-4 w-4 shrink-0 text-gray-400" />
+            <span className="min-w-0 flex-1 truncate text-sm text-gray-700">{a.name}</span>
+            <span className="shrink-0 text-xs tabular-nums text-gray-400">
+              {formatMailSize(a.size)}
+            </span>
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label={t("compose.attachment.remove", { name: a.name })}
+              className="h-7 w-7 shrink-0"
+              onClick={() => setAttachments((prev) => prev.filter((x) => x.blobId !== a.blobId))}
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </li>
+        ))}
+      </ul>
+    ) : null;
+
+  /**
+   * กล่องลากไฟล์ตัวเดียวของทั้งสองหน้าตา — บนมือถือถูกซ่อน (Gmail ไม่มีพื้นที่ลากวาง)
+   * แต่ยังต้องอยู่ใน DOM เพราะปุ่มคลิปหนีบบนแถบเครื่องมือเรียก input ของมันผ่าน `openRef`
+   */
+  const dropzone = (
+    <FileDropzone
+      multiple
+      onFiles={(files) => void addFiles(files)}
+      maxSizeMb={MAX_ATTACHMENT_MB}
+      openRef={openPickerRef}
+      className={cn(isMobile && "hidden")}
+      hint={
+        uploading > 0
+          ? t("compose.attachment.uploading", { count: uploading })
+          : t("compose.attachment.hint")
+      }
+    />
+  );
+
+  const draftStatus = (
+    <span
+      className={cn("text-xs", saveState === "error" ? "text-red-600" : "text-gray-400")}
+      aria-live="polite"
+    >
+      {saveState === "saving" && t("compose.draft.saving")}
+      {saveState === "saved" &&
+        savedAt &&
+        t("compose.draft.saved", { time: formatClock(savedAt, locale) })}
+      {saveState === "error" && t("compose.draft.failed")}
+    </span>
+  );
+
+  if (isMobile) {
+    const fromLabel = identityOptions.find((o) => o.value === identityId)?.label ?? defaultEmail;
+    return (
+      <Dialog
+        open={open}
+        onOpenChange={(next) => {
+          if (!next) void closeAndKeepDraft();
+        }}
+      >
+        {/* เต็มจอ ไม่มีขอบ/มุมมน — กล่องเขียนบนมือถือคือ "หน้า" ไม่ใช่ป๊อปอัป */}
+        <DialogContent
+          hideClose
+          className="inset-0 h-full max-h-none w-full max-w-none translate-x-0 translate-y-0 rounded-none border-0"
+        >
+          <DialogTitle className="sr-only">{title}</DialogTitle>
+
+          {/* แถบเครื่องมือบนสุด: ปิด (เก็บร่าง) ซ้าย · แนบไฟล์ + ส่ง ขวา */}
+          <div className="flex shrink-0 items-center gap-1 border-b border-gray-200 px-2 py-2">
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label={t("compose.action.close")}
+              disabled={sending}
+              onClick={() => void closeAndKeepDraft()}
+            >
+              <X className="h-5 w-5" />
+            </Button>
+            <div className="flex-1" />
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label={t("compose.action.attach")}
+              onClick={() => openPickerRef.current?.()}
+            >
+              <Paperclip className="h-5 w-5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label={sending ? t("compose.action.sending") : t("compose.action.send")}
+              disabled={sending || uploading > 0}
+              onClick={submit}
+            >
+              <Send className="h-5 w-5" />
+            </Button>
+          </div>
+
+          <div className="flex min-h-0 flex-1 flex-col overflow-y-auto" onKeyDown={onKeyDown}>
+            {errorBanner && <div className="px-4 pt-3">{errorBanner}</div>}
+
+            <ComposeRow
+              label={t("compose.field.toShort")}
+              action={
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 shrink-0 self-center text-gray-400"
+                  aria-label={t("compose.field.ccBccToggle")}
+                  aria-expanded={showCc}
+                  onClick={() => setShowCc((v) => !v)}
+                >
+                  {showCc ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                </Button>
+              }
+            >
+              <MailRecipientInput
+                bare
+                id="mail-to"
+                value={to}
+                onChange={setTo}
+                placeholder={t("compose.to.placeholder")}
+                autoFocus={seed?.focus !== "body"}
+              />
+            </ComposeRow>
+
+            {showCc && (
+              <>
+                <ComposeRow label={t("compose.field.cc")}>
+                  <MailRecipientInput bare id="mail-cc" value={cc} onChange={setCc} />
+                </ComposeRow>
+                <ComposeRow label={t("compose.field.bcc")}>
+                  <MailRecipientInput bare id="mail-bcc" value={bcc} onChange={setBcc} />
+                </ComposeRow>
+              </>
+            )}
+
+            <ComposeRow label={t("compose.field.from")}>
+              {identityOptions.length > 1 ? (
+                <div className="py-1.5">
+                  <CustomSelect
+                    value={identityId ?? identityOptions[0]!.value}
+                    onChange={setIdentityId}
+                    options={identityOptions}
+                  />
+                </div>
+              ) : (
+                <p className="truncate py-2.5 text-sm text-gray-700">{fromLabel}</p>
+              )}
+            </ComposeRow>
+
+            <ComposeRow label={t("compose.field.subject")}>
+              <Input
+                id="mail-subject"
+                value={subject}
+                onChange={(e) => setSubject(e.target.value)}
+                placeholder={t("compose.field.subject")}
+                className="rounded-none border-0 px-0 hover:border-0 focus-visible:border-0 focus-visible:ring-0"
+              />
+            </ComposeRow>
+
+            <Textarea
+              id="mail-body"
+              ref={bodyRef}
+              value={body}
+              onChange={(e) => setBody(e.target.value)}
+              className="min-h-[40vh] flex-1 rounded-none border-0 px-4 py-3 text-base hover:border-0 focus-visible:border-0 focus-visible:ring-0"
+              placeholder={t("compose.body.placeholder")}
+            />
+
+            {attachmentList && <div className="px-4 pb-3">{attachmentList}</div>}
+            {dropzone}
+            <div className="px-4 pb-3">{draftStatus}</div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
   return (
     <Dialog
       open={open}
@@ -352,21 +574,11 @@ export function MailCompose({
     >
       <DialogContent size="2xl">
         <DialogHeader>
-          <DialogTitle>
-            {seed?.inReplyTo ? t("compose.title.reply") : t("compose.title.new")}
-          </DialogTitle>
+          <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
 
         <DialogBody fixedHeight className="space-y-3" onKeyDown={onKeyDown}>
-          {/* error อยู่บนสุดเสมอ — เคยอยู่ล่างสุดของกล่องที่เลื่อนได้ กดส่งแล้วเหมือนปุ่มเสีย */}
-          {error && (
-            <div
-              role="alert"
-              className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
-            >
-              {error}
-            </div>
-          )}
+          {errorBanner}
           {identityOptions.length > 1 && (
             <div>
               <Label htmlFor="mail-from">{t("compose.field.from")}</Label>
@@ -438,59 +650,13 @@ export function MailCompose({
             />
           </div>
 
-          {attachments.length > 0 && (
-            <ul className="space-y-1.5">
-              {attachments.map((a) => (
-                <li
-                  key={a.blobId}
-                  className="flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2"
-                >
-                  <Paperclip className="h-4 w-4 shrink-0 text-gray-400" />
-                  <span className="min-w-0 flex-1 truncate text-sm text-gray-700">{a.name}</span>
-                  <span className="shrink-0 text-xs tabular-nums text-gray-400">
-                    {formatMailSize(a.size)}
-                  </span>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    aria-label={t("compose.attachment.remove", { name: a.name })}
-                    className="h-7 w-7 shrink-0"
-                    onClick={() =>
-                      setAttachments((prev) => prev.filter((x) => x.blobId !== a.blobId))
-                    }
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
-                </li>
-              ))}
-            </ul>
-          )}
+          {attachmentList}
 
-          <FileDropzone
-            multiple
-            onFiles={(files) => void addFiles(files)}
-            maxSizeMb={25}
-            hint={
-              uploading > 0
-                ? t("compose.attachment.uploading", { count: uploading })
-                : t("compose.attachment.hint")
-            }
-          />
+          {dropzone}
         </DialogBody>
 
         <DialogFooter>
-          <span
-            className={cn(
-              "mr-auto text-xs",
-              saveState === "error" ? "text-red-600" : "text-gray-400",
-            )}
-          >
-            {saveState === "saving" && t("compose.draft.saving")}
-            {saveState === "saved" &&
-              savedAt &&
-              t("compose.draft.saved", { time: formatClock(savedAt, locale) })}
-            {saveState === "error" && t("compose.draft.failed")}
-          </span>
+          <span className="mr-auto">{draftStatus}</span>
           <Button variant="outline" onClick={() => void closeAndKeepDraft()} disabled={sending}>
             {t("compose.action.keepDraft")}
           </Button>
@@ -500,6 +666,28 @@ export function MailCompose({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/**
+ * แถวข้อมูลของกล่องเขียนบนมือถือ (Gmail style) — ป้ายซ้าย · ช่องกรอกยืดเต็ม · ปุ่มท้ายแถว
+ * เส้นคั่นเป็นของแถว ⇒ ช่องข้างในต้องไม่มีกรอบของตัวเอง (`bare` / `border-0`)
+ */
+function ComposeRow({
+  label,
+  action,
+  children,
+}: {
+  label: string;
+  action?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex items-start gap-3 border-b border-gray-100 px-4">
+      <span className="w-12 shrink-0 py-3 text-sm text-gray-500">{label}</span>
+      <div className="min-w-0 flex-1 py-0.5">{children}</div>
+      {action}
+    </div>
   );
 }
 

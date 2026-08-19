@@ -7,6 +7,8 @@ export const compose = defineMailMessages({
 
   "compose.field.from": { th: "จาก", en: "From" },
   "compose.field.to": { th: "ถึง *", en: "To *" },
+  /** ป้ายในแถวแบบมือถือ (Gmail style) — ไม่มีดอกจัน เพราะเป็นแถวไม่ใช่ฟอร์มมีป้ายกำกับ */
+  "compose.field.toShort": { th: "ถึง", en: "To" },
   "compose.field.ccBccToggle": { th: "สำเนา / สำเนาลับ", en: "Cc / Bcc" },
   "compose.field.cc": { th: "สำเนา", en: "Cc" },
   "compose.field.bcc": { th: "สำเนาลับ", en: "Bcc" },
@@ -32,6 +34,11 @@ export const compose = defineMailMessages({
     en: "Drag files here · 25 MB total",
   },
 
+  "compose.attachment.tooLarge": {
+    th: 'ไฟล์ "{name}" ใหญ่เกิน {limit} MB',
+    en: '"{name}" is larger than {limit} MB',
+  },
+
   "compose.error.noRecipient": { th: "ยังไม่ได้ใส่ผู้รับ", en: "Add at least one recipient" },
   "compose.error.badAddress": {
     th: "ที่อยู่อีเมลไม่ถูกต้อง: {list}",
@@ -55,6 +62,8 @@ export const compose = defineMailMessages({
   "compose.draft.saved": { th: "✓ บันทึกร่างแล้ว {time}", en: "✓ Draft saved {time}" },
   "compose.draft.failed": { th: "⚠ บันทึกร่างไม่สำเร็จ", en: "⚠ Draft not saved" },
   "compose.action.keepDraft": { th: "เก็บเป็นร่าง", en: "Save draft" },
+  "compose.action.close": { th: "ปิด (เก็บเป็นร่าง)", en: "Close (saves draft)" },
+  "compose.action.attach": { th: "แนบไฟล์", en: "Attach files" },
   "compose.action.send": { th: "ส่ง", en: "Send" },
   "compose.action.sending": { th: "กำลังส่ง…", en: "Sending…" },
 

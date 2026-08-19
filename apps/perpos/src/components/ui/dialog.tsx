@@ -50,8 +50,14 @@ const DialogContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & {
     size?: DialogSize;
+    /**
+     * ซ่อนปุ่มปิดมุมขวาบนที่ dialog ใส่ให้เอง — ใช้เมื่อ dialog มีแถบเครื่องมือของตัวเอง
+     * ที่มีปุ่มปิดอยู่แล้ว (เช่น กล่องเขียนเมลเต็มจอบนมือถือ) ไม่งั้นจะมีปุ่มปิดซ้อนกันสองอัน
+     * **ห้ามใช้เพื่อ "เอาปุ่มปิดออก"** — ทุก dialog ต้องมีทางปิดที่มองเห็นเสมอ
+     */
+    hideClose?: boolean;
   }
->(({ className, children, size = "lg", ...props }, ref) => (
+>(({ className, children, size = "lg", hideClose, ...props }, ref) => (
   <DialogPortal>
     <DialogOverlay />
     <DialogPrimitive.Content
@@ -65,10 +71,12 @@ const DialogContent = React.forwardRef<
       {...props}
     >
       {children}
-      <DialogClose className="absolute right-4 top-4 z-10 rounded-md p-0.5 text-gray-400 opacity-80 ring-offset-white transition-opacity hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2">
-        <X className="h-4 w-4" />
-        <span className="sr-only">ปิด</span>
-      </DialogClose>
+      {!hideClose && (
+        <DialogClose className="absolute right-4 top-4 z-10 rounded-md p-0.5 text-gray-400 opacity-80 ring-offset-white transition-opacity hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2">
+          <X className="h-4 w-4" />
+          <span className="sr-only">ปิด</span>
+        </DialogClose>
+      )}
     </DialogPrimitive.Content>
   </DialogPortal>
 ));
