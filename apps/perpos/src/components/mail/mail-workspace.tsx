@@ -91,7 +91,6 @@ const EMPTY_MAX_ROUNDS = 20;
 const PAGE_SIZE = 50;
 const POLL_MS = 60_000;
 /** เปิดค้างนานเท่านี้ถึงจะถือว่า "อ่านแล้ว" — กันกด j/k ผ่านแล้วสถานะหายถาวร */
-const MARK_READ_DWELL_MS = 1_800;
 
 class MailSessionExpiredError extends Error {
   constructor() {
@@ -232,8 +231,6 @@ export function MailWorkspace({
   const scrollOffsetRef = useRef(0);
   const messagesRef = useRef<MailMessage[]>([]);
   messagesRef.current = messages;
-  /** timer ของ dwell "อ่านแล้ว" — เก็บไว้เพื่อให้คีย์ `u` ยกเลิกได้ก่อนครบเวลา */
-  const dwellTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleExpired = useCallback(() => {
     router.push(`${basePath}/login?reason=expired`);
@@ -550,11 +547,6 @@ export function MailWorkspace({
   const setReadState = useCallback(
     (ids: string[], isUnread: boolean, by: MailScope = "email") => {
       if (ids.length === 0) return;
-      // ผู้ใช้สั่ง "ยังไม่อ่าน" เอง → ยกเลิก dwell ที่กำลังนับอยู่ ไม่งั้นมันมาทับความตั้งใจทีหลัง
-      if (isUnread && dwellTimerRef.current) {
-        clearTimeout(dwellTimerRef.current);
-        dwellTimerRef.current = null;
-      }
       patchLocal(ids, { isUnread });
       void runBulk(
         ids,
@@ -816,6 +808,16 @@ export function MailWorkspace({
           `/api/mail/messages/${encodeURIComponent(m.id)}?by=thread`,
         );
         setDetail(data);
+        /**
+         * มาร์ค "อ่านแล้ว" ตรงนี้ = **ตอนที่เนื้อความขึ้นจอจริง**
+         *
+         * เดิมใช้ตัวนับถอยหลัง (dwell) หลังเปิดค้างครบเวลา แต่มันถูกยกเลิกเงียบ ๆ ได้หลายทาง
+         * (effect ถูก re-run, `activeId` ถูกล้างตอนรายการโหลดใหม่) ⇒ บนมือถือเปิดอ่านแล้ว
+         * จุดยังไม่ได้อ่านค้างอยู่เป็นประจำ · ตอนนี้ไม่ต้องกันการ "เผลอเปิด" แล้วเพราะคีย์ j/k
+         * เลื่อนเคอร์เซอร์เฉย ๆ ไม่เปิดฉบับ — การเปิดเป็นเจตนาของผู้ใช้เสมอ
+         * (โหลดเนื้อความไม่สำเร็จ = ไม่มาร์ค เพราะยังไม่ได้อ่านอะไรเลย)
+         */
+        if (m.isUnread) setReadState([m.id], false, "thread");
       } catch (e) {
         if (e instanceof MailSessionExpiredError) return handleExpired();
         setDetailError(e instanceof Error && e.message ? e.message : genericError);
@@ -823,25 +825,8 @@ export function MailWorkspace({
         setDetailLoading(false);
       }
     },
-    [genericError, handleExpired],
+    [genericError, handleExpired, setReadState],
   );
-
-  /**
-   * มาร์ค "อ่านแล้ว" หลังเปิดค้างครบ dwell — **ห้ามมาร์คทันทีที่เปิด**
-   * ผู้ใช้ที่กด j/k ผ่านหรือเผลอคลิกจะทำสถานะ "ยังไม่ได้อ่าน" หายถาวรโดยไม่มีทางเลิกทำ
-   * เปลี่ยนฉบับ/ปิดบานอ่านก่อนครบเวลา = ยกเลิก (cleanup ของ effect)
-   */
-  useEffect(() => {
-    if (!activeId) return;
-    const target = messagesRef.current.find((m) => m.id === activeId);
-    if (!target?.isUnread) return;
-    const t = setTimeout(() => setReadState([activeId], false, "thread"), MARK_READ_DWELL_MS);
-    dwellTimerRef.current = t;
-    return () => {
-      clearTimeout(t);
-      if (dwellTimerRef.current === t) dwellTimerRef.current = null;
-    };
-  }, [activeId, setReadState]);
 
   const draftsMailboxId = useMemo(
     () => mailboxes.find((m) => m.key === "drafts")?.id ?? null,
