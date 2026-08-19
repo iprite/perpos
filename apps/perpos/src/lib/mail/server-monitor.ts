@@ -106,17 +106,20 @@ export interface CronJobSeen {
 
 /**
  * งาน cron ที่ต้องมีบนเครื่อง (จับคู่ด้วย substring ของ URL) + อายุสูงสุดที่ยอมรับได้
+ * ⚠️ `match` ต้องเป็น **path อย่างเดียว ห้ามผูกกับ host/port** — cron.d เปลี่ยนจาก `http://127.0.0.1:<port>/…`
+ *    ไปเป็น `--resolve app.perpos.ai:443:127.0.0.1 https://app.perpos.ai/…` เมื่อ 2026-08-19 แล้วเงื่อนไขที่ผูกพอร์ต
+ *    ไม่ match อะไรเลย → เตือนผิดว่า "ไม่เคยเห็น cron" ทั้งที่รันปกติ (แก้ 2026-08-20)
  * ⚠️ cron ของ Ubuntu (3.0pl1) **ไม่สน `TZ=` ในไฟล์ crontab** ตอนคำนวณเวลา (แค่ export ให้ job)
  *    — เครื่องต้องตั้ง timezone Asia/Bangkok เอง (ตั้งแล้ว 2026-08-19 · เดิม Berlin ทำให้งานรายวันช้า 5 ชม.)
  */
 export const EXPECTED_CRON = [
   // perpos scheduler ไม่ใช่ cron แล้ว (2026-08-19) — เป็น container `perpos-worker` (ดู EXPECTED_CONTAINERS + SCHEDULER_STALE_KEY)
-  { key: "exapp-daily", match: "3006/api/admin/rep-usage/recalc", maxAgeMin: 26 * 60 },
-  { key: "tmc-daily-occupancy", match: "3005/api/tmc/notify/daily-occupancy", maxAgeMin: 26 * 60 },
-  { key: "gov-procure-aging", match: "3005/api/gov-procure/notify/aging", maxAgeMin: 26 * 60 },
+  { key: "exapp-daily", match: "/api/admin/rep-usage/recalc", maxAgeMin: 26 * 60 },
+  { key: "tmc-daily-occupancy", match: "/api/tmc/notify/daily-occupancy", maxAgeMin: 26 * 60 },
+  { key: "gov-procure-aging", match: "/api/gov-procure/notify/aging", maxAgeMin: 26 * 60 },
   {
     key: "gov-procure-weekly",
-    match: "3005/api/gov-procure/notify/weekly",
+    match: "/api/gov-procure/notify/weekly",
     maxAgeMin: 8 * 24 * 60,
   },
 ] as const;
@@ -352,7 +355,13 @@ export function evaluateHostIssues(hbRaw: MailHeartbeat, now: number): Record<st
     issues["cron:service"] = "cron daemon บนเครื่องไม่ทำงาน (งานตามเวลาทุกตัวหยุด)";
   if (hb.cronJobs) {
     for (const job of EXPECTED_CRON) {
-      const seen = hb.cronJobs.find((j) => j.url.includes(job.match));
+      // journal อาจมี URL ของงานเดียวกันหลายรูปแบบ (ก่อน/หลังย้ายมายิงผ่าน Caddy) — เอา "ครั้งล่าสุด" เสมอ
+      const seen = hb.cronJobs
+        .filter((j) => j.url.includes(job.match))
+        .reduce<CronJobSeen | undefined>(
+          (a, b) => (a && a.lastRunAt >= b.lastRunAt ? a : b),
+          undefined,
+        );
       if (!seen) {
         // journal ไม่มีเลย — เพิ่งบูต/ติดตั้งยังไม่ถึงรอบ ก็ยังไม่ตัดสิน · งานที่รอบยาวกว่าหน้าต่าง journal
         // (รายสัปดาห์) ตัดสิน "ไม่เคยเห็น" ไม่ได้ (heartbeat ดูย้อนแค่ 72 ชม.) — ตรวจได้เฉพาะตอนเห็นแล้วเก่าเกิน
