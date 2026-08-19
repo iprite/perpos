@@ -279,6 +279,9 @@ export interface JmapMailbox {
   parentId: string | null;
   totalEmails?: number;
   unreadEmails?: number;
+  /** นับเป็น "เธรด" (RFC 8621 §2) — รายการของเราเป็นเธรด จึงใช้ตัวนี้เป็นตัวเลขยังไม่ได้อ่าน */
+  totalThreads?: number;
+  unreadThreads?: number;
 }
 
 export interface JmapEmailAddress {

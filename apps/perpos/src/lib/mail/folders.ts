@@ -15,7 +15,7 @@ import {
   MAIL_FOLDER_PATH_SEPARATOR,
 } from "./boxes";
 import { MailServiceError, jmapRequest, pickResponse, responseType } from "./jmap";
-import { fetchMailboxes, mailboxIdByKey } from "./messages";
+import { fetchMailboxes, mailboxIdByKey, mailboxUnreadCount } from "./messages";
 import type { JmapMailbox, MailFolder, MailSession } from "./types";
 
 export class MailFolderError extends Error {
@@ -85,7 +85,7 @@ export function buildMailFolders(boxes: JmapMailbox[], systemIds: Set<string>): 
       // ระดับนับเฉพาะโฟลเดอร์ของผู้ใช้ — อยู่ใต้กล่องระบบยังถือว่าอยู่ระดับบนสุด
       depth: chain.filter((b) => !systemIds.has(b.id)).length - 1,
       path: chain.map((b) => b.name ?? "").join(MAIL_FOLDER_PATH_SEPARATOR),
-      unreadCount: typeof box.unreadEmails === "number" ? box.unreadEmails : null,
+      unreadCount: mailboxUnreadCount(box),
       totalCount: typeof box.totalEmails === "number" ? box.totalEmails : null,
     });
   }
