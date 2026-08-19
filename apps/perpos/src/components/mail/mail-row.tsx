@@ -14,6 +14,7 @@
  */
 
 import { memo, useEffect, useRef } from "react";
+import { hasMailSubject } from "@/lib/mail/boxes";
 import {
   Archive,
   FileArchive,
@@ -33,6 +34,8 @@ import { Button } from "@/components/ui/button";
 import type { MailAttachment, MailMessage } from "@/lib/mail/types";
 import { formatMailTime } from "@/lib/mail/format";
 import { useSwipeRow } from "@/components/mail/use-swipe-row";
+import { useMailLocale } from "@/components/mail/mail-locale";
+import type { MailTranslate } from "@/lib/mail/i18n";
 
 /**
  * ความสูง **ขั้นต่ำ** ของแถว (px) — เป็นค่าประมาณให้ virtualizer + ความสูงของ skeleton
@@ -64,8 +67,8 @@ export interface MailRowProps {
   onToggleRead?: () => void;
 }
 
-function senderLabel(m: MailMessage): string {
-  return m.from?.name?.trim() || m.from?.email || "(ไม่ระบุผู้ส่ง)";
+function senderLabel(m: MailMessage, t: MailTranslate): string {
+  return m.from?.name?.trim() || m.from?.email || t("list.row.noSender");
 }
 
 function MailRowBase({
@@ -82,10 +85,13 @@ function MailRowBase({
   boxLabel,
   onToggleRead,
 }: MailRowProps) {
+  const { locale, t } = useMailLocale();
   const unread = message.isUnread;
   /** ไม่มี action ไหนใช้ได้เลย = ไม่ต้องมีแผงปุ่ม (เช่นในถังขยะที่ลบไม่ได้แล้ว) */
   const hasQuickActions = !!onSwipeArchive || !!onSwipeTrash || !!onToggleRead;
-  const subject = message.subject?.trim() || "(ไม่มีหัวเรื่อง)";
+  const subject = hasMailSubject(message.subject)
+    ? message.subject.trim()
+    : t("list.row.noSubject");
   const preview = message.preview?.trim() ?? "";
   const rowRef = useRef<HTMLButtonElement>(null);
 
@@ -132,10 +138,14 @@ function MailRowBase({
         >
           <span className={cn("flex items-center gap-1.5 text-sm", swipe.dx <= 0 && "invisible")}>
             <Archive className="h-4 w-4" />
-            {swipe.pendingAction === "archive" ? "ปล่อยเพื่อเก็บ" : "เก็บเข้าคลัง"}
+            {swipe.pendingAction === "archive"
+              ? t("list.row.swipe.releaseArchive")
+              : t("list.row.archive")}
           </span>
           <span className={cn("flex items-center gap-1.5 text-sm", swipe.dx >= 0 && "invisible")}>
-            {swipe.pendingAction === "trash" ? "ปล่อยเพื่อลบ" : "ลบ"}
+            {swipe.pendingAction === "trash"
+              ? t("list.row.swipe.releaseTrash")
+              : t("common.delete")}
             <Trash2 className="h-4 w-4" />
           </span>
         </div>
@@ -159,7 +169,7 @@ function MailRowBase({
         <Button
           variant="ghost"
           size="icon"
-          aria-label={selected ? "ไม่เลือกอีเมลนี้" : "เลือกอีเมลนี้"}
+          aria-label={selected ? t("list.row.deselect") : t("list.row.select")}
           aria-pressed={selected}
           className="h-10 w-10 shrink-0 text-gray-400 hover:text-gray-700"
           onClick={(e) => {
@@ -177,7 +187,7 @@ function MailRowBase({
         <Button
           variant="ghost"
           size="icon"
-          aria-label={message.isFlagged ? "เอาดาวออก" : "ติดดาว"}
+          aria-label={message.isFlagged ? t("list.row.unstar") : t("list.row.star")}
           aria-pressed={message.isFlagged}
           className="hidden h-10 w-10 shrink-0 text-gray-300 hover:text-amber-500 sm:inline-flex"
           onClick={(e) => {
@@ -207,7 +217,7 @@ function MailRowBase({
           data-mail-row=""
           tabIndex={focused ? 0 : -1}
           aria-current={active ? "true" : undefined}
-          aria-label={`${senderLabel(message)} — ${subject}`}
+          aria-label={`${senderLabel(message, t)} — ${subject}`}
           // กัน Enter/Space ไม่ให้ลอยไปถึง hotkey ระดับ document (ไม่งั้นเปิดซ้ำสองทาง)
           onKeyDown={(e) => {
             if (e.key === "Enter" || e.key === " ") e.stopPropagation();
@@ -221,7 +231,7 @@ function MailRowBase({
                 unread ? "font-semibold text-gray-900" : "font-normal text-gray-700",
               )}
             >
-              {senderLabel(message)}
+              {senderLabel(message, t)}
               {message.threadCount > 1 && (
                 <span className="ms-1 text-xs font-normal text-gray-400">
                   ({message.threadCount})
@@ -240,7 +250,7 @@ function MailRowBase({
                 hasQuickActions && "sm:group-hover:invisible",
               )}
             >
-              {formatMailTime(message.receivedAt)}
+              {formatMailTime(message.receivedAt, undefined, locale)}
             </span>
           </div>
 
@@ -258,7 +268,10 @@ function MailRowBase({
             </span>
             {message.hasAttachment && message.attachments.length === 0 && (
               /* มีไฟล์แนบแต่ไม่รู้ชื่อ (เซิร์ฟเวอร์ไม่ได้ส่งมา) — ยังต้องบอกว่ามี */
-              <Paperclip aria-label="มีไฟล์แนบ" className="h-3.5 w-3.5 shrink-0 text-gray-400" />
+              <Paperclip
+                aria-label={t("list.row.hasAttachment")}
+                className="h-3.5 w-3.5 shrink-0 text-gray-400"
+              />
             )}
           </div>
 
@@ -316,14 +329,14 @@ function MailRowBase({
           >
             {onSwipeArchive && (
               <QuickAction
-                label="เก็บเข้าคลัง"
+                label={t("list.row.archive")}
                 icon={<Archive className="h-4 w-4" />}
                 onClick={onSwipeArchive}
               />
             )}
             {onSwipeTrash && (
               <QuickAction
-                label="ลบ"
+                label={t("common.delete")}
                 icon={<Trash2 className="h-4 w-4" />}
                 onClick={onSwipeTrash}
                 danger
@@ -331,7 +344,7 @@ function MailRowBase({
             )}
             {onToggleRead && (
               <QuickAction
-                label={unread ? "ทำเป็นอ่านแล้ว" : "ทำเป็นยังไม่ได้อ่าน"}
+                label={unread ? t("list.row.markRead") : t("list.row.markUnread")}
                 icon={unread ? <MailOpen className="h-4 w-4" /> : <Mail className="h-4 w-4" />}
                 onClick={onToggleRead}
               />

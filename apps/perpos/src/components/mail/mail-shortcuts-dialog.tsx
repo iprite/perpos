@@ -18,6 +18,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Text } from "@/components/ui/typography";
+import { useMailLocale } from "@/components/mail/mail-locale";
+import type { MailMessageKey } from "@/lib/mail/i18n";
 import {
   detectKeyPlatform,
   formatDisplayKeys,
@@ -25,10 +27,10 @@ import {
   type MailShortcutScope,
 } from "@/lib/mail/shortcuts";
 
-const SCOPE_LABEL: Record<MailShortcutScope, string> = {
-  global: "ทั่วไป",
-  list: "รายการเมล",
-  reader: "บานอ่าน",
+const SCOPE_LABEL: Record<MailShortcutScope, MailMessageKey> = {
+  global: "shell.shortcuts.scope.global",
+  list: "shell.shortcuts.scope.list",
+  reader: "shell.shortcuts.scope.reader",
 };
 
 type ShortcutRow = { id: string; label: string; scope: MailShortcutScope; keys: string[] };
@@ -40,13 +42,14 @@ export function MailShortcutsDialog({
   open: boolean;
   onOpenChange: (v: boolean) => void;
 }) {
+  const { locale, t } = useMailLocale();
   const groups = useMemo(() => {
     const platform = detectKeyPlatform(
       typeof navigator === "undefined" ? undefined : navigator.userAgent,
     );
     const rows: ShortcutRow[] = mailShortcutRows().map((s) => ({
       id: s.action,
-      label: s.label,
+      label: locale === "en" ? s.labelEn : s.label,
       scope: s.scope,
       keys: formatDisplayKeys(s.display, platform),
     }));
@@ -57,23 +60,21 @@ export function MailShortcutsDialog({
       byScope.set(r.scope, list);
     }
     return Array.from(byScope.entries());
-  }, []);
+  }, [locale]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent size="xl">
         <DialogHeader>
-          <DialogTitle>คีย์ลัด</DialogTitle>
+          <DialogTitle>{t("shell.shortcuts.title")}</DialogTitle>
         </DialogHeader>
         <DialogBody>
-          <Text className="mb-4 text-xs text-gray-500">
-            คีย์ลัดจะถูกปิดอัตโนมัติเมื่อกำลังพิมพ์อยู่ในช่องค้นหาหรือช่องกรอกข้อความ
-          </Text>
+          <Text className="mb-4 text-xs text-gray-500">{t("shell.shortcuts.hint")}</Text>
           <div className="grid gap-6 sm:grid-cols-2">
             {groups.map(([scope, rows]) => (
               <div key={scope}>
                 <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
-                  {SCOPE_LABEL[scope]}
+                  {t(SCOPE_LABEL[scope])}
                 </div>
                 <dl className="space-y-1.5">
                   {rows.map((r) => (

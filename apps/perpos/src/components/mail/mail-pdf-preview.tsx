@@ -20,6 +20,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Text } from "@/components/ui/typography";
+import { useMailT } from "@/components/mail/mail-locale";
 
 /** ใหญ่กว่านี้ไม่วาดให้ — เรนเดอร์ในเบราว์เซอร์จะหน่วงจนเหมือนแอปค้าง (ดาวน์โหลดไปเปิดเร็วกว่า) */
 export const PDF_PREVIEW_MAX_BYTES = 15 * 1024 * 1024;
@@ -50,6 +51,7 @@ export function MailPdfPreview({
   label: string;
   onFail: () => void;
 }) {
+  const t = useMailT();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const docRef = useRef<PdfDoc | null>(null);
   /** งานวาดที่ค้างอยู่ — ต้องยกเลิกก่อนเริ่มงานใหม่ (pdf.js ห้ามวาดซ้อนบน canvas เดียวกัน) */
@@ -160,7 +162,7 @@ export function MailPdfPreview({
         <canvas
           ref={canvasRef}
           role="img"
-          aria-label={pages > 1 ? `${label} หน้า ${page} จาก ${pages}` : label}
+          aria-label={pages > 1 ? t("preview.pdf.pageLabel", { label, page, pages }) : label}
           className={loading ? "hidden" : "block w-full"}
         />
       </div>
@@ -170,7 +172,7 @@ export function MailPdfPreview({
           <Button
             variant="outline"
             size="icon"
-            aria-label="หน้าก่อนหน้า"
+            aria-label={t("preview.pdf.prev")}
             disabled={page <= 1}
             onClick={() => setPage((p) => Math.max(1, p - 1))}
           >
@@ -182,7 +184,7 @@ export function MailPdfPreview({
           <Button
             variant="outline"
             size="icon"
-            aria-label="หน้าถัดไป"
+            aria-label={t("preview.pdf.next")}
             disabled={page >= pages}
             onClick={() => setPage((p) => Math.min(pages, p + 1))}
           >

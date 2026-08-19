@@ -18,7 +18,12 @@ import {
   sanitizeAttachmentName,
   type JmapMethodCall,
 } from "./jmap";
-import { MAIL_BOX_LABELS, MAIL_BOX_ORDER, resolveBoxSelector } from "./boxes";
+import {
+  MAIL_NO_SUBJECT_PLACEHOLDER,
+  MAIL_BOX_LABELS,
+  MAIL_BOX_ORDER,
+  resolveBoxSelector,
+} from "./boxes";
 import {
   INLINE_BUDGET_BYTES,
   buildInlineImageMap,
@@ -258,7 +263,7 @@ export function mapEmailToMessage(email: JmapEmail, threadCount = 1): MailMessag
     threadId: email.threadId ?? email.id,
     mailboxIds: Object.keys(email.mailboxIds ?? {}).filter((k) => email.mailboxIds?.[k]),
     from: mapAddress(email.from?.[0]),
-    subject: (email.subject ?? "").trim() || "(ไม่มีหัวเรื่อง)",
+    subject: (email.subject ?? "").trim() || MAIL_NO_SUBJECT_PLACEHOLDER,
     preview: (email.preview ?? "").trim(),
     receivedAt: email.receivedAt ?? new Date(0).toISOString(),
     isUnread: !keywords["$seen"],
@@ -349,8 +354,10 @@ export function messageMatchesText(m: MailMessage, needle: string): boolean {
 export async function listMessages(
   session: MailSession,
   params: MailListParams,
+  /** ส่งมาถ้าผู้เรียกดึงกล่องมาแล้ว (route `messages` ที่ `withMailboxes`) — ไม่ต้องยิง Mailbox/get ซ้ำ */
+  preloadedBoxes?: JmapMailbox[],
 ): Promise<MailListResult> {
-  const boxes = await fetchMailboxes(session);
+  const boxes = preloadedBoxes ?? (await fetchMailboxes(session));
   const filter = buildFilter(params, mailboxIdByKey(boxes), new Set(boxes.map((b) => b.id)));
   const limit = Math.min(Math.max(params.limit ?? 50, 1), 100);
 
@@ -832,7 +839,7 @@ async function mapMessageDetail(
     to: mapAddresses(email.to),
     cc: mapAddresses(email.cc),
     receivedAt: email.receivedAt ?? new Date(0).toISOString(),
-    subject: (email.subject ?? "").trim() || "(ไม่มีหัวเรื่อง)",
+    subject: (email.subject ?? "").trim() || MAIL_NO_SUBJECT_PLACEHOLDER,
     isUnread: !keywords["$seen"],
     isFlagged: !!keywords["$flagged"],
     htmlSanitized,
@@ -940,7 +947,7 @@ export async function getMailThread(
   const anchor = shown.find((e) => e.id === id) ?? shown[shown.length - 1]!;
   return {
     threadId: anchor.threadId ?? id,
-    subject: messages[0]?.subject ?? "(ไม่มีหัวเรื่อง)",
+    subject: messages[0]?.subject ?? MAIL_NO_SUBJECT_PLACEHOLDER,
     messages,
     totalMessages,
   };

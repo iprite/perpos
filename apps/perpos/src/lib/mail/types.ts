@@ -1,3 +1,5 @@
+import type { MailLocale } from "./i18n";
+
 /**
  * DTO ของโมดูลอีเมล (webmail M1)
  *
@@ -180,6 +182,8 @@ export interface MailPrefs {
   pane: MailPaneMode;
   /** ความกว้างคอลัมน์รายการ (px) ตอนมุมมอง `split` — ผู้ใช้ลากตัวแบ่งเองได้ */
   listWidth: number;
+  /** ภาษาของเว็บเมล (th/en) — ดู `lib/mail/i18n` */
+  locale: MailLocale;
 }
 
 // ─── กฎกรองอัตโนมัติ (Sieve — M3) ─────────────────────────────────────────────

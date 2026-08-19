@@ -17,10 +17,17 @@ export async function GET(req: NextRequest) {
   return withMailSession(req, async (session) => mailJson(await readMailPrefs(session)));
 }
 
+/**
+ * PUT รับ **บางช่อง** ได้ — รวมกับค่าเดิมในกล่องเมลก่อนเขียนทับ
+ * (ผู้เรียกมีหลายตัว: workspace เขียน pane/listWidth · หน้าบัญชีเขียน locale —
+ *  ถ้าเขียนทับทั้งไฟล์ ตัวหนึ่งจะรีเซ็ตช่องของอีกตัวเงียบ ๆ)
+ */
 export async function PUT(req: NextRequest) {
   const body = await readJsonBody(req);
-  const prefs = normalizeMailPrefs(body);
+  const patch = body && typeof body === "object" ? (body as Record<string, unknown>) : {};
   return withMailSession(req, async (session) => {
+    const existing = await readMailPrefs(session);
+    const prefs = normalizeMailPrefs({ ...existing, ...patch });
     await writeMailPrefs(session, prefs);
     return mailJson({ ok: true, ...prefs });
   });

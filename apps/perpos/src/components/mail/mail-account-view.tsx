@@ -10,12 +10,14 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import Link from "next/link";
-import { ArrowLeft, Trash2, UserRound } from "lucide-react";
+import { Trash2, UserRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { SegmentedControl } from "@/components/ui/segmented";
 import { Text, Title } from "@/components/ui/typography";
+import { useMailLocale } from "@/components/mail/mail-locale";
+import { MAIL_LOCALES, type MailLocale } from "@/lib/mail/i18n";
 
 type Status = { tone: "ok" | "error"; text: string } | null;
 
@@ -46,7 +48,8 @@ function Note({ status }: { status: Status }) {
   );
 }
 
-export function MailAccountView({ basePath }: { basePath: string }) {
+export function MailAccountView() {
+  const { locale, setLocale, t } = useMailLocale();
   const [email, setEmail] = useState<string | null>(null);
   const [displayName, setDisplayName] = useState("");
   const [savedName, setSavedName] = useState("");
@@ -99,11 +102,14 @@ export function MailAccountView({ basePath }: { basePath: string }) {
         body: JSON.stringify({ displayName }),
       });
       const json = (await res.json().catch(() => null)) as { error?: { message?: string } } | null;
-      if (!res.ok) throw new Error(json?.error?.message ?? "บันทึกไม่สำเร็จ");
+      if (!res.ok) throw new Error(json?.error?.message ?? t("account.name.failed"));
       setSavedName(displayName.trim());
-      setNameStatus({ tone: "ok", text: "บันทึกแล้ว — ผู้รับจะเห็นชื่อนี้ในเมลฉบับต่อไป" });
+      setNameStatus({ tone: "ok", text: t("account.name.saved") });
     } catch (e) {
-      setNameStatus({ tone: "error", text: e instanceof Error ? e.message : "บันทึกไม่สำเร็จ" });
+      setNameStatus({
+        tone: "error",
+        text: e instanceof Error ? e.message : t("account.name.failed"),
+      });
     } finally {
       setSavingName(false);
     }
@@ -119,11 +125,14 @@ export function MailAccountView({ basePath }: { basePath: string }) {
         body: file,
       });
       const json = (await res.json().catch(() => null)) as { error?: { message?: string } } | null;
-      if (!res.ok) throw new Error(json?.error?.message ?? "อัปโหลดไม่สำเร็จ");
+      if (!res.ok) throw new Error(json?.error?.message ?? t("account.avatar.failed"));
       await loadAvatar();
-      setAvatarStatus({ tone: "ok", text: "เปลี่ยนรูปแล้ว" });
+      setAvatarStatus({ tone: "ok", text: t("account.avatar.changed") });
     } catch (e) {
-      setAvatarStatus({ tone: "error", text: e instanceof Error ? e.message : "อัปโหลดไม่สำเร็จ" });
+      setAvatarStatus({
+        tone: "error",
+        text: e instanceof Error ? e.message : t("account.avatar.failed"),
+      });
     } finally {
       setAvatarBusy(false);
     }
@@ -138,7 +147,7 @@ export function MailAccountView({ basePath }: { basePath: string }) {
         if (prev) URL.revokeObjectURL(prev);
         return null;
       });
-      setAvatarStatus({ tone: "ok", text: "เอารูปออกแล้ว" });
+      setAvatarStatus({ tone: "ok", text: t("account.avatar.removed") });
     } finally {
       setAvatarBusy(false);
     }
@@ -146,7 +155,7 @@ export function MailAccountView({ basePath }: { basePath: string }) {
 
   async function changePassword() {
     if (next !== confirm) {
-      return setPwStatus({ tone: "error", text: "รหัสผ่านใหม่กับการยืนยันไม่ตรงกัน" });
+      return setPwStatus({ tone: "error", text: t("account.password.mismatch") });
     }
     setSavingPw(true);
     setPwStatus(null);
@@ -161,19 +170,19 @@ export function MailAccountView({ basePath }: { basePath: string }) {
         }),
       });
       const json = (await res.json().catch(() => null)) as { error?: { message?: string } } | null;
-      if (!res.ok) throw new Error(json?.error?.message ?? "เปลี่ยนรหัสผ่านไม่สำเร็จ");
+      if (!res.ok) throw new Error(json?.error?.message ?? t("account.password.failed"));
       // ล้างค่าออกจากหน่วยความจำทันทีที่ทำเสร็จ
       setCurrent("");
       setNext("");
       setConfirm("");
       setPwStatus({
         tone: "ok",
-        text: "เปลี่ยนรหัสผ่านแล้ว — อุปกรณ์อื่น (Outlook/มือถือ) ต้องใส่รหัสใหม่ด้วย",
+        text: t("account.password.changed"),
       });
     } catch (e) {
       setPwStatus({
         tone: "error",
-        text: e instanceof Error ? e.message : "เปลี่ยนรหัสผ่านไม่สำเร็จ",
+        text: e instanceof Error ? e.message : t("account.password.failed"),
       });
     } finally {
       setSavingPw(false);
@@ -181,142 +190,154 @@ export function MailAccountView({ basePath }: { basePath: string }) {
   }
 
   return (
-    <div className="mx-auto w-full max-w-2xl space-y-4">
-      <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" asChild aria-label="กลับไปที่กล่องเมล">
-          <Link href={basePath || "/"}>
-            <ArrowLeft className="h-4 w-4" />
-          </Link>
-        </Button>
-        <div className="min-w-0">
-          <Title as="h1" className="truncate text-xl font-semibold">
-            บัญชีของฉัน
-          </Title>
-          <Text className="truncate text-sm text-gray-500">{email ?? "—"}</Text>
-        </div>
+    // โครงเดียวกับหน้า /rules — เต็มความกว้างของ main (rail อยู่ซ้ายแล้ว ไม่ต้องมีปุ่มย้อนกลับ)
+    <div className="w-full space-y-4 py-4">
+      <div className="min-w-0">
+        <Title as="h1" className="truncate text-2xl font-semibold text-primary">
+          {t("account.title")}
+        </Title>
+        <Text className="mt-0.5 truncate text-sm text-gray-500">{email ?? "—"}</Text>
       </div>
 
-      <Card
-        title="รูปโปรไฟล์"
-        description="เห็นเฉพาะในเว็บเมลนี้ · ผู้รับปลายทางไม่เห็น (อีเมลไม่มีมาตรฐานรูปโปรไฟล์) · PNG/JPEG/WEBP ไม่เกิน 256 KB"
-      >
-        <div className="flex items-center gap-4">
-          <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full bg-gray-100">
-            {avatarUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element -- รูปมาจาก blob: ของผู้ใช้เอง ไม่ผ่าน CDN
-              <img src={avatarUrl} alt="รูปโปรไฟล์" className="h-full w-full object-cover" />
-            ) : (
-              <UserRound className="h-7 w-7 text-gray-400" />
-            )}
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <input
-              ref={filePicker}
-              type="file"
-              accept="image/png,image/jpeg,image/webp"
-              className="hidden"
-              onChange={(e) => {
-                const f = e.target.files?.[0];
-                e.target.value = "";
-                if (f) void uploadAvatar(f);
-              }}
-            />
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={avatarBusy}
-              onClick={() => filePicker.current?.click()}
-            >
-              {avatarBusy ? "กำลังอัปโหลด…" : avatarUrl ? "เปลี่ยนรูป" : "อัปโหลดรูป"}
-            </Button>
-            {avatarUrl && (
+      {/* จอกว้างแบ่ง 2 คอลัมน์ — การ์ดสั้น ๆ ซ้อนกันเป็นแท่งเดียวเหลือที่ว่างขวาทั้งจอ */}
+      <div className="grid gap-4 xl:grid-cols-2">
+        <div className="space-y-4">
+          <Card title={t("account.avatar.title")} description={t("account.avatar.desc")}>
+            <div className="flex items-center gap-4">
+              <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full bg-gray-100">
+                {avatarUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element -- รูปมาจาก blob: ของผู้ใช้เอง ไม่ผ่าน CDN
+                  <img
+                    src={avatarUrl}
+                    alt={t("account.avatar.alt")}
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <UserRound className="h-7 w-7 text-gray-400" />
+                )}
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <input
+                  ref={filePicker}
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  className="hidden"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    e.target.value = "";
+                    if (f) void uploadAvatar(f);
+                  }}
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={avatarBusy}
+                  onClick={() => filePicker.current?.click()}
+                >
+                  {avatarBusy
+                    ? t("account.avatar.uploading")
+                    : avatarUrl
+                      ? t("account.avatar.change")
+                      : t("account.avatar.upload")}
+                </Button>
+                {avatarUrl && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={avatarBusy}
+                    onClick={() => void removeAvatar()}
+                  >
+                    <Trash2 className="h-4 w-4" /> {t("account.avatar.remove")}
+                  </Button>
+                )}
+              </div>
+            </div>
+            <Note status={avatarStatus} />
+          </Card>
+
+          <Card title={t("account.name.title")} description={t("account.name.desc")}>
+            <div className="flex flex-wrap items-end gap-2">
+              <div className="min-w-0 flex-1">
+                <Label htmlFor="mail-display-name">{t("account.name.label")}</Label>
+                <Input
+                  id="mail-display-name"
+                  className="mt-1"
+                  value={displayName}
+                  placeholder={t("account.name.placeholder")}
+                  maxLength={80}
+                  onChange={(e) => setDisplayName(e.target.value)}
+                />
+              </div>
               <Button
-                variant="ghost"
-                size="sm"
-                disabled={avatarBusy}
-                onClick={() => void removeAvatar()}
+                disabled={savingName || displayName.trim() === savedName}
+                onClick={() => void saveName()}
               >
-                <Trash2 className="h-4 w-4" /> เอาออก
+                {savingName ? t("common.saving") : t("common.save")}
               </Button>
-            )}
-          </div>
-        </div>
-        <Note status={avatarStatus} />
-      </Card>
+            </div>
+            <Note status={nameStatus} />
+          </Card>
 
-      <Card title="ชื่อที่แสดง" description="ชื่อที่ผู้รับเห็นหน้าที่อยู่อีเมลของคุณ">
-        <div className="flex flex-wrap items-end gap-2">
-          <div className="min-w-0 flex-1">
-            <Label htmlFor="mail-display-name">ชื่อ</Label>
-            <Input
-              id="mail-display-name"
-              className="mt-1"
-              value={displayName}
-              placeholder="เช่น ฝ่ายขาย EXWorker"
-              maxLength={80}
-              onChange={(e) => setDisplayName(e.target.value)}
+          <Card title={t("account.language.title")} description={t("account.language.desc")}>
+            <SegmentedControl<MailLocale>
+              value={locale}
+              onChange={(next) => setLocale(next)}
+              ariaLabel={t("common.language")}
+              options={MAIL_LOCALES.map((code) => ({
+                value: code,
+                label: code === "th" ? "ไทย" : "English",
+              }))}
             />
-          </div>
-          <Button
-            disabled={savingName || displayName.trim() === savedName}
-            onClick={() => void saveName()}
-          >
-            {savingName ? "กำลังบันทึก…" : "บันทึก"}
-          </Button>
+            <p className="mt-2 text-xs text-gray-500">{t("account.language.hint")}</p>
+          </Card>
         </div>
-        <Note status={nameStatus} />
-      </Card>
 
-      <Card
-        title="รหัสผ่าน"
-        description="ใช้กับทั้งเว็บเมลนี้และการตั้งค่าใน Outlook / มือถือ — เปลี่ยนแล้วต้องอัปเดตทุกอุปกรณ์"
-      >
-        <div className="space-y-3">
-          <div>
-            <Label htmlFor="mail-pw-current">รหัสผ่านปัจจุบัน</Label>
-            <Input
-              id="mail-pw-current"
-              type="password"
-              autoComplete="current-password"
-              className="mt-1"
-              value={current}
-              onChange={(e) => setCurrent(e.target.value)}
-            />
+        <Card title={t("account.password.title")} description={t("account.password.desc")}>
+          <div className="space-y-3">
+            <div>
+              <Label htmlFor="mail-pw-current">{t("account.password.current")}</Label>
+              <Input
+                id="mail-pw-current"
+                type="password"
+                autoComplete="current-password"
+                className="mt-1"
+                value={current}
+                onChange={(e) => setCurrent(e.target.value)}
+              />
+            </div>
+            <div>
+              <Label htmlFor="mail-pw-new">{t("account.password.new")}</Label>
+              <Input
+                id="mail-pw-new"
+                type="password"
+                autoComplete="new-password"
+                className="mt-1"
+                value={next}
+                onChange={(e) => setNext(e.target.value)}
+              />
+              <p className="mt-1 text-xs text-gray-500">{t("account.password.newHint")}</p>
+            </div>
+            <div>
+              <Label htmlFor="mail-pw-confirm">{t("account.password.confirm")}</Label>
+              <Input
+                id="mail-pw-confirm"
+                type="password"
+                autoComplete="new-password"
+                className="mt-1"
+                value={confirm}
+                onChange={(e) => setConfirm(e.target.value)}
+              />
+            </div>
+            <Button
+              disabled={savingPw || !current || !next || !confirm}
+              onClick={() => void changePassword()}
+            >
+              {savingPw ? t("account.password.submitting") : t("account.password.submit")}
+            </Button>
+            <Note status={pwStatus} />
           </div>
-          <div>
-            <Label htmlFor="mail-pw-new">รหัสผ่านใหม่</Label>
-            <Input
-              id="mail-pw-new"
-              type="password"
-              autoComplete="new-password"
-              className="mt-1"
-              value={next}
-              onChange={(e) => setNext(e.target.value)}
-            />
-            <p className="mt-1 text-xs text-gray-500">
-              เซิร์ฟเวอร์ปฏิเสธรหัสที่เดาง่าย — ใช้ให้ยาวหรือผสมคำที่ไม่ใช่คำทั่วไป
-            </p>
-          </div>
-          <div>
-            <Label htmlFor="mail-pw-confirm">ยืนยันรหัสผ่านใหม่</Label>
-            <Input
-              id="mail-pw-confirm"
-              type="password"
-              autoComplete="new-password"
-              className="mt-1"
-              value={confirm}
-              onChange={(e) => setConfirm(e.target.value)}
-            />
-          </div>
-          <Button
-            disabled={savingPw || !current || !next || !confirm}
-            onClick={() => void changePassword()}
-          >
-            {savingPw ? "กำลังเปลี่ยน…" : "เปลี่ยนรหัสผ่าน"}
-          </Button>
-          <Note status={pwStatus} />
-        </div>
-      </Card>
+        </Card>
+      </div>
     </div>
   );
 }

@@ -1,9 +1,27 @@
 /**
- * รูปแบบเวลา/ขนาดไฟล์ของโมดูลอีเมล — ภาษาไทย ปี พ.ศ. (DESIGN.md §14)
+ * รูปแบบเวลา/ขนาดไฟล์ของโมดูลอีเมล — ไทย = ปี พ.ศ. (DESIGN.md §14) · อังกฤษ = ค.ศ.
  * เวลาทั้งหมดคิดตามเขตเวลาไทยเสมอ (เซิร์ฟเวอร์เป็น UTC)
+ * ภาษาส่งเข้ามาเป็นพารามิเตอร์ (ค่าเริ่มต้นไทย — ผู้เรียกเดิมที่ยังไม่ส่งไม่พัง)
  */
 
+import { MAIL_LOCALE_DEFAULT, type MailLocale } from "./i18n";
+
 const TIME_ZONE = "Asia/Bangkok";
+
+const EN_MONTHS_SHORT = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+];
 
 const TH_MONTHS_SHORT = [
   "ม.ค.",
@@ -63,28 +81,33 @@ export function buddhistYear(ce: number): number {
  * เวลาสัมพัทธ์สำหรับแถวรายการ:
  *  วันนี้ → `14:32` · เมื่อวาน → `เมื่อวาน` · ปีนี้ → `12 ส.ค.` · ปีก่อน → `12 ส.ค. 67`
  */
-export function formatMailTime(iso: string, now: Date = new Date()): string {
+export function formatMailTime(
+  iso: string,
+  now: Date = new Date(),
+  locale: MailLocale = MAIL_LOCALE_DEFAULT,
+): string {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return "";
   const d = zonedParts(date);
   const n = zonedParts(now);
   const diffDays = dayNumber(n) - dayNumber(d);
-  const month = TH_MONTHS_SHORT[d.month - 1] ?? "";
+  const month = (locale === "en" ? EN_MONTHS_SHORT : TH_MONTHS_SHORT)[d.month - 1] ?? "";
 
   if (diffDays === 0) return `${d.hour}:${d.minute}`;
-  if (diffDays === 1) return "เมื่อวาน";
+  if (diffDays === 1) return locale === "en" ? "Yesterday" : "เมื่อวาน";
   if (d.year === n.year) return `${d.day} ${month}`;
-  const shortBe = String(buddhistYear(d.year)).slice(-2);
-  return `${d.day} ${month} ${shortBe}`;
+  const shortYear = String(locale === "en" ? d.year : buddhistYear(d.year)).slice(-2);
+  return `${d.day} ${month} ${shortYear}`;
 }
 
-/** วันเวลาแบบเต็มสำหรับบานอ่าน: `12 ส.ค. 2568 14:32` */
-export function formatMailDateTime(iso: string): string {
+/** วันเวลาแบบเต็มสำหรับบานอ่าน: `12 ส.ค. 2568 14:32` · en: `12 Aug 2025 14:32` */
+export function formatMailDateTime(iso: string, locale: MailLocale = MAIL_LOCALE_DEFAULT): string {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return "";
   const d = zonedParts(date);
-  const month = TH_MONTHS_SHORT[d.month - 1] ?? "";
-  return `${d.day} ${month} ${buddhistYear(d.year)} ${d.hour}:${d.minute}`;
+  const month = (locale === "en" ? EN_MONTHS_SHORT : TH_MONTHS_SHORT)[d.month - 1] ?? "";
+  const year = locale === "en" ? d.year : buddhistYear(d.year);
+  return `${d.day} ${month} ${year} ${d.hour}:${d.minute}`;
 }
 
 /** ขนาดไฟล์แนบ */

@@ -1,7 +1,14 @@
+import { cookies } from "next/headers";
 import { Info, Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Text } from "@/components/ui/typography";
 import { MAIL_PRODUCT_NAME } from "@/lib/mail/boxes";
+import {
+  MAIL_LOCALE_COOKIE,
+  type MailMessageKey,
+  mailTranslator,
+  normalizeMailLocale,
+} from "@/lib/mail/i18n";
 import { MailWordmark } from "@/components/mail/mail-wordmark";
 
 /**
@@ -20,13 +27,13 @@ import { MailWordmark } from "@/components/mail/mail-wordmark";
 
 export const dynamic = "force-dynamic";
 
-const REASON_MESSAGE: Record<string, string> = {
-  expired: "เซสชันกล่องเมลหมดอายุ กรุณาเข้าสู่ระบบใหม่อีกครั้ง",
-  denied: "คุณยกเลิกการอนุญาต จึงยังเข้าสู่ระบบไม่สำเร็จ",
-  disconnected: "ออกจากระบบบนอุปกรณ์นี้เรียบร้อยแล้ว",
-  invalid: "คำขอเข้าสู่ระบบไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง",
-  failed: "เข้าสู่ระบบไม่สำเร็จ กรุณาลองใหม่อีกครั้ง",
-  no_refresh: "เซิร์ฟเวอร์อีเมลไม่ได้ให้สิทธิ์ค้างการเข้าสู่ระบบ กรุณาติดต่อผู้ดูแลระบบ",
+const REASON_MESSAGE: Record<string, MailMessageKey> = {
+  expired: "login.reason.expired",
+  denied: "login.reason.denied",
+  disconnected: "login.reason.disconnected",
+  invalid: "login.reason.invalid",
+  failed: "login.reason.failed",
+  no_refresh: "login.reason.no_refresh",
 };
 
 export default async function MailLoginPage({
@@ -35,7 +42,10 @@ export default async function MailLoginPage({
   searchParams: Promise<{ reason?: string; returnTo?: string }>;
 }) {
   const { reason, returnTo } = await searchParams;
-  const message = reason ? REASON_MESSAGE[reason] : undefined;
+  const jar = await cookies();
+  const t = mailTranslator(normalizeMailLocale(jar.get(MAIL_LOCALE_COOKIE)?.value));
+  const messageKey = reason ? REASON_MESSAGE[reason] : undefined;
+  const message = messageKey ? t(messageKey) : undefined;
 
   return (
     <div className="mx-auto w-full max-w-md space-y-4 py-10 sm:py-16">
@@ -55,23 +65,22 @@ export default async function MailLoginPage({
             <MailWordmark />
             <span className="sr-only">{MAIL_PRODUCT_NAME}</span>
           </h1>
-          <Text className="mt-1 max-w-sm text-sm text-gray-500">
-            เข้าสู่ระบบด้วยอีเมลและรหัสผ่านของกล่องเมลคุณ เพื่อเริ่มอ่านและจัดการอีเมล
-          </Text>
+          <Text className="mt-1 max-w-sm text-sm text-gray-500">{t("login.intro")}</Text>
           {/* เป็น API route (302 ไปเซิร์ฟเวอร์เมล) ไม่ใช่หน้าในแอป → ใช้ form GET ไม่ใช่ <Link> */}
           <form action="/api/mail/oauth/start" method="get" className="mt-6 w-full">
             {/* ล็อกอินเสร็จแล้วกลับหน้าที่ตั้งใจเปิด — ค่าถูกกรองอีกชั้นด้วย `sanitizeReturnTo` ที่ start */}
             {returnTo && <input type="hidden" name="returnTo" value={returnTo} />}
             <Button type="submit" className="w-full">
-              เข้าสู่ระบบ
+              {t("login.submit")}
             </Button>
           </form>
         </div>
       </div>
 
       <Text className="px-1 text-center text-xs text-gray-400">
-        การเข้าสู่ระบบจะให้สิทธิ์อ่านและจัดการอีเมล <strong>บนอุปกรณ์นี้</strong> ถ้าอุปกรณ์สูญหาย
-        ให้เปลี่ยนรหัสผ่านกล่องเมลของคุณ
+        {t("login.footerPrefix")}
+        <strong>{t("login.footerDevice")}</strong>
+        {t("login.footerSuffix")}
       </Text>
     </div>
   );

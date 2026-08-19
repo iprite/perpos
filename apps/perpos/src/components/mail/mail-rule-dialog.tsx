@@ -32,6 +32,7 @@ import { SegmentedControl } from "@/components/ui/segmented";
 import { Text } from "@/components/ui/typography";
 import { notify } from "@/lib/toast";
 import { showUndoToast } from "@/components/ui/undo-toast";
+import { useMailT } from "@/components/mail/mail-locale";
 import { MAIL_RULE_APPLY_LIMIT, MAIL_RULE_MAX, MAIL_RULE_VALUE_MAX } from "@/lib/mail/rule-meta";
 
 /**
@@ -79,6 +80,7 @@ export function MailRuleDialog({
   /** โฟลเดอร์ที่เมลฉบับนี้อยู่ (ถ้าเป็นโฟลเดอร์ที่ผู้ใช้สร้างเอง) = ปลายทางที่เดาให้ */
   defaultMailboxId?: string | null;
 }) {
+  const t = useMailT();
   const [name, setName] = useState("");
   const [useSubject, setUseSubject] = useState(false);
   /** ค่าที่จะใช้จริงของเงื่อนไขหัวเรื่อง — แก้ได้ (หัวเรื่องเต็มมักจำเพาะเกินจนกฎไม่เคยตรง) */
@@ -127,7 +129,7 @@ export function MailRuleDialog({
           .filter((m) => m.key === "junk" || m.key === "trash")
           .map((m) => ({ value: m.id, label: m.name }));
         setTargets([
-          { value: "", label: "— ไม่ย้าย —" },
+          { value: "", label: t("rules.target.none") },
           ...(data.folders ?? []).map((f) => ({ value: f.id, label: f.path })),
           ...system,
         ]);
@@ -138,7 +140,7 @@ export function MailRuleDialog({
     return () => {
       alive = false;
     };
-  }, [open]);
+  }, [open, t]);
 
   /**
    * กฎที่กำลังจะสร้าง — ใช้ทั้งตอน "นับให้ดูก่อน" และตอนบันทึกจริง
@@ -194,7 +196,7 @@ export function MailRuleDialog({
     };
     let alive = true;
     setCounting(true);
-    const t = setTimeout(() => {
+    const timer = setTimeout(() => {
       fetch("/api/mail/rules/apply", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -210,7 +212,7 @@ export function MailRuleDialog({
     }, 400);
     return () => {
       alive = false;
-      clearTimeout(t);
+      clearTimeout(timer);
       setCounting(false);
       /* ตั้งใจไม่ล้าง matchCount ตรงนี้ — จอจะกะพริบทุกตัวอักษรที่พิมพ์ */
     };
@@ -223,23 +225,23 @@ export function MailRuleDialog({
     setSaving(true);
     try {
       const res = await fetch("/api/mail/rules");
-      if (!res.ok) throw new Error("อ่านกฎกรองเดิมไม่สำเร็จ");
+      if (!res.ok) throw new Error(t("rules.dialog.readFailed"));
       const current = (await res.json()) as MailRulesResult;
       if (current.foreignScript) {
         // ของคนอื่นอยู่บนเซิร์ฟเวอร์ — ตัดสินใจเขียนทับต้องทำที่หน้ากฎกรองที่มีคำเตือนเต็ม
-        notify.error(null, "กล่องเมลนี้มีกฎกรองเดิมจากที่อื่น — เปิดหน้า “กฎกรอง” เพื่อยืนยันก่อน");
+        notify.error(null, t("rules.dialog.foreign"));
         onOpenChange(false);
         return;
       }
       const rules = current.rules ?? [];
       if (rules.length >= MAIL_RULE_MAX) {
-        notify.error(null, `มีกฎครบ ${MAIL_RULE_MAX} ข้อแล้ว — ลบของเดิมก่อน`);
+        notify.error(null, t("rules.dialog.maxReached", { max: MAIL_RULE_MAX }));
         return;
       }
 
       const rule = buildRule();
       if (!rule) {
-        notify.error(null, "เปิดเงื่อนไขหัวเรื่องไว้ แต่ยังไม่ได้กรอกคำ");
+        notify.error(null, t("rules.dialog.subjectEmpty"));
         return;
       }
 
@@ -249,10 +251,10 @@ export function MailRuleDialog({
         body: JSON.stringify({ rules: [...rules, rule] }),
       });
       const data = (await put.json().catch(() => null)) as { message?: string } | null;
-      if (!put.ok) throw new Error(data?.message ?? "บันทึกกฎกรองไม่สำเร็จ");
+      if (!put.ok) throw new Error(data?.message ?? t("rules.save.failed"));
 
       if (!applyExisting) {
-        notify.saved("สร้างกฎกรองแล้ว — มีผลกับเมลที่เข้ามาใหม่");
+        notify.saved(t("rules.dialog.created"));
         onOpenChange(false);
         return;
       }
@@ -285,8 +287,8 @@ export function MailRuleDialog({
           notify.error(
             null,
             done === 0
-              ? (result?.message ?? "สร้างกฎแล้ว แต่ใช้กับเมลเดิมไม่สำเร็จ")
-              : `จัดการไปแล้ว ${done} ฉบับ แล้วเจอปัญหา — กดสร้างกฎซ้ำเพื่อทำต่อได้`,
+              ? (result?.message ?? t("rules.dialog.applyFailedFirst"))
+              : t("rules.dialog.applyFailedPartial", { done }),
           );
           break;
         }
@@ -306,11 +308,13 @@ export function MailRuleDialog({
 
       onOpenChange(false);
       if (done === 0) {
-        notify.saved("สร้างกฎกรองแล้ว — ไม่พบเมลเดิมที่ตรงเงื่อนไข");
+        notify.saved(t("rules.dialog.createdNoMatch"));
         return;
       }
       showUndoToast({
-        message: `จัดการเมลเดิมแล้ว ${done} ฉบับ` + (left > 0 ? ` · เหลืออีก ${left}` : ""),
+        message:
+          t("rules.dialog.appliedDone", { done }) +
+          (left > 0 ? t("rules.dialog.appliedLeft", { left }) : ""),
         onUndo: () => {
           if (undoItems.length === 0) return;
           // เลิกทำต้องแบ่งก้อนเหมือนกัน — route รับได้ครั้งละ MAIL_RULE_APPLY_LIMIT รายการ
@@ -326,7 +330,7 @@ export function MailRuleDialog({
                 });
                 if (!res.ok) throw new Error("undo failed");
               } catch {
-                notify.error(null, "เลิกทำไม่สำเร็จทั้งหมด — บางฉบับยังอยู่ที่ใหม่");
+                notify.error(null, t("rules.dialog.undoFailed"));
                 return;
               }
             }
@@ -334,23 +338,23 @@ export function MailRuleDialog({
         },
       });
     } catch (e) {
-      notify.error(e, "สร้างกฎกรองไม่สำเร็จ");
+      notify.error(e, t("rules.dialog.createFailed"));
     } finally {
       setSaving(false);
     }
-  }, [seed, buildRule, applyExisting, onOpenChange]);
+  }, [seed, buildRule, applyExisting, onOpenChange, t]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent size="md">
         <DialogHeader>
-          <DialogTitle>สร้างกฎกรองจากเมลนี้</DialogTitle>
+          <DialogTitle>{t("rules.dialog.title")}</DialogTitle>
         </DialogHeader>
         <DialogBody>
           {seed && (
             <div className="space-y-4">
               <div>
-                <Label htmlFor="rule-name">ชื่อกฎ</Label>
+                <Label htmlFor="rule-name">{t("rules.card.name")}</Label>
                 <Input
                   id="rule-name"
                   value={name}
@@ -365,29 +369,33 @@ export function MailRuleDialog({
               <div className="divide-y divide-gray-200 overflow-hidden rounded-xl border border-gray-200">
                 <div className="bg-gray-50 px-3 py-2">
                   <Text className="text-xs font-medium text-gray-500">
-                    เงื่อนไข — ต้องตรงทุกข้อที่เปิดไว้
+                    {t("rules.dialog.conditionsHeader")}
                   </Text>
                 </div>
 
                 <div className="flex items-start gap-3 px-3 py-2.5">
                   <div className="min-w-0 flex-1">
-                    <Text className="text-xs text-gray-500">ผู้ส่งมีคำว่า</Text>
+                    <Text className="text-xs text-gray-500">
+                      {t("rules.dialog.senderContains")}
+                    </Text>
                     <Text className="mt-0.5 break-all text-sm font-medium text-gray-900">
                       {seed.fromEmail}
                     </Text>
                   </div>
                   {/* ผู้ส่งเป็นแกนของกฎที่สร้างจากเมล — ปิดไม่ได้ (ปิดแล้วเหลือกฎที่กว้างจนอันตราย) */}
                   <span className="mt-0.5 shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600">
-                    เสมอ
+                    {t("rules.dialog.always")}
                   </span>
                 </div>
 
                 {subjectValue && (
                   <div className="px-3 py-2.5">
                     <div className="flex items-start gap-3">
-                      <Text className="min-w-0 flex-1 text-xs text-gray-500">หัวเรื่องมีคำว่า</Text>
+                      <Text className="min-w-0 flex-1 text-xs text-gray-500">
+                        {t("rules.dialog.subjectContains")}
+                      </Text>
                       <YesNo
-                        label="ใช้เงื่อนไขหัวเรื่องด้วย"
+                        label={t("rules.dialog.useSubjectAria")}
                         value={useSubject}
                         onChange={setUseSubject}
                       />
@@ -399,7 +407,7 @@ export function MailRuleDialog({
                         value={subjectInput}
                         maxLength={MAIL_RULE_VALUE_MAX}
                         onChange={(e) => setSubjectInput(e.target.value)}
-                        placeholder="คำที่มีในหัวเรื่องทุกฉบับ"
+                        placeholder={t("rules.dialog.subjectPlaceholder")}
                         className="mt-1.5"
                       />
                     ) : (
@@ -412,40 +420,46 @@ export function MailRuleDialog({
               </div>
 
               <div>
-                <Label htmlFor="rule-target">ย้ายไปที่</Label>
+                <Label htmlFor="rule-target">{t("rules.dialog.moveTo")}</Label>
                 <CustomSelect
                   value={moveTo}
                   onChange={setMoveTo}
-                  options={targets.length ? targets : [{ value: "", label: "— ไม่ย้าย —" }]}
+                  options={
+                    targets.length ? targets : [{ value: "", label: t("rules.target.none") }]
+                  }
                   className="mt-1 w-full"
                 />
               </div>
 
               <div className="flex items-center gap-2">
-                <Text className="text-sm text-gray-700">ทำเป็นอ่านแล้วอัตโนมัติ</Text>
-                <YesNo label="ทำเป็นอ่านแล้วอัตโนมัติ" value={markRead} onChange={setMarkRead} />
+                <Text className="text-sm text-gray-700">{t("rules.dialog.markReadAuto")}</Text>
+                <YesNo
+                  label={t("rules.dialog.markReadAuto")}
+                  value={markRead}
+                  onChange={setMarkRead}
+                />
               </div>
 
               {/* ของเดิมเป็นงานคนละชิ้น — Sieve กรองตอนเมลเข้าเท่านั้น ย้อนหลังต้องสั่ง JMAP เอง */}
               <div className="rounded-xl border border-gray-200 px-3 py-2.5">
                 <div className="flex items-start gap-3">
                   <div className="min-w-0 flex-1">
-                    <Text className="text-sm text-gray-900">ใช้กับเมลเดิมในกล่องขาเข้าด้วย</Text>
+                    <Text className="text-sm text-gray-900">{t("rules.dialog.applyExisting")}</Text>
                     <Text className="mt-0.5 text-xs text-gray-500">
                       {counting
-                        ? "กำลังนับ…"
+                        ? t("rules.dialog.counting")
                         : matchCount === null
-                          ? "กฎมีผลกับอีเมลที่เข้ามาหลังจากนี้เท่านั้น"
+                          ? t("rules.dialog.newOnly")
                           : matchCount === 0
-                            ? "ไม่พบเมลเดิมที่ตรงเงื่อนไข"
-                            : `พบ ${matchCount} ฉบับ` +
+                            ? t("rules.dialog.noMatch")
+                            : t("rules.dialog.found", { count: matchCount }) +
                               (matchCount > MAIL_RULE_APPLY_LIMIT
-                                ? ` — ทยอยทำเป็นก้อนละ ${MAIL_RULE_APPLY_LIMIT} จนครบ`
+                                ? t("rules.dialog.foundBatched", { limit: MAIL_RULE_APPLY_LIMIT })
                                 : "")}
                     </Text>
                   </div>
                   <YesNo
-                    label="ใช้กับเมลเดิมด้วย"
+                    label={t("rules.dialog.applyExistingAria")}
                     value={applyExisting}
                     onChange={setApplyExisting}
                   />
@@ -454,16 +468,16 @@ export function MailRuleDialog({
                   <div className="mt-2 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-2">
                     <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
                     <Text className="text-sm text-amber-800">
-                      กฎนี้ยังไม่มีการกระทำ (ไม่ย้าย/ไม่ทำเป็นอ่านแล้ว) จึงไม่มีอะไรทำกับเมลเดิม
+                      {t("rules.dialog.noActionWarning")}
                     </Text>
                   </div>
                 )}
               </div>
 
               <Text className="text-xs text-gray-500">
-                แก้ไขเพิ่มเติม (เงื่อนไขหลายข้อ, ลำดับการตรวจ) ได้ที่หน้า{" "}
+                {t("rules.dialog.moreAt")}{" "}
                 <a className="underline" href={`${basePath}/rules`}>
-                  กฎกรอง
+                  {t("rules.title")}
                 </a>
               </Text>
             </div>
@@ -473,16 +487,17 @@ export function MailRuleDialog({
           {/* ระหว่างไล่จัดการของเดิมต้องเห็นความคืบหน้า + หยุดได้ (งานยาวหลายก้อน) */}
           {saving && applyExisting && (applyDone > 0 || applyLeft > 0) && (
             <Text className="mr-auto text-xs tabular-nums text-gray-500">
-              จัดการแล้ว {applyDone} ฉบับ{applyLeft > 0 ? ` · เหลือ ${applyLeft}` : ""}
+              {t("rules.dialog.progress", { done: applyDone })}
+              {applyLeft > 0 ? t("rules.dialog.progressLeft", { left: applyLeft }) : ""}
             </Text>
           )}
           {saving && applyExisting ? (
             <Button variant="outline" onClick={() => (stopRef.current = true)}>
-              หยุด
+              {t("rules.dialog.stop")}
             </Button>
           ) : (
             <Button variant="outline" disabled={saving} onClick={() => onOpenChange(false)}>
-              ยกเลิก
+              {t("common.cancel")}
             </Button>
           )}
           <Button
@@ -491,7 +506,11 @@ export function MailRuleDialog({
             disabled={saving || !seed || (applyExisting && !hasAction)}
             onClick={() => void save()}
           >
-            {!saving ? "สร้างกฎ" : applyExisting ? "กำลังจัดการ…" : "กำลังบันทึก…"}
+            {!saving
+              ? t("rules.dialog.create")
+              : applyExisting
+                ? t("rules.dialog.applying")
+                : t("common.saving")}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -509,6 +528,7 @@ function YesNo({
   value: boolean;
   onChange: (v: boolean) => void;
 }) {
+  const t = useMailT();
   return (
     <SegmentedControl
       size="xs"
@@ -516,8 +536,8 @@ function YesNo({
       onChange={(v) => onChange(v === "on")}
       ariaLabel={label}
       options={[
-        { value: "on", label: "ใช่" },
-        { value: "off", label: "ไม่" },
+        { value: "on", label: t("rules.yes") },
+        { value: "off", label: t("rules.no") },
       ]}
     />
   );

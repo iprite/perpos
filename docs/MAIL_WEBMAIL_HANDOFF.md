@@ -103,8 +103,42 @@
 * อ่านไม่ได้/ไฟล์เพี้ยน = คืนค่าเริ่มต้น (`split`) **ห้ามโยน** — ความชอบพังต้องไม่ทำให้เปิดเมลไม่ได้
 * เขียนทับต้อง `destroy` ไฟล์เดิมในคำสั่งเดียวกันเสมอ ไม่งั้นไฟล์เก่าค้างกินโควตาผู้ใช้ (เทสยืนยันแล้วว่าเหลือใบเดียว)
 * จะเพิ่มความชอบตัวใหม่ ให้ต่อใน `MailPrefs` + `normalizeMailPrefs` **ที่เดียว** (มีเทสคุมค่าที่อ่านมาเพี้ยน)
+* `PUT /api/mail/prefs` รับ **บางช่อง** ได้ — route รวมกับค่าเดิมก่อนเขียนทับ (2026-08-19) เพราะผู้เรียกมีหลายตัว
+  (workspace เขียน pane/listWidth · หน้าบัญชีเขียน locale) ถ้าเขียนทับทั้งไฟล์ ตัวหนึ่งจะรีเซ็ตช่องของอีกตัวเงียบ ๆ
+
+## 🌐 ภาษา th/en ของเว็บเมล (2026-08-19)
+
+- แกน = [`lib/mail/i18n/`](../apps/perpos/src/lib/mail/i18n/) — `index.ts` (`translateMail`/`MailMessageKey`/cookie key) ·
+  `define.ts` (`defineMailMessages`) · `messages/<พื้นที่>.ts` (พจนานุกรมแยกไฟล์ตามพื้นที่ · **คีย์ขึ้นต้นด้วยชื่อพื้นที่**
+  `shell.` `reader.` … · ทุกคีย์มี `{ th, en }` คู่กัน — TypeScript บังคับ ลืมแปลไม่ได้ · เทส `i18n.test.ts` เช็คคีย์/ตัวแปร `{x}` ตรงกันสองภาษา)
+- ฝั่ง React = [`components/mail/mail-locale.tsx`](../apps/perpos/src/components/mail/mail-locale.tsx) — `MailLocaleProvider` ห่อใน `MailShell`
+  · component ใช้ `useMailT()` / `useMailLocale()` · server component (login) ใช้ `mailTranslator(locale)`
+- ค่าที่เลือกเก็บ 3 ที่: **`perpos-prefs.json` ในกล่องเมล (ตัวจริง — ตามตัวไปทุกเครื่อง)** · cookie `perpos_mail_locale`
+  (ให้ SSR รู้ก่อน paint แรก ไม่วูบไทย→อังกฤษ) · localStorage (แคช) — ออกจากระบบล้าง cookie+แคชทิ้ง
+- ตั้งได้ที่หน้า `/account` การ์ด "ภาษา" (pill ไทย/English) · ค่าเริ่มต้น = ไทย
+- ของที่ผูกภาษาผ่านพารามิเตอร์ (ไม่ใช่พจนานุกรม): `formatMailTime(iso, now, locale)` / `formatMailDateTime(iso, locale)`
+  (en = ค.ศ. + เดือนอังกฤษ) · `mailBoxLabel(key, locale)` · `MAIL_RULE_*_LABELS_BY_LOCALE[locale]` · shortcuts `labelEn`
+- **ห้ามแปล**: ข้อความที่ฝังลงตัวอีเมลขาออก (quote/forward header ใน `lib/mail/compose.ts` — มีเทส) · error จากเซิร์ฟเวอร์ ·
+  ชื่อโฟลเดอร์ที่ผู้ใช้ตั้ง · `MAIL_PRODUCT_NAME` · เพิ่มข้อความใหม่ในเว็บเมล = ต้องเพิ่มลงพจนานุกรม ห้ามพิมพ์ไทยลง JSX ตรง ๆ
 
 ---
+
+## ⚡ ความเร็วตอนเปิดหน้า (วัดจริง 2026-08-19)
+
+- **ต้นเหตุที่วัดได้**: บน VPS Node ทำ request ทีละตัว · แต่ละ route ของ Next มีค่าโสหุ้ยราว 25–35 ms
+  (แม้ `/api/health` เปล่า ๆ) + JMAP อีก 10–150 ms · เดิมเปิดหน้ายิง **7 request พร้อมกัน**
+  (SSR + account + avatar + mailboxes + prefs ×2 + identities + messages) → ตัวท้าย ๆ ต่อคิวจนเห็น 400–900 ms
+  ใน log ของ Caddy ทั้งที่ route เดี่ยว ๆ วิ่ง 50–270 ms · JMAP/Stalwart เอง**ไม่ช้า** (Mailbox/get 50 ms · list 80–140 ms)
+- **แก้แล้ว**: (1) หน้าแรกของรายการขอ `withMailboxes` → ชุดกล่อง+ตัวเลขยังไม่ได้อ่านพ่วงมากับ `/api/mail/messages`
+  (เซิร์ฟเวอร์ดึงกล่องอยู่แล้ว ไม่มี JMAP เพิ่ม) — rail ไม่ยิงเองบนหน้ารายการ (2) `/api/mail/prefs` แชร์คำขอเดียว
+  (`fetchMailPrefsShared`) ระหว่าง provider ภาษากับ workspace (3) identities เลื่อนไป 2 วิ · avatar 1.5 วิ
+  (4) middleware ไม่วิ่งบน `api/mail/*` (dev เคยเสีย getClaims ของ Supabase ทุกคำขอ) ⇒ ตอนเปิดหน้าเหลือ
+  SSR + account + prefs + messages
+- **วิธีวัดซ้ำ**: `docker logs deploy-caddy-1 | grep mail.perpos.ai` ดู `duration` ต่อ uri · หรือ craft cookie session
+  ด้วย admin API key (accountId ใดก็ได้ — admin อ่านข้ามบัญชีได้) แล้ว `fetch` route ตรง `127.0.0.1:3005` ในคอนเทนเนอร์
+- **ยังไม่ทำ (ถ้าจะไล่ต่อ)**: cache Mailbox/get ต่อ session สั้น ๆ (list ทุกหน้ายิง `fetchMailboxes` ก่อน query) ·
+  รวม `/api/mail/account` เข้ากับ SSR (ติดที่ cookie session อยู่ path `/api/mail`) · ค่าโสหุ้ย 25 ms/route ของ Next
+  (Sentry tracing / เครื่อง Contabo) — exapp/riekchang บนเครื่องเดียวกันก็ 13–15 ms
 
 ## 🪤 กับดักที่เจอจริง (เสียเวลาไปแล้ว — อย่าเจอซ้ำ)
 

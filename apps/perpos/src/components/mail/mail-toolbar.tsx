@@ -26,6 +26,7 @@ import { Button } from "@/components/ui/button";
 import { FilterBar, FilterClear, FilterSearch } from "@/components/ui/filter-bar";
 import type { MailSearchScope } from "@/lib/mail/types";
 import { SegmentedControl } from "@/components/ui/segmented";
+import { useMailT } from "@/components/mail/mail-locale";
 
 export interface MailFilters {
   unread: boolean;
@@ -85,6 +86,7 @@ export function MailToolbar({
   /** มีเฉพาะถังขยะ/จดหมายขยะ — ล้างทิ้งถาวร (ผู้เรียกถามยืนยันเอง) */
   onEmptyBox?: () => void;
 }) {
+  const t = useMailT();
   const hasFilter = filters.unread || filters.attachment;
 
   return (
@@ -94,7 +96,7 @@ export function MailToolbar({
           <span className="truncate text-sm font-semibold text-gray-900">{boxLabel}</span>
           {unreadCount !== null && unreadCount > 0 && (
             <span className="text-xs font-medium tabular-nums text-gray-500">
-              ยังไม่ได้อ่าน {unreadCount}
+              {t("list.toolbar.unread", { count: unreadCount })}
             </span>
           )}
           {unreadCount === null && totalLabel && (
@@ -116,7 +118,7 @@ export function MailToolbar({
           <FilterSearch
             value={search}
             onChange={onSearchChange}
-            placeholder="ค้นหาในเมล"
+            placeholder={t("list.toolbar.search.placeholder")}
             /* ต้องยุบได้จริง — บานรายการที่ lg กว้างแค่ 380px ถ้าคง min-w เดิมจะดันปุ่มทะลุกรอบ */
             className="min-w-0 max-w-xl"
           />
@@ -126,10 +128,10 @@ export function MailToolbar({
               className="ms-2 shrink-0"
               value={searchScope}
               onChange={(v) => onSearchScopeChange(v === "box" ? "box" : "all")}
-              ariaLabel="ขอบเขตการค้นหา"
+              ariaLabel={t("list.toolbar.search.scope")}
               options={[
-                { value: "all", label: "ทั้งหมด" },
-                { value: "box", label: "กล่องนี้" },
+                { value: "all", label: t("list.toolbar.search.scope.all") },
+                { value: "box", label: t("list.toolbar.search.scope.box") },
               ]}
             />
           )}
@@ -138,21 +140,25 @@ export function MailToolbar({
         {/* มือถือใช้ FAB มุมขวาล่างแทน (UI_SPEC §8) — ปุ่มนี้จึงโผล่เฉพาะจอ ≥sm */}
         <Button
           size="sm"
-          title="เขียนอีเมลใหม่ (c)"
+          title={t("list.toolbar.compose.title")}
           className="hidden shrink-0 sm:inline-flex"
           onClick={onCompose}
         >
           <PenLine className="h-4 w-4" />
           {/* ที่ lg บานรายการแคบ (380px) — เหลือไอคอนอย่างเดียวกันของล้นแถว */}
-          <span className="lg:hidden">เขียน</span>
+          <span className="lg:hidden">{t("list.toolbar.compose")}</span>
         </Button>
 
         {/* เลือกทั้งหมด "ในรายการที่โหลดมาแล้ว" — ไม่ใช่ทั้งกล่อง (เลือกของที่ยังไม่เห็นคืออันตราย) */}
         <Button
           variant={selectAllState === "none" ? "outline" : "secondary"}
           size="icon"
-          title={selectAllState === "all" ? "ยกเลิกการเลือกทั้งหมด" : "เลือกทั้งหมดในรายการ"}
-          aria-label={selectAllState === "all" ? "ยกเลิกการเลือกทั้งหมด" : "เลือกทั้งหมดในรายการ"}
+          title={
+            selectAllState === "all" ? t("list.toolbar.deselectAll") : t("list.toolbar.selectAll")
+          }
+          aria-label={
+            selectAllState === "all" ? t("list.toolbar.deselectAll") : t("list.toolbar.selectAll")
+          }
           aria-pressed={selectAllState === "all"}
           disabled={selectAllDisabled}
           onClick={onToggleSelectAll}
@@ -171,8 +177,8 @@ export function MailToolbar({
           <Button
             variant="outline"
             size="icon"
-            title="ล้างกล่องนี้ (ลบถาวร)"
-            aria-label="ล้างกล่องนี้"
+            title={t("list.toolbar.emptyBox.title")}
+            aria-label={t("list.toolbar.emptyBox")}
             onClick={onEmptyBox}
             className="shrink-0 border-red-200 text-red-600 hover:border-red-300 hover:bg-red-50 hover:text-red-700"
           >
@@ -183,8 +189,8 @@ export function MailToolbar({
         <Button
           variant="outline"
           size="icon"
-          title="รีเฟรช"
-          aria-label="รีเฟรช"
+          title={t("list.toolbar.refresh")}
+          aria-label={t("list.toolbar.refresh")}
           disabled={refreshing}
           onClick={onRefresh}
           className="shrink-0"
@@ -198,8 +204,10 @@ export function MailToolbar({
         <Button
           variant={pane === "list" ? "secondary" : "outline"}
           size="icon"
-          title={pane === "split" ? "ซ่อนบานอ่าน (ดูเป็นรายการ)" : "แสดงบานอ่านคู่รายการ"}
-          aria-label={pane === "split" ? "ซ่อนบานอ่าน" : "แสดงบานอ่าน"}
+          title={
+            pane === "split" ? t("list.toolbar.pane.hide.title") : t("list.toolbar.pane.show.title")
+          }
+          aria-label={pane === "split" ? t("list.toolbar.pane.hide") : t("list.toolbar.pane.show")}
           aria-pressed={pane === "list"}
           className="hidden shrink-0 lg:inline-flex"
           onClick={onTogglePane}
@@ -210,8 +218,8 @@ export function MailToolbar({
         <Button
           variant={showFilters || hasFilter ? "secondary" : "outline"}
           size="icon"
-          title="ตัวกรอง"
-          aria-label="ตัวกรอง"
+          title={t("list.toolbar.filters")}
+          aria-label={t("list.toolbar.filters")}
           className="relative shrink-0"
           onClick={onToggleFilters}
         >
@@ -224,8 +232,8 @@ export function MailToolbar({
         <Button
           variant="outline"
           size="icon"
-          title="ตารางคีย์ลัด (?)"
-          aria-label="ตารางคีย์ลัด"
+          title={t("list.toolbar.shortcuts.title")}
+          aria-label={t("list.toolbar.shortcuts")}
           className="hidden shrink-0 sm:inline-flex lg:hidden"
           onClick={onOpenShortcuts}
         >
@@ -239,25 +247,27 @@ export function MailToolbar({
             <SegmentedControl
               value={filters.unread ? "unread" : "all"}
               onChange={(v) => onFiltersChange({ ...filters, unread: v === "unread" })}
-              ariaLabel="สถานะการอ่าน"
+              ariaLabel={t("list.toolbar.filter.read")}
               options={[
-                { value: "all", label: "ทั้งหมด" },
-                { value: "unread", label: "ยังไม่ได้อ่าน" },
+                { value: "all", label: t("list.toolbar.filter.read.all") },
+                { value: "unread", label: t("list.toolbar.filter.read.unread") },
               ]}
             />
             <SegmentedControl
               value={filters.attachment ? "attachment" : "any"}
               onChange={(v) => onFiltersChange({ ...filters, attachment: v === "attachment" })}
-              ariaLabel="ไฟล์แนบ"
+              ariaLabel={t("list.toolbar.filter.attachment")}
               options={[
-                { value: "any", label: "ทุกฉบับ" },
-                { value: "attachment", label: "มีไฟล์แนบ" },
+                { value: "any", label: t("list.toolbar.filter.attachment.any") },
+                { value: "attachment", label: t("list.toolbar.filter.attachment.with") },
               ]}
             />
             <FilterClear
               disabled={!hasFilter}
               onClick={() => onFiltersChange({ unread: false, attachment: false })}
-            />
+            >
+              {t("list.toolbar.filter.clear")}
+            </FilterClear>
           </FilterBar>
         </div>
       )}

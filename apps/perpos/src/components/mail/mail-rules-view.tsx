@@ -9,7 +9,7 @@
  * บันทึก = เขียนทั้งชุดทับของเดิมเสมอ ⇒ ปุ่มบันทึกมีปุ่มเดียวสำหรับทุกกฎ
  */
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, ArrowDown, ArrowUp, ChevronDown, Plus, Trash2 } from "lucide-react";
 import cn from "@core/utils/class-names";
 import { Button } from "@/components/ui/button";
@@ -20,13 +20,15 @@ import { SegmentedControl } from "@/components/ui/segmented";
 import { Title, Text } from "@/components/ui/typography";
 import { Skeleton } from "@/components/ui/skeleton";
 import { notify } from "@/lib/toast";
+import { useMailLocale, useMailT } from "@/components/mail/mail-locale";
+import type { MailLocale, MailTranslate } from "@/lib/mail/i18n";
 import {
   MAIL_RULE_CONDITION_MAX,
   MAIL_RULE_FIELDS,
-  MAIL_RULE_FIELD_LABELS,
+  MAIL_RULE_FIELD_LABELS_BY_LOCALE,
   MAIL_RULE_MAX,
   MAIL_RULE_OPERATORS,
-  MAIL_RULE_OPERATOR_LABELS,
+  MAIL_RULE_OPERATOR_LABELS_BY_LOCALE,
   MAIL_RULE_VALUE_MAX,
 } from "@/lib/mail/rule-meta";
 import type {
@@ -39,10 +41,10 @@ import type {
   MailboxSummary,
 } from "@/lib/mail/types";
 
-function emptyRule(index: number): MailRule {
+function emptyRule(index: number, t: MailTranslate): MailRule {
   return {
     id: `r${Date.now().toString(36)}${index}`,
-    name: `กฎที่ ${index + 1}`,
+    name: t("rules.defaultName", { n: index + 1 }),
     enabled: true,
     match: "all",
     conditions: [{ field: "from", op: "contains", value: "" }],
@@ -54,6 +56,12 @@ function emptyRule(index: number): MailRule {
 }
 
 export function MailRulesView() {
+  const { locale, t } = useMailLocale();
+  /** ให้ `load` อ่าน t ล่าสุดโดยไม่ต้องพึ่ง dependency — สลับภาษาแล้วต้องไม่ดึงกฎใหม่ทับที่ยังไม่บันทึก */
+  const tRef = useRef(t);
+  useEffect(() => {
+    tRef.current = t;
+  }, [t]);
   const [rules, setRules] = useState<MailRule[]>([]);
   const [folders, setFolders] = useState<MailFolder[]>([]);
   const [mailboxes, setMailboxes] = useState<MailboxSummary[]>([]);
@@ -83,7 +91,7 @@ export function MailRulesView() {
         fetch("/api/mail/rules"),
         fetch("/api/mail/mailboxes"),
       ]);
-      if (!rulesRes.ok) throw new Error("โหลดกฎกรองไม่สำเร็จ");
+      if (!rulesRes.ok) throw new Error(tRef.current("rules.load.failed"));
       const data = (await rulesRes.json()) as MailRulesResult;
       setRules(data.rules ?? []);
       setForeignScript(!!data.foreignScript);
@@ -96,7 +104,7 @@ export function MailRulesView() {
         setMailboxes(b.mailboxes ?? []);
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : "โหลดกฎกรองไม่สำเร็จ");
+      setError(e instanceof Error ? e.message : tRef.current("rules.load.failed"));
     } finally {
       setLoading(false);
     }
@@ -112,20 +120,20 @@ export function MailRulesView() {
       .filter((m) => m.key === "junk" || m.key === "trash")
       .map((m) => ({ value: m.id, label: m.name }));
     return [
-      { value: "", label: "— ไม่ย้าย —" },
+      { value: "", label: t("rules.target.none") },
       ...folders.map((f) => ({ value: f.id, label: f.path })),
       ...system,
     ];
-  }, [folders, mailboxes]);
+  }, [folders, mailboxes, t]);
 
   const addRule = useCallback(() => {
     setRules((prev) => {
-      const rule = emptyRule(prev.length);
+      const rule = emptyRule(prev.length, t);
       // กฎใหม่ยังว่างเปล่า — ยุบไว้ก็ไม่มีประโยชน์ กางให้เลย
       setExpanded((ex) => new Set(ex).add(rule.id));
       return [...prev, rule];
     });
-  }, []);
+  }, [t]);
 
   const update = useCallback((index: number, patch: Partial<MailRule>) => {
     setRules((prev) => prev.map((r, i) => (i === index ? { ...r, ...patch } : r)));
@@ -145,7 +153,7 @@ export function MailRulesView() {
     async (overwriteForeign = false) => {
       const invalid = rules.find((r) => r.conditions.every((c) => !c.value.trim()));
       if (invalid) {
-        notify.error(null, `“${invalid.name}” ยังไม่ได้กรอกเงื่อนไข`);
+        notify.error(null, t("rules.validation.emptyCondition", { name: invalid.name }));
         return;
       }
       setSaving(true);
@@ -161,19 +169,19 @@ export function MailRulesView() {
         } | null;
         if (res.status === 409 && data?.error === "mail_rules_foreign_script") {
           setForeignScript(true);
-          notify.error(null, data.message ?? "มีกฎกรองเดิมอยู่");
+          notify.error(null, data.message ?? t("rules.save.foreignExists"));
           return;
         }
-        if (!res.ok) throw new Error(data?.message ?? "บันทึกกฎกรองไม่สำเร็จ");
+        if (!res.ok) throw new Error(data?.message ?? t("rules.save.failed"));
         setForeignScript(false);
-        notify.saved("บันทึกกฎกรองแล้ว");
+        notify.saved(t("rules.save.done"));
       } catch (e) {
-        notify.error(e, "บันทึกกฎกรองไม่สำเร็จ");
+        notify.error(e, t("rules.save.failed"));
       } finally {
         setSaving(false);
       }
     },
-    [rules],
+    [rules, t],
   );
 
   if (loading) {
@@ -191,11 +199,9 @@ export function MailRulesView() {
       <div className="flex flex-wrap items-center gap-3">
         <div className="min-w-0 flex-1">
           <Title as="h1" className="text-2xl font-semibold text-primary">
-            กฎกรอง
+            {t("rules.title")}
           </Title>
-          <Text className="mt-0.5 text-sm text-gray-500">
-            จัดการอีเมลที่เข้ามาใหม่โดยอัตโนมัติ — ตรวจจากบนลงล่าง
-          </Text>
+          <Text className="mt-0.5 text-sm text-gray-500">{t("rules.subtitle")}</Text>
         </div>
         {rules.length > 1 && (
           <Button
@@ -206,7 +212,7 @@ export function MailRulesView() {
               )
             }
           >
-            {expanded.size === rules.length ? "ยุบทั้งหมด" : "กางทั้งหมด"}
+            {expanded.size === rules.length ? t("rules.collapseAll") : t("rules.expandAll")}
           </Button>
         )}
         <Button
@@ -215,10 +221,10 @@ export function MailRulesView() {
           onClick={() => addRule()}
         >
           <Plus className="h-4 w-4" />
-          เพิ่มกฎ
+          {t("rules.add")}
         </Button>
         <Button disabled={saving} onClick={() => void save(foreignScript)}>
-          {saving ? "กำลังบันทึก…" : "บันทึก"}
+          {saving ? t("common.saving") : t("common.save")}
         </Button>
       </div>
 
@@ -226,7 +232,7 @@ export function MailRulesView() {
         <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3">
           <Text className="text-sm text-red-700">{error}</Text>
           <Button size="sm" variant="outline" className="mt-2" onClick={() => void load()}>
-            ลองใหม่
+            {t("common.retry")}
           </Button>
         </div>
       )}
@@ -235,21 +241,20 @@ export function MailRulesView() {
         <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
           <Text className="text-sm text-amber-800">
-            กล่องเมลนี้มีกฎกรองเดิมที่ตั้งไว้จากที่อื่น (ไม่ได้สร้างจากหน้านี้) — กดบันทึกจะ
-            <strong>เขียนทับทั้งหมด</strong> กรุณาตรวจกับผู้ดูแลก่อนถ้าไม่แน่ใจ
+            {t("rules.foreign.warning.before")}
+            <strong>{t("rules.foreign.warning.strong")}</strong>
+            {t("rules.foreign.warning.after")}
           </Text>
         </div>
       )}
 
       {rules.length === 0 ? (
         <div className="rounded-xl border border-dashed border-gray-300 px-4 py-16 text-center">
-          <Text className="text-sm font-medium text-gray-900">ยังไม่มีกฎกรอง</Text>
-          <Text className="mt-1 text-sm text-gray-500">
-            เช่น “ถ้าผู้ส่งมีคำว่า invoice ให้ย้ายไปโฟลเดอร์ ใบแจ้งหนี้”
-          </Text>
+          <Text className="text-sm font-medium text-gray-900">{t("rules.empty.title")}</Text>
+          <Text className="mt-1 text-sm text-gray-500">{t("rules.empty.example")}</Text>
           <Button className="mt-4" size="sm" onClick={() => addRule()}>
             <Plus className="h-4 w-4" />
-            เพิ่มกฎแรก
+            {t("rules.empty.addFirst")}
           </Button>
         </div>
       ) : (
@@ -260,6 +265,7 @@ export function MailRulesView() {
             index={index}
             total={rules.length}
             targetOptions={targetOptions}
+            locale={locale}
             expanded={expanded.has(rule.id)}
             onToggleExpanded={() => toggleExpanded(rule.id)}
             onChange={(patch) => update(index, patch)}
@@ -279,8 +285,9 @@ export function MailRulesView() {
 
       {rules.length > 0 && (
         <Text className="text-xs text-gray-500">
-          กฎถูกตรวจจากบนลงล่าง · เมลที่ไม่ตรงกฎไหนเลยจะเข้ากล่องขาเข้าตามปกติ ·
-          กฎมีผลกับอีเมลที่เข้ามา<strong>หลังบันทึก</strong>เท่านั้น (ไม่ย้อนหลัง)
+          {t("rules.footer.before")}
+          <strong>{t("rules.footer.strong")}</strong>
+          {t("rules.footer.after")}
         </Text>
       )}
     </div>
@@ -292,6 +299,7 @@ function RuleCard({
   index,
   total,
   targetOptions,
+  locale,
   expanded,
   onToggleExpanded,
   onChange,
@@ -302,12 +310,16 @@ function RuleCard({
   index: number;
   total: number;
   targetOptions: { value: string; label: string }[];
+  locale: MailLocale;
   expanded: boolean;
   onToggleExpanded: () => void;
   onChange: (patch: Partial<MailRule>) => void;
   onMove: (delta: number) => void;
   onRemove: () => void;
 }) {
+  const t = useMailT();
+  const fieldLabels = MAIL_RULE_FIELD_LABELS_BY_LOCALE[locale];
+  const operatorLabels = MAIL_RULE_OPERATOR_LABELS_BY_LOCALE[locale];
   const setCondition = (i: number, patch: Partial<MailRuleCondition>) => {
     onChange({
       conditions: rule.conditions.map((c, ci) => (ci === i ? { ...c, ...patch } : c)),
@@ -322,7 +334,7 @@ function RuleCard({
           size="icon"
           variant="ghost"
           className="h-8 w-8 shrink-0"
-          aria-label={expanded ? "ยุบกฎนี้" : "กางกฎนี้"}
+          aria-label={expanded ? t("rules.card.collapse") : t("rules.card.expand")}
           aria-expanded={expanded}
           onClick={onToggleExpanded}
         >
@@ -333,7 +345,7 @@ function RuleCard({
             className="h-8 min-w-[10rem] flex-1"
             value={rule.name}
             maxLength={80}
-            aria-label="ชื่อกฎ"
+            aria-label={t("rules.card.name")}
             onChange={(e) => onChange({ name: e.target.value })}
           />
         ) : (
@@ -345,24 +357,24 @@ function RuleCard({
           >
             <span className="truncate text-sm font-medium text-gray-900">{rule.name}</span>
             <span className="min-w-0 truncate text-xs text-gray-500">
-              {summarizeRule(rule, targetOptions)}
+              {summarizeRule(rule, targetOptions, locale, t)}
             </span>
           </button>
         )}
         <SegmentedControl
           value={rule.enabled ? "on" : "off"}
           onChange={(v) => onChange({ enabled: v === "on" })}
-          ariaLabel="เปิดใช้งานกฎนี้"
+          ariaLabel={t("rules.card.enabledAria")}
           options={[
-            { value: "on", label: "เปิด" },
-            { value: "off", label: "ปิด" },
+            { value: "on", label: t("rules.on") },
+            { value: "off", label: t("rules.off") },
           ]}
         />
         <Button
           size="icon"
           variant="ghost"
           className="h-8 w-8"
-          aria-label="เลื่อนขึ้น"
+          aria-label={t("rules.card.moveUp")}
           disabled={index === 0}
           onClick={() => onMove(-1)}
         >
@@ -372,7 +384,7 @@ function RuleCard({
           size="icon"
           variant="ghost"
           className="h-8 w-8"
-          aria-label="เลื่อนลง"
+          aria-label={t("rules.card.moveDown")}
           disabled={index === total - 1}
           onClick={() => onMove(1)}
         >
@@ -382,7 +394,7 @@ function RuleCard({
           size="icon"
           variant="outline"
           className="h-8 w-8 border-red-200 text-red-600 hover:bg-red-50"
-          aria-label="ลบกฎ"
+          aria-label={t("rules.card.remove")}
           onClick={onRemove}
         >
           <Trash2 className="h-4 w-4" />
@@ -392,14 +404,14 @@ function RuleCard({
       {expanded && (
         <div className="mt-4 space-y-3">
           <div className="flex flex-wrap items-center gap-2">
-            <Label className="text-xs text-gray-500">ถ้า</Label>
+            <Label className="text-xs text-gray-500">{t("rules.if")}</Label>
             <SegmentedControl
               value={rule.match}
               onChange={(v) => onChange({ match: v === "any" ? "any" : "all" })}
-              ariaLabel="เงื่อนไขต้องตรงแบบไหน"
+              ariaLabel={t("rules.match.aria")}
               options={[
-                { value: "all", label: "ตรงทุกข้อ" },
-                { value: "any", label: "ตรงข้อใดข้อหนึ่ง" },
+                { value: "all", label: t("rules.match.all") },
+                { value: "any", label: t("rules.match.any") },
               ]}
             />
           </div>
@@ -412,7 +424,7 @@ function RuleCard({
                 onChange={(v) => setCondition(ci, { field: v as MailRuleField })}
                 options={MAIL_RULE_FIELDS.map((f) => ({
                   value: f,
-                  label: MAIL_RULE_FIELD_LABELS[f],
+                  label: fieldLabels[f],
                 }))}
               />
               <CustomSelect
@@ -421,15 +433,15 @@ function RuleCard({
                 onChange={(v) => setCondition(ci, { op: v as MailRuleOperator })}
                 options={MAIL_RULE_OPERATORS.map((o) => ({
                   value: o,
-                  label: MAIL_RULE_OPERATOR_LABELS[o],
+                  label: operatorLabels[o],
                 }))}
               />
               <Input
                 className="min-w-[12rem] flex-1"
                 value={cond.value}
                 maxLength={MAIL_RULE_VALUE_MAX}
-                placeholder="เช่น @exworker.co.th"
-                aria-label="ค่าที่ใช้เทียบ"
+                placeholder={t("rules.condition.placeholder")}
+                aria-label={t("rules.condition.valueAria")}
                 onChange={(e) => setCondition(ci, { value: e.target.value })}
               />
               {rule.conditions.length > 1 && (
@@ -437,7 +449,7 @@ function RuleCard({
                   size="icon"
                   variant="ghost"
                   className="h-9 w-9"
-                  aria-label="เอาเงื่อนไขนี้ออก"
+                  aria-label={t("rules.condition.remove")}
                   onClick={() =>
                     onChange({ conditions: rule.conditions.filter((_, i) => i !== ci) })
                   }
@@ -459,14 +471,14 @@ function RuleCard({
               }
             >
               <Plus className="h-4 w-4" />
-              เพิ่มเงื่อนไข
+              {t("rules.condition.add")}
             </Button>
           )}
 
           <div className="border-t border-gray-200 pt-3">
-            <Label className="text-xs text-gray-500">ให้</Label>
+            <Label className="text-xs text-gray-500">{t("rules.then")}</Label>
             <div className="mt-2 flex flex-wrap items-center gap-2">
-              <span className="text-sm text-gray-600">ย้ายไป</span>
+              <span className="text-sm text-gray-600">{t("rules.action.moveTo")}</span>
               <CustomSelect
                 className="w-56"
                 value={rule.moveToMailboxId ?? ""}
@@ -476,13 +488,17 @@ function RuleCard({
             </div>
             <div className="mt-2 flex flex-wrap items-center gap-4">
               <ToggleRow
-                label="ทำเป็นอ่านแล้ว"
+                label={t("rules.action.markRead")}
                 value={rule.markRead}
                 onChange={(v) => onChange({ markRead: v })}
               />
-              <ToggleRow label="ติดดาว" value={rule.star} onChange={(v) => onChange({ star: v })} />
               <ToggleRow
-                label="หยุดตรวจกฎถัดไป"
+                label={t("rules.action.star")}
+                value={rule.star}
+                onChange={(v) => onChange({ star: v })}
+              />
+              <ToggleRow
+                label={t("rules.action.stop")}
                 value={rule.stop}
                 onChange={(v) => onChange({ stop: v })}
               />
@@ -495,27 +511,40 @@ function RuleCard({
 }
 
 /** สรุปกฎเป็นบรรทัดเดียวสำหรับตอนยุบ — ต้องอ่านแล้วรู้ว่ากฎนี้ทำอะไรโดยไม่ต้องกาง */
-function summarizeRule(rule: MailRule, targets: { value: string; label: string }[]): string {
-  const joiner = rule.match === "any" ? " หรือ " : " และ ";
+function summarizeRule(
+  rule: MailRule,
+  targets: { value: string; label: string }[],
+  locale: MailLocale,
+  t: MailTranslate,
+): string {
+  const fieldLabels = MAIL_RULE_FIELD_LABELS_BY_LOCALE[locale];
+  const operatorLabels = MAIL_RULE_OPERATOR_LABELS_BY_LOCALE[locale];
+  const joiner = rule.match === "any" ? t("rules.summary.or") : t("rules.summary.and");
   const conditions = rule.conditions
     .filter((c) => c.value.trim())
-    .map(
-      (c) =>
-        `${MAIL_RULE_FIELD_LABELS[c.field]}${MAIL_RULE_OPERATOR_LABELS[c.op]}“${c.value.trim()}”`,
+    .map((c) =>
+      t("rules.summary.condition", {
+        field: fieldLabels[c.field],
+        op: operatorLabels[c.op],
+        value: c.value.trim(),
+      }),
     )
     .join(joiner);
 
   const actions: string[] = [];
   if (rule.moveToMailboxId) {
-    const label = targets.find((t) => t.value === rule.moveToMailboxId)?.label;
-    actions.push(`ย้ายไป ${label ?? "โฟลเดอร์ที่เลือก"}`);
+    const label = targets.find((tg) => tg.value === rule.moveToMailboxId)?.label;
+    actions.push(t("rules.summary.moveTo", { target: label ?? t("rules.summary.selectedFolder") }));
   }
-  if (rule.markRead) actions.push("ทำเป็นอ่านแล้ว");
-  if (rule.star) actions.push("ติดดาว");
-  if (rule.stop) actions.push("หยุดตรวจกฎถัดไป");
+  if (rule.markRead) actions.push(t("rules.action.markRead"));
+  if (rule.star) actions.push(t("rules.action.star"));
+  if (rule.stop) actions.push(t("rules.action.stop"));
 
-  if (!conditions) return "ยังไม่ได้กรอกเงื่อนไข";
-  return `ถ้า ${conditions} → ${actions.length ? actions.join(" · ") : "ไม่ทำอะไร"}`;
+  if (!conditions) return t("rules.summary.noCondition");
+  return t("rules.summary.line", {
+    conditions,
+    actions: actions.length ? actions.join(" · ") : t("rules.summary.noAction"),
+  });
 }
 
 function ToggleRow({
@@ -527,6 +556,7 @@ function ToggleRow({
   value: boolean;
   onChange: (v: boolean) => void;
 }) {
+  const t = useMailT();
   return (
     <span className="flex items-center gap-2">
       <span className="text-sm text-gray-600">{label}</span>
@@ -536,8 +566,8 @@ function ToggleRow({
         onChange={(v) => onChange(v === "on")}
         ariaLabel={label}
         options={[
-          { value: "on", label: "ใช่" },
-          { value: "off", label: "ไม่" },
+          { value: "on", label: t("rules.yes") },
+          { value: "off", label: t("rules.no") },
         ]}
       />
     </span>

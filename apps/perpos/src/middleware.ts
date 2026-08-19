@@ -16,10 +16,12 @@ import { isMailHost } from "@/lib/mail/base-path";
  *  - path อื่นของ PERPOS (`/signin` `/admin` `/[orgSlug]` …) → redirect กลับ `/`
  *  - **ไม่แตะ Supabase session ของ PERPOS เลย**
  */
+// หน้าใต้ `app/(mail)/mail/*` — เพิ่มหน้าใหม่ต้องมาเติมที่นี่ ไม่งั้นบนโดเมนเมลจะตกไปหน้า PERPOS
+// (บั๊กที่เคยเจอ: เมนู "กฎกรอง" กดแล้วไม่ขึ้น เพราะ `/rules` ไม่ถูก rewrite)
+const MAIL_PAGES = new Set(["/login", "/account", "/rules"]);
 function mailRewriteTarget(pathname: string): string | null {
   if (pathname === "/") return "/mail";
-  if (pathname === "/login") return "/mail/login";
-  if (pathname === "/account") return "/mail/account";
+  if (MAIL_PAGES.has(pathname)) return `/mail${pathname}`;
   return null;
 }
 
@@ -159,6 +161,8 @@ export const config = {
      * Match all paths except Next.js internals and static assets.
      * API routes are included so the session stays fresh there too.
      */
-    "/((?!api/health|_next/static|_next/image|favicon\\.ico|sitemap\\.xml|robots\\.txt|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    // `api/mail/*` ไม่ใช้ session ของ PERPOS (invariant โซน mail) — บนโดเมนอื่น (dev) การรัน
+    // getClaims ของ Supabase ทุกคำขอเมล = ค่าใช้จ่ายเปล่า ๆ หลายสิบ ms ต่อ request
+    "/((?!api/health|api/mail/|_next/static|_next/image|favicon\\.ico|sitemap\\.xml|robots\\.txt|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };
