@@ -55,6 +55,7 @@ jobs:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
           NEXT_PUBLIC_APP_URL: https://app.perpos.ai
+          NEXT_PUBLIC_GA_ID: G-W5SRQP82KZ
           NEXT_PUBLIC_LINE_ADD_FRIEND_URL: ${{ secrets.NEXT_PUBLIC_LINE_ADD_FRIEND_URL }}
           NEXT_PUBLIC_GOOGLE_MAPS_API_KEY: ${{ secrets.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY }}
         run: pnpm build
@@ -67,6 +68,7 @@ jobs:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
           NEXT_PUBLIC_APP_URL: https://app.perpos.ai
+          NEXT_PUBLIC_GA_ID: G-W5SRQP82KZ
         run: pnpm build:worker
 
       - name: Assemble artifact

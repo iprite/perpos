@@ -9,6 +9,7 @@ import { AuthProvider } from "@/app/shared/auth-provider";
 import { ConfirmDialogProvider } from "@/app/shared/confirm-dialog/provider";
 import AppToaster from "@/app/shared/toaster";
 import { Analytics } from "@vercel/analytics/next";
+import GoogleAnalytics from "@/components/analytics/google-analytics";
 
 import "./globals.css";
 
@@ -74,6 +75,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 <GlobalModal />
                 <AppToaster />
                 <Analytics />
+                <GoogleAnalytics />
                 <div id="react-datepicker-portal" />
               </ConfirmDialogProvider>
             </AuthProvider>
