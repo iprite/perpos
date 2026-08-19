@@ -16,7 +16,11 @@
     },
     "google-analytics": {
       "command": "/Users/iprite/.claude/mcps/google-analytics-mcp/venv/bin/google-analytics-mcp",
-      "args": []
+      "args": [],
+      "env": {
+        "GA4_PROPERTY_ID": "454917081",
+        "GOOGLE_APPLICATION_CREDENTIALS": "/Users/iprite/.config/gcloud/application_default_credentials.json"
+      }
     }
   }
 }
