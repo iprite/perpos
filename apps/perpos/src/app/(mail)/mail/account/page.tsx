@@ -21,7 +21,8 @@ export default async function MailAccountPage() {
     jar.get(MAIL_HOST_CONNECTED_COOKIE)?.value === "1" ||
     jar.get(MAIL_CONNECTED_COOKIE)?.value === "1";
   const basePath = mailBasePath((await headers()).get("host"));
-  if (!connected) redirect(`${basePath}/login`);
+  if (!connected)
+    redirect(`${basePath}/login?returnTo=${encodeURIComponent(`${basePath}/account`)}`);
 
   return <MailAccountView basePath={basePath} />;
 }

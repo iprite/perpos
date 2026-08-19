@@ -22,6 +22,7 @@ export async function POST(req: NextRequest) {
   if (!isSameOriginRequest(req.headers, config.appBaseUrl)) {
     return mailError("mail_bad_request", "คำขอไม่ถูกต้อง", 403);
   }
+  // path นี้ **ไม่มี base** — ฝั่งเว็บเติม `mailBasePath` เองใน `mail-shell.tsx` (เติมสองชั้น = /mail/mail/login)
   const res = mailJson({ ok: true, redirectTo: "/login?reason=disconnected" });
   clearMailSession(res);
   clearMailOAuthState(res);

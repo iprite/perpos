@@ -162,10 +162,11 @@ export function refreshAccessToken(
 // ─── open redirect guard (spec §7.5) ─────────────────────────────────────────
 
 /**
- * ยอมเฉพาะ path ในโซนเมลเท่านั้น: `/` และ `/login…` (โดเมนเมล) · `/mail…` (dev/โดเมนอื่น)
+ * ยอมเฉพาะ path ในโซนเมลเท่านั้น: บนโดเมนเมลคือ `/`, `/login…`, `/rules…`, `/account…`
+ * · บน dev/โดเมนอื่นทุกอย่างอยู่ใต้ `/mail…` (base path ต่างกัน — ดู `base-path.ts`)
  * **ต้องขึ้นต้นด้วย `/` เดียวและตามด้วยตัวอักษรที่รู้จัก** — `//evil.com` จึงไม่ผ่าน
  */
-const RETURN_TO_ALLOWED = /^[/]($|[?]|login([/?]|$)|mail([/?]|$))/;
+const RETURN_TO_ALLOWED = /^[/]($|[?]|login([/?]|$)|mail([/?]|$)|rules([/?]|$)|account([/?]|$))/;
 
 /**
  * `returnTo` ต้องอยู่ในโซนเมลเท่านั้น — ไม่ผ่าน = `/`

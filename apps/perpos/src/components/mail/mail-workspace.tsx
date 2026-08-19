@@ -14,7 +14,15 @@
  *   · **ไม่ persist คิวลง storage** — หลังรีโหลดยึดสถานะจากเซิร์ฟเวอร์เสมอ
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  type CSSProperties,
+  type PointerEvent as ReactPointerEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useRouter } from "next/navigation";
 import { HotkeysProvider } from "react-hotkeys-hook";
 import { Archive, FolderInput, MailOpen, PenLine, Trash2 } from "lucide-react";
@@ -25,7 +33,16 @@ import { BulkActionBar } from "@/components/ui/bulk-action-bar";
 import { notify } from "@/lib/toast";
 import { UNDO_TOAST_MS, dismissUndoToast, showUndoToast } from "@/components/ui/undo-toast";
 import { resolveBoxSelector } from "@/lib/mail/boxes";
-import { cachePane, readCachedPane } from "@/lib/mail/prefs-storage";
+import {
+  MAIL_LIST_WIDTH_DEFAULT,
+  MAIL_LIST_WIDTH_MAX,
+  MAIL_LIST_WIDTH_MIN,
+  cacheListWidth,
+  cachePane,
+  clampMailListWidth,
+  readCachedListWidth,
+  readCachedPane,
+} from "@/lib/mail/prefs-storage";
 import type {
   MailBoxKey,
   MailBulkAction,
@@ -38,7 +55,7 @@ import type {
   MailboxSummary,
 } from "@/lib/mail/types";
 import { MailList, type MailListHandle } from "@/components/mail/mail-list";
-import { MailReader } from "@/components/mail/mail-reader";
+import { MailPaneResizeContext, MailReader } from "@/components/mail/mail-reader";
 import { MailToolbar, type MailFilters } from "@/components/mail/mail-toolbar";
 import { MailShortcutsDialog } from "@/components/mail/mail-shortcuts-dialog";
 import {
@@ -935,17 +952,42 @@ export function MailWorkspace({
    * เกินชั่วอึดใจ · ออกจากระบบก็ล้างแคชทิ้งที่ `mail-shell.tsx`)
    */
   const [pane, setPane] = useState<MailPaneMode>("split");
+  /** ความกว้างคอลัมน์รายการ (px) ตอน split — ผู้ใช้ลากตัวแบ่งได้ (จอ lg ขึ้นไปเท่านั้น) */
+  const [listWidth, setListWidth] = useState(MAIL_LIST_WIDTH_DEFAULT);
+
+  /**
+   * ค่าล่าสุดของ "ทั้งชุด" — PUT ของ prefs เขียนทับทั้งไฟล์ (normalize เติมค่าเริ่มต้นให้ช่องที่ขาด)
+   * ⇒ ส่งแค่ช่องที่เพิ่งเปลี่ยนไม่ได้ ไม่งั้นอีกช่องถูกรีเซ็ตเงียบ ๆ
+   */
+  const prefsRef = useRef<MailPrefs>({ pane: "split", listWidth: MAIL_LIST_WIDTH_DEFAULT });
+  const persistPrefs = useCallback((patch: Partial<MailPrefs>) => {
+    const next = { ...prefsRef.current, ...patch };
+    prefsRef.current = next;
+    // fire-and-forget — หน้าเว็บต้องตอบสนองทันที ไม่รอเซิร์ฟเวอร์ (พลาดก็แค่ทำใหม่)
+    void fetch("/api/mail/prefs", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(next),
+    }).catch(() => {});
+  }, []);
+
   useEffect(() => {
-    const cached = readCachedPane();
-    if (cached) setPane(cached);
+    const cachedPane = readCachedPane();
+    if (cachedPane) setPane(cachedPane);
+    const cachedWidth = readCachedListWidth();
+    if (cachedWidth) setListWidth(clampMailListWidth(cachedWidth));
     let alive = true;
     fetch("/api/mail/prefs")
       .then((res) => (res.ok ? res.json() : null))
       .then((data: MailPrefs | null) => {
         if (!alive || !data) return;
         const next: MailPaneMode = data.pane === "list" ? "list" : "split";
+        const width = clampMailListWidth(data.listWidth);
+        prefsRef.current = { pane: next, listWidth: width };
         setPane(next);
+        setListWidth(width);
         cachePane(next);
+        cacheListWidth(width);
       })
       .catch(() => {
         /* ความชอบโหลดไม่ได้ = ใช้ค่าที่แคชไว้ ไม่ต้องรบกวนผู้ใช้ */
@@ -959,106 +1001,221 @@ export function MailWorkspace({
     setPane((prev) => {
       const next = prev === "split" ? "list" : "split";
       cachePane(next);
-      // fire-and-forget — ปุ่มต้องตอบสนองทันที ไม่รอเซิร์ฟเวอร์ (พลาดก็แค่กดใหม่)
-      void fetch("/api/mail/prefs", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pane: next }),
-      }).catch(() => {});
+      persistPrefs({ pane: next });
       return next;
     });
+  }, [persistPrefs]);
+
+  /**
+   * ตัวแบ่งลากได้ระหว่างรายการกับบานอ่าน
+   * — จับด้วย pointer capture ⇒ ลากเลยขอบ/ออกนอกหน้าต่างแล้วยังตามอยู่ (ไม่ต้องผูก listener ที่ window)
+   * — บันทึกตอนปล่อยมือเท่านั้น (ระหว่างลากยิง PUT ทุกเฟรมคือการทรมานเมลเซิร์ฟเวอร์)
+   */
+  const widthRef = useRef(listWidth);
+  const dragRef = useRef<{ startX: number; startWidth: number } | null>(null);
+  const [dragging, setDragging] = useState(false);
+  // ค่าที่มาจากแคช/เซิร์ฟเวอร์ก็ต้องกลายเป็นจุดตั้งต้นของการลาก/คีย์ลูกศรครั้งถัดไปด้วย
+  useEffect(() => {
+    widthRef.current = listWidth;
+  }, [listWidth]);
+
+  const applyWidth = useCallback((width: number) => {
+    const next = clampMailListWidth(width);
+    widthRef.current = next;
+    setListWidth(next);
   }, []);
+
+  const commitWidth = useCallback(() => {
+    cacheListWidth(widthRef.current);
+    persistPrefs({ listWidth: widthRef.current });
+  }, [persistPrefs]);
+
+  const onDividerPointerDown = useCallback(
+    (e: ReactPointerEvent<HTMLDivElement>) => {
+      if (e.button !== 0) return;
+      e.preventDefault();
+      widthRef.current = listWidth;
+      dragRef.current = { startX: e.clientX, startWidth: listWidth };
+      e.currentTarget.setPointerCapture(e.pointerId);
+      setDragging(true);
+    },
+    [listWidth],
+  );
+
+  const onDividerPointerMove = useCallback(
+    (e: ReactPointerEvent<HTMLDivElement>) => {
+      const drag = dragRef.current;
+      if (!drag) return;
+      applyWidth(drag.startWidth + (e.clientX - drag.startX));
+    },
+    [applyWidth],
+  );
+
+  const onDividerPointerUp = useCallback(
+    (e: ReactPointerEvent<HTMLDivElement>) => {
+      if (!dragRef.current) return;
+      dragRef.current = null;
+      setDragging(false);
+      e.currentTarget.releasePointerCapture(e.pointerId);
+      commitWidth();
+    },
+    [commitWidth],
+  );
   // มุมมองรายการ = ทำเหมือนจอมือถือทุกความกว้าง (เปิดอ่านแล้วแทนที่รายการ)
   const listOnly = pane === "list";
 
   return (
     <HotkeysProvider initiallyActiveScopes={[MAIL_HOTKEY_SCOPE]}>
-      <div className="flex h-full min-h-[24rem] overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-        <section
+      {/* บอกบานอ่านว่ากำลังลากตัวแบ่งอยู่ — ระหว่างนั้นห้ามวัด/สลับโหมดย่อ (กันเนื้อหากระพริบ) */}
+      <MailPaneResizeContext.Provider value={dragging}>
+        <div
           className={cn(
-            "flex min-h-0 w-full flex-col border-gray-200",
-            !listOnly && "lg:w-[380px] lg:shrink-0 lg:border-r",
-            activeId && (listOnly ? "hidden" : "hidden lg:flex"),
+            "flex h-full min-h-[24rem] overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm",
+            // ลากอยู่ = ห้ามให้เบราว์เซอร์ไฮไลต์ข้อความในรายการ/บานอ่านตามเมาส์
+            dragging && "select-none",
           )}
+          style={{ "--mail-list-w": `${listWidth}px` } as CSSProperties}
         >
-          <MailToolbar
-            boxLabel={currentBoxLabel}
-            unreadCount={unreadCount}
-            totalLabel={totalLabel}
-            search={search}
-            onSearchChange={setSearch}
-            filters={filters}
-            onFiltersChange={setFilters}
-            showFilters={showFilters}
-            onToggleFilters={() => setShowFilters((v) => !v)}
-            onRefresh={() => void loadFirstPage("refresh")}
-            refreshing={refreshing}
-            onCompose={() => openCompose(null)}
-            onOpenShortcuts={() => setShowShortcuts(true)}
-            pane={pane}
-            onTogglePane={togglePane}
-            searchInputRef={searchWrapRef}
-          />
-          <div className="min-h-0 flex-1">
-            <MailList
-              ref={listRef}
-              messages={visibleMessages}
-              loading={loading}
-              loadingMore={loadingMore}
-              hasMore={hasMore}
-              error={error}
-              searchTerm={debouncedSearch}
-              selectedIds={selectedIds}
-              activeId={activeId}
-              focusedIndex={focusedIndex}
-              newCount={pendingNew.length}
-              onApplyNew={applyPendingNew}
-              onOpen={(m, i) => (isDrafts ? void openDraft(m) : void openMessage(m, i))}
-              onToggleSelect={toggleSelect}
-              onToggleStar={(m) => toggleStar([m.id], !m.isFlagged)}
-              onSwipeArchive={canArchive ? (m) => enqueueDestructive("archive", [m.id]) : undefined}
-              onSwipeTrash={canTrash ? (m) => enqueueDestructive("trash", [m.id]) : undefined}
-              onLoadMore={() => void loadMore()}
-              onRetry={() => void loadFirstPage("initial")}
-              onClearSearch={() => setSearch("")}
-              onScrollOffsetChange={(offset) => {
-                scrollOffsetRef.current = offset;
-              }}
+          <section
+            className={cn(
+              "flex min-h-0 w-full flex-col border-gray-200",
+              !listOnly && "lg:w-[var(--mail-list-w)] lg:shrink-0 lg:border-r",
+              activeId && (listOnly ? "hidden" : "hidden lg:flex"),
+            )}
+          >
+            <MailToolbar
+              boxLabel={currentBoxLabel}
+              unreadCount={unreadCount}
+              totalLabel={totalLabel}
+              search={search}
+              onSearchChange={setSearch}
+              filters={filters}
+              onFiltersChange={setFilters}
+              showFilters={showFilters}
+              onToggleFilters={() => setShowFilters((v) => !v)}
+              onRefresh={() => void loadFirstPage("refresh")}
+              refreshing={refreshing}
+              onCompose={() => openCompose(null)}
+              onOpenShortcuts={() => setShowShortcuts(true)}
+              pane={pane}
+              onTogglePane={togglePane}
+              searchInputRef={searchWrapRef}
             />
-          </div>
-        </section>
+            <div className="min-h-0 flex-1">
+              <MailList
+                ref={listRef}
+                messages={visibleMessages}
+                loading={loading}
+                loadingMore={loadingMore}
+                hasMore={hasMore}
+                error={error}
+                searchTerm={debouncedSearch}
+                selectedIds={selectedIds}
+                activeId={activeId}
+                focusedIndex={focusedIndex}
+                newCount={pendingNew.length}
+                onApplyNew={applyPendingNew}
+                onOpen={(m, i) => (isDrafts ? void openDraft(m) : void openMessage(m, i))}
+                onToggleSelect={toggleSelect}
+                onToggleStar={(m) => toggleStar([m.id], !m.isFlagged)}
+                onSwipeArchive={
+                  canArchive ? (m) => enqueueDestructive("archive", [m.id]) : undefined
+                }
+                onSwipeTrash={canTrash ? (m) => enqueueDestructive("trash", [m.id]) : undefined}
+                onLoadMore={() => void loadMore()}
+                onRetry={() => void loadFirstPage("initial")}
+                onClearSearch={() => setSearch("")}
+                onScrollOffsetChange={(offset) => {
+                  scrollOffsetRef.current = offset;
+                }}
+              />
+            </div>
+          </section>
 
-        <section
-          // min-w-0 บังคับ (DESIGN.md §5 ข้อ 6): flex item ค่า default `min-width:auto`
-          // ยุบต่ำกว่าความกว้างเนื้อหาไม่ได้ ⇒ เมลที่มีตาราง/บรรทัดกว้าง ดันบานอ่านให้กว้างเกินจอ
-          // แล้วเนื้อหาถูกตัดขอบขวา (เห็นชัดกับเมลที่ถูกส่งต่อมาจากระบบธนาคาร/หลักทรัพย์)
-          className={cn(
-            "min-h-0 min-w-0 flex-1",
-            !activeId && (listOnly ? "hidden" : "hidden lg:block"),
+          {/*
+          ตัวแบ่งลากได้ — มีเฉพาะจอ lg ขึ้นไปตอนมุมมอง split (จอแคบ/มุมมองรายการเป็น pane เดียวอยู่แล้ว)
+          พื้นที่จับกว้าง 6px (นิ้ว/เมาส์จิ้มติด) แต่เส้นที่เห็นยังบางเท่าเดิม
+        */}
+          {!listOnly && (
+            <div
+              role="separator"
+              aria-orientation="vertical"
+              aria-label="ปรับความกว้างคอลัมน์รายการ"
+              aria-valuenow={listWidth}
+              aria-valuemin={MAIL_LIST_WIDTH_MIN}
+              aria-valuemax={MAIL_LIST_WIDTH_MAX}
+              tabIndex={0}
+              title="ลากเพื่อปรับความกว้าง (ดับเบิลคลิก = ค่าเริ่มต้น)"
+              onPointerDown={onDividerPointerDown}
+              onPointerMove={onDividerPointerMove}
+              onPointerUp={onDividerPointerUp}
+              onPointerCancel={onDividerPointerUp}
+              onDoubleClick={() => {
+                applyWidth(MAIL_LIST_WIDTH_DEFAULT);
+                commitWidth();
+              }}
+              onKeyDown={(e) => {
+                // คีย์บอร์ดต้องขยับได้ด้วย — ตัวแบ่งที่ลากได้ด้วยเมาส์อย่างเดียวคือของที่ใช้ไม่ได้จริง
+                const step = e.shiftKey ? 48 : 16;
+                if (e.key === "ArrowLeft") applyWidth(widthRef.current - step);
+                else if (e.key === "ArrowRight") applyWidth(widthRef.current + step);
+                else if (e.key === "Home") applyWidth(MAIL_LIST_WIDTH_DEFAULT);
+                else return;
+                e.preventDefault();
+                commitWidth();
+              }}
+              className={cn(
+                "group hidden w-1.5 shrink-0 cursor-col-resize touch-none items-stretch justify-center",
+                "bg-transparent transition-colors hover:bg-gray-100 focus:outline-none",
+                "focus-visible:bg-gray-200 lg:flex",
+                dragging && "bg-gray-200",
+              )}
+            >
+              <span
+                aria-hidden
+                className={cn(
+                  "my-auto h-8 w-px rounded-full bg-gray-300 transition-colors group-hover:bg-gray-400",
+                  dragging && "bg-gray-400",
+                )}
+              />
+            </div>
           )}
-        >
-          <MailReader
-            detail={detail}
-            loading={detailLoading}
-            error={detailError}
-            flagged={!!activeMessage?.isFlagged}
-            onRetry={() => activeMessage && void openMessage(activeMessage, focusedIndex)}
-            onBack={closePane}
-            canArchive={canArchive}
-            canTrash={canTrash}
-            /* มุมมองรายการ = บานอ่านยืนเดี่ยวกินเต็มจอ ⇒ ต้องมีทางกลับที่เห็นเสมอ + คอลัมน์กว้างขึ้น */
-            standalone={listOnly}
-            onArchive={() => activeId && enqueueDestructive("archive", [activeId])}
-            onTrash={() => activeId && enqueueDestructive("trash", [activeId])}
-            onToggleStar={() => activeId && toggleStar([activeId], !activeMessage?.isFlagged)}
-            moveTargets={moveTargets}
-            onMove={(folder) => activeId && void moveToFolder([activeId], folder)}
-            onReply={() => openReply("reply")}
-            onReplyAll={() => openReply("replyAll")}
-            onForward={() => openReply("forward")}
-          />
-        </section>
-      </div>
+
+          <section
+            // min-w-0 บังคับ (DESIGN.md §5 ข้อ 6): flex item ค่า default `min-width:auto`
+            // ยุบต่ำกว่าความกว้างเนื้อหาไม่ได้ ⇒ เมลที่มีตาราง/บรรทัดกว้าง ดันบานอ่านให้กว้างเกินจอ
+            // แล้วเนื้อหาถูกตัดขอบขวา (เห็นชัดกับเมลที่ถูกส่งต่อมาจากระบบธนาคาร/หลักทรัพย์)
+            className={cn(
+              "min-h-0 min-w-0 flex-1",
+              !activeId && (listOnly ? "hidden" : "hidden lg:block"),
+            )}
+          >
+            <MailReader
+              detail={detail}
+              loading={detailLoading}
+              error={detailError}
+              flagged={!!activeMessage?.isFlagged}
+              onRetry={() => activeMessage && void openMessage(activeMessage, focusedIndex)}
+              onBack={closePane}
+              canArchive={canArchive}
+              canTrash={canTrash}
+              /* มุมมองรายการ = บานอ่านยืนเดี่ยวกินเต็มจอ ⇒ ต้องมีทางกลับที่เห็นเสมอ + คอลัมน์กว้างขึ้น */
+              standalone={listOnly}
+              basePath={basePath}
+              /* อยู่ในโฟลเดอร์ของผู้ใช้เอง = เดาปลายทางของกฎใหม่ให้เป็นโฟลเดอร์นั้น */
+              currentFolderId={selector.kind === "folder" ? selector.mailboxId : null}
+              onArchive={() => activeId && enqueueDestructive("archive", [activeId])}
+              onTrash={() => activeId && enqueueDestructive("trash", [activeId])}
+              onToggleStar={() => activeId && toggleStar([activeId], !activeMessage?.isFlagged)}
+              moveTargets={moveTargets}
+              onMove={(folder) => activeId && void moveToFolder([activeId], folder)}
+              onReply={() => openReply("reply")}
+              onReplyAll={() => openReply("replyAll")}
+              onForward={() => openReply("forward")}
+            />
+          </section>
+        </div>
+      </MailPaneResizeContext.Provider>
 
       {/* FAB เขียนเมล — เฉพาะมือถือ ตำแหน่งที่นิ้วโป้งเอื้อมถึง (UI_SPEC §8)
           ซ่อนตอนเปิดอ่าน/เลือกหลายฉบับ เพื่อไม่บังปุ่มอื่น */}

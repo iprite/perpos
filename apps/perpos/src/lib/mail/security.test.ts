@@ -25,6 +25,10 @@ describe("allowlist ของ returnTo (open redirect)", () => {
     // ของนอกโซนเมลไม่ผ่าน
     expect(sanitizeReturnTo("/admin")).toBe("/");
     expect(sanitizeReturnTo("/loginx")).toBe("/");
+    // หน้าอื่นในโซนเมล (บนโดเมนเมล base path = "") ต้องกลับไปได้หลังล็อกอิน
+    expect(sanitizeReturnTo("/rules")).toBe("/rules");
+    expect(sanitizeReturnTo("/account")).toBe("/account");
+    expect(sanitizeReturnTo("/accounting/documents")).toBe("/");
   });
 
   it("บล็อกทุกรูปแบบที่พาออกนอกแอป", () => {
