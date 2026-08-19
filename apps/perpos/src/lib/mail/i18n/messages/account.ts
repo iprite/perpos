@@ -5,6 +5,37 @@ export const account = defineMailMessages({
   "account.title": { th: "บัญชีของฉัน", en: "My account" },
   "account.back": { th: "กลับไปที่กล่องเมล", en: "Back to mailbox" },
 
+  /** เมนูย่อยของหน้าบัญชี */
+  "account.tab.profile": { th: "โปรไฟล์", en: "Profile" },
+  "account.tab.signature": { th: "ลายเซ็น", en: "Signature" },
+  "account.tab.password": { th: "รหัสผ่าน", en: "Password" },
+  "account.tab.language": { th: "ภาษา", en: "Language" },
+
+  "account.signature.title": { th: "ลายเซ็น", en: "Signature" },
+  "account.signature.desc": {
+    th: "ข้อความต่อท้ายเมลที่คุณเขียน — ใส่ให้อัตโนมัติตอนกดเขียนใหม่ (ยังลบ/แก้ในกล่องเขียนได้)",
+    en: "Text appended to emails you write — added automatically when you start a new message (still editable before sending)",
+  },
+  "account.signature.label": { th: "ข้อความลายเซ็น", en: "Signature text" },
+  "account.signature.placeholder": {
+    th: "เช่น\nสมชาย ใจดี\nฝ่ายขาย · โทร 08x-xxx-xxxx",
+    en: "e.g.\nJohn Doe\nSales · +66 8x-xxx-xxxx",
+  },
+  "account.signature.counter": { th: "{used}/{max} ตัวอักษร", en: "{used}/{max} characters" },
+  "account.signature.onReply": { th: "ตอนตอบ / ส่งต่อ", en: "On replies & forwards" },
+  "account.signature.onReply.on": { th: "ใส่ลายเซ็น", en: "Include" },
+  "account.signature.onReply.off": { th: "ไม่ใส่", en: "Skip" },
+  "account.signature.hint": {
+    th: "ลายเซ็นถูกคั่นด้วยบรรทัด “-- ” ตามมาตรฐานอีเมล และวางไว้เหนือข้อความที่อ้างถึงเสมอ",
+    en: 'Separated by the standard "-- " line and always placed above quoted text',
+  },
+  "account.signature.preview": { th: "ตัวอย่างท้ายเมล", en: "Preview" },
+  "account.signature.saved": {
+    th: "บันทึกแล้ว — ใช้กับเมลที่เขียนหลังจากนี้",
+    en: "Saved — applies to messages you write from now on",
+  },
+  "account.signature.failed": { th: "บันทึกลายเซ็นไม่สำเร็จ", en: "Could not save signature" },
+
   "account.avatar.title": { th: "รูปโปรไฟล์", en: "Profile picture" },
   "account.avatar.desc": {
     th: "เห็นเฉพาะในเว็บเมลนี้ · ผู้รับปลายทางไม่เห็น (อีเมลไม่มีมาตรฐานรูปโปรไฟล์) · PNG/JPEG/WEBP ไม่เกิน 256 KB",

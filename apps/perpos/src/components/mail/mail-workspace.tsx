@@ -72,6 +72,7 @@ import {
   type MailIdentityOption,
 } from "@/components/mail/mail-compose";
 import {
+  applySignature,
   buildForwardBody,
   buildQuotedReply,
   forwardSubject,
@@ -873,6 +874,27 @@ export function MailWorkspace({
     setComposeOpen(true);
   }, []);
 
+  /** ลายเซ็นที่ตั้งไว้ที่ `/account` (มาพร้อม prefs) — ref เพราะ callback ด้านล่างไม่ควร re-create */
+  const signatureRef = useRef<{ text: string; onReply: boolean }>({ text: "", onReply: true });
+
+  /**
+   * ใส่ลายเซ็น **เฉพาะตอนเริ่มเขียนใหม่/ตอบ/ส่งต่อ** เท่านั้น
+   * — ร่างเดิมและกล่องที่เปิดกลับมาหลัง "เลิกทำการส่ง"/ส่งไม่สำเร็จ มีลายเซ็นอยู่ในเนื้อความแล้ว
+   *   ถ้าใส่ซ้ำจะได้ลายเซ็นสองชุดต่อการเปิดหนึ่งครั้ง
+   */
+  const withSignature = useCallback(
+    (seed: MailComposeSeed | null, kind: "new" | "reply"): MailComposeSeed | null => {
+      const { text, onReply } = signatureRef.current;
+      if (!text || (kind === "reply" && !onReply)) return seed;
+      return { ...(seed ?? {}), body: applySignature(seed?.body ?? "", text) };
+    },
+    [],
+  );
+
+  const openNewCompose = useCallback(() => {
+    openCompose(withSignature(null, "new"));
+  }, [openCompose, withSignature]);
+
   const detailRef = useRef<MailThreadDetail | null>(null);
   detailRef.current = detail;
 
@@ -887,36 +909,46 @@ export function MailWorkspace({
       const references = source.references ?? [];
 
       if (mode === "forward") {
-        openCompose({
-          subject: forwardSubject(source.subject),
-          body: buildForwardBody({
-            from: source.from,
-            to: source.to,
-            subject: source.subject,
-            receivedAt: source.receivedAt,
-            textBody: source.textBody,
-          }),
-          focus: "body",
-        });
+        openCompose(
+          withSignature(
+            {
+              subject: forwardSubject(source.subject),
+              body: buildForwardBody({
+                from: source.from,
+                to: source.to,
+                subject: source.subject,
+                receivedAt: source.receivedAt,
+                textBody: source.textBody,
+              }),
+              focus: "body",
+            },
+            "reply",
+          ),
+        );
         return;
       }
 
       const { to, cc } = replyRecipients(source, selfEmail, mode === "replyAll");
-      openCompose({
-        to: to.map((a) => a.email),
-        cc: cc.map((a) => a.email),
-        subject: replySubject(source.subject),
-        body: buildQuotedReply({
-          from: source.from,
-          receivedAt: source.receivedAt,
-          textBody: source.textBody,
-        }),
-        inReplyTo,
-        references,
-        focus: "body",
-      });
+      openCompose(
+        withSignature(
+          {
+            to: to.map((a) => a.email),
+            cc: cc.map((a) => a.email),
+            subject: replySubject(source.subject),
+            body: buildQuotedReply({
+              from: source.from,
+              receivedAt: source.receivedAt,
+              textBody: source.textBody,
+            }),
+            inReplyTo,
+            references,
+            focus: "body",
+          },
+          "reply",
+        ),
+      );
     },
-    [openCompose, selfEmail],
+    [openCompose, selfEmail, withSignature],
   );
 
   // ── การเลือกหลายรายการ (shift-click = ช่วง) ──────────────────────────────
@@ -1199,7 +1231,7 @@ export function MailWorkspace({
         searchWrapRef.current?.querySelector("input")?.focus();
       },
       help: () => setShowShortcuts(true),
-      compose: () => openCompose(null),
+      compose: () => openNewCompose(),
       reply: () => openReply("reply"),
       replyAll: () => openReply("replyAll"),
       forward: () => openReply("forward"),
@@ -1257,6 +1289,8 @@ export function MailWorkspace({
     pane: "split",
     listWidth: MAIL_LIST_WIDTH_DEFAULT,
     locale: MAIL_LOCALE_DEFAULT,
+    signature: "",
+    signatureOnReply: true,
   });
   const persistPrefs = useCallback((patch: Partial<MailPrefs>) => {
     const next = { ...prefsRef.current, ...patch };
@@ -1281,9 +1315,16 @@ export function MailWorkspace({
         const next: MailPaneMode = data.pane === "list" ? "list" : "split";
         const width = clampMailListWidth(data.listWidth);
         prefsRef.current = {
+          ...prefsRef.current,
           pane: next,
           listWidth: width,
           locale: normalizeMailLocale(data.locale),
+          signature: typeof data.signature === "string" ? data.signature : "",
+          signatureOnReply: data.signatureOnReply !== false,
+        };
+        signatureRef.current = {
+          text: prefsRef.current.signature,
+          onReply: prefsRef.current.signatureOnReply,
         };
         setPane(next);
         setListWidth(width);
@@ -1396,7 +1437,7 @@ export function MailWorkspace({
               onToggleFilters={() => setShowFilters((v) => !v)}
               onRefresh={() => void loadFirstPage("refresh")}
               refreshing={refreshing}
-              onCompose={() => openCompose(null)}
+              onCompose={openNewCompose}
               onOpenShortcuts={() => setShowShortcuts(true)}
               pane={pane}
               onTogglePane={togglePane}
@@ -1551,7 +1592,7 @@ export function MailWorkspace({
           size="icon"
           aria-label={t("workspace.compose")}
           className="fixed bottom-5 right-5 z-20 h-14 w-14 rounded-full shadow-lg sm:hidden"
-          onClick={() => openCompose(null)}
+          onClick={openNewCompose}
         >
           <PenLine className="h-6 w-6" />
         </Button>

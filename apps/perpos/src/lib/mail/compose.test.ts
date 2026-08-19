@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   MailComposeError,
+  applySignature,
   isEmailAddress,
   buildDraftEmail,
   buildForwardBody,
@@ -196,5 +197,24 @@ describe("ค่าที่ไปเป็น header ต้องปลอด�
   it("ชื่อที่มีอักขระควบคุมถูกตัดออกจากที่อยู่ที่ประกอบได้", () => {
     const { valid } = parseRecipients('"ชื่อ" <ok@x.com>');
     expect(valid[0]).toEqual({ name: "ชื่อ", email: "ok@x.com" });
+  });
+});
+
+describe("applySignature — ลายเซ็นต่อท้าย", () => {
+  it("เมลใหม่ (เนื้อความว่าง) ได้บรรทัดคั่นมาตรฐาน `-- `", () => {
+    expect(applySignature("", "สมชาย\nโทร 08x")).toBe("\n\n-- \nสมชาย\nโทร 08x\n");
+  });
+
+  it("ตอบกลับ — ลายเซ็นอยู่เหนือข้อความที่อ้างถึงเสมอ", () => {
+    const quoted = "\n\nเมื่อ … เขียนว่า:\n> เดิม\n";
+    const out = applySignature(quoted, "สมชาย");
+    expect(out.indexOf("-- ")).toBeLessThan(out.indexOf("เขียนว่า:"));
+    expect(out.endsWith(quoted)).toBe(true);
+  });
+
+  it("ไม่มีลายเซ็น = ไม่แตะเนื้อความ · CRLF/ช่องว่างท้ายถูกจัดให้เรียบร้อย", () => {
+    expect(applySignature("เนื้อความ", "")).toBe("เนื้อความ");
+    expect(applySignature("", "   ")).toBe("");
+    expect(applySignature("", "ก\r\nข   ")).toBe("\n\n-- \nก\nข\n");
   });
 });

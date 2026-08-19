@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { MAIL_LIST_WIDTH_DEFAULT, MAIL_LIST_WIDTH_MAX, MAIL_LIST_WIDTH_MIN } from "./prefs-storage";
+import {
+  MAIL_LIST_WIDTH_DEFAULT,
+  MAIL_LIST_WIDTH_MAX,
+  MAIL_LIST_WIDTH_MIN,
+  MAIL_SIGNATURE_MAX,
+} from "./prefs-storage";
 import { MAIL_PREFS_DEFAULT, normalizeMailPrefs } from "./prefs";
 
 describe("normalizeMailPrefs", () => {
@@ -9,11 +14,15 @@ describe("normalizeMailPrefs", () => {
       pane: "list",
       listWidth: 420,
       locale: "en",
+      signature: "",
+      signatureOnReply: true,
     });
     expect(normalizeMailPrefs({ pane: "split" })).toEqual({
       pane: "split",
       listWidth: MAIL_LIST_WIDTH_DEFAULT,
       locale: "th",
+      signature: "",
+      signatureOnReply: true,
     });
     expect(normalizeMailPrefs({ locale: "fr" }).locale).toBe("th");
   });
@@ -33,11 +42,28 @@ describe("normalizeMailPrefs", () => {
     }
   });
 
-  it("ค่าเริ่มต้นคือ split (บานอ่านคู่กับรายการ) กว้าง 380px ภาษาไทย", () => {
+  it("ลายเซ็น: ตัด CRLF/ช่องว่างท้าย + บีบความยาว · ค่าที่ไม่ใช่ข้อความ = ว่าง", () => {
+    expect(normalizeMailPrefs({ signature: "ก\r\nข  " }).signature).toBe("ก\nข");
+    expect(
+      normalizeMailPrefs({ signature: "x".repeat(MAIL_SIGNATURE_MAX + 50) }).signature,
+    ).toHaveLength(MAIL_SIGNATURE_MAX);
+    for (const bad of [null, 42, {}, []]) {
+      expect(normalizeMailPrefs({ signature: bad }).signature).toBe("");
+    }
+  });
+
+  it("ไฟล์เก่าที่ยังไม่มีช่อง signatureOnReply = ใส่ลายเซ็นตอนตอบด้วย", () => {
+    expect(normalizeMailPrefs({ pane: "split" }).signatureOnReply).toBe(true);
+    expect(normalizeMailPrefs({ signatureOnReply: false }).signatureOnReply).toBe(false);
+  });
+
+  it("ค่าเริ่มต้นคือ split (บานอ่านคู่กับรายการ) กว้าง 380px ภาษาไทย ไม่มีลายเซ็น", () => {
     expect(MAIL_PREFS_DEFAULT).toEqual({
       pane: "split",
       listWidth: MAIL_LIST_WIDTH_DEFAULT,
       locale: "th",
+      signature: "",
+      signatureOnReply: true,
     });
   });
 });

@@ -184,6 +184,10 @@ export interface MailPrefs {
   listWidth: number;
   /** ภาษาของเว็บเมล (th/en) — ดู `lib/mail/i18n` */
   locale: MailLocale;
+  /** ลายเซ็นต่อท้ายเมล (ข้อความล้วน) — ว่าง = ไม่ใส่ */
+  signature: string;
+  /** ใส่ลายเซ็นตอนตอบ/ส่งต่อด้วยไหม (เมลใหม่ใส่เสมอเมื่อมีลายเซ็น) */
+  signatureOnReply: boolean;
 }
 
 // ─── กฎกรองอัตโนมัติ (Sieve — M3) ─────────────────────────────────────────────
