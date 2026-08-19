@@ -11,6 +11,13 @@ export const MAIL_RULE_MAX = 30;
 export const MAIL_RULE_CONDITION_MAX = 5;
 export const MAIL_RULE_VALUE_MAX = 200;
 
+/**
+ * เพดาน "ใช้กฎกับเมลเดิม" ต่อครั้ง — ตัวเลขนี้คือจำนวนที่ย้ายจบก่อน timeout ได้สบาย ๆ
+ * อยู่ที่นี่เพราะทั้งหน้าเว็บ (บอกผู้ใช้ล่วงหน้า) และเซิร์ฟเวอร์ (บังคับจริง) ต้องใช้ค่าเดียวกัน
+ * — `lib/mail/rules-apply.ts` import ตรงจากฝั่ง client ไม่ได้ (ลาก jmap/messages เข้า bundle)
+ */
+export const MAIL_RULE_APPLY_LIMIT = 200;
+
 export const MAIL_RULE_FIELDS: MailRuleField[] = ["from", "to", "cc", "subject"];
 export const MAIL_RULE_OPERATORS: MailRuleOperator[] = ["contains", "is", "not_contains"];
 

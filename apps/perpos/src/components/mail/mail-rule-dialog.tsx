@@ -14,7 +14,7 @@
  *  - กฎมีผลกับเมลที่เข้ามาใหม่เท่านั้น (Sieve ไม่ย้อนหลัง) — ต้องบอกในกล่องเสมอ
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -31,9 +31,11 @@ import { CustomSelect } from "@/components/ui/custom-select";
 import { SegmentedControl } from "@/components/ui/segmented";
 import { Text } from "@/components/ui/typography";
 import { notify } from "@/lib/toast";
-import { MAIL_RULE_MAX, MAIL_RULE_VALUE_MAX } from "@/lib/mail/rule-meta";
+import { showUndoToast } from "@/components/ui/undo-toast";
+import { MAIL_RULE_APPLY_LIMIT, MAIL_RULE_MAX, MAIL_RULE_VALUE_MAX } from "@/lib/mail/rule-meta";
 import type {
   MailFolder,
+  MailUndoToken,
   MailRule,
   MailRuleCondition,
   MailRulesResult,
@@ -77,9 +79,15 @@ export function MailRuleDialog({
   const [moveTo, setMoveTo] = useState("");
   const [markRead, setMarkRead] = useState(false);
   const [saving, setSaving] = useState(false);
+  /** ใช้กับเมลที่มีอยู่แล้วด้วยไหม + จำนวนที่จะโดน (นับก่อนเสมอ — ย้ายทีละหลายสิบฉบับ ย้อนกลับยาก) */
+  const [applyExisting, setApplyExisting] = useState(false);
+  const [matchCount, setMatchCount] = useState<number | null>(null);
+  const [counting, setCounting] = useState(false);
   const [targets, setTargets] = useState<{ value: string; label: string }[]>([]);
 
   const subjectValue = seed ? cleanSubject(seed.subject) : "";
+  /** ไม่มี action = กฎไม่ทำอะไรกับเมลเดิม (บันทึกกฎได้ แต่ต้องบอกผู้ใช้ก่อน) */
+  const hasAction = !!moveTo || markRead;
 
   // เปิดกล่องใหม่ = ตั้งค่าจากเมลฉบับที่กำลังดูเสมอ (ห้ามค้างค่าของฉบับก่อนหน้า)
   useEffect(() => {
@@ -89,6 +97,8 @@ export function MailRuleDialog({
     setSubjectInput(cleanSubject(seed.subject));
     setMoveTo(defaultMailboxId ?? "");
     setMarkRead(false);
+    setApplyExisting(false);
+    setMatchCount(null);
   }, [open, seed, defaultMailboxId]);
 
   useEffect(() => {
@@ -115,6 +125,82 @@ export function MailRuleDialog({
     };
   }, [open]);
 
+  /**
+   * กฎที่กำลังจะสร้าง — ใช้ทั้งตอน "นับให้ดูก่อน" และตอนบันทึกจริง
+   * (สองที่ต้องเป็นกฎเดียวกันเป๊ะ ไม่งั้นตัวเลขที่ผู้ใช้เห็นไม่ใช่ของที่จะโดนจริง)
+   */
+  /**
+   * เงื่อนไขล้วน ๆ — แยกจาก action เพราะ **การนับใช้แค่ส่วนนี้**
+   * (ถ้าเอาทั้งกฎมาเป็น dependency การพิมพ์ชื่อกฎจะยิงนับใหม่ทุกครั้ง ทั้งที่ผลค้นไม่เปลี่ยน)
+   */
+  const conditions: MailRuleCondition[] | null = useMemo(() => {
+    if (!seed) return null;
+    const list: MailRuleCondition[] = [{ field: "from", op: "contains", value: seed.fromEmail }];
+    if (useSubject) {
+      const value = subjectInput.trim();
+      if (!value) return null;
+      list.push({ field: "subject", op: "contains", value });
+    }
+    return list;
+  }, [seed, useSubject, subjectInput]);
+
+  const buildRule = useCallback((): MailRule | null => {
+    if (!seed || !conditions) return null;
+    return {
+      id: `r${Date.now().toString(36)}`,
+      name: name.trim() || seed.fromEmail,
+      enabled: true,
+      match: "all",
+      conditions,
+      moveToMailboxId: moveTo || null,
+      markRead,
+      star: false,
+      stop: false,
+    };
+  }, [seed, conditions, name, moveTo, markRead]);
+
+  /** นับฉบับเดิมที่ตรงกฎ — หน่วงไว้หน่อยเพราะช่องหัวเรื่องพิมพ์ได้ */
+  useEffect(() => {
+    if (!open || !seed || !conditions) {
+      if (!conditions) setMatchCount(null);
+      return;
+    }
+    // นับจากเงื่อนไขอย่างเดียว — action (ย้าย/อ่านแล้ว) ไม่เปลี่ยนว่าเมลฉบับไหน "ตรงกฎ"
+    const rule: MailRule = {
+      id: "preview",
+      name: "preview",
+      enabled: true,
+      match: "all",
+      conditions,
+      moveToMailboxId: null,
+      markRead: false,
+      star: false,
+      stop: false,
+    };
+    let alive = true;
+    setCounting(true);
+    const t = setTimeout(() => {
+      fetch("/api/mail/rules/apply", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rule, dryRun: true }),
+      })
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data: { total?: number } | null) => {
+          if (!alive) return;
+          setMatchCount(typeof data?.total === "number" ? data.total : null);
+        })
+        .catch(() => alive && setMatchCount(null))
+        .finally(() => alive && setCounting(false));
+    }, 400);
+    return () => {
+      alive = false;
+      clearTimeout(t);
+      setCounting(false);
+      /* ตั้งใจไม่ล้าง matchCount ตรงนี้ — จอจะกะพริบทุกตัวอักษรที่พิมพ์ */
+    };
+  }, [open, seed, conditions]);
+
   const save = useCallback(async () => {
     if (!seed) return;
     setSaving(true);
@@ -134,28 +220,11 @@ export function MailRuleDialog({
         return;
       }
 
-      const conditions: MailRuleCondition[] = [
-        { field: "from", op: "contains", value: seed.fromEmail },
-      ];
-      if (useSubject) {
-        const value = subjectInput.trim();
-        if (!value) {
-          notify.error(null, "เปิดเงื่อนไขหัวเรื่องไว้ แต่ยังไม่ได้กรอกคำ");
-          return;
-        }
-        conditions.push({ field: "subject", op: "contains", value });
+      const rule = buildRule();
+      if (!rule) {
+        notify.error(null, "เปิดเงื่อนไขหัวเรื่องไว้ แต่ยังไม่ได้กรอกคำ");
+        return;
       }
-      const rule: MailRule = {
-        id: `r${Date.now().toString(36)}`,
-        name: name.trim() || seed.fromEmail,
-        enabled: true,
-        match: "all",
-        conditions,
-        moveToMailboxId: moveTo || null,
-        markRead,
-        star: false,
-        stop: false,
-      };
 
       const put = await fetch("/api/mail/rules", {
         method: "PUT",
@@ -164,14 +233,61 @@ export function MailRuleDialog({
       });
       const data = (await put.json().catch(() => null)) as { message?: string } | null;
       if (!put.ok) throw new Error(data?.message ?? "บันทึกกฎกรองไม่สำเร็จ");
-      notify.saved("สร้างกฎกรองแล้ว — มีผลกับเมลที่เข้ามาใหม่");
+
+      if (!applyExisting) {
+        notify.saved("สร้างกฎกรองแล้ว — มีผลกับเมลที่เข้ามาใหม่");
+        onOpenChange(false);
+        return;
+      }
+
+      // ของเดิมเป็นงานคนละชิ้น (Sieve ย้อนหลังไม่ได้) — กฎถูกบันทึกไปแล้วแม้ขั้นนี้พลาด
+      const applied = await fetch("/api/mail/rules/apply", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rule }),
+      });
+      const result = (await applied.json().catch(() => null)) as {
+        affected?: number;
+        remaining?: number;
+        undo?: MailUndoToken;
+        message?: string;
+      } | null;
+      if (!applied.ok) {
+        notify.error(null, result?.message ?? "สร้างกฎแล้ว แต่ใช้กับเมลเดิมไม่สำเร็จ");
+        onOpenChange(false);
+        return;
+      }
+      const affected = result?.affected ?? 0;
+      const remaining = result?.remaining ?? 0;
       onOpenChange(false);
+      if (affected === 0) {
+        notify.saved("สร้างกฎกรองแล้ว — ไม่พบเมลเดิมที่ตรงเงื่อนไข");
+        return;
+      }
+      const undo = result?.undo;
+      showUndoToast({
+        message:
+          `จัดการเมลเดิมแล้ว ${affected} ฉบับ` + (remaining > 0 ? ` · เหลืออีก ${remaining}` : ""),
+        onUndo: () => {
+          if (!undo?.items?.length) return;
+          // เช็ค res.ok ด้วย — 4xx/5xx ไม่ทำให้ fetch reject ⇒ เงียบไปเฉย ๆ ผู้ใช้จะนึกว่าคืนค่าแล้ว
+          void fetch("/api/mail/messages/undo", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ items: undo.items }),
+          })
+            .then((res) => {
+              if (!res.ok) notify.error(null, "เลิกทำไม่สำเร็จ");
+            })
+            .catch(() => notify.error(null, "เลิกทำไม่สำเร็จ"));
+        },
+      });
     } catch (e) {
       notify.error(e, "สร้างกฎกรองไม่สำเร็จ");
     } finally {
       setSaving(false);
     }
-  }, [seed, name, useSubject, subjectInput, moveTo, markRead, onOpenChange]);
+  }, [seed, buildRule, applyExisting, onOpenChange]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -259,12 +375,38 @@ export function MailRuleDialog({
                 <YesNo label="ทำเป็นอ่านแล้วอัตโนมัติ" value={markRead} onChange={setMarkRead} />
               </div>
 
-              <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5">
-                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
-                <Text className="text-sm text-amber-800">
-                  กฎมีผลกับอีเมลที่เข้ามา<strong>หลังจากนี้</strong>เท่านั้น —
-                  เมลที่มีอยู่แล้วไม่ถูกย้าย
-                </Text>
+              {/* ของเดิมเป็นงานคนละชิ้น — Sieve กรองตอนเมลเข้าเท่านั้น ย้อนหลังต้องสั่ง JMAP เอง */}
+              <div className="rounded-xl border border-gray-200 px-3 py-2.5">
+                <div className="flex items-start gap-3">
+                  <div className="min-w-0 flex-1">
+                    <Text className="text-sm text-gray-900">ใช้กับเมลเดิมในกล่องขาเข้าด้วย</Text>
+                    <Text className="mt-0.5 text-xs text-gray-500">
+                      {counting
+                        ? "กำลังนับ…"
+                        : matchCount === null
+                          ? "กฎมีผลกับอีเมลที่เข้ามาหลังจากนี้เท่านั้น"
+                          : matchCount === 0
+                            ? "ไม่พบเมลเดิมที่ตรงเงื่อนไข"
+                            : `พบ ${matchCount} ฉบับ` +
+                              (matchCount > MAIL_RULE_APPLY_LIMIT
+                                ? ` — ครั้งนี้ทำได้ ${MAIL_RULE_APPLY_LIMIT}`
+                                : "")}
+                    </Text>
+                  </div>
+                  <YesNo
+                    label="ใช้กับเมลเดิมด้วย"
+                    value={applyExisting}
+                    onChange={setApplyExisting}
+                  />
+                </div>
+                {applyExisting && !hasAction && (
+                  <div className="mt-2 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-2">
+                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+                    <Text className="text-sm text-amber-800">
+                      กฎนี้ยังไม่มีการกระทำ (ไม่ย้าย/ไม่ทำเป็นอ่านแล้ว) จึงไม่มีอะไรทำกับเมลเดิม
+                    </Text>
+                  </div>
+                )}
               </div>
 
               <Text className="text-xs text-gray-500">
@@ -280,7 +422,12 @@ export function MailRuleDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             ยกเลิก
           </Button>
-          <Button disabled={saving || !seed} onClick={() => void save()}>
+          <Button
+            /* เปิด "ใช้กับเมลเดิม" ไว้แต่กฎไม่มีการกระทำ = เซิร์ฟเวอร์ตอบ 400 แน่นอน
+               ⇒ กันตั้งแต่ปุ่ม ไม่ใช่ปล่อยให้กฎถูกบันทึกแล้วค่อยขึ้น error */
+            disabled={saving || !seed || (applyExisting && !hasAction)}
+            onClick={() => void save()}
+          >
             {saving ? "กำลังบันทึก…" : "สร้างกฎ"}
           </Button>
         </DialogFooter>
