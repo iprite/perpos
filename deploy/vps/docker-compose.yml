@@ -10,8 +10,18 @@
 # ⇒ deploy = สลับ symlink + `docker compose restart <app>` (ไม่กินแรมเครื่องเลย)
 #   · ทั้ง 3 แอปใช้ blue/green (switch-app.sh) จึงไม่มีช่วง 502 ตอน deploy
 
+# log ทุก container หมุนที่ 20MB×3 — Caddy active health check ยิงสีที่ stopped ทุก 3 วิ (DNS ไม่ resolve)
+# = ~1 บรรทัด/วิ ถ้าไม่หมุนดิสก์เต็มเงียบ ๆ (json-file default = ไม่จำกัด)
+x-logging: &logging
+  logging:
+    driver: json-file
+    options:
+      max-size: "20m"
+      max-file: "3"
+
 services:
   caddy:
+    <<: *logging
     build:
       context: .
       dockerfile: Dockerfile.caddy
@@ -39,6 +49,7 @@ services:
   # ชอบ blue ก่อน (ดู Caddyfile) · ไม่ publish port ออก host — cron บน host ยิงผ่าน Caddy 443 แทน
   # ⚠️ ห้ามรัน `docker compose up -d` เฉย ๆ แล้วหวังว่าจะสลับ release — ต้องผ่านสคริปต์เท่านั้น
   perpos-blue: &perpos
+    <<: *logging
     image: node:22-alpine
     restart: unless-stopped
     working_dir: /app
@@ -69,6 +80,7 @@ services:
   # artifact/env เดียวกับ perpos · ไฟล์ bundle โดย CI (`pnpm build:worker`) · logic = lib/scheduler/run.ts
   # ⚠️ ต้องมี instance เดียว (ห้าม scale) — มี lease ใน DB กันซ้อนอีกชั้นถ้าเผลอ
   perpos-worker:
+    <<: *logging
     image: node:22-alpine
     restart: unless-stopped
     working_dir: /app
@@ -85,6 +97,7 @@ services:
 
   # exapp — blue/green เหมือน perpos (deploy = switch-app.sh exapp 3006) · ไม่ publish port ออก host
   exapp-blue: &exapp
+    <<: *logging
     image: node:22-alpine
     restart: unless-stopped
     working_dir: /app
@@ -108,6 +121,7 @@ services:
 
   # riekchang — blue/green เหมือน perpos (deploy = switch-app.sh riekchang 3007) · ไม่ publish port ออก host
   riekchang-blue: &riekchang
+    <<: *logging
     image: node:22-alpine
     restart: unless-stopped
     working_dir: /app

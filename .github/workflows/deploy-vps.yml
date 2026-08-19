@@ -131,9 +131,11 @@ jobs:
             tar -xzf art.tgz -C releases/$TS && rm -f art.tgz
             # ป้าย commit ของ release นี้ — heartbeat อ่านไปโชว์ที่ /admin/system (ตรวจว่า prod รัน sha ไหน)
             printf '%s\n' '${{ github.sha }}' > releases/$TS/RELEASE
+            PREV=\$(readlink -f $APP/current 2>/dev/null || true)
             ln -sfn $APP/releases/$TS $APP/current
             # blue/green: สีใหม่ต้องผ่าน /api/health ก่อน traffic ย้าย · ล้ม = สีเก่ายังเสิร์ฟ + exit 1 (deploy แดง)
-            bash $APP/releases/$TS/deploy/switch-app.sh perpos 3005 perpos-worker
+            # ล้ม (สีใหม่ไม่ผ่าน health) = สีเก่ายังเสิร์ฟอยู่ → ดึง symlink กลับ release เดิม กัน reboot/up -d ไปบูตของเสีย
+            bash $APP/releases/$TS/deploy/switch-app.sh perpos 3005 perpos-worker || { [ -n \"\$PREV\" ] && ln -sfn \"\$PREV\" $APP/current && echo \"symlink กลับไป \$PREV\"; exit 1; }
             # เก็บ 3 release ล่าสุดพอ (rollback = ln -sfn ไป release ก่อนหน้า + bash current/deploy/switch-app.sh perpos 3005 perpos-worker)
             cd $APP/releases && ls -1t | tail -n +4 | xargs -r rm -rf"
 
