@@ -107,14 +107,14 @@ jobs:
           exit $rc
           EOS
           ssh -i ~/.ssh/id_up -o ConnectTimeout=25 -o ServerAliveInterval=15 "$VPS_USER@$VPS_HOST" "S=\$(cat); bash -c \"\$S\" heal$cmds" < remote.sh 2>&1 | tail -n 40
-          if [ "${PIPESTATUS[0]}" = "0" ]; then
-            echo "result=restarted" >> "$GITHUB_OUTPUT"
-          else
-            echo "result=ssh_failed" >> "$GITHUB_OUTPUT"; echo "ssh/restart ล้ม (เครื่องอาจดับทั้งตัว)"
-          fi
+          rc=${PIPESTATUS[0]}
+          # 255 = ssh ต่อไม่ได้ (เครื่อง/เครือข่ายดับ) · อื่น ๆ = ต่อได้แต่ restart ล้ม (เช่น สีใหม่ไม่ผ่าน health)
+          if [ "$rc" = "0" ]; then echo "result=restarted" >> "$GITHUB_OUTPUT"
+          elif [ "$rc" = "255" ]; then echo "result=ssh_failed" >> "$GITHUB_OUTPUT"; echo "ssh เข้าเครื่องไม่ได้ (rc=255)"
+          else echo "result=restart_failed" >> "$GITHUB_OUTPUT"; echo "ssh ได้แต่ restart ล้ม (rc=$rc)"; fi
           mkdir -p .uptime-restart && echo "$now" > .uptime-restart/ts
       - name: จำเวลา auto-restart
-        if: steps.heal.outputs.result == 'restarted' || steps.heal.outputs.result == 'ssh_failed'
+        if: contains('restarted ssh_failed restart_failed', steps.heal.outputs.result)
         uses: actions/cache/save@v4
         with:
           path: .uptime-restart
@@ -163,6 +163,10 @@ jobs:
               MSG="🔴 เว็บบน VPS ยังล่ม (เพิ่ง auto-restart ไปใน 30 นาที — ไม่ทำซ้ำ)
           $(printf "$LIST")
           $STAMP · สั่งเอง: $OPS_URL (status / logs / rollback)" ;;
+            restart_failed)
+              MSG="🔴 restart อัตโนมัติล้ม (ssh ได้ แต่แอปบูตไม่ผ่าน health — release อาจพัง) — ต้องคนดู
+          $(printf "$LIST")
+          $STAMP · ลอง rollback: $OPS_URL (rollback-perpos / logs-perpos)" ;;
             ssh_failed)
               MSG="🔴 เว็บบน VPS ล่ม และ ssh เข้าเครื่องไม่ได้ (เครื่องอาจดับทั้งตัว)
           $(printf "$LIST")
