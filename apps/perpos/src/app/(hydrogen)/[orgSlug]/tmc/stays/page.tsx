@@ -48,6 +48,7 @@ import {
   Rows3,
   Filter,
 } from "lucide-react";
+import { NON_REVENUE_STAY_TYPES, stayRevenueOf } from "@/lib/tmc/stay-types";
 
 const TMC_ORG_ID = "1f52618c-09c4-49c5-a929-ea5060f26e7d";
 const SAV_ACCOUNT_ID = "a4ee27ea-6568-4097-abd7-a91fbf4805d0"; // กสิกร ออมทรัพย์
@@ -201,9 +202,6 @@ function fmt(n: number | null) {
   if (!n && n !== 0) return "—";
   return n.toLocaleString("th-TH");
 }
-/** ประเภทการเข้าพักที่ไม่เกิดรายได้ค่าห้อง — เว้นค่าห้องว่างได้ (ต้องตรงกับฝั่ง API) */
-const NON_REVENUE_STAY_TYPES = new Set(["influencer", "management", "free"]);
-
 function stayTypeLabel(t: string) {
   return STAY_TYPES.find((s) => s.value === t)?.label ?? t;
 }
@@ -495,7 +493,8 @@ export default function TmcStaysPage() {
   }
 
   // ── Derived stats ──────────────────────────────────────────────────────────
-  const totalRevenue = stays.reduce((s, st) => s + (st.room_rate ?? 0), 0);
+  // ประเภทที่ไม่คิดเงินไม่นับเป็นรายได้ แม้จะกรอกค่าห้องไว้ (lib/tmc/stay-types.ts)
+  const totalRevenue = stays.reduce((s, st) => s + stayRevenueOf(st), 0);
   // หน่วยหลักของธุรกิจห้องพัก = "ห้อง×คืน" ไม่ใช่จำนวนครั้งที่จอง (1 ครั้งอาจพักหลายคืน)
   const totalStayNights = stays.reduce((s, st) => s + (st.nights ?? 0), 0);
   const paidStays = stays.filter((s) => s.stay_type === "paid");

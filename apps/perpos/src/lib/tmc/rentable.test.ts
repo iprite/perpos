@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { availableNightsIn, isOpenOn, openCodesOn } from "./rentable";
+import { isRevenueStay, stayRevenueOf } from "./stay-types";
 
 const PROPS = [
   { code: "TMC1", rentable_from: null },
@@ -37,5 +38,27 @@ describe("ห้องเปิดขายของ TMC", () => {
     ];
     // พ.ย. 30 วัน: A ครบ 30 คืน + B 15 คืน (16–30 พ.ย.)
     expect(availableNightsIn(props, "2026-11-01", "2026-12-01")).toBe(45);
+  });
+});
+
+describe("รายได้ยึดตามประเภทการเข้าพัก", () => {
+  it("paid = นับค่าห้องตามที่กรอก", () => {
+    expect(stayRevenueOf({ stay_type: "paid", room_rate: 52250 })).toBe(52250);
+    expect(stayRevenueOf({ stay_type: null, room_rate: 100 })).toBe(100);
+  });
+
+  it("อินฟลูฯ/ฟรี/ผู้บริหาร = 0 เสมอ แม้จะกรอกค่าห้องไว้", () => {
+    expect(stayRevenueOf({ stay_type: "influencer", room_rate: 12950 })).toBe(0);
+    expect(stayRevenueOf({ stay_type: "free", room_rate: 10 })).toBe(0);
+    expect(stayRevenueOf({ stay_type: "management", room_rate: 9950 })).toBe(0);
+  });
+
+  it("ค่าห้องว่าง = 0 ไม่ใช่ NaN", () => {
+    expect(stayRevenueOf({ stay_type: "paid", room_rate: null })).toBe(0);
+  });
+
+  it("isRevenueStay — ค่าว่างถือว่าคิดเงิน (default paid)", () => {
+    expect(isRevenueStay(undefined)).toBe(true);
+    expect(isRevenueStay("free")).toBe(false);
   });
 });
