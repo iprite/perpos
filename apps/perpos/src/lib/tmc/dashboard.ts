@@ -11,6 +11,7 @@
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { availableNightsIn, isOpenOn, openCodesOn, type RentableProperty } from "./rentable";
 
 export type Totals = {
   finance: { income: number; expense: number };
@@ -140,7 +141,7 @@ export async function computeTmcDashboard(
   // ─── Occupancy — ห้องที่เปิดขายจริงเท่านั้น (ใช้ stayRows ชุดเดียวกัน — คาบเกี่ยวช่วงอยู่แล้ว) ───
   const rentableRes = await db
     .from("tmc_properties")
-    .select("code")
+    .select("code, rentable_from")
     .eq("org_id", orgId)
     .eq("is_active", true)
     .eq("is_rentable", true);
@@ -282,14 +283,18 @@ export async function computeTmcDashboard(
     .sort((a, b) => b.income + b.expense - (a.income + a.expense));
 
   // ─── Occupancy rate — คืนที่ขายได้ (clip ให้อยู่ในช่วง) / (จำนวนห้องเปิดขาย × จำนวนคืนในช่วง) ───
-  const rentableCodes = new Set((rentableRes.data ?? []).map((p) => p.code as string));
+  const rentableProps = (rentableRes.data ?? []) as RentableProperty[];
+  const rentableByCode = new Map(rentableProps.map((p) => [p.code, p]));
   // นับเป็น "ห้อง×คืน" ที่ไม่ซ้ำ — ถ้ามี stay ซ้อนทับห้องเดียวกันคืนเดียวกัน (จองคาบเกี่ยว/บันทึกซ้ำ)
   // ต้องนับครั้งเดียว ไม่งั้นอัตราการเข้าพักทะลุ 100% · นิยามเดียวกับการ์ดรายวัน (lib/tmc/daily-occupancy.ts)
   const soldNightKeys = new Set<string>();
   const soldByMonth: Record<string, number> = {};
   for (const s of stayRows) {
-    if (!rentableCodes.has(s.property_code ?? "")) continue;
+    const prop = rentableByCode.get(s.property_code ?? "");
+    if (!prop) continue;
     for (const d of nightsList(s.check_in, s.check_out, from, to)) {
+      // คืนก่อนห้องเปิดขายไม่นับ — นิยามเดียวกับการ์ดรายวัน (lib/tmc/rentable.ts)
+      if (!isOpenOn(prop, d)) continue;
       const key = `${s.property_code}|${d}`;
       if (soldNightKeys.has(key)) continue;
       soldNightKeys.add(key);
@@ -298,18 +303,18 @@ export async function computeTmcDashboard(
     }
   }
   const soldNights = soldNightKeys.size;
-  const roomsCount = rentableCodes.size;
-  const nightsInRange = Math.max(
-    0,
-    Math.round((new Date(to).getTime() + DAY_MS - new Date(from).getTime()) / DAY_MS),
-  );
-  const availableNights = roomsCount * nightsInRange;
+  // "ห้องเปิดขาย" ที่โชว์บนแดชบอร์ด = ณ วันสุดท้ายของช่วง (ห้องที่เพิ่งเปิดกลางช่วงนับด้วย)
+  const roomsCount = openCodesOn(rentableProps, to).length;
+  const toEx = new Date(new Date(to).getTime() + DAY_MS).toISOString().slice(0, 10);
+  const availableNights = availableNightsIn(rentableProps, from, toEx);
 
-  // คืนเปิดขายต่อเดือน = ห้องเปิดขาย × จำนวนวันของเดือนนั้นที่อยู่ในช่วง [from, to]
+  // คืนเปิดขายต่อเดือน = นับรายวันว่าวันนั้นมีห้องเปิดขายกี่ห้อง (ห้องเปิดกลางช่วงจึงไม่ย้อนหลัง)
   const availByMonth: Record<string, number> = {};
   for (let t = new Date(from).getTime(); t < new Date(to).getTime() + DAY_MS; t += DAY_MS) {
-    const m = new Date(t).toISOString().slice(0, 7);
-    availByMonth[m] = (availByMonth[m] ?? 0) + roomsCount;
+    const night = new Date(t).toISOString().slice(0, 10);
+    const m = night.slice(0, 7);
+    availByMonth[m] =
+      (availByMonth[m] ?? 0) + rentableProps.filter((p) => isOpenOn(p, night)).length;
   }
   const occupancyOfMonth = (m: string): number | null => {
     const avail = availByMonth[m] ?? 0;

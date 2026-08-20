@@ -12,6 +12,7 @@
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { availableNightsIn, isOpenOn, openCodesOn, type RentableProperty } from "./rentable";
 
 const DAY_MS = 86_400_000;
 
@@ -128,7 +129,7 @@ export async function computeTmcDailyOccupancy(
   const [propRes, stayRes, bookRes] = await Promise.all([
     db
       .from("tmc_properties")
-      .select("code, sort_order")
+      .select("code, sort_order, rentable_from")
       .eq("org_id", orgId)
       .eq("is_active", true)
       .eq("is_rentable", true)
@@ -153,9 +154,12 @@ export async function computeTmcDailyOccupancy(
   if (stayRes.error) throw new Error(stayRes.error.message);
   if (bookRes.error) throw new Error(bookRes.error.message);
 
-  const rentable = (propRes.data ?? []).map((p) => p.code as string);
-  const rentableSet = new Set(rentable);
-  const rooms = rentable.length;
+  // ห้องเปิดขาย = ธง is_rentable + ถึงวัน `rentable_from` แล้ว (ดู lib/tmc/rentable.ts)
+  const props = (propRes.data ?? []) as RentableProperty[];
+  const propByCode = new Map(props.map((p) => [p.code, p]));
+  const openToday = openCodesOn(props, date);
+  const rentableSet = new Set(props.map((p) => p.code));
+  const rooms = openToday.length;
   const stays = (stayRes.data ?? []) as StayRow[];
   const bookings = (bookRes.data ?? []) as BookingRow[];
   // นับเฉพาะ stay ของห้องที่เปิดขาย — ให้ตรงกับตัวหารของ occupancy
@@ -163,7 +167,10 @@ export async function computeTmcDailyOccupancy(
 
   const rateOf = (n: number) => (rooms > 0 ? +((n / rooms) * 100).toFixed(1) : null);
 
-  const checkInSellable = sellable.filter((s) => s.check_in === date);
+  const openTodaySet = new Set(openToday);
+  const checkInSellable = sellable.filter(
+    (s) => s.check_in === date && openTodaySet.has(s.property_code ?? ""),
+  );
 
   // ยอดจอง = นับตามวันที่บันทึกเข้าระบบ (created_at) แปลงเป็นวันไทยก่อนเทียบ
   const bookedOn = (b: BookingRow) => bangkokToday(new Date(b.created_at));
@@ -188,7 +195,11 @@ export async function computeTmcDailyOccupancy(
     const startMs = Math.max(new Date(s.check_in).getTime(), new Date(monthStart).getTime());
     const endMs = Math.min(new Date(end).getTime(), new Date(forwardEndEx).getTime());
     for (let t = startMs; t < endMs; t += DAY_MS) {
-      const key = `${s.property_code}|${new Date(t).toISOString().slice(0, 10)}`;
+      const night = new Date(t).toISOString().slice(0, 10);
+      // คืนก่อนห้องเปิดขาย ไม่นับเป็นคืนที่ขายได้ (ไม่งั้นตัวตั้งมี แต่ตัวหารไม่มี)
+      const prop = propByCode.get(s.property_code ?? "");
+      if (!prop || !isOpenOn(prop, night)) continue;
+      const key = `${s.property_code}|${night}`;
       nightMap.set(key, (nightMap.get(key) ?? true) && isFree);
     }
   }
@@ -199,11 +210,10 @@ export async function computeTmcDailyOccupancy(
 
   const forward = forwardStarts.map((start, i) => {
     const endEx = i === 0 ? forwardStarts[1] : forwardEndEx;
-    const days = Math.round((new Date(endEx).getTime() - new Date(start).getTime()) / DAY_MS);
     const sold = Array.from(nightMap.keys()).filter(
       (k) => nightDate(k) >= start && nightDate(k) < endEx,
     ).length;
-    const avail = rooms * days;
+    const avail = availableNightsIn(props, start, endEx);
     return {
       month: start.slice(0, 7),
       soldNights: sold,
@@ -217,7 +227,7 @@ export async function computeTmcDailyOccupancy(
   const occupiedCodes = new Set(tonight.map(([k]) => k.split("|")[0]));
   const occupied = occupiedCodes.size;
   const freeOccupied = tonight.filter(([, isFree]) => isFree).length;
-  const availableNights = rooms * daysInMonth;
+  const availableNights = availableNightsIn(props, monthStart, monthEndEx);
   return {
     date,
     rooms,
@@ -225,7 +235,7 @@ export async function computeTmcDailyOccupancy(
     rate: rateOf(occupied),
     freeOccupied,
     freeRate: rateOf(freeOccupied),
-    vacantCodes: rentable.filter((c) => !occupiedCodes.has(c)),
+    vacantCodes: openToday.filter((c) => !occupiedCodes.has(c)),
     checkIns: {
       rooms: stays.filter((s) => s.check_in === date).length,
       guests: stays
