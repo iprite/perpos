@@ -2,7 +2,8 @@
  * ผู้ช่วยโฟล์ (Flow RAG) — ตอบคำถามลูกค้าเกี่ยวกับ PERPOS / Flow / Suite บน LINE
  *
  * pipeline: isProductQuestion (gate) → embedQuery (gemini-embedding-001, RETRIEVAL_QUERY, 768)
- *   → retrieveContext (RPC match_kb_chunks top-20 → rerank เหลือ 5) → answerFlowQuestion (gemini-2.5-flash)
+ *   → retrieveContext (RPC match_kb_hybrid top-20 = vector+คำสำคัญ รวมด้วย RRF → rerank เหลือ 5)
+ *   → answerFlowQuestion (gemini-2.5-flash)
  *
  * ⚠️ ฝั่ง ingestion (scripts/kb-embed.mjs) ใช้ gemini-embedding-001 + 768 + RETRIEVAL_DOCUMENT
  *    ที่นี่ต้องใช้ model + มิติเดียวกัน (RETRIEVAL_QUERY) ไม่งั้น vector space ไม่ตรง retrieve เพี้ยน
@@ -26,6 +27,7 @@ const RETRIEVE_COUNT = 20;
 const CONTEXT_COUNT = 5;
 const MIN_SIMILARITY = 0.6; // soft pre-filter — on-topic ~0.67+, off-topic ≤0.62 (calibrated)
 // ⚠️ ยังเป็นด่าน off-topic ตัวจริง (reranker fail-open) ห้ามลดเพราะ "มี reranker แล้ว"
+// สายคำสำคัญมีด่านของตัวเองใน RPC (`lex_min_similarity` 0.45 + df guard) — ทั้งสองสายต้องมีด่านเสมอ
 
 const BOT_NAME = "ผู้ช่วยโฟล์";
 
@@ -130,6 +132,8 @@ type KbMatch = {
   heading: string;
   content: string;
   similarity: number;
+  /** keyword = เจอคำสำคัญ/ตัวอักษรตรงกัน · vector = ใกล้เชิงความหมาย · both = ทั้งคู่ */
+  matched_by?: "vector" | "keyword" | "both";
 };
 
 /** ดึง context ที่เกี่ยวข้องจาก knowledge base (service role ผ่าน RPC) */
@@ -139,12 +143,15 @@ export async function retrieveContext(
   apiKey: string,
 ): Promise<KbMatch[]> {
   const embedding = await embedQuery(query, apiKey);
-  const { data, error } = await admin.rpc("match_kb_chunks", {
+  // hybrid: เวกเตอร์ (ความหมาย) + คำสำคัญ (ตัวอักษร) รวมอันดับด้วย RRF ใน RPC
+  // — embedding พลาดคำเฉพาะเป็นประจำ (PDPA / MoM / ตัวเลขราคา) เพราะวัดความใกล้เชิงความหมายอย่างเดียว
+  const { data, error } = await admin.rpc("match_kb_hybrid", {
     query_embedding: embedding,
+    p_question: query,
     match_count: RETRIEVE_COUNT,
     min_similarity: MIN_SIMILARITY,
   });
-  if (error) throw new Error(`match_kb_chunks: ${error.message}`);
+  if (error) throw new Error(`match_kb_hybrid: ${error.message}`);
   const hits = (data ?? []) as KbMatch[];
   if (hits.length === 0) return hits;
 
