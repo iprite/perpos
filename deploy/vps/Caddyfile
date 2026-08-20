@@ -65,6 +65,17 @@ app.perpos.ai, mail.perpos.ai {
 app.exworker.co.th {
 	import cf_tls
 	encode zstd gzip
+
+	# บ้านของหน้าแชทย้ายไป chat.exworker.co.th แล้ว — URL เก่ายังใช้ได้ (โฆษณา/ลิงก์ที่ส่งกันไปแล้ว)
+	# 302 ไม่ใช่ 301: เบราว์เซอร์จำ 301 ถาวร ย้ายกลับไม่ได้ · ต้องพา query string ไปด้วย ไม่งั้น gclid หาย
+	# ⚠️ เฉพาะ path ของหน้าเว็บ — ห้ามแตะ /api/public/chat (หน้าแชทกับ smoke test ยิงตรงเข้า API)
+	@chat_moved_q {
+		path /public/chat
+		expression {query} != ""
+	}
+	redir @chat_moved_q https://chat.exworker.co.th/?{query} 302
+	redir /public/chat https://chat.exworker.co.th/ 302
+
 	import exapp_upstream
 }
 
