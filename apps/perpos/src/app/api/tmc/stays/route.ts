@@ -91,6 +91,36 @@ async function createDepositFinanceEntry(opts: {
 type RoomInput = { code: string; checkIn: string; checkOut: string; roomRate: number | null };
 
 /**
+ * ตัวเลขจาก body — ไม่ส่ง/null/ค่าว่าง = null · **เลข 0 ต้องได้ 0 ไม่ใช่ null**
+ * (ท่าเดิม `body.x ? Number(x) : null` ทำให้ "ไม่คิดค่าห้อง" กับ "ยังไม่กรอก" กลายเป็นค่าเดียวกัน)
+ */
+function numOrNull(v: unknown): number | null {
+  if (v === undefined || v === null || String(v).trim() === "") return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
+/** ประเภทการเข้าพักที่ไม่เกิดรายได้ค่าห้อง — เว้นค่าห้องว่างได้ */
+const NON_REVENUE_STAY_TYPES = new Set(["influencer", "management", "free"]);
+
+/**
+ * ค่าห้องเป็นข้อมูลบังคับของการเข้าพักแบบมีรายได้ (`paid`)
+ * — รายได้/อัตราการเข้าพักบนรายงานคิดจากคอลัมน์นี้ ค่าว่างจึง "หายเงียบ" ไปจากยอด
+ * ยอดรวมระดับ booking (`roomRate`) ใช้แทนยอดรายห้องได้ (หารเท่ากันตอนบันทึก)
+ */
+function validateRoomRates(
+  stayType: string,
+  rooms: RoomInput[],
+  bookingRate: number | null,
+): string | null {
+  if (NON_REVENUE_STAY_TYPES.has(stayType)) return null;
+  if (bookingRate !== null) return null;
+  const missing = rooms.filter((r) => r.roomRate === null).map((r) => r.code);
+  if (missing.length === 0) return null;
+  return `ต้องระบุค่าห้องของ ${missing.join(", ")} — เว้นว่างได้เฉพาะการเข้าพักที่ไม่คิดค่าห้อง (ฟรี/อินฟลูฯ/ผู้บริหาร)`;
+}
+
+/**
  * อ่านรายละเอียดรายห้องจาก body — 1 booking ระบุวันที่/ยอดแยกต่อห้องได้
  * รองรับทั้ง `rooms[]` (ท่าใหม่) และท่าเดิม (propertyCodes + วันที่ชุดเดียว)
  */
@@ -110,10 +140,7 @@ function parseRooms(body: Record<string, unknown>): { rooms: RoomInput[] } | { e
           code: String(r.code ?? "").trim(),
           checkIn: String(r.checkIn ?? body.checkIn ?? ""),
           checkOut: String(r.checkOut ?? body.checkOut ?? ""),
-          roomRate:
-            r.roomRate !== undefined && r.roomRate !== null && String(r.roomRate) !== ""
-              ? Number(r.roomRate)
-              : null,
+          roomRate: numOrNull(r.roomRate),
         }))
       : legacyCodes.map((code) => ({
           code,
@@ -278,7 +305,9 @@ export async function POST(req: NextRequest) {
 
   const count = rooms.length;
 
-  const roomRate = body.roomRate ? Number(body.roomRate) : null;
+  const roomRate = numOrNull(body.roomRate);
+  const rateErr = validateRoomRates(String(body.stayType ?? "paid"), rooms, roomRate);
+  if (rateErr) return NextResponse.json({ error: rateErr }, { status: 400 });
   const promotionPct = body.promotionPct ? Number(body.promotionPct) : null;
   const depositAmount = body.depositAmount ? Number(body.depositAmount) : null;
 
@@ -480,7 +509,9 @@ export async function PUT(req: NextRequest) {
 
   // ยอดห้อง: รายห้องถ้าส่งมา · เงินมัดจำที่รับ/คืนเป็นยอดรวม booking หารเท่ากันต่อห้อง (ท่าเดียวกับตอนสร้าง)
   const count = rooms.length;
-  const roomRate = body.roomRate ? Number(body.roomRate) : null;
+  const roomRate = numOrNull(body.roomRate);
+  const rateErr = validateRoomRates(String(body.stayType ?? "paid"), rooms, roomRate);
+  if (rateErr) return NextResponse.json({ error: rateErr }, { status: 400 });
   const depositAmount = body.depositAmount ? Number(body.depositAmount) : null;
   const depositReceived = body.depositReceived ? Number(body.depositReceived) : null;
   const depositReturned = body.depositReturned ? Number(body.depositReturned) : null;

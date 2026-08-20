@@ -201,6 +201,9 @@ function fmt(n: number | null) {
   if (!n && n !== 0) return "—";
   return n.toLocaleString("th-TH");
 }
+/** ประเภทการเข้าพักที่ไม่เกิดรายได้ค่าห้อง — เว้นค่าห้องว่างได้ (ต้องตรงกับฝั่ง API) */
+const NON_REVENUE_STAY_TYPES = new Set(["influencer", "management", "free"]);
+
 function stayTypeLabel(t: string) {
   return STAY_TYPES.find((s) => s.value === t)?.label ?? t;
 }
@@ -411,6 +414,13 @@ export default function TmcStaysPage() {
         setFormError(`ห้อง ${r.code}: วันเช็คเอาท์ต้องอยู่หลังวันเช็คอิน (อย่างน้อย 1 คืน)`);
         return;
       }
+      // ค่าห้องว่าง = รายได้หายจากรายงานแบบเงียบ ๆ → บังคับกรอกเมื่อเป็นการเข้าพักที่คิดเงิน
+      if (!NON_REVENUE_STAY_TYPES.has(form.stayType) && r.roomRate === null) {
+        setFormError(
+          `ต้องระบุค่าห้องของ ${r.code} — เว้นว่างได้เฉพาะการเข้าพักที่ไม่คิดค่าห้อง (ฟรี/อินฟลูฯ/ผู้บริหาร)`,
+        );
+        return;
+      }
     }
     setSaving(true);
     setFormError("");
@@ -507,11 +517,17 @@ export default function TmcStaysPage() {
     ci && co && co > ci
       ? Math.round((new Date(co).getTime() - new Date(ci).getTime()) / 86_400_000)
       : 0;
+  // ค่าห้องบังคับเมื่อเป็นการเข้าพักที่มีรายได้ — ประเภทฟรี/อินฟลูฯ/ผู้บริหาร เว้นว่างได้
+  const needsRate = !NON_REVENUE_STAY_TYPES.has(form.stayType);
+  const rateFilled = (code: string) =>
+    multiRoom ? effectiveRoom(code).rate !== "" : form.roomRate !== "";
   const roomsValid =
     form.propertyCodes.length > 0 &&
     form.propertyCodes.every((code) => {
       const r = effectiveRoom(code);
-      return !!r.checkIn && !!r.checkOut && r.checkOut > r.checkIn;
+      return (
+        !!r.checkIn && !!r.checkOut && r.checkOut > r.checkIn && (!needsRate || rateFilled(code))
+      );
     });
   const totalRoomRate = multiRoom
     ? form.propertyCodes.reduce((s, code) => s + (Number(effectiveRoom(code).rate) || 0), 0)
@@ -641,7 +657,7 @@ export default function TmcStaysPage() {
                       />
                       <Input
                         type="number"
-                        placeholder="ยอดห้อง"
+                        placeholder={needsRate ? "ยอดห้อง *" : "ยอดห้อง"}
                         value={r.rate}
                         onChange={(e) => setDetail({ rate: e.target.value })}
                       />
@@ -730,7 +746,7 @@ export default function TmcStaysPage() {
         <p className="mb-3 text-sm font-semibold text-slate-700">💰 ยอดเงิน</p>
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5">
-            <Label>ยอดที่พัก (บาท)</Label>
+            <Label>{needsRate ? "ยอดที่พัก (บาท) *" : "ยอดที่พัก (บาท)"}</Label>
             {multiRoom ? (
               <>
                 <Input type="number" value={totalRoomRate || ""} disabled readOnly />
