@@ -13,6 +13,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { availableNightsIn, isOpenOn, openCodesOn, type RentableProperty } from "./rentable";
+import { NON_REVENUE_STAY_TYPES, stayRevenueOf } from "./stay-types";
 
 const DAY_MS = 86_400_000;
 
@@ -71,9 +72,6 @@ export type TmcDailyOccupancy = {
   }>;
 };
 
-/** ชนิดการเข้าพักที่ "ไม่เกิดรายได้ค่าห้อง" — ให้ห้องฟรี (อินฟลู/ผู้บริหาร/อื่น ๆ) */
-const NON_REVENUE_STAY_TYPES = new Set(["influencer", "management", "free"]);
-
 type StayRow = {
   stay_type: string | null;
   property_code: string | null;
@@ -89,6 +87,7 @@ type BookingRow = {
   nights: number | null;
   room_rate: number | null;
   created_at: string;
+  stay_type: string | null;
 };
 
 /** วันที่ปัจจุบันตามเวลาไทย (UTC+7) — cron รันบนเครื่อง UTC */
@@ -144,7 +143,7 @@ export async function computeTmcDailyOccupancy(
     // ใบจองที่ "เข้ามา" ตั้งแต่ต้นเดือน — ช่วงเวลาไทย (created_at เป็น timestamptz)
     db
       .from("tmc_stays")
-      .select("booking_group_id, nights, room_rate, created_at")
+      .select("booking_group_id, nights, room_rate, created_at, stay_type")
       .eq("org_id", orgId)
       .gte("created_at", `${monthStart}T00:00:00+07:00`)
       .lt("created_at", `${addDays(date, 1)}T00:00:00+07:00`),
@@ -178,7 +177,8 @@ export async function computeTmcDailyOccupancy(
     bookings: new Set(rows.map((b, i) => b.booking_group_id ?? `row-${i}`)).size,
     rooms: rows.length,
     nights: rows.reduce((s, b) => s + Number(b.nights ?? 0), 0),
-    value: +rows.reduce((s, b) => s + Number(b.room_rate ?? 0), 0).toFixed(2),
+    // ประเภทที่ไม่คิดเงินมีมูลค่า 0 เสมอ แม้กรอกค่าห้องไว้ (lib/tmc/stay-types.ts)
+    value: +rows.reduce((s, b) => s + stayRevenueOf(b), 0).toFixed(2),
   });
   const todayBookings = sumBookings(bookings.filter((b) => bookedOn(b) === date));
   const mtdBookings = sumBookings(bookings);
@@ -253,7 +253,7 @@ export async function computeTmcDailyOccupancy(
       freeRate: availableNights > 0 ? +((freeNights / availableNights) * 100).toFixed(1) : null,
       stayRevenue: +stays
         .filter((s) => s.check_in >= monthStart && s.check_in <= monthEnd)
-        .reduce((sum, r) => sum + Number(r.room_rate ?? 0), 0)
+        .reduce((sum, r) => sum + stayRevenueOf(r), 0)
         .toFixed(2),
       bookings: mtdBookings.bookings,
       rooms: mtdBookings.rooms,

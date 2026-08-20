@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "../../_lib/supabase";
 import { requireTmcMember } from "../_lib";
 import { recordMetric } from "@/lib/metrics";
+import { NON_REVENUE_STAY_TYPES } from "@/lib/tmc/stay-types";
 
 const DEFAULT_ACCOUNT_ID = "a4ee27ea-6568-4097-abd7-a91fbf4805d0"; // กสิกร ออมทรัพย์
 
@@ -99,9 +100,6 @@ function numOrNull(v: unknown): number | null {
   const n = Number(v);
   return Number.isFinite(n) ? n : null;
 }
-
-/** ประเภทการเข้าพักที่ไม่เกิดรายได้ค่าห้อง — เว้นค่าห้องว่างได้ */
-const NON_REVENUE_STAY_TYPES = new Set(["influencer", "management", "free"]);
 
 /**
  * ค่าห้องเป็นข้อมูลบังคับของการเข้าพักแบบมีรายได้ (`paid`)

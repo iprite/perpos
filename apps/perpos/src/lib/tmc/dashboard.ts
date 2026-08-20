@@ -12,6 +12,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { availableNightsIn, isOpenOn, openCodesOn, type RentableProperty } from "./rentable";
+import { stayRevenueOf } from "./stay-types";
 
 export type Totals = {
   finance: { income: number; expense: number };
@@ -124,7 +125,7 @@ export async function computeTmcDashboard(
     db
       .from("tmc_stays")
       .select(
-        "check_in, check_out, room_rate, food_amount, drink_amount, mookata_amount, bbq_amount, property_code",
+        "check_in, check_out, room_rate, stay_type, food_amount, drink_amount, mookata_amount, bbq_amount, property_code",
       )
       .eq("org_id", orgId)
       .lte("check_in", to)
@@ -182,7 +183,7 @@ export async function computeTmcDashboard(
       const m = s.check_in.slice(0, 7);
       if (!staysByMonth[m]) staysByMonth[m] = { stays: 0, nights: 0, revenue: 0, food: 0 };
       staysByMonth[m].stays++;
-      staysByMonth[m].revenue += Number(s.room_rate ?? 0);
+      staysByMonth[m].revenue += stayRevenueOf(s);
       staysByMonth[m].food +=
         Number(s.food_amount ?? 0) +
         Number(s.drink_amount ?? 0) +
@@ -243,7 +244,7 @@ export async function computeTmcDashboard(
     if (!staysByProp[k]) staysByProp[k] = { stays: 0, nights: 0, revenue: 0 };
     if (s.check_in >= from && s.check_in <= to) {
       staysByProp[k].stays++;
-      staysByProp[k].revenue += Number(s.room_rate ?? 0);
+      staysByProp[k].revenue += stayRevenueOf(s);
     }
     // คืนต่อห้อง = คืนที่พักจริงในช่วง (clip)
     staysByProp[k].nights += Object.values(
