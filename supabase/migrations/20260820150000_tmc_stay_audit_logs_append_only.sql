@@ -7,3 +7,7 @@ REVOKE UPDATE, DELETE ON tmc_stay_audit_logs FROM service_role;
 
 -- INSERT ยังต้องได้ (route เขียน log ก่อนลบ stay เสมอ)
 GRANT INSERT, SELECT ON tmc_stay_audit_logs TO service_role;
+
+-- ปิดช่อง TRUNCATE ที่ติดมากับ default grant ของ Supabase
+-- (TRUNCATE ล้างทั้งตารางได้โดยไม่ผ่าน RLS = ลบร่องรอยทั้งก้อน)
+REVOKE TRUNCATE ON tmc_stay_audit_logs FROM anon, authenticated, service_role;
