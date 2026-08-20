@@ -2,12 +2,13 @@
  * ผู้ช่วยขาย TMC (@tmcvilla) — RAG ตอบคำถามลูกค้าเรื่องเข้าพัก
  *
  * pipeline: embedQuery (gemini-embedding-001, RETRIEVAL_QUERY, 768)
- *   → match_tmc_kb_chunks (org scope, service role) → Gemini ตอบจาก context เท่านั้น
+ *   → match_tmc_kb_hybrid (org scope, service role) → rerank เหลือ 8 → Gemini ตอบจาก context เท่านั้น
  *
  * ⚠️ ฝั่ง ingestion (embedArticle ในไฟล์นี้) ใช้ model + มิติเดียวกัน (RETRIEVAL_DOCUMENT)
  *    เปลี่ยนที่ใดที่หนึ่ง vector space จะไม่ตรงกัน → retrieve เพี้ยนทั้งระบบ
  */
 import type { createAdminClient } from "../../app/api/_lib/supabase";
+import { rerankChunks } from "@/lib/ai/rerank";
 import { recordGeminiEmbedUsage, recordGeminiFromMetadata } from "@/lib/usage/record";
 import { rulesBlock } from "./bot-rules";
 
@@ -18,6 +19,8 @@ const EMBED_MODEL = "gemini-embedding-001";
 const EMBED_DIM = 768;
 const ANSWER_MODEL = "gemini-2.5-flash";
 const MATCH_COUNT = 8;
+/** ตอนตอบลูกค้าดึงกว้างกว่านี้แล้วให้ reranker คัดเหลือ MATCH_COUNT (cosine ไม่รู้ว่า "ตอบคำถามได้ไหม") */
+const RETRIEVE_COUNT = 20;
 
 /** ความยาวสูงสุดต่อ chunk (ตัวอักษร) — บทความยาวถูกซอยตามย่อหน้า */
 const MAX_CHUNK_CHARS = 900;
@@ -164,6 +167,7 @@ export async function retrieveContext(
   orgId: string,
   question: string,
   minSimilarity: number,
+  matchCount: number = MATCH_COUNT,
 ): Promise<RetrievedChunk[]> {
   const vector = await embed(question, "RETRIEVAL_QUERY");
   // ผสม vector + คำสำคัญ — ภาษาไทยไม่มีช่องว่าง embedding จึงพลาดคำเฉพาะ (คาราโอเกะ/BBQ)
@@ -171,7 +175,7 @@ export async function retrieveContext(
     p_org_id: orgId,
     query_embedding: JSON.stringify(vector),
     p_question: question,
-    match_count: MATCH_COUNT,
+    match_count: matchCount,
     min_similarity: minSimilarity,
   });
   if (error) throw new Error(`retrieve ล้มเหลว: ${error.message}`);
@@ -337,10 +341,28 @@ export async function answerSalesQuestion(args: {
   } = args;
 
   // ดึงกว้างกว่าเกณฑ์เล็กน้อย เพื่อให้โมเดลเห็นบริบทข้างเคียง แล้วค่อยตัดสินด้วยคะแนนสูงสุด
-  const chunks = await retrieveContext(admin, orgId, question, Math.max(0, minSimilarity - 0.1));
-  const best = chunks[0]?.similarity ?? 0;
-  if (!chunks.length || best < minSimilarity)
+  const hits = await retrieveContext(
+    admin,
+    orgId,
+    question,
+    Math.max(0, minSimilarity - 0.1),
+    RETRIEVE_COUNT,
+  );
+  // ⚠️ ด่าน on/off-topic ตัดสินจาก similarity **ดิบ** ก่อน rerank เสมอ
+  // (reranker fail-open — ถ้าไปวัดจากลำดับหลัง rerank ด่านนี้จะเชื่อถือไม่ได้)
+  const best = hits.reduce((m, c) => Math.max(m, c.similarity ?? 0), 0);
+  if (!hits.length || best < minSimilarity)
     return { answer: null, bestSimilarity: best, needsAdmin: false };
+
+  const chunks = await rerankChunks({
+    query: question,
+    items: hits,
+    toText: (c) => `${c.title}\n${c.content}`,
+    topK: MATCH_COUNT,
+    feature: "tmc.sales_bot",
+    orgId,
+    apiKey: process.env.GEMINI_API_KEY ?? "",
+  });
 
   const context = chunks
     .map(

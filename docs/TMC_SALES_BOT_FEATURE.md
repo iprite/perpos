@@ -71,7 +71,7 @@ verify signature (TMC secret) → resolve org → upsert contact → บัน�
   → อยู่โหมดคนจริง (human_until ยังไม่หมด)        → เงียบ
   → wantsHuman()                                  → handoff_text + escalate(request_human)
   → isSmallTalk() (ทักทายสั้น ๆ)                   → greeting_text
-  → RAG: embed → match_tmc_kb_chunks → Gemini ตอบ
+  → RAG: embed → match_tmc_kb_hybrid (top-20) → rerank เหลือ 8 → Gemini ตอบ
         ตอบได้    → ส่งคำตอบ
         ตอบไม่ได้ → fallback_text + escalate(no_answer)
 ```
@@ -79,6 +79,10 @@ verify signature (TMC secret) → resolve org → upsert contact → บัน�
 - `maxDuration = 30` · reply แบบ inline (latency ~3–5 วิ) เหมือนผู้ช่วยโฟล์
 - ข้อความเดียวพัง ไม่ทำให้ทั้ง batch fail (LINE retry ทั้งก้อน → กันตอบซ้ำด้วย unique index บน `line_message_id`)
 - ส่งประวัติ 6 ข้อความล่าสุดเข้า prompt ให้บอทเข้าใจบริบทต่อเนื่อง
+- **reranker (2026-08-20)** — [`lib/ai/rerank.ts`](../apps/perpos/src/lib/ai/rerank.ts) ใช้ร่วมกับผู้ช่วยโฟล์ ให้ Gemini ให้คะแนน
+  (คำถาม, chunk) แล้วเก็บ 8 ชิ้นที่ตอบคำถามได้จริง · **fail-open** (พัง/ช้าเกิน 6 วิ = ใช้ลำดับ retrieval เดิม)
+  ⚠️ **ด่านตัดสิน "ตอบได้/ต้องส่งต่อคน" ยังวัดจาก `similarity` ดิบก่อน rerank เสมอ** — ถ้าย้ายไปวัดจากลำดับหลัง rerank
+  วันที่ reranker ล่ม บอทจะเดาตอบทั้งที่ควรเรียกแอดมิน
 
 ---
 
