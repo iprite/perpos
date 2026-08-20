@@ -7,6 +7,25 @@ const DEFAULT_ACCOUNT_ID = "a4ee27ea-6568-4097-abd7-a91fbf4805d0"; // กสิ�
 
 // ── Audit log helper ──────────────────────────────────────────────────────────
 
+/** อีเมลผู้ทำรายการ — denormalise ลง log เพื่อให้ยังรู้ว่าใครทำแม้ผู้ใช้ถูกลบทีหลัง */
+const actorEmailCache = new Map<string, string | null>();
+
+async function resolveActorEmail(actorId: string): Promise<string | null> {
+  if (actorEmailCache.has(actorId)) return actorEmailCache.get(actorId) ?? null;
+  try {
+    const { data } = await createAdminClient()
+      .from("profiles")
+      .select("email")
+      .eq("id", actorId)
+      .maybeSingle();
+    const email = ((data as { email?: string | null } | null)?.email ?? null) || null;
+    actorEmailCache.set(actorId, email);
+    return email;
+  } catch {
+    return null;
+  }
+}
+
 async function writeAuditLog(opts: {
   orgId: string;
   stayId: string;
@@ -24,7 +43,7 @@ async function writeAuditLog(opts: {
       stay_id: opts.stayId,
       action: opts.action,
       actor_id: opts.actorId,
-      actor_email: opts.actorEmail ?? null,
+      actor_email: opts.actorEmail ?? (await resolveActorEmail(opts.actorId)),
       old_data: opts.oldData ?? null,
       new_data: opts.newData ?? null,
       note: opts.note ?? null,
@@ -647,11 +666,10 @@ export async function DELETE(req: NextRequest) {
   const note = p.get("note") ?? null; // optional reason
   if (!id || !orgId) return NextResponse.json({ error: "missing id or orgId" }, { status: 400 });
 
+  // สมาชิก TMC ทุกคนลบได้ (เท่ากับสิทธิ์เพิ่ม/แก้ไข ซึ่งเอาห้องออกได้อยู่แล้วผ่าน PUT)
+  // ร่องรอยคุมด้วย tmc_stay_audit_logs ที่เขียนก่อนลบเสมอ — ไม่ใช่ด้วยการห้ามลบ
   const auth = await requireTmcMember(req, orgId);
   if (!auth.ok) return auth.res;
-  if (!["owner", "admin", "team_lead"].includes(auth.role)) {
-    return NextResponse.json({ error: "ต้องการสิทธิ์ team_lead ขึ้นไป" }, { status: 403 });
-  }
 
   const admin = createAdminClient();
 
