@@ -2,13 +2,14 @@
  * ผู้ช่วยโฟล์ (Flow RAG) — ตอบคำถามลูกค้าเกี่ยวกับ PERPOS / Flow / Suite บน LINE
  *
  * pipeline: isProductQuestion (gate) → embedQuery (gemini-embedding-001, RETRIEVAL_QUERY, 768)
- *   → retrieveContext (RPC match_kb_chunks, service role) → answerFlowQuestion (gemini-2.5-flash)
+ *   → retrieveContext (RPC match_kb_chunks top-20 → rerank เหลือ 5) → answerFlowQuestion (gemini-2.5-flash)
  *
  * ⚠️ ฝั่ง ingestion (scripts/kb-embed.mjs) ใช้ gemini-embedding-001 + 768 + RETRIEVAL_DOCUMENT
  *    ที่นี่ต้องใช้ model + มิติเดียวกัน (RETRIEVAL_QUERY) ไม่งั้น vector space ไม่ตรง retrieve เพี้ยน
  */
 import type { createAdminClient } from "../../app/api/_lib/supabase";
 
+import { rerankChunks } from "@/lib/ai/rerank";
 import { recordGeminiEmbedUsage, recordGeminiFromMetadata } from "@/lib/usage/record";
 
 type Admin = ReturnType<typeof createAdminClient>;
@@ -20,8 +21,11 @@ const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
 const EMBED_MODEL = "gemini-embedding-001";
 const EMBED_DIM = 768;
 const ANSWER_MODEL = "gemini-2.5-flash";
-const MATCH_COUNT = 5;
+// ดึงกว้างแล้วให้ reranker คัด — cosine บอกแค่ "เรื่องใกล้กัน" ไม่ได้บอกว่า "ตอบคำถามนี้ได้"
+const RETRIEVE_COUNT = 20;
+const CONTEXT_COUNT = 5;
 const MIN_SIMILARITY = 0.6; // soft pre-filter — on-topic ~0.67+, off-topic ≤0.62 (calibrated)
+// ⚠️ ยังเป็นด่าน off-topic ตัวจริง (reranker fail-open) ห้ามลดเพราะ "มี reranker แล้ว"
 
 const BOT_NAME = "ผู้ช่วยโฟล์";
 
@@ -137,11 +141,22 @@ export async function retrieveContext(
   const embedding = await embedQuery(query, apiKey);
   const { data, error } = await admin.rpc("match_kb_chunks", {
     query_embedding: embedding,
-    match_count: MATCH_COUNT,
+    match_count: RETRIEVE_COUNT,
     min_similarity: MIN_SIMILARITY,
   });
   if (error) throw new Error(`match_kb_chunks: ${error.message}`);
-  return (data ?? []) as KbMatch[];
+  const hits = (data ?? []) as KbMatch[];
+  if (hits.length === 0) return hits;
+
+  // ชั้นที่สอง: ให้โมเดลตัดสินว่า chunk ไหน "ตอบคำถามนี้ได้จริง" แล้วเหลือเท่าที่ยัดเข้า prompt ไหว
+  return rerankChunks({
+    query,
+    items: hits,
+    toText: (c) => `${c.title} — ${c.heading}\n${c.content}`,
+    topK: CONTEXT_COUNT,
+    feature: USAGE_FEATURE,
+    apiKey,
+  });
 }
 
 const FALLBACK_NO_CONTEXT =

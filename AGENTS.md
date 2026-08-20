@@ -184,7 +184,8 @@ pnpm build
 
 - **ใครใช้ได้:** ทุกคนที่แอด OA — **ไม่ต้องผูกบัญชี** (pre-sales/ถามก่อนซื้อ) · branch วางก่อนด่าน profile ใน webhook
 - **ทริกเกอร์:** free text ที่ผ่าน `isProductQuestion()` (heuristic: มีเครื่องหมาย/คำถาม หรือคำโดเมน PERPOS) เท่านั้น → กันทักทาย/สแปม + คุมต้นทุน
-- **flow:** `isProductQuestion` → `incr_flow_chat_usage` (rate-limit 30/คน/วัน) → `answerFlowQuestion()` (embed query → `match_kb_chunks` → Gemini) → `replyText` **inline** (webhook `maxDuration=30`, latency ~3–5 วิ)
+- **flow:** `isProductQuestion` → `incr_flow_chat_usage` (rate-limit 30/คน/วัน) → `answerFlowQuestion()` (embed query → `match_kb_chunks` **top-20** → **rerank เหลือ 5** → Gemini) → `replyText` **inline** (webhook `maxDuration=30`, latency ~3–5 วิ)
+- **reranker (2026-08-20):** ชั้นคัดกรองที่สอง [`lib/ai/rerank.ts`](apps/perpos/src/lib/ai/rerank.ts) ใช้ร่วมกับผู้ช่วยขาย TMC — cosine บอกแค่ "เรื่องใกล้กัน" ไม่ได้บอกว่า "ตอบคำถามนี้ได้" · **fail-open เสมอ** (พัง/ช้าเกิน 6 วิ = ใช้ลำดับ retrieval เดิม) ⇒ **ด่าน off-topic ยังเป็น `MIN_SIMILARITY` ของผู้เรียก ห้ามลดเพราะ "มี reranker แล้ว"**
 - **embedding:** `gemini-embedding-001` (768 มิติ, `RETRIEVAL_QUERY`/`RETRIEVAL_DOCUMENT`) · **answer:** `gemini-2.5-flash` (`thinkingBudget:0` → เร็วขึ้น ~4 เท่า) · guardrail: ตอบจาก context เท่านั้น ไม่มี→ปฏิเสธสุภาพ + ชวนติดต่อ
 - **Knowledge base:** เขียนเองที่ [`docs/knowledge/*.md`](docs/knowledge/) (about/flow/suite/pricing/privacy/pdpa/security) — แก้แล้ว **ต้อง re-embed:** `pnpm kb:embed` ([scripts/kb-embed.mjs](scripts/kb-embed.mjs), อ่าน key จาก `apps/perpos/.env.local`)
 - **DB:** `kb_chunks` (vector(768) + hnsw) · `flow_chat_usage` (rate-limit) · RPC `match_kb_chunks` / `upsert_kb_chunk` / `incr_flow_chat_usage` (SECURITY DEFINER, service role เท่านั้น) — migration [`flow_rag_kb.sql`](supabase/migrations/flow_rag_kb.sql)
@@ -384,6 +385,7 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 | `lib/assistant/mom-html.ts`             | buildMomHtml + MOM_FOOTER_TEMPLATE (ใช้ร่วม mom-pdf/mom-deliver)                 |
 | `lib/assistant/stt-cost.ts`             | โมเดลราคา Gemini สำหรับคิดต้นทุนต่อ job                                          |
 | `lib/assistant/flow-rag.ts`             | ผู้ช่วยโฟล์ (RAG) — isProductQuestion + retrieveContext + answerFlowQuestion     |
+| `lib/ai/rerank.ts`                      | reranker ของ RAG (flow-rag + tmc sales-bot) — คัด top-k ด้วย Gemini · fail-open  |
 | `lib/accounting/sales-journal.ts`       | จุดรับรู้รายได้ฝั่งขาย + `selectBillingDocuments`/`billingSign` (กฎเดียวกับ KPI) |
 | `lib/accounting/purchase-journal.ts`    | ลงบัญชีฝั่งซื้อ (Dr ค่าใช้จ่าย+ภาษีซื้อ / Cr เจ้าหนี้+WHT) idempotent            |
 | `lib/accounting/document-html.ts`       | HTML A4 ของเอกสารภาษี (ส่งเข้า pdf-renderer) + `bahtText` แหล่งเดียว             |
