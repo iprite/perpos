@@ -88,6 +88,16 @@ app.exworker.co.th {
 chat.exworker.co.th {
 	import cf_tls
 	encode zstd gzip
+	# `/public/chat` บนโดเมนนี้คือ URL ซ้ำของ `/` (rewrite ข้างล่างพาไปหน้าเดียวกันเป๊ะ) — ยุบให้เหลือ URL เดียว
+	# ไม่งั้น Google index ซ้ำ + GA4 แยก pageview เป็นคนละหน้า ทำให้ตัวเลข conversion ของโดเมนโฆษณาเพี้ยน
+	# 301 ได้เพราะ path นี้เป็นนามแฝงถาวร · ไม่วนลูป: Caddy รัน redir **ก่อน** rewrite เสมอ
+	@dup_chat_q {
+		path /public/chat
+		expression {query} != ""
+	}
+	redir @dup_chat_q /?{query} 301
+	redir /public/chat / 301
+
 	rewrite / /public/chat
 
 	@chat path /public/chat /public/chat/* /api/public/chat /api/public/chat/* /api/auth/line/callback /_next/* /favicon.ico
