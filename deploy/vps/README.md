@@ -38,7 +38,7 @@ echo "CLOUDFLARE_API_TOKEN=..." > /srv/deploy/.env   # token สิทธิ์ 
 cd /srv/deploy && docker compose up -d caddy
 ```
 
-**สถานะ 2026-08-19 (ครบทุกเฟส)**: เว็บ 3 แอป + **เมล Stalwart** อยู่บนเครื่องนี้ทั้งหมด · โดเมนเว็บ 4 ตัว = A `62.146.233.27` **เมฆส้ม** (Caddy `trusted_proxies cloudflare`) · ชื่อเมล 10 ตัว = A/AAAA เมฆเทา · cron ครบ (`/etc/cron.d/{perpos,exapp}`, scheduler ทุก 1 นาที) · Cloud Scheduler **ลบแล้ว 2026-08-19** · auto-deploy บน push main (path filter) · Contabo firewall + ufw · backup Stalwart → R2 14 ก้อน · Vercel 3 โปรเจกต์ + Contabo EU ยังไม่ปิด (rollback ได้ · ปิดหลังนิ่ง ~1 เดือน / D+7)
+**สถานะ 2026-08-19 (ครบทุกเฟส)**: เว็บ 3 แอป + **เมล Stalwart** อยู่บนเครื่องนี้ทั้งหมด · โดเมนเว็บ 5 ตัว (เพิ่ม `chat.exworker.co.th` 2026-08-20) = A `62.146.233.27` **เมฆส้ม** (Caddy `trusted_proxies cloudflare`) · ชื่อเมล 10 ตัว = A/AAAA เมฆเทา · cron ครบ (`/etc/cron.d/{perpos,exapp}`, scheduler ทุก 1 นาที) · Cloud Scheduler **ลบแล้ว 2026-08-19** · auto-deploy บน push main (path filter) · Contabo firewall + ufw · backup Stalwart → R2 14 ก้อน · Vercel 3 โปรเจกต์ + Contabo EU ยังไม่ปิด (rollback ได้ · ปิดหลังนิ่ง ~1 เดือน / D+7)
 · ค้าง: `NEXT_PUBLIC_LINE_OA_ADD_URL` (riekchang) · `GCP_SYNC_SA_KEY` (perpos cost sync) · หมุน `TURNSTILE_SECRET_KEY`/R2 token ที่ผ่านแชท · ตัด `stalwart.perpos.ai` จาก MTA-STS · ตัด IP EU จาก SPF + ลบ EU · ล็อก VPS 24 เดือน · (ทางเลือก) R2 lifecycle + token ไม่มี delete · Caddy PROXY protocol → Stalwart เห็น IP จริง
 
 ## Deploy
@@ -52,6 +52,36 @@ cd /srv/deploy && docker compose up -d caddy
 - cron บน host (`/etc/cron.d/perpos`) ยิงผ่าน Caddy: `curl --resolve app.perpos.ai:443:127.0.0.1 https://app.perpos.ai/api/...` (container ทั้ง 3 แอปไม่ publish port ออก host แล้ว — สองสี bind port เดียวกันไม่ได้ · exapp cron ก็ยิงผ่าน `--resolve app.exworker.co.th:443:127.0.0.1` เช่นกัน)
 - `NEXT_PUBLIC_*` inline ตอน build — เปลี่ยนค่าต้อง build ใหม่ (เหมือน Vercel) · env ฝั่ง server แก้ที่ `/srv/apps/perpos/.env` แล้ว restart พอ
 - exapp / riekchang: มี workflow เดียวกันใน repo ตัวเองแล้ว (`.github/workflows/deploy-vps.yml`) · ทั้งสองใช้ Supabase project เดียวกับ perpos แต่คนละ schema (`SUPABASE_SCHEMA=exapp` / `riekchang`)
+
+## Caddy — เพิ่ม/แก้โดเมน (ไม่มี CI ให้ ต้องมือ)
+
+`deploy/vps/Caddyfile` **ไม่อยู่ใน path filter ของ `deploy-vps`** — push แล้วไม่มีอะไรขึ้นเครื่องเอง
+ต้องส่งขึ้นเองทุกครั้ง ไม่งั้น repo กับของจริงจะไหลออกจากกันเงียบ ๆ
+
+```bash
+scp deploy/vps/Caddyfile perpos-sg:/tmp/Caddyfile.new
+ssh perpos-sg 'set -e
+  docker cp /tmp/Caddyfile.new deploy-caddy-1:/tmp/Caddyfile.new
+  docker exec deploy-caddy-1 caddy validate --config /tmp/Caddyfile.new --adapter caddyfile   # ไม่ผ่าน = หยุดตรงนี้
+  cp /srv/caddy/Caddyfile /srv/caddy/Caddyfile.bak-$(date +%Y%m%d%H%M)
+  cp /tmp/Caddyfile.new /srv/caddy/Caddyfile
+  docker exec -w /etc/caddy deploy-caddy-1 caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile'
+```
+
+`reload` ไม่ดับ Caddy (ไม่มี downtime) · พังเมื่อไหร่ = `cp` ไฟล์ `.bak-*` กลับแล้ว reload ซ้ำ
+· ปิดท้ายด้วย `md5sum` เทียบสองฝั่งให้แน่ใจว่าตรงกัน
+
+**เพิ่มโดเมนใหม่ต้องครบ 3 อย่าง ไม่งั้นพังเงียบ**
+
+1. DNS ที่ Cloudflare: A → `62.146.233.27` **เมฆส้ม** (token ใน `/srv/deploy/.env` เป็น zone-scoped ยิง API ได้ แต่แตะ Turnstile/account ไม่ได้)
+2. บล็อกใน Caddyfile + `import cf_tls` (ออกใบ origin ผ่าน DNS-01) — **ห้ามเปิดบล็อกทิ้งไว้ก่อนมี container รองรับ** เดี๋ยวโดน ACME rate limit
+3. ของฝั่งแอปที่ผูกกับ hostname: **Turnstile** ต้องอนุญาต hostname ใหม่ · **LINE Login** ต้องเพิ่ม callback (`getRedirectUri()` derive จาก host ของ request)
+
+**`chat.exworker.co.th` (2026-08-20)** — หน้าแชทน้องเอ็กซ์ บน instance `exapp` ตัวเดิม (snippet `exapp_upstream`)
+`rewrite / → /public/chat` · `/public/chat` 301 กลับมาที่ `/` (กัน URL ซ้ำ) · allowlist ให้เสิร์ฟ **เฉพาะ**
+path ของหน้าแชท ที่เหลือ 302 กลับ `app.exworker.co.th` — โดเมนนี้เอาไปยิงโฆษณา ห้ามให้ dashboard/หน้าล็อกอินโผล่
+· `app.exworker.co.th/public/chat` 302 มาที่นี่พร้อม query string (`gclid`/`utm_*` หายเมื่อไหร่ = Google Ads วัดผลไม่ได้)
+· ⚠️ **ห้าม redirect `/api/public/chat`** — หน้าเว็บกับ smoke test ยิงตรงเข้า API
 
 ## Scheduler worker (`perpos-worker`) — process ยาวแทน cron ยิง HTTP
 
