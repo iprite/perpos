@@ -59,7 +59,7 @@ jobs:
       - name: ดูว่าเพิ่ง auto-restart ไปหรือยัง
         if: steps.check.outputs.down == '1'
         id: last
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: .uptime-restart
           key: uptime-restart-${{ github.run_id }}
@@ -115,7 +115,7 @@ jobs:
           mkdir -p .uptime-restart && echo "$now" > .uptime-restart/ts
       - name: จำเวลา auto-restart
         if: contains('restarted ssh_failed restart_failed', steps.heal.outputs.result)
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
           path: .uptime-restart
           key: uptime-restart-${{ github.run_id }}
