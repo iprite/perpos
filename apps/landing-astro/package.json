@@ -13,17 +13,17 @@
   },
   "dependencies": {
     "@fontsource-variable/noto-sans-thai": "^5.3.0",
-    "astro": "^7.1.5",
+    "astro": "^7.2.4",
     "clsx": "^2.1.1",
     "tailwind-merge": "^3.6.0"
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.10",
-    "@astrojs/cloudflare": "^14.1.6",
+    "@astrojs/cloudflare": "^14.2.3",
     "@tailwindcss/vite": "^4.3.3",
     "@types/node": "^22",
     "tailwindcss": "^4.3.1",
     "typescript": "5.9.3",
-    "wrangler": "^4.115.0"
+    "wrangler": "^4.124.0"
   }
 }
